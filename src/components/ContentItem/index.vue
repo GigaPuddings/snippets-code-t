@@ -1,0 +1,89 @@
+<template>
+  <ContextMenu :menu="menu" @select="handleContextMenu">
+    <router-link 
+      :to="`/config/category/contentList/${content.category_id}/content/${content.id}`"
+      class="link"
+      active-class="active"
+    >
+      <div class="content-item-wrapper">
+        <div class="content-item-title">{{ content.title }}</div>
+        <div class="content-item-info">
+          <div class="content-item-info-category">{{ content.category_name }}</div>
+          <div class="content-item-info-time">{{ formatDate(content.created_at) }}</div>
+        </div>
+      </div>
+    </router-link>
+  </ContextMenu>
+</template>
+
+<script setup lang="ts">
+import { formatDate } from '@/utils'
+import { deleteFragment } from '@/database/fragment'
+import { useConfigurationStore } from '@/store'
+
+const store = useConfigurationStore()
+
+const props = defineProps<{
+  content: ContentType
+}>()
+const { content } = toRefs(props)
+const router = useRouter()
+
+defineOptions({
+  name: 'ContentItem'
+})
+
+const menu = [
+  {
+    label: '编辑',
+    type: 'edit'
+  },
+  {
+    label: '删除',
+    type: 'delete'
+  }
+]
+
+const handleContextMenu = (item: any) => {
+  if (item.type === 'edit') {
+    router.push(`/config/category/contentList/${content.value.category_id}/content/${content.value.id}`)
+  } else if (item.type === 'delete') {
+    deleteFragment(Number(content.value.id))
+    router.replace(`/config/category/contentList/${content.value.category_id}`)
+    store.contents = store.contents.filter(item => item.id !== Number(content.value.id))
+  }
+}
+
+</script>
+
+<style scoped lang="scss">
+@mixin commonLink {
+  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-[#f4f4f5] dark:hover:bg-[#5977cb] hover:border-b-slate-100 border-b-transparent;
+}
+
+.link {
+  @include commonLink();
+}
+
+.active {
+  @include commonLink();
+  @apply bg-[#f4f4f5] dark:bg-[#5977cb] dark:hover:bg-[#5977cb];
+}
+
+.content-item-wrapper {
+  @apply relative text-xs px-3 py-[6px] rounded-md select-none after:h-[1px] dark:after:bg-[#43444e] after:bg-slate-200 after:absolute after:w-[calc(100%-4px)] after:-bottom-1 after:right-[0.1rem];
+  .content-item-title {
+    @apply truncate dark:text-[#e4e4e7];
+  }
+  .content-item-info {
+    @apply flex justify-between items-center pt-3 text-[#71717a] dark:text-[#aeb1b6];
+    .content-item-info-category {
+      @apply flex items-center gap-1 flex-1 truncate;
+    }
+    .content-item-info-time {
+      @apply text-[10px] opacity-80;
+    }
+  }
+}
+
+</style>

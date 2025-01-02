@@ -1,0 +1,18 @@
+@use './reset.scss';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.el-input__wrapper.is-focus,
+.el-input__wrapper:hover,
+.el-input__wrapper {
+  box-shadow: none !important;
+}
+
+
+// 修改el-tooltip hover:: el-popper的样式 
+.el-popper {
+  line-height: .875rem !important;
+  padding: .3125rem .75rem !important;
+}
+
