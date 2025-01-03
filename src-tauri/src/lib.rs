@@ -4,10 +4,12 @@ mod tray;
 mod window;
 mod apps;
 mod db;
+mod bookmarks;
 
 
 use crate::window::{hotkey_config, hotkey_search, start_mouse_tracking};
 use apps::{get_installed_apps, open_app_command};
+use bookmarks::{get_browser_bookmarks, open_url};
 use hotkey::*;
 use log::info;
 use tauri::Emitter;
@@ -163,6 +165,8 @@ pub fn run() {
             get_installed_apps,
             open_app_command,
             show_hide_window_command,
+            get_browser_bookmarks,
+            open_url,
             // sql::search_contents,
             // sql::get_categories,
             // sql::create_category,
