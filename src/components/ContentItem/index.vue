@@ -1,6 +1,6 @@
 <template>
   <ContextMenu :menu="menu" @select="handleContextMenu">
-    <router-link 
+    <router-link
       :to="`/config/category/contentList/${content.category_id}/content/${content.id}`"
       class="link"
       active-class="active"
@@ -8,8 +8,12 @@
       <div class="content-item-wrapper">
         <div class="content-item-title">{{ content.title }}</div>
         <div class="content-item-info">
-          <div class="content-item-info-category">{{ content.category_name }}</div>
-          <div class="content-item-info-time">{{ formatDate(content.created_at) }}</div>
+          <div class="content-item-info-category">
+            {{ content.category_name }}
+          </div>
+          <div class="content-item-info-time">
+            {{ formatDate(content.created_at) }}
+          </div>
         </div>
       </div>
     </router-link>
@@ -17,21 +21,22 @@
 </template>
 
 <script setup lang="ts">
-import { formatDate } from '@/utils'
-import { deleteFragment } from '@/database/fragment'
-import { useConfigurationStore } from '@/store'
+import { formatDate } from '@/utils';
+import { deleteFragment } from '@/database/fragment';
+import { useConfigurationStore } from '@/store';
+import { getFragmentList } from '@/database/fragment';
 
-const store = useConfigurationStore()
+const store = useConfigurationStore();
 
 const props = defineProps<{
-  content: ContentType
-}>()
-const { content } = toRefs(props)
-const router = useRouter()
+  content: ContentType;
+}>();
+const { content } = toRefs(props);
+const router = useRouter();
 
 defineOptions({
   name: 'ContentItem'
-})
+});
 
 const menu = [
   {
@@ -42,18 +47,20 @@ const menu = [
     label: '删除',
     type: 'delete'
   }
-]
+];
 
-const handleContextMenu = (item: any) => {
+const handleContextMenu = async (item: any) => {
   if (item.type === 'edit') {
-    router.push(`/config/category/contentList/${content.value.category_id}/content/${content.value.id}`)
+    router.push(
+      `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`
+    );
   } else if (item.type === 'delete') {
-    deleteFragment(Number(content.value.id))
-    router.replace(`/config/category/contentList/${content.value.category_id}`)
-    store.contents = store.contents.filter(item => item.id !== Number(content.value.id))
+    await deleteFragment(Number(content.value.id));
+    router.replace(`/config/category/contentList/${content.value.category_id}`);
+    const result = await getFragmentList(content.value.category_id);
+    store.contents = result;
   }
-}
-
+};
 </script>
 
 <style scoped lang="scss">
@@ -85,5 +92,4 @@ const handleContextMenu = (item: any) => {
     }
   }
 }
-
 </style>
