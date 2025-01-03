@@ -4,11 +4,14 @@ use winreg::enums::{HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER};
 use winreg::RegKey;
 use serde::{Serialize, Deserialize};
 use regex::Regex;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppInfo {
-    pub app_name: String,
-    pub app_path: String,
+    pub id: String,
+    pub title: String,
+    pub content: String,
+    pub summarize: String
 }
 
 fn extract_icon_path(icon_path: &str) -> Option<String> {
@@ -45,8 +48,10 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
                         if let Some(icon_path) = extract_icon_path(display_icon) {
                             if Path::new(&icon_path).exists() {
                                 apps.push(AppInfo {
-                                    app_name: display_name.clone(),
-                                    app_path: icon_path,
+                                    id: Uuid::new_v4().to_string(),
+                                    title: display_name.clone(),
+                                    content: icon_path,
+                                    summarize: "app".to_string()
                                 });
                             }
                         }

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { FileCode } from '@icon-park/vue-next';
+import { FileCode, ApplicationTwo, BookmarkOne } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -7,23 +7,27 @@ const store = useConfigurationStore();
 
 const containerRef = ref<HTMLElement | null>(null);
 
+const props = defineProps<{
+  results: ContentType[];
+}>();
+
 const handleKeyEvent = (e: KeyboardEvent) => {
-  if (store.data.length === 0) return;
-  const index = store.data.findIndex((item) => item.id === store.id);
+  if (props.results.length === 0) return;
+  const index = props.results.findIndex((item) => item.id === store.id);
   let nextIndex = index;
 
   switch (e.code) {
     case 'ArrowDown':
-      nextIndex = (index + 1) % store.data.length;
-      store.id = store.data[nextIndex].id;
+      nextIndex = (index + 1) % props.results.length;
+      store.id = props.results[nextIndex].id;
       break;
     case 'ArrowUp':
-      nextIndex = (index - 1 + store.data.length) % store.data.length;
-      store.id = store.data[nextIndex].id;
+      nextIndex = (index - 1 + props.results.length) % props.results.length;
+      store.id = props.results[nextIndex].id;
       break;
     case 'Enter':
       // 选中 copy 或 打开应用
-      selectItem(store.data[nextIndex]);
+      selectItem(props.results[nextIndex]);
       break;
     case 'Escape':
       showHideWindow();
@@ -49,12 +53,14 @@ const handleKeyEvent = (e: KeyboardEvent) => {
 // 选中代码行
 async function selectItem(item: ContentType) {
   store.id = item.id;
-  if (item.type === 'app') {
+  if (item.summarize === 'app') {
+    // 打开第三方应用程序
     invoke('open_app_command', { appPath: item.content });
-  } else if (item.type === 'bookmark') {
+  } else if (item.summarize === 'bookmark') {
+    // 浏览器书签搜索
     invoke('open_url', { url: item.content });
   } else {
-    // copy
+    // copy 代码片段
     await navigator.clipboard.writeText(item.content);
   }
   // 隐藏窗口
@@ -73,16 +79,47 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyEvent);
 });
+
+// function getFavicon(url: string) {
+//   try {
+//     const urlObj = new URL(url);
+//     return `${urlObj.protocol}//${urlObj.hostname}/favicon.ico`;
+//   } catch {
+//     return '';
+//   }
+// }
+
+// function handleImageError(event: Event) {
+//   const img = event.target as HTMLImageElement;
+//   img.style.display = 'none';
+// }
 </script>
 <template>
   <main
     ref="containerRef"
-    :class="[store.data.length !== 0 ? 'mt-7' : '', 'result']"
+    :class="[props.results.length !== 0 ? 'mt-7' : '', 'result']"
   >
-    <template v-for="item in store.data" :key="item.id">
+    <template v-for="item in props.results" :key="item.id">
       <div class="item" :class="{ active: item.id === store.id }">
-        <!-- <svg-icon class="icon" icon-class="code" size="32" /> -->
-        <file-code class="icon" theme="outline" size="24" :strokeWidth="3" />
+        <template v-if="item.summarize === 'app'">
+          <application-two
+            class="icon"
+            theme="outline"
+            size="24"
+            :strokeWidth="3"
+          />
+        </template>
+        <template v-else-if="item.summarize === 'bookmark'">
+          <bookmark-one
+            class="icon"
+            theme="outline"
+            size="24"
+            :strokeWidth="3"
+          />
+        </template>
+        <template v-else>
+          <file-code class="icon" theme="outline" size="24" :strokeWidth="3" />
+        </template>
         <div class="content" @click="() => (store.id = item.id)">
           <div class="title">{{ item.title }}</div>
           <p class="text">{{ item.content }}</p>

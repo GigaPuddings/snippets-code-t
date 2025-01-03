@@ -1,39 +1,82 @@
-import { useConfigurationStore } from '@/store';
-import { debounce } from '@/utils';
 import { searchContent } from '@/database/search';
+import { useConfigurationStore } from '@/store';
+import { ref, computed, watch } from 'vue';
 
-export default function useSearch() {
+export function useSearch() {
   const store = useConfigurationStore();
-  let apps: ContentType[] = [];
-  let bookmarks: ContentType[] = [];
+  const searchText = ref('');
+  const searchResults = ref<ContentType[]>([]);
 
-  const handleInput = debounce(async (searchValue: string) => {
-    console.log('searchValue', searchValue);
+  async function updateSearchResults() {
+    if (!searchText.value) return [];
 
-    apps = store.apps;
-    bookmarks = store.bookmarks;
+    const query = searchText.value.toLowerCase();
+    const results: ContentType[] = [];
 
-    // 包含中文搜索、字母大小写匹配
-    apps = apps.filter(
-      (app: ContentType) =>
-        app.title.includes(searchValue) ||
-        app.title.toLowerCase().includes(searchValue.toLowerCase())
-    );
+    // 搜索代码片段
+    const codeResults = await searchCode(query);
+    results.push(...codeResults);
 
-    bookmarks = bookmarks.filter(
-      (bookmark: ContentType) =>
-        bookmark.title.includes(searchValue) ||
-        bookmark.title.toLowerCase().includes(searchValue.toLowerCase()) ||
-        bookmark.content.includes(searchValue) ||
-        bookmark.content.toLowerCase().includes(searchValue.toLowerCase())
-    );
+    // 搜索书签
+    const bookmarkResults = await searchBookmark(store.bookmarks, query);
+    results.push(...bookmarkResults);
 
-    const result = searchValue ? await searchContent(searchValue) : [];
+    // 搜索应用
+    const appResults = await searchApp(store.apps, query);
+    results.push(...appResults);
 
-    store.data = [...apps, ...bookmarks, ...result];
-  }, 500);
+    // 根据匹配度排序
+    searchResults.value = results.sort((a, b) => {
+      // 标题完全匹配的排在最前面
+      if (a.title.toLowerCase() === query) return -1;
+      if (b.title.toLowerCase() === query) return 1;
+
+      // 标题开头匹配的排第二
+      const aStartsWithTitle = a.title.toLowerCase().startsWith(query);
+      const bStartsWithTitle = b.title.toLowerCase().startsWith(query);
+      if (aStartsWithTitle && !bStartsWithTitle) return -1;
+      if (!aStartsWithTitle && bStartsWithTitle) return 1;
+
+      // 内容匹配的排最后
+      const aMatchContent = a.content?.toLowerCase().includes(query);
+      const bMatchContent = b.content?.toLowerCase().includes(query);
+      if (aMatchContent && !bMatchContent) return -1;
+      if (!aMatchContent && bMatchContent) return 1;
+
+      return 0;
+    });
+  }
+
+  watch(searchText, async () => {
+    await updateSearchResults();
+  });
 
   return {
-    handleInput
+    searchText,
+    searchResults
   };
+}
+
+// 搜索代码片段
+async function searchCode(query: string) {
+  const codeResults = await searchContent(query);
+  return codeResults;
+}
+
+// 搜索书签
+async function searchBookmark(store: ContentType[], query: string) {
+  const bookmarkResults = store.filter(
+    (bookmark: ContentType) =>
+      bookmark.title.toLowerCase().includes(query) ||
+      bookmark.content.toLowerCase().includes(query)
+  );
+  return bookmarkResults;
+}
+
+// 搜索应用
+async function searchApp(store: ContentType[], query: string) {
+  const appResults = store.filter((app: ContentType) =>
+    app.title.toLowerCase().includes(query)
+  );
+  return appResults;
 }

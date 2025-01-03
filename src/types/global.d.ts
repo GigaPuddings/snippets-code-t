@@ -7,11 +7,11 @@ declare global {
   type ContentType = {
     id: string | number;
     title: string;
-    category_id?: number;
     content: string;
+    summarize?: 'app' | 'text' | 'bookmark';
+    category_id?: number;
     created_at?: string;
     category_name?: string;
-    type?: 'app' | 'text' | 'bookmark';
   };
   type AppInfo = {
     app_name: string;
@@ -29,4 +29,5 @@ declare global {
     categorySort: 'asc' | 'desc';
   }
 }
+
 export {};

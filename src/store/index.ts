@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { uuid } from '@/utils';
+import { invoke } from '@tauri-apps/api/core';
 
 export const useConfigurationStore = defineStore('configuration', {
   state: () => ({
@@ -13,14 +13,15 @@ export const useConfigurationStore = defineStore('configuration', {
     categorySort: 'asc' as const
   }),
   actions: {
-    // 转换书签数据
-    transformBookmarks(bookmarks: BookmarkInfo[]) {
-      this.bookmarks = bookmarks.map((bookmark) => ({
-        id: uuid(),
-        title: bookmark.title,
-        content: bookmark.url,
-        type: 'bookmark'
-      }));
+    async initialize() {
+      try {
+        // 本地已安装应用集合
+        this.apps = (await invoke('get_installed_apps')) || [];
+        // 浏览器书签集合
+        this.bookmarks = (await invoke('get_browser_bookmarks')) || [];
+      } catch (error) {
+        console.error('初始化数据失败:', error);
+      }
     }
   }
 });
