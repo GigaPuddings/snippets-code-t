@@ -6,7 +6,21 @@ import { invoke } from '@tauri-apps/api/core';
 const store = useConfigurationStore();
 
 const containerRef = ref<HTMLElement | null>(null);
-const activeTab = ref<'all' | 'app' | 'bookmark'>('all');
+const activeTab = ref<TabType>('all');
+const tabs = ref<{ label: string; value: TabType }[]>([
+  {
+    label: '所有结果',
+    value: 'all'
+  },
+  {
+    label: '软件',
+    value: 'app'
+  },
+  {
+    label: '书签',
+    value: 'bookmark'
+  }
+]);
 
 const props = defineProps<{
   results: ContentType[];
@@ -23,7 +37,7 @@ const filteredResults = computed(() => {
   }
 });
 
-function switchTab(tab: 'all' | 'app' | 'bookmark') {
+function switchTab(tab: TabType) {
   activeTab.value = tab;
   if (filteredResults.value.length > 0) {
     store.id = filteredResults.value[0].id;
@@ -56,16 +70,23 @@ const handleKeyEvent = (e: KeyboardEvent) => {
 
   // 内容过多时，滚动条需要同步滚动
   if (nextIndex !== index && containerRef.value) {
-    const targetItem = containerRef.value.children[nextIndex] as HTMLElement;
+    // 获取 .result 容器下的所有 .item 元素
+    const resultContainer = containerRef.value.querySelector('.result');
+    if (!resultContainer) return;
+
+    const items = resultContainer.querySelectorAll('.item');
+    const targetItem = items[nextIndex] as HTMLElement;
+    if (!targetItem) return;
+
     const { top, bottom } = targetItem.getBoundingClientRect();
     const { top: containerTop, bottom: containerBottom } =
-      containerRef.value.getBoundingClientRect();
+      resultContainer.getBoundingClientRect();
 
     // 检查目标项是否在容器内
     if (bottom > containerBottom) {
-      containerRef.value.scrollTop += bottom - containerBottom + 10;
+      resultContainer.scrollTop += bottom - containerBottom + 10;
     } else if (top < containerTop) {
-      containerRef.value.scrollTop -= containerTop - top;
+      resultContainer.scrollTop -= containerTop - top;
     }
   }
 };
@@ -90,6 +111,11 @@ async function selectItem(item: ContentType) {
 // 显示隐藏窗口
 function showHideWindow() {
   invoke('show_hide_window_command', { label: 'search' });
+}
+
+// 鼠标悬停处理
+function handleMouseEnter(item: ContentType) {
+  store.id = item.id;
 }
 
 onMounted(() => {
@@ -117,31 +143,24 @@ onUnmounted(() => {
 <template>
   <main ref="containerRef" class="result-container">
     <div v-if="props.results.length !== 0" class="tabs">
-      <div
-        class="tab"
-        :class="{ active: activeTab === 'all' }"
-        @click="switchTab('all')"
-      >
-        所有结果
-      </div>
-      <div
-        class="tab"
-        :class="{ active: activeTab === 'app' }"
-        @click="switchTab('app')"
-      >
-        软件
-      </div>
-      <div
-        class="tab"
-        :class="{ active: activeTab === 'bookmark' }"
-        @click="switchTab('bookmark')"
-      >
-        书签
-      </div>
+      <template v-for="item in tabs" :key="item">
+        <div
+          class="tab"
+          :class="{ active: item.value === activeTab }"
+          @click="switchTab(item.value)"
+        >
+          {{ item.label }}
+        </div>
+      </template>
     </div>
     <div class="result">
       <template v-for="item in filteredResults" :key="item.id">
-        <div class="item" :class="{ active: item.id === store.id }">
+        <div
+          class="item"
+          :class="{ active: item.id === store.id }"
+          @mouseenter="handleMouseEnter(item)"
+          @click="selectItem(item)"
+        >
           <template v-if="item.summarize === 'app'">
             <application-two
               class="icon"
@@ -166,8 +185,10 @@ onUnmounted(() => {
               :strokeWidth="3"
             />
           </template>
-          <div class="content" @click="() => (store.id = item.id)">
-            <div class="title">{{ item.title }}</div>
+          <div class="content">
+            <div class="title">
+              {{ item.title || item.content.split('/')[2] }}
+            </div>
             <p class="text">{{ item.content }}</p>
           </div>
         </div>

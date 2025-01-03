@@ -1,23 +1,26 @@
 declare global {
+  // 搜索结果的类型
+  type TabType = 'all' | 'app' | 'bookmark';
+
+  // 分类类型
   type CategoryType = {
     id: string | number;
     name: string;
     created_at?: string;
   };
+
+  // 内容类型
   type ContentType = {
     id: string | number;
     title: string;
     content: string;
-    summarize?: 'app' | 'text' | 'bookmark';
+    summarize?: TabType;
     category_id?: number;
     created_at?: string;
     category_name?: string;
   };
-  type AppInfo = {
-    app_name: string;
-    app_path: string;
-  };
 
+  // 状态类型
   interface StoreState {
     data: ContentType[];
     id: string | number;

@@ -20,9 +20,9 @@ const handleGoConfig = async () => {
 };
 
 onMounted(async () => {
-  if (mainRef.value) {
-    useSetIgnoreCursorEvents(mainRef.value);
-  }
+  // if (mainRef.value) {
+  //   useSetIgnoreCursorEvents(mainRef.value);
+  // }
   listen('windowFocused', () => {
     console.log('窗口获得焦点');
     // 输入框聚焦
