@@ -104,7 +104,6 @@ const handleTitleBlur = () => {
 // 处理编辑器内容变化
 const handleEditorChange = (value: string) => {
   if (isInitializing.value) return;
-  console.log('处理 编辑器 内容变化>>>>');
   debouncedSubmit({ content: value });
 };
 </script>
