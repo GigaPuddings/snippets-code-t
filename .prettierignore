@@ -1,0 +1,14 @@
+dist
+node_modules
+build
+coverage
+public
+.husky
+.vscode
+.idea
+*.sh
+*.md
+
+src/assets
+src-tauri
+stats.html

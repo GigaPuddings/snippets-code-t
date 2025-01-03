@@ -1,0 +1,15 @@
+dist
+node_modules
+public
+.husky
+.vscode
+.idea
+*.sh
+*.md
+
+src/assets
+src-tauri
+
+.eslintrc.cjs
+.prettierrc.cjs
+.stylelintrc.cjs

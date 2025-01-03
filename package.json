@@ -9,23 +9,24 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "prepare": "husky install",
-    "lint:lint-staged": "lint-staged"
+    "lint:lint-staged": "lint-staged",
+    "commit": "git-cz"
+  },
+  "config": {
+    "commitizen": {
+      "path": "node_modules/cz-git"
+    }
   },
   "lint-staged": {
-    "*.{js,ts}": [
+    "*.{js,jsx,ts,tsx,vue}": [
       "eslint --fix",
       "prettier --write"
     ],
-    "*.{cjs,json}": [
+    "*.{css,scss,less,styl}": [
+      "stylelint --fix",
       "prettier --write"
     ],
-    "*.{vue,html}": [
-      "eslint --fix",
-      "prettier --write",
-      "stylelint --fix --allow-empty-input"
-    ],
-    "*.{scss,css}": [
-      "stylelint --fix --allow-empty-input",
+    "*.{json,html,md}": [
       "prettier --write"
     ]
   },
@@ -56,14 +57,22 @@
     "vue-router": "4"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
     "@icon-park/vue-next": "^1.4.2",
     "@tauri-apps/cli": "^2",
     "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.19.0",
+    "@typescript-eslint/parser": "^8.19.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "autoprefixer": "^10.4.20",
+    "commitizen": "^4.3.1",
+    "cz-git": "^1.11.0",
+    "eslint": "^9.17.0",
     "husky": "^8.0.0",
     "lint-staged": "^15.3.0",
     "postcss": "^8.4.49",
+    "prettier": "3.4.2",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.6.2",
     "unplugin-auto-import": "^0.19.0",
