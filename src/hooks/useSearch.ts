@@ -1,6 +1,5 @@
 import { searchContent } from '@/database/search';
 import { useConfigurationStore } from '@/store';
-import { ref, computed, watch } from 'vue';
 
 export function useSearch() {
   const store = useConfigurationStore();
@@ -8,7 +7,7 @@ export function useSearch() {
   const searchResults = ref<ContentType[]>([]);
 
   async function updateSearchResults() {
-    if (!searchText.value) return [];
+    if (!searchText.value.trim()) return [];
 
     const query = searchText.value.toLowerCase();
     const results: ContentType[] = [];
