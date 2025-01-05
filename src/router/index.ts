@@ -1,21 +1,21 @@
-import { createWebHashHistory, createRouter, RouteRecordRaw } from 'vue-router'
-export const Layout = () => import("@/layout/index.vue");
+import { createWebHashHistory, createRouter, RouteRecordRaw } from 'vue-router';
+export const Layout = () => import('@/layout/index.vue');
 
 const routes: RouteRecordRaw[] = [
   {
-    path: "/redirect",
+    path: '/redirect',
     component: Layout,
     meta: { hidden: true },
     children: [
       {
-        path: "/redirect/:path(.*)",
-        component: () => import("@/pages/redirect/index.vue"),
-      },
-    ],
+        path: '/redirect/:path(.*)',
+        component: () => import('@/pages/redirect/index.vue')
+      }
+    ]
   },
   {
-    path: "/:pathMatch(.*)*",
-    component: () => import("@/pages/error-page/404.vue")
+    path: '/:pathMatch(.*)*',
+    component: () => import('@/pages/error-page/404.vue')
   },
   {
     path: '/',
@@ -25,7 +25,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'search',
         component: () => import('@/pages/search/index.vue'),
-        name: 'Search',
+        name: 'Search'
       },
       {
         path: 'config',
@@ -34,38 +34,51 @@ const routes: RouteRecordRaw[] = [
         children: [
           {
             path: 'category',
-            component: () => import('@/pages/config/components/Category.vue'),
+            component: () =>
+              import('@/pages/config/components/category/index.vue'),
             name: 'Category',
             redirect: '/config/category/contentList',
             children: [
               {
                 path: 'contentList/:cid?',
-                component: () => import('@/pages/config/components/ContentList.vue'),
+                component: () =>
+                  import(
+                    '@/pages/config/components/category/components/contentList/index.vue'
+                  ),
                 name: 'ContentList',
                 children: [
                   {
                     path: '',
                     component: () => import('@/pages/welcome/index.vue'),
-                    name: 'Welcome',
+                    name: 'Welcome'
                   },
                   {
                     path: 'content/:id?',
-                    component: () => import('@/pages/config/components/Content.vue'),
-                    name: 'Content',
+                    component: () =>
+                      import(
+                        '@/pages/config/components/category/components/content/index.vue'
+                      ),
+                    name: 'Content'
                   }
                 ]
               }
             ]
+          },
+          {
+            path: 'summarize',
+            component: () =>
+              import('@/pages/config/components/summarize/index.vue'),
+            name: 'Summarize'
           }
         ]
       }
     ]
   }
-]
+];
 
 const router = createRouter({
   history: createWebHashHistory(),
-  routes,
-})
+  routes
+});
 
-export default router
+export default router;

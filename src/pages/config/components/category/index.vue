@@ -110,7 +110,7 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .category-container {
-  @apply bg-gray-100 dark:bg-[#22282c] w-screen h-screen overflow-hidden;
+  @apply bg-gray-100 dark:bg-[#22282c] w-[calc(100vw-4rem)] h-screen overflow-hidden;
   display: grid;
   grid-template-columns: 160px 1fr;
   grid-template-rows: 1fr;
