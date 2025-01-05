@@ -52,10 +52,13 @@ const fetchContent = async () => {
 };
 
 onMounted(async () => {
+  console.log('Content mounted');
   const id = route.params.id;
   if (id) {
-    console.log('route.params.id changed:', id);
+    console.log('获取片段内容', id);
     await fetchContent();
+  } else {
+    console.log('片段内容id为空');
   }
 });
 

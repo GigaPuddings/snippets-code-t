@@ -6,11 +6,11 @@ import { invoke } from '@tauri-apps/api/core';
 const store = useConfigurationStore();
 
 const containerRef = ref<HTMLElement | null>(null);
-const activeTab = ref<TabType>('all');
+const activeTab = ref<TabType>('text');
 const tabs = ref<{ label: string; value: TabType }[]>([
   {
     label: '所有结果',
-    value: 'all'
+    value: 'text'
   },
   {
     label: '软件',

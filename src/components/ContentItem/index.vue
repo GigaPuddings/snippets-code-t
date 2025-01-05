@@ -22,10 +22,9 @@
 
 <script setup lang="ts">
 import { formatDate } from '@/utils';
-import { deleteFragment } from '@/database/fragment';
+import { deleteFragment, getFragmentList } from '@/database/fragment';
 import { useConfigurationStore } from '@/store';
-import { getFragmentList } from '@/database/fragment';
-
+const route = useRoute();
 const store = useConfigurationStore();
 
 const props = defineProps<{
@@ -56,9 +55,12 @@ const handleContextMenu = async (item: any) => {
     );
   } else if (item.type === 'delete') {
     await deleteFragment(Number(content.value.id));
-    router.replace(`/config/category/contentList/${content.value.category_id}`);
-    const result = await getFragmentList(content.value.category_id);
-    store.contents = result;
+    if (route.params.id) {
+      router.push(`/config/category/contentList/${content.value.category_id}`);
+    } else {
+      const result = await getFragmentList(content.value.category_id);
+      store.contents = result;
+    }
   }
 };
 </script>
