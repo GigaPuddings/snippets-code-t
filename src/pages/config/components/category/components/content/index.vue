@@ -11,7 +11,7 @@
     </div>
     <!-- CodeMirror 代码高亮编辑器 -->
     <CodeMirrorEditor
-      :codeStyle="{ height: 'calc(100vh - 105px)', overflowY: 'auto' }"
+      :codeStyle="{ height: 'calc(100vh - 115px)', overflowY: 'auto' }"
       v-model:code="editorContent"
       @update:code="handleEditorChange"
     />
@@ -117,12 +117,12 @@ const handleEditorChange = (value: string) => {
 }
 
 .content-container {
-  @apply h-[calc(100vh-40px)] text-xs dark:bg-[#282d32];
+  @apply h-full text-xs dark:bg-[#282d32];
   display: grid;
   grid-template-rows: 40px 1fr;
 
   .content-title {
-    @apply border-b dark:border-b-[#43444e] mx-2 mb-1;
+    @apply border-b dark:border-b-[#43444e] mx-2;
 
     :deep(input) {
       @apply text-lg dark:text-[#c9ccd4] pt-1 box-border;

@@ -148,8 +148,8 @@ pub fn run() {
                     WindowEvent::Focused(true) => {
                         // info!("窗口获得焦点");
                         // 启用鼠标穿透并开启监听
-                        window.set_ignore_cursor_events(true).unwrap();
-                        start_mouse_tracking(window.clone());
+                        // window.set_ignore_cursor_events(true).unwrap();
+                        // start_mouse_tracking(window.clone());
                         
                         // 通知前端窗口获得焦点
                         window.emit("windowFocused", ()).unwrap();

@@ -1,5 +1,5 @@
 <template>
-  <div class="content-list-container">
+  <main class="content-list-container">
     <Splitter default-size="25%" min-size="25%" max-size="40%">
       <template #first>
         <div class="left-panel">
@@ -7,7 +7,7 @@
             <el-input
               v-model="searchText"
               placeholder="搜索..."
-              @change="handleSearch"
+              @input="handleSearch"
             >
               <template #prefix>
                 <Search
@@ -47,12 +47,11 @@
       </template>
       <template #second>
         <div class="right-panel">
-          <Titlebar />
           <router-view />
         </div>
       </template>
     </Splitter>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">
@@ -60,6 +59,7 @@ import { Search, Plus } from '@icon-park/vue-next';
 import { getFragmentList, addFragment } from '@/database/fragment';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore } from '@/store';
+import { debounce } from '@/utils';
 const route = useRoute();
 const router = useRouter();
 const store = useConfigurationStore();
@@ -100,10 +100,10 @@ watch(
   { immediate: true }
 );
 
-const handleSearch = () => {
+const handleSearch = debounce(() => {
   const cid = route.params.cid as string;
   queryFragments(cid);
-};
+}, 500);
 
 const handleAddContent = async () => {
   const cid = route.params.cid as string;
@@ -144,22 +144,26 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .content-list-container {
-  @apply bg-white dark:bg-[#282d32] h-screen text-xs text-slate-700;
+  @apply h-full text-xs text-slate-700;
 }
 
 .left-panel {
-  @apply h-screen dark:border-r-[#000] overflow-hidden;
+  @apply h-full bg-[#faf7f5] dark:bg-[#22282c] rounded-md ml-2 px-2 overflow-hidden;
   .content-search {
-    @apply border-b dark:border-b-[#43444e] dark:bg-[#282d32] flex justify-between items-center h-[40px];
+    @apply border-b dark:border-b-[#43444e] flex justify-between items-center h-[40px];
     .content-search-add {
       @apply cursor-pointer rounded-md p-1 mr-2 text-[#282d32] dark:text-[#adb0b8] hover:bg-slate-200 dark:hover:bg-gray-800;
     }
   }
   .content-list {
-    @apply h-[calc(100vh-56px)] overflow-y-auto px-2 mx-1 my-2;
+    @apply h-[calc(100vh-106px)] overflow-y-auto;
     .content {
-      @apply flex flex-col gap-2 py-2;
+      @apply flex flex-col gap-2 p-2;
     }
   }
+}
+
+.right-panel {
+  @apply h-full bg-[#faf7f5] dark:bg-[#22282c] rounded-md mx-2 overflow-hidden;
 }
 </style>

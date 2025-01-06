@@ -30,6 +30,8 @@ declare global {
     contents: ContentType[];
     editCategoryId: string | number;
     categorySort: 'asc' | 'desc';
+    searchHotkey: string;
+    configHotkey: string;
   }
 }
 

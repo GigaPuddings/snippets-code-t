@@ -1,5 +1,5 @@
 <template>
-  <div class="splitter-container" ref="splitterRef">
+  <main class="splitter-container" ref="splitterRef">
     <div class="splitter-panel" :style="{ width: computedWidth }">
       <slot name="first"></slot>
     </div>
@@ -9,7 +9,7 @@
     <div class="splitter-panel second-panel">
       <slot name="second"></slot>
     </div>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">

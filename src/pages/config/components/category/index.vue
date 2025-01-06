@@ -1,6 +1,6 @@
 <template>
   <main class="category-container">
-    <div class="category-page">
+    <section class="category-page">
       <QuickNav />
       <div class="category-header-list">
         <div class="category-header-title">文件夹</div>
@@ -35,10 +35,10 @@
           v-memo="[item.id, item.name, store.editCategoryId]"
         />
       </div>
-    </div>
-    <div class="content-page">
+    </section>
+    <section class="content-page">
       <router-view />
-    </div>
+    </section>
   </main>
 </template>
 
@@ -53,7 +53,8 @@ const route = useRoute();
 const router = useRouter();
 
 defineOptions({
-  name: 'Category'
+  name: 'Category',
+  keepAlive: true
 });
 
 // 获取分类
@@ -110,13 +111,13 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .category-container {
-  @apply bg-gray-100 dark:bg-[#22282c] w-[calc(100vw-4rem)] h-screen overflow-hidden;
+  @apply w-[calc(100vw-4rem)] h-full overflow-hidden pb-4;
   display: grid;
   grid-template-columns: 160px 1fr;
   grid-template-rows: 1fr;
 
   .category-page {
-    @apply border-r dark:border-r-[#000] px-2 text-sm text-slate-700;
+    @apply bg-[#faf7f5] dark:bg-[#22282c] px-2 text-sm text-slate-700 rounded-md;
 
     .category-header-list {
       @apply flex justify-between items-center mt-2;
@@ -135,13 +136,12 @@ onMounted(async () => {
     }
 
     .category-list {
-      height: calc(100vh - 120px);
-      overflow: hidden;
+      @apply h-[calc(100vh-175px)] overflow-y-auto;
     }
   }
 
   .content-page {
-    @apply bg-gray-100 dark:bg-[#22282c] overflow-y-auto;
+    @apply overflow-hidden;
   }
 }
 </style>

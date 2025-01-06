@@ -26,14 +26,15 @@ const props = defineProps<{
   results: ContentType[];
 }>();
 
+// 过滤并展示前10项
 const filteredResults = computed(() => {
   switch (activeTab.value) {
     case 'app':
-      return props.results.filter((item) => item.summarize === 'app');
+      return props.results.filter((item) => item.summarize === 'app').slice(0, 10);
     case 'bookmark':
-      return props.results.filter((item) => item.summarize === 'bookmark');
+      return props.results.filter((item) => item.summarize === 'bookmark').slice(0, 10);
     default:
-      return props.results;
+      return props.results.slice(0, 10);
   }
 });
 
@@ -198,7 +199,7 @@ onUnmounted(() => {
 </template>
 <style lang="scss" scoped>
 .result-container {
-  @apply bg-slate-50 dark:bg-[#22282c] px-1 rounded-bl-lg rounded-br-lg;
+  @apply bg-[#faf7f5] dark:bg-[#22282c] px-1 rounded-bl-lg rounded-br-lg;
 
   .tabs {
     @apply flex gap-2 py-2 border-gray-200 dark:border-gray-700;
@@ -207,7 +208,7 @@ onUnmounted(() => {
       @apply px-3 py-1 text-sm text-gray-600 dark:text-gray-400 cursor-pointer rounded-md;
 
       &.active {
-        @apply bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white;
+        @apply bg-[#e6e1de] dark:bg-gray-700 text-gray-900 dark:text-white;
       }
     }
   }
@@ -218,7 +219,7 @@ onUnmounted(() => {
       @apply flex items-center gap-2 text-slate-700 px-2 py-1 rounded-lg cursor-pointer;
 
       &.active {
-        @apply bg-zinc-200 dark:bg-[#5977cb];
+        @apply bg-[#e6e1de] dark:bg-[#5977cb];
 
         .title {
           @apply dark:text-slate-800;

@@ -40,7 +40,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 @mixin commonLink {
-  @apply rounded-md block my-1 text-xs px-3 py-1 truncate cursor-pointer hover:bg-gray-200 dark:hover:bg-[--mantine-color-default-hover] dark:text-[--mantine-color-gray-light-color];
+  @apply rounded-md block my-1 text-xs px-3 py-1 truncate cursor-pointer hover:bg-neutral-200 dark:hover:bg-[--mantine-color-default-hover] dark:text-[--mantine-color-gray-light-color];
 }
 
 .link {
@@ -49,6 +49,6 @@ onMounted(() => {
 
 .active {
   @include commonLink();
-  @apply bg-[#4b94f8] dark:bg-[#5977cb] dark:hover:bg-[#5977cb] text-white hover:bg-[#4b94f8] hover:text-white;
+  @apply bg-neutral-200 dark:bg-[#5977cb] dark:hover:bg-[#5977cb] hover:bg-neutral-200;
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="category-item">
+  <main class="category-item">
     <div class="category-item-title">
       <el-input
         v-if="isEdit"
@@ -22,11 +22,11 @@
         </router-link>
       </ContextMenu>
     </div>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">
-import { FolderClose } from '@icon-park/vue-next';
+import { FolderClose, EditTwo, DeleteFour } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
 import {
   editCategory,
@@ -46,8 +46,8 @@ defineOptions({
 });
 
 const menu = [
-  { label: '编辑', type: 'edit' },
-  { label: '删除', type: 'delete' }
+  { label: '编辑', icon: EditTwo, type: 'edit' },
+  { label: '删除', icon: DeleteFour, type: 'delete' }
 ];
 
 // 判断是否是编辑状态
@@ -63,10 +63,10 @@ watch(isEdit, (newValue, _oldValue) => {
 });
 
 const handleEditCategory = async () => {
-  console.log('保存编辑的分类', props.category);
   // 保存编辑的分类
   store.editCategoryId = '';
-  await editCategory(props.category.id, props.category.name);
+  const name = props.category.name.toLowerCase().replace(/( |^)[a-z]/g, (L) => L.toUpperCase()) || '未命名';
+  await editCategory(props.category.id, name);
   // 重新获取分类
   router.replace(`/config/category/contentList/${props.category.id}`);
 };
@@ -85,7 +85,7 @@ const handleContextMenu = async (item: any) => {
 
 <style scoped lang="scss">
 @mixin commonLink {
-  @apply rounded-md text-sm block my-1 px-3 py-1 truncate cursor-pointer hover:bg-gray-200 dark:hover:bg-[--mantine-color-default-hover] dark:text-[--mantine-color-gray-light-color];
+  @apply rounded-md text-sm block my-1 px-3 py-1 truncate cursor-pointer hover:bg-neutral-200 dark:hover:bg-[--mantine-color-default-hover] dark:text-[--mantine-color-gray-light-color];
 }
 
 .link {
@@ -96,7 +96,7 @@ const handleContextMenu = async (item: any) => {
 
 .active {
   @include commonLink();
-  @apply bg-[#4b94f8] text-white hover:bg-[#4b94f8] dark:bg-[#5977cb] dark:hover:bg-[#5977cb] hover:text-white;
+  @apply bg-neutral-200 hover:bg-neutral-200 dark:bg-[#5977cb] dark:hover:bg-[#5977cb];
 }
 
 .input {

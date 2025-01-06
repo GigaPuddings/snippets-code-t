@@ -125,8 +125,8 @@ pub fn build_window(label: &str, title: &str, url: &str, width: f64, height: f64
             // let _ = v.set_position(tauri::PhysicalPosition::new(adjusted_x, adjusted_y));
             // let _ = v.set_focus();
             // window.show().unwrap();
-            // window.set_focus().unwrap();
-            window.set_always_on_top(true).unwrap();
+            // window.set_always_on_top(true).unwrap();
+            window.set_focus().unwrap();
 
             return window;
         }
@@ -140,6 +140,7 @@ pub fn build_window(label: &str, title: &str, url: &str, width: f64, height: f64
                     .min_inner_size(800.0, 630.0)
                     .transparent(true)
                     .focused(true)
+                    .shadow(false)
                     .center()
                     .visible(false);
 
@@ -181,6 +182,5 @@ pub fn hotkey_config() {
       window.hide().unwrap();
   } else {
       window.show().unwrap();
-      window.set_focus().unwrap();
   }
 }

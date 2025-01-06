@@ -9,6 +9,13 @@
   box-shadow: none !important;
 }
 
+.el-input__wrapper {
+  background-color: transparent !important;
+}
+
+.el-input__inner {
+  height: 36px !important;
+}
 
 // 修改el-tooltip hover:: el-popper的样式 
 .el-popper {

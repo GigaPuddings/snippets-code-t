@@ -5,7 +5,7 @@
       class="link"
       active-class="active"
     >
-      <div class="content-item-wrapper">
+      <main class="content-item-wrapper">
         <div class="content-item-title">{{ content.title }}</div>
         <div class="content-item-info">
           <div class="content-item-info-category">
@@ -15,7 +15,7 @@
             {{ formatDate(content.created_at) }}
           </div>
         </div>
-      </div>
+      </main>
     </router-link>
   </ContextMenu>
 </template>
@@ -24,6 +24,7 @@
 import { formatDate } from '@/utils';
 import { deleteFragment, getFragmentList } from '@/database/fragment';
 import { useConfigurationStore } from '@/store';
+import { EditTwo, DeleteFour } from '@icon-park/vue-next';
 const route = useRoute();
 const store = useConfigurationStore();
 
@@ -40,19 +41,19 @@ defineOptions({
 const menu = [
   {
     label: '编辑',
-    type: 'edit'
+    type: 'edit',
+    icon: EditTwo
   },
   {
     label: '删除',
-    type: 'delete'
+    type: 'delete',
+    icon: DeleteFour
   }
 ];
 
 const handleContextMenu = async (item: any) => {
   if (item.type === 'edit') {
-    router.push(
-      `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`
-    );
+    router.push(`/config/category/contentList/${content.value.category_id}/content/${content.value.id}`);
   } else if (item.type === 'delete') {
     await deleteFragment(Number(content.value.id));
     if (route.params.id) {
@@ -67,7 +68,7 @@ const handleContextMenu = async (item: any) => {
 
 <style scoped lang="scss">
 @mixin commonLink {
-  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-[#f4f4f5] dark:hover:bg-[#5977cb] hover:border-b-slate-100 border-b-transparent;
+  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-neutral-200 dark:hover:bg-[#5977cb] hover:border-b-slate-100 border-b-transparent;
 }
 
 .link {
@@ -76,7 +77,7 @@ const handleContextMenu = async (item: any) => {
 
 .active {
   @include commonLink();
-  @apply bg-[#f4f4f5] dark:bg-[#5977cb] dark:hover:bg-[#5977cb];
+  @apply bg-neutral-200 dark:bg-[#5977cb] dark:hover:bg-[#5977cb];
 }
 
 .content-item-wrapper {

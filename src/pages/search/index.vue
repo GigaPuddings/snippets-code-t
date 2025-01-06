@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { invoke } from '@tauri-apps/api/core';
 import { Home } from '@icon-park/vue-next';
-import useSetIgnoreCursorEvents from '@/hooks/useSetIgnoreCursorEvents';
+// import useSetIgnoreCursorEvents from '@/hooks/useSetIgnoreCursorEvents';
 import { useSearch } from '@/hooks/useSearch';
 import { listen } from '@tauri-apps/api/event';
 
@@ -54,13 +54,13 @@ onMounted(async () => {
 </template>
 <style lang="scss" scoped>
 .main {
-  @apply bg-slate-50 rounded-lg shadow-inner ring-1 ring-black/5 dark:bg-[#22282c] p-3;
+  @apply bg-[#faf7f5] rounded-md shadow-inner ring-1 ring-black/5 dark:bg-[#22282c] p-3;
 
   .search {
     @apply rounded-lg flex items-center;
 
     .input {
-      @apply dark:bg-[#282d32] dark:text-stone-300 ml-1 mr-2 font-semibold text-[17px] text-zinc-700;
+      @apply bg-[#e6e1de] dark:bg-[#282d32] rounded-sm dark:text-stone-300 ml-1 mr-2 font-semibold text-[17px] text-zinc-700;
     }
 
     .home {

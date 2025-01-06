@@ -1,5 +1,5 @@
 <template>
-  <div ref="containerRef">
+  <main ref="containerRef">
     <slot></slot>
     <Teleport to="body">
       <Transition @beforeEnter="handleBeforeEnter" @enter="handleEnter" @afterEnter="handleAfterEnter">
@@ -7,21 +7,22 @@
           <div class="menu-list">
             <!-- 添加菜单的点击事件 -->
             <div class="menu-item" v-for="item in props.menu" :key="item.label" @click="handleClick(item)">
-              {{ item.label }}
+              <component :is="item.icon" theme="outline" size="18" fill="#333" :strokeWidth="3" strokeLinejoin="miter" strokeLinecap="butt"/>
+              <div class="menu-item-label">{{ item.label }}</div>
             </div>
           </div>
         </div>
       </Transition>
     </Teleport>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">
 import useContextMenu from '@/hooks/useContextMenu';
-
 interface MenuItem {
   label: string
   type: string
+  icon: Component
 }
 
 defineOptions({
@@ -66,7 +67,7 @@ function handleAfterEnter(el: Element) {
 
 <style scoped>
 .context-menu {
-  @apply fixed z-50 bg-white rounded-md shadow-md overflow-hidden transition-all duration-300;
+  @apply fixed z-50 bg-[#faf7f5] dark:bg-[#22282c] rounded-md shadow-md overflow-hidden transition-all duration-300;
 }
 
 .menu-list {
@@ -74,11 +75,15 @@ function handleAfterEnter(el: Element) {
 }
 
 .menu-item {
-  @apply py-1 px-2 cursor-pointer rounded-md text-sm text-gray-800 transition-all duration-300 whitespace-nowrap;
+  @apply flex items-center gap-2 py-1 px-2 cursor-pointer rounded-md text-sm text-gray-800 transition-all duration-300 whitespace-nowrap;
+}
+
+.menu-item-label {
+  @apply truncate;
 }
 
 .menu-item:hover {
-  @apply bg-gray-100 text-blue-500;
+  @apply bg-neutral-200;
 }
 
 .v-enter-active,

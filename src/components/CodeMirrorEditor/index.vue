@@ -43,17 +43,17 @@ const customTheme = computed(() => {
     ? {
         background: '#282d32',
         foreground: '#CECFD0',
-        caret: '#fff',
+        caret: '#faf7f5',
         selection: '#727377',
         gutterBackground: '#282d32',
         gutterForeground: '#7F8C98',
       }
     : {
-        background: '#ffffff',
+        background: '#faf7f5',
         foreground: '#3D3D3D',
         caret: '#000000',
         selection: '#BBDFFF',
-        gutterBackground: '#ffffff',
+        gutterBackground: '#faf7f5',
         gutterForeground: '#707F8D',
       }
 
@@ -219,13 +219,13 @@ const emits = defineEmits<{
 </script>
 
 <template>
-  <div class="editor-container" :class="{ 'dark-theme': props.dark }">
+  <main class="editor-container" :class="{ 'dark-theme': props.dark }">
     <div ref="editorContainerRef" :style="codeStyle" class="editor-content"></div>
     <div class="editor-status">
       <span>Lines: {{ lines }}</span>
       <span>Length: {{ length }}</span>
     </div>
-  </div>
+  </main>
 </template>
 
 <style lang="scss" scoped>
@@ -250,7 +250,7 @@ const emits = defineEmits<{
 .editor-status {
   height: 25px;
   padding: 0 10px;
-  background-color: #ffffff;
+  background-color: #faf7f5;
   border-top: 1px solid #e0e0e0;
   display: flex;
   align-items: center;

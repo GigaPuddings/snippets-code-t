@@ -7,7 +7,7 @@ export function useSearch() {
   const searchResults = ref<ContentType[]>([]);
 
   async function updateSearchResults() {
-    if (!searchText.value.trim()) return [];
+    if (!searchText.value.trim()) return searchResults.value = [];
 
     const query = searchText.value.toLowerCase();
     const results: ContentType[] = [];

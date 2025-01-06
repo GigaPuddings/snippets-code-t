@@ -2,15 +2,17 @@ import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
 
 export const useConfigurationStore = defineStore('configuration', {
-  state: () => ({
-    id: '' as string | number,
-    data: [] as ContentType[],
-    apps: [] as ContentType[],
-    bookmarks: [] as ContentType[],
-    contents: [] as ContentType[],
-    categories: [] as CategoryType[],
+  state: (): StoreState => ({
+    id: '',
+    data: [],
+    apps: [],
+    bookmarks: [],
+    contents: [],
+    categories: [],
     editCategoryId: '',
-    categorySort: 'asc' as 'asc' | 'desc'
+    categorySort: 'asc',
+    searchHotkey: 'Alt+M',
+    configHotkey: 'Alt+P'
   }),
   actions: {
     async initialize() {
@@ -25,6 +27,9 @@ export const useConfigurationStore = defineStore('configuration', {
         console.error('初始化数据失败:', error);
       }
     }
+  },
+  persist: {
+    pick: ['searchHotkey', 'configHotkey']
   }
 });
 
