@@ -22,3 +22,28 @@
   padding: 0.3125rem 0.75rem !important;
   line-height: 0.875rem !important;
 }
+
+// 配置css
+.summarize-container {
+  @apply w-full grid grid-cols-2 grid-rows-[repeat(3,120px)] gap-4 mr-2;
+}
+
+.summarize-section {
+  @apply h-[120px] bg-[#faf7f5] dark:bg-[#22282c] p-6 rounded-md overflow-hidden;
+}
+
+.summarize-label {
+  @apply text-sm font-bold;
+}
+
+.summarize-input-wrapper {
+  @apply w-full flex items-center justify-between gap-4 mt-4;
+}
+
+.summarize-input {
+  @apply w-full bg-[#e6e1de] rounded-md;
+}
+
+.summarize-button {
+  width: 100px;
+}

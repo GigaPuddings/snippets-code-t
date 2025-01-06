@@ -12,7 +12,11 @@ export const useConfigurationStore = defineStore('configuration', {
     editCategoryId: '',
     categorySort: 'asc',
     searchHotkey: 'Alt+M',
-    configHotkey: 'Alt+P'
+    configHotkey: 'Alt+P',
+    dbPath: '',
+    dbBackup: 'A',
+    theme: 'light',
+    autoStart: false
   }),
   actions: {
     async initialize() {
@@ -29,7 +33,7 @@ export const useConfigurationStore = defineStore('configuration', {
     }
   },
   persist: {
-    pick: ['searchHotkey', 'configHotkey']
+    pick: ['searchHotkey', 'configHotkey', 'theme']
   }
 });
 

@@ -32,6 +32,10 @@ declare global {
     categorySort: 'asc' | 'desc';
     searchHotkey: string;
     configHotkey: string;
+    dbPath: string;
+    dbBackup: string;
+    theme: 'light' | 'dark' | 'auto';
+    autoStart: boolean;
   }
 }
 

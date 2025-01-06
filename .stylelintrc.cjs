@@ -26,6 +26,12 @@ module.exports = {
     "keyframes-name-pattern": null, // 动画帧节点样式命名规则
     "no-descending-specificity": null, // 允许无降序特异性
     "no-empty-source": null, // 允许空样式
+    "scss/at-rule-no-unknown": [
+      true,
+      {
+        ignoreAtRules: ["tailwind", "apply", "layer", "config", "screen", "use", "forward"]
+      }
+    ],
     // 允许 global 、export 、deep伪类
     "selector-pseudo-class-no-unknown": [
       true,
@@ -38,13 +44,6 @@ module.exports = {
       true,
       {
         ignoreProperties: [],
-      },
-    ],
-    // 允许未知规则
-    "at-rule-no-unknown": [
-      true,
-      {
-        ignoreAtRules: ["apply", "use", "forward"],
       },
     ],
   },
