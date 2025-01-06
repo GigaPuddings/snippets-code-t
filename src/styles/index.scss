@@ -1,4 +1,5 @@
-@use './reset.scss';
+@use './reset';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -17,9 +18,7 @@
   height: 36px !important;
 }
 
-// 修改el-tooltip hover:: el-popper的样式 
 .el-popper {
-  line-height: .875rem !important;
-  padding: .3125rem .75rem !important;
+  padding: 0.3125rem 0.75rem !important;
+  line-height: 0.875rem !important;
 }
-
