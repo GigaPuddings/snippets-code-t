@@ -79,6 +79,14 @@ fn show_hide_window_command(label: &str) -> Result<(), String> {
     Ok(())
 } 
 
+// 获取数据库目录
+#[tauri::command]
+fn get_db_path() -> String {
+  let db_path = APP.get().unwrap().path().app_data_dir().unwrap();
+  println!("数据: {:?}", db_path);
+  db_path.to_str().unwrap().to_string()
+}
+
 
 
 
@@ -167,6 +175,7 @@ pub fn run() {
             show_hide_window_command,
             get_browser_bookmarks,
             open_url,
+            get_db_path,
             // sql::search_contents,
             // sql::get_categories,
             // sql::create_category,

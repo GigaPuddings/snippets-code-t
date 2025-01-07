@@ -18,12 +18,7 @@
                 />
               </template>
             </el-input>
-            <el-tooltip
-              effect="dark"
-              content="新建片段"
-              placement="bottom"
-              :show-arrow="false"
-            >
+            <el-tooltip effect="dark" content="新建片段" placement="bottom">
               <Plus
                 class="content-search-add"
                 theme="outline"

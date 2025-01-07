@@ -18,6 +18,13 @@
   height: 36px !important;
 }
 
+.el-input-group__append {
+  position: relative;
+  right: 10px;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
 .el-popper {
   padding: 0.3125rem 0.75rem !important;
   line-height: 0.875rem !important;
@@ -37,13 +44,60 @@
 }
 
 .summarize-input-wrapper {
-  @apply w-full flex items-center justify-between gap-4 mt-4;
+  @apply relative w-full flex items-center justify-between gap-4 mt-5;
+}
+
+.summarize-input-wrapper .el-input__wrapper {
+  @apply relative;
 }
 
 .summarize-input {
-  @apply w-full bg-[#e6e1de] rounded-md;
+  @apply max-w-[70%] bg-[#e6e1de] rounded-md;
 }
 
 .summarize-button {
-  width: 100px;
+  @apply rounded-md;
+}
+
+// 快捷键设置
+.summarize-input-wrapper .el-input__suffix {
+  position: absolute;
+  left: 10px;
+}
+
+.summarize-input-wrapper .el-input__suffix .label {
+  display: flex;
+  font-size: 14px;
+  font-weight: normal;
+  color: #999;
+  pointer-events: none;
+}
+
+.summarize-input-wrapper .label-char {
+  transition: 0.2s ease all;
+  transition-delay: calc(var(--index) * 0.05s);
+}
+
+.summarize-input-wrapper
+  .el-input__inner:focus
+  + .el-input__suffix
+  label
+  .label-char,
+.summarize-input-wrapper
+  .el-input__inner:valid
+  + .el-input__suffix
+  label
+  .label-char {
+  font-size: 14px;
+  transform: translateY(-20px);
+}
+
+.summarize-input-wrapper .el-input__inner:valid + .el-input__suffix .button {
+  display: block;
+}
+
+.button {
+  position: absolute;
+  right: 6px;
+  z-index: 1;
 }

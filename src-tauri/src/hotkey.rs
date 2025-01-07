@@ -41,9 +41,14 @@ where
         // 获取快捷键管理器
         let manager = app_handle.global_shortcut();
 
-        // 注销已存在的快捷键（如果有）
+        // 检查快捷键是否已经注册
         if manager.is_registered(shortcut) {
-            info!("Shortcut key: {} registered", hotkey);
+            warn!("Shortcut key: {} is already registered", hotkey);
+            return Err(format!("快捷键 '{}' 已经被注册", hotkey));
+        }
+
+        // 注销现有的快捷键（如果有）
+        if manager.is_registered(shortcut) {
             manager.unregister(shortcut).unwrap();
         }
 
@@ -90,7 +95,9 @@ pub fn register_shortcut_by_frontend(
             set_value(&app_handle, "config", shortcut);
             register(&app_handle, "config", hotkey_config, shortcut)?;
         }
-        _ => {}
+        _ => {
+          return Err("未知的快捷键名称".to_string());
+        }
     }
     Ok(())
 }

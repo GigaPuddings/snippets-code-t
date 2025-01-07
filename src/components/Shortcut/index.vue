@@ -4,18 +4,32 @@
     <div class="summarize-input-wrapper">
       <el-input
         class="summarize-input"
+        required
         v-model="store.searchHotkey"
-        placeholder="Press shortcut keys"
         @keydown="keyDown($event, setSelectionSearch)"
         @focus="() => handleFocusUnregister('search', store.searchHotkey)"
-      />
-      <el-button
-        type="primary"
-        class="summarize-button"
-        @click="() => registerHandler('search', store.searchHotkey)"
       >
-        注册
-      </el-button>
+        <template #suffix>
+          <label class="label">
+            <span
+              v-for="(char, index) in labelText"
+              :key="index"
+              class="label-char"
+              :style="{ '--index': index }"
+            >
+              {{ char }}
+            </span>
+          </label>
+        </template>
+        <template #append>
+          <button
+            class="button"
+            @click="() => registerHandler('search', store.searchHotkey)"
+          >
+            注册
+          </button>
+        </template>
+      </el-input>
     </div>
   </section>
 
@@ -25,17 +39,31 @@
       <el-input
         class="summarize-input"
         v-model="store.configHotkey"
-        placeholder="Press shortcut keys"
+        placeholder="按下按键设置快捷键"
         @keydown="keyDown($event, setSelectionConfig)"
         @focus="() => handleFocusUnregister('config', store.configHotkey)"
-      />
-      <el-button
-        type="primary"
-        class="summarize-button"
-        @click="() => registerHandler('config', store.configHotkey)"
       >
-        注册
-      </el-button>
+        <template #suffix>
+          <label class="label">
+            <span
+              v-for="(char, index) in labelText"
+              :key="index"
+              class="label-char"
+              :style="{ '--index': index }"
+            >
+              {{ char }}
+            </span>
+          </label>
+        </template>
+        <template #append>
+          <button
+            class="button"
+            @click="() => registerHandler('config', store.configHotkey)"
+          >
+            注册
+          </button>
+        </template>
+      </el-input>
     </div>
   </section>
 </template>
@@ -49,9 +77,10 @@ import { useConfigurationStore } from '@/store';
 const store = useConfigurationStore();
 
 defineOptions({
-  name: 'Shortcut',
-  keepAlive: true
+  name: 'Shortcut'
 });
+
+const labelText = ['按', '下', '按', '键', '设', '置', '快', '捷', '键'];
 
 // 快捷键映射
 const keyMap: any = {
@@ -138,31 +167,25 @@ function registerHandler(name: string, key: string) {
     return;
   }
   console.log('注册快捷键:', name, '_____', key);
-
   invoke('register_shortcut_by_frontend', {
     name: name,
     shortcut: key
-  }).then(
-    () => {
-      console.log('快捷键注册成功:', key);
-      window.localStorage.setItem(name, key);
-    },
-    (e: any) => {
-      console.error('快捷键注册失败:', e);
-      window.localStorage.setItem(name, '');
-    }
-  );
+  })
+    .then(() => {
+      ElMessage.success(`快捷键注册成功: , ${key}`);
+    })
+    .catch((e: any) => {
+      ElMessage.error(`快捷键注册失败: , ${e}`);
+    });
 }
 
 // 设置快捷键
 function setSelectionSearch(value: string) {
   store.searchHotkey = value;
-  console.log('setSelectionSearch', value);
 }
 
 function setSelectionConfig(value: string) {
   store.configHotkey = value;
-  console.log('setSelectionConfig', value);
 }
 
 // 快捷键取消
@@ -172,7 +195,6 @@ function handleFocusUnregister(name: string, key: string) {
     return;
   }
   console.log('快捷键取消:', name, '_____', key);
-
   switch (name) {
     case 'search':
       unregister(key);
@@ -183,7 +205,7 @@ function handleFocusUnregister(name: string, key: string) {
       setSelectionConfig('');
       break;
   }
-  window.localStorage.setItem(name, '');
+
   invoke('register_shortcut_by_frontend', { name: name, shortcut: '' });
 }
 </script>

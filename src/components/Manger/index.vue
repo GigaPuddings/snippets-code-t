@@ -44,6 +44,7 @@
 
 <script setup lang="ts">
 import { useConfigurationStore } from '@/store';
+import { invoke } from '@tauri-apps/api/core';
 
 defineOptions({
   name: 'Manger'
@@ -56,17 +57,16 @@ const dictDBBackup = [
   { value: 'C', label: '年-月-日-时-分-秒' }
 ];
 
-const openDBPath = () => {
-  invoke('open_db_path');
+// 获取数据库目录
+
+const openDBPath = async () => {
+  const dbPath = await invoke('get_db_path');
+  console.log(dbPath);
 };
 
-const startBackup = () => {
-  invoke('start_backup');
-};
+const startBackup = () => {};
 
-const restoreData = () => {
-  invoke('restore_data');
-};
+const restoreData = () => {};
 </script>
 
 <style scoped lang="scss"></style>

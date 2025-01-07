@@ -50,7 +50,7 @@ const dictTheme = [
   { value: 'auto', label: '自动', icon: Computer }
 ];
 
-const changeTheme = (value: string) => {
+const changeTheme = (value: 'light' | 'dark' | 'auto') => {
   store.theme = value;
 };
 </script>

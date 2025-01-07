@@ -1,5 +1,5 @@
 [package]
-name = "snipptes-code"
+name = "snippets-code"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]

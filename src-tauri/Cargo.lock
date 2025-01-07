@@ -4067,7 +4067,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "snipptes-code"
+name = "snippets-code"
 version = "0.1.0"
 dependencies = [
  "log",

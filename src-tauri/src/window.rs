@@ -182,5 +182,6 @@ pub fn hotkey_config() {
       window.hide().unwrap();
   } else {
       window.show().unwrap();
+      window.set_focus().unwrap();
   }
 }

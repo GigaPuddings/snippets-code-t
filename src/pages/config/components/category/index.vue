@@ -5,7 +5,7 @@
       <div class="category-header-list">
         <div class="category-header-title">文件夹</div>
         <div class="category-header-action">
-          <el-tooltip content="新建" placement="bottom" :show-arrow="false">
+          <el-tooltip content="新建" placement="bottom">
             <FolderPlus
               class="category-header-action-item-icon"
               theme="outline"
@@ -17,7 +17,6 @@
           <el-tooltip
             :content="store.categorySort === 'asc' ? '升序' : '降序'"
             placement="bottom"
-            :show-arrow="false"
           >
             <component
               class="category-header-action-item-icon"
