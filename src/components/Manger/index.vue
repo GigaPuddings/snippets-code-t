@@ -16,7 +16,11 @@
   <section class="summarize-section">
     <div class="summarize-label">数据备份：</div>
     <div class="summarize-input-wrapper">
-      <el-select v-model="store.dbBackup" placeholder="">
+      <el-select
+        class="summarize-input"
+        v-model="store.dbBackup"
+        placeholder=""
+      >
         <el-option
           v-for="item in dictDBBackup"
           :key="item.value"

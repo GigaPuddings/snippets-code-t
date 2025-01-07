@@ -2,7 +2,12 @@
   <section class="summarize-section">
     <div class="summarize-label">设置主题：</div>
     <div class="summarize-input-wrapper">
-      <el-select v-model="store.theme" placeholder="" @change="changeTheme">
+      <el-select
+        class="summarize-input"
+        v-model="store.theme"
+        placeholder=""
+        @change="changeTheme"
+      >
         <el-option
           v-for="item in dictTheme"
           :key="item.value"

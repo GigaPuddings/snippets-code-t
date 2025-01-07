@@ -25,6 +25,23 @@
   box-shadow: none !important;
 }
 
+.el-select__wrapper.is-focused {
+  box-shadow: none !important;
+}
+
+.el-select__popper.el-popper,
+.el-popper.is-light > .el-popper__arrow::before {
+  background: #e6e1de !important;
+}
+
+.el-select-dropdown__item.is-selected {
+  color: var(--el-text-color-regular) !important;
+}
+
+.el-select-dropdown__item.is-hovering {
+  background-color: var(--el-color-info-light-8) !important;
+}
+
 .el-popper {
   padding: 0.3125rem 0.75rem !important;
   line-height: 0.875rem !important;
