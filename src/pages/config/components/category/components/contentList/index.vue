@@ -70,7 +70,6 @@ const queryFragments = async (cid?: string) => {
     cid ? Number(cid) : undefined,
     searchText.value
   );
-  console.log('result', result);
   store.contents = result as ContentType[];
 };
 
@@ -78,8 +77,6 @@ const queryFragments = async (cid?: string) => {
 watch(
   () => route.fullPath,
   (newPath, _oldPath) => {
-    console.log('监听到路由变化', newPath, _oldPath);
-
     // 从路径中提取 cid
     const newCid = route.params.cid as string;
     // 只有当路径中包含 contentList 时才触发（说明是点击分类导航）
@@ -88,7 +85,6 @@ watch(
       !newPath.includes('/content/') &&
       store.apps.length !== 0
     ) {
-      console.log('分类切换，重新获取列表:', newCid);
       queryFragments(newCid ? newCid : undefined);
     }
   },
@@ -103,24 +99,11 @@ const handleSearch = debounce(() => {
 const handleAddContent = async () => {
   const cid = route.params.cid as string;
   const id = await addFragment(cid ? Number(cid) : 0);
-  console.log('新增片段id', id);
 
   // 搜索框清空
   searchText.value = '';
   // 内容列表页获取新id更新
   store.contents = await getFragmentList(cid ? Number(cid) : undefined, '');
-  // const category = store.categories.find((item) => item.id === Number(cid));
-  // store.contents.unshift({
-  //   id: id,
-  //   title: '未命名片段',
-  //   content: '',
-  //   category_id: Number(cid),
-  //   category_name: category?.name,
-  //   created_at: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-  //   summarize: 'text'
-  // });
-  console.log(`/config/category/contentList/${cid ? cid : 0}/content/${id}`);
-
   // 内容列表页获取新id更新
   router.replace(`/config/category/contentList/${cid ? cid : 0}/content/${id}`);
 };
@@ -131,10 +114,6 @@ watch(
   () => {},
   { deep: true }
 );
-
-onMounted(() => {
-  console.log('ContentList mounted');
-});
 </script>
 
 <style scoped lang="scss">

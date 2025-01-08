@@ -69,8 +69,6 @@ const queryFragments = async () => {
 };
 
 onMounted(async () => {
-  console.log('Category mounted');
-  console.log('route', route.path);
   if (store.categories.length === 0 && store.contents.length === 0) {
     // 获取分类
     store.categories = await queryCategories();

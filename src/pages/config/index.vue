@@ -1,9 +1,22 @@
 <template>
   <div class="config">
     <div class="config-nav">
-      <router-link v-for="(tab, index) in tabs" :key="index" :to="tab.path"
-        :class="['config-nav-item mb-4', { 'config-nav-item-active': $route.path.startsWith(tab.path) }]">
-        <component :is="tab.icon" class="config-nav-item-icon" theme="outline" size="20" :strokeWidth="3" />
+      <router-link
+        v-for="(tab, index) in tabs"
+        :key="index"
+        :to="tab.path"
+        :class="[
+          'config-nav-item mb-4',
+          { 'config-nav-item-active': $route.path.startsWith(tab.path) }
+        ]"
+      >
+        <component
+          :is="tab.icon"
+          class="config-nav-item-icon"
+          theme="outline"
+          size="20"
+          :strokeWidth="3"
+        />
         <div class="config-nav-item-text">{{ tab.title }}</div>
       </router-link>
     </div>
@@ -24,18 +37,14 @@ const tabs = [
   {
     icon: BookOpen,
     title: '片段',
-    path: '/config/category/contentList',
+    path: '/config/category/contentList'
   },
   {
     icon: SettingOne,
     title: '配置',
-    path: '/config/summarize',
-  },
+    path: '/config/summarize'
+  }
 ];
-
-onMounted(() => {
-  console.log('Config mounted');
-});
 </script>
 
 <style scoped lang="scss">

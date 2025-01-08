@@ -6,8 +6,6 @@ export function getFragmentList(
   searchVal: string = ''
 ): Promise<ContentType[]> {
   return new Promise((resolve) => {
-    console.log('获取片段列表');
-
     const db = getDb();
 
     // 基础 SQL 查询语句，使用 JOIN 连接两个表
@@ -46,7 +44,6 @@ export function getFragmentList(
 // 新增片段 没有categoryId时，默认新增到未分类
 export function addFragment(categoryId: number): Promise<number> {
   return new Promise((resolve) => {
-    console.log('新增片段');
     const db = getDb();
     db.then((db) => {
       db.execute(
@@ -62,7 +59,6 @@ export function addFragment(categoryId: number): Promise<number> {
 // 删除片段
 export function deleteFragment(id: number): Promise<void> {
   return new Promise((resolve) => {
-    console.log('删除片段');
     const db = getDb();
     db.then((db) => {
       db.execute(`delete from contents where id = ?`, [id]).then(() => {
@@ -75,7 +71,6 @@ export function deleteFragment(id: number): Promise<void> {
 // 编辑片段
 export function editFragment(params: any): Promise<void> {
   return new Promise((resolve) => {
-    console.log('编辑片段');
     const db = getDb();
     db.then((db) => {
       db.execute(
@@ -91,7 +86,6 @@ export function editFragment(params: any): Promise<void> {
 // 获取片段内容
 export function getFragmentContent(id: number): Promise<ContentType[]> {
   return new Promise((resolve) => {
-    console.log('获取片段内容');
     const db = getDb();
     db.then((db) => {
       db.select(`select * from contents where id = ?`, [id]).then((res) => {

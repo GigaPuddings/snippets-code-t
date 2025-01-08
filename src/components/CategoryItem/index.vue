@@ -3,6 +3,7 @@
     <div class="category-item-title">
       <el-input
         v-if="isEdit"
+        class="category-item-input"
         ref="inputRef"
         v-model="category.name"
         autoFocus
@@ -65,7 +66,10 @@ watch(isEdit, (newValue, _oldValue) => {
 const handleEditCategory = async () => {
   // 保存编辑的分类
   store.editCategoryId = '';
-  const name = props.category.name.toLowerCase().replace(/( |^)[a-z]/g, (L) => L.toUpperCase()) || '未命名';
+  const name =
+    props.category.name
+      .toLowerCase()
+      .replace(/( |^)[a-z]/g, (L) => L.toUpperCase()) || '未命名';
   await editCategory(props.category.id, name);
   // 重新获取分类
   router.replace(`/config/category/contentList/${props.category.id}`);
@@ -99,8 +103,7 @@ const handleContextMenu = async (item: any) => {
   @apply bg-neutral-200 hover:bg-neutral-200 dark:bg-[#5977cb] dark:hover:bg-[#5977cb];
 }
 
-.input {
-  @apply bg-slate-50 dark:bg-[--mantine-color-dark-outline] dark:text-[--mantine-color-gray-light-color] w-full border outline-none rounded-md px-3 py-1;
-  height: 28px;
+.category-item-input {
+  @apply bg-[#e6e1de] border rounded-md h-7;
 }
 </style>

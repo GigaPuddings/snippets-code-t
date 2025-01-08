@@ -166,7 +166,6 @@ function registerHandler(name: string, key: string) {
     console.log('无效的快捷键');
     return;
   }
-  console.log('注册快捷键:', name, '_____', key);
   invoke('register_shortcut_by_frontend', {
     name: name,
     shortcut: key
@@ -194,7 +193,6 @@ function handleFocusUnregister(name: string, key: string) {
     console.log('快捷键为空');
     return;
   }
-  console.log('快捷键取消:', name, '_____', key);
   switch (name) {
     case 'search':
       unregister(key);
@@ -205,7 +203,6 @@ function handleFocusUnregister(name: string, key: string) {
       setSelectionConfig('');
       break;
   }
-
   invoke('register_shortcut_by_frontend', { name: name, shortcut: '' });
 }
 </script>

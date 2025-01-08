@@ -37,7 +37,7 @@ module.exports = {
     "vue/attribute-hyphenation": "off",
     "vue/require-default-prop": "off",
     "vue/require-explicit-emits": "off",
-    // 'vue/no-mutating-props': 'off',
+    'vue/no-mutating-props': 'off',
     "vue/html-self-closing": [
       "error",
       {

@@ -32,10 +32,6 @@ import { AllApplication, FolderOne } from '@icon-park/vue-next';
 defineOptions({
   name: 'QuickNav'
 });
-
-onMounted(() => {
-  console.log('QuickNav mounted');
-});
 </script>
 
 <style lang="scss" scoped>

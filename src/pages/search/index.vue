@@ -13,7 +13,6 @@ const searchInputRef = ref<HTMLElement | null>(null);
 const handleGoConfig = async () => {
   try {
     await invoke('hotkey_config_command');
-    console.log('配置窗口创建成功');
   } catch (error) {
     console.error('创建窗口失败:', error);
   }
@@ -24,7 +23,6 @@ onMounted(async () => {
   //   useSetIgnoreCursorEvents(mainRef.value);
   // }
   listen('windowFocused', () => {
-    console.log('窗口获得焦点');
     // 输入框聚焦
     searchInputRef.value?.focus();
   });
