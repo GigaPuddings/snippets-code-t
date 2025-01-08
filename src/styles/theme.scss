@@ -1,0 +1,39 @@
+:root {
+  // 浅色主题变量
+  --categories-panel-bg: #fff;
+  --categories-content-bg: #f5f7fa;
+  --categories-bg-active: #e6f0ff;
+  --categories-panel-bg-hover: #f5f7fa;
+  --categories-text-color: #333;
+  --categories-info-text-color: #666;
+  --categories-text-color-active: #4b94f8;
+  --categories-border-color: #e4e7ed;
+
+  // 搜索窗口主题变量
+  --search-bg: #fff;
+  --search-input-bg: #f5f7fa;
+  --search-text: #333;
+  --search-placeholder: #999;
+  --search-result-hover: #f5f7fa;
+  --search-border: #e4e7ed;
+}
+
+.dark {
+  // 深色主题变量
+  --categories-panel-bg: #1a1a1a;
+  --categories-content-bg: #2c2c2c;
+  --categories-bg-active: #363636;
+  --categories-panel-bg-hover: #363636;
+  --categories-text-color: #fff;
+  --categories-info-text-color: #a0a0a0;
+  --categories-text-color-active: #4b94f8;
+  --categories-border-color: #363636;
+
+  // 搜索窗口深色主题变量
+  --search-bg: #1a1a1a;
+  --search-input-bg: #2c2c2c;
+  --search-text: #fff;
+  --search-placeholder: #666;
+  --search-result-hover: #363636;
+  --search-border: #363636;
+}

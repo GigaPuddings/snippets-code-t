@@ -5,26 +5,37 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --categories-content-bg: #e6e1de;
+    --categories-panel-bg: #faf7f5;
+    --categories-panel-bg-hover: #4b94f8;
+    --categories-bg-active: #e5e5e5;
+    --categories-text-color: #303133;
+    --categories-text-color-active: #303133;
+    --categories-info-text-color: #909399;
+    --categories-border-color: #dcdfe6;
+  }
+
   .light {
-    --bg-base1: #fff;
-    --bg-base2: #f5f5f5;
-    --bg-active1: #e6e6e6;
-    --bg-active2: #4b94f8;
-    --text-color1: #1a1a1a;
-    --text-color2: #666;
-    --text-color-hover: #4b94f8;
-    --text-color-active: #fff;
+    --categories-content-bg: #e6e1de;
+    --categories-panel-bg: #faf7f5;
+    --categories-panel-bg-hover: #4b94f8;
+    --categories-bg-active: #e5e5e5;
+    --categories-text-color: #303133;
+    --categories-text-color-active: #303133;
+    --categories-info-text-color: #909399;
+    --categories-border-color: #dcdfe6;
   }
 
   .dark {
-    --bg-base1: #1a1a1a;
-    --bg-base2: #2d2d2d;
-    --bg-active1: #5977cb;
-    --bg-active2: #5977cb;
-    --text-color1: #fff;
-    --text-color2: #b3b3b3;
-    --text-color-hover: #5977cb;
-    --text-color-active: #fff;
+    --categories-panel-bg: #262727;
+    --categories-content-bg: #303133;
+    --categories-panel-bg-hover: #409eff1a;
+    --categories-bg-active: #409eff1a;
+    --categories-text-color: #cfd3dc;
+    --categories-text-color-active: #409eff;
+    --categories-info-text-color: #a3a6ad;
+    --categories-border-color: #43444e;
   }
 }
 
@@ -59,15 +70,15 @@
 
 .el-select__popper.el-popper,
 .el-popper.is-light > .el-popper__arrow::before {
-  background: #e6e1de !important;
+  background: var(--categories-content-bg) !important;
 }
 
 .el-select-dropdown__item.is-selected {
-  color: var(--el-text-color-regular) !important;
+  color: var(--categories-text-color-active) !important;
 }
 
 .el-select-dropdown__item.is-hovering {
-  background-color: var(--el-color-info-light-8) !important;
+  background-color: var(--categories-panel-bg) !important;
 }
 
 .el-popper {
@@ -81,11 +92,11 @@
 }
 
 .summarize-section {
-  @apply h-[120px] bg-secondary p-6 rounded-md overflow-hidden;
+  @apply h-[120px] bg-panel p-6 rounded-md overflow-hidden;
 }
 
 .summarize-label {
-  @apply text-sm font-bold text-primary;
+  @apply text-sm font-bold text-content;
 }
 
 .summarize-input-wrapper {
@@ -97,7 +108,7 @@
 }
 
 .summarize-input {
-  @apply max-w-[70%] bg-primary rounded-md;
+  @apply max-w-[70%] bg-content rounded-md;
 }
 
 .summarize-button {
@@ -114,7 +125,7 @@
   display: flex;
   font-size: 14px;
   font-weight: normal;
-  color: #999;
+  color: var(--categories-text-color);
   pointer-events: none;
 }
 

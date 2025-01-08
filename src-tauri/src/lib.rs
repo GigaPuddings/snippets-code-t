@@ -12,15 +12,16 @@ use bookmarks::{get_browser_bookmarks, open_url};
 use chrono::Local;
 use hotkey::*;
 use log::info;
+use tauri_plugin_autostart::MacosLauncher;
 use std::fs;
 use std::io::Read;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::OnceLock;
-use tauri_plugin_dialog::DialogExt;
 use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
 
@@ -99,7 +100,7 @@ fn get_db_path() -> String {
 async fn backup_database(format: &str) -> Result<String, String> {
     let app = APP.get().unwrap();
     let db_path = app.path().app_data_dir().unwrap().join("code.db");
-    
+
     // 生成默认文件名以code_开头
     let now = Local::now();
     let filename = match format {
@@ -111,15 +112,15 @@ async fn backup_database(format: &str) -> Result<String, String> {
 
     // 获取桌面路径
     let desktop = dirs::desktop_dir().ok_or("Cannot find desktop directory")?;
-    
+
     if let Some(selected_path) = app
         .dialog()
         .file()
         .add_filter("SQLite Database", &["db"])
         .set_file_name(&format!("{}.db", "code_".to_string() + &filename))
         .set_directory(desktop)
-        .blocking_save_file() {
-            
+        .blocking_save_file()
+    {
         // 将 FilePath 转换为 PathBuf
         let path = selected_path.as_path().unwrap();
         fs::copy(&db_path, path).map_err(|e| e.to_string())?;
@@ -133,10 +134,10 @@ async fn backup_database(format: &str) -> Result<String, String> {
 async fn restore_database() -> Result<String, String> {
     let app = APP.get().unwrap();
     let db_path = app.path().app_data_dir().unwrap().join("code.db");
-    
+
     // 获取桌面路径作为默认目录
     let desktop = dirs::desktop_dir().ok_or("Cannot find desktop directory")?;
-    
+
     // 使用 blocking_pick_file 而不是 pick_file
     let selected_path = app
         .dialog()
@@ -170,7 +171,7 @@ async fn restore_database() -> Result<String, String> {
 
             Ok("Restore successful. Application will restart.".to_string())
         }
-        None => Err("Restore cancelled".to_string())
+        None => Err("Restore cancelled".to_string()),
     }
 }
 
@@ -217,6 +218,7 @@ fn get_backup_list() -> Result<Vec<String>, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         // 单实例插件：防止程序多开

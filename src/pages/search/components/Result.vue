@@ -30,9 +30,13 @@ const props = defineProps<{
 const filteredResults = computed(() => {
   switch (activeTab.value) {
     case 'app':
-      return props.results.filter((item) => item.summarize === 'app').slice(0, 10);
+      return props.results
+        .filter((item) => item.summarize === 'app')
+        .slice(0, 10);
     case 'bookmark':
-      return props.results.filter((item) => item.summarize === 'bookmark').slice(0, 10);
+      return props.results
+        .filter((item) => item.summarize === 'bookmark')
+        .slice(0, 10);
     default:
       return props.results.slice(0, 10);
   }
@@ -199,55 +203,41 @@ onUnmounted(() => {
 </template>
 <style lang="scss" scoped>
 .result-container {
-  @apply bg-[#faf7f5] dark:bg-[#22282c] px-1 rounded-bl-lg rounded-br-lg;
+  @apply bg-search px-1 rounded-bl-lg rounded-br-lg;
 
   .tabs {
-    @apply flex gap-2 py-2 border-gray-200 dark:border-gray-700;
+    @apply flex gap-2 py-2 border-search;
 
     .tab {
-      @apply px-3 py-1 text-sm text-gray-600 dark:text-gray-400 cursor-pointer rounded-md;
+      @apply px-3 py-1 text-sm text-search cursor-pointer rounded-md;
 
       &.active {
-        @apply bg-[#e6e1de] dark:bg-gray-700 text-gray-900 dark:text-white;
+        @apply bg-search-hover text-search;
       }
     }
   }
 
   .result {
     @apply max-h-[254px] overflow-y-auto;
-    .item {
-      @apply flex items-center gap-2 text-slate-700 px-2 py-1 rounded-lg cursor-pointer;
 
+    .item {
+      @apply flex items-center gap-2 text-search px-2 py-1 rounded-lg cursor-pointer;
+
+      &:hover,
       &.active {
-        @apply bg-[#e6e1de] dark:bg-[#5977cb];
+        @apply bg-search-hover;
+      }
+
+      .content {
+        @apply overflow-hidden;
 
         .title {
-          @apply dark:text-slate-800;
+          @apply text-sm truncate font-sans font-semibold text-search;
         }
 
         .text {
-          @apply dark:text-gray-700;
+          @apply text-xs truncate text-search-secondary;
         }
-
-        .icon {
-          @apply dark:bg-slate-300 dark:text-slate-800;
-        }
-      }
-    }
-
-    /* .icon {
-      @apply p-1 bg-neutral-300 rounded-md text-zinc-600;
-    } */
-
-    .content {
-      @apply overflow-hidden;
-
-      .title {
-        @apply text-sm truncate font-sans font-semibold dark:text-neutral-200;
-      }
-
-      .text {
-        @apply text-xs truncate dark:text-[#aeb1b6];
       }
     }
   }

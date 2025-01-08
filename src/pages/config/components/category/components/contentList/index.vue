@@ -122,11 +122,11 @@ watch(
 }
 
 .left-panel {
-  @apply h-full bg-[#faf7f5] dark:bg-[#22282c] rounded-md ml-2 px-2 overflow-hidden;
+  @apply h-full bg-panel dark:bg-panel rounded-md ml-2 px-2 overflow-hidden;
   .content-search {
-    @apply border-b dark:border-b-[#43444e] flex justify-between items-center h-[40px];
+    @apply border-b border-panel flex justify-between items-center h-[40px];
     .content-search-add {
-      @apply cursor-pointer rounded-md p-1 mr-2 text-[#282d32] dark:text-[#adb0b8] hover:bg-slate-200 dark:hover:bg-gray-800;
+      @apply cursor-pointer rounded-md p-1 mr-2 text-panel dark:text-panel hover:bg-active dark:hover:bg-hover;
     }
   }
   .content-list {
@@ -138,6 +138,6 @@ watch(
 }
 
 .right-panel {
-  @apply h-full bg-[#faf7f5] dark:bg-[#22282c] rounded-md mx-2 overflow-hidden;
+  @apply h-full bg-panel dark:bg-panel rounded-md mx-2 overflow-hidden;
 }
 </style>

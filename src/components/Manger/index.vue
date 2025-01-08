@@ -7,7 +7,31 @@
   </section>
 
   <section class="summarize-section">
-    <div class="summarize-label">数据管理：</div>
+    <div class="summarize-label flex items-center gap-8">
+      <div>数据管理：</div>
+      <div>
+        <el-button
+          type="success"
+          size="small"
+          plain
+          class="summarize-button"
+          @click="startBackup"
+          :loading="backupLoading"
+        >
+          数据备份
+        </el-button>
+        <el-button
+          type="danger"
+          size="small"
+          plain
+          class="summarize-button"
+          @click="restoreData"
+          :loading="restoreLoading"
+        >
+          数据恢复
+        </el-button>
+      </div>
+    </div>
     <div class="summarize-input-wrapper">
       <el-select
         class="summarize-input"
@@ -21,22 +45,6 @@
           :value="item.value"
         />
       </el-select>
-      <el-button
-        type="primary"
-        class="summarize-button"
-        @click="startBackup"
-        :loading="backupLoading"
-      >
-        数据备份
-      </el-button>
-      <el-button
-        type="primary"
-        class="summarize-button"
-        @click="restoreData"
-        :loading="restoreLoading"
-      >
-        数据恢复
-      </el-button>
     </div>
   </section>
 </template>

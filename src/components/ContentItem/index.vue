@@ -53,7 +53,9 @@ const menu = [
 
 const handleContextMenu = async (item: any) => {
   if (item.type === 'edit') {
-    router.push(`/config/category/contentList/${content.value.category_id}/content/${content.value.id}`);
+    router.push(
+      `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`
+    );
   } else if (item.type === 'delete') {
     await deleteFragment(Number(content.value.id));
     if (route.params.id) {
@@ -68,7 +70,7 @@ const handleContextMenu = async (item: any) => {
 
 <style scoped lang="scss">
 @mixin commonLink {
-  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-neutral-200 dark:hover:bg-[#5977cb] hover:border-b-slate-100 border-b-transparent;
+  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-active dark:hover:bg-active hover:border-panel border-b-transparent;
 }
 
 .link {
@@ -77,16 +79,16 @@ const handleContextMenu = async (item: any) => {
 
 .active {
   @include commonLink();
-  @apply bg-neutral-200 dark:bg-[#5977cb] dark:hover:bg-[#5977cb];
+  @apply bg-active dark:bg-active dark:hover:bg-hover;
 }
 
 .content-item-wrapper {
-  @apply relative text-xs px-3 py-[6px] rounded-md select-none after:h-[1px] dark:after:bg-[#43444e] after:bg-slate-200 after:absolute after:w-[calc(100%-4px)] after:-bottom-1 after:right-[0.1rem];
+  @apply relative text-xs px-3 py-[6px] rounded-md select-none after:h-[1px] after:border-panel after:absolute after:w-[calc(100%-4px)] after:-bottom-1 after:right-[0.1rem];
   .content-item-title {
-    @apply truncate dark:text-[#e4e4e7];
+    @apply truncate text-panel;
   }
   .content-item-info {
-    @apply flex justify-between items-center pt-3 text-[#71717a] dark:text-[#aeb1b6];
+    @apply flex justify-between items-center pt-3 text-content;
     .content-item-info-category {
       @apply flex items-center gap-1 flex-1 truncate;
     }

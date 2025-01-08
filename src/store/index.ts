@@ -14,7 +14,7 @@ export const useConfigurationStore = defineStore('configuration', {
     searchHotkey: 'Alt+M',
     configHotkey: 'Alt+P',
     dbPath: '',
-    dbBackup: 'A',
+    dbBackup: '',
     theme: 'light',
     autoStart: false
   }),

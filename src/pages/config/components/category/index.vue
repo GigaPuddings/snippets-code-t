@@ -114,20 +114,20 @@ onMounted(async () => {
   grid-template-rows: 1fr;
 
   .category-page {
-    @apply bg-[#faf7f5] dark:bg-[#22282c] px-2 text-sm text-slate-700 rounded-md;
+    @apply bg-panel dark:bg-panel px-2 text-sm text-slate-700 rounded-md;
 
     .category-header-list {
       @apply flex justify-between items-center mt-2;
 
       .category-header-title {
-        @apply px-1 opacity-90 text-gray-400 text-xs;
+        @apply px-1 opacity-90 text-content text-xs;
       }
 
       .category-header-action {
         @apply flex items-center;
 
         .category-header-action-item-icon {
-          @apply p-1 rounded-md cursor-pointer text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800;
+          @apply p-1 rounded-md cursor-pointer text-content hover:bg-active dark:hover:bg-hover;
         }
       }
     }

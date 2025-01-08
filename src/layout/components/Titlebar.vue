@@ -1,56 +1,76 @@
 <template>
-	<main data-tauri-drag-region class="titlebar">
-		<div class="titlebar-title"><slot /></div>
+  <main data-tauri-drag-region class="titlebar">
+    <div class="titlebar-title"><slot></slot></div>
     <div class="titlebar-list">
       <div class="titlebar-button" @click="handleTitlebar('minimize')">
-        <minus class="icon" theme="outline" size="17" :strokeWidth="3" strokeLinecap="butt"/>
+        <minus
+          class="icon"
+          theme="outline"
+          size="17"
+          :strokeWidth="3"
+          strokeLinecap="butt"
+        />
       </div>
       <div class="titlebar-button" @click="handleTitlebar('maximize')">
-        <square-small class="icon" theme="outline" size="18" :strokeWidth="3" strokeLinecap="butt" />
+        <square-small
+          class="icon"
+          theme="outline"
+          size="18"
+          :strokeWidth="3"
+          strokeLinecap="butt"
+        />
       </div>
       <div class="titlebar-button" @click="handleTitlebar('close')">
-        <close-small class="icon !p-0" theme="outline" size="24" :strokeWidth="2" strokeLinecap="butt" />
+        <close-small
+          class="icon !p-0"
+          theme="outline"
+          size="24"
+          :strokeWidth="2"
+          strokeLinecap="butt"
+        />
       </div>
     </div>
-	</main>
+  </main>
 </template>
 
 <script setup lang="ts">
-import { Minus, SquareSmall, CloseSmall } from '@icon-park/vue-next'
+import { Minus, SquareSmall, CloseSmall } from '@icon-park/vue-next';
 import { Window } from '@tauri-apps/api/window';
 
 defineOptions({
   name: 'Titlebar'
-})
+});
 
 const appWindow = new Window('config');
 
 const handleTitlebar = async (type: string) => {
   switch (type) {
     case 'minimize':
-      appWindow.minimize()
+      appWindow.minimize();
       break;
     case 'maximize':
-      await appWindow.isMaximized() ? appWindow.unmaximize() : appWindow.toggleMaximize() 
+      (await appWindow.isMaximized())
+        ? appWindow.unmaximize()
+        : appWindow.toggleMaximize();
       break;
     case 'close':
-      appWindow.close()
+      appWindow.close();
       break;
   }
-}
+};
 </script>
 
 <style lang="scss" scoped>
 @mixin commonIcon {
-  @apply cursor-pointer text-slate-700 hover:bg-neutral-300 dark:hover:bg-[--mantine-color-default-hover] hover:rounded;
+  @apply cursor-pointer text-panel hover:bg-panel dark:hover:bg-panel hover:rounded;
 }
 
 .titlebar {
-  @apply bg-[#e6e1de] dark:bg-[#282d32]  flex justify-between items-center px-2 w-full h-[40px];
+  @apply bg-content dark:bg-content  flex justify-between items-center px-2 w-full h-[40px];
 }
 
 .titlebar-title {
-  @apply text-slate-800 dark:text-[#999b9d] pl-1;
+  @apply text-slate-800 dark:text-panel pl-1;
 }
 
 .titlebar-list {
@@ -63,6 +83,6 @@ const handleTitlebar = async (type: string) => {
 
 .icon {
   @include commonIcon;
-  @apply text-[20px] p-1 dark:text-[#999b9d];
+  @apply text-[20px] p-1 dark:text-panel;
 }
 </style>

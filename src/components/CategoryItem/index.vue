@@ -89,7 +89,7 @@ const handleContextMenu = async (item: any) => {
 
 <style scoped lang="scss">
 @mixin commonLink {
-  @apply rounded-md text-sm block my-1 px-3 py-1 truncate cursor-pointer hover:bg-neutral-200 dark:hover:bg-[--mantine-color-default-hover] dark:text-[--mantine-color-gray-light-color];
+  @apply rounded-md text-sm block my-1 px-3 py-1 truncate cursor-pointer hover:bg-panel dark:hover:bg-hover dark:text-panel;
 }
 
 .link {
@@ -100,10 +100,10 @@ const handleContextMenu = async (item: any) => {
 
 .active {
   @include commonLink();
-  @apply bg-neutral-200 hover:bg-neutral-200 dark:bg-[#5977cb] dark:hover:bg-[#5977cb];
+  @apply bg-active hover:bg-active dark:bg-active dark:hover:bg-hover;
 }
 
 .category-item-input {
-  @apply bg-[#e6e1de] border rounded-md h-7;
+  @apply bg-panel border rounded-md h-7;
 }
 </style>

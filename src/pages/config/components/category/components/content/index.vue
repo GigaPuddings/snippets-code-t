@@ -161,19 +161,19 @@ onBeforeUnmount(async () => {
 
 <style scoped lang="scss">
 @mixin common() {
-  @apply outline-none dark:bg-[#282d32];
+  @apply outline-none bg-panel;
 }
 
 .content-container {
-  @apply h-full text-xs dark:bg-[#282d32];
+  @apply h-full text-xs bg-panel;
   display: grid;
   grid-template-rows: 40px 1fr;
 
   .content-title {
-    @apply border-b dark:border-b-[#43444e] mx-2;
+    @apply border-b border-panel mx-2;
 
     :deep(input) {
-      @apply text-lg dark:text-[#c9ccd4] pt-1 box-border;
+      @apply text-lg text-panel pt-1 box-border;
     }
   }
 }

@@ -14,9 +14,15 @@
           :label="item.label"
           :value="item.value"
         >
-          <div class="flex items-center gap-2 text-primary">
-            <component :is="item.icon" />
-            <div class="ml-2">{{ item.label }}</div>
+          <div class="flex items-center gap-2">
+            <component
+              :is="item.icon"
+              :theme="item.value === store.theme ? 'filled' : 'outline'"
+              :fill="item.value === store.theme ? '#4b94f8' : '#666'"
+            />
+            <div :class="{ 'text-primary': item.value === store.theme }">
+              {{ item.label }}
+            </div>
           </div>
         </el-option>
       </el-select>
@@ -31,8 +37,9 @@
         v-model="store.autoStart"
         active-color="#4b94f8"
         inline-prompt
-        active-text="关闭"
-        inactive-text="开启"
+        active-text="开启"
+        inactive-text="关闭"
+        @change="handleAutoStartChange"
       />
     </div>
   </section>
@@ -40,7 +47,10 @@
 
 <script setup lang="ts">
 import { SunOne, Moon, Computer } from '@icon-park/vue-next';
+import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { useConfigurationStore } from '@/store';
+import { onMounted } from 'vue';
+import { initTheme } from '@/utils/theme';
 
 defineOptions({
   name: 'General'
@@ -56,7 +66,41 @@ const dictTheme = [
 
 const changeTheme = (value: 'light' | 'dark' | 'auto') => {
   store.theme = value;
+  initTheme();
 };
+
+const watchAutoStart = async () => {
+  try {
+    const enabled = await isEnabled();
+    store.autoStart = enabled;
+  } catch (error) {
+    console.error('获取自启动状态失败:', error);
+  }
+};
+
+const handleAutoStartChange = async (value: string | number | boolean) => {
+  try {
+    if (Boolean(value)) {
+      await enable();
+      ElMessage.success('自启动已开启');
+    } else {
+      await disable();
+      ElMessage.success('自启动已关闭');
+    }
+    store.autoStart = Boolean(value);
+  } catch (error) {
+    console.error('设置自启动状态失败:', error);
+    store.autoStart = !Boolean(value);
+  }
+};
+
+onMounted(() => {
+  watchAutoStart();
+});
 </script>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+.text-primary {
+  color: #4b94f8;
+}
+</style>
