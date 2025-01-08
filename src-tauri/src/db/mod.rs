@@ -1,5 +1,4 @@
 pub mod migrate;
-pub mod database;
 
 // use serde::{Deserialize, Serialize};
 // use tauri::State;
@@ -34,17 +33,17 @@ pub mod database;
 // #[tauri::command]
 // pub async fn search_contents(search_word: &str, pool: State<'_, sqlx::SqlitePool>) -> Result<Vec<Content>, String> {
 //     let sql = r#"
-//         SELECT * FROM contents 
+//         SELECT * FROM contents
 //         WHERE title LIKE ?1
 //         UNION
 //         SELECT c.* FROM contents c
 //         JOIN categories cat ON c.category_id = cat.id
 //         WHERE cat.name LIKE ?1
 //         UNION
-//         SELECT * FROM contents 
+//         SELECT * FROM contents
 //         WHERE content LIKE ?1
 //     "#;
-    
+
 //     let search_pattern = format!("%{}%", search_word);
 //     sqlx::query_as::<_, Content>(sql)
 //         .bind(&search_pattern)
@@ -76,8 +75,8 @@ pub mod database;
 //     pool: State<'_, sqlx::SqlitePool>
 // ) -> Result<Vec<ContentWithCategory>, String> {
 //     let mut sql = r#"
-//         SELECT 
-//             contents.*, 
+//         SELECT
+//             contents.*,
 //             categories.name as category_name
 //         FROM contents
 //         LEFT JOIN categories ON contents.category_id = categories.id

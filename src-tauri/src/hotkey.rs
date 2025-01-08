@@ -96,7 +96,7 @@ pub fn register_shortcut_by_frontend(
             register(&app_handle, "config", hotkey_config, shortcut)?;
         }
         _ => {
-          return Err("未知的快捷键名称".to_string());
+            return Err("未知的快捷键名称".to_string());
         }
     }
     Ok(())

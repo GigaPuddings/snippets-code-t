@@ -26,6 +26,8 @@ export const useConfigurationStore = defineStore('configuration', {
           this.apps = (await invoke('get_installed_apps')) || [];
           // 浏览器书签集合
           this.bookmarks = (await invoke('get_browser_bookmarks')) || [];
+          // 获取数据库路径
+          this.dbPath = (await invoke('get_db_path')) || '';
         }
       } catch (error) {
         console.error('初始化数据失败:', error);

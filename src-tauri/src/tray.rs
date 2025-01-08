@@ -31,7 +31,9 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
                 // 将路径转换为字符串
                 let path: String = log_path.to_str().unwrap().into();
                 // 打开日志文件夹
-                app.opener().open_path(path, Option::<String>::None).unwrap();
+                app.opener()
+                    .open_path(path, Option::<String>::None)
+                    .unwrap();
             }
             "restart" => {
                 info!("============== Restart App ==============");

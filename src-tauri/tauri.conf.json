@@ -55,7 +55,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "category": "tools",
+    "category": "DeveloperTool",
     "shortDescription": "snippets-code",
     "longDescription": "代码片段效率工具",
     "windows": {

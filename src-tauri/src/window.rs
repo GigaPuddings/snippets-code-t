@@ -164,24 +164,29 @@ pub fn build_window(label: &str, title: &str, url: &str, width: f64, height: f64
     }
 }
 
-
 pub fn hotkey_search() {
-  // 显示隐藏搜索窗口
-  let window = APP.get().unwrap().get_webview_window("main").unwrap();
-  if window.is_visible().unwrap() {
-      window.hide().unwrap();
-  } else {
-      window.show().unwrap();
-      window.set_focus().unwrap();
-  }
+    // 显示隐藏搜索窗口
+    let window = APP.get().unwrap().get_webview_window("main").unwrap();
+    if window.is_visible().unwrap() {
+        window.hide().unwrap();
+    } else {
+        window.show().unwrap();
+        window.set_focus().unwrap();
+    }
 }
 
 pub fn hotkey_config() {
-  let window = build_window("config", "配置", "/#config/category/contentList", 1180.0, 630.0);
-  if window.is_visible().unwrap() {
-      window.hide().unwrap();
-  } else {
-      window.show().unwrap();
-      window.set_focus().unwrap();
-  }
+    let window = build_window(
+        "config",
+        "配置",
+        "/#config/category/contentList",
+        1180.0,
+        630.0,
+    );
+    if window.is_visible().unwrap() {
+        window.hide().unwrap();
+    } else {
+        window.show().unwrap();
+        window.set_focus().unwrap();
+    }
 }
