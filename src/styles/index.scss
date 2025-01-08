@@ -4,6 +4,30 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  .light {
+    --bg-base1: #e6e1de;
+    --bg-base2: #faf7f5;
+    --bg-active1: #e5e5e5;
+    --bg-active2: #4b94f8;
+    --text-color1: #333;
+    --text-color2: #fff;
+    --text-color-hover: #4b94f8;
+    --text-color-active: #fff;
+  }
+
+  .dark {
+    --bg-base1: #22282c;
+    --bg-base2: #22282c;
+    --bg-active1: #5977cb;
+    --bg-active2: #5977cb;
+    --text-color1: #e4e4e7;
+    --text-color2: #e4e4e7;
+    --text-color-hover: #5977cb;
+    --text-color-active: #e4e4e7;
+  }
+}
+
 .el-input__wrapper.is-focus,
 .el-input__wrapper:hover,
 .el-input__wrapper {
@@ -23,6 +47,10 @@
   right: 10px;
   background-color: transparent !important;
   box-shadow: none !important;
+}
+
+.el-select__wrapper {
+  background-color: transparent !important;
 }
 
 .el-select__wrapper.is-focused {
