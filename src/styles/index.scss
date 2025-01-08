@@ -6,25 +6,25 @@
 
 @layer base {
   .light {
-    --bg-base1: #e6e1de;
-    --bg-base2: #faf7f5;
-    --bg-active1: #e5e5e5;
+    --bg-base1: #fff;
+    --bg-base2: #f5f5f5;
+    --bg-active1: #e6e6e6;
     --bg-active2: #4b94f8;
-    --text-color1: #333;
-    --text-color2: #fff;
+    --text-color1: #1a1a1a;
+    --text-color2: #666;
     --text-color-hover: #4b94f8;
     --text-color-active: #fff;
   }
 
   .dark {
-    --bg-base1: #22282c;
-    --bg-base2: #22282c;
+    --bg-base1: #1a1a1a;
+    --bg-base2: #2d2d2d;
     --bg-active1: #5977cb;
     --bg-active2: #5977cb;
-    --text-color1: #e4e4e7;
-    --text-color2: #e4e4e7;
+    --text-color1: #fff;
+    --text-color2: #b3b3b3;
     --text-color-hover: #5977cb;
-    --text-color-active: #e4e4e7;
+    --text-color-active: #fff;
   }
 }
 
@@ -81,11 +81,11 @@
 }
 
 .summarize-section {
-  @apply h-[120px] bg-[#faf7f5] dark:bg-[#22282c] p-6 rounded-md overflow-hidden;
+  @apply h-[120px] bg-secondary p-6 rounded-md overflow-hidden;
 }
 
 .summarize-label {
-  @apply text-sm font-bold;
+  @apply text-sm font-bold text-primary;
 }
 
 .summarize-input-wrapper {
@@ -97,7 +97,7 @@
 }
 
 .summarize-input {
-  @apply max-w-[70%] bg-[#e6e1de] rounded-md;
+  @apply max-w-[70%] bg-primary rounded-md;
 }
 
 .summarize-button {

@@ -5,7 +5,7 @@
       <el-select
         class="summarize-input"
         v-model="store.theme"
-        placeholder=""
+        placeholder="请选择主题"
         @change="changeTheme"
       >
         <el-option
@@ -14,7 +14,7 @@
           :label="item.label"
           :value="item.value"
         >
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 text-primary">
             <component :is="item.icon" />
             <div class="ml-2">{{ item.label }}</div>
           </div>
@@ -30,7 +30,6 @@
         size="large"
         v-model="store.autoStart"
         active-color="#4b94f8"
-        inactive-color="#13ce66"
         inline-prompt
         active-text="关闭"
         inactive-text="开启"
