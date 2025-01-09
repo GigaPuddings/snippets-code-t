@@ -1,29 +1,34 @@
 <script setup lang="ts">
-import type { CSSProperties } from 'vue'
-import { vue } from '@codemirror/lang-vue'
-import { EditorView, ViewUpdate, keymap } from '@codemirror/view'
-import { tags as t } from '@lezer/highlight'
-import { createTheme } from '@uiw/codemirror-themes'
-import { EditorState } from '@codemirror/state'
-import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirror/commands'
-import type { Extension } from '@codemirror/state'
-import type { CreateThemeOptions } from '@uiw/codemirror-themes'
+import type { CSSProperties } from 'vue';
+import { vue } from '@codemirror/lang-vue';
+import { EditorView, ViewUpdate, keymap } from '@codemirror/view';
+import { tags as t } from '@lezer/highlight';
+import { createTheme } from '@uiw/codemirror-themes';
+import { EditorState } from '@codemirror/state';
+import {
+  history,
+  historyKeymap,
+  defaultKeymap,
+  indentWithTab
+} from '@codemirror/commands';
+import type { Extension } from '@codemirror/state';
+import type { CreateThemeOptions } from '@uiw/codemirror-themes';
 
 interface Props {
-  codeStyle?: CSSProperties
-  dark?: boolean
-  code?: string
-  placeholder?: string
-  autofocus?: boolean
-  disabled?: boolean
-  indentWithTab?: boolean
-  tabSize?: number
-  autoDestroy?: boolean
+  codeStyle?: CSSProperties;
+  dark?: boolean;
+  code?: string;
+  placeholder?: string;
+  autofocus?: boolean;
+  disabled?: boolean;
+  indentWithTab?: boolean;
+  tabSize?: number;
+  autoDestroy?: boolean;
 }
 
 defineOptions({
   name: 'CodeMirrorEditor'
-})
+});
 
 const props = withDefaults(defineProps<Props>(), {
   codeStyle: () => ({}),
@@ -35,27 +40,27 @@ const props = withDefaults(defineProps<Props>(), {
   indentWithTab: true,
   tabSize: 2,
   autoDestroy: true
-})
+});
 
 // 计算自定义主题
 const customTheme = computed(() => {
   const settings: CreateThemeOptions['settings'] = props.dark
     ? {
-        background: '#282d32',
+        background: '#1a1a1a',
         foreground: '#CECFD0',
         caret: '#faf7f5',
         selection: '#727377',
         gutterBackground: '#282d32',
-        gutterForeground: '#7F8C98',
+        gutterForeground: '#7F8C98'
       }
     : {
-        background: '#faf7f5',
+        background: '#ffffff',
         foreground: '#3D3D3D',
         caret: '#000000',
         selection: '#BBDFFF',
-        gutterBackground: '#faf7f5',
-        gutterForeground: '#707F8D',
-      }
+        gutterBackground: '#ffffff',
+        gutterForeground: '#707F8D'
+      };
 
   const styles: CreateThemeOptions['styles'] = props.dark
     ? [
@@ -70,7 +75,7 @@ const customTheme = computed(() => {
         { tag: [t.propertyName], color: '#B2CCD6' },
         { tag: [t.definition(t.propertyName)], color: '#82AAFF' },
         { tag: [t.className], color: '#FFCB6B' },
-        { tag: [t.typeName], color: '#FFCB6B' },
+        { tag: [t.typeName], color: '#FFCB6B' }
       ]
     : [
         { tag: [t.comment, t.quote], color: '#707F8D' },
@@ -84,44 +89,47 @@ const customTheme = computed(() => {
         { tag: [t.propertyName], color: '#5C2699' },
         { tag: [t.definition(t.propertyName)], color: '#4B69C6' },
         { tag: [t.className], color: '#3A1D72' },
-        { tag: [t.typeName], color: '#3A1D72' },
-      ]
+        { tag: [t.typeName], color: '#3A1D72' }
+      ];
 
   const theme = createTheme({
     theme: props.dark ? 'dark' : 'light',
     settings,
-    styles,
-  })
+    styles
+  });
 
-  return [theme, EditorView.theme({
-    "&": {
-      height: "100%",
-      fontSize: "14px"
-    },
-    ".cm-content": {
-      caretColor: settings.caret || '#000000',
-      fontFamily: "monospace"
-    },
-    ".cm-cursor": {
-      borderLeftColor: settings.caret || '#000000'
-    },
-    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-      backgroundColor: (settings.selection || '#BBDFFF') + "!important"
-    },
-    ".cm-activeLine": {
-      backgroundColor: "transparent"
-    }
-  })]
-})
+  return [
+    theme,
+    EditorView.theme({
+      '&': {
+        height: '100%',
+        fontSize: '14px'
+      },
+      '.cm-content': {
+        caretColor: settings.caret || '#000000',
+        fontFamily: 'monospace'
+      },
+      '.cm-cursor': {
+        borderLeftColor: settings.caret || '#000000'
+      },
+      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
+        backgroundColor: (settings.selection || '#BBDFFF') + '!important'
+      },
+      '.cm-activeLine': {
+        backgroundColor: 'transparent'
+      }
+    })
+  ];
+});
 
 // 添加状态变量
-const lines = ref(1)
-const length = ref(0)
+const lines = ref(1);
+const length = ref(0);
 
 // 更新状态栏信息
 function updateStatusInfo(state: EditorState) {
-  lines.value = state.doc.lines
-  length.value = state.doc.length
+  lines.value = state.doc.lines;
+  length.value = state.doc.length;
 }
 
 // 计算Codemirror扩展
@@ -139,31 +147,31 @@ const extensions = computed((): Extension[] => {
     EditorState.tabSize.of(props.tabSize),
     EditorView.editable.of(!props.disabled),
     EditorState.phrases.of({
-      "placeholder": props.placeholder,
+      placeholder: props.placeholder
     }),
     EditorView.updateListener.of((update: ViewUpdate) => {
       if (update.docChanged) {
-        const doc = update.state.doc
-        const value = doc.toString()
-        updateStatusInfo(update.state)
-        emits('change', value, update)
-        emits('update:code', value)
+        const doc = update.state.doc;
+        const value = doc.toString();
+        updateStatusInfo(update.state);
+        emits('change', value, update);
+        emits('update:code', value);
       }
       if (update.focusChanged) {
         if (update.view.hasFocus) {
-          emits('focus', update)
+          emits('focus', update);
         } else {
-          emits('blur', update)
+          emits('blur', update);
         }
       }
     })
-  ]
+  ];
 
-  return baseExtensions
-})
+  return baseExtensions;
+});
 
-const editorViewRef = ref<EditorView>()
-const editorContainerRef = ref<HTMLElement>()
+const editorViewRef = ref<EditorView>();
+const editorContainerRef = ref<HTMLElement>();
 
 onMounted(() => {
   if (editorContainerRef.value) {
@@ -171,27 +179,27 @@ onMounted(() => {
       const state = EditorState.create({
         doc: props.code,
         extensions: extensions.value
-      })
+      });
 
       const view = new EditorView({
         state,
         parent: editorContainerRef.value
-      })
+      });
 
-      editorViewRef.value = view
-      emits('ready', view)
-      updateStatusInfo(state)
+      editorViewRef.value = view;
+      emits('ready', view);
+      updateStatusInfo(state);
 
       if (props.autofocus) {
-        view.focus()
+        view.focus();
       }
-    })
+    });
   }
-})
+});
 
 // 监听代码变化
 watchEffect(() => {
-  const view = editorViewRef.value
+  const view = editorViewRef.value;
   if (view && props.code !== view.state.doc.toString()) {
     view.dispatch({
       changes: {
@@ -199,28 +207,32 @@ watchEffect(() => {
         to: view.state.doc.length,
         insert: props.code
       }
-    })
+    });
   }
-})
+});
 
 onBeforeUnmount(() => {
   if (props.autoDestroy && editorViewRef.value) {
-    editorViewRef.value.destroy()
+    editorViewRef.value.destroy();
   }
-})
+});
 
 const emits = defineEmits<{
-  'update:code': [value: string]
-  'ready': [payload: any]
-  'change': [value: string, viewUpdate: any]
-  'focus': [viewUpdate: any]
-  'blur': [viewUpdate: any]
-}>()
+  'update:code': [value: string];
+  ready: [payload: any];
+  change: [value: string, viewUpdate: any];
+  focus: [viewUpdate: any];
+  blur: [viewUpdate: any];
+}>();
 </script>
 
 <template>
   <main class="editor-container" :class="{ 'dark-theme': props.dark }">
-    <div ref="editorContainerRef" :style="codeStyle" class="editor-content"></div>
+    <div
+      ref="editorContainerRef"
+      :style="codeStyle"
+      class="editor-content"
+    ></div>
     <div class="editor-status">
       <span>Lines: {{ lines }}</span>
       <span>Length: {{ length }}</span>
@@ -230,56 +242,40 @@ const emits = defineEmits<{
 
 <style lang="scss" scoped>
 .editor-container {
-  position: relative;
-  overflow: hidden;
+  @apply relative overflow-hidden;
 
   &.dark-theme {
     .editor-status {
-      background-color: #282d32;
-      border-top-color: #3e4347;
-      color: #7F8C98;
+      @apply bg-panel border-t border-panel text-panel;
     }
   }
 }
 
 .editor-content {
-  flex: 1;
-  overflow: auto;
+  @apply flex-1 overflow-auto;
 }
 
 .editor-status {
-  height: 25px;
-  padding: 0 10px;
-  background-color: #faf7f5;
-  border-top: 1px solid #e0e0e0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 15px;
-  font-size: 12px;
-  color: #666;
-  transition: all 0.3s ease;
+  @apply h-8 px-2 bg-panel border-t flex items-center justify-end gap-4 text-sm text-content;
 }
 
 :deep(.cm-editor) {
-  outline: none;
-  border: 1px solid transparent;
-  height: 100%;
-  
+  @apply outline-none border border-transparent h-full;
+
   &.cm-focused {
-    outline: none;
+    @apply outline-none;
   }
 
   .cm-gutters {
-    border-right: 1px solid #e0e0e0;
+    @apply border-r;
   }
 
   &.cm-focused .cm-cursor {
-    border-left-width: 2px;
+    @apply border-l-2;
   }
 
   .cm-line {
-    padding: 0 4px;
+    @apply px-2;
   }
 }
 </style>

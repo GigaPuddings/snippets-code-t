@@ -11,7 +11,8 @@ export default {
         hover: 'var(--categories-panel-bg-hover)',
         search: 'var(--search-bg)',
         'search-input': 'var(--search-input-bg)',
-        'search-hover': 'var(--search-result-hover)'
+        'search-hover': 'var(--search-result-hover)',
+        'tab-active': 'var(--categories-bg-tab-active)'
       },
       textColor: {
         panel: 'var(--categories-text-color)',

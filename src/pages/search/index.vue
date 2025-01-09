@@ -68,11 +68,6 @@ onMounted(async () => {
 </template>
 
 <style lang="scss" scoped>
-.search-container {
-  // 如果有背景色相关的样式，移除它们
-  // 使用 Tailwind 的 bg-search 类替代
-}
-
 :deep(.el-input__wrapper) {
   background-color: var(--search-input-bg);
   box-shadow: none;

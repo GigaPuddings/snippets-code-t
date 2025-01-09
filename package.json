@@ -18,15 +18,20 @@
     }
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,vue}": [
+    "*.{js,ts}": [
       "eslint --fix",
       "prettier --write"
     ],
-    "*.{css,scss,less,styl}": [
-      "stylelint --fix",
+    "*.{cjs,json}": [
       "prettier --write"
     ],
-    "*.{json,html,md}": [
+    "*.{vue,html}": [
+      "eslint --fix",
+      "prettier --write",
+      "stylelint --fix"
+    ],
+    "*.{scss,css}": [
+      "stylelint --fix",
       "prettier --write"
     ]
   },

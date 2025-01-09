@@ -11,8 +11,9 @@
     <!-- CodeMirror 代码高亮编辑器 -->
     <CodeMirrorEditor
       :code="state.editorContent"
-      :codeStyle="{ height: 'calc(100vh - 115px)', overflowY: 'auto' }"
+      :codeStyle="{ height: 'calc(100vh - 123px)', overflowY: 'auto' }"
       @update:code="handleEditorChange"
+      :dark="isDark"
     />
   </main>
 </template>
@@ -34,6 +35,8 @@ const state = reactive({
 
 const route = useRoute();
 const store = useConfigurationStore();
+
+const isDark = computed(() => store.theme === 'dark');
 
 defineOptions({
   name: 'Content'
@@ -166,6 +169,7 @@ onBeforeUnmount(async () => {
 
 .content-container {
   @apply h-full text-xs bg-panel;
+
   display: grid;
   grid-template-rows: 40px 1fr;
 

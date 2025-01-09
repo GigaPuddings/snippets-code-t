@@ -66,11 +66,11 @@ watch(isEdit, (newValue, _oldValue) => {
 const handleEditCategory = async () => {
   // 保存编辑的分类
   store.editCategoryId = '';
-  const name =
+  props.category.name =
     props.category.name
       .toLowerCase()
       .replace(/( |^)[a-z]/g, (L) => L.toUpperCase()) || '未命名';
-  await editCategory(props.category.id, name);
+  await editCategory(props.category.id, props.category.name);
   // 重新获取分类
   router.replace(`/config/category/contentList/${props.category.id}`);
 };
@@ -94,12 +94,14 @@ const handleContextMenu = async (item: any) => {
 
 .link {
   @include commonLink();
+
   /* 禁止选中 */
-  -webkit-user-select: none;
+  user-select: none;
 }
 
 .active {
   @include commonLink();
+
   @apply bg-active hover:bg-active dark:bg-active dark:hover:bg-hover;
 }
 

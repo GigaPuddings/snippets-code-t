@@ -2,12 +2,33 @@
   <main ref="containerRef">
     <slot></slot>
     <Teleport to="body">
-      <Transition @beforeEnter="handleBeforeEnter" @enter="handleEnter" @afterEnter="handleAfterEnter">
-        <div v-if="showMenu" class="context-menu" :style="{ left: x + 'px', top: y + 'px' }">
+      <Transition
+        @before-enter="handleBeforeEnter"
+        @enter="handleEnter"
+        @after-enter="handleAfterEnter"
+      >
+        <div
+          v-if="showMenu"
+          class="context-menu"
+          :style="{ left: x + 'px', top: y + 'px' }"
+        >
           <div class="menu-list">
             <!-- 添加菜单的点击事件 -->
-            <div class="menu-item" v-for="item in props.menu" :key="item.label" @click="handleClick(item)">
-              <component :is="item.icon" theme="outline" size="18" fill="#333" :strokeWidth="3" strokeLinejoin="miter" strokeLinecap="butt"/>
+            <div
+              class="menu-item"
+              v-for="item in props.menu"
+              :key="item.label"
+              @click="handleClick(item)"
+            >
+              <component
+                class="menu-item-icon"
+                :is="item.icon"
+                theme="outline"
+                size="18"
+                :strokeWidth="3"
+                strokeLinejoin="miter"
+                strokeLinecap="butt"
+              />
               <div class="menu-item-label">{{ item.label }}</div>
             </div>
           </div>
@@ -20,24 +41,24 @@
 <script setup lang="ts">
 import useContextMenu from '@/hooks/useContextMenu';
 interface MenuItem {
-  label: string
-  type: string
-  icon: Component
+  label: string;
+  type: string;
+  icon: Component;
 }
 
 defineOptions({
   name: 'ContextMenu'
-})
+});
 
 const props = defineProps<{
-  menu: MenuItem[]
-}>()
+  menu: MenuItem[];
+}>();
 
-const containerRef = ref<HTMLDivElement | null>(null)
+const containerRef = ref<HTMLDivElement | null>(null);
 
-const emit = defineEmits(['select'])
+const emit = defineEmits(['select']);
 
-const { showMenu, x, y } = useContextMenu(containerRef)
+const { showMenu, x, y } = useContextMenu(containerRef);
 // 菜单的点击事件
 function handleClick(item: any) {
   // 选中菜单后关闭菜单
@@ -67,7 +88,7 @@ function handleAfterEnter(el: Element) {
 
 <style scoped>
 .context-menu {
-  @apply fixed z-50 bg-[#faf7f5] dark:bg-[#22282c] rounded-md shadow-md overflow-hidden transition-all duration-300;
+  @apply fixed z-50 bg-panel dark:bg-content  text-panel dark:text-panel rounded-md shadow-md overflow-hidden transition-all duration-300;
 }
 
 .menu-list {
@@ -75,7 +96,11 @@ function handleAfterEnter(el: Element) {
 }
 
 .menu-item {
-  @apply flex items-center gap-2 py-1 px-2 cursor-pointer rounded-md text-sm text-gray-800 transition-all duration-300 whitespace-nowrap;
+  @apply flex items-center gap-2 py-1 px-2 cursor-pointer rounded-md text-sm text-panel dark:text-panel transition-all duration-300 whitespace-nowrap;
+}
+
+.menu-item-icon {
+  @apply text-panel dark:text-panel;
 }
 
 .menu-item-label {
@@ -83,7 +108,7 @@ function handleAfterEnter(el: Element) {
 }
 
 .menu-item:hover {
-  @apply bg-neutral-200;
+  @apply bg-hover dark:bg-panel;
 }
 
 .v-enter-active,

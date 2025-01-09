@@ -55,11 +55,11 @@ const tabs = [
     @apply w-16 flex flex-col px-2 pb-2;
 
     .config-nav-item.config-nav-item-active {
-      @apply bg-hover text-white;
+      @apply bg-tab-active text-primary;
     }
 
     .config-nav-item {
-      @apply bg-panel flex flex-col py-1 px-2 text-sm rounded-md;
+      @apply bg-content flex flex-col py-1 px-2 text-sm rounded-md;
 
       .config-nav-item-icon {
         @apply m-auto;
