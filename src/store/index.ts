@@ -11,11 +11,11 @@ export const useConfigurationStore = defineStore('configuration', {
     categories: [],
     editCategoryId: '',
     categorySort: 'asc',
-    searchHotkey: 'Alt+M',
-    configHotkey: 'Alt+P',
+    searchHotkey: '',
+    configHotkey: '',
     dbPath: '',
     dbBackup: '',
-    theme: 'light',
+    theme: 'auto',
     autoStart: false
   }),
   actions: {

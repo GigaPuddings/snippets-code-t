@@ -119,9 +119,9 @@ function showHideWindow() {
 }
 
 // 鼠标悬停处理
-function handleMouseEnter(item: ContentType) {
-  store.id = item.id;
-}
+// function handleMouseEnter(item: ContentType) {
+//   store.id = item.id;
+// }
 
 onMounted(() => {
   document.addEventListener('keydown', handleKeyEvent);
@@ -160,10 +160,10 @@ onUnmounted(() => {
     </div>
     <div class="result">
       <template v-for="item in filteredResults" :key="item.id">
+        <!-- @mouseenter="handleMouseEnter(item)" -->
         <div
           class="item"
           :class="{ active: item.id === store.id }"
-          @mouseenter="handleMouseEnter(item)"
           @click="selectItem(item)"
         >
           <template v-if="item.summarize === 'app'">

@@ -21,20 +21,6 @@ const handleGoConfig = async () => {
 };
 
 onMounted(async () => {
-  // 初始化主题
-  initTheme();
-
-  // 监听主题变化事件
-  await listen('theme-changed', (event: any) => {
-    const { isDark } = event.payload;
-    const root = document.documentElement;
-    if (isDark) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  });
-
   // if (mainRef.value) {
   //   useSetIgnoreCursorEvents(mainRef.value);
   // }
