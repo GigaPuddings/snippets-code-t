@@ -152,8 +152,10 @@
   display: block;
 }
 
-.button {
-  position: absolute;
-  right: 6px;
-  z-index: 1;
+.el-input-group__append {
+  @apply absolute -right-1 z-10;
+
+  .button {
+    @apply h-6 leading-6 bg-neutral-200 dark:bg-neutral-800 rounded-md px-2;
+  }
 }

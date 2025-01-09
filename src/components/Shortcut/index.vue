@@ -39,7 +39,7 @@
       <el-input
         class="summarize-input"
         v-model="store.configHotkey"
-        placeholder="按下按键设置快捷键"
+        required
         @keydown="keyDown($event, setSelectionConfig)"
         @focus="() => handleFocusUnregister('config', store.configHotkey)"
       >

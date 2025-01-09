@@ -27,6 +27,7 @@ module.exports = {
     'no-descending-specificity': null, // 允许无降序特异性
     'no-empty-source': null, // 允许空样式
     'scss/operator-no-unspaced': null,
+    'no-duplicate-selectors': null,
     'scss/at-rule-no-unknown': [
       true,
       {
