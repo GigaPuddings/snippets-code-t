@@ -59,7 +59,7 @@ const tabs = [
     }
 
     .config-nav-item {
-      @apply bg-content flex flex-col py-1 px-2 text-sm rounded-md;
+      @apply bg-white dark:bg-panel flex flex-col py-1 px-2 text-sm rounded-md;
 
       .config-nav-item-icon {
         @apply m-auto;

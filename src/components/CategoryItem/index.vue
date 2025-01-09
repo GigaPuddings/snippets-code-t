@@ -51,18 +51,17 @@ const menu = [
   { label: '删除', icon: DeleteFour, type: 'delete' }
 ];
 
-// 判断是否是编辑状态
+// // 判断是否是编辑状态
 const isEdit = computed(() => store.editCategoryId == props.category.id);
 
 // 监听是否处于编辑状态并选中文本
-watch(isEdit, (newValue, _oldValue) => {
-  if (newValue) {
+watchEffect(() => {
+  if (isEdit.value) {
     nextTick(() => {
       inputRef.value?.focus();
     });
   }
 });
-
 const handleEditCategory = async () => {
   // 保存编辑的分类
   store.editCategoryId = '';

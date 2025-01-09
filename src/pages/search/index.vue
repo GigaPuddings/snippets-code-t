@@ -1,11 +1,10 @@
 <script lang="ts" setup>
 import { invoke } from '@tauri-apps/api/core';
 import { Home } from '@icon-park/vue-next';
-// import useSetIgnoreCursorEvents from '@/hooks/useSetIgnoreCursorEvents';
+import useSetIgnoreCursorEvents from '@/hooks/useSetIgnoreCursorEvents';
 import { useSearch } from '@/hooks/useSearch';
 import { listen } from '@tauri-apps/api/event';
 import { onMounted } from 'vue';
-import { initTheme } from '@/utils/theme';
 
 const { searchText, searchResults } = useSearch();
 
@@ -21,9 +20,9 @@ const handleGoConfig = async () => {
 };
 
 onMounted(async () => {
-  // if (mainRef.value) {
-  //   useSetIgnoreCursorEvents(mainRef.value);
-  // }
+  if (mainRef.value) {
+    useSetIgnoreCursorEvents(mainRef.value);
+  }
   listen('windowFocused', () => {
     // 输入框聚焦
     searchInputRef.value?.focus();

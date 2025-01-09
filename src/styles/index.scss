@@ -53,38 +53,47 @@
   height: 36px !important;
 }
 
+// .el-input-group__append {
+//   position: relative;
+//   right: 10px;
+//   background-color: transparent !important;
+//   box-shadow: none !important;
+// }
+
 .el-input-group__append {
-  position: relative;
-  right: 10px;
-  background-color: transparent !important;
-  box-shadow: none !important;
+  @apply absolute -right-1 z-10 !bg-transparent !shadow-none;
+
+  .button {
+    @apply h-6 leading-6 bg-neutral-200 dark:bg-neutral-800 rounded-md px-2;
+  }
 }
 
 .el-select__wrapper {
   background-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .el-select__wrapper.is-focused {
   box-shadow: none !important;
 }
 
-.el-select__popper.el-popper,
-.el-popper.is-light > .el-popper__arrow::before {
-  background: var(--categories-content-bg) !important;
-}
+// .el-select__popper.el-popper,
+// .el-popper.is-light > .el-popper__arrow::before {
+//   background: var(--categories-content-bg) !important;
+// }
 
-.el-select-dropdown__item.is-selected {
-  color: var(--categories-text-color-active) !important;
-}
+// .el-select-dropdown__item.is-selected {
+//   color: var(--categories-text-color-active) !important;
+// }
 
-.el-select-dropdown__item.is-hovering {
-  background-color: var(--categories-panel-bg) !important;
-}
+// .el-select-dropdown__item.is-hovering {
+//   background-color: var(--categories-panel-bg) !important;
+// }
 
-.el-popper {
-  padding: 0.3125rem 0.75rem !important;
-  line-height: 0.875rem !important;
-}
+// .el-popper {
+//   padding: 0.3125rem 0.75rem !important;
+//   line-height: 0.875rem !important;
+// }
 
 // 配置css
 .summarize-container {
@@ -152,10 +161,6 @@
   display: block;
 }
 
-.el-input-group__append {
-  @apply absolute -right-1 z-10;
-
-  .button {
-    @apply h-6 leading-6 bg-neutral-200 dark:bg-neutral-800 rounded-md px-2;
-  }
+.category-management {
+  @apply border rounded-md dark:border-panel !w-[300px];
 }

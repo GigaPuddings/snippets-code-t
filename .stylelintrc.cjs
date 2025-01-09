@@ -26,8 +26,8 @@ module.exports = {
     'keyframes-name-pattern': null, // 动画帧节点样式命名规则
     'no-descending-specificity': null, // 允许无降序特异性
     'no-empty-source': null, // 允许空样式
-    'scss/operator-no-unspaced': null,
-    'no-duplicate-selectors': null,
+    'scss/operator-no-unspaced': null, // 允许未空格运算符
+    // 'no-duplicate-selectors': null, // 允许重复选择器
     'scss/at-rule-no-unknown': [
       true,
       {

@@ -118,19 +118,23 @@ watch(
 
 <style scoped lang="scss">
 .content-list-container {
-  @apply h-full text-xs text-slate-700;
+  @apply h-full text-xs;
 }
 
 .left-panel {
   @apply h-full bg-panel dark:bg-panel rounded-md ml-2 px-2 overflow-hidden;
+
   .content-search {
     @apply border-b border-panel flex justify-between items-center h-[40px];
+
     .content-search-add {
       @apply cursor-pointer rounded-md p-1 mr-2 text-panel dark:text-panel hover:bg-active dark:hover:bg-hover;
     }
   }
+
   .content-list {
     @apply h-[calc(100vh-106px)] overflow-y-auto;
+
     .content {
       @apply flex flex-col gap-2 p-2;
     }
