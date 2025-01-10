@@ -25,20 +25,6 @@
         "shadow": false,
         "visible": false,
         "decorations": false
-      },
-      {
-        "label": "config",
-        "title": "配置",
-        "url": "/#config/category/contentList",
-        "width": 1180,
-        "height": 630,
-        "minWidth": 800,
-        "minHeight": 630,
-        "resizable": true,
-        "transparent": true,
-        "shadow": false,
-        "decorations": false,
-        "visible": false
       }
     ],
     "security": {

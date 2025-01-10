@@ -1,6 +1,11 @@
 <template>
   <main class="w-full h-screen rounded-md overflow-hidden">
-    <Titlebar v-if="!hasHome">{{ title }}</Titlebar>
+    <Titlebar v-if="!hasHome">
+      <div class="flex items-center gap-2">
+        <img src="@/assets/128x128.png" alt="" class="w-6 h-6" />
+        <div>{{ title }}</div>
+      </div>
+    </Titlebar>
     <div :class="[`w-full ${hasHome ? 'h-screen' : 'h-[calc(100vh-40px)]'}`]">
       <router-view>
         <template #default="{ Component, route }">

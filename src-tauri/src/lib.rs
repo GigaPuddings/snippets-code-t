@@ -6,7 +6,7 @@ mod hotkey;
 mod tray;
 mod window;
 
-use crate::window::{hotkey_config, hotkey_search, start_mouse_tracking};
+use crate::window::{hotkey_config, hotkey_search, start_mouse_tracking, stop_mouse_tracking};
 use apps::{get_installed_apps, open_app_command};
 use bookmarks::{get_browser_bookmarks, open_url};
 use chrono::Local;
@@ -51,7 +51,7 @@ fn ignore_cursor_events(window: tauri::Window, ignore: bool, rect: Option<(f64, 
             // info!("设置鼠标穿透: {}", ignore);
             window.set_ignore_cursor_events(true).unwrap();
             // 启动鼠标位置跟踪
-            start_mouse_tracking(window.clone());
+            start_mouse_tracking();
         } else {
             // info!("取消鼠标穿透");
             window.set_ignore_cursor_events(false).unwrap();
@@ -283,13 +283,20 @@ pub fn run() {
             if window.label() == "main" {
                 match event {
                     WindowEvent::Focused(true) => {
-                        // info!("窗口获得焦点");
+                        info!("窗口获得焦点");
                         // 启用鼠标穿透并开启监听
                         // window.set_ignore_cursor_events(true).unwrap();
-                        // start_mouse_tracking(window.clone());
-
+                        // start_mouse_tracking();
                         // 通知前端窗口获得焦点
                         window.emit("windowFocused", ()).unwrap();
+                    }
+                    // 窗口失焦
+                    WindowEvent::Focused(false) => {
+                        info!("窗口失焦");
+                        // 停止鼠标追踪
+                        // stop_mouse_tracking();
+                        // 主窗口失焦隐藏主窗口
+                        // window.hide().expect("Failed to hide window");
                     }
                     _ => {}
                 }
@@ -305,18 +312,6 @@ pub fn run() {
             get_browser_bookmarks,
             open_url,
             get_db_path,
-            // sql::search_contents,
-            // sql::get_categories,
-            // sql::create_category,
-            // sql::update_category,
-            // sql::delete_category,
-            // sql::get_contents,
-            // sql::create_content,
-            // sql::update_content,
-            // sql::delete_content,
-            // sql::search_contents_by_keyword,
-            // sql::get_contents_by_category,
-            // sql::create_content_with_category
             backup_database,
             restore_database,
             get_backup_list,

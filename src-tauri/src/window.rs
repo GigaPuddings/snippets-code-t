@@ -43,66 +43,71 @@ fn is_point_in_search_area(x: f64, y: f64) -> bool {
 }
 
 // 监听鼠标位置并控制穿透
-pub fn start_mouse_tracking(window: tauri::Window) {
-    // info!("开始鼠标追踪");
-    let mut is_tracking = IS_TRACKING.lock().unwrap();
-    if *is_tracking {
-        return;
-    }
-    *is_tracking = true;
+pub fn start_mouse_tracking() {
+    let window_option = APP.get().unwrap().get_webview_window("main");
 
-    // 获取窗口位置和大小
-    if let (Ok(position), Ok(size)) = (window.outer_position(), window.outer_size()) {
-        let win_x = position.x as f64;
-        let win_y = position.y as f64;
-        let win_width = size.width as f64;
-        let win_height = size.height as f64;
+    if let Some(window) = window_option {
+        // info!("开始鼠标追踪");
+        let mut is_tracking = IS_TRACKING.lock().unwrap();
+        if *is_tracking {
+            return;
+        }
+        *is_tracking = true;
 
-        thread::spawn(move || {
-            let mut last_pos = Mouse::get_mouse_position();
+        // 获取窗口位置和大小
+        if let (Ok(position), Ok(size)) = (window.outer_position(), window.outer_size()) {
+            let win_x = position.x as f64;
+            let win_y = position.y as f64;
+            let win_width = size.width as f64;
+            let win_height = size.height as f64;
 
-            while *IS_TRACKING.lock().unwrap() {
-                if let Mouse::Position { x, y } = Mouse::get_mouse_position() {
-                    // 检查鼠标是否移动
-                    if let Mouse::Position {
-                        x: last_x,
-                        y: last_y,
-                    } = last_pos
-                    {
-                        if x == last_x && y == last_y {
-                            thread::sleep(Duration::from_millis(200));
-                            continue;
+            thread::spawn(move || {
+                let mut last_pos = Mouse::get_mouse_position();
+
+                while *IS_TRACKING.lock().unwrap() {
+                    if let Mouse::Position { x, y } = Mouse::get_mouse_position() {
+                        // 检查鼠标是否移动
+                        if let Mouse::Position {
+                            x: last_x,
+                            y: last_y,
+                        } = last_pos
+                        {
+                            if x == last_x && y == last_y {
+                                thread::sleep(Duration::from_millis(200));
+                                continue;
+                            }
+                        }
+
+                        // 更新上次位置
+                        last_pos = Mouse::Position { x, y };
+
+                        // 转换为相对窗口的坐标
+                        let rel_x = x as f64 - win_x;
+                        let rel_y = y as f64 - win_y;
+
+                        // 检查鼠标是否在搜索框范围内
+                        if is_point_in_search_area(rel_x, rel_y) {
+                            info!("搜索框内");
+                            window.set_ignore_cursor_events(false).unwrap();
+                            stop_mouse_tracking();
+                            break;
+                        }
+
+                        // 修正窗口边界检查逻辑
+                        if rel_x < 0.0 || rel_y < 0.0 || rel_x > win_width || rel_y > win_height {
+                            info!("窗体外");
+                            window.set_ignore_cursor_events(false).unwrap();
+                            stop_mouse_tracking();
+                            break;
                         }
                     }
-
-                    // 更新上次位置
-                    last_pos = Mouse::Position { x, y };
-
-                    // 转换为相对窗口的坐标
-                    let rel_x = x as f64 - win_x;
-                    let rel_y = y as f64 - win_y;
-                    // info!("鼠标位置: {}, {}, 窗口位置: {}, {}", rel_x, rel_y, win_x, win_y);
-
-                    // 检查鼠标是否在搜索框范围内
-                    if is_point_in_search_area(rel_x, rel_y) {
-                        // info!("鼠标在搜索框内，取消鼠标穿透");
-                        window.set_ignore_cursor_events(false).unwrap();
-                        stop_mouse_tracking();
-                        break;
-                    }
-
-                    // 修正窗口边界检查逻辑
-                    if rel_x < 0.0 || rel_y < 0.0 || rel_x > win_width || rel_y > win_height {
-                        // info!("鼠标移出窗体外，取消鼠标穿透");
-                        window.set_ignore_cursor_events(false).unwrap();
-                        stop_mouse_tracking();
-                        break;
-                    }
+                    // 降低刷新频率
+                    thread::sleep(Duration::from_millis(200)); // 降至 10fps
                 }
-                // 降低刷新频率
-                thread::sleep(Duration::from_millis(200)); // 降至 10fps
-            }
-        });
+            });
+        }
+    } else {
+        info!("窗口不存在");
     }
 }
 
@@ -169,9 +174,15 @@ pub fn hotkey_search() {
     let window = APP.get().unwrap().get_webview_window("main").unwrap();
     if window.is_visible().unwrap() {
         window.hide().unwrap();
+        // 停止鼠标追踪
+        stop_mouse_tracking();
+        // 取消忽略光标
+        window.set_ignore_cursor_events(false).unwrap();
     } else {
         window.show().unwrap();
         window.set_focus().unwrap();
+        // 启动鼠标追踪
+        start_mouse_tracking();
     }
 }
 

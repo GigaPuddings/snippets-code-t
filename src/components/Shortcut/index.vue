@@ -23,6 +23,7 @@
         </template>
         <template #append>
           <button
+            v-if="store.searchHotkey"
             class="button"
             @click="() => registerHandler('search', store.searchHotkey)"
           >
@@ -57,6 +58,7 @@
         </template>
         <template #append>
           <button
+            v-if="store.configHotkey"
             class="button"
             @click="() => registerHandler('config', store.configHotkey)"
           >
