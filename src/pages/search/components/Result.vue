@@ -26,20 +26,21 @@ const props = defineProps<{
   results: ContentType[];
 }>();
 
-// 过滤并展示前10项
 const filteredResults = computed(() => {
+  let results = [];
   switch (activeTab.value) {
     case 'app':
-      return props.results
-        .filter((item) => item.summarize === 'app')
-        .slice(0, 10);
+      results = props.results.filter((item) => item.summarize === 'app');
+      break;
     case 'bookmark':
-      return props.results
-        .filter((item) => item.summarize === 'bookmark')
-        .slice(0, 10);
+      results = props.results.filter((item) => item.summarize === 'bookmark');
+      break;
     default:
-      return props.results.slice(0, 10);
+      results = props.results;
+      break;
   }
+
+  return results;
 });
 
 function switchTab(tab: TabType) {
