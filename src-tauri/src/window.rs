@@ -186,6 +186,7 @@ pub fn hotkey_search() {
     }
 }
 
+
 pub fn hotkey_config() {
     let window = build_window(
         "config",
@@ -194,10 +195,39 @@ pub fn hotkey_config() {
         1180.0,
         630.0,
     );
+
+    // 先检查搜索窗口是否打开，如果打开则先关闭
+    let search_window = APP.get().unwrap().get_webview_window("main").unwrap();
+    if search_window.is_visible().unwrap() {
+        search_window.hide().unwrap();
+        // 停止鼠标追踪
+        stop_mouse_tracking();
+        // 取消忽略光标
+        search_window.set_ignore_cursor_events(false).unwrap();
+    }
+
     if window.is_visible().unwrap() {
         window.hide().unwrap();
     } else {
         window.show().unwrap();
         window.set_focus().unwrap();
     }
+}
+
+
+// 显示隐藏窗口
+#[tauri::command]
+pub fn show_hide_window_command(label: &str) -> Result<(), String> {
+    match label {
+        "search" => {
+            hotkey_search();
+        }
+        "config" => {
+            hotkey_config();
+        }
+        _ => {
+            return Err("Invalid label".to_string());
+        }
+    }
+    Ok(())
 }

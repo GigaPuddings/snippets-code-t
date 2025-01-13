@@ -173,10 +173,10 @@ function registerHandler(name: string, key: string) {
     shortcut: key
   })
     .then(() => {
-      ElMessage.success(`快捷键注册成功: , ${key}`);
+      ElMessage.success(`快捷键注册成功: ${key}`);
     })
     .catch((e: any) => {
-      ElMessage.error(`快捷键注册失败: , ${e}`);
+      ElMessage.error(`快捷键注册失败: ${e}`);
     });
 }
 

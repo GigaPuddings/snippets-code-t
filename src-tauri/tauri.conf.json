@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "snippets-code",
+  "productName": "效率工具",
   "version": "0.1.0",
   "identifier": "com.snippets-code.app",
   "build": {
@@ -41,7 +41,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "category": "DeveloperTool",
     "shortDescription": "snippets-code",
     "longDescription": "代码片段效率工具",
     "windows": {

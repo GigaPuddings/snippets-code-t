@@ -1,8 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
 export default function useSetIgnoreCursorEvents(el: HTMLElement) {
-  const isInside = false;
-
   const handleMouseMove = (e: MouseEvent) => {
     const rect = el.getBoundingClientRect();
     const currentIsInside =
@@ -14,11 +12,6 @@ export default function useSetIgnoreCursorEvents(el: HTMLElement) {
       ignore: !currentIsInside,
       rect: [rect.left, rect.right, rect.top, rect.bottom]
     });
-    // console.log(!currentIsInside);
-    // if (currentIsInside !== isInside) {
-    //   isInside = currentIsInside;
-
-    // }
   };
 
   // 只监听全局鼠标移动
