@@ -1,5 +1,6 @@
 import { searchContent } from '@/database/search';
 import { useConfigurationStore } from '@/store';
+import { calculateSimilarity } from '@/utils';
 
 export function useSearch() {
   const store = useConfigurationStore();
@@ -46,32 +47,33 @@ async function searchCode(query: string) {
 
 // 搜索书签
 async function searchBookmark(store: ContentType[], query: string) {
-  const bookmarkResults = store.sort((a, b) => {
-    // 标题完全匹配的排在最前面
-    if (a.title.toLowerCase() === query) return -1;
-    if (b.title.toLowerCase() === query) return 1;
+  const bookmarkResults = store
+    .map((item) => {
+      // 计算相似度分数
+      const titleScore = calculateSimilarity(item.title.toLowerCase(), query);
+      const contentScore = item.content
+        ? calculateSimilarity(item.content.toLowerCase(), query)
+        : 0;
 
-    // 标题开头匹配的排第二
-    const aStartsWithTitle = a.title.toLowerCase().startsWith(query);
-    const bStartsWithTitle = b.title.toLowerCase().startsWith(query);
-    if (aStartsWithTitle && !bStartsWithTitle) return -1;
-    if (!aStartsWithTitle && bStartsWithTitle) return 1;
+      // 标题匹配权重更高
+      const score = titleScore * 2 + contentScore;
 
-    // 内容匹配的排最后
-    const aMatchContent = a.content?.toLowerCase().includes(query);
-    const bMatchContent = b.content?.toLowerCase().includes(query);
-    if (aMatchContent && !bMatchContent) return -1;
-    if (!aMatchContent && bMatchContent) return 1;
+      return {
+        ...item,
+        score
+      };
+    })
+    .filter((item) => item.score > 0) // 只保留有相关性的结果
+    .sort((a, b) => b.score - a.score); // 按分数降序排序
 
-    return 0;
-  });
-  return bookmarkResults;
+  return bookmarkResults.slice(0, 10);
 }
 
 // 搜索应用
 async function searchApp(store: ContentType[], query: string) {
-  const appResults = store.filter((app: ContentType) =>
-    app.title.toLowerCase().includes(query)
+  const appResults = store.filter(
+    (app: ContentType) =>
+      calculateSimilarity(app.title.toLowerCase(), query) > 0.5
   );
   return appResults;
 }
