@@ -1,13 +1,14 @@
 import { searchContent } from '@/database/search';
 import { useConfigurationStore } from '@/store';
 import { calculateSimilarity } from '@/utils';
+import { debounce } from '@/utils';
 
 export function useSearch() {
   const store = useConfigurationStore();
   const searchText = ref('');
   const searchResults = ref<ContentType[]>([]);
 
-  async function updateSearchResults() {
+  const debouncedSearch = debounce(async () => {
     if (!searchText.value.trim()) return (searchResults.value = []);
 
     const query = searchText.value.toLowerCase();
@@ -27,10 +28,10 @@ export function useSearch() {
 
     // 根据匹配度排序
     searchResults.value = results;
-  }
+  }, 300);
 
   watch(searchText, async () => {
-    await updateSearchResults();
+    await debouncedSearch();
   });
 
   return {

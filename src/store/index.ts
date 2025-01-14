@@ -3,20 +3,20 @@ import { invoke } from '@tauri-apps/api/core';
 
 export const useConfigurationStore = defineStore('configuration', {
   state: (): StoreState => ({
-    id: '',
-    data: [],
-    apps: [],
-    bookmarks: [],
-    contents: [],
-    categories: [],
-    editCategoryId: '',
-    categorySort: 'asc',
-    searchHotkey: '',
-    configHotkey: '',
-    dbPath: '',
-    dbBackup: '',
-    theme: 'auto',
-    autoStart: false
+    id: '', // 搜索框的 id
+    data: [], // 搜索结果
+    apps: [], // 本地已安装应用集合
+    bookmarks: [], // 浏览器书签集合
+    contents: [], // 搜索结果
+    categories: [], // 分类集合
+    editCategoryId: '', // 编辑分类的 id
+    categorySort: 'asc', // 分类排序
+    searchHotkey: '', // 搜索快捷键
+    configHotkey: '', // 配置快捷键
+    dbPath: '', // 数据库路径
+    dbBackup: '', // 数据库备份
+    theme: 'auto', // 主题
+    autoStart: false // 开机自启
   }),
   actions: {
     async initialize() {

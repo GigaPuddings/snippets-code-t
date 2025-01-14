@@ -1,3 +1,59 @@
+<template>
+  <main ref="containerRef" class="result-container">
+    <div v-if="props.results.length !== 0" class="tabs">
+      <template v-for="item in tabs" :key="item">
+        <div
+          class="tab"
+          :class="{ active: item.value === activeTab }"
+          @click="switchTab(item.value)"
+        >
+          {{ item.label }}
+        </div>
+      </template>
+    </div>
+    <div class="result">
+      <template v-for="item in filteredResults" :key="item.id">
+        <!-- @mouseenter="handleMouseEnter(item)" -->
+        <div
+          class="item"
+          :class="{ active: item.id === store.id }"
+          @click="selectItem(item)"
+        >
+          <template v-if="item.summarize === 'app'">
+            <application-two
+              class="icon"
+              theme="outline"
+              size="24"
+              :strokeWidth="3"
+            />
+          </template>
+          <template v-else-if="item.summarize === 'bookmark'">
+            <bookmark-one
+              class="icon"
+              theme="outline"
+              size="24"
+              :strokeWidth="3"
+            />
+          </template>
+          <template v-else>
+            <file-code
+              class="icon"
+              theme="outline"
+              size="24"
+              :strokeWidth="3"
+            />
+          </template>
+          <div class="content">
+            <div class="title">
+              {{ item.title || item.content.split('/')[2] }}
+            </div>
+            <p class="text">{{ item.content }}</p>
+          </div>
+        </div>
+      </template>
+    </div>
+  </main>
+</template>
 <script lang="ts" setup>
 import { FileCode, ApplicationTwo, BookmarkOne } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
@@ -9,11 +65,11 @@ const containerRef = ref<HTMLElement | null>(null);
 const activeTab = ref<TabType>('text');
 const tabs = ref<{ label: string; value: TabType }[]>([
   {
-    label: '所有结果',
+    label: '全部',
     value: 'text'
   },
   {
-    label: '软件',
+    label: '应用',
     value: 'app'
   },
   {
@@ -26,6 +82,7 @@ const props = defineProps<{
   results: ContentType[];
 }>();
 
+// 过滤结果
 const filteredResults = computed(() => {
   let results = [];
   switch (activeTab.value) {
@@ -43,15 +100,32 @@ const filteredResults = computed(() => {
   return results;
 });
 
+// 使用计算属性自动选中第一个结果
+const selectedId = computed(() => {
+  return filteredResults.value.length > 0 ? filteredResults.value[0].id : null;
+});
+
+// 然后监听 selectedId 的变化
+watch(selectedId, (newId) => {
+  if (newId) {
+    store.id = newId;
+  }
+});
+
 function switchTab(tab: TabType) {
   activeTab.value = tab;
-  if (filteredResults.value.length > 0) {
-    store.id = filteredResults.value[0].id;
-  }
 }
 
+// 键盘事件处理
 const handleKeyEvent = (e: KeyboardEvent) => {
   if (filteredResults.value.length === 0) return;
+
+  // 只阻止上下键和回车键的默认行为和冒泡
+  if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.code)) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
   const index = filteredResults.value.findIndex((item) => item.id === store.id);
   let nextIndex = index;
 
@@ -66,6 +140,22 @@ const handleKeyEvent = (e: KeyboardEvent) => {
         filteredResults.value.length;
       store.id = filteredResults.value[nextIndex].id;
       break;
+    // case 'ArrowRight':
+    //   // 获取当前 tab 的索引
+    //   const currentTabIndex = tabs.value.findIndex(tab => tab.value === activeTab.value);
+    //   // 切换到下一个 tab
+    //   if (currentTabIndex < tabs.value.length - 1) {
+    //     switchTab(tabs.value[currentTabIndex + 1].value);
+    //   }
+    //   break;
+    // case 'ArrowLeft':
+    //   // 获取当前 tab 的索引
+    //   const currentIndex = tabs.value.findIndex(tab => tab.value === activeTab.value);
+    //   // 切换到上一个 tab
+    //   if (currentIndex > 0) {
+    //     switchTab(tabs.value[currentIndex - 1].value);
+    //   }
+    //   break;
     case 'Enter':
       selectItem(filteredResults.value[nextIndex]);
       break;
@@ -146,62 +236,6 @@ onUnmounted(() => {
 //   img.style.display = 'none';
 // }
 </script>
-<template>
-  <main ref="containerRef" class="result-container">
-    <div v-if="props.results.length !== 0" class="tabs">
-      <template v-for="item in tabs" :key="item">
-        <div
-          class="tab"
-          :class="{ active: item.value === activeTab }"
-          @click="switchTab(item.value)"
-        >
-          {{ item.label }}
-        </div>
-      </template>
-    </div>
-    <div class="result">
-      <template v-for="item in filteredResults" :key="item.id">
-        <!-- @mouseenter="handleMouseEnter(item)" -->
-        <div
-          class="item"
-          :class="{ active: item.id === store.id }"
-          @click="selectItem(item)"
-        >
-          <template v-if="item.summarize === 'app'">
-            <application-two
-              class="icon"
-              theme="outline"
-              size="24"
-              :strokeWidth="3"
-            />
-          </template>
-          <template v-else-if="item.summarize === 'bookmark'">
-            <bookmark-one
-              class="icon"
-              theme="outline"
-              size="24"
-              :strokeWidth="3"
-            />
-          </template>
-          <template v-else>
-            <file-code
-              class="icon"
-              theme="outline"
-              size="24"
-              :strokeWidth="3"
-            />
-          </template>
-          <div class="content">
-            <div class="title">
-              {{ item.title || item.content.split('/')[2] }}
-            </div>
-            <p class="text">{{ item.content }}</p>
-          </div>
-        </div>
-      </template>
-    </div>
-  </main>
-</template>
 <style lang="scss" scoped>
 .result-container {
   @apply bg-search px-1 rounded-bl-lg rounded-br-lg;
