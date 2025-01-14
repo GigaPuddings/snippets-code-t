@@ -114,6 +114,7 @@ watch(selectedId, (newId) => {
 
 function switchTab(tab: TabType) {
   activeTab.value = tab;
+  console.log(filteredResults.value);
 }
 
 // 键盘事件处理

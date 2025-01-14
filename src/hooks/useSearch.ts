@@ -2,6 +2,25 @@ import { searchContent } from '@/database/search';
 import { useConfigurationStore } from '@/store';
 import { calculateSimilarity } from '@/utils';
 import { debounce } from '@/utils';
+import { pinyin } from 'pinyin-pro';
+
+// 添加一个新的辅助函数来获取文本的拼音
+function getPinyin(text: string): string {
+  return pinyin(text, {
+    toneType: 'none', // 不带声调
+    type: 'string', // 返回字符串
+    nonZh: 'removed' // 移除非中文字符
+  }).toLowerCase();
+}
+
+// 修改计算相似度的逻辑，增加拼音匹配
+function calculateScoreWithPinyin(source: string, query: string): number {
+  const directScore = calculateSimilarity(source.toLowerCase(), query);
+  const pinyinScore = calculateSimilarity(getPinyin(source), query);
+
+  // 直接匹配的分数权重更高
+  return Math.max(directScore, pinyinScore * 0.8);
+}
 
 export function useSearch() {
   const store = useConfigurationStore();
@@ -73,8 +92,7 @@ async function searchBookmark(store: ContentType[], query: string) {
 // 搜索应用
 async function searchApp(store: ContentType[], query: string) {
   const appResults = store.filter(
-    (app: ContentType) =>
-      calculateSimilarity(app.title.toLowerCase(), query) > 0.5
+    (app: ContentType) => calculateScoreWithPinyin(app.title, query) > 0.5
   );
   return appResults;
 }
