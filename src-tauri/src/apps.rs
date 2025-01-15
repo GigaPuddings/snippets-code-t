@@ -1,19 +1,18 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::mem::size_of;
 use std::path::Path;
 use uuid::Uuid;
-use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
-use winreg::RegKey;
-use windows::Win32::Foundation::{HWND, LPARAM, BOOL};
-use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetWindowThreadProcessId, IsWindowVisible, SetForegroundWindow,
-    ShowWindow, SW_RESTORE, GetWindow, GW_OWNER, IsIconic,
-    BringWindowToTop, SwitchToThisWindow,
-};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::System::ProcessStatus::{K32EnumProcesses, K32GetModuleFileNameExA};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
-use std::mem::size_of;
+use windows::Win32::UI::WindowsAndMessaging::{
+    BringWindowToTop, EnumWindows, GetWindow, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
+    SetForegroundWindow, ShowWindow, SwitchToThisWindow, GW_OWNER, SW_RESTORE,
+};
+use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+use winreg::RegKey;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppInfo {
@@ -129,7 +128,7 @@ extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let args = &mut *(lparam.0 as *mut EnumWindowsCallbackArgs);
         let mut process_id: u32 = 0;
         GetWindowThreadProcessId(hwnd, Some(&mut process_id));
-        
+
         if process_id == args.process_id && is_main_window(hwnd) {
             args.hwnd = hwnd;
             return false.into();
@@ -142,46 +141,46 @@ fn find_existing_window(target_path: &str) -> Option<HWND> {
     unsafe {
         let mut process_ids = [0u32; 1024];
         let mut cb_needed = 0;
-        
+
         if !K32EnumProcesses(
             process_ids.as_mut_ptr(),
             (process_ids.len() * size_of::<u32>()) as u32,
-            &mut cb_needed
-        ).as_bool() {
+            &mut cb_needed,
+        )
+        .as_bool()
+        {
             return None;
         }
 
         let process_count = cb_needed as usize / size_of::<u32>();
-        
+
         for &process_id in &process_ids[..process_count] {
-            if process_id == 0 { continue; }
-            
+            if process_id == 0 {
+                continue;
+            }
+
             if let Ok(process_handle) = OpenProcess(
                 PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
                 false,
-                process_id
+                process_id,
             ) {
                 let mut buffer = [0u8; 1024];
-                if K32GetModuleFileNameExA(
-                    Some(process_handle),
-                    None,
-                    &mut buffer
-                ) > 0 {
+                if K32GetModuleFileNameExA(Some(process_handle), None, &mut buffer) > 0 {
                     let process_path = String::from_utf8_lossy(&buffer)
                         .trim_matches(char::from(0))
                         .to_string();
-                    
+
                     if process_path.eq_ignore_ascii_case(target_path) {
                         let mut args = EnumWindowsCallbackArgs {
                             process_id,
                             hwnd: HWND(std::ptr::null_mut()),
                         };
-                        
+
                         let _ = EnumWindows(
                             Some(enum_windows_callback),
-                            LPARAM(&mut args as *mut EnumWindowsCallbackArgs as isize)
+                            LPARAM(&mut args as *mut EnumWindowsCallbackArgs as isize),
                         );
-                        
+
                         if !args.hwnd.is_invalid() {
                             return Some(args.hwnd);
                         }
@@ -208,13 +207,13 @@ pub fn open_app_command(app_path: String) {
             if IsIconic(hwnd).as_bool() {
                 let _ = ShowWindow(hwnd, SW_RESTORE);
             }
-            
+
             // 确保窗口在最前面
             let _ = BringWindowToTop(hwnd);
-            
+
             // 激活窗口
             let _ = SetForegroundWindow(hwnd);
-            
+
             // 强制切换到该窗口
             SwitchToThisWindow(hwnd, true);
         }

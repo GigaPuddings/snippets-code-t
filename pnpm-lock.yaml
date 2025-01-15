@@ -38,6 +38,9 @@ importers:
       '@tauri-apps/plugin-global-shortcut':
         specifier: ~2
         version: 2.2.0
+      '@tauri-apps/plugin-http':
+        specifier: ~2
+        version: 2.2.0
       '@tauri-apps/plugin-log':
         specifier: ~2
         version: 2.2.0
@@ -77,9 +80,9 @@ importers:
       pinia-plugin-persistedstate:
         specifier: ^4.2.0
         version: 4.2.0(pinia@2.3.0(typescript@5.6.3)(vue@3.5.13(typescript@5.6.3)))(rollup@4.28.1)
-      pinyin-pro:
-        specifier: ^3.26.0
-        version: 3.26.0
+      pinyin-match:
+        specifier: ^1.2.6
+        version: 1.2.6
       vue:
         specifier: ^3.5.13
         version: 3.5.13(typescript@5.6.3)
@@ -1058,6 +1061,9 @@ packages:
 
   '@tauri-apps/plugin-global-shortcut@2.2.0':
     resolution: {integrity: sha512-clI9Bg/BcxWXNDK+ij601o1qC2WxMEy8ovhGgEW5Ai17oPy0KK8uwzmc59KiVnOYKpBWHCUPqBxG+KBNUFXgzw==}
+
+  '@tauri-apps/plugin-http@2.2.0':
+    resolution: {integrity: sha512-ZY6sIHhgu8hcu6BkkegoiOEbvOsQFSVcK8J7l+g9RNHrkhl5uzpNIytR4R/H50fj7gyG80DJvrXDx/LBo7Easw==}
 
   '@tauri-apps/plugin-log@2.2.0':
     resolution: {integrity: sha512-g6CsQAR1lsm5ABSZZxpM/iCn86GrMDTTlhj7GPkZkYBRSm3+WczfOAl7SV7HDn77tOKCzhZffwI5uHfRoHutrw==}
@@ -3056,8 +3062,8 @@ packages:
       typescript:
         optional: true
 
-  pinyin-pro@3.26.0:
-    resolution: {integrity: sha512-HcBZZb0pvm0/JkPhZHWA5Hqp2cWHXrrW/WrV+OtaYYM+kf35ffvZppIUuGmyuQ7gDr1JDJKMkbEE+GN0wfMoGg==}
+  pinyin-match@1.2.6:
+    resolution: {integrity: sha512-d9fMSwZujH7UlMu+FO8MGXrgUYv0CwJtzpf3fQ8xgLJy1qfXlzOZsnQuL7Ej7msAiEtt37U7bE4dkVmyWaFfwA==}
 
   pirates@4.0.6:
     resolution: {integrity: sha512-saLsH7WeYYPiD25LDuLRRY/i+6HaPYr6G1OUlN39otzkSTxKnubR9RTxS3/Kk50s1g2JTgFwWQDQyplC5/SHZg==}
@@ -4778,6 +4784,10 @@ snapshots:
       '@tauri-apps/api': 2.1.1
 
   '@tauri-apps/plugin-global-shortcut@2.2.0':
+    dependencies:
+      '@tauri-apps/api': 2.1.1
+
+  '@tauri-apps/plugin-http@2.2.0':
     dependencies:
       '@tauri-apps/api': 2.1.1
 
@@ -7018,7 +7028,7 @@ snapshots:
     transitivePeerDependencies:
       - '@vue/composition-api'
 
-  pinyin-pro@3.26.0: {}
+  pinyin-match@1.2.6: {}
 
   pirates@4.0.6: {}
 

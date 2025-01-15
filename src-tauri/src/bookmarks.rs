@@ -1,4 +1,6 @@
+use glob::glob;
 use log::info;
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -6,8 +8,6 @@ use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 use winreg::enums::*;
 use winreg::RegKey;
-use rusqlite::Connection;
-use glob::glob;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BookmarkInfo {
@@ -27,8 +27,9 @@ enum BrowserType {
 
 fn get_default_browser() -> BrowserType {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let path = "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice";
-    
+    let path =
+        "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice";
+
     if let Ok(key) = hkcu.open_subkey(path) {
         if let Ok(prog_id) = key.get_value::<String, _>("ProgId") {
             info!("默认浏览器 ProgId: {}", prog_id);
@@ -40,14 +41,14 @@ fn get_default_browser() -> BrowserType {
             };
         }
     }
-    
+
     BrowserType::Unknown
 }
 
 fn get_firefox_bookmarks_file() -> Option<PathBuf> {
     let appdata = std::env::var("APPDATA").ok()?;
     let profiles_path = format!("{}\\Mozilla\\Firefox\\Profiles\\*.default*", appdata);
-    
+
     // 查找默认配置文件
     if let Ok(entries) = glob(&profiles_path) {
         for entry in entries {
@@ -60,24 +61,24 @@ fn get_firefox_bookmarks_file() -> Option<PathBuf> {
             }
         }
     }
-    
+
     info!("未找到 Firefox 书签文件");
     None
 }
 
 fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
     let mut bookmarks = Vec::new();
-    
+
     // 创建临时文件来复制数据库
     let temp_dir = std::env::temp_dir();
     let temp_db = temp_dir.join("temp_places.sqlite");
-    
+
     // 复制数据库文件，因为 Firefox 可能正在使用原文件
     if let Err(e) = fs::copy(db_path, &temp_db) {
         info!("复制 Firefox 数据库失败: {}", e);
         return bookmarks;
     }
-    
+
     if let Ok(conn) = Connection::open(&temp_db) {
         let query = "
             SELECT b.id, b.title, p.url
@@ -85,7 +86,7 @@ fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
             JOIN moz_places p ON b.fk = p.id
             WHERE b.type = 1 AND p.url NOT LIKE 'place:%'
         ";
-        
+
         if let Ok(mut stmt) = conn.prepare(query) {
             if let Ok(rows) = stmt.query_map([], |row| {
                 Ok((
@@ -107,10 +108,10 @@ fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
             }
         }
     }
-    
+
     // 清理临时文件
     let _ = fs::remove_file(temp_db);
-    
+
     bookmarks
 }
 
@@ -121,12 +122,24 @@ fn get_browser_bookmarks_path(browser_type: &BrowserType) -> Option<PathBuf> {
             let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
             let paths = match browser_type {
                 BrowserType::Chrome => vec![
-                    format!("{}\\Google\\Chrome\\User Data\\Default\\Bookmarks", local_app_data),
-                    format!("{}\\Google\\Chrome\\User Data\\Profile 1\\Bookmarks", local_app_data),
+                    format!(
+                        "{}\\Google\\Chrome\\User Data\\Default\\Bookmarks",
+                        local_app_data
+                    ),
+                    format!(
+                        "{}\\Google\\Chrome\\User Data\\Profile 1\\Bookmarks",
+                        local_app_data
+                    ),
                 ],
                 BrowserType::Edge => vec![
-                    format!("{}\\Microsoft\\Edge\\User Data\\Default\\Bookmarks", local_app_data),
-                    format!("{}\\Microsoft\\Edge\\User Data\\Profile 1\\Bookmarks", local_app_data),
+                    format!(
+                        "{}\\Microsoft\\Edge\\User Data\\Default\\Bookmarks",
+                        local_app_data
+                    ),
+                    format!(
+                        "{}\\Microsoft\\Edge\\User Data\\Profile 1\\Bookmarks",
+                        local_app_data
+                    ),
                 ],
                 _ => vec![],
             };
@@ -178,9 +191,9 @@ fn extract_bookmarks(value: &serde_json::Value) -> Vec<BookmarkInfo> {
 pub fn get_browser_bookmarks() -> Vec<BookmarkInfo> {
     let mut bookmarks = Vec::new();
     let default_browser = get_default_browser();
-    
+
     info!("检测到的默认浏览器: {:?}", default_browser);
-    
+
     if let Some(bookmarks_path) = get_browser_bookmarks_path(&default_browser) {
         match default_browser {
             BrowserType::Chrome | BrowserType::Edge => {
@@ -199,10 +212,10 @@ pub fn get_browser_bookmarks() -> Vec<BookmarkInfo> {
                         }
                     }
                 }
-            },
+            }
             BrowserType::Firefox => {
                 bookmarks.extend(extract_firefox_bookmarks(&bookmarks_path));
-            },
+            }
             BrowserType::Unknown => {
                 info!("未能识别默认浏览器");
             }

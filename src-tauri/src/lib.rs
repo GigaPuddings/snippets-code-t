@@ -2,26 +2,26 @@ mod apps;
 mod bookmarks;
 mod config;
 mod db;
-mod migrate;
 mod hotkey;
+mod migrate;
 mod tray;
 mod window;
 
+use crate::db::{backup_database, get_db_path, restore_database};
 use crate::window::{hotkey_config, start_mouse_tracking};
 use apps::{get_installed_apps, open_app_command};
 use bookmarks::{get_browser_bookmarks, open_url};
 use hotkey::*;
 use log::info;
-use tauri_plugin_autostart::MacosLauncher;
-use window::show_hide_window_command;
 use std::sync::Mutex;
 use std::sync::OnceLock;
 use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
-use crate::db::{get_db_path, backup_database, restore_database};
+use window::show_hide_window_command;
 
 // 定义一个全局静态变量来存储 AppHandle
 pub static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -67,7 +67,11 @@ async fn hotkey_config_command() -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--flag1", "--flag2"]),
+        ))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         // 单实例插件：防止程序多开

@@ -16,7 +16,67 @@ export const useConfigurationStore = defineStore('configuration', {
     dbPath: '', // 数据库路径
     dbBackup: '', // 数据库备份
     theme: 'auto', // 主题
-    autoStart: false // 开机自启
+    autoStart: false, // 开机自启
+    searchEngines: [
+      {
+        id: 'google',
+        keyword: 'g',
+        name: 'google',
+        icon: 'https://www.google.com/favicon.ico',
+        url: 'https://www.google.com/search?q={query}',
+        enabled: true
+      }
+    ], // 搜索引擎配置
+    defaultSearchEngines: [
+      {
+        id: 'github',
+        keyword: 'github',
+        name: 'github',
+        icon: 'https://www.google.com/s2/favicons?domain=https://github.com',
+        url: 'https://github.com/search?q={query}',
+        enabled: false
+      },
+      {
+        id: 'npm',
+        keyword: 'npm',
+        name: 'npm',
+        icon: 'https://www.google.com/s2/favicons?domain=https://www.npmjs.com',
+        url: 'https://www.npmjs.com/search?q={query}',
+        enabled: false
+      },
+      {
+        id: 'gitee',
+        keyword: 'gitee',
+        name: '码云',
+        icon: 'https://www.gitee.com/favicon.ico',
+        url: 'https://so.gitee.com/?q={query}',
+        enabled: false
+      },
+      {
+        id: 'google',
+        keyword: 'g',
+        name: 'google',
+        icon: 'https://www.google.com/favicon.ico',
+        url: 'https://www.google.com/search?q={query}',
+        enabled: false
+      },
+      {
+        id: 'bing',
+        keyword: 'by',
+        name: '必应',
+        icon: 'https://www.bing.com/favicon.ico',
+        url: 'https://www.bing.com/search?q={query}',
+        enabled: false
+      },
+      {
+        id: 'baidu',
+        keyword: 'bd',
+        name: '百度',
+        icon: 'https://www.baidu.com/favicon.ico',
+        url: 'https://www.baidu.com/s?wd={query}',
+        enabled: false
+      }
+    ] // 默认搜索引擎配置
   }),
   actions: {
     async initialize() {
@@ -35,7 +95,7 @@ export const useConfigurationStore = defineStore('configuration', {
     }
   },
   persist: {
-    pick: ['searchHotkey', 'configHotkey', 'theme']
+    pick: ['searchHotkey', 'configHotkey', 'theme', 'searchEngines']
   }
 });
 

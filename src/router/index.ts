@@ -34,7 +34,8 @@ const routes: RouteRecordRaw[] = [
         children: [
           {
             path: 'category',
-            component: () => import('@/pages/config/components/category/index.vue'),
+            component: () =>
+              import('@/pages/config/components/category/index.vue'),
             name: 'Category',
             redirect: '/config/category/contentList',
             children: [
@@ -53,7 +54,10 @@ const routes: RouteRecordRaw[] = [
                   },
                   {
                     path: 'content/:id?',
-                    component: () => import('@/pages/config/components/category/components/content/index.vue'),
+                    component: () =>
+                      import(
+                        '@/pages/config/components/category/components/content/index.vue'
+                      ),
                     name: 'Content'
                   }
                 ]
@@ -61,8 +65,15 @@ const routes: RouteRecordRaw[] = [
             ]
           },
           {
+            path: 'retrieve',
+            component: () =>
+              import('@/pages/config/components/retrieve/index.vue'),
+            name: 'Retrieve'
+          },
+          {
             path: 'summarize',
-            component: () => import('@/pages/config/components/summarize/index.vue'),
+            component: () =>
+              import('@/pages/config/components/summarize/index.vue'),
             name: 'Summarize'
           }
         ]

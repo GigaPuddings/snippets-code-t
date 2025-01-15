@@ -186,7 +186,6 @@ pub fn hotkey_search() {
     }
 }
 
-
 pub fn hotkey_config() {
     let window = build_window(
         "config",
@@ -213,7 +212,6 @@ pub fn hotkey_config() {
         window.set_focus().unwrap();
     }
 }
-
 
 // 显示隐藏窗口
 #[tauri::command]

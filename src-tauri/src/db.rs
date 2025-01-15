@@ -1,10 +1,10 @@
-use tauri_plugin_dialog::DialogExt;
 use crate::APP;
-use std::path::Path;
 use chrono::Local;
-use tauri::Manager;
-use std::io::Read;
 use rusqlite;
+use std::io::Read;
+use std::path::Path;
+use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
 
 // 获取数据库目录
 #[tauri::command]
@@ -45,17 +45,18 @@ pub async fn backup_database(format: &str) -> Result<String, String> {
         .blocking_save_file()
     {
         let path = selected_path.as_path().unwrap();
-        
+
         // 使用 rusqlite 的备份功能
-        let mut source = rusqlite::Connection::open(&db_path)
-            .map_err(|e| format!("打开源数据库失败: {}", e))?;
-        let mut dest = rusqlite::Connection::open(path)
-            .map_err(|e| format!("创建目标数据库失败: {}", e))?;
-        
+        let mut source =
+            rusqlite::Connection::open(&db_path).map_err(|e| format!("打开源数据库失败: {}", e))?;
+        let mut dest =
+            rusqlite::Connection::open(path).map_err(|e| format!("创建目标数据库失败: {}", e))?;
+
         let backup = rusqlite::backup::Backup::new(&mut source, &mut dest)
             .map_err(|e| format!("初始化备份失败: {}", e))?;
-        
-        backup.step(-1)
+
+        backup
+            .step(-1)
             .map_err(|e| format!("备份过程失败: {}", e))?;
 
         Ok("备份成功".to_string())
@@ -93,22 +94,24 @@ pub async fn restore_database() -> Result<String, String> {
                     .map_err(|e| format!("打开当前数据库失败: {}", e))?;
                 let mut backup = rusqlite::Connection::open(&backup_path)
                     .map_err(|e| format!("创建备份数据库失败: {}", e))?;
-                
+
                 let backup_op = rusqlite::backup::Backup::new(&mut source, &mut backup)
                     .map_err(|e| format!("初始化备份失败: {}", e))?;
-                backup_op.step(-1)
+                backup_op
+                    .step(-1)
                     .map_err(|e| format!("备份当前数据库失败: {}", e))?;
             }
 
             // 恢复新数据库
-            let mut source = rusqlite::Connection::open(path)
-                .map_err(|e| format!("打开源数据库失败: {}", e))?;
+            let mut source =
+                rusqlite::Connection::open(path).map_err(|e| format!("打开源数据库失败: {}", e))?;
             let mut dest = rusqlite::Connection::open(&db_path)
                 .map_err(|e| format!("打开目标数据库失败: {}", e))?;
-            
+
             let restore = rusqlite::backup::Backup::new(&mut source, &mut dest)
                 .map_err(|e| format!("初始化恢复失败: {}", e))?;
-            restore.step(-1)
+            restore
+                .step(-1)
                 .map_err(|e| format!("恢复过程失败: {}", e))?;
 
             std::thread::spawn(move || {

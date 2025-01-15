@@ -31,13 +31,18 @@
 defineOptions({
   name: 'Config'
 });
-import { BookOpen, SettingOne } from '@icon-park/vue-next';
+import { BookOpen, SettingOne, MessageSearch } from '@icon-park/vue-next';
 
 const tabs = [
   {
     icon: BookOpen,
     title: '片段',
     path: '/config/category/contentList'
+  },
+  {
+    icon: MessageSearch,
+    title: '检索',
+    path: '/config/retrieve'
   },
   {
     icon: SettingOne,
