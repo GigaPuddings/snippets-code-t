@@ -23,7 +23,7 @@ export const useConfigurationStore = defineStore('configuration', {
         keyword: 'g',
         name: 'google',
         icon: 'https://www.google.com/favicon.ico',
-        url: 'https://www.google.com/search?q={query}',
+        url: 'https://www.google.com/search?q=%s',
         enabled: true
       }
     ], // 搜索引擎配置
@@ -33,7 +33,7 @@ export const useConfigurationStore = defineStore('configuration', {
         keyword: 'github',
         name: 'github',
         icon: 'https://www.google.com/s2/favicons?domain=https://github.com',
-        url: 'https://github.com/search?q={query}',
+        url: 'https://github.com/search?q=%s',
         enabled: false
       },
       {
@@ -41,7 +41,7 @@ export const useConfigurationStore = defineStore('configuration', {
         keyword: 'npm',
         name: 'npm',
         icon: 'https://www.google.com/s2/favicons?domain=https://www.npmjs.com',
-        url: 'https://www.npmjs.com/search?q={query}',
+        url: 'https://www.npmjs.com/search?q=%s',
         enabled: false
       },
       {
@@ -57,7 +57,7 @@ export const useConfigurationStore = defineStore('configuration', {
         keyword: 'g',
         name: 'google',
         icon: 'https://www.google.com/favicon.ico',
-        url: 'https://www.google.com/search?q={query}',
+        url: 'https://www.google.com/search?q=%s',
         enabled: false
       },
       {
@@ -65,7 +65,7 @@ export const useConfigurationStore = defineStore('configuration', {
         keyword: 'by',
         name: '必应',
         icon: 'https://www.bing.com/favicon.ico',
-        url: 'https://www.bing.com/search?q={query}',
+        url: 'https://www.bing.com/search?q=%s',
         enabled: false
       },
       {
@@ -73,7 +73,7 @@ export const useConfigurationStore = defineStore('configuration', {
         keyword: 'bd',
         name: '百度',
         icon: 'https://www.baidu.com/favicon.ico',
-        url: 'https://www.baidu.com/s?wd={query}',
+        url: 'https://www.baidu.com/s?wd=%s',
         enabled: false
       }
     ] // 默认搜索引擎配置
@@ -92,6 +92,11 @@ export const useConfigurationStore = defineStore('configuration', {
       } catch (error) {
         console.error('初始化数据失败:', error);
       }
+    },
+
+    // 添加更新搜索引擎的 action
+    updateSearchEngines(engines: SearchEngineConfig[]) {
+      this.searchEngines = engines;
     }
   },
   persist: {

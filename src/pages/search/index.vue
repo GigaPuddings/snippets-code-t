@@ -6,7 +6,7 @@ import { useSearch } from '@/hooks/useSearch';
 import { listen } from '@tauri-apps/api/event';
 import { onMounted } from 'vue';
 
-const { searchText, searchResults } = useSearch();
+const { searchText, searchResults, handleEnterSearch } = useSearch();
 
 const mainRef = ref<HTMLElement | null>(null);
 const searchInputRef = ref<HTMLElement | null>(null);
@@ -28,6 +28,17 @@ onMounted(async () => {
     searchInputRef.value?.focus();
   });
 });
+
+// 添加键盘事件处理
+const handleKeyDown = async (e: Event) => {
+  if (!(e instanceof KeyboardEvent)) return;
+  if (e.key === 'Enter' && !e.isComposing) {
+    // 如果没有搜索结果，执行搜索
+    if (searchResults.value.length === 0) {
+      await handleEnterSearch();
+    }
+  }
+};
 </script>
 
 <template>
@@ -39,6 +50,7 @@ onMounted(async () => {
         autofocus
         size="large"
         v-model="searchText"
+        @keydown="handleKeyDown"
       />
       <home
         class="home"

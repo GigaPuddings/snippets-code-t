@@ -35,6 +35,21 @@
               :strokeWidth="3"
             />
           </template>
+          <template v-else-if="item.summarize === 'search'">
+            <img
+              v-if="item.icon"
+              :src="item.icon"
+              class="icon"
+              @error="handleIconError"
+            />
+            <Search
+              v-else
+              class="icon"
+              theme="outline"
+              size="24"
+              :strokeWidth="3"
+            />
+          </template>
           <template v-else>
             <file-code
               class="icon"
@@ -55,15 +70,20 @@
   </main>
 </template>
 <script lang="ts" setup>
-import { FileCode, ApplicationTwo, BookmarkOne } from '@icon-park/vue-next';
+import {
+  FileCode,
+  ApplicationTwo,
+  BookmarkOne,
+  Search
+} from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 
 const store = useConfigurationStore();
 
 const containerRef = ref<HTMLElement | null>(null);
-const activeTab = ref<TabType>('text');
-const tabs = ref<{ label: string; value: TabType }[]>([
+const activeTab = ref<SummarizeType>('text');
+const tabs = ref<{ label: string; value: SummarizeType }[]>([
   {
     label: '全部',
     value: 'text'
@@ -112,9 +132,8 @@ watch(selectedId, (newId) => {
   }
 });
 
-function switchTab(tab: TabType) {
+function switchTab(tab: SummarizeType) {
   activeTab.value = tab;
-  console.log(filteredResults.value);
 }
 
 // 键盘事件处理
@@ -193,10 +212,10 @@ async function selectItem(item: ContentType) {
   store.id = item.id;
   if (item.summarize === 'app') {
     // 打开第三方应用程序
-    invoke('open_app_command', { appPath: item.content });
-  } else if (item.summarize === 'bookmark') {
-    // 浏览器书签搜索
-    invoke('open_url', { url: item.content });
+    await invoke('open_app_command', { appPath: item.content });
+  } else if (item.summarize === 'bookmark' || item.summarize === 'search') {
+    // 浏览器书签搜索或搜索引擎搜索
+    await invoke('open_url', { url: item.content });
   } else {
     // copy 代码片段
     await navigator.clipboard.writeText(item.content);
@@ -232,10 +251,12 @@ onUnmounted(() => {
 //   }
 // }
 
-// function handleImageError(event: Event) {
-//   const img = event.target as HTMLImageElement;
-//   img.style.display = 'none';
-// }
+// 添加图标加载失败处理
+const handleIconError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.style.display = 'none';
+  img.nextElementSibling?.removeAttribute('style');
+};
 </script>
 <style lang="scss" scoped>
 .result-container {
@@ -274,6 +295,10 @@ onUnmounted(() => {
         .text {
           @apply text-xs truncate text-search-secondary;
         }
+      }
+
+      .icon {
+        @apply w-6 h-6 object-contain;
       }
     }
   }

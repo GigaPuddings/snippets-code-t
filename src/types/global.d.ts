@@ -1,7 +1,4 @@
 declare global {
-  // 搜索结果的类型
-  type TabType = 'text' | 'app' | 'bookmark';
-
   // 分类类型
   type CategoryType = {
     id: string | number;
@@ -14,10 +11,11 @@ declare global {
     id: string | number;
     title: string;
     content: string;
-    summarize: TabType;
+    summarize: SummarizeType;
     category_id?: number;
     created_at?: string;
     category_name?: string;
+    icon?: string;
   };
 
   // 状态类型
@@ -49,6 +47,9 @@ declare global {
     url: string;
     enabled: boolean;
   }
+
+  // 在适当的位置添加 'search' 类型
+  type SummarizeType = 'text' | 'app' | 'bookmark' | 'search';
 }
 
 export {};
