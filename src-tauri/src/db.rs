@@ -1,6 +1,7 @@
 use crate::APP;
 use chrono::Local;
 use rusqlite;
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use std::io::Read;
 use std::path::Path;
 use tauri::Manager;
@@ -116,6 +117,7 @@ pub async fn restore_database() -> Result<String, String> {
 
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(1));
+                app.global_shortcut().unregister_all().unwrap();
                 app.restart();
             });
 

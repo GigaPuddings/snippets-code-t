@@ -260,10 +260,6 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 .retrieve-container {
   @apply w-[calc(100vw-4rem)] h-full overflow-hidden;
 
-  :deep(.el-input__wrapper) {
-    @apply border !bg-panel rounded-md;
-  }
-
   .search-config {
     @apply bg-panel rounded-lg p-4 mr-2;
 
@@ -284,6 +280,10 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 
       .search-item {
         @apply flex items-center justify-between px-4 py-3 mb-4 last:mb-0 bg-content rounded-md;
+
+        :deep(.el-input__wrapper) {
+          @apply border !bg-panel dark:!bg-content rounded-md;
+        }
 
         &.is-editing {
           @apply bg-gray-50;
@@ -321,7 +321,11 @@ const handleIconError = async (engine: SearchEngineConfig) => {
           @apply flex items-center gap-4;
 
           .engine-select {
-            @apply w-[140px] border rounded-md !bg-panel;
+            @apply w-[140px];
+
+            :deep(.el-select__wrapper) {
+              @apply border rounded-md !bg-panel dark:!bg-content;
+            }
           }
 
           .delete-icon {

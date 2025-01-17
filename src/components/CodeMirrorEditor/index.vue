@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import type { CSSProperties } from 'vue';
 import { vue } from '@codemirror/lang-vue';
+import { javascript } from '@codemirror/lang-javascript';
+import { html } from '@codemirror/lang-html';
+import { css } from '@codemirror/lang-css';
+import { json } from '@codemirror/lang-json';
+import { java } from '@codemirror/lang-java';
 import { EditorView, ViewUpdate, keymap } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { createTheme } from '@uiw/codemirror-themes';
@@ -132,12 +137,111 @@ function updateStatusInfo(state: EditorState) {
   length.value = state.doc.length;
 }
 
+// 添加语言检测函数
+const detectLanguage = (code: string): string => {
+  // 检查文件头部特征
+  const firstLine = code.trim().split('\n')[0].trim();
+
+  // 检查 Vue 单文件组件
+  if (
+    firstLine.startsWith('<template') ||
+    firstLine.includes('setup lang="ts"') ||
+    firstLine.includes('setup lang="js"')
+  ) {
+    return 'vue';
+  }
+
+  // 检查 HTML
+  if (
+    firstLine.startsWith('<!DOCTYPE') ||
+    firstLine.startsWith('<html') ||
+    /<\w+>/.test(firstLine)
+  ) {
+    return 'html';
+  }
+
+  // 检查 CSS/SCSS/LESS
+  if (
+    firstLine.includes('@import') ||
+    firstLine.includes('@media') ||
+    /[\.\#][a-zA-Z][\w\-]*\s*\{/.test(code)
+  ) {
+    return 'css';
+  }
+
+  // 检查 JSON
+  if (
+    (firstLine.startsWith('{') && code.trim().endsWith('}')) ||
+    (firstLine.startsWith('[') && code.trim().endsWith(']'))
+  ) {
+    try {
+      JSON.parse(code);
+      return 'json';
+    } catch {}
+  }
+
+  // 检查 Java
+  if (
+    code.includes('public class') ||
+    code.includes('private class') ||
+    code.includes('protected class') ||
+    code.includes('package ')
+  ) {
+    return 'java';
+  }
+
+  // 检查 TypeScript
+  if (
+    code.includes(': string') ||
+    code.includes(': number') ||
+    code.includes(': boolean') ||
+    code.includes('interface ') ||
+    code.includes('type ') ||
+    code.includes('namespace ')
+  ) {
+    return 'typescript';
+  }
+
+  // 默认返回 JavaScript
+  return 'javascript';
+};
+
+// 添加响应式的语言类型
+const detectedLanguage = computed(() => detectLanguage(props.code));
+
+// 修改语言支持函数
+const getLanguageExtension = (code: string) => {
+  const language = detectLanguage(code);
+  switch (language) {
+    case 'vue':
+      return vue();
+    case 'javascript':
+    case 'js':
+      return javascript();
+    case 'typescript':
+    case 'ts':
+      return javascript({ typescript: true });
+    case 'html':
+      return html();
+    case 'css':
+    case 'scss':
+    case 'less':
+      return css();
+    case 'json':
+      return json();
+    case 'java':
+      return java();
+    default:
+      return javascript();
+  }
+};
+
 // 计算Codemirror扩展
 const extensions = computed((): Extension[] => {
   const baseExtensions: Extension[] = [
     EditorView.lineWrapping,
     customTheme.value,
-    vue(),
+    getLanguageExtension(props.code),
     history(),
     keymap.of([
       ...defaultKeymap,
@@ -236,6 +340,7 @@ const emits = defineEmits<{
     <div class="editor-status">
       <span>Lines: {{ lines }}</span>
       <span>Length: {{ length }}</span>
+      <span>Language: {{ detectedLanguage }}</span>
     </div>
   </main>
 </template>
@@ -257,6 +362,12 @@ const emits = defineEmits<{
 
 .editor-status {
   @apply h-8 px-2 bg-panel border-t flex items-center justify-end gap-4 text-sm text-content;
+
+  span:last-child {
+    @apply font-medium;
+
+    text-transform: capitalize;
+  }
 }
 
 :deep(.cm-editor) {

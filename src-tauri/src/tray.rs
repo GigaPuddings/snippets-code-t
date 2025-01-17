@@ -6,26 +6,41 @@ use tauri::{
 };
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
+use crate::window::build_window;
 
 pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let show_i = MenuItem::with_id(app, "show", "显示", true, None::<&str>)?;
-    let view_log_i = MenuItem::with_id(app, "view_log", "查看日志", true, None::<&str>)?;
-    let restart_i = MenuItem::with_id(app, "restart", "重启", true, None::<&str>)?;
+    let search_i = MenuItem::with_id(app, "search", "搜索", true, None::<&str>)?;
+    let config_i = MenuItem::with_id(app, "config", "配置", true, None::<&str>)?;
+    let view_log_i = MenuItem::with_id(app, "view_log", "日志", true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show_i, &view_log_i, &restart_i, &quit_i])?;
+    let menu = Menu::with_items(app, &[&search_i, &config_i, &view_log_i, &quit_i])?;
 
     let _ = TrayIconBuilder::with_id("tray")
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
         .menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id.as_ref() {
-            "show" => {
+            "search" => {
+                info!("============== Search ==============");
                 if let Some(window) = app.get_webview_window("main") {
                     window.show().unwrap();
                     window.set_focus().unwrap();
                 }
             }
+            "config" => {
+                info!("============== Config ==============");
+                let window = build_window(
+                    "config", 
+                    "配置",
+                    "/#config/summarize",
+                    1180.0,
+                    630.0,
+                );
+                window.show().unwrap();
+                window.set_focus().unwrap();
+            },
             "view_log" => {
+                info!("============== View Log ==============");
                 // 获取日志文件夹路径
                 let log_path = app.path().app_log_dir().unwrap();
                 // 将路径转换为字符串
@@ -35,13 +50,9 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
                     .open_path(path, Option::<String>::None)
                     .unwrap();
             }
-            "restart" => {
-                info!("============== Restart App ==============");
-                app.restart();
-            }
             "quit" => {
-                app.global_shortcut().unregister_all().unwrap();
                 info!("============== Quit App ==============");
+                app.global_shortcut().unregister_all().unwrap();
                 app.exit(0);
             }
             _ => {}

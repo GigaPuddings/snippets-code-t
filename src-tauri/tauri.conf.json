@@ -44,9 +44,12 @@
     "shortDescription": "snippets-code",
     "longDescription": "代码片段效率工具",
     "windows": {
-      "wix": {
-        "language": "zh-CN"
-      }
+      "certificateThumbprint": null,
+        "wix": {
+          "language": "zh-CN"
+        },
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
     }
   }
 }
