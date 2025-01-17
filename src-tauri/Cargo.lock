@@ -4451,6 +4451,7 @@ dependencies = [
 name = "snippets-code"
 version = "0.1.0"
 dependencies = [
+ "base64 0.21.7",
  "chrono",
  "dirs 5.0.1",
  "glob",

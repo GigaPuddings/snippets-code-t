@@ -1,0 +1,54 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Capability for main window",
+  "windows": ["main", "config"],
+  "permissions": [
+    {
+      "identifier": "core:path:default",
+      "allow": ["**"]
+    },
+    {
+      "identifier": "core:event:default",
+      "allow": ["**"]
+    },
+    {
+      "identifier": "core:window:default",
+      "allow": ["**"]
+    },
+    {
+      "identifier": "http:default",
+      "allow": ["**"]
+    },
+    {
+      "identifier": "core:webview:default",
+      "allow": [
+        {
+          "url": "https://www.google.com/s2/favicons*",
+          "windows": ["main", "config"]
+        },
+        {
+          "url": "https://api.iowen.cn/favicon/*",
+          "windows": ["main", "config"]
+        },
+        {
+          "url": "https://favicon.cccyun.cc/*",
+          "windows": ["main", "config"]
+        },
+        {
+          "url": "https://icon.horse/icon/*",
+          "windows": ["main", "config"]
+        },
+        {
+          "url": "https://t1.gstatic.com/faviconV2*",
+          "windows": ["main", "config"]
+        },
+        {
+          "url": "https://*/*/favicon.ico",
+          "windows": ["main", "config"]
+        }
+      ]
+    }
+  ]
+} 
+  

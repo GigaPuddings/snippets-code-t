@@ -22,6 +22,7 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
 use window::show_hide_window_command;
+use tauri_plugin_http::reqwest;
 
 // 定义一个全局静态变量来存储 AppHandle
 pub static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -63,6 +64,38 @@ async fn hotkey_config_command() -> Result<(), String> {
     hotkey_config();
     Ok(())
 }
+
+// 获取图标
+#[tauri::command]
+async fn fetch_favicon(url: String) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    
+    // 尝试不同的图标源
+    let icon_urls = vec![
+        format!("https://www.google.com/s2/favicons?domain={}&sz=32", url),
+        format!("https://api.iowen.cn/favicon/{}.png", url),
+        format!("https://favicon.cccyun.cc/{}", url),
+        format!("https://icon.horse/icon/{}", url),
+        format!("https://{}/favicon.ico", url)
+    ];
+
+    for icon_url in icon_urls {
+        if let Ok(response) = client.get(&icon_url).send().await {
+            if response.status().is_success() {
+                if let Ok(bytes) = response.bytes().await {
+                    return Ok(format!(
+                        "data:image/png;base64,{}",
+                        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes)
+                    ));
+                }
+            }
+        }
+    }
+
+    // 返回默认图标
+    Ok("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==".to_string())
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -151,6 +184,7 @@ pub fn run() {
             get_db_path,
             backup_database,
             restore_database,
+            fetch_favicon
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

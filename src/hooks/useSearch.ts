@@ -3,7 +3,7 @@ import { useConfigurationStore } from '@/store';
 import { calculateSimilarity, debounce } from '@/utils';
 import PinyinMatch from 'pinyin-match';
 import { invoke } from '@tauri-apps/api/core';
-import { ref, watch } from 'vue';
+import { listen } from '@tauri-apps/api/event';
 
 // 修改计算相似度的逻辑，增加拼音匹配
 function calculateScoreWithPinyin(source: string, query: string): number {
@@ -18,8 +18,19 @@ function calculateScoreWithPinyin(source: string, query: string): number {
 
 export function useSearch() {
   const store = useConfigurationStore();
+  const { searchEngines } = storeToRefs(store);
   const searchText = ref('');
   const searchResults = ref<ContentType[]>([]);
+
+  // 合并初始化和事件监听
+  onMounted(async () => {
+    // 监听配置更新事件
+    await listen('search-engines-updated', (event: any) => {
+      if (event.payload) {
+        store.searchEngines = event.payload;
+      }
+    });
+  });
 
   // 处理搜索引擎快捷方式
   const handleEngineSearch = async (text: string, forceSearch = false) => {
@@ -30,7 +41,7 @@ export function useSearch() {
       const query = parts.slice(1).join(' ');
 
       // 查找匹配的搜索引擎
-      const engine = store.searchEngines.find((e) => e.keyword === keyword);
+      const engine = searchEngines.value.find((e) => e.keyword === keyword);
       if (engine) {
         // 如果不是强制搜索，添加到搜索结果中
         if (!forceSearch) {
@@ -89,7 +100,7 @@ export function useSearch() {
 
     // 如果没有搜索结果，并且有默认搜索引擎，则添加一个搜索建议
     if (results.length === 0) {
-      const defaultEngine = store.searchEngines.find((e) => e.enabled);
+      const defaultEngine = searchEngines.value.find((e) => e.enabled);
       if (defaultEngine) {
         results.push({
           id: 'default-search',
@@ -117,7 +128,7 @@ export function useSearch() {
     if (isEngineSearch) return;
 
     // 如果没有匹配的快捷方式，使用默认搜索引擎
-    const defaultEngine = store.searchEngines.find((e) => e.enabled);
+    const defaultEngine = searchEngines.value.find((e) => e.enabled);
     if (defaultEngine) {
       const searchUrl = defaultEngine.url.replace(
         '%s',

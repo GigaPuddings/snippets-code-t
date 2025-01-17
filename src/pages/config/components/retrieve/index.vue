@@ -38,7 +38,7 @@
                 <img
                   v-else
                   class="engine-icon"
-                  :src="engineIcon(engine)"
+                  :src="engine.icon || ''"
                   :alt="engine.name"
                   @error="handleIconError(engine)"
                 />
@@ -105,6 +105,7 @@ import { Add, Reduce, Picture } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
 import { uuid } from '@/utils';
 import { storeToRefs } from 'pinia';
+import { invoke } from '@tauri-apps/api/core';
 
 const store = useConfigurationStore();
 const { searchEngines, defaultSearchEngines } = storeToRefs(store);
@@ -113,13 +114,11 @@ const { searchEngines, defaultSearchEngines } = storeToRefs(store);
 const engineIconMap = reactive(new Map<string, string>());
 
 // 获取图标的函数
-const engineIcon = (engine: SearchEngineConfig) => {
-  // 如果已经有图标，直接返回
+const engineIcon = async (engine: SearchEngineConfig) => {
   if (engine.icon) {
     return engine.icon;
   }
 
-  // 如果有 URL 且已经缓存，返回缓存的图标
   if (engine.url) {
     if (engineIconMap.has(engine.url)) {
       return engineIconMap.get(engine.url)!;
@@ -128,7 +127,7 @@ const engineIcon = (engine: SearchEngineConfig) => {
     try {
       const url = new URL(engine.url);
       const hostname = url.hostname;
-      const icon = `https://${hostname}/favicon.ico`;
+      const icon: string = await invoke('fetch_favicon', { url: hostname });
       engineIconMap.set(engine.url, icon);
       engine.icon = icon;
       return icon;
@@ -140,12 +139,12 @@ const engineIcon = (engine: SearchEngineConfig) => {
 };
 
 // 初始化所有搜索引擎的图标
-const initializeIcons = () => {
-  searchEngines.value.forEach((engine) => {
+const initializeIcons = async () => {
+  for (const engine of searchEngines.value) {
     if (engine.url && !engine.icon) {
-      engineIcon(engine);
+      await engineIcon(engine);
     }
-  });
+  }
 };
 
 // 监听单个搜索引擎的 URL 变化
@@ -176,29 +175,29 @@ watch(
 );
 
 // 组件挂载时初始化图标
-onMounted(() => {
-  initializeIcons();
+onMounted(async () => {
+  await initializeIcons();
 });
 
-function useComputed<T extends object, R>(
-  fn: (arg: T) => R,
-  keyFn: (arg: T) => string
-) {
-  const cache = new Map<string, ComputedRef<R>>();
+// function useComputed<T extends object, R>(
+//   fn: (arg: T) => R,
+//   keyFn: (arg: T) => string
+// ) {
+//   const cache = new Map<string, ComputedRef<R>>();
 
-  return (arg: T) => {
-    const key = keyFn(arg);
-    if (!cache.has(key)) {
-      cache.set(
-        key,
-        computed(() => fn(arg))
-      );
-    }
-    return cache.get(key)!.value;
-  };
-}
+//   return (arg: T) => {
+//     const key = keyFn(arg);
+//     if (!cache.has(key)) {
+//       cache.set(
+//         key,
+//         computed(() => fn(arg))
+//       );
+//     }
+//     return cache.get(key)!.value;
+//   };
+// }
 
-const handleAdd = () => {
+const handleAdd = async () => {
   const newEngine: SearchEngineConfig = {
     id: uuid(),
     keyword: '',
@@ -207,26 +206,26 @@ const handleAdd = () => {
     url: '',
     enabled: false
   };
-  store.updateSearchEngines([...searchEngines.value, newEngine]);
+  await store.updateSearchEngines([...searchEngines.value, newEngine]);
 };
 
-const handleDelete = (index: number) => {
-  store.updateSearchEngines(
+const handleDelete = async (index: number) => {
+  await store.updateSearchEngines(
     searchEngines.value.filter((_, idx) => idx !== index)
   );
 };
 
 // 只允许一个引擎为默认
-const handleSwitch = (index: number) => {
+const handleSwitch = async (index: number) => {
   const updatedEngines = searchEngines.value.map((engine, idx) => ({
     ...engine,
     enabled: idx === index ? engine.enabled : false
   }));
-  store.updateSearchEngines(updatedEngines);
+  await store.updateSearchEngines(updatedEngines);
 };
 
 // 选中的引擎，赋值给当前引擎
-const handleSelect = (index: number, name: string) => {
+const handleSelect = async (index: number, name: string) => {
   const engine = defaultSearchEngines.value.find(
     (engine) => engine.name === name
   );
@@ -234,7 +233,7 @@ const handleSelect = (index: number, name: string) => {
   if (engine) {
     const updatedEngines = [...searchEngines.value];
     updatedEngines[index] = { ...engine };
-    store.updateSearchEngines(updatedEngines);
+    await store.updateSearchEngines(updatedEngines);
   }
 };
 
@@ -248,33 +247,11 @@ const handleIconError = async (engine: SearchEngineConfig) => {
   try {
     const url = new URL(engine.url);
     const hostname = url.hostname;
-
-    // 创建所有可能的图标源
-    const iconSources = [
-      `https://${hostname}/favicon.ico`,
-      `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`, // 将 Google 的源提前，因为兼容性最好
-      `https://api.iowen.cn/favicon/${hostname}.png`,
-      `https://favicon.cccyun.cc/${hostname}`,
-      `https://icon.horse/icon/${hostname}`,
-      `https://www.splitbee.io/favicon/${hostname}`
-    ];
-
-    // 找到当前图标在数组中的索引
-    const currentIndex = iconSources.indexOf(engine.icon);
-
-    // 如果是第一次加载失败（currentIndex === -1）或者还有下一个源可以尝试
-    if (currentIndex === -1) {
-      // 第一次失败，直接使用 Google 的图标服务
-      engine.icon = iconSources[1]; // Google favicon service
-    } else if (currentIndex < iconSources.length - 1) {
-      // 尝试下一个图标源
-      engine.icon = iconSources[currentIndex + 1];
-    } else {
-      // 所有源都尝试过了，设置为空
-      engine.icon = '';
-    }
+    const icon: string = await invoke('fetch_favicon', { url: hostname });
+    engine.icon = icon;
   } catch {
-    engine.icon = '';
+    engine.icon =
+      'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==';
   }
 };
 </script>
@@ -319,7 +296,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
             @apply flex items-center justify-center w-8 h-8 mx-2;
 
             .engine-icon {
-              @apply w-6 h-6 object-contain;
+              @apply w-6 h-6 object-contain rounded-md;
             }
           }
 
