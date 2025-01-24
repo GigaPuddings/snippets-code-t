@@ -55,8 +55,6 @@ export const useConfigurationStore = defineStore('configuration', {
     }
   },
   persist: {
-    key: 'configuration-store',
-    storage: localStorage,
     pick: ['searchHotkey', 'configHotkey', 'theme', 'searchEngines']
   }
 });
