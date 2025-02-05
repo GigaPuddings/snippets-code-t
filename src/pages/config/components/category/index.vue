@@ -108,10 +108,11 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .category-container {
-  @apply w-[calc(100vw-4rem)] h-full overflow-hidden pb-4;
+  @apply w-full h-full overflow-hidden pb-4;
+
   display: grid;
-  grid-template-columns: 160px 1fr;
   grid-template-rows: 1fr;
+  grid-template-columns: 160px 1fr;
 
   .category-page {
     @apply bg-panel dark:bg-panel px-2 text-sm text-slate-700 rounded-md;

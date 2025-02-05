@@ -87,7 +87,7 @@ pub fn start_mouse_tracking() {
 
                         // 检查鼠标是否在搜索框范围内
                         if is_point_in_search_area(rel_x, rel_y) {
-                            info!("搜索框内");
+                            // info!("搜索框内");
                             window.set_ignore_cursor_events(false).unwrap();
                             stop_mouse_tracking();
                             break;
@@ -95,7 +95,7 @@ pub fn start_mouse_tracking() {
 
                         // 修正窗口边界检查逻辑
                         if rel_x < 0.0 || rel_y < 0.0 || rel_x > win_width || rel_y > win_height {
-                            info!("窗体外");
+                            // info!("窗体外");
                             window.set_ignore_cursor_events(false).unwrap();
                             stop_mouse_tracking();
                             break;

@@ -10,23 +10,24 @@
 #app {
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 html {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  line-height: 1.5;
-  tab-size: 4;
-  text-size-adjust: 100%;
+  // line-height: 1.5;
+  // tab-size: 4;
+  // text-size-adjust: 100%;
 }
 
 body {
   width: 100%;
   height: 100%;
   margin: 0;
-  font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
   line-height: inherit;
   -moz-osx-font-smoothing: grayscale;
   -webkit-font-smoothing: antialiased;
@@ -77,20 +78,19 @@ div:focus {
 
 // 直接写在vue.app文件中
 ::-webkit-scrollbar {
+  display: none;
   width: 6px;
   height: 6px;
-  display: none;
 }
 
 ::-webkit-scrollbar-thumb {
+  background-color: var(--el-color-info-light-3);
   //滑块部分
   border-radius: 5px;
-  background-color: var(--el-color-info-light-3);
-
 }
 
 ::-webkit-scrollbar-track {
+  background: var(--el-fill-color-light);
   //轨道部分
   border-radius: 5px;
-  background: var(--el-fill-color-light);
 }

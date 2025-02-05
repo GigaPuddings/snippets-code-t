@@ -1,5 +1,5 @@
 <template>
-  <main>
+  <main class="w-full h-full overflow-hidden">
     <div class="retrieve-container">
       <div class="search-config">
         <div class="config-title">
@@ -258,10 +258,10 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 
 <style scoped lang="scss">
 .retrieve-container {
-  @apply w-[calc(100vw-4rem)] h-full overflow-hidden;
+  @apply w-full h-full overflow-hidden;
 
   .search-config {
-    @apply bg-panel rounded-lg p-4 mr-2;
+    @apply bg-panel rounded-lg p-4;
 
     .config-title {
       @apply flex items-center justify-between mb-2 mr-4;

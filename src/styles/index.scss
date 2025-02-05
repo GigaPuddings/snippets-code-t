@@ -93,7 +93,7 @@
 
 // 配置css
 .summarize-container {
-  @apply w-[calc(100vw-4rem)] h-full overflow-hidden grid grid-cols-2 grid-rows-[repeat(3,120px)] gap-4 mr-2;
+  @apply w-full h-full overflow-hidden grid grid-cols-2 grid-rows-[repeat(3,120px)] gap-4;
 }
 
 .summarize-section {

@@ -1,20 +1,26 @@
 <template>
-  <main class="w-full h-screen rounded-md overflow-hidden">
-    <Titlebar v-if="!hasHome">
-      <div class="flex items-center gap-2">
-        <img src="@/assets/128x128.png" alt="" class="w-6 h-6" />
-        <div>{{ title }}</div>
+  <main
+    :class="[
+      `${!hasHome ? 'w-[calc(100vw-1px)] p-1 rounded-md bg-content border border-neutral-300 dark:border-neutral-900 overflow-hidden' : ''}`
+    ]"
+  >
+    <div class="rounded-md overflow-hidden">
+      <Titlebar v-if="!hasHome">
+        <div class="flex items-center gap-2">
+          <img src="@/assets/128x128.png" alt="" class="w-6 h-6" />
+          <div>{{ title }}</div>
+        </div>
+      </Titlebar>
+      <div :class="[`w-full ${hasHome ? 'h-screen' : 'h-[calc(100vh-50px)]'}`]">
+        <router-view>
+          <template #default="{ Component, route }">
+            <keep-alive v-if="route.meta.keepAlive">
+              <component :is="Component" :key="route.path" />
+            </keep-alive>
+            <component v-else :is="Component" :key="route.path" />
+          </template>
+        </router-view>
       </div>
-    </Titlebar>
-    <div :class="[`w-full ${hasHome ? 'h-screen' : 'h-[calc(100vh-40px)]'}`]">
-      <router-view>
-        <template #default="{ Component, route }">
-          <keep-alive v-if="route.meta.keepAlive">
-            <component :is="Component" :key="route.path" />
-          </keep-alive>
-          <component v-else :is="Component" :key="route.path" />
-        </template>
-      </router-view>
     </div>
   </main>
 </template>

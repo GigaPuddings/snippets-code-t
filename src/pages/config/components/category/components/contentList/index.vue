@@ -142,6 +142,6 @@ watch(
 }
 
 .right-panel {
-  @apply h-full bg-panel dark:bg-panel rounded-md mx-2 overflow-hidden;
+  @apply h-full bg-panel dark:bg-panel rounded-md ml-2 overflow-hidden;
 }
 </style>

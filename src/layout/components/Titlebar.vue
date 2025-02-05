@@ -66,7 +66,7 @@ const handleTitlebar = async (type: string) => {
 }
 
 .titlebar {
-  @apply bg-content dark:bg-content  flex justify-between items-center px-2 w-full h-[40px];
+  @apply bg-content dark:bg-content  flex justify-between items-center w-full h-[40px];
 }
 
 .titlebar-title {
@@ -83,6 +83,7 @@ const handleTitlebar = async (type: string) => {
 
 .icon {
   @include commonIcon;
+
   @apply text-[20px] p-1 dark:text-panel;
 }
 </style>

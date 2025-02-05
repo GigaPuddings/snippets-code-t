@@ -54,17 +54,17 @@ const tabs = [
 
 <style scoped lang="scss">
 .config {
-  @apply bg-content h-full w-full flex justify-start;
+  @apply h-full w-full flex justify-start;
 
   .config-nav {
-    @apply w-16 flex flex-col px-2 pb-2;
+    @apply flex flex-col mr-2 pb-2;
 
     .config-nav-item.config-nav-item-active {
       @apply bg-tab-active text-primary;
     }
 
     .config-nav-item {
-      @apply bg-white dark:bg-panel flex flex-col py-1 px-2 text-sm rounded-md;
+      @apply bg-white dark:bg-panel w-12 flex flex-col py-1 text-sm rounded-md;
 
       .config-nav-item-icon {
         @apply m-auto;
