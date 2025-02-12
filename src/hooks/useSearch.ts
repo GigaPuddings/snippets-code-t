@@ -145,10 +145,17 @@ export function useSearch() {
     await debouncedSearch();
   });
 
+  // 添加清除搜索文本的方法
+  const clearSearch = () => {
+    searchText.value = '';
+    searchResults.value = [];
+  };
+
   return {
     searchText,
     searchResults,
-    handleEnterSearch
+    handleEnterSearch,
+    clearSearch
   };
 }
 

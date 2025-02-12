@@ -66,7 +66,7 @@ const handleTitlebar = async (type: string) => {
 }
 
 .titlebar {
-  @apply bg-content dark:bg-content  flex justify-between items-center w-full h-[40px];
+  @apply bg-content dark:bg-content  flex justify-between items-center w-full h-[40px] pr-1;
 }
 
 .titlebar-title {

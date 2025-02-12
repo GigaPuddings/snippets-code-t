@@ -6,7 +6,8 @@ import { useSearch } from '@/hooks/useSearch';
 import { listen } from '@tauri-apps/api/event';
 import { onMounted } from 'vue';
 
-const { searchText, searchResults, handleEnterSearch } = useSearch();
+const { searchText, searchResults, handleEnterSearch, clearSearch } =
+  useSearch();
 
 const mainRef = ref<HTMLElement | null>(null);
 const searchInputRef = ref<HTMLElement | null>(null);
@@ -60,7 +61,7 @@ const handleKeyDown = async (e: Event) => {
         @click="handleGoConfig"
       />
     </section>
-    <Result :results="searchResults" />
+    <Result :results="searchResults" :onClearSearch="clearSearch" />
   </main>
 </template>
 
