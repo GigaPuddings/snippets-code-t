@@ -7,7 +7,7 @@ mod migrate;
 mod tray;
 mod window;
 
-use crate::db::{backup_database, get_db_path, restore_database};
+use crate::db::{backup_database, get_db_path, restore_database, set_custom_db_path};
 use crate::window::{hotkey_config, start_mouse_tracking};
 use apps::{get_installed_apps, open_app_command};
 use bookmarks::{get_browser_bookmarks, open_url};
@@ -19,10 +19,10 @@ use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_http::reqwest;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
 use window::show_hide_window_command;
-use tauri_plugin_http::reqwest;
 
 // 定义一个全局静态变量来存储 AppHandle
 pub static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -69,14 +69,14 @@ async fn hotkey_config_command() -> Result<(), String> {
 #[tauri::command]
 async fn fetch_favicon(url: String) -> Result<String, String> {
     let client = reqwest::Client::new();
-    
+
     // 尝试不同的图标源
     let icon_urls = vec![
         format!("https://www.google.com/s2/favicons?domain={}&sz=32", url),
         format!("https://api.iowen.cn/favicon/{}.png", url),
         format!("https://favicon.cccyun.cc/{}", url),
         format!("https://icon.horse/icon/{}", url),
-        format!("https://{}/favicon.ico", url)
+        format!("https://{}/favicon.ico", url),
     ];
 
     for icon_url in icon_urls {
@@ -95,7 +95,6 @@ async fn fetch_favicon(url: String) -> Result<String, String> {
     // 返回默认图标
     Ok("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==".to_string())
 }
-
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -117,11 +116,6 @@ pub fn run() {
                 .set_focus()
                 .expect("Can't Bring Window to Focus");
         }))
-        .plugin(
-            tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:code.db", migrate::get_migrate())
-                .build(),
-        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_log::Builder::new().build())
@@ -137,6 +131,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             // 在应用启动时初始化 APP
             APP.set(app.handle().clone()).unwrap();
@@ -184,7 +179,8 @@ pub fn run() {
             get_db_path,
             backup_database,
             restore_database,
-            fetch_favicon
+            fetch_favicon,
+            set_custom_db_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

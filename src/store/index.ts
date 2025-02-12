@@ -55,7 +55,14 @@ export const useConfigurationStore = defineStore('configuration', {
     }
   },
   persist: {
-    pick: ['searchHotkey', 'configHotkey', 'theme', 'searchEngines']
+    pick: [
+      'searchHotkey',
+      'configHotkey',
+      'theme',
+      'searchEngines',
+      'dbPath',
+      'dbBackup'
+    ]
   }
 });
 

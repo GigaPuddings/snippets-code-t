@@ -1,13 +1,25 @@
 <template>
   <section class="summarize-section">
-    <div class="summarize-label">数据库目录：</div>
-    <div class="summarize-input-wrapper">
-      <el-input class="summarize-input" readonly v-model="store.dbPath" />
+    <div class="summarize-label flex items-center gap-4">
+      <div>数据库目录：</div>
+      <el-button
+        type="warning"
+        size="small"
+        plain
+        class="summarize-button"
+        @click="selectCustomPath"
+        :loading="pathLoading"
+      >
+        修改路径
+      </el-button>
+    </div>
+    <div class="summarize-input-wrapper flex items-center gap-2">
+      <el-input class="summarize-input" v-model="store.dbPath" readonly />
     </div>
   </section>
 
   <section class="summarize-section">
-    <div class="summarize-label flex items-center gap-8">
+    <div class="summarize-label flex items-center gap-4">
       <div>数据管理：</div>
       <div>
         <el-button
@@ -50,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import { getDb } from '@/database';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -60,6 +73,7 @@ defineOptions({
 const store = useConfigurationStore();
 const backupLoading = ref(false);
 const restoreLoading = ref(false);
+const pathLoading = ref(false);
 
 const dictDBBackup = [
   { value: 'A', label: '年-月-日' },
@@ -99,6 +113,11 @@ const restoreData = async () => {
     );
 
     restoreLoading.value = true;
+    // 关闭数据库
+    await getDb().then((db) => {
+      console.log('关闭数据库', db);
+      db.close();
+    });
     await invoke('restore_database');
     ElMessage.success('数据恢复成功，应用即将重启');
   } catch (error: any) {
@@ -107,6 +126,36 @@ const restoreData = async () => {
     }
   } finally {
     restoreLoading.value = false;
+  }
+};
+
+const selectCustomPath = async () => {
+  try {
+    pathLoading.value = true;
+
+    await ElMessageBox.confirm(
+      '修改数据库存储位置将会迁移现有数据并重启应用，是否继续？',
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+    // 关闭数据库
+    await getDb().then((db) => {
+      console.log('关闭数据库', db);
+      db.close();
+    });
+    const newPath = await invoke('set_custom_db_path');
+    store.dbPath = newPath as string; // 更新前端路径
+    ElMessage.success('数据库路径修改成功，应用将重启以应用更改');
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(`修改失败: ${error}`);
+    }
+  } finally {
+    pathLoading.value = false;
   }
 };
 </script>

@@ -81,6 +81,11 @@ import { invoke } from '@tauri-apps/api/core';
 
 const store = useConfigurationStore();
 
+const props = defineProps<{
+  results: ContentType[];
+  onClearSearch: () => void;
+}>();
+
 const containerRef = ref<HTMLElement | null>(null);
 const activeTab = ref<SummarizeType>('text');
 const tabs = ref<{ label: string; value: SummarizeType }[]>([
@@ -97,10 +102,6 @@ const tabs = ref<{ label: string; value: SummarizeType }[]>([
     value: 'bookmark'
   }
 ]);
-
-const props = defineProps<{
-  results: ContentType[];
-}>();
 
 // 过滤结果
 const filteredResults = computed(() => {
@@ -220,7 +221,7 @@ async function selectItem(item: ContentType) {
     // copy 代码片段
     await navigator.clipboard.writeText(item.content);
   }
-  // 隐藏窗口
+  props.onClearSearch();
   showHideWindow();
 }
 

@@ -24,7 +24,7 @@
         <template #append>
           <button
             v-if="store.searchHotkey"
-            class="button"
+            class="summarize-button button-shortcut"
             @click="() => registerHandler('search', store.searchHotkey)"
           >
             注册
@@ -59,7 +59,7 @@
         <template #append>
           <button
             v-if="store.configHotkey"
-            class="button"
+            class="summarize-button button-shortcut"
             @click="() => registerHandler('config', store.configHotkey)"
           >
             注册

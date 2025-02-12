@@ -4,6 +4,8 @@ use tauri_plugin_global_shortcut::{Code, Modifiers};
 use tauri_plugin_store::StoreBuilder;
 // use mouse_position::mouse_position::{Mouse, Position};
 
+pub const DB_PATH_KEY: &str = "custom_db_path";
+
 // 获取值
 pub fn get_value(app_handle: &tauri::AppHandle, key: &str) -> Option<Value> {
     let path = PathBuf::from("store.bin");

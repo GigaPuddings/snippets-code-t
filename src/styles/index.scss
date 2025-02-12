@@ -59,8 +59,12 @@
 .el-input-group__append {
   @apply absolute -right-1 z-10 !bg-transparent !shadow-none;
 
-  .button {
-    @apply h-6 leading-6 bg-neutral-200 dark:bg-neutral-800 rounded-md px-2;
+  .summarize-button {
+    @apply rounded-md !bg-neutral-200 dark:!bg-neutral-800;
+  }
+
+  .button-shortcut {
+    @apply h-6 leading-6 px-2;
   }
 }
 
@@ -153,7 +157,10 @@
   transform: translateY(-20px);
 }
 
-.summarize-input-wrapper .el-input__inner:valid + .el-input__suffix .button {
+.summarize-input-wrapper
+  .el-input__inner:valid
+  + .el-input__suffix
+  .summarize-button {
   display: block;
 }
 
