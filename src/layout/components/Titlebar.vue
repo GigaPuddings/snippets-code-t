@@ -2,6 +2,16 @@
   <main data-tauri-drag-region class="titlebar">
     <div class="titlebar-title"><slot></slot></div>
     <div class="titlebar-list">
+      <div class="titlebar-button" @click="handleTitlebar('isAlwaysOnTop')">
+        <component
+          :is="isAlwaysOnTop ? Pushpin : Pin"
+          class="icon"
+          size="18"
+          :strokeWidth="3"
+          theme="outline"
+          strokeLinecap="butt"
+        />
+      </div>
       <div class="titlebar-button" @click="handleTitlebar('minimize')">
         <minus
           class="icon"
@@ -34,28 +44,43 @@
 </template>
 
 <script setup lang="ts">
-import { Minus, SquareSmall, CloseSmall } from '@icon-park/vue-next';
-import { Window } from '@tauri-apps/api/window';
-
+import {
+  Pushpin,
+  Pin,
+  Minus,
+  SquareSmall,
+  CloseSmall
+} from '@icon-park/vue-next';
+import { getAppWindow } from '@/utils/env';
 defineOptions({
   name: 'Titlebar'
 });
 
-const appWindow = new Window('config');
+type WindowAction = 'isAlwaysOnTop' | 'minimize' | 'maximize' | 'close';
 
-const handleTitlebar = async (type: string) => {
-  switch (type) {
-    case 'minimize':
-      appWindow.minimize();
-      break;
-    case 'maximize':
-      (await appWindow.isMaximized())
-        ? appWindow.unmaximize()
-        : appWindow.toggleMaximize();
-      break;
-    case 'close':
-      appWindow.close();
-      break;
+const isAlwaysOnTop = ref<boolean>(false);
+
+const appWindow = getAppWindow('config');
+
+// 操作映射对象
+const actionHandlers: Record<WindowAction, () => Promise<void>> = {
+  isAlwaysOnTop: async () => {
+    isAlwaysOnTop.value = !isAlwaysOnTop.value;
+    await appWindow.setAlwaysOnTop(isAlwaysOnTop.value);
+  },
+  minimize: async () => appWindow.minimize(),
+  maximize: async () => {
+    const maximized = await appWindow.isMaximized();
+    maximized ? appWindow.unmaximize() : appWindow.maximize();
+  },
+  close: async () => appWindow.close()
+};
+
+const handleTitlebar = async (type: WindowAction) => {
+  try {
+    await actionHandlers[type]?.();
+  } catch (error) {
+    console.error('Window operation failed:', error);
   }
 };
 </script>
@@ -66,7 +91,7 @@ const handleTitlebar = async (type: string) => {
 }
 
 .titlebar {
-  @apply bg-content dark:bg-content  flex justify-between items-center w-full h-[40px] pr-1;
+  @apply bg-content dark:bg-content  flex justify-between items-center w-full h-8 leading-8 pr-1;
 }
 
 .titlebar-title {

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { invoke } from '@tauri-apps/api/core';
 import { Home } from '@icon-park/vue-next';
-import useSetIgnoreCursorEvents from '@/hooks/useSetIgnoreCursorEvents';
+import { useSetIgnoreCursorEvents } from '@/hooks/useSetIgnoreCursorEvents';
 import { useSearch } from '@/hooks/useSearch';
 import { listen } from '@tauri-apps/api/event';
 import { onMounted } from 'vue';
@@ -9,7 +9,7 @@ import { onMounted } from 'vue';
 const { searchText, searchResults, handleEnterSearch, clearSearch } =
   useSearch();
 
-const mainRef = ref<HTMLElement | null>(null);
+const searchRef = ref<HTMLElement | null>(null);
 const searchInputRef = ref<HTMLElement | null>(null);
 
 const handleGoConfig = async () => {
@@ -21,8 +21,8 @@ const handleGoConfig = async () => {
 };
 
 onMounted(async () => {
-  if (mainRef.value) {
-    useSetIgnoreCursorEvents(mainRef.value);
+  if (searchRef.value) {
+    useSetIgnoreCursorEvents(searchRef.value);
   }
   listen('windowFocused', () => {
     // 输入框聚焦
@@ -43,7 +43,7 @@ const handleKeyDown = async (e: Event) => {
 </script>
 
 <template>
-  <main ref="mainRef" data-tauri-drag-region class="main">
+  <main ref="searchRef" data-tauri-drag-region class="main">
     <section class="search">
       <el-input
         ref="searchInputRef"
@@ -56,8 +56,9 @@ const handleKeyDown = async (e: Event) => {
       <home
         class="home"
         theme="outline"
-        size="24"
-        :strokeWidth="3"
+        size="22"
+        :strokeWidth="4"
+        strokeLinecap="butt"
         @click="handleGoConfig"
       />
     </section>
@@ -87,14 +88,14 @@ const handleKeyDown = async (e: Event) => {
   @apply bg-search rounded-md shadow-inner ring-1 ring-black/5 p-3;
 
   .search {
-    @apply rounded-lg flex items-center;
+    @apply bg-search-input rounded-lg flex items-center;
 
     .input {
-      @apply bg-search-input rounded-sm ml-1 mr-2 font-semibold text-[17px] text-search;
+      @apply ml-1 font-semibold rounded-sm text-[17px] text-search;
     }
 
     .home {
-      @apply p-1 hover:opacity-80 rounded-md text-search cursor-pointer;
+      @apply mx-2 p-1 hover:opacity-80 rounded-md text-search cursor-pointer;
     }
   }
 }

@@ -1,11 +1,12 @@
-import { getDb } from "./index.ts";
+import { getDb } from '@/database/index.ts';
 
 // 检索内容
 export function searchContent(keyword: string): Promise<ContentType[]> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const db = getDb();
     db.then((db) => {
-      db.select(`
+      db.select(
+        `
           select * from contents
           where title like $1
 
@@ -22,8 +23,8 @@ export function searchContent(keyword: string): Promise<ContentType[]> {
         `,
         [`%${keyword}%`]
       ).then((res) => {
-        resolve(res as ContentType[])
-      })
-    })
-  })
+        resolve(res as ContentType[]);
+      });
+    });
+  });
 }

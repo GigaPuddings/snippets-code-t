@@ -55,6 +55,8 @@ import { getFragmentList, addFragment } from '@/database/fragment';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore } from '@/store';
 import { debounce } from '@/utils';
+import { onMounted, nextTick } from 'vue';
+
 const route = useRoute();
 const router = useRouter();
 const store = useConfigurationStore();
@@ -114,6 +116,19 @@ watch(
   () => {},
   { deep: true }
 );
+
+onMounted(() => {
+  const scrollY = route.query.scrollY; // 从路由查询参数中获取scrollY
+  if (scrollY) {
+    nextTick(() => {
+      // 确保所有 DOM 更新完成
+      const contentList = document.querySelector('.content-list');
+      if (contentList) {
+        contentList.scrollTop = Number(scrollY); // 设置滚动位置
+      }
+    });
+  }
+});
 </script>
 
 <style scoped lang="scss">

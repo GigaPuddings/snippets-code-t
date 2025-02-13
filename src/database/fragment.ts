@@ -1,4 +1,4 @@
-import { getDb } from './index.ts';
+import { getDb } from '@/database/index';
 
 // 获取片段列表
 export function getFragmentList(

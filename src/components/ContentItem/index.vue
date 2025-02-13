@@ -1,9 +1,9 @@
 <template>
   <ContextMenu :menu="menu" @select="handleContextMenu">
-    <router-link
-      :to="`/config/category/contentList/${content.category_id}/content/${content.id}`"
+    <div
       class="link"
-      active-class="active"
+      :class="{ active: isActive }"
+      @click.prevent="handleClick"
     >
       <main class="content-item-wrapper">
         <div class="content-item-title">{{ content.title }}</div>
@@ -16,7 +16,7 @@
           </div>
         </div>
       </main>
-    </router-link>
+    </div>
   </ContextMenu>
 </template>
 
@@ -62,6 +62,21 @@ const menu = [
 ];
 
 const categories = computed(() => store.categories);
+
+const isActive = computed(() => {
+  return route.params.id === content.value.id.toString();
+});
+
+const handleClick = () => {
+  const oContentList = document.querySelector('.content-list');
+  const scrollY = oContentList?.scrollTop || 0; // 确保获取当前滚动位置
+
+  router.replace({
+    path: `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`,
+    query: { scrollY: scrollY.toString() }, // 通过查询参数传递滚动位置
+    replace: true
+  });
+};
 
 const handleContextMenu = async (item: any) => {
   if (item.type === 'rename') {
@@ -144,12 +159,10 @@ const handleCategoryChange = async (categoryId: number) => {
 }
 
 .link {
-  @include commonLink();
+  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-active dark:hover:bg-active hover:border-panel border-b-transparent;
 }
 
 .active {
-  @include commonLink();
-
   @apply bg-active dark:bg-active dark:hover:bg-hover;
 }
 

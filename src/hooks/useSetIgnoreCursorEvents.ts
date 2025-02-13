@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-export default function useSetIgnoreCursorEvents(el: HTMLElement) {
+export function useSetIgnoreCursorEvents(el: HTMLElement) {
   const handleMouseMove = (e: MouseEvent) => {
     const rect = el.getBoundingClientRect();
     const currentIsInside =

@@ -1,6 +1,7 @@
 use crate::config::{get_value, DB_PATH_KEY};
 use crate::APP;
 use chrono::Local;
+use log::info;
 use rusqlite;
 use std::fs;
 use std::io::Read;
@@ -9,47 +10,46 @@ use std::path::PathBuf;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
-use tauri_plugin_notification::NotificationExt;
 
 // 获取数据库路径（优先使用自定义路径）
 pub fn get_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
-  // 检查自定义路径
-  if let Some(custom_path) = get_value(app_handle, DB_PATH_KEY) {
-      if let Some(path_str) = custom_path.as_str() {
-          let path = PathBuf::from(path_str);
-          // 确保父目录存在
-          if let Some(parent) = path.parent() {
-              if !parent.exists() {
-                  std::fs::create_dir_all(parent).expect("无法创建父目录");
-              }
-          }
-          log::info!("自定义数据库路径: {}", path.display());
-          return path;
-      }
-  }
+    // 检查自定义路径
+    if let Some(custom_path) = get_value(app_handle, DB_PATH_KEY) {
+        if let Some(path_str) = custom_path.as_str() {
+            let path = PathBuf::from(path_str);
+            // 确保父目录存在
+            if let Some(parent) = path.parent() {
+                if !parent.exists() {
+                    std::fs::create_dir_all(parent).expect("无法创建父目录");
+                }
+            }
+            return path;
+        }
+    }
 
-  // 使用默认路径并确保目录存在
-  let default_path = app_handle.path().app_data_dir().unwrap().join("code.db");
-  if let Some(parent) = default_path.parent() {
-      if !parent.exists() {
-          std::fs::create_dir_all(parent).expect("无法创建默认目录");
-      }
-  }
-  log::info!("默认数据库路径: {}", default_path.display());
-  default_path
+    // 使用默认路径并确保目录存在
+    let default_path = app_handle.path().app_data_dir().unwrap().join("code.db");
+    if let Some(parent) = default_path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent).expect("无法创建默认目录");
+        }
+    }
+    default_path
 }
 
 #[tauri::command]
 pub fn get_db_path() -> String {
     let app = APP.get().unwrap();
-    get_database_path(app).to_str().unwrap().to_string()
+    let db_path = get_database_path(app);
+    info!("数据库路径: {}", db_path.display());
+    db_path.to_str().unwrap().to_string()
 }
 
 #[tauri::command]
 pub async fn backup_database(format: &str) -> Result<String, String> {
     let app = APP.get().unwrap();
     let db_path = get_database_path(app);
-
+    info!("备份--数据库路径: {}", db_path.display());
     // 生成默认文件名以code_开头
     let now = Local::now();
     let filename = match format {
@@ -95,7 +95,7 @@ pub async fn backup_database(format: &str) -> Result<String, String> {
 pub async fn restore_database() -> Result<String, String> {
     let app = APP.get().unwrap();
     let db_path = get_database_path(app);
-
+    info!("恢复--数据库路径: {}", db_path.display());
     let desktop = dirs::desktop_dir().ok_or("无法找到桌面目录")?;
 
     let selected_path = app
@@ -193,11 +193,11 @@ pub async fn set_custom_db_path() -> Result<String, String> {
     // 验证目录是否可写
     fs::write(parent.join("test_write"), "test")
         .map_err(|_| "无权限：无法写入目标目录".to_string())?;
-    fs::remove_file(parent.join("test_write"))
-        .map_err(|_| "无法清理测试文件".to_string())?;
+    fs::remove_file(parent.join("test_write")).map_err(|_| "无法清理测试文件".to_string())?;
 
     // 如果已存在数据库，需要迁移数据
     let old_path = get_database_path(app);
+    info!("迁移--旧数据库路径: {}", old_path.display());
     if old_path.exists() {
         // 如果新旧路径相同，不需要迁移
         if old_path == new_path {
@@ -219,7 +219,8 @@ pub async fn set_custom_db_path() -> Result<String, String> {
             let backup = rusqlite::backup::Backup::new(&mut source, &mut dest)
                 .map_err(|e| format!("初始化迁移失败: {}", e))?;
 
-            backup.step(-1)
+            backup
+                .step(-1)
                 .map_err(|e| format!("迁移数据失败: {}", e))?;
 
             // 确保连接被正确关闭
@@ -230,29 +231,20 @@ pub async fn set_custom_db_path() -> Result<String, String> {
             log::info!("数据库迁移完成：{} -> {}", old_path.display(), new_path.display());
         }
 
-        // 保存新路径到配置（在重命名之前）
-        let new_path_str = new_path.to_str().unwrap().to_string();
-        crate::config::set_value(app, DB_PATH_KEY, &new_path_str);
-
-        // 等待更长时间确保所有连接完全关闭
-        std::thread::sleep(std::time::Duration::from_secs(1));
-
-        // 需要重启应用以应用新路径
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            app.notification()
-                .builder()
-                .title("数据库路径已更新")
-                .body("应用即将重启以应用新路径")
-                .icon("info")
-                .show()
-                .unwrap();
-            app.global_shortcut().unregister_all().unwrap();
-            app.restart();
-        });
-
-        Ok(new_path_str)
-    } else {
-        Err("数据库不存在，无法迁移".to_string())
+        // 删除原数据库文件
+        fs::remove_file(&old_path).map_err(|e| format!("删除原数据库失败: {}", e))?;
     }
+
+    // 保存新路径到配置
+    let new_path_str = new_path.to_str().unwrap().to_string();
+    crate::config::set_value(app, DB_PATH_KEY, &new_path_str);
+
+    // 重启应用以应用新路径
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        app.global_shortcut().unregister_all().unwrap();
+        app.restart();
+    });
+
+    Ok(new_path_str)
 }
