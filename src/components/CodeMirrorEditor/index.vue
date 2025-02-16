@@ -361,7 +361,7 @@ const emits = defineEmits<{
 }
 
 .editor-status {
-  @apply h-8 px-2 bg-panel border-t flex items-center justify-end gap-4 text-sm text-content;
+  @apply h-6 px-2 bg-panel border-t flex items-center justify-end gap-4 text-sm text-content;
 
   span:last-child {
     @apply font-medium;
