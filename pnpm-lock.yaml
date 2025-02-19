@@ -86,6 +86,9 @@ importers:
       codemirror:
         specifier: ^6.0.1
         version: 6.0.1
+      dayjs:
+        specifier: ^1.11.13
+        version: 1.11.13
       element-plus:
         specifier: ^2.9.1
         version: 2.9.1(vue@3.5.13(typescript@5.6.3))

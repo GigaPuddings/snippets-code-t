@@ -75,6 +75,11 @@ const routes: RouteRecordRaw[] = [
             component: () =>
               import('@/pages/config/components/summarize/index.vue'),
             name: 'Summarize'
+          },
+          {
+            path: 'todo',
+            component: () => import('@/pages/config/components/todo/index.vue'),
+            name: 'Todo'
           }
         ]
       }

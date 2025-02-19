@@ -6,8 +6,10 @@ mod hotkey;
 mod migrate;
 mod tray;
 mod window;
+mod alarm;
 
 use crate::db::{backup_database, get_db_path, restore_database, set_custom_db_path};
+use crate::alarm::{get_alarm_cards, add_alarm_card, update_alarm_card, delete_alarm_card, toggle_alarm_card};
 use crate::window::{hotkey_config, start_mouse_tracking};
 use apps::{get_installed_apps, open_app_command};
 use bookmarks::{get_browser_bookmarks, open_url};
@@ -153,6 +155,8 @@ pub fn run() {
                     .show()
                     .unwrap(),
             }
+            // 启动闹钟检查服务
+            alarm::start_alarm_service(app.handle().clone());
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
@@ -180,7 +184,12 @@ pub fn run() {
             backup_database,
             restore_database,
             fetch_favicon,
-            set_custom_db_path
+            set_custom_db_path,
+            get_alarm_cards,
+            add_alarm_card,
+            update_alarm_card,
+            delete_alarm_card,
+            toggle_alarm_card,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

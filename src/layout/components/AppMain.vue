@@ -1,7 +1,7 @@
 <template>
   <main
     :class="[
-      `${!hasHome ? 'w-[calc(100vw-1px)] p-1 rounded-md bg-content border border-neutral-300 dark:border-neutral-900 overflow-hidden' : ''}`
+      `${!hasHome ? 'w-[calc(100vw-1px)] h-screen p-1 rounded-md bg-content border border-neutral-300 dark:border-neutral-900 overflow-hidden' : ''}`
     ]"
   >
     <div class="rounded-md overflow-hidden">
