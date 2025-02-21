@@ -1,20 +1,24 @@
+mod alarm;
 mod apps;
 mod bookmarks;
 mod config;
 mod db;
 mod hotkey;
 mod migrate;
+mod search;
 mod tray;
 mod window;
-mod alarm;
 
+use crate::alarm::{
+    add_alarm_card, delete_alarm_card, get_alarm_cards, toggle_alarm_card, update_alarm_card,
+};
 use crate::db::{backup_database, get_db_path, restore_database, set_custom_db_path};
-use crate::alarm::{get_alarm_cards, add_alarm_card, update_alarm_card, delete_alarm_card, toggle_alarm_card};
 use crate::window::{hotkey_config, start_mouse_tracking};
 use apps::{get_installed_apps, open_app_command};
 use bookmarks::{get_browser_bookmarks, open_url};
 use hotkey::*;
 use log::info;
+use search::*;
 use std::sync::Mutex;
 use std::sync::OnceLock;
 use tauri::Emitter;
@@ -173,6 +177,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             register_shortcut_by_frontend,
+            get_shortcuts,
             ignore_cursor_events,
             hotkey_config_command,
             get_installed_apps,
@@ -190,6 +195,9 @@ pub fn run() {
             update_alarm_card,
             delete_alarm_card,
             toggle_alarm_card,
+            get_search_engines,
+            update_search_engines,
+            get_default_engines,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

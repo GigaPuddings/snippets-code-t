@@ -11,6 +11,6 @@ import { Code } from '@icon-park/vue-next';
 
 <style scoped lang="scss">
 .welcome-container {
-  @apply h-[calc(100vh-50px)] flex flex-col items-center justify-center text-base text-slate-600 dark:text-[#c9ccd4] opacity-80;
+  @apply h-[calc(100vh-26px)] flex flex-col items-center justify-center text-base text-slate-600 dark:text-[#c9ccd4] opacity-80;
 }
 </style>

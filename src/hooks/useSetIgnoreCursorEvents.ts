@@ -8,9 +8,16 @@ export function useSetIgnoreCursorEvents(el: HTMLElement) {
       e.clientX <= rect.right &&
       e.clientY >= rect.top &&
       e.clientY <= rect.bottom;
+
     invoke('ignore_cursor_events', {
       ignore: !currentIsInside,
-      rect: [rect.left, rect.right, rect.top, rect.bottom]
+      // 获取元素的坐标，并向上取整
+      rect: [
+        Math.ceil(rect.left),
+        Math.ceil(rect.right),
+        Math.ceil(rect.top),
+        Math.ceil(rect.bottom)
+      ]
     });
   };
 

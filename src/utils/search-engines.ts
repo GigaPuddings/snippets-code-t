@@ -1,3 +1,4 @@
+// 默认搜索引擎
 export const defaultSearchEngines: SearchEngineConfig[] = [
   {
     id: 'github',

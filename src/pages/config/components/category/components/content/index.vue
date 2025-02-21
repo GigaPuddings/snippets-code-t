@@ -11,7 +11,7 @@
     <!-- CodeMirror 代码高亮编辑器 -->
     <CodeMirrorEditor
       :code="state.editorContent"
-      :codeStyle="{ height: 'calc(100vh - 110px)', overflowY: 'auto' }"
+      :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }"
       @update:code="handleEditorChange"
       :dark="isDark"
     />

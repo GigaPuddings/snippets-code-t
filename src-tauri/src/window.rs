@@ -18,8 +18,12 @@ struct SearchArea {
 }
 
 // 使用静态变量存储搜索框位置和窗口引用
+// 搜索框位置
 static SEARCH_AREA: Mutex<Option<SearchArea>> = Mutex::new(None);
+// 是否正在追踪
 static IS_TRACKING: Mutex<bool> = Mutex::new(false);
+// 临时存储是否在窗口外
+// pub static IS_OUT_OF_WINDOW: Mutex<bool> = Mutex::new(false);
 
 // 更新搜索框位置的命令
 #[tauri::command]
@@ -60,7 +64,6 @@ pub fn start_mouse_tracking() {
             let win_y = position.y as f64;
             let win_width = size.width as f64;
             let win_height = size.height as f64;
-
             thread::spawn(move || {
                 let mut last_pos = Mouse::get_mouse_position();
 
@@ -82,22 +85,31 @@ pub fn start_mouse_tracking() {
                         last_pos = Mouse::Position { x, y };
 
                         // 转换为相对窗口的坐标
-                        let rel_x = x as f64 - win_x;
-                        let rel_y = y as f64 - win_y;
+                        let rel_x = x as f64 - win_x - 245.0;
+                        let rel_y = y as f64 - win_y - 42.0;
 
                         // 检查鼠标是否在搜索框范围内
                         if is_point_in_search_area(rel_x, rel_y) {
-                            // info!("搜索框内");
                             window.set_ignore_cursor_events(false).unwrap();
                             stop_mouse_tracking();
+                            // // 设置为在搜索框内设置为false，如果已经在搜索框内，则不重复设置
+                            // if *IS_OUT_OF_WINDOW.lock().unwrap() {
+                            //     *IS_OUT_OF_WINDOW.lock().unwrap() = false;
+                            // }
+
+                            // println!("在搜索框内 {}", *IS_OUT_OF_WINDOW.lock().unwrap());
                             break;
                         }
 
                         // 修正窗口边界检查逻辑
                         if rel_x < 0.0 || rel_y < 0.0 || rel_x > win_width || rel_y > win_height {
-                            // info!("窗体外");
                             window.set_ignore_cursor_events(false).unwrap();
                             stop_mouse_tracking();
+                            // // 设置为在窗口外，如果已经是true，则不重复设置
+                            // if !*IS_OUT_OF_WINDOW.lock().unwrap() {
+                            //     *IS_OUT_OF_WINDOW.lock().unwrap() = true;
+                            // }
+                            // println!("在窗口外 {}", *IS_OUT_OF_WINDOW.lock().unwrap());
                             break;
                         }
                     }

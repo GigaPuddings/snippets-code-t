@@ -88,14 +88,14 @@ const handleKeyDown = async (e: Event) => {
   @apply bg-search rounded-md shadow-inner ring-1 ring-black/5 p-3;
 
   .search {
-    @apply bg-search-input rounded-lg flex items-center;
+    @apply rounded-lg flex items-center;
 
     .input {
-      @apply ml-1 font-semibold rounded-sm text-[17px] text-search;
+      @apply bg-search-input rounded-sm ml-1 mr-2 font-semibold text-[17px] text-search;
     }
 
     .home {
-      @apply mx-2 p-1 hover:opacity-80 rounded-md text-search cursor-pointer;
+      @apply p-1 hover:opacity-80 rounded-md text-search cursor-pointer;
     }
   }
 }

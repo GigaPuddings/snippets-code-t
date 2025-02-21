@@ -12,7 +12,7 @@
           <span class="text-sm text-stone-300">{{ state.appVersion }}</span>
         </div>
       </Titlebar>
-      <div :class="[`w-full ${hasHome ? 'h-screen' : 'h-[calc(100vh-50px)]'}`]">
+      <div :class="[`w-full ${hasHome ? 'h-screen' : 'h-[calc(100vh-26px)]'}`]">
         <router-view>
           <template #default="{ Component, route }">
             <keep-alive v-if="route.meta.keepAlive">
