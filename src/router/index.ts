@@ -1,4 +1,5 @@
 import { createWebHashHistory, createRouter, RouteRecordRaw } from 'vue-router';
+
 export const Layout = () => import('@/layout/index.vue');
 
 const routes: RouteRecordRaw[] = [
@@ -84,6 +85,11 @@ const routes: RouteRecordRaw[] = [
         ]
       }
     ]
+  },
+  {
+    path: '/notification',
+    name: 'notification',
+    component: () => import('@/pages/notification/index.vue')
   }
 ];
 

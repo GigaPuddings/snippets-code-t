@@ -1,15 +1,15 @@
-use crate::APP;
 use crate::config::{get_value, set_value};
+use crate::window::create_notification_window;
+use crate::APP;
 use chrono::{DateTime, Datelike as _, Duration, Local, NaiveTime, Timelike as _};
 use lazy_static::lazy_static;
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration as StdDuration;
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_notification::NotificationExt;
-use log::info;
 
 // 存储键名
 const ALARM_CARDS_KEY: &str = "alarm_cards";
@@ -66,7 +66,7 @@ fn should_start_service() -> bool {
         if card.weekdays.is_empty() || card.weekdays.contains(&current_weekday) {
             let alarm_time = NaiveTime::parse_from_str(&card.time, "%H:%M").unwrap();
             let current_time = now.time();
-            // 如果闹钟时间还没到，就需要启动服务
+            // 如果代办提醒时间还没到，就需要启动服务
             alarm_time > current_time
         } else {
             false
@@ -85,7 +85,7 @@ impl AlarmCard {
         if !self.weekdays.is_empty() {
             // 如果今天是指定的星期之一
             if self.weekdays.contains(&current_weekday) {
-                // 如果今天的闹钟时间还没到
+                // 如果今天的代办提醒时间还没到
                 if alarm_time > now_time {
                     let diff = alarm_time.signed_duration_since(now_time);
                     // 向上取整到分钟
@@ -131,7 +131,7 @@ impl AlarmCard {
             let target_time = now + Duration::days(days_until_next as i64);
             let target_datetime = target_time.date_naive().and_time(alarm_time);
             let diff = target_datetime.signed_duration_since(now.naive_local());
-            
+
             // 向上取整到分钟
             let total_minutes = (diff.num_seconds() as f64 / 60.0).ceil() as i64;
             let days = total_minutes / (24 * 60);
@@ -323,13 +323,13 @@ pub fn toggle_alarm_card(id: String) -> Result<AlarmCard, String> {
             let app_handle = app.clone();
             thread::spawn(move || {
                 if !card.is_active {
-                    // 如果是禁用闹钟，检查是否需要停止服务
+                    // 如果是禁用代办提醒，检查是否需要停止服务
                     if SERVICE_RUNNING.load(Ordering::SeqCst) && !should_start_service() {
                         info!("禁用后没有需要提醒的事项，停止服务");
                         SERVICE_RUNNING.store(false, Ordering::SeqCst);
                     }
                 } else {
-                    // 如果是启用闹钟，检查是否需要启动服务
+                    // 如果是启用代办提醒，检查是否需要启动服务
                     if !SERVICE_RUNNING.load(Ordering::SeqCst) && should_start_service() {
                         start_alarm_service(app_handle);
                     }
@@ -343,13 +343,14 @@ pub fn toggle_alarm_card(id: String) -> Result<AlarmCard, String> {
     }
 }
 
-// 检查闹钟并发送通知
-pub fn check_alarms(app_handle: tauri::AppHandle) {
+// 检查代办提醒并发送通知
+pub fn check_alarms(_app_handle: tauri::AppHandle) {
     let cards = ALARM_CARDS.lock().unwrap();
     let now = Local::now();
     let current_time = now.time().with_nanosecond(0).unwrap();
     let current_weekday = now.format("%a").to_string();
-    info!("当前时间: {} - {}", current_weekday, current_time);
+    // info!("当前时间: {} - {}", current_weekday, current_time);
+
     // 先处理当前需要触发的提醒
     let mut has_current_alarms = false;
     for card in cards.iter() {
@@ -368,76 +369,40 @@ pub fn check_alarms(app_handle: tauri::AppHandle) {
 
         if current_minutes == alarm_minutes {
             has_current_alarms = true;
-            info!("闹钟触发 - {} at {}", card.title, now);
+            info!("代办提醒触发 - {} at {}", card.title, now);
 
-            let handle = app_handle.clone();
             let card = card.clone();
 
             // 在新线程中处理通知，避免阻塞主线程
             thread::spawn(move || {
-                handle
-                    .dialog()
-                    .message(&card.title)
-                    .kind(MessageDialogKind::Info)
-                    .title("闹钟提醒")
-                    .buttons(MessageDialogButtons::OkCancelCustom(
-                        "确认".to_string(),
-                        "稍后提醒".to_string(),
-                    ))
-                    .show(move |result| {
-                        let handle_clone = handle.clone();
-                        match result {
-                            true => {
-                                info!("用户点击了确认按钮");
-                                handle_clone
-                                    .notification()
-                                    .builder()
-                                    .title("闹钟提醒")
-                                    .body(&card.title)
-                                    .show()
-                                    .unwrap();
-                            }
-                            false => {
-                                info!("用户点击了稍后提醒按钮");
-                                let reminder_time = card.reminder_time.parse::<i64>().unwrap();
-                                let handle_reminder = handle_clone.clone();
-                                thread::spawn(move || {
-                                    thread::sleep(StdDuration::from_secs(
-                                        (reminder_time * 60) as u64
-                                    ));
-                                    handle_reminder
-                                        .notification()
-                                        .builder()
-                                        .title("稍后提醒")
-                                        .body(&card.title)
-                                        .show()
-                                        .unwrap();
-                                });
-                            }
-                        }
 
-                        // 在处理完当前提醒后，再检查是否还有其他提醒
-                        let cards = ALARM_CARDS.lock().unwrap();
-                        let now = Local::now();
-                        let current_time = now.time();
-                        let current_weekday = now.format("%a").to_string();
+                let reminder_time = card.reminder_time.parse::<i64>().ok();
+                 // 创建通知窗口
+                create_notification_window(&card.title, reminder_time);
 
-                        let has_remaining_alarms = cards.iter().any(|card| {
-                            if !card.is_active {
-                                return false;
-                            }
-                            if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
-                                return false;
-                            }
-                            let alarm_time = NaiveTime::parse_from_str(&card.time, "%H:%M").unwrap();
-                            alarm_time > current_time
-                        });
+                // 在处理完当前提醒后，再检查是否还有其他提醒
+                let cards = ALARM_CARDS.lock().unwrap();
+                let now = Local::now();
+                let current_time = now.time();
+                let current_weekday = now.format("%a").to_string();
 
-                        if !has_remaining_alarms {
-                            info!("没有剩余的提醒任务，停止服务");
-                            SERVICE_RUNNING.store(false, Ordering::SeqCst);
-                        }
-                    });
+                let has_remaining_alarms = cards.iter().any(|card| {
+                    if !card.is_active {
+                        return false;
+                    }
+                    if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
+                        return false;
+                    }
+                    let alarm_time = NaiveTime::parse_from_str(&card.time, "%H:%M").unwrap();
+                    alarm_time > current_time
+                });
+
+                if !has_remaining_alarms {
+                    info!("没有剩余的提醒任务，停止服务");
+                    SERVICE_RUNNING.store(false, Ordering::SeqCst);
+                } else {
+                    info!("有剩余的提醒任务，继续服务");
+                }
             });
         }
     }
@@ -467,7 +432,7 @@ pub fn check_alarms(app_handle: tauri::AppHandle) {
     }
 }
 
-// 启动闹钟检查服务
+// 启动代办提醒检查服务
 pub fn start_alarm_service(app_handle: tauri::AppHandle) {
     // 检查服务是否已经在运行
     if SERVICE_RUNNING.load(Ordering::SeqCst) {
@@ -514,5 +479,24 @@ pub fn start_alarm_service(app_handle: tauri::AppHandle) {
             thread::sleep(StdDuration::from_secs(60));
         }
         info!("提醒服务已停止");
+    });
+}
+
+#[tauri::command]
+pub fn remind_notification_window(title: String, reminder_time: String) {
+    info!("稍后提醒: {} - {} 分钟后", title, reminder_time);
+    let reminder_minutes = reminder_time.parse::<i64>().unwrap();
+    let handle_reminder = APP.get().unwrap();
+    
+    thread::spawn(move || {
+        thread::sleep(StdDuration::from_secs((reminder_minutes * 60) as u64));
+        handle_reminder
+            .notification()
+            .builder()
+            .title("稍后提醒")
+            .body(&title)
+            .show()
+            .unwrap();
+        info!("稍后提醒完成, 时间: {}", Local::now().format("%Y-%m-%d %H:%M:%S"));
     });
 }

@@ -10,7 +10,7 @@ mod tray;
 mod window;
 
 use crate::alarm::{
-    add_alarm_card, delete_alarm_card, get_alarm_cards, toggle_alarm_card, update_alarm_card,
+    add_alarm_card, delete_alarm_card, get_alarm_cards, toggle_alarm_card, update_alarm_card, remind_notification_window,
 };
 use crate::db::{backup_database, get_db_path, restore_database, set_custom_db_path};
 use crate::window::{hotkey_config, start_mouse_tracking};
@@ -198,6 +198,7 @@ pub fn run() {
             get_search_engines,
             update_search_engines,
             get_default_engines,
+            remind_notification_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

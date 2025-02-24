@@ -18,7 +18,7 @@ export async function initEnv() {
 
 let appWindow: Window | null = null;
 
-export const getAppWindow = (label: 'search' | 'config') => {
+export const getAppWindow = (label: 'search' | 'config' | 'notification') => {
   if (!appWindow) {
     appWindow = new Window(label);
   }
