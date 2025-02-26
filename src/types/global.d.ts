@@ -51,7 +51,7 @@ declare global {
   // 在适当的位置添加 'search' 类型
   type SummarizeType = 'text' | 'app' | 'bookmark' | 'search';
 
-  // 闹钟类型
+  // 代办提醒类型
   interface AlarmCard {
     id: string;
     time: string;

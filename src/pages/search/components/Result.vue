@@ -137,15 +137,66 @@ function switchTab(tab: SummarizeType) {
   activeTab.value = tab;
 }
 
-// 键盘事件处理
-const handleKeyEvent = (e: KeyboardEvent) => {
-  if (filteredResults.value.length === 0) return;
+// 添加一个变量来追踪是否应该控制 tabs
+const shouldControlTabs = ref(false);
 
-  // 只阻止上下键和回车键的默认行为和冒泡
-  if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.code)) {
+// 修改键盘事件处理函数
+const handleKeyEvent = (e: KeyboardEvent) => {
+  // 检查当前焦点元素是否为输入框
+  const isInputFocused = document.activeElement?.tagName === 'INPUT';
+
+  // 如果是输入框且光标不在开始或结束位置，让输入框处理左右键
+  if (isInputFocused && !shouldControlTabs.value) {
+    const input = document.activeElement as HTMLInputElement;
+    if (e.code === 'ArrowLeft' && input.selectionStart !== 0) {
+      return;
+    }
+    if (e.code === 'ArrowRight' && input.selectionEnd !== input.value.length) {
+      return;
+    }
+  }
+
+  // 只阻止方向键和回车键的默认行为和冒泡
+  if (
+    ['ArrowDown', 'ArrowUp', 'Enter', 'ArrowRight', 'ArrowLeft'].includes(
+      e.code
+    )
+  ) {
     e.preventDefault();
     e.stopPropagation();
   }
+
+  // 对于上下键和回车键的操作，检查是否有结果
+  if (
+    ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.code) &&
+    filteredResults.value.length === 0
+  ) {
+    return;
+  }
+
+  // 处理左右键切换 tabs 的逻辑
+  if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
+    if (e.code === 'ArrowRight') {
+      const nextTabIndex = tabs.value.findIndex(
+        (tab) => tab.value === activeTab.value
+      );
+      const nextTab = tabs.value[(nextTabIndex + 1) % tabs.value.length];
+      switchTab(nextTab.value);
+      shouldControlTabs.value = true;
+    } else if (e.code === 'ArrowLeft') {
+      const currentIndex = tabs.value.findIndex(
+        (tab) => tab.value === activeTab.value
+      );
+      const prevTab =
+        tabs.value[(currentIndex - 1 + tabs.value.length) % tabs.value.length];
+      switchTab(prevTab.value);
+      shouldControlTabs.value = true;
+    }
+    return;
+  }
+
+  // 重置 shouldControlTabs
+  shouldControlTabs.value = false;
 
   const index = filteredResults.value.findIndex((item) => item.id === store.id);
   let nextIndex = index;
@@ -161,22 +212,6 @@ const handleKeyEvent = (e: KeyboardEvent) => {
         filteredResults.value.length;
       store.id = filteredResults.value[nextIndex].id;
       break;
-    // case 'ArrowRight':
-    //   // 获取当前 tab 的索引
-    //   const currentTabIndex = tabs.value.findIndex(tab => tab.value === activeTab.value);
-    //   // 切换到下一个 tab
-    //   if (currentTabIndex < tabs.value.length - 1) {
-    //     switchTab(tabs.value[currentTabIndex + 1].value);
-    //   }
-    //   break;
-    // case 'ArrowLeft':
-    //   // 获取当前 tab 的索引
-    //   const currentIndex = tabs.value.findIndex(tab => tab.value === activeTab.value);
-    //   // 切换到上一个 tab
-    //   if (currentIndex > 0) {
-    //     switchTab(tabs.value[currentIndex - 1].value);
-    //   }
-    //   break;
     case 'Enter':
       selectItem(filteredResults.value[nextIndex]);
       break;
@@ -185,8 +220,12 @@ const handleKeyEvent = (e: KeyboardEvent) => {
       break;
   }
 
-  // 内容过多时，滚动条需要同步滚动
-  if (nextIndex !== index && containerRef.value) {
+  // 只在有结果且进行上下移动时才处理滚动
+  if (
+    ['ArrowDown', 'ArrowUp'].includes(e.code) &&
+    nextIndex !== index &&
+    containerRef.value
+  ) {
     // 获取 .result 容器下的所有 .item 元素
     const resultContainer = containerRef.value.querySelector('.result');
     if (!resultContainer) return;
@@ -241,6 +280,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyEvent);
+  shouldControlTabs.value = false;
 });
 
 // function getFavicon(url: string) {

@@ -8,7 +8,7 @@
   >
     <template #header>
       <div class="title-container">
-        <span>{{ props.editData ? '编辑闹钟' : '新增闹钟' }}</span>
+        <span>{{ props.editData ? '编辑提醒' : '新增提醒' }}</span>
         <delete
           v-if="props.editData"
           class="delete-icon"
@@ -64,18 +64,18 @@
       <!-- 标题输入 -->
       <div class="alarm-title-input">
         <edit-two theme="outline" size="20" :strokeWidth="3" />
-        <el-tooltip effect="light" content="闹钟名称" placement="top">
+        <el-tooltip effect="light" content="提醒标题" placement="top">
           <el-input
             class="title-input"
             v-model="formData.title"
-            placeholder="闹钟标题"
+            placeholder="提醒标题"
           />
         </el-tooltip>
       </div>
 
       <!-- 重复选项 -->
       <div class="alarm-repeat-section">
-        <span class="repeat-section-title">重复闹钟</span>
+        <span class="repeat-section-title">重复提醒</span>
         <div class="repeat-section-weekdays">
           <div
             v-for="day in weekdays"
@@ -189,7 +189,7 @@ watch(
   }
 );
 
-// 删除闹钟
+// 删除代办提醒
 const handleDelete = () => {
   if (props.editData) {
     emit('delete', props.editData);

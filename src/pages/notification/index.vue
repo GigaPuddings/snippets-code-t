@@ -1,5 +1,5 @@
 <template>
-  <main class="notification-container" :class="{ 'fade-in': show }">
+  <main class="notification-container" :class="{ 'fade-in': state.show }">
     <div class="notification-content">
       <div class="notification-header">
         <div class="header-left">
@@ -23,7 +23,7 @@
           />
         </div>
       </div>
-      <div class="notification-body">{{ body }}</div>
+      <div class="notification-body">{{ state.body }}</div>
     </div>
     <div class="notification-button-group">
       <el-button
@@ -35,7 +35,7 @@
         确认
       </el-button>
       <el-button
-        v-if="reminderTime"
+        v-if="state.reminderTime"
         type="info"
         size="small"
         class="remind-btn"
@@ -44,7 +44,7 @@
         <template #icon>
           <alarm-clock theme="outline" size="16" :strokeWidth="3" />
         </template>
-        {{ reminderTime }}分钟后提醒
+        {{ state.reminderTime }}分钟后提醒
       </el-button>
     </div>
   </main>
@@ -57,13 +57,22 @@ import { useRoute } from 'vue-router';
 import { Window } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 
+interface State {
+  label: string;
+  body: string;
+  reminderTime: string;
+  show: boolean;
+}
+
 const appWindow = ref<Window | null>(null);
 
 const route = useRoute();
-const label = ref<string>('');
-const body = ref<string>('');
-const reminderTime = ref<string>('');
-const show = ref(false);
+const state = reactive<State>({
+  label: '',
+  body: '',
+  reminderTime: '',
+  show: false
+});
 
 const commonMethod = async (type: string) => {
   switch (type) {
@@ -75,8 +84,8 @@ const commonMethod = async (type: string) => {
       break;
     case 'remind':
       await invoke('remind_notification_window', {
-        title: body.value,
-        reminderTime: reminderTime.value
+        title: state.body,
+        reminderTime: state.reminderTime
       });
       appWindow.value?.close();
       break;
@@ -89,19 +98,21 @@ onMounted(async () => {
   console.log('route.query', route.query);
 
   // 获取路由参数
-  const dataLabel = route.query.label as string;
-  const dataBody = route.query.body as string;
-  const dataReminderTime = route.query.reminder_time as string;
+  const { label, body, reminder_time } = route.query as {
+    label: string;
+    body: string;
+    reminder_time: string;
+  };
 
-  label.value = decodeURIComponent(dataLabel);
-  body.value = decodeURIComponent(dataBody);
-  reminderTime.value = dataReminderTime;
+  state.label = decodeURIComponent(label);
+  state.body = decodeURIComponent(body);
+  state.reminderTime = reminder_time;
 
-  appWindow.value = new Window(label.value);
+  appWindow.value = new Window(state.label);
 
   // 添加淡入效果
   setTimeout(() => {
-    show.value = true;
+    state.show = true;
   }, 100);
 
   // 通知后端页面已准备好
@@ -133,8 +144,6 @@ onMounted(async () => {
 
   padding-bottom: 2px;
 
-  /* border-bottom: 1px solid rgba(229, 231, 235, 0.5); */
-
   .dark & {
     border-color: rgb(75 85 99 / 30%);
   }
@@ -159,17 +168,13 @@ onMounted(async () => {
 }
 
 .notification-body {
-  @apply text-sm text-gray-600 dark:text-gray-400 leading-relaxed;
+  @apply text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis;
 
   padding: 0 4px;
 }
 
 .notification-button-group {
-  @apply flex justify-end gap-2 mt-3;
-
-  /* padding-top: 8px; */
-
-  /* border-top: 1px solid rgba(229, 231, 235, 0.5); */
+  @apply flex justify-end gap-2 mt-1;
 
   .dark & {
     border-color: rgb(75 85 99 / 30%);
@@ -177,11 +182,7 @@ onMounted(async () => {
 }
 
 .titlebar-button {
-  @apply flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700;
-
-  width: 24px;
-  height: 24px;
-  transition: all 0.2s ease;
+  @apply flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 w-6 h-6 transition-all duration-200;
 }
 
 .close-icon {
@@ -189,17 +190,12 @@ onMounted(async () => {
 }
 
 :deep(.el-button) {
-  transition: all 0.2s ease;
-
-  &:hover {
-    box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
-    transform: translateY(-1px);
-  }
+  @apply transition-all duration-200 hover:shadow-md hover:translate-y-[-1px];
 }
 
 :deep(.remind-btn) {
   .icon-park-icon {
-    margin-right: 4px;
+    @apply mr-2;
   }
 }
 </style>

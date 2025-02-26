@@ -159,7 +159,7 @@ pub fn run() {
                     .show()
                     .unwrap(),
             }
-            // 启动闹钟检查服务
+            // 启动代办提醒检查服务
             alarm::start_alarm_service(app.handle().clone());
             Ok(())
         })

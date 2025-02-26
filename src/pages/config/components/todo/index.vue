@@ -1,7 +1,7 @@
 <template>
   <div class="todo-container">
     <div v-if="alarmCards.length > 0" class="grid grid-cols-3 gap-4">
-      <!-- 闹钟提醒事项卡片 -->
+      <!-- 代办提醒事项卡片 -->
       <div class="alarm-card" v-for="item in alarmCards" :key="item.id">
         <div :class="{ 'is-edit': isEdit }" @click="editAlarmCard(item)">
           <div class="time">{{ item.time }}</div>
@@ -71,7 +71,7 @@
       </div>
     </div>
 
-    <!-- 添加闹钟编辑弹框 -->
+    <!-- 添加提醒编辑弹框 -->
     <alarm-edit-dialog
       ref="alarmEditDialogRef"
       :edit-data="currentEditCard"
@@ -93,7 +93,7 @@ const isEdit = ref(false);
 const currentEditCard = ref<AlarmCard | null>(null);
 const alarmEditDialogRef = ref();
 let timer: number | null = null;
-// 定时更新闹钟列表
+// 定时更新提醒列表
 const startTimer = () => {
   // 计算到下一分钟的毫秒数
   const now = new Date();
@@ -116,7 +116,7 @@ const startTimer = () => {
   }, delay);
 };
 
-// 获取闹钟列表
+// 获取提醒列表
 const fetchAlarmCards = async () => {
   try {
     alarmCards.value = await invoke('get_alarm_cards');
@@ -126,27 +126,27 @@ const fetchAlarmCards = async () => {
   }
 };
 
-// 编辑闹钟事项卡片
+// 编辑提醒事项卡片
 const handleEdit = () => {
   if (alarmCards.value.length === 0) return;
   isEdit.value = !isEdit.value;
 };
 
-// 添加闹钟事项卡片
+// 添加提醒事项卡片
 const addAlarmCard = () => {
   if (isEdit.value) return;
   currentEditCard.value = null;
   alarmEditDialogRef.value?.open();
 };
 
-// 编辑闹钟事项卡片
+// 编辑提醒事项卡片
 const editAlarmCard = (item: AlarmCard) => {
   if (isEdit.value) return;
   currentEditCard.value = item;
   alarmEditDialogRef.value?.open();
 };
 
-// 处理闹钟提交
+// 处理提醒提交
 const handleAlarmSubmit = async (formData: Partial<AlarmCard>) => {
   try {
     if (currentEditCard.value) {
@@ -162,7 +162,7 @@ const handleAlarmSubmit = async (formData: Partial<AlarmCard>) => {
   }
 };
 
-// 处理闹钟删除
+// 处理提醒删除
 const handleAlarmDelete = async (item: AlarmCard) => {
   try {
     await invoke('delete_alarm_card', { id: item.id });
@@ -172,7 +172,7 @@ const handleAlarmDelete = async (item: AlarmCard) => {
   }
 };
 
-// 删除闹钟事项卡片
+// 删除提醒事项卡片
 const deleteAlarmCard = async (item: AlarmCard) => {
   try {
     await invoke('delete_alarm_card', { id: item.id });
@@ -182,7 +182,7 @@ const deleteAlarmCard = async (item: AlarmCard) => {
   }
 };
 
-// 切换闹钟状态
+// 切换提醒状态
 const toggleAlarmCard = async (item: AlarmCard) => {
   try {
     await invoke('toggle_alarm_card', { id: item.id });
