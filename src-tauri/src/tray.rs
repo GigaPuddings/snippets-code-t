@@ -1,3 +1,4 @@
+use crate::window::build_window;
 use log::info;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -6,7 +7,6 @@ use tauri::{
 };
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
-use crate::window::build_window;
 
 pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let search_i = MenuItem::with_id(app, "search", "搜索", true, None::<&str>)?;
@@ -15,10 +15,7 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&search_i, &config_i, &view_log_i, &quit_i])?;
 
-    let app_name = app
-        .package_info()
-        .name
-        .clone();
+    let app_name = app.package_info().name.clone();
 
     let _ = TrayIconBuilder::with_id("tray")
         .icon(app.default_window_icon().unwrap().clone())
@@ -35,16 +32,10 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             }
             "config" => {
                 info!("============== Config ==============");
-                let window = build_window(
-                    "config", 
-                    "配置",
-                    "/#config/summarize",
-                    1180.0,
-                    630.0,
-                );
+                let window = build_window("config", "配置", "/#config/summarize", 1180.0, 630.0);
                 window.show().unwrap();
                 window.set_focus().unwrap();
-            },
+            }
             "view_log" => {
                 info!("============== View Log ==============");
                 // 获取日志文件夹路径

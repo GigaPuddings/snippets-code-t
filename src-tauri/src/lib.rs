@@ -10,7 +10,8 @@ mod tray;
 mod window;
 
 use crate::alarm::{
-    add_alarm_card, delete_alarm_card, get_alarm_cards, toggle_alarm_card, update_alarm_card, remind_notification_window,
+    add_alarm_card, delete_alarm_card, get_alarm_cards, remind_notification_window,
+    toggle_alarm_card, update_alarm_card,
 };
 use crate::db::{backup_database, get_db_path, restore_database, set_custom_db_path};
 use crate::window::{hotkey_config, start_mouse_tracking};
@@ -105,6 +106,7 @@ async fn fetch_favicon(url: String) -> Result<String, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,

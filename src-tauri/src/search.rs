@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::config::{get_value, set_value};
+use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -19,15 +19,16 @@ const DEFAULT_ENGINES: &str = include_str!("../assets/default_engines.json");
 #[tauri::command]
 pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
     match get_value(&app_handle, "search_engines") {
-        Some(engines) => Ok(engines.as_array()
+        Some(engines) => Ok(engines
+            .as_array()
             .unwrap_or(&Vec::new())
             .iter()
             .map(|e| serde_json::from_value(e.clone()).unwrap())
             .collect()),
         None => {
             // 如果没有保存的搜索引擎配置，使用默认配置
-            let default_engines: Vec<SearchEngine> = serde_json::from_str(DEFAULT_ENGINES)
-                .map_err(|e| e.to_string())?;
+            let default_engines: Vec<SearchEngine> =
+                serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
             set_value(&app_handle, "search_engines", &default_engines);
             Ok(default_engines)
         }
@@ -48,4 +49,4 @@ pub fn update_search_engines(
 #[tauri::command]
 pub fn get_default_engines() -> Result<Vec<SearchEngine>, String> {
     serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())
-} 
+}

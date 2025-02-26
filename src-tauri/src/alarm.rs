@@ -375,9 +375,8 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
 
             // 在新线程中处理通知，避免阻塞主线程
             thread::spawn(move || {
-
                 let reminder_time = card.reminder_time.parse::<i64>().ok();
-                 // 创建通知窗口
+                // 创建通知窗口
                 create_notification_window(&card.title, reminder_time);
 
                 // 在处理完当前提醒后，再检查是否还有其他提醒
@@ -487,7 +486,7 @@ pub fn remind_notification_window(title: String, reminder_time: String) {
     info!("稍后提醒: {} - {} 分钟后", title, reminder_time);
     let reminder_minutes = reminder_time.parse::<i64>().unwrap();
     let handle_reminder = APP.get().unwrap();
-    
+
     thread::spawn(move || {
         thread::sleep(StdDuration::from_secs((reminder_minutes * 60) as u64));
         handle_reminder
@@ -497,6 +496,9 @@ pub fn remind_notification_window(title: String, reminder_time: String) {
             .body(&title)
             .show()
             .unwrap();
-        info!("稍后提醒完成, 时间: {}", Local::now().format("%Y-%m-%d %H:%M:%S"));
+        info!(
+            "稍后提醒完成, 时间: {}",
+            Local::now().format("%Y-%m-%d %H:%M:%S")
+        );
     });
 }

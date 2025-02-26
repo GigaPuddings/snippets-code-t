@@ -107,12 +107,10 @@ pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String), String> 
     let search_hotkey = get_value(&app_handle, "search")
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
-    
+
     let config_hotkey = get_value(&app_handle, "config")
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
 
     Ok((search_hotkey, config_hotkey))
 }
-
-

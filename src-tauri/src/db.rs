@@ -228,7 +228,11 @@ pub async fn set_custom_db_path() -> Result<String, String> {
             drop(dest);
             drop(source);
 
-            log::info!("数据库迁移完成：{} -> {}", old_path.display(), new_path.display());
+            log::info!(
+                "数据库迁移完成：{} -> {}",
+                old_path.display(),
+                new_path.display()
+            );
         }
 
         // 删除原数据库文件

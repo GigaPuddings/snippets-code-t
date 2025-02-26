@@ -7,8 +7,8 @@ use mouse_position::mouse_position::Mouse;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
-use uuid;
 use urlencoding;
+use uuid;
 
 // 定义搜索框区域结构体
 #[derive(Debug, Clone)]
@@ -248,42 +248,45 @@ pub fn show_hide_window_command(label: &str) -> Result<(), String> {
 pub fn create_notification_window(body: &str, reminder_time: Option<i64>) -> WebviewWindow {
     let app_handle = APP.get().unwrap();
     let label = format!("notification_{}", uuid::Uuid::new_v4());
-    
+
     // 获取主显示器
     let monitor = app_handle.primary_monitor().unwrap().unwrap();
     let monitor_size = monitor.size();
     let scale_factor = monitor.scale_factor();
-    
+
     // 设置窗口大小 (逻辑像素)
     let window_width = 300.0;
     let window_height = 126.0;
-    
+
     // 基础边距 (逻辑像素)
     let taskbar_height = 40.0;
     let margin = 16.0;
-    
+
     // 转换为物理像素
     let physical_width = window_width * scale_factor;
     let physical_height = window_height * scale_factor;
     let physical_taskbar = taskbar_height * scale_factor;
     let physical_margin = margin * scale_factor;
-    
+
     // 计算目标位置 (物理像素)
     let target_x = monitor_size.width as f64 - physical_width - physical_margin;
-    let target_y = monitor_size.height as f64 - physical_height - physical_taskbar - physical_margin;
-    
+    let target_y =
+        monitor_size.height as f64 - physical_height - physical_taskbar - physical_margin;
+
     // 初始位置
     let start_x = monitor_size.width as f64;
 
-    info!("显示器信息: 缩放比例 = {}, 大小 = {}x{}", 
-          scale_factor, monitor_size.width, monitor_size.height);
-    
+    info!(
+        "显示器信息: 缩放比例 = {}, 大小 = {}x{}",
+        scale_factor, monitor_size.width, monitor_size.height
+    );
+
     // 构建查询参数
     let mut query_params = vec![
         format!("label={}", urlencoding::encode(&label)),
-        format!("body={}", urlencoding::encode(body))
+        format!("body={}", urlencoding::encode(body)),
     ];
-    
+
     if let Some(time) = reminder_time {
         query_params.push(format!("reminder_time={}", time));
     }
@@ -291,8 +294,10 @@ pub fn create_notification_window(body: &str, reminder_time: Option<i64>) -> Web
     // 构建完整的URL路径
     let url = format!("/#/notification?{}", query_params.join("&"));
 
-    info!("创建通知窗口: 起始位置({}, {}), 目标位置({}, {})", 
-          start_x, target_y, target_x, target_y);
+    info!(
+        "创建通知窗口: 起始位置({}, {}), 目标位置({}, {})",
+        start_x, target_y, target_x, target_y
+    );
 
     // 创建窗口
     let window = WebviewWindowBuilder::new(app_handle, &label, WebviewUrl::App(url.into()))
@@ -311,12 +316,12 @@ pub fn create_notification_window(body: &str, reminder_time: Option<i64>) -> Web
 
     // 启动动画线程
     let window_handle = window.clone();
-    
+
     // 监听页面准备事件
     window.listen("notification-ready", move |_| {
         // 等待窗口准备完成
         thread::sleep(Duration::from_millis(100));
-        
+
         // 显示窗口
         if let Err(e) = window_handle.show() {
             info!("显示窗口失败: {}", e);
@@ -329,29 +334,27 @@ pub fn create_notification_window(body: &str, reminder_time: Option<i64>) -> Web
         let total_frames = (animation_duration / frame_duration).ceil() as i32;
         let distance = start_x - target_x;
         let step = distance / total_frames as f64;
-        
+
         let mut current_x = start_x;
         for _ in 0..total_frames {
             current_x -= step;
-            if let Err(e) = window_handle.set_position(tauri::Position::Physical(
-                tauri::PhysicalPosition { 
-                    x: current_x as i32, 
-                    y: target_y as i32 
-                }
-            )) {
+            if let Err(e) =
+                window_handle.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                    x: current_x as i32,
+                    y: target_y as i32,
+                }))
+            {
                 info!("设置窗口位置失败: {}", e);
                 break;
             }
             thread::sleep(Duration::from_millis(frame_duration as u64));
         }
-        
+
         // 确保最终位置正确
-        let _ = window_handle.set_position(tauri::Position::Physical(
-            tauri::PhysicalPosition { 
-                x: target_x as i32, 
-                y: target_y as i32 
-            }
-        ));
+        let _ = window_handle.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+            x: target_x as i32,
+            y: target_y as i32,
+        }));
     });
 
     window
