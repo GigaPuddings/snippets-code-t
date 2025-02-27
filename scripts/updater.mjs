@@ -25,12 +25,12 @@ async function main() {
 
     // 构建文件路径
     const basePath = path.resolve('./src-tauri/target/release/bundle')
-    const setupFile = path.join(basePath, 'nsis', `效率工具_${tauriConfig.version}_x64-setup.exe`)
+    const setupFile = path.join(basePath, 'nsis', `snippets-code_${tauriConfig.version}_x64-setup.exe`)
     const sigFile = `${setupFile}.sig`
 
     // 获取已上传的文件
     const setupAsset = release.assets.find(asset => 
-      asset.name === `效率工具_${tauriConfig.version}_x64-setup.exe`
+      asset.name === `snippets-code_${tauriConfig.version}_x64-setup.exe`
     )
 
     if (!setupAsset) {
