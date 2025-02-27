@@ -1,24 +1,35 @@
 <template>
   <div class="config">
-    <div class="config-nav">
-      <router-link
-        v-for="(tab, index) in tabs"
-        :key="index"
-        :to="tab.path"
-        :class="[
-          'config-nav-item mb-4',
-          { 'config-nav-item-active': $route.path.startsWith(tab.path) }
-        ]"
-      >
-        <component
-          :is="tab.icon"
-          class="config-nav-item-icon"
+    <div class="config-nav-wrapper">
+      <div class="config-nav">
+        <router-link
+          v-for="(tab, index) in tabs"
+          :key="index"
+          :to="tab.path"
+          :class="[
+            'config-nav-item mb-4',
+            { 'config-nav-item-active': $route.path.startsWith(tab.path) }
+          ]"
+        >
+          <component
+            :is="tab.icon"
+            class="config-nav-item-icon"
+            theme="outline"
+            size="20"
+            :strokeWidth="3"
+          />
+          <div class="config-nav-item-text">{{ tab.title }}</div>
+        </router-link>
+      </div>
+
+      <div class="app-update">
+        <update-rotation
           theme="outline"
-          size="20"
+          size="24"
           :strokeWidth="3"
+          @click="checkUpdate"
         />
-        <div class="config-nav-item-text">{{ tab.title }}</div>
-      </router-link>
+      </div>
     </div>
 
     <el-dialog
@@ -94,7 +105,8 @@ import {
   BookOpen,
   SettingOne,
   MessageSearch,
-  Notepad
+  Notepad,
+  UpdateRotation
 } from '@icon-park/vue-next';
 
 import { check } from '@tauri-apps/plugin-updater';
@@ -202,7 +214,9 @@ const handleUpdate = async () => {
 
 const checkUpdate = async () => {
   try {
+    console.log('Checking for updates...');
     const update = await check();
+    console.log('Update check result:', update);
     if (update) {
       await info(`Found update: ${update.version}, released at ${update.date}`);
 
@@ -213,21 +227,32 @@ const checkUpdate = async () => {
       updateDialog.value.releaseNotes =
         update.body?.replace(/\n/g, '<br>') || '暂无更新说明';
       updateDialog.value.visible = true;
+    } else {
+      console.log('No updates available');
     }
   } catch (error) {
+    console.error('Update check error details:', error);
     await info(`Check update failed: ${error}`);
     console.error('Check update failed:', error);
   }
 };
-
-onMounted(() => {
-  checkUpdate();
-});
 </script>
 
 <style scoped lang="scss">
 .config {
   @apply h-full w-full flex justify-start;
+
+  .config-nav-wrapper {
+    @apply flex justify-between items-center flex-col;
+
+    .app-update {
+      @apply flex justify-center items-center flex-col mb-6 mr-2;
+
+      &:hover {
+        @apply cursor-pointer animate-spin;
+      }
+    }
+  }
 
   .config-nav {
     @apply flex flex-col mr-2 pb-2;

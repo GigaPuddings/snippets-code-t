@@ -48,7 +48,7 @@ async function main() {
       platforms: {
         'windows-x86_64': {
           url: setupAsset.browser_download_url,
-          signature: signature
+          signature: signature.trim()
         }
       }
     }
