@@ -9,6 +9,15 @@
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/GigaPuddings/snippets-code-t/releases/download/updater/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUxNjFCNjVGMTY1OTc3NUUKUldSZWQxa1dYN1poNFpidktybDV2OGF4elpPK2IxUThGdi9hbGdaRjJ4akRqL2ptWjdQdXViYkwK"
+    }
+  },
   "app": {
     "windows": [
       {
@@ -33,7 +42,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi"],
+    "targets": "all",
     "publisher": "GigaPuddings",
     "icon": [
       "icons/32x32.png",
@@ -41,24 +50,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "windows": {
-      "certificateThumbprint": null,
-      "digestAlgorithm": "sha256",
-      "timestampUrl": "",
-      "webviewInstallMode": {
-        "type": "downloadBootstrapper"
-      }
-    }
-  },
-  "plugins": {
-    "updater": {
-      "active": true,
-      "endpoints": [
-        "https://github.com/GigaPuddings/snippets-code-t/releases/latest/download/latest.json"
-      ],
-      "dialog": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUxNjFCNjVGMTY1OTc3NUUKUldSZWQxa1dYN1poNFpidktybDV2OGF4elpPK2IxUThGdi9hbGdaRjJ4akRqL2ptWjdQdXViYkwK"
-    }
+    ]
   }
 }
