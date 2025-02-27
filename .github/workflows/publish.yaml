@@ -23,7 +23,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         
       - name: Install pnpm
-        run: npm install -g pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
         
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -32,7 +34,7 @@ jobs:
           cache: 'pnpm'
           
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
         
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
