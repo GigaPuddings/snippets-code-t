@@ -1,42 +1,66 @@
-import { context, getOctokit } from "@actions/github";
-import { readFile } from "node:fs/promises";
+import { createRequire } from 'module'
+import { Octokit } from '@octokit/rest'
+import fs from 'fs'
 
-const octokit = getOctokit(process.env.GITHUB_TOKEN);
+const require = createRequire(import.meta.url)
+const tauriConfig = require('../src-tauri/tauri.conf.json')
 
-const updateRelease = async () => {
-  // 获取updater tag的release
-  const { data: release } = await octokit.rest.repos.getReleaseByTag({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    tag: "updater",
-  });
-  // 删除旧的的文件
-  const deletePromises = release.assets
-    .filter((item) => item.name === "latest.json")
-    .map(async (item) => {
-      await octokit.rest.repos.deleteReleaseAsset({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        asset_id: item.id,
-      });
-    });
+// 从环境变量获取 GitHub token
+const token = process.env.GITHUB_TOKEN
+const octokit = new Octokit({ auth: token })
 
-  await Promise.all(deletePromises);
+// GitHub 仓库信息
+const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
+const tag = process.env.GITHUB_REF_NAME
 
-  // 上传新的文件
-  const file = await readFile("latest.json", { encoding: "utf-8" });
-  const data = JSON.parse(file);
-  if (data.platforms["darwin-x86_64"]) {
-    data.platforms["darwin-aarch64"] = data.platforms["darwin-x86_64"];
+async function main() {
+  try {
+    // 获取最新的 release
+    const release = await octokit.repos.getReleaseByTag({
+      owner,
+      repo,
+      tag,
+    })
+
+    // 找到 Windows 安装包资源
+    const windowsAsset = release.data.assets.find(asset => 
+      asset.name.endsWith('.msi')
+    )
+
+    if (!windowsAsset) {
+      throw new Error('No Windows installer found in release assets')
+    }
+
+    // 创建 latest.json
+    const latestJson = {
+      version: tauriConfig.version,
+      notes: release.data.body || 'See the assets to download and install this version.',
+      pub_date: new Date().toISOString(),
+      platforms: {
+        'windows-x86_64': {
+          signature: '',  // Tauri 会自动处理签名
+          url: windowsAsset.browser_download_url
+        }
+      }
+    }
+
+    // 写入 latest.json
+    fs.writeFileSync('latest.json', JSON.stringify(latestJson, null, 2))
+
+    // 上传 latest.json 到 release
+    await octokit.repos.uploadReleaseAsset({
+      owner,
+      repo,
+      release_id: release.data.id,
+      name: 'latest.json',
+      data: fs.readFileSync('latest.json')
+    })
+
+    console.log('Successfully uploaded latest.json')
+  } catch (error) {
+    console.error('Error:', error)
+    process.exit(1)
   }
+}
 
-  await octokit.rest.repos.uploadReleaseAsset({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    release_id: release.id,
-    name: "latest.json",
-    data: JSON.stringify(data, null, 2),
-  });
-};
-
-updateRelease();
+main()
