@@ -23,20 +23,29 @@ async function main() {
       tag,
     })
 
-    // 构建文件路径
+    // 构建文件路径 - 使用正确的文件名格式
     const basePath = path.resolve('./src-tauri/target/release/bundle')
-    const msiFile = path.join(basePath, 'msi', `效率工具_${tauriConfig.version}_x64_zh-CN.msi`)
+    const msiFile = path.join(basePath, 'nsis', `效率工具_${tauriConfig.version}_x64-setup.exe`)
     const sigFile = `${msiFile}.sig`
 
+    console.log('Looking for MSI file at:', msiFile)
+    
+    // 列出目录内容以调试
+    const bundlePath = path.resolve('./src-tauri/target/release/bundle')
+    console.log('Bundle directory contents:', fs.readdirSync(bundlePath))
+    if (fs.existsSync(path.join(bundlePath, 'nsis'))) {
+      console.log('NSIS directory contents:', fs.readdirSync(path.join(bundlePath, 'nsis')))
+    }
+
     if (!fs.existsSync(msiFile)) {
-      throw new Error(`MSI file not found at ${msiFile}`)
+      throw new Error(`Installer not found at ${msiFile}`)
     }
 
     if (!fs.existsSync(sigFile)) {
       throw new Error(`Signature file not found at ${sigFile}`)
     }
 
-    // 上传 MSI 文件
+    // 上传安装文件
     const msiAsset = await octokit.repos.uploadReleaseAsset({
       owner,
       repo,
