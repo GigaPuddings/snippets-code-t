@@ -23,36 +23,22 @@ async function main() {
       tag,
     })
 
-    // 构建文件路径 - 使用正确的文件名格式
+    // 构建文件路径
     const basePath = path.resolve('./src-tauri/target/release/bundle')
-    const msiFile = path.join(basePath, 'nsis', `效率工具_${tauriConfig.version}_x64-setup.exe`)
-    const sigFile = `${msiFile}.sig`
+    const setupFile = path.join(basePath, 'nsis', `效率工具_${tauriConfig.version}_x64-setup.exe`)
+    const sigFile = `${setupFile}.sig`
 
-    console.log('Looking for MSI file at:', msiFile)
-    
-    // 列出目录内容以调试
-    const bundlePath = path.resolve('./src-tauri/target/release/bundle')
-    console.log('Bundle directory contents:', fs.readdirSync(bundlePath))
-    if (fs.existsSync(path.join(bundlePath, 'nsis'))) {
-      console.log('NSIS directory contents:', fs.readdirSync(path.join(bundlePath, 'nsis')))
+    // 获取已上传的文件
+    const setupAsset = release.assets.find(asset => 
+      asset.name === `效率工具_${tauriConfig.version}_x64-setup.exe`
+    )
+
+    if (!setupAsset) {
+      throw new Error('Setup file not found in release assets')
     }
 
-    if (!fs.existsSync(msiFile)) {
-      throw new Error(`Installer not found at ${msiFile}`)
-    }
-
-    if (!fs.existsSync(sigFile)) {
-      throw new Error(`Signature file not found at ${sigFile}`)
-    }
-
-    // 上传安装文件
-    const msiAsset = await octokit.repos.uploadReleaseAsset({
-      owner,
-      repo,
-      release_id: release.id,
-      name: path.basename(msiFile),
-      data: fs.readFileSync(msiFile)
-    })
+    // 读取签名文件
+    const signature = fs.readFileSync(sigFile, 'utf8')
 
     // 创建 latest.json
     const latestJson = {
@@ -61,23 +47,41 @@ async function main() {
       pub_date: new Date().toISOString(),
       platforms: {
         'windows-x86_64': {
-          url: msiAsset.data.browser_download_url,
-          signature: fs.readFileSync(sigFile, 'utf8')
+          url: setupAsset.browser_download_url,
+          signature: signature
         }
       }
     }
 
-    // 写入并上传 latest.json
-    fs.writeFileSync('latest.json', JSON.stringify(latestJson, null, 2))
+    // 检查是否已存在 latest.json
+    const existingLatestJson = release.assets.find(asset => 
+      asset.name === 'latest.json'
+    )
+
+    if (existingLatestJson) {
+      // 如果存在，先删除
+      await octokit.repos.deleteReleaseAsset({
+        owner,
+        repo,
+        asset_id: existingLatestJson.id
+      })
+    }
+
+    // 上传新的 latest.json
+    const latestJsonContent = JSON.stringify(latestJson, null, 2)
     await octokit.repos.uploadReleaseAsset({
       owner,
       repo,
       release_id: release.id,
       name: 'latest.json',
-      data: fs.readFileSync('latest.json')
+      data: latestJsonContent,
+      headers: {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(latestJsonContent)
+      }
     })
 
-    console.log('Successfully uploaded all assets')
+    console.log('Successfully uploaded latest.json')
   } catch (error) {
     console.error('Error:', error)
     process.exit(1)
@@ -85,3 +89,4 @@ async function main() {
 }
 
 main()
+
