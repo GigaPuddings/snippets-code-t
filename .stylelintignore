@@ -7,7 +7,7 @@ public
 *.sh
 *.md
 ~
-
+myapp.*
 src/assets
 src-tauri
 stats.html
