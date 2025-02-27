@@ -18,21 +18,24 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Rust setup
+
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+        
       - name: Install pnpm
         run: npm install -g pnpm
-      - name: Sync node version and setup cache
+        
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "lts/*"
-          cache: "pnpm"
-      - name: Install frontend dependencies
-        run: pnpm install --no-frozen-lockfile
-      - name: Build the app
+          node-version: 'lts/*'
+          cache: 'pnpm'
+          
+      - name: Install dependencies
+        run: pnpm install
+        
+      - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -40,12 +43,27 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "效率工具 v__VERSION__"
-          releaseBody: "See the assets to download and install this version."
-          releaseDraft: true
+          releaseBody: |
+            请查看发布资产以下载此版本。
+            See the assets to download and install this version.
+          releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
 
-      - name: Generate and upload latest.json
+      - name: Upload latest.json
+        if: success()
+        run: |
+          echo '{
+            "version": "'${{ github.ref_name }}'",
+            "notes": "See the assets to download and install this version.",
+            "pub_date": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/snippets-code_${{ github.ref_name }}_x64_en-US.msi.zip"
+              }
+            }
+          }' > latest.json
+          
+          gh release upload ${{ github.ref_name }} latest.json --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/updater.mjs

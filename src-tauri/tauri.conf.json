@@ -34,7 +34,7 @@
   "bundle": {
     "createUpdaterArtifacts": true,
     "active": true,
-    "targets": "all",
+    "targets": ["msi"],
     "identifier": "com.snippets-code.app",
     "icon": [
       "icons/32x32.png",
@@ -43,13 +43,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "shortDescription": "snippets-code",
-    "longDescription": "代码片段效率工具",
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
-    }
+      "timestampUrl": "",
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    },
+    "publisher": "GigaPuddings"
   },
   "plugins": {
     "updater": {
