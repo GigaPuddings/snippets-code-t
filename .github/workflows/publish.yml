@@ -7,12 +7,14 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_TOKEN }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -42,7 +44,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'snippets-code v__VERSION__'
           releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
 
       - name: Upload assets
