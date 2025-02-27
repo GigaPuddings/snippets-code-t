@@ -7,15 +7,12 @@ on:
 
 jobs:
   release:
-    permissions:
-      contents: write
-      actions: write
-      checks: write
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -38,7 +35,7 @@ jobs:
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
         with:
@@ -50,7 +47,6 @@ jobs:
 
       - name: Upload assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # 运行自己的脚本
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: node scripts/updater.mjs 
 
