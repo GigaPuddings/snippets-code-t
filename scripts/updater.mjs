@@ -6,35 +6,40 @@ import { readFile } from "node:fs/promises";
 const octokit = getOctokit(process.env.GITHUB_TOKEN);
 
 const updateRelease = async () => {
-  // 获取updater tag的release
-  const { data: release } = await octokit.rest.repos.getReleaseByTag({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    tag: "updater",
-  });
-  // 删除旧的的文件
-  const deletePromises = release.assets
-    .filter((item) => item.name === "latest.json")
-    .map(async (item) => {
-      await octokit.rest.repos.deleteReleaseAsset({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        asset_id: item.id,
-      });
+  try {
+    // 获取最新的 release
+    const { data: release } = await octokit.rest.repos.getLatestRelease({
+      owner: context.repo.owner,
+      repo: context.repo.repo
     });
 
-  await Promise.all(deletePromises);
+    // 删除旧的 latest.json 文件（如果存在）
+    for (const asset of release.assets) {
+      if (asset.name === "latest.json") {
+        await octokit.rest.repos.deleteReleaseAsset({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          asset_id: asset.id
+        });
+      }
+    }
 
-  // 上传新的文件
-  const file = await readFile("latest.json", { encoding: "utf-8" });
+    // 读取并上传新的 latest.json
+    const fileContent = await readFile("latest.json", { encoding: "utf-8" });
+    
+    await octokit.rest.repos.uploadReleaseAsset({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      release_id: release.id,
+      name: "latest.json",
+      data: fileContent
+    });
 
-  await octokit.rest.repos.uploadReleaseAsset({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    release_id: release.id,
-    name: "latest.json",
-    data: file,
-  });
+    console.log("Successfully updated latest.json");
+  } catch (error) {
+    console.error("Error updating release:", error);
+    process.exit(1);
+  }
 };
 
 updateRelease();

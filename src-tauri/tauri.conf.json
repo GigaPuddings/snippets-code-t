@@ -35,6 +35,7 @@
     "createUpdaterArtifacts": true,
     "active": true,
     "targets": "all",
+    "identifier": "com.snippets-code.app",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -46,24 +47,18 @@
     "longDescription": "代码片段效率工具",
     "windows": {
       "certificateThumbprint": null,
-        "wix": {
-          "language": "zh-CN"
-        },
-        "digestAlgorithm": "sha256",
-        "timestampUrl": ""
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
     }
   },
   "plugins": {
     "updater": {
       "active": true,
-      "windows": {
-        "installMode": "basicUi"
-      },
-      "dialog": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUxNjFCNjVGMTY1OTc3NUUKUldSZWQxa1dYN1poNFpidktybDV2OGF4elpPK2IxUThGdi9hbGdaRjJ4akRqL2ptWjdQdXViYkwK",
       "endpoints": [
-        "https://github.com/GigaPuddings/snippets-code-t/releases/download/v0.1.0/latest.json"
-      ]
+        "https://github.com/GigaPuddings/snippets-code-t/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": "你的公钥"
     }
   }
 }

@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "prepare": "husky install",
     "lint:lint-staged": "lint-staged",
-    "commit": "git-cz"
+    "commit": "git-cz",
+    "updater": "node scripts/updater.mjs"
   },
   "config": {
     "commitizen": {
@@ -70,7 +71,8 @@
     "pinyin-match": "^1.2.6",
     "vue": "^3.5.13",
     "vue-codemirror": "^6.1.1",
-    "vue-router": "4"
+    "vue-router": "4",
+    "@actions/github": "^6.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.1",
