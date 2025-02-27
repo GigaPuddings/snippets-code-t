@@ -4575,7 +4575,7 @@ dependencies = [
 
 [[package]]
 name = "snippets-code"
-version = "0.2.6"
+version = "0.0.1"
 dependencies = [
  "base64 0.21.7",
  "chrono",

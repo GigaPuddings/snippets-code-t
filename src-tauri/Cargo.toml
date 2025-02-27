@@ -1,8 +1,8 @@
 [package]
 name = "snippets-code"
-version = "0.2.6"
+version = "0.0.1"
 description = "programmer's Efficiency Tool"
-authors = ["you"]
+authors = ["GigaPuddings"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
