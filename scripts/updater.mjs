@@ -15,15 +15,18 @@ const tag = process.env.GITHUB_REF_NAME
 
 async function main() {
   try {
+    // 等待一段时间确保安装包已上传
+    await new Promise(resolve => setTimeout(resolve, 15000))
+
     // 获取最新的 release
-    const release = await octokit.repos.getReleaseByTag({
+    const { data: release } = await octokit.repos.getReleaseByTag({
       owner,
       repo,
       tag,
     })
 
     // 找到 Windows 安装包资源
-    const windowsAsset = release.data.assets.find(asset => 
+    const windowsAsset = release.assets.find(asset => 
       asset.name.endsWith('.msi')
     )
 
@@ -38,8 +41,8 @@ async function main() {
       pub_date: new Date().toISOString(),
       platforms: {
         'windows-x86_64': {
-          signature: '',  // Tauri 会自动处理签名
-          url: windowsAsset.browser_download_url
+          url: windowsAsset.browser_download_url,
+          signature: fs.readFileSync(`${windowsAsset.name}.sig`, 'utf8')
         }
       }
     }
@@ -47,11 +50,11 @@ async function main() {
     // 写入 latest.json
     fs.writeFileSync('latest.json', JSON.stringify(latestJson, null, 2))
 
-    // 上传 latest.json 到 release
+    // 上传 latest.json
     await octokit.repos.uploadReleaseAsset({
       owner,
       repo,
-      release_id: release.data.id,
+      release_id: release.id,
       name: 'latest.json',
       data: fs.readFileSync('latest.json')
     })
