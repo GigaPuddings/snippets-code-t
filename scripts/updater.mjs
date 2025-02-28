@@ -1,42 +1,115 @@
-import { context, getOctokit } from "@actions/github";
-import { readFile } from "node:fs/promises";
+import { createRequire } from 'module'
+import { Octokit } from '@octokit/rest'
+import fs from 'fs/promises'
+import path from 'path'
 
-const octokit = getOctokit(process.env.GITHUB_TOKEN);
+const require = createRequire(import.meta.url)
+const tauriConfig = require('../src-tauri/tauri.conf.json')
 
-const updateRelease = async () => {
-  // 获取updater tag的release
-  const { data: release } = await octokit.rest.repos.getReleaseByTag({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    tag: "updater",
-  });
-  // 删除旧的的文件
-  const deletePromises = release.assets
-    .filter((item) => item.name === "latest.json")
-    .map(async (item) => {
-      await octokit.rest.repos.deleteReleaseAsset({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        asset_id: item.id,
+// 从环境变量获取 GitHub token
+const token = process.env.GITHUB_TOKEN
+const octokit = new Octokit({ auth: token })
+
+// GitHub 仓库信息
+const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
+
+async function main() {
+  try {
+    let release;
+    
+    try {
+      // 尝试获取 updater release
+      const response = await octokit.rest.repos.getReleaseByTag({
+        owner,
+        repo,
+        tag: 'updater',
       });
-    });
+      release = response.data;
+    } catch (error) {
+      if (error.status === 404) {
+        // 如果不存在，创建新的 release
+        console.log('Creating new updater release...');
+        const response = await octokit.rest.repos.createRelease({
+          owner,
+          repo,
+          tag_name: 'updater',
+          name: 'Updater',
+          body: 'Auto-update release',
+          prerelease: false
+        });
+        release = response.data;
+      } else {
+        throw error;
+      }
+    }
 
-  await Promise.all(deletePromises);
+    // 构建文件路径
+    const basePath = path.resolve('./src-tauri/target/release/bundle')
+    const setupFile = path.join(basePath, 'nsis', `snippets-code_${tauriConfig.version}_x64-setup.exe`)
+    const sigFile = `${setupFile}.sig`
 
-  // 上传新的文件
-  const file = await readFile("latest.json", { encoding: "utf-8" });
-  const data = JSON.parse(file);
-  if (data.platforms["darwin-x86_64"]) {
-    data.platforms["darwin-aarch64"] = data.platforms["darwin-x86_64"];
+    // 读取签名文件
+    const signature = await fs.readFile(sigFile, 'utf8')
+
+    // 上传安装包（如果需要）
+    let setupAsset = release.assets.find(asset => 
+      asset.name === path.basename(setupFile)
+    )
+
+    if (!setupAsset) {
+      console.log('Uploading setup file...');
+      const setupContent = await fs.readFile(setupFile);
+      const response = await octokit.rest.repos.uploadReleaseAsset({
+        owner,
+        repo,
+        release_id: release.id,
+        name: path.basename(setupFile),
+        data: setupContent
+      });
+      setupAsset = response.data;
+    }
+
+    // 创建 latest.json 内容
+    const latestJson = {
+      version: tauriConfig.version,
+      notes: release.body || '',
+      pub_date: release.published_at || new Date().toISOString(),
+      platforms: {
+        'windows-x86_64': {
+          signature: signature.trim(),
+          url: setupAsset.browser_download_url
+        }
+      }
+    }
+
+    // 删除已存在的 latest.json
+    const deletePromises = release.assets
+      .filter(asset => asset.name === 'latest.json')
+      .map(asset => 
+        octokit.rest.repos.deleteReleaseAsset({
+          owner,
+          repo,
+          asset_id: asset.id
+        })
+      )
+
+    await Promise.all(deletePromises)
+
+    // 上传新的 latest.json
+    await octokit.rest.repos.uploadReleaseAsset({
+      owner,
+      repo,
+      release_id: release.id,
+      name: 'latest.json',
+      data: JSON.stringify(latestJson, null, 2)
+    })
+
+    console.log('Successfully updated latest.json:', latestJson)
+  } catch (error) {
+    console.error('Error:', error)
+    process.exit(1)
   }
+}
 
-  await octokit.rest.repos.uploadReleaseAsset({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    release_id: release.id,
-    name: "latest.json",
-    data: JSON.stringify(data, null, 2),
-  });
-};
+main()
 
-updateRelease();
