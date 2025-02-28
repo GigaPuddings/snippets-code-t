@@ -18,7 +18,11 @@
     },
     {
       "identifier": "http:default",
-      "allow": ["**"]
+      "allow": [
+        {
+          "url": "https://github.com/*"
+        }
+      ]
     },
     {
       "identifier": "core:webview:default",
