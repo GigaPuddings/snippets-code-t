@@ -1,6 +1,6 @@
 import { createRequire } from 'module'
 import { Octokit } from '@octokit/rest'
-import fs from 'fs/promises'
+import fs from 'fs'
 import path from 'path'
 
 const require = createRequire(import.meta.url)
@@ -12,14 +12,15 @@ const octokit = new Octokit({ auth: token })
 
 // GitHub 仓库信息
 const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
+const tag = process.env.GITHUB_REF_NAME
 
 async function main() {
   try {
-    // 获取 release 信息
-    const { data: release } = await octokit.rest.repos.getReleaseByTag({
+    // 获取最新的 release
+    const { data: release } = await octokit.repos.getReleaseByTag({
       owner,
       repo,
-      tag: process.env.GITHUB_REF_NAME,
+      tag,
     })
 
     // 构建文件路径
@@ -27,79 +28,60 @@ async function main() {
     const setupFile = path.join(basePath, 'nsis', `snippets-code_${tauriConfig.version}_x64-setup.exe`)
     const sigFile = `${setupFile}.sig`
 
-    // 读取签名文件
-    const signature = await fs.readFile(sigFile, 'utf8')
+    // 获取已上传的文件
+    const setupAsset = release.assets.find(asset => 
+      asset.name === `snippets-code_${tauriConfig.version}_x64-setup.exe`
+    )
 
-    // 创建 latest.json 内容
+    if (!setupAsset) {
+      throw new Error('Setup file not found in release assets')
+    }
+
+    // 读取签名文件
+    const signature = fs.readFileSync(sigFile, 'utf8')
+
+    // 创建 latest.json
     const latestJson = {
       version: tauriConfig.version,
-      notes: release.body || '',
-      pub_date: release.published_at || new Date().toISOString(),
+      notes: release.body || 'See the assets to download and install this version.',
+      pub_date: new Date().toISOString(),
       platforms: {
         'windows-x86_64': {
-          signature: signature.trim(),
-          url: `https://github.com/${owner}/${repo}/releases/download/v${tauriConfig.version}/snippets-code_${tauriConfig.version}_x64-setup.exe`
+          url: setupAsset.browser_download_url,
+          signature: signature.trim()
         }
       }
     }
 
-    try {
-      // 获取 updater 分支的引用
-      const { data: ref } = await octokit.rest.git.getRef({
+    // 检查是否已存在 latest.json
+    const existingLatestJson = release.assets.find(asset => 
+      asset.name === 'latest.json'
+    )
+
+    if (existingLatestJson) {
+      // 如果存在，先删除
+      await octokit.repos.deleteReleaseAsset({
         owner,
         repo,
-        ref: 'heads/updater',
+        asset_id: existingLatestJson.id
       })
-
-      // 获取当前的文件（如果存在）
-      const { data: currentFile } = await octokit.rest.repos.getContent({
-        owner,
-        repo,
-        path: 'latest.json',
-        ref: 'updater',
-      })
-
-      // 更新文件
-      await octokit.rest.repos.createOrUpdateFileContents({
-        owner,
-        repo,
-        path: 'latest.json',
-        message: `Update latest.json for version ${tauriConfig.version}`,
-        content: Buffer.from(JSON.stringify(latestJson, null, 2)).toString('base64'),
-        sha: currentFile.sha,
-        branch: 'updater',
-      })
-    } catch (error) {
-      if (error.status === 404) {
-        // 如果分支不存在，创建新分支
-        const { data: mainBranch } = await octokit.rest.repos.getBranch({
-          owner,
-          repo,
-          branch: 'main',
-        })
-
-        await octokit.rest.git.createRef({
-          owner,
-          repo,
-          ref: 'refs/heads/updater',
-          sha: mainBranch.commit.sha,
-        })
-
-        // 创建文件
-        await octokit.rest.repos.createOrUpdateFileContents({
-          owner,
-          repo,
-          path: 'latest.json',
-          message: `Create latest.json for version ${tauriConfig.version}`,
-          content: Buffer.from(JSON.stringify(latestJson, null, 2)).toString('base64'),
-          branch: 'updater',
-        })
-      } else {
-        throw error
-      }
     }
 
-    console.log('Successfully updated latest.json:', latestJson)
+    // 上传新的 latest.json
+    const latestJsonContent = JSON.stringify(latestJson, null, 2)
+    await octokit.repos.uploadReleaseAsset({
+      owner,
+      repo,
+      release_id: release.id,
+      name: 'latest.json',
+      data: latestJsonContent,
+      headers: {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(latestJsonContent)
+      }
+    })
+
+    console.log('Successfully uploaded latest.json')
   } catch (error) {
     console.error('Error:', error)
     process.exit(1)
