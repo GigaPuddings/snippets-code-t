@@ -171,6 +171,7 @@ const handleUpdate = async () => {
   try {
     updateDialog.value.downloading = true;
     updateDialog.value.title = '正在更新';
+    updateDialog.value.progress = 0;
 
     const update = await check();
     if (!update) return;
@@ -180,21 +181,27 @@ const handleUpdate = async () => {
     await update.downloadAndInstall((event) => {
       switch (event.event) {
         case 'Started':
-          updateDialog.value.contentLength = event.data.contentLength ?? 0;
-          updateDialog.value.statusText = `开始下载 (总大小: ${formatBytes(event.data.contentLength ?? 0)})`;
+          updateDialog.value.contentLength = event.data.contentLength || 0;
+          updateDialog.value.statusText = `开始下载 (总大小: ${formatBytes(event.data.contentLength || 0)})`;
           info(
-            `Update download started: ${formatBytes(event.data.contentLength ?? 0)}`
+            `Update download started: ${formatBytes(event.data.contentLength || 0)}`
           );
           break;
         case 'Progress':
-          const downloaded = event.data.chunkLength ?? 0;
-          updateDialog.value.progress = Math.round(
-            (downloaded / updateDialog.value.contentLength) * 100
-          );
-          updateDialog.value.statusText = `正在下载: ${formatBytes(downloaded)} / ${formatBytes(updateDialog.value.contentLength)}`;
-          info(`Update download progress: ${updateDialog.value.progress}%`);
+          const downloaded = event.data.chunkLength || 0;
+          const total = updateDialog.value.contentLength;
+          if (total > 0) {
+            const progress = Math.min(
+              Math.round((downloaded / total) * 100),
+              100
+            );
+            updateDialog.value.progress = progress;
+            updateDialog.value.statusText = `正在下载: ${formatBytes(downloaded)} / ${formatBytes(total)}`;
+            info(`Update download progress: ${progress}%`);
+          }
           break;
         case 'Finished':
+          updateDialog.value.progress = 100;
           updateDialog.value.statusText = '下载完成，准备安装...';
           info('Update download finished');
           break;
@@ -209,6 +216,7 @@ const handleUpdate = async () => {
     ElMessage.error('更新失败，请稍后重试');
     updateDialog.value.visible = false;
     updateDialog.value.downloading = false;
+    updateDialog.value.progress = 0;
   }
 };
 
@@ -230,9 +238,13 @@ const checkUpdate = async () => {
       await info(`Found update: ${update.version}, released at ${update.date}`);
 
       updateDialog.value.newVersion = update.version;
-      updateDialog.value.releaseDate = dayjs(update.date).format(
-        'YYYY-MM-DD HH:mm:ss'
-      );
+      const releaseDate = update.date
+        ? dayjs(update.date).isValid()
+          ? dayjs(update.date).format('YYYY-MM-DD HH:mm:ss')
+          : '未知时间'
+        : '未知时间';
+
+      updateDialog.value.releaseDate = releaseDate;
       updateDialog.value.releaseNotes =
         update.body?.replace(/\n/g, '<br>') || '暂无更新说明';
       updateDialog.value.visible = true;

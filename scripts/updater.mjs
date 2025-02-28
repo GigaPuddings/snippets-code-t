@@ -43,8 +43,8 @@ async function main() {
     // 创建 latest.json
     const latestJson = {
       version: tauriConfig.version,
-      notes: release.body || 'See the assets to download and install this version.',
-      pub_date: new Date().toISOString(),
+      notes: release.body || '暂无更新说明',
+      pub_date: release.published_at || new Date().toISOString(),
       platforms: {
         'windows-x86_64': {
           url: setupAsset.browser_download_url,
@@ -81,7 +81,15 @@ async function main() {
       }
     })
 
-    console.log('Successfully uploaded latest.json')
+    // 将发布状态更新为预发布
+    await octokit.repos.updateRelease({
+      owner,
+      repo,
+      release_id: release.id,
+      prerelease: true
+    });
+
+    console.log('Successfully uploaded latest.json and set as prerelease')
   } catch (error) {
     console.error('Error:', error)
     process.exit(1)
