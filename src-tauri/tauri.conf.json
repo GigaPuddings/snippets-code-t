@@ -13,7 +13,6 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/updater/latest.json",
         "https://github.com/GigaPuddings/snippets-code-t/releases/latest/download/latest.json"
       ],
       "dialog": false,

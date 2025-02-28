@@ -214,9 +214,18 @@ const handleUpdate = async () => {
 
 const checkUpdate = async () => {
   try {
+    await info('Starting update check...');
     console.log('Checking for updates...');
-    const update = await check();
+
+    const update = await check({
+      timeout: 60000,
+      headers: {
+        'User-Agent': 'snippets-code-updater'
+      }
+    });
+
     console.log('Update check result:', update);
+
     if (update) {
       await info(`Found update: ${update.version}, released at ${update.date}`);
 
@@ -228,12 +237,21 @@ const checkUpdate = async () => {
         update.body?.replace(/\n/g, '<br>') || '暂无更新说明';
       updateDialog.value.visible = true;
     } else {
-      console.log('No updates available');
+      await info('No updates available');
+      ElMessage.success('当前已是最新版本');
     }
   } catch (error) {
-    console.error('Update check error details:', error);
-    await info(`Check update failed: ${error}`);
-    console.error('Check update failed:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await info(`Check update failed: ${errorMessage}`);
+    console.error('Update check error:', {
+      message: errorMessage,
+      error
+    });
+
+    ElMessage.error({
+      message: '检查更新失败，请检查网络连接后重试',
+      duration: 5000
+    });
   }
 };
 </script>

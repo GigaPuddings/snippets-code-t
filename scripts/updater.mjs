@@ -38,7 +38,7 @@ async function main() {
       platforms: {
         'windows-x86_64': {
           signature: signature.trim(),
-          url: `https://github.com/${owner}/${repo}/releases/download/${tauriConfig.version}/snippets-code_${tauriConfig.version}_x64-setup.exe`
+          url: `https://github.com/${owner}/${repo}/releases/download/v${tauriConfig.version}/snippets-code_${tauriConfig.version}_x64-setup.exe`
         }
       }
     }
