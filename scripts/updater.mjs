@@ -1,6 +1,6 @@
 import { createRequire } from 'module'
 import { Octokit } from '@octokit/rest'
-import fs from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 
 const require = createRequire(import.meta.url)
@@ -12,15 +12,14 @@ const octokit = new Octokit({ auth: token })
 
 // GitHub 仓库信息
 const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
-const tag = process.env.GITHUB_REF_NAME
 
 async function main() {
   try {
-    // 获取最新的 release
-    const { data: release } = await octokit.repos.getReleaseByTag({
+    // 获取固定 updater tag 的 release
+    const { data: release } = await octokit.rest.repos.getReleaseByTag({
       owner,
       repo,
-      tag,
+      tag: 'updater', // 使用固定的 updater tag
     })
 
     // 构建文件路径
@@ -28,60 +27,54 @@ async function main() {
     const setupFile = path.join(basePath, 'nsis', `snippets-code_${tauriConfig.version}_x64-setup.exe`)
     const sigFile = `${setupFile}.sig`
 
-    // 获取已上传的文件
+    // 读取签名文件
+    const signature = await fs.readFile(sigFile, 'utf8')
+
+    // 获取安装包下载URL
     const setupAsset = release.assets.find(asset => 
-      asset.name === `snippets-code_${tauriConfig.version}_x64-setup.exe`
+      asset.name === path.basename(setupFile)
     )
 
     if (!setupAsset) {
       throw new Error('Setup file not found in release assets')
     }
 
-    // 读取签名文件
-    const signature = fs.readFileSync(sigFile, 'utf8')
-
-    // 创建 latest.json
+    // 创建 latest.json 内容
     const latestJson = {
       version: tauriConfig.version,
-      notes: release.body || 'See the assets to download and install this version.',
-      pub_date: new Date().toISOString(),
+      notes: release.body || '',
+      pub_date: release.published_at || new Date().toISOString(),
       platforms: {
         'windows-x86_64': {
-          url: setupAsset.browser_download_url,
-          signature: signature.trim()
+          signature: signature.trim(),
+          url: setupAsset.browser_download_url
         }
       }
     }
 
-    // 检查是否已存在 latest.json
-    const existingLatestJson = release.assets.find(asset => 
-      asset.name === 'latest.json'
-    )
+    // 删除已存在的 latest.json
+    const deletePromises = release.assets
+      .filter(asset => asset.name === 'latest.json')
+      .map(asset => 
+        octokit.rest.repos.deleteReleaseAsset({
+          owner,
+          repo,
+          asset_id: asset.id
+        })
+      )
 
-    if (existingLatestJson) {
-      // 如果存在，先删除
-      await octokit.repos.deleteReleaseAsset({
-        owner,
-        repo,
-        asset_id: existingLatestJson.id
-      })
-    }
+    await Promise.all(deletePromises)
 
     // 上传新的 latest.json
-    const latestJsonContent = JSON.stringify(latestJson, null, 2)
-    await octokit.repos.uploadReleaseAsset({
+    await octokit.rest.repos.uploadReleaseAsset({
       owner,
       repo,
       release_id: release.id,
       name: 'latest.json',
-      data: latestJsonContent,
-      headers: {
-        'content-type': 'application/json',
-        'content-length': Buffer.byteLength(latestJsonContent)
-      }
+      data: JSON.stringify(latestJson, null, 2)
     })
 
-    console.log('Successfully uploaded latest.json')
+    console.log('Successfully updated latest.json:', latestJson)
   } catch (error) {
     console.error('Error:', error)
     process.exit(1)
