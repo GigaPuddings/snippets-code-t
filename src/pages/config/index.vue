@@ -21,75 +21,7 @@
           <div class="config-nav-item-text">{{ tab.title }}</div>
         </router-link>
       </div>
-
-      <div class="app-update">
-        <update-rotation
-          theme="outline"
-          size="24"
-          :strokeWidth="3"
-          @click="checkUpdate"
-        />
-      </div>
     </div>
-
-    <el-dialog
-      v-model="updateDialog.visible"
-      :title="updateDialog.title"
-      width="400px"
-      :close-on-click-modal="false"
-      :close-on-press-escape="false"
-      :show-close="false"
-    >
-      <div class="update-content">
-        <div v-if="!updateDialog.downloading">
-          <p class="version-info">
-            <span>当前版本：</span>
-            <el-tag size="small">{{ currentVersion }}</el-tag>
-          </p>
-          <p class="version-info">
-            <span>最新版本：</span>
-            <el-tag type="success" size="small">
-              {{ updateDialog.newVersion }}
-            </el-tag>
-          </p>
-          <p class="release-date">发布时间：{{ updateDialog.releaseDate }}</p>
-          <div class="release-notes">
-            <div class="notes-title">更新内容：</div>
-            <el-scrollbar height="120px">
-              <div
-                class="notes-content"
-                v-html="updateDialog.releaseNotes"
-              ></div>
-            </el-scrollbar>
-          </div>
-        </div>
-        <div v-else class="download-progress">
-          <el-progress
-            :percentage="updateDialog.progress"
-            :format="progressFormat"
-            status="success"
-          />
-          <p class="progress-text">{{ updateDialog.statusText }}</p>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button
-            @click="updateDialog.visible = false"
-            v-if="!updateDialog.downloading"
-          >
-            取消
-          </el-button>
-          <el-button
-            type="primary"
-            @click="handleUpdate"
-            v-if="!updateDialog.downloading"
-          >
-            立即更新
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
 
     <router-view v-slot="{ Component }">
       <keep-alive>
@@ -100,20 +32,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
 import {
   BookOpen,
   SettingOne,
   MessageSearch,
-  Notepad,
-  UpdateRotation
+  Notepad
 } from '@icon-park/vue-next';
-
-import { check } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
-import { info } from '@tauri-apps/plugin-log';
-import dayjs from 'dayjs';
-import { ElMessage } from 'element-plus';
 
 defineOptions({
   name: 'Config'
@@ -141,131 +65,6 @@ const tabs = [
     path: '/config/summarize'
   }
 ];
-
-const currentVersion = ref(import.meta.env.VITE_APP_VERSION || '0.0.1');
-const updateDialog = ref({
-  visible: false,
-  title: '发现新版本',
-  downloading: false,
-  progress: 0,
-  statusText: '',
-  newVersion: '',
-  releaseDate: '',
-  releaseNotes: '',
-  contentLength: 0
-});
-
-const progressFormat = (percentage: number) => {
-  return updateDialog.value.downloading ? `${percentage}%` : '';
-};
-
-const formatBytes = (bytes: number) => {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
-};
-
-const handleUpdate = async () => {
-  try {
-    updateDialog.value.downloading = true;
-    updateDialog.value.title = '正在更新';
-    updateDialog.value.progress = 0;
-
-    const update = await check();
-    if (!update) return;
-
-    await info('Starting update download...');
-
-    await update.downloadAndInstall((event) => {
-      switch (event.event) {
-        case 'Started':
-          updateDialog.value.contentLength = event.data.contentLength || 0;
-          updateDialog.value.statusText = `开始下载 (总大小: ${formatBytes(event.data.contentLength || 0)})`;
-          info(
-            `Update download started: ${formatBytes(event.data.contentLength || 0)}`
-          );
-          break;
-        case 'Progress':
-          const downloaded = event.data.chunkLength || 0;
-          const total = updateDialog.value.contentLength;
-          if (total > 0) {
-            const progress = Math.min(
-              Math.round((downloaded / total) * 100),
-              100
-            );
-            updateDialog.value.progress = progress;
-            updateDialog.value.statusText = `正在下载: ${formatBytes(downloaded)} / ${formatBytes(total)}`;
-            info(`Update download progress: ${progress}%`);
-          }
-          break;
-        case 'Finished':
-          updateDialog.value.progress = 100;
-          updateDialog.value.statusText = '下载完成，准备安装...';
-          info('Update download finished');
-          break;
-      }
-    });
-
-    await info('Update installed successfully');
-    ElMessage.success('更新成功，即将重启应用');
-    setTimeout(() => relaunch(), 1500);
-  } catch (error) {
-    await info(`Update failed: ${error}`);
-    ElMessage.error('更新失败，请稍后重试');
-    updateDialog.value.visible = false;
-    updateDialog.value.downloading = false;
-    updateDialog.value.progress = 0;
-  }
-};
-
-const checkUpdate = async () => {
-  try {
-    await info('Starting update check...');
-    console.log('Checking for updates...');
-
-    const update = await check({
-      timeout: 60000,
-      headers: {
-        'User-Agent': 'snippets-code-updater'
-      }
-    });
-
-    console.log('Update check result:', update);
-
-    if (update) {
-      await info(`Found update: ${update.version}, released at ${update.date}`);
-
-      updateDialog.value.newVersion = update.version;
-      const releaseDate = update.date
-        ? dayjs(update.date).isValid()
-          ? dayjs(update.date).format('YYYY-MM-DD HH:mm:ss')
-          : '未知时间'
-        : '未知时间';
-
-      updateDialog.value.releaseDate = releaseDate;
-      updateDialog.value.releaseNotes =
-        update.body?.replace(/\n/g, '<br>') || '暂无更新说明';
-      updateDialog.value.visible = true;
-    } else {
-      await info('No updates available');
-      ElMessage.success('当前已是最新版本');
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    await info(`Check update failed: ${errorMessage}`);
-    console.error('Update check error:', {
-      message: errorMessage,
-      error
-    });
-
-    ElMessage.error({
-      message: '检查更新失败，请检查网络连接后重试',
-      duration: 5000
-    });
-  }
-};
 </script>
 
 <style scoped lang="scss">
@@ -274,14 +73,6 @@ const checkUpdate = async () => {
 
   .config-nav-wrapper {
     @apply flex justify-between items-center flex-col;
-
-    .app-update {
-      @apply flex justify-center items-center flex-col mb-6 mr-2;
-
-      &:hover {
-        @apply cursor-pointer animate-spin;
-      }
-    }
   }
 
   .config-nav {

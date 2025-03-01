@@ -5,13 +5,7 @@
     ]"
   >
     <div class="rounded-md overflow-hidden">
-      <Titlebar v-if="!hasHome">
-        <div class="flex items-center gap-2">
-          <img src="@/assets/128x128.png" alt="" class="w-6 h-6" />
-          <div>{{ state.appName }}</div>
-          <span class="text-sm text-stone-300">{{ state.appVersion }}</span>
-        </div>
-      </Titlebar>
+      <Titlebar v-if="!hasHome" />
       <div :class="[`w-full ${hasHome ? 'h-screen' : 'h-[calc(100vh-50px)]'}`]">
         <router-view>
           <template #default="{ Component, route }">
@@ -26,19 +20,10 @@
   </main>
 </template>
 <script setup lang="ts">
-import { initEnv, appName, appVersion } from '@/utils/env';
 defineOptions({
   name: 'AppMain'
 });
-const state = reactive({
-  appName: '',
-  appVersion: ''
-});
+
 const route = useRoute();
 const hasHome = computed(() => route.name === 'Search');
-onMounted(async () => {
-  await initEnv();
-  state.appName = appName;
-  state.appVersion = appVersion;
-});
 </script>
