@@ -1,7 +1,7 @@
 {
   "name": "snippets-code",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,8 @@
     "prepare": "husky install",
     "lint:lint-staged": "lint-staged",
     "commit": "git-cz",
-    "updater": "node scripts/updater.mjs"
+    "updater": "node scripts/updater.mjs",
+    "tag": "node scripts/tag.mjs"
   },
   "config": {
     "commitizen": {
