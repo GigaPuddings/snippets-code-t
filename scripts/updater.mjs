@@ -14,8 +14,20 @@ const octokit = new Octokit({ auth: token })
 const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
 const tag = process.env.GITHUB_REF_NAME
 
-async function updateLatestJson(release) {
+async function main() {
   try {
+    // 获取最新的 release
+    const { data: release } = await octokit.repos.getReleaseByTag({
+      owner,
+      repo,
+      tag,
+    })
+
+    // 构建文件路径
+    const basePath = path.resolve('./src-tauri/target/release/bundle')
+    const setupFile = path.join(basePath, 'nsis', `snippets-code_${tauriConfig.version}_x64-setup.exe`)
+    const sigFile = `${setupFile}.sig`
+
     // 获取已上传的文件
     const setupAsset = release.assets.find(asset => 
       asset.name === `snippets-code_${tauriConfig.version}_x64-setup.exe`
@@ -26,10 +38,9 @@ async function updateLatestJson(release) {
     }
 
     // 读取签名文件
-    const sigFile = path.join('./src-tauri/target/release/bundle/nsis', `snippets-code_${tauriConfig.version}_x64-setup.exe.sig`)
     const signature = fs.readFileSync(sigFile, 'utf8')
 
-    // 创建新的 latest.json
+    // 创建 latest.json
     const latestJson = {
       version: tauriConfig.version,
       notes: release.body || '本次更新暂无说明',
@@ -42,12 +53,13 @@ async function updateLatestJson(release) {
       }
     }
 
-    // 删除旧的 latest.json
+    // 检查是否已存在 latest.json
     const existingLatestJson = release.assets.find(asset => 
       asset.name === 'latest.json'
     )
 
     if (existingLatestJson) {
+      // 如果存在，先删除
       await octokit.repos.deleteReleaseAsset({
         owner,
         repo,
@@ -69,26 +81,7 @@ async function updateLatestJson(release) {
       }
     })
 
-    return true
-  } catch (error) {
-    console.error('更新 latest.json 失败:', error)
-    return false
-  }
-}
-
-async function main() {
-  try {
-    // 获取最新的 release
-    const { data: release } = await octokit.repos.getReleaseByTag({
-      owner,
-      repo,
-      tag,
-    })
-
-    // 首次创建 latest.json
-    await updateLatestJson(release)
-
-    // 设置为预发布草稿
+    // 设置为预发布
     await octokit.repos.updateRelease({
       owner,
       repo,
@@ -97,38 +90,13 @@ async function main() {
       draft: true  // 设置为草稿状态，需要手动发布
     })
 
-    // 监听 release 更新
-    const webhook = await octokit.repos.createWebhook({
-      owner,
-      repo,
-      name: 'web',
-      events: ['release'],
-      active: true,
-      config: {
-        url: `${process.env.GITHUB_API_URL}/repos/${owner}/${repo}/releases/${release.id}`,
-        content_type: 'json'
-      }
-    })
-
     console.log('✨ 成功上传 latest.json 并设置为预发布草稿状态')
-    console.log('✨ 已设置 webhook 监听 release 更新')
     console.log('请前往 GitHub Releases 页面编辑发布说明并手动发布')
-
   } catch (error) {
     console.error('❌ 错误:', error)
     process.exit(1)
   }
 }
 
-// 处理 release 更新事件
-if (process.env.GITHUB_EVENT_NAME === 'release') {
-  const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
-  if (event.action === 'edited' || event.action === 'published') {
-    updateLatestJson(event.release)
-      .then(() => console.log('✨ latest.json 已更新'))
-      .catch(error => console.error('❌ 更新失败:', error))
-  }
-} else {
-  main()
-}
+main()
 
