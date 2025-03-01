@@ -23,6 +23,13 @@ async function main() {
       tag,
     })
 
+    // 获取完整的 release 信息
+    const { data: fullRelease } = await octokit.repos.getRelease({
+      owner,
+      repo,
+      release_id: release.id
+    })
+
     // 构建文件路径
     const basePath = path.resolve('./src-tauri/target/release/bundle')
     const setupFile = path.join(basePath, 'nsis', `snippets-code_${tauriConfig.version}_x64-setup.exe`)
@@ -43,8 +50,8 @@ async function main() {
     // 创建 latest.json
     const latestJson = {
       version: tauriConfig.version,
-      notes: release.body || '本次更新暂无说明',
-      pub_date: release.published_at,
+      notes: fullRelease.body || '本次更新暂无说明',
+      pub_date: fullRelease.published_at,
       platforms: {
         'windows-x86_64': {
           url: setupAsset.browser_download_url,

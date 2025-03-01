@@ -188,6 +188,7 @@ const handleUpdate = async () => {
     updateDialog.value.downloading = true;
     updateDialog.value.title = '正在更新';
     updateDialog.value.progress = 0;
+    updateDialog.value.statusText = '正在下载...';
 
     const update = await check();
     if (!update) {
