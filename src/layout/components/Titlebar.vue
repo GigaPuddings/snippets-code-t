@@ -133,6 +133,8 @@ import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { info } from '@tauri-apps/plugin-log';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import { ElMessage } from 'element-plus';
 import { onMounted } from 'vue';
 
@@ -176,6 +178,11 @@ const formatBytes = (bytes: number) => {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 };
 
+// 配置 dayjs
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.tz.setDefault('Asia/Shanghai'); // 设置默认时区为中国
+
 const handleUpdate = async () => {
   try {
     updateDialog.value.downloading = true;
@@ -183,11 +190,18 @@ const handleUpdate = async () => {
     updateDialog.value.progress = 0;
 
     const update = await check();
-    if (!update) return;
+    if (!update) {
+      throw new Error('No update available');
+    }
 
     await info('Starting update download...');
 
-    await update.downloadAndInstall((event) => {
+    // 添加累计下载大小的变量
+    let totalDownloaded = 0;
+
+    await update.download(async (event) => {
+      console.log('event', event);
+
       switch (event.event) {
         case 'Started':
           updateDialog.value.contentLength = event.data.contentLength || 0;
@@ -197,15 +211,18 @@ const handleUpdate = async () => {
           );
           break;
         case 'Progress':
-          const downloaded = event.data.chunkLength || 0;
+          const chunkSize = event.data.chunkLength || 0;
+          totalDownloaded += chunkSize;
           const total = updateDialog.value.contentLength;
+
           if (total > 0) {
+            // 使用累计大小计算进度
             const progress = Math.min(
-              Math.round((downloaded / total) * 100),
+              Math.round((totalDownloaded / total) * 100),
               100
             );
             updateDialog.value.progress = progress;
-            updateDialog.value.statusText = `正在下载: ${formatBytes(downloaded)} / ${formatBytes(total)}`;
+            updateDialog.value.statusText = `正在下载: ${formatBytes(totalDownloaded)} / ${formatBytes(total)}`;
             info(`Update download progress: ${progress}%`);
           }
           break;
@@ -217,9 +234,19 @@ const handleUpdate = async () => {
       }
     });
 
+    // 等待一会儿显示下载完成状态
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 开始安装
+    updateDialog.value.statusText = '正在安装更新...';
+    await update.install();
+
     await info('Update installed successfully');
     ElMessage.success('更新成功，即将重启应用');
-    setTimeout(() => relaunch(), 1500);
+
+    // 延长等待时间，确保用户看到提示
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    await relaunch();
   } catch (error) {
     await info(`Update failed: ${error}`);
     ElMessage.error('更新失败，请稍后重试');
@@ -247,18 +274,18 @@ const checkUpdate = async (showMessage = true) => {
       await info(`Found update: ${update.version}, released at ${update.date}`);
       hasUpdate.value = true;
 
-      // 更新对话框内容
       updateDialog.value.newVersion = update.version;
-      const releaseDate = update.date
-        ? dayjs(update.date).isValid()
-          ? dayjs(update.date).format('YYYY-MM-DD HH:mm:ss')
-          : '未知时间'
+      // 修改时间处理逻辑
+      const releaseDate = update.date || (update.rawJson?.pub_date as string);
+      updateDialog.value.releaseDate = releaseDate
+        ? dayjs(releaseDate.replace(' +00:00:00', 'Z').replace('.0', ''))
+            .tz()
+            .format('YYYY-MM-DD HH:mm:ss')
         : '未知时间';
 
-      updateDialog.value.releaseDate = releaseDate;
-      updateDialog.value.releaseNotes =
-        update.body?.replace(/\n/g, '<br>') || '暂无更新说明';
-
+      updateDialog.value.releaseNotes = (update.body ||
+        update.rawJson?.notes ||
+        '暂无更新说明') as string;
       return true;
     } else {
       await info('No updates available');

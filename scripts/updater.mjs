@@ -44,7 +44,7 @@ async function main() {
     const latestJson = {
       version: tauriConfig.version,
       notes: release.body || '暂无更新说明',
-      pub_date: release.published_at || new Date().toISOString(),
+      pub_date: release.published_at,
       platforms: {
         'windows-x86_64': {
           url: setupAsset.browser_download_url,
@@ -81,15 +81,45 @@ async function main() {
       }
     })
 
-    // 将发布状态更新为预发布
-    await octokit.repos.updateRelease({
+    // 监听 release 更新
+    const updatedRelease = await octokit.repos.getRelease({
       owner,
       repo,
-      release_id: release.id,
-      prerelease: true
-    });
+      release_id: release.id
+    })
 
-    console.log('Successfully uploaded latest.json and set as prerelease')
+    // 如果发布说明有更新，重新生成 latest.json
+    if (updatedRelease.data.body !== release.body) {
+      latestJson.notes = updatedRelease.data.body || '暂无更新说明'
+      const updatedContent = JSON.stringify(latestJson, null, 2)
+      
+      // 删除旧的 latest.json
+      const newLatestJson = updatedRelease.data.assets.find(asset => 
+        asset.name === 'latest.json'
+      )
+      if (newLatestJson) {
+        await octokit.repos.deleteReleaseAsset({
+          owner,
+          repo,
+          asset_id: newLatestJson.id
+        })
+      }
+
+      // 上传更新后的 latest.json
+      await octokit.repos.uploadReleaseAsset({
+        owner,
+        repo,
+        release_id: release.id,
+        name: 'latest.json',
+        data: updatedContent,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(updatedContent)
+        }
+      })
+    }
+
+    console.log('Successfully uploaded and updated latest.json')
   } catch (error) {
     console.error('Error:', error)
     process.exit(1)
