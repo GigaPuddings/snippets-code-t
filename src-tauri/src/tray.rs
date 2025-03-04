@@ -3,6 +3,7 @@ use log::info;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    utils::config::WindowConfig,
     Manager, Runtime,
 };
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -32,7 +33,19 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             }
             "config" => {
                 info!("============== Config ==============");
-                let window = build_window("config", "配置", "/#config/summarize", 1180.0, 630.0);
+                let window = build_window(
+                    "config",
+                    "/#config/summarize",
+                    WindowConfig {
+                        title: "配置".to_string(),
+                        width: 1180.0,
+                        height: 630.0,
+                        resizable: true,
+                        transparent: true,
+                        shadow: false,
+                        ..Default::default()
+                    },
+                );
                 window.show().unwrap();
                 window.set_focus().unwrap();
             }

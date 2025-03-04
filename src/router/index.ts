@@ -83,13 +83,18 @@ const routes: RouteRecordRaw[] = [
             name: 'Todo'
           }
         ]
+      },
+      {
+        path: '/notification',
+        name: 'Notification',
+        component: () => import('@/pages/notification/index.vue')
+      },
+      {
+        path: '/update',
+        name: 'Update',
+        component: () => import('@/pages/update/index.vue')
       }
     ]
-  },
-  {
-    path: '/notification',
-    name: 'notification',
-    component: () => import('@/pages/notification/index.vue')
   }
 ];
 

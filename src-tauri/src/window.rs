@@ -1,6 +1,7 @@
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::APP;
 use log::info;
+use tauri::utils::config::WindowConfig;
 use tauri::{Listener, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 // use crate::config::get_adjusted_position;
 use mouse_position::mouse_position::Mouse;
@@ -133,7 +134,7 @@ pub fn stop_mouse_tracking() {
 }
 
 //相对于前端body元素，宽误差16、 高误差39
-pub fn build_window(label: &str, title: &str, url: &str, width: f64, height: f64) -> WebviewWindow {
+pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWindow {
     let app_handle = APP.get().unwrap();
     // let (adjusted_x, adjusted_y) = get_adjusted_position(app_handle, width, height);
 
@@ -154,12 +155,14 @@ pub fn build_window(label: &str, title: &str, url: &str, width: f64, height: f64
 
             let mut builder =
                 WebviewWindowBuilder::new(app_handle, label, WebviewUrl::App(url.into()))
-                    .title(title)
-                    .inner_size(width, height)
-                    .min_inner_size(800.0, 630.0)
-                    .transparent(true)
+                    .title(option.title)
+                    .inner_size(option.width, option.height)
+                    .min_inner_size(option.width, option.height)
+                    .resizable(option.resizable)
+                    .shadow(option.shadow)
+                    .transparent(option.transparent)
+                    .always_on_top(option.always_on_top)
                     .focused(true)
-                    .shadow(false)
                     .center()
                     .visible(false);
 
@@ -200,13 +203,21 @@ pub fn hotkey_search() {
     }
 }
 
+// 创建config窗口
 pub fn hotkey_config() {
     let window = build_window(
         "config",
-        "配置",
         "/#config/category/contentList",
-        1180.0,
-        630.0,
+        WindowConfig {
+            title: "配置".to_string(),
+            width: 1180.0,
+            height: 630.0,
+            resizable: true,
+            transparent: true,
+            shadow: false,
+            always_on_top: false,
+            ..Default::default()
+        },
     );
 
     // 先检查搜索窗口是否打开，如果打开则先关闭
@@ -227,6 +238,28 @@ pub fn hotkey_config() {
     }
 }
 
+// 创建update窗口
+pub fn create_update_window() {
+    let window = build_window( 
+        "update",
+        "/#update",
+        WindowConfig {
+            title: "系统更新".to_string(),
+            width: 460.0,
+            height: 400.0,
+            resizable: false,
+            transparent: true,
+            shadow: false,
+            always_on_top: true,
+            ..Default::default()
+        },
+    );
+
+    window.show().unwrap();
+    window.set_focus().unwrap();
+}
+
+
 // 显示隐藏窗口
 #[tauri::command]
 pub fn show_hide_window_command(label: &str) -> Result<(), String> {
@@ -236,6 +269,9 @@ pub fn show_hide_window_command(label: &str) -> Result<(), String> {
         }
         "config" => {
             hotkey_config();
+        }
+        "update" => {
+            create_update_window();
         }
         _ => {
             return Err("Invalid label".to_string());

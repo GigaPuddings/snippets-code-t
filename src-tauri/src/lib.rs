@@ -7,6 +7,7 @@ mod hotkey;
 mod migrate;
 mod search;
 mod tray;
+mod update;
 mod window;
 
 use crate::alarm::{
@@ -29,7 +30,8 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_http::reqwest;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
-use window::show_hide_window_command;
+use window::{create_update_window, show_hide_window_command};
+use crate::update::{check_update, get_update_info, get_update_status, perform_update, check_update_manually};
 
 // 定义一个全局静态变量来存储 AppHandle
 pub static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -65,13 +67,19 @@ fn ignore_cursor_events(window: tauri::Window, ignore: bool, rect: Option<(f64, 
     }
 }
 
-// 前端创建窗口
+// 前端创建config窗口
 #[tauri::command]
 async fn hotkey_config_command() -> Result<(), String> {
     hotkey_config();
     Ok(())
 }
 
+// 前端创建update窗口
+#[tauri::command]
+async fn hotkey_update_command() -> Result<(), String> {
+  create_update_window();
+    Ok(())
+}
 // 获取图标
 #[tauri::command]
 async fn fetch_favicon(url: String) -> Result<String, String> {
@@ -163,6 +171,13 @@ pub fn run() {
             }
             // 启动代办提醒检查服务
             alarm::start_alarm_service(app.handle().clone());
+            
+            // 启动时检查更新
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = check_update(&app_handle, false).await;
+            });
+            
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
@@ -200,7 +215,12 @@ pub fn run() {
             get_search_engines,
             update_search_engines,
             get_default_engines,
-            remind_notification_window
+            remind_notification_window,
+            get_update_status,
+            get_update_info, 
+            perform_update,
+            check_update_manually,
+            hotkey_update_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

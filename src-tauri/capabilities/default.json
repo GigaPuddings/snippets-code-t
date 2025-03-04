@@ -5,7 +5,8 @@
   "windows": [
     "main",
     "config",
-    "notification_*"
+    "notification_*",
+    "update"
   ],
   "permissions": [
     "core:default",
