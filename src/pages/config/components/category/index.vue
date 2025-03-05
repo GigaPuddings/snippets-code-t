@@ -26,13 +26,16 @@
           </el-tooltip>
         </div>
       </div>
-      <div class="category-list">
+      <div v-if="store.categories.length > 0" class="category-list">
         <CategoryItem
           v-for="item in store.categories"
           :key="item.id"
           :category="item"
           v-memo="[item.id, item.name, store.editCategoryId]"
         />
+      </div>
+      <div v-else class="category-empty">
+        <div class="category-empty-text">暂无文件夹</div>
       </div>
     </section>
     <section class="content-page">
@@ -121,7 +124,7 @@ onMounted(async () => {
       @apply flex justify-between items-center mt-2;
 
       .category-header-title {
-        @apply px-1 opacity-90 text-content text-xs;
+        @apply px-1 opacity-90 text-content text-xs select-none;
       }
 
       .category-header-action {
@@ -130,6 +133,14 @@ onMounted(async () => {
         .category-header-action-item-icon {
           @apply p-1 rounded-md cursor-pointer text-content hover:bg-active dark:hover:bg-hover;
         }
+      }
+    }
+
+    .category-empty {
+      @apply flex justify-center items-center h-full;
+
+      .category-empty-text {
+        @apply text-gray-500;
       }
     }
 

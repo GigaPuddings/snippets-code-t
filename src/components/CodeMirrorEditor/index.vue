@@ -1,3 +1,27 @@
+<template>
+  <main class="editor-container" :class="{ 'dark-theme': props.dark }">
+    <div
+      ref="editorContainerRef"
+      :style="codeStyle"
+      class="editor-content"
+    ></div>
+    <div class="editor-status">
+      <div class="editor-status-item">
+        <span class="editor-status-title">行数:</span>
+        <span class="editor-status-text w-6">{{ lines }}</span>
+      </div>
+      <div class="editor-status-item">
+        <span class="editor-status-title">字数:</span>
+        <span class="editor-status-text w-8">{{ length }}</span>
+      </div>
+      <div class="editor-status-item">
+        <span class="editor-status-title">语言:</span>
+        <span class="editor-status-text w-18">{{ detectedLanguage }}</span>
+      </div>
+    </div>
+  </main>
+</template>
+
 <script setup lang="ts">
 import type { CSSProperties } from 'vue';
 import { vue } from '@codemirror/lang-vue';
@@ -330,21 +354,6 @@ const emits = defineEmits<{
 }>();
 </script>
 
-<template>
-  <main class="editor-container" :class="{ 'dark-theme': props.dark }">
-    <div
-      ref="editorContainerRef"
-      :style="codeStyle"
-      class="editor-content"
-    ></div>
-    <div class="editor-status">
-      <span>Lines: {{ lines }}</span>
-      <span>Length: {{ length }}</span>
-      <span>Language: {{ detectedLanguage }}</span>
-    </div>
-  </main>
-</template>
-
 <style lang="scss" scoped>
 .editor-container {
   @apply relative overflow-hidden;
@@ -354,6 +363,18 @@ const emits = defineEmits<{
       @apply bg-panel border-t border-panel text-panel;
     }
   }
+}
+
+.editor-status-item {
+  @apply flex items-center gap-2;
+}
+
+.editor-status-title {
+  @apply opacity-80;
+}
+
+.editor-status-text {
+  @apply opacity-90;
 }
 
 .editor-content {

@@ -1,6 +1,8 @@
 <template>
   <main class="overflow-hidden border-b border-panel">
-    <div class="px-1 mt-2 opacity-90 mb-1 text-content text-xs">快捷操作</div>
+    <div class="px-1 mt-2 opacity-90 mb-1 text-content text-xs select-none">
+      快捷操作
+    </div>
     <router-link
       to="/config/category/contentList"
       class="link"
@@ -9,7 +11,7 @@
     >
       <div class="flex items-center gap-1 text-sm">
         <AllApplication theme="outline" size="18" :strokeWidth="3" />
-        <div class="truncate ml-1 text-panel">所有片段</div>
+        <div class="truncate ml-1 text-panel select-none">所有片段</div>
       </div>
     </router-link>
     <router-link
@@ -20,7 +22,7 @@
     >
       <div class="flex items-center gap-1 text-sm">
         <FolderOne theme="outline" size="17" :strokeWidth="3" />
-        <div class="truncate ml-1 text-panel">未分类</div>
+        <div class="truncate ml-1 text-panel select-none">未分类</div>
       </div>
     </router-link>
   </main>
@@ -45,6 +47,7 @@ defineOptions({
 
 .active {
   @include commonLink();
+
   @apply bg-active dark:bg-active dark:hover:bg-hover hover:bg-active;
 }
 </style>

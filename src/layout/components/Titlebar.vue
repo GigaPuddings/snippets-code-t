@@ -150,7 +150,7 @@ onMounted(async () => {
 }
 
 .titlebar {
-  @apply bg-content dark:bg-content flex justify-between items-center w-full h-8 leading-8 pr-1;
+  @apply bg-content dark:bg-content flex justify-between items-center w-full h-8 leading-8 pr-1 select-none;
 }
 
 .titlebar-title {

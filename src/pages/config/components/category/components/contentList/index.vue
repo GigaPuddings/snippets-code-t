@@ -29,13 +29,16 @@
             </el-tooltip>
           </div>
           <div class="content-list">
-            <div class="content">
+            <div v-if="store.contents.length > 0" class="content">
               <ContentItem
                 v-for="item in store.contents"
                 :key="item.id"
                 :content="item"
                 v-memo="[item.id, item.title, store.contents]"
               />
+            </div>
+            <div v-else class="content-empty">
+              <div class="content-empty-text">暂无片段内容</div>
             </div>
           </div>
         </div>
@@ -152,6 +155,14 @@ onMounted(() => {
 
     .content {
       @apply flex flex-col gap-2 p-2;
+    }
+
+    .content-empty {
+      @apply flex justify-center items-center h-full;
+
+      .content-empty-text {
+        @apply text-gray-500;
+      }
     }
   }
 }

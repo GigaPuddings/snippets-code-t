@@ -90,7 +90,7 @@ const tabs = [
       }
 
       .config-nav-item-text {
-        @apply text-center;
+        @apply text-center select-none;
       }
     }
   }
