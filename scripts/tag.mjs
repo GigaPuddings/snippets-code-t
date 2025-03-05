@@ -48,11 +48,6 @@ async function updateVersion() {
     if (!version.match(/^\d+\.\d+\.\d+$/)) {
       throw new Error('版本号格式错误，请使用 x.y.z 格式');
     }
-    
-    // 获取用户输入的版本描述
-    const description = await question('请输入版本描述（可选）。使用 "|" 换行 :\n');
-    // 处理描述中的换行符
-    const formattedDescription = description.replace(/\|/g, '\n');
 
     // 检查标签是否存在
     const tagExists = await checkTagExists(version);
@@ -98,11 +93,7 @@ async function updateVersion() {
     }
 
     console.log('正在创建标签...');
-    if (formattedDescription) {
-      execCommand(`git tag -a v${version} -m "${formattedDescription}"`);
-    } else {
-      execCommand(`git tag v${version}`);
-    }
+    execCommand(`git tag v${version}`);
     
     console.log('正在推送到远程仓库...');
     execCommand(`git push origin v${version}`);
@@ -117,4 +108,4 @@ async function updateVersion() {
   }
 }
 
-updateVersion();
+updateVersion(); 
