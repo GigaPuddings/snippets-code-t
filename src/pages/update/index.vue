@@ -1,29 +1,62 @@
 <template>
   <div class="update-container" data-tauri-drag-region>
+    <div class="update-header" data-tauri-drag-region>
+      <div class="logo-container">
+        <div class="logo-circle">
+          <img src="@/assets/128x128.png" alt="Logo" class="app-logo" />
+        </div>
+      </div>
+      <h2 class="title">软件更新</h2>
+    </div>
     <div class="update-content">
       <div class="info-section">
-        <h2 class="title">软件更新</h2>
-        <p class="version-info">
-          <span>当前版本：</span>
-          <el-tag size="small" class="version-tag">{{ currentVersion }}</el-tag>
-        </p>
-        <p class="version-info">
-          <span>最新版本：</span>
-          <el-tag type="success" size="small" class="version-tag">
-            {{ update.newVersion }}
-          </el-tag>
-        </p>
+        <div class="version-comparison">
+          <div class="version-item">
+            <div class="version-label">当前版本</div>
+            <el-tag size="small" class="version-tag current">{{ currentVersion }}</el-tag>
+          </div>
+          <div class="version-arrow">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14"></path>
+              <path d="m12 5 7 7-7 7"></path>
+            </svg>
+          </div>
+          <div class="version-item">
+            <div class="version-label">最新版本</div>
+            <el-tag type="success" size="small" class="version-tag new">
+              {{ update.newVersion }}
+            </el-tag>
+          </div>
+        </div>
         <p class="release-date">发布时间：{{ update.releaseDate }}</p>
         <div v-if="!update.downloading" class="release-notes">
-          <div class="notes-title">更新内容：</div>
-          <el-scrollbar height="120px" class="notes-scrollbar">
+          <div class="notes-title">更新内容</div>
+          <el-scrollbar height="86px" class="notes-scrollbar">
             <div class="notes-content" v-html="update.releaseNotes"></div>
           </el-scrollbar>
         </div>
         <div v-else class="download-progress">
+          <div class="progress-status">
+            <div class="status-icon" :class="{'completed': update.progress === 100}">
+              <svg v-if="update.progress < 100" class="download-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <svg v-else class="check-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+            </div>
+            <div class="status-text-container">
+              <span class="status-text">
+                {{ update.statusText || '获取数据中...' }}
+              </span>
+            </div>
+          </div>
           <div class="progress-wrapper">
             <el-progress
-              :stroke-width="16"
+              :stroke-width="8"
               :percentage="update.progress"
               :format="progressFormat"
               :status="update.progress === 100 ? 'success' : ''"
@@ -32,9 +65,6 @@
             />
             <div class="progress-info">
               <span class="percentage">{{ update.progress }}%</span>
-              <span class="status-text">
-                {{ update.statusText || '获取数据中...' }}
-              </span>
             </div>
           </div>
         </div>
@@ -46,7 +76,7 @@
         v-if="!update.downloading"
         class="action-button cancel-button"
       >
-        取消
+        稍后更新
       </el-button>
       <el-button
         type="primary"
@@ -190,15 +220,33 @@ const handleCancel = () => {
 
 <style scoped lang="scss">
 .update-container {
-  @apply w-full h-full bg-white px-6 py-4 scroll-py-24 flex flex-col items-center justify-between box-border border border-gray-200;
-
-  /* background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.95) 100%); */
-
-  /* backdrop-filter: blur(10px); */
-  border-radius: 16px;
-
-  /* box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); */
+  @apply w-full h-full bg-white px-6 py-4 scroll-py-24 flex flex-col items-center justify-between box-border border rounded-xl border-gray-200;
   animation: fadeIn 0.3s ease-out;
+
+  .update-header {
+    @apply w-full flex flex-col items-center justify-center mb-3;
+    
+    .logo-container {
+      @apply mb-3;
+      
+      .logo-circle {
+        @apply w-20 h-20 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center shadow-md;
+        animation: pulse 2s infinite ease-in-out;
+        
+        .app-logo {
+          @apply w-14 h-14 object-contain;
+          animation: float 3s ease-in-out infinite;
+        }
+      }
+    }
+    
+    .title {
+      @apply text-2xl font-semibold text-gray-800;
+      background: linear-gradient(90deg, #4F46E5, #7C3AED);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+  }
 
   .update-content {
     @apply w-full flex-1;
@@ -207,77 +255,121 @@ const handleCancel = () => {
       /* @apply space-y-1; */
       animation: slideUp 0.4s ease-out;
 
-      .title {
-        @apply text-2xl font-semibold mb-2 text-gray-800;
-
-        text-align: center;
-      }
-
-      .version-info {
-        @apply flex items-center gap-2 text-gray-600 mb-2;
-
-        .version-tag {
-          @apply transition-all duration-300;
-
-          &:hover {
-            transform: scale(1.05);
+      .version-comparison {
+        @apply flex items-center justify-center gap-4 mb-2 bg-gray-50 p-3 rounded-xl;
+        
+        .version-item {
+          @apply flex flex-col items-center;
+          
+          .version-label {
+            @apply text-sm text-gray-500 mb-1;
           }
+          
+          .version-tag {
+            @apply transition-all duration-300 px-3 py-1;
+            
+            &.current {
+              @apply bg-blue-50 text-blue-600 border-blue-200;
+            }
+            
+            &.new {
+              @apply bg-green-50 text-green-600 border-green-200;
+            }
+            
+            &:hover {
+              transform: scale(1.05);
+              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            }
+          }
+        }
+        
+        .version-arrow {
+          @apply text-gray-400;
+          animation: arrowPulse 1.5s infinite ease-in-out;
         }
       }
 
       .release-date {
-        @apply text-gray-500 text-sm mt-3;
+        @apply text-gray-500 text-sm text-center;
       }
 
       .release-notes {
-        @apply mt-4 bg-gray-50 rounded-lg p-2 border border-gray-200;
+        @apply mt-3 rounded-lg px-3 py-1 border bg-white;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
 
         .notes-title {
-          @apply font-medium text-gray-700 mb-2;
+          @apply font-medium text-gray-700 text-base;
         }
 
-        .notes-scrollbar {
+        /* .notes-scrollbar {
           @apply bg-white rounded-md;
-        }
+          box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+        } */
 
         .notes-content {
-          @apply p-3 text-gray-600;
+          @apply p-1 text-gray-600 text-sm;
         }
       }
     }
 
     .download-progress {
       @apply flex flex-col items-center justify-center space-y-4 py-6;
-
       animation: fadeIn 0.3s ease-out;
+      
+      .progress-status {
+        @apply flex items-center justify-center mb-4 w-full;
+        
+        .status-icon {
+          @apply w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mr-3;
+          
+          &.completed {
+            @apply bg-green-50;
+          }
+          
+          .download-icon {
+            @apply text-blue-500;
+            animation: bounce 1s infinite alternate;
+          }
+          
+          .check-icon {
+            @apply text-green-500;
+            animation: scaleIn 0.5s ease-out;
+          }
+        }
+        
+        .status-text-container {
+          @apply flex-1;
+          
+          .status-text {
+            @apply text-gray-600 font-medium;
+          }
+        }
+      }
 
       .progress-wrapper {
-        @apply w-full px-4 mt-10;
+        @apply w-full px-4 mt-2;
 
         .progress-bar {
           @apply mb-3;
 
           :deep(.el-progress-bar__outer) {
-            background-color: rgb(154 121 255 / 10%);
+            background-color: rgba(59, 130, 246, 0.1);
             border-radius: 8px;
           }
 
           :deep(.el-progress-bar__inner) {
-            background: linear-gradient(90deg, #9a79ff 0%, #c8b6ff 100%);
+            background: linear-gradient(90deg, #3B82F6, #6366F1);
             border-radius: 8px;
             transition: width 0.3s ease-in-out;
+            box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
           }
         }
 
         .progress-info {
-          @apply flex items-center justify-between text-sm px-1;
+          @apply flex items-center justify-center text-sm px-1;
 
           .percentage {
-            @apply font-medium text-[#9A79FF];
-          }
-
-          .status-text {
-            @apply text-gray-500;
+            @apply font-medium text-blue-600 text-lg;
           }
         }
       }
@@ -285,23 +377,22 @@ const handleCancel = () => {
   }
 
   .footer {
-    @apply w-full mt-6 flex items-center justify-center gap-4;
+    @apply w-full flex items-center justify-center gap-4;
 
     .action-button {
-      @apply min-w-[100px] transition-all duration-300;
+      @apply min-w-[120px] transition-all duration-300 rounded-lg py-2;
 
       &:hover {
         transform: translateY(-2px);
       }
 
       &.cancel-button {
-        @apply hover:bg-gray-100;
+        @apply hover:bg-gray-100 border border-gray-200 text-gray-700;
       }
 
       &.update-button {
-        @apply bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700;
-
-        box-shadow: 0 2px 10px rgb(59 130 246 / 30%);
+        @apply bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-medium;
+        box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
       }
     }
   }
@@ -337,5 +428,69 @@ const handleCancel = () => {
   to {
     transform: rotate(360deg);
   }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.2);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+  }
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes arrowPulse {
+  0% {
+    transform: translateX(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateX(3px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 0.6;
+  }
+}
+
+@keyframes bounce {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.update-dot {
+  @apply absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full;
+  animation: pulse 1.5s infinite;
 }
 </style>

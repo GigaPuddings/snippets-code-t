@@ -245,8 +245,8 @@ pub fn create_update_window() {
         "/#update",
         WindowConfig {
             title: "系统更新".to_string(),
-            width: 460.0,
-            height: 400.0,
+            width: 520.0,
+            height: 460.0,
             resizable: false,
             transparent: true,
             shadow: false,
