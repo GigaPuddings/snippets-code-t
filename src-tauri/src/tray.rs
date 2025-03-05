@@ -1,9 +1,8 @@
-use crate::window::build_window;
+use crate::window::hotkey_config;
 use log::info;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    utils::config::WindowConfig,
     Manager, Runtime,
 };
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -33,21 +32,7 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             }
             "config" => {
                 info!("============== Config ==============");
-                let window = build_window(
-                    "config",
-                    "/#config/summarize",
-                    WindowConfig {
-                        title: "配置".to_string(),
-                        width: 1180.0,
-                        height: 630.0,
-                        resizable: true,
-                        transparent: true,
-                        shadow: false,
-                        ..Default::default()
-                    },
-                );
-                window.show().unwrap();
-                window.set_focus().unwrap();
+                hotkey_config();
             }
             "view_log" => {
                 info!("============== View Log ==============");
@@ -67,7 +52,7 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             }
             _ => {}
         })
-        .on_tray_icon_event(move |tray, event| {
+        .on_tray_icon_event(move |_tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -75,11 +60,8 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             } = event
             {
                 println!("left click pressed and released");
-                let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
-                    window.show().unwrap();
-                    window.set_focus().unwrap();
-                }
+                // 打开config窗口
+                hotkey_config();
             }
         })
         .build(app)?;

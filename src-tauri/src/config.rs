@@ -2,6 +2,7 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 use tauri_plugin_global_shortcut::{Code, Modifiers};
 use tauri_plugin_store::StoreBuilder;
+use log::LevelFilter;
 // use mouse_position::mouse_position::{Mouse, Position};
 
 pub const DB_PATH_KEY: &str = "custom_db_path";
@@ -85,6 +86,15 @@ pub fn parse_hotkey(hotkey: &str) -> Result<(Modifiers, Code), String> {
 
     code.map(|code| (modifiers, code))
         .ok_or_else(|| "未指定按键".to_string())
+}
+
+// 控制日志存储
+pub fn control_logging(enable: bool) {
+    if enable {
+        log::set_max_level(LevelFilter::Info);
+    } else {
+        log::set_max_level(LevelFilter::Off);
+    }
 }
 
 // 将快捷键转义为例如 "Ctrl+Shift+F12"、"Alt+A" 的格式

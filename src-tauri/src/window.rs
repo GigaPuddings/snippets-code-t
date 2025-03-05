@@ -143,11 +143,6 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
             info!("Window exists: {}", label);
             // 更新窗口位置到鼠标位置
             // let _ = v.set_position(tauri::PhysicalPosition::new(adjusted_x, adjusted_y));
-            // let _ = v.set_focus();
-            // window.show().unwrap();
-            // window.set_always_on_top(true).unwrap();
-            window.set_focus().unwrap();
-
             return window;
         }
         None => {
@@ -222,19 +217,36 @@ pub fn hotkey_config() {
 
     // 先检查搜索窗口是否打开，如果打开则先关闭
     let search_window = APP.get().unwrap().get_webview_window("main").unwrap();
-    if search_window.is_visible().unwrap() {
+
+    // 搜索窗口和配置窗口都打开，直接关闭搜索窗口，不执行后面代码
+    if search_window.is_visible().unwrap() && window.is_visible().unwrap() {
         search_window.hide().unwrap();
         // 停止鼠标追踪
         stop_mouse_tracking();
         // 取消忽略光标
         search_window.set_ignore_cursor_events(false).unwrap();
-    }
-
-    if window.is_visible().unwrap() {
-        window.hide().unwrap();
     } else {
-        window.show().unwrap();
-        window.set_focus().unwrap();
+        // 配置窗口打开，则隐藏
+        if window.is_visible().unwrap() {
+            // 如果窗口已经显示但失去焦点，则不隐藏
+            if !window.is_focused().unwrap() {
+                window.show().unwrap(); // 重新显示窗口并聚焦
+                window.set_focus().unwrap();
+            } else {
+                window.hide().unwrap(); // 隐藏窗口
+            }
+        } else {
+            // 如果配置窗口未显示，检查搜索窗口
+            if search_window.is_visible().unwrap() {
+                search_window.hide().unwrap();
+                // 停止鼠标追踪
+                stop_mouse_tracking();
+                // 取消忽略光标
+                search_window.set_ignore_cursor_events(false).unwrap();
+            }
+            window.show().unwrap();
+            window.set_focus().unwrap();
+        }
     }
 }
 

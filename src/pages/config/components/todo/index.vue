@@ -120,7 +120,6 @@ const startTimer = () => {
 const fetchAlarmCards = async () => {
   try {
     alarmCards.value = await invoke('get_alarm_cards');
-    console.log('alarmCards', alarmCards.value);
   } catch (error) {
     console.error('Failed to fetch alarm cards:', error);
   }

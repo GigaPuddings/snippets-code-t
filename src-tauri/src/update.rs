@@ -1,4 +1,4 @@
-use crate::config::{get_value, set_value};
+use crate::config::{get_value, set_value, control_logging};
 use log::info;
 use crate::APP;
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,7 @@ struct ProgressData {
 // 检查更新
 pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bool, String> {
     info!("Checking for updates...");
-    
+    control_logging(false); // 禁用日志存储
     match app.updater() {
         Ok(updater) => {
             match updater.check().await {
@@ -51,6 +51,7 @@ pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bo
                         // 通知前端有更新
                         app.emit("update-available", true).unwrap();
                         
+                        control_logging(true); // 启用日志存储
                         Ok(true)
                     } else {
                         set_value(app, UPDATE_AVAILABLE_KEY, false);
@@ -62,13 +63,20 @@ pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bo
                                 .show()
                                 .unwrap();
                         }
+                        control_logging(true); // 启用日志存储
                         Ok(false)
                     }
                 }
-                Err(e) => Err(format!("检查更新失败: {}", e)),
+                Err(e) => {
+                    control_logging(true); // 启用日志存储
+                    Err(format!("检查更新失败: {}", e))
+                }
             }
         }
-        Err(e) => Err(format!("初始化更新器失败: {}", e)),
+        Err(e) => {
+            control_logging(true); // 启用日志存储
+            Err(format!("初始化更新器失败: {}", e))
+        }
     }
 }
 
