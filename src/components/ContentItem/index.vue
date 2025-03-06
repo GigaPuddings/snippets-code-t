@@ -155,15 +155,15 @@ const handleCategoryChange = async (categoryId: number) => {
 
 <style scoped lang="scss">
 @mixin commonLink {
-  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-active dark:hover:bg-active hover:border-panel border-b-transparent;
+  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-hover dark:hover:bg-hover hover:border-panel border-b-transparent;
 }
 
 .link {
-  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-active dark:hover:bg-active hover:border-panel border-b-transparent;
+  @include commonLink();
 }
 
 .active {
-  @apply bg-active dark:bg-active dark:hover:bg-hover;
+  @apply bg-active dark:bg-active hover:bg-active dark:hover:bg-active;
 }
 
 .content-item-wrapper {
@@ -174,7 +174,7 @@ const handleCategoryChange = async (categoryId: number) => {
   }
 
   .content-item-info {
-    @apply flex justify-between items-center pt-3 text-content;
+    @apply flex justify-between items-center pt-2 text-content;
 
     .content-item-info-category {
       @apply flex items-center gap-1 flex-1 truncate;

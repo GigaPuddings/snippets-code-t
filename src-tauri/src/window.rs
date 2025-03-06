@@ -206,7 +206,7 @@ pub fn hotkey_config() {
         WindowConfig {
             title: "配置".to_string(),
             width: 1180.0,
-            height: 630.0,
+            height: 642.0,
             resizable: true,
             transparent: true,
             shadow: false,

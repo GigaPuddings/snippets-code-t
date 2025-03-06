@@ -88,7 +88,7 @@ const handleContextMenu = async (item: any) => {
 
 <style scoped lang="scss">
 @mixin commonLink {
-  @apply rounded-md text-sm block my-1 px-3 py-1 truncate cursor-pointer hover:bg-panel dark:hover:bg-hover dark:text-panel;
+  @apply rounded-md text-sm block my-1 last:mb-0 px-3 py-[6px] truncate cursor-pointer hover:bg-hover dark:hover:bg-hover dark:text-panel;
 }
 
 .link {
@@ -101,10 +101,10 @@ const handleContextMenu = async (item: any) => {
 .active {
   @include commonLink();
 
-  @apply bg-active hover:bg-active dark:bg-active dark:hover:bg-hover;
+  @apply bg-active hover:bg-active dark:bg-active dark:hover:bg-active;
 }
 
 .category-item-input {
-  @apply bg-panel border rounded-md h-7;
+  @apply bg-panel border rounded-md h-[32px];
 }
 </style>

@@ -111,7 +111,7 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .category-container {
-  @apply w-full h-full overflow-hidden pb-4;
+  @apply w-full h-full overflow-hidden;
 
   display: grid;
   grid-template-rows: 1fr;
@@ -131,7 +131,7 @@ onMounted(async () => {
         @apply flex items-center;
 
         .category-header-action-item-icon {
-          @apply p-1 rounded-md cursor-pointer text-content hover:bg-active dark:hover:bg-hover;
+          @apply p-1 rounded-md cursor-pointer text-content hover:bg-hover dark:hover:bg-hover;
         }
       }
     }
@@ -145,7 +145,7 @@ onMounted(async () => {
     }
 
     .category-list {
-      @apply h-[calc(100vh-175px)] overflow-y-auto;
+      @apply h-[calc(100vh-174px)] overflow-y-auto;
     }
   }
 

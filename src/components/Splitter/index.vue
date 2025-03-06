@@ -145,7 +145,7 @@ onUnmounted(() => {
 }
 
 .splitter-divider {
-  @apply absolute w-[1px] h-full bg-gray-200 dark:bg-gray-800 cursor-col-resize z-10 hover:bg-blue-200;
+  @apply absolute w-[1px] h-[98%] top-[6px] bg-gray-200 dark:bg-gray-800 cursor-col-resize z-10 hover:bg-blue-200;
 }
 
 .splitter-divider-line {

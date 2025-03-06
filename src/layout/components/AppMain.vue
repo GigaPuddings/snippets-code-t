@@ -7,7 +7,7 @@
     <div class="rounded-md overflow-hidden">
       <Titlebar v-if="!hasTabbar" />
       <div
-        :class="[`w-full ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-50px)]'}`]"
+        :class="[`w-full ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-42px)]'}`]"
       >
         <router-view>
           <template #default="{ Component, route }">

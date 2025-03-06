@@ -151,7 +151,7 @@ onMounted(() => {
   }
 
   .content-list {
-    @apply h-[calc(100vh-106px)] overflow-y-auto;
+    @apply h-[calc(100vh-82px)] overflow-y-auto;
 
     .content {
       @apply flex flex-col gap-2 p-2;
