@@ -72,7 +72,7 @@ import {
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
 import { onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 defineOptions({
   name: 'Titlebar'
@@ -125,6 +125,7 @@ const handleTitlebar = async (type: WindowAction) => {
   }
 };
 
+let unListen: UnlistenFn;
 onMounted(async () => {
   await initEnv();
   state.appName = appName;
@@ -134,13 +135,13 @@ onMounted(async () => {
   hasUpdate.value = await invoke('get_update_status');
 
   // 监听更新状态变化
-  const unListen = await listen('update-available', (event: any) => {
+  unListen = await listen('update-available', (event: any) => {
     hasUpdate.value = event.payload;
   });
+});
 
-  onUnmounted(() => {
-    unListen();
-  });
+onUnmounted(() => {
+  unListen();
 });
 </script>
 

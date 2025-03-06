@@ -137,10 +137,10 @@ onMounted(async () => {
     }
 
     .category-empty {
-      @apply flex justify-center items-center h-full;
+      @apply flex justify-center h-full mt-6;
 
       .category-empty-text {
-        @apply text-gray-500;
+        @apply opacity-90 text-content text-xs select-none;
       }
     }
 

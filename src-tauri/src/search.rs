@@ -26,11 +26,14 @@ pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, St
             .map(|e| serde_json::from_value(e.clone()).unwrap())
             .collect()),
         None => {
-            // 如果没有保存的搜索引擎配置，使用默认配置
-            let default_engines: Vec<SearchEngine> =
-                serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
-            set_value(&app_handle, "search_engines", &default_engines);
-            Ok(default_engines)
+            // 如果没有保存的搜索引擎配置，使用默认配置,并且第一条数据设置为默认搜索引擎
+            let mut engines: Vec<SearchEngine> = serde_json::from_str(DEFAULT_ENGINES)
+                .map_err(|e| e.to_string())?;
+            if !engines.is_empty() {
+                engines[0].enabled = true;
+            }
+            set_value(&app_handle, "search_engines", &engines);
+            Ok(engines)
         }
     }
 }
