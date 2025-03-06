@@ -95,6 +95,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/update/index.vue')
       }
     ]
+  },
+  {
+    path: '/loading',
+    name: 'Loading',
+    component: () => import('@/pages/loading/index.vue')
   }
 ];
 

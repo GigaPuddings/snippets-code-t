@@ -178,6 +178,25 @@ pub fn run() {
                 let _ = check_update(&app_handle, false).await;
             });
             
+            // 显示加载页面，并在一段时间后显示主窗口
+            let loading_window = app.get_webview_window("loading").unwrap();
+            loading_window.show().unwrap();
+            
+            // 模拟后台加载过程，3秒后显示主窗口并关闭加载窗口
+            // let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // 模拟加载过程
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                
+                // 获取主窗口并显示
+                hotkey_config();
+                // let main_window = app_handle.get_webview_window("main").unwrap();
+                // main_window.show().unwrap();
+                
+                // 关闭加载窗口
+                loading_window.hide().unwrap();
+            });
+            
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())

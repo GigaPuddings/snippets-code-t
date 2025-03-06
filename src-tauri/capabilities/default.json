@@ -6,7 +6,8 @@
     "main",
     "config",
     "notification_*",
-    "update"
+    "update",
+    "loading"
   ],
   "permissions": [
     "core:default",

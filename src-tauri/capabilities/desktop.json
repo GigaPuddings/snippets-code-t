@@ -7,9 +7,7 @@
   ],
   "windows": [
     "main",
-    "config",
-    "notification_*",
-    "update"
+    "config"
   ],
   "permissions": [
     "global-shortcut:default",
