@@ -9,7 +9,7 @@
       <slot></slot>
     </div>
     <div class="titlebar-list">
-      <div class="app-update relative">
+      <div class="app-update relative" title="检查更新" aria-label="检查更新">
         <update-rotation
           class="icon"
           theme="outline"
@@ -19,7 +19,12 @@
         />
         <div v-if="hasUpdate" class="update-dot"></div>
       </div>
-      <div class="titlebar-button" @click="handleTitlebar('isAlwaysOnTop')">
+      <div
+        class="titlebar-button"
+        @click="handleTitlebar('isAlwaysOnTop')"
+        title="置顶窗口"
+        aria-label="置顶窗口"
+      >
         <component
           :is="isAlwaysOnTop ? Pushpin : Pin"
           class="icon"
@@ -29,7 +34,12 @@
           strokeLinecap="butt"
         />
       </div>
-      <div class="titlebar-button" @click="handleTitlebar('minimize')">
+      <div
+        class="titlebar-button"
+        @click="handleTitlebar('minimize')"
+        title="最小化窗口"
+        aria-label="最小化窗口"
+      >
         <minus
           class="icon"
           theme="outline"
@@ -38,7 +48,12 @@
           strokeLinecap="butt"
         />
       </div>
-      <div class="titlebar-button" @click="handleTitlebar('maximize')">
+      <div
+        class="titlebar-button"
+        @click="handleTitlebar('maximize')"
+        :title="title"
+        :aria-label="title"
+      >
         <square-small
           class="icon"
           theme="outline"
@@ -47,7 +62,12 @@
           strokeLinecap="butt"
         />
       </div>
-      <div class="titlebar-button" @click="handleTitlebar('close')">
+      <div
+        class="titlebar-button"
+        @click="handleTitlebar('close')"
+        title="关闭窗口"
+        aria-label="关闭窗口"
+      >
         <close-small
           class="icon !p-0"
           theme="outline"
@@ -78,6 +98,7 @@ defineOptions({
   name: 'Titlebar'
 });
 
+const isMaximized = ref(false);
 type WindowAction = 'isAlwaysOnTop' | 'minimize' | 'maximize' | 'close';
 
 const isAlwaysOnTop = ref<boolean>(false);
@@ -101,6 +122,11 @@ const handleUpdateClick = async () => {
   }
 };
 
+// 最大化按钮标题
+const title = computed(() => {
+  return isMaximized.value ? '还原窗口' : '最大化窗口';
+});
+
 const appWindow = getAppWindow('config');
 
 // 操作映射对象
@@ -112,6 +138,7 @@ const actionHandlers: Record<WindowAction, () => Promise<void>> = {
   minimize: async () => appWindow.minimize(),
   maximize: async () => {
     const maximized = await appWindow.isMaximized();
+    isMaximized.value = !maximized;
     maximized ? appWindow.unmaximize() : appWindow.maximize();
   },
   close: async () => appWindow.close()
