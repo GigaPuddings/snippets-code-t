@@ -13,6 +13,7 @@
     "updater": {
       "active": true,
       "endpoints": [
+        "https://ghfast.top/github.com/GigaPuddings/snippets-code-t/releases/latest/download/latest.json",
         "https://github.com/GigaPuddings/snippets-code-t/releases/latest/download/latest.json"
       ],
       "dialog": false,
@@ -90,8 +91,7 @@
           "English"
         ],
         "displayLanguageSelector": true,
-        "installerIcon": "icons/icon.ico",
-        "installMode": "perMachine"
+        "installerIcon": "icons/icon.ico"
       }
     },
     "createUpdaterArtifacts": true
