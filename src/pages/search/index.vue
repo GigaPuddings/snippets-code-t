@@ -85,7 +85,7 @@ const handleKeyDown = async (e: Event) => {
 }
 
 .main {
-  @apply bg-search rounded-md shadow-inner ring-1 ring-black/5 p-3;
+  @apply bg-search rounded-md p-3 border border-black/10 box-border;
 
   .search {
     @apply rounded-lg flex items-center;

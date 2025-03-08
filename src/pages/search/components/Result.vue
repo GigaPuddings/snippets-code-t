@@ -240,7 +240,7 @@ const handleKeyEvent = (e: KeyboardEvent) => {
 
     // 检查目标项是否在容器内
     if (bottom > containerBottom) {
-      resultContainer.scrollTop += bottom - containerBottom + 10;
+      resultContainer.scrollTop += bottom - containerBottom;
     } else if (top < containerTop) {
       resultContainer.scrollTop -= containerTop - top;
     }
@@ -283,15 +283,6 @@ onUnmounted(() => {
   shouldControlTabs.value = false;
 });
 
-// function getFavicon(url: string) {
-//   try {
-//     const urlObj = new URL(url);
-//     return `${urlObj.protocol}//${urlObj.hostname}/favicon.ico`;
-//   } catch {
-//     return '';
-//   }
-// }
-
 // 添加图标加载失败处理
 const handleIconError = (event: Event) => {
   const img = event.target as HTMLImageElement;
@@ -304,7 +295,7 @@ const handleIconError = (event: Event) => {
   @apply bg-search px-1 rounded-bl-lg rounded-br-lg;
 
   .tabs {
-    @apply flex gap-2 py-2 border-search;
+    @apply flex gap-2 pt-2 pb-1 border-search;
 
     .tab {
       @apply px-3 py-1 text-sm text-search cursor-pointer rounded-md;
@@ -316,7 +307,7 @@ const handleIconError = (event: Event) => {
   }
 
   .result {
-    @apply max-h-[254px] overflow-y-auto;
+    @apply max-h-[218px] overflow-y-auto;
 
     .item {
       @apply flex items-center gap-2 text-search px-2 py-1 rounded-lg cursor-pointer;
