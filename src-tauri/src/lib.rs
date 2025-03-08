@@ -15,6 +15,9 @@ use crate::alarm::{
     toggle_alarm_card, update_alarm_card,
 };
 use crate::db::{backup_database, get_db_path, restore_database, set_custom_db_path};
+use crate::update::{
+    check_update, check_update_manually, get_update_info, get_update_status, perform_update,
+};
 use crate::window::{hotkey_config, start_mouse_tracking};
 use apps::{get_installed_apps, open_app_command};
 use bookmarks::{get_browser_bookmarks, open_url};
@@ -31,7 +34,6 @@ use tauri_plugin_http::reqwest;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
 use window::{create_update_window, show_hide_window_command};
-use crate::update::{check_update, get_update_info, get_update_status, perform_update, check_update_manually};
 
 // 定义一个全局静态变量来存储 AppHandle
 pub static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -77,7 +79,7 @@ async fn hotkey_config_command() -> Result<(), String> {
 // 前端创建update窗口
 #[tauri::command]
 async fn hotkey_update_command() -> Result<(), String> {
-  create_update_window();
+    create_update_window();
     Ok(())
 }
 // 获取图标
@@ -171,32 +173,38 @@ pub fn run() {
             }
             // 启动代办提醒检查服务
             alarm::start_alarm_service(app.handle().clone());
-            
+
             // 启动时检查更新
             let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                let _ = check_update(&app_handle, false).await;
-            });
-            
-            // 显示加载页面，并在一段时间后显示主窗口
-            let loading_window = app.get_webview_window("loading").unwrap();
-            loading_window.show().unwrap();
-            
-            // 模拟后台加载过程，3秒后显示主窗口并关闭加载窗口
-            // let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                // 模拟加载过程
-                std::thread::sleep(std::time::Duration::from_secs(5));
-                
-                // 获取主窗口并显示
-                hotkey_config();
-                // let main_window = app_handle.get_webview_window("main").unwrap();
-                // main_window.show().unwrap();
-                
-                // 关闭加载窗口
-                loading_window.hide().unwrap();
-            });
-            
+            tauri::async_runtime::spawn(
+                async move { check_update(&app_handle, false).await.unwrap() },
+            );
+
+            // 检查是否是自动启动
+            let is_auto_start = match std::env::args().collect::<Vec<String>>() {
+                args => args.iter().any(|arg| arg == "--flag1" || arg == "--flag2")
+            };
+
+            if !is_auto_start {                                  
+                // 显示加载页面，并在一段时间后显示主窗口    
+                if let Some(loading_window) = app.get_webview_window("loading") {
+                    loading_window.show().unwrap();
+
+                    // 模拟后台加载过程，5秒后显示主窗口并关闭加载窗口
+                    let loading_window_clone = loading_window.clone();
+                    tauri::async_runtime::spawn(async move {
+                        // 模拟加载过程
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+
+                        // 关闭加载窗口
+                        loading_window_clone.hide().unwrap();
+                        
+                        // 显示主窗口
+                        crate::window::hotkey_config();
+                    });
+                }
+            }
+
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
@@ -236,7 +244,7 @@ pub fn run() {
             get_default_engines,
             remind_notification_window,
             get_update_status,
-            get_update_info, 
+            get_update_info,
             perform_update,
             check_update_manually,
             hotkey_update_command,

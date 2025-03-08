@@ -1,4 +1,4 @@
-use crate::config::{get_value, set_value, control_logging};
+use crate::config::{control_logging, get_value, set_value, UPDATE_AVAILABLE_KEY, UPDATE_INFO_KEY};
 use log::info;
 use crate::APP;
 use serde::{Deserialize, Serialize};
@@ -6,8 +6,6 @@ use tauri::{AppHandle, Emitter};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::UpdaterExt;
 
-const UPDATE_AVAILABLE_KEY: &str = "update_available";
-const UPDATE_INFO_KEY: &str = "update_info";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UpdateInfo {

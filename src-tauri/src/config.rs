@@ -5,7 +5,9 @@ use tauri_plugin_store::StoreBuilder;
 use log::LevelFilter;
 // use mouse_position::mouse_position::{Mouse, Position};
 
-pub const DB_PATH_KEY: &str = "custom_db_path";
+pub const DB_PATH_KEY: &str = "custom_db_path"; // 自定义数据库路径
+pub const UPDATE_AVAILABLE_KEY: &str = "update_available"; // 更新可用标志
+pub const UPDATE_INFO_KEY: &str = "update_info"; // 更新信息
 
 // 获取值
 pub fn get_value(app_handle: &tauri::AppHandle, key: &str) -> Option<Value> {

@@ -243,7 +243,6 @@ pub async fn set_custom_db_path() -> Result<String, String> {
     let new_path_str = new_path.to_str().unwrap().to_string();
     crate::config::set_value(app, DB_PATH_KEY, &new_path_str);
 
-    // 重启应用以应用新路径
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(1));
         app.global_shortcut().unregister_all().unwrap();
