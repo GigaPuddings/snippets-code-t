@@ -10,7 +10,7 @@ const { searchText, searchResults, handleEnterSearch, clearSearch } =
   useSearch();
 
 const searchRef = ref<HTMLElement | null>(null);
-const searchInputRef = ref<HTMLElement | null>(null);
+const searchInputRef = ref<HTMLInputElement | null>(null);
 
 const handleGoConfig = async () => {
   try {
@@ -25,8 +25,12 @@ onMounted(async () => {
     useSetIgnoreCursorEvents(searchRef.value);
   }
   listen('windowFocused', () => {
-    // 输入框聚焦
-    searchInputRef.value?.focus();
+    // 如果输入框有值选中文本，没有则聚焦
+    if (searchText.value) {
+      searchInputRef.value?.select();
+    } else {
+      searchInputRef.value?.focus();
+    }
   });
 });
 
