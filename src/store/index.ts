@@ -1,7 +1,5 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
-import { emit } from '@tauri-apps/api/event';
-// import { defaultSearchEngines } from '@/utils/search-engines';
 
 export const useConfigurationStore = defineStore('configuration', {
   state: (): StoreState => ({
@@ -18,9 +16,7 @@ export const useConfigurationStore = defineStore('configuration', {
     dbPath: '', // 数据库路径
     dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
-    autoStart: false, // 开机自启
-    searchEngines: [],
-    defaultSearchEngines: []
+    autoStart: false // 开机自启
   }),
   actions: {
     // 初始化配置
@@ -33,10 +29,6 @@ export const useConfigurationStore = defineStore('configuration', {
           this.dbPath = (await invoke('get_db_path')) || ''; // 获取数据库路径
           console.log('this.dbPath', this.dbPath);
         }
-
-        // 获取搜索引擎配置
-        this.searchEngines = await invoke('get_search_engines');
-        this.defaultSearchEngines = await invoke('get_default_engines');
       } catch (error) {
         console.error('初始化数据失败:', error);
       }
@@ -51,19 +43,6 @@ export const useConfigurationStore = defineStore('configuration', {
       } catch (error) {
         console.error('获取快捷键配置失败:', error);
         ElMessage.error('获取快捷键配置失败');
-      }
-    },
-
-    // 更新搜索引擎配置
-    async updateSearchEngines(engines: SearchEngineConfig[]) {
-      try {
-        await invoke('update_search_engines', { engines });
-        // 通知所有窗口更新搜索引擎配置
-        this.searchEngines = engines;
-        await emit('search-engines-updated', engines);
-      } catch (error) {
-        console.error('更新搜索引擎配置失败:', error);
-        ElMessage.error('更新搜索引擎配置失败');
       }
     }
   },

@@ -102,13 +102,12 @@
 
 <script setup lang="ts">
 import { Add, Reduce, Picture } from '@icon-park/vue-next';
-import { useConfigurationStore } from '@/store';
 import { uuid } from '@/utils';
-import { storeToRefs } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
+import { emit } from '@tauri-apps/api/event';
 
-const store = useConfigurationStore();
-const { searchEngines, defaultSearchEngines } = storeToRefs(store);
+const searchEngines = ref<SearchEngineConfig[]>([]);
+const defaultSearchEngines = ref<SearchEngineConfig[]>([]);
 
 // 创建一个响应式的图标映射
 const engineIconMap = reactive(new Map<string, string>());
@@ -176,6 +175,8 @@ watch(
 
 // 组件挂载时初始化图标
 onMounted(async () => {
+  searchEngines.value = await invoke('get_search_engines');
+  defaultSearchEngines.value = await invoke('get_default_engines');
   await initializeIcons();
 });
 
@@ -197,6 +198,19 @@ onMounted(async () => {
 //   };
 // }
 
+// 更新搜索引擎配置
+const updateSearchEngines = async (engines: SearchEngineConfig[]) => {
+  try {
+    await invoke('update_search_engines', { engines });
+    // 通知所有窗口更新搜索引擎配置
+    searchEngines.value = engines;
+    await emit('search-engines-updated', engines);
+  } catch (error) {
+    console.error('更新搜索引擎配置失败:', error);
+    ElMessage.error('更新搜索引擎配置失败');
+  }
+};
+
 const handleAdd = async () => {
   const newEngine: SearchEngineConfig = {
     id: uuid(),
@@ -206,11 +220,11 @@ const handleAdd = async () => {
     url: '',
     enabled: false
   };
-  await store.updateSearchEngines([...searchEngines.value, newEngine]);
+  await updateSearchEngines([...searchEngines.value, newEngine]);
 };
 
 const handleDelete = async (index: number) => {
-  await store.updateSearchEngines(
+  await updateSearchEngines(
     searchEngines.value.filter((_, idx) => idx !== index)
   );
 };
@@ -221,7 +235,7 @@ const handleSwitch = async (index: number) => {
     ...engine,
     enabled: idx === index ? engine.enabled : false
   }));
-  await store.updateSearchEngines(updatedEngines);
+  await updateSearchEngines(updatedEngines);
 };
 
 // 选中的引擎，赋值给当前引擎
@@ -233,7 +247,7 @@ const handleSelect = async (index: number, name: string) => {
   if (engine) {
     const updatedEngines = [...searchEngines.value];
     updatedEngines[index] = { ...engine };
-    await store.updateSearchEngines(updatedEngines);
+    await updateSearchEngines(updatedEngines);
   }
 };
 

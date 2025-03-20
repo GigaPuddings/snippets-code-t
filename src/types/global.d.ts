@@ -34,8 +34,6 @@ declare global {
     dbBackup: string;
     theme: 'light' | 'dark' | 'auto';
     autoStart: boolean;
-    searchEngines: SearchEngineConfig[];
-    defaultSearchEngines: SearchEngineConfig[];
   }
 
   // 添加搜索引擎配置类型
