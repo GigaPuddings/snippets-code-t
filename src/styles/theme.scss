@@ -11,11 +11,13 @@
   --categories-border-color: #e4e7ed;
 
   // 搜索窗口主题变量
-  --search-bg: #fff;
+  --search-bg-color: #faf8f8;
+  --search-text-color: #1e1e1e;
+  --search-info-text-color: #8a8a89;
+  --search-border-color: #e1e0e0;
   --search-input-bg: #f5f7fa;
-  --search-text: #333;
   --search-placeholder: #999;
-  --search-result-hover: #f5f7fa;
+  --search-result-hover: #f0eeee;
   --search-border: #e4e7ed;
 }
 
@@ -32,9 +34,11 @@
   --categories-border-color: #363636;
 
   // 搜索窗口深色主题变量
-  --search-bg: #1a1a1a;
+  --search-bg-color: #202020;
+  --search-text-color: #fcfcfc;
+  --search-info-text-color: #949494;
+  --search-border-color: #363636;
   --search-input-bg: #2c2c2c;
-  --search-text: #fff;
   --search-placeholder: #666;
   --search-result-hover: #363636;
   --search-border: #363636;

@@ -53,14 +53,13 @@ const handleKeyDown = async (e: Event) => {
         ref="searchInputRef"
         class="input"
         autofocus
-        size="large"
         v-model="searchText"
         @keydown="handleKeyDown"
       />
       <home
         class="home"
         theme="outline"
-        size="22"
+        size="24"
         :strokeWidth="4"
         strokeLinecap="butt"
         @click="handleGoConfig"
@@ -92,14 +91,14 @@ const handleKeyDown = async (e: Event) => {
   @apply bg-search rounded-md p-3 border border-black/10 box-border;
 
   .search {
-    @apply rounded-lg flex items-center;
+    @apply flex items-center border-b border-search;
 
     .input {
-      @apply bg-search-input rounded-sm ml-1 mr-2 font-semibold text-[17px] text-search;
+      @apply rounded-sm mr-2 py-[2px] text-base text-search;
     }
 
     .home {
-      @apply p-1 hover:opacity-80 rounded-md text-search cursor-pointer;
+      @apply p-1 rounded-md opacity-80 cursor-pointer;
     }
   }
 }

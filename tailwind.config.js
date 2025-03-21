@@ -9,7 +9,7 @@ export default {
         content: 'var(--categories-content-bg)',
         active: 'var(--categories-bg-active)',
         hover: 'var(--categories-panel-bg-hover)',
-        search: 'var(--search-bg)',
+        search: 'var(--search-bg-color)',
         'search-input': 'var(--search-input-bg)',
         'search-hover': 'var(--search-result-hover)',
         'tab-active': 'var(--categories-bg-tab-active)'
@@ -19,12 +19,13 @@ export default {
         content: 'var(--categories-info-text-color)',
         active: 'var(--categories-text-color-active)',
         primary: '#4b94f8',
-        search: 'var(--search-text)',
+        search: 'var(--search-text-color)',
+        'search-info': 'var(--search-info-text-color)',
         'search-secondary': 'var(--search-placeholder)'
       },
       borderColor: {
         panel: 'var(--categories-border-color)',
-        search: 'var(--search-border)'
+        search: 'var(--search-border-color)'
       }
     }
   },

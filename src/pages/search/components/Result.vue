@@ -196,9 +196,6 @@ const filteredResults = computed(() => {
       results = props.results;
       break;
   }
-
-  console.log('results', results);
-
   return results;
 });
 
@@ -399,7 +396,7 @@ const handleIconError = (item: ContentType) => {
         @apply flex-grow overflow-hidden;
 
         .title {
-          @apply text-sm truncate font-sans font-semibold text-search;
+          @apply text-sm truncate font-sans text-search;
         }
 
         .text {
