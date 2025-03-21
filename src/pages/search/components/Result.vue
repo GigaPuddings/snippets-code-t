@@ -17,7 +17,6 @@
         <div
           class="item"
           :class="{ active: item.id === store.id }"
-          :data-id="String(item.id)"
           @click="selectItem(item)"
         >
           <div class="icon-wrapper">
@@ -79,7 +78,6 @@ import {
 } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
-import { onMounted, onUnmounted, ref, computed, watch } from 'vue';
 
 const store = useConfigurationStore();
 
@@ -104,83 +102,6 @@ const tabs = ref<{ label: string; value: SummarizeType }[]>([
     value: 'bookmark'
   }
 ]);
-
-// 跟踪哪些项目可见
-const visibleItems = ref<Set<string>>(new Set());
-
-// 与交集的观察者
-let observer: IntersectionObserver | null = null;
-
-// 安装组件安装时设置相交器
-onMounted(() => {
-  observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        const id = entry.target.getAttribute('data-id');
-        if (id) {
-          if (entry.isIntersecting) {
-            visibleItems.value.add(id);
-          } else {
-            visibleItems.value.delete(id);
-          }
-        }
-      });
-    },
-    { root: containerRef.value?.querySelector('.result'), threshold: 0.1 }
-  );
-
-  // 开始观察结果项目
-  observeResultItems();
-
-  document.addEventListener('keydown', handleKeyEvent);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeyEvent);
-  shouldControlTabs.value = false;
-
-  // 断开观察者的连接
-  if (observer) {
-    observer.disconnect();
-    observer = null;
-  }
-});
-
-// 功能可以检查一个项目是否在视口中
-function isInViewport(id: string | number): boolean {
-  return visibleItems.value.has(String(id));
-}
-
-// 功能观察结果项目
-function observeResultItems() {
-  if (!observer) return;
-
-  setTimeout(() => {
-    const items = containerRef.value?.querySelectorAll('.item');
-    if (items) {
-      items.forEach((item) => {
-        const id = item.getAttribute('data-id');
-        if (id) {
-          observer?.observe(item);
-        }
-      });
-    }
-  }, 100);
-}
-
-// 观察过滤结果的变化和重新观察
-watch(
-  () => props.results,
-  () => {
-    if (observer) {
-      observer.disconnect();
-      visibleItems.value.clear();
-
-      // DOM更新后重新观察
-      setTimeout(observeResultItems, 100);
-    }
-  }
-);
 
 // 过滤结果
 const filteredResults = computed(() => {
@@ -356,6 +277,15 @@ function showHideWindow() {
 const handleIconError = (item: ContentType) => {
   item.icon = undefined;
 };
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyEvent);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyEvent);
+  shouldControlTabs.value = false;
+});
 </script>
 <style lang="scss" scoped>
 .result-container {
