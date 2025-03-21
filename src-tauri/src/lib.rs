@@ -4,6 +4,7 @@ mod bookmarks;
 mod config;
 mod db;
 mod hotkey;
+mod icon;
 mod migrate;
 mod search;
 mod tray;
@@ -19,9 +20,10 @@ use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
 };
 use crate::window::{hotkey_config, start_mouse_tracking};
-use apps::{get_installed_apps, open_app_command};
-use bookmarks::{get_browser_bookmarks, open_url};
+use apps::open_app_command;
+use bookmarks::open_url;
 use hotkey::*;
+use icon::init_app_and_bookmark_icons;
 use log::info;
 use search::*;
 use std::sync::Mutex;
@@ -30,7 +32,6 @@ use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::MacosLauncher;
-use tauri_plugin_http::reqwest;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
 use window::{create_update_window, show_hide_window_command};
@@ -82,35 +83,14 @@ async fn hotkey_update_command() -> Result<(), String> {
     create_update_window();
     Ok(())
 }
-// 获取图标
+
+// 获取网站favicon
 #[tauri::command]
-async fn fetch_favicon(url: String) -> Result<String, String> {
-    let client = reqwest::Client::new();
-
-    // 尝试不同的图标源
-    let icon_urls = vec![
-        format!("https://www.google.com/s2/favicons?domain={}&sz=32", url),
-        format!("https://api.iowen.cn/favicon/{}.png", url),
-        format!("https://favicon.cccyun.cc/{}", url),
-        format!("https://icon.horse/icon/{}", url),
-        format!("https://{}/favicon.ico", url),
-    ];
-
-    for icon_url in icon_urls {
-        if let Ok(response) = client.get(&icon_url).send().await {
-            if response.status().is_success() {
-                if let Ok(bytes) = response.bytes().await {
-                    return Ok(format!(
-                        "data:image/png;base64,{}",
-                        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes)
-                    ));
-                }
-            }
-        }
+async fn fetch_favicon(url: String) -> String {
+    match icon::fetch_favicon_async(&url).await {
+        Some(icon_data) => icon_data,
+        None => "".to_string()
     }
-
-    // 返回默认图标
-    Ok("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==".to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -180,13 +160,21 @@ pub fn run() {
                 async move { check_update(&app_handle, false).await.unwrap() },
             );
 
+            // 初始化应用和书签图标（后台线程）
+            let app_handle_clone = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // 延迟1秒后开始加载图标，避免影响应用启动速度
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                init_app_and_bookmark_icons(&app_handle_clone);
+            });
+
             // 检查是否是自动启动
             let is_auto_start = match std::env::args().collect::<Vec<String>>() {
-                args => args.iter().any(|arg| arg == "--flag1" || arg == "--flag2")
+                args => args.iter().any(|arg| arg == "--flag1" || arg == "--flag2"),
             };
 
-            if !is_auto_start {                                  
-                // 显示加载页面，并在一段时间后显示主窗口    
+            if !is_auto_start {
+                // 显示加载页面，并在一段时间后显示主窗口
                 if let Some(loading_window) = app.get_webview_window("loading") {
                     loading_window.show().unwrap();
 
@@ -198,7 +186,7 @@ pub fn run() {
 
                         // 关闭加载窗口
                         loading_window_clone.hide().unwrap();
-                        
+
                         // 显示主窗口
                         crate::window::hotkey_config();
                     });
@@ -209,7 +197,6 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
-            // 监听主窗口事件
             if window.label() == "main" {
                 match event {
                     WindowEvent::Focused(true) => {
@@ -220,34 +207,34 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            register_shortcut_by_frontend,
-            get_shortcuts,
-            ignore_cursor_events,
-            hotkey_config_command,
-            get_installed_apps,
-            open_app_command,
-            show_hide_window_command,
-            get_browser_bookmarks,
-            open_url,
-            get_db_path,
-            backup_database,
-            restore_database,
-            fetch_favicon,
-            set_custom_db_path,
-            get_alarm_cards,
-            add_alarm_card,
-            update_alarm_card,
-            delete_alarm_card,
-            toggle_alarm_card,
-            get_search_engines,
-            update_search_engines,
-            get_default_engines,
-            remind_notification_window,
-            get_update_status,
-            get_update_info,
-            perform_update,
-            check_update_manually,
-            hotkey_update_command,
+            register_shortcut_by_frontend, // 注册快捷键
+            get_shortcuts, // 获取快捷键
+            ignore_cursor_events, // 忽略鼠标事件
+            hotkey_config_command, // 快捷键配置
+            hotkey_update_command, // 快捷键更新
+            open_app_command, // 打开应用
+            show_hide_window_command, // 显示隐藏窗口
+            open_url, // 打开书签
+            get_db_path, // 获取数据库路径
+            backup_database, // 备份数据库
+            restore_database, // 恢复数据库
+            set_custom_db_path, // 设置自定义数据库路径
+            get_alarm_cards, // 获取代办提醒卡片
+            add_alarm_card, // 添加代办提醒卡片
+            update_alarm_card, // 更新代办提醒卡片
+            delete_alarm_card, // 删除代办提醒卡片
+            toggle_alarm_card, // 切换代办提醒卡片
+            get_search_engines, // 获取搜索引擎
+            update_search_engines, // 更新搜索引擎
+            get_default_engines, // 获取默认搜索引擎
+            remind_notification_window, // 提醒通知窗口
+            get_update_status, // 获取更新状态
+            get_update_info, // 获取更新信息
+            perform_update, // 执行更新
+            check_update_manually, // 手动检查更新
+            fetch_favicon, // 获取网站favicon
+            search_apps, // 搜索应用
+            search_bookmarks, // 搜索书签
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

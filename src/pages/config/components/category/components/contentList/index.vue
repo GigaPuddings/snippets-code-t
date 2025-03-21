@@ -85,11 +85,7 @@ watch(
     // 从路径中提取 cid
     const newCid = route.params.cid as string;
     // 只有当路径中包含 contentList 时才触发（说明是点击分类导航）
-    if (
-      newPath.includes('/contentList') &&
-      !newPath.includes('/content/') &&
-      store.apps.length !== 0
-    ) {
+    if (newPath.includes('/contentList') && !newPath.includes('/content/')) {
       queryFragments(newCid ? newCid : undefined);
     }
   },

@@ -19,6 +19,7 @@ _tmp*
 !.vscode/extensions.json
 .idea
 .DS_Store
+.cursorignore
 *.suo
 *.ntvs*
 *.njsproj

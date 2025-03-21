@@ -1,8 +1,12 @@
+use crate::icon;
+use log::info;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs;
 use std::mem::size_of;
 use std::path::Path;
+use tauri::AppHandle;
 use uuid::Uuid;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::System::ProcessStatus::{K32EnumProcesses, K32GetModuleFileNameExA};
@@ -13,12 +17,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
 use winreg::RegKey;
+use xml::reader::{EventReader, XmlEvent};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppInfo {
     pub id: String,
     pub title: String,
-    pub content: String,
+    pub content: String,      // Path to the executable
+    pub icon: Option<String>, // Base64 encoded icon data
     pub summarize: String,
 }
 
@@ -57,7 +63,8 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
                                 apps.push(AppInfo {
                                     id: Uuid::new_v4().to_string(),
                                     title: display_name.clone(),
-                                    content: icon_path,
+                                    content: icon_path.clone(),
+                                    icon: None, // Icons will be loaded asynchronously later
                                     summarize: "app".to_string(),
                                 });
                             }
@@ -71,8 +78,129 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
     apps
 }
 
+// UWP应用的信息
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct UwpAppInfo {
+    display_name: String,
+    logo_path: String,
+    executable: String,
+}
+
+// 解析AppxManifest.xml文件提取UWP应用信息
+fn parse_appx_manifest(manifest_path: &Path) -> Option<UwpAppInfo> {
+    // 读取清单文件
+    let file = fs::File::open(manifest_path).ok()?;
+    let parser = EventReader::new(file);
+    
+    let mut display_name = None;
+    let mut logo_path = None;
+    let mut executable = None;
+    let mut package_path = manifest_path.parent()?.to_path_buf();
+    
+    // 移除掉最后一级目录(通常是AppxManifest.xml所在的目录)
+    if let Some(parent) = package_path.parent() {
+        package_path = parent.to_path_buf();
+    }
+    
+    for event in parser {
+        match event {
+            Ok(XmlEvent::StartElement { name, attributes, .. }) => {
+                // 获取显示名称
+                if name.local_name == "Application" {
+                    for attr in &attributes {
+                        if attr.name.local_name == "Executable" {
+                            executable = Some(attr.value.clone());
+                        }
+                    }
+                } else if name.local_name == "DisplayName" {
+                    for attr in &attributes {
+                        if attr.name.local_name == "Name" {
+                            display_name = Some(attr.value.clone());
+                        }
+                    }
+                } else if name.local_name == "Logo" {
+                    for attr in &attributes {
+                        if attr.name.local_name == "Path" {
+                            logo_path = Some(attr.value.clone());
+                        }
+                    }
+                }
+            }
+            Ok(XmlEvent::Characters(content)) => {
+                // 如果之前找到了DisplayName标签但没有Name属性，则使用内容作为名称
+                if display_name.is_none() && content.trim().len() > 0 {
+                    display_name = Some(content);
+                }
+            }
+            Err(_) => break,
+            _ => {}
+        }
+    }
+    
+    // 检查是否找到所有必要信息
+    if let (Some(name), Some(logo), Some(exe)) = (display_name, logo_path, executable) {
+        // 构建完整的图标路径
+        let full_logo_path = package_path.join(&logo);
+        let full_exe_path = package_path.join(&exe);
+        
+        Some(UwpAppInfo {
+            display_name: name,
+            logo_path: full_logo_path.to_string_lossy().to_string(),
+            executable: full_exe_path.to_string_lossy().to_string(),
+        })
+    } else {
+        None
+    }
+}
+
+// 获取UWP应用
+fn get_uwp_apps() -> Vec<AppInfo> {
+    let mut apps = Vec::new();
+    
+    // UWP应用通常安装在以下目录
+    let packages_paths = [
+        "C:\\Program Files\\WindowsApps",
+        "C:\\Program Files\\ModifiableWindowsApps",
+    ];
+    
+    for &base_path in &packages_paths {
+        let base_dir = Path::new(base_path);
+        
+        if !base_dir.exists() || !base_dir.is_dir() {
+            continue;
+        }
+        
+        // 遍历所有应用包目录
+        if let Ok(entries) = fs::read_dir(base_dir) {
+            for entry in entries.filter_map(Result::ok) {
+                let package_dir = entry.path();
+                
+                if !package_dir.is_dir() {
+                    continue;
+                }
+                
+                // 查找AppxManifest.xml文件
+                let manifest_path = package_dir.join("AppxManifest.xml");
+                
+                if manifest_path.exists() {
+                    if let Some(app_info) = parse_appx_manifest(&manifest_path) {
+                        apps.push(AppInfo {
+                            id: Uuid::new_v4().to_string(),
+                            title: app_info.display_name,
+                            content: app_info.executable,
+                            icon: None, // 图标将在后续异步加载
+                            summarize: "uwp".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    apps
+}
+
 // 获取已安装应用
-#[tauri::command]
 pub fn get_installed_apps() -> Vec<AppInfo> {
     let paths = [
         (
@@ -95,12 +223,71 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
 
     let mut all_apps = Vec::new();
 
+    // 从注册表获取传统Win32应用
     for (hkey, path) in paths.iter() {
         let apps = get_registry_apps(*hkey, path);
         all_apps.extend(apps);
     }
+    
+    // 获取UWP应用
+    let uwp_apps = get_uwp_apps();
+    all_apps.extend(uwp_apps);
+
+    // 确保所有应用都有默认图标
+    all_apps.iter_mut().for_each(|app| {
+        if app.icon.is_none() {
+            app.icon = None;
+        }
+    });
 
     all_apps
+}
+
+// 在背景线程中加载应用程序图标 (无通知版本)
+pub fn load_app_icons_async_silent(
+    app_handle: AppHandle, 
+    apps: Vec<AppInfo>, 
+    updated_count: std::sync::Arc<std::sync::Mutex<usize>>,
+    completion_counter: std::sync::Arc<std::sync::Mutex<usize>>
+) {
+    let mut updated_apps = Vec::new();
+    let mut count = 0;
+    
+    info!("开始加载应用程序图标: {} 个应用", apps.len());
+
+    for mut app in apps {
+        // 只处理没有图标的应用程序
+        if app.icon.is_none() {
+            info!("正在为 '{}' 提取图标: {}", app.title, app.content);
+            if let Some(icon_data) = icon::extract_app_icon(&app.content) {
+                info!("成功获取 '{}' 的图标", app.title);
+                app.icon = Some(icon_data);
+                count += 1;
+            } else {
+                info!("为 '{}' 提取图标失败，使用默认图标", app.title);
+                // 如果提取失败，使用默认图标
+                app.icon = None;
+            }
+        }
+        updated_apps.push(app);
+    }
+
+    // 更新商店中的应用程序
+    crate::config::set_value(&app_handle, "installed_apps", &updated_apps);
+    
+    // 更新计数
+    {
+        let mut counter = updated_count.lock().unwrap();
+        *counter = count;
+    }
+    
+    // 标记此任务为完成
+    {
+        let mut complete = completion_counter.lock().unwrap();
+        *complete += 1;
+    }
+    
+    info!("已完成加载应用程序图标: {} 个成功", count);
 }
 
 struct EnumWindowsCallbackArgs {

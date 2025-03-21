@@ -25,7 +25,7 @@ where
     };
 
     if !hotkey.is_empty() {
-        info!("Window: {} Try to register shortcut keys: {}", name, hotkey);
+        info!("{}：窗口尝试注册快捷键：{}", name, hotkey);
 
         // 解析快捷键字符串
         let (modifiers, code) = parse_hotkey(&hotkey)?;
@@ -43,7 +43,7 @@ where
 
         // 检查快捷键是否已经注册
         if manager.is_registered(shortcut) {
-            warn!("Shortcut key: {} is already registered", hotkey);
+            warn!("快捷键：{} 已经被注册", hotkey);
             return Err(format!("快捷键 '{}' 已经被注册", hotkey));
         }
 
@@ -55,13 +55,13 @@ where
         // 注册新的快捷键
         let _ = manager.on_shortcut(shortcut, move |_app_handle, hotkey, event| {
             if event.state == ShortcutState::Pressed {
-                info!("Shortcut key: {} trigger", hotkey);
+                info!("快捷键：{} 被触发", hotkey);
                 handler();
             }
         });
     } else {
         set_value(app_handle, name, "");
-        warn!("Window: {} shortcut key logged out and deleted", name);
+        warn!("{}：快捷键已注销并删除", name);
     }
     Ok(())
 }

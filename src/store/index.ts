@@ -5,8 +5,6 @@ export const useConfigurationStore = defineStore('configuration', {
   state: (): StoreState => ({
     id: '', // 搜索框的 id
     data: [], // 搜索结果
-    apps: [], // 本地已安装应用集合
-    bookmarks: [], // 浏览器书签集合
     contents: [], // 搜索结果
     categories: [], // 分类集合
     editCategoryId: '', // 编辑分类的 id
@@ -23,9 +21,7 @@ export const useConfigurationStore = defineStore('configuration', {
     async initialize() {
       console.log('初始化配置');
       try {
-        if (this.apps.length === 0 && this.bookmarks.length === 0) {
-          this.apps = (await invoke('get_installed_apps')) || []; // 获取本地已安装应用
-          this.bookmarks = (await invoke('get_browser_bookmarks')) || []; // 获取浏览器书签
+        if (this.dbPath !== '') {
           this.dbPath = (await invoke('get_db_path')) || ''; // 获取数据库路径
           console.log('this.dbPath', this.dbPath);
         }

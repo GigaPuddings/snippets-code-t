@@ -22,8 +22,6 @@ declare global {
   interface StoreState {
     data: ContentType[];
     id: string | number;
-    apps: ContentType[];
-    bookmarks: ContentType[];
     categories: CategoryType[];
     contents: ContentType[];
     editCategoryId: string | number;

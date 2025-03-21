@@ -7,6 +7,7 @@ export {};
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AlarmEditDialog: typeof import('./../pages/config/components/todo/components/AlarmEditDialog.vue')['default']
     AppMain: typeof import('./../layout/components/AppMain.vue')['default']
     Category: typeof import('./../pages/config/components/category/index.vue')['default']
     CategoryItem: typeof import('./../components/CategoryItem/index.vue')['default']
@@ -15,22 +16,19 @@ declare module 'vue' {
     ContentItem: typeof import('./../components/ContentItem/index.vue')['default']
     ContentList: typeof import('./../pages/config/components/category/components/contentList/index.vue')['default']
     ContextMenu: typeof import('./../components/ContextMenu/index.vue')['default']
-    ElButton: typeof import('element-plus/es')['ElButton']
     ElInput: typeof import('element-plus/es')['ElInput']
-    ElOption: typeof import('element-plus/es')['ElOption']
-    ElSelect: typeof import('element-plus/es')['ElSelect']
-    ElSwitch: typeof import('element-plus/es')['ElSwitch']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
-    General: typeof import('./../components/General/index.vue')['default']
-    Manger: typeof import('./../components/Manger/index.vue')['default']
+    General: typeof import('./../pages/config/components/summarize/components/General/index.vue')['default']
+    Manger: typeof import('./../pages/config/components/summarize/components/Manger/index.vue')['default']
     QuickNav: typeof import('./../components/QuickNav/index.vue')['default']
     Result: typeof import('./../pages/search/components/Result.vue')['default']
     Retrieve: typeof import('./../pages/config/components/retrieve/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    Shortcut: typeof import('./../components/Shortcut/index.vue')['default']
+    Shortcut: typeof import('./../pages/config/components/summarize/components/Shortcut/index.vue')['default']
     Splitter: typeof import('./../components/Splitter/index.vue')['default']
     Summarize: typeof import('./../pages/config/components/summarize/index.vue')['default']
     Titlebar: typeof import('./../layout/components/Titlebar.vue')['default']
+    Todo: typeof import('./../pages/config/components/todo/index.vue')['default']
   }
 }
