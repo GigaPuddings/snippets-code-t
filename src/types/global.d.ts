@@ -28,7 +28,7 @@ declare global {
     categorySort: 'asc' | 'desc';
     searchHotkey: string;
     configHotkey: string;
-    dbPath: string;
+    dbPath: string | null;
     dbBackup: string;
     theme: 'light' | 'dark' | 'auto';
     autoStart: boolean;

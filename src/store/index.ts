@@ -11,7 +11,7 @@ export const useConfigurationStore = defineStore('configuration', {
     categorySort: 'asc', // 分类排序
     searchHotkey: '', // 搜索快捷键
     configHotkey: '', // 配置快捷键
-    dbPath: '', // 数据库路径
+    dbPath: null, // 数据库路径
     dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
     autoStart: false // 开机自启
@@ -21,7 +21,7 @@ export const useConfigurationStore = defineStore('configuration', {
     async initialize() {
       console.log('初始化配置');
       try {
-        if (this.dbPath !== '') {
+        if (typeof this.dbPath !== 'string') {
           this.dbPath = (await invoke('get_db_path')) || ''; // 获取数据库路径
           console.log('this.dbPath', this.dbPath);
         }

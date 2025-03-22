@@ -11,6 +11,14 @@ use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
+#[tauri::command]
+pub fn get_db_path() -> String {
+    let app = APP.get().unwrap();
+    let db_path = get_database_path(app);
+    info!("数据库路径: {}", db_path.display());
+    db_path.to_str().unwrap().to_string()
+}
+
 // 获取数据库路径（优先使用自定义路径）
 pub fn get_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
     // 检查自定义路径
@@ -35,14 +43,6 @@ pub fn get_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
         }
     }
     default_path
-}
-
-#[tauri::command]
-pub fn get_db_path() -> String {
-    let app = APP.get().unwrap();
-    let db_path = get_database_path(app);
-    info!("数据库路径: {}", db_path.display());
-    db_path.to_str().unwrap().to_string()
 }
 
 #[tauri::command]

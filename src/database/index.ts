@@ -1,12 +1,12 @@
-import { invoke } from '@tauri-apps/api/core';
+import { useConfigurationStore } from '@/store';
 import Database from '@tauri-apps/plugin-sql';
 
+const store = useConfigurationStore();
 let dbInstance: Database | null = null;
+
 export const getDb = async () => {
   if (!dbInstance) {
-    const dbPath = await invoke<string>('get_db_path');
-    dbInstance = await Database.load(`sqlite:${dbPath}`);
-
+    dbInstance = await Database.load(`sqlite:${store.dbPath}`);
     // 创建表结构
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS categories (
