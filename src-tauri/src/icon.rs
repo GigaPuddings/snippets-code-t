@@ -1,26 +1,31 @@
-use url::Url;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use log::info;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use base64::{engine::general_purpose::STANDARD, Engine};
 use std::collections::HashMap;
+use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
-use std::io::Cursor;
 use tauri::AppHandle;
-use windows::Win32::System::Com::CoInitialize;
-use windows::core::HSTRING;
-use windows::Win32::UI::Shell::{SHCreateItemFromParsingName, IShellItemImageFactory, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY};
-use windows::Win32::Foundation::SIZE;
-use windows::Win32::Graphics::Gdi::{GetDIBits, CreateCompatibleDC, SelectObject, DeleteObject, DeleteDC, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, HBITMAP, HGDIOBJ};
 use tauri_plugin_http::reqwest;
 use tauri_plugin_notification::NotificationExt;
+use url::Url;
+use windows::core::HSTRING;
+use windows::Win32::Foundation::SIZE;
+use windows::Win32::Graphics::Gdi::{
+    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, SelectObject, BITMAPINFO,
+    BITMAPINFOHEADER, DIB_RGB_COLORS, HBITMAP, HGDIOBJ,
+};
+use windows::Win32::System::Com::CoInitialize;
+use windows::Win32::UI::Shell::{
+    IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
+};
 
+use crate::apps::load_app_icons_async_silent;
 use crate::apps::{get_installed_apps, AppInfo};
+use crate::bookmarks::load_bookmark_icons_async_silent;
 use crate::bookmarks::{get_browser_bookmarks, BookmarkInfo};
 use crate::config::{get_value, set_value};
-use crate::apps::load_app_icons_async_silent;
-use crate::bookmarks::load_bookmark_icons_async_silent;
 
 // 图标缓存常数
 const ICON_CACHE_KEY: &str = "icon_cache";
@@ -43,39 +48,41 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
     if let Some(cached_icon) = get_cached_icon(app_path) {
         return Some(cached_icon);
     }
-    
+
     // info!("提取应用图标: {}", app_path);
 
     unsafe {
         // 初始化 COM
         let _ = CoInitialize(None);
-        
+
         // 转换路径为宽字符串
         let path_hstring = HSTRING::from(app_path);
-        
+
         // 创建 Shell 项并直接转换为IShellItemImageFactory
-        let image_factory: IShellItemImageFactory = match SHCreateItemFromParsingName(&path_hstring, None) {
-            Ok(item) => item,
-            Err(e) => {
-                info!("创建Shell项失败: {:?}", e);
-                return None;
-            }
-        };
-        
+        let image_factory: IShellItemImageFactory =
+            match SHCreateItemFromParsingName(&path_hstring, None) {
+                Ok(item) => item,
+                Err(e) => {
+                    info!("创建Shell项失败: {:?}", e);
+                    return None;
+                }
+            };
+
         // 定义图标大小 (48x48 - 更大以获得更好的图标)
         let size = SIZE { cx: 48, cy: 48 };
-        
+
         // 获取图标的位图句柄
-        let h_bitmap: HBITMAP = match image_factory.GetImage(size, SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY) {
-            Ok(bitmap) => bitmap,
-            Err(e) => {
-                info!("获取图标位图失败: {:?}", e);
-                return None;
-            }
-        };
-        
+        let h_bitmap: HBITMAP =
+            match image_factory.GetImage(size, SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY) {
+                Ok(bitmap) => bitmap,
+                Err(e) => {
+                    info!("获取图标位图失败: {:?}", e);
+                    return None;
+                }
+            };
+
         // info!("成功获取位图句柄");
-        
+
         // 创建设备上下文
         let hdc = CreateCompatibleDC(None);
         if hdc.is_invalid() {
@@ -83,10 +90,10 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
             let _ = DeleteObject(HGDIOBJ(h_bitmap.0));
             return None;
         }
-        
+
         // 选择位图到DC
         let old_obj = SelectObject(hdc, HGDIOBJ(h_bitmap.0));
-        
+
         // 准备位图信息
         let mut bitmap_info = BITMAPINFO {
             bmiHeader: BITMAPINFOHEADER {
@@ -104,11 +111,11 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
             },
             bmiColors: [windows::Win32::Graphics::Gdi::RGBQUAD::default()],
         };
-        
+
         // 分配内存存储像素数据 (BGRA 格式)
         let buffer_size = 48 * 48 * 4;
         let mut buffer = vec![0u8; buffer_size];
-        
+
         // 获取位图数据
         let result = GetDIBits(
             hdc,
@@ -119,61 +126,61 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
             &mut bitmap_info,
             DIB_RGB_COLORS,
         );
-        
+
         // 清理资源
         SelectObject(hdc, old_obj);
         DeleteDC(hdc).unwrap();
         DeleteObject(HGDIOBJ(h_bitmap.0)).unwrap();
-        
+
         if result == 0 {
             info!("获取位图数据失败");
             return None;
         }
-        
+
         // info!("成功获取位图数据，大小: {}", buffer.len());
-        
+
         // 检查透明度和数据有效性
         // let mut has_transparency = false;
         let mut non_zero_pixels = 0;
-        
+
         for i in (0..buffer.len()).step_by(4) {
             if i + 3 < buffer.len() {
-                if buffer[i] != 0 || buffer[i+1] != 0 || buffer[i+2] != 0 {
+                if buffer[i] != 0 || buffer[i + 1] != 0 || buffer[i + 2] != 0 {
                     non_zero_pixels += 1;
                 }
                 // if buffer[i+3] != 255 {
                 //     has_transparency = true;
                 // }
-                
+
                 // 确保Alpha通道正确
-                if buffer[i+3] == 0 {
+                if buffer[i + 3] == 0 {
                     // 完全透明像素的RGB应该为0
                     buffer[i] = 0;
-                    buffer[i+1] = 0;
-                    buffer[i+2] = 0;
+                    buffer[i + 1] = 0;
+                    buffer[i + 2] = 0;
                 }
-                
+
                 // 交换B和R通道 (BGRA -> RGBA)
                 let temp = buffer[i];
                 buffer[i] = buffer[i + 2];
                 buffer[i + 2] = temp;
             }
         }
-        
+
         // info!("图像分析 - 非零像素: {}, 有透明度: {}", non_zero_pixels, has_transparency);
-        
+
         if non_zero_pixels == 0 {
             // info!("图标数据无效 - 全黑");
             return None;
         }
-        
+
         // 使用PNG库编码图标
         let mut png_data = Vec::new();
         {
             let mut encoder = png::Encoder::new(Cursor::new(&mut png_data), 48, 48);
             encoder.set_color(png::ColorType::Rgba);
             encoder.set_depth(png::BitDepth::Eight);
-            
+
             let mut writer = match encoder.write_header() {
                 Ok(writer) => writer,
                 Err(e) => {
@@ -181,23 +188,23 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
                     return None;
                 }
             };
-            
+
             if let Err(e) = writer.write_image_data(&buffer) {
                 info!("PNG编码失败: {:?}", e);
                 return None;
             }
         }
-        
+
         info!("PNG编码成功，大小: {}", png_data.len());
-        
+
         // 转换为base64
         let base64 = format!("data:image/png;base64,{}", STANDARD.encode(&png_data));
-        
+
         // 缓存结果
         cache_icon(app_path, &base64);
-        
+
         info!("图标提取成功，Base64长度: {}", base64.len());
-        
+
         Some(base64)
     }
 }
@@ -269,14 +276,12 @@ pub fn load_icon_cache(app_handle: &AppHandle) {
 //     set_value(app_handle, ICON_CACHE_KEY, cache_to_save);
 // }
 
-
 // 提取域名
 pub fn extract_domain(url: &str) -> Option<String> {
     Url::parse(url)
         .ok()
         .and_then(|parsed_url| parsed_url.host_str().map(|s| s.to_string()))
 }
-
 
 // 获取网站的Fetch Favicon
 pub async fn fetch_favicon_async(url: &str) -> Option<String> {
@@ -330,12 +335,12 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     // 先检查是否已有缓存的数据
     let has_cached_apps = get_value(app_handle, "installed_apps").is_some();
     let has_cached_bookmarks = get_value(app_handle, "browser_bookmarks").is_some();
-    
+
     // 只有在没有缓存时才重新加载应用和书签
     // 开发模式暂时关闭
     if !has_cached_apps || !has_cached_bookmarks {
         info!("没有缓存的应用程序或书签数据，加载新数据..");
-        
+
         //获取应用程序和书签
         let apps = get_installed_apps();
         let bookmarks = get_browser_bookmarks();
@@ -362,56 +367,75 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 }
 
 // 合并加载应用和书签图标并发送单一通知
-fn load_icons_with_combined_notification(app_handle: AppHandle, apps: Vec<AppInfo>, bookmarks: Vec<BookmarkInfo>) {
+fn load_icons_with_combined_notification(
+    app_handle: AppHandle,
+    apps: Vec<AppInfo>,
+    bookmarks: Vec<BookmarkInfo>,
+) {
     use std::sync::{Arc, Mutex};
-    
+
     let app_count = Arc::new(Mutex::new(0));
     let bookmark_count = Arc::new(Mutex::new(0));
     let completion_counter = Arc::new(Mutex::new(0));
-    
+
     // 使用克隆以便在两个线程中使用
     let app_handle_for_apps = app_handle.clone();
     let app_handle_for_bookmarks = app_handle.clone();
     let app_handle_for_notification = app_handle.clone();
-    
+
     let app_count_for_apps = app_count.clone();
     let bookmark_count_for_bookmarks = bookmark_count.clone();
     let completion_counter_for_apps = completion_counter.clone();
     let completion_counter_for_bookmarks = completion_counter.clone();
-    
+
     // 启动应用图标加载线程
     std::thread::spawn(move || {
-        load_app_icons_async_silent(app_handle_for_apps, apps, app_count_for_apps, completion_counter_for_apps);
+        load_app_icons_async_silent(
+            app_handle_for_apps,
+            apps,
+            app_count_for_apps,
+            completion_counter_for_apps,
+        );
     });
-    
+
     // 启动书签图标加载线程
     std::thread::spawn(move || {
-        load_bookmark_icons_async_silent(app_handle_for_bookmarks, bookmarks, bookmark_count_for_bookmarks, completion_counter_for_bookmarks);
+        load_bookmark_icons_async_silent(
+            app_handle_for_bookmarks,
+            bookmarks,
+            bookmark_count_for_bookmarks,
+            completion_counter_for_bookmarks,
+        );
     });
-    
+
     // 监控完成状态并发送统一通知
     std::thread::spawn(move || {
         // 等待两个加载过程完成
         while *completion_counter.lock().unwrap() < 2 {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
-        
+
         // 获取加载的图标数量
         let apps_loaded = *app_count.lock().unwrap();
         let bookmarks_loaded = *bookmark_count.lock().unwrap();
         let total_loaded = apps_loaded + bookmarks_loaded;
-        
+
         // 只有当确实加载了图标时才发送通知
         if total_loaded > 0 {
-            let _ = app_handle_for_notification.notification()
+            let _ = app_handle_for_notification
+                .notification()
                 .builder()
                 .title("图标加载完成")
-                .body(&format!("共加载 {} 个图标 (应用: {}, 书签: {})", 
-                    total_loaded, apps_loaded, bookmarks_loaded))
+                .body(&format!(
+                    "共加载 {} 个图标 (应用: {}, 书签: {})",
+                    total_loaded, apps_loaded, bookmarks_loaded
+                ))
                 .show();
-            
-            info!("图标加载完成，共加载 {} 个图标 (应用: {}, 书签: {})", 
-                total_loaded, apps_loaded, bookmarks_loaded);
+
+            info!(
+                "图标加载完成，共加载 {} 个图标 (应用: {}, 书签: {})",
+                total_loaded, apps_loaded, bookmarks_loaded
+            );
         }
     });
 }

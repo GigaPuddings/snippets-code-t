@@ -15,7 +15,7 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 pub fn get_db_path() -> String {
     let app = APP.get().unwrap();
     let db_path = get_database_path(app);
-    info!("数据库路径: {}", db_path.display());
+    // info!("数据库路径: {}", db_path.display());
     db_path.to_str().unwrap().to_string()
 }
 

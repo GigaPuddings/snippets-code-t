@@ -21,10 +21,10 @@ export const useConfigurationStore = defineStore('configuration', {
     async initialize() {
       console.log('初始化配置');
       try {
-        if (typeof this.dbPath !== 'string') {
-          this.dbPath = (await invoke('get_db_path')) || ''; // 获取数据库路径
-          console.log('this.dbPath', this.dbPath);
-        }
+        // if (typeof this.dbPath !== 'string') {
+        this.dbPath = (await invoke('get_db_path')) || ''; // 获取数据库路径
+        console.log('this.dbPath', this.dbPath);
+        // }
       } catch (error) {
         console.error('初始化数据失败:', error);
       }

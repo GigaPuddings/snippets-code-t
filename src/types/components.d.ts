@@ -22,7 +22,6 @@ declare module 'vue' {
     ElDialog: typeof import('element-plus/es')['ElDialog']
     ElInput: typeof import('element-plus/es')['ElInput']
     ElOption: typeof import('element-plus/es')['ElOption']
-    ElSegmented: typeof import('element-plus/es')['ElSegmented']
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
@@ -38,7 +37,6 @@ declare module 'vue' {
     SettingsContent: typeof import('./../components/SettingsContent/index.vue')['default']
     Shortcut: typeof import('./../components/SettingsContent/components/Shortcut/index.vue')['default']
     Splitter: typeof import('./../components/Splitter/index.vue')['default']
-    Summarize: typeof import('./../pages/config/components/summarize/index.vue')['default']
     Titlebar: typeof import('./../layout/components/Titlebar.vue')['default']
     Todo: typeof import('./../pages/config/components/todo/index.vue')['default']
   }
