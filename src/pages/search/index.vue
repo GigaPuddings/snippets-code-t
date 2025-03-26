@@ -4,12 +4,13 @@ import { useSetIgnoreCursorEvents } from '@/hooks/useSetIgnoreCursorEvents';
 import { useSearch } from '@/hooks/useSearch';
 import { listen } from '@tauri-apps/api/event';
 import { onMounted } from 'vue';
-
+import Result from './components/Result.vue';
 const { searchText, searchResults, handleEnterSearch, clearSearch } =
   useSearch();
 
 const searchRef = ref<HTMLElement | null>(null);
 const searchInputRef = ref<HTMLInputElement | null>(null);
+const resultRef = ref<InstanceType<typeof Result> | null>(null);
 
 const handleGoConfig = async () => {
   try {
@@ -30,6 +31,8 @@ onMounted(async () => {
     } else {
       searchInputRef.value?.focus();
     }
+    // 搜索有结果，则切换到文本页
+    // searchResults.value.length !== 0 && resultRef.value?.switchTab('text');
   });
 });
 
@@ -62,7 +65,11 @@ const handleKeyDown = async (e: Event) => {
         @click="handleGoConfig"
       />
     </section>
-    <Result :results="searchResults" :onClearSearch="clearSearch" />
+    <Result
+      ref="resultRef"
+      :results="searchResults"
+      :onClearSearch="clearSearch"
+    />
   </main>
 </template>
 

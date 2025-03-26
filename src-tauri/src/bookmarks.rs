@@ -10,15 +10,13 @@ use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 use tokio;
 use uuid::Uuid;
-use winreg::enums::*;
-use winreg::RegKey;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BookmarkInfo {
     pub id: String,
     pub title: String,
-    pub content: String,      // URL
-    pub icon: Option<String>, // Base64 encoded icon data
+    pub content: String,
+    pub icon: Option<String>,
     pub summarize: String,
 }
 
@@ -26,29 +24,33 @@ pub struct BookmarkInfo {
 enum BrowserType {
     Chrome,
     Edge,
-    Firefox,
-    Unknown,
+    Speed360,
+    QQBrowser,
+    Brave,
+    Vivaldi,
+    Opera,
+    ShuangHe
 }
 
-fn get_default_browser() -> BrowserType {
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let path =
-        "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice";
+// fn get_default_browser() -> BrowserType {
+//     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+//     let path =
+//         "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice";
 
-    if let Ok(key) = hkcu.open_subkey(path) {
-        if let Ok(prog_id) = key.get_value::<String, _>("ProgId") {
-            info!("默认浏览器 ProgId: {}", prog_id);
-            return match prog_id.to_lowercase() {
-                s if s.contains("chrome") => BrowserType::Chrome,
-                s if s.contains("edge") => BrowserType::Edge,
-                s if s.contains("firefox") => BrowserType::Firefox,
-                _ => BrowserType::Unknown,
-            };
-        }
-    }
+//     if let Ok(key) = hkcu.open_subkey(path) {
+//         if let Ok(prog_id) = key.get_value::<String, _>("ProgId") {
+//             info!("默认浏览器 ProgId: {}", prog_id);
+//             return match prog_id.to_lowercase() {
+//                 s if s.contains("chrome") => BrowserType::Chrome,
+//                 s if s.contains("edge") => BrowserType::Edge,
+//                 s if s.contains("firefox") => BrowserType::Firefox,
+//                 _ => BrowserType::Unknown,
+//             };
+//         }
+//     }
 
-    BrowserType::Unknown
-}
+//     BrowserType::Unknown
+// }
 
 fn get_chrome_favicon_db_path() -> Option<PathBuf> {
     let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
@@ -91,6 +93,160 @@ fn get_edge_favicon_db_path() -> Option<PathBuf> {
             return Some(path_buf);
         }
     }
+    None
+}
+
+fn get_360_speed_favicon_db_path() -> Option<PathBuf> {
+    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
+    let paths = [
+        format!(
+            "{}\\360Chrome\\Chrome\\User Data\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\360Chrome\\Chrome\\User Data\\Profile 1\\Favicons",
+            local_app_data
+        ),
+    ];
+
+    for path in paths {
+        let path_buf = PathBuf::from(&path);
+        if path_buf.exists() {
+            return Some(path_buf);
+        }
+    }
+    None
+}
+
+fn get_qq_browser_favicon_db_path() -> Option<PathBuf> {
+    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
+    let paths = [
+        format!(
+            "{}\\Tencent\\QQBrowser\\User Data\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\Tencent\\QQBrowser\\User Data\\Profile 1\\Favicons",
+            local_app_data
+        ),
+    ];
+
+    for path in paths {
+        let path_buf = PathBuf::from(&path);
+        if path_buf.exists() {
+            return Some(path_buf);
+        }
+    }
+    None
+}
+
+fn get_brave_favicon_db_path() -> Option<PathBuf> {
+    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
+    let paths = [
+        format!(
+            "{}\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\BraveSoftware\\Brave-Browser\\User Data\\Profile 1\\Favicons",
+            local_app_data
+        ),
+    ];
+
+    for path in paths {
+        let path_buf = PathBuf::from(&path);
+        if path_buf.exists() {
+            return Some(path_buf);
+        }
+    }
+    None
+}
+
+fn get_vivaldi_favicon_db_path() -> Option<PathBuf> {
+    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
+    let paths = [
+        format!(
+            "{}\\Vivaldi\\User Data\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\Vivaldi\\User Data\\Profile 1\\Favicons",
+            local_app_data
+        ),
+    ];
+
+    for path in paths {
+        let path_buf = PathBuf::from(&path);
+        if path_buf.exists() {
+            return Some(path_buf);
+        }
+    }
+    None
+}
+
+fn get_opera_favicon_db_path() -> Option<PathBuf> {
+    let app_data = std::env::var("APPDATA").ok()?;
+    let paths = [
+        format!("{}\\Opera Software\\Opera Stable\\Favicons", app_data),
+        format!("{}\\Opera Software\\Opera GX Stable\\Favicons", app_data),
+    ];
+
+    for path in paths {
+        let path_buf = PathBuf::from(&path);
+        if path_buf.exists() {
+            return Some(path_buf);
+        }
+    }
+    None
+}
+
+fn get_shuanghe_favicon_db_path() -> Option<PathBuf> {
+    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
+    // 双核浏览器可能的Favicon数据库路径
+    let paths = [
+        // 新增双核浏览器特定路径
+        format!(
+            "{}\\Chromium\\GbrowserData\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\Chromium\\GbrowserData\\Profile 1\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\ShuangHeKeJi\\ShuangHe\\User Data\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\ShuangHeKeJi\\ShuangHe\\User Data\\Profile 1\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\双核科技\\双核浏览器\\User Data\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\双核科技\\双核浏览器\\User Data\\Profile 1\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\ShuangHeBrowser\\User Data\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\ShuangHeBrowser\\User Data\\Profile 1\\Favicons",
+            local_app_data
+        ),
+    ];
+
+    for path in paths {
+        let path_buf = PathBuf::from(&path);
+        if path_buf.exists() {
+            info!("找到双核浏览器favicon数据库: {:?}", path_buf);
+            return Some(path_buf);
+        }
+    }
+    info!("未找到双核浏览器favicon数据库");
     None
 }
 
@@ -277,47 +433,474 @@ fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
     bookmarks
 }
 
-fn get_browser_bookmarks_path(browser_type: &BrowserType) -> Option<PathBuf> {
-    match browser_type {
-        BrowserType::Firefox => get_firefox_bookmarks_file(),
-        _ => {
-            let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-            let paths = match browser_type {
-                BrowserType::Chrome => vec![
-                    format!(
-                        "{}\\Google\\Chrome\\User Data\\Default\\Bookmarks",
-                        local_app_data
-                    ),
-                    format!(
-                        "{}\\Google\\Chrome\\User Data\\Profile 1\\Bookmarks",
-                        local_app_data
-                    ),
-                ],
-                BrowserType::Edge => vec![
-                    format!(
-                        "{}\\Microsoft\\Edge\\User Data\\Default\\Bookmarks",
-                        local_app_data
-                    ),
-                    format!(
-                        "{}\\Microsoft\\Edge\\User Data\\Profile 1\\Bookmarks",
-                        local_app_data
-                    ),
-                ],
-                _ => vec![],
-            };
-
-            for path in paths {
-                let path_buf = PathBuf::from(&path);
-                if path_buf.exists() {
-                    info!("找到浏览器书签文件: {}", path);
-                    return Some(path_buf);
-                }
+fn get_chrome_bookmarks_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let base_dir = format!("{}\\Google\\Chrome\\User Data", local_app_data);
+        let base_path = PathBuf::from(&base_dir);
+        
+        // Check Default profile
+        let default_bookmarks = base_path.join("Default\\Bookmarks");
+        if default_bookmarks.exists() {
+            paths.push(default_bookmarks);
+        }
+        
+        // Check numbered profiles
+        for i in 1..10 {
+            let profile_bookmarks = base_path.join(format!("Profile {}\\Bookmarks", i));
+            if profile_bookmarks.exists() {
+                paths.push(profile_bookmarks);
             }
-            None
         }
     }
+    paths
 }
 
+fn get_edge_bookmarks_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let base_dir = format!("{}\\Microsoft\\Edge\\User Data", local_app_data);
+        let base_path = PathBuf::from(&base_dir);
+        
+        // Check Default profile
+        let default_bookmarks = base_path.join("Default\\Bookmarks");
+        if default_bookmarks.exists() {
+            paths.push(default_bookmarks);
+        }
+        
+        // Check numbered profiles
+        for i in 1..10 {
+            let profile_bookmarks = base_path.join(format!("Profile {}\\Bookmarks", i));
+            if profile_bookmarks.exists() {
+                paths.push(profile_bookmarks);
+            }
+        }
+    }
+    paths
+}
+
+fn get_360_speed_bookmarks_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let base_dir = format!("{}\\360Chrome\\Chrome\\User Data", local_app_data);
+        let base_path = PathBuf::from(&base_dir);
+        
+        // Check Default profile
+        let default_bookmarks = base_path.join("Default\\Bookmarks");
+        if default_bookmarks.exists() {
+            paths.push(default_bookmarks);
+        }
+        
+        // Check numbered profiles
+        for i in 1..10 {
+            let profile_bookmarks = base_path.join(format!("Profile {}\\Bookmarks", i));
+            if profile_bookmarks.exists() {
+                paths.push(profile_bookmarks);
+            }
+        }
+    }
+    paths
+}
+
+fn get_qq_browser_bookmarks_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let base_dir = format!("{}\\Tencent\\QQBrowser\\User Data", local_app_data);
+        let base_path = PathBuf::from(&base_dir);
+        
+        // Check Default profile
+        let default_bookmarks = base_path.join("Default\\Bookmarks");
+        if default_bookmarks.exists() {
+            paths.push(default_bookmarks);
+        }
+        
+        // Check numbered profiles
+        for i in 1..10 {
+            let profile_bookmarks = base_path.join(format!("Profile {}\\Bookmarks", i));
+            if profile_bookmarks.exists() {
+                paths.push(profile_bookmarks);
+            }
+        }
+    }
+    paths
+}
+
+fn get_brave_bookmarks_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let base_dir = format!("{}\\BraveSoftware\\Brave-Browser\\User Data", local_app_data);
+        let base_path = PathBuf::from(&base_dir);
+        
+        // Check Default profile
+        let default_bookmarks = base_path.join("Default\\Bookmarks");
+        if default_bookmarks.exists() {
+            paths.push(default_bookmarks);
+        }
+        
+        // Check numbered profiles
+        for i in 1..10 {
+            let profile_bookmarks = base_path.join(format!("Profile {}\\Bookmarks", i));
+            if profile_bookmarks.exists() {
+                paths.push(profile_bookmarks);
+            }
+        }
+    }
+    paths
+}
+
+fn get_vivaldi_bookmarks_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let base_dir = format!("{}\\Vivaldi\\User Data", local_app_data);
+        let base_path = PathBuf::from(&base_dir);
+        
+        // 检查默认配置文件
+        let default_bookmarks = base_path.join("Default\\Bookmarks");
+        if default_bookmarks.exists() {
+            paths.push(default_bookmarks);
+        }
+        
+        // 检查编号的配置文件
+        for i in 1..10 {
+            let profile_bookmarks = base_path.join(format!("Profile {}\\Bookmarks", i));
+            if profile_bookmarks.exists() {
+                paths.push(profile_bookmarks);
+            }
+        }
+    }
+    paths
+}
+
+fn get_opera_bookmarks_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(app_data) = std::env::var("APPDATA") {
+        let base_dirs = [
+            format!("{}\\Opera Software\\Opera Stable", app_data),
+            format!("{}\\Opera Software\\Opera GX Stable", app_data),
+        ];
+        
+        for base_dir in base_dirs {
+            let base_path = PathBuf::from(&base_dir);
+            let bookmarks = base_path.join("Bookmarks");
+            if bookmarks.exists() {
+                paths.push(bookmarks);
+            }
+        }
+    }
+    paths
+}
+
+fn get_shuanghe_bookmarks_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    info!("开始查找双核浏览器书签文件...");
+    
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        // 添加您发现的新路径
+        let gbrowser_path = format!("{}\\Chromium\\GbrowserData\\Default\\Bookmarks", local_app_data);
+        let gbrowser_path_buf = PathBuf::from(&gbrowser_path);
+        if gbrowser_path_buf.exists() {
+            info!("找到双核浏览器书签文件(GbrowserData): {:?}", gbrowser_path_buf);
+            paths.push(gbrowser_path_buf);
+        } else {
+            info!("路径不存在: {:?}", gbrowser_path);
+        }
+        
+        // 可能的双核浏览器书签路径
+        let base_dirs = [
+            format!("{}\\Chromium\\GbrowserData", local_app_data),
+            format!("{}\\ShuangHeKeJi\\ShuangHe\\User Data", local_app_data),
+            format!("{}\\双核科技\\双核浏览器\\User Data", local_app_data),
+            format!("{}\\ShuangHeBrowser\\User Data", local_app_data),
+        ];
+        
+        for base_dir in base_dirs {
+            let base_path = PathBuf::from(&base_dir);
+            info!("检查目录: {:?}", base_path);
+            
+            // 检查Default配置文件
+            let default_bookmarks = base_path.join("Default\\Bookmarks");
+            if default_bookmarks.exists() {
+                info!("找到双核浏览器书签文件: {:?}", default_bookmarks);
+                paths.push(default_bookmarks);
+            }
+            
+            // 检查其他配置文件
+            for i in 1..10 {
+                let profile_bookmarks = base_path.join(format!("Profile {}\\Bookmarks", i));
+                if profile_bookmarks.exists() {
+                    info!("找到双核浏览器Profile {}书签文件: {:?}", i, profile_bookmarks);
+                    paths.push(profile_bookmarks);
+                }
+            }
+        }
+    }
+    
+    // 如果上面的路径都不存在，尝试搜索Program Files目录
+    if paths.is_empty() {
+        if let Ok(program_files) = std::env::var("PROGRAMFILES") {
+            // 尝试在Program Files中查找
+            let program_dirs = [
+                format!("{}\\ShuangHeKeJi\\ShuangHe\\User Data", program_files),
+                format!("{}\\双核科技\\双核浏览器\\User Data", program_files),
+                format!("{}\\ShuangHeBrowser\\User Data", program_files),
+            ];
+            
+            for program_dir in program_dirs {
+                let base_path = PathBuf::from(&program_dir);
+                
+                // 检查Default配置文件
+                let default_bookmarks = base_path.join("Default\\Bookmarks");
+                if default_bookmarks.exists() {
+                    info!("找到双核浏览器书签文件(Program Files): {:?}", default_bookmarks);
+                    paths.push(default_bookmarks);
+                }
+            }
+        }
+    }
+    
+    // 检查Program Files (x86)
+    if paths.is_empty() {
+        if let Ok(program_files_x86) = std::env::var("PROGRAMFILES(X86)") {
+            // 尝试在Program Files (x86)中查找
+            let program_dirs = [
+                format!("{}\\ShuangHeKeJi\\ShuangHe\\User Data", program_files_x86),
+                format!("{}\\双核科技\\双核浏览器\\User Data", program_files_x86),
+                format!("{}\\ShuangHeBrowser\\User Data", program_files_x86),
+            ];
+            
+            for program_dir in program_dirs {
+                let base_path = PathBuf::from(&program_dir);
+                
+                // 检查Default配置文件
+                let default_bookmarks = base_path.join("Default\\Bookmarks");
+                if default_bookmarks.exists() {
+                    info!("找到双核浏览器书签文件(Program Files (x86)): {:?}", default_bookmarks);
+                    paths.push(default_bookmarks);
+                }
+            }
+        }
+    }
+    
+    if paths.is_empty() {
+        info!("未找到任何双核浏览器书签文件");
+    } else {
+        info!("共找到 {} 个双核浏览器书签文件", paths.len());
+    }
+    
+    paths
+}
+
+// 获取浏览器书签
+pub fn get_browser_bookmarks() -> Vec<BookmarkInfo> {
+    let mut bookmarks = Vec::new();
+    let mut browser_stats = std::collections::HashMap::new();
+    
+    info!("开始检索所有浏览器书签");
+    
+    // Chrome书签
+    let chrome_bookmarks = get_chrome_bookmarks_paths();
+    info!("找到 {} 个Chrome书签文件", chrome_bookmarks.len());
+    for bookmarks_path in chrome_bookmarks {
+        info!("正在检索Chrome书签: {:?}", bookmarks_path);
+        let favicon_db_path = get_chrome_favicon_db_path();
+        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Chrome);
+        info!("从Chrome书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("Chrome".to_string()).or_insert(0) += 1;
+    }
+    
+    // Edge书签
+    let edge_bookmarks = get_edge_bookmarks_paths();
+    info!("找到 {} 个Edge书签文件", edge_bookmarks.len());
+    for bookmarks_path in edge_bookmarks {
+        info!("正在检索Edge书签: {:?}", bookmarks_path);
+        let favicon_db_path = get_edge_favicon_db_path();
+        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Edge);
+        info!("从Edge书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("Edge".to_string()).or_insert(0) += 1;
+    }
+    
+    // 360极速浏览器书签
+    let speed360_bookmarks = get_360_speed_bookmarks_paths();
+    info!("找到 {} 个360极速浏览器书签文件", speed360_bookmarks.len());
+    for bookmarks_path in speed360_bookmarks {
+        info!("正在检索360极速浏览器书签: {:?}", bookmarks_path);
+        let favicon_db_path = get_360_speed_favicon_db_path();
+        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Speed360);
+        info!("从360极速浏览器书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("360极速浏览器".to_string()).or_insert(0) += 1;
+    }
+    
+    // QQ浏览器书签
+    let qq_bookmarks = get_qq_browser_bookmarks_paths();
+    info!("找到 {} 个QQ浏览器书签文件", qq_bookmarks.len());
+    for bookmarks_path in qq_bookmarks {
+        info!("正在检索QQ浏览器书签: {:?}", bookmarks_path);
+        let favicon_db_path = get_qq_browser_favicon_db_path();
+        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::QQBrowser);
+        info!("从QQ浏览器书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("QQ浏览器".to_string()).or_insert(0) += 1;
+    }
+    
+    // Brave浏览器书签
+    let brave_bookmarks = get_brave_bookmarks_paths();
+    info!("找到 {} 个Brave浏览器书签文件", brave_bookmarks.len());
+    for bookmarks_path in brave_bookmarks {
+        info!("正在检索Brave浏览器书签: {:?}", bookmarks_path);
+        let favicon_db_path = get_brave_favicon_db_path();
+        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Brave);
+        info!("从Brave浏览器书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("Brave浏览器".to_string()).or_insert(0) += 1;
+    }
+    
+    // Vivaldi浏览器书签
+    let vivaldi_bookmarks = get_vivaldi_bookmarks_paths();
+    info!("找到 {} 个Vivaldi浏览器书签文件", vivaldi_bookmarks.len());
+    for bookmarks_path in vivaldi_bookmarks {
+        info!("正在检索Vivaldi浏览器书签: {:?}", bookmarks_path);
+        let favicon_db_path = get_vivaldi_favicon_db_path();
+        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Vivaldi);
+        info!("从Vivaldi浏览器书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("Vivaldi浏览器".to_string()).or_insert(0) += 1;
+    }
+    
+    // Opera浏览器书签
+    let opera_bookmarks = get_opera_bookmarks_paths();
+    info!("找到 {} 个Opera浏览器书签文件", opera_bookmarks.len());
+    for bookmarks_path in opera_bookmarks {
+        info!("正在检索Opera浏览器书签: {:?}", bookmarks_path);
+        let favicon_db_path = get_opera_favicon_db_path();
+        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Opera);
+        info!("从Opera浏览器书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("Opera浏览器".to_string()).or_insert(0) += 1;
+    }
+    
+    // 双核浏览器书签
+    let shuanghe_bookmarks = get_shuanghe_bookmarks_paths();
+    info!("找到 {} 个双核浏览器书签文件", shuanghe_bookmarks.len());
+    for bookmarks_path in shuanghe_bookmarks {
+        info!("正在检索双核浏览器书签: {:?}", bookmarks_path);
+        let favicon_db_path = get_shuanghe_favicon_db_path();
+        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::ShuangHe);
+        info!("从双核浏览器书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("双核浏览器".to_string()).or_insert(0) += 1;
+    }
+    
+    // Firefox书签
+    if let Some(bookmarks_path) = get_firefox_bookmarks_file() {
+        info!("正在检索Firefox书签: {:?}", bookmarks_path);
+        let new_bookmarks = extract_firefox_bookmarks(&bookmarks_path);
+        info!("从Firefox书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("Firefox".to_string()).or_insert(0) += 1;
+    } else {
+        info!("未找到Firefox书签文件");
+    }
+
+    // 确保所有书签都有默认图标
+    bookmarks.iter_mut().for_each(|bookmark| {
+        if bookmark.icon.is_none() {
+            bookmark.icon = None;
+        }
+    });
+
+    // 去除重复书签（基于URL）
+    let mut unique_bookmarks = Vec::new();
+    let mut seen_urls = std::collections::HashSet::new();
+    
+    for bookmark in bookmarks {
+        if !seen_urls.contains(&bookmark.content) {
+            seen_urls.insert(bookmark.content.clone());
+            unique_bookmarks.push(bookmark);
+        }
+    }
+
+    // 输出统计信息
+    info!("浏览器书签检索统计:");
+    for (browser, count) in browser_stats {
+        info!("  - {}: {} 个书签文件", browser, count);
+    }
+    
+    info!("完成所有浏览器书签检索，共获取 {} 个唯一书签", unique_bookmarks.len());
+    unique_bookmarks
+}
+
+// 从Chromium系列浏览器提取书签
+fn extract_chromium_bookmarks(bookmarks_path: &PathBuf, favicon_db_path: Option<&PathBuf>, browser_type: &BrowserType) -> Vec<BookmarkInfo> {
+    let mut bookmarks = Vec::new();
+    
+    info!("开始解析 {:?} 浏览器书签文件: {:?}", browser_type, bookmarks_path);
+    
+    if let Ok(content) = fs::read_to_string(bookmarks_path) {
+        info!("成功读取书签文件内容，大小: {} 字节", content.len());
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+            info!("成功解析书签文件为JSON");
+            if let Some(roots) = json.get("roots") {
+                info!("找到书签根节点");
+                
+                // 检查并处理书签栏
+                if let Some(bookmark_bar) = roots.get("bookmark_bar") {
+                    info!("处理书签栏...");
+                    let bar_bookmarks = extract_bookmarks(
+                        bookmark_bar,
+                        favicon_db_path,
+                        browser_type,
+                    );
+                    info!("从书签栏提取到 {} 个书签", bar_bookmarks.len());
+                    bookmarks.extend(bar_bookmarks);
+                } else {
+                    info!("未找到书签栏");
+                }
+                
+                // 检查并处理其他书签
+                if let Some(other) = roots.get("other") {
+                    info!("处理其他书签...");
+                    let other_bookmarks = extract_bookmarks(
+                        other,
+                        favicon_db_path,
+                        browser_type,
+                    );
+                    info!("从其他书签提取到 {} 个书签", other_bookmarks.len());
+                    bookmarks.extend(other_bookmarks);
+                } else {
+                    info!("未找到其他书签");
+                }
+                
+                // 检查并处理同步书签
+                if let Some(synced) = roots.get("synced") {
+                    info!("处理同步书签...");
+                    let synced_bookmarks = extract_bookmarks(
+                        synced,
+                        favicon_db_path,
+                        browser_type,
+                    );
+                    info!("从同步书签提取到 {} 个书签", synced_bookmarks.len());
+                    bookmarks.extend(synced_bookmarks);
+                } else {
+                    info!("未找到同步书签");
+                }
+            } else {
+                info!("书签文件中未找到根节点");
+            }
+        } else {
+            info!("书签文件JSON解析失败");
+        }
+    } else {
+        info!("无法读取书签文件: {:?}", bookmarks_path);
+    }
+    
+    info!("从 {:?} 加载了 {} 个书签", browser_type, bookmarks.len());
+    bookmarks
+}
+
+// 从书签JSON提取书签信息
 fn extract_bookmarks(
     value: &serde_json::Value,
     favicon_db: Option<&PathBuf>,
@@ -335,10 +918,11 @@ fn extract_bookmarks(
                         // 尝试从浏览器数据库获取图标
                         let icon = if let Some(db_path) = favicon_db {
                             match browser_type {
-                                BrowserType::Chrome | BrowserType::Edge => {
+                                BrowserType::Chrome | BrowserType::Edge | BrowserType::Speed360 
+                                | BrowserType::QQBrowser | BrowserType::Brave | BrowserType::Vivaldi 
+                                | BrowserType::Opera | BrowserType::ShuangHe => {
                                     get_favicon_from_chrome_db(&url_str, db_path)
                                 }
-                                _ => None,
                             }
                         } else {
                             None
@@ -364,74 +948,6 @@ fn extract_bookmarks(
             }
         }
     }
-
-    bookmarks
-}
-
-// 获取浏览器书签
-pub fn get_browser_bookmarks() -> Vec<BookmarkInfo> {
-    let mut bookmarks = Vec::new();
-    let default_browser = get_default_browser();
-
-    info!("检测到的默认浏览器: {:?}", default_browser);
-
-    // 获取favicon数据库路径
-    let favicon_db_path = match default_browser {
-        BrowserType::Chrome => get_chrome_favicon_db_path(),
-        BrowserType::Edge => get_edge_favicon_db_path(),
-        _ => None,
-    };
-
-    if let Some(ref favicon_path) = favicon_db_path {
-        info!("找到favicon数据库: {:?}", favicon_path);
-    }
-
-    if let Some(bookmarks_path) = get_browser_bookmarks_path(&default_browser) {
-        match default_browser {
-            BrowserType::Chrome | BrowserType::Edge => {
-                if let Ok(content) = fs::read_to_string(&bookmarks_path) {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(roots) = json.get("roots") {
-                            if let Some(bookmark_bar) = roots.get("bookmark_bar") {
-                                bookmarks.extend(extract_bookmarks(
-                                    bookmark_bar,
-                                    favicon_db_path.as_ref(),
-                                    &default_browser,
-                                ));
-                            }
-                            if let Some(other) = roots.get("other") {
-                                bookmarks.extend(extract_bookmarks(
-                                    other,
-                                    favicon_db_path.as_ref(),
-                                    &default_browser,
-                                ));
-                            }
-                            if let Some(synced) = roots.get("synced") {
-                                bookmarks.extend(extract_bookmarks(
-                                    synced,
-                                    favicon_db_path.as_ref(),
-                                    &default_browser,
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-            BrowserType::Firefox => {
-                bookmarks.extend(extract_firefox_bookmarks(&bookmarks_path));
-            }
-            BrowserType::Unknown => {
-                info!("未能识别默认浏览器");
-            }
-        }
-    }
-
-    // 确保所有书签都有默认图标
-    bookmarks.iter_mut().for_each(|bookmark| {
-        if bookmark.icon.is_none() {
-            bookmark.icon = None;
-        }
-    });
 
     bookmarks
 }

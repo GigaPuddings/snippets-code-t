@@ -276,6 +276,10 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyEvent);
   shouldControlTabs.value = false;
 });
+
+defineExpose({
+  switchTab
+});
 </script>
 <style lang="scss" scoped>
 .result-container {

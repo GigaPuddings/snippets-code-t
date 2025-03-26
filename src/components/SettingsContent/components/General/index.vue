@@ -35,7 +35,7 @@
 
     <section class="summarize-section">
       <div class="summarize-label">
-        <div class="summarize-label-title">开机自动启动</div>
+        <div class="summarize-label-title">开机自启</div>
         <div class="summarize-label-desc">设置开机自动启动</div>
       </div>
       <div class="summarize-input-wrapper">
