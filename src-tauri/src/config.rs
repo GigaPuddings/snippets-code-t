@@ -8,6 +8,7 @@ use log::LevelFilter;
 pub const DB_PATH_KEY: &str = "custom_db_path"; // 自定义数据库路径
 pub const UPDATE_AVAILABLE_KEY: &str = "update_available"; // 更新可用标志
 pub const UPDATE_INFO_KEY: &str = "update_info"; // 更新信息
+pub const AUTO_UPDATE_CHECK_KEY: &str = "auto_update_check"; // 自动检查更新标志
 
 // 获取值
 pub fn get_value(app_handle: &tauri::AppHandle, key: &str) -> Option<Value> {
@@ -80,6 +81,18 @@ pub fn parse_hotkey(hotkey: &str) -> Result<(Modifiers, Code), String> {
                     "F10" => Code::F10,
                     "F11" => Code::F11,
                     "F12" => Code::F12,
+                    "[" => Code::BracketLeft,
+                    "]" => Code::BracketRight,
+                    " " => Code::Space,
+                    "." => Code::Period,
+                    "," => Code::Comma,
+                    ";" => Code::Semicolon,
+                    "'" => Code::Quote,
+                    "`" => Code::Backquote,
+                    "/" => Code::Slash,
+                    "\\" => Code::Backslash,
+                    
+                    
                     _ => return Err(format!("不支持的按键: {}", key)),
                 });
             }
@@ -166,3 +179,44 @@ pub fn control_logging(enable: bool) {
 
 //   (adjusted_x as f64, adjusted_y as f64)
 // }
+
+// 重置软件
+#[tauri::command]
+pub fn reset_software(app_handle: tauri::AppHandle) -> Result<(), String> {
+    // 清理配置存储
+    let path = PathBuf::from("store.bin");
+    if let Ok(store) = StoreBuilder::new(&app_handle, path).build() {
+        let _ = store.clear();
+        let _ = store.save();
+    }
+    
+    // 清理搜索引擎配置
+    if let Err(e) = crate::search::update_search_engines(app_handle.clone(), Vec::new()) {
+        return Err(format!("重置搜索引擎失败: {}", e));
+    }
+    
+    Ok(())
+}
+
+// 设置自动检查更新
+#[tauri::command]
+pub fn set_auto_update_check(app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    set_value(&app_handle, AUTO_UPDATE_CHECK_KEY, enabled);
+    Ok(())
+}
+
+// 获取自动检查更新设置
+#[tauri::command]
+pub fn get_auto_update_check(app_handle: tauri::AppHandle) -> bool {
+    match get_value(&app_handle, AUTO_UPDATE_CHECK_KEY) {
+        Some(value) => value.as_bool().unwrap_or(true),
+        None => true, // 默认为开启
+    }
+}
+
+// 退出应用
+#[tauri::command]
+pub fn exit_application(_app_handle: tauri::AppHandle) {
+    // 退出应用
+    std::process::exit(0);
+}

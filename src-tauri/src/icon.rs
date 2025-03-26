@@ -250,24 +250,24 @@ pub fn load_icon_cache(app_handle: &AppHandle) {
 }
 
 // 将图标缓存保存到存储
-pub fn save_icon_cache(app_handle: &AppHandle) {
-    let cache = ICON_CACHE.lock().unwrap();
+// pub fn save_icon_cache(app_handle: &AppHandle) {
+//     let cache = ICON_CACHE.lock().unwrap();
 
-    // 保存之前清洁过期的条目
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or(Duration::from_secs(0))
-        .as_secs();
+//     // 保存之前清洁过期的条目
+//     let now = SystemTime::now()
+//         .duration_since(SystemTime::UNIX_EPOCH)
+//         .unwrap_or(Duration::from_secs(0))
+//         .as_secs();
 
-    let cache_to_save: HashMap<String, CachedIcon> = cache
-        .iter()
-        .filter(|(_, icon)| now - icon.timestamp < MAX_CACHE_AGE)
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
+//     let cache_to_save: HashMap<String, CachedIcon> = cache
+//         .iter()
+//         .filter(|(_, icon)| now - icon.timestamp < MAX_CACHE_AGE)
+//         .map(|(k, v)| (k.clone(), v.clone()))
+//         .collect();
 
-    info!("保存 {} 个图标到缓存", cache_to_save.len());
-    set_value(app_handle, ICON_CACHE_KEY, cache_to_save);
-}
+//     info!("保存 {} 个图标到缓存", cache_to_save.len());
+//     set_value(app_handle, ICON_CACHE_KEY, cache_to_save);
+// }
 
 
 // 提取域名
@@ -351,14 +351,14 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     }
 
     //安排定期图标缓存保存
-    let app_handle_clone = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        loop {
-            //每30分钟保存每30分钟的图标缓存
-            tokio::time::sleep(tokio::time::Duration::from_secs(1800)).await;
-            save_icon_cache(&app_handle_clone);
-        }
-    });
+    // let app_handle_clone = app_handle.clone();
+    // tauri::async_runtime::spawn(async move {
+    //     loop {
+    //         //每30分钟保存每30分钟的图标缓存
+    //         tokio::time::sleep(tokio::time::Duration::from_secs(1800)).await;
+    //         save_icon_cache(&app_handle_clone);
+    //     }
+    // });
 }
 
 // 合并加载应用和书签图标并发送单一通知

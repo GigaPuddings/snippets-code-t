@@ -4,52 +4,52 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --categories-content-bg: #e6e1de;
-    --categories-panel-bg: #faf7f5;
-    --categories-panel-bg-hover: #4b94f8;
-    --categories-bg-active: #e5e5e5;
-    --categories-text-color: #303133;
-    --categories-text-color-active: #303133;
-    --categories-info-text-color: #909399;
-    --categories-border-color: #dcdfe6;
-    --search-bg-color: #faf8f8;
-    --search-text-color: #1e1e1e;
-    --search-info-text-color: #8a8a89;
-    --search-border-color: #e1e0e0;
-  }
+// @layer base {
+//   :root {
+//     --categories-content-bg: #FCFCFC;
+//     --categories-panel-bg: #faf7f5;
+//     --categories-panel-bg-hover: #4b94f8;
+//     --categories-bg-active: #e5e5e5;
+//     --categories-text-color: #303133;
+//     --categories-text-color-active: #303133;
+//     --categories-info-text-color: #909399;
+//     --categories-border-color: #dcdfe6;
+//     --search-bg-color: #faf8f8;
+//     --search-text-color: #1e1e1e;
+//     --search-info-text-color: #8a8a89;
+//     --search-border-color: #e1e0e0;
+//   }
 
-  .light {
-    --categories-content-bg: #e6e1de;
-    --categories-panel-bg: #faf7f5;
-    --categories-panel-bg-hover: #4b94f8;
-    --categories-bg-active: #e5e5e5;
-    --categories-text-color: #303133;
-    --categories-text-color-active: #303133;
-    --categories-info-text-color: #909399;
-    --categories-border-color: #dcdfe6;
-    --search-bg-color: #faf8f8;
-    --search-text-color: #1e1e1e;
-    --search-info-text-color: #8a8a89;
-    --search-border-color: #e1e0e0;
-  }
+//   .light {
+//     --categories-content-bg: #FCFCFC;
+//     --categories-panel-bg: #faf7f5;
+//     --categories-panel-bg-hover: #4b94f8;
+//     --categories-bg-active: #e5e5e5;
+//     --categories-text-color: #303133;
+//     --categories-text-color-active: #303133;
+//     --categories-info-text-color: #909399;
+//     --categories-border-color: #dcdfe6;
+//     --search-bg-color: #faf8f8;
+//     --search-text-color: #1e1e1e;
+//     --search-info-text-color: #8a8a89;
+//     --search-border-color: #e1e0e0;
+//   }
 
-  .dark {
-    --categories-panel-bg: #262727;
-    --categories-content-bg: #303133;
-    --categories-panel-bg-hover: #409eff1a;
-    --categories-bg-active: #409eff1a;
-    --categories-text-color: #cfd3dc;
-    --categories-text-color-active: #409eff;
-    --categories-info-text-color: #a3a6ad;
-    --categories-border-color: #43444e;
-    --search-bg-color: #202020;
-    --search-text-color: #fcfcfc;
-    --search-info-text-color: #949494;
-    --search-border-color: #363636;
-  }
-}
+//   .dark {
+//     --categories-panel-bg: #262727;
+//     --categories-content-bg: #303133;
+//     --categories-panel-bg-hover: #409eff1a;
+//     --categories-bg-active: #409eff1a;
+//     --categories-text-color: #cfd3dc;
+//     --categories-text-color-active: #409eff;
+//     --categories-info-text-color: #a3a6ad;
+//     --categories-border-color: #43444e;
+//     --search-bg-color: #202020;
+//     --search-text-color: #fcfcfc;
+//     --search-info-text-color: #949494;
+//     --search-border-color: #363636;
+//   }
+// }
 
 .el-input__wrapper.is-focus,
 .el-input__wrapper:hover,
@@ -109,19 +109,36 @@
 
 // 配置css
 .summarize-container {
-  @apply w-full h-full overflow-hidden grid grid-cols-2 grid-rows-[repeat(3,120px)] gap-4;
+  //  grid grid-cols-2 grid-rows-[repeat(3,120px)] gap-4
+  @apply flex-1 w-full h-full overflow-hidden;
 }
 
 .summarize-section {
-  @apply h-[120px] bg-panel p-6 rounded-md overflow-hidden;
+  @apply flex justify-between items-center mt-5 first:!mt-1 border-b border-panel;
 }
 
 .summarize-label {
-  @apply text-sm font-bold text-content;
+  @apply flex flex-col gap-1 mb-1 text-sm font-bold text-content;
+
+  .summarize-label-title {
+    @apply text-sm text-panel font-medium;
+  }
+
+  .summarize-label-desc {
+    @apply flex text-xs text-content font-thin;
+  }
 }
 
+// .summarize-section {
+//   @apply h-[120px] bg-panel p-6 rounded-md overflow-hidden;
+// }
+
 .summarize-input-wrapper {
-  @apply relative w-full flex items-center justify-between gap-4 mt-5;
+  @apply relative flex items-center justify-end gap-4;
+
+  .summarize-input {
+    @apply w-48;
+  }
 }
 
 .summarize-input-wrapper .el-input__wrapper {
@@ -129,7 +146,7 @@
 }
 
 .summarize-input {
-  @apply max-w-[70%] bg-content rounded-md;
+  @apply bg-content rounded-md;
 }
 
 .summarize-button {

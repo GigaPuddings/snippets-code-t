@@ -101,7 +101,7 @@ const handleContextMenu = async (item: any) => {
 .active {
   @include commonLink();
 
-  @apply bg-active hover:bg-active dark:bg-active dark:hover:bg-active;
+  @apply bg-active text-active hover:bg-active dark:bg-active dark:hover:bg-active;
 }
 
 .category-item-input {

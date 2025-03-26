@@ -53,9 +53,9 @@ pub async fn backup_database(format: &str) -> Result<String, String> {
     // 生成默认文件名以code_开头
     let now = Local::now();
     let filename = match format {
-        "A" => now.format("%Y-%m-%d").to_string(),
-        "B" => now.format("%H-%M-%S").to_string(),
-        "C" => now.format("%Y-%m-%d-%H-%M-%S").to_string(),
+        "A" => now.format("%Y%m%d").to_string(),
+        "B" => now.format("%H%M%S").to_string(),
+        "C" => now.format("%Y%m%d%H%M%S").to_string(),
         _ => return Err("Invalid format".to_string()),
     };
 

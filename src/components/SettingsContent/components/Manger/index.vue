@@ -1,70 +1,80 @@
 <template>
-  <section class="summarize-section">
-    <div class="summarize-label flex items-center gap-4">
-      <div>数据库目录：</div>
-      <el-button
-        type="warning"
-        size="small"
-        plain
-        class="summarize-button"
-        @click="selectCustomPath"
-        :loading="pathLoading"
-      >
-        修改路径
-      </el-button>
-    </div>
-    <div class="summarize-input-wrapper flex items-center gap-2">
-      <el-input class="summarize-input" v-model="store.dbPath" readonly />
-    </div>
-  </section>
-
-  <section class="summarize-section">
-    <div class="summarize-label flex items-center gap-4">
-      <div>数据管理：</div>
-      <div>
-        <el-button
-          type="success"
+  <main class="summarize-container">
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">片段目录：</div>
+        <div class="summarize-label-desc">设置片段存储位置</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <el-input
+          class="summarize-input !w-80"
+          v-model="store.dbPath"
+          readonly
+        />
+        <CustomButton
+          type="primary"
           size="small"
-          plain
-          class="summarize-button"
+          @click="selectCustomPath"
+          :loading="pathLoading"
+        >
+          修改路径
+        </CustomButton>
+      </div>
+    </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">片段数据备份：</div>
+        <div class="summarize-label-desc">设置片段数据备份位置</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <el-select
+          class="summarize-input"
+          v-model="store.dbBackup"
+          placeholder="选择备份文件名格式"
+        >
+          <el-option
+            v-for="item in dictDBBackup"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+        <CustomButton
+          type="primary"
+          size="small"
           @click="startBackup"
           :loading="backupLoading"
         >
           数据备份
-        </el-button>
-        <el-button
-          type="danger"
+        </CustomButton>
+      </div>
+    </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">数据恢复：</div>
+        <div class="summarize-label-desc">恢复片段数据</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <CustomButton
+          type="primary"
           size="small"
-          plain
-          class="summarize-button"
           @click="restoreData"
           :loading="restoreLoading"
         >
           数据恢复
-        </el-button>
+        </CustomButton>
       </div>
-    </div>
-    <div class="summarize-input-wrapper">
-      <el-select
-        class="summarize-input"
-        v-model="store.dbBackup"
-        placeholder="选择备份文件名格式"
-      >
-        <el-option
-          v-for="item in dictDBBackup"
-          :key="item.value"
-          :label="item.label"
-          :value="item.value"
-        />
-      </el-select>
-    </div>
-  </section>
+    </section>
+  </main>
 </template>
 
 <script setup lang="ts">
 import { getDb } from '@/database';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
+import CustomButton from '@/components/UI/CustomButton.vue';
 
 defineOptions({
   name: 'Manger'
@@ -76,11 +86,12 @@ const restoreLoading = ref(false);
 const pathLoading = ref(false);
 
 const dictDBBackup = [
-  { value: 'A', label: '年-月-日' },
-  { value: 'B', label: '时-分-秒' },
-  { value: 'C', label: '年-月-日-时-分-秒' }
+  { value: 'A', label: '年月日' },
+  { value: 'B', label: '时分秒' },
+  { value: 'C', label: '年月日时分秒' }
 ];
 
+// 备份数据
 const startBackup = async () => {
   if (!store.dbBackup) {
     ElMessage.warning('请选择备份文件名格式');
@@ -99,7 +110,7 @@ const startBackup = async () => {
     backupLoading.value = false;
   }
 };
-
+// 恢复数据
 const restoreData = async () => {
   try {
     await ElMessageBox.confirm(
@@ -129,6 +140,7 @@ const restoreData = async () => {
   }
 };
 
+// 选择数据库路径
 const selectCustomPath = async () => {
   try {
     pathLoading.value = true;

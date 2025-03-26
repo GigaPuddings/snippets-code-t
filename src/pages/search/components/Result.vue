@@ -1,5 +1,5 @@
 <template>
-  <main ref="containerRef" class="result-container">
+  <main ref="containerRef" class="result-container glass-content">
     <div v-if="props.results.length !== 0" class="tabs">
       <template v-for="item in tabs" :key="item">
         <div
@@ -28,33 +28,29 @@
               loading="lazy"
             />
             <template v-else>
-              <application-two
+              <img
                 v-if="item.summarize === 'app'"
+                src="@/assets/svg/app.svg"
                 class="icon"
-                theme="outline"
-                size="24"
-                :strokeWidth="3"
+                loading="lazy"
               />
-              <bookmark-one
+              <img
                 v-else-if="item.summarize === 'bookmark'"
+                src="@/assets/svg/bookmark.svg"
                 class="icon"
-                theme="outline"
-                size="24"
-                :strokeWidth="3"
+                loading="lazy"
               />
-              <Search
+              <img
                 v-else-if="item.summarize === 'search'"
+                src="@/assets/svg/search.svg"
                 class="icon"
-                theme="outline"
-                size="24"
-                :strokeWidth="3"
+                loading="lazy"
               />
-              <file-code
+              <img
                 v-else
+                src="@/assets/svg/code.svg"
                 class="icon"
-                theme="outline"
-                size="24"
-                :strokeWidth="3"
+                loading="lazy"
               />
             </template>
           </div>
@@ -70,12 +66,6 @@
   </main>
 </template>
 <script lang="ts" setup>
-import {
-  FileCode,
-  ApplicationTwo,
-  BookmarkOne,
-  Search
-} from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 

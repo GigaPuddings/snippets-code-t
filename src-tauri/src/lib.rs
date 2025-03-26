@@ -1,6 +1,7 @@
 mod alarm;
 mod apps;
 mod bookmarks;
+mod cache;
 mod config;
 mod db;
 mod hotkey;
@@ -16,12 +17,12 @@ use crate::alarm::{
     toggle_alarm_card, update_alarm_card,
 };
 use crate::db::{backup_database, get_db_path, restore_database, set_custom_db_path};
-use crate::update::{
-    check_update, check_update_manually, get_update_info, get_update_status, perform_update,
-};
+use crate::update::{ check_update, check_update_manually, get_update_info, get_update_status, perform_update };
 use crate::window::{hotkey_config, start_mouse_tracking};
+use crate::config::{reset_software, get_auto_update_check, set_auto_update_check, exit_application};
 use apps::open_app_command;
 use bookmarks::open_url;
+use cache::clear_cache;
 use hotkey::*;
 use icon::init_app_and_bookmark_icons;
 use log::info;
@@ -157,7 +158,12 @@ pub fn run() {
             // 启动时检查更新
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(
-                async move { check_update(&app_handle, false).await.unwrap() },
+                async move { 
+                    // 先检查用户是否开启了自动更新
+                    if get_auto_update_check(app_handle.clone()) {
+                        check_update(&app_handle, false).await.unwrap();
+                    }
+                },
             );
 
             // 初始化应用和书签图标（后台线程）
@@ -219,6 +225,7 @@ pub fn run() {
             backup_database, // 备份数据库
             restore_database, // 恢复数据库
             set_custom_db_path, // 设置自定义数据库路径
+            clear_cache, // 清理缓存
             get_alarm_cards, // 获取代办提醒卡片
             add_alarm_card, // 添加代办提醒卡片
             update_alarm_card, // 更新代办提醒卡片
@@ -235,6 +242,10 @@ pub fn run() {
             fetch_favicon, // 获取网站favicon
             search_apps, // 搜索应用
             search_bookmarks, // 搜索书签
+            reset_software, // 重置软件
+            get_auto_update_check, // 获取自动检查更新设置
+            set_auto_update_check, // 设置自动检查更新设置
+            exit_application, // 退出应用
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,14 +1,21 @@
+@use 'sass:list';
+@use 'sass:color';
+
 :root {
   // 浅色主题变量
   --categories-panel-bg: #fff;
-  --categories-content-bg: #f5f7fa;
-  --categories-bg-active: #e6f0ff;
+  --categories-panel-bg-rgb: 255, 255, 255;
+  --categories-content-bg: #f8f8f8;
+  --categories-bg-active: #5d6dfd;
   --categories-bg-tab-active: #409eff1a;
-  --categories-panel-bg-hover: #f5f7fa;
+  --categories-panel-bg-hover: #efefef;
+  --categories-panel-bg-hover-rgb: 239, 239, 239;
   --categories-text-color: #333;
+  --categories-text-color-rgb: 51, 51, 51;
   --categories-info-text-color: #666;
-  --categories-text-color-active: #4b94f8;
+  --categories-text-color-active: #fff;
   --categories-border-color: #e4e7ed;
+  --categories-border-color-rgb: 228, 231, 237;
 
   // 搜索窗口主题变量
   --search-bg-color: #faf8f8;
@@ -24,14 +31,18 @@
 .dark {
   // 深色主题变量
   --categories-panel-bg: #1a1a1a;
+  --categories-panel-bg-rgb: 26, 26, 26;
   --categories-content-bg: #2c2c2c;
-  --categories-bg-active: #363636;
+  --categories-bg-active: #5d6dfd;
   --categories-bg-tab-active: #409eff1a;
   --categories-panel-bg-hover: #363636;
+  --categories-panel-bg-hover-rgb: 54, 54, 54;
   --categories-text-color: #fff;
+  --categories-text-color-rgb: 255, 255, 255;
   --categories-info-text-color: #a0a0a0;
-  --categories-text-color-active: #4b94f8;
+  --categories-text-color-active: #fff;
   --categories-border-color: #363636;
+  --categories-border-color-rgb: 54, 54, 54;
 
   // 搜索窗口深色主题变量
   --search-bg-color: #202020;
@@ -42,4 +53,28 @@
   --search-placeholder: #666;
   --search-result-hover: #363636;
   --search-border: #363636;
+}
+
+$btnColors: #5d6dfd, #67c23a, #e6a23c, #f56c6c, #909399;
+
+@for $i from 1 through list.length($btnColors) {
+  .btn.type-#{$i} {
+    $color: list.nth($btnColors, $i);
+
+    color: #fff;
+    background-color: $color;
+
+    &:hover {
+      background-color: color.adjust($color, $lightness: 10%);
+    }
+
+    &:active {
+      background-color: color.adjust($color, $lightness: -10%);
+    }
+
+    &:disabled {
+      color: #fff;
+      background-color: color.adjust($color, $lightness: 20%);
+    }
+  }
 }

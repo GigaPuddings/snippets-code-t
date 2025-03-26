@@ -208,7 +208,7 @@ onUnmounted(() => {
   @apply w-full p-6 pt-1 rounded-md overflow-hidden;
 
   .alarm-card {
-    @apply min-h-[180px] bg-white dark:bg-panel rounded-lg p-4 relative shadow-sm cursor-pointer select-none;
+    @apply min-h-[180px] border dark:border-panel bg-white dark:bg-panel rounded-lg p-4 relative shadow-sm cursor-pointer select-none;
 
     .time {
       @apply text-6xl font-bold mb-2;

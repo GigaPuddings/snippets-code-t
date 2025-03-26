@@ -1,13 +1,13 @@
 <template>
   <main
     :class="[
-      `${!hasTabbar ? 'w-[calc(100vw-1px)] h-screen p-1 rounded-md bg-content border border-neutral-300 dark:border-neutral-900 overflow-hidden' : ''}`
+      `${!hasTabbar ? 'w-screen h-screen rounded-md border border-panel overflow-hidden' : ''}`
     ]"
   >
     <div class="rounded-md overflow-hidden">
       <Titlebar v-if="!hasTabbar" />
       <div
-        :class="[`w-full ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-42px)]'}`]"
+        :class="[`w-full ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-41px)]'}`]"
       >
         <router-view>
           <template #default="{ Component, route }">

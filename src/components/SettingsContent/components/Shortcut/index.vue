@@ -1,40 +1,86 @@
 <template>
-  <section class="summarize-section">
-    <div class="summarize-label">工具条唤醒快捷键：</div>
-    <div class="summarize-input-wrapper">
-      <el-input
-        class="summarize-input"
-        required
-        v-model="store.searchHotkey"
-        @keydown="keyDown($event, setSelectionSearch)"
-        @focus="() => handleFocusUnregister('search', store.searchHotkey)"
-      >
-        <template #suffix>
-          <label class="label">
-            <span
-              v-for="(char, index) in labelText"
-              :key="index"
-              class="label-char"
-              :style="{ '--index': index }"
+  <main class="summarize-container">
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">工具条快捷键：</div>
+        <div class="summarize-label-desc">设置工具条唤醒快捷键</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <el-input
+          class="summarize-input"
+          required
+          v-model="store.searchHotkey"
+          @keydown="keyDown($event, setSelectionSearch)"
+          @focus="() => handleFocusUnregister('search', store.searchHotkey)"
+        >
+          <template #suffix>
+            <label class="label">
+              <span
+                v-for="(char, index) in labelText"
+                :key="index"
+                class="label-char"
+                :style="{ '--index': index }"
+              >
+                {{ char }}
+              </span>
+            </label>
+          </template>
+          <template #append>
+            <CustomButton
+              v-if="store.searchHotkey"
+              type="default"
+              size="small"
+              @click="() => registerHandler('search', store.searchHotkey)"
+              class="button-shortcut"
             >
-              {{ char }}
-            </span>
-          </label>
-        </template>
-        <template #append>
-          <button
-            v-if="store.searchHotkey"
-            class="summarize-button button-shortcut"
-            @click="() => registerHandler('search', store.searchHotkey)"
-          >
-            注册
-          </button>
-        </template>
-      </el-input>
-    </div>
-  </section>
+              注册
+            </CustomButton>
+          </template>
+        </el-input>
+      </div>
+    </section>
 
-  <section class="summarize-section">
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">主窗口快捷键：</div>
+        <div class="summarize-label-desc">设置主窗口唤醒快捷键</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <el-input
+          class="summarize-input"
+          v-model="store.configHotkey"
+          required
+          @keydown="keyDown($event, setSelectionConfig)"
+          @focus="() => handleFocusUnregister('config', store.configHotkey)"
+        >
+          <template #suffix>
+            <label class="label">
+              <span
+                v-for="(char, index) in labelText"
+                :key="index"
+                class="label-char"
+                :style="{ '--index': index }"
+              >
+                {{ char }}
+              </span>
+            </label>
+          </template>
+          <template #append>
+            <CustomButton
+              v-if="store.configHotkey"
+              type="default"
+              size="small"
+              @click="() => registerHandler('config', store.configHotkey)"
+              class="button-shortcut"
+            >
+              注册
+            </CustomButton>
+          </template>
+        </el-input>
+      </div>
+    </section>
+
+    <!-- <section class="summarize-section">
     <div class="summarize-label">主窗口唤醒快捷键：</div>
     <div class="summarize-input-wrapper">
       <el-input
@@ -65,9 +111,10 @@
             注册
           </button>
         </template>
-      </el-input>
-    </div>
-  </section>
+        </el-input>
+      </div>
+    </section> -->
+  </main>
 </template>
 
 <script setup lang="ts">
@@ -75,6 +122,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { osType } from '@/utils/env';
 import { useConfigurationStore } from '@/store';
+import CustomButton from '@/components/UI/CustomButton.vue';
 
 const store = useConfigurationStore();
 
@@ -129,6 +177,7 @@ function keyDown(e: Event | KeyboardEvent, setKey: (arg0: string) => void) {
   }
 
   let parts = [];
+  console.log('event', event);
 
   if (event.ctrlKey) parts.push('Ctrl');
   if (event.shiftKey) parts.push('Shift');

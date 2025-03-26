@@ -164,6 +164,14 @@ const handleCategoryChange = async (categoryId: number) => {
 
 .active {
   @apply bg-active dark:bg-active hover:bg-active dark:hover:bg-active;
+
+  .content-item-title {
+    @apply truncate !text-active;
+  }
+
+  .content-item-info {
+    @apply truncate !text-active;
+  }
 }
 
 .content-item-wrapper {

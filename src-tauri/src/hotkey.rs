@@ -47,10 +47,11 @@ where
             return Err(format!("快捷键 '{}' 已经被注册", hotkey));
         }
 
-        // 注销现有的快捷键（如果有）
-        if manager.is_registered(shortcut) {
-            manager.unregister(shortcut).unwrap();
-        }
+        // // 注销现有的快捷键（如果有）
+        // if manager.is_registered(shortcut) {
+        //     info!("注销快捷键：{}", hotkey);
+        //     manager.unregister(shortcut).unwrap();
+        // }
 
         // 注册新的快捷键
         let _ = manager.on_shortcut(shortcut, move |_app_handle, hotkey, event| {

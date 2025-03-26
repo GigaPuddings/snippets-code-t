@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import { invoke } from '@tauri-apps/api/core';
-import { Home } from '@icon-park/vue-next';
 import { useSetIgnoreCursorEvents } from '@/hooks/useSetIgnoreCursorEvents';
 import { useSearch } from '@/hooks/useSearch';
 import { listen } from '@tauri-apps/api/event';
@@ -56,12 +55,10 @@ const handleKeyDown = async (e: Event) => {
         v-model="searchText"
         @keydown="handleKeyDown"
       />
-      <home
+      <img
+        src="@/assets/svg/home.svg"
         class="home"
-        theme="outline"
-        size="24"
-        :strokeWidth="4"
-        strokeLinecap="butt"
+        loading="lazy"
         @click="handleGoConfig"
       />
     </section>
@@ -88,7 +85,8 @@ const handleKeyDown = async (e: Event) => {
 }
 
 .main {
-  @apply bg-search rounded-md p-3 border border-black/10 box-border;
+  /* 拖拽手势 */
+  @apply bg-search rounded-md p-3 border border-panel box-border;
 
   .search {
     @apply flex items-center border-b border-search;
@@ -98,7 +96,7 @@ const handleKeyDown = async (e: Event) => {
     }
 
     .home {
-      @apply p-1 rounded-md opacity-80 cursor-pointer;
+      @apply p-1 w-9 h-9 rounded-md opacity-60 hover:opacity-100 cursor-pointer;
     }
   }
 }

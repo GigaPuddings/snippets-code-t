@@ -86,6 +86,8 @@ watch(
     const newCid = route.params.cid as string;
     // 只有当路径中包含 contentList 时才触发（说明是点击分类导航）
     if (newPath.includes('/contentList') && !newPath.includes('/content/')) {
+      console.log('newPath', newPath);
+
       queryFragments(newCid ? newCid : undefined);
     }
   },
@@ -136,7 +138,7 @@ onMounted(() => {
 }
 
 .left-panel {
-  @apply h-full bg-panel dark:bg-panel rounded-md ml-2 px-2 overflow-hidden;
+  @apply h-full bg-panel dark:bg-panel border dark:border-panel rounded-md px-2 overflow-hidden;
 
   .content-search {
     @apply border-b border-panel flex justify-between items-center h-[40px];
@@ -154,7 +156,7 @@ onMounted(() => {
     }
 
     .content-empty {
-      @apply flex justify-center h-full mt-6;
+      @apply flex justify-center h-full pt-6;
 
       .content-empty-text {
         @apply opacity-90 text-content text-xs select-none;
@@ -164,6 +166,6 @@ onMounted(() => {
 }
 
 .right-panel {
-  @apply h-full bg-panel dark:bg-panel rounded-md ml-2 overflow-hidden;
+  @apply h-full bg-panel dark:bg-panel border dark:border-panel rounded-md overflow-hidden;
 }
 </style>

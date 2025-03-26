@@ -272,10 +272,10 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 
 <style scoped lang="scss">
 .retrieve-container {
-  @apply w-full h-full overflow-hidden;
+  @apply relative w-full h-full overflow-hidden rounded-md border dark:border-panel;
 
   .search-config {
-    @apply bg-panel rounded-lg p-4;
+    @apply h-full bg-panel p-2;
 
     .config-title {
       @apply flex items-center justify-between mb-2 mr-4;
@@ -296,7 +296,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
         @apply flex items-center justify-between px-4 py-3 mb-4 last:mb-0 bg-content rounded-md;
 
         :deep(.el-input__wrapper) {
-          @apply border !bg-panel dark:!bg-content rounded-md;
+          @apply border border-panel !bg-panel dark:!bg-content rounded-md;
         }
 
         &.is-editing {
@@ -338,7 +338,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
             @apply w-[140px];
 
             :deep(.el-select__wrapper) {
-              @apply border rounded-md !bg-panel dark:!bg-content;
+              @apply border border-panel rounded-md !bg-panel dark:!bg-content;
             }
           }
 

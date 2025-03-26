@@ -118,7 +118,7 @@ onMounted(async () => {
   grid-template-columns: 160px 1fr;
 
   .category-page {
-    @apply bg-panel dark:bg-panel px-2 text-sm text-slate-700 rounded-md;
+    @apply relative bg-panel dark:bg-panel border dark:border-panel px-2 text-sm text-slate-700 rounded-md;
 
     .category-header-list {
       @apply flex justify-between items-center mt-2;

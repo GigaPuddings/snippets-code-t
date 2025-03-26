@@ -1,19 +1,41 @@
 <template>
-  <main data-tauri-drag-region class="titlebar">
+  <main
+    data-tauri-drag-region
+    :class="[activeTabIndex !== 2 ? 'gradient titlebar' : 'titlebar']"
+  >
     <div class="titlebar-title">
       <div class="flex items-center gap-2">
         <img src="@/assets/128x128.png" alt="" class="w-6 h-6" />
         <div class="text-lg">{{ state.appName }}</div>
         <span class="text-sm text-stone-300">{{ state.appVersion }}</span>
+        <!-- 导航栏 -->
+        <div class="nav-bar-wrapper">
+          <SegmentedToggle
+            v-model="activeTabIndex"
+            :items="tabs"
+            @change="handleTabChange"
+          >
+            <template #item="scope">
+              <component
+                :is="scope.item.icon"
+                class="text-panel"
+                theme="outline"
+                size="18"
+                :strokeWidth="3"
+              />
+            </template>
+          </SegmentedToggle>
+        </div>
       </div>
       <slot></slot>
     </div>
+    <!-- 标题栏按钮 -->
     <div class="titlebar-list">
       <div class="app-update relative" title="检查更新" aria-label="检查更新">
         <update-rotation
           class="icon"
           theme="outline"
-          size="20"
+          size="18"
           :strokeWidth="3"
           @click="handleUpdateClick"
         />
@@ -36,14 +58,28 @@
       </div>
       <div
         class="titlebar-button"
+        @click="openSettingsDialog"
+        title="设置"
+        aria-label="设置"
+      >
+        <setting-two
+          class="icon"
+          theme="outline"
+          size="18"
+          :strokeWidth="3"
+          strokeLinecap="butt"
+        />
+      </div>
+      <div
+        class="titlebar-button"
         @click="handleTitlebar('minimize')"
         title="最小化窗口"
         aria-label="最小化窗口"
       >
         <minus
-          class="icon"
+          class="icon !p-[2px]"
           theme="outline"
-          size="17"
+          size="20"
           :strokeWidth="3"
           strokeLinecap="butt"
         />
@@ -87,17 +123,22 @@ import {
   Minus,
   SquareSmall,
   CloseSmall,
-  UpdateRotation
+  UpdateRotation,
+  BookOpen,
+  SettingTwo,
+  MessageSearch,
+  Notepad
 } from '@icon-park/vue-next';
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
-import { onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-
+import { useRouter } from 'vue-router';
+import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
 defineOptions({
   name: 'Titlebar'
 });
 
+const router = useRouter();
 const isMaximized = ref(false);
 type WindowAction = 'isAlwaysOnTop' | 'minimize' | 'maximize' | 'close';
 
@@ -109,6 +150,45 @@ const state = reactive({
 });
 
 const hasUpdate = ref(false);
+
+// 当前激活的tab索引
+const activeTabIndex = ref(0);
+
+interface TabItem {
+  icon: any;
+  path: string;
+}
+
+const tabs: TabItem[] = [
+  {
+    icon: BookOpen,
+    path: '/config/category/contentList'
+  },
+  {
+    icon: MessageSearch,
+    path: '/config/retrieve'
+  },
+  {
+    icon: Notepad,
+    path: '/config/todo'
+  }
+];
+
+// 根据当前路由设置激活的tab
+const setActiveTabFromRoute = () => {
+  const currentPath = router.currentRoute.value.path;
+  const index = tabs.findIndex((tab) => currentPath.startsWith(tab.path));
+  if (index !== -1) {
+    activeTabIndex.value = index;
+  }
+};
+
+// 切换Tab并跳转路由
+const handleTabChange = (index: number) => {
+  if (tabs[index]) {
+    router.push(tabs[index].path);
+  }
+};
 
 const handleUpdateClick = async () => {
   if (hasUpdate.value) {
@@ -152,6 +232,11 @@ const handleTitlebar = async (type: WindowAction) => {
   }
 };
 
+// 打开设置页面
+const openSettingsDialog = () => {
+  router.push('/config/category/settings');
+};
+
 let unListen: UnlistenFn;
 onMounted(async () => {
   await initEnv();
@@ -165,7 +250,19 @@ onMounted(async () => {
   unListen = await listen('update-available', (event: any) => {
     hasUpdate.value = event.payload;
   });
+
+  // 设置初始激活的tab
+  setActiveTabFromRoute();
 });
+
+// 监听路由变化，同步更新activeTabIndex
+watch(
+  () => router.currentRoute.value.path,
+  () => {
+    setActiveTabFromRoute();
+  },
+  { immediate: true }
+);
 
 onUnmounted(() => {
   unListen();
@@ -178,11 +275,39 @@ onUnmounted(() => {
 }
 
 .titlebar {
-  @apply bg-content dark:bg-content flex justify-between items-center w-full h-8 leading-8 pr-1 select-none;
+  @apply relative flex justify-between items-center w-full h-10 leading-10 select-none pr-1;
+
+  z-index: 50;
+  background-color: rgba(var(--categories-panel-bg-rgb), 0.9);
+  backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(var(--categories-border-color-rgb), 0.3);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
+}
+
+.gradient {
+  &::after {
+    position: absolute;
+    right: 0;
+    bottom: -8px;
+    left: 0;
+    height: 8px;
+    pointer-events: none;
+    content: '';
+    background: linear-gradient(
+      to bottom,
+      rgba(var(--categories-panel-bg-rgb), 0.9),
+      transparent
+    );
+    backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+  }
 }
 
 .titlebar-title {
   @apply text-slate-800 dark:text-panel pl-1 flex items-center;
+
+  text-shadow: 0 1px 1px rgb(0 0 0 / 5%);
 }
 
 .titlebar-list {
@@ -194,13 +319,13 @@ onUnmounted(() => {
 }
 
 .app-update {
-  @apply flex justify-center items-center flex-col ml-2;
+  @apply flex justify-center items-center flex-col;
 
   &:hover {
     @apply cursor-pointer;
 
     .icon {
-      @apply animate-spin bg-transparent;
+      @apply animate-spin !bg-transparent;
     }
   }
 
@@ -212,7 +337,19 @@ onUnmounted(() => {
 .icon {
   @include commonIcon;
 
-  @apply text-[20px] p-1 dark:text-panel;
+  @apply text-[20px] p-1;
+
+  color: rgba(var(--categories-text-color-rgb), 0.85);
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: var(--categories-text-color);
+    background-color: rgba(var(--categories-panel-bg-hover-rgb), 0.6);
+  }
+}
+
+.nav-bar-wrapper {
+  @apply ml-4 flex items-center;
 }
 
 @keyframes pulse {

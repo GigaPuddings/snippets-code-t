@@ -258,9 +258,9 @@ pub fn load_app_icons_async_silent(
     for mut app in apps {
         // 只处理没有图标的应用程序
         if app.icon.is_none() {
-            info!("正在为 '{}' 提取图标: {}", app.title, app.content);
+            // info!("正在为 '{}' 提取图标: {}", app.title, app.content);
             if let Some(icon_data) = icon::extract_app_icon(&app.content) {
-                info!("成功获取 '{}' 的图标", app.title);
+                // info!("成功获取 '{}' 的图标", app.title);
                 app.icon = Some(icon_data);
                 count += 1;
             } else {

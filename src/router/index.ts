@@ -62,6 +62,14 @@ const routes: RouteRecordRaw[] = [
                     name: 'Content'
                   }
                 ]
+              },
+              {
+                path: 'settings',
+                component: () =>
+                  import(
+                    '@/pages/config/components/category/components/settings/index.vue'
+                  ),
+                name: 'Settings'
               }
             ]
           },
@@ -71,12 +79,12 @@ const routes: RouteRecordRaw[] = [
               import('@/pages/config/components/retrieve/index.vue'),
             name: 'Retrieve'
           },
-          {
-            path: 'summarize',
-            component: () =>
-              import('@/pages/config/components/summarize/index.vue'),
-            name: 'Summarize'
-          },
+          // {
+          //   path: 'summarize',
+          //   component: () =>
+          //     import('@/pages/config/components/summarize/index.vue'),
+          //   name: 'Summarize'
+          // },
           {
             path: 'todo',
             component: () => import('@/pages/config/components/todo/index.vue'),
