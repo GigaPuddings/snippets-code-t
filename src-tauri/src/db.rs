@@ -45,6 +45,7 @@ pub fn get_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
     default_path
 }
 
+// 备份数据库
 #[tauri::command]
 pub async fn backup_database(format: &str) -> Result<String, String> {
     let app = APP.get().unwrap();
@@ -91,6 +92,7 @@ pub async fn backup_database(format: &str) -> Result<String, String> {
     }
 }
 
+// 恢复数据库
 #[tauri::command]
 pub async fn restore_database() -> Result<String, String> {
     let app = APP.get().unwrap();
@@ -140,9 +142,12 @@ pub async fn restore_database() -> Result<String, String> {
                 .step(-1)
                 .map_err(|e| format!("恢复过程失败: {}", e))?;
 
+            // 在后台线程中注销所有快捷键并重启应用程序
             std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(1));
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                // 注销所有快捷键
                 app.global_shortcut().unregister_all().unwrap();
+                // 重启应用程序
                 app.restart();
             });
 
@@ -164,7 +169,7 @@ fn is_valid_sqlite_db<P: AsRef<Path>>(path: P) -> bool {
     false
 }
 
-// 新增：设置自定义数据库路径
+// 自定义数据库路径
 #[tauri::command]
 pub async fn set_custom_db_path() -> Result<String, String> {
     let app = APP.get().unwrap();
@@ -243,9 +248,12 @@ pub async fn set_custom_db_path() -> Result<String, String> {
     let new_path_str = new_path.to_str().unwrap().to_string();
     crate::config::set_value(app, DB_PATH_KEY, &new_path_str);
 
+    // 在后台线程中注销所有快捷键并重启应用程序
     std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        // 注销所有快捷键
         app.global_shortcut().unregister_all().unwrap();
+        // 重启应用程序
         app.restart();
     });
 

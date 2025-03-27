@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use tauri_plugin_global_shortcut::{Code, Modifiers};
 use tauri_plugin_store::StoreBuilder;
 use log::LevelFilter;
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 // use mouse_position::mouse_position::{Mouse, Position};
 
 pub const DB_PATH_KEY: &str = "custom_db_path"; // 自定义数据库路径
@@ -194,6 +195,15 @@ pub fn reset_software(app_handle: tauri::AppHandle) -> Result<(), String> {
     if let Err(e) = crate::search::update_search_engines(app_handle.clone(), Vec::new()) {
         return Err(format!("重置搜索引擎失败: {}", e));
     }
+
+    // 在后台线程中注销所有快捷键并重启应用程序
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        // 注销所有快捷键
+        app_handle.global_shortcut().unregister_all().unwrap();
+        // 重启应用程序
+        app_handle.restart();
+    });
     
     Ok(())
 }

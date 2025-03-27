@@ -164,7 +164,7 @@ const resetSoftware = async () => {
     );
 
     resetSoftwareLoading.value = true;
-    await invoke('clear_cache');
+    await invoke('reset_software');
     ElMessage.success('重置软件成功');
   } catch (error: any) {
     if (error !== 'cancel') {
