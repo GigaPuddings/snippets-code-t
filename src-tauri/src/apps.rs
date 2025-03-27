@@ -1,10 +1,12 @@
 use crate::icon;
+use glob::glob;
 use log::info;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::mem::size_of;
+use std::os::windows::process::CommandExt;
 use std::path::Path;
 use tauri::AppHandle;
 use uuid::Uuid;
@@ -18,8 +20,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
 use winreg::RegKey;
 use xml::reader::{EventReader, XmlEvent};
-use glob::glob;
-use std::process::Command;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppInfo {
@@ -93,20 +93,22 @@ fn parse_appx_manifest(manifest_path: &Path) -> Option<UwpAppInfo> {
     // 读取清单文件
     let file = fs::File::open(manifest_path).ok()?;
     let parser = EventReader::new(file);
-    
+
     let mut display_name = None;
     let mut logo_path = None;
     let mut executable = None;
     let mut package_path = manifest_path.parent()?.to_path_buf();
-    
+
     // 移除掉最后一级目录(通常是AppxManifest.xml所在的目录)
     if let Some(parent) = package_path.parent() {
         package_path = parent.to_path_buf();
     }
-    
+
     for event in parser {
         match event {
-            Ok(XmlEvent::StartElement { name, attributes, .. }) => {
+            Ok(XmlEvent::StartElement {
+                name, attributes, ..
+            }) => {
                 // 获取显示名称
                 if name.local_name == "Application" {
                     for attr in &attributes {
@@ -138,13 +140,13 @@ fn parse_appx_manifest(manifest_path: &Path) -> Option<UwpAppInfo> {
             _ => {}
         }
     }
-    
+
     // 检查是否找到所有必要信息
     if let (Some(name), Some(logo), Some(exe)) = (display_name, logo_path, executable) {
         // 构建完整的图标路径
         let full_logo_path = package_path.join(&logo);
         let full_exe_path = package_path.join(&exe);
-        
+
         Some(UwpAppInfo {
             display_name: name,
             logo_path: full_logo_path.to_string_lossy().to_string(),
@@ -158,32 +160,32 @@ fn parse_appx_manifest(manifest_path: &Path) -> Option<UwpAppInfo> {
 // 获取UWP应用
 fn get_uwp_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
-    
+
     // UWP应用通常安装在以下目录
     let packages_paths = [
         "C:\\Program Files\\WindowsApps",
         "C:\\Program Files\\ModifiableWindowsApps",
     ];
-    
+
     for &base_path in &packages_paths {
         let base_dir = Path::new(base_path);
-        
+
         if !base_dir.exists() || !base_dir.is_dir() {
             continue;
         }
-        
+
         // 遍历所有应用包目录
         if let Ok(entries) = fs::read_dir(base_dir) {
             for entry in entries.filter_map(Result::ok) {
                 let package_dir = entry.path();
-                
+
                 if !package_dir.is_dir() {
                     continue;
                 }
-                
+
                 // 查找AppxManifest.xml文件
                 let manifest_path = package_dir.join("AppxManifest.xml");
-                
+
                 if manifest_path.exists() {
                     if let Some(app_info) = parse_appx_manifest(&manifest_path) {
                         apps.push(AppInfo {
@@ -198,42 +200,48 @@ fn get_uwp_apps() -> Vec<AppInfo> {
             }
         }
     }
-    
+
     apps
 }
 
 // 从桌面快捷方式获取应用程序信息
 fn get_desktop_shortcuts() -> Vec<AppInfo> {
     let mut apps = Vec::new();
-    
+
     info!("正在检索桌面快捷方式...");
-    
+
     // 尝试获取公共桌面和用户桌面路径
     let desktop_paths = [
         dirs::desktop_dir(),
-        dirs::document_dir().map(|p| p.join("..").join("Desktop").canonicalize().ok()).flatten(),
+        dirs::document_dir()
+            .map(|p| p.join("..").join("Desktop").canonicalize().ok())
+            .flatten(),
         Some(Path::new("C:\\Users\\Public\\Desktop").to_path_buf()),
     ];
-    
+
     for desktop_path in desktop_paths.iter().flatten() {
         info!("检索桌面目录: {:?}", desktop_path);
-        
+
         // 查找所有.lnk快捷方式
         if let Ok(entries) = fs::read_dir(desktop_path) {
             for entry in entries.filter_map(Result::ok) {
                 let path = entry.path();
-                
+
                 if path.extension().map_or(false, |ext| ext == "lnk") {
                     info!("检测到快捷方式: {:?}", path);
-                    
+
                     // 解析快捷方式获取目标应用路径和名称
                     if let Some(target_path) = resolve_shortcut(&path) {
                         // 检查目标是否为有效的可执行文件
                         if target_path.ends_with(".exe") && Path::new(&target_path).exists() {
-                            let file_name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
-                            
+                            let file_name = path
+                                .file_stem()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_string();
+
                             info!("解析快捷方式成功: {} -> {}", file_name, target_path);
-                            
+
                             apps.push(AppInfo {
                                 id: Uuid::new_v4().to_string(),
                                 title: file_name,
@@ -247,54 +255,147 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
             }
         }
     }
-    
+
     info!("从桌面快捷方式中发现 {} 个应用程序", apps.len());
     apps
 }
 
 // 解析快捷方式获取目标路径
 fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
-    // 使用PowerShell简单地获取.lnk文件的目标
-    let output = Command::new("powershell")
-        .args(&[
-            "-NoProfile",
-            "-Command",
-            &format!(
-                "$(New-Object -ComObject WScript.Shell).CreateShortcut('{}').TargetPath",
-                shortcut_path.to_string_lossy()
-            ),
-        ])
-        .output()
-        .ok()?;
+    // 使用稳定的方式处理快捷方式解析，防止PowerShell闪退
+    info!("尝试解析快捷方式: {:?}", shortcut_path);
     
-    if output.status.success() {
-        let target = String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .to_string();
-        
-        if !target.is_empty() {
-            return Some(target);
+    let shortcut_path_str = shortcut_path.to_string_lossy().to_string();
+    
+    // 避免直接使用PowerShell创建COM对象，因为这可能在Windows权限或安全设置下导致问题
+    // 改用更直接的文件读取方式或静态路径匹配
+    
+    // 方法1: 尝试使用预先定义的常用目标位置猜测目标
+    let filename = shortcut_path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let common_targets = match filename.to_lowercase().as_str() {
+        "word" | "microsoft word" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE"),
+        "excel" | "microsoft excel" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE"),
+        "powerpoint" | "microsoft powerpoint" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\POWERPNT.EXE"),
+        "outlook" | "microsoft outlook" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE"),
+        "access" | "microsoft access" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\MSACCESS.EXE"),
+        "chrome" | "google chrome" => Some("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"),
+        "edge" | "microsoft edge" => Some("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"),
+        "firefox" | "mozilla firefox" => Some("C:\\Program Files\\Mozilla Firefox\\firefox.exe"),
+        "notepad++" => Some("C:\\Program Files\\Notepad++\\notepad++.exe"),
+        "paint" | "mspaint" => Some("C:\\Windows\\System32\\mspaint.exe"),
+        "cmd" | "command prompt" => Some("C:\\Windows\\System32\\cmd.exe"),
+        _ => None,
+    };
+
+    if let Some(target) = common_targets {
+        if Path::new(target).exists() {
+            info!("通过名称匹配找到快捷方式目标: {} -> {}", filename, target);
+            return Some(target.to_string());
         }
     }
     
-    None
+    // 方法2: 使用PowerShell但添加更多错误处理
+    // 包装在一个独立函数中，避免在出错时影响整个应用程序
+    match resolve_shortcut_with_powershell(shortcut_path) {
+        Ok(Some(path)) => {
+            info!("成功解析快捷方式: {} -> {}", shortcut_path_str, path);
+            Some(path)
+        },
+        Ok(None) => {
+            info!("快捷方式没有有效目标: {}", shortcut_path_str);
+            None
+        },
+        Err(e) => {
+            info!("解析快捷方式出错 {}: {}", shortcut_path_str, e);
+            None
+        }
+    }
+}
+
+// 使用PowerShell解析快捷方式，但添加错误处理
+fn resolve_shortcut_with_powershell(shortcut_path: &Path) -> Result<Option<String>, String> {
+    let shortcut_path_str = shortcut_path.to_string_lossy().to_string();
+    
+    // 使用try_with_timeout包装PowerShell执行，防止长时间阻塞
+    let result = try_with_timeout(move || {
+        let output = std::process::Command::new("powershell")
+            .args(&[
+                "-NoProfile",
+                "-NonInteractive", // 添加非交互模式，减少显示窗口的机会
+                "-ExecutionPolicy", "Bypass", // 确保脚本可以运行
+                "-Command",
+                &format!(
+                    "try {{ $shortcut = $(New-Object -ComObject WScript.Shell).CreateShortcut('{}'); $shortcut.TargetPath }} catch {{ Write-Output 'ERROR:' $_.Exception.Message }}",
+                    shortcut_path_str.replace("'", "''") // 正确处理路径中的单引号
+                ),
+            ])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW 标志，防止窗口闪现
+            .output();
+        
+        match output {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                
+                // 检查PowerShell错误输出
+                if stdout.starts_with("ERROR:") {
+                    return Err(stdout);
+                }
+                
+                // 确保得到有效路径
+                if !stdout.is_empty() && stdout.ends_with(".exe") && Path::new(&stdout).exists() {
+                    return Ok(Some(stdout));
+                }
+                
+                Ok(None)
+            },
+            Err(e) => Err(format!("执行PowerShell命令失败: {}", e)),
+        }
+    }, std::time::Duration::from_secs(1));
+    
+    match result {
+        Ok(result) => result,
+        Err(_) => Err("解析快捷方式超时".to_string()),
+    }
+}
+
+// 执行一个操作，如果超时则返回错误
+fn try_with_timeout<T, E, F>(f: F, timeout: std::time::Duration) -> Result<Result<T, E>, ()>
+where
+    F: FnOnce() -> Result<T, E> + Send + 'static,
+    T: Send + 'static,
+    E: Send + 'static,
+{
+    use std::sync::mpsc;
+    use std::thread;
+    
+    let (tx, rx) = mpsc::channel();
+    
+    thread::spawn(move || {
+        tx.send(f()).unwrap_or(());
+    });
+    
+    match rx.recv_timeout(timeout) {
+        Ok(result) => Ok(result),
+        Err(_) => Err(()),
+    }
 }
 
 // 获取Windows内置应用
 fn get_windows_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
-    
+
     info!("正在检索Windows内置应用...");
-    
+
     // Windows常用内置应用的路径 - 增加更多变体以提高检测成功率
     let windows_apps = [
         ("计算器", "C:\\Windows\\System32\\calc.exe"),
         ("记事本", "C:\\Windows\\System32\\notepad.exe"),
         ("画图", "C:\\Windows\\System32\\mspaint.exe"),
-        ("画图3D", "C:\\Program Files\\WindowsApps\\Microsoft.Paint3D_*\\PaintStudio.View.exe"),
+        (
+            "画图3D",
+            "C:\\Program Files\\WindowsApps\\Microsoft.Paint3D_*\\PaintStudio.View.exe",
+        ),
         ("写字板", "C:\\Windows\\System32\\write.exe"),
-        ("命令提示符", "C:\\Windows\\System32\\cmd.exe"),
-        ("PowerShell", "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"),
         ("任务管理器", "C:\\Windows\\System32\\Taskmgr.exe"),
         ("控制面板", "C:\\Windows\\System32\\control.exe"),
         ("文件资源管理器", "C:\\Windows\\explorer.exe"),
@@ -305,12 +406,21 @@ fn get_windows_apps() -> Vec<AppInfo> {
         ("系统信息", "C:\\Windows\\System32\\msinfo32.exe"),
         ("音量合成器", "C:\\Windows\\System32\\SndVol.exe"),
         // Win10/11特有工具
-        ("截图和草图", "C:\\Windows\\SystemApps\\Microsoft.ScreenSketch_*\\ScreenSketch.exe"),
+        (
+            "截图和草图",
+            "C:\\Windows\\SystemApps\\Microsoft.ScreenSketch_*\\ScreenSketch.exe",
+        ),
         // 其他常用工具
-        ("Windows终端", "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_*\\wt.exe"),
-        ("设置", "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe"),
+        (
+            "Windows终端",
+            "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_*\\wt.exe",
+        ),
+        (
+            "设置",
+            "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe",
+        ),
     ];
-    
+
     // 首先尝试直接查找路径（对于常规系统工具）
     for (name, path) in windows_apps.iter() {
         // 如果路径包含通配符，则使用glob查找
@@ -320,7 +430,7 @@ fn get_windows_apps() -> Vec<AppInfo> {
                     let path_str = first_match.to_string_lossy().to_string();
                     if Path::new(&path_str).exists() {
                         info!("找到Windows应用: {} -> {}", name, path_str);
-                        
+
                         apps.push(AppInfo {
                             id: Uuid::new_v4().to_string(),
                             title: name.to_string(),
@@ -333,7 +443,7 @@ fn get_windows_apps() -> Vec<AppInfo> {
             }
         } else if Path::new(path).exists() {
             info!("找到Windows应用: {} -> {}", name, path);
-            
+
             apps.push(AppInfo {
                 id: Uuid::new_v4().to_string(),
                 title: name.to_string(),
@@ -343,20 +453,20 @@ fn get_windows_apps() -> Vec<AppInfo> {
             });
         }
     }
-    
+
     // 使用AppPath注册表检测更多应用（这种方法对于找到截图工具和画图工具很有效）
     let app_path_entries = [
         ("画图", "mspaint.exe"),
         ("截图工具", "SnippingTool.exe"),
         ("截图和草图", "ScreenSketch.exe"),
     ];
-    
+
     for (name, exe_name) in app_path_entries.iter() {
         if let Some(path) = get_app_path_from_registry(exe_name) {
             // 检查应用程序是否已经被添加，避免重复
             if !apps.iter().any(|app| app.content == path) {
                 info!("通过AppPath找到Windows应用: {} -> {}", name, path);
-                
+
                 apps.push(AppInfo {
                     id: Uuid::new_v4().to_string(),
                     title: name.to_string(),
@@ -367,15 +477,15 @@ fn get_windows_apps() -> Vec<AppInfo> {
             }
         }
     }
-    
+
     // 查找Windows 10/11中的现代UWP应用
     let system_apps = find_modern_system_apps();
     apps.extend(system_apps);
-    
+
     // 查找Microsoft Office应用
     let office_apps = get_office_apps();
     apps.extend(office_apps);
-    
+
     info!("找到 {} 个Windows内置应用", apps.len());
     apps
 }
@@ -383,8 +493,11 @@ fn get_windows_apps() -> Vec<AppInfo> {
 // 从注册表App Paths获取应用路径
 fn get_app_path_from_registry(exe_name: &str) -> Option<String> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let app_paths_key = format!("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{}", exe_name);
-    
+    let app_paths_key = format!(
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{}",
+        exe_name
+    );
+
     if let Ok(key) = hklm.open_subkey(&app_paths_key) {
         if let Ok(path) = key.get_value::<String, _>("") {
             if Path::new(&path).exists() {
@@ -392,7 +505,7 @@ fn get_app_path_from_registry(exe_name: &str) -> Option<String> {
             }
         }
     }
-    
+
     // 如果在HKLM中找不到，尝试在HKCU中查找
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     if let Ok(key) = hkcu.open_subkey(&app_paths_key) {
@@ -402,16 +515,16 @@ fn get_app_path_from_registry(exe_name: &str) -> Option<String> {
             }
         }
     }
-    
+
     None
 }
 
 // 检测Microsoft Office应用程序
 fn get_office_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
-    
+
     info!("正在检索Microsoft Office应用...");
-    
+
     // 定义Office版本号和应用
     let office_versions = [
         "16.0", // Office 2016/2019/365
@@ -420,7 +533,7 @@ fn get_office_apps() -> Vec<AppInfo> {
         "12.0", // Office 2007
         "11.0", // Office 2003
     ];
-    
+
     let office_apps = [
         ("Word", "WINWORD.EXE", "Microsoft Word"),
         ("Excel", "EXCEL.EXE", "Microsoft Excel"),
@@ -430,12 +543,12 @@ fn get_office_apps() -> Vec<AppInfo> {
         ("Publisher", "MSPUB.EXE", "Microsoft Publisher"),
         ("OneNote", "ONENOTE.EXE", "Microsoft OneNote"),
     ];
-    
+
     // 方式1: 从App Paths注册表项检测Office应用
     for (_, exe_name, display_name) in office_apps.iter() {
         if let Some(path) = get_app_path_from_registry(exe_name) {
             info!("通过AppPath找到Office应用: {} -> {}", display_name, path);
-            
+
             apps.push(AppInfo {
                 id: Uuid::new_v4().to_string(),
                 title: display_name.to_string(),
@@ -445,23 +558,23 @@ fn get_office_apps() -> Vec<AppInfo> {
             });
         }
     }
-    
+
     // 方式2: 检查Office注册表项
     for version in office_versions.iter() {
         // 首先检查Office主安装路径
         let install_root = detect_office_install_root(version);
         if let Some(root_path) = install_root {
             info!("找到Office {} 主安装路径: {}", version, root_path);
-            
+
             // 检查每个应用的路径
             for (app_name, exe_name, display_name) in office_apps.iter() {
                 let app_path = format!("{}\\{}", root_path, exe_name);
                 if Path::new(&app_path).exists() {
                     info!("找到Office应用 {}: {}", display_name, app_path);
-                    
+
                     apps.push(AppInfo {
                         id: Uuid::new_v4().to_string(),
-                        title: display_name.to_string(), 
+                        title: display_name.to_string(),
                         content: app_path,
                         icon: None,
                         summarize: "app".to_string(),
@@ -473,11 +586,11 @@ fn get_office_apps() -> Vec<AppInfo> {
                         let full_path = format!("{}\\{}", path, exe_name);
                         if Path::new(&full_path).exists() {
                             info!("通过注册表找到Office应用 {}: {}", display_name, full_path);
-                            
+
                             apps.push(AppInfo {
                                 id: Uuid::new_v4().to_string(),
                                 title: display_name.to_string(),
-                                content: full_path, 
+                                content: full_path,
                                 icon: None,
                                 summarize: "app".to_string(),
                             });
@@ -493,7 +606,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                     let full_path = format!("{}\\{}", path, exe_name);
                     if Path::new(&full_path).exists() {
                         info!("通过注册表找到Office应用 {}: {}", display_name, full_path);
-                        
+
                         apps.push(AppInfo {
                             id: Uuid::new_v4().to_string(),
                             title: display_name.to_string(),
@@ -506,7 +619,7 @@ fn get_office_apps() -> Vec<AppInfo> {
             }
         }
     }
-    
+
     // 方式3: 搜索常见安装位置
     let common_office_paths = [
         "C:\\Program Files\\Microsoft Office",
@@ -519,7 +632,7 @@ fn get_office_apps() -> Vec<AppInfo> {
         "C:\\Program Files (x86)\\Microsoft 365",
         "C:\\Program Files\\WindowsApps\\Microsoft.Office.Desktop",
     ];
-    
+
     for &base_path in &common_office_paths {
         for (_, exe_name, display_name) in office_apps.iter() {
             // 递归搜索基础路径下的所有可能位置
@@ -527,11 +640,14 @@ fn get_office_apps() -> Vec<AppInfo> {
             if let Ok(paths) = glob(&search_pattern) {
                 for entry in paths.filter_map(Result::ok) {
                     let app_path = entry.to_string_lossy().to_string();
-                    
+
                     // 检查是否已添加此路径
                     if !apps.iter().any(|app| app.content == app_path) {
-                        info!("通过文件系统搜索找到Office应用 {}: {}", display_name, app_path);
-                        
+                        info!(
+                            "通过文件系统搜索找到Office应用 {}: {}",
+                            display_name, app_path
+                        );
+
                         apps.push(AppInfo {
                             id: Uuid::new_v4().to_string(),
                             title: display_name.to_string(),
@@ -544,20 +660,21 @@ fn get_office_apps() -> Vec<AppInfo> {
             }
         }
     }
-    
+
     // 方式4: 对于Office 2019和Office 365，检查Click-to-Run安装
     let c2r_paths = [
         "C:\\Program Files\\Microsoft Office\\root\\Office16",
         "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16",
     ];
-    
+
     for &c2r_path in &c2r_paths {
         if Path::new(c2r_path).exists() {
             for (_, exe_name, display_name) in office_apps.iter() {
                 let app_path = format!("{}\\{}", c2r_path, exe_name);
-                if Path::new(&app_path).exists() && !apps.iter().any(|app| app.content == app_path) {
+                if Path::new(&app_path).exists() && !apps.iter().any(|app| app.content == app_path)
+                {
                     info!("通过C2R路径找到Office应用 {}: {}", display_name, app_path);
-                    
+
                     apps.push(AppInfo {
                         id: Uuid::new_v4().to_string(),
                         title: display_name.to_string(),
@@ -569,7 +686,7 @@ fn get_office_apps() -> Vec<AppInfo> {
             }
         }
     }
-    
+
     info!("找到 {} 个Microsoft Office应用", apps.len());
     apps
 }
@@ -578,8 +695,11 @@ fn get_office_apps() -> Vec<AppInfo> {
 fn detect_office_install_root(version: &str) -> Option<String> {
     // 尝试64位注册表
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let path = format!("SOFTWARE\\Microsoft\\Office\\{}\\Common\\InstallRoot", version);
-    
+    let path = format!(
+        "SOFTWARE\\Microsoft\\Office\\{}\\Common\\InstallRoot",
+        version
+    );
+
     if let Ok(key) = hklm.open_subkey(&path) {
         if let Ok(root_path) = key.get_value::<String, _>("Path") {
             if Path::new(&root_path).exists() {
@@ -587,9 +707,12 @@ fn detect_office_install_root(version: &str) -> Option<String> {
             }
         }
     }
-    
+
     // 尝试32位注册表(在64位系统上)
-    let wow6432_path = format!("SOFTWARE\\Wow6432Node\\Microsoft\\Office\\{}\\Common\\InstallRoot", version);
+    let wow6432_path = format!(
+        "SOFTWARE\\Wow6432Node\\Microsoft\\Office\\{}\\Common\\InstallRoot",
+        version
+    );
     if let Ok(key) = hklm.open_subkey(&wow6432_path) {
         if let Ok(root_path) = key.get_value::<String, _>("Path") {
             if Path::new(&root_path).exists() {
@@ -597,11 +720,14 @@ fn detect_office_install_root(version: &str) -> Option<String> {
             }
         }
     }
-    
+
     // 尝试用户级别注册表
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let user_path = format!("SOFTWARE\\Microsoft\\Office\\{}\\Common\\InstallRoot", version);
-    
+    let user_path = format!(
+        "SOFTWARE\\Microsoft\\Office\\{}\\Common\\InstallRoot",
+        version
+    );
+
     if let Ok(key) = hkcu.open_subkey(&user_path) {
         if let Ok(root_path) = key.get_value::<String, _>("Path") {
             if Path::new(&root_path).exists() {
@@ -609,7 +735,7 @@ fn detect_office_install_root(version: &str) -> Option<String> {
             }
         }
     }
-    
+
     None
 }
 
@@ -617,8 +743,11 @@ fn detect_office_install_root(version: &str) -> Option<String> {
 fn detect_office_app_path(version: &str, app_name: &str) -> Option<String> {
     // 尝试64位注册表
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let path = format!("SOFTWARE\\Microsoft\\Office\\{}\\{}\\InstallRoot", version, app_name);
-    
+    let path = format!(
+        "SOFTWARE\\Microsoft\\Office\\{}\\{}\\InstallRoot",
+        version, app_name
+    );
+
     if let Ok(key) = hklm.open_subkey(&path) {
         if let Ok(app_path) = key.get_value::<String, _>("Path") {
             if Path::new(&app_path).exists() {
@@ -626,9 +755,12 @@ fn detect_office_app_path(version: &str, app_name: &str) -> Option<String> {
             }
         }
     }
-    
+
     // 尝试32位注册表(在64位系统上)
-    let wow6432_path = format!("SOFTWARE\\Wow6432Node\\Microsoft\\Office\\{}\\{}\\InstallRoot", version, app_name);
+    let wow6432_path = format!(
+        "SOFTWARE\\Wow6432Node\\Microsoft\\Office\\{}\\{}\\InstallRoot",
+        version, app_name
+    );
     if let Ok(key) = hklm.open_subkey(&wow6432_path) {
         if let Ok(app_path) = key.get_value::<String, _>("Path") {
             if Path::new(&app_path).exists() {
@@ -636,11 +768,14 @@ fn detect_office_app_path(version: &str, app_name: &str) -> Option<String> {
             }
         }
     }
-    
+
     // 尝试用户级别注册表
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let user_path = format!("SOFTWARE\\Microsoft\\Office\\{}\\{}\\InstallRoot", version, app_name);
-    
+    let user_path = format!(
+        "SOFTWARE\\Microsoft\\Office\\{}\\{}\\InstallRoot",
+        version, app_name
+    );
+
     if let Ok(key) = hkcu.open_subkey(&user_path) {
         if let Ok(app_path) = key.get_value::<String, _>("Path") {
             if Path::new(&app_path).exists() {
@@ -648,27 +783,27 @@ fn detect_office_app_path(version: &str, app_name: &str) -> Option<String> {
             }
         }
     }
-    
+
     None
 }
 
 // 查找现代系统应用（如设置、Windows商店等）
 fn find_modern_system_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
-    
+
     // 检查常见的现代应用包位置
     if let Ok(system_apps_path) = std::env::var("WINDIR") {
         let system_apps_dir = format!("{}\\SystemApps", system_apps_path);
         let search_pattern = format!("{}\\*\\*.exe", system_apps_dir);
-        
+
         info!("正在检索Windows现代应用: {}", search_pattern);
-        
+
         if let Ok(paths) = glob(&search_pattern) {
             for entry in paths.filter_map(Result::ok) {
                 // 提取应用名称（从路径提取，并做一些净化）
                 if let Some(file_name) = entry.file_name() {
                     let name = file_name.to_string_lossy().to_string();
-                    
+
                     // 映射一些常见的系统应用名称
                     let display_name = match name.as_str() {
                         "ApplicationFrameHost.exe" => "Windows应用主机".to_string(),
@@ -692,10 +827,10 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
                             clean_name
                         }
                     };
-                    
+
                     let path_str = entry.to_string_lossy().to_string();
                     info!("找到系统应用: {} -> {}", display_name, path_str);
-                    
+
                     apps.push(AppInfo {
                         id: Uuid::new_v4().to_string(),
                         title: display_name,
@@ -707,30 +842,33 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
             }
         }
     }
-    
+
     apps
 }
 
 // 获取 Windows 商店应用
 fn get_windows_store_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
-    
+
     info!("正在检索 Windows 商店应用...");
-    
+
     // 访问 Windows 应用清单注册表位置
     let hklm = RegKey::predef(HKEY_CURRENT_USER);
     let path = r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages";
-    
+
     if let Ok(key) = hklm.open_subkey(path) {
         if let Ok(package_names) = key.enum_keys().collect::<Result<Vec<_>, _>>() {
             for package_name in package_names {
                 // 只检查Microsoft.开头的包或其他可能的应用商店应用
-                if package_name.starts_with("Microsoft.") || 
-                   package_name.contains("_8wekyb3d8bbwe") || 
-                   package_name.contains(".AppX") {
+                if package_name.starts_with("Microsoft.")
+                    || package_name.contains("_8wekyb3d8bbwe")
+                    || package_name.contains(".AppX")
+                {
                     if let Ok(package_key) = key.open_subkey(&package_name) {
                         // 尝试获取应用的显示名称
-                        let display_name = if let Ok(display_name) = package_key.get_value::<String, _>("DisplayName") {
+                        let display_name = if let Ok(display_name) =
+                            package_key.get_value::<String, _>("DisplayName")
+                        {
                             display_name
                         } else {
                             // 如果没有DisplayName，使用包名的一部分作为名称
@@ -741,17 +879,22 @@ fn get_windows_store_apps() -> Vec<AppInfo> {
                                 continue; // 跳过无法确定名称的包
                             }
                         };
-                        
+
                         // 尝试获取可执行文件路径
                         if let Ok(appid) = package_key.get_value::<String, _>("AppID") {
-                            if let Ok(packdir) = package_key.get_value::<String, _>("PackageRootFolder") {
+                            if let Ok(packdir) =
+                                package_key.get_value::<String, _>("PackageRootFolder")
+                            {
                                 // 尝试查找应用的可执行文件
                                 let app_exe_path = find_uwp_executable(&packdir, &appid);
-                                
+
                                 if let Some(exe_path) = app_exe_path {
                                     if Path::new(&exe_path).exists() {
-                                        info!("找到 Windows 商店应用: {} -> {}", display_name, exe_path);
-                                        
+                                        info!(
+                                            "找到 Windows 商店应用: {} -> {}",
+                                            display_name, exe_path
+                                        );
+
                                         apps.push(AppInfo {
                                             id: Uuid::new_v4().to_string(),
                                             title: display_name,
@@ -768,7 +911,7 @@ fn get_windows_store_apps() -> Vec<AppInfo> {
             }
         }
     }
-    
+
     info!("从 Windows 商店找到 {} 个应用", apps.len());
     apps
 }
@@ -788,24 +931,28 @@ fn find_uwp_executable(package_root: &str, app_id: &str) -> Option<String> {
             }
         }
     }
-    
+
     // 如果无法从清单中获取，尝试直接搜索常见的可执行文件位置
     let common_locations = [
         format!("{}\\*.exe", package_root),
         format!("{}\\app\\*.exe", package_root),
         format!("{}\\bin\\*.exe", package_root),
     ];
-    
+
     for pattern in &common_locations {
         if let Ok(paths) = glob(pattern) {
             for entry in paths.filter_map(Result::ok) {
                 // 有些UWP应用可能有多个exe，优先选择与应用ID相关的
-                let file_name = entry.file_name().unwrap_or_default().to_string_lossy().to_string();
+                let file_name = entry
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 if file_name.contains(app_id) || !file_name.contains("Helper") {
                     return Some(entry.to_string_lossy().to_string());
                 }
             }
-            
+
             // 如果没有找到优先匹配的，返回第一个找到的exe
             if let Ok(paths) = glob(pattern) {
                 if let Some(first_exe) = paths.filter_map(Result::ok).next() {
@@ -814,7 +961,7 @@ fn find_uwp_executable(package_root: &str, app_id: &str) -> Option<String> {
             }
         }
     }
-    
+
     None
 }
 
@@ -824,7 +971,7 @@ fn extract_executable_from_manifest(manifest_content: &str) -> Option<String> {
     if let Some(start_idx) = manifest_content.find("Executable=\"") {
         let start = start_idx + 12; // "Executable=\"" 的长度
         if let Some(end_idx) = manifest_content[start..].find('"') {
-            return Some(manifest_content[start..start+end_idx].to_string());
+            return Some(manifest_content[start..start + end_idx].to_string());
         }
     }
     None
@@ -833,7 +980,7 @@ fn extract_executable_from_manifest(manifest_content: &str) -> Option<String> {
 // 获取已安装应用
 pub fn get_installed_apps() -> Vec<AppInfo> {
     info!("开始检索所有已安装应用...");
-    
+
     let paths = [
         (
             HKEY_LOCAL_MACHINE,
@@ -864,25 +1011,25 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
         all_apps.extend(apps);
     }
     info!("从注册表检索到 {} 个传统Win32应用", registry_app_count);
-    
+
     // 获取UWP应用
     info!("正在检索UWP应用...");
     let uwp_apps = get_uwp_apps();
     info!("检索到 {} 个UWP应用", uwp_apps.len());
     all_apps.extend(uwp_apps);
-    
+
     // 获取Windows商店应用
     info!("正在检索Windows商店应用...");
     let store_apps = get_windows_store_apps();
     info!("检索到 {} 个Windows商店应用", store_apps.len());
     all_apps.extend(store_apps);
-    
+
     // 获取桌面快捷方式应用
     info!("正在检索桌面快捷方式应用...");
     let shortcut_apps = get_desktop_shortcuts();
     info!("检索到 {} 个桌面快捷方式应用", shortcut_apps.len());
     all_apps.extend(shortcut_apps);
-    
+
     // 获取Windows内置应用
     info!("正在检索Windows内置应用...");
     let windows_apps = get_windows_apps();
@@ -895,57 +1042,62 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
             app.icon = None;
         }
     });
-    
+
     // 去除重复应用（基于路径去重和名称去重）
     let mut unique_apps = Vec::new();
     let mut seen_paths = HashSet::new();
     let mut seen_titles = HashSet::new();
-    
+
     for app in all_apps {
         // 标准化路径（转为小写以忽略大小写差异）
         let normalized_path = app.content.to_lowercase();
-        
+
         // 检查是否重复的路径
         if !seen_paths.contains(&normalized_path) {
             seen_paths.insert(normalized_path);
-            
+
             // 对于Microsoft Office应用，检查标题是否相同
-            if app.title.contains("Microsoft") && (app.title.contains("Word") || 
-                                                app.title.contains("Excel") || 
-                                                app.title.contains("PowerPoint") || 
-                                                app.title.contains("Outlook") || 
-                                                app.title.contains("Access") || 
-                                                app.title.contains("Publisher") || 
-                                                app.title.contains("OneNote")) {
+            if app.title.contains("Microsoft")
+                && (app.title.contains("Word")
+                    || app.title.contains("Excel")
+                    || app.title.contains("PowerPoint")
+                    || app.title.contains("Outlook")
+                    || app.title.contains("Access")
+                    || app.title.contains("Publisher")
+                    || app.title.contains("OneNote"))
+            {
                 // 如果已经存在相同标题的应用，跳过当前应用
                 if seen_titles.contains(&app.title) {
                     info!("跳过重复的Office应用 {}: {}", app.title, app.content);
                     continue;
                 }
-                
+
                 // 记录此标题已被处理
                 seen_titles.insert(app.title.clone());
             }
-            
+
             // 添加非重复应用
             unique_apps.push(app);
         }
     }
-    
-    info!("应用检索完成，总共找到 {} 个不重复应用程序", unique_apps.len());
+
+    info!(
+        "应用检索完成，总共找到 {} 个不重复应用程序",
+        unique_apps.len()
+    );
     unique_apps
 }
 
 // 在背景线程中加载应用程序图标 (无通知版本)
 pub fn load_app_icons_async_silent(
-    app_handle: AppHandle, 
-    apps: Vec<AppInfo>, 
+    app_handle: AppHandle,
+    apps: Vec<AppInfo>,
     updated_count: std::sync::Arc<std::sync::Mutex<usize>>,
-    completion_counter: std::sync::Arc<std::sync::Mutex<usize>>
+    completion_counter: std::sync::Arc<std::sync::Mutex<usize>>,
 ) {
     let mut updated_apps = Vec::new();
     let mut count = 0;
-    
+
     info!("开始加载应用程序图标: {} 个应用", apps.len());
 
     for mut app in apps {
@@ -967,19 +1119,19 @@ pub fn load_app_icons_async_silent(
 
     // 更新商店中的应用程序
     crate::config::set_value(&app_handle, "installed_apps", &updated_apps);
-    
+
     // 更新计数
     {
         let mut counter = updated_count.lock().unwrap();
         *counter = count;
     }
-    
+
     // 标记此任务为完成
     {
         let mut complete = completion_counter.lock().unwrap();
         *complete += 1;
     }
-    
+
     info!("已完成加载应用程序图标: {} 个成功", count);
 }
 
