@@ -1,4 +1,5 @@
-use crate::config::{get_value, set_value};
+use crate::config::{get_value, set_value, BROWSER_BOOKMARKS_KEY, INSTALLED_APPS_KEY, SEARCH_ENGINES_KEY};
+use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -28,7 +29,7 @@ pub struct SearchResult {
 }
 
 // 默认搜索引擎配置
-const DEFAULT_ENGINES: &str = include_str!("../assets/default_engines.json");
+pub const DEFAULT_ENGINES: &str = include_str!("../assets/default_engines.json");
 
 // 转换文本为拼音（全拼和首字母）
 fn text_to_pinyin(text: &str) -> (String, String) {
@@ -96,7 +97,7 @@ fn fuzzy_search<T: Clone>(
 // 搜索应用
 #[tauri::command]
 pub fn search_apps(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    let apps = match crate::config::get_value(&app_handle, "installed_apps") {
+    let apps = match crate::config::get_value(&app_handle, INSTALLED_APPS_KEY) {
         Some(value) => serde_json::from_value(value).unwrap_or_default(),
         None => Vec::new(),
     };
@@ -124,7 +125,7 @@ pub fn search_apps(app_handle: AppHandle, query: String) -> Result<Vec<SearchRes
 // 搜索书签
 #[tauri::command]
 pub fn search_bookmarks(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    let bookmarks = match crate::config::get_value(&app_handle, "browser_bookmarks") {
+    let bookmarks = match crate::config::get_value(&app_handle, BROWSER_BOOKMARKS_KEY) {
         Some(value) => serde_json::from_value(value).unwrap_or_default(),
         None => Vec::new(),
     };
@@ -152,7 +153,7 @@ pub fn search_bookmarks(app_handle: AppHandle, query: String) -> Result<Vec<Sear
 // 获取搜索引擎配置
 #[tauri::command]
 pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
-    match get_value(&app_handle, "search_engines") {
+    match get_value(&app_handle, SEARCH_ENGINES_KEY) {
         Some(engines) => Ok(engines
             .as_array()
             .unwrap_or(&Vec::new())
@@ -166,7 +167,7 @@ pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, St
             if !engines.is_empty() {
                 engines[0].enabled = true;
             }
-            set_value(&app_handle, "search_engines", &engines);
+            set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
             Ok(engines)
         }
     }
@@ -178,7 +179,8 @@ pub fn update_search_engines(
     app_handle: AppHandle,
     engines: Vec<SearchEngine>,
 ) -> Result<(), String> {
-    set_value(&app_handle, "search_engines", &engines);
+    info!("更新搜索引擎配置");    
+    set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
     Ok(())
 }
 

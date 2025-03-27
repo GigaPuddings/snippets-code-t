@@ -4,8 +4,14 @@ use tauri_plugin_global_shortcut::{Code, Modifiers};
 use tauri_plugin_store::StoreBuilder;
 use log::LevelFilter;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+use crate::search::{SearchEngine, DEFAULT_ENGINES};
 // use mouse_position::mouse_position::{Mouse, Position};
 
+pub const INSTALLED_APPS_KEY: &str = "installed_apps"; // 已安装应用
+pub const SEARCH_ENGINES_KEY: &str = "search_engines"; // 搜索引擎配置
+pub const BROWSER_BOOKMARKS_KEY: &str = "browser_bookmarks"; // 检索书签
+pub const ALARM_CARDS_KEY: &str = "alarm_cards"; // 代办事项提醒列表
 pub const DB_PATH_KEY: &str = "custom_db_path"; // 自定义数据库路径
 pub const UPDATE_AVAILABLE_KEY: &str = "update_available"; // 更新可用标志
 pub const UPDATE_INFO_KEY: &str = "update_info"; // 更新信息
@@ -190,11 +196,15 @@ pub fn reset_software(app_handle: tauri::AppHandle) -> Result<(), String> {
         let _ = store.clear();
         let _ = store.save();
     }
-    
-    // 清理搜索引擎配置
-    if let Err(e) = crate::search::update_search_engines(app_handle.clone(), Vec::new()) {
-        return Err(format!("重置搜索引擎失败: {}", e));
+
+    // 使用默认配置,并且第一条数据设置为默认搜索引擎
+    let mut engines: Vec<SearchEngine> = serde_json::from_str(DEFAULT_ENGINES)
+    .map_err(|e| e.to_string())?;
+    if !engines.is_empty() {
+        engines[0].enabled = true;
     }
+    set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
+    
 
     // 在后台线程中注销所有快捷键并重启应用程序
     std::thread::spawn(move || {

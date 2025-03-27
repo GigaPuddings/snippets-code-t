@@ -4,57 +4,92 @@
       <div class="search-config">
         <div class="config-title">
           <h1 class="title-text">浏览器搜索设置</h1>
-          <Add
-            class="add-btn"
-            theme="outline"
-            size="22"
-            :strokeWidth="3"
-            @click="handleAdd"
-          />
+          <div class="flex gap-4">
+            <el-tooltip
+              content="重置默认搜索引擎"
+              placement="top"
+              effect="light"
+            >
+              <Redo
+                class="add-btn"
+                theme="outline"
+                size="22"
+                :strokeWidth="3"
+                @click="resetEngines"
+              />
+            </el-tooltip>
+            <el-tooltip
+              content="添加新的搜索引擎"
+              placement="top"
+              effect="light"
+            >
+              <Add
+                class="add-btn"
+                theme="outline"
+                size="22"
+                :strokeWidth="3"
+                @click="handleAdd"
+              />
+            </el-tooltip>
+          </div>
         </div>
 
         <div class="search-list">
+          <el-empty
+            v-if="searchEngines.length === 0"
+            description="暂无搜索引擎配置"
+          />
           <div
             v-for="(engine, index) in searchEngines"
             :key="engine.id"
             class="search-item"
+            :class="{ 'default-engine': engine.enabled }"
           >
             <div class="item-left">
               <el-input
                 v-model="engine.name"
                 class="keyword-input"
                 placeholder="名称"
+                @change="handleInputChange"
               />
               <div class="icon-wrapper">
-                <Picture
-                  v-if="!engine.icon"
-                  class="engine-icon"
-                  theme="outline"
-                  size="26"
-                  :strokeWidth="3"
-                  strokeLinejoin="miter"
-                  strokeLinecap="butt"
-                />
-                <img
-                  v-else
-                  class="engine-icon"
-                  :src="engine.icon || ''"
-                  :alt="engine.name"
-                  @error="handleIconError(engine)"
-                />
+                <el-tooltip
+                  content="搜索引擎图标"
+                  placement="top"
+                  effect="light"
+                >
+                  <Picture
+                    v-if="!engine.icon"
+                    class="engine-icon"
+                    theme="outline"
+                    size="26"
+                    :strokeWidth="3"
+                    strokeLinejoin="miter"
+                    strokeLinecap="butt"
+                  />
+                  <img
+                    v-else
+                    class="engine-icon"
+                    :src="engine.icon || ''"
+                    :alt="engine.name"
+                    @error="handleIconError(engine)"
+                  />
+                </el-tooltip>
               </div>
               <el-input
                 v-model="engine.keyword"
                 class="engine-input"
                 placeholder="快捷字词"
+                @change="handleInputChange"
               />
             </div>
 
             <div class="item-center">
               <el-input
                 v-model="engine.url"
-                placeholder="网址格式（用“%s”代替搜索字词）"
+                placeholder='网址格式（用"%s"代替搜索字词）'
                 class="url-input"
+                @change="handleUrlChange(engine)"
               />
             </div>
 
@@ -83,31 +118,40 @@
                   :value="item.name"
                 />
               </el-select>
-              <Reduce
-                class="delete-icon"
-                theme="outline"
-                size="22"
-                :strokeWidth="3"
-                strokeLinejoin="miter"
-                strokeLinecap="butt"
-                @click="handleDelete(index)"
-              />
+              <el-tooltip content="删除搜索引擎" placement="top" effect="light">
+                <Reduce
+                  class="delete-icon"
+                  theme="outline"
+                  size="22"
+                  :strokeWidth="3"
+                  strokeLinejoin="miter"
+                  strokeLinecap="butt"
+                  @click="handleDelete(index)"
+                />
+              </el-tooltip>
             </div>
           </div>
         </div>
+
+        <!-- <div class="action-buttons">
+          <el-button @click="resetEngines">重置默认</el-button>
+        </div> -->
       </div>
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-import { Add, Reduce, Picture } from '@icon-park/vue-next';
+import { Add, Redo, Reduce, Picture } from '@icon-park/vue-next';
 import { uuid } from '@/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
+import { ElMessage } from 'element-plus';
 
 const searchEngines = ref<SearchEngineConfig[]>([]);
 const defaultSearchEngines = ref<SearchEngineConfig[]>([]);
+// 节流函数，防止频繁保存
+const saveThrottleTimer = ref<number | null>(null);
 
 // 创建一个响应式的图标映射
 const engineIconMap = reactive(new Map<string, string>());
@@ -130,7 +174,8 @@ const engineIcon = async (engine: SearchEngineConfig) => {
       engineIconMap.set(engine.url, icon);
       engine.icon = icon;
       return icon;
-    } catch {
+    } catch (error) {
+      console.error('获取图标失败:', error);
       return '';
     }
   }
@@ -146,57 +191,47 @@ const initializeIcons = async () => {
   }
 };
 
-// 监听单个搜索引擎的 URL 变化
-const watchEngineUrl = (engine: SearchEngineConfig) => {
-  watch(
-    () => engine.url,
-    (newUrl) => {
-      if (newUrl) {
-        engine.icon = ''; // 清除旧图标
-        engineIconMap.delete(newUrl); // 清除旧缓存
-        engineIcon(engine); // 重新获取图标
-      } else {
-        engine.icon = '';
-      }
-    }
-  );
+// 处理URL变化时的图标刷新
+const handleUrlChange = async (engine: SearchEngineConfig) => {
+  if (engine.url) {
+    engine.icon = ''; // 清除旧图标
+    engineIconMap.delete(engine.url); // 清除旧缓存
+    await engineIcon(engine); // 重新获取图标
+  } else {
+    engine.icon = '';
+  }
+  // 自动保存更改
+  saveChangesThrottled();
 };
 
-// 监听搜索引擎数组的变化
-watch(
-  () => searchEngines.value,
-  (engines) => {
-    engines.forEach((engine) => {
-      watchEngineUrl(engine);
-    });
-  },
-  { deep: true, immediate: true }
-);
+// 处理普通输入框变化
+const handleInputChange = () => {
+  saveChangesThrottled();
+};
+
+// 使用节流函数保存更改，避免频繁保存
+const saveChangesThrottled = () => {
+  if (saveThrottleTimer.value !== null) {
+    clearTimeout(saveThrottleTimer.value);
+  }
+
+  saveThrottleTimer.value = window.setTimeout(() => {
+    saveAll(false);
+    saveThrottleTimer.value = null;
+  }, 1000);
+};
 
 // 组件挂载时初始化图标
 onMounted(async () => {
-  searchEngines.value = await invoke('get_search_engines');
-  defaultSearchEngines.value = await invoke('get_default_engines');
-  await initializeIcons();
+  try {
+    searchEngines.value = await invoke('get_search_engines');
+    defaultSearchEngines.value = await invoke('get_default_engines');
+    await initializeIcons();
+  } catch (error) {
+    console.error('获取搜索引擎配置失败:', error);
+    ElMessage.error('获取搜索引擎配置失败');
+  }
 });
-
-// function useComputed<T extends object, R>(
-//   fn: (arg: T) => R,
-//   keyFn: (arg: T) => string
-// ) {
-//   const cache = new Map<string, ComputedRef<R>>();
-
-//   return (arg: T) => {
-//     const key = keyFn(arg);
-//     if (!cache.has(key)) {
-//       cache.set(
-//         key,
-//         computed(() => fn(arg))
-//       );
-//     }
-//     return cache.get(key)!.value;
-//   };
-// }
 
 // 更新搜索引擎配置
 const updateSearchEngines = async (engines: SearchEngineConfig[]) => {
@@ -205,9 +240,51 @@ const updateSearchEngines = async (engines: SearchEngineConfig[]) => {
     // 通知所有窗口更新搜索引擎配置
     searchEngines.value = engines;
     await emit('search-engines-updated', engines);
+    return true;
   } catch (error) {
     console.error('更新搜索引擎配置失败:', error);
     ElMessage.error('更新搜索引擎配置失败');
+    return false;
+  }
+};
+
+// 保存所有搜索引擎配置
+const saveAll = async (showMessage = true) => {
+  // 验证所有搜索引擎配置是否有效
+  const invalidEngines = searchEngines.value.filter(
+    (engine) => !engine.name || !engine.keyword || !engine.url
+  );
+
+  if (invalidEngines.length > 0) {
+    if (showMessage) {
+      ElMessage.warning('存在无效的搜索引擎配置，请完善信息');
+    }
+    return false;
+  }
+
+  const success = await updateSearchEngines([...searchEngines.value]);
+  if (success && showMessage) {
+    ElMessage.success('搜索引擎配置已更新');
+  }
+  return success;
+};
+
+// 重置为默认搜索引擎
+const resetEngines = async () => {
+  try {
+    const defaultEngines = (await invoke(
+      'get_default_engines'
+    )) as SearchEngineConfig[];
+    if (defaultEngines && defaultEngines.length > 0) {
+      defaultEngines[0].enabled = true;
+    }
+    const success = await updateSearchEngines(defaultEngines);
+    if (success) {
+      ElMessage.success('已重置为默认搜索引擎');
+    }
+  } catch (error) {
+    console.error('重置搜索引擎失败:', error);
+    ElMessage.error('重置搜索引擎失败');
   }
 };
 
@@ -220,22 +297,41 @@ const handleAdd = async () => {
     url: '',
     enabled: false
   };
-  await updateSearchEngines([...searchEngines.value, newEngine]);
+  searchEngines.value.push(newEngine);
+  ElMessage.info('已添加新搜索引擎，请完善信息');
 };
 
 const handleDelete = async (index: number) => {
-  await updateSearchEngines(
-    searchEngines.value.filter((_, idx) => idx !== index)
-  );
+  const updatedEngines = searchEngines.value.filter((_, idx) => idx !== index);
+  searchEngines.value = updatedEngines;
+
+  // 如果删除的是默认搜索引擎，且还有其他引擎，则将第一个设为默认
+  if (
+    searchEngines.value.length > 0 &&
+    !searchEngines.value.some((e) => e.enabled)
+  ) {
+    searchEngines.value[0].enabled = true;
+  }
+
+  // 自动保存更改
+  const success = await saveAll(false);
+  if (success) {
+    ElMessage.success('已删除搜索引擎');
+  }
 };
 
 // 只允许一个引擎为默认
 const handleSwitch = async (index: number) => {
-  const updatedEngines = searchEngines.value.map((engine, idx) => ({
+  searchEngines.value = searchEngines.value.map((engine, idx) => ({
     ...engine,
     enabled: idx === index ? engine.enabled : false
   }));
-  await updateSearchEngines(updatedEngines);
+
+  // 自动保存更改
+  const success = await saveAll(false);
+  if (success) {
+    ElMessage.success('已更新默认搜索引擎');
+  }
 };
 
 // 选中的引擎，赋值给当前引擎
@@ -245,9 +341,15 @@ const handleSelect = async (index: number, name: string) => {
   );
 
   if (engine) {
-    const updatedEngines = [...searchEngines.value];
-    updatedEngines[index] = { ...engine };
-    await updateSearchEngines(updatedEngines);
+    searchEngines.value[index] = {
+      ...engine,
+      enabled: searchEngines.value[index].enabled
+    };
+    // 重新获取图标
+    await engineIcon(searchEngines.value[index]);
+
+    // 自动保存更改
+    saveChangesThrottled();
   }
 };
 
@@ -262,10 +364,15 @@ const handleIconError = async (engine: SearchEngineConfig) => {
     const url = new URL(engine.url);
     const hostname = url.hostname;
     const icon: string = await invoke('fetch_favicon', { url: hostname });
-    engine.icon = icon;
-  } catch {
-    engine.icon =
-      'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==';
+
+    if (icon && icon.length > 0) {
+      engine.icon = icon;
+    } else {
+      engine.icon = undefined;
+    }
+  } catch (error) {
+    console.error('获取图标失败:', error);
+    engine.icon = undefined;
   }
 };
 </script>
@@ -275,28 +382,40 @@ const handleIconError = async (engine: SearchEngineConfig) => {
   @apply relative w-full h-full overflow-hidden rounded-md border dark:border-panel;
 
   .search-config {
-    @apply h-full bg-panel p-2;
+    @apply h-full bg-panel py-2 px-4 flex flex-col;
 
     .config-title {
-      @apply flex items-center justify-between mb-2 mr-4;
+      @apply flex items-center justify-between mt-1 mb-2 px-2;
 
       .title-text {
-        @apply text-lg font-medium;
+        @apply text-xl font-medium text-primary;
       }
 
       .add-btn {
-        @apply cursor-pointer;
+        @apply cursor-pointer text-primary transition-colors;
       }
     }
 
     .search-list {
-      @apply max-h-[calc(100vh-7.4rem)] overflow-y-auto;
+      @apply flex-grow overflow-y-auto rounded-md;
 
       .search-item {
-        @apply flex items-center justify-between px-4 py-3 mb-4 last:mb-0 bg-content rounded-md;
+        @apply flex items-center justify-between px-6 py-4 mb-2 last:mb-0 bg-content rounded-lg shadow-sm hover:shadow transition-all;
+
+        &.default-engine {
+          @apply border-l-4 border-panel;
+        }
 
         :deep(.el-input__wrapper) {
-          @apply border border-panel !bg-panel dark:!bg-content rounded-md;
+          @apply border border-panel !bg-panel dark:!bg-content rounded-md shadow-none;
+
+          &:hover {
+            @apply border-panel;
+          }
+
+          &.is-focus {
+            @apply border-panel shadow-sm;
+          }
         }
 
         &.is-editing {
@@ -307,7 +426,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
           @apply flex items-center;
 
           .icon-wrapper {
-            @apply flex items-center justify-center w-8 h-8 mx-2;
+            @apply flex items-center justify-center w-10 h-10 mx-3 bg-panel rounded-full overflow-hidden;
 
             .engine-icon {
               @apply w-6 h-6 object-contain rounded-md;
@@ -319,7 +438,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
           }
 
           .keyword-input {
-            @apply w-[90px] shrink-0;
+            @apply w-[100px] shrink-0;
           }
 
           .engine-input {
@@ -339,11 +458,15 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 
             :deep(.el-select__wrapper) {
               @apply border border-panel rounded-md !bg-panel dark:!bg-content;
+
+              &:hover {
+                @apply border-panel;
+              }
             }
           }
 
           .delete-icon {
-            @apply cursor-pointer;
+            @apply cursor-pointer text-red-500 hover:text-red-600 transition-colors;
           }
         }
       }

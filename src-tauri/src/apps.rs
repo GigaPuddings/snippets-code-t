@@ -1,3 +1,4 @@
+use crate::config::INSTALLED_APPS_KEY;
 use crate::icon;
 use glob::glob;
 use log::info;
@@ -1118,7 +1119,7 @@ pub fn load_app_icons_async_silent(
     }
 
     // 更新商店中的应用程序
-    crate::config::set_value(&app_handle, "installed_apps", &updated_apps);
+    crate::config::set_value(&app_handle, INSTALLED_APPS_KEY, &updated_apps);
 
     // 更新计数
     {

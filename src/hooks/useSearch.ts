@@ -16,7 +16,14 @@ export function useSearch() {
       const keyword = parts[0];
       const query = parts.slice(1).join(' ');
 
-      const engine = searchEngines.value.find((e) => e.keyword === keyword);
+      // 先检查是否匹配名称
+      let engine = searchEngines.value.find((e) => e.name === keyword);
+
+      // 如果名称没有匹配到，再检查是否匹配关键词
+      if (!engine) {
+        engine = searchEngines.value.find((e) => e.keyword === keyword);
+      }
+
       if (engine) {
         if (!forceSearch) {
           searchResults.value = [
@@ -81,18 +88,16 @@ export function useSearch() {
     })) as ContentType[];
     results.push(...bookmarkResults.slice(0, 10));
 
-    // 如果没有搜索结果，并且有默认搜索引擎，则添加一个搜索建议
-    if (results.length === 0) {
-      const defaultEngine = searchEngines.value.find((e) => e.enabled);
-      if (defaultEngine) {
-        results.push({
-          id: 'default-search',
-          title: `使用 ${defaultEngine.name} 搜索: ${query}`,
-          content: defaultEngine.url.replace('%s', encodeURIComponent(query)),
-          summarize: 'search',
-          icon: defaultEngine.icon
-        });
-      }
+    // 默认搜索引擎选项始终显示
+    const defaultEngine = searchEngines.value.find((e) => e.enabled);
+    if (defaultEngine) {
+      results.push({
+        id: 'default-search',
+        title: `使用 ${defaultEngine.name} 搜索: ${query}`,
+        content: defaultEngine.url.replace('%s', encodeURIComponent(query)),
+        summarize: 'search',
+        icon: defaultEngine.icon
+      });
     }
 
     searchResults.value = results;

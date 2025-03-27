@@ -1,4 +1,4 @@
-use crate::config::{get_value, set_value};
+use crate::config::{get_value, set_value, ALARM_CARDS_KEY};
 use crate::window::create_notification_window;
 use crate::APP;
 use chrono::{DateTime, Datelike as _, Duration, Local, NaiveTime, Timelike as _};
@@ -10,9 +10,6 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::Duration as StdDuration;
 use tauri_plugin_notification::NotificationExt;
-
-// 存储键名
-const ALARM_CARDS_KEY: &str = "alarm_cards";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AlarmCard {

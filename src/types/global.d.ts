@@ -38,7 +38,7 @@ declare global {
   interface SearchEngineConfig {
     id: string;
     keyword: string; // 搜索引擎关键词
-    icon: string;
+    icon: string | undefined;
     name: string;
     url: string;
     enabled: boolean;

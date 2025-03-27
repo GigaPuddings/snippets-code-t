@@ -29,7 +29,8 @@ enum BrowserType {
     Brave,
     Vivaldi,
     Opera,
-    ShuangHe
+    ShuangHe,
+    ChromeCore
 }
 
 // fn get_default_browser() -> BrowserType {
@@ -52,6 +53,7 @@ enum BrowserType {
 //     BrowserType::Unknown
 // }
 
+// 获取Chrome浏览器favicon数据库路径
 fn get_chrome_favicon_db_path() -> Option<PathBuf> {
     let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
     let paths = [
@@ -96,6 +98,7 @@ fn get_edge_favicon_db_path() -> Option<PathBuf> {
     None
 }
 
+// 获取360浏览器favicon数据库路径
 fn get_360_speed_favicon_db_path() -> Option<PathBuf> {
     let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
     let paths = [
@@ -118,6 +121,7 @@ fn get_360_speed_favicon_db_path() -> Option<PathBuf> {
     None
 }
 
+// 获取QQ浏览器favicon数据库路径
 fn get_qq_browser_favicon_db_path() -> Option<PathBuf> {
     let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
     let paths = [
@@ -162,6 +166,7 @@ fn get_brave_favicon_db_path() -> Option<PathBuf> {
     None
 }
 
+// 获取Vivaldi浏览器favicon数据库路径
 fn get_vivaldi_favicon_db_path() -> Option<PathBuf> {
     let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
     let paths = [
@@ -200,6 +205,32 @@ fn get_opera_favicon_db_path() -> Option<PathBuf> {
     None
 }
 
+// 获取ChromeCore浏览器favicon数据库路径
+fn get_chromecore_favicon_db_path() -> Option<PathBuf> {
+    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
+    let paths = [
+        format!(
+            "{}\\ChromeCore\\User Data\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\ChromeCore\\User Data\\Profile 1\\Favicons",
+            local_app_data
+        ),
+    ];
+
+    for path in paths {
+        let path_buf = PathBuf::from(&path);
+        if path_buf.exists() {
+            info!("找到ChromeCore浏览器favicon数据库: {:?}", path_buf);
+            return Some(path_buf);
+        }
+    }
+    info!("未找到ChromeCore浏览器favicon数据库");
+    None
+}
+
+// 获取双核浏览器favicon数据库路径
 fn get_shuanghe_favicon_db_path() -> Option<PathBuf> {
     let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
     // 双核浏览器可能的Favicon数据库路径
@@ -235,6 +266,15 @@ fn get_shuanghe_favicon_db_path() -> Option<PathBuf> {
         ),
         format!(
             "{}\\ShuangHeBrowser\\User Data\\Profile 1\\Favicons",
+            local_app_data
+        ),
+        // 添加ChromeCore路径
+        format!(
+            "{}\\ChromeCore\\User Data\\Default\\Favicons",
+            local_app_data
+        ),
+        format!(
+            "{}\\ChromeCore\\User Data\\Profile 1\\Favicons",
             local_app_data
         ),
     ];
@@ -359,6 +399,7 @@ fn get_favicon_from_firefox_db(url: &str, places_db: &PathBuf) -> Option<String>
     icon_data
 }
 
+// 获取Firefox书签文件路径
 fn get_firefox_bookmarks_file() -> Option<PathBuf> {
     let appdata = std::env::var("APPDATA").ok()?;
     let profiles_path = format!("{}\\Mozilla\\Firefox\\Profiles\\*.default*", appdata);
@@ -433,6 +474,7 @@ fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
     bookmarks
 }
 
+// 获取Chrome浏览器书签路径
 fn get_chrome_bookmarks_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
@@ -502,6 +544,7 @@ fn get_360_speed_bookmarks_paths() -> Vec<PathBuf> {
     paths
 }
 
+// 获取QQ浏览器书签路径
 fn get_qq_browser_bookmarks_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
@@ -548,6 +591,7 @@ fn get_brave_bookmarks_paths() -> Vec<PathBuf> {
     paths
 }
 
+// 获取Vivaldi浏览器书签路径
 fn get_vivaldi_bookmarks_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
@@ -571,6 +615,7 @@ fn get_vivaldi_bookmarks_paths() -> Vec<PathBuf> {
     paths
 }
 
+// 获取Opera浏览器书签路径
 fn get_opera_bookmarks_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Ok(app_data) = std::env::var("APPDATA") {
@@ -590,6 +635,31 @@ fn get_opera_bookmarks_paths() -> Vec<PathBuf> {
     paths
 }
 
+// 获取ChromeCore浏览器书签路径
+fn get_chromecore_bookmarks_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let base_dir = format!("{}\\ChromeCore\\User Data", local_app_data);
+        let base_path = PathBuf::from(&base_dir);
+        
+        // 检查默认配置文件
+        let default_bookmarks = base_path.join("Default\\Bookmarks");
+        if default_bookmarks.exists() {
+            paths.push(default_bookmarks);
+        }
+        
+        // 检查编号的配置文件
+        for i in 1..10 {
+            let profile_bookmarks = base_path.join(format!("Profile {}\\Bookmarks", i));
+            if profile_bookmarks.exists() {
+                paths.push(profile_bookmarks);
+            }
+        }
+    }
+    paths
+}
+
+// 获取双核浏览器书签路径
 fn get_shuanghe_bookmarks_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     info!("开始查找双核浏览器书签文件...");
@@ -611,6 +681,7 @@ fn get_shuanghe_bookmarks_paths() -> Vec<PathBuf> {
             format!("{}\\ShuangHeKeJi\\ShuangHe\\User Data", local_app_data),
             format!("{}\\双核科技\\双核浏览器\\User Data", local_app_data),
             format!("{}\\ShuangHeBrowser\\User Data", local_app_data),
+            format!("{}\\ChromeCore\\User Data", local_app_data), // 添加ChromeCore路径
         ];
         
         for base_dir in base_dirs {
@@ -781,6 +852,18 @@ pub fn get_browser_bookmarks() -> Vec<BookmarkInfo> {
         *browser_stats.entry("Opera浏览器".to_string()).or_insert(0) += 1;
     }
     
+    // ChromeCore浏览器书签
+    let chromecore_bookmarks = get_chromecore_bookmarks_paths();
+    info!("找到 {} 个ChromeCore浏览器书签文件", chromecore_bookmarks.len());
+    for bookmarks_path in chromecore_bookmarks {
+        info!("正在检索ChromeCore浏览器书签: {:?}", bookmarks_path);
+        let favicon_db_path = get_chromecore_favicon_db_path();
+        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::ChromeCore);
+        info!("从ChromeCore浏览器书签文件提取到 {} 个书签", new_bookmarks.len());
+        bookmarks.extend(new_bookmarks);
+        *browser_stats.entry("ChromeCore浏览器".to_string()).or_insert(0) += 1;
+    }
+    
     // 双核浏览器书签
     let shuanghe_bookmarks = get_shuanghe_bookmarks_paths();
     info!("找到 {} 个双核浏览器书签文件", shuanghe_bookmarks.len());
@@ -920,7 +1003,7 @@ fn extract_bookmarks(
                             match browser_type {
                                 BrowserType::Chrome | BrowserType::Edge | BrowserType::Speed360 
                                 | BrowserType::QQBrowser | BrowserType::Brave | BrowserType::Vivaldi 
-                                | BrowserType::Opera | BrowserType::ShuangHe => {
+                                | BrowserType::Opera | BrowserType::ShuangHe | BrowserType::ChromeCore => {
                                     get_favicon_from_chrome_db(&url_str, db_path)
                                 }
                             }
@@ -994,7 +1077,7 @@ pub fn load_bookmark_icons_async_silent(
     }
 
     // 更新商店中的书签
-    crate::config::set_value(&app_handle, "browser_bookmarks", updated_bookmarks);
+    crate::config::set_value(&app_handle, "BROWSER_BOOKMARKS_KEY", updated_bookmarks);
 
     // 更新计数
     {

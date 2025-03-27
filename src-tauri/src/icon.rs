@@ -25,7 +25,7 @@ use crate::apps::load_app_icons_async_silent;
 use crate::apps::{get_installed_apps, AppInfo};
 use crate::bookmarks::load_bookmark_icons_async_silent;
 use crate::bookmarks::{get_browser_bookmarks, BookmarkInfo};
-use crate::config::{get_value, set_value};
+use crate::config::{get_value, set_value, INSTALLED_APPS_KEY, BROWSER_BOOKMARKS_KEY};
 
 // 图标缓存常数
 const ICON_CACHE_KEY: &str = "icon_cache";
@@ -291,35 +291,44 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
     }
 
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(10))  // 增加超时时间
         .build()
         .ok()?;
 
     // 提取域名（针对vwood接口获取图标特殊处理）
-    let domain = extract_domain(url)?;
+    let domain = match extract_domain(url) {
+        Some(domain) => domain,
+        None => {
+            // 如果无法提取域名，尝试直接使用URL
+            url.to_string()
+        }
+    };
 
     // 尝试不同的Favicon来源
     let icon_urls = vec![
         format!("https://api.vwood.xyz/v1/Favicon/public?domain={}", domain),
-        format!("https://www.google.com/s2/favicons?domain={}&sz=32", url),
+        format!("https://www.google.com/s2/favicons?domain={}&sz=64", domain), // 增加图标尺寸
+        format!("https://favicon.yandex.net/favicon/{}", domain),              // 添加Yandex的favicon服务
         format!("https://{}/favicon.ico", domain),
+        format!("https://{}/favicon.png", domain),
+        format!("https://{}/apple-touch-icon.png", domain),                    // 尝试获取苹果设备图标
     ];
 
     for icon_url in icon_urls {
-        if let Ok(response) = client.get(&icon_url).send().await {
-            if response.status().is_success() {
-                if let Ok(bytes) = response.bytes().await {
-                    if !bytes.is_empty() {
-                        let favicon = format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
-                        println!("url: {}", url);
-                        println!("bytes: {}", bytes.len());
-                        // 缓存结果
-                        cache_icon(url, &favicon);
-
-                        return Some(favicon);
+        match client.get(&icon_url).send().await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    if let Ok(bytes) = response.bytes().await {
+                        if !bytes.is_empty() && bytes.len() > 16 {  // 确保图标数据有效
+                            let favicon = format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
+                            // 缓存结果
+                            cache_icon(url, &favicon);
+                            return Some(favicon);
+                        }
                     }
                 }
             }
+            Err(_) => continue,  // 忽略错误，尝试下一个URL
         }
     }
 
@@ -333,8 +342,8 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     load_icon_cache(app_handle);
 
     // 先检查是否已有缓存的数据
-    let has_cached_apps = get_value(app_handle, "installed_apps").is_some();
-    let has_cached_bookmarks = get_value(app_handle, "browser_bookmarks").is_some();
+    let has_cached_apps = get_value(app_handle, INSTALLED_APPS_KEY).is_some();
+    let has_cached_bookmarks = get_value(app_handle, BROWSER_BOOKMARKS_KEY).is_some();
 
     // 只有在没有缓存时才重新加载应用和书签
     // 开发模式暂时关闭
@@ -346,8 +355,8 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         let bookmarks = get_browser_bookmarks();
 
         //首先存储无图标的应用程序和书签以快速访问
-        set_value(app_handle, "installed_apps", apps.clone());
-        set_value(app_handle, "browser_bookmarks", bookmarks.clone());
+        set_value(app_handle, INSTALLED_APPS_KEY, apps.clone());
+        set_value(app_handle, BROWSER_BOOKMARKS_KEY, bookmarks.clone());
 
         //异步加载图标并合并通知
         load_icons_with_combined_notification(app_handle.clone(), apps, bookmarks);
