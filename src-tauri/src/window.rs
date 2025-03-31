@@ -2,11 +2,14 @@
 use crate::APP;
 use log::info;
 use tauri::utils::config::WindowConfig;
-use tauri::{Emitter, Listener, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent};
+use tauri::{
+    Emitter, Listener, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+    WindowEvent,
+};
 // use crate::config::get_adjusted_position;
 use mouse_position::mouse_position::Mouse;
-use std::sync::Mutex;
 use std::sync::LazyLock;
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 use urlencoding;
@@ -32,10 +35,10 @@ static IS_TRACKING: Mutex<bool> = Mutex::new(false);
 // 窗口拖拽状态跟踪
 static WINDOW_DRAGGING: Mutex<bool> = Mutex::new(false);
 // 最后一次移动时间
-static LAST_MOVE_TIME: LazyLock<Mutex<std::time::Instant>> = 
+static LAST_MOVE_TIME: LazyLock<Mutex<std::time::Instant>> =
     LazyLock::new(|| Mutex::new(std::time::Instant::now()));
 // 跟踪失焦时间
-static LAST_FOCUS_LOST_TIME: LazyLock<Mutex<Option<std::time::Instant>>> = 
+static LAST_FOCUS_LOST_TIME: LazyLock<Mutex<Option<std::time::Instant>>> =
     LazyLock::new(|| Mutex::new(None));
 
 // 更新搜索框位置的命令
@@ -262,7 +265,7 @@ pub fn hotkey_config() {
 
 // 创建update窗口
 pub fn create_update_window() {
-    let window = build_window( 
+    let window = build_window(
         "update",
         "/#update",
         WindowConfig {
@@ -280,7 +283,6 @@ pub fn create_update_window() {
     window.show().unwrap();
     window.set_focus().unwrap();
 }
-
 
 // 显示隐藏窗口
 #[tauri::command]
@@ -432,26 +434,27 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
             WindowEvent::Focused(false) => {
                 // 记录失焦时间
                 *LAST_FOCUS_LOST_TIME.lock().unwrap() = Some(std::time::Instant::now());
-                
+
                 // 创建一个窗口引用的克隆用于后续处理
                 let window_clone = window.clone();
                 // 延迟一段时间后再判断是否隐藏窗口
                 tauri::async_runtime::spawn(async move {
                     // 等待200毫秒，这段时间足够判断是否是拖拽引起的失焦
                     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-                    
+
                     let dragging = *WINDOW_DRAGGING.lock().unwrap();
                     let last_move = LAST_MOVE_TIME.lock().unwrap().elapsed();
-                    
+
                     // 获取上次失焦时间
-                    let should_hide = if let Some(focus_lost_time) = *LAST_FOCUS_LOST_TIME.lock().unwrap() {
-                        // 如果失焦后200ms内没有移动操作，或者失焦时间与最后移动时间间隔大于200ms
-                        focus_lost_time.elapsed() > std::time::Duration::from_millis(200) && 
-                        (!dragging || last_move > std::time::Duration::from_millis(200))
-                    } else {
-                        false // 如果没有失焦时间记录，不隐藏
-                    };
-                    
+                    let should_hide =
+                        if let Some(focus_lost_time) = *LAST_FOCUS_LOST_TIME.lock().unwrap() {
+                            // 如果失焦后200ms内没有移动操作，或者失焦时间与最后移动时间间隔大于200ms
+                            focus_lost_time.elapsed() > std::time::Duration::from_millis(200)
+                                && (!dragging || last_move > std::time::Duration::from_millis(200))
+                        } else {
+                            false // 如果没有失焦时间记录，不隐藏
+                        };
+
                     if should_hide {
                         // 检查窗口当前是否仍然没有焦点
                         if let Ok(has_focus) = window_clone.is_focused() {
@@ -471,7 +474,7 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                 *WINDOW_DRAGGING.lock().unwrap() = true;
                 // 更新最后移动时间
                 *LAST_MOVE_TIME.lock().unwrap() = std::time::Instant::now();
-                
+
                 // 创建一个窗口引用的克隆用于后续处理
                 let window_clone = window.clone();
                 // 延迟一段时间后重置拖拽状态
@@ -480,14 +483,15 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                     // 重置拖拽状态
                     *WINDOW_DRAGGING.lock().unwrap() = false;
-                    
+
                     // 检查窗口当前是否有焦点
                     if let Ok(has_focus) = window_clone.is_focused() {
                         if !has_focus {
                             // 再次检查最后一次失焦时间
                             if let Some(focus_lost_time) = *LAST_FOCUS_LOST_TIME.lock().unwrap() {
                                 // 如果失焦发生在拖拽重置后
-                                if focus_lost_time.elapsed() < std::time::Duration::from_millis(500) {
+                                if focus_lost_time.elapsed() < std::time::Duration::from_millis(500)
+                                {
                                     // println!("拖拽结束后检测窗口无焦点，隐藏窗口");
                                     let _ = window_clone.hide();
                                 }

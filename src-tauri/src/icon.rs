@@ -25,7 +25,7 @@ use crate::apps::load_app_icons_async_silent;
 use crate::apps::{get_installed_apps, AppInfo};
 use crate::bookmarks::load_bookmark_icons_async_silent;
 use crate::bookmarks::{get_browser_bookmarks, BookmarkInfo};
-use crate::config::{get_value, set_value, INSTALLED_APPS_KEY, BROWSER_BOOKMARKS_KEY};
+use crate::config::{get_value, set_value, BROWSER_BOOKMARKS_KEY, INSTALLED_APPS_KEY};
 
 // 图标缓存常数
 const ICON_CACHE_KEY: &str = "icon_cache";
@@ -292,7 +292,7 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
     }
 
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))  // 增加超时时间
+        .timeout(Duration::from_secs(10)) // 增加超时时间
         .build()
         .ok()?;
 
@@ -311,7 +311,7 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
         format!("https://favicon.yandex.net/favicon/{}", domain),
         format!("https://{}/favicon.ico", domain),
         format!("https://{}/favicon.png", domain),
-        format!("https://{}/apple-touch-icon.png", domain)
+        format!("https://{}/apple-touch-icon.png", domain),
     ];
 
     for icon_url in icon_urls {
@@ -319,8 +319,10 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
             Ok(response) => {
                 if response.status().is_success() {
                     if let Ok(bytes) = response.bytes().await {
-                        if !bytes.is_empty() && bytes.len() > 16 {  // 确保图标数据有效
-                            let favicon = format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
+                        if !bytes.is_empty() && bytes.len() > 16 {
+                            // 确保图标数据有效
+                            let favicon =
+                                format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
                             // 缓存结果
                             cache_icon(url, &favicon);
                             return Some(favicon);
@@ -328,7 +330,7 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
                     }
                 }
             }
-            Err(_) => continue,  // 忽略错误，尝试下一个URL
+            Err(_) => continue, // 忽略错误，尝试下一个URL
         }
     }
 

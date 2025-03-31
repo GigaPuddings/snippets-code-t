@@ -1,9 +1,9 @@
+use log::LevelFilter;
 use serde_json::{json, Value};
 use std::path::PathBuf;
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_global_shortcut::{Code, Modifiers};
 use tauri_plugin_store::StoreBuilder;
-use log::LevelFilter;
-use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 use crate::search::{SearchEngine, DEFAULT_ENGINES};
 // use mouse_position::mouse_position::{Mouse, Position};
@@ -98,8 +98,7 @@ pub fn parse_hotkey(hotkey: &str) -> Result<(Modifiers, Code), String> {
                     "`" => Code::Backquote,
                     "/" => Code::Slash,
                     "\\" => Code::Backslash,
-                    
-                    
+
                     _ => return Err(format!("不支持的按键: {}", key)),
                 });
             }
@@ -198,13 +197,12 @@ pub fn reset_software(app_handle: tauri::AppHandle) -> Result<(), String> {
     }
 
     // 使用默认配置,并且第一条数据设置为默认搜索引擎
-    let mut engines: Vec<SearchEngine> = serde_json::from_str(DEFAULT_ENGINES)
-    .map_err(|e| e.to_string())?;
+    let mut engines: Vec<SearchEngine> =
+        serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
     if !engines.is_empty() {
         engines[0].enabled = true;
     }
     set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
-    
 
     // 在后台线程中注销所有快捷键并重启应用程序
     std::thread::spawn(move || {
@@ -214,7 +212,7 @@ pub fn reset_software(app_handle: tauri::AppHandle) -> Result<(), String> {
         // 重启应用程序
         app_handle.restart();
     });
-    
+
     Ok(())
 }
 

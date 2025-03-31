@@ -1,12 +1,14 @@
-use crate::config::{get_value, set_value, BROWSER_BOOKMARKS_KEY, INSTALLED_APPS_KEY, SEARCH_ENGINES_KEY};
-use log::info;
-use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
 use crate::apps::AppInfo;
 use crate::bookmarks::BookmarkInfo;
+use crate::config::{
+    get_value, set_value, BROWSER_BOOKMARKS_KEY, INSTALLED_APPS_KEY, SEARCH_ENGINES_KEY,
+};
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
+use log::info;
 use pinyin::ToPinyin;
+use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SearchEngine {
@@ -35,7 +37,7 @@ pub const DEFAULT_ENGINES: &str = include_str!("../assets/default_engines.json")
 fn text_to_pinyin(text: &str) -> (String, String) {
     let mut full_pinyin = String::new();
     let mut first_letters = String::new();
-    
+
     for c in text.chars() {
         if let Some(pinyin_iter) = c.to_pinyin() {
             let pinyin_str = pinyin_iter.plain();
@@ -50,7 +52,7 @@ fn text_to_pinyin(text: &str) -> (String, String) {
             }
         }
     }
-    
+
     (full_pinyin, first_letters)
 }
 
@@ -68,22 +70,22 @@ fn fuzzy_search<T: Clone>(
     for item in items {
         let title = get_title(item);
         let content = get_content(item);
-        
+
         // 直接匹配
         let direct_title_score = matcher.fuzzy_match(title, &query).unwrap_or(0) as f64;
         let direct_content_score = matcher.fuzzy_match(content, &query).unwrap_or(0) as f64;
-        
+
         // 拼音匹配（针对标题）
         let (title_pinyin, title_initials) = text_to_pinyin(title);
         let pinyin_score = matcher.fuzzy_match(&title_pinyin, &query).unwrap_or(0) as f64;
         let initials_score = matcher.fuzzy_match(&title_initials, &query).unwrap_or(0) as f64 * 1.5; // 首字母匹配权重更高
-        
+
         // 取最高分作为标题得分
         let title_score = direct_title_score.max(pinyin_score).max(initials_score);
-        
+
         // 标题匹配权重更高
         let total_score = title_score * 2.0 + direct_content_score;
-        
+
         if total_score > 0.0 {
             results.push((item.clone(), total_score));
         }
@@ -101,7 +103,7 @@ pub fn search_apps(app_handle: AppHandle, query: String) -> Result<Vec<SearchRes
         Some(value) => serde_json::from_value(value).unwrap_or_default(),
         None => Vec::new(),
     };
-    
+
     let results = fuzzy_search(
         &apps,
         &query,
@@ -129,7 +131,7 @@ pub fn search_bookmarks(app_handle: AppHandle, query: String) -> Result<Vec<Sear
         Some(value) => serde_json::from_value(value).unwrap_or_default(),
         None => Vec::new(),
     };
-    
+
     let results = fuzzy_search(
         &bookmarks,
         &query,
@@ -162,8 +164,8 @@ pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, St
             .collect()),
         None => {
             // 如果没有保存的搜索引擎配置，使用默认配置,并且第一条数据设置为默认搜索引擎
-            let mut engines: Vec<SearchEngine> = serde_json::from_str(DEFAULT_ENGINES)
-                .map_err(|e| e.to_string())?;
+            let mut engines: Vec<SearchEngine> =
+                serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
             if !engines.is_empty() {
                 engines[0].enabled = true;
             }
@@ -179,7 +181,7 @@ pub fn update_search_engines(
     app_handle: AppHandle,
     engines: Vec<SearchEngine>,
 ) -> Result<(), String> {
-    info!("更新搜索引擎配置");    
+    info!("更新搜索引擎配置");
     set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
     Ok(())
 }

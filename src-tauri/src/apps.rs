@@ -414,7 +414,10 @@ fn get_windows_apps() -> Vec<AppInfo> {
         ("计算器", "C:\\Windows\\System32\\calc.exe"),
         ("记事本", "C:\\Windows\\System32\\notepad.exe"),
         ("画图", "C:\\Windows\\System32\\mspaint.exe"),
-        ("画图3D", "C:\\Program Files\\WindowsApps\\Microsoft.Paint3D_*\\PaintStudio.View.exe")
+        (
+            "画图3D",
+            "C:\\Program Files\\WindowsApps\\Microsoft.Paint3D_*\\PaintStudio.View.exe",
+        ),
     ];
 
     // 首先尝试直接查找路径（对于常规系统工具）

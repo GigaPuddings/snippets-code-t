@@ -1,11 +1,10 @@
 use crate::config::{control_logging, get_value, set_value, UPDATE_AVAILABLE_KEY, UPDATE_INFO_KEY};
-use log::info;
 use crate::APP;
+use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::UpdaterExt;
-
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UpdateInfo {
@@ -42,13 +41,13 @@ pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bo
                             notes: update.body.unwrap_or_default(),
                             pub_date: update.date.map(|d| d.to_string()),
                         };
-                        
+
                         set_value(app, UPDATE_AVAILABLE_KEY, true);
                         set_value(app, UPDATE_INFO_KEY, update_info);
-                        
+
                         // 通知前端有更新
                         app.emit("update-available", true).unwrap();
-                        
+
                         control_logging(true); // 启用日志存储
                         Ok(true)
                     } else {
@@ -99,34 +98,37 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
         if let Ok(Some(update)) = updater.check().await {
             let app = APP.get().unwrap();
             let mut total_downloaded: u64 = 0;
-            
+
             // 下载更新
-            update.download_and_install(
-                |chunk_length, content_length| {
-                    total_downloaded += chunk_length as u64;
-                    
-                    let progress = DownloadProgress {
-                        event: if total_downloaded == 0 { 
-                            "Started".to_string() 
-                        } else if total_downloaded == content_length.unwrap_or(0) {
-                            "Finished".to_string()
-                        } else {
-                            "Progress".to_string()
-                        },
-                        data: ProgressData {
-                            chunk_length: Some(chunk_length as u64),
-                            content_length,
-                            total_downloaded,
-                        },
-                    };
-                    
-                    app.emit("download-progress", &progress).unwrap();
-                },
-                || {
-                    app.emit("download-finished", ()).unwrap();
-                },
-            ).await.map_err(|e| e.to_string())?;
-            
+            update
+                .download_and_install(
+                    |chunk_length, content_length| {
+                        total_downloaded += chunk_length as u64;
+
+                        let progress = DownloadProgress {
+                            event: if total_downloaded == 0 {
+                                "Started".to_string()
+                            } else if total_downloaded == content_length.unwrap_or(0) {
+                                "Finished".to_string()
+                            } else {
+                                "Progress".to_string()
+                            },
+                            data: ProgressData {
+                                chunk_length: Some(chunk_length as u64),
+                                content_length,
+                                total_downloaded,
+                            },
+                        };
+
+                        app.emit("download-progress", &progress).unwrap();
+                    },
+                    || {
+                        app.emit("download-finished", ()).unwrap();
+                    },
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+
             Ok(())
         } else {
             Err("No update available".to_string())
