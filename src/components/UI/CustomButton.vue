@@ -3,7 +3,7 @@
     :class="[
       'custom-button',
       `custom-button--${props.type}`,
-      props.size ? `custom-button--${props.size}` : '',
+      props.size ? `custom-button--${props.size}` : 'custom-button--medium',
       { 'custom-button--loading': props.loading }
     ]"
     :disabled="loading || disabled"
@@ -57,7 +57,7 @@ defineEmits(['click']);
 
 <style scoped lang="scss">
 .custom-button {
-  @apply inline-flex items-center justify-center rounded-md transition-all duration-200 font-medium outline-none border border-transparent relative overflow-hidden;
+  @apply inline-flex items-center justify-center rounded-md shadow-sm transition-all duration-200 font-medium outline-none border border-transparent relative overflow-hidden;
 
   &:not(:disabled):active {
     transform: scale(0.98);
@@ -77,6 +77,10 @@ defineEmits(['click']);
 
   &--danger {
     @apply bg-red-500 text-white hover:bg-red-600;
+  }
+
+  &--medium {
+    @apply text-sm py-2 px-4 h-8;
   }
 
   &--small {

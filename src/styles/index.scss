@@ -51,6 +51,17 @@
 //   }
 // }
 
+// 自定义message
+.el-message {
+  --el-message-padding: 10px 15px !important;
+
+  border-radius: 6px !important;
+
+  .el-message__content {
+    @apply text-xs !text-panel;
+  }
+}
+
 .el-input__wrapper.is-focus,
 .el-input__wrapper:hover,
 .el-input__wrapper {
@@ -195,4 +206,13 @@
 
 .category-management {
   @apply border rounded-md dark:border-panel !w-[300px];
+}
+
+// 分类修改
+.el-message-box__container {
+  @apply w-full !inline-block px-4;
+}
+
+.message-footer {
+  @apply flex justify-end gap-2 mt-2;
 }

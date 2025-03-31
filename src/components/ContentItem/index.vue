@@ -30,6 +30,7 @@ import {
 import { useConfigurationStore } from '@/store';
 import { EditTwo, DeleteFour, CategoryManagement } from '@icon-park/vue-next';
 import { h } from 'vue';
+import { CustomButton } from '../UI';
 const route = useRoute();
 const store = useConfigurationStore();
 
@@ -104,31 +105,58 @@ const showCategorySelector = async () => {
     }));
 
     const categoryId = ref(content.value.category_id); // 使用 ref 来保持选中的值
-
+    // 取消ElMessageBox自带的确定按钮、取消按钮, 自定义确定按钮、取消按钮
     await ElMessageBox({
       title: '修改分类',
-      showCancelButton: true,
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+      showCancelButton: false,
+      showConfirmButton: false,
+      closeOnClickModal: false,
+      closeOnPressEscape: false,
       message: () => {
-        return h(
-          ElSelect,
-          {
-            modelValue: categoryId.value,
-            'onUpdate:modelValue': (newValue: number) => {
-              categoryId.value = newValue;
+        return h('div', [
+          h(
+            ElSelect,
+            {
+              modelValue: categoryId.value,
+              'onUpdate:modelValue': (newValue: number) => {
+                categoryId.value = newValue;
+              },
+              class: 'category-management'
             },
-            class: 'category-management'
-          },
-          {
-            default: () => [
-              h(ElOption, { label: '未分类', value: 0 }),
-              ...categoryOptions.map((option: any) =>
-                h(ElOption, { label: option.label, value: option.value })
-              )
-            ]
-          }
-        );
+            {
+              default: () => [
+                h(ElOption, { label: '未分类', value: 0 }),
+                ...categoryOptions.map((option: any) =>
+                  h(ElOption, { label: option.label, value: option.value })
+                )
+              ]
+            }
+          ),
+          h('div', { class: 'message-footer' }, [
+            h(
+              CustomButton,
+              {
+                type: 'default',
+                size: '',
+                onClick: () => {
+                  ElMessageBox.close();
+                }
+              },
+              { default: () => '取消' }
+            ),
+            h(
+              CustomButton,
+              {
+                type: 'primary',
+                size: '',
+                onClick: () => {
+                  ElMessageBox.close();
+                }
+              },
+              { default: () => '确定' }
+            )
+          ])
+        ]);
       }
     });
 

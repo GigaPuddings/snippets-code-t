@@ -11,7 +11,7 @@
             >
               <template #prefix>
                 <Search
-                  class="mr-1 text-[#282d32]"
+                  class="mr-1 text-panel"
                   theme="outline"
                   size="15"
                   :strokeWidth="2"

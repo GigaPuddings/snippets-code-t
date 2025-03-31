@@ -75,7 +75,7 @@ import { getDb } from '@/database';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 import CustomButton from '@/components/UI/CustomButton.vue';
-
+import modal from '@/utils/modal';
 defineOptions({
   name: 'Manger'
 });
@@ -94,17 +94,17 @@ const dictDBBackup = [
 // 备份数据
 const startBackup = async () => {
   if (!store.dbBackup) {
-    ElMessage.warning('请选择备份文件名格式');
+    modal.msg('请选择备份文件名格式', 'warning');
     return;
   }
 
   backupLoading.value = true;
   try {
     await invoke('backup_database', { format: store.dbBackup });
-    ElMessage.success('数据备份成功');
+    modal.msg('数据备份成功');
   } catch (error: any) {
     if (error !== 'Backup cancelled') {
-      ElMessage.error(`备份失败: ${error}`);
+      modal.msg(`备份失败: ${error}`, 'error');
     }
   } finally {
     backupLoading.value = false;
@@ -130,10 +130,10 @@ const restoreData = async () => {
       db.close();
     });
     await invoke('restore_database');
-    ElMessage.success('数据恢复成功，应用即将重启');
+    modal.msg('数据恢复成功，应用即将重启');
   } catch (error: any) {
     if (error !== 'cancel' && error !== 'Restore cancelled') {
-      ElMessage.error(`恢复失败: ${error}`);
+      modal.msg(`恢复失败: ${error}`, 'error');
     }
   } finally {
     restoreLoading.value = false;
@@ -161,10 +161,10 @@ const selectCustomPath = async () => {
     });
     const newPath = await invoke('set_custom_db_path');
     store.dbPath = newPath as string; // 更新前端路径
-    ElMessage.success('数据库路径修改成功，应用将重启以应用更改');
+    modal.msg('数据库路径修改成功，应用将重启以应用更改');
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(`修改失败: ${error}`);
+      modal.msg(`修改失败: ${error}`, 'error');
     }
   } finally {
     pathLoading.value = false;

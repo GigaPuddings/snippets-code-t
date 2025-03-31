@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
-
+import modal from '@/utils/modal';
 export const useConfigurationStore = defineStore('configuration', {
   state: (): StoreState => ({
     id: '', // 搜索框的 id
@@ -38,7 +38,7 @@ export const useConfigurationStore = defineStore('configuration', {
         this.configHotkey = configHotkey;
       } catch (error) {
         console.error('获取快捷键配置失败:', error);
-        ElMessage.error('获取快捷键配置失败');
+        modal.msg('获取快捷键配置失败', 'error');
       }
     }
   },

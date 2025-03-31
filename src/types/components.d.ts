@@ -7,8 +7,16 @@ export {};
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AButton: typeof import('ant-design-vue/es')['Button']
+    AEmpty: typeof import('ant-design-vue/es')['Empty']
+    AInput: typeof import('ant-design-vue/es')['Input']
     AlarmEditDialog: typeof import('./../pages/config/components/todo/components/AlarmEditDialog.vue')['default']
+    AModal: typeof import('ant-design-vue/es')['Modal']
     AppMain: typeof import('./../layout/components/AppMain.vue')['default']
+    ASelect: typeof import('ant-design-vue/es')['Select']
+    ASelectOption: typeof import('ant-design-vue/es')['SelectOption']
+    ASwitch: typeof import('ant-design-vue/es')['Switch']
+    ATooltip: typeof import('ant-design-vue/es')['Tooltip']
     Category: typeof import('./../pages/config/components/category/index.vue')['default']
     CategoryItem: typeof import('./../components/CategoryItem/index.vue')['default']
     CodeMirrorEditor: typeof import('./../components/CodeMirrorEditor/index.vue')['default']

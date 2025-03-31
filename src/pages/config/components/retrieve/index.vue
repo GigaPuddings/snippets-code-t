@@ -146,8 +146,7 @@ import { Add, Redo, Reduce, Picture } from '@icon-park/vue-next';
 import { uuid } from '@/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
-import { ElMessage } from 'element-plus';
-
+import modal from '@/utils/modal';
 const searchEngines = ref<SearchEngineConfig[]>([]);
 const defaultSearchEngines = ref<SearchEngineConfig[]>([]);
 // 节流函数，防止频繁保存
@@ -229,7 +228,7 @@ onMounted(async () => {
     await initializeIcons();
   } catch (error) {
     console.error('获取搜索引擎配置失败:', error);
-    ElMessage.error('获取搜索引擎配置失败');
+    modal.msg('获取搜索引擎配置失败', 'error');
   }
 });
 
@@ -243,7 +242,7 @@ const updateSearchEngines = async (engines: SearchEngineConfig[]) => {
     return true;
   } catch (error) {
     console.error('更新搜索引擎配置失败:', error);
-    ElMessage.error('更新搜索引擎配置失败');
+    modal.msg('更新搜索引擎配置失败', 'error');
     return false;
   }
 };
@@ -257,14 +256,14 @@ const saveAll = async (showMessage = true) => {
 
   if (invalidEngines.length > 0) {
     if (showMessage) {
-      ElMessage.warning('存在无效的搜索引擎配置，请完善信息');
+      modal.msg('存在无效的搜索引擎配置，请完善信息', 'warning');
     }
     return false;
   }
 
   const success = await updateSearchEngines([...searchEngines.value]);
   if (success && showMessage) {
-    ElMessage.success('搜索引擎配置已更新');
+    modal.msg('搜索引擎配置已更新');
   }
   return success;
 };
@@ -280,11 +279,11 @@ const resetEngines = async () => {
     }
     const success = await updateSearchEngines(defaultEngines);
     if (success) {
-      ElMessage.success('已重置为默认搜索引擎');
+      modal.msg('已重置为默认搜索引擎');
     }
   } catch (error) {
     console.error('重置搜索引擎失败:', error);
-    ElMessage.error('重置搜索引擎失败');
+    modal.msg('重置搜索引擎失败', 'error');
   }
 };
 
@@ -298,7 +297,7 @@ const handleAdd = async () => {
     enabled: false
   };
   searchEngines.value.push(newEngine);
-  ElMessage.info('已添加新搜索引擎，请完善信息');
+  modal.msg('已添加新搜索引擎，请完善信息', 'info');
 };
 
 const handleDelete = async (index: number) => {
@@ -316,7 +315,7 @@ const handleDelete = async (index: number) => {
   // 自动保存更改
   const success = await saveAll(false);
   if (success) {
-    ElMessage.success('已删除搜索引擎');
+    modal.msg('已删除搜索引擎');
   }
 };
 
@@ -330,7 +329,7 @@ const handleSwitch = async (index: number) => {
   // 自动保存更改
   const success = await saveAll(false);
   if (success) {
-    ElMessage.success('已更新默认搜索引擎');
+    modal.msg('已更新默认搜索引擎');
   }
 };
 

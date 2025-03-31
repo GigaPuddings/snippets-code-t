@@ -22,7 +22,7 @@
 import { useConfigurationStore } from '@/store';
 import { getFragmentContent, editFragment } from '@/database/fragment';
 import { debounce } from '@/utils';
-
+import modal from '@/utils/modal';
 // 组件状态集中管理
 const state = reactive({
   title: '',
@@ -83,7 +83,7 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
     state.contentChanged = false;
   } catch (error) {
     console.error('保存失败:', error);
-    ElMessage.error('保存失败，请重试');
+    modal.msg('保存失败，请重试', 'error');
   } finally {
     state.isLoading = false;
   }
@@ -137,7 +137,7 @@ const fetchContent = async () => {
     }
   } catch (error) {
     console.error('获取内容失败:', error);
-    ElMessage.error('获取内容失败，请重试');
+    modal.msg('获取内容失败，请重试', 'error');
   } finally {
     nextTick(() => {
       state.isInitializing = false;

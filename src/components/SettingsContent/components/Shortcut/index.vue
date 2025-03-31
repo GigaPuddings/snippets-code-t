@@ -123,7 +123,7 @@ import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { osType } from '@/utils/env';
 import { useConfigurationStore } from '@/store';
 import CustomButton from '@/components/UI/CustomButton.vue';
-
+import modal from '@/utils/modal';
 const store = useConfigurationStore();
 
 defineOptions({
@@ -222,10 +222,10 @@ function registerHandler(name: string, key: string) {
     shortcut: key
   })
     .then(() => {
-      ElMessage.success(`快捷键注册成功: ${key}`);
+      modal.msg(`快捷键注册成功: ${key}`);
     })
     .catch((e: any) => {
-      ElMessage.error(`快捷键注册失败: ${e}`);
+      modal.msg(`快捷键注册失败: ${e}`, 'error');
     });
 }
 

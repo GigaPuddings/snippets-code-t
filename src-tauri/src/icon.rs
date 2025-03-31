@@ -287,6 +287,7 @@ pub fn extract_domain(url: &str) -> Option<String> {
 pub async fn fetch_favicon_async(url: &str) -> Option<String> {
     // 首先检查缓存
     if let Some(cached_icon) = get_cached_icon(url) {
+        info!("从缓存中获取图标: {}", url);
         return Some(cached_icon);
     }
 
@@ -303,15 +304,14 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
             url.to_string()
         }
     };
-
     // 尝试不同的Favicon来源
     let icon_urls = vec![
         format!("https://api.vwood.xyz/v1/Favicon/public?domain={}", domain),
-        format!("https://www.google.com/s2/favicons?domain={}&sz=64", domain), // 增加图标尺寸
-        format!("https://favicon.yandex.net/favicon/{}", domain),              // 添加Yandex的favicon服务
+        format!("https://www.google.com/s2/favicons?domain={}&sz=64", url),
+        format!("https://favicon.yandex.net/favicon/{}", domain),
         format!("https://{}/favicon.ico", domain),
         format!("https://{}/favicon.png", domain),
-        format!("https://{}/apple-touch-icon.png", domain),                    // 尝试获取苹果设备图标
+        format!("https://{}/apple-touch-icon.png", domain)
     ];
 
     for icon_url in icon_urls {

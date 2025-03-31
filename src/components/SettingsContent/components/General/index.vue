@@ -104,7 +104,7 @@ import { initTheme } from '@/utils/theme';
 import { invoke } from '@tauri-apps/api/core';
 import CustomButton from '@/components/UI/CustomButton.vue';
 import CustomSwitch from '@/components/UI/CustomSwitch.vue';
-
+import modal from '@/utils/modal';
 defineOptions({
   name: 'General'
 });
@@ -138,10 +138,10 @@ const handleAutoStartChange = async (value: boolean) => {
   try {
     if (value) {
       await enable();
-      ElMessage.success('自启动已开启');
+      modal.msg('自启动已开启');
     } else {
       await disable();
-      ElMessage.success('自启动已关闭');
+      modal.msg('自启动已关闭');
     }
   } catch (error) {
     console.error('设置自启动状态失败:', error);
@@ -165,10 +165,10 @@ const resetSoftware = async () => {
 
     resetSoftwareLoading.value = true;
     await invoke('reset_software');
-    ElMessage.success('重置软件成功');
+    modal.msg('重置软件成功');
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(`重置失败: ${error}`);
+      modal.msg(`重置失败: ${error}`, 'error');
     }
   } finally {
     resetSoftwareLoading.value = false;
@@ -179,9 +179,9 @@ const resetSoftware = async () => {
 const toggleAutoUpdateCheck = async (value: boolean) => {
   try {
     await invoke('set_auto_update_check', { enabled: value });
-    ElMessage.success(`已${value ? '开启' : '关闭'}自动检查更新`);
+    modal.msg(`已${value ? '开启' : '关闭'}自动检查更新`);
   } catch (error) {
-    ElMessage.error(`设置失败: ${error}`);
+    modal.msg(`设置失败: ${error}`, 'error');
     // 恢复原值
     autoUpdateCheck.value = !value;
   }
@@ -199,7 +199,7 @@ const exitApplication = async () => {
     await invoke('exit_application');
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(`退出失败: ${error}`);
+      modal.msg(`退出失败: ${error}`, 'error');
     }
   }
 };

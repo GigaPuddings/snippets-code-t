@@ -1,4 +1,3 @@
-use crate::icon;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use glob::glob;
 use log::info;
@@ -10,6 +9,8 @@ use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 use tokio;
 use uuid::Uuid;
+use crate::icon;
+use crate::config::BROWSER_BOOKMARKS_KEY;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BookmarkInfo {
@@ -1077,7 +1078,7 @@ pub fn load_bookmark_icons_async_silent(
     }
 
     // 更新商店中的书签
-    crate::config::set_value(&app_handle, "BROWSER_BOOKMARKS_KEY", updated_bookmarks);
+    crate::config::set_value(&app_handle, BROWSER_BOOKMARKS_KEY, updated_bookmarks);
 
     // 更新计数
     {
