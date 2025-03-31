@@ -76,6 +76,7 @@ import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 import CustomButton from '@/components/UI/CustomButton.vue';
 import modal from '@/utils/modal';
+import { h } from 'vue';
 defineOptions({
   name: 'Manger'
 });
@@ -112,62 +113,122 @@ const startBackup = async () => {
 };
 // 恢复数据
 const restoreData = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '恢复数据将会替换当前数据库，并且需要重启应用。是否继续？',
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-
-    restoreLoading.value = true;
-    // 关闭数据库
-    await getDb().then((db) => {
-      console.log('关闭数据库', db);
-      db.close();
-    });
-    await invoke('restore_database');
-    modal.msg('数据恢复成功，应用即将重启');
-  } catch (error: any) {
-    if (error !== 'cancel' && error !== 'Restore cancelled') {
-      modal.msg(`恢复失败: ${error}`, 'error');
+  restoreLoading.value = true;
+  await ElMessageBox({
+    title: '警告',
+    showCancelButton: false,
+    showConfirmButton: false,
+    closeOnClickModal: false,
+    closeOnPressEscape: false,
+    message: () => {
+      return h('div', [
+        h('div', '恢复数据将会替换当前数据库，并且需要重启应用。是否继续？'),
+        h('div', { class: 'message-footer' }, [
+          h(
+            CustomButton,
+            {
+              type: 'default',
+              size: '',
+              onClick: () => {
+                ElMessageBox.close();
+                restoreLoading.value = false;
+              }
+            },
+            { default: () => '取消' }
+          ),
+          h(
+            CustomButton,
+            {
+              type: 'primary',
+              onClick: async () => {
+                ElMessageBox.close();
+                try {
+                  // 关闭数据库
+                  await getDb().then((db) => {
+                    console.log('关闭数据库', db);
+                    db.close();
+                  });
+                  await invoke('restore_database');
+                  modal.msg('数据恢复成功，应用即将重启');
+                } catch (error) {
+                  console.log('恢复数据失败', error);
+                } finally {
+                  restoreLoading.value = false;
+                }
+              }
+            },
+            { default: () => '确定' }
+          )
+        ])
+      ]);
     }
-  } finally {
+  }).catch(() => {
     restoreLoading.value = false;
-  }
+  });
 };
 
 // 选择数据库路径
 const selectCustomPath = async () => {
-  try {
-    pathLoading.value = true;
+  pathLoading.value = true;
 
-    await ElMessageBox.confirm(
-      '修改数据库存储位置将会迁移现有数据并重启应用，是否继续？',
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-    // 关闭数据库
-    await getDb().then((db) => {
-      console.log('关闭数据库', db);
-      db.close();
-    });
-    const newPath = await invoke('set_custom_db_path');
-    store.dbPath = newPath as string; // 更新前端路径
-    modal.msg('数据库路径修改成功，应用将重启以应用更改');
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      modal.msg(`修改失败: ${error}`, 'error');
+  await ElMessageBox({
+    title: '警告',
+    showCancelButton: false,
+    showConfirmButton: false,
+    closeOnClickModal: false,
+    closeOnPressEscape: false,
+    message: () => {
+      return h('div', [
+        h('div', '修改数据库存储位置将会迁移现有数据并重启应用，是否继续？'),
+        h('div', { class: 'message-footer' }, [
+          h(
+            CustomButton,
+            {
+              type: 'default',
+              size: '',
+              onClick: () => {
+                ElMessageBox.close();
+                pathLoading.value = false;
+              }
+            },
+            { default: () => '取消' }
+          ),
+          h(
+            CustomButton,
+            {
+              type: 'primary',
+              size: '',
+              onClick: async () => {
+                ElMessageBox.close();
+                try {
+                  // 关闭数据库
+                  await getDb().then((db) => {
+                    console.log('关闭数据库', db);
+                    db.close();
+                  });
+                  const newPath = await invoke('set_custom_db_path');
+                  store.dbPath = newPath as string; // 更新前端路径
+                  modal.msg('数据库路径修改成功，应用将重启以应用更改');
+                } catch (error) {
+                  console.log('修改数据库路径失败', error);
+                } finally {
+                  pathLoading.value = false;
+                }
+              }
+            },
+            { default: () => '确定' }
+          )
+        ])
+      ]);
     }
-  } finally {
+  }).catch(() => {
     pathLoading.value = false;
-  }
+  });
 };
 </script>
+
+<style scoped lang="scss">
+.message-footer {
+  @apply flex justify-end gap-2 mt-4;
+}
+</style>

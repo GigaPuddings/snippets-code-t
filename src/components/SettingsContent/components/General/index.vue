@@ -88,7 +88,12 @@
         <div class="summarize-label-desc">是否退出应用</div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomButton type="primary" size="small" @click="exitApplication">
+        <CustomButton
+          type="primary"
+          size="small"
+          :loading="exitApplicationLoading"
+          @click="exitApplication"
+        >
           退出应用
         </CustomButton>
       </div>
@@ -113,7 +118,7 @@ const store = useConfigurationStore();
 
 const resetSoftwareLoading = ref(false);
 const autoUpdateCheck = ref(true);
-
+const exitApplicationLoading = ref(false);
 const dictTheme = [
   { value: 'light', label: '浅色', icon: SunOne },
   { value: 'dark', label: '深色', icon: Moon },
@@ -152,27 +157,57 @@ const handleAutoStartChange = async (value: boolean) => {
 
 // 重置软件
 const resetSoftware = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '重置软件将会清除本地应用列表、书签数据、缓存图标等信息，需要重新索引，是否继续？',
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-
-    resetSoftwareLoading.value = true;
-    await invoke('reset_software');
-    modal.msg('重置软件成功');
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      modal.msg(`重置失败: ${error}`, 'error');
+  resetSoftwareLoading.value = true;
+  await ElMessageBox({
+    title: '警告',
+    showCancelButton: false,
+    showConfirmButton: false,
+    closeOnClickModal: false,
+    closeOnPressEscape: false,
+    message: () => {
+      return h('div', [
+        h(
+          'div',
+          '重置软件将会清除本地应用列表、书签数据、缓存图标等信息，需要重新索引，是否继续？'
+        ),
+        h('div', { class: 'message-footer' }, [
+          h(
+            CustomButton,
+            {
+              type: 'default',
+              size: '',
+              onClick: () => {
+                ElMessageBox.close();
+                resetSoftwareLoading.value = false;
+              }
+            },
+            { default: () => '取消' }
+          ),
+          h(
+            CustomButton,
+            {
+              type: 'primary',
+              size: '',
+              onClick: async () => {
+                ElMessageBox.close();
+                try {
+                  await invoke('reset_software');
+                  modal.msg('重置软件成功');
+                } catch (error) {
+                  console.log('重置软件失败', error);
+                } finally {
+                  resetSoftwareLoading.value = false;
+                }
+              }
+            },
+            { default: () => '确定' }
+          )
+        ])
+      ]);
     }
-  } finally {
+  }).catch(() => {
     resetSoftwareLoading.value = false;
-  }
+  });
 };
 
 // 切换自动检查更新
@@ -189,19 +224,54 @@ const toggleAutoUpdateCheck = async (value: boolean) => {
 
 // 退出应用
 const exitApplication = async () => {
-  try {
-    await ElMessageBox.confirm('确定要退出应用吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
-
-    await invoke('exit_application');
-  } catch (error) {
-    if (error !== 'cancel') {
-      modal.msg(`退出失败: ${error}`, 'error');
+  exitApplicationLoading.value = true;
+  await ElMessageBox({
+    title: '提示',
+    showCancelButton: false,
+    showConfirmButton: false,
+    closeOnClickModal: false,
+    closeOnPressEscape: false,
+    message: () => {
+      return h('div', [
+        h('div', '确定要退出应用吗？'),
+        h('div', { class: 'message-footer' }, [
+          h(
+            CustomButton,
+            {
+              type: 'default',
+              size: '',
+              onClick: () => {
+                ElMessageBox.close();
+                exitApplicationLoading.value = false;
+              }
+            },
+            { default: () => '取消' }
+          ),
+          h(
+            CustomButton,
+            {
+              type: 'primary',
+              size: '',
+              onClick: async () => {
+                ElMessageBox.close();
+                try {
+                  await invoke('exit_application');
+                  modal.msg('退出应用成功');
+                } catch (error) {
+                  console.log('退出应用失败', error);
+                } finally {
+                  exitApplicationLoading.value = false;
+                }
+              }
+            },
+            { default: () => '确定' }
+          )
+        ])
+      ]);
     }
-  }
+  }).catch(() => {
+    exitApplicationLoading.value = false;
+  });
 };
 
 // 获取自动检查更新设置
@@ -222,5 +292,9 @@ onMounted(async () => {
 <style scoped lang="scss">
 .text-primary {
   color: #4b94f8;
+}
+
+.message-footer {
+  @apply flex justify-end gap-2 mt-4;
 }
 </style>

@@ -27,12 +27,11 @@ onMounted(async () => {
   listen('windowFocused', () => {
     // 如果输入框有值选中文本，没有则聚焦
     if (searchText.value) {
+      resultRef.value?.switchTab('text');
       searchInputRef.value?.select();
     } else {
       searchInputRef.value?.focus();
     }
-    // 搜索有结果，则切换到文本页
-    // searchResults.value.length !== 0 && resultRef.value?.switchTab('text');
   });
 });
 
