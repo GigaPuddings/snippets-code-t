@@ -14,7 +14,7 @@
           <div class="version-item">
             <div class="version-label">当前版本</div>
             <el-tag size="small" class="version-tag current">
-              {{ currentVersion }}
+              {{ appVersion }}
             </el-tag>
           </div>
           <div class="version-arrow">
@@ -130,22 +130,19 @@
 </template>
 
 <script setup lang="ts">
-import { getAppWindow } from '@/utils/env';
+import { appVersion, initEnv, getAppWindow } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
 import { relaunch } from '@tauri-apps/plugin-process';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
-import { onMounted, onUnmounted, nextTick } from 'vue';
 
 interface UpdateInfo {
   version: string;
   notes: string;
   pub_date: string;
 }
-
-const currentVersion = ref(import.meta.env.VITE_APP_VERSION || '0.0.1');
 
 const update = reactive({
   downloading: false,
@@ -176,6 +173,7 @@ dayjs.tz.setDefault('Asia/Shanghai'); // 设置默认时区为中国
 
 // 初始化更新信息
 onMounted(async () => {
+  await initEnv();
   const updateInfo: UpdateInfo = await invoke('get_update_info');
   if (updateInfo) {
     update.newVersion = updateInfo.version;

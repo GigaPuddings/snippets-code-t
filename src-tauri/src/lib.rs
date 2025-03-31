@@ -29,8 +29,6 @@ use log::info;
 use search::*;
 use std::sync::Mutex;
 use std::sync::OnceLock;
-use tauri::Emitter;
-use tauri::WindowEvent;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Target, TargetKind};
@@ -203,14 +201,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
-            if window.label() == "main" {
-                match event {
-                    WindowEvent::Focused(true) => {
-                        window.emit("windowFocused", ()).unwrap();
-                    }
-                    _ => {}
-                }
-            }
+            window::handle_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
             register_shortcut_by_frontend, // 注册快捷键

@@ -265,22 +265,40 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
 fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
     // 使用稳定的方式处理快捷方式解析，防止PowerShell闪退
     info!("尝试解析快捷方式: {:?}", shortcut_path);
-    
+
     let shortcut_path_str = shortcut_path.to_string_lossy().to_string();
-    
+
     // 避免直接使用PowerShell创建COM对象，因为这可能在Windows权限或安全设置下导致问题
     // 改用更直接的文件读取方式或静态路径匹配
-    
+
     // 方法1: 尝试使用预先定义的常用目标位置猜测目标
-    let filename = shortcut_path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let filename = shortcut_path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
     let common_targets = match filename.to_lowercase().as_str() {
-        "word" | "microsoft word" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE"),
-        "excel" | "microsoft excel" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE"),
-        "powerpoint" | "microsoft powerpoint" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\POWERPNT.EXE"),
-        "outlook" | "microsoft outlook" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE"),
-        "access" | "microsoft access" => Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\MSACCESS.EXE"),
-        "chrome" | "google chrome" => Some("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"),
-        "edge" | "microsoft edge" => Some("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"),
+        "word" | "microsoft word" => {
+            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE")
+        }
+        "excel" | "microsoft excel" => {
+            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE")
+        }
+        "powerpoint" | "microsoft powerpoint" => {
+            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\POWERPNT.EXE")
+        }
+        "outlook" | "microsoft outlook" => {
+            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE")
+        }
+        "access" | "microsoft access" => {
+            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\MSACCESS.EXE")
+        }
+        "chrome" | "google chrome" => {
+            Some("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")
+        }
+        "edge" | "microsoft edge" => {
+            Some("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe")
+        }
         "firefox" | "mozilla firefox" => Some("C:\\Program Files\\Mozilla Firefox\\firefox.exe"),
         "notepad++" => Some("C:\\Program Files\\Notepad++\\notepad++.exe"),
         "paint" | "mspaint" => Some("C:\\Windows\\System32\\mspaint.exe"),
@@ -294,18 +312,18 @@ fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
             return Some(target.to_string());
         }
     }
-    
+
     // 方法2: 使用PowerShell但添加更多错误处理
     // 包装在一个独立函数中，避免在出错时影响整个应用程序
     match resolve_shortcut_with_powershell(shortcut_path) {
         Ok(Some(path)) => {
             info!("成功解析快捷方式: {} -> {}", shortcut_path_str, path);
             Some(path)
-        },
+        }
         Ok(None) => {
             info!("快捷方式没有有效目标: {}", shortcut_path_str);
             None
-        },
+        }
         Err(e) => {
             info!("解析快捷方式出错 {}: {}", shortcut_path_str, e);
             None
@@ -316,10 +334,11 @@ fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
 // 使用PowerShell解析快捷方式，但添加错误处理
 fn resolve_shortcut_with_powershell(shortcut_path: &Path) -> Result<Option<String>, String> {
     let shortcut_path_str = shortcut_path.to_string_lossy().to_string();
-    
+
     // 使用try_with_timeout包装PowerShell执行，防止长时间阻塞
-    let result = try_with_timeout(move || {
-        let output = std::process::Command::new("powershell")
+    let result = try_with_timeout(
+        move || {
+            let output = std::process::Command::new("powershell")
             .args(&[
                 "-NoProfile",
                 "-NonInteractive", // 添加非交互模式，减少显示窗口的机会
@@ -332,27 +351,30 @@ fn resolve_shortcut_with_powershell(shortcut_path: &Path) -> Result<Option<Strin
             ])
             .creation_flags(0x08000000) // CREATE_NO_WINDOW 标志，防止窗口闪现
             .output();
-        
-        match output {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                
-                // 检查PowerShell错误输出
-                if stdout.starts_with("ERROR:") {
-                    return Err(stdout);
+
+            match output {
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+                    // 检查PowerShell错误输出
+                    if stdout.starts_with("ERROR:") {
+                        return Err(stdout);
+                    }
+
+                    // 确保得到有效路径
+                    if !stdout.is_empty() && stdout.ends_with(".exe") && Path::new(&stdout).exists()
+                    {
+                        return Ok(Some(stdout));
+                    }
+
+                    Ok(None)
                 }
-                
-                // 确保得到有效路径
-                if !stdout.is_empty() && stdout.ends_with(".exe") && Path::new(&stdout).exists() {
-                    return Ok(Some(stdout));
-                }
-                
-                Ok(None)
-            },
-            Err(e) => Err(format!("执行PowerShell命令失败: {}", e)),
-        }
-    }, std::time::Duration::from_secs(1));
-    
+                Err(e) => Err(format!("执行PowerShell命令失败: {}", e)),
+            }
+        },
+        std::time::Duration::from_secs(1),
+    );
+
     match result {
         Ok(result) => result,
         Err(_) => Err("解析快捷方式超时".to_string()),
@@ -368,13 +390,13 @@ where
 {
     use std::sync::mpsc;
     use std::thread;
-    
+
     let (tx, rx) = mpsc::channel();
-    
+
     thread::spawn(move || {
         tx.send(f()).unwrap_or(());
     });
-    
+
     match rx.recv_timeout(timeout) {
         Ok(result) => Ok(result),
         Err(_) => Err(()),
@@ -392,34 +414,7 @@ fn get_windows_apps() -> Vec<AppInfo> {
         ("计算器", "C:\\Windows\\System32\\calc.exe"),
         ("记事本", "C:\\Windows\\System32\\notepad.exe"),
         ("画图", "C:\\Windows\\System32\\mspaint.exe"),
-        (
-            "画图3D",
-            "C:\\Program Files\\WindowsApps\\Microsoft.Paint3D_*\\PaintStudio.View.exe",
-        ),
-        ("写字板", "C:\\Windows\\System32\\write.exe"),
-        ("任务管理器", "C:\\Windows\\System32\\Taskmgr.exe"),
-        ("控制面板", "C:\\Windows\\System32\\control.exe"),
-        ("文件资源管理器", "C:\\Windows\\explorer.exe"),
-        ("字符映射表", "C:\\Windows\\System32\\charmap.exe"),
-        ("放大镜", "C:\\Windows\\System32\\magnify.exe"),
-        ("步骤记录器", "C:\\Windows\\System32\\psr.exe"),
-        ("截图工具", "C:\\Windows\\System32\\SnippingTool.exe"),
-        ("系统信息", "C:\\Windows\\System32\\msinfo32.exe"),
-        ("音量合成器", "C:\\Windows\\System32\\SndVol.exe"),
-        // Win10/11特有工具
-        (
-            "截图和草图",
-            "C:\\Windows\\SystemApps\\Microsoft.ScreenSketch_*\\ScreenSketch.exe",
-        ),
-        // 其他常用工具
-        (
-            "Windows终端",
-            "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_*\\wt.exe",
-        ),
-        (
-            "设置",
-            "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe",
-        ),
+        ("画图3D", "C:\\Program Files\\WindowsApps\\Microsoft.Paint3D_*\\PaintStudio.View.exe")
     ];
 
     // 首先尝试直接查找路径（对于常规系统工具）
@@ -452,30 +447,6 @@ fn get_windows_apps() -> Vec<AppInfo> {
                 icon: None,
                 summarize: "app".to_string(),
             });
-        }
-    }
-
-    // 使用AppPath注册表检测更多应用（这种方法对于找到截图工具和画图工具很有效）
-    let app_path_entries = [
-        ("画图", "mspaint.exe"),
-        ("截图工具", "SnippingTool.exe"),
-        ("截图和草图", "ScreenSketch.exe"),
-    ];
-
-    for (name, exe_name) in app_path_entries.iter() {
-        if let Some(path) = get_app_path_from_registry(exe_name) {
-            // 检查应用程序是否已经被添加，避免重复
-            if !apps.iter().any(|app| app.content == path) {
-                info!("通过AppPath找到Windows应用: {} -> {}", name, path);
-
-                apps.push(AppInfo {
-                    id: Uuid::new_v4().to_string(),
-                    title: name.to_string(),
-                    content: path,
-                    icon: None,
-                    summarize: "app".to_string(),
-                });
-            }
         }
     }
 
