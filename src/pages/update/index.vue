@@ -14,7 +14,7 @@
           <div class="version-item">
             <div class="version-label">当前版本</div>
             <el-tag size="small" class="version-tag current">
-              {{ appVersion }}
+              {{ update.appVersion }}
             </el-tag>
           </div>
           <div class="version-arrow">
@@ -148,6 +148,7 @@ const update = reactive({
   downloading: false,
   progress: 0,
   statusText: '',
+  appVersion: '',
   newVersion: '',
   releaseDate: '',
   releaseNotes: '',
@@ -174,6 +175,7 @@ dayjs.tz.setDefault('Asia/Shanghai'); // 设置默认时区为中国
 // 初始化更新信息
 onMounted(async () => {
   await initEnv();
+  update.appVersion = appVersion;
   const updateInfo: UpdateInfo = await invoke('get_update_info');
   if (updateInfo) {
     update.newVersion = updateInfo.version;
