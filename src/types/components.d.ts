@@ -7,16 +7,8 @@ export {};
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    AButton: typeof import('ant-design-vue/es')['Button']
-    AEmpty: typeof import('ant-design-vue/es')['Empty']
-    AInput: typeof import('ant-design-vue/es')['Input']
     AlarmEditDialog: typeof import('./../pages/config/components/todo/components/AlarmEditDialog.vue')['default']
-    AModal: typeof import('ant-design-vue/es')['Modal']
     AppMain: typeof import('./../layout/components/AppMain.vue')['default']
-    ASelect: typeof import('ant-design-vue/es')['Select']
-    ASelectOption: typeof import('ant-design-vue/es')['SelectOption']
-    ASwitch: typeof import('ant-design-vue/es')['Switch']
-    ATooltip: typeof import('ant-design-vue/es')['Tooltip']
     Category: typeof import('./../pages/config/components/category/index.vue')['default']
     CategoryItem: typeof import('./../components/CategoryItem/index.vue')['default']
     CodeMirrorEditor: typeof import('./../components/CodeMirrorEditor/index.vue')['default']
@@ -31,11 +23,8 @@ declare module 'vue' {
     ElEmpty: typeof import('element-plus/es')['ElEmpty']
     ElInput: typeof import('element-plus/es')['ElInput']
     ElOption: typeof import('element-plus/es')['ElOption']
-    ElProgress: typeof import('element-plus/es')['ElProgress']
-    ElScrollbar: typeof import('element-plus/es')['ElScrollbar']
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
-    ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     General: typeof import('./../components/SettingsContent/components/General/index.vue')['default']
     Manger: typeof import('./../components/SettingsContent/components/Manger/index.vue')['default']

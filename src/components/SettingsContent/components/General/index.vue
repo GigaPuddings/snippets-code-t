@@ -107,8 +107,7 @@ import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { useConfigurationStore } from '@/store';
 import { initTheme } from '@/utils/theme';
 import { invoke } from '@tauri-apps/api/core';
-import CustomButton from '@/components/UI/CustomButton.vue';
-import CustomSwitch from '@/components/UI/CustomSwitch.vue';
+import { CustomButton, CustomSwitch } from '@/components/UI';
 import modal from '@/utils/modal';
 defineOptions({
   name: 'General'
@@ -158,18 +157,57 @@ const handleAutoStartChange = async (value: boolean) => {
 // 重置软件
 const resetSoftware = async () => {
   resetSoftwareLoading.value = true;
+
+  // 重置类型选项
+  const resetOptions = [
+    { value: 'all', label: '重置全部' },
+    { value: 'apps', label: '重置应用数据' },
+    { value: 'bookmarks', label: '重置书签数据' }
+  ];
+
+  // 当前选择的重置类型
+  const selectedResetType = ref('all');
+
   await ElMessageBox({
-    title: '警告',
+    title: '重置软件',
     showCancelButton: false,
     showConfirmButton: false,
     closeOnClickModal: false,
     closeOnPressEscape: false,
     message: () => {
       return h('div', [
-        h(
-          'div',
-          '重置软件将会清除本地应用列表、书签数据、缓存图标等信息，需要重新索引，是否继续？'
-        ),
+        h('div', '请选择要重置的内容：'),
+        h('div', { class: 'mt-4 mb-4' }, [
+          h(
+            ElSelect,
+            {
+              modelValue: selectedResetType.value,
+              'onUpdate:modelValue': (val) => {
+                selectedResetType.value = val;
+              },
+              class: 'w-full border border-panel rounded-md shadow-sm'
+            },
+            () =>
+              resetOptions.map((option) =>
+                h(ElOption, {
+                  key: option.value,
+                  label: option.label,
+                  value: option.value
+                })
+              )
+          )
+        ]),
+        // h('div', { class: 'mt-2' }, [
+        //   h('div', () => {
+        //     if (selectedResetType.value === 'apps') {
+        //       return '重置应用列表将会清除本地应用列表、缓存图标等信息，需要重新索引。';
+        //     } else if (selectedResetType.value === 'bookmarks') {
+        //       return '重置书签数据将会清除书签数据、缓存图标等信息，需要重新索引。';
+        //     } else {
+        //       return '重置全部将会清除本地应用列表、书签数据、缓存图标等信息，需要重新索引。';
+        //     }
+        //   })
+        // ]),
         h('div', { class: 'message-footer' }, [
           h(
             CustomButton,
@@ -191,10 +229,21 @@ const resetSoftware = async () => {
               onClick: async () => {
                 ElMessageBox.close();
                 try {
-                  await invoke('reset_software');
-                  modal.msg('重置软件成功');
+                  await invoke('reset_software', {
+                    resetType: selectedResetType.value
+                  });
+                  let successMsg = '';
+                  if (selectedResetType.value === 'apps') {
+                    successMsg = '重置应用列表成功';
+                  } else if (selectedResetType.value === 'bookmarks') {
+                    successMsg = '重置书签数据成功';
+                  } else {
+                    successMsg = '重置软件成功';
+                  }
+                  modal.msg(successMsg);
                 } catch (error) {
                   console.log('重置软件失败', error);
+                  modal.msg(`重置失败: ${error}`, 'error');
                 } finally {
                   resetSoftwareLoading.value = false;
                 }

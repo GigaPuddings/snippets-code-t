@@ -1,10 +1,9 @@
-use log::LevelFilter;
+use log::{info, LevelFilter};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_global_shortcut::{Code, Modifiers};
 use tauri_plugin_store::StoreBuilder;
-
 use crate::search::{SearchEngine, DEFAULT_ENGINES};
 // use mouse_position::mouse_position::{Mouse, Position};
 
@@ -188,30 +187,70 @@ pub fn control_logging(enable: bool) {
 
 // 重置软件
 #[tauri::command]
-pub fn reset_software(app_handle: tauri::AppHandle) -> Result<(), String> {
-    // 清理配置存储
+pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Result<(), String> {
+
     let path = PathBuf::from("store.bin");
     if let Ok(store) = StoreBuilder::new(&app_handle, path).build() {
-        let _ = store.clear();
-        let _ = store.save();
-    }
+        match reset_type.as_str() {
+            // 重置全部数据
+            "" | "all" => {
+                info!("执行重置全部数据");
+                let _ = store.clear();
+                let _ = store.save();
 
-    // 使用默认配置,并且第一条数据设置为默认搜索引擎
-    let mut engines: Vec<SearchEngine> =
-        serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
-    if !engines.is_empty() {
-        engines[0].enabled = true;
-    }
-    set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
+                // 使用默认配置,并且第一条数据设置为默认搜索引擎
+                let mut engines: Vec<SearchEngine> =
+                    serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
+                if !engines.is_empty() {
+                    engines[0].enabled = true;
+                }
+                set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
 
-    // 在后台线程中注销所有快捷键并重启应用程序
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(3));
-        // 注销所有快捷键
-        app_handle.global_shortcut().unregister_all().unwrap();
-        // 重启应用程序
-        app_handle.restart();
-    });
+                // 在后台线程中注销所有快捷键并重启应用程序
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    // 注销所有快捷键
+                    app_handle.global_shortcut().unregister_all().unwrap();
+                    // 重启应用程序
+                    app_handle.restart();
+                });
+            }
+            // 重置应用列表
+            "apps" => {
+                info!("执行重置应用列表");
+                let _ = store.delete(INSTALLED_APPS_KEY);
+                let _ = store.save();
+
+                // 在后台线程中注销所有快捷键并重启应用程序
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    // 注销所有快捷键
+                    app_handle.global_shortcut().unregister_all().unwrap();
+                    // 重启应用程序
+                    app_handle.restart();
+                });
+            }
+            // 重置书签
+            "bookmarks" => {
+                info!("执行重置书签");
+                let _ = store.delete(BROWSER_BOOKMARKS_KEY);
+                let _ = store.save();
+
+                // 在后台线程中注销所有快捷键并重启应用程序
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    // 注销所有快捷键
+                    app_handle.global_shortcut().unregister_all().unwrap();
+                    // 重启应用程序
+                    app_handle.restart();
+                });
+            }
+            // 不支持的重置类型
+            _ => {
+                return Err(format!("不支持的重置类型: {}", reset_type));
+            }
+        }
+    }
 
     Ok(())
 }
