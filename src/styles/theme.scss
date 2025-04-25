@@ -17,7 +17,8 @@
   --categories-border-color: #e4e7ed;
   --categories-border-color-rgb: 228, 231, 237;
   --el-color-primary: #5d6dfd;
-
+  --el-button-hover-bg-color: rgb(83 102 246);
+  --el-button-hover-border-color: rgb(83 102 246);
   // 搜索窗口主题变量
   --search-bg-color: #faf8f8;
   --search-text-color: #1e1e1e;
@@ -27,6 +28,10 @@
   --search-placeholder: #999;
   --search-result-hover: #f0eeee;
   --search-border: #e4e7ed;
+}
+
+html.dark {
+  --el-color-primary: #5d6dfd;
 }
 
 .dark {

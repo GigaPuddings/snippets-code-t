@@ -236,7 +236,7 @@ onUnmounted(() => {
       }
 
       .active-weekday {
-        @apply bg-[#4b94f8] text-white border-[#4b94f8];
+        @apply bg-active text-white hover:bg-[--el-button-hover-bg-color];
       }
     }
 

@@ -132,10 +132,6 @@
             </div>
           </div>
         </div>
-
-        <!-- <div class="action-buttons">
-          <el-button @click="resetEngines">重置默认</el-button>
-        </div> -->
       </div>
     </div>
   </main>

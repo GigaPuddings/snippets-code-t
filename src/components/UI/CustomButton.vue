@@ -57,7 +57,7 @@ defineEmits(['click']);
 
 <style scoped lang="scss">
 .custom-button {
-  @apply inline-flex items-center justify-center rounded-md shadow-sm transition-all duration-200 font-medium outline-none border border-transparent relative overflow-hidden;
+  @apply inline-flex items-center justify-center ml-2 first:ml-0 rounded-md shadow-md transition-all duration-200 font-medium outline-none border border-transparent relative overflow-hidden;
 
   &:not(:disabled):active {
     transform: scale(0.98);
@@ -72,7 +72,7 @@ defineEmits(['click']);
   }
 
   &--primary {
-    @apply bg-active text-white hover:bg-active;
+    @apply bg-active text-white hover:bg-[--el-button-hover-bg-color];
   }
 
   &--danger {

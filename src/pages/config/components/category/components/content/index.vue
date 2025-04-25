@@ -35,8 +35,11 @@ const state = reactive({
 
 const route = useRoute();
 const store = useConfigurationStore();
-
-const isDark = computed(() => store.theme === 'dark');
+const isDark = computed(() => {
+  return store.theme === 'auto'
+    ? document.documentElement.classList.contains('dark')
+    : store.theme === 'dark';
+});
 
 defineOptions({
   name: 'Content'

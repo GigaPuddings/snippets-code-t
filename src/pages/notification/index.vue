@@ -7,7 +7,7 @@
             <bell-ring
               theme="filled"
               size="20"
-              fill="#4096ff"
+              fill="#5d6dfd"
               :strokeWidth="2"
             />
           </div>
@@ -26,7 +26,7 @@
       <div class="notification-body">{{ state.body }}</div>
     </div>
     <div class="notification-button-group">
-      <el-button
+      <!-- <el-button
         type="primary"
         size="small"
         class="confirm-btn"
@@ -44,8 +44,27 @@
         <template #icon>
           <alarm-clock theme="outline" size="16" :strokeWidth="3" />
         </template>
+{{ state.reminderTime }}分钟后提醒
+</el-button> -->
+      <CustomButton
+        type="primary"
+        size="small"
+        class="confirm-btn"
+        @click="commonMethod('confirm')"
+      >
+        确认
+      </CustomButton>
+      <CustomButton
+        v-if="state.reminderTime"
+        size="small"
+        class="remind-btn"
+        @click="commonMethod('remind')"
+      >
+        <template #icon>
+          <alarm-clock theme="outline" size="16" :strokeWidth="3" />
+        </template>
         {{ state.reminderTime }}分钟后提醒
-      </el-button>
+      </CustomButton>
     </div>
   </main>
 </template>
@@ -56,6 +75,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { Window } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
+import CustomButton from '@/components/UI/CustomButton.vue';
 
 interface State {
   label: string;

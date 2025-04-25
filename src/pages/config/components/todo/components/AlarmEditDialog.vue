@@ -111,14 +111,14 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button type="primary" @click="handleSubmit">
+        <CustomButton type="primary" @click="handleSubmit">
           <save theme="outline" size="18" :strokeWidth="3" />
           <span class="ml-1">保存</span>
-        </el-button>
-        <el-button @click="dialogVisible = false">
+        </CustomButton>
+        <CustomButton type="default" @click="dialogVisible = false">
           <close theme="outline" size="18" :strokeWidth="3" />
           <span class="ml-1">取消</span>
-        </el-button>
+        </CustomButton>
       </div>
     </template>
   </el-dialog>
@@ -126,6 +126,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import CustomButton from '@/components/UI/CustomButton.vue';
 import {
   Up,
   Down,
@@ -297,11 +298,7 @@ defineExpose({
   }
 
   &.active {
-    @apply bg-[#4b94f8] text-white border-[#4b94f8];
-
-    &:hover {
-      @apply bg-[#3a7fd9];
-    }
+    @apply bg-active text-white hover:bg-[--el-button-hover-bg-color];
   }
 }
 

@@ -92,7 +92,7 @@ const handleKeyDown = async (e: Event) => {
 
 .main {
   /* 拖拽手势 */
-  @apply bg-search rounded-md p-3 border border-panel box-border;
+  @apply bg-search rounded-md p-3 border-[0.1rem] border-zinc-300 dark:border-black box-border;
 
   .search {
     @apply flex items-center border-b border-search;
