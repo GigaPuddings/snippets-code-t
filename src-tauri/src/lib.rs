@@ -96,6 +96,22 @@ async fn fetch_favicon(url: String) -> String {
     }
 }
 
+// 设置自动失焦隐藏
+#[tauri::command]
+fn set_auto_hide_on_blur(app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    config::set_value(&app_handle, "autoHideOnBlur", enabled);
+    Ok(())
+}
+
+// 获取自动失焦隐藏设置
+#[tauri::command]
+fn get_auto_hide_on_blur(app_handle: tauri::AppHandle) -> bool {
+    match config::get_value(&app_handle, "autoHideOnBlur") {
+        Some(value) => value.as_bool().unwrap_or(true),
+        None => true, // 默认为开启
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -203,6 +219,8 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
+            
+            // 控制搜索窗口失焦是否隐藏
             window::handle_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
@@ -239,6 +257,8 @@ pub fn run() {
             get_auto_update_check,         // 获取自动检查更新设置
             set_auto_update_check,         // 设置自动检查更新设置
             exit_application,              // 退出应用
+            set_auto_hide_on_blur,         // 设置自动失焦隐藏
+            get_auto_hide_on_blur,         // 获取自动失焦隐藏设置
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

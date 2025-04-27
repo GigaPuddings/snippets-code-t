@@ -74,10 +74,27 @@
       </div>
       <div class="summarize-input-wrapper">
         <CustomSwitch
-          v-model="autoUpdateCheck"
+          v-model="store.autoUpdateCheck"
           active-text="开启"
           inactive-text="关闭"
           @change="toggleAutoUpdateCheck"
+        />
+      </div>
+    </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">失焦自动隐藏</div>
+        <div class="summarize-label-desc">
+          设置搜索窗口在失去焦点时是否自动隐藏
+        </div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <CustomSwitch
+          v-model="store.autoHideOnBlur"
+          active-text="开启"
+          inactive-text="关闭"
+          @change="toggleAutoHideOnBlur"
         />
       </div>
     </section>
@@ -116,7 +133,6 @@ defineOptions({
 const store = useConfigurationStore();
 
 const resetSoftwareLoading = ref(false);
-const autoUpdateCheck = ref(true);
 const exitApplicationLoading = ref(false);
 const dictTheme = [
   { value: 'light', label: '浅色', icon: SunOne },
@@ -267,7 +283,19 @@ const toggleAutoUpdateCheck = async (value: boolean) => {
   } catch (error) {
     modal.msg(`设置失败: ${error}`, 'error');
     // 恢复原值
-    autoUpdateCheck.value = !value;
+    store.autoUpdateCheck = !value;
+  }
+};
+
+// 切换自动失焦隐藏
+const toggleAutoHideOnBlur = async (value: boolean) => {
+  try {
+    await invoke('set_auto_hide_on_blur', { enabled: value });
+    modal.msg(`已${value ? '开启' : '关闭'}自动失焦隐藏`);
+  } catch (error) {
+    modal.msg(`设置失败: ${error}`, 'error');
+    // 恢复原值
+    store.autoHideOnBlur = !value;
   }
 };
 
@@ -323,18 +351,8 @@ const exitApplication = async () => {
   });
 };
 
-// 获取自动检查更新设置
-const fetchAutoUpdateCheck = async () => {
-  try {
-    autoUpdateCheck.value = await invoke('get_auto_update_check');
-  } catch (error) {
-    console.error('获取自动检查更新设置失败:', error);
-  }
-};
-
 onMounted(async () => {
   watchAutoStart();
-  await fetchAutoUpdateCheck();
 });
 </script>
 

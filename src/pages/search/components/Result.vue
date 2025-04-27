@@ -1,6 +1,7 @@
 <template>
   <main ref="containerRef" class="result-container glass-content">
     <div v-if="props.results.length !== 0" class="tabs">
+      <!-- 分类 -->
       <template v-for="item in tabs" :key="item">
         <div
           class="tab"
@@ -10,6 +11,8 @@
           {{ item.label }}
         </div>
       </template>
+
+      <!-- 分类排序 -->
     </div>
     <div class="result">
       <template v-for="item in filteredResults" :key="item.id">

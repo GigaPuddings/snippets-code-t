@@ -32,6 +32,8 @@ declare global {
     dbBackup: string;
     theme: 'light' | 'dark' | 'auto';
     autoStart: boolean;
+    autoUpdateCheck: boolean;
+    autoHideOnBlur: boolean;
   }
 
   // 添加搜索引擎配置类型

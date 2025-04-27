@@ -442,6 +442,20 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                     // 等待200毫秒，这段时间足够判断是否是拖拽引起的失焦
                     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
+                    // 检查是否需要自动隐藏窗口
+                    let auto_hide_on_blur = match crate::config::get_value(
+                        &crate::APP.get().unwrap(), 
+                        "autoHideOnBlur"
+                    ) {
+                        Some(value) => value.as_bool().unwrap_or(true),
+                        None => true, // 默认为开启
+                    };
+                    
+                    // 如果不需要自动隐藏窗口，直接返回
+                    if !auto_hide_on_blur {
+                        return;
+                    }
+
                     let dragging = *WINDOW_DRAGGING.lock().unwrap();
                     let last_move = LAST_MOVE_TIME.lock().unwrap().elapsed();
 
@@ -483,6 +497,20 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                     // 重置拖拽状态
                     *WINDOW_DRAGGING.lock().unwrap() = false;
+
+                    // 检查是否需要自动隐藏窗口
+                    let auto_hide_on_blur = match crate::config::get_value(
+                        &crate::APP.get().unwrap(), 
+                        "autoHideOnBlur"
+                    ) {
+                        Some(value) => value.as_bool().unwrap_or(true),
+                        None => true, // 默认为开启
+                    };
+                    
+                    // 如果不需要自动隐藏窗口，直接返回
+                    if !auto_hide_on_blur {
+                        return;
+                    }
 
                     // 检查窗口当前是否有焦点
                     if let Ok(has_focus) = window_clone.is_focused() {
