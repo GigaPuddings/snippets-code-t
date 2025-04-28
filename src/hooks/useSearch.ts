@@ -91,7 +91,7 @@ export function useSearch() {
     // 默认搜索引擎选项始终显示
     const defaultEngine = searchEngines.value.find((e) => e.enabled);
     if (defaultEngine) {
-      results.push({
+      results.unshift({
         id: 'default-search',
         title: `使用 ${defaultEngine.name} 搜索: ${query}`,
         content: defaultEngine.url.replace('%s', encodeURIComponent(query)),
