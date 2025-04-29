@@ -75,6 +75,7 @@ import { getDb } from '@/database';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 import modal from '@/utils/modal';
+import { CustomButton } from '@/components/UI';
 import { h } from 'vue';
 defineOptions({
   name: 'Manger'

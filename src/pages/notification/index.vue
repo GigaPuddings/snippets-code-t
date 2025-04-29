@@ -75,7 +75,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { Window } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
-
+import { CustomButton } from '@/components/UI';
 interface State {
   label: string;
   body: string;

@@ -181,6 +181,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { osType } from '@/utils/env';
 import { useConfigurationStore } from '@/store';
+import { CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
 const store = useConfigurationStore();
 
