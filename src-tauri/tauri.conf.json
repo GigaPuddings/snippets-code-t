@@ -38,6 +38,21 @@
         "decorations": false
       },
       {
+        "label": "translate",
+        "title": "翻译",
+        "url": "/#translate",
+        "width": 350,
+        "height": 460,
+        "resizable": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": true,
+        "transparent": true,
+        "center": true,
+        "shadow": true,
+        "visible": false,
+        "decorations": false
+      },
+      {
         "label": "loading",
         "title": "启动",
         "url": "/#loading",

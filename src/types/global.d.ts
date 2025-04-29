@@ -28,6 +28,8 @@ declare global {
     categorySort: 'asc' | 'desc';
     searchHotkey: string;
     configHotkey: string;
+    translateHotkey: string;
+    selectionTranslateHotkey: string;
     dbPath: string | null;
     dbBackup: string;
     theme: 'light' | 'dark' | 'auto';

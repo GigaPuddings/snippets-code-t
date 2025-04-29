@@ -8,6 +8,7 @@ mod hotkey;
 mod icon;
 mod migrate;
 mod search;
+mod translation;
 mod tray;
 mod update;
 mod window;
@@ -20,6 +21,7 @@ use crate::config::{
     exit_application, get_auto_update_check, reset_software, set_auto_update_check,
 };
 use crate::db::{backup_database, get_db_path, restore_database, set_custom_db_path};
+use crate::translation::translate_text;
 use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
 };
@@ -259,6 +261,8 @@ pub fn run() {
             exit_application,              // 退出应用
             set_auto_hide_on_blur,         // 设置自动失焦隐藏
             get_auto_hide_on_blur,         // 获取自动失焦隐藏设置
+            translate_text,                // 翻译文本
+            get_selection_translate_shortcut, // 获取划词翻译快捷键
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

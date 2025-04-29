@@ -11,6 +11,8 @@ export const useConfigurationStore = defineStore('configuration', {
     categorySort: 'asc', // 分类排序
     searchHotkey: '', // 搜索快捷键
     configHotkey: '', // 配置快捷键
+    translateHotkey: '', // 翻译快捷键
+    selectionTranslateHotkey: '', // 划词翻译快捷键
     dbPath: null, // 数据库路径
     dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
@@ -36,10 +38,28 @@ export const useConfigurationStore = defineStore('configuration', {
 
       // 获取快捷键配置
       try {
-        const [searchHotkey, configHotkey]: [string, string] =
-          await invoke('get_shortcuts');
+        const [
+          searchHotkey,
+          configHotkey,
+          translateHotkey,
+          selectionTranslateHotkey
+        ]: [string, string, string, string] = await invoke('get_shortcuts');
         this.searchHotkey = searchHotkey;
         this.configHotkey = configHotkey;
+        this.translateHotkey = translateHotkey;
+        this.selectionTranslateHotkey = selectionTranslateHotkey || '';
+
+        // 如果没有获取到划词翻译快捷键，可能是旧版本，尝试单独获取
+        if (!this.selectionTranslateHotkey) {
+          try {
+            this.selectionTranslateHotkey = await invoke(
+              'get_selection_translate_shortcut'
+            );
+          } catch (e) {
+            console.error('获取划词翻译快捷键失败，可能尚未设置');
+            this.selectionTranslateHotkey = '';
+          }
+        }
       } catch (error) {
         console.error('获取快捷键配置失败:', error);
         modal.msg('获取快捷键配置失败', 'error');

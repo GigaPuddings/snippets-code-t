@@ -126,7 +126,6 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import CustomButton from '@/components/UI/CustomButton.vue';
 import {
   Up,
   Down,

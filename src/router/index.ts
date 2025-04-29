@@ -101,6 +101,11 @@ const routes: RouteRecordRaw[] = [
         path: '/update',
         name: 'Update',
         component: () => import('@/pages/update/index.vue')
+      },
+      {
+        path: '/translate',
+        name: 'Translate',
+        component: () => import('@/pages/translate/index.vue')
       }
     ]
   },

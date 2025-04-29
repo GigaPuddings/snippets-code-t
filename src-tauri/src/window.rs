@@ -8,12 +8,15 @@ use tauri::{
 };
 // use crate::config::get_adjusted_position;
 use mouse_position::mouse_position::Mouse;
+use serde_json;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
+use tauri::AppHandle;
 use urlencoding;
 use uuid;
+use selection::get_text;
 
 // 定义搜索框区域结构体
 #[derive(Debug, Clone)]
@@ -239,14 +242,34 @@ pub fn hotkey_config() {
         // 取消忽略光标
         search_window.set_ignore_cursor_events(false).unwrap();
     } else {
-        // 配置窗口打开，则隐藏
+        // 配置窗口打开，则判断其状态
         if window.is_visible().unwrap() {
-            // 如果窗口已经显示但失去焦点，则不隐藏
+            // 如果窗口已经显示但失去焦点，重新显示并聚焦
             if !window.is_focused().unwrap() {
-                window.show().unwrap(); // 重新显示窗口并聚焦
+                // 对于可能被最小化的窗口，先尝试取消最小化
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = window.unminimize();
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    let _ = window.unminimize();
+                }
+                
+                // 强制显示窗口并设置为前台窗口
+                window.show().unwrap();
                 window.set_focus().unwrap();
+                
+                // 如果窗口被其他应用遮挡，临时设置为顶层窗口
+                window.set_always_on_top(true).unwrap();
+                // 短暂延迟后恢复原始设置
+                let window_clone = window.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    let _ = window_clone.set_always_on_top(false);
+                });
             } else {
-                window.hide().unwrap(); // 隐藏窗口
+                window.hide().unwrap(); // 窗口有焦点时隐藏
             }
         } else {
             // 如果配置窗口未显示，检查搜索窗口
@@ -259,6 +282,146 @@ pub fn hotkey_config() {
             }
             window.show().unwrap();
             window.set_focus().unwrap();
+        }
+    }
+}
+
+// 划词翻译快捷键处理
+pub fn hotkey_selection_translate() {
+    // 直接使用selection获取选中文本
+    let selected_text = get_text();
+    
+    let app_handle = APP.get().unwrap().clone();
+    
+    // 检查窗口是否已经存在
+    if let Some(window) = app_handle.get_webview_window("translate") {
+        // 如果窗口已经存在并且可见
+        if window.is_visible().unwrap_or(false) {
+            // 如果有选中文本且不为空，则更新翻译窗口的内容
+            if !selected_text.trim().is_empty() {
+                let _ = window.emit(
+                    "selection-text",
+                    serde_json::json!({
+                        "text": selected_text
+                    }),
+                );
+                let _ = window.set_focus();
+            } else {
+                // 无选中文本且窗口可见，则关闭窗口
+                let _ = window.emit("reset-state", ());
+                let _ = window.hide();
+            }
+            return;
+        } else {
+            // 窗口存在但不可见，且有选中文本，则显示窗口并发送文本
+            if !selected_text.trim().is_empty() {
+                let _ = window.emit(
+                    "selection-text",
+                    serde_json::json!({
+                        "text": selected_text
+                    }),
+                );
+                let _ = window.show();
+                let _ = window.set_focus();
+                return;
+            }
+        }
+    }
+    
+    // 检查是否有选中文本
+    if !selected_text.trim().is_empty() {
+        // 窗口不存在，创建新窗口
+        open_translate_window(&app_handle, Some(selected_text));
+    } else {
+        // 无选中文本，提示用户
+        if let Some(window) = app_handle.get_webview_window("main") {
+            let _ = window.emit(
+                "notification",
+                serde_json::json!({
+                    "type": "warning",
+                    "message": "请先选择要翻译的文本"
+                }),
+            );
+        }
+    }
+}
+
+// 翻译窗口快捷键处理
+pub fn hotkey_translate() {
+    let app_handle = APP.get().unwrap().clone();
+    
+    // 检查窗口是否已经存在
+    if let Some(window) = app_handle.get_webview_window("translate") {
+        // 如果窗口已经存在并且可见，则隐藏窗口
+        if window.is_visible().unwrap_or(false) {
+            // 先复位状态，然后隐藏窗口
+            let _ = window.emit("reset-state", ());
+            let _ = window.hide();
+            return;
+        } else {
+            // 窗口存在但不可见，则显示窗口
+            let _ = window.show();
+            let _ = window.set_focus();
+            return;
+        }
+    }
+
+    // 窗口不存在，创建新窗口
+    open_translate_window(&app_handle, None);
+}
+
+// 打开翻译窗口
+fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
+    if let Some(window) = app_handle.get_webview_window("translate") {
+        // 窗口已存在，显示并聚焦
+        let _ = window.show();
+        let _ = window.set_focus();
+
+        // 如果有文本，发送事件
+        if let Some(selected_text) = text {
+            let _ = window.emit(
+                "selection-text",
+                serde_json::json!({
+                    "text": selected_text
+                }),
+            );
+        };
+    } else {
+        // 创建新窗口
+        let window = build_window(
+            "translate",
+            "/#/translate",
+            WindowConfig {
+                title: "翻译".to_string(),
+                width: 400.0,
+                height: 500.0,
+                resizable: true,
+                transparent: true,
+                shadow: false,
+                always_on_top: true,
+                ..Default::default()
+            },
+        );
+
+        window.show().unwrap();
+        window.set_focus().unwrap();
+
+        // 如果有文本，等待窗口加载完成后发送事件
+        if let Some(selected_text) = text {
+            let window_clone = window.clone();
+            let selected_text_clone = selected_text.clone();
+            
+            // 使用一次性监听器等待窗口加载完成
+            let _ = window.once("tauri://created", move |_| {
+                // 窗口创建完成后发送文本
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                let _ = window_clone.emit(
+                    "selection-text",
+                    serde_json::json!({
+                        "text": selected_text_clone
+                    }),
+                );
+            });
         }
     }
 }
@@ -293,6 +456,9 @@ pub fn show_hide_window_command(label: &str) -> Result<(), String> {
         }
         "config" => {
             hotkey_config();
+        }
+        "translate" => {
+            hotkey_translate();
         }
         "update" => {
             create_update_window();
@@ -444,13 +610,13 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
 
                     // 检查是否需要自动隐藏窗口
                     let auto_hide_on_blur = match crate::config::get_value(
-                        &crate::APP.get().unwrap(), 
-                        "autoHideOnBlur"
+                        &crate::APP.get().unwrap(),
+                        "autoHideOnBlur",
                     ) {
                         Some(value) => value.as_bool().unwrap_or(true),
                         None => true, // 默认为开启
                     };
-                    
+
                     // 如果不需要自动隐藏窗口，直接返回
                     if !auto_hide_on_blur {
                         return;
@@ -500,13 +666,13 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
 
                     // 检查是否需要自动隐藏窗口
                     let auto_hide_on_blur = match crate::config::get_value(
-                        &crate::APP.get().unwrap(), 
-                        "autoHideOnBlur"
+                        &crate::APP.get().unwrap(),
+                        "autoHideOnBlur",
                     ) {
                         Some(value) => value.as_bool().unwrap_or(true),
                         None => true, // 默认为开启
                     };
-                    
+
                     // 如果不需要自动隐藏窗口，直接返回
                     if !auto_hide_on_blur {
                         return;

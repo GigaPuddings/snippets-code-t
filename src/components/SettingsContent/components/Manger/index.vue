@@ -74,7 +74,6 @@
 import { getDb } from '@/database';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
-import CustomButton from '@/components/UI/CustomButton.vue';
 import modal from '@/utils/modal';
 import { h } from 'vue';
 defineOptions({

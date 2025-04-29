@@ -8,7 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "prepare": "husky install",
+    "prepare": "husky",
     "lint:lint-staged": "lint-staged",
     "commit": "git-cz",
     "updater": "node scripts/updater.mjs",

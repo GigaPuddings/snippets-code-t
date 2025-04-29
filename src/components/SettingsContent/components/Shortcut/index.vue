@@ -80,40 +80,99 @@
       </div>
     </section>
 
-    <!-- <section class="summarize-section">
-    <div class="summarize-label">主窗口唤醒快捷键：</div>
-    <div class="summarize-input-wrapper">
-      <el-input
-        class="summarize-input"
-        v-model="store.configHotkey"
-        required
-        @keydown="keyDown($event, setSelectionConfig)"
-        @focus="() => handleFocusUnregister('config', store.configHotkey)"
-      >
-        <template #suffix>
-          <label class="label">
-            <span
-              v-for="(char, index) in labelText"
-              :key="index"
-              class="label-char"
-              :style="{ '--index': index }"
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">翻译窗口快捷键：</div>
+        <div class="summarize-label-desc">设置翻译窗口唤醒快捷键</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <el-input
+          class="summarize-input"
+          v-model="store.translateHotkey"
+          required
+          @keydown="keyDown($event, setSelectionTranslate)"
+          @focus="
+            () => handleFocusUnregister('translate', store.translateHotkey)
+          "
+        >
+          <template #suffix>
+            <label class="label">
+              <span
+                v-for="(char, index) in labelText"
+                :key="index"
+                class="label-char"
+                :style="{ '--index': index }"
+              >
+                {{ char }}
+              </span>
+            </label>
+          </template>
+          <template #append>
+            <CustomButton
+              v-if="store.translateHotkey"
+              type="default"
+              size="small"
+              @click="() => registerHandler('translate', store.translateHotkey)"
+              class="button-shortcut"
             >
-              {{ char }}
-            </span>
-          </label>
-        </template>
-        <template #append>
-          <button
-            v-if="store.configHotkey"
-            class="summarize-button button-shortcut"
-            @click="() => registerHandler('config', store.configHotkey)"
-          >
-            注册
-          </button>
-        </template>
+              注册
+            </CustomButton>
+          </template>
         </el-input>
       </div>
-    </section> -->
+    </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">划词翻译快捷键：</div>
+        <div class="summarize-label-desc">设置划词翻译功能快捷键</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <el-input
+          class="summarize-input"
+          v-model="store.selectionTranslateHotkey"
+          required
+          @keydown="keyDown($event, setSelectionTranslateHotkey)"
+          @focus="
+            () =>
+              handleFocusUnregister(
+                'selectionTranslate',
+                store.selectionTranslateHotkey
+              )
+          "
+        >
+          <template #suffix>
+            <label class="label">
+              <span
+                v-for="(char, index) in labelText"
+                :key="index"
+                class="label-char"
+                :style="{ '--index': index }"
+              >
+                {{ char }}
+              </span>
+            </label>
+          </template>
+          <template #append>
+            <CustomButton
+              v-if="store.selectionTranslateHotkey"
+              type="default"
+              size="small"
+              @click="
+                () =>
+                  registerHandler(
+                    'selectionTranslate',
+                    store.selectionTranslateHotkey
+                  )
+              "
+              class="button-shortcut"
+            >
+              注册
+            </CustomButton>
+          </template>
+        </el-input>
+      </div>
+    </section>
   </main>
 </template>
 
@@ -122,7 +181,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { osType } from '@/utils/env';
 import { useConfigurationStore } from '@/store';
-import CustomButton from '@/components/UI/CustomButton.vue';
 import modal from '@/utils/modal';
 const store = useConfigurationStore();
 
@@ -238,6 +296,14 @@ function setSelectionConfig(value: string) {
   store.configHotkey = value;
 }
 
+function setSelectionTranslate(value: string) {
+  store.translateHotkey = value;
+}
+
+function setSelectionTranslateHotkey(value: string) {
+  store.selectionTranslateHotkey = value;
+}
+
 // 快捷键取消
 function handleFocusUnregister(name: string, key: string) {
   if (key.trim() === '') {
@@ -252,6 +318,14 @@ function handleFocusUnregister(name: string, key: string) {
     case 'config':
       unregister(key);
       setSelectionConfig('');
+      break;
+    case 'translate':
+      unregister(key);
+      setSelectionTranslate('');
+      break;
+    case 'selectionTranslate':
+      unregister(key);
+      setSelectionTranslateHotkey('');
       break;
   }
   invoke('register_shortcut_by_frontend', { name: name, shortcut: '' });

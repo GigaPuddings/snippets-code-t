@@ -2,9 +2,10 @@
   <button
     :class="[
       'custom-button',
-      `custom-button--${props.type}`,
+      `custom-button--${props.type || 'default'}`,
       props.size ? `custom-button--${props.size}` : 'custom-button--medium',
-      { 'custom-button--loading': props.loading }
+      { 'custom-button--loading': props.loading },
+      { 'custom-button--circle': props.circle }
     ]"
     :disabled="loading || disabled"
     @click="$emit('click', $event)"
@@ -42,6 +43,10 @@ const props = defineProps({
     default: '',
     validator: (value: string) => ['', 'small', 'large'].includes(value)
   },
+  circle: {
+    type: Boolean,
+    default: false
+  },
   loading: {
     type: Boolean,
     default: false
@@ -57,7 +62,7 @@ defineEmits(['click']);
 
 <style scoped lang="scss">
 .custom-button {
-  @apply inline-flex items-center justify-center ml-2 first:ml-0 rounded-md shadow-md transition-all duration-200 font-medium outline-none border border-transparent relative overflow-hidden;
+  @apply inline-flex items-center justify-center ml-2 first:ml-0 rounded-md shadow-sm transition-all duration-200 font-medium outline-none relative overflow-hidden;
 
   &:not(:disabled):active {
     transform: scale(0.98);
@@ -68,7 +73,7 @@ defineEmits(['click']);
   }
 
   &--default {
-    @apply bg-panel text-panel hover:bg-hover;
+    @apply bg-panel text-panel hover:bg-hover border;
   }
 
   &--primary {
@@ -93,6 +98,10 @@ defineEmits(['click']);
 
   &--loading {
     @apply cursor-wait;
+  }
+
+  &--circle {
+    @apply rounded-full !p-1;
   }
 
   &__loading {
