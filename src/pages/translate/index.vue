@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { Translate } from '@icon-park/vue-next';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -629,7 +628,7 @@ onUnmounted(() => {
   font-family: 'Material Icons', sans-serif;
   font-style: normal;
   font-weight: 400;
-  src: url("https://fonts.gstatic.com/s/materialicons/v143/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2")
+  src: url('https://fonts.gstatic.com/s/materialicons/v143/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2')
     format('woff2');
   font-display: block;
 }
