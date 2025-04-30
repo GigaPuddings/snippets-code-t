@@ -1,44 +1,32 @@
 name: Release
 
-# 修改触发条件，只在创建标签时触发一次
+# 只在标签创建时触发
 on:
-  create:
+  push:
     tags:
       - 'v*'
 
 # 使用严格的并发控制
 concurrency:
-  group: release-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # 添加检查步骤，确认是标签触发
-  check-tag:
-    runs-on: ubuntu-latest
-    outputs:
-      is_tag: ${{ steps.check.outputs.is_tag }}
-    steps:
-      - id: check
-        run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            echo "is_tag=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_tag=false" >> $GITHUB_OUTPUT
-          fi
-
-  create-release:
-    needs: check-tag
-    # 只有在是标签时才运行
-    if: needs.check-tag.outputs.is_tag == 'true'
+  # 单一任务处理所有步骤，避免任务之间的并发问题
+  build-and-release:
+    # 避免自我触发
+    if: "!contains(github.event.head_commit.message, 'skip ci') && github.event_name != 'workflow_run'"
     runs-on: windows-latest
-    outputs:
-      release_id: ${{ steps.create-release.outputs.result }}
-
     steps:
-      - uses: actions/checkout@v2
+      - name: 检查是否有相同标签的工作流在运行
+        run: |
+          echo "标签: ${{ github.ref }}"
+          echo "触发事件: ${{ github.event_name }}"
+          
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      
+
       - name: 生成发布说明
         id: generate-release-notes
         shell: bash
@@ -90,26 +78,39 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const { data } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: context.ref.replace('refs/tags/', ''),
-              name: context.ref.replace('refs/tags/', ''),
-              body: process.env.RELEASE_NOTES,
-              draft: true,
-              prerelease: false
-            })
-            return data.id
+            // 检查是否已存在此标签的release
+            let tag = context.ref.replace('refs/tags/', '');
+            console.log(`检查标签 ${tag} 是否已存在release`);
+            
+            try {
+              // 尝试获取现有release
+              const { data: existingRelease } = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tag
+              });
+              
+              console.log(`找到标签 ${tag} 的现有release，ID: ${existingRelease.id}`);
+              return existingRelease.id;
+            } catch (error) {
+              console.log(`没有找到标签 ${tag} 的现有release，创建新的`);
+              
+              // 创建新release
+              const { data } = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: tag,
+                body: process.env.RELEASE_NOTES,
+                draft: true,
+                prerelease: false
+              });
+              
+              return data.id;
+            }
 
-  build-tauri:
-    needs: [check-tag, create-release]
-    if: needs.check-tag.outputs.is_tag == 'true'
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Setup node
-        uses: actions/setup-node@v1
+      - name: 设置Node.js
+        uses: actions/setup-node@v3
         with:
           node-version: 18
 
@@ -133,7 +134,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Setup Rust
+      - name: 设置Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -146,32 +147,25 @@ jobs:
       - name: 构建应用
         run: pnpm run build
 
-      - name: 构建 Tauri
+      - name: 构建Tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
+          releaseId: ${{ steps.create-release.outputs.result }}
           projectPath: "."
 
-  updater:
-    runs-on: ubuntu-latest
-    needs: [check-tag, build-tauri]
-    if: needs.check-tag.outputs.is_tag == 'true'
-    steps:
-      - uses: actions/checkout@v2
+      - name: 运行更新器脚本
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm run updater
 
-  publish-release:
-    runs-on: ubuntu-latest
-    needs: [check-tag, updater]
-    if: needs.check-tag.outputs.is_tag == 'true'
-    steps:
-      - name: 发布发布
+      - name: 发布Release
         uses: actions/github-script@v6
         env:
-          release_id: ${{ needs.create-release.outputs.release_id }}
+          release_id: ${{ steps.create-release.outputs.result }}
         with:
           script: |
             github.rest.repos.updateRelease({
