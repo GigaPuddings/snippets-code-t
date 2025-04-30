@@ -66,7 +66,11 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             }
             "quit" => {
                 info!("============== Quit App ==============");
+                // 先清理应用程序资源
+                app.cleanup_before_exit();
+                // 取消注册所有全局快捷键
                 app.global_shortcut().unregister_all().unwrap();
+                // 退出应用程序
                 app.exit(0);
             }
             _ => {}

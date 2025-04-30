@@ -272,7 +272,11 @@ pub fn get_auto_update_check(app_handle: tauri::AppHandle) -> bool {
 
 // 退出应用
 #[tauri::command]
-pub fn exit_application(_app_handle: tauri::AppHandle) {
+pub fn exit_application(app_handle: tauri::AppHandle) {
+    // 先清理资源
+    app_handle.cleanup_before_exit();
+    // 取消注册全局快捷键
+    app_handle.global_shortcut().unregister_all().unwrap();
     // 退出应用
-    std::process::exit(0);
+    app_handle.exit(0);
 }
