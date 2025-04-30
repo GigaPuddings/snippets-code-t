@@ -15,6 +15,7 @@ const sourceLanguage = ref('auto');
 const targetLanguage = ref('zh');
 const isPinned = ref(false);
 const showDeleteButton = ref(false);
+const sourceTextArea = ref();
 
 // 多引擎翻译结果
 interface TranslationResult {
@@ -69,6 +70,12 @@ let unlisten: (() => void) | null = null;
 // 防抖变量
 let translateTimeout: ReturnType<typeof setTimeout> | null = null;
 
+// 记录用户最近一次手动选择的目标语言
+const userPreferredTarget = ref({
+  forChinese: 'en', // 中文输入时首选的目标语言
+  forEnglish: 'zh' // 英文输入时首选的目标语言
+});
+
 const setupListeners = async () => {
   if (isPinned.value) return;
 
@@ -93,6 +100,14 @@ const setupListeners = async () => {
     if (blurTimeout) {
       clearTimeout(blurTimeout);
     }
+    // 窗口获得焦点时，聚焦输入框
+    focusSourceTextArea();
+  });
+
+  // 监听窗口显示事件
+  const unlistenShow = await listen('tauri://show', () => {
+    // 窗口显示时，聚焦输入框
+    focusSourceTextArea();
   });
 
   // 监听窗口移动事件，取消延迟关闭
@@ -106,8 +121,12 @@ const setupListeners = async () => {
   const unlistenSelectionText = await listen('selection-text', (event: any) => {
     sourceText.value = event.payload.text || '';
     if (sourceText.value.trim()) {
+      // 先自动设置目标语言，再执行翻译
+      autoSetTargetLanguage();
       translateAll();
     }
+    // 收到划词翻译消息后聚焦输入框
+    focusSourceTextArea();
   });
 
   // 监听重置状态消息
@@ -121,6 +140,7 @@ const setupListeners = async () => {
     unlistenMove();
     unlistenSelectionText();
     unlistenResetState();
+    unlistenShow();
   };
 };
 
@@ -217,6 +237,75 @@ const processTextForTranslation = (text: string) => {
   );
 };
 
+// 检测文本语言类型（简单判断是中文还是英文）
+const detectLanguage = (text: string) => {
+  if (!text) return 'unknown';
+
+  // 中文字符范围
+  const chineseRegex = /[\u4e00-\u9fa5]/;
+  // 英文字符范围（包括常见标点符号）
+  const englishRegex = /[a-zA-Z0-9]/;
+
+  // 统计中英文字符数量
+  let chineseCount = 0;
+  let englishCount = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    if (chineseRegex.test(text[i])) {
+      chineseCount++;
+    } else if (englishRegex.test(text[i])) {
+      englishCount++;
+    }
+  }
+
+  // 根据字符数量比例判断语言类型
+  // 如果包含中文字符，优先认为是中文
+  if (chineseCount > 0) {
+    // 如果英文字符数量明显多于中文（比例超过2倍），则判断为英文
+    if (englishCount > chineseCount * 2) {
+      return 'en';
+    }
+    return 'zh';
+  } else if (englishCount > 0) {
+    return 'en';
+  } else {
+    // 对于无法识别的语言，默认按英文处理
+    return 'en';
+  }
+};
+
+// 自动设置目标语言
+const autoSetTargetLanguage = () => {
+  // 只有当源语言为自动检测时才执行
+  if (sourceLanguage.value !== 'auto') return;
+
+  // 检测文本语言
+  const detectedLang = detectLanguage(sourceText.value);
+
+  // 根据检测到的语言类型设置目标语言
+  if (detectedLang === 'zh') {
+    // 中文输入，使用用户首选的英文目标语言
+    targetLanguage.value = userPreferredTarget.value.forChinese;
+  } else if (detectedLang === 'en') {
+    // 英文输入，使用用户首选的中文目标语言
+    targetLanguage.value = userPreferredTarget.value.forEnglish;
+  }
+};
+
+// 目标语言变更处理函数
+const onTargetLanguageChange = () => {
+  // 记住用户的选择
+  const detectedLang = detectLanguage(sourceText.value);
+  if (detectedLang === 'zh') {
+    userPreferredTarget.value.forChinese = targetLanguage.value;
+  } else if (detectedLang === 'en') {
+    userPreferredTarget.value.forEnglish = targetLanguage.value;
+  }
+
+  // 执行翻译
+  translateAll();
+};
+
 // 执行单个引擎翻译
 const translateWithEngine = async (engine: string) => {
   const result = translationResults.value.find((r) => r.engine === engine);
@@ -264,6 +353,9 @@ const translateAll = async () => {
     return;
   }
 
+  // 翻译前自动设置目标语言
+  autoSetTargetLanguage();
+
   translating.value = true;
 
   // 并行翻译所有引擎
@@ -295,25 +387,78 @@ const handleInput = () => {
 
 // 翻译结果回来处理
 const translateBack = (result: TranslationResult) => {
+  // 设置结果文本为新的源文本
   sourceText.value = result.text;
 
-  // 交换语言，确保目标语言不是auto
-  let newSourceLang = targetLanguage.value;
-  let newTargetLang = sourceLanguage.value;
+  // 检测新源文本的语言，然后自动设置语言
+  const detectedLang = detectLanguage(sourceText.value);
 
-  // 如果新的目标语言是auto，将其修改为'en'以避免必应翻译出错
-  if (newTargetLang === 'auto') {
-    newTargetLang = 'en';
+  // 保存当前源语言和目标语言
+  const oldSourceLang = sourceLanguage.value;
+  const oldTargetLang = targetLanguage.value;
+
+  if (oldSourceLang === 'auto') {
+    // 如果原来是自动检测，保持自动检测
+    sourceLanguage.value = 'auto';
+
+    // 根据检测到的语言设置新的目标语言
+    if (detectedLang === 'zh') {
+      targetLanguage.value = userPreferredTarget.value.forChinese;
+    } else {
+      targetLanguage.value = userPreferredTarget.value.forEnglish;
+    }
+  } else {
+    // 如果原来不是自动检测，则交换语言
+    sourceLanguage.value = oldTargetLang;
+    targetLanguage.value =
+      oldSourceLang === 'auto'
+        ? detectedLang === 'zh'
+          ? 'en'
+          : 'zh'
+        : oldSourceLang;
   }
 
-  sourceLanguage.value = newSourceLang;
-  targetLanguage.value = newTargetLang;
+  // 执行翻译
+  translateAll();
+};
 
+// 聚焦输入框
+const focusSourceTextArea = () => {
+  // 使用nextTick确保DOM已更新
+  nextTick(() => {
+    if (sourceTextArea.value) {
+      sourceTextArea.value.focus();
+    } else {
+      // 如果DOM还没准备好，延迟几次尝试聚焦
+      setTimeout(() => {
+        if (sourceTextArea.value) {
+          sourceTextArea.value.focus();
+        } else {
+          // 再次尝试
+          setTimeout(() => {
+            if (sourceTextArea.value) {
+              sourceTextArea.value.focus();
+            }
+          }, 100);
+        }
+      }, 50);
+    }
+  });
+};
+
+const onSourceLanguageChange = () => {
+  autoSetTargetLanguage();
   translateAll();
 };
 
 onMounted(() => {
   setupListeners();
+  // 组件挂载后自动设置目标语言（如果有文本）
+  if (sourceText.value.trim()) {
+    autoSetTargetLanguage();
+  }
+  // 组件挂载后也聚焦输入框
+  focusSourceTextArea();
 });
 
 onUnmounted(() => {
@@ -355,7 +500,7 @@ onUnmounted(() => {
         <el-select
           v-model="sourceLanguage"
           size="small"
-          @change="translateAll"
+          @change="onSourceLanguageChange"
           class="lang-select"
         >
           <el-option
@@ -373,7 +518,7 @@ onUnmounted(() => {
         <el-select
           v-model="targetLanguage"
           size="small"
-          @change="translateAll"
+          @change="onTargetLanguageChange"
           class="lang-select"
         >
           <el-option
@@ -388,6 +533,7 @@ onUnmounted(() => {
       <!-- 源文本输入区域 -->
       <div class="source-area">
         <el-input
+          ref="sourceTextArea"
           v-model="sourceText"
           type="textarea"
           :rows="2"
