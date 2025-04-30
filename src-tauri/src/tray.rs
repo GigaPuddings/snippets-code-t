@@ -1,7 +1,7 @@
 use crate::window::hotkey_config;
 use log::info;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, Runtime,
 };
@@ -9,11 +9,13 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
 pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let search_i = MenuItem::with_id(app, "search", "搜索", true, None::<&str>)?;
-    let config_i = MenuItem::with_id(app, "config", "配置", true, None::<&str>)?;
-    let view_log_i = MenuItem::with_id(app, "view_log", "日志", true, None::<&str>)?;
-    let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&search_i, &config_i, &view_log_i, &quit_i])?;
+    let search_i = MenuItem::with_id(app, "search", "快速搜索", true, None::<&str>)?;
+    let config_i = MenuItem::with_id(app, "config", "配置管理", true, None::<&str>)?;
+    let translate_i = MenuItem::with_id(app, "translate", "输入翻译", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let view_log_i = MenuItem::with_id(app, "view_log", "日志记录", true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", "退出程序", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&search_i, &config_i, &translate_i, &separator, &view_log_i, &quit_i])?;
 
     let app_name = app.package_info().name.clone();
 
@@ -33,6 +35,13 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             "config" => {
                 info!("============== Config ==============");
                 hotkey_config();
+            }
+            "translate" => {
+                info!("============== Search ==============");
+                if let Some(window) = app.get_webview_window("translate") {
+                    window.show().unwrap();
+                    window.set_focus().unwrap();
+                }
             }
             "view_log" => {
                 info!("============== View Log ==============");
