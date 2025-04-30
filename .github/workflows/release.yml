@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
 
+# 添加并发控制，防止重复构建
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   create-release:
     runs-on: windows-latest
