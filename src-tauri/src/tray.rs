@@ -15,7 +15,17 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let separator = PredefinedMenuItem::separator(app)?;
     let view_log_i = MenuItem::with_id(app, "view_log", "日志记录", true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", "退出程序", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&search_i, &config_i, &translate_i, &separator, &view_log_i, &quit_i])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &search_i,
+            &config_i,
+            &translate_i,
+            &separator,
+            &view_log_i,
+            &quit_i,
+        ],
+    )?;
 
     let app_name = app.package_info().name.clone();
 

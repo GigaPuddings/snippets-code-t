@@ -1,10 +1,10 @@
+use crate::search::{SearchEngine, DEFAULT_ENGINES};
 use log::{info, LevelFilter};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_global_shortcut::{Code, Modifiers};
 use tauri_plugin_store::StoreBuilder;
-use crate::search::{SearchEngine, DEFAULT_ENGINES};
 // use mouse_position::mouse_position::{Mouse, Position};
 
 pub const INSTALLED_APPS_KEY: &str = "installed_apps"; // 已安装应用
@@ -188,7 +188,6 @@ pub fn control_logging(enable: bool) {
 // 重置软件
 #[tauri::command]
 pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Result<(), String> {
-
     let path = PathBuf::from("store.bin");
     if let Ok(store) = StoreBuilder::new(&app_handle, path).build() {
         match reset_type.as_str() {

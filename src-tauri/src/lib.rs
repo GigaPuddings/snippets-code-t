@@ -25,7 +25,7 @@ use crate::translation::translate_text;
 use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
 };
-use crate::window::{hotkey_config, start_mouse_tracking};
+use crate::window::{hotkey_config, insert_text_to_last_window, start_mouse_tracking};
 use apps::open_app_command;
 use bookmarks::open_url;
 use cache::clear_cache;
@@ -117,6 +117,7 @@ fn get_auto_hide_on_blur(app_handle: tauri::AppHandle) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_autostart::init(
@@ -221,47 +222,47 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
-            
             // 控制搜索窗口失焦是否隐藏
             window::handle_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
-            register_shortcut_by_frontend, // 注册快捷键
-            get_shortcuts,                 // 获取快捷键
-            ignore_cursor_events,          // 忽略鼠标事件
-            hotkey_config_command,         // 快捷键配置
-            hotkey_update_command,         // 快捷键更新
-            open_app_command,              // 打开应用
-            show_hide_window_command,      // 显示隐藏窗口
-            open_url,                      // 打开书签
-            get_db_path,                   // 获取数据库路径
-            backup_database,               // 备份数据库
-            restore_database,              // 恢复数据库
-            set_custom_db_path,            // 设置自定义数据库路径
-            clear_cache,                   // 清理缓存
-            get_alarm_cards,               // 获取代办提醒卡片
-            add_alarm_card,                // 添加代办提醒卡片
-            update_alarm_card,             // 更新代办提醒卡片
-            delete_alarm_card,             // 删除代办提醒卡片
-            toggle_alarm_card,             // 切换代办提醒卡片
-            get_search_engines,            // 获取搜索引擎
-            update_search_engines,         // 更新搜索引擎
-            get_default_engines,           // 获取默认搜索引擎
-            remind_notification_window,    // 提醒通知窗口
-            get_update_status,             // 获取更新状态
-            get_update_info,               // 获取更新信息
-            perform_update,                // 执行更新
-            check_update_manually,         // 手动检查更新
-            fetch_favicon,                 // 获取网站favicon
-            search_apps,                   // 搜索应用
-            search_bookmarks,              // 搜索书签
-            reset_software,                // 重置软件
-            get_auto_update_check,         // 获取自动检查更新设置
-            set_auto_update_check,         // 设置自动检查更新设置
-            exit_application,              // 退出应用
-            set_auto_hide_on_blur,         // 设置自动失焦隐藏
-            get_auto_hide_on_blur,         // 获取自动失焦隐藏设置
-            translate_text,                // 翻译文本
+            register_shortcut_by_frontend,    // 注册快捷键
+            get_shortcuts,                    // 获取快捷键
+            ignore_cursor_events,             // 忽略鼠标事件
+            hotkey_config_command,            // 快捷键配置
+            hotkey_update_command,            // 快捷键更新
+            open_app_command,                 // 打开应用
+            show_hide_window_command,         // 显示隐藏窗口
+            open_url,                         // 打开书签
+            insert_text_to_last_window,       // 插入文本到上次活动窗口
+            get_db_path,                      // 获取数据库路径
+            backup_database,                  // 备份数据库
+            restore_database,                 // 恢复数据库
+            set_custom_db_path,               // 设置自定义数据库路径
+            clear_cache,                      // 清理缓存
+            get_alarm_cards,                  // 获取代办提醒卡片
+            add_alarm_card,                   // 添加代办提醒卡片
+            update_alarm_card,                // 更新代办提醒卡片
+            delete_alarm_card,                // 删除代办提醒卡片
+            toggle_alarm_card,                // 切换代办提醒卡片
+            get_search_engines,               // 获取搜索引擎
+            update_search_engines,            // 更新搜索引擎
+            get_default_engines,              // 获取默认搜索引擎
+            remind_notification_window,       // 提醒通知窗口
+            get_update_status,                // 获取更新状态
+            get_update_info,                  // 获取更新信息
+            perform_update,                   // 执行更新
+            check_update_manually,            // 手动检查更新
+            fetch_favicon,                    // 获取网站favicon
+            search_apps,                      // 搜索应用
+            search_bookmarks,                 // 搜索书签
+            reset_software,                   // 重置软件
+            get_auto_update_check,            // 获取自动检查更新设置
+            set_auto_update_check,            // 设置自动检查更新设置
+            exit_application,                 // 退出应用
+            set_auto_hide_on_blur,            // 设置自动失焦隐藏
+            get_auto_hide_on_blur,            // 获取自动失焦隐藏设置
+            translate_text,                   // 翻译文本
             get_selection_translate_shortcut, // 获取划词翻译快捷键
         ])
         .run(tauri::generate_context!())

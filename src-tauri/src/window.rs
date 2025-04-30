@@ -14,9 +14,12 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 use tauri::AppHandle;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use urlencoding;
 use uuid;
 use selection::get_text;
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
 // 定义搜索框区域结构体
 #[derive(Debug, Clone)]
@@ -43,6 +46,8 @@ static LAST_MOVE_TIME: LazyLock<Mutex<std::time::Instant>> =
 // 跟踪失焦时间
 static LAST_FOCUS_LOST_TIME: LazyLock<Mutex<Option<std::time::Instant>>> =
     LazyLock::new(|| Mutex::new(None));
+// 存储上次活动窗口标识
+static LAST_ACTIVE_WINDOW_ID: Mutex<Option<String>> = Mutex::new(None);
 
 // 更新搜索框位置的命令
 #[tauri::command]
@@ -197,6 +202,78 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
     }
 }
 
+// 将文本插入到上次活动窗口
+#[tauri::command]
+pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
+    info!("尝试将文本插入到上次活动窗口");
+    
+    // 使用clipboard-manager插件复制文本到剪贴板
+    let app_handle = APP.get().unwrap();
+    match app_handle.clipboard().write_text(text) {
+        Ok(_) => info!("成功使用插件复制文本到剪贴板"),
+        Err(e) => return Err(format!("复制文本到剪贴板失败: {}", e)),
+    }
+    
+    // 检查是否有记录的上次活动窗口
+    if LAST_ACTIVE_WINDOW_ID.lock().unwrap().is_some() {
+        info!("检测到上次活动窗口，尝试模拟粘贴操作");
+        
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::Foundation::HWND;
+            use windows::Win32::UI::Input::KeyboardAndMouse::{
+                SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_V,
+            };
+            
+            // 获取前台窗口
+            let foreground_window = unsafe { GetForegroundWindow() };
+            if foreground_window == HWND(std::ptr::null_mut()) {
+                info!("无法获取前台窗口，回退到剪贴板复制");
+                return Ok(());
+            }
+            
+            // 创建输入事件数组
+            let mut inputs: [INPUT; 4] = unsafe { std::mem::zeroed() };
+            
+            // 按下Ctrl键
+            inputs[0].r#type = INPUT_KEYBOARD;
+            inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
+            
+            // 按下V键
+            inputs[1].r#type = INPUT_KEYBOARD;
+            inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
+            
+            // 释放V键
+            inputs[2].r#type = INPUT_KEYBOARD;
+            inputs[2].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
+            inputs[2].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+            
+            // 释放Ctrl键
+            inputs[3].r#type = INPUT_KEYBOARD;
+            inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
+            inputs[3].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+            
+            // 发送输入事件
+            let result = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
+            
+            if result != inputs.len() as u32 {
+                info!("模拟键盘输入失败，已复制到剪贴板，请手动粘贴");
+            } else {
+                info!("成功模拟Ctrl+V粘贴操作");
+            }
+        }
+        
+        #[cfg(not(target_os = "windows"))]
+        {
+            info!("当前平台不支持自动粘贴，已复制到剪贴板，请手动按Ctrl+V粘贴");
+        }
+    } else {
+        info!("未检测到上次活动窗口，已复制到剪贴板，请手动按Ctrl+V粘贴");
+    }
+    
+    Ok(())
+}
+
 pub fn hotkey_search() {
     // 显示隐藏搜索窗口
     let window = APP.get().unwrap().get_webview_window("main").unwrap();
@@ -207,6 +284,25 @@ pub fn hotkey_search() {
         // 取消忽略光标
         window.set_ignore_cursor_events(false).unwrap();
     } else {
+        // 记录当前活动窗口
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+
+            // 获取当前前台窗口句柄
+            let foreground_window = unsafe { GetForegroundWindow() };
+            let window_id = format!("{:?}", foreground_window);
+
+            info!("记录当前活动窗口: {}", window_id);
+            *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some(window_id);
+        }
+        
+        #[cfg(not(target_os = "windows"))]
+        {
+            info!("记录当前活动窗口状态");
+            *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some("last_active".to_string());
+        }
+
         window.show().unwrap();
         window.set_focus().unwrap();
         // 启动鼠标追踪
@@ -255,11 +351,11 @@ pub fn hotkey_config() {
                 {
                     let _ = window.unminimize();
                 }
-                
+
                 // 强制显示窗口并设置为前台窗口
                 window.show().unwrap();
                 window.set_focus().unwrap();
-                
+
                 // 如果窗口被其他应用遮挡，临时设置为顶层窗口
                 window.set_always_on_top(true).unwrap();
                 // 短暂延迟后恢复原始设置
@@ -290,9 +386,9 @@ pub fn hotkey_config() {
 pub fn hotkey_selection_translate() {
     // 直接使用selection获取选中文本
     let selected_text = get_text();
-    
+
     let app_handle = APP.get().unwrap().clone();
-    
+
     // 检查窗口是否已经存在
     if let Some(window) = app_handle.get_webview_window("translate") {
         // 如果窗口已经存在并且可见
@@ -327,7 +423,7 @@ pub fn hotkey_selection_translate() {
             }
         }
     }
-    
+
     // 检查是否有选中文本
     if !selected_text.trim().is_empty() {
         // 窗口不存在，创建新窗口
@@ -349,7 +445,7 @@ pub fn hotkey_selection_translate() {
 // 翻译窗口快捷键处理
 pub fn hotkey_translate() {
     let app_handle = APP.get().unwrap().clone();
-    
+
     // 检查窗口是否已经存在
     if let Some(window) = app_handle.get_webview_window("translate") {
         // 如果窗口已经存在并且可见，则隐藏窗口
@@ -410,7 +506,7 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
         if let Some(selected_text) = text {
             let window_clone = window.clone();
             let selected_text_clone = selected_text.clone();
-            
+
             // 使用一次性监听器等待窗口加载完成
             let _ = window.once("tauri://created", move |_| {
                 // 窗口创建完成后发送文本

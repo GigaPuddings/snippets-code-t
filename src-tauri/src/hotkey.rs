@@ -1,5 +1,5 @@
 use crate::config::{get_value, parse_hotkey, set_value};
-use crate::window::{hotkey_config, hotkey_search, hotkey_translate, hotkey_selection_translate};
+use crate::window::{hotkey_config, hotkey_search, hotkey_selection_translate, hotkey_translate};
 use crate::APP;
 use log::{info, warn};
 use tauri::AppHandle;
@@ -73,12 +73,22 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
         "search" => register(app_handle, "search", hotkey_search, "")?,
         "config" => register(app_handle, "config", hotkey_config, "")?,
         "translate" => register(app_handle, "translate", hotkey_translate, "")?,
-        "selectionTranslate" => register(app_handle, "selectionTranslate", hotkey_selection_translate, "")?,
+        "selectionTranslate" => register(
+            app_handle,
+            "selectionTranslate",
+            hotkey_selection_translate,
+            "",
+        )?,
         "all" => {
             register(app_handle, "search", hotkey_search, "")?;
             register(app_handle, "config", hotkey_config, "")?;
             register(app_handle, "translate", hotkey_translate, "")?;
-            register(app_handle, "selectionTranslate", hotkey_selection_translate, "")?;
+            register(
+                app_handle,
+                "selectionTranslate",
+                hotkey_selection_translate,
+                "",
+            )?;
         }
         _ => {}
     }
@@ -106,7 +116,12 @@ pub fn register_shortcut_by_frontend(
         }
         "selectionTranslate" => {
             set_value(&app_handle, "selectionTranslate", shortcut);
-            register(&app_handle, "selectionTranslate", hotkey_selection_translate, shortcut)?;
+            register(
+                &app_handle,
+                "selectionTranslate",
+                hotkey_selection_translate,
+                shortcut,
+            )?;
         }
         _ => {
             return Err("未知的快捷键名称".to_string());
@@ -124,16 +139,21 @@ pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, S
     let config_hotkey = get_value(&app_handle, "config")
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
-        
+
     let translate_hotkey = get_value(&app_handle, "translate")
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
-        
+
     let selection_translate_hotkey = get_value(&app_handle, "selectionTranslate")
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
 
-    Ok((search_hotkey, config_hotkey, translate_hotkey, selection_translate_hotkey))
+    Ok((
+        search_hotkey,
+        config_hotkey,
+        translate_hotkey,
+        selection_translate_hotkey,
+    ))
 }
 
 #[tauri::command]
@@ -141,6 +161,6 @@ pub fn get_selection_translate_shortcut(app_handle: AppHandle) -> Result<String,
     let selection_translate_hotkey = get_value(&app_handle, "selectionTranslate")
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
-        
+
     Ok(selection_translate_hotkey)
 }

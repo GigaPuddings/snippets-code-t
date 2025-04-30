@@ -1,6 +1,6 @@
 use log::info;
-use serde::{Deserialize, Serialize};
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use tauri::command;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,9 +21,17 @@ struct BingTranslationText {
 
 // 翻译文本命令
 #[command]
-pub async fn translate_text(text: String, from: String, to: String, engine: String) -> Result<String, String> {
-    info!("翻译请求: 引擎={}, 源语言={}, 目标语言={}", engine, from, to);
-    
+pub async fn translate_text(
+    text: String,
+    from: String,
+    to: String,
+    engine: String,
+) -> Result<String, String> {
+    info!(
+        "翻译请求: 引擎={}, 源语言={}, 目标语言={}",
+        engine, from, to
+    );
+
     match engine.as_str() {
         "bing" => translate_with_bing(text, from, to).await,
         "google" => translate_with_google(text, from, to).await,
@@ -35,7 +43,7 @@ pub async fn translate_text(text: String, from: String, to: String, engine: Stri
 async fn translate_with_bing(text: String, from: String, to: String) -> Result<String, String> {
     let client = Client::new();
     let token_url = "https://edge.microsoft.com/translate/auth";
-    
+
     // 获取token
     let token_response = client
         .get(token_url)
@@ -43,16 +51,16 @@ async fn translate_with_bing(text: String, from: String, to: String) -> Result<S
         .send()
         .await
         .map_err(|e| format!("获取Bing令牌失败: {}", e))?;
-    
+
     let token = token_response
         .text()
         .await
         .map_err(|e| format!("读取Bing令牌失败: {}", e))?;
-    
+
     if token.is_empty() {
         return Err("获取Bing令牌为空".to_string());
     }
-    
+
     // 转换语言代码
     let from_code = match from.as_str() {
         "auto" => "",
@@ -73,7 +81,7 @@ async fn translate_with_bing(text: String, from: String, to: String) -> Result<S
         "ar" => "ar",
         _ => &from,
     };
-    
+
     let to_code = match to.as_str() {
         "zh" => "zh-Hans",
         "zh_tw" => "zh-Hant",
@@ -92,15 +100,15 @@ async fn translate_with_bing(text: String, from: String, to: String) -> Result<S
         "ar" => "ar",
         _ => &to,
     };
-    
+
     // 构造翻译请求
     let url = format!(
         "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from={}&to={}",
         from_code, to_code
     );
-    
+
     let json_body = serde_json::json!([{"text": text}]);
-    
+
     // 发送翻译请求
     let response = client
         .post(url)
@@ -110,36 +118,39 @@ async fn translate_with_bing(text: String, from: String, to: String) -> Result<S
         .send()
         .await
         .map_err(|e| format!("Bing翻译请求失败: {}", e))?;
-    
+
     let status = response.status();
-    
+
     if status.is_success() {
         let result: Vec<BingTranslation> = response
             .json()
             .await
             .map_err(|e| format!("解析Bing翻译结果失败: {}", e))?;
-        
+
         if let Some(first_result) = result.first() {
             if let Some(translation) = first_result.translations.first() {
                 return Ok(translation.text.trim().to_string());
             }
         }
-        
+
         Err("Bing翻译结果解析错误".to_string())
     } else {
         let error_text = response
             .text()
             .await
             .unwrap_or_else(|_| "无法获取错误详情".to_string());
-        
-        Err(format!("Bing翻译API错误，状态码: {}，详情: {}", status, error_text))
+
+        Err(format!(
+            "Bing翻译API错误，状态码: {}，详情: {}",
+            status, error_text
+        ))
     }
 }
 
 // 使用Google翻译
 async fn translate_with_google(text: String, from: String, to: String) -> Result<String, String> {
     let client = Client::new();
-    
+
     let from_code = match from.as_str() {
         "auto" => "auto",
         "zh" => "zh-CN",
@@ -159,7 +170,7 @@ async fn translate_with_google(text: String, from: String, to: String) -> Result
         "ar" => "ar",
         _ => &from,
     };
-    
+
     let to_code = match to.as_str() {
         "zh" => "zh-CN",
         "zh_tw" => "zh-TW",
@@ -178,9 +189,9 @@ async fn translate_with_google(text: String, from: String, to: String) -> Result
         "ar" => "ar",
         _ => &to,
     };
-    
+
     let url = "https://translate.google.com/translate_a/single";
-    
+
     // 构造请求参数
     let response = client
         .get(url)
@@ -212,17 +223,17 @@ async fn translate_with_google(text: String, from: String, to: String) -> Result
         .send()
         .await
         .map_err(|e| format!("Google翻译请求失败: {}", e))?;
-    
+
     let status = response.status();
-    
+
     if status.is_success() {
         let result: serde_json::Value = response
             .json()
             .await
             .map_err(|e| format!("解析Google翻译结果失败: {}", e))?;
-        
+
         let mut translated_text = String::new();
-        
+
         // 解析Google翻译结果
         if let Some(outer_array) = result.get(0).and_then(|v| v.as_array()) {
             for item in outer_array {
@@ -232,19 +243,22 @@ async fn translate_with_google(text: String, from: String, to: String) -> Result
                     }
                 }
             }
-            
+
             if !translated_text.is_empty() {
                 return Ok(translated_text.trim().to_string());
             }
         }
-        
+
         Err("Google翻译结果解析错误".to_string())
     } else {
         let error_text = response
             .text()
             .await
             .unwrap_or_else(|_| "无法获取错误详情".to_string());
-        
-        Err(format!("Google翻译API错误，状态码: {}，详情: {}", status, error_text))
+
+        Err(format!(
+            "Google翻译API错误，状态码: {}，详情: {}",
+            status, error_text
+        ))
     }
-} 
+}

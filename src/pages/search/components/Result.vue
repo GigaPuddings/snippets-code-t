@@ -242,18 +242,49 @@ const handleKeyEvent = (e: KeyboardEvent) => {
 // 选中代码行
 async function selectItem(item: ContentType) {
   store.id = item.id;
+
+  // 清除搜索关键词
+  props.onClearSearch();
+
   if (item.summarize === 'app') {
     // 打开第三方应用程序
+    showHideWindow(); // 先关闭搜索窗口，提高用户体验
     await invoke('open_app_command', { appPath: item.content });
   } else if (item.summarize === 'bookmark' || item.summarize === 'search') {
     // 浏览器书签搜索或搜索引擎搜索
+    showHideWindow(); // 先关闭搜索窗口，提高用户体验
     await invoke('open_url', { url: item.content });
   } else {
-    // copy 代码片段
-    await navigator.clipboard.writeText(item.content);
+    // 代码片段插入
+    const codeContent = item.content;
+    // 直接复制到剪贴板作为备份
+    try {
+      await navigator.clipboard.writeText(codeContent);
+    } catch (err) {
+      console.error('[代码片段] 直接复制到剪贴板失败:', err);
+    }
+    // 先关闭搜索窗口，让目标应用获得焦点
+    showHideWindow();
+
+    // 给目标窗口一点时间获取焦点
+    setTimeout(async () => {
+      try {
+        // 将文本插入到上次活动窗口
+        await invoke('insert_text_to_last_window', { text: codeContent })
+          .then(() => {
+            console.log('[代码片段] 成功调用');
+          })
+          .catch((error) => {
+            console.error('[代码片段] 插入文本失败:', error);
+            alert('文本已复制到剪贴板，请手动粘贴 (Ctrl+V)');
+          });
+      } catch (error) {
+        console.error('[代码片段] 执行插入文本命令异常:', error);
+        console.log('[代码片段] 使用备份方法，请手动粘贴');
+        alert('文本已复制到剪贴板，请手动粘贴 (Ctrl+V)');
+      }
+    }, 300); // 增加延迟时间，确保窗口切换顺利
   }
-  props.onClearSearch();
-  showHideWindow();
 }
 
 // 显示隐藏窗口

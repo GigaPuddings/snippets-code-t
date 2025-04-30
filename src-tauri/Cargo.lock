@@ -157,6 +157,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "windows-sys 0.59.0",
+ "wl-clipboard-rs 0.9.1",
  "x11rb",
 ]
 
@@ -4855,7 +4856,7 @@ dependencies = [
  "enigo",
  "log",
  "windows 0.56.0",
- "wl-clipboard-rs",
+ "wl-clipboard-rs 0.8.1",
  "x11-clipboard",
 ]
 
@@ -5154,6 +5155,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
+ "tauri-plugin-clipboard-manager",
  "tauri-plugin-dialog",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-http",
@@ -5840,6 +5842,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9c13f843e5e5df3eed270fc42b02923cc1a6b5c7e56b0f3ac1d858ab2c8b5fb"
 dependencies = [
  "auto-launch",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.9",
+]
+
+[[package]]
+name = "tauri-plugin-clipboard-manager"
+version = "2.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ab4cb42fdf745229b768802e9180920a4be63122cf87ed1c879103f7609d98e"
+dependencies = [
+ "arboard",
+ "log",
  "serde",
  "serde_json",
  "tauri",
@@ -6989,6 +7006,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "wayland-protocols-wlr"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "782e12f6cd923c3c316130d56205ebab53f55d6666b7faddfad36cecaeeb4022"
+dependencies = [
+ "bitflags 2.6.0",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-protocols 0.32.5",
+ "wayland-scanner",
+]
+
+[[package]]
 name = "wayland-scanner"
 version = "0.31.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7746,7 +7776,26 @@ dependencies = [
  "wayland-backend",
  "wayland-client",
  "wayland-protocols 0.31.2",
- "wayland-protocols-wlr",
+ "wayland-protocols-wlr 0.2.0",
+]
+
+[[package]]
+name = "wl-clipboard-rs"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a083daad7e8a4b8805ad73947ccadabe62afe37ce0e9787a56ff373d34762c7"
+dependencies = [
+ "libc",
+ "log",
+ "os_pipe",
+ "rustix",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tree_magic_mini",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-protocols 0.32.5",
+ "wayland-protocols-wlr 0.3.5",
 ]
 
 [[package]]
