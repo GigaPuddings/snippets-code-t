@@ -15,7 +15,7 @@
       <!-- 分类排序 -->
     </div>
     <div class="result">
-      <template v-for="item in filteredResults" :key="item.id">
+      <template v-for="(item, index) in filteredResults" :key="item.id">
         <!-- @mouseenter="handleMouseEnter(item)" -->
         <div
           class="item"
@@ -63,6 +63,10 @@
             </div>
             <p class="text">{{ item.content }}</p>
           </div>
+          <div v-if="index < 5" class="shortcut-key">
+            <command class="shortcut-key-icon" theme="outline" size="12" />
+            <span class="shortcut-key-text">{{ index + 1 }}</span>
+          </div>
         </div>
       </template>
     </div>
@@ -71,6 +75,7 @@
 <script lang="ts" setup>
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
+import { Command } from '@icon-park/vue-next';
 
 const store = useConfigurationStore();
 
@@ -146,6 +151,22 @@ const handleKeyEvent = (e: KeyboardEvent) => {
     if (e.code === 'ArrowRight' && input.selectionEnd !== input.value.length) {
       return;
     }
+  }
+
+  // 处理数字键 1-5 的按键
+  if (/^Digit[1-5]$/.test(e.code) || /^Numpad[1-5]$/.test(e.code)) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 提取数字
+    const num = parseInt(e.code.replace('Digit', '').replace('Numpad', ''));
+
+    // 确保对应索引的结果存在
+    if (filteredResults.value.length >= num) {
+      // 选择对应的结果项（索引从0开始，而快捷键从1开始）
+      selectItem(filteredResults.value[num - 1]);
+    }
+    return;
   }
 
   // 只阻止方向键和回车键的默认行为和冒泡
@@ -335,11 +356,15 @@ defineExpose({
     @apply max-h-[218px] overflow-y-auto;
 
     .item {
-      @apply flex items-center gap-2 text-search px-2 py-1 rounded-lg cursor-pointer;
+      @apply flex items-center gap-2 text-search px-2 py-1 rounded-lg cursor-pointer relative;
 
       &:hover,
       &.active {
         @apply bg-search-hover;
+      }
+
+      .shortcut-key {
+        @apply flex items-center justify-center gap-1 text-gray-500 dark:text-gray-200 text-xs font-medium opacity-80;
       }
 
       .icon-wrapper {
