@@ -208,6 +208,8 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
                 // 在后台线程中注销所有快捷键并重启应用程序
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_secs(3));
+                    // 先清理资源
+                    app_handle.cleanup_before_exit();
                     // 注销所有快捷键
                     app_handle.global_shortcut().unregister_all().unwrap();
                     // 重启应用程序
@@ -223,6 +225,8 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
                 // 在后台线程中注销所有快捷键并重启应用程序
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_secs(3));
+                    // 先清理资源
+                    app_handle.cleanup_before_exit();
                     // 注销所有快捷键
                     app_handle.global_shortcut().unregister_all().unwrap();
                     // 重启应用程序
@@ -238,6 +242,8 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
                 // 在后台线程中注销所有快捷键并重启应用程序
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_secs(3));
+                    // 先清理资源
+                    app_handle.cleanup_before_exit();
                     // 注销所有快捷键
                     app_handle.global_shortcut().unregister_all().unwrap();
                     // 重启应用程序

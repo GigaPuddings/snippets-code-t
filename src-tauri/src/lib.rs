@@ -6,7 +6,6 @@ mod config;
 mod db;
 mod hotkey;
 mod icon;
-mod migrate;
 mod search;
 mod translation;
 mod tray;
