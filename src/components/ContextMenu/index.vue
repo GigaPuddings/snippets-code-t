@@ -9,6 +9,7 @@
       >
         <div
           v-if="showMenu"
+          ref="menuElementRef"
           class="context-menu"
           :style="{ left: x + 'px', top: y + 'px' }"
         >
@@ -40,6 +41,8 @@
 
 <script setup lang="ts">
 import useContextMenu from '@/hooks/useContextMenu';
+import { ref, watchEffect, nextTick, watch } from 'vue';
+
 interface MenuItem {
   label: string;
   type: string;
@@ -55,10 +58,60 @@ const props = defineProps<{
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
+const menuElementRef = ref<HTMLDivElement | null>(null);
 
 const emit = defineEmits(['select']);
 
-const { showMenu, x, y } = useContextMenu(containerRef);
+const {
+  showMenu,
+  x,
+  y,
+  menuRef: contextMenuRef
+} = useContextMenu(containerRef);
+
+// 将菜单元素引用传递给contextMenuRef
+watchEffect(() => {
+  if (menuElementRef.value) {
+    contextMenuRef.value = menuElementRef.value;
+  }
+});
+
+// 监听菜单显示状态，当显示时进行位置调整
+watch(
+  () => showMenu.value,
+  async (newVal) => {
+    if (newVal && menuElementRef.value) {
+      // 等待DOM更新
+      await nextTick();
+      // 手动调整菜单位置
+      adjustMenuPosition();
+    }
+  }
+);
+
+// 手动调整菜单位置
+function adjustMenuPosition() {
+  if (!menuElementRef.value) return;
+
+  const menu = menuElementRef.value;
+  const menuWidth = menu.offsetWidth;
+  const menuHeight = menu.offsetHeight;
+
+  // 获取视口宽高
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  // 检查并调整X坐标
+  if (x.value + menuWidth > viewportWidth) {
+    x.value = viewportWidth - menuWidth - 5; // 保留5px边距
+  }
+
+  // 检查并调整Y坐标
+  if (y.value + menuHeight > viewportHeight) {
+    y.value = viewportHeight - menuHeight - 5; // 保留5px边距
+  }
+}
+
 // 菜单的点击事件
 function handleClick(item: any) {
   // 选中菜单后关闭菜单
@@ -83,6 +136,9 @@ function handleEnter(el: Element) {
 
 function handleAfterEnter(el: Element) {
   (el as HTMLElement).style.transition = 'none';
+
+  // 确保在动画完成后再次调整菜单位置
+  adjustMenuPosition();
 }
 </script>
 
