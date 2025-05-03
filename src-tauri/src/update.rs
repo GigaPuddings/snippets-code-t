@@ -124,10 +124,15 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                     },
                     || {
                         app.emit("download-finished", ()).unwrap();
+                        // 更新完成后重置更新状态
+                        set_value(app, UPDATE_AVAILABLE_KEY, false);
                     },
                 )
                 .await
                 .map_err(|e| e.to_string())?;
+
+            // 再次确保更新状态被重置
+            set_value(&app, UPDATE_AVAILABLE_KEY, false);
 
             Ok(())
         } else {

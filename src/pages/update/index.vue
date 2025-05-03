@@ -241,6 +241,9 @@ const handleUpdate = async () => {
 
     await invoke('perform_update');
 
+    // 确保更新完成后更新状态被重置
+    update.statusText = '应用更新成功，准备重启...';
+
     // 延迟重启
     setTimeout(async () => {
       await relaunch();

@@ -175,6 +175,17 @@ pub fn run() {
             // 启动代办提醒检查服务
             alarm::start_alarm_service(app.handle().clone());
 
+            // 确保更新状态是最新的
+            {
+                let app_handle = app.handle().clone();
+                // 先检查并重置更新状态，避免更新后启动问题
+                let path = std::path::PathBuf::from("store.bin");
+                if let Ok(store) = tauri_plugin_store::StoreBuilder::new(&app_handle, path).build() {
+                    let _ = store.delete("update_available");
+                    let _ = store.save();
+                }
+            }
+
             // 启动时检查更新
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
