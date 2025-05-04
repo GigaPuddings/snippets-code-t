@@ -156,14 +156,17 @@ pub fn stop_mouse_tracking() {
 
 //相对于前端body元素，宽误差16、 高误差39
 pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWindow {
-    let app_handle = APP.get().unwrap();
-    // let (adjusted_x, adjusted_y) = get_adjusted_position(app_handle, width, height);
+    let app_handle = match APP.get() {
+        Some(handle) => handle,
+        None => {
+            info!("APP全局变量未初始化，这不应该发生");
+            panic!("APP全局变量未初始化");
+        }
+    };
 
     match app_handle.get_webview_window(label) {
         Some(window) => {
             info!("Window exists: {}", label);
-            // 更新窗口位置到鼠标位置
-            // let _ = v.set_position(tauri::PhysicalPosition::new(adjusted_x, adjusted_y));
             return window;
         }
         None => {
@@ -195,9 +198,13 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
                 builder = builder.decorations(false);
             }
 
-            let window = builder.build().expect("Failed to build window");
-
-            window
+            match builder.build() {
+                Ok(window) => window,
+                Err(e) => {
+                    info!("创建窗口失败: {:?}", e);
+                    panic!("无法创建窗口: {:?}", e);
+                }
+            }
         }
     }
 }

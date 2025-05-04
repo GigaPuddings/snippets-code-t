@@ -34,11 +34,16 @@ use log::info;
 use search::*;
 use std::sync::Mutex;
 use std::sync::OnceLock;
-use tauri::{AppHandle, Manager};
+use tauri::{
+    AppHandle, Emitter, Listener, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+    WindowEvent,
+};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
 use window::{create_update_window, show_hide_window_command};
+use tauri::utils::config::WindowConfig;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // 定义一个全局静态变量来存储 AppHandle
 pub static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -278,47 +283,62 @@ pub fn run() {
             };
 
             info!("是否自动启动: {}", is_auto_start);
+            
+            // 保存app_handle用于异步任务
+            let app_handle_for_ui = app.handle().clone();
 
-            if !is_auto_start {
-                // 显示加载页面，并在一段时间后显示主窗口
-                if let Some(loading_window) = app.get_webview_window("loading") {
-                    info!("准备显示加载窗口");
-                    // 添加错误处理
-                    if let Err(e) = loading_window.show() {
-                        info!("显示加载窗口失败: {:?}", e);
-                    } else {
-                        info!("显示加载窗口成功");
-                    }
-
-                    // 模拟后台加载过程，5秒后显示主窗口并关闭加载窗口
-                    let loading_window_clone = loading_window.clone();
-                    tauri::async_runtime::spawn(async move {
-                        info!("开始模拟加载过程");
-                        // 模拟加载过程
-                        std::thread::sleep(std::time::Duration::from_secs(5));
-
-                        info!("准备隐藏加载窗口");
-                        // 关闭加载窗口，添加错误处理
-                        if let Err(e) = loading_window_clone.hide() {
-                            info!("隐藏加载窗口失败: {:?}", e);
-                        } else {
-                            info!("隐藏加载窗口成功");
+            // 不管是否自动启动，都使用统一的安全启动流程
+            tauri::async_runtime::spawn(async move {
+                // 延迟一段时间确保系统稳定
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                
+                // 如果是自动启动，不显示窗口
+                if !is_auto_start {
+                    info!("准备显示主窗口");
+                    // 直接创建一个新的窗口，避免使用可能不存在的窗口
+                    
+                    // 安全地检查并创建窗口 - 使用标准try/catch代替catch_unwind
+                    match app_handle_for_ui.get_webview_window("config") {
+                        Some(window) => {
+                            info!("窗口已存在，尝试显示");
+                            if let Err(e) = window.show() {
+                                info!("显示窗口失败: {:?}", e);
+                            }
+                        },
+                        None => {
+                            // 创建一个新窗口
+                            info!("创建新窗口并显示");
+                            let builder = tauri::WebviewWindowBuilder::new(
+                                &app_handle_for_ui,
+                                "config",
+                                tauri::WebviewUrl::App("/#config/category/contentList".into())
+                            )
+                            .title("配置")
+                            .inner_size(1180.0, 642.0)
+                            .resizable(true)
+                            .transparent(true)
+                            .decorations(false)
+                            .always_on_top(false)
+                            .visible(false);
+                            
+                            match builder.build() {
+                                Ok(window) => {
+                                    info!("窗口创建成功，尝试显示");
+                                    if let Err(e) = window.show() {
+                                        info!("显示窗口失败: {:?}", e);
+                                    }
+                                },
+                                Err(e) => {
+                                    info!("创建窗口失败: {:?}", e);
+                                }
+                            }
                         }
-
-                        info!("准备显示主窗口");
-                        // 显示主窗口，直接调用
-                        crate::window::hotkey_config();
-                        info!("主窗口显示完成");
-                    });
+                    }
                 } else {
-                    info!("加载窗口不存在，直接启动主窗口");
-                    // 如果加载窗口不存在，直接启动主窗口
-                    crate::window::hotkey_config();
+                    info!("自动启动模式，不显示界面");
                 }
-            } else {
-                info!("自动启动模式，不显示界面");
-            }
-
+            });
+            
             info!("setup函数完成");
             Ok(())
         })
