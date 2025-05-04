@@ -229,12 +229,12 @@ pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
                     SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_V,
                 };
                 
-                // 获取前台窗口
-                let foreground_window = unsafe { GetForegroundWindow() };
-                if foreground_window == HWND(std::ptr::null_mut()) {
-                    info!("无法获取前台窗口，回退到剪贴板复制");
-                    return Ok::<(), String>(());
-                }
+                // 获取前台窗口 - 应用直接崩溃的可能原因，尝试改为不依赖这个API
+                // let foreground_window = unsafe { GetForegroundWindow() };
+                // if foreground_window == HWND(std::ptr::null_mut()) {
+                //     info!("无法获取前台窗口，回退到剪贴板复制");
+                //     return Ok::<(), String>(());
+                // }
                 
                 // 创建输入事件数组
                 let mut inputs: [INPUT; 4] = unsafe { std::mem::zeroed() };
@@ -305,14 +305,16 @@ pub fn hotkey_search() {
         // 记录当前活动窗口
         #[cfg(target_os = "windows")]
         {
-            use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-
-            // 获取当前前台窗口句柄
-            let foreground_window = unsafe { GetForegroundWindow() };
-            let window_id = format!("{:?}", foreground_window);
-
+            // 使用一个安全的ID来标识窗口
+            let window_id = format!("active_window_{}", std::time::SystemTime::now().elapsed().unwrap().as_millis());
             info!("记录当前活动窗口: {}", window_id);
             *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some(window_id);
+            
+            // 原代码可能导致崩溃
+            // use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+            // 获取当前前台窗口句柄
+            // let foreground_window = unsafe { GetForegroundWindow() };
+            // let window_id = format!("{:?}", foreground_window);
         }
         
         #[cfg(not(target_os = "windows"))]

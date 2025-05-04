@@ -115,6 +115,29 @@ fn get_auto_hide_on_blur(app_handle: tauri::AppHandle) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 创建崩溃日志捕获
+    std::panic::set_hook(Box::new(|panic_info| {
+        let location = panic_info.location().unwrap_or_else(|| std::panic::Location::caller());
+        let msg = match panic_info.payload().downcast_ref::<&str>() {
+            Some(s) => *s,
+            None => match panic_info.payload().downcast_ref::<String>() {
+                Some(s) => s.as_str(),
+                None => "Box<Any>",
+            },
+        };
+        
+        let crash_log_path = std::path::PathBuf::from("crash_log.txt");
+        if let Ok(mut file) = std::fs::File::create(&crash_log_path) {
+            use std::io::Write;
+            let _ = writeln!(file, "应用崩溃时间: {:?}", std::time::SystemTime::now());
+            let _ = writeln!(file, "崩溃位置: {}:{}:{}", location.file(), location.line(), location.column());
+            let _ = writeln!(file, "崩溃信息: {}", msg);
+            let _ = writeln!(file, "堆栈跟踪:\n{:?}", std::backtrace::Backtrace::capture());
+        }
+    }));
+    
+    info!("应用启动");
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -125,15 +148,9 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
-        // 单实例插件：防止程序多开
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let windows = app.webview_windows();
-            windows
-                .values()
-                .next()
-                .expect("Sorry, no window found")
-                .set_focus()
-                .expect("Can't Bring Window to Focus");
+        // 使用单实例插件防止多开
+        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
+            println!("应用程序已经在运行中!");
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -147,25 +164,33 @@ pub fn run() {
                     Target::new(TargetKind::LogDir { file_name: None }),
                     Target::new(TargetKind::Webview),
                 ])
+                .level(log::LevelFilter::Debug)
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
+            info!("开始setup函数");
+            
             // 在应用启动时初始化 APP
             APP.set(app.handle().clone()).unwrap();
+            info!("初始化APP全局变量完成");
             
             // 创建托盘图标（如果需要）
             #[cfg(all(desktop))]
             {
+                info!("准备创建托盘图标");
                 let handle = app.handle();
                 // 添加错误处理，确保托盘创建失败也不会导致整个应用崩溃
                 if let Err(e) = tray::create_tray(handle) {
                     info!("创建托盘图标失败: {:?}, 应用将继续运行", e);
+                } else {
+                    info!("创建托盘图标成功");
                 }
             }
             
             // Register Global Shortcut
+            info!("准备注册全局快捷键");
             // 添加错误处理，确保快捷键注册失败不会导致应用崩溃
             if let Err(e) = register_shortcut("all") {
                 info!("注册全局快捷键失败: {}, 应用将继续运行", e);
@@ -178,45 +203,73 @@ pub fn run() {
                     .body(&e)
                     .icon("pot")
                     .show();
+            } else {
+                info!("注册全局快捷键成功");
             }
             
             // 启动代办提醒检查服务
-            // 使用 spawn 并添加错误处理
+            info!("准备启动代办提醒服务");
+            // 延迟启动非核心服务
             let alarm_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                // 延迟3秒再启动，确保主界面已完成加载
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                info!("开始启动代办提醒服务");
                 // 使用try-catch代替catch_unwind，因为AppHandle不是UnwindSafe
                 alarm::start_alarm_service(alarm_handle);
+                info!("代办提醒服务启动完成");
             });
 
             // 确保更新状态是最新的
+            info!("准备清理更新状态");
             {
                 let app_handle = app.handle().clone();
                 // 先检查并重置更新状态，避免更新后启动问题
                 let path = std::path::PathBuf::from("store.bin");
-                if let Ok(store) = tauri_plugin_store::StoreBuilder::new(&app_handle, path).build() {
-                    let _ = store.delete("update_available");
-                    let _ = store.save();
+                match tauri_plugin_store::StoreBuilder::new(&app_handle, path).build() {
+                    Ok(store) => {
+                        if !store.delete("update_available") {
+                            info!("清除更新状态失败");
+                        }
+                        if let Err(e) = store.save() {
+                            info!("保存存储状态失败: {:?}", e);
+                        } else {
+                            info!("清理更新状态成功");
+                        }
+                    }
+                    Err(e) => {
+                        info!("创建存储失败: {:?}", e);
+                    }
                 }
             }
 
             // 启动时检查更新
+            info!("准备检查更新");
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                // 延迟5秒再检查，减轻启动负担
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                info!("开始检查应用更新");
                 // 先检查用户是否开启了自动更新
                 if get_auto_update_check(app_handle.clone()) {
                     if let Err(e) = check_update(&app_handle, false).await {
                         info!("检查更新失败: {}", e);
+                    } else {
+                        info!("检查更新完成");
                     }
                 }
             });
 
             // 初始化应用和书签图标（后台线程）
+            info!("准备初始化应用和书签图标");
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // 延迟1秒后开始加载图标，避免影响应用启动速度
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                // 延迟5秒后开始加载图标，避免影响应用启动速度
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                info!("开始初始化应用和书签图标");
                 // 直接调用初始化功能
                 init_app_and_bookmark_icons(&app_handle_clone);
+                info!("应用和书签图标初始化完成");
             });
 
             // 检查是否是自动启动
@@ -224,31 +277,49 @@ pub fn run() {
                 args => args.iter().any(|arg| arg == "--flag1" || arg == "--flag2"),
             };
 
+            info!("是否自动启动: {}", is_auto_start);
+
             if !is_auto_start {
                 // 显示加载页面，并在一段时间后显示主窗口
                 if let Some(loading_window) = app.get_webview_window("loading") {
+                    info!("准备显示加载窗口");
                     // 添加错误处理
                     if let Err(e) = loading_window.show() {
                         info!("显示加载窗口失败: {:?}", e);
+                    } else {
+                        info!("显示加载窗口成功");
                     }
 
                     // 模拟后台加载过程，5秒后显示主窗口并关闭加载窗口
                     let loading_window_clone = loading_window.clone();
                     tauri::async_runtime::spawn(async move {
+                        info!("开始模拟加载过程");
                         // 模拟加载过程
                         std::thread::sleep(std::time::Duration::from_secs(5));
 
+                        info!("准备隐藏加载窗口");
                         // 关闭加载窗口，添加错误处理
                         if let Err(e) = loading_window_clone.hide() {
                             info!("隐藏加载窗口失败: {:?}", e);
+                        } else {
+                            info!("隐藏加载窗口成功");
                         }
 
+                        info!("准备显示主窗口");
                         // 显示主窗口，直接调用
                         crate::window::hotkey_config();
+                        info!("主窗口显示完成");
                     });
+                } else {
+                    info!("加载窗口不存在，直接启动主窗口");
+                    // 如果加载窗口不存在，直接启动主窗口
+                    crate::window::hotkey_config();
                 }
+            } else {
+                info!("自动启动模式，不显示界面");
             }
 
+            info!("setup函数完成");
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
