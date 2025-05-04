@@ -220,46 +220,62 @@ pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
         
         #[cfg(target_os = "windows")]
         {
-            use windows::Win32::Foundation::HWND;
-            use windows::Win32::UI::Input::KeyboardAndMouse::{
-                SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_V,
-            };
+            use std::panic::catch_unwind;
             
-            // 获取前台窗口
-            let foreground_window = unsafe { GetForegroundWindow() };
-            if foreground_window == HWND(std::ptr::null_mut()) {
-                info!("无法获取前台窗口，回退到剪贴板复制");
-                return Ok(());
-            }
-            
-            // 创建输入事件数组
-            let mut inputs: [INPUT; 4] = unsafe { std::mem::zeroed() };
-            
-            // 按下Ctrl键
-            inputs[0].r#type = INPUT_KEYBOARD;
-            inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-            
-            // 按下V键
-            inputs[1].r#type = INPUT_KEYBOARD;
-            inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
-            
-            // 释放V键
-            inputs[2].r#type = INPUT_KEYBOARD;
-            inputs[2].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
-            inputs[2].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
-            
-            // 释放Ctrl键
-            inputs[3].r#type = INPUT_KEYBOARD;
-            inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-            inputs[3].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
-            
-            // 发送输入事件
-            let result = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
-            
-            if result != inputs.len() as u32 {
-                info!("模拟键盘输入失败，已复制到剪贴板，请手动粘贴");
-            } else {
-                info!("成功模拟Ctrl+V粘贴操作");
+            // 使用panic::catch_unwind捕获可能的崩溃
+            match catch_unwind(|| {
+                use windows::Win32::Foundation::HWND;
+                use windows::Win32::UI::Input::KeyboardAndMouse::{
+                    SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_V,
+                };
+                
+                // 获取前台窗口
+                let foreground_window = unsafe { GetForegroundWindow() };
+                if foreground_window == HWND(std::ptr::null_mut()) {
+                    info!("无法获取前台窗口，回退到剪贴板复制");
+                    return Ok::<(), String>(());
+                }
+                
+                // 创建输入事件数组
+                let mut inputs: [INPUT; 4] = unsafe { std::mem::zeroed() };
+                
+                // 按下Ctrl键
+                inputs[0].r#type = INPUT_KEYBOARD;
+                inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
+                
+                // 按下V键
+                inputs[1].r#type = INPUT_KEYBOARD;
+                inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
+                
+                // 释放V键
+                inputs[2].r#type = INPUT_KEYBOARD;
+                inputs[2].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
+                inputs[2].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+                
+                // 释放Ctrl键
+                inputs[3].r#type = INPUT_KEYBOARD;
+                inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
+                inputs[3].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+                
+                // 发送输入事件
+                let result = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
+                
+                if result != inputs.len() as u32 {
+                    info!("模拟键盘输入失败，已复制到剪贴板，请手动粘贴");
+                } else {
+                    info!("成功模拟Ctrl+V粘贴操作");
+                }
+                
+                Ok::<(), String>(())
+            }) {
+                Ok(result) => {
+                    if let Err(e) = result {
+                        info!("Windows API调用出错: {:?}", e);
+                    }
+                },
+                Err(_) => {
+                    info!("Windows API调用崩溃，已复制到剪贴板，请手动粘贴");
+                }
             }
         }
         
@@ -387,7 +403,15 @@ pub fn hotkey_config() {
 // 划词翻译快捷键处理
 pub fn hotkey_selection_translate() {
     // 直接使用selection获取选中文本
-    let selected_text = get_text();
+    let selected_text = match std::panic::catch_unwind(|| {
+        get_text()
+    }) {
+        Ok(text) => text,
+        Err(_) => {
+            info!("获取选中文本失败");
+            String::new()
+        }
+    };
 
     let app_handle = APP.get().unwrap().clone();
 

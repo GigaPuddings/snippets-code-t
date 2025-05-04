@@ -154,26 +154,39 @@ pub fn run() {
         .setup(|app| {
             // 在应用启动时初始化 APP
             APP.set(app.handle().clone()).unwrap();
+            
             // 创建托盘图标（如果需要）
             #[cfg(all(desktop))]
             {
                 let handle = app.handle();
-                tray::create_tray(handle)?; // 调用 tray 模块中的创建托盘函数
+                // 添加错误处理，确保托盘创建失败也不会导致整个应用崩溃
+                if let Err(e) = tray::create_tray(handle) {
+                    info!("创建托盘图标失败: {:?}, 应用将继续运行", e);
+                }
             }
+            
             // Register Global Shortcut
-            match register_shortcut("all") {
-                Ok(()) => {}
-                Err(e) => app
+            // 添加错误处理，确保快捷键注册失败不会导致应用崩溃
+            if let Err(e) = register_shortcut("all") {
+                info!("注册全局快捷键失败: {}, 应用将继续运行", e);
+                
+                // 可选：显示通知
+                let _ = app
                     .notification()
                     .builder()
-                    .title("Failed to register global shortcut")
+                    .title("快捷键注册失败")
                     .body(&e)
                     .icon("pot")
-                    .show()
-                    .unwrap(),
+                    .show();
             }
+            
             // 启动代办提醒检查服务
-            alarm::start_alarm_service(app.handle().clone());
+            // 使用 spawn 并添加错误处理
+            let alarm_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // 使用try-catch代替catch_unwind，因为AppHandle不是UnwindSafe
+                alarm::start_alarm_service(alarm_handle);
+            });
 
             // 确保更新状态是最新的
             {
@@ -191,7 +204,9 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 // 先检查用户是否开启了自动更新
                 if get_auto_update_check(app_handle.clone()) {
-                    check_update(&app_handle, false).await.unwrap();
+                    if let Err(e) = check_update(&app_handle, false).await {
+                        info!("检查更新失败: {}", e);
+                    }
                 }
             });
 
@@ -200,6 +215,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 // 延迟1秒后开始加载图标，避免影响应用启动速度
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                // 直接调用初始化功能
                 init_app_and_bookmark_icons(&app_handle_clone);
             });
 
@@ -211,7 +227,10 @@ pub fn run() {
             if !is_auto_start {
                 // 显示加载页面，并在一段时间后显示主窗口
                 if let Some(loading_window) = app.get_webview_window("loading") {
-                    loading_window.show().unwrap();
+                    // 添加错误处理
+                    if let Err(e) = loading_window.show() {
+                        info!("显示加载窗口失败: {:?}", e);
+                    }
 
                     // 模拟后台加载过程，5秒后显示主窗口并关闭加载窗口
                     let loading_window_clone = loading_window.clone();
@@ -219,10 +238,12 @@ pub fn run() {
                         // 模拟加载过程
                         std::thread::sleep(std::time::Duration::from_secs(5));
 
-                        // 关闭加载窗口
-                        loading_window_clone.hide().unwrap();
+                        // 关闭加载窗口，添加错误处理
+                        if let Err(e) = loading_window_clone.hide() {
+                            info!("隐藏加载窗口失败: {:?}", e);
+                        }
 
-                        // 显示主窗口
+                        // 显示主窗口，直接调用
                         crate::window::hotkey_config();
                     });
                 }
@@ -232,7 +253,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
-            // 控制搜索窗口失焦是否隐藏
+            // 直接处理窗口事件
             window::handle_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![

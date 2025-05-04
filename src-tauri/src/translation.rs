@@ -32,9 +32,29 @@ pub async fn translate_text(
         engine, from, to
     );
 
+    // 设置超时时间，避免请求一直等待导致应用卡死
+    let timeout = std::time::Duration::from_secs(10);
+
+    // 确保文本不为空
+    if text.trim().is_empty() {
+        return Err("翻译文本不能为空".to_string());
+    }
+
     match engine.as_str() {
-        "bing" => translate_with_bing(text, from, to).await,
-        "google" => translate_with_google(text, from, to).await,
+        "bing" => {
+            // 添加超时处理
+            match tokio::time::timeout(timeout, translate_with_bing(text, from, to)).await {
+                Ok(result) => result,
+                Err(_) => Err("Bing翻译请求超时，请检查网络连接".to_string()),
+            }
+        }
+        "google" => {
+            // 添加超时处理
+            match tokio::time::timeout(timeout, translate_with_google(text, from, to)).await {
+                Ok(result) => result,
+                Err(_) => Err("Google翻译请求超时，请检查网络连接".to_string()),
+            }
+        }
         _ => Err(format!("不支持的翻译引擎: {}", engine)),
     }
 }
