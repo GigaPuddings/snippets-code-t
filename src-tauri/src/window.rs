@@ -283,6 +283,8 @@ pub fn hotkey_search() {
         stop_mouse_tracking();
         // 取消忽略光标
         window.set_ignore_cursor_events(false).unwrap();
+        // 取消记录当前活动窗口
+        *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = None;
     } else {
         // 记录当前活动窗口
         #[cfg(target_os = "windows")]
@@ -736,6 +738,10 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                         if let Ok(has_focus) = window_clone.is_focused() {
                             if !has_focus {
                                 // println!("延迟判断后确认窗口失焦，隐藏窗口");
+                                // 停止鼠标追踪
+                                stop_mouse_tracking();
+                                // 取消忽略光标
+                                let _ = window_clone.set_ignore_cursor_events(false);
                                 let _ = window_clone.hide();
                             }
                         }
@@ -783,6 +789,10 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                                 if focus_lost_time.elapsed() < std::time::Duration::from_millis(500)
                                 {
                                     // println!("拖拽结束后检测窗口无焦点，隐藏窗口");
+                                    // 停止鼠标追踪
+                                    stop_mouse_tracking();
+                                    // 取消忽略光标
+                                    let _ = window_clone.set_ignore_cursor_events(false);
                                     let _ = window_clone.hide();
                                 }
                             }
