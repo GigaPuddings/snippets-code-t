@@ -120,6 +120,24 @@ fn get_auto_hide_on_blur(app_handle: tauri::AppHandle) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 最早期的启动日志，在任何系统初始化前
+    let early_log_path = std::path::PathBuf::from("early_startup.log");
+    if let Ok(mut file) = std::fs::File::create(early_log_path) {
+        use std::io::Write;
+        let _ = writeln!(file, "=== 应用启动 ===");
+        let _ = writeln!(file, "时间: {:?}", std::time::SystemTime::now());
+        let _ = writeln!(file, "命令行参数: {:?}", std::env::args().collect::<Vec<_>>());
+        let _ = writeln!(file, "工作目录: {:?}", std::env::current_dir());
+        
+        // 检查是否在安全模式启动
+        let is_safe_mode = std::env::args().any(|arg| arg == "--safe-mode");
+        let _ = writeln!(file, "安全模式: {}", is_safe_mode);
+        
+        if is_safe_mode {
+            let _ = writeln!(file, "使用安全模式启动，跳过非必要组件");
+        }
+    }
+    
     // 创建崩溃日志捕获
     std::panic::set_hook(Box::new(|panic_info| {
         let location = panic_info.location().unwrap_or_else(|| std::panic::Location::caller());
@@ -141,16 +159,13 @@ pub fn run() {
         }
     }));
     
-    info!("应用启动");
+    // 检查是否在安全模式启动
+    let is_safe_mode = std::env::args().any(|arg| arg == "--safe-mode");
     
-    tauri::Builder::default()
+    let app_builder = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            Some(vec!["--flag1", "--flag2"]),
-        ))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         // 使用单实例插件防止多开
@@ -160,7 +175,6 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_log::Builder::new().build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -173,8 +187,22 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_sql::Builder::default().build())
-        .setup(|app| {
+        .plugin(tauri_plugin_sql::Builder::default().build());
+        
+    // 只在非安全模式下添加自动启动插件
+    let app_builder = if !is_safe_mode {
+        app_builder.plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--flag1", "--flag2"]),
+        ))
+    } else {
+        app_builder
+    };
+    
+    let app_builder = app_builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+        
+    app_builder
+        .setup(move |app| {
             info!("开始setup函数");
             
             // 在应用启动时初始化 APP
@@ -183,7 +211,7 @@ pub fn run() {
             
             // 创建托盘图标（如果需要）
             #[cfg(all(desktop))]
-            {
+            if !is_safe_mode {
                 info!("准备创建托盘图标");
                 let handle = app.handle();
                 // 添加错误处理，确保托盘创建失败也不会导致整个应用崩溃
@@ -194,36 +222,40 @@ pub fn run() {
                 }
             }
             
-            // Register Global Shortcut
-            info!("准备注册全局快捷键");
-            // 添加错误处理，确保快捷键注册失败不会导致应用崩溃
-            if let Err(e) = register_shortcut("all") {
-                info!("注册全局快捷键失败: {}, 应用将继续运行", e);
-                
-                // 可选：显示通知
-                let _ = app
-                    .notification()
-                    .builder()
-                    .title("快捷键注册失败")
-                    .body(&e)
-                    .icon("pot")
-                    .show();
-            } else {
-                info!("注册全局快捷键成功");
+            // Register Global Shortcut (只在非安全模式)
+            if !is_safe_mode {
+                info!("准备注册全局快捷键");
+                // 添加错误处理，确保快捷键注册失败不会导致应用崩溃
+                if let Err(e) = register_shortcut("all") {
+                    info!("注册全局快捷键失败: {}, 应用将继续运行", e);
+                    
+                    // 可选：显示通知
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("快捷键注册失败")
+                        .body(&e)
+                        .icon("pot")
+                        .show();
+                } else {
+                    info!("注册全局快捷键成功");
+                }
             }
             
-            // 启动代办提醒检查服务
-            info!("准备启动代办提醒服务");
-            // 延迟启动非核心服务
-            let alarm_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                // 延迟3秒再启动，确保主界面已完成加载
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-                info!("开始启动代办提醒服务");
-                // 使用try-catch代替catch_unwind，因为AppHandle不是UnwindSafe
-                alarm::start_alarm_service(alarm_handle);
-                info!("代办提醒服务启动完成");
-            });
+            // 启动代办提醒检查服务 (只在非安全模式)
+            if !is_safe_mode {
+                info!("准备启动代办提醒服务");
+                // 延迟启动非核心服务
+                let alarm_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    // 延迟3秒再启动，确保主界面已完成加载
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                    info!("开始启动代办提醒服务");
+                    // 使用try-catch代替catch_unwind，因为AppHandle不是UnwindSafe
+                    alarm::start_alarm_service(alarm_handle);
+                    info!("代办提醒服务启动完成");
+                });
+            }
 
             // 确保更新状态是最新的
             info!("准备清理更新状态");
@@ -248,34 +280,38 @@ pub fn run() {
                 }
             }
 
-            // 启动时检查更新
-            info!("准备检查更新");
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                // 延迟5秒再检查，减轻启动负担
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                info!("开始检查应用更新");
-                // 先检查用户是否开启了自动更新
-                if get_auto_update_check(app_handle.clone()) {
-                    if let Err(e) = check_update(&app_handle, false).await {
-                        info!("检查更新失败: {}", e);
-                    } else {
-                        info!("检查更新完成");
+            // 启动时检查更新 (只在非安全模式)
+            if !is_safe_mode {
+                info!("准备检查更新");
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    // 延迟5秒再检查，减轻启动负担
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    info!("开始检查应用更新");
+                    // 先检查用户是否开启了自动更新
+                    if get_auto_update_check(app_handle.clone()) {
+                        if let Err(e) = check_update(&app_handle, false).await {
+                            info!("检查更新失败: {}", e);
+                        } else {
+                            info!("检查更新完成");
+                        }
                     }
-                }
-            });
+                });
+            }
 
             // 初始化应用和书签图标（后台线程）
-            info!("准备初始化应用和书签图标");
-            let app_handle_clone = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                // 延迟5秒后开始加载图标，避免影响应用启动速度
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                info!("开始初始化应用和书签图标");
-                // 直接调用初始化功能
-                init_app_and_bookmark_icons(&app_handle_clone);
-                info!("应用和书签图标初始化完成");
-            });
+            if !is_safe_mode {
+                info!("准备初始化应用和书签图标");
+                let app_handle_clone = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    // 延迟5秒后开始加载图标，避免影响应用启动速度
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    info!("开始初始化应用和书签图标");
+                    // 直接调用初始化功能
+                    init_app_and_bookmark_icons(&app_handle_clone);
+                    info!("应用和书签图标初始化完成");
+                });
+            }
 
             // 检查是否是自动启动
             let is_auto_start = match std::env::args().collect::<Vec<String>>() {
@@ -292,10 +328,9 @@ pub fn run() {
                 // 延迟一段时间确保系统稳定
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 
-                // 如果是自动启动，不显示窗口
-                if !is_auto_start {
+                // 如果是自动启动或安全模式，不显示窗口
+                if !is_auto_start && !is_safe_mode {
                     info!("准备显示主窗口");
-                    // 直接创建一个新的窗口，避免使用可能不存在的窗口
                     
                     // 安全地检查并创建窗口 - 使用标准try/catch代替catch_unwind
                     match app_handle_for_ui.get_webview_window("config") {
@@ -308,18 +343,14 @@ pub fn run() {
                         None => {
                             // 创建一个新窗口
                             info!("创建新窗口并显示");
+                            // 简化版窗口，减少可能的崩溃点
                             let builder = tauri::WebviewWindowBuilder::new(
                                 &app_handle_for_ui,
                                 "config",
                                 tauri::WebviewUrl::App("/#config/category/contentList".into())
                             )
-                            .title("配置")
-                            .inner_size(1180.0, 642.0)
-                            .resizable(true)
-                            .transparent(true)
-                            .decorations(false)
-                            .always_on_top(false)
-                            .visible(false);
+                            .inner_size(800.0, 600.0)
+                            .center();
                             
                             match builder.build() {
                                 Ok(window) => {
@@ -333,6 +364,21 @@ pub fn run() {
                                 }
                             }
                         }
+                    }
+                } else if is_safe_mode {
+                    // 在安全模式下创建一个最小的窗口来显示错误信息
+                    info!("安全模式 - 创建简单诊断窗口");
+                    let builder = tauri::WebviewWindowBuilder::new(
+                        &app_handle_for_ui,
+                        "safe_mode",
+                        tauri::WebviewUrl::App("/#safe-mode".into())
+                    )
+                    .title("安全模式")
+                    .inner_size(400.0, 300.0)
+                    .center();
+                    
+                    if let Ok(window) = builder.build() {
+                        let _ = window.show();
                     }
                 } else {
                     info!("自动启动模式，不显示界面");
