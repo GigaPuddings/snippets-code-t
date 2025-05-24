@@ -1,5 +1,5 @@
 use crate::config::{get_value, parse_hotkey, set_value};
-use crate::window::{hotkey_config, hotkey_search, hotkey_selection_translate, hotkey_translate};
+use crate::window::{hotkey_config, hotkey_selection_translate, hotkey_translate, hotkey_search_wrapper};
 use crate::APP;
 use log::{info, warn};
 use tauri::AppHandle;
@@ -70,7 +70,7 @@ where
 pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
     let app_handle = APP.get().unwrap();
     match shortcut {
-        "search" => register(app_handle, "search", hotkey_search, "")?,
+        "search" => register(app_handle, "search", hotkey_search_wrapper, "")?,
         "config" => register(app_handle, "config", hotkey_config, "")?,
         "translate" => register(app_handle, "translate", hotkey_translate, "")?,
         "selectionTranslate" => register(
@@ -80,7 +80,7 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
             "",
         )?,
         "all" => {
-            register(app_handle, "search", hotkey_search, "")?;
+            register(app_handle, "search", hotkey_search_wrapper, "")?;
             register(app_handle, "config", hotkey_config, "")?;
             register(app_handle, "translate", hotkey_translate, "")?;
             register(
@@ -104,7 +104,7 @@ pub fn register_shortcut_by_frontend(
     match name {
         "search" => {
             set_value(&app_handle, "search", shortcut);
-            register(&app_handle, "search", hotkey_search, shortcut)?;
+            register(&app_handle, "search", hotkey_search_wrapper, shortcut)?;
         }
         "config" => {
             set_value(&app_handle, "config", shortcut);

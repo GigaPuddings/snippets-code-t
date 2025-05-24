@@ -119,14 +119,10 @@ const setupListeners = async () => {
 
   // 监听划词翻译消息
   const unlistenSelectionText = await listen('selection-text', (event: any) => {
-    sourceText.value = event.payload.text || '';
-    if (sourceText.value.trim()) {
-      // 先自动设置目标语言，再执行翻译
-      autoSetTargetLanguage();
-      translateAll();
+    console.log('收到划词翻译消息:', event.payload);
+    if (event.payload && event.payload.text) {
+      handleSelectionText(event.payload.text);
     }
-    // 收到划词翻译消息后聚焦输入框
-    focusSourceTextArea();
   });
 
   // 监听重置状态消息
@@ -380,9 +376,35 @@ const handleInput = () => {
   if (translateTimeout) {
     clearTimeout(translateTimeout);
   }
-  translateTimeout = setTimeout(() => {
-    translateAll();
-  }, 500);
+
+  // 如果文本非空，则安排翻译
+  if (sourceText.value.trim()) {
+    translateTimeout = setTimeout(() => {
+      translateAll();
+    }, 500);
+  } else {
+    // 文本为空时清空翻译结果
+    translationResults.value.forEach((result) => {
+      result.text = '';
+    });
+  }
+};
+
+// 添加一个新方法专门用于处理selection-text事件
+const handleSelectionText = (text: string) => {
+  if (!text) return;
+
+  console.log('处理选中文本:', text);
+  sourceText.value = text;
+  showDeleteButton.value = true;
+
+  // 先自动设置目标语言，再执行翻译
+  autoSetTargetLanguage();
+  // 立即触发翻译，不使用防抖
+  translateAll();
+
+  // 确保输入框获得焦点
+  focusSourceTextArea();
 };
 
 // 翻译结果回来处理
@@ -424,25 +446,27 @@ const translateBack = (result: TranslationResult) => {
 
 // 聚焦输入框
 const focusSourceTextArea = () => {
-  // 使用nextTick确保DOM已更新
-  nextTick(() => {
+  // 使用更多次尝试和更长的延迟来确保输入框能够获得焦点
+  const attemptFocus = (attempts = 0) => {
+    if (attempts > 5) return; // 最多尝试5次
+
     if (sourceTextArea.value) {
       sourceTextArea.value.focus();
     } else {
-      // 如果DOM还没准备好，延迟几次尝试聚焦
-      setTimeout(() => {
-        if (sourceTextArea.value) {
-          sourceTextArea.value.focus();
-        } else {
-          // 再次尝试
-          setTimeout(() => {
-            if (sourceTextArea.value) {
-              sourceTextArea.value.focus();
-            }
-          }, 100);
-        }
-      }, 50);
+      // 延迟时间随尝试次数增加
+      const delay = 100 * (attempts + 1);
+      setTimeout(() => attemptFocus(attempts + 1), delay);
     }
+  };
+
+  // 先立即尝试聚焦
+  if (sourceTextArea.value) {
+    sourceTextArea.value.focus();
+  }
+
+  // 然后使用nextTick确保DOM已更新后再次尝试
+  nextTick(() => {
+    attemptFocus();
   });
 };
 

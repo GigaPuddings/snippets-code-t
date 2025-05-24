@@ -310,7 +310,10 @@ async function selectItem(item: ContentType) {
 
 // 显示隐藏窗口
 function showHideWindow() {
-  invoke('show_hide_window_command', { label: 'search' });
+  invoke('show_hide_window_command', {
+    label: 'search',
+    context: 'selectItem'
+  });
 }
 
 // 鼠标悬停处理

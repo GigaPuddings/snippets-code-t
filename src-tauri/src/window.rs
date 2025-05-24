@@ -274,7 +274,7 @@ pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn hotkey_search() {
+pub fn hotkey_search(context: Option<String>) {
     // 显示隐藏搜索窗口
     let window = APP.get().unwrap().get_webview_window("main").unwrap();
     if window.is_visible().unwrap() {
@@ -283,8 +283,17 @@ pub fn hotkey_search() {
         stop_mouse_tracking();
         // 取消忽略光标
         window.set_ignore_cursor_events(false).unwrap();
-        // 取消记录当前活动窗口
-        *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = None;
+        
+        // 只有当不是从 selectItem 上下文调用，或者 context 为 None 时才清除
+        let should_clear_last_active_id = match context.as_deref() {
+            Some("selectItem") => false, // 如果是 selectItem，则不清除
+            _ => true, // 其他情况（包括 None 或其他字符串）都清除
+        };
+
+        if should_clear_last_active_id {
+            // 取消记录当前活动窗口
+            *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = None;
+        }
     } else {
         // 记录当前活动窗口
         #[cfg(target_os = "windows")]
@@ -310,6 +319,11 @@ pub fn hotkey_search() {
         // 启动鼠标追踪
         start_mouse_tracking();
     }
+}
+
+// 新增的包装函数，用于快捷键注册
+pub fn hotkey_search_wrapper() {
+    hotkey_search(None);
 }
 
 // 创建config窗口
@@ -470,20 +484,38 @@ pub fn hotkey_translate() {
 
 // 打开翻译窗口
 fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
+    // 保存选中文本以便在窗口创建后使用
+    let selected_text = text.clone();
+    
     if let Some(window) = app_handle.get_webview_window("translate") {
         // 窗口已存在，显示并聚焦
         let _ = window.show();
         let _ = window.set_focus();
 
-        // 如果有文本，发送事件
-        if let Some(selected_text) = text {
+        // 使用延迟发送机制确保文本能被前端接收
+        if let Some(text) = selected_text {
+            let window_clone = window.clone();
+            let text_clone = text.clone();
+            
+            // 立即尝试发送一次
             let _ = window.emit(
                 "selection-text",
                 serde_json::json!({
-                    "text": selected_text
+                    "text": text.clone()
                 }),
             );
-        };
+            
+            // 再延迟300ms后尝试发送，确保前端已准备好
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                let _ = window_clone.emit(
+                    "selection-text",
+                    serde_json::json!({
+                        "text": text_clone
+                    }),
+                );
+            });
+        }
     } else {
         // 创建新窗口
         let window = build_window(
@@ -500,23 +532,23 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
                 ..Default::default()
             },
         );
-
+        
         window.show().unwrap();
         window.set_focus().unwrap();
 
-        // 如果有文本，等待窗口加载完成后发送事件
-        if let Some(selected_text) = text {
+        // 如果有文本，在窗口创建后发送文本
+        if let Some(text) = selected_text {
             let window_clone = window.clone();
-            let selected_text_clone = selected_text.clone();
-
-            // 使用一次性监听器等待窗口加载完成
-            let _ = window.once("tauri://created", move |_| {
-                // 窗口创建完成后发送文本
-                std::thread::sleep(std::time::Duration::from_millis(500));
+            let text_clone = text.clone();
+            
+            // 使用延迟发送的方式，确保前端组件有足够时间初始化和设置监听器
+            tauri::async_runtime::spawn(async move {
+                // 延迟500ms尝试发送
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                 let _ = window_clone.emit(
                     "selection-text",
                     serde_json::json!({
-                        "text": selected_text_clone
+                        "text": text_clone.clone()
                     }),
                 );
             });
@@ -547,10 +579,10 @@ pub fn create_update_window() {
 
 // 显示隐藏窗口
 #[tauri::command]
-pub fn show_hide_window_command(label: &str) -> Result<(), String> {
+pub fn show_hide_window_command(label: &str, context: Option<String>) -> Result<(), String> {
     match label {
         "search" => {
-            hotkey_search();
+            hotkey_search(context);
         }
         "config" => {
             hotkey_config();
