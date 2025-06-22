@@ -149,7 +149,10 @@ const showCategorySelector = async () => {
               {
                 type: 'primary',
                 size: '',
-                onClick: () => {
+                onClick: async () => {
+                  if (categoryId.value !== content.value.category_id) {
+                    await handleCategoryChange(categoryId.value!);
+                  }
                   ElMessageBox.close();
                 }
               },
@@ -159,10 +162,6 @@ const showCategorySelector = async () => {
         ]);
       }
     });
-
-    if (categoryId.value !== content.value.category_id) {
-      await handleCategoryChange(categoryId.value!);
-    }
   } catch {
     console.log('取消');
   }

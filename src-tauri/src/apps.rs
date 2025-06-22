@@ -32,7 +32,7 @@ pub struct AppInfo {
 }
 
 fn extract_icon_path(icon_path: &str) -> Option<String> {
-    let re = Regex::new(r".*?([A-Z]:\\[^,]+(?:\.exe|\.ico)).*").unwrap();
+    let re = Regex::new(r".*?([A-Z]:\\[^,]+(?:\.exe)).*").unwrap();
     re.captures(icon_path)
         .and_then(|caps| caps.get(1))
         .map(|m| m.as_str().to_string())
@@ -62,7 +62,14 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
                         (app_data.get("DisplayName"), app_data.get("DisplayIcon"))
                     {
                         if let Some(icon_path) = extract_icon_path(display_icon) {
-                            if Path::new(&icon_path).exists() {
+                            let lower_icon_path = icon_path.to_lowercase();
+                            let lower_display_name = display_name.to_lowercase();
+                            if Path::new(&icon_path).exists()
+                                && !lower_icon_path.contains("uninstall")
+                                && !lower_icon_path.contains("unins")
+                                && !lower_display_name.contains("uninstall")
+                                && !lower_display_name.contains("remove")
+                            {
                                 apps.push(AppInfo {
                                     id: Uuid::new_v4().to_string(),
                                     title: display_name.clone(),
@@ -241,15 +248,28 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                                 .to_string_lossy()
                                 .to_string();
 
-                            info!("解析快捷方式成功: {} -> {}", file_name, target_path);
+                            let lower_target_path = target_path.to_lowercase();
+                            let lower_file_name = file_name.to_lowercase();
 
-                            apps.push(AppInfo {
-                                id: Uuid::new_v4().to_string(),
-                                title: file_name,
-                                content: target_path,
-                                icon: None, // 图标将在后续异步加载
-                                summarize: "app".to_string(),
-                            });
+                            if lower_target_path.contains("uninstall")
+                                || lower_target_path.contains("unins")
+                                || lower_file_name.contains("uninstall")
+                                || lower_file_name.contains("remove")
+                            {
+                                info!(
+                                    "Skipping uninstaller shortcut: {} -> {}",
+                                    file_name, target_path
+                                );
+                            } else {
+                                info!("解析快捷方式成功: {} -> {}", file_name, target_path);
+                                apps.push(AppInfo {
+                                    id: Uuid::new_v4().to_string(),
+                                    title: file_name,
+                                    content: target_path,
+                                    icon: None, // 图标将在后续异步加载
+                                    summarize: "app".to_string(),
+                                });
+                            }
                         }
                     }
                 }

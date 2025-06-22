@@ -334,7 +334,6 @@ const translateWithEngine = async (engine: string) => {
   } catch (error) {
     console.error(`${engine}翻译出错:`, error);
     result.text = '翻译失败，请重试';
-    ElMessage.error(`${engine}翻译失败: ` + error);
   } finally {
     result.loading = false;
   }
@@ -576,12 +575,13 @@ onUnmounted(() => {
                 <span class="material-icons">volume_up</span>
               </div>
             </el-tooltip>
-            <el-tooltip content="删除文本" placement="top" :hide-after="1000">
-              <div
-                v-if="showDeleteButton"
-                @click="clearInput"
-                class="action-btn"
-              >
+            <el-tooltip
+              v-if="showDeleteButton"
+              content="删除文本"
+              placement="top"
+              :hide-after="1000"
+            >
+              <div @click="clearInput" class="action-btn">
                 <span class="material-icons">delete</span>
               </div>
             </el-tooltip>

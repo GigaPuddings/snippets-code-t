@@ -115,15 +115,6 @@ declare module 'vue' {
     readonly ElMessage: UnwrapRef<
       (typeof import('element-plus/es'))['ElMessage']
     >;
-    readonly ElMessageBox: UnwrapRef<
-      (typeof import('element-plus/es'))['ElMessageBox']
-    >;
-    readonly ElOption: UnwrapRef<
-      (typeof import('element-plus/es'))['ElOption']
-    >;
-    readonly ElSelect: UnwrapRef<
-      (typeof import('element-plus/es'))['ElSelect']
-    >;
     readonly acceptHMRUpdate: UnwrapRef<
       (typeof import('pinia'))['acceptHMRUpdate']
     >;
