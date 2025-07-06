@@ -210,10 +210,10 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
     let path = PathBuf::from("store.bin");
     if let Ok(store) = StoreBuilder::new(&app_handle, path).build() {
         match reset_type.as_str() {
-            // 重置全部数据
             "" | "all" => {
                 info!("执行重置全部数据");
-                let _ = store.clear();
+                let _ = store.delete(INSTALLED_APPS_KEY);
+                let _ = store.delete(BROWSER_BOOKMARKS_KEY);
                 let _ = store.save();
 
                 // 使用默认配置,并且第一条数据设置为默认搜索引擎

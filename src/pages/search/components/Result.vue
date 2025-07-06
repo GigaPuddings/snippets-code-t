@@ -76,6 +76,7 @@
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@icon-park/vue-next';
+import { addSearchHistory } from '@/database/history';
 
 const store = useConfigurationStore();
 
@@ -263,6 +264,7 @@ const handleKeyEvent = (e: KeyboardEvent) => {
 // 选中代码行
 async function selectItem(item: ContentType) {
   store.id = item.id;
+  addSearchHistory(item);
 
   // 清除搜索关键词
   props.onClearSearch();

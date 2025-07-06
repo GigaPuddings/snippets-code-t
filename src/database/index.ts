@@ -22,7 +22,16 @@ export const getDb = async () => {
         category_id INTEGER,
         created_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS search_history (
+        id TEXT PRIMARY KEY,
+        usage_count INTEGER NOT NULL DEFAULT 1,
+        last_used_at TEXT NOT NULL
+      );
     `);
   }
   return dbInstance;
 };
+
+export * from './history';
+export * from './search';

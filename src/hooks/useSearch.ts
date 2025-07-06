@@ -1,4 +1,4 @@
-import { searchContent } from '@/database/search';
+import { searchContent, addSearchHistory, getSearchHistory } from '@/database';
 import { debounce } from '@/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -88,6 +88,35 @@ export function useSearch() {
     })) as ContentType[];
     results.push(...bookmarkResults.slice(0, 10));
 
+    // 根据历史记录排序
+    const history = await getSearchHistory();
+    if (history.length > 0) {
+      const historyMap = new Map(
+        history.map((h) => [
+          h.id,
+          { usage_count: h.usage_count, last_used_at: h.last_used_at }
+        ])
+      );
+
+      results.sort((a, b) => {
+        const aHistory = historyMap.get(String(a.id));
+        const bHistory = historyMap.get(String(b.id));
+
+        if (aHistory && !bHistory) return -1;
+        if (!aHistory && bHistory) return 1;
+        if (aHistory && bHistory) {
+          if (bHistory.usage_count !== aHistory.usage_count) {
+            return bHistory.usage_count - aHistory.usage_count;
+          }
+          return (
+            new Date(bHistory.last_used_at).getTime() -
+            new Date(aHistory.last_used_at).getTime()
+          );
+        }
+        return 0;
+      });
+    }
+
     // 默认搜索引擎选项始终显示
     const defaultEngine = searchEngines.value.find((e) => e.enabled);
     if (defaultEngine) {
@@ -119,6 +148,14 @@ export function useSearch() {
         '%s',
         encodeURIComponent(text)
       );
+      // add history
+      addSearchHistory({
+        id: 'default-search',
+        title: `使用 ${defaultEngine.name} 搜索: ${text}`,
+        content: searchUrl,
+        summarize: 'search',
+        icon: defaultEngine.icon
+      });
       await invoke('open_url', { url: searchUrl });
       searchText.value = '';
       invoke('show_hide_window_command', { label: 'search' });
