@@ -1,4 +1,4 @@
-use crate::config::BROWSER_BOOKMARKS_KEY;
+use crate::db;
 use crate::icon;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use glob::glob;
@@ -7,10 +7,23 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 use tokio;
 use uuid::Uuid;
+
+// 从URL提取域名作为标题
+fn get_domain_name(url_str: &str) -> Option<String> {
+    url::Url::parse(url_str).ok().and_then(|u| {
+        u.host_str().map(|h| {
+            let parts: Vec<&str> = h.split('.').collect();
+            if parts.len() > 1 && parts[0].eq_ignore_ascii_case("www") {
+                parts[1].to_string()
+            } else {
+                parts[0].to_string()
+            }
+        })
+    })
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BookmarkInfo {
@@ -444,14 +457,20 @@ fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
             if let Ok(rows) = stmt.query_map([], |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(1)?,
                     row.get::<_, String>(2)?,
                 ))
             }) {
                 for row in rows {
-                    if let Ok((id, title, url)) = row {
+                    if let Ok((id, title_opt, url)) = row {
                         // 尝试从Firefox数据库直接获取图标
                         let icon = get_favicon_from_firefox_db(&url, db_path);
+                        let mut title = title_opt.unwrap_or_default();
+                        if title.is_empty() {
+                            if let Some(domain_name) = get_domain_name(&url) {
+                                title = domain_name;
+                            }
+                        }
 
                         bookmarks.push(BookmarkInfo {
                             id: id.to_string(),
@@ -1066,6 +1085,13 @@ fn extract_bookmarks(
                 if let Some(url) = obj.get("url") {
                     if let Some(name) = obj.get("name") {
                         let url_str = url.as_str().unwrap_or("").to_string();
+                        let mut title = name.as_str().unwrap_or("").to_string();
+
+                        if title.is_empty() {
+                            if let Some(domain_name) = get_domain_name(&url_str) {
+                                title = domain_name;
+                            }
+                        }
 
                         // 尝试从浏览器数据库获取图标
                         let icon = if let Some(db_path) = favicon_db {
@@ -1088,7 +1114,7 @@ fn extract_bookmarks(
 
                         bookmarks.push(BookmarkInfo {
                             id: Uuid::new_v4().to_string(),
-                            title: name.as_str().unwrap_or("").to_string(),
+                            title,
                             content: url_str,
                             icon,
                             summarize: "bookmark".to_string(),
@@ -1112,7 +1138,6 @@ fn extract_bookmarks(
 
 // 在背景线程中加载书签图标 (无通知版本)
 pub fn load_bookmark_icons_async_silent(
-    app_handle: AppHandle,
     bookmarks: Vec<BookmarkInfo>,
     updated_count: std::sync::Arc<std::sync::Mutex<usize>>,
     completion_counter: std::sync::Arc<std::sync::Mutex<usize>>,
@@ -1120,19 +1145,14 @@ pub fn load_bookmark_icons_async_silent(
     // 为异步操作创建新的Tokio运行时
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
-    let mut updated_bookmarks = Vec::new();
     let mut count = 0;
 
     // 提示开发者
     info!("正在加载书签图标...");
 
     for bookmark in bookmarks {
-        let mut updated_bookmark = bookmark.clone();
-
-        // 如果书签已经有图标（从浏览器数据库直接获取的），直接使用
-        if updated_bookmark.icon.is_some() {
-            count += 1;
-            updated_bookmarks.push(updated_bookmark);
+        // 如果书签已经有图标（从浏览器数据库直接获取的），则跳过
+        if bookmark.icon.is_some() {
             continue;
         }
 
@@ -1141,18 +1161,15 @@ pub fn load_bookmark_icons_async_silent(
         if let Some(icon_data) =
             runtime.block_on(async { icon::fetch_favicon_async(&bookmark.content).await })
         {
-            updated_bookmark.icon = Some(icon_data);
-            count += 1;
+            if let Err(e) = db::update_bookmark_icon(&bookmark.id, &icon_data) {
+                info!("Failed to update bookmark icon in db: {}", e);
+            } else {
+                count += 1;
+            }
         } else {
             // 如果提取失败，icon为undefined
-            updated_bookmark.icon = None;
         }
-
-        updated_bookmarks.push(updated_bookmark);
     }
-
-    // 更新商店中的书签
-    crate::config::set_value(&app_handle, BROWSER_BOOKMARKS_KEY, updated_bookmarks);
 
     // 更新计数
     {

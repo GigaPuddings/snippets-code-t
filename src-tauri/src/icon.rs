@@ -1,7 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use log::info;
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
@@ -25,22 +24,15 @@ use crate::apps::load_app_icons_async_silent;
 use crate::apps::{get_installed_apps, AppInfo};
 use crate::bookmarks::load_bookmark_icons_async_silent;
 use crate::bookmarks::{get_browser_bookmarks, BookmarkInfo};
-use crate::config::{get_value, set_value, BROWSER_BOOKMARKS_KEY, INSTALLED_APPS_KEY};
+use crate::db;
+use crate::icon_cache::CachedIcon;
 
 // 图标缓存常数
-const ICON_CACHE_KEY: &str = "icon_cache";
 const MAX_CACHE_AGE: u64 = 604800; // 7 days in seconds
 
 // 全局图标缓存
 static ICON_CACHE: Lazy<Arc<Mutex<HashMap<String, CachedIcon>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
-
-// 代表一个缓存的图标
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CachedIcon {
-    data: String,
-    timestamp: u64,
-}
 
 // 从可执行文件中提取图标的功能
 pub fn extract_app_icon(app_path: &str) -> Option<String> {
@@ -195,15 +187,22 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
             }
         }
 
-        info!("PNG编码成功，大小: {}", png_data.len());
+        // info!("PNG编码成功，大小: {}", png_data.len());
 
         // 转换为base64
         let base64 = format!("data:image/png;base64,{}", STANDARD.encode(&png_data));
 
         // 缓存结果
-        cache_icon(app_path, &base64);
+        let cached_icon = CachedIcon {
+            data: base64.clone(),
+            timestamp: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        };
+        cache_icon(app_path, cached_icon);
 
-        info!("图标提取成功，Base64长度: {}", base64.len());
+        // info!("图标提取成功，Base64长度: {}", base64.len());
 
         Some(base64)
     }
@@ -228,31 +227,20 @@ fn get_cached_icon(key: &str) -> Option<String> {
 }
 
 // 将图标存储在缓存中
-fn cache_icon(key: &str, data: &str) {
+fn cache_icon(key: &str, icon: CachedIcon) {
     let mut cache = ICON_CACHE.lock().unwrap();
-
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or(Duration::from_secs(0))
-        .as_secs();
-
-    cache.insert(
-        key.to_string(),
-        CachedIcon {
-            data: data.to_string(),
-            timestamp: now,
-        },
-    );
+    cache.insert(key.to_string(), icon.clone());
+    if let Err(e) = db::insert_icon_to_cache(key, &icon) {
+        info!("Failed to cache icon in db: {}", e);
+    }
 }
 
 // 从商店加载图标缓存
-pub fn load_icon_cache(app_handle: &AppHandle) {
-    if let Some(cache_value) = get_value(app_handle, ICON_CACHE_KEY) {
-        if let Ok(cache_data) = serde_json::from_value::<HashMap<String, CachedIcon>>(cache_value) {
-            let mut cache = ICON_CACHE.lock().unwrap();
-            *cache = cache_data;
-            info!("加载 {} 个来自缓存的图标", cache.len());
-        }
+pub fn load_icon_cache(_app_handle: &AppHandle) {
+    if let Ok(cache_data) = db::load_all_icon_cache() {
+        let mut cache = ICON_CACHE.lock().unwrap();
+        *cache = cache_data;
+        info!("加载 {} 个来自缓存的图标", cache.len());
     }
 }
 
@@ -324,7 +312,14 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
                             let favicon =
                                 format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
                             // 缓存结果
-                            cache_icon(url, &favicon);
+                            let cached_icon = CachedIcon {
+                                data: favicon.clone(),
+                                timestamp: SystemTime::now()
+                                    .duration_since(SystemTime::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs(),
+                            };
+                            cache_icon(url, cached_icon);
                             return Some(favicon);
                         }
                     }
@@ -338,43 +333,53 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
     None
 }
 
-// 获取应用和书签的图标，并保存在store中
+// 获取应用和书签的图标
 pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
+    info!("初始化应用和书签图标");
     //加载图标缓存
     load_icon_cache(app_handle);
 
-    // 先检查是否已有缓存的数据
-    let has_cached_apps = get_value(app_handle, INSTALLED_APPS_KEY).is_some();
-    let has_cached_bookmarks = get_value(app_handle, BROWSER_BOOKMARKS_KEY).is_some();
+    // 检查数据库中是否已有数据
+    let apps_count = db::count_apps().unwrap_or(0);
+    let bookmarks_count = db::count_bookmarks().unwrap_or(0);
 
-    // 只有在没有缓存时才重新加载应用和书签
-    // 开发模式暂时关闭
-    if !has_cached_apps || !has_cached_bookmarks {
-        info!("没有缓存的应用程序或书签数据，加载新数据..");
+    info!("应用数量: {}, 书签数量: {}", apps_count, bookmarks_count);
 
-        //获取应用程序和书签
-        let apps = get_installed_apps();
-        let bookmarks = get_browser_bookmarks();
+    let mut apps_to_load = Vec::new();
+    let mut bookmarks_to_load = Vec::new();
 
-        //首先存储无图标的应用程序和书签以快速访问
-        set_value(app_handle, INSTALLED_APPS_KEY, apps.clone());
-        set_value(app_handle, BROWSER_BOOKMARKS_KEY, bookmarks.clone());
-
-        //异步加载图标并合并通知
-        load_icons_with_combined_notification(app_handle.clone(), apps, bookmarks);
+    if apps_count == 0 {
+        info!("数据库中没有应用数据，开始扫描应用...");
+        apps_to_load = get_installed_apps();
+        
+        // 存储应用到数据库
+        if let Err(e) = db::insert_apps(&apps_to_load) {
+            info!("插入应用到数据库失败: {}", e);
+        } else {
+            info!("成功插入 {} 个应用到数据库", apps_to_load.len());
+        }
     } else {
-        info!("使用缓存的应用程序和书签数据");
+        info!("数据库中已存在 {} 个应用，跳过应用扫描", apps_count);
     }
 
-    //安排定期图标缓存保存
-    // let app_handle_clone = app_handle.clone();
-    // tauri::async_runtime::spawn(async move {
-    //     loop {
-    //         //每30分钟保存每30分钟的图标缓存
-    //         tokio::time::sleep(tokio::time::Duration::from_secs(1800)).await;
-    //         save_icon_cache(&app_handle_clone);
-    //     }
-    // });
+    if bookmarks_count == 0 {
+        info!("数据库中没有书签数据，开始扫描书签...");
+        bookmarks_to_load = get_browser_bookmarks();
+        
+        // 存储书签到数据库
+        if let Err(e) = db::insert_bookmarks(&bookmarks_to_load) {
+            info!("插入书签到数据库失败: {}", e);
+        } else {
+            info!("成功插入 {} 个书签到数据库", bookmarks_to_load.len());
+        }
+    } else {
+        info!("数据库中已存在 {} 个书签，跳过书签扫描", bookmarks_count);
+    }
+
+    // 只为需要加载的数据异步加载图标
+    if !apps_to_load.is_empty() || !bookmarks_to_load.is_empty() {
+        load_icons_with_combined_notification(app_handle.clone(), apps_to_load, bookmarks_to_load);
+    }
 }
 
 // 合并加载应用和书签图标并发送单一通知
@@ -387,53 +392,40 @@ fn load_icons_with_combined_notification(
 
     let app_count = Arc::new(Mutex::new(0));
     let bookmark_count = Arc::new(Mutex::new(0));
-    let completion_counter = Arc::new(Mutex::new(0));
 
-    // 使用克隆以便在两个线程中使用
-    let app_handle_for_apps = app_handle.clone();
-    let app_handle_for_bookmarks = app_handle.clone();
-    let app_handle_for_notification = app_handle.clone();
-
-    let app_count_for_apps = app_count.clone();
-    let bookmark_count_for_bookmarks = bookmark_count.clone();
-    let completion_counter_for_apps = completion_counter.clone();
-    let completion_counter_for_bookmarks = completion_counter.clone();
-
-    // 启动应用图标加载线程
-    std::thread::spawn(move || {
-        load_app_icons_async_silent(
-            app_handle_for_apps,
-            apps,
-            app_count_for_apps,
-            completion_counter_for_apps,
-        );
+    let app_count_clone = app_count.clone();
+    let app_thread = std::thread::spawn(move || {
+        if apps.is_empty() {
+            return;
+        }
+        let dummy_completion_counter = Arc::new(Mutex::new(0));
+        load_app_icons_async_silent(apps, app_count_clone, dummy_completion_counter);
     });
 
-    // 启动书签图标加载线程
-    std::thread::spawn(move || {
-        load_bookmark_icons_async_silent(
-            app_handle_for_bookmarks,
-            bookmarks,
-            bookmark_count_for_bookmarks,
-            completion_counter_for_bookmarks,
-        );
+    let bookmark_count_clone = bookmark_count.clone();
+    let bookmark_thread = std::thread::spawn(move || {
+        if bookmarks.is_empty() {
+            return;
+        }
+        let dummy_completion_counter = Arc::new(Mutex::new(0));
+        load_bookmark_icons_async_silent(bookmarks, bookmark_count_clone, dummy_completion_counter);
     });
 
-    // 监控完成状态并发送统一通知
+    // 在一个单独的线程中等待并发送通知，以避免阻塞UI
     std::thread::spawn(move || {
         // 等待两个加载过程完成
-        while *completion_counter.lock().unwrap() < 2 {
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
+        app_thread.join().unwrap();
+        bookmark_thread.join().unwrap();
 
         // 获取加载的图标数量
         let apps_loaded = *app_count.lock().unwrap();
         let bookmarks_loaded = *bookmark_count.lock().unwrap();
         let total_loaded = apps_loaded + bookmarks_loaded;
 
+        info!("应用加载数量: {}, 书签加载数量: {}, 总共加载数量: {}", apps_loaded, bookmarks_loaded, total_loaded);
         // 只有当确实加载了图标时才发送通知
         if total_loaded > 0 {
-            let _ = app_handle_for_notification
+            let _ = app_handle
                 .notification()
                 .builder()
                 .title("图标加载完成")

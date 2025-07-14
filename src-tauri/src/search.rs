@@ -1,8 +1,6 @@
 use crate::apps::AppInfo;
 use crate::bookmarks::BookmarkInfo;
-use crate::config::{
-    get_value, set_value, BROWSER_BOOKMARKS_KEY, INSTALLED_APPS_KEY, SEARCH_ENGINES_KEY,
-};
+use crate::db;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use log::info;
@@ -98,10 +96,10 @@ fn fuzzy_search<T: Clone>(
 
 // 搜索应用
 #[tauri::command]
-pub fn search_apps(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    let apps = match crate::config::get_value(&app_handle, INSTALLED_APPS_KEY) {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
-        None => Vec::new(),
+pub fn search_apps(_app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
+    let apps = match db::get_all_apps() {
+        Ok(apps) => apps,
+        Err(_) => Vec::new(),
     };
 
     let results = fuzzy_search(
@@ -126,10 +124,10 @@ pub fn search_apps(app_handle: AppHandle, query: String) -> Result<Vec<SearchRes
 
 // 搜索书签
 #[tauri::command]
-pub fn search_bookmarks(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    let bookmarks = match crate::config::get_value(&app_handle, BROWSER_BOOKMARKS_KEY) {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
-        None => Vec::new(),
+pub fn search_bookmarks(_app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
+    let bookmarks = match db::get_all_bookmarks() {
+        Ok(bookmarks) => bookmarks,
+        Err(_) => Vec::new(),
     };
 
     let results = fuzzy_search(
@@ -154,36 +152,34 @@ pub fn search_bookmarks(app_handle: AppHandle, query: String) -> Result<Vec<Sear
 
 // 获取搜索引擎配置
 #[tauri::command]
-pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
-    match get_value(&app_handle, SEARCH_ENGINES_KEY) {
-        Some(engines) => Ok(engines
-            .as_array()
-            .unwrap_or(&Vec::new())
-            .iter()
-            .map(|e| serde_json::from_value(e.clone()).unwrap())
-            .collect()),
-        None => {
-            // 如果没有保存的搜索引擎配置，使用默认配置,并且第一条数据设置为默认搜索引擎
-            let mut engines: Vec<SearchEngine> =
-                serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
-            if !engines.is_empty() {
-                engines[0].enabled = true;
+pub fn get_search_engines(_app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
+    match db::get_all_search_engines() {
+        Ok(engines) => {
+            if engines.is_empty() {
+                // 如果没有保存的搜索引擎配置，使用默认配置,并且第一条数据设置为默认搜索引擎
+                let mut default_engines: Vec<SearchEngine> =
+                    serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
+                if !default_engines.is_empty() {
+                    default_engines[0].enabled = true;
+                }
+                db::replace_all_search_engines(&default_engines).map_err(|e| e.to_string())?;
+                Ok(default_engines)
+            } else {
+                Ok(engines)
             }
-            set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
-            Ok(engines)
         }
+        Err(e) => Err(e.to_string()),
     }
 }
 
 // 更新搜索引擎配置
 #[tauri::command]
 pub fn update_search_engines(
-    app_handle: AppHandle,
+    _app_handle: AppHandle,
     engines: Vec<SearchEngine>,
 ) -> Result<(), String> {
     info!("更新搜索引擎配置");
-    set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
-    Ok(())
+    db::replace_all_search_engines(&engines).map_err(|e| e.to_string())
 }
 
 // 获取默认搜索引擎配置

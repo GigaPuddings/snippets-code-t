@@ -1,4 +1,4 @@
-use crate::config::INSTALLED_APPS_KEY;
+use crate::db;
 use crate::icon;
 use glob::glob;
 use log::info;
@@ -9,7 +9,6 @@ use std::fs;
 use std::mem::size_of;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
-use tauri::AppHandle;
 use uuid::Uuid;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::System::ProcessStatus::{K32EnumProcesses, K32GetModuleFileNameExA};
@@ -236,7 +235,7 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                 let path = entry.path();
 
                 if path.extension().map_or(false, |ext| ext == "lnk") {
-                    info!("检测到快捷方式: {:?}", path);
+                    // info!("检测到快捷方式: {:?}", path);
 
                     // 解析快捷方式获取目标应用路径和名称
                     if let Some(target_path) = resolve_shortcut(&path) {
@@ -261,7 +260,7 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                                     file_name, target_path
                                 );
                             } else {
-                                info!("解析快捷方式成功: {} -> {}", file_name, target_path);
+                                // info!("解析快捷方式成功: {} -> {}", file_name, target_path);
                                 apps.push(AppInfo {
                                     id: Uuid::new_v4().to_string(),
                                     title: file_name,
@@ -284,14 +283,13 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
 // 解析快捷方式获取目标路径
 fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
     // 使用稳定的方式处理快捷方式解析，防止PowerShell闪退
-    info!("尝试解析快捷方式: {:?}", shortcut_path);
+    // info!("尝试解析快捷方式: {:?}", shortcut_path);
 
     let shortcut_path_str = shortcut_path.to_string_lossy().to_string();
 
     // 避免直接使用PowerShell创建COM对象，因为这可能在Windows权限或安全设置下导致问题
     // 改用更直接的文件读取方式或静态路径匹配
 
-    // 方法1: 尝试使用预先定义的常用目标位置猜测目标
     let filename = shortcut_path
         .file_stem()
         .unwrap_or_default()
@@ -328,16 +326,15 @@ fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
 
     if let Some(target) = common_targets {
         if Path::new(target).exists() {
-            info!("通过名称匹配找到快捷方式目标: {} -> {}", filename, target);
+            // info!("通过名称匹配找到快捷方式目标: {} -> {}", filename, target);
             return Some(target.to_string());
         }
     }
 
-    // 方法2: 使用PowerShell但添加更多错误处理
     // 包装在一个独立函数中，避免在出错时影响整个应用程序
     match resolve_shortcut_with_powershell(shortcut_path) {
         Ok(Some(path)) => {
-            info!("成功解析快捷方式: {} -> {}", shortcut_path_str, path);
+            // info!("成功解析快捷方式: {} -> {}", shortcut_path_str, path);
             Some(path)
         }
         Ok(None) => {
@@ -782,58 +779,52 @@ fn detect_office_app_path(version: &str, app_name: &str) -> Option<String> {
     None
 }
 
-// 查找现代系统应用（如设置、Windows商店等）
+// 查找System32目录下的系统应用
 fn find_modern_system_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
 
-    // 检查常见的现代应用包位置
-    if let Ok(system_apps_path) = std::env::var("WINDIR") {
-        let system_apps_dir = format!("{}\\SystemApps", system_apps_path);
-        let search_pattern = format!("{}\\*\\*.exe", system_apps_dir);
+    // 直接查询C:\Windows\System32目录下的.exe文件
+    let system32_dir = "C:\\Windows\\System32";
+    let search_pattern = format!("{}\\*.exe", system32_dir);
 
-        info!("正在检索Windows现代应用: {}", search_pattern);
+    info!("正在检索Windows System32应用: {}", search_pattern);
 
-        if let Ok(paths) = glob(&search_pattern) {
-            for entry in paths.filter_map(Result::ok) {
-                // 提取应用名称（从路径提取，并做一些净化）
-                if let Some(file_name) = entry.file_name() {
-                    let name = file_name.to_string_lossy().to_string();
+    if let Ok(paths) = glob(&search_pattern) {
+        for entry in paths.filter_map(Result::ok) { 
+            if let Some(file_name) = entry.file_name() {
+                let name = file_name.to_string_lossy().to_string();
 
-                    // 映射一些常见的系统应用名称
-                    let display_name = match name.as_str() {
-                        "ApplicationFrameHost.exe" => "Windows应用主机".to_string(),
-                        "ShellExperienceHost.exe" => "Windows Shell体验主机".to_string(),
-                        "StartMenuExperienceHost.exe" => "开始菜单".to_string(),
-                        "SearchApp.exe" => "Windows搜索".to_string(),
-                        "SettingsHost.exe" => "Windows设置".to_string(),
-                        "WinStore.App.exe" => "Microsoft Store".to_string(),
-                        "SystemSettings.exe" => "系统设置".to_string(),
-                        "WindowsCamera.exe" => "Windows相机".to_string(),
-                        "MicrosoftEdge.exe" => "Microsoft Edge".to_string(),
-                        "Calculator.exe" => "计算器".to_string(),
-                        "Microsoft.Photos.exe" => "Windows照片".to_string(),
-                        "YourPhone.exe" => "你的手机".to_string(),
-                        _ => {
-                            // 对于其他未识别的，尝试净化名称
-                            let clean_name = name.replace(".exe", "");
-                            if clean_name.contains("App") || clean_name.contains("Host") {
-                                continue; // 跳过辅助进程
-                            }
-                            clean_name
-                        }
-                    };
+                // 映射一些常见的系统应用名称
+                let display_name = match name.as_str() {
+                    "calc.exe" => "计算器".to_string(),
+                    "notepad.exe" => "记事本".to_string(),
+                    "mspaint.exe" => "画图".to_string(),
+                    "cmd.exe" => "命令提示符".to_string(),
+                    "powershell.exe" => "PowerShell".to_string(),
+                    "taskmgr.exe" => "任务管理器".to_string(),
+                    "regedit.exe" => "注册表编辑器".to_string(),
+                    "msconfig.exe" => "系统配置".to_string(),
+                    "winver.exe" => "关于Windows".to_string(),
+                    "dxdiag.exe" => "DirectX诊断工具".to_string(),
+                    "msinfo32.exe" => "系统信息".to_string(),
+                    "charmap.exe" => "字符映射表".to_string(),
+                    "control.exe" => "控制面板".to_string(),
+                    "explorer.exe" => "文件资源管理器".to_string(),
+                    _ => {
+                        continue;
+                    }
+                };
 
-                    let path_str = entry.to_string_lossy().to_string();
-                    info!("找到系统应用: {} -> {}", display_name, path_str);
+                let path_str = entry.to_string_lossy().to_string();
+                info!("找到系统应用: {} -> {}", display_name, path_str);
 
-                    apps.push(AppInfo {
-                        id: Uuid::new_v4().to_string(),
-                        title: display_name,
-                        content: path_str,
-                        icon: None,
-                        summarize: "app".to_string(),
-                    });
-                }
+                apps.push(AppInfo {
+                    id: Uuid::new_v4().to_string(),
+                    title: display_name,
+                    content: path_str,
+                    icon: None,
+                    summarize: "app".to_string(),
+                });
             }
         }
     }
@@ -1085,35 +1076,31 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
 
 // 在背景线程中加载应用程序图标 (无通知版本)
 pub fn load_app_icons_async_silent(
-    app_handle: AppHandle,
     apps: Vec<AppInfo>,
     updated_count: std::sync::Arc<std::sync::Mutex<usize>>,
     completion_counter: std::sync::Arc<std::sync::Mutex<usize>>,
 ) {
-    let mut updated_apps = Vec::new();
     let mut count = 0;
 
     info!("开始加载应用程序图标: {} 个应用", apps.len());
 
-    for mut app in apps {
+    for app in apps {
         // 只处理没有图标的应用程序
         if app.icon.is_none() {
             // info!("正在为 '{}' 提取图标: {}", app.title, app.content);
             if let Some(icon_data) = icon::extract_app_icon(&app.content) {
                 // info!("成功获取 '{}' 的图标", app.title);
-                app.icon = Some(icon_data);
-                count += 1;
+                if let Err(e) = db::update_app_icon(&app.id, &icon_data) {
+                    info!("Failed to update app icon in db: {}", e);
+                } else {
+                    count += 1;
+                }
             } else {
                 info!("为 '{}' 提取图标失败，使用默认图标", app.title);
                 // 如果提取失败，使用默认图标
-                app.icon = None;
             }
         }
-        updated_apps.push(app);
     }
-
-    // 更新商店中的应用程序
-    crate::config::set_value(&app_handle, INSTALLED_APPS_KEY, &updated_apps);
 
     // 更新计数
     {

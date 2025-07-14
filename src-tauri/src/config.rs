@@ -1,3 +1,4 @@
+use crate::db;
 use crate::search::{SearchEngine, DEFAULT_ENGINES};
 use log::{info, LevelFilter};
 use serde_json::{json, Value};
@@ -7,10 +8,6 @@ use tauri_plugin_global_shortcut::{Code, Modifiers};
 use tauri_plugin_store::StoreBuilder;
 // use mouse_position::mouse_position::{Mouse, Position};
 
-pub const INSTALLED_APPS_KEY: &str = "installed_apps"; // 已安装应用
-pub const SEARCH_ENGINES_KEY: &str = "search_engines"; // 搜索引擎配置
-pub const BROWSER_BOOKMARKS_KEY: &str = "browser_bookmarks"; // 检索书签
-pub const ALARM_CARDS_KEY: &str = "alarm_cards"; // 代办事项提醒列表
 pub const DB_PATH_KEY: &str = "custom_db_path"; // 自定义数据库路径
 pub const UPDATE_AVAILABLE_KEY: &str = "update_available"; // 更新可用标志
 pub const UPDATE_INFO_KEY: &str = "update_info"; // 更新信息
@@ -207,66 +204,62 @@ pub fn control_logging(enable: bool) {
 // 重置软件
 #[tauri::command]
 pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Result<(), String> {
-    let path = PathBuf::from("store.bin");
-    if let Ok(store) = StoreBuilder::new(&app_handle, path).build() {
-        match reset_type.as_str() {
-            "" | "all" => {
-                info!("执行重置全部数据");
-                let _ = store.delete(INSTALLED_APPS_KEY);
-                let _ = store.delete(BROWSER_BOOKMARKS_KEY);
-                let _ = store.save();
+    match reset_type.as_str() {
+        "" | "all" => {
+            info!("执行重置全部数据");
+            let _ = db::clear_apps();
+            let _ = db::clear_bookmarks();
+            let _ = db::clear_search_engines();
+            let _ = db::clear_alarm_cards();
 
-                // 使用默认配置,并且第一条数据设置为默认搜索引擎
-                let mut engines: Vec<SearchEngine> =
-                    serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
-                if !engines.is_empty() {
-                    engines[0].enabled = true;
-                }
-                set_value(&app_handle, SEARCH_ENGINES_KEY, &engines);
+            // 使用默认配置,并且第一条数据设置为默认搜索引擎
+            let mut engines: Vec<SearchEngine> =
+                serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
+            if !engines.is_empty() {
+                engines[0].enabled = true;
+            }
+            db::replace_all_search_engines(&engines).map_err(|e| e.to_string())?;
 
-                // 在后台线程中注销所有快捷键并重启应用程序
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_secs(3));
-                    // 注销所有快捷键
-                    app_handle.global_shortcut().unregister_all().unwrap();
-                    // 重启应用程序
-                    app_handle.restart();
-                });
-            }
-            // 重置应用列表
-            "apps" => {
-                info!("执行重置应用列表");
-                let _ = store.delete(INSTALLED_APPS_KEY);
-                let _ = store.save();
+            // 在后台线程中注销所有快捷键并重启应用程序
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                // 注销所有快捷键
+                app_handle.global_shortcut().unregister_all().unwrap();
+                // 重启应用程序
+                app_handle.restart();
+            });
+        }
+        // 重置应用列表
+        "apps" => {
+            info!("执行重置应用列表");
+            let _ = db::clear_apps();
 
-                // 在后台线程中注销所有快捷键并重启应用程序
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_secs(3));
-                    // 注销所有快捷键
-                    app_handle.global_shortcut().unregister_all().unwrap();
-                    // 重启应用程序
-                    app_handle.restart();
-                });
-            }
-            // 重置书签
-            "bookmarks" => {
-                info!("执行重置书签");
-                let _ = store.delete(BROWSER_BOOKMARKS_KEY);
-                let _ = store.save();
+            // 在后台线程中注销所有快捷键并重启应用程序
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                // 注销所有快捷键
+                app_handle.global_shortcut().unregister_all().unwrap();
+                // 重启应用程序
+                app_handle.restart();
+            });
+        }
+        // 重置书签
+        "bookmarks" => {
+            info!("执行重置书签");
+            let _ = db::clear_bookmarks();
 
-                // 在后台线程中注销所有快捷键并重启应用程序
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_secs(3));
-                    // 注销所有快捷键
-                    app_handle.global_shortcut().unregister_all().unwrap();
-                    // 重启应用程序
-                    app_handle.restart();
-                });
-            }
-            // 不支持的重置类型
-            _ => {
-                return Err(format!("不支持的重置类型: {}", reset_type));
-            }
+            // 在后台线程中注销所有快捷键并重启应用程序
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                // 注销所有快捷键
+                app_handle.global_shortcut().unregister_all().unwrap();
+                // 重启应用程序
+                app_handle.restart();
+            });
+        }
+        // 不支持的重置类型
+        _ => {
+            return Err(format!("不支持的重置类型: {}", reset_type));
         }
     }
 

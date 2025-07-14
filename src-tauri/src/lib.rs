@@ -6,6 +6,7 @@ mod config;
 mod db;
 mod hotkey;
 mod icon;
+mod icon_cache;
 mod search;
 mod translation;
 mod tray;
@@ -154,6 +155,8 @@ pub fn run() {
         .setup(|app| {
             // 在应用启动时初始化 APP
             APP.set(app.handle().clone()).unwrap();
+            // 初始化数据库
+            db::init_db().expect("初始化数据库失败");
             // 创建托盘图标（如果需要）
             #[cfg(all(desktop))]
             {

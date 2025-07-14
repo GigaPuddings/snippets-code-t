@@ -1,49 +1,25 @@
-use crate::config::{get_value, set_value, ALARM_CARDS_KEY};
+use crate::db;
 use crate::window::create_notification_window;
 use crate::APP;
 use chrono::{DateTime, Datelike as _, Duration, Local, NaiveTime, Timelike as _};
-use lazy_static::lazy_static;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
 use std::thread;
 use std::time::Duration as StdDuration;
 use tauri_plugin_notification::NotificationExt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AlarmCard {
-    id: String,
-    time: String,
-    title: String,
-    weekdays: Vec<String>,
-    reminder_time: String,
-    is_active: bool,
-    created_at: DateTime<Local>,
-    updated_at: DateTime<Local>,
-    time_left: String,
-}
-
-// 保存代办事项提醒列表到 store
-fn save_alarm_cards(cards: &Vec<AlarmCard>) {
-    if let Some(app) = APP.get() {
-        set_value(app, ALARM_CARDS_KEY, cards);
-    }
-}
-
-// 从 store 加载代办事项提醒列表
-fn load_alarm_cards() -> Vec<AlarmCard> {
-    if let Some(app) = APP.get() {
-        if let Some(value) = get_value(app, ALARM_CARDS_KEY) {
-            return serde_json::from_value(value).unwrap_or_default();
-        }
-    }
-    Vec::new()
-}
-
-// 初始化 ALARM_CARDS
-lazy_static! {
-    static ref ALARM_CARDS: Mutex<Vec<AlarmCard>> = Mutex::new(load_alarm_cards());
+    pub id: String,
+    pub time: String,
+    pub title: String,
+    pub weekdays: Vec<String>,
+    pub reminder_time: String,
+    pub is_active: bool,
+    pub created_at: DateTime<Local>,
+    pub updated_at: DateTime<Local>,
+    pub time_left: String,
 }
 
 // 添加一个静态变量来跟踪服务是否已启动
@@ -51,24 +27,27 @@ static SERVICE_RUNNING: AtomicBool = AtomicBool::new(false);
 
 // 添加一个新的函数来检查是否需要启动定时服务
 fn should_start_service() -> bool {
-    let cards = ALARM_CARDS.lock().unwrap();
-    let now = Local::now();
-    let current_weekday = now.format("%a").to_string();
+    if let Ok(cards) = db::get_all_alarm_cards() {
+        let now = Local::now();
+        let current_weekday = now.format("%a").to_string();
 
-    cards.iter().any(|card| {
-        if !card.is_active {
-            return false;
-        }
-        // 检查是否是今天需要提醒的事项
-        if card.weekdays.is_empty() || card.weekdays.contains(&current_weekday) {
-            let alarm_time = NaiveTime::parse_from_str(&card.time, "%H:%M").unwrap();
-            let current_time = now.time();
-            // 如果代办提醒时间还没到，就需要启动服务
-            alarm_time > current_time
-        } else {
+        cards.iter().any(|card| {
+            if !card.is_active {
+                return false;
+            }
+            // 检查是否是今天需要提醒的事项
+            if card.weekdays.is_empty() || card.weekdays.contains(&current_weekday) {
+                if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
+                    let current_time = now.time();
+                    // 如果代办提醒时间还没到，就需要启动服务
+                    return alarm_time > current_time;
+                }
+            }
             false
-        }
-    })
+        })
+    } else {
+        false
+    }
 }
 
 impl AlarmCard {
@@ -191,15 +170,16 @@ pub fn add_alarm_card(mut card: AlarmCard) -> Result<AlarmCard, String> {
         .map(|day| convert_weekday(day).to_string())
         .collect();
 
-    let mut cards = ALARM_CARDS.lock().unwrap();
     let new_card = AlarmCard {
         id: uuid::Uuid::new_v4().to_string(),
         created_at: Local::now(),
         updated_at: Local::now(),
         ..card
     };
-    cards.push(new_card.clone());
-    save_alarm_cards(&cards);
+
+    if let Err(e) = db::add_or_update_alarm_card(&new_card) {
+        return Err(e.to_string());
+    }
 
     // 在新线程中检查和启动服务
     if let Some(app) = APP.get() {
@@ -224,28 +204,33 @@ pub fn update_alarm_card(mut card: AlarmCard) -> Result<AlarmCard, String> {
         .map(|day| convert_weekday(day).to_string())
         .collect();
 
-    let mut cards = ALARM_CARDS.lock().unwrap();
-    if let Some(index) = cards.iter().position(|c| c.id == card.id) {
-        let updated_card = AlarmCard {
-            updated_at: Local::now(),
-            ..card
-        };
-        cards[index] = updated_card.clone();
-        save_alarm_cards(&cards);
+    if let Ok(cards) = db::get_all_alarm_cards() {
+        if let Some(index) = cards.iter().position(|c| c.id == card.id) {
+            let updated_card = AlarmCard {
+                updated_at: Local::now(),
+                created_at: cards[index].created_at, // Preserve original creation time
+                ..card
+            };
+            if let Err(e) = db::add_or_update_alarm_card(&updated_card) {
+                return Err(e.to_string());
+            }
 
-        // 在新线程中检查和启动服务
-        if let Some(app) = APP.get() {
-            let app_handle = app.clone();
-            thread::spawn(move || {
-                if !SERVICE_RUNNING.load(Ordering::SeqCst) && should_start_service() {
-                    start_alarm_service(app_handle);
-                }
-            });
+            // 在新线程中检查和启动服务
+            if let Some(app) = APP.get() {
+                let app_handle = app.clone();
+                thread::spawn(move || {
+                    if !SERVICE_RUNNING.load(Ordering::SeqCst) && should_start_service() {
+                        start_alarm_service(app_handle);
+                    }
+                });
+            }
+
+            Ok(updated_card)
+        } else {
+            Err("Alarm card not found".to_string())
         }
-
-        Ok(updated_card)
     } else {
-        Err("Alarm card not found".to_string())
+        Err("Failed to get alarm cards from db".to_string())
     }
 }
 
@@ -265,165 +250,178 @@ fn convert_weekday_back(day: &str) -> &str {
 
 #[tauri::command]
 pub fn get_alarm_cards() -> Vec<AlarmCard> {
-    let cards = ALARM_CARDS.lock().unwrap();
-    cards
-        .iter()
-        .map(|card| {
-            let mut card = card.clone();
-            card.time_left = card.calculate_time_left();
-            // 转换星期格式回中文
-            card.weekdays = card
-                .weekdays
-                .iter()
-                .map(|day| convert_weekday_back(day).to_string())
-                .collect();
-            card
-        })
-        .collect()
-}
-
-#[tauri::command]
-pub fn delete_alarm_card(id: String) -> Result<(), String> {
-    let mut cards = ALARM_CARDS.lock().unwrap();
-    if let Some(index) = cards.iter().position(|c| c.id == id) {
-        cards.remove(index);
-        save_alarm_cards(&cards); // 保存到文件
-
-        // 在新线程中检查是否需要继续运行服务
-        if let Some(_app) = APP.get() {
-            thread::spawn(move || {
-                // 如果服务正在运行，且没有需要提醒的事项，则停止服务
-                if SERVICE_RUNNING.load(Ordering::SeqCst) && !should_start_service() {
-                    info!("删除后没有需要提醒的事项，停止服务");
-                    SERVICE_RUNNING.store(false, Ordering::SeqCst);
-                }
-            });
-        }
-
-        Ok(())
+    if let Ok(cards) = db::get_all_alarm_cards() {
+        cards
+            .into_iter()
+            .map(|mut card| {
+                card.time_left = card.calculate_time_left();
+                // 转换星期格式回中文
+                card.weekdays = card
+                    .weekdays
+                    .iter()
+                    .map(|day| convert_weekday_back(day).to_string())
+                    .collect();
+                card
+            })
+            .collect()
     } else {
-        Err("Alarm card not found".to_string())
+        Vec::new()
     }
 }
 
 #[tauri::command]
+pub fn delete_alarm_card(id: String) -> Result<(), String> {
+    if let Err(e) = db::delete_alarm_card_from_db(&id) {
+        return Err(e.to_string());
+    }
+
+    // 在新线程中检查是否需要继续运行服务
+    if let Some(_app) = APP.get() {
+        thread::spawn(move || {
+            // 如果服务正在运行，且没有需要提醒的事项，则停止服务
+            if SERVICE_RUNNING.load(Ordering::SeqCst) && !should_start_service() {
+                info!("删除后没有需要提醒的事项，停止服务");
+                SERVICE_RUNNING.store(false, Ordering::SeqCst);
+            }
+        });
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn toggle_alarm_card(id: String) -> Result<AlarmCard, String> {
-    let mut cards = ALARM_CARDS.lock().unwrap();
-    if let Some(index) = cards.iter().position(|c| c.id == id) {
-        let mut card = cards[index].clone();
-        card.is_active = !card.is_active;
-        cards[index] = card.clone();
-        save_alarm_cards(&cards);
+    if let Ok(cards) = db::get_all_alarm_cards() {
+        if let Some(index) = cards.iter().position(|c| c.id == id) {
+            let mut card = cards[index].clone();
+            card.is_active = !card.is_active;
+            card.updated_at = Local::now();
 
-        // 在新线程中检查是否需要继续运行服务
-        if let Some(app) = APP.get() {
-            let app_handle = app.clone();
-            thread::spawn(move || {
-                if !card.is_active {
-                    // 如果是禁用代办提醒，检查是否需要停止服务
-                    if SERVICE_RUNNING.load(Ordering::SeqCst) && !should_start_service() {
-                        info!("禁用后没有需要提醒的事项，停止服务");
-                        SERVICE_RUNNING.store(false, Ordering::SeqCst);
+            if let Err(e) = db::add_or_update_alarm_card(&card) {
+                return Err(e.to_string());
+            }
+
+            // 在新线程中检查是否需要继续运行服务
+            if let Some(app) = APP.get() {
+                let app_handle = app.clone();
+                thread::spawn(move || {
+                    if !card.is_active {
+                        // 如果是禁用代办提醒，检查是否需要停止服务
+                        if SERVICE_RUNNING.load(Ordering::SeqCst) && !should_start_service() {
+                            info!("禁用后没有需要提醒的事项，停止服务");
+                            SERVICE_RUNNING.store(false, Ordering::SeqCst);
+                        }
+                    } else {
+                        // 如果是启用代办提醒，检查是否需要启动服务
+                        if !SERVICE_RUNNING.load(Ordering::SeqCst) && should_start_service() {
+                            start_alarm_service(app_handle);
+                        }
                     }
-                } else {
-                    // 如果是启用代办提醒，检查是否需要启动服务
-                    if !SERVICE_RUNNING.load(Ordering::SeqCst) && should_start_service() {
-                        start_alarm_service(app_handle);
-                    }
-                }
-            });
+                });
+            }
+            Ok(card)
+        } else {
+            Err("Alarm card not found".to_string())
         }
-
-        Ok(card)
     } else {
-        Err("Alarm card not found".to_string())
+        Err("Failed to get alarm cards from db".to_string())
     }
 }
 
 // 检查代办提醒并发送通知
 pub fn check_alarms(_app_handle: tauri::AppHandle) {
-    let cards = ALARM_CARDS.lock().unwrap();
-    let now = Local::now();
-    let current_time = now.time().with_nanosecond(0).unwrap();
-    let current_weekday = now.format("%a").to_string();
-    // info!("当前时间: {} - {}", current_weekday, current_time);
+    if let Ok(cards) = db::get_all_alarm_cards() {
+        let now = Local::now();
+        let current_time = now.time().with_nanosecond(0).unwrap();
+        let current_weekday = now.format("%a").to_string();
+        // info!("当前时间: {} - {}", current_weekday, current_time);
 
-    // 先处理当前需要触发的提醒
-    let mut has_current_alarms = false;
-    for card in cards.iter() {
-        if !card.is_active {
-            continue;
-        }
-
-        // 首先检查是否是指定的星期
-        if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
-            continue;
-        }
-
-        let alarm_time = NaiveTime::parse_from_str(&card.time, "%H:%M").unwrap();
-        let current_minutes = current_time.hour() * 60 + current_time.minute();
-        let alarm_minutes = alarm_time.hour() * 60 + alarm_time.minute();
-
-        if current_minutes == alarm_minutes {
-            has_current_alarms = true;
-            info!("代办提醒触发 - {} at {}", card.title, now);
-
-            let card = card.clone();
-
-            // 在新线程中处理通知，避免阻塞主线程
-            thread::spawn(move || {
-                let reminder_time = card.reminder_time.parse::<i64>().ok();
-                // 创建通知窗口
-                create_notification_window(&card.title, reminder_time);
-
-                // 在处理完当前提醒后，再检查是否还有其他提醒
-                let cards = ALARM_CARDS.lock().unwrap();
-                let now = Local::now();
-                let current_time = now.time();
-                let current_weekday = now.format("%a").to_string();
-
-                let has_remaining_alarms = cards.iter().any(|card| {
-                    if !card.is_active {
-                        return false;
-                    }
-                    if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
-                        return false;
-                    }
-                    let alarm_time = NaiveTime::parse_from_str(&card.time, "%H:%M").unwrap();
-                    alarm_time > current_time
-                });
-
-                if !has_remaining_alarms {
-                    info!("没有剩余的提醒任务，停止服务");
-                    SERVICE_RUNNING.store(false, Ordering::SeqCst);
-                } else {
-                    info!("有剩余的提醒任务，继续服务");
-                }
-            });
-        }
-    }
-
-    // 只在没有当前触发的提醒时才检查是否还有后续提醒
-    if !has_current_alarms {
-        // 检查是否还有今天需要执行的提醒
-        let has_remaining_alarms = cards.iter().any(|card| {
+        // 先处理当前需要触发的提醒
+        let mut has_current_alarms = false;
+        for card in cards.iter() {
             if !card.is_active {
-                return false;
+                continue;
             }
+
+            // 首先检查是否是指定的星期
             if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
-                return false;
+                continue;
             }
+
             let alarm_time = NaiveTime::parse_from_str(&card.time, "%H:%M").unwrap();
             let current_minutes = current_time.hour() * 60 + current_time.minute();
             let alarm_minutes = alarm_time.hour() * 60 + alarm_time.minute();
-            alarm_minutes > current_minutes
-        });
 
-        // 如果没有剩余提醒，停止服务
-        if !has_remaining_alarms {
-            info!("没有剩余的提醒任务，停止服务");
-            SERVICE_RUNNING.store(false, Ordering::SeqCst);
-            return;
+            if current_minutes == alarm_minutes {
+                has_current_alarms = true;
+                info!("代办提醒触发 - {} at {}", card.title, now);
+
+                let card_clone = card.clone();
+
+                // 在新线程中处理通知，避免阻塞主线程
+                thread::spawn(move || {
+                    let reminder_time = card_clone.reminder_time.parse::<i64>().ok();
+                    // 创建通知窗口
+                    create_notification_window(&card_clone.title, reminder_time);
+
+                    // 在处理完当前提醒后，再检查是否还有其他提醒
+                    if let Ok(remaining_cards) = db::get_all_alarm_cards() {
+                        let now = Local::now();
+                        let current_time = now.time();
+                        let current_weekday = now.format("%a").to_string();
+
+                        let has_remaining_alarms = remaining_cards.iter().any(|card| {
+                            if !card.is_active {
+                                return false;
+                            }
+                            if !card.weekdays.is_empty()
+                                && !card.weekdays.contains(&current_weekday)
+                            {
+                                return false;
+                            }
+                            if let Ok(alarm_time) =
+                                NaiveTime::parse_from_str(&card.time, "%H:%M")
+                            {
+                                return alarm_time > current_time;
+                            }
+                            false
+                        });
+
+                        if !has_remaining_alarms {
+                            info!("没有剩余的提醒任务，停止服务");
+                            SERVICE_RUNNING.store(false, Ordering::SeqCst);
+                        } else {
+                            info!("有剩余的提醒任务，继续服务");
+                        }
+                    }
+                });
+            }
+        }
+
+        // 只在没有当前触发的提醒时才检查是否还有后续提醒
+        if !has_current_alarms {
+            // 检查是否还有今天需要执行的提醒
+            let has_remaining_alarms = cards.iter().any(|card| {
+                if !card.is_active {
+                    return false;
+                }
+                if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
+                    return false;
+                }
+                if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
+                    let current_minutes = current_time.hour() * 60 + current_time.minute();
+                    let alarm_minutes = alarm_time.hour() * 60 + alarm_time.minute();
+                    return alarm_minutes > current_minutes;
+                }
+                false
+            });
+
+            // 如果没有剩余提醒，停止服务
+            if !has_remaining_alarms {
+                info!("没有剩余的提醒任务，停止服务");
+                SERVICE_RUNNING.store(false, Ordering::SeqCst);
+                return;
+            }
         }
     }
 }
