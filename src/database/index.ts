@@ -33,5 +33,4 @@ export const getDb = async () => {
   return dbInstance;
 };
 
-export * from './history';
 export * from './search';

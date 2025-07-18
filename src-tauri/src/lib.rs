@@ -20,7 +20,10 @@ use crate::alarm::{
 use crate::config::{
     exit_application, get_auto_update_check, reset_software, set_auto_update_check,
 };
-use crate::db::{backup_database, get_db_path, restore_database, set_custom_db_path};
+use crate::db::{
+    add_search_history, backup_database, get_db_path, get_search_history, restore_database,
+    set_custom_db_path,
+};
 use crate::translation::translate_text;
 use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
@@ -194,7 +197,9 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 // 先检查用户是否开启了自动更新
                 if get_auto_update_check(app_handle.clone()) {
-                    check_update(&app_handle, false).await.unwrap();
+                    if let Err(e) = check_update(&app_handle, false).await {
+                        log::warn!("启动时检查更新失败: {}", e);
+                    }
                 }
             });
 
@@ -277,6 +282,8 @@ pub fn run() {
             get_auto_hide_on_blur,            // 获取自动失焦隐藏设置
             translate_text,                   // 翻译文本
             get_selection_translate_shortcut, // 获取划词翻译快捷键
+            add_search_history,               // 添加搜索历史
+            get_search_history,               // 获取搜索历史
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

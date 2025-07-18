@@ -1,4 +1,4 @@
-import { searchContent, addSearchHistory, getSearchHistory } from '@/database';
+import { searchContent } from '@/database';
 import { debounce } from '@/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -89,7 +89,7 @@ export function useSearch() {
     results.push(...bookmarkResults.slice(0, 10));
 
     // 根据历史记录排序
-    const history = await getSearchHistory();
+    const history = (await invoke('get_search_history')) as SearchHistoryItem[];
     if (history.length > 0) {
       const historyMap = new Map(
         history.map((h) => [
@@ -149,17 +149,15 @@ export function useSearch() {
         encodeURIComponent(text)
       );
       // add history
-      addSearchHistory({
-        id: 'default-search',
-        title: `使用 ${defaultEngine.name} 搜索: ${text}`,
-        content: searchUrl,
-        summarize: 'search',
-        icon: defaultEngine.icon
-      });
+      addSearchHistory('default-search');
       await invoke('open_url', { url: searchUrl });
       searchText.value = '';
       invoke('show_hide_window_command', { label: 'search' });
     }
+  };
+
+  const addSearchHistory = (id: string) => {
+    invoke('add_search_history', { id });
   };
 
   watch(searchText, () => {

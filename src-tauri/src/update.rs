@@ -46,19 +46,22 @@ pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bo
                         set_value(app, UPDATE_INFO_KEY, update_info);
 
                         // 通知前端有更新
-                        app.emit("update-available", true).unwrap();
+                        if let Err(e) = app.emit("update-available", true) {
+                            log::warn!("发送更新可用事件失败: {}", e);
+                        }
 
                         control_logging(true); // 启用日志存储
                         Ok(true)
                     } else {
                         set_value(app, UPDATE_AVAILABLE_KEY, false);
                         if show_notification {
-                            app.notification()
+                            if let Err(e) = app.notification()
                                 .builder()
                                 .title("检查更新")
                                 .body("当前已是最新版本")
-                                .show()
-                                .unwrap();
+                                .show() {
+                                log::warn!("显示通知失败: {}", e);
+                            }
                         }
                         control_logging(true); // 启用日志存储
                         Ok(false)
@@ -96,7 +99,7 @@ pub fn get_update_info(app: AppHandle) -> Option<UpdateInfo> {
 pub async fn perform_update(app: AppHandle) -> Result<(), String> {
     if let Ok(updater) = app.updater() {
         if let Ok(Some(update)) = updater.check().await {
-            let app = APP.get().unwrap();
+            let app = APP.get().ok_or("无法获取应用实例")?;
             let mut total_downloaded: u64 = 0;
 
             // 下载更新
@@ -120,10 +123,14 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                             },
                         };
 
-                        app.emit("download-progress", &progress).unwrap();
+                        if let Err(e) = app.emit("download-progress", &progress) {
+                            log::warn!("发送下载进度事件失败: {}", e);
+                        }
                     },
                     || {
-                        app.emit("download-finished", ()).unwrap();
+                        if let Err(e) = app.emit("download-finished", ()) {
+                            log::warn!("发送下载完成事件失败: {}", e);
+                        }
                         // 更新完成后重置更新状态
                         set_value(app, UPDATE_AVAILABLE_KEY, false);
                     },

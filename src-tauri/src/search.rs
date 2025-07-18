@@ -156,17 +156,17 @@ pub fn get_search_engines(_app_handle: AppHandle) -> Result<Vec<SearchEngine>, S
     match db::get_all_search_engines() {
         Ok(engines) => {
             if engines.is_empty() {
-                // 如果没有保存的搜索引擎配置，使用默认配置,并且第一条数据设置为默认搜索引擎
+            // 如果没有保存的搜索引擎配置，使用默认配置,并且第一条数据设置为默认搜索引擎
                 let mut default_engines: Vec<SearchEngine> =
-                    serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
+                serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
                 if !default_engines.is_empty() {
                     default_engines[0].enabled = true;
-                }
+            }
                 db::replace_all_search_engines(&default_engines).map_err(|e| e.to_string())?;
                 Ok(default_engines)
             } else {
-                Ok(engines)
-            }
+            Ok(engines)
+        }
         }
         Err(e) => Err(e.to_string()),
     }

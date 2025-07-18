@@ -1,8 +1,12 @@
 <template>
   <div class="todo-container">
     <div v-if="alarmCards.length > 0" class="grid grid-cols-3 gap-4">
-      <!-- 代办提醒事项卡片 -->
-      <div class="alarm-card" v-for="item in alarmCards" :key="item.id">
+      <div
+        class="alarm-card"
+        v-for="item in alarmCards"
+        :key="item.id"
+        :class="getCardClass(item)"
+      >
         <div :class="{ 'is-edit': isEdit }" @click="editAlarmCard(item)">
           <div class="time">{{ item.time }}</div>
           <div class="info">
@@ -11,8 +15,23 @@
               <span>{{ item.time_left }}</span>
             </div>
             <div class="title">{{ item.title }}</div>
+            <div class="alarm-type">
+              <span
+                v-if="(item as any).alarm_type === 'Daily'"
+                class="type-badge daily"
+              >
+                每天
+              </span>
+              <span
+                v-else-if="(item as any).alarm_type === 'SpecificDate'"
+                class="type-badge specific"
+              >
+                {{ (item as any).specific_date }}
+              </span>
+              <span v-else class="type-badge weekly">每周</span>
+            </div>
           </div>
-          <div class="weekdays">
+          <div v-if="(item as any).alarm_type === 'Weekly'" class="weekdays">
             <template v-for="weekday in weekdays" :key="weekday">
               <span
                 :class="[
@@ -23,6 +42,22 @@
                 {{ weekday }}
               </span>
             </template>
+          </div>
+
+          <div
+            v-else-if="(item as any).alarm_type === 'Daily'"
+            class="daily-indicator"
+          >
+            <span class="daily-text">每日重复</span>
+          </div>
+
+          <div
+            v-else-if="(item as any).alarm_type === 'SpecificDate'"
+            class="specific-date-info"
+          >
+            <span class="date-info">
+              {{ formatSpecificDate((item as any).specific_date) }}
+            </span>
           </div>
         </div>
         <div class="toggle">
@@ -48,7 +83,6 @@
       <div class="alarm-no-description">点击右下角的"＋"以添加新提醒事项</div>
     </div>
 
-    <!-- 右下角悬浮操作按钮 -->
     <div
       class="fixed bottom-6 right-6 rounded-md shadow-md border dark:border-none bg-panel p-1"
     >
@@ -71,7 +105,6 @@
       </div>
     </div>
 
-    <!-- 添加提醒编辑弹框 -->
     <alarm-edit-dialog
       ref="alarmEditDialogRef"
       :edit-data="currentEditCard"
@@ -93,9 +126,8 @@ const isEdit = ref(false);
 const currentEditCard = ref<AlarmCard | null>(null);
 const alarmEditDialogRef = ref();
 let timer: number | null = null;
-// 定时更新提醒列表
+
 const startTimer = () => {
-  // 计算到下一分钟的毫秒数
   const now = new Date();
   const nextMinute = new Date(
     now.getFullYear(),
@@ -108,15 +140,12 @@ const startTimer = () => {
   );
   const delay = nextMinute.getTime() - now.getTime();
 
-  // 先等待到下一分钟
   setTimeout(() => {
     fetchAlarmCards();
-    // 然后每分钟更新一次
     timer = window.setInterval(fetchAlarmCards, 60000);
   }, delay);
 };
 
-// 获取提醒列表
 const fetchAlarmCards = async () => {
   try {
     alarmCards.value = await invoke('get_alarm_cards');
@@ -125,27 +154,23 @@ const fetchAlarmCards = async () => {
   }
 };
 
-// 编辑提醒事项卡片
 const handleEdit = () => {
   if (alarmCards.value.length === 0) return;
   isEdit.value = !isEdit.value;
 };
 
-// 添加提醒事项卡片
 const addAlarmCard = () => {
   if (isEdit.value) return;
   currentEditCard.value = null;
   alarmEditDialogRef.value?.open();
 };
 
-// 编辑提醒事项卡片
 const editAlarmCard = (item: AlarmCard) => {
   if (isEdit.value) return;
   currentEditCard.value = item;
   alarmEditDialogRef.value?.open();
 };
 
-// 处理提醒提交
 const handleAlarmSubmit = async (formData: Partial<AlarmCard>) => {
   try {
     if (currentEditCard.value) {
@@ -161,7 +186,6 @@ const handleAlarmSubmit = async (formData: Partial<AlarmCard>) => {
   }
 };
 
-// 处理提醒删除
 const handleAlarmDelete = async (item: AlarmCard) => {
   try {
     await invoke('delete_alarm_card', { id: item.id });
@@ -171,7 +195,6 @@ const handleAlarmDelete = async (item: AlarmCard) => {
   }
 };
 
-// 删除提醒事项卡片
 const deleteAlarmCard = async (item: AlarmCard) => {
   try {
     await invoke('delete_alarm_card', { id: item.id });
@@ -181,7 +204,6 @@ const deleteAlarmCard = async (item: AlarmCard) => {
   }
 };
 
-// 切换提醒状态
 const toggleAlarmCard = async (item: AlarmCard) => {
   try {
     await invoke('toggle_alarm_card', { id: item.id });
@@ -189,6 +211,68 @@ const toggleAlarmCard = async (item: AlarmCard) => {
   } catch (error) {
     console.error('Failed to toggle alarm card:', error);
   }
+};
+
+const formatSpecificDate = (dateStr: string) => {
+  if (!dateStr) return '';
+
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+  const targetDate = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
+
+  if (targetDate.getTime() === today.getTime()) {
+    return '今天';
+  } else if (targetDate.getTime() === tomorrow.getTime()) {
+    return '明天';
+  } else {
+    const options: Intl.DateTimeFormatOptions = {
+      month: 'short',
+      day: 'numeric',
+      weekday: 'short'
+    };
+    return date.toLocaleDateString('zh-CN', options);
+  }
+};
+
+const getCardClass = (item: AlarmCard) => {
+  const classes = [];
+
+  if (!item.is_active) {
+    classes.push('disabled');
+  }
+
+  if ((item as any).alarm_type === 'SpecificDate') {
+    const specificDate = (item as any).specific_date;
+    if (specificDate) {
+      const date = new Date(specificDate);
+      const now = new Date();
+      const [hour, minute] = item.time.split(':').map(Number);
+      const targetDateTime = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        hour,
+        minute
+      );
+
+      if (targetDateTime < now) {
+        classes.push('expired');
+      } else {
+        const timeDiff = targetDateTime.getTime() - now.getTime();
+        if (timeDiff <= 60 * 60 * 1000) {
+          classes.push('urgent');
+        }
+      }
+    }
+  }
+
+  return classes;
 };
 
 onMounted(() => {
@@ -208,7 +292,27 @@ onUnmounted(() => {
   @apply w-full p-6 pt-1 rounded-md overflow-hidden;
 
   .alarm-card {
-    @apply min-h-[180px] border dark:border-panel bg-white dark:bg-panel rounded-lg p-4 relative shadow-sm cursor-pointer select-none;
+    @apply min-h-[180px] border dark:border-panel bg-white dark:bg-panel rounded-lg p-4 relative shadow-sm cursor-pointer select-none transition-all;
+
+    &.disabled {
+      @apply opacity-50 bg-gray-50 dark:bg-gray-800;
+    }
+
+    &.expired {
+      @apply border-red-300 bg-red-50 dark:bg-red-900/20;
+
+      .time {
+        @apply text-red-600 dark:text-red-400;
+      }
+    }
+
+    &.urgent {
+      @apply border-orange-300 bg-orange-50 dark:bg-orange-900/20;
+
+      .time {
+        @apply text-orange-600 dark:text-orange-400;
+      }
+    }
 
     .time {
       @apply text-6xl font-bold mb-2;
@@ -223,6 +327,26 @@ onUnmounted(() => {
 
       .time-left {
         @apply flex items-center gap-2 text-sm text-gray-500 mb-2;
+      }
+
+      .alarm-type {
+        @apply mt-2;
+
+        .type-badge {
+          @apply text-xs px-2 py-1 rounded-full;
+
+          &.daily {
+            @apply bg-blue-100 text-blue-600;
+          }
+
+          &.weekly {
+            @apply bg-green-100 text-green-600;
+          }
+
+          &.specific {
+            @apply bg-purple-100 text-purple-600;
+          }
+        }
       }
     }
 
@@ -242,6 +366,22 @@ onUnmounted(() => {
 
     .toggle {
       @apply absolute top-4 right-4;
+    }
+
+    .daily-indicator {
+      @apply flex gap-2 mb-4;
+
+      .daily-text {
+        @apply text-sm text-blue-600 dark:text-blue-400 px-[8px] py-[4px] rounded-full shadow-sm bg-blue-50 dark:bg-blue-900;
+      }
+    }
+
+    .specific-date-info {
+      @apply flex gap-2 mb-4;
+
+      .date-info {
+        @apply text-sm text-purple-600 dark:text-purple-400 px-[8px] py-[4px] rounded-full shadow-sm bg-purple-50 dark:bg-purple-900;
+      }
     }
   }
 

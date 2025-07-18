@@ -1,13 +1,20 @@
 use crate::db;
 use crate::window::create_notification_window;
 use crate::APP;
-use chrono::{DateTime, Datelike as _, Duration, Local, NaiveTime, Timelike as _};
+use chrono::{DateTime, Datelike as _, Duration, Local, NaiveDate, NaiveTime, TimeZone, Timelike as _};
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration as StdDuration;
 use tauri_plugin_notification::NotificationExt;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum AlarmType {
+    Daily,
+    Weekly,
+    SpecificDate,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AlarmCard {
@@ -20,12 +27,11 @@ pub struct AlarmCard {
     pub created_at: DateTime<Local>,
     pub updated_at: DateTime<Local>,
     pub time_left: String,
+    pub alarm_type: AlarmType,
+    pub specific_date: Option<String>,
 }
 
-// 添加一个静态变量来跟踪服务是否已启动
 static SERVICE_RUNNING: AtomicBool = AtomicBool::new(false);
-
-// 添加一个新的函数来检查是否需要启动定时服务
 fn should_start_service() -> bool {
     if let Ok(cards) = db::get_all_alarm_cards() {
         let now = Local::now();
@@ -35,15 +41,42 @@ fn should_start_service() -> bool {
             if !card.is_active {
                 return false;
             }
-            // 检查是否是今天需要提醒的事项
-            if card.weekdays.is_empty() || card.weekdays.contains(&current_weekday) {
-                if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
-                    let current_time = now.time();
-                    // 如果代办提醒时间还没到，就需要启动服务
-                    return alarm_time > current_time;
+            
+            match card.alarm_type {
+                AlarmType::Daily => {
+                    if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
+                        let current_time = now.time();
+                        // 每天都要检查，如果今天时间还没到就需要启动服务
+                        return alarm_time > current_time;
+                    }
+                    false
+                },
+                AlarmType::Weekly => {
+                    // 检查是否是今天需要提醒的事项
+                    if card.weekdays.is_empty() || card.weekdays.contains(&current_weekday) {
+                        if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
+                            let current_time = now.time();
+                            // 如果代办提醒时间还没到，就需要启动服务
+                            return alarm_time > current_time;
+                        }
+                    }
+                    false
+                },
+                AlarmType::SpecificDate => {
+                    if let Some(date_str) = &card.specific_date {
+                        if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                            if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
+                                let target_datetime = target_date.and_time(alarm_time);
+                                if let Some(target) = Local.from_local_datetime(&target_datetime).single() {
+                                    // 如果指定日期时间还没到，就需要启动服务
+                                    return target > now;
+                                }
+                            }
+                        }
+                    }
+                    false
                 }
             }
-            false
         })
     } else {
         false
@@ -51,96 +84,116 @@ fn should_start_service() -> bool {
 }
 
 impl AlarmCard {
-    pub fn calculate_time_left(&self) -> String {
-        let now = Local::now();
-        let current_weekday = now.format("%a").to_string();
-        let alarm_time = NaiveTime::parse_from_str(&self.time, "%H:%M").unwrap();
-        let now_time = now.time();
+    fn format_duration(diff: Duration) -> String {
+        let total_seconds = diff.num_seconds();
+        if total_seconds <= 0 {
+            return "已过期".to_string();
+        }
 
-        // 如果设置了特定星期
-        if !self.weekdays.is_empty() {
-            // 如果今天是指定的星期之一
-            if self.weekdays.contains(&current_weekday) {
-                // 如果今天的代办提醒时间还没到
-                if alarm_time > now_time {
-                    let diff = alarm_time.signed_duration_since(now_time);
-                    // 向上取整到分钟
-                    let total_minutes = (diff.num_seconds() as f64 / 60.0).ceil() as i64;
-                    let hours = total_minutes / 60;
-                    let minutes = total_minutes % 60;
-                    if hours > 0 {
-                        return format!("{} 小时 {} 分钟后", hours, minutes);
-                    } else {
-                        return format!("{} 分钟后", minutes);
-                    }
-                }
-            }
+        let total_minutes = (total_seconds as f64 / 60.0).ceil() as i64;
+        let days = total_minutes / (24 * 60);
+        let remaining_minutes = total_minutes % (24 * 60);
+        let hours = remaining_minutes / 60;
+        let minutes = remaining_minutes % 60;
 
-            // 计算到下一个指定星期的时间
-            let mut days_until_next = 7;
-            let current_day = now.weekday().num_days_from_monday();
-
-            for weekday in &self.weekdays {
-                let target_day = match weekday.as_str() {
-                    "Mon" => 0,
-                    "Tue" => 1,
-                    "Wed" => 2,
-                    "Thu" => 3,
-                    "Fri" => 4,
-                    "Sat" => 5,
-                    "Sun" => 6,
-                    _ => continue,
-                };
-
-                let mut days = target_day as i32 - current_day as i32;
-                if days <= 0 {
-                    days += 7;
-                }
-                // 如果是今天且时间还没到，不需要等到下周
-                if days == 7 && alarm_time > now_time {
-                    days = 0;
-                }
-                days_until_next = days_until_next.min(days);
-            }
-
-            // 计算具体时间差
-            let target_time = now + Duration::days(days_until_next as i64);
-            let target_datetime = target_time.date_naive().and_time(alarm_time);
-            let diff = target_datetime.signed_duration_since(now.naive_local());
-
-            // 向上取整到分钟
-            let total_minutes = (diff.num_seconds() as f64 / 60.0).ceil() as i64;
-            let days = total_minutes / (24 * 60);
-            let remaining_minutes = total_minutes % (24 * 60);
-            let hours = remaining_minutes / 60;
-            let minutes = remaining_minutes % 60;
-
-            if days > 0 {
-                format!("{} 天后", days)
-            } else {
-                if hours > 0 {
-                    format!("{} 小时 {} 分钟后", hours, minutes)
-                } else {
-                    format!("{} 分钟后", minutes)
-                }
-            }
-        } else {
-            // 没有设置特定星期的情况
-            let diff = if alarm_time > now_time {
-                alarm_time.signed_duration_since(now_time)
-            } else {
-                // 如果今天的时间已过，计算到明天的时间
-                alarm_time.signed_duration_since(now_time) + Duration::hours(24)
-            };
-
-            // 向上取整到分钟
-            let total_minutes = (diff.num_seconds() as f64 / 60.0).ceil() as i64;
-            let hours = total_minutes / 60;
-            let minutes = total_minutes % 60;
-            if hours > 0 {
+        if days > 7 {
+            format!("{} 周后", (days as f64 / 7.0).ceil() as i64)
+        } else if days > 0 {
+            format!("{} 天后", days)
+        } else if hours > 0 {
+            if minutes > 0 {
                 format!("{} 小时 {} 分钟后", hours, minutes)
             } else {
-                format!("{} 分钟后", minutes)
+                format!("{} 小时后", hours)
+            }
+        } else if minutes > 0 {
+            format!("{} 分钟后", minutes)
+        } else {
+            "不到 1 分钟".to_string()
+        }
+    }
+    pub fn calculate_time_left(&self) -> String {
+        let now = Local::now();
+        let alarm_time = match NaiveTime::parse_from_str(&self.time, "%H:%M") {
+            Ok(time) => time,
+            Err(_) => return "时间格式错误".to_string(),
+        };
+        
+        match self.alarm_type {
+            AlarmType::Daily => {
+                let now_time = now.time();
+                let diff = if alarm_time > now_time {
+                    alarm_time.signed_duration_since(now_time)
+                } else {
+                    alarm_time.signed_duration_since(now_time) + Duration::hours(24)
+                };
+
+                Self::format_duration(diff)
+            },
+            AlarmType::SpecificDate => {
+                if let Some(date_str) = &self.specific_date {
+                    if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                        let target_datetime = target_date.and_time(alarm_time);
+                        let target_with_tz = Local.from_local_datetime(&target_datetime).single();
+                        
+                        if let Some(target) = target_with_tz {
+                            let diff = target.signed_duration_since(now);
+                            Self::format_duration(diff)
+                        } else {
+                            "日期时区错误".to_string()
+                        }
+                    } else {
+                        "日期格式错误".to_string()
+                    }
+                } else {
+                    "未设置日期".to_string()
+                }
+            },
+            AlarmType::Weekly => {
+                let current_weekday = now.format("%a").to_string();
+                let now_time = now.time();
+
+                                    if !self.weekdays.is_empty() {
+                        if self.weekdays.contains(&current_weekday) {
+                            if alarm_time > now_time {
+                            let diff = alarm_time.signed_duration_since(now_time);
+                            return Self::format_duration(diff);
+                        }
+                    }
+
+                    let mut days_until_next = 7;
+                    let current_day = now.weekday().num_days_from_monday();
+
+                    for weekday in &self.weekdays {
+                        let target_day = match weekday.as_str() {
+                            "Mon" => 0,
+                            "Tue" => 1,
+                            "Wed" => 2,
+                            "Thu" => 3,
+                            "Fri" => 4,
+                            "Sat" => 5,
+                            "Sun" => 6,
+                            _ => continue,
+                        };
+
+                        let mut days = target_day as i32 - current_day as i32;
+                        if days <= 0 {
+                            days += 7;
+                        }
+                        if days == 7 && alarm_time > now_time {
+                            days = 0;
+                        }
+                        days_until_next = days_until_next.min(days);
+                    }
+
+                    let target_time = now + Duration::days(days_until_next as i64);
+                    let target_datetime = target_time.date_naive().and_time(alarm_time);
+                    let diff = target_datetime.signed_duration_since(now.naive_local());
+
+                    Self::format_duration(diff)
+                } else {
+                    "未设置星期".to_string()
+                }
             }
         }
     }
@@ -174,6 +227,7 @@ pub fn add_alarm_card(mut card: AlarmCard) -> Result<AlarmCard, String> {
         id: uuid::Uuid::new_v4().to_string(),
         created_at: Local::now(),
         updated_at: Local::now(),
+        time_left: String::new(),
         ..card
     };
 
@@ -334,6 +388,7 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
         let now = Local::now();
         let current_time = now.time().with_nanosecond(0).unwrap();
         let current_weekday = now.format("%a").to_string();
+        let current_date = now.date_naive();
         // info!("当前时间: {} - {}", current_weekday, current_time);
 
         // 先处理当前需要触发的提醒
@@ -343,16 +398,38 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
                 continue;
             }
 
-            // 首先检查是否是指定的星期
-            if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
-                continue;
-            }
-
             let alarm_time = NaiveTime::parse_from_str(&card.time, "%H:%M").unwrap();
             let current_minutes = current_time.hour() * 60 + current_time.minute();
             let alarm_minutes = alarm_time.hour() * 60 + alarm_time.minute();
 
-            if current_minutes == alarm_minutes {
+            let should_trigger = match card.alarm_type {
+                AlarmType::Daily => {
+                    // 每天提醒，只要时间匹配就触发
+                    current_minutes == alarm_minutes
+                },
+                AlarmType::Weekly => {
+                    // 每周指定星期提醒
+                    if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
+                        false
+                    } else {
+                        current_minutes == alarm_minutes
+                    }
+                },
+                AlarmType::SpecificDate => {
+                    // 指定日期提醒
+                    if let Some(date_str) = &card.specific_date {
+                        if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                            target_date == current_date && current_minutes == alarm_minutes
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                }
+            };
+
+            if should_trigger {
                 has_current_alarms = true;
                 info!("代办提醒触发 - {} at {}", card.title, now);
 
@@ -364,35 +441,20 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
                     // 创建通知窗口
                     create_notification_window(&card_clone.title, reminder_time);
 
+                    // 对于一次性的指定日期提醒，触发后自动禁用
+                    if matches!(card_clone.alarm_type, AlarmType::SpecificDate) {
+                        let mut updated_card = card_clone.clone();
+                        updated_card.is_active = false;
+                        updated_card.updated_at = Local::now();
+                        let _ = db::add_or_update_alarm_card(&updated_card);
+                    }
+
                     // 在处理完当前提醒后，再检查是否还有其他提醒
-                    if let Ok(remaining_cards) = db::get_all_alarm_cards() {
-                        let now = Local::now();
-                        let current_time = now.time();
-                        let current_weekday = now.format("%a").to_string();
-
-                        let has_remaining_alarms = remaining_cards.iter().any(|card| {
-                            if !card.is_active {
-                                return false;
-                            }
-                            if !card.weekdays.is_empty()
-                                && !card.weekdays.contains(&current_weekday)
-                            {
-                                return false;
-                            }
-                            if let Ok(alarm_time) =
-                                NaiveTime::parse_from_str(&card.time, "%H:%M")
-                            {
-                                return alarm_time > current_time;
-                            }
-                            false
-                        });
-
-                        if !has_remaining_alarms {
-                            info!("没有剩余的提醒任务，停止服务");
-                            SERVICE_RUNNING.store(false, Ordering::SeqCst);
-                        } else {
-                            info!("有剩余的提醒任务，继续服务");
-                        }
+                    if !should_start_service() {
+                        info!("没有剩余的提醒任务，停止服务");
+                        SERVICE_RUNNING.store(false, Ordering::SeqCst);
+                    } else {
+                        info!("有剩余的提醒任务，继续服务");
                     }
                 });
             }
@@ -400,24 +462,8 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
 
         // 只在没有当前触发的提醒时才检查是否还有后续提醒
         if !has_current_alarms {
-            // 检查是否还有今天需要执行的提醒
-            let has_remaining_alarms = cards.iter().any(|card| {
-                if !card.is_active {
-                    return false;
-                }
-                if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
-                    return false;
-                }
-                if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
-                    let current_minutes = current_time.hour() * 60 + current_time.minute();
-                    let alarm_minutes = alarm_time.hour() * 60 + alarm_time.minute();
-                    return alarm_minutes > current_minutes;
-                }
-                false
-            });
-
             // 如果没有剩余提醒，停止服务
-            if !has_remaining_alarms {
+            if !should_start_service() {
                 info!("没有剩余的提醒任务，停止服务");
                 SERVICE_RUNNING.store(false, Ordering::SeqCst);
                 return;

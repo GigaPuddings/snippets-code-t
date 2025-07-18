@@ -1,11 +1,14 @@
 use crate::alarm::AlarmCard;
 use crate::config::{get_value, DB_PATH_KEY};
+use crate::icon_cache::CachedIcon;
 use crate::search::SearchEngine;
 use crate::APP;
 use crate::{apps::AppInfo, bookmarks::BookmarkInfo};
 use chrono::Local;
 use log::info;
 use rusqlite;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::Path;
@@ -13,8 +16,24 @@ use std::path::PathBuf;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
-use std::collections::HashMap;
-use crate::icon_cache::CachedIcon;
+
+// 历史记录项
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SearchHistoryItem {
+    pub id: String,
+    pub usage_count: u32,
+    pub last_used_at: String,
+}
+
+#[tauri::command]
+pub fn add_search_history(id: String) -> Result<(), String> {
+    add_search_history_item(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_search_history() -> Result<Vec<SearchHistoryItem>, String> {
+    get_all_search_history().map_err(|e| e.to_string())
+}
 
 #[tauri::command]
 pub fn get_db_path() -> String {
@@ -87,7 +106,19 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
             reminder_time TEXT NOT NULL,
             is_active INTEGER NOT NULL,
             created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            alarm_type TEXT DEFAULT 'Weekly',
+            specific_date TEXT
+        )",
+        [],
+    )?;
+
+    // 创建 search_history 表
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS search_history (
+            id TEXT PRIMARY KEY,
+            usage_count INTEGER NOT NULL,
+            last_used_at TEXT NOT NULL
         )",
         [],
     )?;
@@ -241,9 +272,15 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
     let app_handle = APP.get().unwrap();
     let db_path = get_database_path(app_handle);
     let conn = rusqlite::Connection::open(db_path)?;
-    let mut stmt = conn.prepare("SELECT id, time, title, weekdays, reminder_time, is_active, created_at, updated_at FROM alarm_cards")?;
+    let mut stmt = conn.prepare("SELECT id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_date FROM alarm_cards")?;
     let card_iter = stmt.query_map([], |row| {
         let weekdays_str: String = row.get(3)?;
+        let alarm_type_str: Option<String> = row.get(8).ok();
+        let alarm_type = match alarm_type_str.as_deref() {
+            Some("Daily") => crate::alarm::AlarmType::Daily,
+            Some("SpecificDate") => crate::alarm::AlarmType::SpecificDate,
+            _ => crate::alarm::AlarmType::Weekly, // 默认为每周
+        };
         Ok(AlarmCard {
             id: row.get(0)?,
             time: row.get(1)?,
@@ -254,6 +291,8 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
             created_at: row.get::<_, String>(6)?.parse().unwrap(),
             updated_at: row.get::<_, String>(7)?.parse().unwrap(),
             time_left: "".to_string(), // This is a calculated field
+            alarm_type,
+            specific_date: row.get(9).ok(),
         })
     })?;
 
@@ -270,9 +309,14 @@ pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error>
     let db_path = get_database_path(app_handle);
     let conn = rusqlite::Connection::open(db_path)?;
     let weekdays_str = serde_json::to_string(&card.weekdays).unwrap_or_default();
+    let alarm_type_str = match card.alarm_type {
+        crate::alarm::AlarmType::Daily => "Daily",
+        crate::alarm::AlarmType::Weekly => "Weekly",
+        crate::alarm::AlarmType::SpecificDate => "SpecificDate",
+    };
 
     conn.execute(
-        "INSERT OR REPLACE INTO alarm_cards (id, time, title, weekdays, reminder_time, is_active, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT OR REPLACE INTO alarm_cards (id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_date) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![
             card.id,
             card.time,
@@ -282,6 +326,8 @@ pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error>
             card.is_active,
             card.created_at.to_rfc3339(),
             card.updated_at.to_rfc3339(),
+            alarm_type_str,
+            card.specific_date,
         ],
     )?;
     Ok(())
@@ -292,7 +338,10 @@ pub fn delete_alarm_card_from_db(id: &str) -> Result<(), rusqlite::Error> {
     let app_handle = APP.get().unwrap();
     let db_path = get_database_path(app_handle);
     let conn = rusqlite::Connection::open(db_path)?;
-    conn.execute("DELETE FROM alarm_cards WHERE id = ?1", rusqlite::params![id])?;
+    conn.execute(
+        "DELETE FROM alarm_cards WHERE id = ?1",
+        rusqlite::params![id],
+    )?;
     Ok(())
 }
 
@@ -303,6 +352,46 @@ pub fn clear_alarm_cards() -> Result<(), rusqlite::Error> {
     let conn = rusqlite::Connection::open(db_path)?;
     conn.execute("DELETE FROM alarm_cards", [])?;
     Ok(())
+}
+
+// 添加或更新搜索历史
+pub fn add_search_history_item(id: &str) -> Result<(), rusqlite::Error> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path)?;
+    let now = Local::now().to_rfc3339();
+
+    conn.execute(
+        "INSERT INTO search_history (id, usage_count, last_used_at) VALUES (?1, 1, ?2)
+        ON CONFLICT(id) DO UPDATE SET
+        usage_count = usage_count + 1,
+        last_used_at = ?2",
+        rusqlite::params![id, now],
+    )?;
+
+    Ok(())
+}
+
+// 获取所有搜索历史
+pub fn get_all_search_history() -> Result<Vec<SearchHistoryItem>, rusqlite::Error> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path)?;
+
+    let mut stmt = conn.prepare("SELECT id, usage_count, last_used_at FROM search_history")?;
+    let history_iter = stmt.query_map([], |row| {
+        Ok(SearchHistoryItem {
+            id: row.get(0)?,
+            usage_count: row.get(1)?,
+            last_used_at: row.get(2)?,
+        })
+    })?;
+
+    let mut history = Vec::new();
+    for item in history_iter {
+        history.push(item?);
+    }
+    Ok(history)
 }
 
 // 从数据库加载所有图标缓存
@@ -380,8 +469,7 @@ pub fn get_all_bookmarks() -> Result<Vec<BookmarkInfo>, rusqlite::Error> {
     let db_path = get_database_path(app_handle);
     let conn = rusqlite::Connection::open(db_path)?;
 
-    let mut stmt =
-        conn.prepare("SELECT id, title, content, icon, summarize FROM bookmarks")?;
+    let mut stmt = conn.prepare("SELECT id, title, content, icon, summarize FROM bookmarks")?;
     let bookmark_iter = stmt.query_map([], |row| {
         Ok(BookmarkInfo {
             id: row.get(0)?,

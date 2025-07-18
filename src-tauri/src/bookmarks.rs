@@ -1143,11 +1143,25 @@ pub fn load_bookmark_icons_async_silent(
     completion_counter: std::sync::Arc<std::sync::Mutex<usize>>,
 ) {
     // 为异步操作创建新的Tokio运行时
-    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            log::error!("创建Tokio运行时失败: {}", e);
+            // 更新计数，标记任务完成但没有成功处理任何书签
+            {
+                let mut counter = updated_count.lock().unwrap();
+                *counter = 0;
+            }
+            {
+                let mut complete = completion_counter.lock().unwrap();
+                *complete += 1;
+            }
+            return;
+        }
+    };
 
     let mut count = 0;
 
-    // 提示开发者
     info!("正在加载书签图标...");
 
     for bookmark in bookmarks {

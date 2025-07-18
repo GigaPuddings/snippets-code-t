@@ -20,8 +20,7 @@
       </div>
     </template>
     <div class="alarm-edit-form">
-      <!-- 时间选择器 -->
-      <div class="time-picker mb-6">
+      <div class="time-picker mb-2">
         <div class="flex justify-center items-center gap-4">
           <div class="time-unit">
             <up
@@ -61,7 +60,6 @@
         </div>
       </div>
 
-      <!-- 标题输入 -->
       <div class="alarm-title-input">
         <edit-two theme="outline" size="20" :strokeWidth="3" />
         <el-tooltip effect="light" content="提醒标题" placement="top">
@@ -73,8 +71,42 @@
         </el-tooltip>
       </div>
 
-      <!-- 重复选项 -->
-      <div class="alarm-repeat-section">
+      <div class="alarm-type-selection">
+        <span class="alarm-type-title">提醒类型</span>
+        <div class="alarm-type-options">
+          <div
+            v-for="type in alarmTypes"
+            :key="type.value"
+            :class="[
+              'type-item',
+              formData.alarmType === type.value ? 'active' : ''
+            ]"
+            @click="formData.alarmType = type.value"
+          >
+            {{ type.label }}
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="formData.alarmType === 'SpecificDate'"
+        class="alarm-date-picker"
+      >
+        <calendar theme="outline" size="20" :strokeWidth="3" />
+        <el-config-provider :locale="zhCnLocale">
+          <el-date-picker
+            v-model="specificDateValue"
+            type="date"
+            placeholder="选择日期"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            class="date-picker"
+            @change="handleDateChange"
+          />
+        </el-config-provider>
+      </div>
+
+      <div v-if="formData.alarmType === 'Weekly'" class="alarm-repeat-section">
         <span class="repeat-section-title">重复提醒</span>
         <div class="repeat-section-weekdays">
           <div
@@ -91,7 +123,6 @@
         </div>
       </div>
 
-      <!-- 暂停时间 -->
       <div class="alarm-pause-time">
         <alarm-clock theme="outline" size="20" :strokeWidth="3" />
         <el-tooltip effect="light" content="暂停时间" placement="top">
@@ -133,16 +164,21 @@ import {
   EditTwo,
   AlarmClock,
   Save,
-  Close
+  Close,
+  Calendar
 } from '@icon-park/vue-next';
 import dayjs from 'dayjs';
 import { CustomButton } from '@/components/UI';
+import { ElMessage } from 'element-plus';
+import zhCn from 'element-plus/es/locale/lang/zh-cn';
 interface FormData {
   hour: string;
   minute: string;
   title: string;
   weekdays: string[];
   reminderTime: string;
+  alarmType: 'Daily' | 'Weekly' | 'SpecificDate';
+  specificDate: string;
 }
 
 const props = defineProps<{
@@ -153,35 +189,57 @@ const emit = defineEmits(['submit', 'delete']);
 const dialogVisible = ref(false);
 const weekdays = ref(['一', '二', '三', '四', '五', '六', '日']);
 
-// 初始化表单数据，使用当前时间
+const alarmTypes = ref([
+  { label: '每天', value: 'Daily' as const },
+  { label: '每周', value: 'Weekly' as const },
+  { label: '指定日期', value: 'SpecificDate' as const }
+]);
+
+const specificDateValue = ref(dayjs().format('YYYY-MM-DD'));
+const zhCnLocale = zhCn;
+
+const handleDateChange = (date: string) => {
+  formData.value.specificDate = date;
+};
 const now = dayjs();
 const formData = ref<FormData>({
   hour: now.format('HH'),
   minute: now.format('mm'),
   title: '',
   weekdays: [],
-  reminderTime: '5'
+  reminderTime: '5',
+  alarmType: 'Weekly',
+  specificDate: now.format('YYYY-MM-DD')
 });
 
 watch(
   () => props.editData,
   (newValue, _oldValue) => {
     if (newValue) {
+      const specificDate =
+        (newValue as any).specific_date || now.format('YYYY-MM-DD');
       formData.value = {
         hour: newValue.time.split(':')[0],
         minute: newValue.time.split(':')[1],
         title: newValue.title,
         weekdays: newValue.weekdays,
-        reminderTime: newValue.reminder_time
+        reminderTime: newValue.reminder_time,
+        alarmType: (newValue as any).alarm_type || 'Weekly',
+        specificDate: specificDate
       };
+      specificDateValue.value = specificDate;
     } else {
+      const currentDate = now.format('YYYY-MM-DD');
       formData.value = {
         hour: now.format('HH'),
         minute: now.format('mm'),
         title: '',
         weekdays: [],
-        reminderTime: '5'
+        reminderTime: '5',
+        alarmType: 'Weekly',
+        specificDate: currentDate
       };
+      specificDateValue.value = currentDate;
     }
   },
   {
@@ -189,7 +247,11 @@ watch(
   }
 );
 
-// 删除代办提醒
+watch(specificDateValue, (newDate) => {
+  if (newDate) {
+    formData.value.specificDate = newDate;
+  }
+});
 const handleDelete = () => {
   if (props.editData) {
     emit('delete', props.editData);
@@ -220,51 +282,111 @@ const toggleWeekday = (day: string) => {
   }
 };
 
+const validateForm = (): string | null => {
+  if (!formData.value.title.trim()) {
+    return '请输入提醒标题';
+  }
+
+  const hour = parseInt(formData.value.hour);
+  const minute = parseInt(formData.value.minute);
+  if (isNaN(hour) || hour < 0 || hour > 23) {
+    return '小时格式错误 (0-23)';
+  }
+  if (isNaN(minute) || minute < 0 || minute > 59) {
+    return '分钟格式错误 (0-59)';
+  }
+
+  if (
+    formData.value.alarmType === 'Weekly' &&
+    formData.value.weekdays.length === 0
+  ) {
+    return '每周模式请至少选择一个星期';
+  }
+
+  if (formData.value.alarmType === 'SpecificDate') {
+    if (!formData.value.specificDate) {
+      return '请选择具体日期';
+    }
+    const selectedDate = dayjs(formData.value.specificDate);
+    const now = dayjs();
+    const selectedDateTime = selectedDate.hour(hour).minute(minute);
+
+    if (selectedDateTime.isBefore(now)) {
+      return '选择的日期时间不能早于当前时间';
+    }
+  }
+
+  return null;
+};
+
 const handleSubmit = () => {
-  const weeks =
-    formData.value.weekdays.length > 0
-      ? formData.value.weekdays
-      : weekdays.value;
+  const error = validateForm();
+  if (error) {
+    ElMessage.error(error);
+    return;
+  }
+
+  let weeks: string[] = [];
+
+  if (formData.value.alarmType === 'Weekly') {
+    weeks =
+      formData.value.weekdays.length > 0
+        ? formData.value.weekdays
+        : weekdays.value;
+  } else if (formData.value.alarmType === 'Daily') {
+    weeks = weekdays.value;
+  }
+
   emit('submit', {
     id: props.editData?.id || '',
     time: `${formData.value.hour}:${formData.value.minute}`,
-    title: formData.value.title || '消息提醒',
+    title: formData.value.title.trim() || '消息提醒',
     weekdays: weeks,
     reminder_time: formData.value.reminderTime,
     is_active: true,
     created_at: new Date(),
     updated_at: new Date(),
-    time_left: ''
+    time_left: '',
+    alarm_type: formData.value.alarmType,
+    specific_date:
+      formData.value.alarmType === 'SpecificDate'
+        ? formData.value.specificDate
+        : null
   });
   dialogVisible.value = false;
 };
 
-// 重置表单数据
 const resetForm = () => {
   const now = dayjs();
+  const currentDate = now.format('YYYY-MM-DD');
   formData.value = {
     hour: now.format('HH'),
     minute: now.format('mm'),
     title: '',
     weekdays: [],
-    reminderTime: '5'
+    reminderTime: '5',
+    alarmType: 'Weekly',
+    specificDate: currentDate
   };
+  specificDateValue.value = currentDate;
 };
 
-// 对外暴露方法
 defineExpose({
   open: () => {
     if (props.editData) {
-      // 编辑模式，设置表单数据
+      const specificDate =
+        (props.editData as any).specific_date || dayjs().format('YYYY-MM-DD');
       formData.value = {
         hour: props.editData.time.split(':')[0],
         minute: props.editData.time.split(':')[1],
         title: props.editData.title,
         weekdays: props.editData.weekdays,
-        reminderTime: props.editData.reminder_time
+        reminderTime: props.editData.reminder_time,
+        alarmType: (props.editData as any).alarm_type || 'Weekly',
+        specificDate: specificDate
       };
+      specificDateValue.value = specificDate;
     } else {
-      // 新增模式，重置表单
       resetForm();
     }
     dialogVisible.value = true;
@@ -302,7 +424,7 @@ defineExpose({
 }
 
 .alarm-edit-form {
-  @apply flex flex-col gap-5 p-1;
+  @apply flex flex-col gap-3 p-1;
 }
 
 .alarm-title-input {
@@ -327,6 +449,36 @@ defineExpose({
   @apply flex items-center gap-2;
 
   .reminder-time-select {
+    @apply border rounded-md shadow-sm;
+  }
+}
+
+.alarm-type-selection {
+  .alarm-type-title {
+    @apply text-sm text-gray-600 select-none;
+  }
+
+  .alarm-type-options {
+    @apply flex gap-2 mt-2 select-none;
+  }
+
+  .type-item {
+    @apply px-[8px] py-[4px] rounded-full cursor-pointer text-sm border transition-colors;
+
+    &:hover {
+      @apply bg-gray-100;
+    }
+
+    &.active {
+      @apply bg-active text-white hover:bg-[--el-button-hover-bg-color];
+    }
+  }
+}
+
+.alarm-date-picker {
+  @apply flex items-center gap-2;
+
+  .date-picker {
     @apply border rounded-md shadow-sm;
   }
 }

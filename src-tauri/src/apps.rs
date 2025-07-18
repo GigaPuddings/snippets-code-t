@@ -1,9 +1,11 @@
 use crate::db;
 use crate::icon;
+use crate::APP;
 use glob::glob;
 use log::info;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use tauri_plugin_opener::OpenerExt;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::mem::size_of;
@@ -25,8 +27,8 @@ use xml::reader::{EventReader, XmlEvent};
 pub struct AppInfo {
     pub id: String,
     pub title: String,
-    pub content: String,      // Path to the executable
-    pub icon: Option<String>, // Base64 encoded icon data
+    pub content: String,
+    pub icon: Option<String>,
     pub summarize: String,
 }
 
@@ -35,6 +37,32 @@ fn extract_icon_path(icon_path: &str) -> Option<String> {
     re.captures(icon_path)
         .and_then(|caps| caps.get(1))
         .map(|m| m.as_str().to_string())
+}
+
+// 格式化快捷方式标题
+fn format_shortcut_title(raw_title: &str) -> String {
+    let mut title = raw_title.to_string();
+    let suffixes_to_remove = [
+        ".exe - 快捷方式",
+        ".exe - Shortcut", 
+        " - 快捷方式",
+        " - Shortcut",
+        ".exe",
+    ];
+    
+    for suffix in &suffixes_to_remove {
+        if title.ends_with(suffix) {
+            title = title[..title.len() - suffix.len()].to_string();
+            break;
+        }
+    }
+    if let Some(last_dot_pos) = title.rfind('.') {
+        if last_dot_pos > 0 {
+            title = title[..last_dot_pos].to_string();
+        }
+    }
+    
+    title.trim().to_string()
 }
 
 fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
@@ -73,7 +101,7 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
                                     id: Uuid::new_v4().to_string(),
                                     title: display_name.clone(),
                                     content: icon_path.clone(),
-                                    icon: None, // Icons will be loaded asynchronously later
+                                    icon: None,
                                     summarize: "app".to_string(),
                                 });
                             }
@@ -199,7 +227,7 @@ fn get_uwp_apps() -> Vec<AppInfo> {
                             id: Uuid::new_v4().to_string(),
                             title: app_info.display_name,
                             content: app_info.executable,
-                            icon: None, // 图标将在后续异步加载
+                            icon: None,
                             summarize: "uwp".to_string(),
                         });
                     }
@@ -237,38 +265,48 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                 if path.extension().map_or(false, |ext| ext == "lnk") {
                     // info!("检测到快捷方式: {:?}", path);
 
-                    // 解析快捷方式获取目标应用路径和名称
-                    if let Some(target_path) = resolve_shortcut(&path) {
-                        // 检查目标是否为有效的可执行文件
-                        if target_path.ends_with(".exe") && Path::new(&target_path).exists() {
-                            let file_name = path
-                                .file_stem()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string();
+                    let raw_file_name = path
+                        .file_stem()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string();
 
-                            let lower_target_path = target_path.to_lowercase();
-                            let lower_file_name = file_name.to_lowercase();
+                    let file_name = format_shortcut_title(&raw_file_name);
 
-                            if lower_target_path.contains("uninstall")
-                                || lower_target_path.contains("unins")
-                                || lower_file_name.contains("uninstall")
-                                || lower_file_name.contains("remove")
-                            {
-                                info!(
-                                    "Skipping uninstaller shortcut: {} -> {}",
-                                    file_name, target_path
-                                );
-                            } else {
-                                // info!("解析快捷方式成功: {} -> {}", file_name, target_path);
-                                apps.push(AppInfo {
-                                    id: Uuid::new_v4().to_string(),
-                                    title: file_name,
-                                    content: target_path,
-                                    icon: None, // 图标将在后续异步加载
-                                    summarize: "app".to_string(),
-                                });
-                            }
+                    let target_path = resolve_shortcut(&path)
+                        .unwrap_or_else(|| path.to_string_lossy().to_string());
+
+                    // 检查是否为有效的可执行文件或快捷方式
+                    let is_valid = if target_path.ends_with(".exe") {
+                        Path::new(&target_path).exists()
+                    } else if target_path.ends_with(".lnk") {
+                        true
+                    } else {
+                        false
+                    };
+
+                    if is_valid {
+                        let lower_target_path = target_path.to_lowercase();
+                        let lower_file_name = file_name.to_lowercase();
+
+                        if lower_target_path.contains("uninstall")
+                            || lower_target_path.contains("unins")
+                            || lower_file_name.contains("uninstall")
+                            || lower_file_name.contains("remove")
+                        {
+                            info!(
+                                "跳过卸载程序快捷方式: {} -> {}",
+                                file_name, target_path
+                            );
+                        } else {
+                            info!("添加快捷方式应用: {} (原始: {}) -> {}", file_name, raw_file_name, target_path);
+                            apps.push(AppInfo {
+                                id: Uuid::new_v4().to_string(),
+                                title: file_name,
+                                content: target_path,
+                                icon: None,
+                                summarize: "app".to_string(),
+                            });
                         }
                     }
                 }
@@ -282,13 +320,9 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
 
 // 解析快捷方式获取目标路径
 fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
-    // 使用稳定的方式处理快捷方式解析，防止PowerShell闪退
-    // info!("尝试解析快捷方式: {:?}", shortcut_path);
+    info!("尝试解析快捷方式: {:?}", shortcut_path);
 
     let shortcut_path_str = shortcut_path.to_string_lossy().to_string();
-
-    // 避免直接使用PowerShell创建COM对象，因为这可能在Windows权限或安全设置下导致问题
-    // 改用更直接的文件读取方式或静态路径匹配
 
     let filename = shortcut_path
         .file_stem()
@@ -783,14 +817,13 @@ fn detect_office_app_path(version: &str, app_name: &str) -> Option<String> {
 fn find_modern_system_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
 
-    // 直接查询C:\Windows\System32目录下的.exe文件
     let system32_dir = "C:\\Windows\\System32";
     let search_pattern = format!("{}\\*.exe", system32_dir);
 
     info!("正在检索Windows System32应用: {}", search_pattern);
 
     if let Ok(paths) = glob(&search_pattern) {
-        for entry in paths.filter_map(Result::ok) { 
+        for entry in paths.filter_map(Result::ok) {
             if let Some(file_name) = entry.file_name() {
                 let name = file_name.to_string_lossy().to_string();
 
@@ -862,7 +895,7 @@ fn get_windows_store_apps() -> Vec<AppInfo> {
                             if !parts.is_empty() {
                                 parts[0].replace("Microsoft.", "").to_string()
                             } else {
-                                continue; // 跳过无法确定名称的包
+                                continue;
                             }
                         };
 
@@ -953,7 +986,6 @@ fn find_uwp_executable(package_root: &str, app_id: &str) -> Option<String> {
 
 // 从应用清单XML中提取可执行文件路径
 fn extract_executable_from_manifest(manifest_content: &str) -> Option<String> {
-    // 简单的文本匹配方法，更健壮的方法应该使用XML解析
     if let Some(start_idx) = manifest_content.find("Executable=\"") {
         let start = start_idx + 12; // "Executable=\"" 的长度
         if let Some(end_idx) = manifest_content[start..].find('"') {
@@ -988,8 +1020,6 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
 
     let mut all_apps = Vec::new();
 
-    // 从注册表获取传统Win32应用
-    info!("正在从注册表检索传统Win32应用...");
     let mut registry_app_count = 0;
     for (hkey, path) in paths.iter() {
         let apps = get_registry_apps(*hkey, path);
@@ -998,26 +1028,18 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
     }
     info!("从注册表检索到 {} 个传统Win32应用", registry_app_count);
 
-    // 获取UWP应用
-    info!("正在检索UWP应用...");
     let uwp_apps = get_uwp_apps();
     info!("检索到 {} 个UWP应用", uwp_apps.len());
     all_apps.extend(uwp_apps);
 
-    // 获取Windows商店应用
-    info!("正在检索Windows商店应用...");
     let store_apps = get_windows_store_apps();
     info!("检索到 {} 个Windows商店应用", store_apps.len());
     all_apps.extend(store_apps);
 
-    // 获取桌面快捷方式应用
-    info!("正在检索桌面快捷方式应用...");
     let shortcut_apps = get_desktop_shortcuts();
     info!("检索到 {} 个桌面快捷方式应用", shortcut_apps.len());
     all_apps.extend(shortcut_apps);
 
-    // 获取Windows内置应用
-    info!("正在检索Windows内置应用...");
     let windows_apps = get_windows_apps();
     info!("检索到 {} 个Windows内置应用", windows_apps.len());
     all_apps.extend(windows_apps);
@@ -1097,7 +1119,6 @@ pub fn load_app_icons_async_silent(
                 }
             } else {
                 info!("为 '{}' 提取图标失败，使用默认图标", app.title);
-                // 如果提取失败，使用默认图标
             }
         }
     }
@@ -1207,15 +1228,20 @@ fn find_existing_window(target_path: &str) -> Option<HWND> {
 }
 
 #[tauri::command]
-pub fn open_app_command(app_path: String) {
+pub fn open_app_command(app_path: String) -> Result<(), String> {
+    info!("尝试打开应用程序: {}", app_path);
+
     let path = Path::new(&app_path);
     if !path.exists() {
-        println!("Path does not exist: {}", app_path);
-        return;
+        let error_msg = format!("应用程序路径不存在: {}", app_path);
+        info!("{}", error_msg);
+        return Err(error_msg);
     }
 
     // 尝试查找现有窗口
     if let Some(hwnd) = find_existing_window(&app_path) {
+        info!("找到现有窗口，尝试激活: {}", app_path);
+
         unsafe {
             // 如果窗口被最小化，先恢复它
             if IsIconic(hwnd).as_bool() {
@@ -1231,13 +1257,40 @@ pub fn open_app_command(app_path: String) {
             // 强制切换到该窗口
             SwitchToThisWindow(hwnd, true);
         }
-    } else {
-        // 如果没有找到现有窗口，则启动新实例
-        std::process::Command::new(path)
-            .spawn()
-            .unwrap_or_else(|e| {
-                println!("Failed to start application: {}", e);
-                panic!("Failed to start application");
-            });
+
+        info!("成功激活现有窗口: {}", app_path);
+        return Ok(());
+    }
+
+    info!("未找到现有窗口，启动新实例: {}", app_path);
+    
+    match APP.get() {
+        Some(app) => {
+            // 对于 .lnk 快捷方式文件，尝试解析其目标路径后再启动
+            let actual_path = if app_path.ends_with(".lnk") {
+                info!("检测到快捷方式文件，尝试解析目标路径: {}", app_path);
+                resolve_shortcut(Path::new(&app_path)).unwrap_or(app_path.clone())
+            } else {
+                app_path.clone()
+            };
+            
+            match app.opener().open_path(actual_path.clone(), None::<&str>) {
+                Ok(_) => {
+                    info!("成功启动应用程序: {} -> {}", app_path, actual_path);
+                    Ok(())
+                }
+                Err(e) => {
+                    let error_msg = format!("启动应用程序失败 '{}' -> '{}': {}", app_path, actual_path, e);
+                    info!("{}", error_msg);
+                    Err(error_msg)
+                }
+            }
+        }
+        None => {
+            let error_msg = "无法获取应用程序实例".to_string();
+            info!("{}", error_msg);
+            Err(error_msg)
+        }
     }
 }
+
