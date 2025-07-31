@@ -1,4 +1,4 @@
-use crate::window::hotkey_config;
+use crate::window::{ hotkey_config, hotkey_translate };
 use log::info;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -48,10 +48,7 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             }
             "translate" => {
                 info!("============== Search ==============");
-                if let Some(window) = app.get_webview_window("translate") {
-                    window.show().unwrap();
-                    window.set_focus().unwrap();
-                }
+                hotkey_translate();
             }
             "view_log" => {
                 info!("============== View Log ==============");

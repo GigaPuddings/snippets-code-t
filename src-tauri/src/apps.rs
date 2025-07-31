@@ -96,6 +96,7 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
                                 && !lower_icon_path.contains("unins")
                                 && !lower_display_name.contains("uninstall")
                                 && !lower_display_name.contains("remove")
+                                && !lower_icon_path.contains("package cache")
                             {
                                 apps.push(AppInfo {
                                     id: Uuid::new_v4().to_string(),

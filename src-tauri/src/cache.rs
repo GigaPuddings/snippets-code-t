@@ -135,8 +135,6 @@ pub async fn clear_cache() -> Result<String, String> {
     // 在后台线程中注销所有快捷键并重启应用程序
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(3));
-        // 先清理资源
-        app.cleanup_before_exit();
         // 注销所有快捷键
         app.global_shortcut().unregister_all().unwrap();
         // 重启应用程序

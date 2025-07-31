@@ -141,7 +141,6 @@ impl AlarmCard {
                     }
                     
                     // 找到最近的未过期日期
-                    let mut nearest_time = None;
                     let mut nearest_duration = None;
                     
                     for date_str in dates {
@@ -151,7 +150,6 @@ impl AlarmCard {
                                 let diff = target.signed_duration_since(now);
                                 if diff.num_seconds() > 0 {
                                     if nearest_duration.is_none() || diff < nearest_duration.unwrap() {
-                                        nearest_time = Some(target);
                                         nearest_duration = Some(diff);
                                     }
                                 }
