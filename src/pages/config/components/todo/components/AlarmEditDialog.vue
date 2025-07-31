@@ -95,9 +95,9 @@
         <calendar theme="outline" size="20" :strokeWidth="3" />
         <el-config-provider :locale="zhCnLocale">
           <el-date-picker
-            v-model="specificDateValue"
-            type="date"
-            placeholder="选择日期"
+            v-model="specificDatesValue"
+            type="dates"
+            placeholder="选择多个日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
             class="date-picker"
@@ -178,7 +178,7 @@ interface FormData {
   weekdays: string[];
   reminderTime: string;
   alarmType: 'Daily' | 'Weekly' | 'SpecificDate';
-  specificDate: string;
+  specificDates: string[];
 }
 
 const props = defineProps<{
@@ -195,11 +195,11 @@ const alarmTypes = ref([
   { label: '指定日期', value: 'SpecificDate' as const }
 ]);
 
-const specificDateValue = ref(dayjs().format('YYYY-MM-DD'));
+const specificDatesValue = ref<string[]>([dayjs().format('YYYY-MM-DD')]);
 const zhCnLocale = zhCn;
 
-const handleDateChange = (date: string) => {
-  formData.value.specificDate = date;
+const handleDateChange = (dates: string[]) => {
+  formData.value.specificDates = dates || [];
 };
 const now = dayjs();
 const formData = ref<FormData>({
@@ -209,15 +209,16 @@ const formData = ref<FormData>({
   weekdays: [],
   reminderTime: '5',
   alarmType: 'Weekly',
-  specificDate: now.format('YYYY-MM-DD')
+  specificDates: [now.format('YYYY-MM-DD')]
 });
 
 watch(
   () => props.editData,
   (newValue, _oldValue) => {
     if (newValue) {
-      const specificDate =
-        (newValue as any).specific_date || now.format('YYYY-MM-DD');
+      const specificDates = (newValue as any).specific_dates || [
+        now.format('YYYY-MM-DD')
+      ];
       formData.value = {
         hour: newValue.time.split(':')[0],
         minute: newValue.time.split(':')[1],
@@ -225,11 +226,15 @@ watch(
         weekdays: newValue.weekdays,
         reminderTime: newValue.reminder_time,
         alarmType: (newValue as any).alarm_type || 'Weekly',
-        specificDate: specificDate
+        specificDates: Array.isArray(specificDates)
+          ? specificDates
+          : [specificDates]
       };
-      specificDateValue.value = specificDate;
+      specificDatesValue.value = Array.isArray(specificDates)
+        ? specificDates
+        : [specificDates];
     } else {
-      const currentDate = now.format('YYYY-MM-DD');
+      const currentDate = [now.format('YYYY-MM-DD')];
       formData.value = {
         hour: now.format('HH'),
         minute: now.format('mm'),
@@ -237,9 +242,9 @@ watch(
         weekdays: [],
         reminderTime: '5',
         alarmType: 'Weekly',
-        specificDate: currentDate
+        specificDates: currentDate
       };
-      specificDateValue.value = currentDate;
+      specificDatesValue.value = currentDate;
     }
   },
   {
@@ -247,9 +252,9 @@ watch(
   }
 );
 
-watch(specificDateValue, (newDate) => {
-  if (newDate) {
-    formData.value.specificDate = newDate;
+watch(specificDatesValue, (newDates) => {
+  if (newDates) {
+    formData.value.specificDates = newDates;
   }
 });
 const handleDelete = () => {
@@ -304,15 +309,21 @@ const validateForm = (): string | null => {
   }
 
   if (formData.value.alarmType === 'SpecificDate') {
-    if (!formData.value.specificDate) {
+    if (
+      !formData.value.specificDates ||
+      formData.value.specificDates.length === 0
+    ) {
       return '请选择具体日期';
     }
-    const selectedDate = dayjs(formData.value.specificDate);
-    const now = dayjs();
-    const selectedDateTime = selectedDate.hour(hour).minute(minute);
 
-    if (selectedDateTime.isBefore(now)) {
-      return '选择的日期时间不能早于当前时间';
+    const now = dayjs();
+    for (const dateStr of formData.value.specificDates) {
+      const selectedDate = dayjs(dateStr);
+      const selectedDateTime = selectedDate.hour(hour).minute(minute);
+
+      if (selectedDateTime.isBefore(now)) {
+        return `日期 ${dateStr} 的时间不能早于当前时间`;
+      }
     }
   }
 
@@ -348,9 +359,9 @@ const handleSubmit = () => {
     updated_at: new Date(),
     time_left: '',
     alarm_type: formData.value.alarmType,
-    specific_date:
+    specific_dates:
       formData.value.alarmType === 'SpecificDate'
-        ? formData.value.specificDate
+        ? formData.value.specificDates
         : null
   });
   dialogVisible.value = false;
@@ -358,7 +369,7 @@ const handleSubmit = () => {
 
 const resetForm = () => {
   const now = dayjs();
-  const currentDate = now.format('YYYY-MM-DD');
+  const currentDates = [now.format('YYYY-MM-DD')];
   formData.value = {
     hour: now.format('HH'),
     minute: now.format('mm'),
@@ -366,9 +377,9 @@ const resetForm = () => {
     weekdays: [],
     reminderTime: '5',
     alarmType: 'Weekly',
-    specificDate: currentDate
+    specificDates: currentDates
   };
-  specificDateValue.value = currentDate;
+  specificDatesValue.value = currentDates;
 };
 
 defineExpose({
@@ -383,9 +394,13 @@ defineExpose({
         weekdays: props.editData.weekdays,
         reminderTime: props.editData.reminder_time,
         alarmType: (props.editData as any).alarm_type || 'Weekly',
-        specificDate: specificDate
+        specificDates: Array.isArray(specificDate)
+          ? specificDate
+          : [specificDate]
       };
-      specificDateValue.value = specificDate;
+      specificDatesValue.value = Array.isArray(specificDate)
+        ? specificDate
+        : [specificDate];
     } else {
       resetForm();
     }

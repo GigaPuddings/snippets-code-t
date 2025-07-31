@@ -28,7 +28,7 @@ pub struct AlarmCard {
     pub updated_at: DateTime<Local>,
     pub time_left: String,
     pub alarm_type: AlarmType,
-    pub specific_date: Option<String>,
+    pub specific_dates: Option<Vec<String>>,
 }
 
 static SERVICE_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -63,13 +63,17 @@ fn should_start_service() -> bool {
                     false
                 },
                 AlarmType::SpecificDate => {
-                    if let Some(date_str) = &card.specific_date {
-                        if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-                            if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
-                                let target_datetime = target_date.and_time(alarm_time);
-                                if let Some(target) = Local.from_local_datetime(&target_datetime).single() {
-                                    // 如果指定日期时间还没到，就需要启动服务
-                                    return target > now;
+                    if let Some(dates) = &card.specific_dates {
+                        for date_str in dates {
+                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                                if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
+                                    let target_datetime = target_date.and_time(alarm_time);
+                                    if let Some(target) = Local.from_local_datetime(&target_datetime).single() {
+                                        // 如果任何一个指定日期时间还没到，就需要启动服务
+                                        if target > now {
+                                            return true;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -131,19 +135,46 @@ impl AlarmCard {
                 Self::format_duration(diff)
             },
             AlarmType::SpecificDate => {
-                if let Some(date_str) = &self.specific_date {
-                    if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-                        let target_datetime = target_date.and_time(alarm_time);
-                        let target_with_tz = Local.from_local_datetime(&target_datetime).single();
-                        
-                        if let Some(target) = target_with_tz {
-                            let diff = target.signed_duration_since(now);
-                            Self::format_duration(diff)
-                        } else {
-                            "日期时区错误".to_string()
+                if let Some(dates) = &self.specific_dates {
+                    if dates.is_empty() {
+                        return "未设置日期".to_string();
+                    }
+                    
+                    // 找到最近的未过期日期
+                    let mut nearest_time = None;
+                    let mut nearest_duration = None;
+                    
+                    for date_str in dates {
+                        if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                            let target_datetime = target_date.and_time(alarm_time);
+                            if let Some(target) = Local.from_local_datetime(&target_datetime).single() {
+                                let diff = target.signed_duration_since(now);
+                                if diff.num_seconds() > 0 {
+                                    if nearest_duration.is_none() || diff < nearest_duration.unwrap() {
+                                        nearest_time = Some(target);
+                                        nearest_duration = Some(diff);
+                                    }
+                                }
+                            }
                         }
+                    }
+                    
+                    if let Some(duration) = nearest_duration {
+                        Self::format_duration(duration)
                     } else {
-                        "日期格式错误".to_string()
+                        // 如果所有日期都已过期，显示最晚的过期时间
+                        let mut latest_expired = None;
+                        for date_str in dates {
+                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                                let target_datetime = target_date.and_time(alarm_time);
+                                if let Some(target) = Local.from_local_datetime(&target_datetime).single() {
+                                    if latest_expired.is_none() || target > latest_expired.unwrap() {
+                                        latest_expired = Some(target);
+                                    }
+                                }
+                            }
+                        }
+                        "已过期".to_string()
                     }
                 } else {
                     "未设置日期".to_string()
@@ -417,12 +448,14 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
                 },
                 AlarmType::SpecificDate => {
                     // 指定日期提醒
-                    if let Some(date_str) = &card.specific_date {
-                        if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-                            target_date == current_date && current_minutes == alarm_minutes
-                        } else {
-                            false
-                        }
+                    if let Some(dates) = &card.specific_dates {
+                        dates.iter().any(|date_str| {
+                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                                target_date == current_date && current_minutes == alarm_minutes
+                            } else {
+                                false
+                            }
+                        })
                     } else {
                         false
                     }
@@ -441,10 +474,21 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
                     // 创建通知窗口
                     create_notification_window(&card_clone.title, reminder_time);
 
-                    // 对于一次性的指定日期提醒，触发后自动禁用
+                    // 对于指定日期提醒，触发后移除当天的日期
                     if matches!(card_clone.alarm_type, AlarmType::SpecificDate) {
                         let mut updated_card = card_clone.clone();
-                        updated_card.is_active = false;
+                        let current_date = Local::now().date_naive().format("%Y-%m-%d").to_string();
+                        
+                        if let Some(ref mut dates) = updated_card.specific_dates {
+                            // 移除今天的日期
+                            dates.retain(|date| date != &current_date);
+                            
+                            // 如果没有剩余日期，则禁用提醒
+                            if dates.is_empty() {
+                                updated_card.is_active = false;
+                            }
+                        }
+                        
                         updated_card.updated_at = Local::now();
                         let _ = db::add_or_update_alarm_card(&updated_card);
                     }

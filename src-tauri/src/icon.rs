@@ -294,6 +294,7 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
     };
     // 尝试不同的Favicon来源
     let icon_urls = vec![
+        format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=64",domain),
         format!("https://api.vwood.xyz/v1/Favicon/public?domain={}", domain),
         format!("https://www.google.com/s2/favicons?domain={}&sz=64", url),
         format!("https://favicon.yandex.net/favicon/{}", domain),

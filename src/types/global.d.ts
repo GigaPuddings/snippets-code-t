@@ -70,7 +70,7 @@ declare global {
     updated_at: Date;
     time_left: string;
     alarm_type: 'Daily' | 'Weekly' | 'SpecificDate';
-    specific_date?: string | null;
+    specific_dates?: string[] | null;
   }
 }
 

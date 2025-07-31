@@ -26,7 +26,7 @@
                 v-else-if="(item as any).alarm_type === 'SpecificDate'"
                 class="type-badge specific"
               >
-                {{ (item as any).specific_date }}
+                {{ formatSpecificDates((item as any).specific_dates) }}
               </span>
               <span v-else class="type-badge weekly">每周</span>
             </div>
@@ -123,6 +123,14 @@ import { invoke } from '@tauri-apps/api/core';
 const alarmCards = ref<AlarmCard[]>([]);
 const weekdays = ref<string[]>(['一', '二', '三', '四', '五', '六', '日']);
 const isEdit = ref(false);
+
+// 格式化多个日期显示
+const formatSpecificDates = (dates: string[] | undefined) => {
+  if (!dates || dates.length === 0) return '未设置';
+  if (dates.length === 1) return dates[0];
+  if (dates.length <= 3) return dates.join(', ');
+  return `${dates.slice(0, 2).join(', ')} 等${dates.length}个日期`;
+};
 const currentEditCard = ref<AlarmCard | null>(null);
 const alarmEditDialogRef = ref();
 let timer: number | null = null;

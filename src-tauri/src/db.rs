@@ -108,7 +108,7 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             alarm_type TEXT DEFAULT 'Weekly',
-            specific_date TEXT
+            specific_dates TEXT
         )",
         [],
     )?;
@@ -272,7 +272,7 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
     let app_handle = APP.get().unwrap();
     let db_path = get_database_path(app_handle);
     let conn = rusqlite::Connection::open(db_path)?;
-    let mut stmt = conn.prepare("SELECT id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_date FROM alarm_cards")?;
+    let mut stmt = conn.prepare("SELECT id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_dates FROM alarm_cards")?;
     let card_iter = stmt.query_map([], |row| {
         let weekdays_str: String = row.get(3)?;
         let alarm_type_str: Option<String> = row.get(8).ok();
@@ -292,7 +292,16 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
             updated_at: row.get::<_, String>(7)?.parse().unwrap(),
             time_left: "".to_string(), // This is a calculated field
             alarm_type,
-            specific_date: row.get(9).ok(),
+            specific_dates: {
+                let dates_str: Option<String> = row.get(9).ok();
+                dates_str.and_then(|s| {
+                    if s.is_empty() {
+                        None
+                    } else {
+                        Some(s.split(',').map(|s| s.trim().to_string()).collect())
+                    }
+                })
+            },
         })
     })?;
 
@@ -316,7 +325,7 @@ pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error>
     };
 
     conn.execute(
-        "INSERT OR REPLACE INTO alarm_cards (id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_date) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT OR REPLACE INTO alarm_cards (id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_dates) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![
             card.id,
             card.time,
@@ -327,7 +336,7 @@ pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error>
             card.created_at.to_rfc3339(),
             card.updated_at.to_rfc3339(),
             alarm_type_str,
-            card.specific_date,
+            card.specific_dates.as_ref().map(|dates| dates.join(",")),
         ],
     )?;
     Ok(())
