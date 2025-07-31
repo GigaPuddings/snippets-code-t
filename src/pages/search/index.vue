@@ -58,7 +58,7 @@ const handleKeyDown = async (e: Event) => {
         @keydown="handleKeyDown"
       />
       <img
-        src="@/assets/svg/home.svg"
+        src="@tauri/icons/icon.png"
         class="home"
         loading="lazy"
         @click="handleGoConfig"
@@ -92,7 +92,7 @@ const handleKeyDown = async (e: Event) => {
 
 .main {
   /* 拖拽手势 */
-  @apply bg-search rounded-md p-3 border-[0.1rem] border-zinc-300 dark:border-black box-border;
+  @apply relative bg-search rounded-md p-3 border-[0.1rem] border-zinc-300 dark:border-black box-border;
 
   .search {
     @apply flex items-center border-b border-search;
@@ -102,7 +102,7 @@ const handleKeyDown = async (e: Event) => {
     }
 
     .home {
-      @apply p-1 w-9 h-9 rounded-md opacity-60 hover:opacity-100 cursor-pointer;
+      @apply p-1 w-9 h-9 rounded-md opacity-90 hover:opacity-100 cursor-pointer;
     }
   }
 }

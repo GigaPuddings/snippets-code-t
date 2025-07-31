@@ -11,8 +11,6 @@
           {{ item.label }}
         </div>
       </template>
-
-      <!-- 分类排序 -->
     </div>
     <div class="result">
       <template v-for="(item, index) in filteredResults" :key="item.id">
@@ -153,17 +151,14 @@ const handleKeyEvent = (e: KeyboardEvent) => {
     }
   }
 
-  // 处理数字键 1-5 的按键
   if (/^Digit[1-5]$/.test(e.code) || /^Numpad[1-5]$/.test(e.code)) {
     e.preventDefault();
     e.stopPropagation();
 
-    // 提取数字
     const num = parseInt(e.code.replace('Digit', '').replace('Numpad', ''));
 
     // 确保对应索引的结果存在
     if (filteredResults.value.length >= num) {
-      // 选择对应的结果项（索引从0开始，而快捷键从1开始）
       selectItem(filteredResults.value[num - 1]);
     }
     return;
@@ -233,13 +228,11 @@ const handleKeyEvent = (e: KeyboardEvent) => {
       break;
   }
 
-  // 只在有结果且进行上下移动时才处理滚动
   if (
     ['ArrowDown', 'ArrowUp'].includes(e.code) &&
     nextIndex !== index &&
     containerRef.value
   ) {
-    // 获取 .result 容器下的所有 .item 元素
     const resultContainer = containerRef.value.querySelector('.result');
     if (!resultContainer) return;
 
@@ -270,28 +263,23 @@ async function selectItem(item: ContentType) {
 
   if (item.summarize === 'app') {
     // 打开第三方应用程序
-    showHideWindow(); // 先关闭搜索窗口，提高用户体验
+    showHideWindow();
     await invoke('open_app_command', { appPath: item.content });
   } else if (item.summarize === 'bookmark' || item.summarize === 'search') {
-    // 浏览器书签搜索或搜索引擎搜索
-    showHideWindow(); // 先关闭搜索窗口，提高用户体验
+    showHideWindow();
     await invoke('open_url', { url: item.content });
   } else {
-    // 代码片段插入
     const codeContent = item.content;
-    // 直接复制到剪贴板作为备份
     try {
       await navigator.clipboard.writeText(codeContent);
     } catch (err) {
       console.error('[代码片段] 直接复制到剪贴板失败:', err);
     }
-    // 先关闭搜索窗口，让目标应用获得焦点
+
     showHideWindow();
 
-    // 给目标窗口一点时间获取焦点
     setTimeout(async () => {
       try {
-        // 将文本插入到上次活动窗口
         await invoke('insert_text_to_last_window', { text: codeContent })
           .then(() => {
             console.log('[代码片段] 成功调用');
@@ -305,7 +293,7 @@ async function selectItem(item: ContentType) {
         console.log('[代码片段] 使用备份方法，请手动粘贴');
         alert('文本已复制到剪贴板，请手动粘贴 (Ctrl+V)');
       }
-    }, 300); // 增加延迟时间，确保窗口切换顺利
+    }, 300);
   }
 }
 

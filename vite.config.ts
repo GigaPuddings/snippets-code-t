@@ -52,7 +52,8 @@ export default defineConfig(async () => ({
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src')
+      '@': resolve(__dirname, './src'),
+      '@tauri': resolve(__dirname, './src-tauri')
     }
   },
 

@@ -2,8 +2,6 @@ import { useConfigurationStore } from '@/store';
 import { emit } from '@tauri-apps/api/event';
 
 export const initTheme = async () => {
-  console.log('主题初始化');
-
   const store = useConfigurationStore();
   const root = document.documentElement;
 

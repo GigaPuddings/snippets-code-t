@@ -23,14 +23,9 @@ export const useConfigurationStore = defineStore('configuration', {
   actions: {
     // 初始化配置
     async initialize() {
-      console.log('初始化配置');
-
       // 获取数据库路径
       try {
-        // if (typeof this.dbPath !== 'string') {
         this.dbPath = (await invoke('get_db_path')) || '';
-        console.log('this.dbPath', this.dbPath);
-        // }
       } catch (error) {
         console.error('获取数据库路径失败:', error);
         modal.msg('获取数据库路径失败', 'error');
