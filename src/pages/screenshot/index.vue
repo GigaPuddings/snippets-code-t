@@ -1949,118 +1949,118 @@ const saveScreenshot = async () => {
   await processScreenshot('save')
 }
 
-// 生成截图数据
-const generateScreenshotData = async (): Promise<string | null> => {
-  if (!selectionRect.value || !canvasRef.value) return null
+// // 生成截图数据
+// const generateScreenshotData = async (): Promise<string | null> => {
+//   if (!selectionRect.value || !canvasRef.value) return null
 
-  try {
-    const { x, y, width, height } = selectionRect.value
+//   try {
+//     const { x, y, width, height } = selectionRect.value
 
-    // 获取窗口位置信息
-    const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
-    const scale = windowInfo?.scale || 1
+//     // 获取窗口位置信息
+//     const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
+//     const scale = windowInfo?.scale || 1
 
-    // 计算实际的屏幕坐标（考虑窗口位置和缩放）
-    const screenX = Math.round(windowInfo.x + x * scale)
-    const screenY = Math.round(windowInfo.y + y * scale)
-    const screenWidth = Math.round(width * scale)
-    const screenHeight = Math.round(height * scale)
+//     // 计算实际的屏幕坐标（考虑窗口位置和缩放）
+//     const screenX = Math.round(windowInfo.x + x * scale)
+//     const screenY = Math.round(windowInfo.y + y * scale)
+//     const screenWidth = Math.round(width * scale)
+//     const screenHeight = Math.round(height * scale)
 
-    // 使用Rust端捕获屏幕内容
-    const result = await invoke('capture_screen_area', {
-      x: screenX,
-      y: screenY,
-      width: screenWidth,
-      height: screenHeight
-    }) as {
-      image: string,
-      adjusted_width: number,
-      adjusted_height: number,
-      original_width: number,
-      original_height: number
-    }
+//     // 使用Rust端捕获屏幕内容
+//     const result = await invoke('capture_screen_area', {
+//       x: screenX,
+//       y: screenY,
+//       width: screenWidth,
+//       height: screenHeight
+//     }) as {
+//       image: string,
+//       adjusted_width: number,
+//       adjusted_height: number,
+//       original_width: number,
+//       original_height: number
+//     }
 
-    if (!result || !result.image) {
-      console.error('Failed to capture screen area')
-      return null
-    }
+//     if (!result || !result.image) {
+//       console.error('Failed to capture screen area')
+//       return null
+//     }
 
-    // 使用调整后的尺寸创建临时canvas来处理图像
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = result.adjusted_width
-    tempCanvas.height = result.adjusted_height
-    const tempCtx = tempCanvas.getContext('2d')
+//     // 使用调整后的尺寸创建临时canvas来处理图像
+//     const tempCanvas = document.createElement('canvas')
+//     tempCanvas.width = result.adjusted_width
+//     tempCanvas.height = result.adjusted_height
+//     const tempCtx = tempCanvas.getContext('2d')
 
-    if (!tempCtx) {
-      console.error('Failed to get 2D context from temporary canvas')
-      return null
-    }
+//     if (!tempCtx) {
+//       console.error('Failed to get 2D context from temporary canvas')
+//       return null
+//     }
 
-    // 标注的坐标是基于逻辑像素的，需要转换为物理像素
-    const logicalToPhysicalScale = scale
+//     // 标注的坐标是基于逻辑像素的，需要转换为物理像素
+//     const logicalToPhysicalScale = scale
 
-    // 创建图像对象
-    const img = new Image()
+//     // 创建图像对象
+//     const img = new Image()
     
-    return new Promise((resolve, reject) => {
-      img.onload = async () => {
-        // 绘制屏幕内容
-        tempCtx.drawImage(img, 0, 0)
+//     return new Promise((resolve, reject) => {
+//       img.onload = async () => {
+//         // 绘制屏幕内容
+//         tempCtx.drawImage(img, 0, 0)
 
-        // 如果有标注，绘制标注到临时canvas
-        if (annotations.value.length > 0) {
-          // 设置透明背景
-          tempCtx.globalCompositeOperation = 'source-over'
+//         // 如果有标注，绘制标注到临时canvas
+//         if (annotations.value.length > 0) {
+//           // 设置透明背景
+//           tempCtx.globalCompositeOperation = 'source-over'
 
-          // 绘制所有标注（使用与processScreenshot相同的逻辑）
-          annotations.value.forEach(annotation => {
-            tempCtx.strokeStyle = annotation.style.color
-            tempCtx.lineWidth = annotation.style.lineWidth
-            tempCtx.lineCap = 'round'
-            tempCtx.lineJoin = 'round'
-            tempCtx.setLineDash([])
+//           // 绘制所有标注（使用与processScreenshot相同的逻辑）
+//           annotations.value.forEach(annotation => {
+//             tempCtx.strokeStyle = annotation.style.color
+//             tempCtx.lineWidth = annotation.style.lineWidth
+//             tempCtx.lineCap = 'round'
+//             tempCtx.lineJoin = 'round'
+//             tempCtx.setLineDash([])
 
-            // 这里简化处理，只处理基本图形，复杂的马赛克等可以后续添加
-            switch (annotation.type) {
-              case ToolType.Rectangle:
-                if (annotation.points.length >= 2) {
-                  const start = annotation.points[0]
-                  const end = annotation.points[annotation.points.length - 1]
-                  const startPhysicalX = start.x * logicalToPhysicalScale
-                  const startPhysicalY = start.y * logicalToPhysicalScale
-                  const endPhysicalX = end.x * logicalToPhysicalScale
-                  const endPhysicalY = end.y * logicalToPhysicalScale
-                  const relativeX = startPhysicalX - (x * logicalToPhysicalScale)
-                  const relativeY = startPhysicalY - (y * logicalToPhysicalScale)
-                  const rectWidth = endPhysicalX - startPhysicalX
-                  const rectHeight = endPhysicalY - startPhysicalY
-                  tempCtx.strokeRect(relativeX, relativeY, rectWidth, rectHeight)
-                }
-                break
-              // 可以添加更多标注类型的处理
-            }
-          })
-        }
+//             // 这里简化处理，只处理基本图形，复杂的马赛克等可以后续添加
+//             switch (annotation.type) {
+//               case ToolType.Rectangle:
+//                 if (annotation.points.length >= 2) {
+//                   const start = annotation.points[0]
+//                   const end = annotation.points[annotation.points.length - 1]
+//                   const startPhysicalX = start.x * logicalToPhysicalScale
+//                   const startPhysicalY = start.y * logicalToPhysicalScale
+//                   const endPhysicalX = end.x * logicalToPhysicalScale
+//                   const endPhysicalY = end.y * logicalToPhysicalScale
+//                   const relativeX = startPhysicalX - (x * logicalToPhysicalScale)
+//                   const relativeY = startPhysicalY - (y * logicalToPhysicalScale)
+//                   const rectWidth = endPhysicalX - startPhysicalX
+//                   const rectHeight = endPhysicalY - startPhysicalY
+//                   tempCtx.strokeRect(relativeX, relativeY, rectWidth, rectHeight)
+//                 }
+//                 break
+//               // 可以添加更多标注类型的处理
+//             }
+//           })
+//         }
 
-        // 使用透明背景的PNG格式
-        const dataUrl = tempCanvas.toDataURL('image/png')
-        const base64 = dataUrl.split(',')[1]
-        resolve(base64)
-      }
+//         // 使用透明背景的PNG格式
+//         const dataUrl = tempCanvas.toDataURL('image/png')
+//         const base64 = dataUrl.split(',')[1]
+//         resolve(base64)
+//       }
 
-      img.onerror = () => {
-        console.error('Failed to load captured image')
-        reject(new Error('Failed to load captured image'))
-      }
+//       img.onerror = () => {
+//         console.error('Failed to load captured image')
+//         reject(new Error('Failed to load captured image'))
+//       }
 
-      // 设置图像源
-      img.src = `data:image/png;base64,${result.image}`
-    })
-  } catch (error) {
-    console.error('Failed to generate screenshot data:', error)
-    return null
-  }
-}
+//       // 设置图像源
+//       img.src = `data:image/png;base64,${result.image}`
+//     })
+//   } catch (error) {
+//     console.error('Failed to generate screenshot data:', error)
+//     return null
+//   }
+// }
 
 
 
