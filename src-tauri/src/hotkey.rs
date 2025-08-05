@@ -1,5 +1,5 @@
 use crate::config::{get_value, parse_hotkey, set_value};
-use crate::window::{hotkey_config, hotkey_selection_translate, hotkey_translate, hotkey_search_wrapper};
+use crate::window::{hotkey_config, hotkey_selection_translate, hotkey_translate, hotkey_search_wrapper, create_screenshot_window};
 use crate::APP;
 use log::{info, warn};
 use tauri::AppHandle;
@@ -79,6 +79,7 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
             hotkey_selection_translate,
             "",
         )?,
+        "screenshot" => register(app_handle, "screenshot", create_screenshot_window, "")?,
         "all" => {
             register(app_handle, "search", hotkey_search_wrapper, "")?;
             register(app_handle, "config", hotkey_config, "")?;
@@ -89,6 +90,7 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
                 hotkey_selection_translate,
                 "",
             )?;
+            register(app_handle, "screenshot", create_screenshot_window, "")?;
         }
         _ => {}
     }
@@ -123,6 +125,10 @@ pub fn register_shortcut_by_frontend(
                 shortcut,
             )?;
         }
+        "screenshot" => {
+            set_value(&app_handle, "screenshot", shortcut);
+            register(&app_handle, "screenshot", create_screenshot_window, shortcut)?;
+        }
         _ => {
             return Err("未知的快捷键名称".to_string());
         }
@@ -131,7 +137,7 @@ pub fn register_shortcut_by_frontend(
 }
 
 #[tauri::command]
-pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, String), String> {
+pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, String, String), String> {
     let search_hotkey = get_value(&app_handle, "search")
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
@@ -148,11 +154,16 @@ pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, S
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
 
+    let screenshot_hotkey = get_value(&app_handle, "screenshot")
+        .map(|v| v.as_str().unwrap_or_default().to_string())
+        .unwrap_or_default();
+
     Ok((
         search_hotkey,
         config_hotkey,
         translate_hotkey,
         selection_translate_hotkey,
+        screenshot_hotkey
     ))
 }
 
