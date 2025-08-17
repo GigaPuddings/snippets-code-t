@@ -37,6 +37,7 @@ declare global {
     configHotkey: string;
     translateHotkey: string;
     selectionTranslateHotkey: string;
+    screenshotHotkey: string;
     dbPath: string | null;
     dbBackup: string;
     theme: 'light' | 'dark' | 'auto';

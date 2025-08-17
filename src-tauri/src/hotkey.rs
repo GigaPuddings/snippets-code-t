@@ -1,5 +1,5 @@
 use crate::config::{get_value, parse_hotkey, set_value};
-use crate::window::{hotkey_config, hotkey_selection_translate, hotkey_translate, hotkey_search_wrapper};
+use crate::window::{hotkey_config, hotkey_selection_translate, hotkey_translate, hotkey_search_wrapper, hotkey_screenshot};
 use crate::APP;
 use log::{info, warn};
 use tauri::AppHandle;
@@ -72,6 +72,7 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
     match shortcut {
         "search" => register(app_handle, "search", hotkey_search_wrapper, "")?,
         "config" => register(app_handle, "config", hotkey_config, "")?,
+        "screenshot" => register(app_handle, "screenshot", hotkey_screenshot, "")?,
         "translate" => register(app_handle, "translate", hotkey_translate, "")?,
         "selectionTranslate" => register(
             app_handle,
@@ -82,6 +83,7 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
         "all" => {
             register(app_handle, "search", hotkey_search_wrapper, "")?;
             register(app_handle, "config", hotkey_config, "")?;
+            register(app_handle, "screenshot", hotkey_screenshot, "")?;
             register(app_handle, "translate", hotkey_translate, "")?;
             register(
                 app_handle,
@@ -110,6 +112,10 @@ pub fn register_shortcut_by_frontend(
             set_value(&app_handle, "config", shortcut);
             register(&app_handle, "config", hotkey_config, shortcut)?;
         }
+        "screenshot" => {
+            set_value(&app_handle, "screenshot", shortcut);
+            register(&app_handle, "screenshot", hotkey_screenshot, shortcut)?;
+        }
         "translate" => {
             set_value(&app_handle, "translate", shortcut);
             register(&app_handle, "translate", hotkey_translate, shortcut)?;
@@ -131,7 +137,7 @@ pub fn register_shortcut_by_frontend(
 }
 
 #[tauri::command]
-pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, String), String> {
+pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, String, String), String> {
     let search_hotkey = get_value(&app_handle, "search")
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
@@ -148,11 +154,16 @@ pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, S
         .map(|v| v.as_str().unwrap_or_default().to_string())
         .unwrap_or_default();
 
+    let screenshot_hotkey = get_value(&app_handle, "screenshot")
+        .map(|v| v.as_str().unwrap_or_default().to_string())
+        .unwrap_or_default();
+
     Ok((
         search_hotkey,
         config_hotkey,
         translate_hotkey,
         selection_translate_hotkey,
+        screenshot_hotkey
     ))
 }
 

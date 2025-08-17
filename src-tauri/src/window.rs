@@ -7,6 +7,8 @@ use tauri::{
     WindowEvent,
 };
 // use crate::config::get_adjusted_position;
+use base64::{engine::general_purpose, Engine as _};
+use image::GenericImageView;
 use mouse_position::mouse_position::Mouse;
 use serde_json;
 use std::sync::LazyLock;
@@ -14,10 +16,13 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 use tauri::AppHandle;
+use tauri_plugin_dialog::DialogExt;
+
+use selection::get_text;
+use tauri::image::Image;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use urlencoding;
 use uuid;
-use selection::get_text;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
@@ -206,63 +211,63 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
 #[tauri::command]
 pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
     info!("尝试将文本插入到上次活动窗口");
-    
+
     // 使用clipboard-manager插件复制文本到剪贴板
     let app_handle = APP.get().unwrap();
     match app_handle.clipboard().write_text(text) {
         Ok(_) => info!("成功使用插件复制文本到剪贴板"),
         Err(e) => return Err(format!("复制文本到剪贴板失败: {}", e)),
     }
-    
+
     // 检查是否有记录的上次活动窗口
     if LAST_ACTIVE_WINDOW_ID.lock().unwrap().is_some() {
         info!("检测到上次活动窗口，尝试模拟粘贴操作");
-        
+
         #[cfg(target_os = "windows")]
         {
             use windows::Win32::Foundation::HWND;
             use windows::Win32::UI::Input::KeyboardAndMouse::{
                 SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_V,
             };
-            
+
             // 获取前台窗口
             let foreground_window = unsafe { GetForegroundWindow() };
             if foreground_window == HWND(std::ptr::null_mut()) {
                 info!("无法获取前台窗口，回退到剪贴板复制");
                 return Ok(());
             }
-            
+
             // 创建输入事件数组
             let mut inputs: [INPUT; 4] = unsafe { std::mem::zeroed() };
-            
+
             // 按下Ctrl键
             inputs[0].r#type = INPUT_KEYBOARD;
             inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-            
+
             // 按下V键
             inputs[1].r#type = INPUT_KEYBOARD;
             inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
-            
+
             // 释放V键
             inputs[2].r#type = INPUT_KEYBOARD;
             inputs[2].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
             inputs[2].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
-            
+
             // 释放Ctrl键
             inputs[3].r#type = INPUT_KEYBOARD;
             inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
             inputs[3].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
-            
+
             // 发送输入事件
             let result = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
-            
+
             if result != inputs.len() as u32 {
                 info!("模拟键盘输入失败，已复制到剪贴板，请手动粘贴");
             } else {
                 info!("成功模拟Ctrl+V粘贴操作");
             }
         }
-        
+
         #[cfg(not(target_os = "windows"))]
         {
             info!("当前平台不支持自动粘贴，已复制到剪贴板，请手动按Ctrl+V粘贴");
@@ -270,7 +275,7 @@ pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
     } else {
         info!("未检测到上次活动窗口，已复制到剪贴板，请手动按Ctrl+V粘贴");
     }
-    
+
     Ok(())
 }
 
@@ -283,11 +288,11 @@ pub fn hotkey_search(context: Option<String>) {
         stop_mouse_tracking();
         // 取消忽略光标
         window.set_ignore_cursor_events(false).unwrap();
-        
+
         // 只有当不是从 selectItem 上下文调用，或者 context 为 None 时才清除
         let should_clear_last_active_id = match context.as_deref() {
             Some("selectItem") => false, // 如果是 selectItem，则不清除
-            _ => true, // 其他情况（包括 None 或其他字符串）都清除
+            _ => true,                   // 其他情况（包括 None 或其他字符串）都清除
         };
 
         if should_clear_last_active_id {
@@ -307,7 +312,7 @@ pub fn hotkey_search(context: Option<String>) {
             info!("记录当前活动窗口: {}", window_id);
             *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some(window_id);
         }
-        
+
         #[cfg(not(target_os = "windows"))]
         {
             info!("记录当前活动窗口状态");
@@ -486,7 +491,7 @@ pub fn hotkey_translate() {
 fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
     // 保存选中文本以便在窗口创建后使用
     let selected_text = text.clone();
-    
+
     if let Some(window) = app_handle.get_webview_window("translate") {
         // 窗口已存在，显示并聚焦
         let _ = window.show();
@@ -496,7 +501,7 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
         if let Some(text) = selected_text {
             let window_clone = window.clone();
             let text_clone = text.clone();
-            
+
             // 立即尝试发送一次
             let _ = window.emit(
                 "selection-text",
@@ -504,7 +509,7 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
                     "text": text.clone()
                 }),
             );
-            
+
             // 再延迟300ms后尝试发送，确保前端已准备好
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
@@ -532,7 +537,7 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
                 ..Default::default()
             },
         );
-        
+
         window.show().unwrap();
         window.set_focus().unwrap();
 
@@ -540,7 +545,7 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
         if let Some(text) = selected_text {
             let window_clone = window.clone();
             let text_clone = text.clone();
-            
+
             // 使用延迟发送的方式，确保前端组件有足够时间初始化和设置监听器
             tauri::async_runtime::spawn(async move {
                 // 延迟500ms尝试发送
@@ -834,5 +839,305 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
             }
             _ => {}
         }
+    }
+}
+
+// 创建截图窗口
+pub fn hotkey_screenshot() {
+    let app_handle = APP.get().unwrap();
+
+    // 检查窗口是否已存在
+    if let Some(existing_window) = app_handle.get_webview_window("screenshot") {
+        // 窗口已存在，显示并聚焦
+        existing_window.show().unwrap();
+        existing_window.set_focus().unwrap();
+        info!("截图窗口已存在，显示并聚焦");
+        return;
+    }
+
+    // 获取主显示器信息
+    let monitor = app_handle.primary_monitor().unwrap().unwrap();
+    let monitor_size = monitor.size();
+    // width: 2560, height: 1600
+    // 创建全屏截图窗口
+    let builder = WebviewWindowBuilder::new(
+        app_handle,
+        "screenshot",
+        WebviewUrl::App("/#screenshot".into()),
+    )
+    .title("截图")
+    .fullscreen(true)
+    .inner_size(monitor_size.width as f64, monitor_size.height as f64)
+    .resizable(false)
+    .always_on_top(false)
+    .skip_taskbar(true)
+    .transparent(true)
+    .shadow(false)
+    .decorations(false)
+    .visible(false);
+
+    let window = builder.build().expect("Failed to build screenshot window");
+
+    let window_clone = window.clone();
+    window.once("screenshot_ready", move |_| {
+        info!("Screenshot window ready, showing now.");
+        window_clone.show().unwrap();
+        window_clone.set_focus().unwrap();
+    });
+
+    info!("创建截图窗口，等待页面发送 'screenshot_ready' 事件");
+}
+
+// 获取窗口信息
+#[tauri::command]
+pub fn get_window_info() -> Result<serde_json::Value, String> {
+    let app_handle = APP.get().unwrap();
+    if let Some(window) = app_handle.get_webview_window("screenshot") {
+        let position = window.outer_position().unwrap_or_default();
+        let scale_factor = window.scale_factor().unwrap_or(1.0);
+        info!(
+            "get_window_info: x: {}, y: {}, scale: {}",
+            position.x, position.y, scale_factor
+        );
+        Ok(serde_json::json!({
+            "x": position.x,
+            "y": position.y,
+            "scale": scale_factor
+        }))
+    } else {
+        Err("Screenshot window not found".to_string())
+    }
+}
+
+// 捕获屏幕指定区域
+#[tauri::command]
+pub fn capture_screen_area(
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+) -> Result<serde_json::Value, String> {
+    info!(
+        "capture_screen_area: x: {}, y: {}, width: {}, height: {}",
+        x, y, width, height
+    );
+
+    let app_handle = APP.get().unwrap();
+
+    // 临时隐藏截图窗口，避免捕获到UI元素
+    if let Some(screenshot_window) = app_handle.get_webview_window("screenshot") {
+        screenshot_window.hide().unwrap();
+
+        // 等待一小段时间确保窗口完全隐藏
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Graphics::Gdi::{
+            BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
+            GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
+            HGDIOBJ, RGBQUAD, SRCCOPY,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow;
+
+        unsafe {
+            // 获取桌面窗口的DC
+            let desktop_dc = GetDC(Some(GetDesktopWindow()));
+            if desktop_dc.is_invalid() {
+                return Err("Failed to get desktop DC".to_string());
+            }
+
+            // 创建兼容的DC
+            let mem_dc = CreateCompatibleDC(Some(desktop_dc));
+            if mem_dc.is_invalid() {
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to create compatible DC".to_string());
+            }
+
+            // 创建兼容的位图
+            let bitmap = CreateCompatibleBitmap(desktop_dc, width, height);
+            if bitmap.is_invalid() {
+                let _ = DeleteDC(mem_dc);
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to create compatible bitmap".to_string());
+            }
+
+            // 选择位图到DC
+            let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+
+            // 复制屏幕内容到位图
+            let result = BitBlt(mem_dc, 0, 0, width, height, Some(desktop_dc), x, y, SRCCOPY);
+
+            if result.is_err() {
+                SelectObject(mem_dc, old_bitmap);
+                let _ = DeleteObject(HGDIOBJ(bitmap.0));
+                let _ = DeleteDC(mem_dc);
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to copy screen content".to_string());
+            }
+
+            // 准备位图信息
+            let mut bitmap_info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: width,
+                    biHeight: -height, // 负值表示自上而下的DIB
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: 0, // BI_RGB is 0
+                    biSizeImage: 0,
+                    biXPelsPerMeter: 0,
+                    biYPelsPerMeter: 0,
+                    biClrUsed: 0,
+                    biClrImportant: 0,
+                },
+                bmiColors: [RGBQUAD::default()],
+            };
+
+            // 分配内存存储像素数据 (BGRA 格式)
+            let buffer_size = (width * height * 4) as usize;
+            let mut buffer = vec![0u8; buffer_size];
+
+            // 获取位图数据
+            let result = GetDIBits(
+                mem_dc,
+                bitmap,
+                0,
+                height as u32,
+                Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
+                &mut bitmap_info,
+                DIB_RGB_COLORS,
+            );
+
+            // 清理资源
+            SelectObject(mem_dc, old_bitmap);
+            let _ = DeleteObject(HGDIOBJ(bitmap.0));
+            let _ = DeleteDC(mem_dc);
+            ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+
+            if result == 0 {
+                return Err("Failed to get bitmap data".to_string());
+            }
+
+            // 转换为RGBA格式
+            let mut rgba_buffer = vec![0u8; buffer_size];
+            for i in 0..(width * height) as usize {
+                let src_idx = i * 4;
+                let dst_idx = i * 4;
+                // BGRA -> RGBA
+                rgba_buffer[dst_idx] = buffer[src_idx + 2]; // R
+                rgba_buffer[dst_idx + 1] = buffer[src_idx + 1]; // G
+                rgba_buffer[dst_idx + 2] = buffer[src_idx]; // B
+                rgba_buffer[dst_idx + 3] = buffer[src_idx + 3]; // A
+            }
+
+            // 使用image crate创建图像
+            let img = image::RgbaImage::from_raw(width as u32, height as u32, rgba_buffer)
+                .ok_or("Failed to create image from raw data")?;
+
+            // 转换为PNG格式的base64
+            let mut png_data = Vec::new();
+            img.write_to(
+                &mut std::io::Cursor::new(&mut png_data),
+                image::ImageFormat::Png,
+            )
+            .map_err(|e| format!("Failed to encode PNG: {}", e))?;
+
+            let base64_data = general_purpose::STANDARD.encode(&png_data);
+
+            // 返回包含图像数据和尺寸的JSON对象
+            Ok(serde_json::json!({
+                "image": base64_data,
+                "adjusted_width": width,
+                "adjusted_height": height,
+                "original_width": width,
+                "original_height": height
+            }))
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Screen capture not implemented for this platform".to_string())
+    }
+}
+
+// 复制图像到剪贴板
+#[tauri::command]
+pub fn copy_to_clipboard(app_handle: AppHandle, image: String) -> Result<(), String> {
+    // The incoming image is a base64 string with a data URL prefix, e.g., "data:image/png;base64,..."
+    // We need to extract the base64 part.
+    let base64_data = image.split(',').nth(1).unwrap_or(&image);
+
+    let image_bytes = general_purpose::STANDARD
+        .decode(base64_data)
+        .map_err(|e| format!("Failed to decode base64 image: {}", e))?;
+
+    // Use the image crate to load the image from bytes.
+    // This also validates that the bytes are a valid image.
+    let img = image::load_from_memory(&image_bytes)
+        .map_err(|e| format!("Failed to load image from memory: {}", e))?;
+
+    // The clipboard manager needs raw RGBA data and dimensions.
+    let (width, height) = img.dimensions();
+    let rgba_bytes = img.to_rgba8().into_raw();
+
+    let clipboard = app_handle.clipboard();
+    let clipboard_image = Image::new(&rgba_bytes, width, height);
+
+    clipboard
+        .write_image(&clipboard_image)
+        .map_err(|e| format!("Failed to write image to clipboard: {}", e))
+}
+
+// 保存截图到文件
+#[tauri::command]
+pub fn save_screenshot_to_file(app_handle: AppHandle, image: String) -> Result<String, String> {
+    // 提取base64数据
+    let base64_data = image.split(',').nth(1).unwrap_or(&image);
+
+    let image_bytes = general_purpose::STANDARD
+        .decode(base64_data)
+        .map_err(|e| format!("Failed to decode base64 image: {}", e))?;
+
+    // 使用image crate加载图像
+    let img = image::load_from_memory(&image_bytes)
+        .map_err(|e| format!("Failed to load image from memory: {}", e))?;
+
+    // 获取桌面目录
+    let desktop = dirs::desktop_dir().ok_or("Cannot find desktop directory")?;
+
+    // 生成默认文件名（使用当前时间戳）
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+    let default_filename = format!("screenshot_{}.png", timestamp);
+
+    // 显示保存文件对话框
+    if let Some(selected_path) = app_handle
+        .dialog()
+        .file()
+        .add_filter("PNG Image", &["png"])
+        .add_filter("JPEG Image", &["jpg", "jpeg"])
+        .add_filter("All Files", &["*"])
+        .set_file_name(&default_filename)
+        .set_directory(desktop)
+        .blocking_save_file()
+    {
+        let path = selected_path.as_path().unwrap();
+
+        // 根据文件扩展名确定格式
+        let format = match path.extension().and_then(|s| s.to_str()) {
+            Some("jpg") | Some("jpeg") => image::ImageFormat::Jpeg,
+            Some("png") => image::ImageFormat::Png,
+            _ => image::ImageFormat::Png, // 默认使用PNG
+        };
+
+        // 保存图像到文件
+        img.save_with_format(path, format)
+            .map_err(|e| format!("Failed to save image: {}", e))?;
+
+        Ok(format!("截图已保存到: {}", path.display()))
+    } else {
+        Err("保存已取消".to_string())
     }
 }

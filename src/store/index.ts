@@ -13,6 +13,7 @@ export const useConfigurationStore = defineStore('configuration', {
     configHotkey: '', // 配置快捷键
     translateHotkey: '', // 翻译快捷键
     selectionTranslateHotkey: '', // 划词翻译快捷键
+    screenshotHotkey: '', // 截图快捷键
     dbPath: null, // 数据库路径
     dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
@@ -37,12 +38,14 @@ export const useConfigurationStore = defineStore('configuration', {
           searchHotkey,
           configHotkey,
           translateHotkey,
-          selectionTranslateHotkey
-        ]: [string, string, string, string] = await invoke('get_shortcuts');
+          selectionTranslateHotkey,
+          screenshotHotkey
+        ]: [string, string, string, string, string] = await invoke('get_shortcuts');
         this.searchHotkey = searchHotkey;
         this.configHotkey = configHotkey;
         this.translateHotkey = translateHotkey;
         this.selectionTranslateHotkey = selectionTranslateHotkey || '';
+        this.screenshotHotkey = screenshotHotkey || '';
 
         // 如果没有获取到划词翻译快捷键，可能是旧版本，尝试单独获取
         if (!this.selectionTranslateHotkey) {

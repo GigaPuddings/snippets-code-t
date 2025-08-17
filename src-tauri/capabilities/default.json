@@ -8,7 +8,8 @@
     "notification_*",
     "update",
     "loading",
-    "translate"
+    "translate",
+    "screenshot"
   ],
   "permissions": [
     "core:default",

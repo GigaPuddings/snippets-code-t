@@ -19,13 +19,20 @@ use windows::Win32::System::Com::CoInitialize;
 use windows::Win32::UI::Shell::{
     IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::apps::load_app_icons_async_silent;
 use crate::apps::{get_installed_apps, AppInfo};
 use crate::bookmarks::load_bookmark_icons_async_silent;
 use crate::bookmarks::{get_browser_bookmarks, BookmarkInfo};
 use crate::db;
-use crate::icon_cache::CachedIcon;
+
+// 代表一个缓存的图标
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedIcon {
+    pub data: String,
+    pub timestamp: u64,
+}
 
 // 图标缓存常数
 const MAX_CACHE_AGE: u64 = 604800; // 7 days in seconds

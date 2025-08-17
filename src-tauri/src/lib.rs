@@ -6,7 +6,6 @@ mod config;
 mod db;
 mod hotkey;
 mod icon;
-mod icon_cache;
 mod search;
 mod translation;
 mod tray;
@@ -28,7 +27,10 @@ use crate::translation::translate_text;
 use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
 };
-use crate::window::{hotkey_config, insert_text_to_last_window, start_mouse_tracking};
+use crate::window::{
+  hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info, capture_screen_area,
+  copy_to_clipboard, save_screenshot_to_file
+};
 use apps::open_app_command;
 use bookmarks::open_url;
 use cache::clear_cache;
@@ -284,6 +286,10 @@ pub fn run() {
             get_selection_translate_shortcut, // 获取划词翻译快捷键
             add_search_history,               // 添加搜索历史
             get_search_history,               // 获取搜索历史
+            get_window_info,                  // 获取窗口信息
+            capture_screen_area,              // 捕获屏幕区域
+            copy_to_clipboard,                // 复制图片到剪切板
+            save_screenshot_to_file,          // 保存截图到文件
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

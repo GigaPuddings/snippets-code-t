@@ -173,6 +173,58 @@
         </el-input>
       </div>
     </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">截图快捷键：</div>
+        <div class="summarize-label-desc">设置截图功能快捷键</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <el-input
+          class="summarize-input"
+          v-model="store.screenshotHotkey"
+          required
+          @keydown="keyDown($event, setSelectionScreenshotHotkey)"
+          @focus="
+            () =>
+              handleFocusUnregister(
+                'screenshot',
+                store.screenshotHotkey
+              )
+          "
+        >
+          <template #suffix>
+            <label class="label">
+              <span
+                v-for="(char, index) in labelText"
+                :key="index"
+                class="label-char"
+                :style="{ '--index': index }"
+              >
+                {{ char }}
+              </span>
+            </label>
+          </template>
+          <template #append>
+            <CustomButton
+              v-if="store.screenshotHotkey"
+              type="default"
+              size="small"
+              @click="
+                () =>
+                  registerHandler(
+                    'screenshot',
+                    store.screenshotHotkey
+                  )
+              "
+              class="button-shortcut"
+            >
+              注册
+            </CustomButton>
+          </template>
+        </el-input>
+      </div>
+    </section>
   </main>
 </template>
 
@@ -301,6 +353,10 @@ function setSelectionTranslateHotkey(value: string) {
   store.selectionTranslateHotkey = value;
 }
 
+function setSelectionScreenshotHotkey(value: string) {
+  store.screenshotHotkey = value;
+}
+
 // 快捷键取消
 function handleFocusUnregister(name: string, key: string) {
   if (key.trim() === '') {
@@ -323,6 +379,10 @@ function handleFocusUnregister(name: string, key: string) {
     case 'selectionTranslate':
       unregister(key);
       setSelectionTranslateHotkey('');
+      break;
+    case 'screenshot':
+      unregister(key);
+      setSelectionScreenshotHotkey('');
       break;
   }
   invoke('register_shortcut_by_frontend', { name: name, shortcut: '' });

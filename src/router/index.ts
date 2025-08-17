@@ -113,6 +113,11 @@ const routes: RouteRecordRaw[] = [
     path: '/loading',
     name: 'Loading',
     component: () => import('@/pages/loading/index.vue')
+  },
+  {
+    path: '/screenshot',
+    name: 'Screenshot',
+    component: () => import('@/pages/screenshot/index.vue')
   }
 ];
 

@@ -1,6 +1,6 @@
 use crate::alarm::AlarmCard;
 use crate::config::{get_value, DB_PATH_KEY};
-use crate::icon_cache::CachedIcon;
+use crate::icon::CachedIcon;
 use crate::search::SearchEngine;
 use crate::APP;
 use crate::{apps::AppInfo, bookmarks::BookmarkInfo};
