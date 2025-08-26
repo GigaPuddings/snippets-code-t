@@ -9,7 +9,7 @@
         :class="['tool-btn', { active: currentTool === tool.type }]"
         :title="tool.title"
       >
-        <component :is="tool.icon" />
+        <component :is="tool.icon" theme="outline" size="18" :strokeWidth="3"/>
       </button>
     </div>
 
@@ -94,7 +94,7 @@
         class="action-btn undo"
         title="撤销"
       >
-        <UndoIcon />
+      <return theme="outline" size="18" :strokeWidth="3"/>
       </button>
 
       <button
@@ -103,7 +103,7 @@
         class="action-btn delete"
         title="删除选中"
       >
-        <DeleteIcon />
+      <delete-four theme="outline" size="18" :strokeWidth="3"/>
       </button>
 
       <button
@@ -111,7 +111,7 @@
         class="action-btn save"
         title="保存"
       >
-        <SaveIcon />
+      <save theme="outline" size="18" :strokeWidth="3"/>
       </button>
 
       <button
@@ -119,7 +119,7 @@
         class="action-btn confirm"
         title="确认"
       >
-        <ConfirmIcon />
+      <check theme="outline" size="18" :strokeWidth="3"/>
       </button>
 
       <button
@@ -127,68 +127,16 @@
         class="action-btn cancel"
         title="取消"
       >
-        <CancelIcon />
+      <close theme="outline" size="18" :strokeWidth="3"/>
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed } from 'vue'
 import { ToolType } from '../core/types'
-
-// 图标组件
-const SelectIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M8 6L43 25L24 27L13.9948 44L8 6Z', fill: 'none', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linejoin': 'round' })
-])
-
-const RectangleIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M42 8H6C4.89543 8 4 8.89543 4 10V38C4 39.1046 4.89543 40 6 40H42C43.1046 40 44 39.1046 44 38V10C44 8.89543 43.1046 8 42 8Z', fill: 'none', stroke: 'currentColor', 'stroke-width': '3' })
-])
-
-const ArrowIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M11 11L36.4559 36.4558', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
-  h('path', { d: 'M29 11H11V29', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
-])
-
-const PenIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M5.32497 43.4996L13.81 43.4998L44.9227 12.3871L36.4374 3.90186L5.32471 35.0146L5.32497 43.4996Z', fill: 'none', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linejoin': 'round' }),
-  h('path', { d: 'M27.9521 12.3872L36.4374 20.8725', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
-])
-
-const MosaicIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M44 36H36V44H44V36Z', fill: 'currentColor' }),
-  h('path', { d: 'M28 36H20V44H28V36Z', fill: 'currentColor' }),
-  h('path', { d: 'M12 36H4V44H12V36Z', fill: 'currentColor' }),
-  h('path', { d: 'M44 20H36V28H44V20Z', fill: 'currentColor' })
-])
-
-const TextIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M4 8H32', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round' }),
-  h('path', { d: 'M28 21H44', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round' }),
-  h('path', { d: 'M18 42L18 8', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round' })
-])
-
-const UndoIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M12.9998 8L6 14L12.9998 21', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
-])
-
-const DeleteIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M8 11L40 11', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
-])
-
-const SaveIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M6 24.0083V42H42V24', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
-])
-
-const ConfirmIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M10 24L20 34L40 14', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
-])
-
-const CancelIcon = () => h('svg', { width: '20', height: '20', viewBox: '0 0 48 48', fill: 'none' }, [
-  h('path', { d: 'M14 14L34 34', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
-  h('path', { d: 'M14 34L34 14', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
-])
+import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, DeleteFour, Save, Check, Close } from '@icon-park/vue-next'
 
 interface Props {
   currentTool: ToolType
@@ -218,12 +166,12 @@ const emit = defineEmits<Emits>()
 
 // 工具配置
 const tools = [
-  { type: ToolType.Select, icon: SelectIcon, title: '选择工具' },
-  { type: ToolType.Rectangle, icon: RectangleIcon, title: '矩形工具' },
-  { type: ToolType.Arrow, icon: ArrowIcon, title: '箭头工具' },
-  { type: ToolType.Pen, icon: PenIcon, title: '画笔工具' },
-  { type: ToolType.Mosaic, icon: MosaicIcon, title: '马赛克工具' },
-  { type: ToolType.Text, icon: TextIcon, title: '文字工具' }
+  { type: ToolType.Select, icon: MoveOne, title: '选择工具' },
+  { type: ToolType.Rectangle, icon: RectangleOne, title: '矩形工具' },
+  { type: ToolType.Arrow, icon: ArrowLeftUp, title: '箭头工具' },
+  { type: ToolType.Pen, icon: Write, title: '画笔工具' },
+  { type: ToolType.Mosaic, icon: Mosaic, title: '马赛克工具' },
+  { type: ToolType.Text, icon: FontSize, title: '文字工具' }
 ]
 
 // 样式配置
