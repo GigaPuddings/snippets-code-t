@@ -1,5 +1,5 @@
 import { BaseAnnotation } from './BaseAnnotation'
-import { DrawingContext, Rect, CoordinateTransform } from './types'
+import { DrawingContext, Rect, CoordinateTransform, ColorPickerState } from './types'
 
 // 绘制引擎 - 统一处理所有绘制逻辑
 export class DrawingEngine {
@@ -192,5 +192,105 @@ export class DrawingEngine {
         this.ctx.restore()
       }
     }
+  }
+
+  // 绘制取色器
+  drawColorPicker(state: ColorPickerState, selectionBounds: Rect) {
+    if (!state.isActive || !state.isVisible) return
+
+    const { mousePosition, colorInfo, showFormat, previewImage, zoomFactor, isCopied } = state
+    const uiWidth = 150
+    const uiHeight = 190
+    const margin = 20
+    let uiX = mousePosition.x + margin
+    let uiY = mousePosition.y + margin
+
+    // 边界检测，防止UI超出选择框
+    if (uiX + uiWidth > selectionBounds.x + selectionBounds.width) {
+      uiX = mousePosition.x - uiWidth - margin
+    }
+    if (uiY + uiHeight > selectionBounds.y + selectionBounds.height) {
+      uiY = mousePosition.y - uiHeight - margin
+    }
+    if (uiX < selectionBounds.x) {
+      uiX = selectionBounds.x + margin
+    }
+    if (uiY < selectionBounds.y) {
+      uiY = selectionBounds.y + margin
+    }
+    
+    this.ctx.save()
+
+    // 绘制UI容器
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
+    this.ctx.lineWidth = 1
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.2)'
+    this.ctx.shadowBlur = 10
+    this.ctx.beginPath()
+    this.ctx.roundRect(uiX, uiY, uiWidth, uiHeight, 8)
+    this.ctx.fill()
+    this.ctx.stroke()
+    this.ctx.shadowColor = 'transparent'
+    
+    // 绘制放大镜
+    const previewSize = 100
+    const previewX = uiX + (uiWidth - previewSize) / 2
+    const previewY = uiY + 15
+    this.ctx.strokeStyle = '#ccc'
+    this.ctx.strokeRect(previewX, previewY, previewSize, previewSize)
+    
+    if (previewImage) {
+      this.ctx.imageSmoothingEnabled = false
+      this.ctx.drawImage(
+        previewImage,
+        0, 0, previewImage.width, previewImage.height,
+        previewX, previewY, previewSize, previewSize
+      )
+      this.ctx.imageSmoothingEnabled = true
+    }
+
+    // 绘制放大镜中心十字线
+    const centerX = previewX + previewSize / 2
+    const centerY = previewY + previewSize / 2
+    const crosshairSize = previewSize / zoomFactor
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)'
+    this.ctx.lineWidth = 1
+    this.ctx.strokeRect(centerX - crosshairSize / 2, centerY - crosshairSize / 2, crosshairSize, crosshairSize)
+    
+    // 绘制颜色和文本信息
+    this.ctx.fillStyle = '#333'
+    this.ctx.font = '12px "SF Mono", "Consolas", "Monaco", monospace'
+    let textY = previewY + previewSize + 25
+
+    if (colorInfo) {
+      // 颜色块
+      this.ctx.fillStyle = colorInfo.hex
+      this.ctx.fillRect(uiX + 15, textY - 13, 16, 16)
+      this.ctx.strokeStyle = '#ccc'
+      this.ctx.strokeRect(uiX + 15, textY - 13, 16, 16)
+      
+      // 颜色值
+      this.ctx.fillStyle = '#333'
+      const colorText = showFormat === 'hex'
+        ? colorInfo.hex
+        : `${colorInfo.rgb.r}, ${colorInfo.rgb.g}, ${colorInfo.rgb.b}`
+      this.ctx.fillText(colorText, uiX + 40, textY)
+      textY += 20
+    }
+
+    // 坐标
+    this.ctx.fillStyle = '#666'
+    this.ctx.font = '12px Arial' // 坐标和提示使用常规字体
+    this.ctx.fillText(`X: ${Math.round(mousePosition.x)}, Y: ${Math.round(mousePosition.y)}`, uiX + 15, textY)
+    textY += 20
+    
+    // 提示
+    this.ctx.font = '12px Arial'
+    const helpText = isCopied ? '已复制!' : 'Q:复制 Shift:切换'
+    this.ctx.fillStyle = isCopied ? '#00A000' : '#888'
+    this.ctx.fillText(helpText, uiX + 15, textY)
+    
+    this.ctx.restore()
   }
 }

@@ -144,7 +144,7 @@ onMounted(() => {
     @apply border-b border-panel flex justify-between items-center h-[40px];
 
     .content-search-add {
-      @apply cursor-pointer rounded-md p-1 mr-2 text-panel dark:text-panel hover:bg-active dark:hover:bg-hover;
+      @apply cursor-pointer rounded-md p-1 mr-2 text-panel hover:text-white dark:text-panel hover:bg-active dark:hover:bg-hover;
     }
   }
 

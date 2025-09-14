@@ -136,7 +136,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ToolType } from '../core/types'
-import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, DeleteFour, Save, Check, Close } from '@icon-park/vue-next'
+import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, DeleteFour, Save, Check, Close, Platte } from '@icon-park/vue-next'
 
 interface Props {
   currentTool: ToolType
@@ -171,7 +171,8 @@ const tools = [
   { type: ToolType.Arrow, icon: ArrowLeftUp, title: '箭头工具' },
   { type: ToolType.Pen, icon: Write, title: '画笔工具' },
   { type: ToolType.Mosaic, icon: Mosaic, title: '马赛克工具' },
-  { type: ToolType.Text, icon: FontSize, title: '文字工具' }
+  { type: ToolType.Text, icon: FontSize, title: '文字工具' },
+  { type: ToolType.ColorPicker, icon: Platte, title: '取色工具' }
 ]
 
 // 样式配置

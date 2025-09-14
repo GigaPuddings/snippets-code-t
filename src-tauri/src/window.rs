@@ -936,10 +936,10 @@ pub fn get_window_info() -> Result<serde_json::Value, String> {
     if let Some(window) = app_handle.get_webview_window("screenshot") {
         let position = window.outer_position().unwrap_or_default();
         let scale_factor = window.scale_factor().unwrap_or(1.0);
-        info!(
-            "get_window_info: x: {}, y: {}, scale: {}",
-            position.x, position.y, scale_factor
-        );
+        // info!(
+        //     "get_window_info: x: {}, y: {}, scale: {}",
+        //     position.x, position.y, scale_factor
+        // );
         Ok(serde_json::json!({
             "x": position.x,
             "y": position.y,
@@ -1131,6 +1131,222 @@ pub fn copy_to_clipboard(app_handle: AppHandle, image: String) -> Result<(), Str
         .write_image(&clipboard_image)
         .map_err(|e| format!("Failed to write image to clipboard: {}", e))
 }
+
+// 获取指定位置的像素颜色
+#[tauri::command]
+pub fn get_pixel_color(x: i32, y: i32) -> Result<serde_json::Value, String> {
+    info!("get_pixel_color: x: {}, y: {}", x, y);
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Graphics::Gdi::{
+            BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
+            GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
+            HGDIOBJ, RGBQUAD, SRCCOPY,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow;
+
+        unsafe {
+            // 获取桌面窗口的DC
+            let desktop_dc = GetDC(Some(GetDesktopWindow()));
+            if desktop_dc.is_invalid() {
+                return Err("Failed to get desktop DC".to_string());
+            }
+
+            // 创建兼容的DC
+            let mem_dc = CreateCompatibleDC(Some(desktop_dc));
+            if mem_dc.is_invalid() {
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to create compatible DC".to_string());
+            }
+
+            // 创建兼容的位图，只需要1x1像素
+            let bitmap = CreateCompatibleBitmap(desktop_dc, 1, 1);
+            if bitmap.is_invalid() {
+                let _ = DeleteDC(mem_dc);
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to create compatible bitmap".to_string());
+            }
+
+            // 选择位图到DC
+            let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+
+            // 复制指定像素到位图
+            let result = BitBlt(mem_dc, 0, 0, 1, 1, Some(desktop_dc), x, y, SRCCOPY);
+
+            if result.is_err() {
+                SelectObject(mem_dc, old_bitmap);
+                let _ = DeleteObject(HGDIOBJ(bitmap.0));
+                let _ = DeleteDC(mem_dc);
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to copy pixel".to_string());
+            }
+
+            // 准备位图信息
+            let mut bitmap_info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: 1,
+                    biHeight: -1, // 负值表示自上而下的DIB
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: 0, // BI_RGB is 0
+                    biSizeImage: 0,
+                    biXPelsPerMeter: 0,
+                    biYPelsPerMeter: 0,
+                    biClrUsed: 0,
+                    biClrImportant: 0,
+                },
+                bmiColors: [RGBQUAD::default()],
+            };
+
+            // 分配内存存储像素数据 (BGRA 格式)
+            let mut buffer = [0u8; 4];
+
+            // 获取位图数据
+            let result = GetDIBits(
+                mem_dc,
+                bitmap,
+                0,
+                1,
+                Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
+                &mut bitmap_info,
+                DIB_RGB_COLORS,
+            );
+
+            // 清理资源
+            SelectObject(mem_dc, old_bitmap);
+            let _ = DeleteObject(HGDIOBJ(bitmap.0));
+            let _ = DeleteDC(mem_dc);
+            ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+
+            if result == 0 {
+                return Err("Failed to get pixel data".to_string());
+            }
+
+            // BGRA -> RGB
+            let r = buffer[2];
+            let g = buffer[1];  
+            let b = buffer[0];
+
+            // 返回RGB值
+            Ok(serde_json::json!({
+                "r": r,
+                "g": g,
+                "b": b
+            }))
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Pixel color detection not implemented for this platform".to_string())
+    }
+}
+
+// 获取屏幕预览图像
+#[tauri::command]
+pub fn get_screen_preview(
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+) -> Result<serde_json::Value, String> {
+    // 此函数逻辑与 capture_screen_area 非常相似，但不隐藏窗口
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Graphics::Gdi::{
+            BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
+            GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
+            HGDIOBJ, SRCCOPY
+        };
+        use windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow;
+
+        unsafe {
+            let desktop_dc = GetDC(Some(GetDesktopWindow()));
+            if desktop_dc.is_invalid() {
+                return Err("Failed to get desktop DC".to_string());
+            }
+
+            let mem_dc = CreateCompatibleDC(Some(desktop_dc));
+            if mem_dc.is_invalid() {
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to create compatible DC".to_string());
+            }
+
+            let bitmap = CreateCompatibleBitmap(desktop_dc, width, height);
+            if bitmap.is_invalid() {
+                let _ = DeleteDC(mem_dc);
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to create compatible bitmap".to_string());
+            }
+
+            let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+
+            BitBlt(mem_dc, 0, 0, width, height, Some(desktop_dc), x, y, SRCCOPY)
+                .map_err(|_| "Failed to copy screen content".to_string())?;
+
+            let mut bitmap_info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: width,
+                    biHeight: -height,
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: 0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+
+            let buffer_size = (width * height * 4) as usize;
+            let mut buffer = vec![0u8; buffer_size];
+
+            GetDIBits(
+                mem_dc,
+                bitmap,
+                0,
+                height as u32,
+                Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
+                &mut bitmap_info,
+                DIB_RGB_COLORS,
+            );
+
+            SelectObject(mem_dc, old_bitmap);
+            let _ = DeleteObject(HGDIOBJ(bitmap.0));
+            let _ = DeleteDC(mem_dc);
+            ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+
+            let mut rgba_buffer = vec![0u8; buffer_size];
+            for i in 0..(width * height) as usize {
+                rgba_buffer[i * 4] = buffer[i * 4 + 2]; // R
+                rgba_buffer[i * 4 + 1] = buffer[i * 4 + 1]; // G
+                rgba_buffer[i * 4 + 2] = buffer[i * 4]; // B
+                rgba_buffer[i * 4 + 3] = 255; // A
+            }
+
+            let img = image::RgbaImage::from_raw(width as u32, height as u32, rgba_buffer)
+                .ok_or("Failed to create image from raw data")?;
+
+            let mut png_data = Vec::new();
+            img.write_to(
+                &mut std::io::Cursor::new(&mut png_data),
+                image::ImageFormat::Png,
+            )
+            .map_err(|e| format!("Failed to encode PNG: {}", e))?;
+
+            let base64_data = general_purpose::STANDARD.encode(&png_data);
+
+            Ok(serde_json::json!({ "image": base64_data }))
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Screen preview not implemented for this platform".to_string())
+    }
+}
+
 
 // 保存截图到文件
 #[tauri::command]

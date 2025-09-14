@@ -31,7 +31,8 @@ export enum OperationType {
   ResizingAnnotationNW = 'resizing-annotation-nw',
   ResizingAnnotationSE = 'resizing-annotation-se',
   DrawingText = 'drawing-text',
-  DrawingMosaic = 'drawing-mosaic'
+  DrawingMosaic = 'drawing-mosaic',
+  ColorPicking = 'color-picking'
 }
 
 export enum ToolType {
@@ -40,7 +41,8 @@ export enum ToolType {
   Arrow = 'arrow',
   Pen = 'pen',
   Mosaic = 'mosaic',
-  Text = 'text'
+  Text = 'text',
+  ColorPicker = 'color-picker'
 }
 
 export interface AnnotationStyle {
@@ -73,4 +75,21 @@ export interface CoordinateTransform {
   logicalToPhysical(point: Point): Point
   physicalToLogical(point: Point): Point
   logicalToRelative(point: Point, bounds: Rect): Point
+}
+
+export interface ColorInfo {
+  rgb: { r: number; g: number; b: number }
+  hex: string
+  position: Point
+}
+
+export interface ColorPickerState {
+  isActive: boolean
+  isVisible: boolean // 新增：控制UI是否可见
+  mousePosition: Point
+  colorInfo?: ColorInfo
+  showFormat: 'hex' | 'rgb'
+  previewImage?: ImageBitmap
+  zoomFactor: number
+  isCopied: boolean
 }

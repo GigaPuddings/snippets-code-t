@@ -47,7 +47,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { Window } from '@tauri-apps/api/window'
 import { ScreenshotManager } from './core/ScreenshotManager'
-import { ToolType } from './core/types'
+import { ToolType, ColorInfo } from './core/types'
 import ToolbarSection from './components/ToolbarSection.vue'
 
 // 组件引用
@@ -141,14 +141,25 @@ const toolbarStyle = computed(() => {
     toolbarWidth = Math.min(916, window.innerWidth - 2 * margin)
   } else if (state.value.currentTool === ToolType.Mosaic) {
     toolbarWidth = Math.min(572, window.innerWidth - 2 * margin)
-  } else if (state.value.currentTool !== ToolType.Select) {
+  } else if (state.value.currentTool !== ToolType.Select && state.value.currentTool !== ToolType.ColorPicker) {
     toolbarWidth = Math.min(844, window.innerWidth - 2 * margin)
   }
 
-  let top = y + height + margin
-  if (top + toolbarHeight > window.innerHeight) {
+  // 决定工具栏位置
+  let top: number
+  // 1. 优先尝试放在选区下方
+  if (y + height + toolbarHeight + margin < window.innerHeight) {
+    top = y + height + margin
+  } 
+  // 2. 否则，尝试放在选区上方
+  else if (y - toolbarHeight - margin > 0) {
     top = y - toolbarHeight - margin
   }
+  // 3. 如果上下都没空间，则放在选区内部的底部
+  else {
+    top = y + height - toolbarHeight - margin
+  }
+
 
   let left = x
   if (left + toolbarWidth > window.innerWidth) {
@@ -316,8 +327,24 @@ const cancelTextInput = () => {
   editingAnnotation = null
 }
 
+// 处理颜色取样
+const handleColorPicked = (colorInfo: ColorInfo) => {
+  // 自动复制HEX值到剪贴板
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(colorInfo.hex).catch(error => {
+      console.warn('Failed to copy color to clipboard:', error)
+    })
+  }
+}
+
 // 键盘事件处理
 const handleKeydown = (event: KeyboardEvent) => {
+  // 让ScreenshotManager先处理键盘事件
+  if (screenshotManager?.handleKeyDown(event)) {
+    event.preventDefault()
+    return
+  }
+
   if (event.key === 'Escape') {
     closeWindow()
   } else if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -350,7 +377,8 @@ onMounted(async () => {
   screenshotManager = new ScreenshotManager(
     canvasRef.value,
     handleStateChange,
-    startTextInput
+    startTextInput,
+    handleColorPicked
   )
 
   // 添加键盘事件监听
@@ -436,6 +464,40 @@ onUnmounted(() => {
 
     &:focus {
       @apply outline-none bg-transparent;
+    }
+  }
+}
+
+// 颜色信息显示
+.color-info-container {
+  @apply absolute z-30;
+  
+  .color-info {
+    @apply bg-white dark:bg-panel rounded-lg shadow-lg p-3 border dark:border-panel flex items-center gap-3 min-w-48;
+    
+    .color-preview {
+      @apply w-8 h-8 rounded border border-gray-300 dark:border-panel flex-shrink-0;
+    }
+    
+    .color-details {
+      @apply flex-1 space-y-1;
+      
+      .color-value {
+        @apply flex items-center gap-2 text-sm;
+        
+        .label {
+          @apply font-medium text-gray-600 dark:text-gray-400 w-8;
+        }
+        
+        .value {
+          @apply font-mono text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-hover px-1 rounded;
+          font-size: 12px;
+        }
+      }
+    }
+    
+    .color-tip {
+      @apply text-xs text-gray-500 dark:text-gray-400 text-center;
     }
   }
 }

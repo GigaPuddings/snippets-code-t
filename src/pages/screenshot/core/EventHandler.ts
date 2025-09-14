@@ -92,6 +92,7 @@ export class EventHandler {
       [ToolType.Pen]: OperationType.DrawingPen,
       [ToolType.Text]: OperationType.DrawingText,
       [ToolType.Mosaic]: OperationType.DrawingMosaic,
+      [ToolType.ColorPicker]: OperationType.ColorPicking,
       [ToolType.Select]: OperationType.None
     }
 

@@ -3,7 +3,7 @@ import { DrawingEngine } from './DrawingEngine'
 import { CoordinateSystem } from './CoordinateSystem'
 import { EventHandler } from './EventHandler'
 import { AnnotationFactory } from './AnnotationFactory'
-import { Point, Rect, ToolType, AnnotationStyle, OperationType } from './types'
+import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState } from './types'
 import { invoke } from '@tauri-apps/api/core'
 
 // 截图管理器 - 统一管理截图功能
@@ -34,18 +34,36 @@ export class ScreenshotManager {
   private mosaicSize = 15
   private showGuides = true
 
+  // 取色器状态
+  private colorPickerState: ColorPickerState = {
+    isActive: false,
+    isVisible: false, // 默认不可见
+    mousePosition: { x: 0, y: 0 },
+    showFormat: 'hex',
+    zoomFactor: 15, // 提升放大倍数
+    isCopied: false
+  }
+
+  // 节流相关状态
+  private throttleTimer: number | null = null
+  private lastThrottledTimestamp = 0
+  private readonly throttleInterval = 50 // ms, 20 FPS
+
   // 回调函数
   private onStateChange?: () => void
   private onTextInputRequest?: (position: Point, existingAnnotation?: BaseAnnotation) => void
+  private onColorPicked?: (colorInfo: ColorInfo) => void
 
   constructor(
     canvas: HTMLCanvasElement, 
     onStateChange?: () => void,
-    onTextInputRequest?: (position: Point, existingAnnotation?: BaseAnnotation) => void
+    onTextInputRequest?: (position: Point, existingAnnotation?: BaseAnnotation) => void,
+    onColorPicked?: (colorInfo: ColorInfo) => void
   ) {
     this.canvas = canvas
     this.onStateChange = onStateChange
     this.onTextInputRequest = onTextInputRequest
+    this.onColorPicked = onColorPicked
     
     this.coordinateSystem = new CoordinateSystem(canvas)
     this.drawingEngine = new DrawingEngine(canvas, this.coordinateSystem)
@@ -133,6 +151,11 @@ export class ScreenshotManager {
           this.eventHandler.stopDrawing() // 文字输入不需要绘制状态
           break
 
+        case OperationType.ColorPicking:
+          this.handleColorPicking(mousePos)
+          this.eventHandler.stopDrawing() // 取色不需要绘制状态
+          break
+
         case OperationType.EditingAnnotation:
           this.selectAnnotationAtPoint(mousePos)
           // 如果是文字标注，开始编辑
@@ -192,6 +215,28 @@ export class ScreenshotManager {
     } else {
       // 更新悬停状态
       this.updateHoverState(mousePos)
+      
+      // 如果在取色模式下，更新鼠标位置并实时获取颜色预览
+      if (this.currentTool === ToolType.ColorPicker && this.selectionRect) {
+        // 检查鼠标是否在选择区域内
+        const isInside = this.coordinateSystem.isPointInRect(mousePos, this.selectionRect)
+        
+        if (isInside) {
+          this.colorPickerState.isVisible = true
+          // 1. 立即更新UI位置
+          this.colorPickerState.mousePosition = mousePos
+          this.draw() // 立即重绘以移动UI
+          
+          // 2. 使用节流更新UI内容（放大镜图像和颜色）
+          this.throttledUpdateColorPreview(mousePos)
+        } else {
+          // 如果鼠标移出区域，则隐藏UI
+          if (this.colorPickerState.isVisible) {
+            this.colorPickerState.isVisible = false
+            this.draw()
+          }
+        }
+      }
     }
   }
 
@@ -614,6 +659,11 @@ export class ScreenshotManager {
     if (this.selectionRect) {
       this.drawingEngine.drawSelectionBox(this.selectionRect, this.showGuides)
     }
+
+    // 绘制取色器UI
+    if (this.colorPickerState.isActive && this.selectionRect) {
+      this.drawingEngine.drawColorPicker(this.colorPickerState, this.selectionRect)
+    }
   }
 
   // 设置工具
@@ -623,6 +673,14 @@ export class ScreenshotManager {
     
     // 切换到标注工具时隐藏辅助线
     this.showGuides = tool === ToolType.Select
+    
+    // 管理取色器状态
+    this.colorPickerState.isActive = tool === ToolType.ColorPicker
+    if (!this.colorPickerState.isActive) {
+      // 重置取色器状态
+      this.colorPickerState.isVisible = false
+      this.colorPickerState.colorInfo = undefined
+    }
     
     // 清除悬停状态
     if (tool !== ToolType.Select && this.hoveredAnnotation) {
@@ -913,8 +971,153 @@ export class ScreenshotManager {
     }
   }
 
+  // 处理颜色取样
+  private async handleColorPicking(mousePos: Point): Promise<void> {
+    if (!this.selectionRect) return
+
+    try {
+      // 获取窗口信息
+      const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
+      const scale = windowInfo?.scale || 1
+
+      // 计算实际屏幕坐标 (相对于选择区域)
+      const screenX = Math.round(windowInfo.x + (this.selectionRect.x + mousePos.x - this.selectionRect.x) * scale)
+      const screenY = Math.round(windowInfo.y + (this.selectionRect.y + mousePos.y - this.selectionRect.y) * scale)
+
+      // 调用 Tauri 命令获取像素颜色
+      const colorData = await invoke('get_pixel_color', {
+        x: screenX,
+        y: screenY
+      }) as { r: number, g: number, b: number }
+
+      // 转换为 HEX 格式
+      const hex = this.rgbToHex(colorData.r, colorData.g, colorData.b)
+
+      const colorInfo: ColorInfo = {
+        rgb: colorData,
+        hex,
+        position: mousePos
+      }
+
+      // 调用颜色取样回调
+      this.onColorPicked?.(colorInfo)
+
+      // 更新状态以显示 "已复制"
+      this.colorPickerState.isCopied = true
+      this.draw()
+      setTimeout(() => {
+        this.colorPickerState.isCopied = false
+        this.draw()
+      }, 1000)
+
+    } catch (error) {
+      console.error('Failed to get pixel color:', error)
+    }
+  }
+
+  // 实时更新颜色预览（鼠标移动时调用）
+  private async updateColorPreview(mousePos: Point): Promise<void> {
+    if (!this.selectionRect) return
+
+    try {
+      const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
+      const scale = windowInfo?.scale || 1
+      const previewSize = 30 // 预览区域的像素尺寸
+      const halfPreviewSize = Math.floor(previewSize / 2)
+      
+      const screenX = Math.round(windowInfo.x + mousePos.x * scale)
+      const screenY = Math.round(windowInfo.y + mousePos.y * scale)
+
+      const result = await invoke('get_screen_preview', {
+        x: screenX - halfPreviewSize,
+        y: screenY - halfPreviewSize,
+        width: previewSize,
+        height: previewSize
+      }) as { image: string }
+
+      const img = new Image()
+      img.src = `data:image/png;base64,${result.image}`
+      await img.decode()
+      
+      const imageBitmap = await createImageBitmap(img)
+      this.colorPickerState.previewImage = imageBitmap
+
+      // 从预览图像中心获取颜色，避免额外API调用
+      const offscreenCanvas = new OffscreenCanvas(previewSize, previewSize)
+      const ctx = offscreenCanvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(imageBitmap, 0, 0, previewSize, previewSize)
+        const pixelData = ctx.getImageData(halfPreviewSize, halfPreviewSize, 1, 1).data
+        const colorData = { r: pixelData[0], g: pixelData[1], b: pixelData[2] }
+        const hex = this.rgbToHex(colorData.r, colorData.g, colorData.b)
+        this.colorPickerState.colorInfo = { rgb: colorData, hex, position: mousePos }
+      }
+
+      this.draw()
+    } catch (error) {
+      console.error('Failed to update color preview:', error)
+    }
+  }
+
+  // 节流版本的颜色预览更新
+  private throttledUpdateColorPreview(mousePos: Point): void {
+    const now = Date.now()
+    if (now - this.lastThrottledTimestamp < this.throttleInterval) {
+      // 如果仍在节流间隔内，则不执行
+      return
+    }
+    this.lastThrottledTimestamp = now
+    this.updateColorPreview(mousePos)
+  }
+
+  // RGB 转 HEX
+  private rgbToHex(r: number, g: number, b: number): string {
+    const toHex = (n: number) => {
+      const hex = Math.max(0, Math.min(255, Math.round(n))).toString(16)
+      return hex.length === 1 ? '0' + hex : hex
+    }
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase()
+  }
+
+  // 处理键盘事件
+  handleKeyDown(event: KeyboardEvent): boolean {
+    if (!this.colorPickerState.isActive) return false
+
+    switch (event.key.toLowerCase()) {
+      case 'q':
+        // 直接使用当前预览的颜色信息进行复制
+        if (this.colorPickerState.colorInfo) {
+          this.onColorPicked?.(this.colorPickerState.colorInfo)
+          // 更新状态以显示 "已复制"
+          this.colorPickerState.isCopied = true
+          this.draw()
+          setTimeout(() => {
+            this.colorPickerState.isCopied = false
+            this.draw()
+          }, 1000)
+        }
+        return true
+
+      case 'shift':
+        // Shift键：切换显示格式
+        this.colorPickerState.showFormat = 
+          this.colorPickerState.showFormat === 'hex' ? 'rgb' : 'hex'
+        this.draw()
+        return true
+
+      default:
+        return false
+    }
+  }
+
   // 销毁
   destroy(): void {
+    // 清理节流定时器
+    if (this.throttleTimer) {
+      clearTimeout(this.throttleTimer)
+      this.throttleTimer = null
+    }
+
     this.eventHandler.unbind()
     // 清理鼠标事件监听器
     this.canvas.removeEventListener('mousedown', this.mouseDownHandler)
