@@ -210,7 +210,7 @@ const onCancel = () => emit('cancel')
 
 <style scoped lang="scss">
 .toolbar-section {
-  @apply flex items-center gap-3 bg-white rounded-lg shadow-lg px-2 py-1 border border-gray-200;
+  @apply flex items-center gap-3 bg-white dark:bg-panel rounded-lg shadow-lg px-2 py-1 border dark:border-panel;
   min-width: 400px;
   max-width: 980px;
 
@@ -218,10 +218,10 @@ const onCancel = () => emit('cancel')
     @apply flex items-center gap-1;
 
     .tool-btn {
-      @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 border border-gray-300 bg-white hover:bg-gray-50;
+      @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 border dark:border-panel bg-white dark:bg-content hover:bg-gray-50 dark:hover:bg-hover;
 
       &.active {
-        @apply bg-blue-500 text-white border-blue-500;
+        @apply text-white !bg-blue-500 border-blue-500;
       }
     }
   }
@@ -245,7 +245,7 @@ const onCancel = () => emit('cancel')
 
       .width-btn,
       .size-btn {
-        @apply w-8 h-8 flex items-center justify-center rounded border border-gray-300 bg-white hover:bg-gray-50 transition-all duration-200;
+        @apply w-8 h-8 flex items-center justify-center rounded border border-gray-300 dark:border-panel bg-white dark:bg-content hover:bg-gray-50 dark:hover:bg-hover transition-all duration-200;
 
         &.active {
           @apply border-blue-500 bg-blue-50;
@@ -303,7 +303,7 @@ const onCancel = () => emit('cancel')
       }
 
       &:hover:not(:disabled) {
-        @apply bg-gray-100;
+        @apply bg-gray-100 dark:bg-hover;
       }
 
       &:active:not(:disabled) {
