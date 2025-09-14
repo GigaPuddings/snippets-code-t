@@ -309,13 +309,13 @@ pub fn hotkey_search(context: Option<String>) {
             let foreground_window = unsafe { GetForegroundWindow() };
             let window_id = format!("{:?}", foreground_window);
 
-            info!("记录当前活动窗口: {}", window_id);
+            // info!("记录当前活动窗口: {}", window_id);
             *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some(window_id);
         }
 
         #[cfg(not(target_os = "windows"))]
         {
-            info!("记录当前活动窗口状态");
+            // info!("记录当前活动窗口状态");
             *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some("last_active".to_string());
         }
 
@@ -598,6 +598,9 @@ pub fn show_hide_window_command(label: &str, context: Option<String>) -> Result<
         "update" => {
             create_update_window();
         }
+        "dark_mode" => {
+            hotkey_dark_mode();
+        }
         _ => {
             return Err("Invalid label".to_string());
         }
@@ -840,6 +843,44 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
             _ => {}
         }
     }
+}
+
+// 创建Auto Dark Mode窗口
+pub fn hotkey_dark_mode() {
+    let app_handle = APP.get().unwrap();
+
+    // 检查窗口是否已经存在
+    if let Some(window) = app_handle.get_webview_window("dark_mode") {
+        // 如果窗口已经存在并且可见，则隐藏窗口
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+            return;
+        } else {
+            // 窗口存在但不可见，则显示窗口
+            let _ = window.show();
+            let _ = window.set_focus();
+            return;
+        }
+    }
+
+    // 窗口不存在，创建新窗口
+    let window = build_window(
+        "dark_mode",
+        "/#/dark-mode",
+        WindowConfig {
+            title: "Auto Dark Mode".to_string(),
+            width: 500.0,
+            height: 650.0,
+            resizable: false,
+            transparent: true,
+            shadow: false,
+            always_on_top: true,
+            ..Default::default()
+        },
+    );
+
+    window.show().unwrap();
+    window.set_focus().unwrap();
 }
 
 // 创建截图窗口

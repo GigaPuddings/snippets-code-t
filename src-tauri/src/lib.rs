@@ -3,6 +3,7 @@ mod apps;
 mod bookmarks;
 mod cache;
 mod config;
+mod dark_mode;
 mod db;
 mod hotkey;
 mod icon;
@@ -30,6 +31,13 @@ use crate::update::{
 use crate::window::{
   hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info, capture_screen_area,
   copy_to_clipboard, save_screenshot_to_file
+};
+use crate::dark_mode::{
+    load_config as load_dark_mode_config, save_config as save_dark_mode_config,
+    get_location_by_ip, calculate_sun_times, get_windows_timezone_info,
+    set_windows_dark_mode, get_windows_dark_mode, toggle_theme, 
+    start_scheduler, stop_scheduler, get_current_status as get_dark_mode_status,
+    DarkModeConfig, LocationInfo, SunTimes
 };
 use apps::open_app_command;
 use bookmarks::open_url;
@@ -119,6 +127,84 @@ fn get_auto_hide_on_blur(app_handle: tauri::AppHandle) -> bool {
     }
 }
 
+// ============= Auto Dark Mode 相关命令 =============
+
+// 获取Auto Dark Mode配置
+#[tauri::command]
+async fn get_dark_mode_config(app_handle: AppHandle) -> Result<DarkModeConfig, String> {
+    Ok(load_dark_mode_config(&app_handle))
+}
+
+// 保存Auto Dark Mode配置
+#[tauri::command]
+async fn save_dark_mode_config_command(app_handle: AppHandle, config: DarkModeConfig) -> Result<(), String> {
+    save_dark_mode_config(&app_handle, &config)?;
+    
+    // 如果启用了自动切换，启动调度器
+    if config.enabled {
+        start_scheduler(app_handle)?;
+    } else {
+        stop_scheduler();
+    }
+    
+    Ok(())
+}
+
+// 获取地理位置信息
+#[tauri::command]
+async fn get_location_info() -> Result<LocationInfo, String> {
+    get_location_by_ip().await
+}
+
+// 计算日出日落时间
+#[tauri::command]
+async fn calculate_sun_times_command(latitude: f64, longitude: f64, timezone_offset: i32) -> Result<SunTimes, String> {
+    calculate_sun_times(latitude, longitude, timezone_offset)
+}
+
+// 获取Windows时区信息
+#[tauri::command]
+async fn get_timezone_info() -> Result<(String, i32), String> {
+    get_windows_timezone_info()
+}
+
+// 手动切换系统主题
+#[tauri::command]
+async fn toggle_system_theme(app_handle: AppHandle) -> Result<bool, String> {
+    toggle_theme(Some(&app_handle))
+}
+
+// 设置系统主题（直接设置）
+#[tauri::command]
+async fn set_system_theme(dark_mode: bool) -> Result<(), String> {
+    set_windows_dark_mode(dark_mode)
+}
+
+// 获取当前系统主题
+#[tauri::command]
+async fn get_system_theme() -> Result<bool, String> {
+    get_windows_dark_mode()
+}
+
+// 获取Auto Dark Mode状态
+#[tauri::command]
+async fn get_dark_mode_status_command(app_handle: AppHandle) -> Result<serde_json::Value, String> {
+    get_dark_mode_status(&app_handle)
+}
+
+// 启动Auto Dark Mode服务
+#[tauri::command]
+async fn start_dark_mode_service(app_handle: AppHandle) -> Result<(), String> {
+    start_scheduler(app_handle)
+}
+
+// 停止Auto Dark Mode服务
+#[tauri::command]
+async fn stop_dark_mode_service() -> Result<(), String> {
+    stop_scheduler();
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -182,6 +268,21 @@ pub fn run() {
             }
             // 启动代办提醒检查服务
             alarm::start_alarm_service(app.handle().clone());
+
+            // 启动Auto Dark Mode服务（如果已启用）
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let config = load_dark_mode_config(&app_handle);
+                    if config.enabled {
+                        if let Err(e) = start_scheduler(app_handle) {
+                            log::warn!("启动Auto Dark Mode服务失败: {}", e);
+                        } else {
+                            log::info!("Auto Dark Mode服务已启动");
+                        }
+                    }
+                });
+            }
 
             // 确保更新状态是最新的
             {
@@ -290,6 +391,17 @@ pub fn run() {
             capture_screen_area,              // 捕获屏幕区域
             copy_to_clipboard,                // 复制图片到剪切板
             save_screenshot_to_file,          // 保存截图到文件
+            get_dark_mode_config,             // 获取Auto Dark Mode配置
+            save_dark_mode_config_command,    // 保存Auto Dark Mode配置
+            get_location_info,                // 获取地理位置信息
+            calculate_sun_times_command,      // 计算日出日落时间
+            get_timezone_info,                // 获取Windows时区信息
+            toggle_system_theme,              // 手动切换系统主题
+            set_system_theme,                 // 设置系统主题
+            get_system_theme,                 // 获取当前系统主题
+            get_dark_mode_status_command,     // 获取Auto Dark Mode状态
+            start_dark_mode_service,          // 启动Auto Dark Mode服务
+            stop_dark_mode_service,           // 停止Auto Dark Mode服务
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

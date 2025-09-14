@@ -14,6 +14,7 @@ export const useConfigurationStore = defineStore('configuration', {
     translateHotkey: '', // 翻译快捷键
     selectionTranslateHotkey: '', // 划词翻译快捷键
     screenshotHotkey: '', // 截图快捷键
+    darkModeHotkey: '', // Auto Dark Mode快捷键
     dbPath: null, // 数据库路径
     dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
@@ -39,13 +40,15 @@ export const useConfigurationStore = defineStore('configuration', {
           configHotkey,
           translateHotkey,
           selectionTranslateHotkey,
-          screenshotHotkey
-        ]: [string, string, string, string, string] = await invoke('get_shortcuts');
+          screenshotHotkey,
+          darkModeHotkey
+        ]: [string, string, string, string, string, string] = await invoke('get_shortcuts');
         this.searchHotkey = searchHotkey;
         this.configHotkey = configHotkey;
         this.translateHotkey = translateHotkey;
         this.selectionTranslateHotkey = selectionTranslateHotkey || '';
         this.screenshotHotkey = screenshotHotkey || '';
+        this.darkModeHotkey = darkModeHotkey || '';
 
         // 如果没有获取到划词翻译快捷键，可能是旧版本，尝试单独获取
         if (!this.selectionTranslateHotkey) {
@@ -77,6 +80,28 @@ export const useConfigurationStore = defineStore('configuration', {
       } catch (error) {
         console.error('获取自动失焦隐藏设置:', error);
         modal.msg('获取自动失焦隐藏设置失败', 'error');
+      }
+    },
+
+    // 更新主题并立即应用
+    updateTheme(newTheme: 'auto' | 'dark' | 'light') {
+      this.theme = newTheme;
+      this.applyTheme();
+    },
+
+    // 应用主题到DOM
+    applyTheme() {
+      console.log('应用主题到DOM');
+      const root = document.documentElement;
+      
+      const isDark = 
+        this.theme === 'dark' || 
+        (this.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+      if (isDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
       }
     }
   },

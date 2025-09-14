@@ -106,6 +106,11 @@ const routes: RouteRecordRaw[] = [
         path: '/translate',
         name: 'Translate',
         component: () => import('@/pages/translate/index.vue')
+      },
+      {
+        path: '/dark-mode',
+        name: 'DarkMode',
+        component: () => import('@/pages/dark-mode/index.vue')
       }
     ]
   },

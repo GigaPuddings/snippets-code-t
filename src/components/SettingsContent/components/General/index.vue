@@ -141,7 +141,7 @@ const dictTheme = [
 ];
 
 const changeTheme = (value: 'light' | 'dark' | 'auto') => {
-  store.theme = value;
+  store.updateTheme(value);
   initTheme();
 };
 

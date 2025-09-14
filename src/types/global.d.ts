@@ -38,6 +38,7 @@ declare global {
     translateHotkey: string;
     selectionTranslateHotkey: string;
     screenshotHotkey: string;
+    darkModeHotkey: string;
     dbPath: string | null;
     dbBackup: string;
     theme: 'light' | 'dark' | 'auto';

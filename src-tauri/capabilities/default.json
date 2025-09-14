@@ -9,7 +9,8 @@
     "update",
     "loading",
     "translate",
-    "screenshot"
+    "screenshot",
+    "dark_mode"
   ],
   "permissions": [
     "core:default",

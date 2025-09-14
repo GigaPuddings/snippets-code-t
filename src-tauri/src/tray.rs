@@ -1,18 +1,21 @@
-use crate::window::{ hotkey_config, hotkey_translate };
+use crate::window::{ hotkey_config, hotkey_translate, hotkey_dark_mode };
+use crate::dark_mode::stop_scheduler;
 use log::info;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, Runtime,
+    Manager
 };
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
-pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let search_i = MenuItem::with_id(app, "search", "快速搜索", true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", "配置管理", true, None::<&str>)?;
     let translate_i = MenuItem::with_id(app, "translate", "输入翻译", true, None::<&str>)?;
-    let separator = PredefinedMenuItem::separator(app)?;
+    let dark_mode_window_i = MenuItem::with_id(app, "dark_mode_window", "主题切换", true, None::<&str>)?;
+    
+    let separator1 = PredefinedMenuItem::separator(app)?;
     let view_log_i = MenuItem::with_id(app, "view_log", "日志记录", true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", "退出程序", true, None::<&str>)?;
     let menu = Menu::with_items(
@@ -21,7 +24,8 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             &search_i,
             &config_i,
             &translate_i,
-            &separator,
+            &dark_mode_window_i,
+            &separator1,
             &view_log_i,
             &quit_i,
         ],
@@ -47,8 +51,12 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
                 hotkey_config();
             }
             "translate" => {
-                info!("============== Search ==============");
+                info!("============== Translate ==============");
                 hotkey_translate();
+            }
+            "dark_mode_window" => {
+                info!("============== Auto Dark Mode Window ==============");
+                hotkey_dark_mode();
             }
             "view_log" => {
                 info!("============== View Log ==============");
@@ -63,6 +71,8 @@ pub fn create_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             }
             "quit" => {
                 info!("============== Quit App ==============");
+                // 停止Auto Dark Mode服务
+                stop_scheduler();
                 // 取消注册所有全局快捷键
                 app.global_shortcut().unregister_all().unwrap();
                 // 退出应用程序

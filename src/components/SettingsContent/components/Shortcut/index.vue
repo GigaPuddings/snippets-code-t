@@ -225,6 +225,58 @@
         </el-input>
       </div>
     </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">Auto Dark Mode快捷键：</div>
+        <div class="summarize-label-desc">设置Auto Dark Mode窗口快捷键</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <el-input
+          class="summarize-input"
+          v-model="store.darkModeHotkey"
+          required
+          @keydown="keyDown($event, setSelectionDarkModeHotkey)"
+          @focus="
+            () =>
+              handleFocusUnregister(
+                'darkMode',
+                store.darkModeHotkey
+              )
+          "
+        >
+          <template #suffix>
+            <label class="label">
+              <span
+                v-for="(char, index) in labelText"
+                :key="index"
+                class="label-char"
+                :style="{ '--index': index }"
+              >
+                {{ char }}
+              </span>
+            </label>
+          </template>
+          <template #append>
+            <CustomButton
+              v-if="store.darkModeHotkey"
+              type="default"
+              size="small"
+              @click="
+                () =>
+                  registerHandler(
+                    'darkMode',
+                    store.darkModeHotkey
+                  )
+              "
+              class="button-shortcut"
+            >
+              注册
+            </CustomButton>
+          </template>
+        </el-input>
+      </div>
+    </section>
   </main>
 </template>
 
@@ -357,6 +409,10 @@ function setSelectionScreenshotHotkey(value: string) {
   store.screenshotHotkey = value;
 }
 
+function setSelectionDarkModeHotkey(value: string) {
+  store.darkModeHotkey = value;
+}
+
 // 快捷键取消
 function handleFocusUnregister(name: string, key: string) {
   if (key.trim() === '') {
@@ -383,6 +439,10 @@ function handleFocusUnregister(name: string, key: string) {
     case 'screenshot':
       unregister(key);
       setSelectionScreenshotHotkey('');
+      break;
+    case 'darkMode':
+      unregister(key);
+      setSelectionDarkModeHotkey('');
       break;
   }
   invoke('register_shortcut_by_frontend', { name: name, shortcut: '' });
