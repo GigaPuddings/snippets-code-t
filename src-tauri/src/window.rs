@@ -27,7 +27,8 @@ use uuid;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, EnumWindows, GetWindowRect, IsWindowVisible, GetWindowTextW,
     IsIconic, GetWindowLongW, GetClassNameW, GetWindow, GetParent, GetTopWindow,
-    GWL_EXSTYLE, GW_OWNER, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW, GW_HWNDNEXT
+    GWL_EXSTYLE, GW_OWNER, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW, GW_HWNDNEXT,
+    GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
@@ -953,14 +954,16 @@ pub fn get_window_info() -> Result<serde_json::Value, String> {
     if let Some(window) = app_handle.get_webview_window("screenshot") {
         let position = window.outer_position().unwrap_or_default();
         let scale_factor = window.scale_factor().unwrap_or(1.0);
+        let is_fullscreen = window.is_fullscreen().unwrap_or(false);
         // info!(
-        //     "get_window_info: x: {}, y: {}, scale: {}",
-        //     position.x, position.y, scale_factor
+        //     "get_window_info: x: {}, y: {}, scale: {}, fullscreen: {}",
+        //     position.x, position.y, scale_factor, is_fullscreen
         // );
         Ok(serde_json::json!({
             "x": position.x,
             "y": position.y,
-            "scale": scale_factor
+            "scale": scale_factor,
+            "isFullscreen": is_fullscreen
         }))
     } else {
         Err("Screenshot window not found".to_string())
@@ -1528,7 +1531,74 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                     return false;
                 }
                 
+                // 6. 检查窗口是否为全屏
+                if is_fullscreen_window(hwnd) {
+                    return false;
+                }
+                
+                // 7. 额外的窗口大小检查：过滤异常大的窗口
+                let mut rect = RECT::default();
+                if GetWindowRect(hwnd, &mut rect).is_ok() {
+                    let window_width = rect.right - rect.left;
+                    let window_height = rect.bottom - rect.top;
+                    let screen_width = GetSystemMetrics(SM_CXSCREEN);
+                    let screen_height = GetSystemMetrics(SM_CYSCREEN);
+                    
+                    // 如果窗口尺寸超过屏幕尺寸，很可能是跨显示器的全屏应用
+                    if window_width > screen_width || window_height > screen_height {
+                        return false;
+                    }
+                }
+                
                 true
+            }
+            
+            // 辅助函数：检查窗口是否处于全屏状态
+            unsafe fn is_fullscreen_window(hwnd: HWND) -> bool {
+                let mut rect = RECT::default();
+                if GetWindowRect(hwnd, &mut rect).is_err() {
+                    return false;
+                }
+                
+                let screen_width = GetSystemMetrics(SM_CXSCREEN);
+                let screen_height = GetSystemMetrics(SM_CYSCREEN);
+                
+                // 检查窗口是否覆盖整个屏幕
+                let window_width = rect.right - rect.left;
+                let window_height = rect.bottom - rect.top;
+                
+                // 获取窗口标题用于调试
+                let mut title_buffer = [0u16; 256];
+                let title_len = GetWindowTextW(hwnd, &mut title_buffer);
+                let title = String::from_utf16_lossy(&title_buffer[..title_len as usize]);
+                
+                // 更宽松的全屏检测：
+                // 1. 窗口大小达到屏幕的85%以上
+                // 2. 位置接近屏幕边界
+                let size_threshold = 85; // 85%阈值
+                let position_tolerance = 20; // 位置容差增加到20像素
+                
+                let is_large_window = window_width >= screen_width * size_threshold / 100 &&
+                                    window_height >= screen_height * size_threshold / 100;
+                                       
+                let is_near_screen_edge = rect.left <= position_tolerance && 
+                                        rect.top <= position_tolerance;
+                
+                // 检查窗口是否几乎覆盖整个屏幕
+                let screen_coverage_x = (window_width as f64) / (screen_width as f64);
+                let screen_coverage_y = (window_height as f64) / (screen_height as f64);
+                let is_mostly_fullscreen = screen_coverage_x >= 0.9 && screen_coverage_y >= 0.9;
+                
+                let is_fullscreen = (is_large_window && is_near_screen_edge) || is_mostly_fullscreen;
+                
+                // 调试日志：记录被检测为全屏的窗口
+                if is_fullscreen {
+                    info!("检测到全屏窗口: '{}', 尺寸: {}x{}, 位置: ({}, {}), 屏幕: {}x{}", 
+                          title, window_width, window_height, rect.left, rect.top, 
+                          screen_width, screen_height);
+                }
+                
+                is_fullscreen
             }
             
             // 辅助函数：检查是否为系统类名
@@ -1554,7 +1624,7 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                     "Desktop Window Manager" | "Window Manager" | "explorer" |
                     "Windows PowerShell" | "Command Prompt" | "Cortana" |
                     "Action Center" | "Volume Control" | "Network Connections" |
-                    "Task Manager"
+                    "Task Manager" | "截图"  // 过滤截图窗口本身
                 ) && 
                 !title.starts_with("Desktop") &&
                 !title.starts_with("NVIDIA") &&
@@ -1565,6 +1635,8 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 !title.contains("Service Host") &&
                 !title.contains("Windows Modules Installer") &&
                 !title.contains("Desktop Window Manager") &&
+                !title.contains("screenshot") &&  // 过滤可能的英文截图标题
+                !title.contains("Screenshot") &&
                 title.len() > 1  // 至少要有实际内容
             }
             
@@ -1576,6 +1648,36 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
             
             // 按Z-order排序，z_order值越小表示层级越高（越靠近用户）
             windows.sort_by(|a: &WindowInfo, b: &WindowInfo| a.z_order.cmp(&b.z_order));
+            
+            // 过滤被严重遮挡的窗口：只保留前30个层级的窗口，避免底层被完全遮挡的窗口
+            const MAX_VISIBLE_LAYERS: usize = 30;
+            if windows.len() > MAX_VISIBLE_LAYERS {
+                windows.truncate(MAX_VISIBLE_LAYERS);
+            }
+            
+            // 进一步过滤：移除与高层级窗口重叠度过高的底层窗口
+            let mut filtered_windows: Vec<WindowInfo> = Vec::new();
+            for window in &windows {
+                let mut should_include = true;
+                
+                // 检查是否被前面的窗口严重遮挡（重叠面积超过80%）
+                for higher_window in &filtered_windows {
+                    if higher_window.z_order < window.z_order {
+                        let overlap_area = calculate_overlap_area(window, higher_window);
+                        let window_area = window.width * window.height;
+                        if window_area > 0 && overlap_area as f64 / window_area as f64 > 0.8 {
+                            should_include = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if should_include {
+                    filtered_windows.push(window.clone());
+                }
+            }
+            
+            windows = filtered_windows;
         }
     }
 
@@ -1585,4 +1687,19 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
     }
 
     Ok(windows)
+}
+
+// 计算两个窗口的重叠面积
+#[cfg(target_os = "windows")]
+fn calculate_overlap_area(window1: &WindowInfo, window2: &WindowInfo) -> i32 {
+    let left = std::cmp::max(window1.x, window2.x);
+    let top = std::cmp::max(window1.y, window2.y);
+    let right = std::cmp::min(window1.x + window1.width, window2.x + window2.width);
+    let bottom = std::cmp::min(window1.y + window1.height, window2.y + window2.height);
+    
+    if left < right && top < bottom {
+        (right - left) * (bottom - top)
+    } else {
+        0
+    }
 }

@@ -58,6 +58,11 @@ export class ScreenshotManager {
   private snapThreshold = 30 // 吸附阈值（像素）
   private snappedWindow: WindowInfo | null = null
   private showSnapPreview = false
+  
+  // 点击拖拽区分
+  private pendingSnapWindow: WindowInfo | null = null
+  private dragStartPosition: Point | null = null
+  private dragThreshold = 5 // 拖拽阈值（像素）
 
   // 节流相关状态
   private throttleTimer: number | null = null
@@ -111,11 +116,11 @@ export class ScreenshotManager {
   // 加载所有窗口信息
   private async loadAllWindows(): Promise<void> {
     try {
-      const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
+      const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number, isFullscreen: boolean }
       const windows = await invoke('get_all_windows') as WindowInfo[]
       const scale = windowInfo?.scale || 1
       
-      // 截图窗口是全屏的，直接使用屏幕坐标，但需要考虑缩放
+      // 加载窗口信息，保持吸附功能启用
       this.allWindows = windows
         .filter(win => {
           // 过滤掉截图窗口本身和无效窗口
@@ -258,6 +263,7 @@ export class ScreenshotManager {
     return bestWindow
   }
 
+
   // 事件处理器引用（用于清理）
   private mouseDownHandler = this.handleMouseDown.bind(this)
   private mouseMoveHandler = this.handleMouseMove.bind(this)
@@ -294,27 +300,24 @@ export class ScreenshotManager {
       switch (operationType) {
         case OperationType.Drawing:
           if (!this.selectionRect && this.currentTool === ToolType.Select) {
+            // 记录拖拽起始位置
+            this.dragStartPosition = { ...mousePos }
+            
             // 检查是否有窗口吸附
             if (this.snappedWindow) {
-              // 直接创建与窗口大小相同的选择框
-              this.selectionRect = {
-                x: this.snappedWindow.x,
-                y: this.snappedWindow.y,
-                width: this.snappedWindow.width,
-                height: this.snappedWindow.height
-              }
-              // 不需要进入绘制状态
-              // this.eventHandler.stopDrawing()
+              // 先记录待定的吸附窗口，等待判断是点击还是拖拽
+              this.pendingSnapWindow = this.snappedWindow
+              // 暂时不创建选择框，等mousemove或mouseup时决定
             } else {
-              // 创建选择框
+              // 没有吸附窗口，直接开始自定义框选
               this.selectionRect = {
                 x: mousePos.x,
                 y: mousePos.y,
                 width: 0,
                 height: 0
               }
+              this.onStateChange?.()
             }
-            this.onStateChange?.()
           }
           break
 
@@ -375,6 +378,26 @@ export class ScreenshotManager {
     if (drawingState.isDrawing) {
       // 更新鼠标位置
       this.eventHandler.updateMousePosition(mousePos)
+      
+      // 检查是否处于待定吸附状态且开始拖拽
+      if (this.pendingSnapWindow && this.dragStartPosition && !this.selectionRect) {
+        const dragDistance = Math.sqrt(
+          Math.pow(mousePos.x - this.dragStartPosition.x, 2) + 
+          Math.pow(mousePos.y - this.dragStartPosition.y, 2)
+        )
+        
+        if (dragDistance > this.dragThreshold) {
+          // 超过拖拽阈值，切换到自定义框选模式
+          this.selectionRect = {
+            x: this.dragStartPosition.x,
+            y: this.dragStartPosition.y,
+            width: 0,
+            height: 0
+          }
+          this.pendingSnapWindow = null // 清除待定状态
+          this.onStateChange?.()
+        }
+      }
       
       if (this.currentAnnotation) {
         // 更新当前标注
@@ -437,6 +460,21 @@ export class ScreenshotManager {
     if (drawingState.isDrawing) {
       // 结束绘制状态
       this.eventHandler.stopDrawing()
+      
+      // 检查是否处于待定吸附状态（说明是点击而非拖拽）
+      if (this.pendingSnapWindow && !this.selectionRect) {
+        // 使用窗口吸附
+        this.selectionRect = {
+          x: this.pendingSnapWindow.x,
+          y: this.pendingSnapWindow.y,
+          width: this.pendingSnapWindow.width,
+          height: this.pendingSnapWindow.height
+        }
+      }
+      
+      // 清理待定状态
+      this.pendingSnapWindow = null
+      this.dragStartPosition = null
       
       // 完成标注
       this.finishAnnotation()
@@ -945,6 +983,8 @@ export class ScreenshotManager {
     // 重置窗口吸附状态
     this.snappedWindow = null
     this.showSnapPreview = false
+    this.pendingSnapWindow = null
+    this.dragStartPosition = null
     
     this.draw()
     this.onStateChange?.()

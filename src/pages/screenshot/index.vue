@@ -390,7 +390,11 @@ onMounted(async () => {
 
   // 监听窗口失焦
   unlisten.value = await listen('tauri://blur', () => {
-    closeWindow()
+    setTimeout(() => {
+      screenshotManager?.destroy()
+      document.removeEventListener('keydown', handleKeydown)
+      closeWindow()
+    }, 800)
   })
 })
 
