@@ -10,7 +10,7 @@
     >
       <div class="flex items-center gap-3">
         <div class="text-2xl">🌙</div>
-        <h1 class="m-0 text-2xl font-semibold">Auto Dark Mode</h1>
+        <h1 class="m-0 text-xl font-semibold">系统主题</h1>
       </div>
       <div
         @click="closeWindow"

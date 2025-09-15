@@ -228,8 +228,8 @@
 
     <section class="summarize-section">
       <div class="summarize-label">
-        <div class="summarize-label-title">Auto Dark Mode快捷键：</div>
-        <div class="summarize-label-desc">设置Auto Dark Mode窗口快捷键</div>
+        <div class="summarize-label-title">系统主题快捷键：</div>
+        <div class="summarize-label-desc">设置系统主题窗口快捷键</div>
       </div>
       <div class="summarize-input-wrapper">
         <el-input

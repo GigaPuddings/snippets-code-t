@@ -87,7 +87,7 @@ export class AnnotationFactory {
       [ToolType.Text]: 'drawing-text',
       [ToolType.Mosaic]: 'drawing-mosaic',
       [ToolType.Select]: 'none'
-    }
+    } as Record<ToolType, string>;
     
     return operationMap[toolType] || 'none'
   }

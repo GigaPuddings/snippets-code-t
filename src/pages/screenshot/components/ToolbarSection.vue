@@ -181,8 +181,8 @@ const colors = ['#ff4444', '#44ff44', '#4444ff', '#ffff44', '#ff44ff', '#44ffff'
 const textSizes = [12, 14, 16, 18, 20, 24]
 const mosaicSizes = [10, 15, 20, 25]
 
-// 计算属性
-const showStyleSettings = computed(() => props.currentTool !== ToolType.Select)
+// 是否显示样式设置
+const showStyleSettings = computed(() => ![ToolType.Select, ToolType.ColorPicker].includes(props.currentTool))
 
 const showLineWidth = computed(() => 
   [ToolType.Rectangle, ToolType.Arrow, ToolType.Pen].includes(props.currentTool)
@@ -196,7 +196,7 @@ const showTextSize = computed(() => props.currentTool === ToolType.Text)
 
 const showMosaicSize = computed(() => props.currentTool === ToolType.Mosaic)
 
-// 事件处理
+// 事件处理函数
 const onToolSelect = (tool: ToolType) => emit('tool-select', tool)
 const onColorChange = (color: string) => emit('color-change', color)
 const onLineWidthChange = (width: number) => emit('line-width-change', width)
@@ -228,7 +228,7 @@ const onCancel = () => emit('cancel')
   }
 
   .toolbar-divider {
-    @apply w-[2px] h-8 bg-gray-300;
+    @apply w-[1px] h-5 bg-gray-300;
   }
 
   .style-section {
