@@ -29,6 +29,7 @@
     <!-- 提示信息 -->
     <div v-if="!state.selectionRect" class="instructions">
       <p>拖拽鼠标选择截图区域</p>
+      <p class="hint-primary">移动鼠标到窗口附近可自动吸附</p>
       <p class="hint">按ESC键关闭</p>
     </div>
 
@@ -46,6 +47,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { Window } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
 import { ScreenshotManager } from './core/ScreenshotManager'
 import { ToolType, ColorInfo } from './core/types'
 import ToolbarSection from './components/ToolbarSection.vue'
@@ -78,6 +80,8 @@ const state = ref({
   selectedAnnotation: null as any,
   isDrawing: false // 将绘制状态也放到响应式状态中
 })
+
+const unlisten = ref<() => void>()
 
 // 计算属性 - 从状态获取绘制状态
 const isDrawing = computed(() => state.value.isDrawing)
@@ -383,15 +387,17 @@ onMounted(async () => {
 
   // 添加键盘事件监听
   document.addEventListener('keydown', handleKeydown)
-  window.addEventListener('resize', () => {
-    // 重新初始化画布尺寸
+
+  // 监听窗口失焦
+  unlisten.value = await listen('tauri://blur', () => {
+    closeWindow()
   })
 })
 
 onUnmounted(() => {
   screenshotManager?.destroy()
   document.removeEventListener('keydown', handleKeydown)
-  window.removeEventListener('resize', () => { })
+  unlisten.value?.()
 })
 </script>
 
@@ -430,7 +436,11 @@ onUnmounted(() => {
   @apply absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center text-white pointer-events-none;
 
   p {
-    @apply text-xl mb-2 drop-shadow-lg;
+    @apply text-xl mb-3 drop-shadow-lg;
+
+    &.hint-primary {
+      @apply text-lg mb-4 text-blue-400 font-medium;
+    }
 
     &.hint {
       @apply text-sm opacity-70;

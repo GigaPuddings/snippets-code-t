@@ -30,7 +30,7 @@ use crate::update::{
 };
 use crate::window::{
   hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info, capture_screen_area,
-  copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview
+  copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows
 };
 use crate::dark_mode::{
     load_config as load_dark_mode_config, save_config as save_dark_mode_config,
@@ -393,6 +393,7 @@ pub fn run() {
             save_screenshot_to_file,          // 保存截图到文件
             get_pixel_color,                  // 获取像素颜色
             get_screen_preview,               // 获取屏幕预览
+            get_all_windows,                  // 获取所有窗口信息
             get_dark_mode_config,             // 获取Auto Dark Mode配置
             save_dark_mode_config_command,    // 保存Auto Dark Mode配置
             get_location_info,                // 获取地理位置信息

@@ -6,6 +6,15 @@ import { AnnotationFactory } from './AnnotationFactory'
 import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState } from './types'
 import { invoke } from '@tauri-apps/api/core'
 
+// 窗口信息接口
+interface WindowInfo {
+  x: number
+  y: number
+  width: number
+  height: number
+  title: string
+}
+
 // 截图管理器 - 统一管理截图功能
 export class ScreenshotManager {
   private canvas: HTMLCanvasElement
@@ -44,6 +53,12 @@ export class ScreenshotManager {
     isCopied: false
   }
 
+  // 窗口吸附相关
+  private allWindows: WindowInfo[] = []
+  private snapThreshold = 30 // 吸附阈值（像素）
+  private snappedWindow: WindowInfo | null = null
+  private showSnapPreview = false
+
   // 节流相关状态
   private throttleTimer: number | null = null
   private lastThrottledTimestamp = 0
@@ -73,6 +88,7 @@ export class ScreenshotManager {
     this.bindMouseEvents()
 
     this.initCanvas()
+    this.loadAllWindows()
   }
 
   // 初始化画布
@@ -90,6 +106,156 @@ export class ScreenshotManager {
     this.canvas.style.height = containerHeight + 'px'
 
     this.coordinateSystem.updateCanvasRect(this.canvas)
+  }
+
+  // 加载所有窗口信息
+  private async loadAllWindows(): Promise<void> {
+    try {
+      const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
+      const windows = await invoke('get_all_windows') as WindowInfo[]
+      const scale = windowInfo?.scale || 1
+      
+      // 截图窗口是全屏的，直接使用屏幕坐标，但需要考虑缩放
+      this.allWindows = windows
+        .filter(win => {
+          // 过滤掉截图窗口本身和无效窗口
+          return this.isValidWindow(win)
+        })
+        .map(win => ({
+          ...win,
+          // 根据缩放因子调整坐标和大小
+          x: Math.round(win.x / scale),
+          y: Math.round(win.y / scale),
+          width: Math.round(win.width / scale),
+          height: Math.round(win.height / scale)
+        }))
+        .filter(win => {
+          // 过滤掉在屏幕外的窗口
+          return win.x >= -win.width && 
+                 win.y >= -win.height &&
+                 win.x < window.innerWidth + win.width &&
+                 win.y < window.innerHeight + win.height
+        })
+      
+    } catch (error) {
+      console.error('Failed to load windows:', error)
+      this.allWindows = []
+    }
+  }
+
+  // 检查窗口是否有效
+  private isValidWindow(win: WindowInfo): boolean {
+    // 基本检查
+    if (!win.title || win.width < 100 || win.height < 100) {
+      return false
+    }
+    
+    // 过滤截图相关窗口
+    if (win.title.includes('screenshot') || 
+        win.title.includes('截图') ||
+        win.title.includes('Screenshot')) {
+      return false
+    }
+    
+    // 过滤系统和无关窗口
+    const systemTitles = [
+      'Program Manager', 'Desktop Window Manager', 'Windows Security',
+      'Task Manager', 'Settings', 'Microsoft Store', 'Calculator',
+      'Windows Input Experience', 'Microsoft Text Input Application',
+      'Windows Shell Experience Host', 'Action Center', 'Volume Control',
+      'Network Connections', 'Cortana', 'Search', 'Start', 'Taskbar',
+      'System Tray', 'Notification Area', 'Clock', 'Volume', 'Network',
+      'Battery', 'Power', 'Language Bar', 'Input Method Editor',
+      'Windows PowerShell', 'Command Prompt', 'cmd.exe', 'powershell.exe'
+    ]
+    
+    // 检查是否为系统窗口
+    for (const sysTitle of systemTitles) {
+      if (win.title === sysTitle || win.title.startsWith(sysTitle)) {
+        return false
+      }
+    }
+    
+    // 过滤驱动程序相关窗口
+    if (win.title.startsWith('NVIDIA') ||
+        win.title.startsWith('Intel') ||
+        win.title.startsWith('AMD') ||
+        win.title.startsWith('Realtek') ||
+        win.title.includes('Driver') ||
+        win.title.includes('Graphics')) {
+      return false
+    }
+    
+    // 过滤Windows服务相关窗口
+    if (win.title.includes('Background Task Host') ||
+        win.title.includes('Runtime Broker') ||
+        win.title.includes('Service Host') ||
+        win.title.includes('Windows Modules Installer') ||
+        win.title.includes('System Interrupts') ||
+        win.title.includes('Registry') ||
+        win.title.includes('dwm.exe') ||
+        win.title.includes('explorer.exe') ||
+        win.title.includes('winlogon.exe')) {
+      return false
+    }
+    
+    // 过滤空标题或只有特殊字符的标题
+    const cleanTitle = win.title.trim().replace(/[^\w\s\u4e00-\u9fa5]/g, '')
+    if (cleanTitle.length < 2) {
+      return false
+    }
+    
+    return true
+  }
+
+  // 检测鼠标是否接近窗口边缘
+  private detectNearbyWindow(mousePos: Point): WindowInfo | null {
+    if (this.allWindows.length === 0) return null
+
+    let bestWindow: WindowInfo | null = null
+    let bestDistance = Infinity
+
+    for (const window of this.allWindows) {
+      // 检查鼠标是否在窗口内部或附近
+      const isInWindow = mousePos.x >= window.x && 
+                        mousePos.x <= window.x + window.width &&
+                        mousePos.y >= window.y && 
+                        mousePos.y <= window.y + window.height
+
+      if (isInWindow) {
+        // 如果鼠标在窗口内部，直接返回该窗口
+        return window
+      }
+
+      // 检查鼠标是否在窗口附近
+      const expandedArea = {
+        x: window.x - this.snapThreshold,
+        y: window.y - this.snapThreshold,
+        width: window.width + this.snapThreshold * 2,
+        height: window.height + this.snapThreshold * 2
+      }
+
+      if (mousePos.x >= expandedArea.x &&
+          mousePos.x <= expandedArea.x + expandedArea.width &&
+          mousePos.y >= expandedArea.y &&
+          mousePos.y <= expandedArea.y + expandedArea.height) {
+        
+        // 计算到窗口边缘的最短距离
+        const distToLeft = Math.abs(mousePos.x - window.x)
+        const distToRight = Math.abs(mousePos.x - (window.x + window.width))
+        const distToTop = Math.abs(mousePos.y - window.y)
+        const distToBottom = Math.abs(mousePos.y - (window.y + window.height))
+        
+        const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom)
+        
+        if (minDist <= this.snapThreshold && minDist < bestDistance) {
+          bestWindow = window
+          bestDistance = minDist
+        }
+      }
+    }
+    
+    return bestWindow
   }
 
   // 事件处理器引用（用于清理）
@@ -128,12 +294,25 @@ export class ScreenshotManager {
       switch (operationType) {
         case OperationType.Drawing:
           if (!this.selectionRect && this.currentTool === ToolType.Select) {
-            // 创建选择框
-            this.selectionRect = {
-              x: mousePos.x,
-              y: mousePos.y,
-              width: 0,
-              height: 0
+            // 检查是否有窗口吸附
+            if (this.snappedWindow) {
+              // 直接创建与窗口大小相同的选择框
+              this.selectionRect = {
+                x: this.snappedWindow.x,
+                y: this.snappedWindow.y,
+                width: this.snappedWindow.width,
+                height: this.snappedWindow.height
+              }
+              // 不需要进入绘制状态
+              // this.eventHandler.stopDrawing()
+            } else {
+              // 创建选择框
+              this.selectionRect = {
+                x: mousePos.x,
+                y: mousePos.y,
+                width: 0,
+                height: 0
+              }
             }
             this.onStateChange?.()
           }
@@ -213,6 +392,17 @@ export class ScreenshotManager {
       this.draw()
       this.onStateChange?.()
     } else {
+      // 非绘制状态时检测窗口吸附
+      if (this.currentTool === ToolType.Select && !this.selectionRect) {
+        const nearbyWindow = this.detectNearbyWindow(mousePos)
+        
+        if (nearbyWindow !== this.snappedWindow) {
+          this.snappedWindow = nearbyWindow
+          this.showSnapPreview = !!nearbyWindow
+          this.draw()
+        }
+      }
+      
       // 更新悬停状态
       this.updateHoverState(mousePos)
       
@@ -645,6 +835,11 @@ export class ScreenshotManager {
   draw(): void {
     this.drawingEngine.clear()
 
+    // 绘制窗口吸附预览
+    if (this.showSnapPreview && this.snappedWindow && !this.selectionRect) {
+      this.drawSnapPreview()
+    }
+
     // 绘制所有标注
     if (this.annotations.length > 0) {
       this.drawingEngine.drawAnnotations(this.annotations, this.selectionRect || undefined)
@@ -664,6 +859,65 @@ export class ScreenshotManager {
     if (this.colorPickerState.isActive && this.selectionRect) {
       this.drawingEngine.drawColorPicker(this.colorPickerState, this.selectionRect)
     }
+  }
+
+  // 绘制窗口吸附预览
+  private drawSnapPreview(): void {
+    if (!this.snappedWindow) return
+    
+    const ctx = this.canvas.getContext('2d')
+    if (!ctx) return
+    
+    ctx.save()
+    
+    // 绘制半透明的高亮框
+    ctx.strokeStyle = '#00a8ff'
+    ctx.lineWidth = 2
+    ctx.setLineDash([5, 5])
+    ctx.fillStyle = 'rgba(0, 168, 255, 0.1)'
+    
+    ctx.fillRect(
+      this.snappedWindow.x,
+      this.snappedWindow.y,
+      this.snappedWindow.width,
+      this.snappedWindow.height
+    )
+    
+    ctx.strokeRect(
+      this.snappedWindow.x,
+      this.snappedWindow.y,
+      this.snappedWindow.width,
+      this.snappedWindow.height
+    )
+    
+    // 显示窗口标题
+    if (this.snappedWindow.title) {
+      ctx.setLineDash([])
+      ctx.font = '12px sans-serif'
+      ctx.fillStyle = '#00a8ff'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'bottom'
+      
+      const titleX = this.snappedWindow.x + this.snappedWindow.width / 2
+      const titleY = this.snappedWindow.y - 5
+      
+      // 绘制文字背景
+      const metrics = ctx.measureText(this.snappedWindow.title)
+      const padding = 4
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+      ctx.fillRect(
+        titleX - metrics.width / 2 - padding,
+        titleY - 12 - padding,
+        metrics.width + padding * 2,
+        16
+      )
+      
+      // 绘制文字
+      ctx.fillStyle = '#00a8ff'
+      ctx.fillText(this.snappedWindow.title, titleX, titleY)
+    }
+    
+    ctx.restore()
   }
 
   // 设置工具
@@ -687,6 +941,10 @@ export class ScreenshotManager {
       this.hoveredAnnotation.updateData({ hovered: false })
       this.hoveredAnnotation = null
     }
+    
+    // 重置窗口吸附状态
+    this.snappedWindow = null
+    this.showSnapPreview = false
     
     this.draw()
     this.onStateChange?.()
@@ -1126,3 +1384,4 @@ export class ScreenshotManager {
     this.canvas.removeEventListener('dblclick', this.doubleClickHandler)
   }
 }
+

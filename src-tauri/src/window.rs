@@ -24,7 +24,13 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use urlencoding;
 use uuid;
 #[cfg(target_os = "windows")]
-use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetForegroundWindow, EnumWindows, GetWindowRect, IsWindowVisible, GetWindowTextW,
+    IsIconic, GetWindowLongW, GetClassNameW, GetWindow, GetParent, GetTopWindow,
+    GWL_EXSTYLE, GW_OWNER, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW, GW_HWNDNEXT
+};
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
 
 // 定义搜索框区域结构体
 #[derive(Debug, Clone)]
@@ -33,6 +39,17 @@ struct SearchArea {
     right: f64,
     top: f64,
     bottom: f64,
+}
+
+// 定义窗口信息结构体
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WindowInfo {
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    title: String,
+    z_order: i32, // 添加窗口层级信息
 }
 
 // 使用静态变量存储搜索框位置和窗口引用
@@ -533,7 +550,7 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
                 resizable: true,
                 transparent: true,
                 shadow: false,
-                always_on_top: true,
+                always_on_top: false,
                 ..Default::default()
             },
         );
@@ -874,7 +891,7 @@ pub fn hotkey_dark_mode() {
             resizable: false,
             transparent: true,
             shadow: false,
-            always_on_top: true,
+            always_on_top: false,
             ..Default::default()
         },
     );
@@ -1397,4 +1414,175 @@ pub fn save_screenshot_to_file(app_handle: AppHandle, image: String) -> Result<S
     } else {
         Err("保存已取消".to_string())
     }
+}
+
+// 获取所有窗口信息
+#[tauri::command]
+pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
+    let mut windows = Vec::new();
+
+    #[cfg(target_os = "windows")]
+    {
+        // Windows平台实现
+        unsafe {
+            // 定义回调函数
+            unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+                let windows = &mut *(lparam.0 as *mut Vec<WindowInfo>);
+                
+                // 多重检查窗口是否应该包含在列表中
+                if should_include_window(hwnd) {
+                    let mut rect = RECT::default();
+                    if GetWindowRect(hwnd, &mut rect).is_ok() {
+                        // 获取窗口标题
+                        let mut title_buffer = [0u16; 256];
+                        let title_len = GetWindowTextW(hwnd, &mut title_buffer);
+                        let title = String::from_utf16_lossy(&title_buffer[..title_len as usize]);
+                        
+                        // 基本尺寸和标题检查
+                        if !title.is_empty() && 
+                           rect.right > rect.left && 
+                           rect.bottom > rect.top &&
+                           (rect.right - rect.left) >= 100 &&  // 最小宽度提高到100
+                           (rect.bottom - rect.top) >= 100 &&  // 最小高度提高到100
+                           is_valid_window_title(&title) {
+                            // 计算窗口的Z-order（层级）
+                            let z_order = get_window_z_order(hwnd);
+                            
+                            windows.push(WindowInfo {
+                                x: rect.left,
+                                y: rect.top,
+                                width: rect.right - rect.left,
+                                height: rect.bottom - rect.top,
+                                title,
+                                z_order,
+                            });
+                        }
+                    }
+                }
+                
+                BOOL(1) // 继续枚举
+            }
+            
+            // 辅助函数：获取窗口的Z-order（层级）
+            unsafe fn get_window_z_order(hwnd: HWND) -> i32 {
+                let mut z_order = 0;
+                let mut current_hwnd_result = GetTopWindow(None);
+                
+                while let Ok(current_hwnd) = current_hwnd_result {
+                    if current_hwnd.0 == std::ptr::null_mut() {
+                        break;
+                    }
+                    
+                    if current_hwnd == hwnd {
+                        return z_order;
+                    }
+                    
+                    z_order += 1;
+                    current_hwnd_result = GetWindow(current_hwnd, GW_HWNDNEXT);
+                }
+                
+                // 如果没有找到，返回一个很大的值，表示层级很低
+                999999
+            }
+            
+            // 辅助函数：检查窗口是否应该包含
+            unsafe fn should_include_window(hwnd: HWND) -> bool {
+                // 1. 基本可见性检查
+                if !IsWindowVisible(hwnd).as_bool() {
+                    return false;
+                }
+                
+                // 2. 检查是否最小化
+                if IsIconic(hwnd).as_bool() {
+                    return false;
+                }
+                
+                // 3. 检查扩展窗口样式
+                let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+                
+                // 排除工具窗口和非激活窗口
+                if (ex_style & WS_EX_TOOLWINDOW.0) != 0 {
+                    return false;
+                }
+                
+                // 4. 检查窗口是否有父窗口或所有者
+                if let Ok(parent) = GetParent(hwnd) {
+                    if parent.0 != std::ptr::null_mut() && (ex_style & WS_EX_APPWINDOW.0) == 0 {
+                        return false;
+                    }
+                }
+                
+                if let Ok(owner) = GetWindow(hwnd, GW_OWNER) {
+                    if owner.0 != std::ptr::null_mut() && (ex_style & WS_EX_APPWINDOW.0) == 0 {
+                        return false;
+                    }
+                }
+                
+                // 5. 获取窗口类名进行过滤
+                let mut class_name_buffer = [0u16; 256];
+                let class_name_len = GetClassNameW(hwnd, &mut class_name_buffer);
+                let class_name = String::from_utf16_lossy(&class_name_buffer[..class_name_len as usize]);
+                
+                // 过滤系统类名
+                if is_system_class(&class_name) {
+                    return false;
+                }
+                
+                true
+            }
+            
+            // 辅助函数：检查是否为系统类名
+            fn is_system_class(class_name: &str) -> bool {
+                matches!(class_name,
+                    "Progman" | "WorkerW" | "Shell_TrayWnd" | "DV2ControlHost" | 
+                    "MsgrIMEWindowClass" | "SysShadow" | "Button" | "Ghost" |
+                    "IME" | "Default IME" | "MSCTFIME UI" | "ApplicationFrameWindow" |
+                    "Windows.UI.Core.CoreWindow" | "Shell_SecondaryTrayWnd" |
+                    "NotifyIconOverflowWindow" | "NativeHWNDHost" | "HwndWrapper"
+                )
+            }
+            
+            // 辅助函数：检查窗口标题是否有效
+            fn is_valid_window_title(title: &str) -> bool {
+                // 过滤无关的窗口标题
+                !matches!(title,
+                    "Program Manager" | "Settings" | "Microsoft Text Input Application" |
+                    "Windows Input Experience" | "Microsoft Store" | "Calculator" |
+                    "Windows Security" | "" | "Desktop" | "TaskManager" | "msrdc" |
+                    "dwm" | "winlogon" | "csrss" | "lsass" | "services" | "smss" |
+                    "System" | "Registry" | "Windows Shell Experience Host" |
+                    "Desktop Window Manager" | "Window Manager" | "explorer" |
+                    "Windows PowerShell" | "Command Prompt" | "Cortana" |
+                    "Action Center" | "Volume Control" | "Network Connections" |
+                    "Task Manager"
+                ) && 
+                !title.starts_with("Desktop") &&
+                !title.starts_with("NVIDIA") &&
+                !title.starts_with("Intel") &&
+                !title.starts_with("AMD") &&
+                !title.contains("Background Task Host") &&
+                !title.contains("Runtime Broker") &&
+                !title.contains("Service Host") &&
+                !title.contains("Windows Modules Installer") &&
+                !title.contains("Desktop Window Manager") &&
+                title.len() > 1  // 至少要有实际内容
+            }
+            
+            // 枚举所有窗口
+            let _ = EnumWindows(
+                Some(enum_windows_callback),
+                LPARAM(&mut windows as *mut Vec<WindowInfo> as isize),
+            );
+            
+            // 按Z-order排序，z_order值越小表示层级越高（越靠近用户）
+            windows.sort_by(|a: &WindowInfo, b: &WindowInfo| a.z_order.cmp(&b.z_order));
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Window enumeration not implemented for this platform".to_string());
+    }
+
+    Ok(windows)
 }
