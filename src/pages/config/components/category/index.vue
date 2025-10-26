@@ -50,6 +50,7 @@ import { useConfigurationStore } from '@/store';
 import { getCategories, addCategory } from '@/database/category';
 import { getFragmentList } from '@/database/fragment';
 import { useRoute, useRouter } from 'vue-router';
+import { onMounted, watch } from 'vue';
 const store = useConfigurationStore();
 const route = useRoute();
 const router = useRouter();

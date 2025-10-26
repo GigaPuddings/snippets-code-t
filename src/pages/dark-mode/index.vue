@@ -205,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -425,6 +425,13 @@ onMounted(async () => {
       store.updateTheme(event.payload.isDark ? 'dark' : 'light');
       // modal.msg(`系统主题已自动切换到${event.payload.isDark ? '深色' : '浅色'}模式`, 'info');
     });
+
+  // 通知后端前端已准备完成
+  nextTick(() => {
+    setTimeout(() => {
+      getCurrentWindow().emit('dark_mode_ready');
+    }, 100); // 给一点时间让DOM完全渲染
+  });
 });
 
 // 监听配置变化

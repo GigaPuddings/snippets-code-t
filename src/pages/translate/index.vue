@@ -5,6 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ElMessage } from 'element-plus';
 import googleIcon from '@/assets/svg/google.svg';
 import bingIcon from '@/assets/svg/bing.svg';
+import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 
 const appWindow = getCurrentWindow();
 
@@ -72,8 +73,8 @@ let translateTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // 记录用户最近一次手动选择的目标语言
 const userPreferredTarget = ref({
-  forChinese: 'en', // 中文输入时首选的目标语言
-  forEnglish: 'zh' // 英文输入时首选的目标语言
+  forChinese: 'en',
+  forEnglish: 'zh'
 });
 
 const setupListeners = async () => {
@@ -170,7 +171,7 @@ const resetState = () => {
 // 关闭窗口
 const closeWindow = async () => {
   resetState();
-  await appWindow.hide();
+  await appWindow.close();
 };
 
 // 交换语言
@@ -482,6 +483,11 @@ onMounted(() => {
   }
   // 组件挂载后也聚焦输入框
   focusSourceTextArea();
+  
+  // 通知后端前端已准备完成
+  nextTick(() => {
+    appWindow.emit('translate_ready');
+  });
 });
 
 onUnmounted(() => {

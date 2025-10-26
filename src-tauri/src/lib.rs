@@ -30,7 +30,8 @@ use crate::update::{
 };
 use crate::window::{
   hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info, capture_screen_area,
-  copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows
+  copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows,
+  create_pin_window, get_pin_image_data, copy_image_to_clipboard, save_pin_image
 };
 use crate::dark_mode::{
     load_config as load_dark_mode_config, save_config as save_dark_mode_config,
@@ -229,9 +230,6 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_log::Builder::new().build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_os::init())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
@@ -241,18 +239,33 @@ pub fn run() {
                 ])
                 .build(),
         )
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             // 在应用启动时初始化 APP
             APP.set(app.handle().clone()).unwrap();
-            // 初始化数据库
-            db::init_db().expect("初始化数据库失败");
-            // 创建托盘图标（如果需要）
+            
+            // 使用分阶段异步初始化数据库（优先初始化关键表）
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = db::init_db_async().await {
+                    log::error!("数据库初始化失败: {}", e);
+                    // 回退到同步初始化
+                    if let Err(e2) = db::init_db() {
+                        log::error!("回退数据库初始化也失败: {}", e2);
+                    }
+                }
+            });
+            // 异步创建托盘图标（避免阻塞启动）
             #[cfg(all(desktop))]
             {
-                let handle = app.handle();
-                tray::create_tray(handle)?; // 调用 tray 模块中的创建托盘函数
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = tray::create_tray(&handle) {
+                        log::error!("托盘创建失败: {:?}", e);
+                    }
+                });
             }
             // Register Global Shortcut
             match register_shortcut("all") {
@@ -295,23 +308,24 @@ pub fn run() {
                 }
             }
 
-            // 启动时检查更新
+            // 立即开始初始化应用和书签图标（优先级更高）
+            let app_handle_clone = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // 减少延迟至200ms，优先加载图标提升用户体验
+                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                init_app_and_bookmark_icons(&app_handle_clone);
+            });
+
+            // 延迟启动更新检查（降低优先级）
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // 先检查用户是否开启了自动更新
+                // 延迟3秒后检查更新，避免与关键功能竞争资源
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
                 if get_auto_update_check(app_handle.clone()) {
                     if let Err(e) = check_update(&app_handle, false).await {
                         log::warn!("启动时检查更新失败: {}", e);
                     }
                 }
-            });
-
-            // 初始化应用和书签图标（后台线程）
-            let app_handle_clone = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                // 延迟1秒后开始加载图标，避免影响应用启动速度
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                init_app_and_bookmark_icons(&app_handle_clone);
             });
 
             // 检查是否是自动启动
@@ -324,14 +338,14 @@ pub fn run() {
                 if let Some(loading_window) = app.get_webview_window("loading") {
                     loading_window.show().unwrap();
 
-                    // 模拟后台加载过程，5秒后显示主窗口并关闭加载窗口
+                    // 优化后台加载过程，减少等待时间并使用异步睡眠
                     let loading_window_clone = loading_window.clone();
                     tauri::async_runtime::spawn(async move {
-                        // 模拟加载过程
-                        std::thread::sleep(std::time::Duration::from_secs(5));
+                        // 减少等待时间至1.5秒，并使用异步睡眠避免阻塞
+                        tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
 
                         // 关闭加载窗口
-                        loading_window_clone.hide().unwrap();
+                        let _ = loading_window_clone.hide();
 
                         // 显示主窗口
                         crate::window::hotkey_config();
@@ -394,6 +408,10 @@ pub fn run() {
             get_pixel_color,                  // 获取像素颜色
             get_screen_preview,               // 获取屏幕预览
             get_all_windows,                  // 获取所有窗口信息
+            create_pin_window,                // 创建贴图窗口
+            get_pin_image_data,               // 获取贴图窗口图片数据
+            copy_image_to_clipboard,          // 复制图片到剪贴板
+            save_pin_image,                   // 保存贴图图片
             get_dark_mode_config,             // 获取Auto Dark Mode配置
             save_dark_mode_config_command,    // 保存Auto Dark Mode配置
             get_location_info,                // 获取地理位置信息

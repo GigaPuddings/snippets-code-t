@@ -94,7 +94,7 @@ export class AnnotationFactory {
 
   // 检查工具是否为绘图工具
   static isDrawingTool(toolType: ToolType): boolean {
-    return toolType !== ToolType.Select
+    return toolType !== ToolType.Select && toolType !== ToolType.ColorPicker && toolType !== ToolType.Pin
   }
 
   // 检查工具是否支持样式设置

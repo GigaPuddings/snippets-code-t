@@ -5,6 +5,7 @@ import { EventHandler } from './EventHandler'
 import { AnnotationFactory } from './AnnotationFactory'
 import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState } from './types'
 import { invoke } from '@tauri-apps/api/core'
+import { Window } from '@tauri-apps/api/window'
 
 // 窗口信息接口
 interface WindowInfo {
@@ -13,6 +14,9 @@ interface WindowInfo {
   width: number
   height: number
   title: string
+  z_order: number  // 原始窗口层级
+  is_fullscreen: boolean  // 是否为全屏窗口
+  display_order: number  // 实际显示层级（考虑全屏和遮挡后），值越小层级越高
 }
 
 // 截图管理器 - 统一管理截图功能
@@ -217,50 +221,42 @@ export class ScreenshotManager {
   private detectNearbyWindow(mousePos: Point): WindowInfo | null {
     if (this.allWindows.length === 0) return null
 
-    let bestWindow: WindowInfo | null = null
-    let bestDistance = Infinity
+    // 收集所有候选窗口及其距离
+    const candidates: Array<{ window: WindowInfo; distance: number }> = []
 
     for (const window of this.allWindows) {
-      // 检查鼠标是否在窗口内部或附近
+      // 检查鼠标是否在窗口内部
       const isInWindow = mousePos.x >= window.x && 
                         mousePos.x <= window.x + window.width &&
                         mousePos.y >= window.y && 
                         mousePos.y <= window.y + window.height
 
       if (isInWindow) {
-        // 如果鼠标在窗口内部，直接返回该窗口
-        return window
+        candidates.push({ window, distance: 0 })
+        continue
       }
 
-      // 检查鼠标是否在窗口附近
-      const expandedArea = {
-        x: window.x - this.snapThreshold,
-        y: window.y - this.snapThreshold,
-        width: window.width + this.snapThreshold * 2,
-        height: window.height + this.snapThreshold * 2
-      }
-
-      if (mousePos.x >= expandedArea.x &&
-          mousePos.x <= expandedArea.x + expandedArea.width &&
-          mousePos.y >= expandedArea.y &&
-          mousePos.y <= expandedArea.y + expandedArea.height) {
-        
-        // 计算到窗口边缘的最短距离
-        const distToLeft = Math.abs(mousePos.x - window.x)
-        const distToRight = Math.abs(mousePos.x - (window.x + window.width))
-        const distToTop = Math.abs(mousePos.y - window.y)
-        const distToBottom = Math.abs(mousePos.y - (window.y + window.height))
-        
-        const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom)
-        
-        if (minDist <= this.snapThreshold && minDist < bestDistance) {
-          bestWindow = window
-          bestDistance = minDist
-        }
+      // 计算到窗口边缘的最短距离
+      const distToLeft = Math.abs(mousePos.x - window.x)
+      const distToRight = Math.abs(mousePos.x - (window.x + window.width))
+      const distToTop = Math.abs(mousePos.y - window.y)
+      const distToBottom = Math.abs(mousePos.y - (window.y + window.height))
+      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom)
+      
+      if (minDist <= this.snapThreshold) {
+        candidates.push({ window, distance: minDist })
       }
     }
-    
-    return bestWindow
+
+    if (candidates.length === 0) return null
+
+    // 选择窗口：优先选择 display_order 最小的（实际层级最高），然后选择距离最近的
+    return candidates.reduce((best, current) => {
+      // 按实际显示层级选择（display_order 越小，层级越高）
+      if (current.window.display_order < best.window.display_order) return current
+      if (current.window.display_order === best.window.display_order && current.distance < best.distance) return current
+      return best
+    }).window
   }
 
 
@@ -336,6 +332,14 @@ export class ScreenshotManager {
         case OperationType.ColorPicking:
           this.handleColorPicking(mousePos)
           this.eventHandler.stopDrawing() // 取色不需要绘制状态
+          break
+          
+        case OperationType.Pinning:
+          // 贴图模式
+          if (this.selectionRect) {
+            this.createPinWindow()
+            this.eventHandler.stopDrawing() // 贴图不需要绘制状态
+          }
           break
 
         case OperationType.EditingAnnotation:
@@ -1266,6 +1270,65 @@ export class ScreenshotManager {
       annotation.updateData({ text })
       this.draw()
       this.onStateChange?.()
+    }
+  }
+
+  // 创建贴图窗口
+  async createPinWindow(): Promise<void> {
+    if (!this.selectionRect) return
+    
+    try {
+      // 1. 获取当前选区的截图数据
+      const { x, y, width, height } = this.selectionRect
+      
+      // 获取窗口信息进行坐标转换
+      const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
+      const scale = windowInfo?.scale || 1
+      
+      // 计算实际屏幕坐标
+      const screenX = Math.round(windowInfo.x + x * scale)
+      const screenY = Math.round(windowInfo.y + y * scale)
+      const screenWidth = Math.round(width * scale)
+      const screenHeight = Math.round(height * scale)
+      
+      // 2. 捕获屏幕区域
+      const result = await invoke('capture_screen_area', {
+        x: screenX,
+        y: screenY,
+        width: screenWidth,
+        height: screenHeight
+      }) as {
+        image: string,
+        adjusted_width: number,
+        adjusted_height: number
+      }
+      
+      if (!result?.image) {
+        throw new Error('Failed to capture screen area')
+      }
+      
+      // 3. 处理标注并生成最终图像
+      const finalImage = await this.renderWithAnnotations(result, scale)
+      
+      // 4. 创建贴图窗口
+      await invoke('create_pin_window', {
+        imageData: finalImage,
+        x: screenX,
+        y: screenY,
+        width: screenWidth,
+        height: screenHeight
+      })
+      
+      // 5. 关闭截图窗口
+      this.onStateChange?.()
+      setTimeout(() => {
+        const appWindow = new Window('screenshot')
+        appWindow.close()
+      }, 100)
+      
+    } catch (error) {
+      console.error('Failed to create pin window:', error)
+      throw error
     }
   }
 

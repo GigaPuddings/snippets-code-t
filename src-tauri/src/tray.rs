@@ -1,4 +1,4 @@
-use crate::window::{ hotkey_config, hotkey_translate, hotkey_dark_mode };
+use crate::window::{ hotkey_config, hotkey_translate, hotkey_dark_mode, open_config_settings };
 use crate::dark_mode::stop_scheduler;
 use log::info;
 use tauri::{
@@ -48,7 +48,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             }
             "config" => {
                 info!("============== Config ==============");
-                hotkey_config();
+                open_config_settings();
             }
             "translate" => {
                 info!("============== Translate ==============");

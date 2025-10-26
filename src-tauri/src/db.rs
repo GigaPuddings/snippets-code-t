@@ -43,11 +43,17 @@ pub fn get_db_path() -> String {
     db_path.to_str().unwrap().to_string()
 }
 
-// 初始化数据库
+// 初始化数据库 - 分阶段初始化优化性能
 pub fn init_db() -> Result<(), rusqlite::Error> {
     let app = APP.get().unwrap();
     let db_path = get_database_path(app);
     let conn = rusqlite::Connection::open(db_path)?;
+    
+    // 设置数据库优化参数（忽略可能的返回值，避免execute错误）
+    let _ = conn.execute("PRAGMA journal_mode=WAL", []);  // 使用WAL模式提升并发性能
+    let _ = conn.execute("PRAGMA synchronous=NORMAL", []);  // 减少磁盘同步提升性能
+    let _ = conn.execute("PRAGMA cache_size=10000", []);  // 增加缓存大小
+    let _ = conn.execute("PRAGMA temp_store=memory", []);  // 临时数据存储在内存中
 
     // 创建 apps 表
     conn.execute(
@@ -123,6 +129,119 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    Ok(())
+}
+
+// 异步分阶段数据库初始化 - 优先创建核心表
+pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // 第一阶段：快速初始化核心表
+    tokio::task::spawn_blocking(|| -> Result<(), rusqlite::Error> {
+        let app = APP.get().unwrap();
+        let db_path = get_database_path(app);
+        let conn = rusqlite::Connection::open(db_path)?;
+        
+        // 设置数据库优化参数（忽略可能的返回值）
+        let _ = conn.execute("PRAGMA journal_mode=WAL", []);
+        let _ = conn.execute("PRAGMA synchronous=NORMAL", []);
+        let _ = conn.execute("PRAGMA cache_size=10000", []);
+        let _ = conn.execute("PRAGMA temp_store=memory", []);
+        
+        // 核心表：apps 和 bookmarks（用户最常用的功能）
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS apps (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                icon TEXT,
+                summarize TEXT NOT NULL
+            )",
+            [],
+        )?;
+        
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS bookmarks (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                icon TEXT,
+                summarize TEXT NOT NULL
+            )",
+            [],
+        )?;
+        
+        Ok(())
+    }).await??;
+    
+    // 短暂延迟，让界面先响应
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+    
+    // 第二阶段：初始化辅助表
+    tokio::task::spawn_blocking(|| -> Result<(), rusqlite::Error> {
+        let app = APP.get().unwrap();
+        let db_path = get_database_path(app);
+        let conn = rusqlite::Connection::open(db_path)?;
+        
+        // 辅助表：图标缓存和搜索引擎
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS icon_cache (
+                key TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                timestamp INTEGER NOT NULL
+            )",
+            [],
+        )?;
+        
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS search_engines (
+                id TEXT PRIMARY KEY,
+                keyword TEXT NOT NULL,
+                name TEXT NOT NULL,
+                icon TEXT NOT NULL,
+                url TEXT NOT NULL,
+                enabled INTEGER NOT NULL
+            )",
+            [],
+        )?;
+        
+        Ok(())
+    }).await??;
+    
+    // 第三阶段：初始化其他表
+    tokio::task::spawn_blocking(move || -> Result<(), rusqlite::Error> {
+        let app = APP.get().unwrap();
+        let db_path = get_database_path(app);
+        let conn = rusqlite::Connection::open(db_path)?;
+        
+        // 其他表
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS alarm_cards (
+                id TEXT PRIMARY KEY,
+                time TEXT NOT NULL,
+                title TEXT NOT NULL,
+                weekdays TEXT NOT NULL,
+                reminder_time TEXT NOT NULL,
+                is_active INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                alarm_type TEXT DEFAULT 'Weekly',
+                specific_dates TEXT
+            )",
+            [],
+        )?;
+        
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS search_history (
+                id TEXT PRIMARY KEY,
+                usage_count INTEGER NOT NULL,
+                last_used_at TEXT NOT NULL
+            )",
+            [],
+        )?;
+        
+        Ok(())
+    }).await??;
+    
+    log::info!("数据库异步初始化完成");
     Ok(())
 }
 
@@ -259,13 +378,13 @@ pub fn replace_all_search_engines(engines: &[SearchEngine]) -> Result<(), rusqli
 }
 
 // 清空 search_engines 表
-pub fn clear_search_engines() -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-    conn.execute("DELETE FROM search_engines", [])?;
-    Ok(())
-}
+// pub fn clear_search_engines() -> Result<(), rusqlite::Error> {
+//     let app_handle = APP.get().unwrap();
+//     let db_path = get_database_path(app_handle);
+//     let conn = rusqlite::Connection::open(db_path)?;
+//     conn.execute("DELETE FROM search_engines", [])?;
+//     Ok(())
+// }
 
 // 获取所有提醒卡片
 pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
@@ -355,13 +474,13 @@ pub fn delete_alarm_card_from_db(id: &str) -> Result<(), rusqlite::Error> {
 }
 
 // 清空 alarm_cards 表
-pub fn clear_alarm_cards() -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-    conn.execute("DELETE FROM alarm_cards", [])?;
-    Ok(())
-}
+// pub fn clear_alarm_cards() -> Result<(), rusqlite::Error> {
+//     let app_handle = APP.get().unwrap();
+//     let db_path = get_database_path(app_handle);
+//     let conn = rusqlite::Connection::open(db_path)?;
+//     conn.execute("DELETE FROM alarm_cards", [])?;
+//     Ok(())
+// }
 
 // 添加或更新搜索历史
 pub fn add_search_history_item(id: &str) -> Result<(), rusqlite::Error> {

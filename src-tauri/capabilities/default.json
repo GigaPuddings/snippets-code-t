@@ -10,13 +10,16 @@
     "loading",
     "translate",
     "screenshot",
-    "dark_mode"
+    "dark_mode",
+    "pin_*"
   ],
   "permissions": [
     "core:default",
     "core:window:default",
     "core:window:allow-start-dragging",
     "core:window:allow-set-always-on-top",
+    "core:window:allow-set-size",
+    "core:window:allow-inner-size",
     "core:window:allow-close",
     "core:window:allow-maximize",
     "core:window:allow-minimize",

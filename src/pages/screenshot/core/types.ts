@@ -32,7 +32,8 @@ export enum OperationType {
   ResizingAnnotationSE = 'resizing-annotation-se',
   DrawingText = 'drawing-text',
   DrawingMosaic = 'drawing-mosaic',
-  ColorPicking = 'color-picking'
+  ColorPicking = 'color-picking',
+  Pinning = 'pinning'
 }
 
 export enum ToolType {
@@ -42,7 +43,8 @@ export enum ToolType {
   Pen = 'pen',
   Mosaic = 'mosaic',
   Text = 'text',
-  ColorPicker = 'color-picker'
+  ColorPicker = 'color-picker',
+  Pin = 'pin'
 }
 
 export interface AnnotationStyle {

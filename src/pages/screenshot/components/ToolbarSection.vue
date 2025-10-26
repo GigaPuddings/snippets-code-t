@@ -136,7 +136,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ToolType } from '../core/types'
-import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, DeleteFour, Save, Check, Close, Platte } from '@icon-park/vue-next'
+import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, DeleteFour, Save, Check, Close, Platte, Pushpin } from '@icon-park/vue-next'
 
 interface Props {
   currentTool: ToolType
@@ -172,7 +172,8 @@ const tools = [
   { type: ToolType.Pen, icon: Write, title: '画笔工具' },
   { type: ToolType.Mosaic, icon: Mosaic, title: '马赛克工具' },
   { type: ToolType.Text, icon: FontSize, title: '文字工具' },
-  { type: ToolType.ColorPicker, icon: Platte, title: '取色工具' }
+  { type: ToolType.ColorPicker, icon: Platte, title: '取色工具' },
+  { type: ToolType.Pin, icon: Pushpin, title: '贴图工具' }
 ]
 
 // 样式配置
@@ -182,7 +183,7 @@ const textSizes = [12, 14, 16, 18, 20, 24]
 const mosaicSizes = [10, 15, 20, 25]
 
 // 是否显示样式设置
-const showStyleSettings = computed(() => ![ToolType.Select, ToolType.ColorPicker].includes(props.currentTool))
+const showStyleSettings = computed(() => ![ToolType.Select, ToolType.ColorPicker, ToolType.Pin].includes(props.currentTool))
 
 const showLineWidth = computed(() => 
   [ToolType.Rectangle, ToolType.Arrow, ToolType.Pen].includes(props.currentTool)

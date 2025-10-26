@@ -50,7 +50,9 @@ pub struct WindowInfo {
     width: i32,
     height: i32,
     title: String,
-    z_order: i32, // 添加窗口层级信息
+    z_order: i32, // 原始窗口层级
+    is_fullscreen: bool, // 是否为全屏窗口
+    display_order: i32, // 实际显示层级（考虑全屏优先后），值越小层级越高
 }
 
 // 使用静态变量存储搜索框位置和窗口引用
@@ -71,6 +73,11 @@ static LAST_FOCUS_LOST_TIME: LazyLock<Mutex<Option<std::time::Instant>>> =
     LazyLock::new(|| Mutex::new(None));
 // 存储上次活动窗口标识
 static LAST_ACTIVE_WINDOW_ID: Mutex<Option<String>> = Mutex::new(None);
+
+// 存储贴图窗口的图片数据 (窗口标签 -> 图片数据)
+use std::collections::HashMap;
+static PIN_IMAGE_DATA: LazyLock<Mutex<HashMap<String, String>>> = 
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 // 更新搜索框位置的命令
 #[tauri::command]
@@ -349,6 +356,62 @@ pub fn hotkey_search_wrapper() {
     hotkey_search(None);
 }
 
+// 创建config窗口并跳转到设置页面
+pub fn open_config_settings() {
+    let window = build_window(
+        "config",
+        "/#/config/category/settings",
+        WindowConfig {
+            title: "配置".to_string(),
+            width: 1180.0,
+            height: 642.0,
+            resizable: true,
+            transparent: true,
+            shadow: false,
+            always_on_top: false,
+            ..Default::default()
+        },
+    );
+
+    // 先检查搜索窗口是否打开，如果打开则先关闭
+    let search_window = APP.get().unwrap().get_webview_window("main").unwrap();
+    if search_window.is_visible().unwrap() {
+        search_window.hide().unwrap();
+        // 停止鼠标追踪
+        stop_mouse_tracking();
+        // 取消忽略光标
+        search_window.set_ignore_cursor_events(false).unwrap();
+    }
+
+    // 处理config窗口显示
+    if window.is_visible().unwrap() {
+        // 窗口已可见，直接跳转到设置页面
+        let _ = window.emit("navigate-to-settings", ());
+        window.set_focus().unwrap();
+    } else {
+        // 窗口不可见，需要显示并导航到设置页面
+        let window_clone = window.clone();
+        
+        // 先尝试直接显示
+        match window.show() {
+            Ok(_) => {
+                // 成功显示，设置焦点并导航到设置页面
+                let _ = window.set_focus();
+                let _ = window.emit("navigate-to-settings", ());
+            }
+            Err(_) => {
+                // 显示失败，可能是新创建的窗口，等待ready事件
+                window.once("config_ready", move |_| {
+                    window_clone.show().unwrap();
+                    window_clone.set_focus().unwrap();
+                    // 发送导航事件到设置页面
+                    let _ = window_clone.emit("navigate-to-settings", ());
+                });
+            }
+        }
+    }
+}
+
 // 创建config窗口
 pub fn hotkey_config() {
     let window = build_window(
@@ -368,55 +431,60 @@ pub fn hotkey_config() {
 
     // 先检查搜索窗口是否打开，如果打开则先关闭
     let search_window = APP.get().unwrap().get_webview_window("main").unwrap();
-
-    // 搜索窗口和配置窗口都打开，直接关闭搜索窗口，不执行后面代码
-    if search_window.is_visible().unwrap() && window.is_visible().unwrap() {
+    if search_window.is_visible().unwrap() {
         search_window.hide().unwrap();
         // 停止鼠标追踪
         stop_mouse_tracking();
         // 取消忽略光标
         search_window.set_ignore_cursor_events(false).unwrap();
-    } else {
-        // 配置窗口打开，则判断其状态
-        if window.is_visible().unwrap() {
-            // 如果窗口已经显示但失去焦点，重新显示并聚焦
-            if !window.is_focused().unwrap() {
-                // 对于可能被最小化的窗口，先尝试取消最小化
-                #[cfg(target_os = "windows")]
-                {
-                    let _ = window.unminimize();
-                }
-                #[cfg(target_os = "macos")]
-                {
-                    let _ = window.unminimize();
-                }
+    }
 
-                // 强制显示窗口并设置为前台窗口
-                window.show().unwrap();
-                window.set_focus().unwrap();
-
-                // 如果窗口被其他应用遮挡，临时设置为顶层窗口
-                window.set_always_on_top(true).unwrap();
-                // 短暂延迟后恢复原始设置
-                let window_clone = window.clone();
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                    let _ = window_clone.set_always_on_top(false);
-                });
-            } else {
-                window.hide().unwrap(); // 窗口有焦点时隐藏
-            }
+    // 简化窗口状态处理逻辑
+    if window.is_visible().unwrap() {
+        // 窗口可见，检查是否有焦点
+        if window.is_focused().unwrap() {
+            // 有焦点则隐藏
+            window.hide().unwrap();
         } else {
-            // 如果配置窗口未显示，检查搜索窗口
-            if search_window.is_visible().unwrap() {
-                search_window.hide().unwrap();
-                // 停止鼠标追踪
-                stop_mouse_tracking();
-                // 取消忽略光标
-                search_window.set_ignore_cursor_events(false).unwrap();
+            // 没有焦点则重新聚焦并置顶
+            #[cfg(target_os = "windows")]
+            {
+                let _ = window.unminimize();
             }
+            #[cfg(target_os = "macos")]
+            {
+                let _ = window.unminimize();
+            }
+            
+            // 强制显示窗口并设置为前台窗口
             window.show().unwrap();
             window.set_focus().unwrap();
+            
+            // 临时设置为顶层窗口确保可见
+            window.set_always_on_top(true).unwrap();
+            let window_clone = window.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                let _ = window_clone.set_always_on_top(false);
+            });
+        }
+    } else {
+        // 窗口不可见，需要显示
+        let window_clone = window.clone();
+        
+        // 先尝试直接显示，如果是已存在的隐藏窗口，这样就能立即显示
+        match window.show() {
+            Ok(_) => {
+                // 成功显示，设置焦点
+                let _ = window.set_focus();
+            }
+            Err(_) => {
+                // 显示失败，可能是新创建的窗口，等待ready事件
+                window.once("config_ready", move |_| {
+                    window_clone.show().unwrap();
+                    window_clone.set_focus().unwrap();
+                });
+            }
         }
     }
 }
@@ -511,33 +579,18 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
     let selected_text = text.clone();
 
     if let Some(window) = app_handle.get_webview_window("translate") {
-        // 窗口已存在，显示并聚焦
+        // 窗口已存在，立即显示并聚焦
         let _ = window.show();
         let _ = window.set_focus();
 
-        // 使用延迟发送机制确保文本能被前端接收
+        // 如果有文本，直接发送（窗口已存在说明前端已经准备好）
         if let Some(text) = selected_text {
-            let window_clone = window.clone();
-            let text_clone = text.clone();
-
-            // 立即尝试发送一次
             let _ = window.emit(
                 "selection-text",
                 serde_json::json!({
-                    "text": text.clone()
+                    "text": text
                 }),
             );
-
-            // 再延迟300ms后尝试发送，确保前端已准备好
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                let _ = window_clone.emit(
-                    "selection-text",
-                    serde_json::json!({
-                        "text": text_clone
-                    }),
-                );
-            });
         }
     } else {
         // 创建新窗口
@@ -556,26 +609,26 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
             },
         );
 
-        window.show().unwrap();
-        window.set_focus().unwrap();
+        // 监听窗口准备事件，然后显示窗口并发送文本
+        let window_clone = window.clone();
+        let text_clone = selected_text.clone();
+        window.once("translate_ready", move |_| {
+            // info!("Translate window ready, showing now.");
+            window_clone.show().unwrap();
+            window_clone.set_focus().unwrap();
 
-        // 如果有文本，在窗口创建后发送文本
-        if let Some(text) = selected_text {
-            let window_clone = window.clone();
-            let text_clone = text.clone();
-
-            // 使用延迟发送的方式，确保前端组件有足够时间初始化和设置监听器
-            tauri::async_runtime::spawn(async move {
-                // 延迟500ms尝试发送
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            // 如果有文本，在窗口准备好后发送
+            if let Some(text) = text_clone {
                 let _ = window_clone.emit(
                     "selection-text",
                     serde_json::json!({
-                        "text": text_clone.clone()
+                        "text": text
                     }),
                 );
-            });
-        }
+            }
+        });
+
+        // info!("创建翻译窗口，等待页面发送 'translate_ready' 事件");
     }
 }
 
@@ -596,8 +649,15 @@ pub fn create_update_window() {
         },
     );
 
-    window.show().unwrap();
-    window.set_focus().unwrap();
+    // 监听窗口准备事件，然后显示窗口
+    let window_clone = window.clone();
+    window.once("update-ready", move |_| {
+        // info!("Update window ready, showing now.");
+        window_clone.show().unwrap();
+        window_clone.set_focus().unwrap();
+    });
+
+    // info!("创建更新窗口，等待页面发送 'update-ready' 事件");
 }
 
 // 显示隐藏窗口
@@ -609,6 +669,9 @@ pub fn show_hide_window_command(label: &str, context: Option<String>) -> Result<
         }
         "config" => {
             hotkey_config();
+        }
+        "config_settings" => {
+            open_config_settings();
         }
         "translate" => {
             hotkey_translate();
@@ -897,54 +960,94 @@ pub fn hotkey_dark_mode() {
         },
     );
 
-    window.show().unwrap();
-    window.set_focus().unwrap();
+    // 监听窗口准备事件，然后显示窗口
+    let window_clone = window.clone();
+    window.once("dark_mode_ready", move |_| {
+        // info!("Dark mode window ready, showing now.");
+        window_clone.show().unwrap();
+        window_clone.set_focus().unwrap();
+    });
+
+    // info!("创建深色模式窗口，等待页面发送 'dark_mode_ready' 事件");
 }
 
 // 创建截图窗口
 pub fn hotkey_screenshot() {
-    let app_handle = APP.get().unwrap();
+    let app_handle = match APP.get() {
+        Some(app) => app,
+        None => {
+            info!("无法获取应用句柄");
+            return;
+        }
+    };
 
-    // 检查窗口是否已存在
+    // 检查窗口是否已存在，如果存在则先关闭并等待完全销毁
     if let Some(existing_window) = app_handle.get_webview_window("screenshot") {
-        // 窗口已存在，显示并聚焦
-        existing_window.show().unwrap();
-        existing_window.set_focus().unwrap();
-        info!("截图窗口已存在，显示并聚焦");
-        return;
+        info!("截图窗口已存在，关闭旧窗口");
+        let _ = existing_window.close();
+        
+        // 等待窗口完全销毁，最多等待2秒
+        for i in 0..20 {
+            thread::sleep(Duration::from_millis(100));
+            if app_handle.get_webview_window("screenshot").is_none() {
+                info!("旧截图窗口已关闭，耗时 {}ms", (i + 1) * 100);
+                break;
+            }
+        }
+        
+        // 如果窗口仍然存在，放弃创建新窗口
+        if app_handle.get_webview_window("screenshot").is_some() {
+            info!("旧截图窗口未能关闭，放弃创建新窗口");
+            return;
+        }
     }
 
     // 获取主显示器信息
-    let monitor = app_handle.primary_monitor().unwrap().unwrap();
+    let monitor = match app_handle.primary_monitor() {
+        Ok(Some(m)) => m,
+        _ => {
+            info!("无法获取主显示器信息");
+            return;
+        }
+    };
     let monitor_size = monitor.size();
-    // width: 2560, height: 1600
+    
+    info!("创建新的截图窗口，显示器尺寸: {}x{}", monitor_size.width, monitor_size.height);
+    
     // 创建全屏截图窗口
     let builder = WebviewWindowBuilder::new(
         app_handle,
         "screenshot",
-        WebviewUrl::App("/#screenshot".into()),
+        WebviewUrl::App("/#/screenshot".into()),
     )
     .title("截图")
     .fullscreen(true)
     .inner_size(monitor_size.width as f64, monitor_size.height as f64)
     .resizable(false)
-    .always_on_top(false)
+    .always_on_top(true)
     .skip_taskbar(true)
     .transparent(true)
     .shadow(false)
     .decorations(false)
     .visible(false);
 
-    let window = builder.build().expect("Failed to build screenshot window");
+    let window = match builder.build() {
+        Ok(w) => w,
+        Err(e) => {
+            info!("创建截图窗口失败: {}", e);
+            return;
+        }
+    };
 
+    // 监听窗口准备事件，显示窗口并聚焦
     let window_clone = window.clone();
     window.once("screenshot_ready", move |_| {
-        info!("Screenshot window ready, showing now.");
-        window_clone.show().unwrap();
-        window_clone.set_focus().unwrap();
+        info!("截图窗口准备完成，显示窗口");
+        let _ = window_clone.show();
+        let _ = window_clone.set_focus();
     });
 
-    info!("创建截图窗口，等待页面发送 'screenshot_ready' 事件");
+    info!("截图窗口创建完成，等待前端准备");
 }
 
 // 获取窗口信息
@@ -1127,20 +1230,15 @@ pub fn capture_screen_area(
 // 复制图像到剪贴板
 #[tauri::command]
 pub fn copy_to_clipboard(app_handle: AppHandle, image: String) -> Result<(), String> {
-    // The incoming image is a base64 string with a data URL prefix, e.g., "data:image/png;base64,..."
-    // We need to extract the base64 part.
     let base64_data = image.split(',').nth(1).unwrap_or(&image);
 
     let image_bytes = general_purpose::STANDARD
         .decode(base64_data)
         .map_err(|e| format!("Failed to decode base64 image: {}", e))?;
 
-    // Use the image crate to load the image from bytes.
-    // This also validates that the bytes are a valid image.
     let img = image::load_from_memory(&image_bytes)
         .map_err(|e| format!("Failed to load image from memory: {}", e))?;
 
-    // The clipboard manager needs raw RGBA data and dimensions.
     let (width, height) = img.dimensions();
     let rgba_bytes = img.to_rgba8().into_raw();
 
@@ -1419,6 +1517,171 @@ pub fn save_screenshot_to_file(app_handle: AppHandle, image: String) -> Result<S
     }
 }
 
+// 创建贴图窗口命令
+#[tauri::command]
+pub async fn create_pin_window(
+    app_handle: AppHandle,
+    image_data: String,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+) -> Result<String, String> {
+    
+    // 生成唯一的窗口标签
+    let window_label = format!("pin_{}", uuid::Uuid::new_v4());
+    
+    // 存储图片数据到全局静态变量
+    {
+        let mut data_map = PIN_IMAGE_DATA.lock().unwrap();
+        data_map.insert(window_label.clone(), image_data);
+        info!("图片数据已存储，窗口标签: {}", window_label);
+    }
+    
+    // 获取缩放因子
+    let scale_factor = if let Some(window) = app_handle.get_webview_window("screenshot") {
+        window.scale_factor().unwrap_or(1.0)
+    } else {
+        1.0
+    };
+    
+    // 转换为逻辑像素
+    let window_width = (width as f64) / scale_factor;
+    let window_height = (height as f64) / scale_factor;
+    let window_x = (x as f64) / scale_factor;
+    let window_y = (y as f64) / scale_factor;
+
+    let label_clone = window_label.clone();
+    let app_handle_clone = app_handle.clone();
+    
+    // 在单独的任务中创建窗口，避免阻塞
+    let result = tokio::task::spawn_blocking(move || {
+        let builder = WebviewWindowBuilder::new(
+            &app_handle_clone,
+            &label_clone,
+            WebviewUrl::App("/#pin".into()),
+        )
+        .title("贴图")
+        .inner_size(window_width, window_height)
+        .position(window_x, window_y)
+        .decorations(false)
+        .always_on_top(true)
+        .resizable(false)
+        .skip_taskbar(true)
+        .transparent(true)
+        .shadow(false)
+        .focused(true)
+        .visible(true);
+        builder.build()
+    }).await;
+    
+    let window = match result {
+        Ok(Ok(w)) => {
+            info!("贴图窗口 build() 成功");
+            w
+        },
+        Ok(Err(e)) => {
+            let error_msg = format!("创建贴图窗口失败: {}", e);
+            info!("{}", error_msg);
+            // 创建失败时清理数据
+            PIN_IMAGE_DATA.lock().unwrap().remove(&window_label);
+            return Err(error_msg);
+        },
+        Err(e) => {
+            let error_msg = format!("窗口创建任务失败: {}", e);
+            info!("{}", error_msg);
+            PIN_IMAGE_DATA.lock().unwrap().remove(&window_label);
+            return Err(error_msg);
+        }
+    };
+
+    info!("贴图窗口创建成功: {}", window_label);
+    
+    // 立即发送图片数据到窗口（不等待前端请求）
+    let image_data = {
+        let data_map = PIN_IMAGE_DATA.lock().unwrap();
+        data_map.get(&window_label).cloned()
+    };
+    
+    if let Some(img_data) = image_data {
+        info!("准备发送图片数据到窗口: {} bytes", img_data.len());
+        let label_for_emit = window_label.clone();
+        let app_for_emit = app_handle.clone();
+        
+        // 多次尝试发送数据，确保前端已经准备好
+        tauri::async_runtime::spawn(async move {
+            // 初始延迟500ms，确保前端页面已加载
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            
+            for attempt in 1..=10 {
+                info!("尝试第 {} 次发送图片数据到窗口: {}", attempt, label_for_emit);
+                
+                // 使用 emit_to 明确指定目标窗口
+                match app_for_emit.emit_to(&label_for_emit, "pin-image-data", serde_json::json!({
+                    "imageData": img_data.clone()
+                })) {
+                    Ok(_) => {
+                        info!("第 {} 次发送成功（emit_to）", attempt);
+                        break;
+                    },
+                    Err(e) => {
+                        info!("第 {} 次发送失败: {}", attempt, e);
+                        if attempt < 10 {
+                            // 每次失败后等待500ms再重试
+                            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                        } else {
+                            info!("已尝试 10 次，放弃发送");
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // 监听窗口关闭事件，清理数据
+    let label_for_cleanup = window_label.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::Destroyed = event {
+            PIN_IMAGE_DATA.lock().unwrap().remove(&label_for_cleanup);
+            info!("贴图窗口已关闭，清理数据: {}", label_for_cleanup);
+        }
+    });
+    
+    info!("返回窗口标签: {}", window_label);
+    Ok(window_label)
+}
+
+// 获取贴图窗口的图片数据
+#[tauri::command]
+pub fn get_pin_image_data(window_label: String) -> Result<String, String> {
+    info!("前端请求获取图片数据: {}", window_label);
+    
+    let data_map = PIN_IMAGE_DATA.lock().unwrap();
+    match data_map.get(&window_label) {
+        Some(image_data) => {
+            info!("返回图片数据，大小: {} bytes", image_data.len());
+            Ok(image_data.clone())
+        },
+        None => {
+            let error = format!("未找到窗口的图片数据: {}", window_label);
+            info!("{}", error);
+            Err(error)
+        }
+    }
+}
+
+// 复制图片到剪贴板（用于贴图窗口）
+#[tauri::command]
+pub fn copy_image_to_clipboard(app_handle: AppHandle, image_data: String) -> Result<(), String> {
+    copy_to_clipboard(app_handle, image_data)
+}
+
+// 保存贴图图片
+#[tauri::command]
+pub fn save_pin_image(app_handle: AppHandle, image_data: String) -> Result<String, String> {
+    save_screenshot_to_file(app_handle, image_data)
+}
+
 // 获取所有窗口信息
 #[tauri::command]
 pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
@@ -1451,6 +1714,9 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                             // 计算窗口的Z-order（层级）
                             let z_order = get_window_z_order(hwnd);
                             
+                            // 检测是否为全屏窗口
+                            let is_fullscreen = is_fullscreen_window(hwnd);
+                            
                             windows.push(WindowInfo {
                                 x: rect.left,
                                 y: rect.top,
@@ -1458,6 +1724,8 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                                 height: rect.bottom - rect.top,
                                 title,
                                 z_order,
+                                is_fullscreen,
+                                display_order: 0, // 临时值，稍后重新分配
                             });
                         }
                     }
@@ -1531,10 +1799,7 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                     return false;
                 }
                 
-                // 6. 检查窗口是否为全屏
-                if is_fullscreen_window(hwnd) {
-                    return false;
-                }
+                // 6. 不再过滤全屏窗口，因为全屏窗口应该有最高优先级
                 
                 // 7. 额外的窗口大小检查：过滤异常大的窗口
                 let mut rect = RECT::default();
@@ -1570,7 +1835,7 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 // 获取窗口标题用于调试
                 let mut title_buffer = [0u16; 256];
                 let title_len = GetWindowTextW(hwnd, &mut title_buffer);
-                let title = String::from_utf16_lossy(&title_buffer[..title_len as usize]);
+                let _title = String::from_utf16_lossy(&title_buffer[..title_len as usize]);
                 
                 // 更宽松的全屏检测：
                 // 1. 窗口大小达到屏幕的85%以上
@@ -1592,11 +1857,11 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 let is_fullscreen = (is_large_window && is_near_screen_edge) || is_mostly_fullscreen;
                 
                 // 调试日志：记录被检测为全屏的窗口
-                if is_fullscreen {
-                    info!("检测到全屏窗口: '{}', 尺寸: {}x{}, 位置: ({}, {}), 屏幕: {}x{}", 
-                          title, window_width, window_height, rect.left, rect.top, 
-                          screen_width, screen_height);
-                }
+                // if is_fullscreen {
+                //     info!("检测到全屏窗口: '{}', 尺寸: {}x{}, 位置: ({}, {}), 屏幕: {}x{}", 
+                //           title, window_width, window_height, rect.left, rect.top, 
+                //           screen_width, screen_height);
+                // }
                 
                 is_fullscreen
             }
@@ -1646,34 +1911,32 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 LPARAM(&mut windows as *mut Vec<WindowInfo> as isize),
             );
             
-            // 按Z-order排序，z_order值越小表示层级越高（越靠近用户）
-            windows.sort_by(|a: &WindowInfo, b: &WindowInfo| a.z_order.cmp(&b.z_order));
-            
-            // 过滤被严重遮挡的窗口：只保留前30个层级的窗口，避免底层被完全遮挡的窗口
-            const MAX_VISIBLE_LAYERS: usize = 30;
-            if windows.len() > MAX_VISIBLE_LAYERS {
-                windows.truncate(MAX_VISIBLE_LAYERS);
-            }
-            
-            // 进一步过滤：移除与高层级窗口重叠度过高的底层窗口
-            let mut filtered_windows: Vec<WindowInfo> = Vec::new();
-            for window in &windows {
-                let mut should_include = true;
-                
-                // 检查是否被前面的窗口严重遮挡（重叠面积超过80%）
-                for higher_window in &filtered_windows {
-                    if higher_window.z_order < window.z_order {
-                        let overlap_area = calculate_overlap_area(window, higher_window);
-                        let window_area = window.width * window.height;
-                        if window_area > 0 && overlap_area as f64 / window_area as f64 > 0.8 {
-                            should_include = false;
-                            break;
-                        }
-                    }
+            // 排序：全屏窗口优先，然后按Z-order排序（z_order值越小表示层级越高）
+            windows.sort_by(|a: &WindowInfo, b: &WindowInfo| {
+                // 全屏窗口排在前面
+                match (a.is_fullscreen, b.is_fullscreen) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.z_order.cmp(&b.z_order),
                 }
+            });
+            
+            // 过滤被遮挡的窗口，并分配实际的显示层级
+            let mut filtered_windows: Vec<WindowInfo> = Vec::new();
+            for mut window in windows.into_iter() {
+                // 检查是否被前面的窗口（层级更高）严重遮挡（超过70%）
+                let is_occluded = filtered_windows.iter()
+                    .any(|higher_window| {
+                        let overlap = calculate_overlap_area(&window, higher_window);
+                        let area = window.width * window.height;
+                        // 提高到70%阈值，更严格地过滤被遮挡的窗口
+                        area > 0 && overlap as f64 / area as f64 > 0.2
+                    });
                 
-                if should_include {
-                    filtered_windows.push(window.clone());
+                if !is_occluded {
+                    // 分配实际的显示层级（从0开始递增）
+                    window.display_order = filtered_windows.len() as i32;
+                    filtered_windows.push(window);
                 }
             }
             

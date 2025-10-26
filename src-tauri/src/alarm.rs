@@ -524,7 +524,7 @@ pub fn start_alarm_service(app_handle: tauri::AppHandle) {
 
     // 首先检查是否需要启动服务
     if !should_start_service() {
-        info!("没有需要提醒的事项，不启动服务");
+        // info!("没有需要提醒的事项，不启动服务");
         return;
     }
 

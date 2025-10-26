@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
+use tokio::sync::Semaphore;
 use tauri::AppHandle;
 use tauri_plugin_http::reqwest;
 use tauri_plugin_notification::NotificationExt;
@@ -40,6 +41,9 @@ const MAX_CACHE_AGE: u64 = 604800; // 7 days in seconds
 // 全局图标缓存
 static ICON_CACHE: Lazy<Arc<Mutex<HashMap<String, CachedIcon>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+// 并发管理 - 限制同时进行的图标加载任务数量以优化性能
+static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(4))); // 限制4个并发任务
 
 // 从可执行文件中提取图标的功能
 pub fn extract_app_icon(app_path: &str) -> Option<String> {
@@ -286,8 +290,11 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
         return Some(cached_icon);
     }
 
+    // 使用信号量控制并发，避免过多的图标请求同时进行
+    let _permit = ICON_SEMAPHORE.acquire().await.ok()?;
+    
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10)) // 增加超时时间
+        .timeout(Duration::from_secs(8)) // 减少超时时间提高响应性
         .build()
         .ok()?;
 

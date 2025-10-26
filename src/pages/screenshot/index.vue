@@ -29,7 +29,6 @@
     <!-- 提示信息 -->
     <div v-if="!state.selectionRect" class="instructions">
       <p>拖拽鼠标选择截图区域</p>
-      <p class="hint-primary">移动鼠标到窗口附近可自动吸附</p>
       <p class="hint">按ESC键关闭</p>
     </div>
 
@@ -225,7 +224,22 @@ const textInputStyle = computed(() => {
 
 // 事件处理函数
 const handleToolSelect = (tool: ToolType) => {
+  // 贴图工具特殊处理：如果有选区，立即执行贴图操作
+  if (tool === ToolType.Pin && state.value.selectionRect) {
+    handlePin()
+    return
+  }
+  
   screenshotManager?.setTool(tool)
+}
+
+// 处理贴图操作
+const handlePin = async () => {
+  try {
+    await screenshotManager?.createPinWindow()
+  } catch (error) {
+    console.error('创建贴图失败:', error)
+  }
 }
 
 const handleColorChange = (color: string) => {
@@ -343,16 +357,40 @@ const handleColorPicked = (colorInfo: ColorInfo) => {
 
 // 键盘事件处理
 const handleKeydown = (event: KeyboardEvent) => {
-  // 让ScreenshotManager先处理键盘事件
+  // 定义允许的功能键
+  const allowedKeys = ['Escape', 'Delete', 'Backspace', 'q', 'Q', 'Shift', 'Control', 'Alt', 'Meta']
+  
+  // 未选中区域时
+  if (!state.value.selectionRect) {
+    if (event.key === 'Escape') {
+      closeWindow()
+      return
+    }
+    // 其他任意键直接关闭窗口
+    event.preventDefault()
+    closeWindow()
+    return
+  }
+
+  // 已选中区域时，让ScreenshotManager先处理特殊键盘事件（取色器的Q/Shift）
   if (screenshotManager?.handleKeyDown(event)) {
     event.preventDefault()
     return
   }
 
+  // 处理功能键
   if (event.key === 'Escape') {
     closeWindow()
+    return
   } else if (event.key === 'Delete' || event.key === 'Backspace') {
     handleDelete()
+    return
+  }
+
+  // 如果不是允许的功能键，关闭窗口
+  if (!allowedKeys.includes(event.key)) {
+    event.preventDefault()
+    closeWindow()
   }
 }
 
@@ -390,11 +428,11 @@ onMounted(async () => {
 
   // 监听窗口失焦
   unlisten.value = await listen('tauri://blur', () => {
-    setTimeout(() => {
-      screenshotManager?.destroy()
-      document.removeEventListener('keydown', handleKeydown)
-      closeWindow()
-    }, 800)
+    // setTimeout(() => {
+    //   screenshotManager?.destroy()
+    //   document.removeEventListener('keydown', handleKeydown)
+    //   closeWindow()
+    // }, 800)
   })
 })
 
@@ -441,10 +479,6 @@ onUnmounted(() => {
 
   p {
     @apply text-xl mb-3 drop-shadow-lg;
-
-    &.hint-primary {
-      @apply text-lg mb-4 text-blue-400 font-medium;
-    }
 
     &.hint {
       @apply text-sm opacity-70;
