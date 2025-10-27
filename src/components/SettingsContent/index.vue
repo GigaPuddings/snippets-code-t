@@ -69,19 +69,6 @@ const activeTab = ref('general');
 
 .settings-sidebar {
   @apply w-44 border-r border-panel py-4 overflow-y-auto bg-panel px-2;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: #dcdfe6;
-    border-radius: 3px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background-color: #f5f7fa;
-  }
 }
 
 .settings-menu-item {
@@ -94,19 +81,6 @@ const activeTab = ref('general');
 
 .settings-content {
   @apply bg-panel flex-1 overflow-hidden p-4;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: #dcdfe6;
-    border-radius: 3px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background-color: #fff;
-  }
 }
 
 .settings-panel {

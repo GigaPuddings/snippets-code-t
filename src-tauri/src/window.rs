@@ -609,26 +609,42 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
             },
         );
 
-        // 监听窗口准备事件，然后显示窗口并发送文本
-        let window_clone = window.clone();
-        let text_clone = selected_text.clone();
-        window.once("translate_ready", move |_| {
-            // info!("Translate window ready, showing now.");
-            window_clone.show().unwrap();
-            window_clone.set_focus().unwrap();
+        // 立即显示窗口，避免第一次打开时窗口不显示的问题
+        let _ = window.show();
+        let _ = window.set_focus();
 
-            // 如果有文本，在窗口准备好后发送
-            if let Some(text) = text_clone {
+        // 如果有选中的文本，需要在前端准备好后发送
+        if let Some(text) = selected_text {
+            let window_clone = window.clone();
+            let text_clone = text.clone();
+            
+            // 监听窗口准备事件，收到事件后发送选中的文本
+            window.once("translate_ready", move |_| {
+                info!("翻译窗口准备完成，发送选中的文本");
                 let _ = window_clone.emit(
+                    "selection-text",
+                    serde_json::json!({
+                        "text": text_clone
+                    }),
+                );
+            });
+            
+            // 添加超时保护机制（仅1次，因为前端已有防重复机制）
+            let window_timeout = window.clone();
+            tauri::async_runtime::spawn(async move {
+                // 等待800ms后发送一次（以防 translate_ready 事件丢失）
+                tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
+                info!("翻译窗口超时保护：尝试发送选中的文本");
+                let _ = window_timeout.emit(
                     "selection-text",
                     serde_json::json!({
                         "text": text
                     }),
                 );
-            }
-        });
+            });
+        }
 
-        // info!("创建翻译窗口，等待页面发送 'translate_ready' 事件");
+        info!("创建翻译窗口并立即显示");
     }
 }
 
@@ -1966,3 +1982,4 @@ fn calculate_overlap_area(window1: &WindowInfo, window2: &WindowInfo) -> i32 {
         0
     }
 }
+

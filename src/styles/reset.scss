@@ -76,21 +76,67 @@ div:focus {
   outline: none;
 }
 
-// 直接写在vue.app文件中
-::-webkit-scrollbar {
-  display: none;
-  width: 6px;
-  height: 6px;
+
+// 自定义滚动条样式（包括虚拟滚动）
+.local-list,
+.vue-recycle-scroller__item-view,
+.settings-sidebar,
+.category-list,
+.content-list,
+.search-list,
+.dark-mode-container,
+.translate-container,
+.result-container.result {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 4px;
+    transition: background 0.3s;
+  }
+
+  // 鼠标悬停时显示滚动条
+  &:hover {
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.4);
+    }
+  }
 }
 
-::-webkit-scrollbar-thumb {
-  background-color: var(--el-color-info-light-3);
-  //滑块部分
-  border-radius: 5px;
-}
+// 深色模式下的滚动条
+html.dark .local-list,
+html.dark .vue-recycle-scroller__item-view,
+html.dark .settings-sidebar,
+html.dark .category-list,
+html.dark .content-list,
+html.dark .search-list,
+html.dark .dark-mode-container,
+html.dark .translate-container,
+html.dark .result-container.result {
+  &:hover {
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 
-::-webkit-scrollbar-track {
-  background: var(--el-fill-color-light);
-  //轨道部分
-  border-radius: 5px;
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
+  }
 }

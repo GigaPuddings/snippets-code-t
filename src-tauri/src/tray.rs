@@ -1,4 +1,4 @@
-use crate::window::{ hotkey_config, hotkey_translate, hotkey_dark_mode, open_config_settings };
+use crate::window::{ hotkey_config, hotkey_translate, hotkey_dark_mode, open_config_settings, hotkey_screenshot };
 use crate::dark_mode::stop_scheduler;
 use log::info;
 use tauri::{
@@ -13,6 +13,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let search_i = MenuItem::with_id(app, "search", "快速搜索", true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", "配置管理", true, None::<&str>)?;
     let translate_i = MenuItem::with_id(app, "translate", "输入翻译", true, None::<&str>)?;
+    let screenshot_i = MenuItem::with_id(app, "screenshot", "快速截图", true, None::<&str>)?;
     let dark_mode_window_i = MenuItem::with_id(app, "dark_mode_window", "主题切换", true, None::<&str>)?;
     
     let separator1 = PredefinedMenuItem::separator(app)?;
@@ -24,6 +25,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             &search_i,
             &config_i,
             &translate_i,
+            &screenshot_i,
             &dark_mode_window_i,
             &separator1,
             &view_log_i,
@@ -53,6 +55,10 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             "translate" => {
                 info!("============== Translate ==============");
                 hotkey_translate();
+            }
+            "screenshot" => {
+                info!("============== Screenshot ==============");
+                hotkey_screenshot();
             }
             "dark_mode_window" => {
                 info!("============== Auto Dark Mode Window ==============");

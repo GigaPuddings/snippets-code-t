@@ -12,68 +12,74 @@
         </div>
       </template>
     </div>
-    <div class="result">
-      <template v-for="(item, index) in filteredResults" :key="item.id">
-        <!-- @mouseenter="handleMouseEnter(item)" -->
-        <div
-          class="item"
-          :class="{ active: item.id === store.id }"
-          @click="selectItem(item)"
-        >
-          <div class="icon-wrapper">
+    <RecycleScroller
+      class="result"
+      :items="filteredResults"
+      :item-size="52"
+      :buffer="100"
+      key-field="id"
+      v-slot="{ item, index }"
+    >
+      <div
+        class="item"
+        :class="{ active: item.id === store.id }"
+        @click="selectItem(item)"
+      >
+        <div class="icon-wrapper">
+          <img
+            v-if="item.icon"
+            :src="item.icon"
+            class="icon"
+            @error="handleIconError(item)"
+            loading="lazy"
+          />
+          <template v-else>
             <img
-              v-if="item.icon"
-              :src="item.icon"
+              v-if="item.summarize === 'app'"
+              src="@/assets/svg/app.svg"
               class="icon"
-              @error="handleIconError(item)"
               loading="lazy"
             />
-            <template v-else>
-              <img
-                v-if="item.summarize === 'app'"
-                src="@/assets/svg/app.svg"
-                class="icon"
-                loading="lazy"
-              />
-              <img
-                v-else-if="item.summarize === 'bookmark'"
-                src="@/assets/svg/bookmark.svg"
-                class="icon"
-                loading="lazy"
-              />
-              <img
-                v-else-if="item.summarize === 'search'"
-                src="@/assets/svg/search.svg"
-                class="icon"
-                loading="lazy"
-              />
-              <img
-                v-else
-                src="@/assets/svg/code.svg"
-                class="icon"
-                loading="lazy"
-              />
-            </template>
-          </div>
-          <div class="content">
-            <div class="title">
-              {{ item.title || item.content.split('/')[2] }}
-            </div>
-            <p class="text">{{ item.content }}</p>
-          </div>
-          <div v-if="index < 5" class="shortcut-key">
-            <command class="shortcut-key-icon" theme="outline" size="12" />
-            <span class="shortcut-key-text">{{ index + 1 }}</span>
-          </div>
+            <img
+              v-else-if="item.summarize === 'bookmark'"
+              src="@/assets/svg/bookmark.svg"
+              class="icon"
+              loading="lazy"
+            />
+            <img
+              v-else-if="item.summarize === 'search'"
+              src="@/assets/svg/search.svg"
+              class="icon"
+              loading="lazy"
+            />
+            <img
+              v-else
+              src="@/assets/svg/code.svg"
+              class="icon"
+              loading="lazy"
+            />
+          </template>
         </div>
-      </template>
-    </div>
+        <div class="content">
+          <div class="title">
+            {{ item.title || item.content.split('/')[2] }}
+          </div>
+          <p class="text">{{ item.content }}</p>
+        </div>
+        <div v-if="index < 5" class="shortcut-key">
+          <command class="shortcut-key-icon" theme="outline" size="12" />
+          <span class="shortcut-key-text">{{ index + 1 }}</span>
+        </div>
+      </div>
+    </RecycleScroller>
   </main>
 </template>
 <script lang="ts" setup>
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@icon-park/vue-next';
+import { RecycleScroller } from 'vue-virtual-scroller';
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 
 const store = useConfigurationStore();
 
@@ -233,7 +239,7 @@ const handleKeyEvent = (e: KeyboardEvent) => {
     nextIndex !== index &&
     containerRef.value
   ) {
-    const resultContainer = containerRef.value.querySelector('.result');
+    const resultContainer = containerRef.value.querySelector('.result .vue-recycle-scroller__item-view') || containerRef.value.querySelector('.result');
     if (!resultContainer) return;
 
     const items = resultContainer.querySelectorAll('.item');

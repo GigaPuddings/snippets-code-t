@@ -43,6 +43,9 @@
     "sql:allow-execute",
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
-    "autostart:allow-enable"
+    "autostart:allow-enable",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save"
   ]
 }

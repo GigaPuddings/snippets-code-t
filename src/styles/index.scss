@@ -76,6 +76,10 @@
   box-shadow: none !important;
 }
 
+.el-button:hover {
+  background-color: var(--el-color-primary) !important;
+}
+
 // .el-input-group__append {
 //   position: relative;
 //   right: 10px;

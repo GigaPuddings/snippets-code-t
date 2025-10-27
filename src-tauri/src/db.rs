@@ -62,10 +62,16 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
             title TEXT NOT NULL,
             content TEXT NOT NULL,
             icon TEXT,
-            summarize TEXT NOT NULL
+            summarize TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            usage_count INTEGER DEFAULT 0
         )",
         [],
     )?;
+    
+    // 添加新字段（如果表已存在）
+    let _ = conn.execute("ALTER TABLE apps ADD COLUMN created_at TEXT DEFAULT (datetime('now'))", []);
+    let _ = conn.execute("ALTER TABLE apps ADD COLUMN usage_count INTEGER DEFAULT 0", []);
 
     // 创建 bookmarks 表
     conn.execute(
@@ -74,10 +80,16 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
             title TEXT NOT NULL,
             content TEXT NOT NULL,
             icon TEXT,
-            summarize TEXT NOT NULL
+            summarize TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            usage_count INTEGER DEFAULT 0
         )",
         [],
     )?;
+    
+    // 添加新字段（如果表已存在）
+    let _ = conn.execute("ALTER TABLE bookmarks ADD COLUMN created_at TEXT DEFAULT (datetime('now'))", []);
+    let _ = conn.execute("ALTER TABLE bookmarks ADD COLUMN usage_count INTEGER DEFAULT 0", []);
 
     // 创建 icon_cache 表
     conn.execute(
@@ -268,13 +280,29 @@ pub fn insert_apps(apps: &[AppInfo]) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-// 获取所有应用
+// 获取所有应用（按创建时间倒序和使用频率排序）
 pub fn get_all_apps() -> Result<Vec<AppInfo>, rusqlite::Error> {
     let app_handle = APP.get().unwrap();
     let db_path = get_database_path(app_handle);
     let conn = rusqlite::Connection::open(db_path)?;
 
-    let mut stmt = conn.prepare("SELECT id, title, content, icon, summarize FROM apps")?;
+    // 检查是否存在 usage_count 和 created_at 列
+    let has_usage_count = conn
+        .prepare("SELECT usage_count FROM apps LIMIT 1")
+        .is_ok();
+    let has_created_at = conn
+        .prepare("SELECT created_at FROM apps LIMIT 1")
+        .is_ok();
+
+    let query = if has_usage_count && has_created_at {
+        "SELECT id, title, content, icon, summarize 
+         FROM apps 
+         ORDER BY usage_count DESC, created_at DESC"
+    } else {
+        "SELECT id, title, content, icon, summarize FROM apps"
+    };
+
+    let mut stmt = conn.prepare(query)?;
     let app_iter = stmt.query_map([], |row| {
         Ok(AppInfo {
             id: row.get(0)?,
@@ -591,13 +619,29 @@ pub fn insert_bookmarks(bookmarks: &[BookmarkInfo]) -> Result<(), rusqlite::Erro
     Ok(())
 }
 
-// 获取所有书签
+// 获取所有书签（按创建时间倒序和使用频率排序）
 pub fn get_all_bookmarks() -> Result<Vec<BookmarkInfo>, rusqlite::Error> {
     let app_handle = APP.get().unwrap();
     let db_path = get_database_path(app_handle);
     let conn = rusqlite::Connection::open(db_path)?;
 
-    let mut stmt = conn.prepare("SELECT id, title, content, icon, summarize FROM bookmarks")?;
+    // 检查是否存在 usage_count 和 created_at 列
+    let has_usage_count = conn
+        .prepare("SELECT usage_count FROM bookmarks LIMIT 1")
+        .is_ok();
+    let has_created_at = conn
+        .prepare("SELECT created_at FROM bookmarks LIMIT 1")
+        .is_ok();
+
+    let query = if has_usage_count && has_created_at {
+        "SELECT id, title, content, icon, summarize 
+         FROM bookmarks 
+         ORDER BY usage_count DESC, created_at DESC"
+    } else {
+        "SELECT id, title, content, icon, summarize FROM bookmarks"
+    };
+
+    let mut stmt = conn.prepare(query)?;
     let bookmark_iter = stmt.query_map([], |row| {
         Ok(BookmarkInfo {
             id: row.get(0)?,
@@ -644,6 +688,160 @@ pub fn count_bookmarks() -> Result<i64, rusqlite::Error> {
     let conn = rusqlite::Connection::open(db_path)?;
     let count = conn.query_row("SELECT COUNT(*) FROM bookmarks", [], |row| row.get(0))?;
     Ok(count)
+}
+
+// ============= 本地应用管理 (单个操作) =============
+
+// 添加单个应用
+#[tauri::command]
+pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<String, String> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    
+    let id = uuid::Uuid::new_v4().to_string();
+    conn.execute(
+        "INSERT INTO apps (id, title, content, icon, summarize) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![id, title, content, icon, "app"],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(id)
+}
+
+// 更新单个应用
+#[tauri::command]
+pub fn update_app(id: String, title: String, content: String, icon: Option<String>) -> Result<(), String> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    
+    conn.execute(
+        "UPDATE apps SET title = ?1, content = ?2, icon = ?3 WHERE id = ?4",
+        rusqlite::params![title, content, icon, id],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+// 删除单个应用
+#[tauri::command]
+pub fn delete_app(id: String) -> Result<(), String> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    
+    conn.execute(
+        "DELETE FROM apps WHERE id = ?1",
+        rusqlite::params![id],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+// 获取所有应用（Tauri command版本）
+#[tauri::command]
+pub fn get_apps() -> Result<Vec<crate::apps::AppInfo>, String> {
+    get_all_apps().map_err(|e| e.to_string())
+}
+
+// ============= 本地书签管理 (单个操作) =============
+
+// 添加单个书签
+#[tauri::command]
+pub fn add_bookmark(title: String, content: String, icon: Option<String>) -> Result<String, String> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    
+    let id = uuid::Uuid::new_v4().to_string();
+    conn.execute(
+        "INSERT INTO bookmarks (id, title, content, icon, summarize) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![id, title, content, icon, "bookmark"],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(id)
+}
+
+// 更新单个书签
+#[tauri::command]
+pub fn update_bookmark(id: String, title: String, content: String, icon: Option<String>) -> Result<(), String> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    
+    conn.execute(
+        "UPDATE bookmarks SET title = ?1, content = ?2, icon = ?3 WHERE id = ?4",
+        rusqlite::params![title, content, icon, id],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+// 删除单个书签
+#[tauri::command]
+pub fn delete_bookmark(id: String) -> Result<(), String> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    
+    conn.execute(
+        "DELETE FROM bookmarks WHERE id = ?1",
+        rusqlite::params![id],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+// 获取所有书签（Tauri command版本）
+#[tauri::command]
+pub fn get_bookmarks() -> Result<Vec<crate::bookmarks::BookmarkInfo>, String> {
+    get_all_bookmarks().map_err(|e| e.to_string())
+}
+
+// 增加应用使用次数
+#[tauri::command]
+pub fn increment_app_usage(id: String) -> Result<(), String> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    
+    // 检查是否存在 usage_count 列
+    let has_usage_count = conn
+        .prepare("SELECT usage_count FROM apps LIMIT 1")
+        .is_ok();
+    
+    if has_usage_count {
+        conn.execute(
+            "UPDATE apps SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = ?1",
+            rusqlite::params![id],
+        ).map_err(|e| e.to_string())?;
+    }
+    // 如果字段不存在，静默忽略
+    
+    Ok(())
+}
+
+// 增加书签使用次数
+#[tauri::command]
+pub fn increment_bookmark_usage(id: String) -> Result<(), String> {
+    let app_handle = APP.get().unwrap();
+    let db_path = get_database_path(app_handle);
+    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    
+    // 检查是否存在 usage_count 列
+    let has_usage_count = conn
+        .prepare("SELECT usage_count FROM bookmarks LIMIT 1")
+        .is_ok();
+    
+    if has_usage_count {
+        conn.execute(
+            "UPDATE bookmarks SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = ?1",
+            rusqlite::params![id],
+        ).map_err(|e| e.to_string())?;
+    }
+    // 如果字段不存在，静默忽略
+    
+    Ok(())
 }
 
 // 获取数据库路径（优先使用自定义路径）

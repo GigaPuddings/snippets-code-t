@@ -29,14 +29,19 @@
             </el-tooltip>
           </div>
           <div class="content-list">
-            <div v-if="store.contents.length > 0" class="content">
+            <RecycleScroller
+              v-if="store.contents.length > 0"
+              class="content-scroller"
+              :items="store.contents"
+              :item-size="70"
+              :buffer="200"
+              key-field="id"
+              v-slot="{ item }"
+            >
               <ContentItem
-                v-for="item in store.contents"
-                :key="item.id"
                 :content="item"
-                v-memo="[item.id, item.title, store.contents]"
               />
-            </div>
+            </RecycleScroller>
             <div v-else class="content-empty">
               <div class="content-empty-text">暂无片段内容</div>
             </div>
@@ -59,6 +64,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore } from '@/store';
 import { debounce } from '@/utils';
 import { onMounted, nextTick } from 'vue';
+import { RecycleScroller } from 'vue-virtual-scroller';
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 
 const route = useRoute();
 const router = useRouter();
@@ -123,9 +130,9 @@ onMounted(() => {
   if (scrollY) {
     nextTick(() => {
       // 确保所有 DOM 更新完成
-      const contentList = document.querySelector('.content-list');
-      if (contentList) {
-        contentList.scrollTop = Number(scrollY); // 设置滚动位置
+      const contentScroller = document.querySelector('.content-scroller .vue-recycle-scroller__item-view');
+      if (contentScroller) {
+        contentScroller.scrollTop = Number(scrollY); // 设置滚动位置
       }
     });
   }
@@ -149,10 +156,10 @@ onMounted(() => {
   }
 
   .content-list {
-    @apply h-[calc(100vh-82px)] overflow-y-auto;
+    @apply h-[calc(100vh-82px)] overflow-hidden;
 
-    .content {
-      @apply flex flex-col gap-2 p-2;
+    .content-scroller {
+      @apply h-full p-2;
     }
 
     .content-empty {

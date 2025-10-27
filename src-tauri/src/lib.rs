@@ -23,6 +23,9 @@ use crate::config::{
 use crate::db::{
     add_search_history, backup_database, get_db_path, get_search_history, restore_database,
     set_custom_db_path,
+    // 本地应用和书签管理
+    add_app, update_app, delete_app, get_apps, increment_app_usage,
+    add_bookmark, update_bookmark, delete_bookmark, get_bookmarks, increment_bookmark_usage,
 };
 use crate::translation::translate_text;
 use crate::update::{
@@ -44,7 +47,7 @@ use apps::open_app_command;
 use bookmarks::open_url;
 use cache::clear_cache;
 use hotkey::*;
-use icon::init_app_and_bookmark_icons;
+use icon::{init_app_and_bookmark_icons, extract_icon_from_app};
 use log::info;
 use search::*;
 use std::sync::Mutex;
@@ -389,6 +392,7 @@ pub fn run() {
             perform_update,                   // 执行更新
             check_update_manually,            // 手动检查更新
             fetch_favicon,                    // 获取网站favicon
+            extract_icon_from_app,            // 提取应用图标
             search_apps,                      // 搜索应用
             search_bookmarks,                 // 搜索书签
             reset_software,                   // 重置软件
@@ -423,6 +427,17 @@ pub fn run() {
             get_dark_mode_status_command,     // 获取Auto Dark Mode状态
             start_dark_mode_service,          // 启动Auto Dark Mode服务
             stop_dark_mode_service,           // 停止Auto Dark Mode服务
+            // 本地应用和书签管理
+            add_app,                          // 添加应用
+            update_app,                       // 更新应用
+            delete_app,                       // 删除应用
+            get_apps,                         // 获取所有应用
+            increment_app_usage,              // 增加应用使用次数
+            add_bookmark,                     // 添加书签
+            update_bookmark,                  // 更新书签
+            delete_bookmark,                  // 删除书签
+            get_bookmarks,                    // 获取所有书签
+            increment_bookmark_usage,         // 增加书签使用次数
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

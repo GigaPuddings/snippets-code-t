@@ -45,6 +45,12 @@ static ICON_CACHE: Lazy<Arc<Mutex<HashMap<String, CachedIcon>>>> =
 // 并发管理 - 限制同时进行的图标加载任务数量以优化性能
 static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(4))); // 限制4个并发任务
 
+// Tauri command: 提取应用图标
+#[tauri::command]
+pub fn extract_icon_from_app(app_path: String) -> Result<Option<String>, String> {
+    Ok(extract_app_icon(&app_path))
+}
+
 // 从可执行文件中提取图标的功能
 pub fn extract_app_icon(app_path: &str) -> Option<String> {
     // 首先检查缓存

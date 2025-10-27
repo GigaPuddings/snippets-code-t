@@ -69,8 +69,8 @@ const isActive = computed(() => {
 });
 
 const handleClick = () => {
-  const oContentList = document.querySelector('.content-list');
-  const scrollY = oContentList?.scrollTop || 0; // 确保获取当前滚动位置
+  const oContentScroller = document.querySelector('.content-scroller .vue-recycle-scroller__item-view') || document.querySelector('.content-list');
+  const scrollY = oContentScroller?.scrollTop || 0; // 确保获取当前滚动位置
 
   router.replace({
     path: `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`,

@@ -1,23 +1,19 @@
 <template>
-  <main
-    :class="[
-      `${!hasTabbar ? 'w-screen h-screen rounded-md border border-panel overflow-hidden' : ''}`
-    ]"
-  >
-    <div class="rounded-md overflow-hidden">
-      <Titlebar v-if="!hasTabbar" />
-      <div
-        :class="[`w-full ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-41px)]'}`]"
-      >
-        <router-view>
-          <template #default="{ Component, route }">
-            <keep-alive v-if="route.meta.keepAlive">
-              <component :is="Component" :key="route.path" />
-            </keep-alive>
-            <component v-else :is="Component" :key="route.path" />
-          </template>
-        </router-view>
-      </div>
+  <main :class="[
+    !hasTabbar
+      ? 'w-screen h-screen rounded-lg border-[1.5px] border-panel'
+      : ''
+  ]">
+    <Titlebar v-if="!hasTabbar" />
+    <div :class="[`relative w-full overflow-hidden ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-41px)] bg-panel p-[1px] rounded-b-lg pb-0.5'}`]">
+      <router-view>
+        <template #default="{ Component, route }">
+          <keep-alive v-if="route.meta.keepAlive">
+            <component :is="Component" :key="route.path" />
+          </keep-alive>
+          <component v-else :is="Component" :key="route.path" />
+        </template>
+      </router-view>
     </div>
   </main>
 </template>

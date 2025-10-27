@@ -14,9 +14,9 @@
   --categories-text-color-rgb: 51, 51, 51;
   --categories-info-text-color: #666;
   --categories-text-color-active: #fff;
-  --categories-border-color: #e4e7ed;
+  --categories-border-color: #d8d8d8;
   --categories-border-color-rgb: 228, 231, 237;
-  --el-color-primary: #5d6dfd;
+  --el-color-primary: #5d6dfd !important;
   --el-button-hover-bg-color: rgb(83 102 246);
   --el-button-hover-border-color: rgb(83 102 246);
   // 搜索窗口主题变量
@@ -31,7 +31,7 @@
 }
 
 html.dark {
-  --el-color-primary: #5d6dfd;
+  --el-color-primary: #5d6dfd !important;
 }
 
 .dark {

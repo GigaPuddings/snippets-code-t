@@ -74,6 +74,12 @@ const routes: RouteRecordRaw[] = [
             ]
           },
           {
+            path: 'local',
+            component: () =>
+              import('@/pages/config/components/local/index.vue'),
+            name: 'Local'
+          },
+          {
             path: 'retrieve',
             component: () =>
               import('@/pages/config/components/retrieve/index.vue'),

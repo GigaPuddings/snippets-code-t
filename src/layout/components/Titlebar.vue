@@ -6,8 +6,8 @@
     <div class="titlebar-title">
       <div class="flex items-center gap-2">
         <img src="@/assets/128x128.png" alt="" class="w-6 h-6" />
-        <div class="text-lg">{{ state.appName }}</div>
-        <span class="text-sm text-stone-300">{{ state.appVersion }}</span>
+        <div class="text-lg -ml-1">{{ state.appName }}</div>
+        <span class="text-sm text-stone-300 -ml-1 mt-1">{{ state.appVersion }}</span>
         <!-- 导航栏 -->
         <div class="nav-bar-wrapper">
           <SegmentedToggle
@@ -127,7 +127,9 @@ import {
   BookOpen,
   SettingTwo,
   MessageSearch,
-  Notepad
+  Notepad,
+  BookmarkOne,
+  Application
 } from '@icon-park/vue-next';
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
@@ -160,14 +162,22 @@ interface TabItem {
 }
 
 const tabs: TabItem[] = [
+  // 片段
   {
     icon: BookOpen,
     path: '/config/category/contentList'
   },
+  // 本地应用、浏览器书签
+  {
+    icon: Application,
+    path: '/config/local'
+  },
+  // 引擎搜索
   {
     icon: MessageSearch,
     path: '/config/retrieve'
   },
+  // 待办
   {
     icon: Notepad,
     path: '/config/todo'
@@ -275,12 +285,10 @@ onUnmounted(() => {
 }
 
 .titlebar {
-  @apply relative flex justify-between items-center w-full h-10 leading-10 select-none pr-1;
+  @apply relative flex justify-between items-center rounded-t-md w-full h-10 leading-10 select-none pr-1;
 
   z-index: 50;
   background-color: rgba(var(--categories-panel-bg-rgb), 0.9);
-  backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(var(--categories-border-color-rgb), 0.3);
   box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
 }
@@ -299,8 +307,6 @@ onUnmounted(() => {
       rgba(var(--categories-panel-bg-rgb), 0.9),
       transparent
     );
-    backdrop-filter: blur(5px);
-    backdrop-filter: blur(5px);
   }
 }
 

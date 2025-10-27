@@ -120,9 +120,12 @@ const setupListeners = async () => {
 
   // 监听划词翻译消息
   const unlistenSelectionText = await listen('selection-text', (event: any) => {
-    console.log('收到划词翻译消息:', event.payload);
+    console.log('🔔 收到划词翻译消息:', event.payload);
     if (event.payload && event.payload.text) {
+      console.log('📝 选中的文本:', event.payload.text);
       handleSelectionText(event.payload.text);
+    } else {
+      console.warn('⚠️ 收到的消息没有文本内容');
     }
   });
 
@@ -139,6 +142,8 @@ const setupListeners = async () => {
     unlistenResetState();
     unlistenShow();
   };
+  
+  console.log('✅ 所有监听器设置完成');
 };
 
 // 设置窗口置顶
@@ -334,7 +339,18 @@ const translateWithEngine = async (engine: string) => {
     result.text = translatedText;
   } catch (error) {
     console.error(`${engine}翻译出错:`, error);
-    result.text = '翻译失败，请重试';
+    
+    // 根据不同的错误提供更友好的提示
+    const errorMessage = String(error);
+    if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
+      result.text = '请求过于频繁，请稍后再试';
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('超时')) {
+      result.text = '翻译超时，请检查网络连接';
+    } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+      result.text = '网络连接失败，请检查网络';
+    } else {
+      result.text = '翻译失败，请重试';
+    }
   } finally {
     result.loading = false;
   }
@@ -390,18 +406,42 @@ const handleInput = () => {
   }
 };
 
+// 防止重复翻译的标记
+let lastTranslatedText = '';
+let isTranslating = false;
+
 // 添加一个新方法专门用于处理selection-text事件
 const handleSelectionText = (text: string) => {
-  if (!text) return;
+  if (!text) {
+    console.warn('⚠️ handleSelectionText: 文本为空');
+    return;
+  }
 
-  console.log('处理选中文本:', text);
+  // 防止重复翻译相同的文本
+  if (text === lastTranslatedText && isTranslating) {
+    console.log('⏭️ 跳过重复翻译:', text);
+    return;
+  }
+
+  console.log('✅ 处理选中文本:', text);
+  lastTranslatedText = text;
+  isTranslating = true;
+  
   sourceText.value = text;
   showDeleteButton.value = true;
 
   // 先自动设置目标语言，再执行翻译
+  console.log('🔄 自动设置目标语言...');
   autoSetTargetLanguage();
+  
   // 立即触发翻译，不使用防抖
-  translateAll();
+  console.log('🚀 开始翻译...');
+  translateAll().finally(() => {
+    // 翻译完成后，延迟重置标记，避免过早重置
+    setTimeout(() => {
+      isTranslating = false;
+    }, 2000);
+  });
 
   // 确保输入框获得焦点
   focusSourceTextArea();
@@ -475,19 +515,26 @@ const onSourceLanguageChange = () => {
   translateAll();
 };
 
-onMounted(() => {
-  setupListeners();
+onMounted(async () => {
+  // 先设置监听器，等待所有监听器设置完成
+  await setupListeners();
+  
   // 组件挂载后自动设置目标语言（如果有文本）
   if (sourceText.value.trim()) {
     autoSetTargetLanguage();
   }
+  
   // 组件挂载后也聚焦输入框
   focusSourceTextArea();
   
-  // 通知后端前端已准备完成
-  nextTick(() => {
+  // 确保DOM更新完成后，再通知后端前端已准备完成
+  await nextTick();
+  
+  // 添加一个小延迟确保所有初始化完成
+  setTimeout(() => {
+    console.log('前端准备完成，发送 translate_ready 事件');
     appWindow.emit('translate_ready');
-  });
+  }, 100);
 });
 
 onUnmounted(() => {
