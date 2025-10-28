@@ -77,42 +77,25 @@ async function getReleaseNotes(version) {
     // 读取编辑后的内容
     let content = await fs.readFile(tempFile, 'utf-8');
     
-    // 1. 移除分隔线和编辑说明部分
-    const lines = content.split('\n');
-    const filteredLines = [];
-    let skipMode = false;
-    
-    for (const line of lines) {
-      // 检测到分隔线，开始跳过模式
-      if (line.trim().startsWith('====')) {
-        // 如果已经在跳过模式，说明是结束分隔线，可以结束了
-        if (skipMode) {
-          break;
-        }
-        // 第一次遇到分隔线
-        if (line.includes('编辑说明')) {
-          skipMode = true;
-        }
-        continue;
+    // 1. 移除编辑说明部分（从"📝 编辑说明"之前的分隔线开始）
+    const helpSectionIndex = content.indexOf('📝 编辑说明');
+    if (helpSectionIndex !== -1) {
+      // 找到编辑说明，向前查找分隔线
+      const beforeHelp = content.substring(0, helpSectionIndex);
+      const lastSeparator = beforeHelp.lastIndexOf('====');
+      if (lastSeparator !== -1) {
+        // 从分隔线位置截断
+        content = content.substring(0, lastSeparator);
       }
-      
-      // 跳过说明部分
-      if (skipMode) continue;
-      
-      // 保留其他行
-      filteredLines.push(line);
     }
     
-    // 2. 重新组合内容
-    content = filteredLines.join('\n');
-    
-    // 3. 移除空的章节（只有标题和空行/连字符的章节）
+    // 2. 移除空的章节（只有标题和空行/连字符的章节）
     content = content.replace(/[🎉🐛🔧💥][^\n:]*：\n-\s*\n/g, '');
     
-    // 4. 移除多余的空行
+    // 3. 移除多余的空行（保留最多一个空行）
     content = content.replace(/\n{3,}/g, '\n\n');
     
-    // 5. 去除首尾空白
+    // 4. 去除首尾空白
     let releaseNotes = content.trim();
     
     // 删除临时文件

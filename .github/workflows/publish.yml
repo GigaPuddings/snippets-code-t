@@ -38,9 +38,12 @@ jobs:
       - name: Get tag annotation
         id: tag_annotation
         run: |
-          # 获取 tag 注释内容
-          $tagMessage = git tag -l --format='%(contents)' ${{ github.ref_name }} | Out-String
-          $tagMessage = $tagMessage.Trim()
+          # 获取 tag 注释内容（直接重定向到文件，避免编码问题）
+          git tag -l --format='%(contents)' ${{ github.ref_name }} > release-notes-raw.txt
+          
+          # 读取并检查内容
+          $tagMessage = Get-Content release-notes-raw.txt -Raw -Encoding UTF8
+          $tagMessage = if ($tagMessage) { $tagMessage.Trim() } else { "" }
           
           # 如果没有注释，使用默认文本
           if ([string]::IsNullOrWhiteSpace($tagMessage)) {
@@ -48,12 +51,13 @@ jobs:
             Write-Host "⚠️  Tag没有注释，使用默认说明"
           } else {
             Write-Host "✅ 成功读取Tag注释"
-            Write-Host "内容预览："
+            Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             Write-Host $tagMessage
+            Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           }
           
-          # 保存到文件（使用UTF8无BOM编码）
-          [System.IO.File]::WriteAllText("release-notes.txt", $tagMessage, [System.Text.UTF8Encoding]::new($false))
+          # 保存到最终文件
+          $tagMessage | Out-File -FilePath release-notes.txt -Encoding UTF8 -NoNewline
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
