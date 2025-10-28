@@ -4,12 +4,6 @@ use serde::{Deserialize, Serialize};
 use tauri::command;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TranslateResponse {
-    pub text: String,
-    pub engine: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 struct BingTranslation {
     translations: Vec<BingTranslationText>,
 }
