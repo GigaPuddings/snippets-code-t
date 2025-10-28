@@ -128,7 +128,6 @@ import {
   SettingTwo,
   MessageSearch,
   Notepad,
-  BookmarkOne,
   Application
 } from '@icon-park/vue-next';
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
