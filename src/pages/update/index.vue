@@ -8,20 +8,21 @@
       </div>
       <h2 class="title">软件更新</h2>
     </div>
+
     <div class="update-content">
       <div class="info-section">
         <div class="version-comparison">
           <div class="version-item">
             <div class="version-label">当前版本</div>
-            <el-tag size="small" class="version-tag current">
+            <el-tag size="default" class="version-tag current">
               {{ update.appVersion }}
             </el-tag>
           </div>
           <div class="version-arrow">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -35,18 +36,21 @@
           </div>
           <div class="version-item">
             <div class="version-label">最新版本</div>
-            <el-tag type="success" size="small" class="version-tag new">
+            <el-tag type="success" size="default" class="version-tag new">
               {{ update.newVersion }}
             </el-tag>
           </div>
         </div>
+
         <p class="release-date">发布时间：{{ update.releaseDate }}</p>
+
         <div v-if="!update.downloading" class="release-notes">
           <div class="notes-title">更新内容</div>
-          <el-scrollbar height="86px" class="notes-scrollbar">
+          <el-scrollbar class="notes-scrollbar" :view-style="{ height: '100%' }">
             <div class="notes-content" v-html="update.releaseNotes"></div>
           </el-scrollbar>
         </div>
+
         <div v-else class="download-progress">
           <div class="progress-status">
             <div
@@ -57,8 +61,8 @@
                 v-if="update.progress < 100"
                 class="download-icon"
                 xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
+                width="22"
+                height="22"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -74,8 +78,8 @@
                 v-else
                 class="check-icon"
                 xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
+                width="22"
+                height="22"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -95,7 +99,7 @@
           </div>
           <div class="progress-wrapper">
             <el-progress
-              :stroke-width="8"
+              :stroke-width="6"
               :percentage="update.progress"
               :format="progressFormat"
               :status="update.progress === 100 ? 'success' : ''"
@@ -109,6 +113,7 @@
         </div>
       </div>
     </div>
+
     <div class="footer">
       <el-button
         @click="handleCancel"
@@ -263,23 +268,21 @@ const handleCancel = () => {
 
 <style scoped lang="scss">
 .update-container {
-  @apply w-full h-full bg-white px-6 py-4 scroll-py-24 flex flex-col items-center justify-between box-border border rounded-xl border-gray-200;
-
+  @apply w-full h-full bg-white px-6 py-5 flex flex-col box-border border rounded-xl border-gray-200;
+  min-height: 0;
   animation: fadeIn 0.3s ease-out;
 
   .update-header {
-    @apply w-full flex flex-col items-center justify-center mb-3;
+    @apply w-full flex flex-row items-center justify-center gap-3 mb-4;
 
     .logo-container {
-      @apply mb-3;
-
       .logo-circle {
-        @apply w-20 h-20 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center shadow-md;
+        @apply w-10 h-10 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center shadow-sm;
 
         animation: pulse 2s infinite ease-in-out;
 
         .app-logo {
-          @apply w-14 h-14 object-contain;
+          @apply w-7 h-7 object-contain;
 
           animation: float 3s ease-in-out infinite;
         }
@@ -287,7 +290,7 @@ const handleCancel = () => {
     }
 
     .title {
-      @apply text-2xl font-semibold text-gray-800;
+      @apply text-lg font-semibold text-gray-800;
 
       background: linear-gradient(90deg, #4f46e5, #7c3aed);
       background-clip: text;
@@ -296,24 +299,26 @@ const handleCancel = () => {
   }
 
   .update-content {
-    @apply w-full flex-1;
+    @apply w-full flex-1 flex flex-col overflow-hidden;
+    min-height: 0;
 
     .info-section {
-      /* @apply space-y-1; */
+      @apply w-full flex-1 flex flex-col;
+      min-height: 0;
       animation: slideUp 0.4s ease-out;
 
       .version-comparison {
-        @apply flex items-center justify-center gap-4 mb-2 bg-gray-50 p-3 rounded-xl;
+        @apply flex items-center justify-center gap-4 mb-3 bg-gradient-to-br from-gray-50 to-blue-50/30 p-3 rounded-lg flex-shrink-0;
 
         .version-item {
-          @apply flex flex-col items-center;
+          @apply flex flex-col items-center gap-1.5;
 
           .version-label {
-            @apply text-sm text-gray-500 mb-1;
+            @apply text-xs text-gray-500 font-medium;
           }
 
           .version-tag {
-            @apply transition-all duration-300 px-3 py-1;
+            @apply transition-all duration-300 px-3 py-1 font-medium text-sm;
 
             &.current {
               @apply bg-blue-50 text-blue-600 border-blue-200;
@@ -324,53 +329,63 @@ const handleCancel = () => {
             }
 
             &:hover {
-              box-shadow: 0 2px 8px rgb(0 0 0 / 5%);
+              box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
               transform: scale(1.05);
             }
           }
         }
 
         .version-arrow {
-          @apply text-gray-400;
+          @apply text-gray-400 flex items-center;
 
           animation: arrowPulse 1.5s infinite ease-in-out;
         }
       }
 
       .release-date {
-        @apply text-gray-500 text-sm text-center;
+        @apply text-gray-500 text-xs text-center mb-3 flex-shrink-0;
       }
 
       .release-notes {
-        @apply mt-3 rounded-lg px-3 py-1 border bg-white;
+        @apply rounded-lg px-3 py-2.5 border bg-white/80 flex-1 flex flex-col overflow-hidden;
 
-        box-shadow: inset 0 2px 4px rgb(0 0 0 / 2%);
+        box-shadow: inset 0 2px 4px rgb(0 0 0 / 3%);
+        min-height: 0;
 
         .notes-title {
-          @apply font-medium text-gray-700 text-base;
+          @apply font-medium text-gray-700 text-sm mb-2 flex-shrink-0;
         }
 
-        /* .notes-scrollbar {
-          @apply bg-white rounded-md;
-          box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
-        } */
+        .notes-scrollbar {
+          @apply rounded-md flex-1;
+          height: 0;
+          min-height: 0;
+
+          :deep(.el-scrollbar__wrap) {
+            max-height: 100%;
+          }
+
+          :deep(.el-scrollbar__view) {
+            height: auto !important;
+          }
+        }
 
         .notes-content {
-          @apply p-1 text-gray-600 text-sm;
+          @apply pr-2 text-gray-600 text-sm leading-relaxed;
         }
       }
     }
 
     .download-progress {
-      @apply flex flex-col items-center justify-center space-y-4 py-6;
+      @apply flex flex-col items-center justify-center space-y-4 py-6 w-full;
 
       animation: fadeIn 0.3s ease-out;
 
       .progress-status {
-        @apply flex items-center justify-center mb-4 w-full;
+        @apply flex items-center justify-start gap-3 w-full;
 
         .status-icon {
-          @apply w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mr-3;
+          @apply w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0;
 
           &.completed {
             @apply bg-green-50;
@@ -393,35 +408,35 @@ const handleCancel = () => {
           @apply flex-1;
 
           .status-text {
-            @apply text-gray-600 font-medium;
+            @apply text-gray-700 font-medium text-sm;
           }
         }
       }
 
       .progress-wrapper {
-        @apply w-full px-4 mt-2;
+        @apply w-full;
 
         .progress-bar {
           @apply mb-3;
 
           :deep(.el-progress-bar__outer) {
             background-color: rgb(59 130 246 / 10%);
-            border-radius: 8px;
+            border-radius: 10px;
           }
 
           :deep(.el-progress-bar__inner) {
             background: linear-gradient(90deg, #3b82f6, #6366f1);
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgb(59 130 246 / 30%);
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgb(59 130 246 / 25%);
             transition: width 0.3s ease-in-out;
           }
         }
 
         .progress-info {
-          @apply flex items-center justify-center text-sm px-1;
+          @apply flex items-center justify-center text-sm;
 
           .percentage {
-            @apply font-medium text-blue-600 text-lg;
+            @apply font-semibold text-blue-600 text-base;
           }
         }
       }
@@ -429,13 +444,14 @@ const handleCancel = () => {
   }
 
   .footer {
-    @apply w-full flex items-center justify-center gap-4;
+    @apply w-full flex items-center justify-center gap-3 mt-4 pt-4;
 
     .action-button {
-      @apply min-w-[120px] transition-all duration-300 rounded-lg py-2;
+      @apply min-w-[120px] transition-all duration-300 rounded-lg py-2 font-medium text-sm;
 
       &:hover {
         transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
       }
 
       &.cancel-button {
@@ -445,7 +461,7 @@ const handleCancel = () => {
       &.update-button {
         @apply bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-medium;
 
-        box-shadow: 0 4px 14px rgb(59 130 246 / 30%);
+        box-shadow: 0 4px 14px rgb(59 130 246 / 35%);
       }
     }
   }
