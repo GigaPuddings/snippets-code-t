@@ -46,9 +46,22 @@ jobs:
           releaseBody: 'See the assets to download and install this version.'
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: false
 
-      - name: Upload assets
+      - name: Rename installers (remove _windows suffix)
+        run: node scripts/rename-installer.mjs
+        
+      - name: Upload renamed assets to release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: node scripts/upload-assets.mjs
+
+      - name: Generate and upload latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: node scripts/updater.mjs 
 
