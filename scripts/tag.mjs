@@ -31,43 +31,104 @@ const execCommandOutput = (command) => {
   }
 };
 
-async function getReleaseNotes() {
-  console.log('\n📝 请输入发布说明（支持多行，输入空行结束）:');
-  console.log('提示：可以使用以下格式：');
-  console.log('  新增功能：');
-  console.log('  - 功能1');
-  console.log('  - 功能2');
-  console.log('  修复问题：');
-  console.log('  - 修复1');
-  console.log('  - 修复2\n');
+async function getReleaseNotes(version) {
+  const tempFile = path.resolve(__dirname, '../RELEASE_NOTES_TEMP.md');
   
-  const lines = [];
-  let emptyLineCount = 0;
+  // 创建模板文件
+  const template = `# 发布说明 v${version}
+
+## 🎉 新增功能
+<!-- 列出新增的功能，例如：-->
+<!-- - 添加了深色模式支持 -->
+<!-- - 实现了自动更新功能 -->
+
+
+## 🐛 问题修复
+<!-- 列出修复的问题，例如：-->
+<!-- - 修复了登录失败的问题 -->
+<!-- - 解决了内存泄漏问题 -->
+
+
+## 🔧 优化改进
+<!-- 列出优化和改进，例如：-->
+<!-- - 优化了启动速度 -->
+<!-- - 改进了用户界面 -->
+
+
+## 💥 破坏性变更
+<!-- 如果有破坏性变更，请在此列出 -->
+
+
+---
+📝 使用说明：
+1. 请在上方编辑发布说明（保留 Markdown 格式）
+2. 删除不需要的章节和注释（<!-- -->）
+3. 空章节会被自动移除
+4. 保存并关闭文件即可
+5. 如果不想添加发布说明，删除所有内容后保存
+---
+`;
   
-  return new Promise((resolve) => {
-    const inputRl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-      prompt: '> '
+  await fs.writeFile(tempFile, template, 'utf-8');
+  
+  // 获取编辑器
+  const editor = process.env.EDITOR || process.env.VISUAL || 'notepad';
+  
+  console.log(`\n📝 正在打开编辑器编辑发布说明...`);
+  console.log(`💡 使用编辑器: ${editor}`);
+  console.log(`💡 提示: 编辑完成后保存并关闭编辑器即可\n`);
+  
+  try {
+    execSync(`"${editor}" "${tempFile}"`, { 
+      stdio: 'inherit',
+      shell: true 
     });
     
-    inputRl.prompt();
+    // 读取编辑后的内容
+    const content = await fs.readFile(tempFile, 'utf-8');
     
-    inputRl.on('line', (line) => {
-      if (line.trim() === '') {
-        emptyLineCount++;
-        if (emptyLineCount >= 2) {
-          inputRl.close();
-          resolve(lines.join('\n'));
-          return;
+    // 移除模板中的注释和说明
+    const lines = content.split('\n');
+    const filteredLines = [];
+    let inHelpSection = false;
+    
+    for (const line of lines) {
+      // 跳过帮助说明部分
+      if (line.trim() === '---') {
+        if (!inHelpSection) {
+          inHelpSection = true;
+          continue;
+        } else {
+          break; // 遇到第二个 --- 就停止
         }
-      } else {
-        emptyLineCount = 0;
       }
-      lines.push(line);
-      inputRl.prompt();
-    });
-  });
+      
+      if (inHelpSection) continue;
+      
+      // 移除 HTML 注释
+      if (line.trim().startsWith('<!--') || line.trim().startsWith('-->')) {
+        continue;
+      }
+      
+      filteredLines.push(line);
+    }
+    
+    // 清理连续的空行和首尾空行
+    let releaseNotes = filteredLines.join('\n').trim();
+    releaseNotes = releaseNotes.replace(/\n{3,}/g, '\n\n');
+    
+    // 删除空的章节
+    releaseNotes = releaseNotes.replace(/##[^\n]+\n+(?=##|$)/g, '');
+    
+    // 删除临时文件
+    await fs.unlink(tempFile).catch(() => {});
+    
+    return releaseNotes;
+  } catch (error) {
+    // 删除临时文件
+    await fs.unlink(tempFile).catch(() => {});
+    throw error;
+  }
 }
 
 async function checkTagExists(version) {
@@ -140,24 +201,40 @@ async function updateVersion() {
     }
 
     // 询问是否添加发布说明
-    const addNotes = await question('\n是否添加发布说明？(Y/n): ');
+    console.log('\n' + '═'.repeat(60));
+    console.log('📝 发布说明 (Release Notes)');
+    console.log('═'.repeat(60));
+    const addNotes = await question('是否添加发布说明？(Y/n): ');
     let releaseNotes = '';
     
     if (addNotes.toLowerCase() !== 'n') {
-      releaseNotes = await getReleaseNotes();
-      
-      if (releaseNotes.trim()) {
-        console.log('\n✅ 发布说明预览：');
-        console.log('─'.repeat(50));
-        console.log(releaseNotes);
-        console.log('─'.repeat(50));
+      try {
+        releaseNotes = await getReleaseNotes(version);
         
-        const confirm = await question('\n确认使用此发布说明？(Y/n): ');
-        if (confirm.toLowerCase() === 'n') {
-          console.log('已取消发布说明，将使用默认说明');
-          releaseNotes = '';
+        if (releaseNotes.trim()) {
+          console.log('\n' + '─'.repeat(60));
+          console.log('✅ 发布说明预览：');
+          console.log('─'.repeat(60));
+          console.log(releaseNotes);
+          console.log('─'.repeat(60));
+          
+          const confirm = await question('\n确认使用此发布说明？(Y/n): ');
+          if (confirm.toLowerCase() === 'n') {
+            console.log('❌ 已取消发布说明');
+            releaseNotes = '';
+          } else {
+            console.log('✅ 发布说明已确认');
+          }
+        } else {
+          console.log('⚠️  发布说明为空，将不添加发布说明');
         }
+      } catch (error) {
+        console.error('❌ 编辑发布说明失败:', error.message);
+        console.log('将继续创建标签，但不添加发布说明');
+        releaseNotes = '';
       }
+    } else {
+      console.log('⏭️  跳过发布说明');
     }
 
     console.log('\n正在创建标签...');

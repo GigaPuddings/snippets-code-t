@@ -39,3 +39,4 @@ _tmp*
 # 临时发布说明文件
 .release-notes.tmp
 release-notes.txt
+RELEASE_NOTES_TEMP.md
