@@ -34,13 +34,24 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Get tag annotation
+        id: tag_annotation
+        run: |
+          $tagMessage = git tag -l --format='%(contents)' ${{ github.ref_name }}
+          if ([string]::IsNullOrWhiteSpace($tagMessage)) {
+            $tagMessage = "See the assets to download and install this version."
+          }
+          # 保存到文件以支持多行
+          $tagMessage | Out-File -FilePath release-notes.txt -Encoding UTF8
+          echo "has_notes=true" >> $env:GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
           name: 'snippets-code ${{ github.ref_name }}'
-          body: 'See the assets to download and install this version.'
+          body_path: release-notes.txt
           draft: false
           prerelease: false
           files: ''

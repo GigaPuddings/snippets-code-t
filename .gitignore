@@ -35,3 +35,7 @@ _tmp*
 *.pem
 *.key
 *.key.pub
+
+# 临时发布说明文件
+.release-notes.tmp
+release-notes.txt
