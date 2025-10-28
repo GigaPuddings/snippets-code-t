@@ -52,32 +52,6 @@ async function uploadFile(releaseId, filePath, fileName) {
   }
 }
 
-async function deleteOldAsset(releaseId, fileName) {
-  try {
-    const { data: release } = await octokit.repos.getReleaseByTag({
-      owner,
-      repo,
-      tag,
-    })
-    
-    const existingAsset = release.assets.find(asset => asset.name === fileName)
-    
-    if (existingAsset) {
-      await octokit.repos.deleteReleaseAsset({
-        owner,
-        repo,
-        asset_id: existingAsset.id
-      })
-      console.log(`🗑️  已删除旧文件: ${fileName}`)
-      return true
-    }
-    return false
-  } catch (error) {
-    console.error(`❌ 删除失败 ${fileName}:`, error.message)
-    return false
-  }
-}
-
 async function main() {
   try {
     // 获取 release
@@ -87,16 +61,9 @@ async function main() {
       tag,
     })
     
-    console.log(`📦 正在处理 Release: ${release.name}`)
+    console.log(`📦 正在上传资产到 Release: ${release.name}`)
     
-    // 先删除带 _windows 后缀的旧文件
-    const oldSetupFileName = `snippets-code_${tauriConfig.version}_x64-setup_windows.exe`
-    const oldSigFileName = `${oldSetupFileName}.sig`
-    
-    await deleteOldAsset(release.id, oldSetupFileName)
-    await deleteOldAsset(release.id, oldSigFileName)
-    
-    // 构建文件路径
+    // 构建文件路径 - 本地构建的文件本来就不带 _windows 后缀
     const basePath = path.resolve('./src-tauri/target/release/bundle/nsis')
     const setupFileName = `snippets-code_${tauriConfig.version}_x64-setup.exe`
     const setupFilePath = path.join(basePath, setupFileName)

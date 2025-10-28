@@ -34,24 +34,24 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build Tauri
-        uses: tauri-apps/tauri-action@v0
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        with:
+          name: 'snippets-code ${{ github.ref_name }}'
+          body: 'See the assets to download and install this version.'
+          draft: false
+          prerelease: false
+          files: ''
+
+      - name: Build Tauri (without upload)
+        run: pnpm tauri build
+        env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'snippets-code v__VERSION__'
-          releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: false
 
-      - name: Rename installers (remove _windows suffix)
-        run: node scripts/rename-installer.mjs
-        
-      - name: Upload renamed assets to release
+      - name: Upload assets to release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}

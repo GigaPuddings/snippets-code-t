@@ -87,29 +87,16 @@ async function main() {
       release_id: release.id
     })
 
-    // 构建文件路径
+    // 构建文件路径 - 本地构建的文件不带 _windows 后缀
     const basePath = path.resolve('./src-tauri/target/release/bundle')
-    
-    // 检查文件是否存在（支持带或不带 _windows 后缀）
     const setupFileName = `snippets-code_${tauriConfig.version}_x64-setup.exe`
-    const setupFileNameWithSuffix = `snippets-code_${tauriConfig.version}_x64-setup_windows.exe`
-    
-    let setupFile = path.join(basePath, 'nsis', setupFileName)
-    if (!fs.existsSync(setupFile)) {
-      setupFile = path.join(basePath, 'nsis', setupFileNameWithSuffix)
-    }
+    const setupFile = path.join(basePath, 'nsis', setupFileName)
     const sigFile = `${setupFile}.sig`
 
-    // 获取已上传的文件（尝试两种命名格式）
-    let setupAsset = release.assets.find(asset => 
+    // 获取已上传的文件
+    const setupAsset = release.assets.find(asset => 
       asset.name === setupFileName
     )
-    
-    if (!setupAsset) {
-      setupAsset = release.assets.find(asset => 
-        asset.name === setupFileNameWithSuffix
-      )
-    }
 
     if (!setupAsset) {
       throw new Error('Setup file not found in release assets')

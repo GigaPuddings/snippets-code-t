@@ -16,8 +16,6 @@
     "commit": "git-cz",
     "updater": "node scripts/updater.mjs",
     "upload-assets": "node scripts/upload-assets.mjs",
-    "rename-installer": "node scripts/rename-installer.mjs",
-    "cleanup-assets": "node scripts/cleanup-old-assets.mjs",
     "tag": "node scripts/tag.mjs"
   },
   "config": {
