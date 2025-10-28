@@ -92,19 +92,16 @@
                 :strokeWidth="3"
               />
             </div>
-            <div class="item-info">
-              <div class="item-title-row">
-                <span class="item-title">{{ item.title }}</span>
-                <el-tag
-                  v-if="index < 3"
-                  :type="index === 0 ? 'danger' : index === 1 ? 'warning' : 'success'"
-                  size="small"
-                  effect="dark"
-                  round
-                >
-                  常用
-                </el-tag>
-              </div>
+              <div class="item-info">
+                <div class="item-title-row">
+                  <span class="item-title">{{ item.title }}</span>
+                  <div
+                    v-if="item.usage_count > 0"
+                    class="usage-indicator"
+                    :class="`usage-level-${getUsageLevel(item.usage_count)}`"
+                    :title="`使用 ${item.usage_count} 次`"
+                  ></div>
+                </div>
               <div class="item-path">
                 <component
                   :is="activeTab === 'app' ? FolderOpen : Link"
@@ -180,6 +177,7 @@ interface AppInfo {
   content: string;
   icon?: string | null;
   summarize: string;
+  usage_count: number;
 }
 
 interface BookmarkInfo {
@@ -188,6 +186,7 @@ interface BookmarkInfo {
   content: string;
   icon?: string | null;
   summarize: string;
+  usage_count: number;
 }
 
 const tabs = [
@@ -265,14 +264,16 @@ const handleEdit = (item: AppInfo | BookmarkInfo) => {
 // 点击项目（非编辑模式）
 const handleItemClick = async (item: AppInfo | BookmarkInfo) => {
   try {
-    // 记录使用次数
+    // 记录使用历史
+    await invoke('add_search_history', { id: item.id });
+    
+    // 打开应用或书签
     if (activeTab.value === 'app') {
-      await invoke('increment_app_usage', { id: item.id });
       await invoke('open_app_command', { appPath: item.content });
     } else {
-      await invoke('increment_bookmark_usage', { id: item.id });
       await invoke('open_url', { url: item.content });
     }
+    
     // 重新加载数据以更新排序
     await loadData();
   } catch (error) {
@@ -384,6 +385,14 @@ const handleDeleteFromDialog = async (id: string) => {
       ElMessage.error('删除失败');
     }
   }
+};
+
+// 根据使用次数获取等级（1-4）
+const getUsageLevel = (count: number) => {
+  if (count >= 50) return 4;    // 经常使用：红色
+  if (count >= 20) return 3;    // 很常用：橙色
+  if (count >= 5) return 2;     // 常用：绿色
+  return 1;                      // 偶尔使用：蓝色
 };
 
 onMounted(() => {
@@ -498,6 +507,31 @@ onMounted(() => {
               .item-title {
                 @apply text-base font-semibold text-gray-900 dark:text-white truncate;
               }
+
+              .usage-indicator {
+                @apply flex-shrink-0 w-2 h-2 rounded-full;
+                
+                &.usage-level-1 {
+                  @apply bg-blue-500;
+                  box-shadow: 0 0 4px rgba(59, 130, 246, 0.5);
+                }
+                
+                &.usage-level-2 {
+                  @apply bg-green-500;
+                  box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+                }
+                
+                &.usage-level-3 {
+                  @apply bg-orange-500;
+                  box-shadow: 0 0 4px rgba(249, 115, 22, 0.5);
+                }
+                
+                &.usage-level-4 {
+                  @apply bg-red-500;
+                  box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+                  animation: pulse-dot 2s ease-in-out infinite;
+                }
+              }
             }
 
             .item-path {
@@ -515,6 +549,18 @@ onMounted(() => {
         }
       }
     }
+  }
+}
+
+// 脉动动画（仅用于最高等级）
+@keyframes pulse-dot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
   }
 }
 </style>

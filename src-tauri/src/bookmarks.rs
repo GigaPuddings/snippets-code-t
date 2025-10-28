@@ -32,6 +32,8 @@ pub struct BookmarkInfo {
     pub content: String,
     pub icon: Option<String>,
     pub summarize: String,
+    #[serde(default)]
+    pub usage_count: u32,
 }
 
 #[derive(Debug)]
@@ -478,6 +480,7 @@ fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
                             content: url,
                             icon, // 如果找到图标则直接保存，否则为None
                             summarize: "bookmark".to_string(),
+                            usage_count: 0,
                         });
                     }
                 }
@@ -1118,6 +1121,7 @@ fn extract_bookmarks(
                             content: url_str,
                             icon,
                             summarize: "bookmark".to_string(),
+                            usage_count: 0,
                         });
                     }
                 }

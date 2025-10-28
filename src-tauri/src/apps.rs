@@ -30,6 +30,8 @@ pub struct AppInfo {
     pub content: String,
     pub icon: Option<String>,
     pub summarize: String,
+    #[serde(default)]
+    pub usage_count: u32,
 }
 
 fn extract_icon_path(icon_path: &str) -> Option<String> {
@@ -105,6 +107,7 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
                                     content: icon_path.clone(),
                                     icon: None,
                                     summarize: "app".to_string(),
+                                    usage_count: 0,
                                 });
                             }
                         }
@@ -231,6 +234,7 @@ fn get_uwp_apps() -> Vec<AppInfo> {
                             content: app_info.executable,
                             icon: None,
                             summarize: "uwp".to_string(),
+                            usage_count: 0,
                         });
                     }
                 }
@@ -308,6 +312,7 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                                 content: target_path,
                                 icon: None,
                                 summarize: "app".to_string(),
+                                usage_count: 0,
                             });
                         }
                     }
@@ -489,6 +494,7 @@ fn get_windows_apps() -> Vec<AppInfo> {
                             content: path_str,
                             icon: None,
                             summarize: "app".to_string(),
+                            usage_count: 0,
                         });
                     }
                 }
@@ -502,6 +508,7 @@ fn get_windows_apps() -> Vec<AppInfo> {
                 content: path.to_string(),
                 icon: None,
                 summarize: "app".to_string(),
+                usage_count: 0,
             });
         }
     }
@@ -575,15 +582,21 @@ fn get_office_apps() -> Vec<AppInfo> {
     // 方式1: 从App Paths注册表项检测Office应用
     for (_, exe_name, display_name) in office_apps.iter() {
         if let Some(path) = get_app_path_from_registry(exe_name) {
-            info!("通过AppPath找到Office应用: {} -> {}", display_name, path);
+            // 再次验证路径确实存在和可访问
+            if Path::new(&path).exists() && Path::new(&path).is_file() {
+                info!("通过AppPath找到Office应用: {} -> {}", display_name, path);
 
-            apps.push(AppInfo {
-                id: Uuid::new_v4().to_string(),
-                title: display_name.to_string(),
-                content: path,
-                icon: None,
-                summarize: "app".to_string(),
-            });
+                apps.push(AppInfo {
+                    id: Uuid::new_v4().to_string(),
+                    title: display_name.to_string(),
+                    content: path,
+                    icon: None,
+                    summarize: "app".to_string(),
+                    usage_count: 0,
+                });
+            } else {
+                info!("Office应用路径无效或不可访问: {} -> {}", display_name, path);
+            }
         }
     }
 
@@ -597,7 +610,7 @@ fn get_office_apps() -> Vec<AppInfo> {
             // 检查每个应用的路径
             for (app_name, exe_name, display_name) in office_apps.iter() {
                 let app_path = format!("{}\\{}", root_path, exe_name);
-                if Path::new(&app_path).exists() {
+                if Path::new(&app_path).exists() && Path::new(&app_path).is_file() {
                     info!("找到Office应用 {}: {}", display_name, app_path);
 
                     apps.push(AppInfo {
@@ -606,13 +619,14 @@ fn get_office_apps() -> Vec<AppInfo> {
                         content: app_path,
                         icon: None,
                         summarize: "app".to_string(),
+                        usage_count: 0,
                     });
                 } else {
                     // 尝试使用特定应用注册表项
                     let app_install_path = detect_office_app_path(version, app_name);
                     if let Some(path) = app_install_path {
                         let full_path = format!("{}\\{}", path, exe_name);
-                        if Path::new(&full_path).exists() {
+                        if Path::new(&full_path).exists() && Path::new(&full_path).is_file() {
                             info!("通过注册表找到Office应用 {}: {}", display_name, full_path);
 
                             apps.push(AppInfo {
@@ -621,6 +635,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                                 content: full_path,
                                 icon: None,
                                 summarize: "app".to_string(),
+                                usage_count: 0,
                             });
                         }
                     }
@@ -632,7 +647,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                 let app_install_path = detect_office_app_path(version, app_name);
                 if let Some(path) = app_install_path {
                     let full_path = format!("{}\\{}", path, exe_name);
-                    if Path::new(&full_path).exists() {
+                    if Path::new(&full_path).exists() && Path::new(&full_path).is_file() {
                         info!("通过注册表找到Office应用 {}: {}", display_name, full_path);
 
                         apps.push(AppInfo {
@@ -641,6 +656,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                             content: full_path,
                             icon: None,
                             summarize: "app".to_string(),
+                            usage_count: 0,
                         });
                     }
                 }
@@ -682,6 +698,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                             content: app_path,
                             icon: None,
                             summarize: "app".to_string(),
+                            usage_count: 0,
                         });
                     }
                 }
@@ -699,7 +716,9 @@ fn get_office_apps() -> Vec<AppInfo> {
         if Path::new(c2r_path).exists() {
             for (_, exe_name, display_name) in office_apps.iter() {
                 let app_path = format!("{}\\{}", c2r_path, exe_name);
-                if Path::new(&app_path).exists() && !apps.iter().any(|app| app.content == app_path)
+                if Path::new(&app_path).exists() 
+                    && Path::new(&app_path).is_file() 
+                    && !apps.iter().any(|app| app.content == app_path)
                 {
                     info!("通过C2R路径找到Office应用 {}: {}", display_name, app_path);
 
@@ -709,6 +728,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                         content: app_path,
                         icon: None,
                         summarize: "app".to_string(),
+                        usage_count: 0,
                     });
                 }
             }
@@ -859,6 +879,7 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
                     content: path_str,
                     icon: None,
                     summarize: "app".to_string(),
+                    usage_count: 0,
                 });
             }
         }
@@ -922,6 +943,7 @@ fn get_windows_store_apps() -> Vec<AppInfo> {
                                             content: exe_path,
                                             icon: None,
                                             summarize: "app".to_string(),
+                                            usage_count: 0,
                                         });
                                     }
                                 }

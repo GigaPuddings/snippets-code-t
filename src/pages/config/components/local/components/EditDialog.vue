@@ -46,7 +46,7 @@
             </el-button>
           </div>
           <div v-else class="icon-placeholder">
-            <el-text type="info" size="small">暂无</el-text>
+             <span class="text-[11px] scale-75 text-gray-500 dark:text-gray-400">暂无图标</span>
           </div>
           <el-button
             v-if="type === 'app' && formData.content"

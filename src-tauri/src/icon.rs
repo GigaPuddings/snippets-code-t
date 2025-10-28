@@ -58,21 +58,42 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
         return Some(cached_icon);
     }
 
-    // info!("提取应用图标: {}", app_path);
+    // 验证路径是否存在且为有效文件
+    let path = std::path::Path::new(app_path);
+    if !path.exists() {
+        info!("图标提取失败 - 路径不存在: {}", app_path);
+        return None;
+    }
+    
+    if !path.is_file() {
+        info!("图标提取失败 - 路径不是文件: {}", app_path);
+        return None;
+    }
+
+    // 规范化路径，去除可能的路径问题
+    let canonical_path = match path.canonicalize() {
+        Ok(p) => p.to_string_lossy().to_string(),
+        Err(e) => {
+            info!("无法规范化路径 {}: {:?}", app_path, e);
+            app_path.to_string()
+        }
+    };
+
+    // info!("提取应用图标: {}", canonical_path);
 
     unsafe {
         // 初始化 COM
         let _ = CoInitialize(None);
 
         // 转换路径为宽字符串
-        let path_hstring = HSTRING::from(app_path);
+        let path_hstring = HSTRING::from(canonical_path.as_str());
 
         // 创建 Shell 项并直接转换为IShellItemImageFactory
         let image_factory: IShellItemImageFactory =
             match SHCreateItemFromParsingName(&path_hstring, None) {
                 Ok(item) => item,
                 Err(e) => {
-                    info!("创建Shell项失败: {:?}", e);
+                    info!("创建Shell项失败 ({}): {:?}", canonical_path, e);
                     return None;
                 }
             };
