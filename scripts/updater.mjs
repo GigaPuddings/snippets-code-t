@@ -2,7 +2,6 @@ import { createRequire } from 'module'
 import { Octokit } from '@octokit/rest'
 import fs from 'fs'
 import path from 'path'
-import { execSync } from 'child_process'
 
 const require = createRequire(import.meta.url)
 const tauriConfig = require('../src-tauri/tauri.conf.json')
@@ -14,62 +13,6 @@ const octokit = new Octokit({ auth: token })
 // GitHub 仓库信息
 const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
 const tag = process.env.GITHUB_REF_NAME
-
-// 生成发布日期
-function getFormattedDate() {
-  const date = new Date()
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-// 从git提交生成发布说明
-function generateReleaseNotes() {
-  try {
-    // 获取前一个标签
-    const previousTag = execSync('git describe --tags --abbrev=0 HEAD^', { encoding: 'utf-8' }).trim()
-    console.log(`上一个标签: ${previousTag}`)
-    
-    // 获取当前标签和上一个标签之间的提交
-    const commitLog = execSync(`git log ${previousTag}..HEAD --pretty=format:"%s"`, { encoding: 'utf-8' })
-    
-    // 分类提交
-    const feats = []
-    const fixes = []
-    const others = []
-    
-    commitLog.split('\n').forEach(commit => {
-      if (commit.startsWith('feat')) {
-        feats.push(commit.replace(/^feat(\([^)]+\))?:\s*/, '• '))
-      } else if (commit.startsWith('fix')) {
-        fixes.push(commit.replace(/^fix(\([^)]+\))?:\s*/, '• '))
-      } else if (commit) {
-        others.push(commit)
-      }
-    })
-    
-    // 生成发布说明
-    let notes = `${tauriConfig.version} (${getFormattedDate()})\n\n`
-    
-    if (feats.length > 0) {
-      notes += `New feature:\n\n${feats.join('\n')}\n\n`
-    }
-    
-    if (fixes.length > 0) {
-      notes += `Bugs fixed:\n\n${fixes.join('\n')}\n\n`
-    }
-    
-    if (others.length > 0 && process.env.INCLUDE_OTHER_COMMITS) {
-      notes += `Other:\n\n${others.join('\n')}\n\n`
-    }
-    
-    return notes.trim()
-  } catch (error) {
-    console.warn('无法生成发布说明:', error.message)
-    return `${tauriConfig.version} (${getFormattedDate()})\n\n本次更新暂无详细说明`
-  }
-}
 
 async function main() {
   try {
@@ -105,8 +48,8 @@ async function main() {
     // 读取签名文件
     const signature = fs.readFileSync(sigFile, 'utf8')
 
-    // 生成发布说明
-    const releaseNotes = fullRelease.body || generateReleaseNotes()
+    // 使用简单的发布说明
+    const releaseNotes = `Version ${tauriConfig.version}`
 
     // 创建 latest.json
     const latestJson = {

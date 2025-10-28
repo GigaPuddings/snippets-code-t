@@ -23,91 +23,6 @@ const execCommand = (command) => {
   }
 };
 
-const execCommandOutput = (command) => {
-  try {
-    return execSync(command, { encoding: 'utf-8' }).trim();
-  } catch (error) {
-    throw new Error(`执行命令失败: ${command}\n${error.message}`);
-  }
-};
-
-async function getReleaseNotes(version) {
-  const tempFile = path.resolve(__dirname, '../RELEASE_NOTES_TEMP.md');
-  
-  // 创建模板文件
-  const template = `发布说明 v${version}
-========================================
-
-🎉 新增功能：
-- 
-
-🐛 问题修复：
-- 
-
-🔧 优化改进：
-- 
-
-💥 破坏性变更：
-- 
-
-========================================
-📝 编辑说明：
-1. 在上方填写发布内容，每项一行
-2. 删除不需要的章节（包括空的章节）
-3. 保存并关闭编辑器即可提交
-4. 如果不想添加说明，删除所有内容后保存
-========================================
-`;
-  
-  await fs.writeFile(tempFile, template, 'utf-8');
-  
-  // 获取编辑器
-  const editor = process.env.EDITOR || process.env.VISUAL || 'notepad';
-  
-  console.log(`\n📝 正在打开编辑器编辑发布说明...`);
-  console.log(`💡 使用编辑器: ${editor}`);
-  console.log(`💡 提示: 编辑完成后保存并关闭编辑器即可\n`);
-  
-  try {
-    execSync(`"${editor}" "${tempFile}"`, { 
-      stdio: 'inherit',
-      shell: true 
-    });
-    
-    // 读取编辑后的内容
-    let content = await fs.readFile(tempFile, 'utf-8');
-    
-    // 1. 移除编辑说明部分（从"📝 编辑说明"之前的分隔线开始）
-    const helpSectionIndex = content.indexOf('📝 编辑说明');
-    if (helpSectionIndex !== -1) {
-      // 找到编辑说明，向前查找分隔线
-      const beforeHelp = content.substring(0, helpSectionIndex);
-      const lastSeparator = beforeHelp.lastIndexOf('====');
-      if (lastSeparator !== -1) {
-        // 从分隔线位置截断
-        content = content.substring(0, lastSeparator);
-      }
-    }
-    
-    // 2. 移除空的章节（只有标题和空行/连字符的章节）
-    content = content.replace(/[🎉🐛🔧💥][^\n:]*：\n-\s*\n/g, '');
-    
-    // 3. 移除多余的空行（保留最多一个空行）
-    content = content.replace(/\n{3,}/g, '\n\n');
-    
-    // 4. 去除首尾空白
-    let releaseNotes = content.trim();
-    
-    // 删除临时文件
-    await fs.unlink(tempFile).catch(() => {});
-    
-    return releaseNotes;
-  } catch (error) {
-    // 删除临时文件
-    await fs.unlink(tempFile).catch(() => {});
-    throw error;
-  }
-}
 
 async function checkTagExists(version) {
   try {
@@ -178,56 +93,9 @@ async function updateVersion() {
       console.log('文件没有变化，跳过提交步骤');
     }
 
-    // 询问是否添加发布说明
-    console.log('\n' + '═'.repeat(60));
-    console.log('📝 发布说明 (Release Notes)');
-    console.log('═'.repeat(60));
-    const addNotes = await question('是否添加发布说明？(Y/n): ');
-    let releaseNotes = '';
-    
-    if (addNotes.toLowerCase() !== 'n') {
-      try {
-        releaseNotes = await getReleaseNotes(version);
-        
-        if (releaseNotes.trim()) {
-          console.log('\n' + '─'.repeat(60));
-          console.log('✅ 发布说明预览：');
-          console.log('─'.repeat(60));
-          console.log(releaseNotes);
-          console.log('─'.repeat(60));
-          
-          const confirm = await question('\n确认使用此发布说明？(Y/n): ');
-          if (confirm.toLowerCase() === 'n') {
-            console.log('❌ 已取消发布说明');
-            releaseNotes = '';
-          } else {
-            console.log('✅ 发布说明已确认');
-          }
-        } else {
-          console.log('⚠️  发布说明为空，将不添加发布说明');
-        }
-      } catch (error) {
-        console.error('❌ 编辑发布说明失败:', error.message);
-        console.log('将继续创建标签，但不添加发布说明');
-        releaseNotes = '';
-      }
-    } else {
-      console.log('⏭️  跳过发布说明');
-    }
-
     console.log('\n正在创建标签...');
-    
-    // 创建带注释的标签
-    if (releaseNotes.trim()) {
-      // 保存发布说明到临时文件
-      const tempNotesFile = path.resolve(__dirname, '../.release-notes.tmp');
-      await fs.writeFile(tempNotesFile, releaseNotes);
-      execCommand(`git tag -a v${version} -F "${tempNotesFile}"`);
-      await fs.unlink(tempNotesFile);
-    } else {
-      // 创建简单标签
-      execCommand(`git tag v${version}`);
-    }
+    // 创建简单标签（不带注释）
+    execCommand(`git tag v${version}`);
     
     console.log('正在推送到远程仓库...');
     execCommand(`git push origin v${version}`);
