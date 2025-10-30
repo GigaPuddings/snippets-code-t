@@ -1,8 +1,9 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use log::info;
+use lru::LruCache;
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
 use std::io::Cursor;
+use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use tokio::sync::Semaphore;
@@ -22,9 +23,7 @@ use windows::Win32::UI::Shell::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::apps::load_app_icons_async_silent;
 use crate::apps::{get_installed_apps, AppInfo};
-use crate::bookmarks::load_bookmark_icons_async_silent;
 use crate::bookmarks::{get_browser_bookmarks, BookmarkInfo};
 use crate::db;
 
@@ -37,13 +36,18 @@ pub struct CachedIcon {
 
 // 图标缓存常数
 const MAX_CACHE_AGE: u64 = 604800; // 7 days in seconds
+const MAX_CACHE_SIZE: usize = 500; // 最多缓存500个图标，防止内存溢出
 
-// 全局图标缓存
-static ICON_CACHE: Lazy<Arc<Mutex<HashMap<String, CachedIcon>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+// 全局图标缓存 - 使用 LRU 缓存自动淘汰最少使用的图标
+static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> =
+    Lazy::new(|| {
+        Arc::new(Mutex::new(
+            LruCache::new(NonZeroUsize::new(MAX_CACHE_SIZE).unwrap())
+        ))
+    });
 
 // 并发管理 - 限制同时进行的图标加载任务数量以优化性能
-static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(4))); // 限制4个并发任务
+static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(2))); // 限制2个并发任务，降低启动时CPU占用
 
 // Tauri command: 提取应用图标
 #[tauri::command]
@@ -72,7 +76,15 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
 
     // 规范化路径，去除可能的路径问题
     let canonical_path = match path.canonicalize() {
-        Ok(p) => p.to_string_lossy().to_string(),
+        Ok(p) => {
+            let path_str = p.to_string_lossy().to_string();
+            // 移除 Windows 扩展长度路径前缀 "\\?\"，因为 Shell API 不支持
+            if path_str.starts_with(r"\\?\") {
+                path_str.strip_prefix(r"\\?\").unwrap_or(&path_str).to_string()
+            } else {
+                path_str
+            }
+        },
         Err(e) => {
             info!("无法规范化路径 {}: {:?}", app_path, e);
             app_path.to_string()
@@ -248,8 +260,9 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
 
 // 如果存在并且未过期，从缓存中获取图标
 fn get_cached_icon(key: &str) -> Option<String> {
-    let cache = ICON_CACHE.lock().unwrap();
+    let mut cache = ICON_CACHE.lock().unwrap();
 
+    // LRU get 需要可变引用，会更新访问顺序
     if let Some(cached_icon) = cache.get(key) {
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -267,7 +280,8 @@ fn get_cached_icon(key: &str) -> Option<String> {
 // 将图标存储在缓存中
 fn cache_icon(key: &str, icon: CachedIcon) {
     let mut cache = ICON_CACHE.lock().unwrap();
-    cache.insert(key.to_string(), icon.clone());
+    // LRU 使用 put 方法，会自动淘汰最少使用的项
+    cache.put(key.to_string(), icon.clone());
     if let Err(e) = db::insert_icon_to_cache(key, &icon) {
         info!("Failed to cache icon in db: {}", e);
     }
@@ -277,8 +291,18 @@ fn cache_icon(key: &str, icon: CachedIcon) {
 pub fn load_icon_cache(_app_handle: &AppHandle) {
     if let Ok(cache_data) = db::load_all_icon_cache() {
         let mut cache = ICON_CACHE.lock().unwrap();
-        *cache = cache_data;
-        info!("加载 {} 个来自缓存的图标", cache.len());
+        
+        // 由于 LRU 缓存有大小限制，优先加载最新的图标
+        let mut sorted_icons: Vec<_> = cache_data.into_iter().collect();
+        sorted_icons.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
+        
+        let mut loaded_count = 0;
+        for (key, icon) in sorted_icons.into_iter().take(MAX_CACHE_SIZE) {
+            cache.put(key, icon);
+            loaded_count += 1;
+        }
+        
+        info!("加载 {} 个来自缓存的图标（最多 {} 个）", loaded_count, MAX_CACHE_SIZE);
     }
 }
 
@@ -321,7 +345,7 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
     let _permit = ICON_SEMAPHORE.acquire().await.ok()?;
     
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(8)) // 减少超时时间提高响应性
+        .timeout(Duration::from_secs(5)) // 进一步减少超时时间提高响应性
         .build()
         .ok()?;
 
@@ -378,7 +402,8 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
 // 获取应用和书签的图标
 pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     info!("初始化应用和书签图标");
-    //加载图标缓存
+    
+    // 先加载图标缓存到内存，提升后续查询速度
     load_icon_cache(app_handle);
 
     // 检查数据库中是否已有数据
@@ -387,12 +412,19 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 
     info!("应用数量: {}, 书签数量: {}", apps_count, bookmarks_count);
 
+    // 如果数据库已有大量数据，则跳过扫描（优化启动速度）
+    // 只有在数据为空时才进行扫描
+    if apps_count > 0 && bookmarks_count > 0 {
+        info!("数据库已有数据，跳过应用和书签扫描，启动更快");
+        return;
+    }
+
     let mut apps_to_load = Vec::new();
     let mut bookmarks_to_load = Vec::new();
 
     if apps_count == 0 {
         info!("数据库中没有应用数据，开始扫描应用...");
-        apps_to_load = get_installed_apps();
+        apps_to_load = get_installed_apps(); // 应用去重已在 apps.rs 中完成
         
         // 存储应用到数据库
         if let Err(e) = db::insert_apps(&apps_to_load) {
@@ -406,7 +438,7 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 
     if bookmarks_count == 0 {
         info!("数据库中没有书签数据，开始扫描书签...");
-        bookmarks_to_load = get_browser_bookmarks();
+        bookmarks_to_load = get_browser_bookmarks(); // 书签去重已在 bookmarks.rs 中完成（基于URL）
         
         // 存储书签到数据库
         if let Err(e) = db::insert_bookmarks(&bookmarks_to_load) {
@@ -424,6 +456,52 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     }
 }
 
+// ============= 通用图标加载框架 =============
+
+/// 通用图标加载器 - 统一处理应用和书签的图标加载逻辑
+/// 
+/// 参数说明：
+/// - items: 需要加载图标的项目列表
+/// - has_icon: 检查项目是否已有图标的函数
+/// - fetch_icon: 获取图标数据的函数
+/// - update_db: 更新数据库的函数
+/// - item_name: 日志中使用的项目名称（"应用" 或 "书签"）
+pub fn load_icons_generic<T>(
+    items: Vec<T>,
+    has_icon: impl Fn(&T) -> bool,
+    fetch_icon: impl Fn(&T) -> Option<String>,
+    update_db: impl Fn(&T, &str) -> Result<(), String>,
+    item_name: &str,
+) -> usize 
+where
+    T: std::marker::Send,
+{
+    let mut count = 0;
+    let total = items.len();
+
+    info!("开始加载{}图标: {} 个{}", item_name, total, item_name);
+
+    for item in items {
+        // 只处理没有图标的项目
+        if has_icon(&item) {
+            continue;
+        }
+
+        // 获取图标数据
+        if let Some(icon_data) = fetch_icon(&item) {
+            // 更新到数据库
+            if let Err(e) = update_db(&item, &icon_data) {
+                info!("更新{}图标到数据库失败: {}", item_name, e);
+            } else {
+                count += 1;
+            }
+        }
+    }
+
+    info!("已完成加载{}图标: {} 个成功", item_name, count);
+    count
+}
+
 // 合并加载应用和书签图标并发送单一通知
 fn load_icons_with_combined_notification(
     app_handle: AppHandle,
@@ -435,22 +513,49 @@ fn load_icons_with_combined_notification(
     let app_count = Arc::new(Mutex::new(0));
     let bookmark_count = Arc::new(Mutex::new(0));
 
+    // 加载应用图标
     let app_count_clone = app_count.clone();
     let app_thread = std::thread::spawn(move || {
         if apps.is_empty() {
             return;
         }
-        let dummy_completion_counter = Arc::new(Mutex::new(0));
-        load_app_icons_async_silent(apps, app_count_clone, dummy_completion_counter);
+        
+        let count = load_icons_generic(
+            apps,
+            |app| app.icon.is_some(),
+            |app| extract_app_icon(&app.content),
+            |app, icon| db::update_app_icon(&app.id, icon).map_err(|e| e.to_string()),
+            "应用",
+        );
+        
+        *app_count_clone.lock().unwrap() = count;
     });
 
+    // 加载书签图标（需要异步运行时）
     let bookmark_count_clone = bookmark_count.clone();
     let bookmark_thread = std::thread::spawn(move || {
         if bookmarks.is_empty() {
             return;
         }
-        let dummy_completion_counter = Arc::new(Mutex::new(0));
-        load_bookmark_icons_async_silent(bookmarks, bookmark_count_clone, dummy_completion_counter);
+
+        // 创建 Tokio 运行时用于异步操作
+        let runtime = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                log::error!("创建Tokio运行时失败: {}", e);
+                return;
+            }
+        };
+
+        let count = load_icons_generic(
+            bookmarks,
+            |bookmark| bookmark.icon.is_some(),
+            |bookmark| runtime.block_on(async { fetch_favicon_async(&bookmark.content).await }),
+            |bookmark, icon| db::update_bookmark_icon(&bookmark.id, icon).map_err(|e| e.to_string()),
+            "书签",
+        );
+        
+        *bookmark_count_clone.lock().unwrap() = count;
     });
 
     // 在一个单独的线程中等待并发送通知，以避免阻塞UI
@@ -465,14 +570,15 @@ fn load_icons_with_combined_notification(
         let total_loaded = apps_loaded + bookmarks_loaded;
 
         info!("应用加载数量: {}, 书签加载数量: {}, 总共加载数量: {}", apps_loaded, bookmarks_loaded, total_loaded);
+        
         // 只有当确实加载了图标时才发送通知
         if total_loaded > 0 {
             let _ = app_handle
                 .notification()
                 .builder()
-                .title("图标加载完成")
+                .title("snippets-code")
                 .body(&format!(
-                    "共加载 {} 个图标 (应用: {}, 书签: {})",
+                    "图标加载完成：共 {} 个 (应用: {}, 书签: {})",
                     total_loaded, apps_loaded, bookmarks_loaded
                 ))
                 .show();

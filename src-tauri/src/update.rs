@@ -57,8 +57,8 @@ pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bo
                         if show_notification {
                             if let Err(e) = app.notification()
                                 .builder()
-                                .title("检查更新")
-                                .body("当前已是最新版本")
+                                .title("snippets-code")  // 在标题中包含应用名
+                                .body("检查更新：当前已是最新版本")
                                 .show() {
                                 log::warn!("显示通知失败: {}", e);
                             }

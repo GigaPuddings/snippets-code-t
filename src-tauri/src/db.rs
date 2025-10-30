@@ -13,9 +13,200 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::SystemTime;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+// ============= 数据库连接管理器 =============
+
+/// 数据库连接管理器 - 统一管理数据库连接并设置优化参数
+pub struct DbConnectionManager;
+
+impl DbConnectionManager {
+    /// 获取数据库连接并统一设置优化参数
+    pub fn get() -> Result<rusqlite::Connection, rusqlite::Error> {
+        let app = APP.get().unwrap();
+        let db_path = get_database_path(app);
+        let conn = rusqlite::Connection::open(db_path)?;
+        
+        // 统一设置数据库优化参数
+        // WAL模式：提升并发性能（持久化配置，只需设置一次但重复设置无害）
+        let _ = conn.execute("PRAGMA journal_mode=WAL", []);
+        // 降低磁盘同步频率：提升写入性能
+        let _ = conn.execute("PRAGMA synchronous=NORMAL", []);
+        // 增加缓存大小：提升查询性能
+        let _ = conn.execute("PRAGMA cache_size=10000", []);
+        // 临时数据存储在内存中：提升临时表性能
+        let _ = conn.execute("PRAGMA temp_store=memory", []);
+        
+        Ok(conn)
+    }
+    
+    // 获取数据库连接（不设置优化参数，用于特殊场景）
+    // pub fn get_raw() -> Result<rusqlite::Connection, rusqlite::Error> {
+    //     let app = APP.get().unwrap();
+    //     let db_path = get_database_path(app);
+    //     rusqlite::Connection::open(db_path)
+    // }
+}
+
+// ============= 通用数据库实体框架 =============
+
+/// 数据库实体 Trait - 定义通用的数据库操作接口
+#[allow(dead_code)]
+pub trait DbEntity: Sized {
+    /// 表名
+    const TABLE_NAME: &'static str;
+    /// 汇总类型（用于 summarize 字段）
+    const SUMMARIZE_TYPE: &'static str;
+    
+    /// 从数据库行构造实体
+    fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self>;
+    
+    /// 获取实体的 ID
+    fn id(&self) -> &str;
+    
+    /// 获取实体的标题
+    fn title(&self) -> &str;
+    
+    /// 获取实体的内容
+    fn content(&self) -> &str;
+    
+    /// 获取实体的图标
+    fn icon(&self) -> &Option<String>;
+    
+    /// 转换为 SQL 参数（用于插入）
+    fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>>;
+}
+
+/// 为 AppInfo 实现 DbEntity
+impl DbEntity for AppInfo {
+    const TABLE_NAME: &'static str = "apps";
+    const SUMMARIZE_TYPE: &'static str = "app";
+    
+    fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(AppInfo {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            content: row.get(2)?,
+            icon: row.get(3)?,
+            summarize: row.get(4)?,
+            usage_count: row.get(5)?,
+        })
+    }
+    
+    fn id(&self) -> &str { &self.id }
+    fn title(&self) -> &str { &self.title }
+    fn content(&self) -> &str { &self.content }
+    fn icon(&self) -> &Option<String> { &self.icon }
+    
+    fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>> {
+        vec![
+            Box::new(self.id.clone()),
+            Box::new(self.title.clone()),
+            Box::new(self.content.clone()),
+            Box::new(self.icon.clone()),
+            Box::new(self.summarize.clone()),
+        ]
+    }
+}
+
+/// 为 BookmarkInfo 实现 DbEntity
+impl DbEntity for BookmarkInfo {
+    const TABLE_NAME: &'static str = "bookmarks";
+    const SUMMARIZE_TYPE: &'static str = "bookmark";
+    
+    fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(BookmarkInfo {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            content: row.get(2)?,
+            icon: row.get(3)?,
+            summarize: row.get(4)?,
+            usage_count: row.get(5)?,
+        })
+    }
+    
+    fn id(&self) -> &str { &self.id }
+    fn title(&self) -> &str { &self.title }
+    fn content(&self) -> &str { &self.content }
+    fn icon(&self) -> &Option<String> { &self.icon }
+    
+    fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>> {
+        vec![
+            Box::new(self.id.clone()),
+            Box::new(self.title.clone()),
+            Box::new(self.content.clone()),
+            Box::new(self.icon.clone()),
+            Box::new(self.summarize.clone()),
+        ]
+    }
+}
+
+// ============= 通用数据库操作函数 =============
+
+/// 通用查询所有实体（带使用计数和排序）
+fn get_all_entities<T: DbEntity>() -> Result<Vec<T>, rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+
+    // 检查是否存在 created_at 列
+    let has_created_at = conn
+        .prepare(&format!("SELECT created_at FROM {} LIMIT 1", T::TABLE_NAME))
+        .is_ok();
+
+    // 使用 search_history 表中的 usage_count 来排序
+    let query = if has_created_at {
+        format!(
+            "SELECT t.id, t.title, t.content, t.icon, t.summarize, COALESCE(h.usage_count, 0) as usage_count
+             FROM {} t
+             LEFT JOIN search_history h ON t.id = h.id
+             ORDER BY COALESCE(h.usage_count, 0) DESC, t.created_at DESC",
+            T::TABLE_NAME
+        )
+    } else {
+        format!(
+            "SELECT t.id, t.title, t.content, t.icon, t.summarize, COALESCE(h.usage_count, 0) as usage_count
+             FROM {} t
+             LEFT JOIN search_history h ON t.id = h.id
+             ORDER BY COALESCE(h.usage_count, 0) DESC",
+            T::TABLE_NAME
+        )
+    };
+
+    let mut stmt = conn.prepare(&query)?;
+    let iter = stmt.query_map([], |row| T::from_row(row))?;
+    
+    iter.collect()
+}
+
+/// 通用更新图标
+fn update_entity_icon<T: DbEntity>(entity_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    conn.execute(
+        &format!("UPDATE {} SET icon = ?1 WHERE id = ?2", T::TABLE_NAME),
+        rusqlite::params![icon, entity_id],
+    )?;
+    Ok(())
+}
+
+/// 通用清空表
+fn clear_entities<T: DbEntity>() -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    conn.execute(&format!("DELETE FROM {}", T::TABLE_NAME), [])?;
+    Ok(())
+}
+
+/// 通用计数
+fn count_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    let count = conn.query_row(
+        &format!("SELECT COUNT(*) FROM {}", T::TABLE_NAME),
+        [],
+        |row| row.get(0)
+    )?;
+    Ok(count)
+}
 
 // 历史记录项
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -45,15 +236,7 @@ pub fn get_db_path() -> String {
 
 // 初始化数据库 - 分阶段初始化优化性能
 pub fn init_db() -> Result<(), rusqlite::Error> {
-    let app = APP.get().unwrap();
-    let db_path = get_database_path(app);
-    let conn = rusqlite::Connection::open(db_path)?;
-    
-    // 设置数据库优化参数（忽略可能的返回值，避免execute错误）
-    let _ = conn.execute("PRAGMA journal_mode=WAL", []);  // 使用WAL模式提升并发性能
-    let _ = conn.execute("PRAGMA synchronous=NORMAL", []);  // 减少磁盘同步提升性能
-    let _ = conn.execute("PRAGMA cache_size=10000", []);  // 增加缓存大小
-    let _ = conn.execute("PRAGMA temp_store=memory", []);  // 临时数据存储在内存中
+    let conn = DbConnectionManager::get()?;
 
     // 创建 apps 表
     conn.execute(
@@ -141,6 +324,15 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    // 创建索引以优化查询性能
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_usage ON search_history(usage_count DESC)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_last_used ON search_history(last_used_at DESC)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_apps_usage ON apps(usage_count DESC)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_usage ON bookmarks(usage_count DESC)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_apps_created ON apps(created_at DESC)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_created ON bookmarks(created_at DESC)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_icon_cache_timestamp ON icon_cache(timestamp)", []);
+
     Ok(())
 }
 
@@ -148,15 +340,7 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
 pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 第一阶段：快速初始化核心表
     tokio::task::spawn_blocking(|| -> Result<(), rusqlite::Error> {
-        let app = APP.get().unwrap();
-        let db_path = get_database_path(app);
-        let conn = rusqlite::Connection::open(db_path)?;
-        
-        // 设置数据库优化参数（忽略可能的返回值）
-        let _ = conn.execute("PRAGMA journal_mode=WAL", []);
-        let _ = conn.execute("PRAGMA synchronous=NORMAL", []);
-        let _ = conn.execute("PRAGMA cache_size=10000", []);
-        let _ = conn.execute("PRAGMA temp_store=memory", []);
+        let conn = DbConnectionManager::get()?;
         
         // 核心表：apps 和 bookmarks（用户最常用的功能）
         conn.execute(
@@ -189,9 +373,7 @@ pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sy
     
     // 第二阶段：初始化辅助表
     tokio::task::spawn_blocking(|| -> Result<(), rusqlite::Error> {
-        let app = APP.get().unwrap();
-        let db_path = get_database_path(app);
-        let conn = rusqlite::Connection::open(db_path)?;
+        let conn = DbConnectionManager::get()?;
         
         // 辅助表：图标缓存和搜索引擎
         conn.execute(
@@ -220,9 +402,7 @@ pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sy
     
     // 第三阶段：初始化其他表
     tokio::task::spawn_blocking(move || -> Result<(), rusqlite::Error> {
-        let app = APP.get().unwrap();
-        let db_path = get_database_path(app);
-        let conn = rusqlite::Connection::open(db_path)?;
+        let conn = DbConnectionManager::get()?;
         
         // 其他表
         conn.execute(
@@ -250,6 +430,15 @@ pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sy
             [],
         )?;
         
+        // 创建索引以优化查询性能
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_usage ON search_history(usage_count DESC)", []);
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_last_used ON search_history(last_used_at DESC)", []);
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_apps_usage ON apps(usage_count DESC)", []);
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_usage ON bookmarks(usage_count DESC)", []);
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_apps_created ON apps(created_at DESC)", []);
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_created ON bookmarks(created_at DESC)", []);
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_icon_cache_timestamp ON icon_cache(timestamp)", []);
+        
         Ok(())
     }).await??;
     
@@ -259,9 +448,7 @@ pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sy
 
 // 批量插入或替换应用
 pub fn insert_apps(apps: &[AppInfo]) -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
 
     let mut stmt = conn.prepare(
         "INSERT OR REPLACE INTO apps (id, title, content, icon, summarize) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -282,83 +469,27 @@ pub fn insert_apps(apps: &[AppInfo]) -> Result<(), rusqlite::Error> {
 
 // 获取所有应用（按创建时间倒序和使用频率排序）
 pub fn get_all_apps() -> Result<Vec<AppInfo>, rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-
-    // 检查是否存在 created_at 列
-    let has_created_at = conn
-        .prepare("SELECT created_at FROM apps LIMIT 1")
-        .is_ok();
-
-    // 使用 search_history 表中的 usage_count 来排序
-    let query = if has_created_at {
-        "SELECT a.id, a.title, a.content, a.icon, a.summarize, COALESCE(h.usage_count, 0) as usage_count
-         FROM apps a
-         LEFT JOIN search_history h ON a.id = h.id
-         ORDER BY COALESCE(h.usage_count, 0) DESC, a.created_at DESC"
-    } else {
-        "SELECT a.id, a.title, a.content, a.icon, a.summarize, COALESCE(h.usage_count, 0) as usage_count
-         FROM apps a
-         LEFT JOIN search_history h ON a.id = h.id
-         ORDER BY COALESCE(h.usage_count, 0) DESC"
-    };
-
-    let mut stmt = conn.prepare(query)?;
-    let app_iter = stmt.query_map([], |row| {
-        Ok(AppInfo {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            content: row.get(2)?,
-            icon: row.get(3)?,
-            summarize: row.get(4)?,
-            usage_count: row.get(5)?,
-        })
-    })?;
-
-    let mut apps = Vec::new();
-    for app in app_iter {
-        apps.push(app?);
-    }
-
-    Ok(apps)
+    get_all_entities::<AppInfo>()
 }
 
 // 更新应用图标
 pub fn update_app_icon(app_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-    conn.execute(
-        "UPDATE apps SET icon = ?1 WHERE id = ?2",
-        rusqlite::params![icon, app_id],
-    )?;
-    Ok(())
+    update_entity_icon::<AppInfo>(app_id, icon)
 }
 
 // 清空 apps 表
 pub fn clear_apps() -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-    conn.execute("DELETE FROM apps", [])?;
-    Ok(())
+    clear_entities::<AppInfo>()
 }
 
 // 获取应用数量
 pub fn count_apps() -> Result<i64, rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-    let count = conn.query_row("SELECT COUNT(*) FROM apps", [], |row| row.get(0))?;
-    Ok(count)
+    count_entities::<AppInfo>()
 }
 
 // 获取所有搜索引擎
 pub fn get_all_search_engines() -> Result<Vec<SearchEngine>, rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
 
     let mut stmt =
         conn.prepare("SELECT id, keyword, name, icon, url, enabled FROM search_engines")?;
@@ -382,9 +513,7 @@ pub fn get_all_search_engines() -> Result<Vec<SearchEngine>, rusqlite::Error> {
 
 // 替换所有搜索引擎
 pub fn replace_all_search_engines(engines: &[SearchEngine]) -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let mut conn = rusqlite::Connection::open(db_path)?;
+    let mut conn = DbConnectionManager::get()?;
     let tx = conn.transaction()?;
 
     tx.execute("DELETE FROM search_engines", [])?;
@@ -419,9 +548,7 @@ pub fn replace_all_search_engines(engines: &[SearchEngine]) -> Result<(), rusqli
 
 // 获取所有提醒卡片
 pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
     let mut stmt = conn.prepare("SELECT id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_dates FROM alarm_cards")?;
     let card_iter = stmt.query_map([], |row| {
         let weekdays_str: String = row.get(3)?;
@@ -464,9 +591,7 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
 
 // 添加或更新提醒卡片
 pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
     let weekdays_str = serde_json::to_string(&card.weekdays).unwrap_or_default();
     let alarm_type_str = match card.alarm_type {
         crate::alarm::AlarmType::Daily => "Daily",
@@ -494,9 +619,7 @@ pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error>
 
 // 删除提醒卡片
 pub fn delete_alarm_card_from_db(id: &str) -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
     conn.execute(
         "DELETE FROM alarm_cards WHERE id = ?1",
         rusqlite::params![id],
@@ -515,9 +638,7 @@ pub fn delete_alarm_card_from_db(id: &str) -> Result<(), rusqlite::Error> {
 
 // 添加或更新搜索历史
 pub fn add_search_history_item(id: &str) -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
     let now = Local::now().to_rfc3339();
 
     conn.execute(
@@ -533,9 +654,7 @@ pub fn add_search_history_item(id: &str) -> Result<(), rusqlite::Error> {
 
 // 获取所有搜索历史
 pub fn get_all_search_history() -> Result<Vec<SearchHistoryItem>, rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
 
     let mut stmt = conn.prepare("SELECT id, usage_count, last_used_at FROM search_history")?;
     let history_iter = stmt.query_map([], |row| {
@@ -553,11 +672,60 @@ pub fn get_all_search_history() -> Result<Vec<SearchHistoryItem>, rusqlite::Erro
     Ok(history)
 }
 
+// 清理过期的搜索历史（保留最近6个月的数据和使用次数>5的记录）
+pub fn cleanup_old_search_history() -> Result<usize, rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    
+    // 删除6个月前且使用次数少于5次的记录
+    let rows_affected = conn.execute(
+        "DELETE FROM search_history 
+         WHERE datetime(last_used_at) < datetime('now', '-6 months')
+         AND usage_count < 5",
+        [],
+    )?;
+    
+    log::info!("清理了 {} 条过期的搜索历史记录", rows_affected);
+    Ok(rows_affected)
+}
+
+// 清理过期的图标缓存（删除超过30天的缓存）
+pub fn cleanup_old_icon_cache() -> Result<usize, rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    
+    let thirty_days_ago = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() - (30 * 24 * 3600);
+    
+    let rows_affected = conn.execute(
+        "DELETE FROM icon_cache WHERE timestamp < ?1",
+        rusqlite::params![thirty_days_ago],
+    )?;
+    
+    log::info!("清理了 {} 条过期的图标缓存记录", rows_affected);
+    Ok(rows_affected)
+}
+
+// 优化数据库（VACUUM 和 ANALYZE）
+pub fn optimize_database() -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    
+    log::info!("开始优化数据库...");
+    
+    // 收集统计信息以优化查询计划
+    conn.execute("ANALYZE", [])?;
+    
+    // 如果数据库空间浪费较多，执行 VACUUM
+    // 注意：VACUUM 可能耗时较长，建议在后台执行
+    // conn.execute("VACUUM", [])?;
+    
+    log::info!("数据库优化完成");
+    Ok(())
+}
+
 // 从数据库加载所有图标缓存
 pub fn load_all_icon_cache() -> Result<HashMap<String, CachedIcon>, rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
 
     let mut stmt = conn.prepare("SELECT key, data, timestamp FROM icon_cache")?;
     let cache_iter = stmt.query_map([], |row| {
@@ -580,9 +748,7 @@ pub fn load_all_icon_cache() -> Result<HashMap<String, CachedIcon>, rusqlite::Er
 
 // 将图标插入缓存数据库
 pub fn insert_icon_to_cache(key: &str, icon: &CachedIcon) -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
     conn.execute(
         "INSERT OR REPLACE INTO icon_cache (key, data, timestamp) VALUES (?1, ?2, ?3)",
         rusqlite::params![key, icon.data, icon.timestamp],
@@ -601,9 +767,7 @@ pub fn insert_icon_to_cache(key: &str, icon: &CachedIcon) -> Result<(), rusqlite
 
 // 批量插入或替换书签
 pub fn insert_bookmarks(bookmarks: &[BookmarkInfo]) -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = DbConnectionManager::get()?;
 
     let mut stmt = conn.prepare(
         "INSERT OR REPLACE INTO bookmarks (id, title, content, icon, summarize) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -624,76 +788,22 @@ pub fn insert_bookmarks(bookmarks: &[BookmarkInfo]) -> Result<(), rusqlite::Erro
 
 // 获取所有书签（按创建时间倒序和使用频率排序）
 pub fn get_all_bookmarks() -> Result<Vec<BookmarkInfo>, rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-
-    // 检查是否存在 created_at 列
-    let has_created_at = conn
-        .prepare("SELECT created_at FROM bookmarks LIMIT 1")
-        .is_ok();
-
-    // 使用 search_history 表中的 usage_count 来排序
-    let query = if has_created_at {
-        "SELECT b.id, b.title, b.content, b.icon, b.summarize, COALESCE(h.usage_count, 0) as usage_count
-         FROM bookmarks b
-         LEFT JOIN search_history h ON b.id = h.id
-         ORDER BY COALESCE(h.usage_count, 0) DESC, b.created_at DESC"
-    } else {
-        "SELECT b.id, b.title, b.content, b.icon, b.summarize, COALESCE(h.usage_count, 0) as usage_count
-         FROM bookmarks b
-         LEFT JOIN search_history h ON b.id = h.id
-         ORDER BY COALESCE(h.usage_count, 0) DESC"
-    };
-
-    let mut stmt = conn.prepare(query)?;
-    let bookmark_iter = stmt.query_map([], |row| {
-        Ok(BookmarkInfo {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            content: row.get(2)?,
-            icon: row.get(3)?,
-            summarize: row.get(4)?,
-            usage_count: row.get(5)?,
-        })
-    })?;
-
-    let mut bookmarks = Vec::new();
-    for bookmark in bookmark_iter {
-        bookmarks.push(bookmark?);
-    }
-
-    Ok(bookmarks)
+    get_all_entities::<BookmarkInfo>()
 }
 
 // 更新书签图标
 pub fn update_bookmark_icon(bookmark_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-    conn.execute(
-        "UPDATE bookmarks SET icon = ?1 WHERE id = ?2",
-        rusqlite::params![icon, bookmark_id],
-    )?;
-    Ok(())
+    update_entity_icon::<BookmarkInfo>(bookmark_id, icon)
 }
 
 // 清空 bookmarks 表
 pub fn clear_bookmarks() -> Result<(), rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-    conn.execute("DELETE FROM bookmarks", [])?;
-    Ok(())
+    clear_entities::<BookmarkInfo>()
 }
 
 // 获取书签数量
 pub fn count_bookmarks() -> Result<i64, rusqlite::Error> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path)?;
-    let count = conn.query_row("SELECT COUNT(*) FROM bookmarks", [], |row| row.get(0))?;
-    Ok(count)
+    count_entities::<BookmarkInfo>()
 }
 
 // ============= 本地应用管理 (单个操作) =============
@@ -701,9 +811,7 @@ pub fn count_bookmarks() -> Result<i64, rusqlite::Error> {
 // 添加单个应用
 #[tauri::command]
 pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<String, String> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
     
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
@@ -717,9 +825,7 @@ pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<S
 // 更新单个应用
 #[tauri::command]
 pub fn update_app(id: String, title: String, content: String, icon: Option<String>) -> Result<(), String> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
     
     conn.execute(
         "UPDATE apps SET title = ?1, content = ?2, icon = ?3 WHERE id = ?4",
@@ -732,9 +838,7 @@ pub fn update_app(id: String, title: String, content: String, icon: Option<Strin
 // 删除单个应用
 #[tauri::command]
 pub fn delete_app(id: String) -> Result<(), String> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
     
     conn.execute(
         "DELETE FROM apps WHERE id = ?1",
@@ -755,9 +859,7 @@ pub fn get_apps() -> Result<Vec<crate::apps::AppInfo>, String> {
 // 添加单个书签
 #[tauri::command]
 pub fn add_bookmark(title: String, content: String, icon: Option<String>) -> Result<String, String> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
     
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
@@ -771,9 +873,7 @@ pub fn add_bookmark(title: String, content: String, icon: Option<String>) -> Res
 // 更新单个书签
 #[tauri::command]
 pub fn update_bookmark(id: String, title: String, content: String, icon: Option<String>) -> Result<(), String> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
     
     conn.execute(
         "UPDATE bookmarks SET title = ?1, content = ?2, icon = ?3 WHERE id = ?4",
@@ -786,9 +886,7 @@ pub fn update_bookmark(id: String, title: String, content: String, icon: Option<
 // 删除单个书签
 #[tauri::command]
 pub fn delete_bookmark(id: String) -> Result<(), String> {
-    let app_handle = APP.get().unwrap();
-    let db_path = get_database_path(app_handle);
-    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
     
     conn.execute(
         "DELETE FROM bookmarks WHERE id = ?1",

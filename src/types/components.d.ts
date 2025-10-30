@@ -35,7 +35,6 @@ declare module 'vue' {
     ElSkeleton: typeof import('element-plus/es')['ElSkeleton']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
     ElTag: typeof import('element-plus/es')['ElTag']
-    ElText: typeof import('element-plus/es')['ElText']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     General: typeof import('./../components/SettingsContent/components/General/index.vue')['default']
     Local: typeof import('./../pages/config/components/local/index.vue')['default']

@@ -24,6 +24,7 @@ use crate::db::{
     add_search_history, backup_database, get_db_path, get_search_history, restore_database,
     set_custom_db_path,add_app, update_app, delete_app, get_apps,
     add_bookmark, update_bookmark, delete_bookmark, get_bookmarks,
+    cleanup_old_search_history, cleanup_old_icon_cache, optimize_database,
 };
 use crate::translation::translate_text;
 use crate::update::{
@@ -61,6 +62,63 @@ pub static APP: OnceLock<AppHandle> = OnceLock::new();
 
 // 存储上一次的搜索框位置
 static OLD_RECT: Mutex<Option<(f64, f64, f64, f64)>> = Mutex::new(None);
+
+// 清理旧日志文件（保留最近7天的日志）
+fn cleanup_old_logs() {
+    use std::fs;
+    use std::time::{SystemTime, Duration};
+    
+    let app = match APP.get() {
+        Some(app) => app,
+        None => return,
+    };
+    
+    // 获取日志目录
+    let log_dir = match app.path().app_log_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            log::warn!("无法获取日志目录: {}", e);
+            return;
+        }
+    };
+    
+    if !log_dir.exists() {
+        return;
+    }
+    
+    let now = SystemTime::now();
+    let seven_days_ago = now - Duration::from_secs(7 * 24 * 3600);
+    
+    let mut cleaned_count = 0;
+    let mut cleaned_size = 0u64;
+    
+    // 遍历日志目录
+    if let Ok(entries) = fs::read_dir(&log_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            
+            // 只处理.log文件
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("log") {
+                // 检查文件修改时间
+                if let Ok(metadata) = fs::metadata(&path) {
+                    if let Ok(modified) = metadata.modified() {
+                        // 删除7天前的日志文件
+                        if modified < seven_days_ago {
+                            cleaned_size += metadata.len();
+                            if fs::remove_file(&path).is_ok() {
+                                cleaned_count += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if cleaned_count > 0 {
+        log::info!("清理了 {} 个旧日志文件，释放空间 {} KB", cleaned_count, cleaned_size / 1024);
+    }
+}
 
 // 鼠标事件穿透
 #[tauri::command]
@@ -257,6 +315,25 @@ pub fn run() {
                         log::error!("回退数据库初始化也失败: {}", e2);
                     }
                 }
+                
+                // 在后台执行数据库清理和优化（延迟30秒避免影响启动速度）
+                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                
+                // 清理过期数据
+                if let Err(e) = cleanup_old_search_history() {
+                    log::warn!("清理搜索历史失败: {}", e);
+                }
+                if let Err(e) = cleanup_old_icon_cache() {
+                    log::warn!("清理图标缓存失败: {}", e);
+                }
+                
+                // 优化数据库
+                if let Err(e) = optimize_database() {
+                    log::warn!("数据库优化失败: {}", e);
+                }
+                
+                // 清理旧日志文件（保留最近7天）
+                cleanup_old_logs();
             });
             // 异步创建托盘图标（避免阻塞启动）
             #[cfg(all(desktop))]
@@ -271,14 +348,14 @@ pub fn run() {
             // Register Global Shortcut
             match register_shortcut("all") {
                 Ok(()) => {}
-                Err(e) => app
-                    .notification()
-                    .builder()
-                    .title("Failed to register global shortcut")
-                    .body(&e)
-                    .icon("pot")
-                    .show()
-                    .unwrap(),
+                Err(e) => {
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("snippets-code")
+                        .body(&format!("快捷键注册失败：{}", e))
+                        .show();
+                }
             }
             // 启动代办提醒检查服务
             alarm::start_alarm_service(app.handle().clone());
@@ -309,19 +386,19 @@ pub fn run() {
                 }
             }
 
-            // 立即开始初始化应用和书签图标（优先级更高）
+            // 延迟初始化应用和书签图标（降低启动压力）
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // 减少延迟至200ms，优先加载图标提升用户体验
-                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                // 延迟5秒后才开始加载图标，确保窗口已完全加载
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 init_app_and_bookmark_icons(&app_handle_clone);
             });
 
-            // 延迟启动更新检查（降低优先级）
+            // 延迟启动更新检查（大幅降低优先级，避免影响启动）
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // 延迟3秒后检查更新，避免与关键功能竞争资源
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                // 延迟10秒后检查更新，确保应用已完全启动
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 if get_auto_update_check(app_handle.clone()) {
                     if let Err(e) = check_update(&app_handle, false).await {
                         log::warn!("启动时检查更新失败: {}", e);
@@ -334,16 +411,19 @@ pub fn run() {
                 args => args.iter().any(|arg| arg == "--flag1" || arg == "--flag2"),
             };
 
-            if !is_auto_start {
-                // 显示加载页面，并在一段时间后显示主窗口
+            if is_auto_start {
+                // 开机自启时不显示窗口，静默启动提升速度
+                log::info!("检测到开机自启动，采用静默启动模式");
+            } else {
+                // 手动启动时显示加载页面
                 if let Some(loading_window) = app.get_webview_window("loading") {
                     loading_window.show().unwrap();
 
                     // 优化后台加载过程，减少等待时间并使用异步睡眠
                     let loading_window_clone = loading_window.clone();
                     tauri::async_runtime::spawn(async move {
-                        // 减少等待时间至1.5秒，并使用异步睡眠避免阻塞
-                        tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+                        // 进一步减少等待时间至1秒，提升用户体验
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
                         // 关闭加载窗口
                         let _ = loading_window_clone.hide();

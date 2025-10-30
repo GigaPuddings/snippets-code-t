@@ -1075,44 +1075,61 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
         }
     });
 
-    // 去除重复应用（基于路径去重和名称去重）
+    // 去除重复应用（基于路径和标题的组合去重）
     let mut unique_apps = Vec::new();
     let mut seen_paths = HashSet::new();
     let mut seen_titles = HashSet::new();
+    let initial_count = all_apps.len();
 
     for app in all_apps {
         // 标准化路径（转为小写以忽略大小写差异）
         let normalized_path = app.content.to_lowercase();
+        // 标准化标题（用于去除不同路径的同名应用）
+        let normalized_title = app.title.to_lowercase().trim().to_string();
 
         // 检查是否重复的路径
-        if !seen_paths.contains(&normalized_path) {
-            seen_paths.insert(normalized_path);
-
-            // 对于Microsoft Office应用，检查标题是否相同
-            if app.title.contains("Microsoft")
-                && (app.title.contains("Word")
-                    || app.title.contains("Excel")
-                    || app.title.contains("PowerPoint")
-                    || app.title.contains("Outlook")
-                    || app.title.contains("Access")
-                    || app.title.contains("Publisher")
-                    || app.title.contains("OneNote"))
-            {
-                // 如果已经存在相同标题的应用，跳过当前应用
-                if seen_titles.contains(&app.title) {
-                    info!("跳过重复的Office应用 {}: {}", app.title, app.content);
-                    continue;
-                }
-
-                // 记录此标题已被处理
-                seen_titles.insert(app.title.clone());
-            }
-
-            // 添加非重复应用
-            unique_apps.push(app);
+        if seen_paths.contains(&normalized_path) {
+            continue; // 跳过相同路径的应用
         }
+
+        // 对于Microsoft Office应用，特殊处理：只保留第一个同名应用
+        if app.title.contains("Microsoft")
+            && (app.title.contains("Word")
+                || app.title.contains("Excel")
+                || app.title.contains("PowerPoint")
+                || app.title.contains("Outlook")
+                || app.title.contains("Access")
+                || app.title.contains("Publisher")
+                || app.title.contains("OneNote"))
+        {
+            if seen_titles.contains(&app.title) {
+                info!("跳过重复的Office应用 {}: {}", app.title, app.content);
+                continue;
+            }
+            seen_titles.insert(app.title.clone());
+        } 
+        // 对于其他应用，检查标题是否重复（避免 "Snippets Code" 和 "snippets-code" 同时存在）
+        else if seen_titles.contains(&normalized_title) {
+            info!("跳过同名应用 {}: {}", app.title, app.content);
+            continue;
+        }
+
+        // 记录此路径和标题
+        seen_paths.insert(normalized_path);
+        seen_titles.insert(normalized_title);
+
+        // 添加非重复应用
+        unique_apps.push(app);
     }
 
+    let deduplicated_count = unique_apps.len();
+    if initial_count > deduplicated_count {
+        info!(
+            "应用去重完成: {} 个 -> {} 个（移除 {} 个重复）",
+            initial_count, deduplicated_count, initial_count - deduplicated_count
+        );
+    }
+    
     info!(
         "应用检索完成，总共找到 {} 个不重复应用程序",
         unique_apps.len()
@@ -1121,31 +1138,26 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
 }
 
 // 在背景线程中加载应用程序图标 (无通知版本)
+#[allow(dead_code)]
 pub fn load_app_icons_async_silent(
     apps: Vec<AppInfo>,
     updated_count: std::sync::Arc<std::sync::Mutex<usize>>,
     completion_counter: std::sync::Arc<std::sync::Mutex<usize>>,
 ) {
-    let mut count = 0;
-
-    info!("开始加载应用程序图标: {} 个应用", apps.len());
-
-    for app in apps {
-        // 只处理没有图标的应用程序
-        if app.icon.is_none() {
-            // info!("正在为 '{}' 提取图标: {}", app.title, app.content);
-            if let Some(icon_data) = icon::extract_app_icon(&app.content) {
-                // info!("成功获取 '{}' 的图标", app.title);
-                if let Err(e) = db::update_app_icon(&app.id, &icon_data) {
-                    info!("Failed to update app icon in db: {}", e);
-                } else {
-                    count += 1;
-                }
-            } else {
+    // 使用通用图标加载器
+    let count = icon::load_icons_generic(
+        apps,
+        |app| app.icon.is_some(),
+        |app| {
+            let result = icon::extract_app_icon(&app.content);
+            if result.is_none() {
                 info!("为 '{}' 提取图标失败，使用默认图标", app.title);
             }
-        }
-    }
+            result
+        },
+        |app, icon| db::update_app_icon(&app.id, icon).map_err(|e| e.to_string()),
+        "应用程序",
+    );
 
     // 更新计数
     {
@@ -1158,8 +1170,6 @@ pub fn load_app_icons_async_silent(
         let mut complete = completion_counter.lock().unwrap();
         *complete += 1;
     }
-
-    info!("已完成加载应用程序图标: {} 个成功", count);
 }
 
 struct EnumWindowsCallbackArgs {

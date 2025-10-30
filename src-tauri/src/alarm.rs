@@ -572,13 +572,12 @@ pub fn remind_notification_window(title: String, reminder_time: String) {
 
     thread::spawn(move || {
         thread::sleep(StdDuration::from_secs((reminder_minutes * 60) as u64));
-        handle_reminder
+        let _ = handle_reminder
             .notification()
             .builder()
-            .title("稍后提醒")
-            .body(&title)
-            .show()
-            .unwrap();
+            .title("snippets-code")
+            .body(&format!("稍后提醒：{}", title))
+            .show();
         info!(
             "稍后提醒完成, 时间: {}",
             Local::now().format("%Y-%m-%d %H:%M:%S")

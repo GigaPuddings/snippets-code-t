@@ -69,238 +69,181 @@ enum BrowserType {
 //     BrowserType::Unknown
 // }
 
-// 获取Chrome浏览器favicon数据库路径
-fn get_chrome_favicon_db_path() -> Option<PathBuf> {
-    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-    let paths = [
-        format!(
-            "{}\\Google\\Chrome\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\Google\\Chrome\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-    ];
+// ============= 浏览器路径配置 =============
 
-    for path in paths {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() {
-            return Some(path_buf);
+/// 浏览器配置结构
+struct BrowserConfig {
+    name: &'static str,
+    env_var: &'static str,  // LOCALAPPDATA 或 APPDATA
+    paths: &'static [&'static str],
+    enable_log: bool,  // 是否启用日志输出
+}
+
+/// 所有支持的浏览器配置
+const BROWSERS: &[BrowserConfig] = &[
+    BrowserConfig {
+        name: "Chrome",
+        env_var: "LOCALAPPDATA",
+        paths: &[
+            "Google\\Chrome\\User Data\\Default\\Favicons",
+            "Google\\Chrome\\User Data\\Profile 1\\Favicons",
+        ],
+        enable_log: false,
+    },
+    BrowserConfig {
+        name: "Edge",
+        env_var: "LOCALAPPDATA",
+        paths: &[
+            "Microsoft\\Edge\\User Data\\Default\\Favicons",
+            "Microsoft\\Edge\\User Data\\Profile 1\\Favicons",
+        ],
+        enable_log: false,
+    },
+    BrowserConfig {
+        name: "360Speed",
+        env_var: "LOCALAPPDATA",
+        paths: &[
+            "360Chrome\\Chrome\\User Data\\Default\\Favicons",
+            "360Chrome\\Chrome\\User Data\\Profile 1\\Favicons",
+        ],
+        enable_log: false,
+    },
+    BrowserConfig {
+        name: "QQBrowser",
+        env_var: "LOCALAPPDATA",
+        paths: &[
+            "Tencent\\QQBrowser\\User Data\\Default\\Favicons",
+            "Tencent\\QQBrowser\\User Data\\Profile 1\\Favicons",
+        ],
+        enable_log: false,
+    },
+    BrowserConfig {
+        name: "Brave",
+        env_var: "LOCALAPPDATA",
+        paths: &[
+            "BraveSoftware\\Brave-Browser\\User Data\\Default\\Favicons",
+            "BraveSoftware\\Brave-Browser\\User Data\\Profile 1\\Favicons",
+        ],
+        enable_log: false,
+    },
+    BrowserConfig {
+        name: "Vivaldi",
+        env_var: "LOCALAPPDATA",
+        paths: &[
+            "Vivaldi\\User Data\\Default\\Favicons",
+            "Vivaldi\\User Data\\Profile 1\\Favicons",
+        ],
+        enable_log: false,
+    },
+    BrowserConfig {
+        name: "Opera",
+        env_var: "APPDATA",
+        paths: &[
+            "Opera Software\\Opera Stable\\Favicons",
+            "Opera Software\\Opera GX Stable\\Favicons",
+        ],
+        enable_log: false,
+    },
+    BrowserConfig {
+        name: "ChromeCore",
+        env_var: "LOCALAPPDATA",
+        paths: &[
+            "ChromeCore\\User Data\\Default\\Favicons",
+            "ChromeCore\\User Data\\Profile 1\\Favicons",
+        ],
+        enable_log: true,
+    },
+    BrowserConfig {
+        name: "ShuangHe",
+        env_var: "LOCALAPPDATA",
+        paths: &[
+            "Chromium\\GbrowserData\\Default\\Favicons",
+            "Chromium\\GbrowserData\\Profile 1\\Favicons",
+            "ShuangHeKeJi\\ShuangHe\\User Data\\Default\\Favicons",
+            "ShuangHeKeJi\\ShuangHe\\User Data\\Profile 1\\Favicons",
+            "双核科技\\双核浏览器\\User Data\\Default\\Favicons",
+            "双核科技\\双核浏览器\\User Data\\Profile 1\\Favicons",
+            "ShuangHeBrowser\\User Data\\Default\\Favicons",
+            "ShuangHeBrowser\\User Data\\Profile 1\\Favicons",
+            "ChromeCore\\User Data\\Default\\Favicons",
+            "ChromeCore\\User Data\\Profile 1\\Favicons",
+        ],
+        enable_log: true,
+    },
+];
+
+/// 通用浏览器路径查找函数
+fn find_browser_favicon_path(config: &BrowserConfig) -> Option<PathBuf> {
+    let base = std::env::var(config.env_var).ok()?;
+    
+    for path_template in config.paths {
+        let path = PathBuf::from(format!("{}\\{}", base, path_template));
+        if path.exists() {
+            if config.enable_log {
+                info!("找到{}浏览器favicon数据库: {:?}", config.name, path);
+            }
+            return Some(path);
         }
     }
+    
+    if config.enable_log {
+        info!("未找到{}浏览器favicon数据库", config.name);
+    }
     None
+}
+
+/// 根据浏览器名称查找配置
+fn get_browser_config(name: &str) -> Option<&'static BrowserConfig> {
+    BROWSERS.iter().find(|b| b.name == name)
+}
+
+// 兼容性包装函数 - 保持向后兼容
+fn get_chrome_favicon_db_path() -> Option<PathBuf> {
+    get_browser_config("Chrome").and_then(find_browser_favicon_path)
 }
 
 fn get_edge_favicon_db_path() -> Option<PathBuf> {
-    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-    let paths = [
-        format!(
-            "{}\\Microsoft\\Edge\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\Microsoft\\Edge\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-    ];
-
-    for path in paths {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() {
-            return Some(path_buf);
-        }
-    }
-    None
+    get_browser_config("Edge").and_then(find_browser_favicon_path)
 }
 
-// 获取360浏览器favicon数据库路径
 fn get_360_speed_favicon_db_path() -> Option<PathBuf> {
-    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-    let paths = [
-        format!(
-            "{}\\360Chrome\\Chrome\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\360Chrome\\Chrome\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-    ];
-
-    for path in paths {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() {
-            return Some(path_buf);
-        }
-    }
-    None
+    get_browser_config("360Speed").and_then(find_browser_favicon_path)
 }
 
-// 获取QQ浏览器favicon数据库路径
 fn get_qq_browser_favicon_db_path() -> Option<PathBuf> {
-    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-    let paths = [
-        format!(
-            "{}\\Tencent\\QQBrowser\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\Tencent\\QQBrowser\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-    ];
-
-    for path in paths {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() {
-            return Some(path_buf);
-        }
-    }
-    None
+    get_browser_config("QQBrowser").and_then(find_browser_favicon_path)
 }
 
 fn get_brave_favicon_db_path() -> Option<PathBuf> {
-    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-    let paths = [
-        format!(
-            "{}\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\BraveSoftware\\Brave-Browser\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-    ];
-
-    for path in paths {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() {
-            return Some(path_buf);
-        }
-    }
-    None
+    get_browser_config("Brave").and_then(find_browser_favicon_path)
 }
 
-// 获取Vivaldi浏览器favicon数据库路径
 fn get_vivaldi_favicon_db_path() -> Option<PathBuf> {
-    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-    let paths = [
-        format!("{}\\Vivaldi\\User Data\\Default\\Favicons", local_app_data),
-        format!(
-            "{}\\Vivaldi\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-    ];
-
-    for path in paths {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() {
-            return Some(path_buf);
-        }
-    }
-    None
+    get_browser_config("Vivaldi").and_then(find_browser_favicon_path)
 }
 
 fn get_opera_favicon_db_path() -> Option<PathBuf> {
-    let app_data = std::env::var("APPDATA").ok()?;
-    let paths = [
-        format!("{}\\Opera Software\\Opera Stable\\Favicons", app_data),
-        format!("{}\\Opera Software\\Opera GX Stable\\Favicons", app_data),
-    ];
-
-    for path in paths {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() {
-            return Some(path_buf);
-        }
-    }
-    None
+    get_browser_config("Opera").and_then(find_browser_favicon_path)
 }
 
-// 获取ChromeCore浏览器favicon数据库路径
 fn get_chromecore_favicon_db_path() -> Option<PathBuf> {
-    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-    let paths = [
-        format!(
-            "{}\\ChromeCore\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\ChromeCore\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-    ];
-
-    for path in paths {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() {
-            info!("找到ChromeCore浏览器favicon数据库: {:?}", path_buf);
-            return Some(path_buf);
-        }
-    }
-    info!("未找到ChromeCore浏览器favicon数据库");
-    None
+    get_browser_config("ChromeCore").and_then(find_browser_favicon_path)
 }
 
-// 获取双核浏览器favicon数据库路径
 fn get_shuanghe_favicon_db_path() -> Option<PathBuf> {
-    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-    // 双核浏览器可能的Favicon数据库路径
-    let paths = [
-        // 新增双核浏览器特定路径
-        format!(
-            "{}\\Chromium\\GbrowserData\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\Chromium\\GbrowserData\\Profile 1\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\ShuangHeKeJi\\ShuangHe\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\ShuangHeKeJi\\ShuangHe\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\双核科技\\双核浏览器\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\双核科技\\双核浏览器\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\ShuangHeBrowser\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\ShuangHeBrowser\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-        // 添加ChromeCore路径
-        format!(
-            "{}\\ChromeCore\\User Data\\Default\\Favicons",
-            local_app_data
-        ),
-        format!(
-            "{}\\ChromeCore\\User Data\\Profile 1\\Favicons",
-            local_app_data
-        ),
-    ];
+    get_browser_config("ShuangHe").and_then(find_browser_favicon_path)
+}
 
-    for path in paths {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() {
-            info!("找到双核浏览器favicon数据库: {:?}", path_buf);
-            return Some(path_buf);
-        }
-    }
-    info!("未找到双核浏览器favicon数据库");
-    None
+/// 获取所有已安装浏览器的 Favicon 数据库路径
+/// 返回一个 HashMap，键为浏览器名称，值为数据库路径
+#[allow(dead_code)]
+fn get_all_browser_favicon_paths() -> std::collections::HashMap<&'static str, PathBuf> {
+    BROWSERS
+        .iter()
+        .filter_map(|config| {
+            find_browser_favicon_path(config).map(|path| (config.name, path))
+        })
+        .collect()
 }
 
 // 从Chrome/Edge的Favicons数据库获取图标
@@ -986,21 +929,34 @@ pub fn get_browser_bookmarks() -> Vec<BookmarkInfo> {
         }
     });
 
-    // 去除重复书签（基于URL）
+    // 去除重复书签（基于URL去重，这是最准确的去重方式）
+    let initial_count = bookmarks.len();
     let mut unique_bookmarks = Vec::new();
     let mut seen_urls = std::collections::HashSet::new();
 
     for bookmark in bookmarks {
-        if !seen_urls.contains(&bookmark.content) {
-            seen_urls.insert(bookmark.content.clone());
+        // 标准化URL（转为小写，移除尾部斜杠）
+        let normalized_url = bookmark.content.to_lowercase().trim_end_matches('/').to_string();
+        
+        if !seen_urls.contains(&normalized_url) {
+            seen_urls.insert(normalized_url);
             unique_bookmarks.push(bookmark);
         }
     }
 
+    let deduplicated_count = unique_bookmarks.len();
+    
     // 输出统计信息
     info!("浏览器书签检索统计:");
     for (browser, count) in browser_stats {
         info!("  - {}: {} 个书签文件", browser, count);
+    }
+
+    if initial_count > deduplicated_count {
+        info!(
+            "书签去重完成: {} 个 -> {} 个（移除 {} 个重复URL）",
+            initial_count, deduplicated_count, initial_count - deduplicated_count
+        );
     }
 
     info!(
@@ -1141,6 +1097,7 @@ fn extract_bookmarks(
 }
 
 // 在背景线程中加载书签图标 (无通知版本)
+#[allow(dead_code)]
 pub fn load_bookmark_icons_async_silent(
     bookmarks: Vec<BookmarkInfo>,
     updated_count: std::sync::Arc<std::sync::Mutex<usize>>,
@@ -1164,30 +1121,14 @@ pub fn load_bookmark_icons_async_silent(
         }
     };
 
-    let mut count = 0;
-
-    info!("正在加载书签图标...");
-
-    for bookmark in bookmarks {
-        // 如果书签已经有图标（从浏览器数据库直接获取的），则跳过
-        if bookmark.icon.is_some() {
-            continue;
-        }
-
-        // 否则尝试提取favicon
-        // 使用运行时阻止异步操作
-        if let Some(icon_data) =
-            runtime.block_on(async { icon::fetch_favicon_async(&bookmark.content).await })
-        {
-            if let Err(e) = db::update_bookmark_icon(&bookmark.id, &icon_data) {
-                info!("Failed to update bookmark icon in db: {}", e);
-            } else {
-                count += 1;
-            }
-        } else {
-            // 如果提取失败，icon为undefined
-        }
-    }
+    // 使用通用图标加载器
+    let count = icon::load_icons_generic(
+        bookmarks,
+        |bookmark| bookmark.icon.is_some(),
+        |bookmark| runtime.block_on(async { icon::fetch_favicon_async(&bookmark.content).await }),
+        |bookmark, icon| db::update_bookmark_icon(&bookmark.id, icon).map_err(|e| e.to_string()),
+        "书签",
+    );
 
     // 更新计数
     {
@@ -1200,8 +1141,6 @@ pub fn load_bookmark_icons_async_silent(
         let mut complete = completion_counter.lock().unwrap();
         *complete += 1;
     }
-
-    info!("成功加载 {} 个书签图标", count);
 }
 
 #[tauri::command]
