@@ -184,6 +184,182 @@ pub fn stop_mouse_tracking() {
     *is_tracking = false;
 }
 
+// ==================== 窗口管理器框架 ====================
+
+/// 窗口规格配置
+#[derive(Debug, Clone)]
+pub struct WindowSpec {
+    /// 窗口标签（唯一标识）
+    pub label: &'static str,
+    /// URL路径
+    pub url: &'static str,
+    /// 窗口标题
+    pub title: &'static str,
+    /// 窗口宽度
+    pub width: f64,
+    /// 窗口高度
+    pub height: f64,
+    /// 是否可调整大小
+    pub resizable: bool,
+    /// 是否透明
+    pub transparent: bool,
+    /// 是否显示阴影
+    pub shadow: bool,
+    /// 是否总是在顶层
+    pub always_on_top: bool,
+    /// 前端准备完成的事件名称
+    pub ready_event: Option<&'static str>,
+}
+
+impl WindowSpec {
+    /// 转换为 WindowConfig
+    fn to_window_config(&self) -> WindowConfig {
+        WindowConfig {
+            title: self.title.to_string(),
+            width: self.width,
+            height: self.height,
+            resizable: self.resizable,
+            transparent: self.transparent,
+            shadow: self.shadow,
+            always_on_top: self.always_on_top,
+            ..Default::default()
+        }
+    }
+}
+
+/// 窗口显示行为
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WindowShowBehavior {
+    /// 简单切换：可见则隐藏，不可见则显示
+    SimpleToggle,
+    /// 智能切换：可见且有焦点则隐藏，可见无焦点则聚焦，不可见则显示
+    SmartToggle,
+    /// 总是显示并聚焦
+    AlwaysShow,
+}
+
+/// 窗口管理器 - 提供统一的窗口创建和管理功能
+pub struct WindowManager;
+
+impl WindowManager {
+    /// 获取或创建窗口，并根据显示行为处理窗口状态
+    pub fn get_or_create_with_behavior(
+        spec: &WindowSpec,
+        behavior: WindowShowBehavior,
+        on_ready: Option<Box<dyn FnOnce(&WebviewWindow) + Send + 'static>>,
+    ) -> Result<WebviewWindow, String> {
+        let _app = APP.get().ok_or("无法获取应用句柄")?;
+        
+        // 获取或创建窗口
+        let window = build_window(spec.label, spec.url, spec.to_window_config());
+        
+        // 根据行为处理窗口显示逻辑
+        match behavior {
+            WindowShowBehavior::SimpleToggle => {
+                Self::handle_simple_toggle(&window)?;
+            }
+            WindowShowBehavior::SmartToggle => {
+                Self::handle_smart_toggle(&window, spec.ready_event, on_ready)?;
+            }
+            WindowShowBehavior::AlwaysShow => {
+                Self::handle_always_show(&window, spec.ready_event, on_ready)?;
+            }
+        }
+        
+        Ok(window)
+    }
+    
+    /// 简单切换：可见则隐藏，不可见则显示
+    fn handle_simple_toggle(window: &WebviewWindow) -> Result<(), String> {
+        if window.is_visible().unwrap_or(false) {
+            window.hide().map_err(|e| e.to_string())?;
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    
+    /// 智能切换：可见且有焦点则隐藏，可见无焦点则聚焦，不可见则显示
+    fn handle_smart_toggle(
+        window: &WebviewWindow,
+        ready_event: Option<&'static str>,
+        on_ready: Option<Box<dyn FnOnce(&WebviewWindow) + Send + 'static>>,
+    ) -> Result<(), String> {
+        if window.is_visible().unwrap_or(false) {
+            if window.is_focused().unwrap_or(false) {
+                // 有焦点则隐藏
+                window.hide().map_err(|e| e.to_string())?;
+            } else {
+                // 没有焦点则重新聚焦并临时置顶
+                #[cfg(any(target_os = "windows", target_os = "macos"))]
+                {
+                    let _ = window.unminimize();
+                }
+                
+                window.show().map_err(|e| e.to_string())?;
+                window.set_focus().map_err(|e| e.to_string())?;
+                
+                // 临时置顶以确保可见
+                window.set_always_on_top(true).map_err(|e| e.to_string())?;
+                let window_clone = window.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    let _ = window_clone.set_always_on_top(false);
+                });
+            }
+        } else {
+            // 窗口不可见，需要显示
+            Self::handle_always_show(window, ready_event, on_ready)?;
+        }
+        Ok(())
+    }
+    
+    /// 总是显示并聚焦
+    fn handle_always_show(
+        window: &WebviewWindow,
+        ready_event: Option<&'static str>,
+        on_ready: Option<Box<dyn FnOnce(&WebviewWindow) + Send + 'static>>,
+    ) -> Result<(), String> {
+        match window.show() {
+            Ok(_) => {
+                // 成功显示，直接设置焦点
+                window.set_focus().ok();
+                if let Some(callback) = on_ready {
+                    callback(window);
+                }
+            }
+            Err(_) => {
+                // 显示失败，可能是新窗口，等待ready事件
+                if let Some(event) = ready_event {
+                    let window_clone = window.clone();
+                    window.once(event, move |_| {
+                        window_clone.show().ok();
+                        window_clone.set_focus().ok();
+                        if let Some(callback) = on_ready {
+                            callback(&window_clone);
+                        }
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+    
+    /// 关闭搜索窗口的辅助方法（很多窗口打开时需要关闭搜索窗口）
+    pub fn close_search_window_if_visible() {
+        if let Some(app) = APP.get() {
+            if let Some(search_window) = app.get_webview_window("main") {
+                if search_window.is_visible().unwrap_or(false) {
+                    let _ = search_window.hide();
+                    stop_mouse_tracking();
+                    let _ = search_window.set_ignore_cursor_events(false);
+                }
+            }
+        }
+    }
+}
+
 //相对于前端body元素，宽误差16、 高误差39
 pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWindow {
     let app_handle = APP.get().unwrap();
@@ -358,135 +534,59 @@ pub fn hotkey_search_wrapper() {
 
 // 创建config窗口并跳转到设置页面
 pub fn open_config_settings() {
-    let window = build_window(
-        "config",
-        "/#/config/category/settings",
-        WindowConfig {
-            title: "配置".to_string(),
-            width: 1180.0,
-            height: 642.0,
-            resizable: true,
-            transparent: true,
-            shadow: false,
-            always_on_top: false,
-            ..Default::default()
-        },
+    // 先关闭搜索窗口
+    WindowManager::close_search_window_if_visible();
+    
+    // 定义窗口规格（与 hotkey_config 共享）
+    let spec = WindowSpec {
+        label: "config",
+        url: "/#/config/category/settings",
+        title: "配置",
+        width: 1180.0,
+        height: 642.0,
+        resizable: true,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: Some("config_ready"),
+    };
+    
+    // 使用总是显示行为，并在准备完成后导航到设置页面
+    let _ = WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::AlwaysShow,
+        Some(Box::new(|window| {
+            // 导航到设置页面
+            let _ = window.emit("navigate-to-settings", ());
+        })),
     );
-
-    // 先检查搜索窗口是否打开，如果打开则先关闭
-    let search_window = APP.get().unwrap().get_webview_window("main").unwrap();
-    if search_window.is_visible().unwrap() {
-        search_window.hide().unwrap();
-        // 停止鼠标追踪
-        stop_mouse_tracking();
-        // 取消忽略光标
-        search_window.set_ignore_cursor_events(false).unwrap();
-    }
-
-    // 处理config窗口显示
-    if window.is_visible().unwrap() {
-        // 窗口已可见，直接跳转到设置页面
-        let _ = window.emit("navigate-to-settings", ());
-        window.set_focus().unwrap();
-    } else {
-        // 窗口不可见，需要显示并导航到设置页面
-        let window_clone = window.clone();
-        
-        // 先尝试直接显示
-        match window.show() {
-            Ok(_) => {
-                // 成功显示，设置焦点并导航到设置页面
-                let _ = window.set_focus();
-                let _ = window.emit("navigate-to-settings", ());
-            }
-            Err(_) => {
-                // 显示失败，可能是新创建的窗口，等待ready事件
-                window.once("config_ready", move |_| {
-                    window_clone.show().unwrap();
-                    window_clone.set_focus().unwrap();
-                    // 发送导航事件到设置页面
-                    let _ = window_clone.emit("navigate-to-settings", ());
-                });
-            }
-        }
-    }
 }
 
 // 创建config窗口
 pub fn hotkey_config() {
-    let window = build_window(
-        "config",
-        "/#config/category/contentList",
-        WindowConfig {
-            title: "配置".to_string(),
-            width: 1180.0,
-            height: 642.0,
-            resizable: true,
-            transparent: true,
-            shadow: false,
-            always_on_top: false,
-            ..Default::default()
-        },
+    // 先关闭搜索窗口
+    WindowManager::close_search_window_if_visible();
+    
+    // 定义窗口规格
+    let spec = WindowSpec {
+        label: "config",
+        url: "/#config/category/contentList",
+        title: "配置",
+        width: 1180.0,
+        height: 642.0,
+        resizable: true,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: Some("config_ready"),
+    };
+    
+    // 使用智能切换行为
+    let _ = WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::SmartToggle,
+        None,
     );
-
-    // 先检查搜索窗口是否打开，如果打开则先关闭
-    let search_window = APP.get().unwrap().get_webview_window("main").unwrap();
-    if search_window.is_visible().unwrap() {
-        search_window.hide().unwrap();
-        // 停止鼠标追踪
-        stop_mouse_tracking();
-        // 取消忽略光标
-        search_window.set_ignore_cursor_events(false).unwrap();
-    }
-
-    // 简化窗口状态处理逻辑
-    if window.is_visible().unwrap() {
-        // 窗口可见，检查是否有焦点
-        if window.is_focused().unwrap() {
-            // 有焦点则隐藏
-            window.hide().unwrap();
-        } else {
-            // 没有焦点则重新聚焦并置顶
-            #[cfg(target_os = "windows")]
-            {
-                let _ = window.unminimize();
-            }
-            #[cfg(target_os = "macos")]
-            {
-                let _ = window.unminimize();
-            }
-            
-            // 强制显示窗口并设置为前台窗口
-            window.show().unwrap();
-            window.set_focus().unwrap();
-            
-            // 临时设置为顶层窗口确保可见
-            window.set_always_on_top(true).unwrap();
-            let window_clone = window.clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                let _ = window_clone.set_always_on_top(false);
-            });
-        }
-    } else {
-        // 窗口不可见，需要显示
-        let window_clone = window.clone();
-        
-        // 先尝试直接显示，如果是已存在的隐藏窗口，这样就能立即显示
-        match window.show() {
-            Ok(_) => {
-                // 成功显示，设置焦点
-                let _ = window.set_focus();
-            }
-            Err(_) => {
-                // 显示失败，可能是新创建的窗口，等待ready事件
-                window.once("config_ready", move |_| {
-                    window_clone.show().unwrap();
-                    window_clone.set_focus().unwrap();
-                });
-            }
-        }
-    }
 }
 
 // 划词翻译快捷键处理
@@ -551,129 +651,126 @@ pub fn hotkey_selection_translate() {
 
 // 翻译窗口快捷键处理
 pub fn hotkey_translate() {
-    let app_handle = APP.get().unwrap().clone();
-
-    // 检查窗口是否已经存在
-    if let Some(window) = app_handle.get_webview_window("translate") {
-        // 如果窗口已经存在并且可见，则隐藏窗口
+    let app = APP.get().unwrap();
+    
+    // 检查窗口是否已存在
+    if let Some(window) = app.get_webview_window("translate") {
+        // 如果窗口已经存在并且可见，则复位状态并隐藏
         if window.is_visible().unwrap_or(false) {
-            // 先复位状态，然后隐藏窗口
             let _ = window.emit("reset-state", ());
             let _ = window.hide();
             return;
         } else {
-            // 窗口存在但不可见，则显示窗口
+            // 窗口存在但不可见，则显示
             let _ = window.show();
             let _ = window.set_focus();
             return;
         }
     }
-
+    
     // 窗口不存在，创建新窗口
-    open_translate_window(&app_handle, None);
+    let spec = WindowSpec {
+        label: "translate",
+        url: "/#/translate",
+        title: "翻译",
+        width: 400.0,
+        height: 500.0,
+        resizable: true,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: Some("translate_ready"),
+    };
+    
+    let _ = WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::AlwaysShow,
+        None,
+    );
 }
 
-// 打开翻译窗口
+// 打开翻译窗口（带选中文本）
 fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
-    // 保存选中文本以便在窗口创建后使用
-    let selected_text = text.clone();
-
     if let Some(window) = app_handle.get_webview_window("translate") {
         // 窗口已存在，立即显示并聚焦
         let _ = window.show();
         let _ = window.set_focus();
 
         // 如果有文本，直接发送（窗口已存在说明前端已经准备好）
-        if let Some(text) = selected_text {
+        if let Some(text) = text {
             let _ = window.emit(
                 "selection-text",
-                serde_json::json!({
-                    "text": text
-                }),
+                serde_json::json!({ "text": text }),
             );
         }
     } else {
         // 创建新窗口
-        let window = build_window(
-            "translate",
-            "/#/translate",
-            WindowConfig {
-                title: "翻译".to_string(),
-                width: 400.0,
-                height: 500.0,
-                resizable: true,
-                transparent: true,
-                shadow: false,
-                always_on_top: false,
-                ..Default::default()
-            },
-        );
-
-        // 立即显示窗口，避免第一次打开时窗口不显示的问题
-        let _ = window.show();
-        let _ = window.set_focus();
-
-        // 如果有选中的文本，需要在前端准备好后发送
-        if let Some(text) = selected_text {
-            let window_clone = window.clone();
-            let text_clone = text.clone();
-            
-            // 监听窗口准备事件，收到事件后发送选中的文本
-            window.once("translate_ready", move |_| {
+        let spec = WindowSpec {
+            label: "translate",
+            url: "/#/translate",
+            title: "翻译",
+            width: 400.0,
+            height: 500.0,
+            resizable: true,
+            transparent: true,
+            shadow: false,
+            always_on_top: false,
+            ready_event: Some("translate_ready"),
+        };
+        
+        // 如果有选中文本，在窗口准备完成后发送
+        let on_ready: Option<Box<dyn FnOnce(&WebviewWindow) + Send + 'static>> = text.map(|txt| {
+            Box::new(move |window: &WebviewWindow| {
                 info!("翻译窗口准备完成，发送选中的文本");
-                let _ = window_clone.emit(
+                let _ = window.emit(
                     "selection-text",
-                    serde_json::json!({
-                        "text": text_clone
-                    }),
+                    serde_json::json!({ "text": txt.clone() }),
                 );
-            });
-            
-            // 添加超时保护机制（仅1次，因为前端已有防重复机制）
-            let window_timeout = window.clone();
-            tauri::async_runtime::spawn(async move {
-                // 等待800ms后发送一次（以防 translate_ready 事件丢失）
-                tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
-                info!("翻译窗口超时保护：尝试发送选中的文本");
-                let _ = window_timeout.emit(
-                    "selection-text",
-                    serde_json::json!({
-                        "text": text
-                    }),
-                );
-            });
-        }
-
+                
+                // 添加超时保护机制
+                let window_clone = window.clone();
+                let text_clone = txt.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
+                    info!("翻译窗口超时保护：尝试发送选中的文本");
+                    let _ = window_clone.emit(
+                        "selection-text",
+                        serde_json::json!({ "text": text_clone }),
+                    );
+                });
+            }) as Box<dyn FnOnce(&WebviewWindow) + Send + 'static>
+        });
+        
+        let _ = WindowManager::get_or_create_with_behavior(
+            &spec,
+            WindowShowBehavior::AlwaysShow,
+            on_ready,
+        );
+        
         info!("创建翻译窗口并立即显示");
     }
 }
 
 // 创建update窗口
 pub fn create_update_window() {
-    let window = build_window(
-        "update",
-        "/#update",
-        WindowConfig {
-            title: "系统更新".to_string(),
-            width: 520.0,
-            height: 460.0,
-            resizable: false,
-            transparent: true,
-            shadow: false,
-            always_on_top: true,
-            ..Default::default()
-        },
+    let spec = WindowSpec {
+        label: "update",
+        url: "/#update",
+        title: "系统更新",
+        width: 520.0,
+        height: 460.0,
+        resizable: false,
+        transparent: true,
+        shadow: false,
+        always_on_top: true,
+        ready_event: Some("update-ready"),
+    };
+    
+    let _ = WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::AlwaysShow,
+        None,
     );
-
-    // 监听窗口准备事件，然后显示窗口
-    let window_clone = window.clone();
-    window.once("update-ready", move |_| {
-        // info!("Update window ready, showing now.");
-        window_clone.show().unwrap();
-        window_clone.set_focus().unwrap();
-    });
-
-    // info!("创建更新窗口，等待页面发送 'update-ready' 事件");
 }
 
 // 显示隐藏窗口
@@ -944,47 +1041,24 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
 
 // 创建Auto Dark Mode窗口
 pub fn hotkey_dark_mode() {
-    let app_handle = APP.get().unwrap();
-
-    // 检查窗口是否已经存在
-    if let Some(window) = app_handle.get_webview_window("dark_mode") {
-        // 如果窗口已经存在并且可见，则隐藏窗口
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-            return;
-        } else {
-            // 窗口存在但不可见，则显示窗口
-            let _ = window.show();
-            let _ = window.set_focus();
-            return;
-        }
-    }
-
-    // 窗口不存在，创建新窗口
-    let window = build_window(
-        "dark_mode",
-        "/#/dark-mode",
-        WindowConfig {
-            title: "Auto Dark Mode".to_string(),
-            width: 500.0,
-            height: 650.0,
-            resizable: false,
-            transparent: true,
-            shadow: false,
-            always_on_top: false,
-            ..Default::default()
-        },
+    let spec = WindowSpec {
+        label: "dark_mode",
+        url: "/#/dark-mode",
+        title: "Auto Dark Mode",
+        width: 500.0,
+        height: 650.0,
+        resizable: false,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: Some("dark_mode_ready"),
+    };
+    
+    let _ = WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::SimpleToggle,
+        None,
     );
-
-    // 监听窗口准备事件，然后显示窗口
-    let window_clone = window.clone();
-    window.once("dark_mode_ready", move |_| {
-        // info!("Dark mode window ready, showing now.");
-        window_clone.show().unwrap();
-        window_clone.set_focus().unwrap();
-    });
-
-    // info!("创建深色模式窗口，等待页面发送 'dark_mode_ready' 事件");
 }
 
 // 创建截图窗口
