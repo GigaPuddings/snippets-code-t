@@ -33,7 +33,7 @@ use crate::update::{
 use crate::window::{
   hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info, capture_screen_area,
   copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows,
-  create_pin_window, get_pin_image_data, copy_image_to_clipboard, save_pin_image
+  create_pin_window, get_pin_image_data, copy_image_to_clipboard, save_pin_image, frontend_log
 };
 use crate::dark_mode::{
     load_config as load_dark_mode_config, save_config as save_dark_mode_config,
@@ -494,6 +494,7 @@ pub fn run() {
             get_pin_image_data,               // 获取贴图窗口图片数据
             copy_image_to_clipboard,          // 复制图片到剪贴板
             save_pin_image,                   // 保存贴图图片
+            frontend_log,                     // 前端日志转发
             get_dark_mode_config,             // 获取Auto Dark Mode配置
             save_dark_mode_config_command,    // 保存Auto Dark Mode配置
             get_location_info,                // 获取地理位置信息

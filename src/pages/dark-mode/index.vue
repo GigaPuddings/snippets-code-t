@@ -212,6 +212,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { CustomSwitch } from '@/components/UI';
 import modal from '@/utils/modal';
+import { logger } from '@/utils/logger';
 
 // 定义类型
 interface DarkModeConfig {
@@ -280,7 +281,7 @@ const loadConfig = async () => {
       await loadStatus();
     }
   } catch (error) {
-    console.error('加载配置失败:', error);
+    logger.error('[主题] 加载配置失败', error);
     modal.msg('加载配置失败', 'error');
   }
 };
@@ -296,7 +297,7 @@ const loadStatus = async () => {
       store.updateTheme(currentTheme.value ? 'dark' : 'light');
     }
   } catch (error) {
-    console.error('加载状态失败:', error);
+    logger.error('[主题] 加载状态失败', error);
   }
 };
 
@@ -319,9 +320,8 @@ const refreshLocation = async () => {
 
     // 自动保存配置
     await saveConfig();
-    // modal.msg('位置信息已更新', 'success');
   } catch (error) {
-    console.error('获取位置失败:', error);
+    logger.error('[主题] 获取位置失败', error);
     modal.msg('获取位置信息失败', 'error');
   } finally {
     locationLoading.value = false;
@@ -339,7 +339,7 @@ const calculateSunTimes = async () => {
     });
     sunTimes.value = times;
   } catch (error) {
-    console.error('计算日出日落时间失败:', error);
+    logger.error('[主题] 计算日出日落时间失败', error);
   }
 };
 
@@ -376,9 +376,8 @@ const saveConfig = async () => {
   try {
     await invoke('save_dark_mode_config_command', { config: config.value });
     await loadStatus();
-    // modal.msg('配置已保存', 'success');
   } catch (error) {
-    console.error('保存配置失败:', error);
+    logger.error('[主题] 保存配置失败', error);
     modal.msg('保存配置失败', 'error');
   } finally {
     saving.value = false;
@@ -397,9 +396,8 @@ const toggleThemeManually = async () => {
       message += '。自动切换将在下一次计划任务时恢复'
     }
     modal.msg(message, 'success');
-
   } catch (error) {
-    console.error('切换主题失败:', error);
+    logger.error('[主题] 切换主题失败', error);
     modal.msg('切换主题失败', 'error');
   }
 };

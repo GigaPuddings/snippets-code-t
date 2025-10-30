@@ -50,6 +50,7 @@ import { listen } from '@tauri-apps/api/event'
 import { ScreenshotManager } from './core/ScreenshotManager'
 import { ToolType, ColorInfo } from './core/types'
 import ToolbarSection from './components/ToolbarSection.vue'
+import { logger } from '@/utils/logger'
 
 // 组件引用
 const containerRef = ref<HTMLDivElement>()
@@ -135,18 +136,32 @@ const toolbarStyle = computed(() => {
   if (!state.value.selectionRect) return {}
 
   const { x, y, height } = state.value.selectionRect
-  const toolbarHeight = 40
-  const margin = 8
-  let toolbarWidth = 442
-
-  // 根据工具类型调整宽度
-  if (state.value.currentTool === ToolType.Text) {
-    toolbarWidth = Math.min(916, window.innerWidth - 2 * margin)
-  } else if (state.value.currentTool === ToolType.Mosaic) {
-    toolbarWidth = Math.min(572, window.innerWidth - 2 * margin)
-  } else if (state.value.currentTool !== ToolType.Select && state.value.currentTool !== ToolType.ColorPicker) {
-    toolbarWidth = Math.min(844, window.innerWidth - 2 * margin)
+  const firstPanelHeight = 48  // 第一个面板的高度
+  const secondPanelHeight = 48 // 第二个面板的高度
+  const panelGap = 8 // 两个面板之间的间隙
+  const margin = 10
+  
+  // 根据工具类型计算需要的总高度
+  const hasSecondPanel = ![ToolType.Select, ToolType.ColorPicker, ToolType.Pin].includes(state.value.currentTool)
+  const toolbarHeight = hasSecondPanel ? firstPanelHeight + secondPanelHeight + panelGap : firstPanelHeight
+  
+  // 第一个面板实际宽度（包含所有按钮 + padding + gap + margin）
+  const firstPanelWidth = 510
+  
+  // 估算第二个面板的宽度（根据工具类型）
+  let secondPanelWidth = 0
+  if (hasSecondPanel) {
+    if (state.value.currentTool === ToolType.Text) {
+      secondPanelWidth = 380 // 线宽(4个) + 颜色(按钮) + 文字大小(6个) + gaps
+    } else if (state.value.currentTool === ToolType.Mosaic) {
+      secondPanelWidth = 250 // 马赛克大小(4个) + gaps
+    } else {
+      secondPanelWidth = 320 // 线宽(4个) + 颜色(按钮) + gaps
+    }
   }
+  
+  // 使用较宽的面板作为总宽度
+  const toolbarWidth = Math.max(firstPanelWidth, secondPanelWidth)
 
   // 决定工具栏位置
   let top: number
@@ -160,16 +175,46 @@ const toolbarStyle = computed(() => {
   }
   // 3. 如果上下都没空间，则放在选区内部的底部
   else {
-    top = y + height - toolbarHeight - margin
+    top = Math.max(y + height - toolbarHeight - margin, y + 10)
   }
 
-
-  let left = x
-  if (left + toolbarWidth > window.innerWidth) {
-    left = window.innerWidth - toolbarWidth - margin
-  }
-  if (left < margin) {
-    left = margin
+  // 计算左侧位置
+  let left: number
+  
+  // 计算屏幕可用区域
+  const screenLeftEdge = margin
+  const screenRightEdge = window.innerWidth - margin
+  const availableWidth = screenRightEdge - screenLeftEdge
+  
+  // 如果工具栏太宽，超过整个屏幕可用宽度
+  if (toolbarWidth > availableWidth) {
+    left = screenLeftEdge
+  } else {
+    // 策略：优先对齐选区左边，确保不超出边界
+    left = x
+    
+    // 严格检查右边界（留出少量安全边距避免浮点误差）
+    const safetyMargin = 5
+    if (left + toolbarWidth > screenRightEdge - safetyMargin) {
+      // 如果超出，计算能放置工具栏的最右位置
+      left = screenRightEdge - toolbarWidth - safetyMargin
+    }
+    
+    // 检查左边界
+    if (left < screenLeftEdge) {
+      left = screenLeftEdge
+    }
+    
+    // 最终验证：确保工具栏完全在屏幕内
+    const finalRightEdge = left + toolbarWidth
+    if (finalRightEdge > screenRightEdge) {
+      // 如果还超出（理论上不应该），强制调整
+      left = screenRightEdge - toolbarWidth
+      // 再次确保左边界
+      if (left < screenLeftEdge) {
+        left = screenLeftEdge
+      }
+    }
   }
 
   return {
@@ -238,7 +283,7 @@ const handlePin = async () => {
   try {
     await screenshotManager?.createPinWindow()
   } catch (error) {
-    console.error('创建贴图失败:', error)
+    logger.error('[截图] 创建贴图失败', error)
   }
 }
 
@@ -271,7 +316,7 @@ const handleSave = async () => {
     await screenshotManager?.processScreenshot('save')
     closeWindow()
   } catch (error) {
-    console.error('保存失败:', error)
+    logger.error('[截图] 保存失败', error)
   }
 }
 
@@ -280,7 +325,7 @@ const handleConfirm = async () => {
     await screenshotManager?.processScreenshot('copy')
     closeWindow()
   } catch (error) {
-    console.error('复制失败:', error)
+    logger.error('[截图] 复制失败', error)
   }
 }
 
@@ -306,6 +351,11 @@ const startTextInput = (position: { x: number, y: number }, existingAnnotation?:
 
   isTextInputVisible.value = true
   editingAnnotation = existingAnnotation || null
+
+  // 如果是编辑模式，隐藏原始注释
+  if (existingAnnotation) {
+    screenshotManager?.setEditingAnnotation(existingAnnotation)
+  }
 
   // 如果是编辑已有标注，预填充文字
   if (existingAnnotation && existingAnnotation.getData().text) {
@@ -342,6 +392,12 @@ const confirmTextInput = () => {
 const cancelTextInput = () => {
   isTextInputVisible.value = false
   textInput.value = ''
+  
+  // 清除编辑状态，恢复显示原始注释
+  if (editingAnnotation) {
+    screenshotManager?.clearEditingAnnotation()
+  }
+  
   editingAnnotation = null
 }
 
@@ -350,25 +406,55 @@ const handleColorPicked = (colorInfo: ColorInfo) => {
   // 自动复制HEX值到剪贴板
   if (navigator.clipboard) {
     navigator.clipboard.writeText(colorInfo.hex).catch(error => {
-      console.warn('Failed to copy color to clipboard:', error)
+      logger.warn('[截图] 复制颜色到剪贴板失败', error)
     })
   }
 }
 
 // 键盘事件处理
 const handleKeydown = (event: KeyboardEvent) => {
-  // 定义允许的功能键
-  const allowedKeys = ['Escape', 'Delete', 'Backspace', 'q', 'Q', 'Shift', 'Control', 'Alt', 'Meta']
-  
+  // 禁用系统快捷键
+  if (event.key === 'Meta' || event.key === 'Win' || 
+      (event.altKey && event.key === 'Tab') ||
+      (event.altKey && event.key === 'F4')) {
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
+  // 如果文字输入框聚焦，允许所有输入（除了系统快捷键）
+  if (isTextInputVisible.value && document.activeElement === textInputRef.value) {
+    // Escape 键关闭输入框
+    if (event.key === 'Escape') {
+      cancelTextInput()
+      event.preventDefault()
+      return
+    }
+    // Enter 键确认输入
+    if (event.key === 'Enter') {
+      confirmTextInput()
+      event.preventDefault()
+      return
+    }
+    // Tab 键：阻止默认行为（避免焦点移动导致窗口关闭）
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      return
+    }
+    // 其他键（方向键、字母、数字等）允许正常输入
+    // 不阻止事件传播，让输入框正常处理
+    return
+  }
+
   // 未选中区域时
   if (!state.value.selectionRect) {
     if (event.key === 'Escape') {
       closeWindow()
       return
     }
-    // 其他任意键直接关闭窗口
+    // 屏蔽其他所有键盘事件，但不关闭窗口
     event.preventDefault()
-    closeWindow()
+    event.stopPropagation()
     return
   }
 
@@ -384,13 +470,14 @@ const handleKeydown = (event: KeyboardEvent) => {
     return
   } else if (event.key === 'Delete' || event.key === 'Backspace') {
     handleDelete()
+    event.preventDefault()
     return
   }
 
-  // 如果不是允许的功能键，关闭窗口
-  if (!allowedKeys.includes(event.key)) {
+  // 其他键盘事件：阻止默认行为，但不关闭窗口
+  // 这样可以避免意外按键导致截图窗口关闭
+  if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) {
     event.preventDefault()
-    closeWindow()
   }
 }
 
@@ -426,13 +513,20 @@ onMounted(async () => {
   // 添加键盘事件监听
   document.addEventListener('keydown', handleKeydown)
 
-  // 监听窗口失焦
+  // 监听窗口失焦（用户切换到其他窗口）
   unlisten.value = await listen('tauri://blur', () => {
-    // setTimeout(() => {
-    //   screenshotManager?.destroy()
-    //   document.removeEventListener('keydown', handleKeydown)
-    //   closeWindow()
-    // }, 800)
+    // 如果文字输入框正在使用，不关闭窗口（可能是调出输入法）
+    if (isTextInputVisible.value && document.activeElement === textInputRef.value) {
+      return
+    }
+    
+    // 延迟一下再关闭，避免误触
+    setTimeout(() => {
+      // 再次检查文字输入状态
+      if (!isTextInputVisible.value || document.activeElement !== textInputRef.value) {
+        closeWindow()
+      }
+    }, 100)
   })
 })
 

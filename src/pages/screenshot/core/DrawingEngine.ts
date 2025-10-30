@@ -22,10 +22,10 @@ export class DrawingEngine {
   drawSelectionBox(rect: Rect, showGuides: boolean = true) {
     const { x, y, width, height } = rect
 
-    // 绘制蓝色边框
+    // 绘制虚线边框
     this.ctx.strokeStyle = '#3b82f6'
-    this.ctx.lineWidth = 1
-    this.ctx.setLineDash([])
+    this.ctx.lineWidth = 2
+    this.ctx.setLineDash([6, 6])
     this.ctx.strokeRect(x, y, width, height)
 
     if (showGuides) {
@@ -64,25 +64,27 @@ export class DrawingEngine {
     const { x, y, width, height } = rect
     
     this.ctx.setLineDash([])
-    this.ctx.fillStyle = '#3b82f6'
-    this.ctx.strokeStyle = '#ffffff'
+    this.ctx.fillStyle = '#ffffff'
+    this.ctx.strokeStyle = '#3b82f6'
     this.ctx.lineWidth = 2
 
-    const handleSize = 8
+    const handleRadius = 4
     const handles = [
-      { x: x - handleSize / 2, y: y - handleSize / 2 },
-      { x: x + width - handleSize / 2, y: y - handleSize / 2 },
-      { x: x - handleSize / 2, y: y + height - handleSize / 2 },
-      { x: x + width - handleSize / 2, y: y + height - handleSize / 2 },
-      { x: x + width / 2 - handleSize / 2, y: y - handleSize / 2 },
-      { x: x + width / 2 - handleSize / 2, y: y + height - handleSize / 2 },
-      { x: x - handleSize / 2, y: y + height / 2 - handleSize / 2 },
-      { x: x + width - handleSize / 2, y: y + height / 2 - handleSize / 2 }
+      { x: x, y: y },
+      { x: x + width, y: y },
+      { x: x, y: y + height },
+      { x: x + width, y: y + height },
+      { x: x + width / 2, y: y },
+      { x: x + width / 2, y: y + height },
+      { x: x, y: y + height / 2 },
+      { x: x + width, y: y + height / 2 }
     ]
 
     handles.forEach(handle => {
-      this.ctx.fillRect(handle.x, handle.y, handleSize, handleSize)
-      this.ctx.strokeRect(handle.x, handle.y, handleSize, handleSize)
+      this.ctx.beginPath()
+      this.ctx.arc(handle.x, handle.y, handleRadius, 0, Math.PI * 2)
+      this.ctx.fill()
+      this.ctx.stroke()
     })
   }
 
@@ -173,21 +175,25 @@ export class DrawingEngine {
       if (data.points.length >= 2) {
         const start = data.points[0]
         const end = data.points[data.points.length - 1]
-        const handleSize = 8
+        const handleRadius = 4
         
         this.ctx.save()
         this.ctx.setLineDash([])
-        this.ctx.fillStyle = '#3b82f6'
-        this.ctx.strokeStyle = '#ffffff'
+        this.ctx.fillStyle = '#ffffff'
+        this.ctx.strokeStyle = '#3b82f6'
         this.ctx.lineWidth = 2
 
         // 起点控制点
-        this.ctx.fillRect(start.x - handleSize / 2, start.y - handleSize / 2, handleSize, handleSize)
-        this.ctx.strokeRect(start.x - handleSize / 2, start.y - handleSize / 2, handleSize, handleSize)
+        this.ctx.beginPath()
+        this.ctx.arc(start.x, start.y, handleRadius, 0, Math.PI * 2)
+        this.ctx.fill()
+        this.ctx.stroke()
 
         // 终点控制点
-        this.ctx.fillRect(end.x - handleSize / 2, end.y - handleSize / 2, handleSize, handleSize)
-        this.ctx.strokeRect(end.x - handleSize / 2, end.y - handleSize / 2, handleSize, handleSize)
+        this.ctx.beginPath()
+        this.ctx.arc(end.x, end.y, handleRadius, 0, Math.PI * 2)
+        this.ctx.fill()
+        this.ctx.stroke()
         
         this.ctx.restore()
       }
@@ -237,7 +243,10 @@ export class DrawingEngine {
     const previewSize = 100
     const previewX = uiX + (uiWidth - previewSize) / 2
     const previewY = uiY + 15
+    
+    // 绘制放大镜边框
     this.ctx.strokeStyle = '#ccc'
+    this.ctx.lineWidth = 1
     this.ctx.strokeRect(previewX, previewY, previewSize, previewSize)
     
     if (previewImage) {
@@ -281,7 +290,7 @@ export class DrawingEngine {
 
     // 坐标
     this.ctx.fillStyle = '#666'
-    this.ctx.font = '12px Arial' // 坐标和提示使用常规字体
+    this.ctx.font = '12px Arial'
     this.ctx.fillText(`X: ${Math.round(mousePosition.x)}, Y: ${Math.round(mousePosition.y)}`, uiX + 15, textY)
     textY += 20
     

@@ -6,6 +6,7 @@ import { ElMessage } from 'element-plus';
 import googleIcon from '@/assets/svg/google.svg';
 import bingIcon from '@/assets/svg/bing.svg';
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { logger } from '@/utils/logger';
 
 const appWindow = getCurrentWindow();
 
@@ -118,18 +119,12 @@ const setupListeners = async () => {
     }
   });
 
-  // 监听划词翻译消息
   const unlistenSelectionText = await listen('selection-text', (event: any) => {
-    console.log('🔔 收到划词翻译消息:', event.payload);
     if (event.payload && event.payload.text) {
-      console.log('📝 选中的文本:', event.payload.text);
       handleSelectionText(event.payload.text);
-    } else {
-      console.warn('⚠️ 收到的消息没有文本内容');
     }
   });
 
-  // 监听重置状态消息
   const unlistenResetState = await listen('reset-state', () => {
     resetState();
   });
@@ -142,8 +137,6 @@ const setupListeners = async () => {
     unlistenResetState();
     unlistenShow();
   };
-  
-  console.log('✅ 所有监听器设置完成');
 };
 
 // 设置窗口置顶
@@ -338,9 +331,8 @@ const translateWithEngine = async (engine: string) => {
 
     result.text = translatedText;
   } catch (error) {
-    console.error(`${engine}翻译出错:`, error);
+    logger.error(`[翻译] ${engine}翻译出错`, error);
     
-    // 根据不同的错误提供更友好的提示
     const errorMessage = String(error);
     if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
       result.text = '请求过于频繁，请稍后再试';
@@ -413,37 +405,27 @@ let isTranslating = false;
 // 添加一个新方法专门用于处理selection-text事件
 const handleSelectionText = (text: string) => {
   if (!text) {
-    console.warn('⚠️ handleSelectionText: 文本为空');
     return;
   }
 
-  // 防止重复翻译相同的文本
   if (text === lastTranslatedText && isTranslating) {
-    console.log('⏭️ 跳过重复翻译:', text);
     return;
   }
 
-  console.log('✅ 处理选中文本:', text);
   lastTranslatedText = text;
   isTranslating = true;
   
   sourceText.value = text;
   showDeleteButton.value = true;
 
-  // 先自动设置目标语言，再执行翻译
-  console.log('🔄 自动设置目标语言...');
   autoSetTargetLanguage();
   
-  // 立即触发翻译，不使用防抖
-  console.log('🚀 开始翻译...');
   translateAll().finally(() => {
-    // 翻译完成后，延迟重置标记，避免过早重置
     setTimeout(() => {
       isTranslating = false;
     }, 2000);
   });
 
-  // 确保输入框获得焦点
   focusSourceTextArea();
 };
 
@@ -527,12 +509,9 @@ onMounted(async () => {
   // 组件挂载后也聚焦输入框
   focusSourceTextArea();
   
-  // 确保DOM更新完成后，再通知后端前端已准备完成
   await nextTick();
   
-  // 添加一个小延迟确保所有初始化完成
   setTimeout(() => {
-    console.log('前端准备完成，发送 translate_ready 事件');
     appWindow.emit('translate_ready');
   }, 100);
 });

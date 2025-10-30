@@ -6,8 +6,8 @@ import { AnnotationFactory } from './AnnotationFactory'
 import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState } from './types'
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
+import { logger } from '@/utils/logger'
 
-// 窗口信息接口
 interface WindowInfo {
   x: number
   y: number
@@ -39,6 +39,9 @@ export class ScreenshotManager {
   private resizingAnnotation: BaseAnnotation | null = null
   private resizeStartBounds: { x: number, y: number, width: number, height: number } | null = null
   private resizeOperation: OperationType | null = null
+  
+  // 编辑状态
+  private editingAnnotation: BaseAnnotation | null = null
   
   // 工具设置
   private currentTool: ToolType = ToolType.Select
@@ -72,6 +75,9 @@ export class ScreenshotManager {
   private throttleTimer: number | null = null
   private lastThrottledTimestamp = 0
   private readonly throttleInterval = 50 // ms, 20 FPS
+
+  // 按键状态
+  private isShiftPressed = false
 
   // 回调函数
   private onStateChange?: () => void
@@ -124,12 +130,9 @@ export class ScreenshotManager {
       const windows = await invoke('get_all_windows') as WindowInfo[]
       const scale = windowInfo?.scale || 1
       
-      // 加载窗口信息，保持吸附功能启用
-      this.allWindows = windows
-        .filter(win => {
-          // 过滤掉截图窗口本身和无效窗口
-          return this.isValidWindow(win)
-        })
+      const filteredWindows = windows.filter(win => this.isValidWindow(win))
+      
+      this.allWindows = filteredWindows
         .map(win => ({
           ...win,
           // 根据缩放因子调整坐标和大小
@@ -147,7 +150,7 @@ export class ScreenshotManager {
         })
       
     } catch (error) {
-      console.error('Failed to load windows:', error)
+      logger.error('[截图] 加载窗口列表失败', error)
       this.allWindows = []
     }
   }
@@ -217,15 +220,13 @@ export class ScreenshotManager {
     return true
   }
 
-  // 检测鼠标是否接近窗口边缘
   private detectNearbyWindow(mousePos: Point): WindowInfo | null {
     if (this.allWindows.length === 0) return null
 
-    // 收集所有候选窗口及其距离
+    // 找出所有候选窗口（鼠标在窗口内或接近窗口边缘）
     const candidates: Array<{ window: WindowInfo; distance: number }> = []
 
     for (const window of this.allWindows) {
-      // 检查鼠标是否在窗口内部
       const isInWindow = mousePos.x >= window.x && 
                         mousePos.x <= window.x + window.width &&
                         mousePos.y >= window.y && 
@@ -236,7 +237,6 @@ export class ScreenshotManager {
         continue
       }
 
-      // 计算到窗口边缘的最短距离
       const distToLeft = Math.abs(mousePos.x - window.x)
       const distToRight = Math.abs(mousePos.x - (window.x + window.width))
       const distToTop = Math.abs(mousePos.y - window.y)
@@ -250,11 +250,19 @@ export class ScreenshotManager {
 
     if (candidates.length === 0) return null
 
-    // 选择窗口：优先选择 display_order 最小的（实际层级最高），然后选择距离最近的
+    // 按照优先级排序：
+    // 1. 优先选择 display_order 最小的（最顶层）
+    // 2. 如果 display_order 相同，优先选择距离最近的
+    // 3. 如果距离也相同，优先选择全屏窗口
     return candidates.reduce((best, current) => {
-      // 按实际显示层级选择（display_order 越小，层级越高）
       if (current.window.display_order < best.window.display_order) return current
-      if (current.window.display_order === best.window.display_order && current.distance < best.distance) return current
+      if (current.window.display_order > best.window.display_order) return best
+      
+      if (current.distance < best.distance) return current
+      if (current.distance > best.distance) return best
+      
+      if (current.window.is_fullscreen && !best.window.is_fullscreen) return current
+      
       return best
     }).window
   }
@@ -265,6 +273,8 @@ export class ScreenshotManager {
   private mouseMoveHandler = this.handleMouseMove.bind(this)
   private mouseUpHandler = this.handleMouseUp.bind(this)
   private doubleClickHandler = this.handleDoubleClick.bind(this)
+  private keyDownHandler = this.handleKeyDownInternal.bind(this)
+  private keyUpHandler = this.handleKeyUp.bind(this)
 
   // 绑定鼠标事件
   private bindMouseEvents(): void {
@@ -272,6 +282,10 @@ export class ScreenshotManager {
     this.canvas.addEventListener('mousemove', this.mouseMoveHandler)
     this.canvas.addEventListener('mouseup', this.mouseUpHandler)
     this.canvas.addEventListener('dblclick', this.doubleClickHandler)
+    
+    // 绑定键盘事件
+    window.addEventListener('keydown', this.keyDownHandler)
+    window.addEventListener('keyup', this.keyUpHandler)
   }
 
   // 鼠标按下处理
@@ -521,6 +535,20 @@ export class ScreenshotManager {
       clickedAnnotation.updateData({ selected: true })
       this.selectedAnnotation = clickedAnnotation
       this.startTextInput(mousePos, clickedAnnotation)
+    }
+  }
+
+  // 键盘按下处理（内部）
+  private handleKeyDownInternal(event: KeyboardEvent): void {
+    if (event.key === 'Shift') {
+      this.isShiftPressed = true
+    }
+  }
+
+  // 键盘抬起处理
+  private handleKeyUp(event: KeyboardEvent): void {
+    if (event.key === 'Shift') {
+      this.isShiftPressed = false
     }
   }
 
@@ -882,9 +910,12 @@ export class ScreenshotManager {
       this.drawSnapPreview()
     }
 
-    // 绘制所有标注
+    // 绘制所有标注（过滤掉正在编辑的注释）
     if (this.annotations.length > 0) {
-      this.drawingEngine.drawAnnotations(this.annotations, this.selectionRect || undefined)
+      const visibleAnnotations = this.editingAnnotation 
+        ? this.annotations.filter(a => a.getData().id !== this.editingAnnotation!.getData().id)
+        : this.annotations
+      this.drawingEngine.drawAnnotations(visibleAnnotations, this.selectionRect || undefined)
     }
 
     // 绘制当前正在创建的标注
@@ -1039,8 +1070,12 @@ export class ScreenshotManager {
         break
         
       case ToolType.Pen:
+        // 画笔工具：正常绘制，不做实时约束
+        this.currentAnnotation.addPoint(point)
+        break
+      
       case ToolType.Mosaic:
-        // 画笔和马赛克需要添加所有点
+        // 马赛克需要添加所有点
         this.currentAnnotation.addPoint(point)
         break
     }
@@ -1049,6 +1084,13 @@ export class ScreenshotManager {
   // 完成标注创建
   finishAnnotation(): void {
     if (this.currentAnnotation) {
+      const data = this.currentAnnotation.getData()
+      
+      // 画笔工具 + Shift键：智能识别并矫正
+      if (data.type === ToolType.Pen && this.isShiftPressed && data.points.length >= 3) {
+        this.smartCorrectPenAnnotation()
+      }
+      
       const isValid = this.currentAnnotation.isValid()
       
       if (isValid) {
@@ -1057,6 +1099,56 @@ export class ScreenshotManager {
       }
     }
     this.currentAnnotation = null
+  }
+
+  // 智能识别并矫正画笔标注
+  private smartCorrectPenAnnotation(): void {
+    if (!this.currentAnnotation) return
+    
+    const data = this.currentAnnotation.getData()
+    const points = data.points
+    
+    if (points.length < 3) return // 至少需要3个点才进行识别
+    
+    // 计算边界
+    let minX = points[0].x, maxX = points[0].x
+    let minY = points[0].y, maxY = points[0].y
+    
+    points.forEach(p => {
+      minX = Math.min(minX, p.x)
+      maxX = Math.max(maxX, p.x)
+      minY = Math.min(minY, p.y)
+      maxY = Math.max(maxY, p.y)
+    })
+    
+    const width = maxX - minX
+    const height = maxY - minY
+    
+    // 计算路径的总长度
+    let pathLength = 0
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x
+      const dy = points[i].y - points[i - 1].y
+      pathLength += Math.sqrt(dx * dx + dy * dy)
+    }
+    
+    // 判断是否为直线
+    const straightLineLength = Math.sqrt(
+      Math.pow(points[points.length - 1].x - points[0].x, 2) +
+      Math.pow(points[points.length - 1].y - points[0].y, 2)
+    )
+    const straightness = straightLineLength / pathLength
+    const aspectRatio = Math.max(width, height) / Math.max(Math.min(width, height), 1)
+    
+    // 直线识别条件：直线度 > 0.85 或 宽高比 > 5
+    if (straightness > 0.85 || aspectRatio > 5) {
+      const startPoint = points[0]
+      const endPoint = points[points.length - 1]
+      this.currentAnnotation.updateData({ points: [startPoint, endPoint] })
+      return
+    }
+    
+    // 如果不是直线，保持原始路径不变
   }
 
   // 撤销最后一个标注
@@ -1159,7 +1251,7 @@ export class ScreenshotManager {
         await invoke('save_screenshot_to_file', { image: finalImage })
       }
     } catch (error) {
-      console.error(`Failed to ${action} screenshot:`, error)
+      logger.error(`[截图] ${action === 'save' ? '保存' : '复制'}截图失败`, error)
       throw error
     }
   }
@@ -1182,29 +1274,36 @@ export class ScreenshotManager {
 
       const img = new Image()
       img.onload = () => {
-        // 绘制背景图像
-        tempCtx.drawImage(img, 0, 0)
+        try {
+          tempCtx.drawImage(img, 0, 0)
 
-        // 绘制标注
-        if (this.annotations.length > 0 && this.selectionRect) {
-          const context = this.drawingEngine.createScreenshotContext(
-            tempCtx,
-            scale,
-            this.selectionRect
-          )
+          if (this.annotations.length > 0 && this.selectionRect) {
+            const context = this.drawingEngine.createScreenshotContext(
+              tempCtx,
+              scale,
+              this.selectionRect
+            )
 
-          this.annotations.forEach(annotation => {
-            annotation.drawToScreenshot(context)
-          })
+            this.annotations.forEach((annotation, index) => {
+              try {
+                annotation.drawToScreenshot(context)
+              } catch (err) {
+                logger.error(`[PIN] 绘制标注 ${index} 失败`, err)
+              }
+            })
+          }
+
+          const dataUrl = tempCanvas.toDataURL('image/png')
+          resolve(dataUrl)
+        } catch (err) {
+          logger.error('[PIN] 绘制过程出错', err)
+          const dataUrl = tempCanvas.toDataURL('image/png')
+          resolve(dataUrl)
         }
-
-        // 转换为base64
-        const dataUrl = tempCanvas.toDataURL('image/png')
-        const base64 = dataUrl.replace(/^data:image\/(png|jpeg);base64,/, '')
-        resolve(base64)
       }
 
-      img.onerror = () => {
+      img.onerror = (err) => {
+        logger.error('[PIN] 图像加载失败', err)
         reject(new Error('Failed to load captured image'))
       }
 
@@ -1259,6 +1358,9 @@ export class ScreenshotManager {
       if (this.selectedAnnotation === annotation) {
         this.selectedAnnotation = null
       }
+      if (this.editingAnnotation === annotation) {
+        this.editingAnnotation = null
+      }
       this.draw()
       this.onStateChange?.()
     }
@@ -1268,9 +1370,22 @@ export class ScreenshotManager {
   updateTextAnnotation(annotation: BaseAnnotation, text: string): void {
     if (annotation.getData().type === ToolType.Text) {
       annotation.updateData({ text })
+      this.clearEditingAnnotation() // 清除编辑状态
       this.draw()
       this.onStateChange?.()
     }
+  }
+
+  // 设置正在编辑的文字注释
+  setEditingAnnotation(annotation: BaseAnnotation | null): void {
+    this.editingAnnotation = annotation
+    this.draw()
+  }
+
+  // 清除编辑状态
+  clearEditingAnnotation(): void {
+    this.editingAnnotation = null
+    this.draw()
   }
 
   // 创建贴图窗口
@@ -1327,7 +1442,7 @@ export class ScreenshotManager {
       }, 100)
       
     } catch (error) {
-      console.error('Failed to create pin window:', error)
+      logger.error('[截图] 创建贴图窗口失败', error)
       throw error
     }
   }
@@ -1372,7 +1487,7 @@ export class ScreenshotManager {
       }, 1000)
 
     } catch (error) {
-      console.error('Failed to get pixel color:', error)
+      logger.error('[截图] 获取像素颜色失败', error)
     }
   }
 
@@ -1416,7 +1531,7 @@ export class ScreenshotManager {
 
       this.draw()
     } catch (error) {
-      console.error('Failed to update color preview:', error)
+      logger.error('[截图] 更新颜色预览失败', error)
     }
   }
 
@@ -1485,6 +1600,10 @@ export class ScreenshotManager {
     this.canvas.removeEventListener('mousemove', this.mouseMoveHandler)
     this.canvas.removeEventListener('mouseup', this.mouseUpHandler)
     this.canvas.removeEventListener('dblclick', this.doubleClickHandler)
+    
+    // 清理键盘事件监听器
+    window.removeEventListener('keydown', this.keyDownHandler)
+    window.removeEventListener('keyup', this.keyUpHandler)
   }
 }
 

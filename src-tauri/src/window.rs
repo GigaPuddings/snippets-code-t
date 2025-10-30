@@ -1700,10 +1700,11 @@ pub async fn create_pin_window(
         
         // 多次尝试发送数据，确保前端已经准备好
         tauri::async_runtime::spawn(async move {
-            // 初始延迟500ms，确保前端页面已加载
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            // 初始延迟 800ms，确保前端页面已加载（处理快速操作场景）
+            tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
             
-            for attempt in 1..=10 {
+            // 发送多次确保前端接收到（emit_to 成功不代表前端已监听）
+            for attempt in 1..=5 {
                 info!("尝试第 {} 次发送图片数据到窗口: {}", attempt, label_for_emit);
                 
                 // 使用 emit_to 明确指定目标窗口
@@ -1712,15 +1713,20 @@ pub async fn create_pin_window(
                 })) {
                     Ok(_) => {
                         info!("第 {} 次发送成功（emit_to）", attempt);
-                        break;
+                        // 不立即 break，再发送几次确保前端收到
+                        if attempt < 3 {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                        } else {
+                            break;
+                        }
                     },
                     Err(e) => {
                         info!("第 {} 次发送失败: {}", attempt, e);
-                        if attempt < 10 {
-                            // 每次失败后等待500ms再重试
-                            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                        if attempt < 5 {
+                            // 每次失败后等待 300ms 再重试
+                            tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
                         } else {
-                            info!("已尝试 10 次，放弃发送");
+                            info!("已尝试 5 次，放弃发送");
                         }
                     }
                 }
@@ -1772,6 +1778,24 @@ pub fn save_pin_image(app_handle: AppHandle, image_data: String) -> Result<Strin
     save_screenshot_to_file(app_handle, image_data)
 }
 
+// 前端日志转发到后台
+#[tauri::command]
+pub fn frontend_log(level: String, message: String, data: Option<String>) {
+    let log_msg = if let Some(d) = data {
+        format!("[Frontend] {} - {}", message, d)
+    } else {
+        format!("[Frontend] {}", message)
+    };
+    
+    match level.as_str() {
+        "error" => log::error!("{}", log_msg),
+        "warn" => log::warn!("{}", log_msg),
+        "info" => log::info!("{}", log_msg),
+        "debug" => log::debug!("{}", log_msg),
+        _ => log::info!("{}", log_msg),
+    }
+}
+
 // 获取所有窗口信息
 #[tauri::command]
 pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
@@ -1794,28 +1818,35 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                         let title_len = GetWindowTextW(hwnd, &mut title_buffer);
                         let title = String::from_utf16_lossy(&title_buffer[..title_len as usize]);
                         
-                        // 基本尺寸和标题检查
+                        let width = rect.right - rect.left;
+                        let height = rect.bottom - rect.top;
+                        
                         if !title.is_empty() && 
                            rect.right > rect.left && 
                            rect.bottom > rect.top &&
-                           (rect.right - rect.left) >= 100 &&  // 最小宽度提高到100
-                           (rect.bottom - rect.top) >= 100 &&  // 最小高度提高到100
+                           width >= 100 &&
+                           height >= 100 &&
                            is_valid_window_title(&title) {
-                            // 计算窗口的Z-order（层级）
                             let z_order = get_window_z_order(hwnd);
-                            
-                            // 检测是否为全屏窗口
                             let is_fullscreen = is_fullscreen_window(hwnd);
                             
+                            // 如果是全屏窗口，将尺寸限制为屏幕尺寸
+                            let screen_width = GetSystemMetrics(SM_CXSCREEN);
+                            let screen_height = GetSystemMetrics(SM_CYSCREEN);
+                            let final_width = if is_fullscreen { screen_width.min(width) } else { width };
+                            let final_height = if is_fullscreen { screen_height.min(height) } else { height };
+                            let final_x = if is_fullscreen { 0 } else { rect.left };
+                            let final_y = if is_fullscreen { 0 } else { rect.top };
+                            
                             windows.push(WindowInfo {
-                                x: rect.left,
-                                y: rect.top,
-                                width: rect.right - rect.left,
-                                height: rect.bottom - rect.top,
+                                x: final_x,
+                                y: final_y,
+                                width: final_width,
+                                height: final_height,
                                 title,
                                 z_order,
                                 is_fullscreen,
-                                display_order: 0, // 临时值，稍后重新分配
+                                display_order: 0,
                             });
                         }
                     }
@@ -1846,27 +1877,21 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 999999
             }
             
-            // 辅助函数：检查窗口是否应该包含
             unsafe fn should_include_window(hwnd: HWND) -> bool {
-                // 1. 基本可见性检查
                 if !IsWindowVisible(hwnd).as_bool() {
                     return false;
                 }
                 
-                // 2. 检查是否最小化
                 if IsIconic(hwnd).as_bool() {
                     return false;
                 }
                 
-                // 3. 检查扩展窗口样式
                 let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
                 
-                // 排除工具窗口和非激活窗口
                 if (ex_style & WS_EX_TOOLWINDOW.0) != 0 {
                     return false;
                 }
                 
-                // 4. 检查窗口是否有父窗口或所有者
                 if let Ok(parent) = GetParent(hwnd) {
                     if parent.0 != std::ptr::null_mut() && (ex_style & WS_EX_APPWINDOW.0) == 0 {
                         return false;
@@ -1879,19 +1904,14 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                     }
                 }
                 
-                // 5. 获取窗口类名进行过滤
                 let mut class_name_buffer = [0u16; 256];
                 let class_name_len = GetClassNameW(hwnd, &mut class_name_buffer);
                 let class_name = String::from_utf16_lossy(&class_name_buffer[..class_name_len as usize]);
                 
-                // 过滤系统类名
                 if is_system_class(&class_name) {
                     return false;
                 }
                 
-                // 6. 不再过滤全屏窗口，因为全屏窗口应该有最高优先级
-                
-                // 7. 额外的窗口大小检查：过滤异常大的窗口
                 let mut rect = RECT::default();
                 if GetWindowRect(hwnd, &mut rect).is_ok() {
                     let window_width = rect.right - rect.left;
@@ -1899,8 +1919,9 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                     let screen_width = GetSystemMetrics(SM_CXSCREEN);
                     let screen_height = GetSystemMetrics(SM_CYSCREEN);
                     
-                    // 如果窗口尺寸超过屏幕尺寸，很可能是跨显示器的全屏应用
-                    if window_width > screen_width || window_height > screen_height {
+                    // 允许全屏窗口略微超出屏幕尺寸（容差50px），因为全屏窗口可能包含边框
+                    let tolerance = 50;
+                    if window_width > screen_width + tolerance || window_height > screen_height + tolerance {
                         return false;
                     }
                 }
@@ -1908,7 +1929,6 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 true
             }
             
-            // 辅助函数：检查窗口是否处于全屏状态
             unsafe fn is_fullscreen_window(hwnd: HWND) -> bool {
                 let mut rect = RECT::default();
                 if GetWindowRect(hwnd, &mut rect).is_err() {
@@ -1918,20 +1938,11 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 let screen_width = GetSystemMetrics(SM_CXSCREEN);
                 let screen_height = GetSystemMetrics(SM_CYSCREEN);
                 
-                // 检查窗口是否覆盖整个屏幕
                 let window_width = rect.right - rect.left;
                 let window_height = rect.bottom - rect.top;
                 
-                // 获取窗口标题用于调试
-                let mut title_buffer = [0u16; 256];
-                let title_len = GetWindowTextW(hwnd, &mut title_buffer);
-                let _title = String::from_utf16_lossy(&title_buffer[..title_len as usize]);
-                
-                // 更宽松的全屏检测：
-                // 1. 窗口大小达到屏幕的85%以上
-                // 2. 位置接近屏幕边界
-                let size_threshold = 85; // 85%阈值
-                let position_tolerance = 20; // 位置容差增加到20像素
+                let size_threshold = 85;
+                let position_tolerance = 20;
                 
                 let is_large_window = window_width >= screen_width * size_threshold / 100 &&
                                     window_height >= screen_height * size_threshold / 100;
@@ -1939,21 +1950,11 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 let is_near_screen_edge = rect.left <= position_tolerance && 
                                         rect.top <= position_tolerance;
                 
-                // 检查窗口是否几乎覆盖整个屏幕
                 let screen_coverage_x = (window_width as f64) / (screen_width as f64);
                 let screen_coverage_y = (window_height as f64) / (screen_height as f64);
                 let is_mostly_fullscreen = screen_coverage_x >= 0.9 && screen_coverage_y >= 0.9;
                 
-                let is_fullscreen = (is_large_window && is_near_screen_edge) || is_mostly_fullscreen;
-                
-                // 调试日志：记录被检测为全屏的窗口
-                // if is_fullscreen {
-                //     info!("检测到全屏窗口: '{}', 尺寸: {}x{}, 位置: ({}, {}), 屏幕: {}x{}", 
-                //           title, window_width, window_height, rect.left, rect.top, 
-                //           screen_width, screen_height);
-                // }
-                
-                is_fullscreen
+                (is_large_window && is_near_screen_edge) || is_mostly_fullscreen
             }
             
             // 辅助函数：检查是否为系统类名
@@ -2001,30 +2002,22 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 LPARAM(&mut windows as *mut Vec<WindowInfo> as isize),
             );
             
-            // 排序：全屏窗口优先，然后按Z-order排序（z_order值越小表示层级越高）
+            // 排序：按Z-order排序（z_order值越小表示层级越高，即最顶层的窗口）
             windows.sort_by(|a: &WindowInfo, b: &WindowInfo| {
-                // 全屏窗口排在前面
-                match (a.is_fullscreen, b.is_fullscreen) {
-                    (true, false) => std::cmp::Ordering::Less,
-                    (false, true) => std::cmp::Ordering::Greater,
-                    _ => a.z_order.cmp(&b.z_order),
-                }
+                a.z_order.cmp(&b.z_order)
             });
             
-            // 过滤被遮挡的窗口，并分配实际的显示层级
+            // 过滤被遮挡的窗口
             let mut filtered_windows: Vec<WindowInfo> = Vec::new();
-            for mut window in windows.into_iter() {
-                // 检查是否被前面的窗口（层级更高）严重遮挡（超过70%）
+            for mut window in windows {
                 let is_occluded = filtered_windows.iter()
                     .any(|higher_window| {
                         let overlap = calculate_overlap_area(&window, higher_window);
                         let area = window.width * window.height;
-                        // 提高到70%阈值，更严格地过滤被遮挡的窗口
                         area > 0 && overlap as f64 / area as f64 > 0.2
                     });
                 
                 if !is_occluded {
-                    // 分配实际的显示层级（从0开始递增）
                     window.display_order = filtered_windows.len() as i32;
                     filtered_windows.push(window);
                 }
