@@ -55,10 +55,13 @@
           <div class="progress-status">
             <div
               class="status-icon"
-              :class="{ completed: update.progress === 100 }"
+              :class="{ 
+                completed: update.progress === 100 && !update.error,
+                error: update.error
+              }"
             >
               <svg
-                v-if="update.progress < 100"
+                v-if="!update.error && update.progress < 100"
                 class="download-icon"
                 xmlns="http://www.w3.org/2000/svg"
                 width="22"
@@ -75,7 +78,7 @@
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
               <svg
-                v-else
+                v-else-if="!update.error"
                 class="check-icon"
                 xmlns="http://www.w3.org/2000/svg"
                 width="22"
@@ -90,14 +93,31 @@
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
+              <svg
+                v-else
+                class="error-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
             </div>
             <div class="status-text-container">
-              <span class="status-text">
+              <span class="status-text" :class="{ error: update.error }">
                 {{ update.statusText || '获取数据中...' }}
               </span>
             </div>
           </div>
-          <div class="progress-wrapper">
+          <div v-if="!update.error" class="progress-wrapper">
             <el-progress
               :stroke-width="6"
               :percentage="update.progress"
@@ -110,6 +130,9 @@
               <span class="percentage">{{ update.progress }}%</span>
             </div>
           </div>
+          <div v-else class="error-message">
+            {{ update.error }}
+          </div>
         </div>
       </div>
     </div>
@@ -117,18 +140,18 @@
     <div class="footer">
       <el-button
         @click="handleCancel"
-        v-if="!update.downloading"
+        v-if="!update.downloading || update.error"
         class="action-button cancel-button"
       >
-        稍后更新
+        {{ update.error ? '关闭' : '稍后更新' }}
       </el-button>
       <el-button
         type="primary"
         @click="handleUpdate"
-        v-if="!update.downloading"
+        v-if="!update.downloading || update.error"
         class="action-button update-button"
       >
-        立即更新
+        {{ update.error && update.downloadComplete ? '重试安装' : '立即更新' }}
       </el-button>
     </div>
   </div>
@@ -142,6 +165,7 @@ import { relaunch } from '@tauri-apps/plugin-process';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import { logger } from '@/utils/logger';
 
 interface UpdateInfo {
   version: string;
@@ -157,7 +181,9 @@ const update = reactive({
   newVersion: '',
   releaseDate: '',
   releaseNotes: '',
-  contentLength: 0
+  contentLength: 0,
+  error: '',
+  downloadComplete: false
 });
 
 const progressFormat = (percentage: number) => {
@@ -217,7 +243,8 @@ onMounted(async () => {
         break;
       case 'Finished':
         update.progress = 100;
-        update.statusText = '下载完成，准备安装...';
+        update.downloadComplete = true;
+        update.statusText = '下载完成，正在启动安装程序...';
         break;
     }
   });
@@ -241,22 +268,48 @@ onMounted(async () => {
 
 const handleUpdate = async () => {
   try {
+    // 如果是重试安装，重置状态
+    if (update.error) {
+      update.error = '';
+      update.progress = 0;
+      update.downloadComplete = false;
+    }
+    
     update.downloading = true;
     update.statusText = '准备下载...';
 
     await invoke('perform_update');
 
-    // 确保更新完成后更新状态被重置
-    update.statusText = '应用更新成功，准备重启...';
+    // 如果到达这里说明安装成功，准备重启
+    update.statusText = '安装成功，准备重启应用...';
 
     // 延迟重启
     setTimeout(async () => {
       await relaunch();
     }, 2000);
-  } catch (error) {
-    console.error('Update failed:', error);
-    update.statusText = '更新失败';
-    update.downloading = false;
+  } catch (error: any) {
+    // console.error('Update failed:', error);
+    logger.error('Update failed:', error);
+    
+    // 如果下载已完成，说明是安装阶段出错
+    if (update.downloadComplete) {
+      const errorMsg = typeof error === 'string' ? error : (error.message || '');
+      
+      // 根据错误类型提供更具体的提示
+      if (errorMsg.includes('权限') || errorMsg.includes('permission')) {
+        update.error = '安装失败：需要管理员权限。\n\n解决方法：\n1. 右键点击应用图标，选择"以管理员身份运行"\n2. 或者点击下方"重试安装"按钮重新尝试';
+      } else if (errorMsg.includes('签名') || errorMsg.includes('signature')) {
+        update.error = '安装失败：更新文件签名验证失败。\n\n可能是下载过程中文件损坏，请点击"重试安装"重新下载。';
+      } else {
+        update.error = `安装程序启动失败。\n\n可能原因：\n1. UAC权限被拒绝\n2. 被杀毒软件拦截\n3. 更新文件损坏\n\n错误详情：${errorMsg}\n\n请点击"重试安装"重新尝试。`;
+      }
+      update.statusText = '安装失败';
+    } else {
+      // 下载阶段出错
+      update.error = typeof error === 'string' ? error : (error.message || '下载失败，请检查网络连接');
+      update.statusText = '下载失败';
+      update.downloading = false;
+    }
   }
 };
 
@@ -391,6 +444,10 @@ const handleCancel = () => {
             @apply bg-green-50;
           }
 
+          &.error {
+            @apply bg-red-50;
+          }
+
           .download-icon {
             @apply text-blue-500;
 
@@ -402,6 +459,12 @@ const handleCancel = () => {
 
             animation: scaleIn 0.5s ease-out;
           }
+
+          .error-icon {
+            @apply text-red-500;
+
+            animation: shake 0.5s ease-out;
+          }
         }
 
         .status-text-container {
@@ -409,6 +472,10 @@ const handleCancel = () => {
 
           .status-text {
             @apply text-gray-700 font-medium text-sm;
+            
+            &.error {
+              @apply text-red-600;
+            }
           }
         }
       }
@@ -439,6 +506,10 @@ const handleCancel = () => {
             @apply font-semibold text-blue-600 text-base;
           }
         }
+      }
+      
+      .error-message {
+        @apply w-full mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 whitespace-pre-line leading-relaxed;
       }
     }
   }
@@ -563,6 +634,18 @@ const handleCancel = () => {
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
   }
 }
 

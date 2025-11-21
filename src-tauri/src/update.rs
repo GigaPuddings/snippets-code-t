@@ -97,21 +97,25 @@ pub fn get_update_info(app: AppHandle) -> Option<UpdateInfo> {
 // 执行更新
 #[tauri::command]
 pub async fn perform_update(app: AppHandle) -> Result<(), String> {
+    log::info!("开始执行更新...");
+    
     if let Ok(updater) = app.updater() {
         if let Ok(Some(update)) = updater.check().await {
             let app = APP.get().ok_or("无法获取应用实例")?;
             let mut total_downloaded: u64 = 0;
 
+            log::info!("发现新版本: {}, 开始下载更新...", update.version);
+
             // 下载更新
-            update
+            let result = update
                 .download_and_install(
                     |chunk_length, content_length| {
                         total_downloaded += chunk_length as u64;
 
                         let progress = DownloadProgress {
-                            event: if total_downloaded == 0 {
+                            event: if total_downloaded == chunk_length as u64 {
                                 "Started".to_string()
-                            } else if total_downloaded == content_length.unwrap_or(0) {
+                            } else if content_length.map_or(false, |len| total_downloaded >= len) {
                                 "Finished".to_string()
                             } else {
                                 "Progress".to_string()
@@ -128,6 +132,7 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                         }
                     },
                     || {
+                        log::info!("下载完成，准备安装更新...");
                         if let Err(e) = app.emit("download-finished", ()) {
                             log::warn!("发送下载完成事件失败: {}", e);
                         }
@@ -135,18 +140,37 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                         set_value(app, UPDATE_AVAILABLE_KEY, false);
                     },
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await;
 
-            // 再次确保更新状态被重置
-            set_value(&app, UPDATE_AVAILABLE_KEY, false);
-
-            Ok(())
+            match result {
+                Ok(_) => {
+                    log::info!("更新安装成功，应用即将重启");
+                    // 确保更新状态被重置
+                    set_value(&app, UPDATE_AVAILABLE_KEY, false);
+                    Ok(())
+                }
+                Err(e) => {
+                    let error_msg = format!("更新安装失败: {}", e);
+                    log::error!("{}", error_msg);
+                    
+                    // 检查是否是权限问题
+                    let error_str = e.to_string();
+                    if error_str.contains("permission") || error_str.contains("access denied") {
+                        Err("安装失败：需要管理员权限。请以管理员身份运行应用或手动安装更新。".to_string())
+                    } else if error_str.contains("signature") {
+                        Err("安装失败：更新文件签名验证失败。请重新下载或联系开发者。".to_string())
+                    } else {
+                        Err(error_msg)
+                    }
+                }
+            }
         } else {
-            Err("No update available".to_string())
+            log::warn!("未发现可用更新");
+            Err("未发现可用更新".to_string())
         }
     } else {
-        Err("Failed to initialize updater".to_string())
+        log::error!("无法初始化更新器");
+        Err("无法初始化更新器".to_string())
     }
 }
 
