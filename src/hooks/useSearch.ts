@@ -1,4 +1,4 @@
-import { searchContent } from '@/database';
+import { searchFragmentContent } from '@/api/fragment';
 import { debounce } from '@/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -189,6 +189,6 @@ export function useSearch() {
 
 // 搜索代码片段
 async function searchCode(query: string) {
-  const codeResults = await searchContent(query);
+  const codeResults = await searchFragmentContent(query);
   return codeResults;
 }

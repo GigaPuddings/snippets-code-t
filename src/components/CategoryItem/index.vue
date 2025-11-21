@@ -33,7 +33,7 @@ import {
   editCategory,
   deleteCategory,
   getCategories
-} from '@/database/category';
+} from '@/api/fragment';
 import { useRouter } from 'vue-router';
 const props = defineProps<{
   category: CategoryType;

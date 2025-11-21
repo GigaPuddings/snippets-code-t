@@ -354,7 +354,7 @@ pub fn get_alarm_cards() -> Vec<AlarmCard> {
 
 #[tauri::command]
 pub fn delete_alarm_card(id: String) -> Result<(), String> {
-    if let Err(e) = db::delete_alarm_card_from_db(&id) {
+    if let Err(e) = db::delete_alarm_card_by_id(&id) {
         return Err(e.to_string());
     }
 

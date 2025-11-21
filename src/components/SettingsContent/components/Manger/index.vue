@@ -1,6 +1,6 @@
 <template>
   <main class="summarize-container">
-    <section class="summarize-section">
+    <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">片段目录：</div>
         <div class="summarize-label-desc">设置片段存储位置</div>
@@ -22,7 +22,7 @@
       </div>
     </section>
 
-    <section class="summarize-section">
+    <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">片段数据备份：</div>
         <div class="summarize-label-desc">设置片段数据备份位置</div>
@@ -51,7 +51,7 @@
       </div>
     </section>
 
-    <section class="summarize-section">
+    <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">数据恢复：</div>
         <div class="summarize-label-desc">恢复片段数据</div>
@@ -71,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { getDb } from '@/database';
+// 数据库已迁移到Rust后端，不再需要前端管理连接
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 import modal from '@/utils/modal';
@@ -143,11 +143,7 @@ const restoreData = async () => {
               onClick: async () => {
                 ElMessageBox.close();
                 try {
-                  // 关闭数据库
-                  await getDb().then((db) => {
-                    console.log('关闭数据库', db);
-                    db.close();
-                  });
+                  // Rust后端会自动管理数据库连接
                   await invoke('restore_database');
                   modal.msg('数据恢复成功，应用即将重启');
                 } catch (error) {
@@ -201,11 +197,7 @@ const selectCustomPath = async () => {
               onClick: async () => {
                 ElMessageBox.close();
                 try {
-                  // 关闭数据库
-                  await getDb().then((db) => {
-                    console.log('关闭数据库', db);
-                    db.close();
-                  });
+                  // Rust后端会自动管理数据库连接
                   const newPath = await invoke('set_custom_db_path');
                   store.dbPath = newPath as string; // 更新前端路径
                   modal.msg('数据库路径修改成功，应用将重启以应用更改');

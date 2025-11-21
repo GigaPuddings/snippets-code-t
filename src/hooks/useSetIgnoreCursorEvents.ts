@@ -11,7 +11,6 @@ export function useSetIgnoreCursorEvents(el: HTMLElement) {
 
     invoke('ignore_cursor_events', {
       ignore: !currentIsInside,
-      // 获取元素的坐标，并向上取整
       rect: [
         Math.ceil(rect.left),
         Math.ceil(rect.right),
@@ -21,10 +20,8 @@ export function useSetIgnoreCursorEvents(el: HTMLElement) {
     });
   };
 
-  // 只监听全局鼠标移动
   window.addEventListener('mousemove', handleMouseMove);
 
-  // 确保组件卸载时清理事件监听
   onUnmounted(() => {
     window.removeEventListener('mousemove', handleMouseMove);
   });

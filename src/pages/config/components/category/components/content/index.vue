@@ -1,5 +1,5 @@
 <template>
-  <main class="content-container">
+  <main class="content-container transparent-input">
     <div class="content-title">
       <el-input
         v-model="state.title"
@@ -20,7 +20,7 @@
 
 <script setup lang="ts">
 import { useConfigurationStore } from '@/store';
-import { getFragmentContent, editFragment } from '@/database/fragment';
+import { getFragmentContent, editFragment } from '@/api/fragment';
 import { debounce } from '@/utils';
 import modal from '@/utils/modal';
 // 组件状态集中管理
@@ -72,7 +72,9 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
       ...state.currentContent,
       title: state.title,
       content: state.editorContent,
-      ...data
+      ...data,
+      // 确保 category_id 存在，如果没有则使用当前编辑分类的 ID
+      category_id: state.currentContent.category_id ?? store.editCategoryId
     };
 
     await editFragment(params);
@@ -132,10 +134,10 @@ const fetchContent = async () => {
   try {
     const result = await getFragmentContent(Number(route.params.id));
 
-    if (result?.[0]) {
-      state.currentContent = result[0];
-      state.title = result[0].title;
-      state.editorContent = result[0].content || '';
+    if (result) {
+      state.currentContent = result;
+      state.title = result.title;
+      state.editorContent = result.content || '';
       state.contentChanged = false;
     }
   } catch (error) {
@@ -148,13 +150,23 @@ const fetchContent = async () => {
   }
 };
 
-// 组件挂载
-onMounted(async () => {
-  const id = route.params.id;
-  if (id) {
-    await fetchContent();
-  }
-});
+// 监听路由参数变化
+watch(
+  () => route.params.id,
+  async (newId, oldId) => {
+    // 如果路由参数变化，先保存当前内容
+    if (oldId && state.currentContent && state.contentChanged) {
+      debouncedSave.cancel();
+      await saveContent();
+    }
+    
+    // 加载新内容
+    if (newId) {
+      await fetchContent();
+    }
+  },
+  { immediate: true } // 立即执行一次，替代 onMounted 的逻辑
+);
 
 // 组件卸载前保存
 onBeforeUnmount(async () => {

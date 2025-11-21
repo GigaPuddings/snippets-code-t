@@ -25,7 +25,7 @@ where
     };
 
     if !hotkey.is_empty() {
-        info!("{}：窗口尝试注册快捷键：{}", name, hotkey);
+        // info!("{}：窗口尝试注册快捷键：{}", name, hotkey);
 
         // 解析快捷键字符串
         let (modifiers, code) = parse_hotkey(&hotkey)?;

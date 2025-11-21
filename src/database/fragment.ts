@@ -1,96 +1,37 @@
-import { getDb } from '@/database/index';
+import { 
+  getFragmentList as getFragmentListApi,
+  addFragment as addFragmentApi,
+  deleteFragment as deleteFragmentApi,
+  editFragment as editFragmentApi,
+  getFragmentContent as getFragmentContentApi
+} from '@/api/fragment';
 
 // 获取片段列表
 export function getFragmentList(
-  id?: number,
+  id?: string | number,
   searchVal: string = ''
 ): Promise<ContentType[]> {
-  return new Promise((resolve) => {
-    const db = getDb();
-
-    // 基础 SQL 查询语句，使用 JOIN 连接两个表
-    let sql = `
-      select contents.*, categories.name as category_name
-      from contents
-      left join categories on contents.category_id = categories.id
-      where 1=1
-    `;
-
-    const params: any[] = [];
-
-    // 如果提供了 category_id 则过滤某个分类下的内容
-    if (id !== undefined) {
-      sql += ` and contents.category_id = ?`;
-      params.push(id);
-    }
-
-    // 如果用户提供了搜索关键词，则查询符合关键词的内容
-    if (searchVal) {
-      sql += ` and contents.title like ?`;
-      params.push(`%${searchVal}%`);
-    }
-
-    // 最后按 ID 降序排列
-    sql += ' order by contents.id desc';
-
-    db.then((db) => {
-      db.select(sql, params).then((res) => {
-        resolve(res as ContentType[]);
-      });
-    });
-  });
+  return getFragmentListApi(id, searchVal);
 }
 
 // 新增片段 没有categoryId时，默认新增到未分类
 export function addFragment(categoryId: number): Promise<number> {
-  return new Promise((resolve) => {
-    const db = getDb();
-    db.then((db) => {
-      db.execute(
-        `insert into contents (title,content,category_id,created_at) values('未命名片段','',?,datetime('now', 'localtime'));`,
-        [categoryId]
-      ).then((res) => {
-        resolve(res.lastInsertId!);
-      });
-    });
-  });
+  return addFragmentApi(categoryId);
 }
 
 // 删除片段
 export function deleteFragment(id: number): Promise<void> {
-  return new Promise((resolve) => {
-    const db = getDb();
-    db.then((db) => {
-      db.execute(`delete from contents where id = ?`, [id]).then(() => {
-        resolve();
-      });
-    });
-  });
+  return deleteFragmentApi(id);
 }
 
 // 编辑片段
 export function editFragment(params: any): Promise<void> {
-  return new Promise((resolve) => {
-    const db = getDb();
-    db.then((db) => {
-      db.execute(
-        `update contents set title= ?,content= ?,category_id= ? where id= ?`,
-        [params.title, params.content, params.category_id, params.id]
-      ).then(() => {
-        resolve();
-      });
-    });
-  });
+  return editFragmentApi(params);
 }
 
 // 获取片段内容
-export function getFragmentContent(id: number): Promise<ContentType[]> {
-  return new Promise((resolve) => {
-    const db = getDb();
-    db.then((db) => {
-      db.select(`select * from contents where id = ?`, [id]).then((res) => {
-        resolve(res as ContentType[]);
-      });
-    });
-  });
+export async function getFragmentContent(id: number): Promise<ContentType[]> {
+  const result = await getFragmentContentApi(id);
+  // 转换为数组格式以保持兼容性
+  return result ? [result] : [];
 }

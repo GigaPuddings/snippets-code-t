@@ -44,6 +44,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             "search" => {
                 info!("============== Search ==============");
                 if let Some(window) = app.get_webview_window("main") {
+                    window.center().unwrap();
                     window.show().unwrap();
                     window.set_focus().unwrap();
                 }

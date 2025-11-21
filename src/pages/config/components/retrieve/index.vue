@@ -1,7 +1,7 @@
 <template>
   <main class="w-full h-full overflow-hidden">
     <div class="retrieve-container">
-      <div class="search-config">
+      <div class="search-config transparent-input">
         <div class="config-title">
           <h1 class="title-text">浏览器搜索设置</h1>
           <div class="flex gap-4">

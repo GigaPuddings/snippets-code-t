@@ -549,7 +549,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="translate-container">
+    <div class="translate-container transparent-input">
       <!-- 语言选择区域 -->
       <div class="language-selector">
         <el-select

@@ -2,7 +2,7 @@
   <main class="content-list-container">
     <Splitter default-size="25%" min-size="25%" max-size="40%">
       <template #first>
-        <div class="left-panel">
+        <div class="left-panel transparent-input">
           <div class="content-search">
             <el-input
               v-model="searchText"
@@ -59,7 +59,7 @@
 
 <script setup lang="ts">
 import { Search, Plus } from '@icon-park/vue-next';
-import { getFragmentList, addFragment } from '@/database/fragment';
+import { getFragmentList, addFragment } from '@/api/fragment';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore } from '@/store';
 import { debounce } from '@/utils';

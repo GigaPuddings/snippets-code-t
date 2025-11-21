@@ -388,7 +388,7 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
     *running = true;
     drop(running);
 
-    info!("启动Auto Dark Mode定时切换服务");
+    // info!("启动Auto Dark Mode定时切换服务");
 
     let app_handle_clone = app_handle.clone();
     tauri::async_runtime::spawn(async move {

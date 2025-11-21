@@ -32,7 +32,7 @@ pub struct SearchResult {
 pub const DEFAULT_ENGINES: &str = include_str!("../assets/default_engines.json");
 
 // 转换文本为拼音（全拼和首字母）
-fn text_to_pinyin(text: &str) -> (String, String) {
+pub fn text_to_pinyin(text: &str) -> (String, String) {
     let mut full_pinyin = String::new();
     let mut first_letters = String::new();
 
@@ -55,7 +55,7 @@ fn text_to_pinyin(text: &str) -> (String, String) {
 }
 
 // 模糊搜索函数（支持拼音）
-fn fuzzy_search<T: Clone>(
+pub fn fuzzy_search<T: Clone>(
     items: &[T],
     query: &str,
     get_title: fn(&T) -> &str,

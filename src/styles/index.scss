@@ -4,52 +4,6 @@
 @tailwind components;
 @tailwind utilities;
 
-// @layer base {
-//   :root {
-//     --categories-content-bg: #FCFCFC;
-//     --categories-panel-bg: #faf7f5;
-//     --categories-panel-bg-hover: #4b94f8;
-//     --categories-bg-active: #e5e5e5;
-//     --categories-text-color: #303133;
-//     --categories-text-color-active: #303133;
-//     --categories-info-text-color: #909399;
-//     --categories-border-color: #dcdfe6;
-//     --search-bg-color: #faf8f8;
-//     --search-text-color: #1e1e1e;
-//     --search-info-text-color: #8a8a89;
-//     --search-border-color: #e1e0e0;
-//   }
-
-//   .light {
-//     --categories-content-bg: #FCFCFC;
-//     --categories-panel-bg: #faf7f5;
-//     --categories-panel-bg-hover: #4b94f8;
-//     --categories-bg-active: #e5e5e5;
-//     --categories-text-color: #303133;
-//     --categories-text-color-active: #303133;
-//     --categories-info-text-color: #909399;
-//     --categories-border-color: #dcdfe6;
-//     --search-bg-color: #faf8f8;
-//     --search-text-color: #1e1e1e;
-//     --search-info-text-color: #8a8a89;
-//     --search-border-color: #e1e0e0;
-//   }
-
-//   .dark {
-//     --categories-panel-bg: #262727;
-//     --categories-content-bg: #303133;
-//     --categories-panel-bg-hover: #409eff1a;
-//     --categories-bg-active: #409eff1a;
-//     --categories-text-color: #cfd3dc;
-//     --categories-text-color-active: #409eff;
-//     --categories-info-text-color: #a3a6ad;
-//     --categories-border-color: #43444e;
-//     --search-bg-color: #202020;
-//     --search-text-color: #fcfcfc;
-//     --search-info-text-color: #949494;
-//     --search-border-color: #363636;
-//   }
-// }
 
 // 自定义message
 .el-message {
@@ -62,33 +16,26 @@
   }
 }
 
-.el-input__wrapper.is-focus,
-.el-input__wrapper:hover,
-.el-input__wrapper {
+.transparent-input .el-input__wrapper.is-focus,
+.transparent-input .el-input__wrapper:hover,
+.transparent-input .el-input__wrapper {
   box-shadow: none !important;
 }
 
-.el-input__wrapper {
+.transparent-input .el-input__wrapper {
   background-color: transparent !important;
 }
 
-.el-textarea__inner {
+.transparent-input .el-textarea__inner {
   box-shadow: none !important;
 }
 
-.el-button:hover {
+.transparent-input .el-button:hover {
   color: #fff !important;
   background-color: var(--el-color-primary) !important;
 }
 
-// .el-input-group__append {
-//   position: relative;
-//   right: 10px;
-//   background-color: transparent !important;
-//   box-shadow: none !important;
-// }
-
-.el-input-group__append {
+.transparent-input .el-input-group__append {
   @apply absolute -right-1 z-10 !bg-transparent !shadow-none;
 
   .summarize-button {
@@ -100,36 +47,17 @@
   }
 }
 
-.el-select__wrapper {
+.transparent-input .el-select__wrapper {
   background-color: transparent !important;
   box-shadow: none !important;
 }
 
-.el-select__wrapper.is-focused {
+.transparent-input .el-select__wrapper.is-focused {
   box-shadow: none !important;
 }
 
-// .el-select__popper.el-popper,
-// .el-popper.is-light > .el-popper__arrow::before {
-//   background: var(--categories-content-bg) !important;
-// }
-
-// .el-select-dropdown__item.is-selected {
-//   color: var(--categories-text-color-active) !important;
-// }
-
-// .el-select-dropdown__item.is-hovering {
-//   background-color: var(--categories-panel-bg) !important;
-// }
-
-// .el-popper {
-//   padding: 0.3125rem 0.75rem !important;
-//   line-height: 0.875rem !important;
-// }
-
 // 配置css
 .summarize-container {
-  //  grid grid-cols-2 grid-rows-[repeat(3,120px)] gap-4
   @apply flex-1 w-full h-full overflow-hidden;
 }
 
@@ -148,10 +76,6 @@
     @apply flex text-xs text-content font-thin;
   }
 }
-
-// .summarize-section {
-//   @apply h-[120px] bg-panel p-6 rounded-md overflow-hidden;
-// }
 
 .summarize-input-wrapper {
   @apply relative flex items-center justify-end gap-4;

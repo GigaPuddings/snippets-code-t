@@ -1,0 +1,209 @@
+use crate::config::{get_value, DB_PATH_KEY};
+use crate::APP;
+use rusqlite;
+use std::fs;
+use std::io::Read;
+use std::path::PathBuf;
+use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
+
+// ============= 数据库连接管理器 =============
+
+/// 数据库连接管理器 - 统一管理数据库连接并设置优化参数
+pub struct DbConnectionManager;
+
+impl DbConnectionManager {
+    /// 获取数据库连接并统一设置优化参数
+    pub fn get() -> Result<rusqlite::Connection, rusqlite::Error> {
+        let app = APP.get().unwrap();
+        let db_path = get_database_path(app);
+        let conn = rusqlite::Connection::open(db_path)?;
+        
+        // 统一设置数据库优化参数
+        // WAL模式：提升并发性能（持久化配置，只需设置一次但重复设置无害）
+        let _ = conn.execute("PRAGMA journal_mode=WAL", []);
+        // 降低磁盘同步频率：提升写入性能
+        let _ = conn.execute("PRAGMA synchronous=NORMAL", []);
+        // 增加缓存大小：提升查询性能
+        let _ = conn.execute("PRAGMA cache_size=10000", []);
+        // 临时数据存储在内存中：提升临时表性能
+        let _ = conn.execute("PRAGMA temp_store=memory", []);
+        
+        Ok(conn)
+    }
+}
+
+// ============= 数据库路径管理 =============
+
+/// 获取数据库路径（自动创建父目录）
+pub fn get_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    // 优先使用自定义路径
+    if let Some(custom_path) = get_value(app_handle, DB_PATH_KEY) {
+        if let Some(path_str) = custom_path.as_str() {
+            let path = PathBuf::from(path_str);
+            // 确保父目录存在
+            if let Some(parent) = path.parent() {
+                if !parent.exists() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+            }
+            return path;
+        }
+    }
+    
+    // 默认使用 app_data_dir
+    let default_path = app_handle
+        .path()
+        .app_data_dir()
+        .unwrap()
+        .join("snippets.db");
+    
+    // 确保父目录存在
+    if let Some(parent) = default_path.parent() {
+        if !parent.exists() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+    }
+    
+    default_path
+}
+
+/// 获取数据库路径字符串
+pub fn get_database_path_str(app_handle: &tauri::AppHandle) -> String {
+    get_database_path(app_handle).to_str().unwrap().to_string()
+}
+
+// ============= Tauri 命令函数 =============
+
+#[tauri::command]
+pub fn get_db_path() -> String {
+    let app = APP.get().unwrap();
+    get_database_path_str(app)
+}
+
+#[tauri::command]
+pub async fn backup_database(app_handle: tauri::AppHandle, format: String) -> Result<(), String> {
+    let source_path = get_database_path(&app_handle);
+    
+    // 使用对话框选择保存位置
+    let file_path = app_handle
+        .dialog()
+        .file()
+        .set_title("选择备份保存位置")
+        .set_file_name(&format!("snippets_backup_{}.db", generate_backup_suffix(&format)))
+        .blocking_save_file();
+    
+    match file_path {
+        Some(path) => {
+            // 将FilePath转换为PathBuf
+            let target_path = PathBuf::from(path.as_path().unwrap());
+            fs::copy(&source_path, &target_path).map_err(|e| format!("备份失败: {}", e))?;
+            Ok(())
+        }
+        None => Err("Backup cancelled".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn restore_database(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let target_path = get_database_path(&app_handle);
+    
+    // 使用对话框选择要恢复的文件
+    let file_path = app_handle
+        .dialog()
+        .file()
+        .set_title("选择要恢复的数据库文件")
+        .add_filter("Database", &["db"])
+        .blocking_pick_file();
+    
+    match file_path {
+        Some(path) => {
+            // 将FilePath转换为PathBuf
+            let source_path_buf = PathBuf::from(path.as_path().unwrap());
+            
+            // 验证文件是否为有效的 SQLite 数据库
+            let mut file = fs::File::open(&source_path_buf).map_err(|e| format!("打开文件失败: {}", e))?;
+            let mut header = [0u8; 16];
+            file.read_exact(&mut header).map_err(|e| format!("读取文件失败: {}", e))?;
+            
+            if &header != b"SQLite format 3\0" {
+                return Err("选择的文件不是有效的 SQLite 数据库".to_string());
+            }
+            
+            fs::copy(&source_path_buf, &target_path).map_err(|e| format!("恢复失败: {}", e))?;
+            
+            // 重启应用以加载新数据库
+            app_handle.restart();
+        }
+        None => Err("Restore cancelled".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, String> {
+    use crate::config::set_value;
+    
+    // 使用对话框选择文件夹
+    let folder_path = app_handle
+        .dialog()
+        .file()
+        .set_title("选择数据库存储位置")
+        .set_directory(std::env::current_dir().unwrap_or_default())
+        .blocking_pick_folder();
+    
+    match folder_path {
+        Some(path) => {
+            // 将FilePath转换为PathBuf
+            let folder_pathbuf = PathBuf::from(path.as_path().unwrap());
+            let new_db_path = folder_pathbuf.join("snippets.db");
+            let old_db_path = get_database_path(&app_handle);
+            
+            // 如果旧数据库存在，复制到新位置
+            if old_db_path.exists() {
+                fs::copy(&old_db_path, &new_db_path)
+                    .map_err(|e| format!("迁移数据库失败: {}", e))?;
+            }
+            
+            // 保存新路径到配置
+            let new_path_str = new_db_path.to_str().unwrap().to_string();
+            set_value(&app_handle, DB_PATH_KEY, new_path_str.clone());
+            
+            // 重启应用
+            app_handle.restart();
+        }
+        None => Err("操作已取消".to_string()),
+    }
+}
+
+// ============= 辅助函数 =============
+
+fn generate_backup_suffix(format: &str) -> String {
+    use chrono::Local;
+    
+    let now = Local::now();
+    match format {
+        "A" => now.format("%Y%m%d").to_string(),
+        "B" => now.format("%H%M%S").to_string(),
+        "C" => now.format("%Y%m%d_%H%M%S").to_string(),
+        _ => now.format("%Y%m%d_%H%M%S").to_string(),
+    }
+}
+
+// ============= 数据库优化 =============
+
+/// 优化数据库（VACUUM 和 ANALYZE）
+pub fn optimize_database() -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    
+    log::info!("开始优化数据库...");
+    
+    // 收集统计信息以优化查询计划
+    conn.execute("ANALYZE", [])?;
+    
+    // 如果数据库空间浪费较多，执行 VACUUM
+    // 注意：VACUUM 可能耗时较长，建议在后台执行
+    // conn.execute("VACUUM", [])?;
+    
+    log::info!("数据库优化完成");
+    Ok(())
+}

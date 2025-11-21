@@ -2,28 +2,36 @@
   <main ref="containerRef" class="result-container glass-content">
     <div v-if="props.results.length !== 0" class="tabs">
       <!-- 分类 -->
-      <template v-for="item in tabs" :key="item">
-        <div
-          class="tab"
-          :class="{ active: item.value === activeTab }"
-          @click="switchTab(item.value)"
-        >
-          {{ item.label }}
-        </div>
-      </template>
+      <div class="tabs-group">
+        <template v-for="item in tabs" :key="item">
+          <div
+            class="tab"
+            :class="{ active: item.value === activeTab }"
+            @click="switchTab(item.value)"
+          >
+            {{ item.label }}
+          </div>
+        </template>
+      </div>
+      <!-- 返回提示 -->
+      <div v-if="!isSearchMode" class="return-hint">
+        <span class="hint-key">Tab</span>
+        <span class="hint-text">返回搜索</span>
+      </div>
     </div>
     <RecycleScroller
+      ref="scrollerRef"
       class="result"
       :items="filteredResults"
-      :item-size="52"
+      :item-size="44"
       :buffer="100"
       key-field="id"
-      v-slot="{ item, index }"
+      v-slot="{ item }"
     >
       <div
         class="item"
         :class="{ active: item.id === store.id }"
-        @click="selectItem(item)"
+        @click="handleItemClick(item)"
       >
         <div class="icon-wrapper">
           <img
@@ -66,9 +74,9 @@
           </div>
           <p class="text">{{ item.content }}</p>
         </div>
-        <div v-if="index < 5" class="shortcut-key">
+        <div v-if="getItemRealIndex(item) < 5" class="shortcut-key">
           <command class="shortcut-key-icon" theme="outline" size="12" />
-          <span class="shortcut-key-text">{{ index + 1 }}</span>
+          <span class="shortcut-key-text">{{ getItemRealIndex(item) + 1 }}</span>
         </div>
       </div>
     </RecycleScroller>
@@ -80,16 +88,25 @@ import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@icon-park/vue-next';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
+import { useFocusMode } from '@/hooks/useFocusMode';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const store = useConfigurationStore();
+const { currentMode, isSearchMode, isListMode, isTabMode, setMode, setCanSwitchToList } = useFocusMode();
 
 const props = defineProps<{
   results: ContentType[];
   onClearSearch: () => void;
 }>();
 
+const emit = defineEmits<{
+  backToSearch: [];
+}>();
+
 const containerRef = ref<HTMLElement | null>(null);
+const scrollerRef = ref<any>(null); // RecycleScroller 组件引用
 const activeTab = ref<SummarizeType>('text');
+const currentTabIndex = ref(0); // 当前分类索引
 const tabs = ref<{ label: string; value: SummarizeType }[]>([
   {
     label: '全部',
@@ -122,6 +139,11 @@ const filteredResults = computed(() => {
   return results;
 });
 
+// 获取item在filteredResults中的真实索引位置
+const getItemRealIndex = (item: ContentType): number => {
+  return filteredResults.value.findIndex(r => r.id === item.id);
+};
+
 // 使用计算属性自动选中第一个结果
 const selectedId = computed(() => {
   return filteredResults.value.length > 0 ? filteredResults.value[0].id : null;
@@ -131,133 +153,218 @@ const selectedId = computed(() => {
 watch(selectedId, (newId) => {
   if (newId) {
     store.id = newId;
+    // 切换分类后，确保第一项在视口内
+    nextTick(() => {
+      if (isListMode.value) {
+        scrollToItem(0);
+      }
+    });
   }
 });
 
+// 监听结果变化，更新是否可以切换到列表
+watch(() => filteredResults.value.length, (length) => {
+  setCanSwitchToList(length > 0);
+}, { immediate: true });
+
 function switchTab(tab: SummarizeType) {
   activeTab.value = tab;
+  currentTabIndex.value = tabs.value.findIndex(t => t.value === tab);
+  
+  // 鼠标点击分类时，切换到TAB模式（显示返回提示）
+  if (!isTabMode.value && !isListMode.value) {
+    setMode('TAB');
+  }
+  
+  // 切换分类后，如果在列表模式，滚动到第一项
+  if (isListMode.value && filteredResults.value.length > 0) {
+    nextTick(() => {
+      scrollToItem(0);
+    });
+  }
 }
 
-// 添加一个变量来追踪是否应该控制 tabs
-const shouldControlTabs = ref(false);
-
-// 修改键盘事件处理函数
+// 键盘事件处理函数
 const handleKeyEvent = (e: KeyboardEvent) => {
-  // 检查当前焦点元素是否为输入框
-  const isInputFocused = document.activeElement?.tagName === 'INPUT';
-
-  // 如果是输入框且光标不在开始或结束位置，让输入框处理左右键
-  if (isInputFocused && !shouldControlTabs.value) {
-    const input = document.activeElement as HTMLInputElement;
-    if (e.code === 'ArrowLeft' && input.selectionStart !== 0) {
-      return;
-    }
-    if (e.code === 'ArrowRight' && input.selectionEnd !== input.value.length) {
-      return;
-    }
-  }
-
+  // 全局快捷键：数字键 1-5 快速选择（任何模式下都可用）
   if (/^Digit[1-5]$/.test(e.code) || /^Numpad[1-5]$/.test(e.code)) {
     e.preventDefault();
     e.stopPropagation();
-
     const num = parseInt(e.code.replace('Digit', '').replace('Numpad', ''));
-
-    // 确保对应索引的结果存在
     if (filteredResults.value.length >= num) {
       selectItem(filteredResults.value[num - 1]);
     }
     return;
   }
 
-  // 只阻止方向键和回车键的默认行为和冒泡
-  if (
-    ['ArrowDown', 'ArrowUp', 'Enter', 'ArrowRight', 'ArrowLeft'].includes(
-      e.code
-    )
-  ) {
+  // Escape 键：隐藏窗口（任何模式下都可用）
+  if (e.code === 'Escape') {
     e.preventDefault();
     e.stopPropagation();
-  }
-
-  // 对于上下键和回车键的操作，检查是否有结果
-  if (
-    ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.code) &&
-    filteredResults.value.length === 0
-  ) {
+    showHideWindow();
     return;
   }
 
-  // 处理左右键切换 tabs 的逻辑
-  if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
-    if (e.code === 'ArrowRight') {
-      const nextTabIndex = tabs.value.findIndex(
-        (tab) => tab.value === activeTab.value
-      );
-      const nextTab = tabs.value[(nextTabIndex + 1) % tabs.value.length];
-      switchTab(nextTab.value);
-      shouldControlTabs.value = true;
-    } else if (e.code === 'ArrowLeft') {
-      const currentIndex = tabs.value.findIndex(
-        (tab) => tab.value === activeTab.value
-      );
-      const prevTab =
-        tabs.value[(currentIndex - 1 + tabs.value.length) % tabs.value.length];
-      switchTab(prevTab.value);
-      shouldControlTabs.value = true;
+  // 如果在搜索框模式，不处理键盘事件，让搜索框自己处理
+  // 除了 Tab 键可以用来切换模式
+  if (isSearchMode.value) {
+    // 只处理 Tab 键，即使没有结果也允许切换到 TAB 模式（用于切换分类）
+    if (e.code === 'Tab') {
+      e.preventDefault();
+      e.stopPropagation();
+      setMode('TAB');
+    }
+    // 其他键让搜索框处理，不阻止
+    return;
+  }
+
+  // 处理 Tab 键：从分类标签或列表模式返回搜索框
+  if (e.code === 'Tab' && !e.shiftKey) {
+    e.preventDefault();
+    e.stopPropagation();
+    // 无论在分类模式还是列表模式，Tab键都返回搜索框
+    if (isTabMode.value || isListMode.value) {
+      emit('backToSearch');
     }
     return;
   }
 
-  // 重置 shouldControlTabs
-  shouldControlTabs.value = false;
+  // 根据当前焦点模式处理键盘事件
+  if (isListMode.value) {
+    handleListModeKeys(e);
+  } else if (isTabMode.value) {
+    handleTabModeKeys(e);
+  }
+};
+
+// 列表模式的键盘事件处理
+const handleListModeKeys = (e: KeyboardEvent) => {
+  // 左右键切换分类，即使没有结果也允许切换
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+    e.preventDefault();
+    e.stopPropagation();
+    const direction = e.code === 'ArrowRight' ? 1 : -1;
+    const newIndex = (currentTabIndex.value + direction + tabs.value.length) % tabs.value.length;
+    currentTabIndex.value = newIndex;
+    switchTab(tabs.value[newIndex].value);
+    return;
+  }
+
+  // 其他键需要有结果才能操作
+  if (filteredResults.value.length === 0) return;
 
   const index = filteredResults.value.findIndex((item) => item.id === store.id);
   let nextIndex = index;
 
   switch (e.code) {
     case 'ArrowDown':
+      e.preventDefault();
+      e.stopPropagation();
       nextIndex = (index + 1) % filteredResults.value.length;
       store.id = filteredResults.value[nextIndex].id;
+      scrollToItem(nextIndex);
       break;
     case 'ArrowUp':
-      nextIndex =
-        (index - 1 + filteredResults.value.length) %
-        filteredResults.value.length;
+      e.preventDefault();
+      e.stopPropagation();
+      // 循环导航：从第一项到最后一项
+      nextIndex = (index - 1 + filteredResults.value.length) % filteredResults.value.length;
       store.id = filteredResults.value[nextIndex].id;
+      scrollToItem(nextIndex);
       break;
     case 'Enter':
-      selectItem(filteredResults.value[nextIndex]);
+      e.preventDefault();
+      e.stopPropagation();
+      if (filteredResults.value[index]) {
+        selectItem(filteredResults.value[index]);
+      }
       break;
-    case 'Escape':
-      showHideWindow();
-      break;
-  }
-
-  if (
-    ['ArrowDown', 'ArrowUp'].includes(e.code) &&
-    nextIndex !== index &&
-    containerRef.value
-  ) {
-    const resultContainer = containerRef.value.querySelector('.result .vue-recycle-scroller__item-view') || containerRef.value.querySelector('.result');
-    if (!resultContainer) return;
-
-    const items = resultContainer.querySelectorAll('.item');
-    const targetItem = items[nextIndex] as HTMLElement;
-    if (!targetItem) return;
-
-    const { top, bottom } = targetItem.getBoundingClientRect();
-    const { top: containerTop, bottom: containerBottom } =
-      resultContainer.getBoundingClientRect();
-
-    // 检查目标项是否在容器内
-    if (bottom > containerBottom) {
-      resultContainer.scrollTop += bottom - containerBottom;
-    } else if (top < containerTop) {
-      resultContainer.scrollTop -= containerTop - top;
-    }
   }
 };
+
+// 分类标签模式的键盘事件处理
+const handleTabModeKeys = (e: KeyboardEvent) => {
+  switch (e.code) {
+    case 'ArrowRight':
+      e.preventDefault();
+      e.stopPropagation();
+      currentTabIndex.value = (currentTabIndex.value + 1) % tabs.value.length;
+      switchTab(tabs.value[currentTabIndex.value].value);
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      e.stopPropagation();
+      currentTabIndex.value = (currentTabIndex.value - 1 + tabs.value.length) % tabs.value.length;
+      switchTab(tabs.value[currentTabIndex.value].value);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      e.stopPropagation();
+      // 从分类标签进入列表
+      if (filteredResults.value.length > 0) {
+        setMode('LIST');
+      }
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      e.stopPropagation();
+      // 从分类标签返回搜索框
+      emit('backToSearch');
+      break;
+    case 'Enter':
+      e.preventDefault();
+      e.stopPropagation();
+      // 按下回车进入列表模式
+      if (filteredResults.value.length > 0) {
+        setMode('LIST');
+      }
+      break;
+  }
+};
+
+// 滚动到指定项 - 使用虚拟滚动组件的 API
+const scrollToItem = (index: number) => {
+  if (!scrollerRef.value) return;
+  
+  // 使用 nextTick 确保 DOM 更新完成后再滚动
+  nextTick(() => {
+    // 获取滚动容器
+    const scroller = scrollerRef.value.$el;
+    if (!scroller) return;
+    
+    // 计算目标位置
+    const itemHeight = 44; // 与 :item-size 保持一致
+    const targetPosition = index * itemHeight;
+    
+    // 获取容器高度和当前滚动位置
+    const containerHeight = scroller.clientHeight;
+    const currentScroll = scroller.scrollTop;
+    const itemTop = targetPosition;
+    const itemBottom = targetPosition + itemHeight;
+    
+    // 检查项目是否在视口内
+    const viewportTop = currentScroll;
+    const viewportBottom = currentScroll + containerHeight;
+    
+    // 如果项目在视口下方，滚动到底部对齐
+    if (itemBottom > viewportBottom) {
+      scroller.scrollTop = itemBottom - containerHeight;
+    }
+    // 如果项目在视口上方，滚动到顶部对齐  
+    else if (itemTop < viewportTop) {
+      scroller.scrollTop = itemTop;
+    }
+  });
+};
+
+// 处理列表项点击
+function handleItemClick(item: ContentType) {
+  // 鼠标点击列表项时，切换到LIST模式（显示返回提示）
+  if (!isListMode.value) {
+    setMode('LIST');
+  }
+  selectItem(item);
+}
 
 // 选中代码行
 async function selectItem(item: ContentType) {
@@ -321,17 +428,39 @@ const handleIconError = (item: ContentType) => {
   item.icon = undefined;
 };
 
+// 进入列表模式
+const enterListMode = () => {
+  if (filteredResults.value.length > 0) {
+    setMode('LIST');
+  }
+};
+
+// 进入分类标签模式
+const enterTabMode = () => {
+  if (filteredResults.value.length > 0) {
+    setMode('TAB');
+  }
+};
+
+// 返回搜索框模式
+const backToSearchMode = () => {
+  setMode('SEARCH');
+};
+
 onMounted(() => {
   document.addEventListener('keydown', handleKeyEvent);
 });
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyEvent);
-  shouldControlTabs.value = false;
 });
 
 defineExpose({
-  switchTab
+  switchTab,
+  enterListMode,
+  enterTabMode,
+  backToSearchMode,
+  currentMode
 });
 </script>
 <style lang="scss" scoped>
@@ -339,13 +468,35 @@ defineExpose({
   @apply bg-search px-1 rounded-bl-lg rounded-br-lg;
 
   .tabs {
-    @apply flex gap-2 pt-2 pb-1 border-search;
+    @apply flex items-center justify-between pt-2 pb-1 border-search;
+
+    .tabs-group {
+      @apply flex gap-2;
+    }
 
     .tab {
       @apply px-3 py-1 text-sm text-search cursor-pointer rounded-md;
 
       &.active {
         @apply bg-search-hover text-search;
+      }
+    }
+
+    .return-hint {
+      @apply flex items-center gap-1 mr-2 text-xs cursor-pointer;
+      animation: fadeIn 0.3s ease-in-out;
+      
+      .hint-key {
+        @apply px-1.5 py-0.5 rounded font-medium border;
+        transition: all 0.2s ease;
+      }
+      
+      .hint-text {
+        @apply text-gray-600 dark:text-gray-400;
+      }
+      
+      &:hover .hint-key {
+        transform: scale(1.05);
       }
     }
   }
@@ -385,6 +536,17 @@ defineExpose({
         }
       }
     }
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 </style>

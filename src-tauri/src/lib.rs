@@ -21,10 +21,12 @@ use crate::config::{
     exit_application, get_auto_update_check, reset_software, set_auto_update_check,
 };
 use crate::db::{
-    add_search_history, backup_database, get_db_path, get_search_history, restore_database,
-    set_custom_db_path,add_app, update_app, delete_app, get_apps,
+    get_categories, add_category, edit_category, delete_category,
+    get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content,
+    search_fragment_content,add_search_history, backup_database, get_db_path, get_search_history, 
+    restore_database,set_custom_db_path, cleanup_old_search_history, cleanup_old_icon_cache, 
+    optimize_database,add_app, update_app, delete_app, get_apps,
     add_bookmark, update_bookmark, delete_bookmark, get_bookmarks,
-    cleanup_old_search_history, cleanup_old_icon_cache, optimize_database,
 };
 use crate::translation::translate_text;
 use crate::update::{
@@ -296,6 +298,17 @@ pub fn run() {
                     Target::new(TargetKind::LogDir { file_name: None }),
                     Target::new(TargetKind::Webview),
                 ])
+                .filter(|metadata| {
+                    // 过滤掉 tao 的事件循环警告（这些是已知的无害警告）
+                    if metadata.target().starts_with("tao::platform_impl::platform::event_loop") {
+                        return metadata.level() > log::LevelFilter::Warn;
+                    }
+                    // 过滤掉 tauri::manager 关于 asset 的调试信息
+                    if metadata.target() == "tauri::manager" && metadata.level() == log::LevelFilter::Debug {
+                        return false;
+                    }
+                    true
+                })
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -368,8 +381,6 @@ pub fn run() {
                     if config.enabled {
                         if let Err(e) = start_scheduler(app_handle) {
                             log::warn!("启动Auto Dark Mode服务失败: {}", e);
-                        } else {
-                            log::info!("Auto Dark Mode服务已启动");
                         }
                     }
                 });
@@ -417,15 +428,15 @@ pub fn run() {
             } else {
                 // 手动启动时显示加载页面
                 if let Some(loading_window) = app.get_webview_window("loading") {
-                    loading_window.show().unwrap();
-
-                    // 优化后台加载过程，减少等待时间并使用异步睡眠
+                    // 延迟显示窗口，避免在事件循环完全初始化前操作窗口
                     let loading_window_clone = loading_window.clone();
                     tauri::async_runtime::spawn(async move {
-                        // 进一步减少等待时间至1秒，提升用户体验
+                        // 短暂延迟等待事件循环稳定
+                        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                        let _ = loading_window_clone.show();
+                        
+                        // 等待1秒后关闭加载窗口
                         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
-                        // 关闭加载窗口
                         let _ = loading_window_clone.hide();
 
                         // 显示主窗口
@@ -514,6 +525,16 @@ pub fn run() {
             update_bookmark,                  // 更新书签
             delete_bookmark,                  // 删除书签
             get_bookmarks,                    // 获取所有书签
+            get_categories,                   // 获取所有分类
+            add_category,                     // 添加分类
+            edit_category,                    // 编辑分类
+            delete_category,                  // 删除分类
+            get_fragment_list,                // 获取片段列表
+            add_fragment,                     // 添加片段
+            delete_fragment,                  // 删除片段
+            edit_fragment,                    // 编辑片段
+            get_fragment_content,             // 获取片段内容
+            search_fragment_content,          // 搜索片段内容
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

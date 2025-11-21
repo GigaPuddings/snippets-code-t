@@ -47,7 +47,7 @@ static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> =
     });
 
 // 并发管理 - 限制同时进行的图标加载任务数量以优化性能
-static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(2))); // 限制2个并发任务，降低启动时CPU占用
+static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(10))); // 并发10个任务，平衡性能和资源占用
 
 // Tauri command: 提取应用图标
 #[tauri::command]
@@ -357,7 +357,7 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
             url.to_string()
         }
     };
-    // 尝试不同的Favicon来源
+    // 并行尝试多个Favicon来源，谁先成功就用谁
     let icon_urls = vec![
         format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=64",domain),
         format!("https://api.vwood.xyz/v1/Favicon/public?domain={}", domain),
@@ -368,34 +368,47 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
         format!("https://{}/apple-touch-icon.png", domain),
     ];
 
+    // 创建所有请求的 Future
+    let mut tasks = Vec::new();
     for icon_url in icon_urls {
-        match client.get(&icon_url).send().await {
-            Ok(response) => {
-                if response.status().is_success() {
-                    if let Ok(bytes) = response.bytes().await {
-                        if !bytes.is_empty() && bytes.len() > 16 {
-                            // 确保图标数据有效
-                            let favicon =
-                                format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
-                            // 缓存结果
-                            let cached_icon = CachedIcon {
-                                data: favicon.clone(),
-                                timestamp: SystemTime::now()
-                                    .duration_since(SystemTime::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs(),
-                            };
-                            cache_icon(url, cached_icon);
-                            return Some(favicon);
+        let client_clone = client.clone();
+        let url_clone = url.to_string();
+        tasks.push(async move {
+            match client_clone.get(&icon_url).send().await {
+                Ok(response) => {
+                    if response.status().is_success() {
+                        if let Ok(bytes) = response.bytes().await {
+                            if !bytes.is_empty() && bytes.len() > 16 {
+                                // 确保图标数据有效
+                                let favicon = format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
+                                return Some((url_clone, favicon));
+                            }
                         }
                     }
                 }
+                Err(_) => {}
             }
-            Err(_) => continue, // 忽略错误，尝试下一个URL
+            None
+        });
+    }
+
+    // 并行执行所有请求，只要有一个成功就立即返回
+    let results = futures::future::join_all(tasks).await;
+    for result in results {
+        if let Some((original_url, favicon)) = result {
+            // 缓存结果
+            let cached_icon = CachedIcon {
+                data: favicon.clone(),
+                timestamp: SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            };
+            cache_icon(&original_url, cached_icon);
+            return Some(favicon);
         }
     }
 
-    // 如果所有尝试失败
     None
 }
 
@@ -450,7 +463,29 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         info!("数据库中已存在 {} 个书签，跳过书签扫描", bookmarks_count);
     }
 
-    // 只为需要加载的数据异步加载图标
+    // 发送数据加载完成通知
+    let apps_loaded = apps_to_load.len();
+    let bookmarks_loaded = bookmarks_to_load.len();
+    let total_loaded = apps_loaded + bookmarks_loaded;
+    
+    if total_loaded > 0 {
+        let _ = app_handle
+            .notification()
+            .builder()
+            .title("snippets-code")
+            .body(&format!(
+                "数据加载完成：共 {} 个 (应用: {}, 书签: {})",
+                total_loaded, apps_loaded, bookmarks_loaded
+            ))
+            .show();
+
+        info!(
+            "数据加载完成，共 {} 个项目已添加到数据库 (应用: {}, 书签: {})",
+            total_loaded, apps_loaded, bookmarks_loaded
+        );
+    }
+
+    // 只为需要加载的数据异步加载图标（静默加载，不发送通知）
     if !apps_to_load.is_empty() || !bookmarks_to_load.is_empty() {
         load_icons_with_combined_notification(app_handle.clone(), apps_to_load, bookmarks_to_load);
     }
@@ -504,7 +539,7 @@ where
 
 // 合并加载应用和书签图标并发送单一通知
 fn load_icons_with_combined_notification(
-    app_handle: AppHandle,
+    _app_handle: AppHandle,
     apps: Vec<AppInfo>,
     bookmarks: Vec<BookmarkInfo>,
 ) {
@@ -531,7 +566,7 @@ fn load_icons_with_combined_notification(
         *app_count_clone.lock().unwrap() = count;
     });
 
-    // 加载书签图标（需要异步运行时）
+    // 加载书签图标（需要异步运行时）- 使用并行处理提升性能
     let bookmark_count_clone = bookmark_count.clone();
     let bookmark_thread = std::thread::spawn(move || {
         if bookmarks.is_empty() {
@@ -547,14 +582,36 @@ fn load_icons_with_combined_notification(
             }
         };
 
-        let count = load_icons_generic(
-            bookmarks,
-            |bookmark| bookmark.icon.is_some(),
-            |bookmark| runtime.block_on(async { fetch_favicon_async(&bookmark.content).await }),
-            |bookmark, icon| db::update_bookmark_icon(&bookmark.id, icon).map_err(|e| e.to_string()),
-            "书签",
-        );
-        
+        let total = bookmarks.len();
+        info!("开始加载书签图标: {} 个书签", total);
+
+        // 并行处理所有书签图标加载
+        let count = runtime.block_on(async {
+            let mut tasks = Vec::new();
+            
+            for bookmark in bookmarks {
+                // 跳过已有图标的书签
+                if bookmark.icon.is_some() {
+                    continue;
+                }
+                
+                let bookmark_clone = bookmark.clone();
+                tasks.push(async move {
+                    if let Some(icon_data) = fetch_favicon_async(&bookmark_clone.content).await {
+                        if db::update_bookmark_icon(&bookmark_clone.id, &icon_data).is_ok() {
+                            return 1;
+                        }
+                    }
+                    0
+                });
+            }
+            
+            // 并行执行所有任务并统计成功数量
+            let results = futures::future::join_all(tasks).await;
+            results.into_iter().sum::<usize>()
+        });
+
+        info!("已完成加载书签图标: {} 个成功", count);
         *bookmark_count_clone.lock().unwrap() = count;
     });
 
@@ -569,24 +626,8 @@ fn load_icons_with_combined_notification(
         let bookmarks_loaded = *bookmark_count.lock().unwrap();
         let total_loaded = apps_loaded + bookmarks_loaded;
 
-        info!("应用加载数量: {}, 书签加载数量: {}, 总共加载数量: {}", apps_loaded, bookmarks_loaded, total_loaded);
+        info!("图标加载完成: {} 个成功 (应用: {}, 书签: {})", total_loaded, apps_loaded, bookmarks_loaded);
         
-        // 只有当确实加载了图标时才发送通知
-        if total_loaded > 0 {
-            let _ = app_handle
-                .notification()
-                .builder()
-                .title("snippets-code")
-                .body(&format!(
-                    "图标加载完成：共 {} 个 (应用: {}, 书签: {})",
-                    total_loaded, apps_loaded, bookmarks_loaded
-                ))
-                .show();
-
-            info!(
-                "图标加载完成，共加载 {} 个图标 (应用: {}, 书签: {})",
-                total_loaded, apps_loaded, bookmarks_loaded
-            );
-        }
+        // 图标加载静默完成，不发送通知（通知已在数据加载到数据库时发送）
     });
 }

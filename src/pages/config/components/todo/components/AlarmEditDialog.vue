@@ -60,7 +60,7 @@
         </div>
       </div>
 
-      <div class="alarm-title-input">
+      <div class="alarm-title-input  transparent-input">
         <edit-two theme="outline" size="20" :strokeWidth="3" />
         <el-tooltip effect="light" content="提醒标题" placement="top">
           <el-input
@@ -123,7 +123,7 @@
         </div>
       </div>
 
-      <div class="alarm-pause-time">
+      <div class="alarm-pause-time transparent-input">
         <alarm-clock theme="outline" size="20" :strokeWidth="3" />
         <el-tooltip effect="light" content="暂停时间" placement="top">
           <el-select

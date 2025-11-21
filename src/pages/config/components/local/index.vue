@@ -480,7 +480,7 @@ onMounted(() => {
         }
 
         .item-number {
-          @apply flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-bold;
+          @apply flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-active text-white text-xs font-bold;
         }
 
         .item-content {

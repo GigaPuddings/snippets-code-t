@@ -26,7 +26,7 @@ import {
   deleteFragment,
   editFragment,
   getFragmentList
-} from '@/database/fragment';
+} from '@/api/fragment';
 import { useConfigurationStore } from '@/store';
 import { EditTwo, DeleteFour, CategoryManagement } from '@icon-park/vue-next';
 import { h } from 'vue';
@@ -167,7 +167,7 @@ const showCategorySelector = async () => {
   }
 };
 
-const handleCategoryChange = async (categoryId: number) => {
+const handleCategoryChange = async (categoryId: string | number) => {
   try {
     let params = Object.assign(content.value, { category_id: categoryId });
     await editFragment(params);

@@ -1,6 +1,6 @@
 <template>
   <main class="summarize-container">
-    <section class="summarize-section">
+    <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">工具条快捷键：</div>
         <div class="summarize-label-desc">设置工具条唤醒快捷键</div>
@@ -40,7 +40,7 @@
       </div>
     </section>
 
-    <section class="summarize-section">
+    <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">主窗口快捷键：</div>
         <div class="summarize-label-desc">设置主窗口唤醒快捷键</div>
@@ -80,7 +80,7 @@
       </div>
     </section>
 
-    <section class="summarize-section">
+    <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">翻译窗口快捷键：</div>
         <div class="summarize-label-desc">设置翻译窗口唤醒快捷键</div>
@@ -122,7 +122,7 @@
       </div>
     </section>
 
-    <section class="summarize-section">
+    <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">划词翻译快捷键：</div>
         <div class="summarize-label-desc">设置划词翻译功能快捷键</div>
@@ -174,7 +174,7 @@
       </div>
     </section>
 
-    <section class="summarize-section">
+    <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">截图快捷键：</div>
         <div class="summarize-label-desc">设置截图功能快捷键</div>
@@ -226,7 +226,7 @@
       </div>
     </section>
 
-    <section class="summarize-section">
+    <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">系统主题快捷键：</div>
         <div class="summarize-label-desc">设置系统主题窗口快捷键</div>

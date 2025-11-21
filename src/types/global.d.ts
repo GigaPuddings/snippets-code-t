@@ -14,7 +14,7 @@ declare global {
     summarize: SummarizeType;
     icon?: string;
     score?: number;
-    category_id?: number;
+    category_id?: string | number;
     category_name?: string;
     created_at?: string;
   }

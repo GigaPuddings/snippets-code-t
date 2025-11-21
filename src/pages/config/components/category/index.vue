@@ -47,8 +47,7 @@
 <script setup lang="ts">
 import { SortAmountUp, SortAmountDown, FolderPlus } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
-import { getCategories, addCategory } from '@/database/category';
-import { getFragmentList } from '@/database/fragment';
+import { getCategories, addCategory, getFragmentList } from '@/api/fragment';
 import { useRoute, useRouter } from 'vue-router';
 import { onMounted, watch } from 'vue';
 const store = useConfigurationStore();
