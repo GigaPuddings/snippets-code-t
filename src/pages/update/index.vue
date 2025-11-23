@@ -131,7 +131,15 @@
             </div>
           </div>
           <div v-else class="error-message">
-            {{ update.error }}
+            <div class="error-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+              <span>安装失败</span>
+            </div>
+            <pre class="error-content">{{ update.error }}</pre>
           </div>
         </div>
       </div>
@@ -288,25 +296,16 @@ const handleUpdate = async () => {
       await relaunch();
     }, 2000);
   } catch (error: any) {
-    // console.error('Update failed:', error);
     logger.error('Update failed:', error);
     
-    // 如果下载已完成，说明是安装阶段出错
+    // 统一错误处理：直接使用后端返回的错误信息
+    const errorMsg = typeof error === 'string' ? error : (error.message || '更新失败');
+    update.error = errorMsg;
+    
+    // 设置状态文本
     if (update.downloadComplete) {
-      const errorMsg = typeof error === 'string' ? error : (error.message || '');
-      
-      // 根据错误类型提供更具体的提示
-      if (errorMsg.includes('权限') || errorMsg.includes('permission')) {
-        update.error = '安装失败：需要管理员权限。\n\n解决方法：\n1. 右键点击应用图标，选择"以管理员身份运行"\n2. 或者点击下方"重试安装"按钮重新尝试';
-      } else if (errorMsg.includes('签名') || errorMsg.includes('signature')) {
-        update.error = '安装失败：更新文件签名验证失败。\n\n可能是下载过程中文件损坏，请点击"重试安装"重新下载。';
-      } else {
-        update.error = `安装程序启动失败。\n\n可能原因：\n1. UAC权限被拒绝\n2. 被杀毒软件拦截\n3. 更新文件损坏\n\n错误详情：${errorMsg}\n\n请点击"重试安装"重新尝试。`;
-      }
       update.statusText = '安装失败';
     } else {
-      // 下载阶段出错
-      update.error = typeof error === 'string' ? error : (error.message || '下载失败，请检查网络连接');
       update.statusText = '下载失败';
       update.downloading = false;
     }
@@ -509,7 +508,24 @@ const handleCancel = () => {
       }
       
       .error-message {
-        @apply w-full mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 whitespace-pre-line leading-relaxed;
+        @apply w-full mt-3 p-4 bg-red-50 border border-red-200 rounded-lg;
+        
+        .error-title {
+          @apply flex items-center gap-2 mb-3 pb-3 border-b border-red-200;
+          
+          svg {
+            @apply text-red-500;
+          }
+          
+          span {
+            @apply font-semibold text-red-700 text-base;
+          }
+        }
+        
+        .error-content {
+          @apply text-sm text-red-600 leading-relaxed m-0 font-normal whitespace-pre-wrap;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
       }
     }
   }

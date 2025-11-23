@@ -154,13 +154,20 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                     log::error!("{}", error_msg);
                     
                     // 检查是否是权限问题
-                    let error_str = e.to_string();
-                    if error_str.contains("permission") || error_str.contains("access denied") {
-                        Err("安装失败：需要管理员权限。请以管理员身份运行应用或手动安装更新。".to_string())
-                    } else if error_str.contains("signature") {
-                        Err("安装失败：更新文件签名验证失败。请重新下载或联系开发者。".to_string())
+                    let error_str = e.to_string().to_lowercase();
+                    
+                    if error_str.contains("permission") 
+                        || error_str.contains("access denied") 
+                        || error_str.contains("access is denied")
+                        || error_str.contains("权限")
+                        || error_str.contains("拒绝") {
+                        Err("UAC权限被拒绝\n\n解决方法：\n1. 右键应用图标，选择\"以管理员身份运行\"\n2. 点击下方\"重试安装\"按钮\n3. 在 UAC 弹窗中点击\"是\"允许权限".to_string())
+                    } else if error_str.contains("signature") || error_str.contains("签名") {
+                        Err("更新文件签名验证失败\n\n可能是文件损坏，请点击\"重试安装\"重新下载".to_string())
+                    } else if error_str.contains("network") || error_str.contains("timeout") || error_str.contains("网络") {
+                        Err("网络连接失败\n\n请检查网络连接后点击\"重试安装\"".to_string())
                     } else {
-                        Err(error_msg)
+                        Err(format!("安装失败\n\n错误信息：{}\n\n请尝试：\n1. 以管理员身份运行应用\n2. 点击\"重试安装\"", e))
                     }
                 }
             }

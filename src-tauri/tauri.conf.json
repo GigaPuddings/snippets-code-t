@@ -93,7 +93,8 @@
           "English"
         ],
         "displayLanguageSelector": true,
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine"
       }
     },
     "createUpdaterArtifacts": true
