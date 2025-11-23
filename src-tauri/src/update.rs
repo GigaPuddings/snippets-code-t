@@ -97,25 +97,21 @@ pub fn get_update_info(app: AppHandle) -> Option<UpdateInfo> {
 // 执行更新
 #[tauri::command]
 pub async fn perform_update(app: AppHandle) -> Result<(), String> {
-    log::info!("开始执行更新...");
-    
     if let Ok(updater) = app.updater() {
         if let Ok(Some(update)) = updater.check().await {
             let app = APP.get().ok_or("无法获取应用实例")?;
             let mut total_downloaded: u64 = 0;
 
-            log::info!("发现新版本: {}, 开始下载更新...", update.version);
-
             // 下载更新
-            let result = update
+            update
                 .download_and_install(
                     |chunk_length, content_length| {
                         total_downloaded += chunk_length as u64;
 
                         let progress = DownloadProgress {
-                            event: if total_downloaded == chunk_length as u64 {
+                            event: if total_downloaded == 0 {
                                 "Started".to_string()
-                            } else if content_length.map_or(false, |len| total_downloaded >= len) {
+                            } else if total_downloaded == content_length.unwrap_or(0) {
                                 "Finished".to_string()
                             } else {
                                 "Progress".to_string()
@@ -132,7 +128,6 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                         }
                     },
                     || {
-                        log::info!("下载完成，准备安装更新...");
                         if let Err(e) = app.emit("download-finished", ()) {
                             log::warn!("发送下载完成事件失败: {}", e);
                         }
@@ -140,44 +135,18 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                         set_value(app, UPDATE_AVAILABLE_KEY, false);
                     },
                 )
-                .await;
+                .await
+                .map_err(|e| e.to_string())?;
 
-            match result {
-                Ok(_) => {
-                    log::info!("更新安装成功，应用即将重启");
-                    // 确保更新状态被重置
-                    set_value(&app, UPDATE_AVAILABLE_KEY, false);
-                    Ok(())
-                }
-                Err(e) => {
-                    let error_msg = format!("更新安装失败: {}", e);
-                    log::error!("{}", error_msg);
-                    
-                    // 检查是否是权限问题
-                    let error_str = e.to_string().to_lowercase();
-                    
-                    if error_str.contains("permission") 
-                        || error_str.contains("access denied") 
-                        || error_str.contains("access is denied")
-                        || error_str.contains("权限")
-                        || error_str.contains("拒绝") {
-                        Err("UAC权限被拒绝\n\n解决方法：\n1. 右键应用图标，选择\"以管理员身份运行\"\n2. 点击下方\"重试安装\"按钮\n3. 在 UAC 弹窗中点击\"是\"允许权限".to_string())
-                    } else if error_str.contains("signature") || error_str.contains("签名") {
-                        Err("更新文件签名验证失败\n\n可能是文件损坏，请点击\"重试安装\"重新下载".to_string())
-                    } else if error_str.contains("network") || error_str.contains("timeout") || error_str.contains("网络") {
-                        Err("网络连接失败\n\n请检查网络连接后点击\"重试安装\"".to_string())
-                    } else {
-                        Err(format!("安装失败\n\n错误信息：{}\n\n请尝试：\n1. 以管理员身份运行应用\n2. 点击\"重试安装\"", e))
-                    }
-                }
-            }
+            // 再次确保更新状态被重置
+            set_value(&app, UPDATE_AVAILABLE_KEY, false);
+
+            Ok(())
         } else {
-            log::warn!("未发现可用更新");
-            Err("未发现可用更新".to_string())
+            Err("No update available".to_string())
         }
     } else {
-        log::error!("无法初始化更新器");
-        Err("无法初始化更新器".to_string())
+        Err("Failed to initialize updater".to_string())
     }
 }
 
