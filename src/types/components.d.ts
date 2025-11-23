@@ -20,6 +20,7 @@ declare module 'vue' {
     CustomSwitch: typeof import('./../components/UI/CustomSwitch.vue')['default']
     EditDialog: typeof import('./../pages/config/components/local/components/EditDialog.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
+    ElCard: typeof import('element-plus/es')['ElCard']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
     ElDatePicker: typeof import('element-plus/es')['ElDatePicker']
     ElDialog: typeof import('element-plus/es')['ElDialog']
@@ -27,6 +28,7 @@ declare module 'vue' {
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']
     ElInput: typeof import('element-plus/es')['ElInput']
+    ElLink: typeof import('element-plus/es')['ElLink']
     ElOption: typeof import('element-plus/es')['ElOption']
     ElProgress: typeof import('element-plus/es')['ElProgress']
     ElScrollbar: typeof import('element-plus/es')['ElScrollbar']
@@ -52,5 +54,6 @@ declare module 'vue' {
     Titlebar: typeof import('./../layout/components/Titlebar.vue')['default']
     Todo: typeof import('./../pages/config/components/todo/index.vue')['default']
     ToolbarSection: typeof import('./../pages/screenshot/components/ToolbarSection.vue')['default']
+    User: typeof import('./../pages/config/components/user/index.vue')['default']
   }
 }

@@ -116,6 +116,22 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    // 创建 user_settings 表 (用于存储GitHub同步配置)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS user_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            github_token TEXT,
+            github_username TEXT,
+            github_repo TEXT,
+            last_sync_time TEXT,
+            auto_sync_on_exit INTEGER DEFAULT 0,
+            auto_restore_on_start INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        )",
+        [],
+    )?;
+
     // 创建索引以优化查询性能
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_usage ON search_history(usage_count DESC)", []);
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_last_used ON search_history(last_used_at DESC)", []);
@@ -245,6 +261,22 @@ pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sy
                 category_id INTEGER,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (category_id) REFERENCES categories(id)
+            )",
+            [],
+        )?;
+
+        // 创建 user_settings 表 (用于存储GitHub同步配置)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS user_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                github_token TEXT,
+                github_username TEXT,
+                github_repo TEXT,
+                last_sync_time TEXT,
+                auto_sync_on_exit INTEGER DEFAULT 0,
+                auto_restore_on_start INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
             )",
             [],
         )?;

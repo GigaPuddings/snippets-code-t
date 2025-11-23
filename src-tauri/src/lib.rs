@@ -5,6 +5,7 @@ mod cache;
 mod config;
 mod dark_mode;
 mod db;
+mod github_sync;
 mod hotkey;
 mod icon;
 mod search;
@@ -43,6 +44,10 @@ use crate::dark_mode::{
     set_windows_dark_mode, get_windows_dark_mode, toggle_theme, 
     start_scheduler, stop_scheduler, get_current_status as get_dark_mode_status,
     DarkModeConfig, LocationInfo, SunTimes
+};
+use crate::github_sync::{
+    get_user_settings, save_user_settings, verify_github_token,
+    sync_to_github, restore_from_github
 };
 use apps::open_app_command;
 use bookmarks::open_url;
@@ -535,6 +540,11 @@ pub fn run() {
             edit_fragment,                    // 编辑片段
             get_fragment_content,             // 获取片段内容
             search_fragment_content,          // 搜索片段内容
+            get_user_settings,                // 获取用户设置
+            save_user_settings,               // 保存用户设置
+            verify_github_token,              // 验证 GitHub Token
+            sync_to_github,                   // 同步到 GitHub
+            restore_from_github,              // 从 GitHub 恢复
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

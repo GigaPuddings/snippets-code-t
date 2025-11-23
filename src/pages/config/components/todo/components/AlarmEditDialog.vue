@@ -497,4 +497,8 @@ defineExpose({
     @apply border rounded-md shadow-sm;
   }
 }
+
+.dialog-footer {
+  @apply flex items-center justify-end gap-3;
+}
 </style>

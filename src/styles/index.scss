@@ -4,18 +4,6 @@
 @tailwind components;
 @tailwind utilities;
 
-
-// 自定义message
-.el-message {
-  --el-message-padding: 10px 15px !important;
-
-  border-radius: 6px !important;
-
-  .el-message__content {
-    @apply text-xs !text-panel;
-  }
-}
-
 .transparent-input .el-input__wrapper.is-focus,
 .transparent-input .el-input__wrapper:hover,
 .transparent-input .el-input__wrapper {
@@ -139,6 +127,17 @@
 
 .category-management {
   @apply border rounded-md dark:border-panel !w-[300px];
+}
+
+// 自定义message
+.el-message {
+  --el-message-padding: 10px 15px !important;
+
+  border-radius: 6px !important;
+
+  .el-message__content {
+    @apply text-xs !text-panel;
+  }
 }
 
 // 分类修改

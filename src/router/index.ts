@@ -54,6 +54,11 @@ const routes: RouteRecordRaw[] = [
                     name: 'Welcome'
                   },
                   {
+                    path: 'user',
+                    component: () => import('@/pages/config/components/user/index.vue'),
+                    name: 'User'
+                  },
+                  {
                     path: 'content/:id?',
                     component: () =>
                       import(

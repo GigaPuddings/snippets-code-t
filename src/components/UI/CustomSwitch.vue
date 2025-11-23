@@ -71,7 +71,7 @@ const toggleSwitch = () => {
     @apply relative h-5 w-10 rounded-full bg-gray-300 dark:bg-gray-600 transition-all duration-300 mx-1;
 
     .custom-switch--active & {
-      @apply bg-active;
+      @apply bg-blue-500;
     }
   }
 
@@ -84,10 +84,10 @@ const toggleSwitch = () => {
   }
 
   &__text {
-    @apply text-xs text-panel;
+    @apply text-xs text-gray-700 dark:text-gray-300;
 
     &--active {
-      @apply text-panel;
+      @apply text-gray-900 dark:text-white;
     }
   }
 }

@@ -31,31 +31,64 @@
     </div>
     <!-- 标题栏按钮 -->
     <div class="titlebar-list">
-      <div class="app-update relative" title="检查更新" aria-label="检查更新">
+      <!-- 个人中心 -->
+      <div
+        class="titlebar-user"
+        @click="goToUserCenter"
+        :title="isLoggedIn ? `${userInfo?.login} - 个人中心` : '个人中心'"
+        :aria-label="'个人中心'"
+      >
+        <div v-if="isLoggedIn && userInfo" class="user-avatar-wrapper">
+          <img 
+            :src="userInfo.avatar_url" 
+            :alt="userInfo.login"
+            class="user-avatar"
+            @error="handleAvatarError"
+          />
+        </div>
+        <me
+          v-else
+          class="icon"
+          theme="outline"
+          size="18"
+          :strokeWidth="3"
+        />
+      </div>
+
+      <div class="titlebar-divider"></div>
+      
+      <div 
+        class="titlebar-button titlebar-button--update" 
+        @click="handleUpdateClick" 
+        title="检查更新" 
+        aria-label="检查更新"
+      >
         <update-rotation
           class="icon"
           theme="outline"
           size="18"
           :strokeWidth="3"
-          @click="handleUpdateClick"
         />
         <div v-if="hasUpdate" class="update-dot"></div>
       </div>
+      
       <div
         class="titlebar-button"
         @click="handleTitlebar('isAlwaysOnTop')"
-        title="置顶窗口"
+        :title="isAlwaysOnTop ? '取消置顶' : '置顶窗口'"
         aria-label="置顶窗口"
       >
         <component
           :is="isAlwaysOnTop ? Pushpin : Pin"
           class="icon"
+          :class="{ 'icon-active': isAlwaysOnTop }"
           size="18"
           :strokeWidth="3"
           theme="outline"
           strokeLinecap="butt"
         />
       </div>
+      
       <div
         class="titlebar-button"
         @click="openSettingsDialog"
@@ -70,8 +103,11 @@
           strokeLinecap="butt"
         />
       </div>
+      
+      <div class="titlebar-divider titlebar-divider--thick"></div>
+      
       <div
-        class="titlebar-button"
+        class="titlebar-button titlebar-button--window"
         @click="handleTitlebar('minimize')"
         title="最小化窗口"
         aria-label="最小化窗口"
@@ -85,7 +121,7 @@
         />
       </div>
       <div
-        class="titlebar-button"
+        class="titlebar-button titlebar-button--window"
         @click="handleTitlebar('maximize')"
         :title="title"
         :aria-label="title"
@@ -99,16 +135,16 @@
         />
       </div>
       <div
-        class="titlebar-button"
+        class="titlebar-button titlebar-button--close"
         @click="handleTitlebar('close')"
         title="关闭窗口"
         aria-label="关闭窗口"
       >
         <close-small
-          class="icon !p-0"
+          class="icon"
           theme="outline"
-          size="24"
-          :strokeWidth="2"
+          size="18"
+          :strokeWidth="3"
           strokeLinecap="butt"
         />
       </div>
@@ -128,13 +164,16 @@ import {
   SettingTwo,
   MessageSearch,
   Notepad,
-  Application
+  Application,
+  Me
 } from '@icon-park/vue-next';
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
+import { getUserSettings, type UserSettings, type GitHubUser } from '@/api/github';
+
 defineOptions({
   name: 'Titlebar'
 });
@@ -151,6 +190,33 @@ const state = reactive({
 });
 
 const hasUpdate = ref(false);
+
+// 用户信息
+const userInfo = ref<GitHubUser | null>(null);
+const isLoggedIn = ref(false);
+
+// 加载用户信息
+const loadUserInfo = async () => {
+  try {
+    const settings: UserSettings = await getUserSettings();
+    if (settings.github_token && settings.github_username) {
+      isLoggedIn.value = true;
+      // 从设置中获取用户名，构建头像URL（GitHub头像URL格式）
+      userInfo.value = {
+        login: settings.github_username,
+        avatar_url: `https://github.com/${settings.github_username}.png`,
+        name: null
+      };
+    } else {
+      isLoggedIn.value = false;
+      userInfo.value = null;
+    }
+  } catch (error) {
+    console.error('加载用户信息失败:', error);
+    isLoggedIn.value = false;
+    userInfo.value = null;
+  }
+};
 
 // 当前激活的tab索引
 const activeTabIndex = ref(0);
@@ -246,11 +312,28 @@ const openSettingsDialog = () => {
   router.push('/config/category/settings');
 };
 
+// 跳转到个人中心
+const goToUserCenter = () => {
+  router.push('/config/category/contentList/user');
+};
+
+// 头像加载失败处理
+const handleAvatarError = (e: Event) => {
+  const img = e.target as HTMLImageElement;
+  img.style.display = 'none';
+  isLoggedIn.value = false;
+};
+
 let unListen: UnlistenFn;
+let unListenUserLogin: UnlistenFn;
+
 onMounted(async () => {
   await initEnv();
   state.appName = appName;
   state.appVersion = appVersion;
+
+  // 加载用户信息
+  await loadUserInfo();
 
   // 检查是否有更新
   hasUpdate.value = await invoke('get_update_status');
@@ -258,6 +341,11 @@ onMounted(async () => {
   // 监听更新状态变化
   unListen = await listen('update-available', (event: any) => {
     hasUpdate.value = event.payload;
+  });
+
+  // 监听用户登录/登出事件
+  unListenUserLogin = await listen('user-login-status-changed', async () => {
+    await loadUserInfo();
   });
 
   // 设置初始激活的tab
@@ -275,6 +363,9 @@ watch(
 
 onUnmounted(() => {
   unListen();
+  if (unListenUserLogin) {
+    unListenUserLogin();
+  }
 });
 </script>
 
@@ -316,33 +407,113 @@ onUnmounted(() => {
 }
 
 .titlebar-list {
-  @apply flex h-full items-center gap-3;
+  @apply flex h-full items-center;
+  gap: 6px;
+  padding-right: 4px;
 }
 
 .titlebar-button {
-  @apply leading-4;
-}
-
-.app-update {
-  @apply flex justify-center items-center flex-col;
-
-  &:hover {
-    @apply cursor-pointer;
-
-    .icon {
-      @apply animate-spin !bg-transparent;
+  @apply leading-4 relative flex items-center justify-center rounded-md overflow-hidden;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  
+  &--update {
+    &:hover .icon {
+      @apply animate-spin;
+      animation-duration: 1s;
+      background-color: transparent !important;
     }
   }
-
-  .update-dot {
-    @apply absolute top-1 -right-1 w-[6px] h-[6px] bg-red-500 rounded-full animate-pulse;
+  
+  &--window {
+    @apply hover:bg-gray-200 dark:hover:bg-gray-700;
   }
+  
+  &--close {
+    @apply hover:bg-red-500 dark:hover:bg-red-600;
+    
+    &:hover .icon {
+      @apply text-white;
+      background-color: transparent !important;
+    }
+  }
+  
+  &:hover {
+    .update-dot {
+      @apply animate-none;
+    }
+  }
+}
+
+.titlebar-divider {
+  @apply h-5 mx-1;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.1);
+  
+  &--thick {
+    width: 1px;
+    background: rgba(0, 0, 0, 0.2);
+    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.15);
+  }
+}
+
+// 暗色模式下的分隔线
+.dark .titlebar-divider {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.05);
+  
+  &--thick {
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.08);
+  }
+}
+
+// 用户头像相关
+.titlebar-user {
+  @apply cursor-pointer relative flex items-center justify-center;
+  min-width: 32px;
+  height: 32px;
+  
+  &:hover {
+    .user-avatar-wrapper {
+      @apply ring-2 ring-blue-400 dark:ring-blue-500;
+      transform: scale(1.08);
+    }
+    
+    .icon {
+      color: var(--categories-text-color);
+      background-color: rgba(var(--categories-panel-bg-hover-rgb), 0.6);
+    }
+  }
+}
+
+.user-avatar-wrapper {
+  @apply rounded-full overflow-hidden ring-1 ring-gray-300 dark:ring-gray-600;
+  width: 26px;
+  height: 26px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.user-avatar {
+  @apply w-full h-full object-cover;
+  display: block;
 }
 
 .icon {
   @include commonIcon;
 
-  @apply text-[20px] p-1;
+  @apply p-1.5;
+  font-size: 18px;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   color: rgba(var(--categories-text-color-rgb), 0.85);
   transition: all 0.2s ease;
@@ -350,6 +521,31 @@ onUnmounted(() => {
   &:hover {
     color: var(--categories-text-color);
     background-color: rgba(var(--categories-panel-bg-hover-rgb), 0.6);
+  }
+  
+  &.icon-active {
+    @apply text-blue-500 dark:text-blue-400;
+    background-color: rgba(59, 130, 246, 0.1);
+    
+    &:hover {
+      background-color: rgba(59, 130, 246, 0.15);
+    }
+  }
+}
+
+.update-dot {
+  @apply absolute top-0.5 right-0.5 w-[6px] h-[6px] bg-red-500 rounded-full;
+  animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
   }
 }
 

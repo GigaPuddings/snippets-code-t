@@ -5,7 +5,8 @@
       `custom-button--${props.type || 'default'}`,
       props.size ? `custom-button--${props.size}` : 'custom-button--medium',
       { 'custom-button--loading': props.loading },
-      { 'custom-button--circle': props.circle }
+      { 'custom-button--circle': props.circle },
+      { 'custom-button--plain': props.plain }
     ]"
     :disabled="loading || disabled"
     @click="$emit('click', $event)"
@@ -36,7 +37,7 @@ const props = defineProps({
     type: String,
     default: 'default',
     validator: (value: string) =>
-      ['default', 'primary', 'danger'].includes(value)
+      ['default', 'primary', 'success', 'danger'].includes(value)
   },
   size: {
     type: String,
@@ -54,6 +55,10 @@ const props = defineProps({
   disabled: {
     type: Boolean,
     default: false
+  },
+  plain: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -62,7 +67,7 @@ defineEmits(['click']);
 
 <style scoped lang="scss">
 .custom-button {
-  @apply inline-flex items-center justify-center ml-2 first:ml-0 rounded-md shadow-sm transition-all duration-200 font-medium outline-none relative overflow-hidden;
+  @apply inline-flex items-center justify-center rounded-md shadow-sm transition-all duration-200 font-medium outline-none relative overflow-hidden;
 
   &:not(:disabled):active {
     transform: scale(0.98);
@@ -73,15 +78,35 @@ defineEmits(['click']);
   }
 
   &--default {
-    @apply bg-panel text-panel hover:bg-hover border;
+    @apply bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-700 border border-gray-300 dark:border-neutral-600;
   }
 
   &--primary {
-    @apply bg-active text-white hover:bg-[--el-button-hover-bg-color];
+    @apply bg-blue-500 text-white hover:bg-blue-600;
+  }
+
+  &--success {
+    @apply bg-green-500 text-white hover:bg-green-600;
   }
 
   &--danger {
     @apply bg-red-500 text-white hover:bg-red-600;
+  }
+
+  &--plain {
+    @apply bg-transparent border;
+    
+    &.custom-button--primary {
+      @apply border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white;
+    }
+    
+    &.custom-button--success {
+      @apply border-green-500 text-green-600 hover:bg-green-500 hover:text-white;
+    }
+    
+    &.custom-button--danger {
+      @apply border-red-500 text-red-600 hover:bg-red-500 hover:text-white;
+    }
   }
 
   &--medium {
