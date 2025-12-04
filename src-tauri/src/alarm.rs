@@ -16,16 +16,25 @@ pub enum AlarmType {
     SpecificDate,
 }
 
+// 默认时间函数，用于 serde 反序列化
+fn default_datetime() -> DateTime<Local> {
+    Local::now()
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AlarmCard {
+    #[serde(default)]
     pub id: String,
     pub time: String,
     pub title: String,
     pub weekdays: Vec<String>,
     pub reminder_time: String,
     pub is_active: bool,
+    #[serde(default = "default_datetime")]
     pub created_at: DateTime<Local>,
+    #[serde(default = "default_datetime")]
     pub updated_at: DateTime<Local>,
+    #[serde(default)]
     pub time_left: String,
     pub alarm_type: AlarmType,
     pub specific_dates: Option<Vec<String>>,

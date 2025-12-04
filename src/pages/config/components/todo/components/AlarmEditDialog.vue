@@ -355,9 +355,6 @@ const handleSubmit = () => {
     weekdays: weeks,
     reminder_time: formData.value.reminderTime,
     is_active: true,
-    created_at: new Date(),
-    updated_at: new Date(),
-    time_left: '',
     alarm_type: formData.value.alarmType,
     specific_dates:
       formData.value.alarmType === 'SpecificDate'

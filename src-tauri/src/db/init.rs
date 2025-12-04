@@ -82,6 +82,10 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         )",
         [],
     )?;
+    
+    // 添加新字段（如果表已存在但缺少这些列）
+    let _ = conn.execute("ALTER TABLE alarm_cards ADD COLUMN alarm_type TEXT DEFAULT 'Weekly'", []);
+    let _ = conn.execute("ALTER TABLE alarm_cards ADD COLUMN specific_dates TEXT", []);
 
     // 创建 search_history 表
     conn.execute(
@@ -216,7 +220,7 @@ pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sy
     tokio::task::spawn_blocking(move || -> Result<(), rusqlite::Error> {
         let conn = DbConnectionManager::get()?;
         
-        // 其他表
+        // 创建 alarm_cards 表
         conn.execute(
             "CREATE TABLE IF NOT EXISTS alarm_cards (
                 id TEXT PRIMARY KEY,
@@ -232,6 +236,9 @@ pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sy
             )",
             [],
         )?;
+        
+        let _ = conn.execute("ALTER TABLE alarm_cards ADD COLUMN alarm_type TEXT DEFAULT 'Weekly'", []);
+        let _ = conn.execute("ALTER TABLE alarm_cards ADD COLUMN specific_dates TEXT", []);
         
         conn.execute(
             "CREATE TABLE IF NOT EXISTS search_history (

@@ -56,7 +56,7 @@
             class="specific-date-info"
           >
             <span class="date-info">
-              {{ formatSpecificDate((item as any).specific_date) }}
+              共 {{ ((item as any).specific_dates || []).length }} 个日期
             </span>
           </div>
         </div>
@@ -109,7 +109,7 @@
       ref="alarmEditDialogRef"
       :edit-data="currentEditCard"
       @submit="handleAlarmSubmit"
-      @delete="handleAlarmDelete"
+      @delete="deleteAlarmCard"
     />
   </div>
 </template>
@@ -119,6 +119,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { Write, Plus, CheckSmall, Delete, Remind } from '@icon-park/vue-next';
 import AlarmEditDialog from './components/AlarmEditDialog.vue';
 import { invoke } from '@tauri-apps/api/core';
+import { ElMessage } from 'element-plus';
 
 const alarmCards = ref<AlarmCard[]>([]);
 const weekdays = ref<string[]>(['一', '二', '三', '四', '五', '六', '日']);
@@ -189,17 +190,9 @@ const handleAlarmSubmit = async (formData: Partial<AlarmCard>) => {
       await invoke('add_alarm_card', { card: formData });
     }
     await fetchAlarmCards();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to save alarm card:', error);
-  }
-};
-
-const handleAlarmDelete = async (item: AlarmCard) => {
-  try {
-    await invoke('delete_alarm_card', { id: item.id });
-    await fetchAlarmCards();
-  } catch (error) {
-    console.error('Failed to delete alarm card:', error);
+    ElMessage.error(`保存失败: ${error?.message || error}`);
   }
 };
 
@@ -218,33 +211,6 @@ const toggleAlarmCard = async (item: AlarmCard) => {
     await fetchAlarmCards();
   } catch (error) {
     console.error('Failed to toggle alarm card:', error);
-  }
-};
-
-const formatSpecificDate = (dateStr: string) => {
-  if (!dateStr) return '';
-
-  const date = new Date(dateStr);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-  const targetDate = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate()
-  );
-
-  if (targetDate.getTime() === today.getTime()) {
-    return '今天';
-  } else if (targetDate.getTime() === tomorrow.getTime()) {
-    return '明天';
-  } else {
-    const options: Intl.DateTimeFormatOptions = {
-      month: 'short',
-      day: 'numeric',
-      weekday: 'short'
-    };
-    return date.toLocaleDateString('zh-CN', options);
   }
 };
 
