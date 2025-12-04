@@ -151,12 +151,12 @@
             :key="size"
             @click="onMosaicSizeChange(size)"
             :class="['size-btn', { active: currentMosaicSize === size }]"
-            :title="`${size}px`"
+            :title="`笔刷 ${size * 3}px`"
           >
             <div class="mosaic-preview" :style="{
-              width: `${Math.min(size * 0.8, 20)}px`,
-              height: `${Math.min(size * 0.8, 20)}px`,
-              backgroundColor: 'rgba(220, 220, 220, 0.7)',
+              width: `${Math.min(size * 1.5, 24)}px`,
+              height: `${Math.min(size * 1.5, 24)}px`,
+              backgroundColor: 'rgba(100, 100, 100, 0.5)',
               borderRadius: '50%'
             }"></div>
           </button>
@@ -218,7 +218,7 @@ const lineWidths = [2, 3, 5, 8]
 // 预设颜色：红、绿、蓝
 const presetColors = ['#ff4444', '#44ff44', '#4444ff']
 const textSizes = [12, 14, 16, 18, 20, 24]
-const mosaicSizes = [10, 15, 20, 25]
+const mosaicSizes = [5, 8, 10, 15]
 
 // 自定义颜色选择器引用
 const colorInputRef = ref<HTMLInputElement | null>(null)

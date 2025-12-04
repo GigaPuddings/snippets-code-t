@@ -15,7 +15,48 @@ export class DrawingEngine {
 
   // 清空画布
   clear() {
+    // 【DPI修复】保存当前变换状态
+    this.ctx.save()
+    
+    // 重置变换矩阵，确保清除整个物理画布
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0)
+    
+    // 清除整个物理画布（canvas.width 和 canvas.height 已经是物理尺寸）
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    
+    // 恢复之前的变换状态（包括 scale）
+    this.ctx.restore()
+  }
+
+  // 绘制遮罩层（选择区域外的半透明黑色遮罩）
+  drawMask(selectionRect: Rect) {
+    this.ctx.save()
+    
+    // 获取Canvas的逻辑尺寸
+    const canvasWidth = this.canvas.width / (window.devicePixelRatio || 1)
+    const canvasHeight = this.canvas.height / (window.devicePixelRatio || 1)
+    
+    // 使用整数坐标避免亚像素间隙（白线问题）
+    const x = Math.round(selectionRect.x)
+    const y = Math.round(selectionRect.y)
+    const width = Math.round(selectionRect.width)
+    const height = Math.round(selectionRect.height)
+    
+    // 使用 Path2D 和 evenodd 填充规则，一次性绘制带孔的遮罩
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+    this.ctx.beginPath()
+    // 外部矩形（整个画布）
+    this.ctx.rect(0, 0, canvasWidth, canvasHeight)
+    // 内部矩形（选区，逆时针绘制以创建孔）
+    this.ctx.moveTo(x, y)
+    this.ctx.lineTo(x, y + height)
+    this.ctx.lineTo(x + width, y + height)
+    this.ctx.lineTo(x + width, y)
+    this.ctx.closePath()
+    // 使用 evenodd 填充规则
+    this.ctx.fill('evenodd')
+    
+    this.ctx.restore()
   }
 
   // 绘制选择框
@@ -249,6 +290,10 @@ export class DrawingEngine {
     this.ctx.lineWidth = 1
     this.ctx.strokeRect(previewX, previewY, previewSize, previewSize)
     
+    // 计算实际像素大小（使用实际图像尺寸，确保与像素网格对齐）
+    const actualPixelCount = previewImage ? previewImage.width : zoomFactor
+    const pixelSize = previewSize / actualPixelCount
+    
     if (previewImage) {
       this.ctx.imageSmoothingEnabled = false
       this.ctx.drawImage(
@@ -259,13 +304,31 @@ export class DrawingEngine {
       this.ctx.imageSmoothingEnabled = true
     }
 
-    // 绘制放大镜中心十字线
-    const centerX = previewX + previewSize / 2
-    const centerY = previewY + previewSize / 2
-    const crosshairSize = previewSize / zoomFactor
-    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)'
+    // 绘制放大镜中心定位框（当前选取的像素）
+    // 使用实际像素大小，确保定位框与像素网格精确对齐
+    const centerPixelIndex = Math.floor(actualPixelCount / 2)
+    const boxX = previewX + centerPixelIndex * pixelSize
+    const boxY = previewY + centerPixelIndex * pixelSize
+    
+    // 绘制白色外框（增强对比度）
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
+    this.ctx.lineWidth = 2
+    this.ctx.strokeRect(
+      boxX - 1, 
+      boxY - 1, 
+      pixelSize + 2, 
+      pixelSize + 2
+    )
+    
+    // 绘制黑色内框
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)'
     this.ctx.lineWidth = 1
-    this.ctx.strokeRect(centerX - crosshairSize / 2, centerY - crosshairSize / 2, crosshairSize, crosshairSize)
+    this.ctx.strokeRect(
+      boxX, 
+      boxY, 
+      pixelSize, 
+      pixelSize
+    )
     
     // 绘制颜色和文本信息
     this.ctx.fillStyle = '#333'

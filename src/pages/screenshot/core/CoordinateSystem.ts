@@ -4,24 +4,41 @@ import { Point, Rect, CoordinateTransform } from './types'
 export class CoordinateSystem implements CoordinateTransform {
   private scale: number
   private canvasRect: DOMRect
-  private canvasSize: { width: number, height: number }
+  private canvasSize: { width: number, height: number } // 逻辑尺寸
+  private physicalSize: { width: number, height: number } // 物理尺寸
 
   constructor(canvas: HTMLCanvasElement) {
-    this.canvasSize = { width: canvas.width, height: canvas.height }
-    this.canvasRect = canvas.getBoundingClientRect() // 初始化canvasRect
-    this.updateCanvasRect(canvas)
+    // 获取逻辑尺寸（CSS 尺寸）
+    this.canvasRect = canvas.getBoundingClientRect()
+    this.canvasSize = { 
+      width: this.canvasRect.width, 
+      height: this.canvasRect.height 
+    }
+    // 获取物理尺寸
+    this.physicalSize = { 
+      width: canvas.width, 
+      height: canvas.height 
+    }
     this.scale = this.calculateScale()
   }
 
   // 更新画布矩形信息
   updateCanvasRect(canvas: HTMLCanvasElement) {
     this.canvasRect = canvas.getBoundingClientRect()
+    this.canvasSize = { 
+      width: this.canvasRect.width, 
+      height: this.canvasRect.height 
+    }
+    this.physicalSize = { 
+      width: canvas.width, 
+      height: canvas.height 
+    }
     this.scale = this.calculateScale()
   }
 
-  // 计算缩放比例
+  // 计算缩放比例（DPI）
   private calculateScale(): number {
-    return this.canvasSize.width / this.canvasRect.width
+    return this.physicalSize.width / this.canvasRect.width
   }
 
   // 从鼠标事件获取画布坐标

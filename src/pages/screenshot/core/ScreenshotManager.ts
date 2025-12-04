@@ -47,7 +47,7 @@ export class ScreenshotManager {
   private currentTool: ToolType = ToolType.Select
   private currentStyle: AnnotationStyle = { color: '#ff4444', lineWidth: 3 }
   private textSize = 16
-  private mosaicSize = 15
+  private mosaicSize = 5
   private showGuides = true
 
   // 取色器状态
@@ -56,7 +56,7 @@ export class ScreenshotManager {
     isVisible: false, // 默认不可见
     mousePosition: { x: 0, y: 0 },
     showFormat: 'hex',
-    zoomFactor: 15, // 提升放大倍数
+    zoomFactor: 40, // 放大倍数，平衡精确度和预览范围
     isCopied: false
   }
 
@@ -79,21 +79,27 @@ export class ScreenshotManager {
   // 按键状态
   private isShiftPressed = false
 
+  // 背景图像（预捕获的屏幕）
+  private backgroundImage: HTMLImageElement | null = null
+
   // 回调函数
   private onStateChange?: () => void
   private onTextInputRequest?: (position: Point, existingAnnotation?: BaseAnnotation) => void
   private onColorPicked?: (colorInfo: ColorInfo) => void
+  private onLoadComplete?: () => void
 
   constructor(
     canvas: HTMLCanvasElement, 
     onStateChange?: () => void,
     onTextInputRequest?: (position: Point, existingAnnotation?: BaseAnnotation) => void,
-    onColorPicked?: (colorInfo: ColorInfo) => void
+    onColorPicked?: (colorInfo: ColorInfo) => void,
+    onLoadComplete?: () => void
   ) {
     this.canvas = canvas
     this.onStateChange = onStateChange
     this.onTextInputRequest = onTextInputRequest
     this.onColorPicked = onColorPicked
+    this.onLoadComplete = onLoadComplete
     
     this.coordinateSystem = new CoordinateSystem(canvas)
     this.drawingEngine = new DrawingEngine(canvas, this.coordinateSystem)
@@ -104,6 +110,7 @@ export class ScreenshotManager {
 
     this.initCanvas()
     this.loadAllWindows()
+    this.loadScreenBackground() // 加载预捕获的屏幕背景
   }
 
   // 初始化画布
@@ -111,16 +118,99 @@ export class ScreenshotManager {
     const container = this.canvas.parentElement
     if (!container) return
 
-    // 画布尺寸应该与容器一致，不需要屏幕尺寸
     const containerWidth = container.clientWidth
     const containerHeight = container.clientHeight
+    
+    // 【DPI修复】获取设备像素比 (DPR)
+    const dpr = window.devicePixelRatio || 1
+    logger.info(`[截图] 设备像素比: ${dpr}, 容器尺寸: ${containerWidth}x${containerHeight}`)
 
-    this.canvas.width = containerWidth
-    this.canvas.height = containerHeight
+    // 1. 设置 Canvas 的【物理像素尺寸】为：逻辑尺寸 * DPR
+    this.canvas.width = Math.round(containerWidth * dpr)
+    this.canvas.height = Math.round(containerHeight * dpr)
+
+    // 2. 设置 Canvas 的【CSS 显示尺寸】为逻辑尺寸（保持不变）
     this.canvas.style.width = containerWidth + 'px'
     this.canvas.style.height = containerHeight + 'px'
 
+    // 3. 缩放绘图上下文，解决标注和文字的坐标对应问题
+    const ctx = this.canvas.getContext('2d')
+    if (ctx) {
+      ctx.scale(dpr, dpr)
+      logger.info(`[截图] Canvas物理尺寸: ${this.canvas.width}x${this.canvas.height}, 缩放因子: ${dpr}`)
+    }
+
     this.coordinateSystem.updateCanvasRect(this.canvas)
+  }
+
+  // 加载预捕获的屏幕背景图像
+  private async loadScreenBackground(): Promise<void> {
+    try {
+      logger.info('[截图] 开始加载屏幕背景')
+      const base64Image = await invoke('get_screenshot_background') as string
+      
+      if (!base64Image) {
+        logger.warn('[截图] 未获取到屏幕背景图像')
+        return
+      }
+
+      // 创建Image对象并加载base64图像
+      const img = new Image()
+      img.onload = () => {
+        logger.info('[截图] 屏幕背景图像加载成功')
+        // 保存背景图像引用
+        this.backgroundImage = img
+        // 立即绘制背景
+        this.drawBackground()
+        logger.info('[截图] 屏幕背景绘制完成')
+        
+        // 通知加载完成
+        if (this.onLoadComplete) {
+          this.onLoadComplete()
+        }
+      }
+      img.onerror = (error) => {
+        logger.error('[截图] 屏幕背景图像加载失败', error)
+        // 即使失败也通知完成，避免卡住
+        if (this.onLoadComplete) {
+          this.onLoadComplete()
+        }
+      }
+      
+      // 设置图像源（使用JPEG格式）
+      img.src = `data:image/jpeg;base64,${base64Image}`
+    } catch (error) {
+      logger.error('[截图] 加载屏幕背景失败', error)
+      // 加载失败也要通知完成
+      if (this.onLoadComplete) {
+        this.onLoadComplete()
+      }
+    }
+  }
+
+  // 绘制背景图像
+  private drawBackground(): void {
+    if (!this.backgroundImage) return
+    
+    const ctx = this.canvas.getContext('2d')
+    if (ctx) {
+      // 保存当前的绘图状态（包含 scale 设置）
+      ctx.save()
+      
+      // 【关键】重置变换矩阵，强制使用物理像素坐标系 (1:1)
+      // 这样可以确保背景图的每一个像素都精确对应屏幕的一个物理像素，绝不模糊
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+
+      // 禁用平滑（虽然这里已经是点对点绘制，但加上保险）
+      ctx.imageSmoothingEnabled = false
+      
+      // 直接绘制填满整个物理 Canvas
+      // 注意：这里的 width/height 已经是乘以 DPR 后的物理尺寸
+      ctx.drawImage(this.backgroundImage, 0, 0, this.canvas.width, this.canvas.height)
+      
+      // 恢复之前的绘图状态（恢复 scale，以便后续绘制标注）
+      ctx.restore()
+    }
   }
 
   // 加载所有窗口信息
@@ -826,7 +916,8 @@ export class ScreenshotManager {
   // 更新悬停状态
   private updateHoverState(mousePos: Point): void {
     if (this.currentTool !== ToolType.Select) {
-      this.updateCursor('crosshair')
+      // 为不同工具设置不同的光标
+      this.updateToolCursor()
       return
     }
 
@@ -901,9 +992,68 @@ export class ScreenshotManager {
     }
   }
 
+  // 根据当前工具更新光标样式
+  private updateToolCursor(): void {
+    switch (this.currentTool) {
+      case ToolType.Pen:
+        // 画笔：圆形光标，显示画笔粗细（类似Snipaste等专业工具）
+        this.updateCursor(this.createCircleCursor(this.currentStyle.lineWidth, this.currentStyle.color))
+        break
+      
+      case ToolType.Mosaic:
+        // 马赛克：圆形光标，显示实际笔刷大小（块大小 * 3）
+        this.updateCursor(this.createCircleCursor(this.mosaicSize * 3, '#666'))
+        break
+      
+      case ToolType.ColorPicker:
+        // 取色器：使用十字光标
+        this.updateCursor('crosshair')
+        break
+      
+      case ToolType.Rectangle:
+      case ToolType.Arrow:
+      case ToolType.Text:
+        // 其他绘图工具：使用十字光标
+        this.updateCursor('crosshair')
+        break
+      
+      default:
+        this.updateCursor('default')
+    }
+  }
+
+  // 创建圆形光标（用于画笔和马赛克）
+  private createCircleCursor(size: number, color: string = '#666'): string {
+    const radius = Math.max(size / 2, 2)
+    const diameter = radius * 2 + 4 // 加4像素的边距
+    const center = diameter / 2
+    
+    // 创建SVG光标
+    const svg = `
+      <svg width="${diameter}" height="${diameter}" xmlns="http://www.w3.org/2000/svg">
+        <!-- 外圈：显示工具大小 -->
+        <circle cx="${center}" cy="${center}" r="${radius}" 
+                fill="none" stroke="${color}" stroke-width="1.5" opacity="0.8"/>
+        <!-- 中心点：精确定位 -->
+        <circle cx="${center}" cy="${center}" r="1" fill="${color}" opacity="0.9"/>
+      </svg>
+    `
+    
+    const encodedSvg = encodeURIComponent(svg)
+    return `url('data:image/svg+xml;utf8,${encodedSvg}') ${center} ${center}, crosshair`
+  }
+
   // 绘制所有内容
   draw(): void {
     this.drawingEngine.clear()
+    
+    // 【关键修复】清除后立即重新绘制背景图像，保持静态屏幕截图作为底层
+    this.drawBackground()
+
+    // 【遮罩层】绘制选择区域外的半透明遮罩
+    if (this.selectionRect) {
+      this.drawingEngine.drawMask(this.selectionRect)
+    }
 
     // 绘制窗口吸附预览
     if (this.showSnapPreview && this.snappedWindow && !this.selectionRect) {
@@ -1020,6 +1170,11 @@ export class ScreenshotManager {
     this.showSnapPreview = false
     this.pendingSnapWindow = null
     this.dragStartPosition = null
+    
+    // 【光标更新】切换工具时更新光标样式
+    if (tool !== ToolType.Select) {
+      this.updateToolCursor()
+    }
     
     this.draw()
     this.onStateChange?.()
@@ -1335,6 +1490,10 @@ export class ScreenshotManager {
   // 更新样式
   updateStyle(updates: Partial<AnnotationStyle>): void {
     this.currentStyle = { ...this.currentStyle, ...updates }
+    // 如果当前工具是画笔且更新了颜色或线宽，需要更新光标
+    if (this.currentTool === ToolType.Pen && (updates.color || updates.lineWidth)) {
+      this.updateToolCursor()
+    }
     this.onStateChange?.()
   }
 
@@ -1347,6 +1506,10 @@ export class ScreenshotManager {
   // 更新马赛克大小
   updateMosaicSize(size: number): void {
     this.mosaicSize = size
+    // 如果当前工具是马赛克，需要更新光标
+    if (this.currentTool === ToolType.Mosaic) {
+      this.updateToolCursor()
+    }
     this.onStateChange?.()
   }
 
@@ -1498,17 +1661,18 @@ export class ScreenshotManager {
     try {
       const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
       const scale = windowInfo?.scale || 1
-      const previewSize = 30 // 预览区域的像素尺寸
-      const halfPreviewSize = Math.floor(previewSize / 2)
+      // 抓取的像素数量应该等于 zoomFactor，这样才能正确等比例放大
+      const captureSize = this.colorPickerState.zoomFactor
+      const halfCaptureSize = Math.floor(captureSize / 2)
       
       const screenX = Math.round(windowInfo.x + mousePos.x * scale)
       const screenY = Math.round(windowInfo.y + mousePos.y * scale)
 
       const result = await invoke('get_screen_preview', {
-        x: screenX - halfPreviewSize,
-        y: screenY - halfPreviewSize,
-        width: previewSize,
-        height: previewSize
+        x: screenX - halfCaptureSize,
+        y: screenY - halfCaptureSize,
+        width: captureSize,
+        height: captureSize
       }) as { image: string }
 
       const img = new Image()
@@ -1519,11 +1683,11 @@ export class ScreenshotManager {
       this.colorPickerState.previewImage = imageBitmap
 
       // 从预览图像中心获取颜色，避免额外API调用
-      const offscreenCanvas = new OffscreenCanvas(previewSize, previewSize)
+      const offscreenCanvas = new OffscreenCanvas(captureSize, captureSize)
       const ctx = offscreenCanvas.getContext('2d')
       if (ctx) {
-        ctx.drawImage(imageBitmap, 0, 0, previewSize, previewSize)
-        const pixelData = ctx.getImageData(halfPreviewSize, halfPreviewSize, 1, 1).data
+        ctx.drawImage(imageBitmap, 0, 0, captureSize, captureSize)
+        const pixelData = ctx.getImageData(halfCaptureSize, halfCaptureSize, 1, 1).data
         const colorData = { r: pixelData[0], g: pixelData[1], b: pixelData[2] }
         const hex = this.rgbToHex(colorData.r, colorData.g, colorData.b)
         this.colorPickerState.colorInfo = { rgb: colorData, hex, position: mousePos }

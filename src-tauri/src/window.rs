@@ -79,6 +79,10 @@ use std::collections::HashMap;
 static PIN_IMAGE_DATA: LazyLock<Mutex<HashMap<String, String>>> = 
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+// 存储截图窗口的预捕获屏幕图像
+static SCREENSHOT_BACKGROUND: LazyLock<Mutex<Option<String>>> = 
+    LazyLock::new(|| Mutex::new(None));
+
 // 更新搜索框位置的命令
 #[tauri::command]
 pub fn update_search_area(left: f64, right: f64, top: f64, bottom: f64) {
@@ -1061,6 +1065,149 @@ pub fn hotkey_dark_mode() {
     );
 }
 
+// 捕获全屏并存储为base64
+fn capture_full_screen_to_base64() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Graphics::Gdi::{
+            BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
+            GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
+            HGDIOBJ, RGBQUAD, SRCCOPY,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow;
+
+        unsafe {
+            // 获取屏幕尺寸
+            let screen_width = GetSystemMetrics(SM_CXSCREEN);
+            let screen_height = GetSystemMetrics(SM_CYSCREEN);
+            
+            info!("捕获全屏: {}x{}", screen_width, screen_height);
+            
+            // 获取桌面窗口的DC
+            let desktop_dc = GetDC(Some(GetDesktopWindow()));
+            if desktop_dc.is_invalid() {
+                return Err("Failed to get desktop DC".to_string());
+            }
+
+            // 创建兼容的DC
+            let mem_dc = CreateCompatibleDC(Some(desktop_dc));
+            if mem_dc.is_invalid() {
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to create compatible DC".to_string());
+            }
+
+            // 创建兼容的位图
+            let bitmap = CreateCompatibleBitmap(desktop_dc, screen_width, screen_height);
+            if bitmap.is_invalid() {
+                let _ = DeleteDC(mem_dc);
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to create compatible bitmap".to_string());
+            }
+
+            // 选择位图到DC
+            let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+
+            // 复制屏幕内容到位图
+            let result = BitBlt(mem_dc, 0, 0, screen_width, screen_height, Some(desktop_dc), 0, 0, SRCCOPY);
+
+            if result.is_err() {
+                SelectObject(mem_dc, old_bitmap);
+                let _ = DeleteObject(HGDIOBJ(bitmap.0));
+                let _ = DeleteDC(mem_dc);
+                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                return Err("Failed to copy screen content".to_string());
+            }
+
+            // 准备位图信息
+            let mut bitmap_info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: screen_width,
+                    biHeight: -screen_height, // 负值表示自上而下的DIB
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: 0, // BI_RGB is 0
+                    biSizeImage: 0,
+                    biXPelsPerMeter: 0,
+                    biYPelsPerMeter: 0,
+                    biClrUsed: 0,
+                    biClrImportant: 0,
+                },
+                bmiColors: [RGBQUAD::default()],
+            };
+
+            // 分配内存存储像素数据 (BGRA 格式)
+            let buffer_size = (screen_width * screen_height * 4) as usize;
+            let mut buffer = vec![0u8; buffer_size];
+
+            // 获取位图数据
+            let result = GetDIBits(
+                mem_dc,
+                bitmap,
+                0,
+                screen_height as u32,
+                Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
+                &mut bitmap_info,
+                DIB_RGB_COLORS,
+            );
+
+            // 清理资源
+            SelectObject(mem_dc, old_bitmap);
+            let _ = DeleteObject(HGDIOBJ(bitmap.0));
+            let _ = DeleteDC(mem_dc);
+            ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+
+            if result == 0 {
+                return Err("Failed to get bitmap data".to_string());
+            }
+
+            // 转换为RGBA格式
+            let mut rgba_buffer = vec![0u8; buffer_size];
+            for i in 0..(screen_width * screen_height) as usize {
+                let src_idx = i * 4;
+                let dst_idx = i * 4;
+                // BGRA -> RGBA
+                rgba_buffer[dst_idx] = buffer[src_idx + 2]; // R
+                rgba_buffer[dst_idx + 1] = buffer[src_idx + 1]; // G
+                rgba_buffer[dst_idx + 2] = buffer[src_idx]; // B
+                rgba_buffer[dst_idx + 3] = buffer[src_idx + 3]; // A
+            }
+
+            // 使用image crate创建图像
+            let img = image::RgbaImage::from_raw(screen_width as u32, screen_height as u32, rgba_buffer)
+                .ok_or("Failed to create image from raw data")?;
+
+            // 【性能优化】使用JPEG格式，降低质量以加快编码速度
+            let mut jpeg_data = Vec::new();
+            let dynamic_img = image::DynamicImage::ImageRgba8(img);
+            
+            // 使用75%质量的JPEG，平衡速度和画质（作为背景足够清晰）
+            let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
+                &mut jpeg_data,
+                75
+            );
+            
+            encoder.encode(
+                dynamic_img.as_bytes(),
+                screen_width as u32,
+                screen_height as u32,
+                dynamic_img.color()
+            ).map_err(|e| format!("Failed to encode JPEG: {}", e))?;
+
+            let base64_data = general_purpose::STANDARD.encode(&jpeg_data);
+            
+            info!("全屏捕获成功，JPEG数据: {} KB (75%质量), base64: {} KB", 
+                jpeg_data.len() / 1024, base64_data.len() / 1024);
+            Ok(base64_data)
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Screen capture not implemented for this platform".to_string())
+    }
+}
+
 // 创建截图窗口
 pub fn hotkey_screenshot() {
     let app_handle = match APP.get() {
@@ -1076,11 +1223,11 @@ pub fn hotkey_screenshot() {
         info!("截图窗口已存在，关闭旧窗口");
         let _ = existing_window.close();
         
-        // 等待窗口完全销毁，最多等待2秒
-        for i in 0..20 {
-            thread::sleep(Duration::from_millis(100));
+        // 等待窗口完全销毁，最多等待500ms（缩短等待时间）
+        for i in 0..10 {
+            thread::sleep(Duration::from_millis(50));
             if app_handle.get_webview_window("screenshot").is_none() {
-                info!("旧截图窗口已关闭，耗时 {}ms", (i + 1) * 100);
+                info!("旧截图窗口已关闭，耗时 {}ms", (i + 1) * 50);
                 break;
             }
         }
@@ -1090,6 +1237,35 @@ pub fn hotkey_screenshot() {
             info!("旧截图窗口未能关闭，放弃创建新窗口");
             return;
         }
+    }
+
+    // 【关键修复+性能优化】异步捕获整个屏幕，避免阻塞
+    info!("开始异步捕获屏幕背景...");
+    
+    // 在单独线程中捕获屏幕，避免阻塞UI
+    let capture_result = std::thread::spawn(|| {
+        capture_full_screen_to_base64()
+    }).join();
+    
+    let screen_image = match capture_result {
+        Ok(Ok(img)) => {
+            info!("屏幕捕获成功");
+            img
+        },
+        Ok(Err(e)) => {
+            info!("捕获屏幕失败: {}, 继续创建窗口", e);
+            String::new()
+        },
+        Err(_) => {
+            info!("捕获线程崩溃，继续创建窗口");
+            String::new()
+        }
+    };
+    
+    // 存储捕获的屏幕图像
+    {
+        let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+        *bg = Some(screen_image);
     }
 
     // 获取主显示器信息
@@ -1160,6 +1336,22 @@ pub fn get_window_info() -> Result<serde_json::Value, String> {
         }))
     } else {
         Err("Screenshot window not found".to_string())
+    }
+}
+
+// 获取预捕获的屏幕背景图像
+#[tauri::command]
+pub fn get_screenshot_background() -> Result<String, String> {
+    let bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+    match bg.as_ref() {
+        Some(image) => {
+            info!("返回屏幕背景图像，大小: {} bytes", image.len());
+            Ok(image.clone())
+        },
+        None => {
+            info!("未找到屏幕背景图像");
+            Err("No screenshot background available".to_string())
+        }
     }
 }
 
@@ -1659,7 +1851,6 @@ pub async fn create_pin_window(
         .resizable(false)
         .skip_taskbar(true)
         .transparent(true)
-        .shadow(false)
         .focused(true)
         .visible(true);
         builder.build()

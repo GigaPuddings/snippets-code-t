@@ -40,7 +40,7 @@ export class AnnotationFactory {
         return new MosaicAnnotation(
           startPoint,
           style,
-          options.mosaicSize || 15
+          options.mosaicSize || 5
         )
       
       default:

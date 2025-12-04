@@ -26,8 +26,14 @@
       @text-size-change="handleTextSizeChange" @mosaic-size-change="handleMosaicSizeChange" @undo="handleUndo"
       @delete="handleDelete" @save="handleSave" @confirm="handleConfirm" @cancel="handleCancel" />
 
+    <!-- 加载提示 -->
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <p>正在加载截图...</p>
+    </div>
+
     <!-- 提示信息 -->
-    <div v-if="!state.selectionRect" class="instructions">
+    <div v-if="!state.selectionRect && !isLoading" class="instructions">
       <p>拖拽鼠标选择截图区域</p>
       <p class="hint">按ESC键关闭</p>
     </div>
@@ -66,6 +72,7 @@ const showSizeInfo = ref(true)
 const isTextInputVisible = ref(false)
 const textInput = ref('')
 const textInputPosition = ref({ x: 0, y: 0 })
+const isLoading = ref(true) // 加载状态
 
 // 响应式状态
 const state = ref({
@@ -74,7 +81,7 @@ const state = ref({
   currentTool: ToolType.Select,
   currentStyle: { color: '#ff4444', lineWidth: 3 },
   textSize: 16,
-  mosaicSize: 15,
+  mosaicSize: 5,
   hasSelection: false,
   hasAnnotations: false,
   selectedAnnotation: null as any,
@@ -507,7 +514,12 @@ onMounted(async () => {
     canvasRef.value,
     handleStateChange,
     startTextInput,
-    handleColorPicked
+    handleColorPicked,
+    () => {
+      // 背景加载完成，隐藏加载提示
+      isLoading.value = false
+      logger.info('[截图] 初始化完成')
+    }
   )
 
   // 添加键盘事件监听
@@ -650,5 +662,26 @@ onUnmounted(() => {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+}
+
+// 加载提示
+.loading-overlay {
+  @apply absolute inset-0 z-50 flex flex-col items-center justify-center;
+  background: rgba(0, 0, 0, 0.8);
+  
+  .loading-spinner {
+    @apply w-12 h-12 border-4 border-white border-t-transparent rounded-full;
+    animation: spin 1s linear infinite;
+  }
+  
+  p {
+    @apply text-white text-lg mt-4;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
