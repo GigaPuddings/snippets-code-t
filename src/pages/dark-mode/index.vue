@@ -421,7 +421,7 @@ onMounted(async () => {
       currentTheme.value = event.payload.isDark;
       // 使用store的updateTheme方法来确保主题正确应用
       store.updateTheme(event.payload.isDark ? 'dark' : 'light');
-      // modal.msg(`系统主题已自动切换到${event.payload.isDark ? '深色' : '浅色'}模式`, 'info');
+      modal.msg(`系统主题已自动切换到${event.payload.isDark ? '深色' : '浅色'}模式`, 'info');
     });
 
   // 通知后端前端已准备完成

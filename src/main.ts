@@ -24,17 +24,14 @@ async function initApp() {
     import('@/styles/theme.scss')
   ];
 
-  // 异步初始化主题
   const { initTheme } = await import('@/utils/theme');
   
-  // 等待样式加载完成后再初始化主题和挂载应用
   try {
     await Promise.all(stylePromises);
     initTheme();
     app.mount('#app');
   } catch (error) {
     console.error('应用初始化失败:', error);
-    // 回退方案：即使样式加载失败也要挂载应用
     initTheme();
     app.mount('#app');
   }

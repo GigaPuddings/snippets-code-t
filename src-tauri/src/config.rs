@@ -33,7 +33,7 @@ pub fn set_value<T: serde::ser::Serialize>(app_handle: &tauri::AppHandle, key: &
 }
 
 // 解析快捷键
-pub fn parse_hotkey(hotkey: &str) -> Result<(Modifiers, Code), String> {
+pub fn parse_hotkey(hotkey: &str) -> Result<(Option<Modifiers>, Code), String> {
     let parts: Vec<&str> = hotkey.split('+').map(|s| s.trim()).collect();
     let mut modifiers = Modifiers::empty();
     let mut code = None;
@@ -45,6 +45,12 @@ pub fn parse_hotkey(hotkey: &str) -> Result<(Modifiers, Code), String> {
             "ALT" | "OPTION" => modifiers |= Modifiers::ALT,
             "SHIFT" => modifiers |= Modifiers::SHIFT,
             key => {
+                // 检测是否已经设置了主键（不允许多个主键）
+                if code.is_some() {
+                    return Err(format!(
+                        "不支持多个主键组合（如 A+1）。快捷键格式应为：[修饰键]+单个主键，例如 Ctrl+A 或 Alt+1"
+                    ));
+                }
                 code = Some(match key {
                     "A" => Code::KeyA,
                     "B" => Code::KeyB,
@@ -72,6 +78,16 @@ pub fn parse_hotkey(hotkey: &str) -> Result<(Modifiers, Code), String> {
                     "X" => Code::KeyX,
                     "Y" => Code::KeyY,
                     "Z" => Code::KeyZ,
+                    "0" => Code::Digit0,
+                    "1" => Code::Digit1,
+                    "2" => Code::Digit2,
+                    "3" => Code::Digit3,
+                    "4" => Code::Digit4,
+                    "5" => Code::Digit5,
+                    "6" => Code::Digit6,
+                    "7" => Code::Digit7,
+                    "8" => Code::Digit8,
+                    "9" => Code::Digit9,
                     "F1" => Code::F1,
                     "F2" => Code::F2,
                     "F3" => Code::F3,
@@ -120,8 +136,16 @@ pub fn parse_hotkey(hotkey: &str) -> Result<(Modifiers, Code), String> {
         }
     }
 
-    code.map(|code| (modifiers, code))
-        .ok_or_else(|| "未指定按键".to_string())
+    code.map(|code| {
+        // 如果没有设置任何修饰键，返回 None
+        let final_modifiers = if modifiers.is_empty() {
+            None
+        } else {
+            Some(modifiers)
+        };
+        (final_modifiers, code)
+    })
+    .ok_or_else(|| "未指定按键".to_string())
 }
 
 // 控制日志存储

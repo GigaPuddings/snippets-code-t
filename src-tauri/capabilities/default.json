@@ -48,6 +48,8 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "shell:allow-open",
-    "shell:default"
+    "shell:default",
+    "process:default",
+    "updater:default"
   ]
 }

@@ -130,7 +130,7 @@ watch(() => props.items, updateSliderPosition, { deep: true, immediate: true });
 
 <style scoped>
 .segmented {
-  @apply relative overflow-hidden inline-block p-1 box-border m-0 text-[#000000a6] text-sm list-none bg-content rounded-md;
+  @apply relative overflow-hidden inline-block p-1 box-border m-0 text-panel dark:text-panel text-sm list-none bg-content rounded-md;
 }
 
 .segmented-group {

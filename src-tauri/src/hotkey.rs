@@ -30,8 +30,8 @@ where
         // 解析快捷键字符串
         let (modifiers, code) = parse_hotkey(&hotkey)?;
 
-        // 创建快捷键
-        let shortcut = Shortcut::new(Some(modifiers), code);
+        // 创建快捷键（modifiers 已经是 Option<Modifiers>）
+        let shortcut = Shortcut::new(modifiers, code);
 
         // // 注销已存在的快捷键（如果有）
         // if let Err(err) = app_handle.global_shortcut().unregister_all() {
@@ -41,25 +41,25 @@ where
         // 获取快捷键管理器
         let manager = app_handle.global_shortcut();
 
-        // 检查快捷键是否已经注册
-        if manager.is_registered(shortcut) {
-            warn!("快捷键：{} 已经被注册", hotkey);
-            return Err(format!("快捷键 '{}' 已经被注册", hotkey));
-        }
-
-        // // 注销现有的快捷键（如果有）
-        // if manager.is_registered(shortcut) {
-        //     info!("注销快捷键：{}", hotkey);
-        //     manager.unregister(shortcut).unwrap();
-        // }
-
         // 注册新的快捷键
-        let _ = manager.on_shortcut(shortcut, move |_app_handle, hotkey, event| {
+        // on_shortcut 会自动检测冲突（包括本应用内和系统级冲突）
+        match manager.on_shortcut(shortcut, move |_app_handle, hotkey, event| {
             if event.state == ShortcutState::Pressed {
                 info!("快捷键：{} 被触发", hotkey);
                 handler();
             }
-        });
+        }) {
+            Ok(_) => {
+                // info!("{}：快捷键 {} 注册成功", name, hotkey);
+            }
+            Err(e) => {
+                warn!("快捷键 {} 注册失败: {}", hotkey, e);
+                return Err(format!(
+                    "快捷键 '{}' 注册失败，可能与本应用、系统或其他应用冲突: {}",
+                    hotkey, e
+                ));
+            }
+        }
     } else {
         set_value(app_handle, name, "");
         warn!("{}：快捷键已注销并删除", name);
