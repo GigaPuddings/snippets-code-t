@@ -1,10 +1,10 @@
 use crate::window::{ hotkey_config, hotkey_translate, hotkey_dark_mode, open_config_settings, hotkey_screenshot };
-use crate::dark_mode::stop_scheduler;
+use crate::dark_mode::{stop_scheduler, get_windows_dark_mode};
 use log::info;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager
+    Manager, AppHandle
 };
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
@@ -14,7 +14,10 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let config_i = MenuItem::with_id(app, "config", "配置管理", true, None::<&str>)?;
     let translate_i = MenuItem::with_id(app, "translate", "输入翻译", true, None::<&str>)?;
     let screenshot_i = MenuItem::with_id(app, "screenshot", "快速截图", true, None::<&str>)?;
-    let dark_mode_window_i = MenuItem::with_id(app, "dark_mode_window", "主题切换", true, None::<&str>)?;
+    
+    // 获取当前主题状态并创建动态文本
+    let theme_text = get_theme_menu_text();
+    let dark_mode_window_i = MenuItem::with_id(app, "dark_mode_window", &theme_text, true, None::<&str>)?;
     
     let separator1 = PredefinedMenuItem::separator(app)?;
     let view_log_i = MenuItem::with_id(app, "view_log", "日志记录", true, None::<&str>)?;
@@ -101,5 +104,66 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         })
         .build(app)?;
 
+    Ok(())
+}
+
+/// 获取主题菜单文本
+fn get_theme_menu_text() -> String {
+    match get_windows_dark_mode() {
+        Ok(is_dark) => {
+            if is_dark {
+                "深色模式".to_string()
+            } else {
+                "浅色模式".to_string()
+            }
+        }
+        Err(_) => "主题切换".to_string()
+    }
+}
+
+/// 更新托盘菜单主题状态显示
+pub fn update_tray_theme_status(app_handle: &AppHandle) {
+    // 在 Tauri 2.x 中，重新创建托盘菜单来更新状态
+    if let Err(e) = recreate_tray_menu(app_handle) {
+        log::error!("更新托盘菜单主题状态失败: {}", e);
+    } else {
+        log::info!("托盘菜单主题状态已更新");
+    }
+}
+
+/// 重新创建托盘菜单
+fn recreate_tray_menu(app: &AppHandle) -> tauri::Result<()> {
+    let search_i = MenuItem::with_id(app, "search", "快速搜索", true, None::<&str>)?;
+    let config_i = MenuItem::with_id(app, "config", "配置管理", true, None::<&str>)?;
+    let translate_i = MenuItem::with_id(app, "translate", "输入翻译", true, None::<&str>)?;
+    let screenshot_i = MenuItem::with_id(app, "screenshot", "快速截图", true, None::<&str>)?;
+    
+    // 获取当前主题状态并创建动态文本
+    let theme_text = get_theme_menu_text();
+    let dark_mode_window_i = MenuItem::with_id(app, "dark_mode_window", &theme_text, true, None::<&str>)?;
+    
+    let separator1 = PredefinedMenuItem::separator(app)?;
+    let view_log_i = MenuItem::with_id(app, "view_log", "日志记录", true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", "退出程序", true, None::<&str>)?;
+    
+    let menu = Menu::with_items(
+        app,
+        &[
+            &search_i,
+            &config_i,
+            &translate_i,
+            &screenshot_i,
+            &dark_mode_window_i,
+            &separator1,
+            &view_log_i,
+            &quit_i,
+        ],
+    )?;
+    
+    // 更新托盘菜单
+    if let Some(tray) = app.tray_by_id("tray") {
+        tray.set_menu(Some(menu))?;
+    }
+    
     Ok(())
 }

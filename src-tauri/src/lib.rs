@@ -36,7 +36,8 @@ use crate::update::{
 use crate::window::{
   hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info, capture_screen_area,
   copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows,
-  create_pin_window, get_pin_image_data, copy_image_to_clipboard, save_pin_image, frontend_log
+  create_pin_window, get_pin_image_data, copy_image_to_clipboard, save_pin_image, frontend_log,
+  get_screenshot_background
 };
 use crate::dark_mode::{
     load_config as load_dark_mode_config, save_config as save_dark_mode_config,
@@ -360,6 +361,9 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     if let Err(e) = tray::create_tray(&handle) {
                         log::error!("托盘创建失败: {:?}", e);
+                    } else {
+                        // 托盘创建成功后，初始化主题状态显示
+                        tray::update_tray_theme_status(&handle);
                     }
                 });
             }
@@ -506,6 +510,7 @@ pub fn run() {
             get_pixel_color,                  // 获取像素颜色
             get_screen_preview,               // 获取屏幕预览
             get_all_windows,                  // 获取所有窗口信息
+            get_screenshot_background,        // 获取预捕获的屏幕背景
             create_pin_window,                // 创建贴图窗口
             get_pin_image_data,               // 获取贴图窗口图片数据
             copy_image_to_clipboard,          // 复制图片到剪贴板

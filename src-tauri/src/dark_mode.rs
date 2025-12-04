@@ -486,6 +486,9 @@ async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig)
         
         set_windows_dark_mode(should_be_dark)?;
         
+        // 更新托盘菜单主题状态
+        crate::tray::update_tray_theme_status(app_handle);
+        
         // 通知前端主题已更改
         let _ = app_handle.emit("dark-mode-changed", serde_json::json!({
             "isDark": should_be_dark,
@@ -550,6 +553,9 @@ pub fn toggle_theme(app_handle: Option<&AppHandle>) -> Result<bool, String> {
     
     // 发送主题变化事件通知前端
     if let Some(handle) = app_handle {
+        // 更新托盘菜单主题状态
+        crate::tray::update_tray_theme_status(handle);
+        
         let _ = handle.emit("dark-mode-changed", serde_json::json!({
             "isDark": new_state,
             "reason": "manual_toggle"
