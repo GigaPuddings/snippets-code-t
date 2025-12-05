@@ -85,6 +85,6 @@ pub fn cleanup_old_icon_cache() -> Result<usize, rusqlite::Error> {
         rusqlite::params![thirty_days_ago],
     )?;
     
-    log::info!("清理了 {} 条过期的图标缓存记录", rows_affected);
+    // log::info!("清理了 {} 条过期的图标缓存记录", rows_affected);
     Ok(rows_affected)
 }

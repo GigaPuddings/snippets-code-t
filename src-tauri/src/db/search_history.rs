@@ -61,7 +61,7 @@ pub fn cleanup_old_search_history() -> Result<usize, rusqlite::Error> {
         [],
     )?;
     
-    log::info!("清理了 {} 条过期的搜索历史记录", rows_affected);
+    // log::info!("清理了 {} 条过期的搜索历史记录", rows_affected);
     Ok(rows_affected)
 }
 

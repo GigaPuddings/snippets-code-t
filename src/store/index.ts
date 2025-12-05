@@ -91,9 +91,7 @@ export const useConfigurationStore = defineStore('configuration', {
 
     // 应用主题到DOM
     applyTheme() {
-      console.log('应用主题到DOM');
       const root = document.documentElement;
-      
       const isDark = 
         this.theme === 'dark' || 
         (this.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -102,6 +100,36 @@ export const useConfigurationStore = defineStore('configuration', {
         root.classList.add('dark');
       } else {
         root.classList.remove('dark');
+      }
+    },
+
+    // 同步系统主题样式（仅在 auto 模式下生效，不修改 store.theme）
+    // 用于响应 Windows 系统主题变化
+    syncSystemThemeStyle(isDark: boolean) {
+      // 从 localStorage 获取最新的 theme 值，确保跨窗口同步
+      // 因为不同窗口的 store 实例不会自动同步
+      let currentTheme = this.theme;
+      try {
+        const stored = localStorage.getItem('configuration');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.theme) {
+            currentTheme = parsed.theme;
+            // 同步到当前 store 实例
+            this.theme = currentTheme;
+          }
+        }
+      } catch (e) {
+        // 解析失败时使用当前 store 值
+      }
+
+      if (currentTheme === 'auto') {
+        const root = document.documentElement;
+        if (isDark) {
+          root.classList.add('dark');
+        } else {
+          root.classList.remove('dark');
+        }
       }
     }
   },

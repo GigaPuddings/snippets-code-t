@@ -1,21 +1,13 @@
 <template>
-  <div
-    class="dark-mode-container select-none rounded-lg"
-    :class="{ dark: isDark }"
-  >
+  <div class="dark-mode-container select-none rounded-lg" :class="{ dark: isDark }">
     <!-- 标题栏 -->
-    <div
-      class="title-bar fixed top-0 left-0 right-0 z-10 flex items-center justify-between p-2"
-      data-tauri-drag-region
-    >
+    <div class="title-bar fixed top-0 left-0 right-0 z-10 flex items-center justify-between p-2" data-tauri-drag-region>
       <div class="flex items-center gap-3">
         <div class="text-2xl">🌙</div>
         <h1 class="m-0 text-xl font-semibold">系统主题</h1>
       </div>
-      <div
-        @click="closeWindow"
-        class="close-btn flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-xl transition-colors"
-      >
+      <div @click="closeWindow"
+        class="close-btn flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-xl transition-colors">
         ×
       </div>
     </div>
@@ -26,12 +18,7 @@
       <div class="section">
         <div class="section-header mb-2.5 flex items-center justify-between">
           <h2 class="m-0 text-lg font-semibold">总开关</h2>
-          <CustomSwitch
-            v-model="config.enabled"
-            @change="handleEnabledChange"
-            active-text="启用"
-            inactive-text="禁用"
-          />
+          <CustomSwitch v-model="config.enabled" @change="handleEnabledChange" active-text="启用" inactive-text="禁用" />
         </div>
         <p class="m-0 text-sm opacity-80">启用后将根据设置自动切换Windows系统主题</p>
       </div>
@@ -41,26 +28,18 @@
         <div class="status-card rounded-lg p-4">
           <div class="status-item mb-3 flex justify-between">
             <span class="opacity-80">当前系统主题：</span>
-            <span
-              class="font-medium"
-              :class="[currentTheme ? 'text-violet-400' : 'text-amber-400']"
-            >
+            <span class="font-medium" :class="[currentTheme ? 'text-violet-400' : 'text-amber-400']">
               {{ currentTheme ? '深色模式' : '浅色模式' }}
             </span>
           </div>
           <div class="status-item mb-4 flex justify-between">
             <span class="opacity-80">调度器状态：</span>
-            <span
-              class="font-medium"
-              :class="[schedulerRunning ? 'text-emerald-400' : 'text-red-400']"
-            >
+            <span class="font-medium" :class="[schedulerRunning ? 'text-emerald-400' : 'text-red-400']">
               {{ schedulerRunning ? '运行中' : '已停止' }}
             </span>
           </div>
-          <button
-            @click="toggleThemeManually"
-            class="manual-toggle-btn w-full rounded-md py-2 px-4 text-sm transition-all"
-          >
+          <button @click="toggleThemeManually"
+            class="manual-toggle-btn w-full rounded-md py-2 px-4 text-sm transition-all">
             手动切换主题
           </button>
         </div>
@@ -71,31 +50,15 @@
         <h2 class="m-0 mb-4 text-lg font-semibold">切换模式</h2>
         <div class="mode-selector grid grid-cols-2 gap-4">
           <label class="mode-option block cursor-pointer">
-            <input
-              type="radio"
-              value="Auto"
-              v-model="config.mode"
-              @change="handleModeChange"
-              class="hidden"
-            />
-            <div
-              class="mode-content rounded-lg border-2  p-4 transition-all"
-            >
+            <input type="radio" value="Auto" v-model="config.mode" @change="handleModeChange" class="hidden" />
+            <div class="mode-content rounded-lg border-2  p-4 transition-all">
               <div class="mode-title mb-2 font-semibold">🌅 自动模式</div>
               <div class="mode-desc text-xs opacity-80">根据日出日落时间自动切换</div>
             </div>
           </label>
           <label class="mode-option block cursor-pointer">
-            <input
-              type="radio"
-              value="Manual"
-              v-model="config.mode"
-              @change="handleModeChange"
-              class="hidden"
-            />
-            <div
-              class="mode-content rounded-lg border-2  p-4 transition-all"
-            >
+            <input type="radio" value="Manual" v-model="config.mode" @change="handleModeChange" class="hidden" />
+            <div class="mode-content rounded-lg border-2  p-4 transition-all">
               <div class="mode-title mb-2 font-semibold">⏰ 手动模式</div>
               <div class="mode-desc text-xs opacity-80">自定义切换时间</div>
             </div>
@@ -113,10 +76,8 @@
           <div v-else-if="locationInfo" class="location-info">
             <div class="location-item mb-3 flex justify-between">
               <span class="opacity-80">位置：</span>
-              <span class="font-medium"
-                >{{ locationInfo.city }}, {{ locationInfo.region }},
-                {{ locationInfo.country }}</span
-              >
+              <span class="font-medium">{{ locationInfo.city }}, {{ locationInfo.region }},
+                {{ locationInfo.country }}</span>
             </div>
             <div class="location-item mb-3 flex justify-between">
               <span class="opacity-80">时区：</span>
@@ -124,17 +85,13 @@
             </div>
             <div class="location-item mb-3 flex justify-between">
               <span class="opacity-80">坐标：</span>
-              <span class="font-medium"
-                >{{ locationInfo.latitude.toFixed(4) }},
-                {{ locationInfo.longitude.toFixed(4) }}</span
-              >
+              <span class="font-medium">{{ locationInfo.latitude.toFixed(4) }},
+                {{ locationInfo.longitude.toFixed(4) }}</span>
             </div>
           </div>
-            <button
-              @click="refreshLocation"
-              class="refresh-btn mt-2 w-full rounded-md py-2.5 px-5 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="locationLoading"
-            >
+          <button @click="refreshLocation"
+            class="refresh-btn mt-2 w-full rounded-md py-2.5 px-5 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="locationLoading">
             {{ locationLoading ? '获取中...' : '刷新位置' }}
           </button>
         </div>
@@ -158,14 +115,9 @@
               <div class="sun-value text-lg font-semibold">{{ sunTimes.sunset }}</div>
             </div>
           </div>
-          <div
-            class="current-period mt-4 flex justify-between border-t border-white/10 pt-4"
-          >
+          <div class="current-period mt-4 flex justify-between border-t border-white/10 pt-4">
             <span class="opacity-80">当前时段：</span>
-            <span
-              class="font-medium"
-              :class="[sunTimes.is_day ? 'text-amber-400' : 'text-violet-400']"
-            >
+            <span class="font-medium" :class="[sunTimes.is_day ? 'text-amber-400' : 'text-violet-400']">
               {{ sunTimes.is_day ? '白天（浅色模式）' : '夜晚（深色模式）' }}
             </span>
           </div>
@@ -179,23 +131,15 @@
           <div class="time-item mb-4">
             <label class="time-label flex items-center justify-between">
               <span class="label-text flex-1">🌅 浅色模式开始时间</span>
-              <input
-                type="time"
-                v-model="config.custom_sunrise"
-                @blur="handleTimeBlur"
-                class="time-input w-32 rounded-md p-2"
-              />
+              <input type="time" v-model="config.custom_sunrise" @blur="handleTimeBlur"
+                class="time-input w-32 rounded-md p-2" />
             </label>
           </div>
           <div class="time-item">
             <label class="time-label flex items-center justify-between">
               <span class="label-text flex-1">🌙 深色模式开始时间</span>
-              <input
-                type="time"
-                v-model="config.custom_sunset"
-                @blur="handleTimeBlur"
-                class="time-input w-32 rounded-md p-2"
-              />
+              <input type="time" v-model="config.custom_sunset" @blur="handleTimeBlur"
+                class="time-input w-32 rounded-md p-2" />
             </label>
           </div>
         </div>
@@ -246,7 +190,9 @@ const store = useConfigurationStore();
 
 const isDark = computed(() => {
   if (store.theme === 'auto') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // 在 auto 模式下，使用后端报告的当前系统主题状态
+    // currentTheme 会在 loadStatus 和 dark-mode-changed 事件中更新
+    return currentTheme.value;
   }
   return store.theme === 'dark';
 });
@@ -277,9 +223,8 @@ const loadConfig = async () => {
     const result = await invoke<DarkModeConfig>('get_dark_mode_config');
     config.value = result;
 
-    if (config.value.enabled) {
-      await loadStatus();
-    }
+    // 始终加载当前系统主题状态，用于 isDark 计算属性（auto 模式下）
+    await loadStatus();
   } catch (error) {
     logger.error('[主题] 加载配置失败', error);
     modal.msg('加载配置失败', 'error');
@@ -291,11 +236,6 @@ const loadStatus = async () => {
     const result = await invoke<any>('get_dark_mode_status_command');
     currentTheme.value = result.currentIsDark;
     schedulerRunning.value = result.schedulerRunning;
-    
-    // 确保store中的主题状态与当前系统主题状态同步
-    if (currentTheme.value !== undefined) {
-      store.updateTheme(currentTheme.value ? 'dark' : 'light');
-    }
   } catch (error) {
     logger.error('[主题] 加载状态失败', error);
   }
@@ -347,7 +287,7 @@ const handleEnabledChange = async (enabled: boolean) => {
   config.value.enabled = enabled;
   // 实时保存配置
   await saveConfig();
-  
+
   if (enabled && config.value.mode === 'Auto' && !locationInfo.value) {
     await refreshLocation();
   }
@@ -388,8 +328,6 @@ const toggleThemeManually = async () => {
   try {
     const newState = await invoke<boolean>('toggle_system_theme');
     currentTheme.value = newState;
-    store.updateTheme(newState ? 'dark' : 'light');
-
     const statusText = newState ? '深色' : '浅色';
     let message = `已手动切换到${statusText}模式`;
     if (config.value.enabled) {
@@ -416,13 +354,12 @@ onMounted(async () => {
     await refreshLocation();
   }
 
-  // 监听主题变化
-    unlisten.value = await listen('dark-mode-changed', (event: any) => {
-      currentTheme.value = event.payload.isDark;
-      // 使用store的updateTheme方法来确保主题正确应用
-      store.updateTheme(event.payload.isDark ? 'dark' : 'light');
-      modal.msg(`系统主题已自动切换到${event.payload.isDark ? '深色' : '浅色'}模式`, 'info');
-    });
+  // 监听主题变化（自动模式/手动模式触发）
+  unlisten.value = await listen('dark-mode-changed', (event: any) => {
+    currentTheme.value = event.payload.isDark;
+    // 同步其他窗口样式（仅 auto 模式下生效）
+    store.syncSystemThemeStyle(event.payload.isDark);
+  });
 
   // 通知后端前端已准备完成
   nextTick(() => {
@@ -496,13 +433,13 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.dark-mode-container:not(.dark) .mode-option input:checked + .mode-content {
+.dark-mode-container:not(.dark) .mode-option input:checked+.mode-content {
   border-color: #409eff;
   background: rgba(64, 158, 255, 0.2);
   color: #333;
 }
 
-.dark-mode-container.dark .mode-option input:checked + .mode-content {
+.dark-mode-container.dark .mode-option input:checked+.mode-content {
   border-color: rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.2);
   color: white;

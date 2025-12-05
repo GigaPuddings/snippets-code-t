@@ -12,9 +12,9 @@ export const initTheme = async () => {
     (store.theme === 'auto' &&
       window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-  // 通知其他窗口更新主题
+  // 通知其他窗口更新主题（包含 theme 值用于跨窗口同步）
   try {
-    await emit('theme-changed', { isDark });
+    await emit('theme-changed', { isDark, theme: store.theme });
   } catch (error) {
     console.error('主题事件发送失败:', error);
   }
@@ -26,7 +26,7 @@ export const initTheme = async () => {
       store.applyTheme();
       // 通知其他窗口更新主题
       try {
-        await emit('theme-changed', { isDark: e.matches });
+        await emit('theme-changed', { isDark: e.matches, theme: store.theme });
       } catch (error) {
         console.error('主题事件发送失败:', error);
       }

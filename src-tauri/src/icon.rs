@@ -414,7 +414,7 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
 
 // 获取应用和书签的图标
 pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
-    info!("初始化应用和书签图标");
+    // info!("初始化应用和书签图标");
     
     // 先加载图标缓存到内存，提升后续查询速度
     load_icon_cache(app_handle);
@@ -423,12 +423,12 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     let apps_count = db::count_apps().unwrap_or(0);
     let bookmarks_count = db::count_bookmarks().unwrap_or(0);
 
-    info!("应用数量: {}, 书签数量: {}", apps_count, bookmarks_count);
+    // info!("应用数量: {}, 书签数量: {}", apps_count, bookmarks_count);
 
     // 如果数据库已有大量数据，则跳过扫描（优化启动速度）
     // 只有在数据为空时才进行扫描
     if apps_count > 0 && bookmarks_count > 0 {
-        info!("数据库已有数据，跳过应用和书签扫描，启动更快");
+        // info!("数据库已有数据，跳过应用和书签扫描，启动更快");
         return;
     }
 
