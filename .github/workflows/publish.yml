@@ -35,13 +35,22 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Read Release Notes
+        id: release_notes
+        run: |
+          $content = Get-Content -Path "RELEASE_NOTES.md" -Raw
+          echo "RELEASE_BODY<<EOF" >> $env:GITHUB_OUTPUT
+          echo $content >> $env:GITHUB_OUTPUT
+          echo "EOF" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
           name: 'snippets-code ${{ github.ref_name }}'
-          body: 'See the assets to download and install this version.'
+          body: ${{ steps.release_notes.outputs.RELEASE_BODY }}
           draft: false
           prerelease: false
           files: ''

@@ -16,7 +16,9 @@
     "commit": "git-cz",
     "updater": "node scripts/updater.mjs",
     "upload-assets": "node scripts/upload-assets.mjs",
-    "tag": "node scripts/tag.mjs"
+    "tag": "node scripts/tag.mjs",
+    "release-notes": "node scripts/format-release-notes.mjs",
+    "release-notes:copy": "node scripts/format-release-notes.mjs --copy"
   },
   "config": {
     "commitizen": {
