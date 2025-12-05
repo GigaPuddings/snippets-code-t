@@ -27,13 +27,6 @@ pub struct GitHubUser {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SyncStatus {
-    pub is_syncing: bool,
-    pub last_sync_time: Option<String>,
-    pub error: Option<String>,
-}
-
 // ============= 数据库操作 =============
 
 /// 获取用户设置
