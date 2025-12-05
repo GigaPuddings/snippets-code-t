@@ -28,6 +28,7 @@ use crate::db::{
     get_search_history, restore_database,set_custom_db_path, cleanup_old_search_history, 
     cleanup_old_icon_cache, optimize_database,add_app, update_app, delete_app, get_apps,
     add_bookmark, update_bookmark, delete_bookmark, get_bookmarks,
+    is_setup_completed, set_setup_completed, set_data_dir_from_setup,
 };
 use crate::translation::translate_text;
 use crate::update::{
@@ -476,6 +477,9 @@ pub fn run() {
             backup_database,                  // 备份数据库
             restore_database,                 // 恢复数据库
             set_custom_db_path,               // 设置自定义数据库路径
+            is_setup_completed,               // 检查是否已完成首次设置
+            set_setup_completed,              // 标记首次设置已完成
+            set_data_dir_from_setup,          // 从设置向导保存数据目录
             clear_cache,                      // 清理缓存
             get_alarm_cards,                  // 获取代办提醒卡片
             add_alarm_card,                   // 添加代办提醒卡片

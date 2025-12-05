@@ -1,4 +1,4 @@
-use crate::config::{get_value, DB_PATH_KEY};
+use crate::config::{get_value, set_value, DB_PATH_KEY};
 use crate::APP;
 use rusqlite;
 use std::fs;
@@ -225,6 +225,53 @@ pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, 
         }
         None => Err("操作已取消".to_string()),
     }
+}
+
+// ============= 首次启动向导 =============
+
+const SETUP_COMPLETED_KEY: &str = "setup_completed";
+
+/// 检查是否已完成首次设置
+#[tauri::command]
+pub fn is_setup_completed(app_handle: tauri::AppHandle) -> bool {
+    get_value(&app_handle, SETUP_COMPLETED_KEY)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// 标记首次设置已完成
+#[tauri::command]
+pub fn set_setup_completed(app_handle: tauri::AppHandle) {
+    set_value(&app_handle, SETUP_COMPLETED_KEY, true);
+}
+
+/// 从设置向导保存数据目录
+#[tauri::command]
+pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
+    let data_dir = PathBuf::from(&path);
+    
+    // 确保目录存在
+    if !data_dir.exists() {
+        std::fs::create_dir_all(&data_dir)
+            .map_err(|e| format!("创建目录失败: {}", e))?;
+    }
+    
+    let db_path = data_dir.join("snippets.db");
+    let db_path_str = db_path.to_str().unwrap().to_string();
+    
+    // 保存到配置
+    set_value(&app_handle, DB_PATH_KEY, db_path_str);
+    
+    // 同时更新注册表（Windows）
+    #[cfg(target_os = "windows")]
+    {
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        if let Ok((key, _)) = hkcu.create_subkey(REG_KEY) {
+            let _ = key.set_value(REG_VALUE, &path);
+        }
+    }
+    
+    Ok(())
 }
 
 // ============= 辅助函数 =============
