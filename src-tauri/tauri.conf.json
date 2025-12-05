@@ -95,9 +95,7 @@
         "displayLanguageSelector": true,
         "installerIcon": "icons/icon.ico",
         "installMode": "perMachine",
-        "installerHooks": "installer.nsh",
-        "headerImage": "icons/nsis-header.bmp",
-        "sidebarImage": "icons/nsis-sidebar.bmp"
+        "installerHooks": "installer.nsh"
       }
     },
     "createUpdaterArtifacts": true
