@@ -24,9 +24,9 @@ use crate::config::{
 use crate::db::{
     get_categories, add_category, edit_category, delete_category,
     get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content,
-    search_fragment_content,add_search_history, backup_database, get_db_path, get_search_history, 
-    restore_database,set_custom_db_path, cleanup_old_search_history, cleanup_old_icon_cache, 
-    optimize_database,add_app, update_app, delete_app, get_apps,
+    search_fragment_content,add_search_history, backup_database, get_db_path, get_data_dir_info,
+    get_search_history, restore_database,set_custom_db_path, cleanup_old_search_history, 
+    cleanup_old_icon_cache, optimize_database,add_app, update_app, delete_app, get_apps,
     add_bookmark, update_bookmark, delete_bookmark, get_bookmarks,
 };
 use crate::translation::translate_text;
@@ -472,6 +472,7 @@ pub fn run() {
             open_url,                         // 打开书签
             insert_text_to_last_window,       // 插入文本到上次活动窗口
             get_db_path,                      // 获取数据库路径
+            get_data_dir_info,                // 获取数据目录信息
             backup_database,                  // 备份数据库
             restore_database,                 // 恢复数据库
             set_custom_db_path,               // 设置自定义数据库路径

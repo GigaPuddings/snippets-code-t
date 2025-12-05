@@ -6,6 +6,8 @@ use std::io::Read;
 use std::path::PathBuf;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+use winreg::enums::*;
+use winreg::RegKey;
 
 // ============= 数据库连接管理器 =============
 
@@ -35,9 +37,27 @@ impl DbConnectionManager {
 
 // ============= 数据库路径管理 =============
 
+/// 注册表键名（与 installer.nsh 保持一致）
+const REG_KEY: &str = "Software\\snippets-code";
+const REG_VALUE: &str = "DataDirectory";
+
+/// 从注册表读取安装时设置的数据目录
+fn get_data_dir_from_registry() -> Option<PathBuf> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    if let Ok(key) = hkcu.open_subkey(REG_KEY) {
+        if let Ok(path_str) = key.get_value::<String, _>(REG_VALUE) {
+            if !path_str.is_empty() {
+                return Some(PathBuf::from(path_str));
+            }
+        }
+    }
+    None
+}
+
 /// 获取数据库路径（自动创建父目录）
+/// 优先级：1. 运行时自定义路径 > 2. 安装时注册表路径 > 3. 默认 app_data_dir
 pub fn get_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
-    // 优先使用自定义路径
+    // 1. 优先使用运行时自定义路径（用户在设置中修改的）
     if let Some(custom_path) = get_value(app_handle, DB_PATH_KEY) {
         if let Some(path_str) = custom_path.as_str() {
             let path = PathBuf::from(path_str);
@@ -51,7 +71,17 @@ pub fn get_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
         }
     }
     
-    // 默认使用 app_data_dir
+    // 2. 尝试读取安装时设置的注册表路径
+    if let Some(reg_data_dir) = get_data_dir_from_registry() {
+        let db_path = reg_data_dir.join("snippets.db");
+        // 确保目录存在
+        if !reg_data_dir.exists() {
+            let _ = std::fs::create_dir_all(&reg_data_dir);
+        }
+        return db_path;
+    }
+    
+    // 3. 默认使用 app_data_dir
     let default_path = app_handle
         .path()
         .app_data_dir()
@@ -79,6 +109,28 @@ pub fn get_database_path_str(app_handle: &tauri::AppHandle) -> String {
 pub fn get_db_path() -> String {
     let app = APP.get().unwrap();
     get_database_path_str(app)
+}
+
+/// 获取数据目录信息（用于设置界面显示）
+#[tauri::command]
+pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
+    let db_path = get_database_path(&app_handle);
+    let data_dir = db_path.parent().map(|p| p.to_str().unwrap_or("")).unwrap_or("");
+    
+    // 检查路径来源
+    let source = if get_value(&app_handle, DB_PATH_KEY).is_some() {
+        "runtime" // 运行时自定义
+    } else if get_data_dir_from_registry().is_some() {
+        "installer" // 安装时设置
+    } else {
+        "default" // 默认位置
+    };
+    
+    serde_json::json!({
+        "path": data_dir,
+        "dbPath": db_path.to_str().unwrap_or(""),
+        "source": source
+    })
 }
 
 #[tauri::command]
@@ -195,7 +247,7 @@ fn generate_backup_suffix(format: &str) -> String {
 pub fn optimize_database() -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     
-    log::info!("开始优化数据库...");
+    // log::info!("开始优化数据库...");
     
     // 收集统计信息以优化查询计划
     conn.execute("ANALYZE", [])?;
@@ -204,6 +256,6 @@ pub fn optimize_database() -> Result<(), rusqlite::Error> {
     // 注意：VACUUM 可能耗时较长，建议在后台执行
     // conn.execute("VACUUM", [])?;
     
-    log::info!("数据库优化完成");
+    // log::info!("数据库优化完成");
     Ok(())
 }
