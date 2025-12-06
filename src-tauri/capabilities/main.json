@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
   "description": "Capability for main window",
-  "windows": ["main", "config", "translate", "pin_*"],
+  "windows": ["main", "config", "translate", "pin_*", "setup"],
   "permissions": [
     {
       "identifier": "core:path:default",

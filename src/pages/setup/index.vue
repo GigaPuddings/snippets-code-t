@@ -1,8 +1,8 @@
 <template>
   <div class="setup-container">
     <div class="setup-card">
-      <!-- 步骤指示器 -->
-      <div class="setup-steps">
+      <!-- 步骤指示器 - 支持拖拽 -->
+      <div class="setup-steps" data-tauri-drag-region>
         <div
           v-for="(s, i) in steps"
           :key="i"
@@ -55,8 +55,14 @@
               <div class="option-content">
                 <div class="option-title">自定义位置</div>
                 <div v-if="pathOption === 'custom'" class="custom-path-input">
-                  <el-input v-model="customPath" readonly placeholder="点击选择目录" />
-                  <CustomButton type="primary" size="small" @click="selectCustomPath">
+                  <el-input 
+                    v-model="customPath" 
+                    placeholder="输入或选择目录" 
+                    class="path-input"
+                    clearable
+                    @blur="onPathBlur"
+                  />
+                  <CustomButton type="primary" size="small" @click.stop="selectCustomPath" class="browse-btn">
                     浏览
                   </CustomButton>
                 </div>
@@ -110,7 +116,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { CustomButton } from '@/components/UI';
@@ -120,8 +125,6 @@ import modal from '@/utils/modal';
 defineOptions({
   name: 'SetupWizard'
 });
-
-const router = useRouter();
 
 const steps = [
   { title: '欢迎' },
@@ -134,10 +137,25 @@ const pathOption = ref<'default' | 'custom'>('default');
 const defaultPath = ref('');
 const customPath = ref('');
 const completing = ref(false);
+// 检查路径是否需要添加 snippets-code
+const needsAppFolder = (path: string) => {
+  if (!path || path === defaultPath.value) return false;
+  const lowerPath = path.toLowerCase();
+  const endsWithAppFolder = lowerPath.endsWith('snippets-code') || lowerPath.endsWith('snippets code');
+  return !endsWithAppFolder && !lowerPath.includes('com.snippets-code.app');
+};
+
+// 失焦时自动追加 snippets-code
+const onPathBlur = () => {
+  if (needsAppFolder(customPath.value)) {
+    customPath.value = customPath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
+  }
+};
 
 const finalPath = computed(() => {
   return pathOption.value === 'default' ? defaultPath.value : customPath.value;
 });
+
 
 onMounted(async () => {
   try {
@@ -173,7 +191,12 @@ const selectCustomPath = async () => {
       title: '选择数据存储目录'
     });
     if (selected) {
-      customPath.value = selected as string;
+      let path = selected as string;
+      // 如果选择的不是应用目录，自动追加 snippets-code
+      if (needsAppFolder(path)) {
+        path = path.replace(/[\\/]+$/, '') + '\\snippets-code';
+      }
+      customPath.value = path;
     }
   } catch (error) {
     console.error('选择目录失败:', error);
@@ -184,8 +207,10 @@ const completeSetup = async () => {
   completing.value = true;
   try {
     // 如果选择了自定义路径，保存到配置
-    if (pathOption.value === 'custom' && customPath.value !== defaultPath.value) {
-      await invoke('set_data_dir_from_setup', { path: customPath.value });
+    if (pathOption.value === 'custom' && customPath.value && customPath.value !== defaultPath.value) {
+      // 后端会返回实际使用的路径（可能添加了 snippets-code 子文件夹）
+      const actualPath = await invoke<string>('set_data_dir_from_setup', { path: customPath.value });
+      customPath.value = actualPath;
     }
 
     // 标记设置已完成
@@ -193,8 +218,8 @@ const completeSetup = async () => {
 
     modal.msg('设置完成！');
 
-    // 跳转到主页
-    router.replace('/');
+    // 关闭设置向导窗口并打开主窗口
+    await invoke('close_setup_window');
   } catch (error: any) {
     modal.msg(`设置失败: ${error}`, 'error');
   } finally {
@@ -205,18 +230,18 @@ const completeSetup = async () => {
 
 <style scoped lang="scss">
 .setup-container {
-  @apply w-screen h-screen flex items-center justify-center;
-  @apply bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800;
+  @apply w-full h-full;
 }
 
 .setup-card {
-  @apply w-[560px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl;
+  @apply w-full h-full bg-white dark:bg-gray-800 rounded-xl;
   @apply flex flex-col overflow-hidden;
 }
 
 .setup-steps {
-  @apply flex items-center justify-center gap-8 py-6 px-8;
+  @apply flex items-center justify-center gap-8 py-4 px-8;
   @apply bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600;
+  @apply cursor-move select-none;
 }
 
 .step {
@@ -249,7 +274,7 @@ const completeSetup = async () => {
 }
 
 .setup-content {
-  @apply flex-1 p-8 min-h-[320px];
+  @apply flex-1 p-6 min-h-[280px];
 }
 
 .step-page {
@@ -315,7 +340,15 @@ const completeSetup = async () => {
 }
 
 .custom-path-input {
-  @apply flex gap-2 mt-2;
+  @apply flex items-center gap-2 mt-2;
+  
+  .path-input {
+    @apply flex-1;
+  }
+  
+  .browse-btn {
+    @apply flex-shrink-0 whitespace-nowrap;
+  }
 }
 
 .path-tip {
@@ -343,7 +376,7 @@ const completeSetup = async () => {
 }
 
 .setup-footer {
-  @apply flex items-center gap-3 px-8 py-4;
+  @apply flex items-center gap-3 px-6 py-3;
   @apply border-t border-gray-200 dark:border-gray-600;
 }
 </style>

@@ -25,7 +25,7 @@ defineOptions({
 const route = useRoute();
 // 需要显示标签栏的路由页面
 const hasTabbar = computed(() =>
-  ['Search', 'Notification', 'Update', 'Translate', 'DarkMode'].includes(
+  ['Search', 'Notification', 'Update', 'Translate', 'DarkMode', 'Setup'].includes(
     route.name as string
   )
 );

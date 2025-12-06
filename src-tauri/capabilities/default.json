@@ -11,7 +11,8 @@
     "translate",
     "screenshot",
     "dark_mode",
-    "pin_*"
+    "pin_*",
+    "setup"
   ],
   "permissions": [
     "core:default",

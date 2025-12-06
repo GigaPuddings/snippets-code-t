@@ -38,7 +38,7 @@ use crate::window::{
   hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info, capture_screen_area,
   copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows,
   create_pin_window, get_pin_image_data, copy_image_to_clipboard, save_pin_image, frontend_log,
-  get_screenshot_background
+  get_screenshot_background, create_setup_window, close_setup_window
 };
 use crate::dark_mode::{
     load_config as load_dark_mode_config, save_config as save_dark_mode_config,
@@ -436,23 +436,33 @@ pub fn run() {
                 // 开机自启时不显示窗口，静默启动提升速度
                 log::info!("检测到开机自启动，采用静默启动模式");
             } else {
-                // 手动启动时显示加载页面
-                if let Some(loading_window) = app.get_webview_window("loading") {
-                    // 延迟显示窗口，避免在事件循环完全初始化前操作窗口
-                    let loading_window_clone = loading_window.clone();
-                    tauri::async_runtime::spawn(async move {
-                        // 短暂延迟等待事件循环稳定
-                        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-                        let _ = loading_window_clone.show();
+                // 手动启动时检查是否首次运行
+                let app_handle_startup = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    // 短暂延迟等待事件循环稳定
+                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                    
+                    // 检查是否首次运行
+                    let is_first_run = !db::is_setup_completed_internal(&app_handle_startup);
+                    
+                    if is_first_run {
+                        // 首次运行，显示设置向导窗口
+                        log::info!("首次运行，显示设置向导");
+                        create_setup_window();
+                    } else {
+                        // 非首次运行，显示加载页面然后打开主窗口
+                        if let Some(loading_window) = app_handle_startup.get_webview_window("loading") {
+                            let _ = loading_window.show();
+                            
+                            // 等待1秒后关闭加载窗口
+                            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                            let _ = loading_window.hide();
+                        }
                         
-                        // 等待1秒后关闭加载窗口
-                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                        let _ = loading_window_clone.hide();
-
                         // 显示主窗口
                         crate::window::hotkey_config();
-                    });
-                }
+                    }
+                });
             }
 
             Ok(())
@@ -521,6 +531,7 @@ pub fn run() {
             copy_image_to_clipboard,          // 复制图片到剪贴板
             save_pin_image,                   // 保存贴图图片
             frontend_log,                     // 前端日志转发
+            close_setup_window,               // 关闭设置向导窗口
             get_dark_mode_config,             // 获取Auto Dark Mode配置
             save_dark_mode_config_command,    // 保存Auto Dark Mode配置
             get_location_info,                // 获取地理位置信息

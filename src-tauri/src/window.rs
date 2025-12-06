@@ -2241,3 +2241,41 @@ fn calculate_overlap_area(window1: &WindowInfo, window2: &WindowInfo) -> i32 {
     }
 }
 
+// ==================== 设置向导窗口 ====================
+
+/// 创建设置向导窗口
+pub fn create_setup_window() {
+    let spec = WindowSpec {
+        label: "setup",
+        url: "/#/setup",
+        title: "设置向导",
+        width: 520.0,
+        height: 420.0,
+        resizable: false,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: Some("setup_ready"),
+    };
+    
+    let _ = WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::AlwaysShow,
+        None,
+    );
+}
+
+/// 关闭设置向导窗口并重启应用
+#[tauri::command]
+pub fn close_setup_window() {
+    let app = match APP.get() {
+        Some(app) => app,
+        None => return,
+    };
+    
+    info!("设置完成，正在重启应用...");
+    
+    // 重启应用以使用新的数据库路径
+    app.restart();
+}
+

@@ -152,26 +152,4 @@ const router = createRouter({
   routes
 });
 
-// 首次运行检查
-let setupChecked = false;
-
-router.beforeEach(async (to, _from, next) => {
-  // 只检查一次，避免重复调用
-  if (!setupChecked && to.path !== '/setup') {
-    setupChecked = true;
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const isCompleted = await invoke<boolean>('is_setup_completed');
-      if (!isCompleted) {
-        // 首次运行，跳转到设置向导
-        next('/setup');
-        return;
-      }
-    } catch (error) {
-      console.error('检查设置状态失败:', error);
-    }
-  }
-  next();
-});
-
 export default router;

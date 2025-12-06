@@ -17,7 +17,7 @@
         "https://ghfast.top/github.com/GigaPuddings/snippets-code-t/releases/latest/download/latest.json"
       ],
       "dialog": false,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUxNjFCNjVGMTY1OTc3NUUKUldSZWQxa1dYN1poNFpidktrbDV2OGF4elpPK2IxUThGdi9hbGdaRjJ4akRqL2ptWjdQdXViYkwK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUxNjFCNjVGMTY1OTc3NUUKUldSZWQxa1dYN1poNFpidktybDV2OGF4elpPK2IxUThGdi9hbGdaRjJ4akRqL2ptWjdQdXViYkwK"
     }
   },
   "app": {
@@ -93,9 +93,7 @@
           "English"
         ],
         "displayLanguageSelector": true,
-        "installerIcon": "icons/icon.ico",
-        "installMode": "perMachine",
-        "installerHooks": "installer.nsh"
+        "installerIcon": "icons/icon.ico"
       }
     },
     "createUpdaterArtifacts": true

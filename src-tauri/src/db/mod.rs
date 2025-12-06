@@ -42,5 +42,5 @@ pub use icon_cache::{cleanup_old_icon_cache, load_all_icon_cache, insert_icon_to
 
 // 重新导出命令函数
 pub use connection::{get_db_path, get_data_dir_info, backup_database, restore_database, set_custom_db_path, optimize_database};
-pub use connection::{is_setup_completed, set_setup_completed, set_data_dir_from_setup};
+pub use connection::{is_setup_completed, is_setup_completed_internal, set_setup_completed, set_data_dir_from_setup};
 pub use search_history::{add_search_history, get_search_history};

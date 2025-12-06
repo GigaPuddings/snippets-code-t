@@ -231,12 +231,17 @@ pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, 
 
 const SETUP_COMPLETED_KEY: &str = "setup_completed";
 
+/// 内部函数：检查是否已完成首次设置（供后端直接调用）
+pub fn is_setup_completed_internal(app_handle: &tauri::AppHandle) -> bool {
+    get_value(app_handle, SETUP_COMPLETED_KEY)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
 /// 检查是否已完成首次设置
 #[tauri::command]
 pub fn is_setup_completed(app_handle: tauri::AppHandle) -> bool {
-    get_value(&app_handle, SETUP_COMPLETED_KEY)
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
+    is_setup_completed_internal(&app_handle)
 }
 
 /// 标记首次设置已完成
@@ -247,15 +252,45 @@ pub fn set_setup_completed(app_handle: tauri::AppHandle) {
 
 /// 从设置向导保存数据目录
 #[tauri::command]
-pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
-    let data_dir = PathBuf::from(&path);
+pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Result<String, String> {
+    let mut data_dir = PathBuf::from(&path);
     
-    // 确保目录存在
+    // 获取应用默认数据目录
+    let default_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取默认数据目录失败: {}", e))?;
+    
+    // 检查是否是应用默认数据目录或其子目录
+    let is_default_path = data_dir.starts_with(&default_data_dir);
+    
+    // 如果不是默认路径，自动添加 snippets-code 子文件夹
+    if !is_default_path {
+        // 检查路径是否已经以 snippets-code 结尾
+        let ends_with_app_folder = data_dir
+            .file_name()
+            .map(|name| name.to_string_lossy().to_lowercase())
+            .map(|name| name == "snippets-code" || name == "snippets code")
+            .unwrap_or(false);
+        
+        if !ends_with_app_folder {
+            data_dir = data_dir.join("snippets-code");
+        }
+        
+        // 删除旧的默认目录（首次安装向导时没有数据）
+        if default_data_dir.exists() {
+            log::info!("删除旧的默认数据目录: {:?}", default_data_dir);
+            let _ = std::fs::remove_dir_all(&default_data_dir);
+        }
+    }
+    
+    // 确保新目录存在
     if !data_dir.exists() {
         std::fs::create_dir_all(&data_dir)
             .map_err(|e| format!("创建目录失败: {}", e))?;
     }
     
+    let final_path = data_dir.to_str().unwrap().to_string();
     let db_path = data_dir.join("snippets.db");
     let db_path_str = db_path.to_str().unwrap().to_string();
     
@@ -267,11 +302,12 @@ pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Re
     {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         if let Ok((key, _)) = hkcu.create_subkey(REG_KEY) {
-            let _ = key.set_value(REG_VALUE, &path);
+            let _ = key.set_value(REG_VALUE, &final_path);
         }
     }
     
-    Ok(())
+    // 返回实际使用的路径
+    Ok(final_path)
 }
 
 // ============= 辅助函数 =============
