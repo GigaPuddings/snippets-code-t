@@ -8,6 +8,7 @@ export default {
         panel: 'var(--categories-panel-bg)',
         content: 'var(--categories-content-bg)',
         active: 'var(--categories-bg-active)',
+        'active-hover': 'var(--el-button-hover-bg-color)',
         hover: 'var(--categories-panel-bg-hover)',
         search: 'var(--search-bg-color)',
         'search-input': 'var(--search-input-bg)',
@@ -18,14 +19,15 @@ export default {
         panel: 'var(--categories-text-color)',
         content: 'var(--categories-info-text-color)',
         active: 'var(--categories-text-color-active)',
-        primary: '#4b94f8',
+        primary: 'var(--el-color-primary)',
         search: 'var(--search-text-color)',
         'search-info': 'var(--search-info-text-color)',
         'search-secondary': 'var(--search-placeholder)'
       },
       borderColor: {
         panel: 'var(--categories-border-color)',
-        search: 'var(--search-border-color)'
+        search: 'var(--search-border-color)',
+        active: 'var(--el-color-primary)'
       }
     }
   },

@@ -17,8 +17,10 @@
   --categories-border-color: #d8d8d8;
   --categories-border-color-rgb: 228, 231, 237;
   --el-color-primary: #5d6dfd !important;
-  --el-button-hover-bg-color: rgb(83 102 246);
-  --el-button-hover-border-color: rgb(83 102 246);
+  --el-color-primary-light-3: #7b88fd;
+  --el-color-primary-dark-2: #4a5cfd;
+  --el-button-hover-bg-color: #7b88fd;
+  --el-button-hover-border-color: #5d6dfd;
   // 搜索窗口主题变量
   --search-bg-color: #faf8f8;
   --search-text-color: #1e1e1e;
@@ -32,6 +34,8 @@
 
 html.dark {
   --el-color-primary: #5d6dfd !important;
+  --el-color-primary-light-3: #7b88fd;
+  --el-color-primary-dark-2: #4a5cfd;
 }
 
 .dark {

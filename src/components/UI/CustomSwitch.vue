@@ -71,7 +71,7 @@ const toggleSwitch = () => {
     @apply relative h-5 w-10 rounded-full bg-gray-300 dark:bg-gray-600 transition-all duration-300 mx-1;
 
     .custom-switch--active & {
-      @apply bg-blue-500;
+      @apply bg-active;
     }
   }
 

@@ -29,7 +29,7 @@
       </div>
       <div class="summarize-input-wrapper">
         <el-select
-          class="summarize-input"
+          class="summarize-input !w-36"
           v-model="store.dbBackup"
           placeholder="选择备份文件名格式"
         >

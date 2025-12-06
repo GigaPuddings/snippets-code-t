@@ -82,7 +82,7 @@ defineEmits(['click']);
   }
 
   &--primary {
-    @apply bg-blue-500 text-white hover:bg-blue-600;
+    @apply bg-active text-white hover:bg-active-hover;
   }
 
   &--success {
@@ -97,7 +97,7 @@ defineEmits(['click']);
     @apply bg-transparent border;
     
     &.custom-button--primary {
-      @apply border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white;
+      @apply border-active text-primary hover:bg-active hover:text-white;
     }
     
     &.custom-button--success {

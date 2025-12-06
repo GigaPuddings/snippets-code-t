@@ -6,24 +6,10 @@
         <div class="summarize-label-desc">设置snippets code的基本颜色</div>
       </div>
       <div class="summarize-input-wrapper">
-        <el-select
-          class="summarize-input"
-          v-model="store.theme"
-          placeholder="请选择主题"
-          @change="changeTheme"
-        >
-          <el-option
-            v-for="item in dictTheme"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          >
+        <el-select class="summarize-input !w-32" v-model="store.theme" placeholder="请选择主题" @change="changeTheme">
+          <el-option v-for="item in dictTheme" :key="item.value" :label="item.label" :value="item.value">
             <div class="flex items-center gap-2">
-              <component
-                :is="item.icon"
-                :theme="item.value === store.theme ? 'filled' : 'outline'"
-                :fill="item.value === store.theme ? '#4b94f8' : '#666'"
-              />
+              <component :is="item.icon" />
               <div :class="{ 'text-primary': item.value === store.theme }">
                 {{ item.label }}
               </div>
@@ -39,12 +25,7 @@
         <div class="summarize-label-desc">设置开机自动启动</div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomSwitch
-          v-model="store.autoStart"
-          active-text="开启"
-          inactive-text="关闭"
-          @change="handleAutoStartChange"
-        />
+        <CustomSwitch v-model="store.autoStart" active-text="开启" inactive-text="关闭" @change="handleAutoStartChange" />
       </div>
     </section>
 
@@ -56,12 +37,7 @@
         </div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomButton
-          type="primary"
-          size="small"
-          @click="resetSoftware"
-          :loading="resetSoftwareLoading"
-        >
+        <CustomButton type="primary" size="small" @click="resetSoftware" :loading="resetSoftwareLoading">
           重置软件
         </CustomButton>
       </div>
@@ -73,12 +49,8 @@
         <div class="summarize-label-desc">设置应用启动是否自动检查更新</div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomSwitch
-          v-model="store.autoUpdateCheck"
-          active-text="开启"
-          inactive-text="关闭"
-          @change="toggleAutoUpdateCheck"
-        />
+        <CustomSwitch v-model="store.autoUpdateCheck" active-text="开启" inactive-text="关闭"
+          @change="toggleAutoUpdateCheck" />
       </div>
     </section>
 
@@ -90,12 +62,8 @@
         </div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomSwitch
-          v-model="store.autoHideOnBlur"
-          active-text="开启"
-          inactive-text="关闭"
-          @change="toggleAutoHideOnBlur"
-        />
+        <CustomSwitch v-model="store.autoHideOnBlur" active-text="开启" inactive-text="关闭"
+          @change="toggleAutoHideOnBlur" />
       </div>
     </section>
 
@@ -105,12 +73,7 @@
         <div class="summarize-label-desc">是否退出应用</div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomButton
-          type="primary"
-          size="small"
-          :loading="exitApplicationLoading"
-          @click="exitApplication"
-        >
+        <CustomButton type="primary" size="small" :loading="exitApplicationLoading" @click="exitApplication">
           退出应用
         </CustomButton>
       </div>
@@ -137,7 +100,7 @@ const exitApplicationLoading = ref(false);
 const dictTheme = [
   { value: 'light', label: '浅色', icon: SunOne },
   { value: 'dark', label: '深色', icon: Moon },
-  { value: 'auto', label: '自动', icon: Computer }
+  { value: 'auto', label: '跟随系统', icon: Computer }
 ];
 
 const changeTheme = (value: 'light' | 'dark' | 'auto') => {
@@ -213,17 +176,6 @@ const resetSoftware = async () => {
               )
           )
         ]),
-        // h('div', { class: 'mt-2' }, [
-        //   h('div', () => {
-        //     if (selectedResetType.value === 'apps') {
-        //       return '重置应用列表将会清除本地应用列表、缓存图标等信息，需要重新索引。';
-        //     } else if (selectedResetType.value === 'bookmarks') {
-        //       return '重置书签数据将会清除书签数据、缓存图标等信息，需要重新索引。';
-        //     } else {
-        //       return '重置全部将会清除本地应用列表、书签数据、缓存图标等信息，需要重新索引。';
-        //     }
-        //   })
-        // ]),
         h('div', { class: 'message-footer' }, [
           h(
             CustomButton,
@@ -358,7 +310,7 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .text-primary {
-  color: #4b94f8;
+  color: var(--el-color-primary);
 }
 
 .message-footer {
