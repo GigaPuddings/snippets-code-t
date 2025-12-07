@@ -6,14 +6,14 @@
           <img src="@/assets/128x128.png" alt="Logo" class="app-logo" />
         </div>
       </div>
-      <h2 class="title">软件更新</h2>
+      <h2 class="title">{{ $t('update.title') }}</h2>
     </div>
 
     <div class="update-content">
       <div class="info-section">
         <div class="version-comparison">
           <div class="version-item">
-            <div class="version-label">当前版本</div>
+            <div class="version-label">{{ $t('update.currentVersion') }}</div>
             <el-tag size="default" class="version-tag current">
               {{ update.appVersion }}
             </el-tag>
@@ -35,17 +35,17 @@
             </svg>
           </div>
           <div class="version-item">
-            <div class="version-label">最新版本</div>
+            <div class="version-label">{{ $t('update.newVersion') }}</div>
             <el-tag type="success" size="default" class="version-tag new">
               {{ update.newVersion }}
             </el-tag>
           </div>
         </div>
 
-        <p class="release-date">发布时间：{{ update.releaseDate }}</p>
+        <p class="release-date">{{ $t('update.releaseDate') }}{{ update.releaseDate }}</p>
 
         <div v-if="!update.downloading" class="release-notes">
-          <div class="notes-title">更新内容</div>
+          <div class="notes-title">{{ $t('update.releaseNotes') }}</div>
           <el-scrollbar class="notes-scrollbar" :view-style="{ height: '100%' }">
             <div class="notes-content" v-html="update.releaseNotes"></div>
           </el-scrollbar>
@@ -113,7 +113,7 @@
             </div>
             <div class="status-text-container">
               <span class="status-text" :class="{ error: update.error }">
-                {{ update.statusText || '获取数据中...' }}
+                {{ update.statusText || $t('update.gettingData') }}
               </span>
             </div>
           </div>
@@ -137,7 +137,7 @@
                 <line x1="15" y1="9" x2="9" y2="15"/>
                 <line x1="9" y1="9" x2="15" y2="15"/>
               </svg>
-              <span>安装失败</span>
+              <span>{{ $t('update.installFailed') }}</span>
             </div>
             <pre class="error-content">{{ update.error }}</pre>
           </div>
@@ -151,7 +151,7 @@
         v-if="!update.downloading || update.error"
         class="action-button cancel-button"
       >
-        {{ update.error ? '关闭' : '稍后更新' }}
+        {{ update.error ? $t('update.close') : $t('update.updateLater') }}
       </el-button>
       <el-button
         type="primary"
@@ -159,7 +159,7 @@
         v-if="!update.downloading || update.error"
         class="action-button update-button"
       >
-        {{ update.error && update.downloadComplete ? '重试安装' : '立即更新' }}
+        {{ update.error && update.downloadComplete ? $t('update.retryInstall') : $t('update.updateNow') }}
       </el-button>
     </div>
   </div>
@@ -170,6 +170,9 @@ import { appVersion, initEnv, getAppWindow } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -237,7 +240,7 @@ onMounted(async () => {
     switch (eventType) {
       case 'Started':
         update.contentLength = data.content_length || 0;
-        update.statusText = `开始下载 (总大小: ${formatBytes(data.content_length || 0)})`;
+        update.statusText = `${t('update.startDownload')} (${formatBytes(data.content_length || 0)})`;
         break;
       case 'Progress':
         if (data.content_length > 0) {
@@ -246,20 +249,20 @@ onMounted(async () => {
             100
           );
           update.progress = progress;
-          update.statusText = `正在下载: ${formatBytes(data.total_downloaded)} / ${formatBytes(data.content_length)}`;
+          update.statusText = `${t('update.downloading')}: ${formatBytes(data.total_downloaded)} / ${formatBytes(data.content_length)}`;
         }
         break;
       case 'Finished':
         update.progress = 100;
         update.downloadComplete = true;
-        update.statusText = '下载完成，正在启动安装程序...';
+        update.statusText = t('update.downloadComplete');
         break;
     }
   });
 
   // 监听下载完成
   const unListenFinished = await listen('download-finished', () => {
-    update.statusText = '安装中...';
+    update.statusText = t('update.installing');
   });
 
   onUnmounted(() => {
@@ -284,12 +287,12 @@ const handleUpdate = async () => {
     }
     
     update.downloading = true;
-    update.statusText = '准备下载...';
+    update.statusText = t('update.preparing');
 
     await invoke('perform_update');
 
     // 如果到达这里说明安装成功，准备重启
-    update.statusText = '安装成功，准备重启应用...';
+    update.statusText = t('update.installSuccess');
 
     // 延迟重启
     setTimeout(async () => {
@@ -304,9 +307,9 @@ const handleUpdate = async () => {
     
     // 设置状态文本
     if (update.downloadComplete) {
-      update.statusText = '安装失败';
+      update.statusText = t('update.installFailed');
     } else {
-      update.statusText = '下载失败';
+      update.statusText = t('update.downloadFailed');
       update.downloading = false;
     }
   }

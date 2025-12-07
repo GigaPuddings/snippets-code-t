@@ -231,7 +231,7 @@ pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, 
 
 const SETUP_COMPLETED_KEY: &str = "setup_completed";
 
-/// 内部函数：检查是否已完成首次设置（供后端直接调用）
+/// 检查是否已完成首次设置（内部调用）
 pub fn is_setup_completed_internal(app_handle: &tauri::AppHandle) -> bool {
     get_value(app_handle, SETUP_COMPLETED_KEY)
         .and_then(|v| v.as_bool())

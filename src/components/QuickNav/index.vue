@@ -1,6 +1,6 @@
 <template>
   <main class="quick-nav-container">
-    <div class="quick-nav-title">快捷操作</div>
+    <div class="quick-nav-title">{{ $t('nav.quickActions') }}</div>
     <router-link
       to="/config/category/contentList"
       class="link"
@@ -14,7 +14,7 @@
           size="18"
           :strokeWidth="3"
         />
-        <div class="quick-nav-item-title">所有片段</div>
+        <div class="quick-nav-item-title">{{ $t('nav.allSnippets') }}</div>
       </div>
     </router-link>
     <router-link
@@ -30,7 +30,7 @@
           size="17"
           :strokeWidth="3"
         />
-        <div class="quick-nav-item-title">未分类</div>
+        <div class="quick-nav-item-title">{{ $t('nav.uncategorized') }}</div>
       </div>
     </router-link>
   </main>

@@ -6,7 +6,7 @@
           <div class="content-search">
             <el-input
               v-model="searchText"
-              placeholder="搜索..."
+              :placeholder="$t('category.searchPlaceholder')"
               @input="handleSearch"
             >
               <template #prefix>
@@ -18,7 +18,7 @@
                 />
               </template>
             </el-input>
-            <el-tooltip effect="dark" content="新建片段" placement="bottom">
+            <el-tooltip effect="dark" :content="$t('category.newSnippet')" placement="bottom">
               <Plus
                 class="content-search-add"
                 theme="outline"
@@ -43,7 +43,7 @@
               />
             </RecycleScroller>
             <div v-else class="content-empty">
-              <div class="content-empty-text">暂无片段内容</div>
+              <div class="content-empty-text">{{ $t('category.noContent') }}</div>
             </div>
           </div>
         </div>

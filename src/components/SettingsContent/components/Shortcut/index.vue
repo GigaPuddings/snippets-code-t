@@ -2,8 +2,8 @@
   <main class="summarize-container">
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
-        <div class="summarize-label-title">工具条快捷键：</div>
-        <div class="summarize-label-desc">设置工具条唤醒快捷键</div>
+        <div class="summarize-label-title">{{ $t('shortcut.searchHotkey') }}</div>
+        <div class="summarize-label-desc">{{ $t('shortcut.searchHotkeyDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <el-input
@@ -33,7 +33,7 @@
               @click="() => registerHandler('search', store.searchHotkey)"
               class="button-shortcut"
             >
-              注册
+              {{ $t('shortcut.register') }}
             </CustomButton>
           </template>
         </el-input>
@@ -42,8 +42,8 @@
 
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
-        <div class="summarize-label-title">主窗口快捷键：</div>
-        <div class="summarize-label-desc">设置主窗口唤醒快捷键</div>
+        <div class="summarize-label-title">{{ $t('shortcut.configHotkey') }}</div>
+        <div class="summarize-label-desc">{{ $t('shortcut.configHotkeyDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <el-input
@@ -73,7 +73,7 @@
               @click="() => registerHandler('config', store.configHotkey)"
               class="button-shortcut"
             >
-              注册
+              {{ $t('shortcut.register') }}
             </CustomButton>
           </template>
         </el-input>
@@ -82,8 +82,8 @@
 
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
-        <div class="summarize-label-title">翻译窗口快捷键：</div>
-        <div class="summarize-label-desc">设置翻译窗口唤醒快捷键</div>
+        <div class="summarize-label-title">{{ $t('shortcut.translateHotkey') }}</div>
+        <div class="summarize-label-desc">{{ $t('shortcut.translateHotkeyDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <el-input
@@ -115,7 +115,7 @@
               @click="() => registerHandler('translate', store.translateHotkey)"
               class="button-shortcut"
             >
-              注册
+              {{ $t('shortcut.register') }}
             </CustomButton>
           </template>
         </el-input>
@@ -124,8 +124,8 @@
 
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
-        <div class="summarize-label-title">划词翻译快捷键：</div>
-        <div class="summarize-label-desc">设置划词翻译功能快捷键</div>
+        <div class="summarize-label-title">{{ $t('shortcut.selectionTranslateHotkey') }}</div>
+        <div class="summarize-label-desc">{{ $t('shortcut.selectionTranslateHotkeyDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <el-input
@@ -167,7 +167,7 @@
               "
               class="button-shortcut"
             >
-              注册
+              {{ $t('shortcut.register') }}
             </CustomButton>
           </template>
         </el-input>
@@ -176,8 +176,8 @@
 
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
-        <div class="summarize-label-title">截图快捷键：</div>
-        <div class="summarize-label-desc">设置截图功能快捷键</div>
+        <div class="summarize-label-title">{{ $t('shortcut.screenshotHotkey') }}</div>
+        <div class="summarize-label-desc">{{ $t('shortcut.screenshotHotkeyDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <el-input
@@ -219,7 +219,7 @@
               "
               class="button-shortcut"
             >
-              注册
+              {{ $t('shortcut.register') }}
             </CustomButton>
           </template>
         </el-input>
@@ -228,8 +228,8 @@
 
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
-        <div class="summarize-label-title">系统主题快捷键：</div>
-        <div class="summarize-label-desc">设置系统主题窗口快捷键</div>
+        <div class="summarize-label-title">{{ $t('shortcut.darkModeHotkey') }}</div>
+        <div class="summarize-label-desc">{{ $t('shortcut.darkModeHotkeyDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <el-input
@@ -271,7 +271,7 @@
               "
               class="button-shortcut"
             >
-              注册
+              {{ $t('shortcut.register') }}
             </CustomButton>
           </template>
         </el-input>
@@ -282,18 +282,21 @@
 
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core';
+import { useI18n } from 'vue-i18n';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { osType } from '@/utils/env';
 import { useConfigurationStore } from '@/store';
 import { CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
+
+const { t } = useI18n();
 const store = useConfigurationStore();
 
 defineOptions({
   name: 'Shortcut'
 });
 
-const labelText = ['按', '下', '按', '键', '设', '置', '快', '捷', '键'];
+const labelText = computed(() => t('shortcut.pressToSet').split(''));
 
 // 快捷键映射
 const keyMap: any = {
@@ -373,7 +376,7 @@ function keyDown(e: Event | KeyboardEvent, setKey: (arg0: string) => void) {
 // 注册快捷键
 function registerHandler(name: string, key: string) {
   if (key.trim() === '') {
-    console.log('无效的快捷键');
+    console.log('Invalid hotkey');
     return;
   }
   invoke('register_shortcut_by_frontend', {
@@ -381,10 +384,10 @@ function registerHandler(name: string, key: string) {
     shortcut: key
   })
     .then(() => {
-      modal.msg(`快捷键注册成功: ${key}`);
+      modal.msg(`${t('shortcut.registerSuccess')}: ${key}`);
     })
     .catch((e: any) => {
-      modal.msg(`快捷键注册失败: ${e}`, 'error');
+      modal.msg(`${t('shortcut.registerFailed')}: ${e}`, 'error');
     });
 }
 
@@ -416,7 +419,7 @@ function setSelectionDarkModeHotkey(value: string) {
 // 快捷键取消
 function handleFocusUnregister(name: string, key: string) {
   if (key.trim() === '') {
-    console.log('快捷键为空');
+    console.log('Empty hotkey');
     return;
   }
   switch (name) {

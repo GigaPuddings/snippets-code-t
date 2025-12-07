@@ -3,7 +3,7 @@
     <div v-if="props.results.length !== 0" class="tabs">
       <!-- 分类 -->
       <div class="tabs-group">
-        <template v-for="item in tabs" :key="item">
+        <template v-for="item in tabs" :key="item.value">
           <div
             class="tab"
             :class="{ active: item.value === activeTab }"
@@ -16,7 +16,7 @@
       <!-- 返回提示 -->
       <div v-if="!isSearchMode" class="return-hint">
         <span class="hint-key">Tab</span>
-        <span class="hint-text">返回搜索</span>
+        <span class="hint-text">{{ $t('searchResult.backToSearch') }}</span>
       </div>
     </div>
     <RecycleScroller
@@ -89,7 +89,10 @@ import { Command } from '@icon-park/vue-next';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import { useFocusMode } from '@/hooks/useFocusMode';
+import { useI18n } from 'vue-i18n';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+
+const { t } = useI18n();
 
 const store = useConfigurationStore();
 const { currentMode, isSearchMode, isListMode, isTabMode, setMode, setCanSwitchToList } = useFocusMode();
@@ -107,18 +110,18 @@ const containerRef = ref<HTMLElement | null>(null);
 const scrollerRef = ref<any>(null); // RecycleScroller 组件引用
 const activeTab = ref<SummarizeType>('text');
 const currentTabIndex = ref(0); // 当前分类索引
-const tabs = ref<{ label: string; value: SummarizeType }[]>([
+const tabs = computed(() => [
   {
-    label: '全部',
-    value: 'text'
+    label: t('searchResult.all'),
+    value: 'text' as SummarizeType
   },
   {
-    label: '应用',
-    value: 'app'
+    label: t('searchResult.apps'),
+    value: 'app' as SummarizeType
   },
   {
-    label: '书签',
-    value: 'bookmark'
+    label: t('searchResult.bookmarks'),
+    value: 'bookmark' as SummarizeType
   }
 ]);
 

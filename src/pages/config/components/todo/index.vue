@@ -20,7 +20,7 @@
                 v-if="(item as any).alarm_type === 'Daily'"
                 class="type-badge daily"
               >
-                每天
+                {{ $t('alarm.daily') }}
               </span>
               <span
                 v-else-if="(item as any).alarm_type === 'SpecificDate'"
@@ -28,7 +28,7 @@
               >
                 {{ formatSpecificDates((item as any).specific_dates) }}
               </span>
-              <span v-else class="type-badge weekly">每周</span>
+              <span v-else class="type-badge weekly">{{ $t('alarm.weekly') }}</span>
             </div>
           </div>
           <div v-if="(item as any).alarm_type === 'Weekly'" class="weekdays">
@@ -48,7 +48,7 @@
             v-else-if="(item as any).alarm_type === 'Daily'"
             class="daily-indicator"
           >
-            <span class="daily-text">每日重复</span>
+            <span class="daily-text">{{ $t('alarm.dailyRepeat') }}</span>
           </div>
 
           <div
@@ -56,7 +56,7 @@
             class="specific-date-info"
           >
             <span class="date-info">
-              共 {{ ((item as any).specific_dates || []).length }} 个日期
+              {{ $t('alarm.totalDates', { count: ((item as any).specific_dates || []).length }) }}
             </span>
           </div>
         </div>
@@ -79,8 +79,8 @@
     </div>
     <div v-else class="alarm-no-data">
       <remind theme="outline" size="28" :strokeWidth="3" />
-      <div class="alarm-no-title">暂无设定提醒事项</div>
-      <div class="alarm-no-description">点击右下角的"＋"以添加新提醒事项</div>
+      <div class="alarm-no-title">{{ $t('alarm.noAlarms') }}</div>
+      <div class="alarm-no-description">{{ $t('alarm.noAlarmsDesc') }}</div>
     </div>
 
     <div
@@ -115,22 +115,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Write, Plus, CheckSmall, Delete, Remind } from '@icon-park/vue-next';
+import { useI18n } from 'vue-i18n';
 import AlarmEditDialog from './components/AlarmEditDialog.vue';
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
 
+const { t } = useI18n();
+
 const alarmCards = ref<AlarmCard[]>([]);
-const weekdays = ref<string[]>(['一', '二', '三', '四', '五', '六', '日']);
+const weekdays = computed(() => [
+  t('alarm.weekdays.mon'),
+  t('alarm.weekdays.tue'),
+  t('alarm.weekdays.wed'),
+  t('alarm.weekdays.thu'),
+  t('alarm.weekdays.fri'),
+  t('alarm.weekdays.sat'),
+  t('alarm.weekdays.sun')
+]);
 const isEdit = ref(false);
 
 // 格式化多个日期显示
 const formatSpecificDates = (dates: string[] | undefined) => {
-  if (!dates || dates.length === 0) return '未设置';
+  if (!dates || dates.length === 0) return t('alarm.notSet');
   if (dates.length === 1) return dates[0];
   if (dates.length <= 3) return dates.join(', ');
-  return `${dates.slice(0, 2).join(', ')} 等${dates.length}个日期`;
+  return t('alarm.totalDates', { count: dates.length });
 };
 const currentEditCard = ref<AlarmCard | null>(null);
 const alarmEditDialogRef = ref();
@@ -192,7 +203,7 @@ const handleAlarmSubmit = async (formData: Partial<AlarmCard>) => {
     await fetchAlarmCards();
   } catch (error: any) {
     console.error('Failed to save alarm card:', error);
-    ElMessage.error(`保存失败: ${error?.message || error}`);
+    ElMessage.error(`${t('alarm.saveFailed')}: ${error?.message || error}`);
   }
 };
 

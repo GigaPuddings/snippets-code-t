@@ -7,8 +7,8 @@
         <div class="header-left">
           <el-segmented v-model="activeTab" :options="tabs" size="default" />
           <div class="header-stats">
-            <span class="stat-text">共 <strong>{{ currentList.length }}</strong> 项</span>
-            <span v-if="searchQuery" class="stat-text">/ 显示 <strong>{{ filteredList.length }}</strong> 项</span>
+            <span class="stat-text">{{ $t('local.total') }} <strong>{{ currentList.length }}</strong> {{ $t('local.items') }}</span>
+            <span v-if="searchQuery" class="stat-text">/ {{ $t('local.showing') }} <strong>{{ filteredList.length }}</strong> {{ $t('local.items') }}</span>
           </div>
         </div>
         
@@ -18,14 +18,14 @@
             <Search class="search-icon" theme="outline" size="16" :strokeWidth="3" />
             <el-input
               v-model="searchQuery"
-              placeholder="搜索..."
+              :placeholder="$t('local.search')"
               clearable
               size="default"
               class="search-input"
             />
           </div>
           <el-tooltip
-            :content="isEditMode ? '完成' : '编辑'"
+            :content="isEditMode ? $t('local.done') : $t('local.edit')"
             placement="bottom"
           >
             <el-button
@@ -36,7 +36,7 @@
               :disabled="currentList.length === 0"
             />
           </el-tooltip>
-          <el-tooltip content="新增" placement="bottom">
+          <el-tooltip :content="$t('local.add')" placement="bottom">
             <el-button
               type="primary"
               :icon="Plus"
@@ -52,10 +52,10 @@
     <div class="local-content">
       <el-empty
         v-if="filteredList.length === 0"
-        :description="searchQuery ? '没有找到匹配的结果' : `暂无${activeTab === 'app' ? '应用' : '书签'}数据`"
+        :description="searchQuery ? $t('local.noMatch') : $t('local.noData', { type: activeTab === 'app' ? $t('local.apps') : $t('local.bookmarks') })"
       >
         <el-button v-if="!searchQuery" type="primary" @click="handleAdd">
-          添加{{ activeTab === 'app' ? '应用' : '书签' }}
+          {{ $t('local.addItem', { type: activeTab === 'app' ? $t('local.apps') : $t('local.bookmarks') }) }}
         </el-button>
       </el-empty>
 
@@ -99,7 +99,7 @@
                     v-if="item.usage_count > 0"
                     class="usage-indicator"
                     :class="`usage-level-${getUsageLevel(item.usage_count)}`"
-                    :title="`使用 ${item.usage_count} 次`"
+                    :title="$t('local.usedTimes', { count: item.usage_count })"
                   ></div>
                 </div>
               <div class="item-path">
@@ -120,7 +120,7 @@
               :icon="Edit"
               @click.stop="handleEdit(item)"
             >
-              编辑
+              {{ $t('local.edit') }}
             </el-button>
             <el-button
               v-if="isEditMode"
@@ -129,7 +129,7 @@
               :icon="Delete"
               @click.stop="handleDelete(item)"
             >
-              删除
+              {{ $t('local.delete') }}
             </el-button>
           </div>
         </div>
@@ -151,6 +151,9 @@
 import { ref, computed, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 import {
   Edit,
   Delete,
@@ -189,10 +192,10 @@ interface BookmarkInfo {
   usage_count: number;
 }
 
-const tabs = [
-  { label: '本地应用', value: 'app' },
-  { label: '浏览器书签', value: 'bookmark' }
-];
+const tabs = computed(() => [
+  { label: t('local.apps'), value: 'app' },
+  { label: t('local.bookmarks'), value: 'bookmark' }
+]);
 
 const activeTab = ref<'app' | 'bookmark'>('app');
 const isEditMode = ref(false);
@@ -226,7 +229,7 @@ const loadApps = async () => {
     apps.value = result || [];
   } catch (error) {
     console.error('加载应用失败:', error);
-    ElMessage.error('加载应用失败');
+    ElMessage.error(t('local.loadFailed', { type: t('local.apps') }));
   }
 };
 
@@ -236,7 +239,7 @@ const loadBookmarks = async () => {
     bookmarks.value = result || [];
   } catch (error) {
     console.error('加载书签失败:', error);
-    ElMessage.error('加载书签失败');
+    ElMessage.error(t('local.loadFailed', { type: t('local.bookmarks') }));
   }
 };
 
@@ -278,7 +281,7 @@ const handleItemClick = async (item: AppInfo | BookmarkInfo) => {
     await loadData();
   } catch (error) {
     console.error(`打开${activeTab.value === 'app' ? '应用' : '书签'}失败:`, error);
-    ElMessage.error(`打开${activeTab.value === 'app' ? '应用' : '书签'}失败`);
+    ElMessage.error(t('local.openFailed', { type: activeTab.value === 'app' ? t('local.apps') : t('local.bookmarks') }));
   }
 };
 
@@ -294,7 +297,7 @@ const handleSubmit = async (data: any) => {
           content: data.content,
           icon: data.icon || null
         });
-        ElMessage.success('应用更新成功');
+        ElMessage.success(t('local.updateSuccess', { type: t('local.apps') }));
       } else {
         await invoke('update_bookmark', {
           id: data.id,
@@ -302,7 +305,7 @@ const handleSubmit = async (data: any) => {
           content: data.content,
           icon: data.icon || null
         });
-        ElMessage.success('书签更新成功');
+        ElMessage.success(t('local.updateSuccess', { type: t('local.bookmarks') }));
       }
     } else {
       // 新增
@@ -312,20 +315,20 @@ const handleSubmit = async (data: any) => {
           content: data.content,
           icon: data.icon || null
         });
-        ElMessage.success('应用添加成功');
+        ElMessage.success(t('local.addSuccess', { type: t('local.apps') }));
       } else {
         await invoke('add_bookmark', {
           title: data.title,
           content: data.content,
           icon: data.icon || null
         });
-        ElMessage.success('书签添加成功');
+        ElMessage.success(t('local.addSuccess', { type: t('local.bookmarks') }));
       }
     }
     await loadData();
   } catch (error) {
     console.error('操作失败:', error);
-    ElMessage.error('操作失败');
+    ElMessage.error(t('local.operationFailed'));
   }
 };
 
@@ -333,56 +336,56 @@ const handleSubmit = async (data: any) => {
 const handleDelete = async (item: AppInfo | BookmarkInfo) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除"${item.title}"吗？`,
-      '删除确认',
+      t('local.deleteConfirm', { name: item.title }),
+      t('local.deleteTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     );
 
     if (activeTab.value === 'app') {
       await invoke('delete_app', { id: item.id });
-      ElMessage.success('应用删除成功');
+      ElMessage.success(t('local.deleteSuccess', { type: t('local.apps') }));
     } else {
       await invoke('delete_bookmark', { id: item.id });
-      ElMessage.success('书签删除成功');
+      ElMessage.success(t('local.deleteSuccess', { type: t('local.bookmarks') }));
     }
     await loadData();
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除失败:', error);
-      ElMessage.error('删除失败');
+      console.error('Delete failed:', error);
+      ElMessage.error(t('local.deleteFailed'));
     }
   }
 };
 
-// 从对话框删除
+// Delete from dialog
 const handleDeleteFromDialog = async (id: string) => {
   try {
     await ElMessageBox.confirm(
-      '确定要删除吗？',
-      '删除确认',
+      t('local.deleteConfirm', { name: '' }),
+      t('local.deleteTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     );
 
     if (activeTab.value === 'app') {
       await invoke('delete_app', { id });
-      ElMessage.success('应用删除成功');
+      ElMessage.success(t('local.deleteSuccess', { type: t('local.apps') }));
     } else {
       await invoke('delete_bookmark', { id });
-      ElMessage.success('书签删除成功');
+      ElMessage.success(t('local.deleteSuccess', { type: t('local.bookmarks') }));
     }
     await loadData();
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除失败:', error);
-      ElMessage.error('删除失败');
+      ElMessage.error(t('local.deleteFailed'));
     }
   }
 };

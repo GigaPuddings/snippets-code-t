@@ -29,13 +29,13 @@
     <!-- 加载提示 -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-spinner"></div>
-      <p>正在加载截图...</p>
+      <p>{{ $t('screenshotTool.loading') }}</p>
     </div>
 
     <!-- 提示信息 -->
     <div v-if="!state.selectionRect && !isLoading" class="instructions">
-      <p>拖拽鼠标选择截图区域</p>
-      <p class="hint">按ESC键关闭</p>
+      <p>{{ $t('screenshotTool.dragToSelect') }}</p>
+      <p class="hint">{{ $t('screenshotTool.pressEscToClose') }}</p>
     </div>
 
     <!-- 文字输入框 -->
@@ -59,7 +59,6 @@ import ToolbarSection from './components/ToolbarSection.vue'
 import { logger } from '@/utils/logger'
 
 // 组件引用
-const containerRef = ref<HTMLDivElement>()
 const canvasRef = ref<HTMLCanvasElement>()
 const textInputRef = ref<HTMLInputElement>()
 const appWindow = ref<Window | null>(null)

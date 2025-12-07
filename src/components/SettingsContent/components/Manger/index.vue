@@ -2,8 +2,8 @@
   <main class="summarize-container">
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
-        <div class="summarize-label-title">片段目录：</div>
-        <div class="summarize-label-desc">设置片段存储位置</div>
+        <div class="summarize-label-title">{{ $t('dataManager.snippetDir') }}</div>
+        <div class="summarize-label-desc">{{ $t('dataManager.snippetDirDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <el-input
@@ -17,21 +17,21 @@
           @click="selectCustomPath"
           :loading="pathLoading"
         >
-          修改路径
+          {{ $t('dataManager.changePath') }}
         </CustomButton>
       </div>
     </section>
 
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
-        <div class="summarize-label-title">片段数据备份：</div>
-        <div class="summarize-label-desc">设置片段数据备份位置</div>
+        <div class="summarize-label-title">{{ $t('dataManager.backup') }}</div>
+        <div class="summarize-label-desc">{{ $t('dataManager.backupDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <el-select
           class="summarize-input !w-36"
           v-model="store.dbBackup"
-          placeholder="选择备份文件名格式"
+          :placeholder="$t('dataManager.selectFormat')"
         >
           <el-option
             v-for="item in dictDBBackup"
@@ -46,15 +46,15 @@
           @click="startBackup"
           :loading="backupLoading"
         >
-          数据备份
+          {{ $t('dataManager.backupBtn') }}
         </CustomButton>
       </div>
     </section>
 
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
-        <div class="summarize-label-title">数据恢复：</div>
-        <div class="summarize-label-desc">恢复片段数据</div>
+        <div class="summarize-label-title">{{ $t('dataManager.restore') }}</div>
+        <div class="summarize-label-desc">{{ $t('dataManager.restoreDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <CustomButton
@@ -63,7 +63,7 @@
           @click="restoreData"
           :loading="restoreLoading"
         >
-          数据恢复
+          {{ $t('dataManager.restoreBtn') }}
         </CustomButton>
       </div>
     </section>
@@ -71,41 +71,43 @@
 </template>
 
 <script setup lang="ts">
-// 数据库已迁移到Rust后端，不再需要前端管理连接
 import { useConfigurationStore } from '@/store';
+import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import modal from '@/utils/modal';
 import { CustomButton } from '@/components/UI';
 import { h } from 'vue';
+
 defineOptions({
   name: 'Manger'
 });
 
+const { t } = useI18n();
 const store = useConfigurationStore();
 const backupLoading = ref(false);
 const restoreLoading = ref(false);
 const pathLoading = ref(false);
 
-const dictDBBackup = [
-  { value: 'A', label: '年月日' },
-  { value: 'B', label: '时分秒' },
-  { value: 'C', label: '年月日时分秒' }
-];
+const dictDBBackup = computed(() => [
+  { value: 'A', label: t('dataManager.backupFormat.date') },
+  { value: 'B', label: t('dataManager.backupFormat.time') },
+  { value: 'C', label: t('dataManager.backupFormat.datetime') }
+]);
 
 // 备份数据
 const startBackup = async () => {
   if (!store.dbBackup) {
-    modal.msg('请选择备份文件名格式', 'warning');
+    modal.msg(t('dataManager.selectFormat'), 'warning');
     return;
   }
 
   backupLoading.value = true;
   try {
     await invoke('backup_database', { format: store.dbBackup });
-    modal.msg('数据备份成功');
+    modal.msg(t('dataManager.backupSuccess'));
   } catch (error: any) {
     if (error !== 'Backup cancelled') {
-      modal.msg(`备份失败: ${error}`, 'error');
+      modal.msg(`${t('dataManager.backupFailed')}: ${error}`, 'error');
     }
   } finally {
     backupLoading.value = false;
@@ -115,14 +117,14 @@ const startBackup = async () => {
 const restoreData = async () => {
   restoreLoading.value = true;
   await ElMessageBox({
-    title: '警告',
+    title: t('dataManager.warning'),
     showCancelButton: false,
     showConfirmButton: false,
     closeOnClickModal: false,
     closeOnPressEscape: false,
     message: () => {
       return h('div', [
-        h('div', '恢复数据将会替换当前数据库，并且需要重启应用。是否继续？'),
+        h('div', t('dataManager.restoreWarning')),
         h('div', { class: 'message-footer' }, [
           h(
             CustomButton,
@@ -134,7 +136,7 @@ const restoreData = async () => {
                 restoreLoading.value = false;
               }
             },
-            { default: () => '取消' }
+            { default: () => t('common.cancel') }
           ),
           h(
             CustomButton,
@@ -143,17 +145,16 @@ const restoreData = async () => {
               onClick: async () => {
                 ElMessageBox.close();
                 try {
-                  // Rust后端会自动管理数据库连接
                   await invoke('restore_database');
-                  modal.msg('数据恢复成功，应用即将重启');
+                  modal.msg(t('dataManager.restoreSuccess'));
                 } catch (error) {
-                  console.log('恢复数据失败', error);
+                  console.log('Restore failed:', error);
                 } finally {
                   restoreLoading.value = false;
                 }
               }
             },
-            { default: () => '确定' }
+            { default: () => t('common.confirm') }
           )
         ])
       ]);
@@ -168,14 +169,14 @@ const selectCustomPath = async () => {
   pathLoading.value = true;
 
   await ElMessageBox({
-    title: '警告',
+    title: t('dataManager.warning'),
     showCancelButton: false,
     showConfirmButton: false,
     closeOnClickModal: false,
     closeOnPressEscape: false,
     message: () => {
       return h('div', [
-        h('div', '修改数据库存储位置将会迁移现有数据并重启应用，是否继续？'),
+        h('div', t('dataManager.pathWarning')),
         h('div', { class: 'message-footer' }, [
           h(
             CustomButton,
@@ -187,7 +188,7 @@ const selectCustomPath = async () => {
                 pathLoading.value = false;
               }
             },
-            { default: () => '取消' }
+            { default: () => t('common.cancel') }
           ),
           h(
             CustomButton,
@@ -197,18 +198,17 @@ const selectCustomPath = async () => {
               onClick: async () => {
                 ElMessageBox.close();
                 try {
-                  // Rust后端会自动管理数据库连接
                   const newPath = await invoke('set_custom_db_path');
-                  store.dbPath = newPath as string; // 更新前端路径
-                  modal.msg('数据库路径修改成功，应用将重启以应用更改');
+                  store.dbPath = newPath as string;
+                  modal.msg(t('dataManager.pathSuccess'));
                 } catch (error) {
-                  console.log('修改数据库路径失败', error);
+                  console.log('Path change failed:', error);
                 } finally {
                   pathLoading.value = false;
                 }
               }
             },
-            { default: () => '确定' }
+            { default: () => t('common.confirm') }
           )
         ])
       ]);

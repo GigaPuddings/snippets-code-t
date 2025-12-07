@@ -29,12 +29,15 @@
 <script setup lang="ts">
 import { FolderClose, EditTwo, DeleteFour } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
+import { useI18n } from 'vue-i18n';
 import {
   editCategory,
   deleteCategory,
   getCategories
 } from '@/api/fragment';
 import { useRouter } from 'vue-router';
+
+const { t } = useI18n();
 const props = defineProps<{
   category: CategoryType;
 }>();
@@ -46,10 +49,10 @@ defineOptions({
   name: 'CategoryItem'
 });
 
-const menu = [
-  { label: '编辑', icon: EditTwo, type: 'edit' },
-  { label: '删除', icon: DeleteFour, type: 'delete' }
-];
+const menu = computed(() => [
+  { label: t('common.edit'), icon: EditTwo, type: 'edit' },
+  { label: t('common.delete'), icon: DeleteFour, type: 'delete' }
+]);
 
 // // 判断是否是编辑状态
 const isEdit = computed(() => store.editCategoryId == props.category.id);

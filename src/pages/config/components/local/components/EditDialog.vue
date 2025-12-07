@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    :title="isEdit ? `编辑${type === 'app' ? '应用' : '书签'}` : `新增${type === 'app' ? '应用' : '书签'}`"
+    :title="isEdit ? (type === 'app' ? $t('editDialog.editApp') : $t('editDialog.editBookmark')) : (type === 'app' ? $t('editDialog.addApp') : $t('editDialog.addBookmark'))"
     width="540px"
     :close-on-click-modal="false"
     :draggable="true"
@@ -15,27 +15,27 @@
       label-position="left"
       class="edit-form"
     >
-      <el-form-item label="名称" prop="title" class="form-item-name">
+      <el-form-item :label="$t('editDialog.name')" prop="title" class="form-item-name">
         <el-input
           v-model="formData.title"
-          :placeholder="`请输入${type === 'app' ? '应用' : '书签'}名称`"
+          :placeholder="$t('editDialog.namePlaceholder', { type: type === 'app' ? $t('local.apps') : $t('local.bookmarks') })"
           clearable
         />
       </el-form-item>
 
-      <el-form-item :label="type === 'app' ? '路径' : '网址'" prop="content" class="form-item-path">
+      <el-form-item :label="type === 'app' ? $t('editDialog.path') : $t('editDialog.url')" prop="content" class="form-item-path">
         <el-input
           v-model="formData.content"
-          :placeholder="`请输入${type === 'app' ? '应用路径' : '书签网址'}`"
+          :placeholder="type === 'app' ? $t('editDialog.pathPlaceholder') : $t('editDialog.urlPlaceholder')"
           clearable
         >
           <template v-if="type === 'app'" #append>
-            <el-button @click="handleSelectFile">浏览</el-button>
+            <el-button @click="handleSelectFile">{{ $t('common.browse') }}</el-button>
           </template>
         </el-input>
       </el-form-item>
 
-      <el-form-item label="图标" prop="icon" class="form-item-icon">
+      <el-form-item :label="$t('editDialog.icon')" prop="icon" class="form-item-icon">
         <div class="icon-section">
           <div class="icon-display">
             <div v-if="formData.icon" class="icon-preview has-icon">
@@ -55,7 +55,7 @@
             <div v-else class="icon-placeholder">
               <Application v-if="type === 'app'" theme="outline" size="24" :strokeWidth="2" />
               <Browser v-else theme="outline" size="24" :strokeWidth="2" />
-              <span class="placeholder-text">暂无图标</span>
+              <span class="placeholder-text">{{ $t('editDialog.noIcon') }}</span>
             </div>
           </div>
           <div class="icon-actions">
@@ -65,7 +65,7 @@
               :loading="fetchingIcon"
               class="extract-btn"
             >
-              提取图标
+              {{ $t('editDialog.extractIcon') }}
             </el-button>
             <el-button
               v-if="type === 'bookmark' && formData.content"
@@ -74,7 +74,7 @@
               :loading="fetchingIcon"
               class="extract-btn"
             >
-              获取网站图标
+              {{ $t('editDialog.fetchIcon') }}
             </el-button>
           </div>
         </div>
@@ -86,14 +86,14 @@
         <div class="footer-left">
           <el-button type="danger" plain v-if="isEdit" @click="handleDelete" class="delete-btn">
             <Delete theme="outline" size="14" :strokeWidth="3" />
-            删除
+            {{ $t('common.delete') }}
           </el-button>
         </div>
         <div class="footer-right">
-          <el-button @click="handleClose" class="cancel-btn">取消</el-button>
+          <el-button @click="handleClose" class="cancel-btn">{{ $t('common.cancel') }}</el-button>
           <el-button type="primary" @click="handleSubmit" :loading="submitting" class="submit-btn">
             <Check v-if="!submitting" theme="outline" size="14" :strokeWidth="3" />
-            {{ isEdit ? '保存' : '添加' }}
+            {{ isEdit ? $t('common.save') : $t('common.add') }}
           </el-button>
         </div>
       </div>
@@ -107,6 +107,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Application, Browser, Delete, Check } from '@icon-park/vue-next';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 interface EditData {
   id?: string;
@@ -143,15 +146,15 @@ const formData = reactive<EditData>({
 
 const isEdit = computed(() => !!props.editData?.id);
 
-const rules = reactive<FormRules>({
+const rules = computed<FormRules>(() => ({
   title: [
-    { required: true, message: '请输入名称', trigger: 'blur' },
-    { min: 1, max: 100, message: '名称长度在 1 到 100 个字符', trigger: 'blur' }
+    { required: true, message: t('editDialog.nameRequired'), trigger: 'blur' },
+    { min: 1, max: 100, message: t('editDialog.nameLength'), trigger: 'blur' }
   ],
   content: [
-    { required: true, message: `请输入${props.type === 'app' ? '路径' : '网址'}`, trigger: 'blur' }
+    { required: true, message: props.type === 'app' ? t('editDialog.pathRequired') : t('editDialog.urlRequired'), trigger: 'blur' }
   ]
-});
+}));
 
 watch(
   () => props.editData,
@@ -189,7 +192,7 @@ const handleSelectFile = async () => {
       multiple: false,
       directory: false,
       filters: [{
-        name: '可执行文件',
+        name: t('editDialog.executableFiles'),
         extensions: ['exe', 'lnk']
       }]
     });
@@ -220,13 +223,13 @@ const handleSelectFile = async () => {
     }
   } catch (error) {
     console.error('选择文件失败:', error);
-    ElMessage.error('选择文件失败');
+    ElMessage.error(t('editDialog.selectFile'));
   }
 };
 
 const handleExtractAppIcon = async () => {
   if (!formData.content) {
-    ElMessage.warning('请先输入应用路径');
+    ElMessage.warning(t('editDialog.enterPathFirst'));
     return;
   }
 
@@ -237,13 +240,13 @@ const handleExtractAppIcon = async () => {
     });
     if (iconResult) {
       formData.icon = iconResult;
-      ElMessage.success('提取图标成功');
+      ElMessage.success(t('editDialog.extractSuccess'));
     } else {
-      ElMessage.warning('未能提取到图标');
+      ElMessage.warning(t('editDialog.noIconFound'));
     }
   } catch (error) {
-    console.error('提取图标失败:', error);
-    ElMessage.error('提取图标失败');
+    console.error('Extract icon failed:', error);
+    ElMessage.error(t('editDialog.extractFailed'));
   } finally {
     fetchingIcon.value = false;
   }
@@ -251,7 +254,7 @@ const handleExtractAppIcon = async () => {
 
 const handleFetchIcon = async () => {
   if (!formData.content) {
-    ElMessage.warning('请先输入网址');
+    ElMessage.warning(t('editDialog.enterUrlFirst'));
     return;
   }
 
@@ -260,13 +263,13 @@ const handleFetchIcon = async () => {
     const icon = await invoke<string>('fetch_favicon', { url: formData.content });
     if (icon) {
       formData.icon = icon;
-      ElMessage.success('获取图标成功');
+      ElMessage.success(t('editDialog.fetchSuccess'));
     } else {
-      ElMessage.warning('未能获取到图标');
+      ElMessage.warning(t('editDialog.noIconFound'));
     }
   } catch (error) {
-    console.error('获取图标失败:', error);
-    ElMessage.error('获取图标失败');
+    console.error('Fetch icon failed:', error);
+    ElMessage.error(t('editDialog.fetchFailed'));
   } finally {
     fetchingIcon.value = false;
   }

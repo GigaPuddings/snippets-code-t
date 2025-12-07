@@ -22,7 +22,10 @@
 import { useConfigurationStore } from '@/store';
 import { getFragmentContent, editFragment } from '@/api/fragment';
 import { debounce } from '@/utils';
+import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
+
+const { t } = useI18n();
 // 组件状态集中管理
 const state = reactive({
   title: '',
@@ -87,8 +90,8 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
     };
     state.contentChanged = false;
   } catch (error) {
-    console.error('保存失败:', error);
-    modal.msg('保存失败，请重试', 'error');
+    console.error('Save failed:', error);
+    modal.msg(t('category.saveFailed'), 'error');
   } finally {
     state.isLoading = false;
   }
@@ -141,8 +144,8 @@ const fetchContent = async () => {
       state.contentChanged = false;
     }
   } catch (error) {
-    console.error('获取内容失败:', error);
-    modal.msg('获取内容失败，请重试', 'error');
+    console.error('Load content failed:', error);
+    modal.msg(t('category.loadFailed'), 'error');
   } finally {
     nextTick(() => {
       state.isInitializing = false;

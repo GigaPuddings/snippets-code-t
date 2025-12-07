@@ -3,10 +3,10 @@
     <div class="retrieve-container">
       <div class="search-config transparent-input">
         <div class="config-title">
-          <h1 class="title-text">浏览器搜索设置</h1>
+          <h1 class="title-text">{{ $t('retrieve.title') }}</h1>
           <div class="flex gap-4">
             <el-tooltip
-              content="重置默认搜索引擎"
+              :content="$t('retrieve.resetDefault')"
               placement="top"
               effect="light"
             >
@@ -19,7 +19,7 @@
               />
             </el-tooltip>
             <el-tooltip
-              content="添加新的搜索引擎"
+              :content="$t('retrieve.addNew')"
               placement="top"
               effect="light"
             >
@@ -37,7 +37,7 @@
         <div class="search-list">
           <el-empty
             v-if="searchEngines.length === 0"
-            description="暂无搜索引擎配置"
+            :description="$t('retrieve.noEngines')"
           />
           <div
             v-for="(engine, index) in searchEngines"
@@ -49,12 +49,12 @@
               <el-input
                 v-model="engine.name"
                 class="keyword-input"
-                placeholder="名称"
+                :placeholder="$t('retrieve.name')"
                 @change="handleInputChange"
               />
               <div class="icon-wrapper">
                 <el-tooltip
-                  content="搜索引擎图标"
+                  :content="$t('retrieve.icon')"
                   placement="top"
                   effect="light"
                 >
@@ -79,7 +79,7 @@
               <el-input
                 v-model="engine.keyword"
                 class="engine-input"
-                placeholder="快捷字词"
+                :placeholder="$t('retrieve.keyword')"
                 @change="handleInputChange"
               />
             </div>
@@ -87,7 +87,7 @@
             <div class="item-center">
               <el-input
                 v-model="engine.url"
-                placeholder='网址格式（用"%s"代替搜索字词）'
+                :placeholder="$t('retrieve.urlFormat')"
                 class="url-input"
                 @change="handleUrlChange(engine)"
               />
@@ -98,8 +98,8 @@
                 v-model="engine.enabled"
                 class="enable-switch"
                 inline-prompt
-                active-text="默认"
-                inactive-text="关闭"
+                :active-text="$t('retrieve.default')"
+                :inactive-text="$t('retrieve.off')"
                 active-color="#4b94f8"
                 inactive-color="#dddddd"
                 @change="handleSwitch(index)"
@@ -107,7 +107,7 @@
               <el-select
                 class="engine-select"
                 v-model="engine.name"
-                placeholder="默认配置"
+                :placeholder="$t('retrieve.defaultConfig')"
                 clearable
                 @change="handleSelect(index, engine.name)"
               >
@@ -118,7 +118,7 @@
                   :value="item.name"
                 />
               </el-select>
-              <el-tooltip content="删除搜索引擎" placement="top" effect="light">
+              <el-tooltip :content="$t('retrieve.deleteEngine')" placement="top" effect="light">
                 <Reduce
                   class="delete-icon"
                   theme="outline"
@@ -142,7 +142,10 @@ import { Add, Redo, Reduce, Picture } from '@icon-park/vue-next';
 import { uuid } from '@/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
+import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
+
+const { t } = useI18n();
 const searchEngines = ref<SearchEngineConfig[]>([]);
 const defaultSearchEngines = ref<SearchEngineConfig[]>([]);
 // 节流函数，防止频繁保存
@@ -224,7 +227,7 @@ onMounted(async () => {
     await initializeIcons();
   } catch (error) {
     console.error('获取搜索引擎配置失败:', error);
-    modal.msg('获取搜索引擎配置失败', 'error');
+    modal.msg(t('retrieve.loadFailed'), 'error');
   }
 });
 
@@ -238,7 +241,7 @@ const updateSearchEngines = async (engines: SearchEngineConfig[]) => {
     return true;
   } catch (error) {
     console.error('更新搜索引擎配置失败:', error);
-    modal.msg('更新搜索引擎配置失败', 'error');
+    modal.msg(t('retrieve.updateFailed'), 'error');
     return false;
   }
 };
@@ -252,14 +255,14 @@ const saveAll = async (showMessage = true) => {
 
   if (invalidEngines.length > 0) {
     if (showMessage) {
-      modal.msg('存在无效的搜索引擎配置，请完善信息', 'warning');
+      modal.msg(t('retrieve.invalidConfig'), 'warning');
     }
     return false;
   }
 
   const success = await updateSearchEngines([...searchEngines.value]);
   if (success && showMessage) {
-    modal.msg('搜索引擎配置已更新');
+    modal.msg(t('retrieve.configUpdated'));
   }
   return success;
 };
@@ -275,11 +278,11 @@ const resetEngines = async () => {
     }
     const success = await updateSearchEngines(defaultEngines);
     if (success) {
-      modal.msg('已重置为默认搜索引擎');
+      modal.msg(t('retrieve.resetSuccess'));
     }
   } catch (error) {
     console.error('重置搜索引擎失败:', error);
-    modal.msg('重置搜索引擎失败', 'error');
+    modal.msg(t('retrieve.resetFailed'), 'error');
   }
 };
 
@@ -293,7 +296,7 @@ const handleAdd = async () => {
     enabled: false
   };
   searchEngines.value.push(newEngine);
-  modal.msg('已添加新搜索引擎，请完善信息', 'info');
+  modal.msg(t('retrieve.addSuccess'), 'info');
 };
 
 const handleDelete = async (index: number) => {
@@ -311,7 +314,7 @@ const handleDelete = async (index: number) => {
   // 自动保存更改
   const success = await saveAll(false);
   if (success) {
-    modal.msg('已删除搜索引擎');
+    modal.msg(t('retrieve.deleteSuccess'));
   }
 };
 
@@ -325,7 +328,7 @@ const handleSwitch = async (index: number) => {
   // 自动保存更改
   const success = await saveAll(false);
   if (success) {
-    modal.msg('已更新默认搜索引擎');
+    modal.msg(t('retrieve.defaultUpdated'));
   }
 };
 

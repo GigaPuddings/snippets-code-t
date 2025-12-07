@@ -20,6 +20,7 @@ use crate::alarm::{
 };
 use crate::config::{
     exit_application, get_auto_update_check, reset_software, set_auto_update_check,
+    get_language, set_language,
 };
 use crate::db::{
     get_categories, add_category, edit_category, delete_category,
@@ -355,18 +356,21 @@ pub fn run() {
                 // 清理旧日志文件（保留最近7天）
                 cleanup_old_logs();
             });
-            // 异步创建托盘图标（避免阻塞启动）
+            // 创建托盘图标（首次运行时创建最小化托盘，否则创建完整托盘）
             #[cfg(all(desktop))]
             {
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(e) = tray::create_tray(&handle) {
+                let is_first_run = !db::is_setup_completed_internal(&app.handle());
+                if is_first_run {
+                    if let Err(e) = tray::create_minimal_tray(&app.handle()) {
+                        log::error!("最小化托盘创建失败: {:?}", e);
+                    }
+                } else {
+                    if let Err(e) = tray::create_tray(&app.handle()) {
                         log::error!("托盘创建失败: {:?}", e);
                     } else {
-                        // 托盘创建成功后，初始化主题状态显示
-                        tray::update_tray_theme_status(&handle);
+                        tray::update_tray_theme_status(&app.handle());
                     }
-                });
+                }
             }
             // Register Global Shortcut
             match register_shortcut("all") {
@@ -487,9 +491,9 @@ pub fn run() {
             backup_database,                  // 备份数据库
             restore_database,                 // 恢复数据库
             set_custom_db_path,               // 设置自定义数据库路径
-            is_setup_completed,               // 检查是否已完成首次设置
-            set_setup_completed,              // 标记首次设置已完成
-            set_data_dir_from_setup,          // 从设置向导保存数据目录
+            is_setup_completed,
+            set_setup_completed,
+            set_data_dir_from_setup,
             clear_cache,                      // 清理缓存
             get_alarm_cards,                  // 获取代办提醒卡片
             add_alarm_card,                   // 添加代办提醒卡片
@@ -566,6 +570,8 @@ pub fn run() {
             verify_github_token,              // 验证 GitHub Token
             sync_to_github,                   // 同步到 GitHub
             restore_from_github,              // 从 GitHub 恢复
+            get_language,                     // 获取界面语言
+            set_language,                     // 设置界面语言
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

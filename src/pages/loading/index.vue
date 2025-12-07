@@ -6,7 +6,7 @@
       </div>
       <h1 class="app-title">Snippets Code</h1>
       <p class="loading-text">
-        应用程序正在加载中
+        {{ $t('loading.title') }}
         <span class="dots">...</span>
       </p>
       <div class="loading-progress">

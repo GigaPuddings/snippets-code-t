@@ -35,8 +35,8 @@
       <div
         class="titlebar-user"
         @click="goToUserCenter"
-        :title="isLoggedIn ? `${userInfo?.login} - 个人中心` : '个人中心'"
-        :aria-label="'个人中心'"
+        :title="isLoggedIn ? `${userInfo?.login} - ${$t('titlebar.userCenter')}` : $t('titlebar.userCenter')"
+        :aria-label="$t('titlebar.userCenter')"
       >
         <div v-if="isLoggedIn && userInfo" class="user-avatar-wrapper">
           <img 
@@ -60,8 +60,8 @@
       <div 
         class="titlebar-button titlebar-button--update" 
         @click="handleUpdateClick" 
-        title="检查更新" 
-        aria-label="检查更新"
+        :title="$t('titlebar.checkUpdate')" 
+        :aria-label="$t('titlebar.checkUpdate')"
       >
         <update-rotation
           class="icon"
@@ -75,8 +75,8 @@
       <div
         class="titlebar-button"
         @click="handleTitlebar('isAlwaysOnTop')"
-        :title="isAlwaysOnTop ? '取消置顶' : '置顶窗口'"
-        aria-label="置顶窗口"
+        :title="isAlwaysOnTop ? $t('titlebar.unpinWindow') : $t('titlebar.pinWindow')"
+        :aria-label="$t('titlebar.pinWindow')"
       >
         <component
           :is="isAlwaysOnTop ? Pushpin : Pin"
@@ -92,8 +92,8 @@
       <div
         class="titlebar-button"
         @click="openSettingsDialog"
-        title="设置"
-        aria-label="设置"
+        :title="$t('titlebar.settings')"
+        :aria-label="$t('titlebar.settings')"
       >
         <setting-two
           class="icon"
@@ -109,8 +109,8 @@
       <div
         class="titlebar-button titlebar-button--window"
         @click="handleTitlebar('minimize')"
-        title="最小化窗口"
-        aria-label="最小化窗口"
+        :title="$t('titlebar.minimize')"
+        :aria-label="$t('titlebar.minimize')"
       >
         <minus
           class="icon !p-[2px]"
@@ -137,8 +137,8 @@
       <div
         class="titlebar-button titlebar-button--close"
         @click="handleTitlebar('close')"
-        title="关闭窗口"
-        aria-label="关闭窗口"
+        :title="$t('titlebar.close')"
+        :aria-label="$t('titlebar.close')"
       >
         <close-small
           class="icon"
@@ -171,8 +171,11 @@ import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
 import { getUserSettings, type UserSettings, type GitHubUser } from '@/api/github';
+
+const { t } = useI18n();
 
 defineOptions({
   name: 'Titlebar'
@@ -279,7 +282,7 @@ const handleUpdateClick = async () => {
 
 // 最大化按钮标题
 const title = computed(() => {
-  return isMaximized.value ? '还原窗口' : '最大化窗口';
+  return isMaximized.value ? t('titlebar.restore') : t('titlebar.maximize');
 });
 
 const appWindow = getAppWindow('config');

@@ -1,0 +1,530 @@
+export default {
+  // Common
+  common: {
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    on: 'On',
+    off: 'Off',
+    tip: 'Tip',
+    success: 'Success',
+    failed: 'Failed',
+    loading: 'Loading...',
+    save: 'Save',
+    delete: 'Delete',
+    edit: 'Edit',
+    add: 'Add',
+    search: 'Search',
+    reset: 'Reset',
+    close: 'Close',
+    prev: 'Previous',
+    next: 'Next',
+    start: 'Get Started',
+    browse: 'Browse',
+    quickStart: 'Quick Start'
+  },
+
+  // Setup Wizard
+  setup: {
+    welcome: 'Welcome',
+    dataLocation: 'Data Location',
+    complete: 'Complete',
+    welcomeTitle: 'Welcome to Snippets Code',
+    welcomeDesc: 'An efficient code snippet manager to help you store and retrieve code quickly.',
+    selectLanguage: 'Select Language',
+    dataLocationTitle: 'Data Storage Location',
+    dataLocationDesc: 'Choose where to store your database and configuration files',
+    defaultLocation: 'Default Location (Recommended)',
+    customLocation: 'Custom Location',
+    customLocationDesc: 'Choose a custom folder to store your data',
+    pathTip: 'Recommend non-system drive for easy backup and migration',
+    selectDir: 'Please select a directory',
+    selectDirTitle: 'Select Data Directory',
+    completeTitle: 'Setup Complete',
+    completeDesc: 'Initial setup is complete. You can start using the app now!',
+    dataPath: 'Data Path',
+    setupComplete: 'Setup Complete!',
+    setupFailed: 'Setup Failed'
+  },
+
+  // General Settings
+  settings: {
+    general: 'General Settings',
+    theme: 'Theme',
+    themeDesc: 'Set the color theme for Snippets Code',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    themeAuto: 'System',
+    language: 'Language',
+    languageDesc: 'Set the display language',
+    languageChanged: 'Language changed',
+    autoStart: 'Auto Start',
+    autoStartDesc: 'Launch app when system starts',
+    autoStartEnabled: 'Auto start enabled',
+    autoStartDisabled: 'Auto start disabled',
+    resetSoftware: 'Reset Software',
+    resetSoftwareDesc: 'Reset will clear local apps, bookmarks, cached icons, and require re-indexing',
+    resetSoftwareTitle: 'Reset Software',
+    resetSelectContent: 'Select content to reset:',
+    resetAll: 'Reset All',
+    resetApps: 'Reset Apps',
+    resetBookmarks: 'Reset Bookmarks',
+    resetAppsSuccess: 'Apps reset successfully',
+    resetBookmarksSuccess: 'Bookmarks reset successfully',
+    resetAllSuccess: 'Software reset successfully',
+    resetFailed: 'Reset failed',
+    autoUpdateCheck: 'Auto Update Check',
+    autoUpdateCheckDesc: 'Check for updates on app launch',
+    autoUpdateEnabled: 'Auto update check enabled',
+    autoUpdateDisabled: 'Auto update check disabled',
+    autoHideOnBlur: 'Auto Hide on Blur',
+    autoHideOnBlurDesc: 'Hide search window when it loses focus',
+    autoHideEnabled: 'Auto hide enabled',
+    autoHideDisabled: 'Auto hide disabled',
+    exitApp: 'Exit App',
+    exitAppDesc: 'Exit the application',
+    exitAppConfirm: 'Are you sure you want to exit?',
+    exitAppSuccess: 'Application exited',
+    settingFailed: 'Setting failed'
+  },
+
+  // Language Options
+  languages: {
+    'zh-CN': '简体中文',
+    'en-US': 'English'
+  },
+
+  // Sidebar Navigation
+  nav: {
+    quickActions: 'Quick Actions',
+    allSnippets: 'All Snippets',
+    uncategorized: 'Uncategorized',
+    folders: 'Folders',
+    noFolders: 'No folders'
+  },
+
+  // Shortcut Settings
+  shortcut: {
+    title: 'Shortcut Settings',
+    searchHotkey: 'Search Bar Hotkey:',
+    searchHotkeyDesc: 'Set hotkey to open search bar',
+    configHotkey: 'Main Window Hotkey:',
+    configHotkeyDesc: 'Set hotkey to open main window',
+    translateHotkey: 'Translate Window Hotkey:',
+    translateHotkeyDesc: 'Set hotkey to open translate window',
+    selectionTranslateHotkey: 'Selection Translate Hotkey:',
+    selectionTranslateHotkeyDesc: 'Set hotkey for selection translation',
+    screenshotHotkey: 'Screenshot Hotkey:',
+    screenshotHotkeyDesc: 'Set hotkey for screenshot',
+    darkModeHotkey: 'Theme Toggle Hotkey:',
+    darkModeHotkeyDesc: 'Set hotkey to toggle system theme',
+    register: 'Register',
+    pressToSet: 'Press keys to set hotkey',
+    registerSuccess: 'Hotkey registered',
+    registerFailed: 'Hotkey registration failed'
+  },
+
+  // Data Management
+  dataManager: {
+    title: 'Data Management',
+    snippetDir: 'Data Directory:',
+    snippetDirDesc: 'Set snippet storage location',
+    changePath: 'Change Path',
+    backup: 'Data Backup:',
+    backupDesc: 'Set backup file location',
+    backupBtn: 'Backup',
+    restore: 'Data Restore:',
+    restoreDesc: 'Restore snippet data',
+    restoreBtn: 'Restore',
+    backupFormat: {
+      date: 'Date',
+      time: 'Time',
+      datetime: 'DateTime'
+    },
+    selectFormat: 'Select backup filename format',
+    backupSuccess: 'Backup successful',
+    backupFailed: 'Backup failed',
+    restoreWarning: 'Restoring data will replace the current database and requires restarting the app. Continue?',
+    restoreSuccess: 'Data restored. App will restart.',
+    pathWarning: 'Changing database location will migrate data and restart the app. Continue?',
+    pathSuccess: 'Path changed. App will restart.',
+    warning: 'Warning'
+  },
+
+  // Local Apps/Bookmarks
+  local: {
+    apps: 'Local Apps',
+    bookmarks: 'Bookmarks',
+    total: 'Total',
+    items: 'items',
+    showing: 'Showing',
+    search: 'Search...',
+    edit: 'Edit',
+    done: 'Done',
+    add: 'Add',
+    delete: 'Delete',
+    noData: 'No {type} data',
+    noMatch: 'No matching results',
+    addItem: 'Add {type}',
+    usedTimes: 'Used {count} times',
+    loadFailed: 'Failed to load {type}',
+    openFailed: 'Failed to open {type}',
+    updateSuccess: '{type} updated',
+    addSuccess: '{type} added',
+    deleteSuccess: '{type} deleted',
+    deleteFailed: 'Delete failed',
+    operationFailed: 'Operation failed',
+    deleteConfirm: 'Delete "{name}"?',
+    deleteTitle: 'Confirm Delete'
+  },
+
+  // Edit Dialog
+  editDialog: {
+    editApp: 'Edit App',
+    editBookmark: 'Edit Bookmark',
+    addApp: 'Add App',
+    addBookmark: 'Add Bookmark',
+    name: 'Name',
+    namePlaceholder: 'Enter {type} name',
+    path: 'Path',
+    url: 'URL',
+    pathPlaceholder: 'Enter app path',
+    urlPlaceholder: 'Enter bookmark URL',
+    icon: 'Icon',
+    noIcon: 'No icon',
+    extractIcon: 'Extract Icon',
+    fetchIcon: 'Fetch Website Icon',
+    extractSuccess: 'Icon extracted',
+    extractFailed: 'Extract failed',
+    fetchSuccess: 'Icon fetched',
+    fetchFailed: 'Fetch failed',
+    noIconFound: 'No icon found',
+    selectFile: 'Failed to select file',
+    enterPathFirst: 'Enter app path first',
+    enterUrlFirst: 'Enter URL first',
+    executableFiles: 'Executable Files',
+    nameRequired: 'Name is required',
+    nameLength: 'Name must be 1-100 characters',
+    pathRequired: 'Path is required',
+    urlRequired: 'URL is required'
+  },
+
+  // Alarms/Reminders
+  alarm: {
+    noAlarms: 'No reminders set',
+    noAlarmsDesc: 'Click "+" at bottom right to add a reminder',
+    addAlarm: 'Add Reminder',
+    editAlarm: 'Edit Reminder',
+    title: 'Reminder Title',
+    alarmType: 'Reminder Type',
+    daily: 'Daily',
+    weekly: 'Weekly',
+    specificDate: 'Specific Date',
+    repeatReminder: 'Repeat',
+    pauseTime: 'Snooze Time',
+    selectDates: 'Select dates',
+    dailyRepeat: 'Daily repeat',
+    totalDates: '{count} dates',
+    notSet: 'Not set',
+    minutes: 'minutes',
+    saveFailed: 'Save failed',
+    titleRequired: 'Title is required',
+    hourError: 'Invalid hour (0-23)',
+    minuteError: 'Invalid minute (0-59)',
+    weekdayRequired: 'Select at least one day',
+    dateRequired: 'Select a date',
+    dateExpired: 'Date {date} cannot be in the past',
+    weekdays: {
+      mon: 'Mon',
+      tue: 'Tue',
+      wed: 'Wed',
+      thu: 'Thu',
+      fri: 'Fri',
+      sat: 'Sat',
+      sun: 'Sun'
+    }
+  },
+
+  // Category/Snippets
+  category: {
+    newFolder: 'New Folder',
+    rename: 'Rename',
+    delete: 'Delete',
+    noContent: 'No snippets',
+    folders: 'Folders',
+    newSnippet: 'New Snippet',
+    searchPlaceholder: 'Search...',
+    ascending: 'Ascending',
+    descending: 'Descending',
+    saveFailed: 'Save failed, please retry',
+    loadFailed: 'Failed to load content, please retry'
+  },
+
+  // Search Engine Settings
+  retrieve: {
+    title: 'Browser Search Settings',
+    resetDefault: 'Reset to default search engines',
+    addNew: 'Add new search engine',
+    noEngines: 'No search engine configured',
+    name: 'Name',
+    keyword: 'Keyword',
+    urlFormat: 'URL format (use "%s" for search term)',
+    icon: 'Search engine icon',
+    default: 'Default',
+    off: 'Off',
+    defaultConfig: 'Default Config',
+    deleteEngine: 'Delete search engine',
+    invalidConfig: 'Invalid search engine config, please complete the info',
+    configUpdated: 'Search engine config updated',
+    resetSuccess: 'Reset to default search engines',
+    resetFailed: 'Failed to reset search engines',
+    loadFailed: 'Failed to load search engine config',
+    updateFailed: 'Failed to update search engine config',
+    addSuccess: 'New search engine added, please complete info',
+    deleteSuccess: 'Search engine deleted',
+    defaultUpdated: 'Default search engine updated'
+  },
+
+  // GitHub Sync
+  github: {
+    title: 'GitHub Data Sync',
+    subtitle: 'Configure GitHub sync to protect your data',
+    connectGithub: 'Connect GitHub',
+    token: 'GitHub Personal Access Token',
+    tokenPlaceholder: 'Enter your GitHub Token',
+    repoName: 'Repository Name (Optional)',
+    repoPlaceholder: 'Default: snippets-code-backup',
+    howToGetToken: 'How to get Token?',
+    viewTutorial: 'View Tutorial',
+    connect: 'Connect',
+    connecting: 'Verifying...',
+    accountInfo: 'Account Info',
+    logout: 'Logout',
+    syncStatus: 'Sync Status',
+    lastSyncTime: 'Last Sync Time',
+    neverSynced: 'Never synced',
+    repoAddress: 'Repository URL',
+    dataSync: 'Data Sync',
+    uploadToGithub: 'Upload to GitHub',
+    uploading: 'Syncing...',
+    restoreFromGithub: 'Restore from GitHub',
+    restoring: 'Restoring...',
+    uploadingData: 'Uploading data...',
+    restoringData: 'Restoring data...',
+    restoreWarning: 'Restoring will overwrite all local data. Proceed with caution!',
+    autoSync: 'Auto Sync',
+    autoSyncOnExit: 'Auto backup on exit',
+    autoSyncOnExitDesc: 'Automatically upload data to GitHub when closing the app',
+    autoRestoreOnStart: 'Auto restore on start',
+    autoRestoreOnStartDesc: 'Check for cloud updates and prompt to restore on app start',
+    loading: 'Loading...',
+    connectSuccess: 'Connected successfully!',
+    connectFailed: 'Verification failed, please check your Token',
+    logoutConfirm: 'Auto sync will be disabled after logout. Are you sure?',
+    logoutTitle: 'Confirm Logout',
+    logoutSuccess: 'Logged out',
+    syncSuccess: 'Sync successful! Data uploaded to GitHub',
+    syncFailed: 'Sync failed',
+    restoreConfirm: 'This will overwrite all local data and cannot be undone. Continue?',
+    restoreTitle: 'Warning',
+    restoreSuccess: 'Restore successful! App will restart...',
+    restoreFailed: 'Restore failed',
+    settingSaved: 'Settings saved',
+    settingFailed: 'Save failed',
+    pleaseInputToken: 'Please enter GitHub Token'
+  },
+
+  // Theme Toggle
+  darkMode: {
+    title: 'System Theme',
+    masterSwitch: 'Master Switch',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
+    enabledDesc: 'When enabled, Windows system theme will auto-switch based on settings',
+    currentStatus: 'Current Status',
+    currentTheme: 'Current system theme:',
+    darkTheme: 'Dark Mode',
+    lightTheme: 'Light Mode',
+    schedulerStatus: 'Scheduler status:',
+    running: 'Running',
+    stopped: 'Stopped',
+    manualToggle: 'Toggle Theme Manually',
+    switchMode: 'Switch Mode',
+    autoMode: 'Auto Mode',
+    autoModeDesc: 'Auto-switch based on sunrise/sunset',
+    manualMode: 'Manual Mode',
+    manualModeDesc: 'Custom switch time',
+    locationInfo: 'Location Info',
+    gettingLocation: 'Getting location...',
+    location: 'Location:',
+    timezone: 'Timezone:',
+    coordinates: 'Coordinates:',
+    refreshLocation: 'Refresh Location',
+    refreshing: 'Refreshing...',
+    sunTimes: 'Sunrise & Sunset Times',
+    sunrise: 'Sunrise',
+    sunset: 'Sunset',
+    currentPeriod: 'Current period:',
+    daytime: 'Daytime (Light Mode)',
+    nighttime: 'Nighttime (Dark Mode)',
+    customTime: 'Custom Time',
+    lightModeStart: 'Light mode start time',
+    darkModeStart: 'Dark mode start time',
+    loadConfigFailed: 'Failed to load config',
+    saveConfigFailed: 'Failed to save config',
+    getLocationFailed: 'Failed to get location',
+    toggleFailed: 'Failed to toggle theme',
+    switchedTo: 'Switched to {theme} mode',
+    autoRestoreNote: '. Auto-switch will resume at next scheduled time'
+  },
+
+  // Loading Page
+  loading: {
+    title: 'Application is loading'
+  },
+
+  // Notification
+  notification: {
+    title: 'Reminder',
+    confirm: 'Confirm',
+    remindLater: 'Remind me in {minutes} minutes'
+  },
+
+  // Pin Window
+  pin: {
+    togglePin: 'Unpin',
+    pinWindow: 'Pin Window',
+    resetZoom: 'Reset Zoom',
+    copyImage: 'Copy Image',
+    saveImage: 'Save Image',
+    closePin: 'Close Pin'
+  },
+
+  // Update Window
+  update: {
+    title: 'Software Update',
+    currentVersion: 'Current Version',
+    newVersion: 'New Version',
+    releaseDate: 'Release Date:',
+    releaseNotes: 'Release Notes',
+    gettingData: 'Getting data...',
+    startDownload: 'Starting download',
+    downloading: 'Downloading',
+    downloadComplete: 'Download complete, launching installer...',
+    installing: 'Installing...',
+    installSuccess: 'Installation successful, restarting app...',
+    installFailed: 'Installation failed',
+    downloadFailed: 'Download failed',
+    preparing: 'Preparing download...',
+    updateLater: 'Update Later',
+    updateNow: 'Update Now',
+    retryInstall: 'Retry Install',
+    close: 'Close'
+  },
+
+  // Translate Window
+  translate: {
+    title: 'Translate',
+    inputPlaceholder: 'Enter text to translate',
+    speakText: 'Speak Text',
+    deleteText: 'Delete Text',
+    copyResult: 'Copy Result',
+    translateBack: 'Translate Back',
+    resultPlaceholder: 'Translation will appear here',
+    copiedToClipboard: 'Copied to clipboard',
+    tooManyRequests: 'Too many requests, please try again later',
+    timeout: 'Translation timeout, check network',
+    networkError: 'Network error, check connection',
+    translateFailed: 'Translation failed, please retry',
+    bingTranslate: 'Bing Translate',
+    googleTranslate: 'Google Translate',
+    languages: {
+      auto: 'Auto Detect',
+      zh: 'Chinese (Simplified)',
+      zh_tw: 'Chinese (Traditional)',
+      en: 'English',
+      ja: 'Japanese',
+      ko: 'Korean',
+      fr: 'French',
+      de: 'German',
+      ru: 'Russian',
+      es: 'Spanish',
+      pt_pt: 'Portuguese',
+      pt_br: 'Brazilian Portuguese',
+      vi: 'Vietnamese',
+      id: 'Indonesian',
+      th: 'Thai',
+      ar: 'Arabic'
+    }
+  },
+
+  // Screenshot Toolbar
+  screenshot: {
+    select: 'Select',
+    rectangle: 'Rectangle',
+    ellipse: 'Ellipse',
+    arrow: 'Arrow',
+    pen: 'Pen',
+    mosaic: 'Mosaic',
+    text: 'Text',
+    undo: 'Undo',
+    redo: 'Redo',
+    pin: 'Pin',
+    copy: 'Copy',
+    save: 'Save',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    colorPicker: 'Color Picker',
+    delete: 'Delete'
+  },
+
+  // 404 Page
+  errorPage: {
+    notFound: 'Page Not Found',
+    backHome: 'Back to Home'
+  },
+
+  // Content Item Context Menu
+  contentItem: {
+    changeCategory: 'Change Category',
+    rename: 'Rename',
+    delete: 'Delete',
+    uncategorized: 'Uncategorized',
+    updateFailed: 'Failed to update category'
+  },
+
+  // Search Result
+  searchResult: {
+    all: 'All',
+    apps: 'Apps',
+    bookmarks: 'Bookmarks',
+    backToSearch: 'Back to Search'
+  },
+
+  // Titlebar
+  titlebar: {
+    userCenter: 'User Center',
+    checkUpdate: 'Check Update',
+    pinWindow: 'Pin Window',
+    unpinWindow: 'Unpin Window',
+    settings: 'Settings',
+    minimize: 'Minimize',
+    maximize: 'Maximize',
+    restore: 'Restore',
+    close: 'Close'
+  },
+
+  // Code Editor
+  codeEditor: {
+    lines: 'Lines',
+    chars: 'Chars',
+    language: 'Lang'
+  },
+
+  // Screenshot Tool
+  screenshotTool: {
+    loading: 'Loading screenshot...',
+    dragToSelect: 'Drag to select area',
+    pressEscToClose: 'Press ESC to close',
+    colorPicker: 'Color Picker'
+  }
+};

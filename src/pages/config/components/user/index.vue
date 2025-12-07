@@ -4,48 +4,48 @@
     <div v-if="initialLoading" class="loading-container">
       <div class="loading-content">
         <div class="loading-spinner"></div>
-        <p class="loading-text">正在加载...</p>
+        <p class="loading-text">{{ $t('github.loading') }}</p>
       </div>
     </div>
 
     <div v-else class="user-center-content">
       <!-- 标题 -->
-      <h3 class="panel-title">GitHub 数据同步</h3>
-      <p class="panel-subtitle">配置 GitHub 数据同步，保护您的数据安全</p>
+      <h3 class="panel-title">{{ $t('github.title') }}</h3>
+      <p class="panel-subtitle">{{ $t('github.subtitle') }}</p>
 
       <!-- 登录区域 -->
       <div v-if="!isLoggedIn" class="settings-section">
         <div class="section-header">
-          <h4 class="section-title">连接 GitHub</h4>
+          <h4 class="section-title">{{ $t('github.connectGithub') }}</h4>
         </div>
         <el-form :model="loginForm" label-position="top" class="settings-form">
-          <el-form-item label="GitHub Personal Access Token">
+          <el-form-item :label="$t('github.token')">
             <el-input
               v-model="loginForm.token"
               type="password"
-              placeholder="请输入您的 GitHub Token"
+              :placeholder="$t('github.tokenPlaceholder')"
               show-password
               clearable
             />
           </el-form-item>
           
-          <el-form-item label="仓库名称（可选）">
+          <el-form-item :label="$t('github.repoName')">
             <el-input
               v-model="loginForm.repo"
-              placeholder="默认：snippets-code-backup"
+              :placeholder="$t('github.repoPlaceholder')"
               clearable
             />
           </el-form-item>
           
           <div class="help-text">
             <Help theme="outline" size="16" :strokeWidth="3" />
-            <span>如何获取 Token？</span>
+            <span>{{ $t('github.howToGetToken') }}</span>
             <el-button
               link
               type="primary"
               @click="openTokenHelp"
             >
-              查看教程
+              {{ $t('github.viewTutorial') }}
             </el-button>
           </div>
           
@@ -55,7 +55,7 @@
             :disabled="!loginForm.token"
             @click="handleLogin"
           >
-            {{ logging ? '验证中...' : '连接' }}
+            {{ logging ? $t('github.connecting') : $t('github.connect') }}
           </CustomButton>
         </el-form>
       </div>
@@ -63,7 +63,7 @@
       <!-- 用户信息区域 -->
       <div v-else class="settings-section">
         <div class="section-header">
-          <h4 class="section-title">账号信息</h4>
+          <h4 class="section-title">{{ $t('github.accountInfo') }}</h4>
         </div>
         <div class="user-info">
           <img :src="userInfo.avatar_url" alt="avatar" class="user-avatar" />
@@ -72,7 +72,7 @@
             <div class="user-login">@{{ userInfo.login }}</div>
           </div>
           <CustomButton type="danger" plain @click="handleLogout">
-            登出
+            {{ $t('github.logout') }}
           </CustomButton>
         </div>
       </div>
@@ -80,18 +80,18 @@
       <!-- 同步状态 -->
       <div v-if="isLoggedIn" class="settings-section">
         <div class="section-header">
-          <h4 class="section-title">同步状态</h4>
+          <h4 class="section-title">{{ $t('github.syncStatus') }}</h4>
         </div>
         <div class="sync-status">
           <div class="status-item">
-            <span class="status-label">上次同步时间</span>
+            <span class="status-label">{{ $t('github.lastSyncTime') }}</span>
             <span class="status-value">
-              {{ settings.last_sync_time || '从未同步' }}
+              {{ settings.last_sync_time || $t('github.neverSynced') }}
             </span>
           </div>
           
           <div class="status-item">
-            <span class="status-label">仓库地址</span>
+            <span class="status-label">{{ $t('github.repoAddress') }}</span>
             <span class="status-value">
               <el-link
                 v-if="userInfo.login"
@@ -109,7 +109,7 @@
       <!-- 同步操作 -->
       <div v-if="isLoggedIn" class="settings-section">
         <div class="section-header">
-          <h4 class="section-title">数据同步</h4>
+          <h4 class="section-title">{{ $t('github.dataSync') }}</h4>
         </div>
         <div class="sync-actions">
           <div class="sync-buttons">
@@ -120,7 +120,7 @@
               @click="handleSync"
             >
               <UploadIcon theme="outline" size="16" :strokeWidth="3" class="mr-1" />
-              {{ syncing ? '同步中...' : '上传到 GitHub' }}
+              {{ syncing ? $t('github.uploading') : $t('github.uploadToGithub') }}
             </CustomButton>
             
             <CustomButton
@@ -130,14 +130,14 @@
               @click="handleRestore"
             >
               <DownloadIcon theme="outline" size="16" :strokeWidth="3" class="mr-1" />
-              {{ restoring ? '恢复中...' : '从 GitHub 恢复' }}
+              {{ restoring ? $t('github.restoring') : $t('github.restoreFromGithub') }}
             </CustomButton>
           </div>
           
           <!-- 同步进度条 -->
           <div v-if="syncing" class="progress-container">
             <div class="progress-header">
-              <span class="progress-label">{{ syncMessage || '正在上传数据...' }}</span>
+              <span class="progress-label">{{ syncMessage || $t('github.uploadingData') }}</span>
               <span class="progress-percentage">{{ syncProgress }}%</span>
             </div>
             <el-progress 
@@ -152,7 +152,7 @@
           <!-- 恢复进度条 -->
           <div v-if="restoring" class="progress-container progress-container--restore">
             <div class="progress-header">
-              <span class="progress-label">{{ restoreMessage || '正在恢复数据...' }}</span>
+              <span class="progress-label">{{ restoreMessage || $t('github.restoringData') }}</span>
               <span class="progress-percentage progress-percentage--restore">{{ restoreProgress }}%</span>
             </div>
             <el-progress 
@@ -166,7 +166,7 @@
           
           <div class="warning-text">
             <WarningIcon theme="filled" size="16" :strokeWidth="3" />
-            <span>恢复数据将覆盖本地所有数据，请谨慎操作！</span>
+            <span>{{ $t('github.restoreWarning') }}</span>
           </div>
         </div>
       </div>
@@ -174,13 +174,13 @@
       <!-- 同步设置 -->
       <div v-if="isLoggedIn" class="settings-section">
         <div class="section-header">
-          <h4 class="section-title">自动同步</h4>
+          <h4 class="section-title">{{ $t('github.autoSync') }}</h4>
         </div>
         <div class="sync-settings">
           <div class="setting-item">
             <div class="setting-info">
-              <span class="setting-label">退出时自动备份</span>
-              <span class="setting-desc">关闭应用时自动上传数据到 GitHub</span>
+              <span class="setting-label">{{ $t('github.autoSyncOnExit') }}</span>
+              <span class="setting-desc">{{ $t('github.autoSyncOnExitDesc') }}</span>
             </div>
             <CustomSwitch
               v-model="settings.auto_sync_on_exit"
@@ -190,8 +190,8 @@
           
           <div class="setting-item">
             <div class="setting-info">
-              <span class="setting-label">启动时自动恢复</span>
-              <span class="setting-desc">应用启动时检测云端更新并提示恢复</span>
+              <span class="setting-label">{{ $t('github.autoRestoreOnStart') }}</span>
+              <span class="setting-desc">{{ $t('github.autoRestoreOnStartDesc') }}</span>
             </div>
             <CustomSwitch
               v-model="settings.auto_restore_on_start"
@@ -207,6 +207,9 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 import { CustomButton, CustomSwitch } from '@/components/UI';
 import {
   Help,
@@ -290,7 +293,7 @@ const loadSettings = async () => {
 // 登录
 const handleLogin = async () => {
   if (!loginForm.token) {
-    ElMessage.warning('请输入 GitHub Token');
+    ElMessage.warning(t('github.pleaseInputToken'));
     return;
   }
   
@@ -317,13 +320,13 @@ const handleLogin = async () => {
     // 发送用户登录事件，通知标题栏更新
     await emit('user-login-status-changed', { loggedIn: true });
     
-    ElMessage.success('连接成功！');
+    ElMessage.success(t('github.connectSuccess'));
     
     // 清空表单
     loginForm.token = '';
     loginForm.repo = '';
   } catch (error: any) {
-    ElMessage.error(error || '验证失败，请检查 Token 是否正确');
+    ElMessage.error(error || t('github.connectFailed'));
   } finally {
     logging.value = false;
   }
@@ -333,11 +336,11 @@ const handleLogin = async () => {
 const handleLogout = async () => {
   try {
     await ElMessageBox.confirm(
-      '登出后将无法自动同步数据，确定要登出吗？',
-      '确认登出',
+      t('github.logoutConfirm'),
+      t('github.logoutTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     );
@@ -364,7 +367,7 @@ const handleLogout = async () => {
     // 发送用户登出事件，通知标题栏更新
     await emit('user-login-status-changed', { loggedIn: false });
     
-    ElMessage.success('已登出');
+    ElMessage.success(t('github.logoutSuccess'));
   } catch {
     // 用户取消
   }
@@ -387,9 +390,9 @@ const handleSync = async () => {
     const syncTime = await syncToGitHub();
     settings.value.last_sync_time = syncTime;
     await saveUserSettings(settings.value);
-    ElMessage.success('同步成功！数据已上传到 GitHub');
+    ElMessage.success(t('github.syncSuccess'));
   } catch (error: any) {
-    ElMessage.error(error || '同步失败');
+    ElMessage.error(error || t('github.syncFailed'));
   } finally {
     unlisten();
     setTimeout(() => {
@@ -404,11 +407,11 @@ const handleSync = async () => {
 const handleRestore = async () => {
   try {
     await ElMessageBox.confirm(
-      '此操作将覆盖本地所有数据，无法恢复。确定要继续吗？',
-      '警告',
+      t('github.restoreConfirm'),
+      t('github.restoreTitle'),
       {
-        confirmButtonText: '确定恢复',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
         dangerouslyUseHTMLString: true
       }
@@ -428,9 +431,9 @@ const handleRestore = async () => {
     try {
       await restoreFromGitHub();
       // 注意：恢复成功后应用会自动重启
-      ElMessage.success('恢复成功！应用即将重启...');
+      ElMessage.success(t('github.restoreSuccess'));
     } catch (error: any) {
-      ElMessage.error(error || '恢复失败');
+      ElMessage.error(error || t('github.restoreFailed'));
       unlisten();
       restoring.value = false;
       restoreProgress.value = 0;
@@ -446,9 +449,9 @@ const handleRestore = async () => {
 const handleSettingChange = async () => {
   try {
     await saveUserSettings(settings.value);
-    ElMessage.success('设置已保存');
+    ElMessage.success(t('github.settingSaved'));
   } catch (error: any) {
-    ElMessage.error('保存失败');
+    ElMessage.error(t('github.settingFailed'));
   }
 };
 

@@ -1,70 +1,84 @@
 <template>
   <div class="setup-container">
     <div class="setup-card">
-      <!-- 步骤指示器 - 支持拖拽 -->
-      <div class="setup-steps" data-tauri-drag-region>
-        <div
-          v-for="(s, i) in steps"
-          :key="i"
-          :class="['step', { active: step === i, completed: step > i }]"
-        >
+      <!-- 步骤指示器 - 仅在非欢迎页显示 -->
+      <div v-if="step > 0" class="setup-steps" data-tauri-drag-region>
+        <div v-for="(s, i) in steps" :key="i" :class="['step', { active: step === i, completed: step > i }]">
           <div class="step-dot">{{ step > i ? '✓' : i + 1 }}</div>
           <span class="step-label">{{ s.title }}</span>
         </div>
       </div>
+      
+      <!-- 欢迎页的拖拽区域 -->
+      <div v-else class="welcome-drag-region" data-tauri-drag-region></div>
 
       <!-- 步骤内容 -->
       <div class="setup-content">
-        <!-- 欢迎页 -->
-        <div v-if="step === 0" class="step-page">
-          <div class="welcome-icon">
-            <img src="@tauri/icons/icon.png" alt="Logo" class="w-20 h-20" />
+        <!-- 欢迎页 + 语言选择 -->
+        <div v-if="step === 0" class="step-page welcome-page">
+          <div class="welcome-header">
+            <div class="welcome-icon">
+              <img src="../../assets/128x128.png" alt="Logo" class="app-logo" />
+            </div>
+            <h1 class="welcome-title">Snippets Code</h1>
+            <p class="app-version">Version {{ version }}</p>
           </div>
-          <h1 class="welcome-title">欢迎使用 Snippets Code</h1>
-          <p class="welcome-desc">
-            一款高效的代码片段管理工具，帮助您快速存储和检索代码片段。
-          </p>
+
+          <div class="welcome-actions">
+            <!-- 快速开始按钮 -->
+            <CustomButton type="primary" class="quick-start-btn" @click="nextStep">
+              {{ $t('common.quickStart') || 'Quick start' }}
+            </CustomButton>
+            
+            <div class="welcome-desc-text">{{ $t('setup.welcomeDesc') }}</div>
+          </div>
+
+          <!-- 语言选择下拉框 - 底部居中 -->
+          <div class="language-footer">
+             <el-select v-model="language" class="lang-select dark-input" popper-class="dark-select-popper" @change="onLanguageChange">
+              <el-option v-for="lang in languages" :key="lang.value" :label="lang.label" :value="lang.value">
+                <div class="flex items-center gap-2">
+                  <span>{{ lang.flag }}</span>
+                  <span>{{ lang.label }}</span>
+                </div>
+              </el-option>
+            </el-select>
+          </div>
         </div>
 
         <!-- 数据目录设置 -->
         <div v-if="step === 1" class="step-page">
-          <h2 class="step-title">数据存储位置</h2>
-          <p class="step-desc">选择您的数据存储位置，包括数据库和配置文件。</p>
+          <h2 class="step-title">{{ $t('setup.dataLocationTitle') }}</h2>
+          <p class="step-desc">{{ $t('setup.dataLocationDesc') }}</p>
 
           <div class="path-options">
-            <div
-              :class="['path-option', { selected: pathOption === 'default' }]"
-              @click="pathOption = 'default'"
-            >
-              <div class="option-radio">
-                <div v-if="pathOption === 'default'" class="radio-dot"></div>
+            <div :class="['path-option', { selected: pathOption === 'default' }]" @click="pathOption = 'default'">
+              <div class="option-info">
+                <div class="option-title">{{ $t('setup.defaultLocation') }}</div>
+                <div class="option-desc">{{ defaultPath }}</div>
               </div>
-              <div class="option-content">
-                <div class="option-title">默认位置（推荐）</div>
-                <div class="option-path">{{ defaultPath }}</div>
+              <div class="option-action">
+                <div class="radio-circle">
+                  <div v-if="pathOption === 'default'" class="radio-dot"></div>
+                </div>
               </div>
             </div>
 
-            <div
-              :class="['path-option', { selected: pathOption === 'custom' }]"
-              @click="pathOption = 'custom'"
-            >
-              <div class="option-radio">
-                <div v-if="pathOption === 'custom'" class="radio-dot"></div>
-              </div>
-              <div class="option-content">
-                <div class="option-title">自定义位置</div>
+            <div :class="['path-option', { selected: pathOption === 'custom' }]" @click="pathOption = 'custom'">
+              <div class="option-info">
+                <div class="option-title">{{ $t('setup.customLocation') }}</div>
                 <div v-if="pathOption === 'custom'" class="custom-path-input">
-                  <el-input 
-                    v-model="customPath" 
-                    placeholder="输入或选择目录" 
-                    class="path-input"
-                    clearable
-                    @blur="onPathBlur"
-                  />
+                  <el-input v-model="customPath" :placeholder="$t('common.browse')" class="path-input dark-input" clearable
+                    @blur="onPathBlur" />
                   <CustomButton type="primary" size="small" @click.stop="selectCustomPath" class="browse-btn">
-                    浏览
+                    {{ $t('common.browse') }}
                   </CustomButton>
+                </div>
+                <div v-else class="option-desc">{{ $t('setup.customLocationDesc') || 'Choose a custom folder' }}</div>
+              </div>
+              <div class="option-action">
+                 <div class="radio-circle">
+                  <div v-if="pathOption === 'custom'" class="radio-dot"></div>
                 </div>
               </div>
             </div>
@@ -72,7 +86,7 @@
 
           <div class="path-tip">
             <Info theme="outline" size="16" />
-            <span>建议选择非系统盘位置，以便数据备份和迁移</span>
+            <span>{{ $t('setup.pathTip') }}</span>
           </div>
         </div>
 
@@ -81,33 +95,28 @@
           <div class="complete-icon">
             <CheckOne theme="filled" size="64" fill="#10b981" />
           </div>
-          <h2 class="step-title">设置完成</h2>
-          <p class="step-desc">您已完成初始设置，现在可以开始使用了！</p>
+          <h2 class="step-title">{{ $t('setup.completeTitle') }}</h2>
+          <p class="step-desc">{{ $t('setup.completeDesc') }}</p>
           <div class="summary">
             <div class="summary-item">
-              <span class="summary-label">数据位置：</span>
+              <span class="summary-label">{{ $t('setup.dataPath') }}:</span>
               <span class="summary-value">{{ finalPath }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 底部按钮 -->
-      <div class="setup-footer">
+      <!-- 底部按钮 - 仅在非欢迎页显示 -->
+      <div v-if="step > 0" class="setup-footer">
         <CustomButton v-if="step > 0" type="default" @click="prevStep">
-          上一步
+          {{ $t('common.prev') }}
         </CustomButton>
         <div class="flex-1"></div>
         <CustomButton v-if="step < steps.length - 1" type="primary" @click="nextStep">
-          下一步
+          {{ $t('common.next') }}
         </CustomButton>
-        <CustomButton
-          v-else
-          type="primary"
-          @click="completeSetup"
-          :loading="completing"
-        >
-          开始使用
+        <CustomButton v-else type="primary" @click="completeSetup" :loading="completing">
+          {{ $t('common.start') }}
         </CustomButton>
       </div>
     </div>
@@ -116,27 +125,54 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { CustomButton } from '@/components/UI';
 import { Info, CheckOne } from '@icon-park/vue-next';
+import { useConfigurationStore } from '@/store';
+import { setLocale, type LocaleType } from '@/i18n';
 import modal from '@/utils/modal';
 
 defineOptions({
   name: 'SetupWizard'
 });
 
-const steps = [
-  { title: '欢迎' },
-  { title: '数据位置' },
-  { title: '完成' }
+const { t } = useI18n();
+const store = useConfigurationStore();
+
+const languages = [
+  { value: 'zh-CN' as LocaleType, label: '简体中文', flag: '🇨🇳' },
+  { value: 'en-US' as LocaleType, label: 'English', flag: '🇺🇸' }
 ];
+
+const language = ref<LocaleType>(store.language || 'zh-CN');
+const version = ref('');
+
+// 语言切换处理
+const onLanguageChange = async (value: LocaleType) => {
+  setLocale(value);
+  // 同步语言设置到后端（为托盘菜单准备）
+  try {
+    await invoke('set_language', { language: value });
+  } catch (error) {
+    console.error('Failed to sync language to backend:', error);
+  }
+};
+
+const steps = computed(() => [
+  { title: t('setup.welcome') },
+  { title: t('setup.dataLocation') },
+  { title: t('setup.complete') }
+]);
 
 const step = ref(0);
 const pathOption = ref<'default' | 'custom'>('default');
 const defaultPath = ref('');
 const customPath = ref('');
 const completing = ref(false);
+
 // 检查路径是否需要添加 snippets-code
 const needsAppFolder = (path: string) => {
   if (!path || path === defaultPath.value) return false;
@@ -159,12 +195,13 @@ const finalPath = computed(() => {
 
 onMounted(async () => {
   try {
+    version.value = await getVersion();
     // 获取数据目录信息
     const info = await invoke<{ path: string; source: string }>('get_data_dir_info');
     defaultPath.value = info.path;
     customPath.value = info.path;
   } catch (error) {
-    console.error('获取数据目录失败:', error);
+    console.error('获取初始化信息失败:', error);
   }
 });
 
@@ -176,10 +213,10 @@ const prevStep = () => {
 
 const nextStep = () => {
   if (step.value === 1 && pathOption.value === 'custom' && !customPath.value) {
-    modal.msg('请选择数据存储目录', 'warning');
+    modal.msg(t('setup.selectDir'), 'warning');
     return;
   }
-  if (step.value < steps.length - 1) {
+  if (step.value < steps.value.length - 1) {
     step.value++;
   }
 };
@@ -188,7 +225,7 @@ const selectCustomPath = async () => {
   try {
     const selected = await open({
       directory: true,
-      title: '选择数据存储目录'
+      title: t('setup.selectDirTitle')
     });
     if (selected) {
       let path = selected as string;
@@ -206,6 +243,10 @@ const selectCustomPath = async () => {
 const completeSetup = async () => {
   completing.value = true;
   try {
+    // 保存语言设置到 store 和后端
+    store.language = language.value;
+    await invoke('set_language', { language: language.value });
+
     // 如果选择了自定义路径，保存到配置
     if (pathOption.value === 'custom' && customPath.value && customPath.value !== defaultPath.value) {
       // 后端会返回实际使用的路径（可能添加了 snippets-code 子文件夹）
@@ -216,12 +257,12 @@ const completeSetup = async () => {
     // 标记设置已完成
     await invoke('set_setup_completed');
 
-    modal.msg('设置完成！');
+    modal.msg(t('setup.setupComplete'));
 
     // 关闭设置向导窗口并打开主窗口
     await invoke('close_setup_window');
   } catch (error: any) {
-    modal.msg(`设置失败: ${error}`, 'error');
+    modal.msg(`${t('setup.setupFailed')}: ${error}`, 'error');
   } finally {
     completing.value = false;
   }
@@ -230,43 +271,61 @@ const completeSetup = async () => {
 
 <style scoped lang="scss">
 .setup-container {
-  @apply w-full h-full;
+  @apply w-full h-full rounded-xl overflow-hidden;
+  background-color: #1e1e1e;
+  color: #dcddde;
+  border: 1px solid #333;
 }
 
 .setup-card {
-  @apply w-full h-full bg-white dark:bg-gray-800 rounded-xl;
-  @apply flex flex-col overflow-hidden;
+  @apply w-full h-full flex flex-col overflow-hidden;
+}
+
+.welcome-drag-region {
+  @apply h-8 w-full shrink-0;
+  -webkit-app-region: drag;
 }
 
 .setup-steps {
-  @apply flex items-center justify-center gap-8 py-4 px-8;
-  @apply bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600;
+  @apply flex items-center justify-center gap-6 py-6 px-8;
   @apply cursor-move select-none;
-}
-
-.step {
-  @apply flex items-center gap-2 text-gray-400 dark:text-gray-500;
+  -webkit-app-region: drag;
   
-  &.active {
-    @apply text-blue-600 dark:text-blue-400;
+  /* Minimalist step indicator */
+  .step {
+    @apply flex items-center gap-2;
+    opacity: 0.5;
+    transition: opacity 0.3s, color 0.3s;
     
-    .step-dot {
-      @apply bg-blue-600 text-white border-blue-600;
+    &.active {
+      opacity: 1;
+      color: #dcddde;
+      
+      .step-dot {
+        background-color: var(--el-color-primary);
+        border-color: var(--el-color-primary);
+        color: white;
+      }
     }
-  }
-  
-  &.completed {
-    @apply text-emerald-600 dark:text-emerald-400;
     
-    .step-dot {
-      @apply bg-emerald-500 text-white border-emerald-500;
+    &.completed {
+      opacity: 1;
+      color: var(--el-color-primary);
+      
+      .step-dot {
+        background-color: transparent;
+        border-color: var(--el-color-primary);
+        color: var(--el-color-primary);
+      }
     }
   }
 }
 
 .step-dot {
-  @apply w-7 h-7 rounded-full border-2 border-gray-300 dark:border-gray-500;
-  @apply flex items-center justify-center text-sm font-medium;
+  @apply w-6 h-6 rounded-full border border-gray-600;
+  @apply flex items-center justify-center text-xs font-medium;
+  background-color: transparent;
+  transition: all 0.3s ease;
 }
 
 .step-label {
@@ -274,31 +333,97 @@ const completeSetup = async () => {
 }
 
 .setup-content {
-  @apply flex-1 p-6 min-h-[280px];
+  @apply flex-1 px-8 pt-4 flex flex-col items-center justify-start;
+  overflow-y: auto;
 }
 
 .step-page {
-  @apply flex flex-col items-center text-center;
+  @apply flex flex-col items-center text-center w-full max-w-md;
+  animation: fadeIn 0.3s ease-out;
+  
+  &.welcome-page {
+    @apply mb-auto mt-1 gap-6 pb-4;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.welcome-header {
+  @apply flex flex-col items-center;
 }
 
 .welcome-icon {
   @apply mb-6;
+  /* Removed the radial gradient glow for a cleaner look */
+}
+
+.app-logo {
+  @apply w-24 h-24 object-contain;
+  /* Subtle drop shadow */
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
 }
 
 .welcome-title {
-  @apply text-2xl font-bold text-gray-800 dark:text-white mb-3;
+  @apply text-2xl font-semibold mb-2 text-white;
+  letter-spacing: -0.02em;
 }
 
-.welcome-desc {
-  @apply text-gray-500 dark:text-gray-400 max-w-md;
+.app-version {
+  @apply text-gray-500 text-xs font-mono;
 }
+
+.welcome-actions {
+  @apply flex flex-col items-center gap-4 w-full max-w-xs;
+}
+
+.quick-start-btn {
+  @apply w-full;
+}
+
+.welcome-desc-text {
+  @apply text-gray-500 text-xs text-center px-4 leading-relaxed;
+}
+
+.language-footer {
+  @apply mt-4;
+}
+
+.lang-select {
+  width: 140px;
+
+  :deep(.el-input__wrapper) {
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 0 8px;
+    
+    &:hover {
+      border-color: #444;
+    }
+    
+    &.is-focus {
+      border-color: var(--el-color-primary) !important;
+    }
+
+    .el-input__inner {
+      color: #999;
+      font-size: 12px;
+      text-align: center;
+    }
+  }
+}
+
 
 .step-title {
-  @apply text-xl font-bold text-gray-800 dark:text-white mb-2;
+  @apply text-lg font-semibold text-white mb-2;
 }
 
 .step-desc {
-  @apply text-gray-500 dark:text-gray-400 mb-6;
+  @apply text-gray-400 mb-8 text-sm;
 }
 
 .path-options {
@@ -306,77 +431,113 @@ const completeSetup = async () => {
 }
 
 .path-option {
-  @apply flex items-start gap-3 p-4 rounded-xl border-2 border-gray-200 dark:border-gray-600;
-  @apply cursor-pointer transition-all hover:border-blue-300 dark:hover:border-blue-500;
-  
+  @apply flex items-center justify-between gap-4 p-4 rounded-lg;
+  @apply border border-transparent cursor-pointer transition-all;
+  background-color: #2b2b2b; /* Card background */
+  border: 1px solid #333;
+
+  &:hover {
+    border-color: #555;
+    background-color: #303030;
+  }
+
   &.selected {
-    @apply border-blue-500 bg-blue-50 dark:bg-blue-900/20;
+    border-color: var(--el-color-primary);
+    background-color: rgba(93, 109, 253, 0.1); /* #5d6dfd with 10% opacity */
+    
+    .radio-dot {
+      background-color: var(--el-color-primary);
+    }
+    
+    .radio-circle {
+      border-color: var(--el-color-primary);
+    }
   }
 }
 
-.option-radio {
-  @apply w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-500;
-  @apply flex items-center justify-center flex-shrink-0 mt-0.5;
-  
-  .path-option.selected & {
-    @apply border-blue-500;
-  }
-}
-
-.radio-dot {
-  @apply w-2.5 h-2.5 rounded-full bg-blue-500;
-}
-
-.option-content {
+.option-info {
   @apply flex-1 text-left;
 }
 
-.option-title {
-  @apply font-medium text-gray-800 dark:text-white mb-1;
+.option-action {
+  @apply flex-shrink-0;
 }
 
-.option-path {
-  @apply text-sm text-gray-500 dark:text-gray-400 break-all;
+.radio-circle {
+  @apply w-4 h-4 rounded-full border border-gray-500;
+  @apply flex items-center justify-center;
+  transition: all 0.2s;
+}
+
+.radio-dot {
+  @apply w-2 h-2 rounded-full;
+  background-color: transparent;
+}
+
+.option-title {
+  @apply font-medium text-gray-200 mb-0.5 text-sm;
+}
+
+.option-desc {
+  @apply text-xs text-gray-500 break-all;
 }
 
 .custom-path-input {
   @apply flex items-center gap-2 mt-2;
-  
+
   .path-input {
     @apply flex-1;
+    
+    :deep(.el-input__wrapper) {
+      background-color: #1e1e1e;
+      box-shadow: 0 0 0 1px #444 inset;
+      
+      &:hover {
+         box-shadow: 0 0 0 1px #666 inset;
+      }
+      
+      &.is-focus {
+         box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+      }
+    }
   }
-  
-  .browse-btn {
-    @apply flex-shrink-0 whitespace-nowrap;
-  }
+}
+
+.browse-btn {
+  @apply flex-shrink-0 whitespace-nowrap;
 }
 
 .path-tip {
-  @apply flex items-center gap-2 mt-4 text-sm text-gray-500 dark:text-gray-400;
+  @apply flex items-start gap-2 mt-6 text-xs text-gray-500 bg-gray-800/30 p-3 rounded border border-gray-700/50;
+  text-align: left;
 }
 
 .complete-icon {
-  @apply mb-4;
+  @apply mb-6;
+  filter: drop-shadow(0 0 15px rgba(16, 185, 129, 0.3));
 }
 
 .summary {
-  @apply w-full mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl text-left;
+  @apply w-full mt-6 p-4 rounded-lg text-left;
+  background-color: #2b2b2b;
+  border: 1px solid #333;
 }
 
 .summary-item {
-  @apply flex items-start gap-2;
+  @apply flex flex-col gap-1;
 }
 
 .summary-label {
-  @apply text-gray-500 dark:text-gray-400 flex-shrink-0;
+  @apply text-gray-500 text-xs uppercase tracking-wider;
 }
 
 .summary-value {
-  @apply text-gray-800 dark:text-white break-all;
+  @apply text-gray-200 text-sm font-mono break-all bg-black/20 p-2 rounded;
 }
 
 .setup-footer {
-  @apply flex items-center gap-3 px-6 py-3;
-  @apply border-t border-gray-200 dark:border-gray-600;
+  @apply flex items-center gap-3 px-8 py-5;
+  border-top: 1px solid #333;
+  background-color: #252525;
 }
 </style>

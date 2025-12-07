@@ -4,7 +4,7 @@
     <div class="title-bar fixed top-0 left-0 right-0 z-10 flex items-center justify-between p-2" data-tauri-drag-region>
       <div class="flex items-center gap-3">
         <div class="text-2xl">🌙</div>
-        <h1 class="m-0 text-xl font-semibold">系统主题</h1>
+        <h1 class="m-0 text-xl font-semibold">{{ $t('darkMode.title') }}</h1>
       </div>
       <div @click="closeWindow"
         class="close-btn flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-xl transition-colors">
@@ -17,50 +17,50 @@
       <!-- 启用开关 -->
       <div class="section">
         <div class="section-header mb-2.5 flex items-center justify-between">
-          <h2 class="m-0 text-lg font-semibold">总开关</h2>
-          <CustomSwitch v-model="config.enabled" @change="handleEnabledChange" active-text="启用" inactive-text="禁用" />
+          <h2 class="m-0 text-lg font-semibold">{{ $t('darkMode.masterSwitch') }}</h2>
+          <CustomSwitch v-model="config.enabled" @change="handleEnabledChange" :active-text="$t('darkMode.enabled')" :inactive-text="$t('darkMode.disabled')" />
         </div>
-        <p class="m-0 text-sm opacity-80">启用后将根据设置自动切换Windows系统主题</p>
+        <p class="m-0 text-sm opacity-80">{{ $t('darkMode.enabledDesc') }}</p>
       </div>
 
       <!-- 当前状态 -->
       <div class="section" v-if="config.enabled">
         <div class="status-card rounded-lg p-4">
           <div class="status-item mb-3 flex justify-between">
-            <span class="opacity-80">当前系统主题：</span>
+            <span class="opacity-80">{{ $t('darkMode.currentTheme') }}</span>
             <span class="font-medium" :class="[currentTheme ? 'text-violet-400' : 'text-amber-400']">
-              {{ currentTheme ? '深色模式' : '浅色模式' }}
+              {{ currentTheme ? $t('darkMode.darkTheme') : $t('darkMode.lightTheme') }}
             </span>
           </div>
           <div class="status-item mb-4 flex justify-between">
-            <span class="opacity-80">调度器状态：</span>
+            <span class="opacity-80">{{ $t('darkMode.schedulerStatus') }}</span>
             <span class="font-medium" :class="[schedulerRunning ? 'text-emerald-400' : 'text-red-400']">
-              {{ schedulerRunning ? '运行中' : '已停止' }}
+              {{ schedulerRunning ? $t('darkMode.running') : $t('darkMode.stopped') }}
             </span>
           </div>
           <button @click="toggleThemeManually"
             class="manual-toggle-btn w-full rounded-md py-2 px-4 text-sm transition-all">
-            手动切换主题
+            {{ $t('darkMode.manualToggle') }}
           </button>
         </div>
       </div>
 
       <!-- 模式选择 -->
       <div class="section" v-if="config.enabled">
-        <h2 class="m-0 mb-4 text-lg font-semibold">切换模式</h2>
+        <h2 class="m-0 mb-4 text-lg font-semibold">{{ $t('darkMode.switchMode') }}</h2>
         <div class="mode-selector grid grid-cols-2 gap-4">
-          <label class="mode-option block cursor-pointer">
+          <label class="mode-option block cursor-pointer h-full">
             <input type="radio" value="Auto" v-model="config.mode" @change="handleModeChange" class="hidden" />
-            <div class="mode-content rounded-lg border-2  p-4 transition-all">
-              <div class="mode-title mb-2 font-semibold">🌅 自动模式</div>
-              <div class="mode-desc text-xs opacity-80">根据日出日落时间自动切换</div>
+            <div class="mode-content rounded-lg border-2 p-4 transition-all h-full flex flex-col">
+              <div class="mode-title mb-2 font-semibold">🌅 {{ $t('darkMode.autoMode') }}</div>
+              <div class="mode-desc text-xs opacity-80 flex-1">{{ $t('darkMode.autoModeDesc') }}</div>
             </div>
           </label>
-          <label class="mode-option block cursor-pointer">
+          <label class="mode-option block cursor-pointer h-full">
             <input type="radio" value="Manual" v-model="config.mode" @change="handleModeChange" class="hidden" />
-            <div class="mode-content rounded-lg border-2  p-4 transition-all">
-              <div class="mode-title mb-2 font-semibold">⏰ 手动模式</div>
-              <div class="mode-desc text-xs opacity-80">自定义切换时间</div>
+            <div class="mode-content rounded-lg border-2 p-4 transition-all h-full flex flex-col">
+              <div class="mode-title mb-2 font-semibold">⏰ {{ $t('darkMode.manualMode') }}</div>
+              <div class="mode-desc text-xs opacity-80 flex-1">{{ $t('darkMode.manualModeDesc') }}</div>
             </div>
           </label>
         </div>
@@ -68,23 +68,23 @@
 
       <!-- 位置信息 -->
       <div class="section" v-if="config.enabled && config.mode === 'Auto'">
-        <h2 class="m-0 mb-4 text-lg font-semibold">位置信息</h2>
+        <h2 class="m-0 mb-4 text-lg font-semibold">{{ $t('darkMode.locationInfo') }}</h2>
         <div class="location-card rounded-lg bg-white/5 p-4">
           <div v-if="locationLoading" class="loading text-center font-style: italic opacity-80">
-            获取位置信息中...
+            {{ $t('darkMode.gettingLocation') }}
           </div>
           <div v-else-if="locationInfo" class="location-info">
             <div class="location-item mb-3 flex justify-between">
-              <span class="opacity-80">位置：</span>
+              <span class="opacity-80">{{ $t('darkMode.location') }}</span>
               <span class="font-medium">{{ locationInfo.city }}, {{ locationInfo.region }},
                 {{ locationInfo.country }}</span>
             </div>
             <div class="location-item mb-3 flex justify-between">
-              <span class="opacity-80">时区：</span>
+              <span class="opacity-80">{{ $t('darkMode.timezone') }}</span>
               <span class="font-medium">{{ locationInfo.timezone }}</span>
             </div>
             <div class="location-item mb-3 flex justify-between">
-              <span class="opacity-80">坐标：</span>
+              <span class="opacity-80">{{ $t('darkMode.coordinates') }}</span>
               <span class="font-medium">{{ locationInfo.latitude.toFixed(4) }},
                 {{ locationInfo.longitude.toFixed(4) }}</span>
             </div>
@@ -92,33 +92,33 @@
           <button @click="refreshLocation"
             class="refresh-btn mt-2 w-full rounded-md py-2.5 px-5 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
             :disabled="locationLoading">
-            {{ locationLoading ? '获取中...' : '刷新位置' }}
+            {{ locationLoading ? $t('darkMode.refreshing') : $t('darkMode.refreshLocation') }}
           </button>
         </div>
       </div>
 
       <!-- 日出日落时间 -->
       <div class="section" v-if="config.enabled && config.mode === 'Auto' && sunTimes">
-        <h2 class="m-0 mb-4 text-lg font-semibold">日出日落时间</h2>
+        <h2 class="m-0 mb-4 text-lg font-semibold">{{ $t('darkMode.sunTimes') }}</h2>
         <div class="sun-times-card rounded-lg bg-white/5 p-4">
           <div class="sun-time-item mb-3 flex items-center justify-start gap-3">
             <div class="sun-icon text-2xl">🌅</div>
             <div class="sun-info flex-1">
-              <div class="sun-label text-xs opacity-80">日出时间</div>
+              <div class="sun-label text-xs opacity-80">{{ $t('darkMode.sunrise') }}</div>
               <div class="sun-value text-lg font-semibold">{{ sunTimes.sunrise }}</div>
             </div>
           </div>
           <div class="sun-time-item mb-3 flex items-center justify-start gap-3">
             <div class="sun-icon text-2xl">🌇</div>
             <div class="sun-info flex-1">
-              <div class="sun-label text-xs opacity-80">日落时间</div>
+              <div class="sun-label text-xs opacity-80">{{ $t('darkMode.sunset') }}</div>
               <div class="sun-value text-lg font-semibold">{{ sunTimes.sunset }}</div>
             </div>
           </div>
           <div class="current-period mt-4 flex justify-between border-t border-white/10 pt-4">
-            <span class="opacity-80">当前时段：</span>
+            <span class="opacity-80">{{ $t('darkMode.currentPeriod') }}</span>
             <span class="font-medium" :class="[sunTimes.is_day ? 'text-amber-400' : 'text-violet-400']">
-              {{ sunTimes.is_day ? '白天（浅色模式）' : '夜晚（深色模式）' }}
+              {{ sunTimes.is_day ? $t('darkMode.daytime') : $t('darkMode.nighttime') }}
             </span>
           </div>
         </div>
@@ -126,18 +126,18 @@
 
       <!-- 自定义时间 -->
       <div class="section" v-if="config.enabled && config.mode === 'Manual'">
-        <h2 class="m-0 mb-4 text-lg font-semibold">自定义时间</h2>
+        <h2 class="m-0 mb-4 text-lg font-semibold">{{ $t('darkMode.customTime') }}</h2>
         <div class="time-settings rounded-lg bg-white/5 p-4">
           <div class="time-item mb-4">
             <label class="time-label flex items-center justify-between">
-              <span class="label-text flex-1">🌅 浅色模式开始时间</span>
+              <span class="label-text flex-1">🌅 {{ $t('darkMode.lightModeStart') }}</span>
               <input type="time" v-model="config.custom_sunrise" @blur="handleTimeBlur"
                 class="time-input w-32 rounded-md p-2" />
             </label>
           </div>
           <div class="time-item">
             <label class="time-label flex items-center justify-between">
-              <span class="label-text flex-1">🌙 深色模式开始时间</span>
+              <span class="label-text flex-1">🌙 {{ $t('darkMode.darkModeStart') }}</span>
               <input type="time" v-model="config.custom_sunset" @blur="handleTimeBlur"
                 class="time-input w-32 rounded-md p-2" />
             </label>
@@ -155,7 +155,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { CustomSwitch } from '@/components/UI';
+import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
+
+const { t } = useI18n();
 import { logger } from '@/utils/logger';
 
 // 定义类型
@@ -227,7 +230,7 @@ const loadConfig = async () => {
     await loadStatus();
   } catch (error) {
     logger.error('[主题] 加载配置失败', error);
-    modal.msg('加载配置失败', 'error');
+    modal.msg(t('darkMode.loadConfigFailed'), 'error');
   }
 };
 
@@ -262,7 +265,7 @@ const refreshLocation = async () => {
     await saveConfig();
   } catch (error) {
     logger.error('[主题] 获取位置失败', error);
-    modal.msg('获取位置信息失败', 'error');
+    modal.msg(t('darkMode.getLocationFailed'), 'error');
   } finally {
     locationLoading.value = false;
   }
@@ -318,7 +321,7 @@ const saveConfig = async () => {
     await loadStatus();
   } catch (error) {
     logger.error('[主题] 保存配置失败', error);
-    modal.msg('保存配置失败', 'error');
+    modal.msg(t('darkMode.saveConfigFailed'), 'error');
   } finally {
     saving.value = false;
   }
@@ -328,15 +331,15 @@ const toggleThemeManually = async () => {
   try {
     const newState = await invoke<boolean>('toggle_system_theme');
     currentTheme.value = newState;
-    const statusText = newState ? '深色' : '浅色';
-    let message = `已手动切换到${statusText}模式`;
+    const themeText = newState ? t('darkMode.darkTheme') : t('darkMode.lightTheme');
+    let message = t('darkMode.switchedTo', { theme: themeText });
     if (config.value.enabled) {
-      message += '。自动切换将在下一次计划任务时恢复'
+      message += t('darkMode.autoRestoreNote')
     }
     modal.msg(message, 'success');
   } catch (error) {
     logger.error('[主题] 切换主题失败', error);
-    modal.msg('切换主题失败', 'error');
+    modal.msg(t('darkMode.toggleFailed'), 'error');
   }
 };
 

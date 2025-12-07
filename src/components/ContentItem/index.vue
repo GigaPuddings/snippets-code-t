@@ -29,8 +29,11 @@ import {
 } from '@/api/fragment';
 import { useConfigurationStore } from '@/store';
 import { EditTwo, DeleteFour, CategoryManagement } from '@icon-park/vue-next';
-import { h } from 'vue';
+import { h, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { CustomButton } from '../UI';
+
+const { t } = useI18n();
 const route = useRoute();
 const store = useConfigurationStore();
 
@@ -44,23 +47,23 @@ defineOptions({
   name: 'ContentItem'
 });
 
-const menu = [
+const menu = computed(() => [
   {
-    label: '修改分类',
+    label: t('contentItem.changeCategory'),
     type: 'edit',
     icon: CategoryManagement
   },
   {
-    label: '重命名',
+    label: t('contentItem.rename'),
     type: 'rename',
     icon: EditTwo
   },
   {
-    label: '删除',
+    label: t('contentItem.delete'),
     type: 'delete',
     icon: DeleteFour
   }
-];
+]);
 
 const categories = computed(() => store.categories);
 
@@ -107,7 +110,7 @@ const showCategorySelector = async () => {
     const categoryId = ref(content.value.category_id); // 使用 ref 来保持选中的值
     // 取消ElMessageBox自带的确定按钮、取消按钮, 自定义确定按钮、取消按钮
     await ElMessageBox({
-      title: '修改分类',
+      title: t('contentItem.changeCategory'),
       showCancelButton: false,
       showConfirmButton: false,
       closeOnClickModal: false,
@@ -125,7 +128,7 @@ const showCategorySelector = async () => {
             },
             {
               default: () => [
-                h(ElOption, { label: '未分类', value: 0 }),
+                h(ElOption, { label: t('contentItem.uncategorized'), value: 0 }),
                 ...categoryOptions.map((option: any) =>
                   h(ElOption, { label: option.label, value: option.value })
                 )
@@ -142,7 +145,7 @@ const showCategorySelector = async () => {
                   ElMessageBox.close();
                 }
               },
-              { default: () => '取消' }
+              { default: () => t('common.cancel') }
             ),
             h(
               CustomButton,
@@ -156,7 +159,7 @@ const showCategorySelector = async () => {
                   ElMessageBox.close();
                 }
               },
-              { default: () => '确定' }
+              { default: () => t('common.confirm') }
             )
           ])
         ]);
@@ -175,7 +178,7 @@ const handleCategoryChange = async (categoryId: string | number) => {
     // const result = await getFragmentList(content.value.category_id);
     // store.contents = result;
   } catch (error) {
-    console.error('更新分类失败:', error);
+    console.error('Update category failed:', error);
   }
 };
 </script>

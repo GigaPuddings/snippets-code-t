@@ -18,6 +18,7 @@ export const useConfigurationStore = defineStore('configuration', {
     dbPath: null, // 数据库路径
     dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
+    language: 'zh-CN', // 界面语言
     autoStart: false, // 开机自启
     autoUpdateCheck: false, // 检查更新
     autoHideOnBlur: true // 搜索窗口失焦时是否自动隐藏
@@ -81,6 +82,13 @@ export const useConfigurationStore = defineStore('configuration', {
         console.error('获取自动失焦隐藏设置:', error);
         modal.msg('获取自动失焦隐藏设置失败', 'error');
       }
+
+      // 同步语言设置到后端（用于托盘菜单国际化）
+      try {
+        await invoke('set_language', { language: this.language });
+      } catch (error) {
+        console.error('同步语言设置失败:', error);
+      }
     },
 
     // 更新主题并立即应用
@@ -134,7 +142,7 @@ export const useConfigurationStore = defineStore('configuration', {
     }
   },
   persist: {
-    pick: ['theme', 'dbPath']
+    pick: ['theme', 'language', 'dbPath']
   }
 });
 

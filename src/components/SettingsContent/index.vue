@@ -23,19 +23,19 @@
     <div class="settings-content">
       <!-- 通用设置 -->
       <div v-show="activeTab === 'general'" class="settings-panel">
-        <h3 class="panel-title">通用设置</h3>
+        <h3 class="panel-title">{{ $t('settings.general') }}</h3>
         <General />
       </div>
 
       <!-- 快捷键设置 -->
       <div v-show="activeTab === 'shortcut'" class="settings-panel">
-        <h3 class="panel-title">快捷键设置</h3>
+        <h3 class="panel-title">{{ $t('shortcut.title') }}</h3>
         <Shortcut />
       </div>
 
       <!-- 数据管理 -->
       <div v-show="activeTab === 'data'" class="settings-panel">
-        <h3 class="panel-title">数据管理</h3>
+        <h3 class="panel-title">{{ $t('dataManager.title') }}</h3>
         <Manger />
       </div>
     </div>
@@ -43,7 +43,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Shortcut from './components/Shortcut/index.vue';
 import Manger from './components/Manger/index.vue';
 import General from './components/General/index.vue';
@@ -53,11 +54,13 @@ defineOptions({
   name: 'SettingsContent'
 });
 
-const menuItems = [
-  { id: 'general', label: '通用设置', icon: SettingTwo },
-  { id: 'shortcut', label: '快捷键设置', icon: EnterTheKeyboard },
-  { id: 'data', label: '数据管理', icon: Data }
-];
+const { t } = useI18n();
+
+const menuItems = computed(() => [
+  { id: 'general', label: t('settings.general'), icon: SettingTwo },
+  { id: 'shortcut', label: t('shortcut.title'), icon: EnterTheKeyboard },
+  { id: 'data', label: t('dataManager.title'), icon: Data }
+]);
 
 const activeTab = ref('general');
 </script>

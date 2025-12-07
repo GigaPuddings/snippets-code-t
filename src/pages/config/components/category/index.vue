@@ -3,9 +3,9 @@
     <section class="category-page">
       <QuickNav />
       <div class="category-header-list">
-        <div class="category-header-title">文件夹</div>
+        <div class="category-header-title">{{ $t('category.folders') }}</div>
         <div class="category-header-action">
-          <el-tooltip content="新建" placement="bottom">
+          <el-tooltip :content="$t('category.newFolder')" placement="bottom">
             <FolderPlus
               class="category-header-action-item-icon"
               theme="outline"
@@ -15,7 +15,7 @@
             />
           </el-tooltip>
           <el-tooltip
-            :content="store.categorySort === 'asc' ? '升序' : '降序'"
+            :content="store.categorySort === 'asc' ? $t('category.ascending') : $t('category.descending')"
             placement="bottom"
           >
             <component
@@ -35,7 +35,7 @@
         />
       </div>
       <div v-else class="category-empty">
-        <div class="category-empty-text">暂无文件夹</div>
+        <div class="category-empty-text">{{ $t('nav.noFolders') }}</div>
       </div>
     </section>
     <section class="content-page">

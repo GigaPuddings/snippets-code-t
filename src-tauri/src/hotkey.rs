@@ -62,7 +62,7 @@ where
         }
     } else {
         set_value(app_handle, name, "");
-        warn!("{}：快捷键已注销并删除", name);
+        // warn!("{}：快捷键已注销并删除", name);
     }
     Ok(())
 }

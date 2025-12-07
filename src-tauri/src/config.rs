@@ -12,6 +12,7 @@ pub const UPDATE_AVAILABLE_KEY: &str = "update_available"; // 更新可用标志
 pub const UPDATE_INFO_KEY: &str = "update_info"; // 更新信息
 pub const AUTO_UPDATE_CHECK_KEY: &str = "auto_update_check"; // 自动检查更新标志
 pub const DARK_MODE_CONFIG_KEY: &str = "dark_mode_config"; // 深色模式配置
+pub const LANGUAGE_KEY: &str = "language"; // 界面语言
 
 // 获取值
 pub fn get_value(app_handle: &tauri::AppHandle, key: &str) -> Option<Value> {
@@ -313,4 +314,30 @@ pub fn exit_application(app_handle: tauri::AppHandle) {
     app_handle.global_shortcut().unregister_all().unwrap();
     // 退出应用
     app_handle.exit(0);
+}
+
+// 设置界面语言
+#[tauri::command]
+pub fn set_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
+    set_value(&app_handle, LANGUAGE_KEY, &language);
+    // 更新托盘菜单语言
+    crate::tray::update_tray_language(&app_handle);
+    Ok(())
+}
+
+// 获取界面语言
+#[tauri::command]
+pub fn get_language(app_handle: tauri::AppHandle) -> String {
+    match get_value(&app_handle, LANGUAGE_KEY) {
+        Some(value) => value.as_str().unwrap_or("zh-CN").to_string(),
+        None => "zh-CN".to_string(), // 默认中文
+    }
+}
+
+// 内部使用，不作为命令暴露
+pub fn get_language_internal(app_handle: &tauri::AppHandle) -> String {
+    match get_value(app_handle, LANGUAGE_KEY) {
+        Some(value) => value.as_str().unwrap_or("zh-CN").to_string(),
+        None => "zh-CN".to_string(),
+    }
 }

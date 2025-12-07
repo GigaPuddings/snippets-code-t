@@ -3,6 +3,7 @@ import App from './App.vue';
 import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import router from './router';
+import i18n from './i18n';
 
 // 异步初始化应用
 async function initApp() {
@@ -15,6 +16,7 @@ async function initApp() {
   
   app.use(router);
   app.use(pinia);
+  app.use(i18n);
 
   // 动态导入样式文件，减少主线程阻塞
   const stylePromises = [

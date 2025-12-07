@@ -89,10 +89,9 @@
       },
       "nsis": {
         "languages": [
-          "SimpChinese",
-          "English"
+          "SimpChinese"
         ],
-        "displayLanguageSelector": true,
+        "displayLanguageSelector": false,
         "installerIcon": "icons/icon.ico"
       }
     },

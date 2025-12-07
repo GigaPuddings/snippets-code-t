@@ -42,6 +42,7 @@ declare global {
     dbPath: string | null;
     dbBackup: string;
     theme: 'light' | 'dark' | 'auto';
+    language: 'zh-CN' | 'en-US';
     autoStart: boolean;
     autoUpdateCheck: boolean;
     autoHideOnBlur: boolean;

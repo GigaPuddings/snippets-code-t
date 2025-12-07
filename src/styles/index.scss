@@ -148,3 +148,91 @@
 .message-footer {
   @apply flex justify-end gap-2 mt-2;
 }
+
+// ============================================
+// 深色下拉框弹出层样式（用于深色背景页面）
+// 使用方式: popper-class="dark-select-popper"
+// ============================================
+.dark-select-popper.el-popper {
+  --el-bg-color-overlay: rgb(30 30 50);
+  --el-fill-color-blank: rgb(30 30 50);
+  --el-fill-color-light: rgb(93 109 253 / 15%);
+  --el-text-color-regular: rgb(200 200 220);
+  --el-border-color-light: rgb(75 85 99);
+
+  background: rgb(30 30 50) !important;
+  background-color: rgb(30 30 50) !important;
+  border: 1px solid rgb(75 85 99) !important;
+  border-radius: 8px !important;
+
+  .el-select-dropdown,
+  .el-scrollbar,
+  .el-scrollbar__wrap,
+  .el-scrollbar__view,
+  .el-select-dropdown__wrap,
+  .el-select-dropdown__list {
+    background: rgb(30 30 50) !important;
+    background-color: rgb(30 30 50) !important;
+  }
+
+  .el-select-dropdown__item {
+    color: rgb(200 200 220) !important;
+    background: transparent !important;
+
+    &:hover,
+    &.hover {
+      background: rgb(93 109 253 / 15%) !important;
+    }
+
+    &.is-selected,
+    &.selected {
+      color: #fff !important;
+      background: rgb(93 109 253 / 25%) !important;
+      font-weight: 500;
+    }
+  }
+
+  .el-popper__arrow::before {
+    background: rgb(30 30 50) !important;
+    border-color: rgb(75 85 99) !important;
+  }
+}
+
+// ============================================
+// 深色输入框样式（用于深色背景页面）
+// ============================================
+.dark-input {
+  .el-input__wrapper,
+  .el-select__wrapper {
+    background: rgb(255 255 255 / 8%) !important;
+    box-shadow: none !important;
+    border: 1px solid rgb(75 85 99) !important;
+    border-radius: 8px;
+
+    &:hover {
+      border-color: rgb(93 109 253) !important;
+      background: rgb(255 255 255 / 12%) !important;
+    }
+
+    &.is-focus,
+    &.is-focused {
+      border-color: rgb(93 109 253) !important;
+      box-shadow: 0 0 0 2px rgb(93 109 253 / 25%) !important;
+      background: rgb(255 255 255 / 12%) !important;
+    }
+  }
+
+  .el-input__inner {
+    color: #fff !important;
+    font-size: 14px;
+
+    &::placeholder {
+      color: rgb(156 163 175) !important;
+    }
+  }
+
+  .el-input__suffix,
+  .el-select__suffix {
+    color: rgb(156 163 175) !important;
+  }
+}

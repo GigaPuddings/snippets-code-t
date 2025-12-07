@@ -8,7 +8,7 @@
   >
     <template #header>
       <div class="title-container">
-        <span>{{ props.editData ? '编辑提醒' : '新增提醒' }}</span>
+        <span>{{ props.editData ? $t('alarm.editAlarm') : $t('alarm.addAlarm') }}</span>
         <delete
           v-if="props.editData"
           class="delete-icon"
@@ -62,17 +62,17 @@
 
       <div class="alarm-title-input  transparent-input">
         <edit-two theme="outline" size="20" :strokeWidth="3" />
-        <el-tooltip effect="light" content="提醒标题" placement="top">
+        <el-tooltip effect="light" :content="$t('alarm.title')" placement="top">
           <el-input
             class="title-input"
             v-model="formData.title"
-            placeholder="提醒标题"
+            :placeholder="$t('alarm.title')"
           />
         </el-tooltip>
       </div>
 
       <div class="alarm-type-selection">
-        <span class="alarm-type-title">提醒类型</span>
+        <span class="alarm-type-title">{{ $t('alarm.alarmType') }}</span>
         <div class="alarm-type-options">
           <div
             v-for="type in alarmTypes"
@@ -97,7 +97,7 @@
           <el-date-picker
             v-model="specificDatesValue"
             type="dates"
-            placeholder="选择多个日期"
+            :placeholder="$t('alarm.selectDates')"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
             class="date-picker"
@@ -107,7 +107,7 @@
       </div>
 
       <div v-if="formData.alarmType === 'Weekly'" class="alarm-repeat-section">
-        <span class="repeat-section-title">重复提醒</span>
+        <span class="repeat-section-title">{{ $t('alarm.repeatReminder') }}</span>
         <div class="repeat-section-weekdays">
           <div
             v-for="day in weekdays"
@@ -125,16 +125,16 @@
 
       <div class="alarm-pause-time transparent-input">
         <alarm-clock theme="outline" size="20" :strokeWidth="3" />
-        <el-tooltip effect="light" content="暂停时间" placement="top">
+        <el-tooltip effect="light" :content="$t('alarm.pauseTime')" placement="top">
           <el-select
             v-model="formData.reminderTime"
             class="reminder-time-select"
-            placeholder="提醒时间"
+            :placeholder="$t('alarm.pauseTime')"
           >
-            <el-option label="5 分钟" value="5" />
-            <el-option label="10 分钟" value="10" />
-            <el-option label="15 分钟" value="15" />
-            <el-option label="30 分钟" value="30" />
+            <el-option :label="`5 ${$t('alarm.minutes')}`" value="5" />
+            <el-option :label="`10 ${$t('alarm.minutes')}`" value="10" />
+            <el-option :label="`15 ${$t('alarm.minutes')}`" value="15" />
+            <el-option :label="`30 ${$t('alarm.minutes')}`" value="30" />
           </el-select>
         </el-tooltip>
       </div>
@@ -144,11 +144,11 @@
       <div class="dialog-footer">
         <CustomButton type="primary" @click="handleSubmit">
           <save theme="outline" size="18" :strokeWidth="3" />
-          <span class="ml-1">保存</span>
+          <span class="ml-1">{{ $t('common.save') }}</span>
         </CustomButton>
         <CustomButton type="default" @click="dialogVisible = false">
           <close theme="outline" size="18" :strokeWidth="3" />
-          <span class="ml-1">取消</span>
+          <span class="ml-1">{{ $t('common.cancel') }}</span>
         </CustomButton>
       </div>
     </template>
@@ -156,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import {
   Up,
   Down,
@@ -170,7 +170,10 @@ import {
 import dayjs from 'dayjs';
 import { CustomButton } from '@/components/UI';
 import { ElMessage } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
+
+const { t } = useI18n();
 interface FormData {
   hour: string;
   minute: string;
@@ -187,12 +190,20 @@ const props = defineProps<{
 
 const emit = defineEmits(['submit', 'delete']);
 const dialogVisible = ref(false);
-const weekdays = ref(['一', '二', '三', '四', '五', '六', '日']);
+const weekdays = computed(() => [
+  t('alarm.weekdays.mon'),
+  t('alarm.weekdays.tue'),
+  t('alarm.weekdays.wed'),
+  t('alarm.weekdays.thu'),
+  t('alarm.weekdays.fri'),
+  t('alarm.weekdays.sat'),
+  t('alarm.weekdays.sun')
+]);
 
-const alarmTypes = ref([
-  { label: '每天', value: 'Daily' as const },
-  { label: '每周', value: 'Weekly' as const },
-  { label: '指定日期', value: 'SpecificDate' as const }
+const alarmTypes = computed(() => [
+  { label: t('alarm.daily'), value: 'Daily' as const },
+  { label: t('alarm.weekly'), value: 'Weekly' as const },
+  { label: t('alarm.specificDate'), value: 'SpecificDate' as const }
 ]);
 
 const specificDatesValue = ref<string[]>([dayjs().format('YYYY-MM-DD')]);
@@ -289,23 +300,23 @@ const toggleWeekday = (day: string) => {
 
 const validateForm = (): string | null => {
   if (!formData.value.title.trim()) {
-    return '请输入提醒标题';
+    return t('alarm.titleRequired');
   }
 
   const hour = parseInt(formData.value.hour);
   const minute = parseInt(formData.value.minute);
   if (isNaN(hour) || hour < 0 || hour > 23) {
-    return '小时格式错误 (0-23)';
+    return t('alarm.hourError');
   }
   if (isNaN(minute) || minute < 0 || minute > 59) {
-    return '分钟格式错误 (0-59)';
+    return t('alarm.minuteError');
   }
 
   if (
     formData.value.alarmType === 'Weekly' &&
     formData.value.weekdays.length === 0
   ) {
-    return '每周模式请至少选择一个星期';
+    return t('alarm.weekdayRequired');
   }
 
   if (formData.value.alarmType === 'SpecificDate') {
@@ -313,7 +324,7 @@ const validateForm = (): string | null => {
       !formData.value.specificDates ||
       formData.value.specificDates.length === 0
     ) {
-      return '请选择具体日期';
+      return t('alarm.dateRequired');
     }
 
     const now = dayjs();
@@ -322,7 +333,7 @@ const validateForm = (): string | null => {
       const selectedDateTime = selectedDate.hour(hour).minute(minute);
 
       if (selectedDateTime.isBefore(now)) {
-        return `日期 ${dateStr} 的时间不能早于当前时间`;
+        return t('alarm.dateExpired', { date: dateStr });
       }
     }
   }

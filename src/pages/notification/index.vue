@@ -11,7 +11,7 @@
               :strokeWidth="2"
             />
           </div>
-          <h2 class="title">代办提醒</h2>
+          <h2 class="title">{{ $t('notification.title') }}</h2>
         </div>
         <div class="titlebar-button" @click="commonMethod('close')">
           <close-small
@@ -52,7 +52,7 @@
         class="confirm-btn"
         @click="commonMethod('confirm')"
       >
-        确认
+        {{ $t('notification.confirm') }}
       </CustomButton>
       <CustomButton
         v-if="state.reminderTime"
@@ -63,7 +63,7 @@
         <template #icon>
           <alarm-clock theme="outline" size="16" :strokeWidth="3" />
         </template>
-        {{ state.reminderTime }}分钟后提醒
+        {{ $t('notification.remindLater', { minutes: state.reminderTime }) }}
       </CustomButton>
     </div>
   </main>

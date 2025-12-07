@@ -26,20 +26,20 @@
     <!-- 右键菜单 -->
     <div v-if="showContextMenu" class="context-menu" :style="contextMenuStyle">
       <div class="menu-item" @click="handleToggleAlwaysOnTop">
-        <component class="menu-item-icon" :is="isAlwaysOnTop ? Pin : Pushpin" size="18" :strokeWidth="3"/><span>{{ isAlwaysOnTop ? '取消置顶' : '置顶窗口' }}</span>
+        <component class="menu-item-icon" :is="isAlwaysOnTop ? Pin : Pushpin" size="18" :strokeWidth="3"/><span>{{ isAlwaysOnTop ? $t('pin.togglePin') : $t('pin.pinWindow') }}</span>
       </div>
       <div class="menu-item" @click="handleResetZoom">
-        <Redo class="menu-item-icon" size="18" theme="outline" :strokeWidth="3"/><span>重置缩放</span>
+        <Redo class="menu-item-icon" size="18" theme="outline" :strokeWidth="3"/><span>{{ $t('pin.resetZoom') }}</span>
       </div>
       <div class="menu-item" @click="handleCopyImage">
-        <Copy class="menu-item-icon" size="18" theme="outline" :strokeWidth="3"/><span>复制图片</span>
+        <Copy class="menu-item-icon" size="18" theme="outline" :strokeWidth="3"/><span>{{ $t('pin.copyImage') }}</span>
       </div>
       <div class="menu-item" @click="handleSaveImage">
-        <Save class="menu-item-icon" size="18" theme="outline" :strokeWidth="3"/><span>保存图片</span>
+        <Save class="menu-item-icon" size="18" theme="outline" :strokeWidth="3"/><span>{{ $t('pin.saveImage') }}</span>
       </div>
       <div class="menu-divider"></div>
       <div class="menu-item danger" @click="handleClose">
-        <Close class="menu-item-icon" size="18" theme="outline" :strokeWidth="3"/><span>关闭贴图</span>
+        <Close class="menu-item-icon" size="18" theme="outline" :strokeWidth="3"/><span>{{ $t('pin.closePin') }}</span>
       </div>
     </div>
   </div>

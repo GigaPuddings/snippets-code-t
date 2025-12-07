@@ -2,11 +2,11 @@
   <main class="summarize-container">
     <section class="summarize-section">
       <div class="summarize-label">
-        <div class="summarize-label-title">基础颜色</div>
-        <div class="summarize-label-desc">设置snippets code的基本颜色</div>
+        <div class="summarize-label-title">{{ $t('settings.theme') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.themeDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
-        <el-select class="summarize-input !w-32" v-model="store.theme" placeholder="请选择主题" @change="changeTheme">
+        <el-select class="summarize-input !w-32" v-model="store.theme" @change="changeTheme">
           <el-option v-for="item in dictTheme" :key="item.value" :label="item.label" :value="item.value">
             <div class="flex items-center gap-2">
               <component :is="item.icon" />
@@ -21,60 +21,75 @@
 
     <section class="summarize-section">
       <div class="summarize-label">
-        <div class="summarize-label-title">开机自启</div>
-        <div class="summarize-label-desc">设置开机自动启动</div>
+        <div class="summarize-label-title">{{ $t('settings.language') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.languageDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomSwitch v-model="store.autoStart" active-text="开启" inactive-text="关闭" @change="handleAutoStartChange" />
+        <el-select class="summarize-input !w-32" v-model="store.language" @change="changeLanguage">
+          <el-option v-for="item in dictLanguage" :key="item.value" :label="item.label" :value="item.value">
+            <div class="flex items-center gap-2">
+              <span>{{ item.flag }}</span>
+              <div :class="{ 'text-primary': item.value === store.language }">
+                {{ item.label }}
+              </div>
+            </div>
+          </el-option>
+        </el-select>
       </div>
     </section>
 
     <section class="summarize-section">
       <div class="summarize-label">
-        <div class="summarize-label-title">重置软件</div>
-        <div class="summarize-label-desc">
-          重置软件将会清除本地应用列表、书签数据、缓存图标等信息，需要重新索引。
-        </div>
+        <div class="summarize-label-title">{{ $t('settings.autoStart') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.autoStartDesc') }}</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <CustomSwitch v-model="store.autoStart" :active-text="$t('common.on')" :inactive-text="$t('common.off')" @change="handleAutoStartChange" />
+      </div>
+    </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">{{ $t('settings.resetSoftware') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.resetSoftwareDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <CustomButton type="primary" size="small" @click="resetSoftware" :loading="resetSoftwareLoading">
-          重置软件
+          {{ $t('settings.resetSoftware') }}
         </CustomButton>
       </div>
     </section>
 
     <section class="summarize-section">
       <div class="summarize-label">
-        <div class="summarize-label-title">自动检查更新</div>
-        <div class="summarize-label-desc">设置应用启动是否自动检查更新</div>
+        <div class="summarize-label-title">{{ $t('settings.autoUpdateCheck') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.autoUpdateCheckDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomSwitch v-model="store.autoUpdateCheck" active-text="开启" inactive-text="关闭"
+        <CustomSwitch v-model="store.autoUpdateCheck" :active-text="$t('common.on')" :inactive-text="$t('common.off')"
           @change="toggleAutoUpdateCheck" />
       </div>
     </section>
 
     <section class="summarize-section">
       <div class="summarize-label">
-        <div class="summarize-label-title">失焦自动隐藏</div>
-        <div class="summarize-label-desc">
-          设置搜索窗口在失去焦点时是否自动隐藏
-        </div>
+        <div class="summarize-label-title">{{ $t('settings.autoHideOnBlur') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.autoHideOnBlurDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomSwitch v-model="store.autoHideOnBlur" active-text="开启" inactive-text="关闭"
+        <CustomSwitch v-model="store.autoHideOnBlur" :active-text="$t('common.on')" :inactive-text="$t('common.off')"
           @change="toggleAutoHideOnBlur" />
       </div>
     </section>
 
     <section class="summarize-section">
       <div class="summarize-label">
-        <div class="summarize-label-title">退出应用</div>
-        <div class="summarize-label-desc">是否退出应用</div>
+        <div class="summarize-label-title">{{ $t('settings.exitApp') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.exitAppDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
         <CustomButton type="primary" size="small" :loading="exitApplicationLoading" @click="exitApplication">
-          退出应用
+          {{ $t('settings.exitApp') }}
         </CustomButton>
       </div>
     </section>
@@ -83,29 +98,56 @@
 
 <script setup lang="ts">
 import { SunOne, Moon, Computer } from '@icon-park/vue-next';
+import { useI18n } from 'vue-i18n';
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { useConfigurationStore } from '@/store';
 import { initTheme } from '@/utils/theme';
 import { invoke } from '@tauri-apps/api/core';
+import { emit } from '@tauri-apps/api/event';
 import { CustomButton, CustomSwitch } from '@/components/UI';
+import { setLocale, type LocaleType } from '@/i18n';
 import modal from '@/utils/modal';
+
 defineOptions({
   name: 'General'
 });
 
+const { t } = useI18n();
 const store = useConfigurationStore();
 
 const resetSoftwareLoading = ref(false);
 const exitApplicationLoading = ref(false);
-const dictTheme = [
-  { value: 'light', label: '浅色', icon: SunOne },
-  { value: 'dark', label: '深色', icon: Moon },
-  { value: 'auto', label: '跟随系统', icon: Computer }
+
+const dictTheme = computed(() => [
+  { value: 'light', label: t('settings.themeLight'), icon: SunOne },
+  { value: 'dark', label: t('settings.themeDark'), icon: Moon },
+  { value: 'auto', label: t('settings.themeAuto'), icon: Computer }
+]);
+
+const dictLanguage = [
+  { value: 'zh-CN' as LocaleType, label: '简体中文', flag: '🇨🇳' },
+  { value: 'en-US' as LocaleType, label: 'English', flag: '🇺🇸' }
 ];
 
 const changeTheme = (value: 'light' | 'dark' | 'auto') => {
   store.updateTheme(value);
   initTheme();
+};
+
+const changeLanguage = async (value: LocaleType) => {
+  store.language = value;
+  setLocale(value);
+  
+  // 广播语言变更事件到所有窗口
+  await emit('language-changed', { language: value });
+  
+  // 同步语言设置到后端（更新托盘菜单）
+  try {
+    await invoke('set_language', { language: value });
+  } catch (error) {
+    console.error('Failed to sync language to backend:', error);
+  }
+  modal.msg(t('settings.languageChanged'));
 };
 
 const watchAutoStart = async () => {
@@ -121,14 +163,13 @@ const handleAutoStartChange = async (value: boolean) => {
   try {
     if (value) {
       await enable();
-      modal.msg('自启动已开启');
+      modal.msg(t('settings.autoStartEnabled'));
     } else {
       await disable();
-      modal.msg('自启动已关闭');
+      modal.msg(t('settings.autoStartDisabled'));
     }
   } catch (error) {
-    console.error('设置自启动状态失败:', error);
-    // 恢复原值
+    console.error('Failed to set autostart:', error);
     store.autoStart = !value;
   }
 };
@@ -137,25 +178,23 @@ const handleAutoStartChange = async (value: boolean) => {
 const resetSoftware = async () => {
   resetSoftwareLoading.value = true;
 
-  // 重置类型选项
-  const resetOptions = [
-    { value: 'all', label: '重置全部' },
-    { value: 'apps', label: '重置应用数据' },
-    { value: 'bookmarks', label: '重置书签数据' }
-  ];
+  const resetOptions = computed(() => [
+    { value: 'all', label: t('settings.resetAll') },
+    { value: 'apps', label: t('settings.resetApps') },
+    { value: 'bookmarks', label: t('settings.resetBookmarks') }
+  ]);
 
-  // 当前选择的重置类型
   const selectedResetType = ref('all');
 
   await ElMessageBox({
-    title: '重置软件',
+    title: t('settings.resetSoftwareTitle'),
     showCancelButton: false,
     showConfirmButton: false,
     closeOnClickModal: false,
     closeOnPressEscape: false,
     message: () => {
       return h('div', [
-        h('div', '请选择要重置的内容：'),
+        h('div', t('settings.resetSelectContent')),
         h('div', { class: 'mt-4 mb-4' }, [
           h(
             ElSelect,
@@ -167,7 +206,7 @@ const resetSoftware = async () => {
               class: 'w-full border border-panel rounded-md shadow-sm'
             },
             () =>
-              resetOptions.map((option) =>
+              resetOptions.value.map((option) =>
                 h(ElOption, {
                   key: option.value,
                   label: option.label,
@@ -187,7 +226,7 @@ const resetSoftware = async () => {
                 resetSoftwareLoading.value = false;
               }
             },
-            { default: () => '取消' }
+            { default: () => t('common.cancel') }
           ),
           h(
             CustomButton,
@@ -202,22 +241,22 @@ const resetSoftware = async () => {
                   });
                   let successMsg = '';
                   if (selectedResetType.value === 'apps') {
-                    successMsg = '重置应用列表成功';
+                    successMsg = t('settings.resetAppsSuccess');
                   } else if (selectedResetType.value === 'bookmarks') {
-                    successMsg = '重置书签数据成功';
+                    successMsg = t('settings.resetBookmarksSuccess');
                   } else {
-                    successMsg = '重置软件成功';
+                    successMsg = t('settings.resetAllSuccess');
                   }
                   modal.msg(successMsg);
                 } catch (error) {
-                  console.log('重置软件失败', error);
-                  modal.msg(`重置失败: ${error}`, 'error');
+                  console.log('Reset failed:', error);
+                  modal.msg(`${t('settings.resetFailed')}: ${error}`, 'error');
                 } finally {
                   resetSoftwareLoading.value = false;
                 }
               }
             },
-            { default: () => '确定' }
+            { default: () => t('common.confirm') }
           )
         ])
       ]);
@@ -231,10 +270,9 @@ const resetSoftware = async () => {
 const toggleAutoUpdateCheck = async (value: boolean) => {
   try {
     await invoke('set_auto_update_check', { enabled: value });
-    modal.msg(`已${value ? '开启' : '关闭'}自动检查更新`);
+    modal.msg(value ? t('settings.autoUpdateEnabled') : t('settings.autoUpdateDisabled'));
   } catch (error) {
-    modal.msg(`设置失败: ${error}`, 'error');
-    // 恢复原值
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
     store.autoUpdateCheck = !value;
   }
 };
@@ -243,10 +281,9 @@ const toggleAutoUpdateCheck = async (value: boolean) => {
 const toggleAutoHideOnBlur = async (value: boolean) => {
   try {
     await invoke('set_auto_hide_on_blur', { enabled: value });
-    modal.msg(`已${value ? '开启' : '关闭'}自动失焦隐藏`);
+    modal.msg(value ? t('settings.autoHideEnabled') : t('settings.autoHideDisabled'));
   } catch (error) {
-    modal.msg(`设置失败: ${error}`, 'error');
-    // 恢复原值
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
     store.autoHideOnBlur = !value;
   }
 };
@@ -255,14 +292,14 @@ const toggleAutoHideOnBlur = async (value: boolean) => {
 const exitApplication = async () => {
   exitApplicationLoading.value = true;
   await ElMessageBox({
-    title: '提示',
+    title: t('common.tip'),
     showCancelButton: false,
     showConfirmButton: false,
     closeOnClickModal: false,
     closeOnPressEscape: false,
     message: () => {
       return h('div', [
-        h('div', '确定要退出应用吗？'),
+        h('div', t('settings.exitAppConfirm')),
         h('div', { class: 'message-footer' }, [
           h(
             CustomButton,
@@ -274,7 +311,7 @@ const exitApplication = async () => {
                 exitApplicationLoading.value = false;
               }
             },
-            { default: () => '取消' }
+            { default: () => t('common.cancel') }
           ),
           h(
             CustomButton,
@@ -285,15 +322,15 @@ const exitApplication = async () => {
                 ElMessageBox.close();
                 try {
                   await invoke('exit_application');
-                  modal.msg('退出应用成功');
+                  modal.msg(t('settings.exitAppSuccess'));
                 } catch (error) {
-                  console.log('退出应用失败', error);
+                  console.log('Exit failed:', error);
                 } finally {
                   exitApplicationLoading.value = false;
                 }
               }
             },
-            { default: () => '确定' }
+            { default: () => t('common.confirm') }
           )
         ])
       ]);

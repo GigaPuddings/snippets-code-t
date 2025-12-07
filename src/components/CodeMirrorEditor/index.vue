@@ -7,15 +7,15 @@
     ></div>
     <div class="editor-status">
       <div class="editor-status-item">
-        <span class="editor-status-title">行数:</span>
+        <span class="editor-status-title">{{ $t('codeEditor.lines') }}:</span>
         <span class="editor-status-text w-6">{{ lines }}</span>
       </div>
       <div class="editor-status-item">
-        <span class="editor-status-title">字数:</span>
+        <span class="editor-status-title">{{ $t('codeEditor.chars') }}:</span>
         <span class="editor-status-text w-8">{{ length }}</span>
       </div>
       <div class="editor-status-item">
-        <span class="editor-status-title">语言:</span>
+        <span class="editor-status-title">{{ $t('codeEditor.language') }}:</span>
         <span class="editor-status-text w-18">{{ detectedLanguage }}</span>
       </div>
     </div>

@@ -5,8 +5,21 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ElMessage } from 'element-plus';
 import googleIcon from '@/assets/svg/google.svg';
 import bingIcon from '@/assets/svg/bing.svg';
-import { nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { nextTick, onMounted, onUnmounted, ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
+import {
+  Pushpin,
+  CloseSmall,
+  Switch as SwitchIcon,
+  VolumeUp,
+  Delete,
+  Up,
+  Down,
+  Copy
+} from '@icon-park/vue-next';
+
+const { t } = useI18n();
 
 const appWindow = getCurrentWindow();
 
@@ -31,39 +44,44 @@ interface TranslationResult {
 const translationResults = ref<TranslationResult[]>([
   {
     engine: 'bing',
-    name: '必应翻译',
+    name: '',
     text: '',
     loading: false,
     expanded: true
   },
   {
     engine: 'google',
-    name: '谷歌翻译',
+    name: '',
     text: '',
     loading: false,
     expanded: true
   }
 ]);
 
-// 语言选项
-const languageOptions = [
-  { value: 'auto', label: '自动检测' },
-  { value: 'zh', label: '简体中文' },
-  { value: 'zh_tw', label: '繁体中文' },
-  { value: 'en', label: '英语' },
-  { value: 'ja', label: '日语' },
-  { value: 'ko', label: '韩语' },
-  { value: 'fr', label: '法语' },
-  { value: 'de', label: '德语' },
-  { value: 'ru', label: '俄语' },
-  { value: 'es', label: '西班牙语' },
-  { value: 'pt_pt', label: '葡萄牙语' },
-  { value: 'pt_br', label: '巴西葡萄牙语' },
-  { value: 'vi', label: '越南语' },
-  { value: 'id', label: '印尼语' },
-  { value: 'th', label: '泰语' },
-  { value: 'ar', label: '阿拉伯语' }
-];
+// Computed translation names
+const getEngineName = (engine: string) => {
+  return engine === 'bing' ? t('translate.bingTranslate') : t('translate.googleTranslate');
+};
+
+// Language options - computed for i18n
+const languageOptions = computed(() => [
+  { value: 'auto', label: t('translate.languages.auto') },
+  { value: 'zh', label: t('translate.languages.zh') },
+  { value: 'zh_tw', label: t('translate.languages.zh_tw') },
+  { value: 'en', label: t('translate.languages.en') },
+  { value: 'ja', label: t('translate.languages.ja') },
+  { value: 'ko', label: t('translate.languages.ko') },
+  { value: 'fr', label: t('translate.languages.fr') },
+  { value: 'de', label: t('translate.languages.de') },
+  { value: 'ru', label: t('translate.languages.ru') },
+  { value: 'es', label: t('translate.languages.es') },
+  { value: 'pt_pt', label: t('translate.languages.pt_pt') },
+  { value: 'pt_br', label: t('translate.languages.pt_br') },
+  { value: 'vi', label: t('translate.languages.vi') },
+  { value: 'id', label: t('translate.languages.id') },
+  { value: 'th', label: t('translate.languages.th') },
+  { value: 'ar', label: t('translate.languages.ar') }
+]);
 
 // 监听窗口失焦
 let blurTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -196,7 +214,7 @@ const clearInput = () => {
 const copyResult = async (text: string) => {
   if (text) {
     await navigator.clipboard.writeText(text);
-    ElMessage.success('已复制到剪贴板');
+    ElMessage.success(t('translate.copiedToClipboard'));
   }
 };
 
@@ -335,13 +353,13 @@ const translateWithEngine = async (engine: string) => {
     
     const errorMessage = String(error);
     if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
-      result.text = '请求过于频繁，请稍后再试';
+      result.text = t('translate.tooManyRequests');
     } else if (errorMessage.includes('timeout') || errorMessage.includes('超时')) {
-      result.text = '翻译超时，请检查网络连接';
+      result.text = t('translate.timeout');
     } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
-      result.text = '网络连接失败，请检查网络';
+      result.text = t('translate.networkError');
     } else {
-      result.text = '翻译失败，请重试';
+      result.text = t('translate.translateFailed');
     }
   } finally {
     result.loading = false;
@@ -538,13 +556,13 @@ onUnmounted(() => {
           @click="togglePin"
           :class="['pin-button', isPinned ? 'pinned' : '']"
         >
-          <span class="material-icons">push_pin</span>
+          <Pushpin :size="18" />
         </div>
       </div>
-      <div class="bg-penal text-base" data-tauri-drag-region>翻译</div>
+      <div class="bg-penal text-base" data-tauri-drag-region>{{ $t('translate.title') }}</div>
       <div class="right-buttons">
         <div @click="closeWindow" class="material-close">
-          <span class="material-icons">close</span>
+          <CloseSmall :size="22" />
         </div>
       </div>
     </div>
@@ -567,7 +585,7 @@ onUnmounted(() => {
         </el-select>
 
         <div size="small" @click="swapLanguages" class="swap-button">
-          <span class="material-icons">swap_horiz</span>
+          <SwitchIcon :size="22" />
         </div>
 
         <el-select
@@ -592,29 +610,29 @@ onUnmounted(() => {
           v-model="sourceText"
           type="textarea"
           :rows="2"
-          placeholder="请输入要翻译的文本"
+          :placeholder="$t('translate.inputPlaceholder')"
           resize="none"
           @input="handleInput"
           class="source-textarea"
         />
         <div class="source-actions">
           <div class="source-material">
-            <el-tooltip content="朗读文本" placement="top" :hide-after="1000">
+            <el-tooltip :content="$t('translate.speakText')" placement="top" :hide-after="1000">
               <div
                 @click="speakText(sourceText, sourceLanguage)"
                 class="action-btn"
               >
-                <span class="material-icons">volume_up</span>
+                <VolumeUp :size="18" />
               </div>
             </el-tooltip>
             <el-tooltip
               v-if="showDeleteButton"
-              content="删除文本"
+              :content="$t('translate.deleteText')"
               placement="top"
               :hide-after="1000"
             >
               <div @click="clearInput" class="action-btn">
-                <span class="material-icons">delete</span>
+                <Delete :size="18" />
               </div>
             </el-tooltip>
           </div>
@@ -643,12 +661,10 @@ onUnmounted(() => {
                 class="engine-icon"
                 alt="Bing"
               />
-              <span>{{ result.name }}</span>
+              <span>{{ getEngineName(result.engine) }}</span>
             </div>
             <div class="result-controls">
-              <span class="material-icons expand-icon">
-                {{ result.expanded ? 'expand_less' : 'expand_more' }}
-              </span>
+              <component :is="result.expanded ? Up : Down" :size="18" class="expand-icon" />
             </div>
           </div>
 
@@ -657,27 +673,27 @@ onUnmounted(() => {
             <div v-else-if="result.text" class="result-text">
               {{ result.text }}
             </div>
-            <div v-else class="result-empty">翻译结果将显示在这里</div>
+            <div v-else class="result-empty">{{ $t('translate.resultPlaceholder') }}</div>
 
             <div class="result-actions">
-              <el-tooltip content="朗读文本" placement="top" :hide-after="1000">
+              <el-tooltip :content="$t('translate.speakText')" placement="top" :hide-after="1000">
                 <div
                   @click="speakText(result.text, targetLanguage)"
                   class="action-btn"
                 >
-                  <span class="material-icons">volume_up</span>
+                  <VolumeUp :size="18" />
                 </div>
               </el-tooltip>
 
-              <el-tooltip content="复制结果" placement="top" :hide-after="1000">
+              <el-tooltip :content="$t('translate.copyResult')" placement="top" :hide-after="1000">
                 <div @click="copyResult(result.text)" class="action-btn">
-                  <span class="material-icons">content_copy</span>
+                  <Copy :size="18" />
                 </div>
               </el-tooltip>
 
-              <el-tooltip content="翻译回来" placement="top" :hide-after="1000">
-                <div @click="translateBack(result)" class="action-btn">
-                  <span class="material-icons">swap_vert</span>
+              <el-tooltip :content="$t('translate.translateBack')" placement="top" :hide-after="1000">
+                <div @click="translateBack(result)" class="action-btn rotate-icon">
+                  <SwitchIcon :size="18" />
                 </div>
               </el-tooltip>
             </div>
@@ -714,7 +730,7 @@ onUnmounted(() => {
 .pinned {
   @apply text-[var(--el-color-primary)];
 
-  .material-icons {
+  svg {
     transform: rotate(45deg);
   }
 }
@@ -818,35 +834,7 @@ onUnmounted(() => {
   @apply flex items-center justify-center text-[var(--el-color-primary)] hover:bg-content dark:hover:bg-zinc-800 px-1 rounded-md cursor-pointer;
 }
 
-.material-icons {
-  @apply text-xl;
-}
-</style>
-
-<style>
-/* fallback */
-@font-face {
-  font-family: 'Material Icons';
-  font-family: 'Material Icons', sans-serif;
-  font-style: normal;
-  font-weight: 400;
-  src: url('https://fonts.gstatic.com/s/materialicons/v143/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2')
-    format('woff2');
-  font-display: block;
-}
-
-.material-icons {
-  display: inline-block;
-  font-family: 'Material Icons';
-  font-size: 24px;
-  font-style: normal;
-  font-weight: normal;
-  line-height: 1;
-  text-transform: none;
-  letter-spacing: normal;
-  word-wrap: normal;
-  white-space: nowrap;
-  direction: ltr;
-  -webkit-font-smoothing: antialiased;
+.rotate-icon {
+  transform: rotate(90deg);
 }
 </style>
