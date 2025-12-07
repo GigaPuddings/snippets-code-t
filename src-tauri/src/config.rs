@@ -234,6 +234,8 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
             info!("执行重置全部数据");
             let _ = db::clear_apps();
             let _ = db::clear_bookmarks();
+            // 设置重启后显示进度窗口的标记
+            db::set_show_progress_on_restart(&app_handle);
             // let _ = db::clear_search_engines();
             // let _ = db::clear_alarm_cards();
 
@@ -258,6 +260,7 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
         "apps" => {
             info!("执行重置应用列表");
             let _ = db::clear_apps();
+            db::set_show_progress_on_restart(&app_handle);
 
             // 在后台线程中注销所有快捷键并重启应用程序
             std::thread::spawn(move || {
@@ -272,6 +275,7 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
         "bookmarks" => {
             info!("执行重置书签");
             let _ = db::clear_bookmarks();
+            db::set_show_progress_on_restart(&app_handle);
 
             // 在后台线程中注销所有快捷键并重启应用程序
             std::thread::spawn(move || {

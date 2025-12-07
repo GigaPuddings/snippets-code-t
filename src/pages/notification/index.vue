@@ -1,131 +1,78 @@
 <template>
   <main class="notification-container" :class="{ 'fade-in': state.show }">
-    <div class="notification-content">
-      <div class="notification-header">
-        <div class="header-left">
-          <div class="icon-wrapper">
-            <bell-ring
-              theme="filled"
-              size="20"
-              fill="#5d6dfd"
-              :strokeWidth="2"
-            />
-          </div>
-          <h2 class="title">{{ $t('notification.title') }}</h2>
-        </div>
-        <div class="titlebar-button" @click="commonMethod('close')">
-          <close-small
-            class="close-icon"
-            theme="outline"
-            size="20"
-            :strokeWidth="2"
-            strokeLinecap="butt"
-          />
-        </div>
-      </div>
-      <div class="notification-body">{{ state.body }}</div>
-    </div>
-    <div class="notification-button-group">
-      <!-- <el-button
-        type="primary"
-        size="small"
-        class="confirm-btn"
-        @click="commonMethod('confirm')"
-      >
-        确认
-      </el-button>
-      <el-button
-        v-if="state.reminderTime"
-        type="info"
-        size="small"
-        class="remind-btn"
-        @click="commonMethod('remind')"
-      >
-        <template #icon>
-          <alarm-clock theme="outline" size="16" :strokeWidth="3" />
-        </template>
-{{ state.reminderTime }}分钟后提醒
-</el-button> -->
-      <CustomButton
-        type="primary"
-        size="small"
-        class="confirm-btn"
-        @click="commonMethod('confirm')"
-      >
-        {{ $t('notification.confirm') }}
-      </CustomButton>
-      <CustomButton
-        v-if="state.reminderTime"
-        size="small"
-        class="remind-btn"
-        @click="commonMethod('remind')"
-      >
-        <template #icon>
-          <alarm-clock theme="outline" size="16" :strokeWidth="3" />
-        </template>
-        {{ $t('notification.remindLater', { minutes: state.reminderTime }) }}
-      </CustomButton>
-    </div>
+    <!-- 代办提醒通知 -->
+    <ReminderContent
+      v-if="state.type === 'reminder'"
+      :body="state.body"
+      :reminderTime="state.reminderTime"
+      @close="closeWindow"
+      @confirm="closeWindow"
+      @remind="handleRemind"
+    />
+    
+    <!-- 扫描进度通知 -->
+    <ProgressContent
+      v-else-if="state.type === 'progress'"
+      @confirm="closeWindow"
+      @autoClose="closeWindow"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
-import { CloseSmall, BellRing, AlarmClock } from '@icon-park/vue-next';
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { Window } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
-import { CustomButton } from '@/components/UI';
+import ReminderContent from './components/ReminderContent.vue';
+import ProgressContent from './components/ProgressContent.vue';
+
 interface State {
   label: string;
+  type: 'reminder' | 'progress';
   body: string;
   reminderTime: string;
   show: boolean;
 }
 
 const appWindow = ref<Window | null>(null);
-
 const route = useRoute();
+
 const state = reactive<State>({
   label: '',
+  type: 'reminder',
   body: '',
   reminderTime: '',
   show: false
 });
 
-const commonMethod = async (type: string) => {
-  switch (type) {
-    case 'close':
-      appWindow.value?.close();
-      break;
-    case 'confirm':
-      appWindow.value?.close();
-      break;
-    case 'remind':
-      await invoke('remind_notification_window', {
-        title: state.body,
-        reminderTime: state.reminderTime
-      });
-      appWindow.value?.close();
-      break;
-    default:
-      break;
-  }
+const closeWindow = () => {
+  appWindow.value?.close();
+};
+
+const handleRemind = async () => {
+  await invoke('remind_notification_window', {
+    title: state.body,
+    reminderTime: state.reminderTime
+  });
+  closeWindow();
 };
 
 onMounted(async () => {
-  console.log('route.query', route.query);
-
   // 获取路由参数
-  const { label, body, reminder_time } = route.query as {
+  const { label, type, body, reminder_time } = route.query as {
     label: string;
-    body: string;
-    reminder_time: string;
+    type?: string;
+    body?: string;
+    reminder_time?: string;
   };
 
-  state.label = decodeURIComponent(label);
-  state.body = decodeURIComponent(body);
-  state.reminderTime = reminder_time;
+  console.log('[Notification] 页面加载', { type, label });
+
+  state.label = label ? decodeURIComponent(label) : '';
+  state.type = (type as 'reminder' | 'progress') || 'reminder';
+  state.body = body ? decodeURIComponent(body) : '';
+  state.reminderTime = reminder_time || '';
 
   appWindow.value = new Window(state.label);
 
@@ -135,6 +82,7 @@ onMounted(async () => {
   }, 100);
 
   // 通知后端页面已准备好
+  console.log('[Notification] 发送 notification-ready 事件');
   await appWindow.value.emit('notification-ready');
 });
 </script>

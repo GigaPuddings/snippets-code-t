@@ -389,6 +389,18 @@ export default {
     remindLater: '{minutes}分钟后提醒'
   },
 
+  // 扫描进度
+  progress: {
+    title: '正在索引数据',
+    completed: '索引完成',
+    preparing: '准备中...',
+    scanningApps: '正在扫描本地应用',
+    scanningBookmarks: '正在扫描浏览器书签',
+    loadingIcons: '正在加载图标',
+    savingToDatabase: '正在保存到数据库',
+    scanComplete: '扫描完成：{apps} 个应用，{bookmarks} 个书签'
+  },
+
   // 贴图窗口
   pin: {
     togglePin: '取消置顶',

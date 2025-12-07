@@ -39,7 +39,7 @@ use crate::window::{
   hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info, capture_screen_area,
   copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows,
   create_pin_window, get_pin_image_data, copy_image_to_clipboard, save_pin_image, frontend_log,
-  get_screenshot_background, create_setup_window, close_setup_window
+  get_screenshot_background, create_setup_window, close_setup_window, get_scan_progress_state
 };
 use crate::dark_mode::{
     load_config as load_dark_mode_config, save_config as save_dark_mode_config,
@@ -572,6 +572,7 @@ pub fn run() {
             restore_from_github,              // 从 GitHub 恢复
             get_language,                     // 获取界面语言
             set_language,                     // 设置界面语言
+            get_scan_progress_state,          // 获取扫描进度状态
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -806,120 +806,181 @@ pub fn show_hide_window_command(label: &str, context: Option<String>) -> Result<
     Ok(())
 }
 
-// 创建通知窗口
-pub fn create_notification_window(body: &str, reminder_time: Option<i64>) -> WebviewWindow {
-    let app_handle = APP.get().unwrap();
-    let label = format!("notification_{}", uuid::Uuid::new_v4());
+/// 通知类型
+pub enum NotificationType {
+    /// 代办提醒
+    Reminder { body: String, reminder_time: Option<i64> },
+    /// 扫描进度
+    Progress,
+}
 
+/// 统一的通知窗口创建函数
+pub fn create_notification_window_unified(ntype: NotificationType) -> Option<WebviewWindow> {
+    let app_handle = APP.get()?;
+    
+    // 根据类型确定标签和是否复用
+    let (label, reuse_existing) = match &ntype {
+        NotificationType::Reminder { .. } => (
+            format!("notification_{}", uuid::Uuid::new_v4()),
+            false,
+        ),
+        NotificationType::Progress => (
+            "notification_progress".to_string(),
+            true,
+        ),
+    };
+    
+    // 进度通知：检查是否已存在窗口
+    if reuse_existing {
+        if let Some(window) = app_handle.get_webview_window(&label) {
+            info!("通知窗口已存在，直接显示: {}", label);
+            let _ = window.show();
+            let _ = window.set_focus();
+            return Some(window);
+        }
+        // 重置进度状态
+        let mut state = PROGRESS_STATE.lock().unwrap();
+        *state = ScanProgressState::default();
+    }
+    
     // 获取主显示器
-    let monitor = app_handle.primary_monitor().unwrap().unwrap();
+    let monitor = app_handle.primary_monitor().ok()??;
     let monitor_size = monitor.size();
     let scale_factor = monitor.scale_factor();
-
-    // 设置窗口大小 (逻辑像素)
-    let window_width = 300.0;
-    let window_height = 126.0;
-
-    // 基础边距 (逻辑像素)
+    
+    // 窗口大小和边距 (逻辑像素)
+    let (window_width, window_height) = match &ntype {
+        NotificationType::Reminder { .. } => (300.0, 126.0),
+        NotificationType::Progress => (320.0, 120.0),
+    };
     let taskbar_height = 40.0;
     let margin = 16.0;
-
-    // 转换为物理像素
-    let physical_width = window_width * scale_factor;
-    let physical_height = window_height * scale_factor;
-    let physical_taskbar = taskbar_height * scale_factor;
-    let physical_margin = margin * scale_factor;
-
-    // 计算目标位置 (物理像素)
-    let target_x = monitor_size.width as f64 - physical_width - physical_margin;
-    let target_y =
-        monitor_size.height as f64 - physical_height - physical_taskbar - physical_margin;
-
+    
+    // 转换为逻辑像素计算位置
+    let logical_monitor_width = monitor_size.width as f64 / scale_factor;
+    let logical_monitor_height = monitor_size.height as f64 / scale_factor;
+    
+    // 目标位置 (逻辑像素) - 右下角
+    let target_x = logical_monitor_width - window_width - margin;
+    let target_y = logical_monitor_height - window_height - taskbar_height - margin;
+    
+    // 构建URL
+    let url = match &ntype {
+        NotificationType::Reminder { body, reminder_time } => {
+            let mut params = vec![
+                format!("label={}", urlencoding::encode(&label)),
+                format!("body={}", urlencoding::encode(body)),
+            ];
+            if let Some(time) = reminder_time {
+                params.push(format!("reminder_time={}", time));
+            }
+            format!("/#/notification?{}", params.join("&"))
+        }
+        NotificationType::Progress => {
+            format!("/#/notification?label={}&type=progress", urlencoding::encode(&label))
+        }
+    };
+    
+    // 窗口标题
+    let title = match &ntype {
+        NotificationType::Reminder { .. } => "提醒",
+        NotificationType::Progress => "索引进度",
+    };
+    
+    // 所有通知类型都有滑入动画
+    let with_animation = true;
+    
     // 初始位置
-    let start_x = monitor_size.width as f64;
-
-    info!(
-        "显示器信息: 缩放比例 = {}, 大小 = {}x{}",
-        scale_factor, monitor_size.width, monitor_size.height
-    );
-
-    // 构建查询参数
-    let mut query_params = vec![
-        format!("label={}", urlencoding::encode(&label)),
-        format!("body={}", urlencoding::encode(body)),
-    ];
-
-    if let Some(time) = reminder_time {
-        query_params.push(format!("reminder_time={}", time));
-    }
-
-    // 构建完整的URL路径
-    let url = format!("/#/notification?{}", query_params.join("&"));
-
-    info!(
-        "创建通知窗口: 起始位置({}, {}), 目标位置({}, {})",
-        start_x, target_y, target_x, target_y
-    );
-
+    let (start_x, start_y) = if with_animation {
+        // 从屏幕右侧滑入
+        (logical_monitor_width, target_y)
+    } else {
+        // 直接在目标位置
+        (target_x, target_y)
+    };
+    
+    info!("创建通知窗口: label={}, 位置({}, {})", label, start_x, start_y);
+    
     // 创建窗口
     let window = WebviewWindowBuilder::new(app_handle, &label, WebviewUrl::App(url.into()))
-        .title("提醒")
+        .title(title)
         .inner_size(window_width, window_height)
-        .position(start_x, target_y)
+        .position(start_x, start_y)
         .decorations(false)
         .always_on_top(true)
         .resizable(false)
         .skip_taskbar(true)
         .transparent(true)
-        .focused(true)
+        .focused(matches!(&ntype, NotificationType::Reminder { .. })) // 仅代办提醒需要焦点
         .visible(false)
         .build()
-        .expect("Failed to create notification window");
-
-    // 启动动画线程
-    let window_handle = window.clone();
-
+        .ok()?;
+    
     // 监听页面准备事件
+    let window_handle = window.clone();
+    let target_x_anim = target_x;
+    let target_y_anim = target_y;
+    let start_x_anim = start_x;
+    
     window.listen("notification-ready", move |_| {
-        // 等待窗口准备完成
-        thread::sleep(Duration::from_millis(100));
-
-        // 显示窗口
+        thread::sleep(Duration::from_millis(50));
+        
         if let Err(e) = window_handle.show() {
             info!("显示窗口失败: {}", e);
             return;
         }
-
-        // 执行动画
-        let animation_duration = 300.0f64;
-        let frame_duration = 16.0f64;
-        let total_frames = (animation_duration / frame_duration).ceil() as i32;
-        let distance = start_x - target_x;
-        let step = distance / total_frames as f64;
-
-        let mut current_x = start_x;
-        for _ in 0..total_frames {
-            current_x -= step;
-            if let Err(e) =
-                window_handle.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                    x: current_x as i32,
-                    y: target_y as i32,
-                }))
-            {
-                info!("设置窗口位置失败: {}", e);
-                break;
+        
+        if with_animation {
+            // 滑入动画
+            let animation_duration = 300.0f64;
+            let frame_duration = 16.0f64;
+            let total_frames = (animation_duration / frame_duration).ceil() as i32;
+            let distance = start_x_anim - target_x_anim;
+            let step = distance / total_frames as f64;
+            
+            let mut current_x = start_x_anim;
+            for _ in 0..total_frames {
+                current_x -= step;
+                let _ = window_handle.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                    x: current_x,
+                    y: target_y_anim,
+                }));
+                thread::sleep(Duration::from_millis(frame_duration as u64));
             }
-            thread::sleep(Duration::from_millis(frame_duration as u64));
+            
+            // 确保最终位置正确
+            let _ = window_handle.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                x: target_x_anim,
+                y: target_y_anim,
+            }));
         }
-
-        // 确保最终位置正确
-        let _ = window_handle.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-            x: target_x as i32,
-            y: target_y as i32,
-        }));
     });
+    
+    // 备用方案：1秒后强制显示
+    let window_fallback = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(1000));
+        if !window_fallback.is_visible().unwrap_or(true) {
+            info!("备用方案：强制显示通知窗口");
+            let _ = window_fallback.show();
+        }
+    });
+    
+    Some(window)
+}
 
-    window
+// 创建代办提醒通知窗口（兼容旧接口）
+pub fn create_notification_window(body: &str, reminder_time: Option<i64>) -> WebviewWindow {
+    create_notification_window_unified(NotificationType::Reminder {
+        body: body.to_string(),
+        reminder_time,
+    }).expect("Failed to create notification window")
+}
+
+// 创建进度通知窗口
+pub fn create_progress_notification_window() -> Option<WebviewWindow> {
+    info!("尝试创建进度通知窗口...");
+    create_notification_window_unified(NotificationType::Progress)
 }
 
 // 处理窗口事件的函数
@@ -1063,6 +1124,69 @@ pub fn hotkey_dark_mode() {
         WindowShowBehavior::SimpleToggle,
         None,
     );
+}
+
+// 扫描进度状态
+#[derive(Debug, Clone, serde::Serialize, Default)]
+pub struct ScanProgressState {
+    pub stage: String,
+    pub current: usize,
+    pub total: usize,
+    pub current_item: String,
+    pub completed: bool,
+    pub apps_count: usize,
+    pub bookmarks_count: usize,
+}
+
+static PROGRESS_STATE: LazyLock<Mutex<ScanProgressState>> = LazyLock::new(|| Mutex::new(ScanProgressState::default()));
+
+// 获取扫描进度状态的命令
+#[tauri::command]
+pub fn get_scan_progress_state() -> ScanProgressState {
+    PROGRESS_STATE.lock().unwrap().clone()
+}
+
+// 发送扫描进度事件（使用全局 emit_all 确保所有窗口都能收到）
+pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_item: &str) {
+    // 更新状态
+    {
+        let mut state = PROGRESS_STATE.lock().unwrap();
+        state.stage = stage.to_string();
+        state.current = current;
+        state.total = total;
+        state.current_item = current_item.to_string();
+        state.completed = false;
+    }
+
+    if let Some(app) = APP.get() {
+        info!("发送进度事件: stage={}, {}/{}", stage, current, total);
+        let _ = app.emit("scan-progress", serde_json::json!({
+            "stage": stage,
+            "current": current,
+            "total": total,
+            "currentItem": current_item
+        }));
+    }
+}
+
+// 发送扫描完成事件
+pub fn emit_scan_complete(apps_count: usize, bookmarks_count: usize) {
+    // 更新状态
+    {
+        let mut state = PROGRESS_STATE.lock().unwrap();
+        state.completed = true;
+        state.apps_count = apps_count;
+        state.bookmarks_count = bookmarks_count;
+        state.stage = format!("扫描完成 (应用: {}, 书签: {})", apps_count, bookmarks_count);
+    }
+
+    if let Some(app) = APP.get() {
+        info!("发送完成事件: apps={}, bookmarks={}", apps_count, bookmarks_count);
+        let _ = app.emit("scan-complete", serde_json::json!({
+            "appsCount": apps_count,
+            "bookmarksCount": bookmarks_count
+        }));
+    }
 }
 
 // 捕获全屏并存储为base64

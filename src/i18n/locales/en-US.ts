@@ -389,6 +389,18 @@ export default {
     remindLater: 'Remind me in {minutes} minutes'
   },
 
+  // Scan Progress
+  progress: {
+    title: 'Indexing Data',
+    completed: 'Indexing Complete',
+    preparing: 'Preparing...',
+    scanningApps: 'Scanning local applications',
+    scanningBookmarks: 'Scanning browser bookmarks',
+    loadingIcons: 'Loading icons',
+    savingToDatabase: 'Saving to database',
+    scanComplete: 'Scan complete: {apps} apps, {bookmarks} bookmarks'
+  },
+
   // Pin Window
   pin: {
     togglePin: 'Unpin',

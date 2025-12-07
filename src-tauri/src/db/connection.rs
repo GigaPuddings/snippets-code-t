@@ -250,6 +250,29 @@ pub fn set_setup_completed(app_handle: tauri::AppHandle) {
     set_value(&app_handle, SETUP_COMPLETED_KEY, true);
 }
 
+// ============= 进度窗口显示标记 =============
+
+const SHOW_PROGRESS_KEY: &str = "show_progress_on_restart";
+
+/// 设置重启后显示进度窗口标记
+pub fn set_show_progress_on_restart(app_handle: &tauri::AppHandle) {
+    set_value(app_handle, SHOW_PROGRESS_KEY, true);
+}
+
+/// 消费进度窗口标记（读取后清除）
+pub fn consume_show_progress_flag(app_handle: &tauri::AppHandle) -> bool {
+    let should_show = get_value(app_handle, SHOW_PROGRESS_KEY)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    
+    if should_show {
+        // 清除标记
+        set_value(app_handle, SHOW_PROGRESS_KEY, false);
+    }
+    
+    should_show
+}
+
 /// 从设置向导保存数据目录
 #[tauri::command]
 pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Result<String, String> {

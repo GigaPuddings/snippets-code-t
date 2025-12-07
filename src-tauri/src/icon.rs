@@ -9,7 +9,6 @@ use std::time::{Duration, SystemTime};
 use tokio::sync::Semaphore;
 use tauri::AppHandle;
 use tauri_plugin_http::reqwest;
-use tauri_plugin_notification::NotificationExt;
 use url::Url;
 use windows::core::HSTRING;
 use windows::Win32::Foundation::SIZE;
@@ -432,14 +431,35 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         return;
     }
 
+    // 首次启动（setup向导中）完全跳过扫描，避免重启中断扫描
+    let is_first_run = !db::is_setup_completed_internal(app_handle);
+    if is_first_run {
+        info!("首次启动，跳过扫描，等待 setup 完成后重启再扫描");
+        return;
+    }
+
+    // 需要扫描，检查是否显示进度窗口
+    let need_scan = apps_count == 0 || bookmarks_count == 0;
+    
+    // 手动重置后显示进度窗口，正常启动时静默
+    let show_progress = need_scan && db::consume_show_progress_flag(app_handle);
+    
+    if show_progress {
+        crate::window::create_progress_notification_window();
+        // 短暂等待窗口创建完成
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
     let mut apps_to_load = Vec::new();
     let mut bookmarks_to_load = Vec::new();
 
     if apps_count == 0 {
         info!("数据库中没有应用数据，开始扫描应用...");
+        crate::window::emit_scan_progress("正在扫描本地应用...", 0, 100, "");
         apps_to_load = get_installed_apps(); // 应用去重已在 apps.rs 中完成
         
         // 存储应用到数据库
+        crate::window::emit_scan_progress("正在保存应用数据...", 50, 100, &format!("共 {} 个应用", apps_to_load.len()));
         if let Err(e) = db::insert_apps(&apps_to_load) {
             info!("插入应用到数据库失败: {}", e);
         } else {
@@ -451,9 +471,11 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 
     if bookmarks_count == 0 {
         info!("数据库中没有书签数据，开始扫描书签...");
+        crate::window::emit_scan_progress("正在扫描浏览器书签...", 60, 100, "");
         bookmarks_to_load = get_browser_bookmarks(); // 书签去重已在 bookmarks.rs 中完成（基于URL）
         
         // 存储书签到数据库
+        crate::window::emit_scan_progress("正在保存书签数据...", 90, 100, &format!("共 {} 个书签", bookmarks_to_load.len()));
         if let Err(e) = db::insert_bookmarks(&bookmarks_to_load) {
             info!("插入书签到数据库失败: {}", e);
         } else {
@@ -463,26 +485,33 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         info!("数据库中已存在 {} 个书签，跳过书签扫描", bookmarks_count);
     }
 
-    // 发送数据加载完成通知
+    // 发送扫描完成事件
     let apps_loaded = apps_to_load.len();
     let bookmarks_loaded = bookmarks_to_load.len();
     let total_loaded = apps_loaded + bookmarks_loaded;
     
     if total_loaded > 0 {
-        let _ = app_handle
-            .notification()
-            .builder()
-            .title("snippets-code")
-            .body(&format!(
-                "数据加载完成：共 {} 个 (应用: {}, 书签: {})",
-                total_loaded, apps_loaded, bookmarks_loaded
-            ))
-            .show();
+        if show_progress {
+            // 手动重置后：发送完成事件到进度窗口
+            crate::window::emit_scan_complete(apps_loaded, bookmarks_loaded);
+        } else {
+            // setup完成后的正常启动：使用系统通知
+            use tauri_plugin_notification::NotificationExt;
+            let _ = app_handle
+                .notification()
+                .builder()
+                .title("数据索引完成")
+                .body(&format!("已索引 {} 个应用，{} 个书签", apps_loaded, bookmarks_loaded))
+                .show();
+        }
 
         info!(
             "数据加载完成，共 {} 个项目已添加到数据库 (应用: {}, 书签: {})",
             total_loaded, apps_loaded, bookmarks_loaded
         );
+    } else if show_progress {
+        // 如果没有找到数据但创建了进度窗口，也发送完成事件
+        crate::window::emit_scan_complete(0, 0);
     }
 
     // 只为需要加载的数据异步加载图标（静默加载，不发送通知）
