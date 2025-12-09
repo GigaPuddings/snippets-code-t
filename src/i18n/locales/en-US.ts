@@ -6,6 +6,7 @@ export default {
     on: 'On',
     off: 'Off',
     tip: 'Tip',
+    warning: 'Warning',
     success: 'Success',
     failed: 'Failed',
     loading: 'Loading...',
@@ -241,7 +242,9 @@ export default {
       fri: 'Fri',
       sat: 'Sat',
       sun: 'Sun'
-    }
+    },
+    deleteConfirm: 'Delete reminder "{name}"?',
+    deleteSuccess: 'Reminder deleted'
   },
 
   // Category/Snippets
@@ -256,7 +259,9 @@ export default {
     ascending: 'Ascending',
     descending: 'Descending',
     saveFailed: 'Save failed, please retry',
-    loadFailed: 'Failed to load content, please retry'
+    loadFailed: 'Failed to load content, please retry',
+    deleteConfirm: 'Delete folder "{name}"? All snippets inside will also be deleted.',
+    deleteSuccess: 'Folder deleted'
   },
 
   // Search Engine Settings
@@ -281,6 +286,7 @@ export default {
     updateFailed: 'Failed to update search engine config',
     addSuccess: 'New search engine added, please complete info',
     deleteSuccess: 'Search engine deleted',
+    deleteConfirm: 'Delete search engine "{name}"?',
     defaultUpdated: 'Default search engine updated'
   },
 
@@ -336,11 +342,15 @@ export default {
   // Theme Toggle
   darkMode: {
     title: 'System Theme',
-    masterSwitch: 'Master Switch',
-    enabled: 'Enabled',
-    disabled: 'Disabled',
-    enabledDesc: 'When enabled, Windows system theme will auto-switch based on settings',
-    currentStatus: 'Current Status',
+    // Theme Mode (3 options)
+    themeMode: 'Theme Mode',
+    lightMode: 'Light',
+    lightModeDesc: 'Always use light theme',
+    darkMode: 'Dark',
+    darkModeDesc: 'Always use dark theme',
+    scheduleMode: 'Schedule',
+    scheduleModeDesc: 'Auto-switch by time',
+    // Current Status
     currentTheme: 'Current system theme:',
     darkTheme: 'Dark Mode',
     lightTheme: 'Light Mode',
@@ -348,11 +358,13 @@ export default {
     running: 'Running',
     stopped: 'Stopped',
     manualToggle: 'Toggle Theme Manually',
-    switchMode: 'Switch Mode',
-    autoMode: 'Auto Mode',
-    autoModeDesc: 'Auto-switch based on sunrise/sunset',
-    manualMode: 'Manual Mode',
-    manualModeDesc: 'Custom switch time',
+    // Schedule Type
+    scheduleType: 'Schedule Type',
+    sunBased: 'Sunrise/Sunset',
+    sunBasedDesc: 'Auto-calculate based on your location',
+    customSchedule: 'Custom Time',
+    customScheduleDesc: 'Set custom switch times',
+    // Location Info
     locationInfo: 'Location Info',
     gettingLocation: 'Getting location...',
     location: 'Location:',
@@ -360,21 +372,24 @@ export default {
     coordinates: 'Coordinates:',
     refreshLocation: 'Refresh Location',
     refreshing: 'Refreshing...',
+    // Sunrise/Sunset
     sunTimes: 'Sunrise & Sunset Times',
     sunrise: 'Sunrise',
     sunset: 'Sunset',
     currentPeriod: 'Current period:',
     daytime: 'Daytime (Light Mode)',
     nighttime: 'Nighttime (Dark Mode)',
+    // Custom Time
     customTime: 'Custom Time',
     lightModeStart: 'Light mode start time',
     darkModeStart: 'Dark mode start time',
+    // Messages
     loadConfigFailed: 'Failed to load config',
     saveConfigFailed: 'Failed to save config',
     getLocationFailed: 'Failed to get location',
     toggleFailed: 'Failed to toggle theme',
     switchedTo: 'Switched to {theme} mode',
-    autoRestoreNote: '. Auto-switch will resume at next scheduled time'
+    autoRestoreNote: '. Schedule will resume at next scheduled time'
   },
 
   // Loading Page
@@ -501,7 +516,9 @@ export default {
     rename: 'Rename',
     delete: 'Delete',
     uncategorized: 'Uncategorized',
-    updateFailed: 'Failed to update category'
+    updateFailed: 'Failed to update category',
+    deleteConfirm: 'Delete snippet "{name}"?',
+    deleteSuccess: 'Snippet deleted'
   },
 
   // Search Result

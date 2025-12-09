@@ -120,7 +120,6 @@ import { Write, Plus, CheckSmall, Delete, Remind } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import AlarmEditDialog from './components/AlarmEditDialog.vue';
 import { invoke } from '@tauri-apps/api/core';
-import { ElMessage } from 'element-plus';
 
 const { t } = useI18n();
 
@@ -209,10 +208,23 @@ const handleAlarmSubmit = async (formData: Partial<AlarmCard>) => {
 
 const deleteAlarmCard = async (item: AlarmCard) => {
   try {
+    await ElMessageBox.confirm(
+      t('alarm.deleteConfirm', { name: item.title }),
+      t('common.warning'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    );
+    
     await invoke('delete_alarm_card', { id: item.id });
+    ElMessage.success(t('alarm.deleteSuccess'));
     await fetchAlarmCards();
-  } catch (error) {
-    console.error('Failed to delete alarm card:', error);
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') {
+      console.error('Failed to delete alarm card:', error);
+    }
   }
 };
 

@@ -6,6 +6,7 @@ export default {
     on: '开启',
     off: '关闭',
     tip: '提示',
+    warning: '警告',
     success: '成功',
     failed: '失败',
     loading: '加载中...',
@@ -241,7 +242,9 @@ export default {
       fri: '五',
       sat: '六',
       sun: '日'
-    }
+    },
+    deleteConfirm: '确定要删除提醒事项「{name}」吗？',
+    deleteSuccess: '提醒事项已删除'
   },
 
   // 分类/片段
@@ -256,7 +259,9 @@ export default {
     ascending: '升序',
     descending: '降序',
     saveFailed: '保存失败，请重试',
-    loadFailed: '获取内容失败，请重试'
+    loadFailed: '获取内容失败，请重试',
+    deleteConfirm: '确定要删除文件夹「{name}」吗？其中的片段也会被删除。',
+    deleteSuccess: '文件夹已删除'
   },
 
   // 搜索引擎设置
@@ -281,6 +286,7 @@ export default {
     updateFailed: '更新搜索引擎配置失败',
     addSuccess: '已添加新搜索引擎，请完善信息',
     deleteSuccess: '已删除搜索引擎',
+    deleteConfirm: '确定要删除搜索引擎「{name}」吗？',
     defaultUpdated: '已更新默认搜索引擎'
   },
 
@@ -336,11 +342,15 @@ export default {
   // 主题切换
   darkMode: {
     title: '系统主题',
-    masterSwitch: '总开关',
-    enabled: '启用',
-    disabled: '禁用',
-    enabledDesc: '启用后将根据设置自动切换Windows系统主题',
-    currentStatus: '当前状态',
+    // 主题模式（三选一）
+    themeMode: '主题模式',
+    lightMode: '浅色',
+    lightModeDesc: '始终使用浅色主题',
+    darkMode: '深色',
+    darkModeDesc: '始终使用深色主题',
+    scheduleMode: '定时',
+    scheduleModeDesc: '按时间自动切换',
+    // 当前状态
     currentTheme: '当前系统主题：',
     darkTheme: '深色模式',
     lightTheme: '浅色模式',
@@ -348,11 +358,13 @@ export default {
     running: '运行中',
     stopped: '已停止',
     manualToggle: '手动切换主题',
-    switchMode: '切换模式',
-    autoMode: '自动模式',
-    autoModeDesc: '根据日出日落时间自动切换',
-    manualMode: '手动模式',
-    manualModeDesc: '自定义切换时间',
+    // 定时类型
+    scheduleType: '定时方式',
+    sunBased: '日出日落',
+    sunBasedDesc: '根据您的位置自动计算',
+    customSchedule: '自定义时间',
+    customScheduleDesc: '手动设置切换时间',
+    // 位置信息
     locationInfo: '位置信息',
     gettingLocation: '获取位置信息中...',
     location: '位置：',
@@ -360,21 +372,24 @@ export default {
     coordinates: '坐标：',
     refreshLocation: '刷新位置',
     refreshing: '获取中...',
+    // 日出日落
     sunTimes: '日出日落时间',
     sunrise: '日出时间',
     sunset: '日落时间',
     currentPeriod: '当前时段：',
     daytime: '白天（浅色模式）',
     nighttime: '夜晚（深色模式）',
+    // 自定义时间
     customTime: '自定义时间',
     lightModeStart: '浅色模式开始时间',
     darkModeStart: '深色模式开始时间',
+    // 提示消息
     loadConfigFailed: '加载配置失败',
     saveConfigFailed: '保存配置失败',
     getLocationFailed: '获取位置信息失败',
     toggleFailed: '切换主题失败',
     switchedTo: '已手动切换到{theme}模式',
-    autoRestoreNote: '。自动切换将在下一次计划任务时恢复'
+    autoRestoreNote: '。定时切换将在下一次计划任务时恢复'
   },
 
   // 加载页面
@@ -501,7 +516,9 @@ export default {
     rename: '重命名',
     delete: '删除',
     uncategorized: '未分类',
-    updateFailed: '更新分类失败'
+    updateFailed: '更新分类失败',
+    deleteConfirm: '确定要删除片段「{name}」吗？',
+    deleteSuccess: '片段已删除'
   },
 
   // 搜索结果

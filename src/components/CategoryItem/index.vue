@@ -82,9 +82,24 @@ const handleContextMenu = async (item: any) => {
   if (item.type === 'edit') {
     store.editCategoryId = props.category.id as string;
   } else if (item.type === 'delete') {
-    await deleteCategory(props.category.id);
-    store.categories = await getCategories(store.categorySort);
-    router.replace(`/config/category/contentList`);
+    try {
+      await ElMessageBox.confirm(
+        t('category.deleteConfirm', { name: props.category.name }),
+        t('common.warning'),
+        {
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning'
+        }
+      );
+      
+      await deleteCategory(props.category.id);
+      ElMessage.success(t('category.deleteSuccess'));
+      store.categories = await getCategories(store.categorySort);
+      router.replace(`/config/category/contentList`);
+    } catch (error) {
+      // 用户取消
+    }
   }
 };
 </script>

@@ -141,8 +141,12 @@
 }
 
 // 分类修改
-.el-message-box__container {
+.category-edit .el-message-box__container {
   @apply w-full !inline-block px-4;
+}
+
+.category-management {
+  @apply mx-10 mb-2 !w-52;
 }
 
 .message-footer {

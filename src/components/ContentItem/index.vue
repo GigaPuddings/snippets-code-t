@@ -88,12 +88,27 @@ const handleContextMenu = async (item: any) => {
       `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`
     );
   } else if (item.type === 'delete') {
-    await deleteFragment(Number(content.value.id));
-    if (route.params.id) {
-      router.push(`/config/category/contentList/${content.value.category_id}`);
-    } else {
-      const result = await getFragmentList(content.value.category_id);
-      store.contents = result;
+    try {
+      await ElMessageBox.confirm(
+        t('contentItem.deleteConfirm', { name: content.value.title }),
+        t('common.warning'),
+        {
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning'
+        }
+      );
+      
+      await deleteFragment(Number(content.value.id));
+      ElMessage.success(t('contentItem.deleteSuccess'));
+      if (route.params.id) {
+        router.push(`/config/category/contentList/${content.value.category_id}`);
+      } else {
+        const result = await getFragmentList(content.value.category_id);
+        store.contents = result;
+      }
+    } catch (error) {
+      // 用户取消
     }
   } else if (item.type === 'edit') {
     showCategorySelector();
@@ -115,6 +130,7 @@ const showCategorySelector = async () => {
       showConfirmButton: false,
       closeOnClickModal: false,
       closeOnPressEscape: false,
+      customClass: 'category-edit',
       message: () => {
         return h('div', [
           h(

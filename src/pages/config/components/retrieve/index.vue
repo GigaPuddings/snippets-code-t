@@ -300,21 +300,37 @@ const handleAdd = async () => {
 };
 
 const handleDelete = async (index: number) => {
-  const updatedEngines = searchEngines.value.filter((_, idx) => idx !== index);
-  searchEngines.value = updatedEngines;
+  const engine = searchEngines.value[index];
+  
+  try {
+    await ElMessageBox.confirm(
+      t('retrieve.deleteConfirm', { name: engine.name || engine.keyword }),
+      t('common.warning'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    );
+    
+    const updatedEngines = searchEngines.value.filter((_, idx) => idx !== index);
+    searchEngines.value = updatedEngines;
 
-  // 如果删除的是默认搜索引擎，且还有其他引擎，则将第一个设为默认
-  if (
-    searchEngines.value.length > 0 &&
-    !searchEngines.value.some((e) => e.enabled)
-  ) {
-    searchEngines.value[0].enabled = true;
-  }
+    // 如果删除的是默认搜索引擎，且还有其他引擎，则将第一个设为默认
+    if (
+      searchEngines.value.length > 0 &&
+      !searchEngines.value.some((e) => e.enabled)
+    ) {
+      searchEngines.value[0].enabled = true;
+    }
 
-  // 自动保存更改
-  const success = await saveAll(false);
-  if (success) {
-    modal.msg(t('retrieve.deleteSuccess'));
+    // 自动保存更改
+    const success = await saveAll(false);
+    if (success) {
+      modal.msg(t('retrieve.deleteSuccess'));
+    }
+  } catch (error) {
+    // 用户取消，不做任何操作
   }
 };
 
