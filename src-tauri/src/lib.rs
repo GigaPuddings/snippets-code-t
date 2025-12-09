@@ -30,6 +30,8 @@ use crate::db::{
     cleanup_old_icon_cache, optimize_database,add_app, update_app, delete_app, get_apps,
     add_bookmark, update_bookmark, delete_bookmark, get_bookmarks,
     is_setup_completed, set_setup_completed, set_data_dir_from_setup,
+    get_all_app_settings, update_all_app_settings,
+    set_auto_start_setting, get_auto_start_setting,
 };
 use crate::translation::translate_text;
 use crate::update::{
@@ -183,18 +185,14 @@ async fn fetch_favicon(url: String) -> String {
 
 // 设置自动失焦隐藏
 #[tauri::command]
-fn set_auto_hide_on_blur(app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
-    config::set_value(&app_handle, "autoHideOnBlur", enabled);
-    Ok(())
+fn set_auto_hide_on_blur(_app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    db::set_setting_bool("autoHideOnBlur", enabled).map_err(|e| e.to_string())
 }
 
 // 获取自动失焦隐藏设置
 #[tauri::command]
-fn get_auto_hide_on_blur(app_handle: tauri::AppHandle) -> bool {
-    match config::get_value(&app_handle, "autoHideOnBlur") {
-        Some(value) => value.as_bool().unwrap_or(true),
-        None => true, // 默认为开启
-    }
+fn get_auto_hide_on_blur(_app_handle: tauri::AppHandle) -> bool {
+    db::get_setting_bool("autoHideOnBlur").unwrap_or(true) // 默认为开启
 }
 
 // ============= Auto Dark Mode 相关命令 =============
@@ -208,13 +206,27 @@ async fn get_dark_mode_config(app_handle: AppHandle) -> Result<DarkModeConfig, S
 // 保存Auto Dark Mode配置
 #[tauri::command]
 async fn save_dark_mode_config_command(app_handle: AppHandle, config: DarkModeConfig) -> Result<(), String> {
+    use dark_mode::ThemeMode;
+    
     save_dark_mode_config(&app_handle, &config)?;
     
-    // 如果启用了自动切换，启动调度器
-    if config.enabled {
-        start_scheduler(app_handle)?;
-    } else {
-        stop_scheduler();
+    match config.theme_mode {
+        ThemeMode::Light => {
+            // 立即应用浅色主题并停止调度
+            stop_scheduler();
+            let _ = dark_mode::set_windows_dark_mode(false);
+            crate::tray::update_tray_theme_status(&app_handle);
+        }
+        ThemeMode::Dark => {
+            // 立即应用深色主题并停止调度
+            stop_scheduler();
+            let _ = dark_mode::set_windows_dark_mode(true);
+            crate::tray::update_tray_theme_status(&app_handle);
+        }
+        ThemeMode::Schedule => {
+            // 启动定时调度
+            start_scheduler(app_handle)?;
+        }
     }
     
     Ok(())
@@ -337,6 +349,11 @@ pub fn run() {
                     }
                 }
                 
+                // 确保应用设置有默认值
+                if let Err(e) = db::ensure_default_settings() {
+                    log::error!("初始化默认设置失败: {}", e);
+                }
+                
                 // 在后台执行数据库清理和优化（延迟30秒避免影响启动速度）
                 tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
                 
@@ -356,43 +373,49 @@ pub fn run() {
                 // 清理旧日志文件（保留最近7天）
                 cleanup_old_logs();
             });
-            // 创建托盘图标（首次运行时创建最小化托盘，否则创建完整托盘）
-            #[cfg(all(desktop))]
-            {
-                let is_first_run = !db::is_setup_completed_internal(&app.handle());
-                if is_first_run {
-                    if let Err(e) = tray::create_minimal_tray(&app.handle()) {
-                        log::error!("最小化托盘创建失败: {:?}", e);
-                    }
-                } else {
-                    if let Err(e) = tray::create_tray(&app.handle()) {
-                        log::error!("托盘创建失败: {:?}", e);
-                    } else {
-                        tray::update_tray_theme_status(&app.handle());
-                    }
-                }
-            }
-            // Register Global Shortcut
-            match register_shortcut("all") {
-                Ok(()) => {}
-                Err(e) => {
-                    let _ = app
-                        .notification()
-                        .builder()
-                        .title("snippets-code")
-                        .body(&format!("快捷键注册失败：{}", e))
-                        .show();
-                }
-            }
-            // 启动代办提醒检查服务
-            alarm::start_alarm_service(app.handle().clone());
 
-            // 启动Auto Dark Mode服务（如果已启用）
+            // 异步初始化托盘、快捷键和提醒服务（避免阻塞启动）
+            let app_handle_init = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // 创建托盘图标（首次运行时创建最小化托盘，否则创建完整托盘）
+                #[cfg(all(desktop))]
+                {
+                    let is_first_run = !db::is_setup_completed_internal(&app_handle_init);
+                    if is_first_run {
+                        if let Err(e) = tray::create_minimal_tray(&app_handle_init) {
+                            log::error!("最小化托盘创建失败: {:?}", e);
+                        }
+                    } else {
+                        if let Err(e) = tray::create_tray(&app_handle_init) {
+                            log::error!("托盘创建失败: {:?}", e);
+                        } else {
+                            tray::update_tray_theme_status(&app_handle_init);
+                        }
+                    }
+                }
+                // Register Global Shortcut
+                match register_shortcut("all") {
+                    Ok(()) => {}
+                    Err(e) => {
+                        let _ = app_handle_init
+                            .notification()
+                            .builder()
+                            .title("snippets-code")
+                            .body(&format!("快捷键注册失败：{}", e))
+                            .show();
+                    }
+                }
+                // 启动代办提醒检查服务
+                alarm::start_alarm_service(app_handle_init.clone());
+            });
+
+            // 启动Auto Dark Mode服务（如果设置为定时模式）
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
+                    use dark_mode::ThemeMode;
                     let config = load_dark_mode_config(&app_handle);
-                    if config.enabled {
+                    if config.theme_mode == ThemeMode::Schedule {
                         if let Err(e) = start_scheduler(app_handle) {
                             log::warn!("启动Auto Dark Mode服务失败: {}", e);
                         }
@@ -573,6 +596,10 @@ pub fn run() {
             get_language,                     // 获取界面语言
             set_language,                     // 设置界面语言
             get_scan_progress_state,          // 获取扫描进度状态
+            get_all_app_settings,             // 获取所有应用设置
+            update_all_app_settings,          // 更新所有应用设置
+            set_auto_start_setting,           // 设置自启动偏好
+            get_auto_start_setting,           // 获取自启动偏好
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

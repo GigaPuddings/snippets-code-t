@@ -1,13 +1,18 @@
 use crate::bookmarks::BookmarkInfo;
 use crate::db::entity::{get_all_entities, update_entity_icon, clear_entities, count_entities, insert_entities};
 use crate::db::DbConnectionManager;
+use crate::search::invalidate_bookmarks_cache;
 use rusqlite;
 
 // ============= 书签相关数据库操作 =============
 
 /// 批量插入书签
 pub fn insert_bookmarks(bookmarks: &[BookmarkInfo]) -> Result<(), rusqlite::Error> {
-    insert_entities(bookmarks)
+    let result = insert_entities(bookmarks);
+    if result.is_ok() {
+        invalidate_bookmarks_cache();
+    }
+    result
 }
 
 /// 获取所有书签
@@ -17,12 +22,20 @@ pub fn get_all_bookmarks() -> Result<Vec<BookmarkInfo>, rusqlite::Error> {
 
 /// 更新书签图标
 pub fn update_bookmark_icon(bookmark_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
-    update_entity_icon::<BookmarkInfo>(bookmark_id, icon)
+    let result = update_entity_icon::<BookmarkInfo>(bookmark_id, icon);
+    if result.is_ok() {
+        invalidate_bookmarks_cache();
+    }
+    result
 }
 
 /// 清空所有书签
 pub fn clear_bookmarks() -> Result<(), rusqlite::Error> {
-    clear_entities::<BookmarkInfo>()
+    let result = clear_entities::<BookmarkInfo>();
+    if result.is_ok() {
+        invalidate_bookmarks_cache();
+    }
+    result
 }
 
 /// 统计书签数量
@@ -43,6 +56,8 @@ pub fn add_bookmark(title: String, content: String, icon: Option<String>) -> Res
         rusqlite::params![id, title, content, icon, "bookmark"],
     ).map_err(|e| e.to_string())?;
     
+    invalidate_bookmarks_cache();
+    
     Ok(id)
 }
 
@@ -56,6 +71,8 @@ pub fn update_bookmark(id: String, title: String, content: String, icon: Option<
         rusqlite::params![title, content, icon, id],
     ).map_err(|e| e.to_string())?;
     
+    invalidate_bookmarks_cache();
+    
     Ok(())
 }
 
@@ -68,6 +85,8 @@ pub fn delete_bookmark(id: String) -> Result<(), String> {
         "DELETE FROM bookmarks WHERE id = ?1",
         rusqlite::params![id],
     ).map_err(|e| e.to_string())?;
+    
+    invalidate_bookmarks_cache();
     
     Ok(())
 }

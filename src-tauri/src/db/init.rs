@@ -136,6 +136,33 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    // 创建 app_settings 表 (用于存储应用设置)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS app_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            search_hotkey TEXT,
+            config_hotkey TEXT,
+            translate_hotkey TEXT,
+            selection_translate_hotkey TEXT,
+            screenshot_hotkey TEXT,
+            dark_mode_hotkey TEXT,
+            language TEXT DEFAULT 'zh-CN',
+            auto_update_check INTEGER DEFAULT 1,
+            auto_hide_on_blur INTEGER DEFAULT 1,
+            auto_start INTEGER DEFAULT 0,
+            dark_mode_config TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        )",
+        [],
+    )?;
+    
+    // 确保 app_settings 有一条默认记录
+    conn.execute(
+        "INSERT OR IGNORE INTO app_settings (id) VALUES (1)",
+        [],
+    )?;
+
     // 创建索引以优化查询性能
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_usage ON search_history(usage_count DESC)", []);
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_last_used ON search_history(last_used_at DESC)", []);
@@ -285,6 +312,33 @@ pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sy
                 created_at TEXT DEFAULT (datetime('now')),
                 updated_at TEXT DEFAULT (datetime('now'))
             )",
+            [],
+        )?;
+
+        // 创建 app_settings 表 (用于存储应用设置，便于GitHub同步)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS app_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                search_hotkey TEXT,
+                config_hotkey TEXT,
+                translate_hotkey TEXT,
+                selection_translate_hotkey TEXT,
+                screenshot_hotkey TEXT,
+                dark_mode_hotkey TEXT,
+                language TEXT DEFAULT 'zh-CN',
+                auto_update_check INTEGER DEFAULT 1,
+                auto_hide_on_blur INTEGER DEFAULT 1,
+                auto_start INTEGER DEFAULT 0,
+                dark_mode_config TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            )",
+            [],
+        )?;
+        
+        // 确保 app_settings 有一条默认记录
+        conn.execute(
+            "INSERT OR IGNORE INTO app_settings (id) VALUES (1)",
             [],
         )?;
         

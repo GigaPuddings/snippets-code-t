@@ -1,29 +1,28 @@
-use crate::config::{get_value, parse_hotkey, set_value};
+use crate::config::parse_hotkey;
+use crate::db;
 use crate::window::{hotkey_config, hotkey_selection_translate, hotkey_translate, hotkey_search_wrapper, hotkey_screenshot, hotkey_dark_mode};
 use crate::APP;
 use log::{info, warn};
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-// 注册单个快捷键的核心函数
-fn register<F>(app_handle: &AppHandle, name: &str, handler: F, key: &str) -> Result<(), String>
+// 注册单个快捷键的核心函数（使用数据库存储）
+fn register<F>(_app_handle: &AppHandle, name: &str, handler: F, key: &str) -> Result<(), String>
 where
     F: Fn() + Send + Sync + 'static,
 {
     let hotkey = {
         if key.is_empty() {
-            match get_value(app_handle, name) {
-                Some(v) => v.as_str().unwrap_or_default().to_string(),
-                None => {
-                    set_value(app_handle, name, "");
-                    String::new()
-                }
-            }
+            // 从数据库读取快捷键配置
+            db::get_setting_string(name).unwrap_or_default()
         } else {
             key.to_string()
         }
     };
 
+    // 获取应用句柄
+    let app = APP.get().unwrap();
+    
     if !hotkey.is_empty() {
         // info!("{}：窗口尝试注册快捷键：{}", name, hotkey);
 
@@ -33,13 +32,8 @@ where
         // 创建快捷键（modifiers 已经是 Option<Modifiers>）
         let shortcut = Shortcut::new(modifiers, code);
 
-        // // 注销已存在的快捷键（如果有）
-        // if let Err(err) = app_handle.global_shortcut().unregister_all() {
-        //     warn!("注销现有快捷键失败: {}", err);
-        // }
-
         // 获取快捷键管理器
-        let manager = app_handle.global_shortcut();
+        let manager = app.global_shortcut();
 
         // 注册新的快捷键
         // on_shortcut 会自动检测冲突（包括本应用内和系统级冲突）
@@ -60,9 +54,6 @@ where
                 ));
             }
         }
-    } else {
-        set_value(app_handle, name, "");
-        // warn!("{}：快捷键已注销并删除", name);
     }
     Ok(())
 }
@@ -105,25 +96,23 @@ pub fn register_shortcut_by_frontend(
     name: &str,
     shortcut: &str,
 ) -> Result<(), String> {
+    // 保存快捷键到数据库
+    db::set_setting_string(name, shortcut).map_err(|e| e.to_string())?;
+    
     match name {
         "search" => {
-            set_value(&app_handle, "search", shortcut);
             register(&app_handle, "search", hotkey_search_wrapper, shortcut)?;
         }
         "config" => {
-            set_value(&app_handle, "config", shortcut);
             register(&app_handle, "config", hotkey_config, shortcut)?;
         }
         "screenshot" => {
-            set_value(&app_handle, "screenshot", shortcut);
             register(&app_handle, "screenshot", hotkey_screenshot, shortcut)?;
         }
         "translate" => {
-            set_value(&app_handle, "translate", shortcut);
             register(&app_handle, "translate", hotkey_translate, shortcut)?;
         }
         "selectionTranslate" => {
-            set_value(&app_handle, "selectionTranslate", shortcut);
             register(
                 &app_handle,
                 "selectionTranslate",
@@ -132,7 +121,6 @@ pub fn register_shortcut_by_frontend(
             )?;
         }
         "darkMode" => {
-            set_value(&app_handle, "darkMode", shortcut);
             register(&app_handle, "darkMode", hotkey_dark_mode, shortcut)?;
         }
         _ => {
@@ -143,30 +131,14 @@ pub fn register_shortcut_by_frontend(
 }
 
 #[tauri::command]
-pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, String, String, String), String> {
-    let search_hotkey = get_value(&app_handle, "search")
-        .map(|v| v.as_str().unwrap_or_default().to_string())
-        .unwrap_or_default();
-
-    let config_hotkey = get_value(&app_handle, "config")
-        .map(|v| v.as_str().unwrap_or_default().to_string())
-        .unwrap_or_default();
-
-    let translate_hotkey = get_value(&app_handle, "translate")
-        .map(|v| v.as_str().unwrap_or_default().to_string())
-        .unwrap_or_default();
-
-    let selection_translate_hotkey = get_value(&app_handle, "selectionTranslate")
-        .map(|v| v.as_str().unwrap_or_default().to_string())
-        .unwrap_or_default();
-
-    let screenshot_hotkey = get_value(&app_handle, "screenshot")
-        .map(|v| v.as_str().unwrap_or_default().to_string())
-        .unwrap_or_default();
-
-    let dark_mode_hotkey = get_value(&app_handle, "darkMode")
-        .map(|v| v.as_str().unwrap_or_default().to_string())
-        .unwrap_or_default();
+pub fn get_shortcuts(_app_handle: AppHandle) -> Result<(String, String, String, String, String, String), String> {
+    // 从数据库读取所有快捷键配置
+    let search_hotkey = db::get_setting_string("search").unwrap_or_default();
+    let config_hotkey = db::get_setting_string("config").unwrap_or_default();
+    let translate_hotkey = db::get_setting_string("translate").unwrap_or_default();
+    let selection_translate_hotkey = db::get_setting_string("selectionTranslate").unwrap_or_default();
+    let screenshot_hotkey = db::get_setting_string("screenshot").unwrap_or_default();
+    let dark_mode_hotkey = db::get_setting_string("darkMode").unwrap_or_default();
 
     Ok((
         search_hotkey,
@@ -179,10 +151,8 @@ pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, S
 }
 
 #[tauri::command]
-pub fn get_selection_translate_shortcut(app_handle: AppHandle) -> Result<String, String> {
-    let selection_translate_hotkey = get_value(&app_handle, "selectionTranslate")
-        .map(|v| v.as_str().unwrap_or_default().to_string())
-        .unwrap_or_default();
-
+pub fn get_selection_translate_shortcut(_app_handle: AppHandle) -> Result<String, String> {
+    // 从数据库读取划词翻译快捷键
+    let selection_translate_hotkey = db::get_setting_string("selectionTranslate").unwrap_or_default();
     Ok(selection_translate_hotkey)
 }

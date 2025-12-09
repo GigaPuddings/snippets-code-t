@@ -40,7 +40,7 @@
       {
         "label": "loading",
         "title": "启动",
-        "url": "/#loading",
+        "url": "/#/loading",
         "width": 340,
         "height": 280,
         "resizable": false,

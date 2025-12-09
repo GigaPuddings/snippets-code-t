@@ -7,6 +7,7 @@ use reqwest;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::Emitter;
+use tauri_plugin_autostart::ManagerExt;
 
 // ============= 数据结构定义 =============
 
@@ -250,6 +251,28 @@ pub async fn sync_to_github(app_handle: tauri::AppHandle) -> Result<String, Stri
             .map_err(|e| format!("备份失败: {}", e))?;
     }
     
+    emit_progress(30, "清理缓存数据...");
+    // 从备份中删除不需要同步的表（apps, bookmarks, icon_cache）
+    {
+        let backup_conn = rusqlite::Connection::open(&backup_path)
+            .map_err(|e| format!("打开备份文件失败: {}", e))?;
+        
+        // 删除不需要同步的表数据
+        backup_conn.execute("DELETE FROM apps", [])
+            .map_err(|e| format!("清理 apps 表失败: {}", e))?;
+        backup_conn.execute("DELETE FROM bookmarks", [])
+            .map_err(|e| format!("清理 bookmarks 表失败: {}", e))?;
+        backup_conn.execute("DELETE FROM icon_cache", [])
+            .map_err(|e| format!("清理 icon_cache 表失败: {}", e))?;
+        // 同时清理搜索历史（与本地缓存相关）
+        backup_conn.execute("DELETE FROM search_history", [])
+            .map_err(|e| format!("清理 search_history 表失败: {}", e))?;
+        
+        // 执行 VACUUM 压缩数据库文件大小
+        backup_conn.execute("VACUUM", [])
+            .map_err(|e| format!("压缩数据库失败: {}", e))?;
+    }
+    
     emit_progress(40, "读取备份文件...");
     // 读取备份文件
     let backup_data = std::fs::read(&backup_path)
@@ -454,21 +477,95 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
         .map_err(|e| format!("保存临时文件失败: {}", e))?;
     
     emit_progress(80, "恢复数据库...");
-    // 使用 rusqlite 的 backup API 恢复数据库
+    // 选择性恢复：只恢复需要同步的表，保留本地缓存数据（apps, bookmarks, icon_cache, search_history）
     {
         let restore_conn = rusqlite::Connection::open(&restore_path)
             .map_err(|e| format!("打开恢复文件失败: {}", e))?;
-        let mut target_conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
+        let target_conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
         
-        let backup = rusqlite::backup::Backup::new(&restore_conn, &mut target_conn)
-            .map_err(|e| format!("创建恢复失败: {}", e))?;
+        // 需要从备份恢复的表（用户数据）
+        let tables_to_restore = [
+            "search_engines",
+            "alarm_cards", 
+            "categories",
+            "contents",
+            "user_settings",
+            "app_settings",
+        ];
         
-        backup.run_to_completion(100, std::time::Duration::from_millis(250), None)
-            .map_err(|e| format!("恢复失败: {}", e))?;
+        for table in &tables_to_restore {
+            // 检查源表是否存在
+            let table_exists: bool = restore_conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
+                    [table],
+                    |row| row.get::<_, i32>(0),
+                )
+                .map(|count| count > 0)
+                .unwrap_or(false);
+            
+            if !table_exists {
+                continue;
+            }
+            
+            // 清空目标表
+            let _ = target_conn.execute(&format!("DELETE FROM {}", table), []);
+            
+            // 获取表的列信息
+            let columns: Vec<String> = {
+                let mut stmt = restore_conn
+                    .prepare(&format!("PRAGMA table_info({})", table))
+                    .map_err(|e| format!("获取表结构失败: {}", e))?;
+                
+                let mapped: Vec<String> = stmt.query_map([], |row| row.get::<_, String>(1))
+                    .map_err(|e| format!("读取列信息失败: {}", e))?
+                    .filter_map(|r| r.ok())
+                    .collect();
+                mapped
+            };
+            
+            if columns.is_empty() {
+                continue;
+            }
+            
+            // 从源表读取数据并插入目标表
+            let columns_str = columns.join(", ");
+            let placeholders = columns.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+            
+            let select_sql = format!("SELECT {} FROM {}", columns_str, table);
+            let insert_sql = format!("INSERT INTO {} ({}) VALUES ({})", table, columns_str, placeholders);
+            
+            let mut select_stmt = restore_conn
+                .prepare(&select_sql)
+                .map_err(|e| format!("准备查询失败: {}", e))?;
+            
+            let mut rows = select_stmt
+                .query([])
+                .map_err(|e| format!("查询失败: {}", e))?;
+            
+            while let Some(row) = rows.next().map_err(|e| format!("读取行失败: {}", e))? {
+                let values: Vec<rusqlite::types::Value> = (0..columns.len())
+                    .map(|i| row.get::<_, rusqlite::types::Value>(i).unwrap_or(rusqlite::types::Value::Null))
+                    .collect();
+                
+                let params: Vec<&dyn rusqlite::ToSql> = values.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+                let _ = target_conn.execute(&insert_sql, params.as_slice());
+            }
+        }
     }
     
     // 清理临时文件
     let _ = std::fs::remove_file(restore_path);
+    
+    // 应用自启动设置（从数据库读取并应用到系统）
+    emit_progress(90, "应用自启动设置...");
+    let autostart_manager = app_handle.autolaunch();
+    let auto_start_enabled = crate::db::get_setting_bool("autoStart").unwrap_or(false);
+    if auto_start_enabled {
+        let _ = autostart_manager.enable();
+    } else {
+        let _ = autostart_manager.disable();
+    }
     
     emit_progress(100, "恢复完成！正在重启...");
     

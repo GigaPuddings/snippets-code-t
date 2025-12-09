@@ -1005,14 +1005,8 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                     // 等待200毫秒，这段时间足够判断是否是拖拽引起的失焦
                     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
-                    // 检查是否需要自动隐藏窗口
-                    let auto_hide_on_blur = match crate::config::get_value(
-                        &crate::APP.get().unwrap(),
-                        "autoHideOnBlur",
-                    ) {
-                        Some(value) => value.as_bool().unwrap_or(true),
-                        None => true, // 默认为开启
-                    };
+                    // 检查是否需要自动隐藏窗口（从数据库读取）
+                    let auto_hide_on_blur = crate::db::get_setting_bool("autoHideOnBlur").unwrap_or(true);
 
                     // 如果不需要自动隐藏窗口，直接返回
                     if !auto_hide_on_blur {
@@ -1065,14 +1059,8 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                     // 重置拖拽状态
                     *WINDOW_DRAGGING.lock().unwrap() = false;
 
-                    // 检查是否需要自动隐藏窗口
-                    let auto_hide_on_blur = match crate::config::get_value(
-                        &crate::APP.get().unwrap(),
-                        "autoHideOnBlur",
-                    ) {
-                        Some(value) => value.as_bool().unwrap_or(true),
-                        None => true, // 默认为开启
-                    };
+                    // 检查是否需要自动隐藏窗口（从数据库读取）
+                    let auto_hide_on_blur = crate::db::get_setting_bool("autoHideOnBlur").unwrap_or(true);
 
                     // 如果不需要自动隐藏窗口，直接返回
                     if !auto_hide_on_blur {

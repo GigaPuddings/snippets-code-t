@@ -9,6 +9,7 @@ mod alarm;
 mod search_history;
 mod icon_cache;
 mod init;
+mod settings;
 
 // 重新导出连接管理器
 pub use connection::DbConnectionManager;
@@ -45,3 +46,12 @@ pub use connection::{get_db_path, get_data_dir_info, backup_database, restore_da
 pub use connection::{is_setup_completed, is_setup_completed_internal, set_setup_completed, set_data_dir_from_setup};
 pub use connection::{set_show_progress_on_restart, consume_show_progress_flag};
 pub use search_history::{add_search_history, get_search_history};
+
+// 重新导出应用设置相关函数
+pub use settings::{
+    get_setting_string, get_setting_bool,
+    set_setting_string, set_setting_bool,
+    get_all_app_settings, update_all_app_settings,
+    set_auto_start_setting, get_auto_start_setting,
+    ensure_default_settings
+};

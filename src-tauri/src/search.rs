@@ -6,6 +6,7 @@ use fuzzy_matcher::FuzzyMatcher;
 use log::info;
 use pinyin::ToPinyin;
 use serde::{Deserialize, Serialize};
+use std::sync::{LazyLock, Mutex};
 use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -26,6 +27,25 @@ pub struct SearchResult {
     pub summarize: String,
     pub icon: String,
     pub score: f64,
+}
+
+// 缓存结构
+static APPS_CACHE: LazyLock<Mutex<Option<Vec<AppInfo>>>> = LazyLock::new(|| Mutex::new(None));
+static BOOKMARKS_CACHE: LazyLock<Mutex<Option<Vec<BookmarkInfo>>>> = LazyLock::new(|| Mutex::new(None));
+
+// 缓存失效函数
+pub fn invalidate_apps_cache() {
+    if let Ok(mut cache) = APPS_CACHE.lock() {
+        *cache = None;
+        info!("应用搜索缓存已清除");
+    }
+}
+
+pub fn invalidate_bookmarks_cache() {
+    if let Ok(mut cache) = BOOKMARKS_CACHE.lock() {
+        *cache = None;
+        info!("书签搜索缓存已清除");
+    }
 }
 
 // 默认搜索引擎配置
@@ -97,13 +117,23 @@ pub fn fuzzy_search<T: Clone>(
 // 搜索应用
 #[tauri::command]
 pub fn search_apps(_app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    let apps = match db::get_all_apps() {
-        Ok(apps) => apps,
-        Err(_) => Vec::new(),
-    };
+    // 尝试从缓存获取
+    let mut cache = APPS_CACHE.lock().unwrap();
+    if cache.is_none() {
+        match db::get_all_apps() {
+            Ok(apps) => {
+                *cache = Some(apps);
+            }
+            Err(_) => {
+                *cache = Some(Vec::new());
+            }
+        }
+    }
+    
+    let apps = cache.as_ref().unwrap();
 
     let results = fuzzy_search(
-        &apps,
+        apps,
         &query,
         |app: &AppInfo| &app.title,
         |app: &AppInfo| &app.content,
@@ -125,13 +155,23 @@ pub fn search_apps(_app_handle: AppHandle, query: String) -> Result<Vec<SearchRe
 // 搜索书签
 #[tauri::command]
 pub fn search_bookmarks(_app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    let bookmarks = match db::get_all_bookmarks() {
-        Ok(bookmarks) => bookmarks,
-        Err(_) => Vec::new(),
-    };
+    // 尝试从缓存获取
+    let mut cache = BOOKMARKS_CACHE.lock().unwrap();
+    if cache.is_none() {
+        match db::get_all_bookmarks() {
+            Ok(bookmarks) => {
+                *cache = Some(bookmarks);
+            }
+            Err(_) => {
+                *cache = Some(Vec::new());
+            }
+        }
+    }
+    
+    let bookmarks = cache.as_ref().unwrap();
 
     let results = fuzzy_search(
-        &bookmarks,
+        bookmarks,
         &query,
         |bookmark: &BookmarkInfo| &bookmark.title,
         |bookmark: &BookmarkInfo| &bookmark.content,

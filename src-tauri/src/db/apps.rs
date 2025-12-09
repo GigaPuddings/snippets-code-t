@@ -1,13 +1,18 @@
 use crate::apps::AppInfo;
 use crate::db::entity::{get_all_entities, update_entity_icon, clear_entities, count_entities, insert_entities};
 use crate::db::DbConnectionManager;
+use crate::search::invalidate_apps_cache;
 use rusqlite;
 
 // ============= 应用相关数据库操作 =============
 
 /// 批量插入应用
 pub fn insert_apps(apps: &[AppInfo]) -> Result<(), rusqlite::Error> {
-    insert_entities(apps)
+    let result = insert_entities(apps);
+    if result.is_ok() {
+        invalidate_apps_cache();
+    }
+    result
 }
 
 /// 获取所有应用
@@ -17,12 +22,20 @@ pub fn get_all_apps() -> Result<Vec<AppInfo>, rusqlite::Error> {
 
 /// 更新应用图标
 pub fn update_app_icon(app_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
-    update_entity_icon::<AppInfo>(app_id, icon)
+    let result = update_entity_icon::<AppInfo>(app_id, icon);
+    if result.is_ok() {
+        invalidate_apps_cache();
+    }
+    result
 }
 
 /// 清空所有应用
 pub fn clear_apps() -> Result<(), rusqlite::Error> {
-    clear_entities::<AppInfo>()
+    let result = clear_entities::<AppInfo>();
+    if result.is_ok() {
+        invalidate_apps_cache();
+    }
+    result
 }
 
 /// 统计应用数量
@@ -43,6 +56,8 @@ pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<S
         rusqlite::params![id, title, content, icon, "app"],
     ).map_err(|e| e.to_string())?;
     
+    invalidate_apps_cache();
+    
     Ok(id)
 }
 
@@ -56,6 +71,8 @@ pub fn update_app(id: String, title: String, content: String, icon: Option<Strin
         rusqlite::params![title, content, icon, id],
     ).map_err(|e| e.to_string())?;
     
+    invalidate_apps_cache();
+    
     Ok(())
 }
 
@@ -68,6 +85,8 @@ pub fn delete_app(id: String) -> Result<(), String> {
         "DELETE FROM apps WHERE id = ?1",
         rusqlite::params![id],
     ).map_err(|e| e.to_string())?;
+    
+    invalidate_apps_cache();
     
     Ok(())
 }

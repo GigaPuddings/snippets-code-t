@@ -83,11 +83,14 @@ export const useConfigurationStore = defineStore('configuration', {
         modal.msg('获取自动失焦隐藏设置失败', 'error');
       }
 
-      // 同步语言设置到后端（用于托盘菜单国际化）
+      // 从后端获取语言设置（现在存储在数据库中）
       try {
-        await invoke('set_language', { language: this.language });
+        const language = await invoke<string>('get_language');
+        if (language && (language === 'zh-CN' || language === 'en-US')) {
+          this.language = language;
+        }
       } catch (error) {
-        console.error('同步语言设置失败:', error);
+        console.error('获取语言设置失败:', error);
       }
     },
 
@@ -142,7 +145,7 @@ export const useConfigurationStore = defineStore('configuration', {
     }
   },
   persist: {
-    pick: ['theme', 'language', 'dbPath']
+    pick: ['theme', 'dbPath']
   }
 });
 

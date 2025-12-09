@@ -7,12 +7,17 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Code, Modifiers};
 use tauri_plugin_store::StoreBuilder;
 // use mouse_position::mouse_position::{Mouse, Position};
 
+// 仅保留不需要同步的配置键（存储在 store.bin）
 pub const DB_PATH_KEY: &str = "custom_db_path"; // 自定义数据库路径
 pub const UPDATE_AVAILABLE_KEY: &str = "update_available"; // 更新可用标志
 pub const UPDATE_INFO_KEY: &str = "update_info"; // 更新信息
-pub const AUTO_UPDATE_CHECK_KEY: &str = "auto_update_check"; // 自动检查更新标志
-pub const DARK_MODE_CONFIG_KEY: &str = "dark_mode_config"; // 深色模式配置
-pub const LANGUAGE_KEY: &str = "language"; // 界面语言
+// 注：SETUP_COMPLETED_KEY 和 SHOW_PROGRESS_KEY 在 db/connection.rs 中定义和使用
+
+// 以下配置已迁移到数据库 app_settings 表中：
+// - AUTO_UPDATE_CHECK_KEY -> auto_update_check
+// - DARK_MODE_CONFIG_KEY -> dark_mode_config  
+// - LANGUAGE_KEY -> language
+// - 快捷键配置 (search, config, translate, selectionTranslate, screenshot, darkMode)
 
 // 获取值
 pub fn get_value(app_handle: &tauri::AppHandle, key: &str) -> Option<Value> {
@@ -295,20 +300,16 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
     Ok(())
 }
 
-// 设置自动检查更新
+// 设置自动检查更新（使用数据库存储）
 #[tauri::command]
-pub fn set_auto_update_check(app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
-    set_value(&app_handle, AUTO_UPDATE_CHECK_KEY, enabled);
-    Ok(())
+pub fn set_auto_update_check(_app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    db::set_setting_bool("autoUpdateCheck", enabled).map_err(|e| e.to_string())
 }
 
-// 获取自动检查更新设置
+// 获取自动检查更新设置（从数据库读取）
 #[tauri::command]
-pub fn get_auto_update_check(app_handle: tauri::AppHandle) -> bool {
-    match get_value(&app_handle, AUTO_UPDATE_CHECK_KEY) {
-        Some(value) => value.as_bool().unwrap_or(true),
-        None => true, // 默认为开启
-    }
+pub fn get_auto_update_check(_app_handle: tauri::AppHandle) -> bool {
+    db::get_setting_bool("autoUpdateCheck").unwrap_or(true) // 默认为开启
 }
 
 // 退出应用
@@ -320,28 +321,22 @@ pub fn exit_application(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
 }
 
-// 设置界面语言
+// 设置界面语言（使用数据库存储）
 #[tauri::command]
 pub fn set_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
-    set_value(&app_handle, LANGUAGE_KEY, &language);
+    db::set_setting_string("language", &language).map_err(|e| e.to_string())?;
     // 更新托盘菜单语言
     crate::tray::update_tray_language(&app_handle);
     Ok(())
 }
 
-// 获取界面语言
+// 获取界面语言（从数据库读取）
 #[tauri::command]
-pub fn get_language(app_handle: tauri::AppHandle) -> String {
-    match get_value(&app_handle, LANGUAGE_KEY) {
-        Some(value) => value.as_str().unwrap_or("zh-CN").to_string(),
-        None => "zh-CN".to_string(), // 默认中文
-    }
+pub fn get_language(_app_handle: tauri::AppHandle) -> String {
+    db::get_setting_string("language").unwrap_or_else(|| "zh-CN".to_string())
 }
 
-// 内部使用，不作为命令暴露
-pub fn get_language_internal(app_handle: &tauri::AppHandle) -> String {
-    match get_value(app_handle, LANGUAGE_KEY) {
-        Some(value) => value.as_str().unwrap_or("zh-CN").to_string(),
-        None => "zh-CN".to_string(),
-    }
+// 内部使用，不作为命令暴露（从数据库读取）
+pub fn get_language_internal(_app_handle: &tauri::AppHandle) -> String {
+    db::get_setting_string("language").unwrap_or_else(|| "zh-CN".to_string())
 }

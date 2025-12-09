@@ -1,9 +1,9 @@
 use crate::window::{ hotkey_config, hotkey_translate, hotkey_dark_mode, open_config_settings, hotkey_screenshot };
-use crate::dark_mode::{stop_scheduler, get_windows_dark_mode};
+use crate::dark_mode::{stop_scheduler, load_config, save_config, set_windows_dark_mode, ThemeMode, ScheduleType, start_scheduler};
 use crate::config::get_language_internal;
 use log::info;
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem},
+    menu::{Menu, MenuItem, CheckMenuItem, Submenu, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, AppHandle
 };
@@ -16,9 +16,14 @@ struct TrayTranslations {
     config: &'static str,
     translate: &'static str,
     screenshot: &'static str,
-    dark_mode: &'static str,
-    light_mode: &'static str,
-    theme_switch: &'static str,
+    // 主题子菜单
+    theme_menu: &'static str,
+    theme_light: &'static str,
+    theme_dark: &'static str,
+    theme_sun_based: &'static str,
+    theme_custom: &'static str,
+    theme_settings: &'static str,
+    // 其他
     view_log: &'static str,
     quit: &'static str,
 }
@@ -31,9 +36,12 @@ fn get_translations(lang: &str) -> TrayTranslations {
             config: "Settings",
             translate: "Translate",
             screenshot: "Screenshot",
-            dark_mode: "Dark Mode",
-            light_mode: "Light Mode",
-            theme_switch: "Theme",
+            theme_menu: "Theme Mode",
+            theme_light: "Light Mode",
+            theme_dark: "Dark Mode",
+            theme_sun_based: "Sunrise/Sunset",
+            theme_custom: "Custom Schedule",
+            theme_settings: "More Settings...",
             view_log: "View Logs",
             quit: "Quit",
         },
@@ -42,28 +50,101 @@ fn get_translations(lang: &str) -> TrayTranslations {
             config: "配置管理",
             translate: "输入翻译",
             screenshot: "快速截图",
-            dark_mode: "深色模式",
-            light_mode: "浅色模式",
-            theme_switch: "主题切换",
+            theme_menu: "主题模式",
+            theme_light: "浅色模式",
+            theme_dark: "深色模式",
+            theme_sun_based: "日出日落",
+            theme_custom: "自定义时间",
+            theme_settings: "更多设置...",
             view_log: "日志记录",
             quit: "退出程序",
         },
     }
 }
 
-/// 获取主题菜单文本（根据当前语言和主题状态）
-fn get_theme_menu_text_i18n(lang: &str) -> String {
+/// 创建主题子菜单
+fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<tauri::Wry>> {
     let trans = get_translations(lang);
-    match get_windows_dark_mode() {
-        Ok(is_dark) => {
-            if is_dark {
-                trans.dark_mode.to_string()
-            } else {
-                trans.light_mode.to_string()
-            }
+    let config = load_config(app);
+    
+    // 判断当前选中状态
+    let is_light = matches!(config.theme_mode, ThemeMode::Light);
+    let is_dark = matches!(config.theme_mode, ThemeMode::Dark);
+    let is_sun_based = matches!(config.theme_mode, ThemeMode::Schedule) 
+        && matches!(config.schedule_type, ScheduleType::SunBased);
+    let is_custom = matches!(config.theme_mode, ThemeMode::Schedule) 
+        && matches!(config.schedule_type, ScheduleType::Custom);
+    
+    // 创建带勾选状态的菜单项
+    let light_i = CheckMenuItem::with_id(app, "theme_light", trans.theme_light, true, is_light, None::<&str>)?;
+    let dark_i = CheckMenuItem::with_id(app, "theme_dark", trans.theme_dark, true, is_dark, None::<&str>)?;
+    let separator1 = PredefinedMenuItem::separator(app)?;
+    let sun_based_i = CheckMenuItem::with_id(app, "theme_sun_based", trans.theme_sun_based, true, is_sun_based, None::<&str>)?;
+    let custom_i = CheckMenuItem::with_id(app, "theme_custom", trans.theme_custom, true, is_custom, None::<&str>)?;
+    let separator2 = PredefinedMenuItem::separator(app)?;
+    let settings_i = MenuItem::with_id(app, "theme_settings", trans.theme_settings, true, None::<&str>)?;
+    
+    Submenu::with_items(
+        app,
+        trans.theme_menu,
+        true,
+        &[
+            &light_i,
+            &dark_i,
+            &separator1,
+            &sun_based_i,
+            &custom_i,
+            &separator2,
+            &settings_i,
+        ],
+    )
+}
+
+/// 处理主题菜单项点击
+pub fn handle_theme_menu_click(app: &AppHandle, menu_id: &str) {
+    let mut config = load_config(app);
+    
+    match menu_id {
+        "theme_light" => {
+            config.theme_mode = ThemeMode::Light;
+            let _ = set_windows_dark_mode(false);
+            info!("切换到浅色模式");
         }
-        Err(_) => trans.theme_switch.to_string()
+        "theme_dark" => {
+            config.theme_mode = ThemeMode::Dark;
+            let _ = set_windows_dark_mode(true);
+            info!("切换到深色模式");
+        }
+        "theme_sun_based" => {
+            config.theme_mode = ThemeMode::Schedule;
+            config.schedule_type = ScheduleType::SunBased;
+            // 启动调度器
+            let app_clone = app.clone();
+            std::thread::spawn(move || {
+                let _ = start_scheduler(app_clone);
+            });
+            info!("切换到日出日落模式");
+        }
+        "theme_custom" => {
+            config.theme_mode = ThemeMode::Schedule;
+            config.schedule_type = ScheduleType::Custom;
+            // 启动调度器
+            let app_clone = app.clone();
+            std::thread::spawn(move || {
+                let _ = start_scheduler(app_clone);
+            });
+            info!("切换到自定义时间模式");
+        }
+        "theme_settings" => {
+            hotkey_dark_mode();
+            return; // 不需要保存配置
+        }
+        _ => return,
     }
+    
+    // 保存配置并更新托盘菜单
+    let _ = save_config(app, &config);
+    update_tray_theme_status(app);
 }
 
 pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
@@ -75,9 +156,8 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let translate_i = MenuItem::with_id(app, "translate", trans.translate, true, None::<&str>)?;
     let screenshot_i = MenuItem::with_id(app, "screenshot", trans.screenshot, true, None::<&str>)?;
     
-    // 获取当前主题状态并创建动态文本
-    let theme_text = get_theme_menu_text_i18n(&lang);
-    let dark_mode_window_i = MenuItem::with_id(app, "dark_mode_window", &theme_text, true, None::<&str>)?;
+    // 创建主题子菜单
+    let theme_submenu = create_theme_submenu(app, &lang)?;
     
     let separator1 = PredefinedMenuItem::separator(app)?;
     let view_log_i = MenuItem::with_id(app, "view_log", trans.view_log, true, None::<&str>)?;
@@ -89,7 +169,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             &config_i,
             &translate_i,
             &screenshot_i,
-            &dark_mode_window_i,
+            &theme_submenu,
             &separator1,
             &view_log_i,
             &quit_i,
@@ -103,52 +183,52 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .tooltip(&app_name)
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .on_menu_event(move |app, event| match event.id.as_ref() {
-            "search" => {
-                info!("============== Search ==============");
-                if let Some(window) = app.get_webview_window("main") {
-                    window.center().unwrap();
-                    window.show().unwrap();
-                    window.set_focus().unwrap();
+        .on_menu_event(move |app, event| {
+            let menu_id = event.id.as_ref();
+            
+            // 主题菜单项处理
+            if menu_id.starts_with("theme_") {
+                handle_theme_menu_click(app, menu_id);
+                return;
+            }
+            
+            match menu_id {
+                "search" => {
+                    info!("============== Search ==============");
+                    if let Some(window) = app.get_webview_window("main") {
+                        window.center().unwrap();
+                        window.show().unwrap();
+                        window.set_focus().unwrap();
+                    }
                 }
+                "config" => {
+                    info!("============== Config ==============");
+                    open_config_settings();
+                }
+                "translate" => {
+                    info!("============== Translate ==============");
+                    hotkey_translate();
+                }
+                "screenshot" => {
+                    info!("============== Screenshot ==============");
+                    hotkey_screenshot();
+                }
+                "view_log" => {
+                    info!("============== View Log ==============");
+                    let log_path = app.path().app_log_dir().unwrap();
+                    let path: String = log_path.to_str().unwrap().into();
+                    app.opener()
+                        .open_path(path, Option::<String>::None)
+                        .unwrap();
+                }
+                "quit" => {
+                    info!("============== Quit App ==============");
+                    stop_scheduler();
+                    app.global_shortcut().unregister_all().unwrap();
+                    app.exit(0);
+                }
+                _ => {}
             }
-            "config" => {
-                info!("============== Config ==============");
-                open_config_settings();
-            }
-            "translate" => {
-                info!("============== Translate ==============");
-                hotkey_translate();
-            }
-            "screenshot" => {
-                info!("============== Screenshot ==============");
-                hotkey_screenshot();
-            }
-            "dark_mode_window" => {
-                info!("============== Auto Dark Mode Window ==============");
-                hotkey_dark_mode();
-            }
-            "view_log" => {
-                info!("============== View Log ==============");
-                // 获取日志文件夹路径
-                let log_path = app.path().app_log_dir().unwrap();
-                // 将路径转换为字符串
-                let path: String = log_path.to_str().unwrap().into();
-                // 打开日志文件夹
-                app.opener()
-                    .open_path(path, Option::<String>::None)
-                    .unwrap();
-            }
-            "quit" => {
-                info!("============== Quit App ==============");
-                // 停止Auto Dark Mode服务
-                stop_scheduler();
-                // 取消注册所有全局快捷键
-                app.global_shortcut().unregister_all().unwrap();
-                // 退出应用程序
-                app.exit(0);
-            }
-            _ => {}
         })
         .on_tray_icon_event(move |_tray, event| {
             if let TrayIconEvent::Click {
@@ -157,8 +237,6 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 ..
             } = event
             {
-                println!("left click pressed and released");
-                // 打开config窗口
                 hotkey_config();
             }
         })
@@ -233,9 +311,8 @@ fn recreate_tray_menu(app: &AppHandle) -> tauri::Result<()> {
     let translate_i = MenuItem::with_id(app, "translate", trans.translate, true, None::<&str>)?;
     let screenshot_i = MenuItem::with_id(app, "screenshot", trans.screenshot, true, None::<&str>)?;
     
-    // 获取当前主题状态并创建动态文本
-    let theme_text = get_theme_menu_text_i18n(&lang);
-    let dark_mode_window_i = MenuItem::with_id(app, "dark_mode_window", &theme_text, true, None::<&str>)?;
+    // 创建主题子菜单
+    let theme_submenu = create_theme_submenu(app, &lang)?;
     
     let separator1 = PredefinedMenuItem::separator(app)?;
     let view_log_i = MenuItem::with_id(app, "view_log", trans.view_log, true, None::<&str>)?;
@@ -248,7 +325,7 @@ fn recreate_tray_menu(app: &AppHandle) -> tauri::Result<()> {
             &config_i,
             &translate_i,
             &screenshot_i,
-            &dark_mode_window_i,
+            &theme_submenu,
             &separator1,
             &view_log_i,
             &quit_i,

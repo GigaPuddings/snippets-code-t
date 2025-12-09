@@ -168,6 +168,8 @@ const handleAutoStartChange = async (value: boolean) => {
       await disable();
       modal.msg(t('settings.autoStartDisabled'));
     }
+    // 同步保存到数据库，便于 GitHub 同步
+    await invoke('set_auto_start_setting', { value });
   } catch (error) {
     console.error('Failed to set autostart:', error);
     store.autoStart = !value;
