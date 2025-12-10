@@ -123,7 +123,7 @@ export class ScreenshotManager {
     
     // 【DPI修复】获取设备像素比 (DPR)
     const dpr = window.devicePixelRatio || 1
-    logger.info(`[截图] 设备像素比: ${dpr}, 容器尺寸: ${containerWidth}x${containerHeight}`)
+    // logger.info(`[截图] 设备像素比: ${dpr}, 容器尺寸: ${containerWidth}x${containerHeight}`)
 
     // 1. 设置 Canvas 的【物理像素尺寸】为：逻辑尺寸 * DPR
     this.canvas.width = Math.round(containerWidth * dpr)
@@ -137,7 +137,7 @@ export class ScreenshotManager {
     const ctx = this.canvas.getContext('2d')
     if (ctx) {
       ctx.scale(dpr, dpr)
-      logger.info(`[截图] Canvas物理尺寸: ${this.canvas.width}x${this.canvas.height}, 缩放因子: ${dpr}`)
+      // logger.info(`[截图] Canvas物理尺寸: ${this.canvas.width}x${this.canvas.height}, 缩放因子: ${dpr}`)
     }
 
     this.coordinateSystem.updateCanvasRect(this.canvas)
@@ -146,7 +146,7 @@ export class ScreenshotManager {
   // 加载预捕获的屏幕背景图像
   private async loadScreenBackground(): Promise<void> {
     try {
-      logger.info('[截图] 开始加载屏幕背景')
+      // logger.info('[截图] 开始加载屏幕背景')
       const base64Image = await invoke('get_screenshot_background') as string
       
       if (!base64Image) {
@@ -157,12 +157,12 @@ export class ScreenshotManager {
       // 创建Image对象并加载base64图像
       const img = new Image()
       img.onload = () => {
-        logger.info('[截图] 屏幕背景图像加载成功')
+        // logger.info('[截图] 屏幕背景图像加载成功')
         // 保存背景图像引用
         this.backgroundImage = img
         // 立即绘制背景
         this.drawBackground()
-        logger.info('[截图] 屏幕背景绘制完成')
+        // logger.info('[截图] 屏幕背景绘制完成')
         
         // 通知加载完成
         if (this.onLoadComplete) {

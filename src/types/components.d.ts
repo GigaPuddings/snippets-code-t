@@ -51,6 +51,7 @@ declare module 'vue' {
     Settings: typeof import('./../pages/config/components/category/components/settings/index.vue')['default']
     SettingsContent: typeof import('./../components/SettingsContent/index.vue')['default']
     Shortcut: typeof import('./../components/SettingsContent/components/Shortcut/index.vue')['default']
+    SnippetPreview: typeof import('./../pages/search/components/SnippetPreview.vue')['default']
     Splitter: typeof import('./../components/Splitter/index.vue')['default']
     Titlebar: typeof import('./../layout/components/Titlebar.vue')['default']
     Todo: typeof import('./../pages/config/components/todo/index.vue')['default']

@@ -358,6 +358,6 @@ pub async fn init_db_async() -> Result<(), Box<dyn std::error::Error + Send + Sy
         Ok(())
     }).await??;
     
-    log::info!("数据库异步初始化完成");
+    // log::info!("数据库异步初始化完成");
     Ok(())
 }

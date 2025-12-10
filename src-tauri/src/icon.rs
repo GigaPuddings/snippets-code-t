@@ -295,13 +295,13 @@ pub fn load_icon_cache(_app_handle: &AppHandle) {
         let mut sorted_icons: Vec<_> = cache_data.into_iter().collect();
         sorted_icons.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
         
-        let mut loaded_count = 0;
+        // let mut loaded_count = 0;
         for (key, icon) in sorted_icons.into_iter().take(MAX_CACHE_SIZE) {
             cache.put(key, icon);
-            loaded_count += 1;
+            // loaded_count += 1;
         }
         
-        info!("加载 {} 个来自缓存的图标（最多 {} 个）", loaded_count, MAX_CACHE_SIZE);
+        // info!("加载 {} 个来自缓存的图标（最多 {} 个）", loaded_count, MAX_CACHE_SIZE);
     }
 }
 

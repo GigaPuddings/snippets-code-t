@@ -1,5 +1,5 @@
 <template>
-  <main ref="containerRef" class="result-container glass-content">
+  <main class="result-container glass-content">
     <div v-if="props.results.length !== 0" class="tabs">
       <!-- 分类 -->
       <div class="tabs-group">
@@ -22,16 +22,17 @@
     <RecycleScroller
       ref="scrollerRef"
       class="result"
+      :key="activeTab"
       :items="filteredResults"
       :item-size="44"
-      :buffer="100"
+      :buffer="200"
       key-field="id"
       v-slot="{ item }"
     >
       <div
         class="item"
         :class="{ active: item.id === store.id }"
-        @click="handleItemClick(item)"
+        @click="handleItemClick(item, $event)"
       >
         <div class="icon-wrapper">
           <img
@@ -74,9 +75,11 @@
           </div>
           <p class="text">{{ item.content }}</p>
         </div>
-        <div v-if="getItemRealIndex(item) < 5" class="shortcut-key">
-          <command class="shortcut-key-icon" theme="outline" size="12" />
-          <span class="shortcut-key-text">{{ getItemRealIndex(item) + 1 }}</span>
+        <div class="item-actions">
+          <div v-if="getItemRealIndex(item) < 5" class="shortcut-key">
+            <command class="shortcut-key-icon" theme="outline" size="12" />
+            <span class="shortcut-key-text">{{ getItemRealIndex(item) + 1 }}</span>
+          </div>
         </div>
       </div>
     </RecycleScroller>
@@ -85,12 +88,14 @@
 <script lang="ts" setup>
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Command } from '@icon-park/vue-next';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import { useFocusMode } from '@/hooks/useFocusMode';
+import { processTemplate } from '@/utils/templateParser';
 import { useI18n } from 'vue-i18n';
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { logger } from '@/utils/logger';
 
 const { t } = useI18n();
 
@@ -106,7 +111,6 @@ const emit = defineEmits<{
   backToSearch: [];
 }>();
 
-const containerRef = ref<HTMLElement | null>(null);
 const scrollerRef = ref<any>(null); // RecycleScroller 组件引用
 const activeTab = ref<SummarizeType>('text');
 const currentTabIndex = ref(0); // 当前分类索引
@@ -200,10 +204,11 @@ const handleKeyEvent = (e: KeyboardEvent) => {
     return;
   }
 
-  // Escape 键：隐藏窗口（任何模式下都可用）
+  // Escape 键：关闭预览窗口并隐藏搜索窗口（任何模式下都可用）
   if (e.code === 'Escape') {
     e.preventDefault();
     e.stopPropagation();
+    closePreviewWindow();
     showHideWindow();
     return;
   }
@@ -279,7 +284,22 @@ const handleListModeKeys = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (filteredResults.value[index]) {
-        selectItem(filteredResults.value[index]);
+        const item = filteredResults.value[index];
+        if (e.ctrlKey || e.metaKey) {
+          // Ctrl+Enter: 复制但保持窗口打开
+          copyKeepWindow(item);
+        } else {
+          // Enter: 正常选择
+          selectItem(item);
+        }
+      }
+      break;
+    case 'Space':
+      e.preventDefault();
+      e.stopPropagation();
+      // Space: 打开预览
+      if (filteredResults.value[index]) {
+        openPreview(filteredResults.value[index]);
       }
       break;
   }
@@ -322,6 +342,14 @@ const handleTabModeKeys = (e: KeyboardEvent) => {
         setMode('LIST');
       }
       break;
+    case 'Space':
+      e.preventDefault();
+      e.stopPropagation();
+      // Space: 打开第一个结果的预览
+      if (filteredResults.value.length > 0) {
+        openPreview(filteredResults.value[0]);
+      }
+      break;
   }
 };
 
@@ -360,13 +388,22 @@ const scrollToItem = (index: number) => {
   });
 };
 
-// 处理列表项点击
-function handleItemClick(item: ContentType) {
-  // 鼠标点击列表项时，切换到LIST模式（显示返回提示）
+// 处理列表项点击 - 点击打开预览，不直接粘贴
+function handleItemClick(item: ContentType, event?: MouseEvent) {
+  // 鼠标点击列表项时，切换到LIST模式
   if (!isListMode.value) {
     setMode('LIST');
   }
-  selectItem(item);
+  store.id = item.id;
+  
+  // 应用和书签直接打开
+  if (item.summarize === 'app' || item.summarize === 'bookmark' || item.summarize === 'search') {
+    selectItem(item);
+  } else {
+    // 代码片段打开预览
+    const target = event?.currentTarget as HTMLElement;
+    openPreview(item, target);
+  }
 }
 
 // 选中代码行
@@ -377,6 +414,9 @@ async function selectItem(item: ContentType) {
   // 清除搜索关键词
   props.onClearSearch();
 
+  // 关闭预览窗口
+  closePreviewWindow();
+  
   if (item.summarize === 'app') {
     // 打开第三方应用程序
     showHideWindow();
@@ -389,7 +429,7 @@ async function selectItem(item: ContentType) {
     try {
       await navigator.clipboard.writeText(codeContent);
     } catch (err) {
-      console.error('[代码片段] 直接复制到剪贴板失败:', err);
+      logger.error('[代码片段] 直接复制到剪贴板失败:', err);
     }
 
     showHideWindow();
@@ -398,15 +438,14 @@ async function selectItem(item: ContentType) {
       try {
         await invoke('insert_text_to_last_window', { text: codeContent })
           .then(() => {
-            console.log('[代码片段] 成功调用');
+            logger.info('[代码片段] 成功调用');
           })
           .catch((error) => {
-            console.error('[代码片段] 插入文本失败:', error);
+            logger.error('[代码片段] 插入文本失败:', error);
             alert('文本已复制到剪贴板，请手动粘贴 (Ctrl+V)');
           });
       } catch (error) {
-        console.error('[代码片段] 执行插入文本命令异常:', error);
-        console.log('[代码片段] 使用备份方法，请手动粘贴');
+        logger.error('[代码片段] 执行插入文本命令异常:', error);
         alert('文本已复制到剪贴板，请手动粘贴 (Ctrl+V)');
       }
     }, 300);
@@ -418,6 +457,13 @@ function showHideWindow() {
   invoke('show_hide_window_command', {
     label: 'search',
     context: 'selectItem'
+  });
+}
+
+// 关闭预览窗口
+function closePreviewWindow() {
+  invoke('close_preview_window').catch(() => {
+    // 忽略错误（窗口可能不存在）
   });
 }
 
@@ -450,12 +496,86 @@ const backToSearchMode = () => {
   setMode('SEARCH');
 };
 
-onMounted(() => {
+// ========== 预览功能 ==========
+
+// 打开预览窗口
+const openPreview = async (item: ContentType, targetElement?: HTMLElement) => {
+  // 只对代码片段显示预览
+  if (item.summarize !== 'text' && item.summarize !== undefined) return;
+  
+  // 获取结果容器的实际屏幕位置
+  const resultContainer = document.querySelector('.result-container') as HTMLElement;
+  
+  // 如果没有传入 targetElement，尝试查找 active 元素
+  // 注意：在虚拟滚动中，querySelector 可能找不到或者找到错误的元素（如果没有及时更新）
+  let activeElement = targetElement;
+  if (!activeElement) {
+    // 等待 DOM 更新
+    await nextTick();
+    activeElement = document.querySelector('.result .item.active') as HTMLElement;
+  }
+  
+  // 计算预览窗口的相对位置（相对于搜索窗口左上角）
+  let relativeX = 484;
+  let relativeY = 0;
+  
+  if (resultContainer) {
+    const containerRect = resultContainer.getBoundingClientRect();
+    relativeX = containerRect.right;
+  }
+  
+  if (activeElement) {
+    const rect = activeElement.getBoundingClientRect();
+    relativeY = rect.top;
+    logger.info(`[预览窗口] 相对位置: ${relativeX}, ${relativeY}`);
+  } else {
+    logger.warn('[预览窗口] 无法定位列表项元素，使用默认位置');
+    relativeY = 100;
+  }
+  
+  // 调用后端创建预览窗口，传递相对坐标
+  try {
+    const snippetData = btoa(encodeURIComponent(JSON.stringify(item)));
+    // 传递相对坐标，由后端加上主窗口位置
+    const previewX = relativeX + 4;
+    const previewY = relativeY;
+    await invoke('open_preview_window', { snippetData, previewX, previewY });
+  } catch (err) {
+    logger.error('[预览窗口] 打开失败:', err);
+  }
+};
+
+// 复制但保持窗口打开
+const copyKeepWindow = async (item: ContentType) => {
+  if (item.summarize !== 'text' && item.summarize !== undefined) return;
+  
+  const result = await processTemplate(item.content);
+  try {
+    await navigator.clipboard.writeText(result.content);
+  } catch (err) {
+    logger.error('[代码片段] 复制失败:', err);
+  }
+};
+
+// 存储取消监听函数
+let unlistenMove: (() => void) | null = null;
+
+onMounted(async () => {
   document.addEventListener('keydown', handleKeyEvent);
+  
+  // 监听窗口移动事件，关闭预览窗口
+  const window = getCurrentWindow();
+  unlistenMove = await window.onMoved(() => {
+    closePreviewWindow();
+  });
 });
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyEvent);
+  // 清理窗口移动监听
+  if (unlistenMove) {
+    unlistenMove();
+  }
 });
 
 defineExpose({
@@ -468,7 +588,7 @@ defineExpose({
 </script>
 <style lang="scss" scoped>
 .result-container {
-  @apply bg-search px-1 rounded-bl-lg rounded-br-lg;
+  @apply bg-search px-1 rounded-bl-lg rounded-br-lg relative;
 
   .tabs {
     @apply flex items-center justify-between pt-2 pb-1 border-search;
@@ -515,6 +635,10 @@ defineExpose({
         @apply bg-search-hover;
       }
 
+      .item-actions {
+        @apply flex items-center gap-2;
+      }
+
       .shortcut-key {
         @apply flex items-center justify-center gap-1 text-gray-500 dark:text-gray-200 text-xs font-medium opacity-80;
       }
@@ -531,7 +655,7 @@ defineExpose({
         @apply flex-grow overflow-hidden;
 
         .title {
-          @apply text-sm truncate font-sans text-search;
+          @apply flex justify-between text-sm truncate font-sans text-search;
         }
 
         .text {

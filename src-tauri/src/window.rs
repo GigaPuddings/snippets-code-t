@@ -356,6 +356,8 @@ impl WindowManager {
             if let Some(search_window) = app.get_webview_window("main") {
                 if search_window.is_visible().unwrap_or(false) {
                     let _ = search_window.hide();
+                    // 同时也关闭预览窗口
+                    let _ = close_preview_window();
                     stop_mouse_tracking();
                     let _ = search_window.set_ignore_cursor_events(false);
                 }
@@ -377,7 +379,7 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
             return window;
         }
         None => {
-            info!("Create new window: {}", label);
+            // info!("Create new window: {}", label);
 
             let mut builder =
                 WebviewWindowBuilder::new(app_handle, label, WebviewUrl::App(url.into()))
@@ -486,13 +488,19 @@ pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
 
 pub fn hotkey_search(context: Option<String>) {
     // 显示隐藏搜索窗口
-    let window = APP.get().unwrap().get_webview_window("main").unwrap();
+    let app_handle = APP.get().unwrap();
+    let window = app_handle.get_webview_window("main").unwrap();
     if window.is_visible().unwrap() {
         window.hide().unwrap();
         // 停止鼠标追踪
         stop_mouse_tracking();
         // 取消忽略光标
         window.set_ignore_cursor_events(false).unwrap();
+        
+        // 关闭预览窗口（搜索窗口隐藏时，预览窗口也要隐藏）
+        if let Some(preview_window) = app_handle.get_webview_window("preview") {
+            let _ = preview_window.close();
+        }
 
         // 只有当不是从 selectItem 上下文调用，或者 context 为 None 时才清除
         let should_clear_last_active_id = match context.as_deref() {
@@ -803,6 +811,141 @@ pub fn show_hide_window_command(label: &str, context: Option<String>) -> Result<
             return Err("Invalid label".to_string());
         }
     }
+    Ok(())
+}
+
+// 关闭片段预览窗口
+#[tauri::command]
+pub fn close_preview_window() -> Result<(), String> {
+    let app_handle = APP.get().ok_or("无法获取应用句柄")?;
+    if let Some(window) = app_handle.get_webview_window("preview") {
+        let _ = window.close();
+    }
+    Ok(())
+}
+
+// 打开片段预览窗口
+#[tauri::command]
+pub async fn open_preview_window(snippet_data: String, preview_x: f64, preview_y: f64) -> Result<(), String> {
+    let app_handle = APP.get().ok_or("无法获取应用句柄")?.clone();
+    
+    // 在异步任务中创建窗口，避免阻塞主线程
+    tauri::async_runtime::spawn(async move {
+        // 关闭已存在的预览窗口
+        if let Some(existing) = app_handle.get_webview_window("preview") {
+            let _ = existing.close();
+            // 等待窗口关闭
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+        
+        // 预览窗口尺寸
+        let preview_width = 380.0;
+        let preview_height = 300.0;
+        
+        // 获取屏幕尺寸，自适应调整预览窗口位置
+        let (mut pos_x, mut pos_y) = (preview_x, preview_y);
+        
+        // 获取搜索窗口信息用于边界计算
+        if let Some(main_window) = app_handle.get_webview_window("main") {
+            // 获取主窗口位置并转换为绝对坐标
+            if let Ok(main_pos) = main_window.outer_position() {
+                let scale = main_window.scale_factor().unwrap_or(1.0);
+                let main_x = main_pos.x as f64 / scale;
+                let main_y = main_pos.y as f64 / scale;
+                
+                pos_x += main_x;
+                pos_y += main_y;
+            }
+
+            if let Ok(monitor) = main_window.current_monitor() {
+                if let Some(monitor) = monitor {
+                    let screen_size = monitor.size();
+                    let screen_pos = monitor.position();
+                    let scale = monitor.scale_factor();
+                    
+                    let screen_width = screen_size.width as f64 / scale;
+                    let screen_height = screen_size.height as f64 / scale;
+                    let screen_x = screen_pos.x as f64 / scale;
+                    let screen_y = screen_pos.y as f64 / scale;
+                    
+                    // log::info!("屏幕信息: {}x{} @ ({}, {}), scale={}", 
+                    //     screen_width, screen_height, screen_x, screen_y, scale);
+                    
+                    // 检查右侧是否有足够空间
+                    if pos_x + preview_width > screen_x + screen_width {
+                        // 右侧空间不足，尝试放到搜索窗口左侧
+                        if let Ok(main_pos) = main_window.outer_position() {
+                            let main_x = main_pos.x as f64 / scale;
+                            let left_x = main_x - preview_width - 4.0;
+                            if left_x >= screen_x {
+                                pos_x = left_x;
+                                log::info!("预览窗口移至左侧: x={}", pos_x);
+                            } else {
+                                // 左侧也不够，贴着屏幕右边缘
+                                pos_x = screen_x + screen_width - preview_width - 10.0;
+                                log::info!("预览窗口贴右边缘: x={}", pos_x);
+                            }
+                        }
+                    }
+                    
+                    // 检查底部是否有足够空间
+                    if pos_y + preview_height > screen_y + screen_height {
+                        // 底部空间不足，向上调整
+                        pos_y = screen_y + screen_height - preview_height - 10.0;
+                        log::info!("预览窗口向上调整: y={}", pos_y);
+                    }
+                    
+                    // 确保不超出顶部
+                    if pos_y < screen_y {
+                        pos_y = screen_y + 10.0;
+                    }
+                }
+            }
+        }
+        
+        // log::info!("最终预览窗口位置: x={}, y={}", pos_x, pos_y);
+        
+        let url = format!("/#/preview?data={}", snippet_data);
+        
+        match WebviewWindowBuilder::new(&app_handle, "preview", WebviewUrl::App(url.into()))
+            .title("片段预览")
+            .inner_size(380.0, 300.0)
+            .position(pos_x, pos_y)
+            .decorations(false)
+            .always_on_top(true)
+            .resizable(true)
+            .skip_taskbar(true)
+            .focused(false)  // 不抢夺焦点
+            .visible(false)  // 先隐藏，等待内容加载
+            .build()
+        {
+            Ok(window) => {
+                // log::info!("预览窗口创建成功: x={}, y={}", pos_x, pos_y);
+                
+                // 监听前端准备事件
+                let window_clone = window.clone();
+                window.listen("preview-ready", move |_| {
+                    let _ = window_clone.show();
+                });
+                
+                // 超时后强制显示（防止事件丢失）
+                let window_timeout = window.clone();
+                let app_clone = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                    let _ = window_timeout.show();
+                    // 保持搜索窗口焦点
+                    if let Some(main_window) = app_clone.get_webview_window("main") {
+                        let _ = main_window.set_focus();
+                    }
+                });
+            }
+            Err(e) => {
+                log::error!("预览窗口创建失败: {}", e);
+            }
+        }
+    });
+    
     Ok(())
 }
 
@@ -1193,7 +1336,7 @@ fn capture_full_screen_to_base64() -> Result<String, String> {
             let screen_width = GetSystemMetrics(SM_CXSCREEN);
             let screen_height = GetSystemMetrics(SM_CYSCREEN);
             
-            info!("捕获全屏: {}x{}", screen_width, screen_height);
+            // info!("捕获全屏: {}x{}", screen_width, screen_height);
             
             // 获取桌面窗口的DC
             let desktop_dc = GetDC(Some(GetDesktopWindow()));
@@ -1308,8 +1451,8 @@ fn capture_full_screen_to_base64() -> Result<String, String> {
 
             let base64_data = general_purpose::STANDARD.encode(&jpeg_data);
             
-            info!("全屏捕获成功，JPEG数据: {} KB (75%质量), base64: {} KB", 
-                jpeg_data.len() / 1024, base64_data.len() / 1024);
+            // info!("全屏捕获成功，JPEG数据: {} KB (75%质量), base64: {} KB", 
+            //     jpeg_data.len() / 1024, base64_data.len() / 1024);
             Ok(base64_data)
         }
     }
@@ -1350,9 +1493,6 @@ pub fn hotkey_screenshot() {
             return;
         }
     }
-
-    // 【关键修复+性能优化】异步捕获整个屏幕，避免阻塞
-    info!("开始异步捕获屏幕背景...");
     
     // 在单独线程中捕获屏幕，避免阻塞UI
     let capture_result = std::thread::spawn(|| {
@@ -1361,7 +1501,7 @@ pub fn hotkey_screenshot() {
     
     let screen_image = match capture_result {
         Ok(Ok(img)) => {
-            info!("屏幕捕获成功");
+            // info!("屏幕捕获成功");
             img
         },
         Ok(Err(e)) => {
@@ -1390,7 +1530,7 @@ pub fn hotkey_screenshot() {
     };
     let monitor_size = monitor.size();
     
-    info!("创建新的截图窗口，显示器尺寸: {}x{}", monitor_size.width, monitor_size.height);
+    // info!("创建新的截图窗口，显示器尺寸: {}x{}", monitor_size.width, monitor_size.height);
     
     // 创建全屏截图窗口
     let builder = WebviewWindowBuilder::new(
@@ -1420,12 +1560,12 @@ pub fn hotkey_screenshot() {
     // 监听窗口准备事件，显示窗口并聚焦
     let window_clone = window.clone();
     window.once("screenshot_ready", move |_| {
-        info!("截图窗口准备完成，显示窗口");
+        // info!("截图窗口准备完成，显示窗口");
         let _ = window_clone.show();
         let _ = window_clone.set_focus();
     });
 
-    info!("截图窗口创建完成，等待前端准备");
+    // info!("截图窗口创建完成，等待前端准备");
 }
 
 // 获取窗口信息
@@ -1457,7 +1597,7 @@ pub fn get_screenshot_background() -> Result<String, String> {
     let bg = SCREENSHOT_BACKGROUND.lock().unwrap();
     match bg.as_ref() {
         Some(image) => {
-            info!("返回屏幕背景图像，大小: {} bytes", image.len());
+            // info!("返回屏幕背景图像，大小: {} bytes", image.len());
             Ok(image.clone())
         },
         None => {

@@ -555,5 +555,13 @@ export default {
     dragToSelect: '拖拽鼠标选择截图区域',
     pressEscToClose: '按ESC键关闭',
     colorPicker: '取色器'
+  },
+
+  // 片段预览
+  snippetPreview: {
+    untitled: '未命名片段',
+    pleaseInput: '请输入',
+    copyAndClose: '复制并关闭',
+    close: '关闭'
   }
 };

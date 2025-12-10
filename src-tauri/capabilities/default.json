@@ -12,7 +12,8 @@
     "screenshot",
     "dark_mode",
     "pin_*",
-    "setup"
+    "setup",
+    "preview"
   ],
   "permissions": [
     "core:default",

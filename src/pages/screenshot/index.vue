@@ -517,7 +517,7 @@ onMounted(async () => {
     () => {
       // 背景加载完成，隐藏加载提示
       isLoading.value = false
-      logger.info('[截图] 初始化完成')
+      // logger.info('[截图] 初始化完成')
     }
   )
 

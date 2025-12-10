@@ -352,6 +352,21 @@ const emits = defineEmits<{
   focus: [viewUpdate: any];
   blur: [viewUpdate: any];
 }>();
+
+// 获取选中的文本
+const getSelection = (): string => {
+  if (!editorViewRef.value) return '';
+  const state = editorViewRef.value.state;
+  const selection = state.selection.main;
+  if (selection.empty) return '';
+  return state.sliceDoc(selection.from, selection.to);
+};
+
+// 暴露方法给父组件
+defineExpose({
+  getSelection,
+  getView: () => editorViewRef.value
+});
 </script>
 
 <style lang="scss" scoped>

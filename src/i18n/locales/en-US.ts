@@ -555,5 +555,13 @@ export default {
     dragToSelect: 'Drag to select area',
     pressEscToClose: 'Press ESC to close',
     colorPicker: 'Color Picker'
+  },
+
+  // Snippet Preview
+  snippetPreview: {
+    untitled: 'Untitled Snippet',
+    pleaseInput: 'Please input',
+    copyAndClose: 'Copy & Close',
+    close: 'Close'
   }
 };

@@ -76,7 +76,7 @@ pub fn ensure_default_settings() -> Result<(), rusqlite::Error> {
         )?;
     }
     
-    info!("应用设置默认值已初始化");
+    // info!("应用设置默认值已初始化");
     Ok(())
 }
 
