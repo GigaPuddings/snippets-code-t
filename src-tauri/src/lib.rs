@@ -184,6 +184,16 @@ async fn fetch_favicon(url: String) -> String {
     }
 }
 
+// 使用指定源获取网站favicon
+#[tauri::command]
+async fn fetch_favicon_with_source(url: String, source: String) -> String {
+    let icon_source = icon::IconSource::from_str(&source);
+    match icon::fetch_favicon_with_source(&url, icon_source).await {
+        Some(icon_data) => icon_data,
+        None => "".to_string(),
+    }
+}
+
 // 设置自动失焦隐藏
 #[tauri::command]
 fn set_auto_hide_on_blur(_app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
@@ -327,6 +337,12 @@ pub fn run() {
                     // 过滤掉 tauri::manager 关于 asset 的调试信息
                     if metadata.target() == "tauri::manager" && metadata.level() == log::LevelFilter::Debug {
                         return false;
+                    }
+                    // 过滤掉 HTTP 客户端的 TRACE/DEBUG 日志（图标加载时会产生大量日志）
+                    if metadata.target().starts_with("hyper_util::") || 
+                       metadata.target().starts_with("reqwest::") ||
+                       metadata.target().starts_with("hyper::") {
+                        return metadata.level() >= log::LevelFilter::Info;
                     }
                     true
                 })
@@ -533,6 +549,7 @@ pub fn run() {
             perform_update,                   // 执行更新
             check_update_manually,            // 手动检查更新
             fetch_favicon,                    // 获取网站favicon
+            fetch_favicon_with_source,        // 使用指定源获取网站favicon
             extract_icon_from_app,            // 提取应用图标
             search_apps,                      // 搜索应用
             search_bookmarks,                 // 搜索书签

@@ -29,6 +29,11 @@ pub fn update_bookmark_icon(bookmark_id: &str, icon: &str) -> Result<(), rusqlit
     result
 }
 
+/// 更新书签图标（不触发缓存失效，用于批量操作）
+pub fn update_bookmark_icon_silent(bookmark_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
+    update_entity_icon::<BookmarkInfo>(bookmark_id, icon)
+}
+
 /// 清空所有书签
 pub fn clear_bookmarks() -> Result<(), rusqlite::Error> {
     let result = clear_entities::<BookmarkInfo>();

@@ -29,6 +29,11 @@ pub fn update_app_icon(app_id: &str, icon: &str) -> Result<(), rusqlite::Error> 
     result
 }
 
+/// 更新应用图标（不触发缓存失效，用于批量操作）
+pub fn update_app_icon_silent(app_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
+    update_entity_icon::<AppInfo>(app_id, icon)
+}
+
 /// 清空所有应用
 pub fn clear_apps() -> Result<(), rusqlite::Error> {
     let result = clear_entities::<AppInfo>();

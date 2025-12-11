@@ -333,82 +333,110 @@ pub fn extract_domain(url: &str) -> Option<String> {
 }
 
 // 获取网站的Fetch Favicon
-pub async fn fetch_favicon_async(url: &str) -> Option<String> {
-    // 首先检查缓存
-    if let Some(cached_icon) = get_cached_icon(url) {
-        info!("从缓存中获取图标: {}", url);
-        return Some(cached_icon);
+/// 图标源类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IconSource {
+    Auto,           // 自动尝试所有源
+    Google,         // Google Favicon API
+    Yandex,         // Yandex Favicon
+    Website,        // 直接从网站获取
+}
+
+impl IconSource {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "google" => IconSource::Google,
+            "yandex" => IconSource::Yandex,
+            "website" => IconSource::Website,
+            _ => IconSource::Auto,
+        }
+    }
+}
+
+/// 根据指定源获取图标URL列表
+fn get_icon_urls_for_source(source: IconSource, domain: &str) -> Vec<String> {
+    match source {
+        IconSource::Google => vec![
+            format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=64", domain),
+            format!("https://www.google.com/s2/favicons?domain={}&sz=64", domain),
+        ],
+        IconSource::Yandex => vec![
+            format!("https://favicon.yandex.net/favicon/{}", domain),
+        ],
+        IconSource::Website => vec![
+            format!("https://{}/favicon.ico", domain),
+            format!("https://{}/favicon.png", domain),
+            format!("https://{}/apple-touch-icon.png", domain),
+        ],
+        IconSource::Auto => vec![
+            format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=64", domain),
+            format!("https://api.vwood.xyz/v1/Favicon/public?domain={}", domain),
+            format!("https://www.google.com/s2/favicons?domain={}&sz=64", domain),
+            format!("https://favicon.yandex.net/favicon/{}", domain),
+            format!("https://{}/favicon.ico", domain),
+            format!("https://{}/favicon.png", domain),
+            format!("https://{}/apple-touch-icon.png", domain),
+        ],
+    }
+}
+
+/// 使用指定源获取 favicon
+pub async fn fetch_favicon_with_source(url: &str, source: IconSource) -> Option<String> {
+    // 自动模式检查缓存
+    if source == IconSource::Auto {
+        if let Some(cached_icon) = get_cached_icon(url) {
+            info!("从缓存中获取图标: {}", url);
+            return Some(cached_icon);
+        }
     }
 
-    // 使用信号量控制并发，避免过多的图标请求同时进行
+    // 使用信号量控制并发
     let _permit = ICON_SEMAPHORE.acquire().await.ok()?;
     
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5)) // 进一步减少超时时间提高响应性
+        .timeout(Duration::from_secs(8))
         .build()
         .ok()?;
 
-    // 提取域名（针对vwood接口获取图标特殊处理）
     let domain = match extract_domain(url) {
         Some(domain) => domain,
-        None => {
-            // 如果无法提取域名，尝试直接使用URL
-            url.to_string()
-        }
+        None => url.to_string(),
     };
-    // 并行尝试多个Favicon来源，谁先成功就用谁
-    let icon_urls = vec![
-        format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=64",domain),
-        format!("https://api.vwood.xyz/v1/Favicon/public?domain={}", domain),
-        format!("https://www.google.com/s2/favicons?domain={}&sz=64", url),
-        format!("https://favicon.yandex.net/favicon/{}", domain),
-        format!("https://{}/favicon.ico", domain),
-        format!("https://{}/favicon.png", domain),
-        format!("https://{}/apple-touch-icon.png", domain),
-    ];
 
-    // 创建所有请求的 Future
-    let mut tasks = Vec::new();
+    let icon_urls = get_icon_urls_for_source(source, &domain);
+
     for icon_url in icon_urls {
-        let client_clone = client.clone();
-        let url_clone = url.to_string();
-        tasks.push(async move {
-            match client_clone.get(&icon_url).send().await {
-                Ok(response) => {
-                    if response.status().is_success() {
-                        if let Ok(bytes) = response.bytes().await {
-                            if !bytes.is_empty() && bytes.len() > 16 {
-                                // 确保图标数据有效
-                                let favicon = format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
-                                return Some((url_clone, favicon));
+        match client.get(&icon_url).send().await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    if let Ok(bytes) = response.bytes().await {
+                        if !bytes.is_empty() && bytes.len() > 16 {
+                            let favicon = format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
+                            // 只有自动模式才缓存结果
+                            if source == IconSource::Auto {
+                                let cached_icon = CachedIcon {
+                                    data: favicon.clone(),
+                                    timestamp: SystemTime::now()
+                                        .duration_since(SystemTime::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs(),
+                                };
+                                cache_icon(url, cached_icon);
                             }
+                            return Some(favicon);
                         }
                     }
                 }
-                Err(_) => {}
             }
-            None
-        });
-    }
-
-    // 并行执行所有请求，只要有一个成功就立即返回
-    let results = futures::future::join_all(tasks).await;
-    for result in results {
-        if let Some((original_url, favicon)) = result {
-            // 缓存结果
-            let cached_icon = CachedIcon {
-                data: favicon.clone(),
-                timestamp: SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
-            };
-            cache_icon(&original_url, cached_icon);
-            return Some(favicon);
+            Err(_) => continue,
         }
     }
 
     None
+}
+
+pub async fn fetch_favicon_async(url: &str) -> Option<String> {
+    fetch_favicon_with_source(url, IconSource::Auto).await
 }
 
 // 获取应用和书签的图标
@@ -424,10 +452,10 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 
     // info!("应用数量: {}, 书签数量: {}", apps_count, bookmarks_count);
 
-    // 如果数据库已有大量数据，则跳过扫描（优化启动速度）
-    // 只有在数据为空时才进行扫描
+    // 如果数据库已有数据，检查是否有缺失图标的记录
     if apps_count > 0 && bookmarks_count > 0 {
-        // info!("数据库已有数据，跳过应用和书签扫描，启动更快");
+        // info!("数据库已有数据，检查缺失图标的记录");
+        load_missing_icons(app_handle.clone());
         return;
     }
 
@@ -566,6 +594,40 @@ where
     count
 }
 
+// 检查并加载缺失图标的应用和书签
+fn load_missing_icons(app_handle: AppHandle) {
+    // 在后台线程中异步加载缺失的图标
+    std::thread::spawn(move || {
+        // 获取所有应用，过滤出缺失图标的
+        let apps_without_icon: Vec<AppInfo> = match db::get_all_apps() {
+            Ok(apps) => apps.into_iter().filter(|app| app.icon.is_none()).collect(),
+            Err(_) => Vec::new(),
+        };
+
+        // 获取所有书签，过滤出缺失图标的
+        let bookmarks_without_icon: Vec<BookmarkInfo> = match db::get_all_bookmarks() {
+            Ok(bookmarks) => bookmarks.into_iter().filter(|b| b.icon.is_none()).collect(),
+            Err(_) => Vec::new(),
+        };
+
+        let apps_count = apps_without_icon.len();
+        let bookmarks_count = bookmarks_without_icon.len();
+
+        if apps_count == 0 && bookmarks_count == 0 {
+            // info!("所有应用和书签都已有图标，无需加载");
+            return;
+        }
+
+        info!(
+            "发现 {} 个应用和 {} 个书签缺失图标，开始后台加载...",
+            apps_count, bookmarks_count
+        );
+
+        // 使用现有的图标加载逻辑
+        load_icons_with_combined_notification(app_handle, apps_without_icon, bookmarks_without_icon);
+    });
+}
+
 // 合并加载应用和书签图标并发送单一通知
 fn load_icons_with_combined_notification(
     _app_handle: AppHandle,
@@ -588,7 +650,7 @@ fn load_icons_with_combined_notification(
             apps,
             |app| app.icon.is_some(),
             |app| extract_app_icon(&app.content),
-            |app, icon| db::update_app_icon(&app.id, icon).map_err(|e| e.to_string()),
+            |app, icon| db::update_app_icon_silent(&app.id, icon).map_err(|e| e.to_string()),
             "应用",
         );
         
@@ -627,7 +689,7 @@ fn load_icons_with_combined_notification(
                 let bookmark_clone = bookmark.clone();
                 tasks.push(async move {
                     if let Some(icon_data) = fetch_favicon_async(&bookmark_clone.content).await {
-                        if db::update_bookmark_icon(&bookmark_clone.id, &icon_data).is_ok() {
+                        if db::update_bookmark_icon_silent(&bookmark_clone.id, &icon_data).is_ok() {
                             return 1;
                         }
                     }
@@ -657,6 +719,12 @@ fn load_icons_with_combined_notification(
 
         info!("图标加载完成: {} 个成功 (应用: {}, 书签: {})", total_loaded, apps_loaded, bookmarks_loaded);
         
-        // 图标加载静默完成，不发送通知（通知已在数据加载到数据库时发送）
+        // 批量加载完成后统一失效缓存（只失效一次，避免日志刷屏）
+        if apps_loaded > 0 {
+            crate::search::invalidate_apps_cache();
+        }
+        if bookmarks_loaded > 0 {
+            crate::search::invalidate_bookmarks_cache();
+        }
     });
 }

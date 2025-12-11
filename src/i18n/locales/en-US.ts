@@ -206,7 +206,13 @@ export default {
     nameRequired: 'Name is required',
     nameLength: 'Name must be 1-100 characters',
     pathRequired: 'Path is required',
-    urlRequired: 'URL is required'
+    urlRequired: 'URL is required',
+    iconSourceAuto: 'Auto',
+    iconSourceAutoDesc: 'Try multiple icon sources automatically',
+    iconSourceGoogleDesc: 'Use Google Favicon service',
+    iconSourceYandexDesc: 'Use Yandex Favicon service',
+    iconSourceWebsite: 'Website Direct',
+    iconSourceWebsiteDesc: 'Fetch icon directly from website'
   },
 
   // Alarms/Reminders

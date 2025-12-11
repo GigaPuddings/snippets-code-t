@@ -67,15 +67,49 @@
             >
               {{ $t('editDialog.extractIcon') }}
             </el-button>
-            <el-button
+            <el-dropdown
               v-if="type === 'bookmark' && formData.content"
-              @click="handleFetchIcon"
-              size="small"
-              :loading="fetchingIcon"
-              class="extract-btn"
+              trigger="click"
+              @command="handleFetchIconWithSource"
+              :disabled="fetchingIcon"
             >
-              {{ $t('editDialog.fetchIcon') }}
-            </el-button>
+              <el-button
+                size="small"
+                :loading="fetchingIcon"
+                class="extract-btn"
+              >
+                {{ $t('editDialog.fetchIcon') }}
+                <Down theme="outline" size="14" :strokeWidth="3" class="ml-1" />
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="auto">
+                    <div class="dropdown-item-content">
+                      <span class="item-label">{{ $t('editDialog.iconSourceAuto') }}</span>
+                      <span class="item-desc">{{ $t('editDialog.iconSourceAutoDesc') }}</span>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item command="google">
+                    <div class="dropdown-item-content">
+                      <span class="item-label">Google</span>
+                      <span class="item-desc">{{ $t('editDialog.iconSourceGoogleDesc') }}</span>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item command="yandex">
+                    <div class="dropdown-item-content">
+                      <span class="item-label">Yandex</span>
+                      <span class="item-desc">{{ $t('editDialog.iconSourceYandexDesc') }}</span>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item command="website">
+                    <div class="dropdown-item-content">
+                      <span class="item-label">{{ $t('editDialog.iconSourceWebsite') }}</span>
+                      <span class="item-desc">{{ $t('editDialog.iconSourceWebsiteDesc') }}</span>
+                    </div>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
         </div>
       </el-form-item>
@@ -106,7 +140,7 @@ import { ref, reactive, watch, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { Application, Browser, Delete, Check } from '@icon-park/vue-next';
+import { Application, Browser, Delete, Check, Down } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -252,7 +286,7 @@ const handleExtractAppIcon = async () => {
   }
 };
 
-const handleFetchIcon = async () => {
+const handleFetchIconWithSource = async (source: string) => {
   if (!formData.content) {
     ElMessage.warning(t('editDialog.enterUrlFirst'));
     return;
@@ -260,7 +294,10 @@ const handleFetchIcon = async () => {
 
   fetchingIcon.value = true;
   try {
-    const icon = await invoke<string>('fetch_favicon', { url: formData.content });
+    const icon = await invoke<string>('fetch_favicon_with_source', { 
+      url: formData.content,
+      source: source 
+    });
     if (icon) {
       formData.icon = icon;
       ElMessage.success(t('editDialog.fetchSuccess'));
@@ -422,6 +459,21 @@ defineExpose({ open });
           }
         }
       }
+    }
+  }
+}
+
+// 下拉菜单样式
+:deep(.el-dropdown-menu) {
+  .dropdown-item-content {
+    @apply flex flex-col gap-0.5 py-1;
+    
+    .item-label {
+      @apply font-medium text-gray-800 dark:text-gray-200;
+    }
+    
+    .item-desc {
+      @apply text-xs text-gray-500 dark:text-gray-400;
     }
   }
 }

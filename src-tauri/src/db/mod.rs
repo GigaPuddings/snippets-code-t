@@ -22,11 +22,11 @@ pub use fragment::{get_categories, add_category, edit_category, delete_category}
 pub use fragment::{get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content, search_fragment_content};
 
 // 重新导出应用相关函数
-pub use apps::{insert_apps, get_all_apps, update_app_icon, clear_apps, count_apps};
+pub use apps::{insert_apps, get_all_apps, update_app_icon, update_app_icon_silent, clear_apps, count_apps};
 pub use apps::{add_app, update_app, delete_app, get_apps};
 
 // 重新导出书签相关函数
-pub use bookmarks::{insert_bookmarks, get_all_bookmarks, update_bookmark_icon, clear_bookmarks, count_bookmarks};
+pub use bookmarks::{insert_bookmarks, get_all_bookmarks, update_bookmark_icon, update_bookmark_icon_silent, clear_bookmarks, count_bookmarks};
 pub use bookmarks::{add_bookmark, update_bookmark, delete_bookmark, get_bookmarks};
 
 // 重新导出搜索引擎相关函数
