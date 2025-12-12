@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use tauri_plugin_opener::OpenerExt;
-use tokio;
 use uuid::Uuid;
 
 // 从URL提取域名作为标题
@@ -362,13 +361,11 @@ fn get_firefox_bookmarks_file() -> Option<PathBuf> {
 
     // 查找默认配置文件
     if let Ok(entries) = glob(&profiles_path) {
-        for entry in entries {
-            if let Ok(path) = entry {
-                let places_file = path.join("places.sqlite");
-                if places_file.exists() {
-                    info!("找到 Firefox 书签文件: {:?}", places_file);
-                    return Some(places_file);
-                }
+        for path in entries.flatten() {
+            let places_file = path.join("places.sqlite");
+            if places_file.exists() {
+                info!("找到 Firefox 书签文件: {:?}", places_file);
+                return Some(places_file);
             }
         }
     }
@@ -406,26 +403,24 @@ fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
                     row.get::<_, String>(2)?,
                 ))
             }) {
-                for row in rows {
-                    if let Ok((id, title_opt, url)) = row {
-                        // 尝试从Firefox数据库直接获取图标
-                        let icon = get_favicon_from_firefox_db(&url, db_path);
-                        let mut title = title_opt.unwrap_or_default();
-                        if title.is_empty() {
-                            if let Some(domain_name) = get_domain_name(&url) {
-                                title = domain_name;
-                            }
+                for (id, title_opt, url) in rows.flatten() {
+                    // 尝试从Firefox数据库直接获取图标
+                    let icon = get_favicon_from_firefox_db(&url, db_path);
+                    let mut title = title_opt.unwrap_or_default();
+                    if title.is_empty() {
+                        if let Some(domain_name) = get_domain_name(&url) {
+                            title = domain_name;
                         }
-
-                        bookmarks.push(BookmarkInfo {
-                            id: id.to_string(),
-                            title,
-                            content: url,
-                            icon, // 如果找到图标则直接保存，否则为None
-                            summarize: "bookmark".to_string(),
-                            usage_count: 0,
-                        });
                     }
+
+                    bookmarks.push(BookmarkInfo {
+                        id: id.to_string(),
+                        title,
+                        content: url,
+                        icon, // 如果找到图标则直接保存，否则为None
+                        summarize: "bookmark".to_string(),
+                        usage_count: 0,
+                    });
                 }
             }
         }

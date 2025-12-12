@@ -1,6 +1,5 @@
 use crate::alarm::AlarmCard;
 use crate::db::DbConnectionManager;
-use rusqlite;
 
 // ============= 提醒卡片相关数据库操作 =============
 

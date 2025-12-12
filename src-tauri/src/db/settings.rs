@@ -1,5 +1,4 @@
 use crate::db::DbConnectionManager;
-use rusqlite;
 use serde::{Deserialize, Serialize};
 use log::info;
 

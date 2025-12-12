@@ -1,5 +1,4 @@
 use crate::db::DbConnectionManager;
-use rusqlite;
 
 // ============= 数据库初始化 =============
 

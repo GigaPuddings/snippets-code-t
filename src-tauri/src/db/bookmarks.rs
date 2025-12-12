@@ -2,7 +2,6 @@ use crate::bookmarks::BookmarkInfo;
 use crate::db::entity::{get_all_entities, update_entity_icon, clear_entities, count_entities, insert_entities};
 use crate::db::DbConnectionManager;
 use crate::search::invalidate_bookmarks_cache;
-use rusqlite;
 
 // ============= 书签相关数据库操作 =============
 

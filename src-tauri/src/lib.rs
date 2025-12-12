@@ -395,19 +395,17 @@ pub fn run() {
             let app_handle_init = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 // 创建托盘图标（首次运行时创建最小化托盘，否则创建完整托盘）
-                #[cfg(all(desktop))]
+                #[cfg(desktop)]
                 {
                     let is_first_run = !db::is_setup_completed_internal(&app_handle_init);
                     if is_first_run {
                         if let Err(e) = tray::create_minimal_tray(&app_handle_init) {
                             log::error!("最小化托盘创建失败: {:?}", e);
                         }
+                    } else if let Err(e) = tray::create_tray(&app_handle_init) {
+                        log::error!("托盘创建失败: {:?}", e);
                     } else {
-                        if let Err(e) = tray::create_tray(&app_handle_init) {
-                            log::error!("托盘创建失败: {:?}", e);
-                        } else {
-                            tray::update_tray_theme_status(&app_handle_init);
-                        }
+                        tray::update_tray_theme_status(&app_handle_init);
                     }
                 }
                 // Register Global Shortcut
@@ -418,7 +416,7 @@ pub fn run() {
                             .notification()
                             .builder()
                             .title("snippets-code")
-                            .body(&format!("快捷键注册失败：{}", e))
+                            .body(format!("快捷键注册失败：{}", e))
                             .show();
                     }
                 }
@@ -472,9 +470,8 @@ pub fn run() {
             });
 
             // 检查是否是自动启动
-            let is_auto_start = match std::env::args().collect::<Vec<String>>() {
-                args => args.iter().any(|arg| arg == "--flag1" || arg == "--flag2"),
-            };
+            let args = std::env::args().collect::<Vec<String>>();
+            let is_auto_start = args.iter().any(|arg| arg == "--flag1" || arg == "--flag2");
 
             if is_auto_start {
                 // 开机自启时不显示窗口，静默启动提升速度

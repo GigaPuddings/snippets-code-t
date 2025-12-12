@@ -2,7 +2,6 @@ use crate::apps::AppInfo;
 use crate::db::entity::{get_all_entities, update_entity_icon, clear_entities, count_entities, insert_entities};
 use crate::db::DbConnectionManager;
 use crate::search::invalidate_apps_cache;
-use rusqlite;
 
 // ============= 应用相关数据库操作 =============
 

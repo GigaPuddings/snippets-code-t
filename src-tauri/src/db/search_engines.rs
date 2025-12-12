@@ -1,6 +1,5 @@
 use crate::search::SearchEngine;
 use crate::db::DbConnectionManager;
-use rusqlite;
 
 // ============= 搜索引擎相关数据库操作 =============
 

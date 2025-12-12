@@ -139,7 +139,7 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                 .map_err(|e| e.to_string())?;
 
             // 再次确保更新状态被重置
-            set_value(&app, UPDATE_AVAILABLE_KEY, false);
+            set_value(app, UPDATE_AVAILABLE_KEY, false);
 
             Ok(())
         } else {

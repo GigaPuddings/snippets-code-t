@@ -172,7 +172,7 @@ fn parse_appx_manifest(manifest_path: &Path) -> Option<UwpAppInfo> {
             }
             Ok(XmlEvent::Characters(content)) => {
                 // 如果之前找到了DisplayName标签但没有Name属性，则使用内容作为名称
-                if display_name.is_none() && content.trim().len() > 0 {
+                if display_name.is_none() && !content.trim().is_empty() {
                     display_name = Some(content);
                 }
             }
@@ -255,8 +255,7 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
     let desktop_paths = [
         dirs::desktop_dir(),
         dirs::document_dir()
-            .map(|p| p.join("..").join("Desktop").canonicalize().ok())
-            .flatten(),
+            .and_then(|p| p.join("..").join("Desktop").canonicalize().ok()),
         Some(Path::new("C:\\Users\\Public\\Desktop").to_path_buf()),
     ];
 
@@ -268,7 +267,7 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
             for entry in entries.filter_map(Result::ok) {
                 let path = entry.path();
 
-                if path.extension().map_or(false, |ext| ext == "lnk") {
+                if path.extension().is_some_and(|ext| ext == "lnk") {
                     // info!("检测到快捷方式: {:?}", path);
 
                     let raw_file_name = path
@@ -283,13 +282,8 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                         .unwrap_or_else(|| path.to_string_lossy().to_string());
 
                     // 检查是否为有效的可执行文件或快捷方式
-                    let is_valid = if target_path.ends_with(".exe") {
-                        Path::new(&target_path).exists()
-                    } else if target_path.ends_with(".lnk") {
-                        true
-                    } else {
-                        false
-                    };
+                    let is_valid = (target_path.ends_with(".exe") && Path::new(&target_path).exists())
+                        || target_path.ends_with(".lnk");
 
                     if is_valid {
                         let lower_target_path = target_path.to_lowercase();
@@ -397,16 +391,16 @@ fn resolve_shortcut_with_powershell(shortcut_path: &Path) -> Result<Option<Strin
     let result = try_with_timeout(
         move || {
             let output = std::process::Command::new("powershell")
-            .args(&[
+            .args([
                 "-NoProfile",
                 "-NonInteractive", // 添加非交互模式，减少显示窗口的机会
                 "-ExecutionPolicy", "Bypass", // 确保脚本可以运行
                 "-Command",
-                &format!(
-                    "try {{ $shortcut = $(New-Object -ComObject WScript.Shell).CreateShortcut('{}'); $shortcut.TargetPath }} catch {{ Write-Output 'ERROR:' $_.Exception.Message }}",
-                    shortcut_path_str.replace("'", "''") // 正确处理路径中的单引号
-                ),
             ])
+            .arg(format!(
+                "try {{ $shortcut = $(New-Object -ComObject WScript.Shell).CreateShortcut('{}'); $shortcut.TargetPath }} catch {{ Write-Output 'ERROR:' $_.Exception.Message }}",
+                shortcut_path_str.replace("'", "''") // 正确处理路径中的单引号
+            ))
             .creation_flags(0x08000000) // CREATE_NO_WINDOW 标志，防止窗口闪现
             .output();
 

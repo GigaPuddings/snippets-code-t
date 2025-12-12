@@ -1,6 +1,5 @@
 use crate::config::{get_value, set_value, DB_PATH_KEY};
 use crate::APP;
-use rusqlite;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -142,7 +141,7 @@ pub async fn backup_database(app_handle: tauri::AppHandle, format: String) -> Re
         .dialog()
         .file()
         .set_title("选择备份保存位置")
-        .set_file_name(&format!("snippets_backup_{}.db", generate_backup_suffix(&format)))
+        .set_file_name(format!("snippets_backup_{}.db", generate_backup_suffix(&format)))
         .blocking_save_file();
     
     match file_path {

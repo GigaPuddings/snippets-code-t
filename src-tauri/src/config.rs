@@ -24,12 +24,14 @@ pub fn get_value(app_handle: &tauri::AppHandle, key: &str) -> Option<Value> {
     let path = PathBuf::from("store.bin");
     let store = StoreBuilder::new(app_handle, path).build();
 
+    #[allow(clippy::map_clone)]
     match store {
         Ok(store) => store.get(key).map(|v| v.clone()),
         Err(_) => None,
     }
 }
 // 设置值
+#[allow(clippy::let_unit_value)]
 pub fn set_value<T: serde::ser::Serialize>(app_handle: &tauri::AppHandle, key: &str, value: T) {
     let path = PathBuf::from("store.bin");
     if let Ok(store) = StoreBuilder::new(app_handle, path).build() {
@@ -53,9 +55,9 @@ pub fn parse_hotkey(hotkey: &str) -> Result<(Option<Modifiers>, Code), String> {
             key => {
                 // 检测是否已经设置了主键（不允许多个主键）
                 if code.is_some() {
-                    return Err(format!(
-                        "不支持多个主键组合（如 A+1）。快捷键格式应为：[修饰键]+单个主键，例如 Ctrl+A 或 Alt+1"
-                    ));
+                    return Err(
+                        "不支持多个主键组合（如 A+1）。快捷键格式应为：[修饰键]+单个主键，例如 Ctrl+A 或 Alt+1".to_string()
+                    );
                 }
                 code = Some(match key {
                     "A" => Code::KeyA,

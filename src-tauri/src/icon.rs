@@ -202,9 +202,7 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
                 }
 
                 // 交换B和R通道 (BGRA -> RGBA)
-                let temp = buffer[i];
-                buffer[i] = buffer[i + 2];
-                buffer[i + 2] = temp;
+                buffer.swap(i, i + 2);
             }
         }
 
@@ -529,7 +527,7 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
                 .notification()
                 .builder()
                 .title("数据索引完成")
-                .body(&format!("已索引 {} 个应用，{} 个书签", apps_loaded, bookmarks_loaded))
+                .body(format!("已索引 {} 个应用，{} 个书签", apps_loaded, bookmarks_loaded))
                 .show();
         }
 

@@ -157,10 +157,8 @@ impl AlarmCard {
                             let target_datetime = target_date.and_time(alarm_time);
                             if let Some(target) = Local.from_local_datetime(&target_datetime).single() {
                                 let diff = target.signed_duration_since(now);
-                                if diff.num_seconds() > 0 {
-                                    if nearest_duration.is_none() || diff < nearest_duration.unwrap() {
-                                        nearest_duration = Some(diff);
-                                    }
+                                if diff.num_seconds() > 0 && (nearest_duration.is_none() || diff < nearest_duration.unwrap()) {
+                                    nearest_duration = Some(diff);
                                 }
                             }
                         }
@@ -191,12 +189,10 @@ impl AlarmCard {
                 let current_weekday = now.format("%a").to_string();
                 let now_time = now.time();
 
-                                    if !self.weekdays.is_empty() {
-                        if self.weekdays.contains(&current_weekday) {
-                            if alarm_time > now_time {
-                            let diff = alarm_time.signed_duration_since(now_time);
-                            return Self::format_duration(diff);
-                        }
+                if !self.weekdays.is_empty() {
+                    if self.weekdays.contains(&current_weekday) && alarm_time > now_time {
+                        let diff = alarm_time.signed_duration_since(now_time);
+                        return Self::format_duration(diff);
                     }
 
                     let mut days_until_next = 7;
@@ -214,7 +210,7 @@ impl AlarmCard {
                             _ => continue,
                         };
 
-                        let mut days = target_day as i32 - current_day as i32;
+                        let mut days = target_day - current_day as i32;
                         if days <= 0 {
                             days += 7;
                         }
@@ -517,7 +513,6 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
             if !should_start_service() {
                 info!("没有剩余的提醒任务，停止服务");
                 SERVICE_RUNNING.store(false, Ordering::SeqCst);
-                return;
             }
         }
     }
@@ -585,7 +580,7 @@ pub fn remind_notification_window(title: String, reminder_time: String) {
             .notification()
             .builder()
             .title("snippets-code")
-            .body(&format!("稍后提醒：{}", title))
+            .body(format!("稍后提醒：{}", title))
             .show();
         info!(
             "稍后提醒完成, 时间: {}",

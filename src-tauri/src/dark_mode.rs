@@ -1,5 +1,5 @@
 use chrono::{Datelike, Local, Timelike};
-use log::{error, info};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -281,7 +281,7 @@ fn calculate_sunrise_sunset(lat: f64, lon: f64, julian_day: f64) -> Result<(f64,
     let sun_app_long = sun_true_long - 0.00569 - 0.00478 * (125.04 - 1934.136 * century).to_radians().sin();
     
     // 计算黄赤交角的平均值 (度)
-    let mean_obliq_ecliptic = 23.0 + (26.0 + ((21.448 - century * (46.815 + century * (0.00059 - century * 0.001813)))) / 60.0) / 60.0;
+    let mean_obliq_ecliptic = 23.0 + (26.0 + (21.448 - century * (46.815 + century * (0.00059 - century * 0.001813))) / 60.0) / 60.0;
     
     // 计算修正的黄赤交角 (度)
     let obliq_corr = mean_obliq_ecliptic + 0.00256 * (125.04 - 1934.136 * century).to_radians().cos();
@@ -328,7 +328,7 @@ fn format_time(hours: f64) -> String {
         h -= 24;
     }
     
-    format!("{:02}:{:02}", h, m.max(0).min(59))
+    format!("{:02}:{:02}", h, m.clamp(0, 59))
 }
 
 /// 保存配置（使用数据库存储）
@@ -384,6 +384,37 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
 
     let app_handle_clone = app_handle.clone();
     tauri::async_runtime::spawn(async move {
+        // 首次启动时检查是否需要自动获取位置信息
+        let mut config = load_config(&app_handle_clone);
+        if config.theme_mode == ThemeMode::Schedule 
+            && config.schedule_type == ScheduleType::SunBased 
+            && config.latitude.is_none() 
+        {
+            info!("首次启动，自动获取位置信息...");
+            if let Ok(location) = get_location_by_ip().await {
+                config.latitude = Some(location.latitude);
+                config.longitude = Some(location.longitude);
+                config.timezone_offset = Some(location.timezone_offset);
+                config.location_name = Some(format!("{}, {}", location.city, location.country));
+                
+                // 保存更新后的配置
+                if let Err(e) = save_config(&app_handle_clone, &config) {
+                    error!("保存位置信息失败: {}", e);
+                } else {
+                    info!("自动获取位置信息成功: {}, {}", location.city, location.country);
+                }
+            } else {
+                warn!("自动获取位置信息失败，将使用默认时间");
+            }
+        }
+        
+        // 立即执行一次主题检查（不等待第一个interval）
+        if config.theme_mode == ThemeMode::Schedule {
+            if let Err(e) = check_and_switch_theme(&app_handle_clone, &config).await {
+                error!("首次主题切换失败: {}", e);
+            }
+        }
+        
         let mut interval = time::interval(Duration::from_secs(60)); // 每分钟检查一次
 
         loop {

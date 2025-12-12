@@ -6,11 +6,13 @@ use tauri::{
     Emitter, Listener, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
     WindowEvent,
 };
+
+/// 窗口准备回调类型别名，用于简化复杂类型
+type WindowReadyCallback = Box<dyn FnOnce(&WebviewWindow) + Send + 'static>;
 // use crate::config::get_adjusted_position;
 use base64::{engine::general_purpose, Engine as _};
 use image::GenericImageView;
 use mouse_position::mouse_position::Mouse;
-use serde_json;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::thread;
@@ -21,8 +23,6 @@ use tauri_plugin_dialog::DialogExt;
 use selection::get_text;
 use tauri::image::Image;
 use tauri_plugin_clipboard_manager::ClipboardExt;
-use urlencoding;
-use uuid;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, EnumWindows, GetWindowRect, IsWindowVisible, GetWindowTextW,
@@ -250,7 +250,7 @@ impl WindowManager {
     pub fn get_or_create_with_behavior(
         spec: &WindowSpec,
         behavior: WindowShowBehavior,
-        on_ready: Option<Box<dyn FnOnce(&WebviewWindow) + Send + 'static>>,
+        on_ready: Option<WindowReadyCallback>,
     ) -> Result<WebviewWindow, String> {
         let _app = APP.get().ok_or("无法获取应用句柄")?;
         
@@ -288,7 +288,7 @@ impl WindowManager {
     fn handle_smart_toggle(
         window: &WebviewWindow,
         ready_event: Option<&'static str>,
-        on_ready: Option<Box<dyn FnOnce(&WebviewWindow) + Send + 'static>>,
+        on_ready: Option<WindowReadyCallback>,
     ) -> Result<(), String> {
         if window.is_visible().unwrap_or(false) {
             if window.is_focused().unwrap_or(false) {
@@ -323,7 +323,7 @@ impl WindowManager {
     fn handle_always_show(
         window: &WebviewWindow,
         ready_event: Option<&'static str>,
-        on_ready: Option<Box<dyn FnOnce(&WebviewWindow) + Send + 'static>>,
+        on_ready: Option<WindowReadyCallback>,
     ) -> Result<(), String> {
         match window.show() {
             Ok(_) => {
@@ -376,7 +376,7 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
             info!("Window exists: {}", label);
             // 更新窗口位置到鼠标位置
             // let _ = v.set_position(tauri::PhysicalPosition::new(adjusted_x, adjusted_y));
-            return window;
+            window
         }
         None => {
             // info!("Create new window: {}", label);
@@ -407,9 +407,7 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
                 builder = builder.decorations(false);
             }
 
-            let window = builder.build().expect("Failed to build window");
-
-            window
+            builder.build().expect("Failed to build window")
         }
     }
 }
@@ -731,7 +729,7 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
         };
         
         // 如果有选中文本，在窗口准备完成后发送
-        let on_ready: Option<Box<dyn FnOnce(&WebviewWindow) + Send + 'static>> = text.map(|txt| {
+        let on_ready: Option<WindowReadyCallback> = text.map(|txt| {
             Box::new(move |window: &WebviewWindow| {
                 info!("翻译窗口准备完成，发送选中的文本");
                 let _ = window.emit(
@@ -857,48 +855,46 @@ pub async fn open_preview_window(snippet_data: String, preview_x: f64, preview_y
                 pos_y += main_y;
             }
 
-            if let Ok(monitor) = main_window.current_monitor() {
-                if let Some(monitor) = monitor {
-                    let screen_size = monitor.size();
-                    let screen_pos = monitor.position();
-                    let scale = monitor.scale_factor();
-                    
-                    let screen_width = screen_size.width as f64 / scale;
-                    let screen_height = screen_size.height as f64 / scale;
-                    let screen_x = screen_pos.x as f64 / scale;
-                    let screen_y = screen_pos.y as f64 / scale;
-                    
-                    // log::info!("屏幕信息: {}x{} @ ({}, {}), scale={}", 
-                    //     screen_width, screen_height, screen_x, screen_y, scale);
-                    
-                    // 检查右侧是否有足够空间
-                    if pos_x + preview_width > screen_x + screen_width {
-                        // 右侧空间不足，尝试放到搜索窗口左侧
-                        if let Ok(main_pos) = main_window.outer_position() {
-                            let main_x = main_pos.x as f64 / scale;
-                            let left_x = main_x - preview_width - 4.0;
-                            if left_x >= screen_x {
-                                pos_x = left_x;
-                                log::info!("预览窗口移至左侧: x={}", pos_x);
-                            } else {
-                                // 左侧也不够，贴着屏幕右边缘
-                                pos_x = screen_x + screen_width - preview_width - 10.0;
-                                log::info!("预览窗口贴右边缘: x={}", pos_x);
-                            }
+            if let Ok(Some(monitor)) = main_window.current_monitor() {
+                let screen_size = monitor.size();
+                let screen_pos = monitor.position();
+                let scale = monitor.scale_factor();
+                
+                let screen_width = screen_size.width as f64 / scale;
+                let screen_height = screen_size.height as f64 / scale;
+                let screen_x = screen_pos.x as f64 / scale;
+                let screen_y = screen_pos.y as f64 / scale;
+                
+                // log::info!("屏幕信息: {}x{} @ ({}, {}), scale={}", 
+                //     screen_width, screen_height, screen_x, screen_y, scale);
+                
+                // 检查右侧是否有足够空间
+                if pos_x + preview_width > screen_x + screen_width {
+                    // 右侧空间不足，尝试放到搜索窗口左侧
+                    if let Ok(main_pos) = main_window.outer_position() {
+                        let main_x = main_pos.x as f64 / scale;
+                        let left_x = main_x - preview_width - 4.0;
+                        if left_x >= screen_x {
+                            pos_x = left_x;
+                            log::info!("预览窗口移至左侧: x={}", pos_x);
+                        } else {
+                            // 左侧也不够，贴着屏幕右边缘
+                            pos_x = screen_x + screen_width - preview_width - 10.0;
+                            log::info!("预览窗口贴右边缘: x={}", pos_x);
                         }
                     }
-                    
-                    // 检查底部是否有足够空间
-                    if pos_y + preview_height > screen_y + screen_height {
-                        // 底部空间不足，向上调整
-                        pos_y = screen_y + screen_height - preview_height - 10.0;
-                        log::info!("预览窗口向上调整: y={}", pos_y);
-                    }
-                    
-                    // 确保不超出顶部
-                    if pos_y < screen_y {
-                        pos_y = screen_y + 10.0;
-                    }
+                }
+                
+                // 检查底部是否有足够空间
+                if pos_y + preview_height > screen_y + screen_height {
+                    // 底部空间不足，向上调整
+                    pos_y = screen_y + screen_height - preview_height - 10.0;
+                    log::info!("预览窗口向上调整: y={}", pos_y);
+                }
+                
+                // 确保不超出顶部
+                if pos_y < screen_y {
+                    pos_y = screen_y + 10.0;
                 }
             }
         }
@@ -1179,6 +1175,8 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                                 // 取消忽略光标
                                 let _ = window_clone.set_ignore_cursor_events(false);
                                 let _ = window_clone.hide();
+                                // 同时关闭预览窗口
+                                let _ = close_preview_window();
                             }
                         }
                     } else {
@@ -2304,7 +2302,7 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 let mut current_hwnd_result = GetTopWindow(None);
                 
                 while let Ok(current_hwnd) = current_hwnd_result {
-                    if current_hwnd.0 == std::ptr::null_mut() {
+                    if current_hwnd.0.is_null() {
                         break;
                     }
                     
@@ -2336,13 +2334,13 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 }
                 
                 if let Ok(parent) = GetParent(hwnd) {
-                    if parent.0 != std::ptr::null_mut() && (ex_style & WS_EX_APPWINDOW.0) == 0 {
+                    if !parent.0.is_null() && (ex_style & WS_EX_APPWINDOW.0) == 0 {
                         return false;
                     }
                 }
                 
                 if let Ok(owner) = GetWindow(hwnd, GW_OWNER) {
-                    if owner.0 != std::ptr::null_mut() && (ex_style & WS_EX_APPWINDOW.0) == 0 {
+                    if !owner.0.is_null() && (ex_style & WS_EX_APPWINDOW.0) == 0 {
                         return false;
                     }
                 }

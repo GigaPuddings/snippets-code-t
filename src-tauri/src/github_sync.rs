@@ -3,7 +3,6 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose, Engine as _};
-use reqwest;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::Emitter;
@@ -52,7 +51,7 @@ pub async fn get_user_settings() -> Result<UserSettings, String> {
                 auto_restore_on_start: row.get::<_, i32>(5).unwrap_or(0) == 1,
             })
         })
-        .unwrap_or_else(|_| UserSettings {
+        .unwrap_or(UserSettings {
             github_token: None,
             github_username: None,
             github_repo: None,

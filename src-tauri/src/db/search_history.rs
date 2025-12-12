@@ -1,6 +1,5 @@
 use crate::db::DbConnectionManager;
 use chrono::Local;
-use rusqlite;
 use serde::{Deserialize, Serialize};
 
 // ============= 搜索历史相关数据库操作 =============

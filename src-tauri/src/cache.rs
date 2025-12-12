@@ -100,17 +100,15 @@ pub async fn clear_cache() -> Result<String, String> {
     };
 
     if config_path.exists() {
-        for entry in fs::read_dir(&config_path).map_err(|e| format!("无法读取配置目录: {}", e))?
+        for entry in fs::read_dir(&config_path).map_err(|e| format!("无法读取配置目录: {}", e))?.flatten()
         {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                if path.is_file() {
-                    // 删除文件
-                    let _ = safe_remove_file(&path, 3);
-                } else if path.is_dir() {
-                    // 删除目录
-                    let _ = safe_remove_dir(&path, 3);
-                }
+            let path = entry.path();
+            if path.is_file() {
+                // 删除文件
+                let _ = safe_remove_file(&path, 3);
+            } else if path.is_dir() {
+                // 删除目录
+                let _ = safe_remove_dir(&path, 3);
             }
         }
     }
@@ -119,15 +117,13 @@ pub async fn clear_cache() -> Result<String, String> {
     let cache_path = app.path().app_cache_dir().unwrap();
     info!("用户缓存数据路径: {}", cache_path.display());
     if cache_path.exists() {
-        for entry in fs::read_dir(&cache_path).map_err(|e| format!("无法读取缓存目录: {}", e))?
+        for entry in fs::read_dir(&cache_path).map_err(|e| format!("无法读取缓存目录: {}", e))?.flatten()
         {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                if path.is_file() {
-                    let _ = safe_remove_file(&path, 3);
-                } else if path.is_dir() {
-                    let _ = safe_remove_dir(&path, 3);
-                }
+            let path = entry.path();
+            if path.is_file() {
+                let _ = safe_remove_file(&path, 3);
+            } else if path.is_dir() {
+                let _ = safe_remove_dir(&path, 3);
             }
         }
     }

@@ -1,6 +1,5 @@
 use crate::{apps::AppInfo, bookmarks::BookmarkInfo};
 use crate::db::DbConnectionManager;
-use rusqlite;
 
 // ============= 通用数据库实体框架 =============
 
