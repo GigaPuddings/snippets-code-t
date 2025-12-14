@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
-import modal from '@/utils/modal';
+import { logger } from '@/utils/logger';
 export const useConfigurationStore = defineStore('configuration', {
   state: (): StoreState => ({
     id: '', // 搜索框的 id
@@ -30,8 +30,7 @@ export const useConfigurationStore = defineStore('configuration', {
       try {
         this.dbPath = (await invoke('get_db_path')) || '';
       } catch (error) {
-        console.error('获取数据库路径失败:', error);
-        modal.msg('获取数据库路径失败', 'error');
+        logger.error('获取数据库路径失败:', error);
       }
 
       // 获取快捷键配置
@@ -58,29 +57,26 @@ export const useConfigurationStore = defineStore('configuration', {
               'get_selection_translate_shortcut'
             );
           } catch (e) {
-            console.error('获取划词翻译快捷键失败，可能尚未设置');
+            logger.error('获取划词翻译快捷键失败，可能尚未设置');
             this.selectionTranslateHotkey = '';
           }
         }
       } catch (error) {
-        console.error('获取快捷键配置失败:', error);
-        modal.msg('获取快捷键配置失败', 'error');
+        logger.error('获取快捷键配置失败:', error);
       }
 
       // 获取自动检查更新设置
       try {
         this.autoUpdateCheck = await invoke('get_auto_update_check');
       } catch (error) {
-        console.error('获取自动检查失败:', error);
-        modal.msg('获取自动检查失败', 'error');
+        logger.error('获取自动检查失败:', error);
       }
 
       // 获取自动失焦隐藏设置
       try {
         this.autoHideOnBlur = await invoke('get_auto_hide_on_blur');
       } catch (error) {
-        console.error('获取自动失焦隐藏设置:', error);
-        modal.msg('获取自动失焦隐藏设置失败', 'error');
+        logger.error('获取自动失焦隐藏设置:', error);
       }
 
       // 从后端获取语言设置（现在存储在数据库中）
@@ -90,7 +86,7 @@ export const useConfigurationStore = defineStore('configuration', {
           this.language = language;
         }
       } catch (error) {
-        console.error('获取语言设置失败:', error);
+        logger.error('获取语言设置失败:', error);
       }
     },
 

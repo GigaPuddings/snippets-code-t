@@ -219,7 +219,8 @@ import {
 } from '@icon-park/vue-next';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import {
-  getUserSettings,
+  getUserSettingsCached,
+  getGitHubUserCached,
   saveUserSettings,
   verifyGitHubToken,
   syncToGitHub,
@@ -270,12 +271,12 @@ const settings = ref<UserSettings>({
 // 加载用户设置
 const loadSettings = async () => {
   try {
-    settings.value = await getUserSettings();
+    settings.value = await getUserSettingsCached();
     
     // 如果已有 Token，自动验证
     if (settings.value.github_token) {
       try {
-        userInfo.value = await verifyGitHubToken(settings.value.github_token);
+        userInfo.value = await getGitHubUserCached(settings.value.github_token);
         isLoggedIn.value = true;
       } catch (error) {
         // Token 失效，清除设置

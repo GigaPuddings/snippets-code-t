@@ -173,7 +173,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
-import { getUserSettings, type UserSettings, type GitHubUser } from '@/api/github';
+import { getUserSettingsCached, type UserSettings, type GitHubUser } from '@/api/github';
 
 const { t } = useI18n();
 
@@ -201,7 +201,7 @@ const isLoggedIn = ref(false);
 // 加载用户信息
 const loadUserInfo = async () => {
   try {
-    const settings: UserSettings = await getUserSettings();
+    const settings: UserSettings = await getUserSettingsCached();
     if (settings.github_token && settings.github_username) {
       isLoggedIn.value = true;
       // 从设置中获取用户名，构建头像URL（GitHub头像URL格式）
