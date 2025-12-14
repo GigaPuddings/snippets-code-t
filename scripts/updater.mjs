@@ -2,6 +2,7 @@ import { createRequire } from 'module'
 import { Octokit } from '@octokit/rest'
 import fs from 'fs'
 import path from 'path'
+import { execFileSync } from 'child_process'
 
 const require = createRequire(import.meta.url)
 const tauriConfig = require('../src-tauri/tauri.conf.json')
@@ -13,6 +14,31 @@ const octokit = new Octokit({ auth: token })
 // GitHub 仓库信息
 const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
 const tag = process.env.GITHUB_REF_NAME
+
+function getReleaseNotes() {
+  try {
+    const scriptPath = path.resolve('./scripts/format-release-notes.mjs')
+    const output = execFileSync(process.execPath, [scriptPath, '--raw'], {
+      encoding: 'utf8',
+    })
+    const notes = output.trimEnd()
+    if (notes) return notes
+  } catch (error) {
+    console.warn('⚠️  Failed to get release notes from format-release-notes.mjs:', error?.message || error)
+  }
+
+  try {
+    const notesPath = path.resolve('./RELEASE_NOTES.md')
+    if (fs.existsSync(notesPath)) {
+      const notes = fs.readFileSync(notesPath, 'utf8').trimEnd()
+      if (notes) return notes
+    }
+  } catch (error) {
+    console.warn('⚠️  Failed to read RELEASE_NOTES.md:', error?.message || error)
+  }
+
+  return `Version ${tauriConfig.version}`
+}
 
 async function main() {
   try {
@@ -48,8 +74,7 @@ async function main() {
     // 读取签名文件
     const signature = fs.readFileSync(sigFile, 'utf8')
 
-    // 使用简单的发布说明
-    const releaseNotes = `Version ${tauriConfig.version}`
+    const releaseNotes = getReleaseNotes()
 
     // 创建 latest.json
     const latestJson = {

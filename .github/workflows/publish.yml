@@ -38,7 +38,7 @@ jobs:
       - name: Read Release Notes
         id: release_notes
         run: |
-          $content = Get-Content -Path "RELEASE_NOTES.md" -Raw
+          $content = node scripts/format-release-notes.mjs --raw
           echo "RELEASE_BODY<<EOF" >> $env:GITHUB_OUTPUT
           echo $content >> $env:GITHUB_OUTPUT
           echo "EOF" >> $env:GITHUB_OUTPUT
