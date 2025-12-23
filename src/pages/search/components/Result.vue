@@ -96,6 +96,7 @@ import { useFocusMode } from '@/hooks/useFocusMode';
 import { processTemplate } from '@/utils/templateParser';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 
 const { t } = useI18n();
 
@@ -170,7 +171,7 @@ watch(selectedId, (newId) => {
 });
 
 // 监听结果变化，更新是否可以切换到列表
-watch(() => filteredResults.value.length, (length) => {
+watch(() => props.results.length, (length) => {
   setCanSwitchToList(length > 0);
 }, { immediate: true });
 
@@ -479,16 +480,19 @@ const handleIconError = (item: ContentType) => {
 
 // 进入列表模式
 const enterListMode = () => {
-  if (filteredResults.value.length > 0) {
+  // 如果当前分类没有结果，自动切换到"全部"分类
+  if (filteredResults.value.length === 0 && props.results.length > 0) {
+    switchTab('text');
+  }
+  // 只在有结果时才进入列表模式
+  if (filteredResults.value.length > 0 || props.results.length > 0) {
     setMode('LIST');
   }
 };
 
 // 进入分类标签模式
 const enterTabMode = () => {
-  if (filteredResults.value.length > 0) {
-    setMode('TAB');
-  }
+  setMode('TAB');
 };
 
 // 返回搜索框模式
