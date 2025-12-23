@@ -300,8 +300,18 @@ async fn stop_dark_mode_service() -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 根据环境选择插件配置：
+    // 开发环境(debug)：保留右键菜单、开发者工具和刷新
+    // 生产环境(release)：禁用所有默认行为
+    let prevent_default = if cfg!(debug_assertions) {
+        tauri_plugin_prevent_default::debug()
+    } else {
+        tauri_plugin_prevent_default::init()
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(prevent_default)
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_autostart::init(
