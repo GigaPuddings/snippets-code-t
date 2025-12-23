@@ -1,5 +1,4 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
-use log::info;
 use lru::LruCache;
 use once_cell::sync::Lazy;
 use std::io::Cursor;
@@ -63,13 +62,7 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
 
     // 验证路径是否存在且为有效文件
     let path = std::path::Path::new(app_path);
-    if !path.exists() {
-        info!("图标提取失败 - 路径不存在: {}", app_path);
-        return None;
-    }
-    
-    if !path.is_file() {
-        info!("图标提取失败 - 路径不是文件: {}", app_path);
+    if !path.exists() || !path.is_file() {
         return None;
     }
 
@@ -84,10 +77,7 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
                 path_str
             }
         },
-        Err(e) => {
-            info!("无法规范化路径 {}: {:?}", app_path, e);
-            app_path.to_string()
-        }
+        Err(_) => app_path.to_string()
     };
 
     // info!("提取应用图标: {}", canonical_path);
@@ -103,10 +93,7 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
         let image_factory: IShellItemImageFactory =
             match SHCreateItemFromParsingName(&path_hstring, None) {
                 Ok(item) => item,
-                Err(e) => {
-                    info!("创建Shell项失败 ({}): {:?}", canonical_path, e);
-                    return None;
-                }
+                Err(_) => return None,
             };
 
         // 定义图标大小 (48x48 - 更大以获得更好的图标)
@@ -116,18 +103,12 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
         let h_bitmap: HBITMAP =
             match image_factory.GetImage(size, SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY) {
                 Ok(bitmap) => bitmap,
-                Err(e) => {
-                    info!("获取图标位图失败: {:?}", e);
-                    return None;
-                }
+                Err(_) => return None,
             };
-
-        // info!("成功获取位图句柄");
 
         // 创建设备上下文
         let hdc = CreateCompatibleDC(None);
         if hdc.is_invalid() {
-            info!("创建兼容DC失败");
             let _ = DeleteObject(HGDIOBJ(h_bitmap.0));
             return None;
         }
@@ -174,7 +155,6 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
         DeleteObject(HGDIOBJ(h_bitmap.0)).unwrap();
 
         if result == 0 {
-            info!("获取位图数据失败");
             return None;
         }
 
@@ -222,14 +202,10 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
 
             let mut writer = match encoder.write_header() {
                 Ok(writer) => writer,
-                Err(e) => {
-                    info!("PNG编码器创建失败: {:?}", e);
-                    return None;
-                }
+                Err(_) => return None,
             };
 
-            if let Err(e) = writer.write_image_data(&buffer) {
-                info!("PNG编码失败: {:?}", e);
+            if writer.write_image_data(&buffer).is_err() {
                 return None;
             }
         }
@@ -277,11 +253,8 @@ fn get_cached_icon(key: &str) -> Option<String> {
 // 将图标存储在缓存中
 fn cache_icon(key: &str, icon: CachedIcon) {
     let mut cache = ICON_CACHE.lock().unwrap();
-    // LRU 使用 put 方法，会自动淘汰最少使用的项
     cache.put(key.to_string(), icon.clone());
-    if let Err(e) = db::insert_icon_to_cache(key, &icon) {
-        info!("Failed to cache icon in db: {}", e);
-    }
+    let _ = db::insert_icon_to_cache(key, &icon);
 }
 
 // 从商店加载图标缓存
@@ -380,10 +353,8 @@ fn get_icon_urls_for_source(source: IconSource, domain: &str) -> Vec<String> {
 
 /// 使用指定源获取 favicon
 pub async fn fetch_favicon_with_source(url: &str, source: IconSource) -> Option<String> {
-    // 自动模式检查缓存
     if source == IconSource::Auto {
         if let Some(cached_icon) = get_cached_icon(url) {
-            info!("从缓存中获取图标: {}", url);
             return Some(cached_icon);
         }
     }
@@ -457,10 +428,8 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         return;
     }
 
-    // 首次启动（setup向导中）完全跳过扫描，避免重启中断扫描
     let is_first_run = !db::is_setup_completed_internal(app_handle);
     if is_first_run {
-        info!("首次启动，跳过扫描，等待 setup 完成后重启再扫描");
         return;
     }
 
@@ -480,35 +449,21 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     let mut bookmarks_to_load = Vec::new();
 
     if apps_count == 0 {
-        info!("数据库中没有应用数据，开始扫描应用...");
         crate::window::emit_scan_progress("正在扫描本地应用...", 0, 100, "");
-        apps_to_load = get_installed_apps(); // 应用去重已在 apps.rs 中完成
-        
-        // 存储应用到数据库
+        apps_to_load = get_installed_apps();
         crate::window::emit_scan_progress("正在保存应用数据...", 50, 100, &format!("共 {} 个应用", apps_to_load.len()));
         if let Err(e) = db::insert_apps(&apps_to_load) {
-            info!("插入应用到数据库失败: {}", e);
-        } else {
-            info!("成功插入 {} 个应用到数据库", apps_to_load.len());
+            log::error!("插入应用到数据库失败: {}", e);
         }
-    } else {
-        info!("数据库中已存在 {} 个应用，跳过应用扫描", apps_count);
     }
 
     if bookmarks_count == 0 {
-        info!("数据库中没有书签数据，开始扫描书签...");
         crate::window::emit_scan_progress("正在扫描浏览器书签...", 60, 100, "");
-        bookmarks_to_load = get_browser_bookmarks(); // 书签去重已在 bookmarks.rs 中完成（基于URL）
-        
-        // 存储书签到数据库
+        bookmarks_to_load = get_browser_bookmarks();
         crate::window::emit_scan_progress("正在保存书签数据...", 90, 100, &format!("共 {} 个书签", bookmarks_to_load.len()));
         if let Err(e) = db::insert_bookmarks(&bookmarks_to_load) {
-            info!("插入书签到数据库失败: {}", e);
-        } else {
-            info!("成功插入 {} 个书签到数据库", bookmarks_to_load.len());
+            log::error!("插入书签到数据库失败: {}", e);
         }
-    } else {
-        info!("数据库中已存在 {} 个书签，跳过书签扫描", bookmarks_count);
     }
 
     // 发送扫描完成事件
@@ -531,10 +486,6 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
                 .show();
         }
 
-        info!(
-            "数据加载完成，共 {} 个项目已添加到数据库 (应用: {}, 书签: {})",
-            total_loaded, apps_loaded, bookmarks_loaded
-        );
     } else if show_progress {
         // 如果没有找到数据但创建了进度窗口，也发送完成事件
         crate::window::emit_scan_complete(0, 0);
@@ -561,34 +512,23 @@ pub fn load_icons_generic<T>(
     has_icon: impl Fn(&T) -> bool,
     fetch_icon: impl Fn(&T) -> Option<String>,
     update_db: impl Fn(&T, &str) -> Result<(), String>,
-    item_name: &str,
+    _item_name: &str,
 ) -> usize 
 where
     T: std::marker::Send,
 {
     let mut count = 0;
-    let total = items.len();
-
-    info!("开始加载{}图标: {} 个{}", item_name, total, item_name);
 
     for item in items {
-        // 只处理没有图标的项目
         if has_icon(&item) {
             continue;
         }
-
-        // 获取图标数据
         if let Some(icon_data) = fetch_icon(&item) {
-            // 更新到数据库
-            if let Err(e) = update_db(&item, &icon_data) {
-                info!("更新{}图标到数据库失败: {}", item_name, e);
-            } else {
+            if update_db(&item, &icon_data).is_ok() {
                 count += 1;
             }
         }
     }
-
-    info!("已完成加载{}图标: {} 个成功", item_name, count);
     count
 }
 
@@ -616,10 +556,6 @@ fn load_missing_icons(app_handle: AppHandle) {
             return;
         }
 
-        info!(
-            "发现 {} 个应用和 {} 个书签缺失图标，开始后台加载...",
-            apps_count, bookmarks_count
-        );
 
         // 使用现有的图标加载逻辑
         load_icons_with_combined_notification(app_handle, apps_without_icon, bookmarks_without_icon);
@@ -671,8 +607,6 @@ fn load_icons_with_combined_notification(
             }
         };
 
-        let total = bookmarks.len();
-        info!("开始加载书签图标: {} 个书签", total);
 
         // 并行处理所有书签图标加载
         let count = runtime.block_on(async {
@@ -700,7 +634,6 @@ fn load_icons_with_combined_notification(
             results.into_iter().sum::<usize>()
         });
 
-        info!("已完成加载书签图标: {} 个成功", count);
         *bookmark_count_clone.lock().unwrap() = count;
     });
 
@@ -713,11 +646,6 @@ fn load_icons_with_combined_notification(
         // 获取加载的图标数量
         let apps_loaded = *app_count.lock().unwrap();
         let bookmarks_loaded = *bookmark_count.lock().unwrap();
-        let total_loaded = apps_loaded + bookmarks_loaded;
-
-        info!("图标加载完成: {} 个成功 (应用: {}, 书签: {})", total_loaded, apps_loaded, bookmarks_loaded);
-        
-        // 批量加载完成后统一失效缓存（只失效一次，避免日志刷屏）
         if apps_loaded > 0 {
             crate::search::invalidate_apps_cache();
         }

@@ -16,7 +16,9 @@ pub struct DbConnectionManager;
 impl DbConnectionManager {
     /// 获取数据库连接并统一设置优化参数
     pub fn get() -> Result<rusqlite::Connection, rusqlite::Error> {
-        let app = APP.get().unwrap();
+        let app = APP.get().ok_or_else(|| {
+            rusqlite::Error::InvalidPath("APP 未初始化".into())
+        })?;
         let db_path = get_database_path(app);
         let conn = rusqlite::Connection::open(db_path)?;
         
@@ -106,8 +108,10 @@ pub fn get_database_path_str(app_handle: &tauri::AppHandle) -> String {
 
 #[tauri::command]
 pub fn get_db_path() -> String {
-    let app = APP.get().unwrap();
-    get_database_path_str(app)
+    match APP.get() {
+        Some(app) => get_database_path_str(app),
+        None => String::new(),
+    }
 }
 
 /// 获取数据目录信息（用于设置界面显示）

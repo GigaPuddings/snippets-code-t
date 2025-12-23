@@ -2,7 +2,6 @@ use crate::db;
 use crate::icon;
 use crate::APP;
 use glob::glob;
-use log::info;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tauri_plugin_opener::OpenerExt;
@@ -249,7 +248,6 @@ fn get_uwp_apps() -> Vec<AppInfo> {
 fn get_desktop_shortcuts() -> Vec<AppInfo> {
     let mut apps = Vec::new();
 
-    info!("正在检索桌面快捷方式...");
 
     // 尝试获取公共桌面和用户桌面路径
     let desktop_paths = [
@@ -260,7 +258,6 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
     ];
 
     for desktop_path in desktop_paths.iter().flatten() {
-        info!("检索桌面目录: {:?}", desktop_path);
 
         // 查找所有.lnk快捷方式
         if let Ok(entries) = fs::read_dir(desktop_path) {
@@ -289,17 +286,11 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                         let lower_target_path = target_path.to_lowercase();
                         let lower_file_name = file_name.to_lowercase();
 
-                        if lower_target_path.contains("uninstall")
-                            || lower_target_path.contains("unins")
-                            || lower_file_name.contains("uninstall")
-                            || lower_file_name.contains("remove")
+                        if !lower_target_path.contains("uninstall")
+                            && !lower_target_path.contains("unins")
+                            && !lower_file_name.contains("uninstall")
+                            && !lower_file_name.contains("remove")
                         {
-                            info!(
-                                "跳过卸载程序快捷方式: {} -> {}",
-                                file_name, target_path
-                            );
-                        } else {
-                            info!("添加快捷方式应用: {} (原始: {}) -> {}", file_name, raw_file_name, target_path);
                             apps.push(AppInfo {
                                 id: Uuid::new_v4().to_string(),
                                 title: file_name,
@@ -314,16 +305,11 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
             }
         }
     }
-
-    info!("从桌面快捷方式中发现 {} 个应用程序", apps.len());
     apps
 }
 
 // 解析快捷方式获取目标路径
 fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
-    info!("尝试解析快捷方式: {:?}", shortcut_path);
-
-    let shortcut_path_str = shortcut_path.to_string_lossy().to_string();
 
     let filename = shortcut_path
         .file_stem()
@@ -372,14 +358,8 @@ fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
             // info!("成功解析快捷方式: {} -> {}", shortcut_path_str, path);
             Some(path)
         }
-        Ok(None) => {
-            info!("快捷方式没有有效目标: {}", shortcut_path_str);
-            None
-        }
-        Err(e) => {
-            info!("解析快捷方式出错 {}: {}", shortcut_path_str, e);
-            None
-        }
+        Ok(None) => None,
+        Err(_) => None,
     }
 }
 
@@ -459,7 +439,6 @@ where
 fn get_windows_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
 
-    info!("正在检索Windows内置应用...");
 
     // Windows常用内置应用的路径 - 增加更多变体以提高检测成功率
     let windows_apps = [
@@ -480,7 +459,6 @@ fn get_windows_apps() -> Vec<AppInfo> {
                 if let Some(first_match) = matches.filter_map(Result::ok).next() {
                     let path_str = first_match.to_string_lossy().to_string();
                     if Path::new(&path_str).exists() {
-                        info!("找到Windows应用: {} -> {}", name, path_str);
 
                         apps.push(AppInfo {
                             id: Uuid::new_v4().to_string(),
@@ -494,7 +472,6 @@ fn get_windows_apps() -> Vec<AppInfo> {
                 }
             }
         } else if Path::new(path).exists() {
-            info!("找到Windows应用: {} -> {}", name, path);
 
             apps.push(AppInfo {
                 id: Uuid::new_v4().to_string(),
@@ -515,7 +492,6 @@ fn get_windows_apps() -> Vec<AppInfo> {
     let office_apps = get_office_apps();
     apps.extend(office_apps);
 
-    info!("找到 {} 个Windows内置应用", apps.len());
     apps
 }
 
@@ -552,7 +528,6 @@ fn get_app_path_from_registry(exe_name: &str) -> Option<String> {
 fn get_office_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
 
-    info!("正在检索Microsoft Office应用...");
 
     // 定义Office版本号和应用
     let office_versions = [
@@ -578,7 +553,6 @@ fn get_office_apps() -> Vec<AppInfo> {
         if let Some(path) = get_app_path_from_registry(exe_name) {
             // 再次验证路径确实存在和可访问
             if Path::new(&path).exists() && Path::new(&path).is_file() {
-                info!("通过AppPath找到Office应用: {} -> {}", display_name, path);
 
                 apps.push(AppInfo {
                     id: Uuid::new_v4().to_string(),
@@ -588,8 +562,6 @@ fn get_office_apps() -> Vec<AppInfo> {
                     summarize: "app".to_string(),
                     usage_count: 0,
                 });
-            } else {
-                info!("Office应用路径无效或不可访问: {} -> {}", display_name, path);
             }
         }
     }
@@ -599,13 +571,11 @@ fn get_office_apps() -> Vec<AppInfo> {
         // 首先检查Office主安装路径
         let install_root = detect_office_install_root(version);
         if let Some(root_path) = install_root {
-            info!("找到Office {} 主安装路径: {}", version, root_path);
 
             // 检查每个应用的路径
             for (app_name, exe_name, display_name) in office_apps.iter() {
                 let app_path = format!("{}\\{}", root_path, exe_name);
                 if Path::new(&app_path).exists() && Path::new(&app_path).is_file() {
-                    info!("找到Office应用 {}: {}", display_name, app_path);
 
                     apps.push(AppInfo {
                         id: Uuid::new_v4().to_string(),
@@ -621,7 +591,6 @@ fn get_office_apps() -> Vec<AppInfo> {
                     if let Some(path) = app_install_path {
                         let full_path = format!("{}\\{}", path, exe_name);
                         if Path::new(&full_path).exists() && Path::new(&full_path).is_file() {
-                            info!("通过注册表找到Office应用 {}: {}", display_name, full_path);
 
                             apps.push(AppInfo {
                                 id: Uuid::new_v4().to_string(),
@@ -642,7 +611,6 @@ fn get_office_apps() -> Vec<AppInfo> {
                 if let Some(path) = app_install_path {
                     let full_path = format!("{}\\{}", path, exe_name);
                     if Path::new(&full_path).exists() && Path::new(&full_path).is_file() {
-                        info!("通过注册表找到Office应用 {}: {}", display_name, full_path);
 
                         apps.push(AppInfo {
                             id: Uuid::new_v4().to_string(),
@@ -681,10 +649,6 @@ fn get_office_apps() -> Vec<AppInfo> {
 
                     // 检查是否已添加此路径
                     if !apps.iter().any(|app| app.content == app_path) {
-                        info!(
-                            "通过文件系统搜索找到Office应用 {}: {}",
-                            display_name, app_path
-                        );
 
                         apps.push(AppInfo {
                             id: Uuid::new_v4().to_string(),
@@ -714,7 +678,6 @@ fn get_office_apps() -> Vec<AppInfo> {
                     && Path::new(&app_path).is_file() 
                     && !apps.iter().any(|app| app.content == app_path)
                 {
-                    info!("通过C2R路径找到Office应用 {}: {}", display_name, app_path);
 
                     apps.push(AppInfo {
                         id: Uuid::new_v4().to_string(),
@@ -729,7 +692,6 @@ fn get_office_apps() -> Vec<AppInfo> {
         }
     }
 
-    info!("找到 {} 个Microsoft Office应用", apps.len());
     apps
 }
 
@@ -836,7 +798,6 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
     let system32_dir = "C:\\Windows\\System32";
     let search_pattern = format!("{}\\*.exe", system32_dir);
 
-    info!("正在检索Windows System32应用: {}", search_pattern);
 
     if let Ok(paths) = glob(&search_pattern) {
         for entry in paths.filter_map(Result::ok) {
@@ -865,7 +826,6 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
                 };
 
                 let path_str = entry.to_string_lossy().to_string();
-                info!("找到系统应用: {} -> {}", display_name, path_str);
 
                 apps.push(AppInfo {
                     id: Uuid::new_v4().to_string(),
@@ -885,8 +845,6 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
 // 获取 Windows 商店应用
 fn get_windows_store_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
-
-    info!("正在检索 Windows 商店应用...");
 
     // 访问 Windows 应用清单注册表位置
     let hklm = RegKey::predef(HKEY_CURRENT_USER);
@@ -926,10 +884,7 @@ fn get_windows_store_apps() -> Vec<AppInfo> {
 
                                 if let Some(exe_path) = app_exe_path {
                                     if Path::new(&exe_path).exists() {
-                                        info!(
-                                            "找到 Windows 商店应用: {} -> {}",
-                                            display_name, exe_path
-                                        );
+
 
                                         apps.push(AppInfo {
                                             id: Uuid::new_v4().to_string(),
@@ -949,7 +904,6 @@ fn get_windows_store_apps() -> Vec<AppInfo> {
         }
     }
 
-    info!("从 Windows 商店找到 {} 个应用", apps.len());
     apps
 }
 
@@ -1015,7 +969,6 @@ fn extract_executable_from_manifest(manifest_content: &str) -> Option<String> {
 
 // 获取已安装应用
 pub fn get_installed_apps() -> Vec<AppInfo> {
-    info!("开始检索所有已安装应用...");
 
     let paths = [
         (
@@ -1038,28 +991,21 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
 
     let mut all_apps = Vec::new();
 
-    let mut registry_app_count = 0;
     for (hkey, path) in paths.iter() {
         let apps = get_registry_apps(*hkey, path);
-        registry_app_count += apps.len();
         all_apps.extend(apps);
     }
-    info!("从注册表检索到 {} 个传统Win32应用", registry_app_count);
 
     let uwp_apps = get_uwp_apps();
-    info!("检索到 {} 个UWP应用", uwp_apps.len());
     all_apps.extend(uwp_apps);
 
     let store_apps = get_windows_store_apps();
-    info!("检索到 {} 个Windows商店应用", store_apps.len());
     all_apps.extend(store_apps);
 
     let shortcut_apps = get_desktop_shortcuts();
-    info!("检索到 {} 个桌面快捷方式应用", shortcut_apps.len());
     all_apps.extend(shortcut_apps);
 
     let windows_apps = get_windows_apps();
-    info!("检索到 {} 个Windows内置应用", windows_apps.len());
     all_apps.extend(windows_apps);
 
     // 确保所有应用都有默认图标
@@ -1073,7 +1019,6 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
     let mut unique_apps = Vec::new();
     let mut seen_paths = HashSet::new();
     let mut seen_titles = HashSet::new();
-    let initial_count = all_apps.len();
 
     for app in all_apps {
         // 标准化路径（转为小写以忽略大小写差异）
@@ -1096,15 +1041,13 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
                 || app.title.contains("Publisher")
                 || app.title.contains("OneNote"))
         {
-            if seen_titles.contains(&app.title) {
-                info!("跳过重复的Office应用 {}: {}", app.title, app.content);
+            if seen_titles.contains(&app.title) { 
                 continue;
             }
             seen_titles.insert(app.title.clone());
         } 
         // 对于其他应用，检查标题是否重复（避免 "Snippets Code" 和 "snippets-code" 同时存在）
         else if seen_titles.contains(&normalized_title) {
-            info!("跳过同名应用 {}: {}", app.title, app.content);
             continue;
         }
 
@@ -1116,18 +1059,6 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
         unique_apps.push(app);
     }
 
-    let deduplicated_count = unique_apps.len();
-    if initial_count > deduplicated_count {
-        info!(
-            "应用去重完成: {} 个 -> {} 个（移除 {} 个重复）",
-            initial_count, deduplicated_count, initial_count - deduplicated_count
-        );
-    }
-    
-    info!(
-        "应用检索完成，总共找到 {} 个不重复应用程序",
-        unique_apps.len()
-    );
     unique_apps
 }
 
@@ -1142,13 +1073,7 @@ pub fn load_app_icons_async_silent(
     let count = icon::load_icons_generic(
         apps,
         |app| app.icon.is_some(),
-        |app| {
-            let result = icon::extract_app_icon(&app.content);
-            if result.is_none() {
-                info!("为 '{}' 提取图标失败，使用默认图标", app.title);
-            }
-            result
-        },
+        |app| icon::extract_app_icon(&app.content),
         |app, icon| db::update_app_icon(&app.id, icon).map_err(|e| e.to_string()),
         "应用程序",
     );
@@ -1257,68 +1182,35 @@ fn find_existing_window(target_path: &str) -> Option<HWND> {
 
 #[tauri::command]
 pub fn open_app_command(app_path: String) -> Result<(), String> {
-    info!("尝试打开应用程序: {}", app_path);
-
     let path = Path::new(&app_path);
     if !path.exists() {
-        let error_msg = format!("应用程序路径不存在: {}", app_path);
-        info!("{}", error_msg);
-        return Err(error_msg);
+        return Err(format!("应用程序路径不存在: {}", app_path));
     }
 
-    // 尝试查找现有窗口
     if let Some(hwnd) = find_existing_window(&app_path) {
-        info!("找到现有窗口，尝试激活: {}", app_path);
-
         unsafe {
-            // 如果窗口被最小化，先恢复它
             if IsIconic(hwnd).as_bool() {
                 let _ = ShowWindow(hwnd, SW_RESTORE);
             }
-
-            // 确保窗口在最前面
             let _ = BringWindowToTop(hwnd);
-
-            // 激活窗口
             let _ = SetForegroundWindow(hwnd);
-
-            // 强制切换到该窗口
             SwitchToThisWindow(hwnd, true);
         }
-
-        info!("成功激活现有窗口: {}", app_path);
         return Ok(());
     }
 
-    info!("未找到现有窗口，启动新实例: {}", app_path);
-    
     match APP.get() {
         Some(app) => {
-            // 对于 .lnk 快捷方式文件，尝试解析其目标路径后再启动
             let actual_path = if app_path.ends_with(".lnk") {
-                info!("检测到快捷方式文件，尝试解析目标路径: {}", app_path);
                 resolve_shortcut(Path::new(&app_path)).unwrap_or(app_path.clone())
             } else {
                 app_path.clone()
             };
             
-            match app.opener().open_path(actual_path.clone(), None::<&str>) {
-                Ok(_) => {
-                    info!("成功启动应用程序: {} -> {}", app_path, actual_path);
-                    Ok(())
-                }
-                Err(e) => {
-                    let error_msg = format!("启动应用程序失败 '{}' -> '{}': {}", app_path, actual_path, e);
-                    info!("{}", error_msg);
-                    Err(error_msg)
-                }
-            }
+            app.opener().open_path(actual_path.clone(), None::<&str>)
+                .map_err(|e| format!("启动应用程序失败 '{}': {}", app_path, e))
         }
-        None => {
-            let error_msg = "无法获取应用程序实例".to_string();
-            info!("{}", error_msg);
-            Err(error_msg)
-        }
+        None => Err("无法获取应用程序实例".to_string())
     }
 }
 

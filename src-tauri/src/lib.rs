@@ -222,6 +222,11 @@ async fn save_dark_mode_config_command(app_handle: AppHandle, config: DarkModeCo
     save_dark_mode_config(&app_handle, &config)?;
     
     match config.theme_mode {
+        ThemeMode::System => {
+            // 跟随系统，不需要调度器，不改变当前主题
+            stop_scheduler();
+            crate::tray::update_tray_theme_status(&app_handle);
+        }
         ThemeMode::Light => {
             // 立即应用浅色主题并停止调度
             stop_scheduler();
@@ -323,12 +328,9 @@ pub fn run() {
         // 单实例插件：防止程序多开
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             let windows = app.webview_windows();
-            windows
-                .values()
-                .next()
-                .expect("Sorry, no window found")
-                .set_focus()
-                .expect("Can't Bring Window to Focus");
+            if let Some(window) = windows.values().next() {
+                let _ = window.set_focus();
+            }
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -339,23 +341,23 @@ pub fn run() {
                     Target::new(TargetKind::LogDir { file_name: None }),
                     Target::new(TargetKind::Webview),
                 ])
-                .filter(|metadata| {
-                    // 过滤掉 tao 的事件循环警告（这些是已知的无害警告）
-                    if metadata.target().starts_with("tao::platform_impl::platform::event_loop") {
-                        return metadata.level() > log::LevelFilter::Warn;
-                    }
-                    // 过滤掉 tauri::manager 关于 asset 的调试信息
-                    if metadata.target() == "tauri::manager" && metadata.level() == log::LevelFilter::Debug {
-                        return false;
-                    }
-                    // 过滤掉 HTTP 客户端的 TRACE/DEBUG 日志（图标加载时会产生大量日志）
-                    if metadata.target().starts_with("hyper_util::") || 
-                       metadata.target().starts_with("reqwest::") ||
-                       metadata.target().starts_with("hyper::") {
-                        return metadata.level() >= log::LevelFilter::Info;
-                    }
-                    true
-                })
+                // .filter(|metadata| {
+                //     // 过滤掉 tao 的事件循环警告（这些是已知的无害警告）
+                //     if metadata.target().starts_with("tao::platform_impl::platform::event_loop") {
+                //         return metadata.level() > log::LevelFilter::Warn;
+                //     }
+                //     // 过滤掉 tauri::manager 关于 asset 的调试信息
+                //     if metadata.target() == "tauri::manager" && metadata.level() == log::LevelFilter::Debug {
+                //         return false;
+                //     }
+                //     // 过滤掉 HTTP 客户端的 TRACE/DEBUG 日志（图标加载时会产生大量日志）
+                //     if metadata.target().starts_with("hyper_util::") || 
+                //        metadata.target().starts_with("reqwest::") ||
+                //        metadata.target().starts_with("hyper::") {
+                //         return metadata.level() >= log::LevelFilter::Info;
+                //     }
+                //     true
+                // })
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -364,153 +366,104 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             // 在应用启动时初始化 APP
-            APP.set(app.handle().clone()).unwrap();
+            let _ = APP.set(app.handle().clone());
             
-            // 使用分阶段异步初始化数据库（优先初始化关键表）
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = db::init_db_async().await {
-                    log::error!("数据库初始化失败: {}", e);
-                    // 回退到同步初始化
-                    if let Err(e2) = db::init_db() {
-                        log::error!("回退数据库初始化也失败: {}", e2);
-                    }
-                }
-                
-                // 确保应用设置有默认值
-                if let Err(e) = db::ensure_default_settings() {
-                    log::error!("初始化默认设置失败: {}", e);
-                }
-                
-                // 在后台执行数据库清理和优化（延迟30秒避免影响启动速度）
-                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
-                
-                // 清理过期数据
-                if let Err(e) = cleanup_old_search_history() {
-                    log::warn!("清理搜索历史失败: {}", e);
-                }
-                if let Err(e) = cleanup_old_icon_cache() {
-                    log::warn!("清理图标缓存失败: {}", e);
-                }
-                
-                // 优化数据库
-                if let Err(e) = optimize_database() {
-                    log::warn!("数据库优化失败: {}", e);
-                }
-                
-                // 清理旧日志文件（保留最近7天）
-                cleanup_old_logs();
-            });
-
-            // 异步初始化托盘、快捷键和提醒服务（避免阻塞启动）
-            let app_handle_init = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                // 创建托盘图标（首次运行时创建最小化托盘，否则创建完整托盘）
-                #[cfg(desktop)]
-                {
-                    let is_first_run = !db::is_setup_completed_internal(&app_handle_init);
-                    if is_first_run {
-                        if let Err(e) = tray::create_minimal_tray(&app_handle_init) {
-                            log::error!("最小化托盘创建失败: {:?}", e);
-                        }
-                    } else if let Err(e) = tray::create_tray(&app_handle_init) {
-                        log::error!("托盘创建失败: {:?}", e);
-                    } else {
-                        tray::update_tray_theme_status(&app_handle_init);
-                    }
-                }
-                // Register Global Shortcut
-                match register_shortcut("all") {
-                    Ok(()) => {}
-                    Err(e) => {
-                        let _ = app_handle_init
-                            .notification()
-                            .builder()
-                            .title("snippets-code")
-                            .body(format!("快捷键注册失败：{}", e))
-                            .show();
-                    }
-                }
-                // 启动代办提醒检查服务
-                alarm::start_alarm_service(app_handle_init.clone());
-            });
-
-            // 启动Auto Dark Mode服务（如果设置为定时模式）
-            {
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    use dark_mode::ThemeMode;
-                    let config = load_dark_mode_config(&app_handle);
-                    if config.theme_mode == ThemeMode::Schedule {
-                        if let Err(e) = start_scheduler(app_handle) {
-                            log::warn!("启动Auto Dark Mode服务失败: {}", e);
-                        }
-                    }
-                });
+            // 同步初始化数据库
+            if let Err(e) = db::init_db() {
+                log::error!("数据库初始化失败: {}", e);
+            } else if let Err(e) = db::ensure_default_settings() {
+                log::error!("初始化默认设置失败: {}", e);
             }
 
-            // 确保更新状态是最新的
-            {
-                let app_handle = app.handle().clone();
-                // 先检查并重置更新状态，避免更新后启动问题
+            // === 第一优先级：核心UI组件 (50ms) ===
+            let app_handle_core = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                
+                #[cfg(desktop)]
+                {
+                    let is_first_run = !db::is_setup_completed_internal(&app_handle_core);
+                    if is_first_run {
+                        let _ = tray::create_minimal_tray(&app_handle_core);
+                    } else if let Ok(()) = tray::create_tray(&app_handle_core) {
+                        tray::update_tray_theme_status(&app_handle_core);
+                    }
+                }
+                
+                if let Err(e) = register_shortcut("all") {
+                    log::warn!("快捷键注册失败: {}", e);
+                    let _ = app_handle_core.notification().builder()
+                        .title("snippets-code")
+                        .body(format!("快捷键注册失败：{}", e))
+                        .show();
+                }
+            });
+
+            // === 第二优先级：后台服务 (2s) ===
+            let app_handle_services = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                
+                // 提醒服务
+                alarm::start_alarm_service(app_handle_services.clone());
+                
+                // Dark Mode服务
+                use dark_mode::ThemeMode;
+                let config = load_dark_mode_config(&app_handle_services);
+                if config.theme_mode == ThemeMode::Schedule {
+                    let _ = start_scheduler(app_handle_services.clone());
+                }
+                
+                // 重置更新状态
                 let path = std::path::PathBuf::from("store.bin");
-                if let Ok(store) = tauri_plugin_store::StoreBuilder::new(&app_handle, path).build() {
+                if let Ok(store) = tauri_plugin_store::StoreBuilder::new(&app_handle_services, path).build() {
                     let _ = store.delete("update_available");
                     let _ = store.save();
                 }
-            }
-
-            // 延迟初始化应用和书签图标（降低启动压力）
-            let app_handle_clone = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                // 延迟5秒后才开始加载图标，确保窗口已完全加载
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                init_app_and_bookmark_icons(&app_handle_clone);
             });
 
-            // 延迟启动更新检查（大幅降低优先级，避免影响启动）
-            let app_handle = app.handle().clone();
+            // === 第三优先级：资源加载 (5s) ===
+            let app_handle_res = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // 延迟10秒后检查更新，确保应用已完全启动
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                init_app_and_bookmark_icons(&app_handle_res);
+            });
+
+            // === 第四优先级：网络操作 (10s) ===
+            let app_handle_net = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                if get_auto_update_check(app_handle.clone()) {
-                    if let Err(e) = check_update(&app_handle, false).await {
-                        log::warn!("启动时检查更新失败: {}", e);
-                    }
+                if get_auto_update_check(app_handle_net.clone()) {
+                    let _ = check_update(&app_handle_net, false).await;
                 }
             });
 
-            // 检查是否是自动启动
-            let args = std::env::args().collect::<Vec<String>>();
+            // === 第五优先级：清理任务 (30s) ===
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                let _ = cleanup_old_search_history();
+                let _ = cleanup_old_icon_cache();
+                let _ = optimize_database();
+                cleanup_old_logs();
+            });
+
+            // 启动窗口逻辑
+            let args: Vec<String> = std::env::args().collect();
             let is_auto_start = args.iter().any(|arg| arg == "--flag1" || arg == "--flag2");
 
-            if is_auto_start {
-                // 开机自启时不显示窗口，静默启动提升速度
-                log::info!("检测到开机自启动，采用静默启动模式");
-            } else {
-                // 手动启动时检查是否首次运行
+            if !is_auto_start {
                 let app_handle_startup = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    // 短暂延迟等待事件循环稳定
-                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                     
-                    // 检查是否首次运行
-                    let is_first_run = !db::is_setup_completed_internal(&app_handle_startup);
-                    
-                    if is_first_run {
-                        // 首次运行，显示设置向导窗口
-                        log::info!("首次运行，显示设置向导");
+                    if !db::is_setup_completed_internal(&app_handle_startup) {
                         create_setup_window();
                     } else {
-                        // 非首次运行，显示加载页面然后打开主窗口
-                        if let Some(loading_window) = app_handle_startup.get_webview_window("loading") {
-                            let _ = loading_window.show();
-                            
-                            // 等待1秒后关闭加载窗口
+                        if let Some(w) = app_handle_startup.get_webview_window("loading") {
+                            let _ = w.show();
                             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                            let _ = loading_window.hide();
+                            let _ = w.hide();
                         }
-                        
-                        // 显示主窗口
                         crate::window::hotkey_config();
                     }
                 });

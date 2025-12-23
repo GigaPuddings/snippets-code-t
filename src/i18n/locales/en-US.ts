@@ -348,8 +348,10 @@ export default {
   // Theme Toggle
   darkMode: {
     title: 'System Theme',
-    // Theme Mode (3 options)
+    // Theme Mode (4 options)
     themeMode: 'Theme Mode',
+    systemMode: 'System',
+    systemModeDesc: 'Follow Windows system theme',
     lightMode: 'Light',
     lightModeDesc: 'Always use light theme',
     darkMode: 'Dark',

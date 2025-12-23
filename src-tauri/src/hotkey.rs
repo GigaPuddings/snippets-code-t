@@ -2,7 +2,7 @@ use crate::config::parse_hotkey;
 use crate::db;
 use crate::window::{hotkey_config, hotkey_selection_translate, hotkey_translate, hotkey_search_wrapper, hotkey_screenshot, hotkey_dark_mode};
 use crate::APP;
-use log::{info, warn};
+use log::warn;
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -21,7 +21,10 @@ where
     };
 
     // 获取应用句柄
-    let app = APP.get().unwrap();
+    let app = match APP.get() {
+        Some(app) => app,
+        None => return Err("应用未初始化".to_string()),
+    };
     
     if !hotkey.is_empty() {
         // info!("{}：窗口尝试注册快捷键：{}", name, hotkey);
@@ -37,9 +40,9 @@ where
 
         // 注册新的快捷键
         // on_shortcut 会自动检测冲突（包括本应用内和系统级冲突）
-        match manager.on_shortcut(shortcut, move |_app_handle, hotkey, event| {
+        match manager.on_shortcut(shortcut, move |_app_handle, _hotkey, event| {
             if event.state == ShortcutState::Pressed {
-                info!("快捷键：{} 被触发", hotkey);
+                // info!("快捷键：{} 被触发", hotkey);
                 handler();
             }
         }) {
@@ -59,7 +62,10 @@ where
 }
 
 pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
-    let app_handle = APP.get().unwrap();
+    let app_handle = match APP.get() {
+        Some(app) => app,
+        None => return Err("应用未初始化".to_string()),
+    };
     match shortcut {
         "search" => register(app_handle, "search", hotkey_search_wrapper, "")?,
         "config" => register(app_handle, "config", hotkey_config, "")?,

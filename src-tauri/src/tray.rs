@@ -18,6 +18,7 @@ struct TrayTranslations {
     screenshot: &'static str,
     // 主题子菜单
     theme_menu: &'static str,
+    theme_system: &'static str,
     theme_light: &'static str,
     theme_dark: &'static str,
     theme_sun_based: &'static str,
@@ -37,6 +38,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             translate: "Translate",
             screenshot: "Screenshot",
             theme_menu: "Theme Mode",
+            theme_system: "Follow System",
             theme_light: "Light Mode",
             theme_dark: "Dark Mode",
             theme_sun_based: "Sunrise/Sunset",
@@ -51,6 +53,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             translate: "输入翻译",
             screenshot: "快速截图",
             theme_menu: "主题模式",
+            theme_system: "跟随系统",
             theme_light: "浅色模式",
             theme_dark: "深色模式",
             theme_sun_based: "日出日落",
@@ -68,6 +71,7 @@ fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<ta
     let config = load_config(app);
     
     // 判断当前选中状态
+    let is_system = matches!(config.theme_mode, ThemeMode::System);
     let is_light = matches!(config.theme_mode, ThemeMode::Light);
     let is_dark = matches!(config.theme_mode, ThemeMode::Dark);
     let is_sun_based = matches!(config.theme_mode, ThemeMode::Schedule) 
@@ -76,6 +80,7 @@ fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<ta
         && matches!(config.schedule_type, ScheduleType::Custom);
     
     // 创建带勾选状态的菜单项
+    let system_i = CheckMenuItem::with_id(app, "theme_system", trans.theme_system, true, is_system, None::<&str>)?;
     let light_i = CheckMenuItem::with_id(app, "theme_light", trans.theme_light, true, is_light, None::<&str>)?;
     let dark_i = CheckMenuItem::with_id(app, "theme_dark", trans.theme_dark, true, is_dark, None::<&str>)?;
     let separator1 = PredefinedMenuItem::separator(app)?;
@@ -89,6 +94,7 @@ fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<ta
         trans.theme_menu,
         true,
         &[
+            &system_i,
             &light_i,
             &dark_i,
             &separator1,
@@ -105,13 +111,20 @@ pub fn handle_theme_menu_click(app: &AppHandle, menu_id: &str) {
     let mut config = load_config(app);
     
     match menu_id {
+        "theme_system" => {
+            config.theme_mode = ThemeMode::System;
+            stop_scheduler();
+            info!("切换到跟随系统模式");
+        }
         "theme_light" => {
             config.theme_mode = ThemeMode::Light;
+            stop_scheduler();
             let _ = set_windows_dark_mode(false);
             info!("切换到浅色模式");
         }
         "theme_dark" => {
             config.theme_mode = ThemeMode::Dark;
+            stop_scheduler();
             let _ = set_windows_dark_mode(true);
             info!("切换到深色模式");
         }
@@ -196,9 +209,9 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 "search" => {
                     info!("============== Search ==============");
                     if let Some(window) = app.get_webview_window("main") {
-                        window.center().unwrap();
-                        window.show().unwrap();
-                        window.set_focus().unwrap();
+                        let _ = window.center();
+                        let _ = window.show();
+                        let _ = window.set_focus();
                     }
                 }
                 "config" => {
@@ -215,16 +228,16 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 }
                 "view_log" => {
                     info!("============== View Log ==============");
-                    let log_path = app.path().app_log_dir().unwrap();
-                    let path: String = log_path.to_str().unwrap().into();
-                    app.opener()
-                        .open_path(path, Option::<String>::None)
-                        .unwrap();
+                    if let Ok(log_path) = app.path().app_log_dir() {
+                        if let Some(path_str) = log_path.to_str() {
+                            let _ = app.opener().open_path(path_str, Option::<String>::None);
+                        }
+                    }
                 }
                 "quit" => {
                     info!("============== Quit App ==============");
                     stop_scheduler();
-                    app.global_shortcut().unregister_all().unwrap();
+                    let _ = app.global_shortcut().unregister_all();
                     app.exit(0);
                 }
                 _ => {}
@@ -292,7 +305,7 @@ pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .on_menu_event(move |app, event| {
             if event.id.as_ref() == "quit" {
                 stop_scheduler();
-                app.global_shortcut().unregister_all().unwrap();
+                let _ = app.global_shortcut().unregister_all();
                 app.exit(0);
             }
         })

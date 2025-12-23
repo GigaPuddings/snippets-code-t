@@ -258,7 +258,7 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(3));
                 // 注销所有快捷键
-                app_handle.global_shortcut().unregister_all().unwrap();
+                let _ = app_handle.global_shortcut().unregister_all();
                 // 重启应用程序
                 app_handle.restart();
             });
@@ -273,7 +273,7 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(3));
                 // 注销所有快捷键
-                app_handle.global_shortcut().unregister_all().unwrap();
+                let _ = app_handle.global_shortcut().unregister_all();
                 // 重启应用程序
                 app_handle.restart();
             });
@@ -288,7 +288,7 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(3));
                 // 注销所有快捷键
-                app_handle.global_shortcut().unregister_all().unwrap();
+                let _ = app_handle.global_shortcut().unregister_all();
                 // 重启应用程序
                 app_handle.restart();
             });
@@ -318,7 +318,7 @@ pub fn get_auto_update_check(_app_handle: tauri::AppHandle) -> bool {
 #[tauri::command]
 pub fn exit_application(app_handle: tauri::AppHandle) {
     // 取消注册全局快捷键
-    app_handle.global_shortcut().unregister_all().unwrap();
+    let _ = app_handle.global_shortcut().unregister_all();
     // 退出应用
     app_handle.exit(0);
 }

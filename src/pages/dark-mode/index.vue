@@ -14,10 +14,18 @@
 
     <!-- 主要内容 -->
     <div class="content mx-auto max-w-2xl px-5 pt-20 pb-5">
-      <!-- 主题模式选择（三选一） -->
+      <!-- 主题模式选择（四选一） -->
       <div class="section">
         <h2 class="m-0 mb-4 text-lg font-semibold">{{ $t('darkMode.themeMode') }}</h2>
-        <div class="mode-selector grid grid-cols-3 gap-3">
+        <div class="mode-selector grid grid-cols-4 gap-3">
+          <label class="mode-option block cursor-pointer h-full">
+            <input type="radio" value="System" v-model="config.theme_mode" @change="handleThemeModeChange" class="hidden" />
+            <div class="mode-content rounded-lg border-2 p-4 transition-all h-full flex flex-col items-center">
+              <div class="mode-icon text-3xl mb-2">💻</div>
+              <div class="mode-title font-semibold text-center">{{ $t('darkMode.systemMode') }}</div>
+              <div class="mode-desc text-xs opacity-70 text-center mt-1">{{ $t('darkMode.systemModeDesc') }}</div>
+            </div>
+          </label>
           <label class="mode-option block cursor-pointer h-full">
             <input type="radio" value="Light" v-model="config.theme_mode" @change="handleThemeModeChange" class="hidden" />
             <div class="mode-content rounded-lg border-2 p-4 transition-all h-full flex flex-col items-center">
@@ -63,7 +71,8 @@
           </div>
           <!-- 非定时模式下的说明文字 -->
           <p v-if="config.theme_mode !== 'Schedule'" class="text-sm opacity-60 mb-4">
-            {{ config.theme_mode === 'Light' ? $t('darkMode.lightModeDesc') : $t('darkMode.darkModeDesc') }}
+            {{ config.theme_mode === 'System' ? $t('darkMode.systemModeDesc') : 
+               config.theme_mode === 'Light' ? $t('darkMode.lightModeDesc') : $t('darkMode.darkModeDesc') }}
           </p>
           <button @click="toggleThemeManually"
             class="manual-toggle-btn w-full rounded-md py-2 px-4 text-sm transition-all">
@@ -191,7 +200,7 @@ const { t } = useI18n();
 import { logger } from '@/utils/logger';
 
 // 定义类型
-type ThemeMode = 'Light' | 'Dark' | 'Schedule';
+type ThemeMode = 'System' | 'Light' | 'Dark' | 'Schedule';
 type ScheduleType = 'SunBased' | 'Custom';
 
 interface DarkModeConfig {

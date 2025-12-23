@@ -15,6 +15,7 @@ use {
 // 主题模式枚举
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ThemeMode {
+    System,   // 跟随系统
     Light,    // 始终浅色
     Dark,     // 始终深色
     Schedule, // 定时切换
@@ -43,7 +44,7 @@ pub struct DarkModeConfig {
 impl Default for DarkModeConfig {
     fn default() -> Self {
         Self {
-            theme_mode: ThemeMode::Schedule,
+            theme_mode: ThemeMode::System,
             schedule_type: ScheduleType::SunBased,
             custom_light_time: Some("06:00".to_string()),
             custom_dark_time: Some("18:00".to_string()),
@@ -384,20 +385,26 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
 
     let app_handle_clone = app_handle.clone();
     tauri::async_runtime::spawn(async move {
-        // 首次启动时检查是否需要自动获取位置信息
         let mut config = load_config(&app_handle_clone);
+        
+        // System模式不需要调度器，直接返回
+        if config.theme_mode == ThemeMode::System {
+            *SCHEDULER_RUNNING.lock().unwrap() = false;
+            return;
+        }
+        
+        // 首次启动时检查是否需要自动获取位置信息（仅Schedule+SunBased模式）
         if config.theme_mode == ThemeMode::Schedule 
             && config.schedule_type == ScheduleType::SunBased 
             && config.latitude.is_none() 
         {
-            info!("首次启动，自动获取位置信息...");
+            info!("定时模式启用，自动获取位置信息...");
             if let Ok(location) = get_location_by_ip().await {
                 config.latitude = Some(location.latitude);
                 config.longitude = Some(location.longitude);
                 config.timezone_offset = Some(location.timezone_offset);
                 config.location_name = Some(format!("{}, {}", location.city, location.country));
                 
-                // 保存更新后的配置
                 if let Err(e) = save_config(&app_handle_clone, &config) {
                     error!("保存位置信息失败: {}", e);
                 } else {
@@ -408,11 +415,9 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
             }
         }
         
-        // 立即执行一次主题检查（不等待第一个interval）
-        if config.theme_mode == ThemeMode::Schedule {
-            if let Err(e) = check_and_switch_theme(&app_handle_clone, &config).await {
-                error!("首次主题切换失败: {}", e);
-            }
+        // 立即执行一次主题检查
+        if let Err(e) = check_and_switch_theme(&app_handle_clone, &config).await {
+            error!("首次主题切换失败: {}", e);
         }
         
         let mut interval = time::interval(Duration::from_secs(60)); // 每分钟检查一次

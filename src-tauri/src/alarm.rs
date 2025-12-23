@@ -571,8 +571,20 @@ pub fn start_alarm_service(app_handle: tauri::AppHandle) {
 #[tauri::command]
 pub fn remind_notification_window(title: String, reminder_time: String) {
     info!("稍后提醒: {} - {} 分钟后", title, reminder_time);
-    let reminder_minutes = reminder_time.parse::<i64>().unwrap();
-    let handle_reminder = APP.get().unwrap();
+    let reminder_minutes = match reminder_time.parse::<i64>() {
+        Ok(m) => m,
+        Err(_) => {
+            log::warn!("无效的提醒时间: {}", reminder_time);
+            return;
+        }
+    };
+    let handle_reminder = match APP.get() {
+        Some(app) => app.clone(),
+        None => {
+            log::warn!("应用未初始化，无法设置提醒");
+            return;
+        }
+    };
 
     thread::spawn(move || {
         thread::sleep(StdDuration::from_secs((reminder_minutes * 60) as u64));
