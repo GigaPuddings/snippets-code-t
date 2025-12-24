@@ -107,7 +107,13 @@ onMounted(async () => {
   const snippetData = route.query.data as string;
   if (snippetData) {
     try {
-      const decoded = decodeURIComponent(atob(snippetData));
+      // 还原 URL 安全的 base64 编码：将 - 替换回 +，_ 替换回 /，补齐 =
+      let base64 = snippetData.replace(/-/g, '+').replace(/_/g, '/');
+      // 补齐 padding
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const decoded = decodeURIComponent(atob(base64));
       snippet.value = JSON.parse(decoded);
     } catch (e) {
       console.error('Failed to parse snippet data:', e);

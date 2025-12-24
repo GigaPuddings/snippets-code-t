@@ -539,7 +539,9 @@ const openPreview = async (item: ContentType, targetElement?: HTMLElement) => {
   
   // 调用后端创建预览窗口，传递相对坐标
   try {
-    const snippetData = btoa(encodeURIComponent(JSON.stringify(item)));
+    // 使用 URL 安全的 base64 编码：将 + 替换为 -，/ 替换为 _，移除 =
+    const base64 = btoa(encodeURIComponent(JSON.stringify(item)));
+    const snippetData = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     // 传递相对坐标，由后端加上主窗口位置
     const previewX = relativeX + 4;
     const previewY = relativeY;
