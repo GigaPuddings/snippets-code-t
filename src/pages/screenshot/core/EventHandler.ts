@@ -17,27 +17,27 @@ export class EventHandler {
   ) {
     this.canvas = canvas
     this.coordinateSystem = coordinateSystem
-
     this.bindEvents()
+  }
+
+  private preventDefault = (e: Event): void => {
+    e.preventDefault()
   }
 
   private bindEvents(): void {
     // 基本事件防止默认行为
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault())
-    this.canvas.addEventListener('dragstart', (e) => e.preventDefault())
-    this.canvas.addEventListener('selectstart', (e) => e.preventDefault())
+    this.canvas.addEventListener('contextmenu', this.preventDefault)
+    this.canvas.addEventListener('dragstart', this.preventDefault)
+    this.canvas.addEventListener('selectstart', this.preventDefault)
   }
 
   unbind(): void {
-    // 事件监听器现在由 ScreenshotManager 管理
-    // 这里不需要移除事件监听器
+    // 移除基本事件监听器
+    this.canvas.removeEventListener('contextmenu', this.preventDefault)
+    this.canvas.removeEventListener('dragstart', this.preventDefault)
+    this.canvas.removeEventListener('selectstart', this.preventDefault)
   }
 
-
-
-
-
-  // 获取操作类型
   getOperationType(
     mousePos: Point,
     currentTool: ToolType,
@@ -94,6 +94,7 @@ export class EventHandler {
       [ToolType.Mosaic]: OperationType.DrawingMosaic,
       [ToolType.ColorPicker]: OperationType.ColorPicking,
       [ToolType.Pin]: OperationType.Pinning,
+      [ToolType.Translate]: OperationType.None,
       [ToolType.Select]: OperationType.None
     }
 

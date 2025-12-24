@@ -3,10 +3,11 @@ import { DrawingEngine } from './DrawingEngine'
 import { CoordinateSystem } from './CoordinateSystem'
 import { EventHandler } from './EventHandler'
 import { AnnotationFactory } from './AnnotationFactory'
-import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState } from './types'
+import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, OcrResult, TranslationOverlay } from './types'
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
 import { logger } from '@/utils/logger'
+import { recognizeFromCanvas } from '@/utils/ocr'
 
 interface WindowInfo {
   x: number
@@ -81,6 +82,15 @@ export class ScreenshotManager {
 
   // 背景图像（预捕获的屏幕）
   private backgroundImage: HTMLImageElement | null = null
+
+  // 翻译覆盖层状态
+  private translationOverlay: TranslationOverlay = {
+    blocks: [],
+    isVisible: false,
+    isLoading: false,
+    sourceLanguage: 'auto',
+    targetLanguage: 'zh'
+  }
 
   // 回调函数
   private onStateChange?: () => void
@@ -1082,6 +1092,104 @@ export class ScreenshotManager {
     if (this.colorPickerState.isActive && this.selectionRect) {
       this.drawingEngine.drawColorPicker(this.colorPickerState, this.selectionRect)
     }
+
+    // 绘制翻译覆盖层
+    if (this.translationOverlay.isVisible && this.selectionRect) {
+      this.drawTranslationOverlay()
+    }
+  }
+
+  // 绘制翻译覆盖层
+  private drawTranslationOverlay(): void {
+    if (!this.selectionRect) return
+
+    const ctx = this.canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.save()
+
+    // 如果正在加载，显示加载状态
+    if (this.translationOverlay.isLoading) {
+      const centerX = this.selectionRect.x + this.selectionRect.width / 2
+      const centerY = this.selectionRect.y + this.selectionRect.height / 2
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+      ctx.fillRect(
+        this.selectionRect.x,
+        this.selectionRect.y,
+        this.selectionRect.width,
+        this.selectionRect.height
+      )
+      
+      ctx.font = '16px sans-serif'
+      ctx.fillStyle = '#ffffff'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('正在识别翻译...', centerX, centerY)
+      
+      ctx.restore()
+      return
+    }
+
+    // 绘制每个翻译文字块
+    for (const block of this.translationOverlay.blocks) {
+      if (!block.translatedText) continue
+
+      // 计算相对于选区的位置
+      const blockX = this.selectionRect.x + block.x
+      const blockY = this.selectionRect.y + block.y
+
+      // 绘制半透明背景遮盖原文
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+      ctx.fillRect(blockX, blockY, block.width, block.height)
+
+      // 计算合适的字体大小（根据块高度）
+      const fontSize = Math.max(12, Math.min(block.height * 0.8, 24))
+      ctx.font = `${fontSize}px "Microsoft YaHei", "PingFang SC", sans-serif`
+      ctx.fillStyle = '#333333'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+
+      // 自动换行绘制文字
+      this.drawWrappedText(
+        ctx,
+        block.translatedText,
+        blockX + 2,
+        blockY + block.height / 2,
+        block.width - 4,
+        fontSize * 1.2
+      )
+    }
+
+    ctx.restore()
+  }
+
+  // 自动换行绘制文字
+  private drawWrappedText(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    lineHeight: number
+  ): void {
+    const words = text.split('')
+    let line = ''
+    let currentY = y
+
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + words[i]
+      const metrics = ctx.measureText(testLine)
+      
+      if (metrics.width > maxWidth && line !== '') {
+        ctx.fillText(line, x, currentY)
+        line = words[i]
+        currentY += lineHeight
+      } else {
+        line = testLine
+      }
+    }
+    ctx.fillText(line, x, currentY)
   }
 
   // 绘制窗口吸附预览
@@ -1145,6 +1253,17 @@ export class ScreenshotManager {
 
   // 设置工具
   setTool(tool: ToolType): void {
+    // 翻译工具特殊处理：如果有选区，立即执行OCR翻译
+    if (tool === ToolType.Translate && this.selectionRect) {
+      // 同步设置isLoading，防止blur事件关闭窗口
+      this.translationOverlay.isLoading = true
+      this.translationOverlay.isVisible = true
+      this.draw()
+      this.onStateChange?.()
+      this.performOcrTranslation()
+      return
+    }
+
     this.currentTool = tool
     this.clearSelection()
     
@@ -1157,6 +1276,11 @@ export class ScreenshotManager {
       // 重置取色器状态
       this.colorPickerState.isVisible = false
       this.colorPickerState.colorInfo = undefined
+    }
+    
+    // 切换工具时清除翻译覆盖层
+    if (tool !== ToolType.Translate && this.translationOverlay.isVisible) {
+      this.clearTranslationOverlay()
     }
     
     // 清除悬停状态
@@ -1306,8 +1430,15 @@ export class ScreenshotManager {
     // 如果不是直线，保持原始路径不变
   }
 
-  // 撤销最后一个标注
+  // 撤销最后一个操作（标注或翻译）
   undoAnnotation(): void {
+    // 优先撤销翻译覆盖层
+    if (this.translationOverlay.isVisible && this.translationOverlay.blocks.length > 0) {
+      this.clearTranslationOverlay()
+      return
+    }
+    
+    // 撤销最后一个标注
     if (this.annotations.length > 0) {
       this.annotations.pop()
       this.draw()
@@ -1476,7 +1607,8 @@ export class ScreenshotManager {
       textSize: this.textSize,
       mosaicSize: this.mosaicSize,
       hasSelection: !!this.selectionRect,
-      hasAnnotations: this.annotations.length > 0,
+      // 有标注或有翻译覆盖层时都可以撤销
+      hasAnnotations: this.annotations.length > 0 || (this.translationOverlay.isVisible && this.translationOverlay.blocks.length > 0),
       selectedAnnotation: this.selectedAnnotation?.getData() || null,
       isDrawing: this.eventHandler.getDrawingState().isDrawing
     }
@@ -1717,6 +1849,274 @@ export class ScreenshotManager {
       return hex.length === 1 ? '0' + hex : hex
     }
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase()
+  }
+
+  // ==================== OCR翻译功能 ====================
+
+  // 执行OCR识别和翻译
+  async performOcrTranslation(): Promise<void> {
+    if (!this.selectionRect || !this.backgroundImage) {
+      return
+    }
+
+    try {
+      
+      // 1. 从已有的背景图像中提取选区，避免重新捕获屏幕导致窗口闪烁
+      const { x, y, width, height } = this.selectionRect
+      const dpr = window.devicePixelRatio || 1
+      
+      // 创建临时canvas提取选区图像
+      const tempCanvas = document.createElement('canvas')
+      const tempCtx = tempCanvas.getContext('2d')
+      if (!tempCtx) {
+        throw new Error('无法创建临时canvas')
+      }
+      
+      // 计算在背景图像中的对应区域（考虑DPR）
+      const srcX = x * dpr
+      const srcY = y * dpr
+      const srcWidth = width * dpr
+      const srcHeight = height * dpr
+      
+      tempCanvas.width = srcWidth
+      tempCanvas.height = srcHeight
+      
+      // 从背景图像中裁剪选区
+      tempCtx.drawImage(
+        this.backgroundImage,
+        srcX, srcY, srcWidth, srcHeight,
+        0, 0, srcWidth, srcHeight
+      )
+
+      logger.info('[OCR] 开始混合 OCR 识别（后端定位 + 前端识别）...')
+      logger.info(`[OCR] 选区信息: x=${x}, y=${y}, width=${width}, height=${height}, dpr=${dpr}`)
+
+      // 2. 并行执行：后端 OCR 获取位置，前端 Tesseract.js 获取文字
+      const base64Image = tempCanvas.toDataURL('image/png').split(',')[1]
+      
+      const [backendResult, tesseractResult] = await Promise.all([
+        // 后端 Windows OCR - 位置准确
+        invoke('recognize_text', { imageBase64: base64Image }) as Promise<OcrResult>,
+        // 前端 Tesseract.js - 文字准确
+        recognizeFromCanvas(tempCanvas)
+      ])
+
+      logger.info(`[OCR] 后端识别: ${backendResult.blocks?.length || 0} 个文字块`)
+      logger.info(`[OCR] 前端识别: ${tesseractResult.blocks?.length || 0} 个文字块, 置信度: ${tesseractResult.confidence.toFixed(1)}%`)
+      logger.info(`[OCR] 前端完整文本: ${tesseractResult.full_text}`)
+
+      // 3. 混合策略：使用后端的位置 + 前端的文字
+      let ocrResult: OcrResult
+
+      if (backendResult.blocks && backendResult.blocks.length > 0) {
+        // 后端有结果，使用后端位置
+        const backendBlocks = backendResult.blocks
+        const frontendLines = tesseractResult.full_text.split('\n').filter(line => line.trim())
+        
+        logger.info(`[OCR] 后端文字块数: ${backendBlocks.length}, 前端行数: ${frontendLines.length}`)
+
+        // 按 Y 坐标排序后端块
+        const sortedBackendBlocks = [...backendBlocks].sort((a, b) => a.y - b.y)
+        
+        // 将前端识别的文字按行匹配到后端的位置块
+        const mergedBlocks: OcrTextBlock[] = []
+        
+        if (frontendLines.length > 0) {
+          // 策略：按行数匹配，如果行数相近则一一对应
+          if (Math.abs(sortedBackendBlocks.length - frontendLines.length) <= 2) {
+            // 行数接近，一一对应
+            for (let i = 0; i < sortedBackendBlocks.length; i++) {
+              const block = sortedBackendBlocks[i]
+              const frontendText = frontendLines[i] || block.text
+              mergedBlocks.push({
+                ...block,
+                text: frontendText.trim()
+              })
+            }
+          } else {
+            // 行数差异大，尝试按位置匹配
+            // 将前端文字按后端块的数量分组
+            const linesPerBlock = Math.ceil(frontendLines.length / sortedBackendBlocks.length)
+            
+            for (let i = 0; i < sortedBackendBlocks.length; i++) {
+              const block = sortedBackendBlocks[i]
+              const startLine = i * linesPerBlock
+              const endLine = Math.min(startLine + linesPerBlock, frontendLines.length)
+              const mergedText = frontendLines.slice(startLine, endLine).join(' ').trim()
+              
+              mergedBlocks.push({
+                ...block,
+                text: mergedText || block.text
+              })
+            }
+          }
+        } else {
+          // 前端没有识别到文字，使用后端结果
+          mergedBlocks.push(...sortedBackendBlocks)
+        }
+
+        ocrResult = {
+          blocks: mergedBlocks,
+          full_text: tesseractResult.full_text || backendResult.full_text,
+          language: tesseractResult.language || backendResult.language
+        }
+      } else {
+        // 后端没有结果，使用前端结果
+        logger.info('[OCR] 后端无结果，使用前端 Tesseract.js 结果')
+        ocrResult = {
+          blocks: tesseractResult.blocks.map(block => ({
+            text: block.text,
+            x: block.x,
+            y: block.y,
+            width: block.width,
+            height: block.height,
+            angle: block.angle
+          })),
+          full_text: tesseractResult.full_text,
+          language: tesseractResult.language
+        }
+      }
+
+      // 打印OCR识别结果概览
+      logger.info(`[OCR] 混合识别完成 - 检测语言: ${ocrResult.language}, 文字块数量: ${ocrResult.blocks?.length || 0}`)
+
+      if (!ocrResult.blocks || ocrResult.blocks.length === 0) {
+        logger.warn('[OCR] 未识别到任何文字块')
+        this.translationOverlay.isLoading = false
+        this.translationOverlay.isVisible = false
+        this.draw()
+        this.onStateChange?.()
+        return
+      }
+
+      // 打印每个识别出的文字块详情
+      logger.info('[OCR] ========== 识别文字块详情 ==========')
+      ocrResult.blocks.forEach((block, index) => {
+        logger.info(`[OCR] 文字块 #${index + 1}:`)
+        logger.info(`[OCR]   文本内容: "${block.text}"`)
+        logger.info(`[OCR]   位置: x=${block.x}, y=${block.y}`)
+        logger.info(`[OCR]   尺寸: width=${block.width}, height=${block.height}`)
+      })
+      logger.info('[OCR] =====================================')
+
+      // 4. 检测每行语言，只翻译英文行，中文行保持原样
+      this.translationOverlay.sourceLanguage = 'auto'
+      this.translationOverlay.targetLanguage = 'zh'
+
+      // 判断文本是否主要是中文
+      const isChineseText = (text: string): boolean => {
+        const chineseChars = text.match(/[\u4e00-\u9fa5]/g)?.length || 0
+        const totalChars = text.replace(/\s/g, '').length
+        return totalChars > 0 && chineseChars / totalChars > 0.3
+      }
+
+      let translatedTexts: string[] = []
+      try {
+        // 分离英文行和中文行
+        const englishBlocks: { index: number; text: string }[] = []
+        
+        ocrResult.blocks.forEach((block, index) => {
+          if (!isChineseText(block.text)) {
+            englishBlocks.push({ index, text: block.text })
+          }
+        })
+
+        logger.info(`[OCR] 共 ${ocrResult.blocks.length} 个文字块，其中 ${englishBlocks.length} 个需要翻译`)
+
+        // 初始化译文数组（默认使用原文）
+        translatedTexts = ocrResult.blocks.map(b => b.text)
+
+        if (englishBlocks.length > 0) {
+          logger.info('[OCR] 开始翻译英文内容...')
+          
+          // 合并英文行翻译
+          const englishText = englishBlocks.map(b => b.text).join(' ')
+          const translatedEnglish = (await invoke('translate_text', {
+            text: englishText,
+            from: 'en',
+            to: 'zh',
+            engine: 'bing'
+          })) as string
+          
+          logger.info('[OCR] 翻译完成')
+          
+          // 按原文字符比例分配译文
+          const totalEnglishLength = englishBlocks.reduce((sum, b) => sum + b.text.length, 0)
+          const translatedChars = translatedEnglish.split('')
+          let charIndex = 0
+          
+          englishBlocks.forEach((block, i) => {
+            const ratio = block.text.length / totalEnglishLength
+            const charsForBlock = Math.round(translatedEnglish.length * ratio)
+            let blockText = translatedChars.slice(charIndex, charIndex + charsForBlock).join('')
+            charIndex += charsForBlock
+            
+            // 最后一个英文块包含剩余字符
+            if (i === englishBlocks.length - 1 && charIndex < translatedChars.length) {
+              blockText += translatedChars.slice(charIndex).join('')
+            }
+            
+            translatedTexts[block.index] = blockText.trim() || block.text
+          })
+        } else {
+          logger.info('[OCR] 没有需要翻译的英文内容')
+        }
+        
+      } catch (err) {
+        // 翻译失败时使用原文
+        logger.error('[OCR] 翻译失败，使用原文:', err)
+        translatedTexts = ocrResult.blocks.map(b => b.text)
+      }
+
+      // 构建翻译结果块
+      const translatedBlocks: OcrTextBlock[] = ocrResult.blocks.map((block, index) => ({
+        ...block,
+        x: block.x / dpr,
+        y: block.y / dpr,
+        width: block.width / dpr,
+        height: block.height / dpr,
+        translatedText: translatedTexts[index] || block.text
+      }))
+
+      // 打印翻译结果对比
+      logger.info('[OCR] ========== 翻译结果对比 ==========')
+      translatedBlocks.forEach((block, index) => {
+        logger.info(`[OCR] 文字块 #${index + 1}:`)
+        logger.info(`[OCR]   原文: "${ocrResult.blocks[index].text}"`)
+        logger.info(`[OCR]   译文: "${block.translatedText}"`)
+      })
+      logger.info('[OCR] ===================================')
+
+      this.translationOverlay.blocks = translatedBlocks
+      this.translationOverlay.isLoading = false
+      this.draw()
+      this.onStateChange?.()
+
+    } catch (error) {
+      logger.error('[OCR] OCR翻译失败:', error)
+      this.translationOverlay.isLoading = false
+      this.translationOverlay.isVisible = false
+      this.draw()
+      this.onStateChange?.()
+    }
+  }
+
+  // 清除翻译覆盖层
+  clearTranslationOverlay(): void {
+    this.translationOverlay = {
+      blocks: [],
+      isVisible: false,
+      isLoading: false,
+      sourceLanguage: 'auto',
+      targetLanguage: 'zh'
+    }
+    this.draw()
+    this.onStateChange?.()
+  }
+
+  // 获取翻译状态
+  getTranslationState(): TranslationOverlay {
+    return this.translationOverlay
   }
 
   // 处理键盘事件

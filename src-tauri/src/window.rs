@@ -1637,10 +1637,19 @@ pub fn capture_screen_area(
         };
         use windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow;
 
+        // 定义一个闭包用于重新显示窗口
+        let show_window = || {
+            if let Some(screenshot_window) = app_handle.get_webview_window("screenshot") {
+                let _ = screenshot_window.show();
+                let _ = screenshot_window.set_focus();
+            }
+        };
+
         unsafe {
             // 获取桌面窗口的DC
             let desktop_dc = GetDC(Some(GetDesktopWindow()));
             if desktop_dc.is_invalid() {
+                show_window();
                 return Err("Failed to get desktop DC".to_string());
             }
 
@@ -1648,6 +1657,7 @@ pub fn capture_screen_area(
             let mem_dc = CreateCompatibleDC(Some(desktop_dc));
             if mem_dc.is_invalid() {
                 ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                show_window();
                 return Err("Failed to create compatible DC".to_string());
             }
 
@@ -1656,6 +1666,7 @@ pub fn capture_screen_area(
             if bitmap.is_invalid() {
                 let _ = DeleteDC(mem_dc);
                 ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                show_window();
                 return Err("Failed to create compatible bitmap".to_string());
             }
 
@@ -1670,6 +1681,7 @@ pub fn capture_screen_area(
                 let _ = DeleteObject(HGDIOBJ(bitmap.0));
                 let _ = DeleteDC(mem_dc);
                 ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+                show_window();
                 return Err("Failed to copy screen content".to_string());
             }
 
@@ -1713,6 +1725,7 @@ pub fn capture_screen_area(
             ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
 
             if result == 0 {
+                show_window();
                 return Err("Failed to get bitmap data".to_string());
             }
 
@@ -1742,6 +1755,12 @@ pub fn capture_screen_area(
 
             let base64_data = general_purpose::STANDARD.encode(&png_data);
 
+            // 重新显示截图窗口
+            if let Some(screenshot_window) = app_handle.get_webview_window("screenshot") {
+                let _ = screenshot_window.show();
+                let _ = screenshot_window.set_focus();
+            }
+
             // 返回包含图像数据和尺寸的JSON对象
             Ok(serde_json::json!({
                 "image": base64_data,
@@ -1755,6 +1774,11 @@ pub fn capture_screen_area(
 
     #[cfg(not(target_os = "windows"))]
     {
+        // 重新显示截图窗口
+        if let Some(screenshot_window) = app_handle.get_webview_window("screenshot") {
+            let _ = screenshot_window.show();
+            let _ = screenshot_window.set_focus();
+        }
         Err("Screen capture not implemented for this platform".to_string())
     }
 }

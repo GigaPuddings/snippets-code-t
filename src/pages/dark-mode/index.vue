@@ -16,38 +16,46 @@
     <div class="content mx-auto max-w-2xl px-5 pt-20 pb-5">
       <!-- 主题模式选择（四选一） -->
       <div class="section">
-        <h2 class="m-0 mb-4 text-lg font-semibold">{{ $t('darkMode.themeMode') }}</h2>
-        <div class="mode-selector grid grid-cols-4 gap-3">
+        <h2 class="m-0 mb-5 text-lg font-semibold">{{ $t('darkMode.themeMode') }}</h2>
+        <div class="mode-selector grid grid-cols-2 gap-4">
           <label class="mode-option block cursor-pointer h-full">
             <input type="radio" value="System" v-model="config.theme_mode" @change="handleThemeModeChange" class="hidden" />
-            <div class="mode-content rounded-lg border-2 p-4 transition-all h-full flex flex-col items-center">
-              <div class="mode-icon text-3xl mb-2">💻</div>
-              <div class="mode-title font-semibold text-center">{{ $t('darkMode.systemMode') }}</div>
-              <div class="mode-desc text-xs opacity-70 text-center mt-1">{{ $t('darkMode.systemModeDesc') }}</div>
+            <div class="mode-content rounded-xl border-2 p-5 transition-all h-full flex items-center gap-4">
+              <div class="mode-icon text-4xl flex-shrink-0">💻</div>
+              <div class="flex-1 min-w-0">
+                <div class="mode-title font-semibold text-base">{{ $t('darkMode.systemMode') }}</div>
+                <div class="mode-desc text-xs opacity-70 mt-1">{{ $t('darkMode.systemModeDesc') }}</div>
+              </div>
             </div>
           </label>
           <label class="mode-option block cursor-pointer h-full">
             <input type="radio" value="Light" v-model="config.theme_mode" @change="handleThemeModeChange" class="hidden" />
-            <div class="mode-content rounded-lg border-2 p-4 transition-all h-full flex flex-col items-center">
-              <div class="mode-icon text-3xl mb-2">☀️</div>
-              <div class="mode-title font-semibold text-center">{{ $t('darkMode.lightMode') }}</div>
-              <div class="mode-desc text-xs opacity-70 text-center mt-1">{{ $t('darkMode.lightModeDesc') }}</div>
+            <div class="mode-content rounded-xl border-2 p-5 transition-all h-full flex items-center gap-4">
+              <div class="mode-icon text-4xl flex-shrink-0">☀️</div>
+              <div class="flex-1 min-w-0">
+                <div class="mode-title font-semibold text-base">{{ $t('darkMode.lightMode') }}</div>
+                <div class="mode-desc text-xs opacity-70 mt-1">{{ $t('darkMode.lightModeDesc') }}</div>
+              </div>
             </div>
           </label>
           <label class="mode-option block cursor-pointer h-full">
             <input type="radio" value="Dark" v-model="config.theme_mode" @change="handleThemeModeChange" class="hidden" />
-            <div class="mode-content rounded-lg border-2 p-4 transition-all h-full flex flex-col items-center">
-              <div class="mode-icon text-3xl mb-2">🌙</div>
-              <div class="mode-title font-semibold text-center">{{ $t('darkMode.darkMode') }}</div>
-              <div class="mode-desc text-xs opacity-70 text-center mt-1">{{ $t('darkMode.darkModeDesc') }}</div>
+            <div class="mode-content rounded-xl border-2 p-5 transition-all h-full flex items-center gap-4">
+              <div class="mode-icon text-4xl flex-shrink-0">🌙</div>
+              <div class="flex-1 min-w-0">
+                <div class="mode-title font-semibold text-base">{{ $t('darkMode.darkMode') }}</div>
+                <div class="mode-desc text-xs opacity-70 mt-1">{{ $t('darkMode.darkModeDesc') }}</div>
+              </div>
             </div>
           </label>
           <label class="mode-option block cursor-pointer h-full">
             <input type="radio" value="Schedule" v-model="config.theme_mode" @change="handleThemeModeChange" class="hidden" />
-            <div class="mode-content rounded-lg border-2 p-4 transition-all h-full flex flex-col items-center">
-              <div class="mode-icon text-3xl mb-2">🔄</div>
-              <div class="mode-title font-semibold text-center">{{ $t('darkMode.scheduleMode') }}</div>
-              <div class="mode-desc text-xs opacity-70 text-center mt-1">{{ $t('darkMode.scheduleModeDesc') }}</div>
+            <div class="mode-content rounded-xl border-2 p-5 transition-all h-full flex items-center gap-4">
+              <div class="mode-icon text-4xl flex-shrink-0">🔄</div>
+              <div class="flex-1 min-w-0">
+                <div class="mode-title font-semibold text-base">{{ $t('darkMode.scheduleMode') }}</div>
+                <div class="mode-desc text-xs opacity-70 mt-1">{{ $t('darkMode.scheduleModeDesc') }}</div>
+              </div>
             </div>
           </label>
         </div>

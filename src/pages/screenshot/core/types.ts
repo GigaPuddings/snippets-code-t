@@ -44,7 +44,32 @@ export enum ToolType {
   Mosaic = 'mosaic',
   Text = 'text',
   ColorPicker = 'color-picker',
-  Pin = 'pin'
+  Pin = 'pin',
+  Translate = 'translate'
+}
+
+export interface OcrTextBlock {
+  text: string
+  x: number
+  y: number
+  width: number
+  height: number
+  angle: number
+  translatedText?: string
+}
+
+export interface OcrResult {
+  blocks: OcrTextBlock[]
+  full_text: string
+  language: string
+}
+
+export interface TranslationOverlay {
+  blocks: OcrTextBlock[]
+  isVisible: boolean
+  isLoading: boolean
+  sourceLanguage: string
+  targetLanguage: string
 }
 
 export interface AnnotationStyle {

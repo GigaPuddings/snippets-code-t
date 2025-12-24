@@ -170,7 +170,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, watch } from 'vue'
 import { ToolType } from '../core/types'
-import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, DeleteFour, Download, Check, Close, Platte, Pushpin } from '@icon-park/vue-next'
+import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, DeleteFour, Download, Check, Close, Platte, Pushpin, Translate } from '@icon-park/vue-next'
 
 // 颜色选择器状态
 const showColorPicker = ref(false)
@@ -210,6 +210,7 @@ const tools = [
   { type: ToolType.Mosaic, icon: Mosaic, title: '马赛克工具' },
   { type: ToolType.Text, icon: FontSize, title: '文字工具' },
   { type: ToolType.ColorPicker, icon: Platte, title: '取色工具' },
+  { type: ToolType.Translate, icon: Translate, title: '翻译工具' },
   { type: ToolType.Pin, icon: Pushpin, title: '贴图工具' }
 ]
 
@@ -219,9 +220,6 @@ const lineWidths = [2, 3, 5, 8]
 const presetColors = ['#ff4444', '#44ff44', '#4444ff']
 const textSizes = [12, 14, 16, 18, 20, 24]
 const mosaicSizes = [5, 8, 10, 15]
-
-// 自定义颜色选择器引用
-const colorInputRef = ref<HTMLInputElement | null>(null)
 
 // 是否显示样式设置
 const showStyleSettings = computed(() => ![ToolType.Select, ToolType.ColorPicker, ToolType.Pin].includes(props.currentTool))

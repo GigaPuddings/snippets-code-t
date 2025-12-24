@@ -336,6 +336,12 @@ const handleConfirm = async () => {
 }
 
 const handleCancel = () => {
+  // // 如果翻译覆盖层正在显示，先清除翻译覆盖层而不是关闭窗口
+  // const translationState = screenshotManager?.getTranslationState()
+  // if (translationState?.isVisible || translationState?.isLoading) {
+  //   screenshotManager?.clearTranslationOverlay()
+  //   return
+  // }
   closeWindow()
 }
 
@@ -472,6 +478,13 @@ const handleKeydown = (event: KeyboardEvent) => {
 
   // 处理功能键
   if (event.key === 'Escape') {
+    // // 如果翻译覆盖层正在显示，先清除翻译覆盖层而不是关闭窗口
+    // const translationState = screenshotManager?.getTranslationState()
+    // if (translationState?.isVisible || translationState?.isLoading) {
+    //   screenshotManager?.clearTranslationOverlay()
+    //   event.preventDefault()
+    //   return
+    // }
     closeWindow()
     return
   } else if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -530,11 +543,22 @@ onMounted(async () => {
     if (isTextInputVisible.value && document.activeElement === textInputRef.value) {
       return
     }
+
+    // 如果正在进行OCR翻译，不关闭窗口
+    const translationState = screenshotManager?.getTranslationState()
+    if (translationState?.isLoading || translationState?.isVisible) {
+      return
+    }
     
     // 延迟一下再关闭，避免误触
     setTimeout(() => {
       // 再次检查文字输入状态
       if (!isTextInputVisible.value || document.activeElement !== textInputRef.value) {
+        // 再次检查翻译状态
+        const currentTranslationState = screenshotManager?.getTranslationState()
+        if (currentTranslationState?.isLoading || currentTranslationState?.isVisible) {
+          return
+        }
         closeWindow()
       }
     }, 100)

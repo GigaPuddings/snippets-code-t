@@ -8,6 +8,7 @@ mod db;
 mod github_sync;
 mod hotkey;
 mod icon;
+mod ocr;
 mod search;
 mod translation;
 mod tray;
@@ -33,7 +34,8 @@ use crate::db::{
     get_all_app_settings, update_all_app_settings,
     set_auto_start_setting, get_auto_start_setting,
 };
-use crate::translation::translate_text;
+use crate::translation::{translate_text, translate_texts};
+use crate::ocr::{recognize_text, get_available_ocr_languages};
 use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
 };
@@ -520,6 +522,7 @@ pub fn run() {
             set_auto_hide_on_blur,            // 设置自动失焦隐藏
             get_auto_hide_on_blur,            // 获取自动失焦隐藏设置
             translate_text,                   // 翻译文本
+            translate_texts,                  // 批量翻译文本
             get_selection_translate_shortcut, // 获取划词翻译快捷键
             add_search_history,               // 添加搜索历史
             get_search_history,               // 获取搜索历史
@@ -580,6 +583,8 @@ pub fn run() {
             get_auto_start_setting,           // 获取自启动偏好
             open_preview_window,              // 打开片段预览窗口
             close_preview_window,             // 关闭片段预览窗口
+            recognize_text,                   // OCR文字识别
+            get_available_ocr_languages,      // 获取可用的OCR语言
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

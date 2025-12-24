@@ -33,6 +33,40 @@ pub async fn translate_text(
     }
 }
 
+// 批量翻译文本命令（保持输入输出一一对应）
+#[command]
+pub async fn translate_texts(
+    texts: Vec<String>,
+    from: String,
+    to: String,
+    engine: String,
+) -> Result<Vec<String>, String> {
+    info!(
+        "批量翻译请求: 引擎={}, 源语言={}, 目标语言={}, 条数={}",
+        engine,
+        from,
+        to,
+        texts.len()
+    );
+
+    if texts.is_empty() {
+        return Ok(vec![]);
+    }
+
+    match engine.as_str() {
+        "bing" => translate_with_bing_texts(texts, from, to).await,
+        "google" => {
+            // Google免费接口不支持一次性提交多条文本，这里做顺序调用兜底
+            let mut results = Vec::with_capacity(texts.len());
+            for text in texts {
+                results.push(translate_with_google(text, from.clone(), to.clone()).await?);
+            }
+            Ok(results)
+        }
+        _ => Err(format!("不支持的翻译引擎: {}", engine)),
+    }
+}
+
 // 使用Bing翻译
 async fn translate_with_bing(text: String, from: String, to: String) -> Result<String, String> {
     let client = Client::new();
@@ -128,6 +162,126 @@ async fn translate_with_bing(text: String, from: String, to: String) -> Result<S
         }
 
         Err("Bing翻译结果解析错误".to_string())
+    } else {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "无法获取错误详情".to_string());
+
+        Err(format!(
+            "Bing翻译API错误，状态码: {}，详情: {}",
+            status, error_text
+        ))
+    }
+}
+
+// 使用Bing翻译（批量）
+async fn translate_with_bing_texts(
+    texts: Vec<String>,
+    from: String,
+    to: String,
+) -> Result<Vec<String>, String> {
+    let client = Client::new();
+    let token_url = "https://edge.microsoft.com/translate/auth";
+
+    // 获取token
+    let token_response = client
+        .get(token_url)
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 Edg/113.0.1774.42")
+        .send()
+        .await
+        .map_err(|e| format!("获取Bing令牌失败: {}", e))?;
+
+    let token = token_response
+        .text()
+        .await
+        .map_err(|e| format!("读取Bing令牌失败: {}", e))?;
+
+    if token.is_empty() {
+        return Err("获取Bing令牌为空".to_string());
+    }
+
+    // 转换语言代码
+    let from_code = match from.as_str() {
+        "auto" => "",
+        "zh" => "zh-Hans",
+        "zh_tw" => "zh-Hant",
+        "en" => "en",
+        "ja" => "ja",
+        "ko" => "ko",
+        "fr" => "fr",
+        "de" => "de",
+        "ru" => "ru",
+        "es" => "es",
+        "pt_pt" => "pt-pt",
+        "pt_br" => "pt",
+        "vi" => "vi",
+        "id" => "id",
+        "th" => "th",
+        "ar" => "ar",
+        _ => &from,
+    };
+
+    let to_code = match to.as_str() {
+        "zh" => "zh-Hans",
+        "zh_tw" => "zh-Hant",
+        "en" => "en",
+        "ja" => "ja",
+        "ko" => "ko",
+        "fr" => "fr",
+        "de" => "de",
+        "ru" => "ru",
+        "es" => "es",
+        "pt_pt" => "pt-pt",
+        "pt_br" => "pt",
+        "vi" => "vi",
+        "id" => "id",
+        "th" => "th",
+        "ar" => "ar",
+        _ => &to,
+    };
+
+    // 构造翻译请求
+    let url = format!(
+        "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from={}&to={}",
+        from_code, to_code
+    );
+
+    let json_body = serde_json::Value::Array(
+        texts
+            .into_iter()
+            .map(|t| serde_json::json!({ "text": t }))
+            .collect(),
+    );
+
+    // 发送翻译请求
+    let response = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&json_body)
+        .send()
+        .await
+        .map_err(|e| format!("Bing翻译请求失败: {}", e))?;
+
+    let status = response.status();
+
+    if status.is_success() {
+        let result: Vec<BingTranslation> = response
+            .json()
+            .await
+            .map_err(|e| format!("解析Bing翻译结果失败: {}", e))?;
+
+        let mut out = Vec::with_capacity(result.len());
+        for item in result {
+            if let Some(translation) = item.translations.first() {
+                out.push(translation.text.trim().to_string());
+            } else {
+                out.push(String::new());
+            }
+        }
+
+        Ok(out)
     } else {
         let error_text = response
             .text()

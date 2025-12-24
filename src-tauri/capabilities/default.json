@@ -30,6 +30,7 @@
     "core:window:allow-destroy",
     "core:window:allow-hide",
     "core:window:allow-show",
+    "core:window:allow-set-focus",
     "opener:default",
     "log:default",
     "store:allow-get",
