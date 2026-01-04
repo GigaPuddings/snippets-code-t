@@ -54,22 +54,29 @@ export interface OcrTextBlock {
   y: number
   width: number
   height: number
+  fontSize: number
+  lineHeight: number
   angle: number
   translatedText?: string
+  isCodeBlock?: boolean
 }
 
-export interface OcrResult {
-  blocks: OcrTextBlock[]
-  full_text: string
-  language: string
+// 采样颜色信息
+export interface SampledColor {
+  r: number      // 0-255
+  g: number      // 0-255
+  b: number      // 0-255
+  brightness: number  // 0-255，亮度值
 }
 
 export interface TranslationOverlay {
   blocks: OcrTextBlock[]
   isVisible: boolean
   isLoading: boolean
+  errorMessage?: string
   sourceLanguage: string
   targetLanguage: string
+  engine: 'google' | 'bing' | 'offline'
 }
 
 export interface AnnotationStyle {
@@ -119,4 +126,12 @@ export interface ColorPickerState {
   previewImage?: ImageBitmap
   zoomFactor: number
   isCopied: boolean
+}
+
+// 覆盖层样式
+export interface OverlayStyle {
+  backgroundColor: string    // 背景颜色（带透明度）
+  textColor: string         // 文字颜色
+  borderRadius: number      // 圆角半径
+  padding: number           // 内边距
 }

@@ -48,21 +48,21 @@ pub fn get_all_search_history() -> Result<Vec<SearchHistoryItem>, rusqlite::Erro
     Ok(history)
 }
 
-/// 清理过期的搜索历史（保留最近6个月的数据和使用次数>5的记录）
-pub fn cleanup_old_search_history() -> Result<usize, rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
+// 清理过期的搜索历史（保留最近6个月的数据和使用次数>5的记录）
+// pub fn cleanup_old_search_history() -> Result<usize, rusqlite::Error> {
+//     let conn = DbConnectionManager::get()?;
     
-    // 删除6个月前且使用次数少于5次的记录
-    let rows_affected = conn.execute(
-        "DELETE FROM search_history 
-         WHERE datetime(last_used_at) < datetime('now', '-6 months')
-         AND usage_count < 5",
-        [],
-    )?;
+//     // 删除6个月前且使用次数少于5次的记录
+//     let rows_affected = conn.execute(
+//         "DELETE FROM search_history 
+//          WHERE datetime(last_used_at) < datetime('now', '-6 months')
+//          AND usage_count < 5",
+//         [],
+//     )?;
     
-    // log::info!("清理了 {} 条过期的搜索历史记录", rows_affected);
-    Ok(rows_affected)
-}
+//     // log::info!("清理了 {} 条过期的搜索历史记录", rows_affected);
+//     Ok(rows_affected)
+// }
 
 // ============= Tauri命令 =============
 

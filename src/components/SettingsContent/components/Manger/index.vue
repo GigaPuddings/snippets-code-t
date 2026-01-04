@@ -1,5 +1,7 @@
 <template>
-  <main class="summarize-container">
+  <div class="settings-panel">
+    <h3 class="panel-title">{{ $t('dataManager.title') }}</h3>
+    <main class="summarize-container">
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('dataManager.snippetDir') }}</div>
@@ -68,6 +70,7 @@
       </div>
     </section>
   </main>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -220,6 +223,14 @@ const selectCustomPath = async () => {
 </script>
 
 <style scoped lang="scss">
+.settings-panel {
+  @apply flex flex-col;
+}
+
+.panel-title {
+  @apply text-base font-bold mb-4 pb-2 border-b border-panel;
+}
+
 .message-footer {
   @apply flex justify-end gap-2 mt-4;
 }

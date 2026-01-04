@@ -3,11 +3,12 @@ import { DrawingEngine } from './DrawingEngine'
 import { CoordinateSystem } from './CoordinateSystem'
 import { EventHandler } from './EventHandler'
 import { AnnotationFactory } from './AnnotationFactory'
-import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, OcrResult, TranslationOverlay } from './types'
+import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, TranslationOverlay, SampledColor, OverlayStyle } from './types'
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
 import { logger } from '@/utils/logger'
 import { recognizeFromCanvas } from '@/utils/ocr'
+import { translateOffline, canUseOfflineTranslation } from '@/utils/offlineTranslator'
 
 interface WindowInfo {
   x: number
@@ -89,8 +90,12 @@ export class ScreenshotManager {
     isVisible: false,
     isLoading: false,
     sourceLanguage: 'auto',
-    targetLanguage: 'zh'
+    targetLanguage: 'zh',
+    engine: 'bing' // 默认值，实际值由组件初始化时从后端获取并设置
   }
+
+  // 离线模型后端激活状态
+  private offlineModelActivated = false
 
   // 回调函数
   private onStateChange?: () => void
@@ -156,45 +161,50 @@ export class ScreenshotManager {
   // 加载预捕获的屏幕背景图像
   private async loadScreenBackground(): Promise<void> {
     try {
-      // logger.info('[截图] 开始加载屏幕背景')
-      const base64Image = await invoke('get_screenshot_background') as string
+      // 清除旧的背景图像引用
+      this.backgroundImage = null
       
-      if (!base64Image) {
-        logger.warn('[截图] 未获取到屏幕背景图像')
-        return
-      }
-
-      // 创建Image对象并加载base64图像
-      const img = new Image()
-      img.onload = () => {
-        // logger.info('[截图] 屏幕背景图像加载成功')
-        // 保存背景图像引用
-        this.backgroundImage = img
-        // 立即绘制背景
-        this.drawBackground()
-        // logger.info('[截图] 屏幕背景绘制完成')
-        
-        // 通知加载完成
-        if (this.onLoadComplete) {
-          this.onLoadComplete()
-        }
-      }
-      img.onerror = (error) => {
-        logger.error('[截图] 屏幕背景图像加载失败', error)
-        // 即使失败也通知完成，避免卡住
-        if (this.onLoadComplete) {
-          this.onLoadComplete()
-        }
-      }
-      
-      // 设置图像源（使用JPEG格式）
-      img.src = `data:image/jpeg;base64,${base64Image}`
-    } catch (error) {
-      logger.error('[截图] 加载屏幕背景失败', error)
-      // 加载失败也要通知完成
+      // 通知加载完成（让用户可以立即开始操作）
       if (this.onLoadComplete) {
         this.onLoadComplete()
       }
+      
+      // 异步加载真实背景，带重试机制
+      let retryCount = 0
+      const maxRetries = 10
+      const retryDelay = 300
+      
+      while (retryCount < maxRetries) {
+        try {
+          const base64Image = await invoke('get_screenshot_background') as string
+          
+          if (!base64Image) {
+            throw new Error('Empty background image')
+          }
+
+          const img = new Image()
+          img.onload = () => {
+            this.backgroundImage = img
+            // 背景加载完成后，触发完整重绘（包括遮罩层和选择框）
+            this.draw()
+          }
+          img.onerror = (error) => {
+            logger.error('[截图] 屏幕背景图像加载失败', error)
+          }
+          
+          img.src = `data:image/jpeg;base64,${base64Image}`
+          break
+          
+        } catch (error: any) {
+          retryCount++
+          if (retryCount >= maxRetries) {
+            logger.error('[截图] 屏幕背景加载失败，已达最大重试次数')
+          }
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+        }
+      }
+    } catch (error) {
+      logger.error('[截图] 加载屏幕背景失败', error)
     }
   }
 
@@ -590,9 +600,11 @@ export class ScreenshotManager {
         }
       }
       
-      // 清理待定状态
+      // 清理待定状态和吸附预览状态
       this.pendingSnapWindow = null
       this.dragStartPosition = null
+      this.snappedWindow = null
+      this.showSnapPreview = false
       
       // 完成标注
       this.finishAnnotation()
@@ -1057,8 +1069,11 @@ export class ScreenshotManager {
   draw(): void {
     this.drawingEngine.clear()
     
-    // 【关键修复】清除后立即重新绘制背景图像，保持静态屏幕截图作为底层
-    this.drawBackground()
+    // 绘制背景图像（如果已加载）
+    if (this.backgroundImage) {
+      this.drawBackground()
+    }
+    // 如果背景还未加载，保持画布透明
 
     // 【遮罩层】绘制选择区域外的半透明遮罩
     if (this.selectionRect) {
@@ -1099,7 +1114,7 @@ export class ScreenshotManager {
     }
   }
 
-  // 绘制翻译覆盖层
+  // 绘制翻译覆盖层（智能排版）
   private drawTranslationOverlay(): void {
     if (!this.selectionRect) return
 
@@ -1108,20 +1123,18 @@ export class ScreenshotManager {
 
     ctx.save()
 
+    const { x, y, width, height } = this.selectionRect
+    const padding = 8
+
     // 如果正在加载，显示加载状态
     if (this.translationOverlay.isLoading) {
-      const centerX = this.selectionRect.x + this.selectionRect.width / 2
-      const centerY = this.selectionRect.y + this.selectionRect.height / 2
+      const centerX = x + width / 2
+      const centerY = y + height / 2
       
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-      ctx.fillRect(
-        this.selectionRect.x,
-        this.selectionRect.y,
-        this.selectionRect.width,
-        this.selectionRect.height
-      )
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+      ctx.fillRect(x, y, width, height)
       
-      ctx.font = '16px sans-serif'
+      ctx.font = '16px "Microsoft YaHei", sans-serif'
       ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -1131,65 +1144,523 @@ export class ScreenshotManager {
       return
     }
 
-    // 绘制每个翻译文字块
-    for (const block of this.translationOverlay.blocks) {
-      if (!block.translatedText) continue
-
-      // 计算相对于选区的位置
-      const blockX = this.selectionRect.x + block.x
-      const blockY = this.selectionRect.y + block.y
-
-      // 绘制半透明背景遮盖原文
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
-      ctx.fillRect(blockX, blockY, block.width, block.height)
-
-      // 计算合适的字体大小（根据块高度）
-      const fontSize = Math.max(12, Math.min(block.height * 0.8, 24))
-      ctx.font = `${fontSize}px "Microsoft YaHei", "PingFang SC", sans-serif`
-      ctx.fillStyle = '#333333'
-      ctx.textAlign = 'left'
+    // 如果翻译失败，显示错误提示
+    if (this.translationOverlay.errorMessage) {
+      const centerX = x + width / 2
+      const centerY = y + height / 2
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+      ctx.fillRect(x, y, width, height)
+      
+      ctx.font = '16px "Microsoft YaHei", sans-serif'
+      ctx.fillStyle = '#ff6b6b'
+      ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
+      ctx.fillText(this.translationOverlay.errorMessage, centerX, centerY)
+      
+      ctx.restore()
+      return
+    }
 
-      // 自动换行绘制文字
-      this.drawWrappedText(
-        ctx,
-        block.translatedText,
-        blockX + 2,
-        blockY + block.height / 2,
-        block.width - 4,
-        fontSize * 1.2
-      )
+    // 没有翻译内容时不绘制
+    if (this.translationOverlay.blocks.length === 0) {
+      ctx.restore()
+      return
+    }
+
+    // 1. 采样整个选区的背景颜色
+    const sampleRect: Rect = { x, y, width, height }
+    const sampledColor = this.sampleRegionColor(sampleRect)
+    
+    // 2. 计算统一的背景色和文字色
+    const isDarkBackground = sampledColor.brightness < 128
+    let backgroundColor: string
+    let textColor: string
+    
+    if (isDarkBackground) {
+      const bgR = Math.max(0, Math.round(sampledColor.r * 0.1))
+      const bgG = Math.max(0, Math.round(sampledColor.g * 0.1))
+      const bgB = Math.max(0, Math.round(sampledColor.b * 0.1))
+      backgroundColor = `rgba(${bgR}, ${bgG}, ${bgB}, 0.95)`
+      textColor = 'rgba(255, 255, 255, 0.9)'
+    } else {
+      const bgR = Math.min(255, Math.round(sampledColor.r + (255 - sampledColor.r) * 0.95))
+      const bgG = Math.min(255, Math.round(sampledColor.g + (255 - sampledColor.g) * 0.95))
+      const bgB = Math.min(255, Math.round(sampledColor.b + (255 - sampledColor.b) * 0.95))
+      backgroundColor = `rgba(${bgR}, ${bgG}, ${bgB}, 0.95)`
+      textColor = 'rgba(0, 0, 0, 0.85)'
+    }
+
+    // 3. 绘制统一的背景覆盖整个选区
+    ctx.fillStyle = backgroundColor
+    ctx.fillRect(x, y, width, height)
+
+    // 4. 按块渲染翻译文本，使用原文的位置和字体大小
+    ctx.fillStyle = textColor
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+
+    for (const block of this.translationOverlay.blocks) {
+      const translatedText = block.translatedText || block.text
+      if (!translatedText || !translatedText.trim()) continue
+
+      // 使用原文的字体大小，限制在合理范围内
+      const fontSize = Math.max(12, Math.min(block.fontSize || 16, 48))
+      const fontFamily = block.isCodeBlock 
+        ? '"Consolas", "Monaco", monospace'
+        : '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif'
+      
+      ctx.font = `${fontSize}px ${fontFamily}`
+
+      // 计算块的实际位置（相对于选区）
+      const blockX = x + block.x + padding
+      const blockY = y + block.y
+      const blockWidth = block.width - padding * 2
+
+      // 自动换行绘制
+      const lines = this.wrapTextToLines(ctx, translatedText.trim(), blockWidth > 0 ? blockWidth : width - padding * 2)
+      const lineHeight = block.lineHeight || fontSize * 1.4
+      
+      let currentY = blockY
+      for (const line of lines) {
+        if (currentY + fontSize > y + height) break
+        ctx.fillText(line, blockX, currentY)
+        currentY += lineHeight
+      }
     }
 
     ctx.restore()
   }
 
-  // 自动换行绘制文字
-  private drawWrappedText(
+  /**
+   * 将文字按宽度换行，返回行数组
+   */
+  private wrapTextToLines(
     ctx: CanvasRenderingContext2D,
     text: string,
-    x: number,
-    y: number,
-    maxWidth: number,
-    lineHeight: number
-  ): void {
-    const words = text.split('')
+    maxWidth: number
+  ): string[] {
+    const lines: string[] = []
+    const chars = text.split('')
     let line = ''
-    let currentY = y
-
-    for (let i = 0; i < words.length; i++) {
-      const testLine = line + words[i]
+    
+    for (const char of chars) {
+      const testLine = line + char
       const metrics = ctx.measureText(testLine)
       
       if (metrics.width > maxWidth && line !== '') {
-        ctx.fillText(line, x, currentY)
-        line = words[i]
-        currentY += lineHeight
+        lines.push(line)
+        line = char
       } else {
         line = testLine
       }
     }
-    ctx.fillText(line, x, currentY)
+    
+    if (line) {
+      lines.push(line)
+    }
+    
+    return lines
+  }
+
+  /**
+   * 从背景图像采样指定区域的平均颜色
+   * @param rect 采样区域（相对于canvas的坐标）
+   * @param sampleSize 采样点数量（默认16）
+   * @returns 采样得到的颜色信息，包含RGB值和亮度值
+   */
+  public sampleRegionColor(rect: Rect, sampleSize: number = 16): SampledColor {
+    // 默认返回值（白色背景）
+    const defaultColor: SampledColor = { r: 255, g: 255, b: 255, brightness: 255 }
+    
+    if (!this.backgroundImage) {
+      return defaultColor
+    }
+
+    // 创建临时canvas用于采样
+    const tempCanvas = document.createElement('canvas')
+    const tempCtx = tempCanvas.getContext('2d')
+    if (!tempCtx) {
+      return defaultColor
+    }
+
+    // 获取设备像素比
+    const dpr = window.devicePixelRatio || 1
+
+    // 设置临时canvas大小为采样区域大小（物理像素）
+    const physicalWidth = Math.round(rect.width * dpr)
+    const physicalHeight = Math.round(rect.height * dpr)
+    tempCanvas.width = physicalWidth
+    tempCanvas.height = physicalHeight
+
+    // 计算背景图像中对应的区域
+    // 背景图像是全屏截图，需要根据canvas位置计算
+    const bgWidth = this.backgroundImage.width
+    const bgHeight = this.backgroundImage.height
+    const canvasWidth = this.canvas.width / dpr
+    const canvasHeight = this.canvas.height / dpr
+
+    // 计算缩放比例
+    const scaleX = bgWidth / canvasWidth
+    const scaleY = bgHeight / canvasHeight
+
+    // 计算在背景图像中的源区域
+    const srcX = rect.x * scaleX
+    const srcY = rect.y * scaleY
+    const srcWidth = rect.width * scaleX
+    const srcHeight = rect.height * scaleY
+
+    // 绘制背景图像的对应区域到临时canvas
+    try {
+      tempCtx.drawImage(
+        this.backgroundImage,
+        srcX, srcY, srcWidth, srcHeight,
+        0, 0, physicalWidth, physicalHeight
+      )
+    } catch (error) {
+      logger.warn('[截图] 采样区域绘制失败', error)
+      return defaultColor
+    }
+
+    // 获取像素数据
+    let imageData: ImageData
+    try {
+      imageData = tempCtx.getImageData(0, 0, physicalWidth, physicalHeight)
+    } catch (error) {
+      logger.warn('[截图] 获取像素数据失败', error)
+      return defaultColor
+    }
+
+    const data = imageData.data
+
+    // 计算采样点的位置（均匀分布在区域内）
+    // 使用 4x4 网格采样（共16个点）
+    const gridSize = Math.ceil(Math.sqrt(sampleSize))
+    const stepX = physicalWidth / (gridSize + 1)
+    const stepY = physicalHeight / (gridSize + 1)
+
+    let totalR = 0
+    let totalG = 0
+    let totalB = 0
+    let sampleCount = 0
+
+    for (let row = 1; row <= gridSize; row++) {
+      for (let col = 1; col <= gridSize; col++) {
+        if (sampleCount >= sampleSize) break
+
+        const x = Math.floor(col * stepX)
+        const y = Math.floor(row * stepY)
+
+        // 确保坐标在有效范围内
+        if (x >= 0 && x < physicalWidth && y >= 0 && y < physicalHeight) {
+          const index = (y * physicalWidth + x) * 4
+          
+          if (index >= 0 && index + 2 < data.length) {
+            totalR += data[index]
+            totalG += data[index + 1]
+            totalB += data[index + 2]
+            sampleCount++
+          }
+        }
+      }
+    }
+
+    // 计算平均值
+    if (sampleCount === 0) {
+      return defaultColor
+    }
+
+    const avgR = Math.round(totalR / sampleCount)
+    const avgG = Math.round(totalG / sampleCount)
+    const avgB = Math.round(totalB / sampleCount)
+
+    // 使用 getBrightness 方法计算亮度值
+    const brightness = this.getBrightness(avgR, avgG, avgB)
+
+    return {
+      r: avgR,
+      g: avgG,
+      b: avgB,
+      brightness
+    }
+  }
+
+  /**
+   * 计算颜色的亮度值
+   * 使用标准公式: brightness = 0.299*R + 0.587*G + 0.114*B
+   * @param r 红色分量 (0-255)
+   * @param g 绿色分量 (0-255)
+   * @param b 蓝色分量 (0-255)
+   * @returns 亮度值 (0-255)
+   */
+  public getBrightness(r: number, g: number, b: number): number {
+    // 确保输入值在有效范围内
+    const clampedR = Math.max(0, Math.min(255, r))
+    const clampedG = Math.max(0, Math.min(255, g))
+    const clampedB = Math.max(0, Math.min(255, b))
+    
+    // 使用标准亮度计算公式
+    // 这个公式基于人眼对不同颜色的敏感度：绿色最敏感，红色次之，蓝色最不敏感
+    return Math.round(0.299 * clampedR + 0.587 * clampedG + 0.114 * clampedB)
+  }
+
+  /**
+   * 根据采样颜色计算覆盖层样式
+   * 深色背景（亮度 < 128）：使用深色半透明背景 + 浅色文字
+   * 浅色背景（亮度 >= 128）：使用浅色半透明背景 + 深色文字
+   * @param sampledColor 采样得到的背景颜色
+   * @returns 覆盖层样式
+   */
+  public calculateOverlayStyle(sampledColor: SampledColor): OverlayStyle {
+    const { brightness } = sampledColor
+    const isDarkBackground = brightness < 128
+
+    // 根据背景亮度计算透明度（0.85-0.95）
+    // 背景越暗或越亮（极端值），透明度越高，以确保文字可读性
+    const normalizedBrightness = brightness / 255
+    const distanceFromMiddle = Math.abs(normalizedBrightness - 0.5) * 2 // 0-1
+    const alpha = 0.85 + distanceFromMiddle * 0.1 // 0.85-0.95
+
+    let backgroundColor: string
+    let textColor: string
+
+    if (isDarkBackground) {
+      // 深色背景：使用深色半透明背景（亮度 < 64）+ 浅色文字
+      // 背景色基于原色调整，使其更暗
+      const bgR = Math.max(0, Math.round(sampledColor.r * 0.2))
+      const bgG = Math.max(0, Math.round(sampledColor.g * 0.2))
+      const bgB = Math.max(0, Math.round(sampledColor.b * 0.2))
+      backgroundColor = `rgba(${bgR}, ${bgG}, ${bgB}, ${alpha})`
+      
+      // 浅色文字（白色或接近白色）
+      textColor = 'rgba(255, 255, 255, 0.95)'
+    } else {
+      // 浅色背景：使用浅色半透明背景（亮度 >= 200）+ 深色文字
+      // 背景色基于原色调整，使其更亮
+      const bgR = Math.min(255, Math.round(sampledColor.r + (255 - sampledColor.r) * 0.8))
+      const bgG = Math.min(255, Math.round(sampledColor.g + (255 - sampledColor.g) * 0.8))
+      const bgB = Math.min(255, Math.round(sampledColor.b + (255 - sampledColor.b) * 0.8))
+      backgroundColor = `rgba(${bgR}, ${bgG}, ${bgB}, ${alpha})`
+      
+      // 深色文字（黑色或接近黑色）
+      textColor = 'rgba(0, 0, 0, 0.9)'
+    }
+
+    return {
+      backgroundColor,
+      textColor,
+      borderRadius: 3, // 轻微圆角（2-4px范围内）
+      padding: 4       // 内边距
+    }
+  }
+
+  /**
+   * 检测指定区域是否为纯色（颜色方差小于阈值）
+   * 通过计算采样点的颜色方差来判断区域是否为纯色
+   * @param rect 检测区域（相对于canvas的坐标）
+   * @param threshold 方差阈值，默认100，方差小于此值认为是纯色
+   * @param sampleSize 采样点数量，默认16
+   * @returns 是否为纯色区域
+   */
+  public isUniformColor(rect: Rect, threshold: number = 100, sampleSize: number = 16): boolean {
+    if (!this.backgroundImage) {
+      return false
+    }
+
+    // 创建临时canvas用于采样
+    const tempCanvas = document.createElement('canvas')
+    const tempCtx = tempCanvas.getContext('2d')
+    if (!tempCtx) {
+      return false
+    }
+
+    // 获取设备像素比
+    const dpr = window.devicePixelRatio || 1
+
+    // 设置临时canvas大小为采样区域大小（物理像素）
+    const physicalWidth = Math.round(rect.width * dpr)
+    const physicalHeight = Math.round(rect.height * dpr)
+    tempCanvas.width = physicalWidth
+    tempCanvas.height = physicalHeight
+
+    // 计算背景图像中对应的区域
+    const bgWidth = this.backgroundImage.width
+    const bgHeight = this.backgroundImage.height
+    const canvasWidth = this.canvas.width / dpr
+    const canvasHeight = this.canvas.height / dpr
+
+    // 计算缩放比例
+    const scaleX = bgWidth / canvasWidth
+    const scaleY = bgHeight / canvasHeight
+
+    // 计算在背景图像中的源区域
+    const srcX = rect.x * scaleX
+    const srcY = rect.y * scaleY
+    const srcWidth = rect.width * scaleX
+    const srcHeight = rect.height * scaleY
+
+    // 绘制背景图像的对应区域到临时canvas
+    try {
+      tempCtx.drawImage(
+        this.backgroundImage,
+        srcX, srcY, srcWidth, srcHeight,
+        0, 0, physicalWidth, physicalHeight
+      )
+    } catch (error) {
+      logger.warn('[截图] isUniformColor: 采样区域绘制失败', error)
+      return false
+    }
+
+    // 获取像素数据
+    let imageData: ImageData
+    try {
+      imageData = tempCtx.getImageData(0, 0, physicalWidth, physicalHeight)
+    } catch (error) {
+      logger.warn('[截图] isUniformColor: 获取像素数据失败', error)
+      return false
+    }
+
+    const data = imageData.data
+
+    // 计算采样点的位置（均匀分布在区域内）
+    const gridSize = Math.ceil(Math.sqrt(sampleSize))
+    const stepX = physicalWidth / (gridSize + 1)
+    const stepY = physicalHeight / (gridSize + 1)
+
+    // 收集采样点的颜色值
+    const samples: Array<{ r: number; g: number; b: number }> = []
+
+    for (let row = 1; row <= gridSize; row++) {
+      for (let col = 1; col <= gridSize; col++) {
+        if (samples.length >= sampleSize) break
+
+        const x = Math.floor(col * stepX)
+        const y = Math.floor(row * stepY)
+
+        // 确保坐标在有效范围内
+        if (x >= 0 && x < physicalWidth && y >= 0 && y < physicalHeight) {
+          const index = (y * physicalWidth + x) * 4
+          
+          if (index >= 0 && index + 2 < data.length) {
+            samples.push({
+              r: data[index],
+              g: data[index + 1],
+              b: data[index + 2]
+            })
+          }
+        }
+      }
+    }
+
+    // 如果采样点不足，无法判断
+    if (samples.length < 2) {
+      return false
+    }
+
+    // 计算每个通道的平均值
+    const avgR = samples.reduce((sum, s) => sum + s.r, 0) / samples.length
+    const avgG = samples.reduce((sum, s) => sum + s.g, 0) / samples.length
+    const avgB = samples.reduce((sum, s) => sum + s.b, 0) / samples.length
+
+    // 计算每个通道的方差
+    const varianceR = samples.reduce((sum, s) => sum + Math.pow(s.r - avgR, 2), 0) / samples.length
+    const varianceG = samples.reduce((sum, s) => sum + Math.pow(s.g - avgG, 2), 0) / samples.length
+    const varianceB = samples.reduce((sum, s) => sum + Math.pow(s.b - avgB, 2), 0) / samples.length
+
+    // 计算总方差（三个通道方差的平均值）
+    const totalVariance = (varianceR + varianceG + varianceB) / 3
+
+    // 方差小于阈值则认为是纯色
+    return totalVariance < threshold
+  }
+
+  /**
+   * 根据OCR块高度估算合适的字体大小
+   * 基础公式: fontSize = blockHeight * 0.8
+   * 边界约束: fontSize = clamp(fontSize, 12, blockHeight * 0.85)
+   * @param blockHeight OCR块的高度
+   * @returns 估算的字体大小
+   */
+  public estimateFontSize(blockHeight: number): number {
+    // 处理异常输入
+    if (blockHeight <= 0) {
+      return 12 // 返回最小字体大小
+    }
+
+    // 基础公式：字体大小为块高度的80%
+    const baseFontSize = blockHeight * 0.8
+
+    // 计算最大字体大小（块高度的85%）
+    const maxFontSize = blockHeight * 0.85
+
+    // 边界约束：最小12px，最大为块高度的85%
+    const minFontSize = 12
+    const clampedFontSize = Math.max(minFontSize, Math.min(baseFontSize, maxFontSize))
+
+    return Math.round(clampedFontSize)
+  }
+
+  /**
+   * 根据文字内容和块宽度调整字体大小
+   * 测量文字宽度，如果超出块宽度则缩小字体
+   * 最小字体不低于12px
+   * @param text 文字内容
+   * @param blockWidth 块宽度
+   * @param initialFontSize 初始字体大小
+   * @param ctx Canvas上下文（用于测量文字宽度）
+   * @returns 调整后的字体大小
+   */
+  public fitTextToWidth(
+    text: string,
+    blockWidth: number,
+    initialFontSize: number,
+    ctx: CanvasRenderingContext2D
+  ): number {
+    const minFontSize = 12
+    const padding = 4 // 内边距
+
+    // 处理异常输入
+    if (!text || text.length === 0) {
+      return initialFontSize
+    }
+    if (blockWidth <= 0) {
+      return minFontSize
+    }
+    if (initialFontSize <= minFontSize) {
+      return minFontSize
+    }
+
+    // 可用宽度（减去两侧内边距）
+    const availableWidth = blockWidth - padding * 2
+
+    // 如果可用宽度太小，返回最小字体
+    if (availableWidth <= 0) {
+      return minFontSize
+    }
+
+    let fontSize = initialFontSize
+
+    // 保存当前字体设置
+    const originalFont = ctx.font
+
+    // 逐步缩小字体直到文字适合宽度或达到最小字体
+    while (fontSize > minFontSize) {
+      ctx.font = `${fontSize}px sans-serif`
+      const textWidth = ctx.measureText(text).width
+
+      if (textWidth <= availableWidth) {
+        break
+      }
+
+      // 缩小字体（每次减少1px）
+      fontSize -= 1
+    }
+
+    // 恢复原始字体设置
+    ctx.font = originalFont
+
+    // 确保不低于最小字体
+    return Math.max(fontSize, minFontSize)
   }
 
   // 绘制窗口吸附预览
@@ -1505,30 +1976,15 @@ export class ScreenshotManager {
       const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
       const scale = windowInfo?.scale || 1
 
-      // 计算实际屏幕坐标
-      const screenX = Math.round(windowInfo.x + x * scale)
-      const screenY = Math.round(windowInfo.y + y * scale)
-      const screenWidth = Math.round(width * scale)
-      const screenHeight = Math.round(height * scale)
+      // 从背景图像裁剪选区
+      const captureResult = await this.cropFromBackground(x, y, width, height)
 
-      // 捕获屏幕区域
-      const result = await invoke('capture_screen_area', {
-        x: screenX,
-        y: screenY,
-        width: screenWidth,
-        height: screenHeight
-      }) as {
-        image: string,
-        adjusted_width: number,
-        adjusted_height: number
-      }
-
-      if (!result?.image) {
-        throw new Error('Failed to capture screen area')
+      if (!captureResult?.image) {
+        throw new Error('Failed to crop from background image')
       }
 
       // 处理标注并生成最终图像
-      const finalImage = await this.renderWithAnnotations(result, scale)
+      const finalImage = await this.renderWithAnnotations(captureResult, scale, action)
 
       // 执行相应操作
       if (action === 'copy') {
@@ -1542,21 +1998,103 @@ export class ScreenshotManager {
     }
   }
 
-  // 渲染带标注的图像
-  private async renderWithAnnotations(
-    captureResult: { image: string, adjusted_width: number, adjusted_height: number },
-    scale: number
-  ): Promise<string> {
-    return new Promise((resolve, reject) => {
+  // 从背景图像裁剪指定区域
+  private async cropFromBackground(
+    x: number, 
+    y: number, 
+    width: number, 
+    height: number
+  ): Promise<{ image: string, adjusted_width: number, adjusted_height: number }> {
+    return new Promise(async (resolve, reject) => {
+      // 如果背景图像还没加载，等待一段时间
+      if (!this.backgroundImage) {
+        const maxWaitTime = 3000
+        const checkInterval = 100
+        let waitedTime = 0
+        
+        while (!this.backgroundImage && waitedTime < maxWaitTime) {
+          await new Promise(resolve => setTimeout(resolve, checkInterval))
+          waitedTime += checkInterval
+        }
+        
+        if (!this.backgroundImage) {
+          reject(new Error('Background image not available after waiting'))
+          return
+        }
+      }
+
+      // 计算裁剪区域（考虑设备像素比）
+      const dpr = window.devicePixelRatio || 1
+      const cropX = Math.round(x * dpr)
+      const cropY = Math.round(y * dpr)
+      const cropWidth = Math.round(width * dpr)
+      const cropHeight = Math.round(height * dpr)
+
+      // 创建临时canvas进行裁剪
       const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = captureResult.adjusted_width
-      tempCanvas.height = captureResult.adjusted_height
-      const tempCtx = tempCanvas.getContext('2d')
+      tempCanvas.width = cropWidth
+      tempCanvas.height = cropHeight
+      const tempCtx = tempCanvas.getContext('2d', {
+        alpha: true,
+        desynchronized: false,
+        willReadFrequently: false
+      })
 
       if (!tempCtx) {
         reject(new Error('Failed to get 2D context'))
         return
       }
+
+      // 设置高质量渲染
+      tempCtx.imageSmoothingEnabled = false // 裁剪时禁用平滑，保持像素精确
+      
+      try {
+        // 从背景图像裁剪指定区域
+        tempCtx.drawImage(
+          this.backgroundImage,
+          cropX, cropY, cropWidth, cropHeight,
+          0, 0, cropWidth, cropHeight
+        )
+
+        // 使用最高质量的 PNG 编码
+        const dataUrl = tempCanvas.toDataURL('image/png', 1.0)
+        const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+
+        resolve({
+          image: base64,
+          adjusted_width: cropWidth,
+          adjusted_height: cropHeight
+        })
+      } catch (err) {
+        reject(err)
+      }
+    })
+  }
+
+  // 渲染带标注的图像
+  private async renderWithAnnotations(
+    captureResult: { image: string, adjusted_width: number, adjusted_height: number },
+    scale: number,
+    action: 'copy' | 'save'
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = captureResult.adjusted_width
+      tempCanvas.height = captureResult.adjusted_height
+      const tempCtx = tempCanvas.getContext('2d', {
+        alpha: true,
+        desynchronized: false,
+        willReadFrequently: false
+      })
+
+      if (!tempCtx) {
+        reject(new Error('Failed to get 2D context'))
+        return
+      }
+
+      // 设置高质量渲染
+      tempCtx.imageSmoothingEnabled = true
+      tempCtx.imageSmoothingQuality = 'high'
 
       const img = new Image()
       img.onload = () => {
@@ -1579,7 +2117,21 @@ export class ScreenshotManager {
             })
           }
 
-          const dataUrl = tempCanvas.toDataURL('image/png')
+          // 根据操作类型选择编码方式
+          let dataUrl: string
+          if (action === 'copy') {
+            // 复制到剪贴板：使用 WebP 格式（更快）
+            // 如果浏览器不支持 WebP，回退到 PNG
+            dataUrl = tempCanvas.toDataURL('image/webp', 0.95)
+            if (!dataUrl.startsWith('data:image/webp')) {
+              // 浏览器不支持 WebP，使用 PNG
+              dataUrl = tempCanvas.toDataURL('image/png')
+            }
+          } else {
+            // 保存到文件：使用 PNG 格式（高质量）
+            dataUrl = tempCanvas.toDataURL('image/png')
+          }
+          
           resolve(dataUrl)
         } catch (err) {
           logger.error('[PIN] 绘制过程出错', err)
@@ -1695,30 +2247,21 @@ export class ScreenshotManager {
       const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
       const scale = windowInfo?.scale || 1
       
-      // 计算实际屏幕坐标
+      // 计算实际屏幕坐标（用于贴图窗口定位）
       const screenX = Math.round(windowInfo.x + x * scale)
       const screenY = Math.round(windowInfo.y + y * scale)
       const screenWidth = Math.round(width * scale)
       const screenHeight = Math.round(height * scale)
       
-      // 2. 捕获屏幕区域
-      const result = await invoke('capture_screen_area', {
-        x: screenX,
-        y: screenY,
-        width: screenWidth,
-        height: screenHeight
-      }) as {
-        image: string,
-        adjusted_width: number,
-        adjusted_height: number
+      // 2. 从背景图像裁剪选区，而不是重新截屏
+      const captureResult = await this.cropFromBackground(x, y, width, height)
+      
+      if (!captureResult?.image) {
+        throw new Error('Failed to crop from background image')
       }
       
-      if (!result?.image) {
-        throw new Error('Failed to capture screen area')
-      }
-      
-      // 3. 处理标注并生成最终图像
-      const finalImage = await this.renderWithAnnotations(result, scale)
+      // 3. 处理标注并生成最终图像（贴图使用 PNG 格式）
+      const finalImage = await this.renderWithAnnotations(captureResult, scale, 'save')
       
       // 4. 创建贴图窗口
       await invoke('create_pin_window', {
@@ -1888,100 +2431,106 @@ export class ScreenshotManager {
         0, 0, srcWidth, srcHeight
       )
 
-      logger.info('[OCR] 开始混合 OCR 识别（后端定位 + 前端识别）...')
-      logger.info(`[OCR] 选区信息: x=${x}, y=${y}, width=${width}, height=${height}, dpr=${dpr}`)
+      logger.info('[OCR] 开始纯前端 OCR 识别（Tesseract.js）...')
+      logger.debug(`[OCR] 选区信息: x=${x}, y=${y}, width=${width}, height=${height}, dpr=${dpr}`)
 
-      // 2. 并行执行：后端 OCR 获取位置，前端 Tesseract.js 获取文字
-      const base64Image = tempCanvas.toDataURL('image/png').split(',')[1]
+      // 2. 使用前端 Tesseract.js 进行 OCR 识别
+      const tesseractResult = await recognizeFromCanvas(tempCanvas)
+
+      logger.info(`[OCR] 前端识别完成: ${tesseractResult.blocks?.length || 0} 个文字块, 置信度: ${tesseractResult.confidence.toFixed(1)}%`)
+      logger.debug(`[OCR] 前端完整文本: ${tesseractResult.full_text}`)
+
+      // 打印每个识别出的文字块详情（仅调试模式）
+      logger.debug('[OCR] ========== 前端 Tesseract.js 识别结果 ==========')
+      tesseractResult.blocks.forEach((block, index) => {
+        logger.debug(`[OCR] 文字块 #${index + 1}:`)
+        logger.debug(`[OCR]   文本内容: "${block.text}"`)
+        logger.debug(`[OCR]   位置: x=${block.x.toFixed(1)}, y=${block.y.toFixed(1)}`)
+        logger.debug(`[OCR]   尺寸: width=${block.width.toFixed(1)}, height=${block.height.toFixed(1)}`)
+        logger.debug(`[OCR]   置信度: ${block.confidence?.toFixed(1) || 'N/A'}%`)
+      })
+      logger.debug('[OCR] ================================================')
+
+      // 3. 智能合并被截断的句子
+      // 规则：如果当前行以标点结尾，上一行没有标点结尾且宽度接近，则合并
+      // 新增：字体大小不一致时不合并（说明是不同段落/标题）
+      const blocks = tesseractResult.blocks
+      const mergedLines: string[] = []
+      const mergedBlocks: typeof blocks = []  // 保存合并后的块信息
+      const punctuationEnd = /[.。!！?？:]$/  // 只有句号、问号、感叹号才算完整句子
+      const numberedListStart = /^\d+[.、)）]\s*/  // 匹配 1. 2. 1、 2、 1) 2) 等编号列表
+      const bulletListStart = /^[*•·\-+]\s+/  // 匹配 * • · - + 等列表符号
+      const fontSizeTolerance = 3  // 字体大小容差（像素）
+      const widthTolerance = 0.15  // 宽度容差比例（15%）
       
-      const [backendResult, tesseractResult] = await Promise.all([
-        // 后端 Windows OCR - 位置准确
-        invoke('recognize_text', { imageBase64: base64Image }) as Promise<OcrResult>,
-        // 前端 Tesseract.js - 文字准确
-        recognizeFromCanvas(tempCanvas)
-      ])
-
-      logger.info(`[OCR] 后端识别: ${backendResult.blocks?.length || 0} 个文字块`)
-      logger.info(`[OCR] 前端识别: ${tesseractResult.blocks?.length || 0} 个文字块, 置信度: ${tesseractResult.confidence.toFixed(1)}%`)
-      logger.info(`[OCR] 前端完整文本: ${tesseractResult.full_text}`)
-
-      // 3. 混合策略：使用后端的位置 + 前端的文字
-      let ocrResult: OcrResult
-
-      if (backendResult.blocks && backendResult.blocks.length > 0) {
-        // 后端有结果，使用后端位置
-        const backendBlocks = backendResult.blocks
-        const frontendLines = tesseractResult.full_text.split('\n').filter(line => line.trim())
+      // 计算最大行宽度作为参考
+      const maxWidth = Math.max(...blocks.map(b => b.width))
+      
+      for (let i = 0; i < blocks.length; i++) {
+        const currBlock = blocks[i]
+        const currText = currBlock.text.trim()
+        if (!currText) continue
         
-        logger.info(`[OCR] 后端文字块数: ${backendBlocks.length}, 前端行数: ${frontendLines.length}`)
-
-        // 按 Y 坐标排序后端块
-        const sortedBackendBlocks = [...backendBlocks].sort((a, b) => a.y - b.y)
-        
-        // 将前端识别的文字按行匹配到后端的位置块
-        const mergedBlocks: OcrTextBlock[] = []
-        
-        if (frontendLines.length > 0) {
-          // 策略：按行数匹配，如果行数相近则一一对应
-          if (Math.abs(sortedBackendBlocks.length - frontendLines.length) <= 2) {
-            // 行数接近，一一对应
-            for (let i = 0; i < sortedBackendBlocks.length; i++) {
-              const block = sortedBackendBlocks[i]
-              const frontendText = frontendLines[i] || block.text
-              mergedBlocks.push({
-                ...block,
-                text: frontendText.trim()
-              })
-            }
-          } else {
-            // 行数差异大，尝试按位置匹配
-            // 将前端文字按后端块的数量分组
-            const linesPerBlock = Math.ceil(frontendLines.length / sortedBackendBlocks.length)
-            
-            for (let i = 0; i < sortedBackendBlocks.length; i++) {
-              const block = sortedBackendBlocks[i]
-              const startLine = i * linesPerBlock
-              const endLine = Math.min(startLine + linesPerBlock, frontendLines.length)
-              const mergedText = frontendLines.slice(startLine, endLine).join(' ').trim()
-              
-              mergedBlocks.push({
-                ...block,
-                text: mergedText || block.text
-              })
+        // 检查是否应该与上一行合并
+        if (mergedLines.length > 0 && mergedBlocks.length > 0) {
+          const prevBlock = mergedBlocks[mergedBlocks.length - 1]
+          
+          // 检查字体大小是否一致（容差范围内）
+          const fontSizeDiff = Math.abs(currBlock.fontSize - prevBlock.fontSize)
+          if (fontSizeDiff > fontSizeTolerance) {
+            // 字体大小不一致，不合并（可能是标题和正文）
+            mergedLines.push(currText)
+            mergedBlocks.push(currBlock)
+            continue
+          }
+          
+          // 当前行以编号开头（1. 2. 等），不合并（新列表项）
+          if (numberedListStart.test(currText) || bulletListStart.test(currText)) {
+            mergedLines.push(currText)
+            mergedBlocks.push(currBlock)
+            continue
+          }
+          
+          // 当前行首字母大写，不合并（新句子开始）
+          const firstChar = currText.charAt(0)
+          if (/[A-Z]/.test(firstChar)) {
+            mergedLines.push(currText)
+            mergedBlocks.push(currBlock)
+            continue
+          }
+          
+          const prevLine = mergedLines[mergedLines.length - 1]
+          const prevHasPunctuation = punctuationEnd.test(prevLine)
+          
+          if (!prevHasPunctuation) {
+            // 上一行没有标点结尾（不完整）
+            // 条件：上一行宽度接近最大宽度（说明是满行被截断）
+            const prevWidthRatio = prevBlock.width / maxWidth
+            if (prevWidthRatio >= (1 - widthTolerance)) {
+              mergedLines[mergedLines.length - 1] = prevLine + ' ' + currText
+              // 更新合并后块的宽度和高度
+              mergedBlocks[mergedBlocks.length - 1] = {
+                ...prevBlock,
+                text: prevLine + ' ' + currText,
+                height: currBlock.y + currBlock.height - prevBlock.y
+              }
+              logger.debug(`[OCR] 合并行: "...${currText.substring(currText.length - 20, currText.length)}" -> 上一行`)
+              continue
             }
           }
-        } else {
-          // 前端没有识别到文字，使用后端结果
-          mergedBlocks.push(...sortedBackendBlocks)
         }
-
-        ocrResult = {
-          blocks: mergedBlocks,
-          full_text: tesseractResult.full_text || backendResult.full_text,
-          language: tesseractResult.language || backendResult.language
-        }
-      } else {
-        // 后端没有结果，使用前端结果
-        logger.info('[OCR] 后端无结果，使用前端 Tesseract.js 结果')
-        ocrResult = {
-          blocks: tesseractResult.blocks.map(block => ({
-            text: block.text,
-            x: block.x,
-            y: block.y,
-            width: block.width,
-            height: block.height,
-            angle: block.angle
-          })),
-          full_text: tesseractResult.full_text,
-          language: tesseractResult.language
-        }
+        
+        mergedLines.push(currText)
+        mergedBlocks.push(currBlock)
       }
+      
+      const fullText = mergedLines.join('\n')
+      logger.info(`[OCR] 纯前端识别完成 - 检测语言: ${tesseractResult.language}`)
+      logger.debug(`[OCR] 合并后段落数: ${mergedLines.length}`)
+      logger.debug(`[OCR] 完整文本: "${fullText.substring(0, 100)}${fullText.length > 100 ? '...' : ''}"`)
 
-      // 打印OCR识别结果概览
-      logger.info(`[OCR] 混合识别完成 - 检测语言: ${ocrResult.language}, 文字块数量: ${ocrResult.blocks?.length || 0}`)
-
-      if (!ocrResult.blocks || ocrResult.blocks.length === 0) {
-        logger.warn('[OCR] 未识别到任何文字块')
+      if (!fullText || !fullText.trim()) {
+        logger.warn('[OCR] 未识别到任何文字')
         this.translationOverlay.isLoading = false
         this.translationOverlay.isVisible = false
         this.draw()
@@ -1989,17 +2538,7 @@ export class ScreenshotManager {
         return
       }
 
-      // 打印每个识别出的文字块详情
-      logger.info('[OCR] ========== 识别文字块详情 ==========')
-      ocrResult.blocks.forEach((block, index) => {
-        logger.info(`[OCR] 文字块 #${index + 1}:`)
-        logger.info(`[OCR]   文本内容: "${block.text}"`)
-        logger.info(`[OCR]   位置: x=${block.x}, y=${block.y}`)
-        logger.info(`[OCR]   尺寸: width=${block.width}, height=${block.height}`)
-      })
-      logger.info('[OCR] =====================================')
-
-      // 4. 检测每行语言，只翻译英文行，中文行保持原样
+      // 4. 翻译
       this.translationOverlay.sourceLanguage = 'auto'
       this.translationOverlay.targetLanguage = 'zh'
 
@@ -2010,85 +2549,117 @@ export class ScreenshotManager {
         return totalChars > 0 && chineseChars / totalChars > 0.3
       }
 
-      let translatedTexts: string[] = []
-      try {
-        // 分离英文行和中文行
-        const englishBlocks: { index: number; text: string }[] = []
-        
-        ocrResult.blocks.forEach((block, index) => {
-          if (!isChineseText(block.text)) {
-            englishBlocks.push({ index, text: block.text })
-          }
-        })
-
-        logger.info(`[OCR] 共 ${ocrResult.blocks.length} 个文字块，其中 ${englishBlocks.length} 个需要翻译`)
-
-        // 初始化译文数组（默认使用原文）
-        translatedTexts = ocrResult.blocks.map(b => b.text)
-
-        if (englishBlocks.length > 0) {
-          logger.info('[OCR] 开始翻译英文内容...')
-          
-          // 合并英文行翻译
-          const englishText = englishBlocks.map(b => b.text).join(' ')
-          const translatedEnglish = (await invoke('translate_text', {
-            text: englishText,
-            from: 'en',
-            to: 'zh',
-            engine: 'bing'
-          })) as string
-          
-          logger.info('[OCR] 翻译完成')
-          
-          // 按原文字符比例分配译文
-          const totalEnglishLength = englishBlocks.reduce((sum, b) => sum + b.text.length, 0)
-          const translatedChars = translatedEnglish.split('')
-          let charIndex = 0
-          
-          englishBlocks.forEach((block, i) => {
-            const ratio = block.text.length / totalEnglishLength
-            const charsForBlock = Math.round(translatedEnglish.length * ratio)
-            let blockText = translatedChars.slice(charIndex, charIndex + charsForBlock).join('')
-            charIndex += charsForBlock
-            
-            // 最后一个英文块包含剩余字符
-            if (i === englishBlocks.length - 1 && charIndex < translatedChars.length) {
-              blockText += translatedChars.slice(charIndex).join('')
-            }
-            
-            translatedTexts[block.index] = blockText.trim() || block.text
-          })
-        } else {
-          logger.info('[OCR] 没有需要翻译的英文内容')
+      // 判断文本是否是代码/命令（不应翻译）
+      const isCodeBlock = (text: string): boolean => {
+        const trimmed = text.trim()
+        if (trimmed.match(/^(sudo|npm|yarn|pip|git|cd|ls|cat|chmod|chown|mkdir|rm|cp|mv|curl|wget|brew|apt|yum|dnf|sh|SH|Bash|PowerShell|Fish|Yarn|pnpm|deno|bun|Cargo)\s+\S+/) && 
+            !trimmed.match(/^(If|When|Click|Please|You|After|Before|Then|Open|Go|Download)/i)) {
+          return true
         }
-        
-      } catch (err) {
-        // 翻译失败时使用原文
-        logger.error('[OCR] 翻译失败，使用原文:', err)
-        translatedTexts = ocrResult.blocks.map(b => b.text)
+        return false
       }
 
-      // 构建翻译结果块
-      const translatedBlocks: OcrTextBlock[] = ocrResult.blocks.map((block, index) => ({
-        ...block,
-        x: block.x / dpr,
-        y: block.y / dpr,
-        width: block.width / dpr,
-        height: block.height / dpr,
-        translatedText: translatedTexts[index] || block.text
-      }))
+      let translatedText = fullText
+      let translationError = ''
+      
+      if (isChineseText(fullText)) {
+        logger.info('[OCR] 文本是中文，跳过翻译')
+      } else if (isCodeBlock(fullText)) {
+        logger.info('[OCR] 文本是代码块，跳过翻译')
+      } else {
+        logger.info(`[OCR] 开始翻译... 引擎: ${this.translationOverlay.engine}`)
+        try {
+          if (this.translationOverlay.engine === 'offline') {
+            // 离线翻译 - 懒加载模型
+            const memoryLoaded = canUseOfflineTranslation()
+            logger.info(`[OCR] 离线翻译检查 - 后端激活状态: ${this.offlineModelActivated}, 内存加载状态: ${memoryLoaded}`)
+            
+            // 如果后端已激活但内存未加载，尝试懒加载
+            if (this.offlineModelActivated && !memoryLoaded) {
+              const { warmupOfflineTranslator, getModelCacheInfo } = await import('@/utils/offlineTranslator')
+              
+              // 检查缓存状态
+              const cacheInfo = await getModelCacheInfo()
+              logger.info(`[OCR] 离线翻译懒加载 - 缓存信息: ${JSON.stringify(cacheInfo)}`)
+              
+              if (cacheInfo.isCached) {
+                logger.info('[OCR] 离线翻译懒加载：开始加载模型...')
+                await warmupOfflineTranslator()
+                logger.info('[OCR] 离线翻译懒加载：模型加载完成')
+              } else {
+                logger.warn('[OCR] 离线翻译不可用 - 缓存不存在')
+                throw new Error('离线翻译模型未下载，请在设置-翻译配置中下载模型')
+              }
+            } else if (!this.offlineModelActivated) {
+              logger.warn('[OCR] 离线翻译不可用 - 后端未激活')
+              throw new Error('离线翻译模型未激活，请在设置-翻译配置中激活模型')
+            }
+            
+            // 使用离线翻译
+            logger.info('[OCR] 开始离线翻译...')
+            translatedText = await translateOffline(fullText)
+            logger.info('[OCR] 离线翻译完成')
+          } else {
+            // 使用在线翻译（Google/Bing）
+            translatedText = (await invoke('translate_text', {
+              text: fullText,
+              from: 'en',
+              to: 'zh',
+              engine: this.translationOverlay.engine
+            })) as string
+          }
+          logger.info('[OCR] 翻译完成')
+        } catch (err) {
+          logger.warn('[OCR] 翻译失败:', err)
+          const errMsg = err instanceof Error ? err.message : String(err)
+          if (this.translationOverlay.engine === 'offline') {
+            if (errMsg.includes('未激活') || errMsg.includes('未下载')) {
+              translationError = errMsg
+            } else if (errMsg.includes('超时')) {
+              translationError = '模型加载超时，请重试'
+            } else {
+              translationError = '离线翻译失败: ' + errMsg.substring(0, 50)
+            }
+          } else {
+            translationError = '翻译失败，请检查网络连接'
+          }
+        }
+      }
 
-      // 打印翻译结果对比
-      logger.info('[OCR] ========== 翻译结果对比 ==========')
-      translatedBlocks.forEach((block, index) => {
-        logger.info(`[OCR] 文字块 #${index + 1}:`)
-        logger.info(`[OCR]   原文: "${ocrResult.blocks[index].text}"`)
-        logger.info(`[OCR]   译文: "${block.translatedText}"`)
-      })
-      logger.info('[OCR] ===================================')
+      // 5. 将翻译结果按原文行数分配到各个块
+      // 注意：OCR 坐标是基于高 DPR 图像的，需要除以 DPR 转换到 canvas 坐标
+      const translatedLines = translatedText.split('\n')
+      const translatedBlocks: OcrTextBlock[] = []
+      
+      for (let i = 0; i < mergedBlocks.length; i++) {
+        const block = mergedBlocks[i]
+        // 对应的翻译行（如果翻译行数不够，使用原文）
+        const translatedLine = i < translatedLines.length ? translatedLines[i] : block.text
+        
+        // 将坐标和尺寸除以 DPR 转换到 canvas 坐标系
+        translatedBlocks.push({
+          text: block.text,
+          x: block.x / dpr,
+          y: block.y / dpr,
+          width: block.width / dpr,
+          height: block.height / dpr,
+          fontSize: block.fontSize / dpr,
+          lineHeight: block.lineHeight / dpr,
+          angle: block.angle,
+          translatedText: translatedLine,
+          isCodeBlock: isCodeBlock(block.text)
+        })
+      }
+
+      logger.info('[OCR] ========== 翻译结果 ==========')
+      logger.debug(`[OCR] 原文: "${fullText.substring(0, 100)}${fullText.length > 100 ? '...' : ''}"`)
+      logger.debug(`[OCR] 译文: "${translatedText.substring(0, 100)}${translatedText.length > 100 ? '...' : ''}"`)
+      logger.info(`[OCR] 翻译块数: ${translatedBlocks.length}`)
+      logger.info('[OCR] ================================')
 
       this.translationOverlay.blocks = translatedBlocks
       this.translationOverlay.isLoading = false
+      this.translationOverlay.errorMessage = translationError || undefined
       this.draw()
       this.onStateChange?.()
 
@@ -2108,7 +2679,8 @@ export class ScreenshotManager {
       isVisible: false,
       isLoading: false,
       sourceLanguage: 'auto',
-      targetLanguage: 'zh'
+      targetLanguage: 'zh',
+      engine: this.translationOverlay.engine  // 保留用户选择的引擎
     }
     this.draw()
     this.onStateChange?.()
@@ -2117,6 +2689,18 @@ export class ScreenshotManager {
   // 获取翻译状态
   getTranslationState(): TranslationOverlay {
     return this.translationOverlay
+  }
+
+  // 设置翻译引擎
+  setTranslationEngine(engine: 'google' | 'bing' | 'offline'): void {
+    this.translationOverlay.engine = engine
+    this.onStateChange?.()
+  }
+
+  // 设置离线模型激活状态
+  setOfflineModelActivated(activated: boolean): void {
+    logger.info(`[截图] 设置离线模型激活状态: ${activated}`)
+    this.offlineModelActivated = activated
   }
 
   // 处理键盘事件
@@ -2157,6 +2741,22 @@ export class ScreenshotManager {
       clearTimeout(this.throttleTimer)
       this.throttleTimer = null
     }
+
+    // 清理背景图像引用，释放内存
+    this.backgroundImage = null
+    
+    // 清理标注数组
+    this.annotations = []
+    this.currentAnnotation = null
+    this.selectedAnnotation = null
+    this.hoveredAnnotation = null
+    this.draggedAnnotation = null
+    this.resizingAnnotation = null
+    this.editingAnnotation = null
+    
+    // 清理翻译覆盖层
+    this.translationOverlay.blocks = []
+    this.translationOverlay.isVisible = false
 
     this.eventHandler.unbind()
     // 清理鼠标事件监听器

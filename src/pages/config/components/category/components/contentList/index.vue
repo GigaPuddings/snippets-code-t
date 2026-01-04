@@ -93,8 +93,6 @@ watch(
     const newCid = route.params.cid as string;
     // 只有当路径中包含 contentList 时才触发（说明是点击分类导航）
     if (newPath.includes('/contentList') && !newPath.includes('/content/')) {
-      console.log('newPath', newPath);
-
       queryFragments(newCid ? newCid : undefined);
     }
   },

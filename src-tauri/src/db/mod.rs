@@ -36,10 +36,10 @@ pub use search_engines::{get_all_search_engines, replace_all_search_engines};
 pub use alarm::{get_all_alarm_cards, add_or_update_alarm_card, delete_alarm_card_by_id};
 
 // 重新导出搜索历史相关函数
-pub use search_history::cleanup_old_search_history;
+// pub use search_history::cleanup_old_search_history;
 
-// 重新导出图标缓存相关函数
-pub use icon_cache::{cleanup_old_icon_cache, load_all_icon_cache, insert_icon_to_cache};
+// 重新导出图标缓存相关函数 cleanup_old_icon_cache, 
+pub use icon_cache::{load_all_icon_cache, insert_icon_to_cache};
 
 // 重新导出命令函数
 pub use connection::{get_db_path, get_data_dir_info, backup_database, restore_database, set_custom_db_path, optimize_database};

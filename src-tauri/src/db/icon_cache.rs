@@ -71,20 +71,20 @@ pub fn set_icon_to_cache(key: &str, data: &str) -> Result<(), rusqlite::Error> {
     insert_icon_to_cache(key, &icon)
 }
 
-/// 清理过期的图标缓存（删除超过30天的缓存）
-pub fn cleanup_old_icon_cache() -> Result<usize, rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
+// 清理过期的图标缓存（删除超过30天的缓存）
+// pub fn cleanup_old_icon_cache() -> Result<usize, rusqlite::Error> {
+//     let conn = DbConnectionManager::get()?;
     
-    let thirty_days_ago = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() - (30 * 24 * 3600);
+//     let thirty_days_ago = SystemTime::now()
+//         .duration_since(SystemTime::UNIX_EPOCH)
+//         .unwrap_or_default()
+//         .as_secs() - (30 * 24 * 3600);
     
-    let rows_affected = conn.execute(
-        "DELETE FROM icon_cache WHERE timestamp < ?1",
-        rusqlite::params![thirty_days_ago],
-    )?;
+//     let rows_affected = conn.execute(
+//         "DELETE FROM icon_cache WHERE timestamp < ?1",
+//         rusqlite::params![thirty_days_ago],
+//     )?;
     
-    // log::info!("清理了 {} 条过期的图标缓存记录", rows_affected);
-    Ok(rows_affected)
-}
+//     // log::info!("清理了 {} 条过期的图标缓存记录", rows_affected);
+//     Ok(rows_affected)
+// }

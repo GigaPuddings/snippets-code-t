@@ -20,6 +20,8 @@ declare module 'vue' {
     CustomSwitch: typeof import('./../components/UI/CustomSwitch.vue')['default']
     EditDialog: typeof import('./../pages/config/components/local/components/EditDialog.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
+    ElCollapse: typeof import('element-plus/es')['ElCollapse']
+    ElCollapseItem: typeof import('element-plus/es')['ElCollapseItem']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
     ElDatePicker: typeof import('element-plus/es')['ElDatePicker']
     ElDialog: typeof import('element-plus/es')['ElDialog']
@@ -58,6 +60,7 @@ declare module 'vue' {
     Titlebar: typeof import('./../layout/components/Titlebar.vue')['default']
     Todo: typeof import('./../pages/config/components/todo/index.vue')['default']
     ToolbarSection: typeof import('./../pages/screenshot/components/ToolbarSection.vue')['default']
+    Translation: typeof import('./../components/SettingsContent/components/Translation/index.vue')['default']
     User: typeof import('./../pages/config/components/user/index.vue')['default']
   }
 }

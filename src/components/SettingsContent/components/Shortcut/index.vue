@@ -1,5 +1,7 @@
 <template>
-  <main class="summarize-container">
+  <div class="settings-panel">
+    <h3 class="panel-title">{{ $t('shortcut.title') }}</h3>
+    <main class="summarize-container">
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.searchHotkey') }}</div>
@@ -278,6 +280,7 @@
       </div>
     </section>
   </main>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -451,3 +454,13 @@ function handleFocusUnregister(name: string, key: string) {
   invoke('register_shortcut_by_frontend', { name: name, shortcut: '' });
 }
 </script>
+
+<style scoped lang="scss">
+.settings-panel {
+  @apply flex flex-col;
+}
+
+.panel-title {
+  @apply text-base font-bold mb-4 pb-2 border-b border-panel;
+}
+</style>

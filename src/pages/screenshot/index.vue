@@ -22,11 +22,13 @@
       :current-tool="state.currentTool" :current-color="state.currentStyle.color"
       :current-line-width="state.currentStyle.lineWidth" :current-text-size="state.textSize"
       :current-mosaic-size="state.mosaicSize" :can-undo="state.hasAnnotations" :can-delete="!!state.selectedAnnotation"
+      :current-translate-engine="translateEngine"
       @tool-select="handleToolSelect" @color-change="handleColorChange" @line-width-change="handleLineWidthChange"
-      @text-size-change="handleTextSizeChange" @mosaic-size-change="handleMosaicSizeChange" @undo="handleUndo"
-      @delete="handleDelete" @save="handleSave" @confirm="handleConfirm" @cancel="handleCancel" />
+      @text-size-change="handleTextSizeChange" @mosaic-size-change="handleMosaicSizeChange"
+      @translate-engine-change="handleTranslateEngineChange"
+      @undo="handleUndo" @delete="handleDelete" @save="handleSave" @confirm="handleConfirm" @cancel="handleCancel" />
 
-    <!-- 加载提示 -->
+    <!-- 加载提示 - 仅在初始化时显示 -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-spinner"></div>
       <p>{{ $t('screenshotTool.loading') }}</p>
@@ -53,6 +55,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { Window } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/core'
 import { ScreenshotManager } from './core/ScreenshotManager'
 import { ToolType, ColorInfo } from './core/types'
 import ToolbarSection from './components/ToolbarSection.vue'
@@ -72,6 +75,8 @@ const isTextInputVisible = ref(false)
 const textInput = ref('')
 const textInputPosition = ref({ x: 0, y: 0 })
 const isLoading = ref(true) // 加载状态
+const isProcessing = ref(false) // 处理中状态（复制/保存）
+const translateEngine = ref<'google' | 'bing' | 'offline'>('bing') // 翻译引擎
 
 // 响应式状态
 const state = ref({
@@ -309,6 +314,11 @@ const handleMosaicSizeChange = (size: number) => {
   screenshotManager?.updateMosaicSize(size)
 }
 
+const handleTranslateEngineChange = (engine: 'google' | 'bing' | 'offline') => {
+  translateEngine.value = engine
+  screenshotManager?.setTranslationEngine(engine)
+}
+
 const handleUndo = () => {
   screenshotManager?.undoAnnotation()
 }
@@ -318,20 +328,29 @@ const handleDelete = () => {
 }
 
 const handleSave = async () => {
+  if (isProcessing.value) return
   try {
+    isProcessing.value = true
     await screenshotManager?.processScreenshot('save')
     closeWindow()
   } catch (error) {
     logger.error('[截图] 保存失败', error)
+  } finally {
+    isProcessing.value = false
   }
 }
 
 const handleConfirm = async () => {
+  if (isProcessing.value) return
   try {
+    isProcessing.value = true
+    // 不显示 loading，直接处理
     await screenshotManager?.processScreenshot('copy')
     closeWindow()
   } catch (error) {
     logger.error('[截图] 复制失败', error)
+  } finally {
+    isProcessing.value = false
   }
 }
 
@@ -503,6 +522,14 @@ const handleKeydown = (event: KeyboardEvent) => {
 // 关闭窗口
 const closeWindow = async () => {
   screenshotManager?.destroy()
+  
+  // 清理后台截图缓存，释放内存
+  try {
+    await invoke('clear_screenshot_background')
+  } catch (error) {
+    // 忽略清理错误
+  }
+  
   appWindow.value?.close()
 }
 
@@ -534,8 +561,32 @@ onMounted(async () => {
     }
   )
 
+  // 从后端获取翻译引擎设置
+  try {
+    const savedEngine = await invoke<string>('get_translation_engine')
+    if (savedEngine && ['google', 'bing', 'offline'].includes(savedEngine)) {
+      translateEngine.value = savedEngine as 'google' | 'bing' | 'offline'
+      screenshotManager?.setTranslationEngine(savedEngine as 'google' | 'bing' | 'offline')
+    }
+  } catch (error) {
+    logger.error('[截图] 获取翻译引擎设置失败:', error)
+  }
+
+  // 从后端获取离线模型激活状态
+  try {
+    const backendActivated = await invoke<boolean>('get_offline_model_activated')
+    screenshotManager?.setOfflineModelActivated(backendActivated)
+  } catch (error) {
+    logger.error('[截图] 获取离线模型激活状态失败:', error)
+  }
+
   // 添加键盘事件监听
   document.addEventListener('keydown', handleKeydown)
+
+  // 监听后端背景准备完成事件
+  const unlistenBgReady = await listen('background-ready', () => {
+    // 背景准备完成，可以触发重新加载
+  })
 
   // 监听窗口失焦（用户切换到其他窗口）
   unlisten.value = await listen('tauri://blur', () => {
@@ -569,6 +620,7 @@ onUnmounted(() => {
   screenshotManager?.destroy()
   document.removeEventListener('keydown', handleKeydown)
   unlisten.value?.()
+  // 注意：unlistenBgReady 也需要清理，但这里简化处理
 })
 </script>
 

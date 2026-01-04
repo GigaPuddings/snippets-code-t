@@ -8,7 +8,6 @@ mod db;
 mod github_sync;
 mod hotkey;
 mod icon;
-mod ocr;
 mod search;
 mod translation;
 mod tray;
@@ -22,20 +21,21 @@ use crate::alarm::{
 use crate::config::{
     exit_application, get_auto_update_check, reset_software, set_auto_update_check,
     get_language, set_language,
+    set_translation_engine, get_translation_engine,
+    set_offline_model_activated, get_offline_model_activated,
 };
 use crate::db::{
     get_categories, add_category, edit_category, delete_category,
     get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content,
     search_fragment_content,add_search_history, backup_database, get_db_path, get_data_dir_info,
-    get_search_history, restore_database,set_custom_db_path, cleanup_old_search_history, 
-    cleanup_old_icon_cache, optimize_database,add_app, update_app, delete_app, get_apps,
+    get_search_history, restore_database,set_custom_db_path,
+    optimize_database,add_app, update_app, delete_app, get_apps,
     add_bookmark, update_bookmark, delete_bookmark, get_bookmarks,
     is_setup_completed, set_setup_completed, set_data_dir_from_setup,
     get_all_app_settings, update_all_app_settings,
     set_auto_start_setting, get_auto_start_setting,
 };
 use crate::translation::{translate_text, translate_texts};
-use crate::ocr::{recognize_text, get_available_ocr_languages};
 use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
 };
@@ -43,7 +43,7 @@ use crate::window::{
   hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info, capture_screen_area,
   copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows,
   create_pin_window, get_pin_image_data, copy_image_to_clipboard, save_pin_image, frontend_log,
-  get_screenshot_background, create_setup_window, close_setup_window, get_scan_progress_state,
+  get_screenshot_background, clear_screenshot_background, create_setup_window, close_setup_window, get_scan_progress_state,
   open_preview_window, close_preview_window
 };
 use crate::dark_mode::{
@@ -377,76 +377,88 @@ pub fn run() {
                 log::error!("初始化默认设置失败: {}", e);
             }
 
-            // === 第一优先级：核心UI组件 (50ms) ===
-            let app_handle_core = app.handle().clone();
+            // === 异步顺序初始化：等待上一个功能完成后再加载下一个 ===
+            let app_handle_init = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                // 第一步：核心UI组件（托盘和快捷键）
+                log::info!("开始初始化核心UI组件...");
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
                 
                 #[cfg(desktop)]
                 {
-                    let is_first_run = !db::is_setup_completed_internal(&app_handle_core);
+                    let is_first_run = !db::is_setup_completed_internal(&app_handle_init);
                     if is_first_run {
-                        let _ = tray::create_minimal_tray(&app_handle_core);
-                    } else if let Ok(()) = tray::create_tray(&app_handle_core) {
-                        tray::update_tray_theme_status(&app_handle_core);
+                        let _ = tray::create_minimal_tray(&app_handle_init);
+                        log::info!("最小托盘创建完成");
+                    } else if let Ok(()) = tray::create_tray(&app_handle_init) {
+                        tray::update_tray_theme_status(&app_handle_init);
+                        log::info!("完整托盘创建完成");
                     }
                 }
                 
                 if let Err(e) = register_shortcut("all") {
                     log::warn!("快捷键注册失败: {}", e);
-                    let _ = app_handle_core.notification().builder()
+                    let _ = app_handle_init.notification().builder()
                         .title("snippets-code")
                         .body(format!("快捷键注册失败：{}", e))
                         .show();
+                } else {
+                    log::info!("快捷键注册完成");
                 }
-            });
-
-            // === 第二优先级：后台服务 (2s) ===
-            let app_handle_services = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                 
-                // 提醒服务
-                alarm::start_alarm_service(app_handle_services.clone());
+                // 第二步：后台服务（提醒、Dark Mode、更新状态重置）
+                log::info!("开始初始化后台服务...");
+                alarm::start_alarm_service(app_handle_init.clone());
+                log::info!("提醒服务启动完成");
                 
-                // Dark Mode服务
                 use dark_mode::ThemeMode;
-                let config = load_dark_mode_config(&app_handle_services);
+                let config = load_dark_mode_config(&app_handle_init);
                 if config.theme_mode == ThemeMode::Schedule {
-                    let _ = start_scheduler(app_handle_services.clone());
+                    if let Err(e) = start_scheduler(app_handle_init.clone()) {
+                        log::warn!("Dark Mode调度器启动失败: {}", e);
+                    } else {
+                        log::info!("Dark Mode调度器启动完成");
+                    }
+                } else {
+                    log::info!("Dark Mode调度器未启用");
                 }
                 
-                // 重置更新状态
                 let path = std::path::PathBuf::from("store.bin");
-                if let Ok(store) = tauri_plugin_store::StoreBuilder::new(&app_handle_services, path).build() {
+                if let Ok(store) = tauri_plugin_store::StoreBuilder::new(&app_handle_init, path).build() {
                     let _ = store.delete("update_available");
                     let _ = store.save();
+                    log::info!("更新状态重置完成");
                 }
-            });
-
-            // === 第三优先级：资源加载 (5s) ===
-            let app_handle_res = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                init_app_and_bookmark_icons(&app_handle_res);
-            });
-
-            // === 第四优先级：网络操作 (10s) ===
-            let app_handle_net = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                if get_auto_update_check(app_handle_net.clone()) {
-                    let _ = check_update(&app_handle_net, false).await;
+                
+                // 第三步：资源加载（应用和书签图标）
+                log::info!("开始加载应用和书签图标...");
+                init_app_and_bookmark_icons(&app_handle_init);
+                log::info!("图标加载完成");
+                
+                // 第四步：网络操作（自动更新检查）
+                if get_auto_update_check(app_handle_init.clone()) {
+                    log::info!("开始检查更新...");
+                    match check_update(&app_handle_init, false).await {
+                        Ok(_) => log::info!("更新检查完成"),
+                        Err(e) => log::warn!("更新检查失败: {}", e),
+                    }
+                } else {
+                    log::info!("自动更新检查已禁用");
                 }
-            });
-
-            // === 第五优先级：清理任务 (30s) ===
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
-                let _ = cleanup_old_search_history();
-                let _ = cleanup_old_icon_cache();
-                let _ = optimize_database();
+                
+                // 第五步：清理任务（搜索历史、图标缓存、数据库优化、日志清理）
+                // log::info!("开始执行清理任务...");
+                // if let Err(e) = cleanup_old_search_history() {
+                //     log::warn!("清理搜索历史失败: {}", e);
+                // }
+                // if let Err(e) = cleanup_old_icon_cache() {
+                //     log::warn!("清理图标缓存失败: {}", e);
+                // }
+                if let Err(e) = optimize_database() {
+                    log::warn!("优化数据库失败: {}", e);
+                }
                 cleanup_old_logs();
+                log::info!("所有初始化任务完成");
             });
 
             // 启动窗口逻辑
@@ -534,6 +546,7 @@ pub fn run() {
             get_screen_preview,               // 获取屏幕预览
             get_all_windows,                  // 获取所有窗口信息
             get_screenshot_background,        // 获取预捕获的屏幕背景
+            clear_screenshot_background,      // 清理截图背景缓存
             create_pin_window,                // 创建贴图窗口
             get_pin_image_data,               // 获取贴图窗口图片数据
             copy_image_to_clipboard,          // 复制图片到剪贴板
@@ -581,10 +594,12 @@ pub fn run() {
             update_all_app_settings,          // 更新所有应用设置
             set_auto_start_setting,           // 设置自启动偏好
             get_auto_start_setting,           // 获取自启动偏好
+            set_translation_engine,           // 设置默认翻译引擎
+            get_translation_engine,           // 获取默认翻译引擎
+            set_offline_model_activated,      // 设置离线模型激活状态
+            get_offline_model_activated,      // 获取离线模型激活状态
             open_preview_window,              // 打开片段预览窗口
             close_preview_window,             // 关闭片段预览窗口
-            recognize_text,                   // OCR文字识别
-            get_available_ocr_languages,      // 获取可用的OCR语言
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

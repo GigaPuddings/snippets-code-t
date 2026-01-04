@@ -4,15 +4,41 @@
     <div class="toolbar-panel first-panel">
       <!-- 工具选择区域 -->
       <div class="tool-section">
-        <button
-          v-for="tool in tools"
-          :key="tool.type"
-          @click="onToolSelect(tool.type)"
-          :class="['tool-btn', { active: currentTool === tool.type }]"
-          :title="tool.title"
-        >
-          <component :is="tool.icon" theme="outline" size="18" :strokeWidth="3"/>
-        </button>
+        <template v-for="tool in tools" :key="tool.type">
+          <!-- 翻译工具带二级菜单 -->
+          <div v-if="tool.type === 'translate'" class="translate-tool-wrapper">
+            <button
+              @click="toggleTranslateMenu"
+              :class="['tool-btn', { active: currentTool === tool.type }]"
+              :title="tool.title"
+            >
+              <component :is="tool.icon" theme="outline" size="18" :strokeWidth="3"/>
+            </button>
+            <!-- 翻译引擎选择菜单 -->
+            <div v-if="showTranslateMenu" class="translate-menu">
+              <div class="flex gap-1">
+                <button
+                  v-for="engine in translateEngines"
+                  :key="engine.value"
+                  @click="selectTranslateEngine(engine.value)"
+                  :class="['menu-item', { active: currentTranslateEngine === engine.value }]"
+                  :title="engine.label"
+                >
+                  {{ engine.short }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- 其他工具 -->
+          <button
+            v-else
+            @click="onToolSelect(tool.type)"
+            :class="['tool-btn', { active: currentTool === tool.type }]"
+            :title="tool.title"
+          >
+            <component :is="tool.icon" theme="outline" size="18" :strokeWidth="3"/>
+          </button>
+        </template>
       </div>
 
       <!-- 分隔线 -->
@@ -174,6 +200,8 @@ import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, De
 
 // 颜色选择器状态
 const showColorPicker = ref(false)
+// 翻译菜单状态
+const showTranslateMenu = ref(false)
 
 interface Props {
   currentTool: ToolType
@@ -183,6 +211,7 @@ interface Props {
   currentMosaicSize: number
   canUndo: boolean
   canDelete: boolean
+  currentTranslateEngine?: 'google' | 'bing' | 'offline'
 }
 
 interface Emits {
@@ -191,6 +220,7 @@ interface Emits {
   (e: 'line-width-change', width: number): void
   (e: 'text-size-change', size: number): void
   (e: 'mosaic-size-change', size: number): void
+  (e: 'translate-engine-change', engine: 'google' | 'bing' | 'offline'): void
   (e: 'undo'): void
   (e: 'delete'): void
   (e: 'save'): void
@@ -198,7 +228,9 @@ interface Emits {
   (e: 'cancel'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  currentTranslateEngine: 'bing'
+})
 const emit = defineEmits<Emits>()
 
 // 工具配置
@@ -212,6 +244,13 @@ const tools = [
   { type: ToolType.ColorPicker, icon: Platte, title: '取色工具' },
   { type: ToolType.Translate, icon: Translate, title: '翻译工具' },
   { type: ToolType.Pin, icon: Pushpin, title: '贴图工具' }
+]
+
+// 翻译引擎配置
+const translateEngines = [
+  { value: 'google' as const, label: 'Google', short: 'G' },
+  { value: 'bing' as const, label: '必应', short: 'B' },
+  { value: 'offline' as const, label: '离线', short: '离' }
 ]
 
 // 样式配置
@@ -247,6 +286,17 @@ const onDelete = () => emit('delete')
 const onSave = () => emit('save')
 const onConfirm = () => emit('confirm')
 const onCancel = () => emit('cancel')
+
+// 翻译菜单处理
+const toggleTranslateMenu = () => {
+  showTranslateMenu.value = !showTranslateMenu.value
+}
+
+const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline') => {
+  emit('translate-engine-change', engine)
+  emit('tool-select', ToolType.Translate)
+  showTranslateMenu.value = false
+}
 
 // 颜色选择器方法
 const toggleColorPicker = (event: MouseEvent) => {
@@ -290,10 +340,13 @@ const onCustomColorChange = (event: Event) => {
   }
 }
 
-// 监听工具切换，关闭颜色面板
+// 监听工具切换，关闭颜色面板和翻译菜单
 watch(() => props.currentTool, () => {
   if (showColorPicker.value) {
     showColorPicker.value = false
+  }
+  if (showTranslateMenu.value) {
+    showTranslateMenu.value = false
   }
 })
 </script>
@@ -327,6 +380,27 @@ watch(() => props.currentTool, () => {
         // 暗黑模式下使用更柔和的蓝色
         &:is(.dark *) {
           @apply border-blue-500/80 !bg-blue-600/90;
+        }
+      }
+    }
+
+    // 翻译工具包装器
+    .translate-tool-wrapper {
+      @apply relative;
+
+      .translate-menu {
+        @apply absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white dark:bg-panel rounded-lg shadow-xl border dark:border-panel p-2 z-50;
+
+        .menu-item {
+          @apply w-8 h-8 flex items-center justify-center rounded border border-gray-300 dark:border-panel bg-white dark:bg-content hover:bg-gray-50 dark:hover:bg-hover transition-all duration-200 text-xs font-medium;
+
+          &.active {
+            @apply border-blue-500 bg-blue-50 text-blue-500;
+            
+            &:is(.dark *) {
+              @apply border-blue-500/70 bg-blue-600/20;
+            }
+          }
         }
       }
     }

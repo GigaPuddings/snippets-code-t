@@ -55,6 +55,7 @@
     "@codemirror/state": "^6.5.0",
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.36.1",
+    "@huggingface/transformers": "^3.8.1",
     "@lezer/highlight": "^1.2.1",
     "@octokit/rest": "^19.0.13",
     "@tauri-apps/api": "^2",

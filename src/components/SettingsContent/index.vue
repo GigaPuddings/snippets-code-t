@@ -6,7 +6,7 @@
         v-for="(item, index) in menuItems"
         :key="index"
         :class="['settings-menu-item', { active: activeTab === item.id }]"
-        @click="activeTab = item.id"
+        @click="switchTab(item.id)"
       >
         <component
           :is="item.icon"
@@ -21,23 +21,12 @@
 
     <!-- 右侧内容区 -->
     <div class="settings-content">
-      <!-- 通用设置 -->
-      <div v-show="activeTab === 'general'" class="settings-panel">
-        <h3 class="panel-title">{{ $t('settings.general') }}</h3>
-        <General />
-      </div>
-
-      <!-- 快捷键设置 -->
-      <div v-show="activeTab === 'shortcut'" class="settings-panel">
-        <h3 class="panel-title">{{ $t('shortcut.title') }}</h3>
-        <Shortcut />
-      </div>
-
-      <!-- 数据管理 -->
-      <div v-show="activeTab === 'data'" class="settings-panel">
-        <h3 class="panel-title">{{ $t('dataManager.title') }}</h3>
-        <Manger />
-      </div>
+      <component 
+        v-for="tab in loadedTabs" 
+        :key="tab"
+        :is="componentMap[tab]" 
+        v-show="activeTab === tab"
+      />
     </div>
   </div>
 </template>
@@ -45,10 +34,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Data, EnterTheKeyboard, SettingTwo, Translate } from '@icon-park/vue-next';
+import General from './components/General/index.vue';
 import Shortcut from './components/Shortcut/index.vue';
 import Manger from './components/Manger/index.vue';
-import General from './components/General/index.vue';
-import { Data, EnterTheKeyboard, SettingTwo } from '@icon-park/vue-next';
+import Translation from './components/Translation/index.vue';
 
 defineOptions({
   name: 'SettingsContent'
@@ -59,10 +49,29 @@ const { t } = useI18n();
 const menuItems = computed(() => [
   { id: 'general', label: t('settings.general'), icon: SettingTwo },
   { id: 'shortcut', label: t('shortcut.title'), icon: EnterTheKeyboard },
-  { id: 'data', label: t('dataManager.title'), icon: Data }
+  { id: 'data', label: t('dataManager.title'), icon: Data },
+  { id: 'translation', label: t('translation.title'), icon: Translate }
 ]);
 
 const activeTab = ref('general');
+const loadedTabs = ref<string[]>(['general']); // 已加载的 tab
+
+// 组件映射
+const componentMap: Record<string, any> = {
+  general: General,
+  shortcut: Shortcut,
+  data: Manger,
+  translation: Translation
+};
+
+// 切换 tab
+const switchTab = (tabId: string) => {
+  activeTab.value = tabId;
+  // 如果该 tab 未加载过，添加到已加载列表
+  if (!loadedTabs.value.includes(tabId)) {
+    loadedTabs.value.push(tabId);
+  }
+};
 </script>
 
 <style scoped lang="scss">
@@ -84,13 +93,5 @@ const activeTab = ref('general');
 
 .settings-content {
   @apply bg-panel flex-1 overflow-hidden p-4;
-}
-
-.settings-panel {
-  @apply flex flex-col;
-}
-
-.panel-title {
-  @apply text-base font-bold mb-4 pb-2 border-b border-panel;
 }
 </style>

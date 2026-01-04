@@ -8,6 +8,7 @@ import bingIcon from '@/assets/svg/bing.svg';
 import { nextTick, onMounted, onUnmounted, ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
+import { translateOffline } from '@/utils/offlineTranslator';
 import {
   Pushpin,
   CloseSmall,
@@ -31,6 +32,7 @@ const targetLanguage = ref('zh');
 const isPinned = ref(false);
 const showDeleteButton = ref(false);
 const sourceTextArea = ref();
+const offlineModelAvailable = ref(false);
 
 // 多引擎翻译结果
 interface TranslationResult {
@@ -55,12 +57,32 @@ const translationResults = ref<TranslationResult[]>([
     text: '',
     loading: false,
     expanded: true
+  },
+  {
+    engine: 'offline',
+    name: '',
+    text: '',
+    loading: false,
+    expanded: true
   }
 ]);
 
+// 过滤可用的翻译结果（离线翻译需要模型已下载）
+const availableResults = computed(() => {
+  return translationResults.value.filter(r => {
+    if (r.engine === 'offline') {
+      return offlineModelAvailable.value;
+    }
+    return true;
+  });
+});
+
 // Computed translation names
 const getEngineName = (engine: string) => {
-  return engine === 'bing' ? t('translate.bingTranslate') : t('translate.googleTranslate');
+  if (engine === 'bing') return t('translate.bingTranslate');
+  if (engine === 'google') return t('translate.googleTranslate');
+  if (engine === 'offline') return t('translate.offlineTranslate');
+  return engine;
 };
 
 // Language options - computed for i18n
@@ -324,6 +346,11 @@ const translateWithEngine = async (engine: string) => {
   const result = translationResults.value.find((r) => r.engine === engine);
   if (!result) return;
 
+  // 离线翻译需要检查模型是否可用
+  if (engine === 'offline' && !offlineModelAvailable.value) {
+    return;
+  }
+
   result.loading = true;
   result.text = '';
 
@@ -339,13 +366,35 @@ const translateWithEngine = async (engine: string) => {
   }
 
   try {
-    // 调用Rust后端进行翻译
-    const translatedText = await invoke<string>('translate_text', {
-      text: textToTranslate,
-      from: sourceLanguage.value,
-      to: currentTargetLang,
-      engine: engine
-    });
+    let translatedText: string;
+    
+    if (engine === 'offline') {
+      // 离线翻译 - 懒加载模型
+      const { canUseOfflineTranslation, isModelCached, warmupOfflineTranslator } = await import('@/utils/offlineTranslator');
+      
+      // 检查内存中是否已加载
+      if (!canUseOfflineTranslation()) {
+        // 检查缓存是否存在
+        const cached = await isModelCached();
+        if (cached) {
+          logger.info('[翻译窗口] 离线翻译懒加载：开始加载模型...');
+          await warmupOfflineTranslator();
+          logger.info('[翻译窗口] 离线翻译懒加载：模型加载完成');
+        } else {
+          throw new Error('离线翻译模型未下载，请在设置中下载模型');
+        }
+      }
+      
+      translatedText = await translateOffline(textToTranslate);
+    } else {
+      // 调用Rust后端进行翻译
+      translatedText = await invoke<string>('translate_text', {
+        text: textToTranslate,
+        from: sourceLanguage.value,
+        to: currentTargetLang,
+        engine: engine
+      });
+    }
 
     result.text = translatedText;
   } catch (error) {
@@ -358,6 +407,8 @@ const translateWithEngine = async (engine: string) => {
       result.text = t('translate.timeout');
     } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
       result.text = t('translate.networkError');
+    } else if (errorMessage.includes('未下载') || errorMessage.includes('未激活')) {
+      result.text = errorMessage;
     } else {
       result.text = t('translate.translateFailed');
     }
@@ -380,8 +431,8 @@ const translateAll = async () => {
 
   translating.value = true;
 
-  // 并行翻译所有引擎
-  const promises = translationResults.value.map((result) =>
+  // 并行翻译所有可用引擎
+  const promises = availableResults.value.map((result) =>
     translateWithEngine(result.engine)
   );
 
@@ -516,6 +567,18 @@ const onSourceLanguageChange = () => {
 };
 
 onMounted(async () => {
+  // 从后端检查离线翻译模型是否已激活（不自动预热，使用懒加载）
+  try {
+    const backendActivated = await invoke<boolean>('get_offline_model_activated')
+    logger.info(`[翻译窗口] 离线模型后端激活状态: ${backendActivated}`)
+    // 只设置后端激活状态，不自动预热模型
+    // 模型会在实际使用离线翻译时懒加载
+    offlineModelAvailable.value = backendActivated
+  } catch (error) {
+    logger.error('[翻译窗口] 获取离线模型激活状态失败:', error)
+    offlineModelAvailable.value = false
+  }
+  
   // 先设置监听器，等待所有监听器设置完成
   await setupListeners();
   
@@ -642,7 +705,7 @@ onUnmounted(() => {
       <!-- 多引擎翻译结果区域 -->
       <div class="translation-results">
         <div
-          v-for="result in translationResults"
+          v-for="result in availableResults"
           :key="result.engine"
           class="result-card"
           :class="{ 'result-expanded': result.expanded }"
@@ -661,6 +724,7 @@ onUnmounted(() => {
                 class="engine-icon"
                 alt="Bing"
               />
+              <span v-else class="offline-icon">离</span>
               <span>{{ getEngineName(result.engine) }}</span>
             </div>
             <div class="result-controls">
@@ -804,6 +868,10 @@ onUnmounted(() => {
 
 .engine-icon {
   @apply w-4 h-4;
+}
+
+.offline-icon {
+  @apply w-4 h-4 flex items-center justify-center text-xs bg-green-500 text-white rounded;
 }
 
 .result-controls {

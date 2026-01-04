@@ -7,6 +7,8 @@ export interface OcrTextBlock {
   y: number
   width: number
   height: number
+  fontSize: number
+  lineHeight: number
   angle: number
   confidence: number
 }
@@ -18,151 +20,221 @@ export interface OcrResult {
   confidence: number
 }
 
-// Worker 实例缓存
+// Worker 单例
 let worker: Worker | null = null
-let isInitializing = false
 let initPromise: Promise<Worker> | null = null
 
-/**
- * 初始化 Tesseract Worker
- */
+/** 获取或初始化 Tesseract Worker */
 async function getWorker(): Promise<Worker> {
-  if (worker) {
-    return worker
-  }
+  if (worker) return worker
+  if (initPromise) return initPromise
   
-  if (isInitializing && initPromise) {
-    return initPromise
-  }
-  
-  isInitializing = true
   initPromise = (async () => {
-    logger.info('[OCR] 初始化 Tesseract Worker...')
-    
-    const newWorker = await createWorker('eng+chi_sim', 1, {
+    logger.debug('[OCR] 初始化 Tesseract Worker...')
+    const w = await createWorker('eng+chi_sim', 1, {
       logger: (m: LoggerMessage) => {
         if (m.status === 'recognizing text') {
-          logger.info(`[OCR] 识别进度: ${Math.round(m.progress * 100)}%`)
+          logger.debug(`[OCR] 识别进度: ${Math.round(m.progress * 100)}%`)
         }
       }
     })
-    
     logger.info('[OCR] Tesseract Worker 初始化完成')
-    worker = newWorker
-    isInitializing = false
-    return newWorker
+    worker = w
+    return w
   })()
   
   return initPromise
 }
 
-/**
- * 执行 OCR 识别
- * @param imageSource 图像源（可以是 base64、URL、Canvas、ImageData 等）
- */
-export async function recognizeText(imageSource: string | HTMLCanvasElement | ImageData): Promise<OcrResult> {
+/** 从 Tesseract 行数据提取字体信息 */
+function extractFontInfo(line: any, defaultConfidence: number): { fontSize: number; lineHeight: number; confidence: number } {
+  const bbox = line.bbox
+  const rowAttrs = line.rowAttributes
+  const bboxHeight = bbox ? bbox.y1 - bbox.y0 : 24
+  
+  let fontSize = 16
+  let lineHeight = bboxHeight
+  
+  if (rowAttrs) {
+    if (rowAttrs.ascenders !== undefined && rowAttrs.descenders !== undefined) {
+      fontSize = Math.round(rowAttrs.ascenders + Math.abs(rowAttrs.descenders))
+    } else if (rowAttrs.rowHeight !== undefined) {
+      fontSize = Math.round(rowAttrs.rowHeight * 0.75)
+    }
+    if (rowAttrs.rowHeight !== undefined) {
+      lineHeight = rowAttrs.rowHeight
+    }
+  } else {
+    fontSize = Math.round(bboxHeight * 0.75)
+  }
+  
+  return {
+    fontSize,
+    lineHeight,
+    confidence: line.confidence || defaultConfidence
+  }
+}
+
+/** 从 Canvas 执行 OCR 识别 */
+export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<OcrResult> {
   const w = await getWorker()
   
   logger.info('[OCR] 开始 Tesseract OCR 识别...')
   const startTime = Date.now()
   
-  const result = await w.recognize(imageSource)
+  const result = await w.recognize(canvas, {}, {
+    blocks: true,
+    layoutBlocks: true,
+    text: true,
+  })
   
-  const elapsed = Date.now() - startTime
-  logger.info(`[OCR] 识别完成，耗时: ${elapsed}ms`)
+  logger.info(`[OCR] 识别完成，耗时: ${Date.now() - startTime}ms`)
   
-  // 解析识别结果
-  const blocks: OcrTextBlock[] = []
   const data = result.data as any
+  const blocks: OcrTextBlock[] = []
   
-  // Tesseract.js 返回的数据结构中，lines/paragraphs/words 可能为 undefined
-  // 直接使用 data.text 按行分割创建块
-  if (data.text && data.text.trim()) {
-    const textLines = data.text.split('\n').filter((line: string) => line.trim())
-    
-    for (const lineText of textLines) {
-      const trimmedText = lineText.trim()
-      if (!trimmedText) continue
+  // 收集所有 lines: data.blocks[].paragraphs[].lines[]
+  const allLines: any[] = []
+  for (const block of data.blocks || []) {
+    for (const para of block.paragraphs || []) {
+      allLines.push(...(para.lines || []))
+    }
+  }
+  
+  logger.debug(`[OCR] 原始数据: blocks=${data.blocks?.length || 0}, lines=${allLines.length}`)
+  
+  // 从 lines 提取文本块
+  if (allLines.length > 0) {
+    logger.debug('[OCR] 使用 lines 数据提取文本块')
+    for (const line of allLines) {
+      const rawText = line.text?.trim()
+      if (!rawText) continue
       
-      // 位置信息由后端 Windows OCR 提供，这里只需要文字内容
+      const bbox = line.bbox
+      const fontInfo = extractFontInfo(line, data.confidence || 0)
+      
+      // 清理乱码字符
+      const text = cleanOcrText(rawText, fontInfo.confidence)
+      if (!text) continue
+      
+      if (bbox?.x0 !== undefined) {
+        blocks.push({
+          text,
+          x: bbox.x0,
+          y: bbox.y0,
+          width: bbox.x1 - bbox.x0,
+          height: bbox.y1 - bbox.y0,
+          fontSize: fontInfo.fontSize,
+          lineHeight: fontInfo.lineHeight,
+          angle: 0,
+          confidence: fontInfo.confidence
+        })
+      } else {
+        // bbox 无效，使用估算位置
+        blocks.push({
+          text,
+          x: 0,
+          y: blocks.length * 30,
+          width: text.length * 12,
+          height: 24,
+          fontSize: 16,
+          lineHeight: 24,
+          angle: 0,
+          confidence: fontInfo.confidence
+        })
+      }
+    }
+  }
+  
+  // 回退方案：从纯文本分行
+  if (blocks.length === 0 && data.text?.trim()) {
+    logger.debug('[OCR] 使用 text 分行回退方案')
+    const lines = data.text.split('\n').filter((l: string) => l.trim())
+    const overallConfidence = data.confidence || 0
+    for (const line of lines) {
+      const rawText = line.trim()
+      // 清理乱码字符
+      const text = cleanOcrText(rawText, overallConfidence)
+      if (!text) continue
+      
       blocks.push({
-        text: trimmedText,
+        text,
         x: 0,
         y: blocks.length * 30,
-        width: trimmedText.length * 8,
+        width: text.length * 12,
         height: 24,
+        fontSize: 16,
+        lineHeight: 24,
         angle: 0,
-        confidence: data.confidence || 0
+        confidence: overallConfidence
       })
     }
   }
   
-  // 检测语言（基于识别结果中的字符）
   const fullText = data.text || ''
   const language = detectLanguage(fullText)
   
-  logger.info(`[OCR] 识别到 ${blocks.length} 行文本`)
-  logger.info(`[OCR] 检测语言: ${language}`)
-  logger.info(`[OCR] 平均置信度: ${(data.confidence || 0).toFixed(1)}%`)
+  logger.info(`[OCR] 识别到 ${blocks.length} 个文本块, 语言: ${language}, 置信度: ${(data.confidence || 0).toFixed(1)}%`)
   
-  return {
-    blocks,
-    full_text: fullText,
-    language,
-    confidence: data.confidence || 0
+  return { blocks, full_text: fullText, language, confidence: data.confidence || 0 }
+}
+
+/** 清理 OCR 识别文本中的乱码 */
+function cleanOcrText(text: string, confidence: number): string {
+  // 智能检测第一个有效单词，过滤掉它之前的乱码
+  // 有效单词定义：
+  // - 英文：至少2个连续字母组成的单词
+  // - 中文：至少2个连续的中文字符
+  
+  // 匹配第一个有效单词的位置
+  const firstValidWordMatch = text.match(/[a-zA-Z]{2,}|[\u4e00-\u9fa5]{2,}/)
+  
+  if (firstValidWordMatch && firstValidWordMatch.index !== undefined) {
+    const startIndex = firstValidWordMatch.index
+    
+    // 如果有效单词不在开头，检查前面的内容是否是乱码
+    if (startIndex > 0) {
+      const prefix = text.substring(0, startIndex)
+      
+      // 判断前缀是否为乱码：
+      // - 不包含有意义的内容（没有连续2个以上的字母或中文）
+      // - 置信度 <= 90% 时放宽限制，或者前缀很短（<=5字符）时直接移除
+      const hasValidContent = /[a-zA-Z]{2,}|[\u4e00-\u9fa5]{2,}/.test(prefix)
+      
+      if (!hasValidContent) {
+        // 前缀没有有效内容
+        // 条件：置信度低 或 前缀很短（明显是乱码）
+        if (confidence <= 90 || prefix.trim().length <= 5) {
+          return text.substring(startIndex).trim()
+        }
+      }
+    }
   }
+  
+  return text.trim()
 }
 
-/**
- * 从 Canvas 执行 OCR 识别
- */
-export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<OcrResult> {
-  return recognizeText(canvas)
-}
-
-/**
- * 从 Base64 图像执行 OCR 识别
- */
-export async function recognizeFromBase64(base64: string): Promise<OcrResult> {
-  // 确保有正确的 data URL 前缀
-  const dataUrl = base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`
-  return recognizeText(dataUrl)
-}
-
-/**
- * 检测文本语言
- */
+/** 检测文本语言 */
 function detectLanguage(text: string): string {
-  // 统计中文字符数量
   const chineseChars = text.match(/[\u4e00-\u9fa5]/g)?.length || 0
-  // 统计英文字符数量
   const englishChars = text.match(/[a-zA-Z]/g)?.length || 0
+  const total = chineseChars + englishChars
   
-  const totalChars = chineseChars + englishChars
-  if (totalChars === 0) return 'unknown'
-  
-  const chineseRatio = chineseChars / totalChars
-  
-  if (chineseRatio > 0.3) {
-    return 'chi_sim' // 中文
-  }
-  return 'eng' // 英文
+  if (total === 0) return 'unknown'
+  return chineseChars / total > 0.3 ? 'chi_sim' : 'eng'
 }
 
-/**
- * 预热 Worker（可选，用于提前加载）
- */
+/** 预热 Worker */
 export async function warmupOcr(): Promise<void> {
   await getWorker()
 }
 
-/**
- * 销毁 Worker（释放资源）
- */
+/** 销毁 Worker */
 export async function terminateOcr(): Promise<void> {
   if (worker) {
     await worker.terminate()
     worker = null
+    initPromise = null
     logger.info('[OCR] Tesseract Worker 已销毁')
   }
 }

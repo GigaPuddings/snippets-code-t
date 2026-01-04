@@ -83,6 +83,9 @@ static PIN_IMAGE_DATA: LazyLock<Mutex<HashMap<String, String>>> =
 static SCREENSHOT_BACKGROUND: LazyLock<Mutex<Option<String>>> = 
     LazyLock::new(|| Mutex::new(None));
 
+// 标记是否正在捕获屏幕（防止并发捕获）
+static IS_CAPTURING: Mutex<bool> = Mutex::new(false);
+
 // 更新搜索框位置的命令
 #[tauri::command]
 pub fn update_search_area(left: f64, right: f64, top: f64, bottom: f64) {
@@ -1430,11 +1433,11 @@ fn capture_full_screen_to_base64() -> Result<String, String> {
             let img = image::RgbaImage::from_raw(screen_width as u32, screen_height as u32, rgba_buffer)
                 .ok_or("Failed to create image from raw data")?;
 
-            // 【性能优化】使用JPEG格式，降低质量以加快编码速度
+            // 【性能优化】使用JPEG格式，平衡速度和质量
             let mut jpeg_data = Vec::new();
             let dynamic_img = image::DynamicImage::ImageRgba8(img);
             
-            // 使用75%质量的JPEG，平衡速度和画质（作为背景足够清晰）
+            // 使用 75% JPEG 质量作为背景
             let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
                 &mut jpeg_data,
                 75
@@ -1449,8 +1452,6 @@ fn capture_full_screen_to_base64() -> Result<String, String> {
 
             let base64_data = general_purpose::STANDARD.encode(&jpeg_data);
             
-            // info!("全屏捕获成功，JPEG数据: {} KB (75%质量), base64: {} KB", 
-            //     jpeg_data.len() / 1024, base64_data.len() / 1024);
             Ok(base64_data)
         }
     }
@@ -1471,53 +1472,79 @@ pub fn hotkey_screenshot() {
         }
     };
 
-    // 检查窗口是否已存在，如果存在则先关闭并等待完全销毁
+    // 检查窗口是否已存在，如果存在则先关闭（不等待）
     if let Some(existing_window) = app_handle.get_webview_window("screenshot") {
         info!("截图窗口已存在，关闭旧窗口");
         let _ = existing_window.close();
         
-        // 等待窗口完全销毁，最多等待500ms（缩短等待时间）
-        for i in 0..10 {
-            thread::sleep(Duration::from_millis(50));
-            if app_handle.get_webview_window("screenshot").is_none() {
-                info!("旧截图窗口已关闭，耗时 {}ms", (i + 1) * 50);
-                break;
-            }
-        }
+        // 只等待很短时间，避免阻塞
+        thread::sleep(Duration::from_millis(50));
         
-        // 如果窗口仍然存在，放弃创建新窗口
+        // 如果窗口仍然存在，强制继续（让系统自动处理）
         if app_handle.get_webview_window("screenshot").is_some() {
-            info!("旧截图窗口未能关闭，放弃创建新窗口");
-            return;
+            info!("旧窗口未完全关闭，但继续创建新窗口");
         }
     }
     
-    // 在单独线程中捕获屏幕，避免阻塞UI
-    let capture_result = std::thread::spawn(|| {
-        capture_full_screen_to_base64()
-    }).join();
-    
-    let screen_image = match capture_result {
-        Ok(Ok(img)) => {
-            // info!("屏幕捕获成功");
-            img
-        },
-        Ok(Err(e)) => {
-            info!("捕获屏幕失败: {}, 继续创建窗口", e);
-            String::new()
-        },
-        Err(_) => {
-            info!("捕获线程崩溃，继续创建窗口");
-            String::new()
-        }
-    };
-    
-    // 存储捕获的屏幕图像
+    // 【关键修复】清除旧的背景图像，确保重新捕获
     {
         let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
-        *bg = Some(screen_image);
+        *bg = None;
     }
-
+    
+    // 【立即开始新的捕获任务】不等待旧任务，直接开始新捕获
+    let app_handle_capture = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        // 尝试获取捕获锁
+        let can_capture = {
+            let mut is_capturing = IS_CAPTURING.lock().unwrap();
+            if *is_capturing {
+                // 已经有任务在捕获，强制重置
+                *is_capturing = false;
+            }
+            *is_capturing = true;
+            true
+        };
+        
+        if !can_capture {
+            return;
+        }
+        
+        // 在后台线程捕获屏幕
+        let capture_result = tokio::task::spawn_blocking(|| {
+            capture_full_screen_to_base64()
+        }).await;
+        
+        let screen_image = match capture_result {
+            Ok(Ok(img)) => img,
+            Ok(Err(e)) => {
+                info!("捕获屏幕失败: {}", e);
+                String::new()
+            },
+            Err(e) => {
+                info!("捕获线程错误: {}", e);
+                String::new()
+            }
+        };
+        
+        // 存储捕获的屏幕图像
+        {
+            let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+            *bg = Some(screen_image);
+        }
+        
+        // 标记捕获完成
+        {
+            let mut is_capturing = IS_CAPTURING.lock().unwrap();
+            *is_capturing = false;
+        }
+        
+        // 通知前端背景已准备好
+        if let Some(window) = app_handle_capture.get_webview_window("screenshot") {
+            let _ = window.emit("background-ready", ());
+        }
+    });
+    
     // 获取主显示器信息
     let monitor = match app_handle.primary_monitor() {
         Ok(Some(m)) => m,
@@ -1528,9 +1555,7 @@ pub fn hotkey_screenshot() {
     };
     let monitor_size = monitor.size();
     
-    // info!("创建新的截图窗口，显示器尺寸: {}x{}", monitor_size.width, monitor_size.height);
-    
-    // 创建全屏截图窗口
+    // 【优化2】创建窗口（与屏幕捕获并行）
     let builder = WebviewWindowBuilder::new(
         app_handle,
         "screenshot",
@@ -1540,7 +1565,6 @@ pub fn hotkey_screenshot() {
     .fullscreen(true)
     .inner_size(monitor_size.width as f64, monitor_size.height as f64)
     .resizable(false)
-    .always_on_top(true)
     .skip_taskbar(true)
     .transparent(true)
     .shadow(false)
@@ -1555,15 +1579,25 @@ pub fn hotkey_screenshot() {
         }
     };
 
-    // 监听窗口准备事件，显示窗口并聚焦
+    // 【优化3】立即显示窗口，不等待背景加载
+    // 监听窗口准备事件
     let window_clone = window.clone();
     window.once("screenshot_ready", move |_| {
-        // info!("截图窗口准备完成，显示窗口");
         let _ = window_clone.show();
         let _ = window_clone.set_focus();
     });
-
-    // info!("截图窗口创建完成，等待前端准备");
+    
+    // 【优化4】添加超时保护，确保窗口一定会显示
+    let window_timeout = window.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+        if let Ok(visible) = window_timeout.is_visible() {
+            if !visible {
+                let _ = window_timeout.show();
+                let _ = window_timeout.set_focus();
+            }
+        }
+    });
 }
 
 // 获取窗口信息
@@ -1595,14 +1629,23 @@ pub fn get_screenshot_background() -> Result<String, String> {
     let bg = SCREENSHOT_BACKGROUND.lock().unwrap();
     match bg.as_ref() {
         Some(image) => {
-            // info!("返回屏幕背景图像，大小: {} bytes", image.len());
-            Ok(image.clone())
+            if image.is_empty() {
+                Err("Screenshot background is being captured".to_string())
+            } else {
+                Ok(image.clone())
+            }
         },
         None => {
-            info!("未找到屏幕背景图像");
             Err("No screenshot background available".to_string())
         }
     }
+}
+
+// 清理截图背景缓存（窗口关闭时调用）
+#[tauri::command]
+pub fn clear_screenshot_background() {
+    let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+    *bg = None;
 }
 
 // 捕获屏幕指定区域
@@ -2276,44 +2319,57 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                 
                 // 多重检查窗口是否应该包含在列表中
                 if should_include_window(hwnd) {
+                    // 使用 DwmGetWindowAttribute 获取窗口的实际内容区域（排除阴影）
                     let mut rect = RECT::default();
-                    if GetWindowRect(hwnd, &mut rect).is_ok() {
-                        // 获取窗口标题
-                        let mut title_buffer = [0u16; 256];
-                        let title_len = GetWindowTextW(hwnd, &mut title_buffer);
-                        let title = String::from_utf16_lossy(&title_buffer[..title_len as usize]);
-                        
-                        let width = rect.right - rect.left;
-                        let height = rect.bottom - rect.top;
-                        
-                        if !title.is_empty() && 
-                           rect.right > rect.left && 
-                           rect.bottom > rect.top &&
-                           width >= 100 &&
-                           height >= 100 &&
-                           is_valid_window_title(&title) {
-                            let z_order = get_window_z_order(hwnd);
-                            let is_fullscreen = is_fullscreen_window(hwnd);
-                            
-                            // 如果是全屏窗口，将尺寸限制为屏幕尺寸
-                            let screen_width = GetSystemMetrics(SM_CXSCREEN);
-                            let screen_height = GetSystemMetrics(SM_CYSCREEN);
-                            let final_width = if is_fullscreen { screen_width.min(width) } else { width };
-                            let final_height = if is_fullscreen { screen_height.min(height) } else { height };
-                            let final_x = if is_fullscreen { 0 } else { rect.left };
-                            let final_y = if is_fullscreen { 0 } else { rect.top };
-                            
-                            windows.push(WindowInfo {
-                                x: final_x,
-                                y: final_y,
-                                width: final_width,
-                                height: final_height,
-                                title,
-                                z_order,
-                                is_fullscreen,
-                                display_order: 0,
-                            });
+                    let dwm_result = windows::Win32::Graphics::Dwm::DwmGetWindowAttribute(
+                        hwnd,
+                        windows::Win32::Graphics::Dwm::DWMWINDOWATTRIBUTE(9), // DWMWA_EXTENDED_FRAME_BOUNDS = 9
+                        &mut rect as *mut _ as *mut _,
+                        std::mem::size_of::<RECT>() as u32,
+                    );
+                    
+                    // 如果 DWM API 失败，回退到 GetWindowRect
+                    if dwm_result.is_err() {
+                        if GetWindowRect(hwnd, &mut rect).is_err() {
+                            return BOOL(1); // 继续枚举
                         }
+                    }
+                    
+                    // 获取窗口标题
+                    let mut title_buffer = [0u16; 256];
+                    let title_len = GetWindowTextW(hwnd, &mut title_buffer);
+                    let title = String::from_utf16_lossy(&title_buffer[..title_len as usize]);
+                    
+                    let width = rect.right - rect.left;
+                    let height = rect.bottom - rect.top;
+                    
+                    if !title.is_empty() && 
+                       rect.right > rect.left && 
+                       rect.bottom > rect.top &&
+                       width >= 100 &&
+                       height >= 100 &&
+                       is_valid_window_title(&title) {
+                        let z_order = get_window_z_order(hwnd);
+                        let is_fullscreen = is_fullscreen_window(hwnd);
+                        
+                        // 如果是全屏窗口，将尺寸限制为屏幕尺寸
+                        let screen_width = GetSystemMetrics(SM_CXSCREEN);
+                        let screen_height = GetSystemMetrics(SM_CYSCREEN);
+                        let final_width = if is_fullscreen { screen_width.min(width) } else { width };
+                        let final_height = if is_fullscreen { screen_height.min(height) } else { height };
+                        let final_x = if is_fullscreen { 0 } else { rect.left };
+                        let final_y = if is_fullscreen { 0 } else { rect.top };
+                        
+                        windows.push(WindowInfo {
+                            x: final_x,
+                            y: final_y,
+                            width: final_width,
+                            height: final_height,
+                            title,
+                            z_order,
+                            is_fullscreen,
+                            display_order: 0,
+                        });
                     }
                 }
                 
