@@ -93,6 +93,7 @@ const state = ref({
 })
 
 const unlisten = ref<() => void>()
+const unlistenBgReady = ref<() => void>()
 
 // 计算属性 - 从状态获取绘制状态
 const isDrawing = computed(() => state.value.isDrawing)
@@ -584,8 +585,9 @@ onMounted(async () => {
   document.addEventListener('keydown', handleKeydown)
 
   // 监听后端背景准备完成事件
-  const unlistenBgReady = await listen('background-ready', () => {
+  unlistenBgReady.value = await listen('background-ready', () => {
     // 背景准备完成，可以触发重新加载
+    logger.info('[截图] 背景准备完成')
   })
 
   // 监听窗口失焦（用户切换到其他窗口）
@@ -620,7 +622,7 @@ onUnmounted(() => {
   screenshotManager?.destroy()
   document.removeEventListener('keydown', handleKeydown)
   unlisten.value?.()
-  // 注意：unlistenBgReady 也需要清理，但这里简化处理
+  unlistenBgReady.value?.()
 })
 </script>
 
