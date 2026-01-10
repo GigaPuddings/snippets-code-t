@@ -5,33 +5,7 @@
       <!-- 工具选择区域 -->
       <div class="tool-section">
         <template v-for="tool in tools" :key="tool.type">
-          <!-- 翻译工具带二级菜单 -->
-          <div v-if="tool.type === 'translate'" class="translate-tool-wrapper">
-            <button
-              @click="toggleTranslateMenu"
-              :class="['tool-btn', { active: currentTool === tool.type }]"
-              :title="tool.title"
-            >
-              <component :is="tool.icon" theme="outline" size="18" :strokeWidth="3"/>
-            </button>
-            <!-- 翻译引擎选择菜单 -->
-            <div v-if="showTranslateMenu" class="translate-menu">
-              <div class="flex gap-1">
-                <button
-                  v-for="engine in translateEngines"
-                  :key="engine.value"
-                  @click="selectTranslateEngine(engine.value)"
-                  :class="['menu-item', { active: currentTranslateEngine === engine.value }]"
-                  :title="engine.label"
-                >
-                  {{ engine.short }}
-                </button>
-              </div>
-            </div>
-          </div>
-          <!-- 其他工具 -->
           <button
-            v-else
             @click="onToolSelect(tool.type)"
             :class="['tool-btn', { active: currentTool === tool.type }]"
             :title="tool.title"
@@ -188,6 +162,21 @@
           </button>
         </div>
       </div>
+
+      <!-- 翻译引擎选择 -->
+      <div v-if="showTranslateEngine" class="style-group">
+        <div class="translate-engine-selector">
+          <button
+            v-for="engine in translateEngines"
+            :key="engine.value"
+            @click="selectTranslateEngine(engine.value)"
+            :class="['engine-btn', { active: currentTranslateEngine === engine.value }]"
+            :title="engine.label"
+          >
+            {{ engine.short }}
+          </button>
+        </div>
+      </div>
       </div>
     </div>
   </div>
@@ -200,8 +189,6 @@ import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, De
 
 // 颜色选择器状态
 const showColorPicker = ref(false)
-// 翻译菜单状态
-const showTranslateMenu = ref(false)
 
 interface Props {
   currentTool: ToolType
@@ -275,6 +262,8 @@ const showTextSize = computed(() => props.currentTool === ToolType.Text)
 
 const showMosaicSize = computed(() => props.currentTool === ToolType.Mosaic)
 
+const showTranslateEngine = computed(() => props.currentTool === ToolType.Translate)
+
 // 事件处理函数
 const onToolSelect = (tool: ToolType) => emit('tool-select', tool)
 const onColorChange = (color: string) => emit('color-change', color)
@@ -287,15 +276,9 @@ const onSave = () => emit('save')
 const onConfirm = () => emit('confirm')
 const onCancel = () => emit('cancel')
 
-// 翻译菜单处理
-const toggleTranslateMenu = () => {
-  showTranslateMenu.value = !showTranslateMenu.value
-}
-
+// 翻译引擎选择处理
 const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline') => {
   emit('translate-engine-change', engine)
-  emit('tool-select', ToolType.Translate)
-  showTranslateMenu.value = false
 }
 
 // 颜色选择器方法
@@ -340,13 +323,10 @@ const onCustomColorChange = (event: Event) => {
   }
 }
 
-// 监听工具切换，关闭颜色面板和翻译菜单
+// 监听工具切换，关闭颜色面板
 watch(() => props.currentTool, () => {
   if (showColorPicker.value) {
     showColorPicker.value = false
-  }
-  if (showTranslateMenu.value) {
-    showTranslateMenu.value = false
   }
 })
 </script>
@@ -383,27 +363,6 @@ watch(() => props.currentTool, () => {
         }
       }
     }
-
-    // 翻译工具包装器
-    .translate-tool-wrapper {
-      @apply relative;
-
-      .translate-menu {
-        @apply absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white dark:bg-panel rounded-lg shadow-xl border dark:border-panel p-2 z-50;
-
-        .menu-item {
-          @apply w-8 h-8 flex items-center justify-center rounded border border-gray-300 dark:border-panel bg-white dark:bg-content hover:bg-gray-50 dark:hover:bg-hover transition-all duration-200 text-xs font-medium;
-
-          &.active {
-            @apply border-blue-500 bg-blue-50 text-blue-500;
-            
-            &:is(.dark *) {
-              @apply border-blue-500/70 bg-blue-600/20;
-            }
-          }
-        }
-      }
-    }
   }
 
   .toolbar-divider {
@@ -419,12 +378,14 @@ watch(() => props.currentTool, () => {
       .line-width-selector,
       .color-selector,
       .text-size-selector,
-      .mosaic-size-selector {
+      .mosaic-size-selector,
+      .translate-engine-selector {
         @apply flex gap-1;
       }
 
       .width-btn,
-      .size-btn {
+      .size-btn,
+      .engine-btn {
         @apply w-8 h-8 flex items-center justify-center rounded border border-gray-300 dark:border-panel bg-white dark:bg-content hover:bg-gray-50 dark:hover:bg-hover transition-all duration-200;
 
         &.active {
@@ -447,6 +408,14 @@ watch(() => props.currentTool, () => {
 
         .mosaic-preview {
           @apply rounded-full bg-gray-200 inline-block;
+        }
+      }
+
+      .engine-btn {
+        @apply text-xs font-medium;
+        
+        &.active {
+          @apply text-blue-500;
         }
       }
 

@@ -1565,6 +1565,7 @@ pub fn hotkey_screenshot() {
     .fullscreen(true)
     .inner_size(monitor_size.width as f64, monitor_size.height as f64)
     .resizable(false)
+    .always_on_top(true)
     .skip_taskbar(true)
     .transparent(true)
     .shadow(false)
@@ -2168,6 +2169,7 @@ pub async fn create_pin_window(
         .resizable(false)
         .skip_taskbar(true)
         .transparent(true)
+        .shadow(false)
         .focused(true)
         .visible(true);
         builder.build()
@@ -2329,11 +2331,10 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                     );
                     
                     // 如果 DWM API 失败，回退到 GetWindowRect
-                    if dwm_result.is_err() {
-                        if GetWindowRect(hwnd, &mut rect).is_err() {
+                    if dwm_result.is_err()
+                        && GetWindowRect(hwnd, &mut rect).is_err() {
                             return BOOL(1); // 继续枚举
                         }
-                    }
                     
                     // 获取窗口标题
                     let mut title_buffer = [0u16; 256];

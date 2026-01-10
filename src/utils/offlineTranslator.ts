@@ -11,6 +11,9 @@ let translatorEnZh: TranslationPipeline | null = null
 let isInitializing = false
 let initPromise: Promise<TranslationPipeline> | null = null
 
+// 取消控制
+let abortController: AbortController | null = null
+
 // 进度回调
 let progressCallback: ((progress: ProgressInfo) => void) | null = null
 
@@ -139,14 +142,28 @@ async function getTranslator(): Promise<TranslationPipeline> {
 export async function translateOffline(text: string): Promise<string> {
   if (!text?.trim()) return text
 
+  // 创建新的取消控制器
+  abortController = new AbortController()
+  const signal = abortController.signal
+
   try {
     const translator = await getTranslator()
+    
+    // 检查是否已取消
+    if (signal.aborted) {
+      throw new Error('翻译已取消')
+    }
     
     // 按段落分割翻译，保持格式
     const paragraphs = text.split('\n')
     const translatedParagraphs: string[] = []
 
     for (const paragraph of paragraphs) {
+      // 每个段落翻译前检查是否取消
+      if (signal.aborted) {
+        throw new Error('翻译已取消')
+      }
+      
       const trimmed = paragraph.trim()
       if (!trimmed) {
         translatedParagraphs.push('')
@@ -155,6 +172,11 @@ export async function translateOffline(text: string): Promise<string> {
 
       // 翻译单个段落
       const result = await translator(trimmed)
+      
+      // 翻译后再次检查
+      if (signal.aborted) {
+        throw new Error('翻译已取消')
+      }
 
       // 提取翻译结果
       if (Array.isArray(result) && result.length > 0) {
@@ -167,9 +189,33 @@ export async function translateOffline(text: string): Promise<string> {
 
     return translatedParagraphs.join('\n')
   } catch (error) {
+    if (error instanceof Error && error.message === '翻译已取消') {
+      logger.info('[离线翻译] 翻译已取消')
+      throw error
+    }
     logger.error('[离线翻译] 翻译失败:', error)
     throw new Error('离线翻译失败，请检查模型是否正确加载')
+  } finally {
+    abortController = null
   }
+}
+
+/**
+ * 取消正在进行的离线翻译
+ */
+export function cancelOfflineTranslation(): void {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+    logger.info('[离线翻译] 已发送取消信号')
+  }
+}
+
+/**
+ * 检查是否有正在进行的翻译
+ */
+export function isTranslationInProgress(): boolean {
+  return abortController !== null
 }
 
 /**

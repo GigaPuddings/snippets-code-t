@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
 import { logger } from '@/utils/logger'
 import { recognizeFromCanvas } from '@/utils/ocr'
-import { translateOffline, canUseOfflineTranslation } from '@/utils/offlineTranslator'
+import { translateOffline, canUseOfflineTranslation, cancelOfflineTranslation } from '@/utils/offlineTranslator'
 
 interface WindowInfo {
   x: number
@@ -1724,17 +1724,6 @@ export class ScreenshotManager {
 
   // 设置工具
   setTool(tool: ToolType): void {
-    // 翻译工具特殊处理：如果有选区，立即执行OCR翻译
-    if (tool === ToolType.Translate && this.selectionRect) {
-      // 同步设置isLoading，防止blur事件关闭窗口
-      this.translationOverlay.isLoading = true
-      this.translationOverlay.isVisible = true
-      this.draw()
-      this.onStateChange?.()
-      this.performOcrTranslation()
-      return
-    }
-
     this.currentTool = tool
     this.clearSelection()
     
@@ -1773,6 +1762,18 @@ export class ScreenshotManager {
     
     this.draw()
     this.onStateChange?.()
+  }
+
+  // 执行翻译（供外部调用）
+  executeTranslation(): void {
+    if (this.currentTool === ToolType.Translate && this.selectionRect) {
+      // 同步设置isLoading，防止blur事件关闭窗口
+      this.translationOverlay.isLoading = true
+      this.translationOverlay.isVisible = true
+      this.draw()
+      this.onStateChange?.()
+      this.performOcrTranslation()
+    }
   }
 
   // 开始创建标注
@@ -2612,6 +2613,13 @@ export class ScreenshotManager {
         } catch (err) {
           logger.warn('[OCR] 翻译失败:', err)
           const errMsg = err instanceof Error ? err.message : String(err)
+          
+          // 如果是取消操作，直接返回不显示错误
+          if (errMsg === '翻译已取消') {
+            logger.info('[OCR] 翻译已被用户取消')
+            return
+          }
+          
           if (this.translationOverlay.engine === 'offline') {
             if (errMsg.includes('未激活') || errMsg.includes('未下载')) {
               translationError = errMsg
@@ -2674,6 +2682,9 @@ export class ScreenshotManager {
 
   // 清除翻译覆盖层
   clearTranslationOverlay(): void {
+    // 取消正在进行的离线翻译
+    cancelOfflineTranslation()
+    
     this.translationOverlay = {
       blocks: [],
       isVisible: false,
@@ -2736,6 +2747,9 @@ export class ScreenshotManager {
 
   // 销毁
   destroy(): void {
+    // 取消正在进行的离线翻译
+    cancelOfflineTranslation()
+    
     // 清理节流定时器
     if (this.throttleTimer) {
       clearTimeout(this.throttleTimer)

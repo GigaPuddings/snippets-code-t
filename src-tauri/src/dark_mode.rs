@@ -81,6 +81,9 @@ static DARK_MODE_CONFIG: Mutex<Option<DarkModeConfig>> = Mutex::new(None);
 static SCHEDULER_RUNNING: Mutex<bool> = Mutex::new(false);
 
 /// Windows系统主题控制
+/// 设置 Windows 10/11 全局深色/浅色模式，包括：
+/// - 应用程序主题 (AppsUseLightTheme)
+/// - 系统主题 (SystemUsesLightTheme) - 任务栏、开始菜单、通知中心、搜索等
 #[cfg(target_os = "windows")]
 pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
     use winreg::enums::*;
@@ -88,45 +91,75 @@ pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     
-    // 设置应用程序主题
+    // 打开主题个性化注册表项
     let theme_key = hkcu
         .open_subkey_with_flags(
             "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-            KEY_SET_VALUE,
+            KEY_SET_VALUE | KEY_READ,
         )
         .map_err(|e| format!("无法打开主题注册表项: {}", e))?;
 
+    // 0 = 深色模式, 1 = 浅色模式
     let theme_value = if enabled { 0u32 } else { 1u32 };
     
-    // AppsUseLightTheme: 0 = 深色模式, 1 = 浅色模式
+    // 1. 设置应用程序主题 (UWP应用、部分Win32应用)
     theme_key
         .set_value("AppsUseLightTheme", &theme_value)
         .map_err(|e| format!("设置应用主题失败: {}", e))?;
 
-    // SystemUsesLightTheme: 0 = 深色模式, 1 = 浅色模式  
+    // 2. 设置系统主题 (任务栏、开始菜单、操作中心、通知、搜索框、文件资源管理器上下文菜单)
     theme_key
         .set_value("SystemUsesLightTheme", &theme_value)
         .map_err(|e| format!("设置系统主题失败: {}", e))?;
 
-    // 发送系统消息，通知所有窗口主题已更改
+    // 3. 发送系统广播消息，通知所有窗口和系统组件主题已更改
     unsafe {
         use windows::Win32::Foundation::{LPARAM, WPARAM};
         use windows::Win32::UI::WindowsAndMessaging::{
-            SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
+            SendMessageTimeoutW, PostMessageW,
+            HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE, WM_THEMECHANGED,
         };
 
-        let setting = "ImmersiveColorSet\0".encode_utf16().collect::<Vec<u16>>();
         let mut result = 0;
 
+        // 发送 ImmersiveColorSet 消息 - 通知 UWP 和现代应用颜色变化
+        let immersive_color = "ImmersiveColorSet\0".encode_utf16().collect::<Vec<u16>>();
         SendMessageTimeoutW(
             HWND_BROADCAST,
             WM_SETTINGCHANGE,
             WPARAM(0),
-            LPARAM(setting.as_ptr() as isize),
+            LPARAM(immersive_color.as_ptr() as isize),
             SMTO_ABORTIFHUNG,
-            2000,
+            3000,
             Some(&mut result),
         );
+
+        // 发送 WindowsThemeElement 消息 - 通知传统 Win32 应用主题变化
+        let theme_element = "WindowsThemeElement\0".encode_utf16().collect::<Vec<u16>>();
+        SendMessageTimeoutW(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            WPARAM(0),
+            LPARAM(theme_element.as_ptr() as isize),
+            SMTO_ABORTIFHUNG,
+            3000,
+            Some(&mut result),
+        );
+
+        // 发送通用 WM_SETTINGCHANGE 消息
+        let personalize = "Personalize\0".encode_utf16().collect::<Vec<u16>>();
+        SendMessageTimeoutW(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            WPARAM(0),
+            LPARAM(personalize.as_ptr() as isize),
+            SMTO_ABORTIFHUNG,
+            3000,
+            Some(&mut result),
+        );
+
+        // 发送 WM_THEMECHANGED 消息 - 通知主题完全变化
+        let _ = PostMessageW(Some(HWND_BROADCAST), WM_THEMECHANGED, WPARAM(0), LPARAM(0));
     }
 
     info!("Windows深色模式设置完成: {}", if enabled { "深色" } else { "浅色" });

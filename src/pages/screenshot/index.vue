@@ -318,6 +318,8 @@ const handleMosaicSizeChange = (size: number) => {
 const handleTranslateEngineChange = (engine: 'google' | 'bing' | 'offline') => {
   translateEngine.value = engine
   screenshotManager?.setTranslationEngine(engine)
+  // 选择引擎后执行翻译
+  screenshotManager?.executeTranslation()
 }
 
 const handleUndo = () => {
