@@ -70,10 +70,8 @@
           </template>
         </div>
         <div class="content">
-          <div class="title">
-            {{ item.title || item.content.split('/')[2] }}
-          </div>
-          <p class="text">{{ item.content }}</p>
+          <div class="title" v-html="highlightText(item.title || item.content.split('/')[2])"></div>
+          <p class="text" v-html="highlightText(item.content)"></p>
         </div>
         <div class="item-actions">
           <div v-if="getItemRealIndex(item) < 5" class="shortcut-key">
@@ -105,6 +103,7 @@ const { currentMode, isSearchMode, isListMode, isTabMode, setMode, setCanSwitchT
 
 const props = defineProps<{
   results: ContentType[];
+  searchQuery?: string;
   onClearSearch: () => void;
 }>();
 
@@ -129,6 +128,41 @@ const tabs = computed(() => [
     value: 'bookmark' as SummarizeType
   }
 ]);
+
+// 高亮匹配文本
+const highlightText = (text: string): string => {
+  if (!text || !props.searchQuery?.trim()) {
+    return escapeHtml(text || '');
+  }
+  
+  const query = props.searchQuery.trim().toLowerCase();
+  
+  // 模糊匹配：将查询拆分为字符，按顺序匹配
+  let result = '';
+  let textIndex = 0;
+  let queryIndex = 0;
+  const textLower = text.toLowerCase();
+  
+  while (textIndex < text.length) {
+    if (queryIndex < query.length && textLower[textIndex] === query[queryIndex]) {
+      // 匹配到字符，添加高亮
+      result += `<span class="highlight">${escapeHtml(text[textIndex])}</span>`;
+      queryIndex++;
+    } else {
+      result += escapeHtml(text[textIndex]);
+    }
+    textIndex++;
+  }
+  
+  return result;
+};
+
+// HTML 转义，防止 XSS
+const escapeHtml = (text: string): string => {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+};
 
 // 过滤结果
 const filteredResults = computed(() => {
@@ -661,11 +695,19 @@ defineExpose({
         @apply flex-grow overflow-hidden;
 
         .title {
-          @apply flex justify-between text-sm truncate font-sans text-search;
+          @apply flex gap-[1px] text-sm truncate font-sans text-search;
+          
+          :deep(.highlight) {
+            @apply text-blue-500 dark:text-blue-400 font-semibold;
+          }
         }
 
         .text {
           @apply text-xs truncate text-search-secondary;
+          
+          :deep(.highlight) {
+            @apply text-blue-500 dark:text-blue-400 font-medium;
+          }
         }
       }
     }

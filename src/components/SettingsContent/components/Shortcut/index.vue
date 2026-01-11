@@ -371,9 +371,18 @@ function keyDown(e: Event | KeyboardEvent, setKey: (arg0: string) => void) {
   }
 
   const shortcut = parts.join('+');
+  // 显示当前按键状态（包括只有修饰键的情况）
   if (shortcut) {
     setKey(shortcut);
   }
+}
+
+// 检查快捷键是否包含主键
+function hasMainKey(shortcut: string): boolean {
+  const modifiers = ['Ctrl', 'Control', 'Shift', 'Alt', 'Option', 'Command', 'Super', 'Meta'];
+  const parts = shortcut.split('+').map(p => p.trim());
+  // 检查是否有非修饰键的部分
+  return parts.some(part => !modifiers.includes(part));
 }
 
 // 注册快捷键
@@ -382,6 +391,13 @@ function registerHandler(name: string, key: string) {
     console.log('Invalid hotkey');
     return;
   }
+  
+  // 检查是否包含主键
+  if (!hasMainKey(key)) {
+    modal.msg(t('shortcut.needMainKey'), 'warning');
+    return;
+  }
+  
   invoke('register_shortcut_by_frontend', {
     name: name,
     shortcut: key

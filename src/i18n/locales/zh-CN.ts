@@ -121,7 +121,8 @@ export default {
     register: '注册',
     pressToSet: '按下按键设置快捷键',
     registerSuccess: '快捷键注册成功',
-    registerFailed: '快捷键注册失败'
+    registerFailed: '快捷键注册失败',
+    needMainKey: '快捷键必须包含一个主键（如 A、1、F1、Space 等）'
   },
 
   // 数据管理

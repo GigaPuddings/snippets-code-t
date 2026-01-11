@@ -121,7 +121,8 @@ export default {
     register: 'Register',
     pressToSet: 'Press keys to set hotkey',
     registerSuccess: 'Hotkey registered',
-    registerFailed: 'Hotkey registration failed'
+    registerFailed: 'Hotkey registration failed',
+    needMainKey: 'Hotkey must include a main key (e.g., A, 1, F1, Space)'
   },
 
   // Data Management

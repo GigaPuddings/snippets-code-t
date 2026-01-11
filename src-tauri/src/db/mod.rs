@@ -38,7 +38,7 @@ pub use alarm::{get_all_alarm_cards, add_or_update_alarm_card, delete_alarm_card
 // 重新导出搜索历史相关函数
 // pub use search_history::cleanup_old_search_history;
 
-// 重新导出图标缓存相关函数 cleanup_old_icon_cache, 
+// 重新导出图标缓存相关函数
 pub use icon_cache::{load_all_icon_cache, insert_icon_to_cache};
 
 // 重新导出命令函数

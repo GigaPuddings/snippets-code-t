@@ -134,6 +134,7 @@ const handleKeyDown = async (e: Event) => {
     <Result
       ref="resultRef"
       :results="searchResults"
+      :searchQuery="searchText"
       :onClearSearch="clearSearch"
       @back-to-search="handleBackToSearch"
     />

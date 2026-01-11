@@ -243,11 +243,51 @@ fn get_cached_icon(key: &str) -> Option<String> {
             .as_secs();
 
         if now - cached_icon.timestamp < MAX_CACHE_AGE {
-            return Some(cached_icon.data.clone());
+            // 验证缓存的图标数据是否有效
+            if is_valid_cached_icon(&cached_icon.data) {
+                return Some(cached_icon.data.clone());
+            }
+            // 如果缓存数据无效，移除它
+            drop(cache);
+            remove_cached_icon(key);
+            return None;
         }
     }
 
     None
+}
+
+// 验证缓存的 base64 图标数据是否有效
+fn is_valid_cached_icon(data: &str) -> bool {
+    // 检查是否是有效的 data URL 格式
+    if !data.starts_with("data:image/") {
+        return false;
+    }
+    
+    // 提取 base64 部分
+    if let Some(base64_start) = data.find(";base64,") {
+        let base64_data = &data[base64_start + 8..];
+        // 尝试解码 base64
+        if let Ok(decoded) = STANDARD.decode(base64_data) {
+            // 验证解码后的数据是否是有效图片
+            return is_valid_image_data(&decoded);
+        }
+    }
+    
+    false
+}
+
+// 从缓存中移除无效图标
+fn remove_cached_icon(key: &str) {
+    let mut cache = ICON_CACHE.lock().unwrap();
+    cache.pop(key);
+    // 同时从数据库中删除
+    if let Ok(conn) = crate::db::DbConnectionManager::get() {
+        let _ = conn.execute(
+            "DELETE FROM icon_cache WHERE key = ?1",
+            rusqlite::params![key],
+        );
+    }
 }
 
 // 将图标存储在缓存中
@@ -266,13 +306,31 @@ pub fn load_icon_cache(_app_handle: &AppHandle) {
         let mut sorted_icons: Vec<_> = cache_data.into_iter().collect();
         sorted_icons.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
         
-        // let mut loaded_count = 0;
+        let mut loaded_count = 0;
+        let mut invalid_keys = Vec::new();
+        
         for (key, icon) in sorted_icons.into_iter().take(MAX_CACHE_SIZE) {
-            cache.put(key, icon);
-            // loaded_count += 1;
+            // 验证缓存数据是否有效
+            if is_valid_cached_icon(&icon.data) {
+                cache.put(key, icon);
+                loaded_count += 1;
+            } else {
+                invalid_keys.push(key);
+            }
         }
         
-        // info!("加载 {} 个来自缓存的图标（最多 {} 个）", loaded_count, MAX_CACHE_SIZE);
+        // 删除无效的缓存
+        drop(cache);
+        for key in invalid_keys {
+            if let Ok(conn) = crate::db::DbConnectionManager::get() {
+                let _ = conn.execute(
+                    "DELETE FROM icon_cache WHERE key = ?1",
+                    rusqlite::params![key],
+                );
+            }
+        }
+        
+        log::info!("加载了 {} 个有效图标缓存", loaded_count);
     }
 }
 
@@ -340,15 +398,141 @@ fn get_icon_urls_for_source(source: IconSource, domain: &str) -> Vec<String> {
             format!("https://{}/apple-touch-icon.png", domain),
         ],
         IconSource::Auto => vec![
+            // 优先使用 Google Favicon 服务
             format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=64", domain),
-            format!("https://api.vwood.xyz/v1/Favicon/public?domain={}", domain),
             format!("https://www.google.com/s2/favicons?domain={}&sz=64", domain),
+            // 如果 Google 获取不到，使用 Yandex
             format!("https://favicon.yandex.net/favicon/{}", domain),
+            // 最后尝试直接从网站获取
             format!("https://{}/favicon.ico", domain),
             format!("https://{}/favicon.png", domain),
             format!("https://{}/apple-touch-icon.png", domain),
         ],
     }
+}
+
+/// 检查图标数据是否是有效的图片格式（不是占位图或错误页面）
+fn is_valid_image_data(bytes: &[u8]) -> bool {
+    if bytes.len() < 32 {
+        return false;
+    }
+    
+    // 检查常见图片格式的魔数（文件头）
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    let is_png = bytes.len() >= 8 && 
+        bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 &&
+        bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A && bytes[7] == 0x0A;
+    
+    // JPEG: FF D8 FF
+    let is_jpeg = bytes.len() >= 3 && 
+        bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
+    
+    // GIF: 47 49 46 38 (GIF8)
+    let is_gif = bytes.len() >= 6 && 
+        bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38;
+    
+    // ICO: 00 00 01 00 或 00 00 02 00 (CUR)
+    let is_ico = bytes.len() >= 4 && 
+        bytes[0] == 0x00 && bytes[1] == 0x00 && (bytes[2] == 0x01 || bytes[2] == 0x02) && bytes[3] == 0x00;
+    
+    // BMP: 42 4D (BM)
+    let is_bmp = bytes.len() >= 2 && 
+        bytes[0] == 0x42 && bytes[1] == 0x4D;
+    
+    // WebP: 52 49 46 46 ... 57 45 42 50 (RIFF...WEBP)
+    let is_webp = bytes.len() >= 12 && 
+        bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
+        bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50;
+    
+    // SVG: 检查是否以 <?xml 或 <svg 开头（文本格式），也检查带 BOM 的情况
+    let is_svg = if bytes.len() >= 5 {
+        // 跳过可能的 BOM
+        let start = if bytes.len() >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF {
+            3
+        } else {
+            0
+        };
+        let check_bytes = &bytes[start..];
+        check_bytes.len() >= 4 && (
+            // <?xml
+            (check_bytes[0] == 0x3C && check_bytes[1] == 0x3F) ||
+            // <svg
+            (check_bytes[0] == 0x3C && check_bytes[1] == 0x73 && check_bytes[2] == 0x76 && check_bytes[3] == 0x67) ||
+            // < svg (with space)
+            (check_bytes[0] == 0x3C && check_bytes.len() > 4 && 
+             String::from_utf8_lossy(&check_bytes[..std::cmp::min(100, check_bytes.len())]).contains("<svg"))
+        )
+    } else {
+        false
+    };
+    
+    // 检查是否是 HTML 错误页面（以 <!DOCTYPE 或 <html 开头）
+    let is_html = bytes.len() >= 15 && {
+        let text = String::from_utf8_lossy(&bytes[..std::cmp::min(100, bytes.len())]).to_lowercase();
+        text.contains("<!doctype") || text.contains("<html") || text.contains("<head")
+    };
+    
+    if is_html {
+        return false;
+    }
+    
+    // 检查是否是已知的占位图（1x1 透明 GIF 等）
+    // 1x1 透明 GIF 的标准大小是 43 字节
+    if is_gif && bytes.len() < 100 {
+        return false;
+    }
+    
+    // PNG 图片太小可能是占位图
+    if is_png && bytes.len() < 200 {
+        return false;
+    }
+    
+    is_png || is_jpeg || is_gif || is_ico || is_bmp || is_webp || is_svg
+}
+
+/// 根据图片数据返回正确的 MIME 类型
+fn get_image_mime_type(bytes: &[u8]) -> &'static str {
+    if bytes.len() < 4 {
+        return "image/png";
+    }
+    
+    // PNG
+    if bytes.len() >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 {
+        return "image/png";
+    }
+    
+    // JPEG
+    if bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF {
+        return "image/jpeg";
+    }
+    
+    // GIF
+    if bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38 {
+        return "image/gif";
+    }
+    
+    // ICO
+    if bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0x01 && bytes[3] == 0x00 {
+        return "image/x-icon";
+    }
+    
+    // BMP
+    if bytes[0] == 0x42 && bytes[1] == 0x4D {
+        return "image/bmp";
+    }
+    
+    // WebP
+    if bytes.len() >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
+       bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50 {
+        return "image/webp";
+    }
+    
+    // SVG
+    if bytes.len() >= 5 && bytes[0] == 0x3C && (bytes[1] == 0x3F || bytes[1] == 0x73) {
+        return "image/svg+xml";
+    }
+    
+    "image/png"
 }
 
 /// 使用指定源获取 favicon
@@ -374,13 +558,25 @@ pub async fn fetch_favicon_with_source(url: &str, source: IconSource) -> Option<
 
     let icon_urls = get_icon_urls_for_source(source, &domain);
 
-    for icon_url in icon_urls {
-        match client.get(&icon_url).send().await {
+    for icon_url in &icon_urls {
+        log::debug!("尝试获取图标: {}", icon_url);
+        match client.get(icon_url).send().await {
             Ok(response) => {
-                if response.status().is_success() {
+                let status = response.status();
+                log::debug!("响应状态: {}", status);
+                if status.is_success() {
                     if let Ok(bytes) = response.bytes().await {
-                        if !bytes.is_empty() && bytes.len() > 16 {
-                            let favicon = format!("data:image/png;base64,{}", STANDARD.encode(&bytes));
+                        log::debug!("获取到数据大小: {} 字节, 前8字节: {:02X?}", 
+                            bytes.len(), 
+                            &bytes[..std::cmp::min(8, bytes.len())]);
+                        
+                        // 验证返回的数据是否是有效的图片格式
+                        if !bytes.is_empty() && bytes.len() > 16 && is_valid_image_data(&bytes) {
+                            // 根据实际图片格式设置正确的 MIME 类型
+                            let mime_type = get_image_mime_type(&bytes);
+                            log::debug!("图片格式有效, MIME类型: {}", mime_type);
+                            let favicon = format!("data:{};base64,{}", mime_type, STANDARD.encode(&bytes));
+                            
                             // 只有自动模式才缓存结果
                             if source == IconSource::Auto {
                                 let cached_icon = CachedIcon {
@@ -393,14 +589,20 @@ pub async fn fetch_favicon_with_source(url: &str, source: IconSource) -> Option<
                                 cache_icon(url, cached_icon);
                             }
                             return Some(favicon);
+                        } else {
+                            log::debug!("数据验证失败，尝试下一个源");
                         }
                     }
                 }
             }
-            Err(_) => continue,
+            Err(e) => {
+                log::debug!("请求失败: {}", e);
+                continue;
+            }
         }
     }
 
+    log::debug!("所有源都未能获取到有效图标");
     None
 }
 

@@ -155,7 +155,7 @@ pub fn parse_hotkey(hotkey: &str) -> Result<(Option<Modifiers>, Code), String> {
         };
         (final_modifiers, code)
     })
-    .ok_or_else(|| "未指定按键".to_string())
+    .ok_or_else(|| "未指定按键，快捷键必须包含一个主键（如 A、1、F1 等），不能只有修饰键（Ctrl、Alt、Shift）".to_string())
 }
 
 // 控制日志存储

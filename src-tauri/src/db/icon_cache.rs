@@ -88,3 +88,14 @@ pub fn set_icon_to_cache(key: &str, data: &str) -> Result<(), rusqlite::Error> {
 //     // log::info!("清理了 {} 条过期的图标缓存记录", rows_affected);
 //     Ok(rows_affected)
 // }
+
+/// 从缓存中删除指定的图标
+#[allow(dead_code)]
+pub fn delete_icon_from_cache(key: &str) -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    conn.execute(
+        "DELETE FROM icon_cache WHERE key = ?1",
+        rusqlite::params![key],
+    )?;
+    Ok(())
+}
