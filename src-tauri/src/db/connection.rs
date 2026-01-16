@@ -189,6 +189,8 @@ pub async fn restore_database(app_handle: tauri::AppHandle) -> Result<(), String
             
             // 重启应用以加载新数据库
             app_handle.restart();
+            #[allow(unreachable_code)]
+            Ok(())
         }
         None => Err("Restore cancelled".to_string()),
     }
@@ -225,6 +227,8 @@ pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, 
             
             // 重启应用
             app_handle.restart();
+            #[allow(unreachable_code)]
+            Ok(new_path_str)
         }
         None => Err("操作已取消".to_string()),
     }
@@ -276,6 +280,58 @@ pub fn consume_show_progress_flag(app_handle: &tauri::AppHandle) -> bool {
     should_show
 }
 
+/// 验证目录是否有写入权限
+fn verify_write_permission(dir: &std::path::Path) -> Result<(), String> {
+    // 创建一个临时测试文件来验证写入权限
+    let test_file = dir.join(".write_test_snippets");
+    
+    // 尝试创建并写入测试文件
+    match fs::File::create(&test_file) {
+        Ok(mut file) => {
+            use std::io::Write;
+            // 尝试写入一些数据
+            if let Err(e) = file.write_all(b"test") {
+                let _ = fs::remove_file(&test_file);
+                return Err(format!("目录没有写入权限: {}", e));
+            }
+            // 清理测试文件
+            let _ = fs::remove_file(&test_file);
+            Ok(())
+        }
+        Err(e) => {
+            // 检查是否是权限问题
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                Err("目录没有写入权限，请选择其他位置或以管理员身份运行".to_string())
+            } else {
+                Err(format!("无法验证目录权限: {}", e))
+            }
+        }
+    }
+}
+
+/// 检查路径是否在受保护的系统目录中
+fn is_protected_path(path: &std::path::Path) -> bool {
+    let path_str = path.to_string_lossy().to_lowercase();
+    
+    // Windows 受保护目录列表
+    let protected_dirs = [
+        "c:\\program files",
+        "c:\\program files (x86)",
+        "c:\\windows",
+        "c:\\programdata",
+        "d:\\program files",
+        "d:\\program files (x86)",
+    ];
+    
+    for protected in &protected_dirs {
+        if path_str.starts_with(protected) {
+            return true;
+        }
+    }
+    
+    false
+}
+
 /// 从设置向导保存数据目录
 #[tauri::command]
 pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Result<String, String> {
@@ -302,18 +358,26 @@ pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Re
         if !ends_with_app_folder {
             data_dir = data_dir.join("snippets-code");
         }
-        
-        // 删除旧的默认目录（首次安装向导时没有数据）
-        if default_data_dir.exists() {
-            log::info!("删除旧的默认数据目录: {:?}", default_data_dir);
-            let _ = std::fs::remove_dir_all(&default_data_dir);
-        }
+    }
+    
+    // 检查是否在受保护的系统目录中
+    if is_protected_path(&data_dir) {
+        return Err("不能选择系统保护目录（如 Program Files），请选择其他位置".to_string());
     }
     
     // 确保新目录存在
     if !data_dir.exists() {
         std::fs::create_dir_all(&data_dir)
-            .map_err(|e| format!("创建目录失败: {}", e))?;
+            .map_err(|e| format!("创建目录失败: {}。请检查是否有权限或选择其他位置", e))?;
+    }
+    
+    // 验证目录写入权限
+    verify_write_permission(&data_dir)?;
+    
+    // 如果不是默认路径，删除旧的默认目录
+    if !is_default_path && default_data_dir.exists() {
+        log::info!("删除旧的默认数据目录: {:?}", default_data_dir);
+        let _ = std::fs::remove_dir_all(&default_data_dir);
     }
     
     let final_path = data_dir.to_str().unwrap().to_string();

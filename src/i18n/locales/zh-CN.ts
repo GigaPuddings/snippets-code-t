@@ -37,14 +37,15 @@ export default {
     defaultLocation: '默认位置（推荐）',
     customLocation: '自定义位置',
     customLocationDesc: '选择一个自定义文件夹来存储您的数据',
-    pathTip: '建议选择非系统盘位置，以便数据备份和迁移',
+    pathTip: '建议选择非系统盘位置，以便数据备份和迁移。请勿选择 Program Files 等系统保护目录。',
     selectDir: '请选择数据存储目录',
     selectDirTitle: '选择目录',
     completeTitle: '设置完成',
     completeDesc: '已完成初始设置，现在可以开始使用了！',
     dataPath: '数据位置',
     setupComplete: '设置完成！',
-    setupFailed: '设置失败'
+    setupFailed: '设置失败',
+    pathError: '路径设置失败'
   },
 
   // 通用设置

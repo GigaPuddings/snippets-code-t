@@ -249,9 +249,16 @@ const completeSetup = async () => {
 
     // 如果选择了自定义路径，保存到配置
     if (pathOption.value === 'custom' && customPath.value && customPath.value !== defaultPath.value) {
-      // 后端会返回实际使用的路径（可能添加了 snippets-code 子文件夹）
-      const actualPath = await invoke<string>('set_data_dir_from_setup', { path: customPath.value });
-      customPath.value = actualPath;
+      try {
+        // 后端会返回实际使用的路径（可能添加了 snippets-code 子文件夹）
+        const actualPath = await invoke<string>('set_data_dir_from_setup', { path: customPath.value });
+        customPath.value = actualPath;
+      } catch (error: any) {
+        // 显示详细的错误信息
+        modal.msg(`${t('setup.pathError') || '路径设置失败'}: ${error}`, 'error');
+        completing.value = false;
+        return;
+      }
     }
 
     // 标记设置已完成

@@ -37,14 +37,15 @@ export default {
     defaultLocation: 'Default Location (Recommended)',
     customLocation: 'Custom Location',
     customLocationDesc: 'Choose a custom folder to store your data',
-    pathTip: 'Recommend non-system drive for easy backup and migration',
+    pathTip: 'Recommend non-system drive for easy backup and migration. Do not select protected system directories like Program Files.',
     selectDir: 'Please select a directory',
     selectDirTitle: 'Select Data Directory',
     completeTitle: 'Setup Complete',
     completeDesc: 'Initial setup is complete. You can start using the app now!',
     dataPath: 'Data Path',
     setupComplete: 'Setup Complete!',
-    setupFailed: 'Setup Failed'
+    setupFailed: 'Setup Failed',
+    pathError: 'Path setup failed'
   },
 
   // General Settings

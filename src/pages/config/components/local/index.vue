@@ -1,5 +1,14 @@
 <template>
   <main class="local-container">
+    <!-- 加载中提示 -->
+    <div v-if="isScanning" class="scanning-overlay">
+      <div class="scanning-content">
+        <LoadingIcon class="scanning-icon" theme="outline" size="48" :strokeWidth="3" spin />
+        <div class="scanning-text">{{ scanStage || $t('progress.preparing') }}</div>
+        <div class="scanning-progress">{{ scanCurrent }}/{{ scanTotal }}</div>
+      </div>
+    </div>
+
     <!-- 头部区域 -->
     <div class="local-header">
       <div class="header-main">
@@ -148,8 +157,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 
@@ -163,7 +173,8 @@ import {
   Browser,
   FolderOpen,
   Link,
-  Search
+  Search,
+  Loading as LoadingIcon
 } from '@icon-park/vue-next';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
@@ -204,6 +215,14 @@ const apps = ref<AppInfo[]>([]);
 const bookmarks = ref<BookmarkInfo[]>([]);
 const editDialogRef = ref();
 const currentEditData = ref<AppInfo | BookmarkInfo | null>(null);
+
+// 扫描状态
+const isScanning = ref(false);
+const scanStage = ref('');
+const scanCurrent = ref(0);
+const scanTotal = ref(0);
+let unlistenProgress: (() => void) | null = null;
+let unlistenComplete: (() => void) | null = null;
 
 const currentList = computed(() => {
   return activeTab.value === 'app' ? apps.value : bookmarks.value;
@@ -398,14 +417,95 @@ const getUsageLevel = (count: number) => {
   return 1;                      // 偶尔使用：蓝色
 };
 
-onMounted(() => {
-  loadData();
+// 检查扫描状态
+const checkScanStatus = async () => {
+  try {
+    const state = await invoke<{
+      stage: string;
+      current: number;
+      total: number;
+      completed: boolean;
+    }>('get_scan_progress_state');
+    
+    if (!state.completed && state.stage) {
+      isScanning.value = true;
+      scanStage.value = state.stage;
+      scanCurrent.value = state.current;
+      scanTotal.value = state.total;
+    } else {
+      isScanning.value = false;
+    }
+  } catch (error) {
+    console.error('获取扫描状态失败:', error);
+  }
+};
+
+// 监听扫描事件
+const setupScanListeners = async () => {
+  unlistenProgress = await listen('scan-progress', (event: any) => {
+    isScanning.value = true;
+    scanStage.value = event.payload.stage;
+    scanCurrent.value = event.payload.current;
+    scanTotal.value = event.payload.total;
+  });
+  
+  unlistenComplete = await listen('scan-complete', async () => {
+    isScanning.value = false;
+    // 扫描完成后重新加载数据
+    await loadData();
+  });
+};
+
+onMounted(async () => {
+  // 先检查扫描状态
+  await checkScanStatus();
+  // 设置事件监听
+  await setupScanListeners();
+  // 加载数据
+  await loadData();
+});
+
+onUnmounted(() => {
+  if (unlistenProgress) unlistenProgress();
+  if (unlistenComplete) unlistenComplete();
 });
 </script>
 
 <style scoped lang="scss">
 .local-container {
-  @apply w-full h-full flex flex-col overflow-hidden p-6 pt-2;
+  @apply w-full h-full flex flex-col overflow-hidden p-6 pt-2 relative;
+
+  .scanning-overlay {
+    @apply absolute inset-0 z-50 flex items-center justify-center;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(4px);
+    
+    .dark & {
+      background: rgba(30, 30, 30, 0.9);
+    }
+    
+    .scanning-content {
+      @apply flex flex-col items-center gap-4 p-8 rounded-2xl;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      
+      .dark & {
+        background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+      }
+      
+      .scanning-icon {
+        @apply text-blue-500;
+      }
+      
+      .scanning-text {
+        @apply text-base font-medium text-gray-700 dark:text-gray-200;
+      }
+      
+      .scanning-progress {
+        @apply text-sm text-gray-500 dark:text-gray-400 font-mono;
+      }
+    }
+  }
 
   .local-header {
     @apply mb-3;

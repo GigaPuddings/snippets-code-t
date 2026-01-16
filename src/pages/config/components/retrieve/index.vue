@@ -1,5 +1,14 @@
 <template>
-  <main class="w-full h-full overflow-hidden">
+  <main class="w-full h-full overflow-hidden relative">
+    <!-- 加载中提示 -->
+    <div v-if="isScanning" class="scanning-overlay">
+      <div class="scanning-content">
+        <LoadingIcon class="scanning-icon" theme="outline" size="48" :strokeWidth="3" spin />
+        <div class="scanning-text">{{ scanStage || $t('progress.preparing') }}</div>
+        <div class="scanning-progress">{{ scanCurrent }}/{{ scanTotal }}</div>
+      </div>
+    </div>
+
     <div class="retrieve-container">
       <div class="search-config transparent-input">
         <div class="config-title">
@@ -138,10 +147,10 @@
 </template>
 
 <script setup lang="ts">
-import { Add, Redo, Reduce, Picture } from '@icon-park/vue-next';
+import { Add, Redo, Reduce, Picture, Loading as LoadingIcon } from '@icon-park/vue-next';
 import { uuid } from '@/utils';
 import { invoke } from '@tauri-apps/api/core';
-import { emit } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 
@@ -150,6 +159,14 @@ const searchEngines = ref<SearchEngineConfig[]>([]);
 const defaultSearchEngines = ref<SearchEngineConfig[]>([]);
 // 节流函数，防止频繁保存
 const saveThrottleTimer = ref<number | null>(null);
+
+// 扫描状态
+const isScanning = ref(false);
+const scanStage = ref('');
+const scanCurrent = ref(0);
+const scanTotal = ref(0);
+let unlistenProgress: (() => void) | null = null;
+let unlistenComplete: (() => void) | null = null;
 
 // 创建一个响应式的图标映射
 const engineIconMap = reactive(new Map<string, string>());
@@ -221,15 +238,73 @@ const saveChangesThrottled = () => {
 
 // 组件挂载时初始化图标
 onMounted(async () => {
+  // 先检查扫描状态
+  await checkScanStatus();
+  // 设置事件监听
+  await setupScanListeners();
+  
   try {
     searchEngines.value = await invoke('get_search_engines');
     defaultSearchEngines.value = await invoke('get_default_engines');
     await initializeIcons();
   } catch (error) {
     console.error('获取搜索引擎配置失败:', error);
-    modal.msg(t('retrieve.loadFailed'), 'error');
+    // 只有在非扫描状态下才显示错误
+    if (!isScanning.value) {
+      modal.msg(t('retrieve.loadFailed'), 'error');
+    }
   }
 });
+
+onUnmounted(() => {
+  if (unlistenProgress) unlistenProgress();
+  if (unlistenComplete) unlistenComplete();
+});
+
+// 检查扫描状态
+const checkScanStatus = async () => {
+  try {
+    const state = await invoke<{
+      stage: string;
+      current: number;
+      total: number;
+      completed: boolean;
+    }>('get_scan_progress_state');
+    
+    if (!state.completed && state.stage) {
+      isScanning.value = true;
+      scanStage.value = state.stage;
+      scanCurrent.value = state.current;
+      scanTotal.value = state.total;
+    } else {
+      isScanning.value = false;
+    }
+  } catch (error) {
+    console.error('获取扫描状态失败:', error);
+  }
+};
+
+// 监听扫描事件
+const setupScanListeners = async () => {
+  unlistenProgress = await listen('scan-progress', (event: any) => {
+    isScanning.value = true;
+    scanStage.value = event.payload.stage;
+    scanCurrent.value = event.payload.current;
+    scanTotal.value = event.payload.total;
+  });
+  
+  unlistenComplete = await listen('scan-complete', async () => {
+    isScanning.value = false;
+    // 扫描完成后重新加载数据
+    try {
+      searchEngines.value = await invoke('get_search_engines');
+      defaultSearchEngines.value = await invoke('get_default_engines');
+      await initializeIcons();
+    } catch (error) {
+      console.error('重新加载搜索引擎配置失败:', error);
+    }
+  });
+};
 
 // 更新搜索引擎配置
 const updateSearchEngines = async (engines: SearchEngineConfig[]) => {
@@ -392,6 +467,38 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 </script>
 
 <style scoped lang="scss">
+.scanning-overlay {
+  @apply absolute inset-0 z-50 flex items-center justify-center;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(4px);
+  
+  .dark & {
+    background: rgba(30, 30, 30, 0.9);
+  }
+  
+  .scanning-content {
+    @apply flex flex-col items-center gap-4 p-8 rounded-2xl;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    
+    .dark & {
+      background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+    }
+    
+    .scanning-icon {
+      @apply text-blue-500;
+    }
+    
+    .scanning-text {
+      @apply text-base font-medium text-gray-700 dark:text-gray-200;
+    }
+    
+    .scanning-progress {
+      @apply text-sm text-gray-500 dark:text-gray-400 font-mono;
+    }
+  }
+}
+
 .retrieve-container {
   @apply relative w-full h-full overflow-hidden rounded-md border dark:border-panel;
 
