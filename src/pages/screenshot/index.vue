@@ -331,29 +331,32 @@ const handleDelete = () => {
 }
 
 const handleSave = async () => {
-  if (isProcessing.value) return
   try {
-    isProcessing.value = true
+    logger.info('[截图] 开始保存截图...')
     await screenshotManager?.processScreenshot('save')
+    logger.info('[截图] 截图保存成功')
     closeWindow()
-  } catch (error) {
+  } catch (error: any) {
     logger.error('[截图] 保存失败', error)
-  } finally {
-    isProcessing.value = false
+    
+    const errorMessage = error?.message || error?.toString() || '保存失败'
+    
+    // 如果是用户取消保存，不显示错误
+    if (errorMessage.includes('保存已取消') || errorMessage.includes('cancelled')) {
+      logger.info('[截图] 用户取消保存')
+      return
+    }
+    
+    console.error('保存截图时发生错误:', errorMessage)
   }
 }
 
 const handleConfirm = async () => {
-  if (isProcessing.value) return
   try {
-    isProcessing.value = true
-    // 不显示 loading，直接处理
     await screenshotManager?.processScreenshot('copy')
     closeWindow()
   } catch (error) {
     logger.error('[截图] 复制失败', error)
-  } finally {
-    isProcessing.value = false
   }
 }
 
@@ -524,15 +527,46 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 // 关闭窗口
 const closeWindow = async () => {
+  // 先销毁截图管理器，清理所有资源
   screenshotManager?.destroy()
+  screenshotManager = null
   
-  // 清理后台截图缓存，释放内存
+  // 清理后台截图缓存和相关资源，释放内存
   try {
-    await invoke('clear_screenshot_background')
+    await invoke('cleanup_screenshot_resources')
   } catch (error) {
-    // 忽略清理错误
+    // 如果深度清理失败，尝试基本清理
+    try {
+      await invoke('clear_screenshot_background')
+    } catch (fallbackError) {
+      logger.warn('[截图] 清理后台缓存失败', fallbackError)
+    }
   }
   
+  // 清理前端状态
+  state.value = {
+    selectionRect: null,
+    annotations: [],
+    currentTool: ToolType.Select,
+    currentStyle: { color: '#ff4444', lineWidth: 3 },
+    textSize: 16,
+    mosaicSize: 5,
+    hasSelection: false,
+    hasAnnotations: false,
+    selectedAnnotation: null,
+    isDrawing: false
+  }
+  
+  // 清理文字输入状态
+  isTextInputVisible.value = false
+  textInput.value = ''
+  editingAnnotation = null
+  
+  // 清理其他状态
+  isLoading.value = false
+  showSizeInfo.value = true
+  
+  // 关闭窗口
   appWindow.value?.close()
 }
 
@@ -621,10 +655,24 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  // 确保所有资源都被清理
   screenshotManager?.destroy()
+  screenshotManager = null
+  
+  // 移除事件监听器
   document.removeEventListener('keydown', handleKeydown)
+  
+  // 清理Tauri事件监听器
   unlisten.value?.()
   unlistenBgReady.value?.()
+  
+  // 清理引用
+  unlisten.value = undefined
+  unlistenBgReady.value = undefined
+  appWindow.value = null
+  
+  // 清理DOM引用
+  // canvasRef 和 textInputRef 会被Vue自动清理
 })
 </script>
 

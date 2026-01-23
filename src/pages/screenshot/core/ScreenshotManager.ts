@@ -164,11 +164,6 @@ export class ScreenshotManager {
       // 清除旧的背景图像引用
       this.backgroundImage = null
       
-      // 通知加载完成（让用户可以立即开始操作）
-      if (this.onLoadComplete) {
-        this.onLoadComplete()
-      }
-      
       // 异步加载真实背景，带重试机制
       let retryCount = 0
       const maxRetries = 10
@@ -187,9 +182,17 @@ export class ScreenshotManager {
             this.backgroundImage = img
             // 背景加载完成后，触发完整重绘（包括遮罩层和选择框）
             this.draw()
+            // 通知加载完成（让用户可以开始操作）
+            if (this.onLoadComplete) {
+              this.onLoadComplete()
+            }
           }
           img.onerror = (error) => {
             logger.error('[截图] 屏幕背景图像加载失败', error)
+            // 即使加载失败也要通知完成，避免一直显示加载状态
+            if (this.onLoadComplete) {
+              this.onLoadComplete()
+            }
           }
           
           img.src = `data:image/jpeg;base64,${base64Image}`
@@ -199,12 +202,20 @@ export class ScreenshotManager {
           retryCount++
           if (retryCount >= maxRetries) {
             logger.error('[截图] 屏幕背景加载失败，已达最大重试次数')
+            // 达到最大重试次数后也要通知完成
+            if (this.onLoadComplete) {
+              this.onLoadComplete()
+            }
           }
           await new Promise(resolve => setTimeout(resolve, retryDelay))
         }
       }
     } catch (error) {
       logger.error('[截图] 加载屏幕背景失败', error)
+      // 发生异常也要通知完成
+      if (this.onLoadComplete) {
+        this.onLoadComplete()
+      }
     }
   }
 
@@ -1968,7 +1979,9 @@ export class ScreenshotManager {
 
   // 截图并处理标注
   async processScreenshot(action: 'copy' | 'save'): Promise<void> {
-    if (!this.selectionRect) return
+    if (!this.selectionRect) {
+      throw new Error('没有选择区域')
+    }
 
     try {
       const { x, y, width, height } = this.selectionRect
@@ -1981,7 +1994,7 @@ export class ScreenshotManager {
       const captureResult = await this.cropFromBackground(x, y, width, height)
 
       if (!captureResult?.image) {
-        throw new Error('Failed to crop from background image')
+        throw new Error('无法从背景图像裁剪选区')
       }
 
       // 处理标注并生成最终图像
@@ -1990,12 +2003,18 @@ export class ScreenshotManager {
       // 执行相应操作
       if (action === 'copy') {
         await invoke('copy_to_clipboard', { image: finalImage })
+        logger.info('[截图] 截图已复制到剪贴板')
       } else {
-        await invoke('save_screenshot_to_file', { image: finalImage })
+        const result = await invoke('save_screenshot_to_file', { image: finalImage }) as string
+        logger.info('[截图] ' + result)
       }
-    } catch (error) {
-      logger.error(`[截图] ${action === 'save' ? '保存' : '复制'}截图失败`, error)
-      throw error
+      
+    } catch (error: any) {
+      const actionText = action === 'save' ? '保存' : '复制'
+      logger.error(`[截图] ${actionText}截图失败`, error)
+      
+      // 重新抛出错误，让调用方处理
+      throw new Error(`${actionText}截图失败: ${error?.message || error?.toString() || '未知错误'}`)
     }
   }
 
@@ -2007,49 +2026,52 @@ export class ScreenshotManager {
     height: number
   ): Promise<{ image: string, adjusted_width: number, adjusted_height: number }> {
     return new Promise(async (resolve, reject) => {
-      // 如果背景图像还没加载，等待一段时间
-      if (!this.backgroundImage) {
-        const maxWaitTime = 3000
-        const checkInterval = 100
-        let waitedTime = 0
-        
-        while (!this.backgroundImage && waitedTime < maxWaitTime) {
-          await new Promise(resolve => setTimeout(resolve, checkInterval))
-          waitedTime += checkInterval
-        }
-        
-        if (!this.backgroundImage) {
-          reject(new Error('Background image not available after waiting'))
-          return
-        }
-      }
-
-      // 计算裁剪区域（考虑设备像素比）
-      const dpr = window.devicePixelRatio || 1
-      const cropX = Math.round(x * dpr)
-      const cropY = Math.round(y * dpr)
-      const cropWidth = Math.round(width * dpr)
-      const cropHeight = Math.round(height * dpr)
-
-      // 创建临时canvas进行裁剪
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = cropWidth
-      tempCanvas.height = cropHeight
-      const tempCtx = tempCanvas.getContext('2d', {
-        alpha: true,
-        desynchronized: false,
-        willReadFrequently: false
-      })
-
-      if (!tempCtx) {
-        reject(new Error('Failed to get 2D context'))
-        return
-      }
-
-      // 设置高质量渲染
-      tempCtx.imageSmoothingEnabled = false // 裁剪时禁用平滑，保持像素精确
+      // 设置超时处理，避免无限等待
+      const timeoutId = setTimeout(() => {
+        reject(new Error('裁剪背景图像超时'))
+      }, 10000) // 10秒超时
       
       try {
+        // 如果背景图像还没加载，等待一段时间
+        if (!this.backgroundImage) {
+          const maxWaitTime = 3000
+          const checkInterval = 100
+          let waitedTime = 0
+          
+          while (!this.backgroundImage && waitedTime < maxWaitTime) {
+            await new Promise(resolve => setTimeout(resolve, checkInterval))
+            waitedTime += checkInterval
+          }
+          
+          if (!this.backgroundImage) {
+            throw new Error('背景图像加载超时')
+          }
+        }
+
+        // 计算裁剪区域（考虑设备像素比）
+        const dpr = window.devicePixelRatio || 1
+        const cropX = Math.round(x * dpr)
+        const cropY = Math.round(y * dpr)
+        const cropWidth = Math.round(width * dpr)
+        const cropHeight = Math.round(height * dpr)
+
+        // 创建临时canvas进行裁剪
+        const tempCanvas = document.createElement('canvas')
+        tempCanvas.width = cropWidth
+        tempCanvas.height = cropHeight
+        const tempCtx = tempCanvas.getContext('2d', {
+          alpha: true,
+          desynchronized: false,
+          willReadFrequently: false
+        })
+
+        if (!tempCtx) {
+          throw new Error('无法获取2D绘图上下文')
+        }
+
+        // 设置高质量渲染
+        tempCtx.imageSmoothingEnabled = false // 裁剪时禁用平滑，保持像素精确
+        
         // 从背景图像裁剪指定区域
         tempCtx.drawImage(
           this.backgroundImage,
@@ -2061,13 +2083,15 @@ export class ScreenshotManager {
         const dataUrl = tempCanvas.toDataURL('image/png', 1.0)
         const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
 
+        clearTimeout(timeoutId)
         resolve({
           image: base64,
           adjusted_width: cropWidth,
           adjusted_height: cropHeight
         })
-      } catch (err) {
-        reject(err)
+      } catch (err: any) {
+        clearTimeout(timeoutId)
+        reject(new Error(`裁剪背景图像失败: ${err.message || err}`))
       }
     })
   }
@@ -2079,6 +2103,11 @@ export class ScreenshotManager {
     action: 'copy' | 'save'
   ): Promise<string> {
     return new Promise((resolve, reject) => {
+      // 设置超时处理
+      const timeoutId = setTimeout(() => {
+        reject(new Error('渲染标注超时'))
+      }, 15000) // 15秒超时
+      
       const tempCanvas = document.createElement('canvas')
       tempCanvas.width = captureResult.adjusted_width
       tempCanvas.height = captureResult.adjusted_height
@@ -2089,7 +2118,8 @@ export class ScreenshotManager {
       })
 
       if (!tempCtx) {
-        reject(new Error('Failed to get 2D context'))
+        clearTimeout(timeoutId)
+        reject(new Error('无法获取2D绘图上下文'))
         return
       }
 
@@ -2113,7 +2143,7 @@ export class ScreenshotManager {
               try {
                 annotation.drawToScreenshot(context)
               } catch (err) {
-                logger.error(`[PIN] 绘制标注 ${index} 失败`, err)
+                logger.error(`[截图] 绘制标注 ${index} 失败`, err)
               }
             })
           }
@@ -2133,17 +2163,26 @@ export class ScreenshotManager {
             dataUrl = tempCanvas.toDataURL('image/png')
           }
           
+          clearTimeout(timeoutId)
           resolve(dataUrl)
-        } catch (err) {
-          logger.error('[PIN] 绘制过程出错', err)
-          const dataUrl = tempCanvas.toDataURL('image/png')
-          resolve(dataUrl)
+        } catch (err: any) {
+          logger.error('[截图] 绘制过程出错', err)
+          // 即使出错也尝试返回基本图像
+          try {
+            const dataUrl = tempCanvas.toDataURL('image/png')
+            clearTimeout(timeoutId)
+            resolve(dataUrl)
+          } catch (fallbackErr) {
+            clearTimeout(timeoutId)
+            reject(new Error(`渲染失败: ${err.message || err}`))
+          }
         }
       }
 
       img.onerror = (err) => {
-        logger.error('[PIN] 图像加载失败', err)
-        reject(new Error('Failed to load captured image'))
+        logger.error('[截图] 图像加载失败', err)
+        clearTimeout(timeoutId)
+        reject(new Error('图像加载失败'))
       }
 
       img.src = `data:image/png;base64,${captureResult.image}`
@@ -2432,18 +2471,18 @@ export class ScreenshotManager {
         0, 0, srcWidth, srcHeight
       )
 
-      logger.info('[OCR] 开始纯前端 OCR 识别（Tesseract.js）...')
+      logger.info('[OCR] 开始纯前端 OCR 识别（PaddleOCR）...')
       logger.debug(`[OCR] 选区信息: x=${x}, y=${y}, width=${width}, height=${height}, dpr=${dpr}`)
 
-      // 2. 使用前端 Tesseract.js 进行 OCR 识别
-      const tesseractResult = await recognizeFromCanvas(tempCanvas)
+      // 2. 使用前端 PaddleOCR 进行 OCR 识别
+      const ocrResult = await recognizeFromCanvas(tempCanvas)
 
-      logger.info(`[OCR] 前端识别完成: ${tesseractResult.blocks?.length || 0} 个文字块, 置信度: ${tesseractResult.confidence.toFixed(1)}%`)
-      logger.debug(`[OCR] 前端完整文本: ${tesseractResult.full_text}`)
+      logger.info(`[OCR] 前端识别完成: ${ocrResult.blocks?.length || 0} 个文字块, 置信度: ${ocrResult.confidence.toFixed(1)}%`)
+      logger.debug(`[OCR] 前端完整文本: ${ocrResult.full_text}`)
 
       // 打印每个识别出的文字块详情（仅调试模式）
-      logger.debug('[OCR] ========== 前端 Tesseract.js 识别结果 ==========')
-      tesseractResult.blocks.forEach((block, index) => {
+      logger.debug('[OCR] ========== 前端 PaddleOCR 识别结果 ==========')
+      ocrResult.blocks.forEach((block, index) => {
         logger.debug(`[OCR] 文字块 #${index + 1}:`)
         logger.debug(`[OCR]   文本内容: "${block.text}"`)
         logger.debug(`[OCR]   位置: x=${block.x.toFixed(1)}, y=${block.y.toFixed(1)}`)
@@ -2455,7 +2494,7 @@ export class ScreenshotManager {
       // 3. 智能合并被截断的句子
       // 规则：如果当前行以标点结尾，上一行没有标点结尾且宽度接近，则合并
       // 新增：字体大小不一致时不合并（说明是不同段落/标题）
-      const blocks = tesseractResult.blocks
+      const blocks = ocrResult.blocks
       const mergedLines: string[] = []
       const mergedBlocks: typeof blocks = []  // 保存合并后的块信息
       const punctuationEnd = /[.。!！?？:]$/  // 只有句号、问号、感叹号才算完整句子
@@ -2526,7 +2565,7 @@ export class ScreenshotManager {
       }
       
       const fullText = mergedLines.join('\n')
-      logger.info(`[OCR] 纯前端识别完成 - 检测语言: ${tesseractResult.language}`)
+      logger.info(`[OCR] 纯前端识别完成 - 检测语言: ${ocrResult.language}`)
       logger.debug(`[OCR] 合并后段落数: ${mergedLines.length}`)
       logger.debug(`[OCR] 完整文本: "${fullText.substring(0, 100)}${fullText.length > 100 ? '...' : ''}"`)
 
@@ -2757,9 +2796,19 @@ export class ScreenshotManager {
     }
 
     // 清理背景图像引用，释放内存
-    this.backgroundImage = null
+    if (this.backgroundImage) {
+      this.backgroundImage.onload = null
+      this.backgroundImage.onerror = null
+      this.backgroundImage = null
+    }
     
     // 清理标注数组
+    this.annotations.forEach(annotation => {
+      // 如果标注有清理方法，调用它
+      if (typeof (annotation as any).destroy === 'function') {
+        (annotation as any).destroy()
+      }
+    })
     this.annotations = []
     this.currentAnnotation = null
     this.selectedAnnotation = null
@@ -2768,11 +2817,33 @@ export class ScreenshotManager {
     this.resizingAnnotation = null
     this.editingAnnotation = null
     
+    // 清理选择框
+    this.selectionRect = null
+    
+    // 清理拖拽状态
+    this.dragStartPoint = null
+    this.resizeStartBounds = null
+    this.resizeOperation = null
+    this.pendingSnapWindow = null
+    this.dragStartPosition = null
+    this.snappedWindow = null
+    
+    // 清理窗口信息
+    this.allWindows = []
+    
     // 清理翻译覆盖层
     this.translationOverlay.blocks = []
     this.translationOverlay.isVisible = false
+    this.translationOverlay.isLoading = false
+    
+    // 清理取色器状态
+    this.colorPickerState.isActive = false
+    this.colorPickerState.isVisible = false
+    this.colorPickerState.isCopied = false
 
+    // 清理事件处理器
     this.eventHandler.unbind()
+    
     // 清理鼠标事件监听器
     this.canvas.removeEventListener('mousedown', this.mouseDownHandler)
     this.canvas.removeEventListener('mousemove', this.mouseMoveHandler)
@@ -2782,6 +2853,18 @@ export class ScreenshotManager {
     // 清理键盘事件监听器
     window.removeEventListener('keydown', this.keyDownHandler)
     window.removeEventListener('keyup', this.keyUpHandler)
+    
+    // 清理回调函数引用
+    this.onStateChange = undefined
+    this.onTextInputRequest = undefined
+    this.onColorPicked = undefined
+    this.onLoadComplete = undefined
+    
+    // 清理画布上下文（如果需要）
+    const ctx = this.canvas.getContext('2d')
+    if (ctx) {
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    }
   }
 }
 

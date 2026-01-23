@@ -1647,6 +1647,25 @@ pub fn get_screenshot_background() -> Result<String, String> {
 pub fn clear_screenshot_background() {
     let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
     *bg = None;
+    info!("截图背景缓存已清理");
+}
+
+// 清理所有截图相关的缓存和状态（可选的深度清理）
+#[tauri::command]
+pub fn cleanup_screenshot_resources() {
+    // 清理截图背景
+    {
+        let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+        *bg = None;
+    }
+    
+    // 重置捕获状态
+    {
+        let mut capturing = IS_CAPTURING.lock().unwrap();
+        *capturing = false;
+    }
+    
+    info!("所有截图资源已清理");
 }
 
 // 捕获屏幕指定区域
@@ -2068,7 +2087,10 @@ pub fn get_screen_preview(
 
 // 保存截图到文件
 #[tauri::command]
-pub fn save_screenshot_to_file(app_handle: AppHandle, image: String) -> Result<String, String> {
+pub async fn save_screenshot_to_file(app_handle: AppHandle, image: String) -> Result<String, String> {
+    use std::sync::Arc;
+    use tokio::task;
+    
     // 提取base64数据
     let base64_data = image.split(',').nth(1).unwrap_or(&image);
 
@@ -2087,17 +2109,28 @@ pub fn save_screenshot_to_file(app_handle: AppHandle, image: String) -> Result<S
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
     let default_filename = format!("screenshot_{}.png", timestamp);
 
-    // 显示保存文件对话框
-    if let Some(selected_path) = app_handle
-        .dialog()
-        .file()
-        .add_filter("PNG Image", &["png"])
-        .add_filter("JPEG Image", &["jpg", "jpeg"])
-        .add_filter("All Files", &["*"])
-        .set_file_name(&default_filename)
-        .set_directory(desktop)
-        .blocking_save_file()
-    {
+    // 将app_handle包装为Arc以便在异步任务中使用
+    let app_handle = Arc::new(app_handle);
+    
+    // 在单独的任务中显示保存文件对话框，避免阻塞主线程
+    let selected_path = task::spawn_blocking({
+        let app_handle = Arc::clone(&app_handle);
+        let default_filename = default_filename.clone();
+        let desktop = desktop.clone();
+        move || {
+            app_handle
+                .dialog()
+                .file()
+                .add_filter("PNG Image", &["png"])
+                .add_filter("JPEG Image", &["jpg", "jpeg"])
+                .add_filter("All Files", &["*"])
+                .set_file_name(&default_filename)
+                .set_directory(desktop)
+                .blocking_save_file()
+        }
+    }).await.map_err(|e| format!("Dialog task failed: {}", e))?;
+
+    if let Some(selected_path) = selected_path {
         let path = selected_path.as_path().unwrap();
 
         // 根据文件扩展名确定格式
@@ -2107,9 +2140,12 @@ pub fn save_screenshot_to_file(app_handle: AppHandle, image: String) -> Result<S
             _ => image::ImageFormat::Png, // 默认使用PNG
         };
 
-        // 保存图像到文件
-        img.save_with_format(path, format)
-            .map_err(|e| format!("Failed to save image: {}", e))?;
+        // 在单独的任务中保存图像，避免阻塞主线程
+        let path_clone = path.to_path_buf();
+        task::spawn_blocking(move || {
+            img.save_with_format(&path_clone, format)
+        }).await.map_err(|e| format!("Save task failed: {}", e))?
+        .map_err(|e| format!("Failed to save image: {}", e))?;
 
         Ok(format!("截图已保存到: {}", path.display()))
     } else {
@@ -2284,8 +2320,8 @@ pub fn copy_image_to_clipboard(app_handle: AppHandle, image_data: String) -> Res
 
 // 保存贴图图片
 #[tauri::command]
-pub fn save_pin_image(app_handle: AppHandle, image_data: String) -> Result<String, String> {
-    save_screenshot_to_file(app_handle, image_data)
+pub async fn save_pin_image(app_handle: AppHandle, image_data: String) -> Result<String, String> {
+    save_screenshot_to_file(app_handle, image_data).await
 }
 
 // 前端日志转发到后台

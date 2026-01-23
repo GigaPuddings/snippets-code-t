@@ -75,6 +75,96 @@ function extractFontInfo(line: any, defaultConfidence: number): { fontSize: numb
   }
 }
 
+/** 图像预处理：增强对比度和反色处理 */
+function preprocessCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas
+  
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const data = imageData.data
+  
+  // 1. 转换为灰度
+  const grayValues: number[] = []
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+    grayValues.push(gray)
+    data[i] = data[i + 1] = data[i + 2] = gray
+  }
+  
+  // 2. 计算平均亮度，判断是否为深色背景
+  const avgBrightness = grayValues.reduce((a, b) => a + b, 0) / grayValues.length
+  const isDarkBackground = avgBrightness < 128
+  
+  logger.debug(`[OCR] 图像预处理: 平均亮度=${avgBrightness.toFixed(1)}, 深色背景=${isDarkBackground}`)
+  
+  // 3. 如果是深色背景，反转颜色（让文字变黑，背景变白）
+  if (isDarkBackground) {
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = 255 - data[i]
+      data[i + 1] = 255 - data[i + 1]
+      data[i + 2] = 255 - data[i + 2]
+    }
+  }
+  
+  // 4. 增强对比度（使用更激进的 S 曲线）
+  for (let i = 0; i < data.length; i += 4) {
+    const value = data[i]
+    // 使用更强的 S 曲线增强对比度
+    const normalized = value / 255
+    const enhanced = normalized < 0.5 
+      ? Math.pow(normalized * 2, 2) * 0.5 
+      : 1 - Math.pow((1 - normalized) * 2, 2) * 0.5
+    data[i] = data[i + 1] = data[i + 2] = Math.round(enhanced * 255)
+  }
+  
+  // 5. 自适应二值化（Otsu's method）
+  let histogram = new Array(256).fill(0)
+  for (let i = 0; i < data.length; i += 4) {
+    histogram[data[i]]++
+  }
+  
+  const total = canvas.width * canvas.height
+  let sum = 0
+  for (let i = 0; i < 256; i++) {
+    sum += i * histogram[i]
+  }
+  
+  let sumB = 0
+  let wB = 0
+  let wF = 0
+  let maxVariance = 0
+  let threshold = 128
+  
+  for (let i = 0; i < 256; i++) {
+    wB += histogram[i]
+    if (wB === 0) continue
+    
+    wF = total - wB
+    if (wF === 0) break
+    
+    sumB += i * histogram[i]
+    const mB = sumB / wB
+    const mF = (sum - sumB) / wF
+    const variance = wB * wF * (mB - mF) * (mB - mF)
+    
+    if (variance > maxVariance) {
+      maxVariance = variance
+      threshold = i
+    }
+  }
+  
+  logger.debug(`[OCR] 二值化阈值: ${threshold}`)
+  
+  // 应用二值化
+  for (let i = 0; i < data.length; i += 4) {
+    const value = data[i] > threshold ? 255 : 0
+    data[i] = data[i + 1] = data[i + 2] = value
+  }
+  
+  ctx.putImageData(imageData, 0, 0)
+  return canvas
+}
+
 /** 从 Canvas 执行 OCR 识别 */
 export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<OcrResult> {
   const w = await getWorker()
@@ -82,16 +172,44 @@ export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<Oc
   logger.info('[OCR] 开始 Tesseract OCR 识别...')
   const startTime = Date.now()
   
-  const result = await w.recognize(canvas, {}, {
+  // 预处理图像：增强对比度和二值化
+  const processedCanvas = document.createElement('canvas')
+  processedCanvas.width = canvas.width
+  processedCanvas.height = canvas.height
+  const ctx = processedCanvas.getContext('2d')
+  
+  if (!ctx) {
+    logger.warn('[OCR] 无法获取 canvas context，使用原始图像')
+    // 回退到原始 canvas
+    const result = await w.recognize(canvas, {}, {
+      blocks: true,
+      layoutBlocks: true,
+      text: true,
+    })
+    return processResult(result, startTime)
+  }
+  
+  // 复制并预处理图像
+  ctx.drawImage(canvas, 0, 0)
+  preprocessCanvas(processedCanvas)
+  
+  const result = await w.recognize(processedCanvas, {}, {
     blocks: true,
     layoutBlocks: true,
     text: true,
   })
   
+  return processResult(result, startTime)
+}
+
+/** 处理 OCR 识别结果 */
+function processResult(result: any, startTime: number): OcrResult {
+  
   logger.info(`[OCR] 识别完成，耗时: ${Date.now() - startTime}ms`)
   
   const data = result.data as any
   const blocks: OcrTextBlock[] = []
+  const CONFIDENCE_THRESHOLD = 50 // 置信度阈值：低于50%的文字块将被过滤
   
   // 收集所有 lines: data.blocks[].paragraphs[].lines[]
   const allLines: any[] = []
@@ -103,6 +221,8 @@ export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<Oc
   
   logger.debug(`[OCR] 原始数据: blocks=${data.blocks?.length || 0}, lines=${allLines.length}`)
   
+  let filteredCount = 0
+  
   // 从 lines 提取文本块
   if (allLines.length > 0) {
     logger.debug('[OCR] 使用 lines 数据提取文本块')
@@ -112,6 +232,13 @@ export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<Oc
       
       const bbox = line.bbox
       const fontInfo = extractFontInfo(line, data.confidence || 0)
+      
+      // 过滤低置信度文字块
+      if (fontInfo.confidence < CONFIDENCE_THRESHOLD) {
+        filteredCount++
+        logger.debug(`[OCR] 过滤低置信度文字块 (${fontInfo.confidence.toFixed(1)}%): "${rawText.substring(0, 20)}${rawText.length > 20 ? '...' : ''}"`)
+        continue
+      }
       
       // 清理乱码字符
       const text = cleanOcrText(rawText, fontInfo.confidence)
@@ -151,30 +278,41 @@ export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<Oc
     logger.debug('[OCR] 使用 text 分行回退方案')
     const lines = data.text.split('\n').filter((l: string) => l.trim())
     const overallConfidence = data.confidence || 0
-    for (const line of lines) {
-      const rawText = line.trim()
-      // 清理乱码字符
-      const text = cleanOcrText(rawText, overallConfidence)
-      if (!text) continue
-      
-      blocks.push({
-        text,
-        x: 0,
-        y: blocks.length * 30,
-        width: text.length * 12,
-        height: 24,
-        fontSize: 16,
-        lineHeight: 24,
-        angle: 0,
-        confidence: overallConfidence
-      })
+    
+    // 如果整体置信度太低，直接跳过
+    if (overallConfidence < CONFIDENCE_THRESHOLD) {
+      logger.debug(`[OCR] 整体置信度过低 (${overallConfidence.toFixed(1)}%)，跳过回退方案`)
+    } else {
+      for (const line of lines) {
+        const rawText = line.trim()
+        // 清理乱码字符
+        const text = cleanOcrText(rawText, overallConfidence)
+        if (!text) continue
+        
+        blocks.push({
+          text,
+          x: 0,
+          y: blocks.length * 30,
+          width: text.length * 12,
+          height: 24,
+          fontSize: 16,
+          lineHeight: 24,
+          angle: 0,
+          confidence: overallConfidence
+        })
+      }
     }
   }
   
-  const fullText = data.text || ''
+  // 重新计算完整文本（仅包含高置信度的文字块）
+  const fullText = blocks.map(b => b.text).join('\n')
   const language = detectLanguage(fullText)
   
-  logger.info(`[OCR] 识别到 ${blocks.length} 个文本块, 语言: ${language}, 置信度: ${(data.confidence || 0).toFixed(1)}%`)
+  if (filteredCount > 0) {
+    logger.info(`[OCR] 识别到 ${blocks.length} 个有效文本块 (过滤了 ${filteredCount} 个低置信度块), 语言: ${language}, 平均置信度: ${(data.confidence || 0).toFixed(1)}%`)
+  } else {
+    logger.info(`[OCR] 识别到 ${blocks.length} 个文本块, 语言: ${language}, 置信度: ${(data.confidence || 0).toFixed(1)}%`)
+  }
   
   return { blocks, full_text: fullText, language, confidence: data.confidence || 0 }
 }
