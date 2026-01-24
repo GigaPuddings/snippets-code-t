@@ -3,12 +3,13 @@ import { DrawingEngine } from './DrawingEngine'
 import { CoordinateSystem } from './CoordinateSystem'
 import { EventHandler } from './EventHandler'
 import { AnnotationFactory } from './AnnotationFactory'
+import { CanvasPool } from './CanvasPool'
+import { ImageCompressor } from './ImageCompressor'
+import { LazyLoader } from './LazyLoader'
 import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, TranslationOverlay, SampledColor, OverlayStyle } from './types'
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
 import { logger } from '@/utils/logger'
-import { recognizeFromCanvas } from '@/utils/ocr'
-import { translateOffline, canUseOfflineTranslation, cancelOfflineTranslation } from '@/utils/offlineTranslator'
 
 interface WindowInfo {
   x: number
@@ -76,7 +77,7 @@ export class ScreenshotManager {
   // 节流相关状态
   private throttleTimer: number | null = null
   private lastThrottledTimestamp = 0
-  private readonly throttleInterval = 50 // ms, 20 FPS
+  private readonly throttleInterval = 33 // ms, 30 FPS (优化性能)
 
   // 按键状态
   private isShiftPressed = false
@@ -97,24 +98,24 @@ export class ScreenshotManager {
   // 离线模型后端激活状态
   private offlineModelActivated = false
 
+  // Canvas 池
+  private canvasPool = CanvasPool.getInstance()
+
   // 回调函数
   private onStateChange?: () => void
   private onTextInputRequest?: (position: Point, existingAnnotation?: BaseAnnotation) => void
   private onColorPicked?: (colorInfo: ColorInfo) => void
-  private onLoadComplete?: () => void
 
   constructor(
     canvas: HTMLCanvasElement, 
     onStateChange?: () => void,
     onTextInputRequest?: (position: Point, existingAnnotation?: BaseAnnotation) => void,
-    onColorPicked?: (colorInfo: ColorInfo) => void,
-    onLoadComplete?: () => void
+    onColorPicked?: (colorInfo: ColorInfo) => void
   ) {
     this.canvas = canvas
     this.onStateChange = onStateChange
     this.onTextInputRequest = onTextInputRequest
     this.onColorPicked = onColorPicked
-    this.onLoadComplete = onLoadComplete
     
     this.coordinateSystem = new CoordinateSystem(canvas)
     this.drawingEngine = new DrawingEngine(canvas, this.coordinateSystem)
@@ -124,8 +125,14 @@ export class ScreenshotManager {
     this.bindMouseEvents()
 
     this.initCanvas()
-    this.loadAllWindows()
+    this.loadAllWindows().then(() => {
+      // 窗口列表加载完成后，立即检测初始鼠标位置附近的窗口
+      this.detectInitialWindowSnap()
+    })
     this.loadScreenBackground() // 加载预捕获的屏幕背景
+    
+    // 预加载非关键模块
+    LazyLoader.preloadModules()
   }
 
   // 初始化画布
@@ -155,6 +162,10 @@ export class ScreenshotManager {
       // logger.info(`[截图] Canvas物理尺寸: ${this.canvas.width}x${this.canvas.height}, 缩放因子: ${dpr}`)
     }
 
+    // 4. 设置canvas初始背景为半透明黑色（与遮罩层颜色一致）
+    // 这样在背景图加载前后都保持统一的视觉效果，不会有颜色跳变
+    this.canvas.style.backgroundColor = 'rgba(0, 0, 0, 0.6)'
+
     this.coordinateSystem.updateCanvasRect(this.canvas)
   }
 
@@ -162,60 +173,106 @@ export class ScreenshotManager {
   private async loadScreenBackground(): Promise<void> {
     try {
       // 清除旧的背景图像引用
-      this.backgroundImage = null
+      if (this.backgroundImage) {
+        this.backgroundImage.onload = null
+        this.backgroundImage.onerror = null
+        this.backgroundImage = null
+      }
       
-      // 异步加载真实背景，带重试机制
-      let retryCount = 0
-      const maxRetries = 10
-      const retryDelay = 300
+      // 简化等待逻辑，减少轮询次数
+      const maxWaitTime = 3000
+      const checkInterval = 100
+      let waitedTime = 0
       
-      while (retryCount < maxRetries) {
+      while (waitedTime < maxWaitTime) {
         try {
           const base64Image = await invoke('get_screenshot_background') as string
-          
-          if (!base64Image) {
-            throw new Error('Empty background image')
+          if (base64Image) {
+            // 压缩图像以减少内存占用
+            const compressed = await ImageCompressor.compress(
+              base64Image,
+              0.85, // 85% 质量
+              window.screen.width * 2, // 最大宽度（考虑高DPI）
+              window.screen.height * 2  // 最大高度
+            )
+            
+            // 加载压缩后的图像
+            const img = new Image()
+            
+            await new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                img.onload = null
+                img.onerror = null
+                reject(new Error('Image load timeout'))
+              }, 3000)
+              
+              img.onload = () => {
+                clearTimeout(timeout)
+                this.backgroundImage = img
+                
+                // 记录内存使用情况
+                const memoryUsage = ImageCompressor.estimateMemoryUsage(img.width, img.height)
+                logger.info(`[截图] 背景图像加载成功 (${img.width}x${img.height}, ~${ImageCompressor.formatMemorySize(memoryUsage)})`)
+                
+                this.draw()
+                resolve()
+              }
+              
+              img.onerror = (error) => {
+                clearTimeout(timeout)
+                reject(error)
+              }
+              
+              img.src = `data:image/jpeg;base64,${compressed}`
+            })
+            
+            return
           }
-
-          const img = new Image()
-          img.onload = () => {
-            this.backgroundImage = img
-            // 背景加载完成后，触发完整重绘（包括遮罩层和选择框）
-            this.draw()
-            // 通知加载完成（让用户可以开始操作）
-            if (this.onLoadComplete) {
-              this.onLoadComplete()
-            }
-          }
-          img.onerror = (error) => {
-            logger.error('[截图] 屏幕背景图像加载失败', error)
-            // 即使加载失败也要通知完成，避免一直显示加载状态
-            if (this.onLoadComplete) {
-              this.onLoadComplete()
-            }
-          }
-          
-          img.src = `data:image/jpeg;base64,${base64Image}`
-          break
-          
         } catch (error: any) {
-          retryCount++
-          if (retryCount >= maxRetries) {
-            logger.error('[截图] 屏幕背景加载失败，已达最大重试次数')
-            // 达到最大重试次数后也要通知完成
-            if (this.onLoadComplete) {
-              this.onLoadComplete()
-            }
+          if (error?.toString().includes('No screenshot background available') || 
+              error?.toString().includes('being captured')) {
+            await new Promise(resolve => setTimeout(resolve, checkInterval))
+            waitedTime += checkInterval
+            continue
           }
-          await new Promise(resolve => setTimeout(resolve, retryDelay))
+          throw error
         }
       }
+      
+      logger.warn('[截图] 等待后端准备背景超时')
+      this.createFallbackBackground()
     } catch (error) {
       logger.error('[截图] 加载屏幕背景失败', error)
-      // 发生异常也要通知完成
-      if (this.onLoadComplete) {
-        this.onLoadComplete()
+      this.createFallbackBackground()
+    }
+  }
+
+  // 创建后备背景（当背景图加载失败时使用）
+  private createFallbackBackground(): void {
+    try {
+      // 使用更轻量的方式创建后备背景
+      const img = new Image()
+      img.width = 1
+      img.height = 1
+      
+      // 创建1x1像素的透明图像作为占位符
+      const canvas = document.createElement('canvas')
+      canvas.width = 1
+      canvas.height = 1
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+        ctx.fillRect(0, 0, 1, 1)
+        img.src = canvas.toDataURL()
       }
+      
+      img.onload = () => {
+        this.backgroundImage = img
+        this.draw()
+        logger.info('[截图] 使用后备背景')
+      }
+    } catch (error) {
+      logger.error('[截图] 创建后备背景失败', error)
     }
   }
 
@@ -247,32 +304,82 @@ export class ScreenshotManager {
   // 加载所有窗口信息
   private async loadAllWindows(): Promise<void> {
     try {
-      const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number, isFullscreen: boolean }
-      const windows = await invoke('get_all_windows') as WindowInfo[]
+      const [windowInfo, windows] = await Promise.all([
+        invoke('get_window_info') as Promise<{ x: number, y: number, scale: number, isFullscreen: boolean }>,
+        invoke('get_all_windows') as Promise<WindowInfo[]>
+      ])
+      
       const scale = windowInfo?.scale || 1
+      const screenWidth = window.innerWidth
+      const screenHeight = window.innerHeight
       
-      const filteredWindows = windows.filter(win => this.isValidWindow(win))
-      
-      this.allWindows = filteredWindows
+      // 使用单次遍历优化性能
+      this.allWindows = windows
+        .filter(win => this.isValidWindow(win))
         .map(win => ({
           ...win,
-          // 根据缩放因子调整坐标和大小
           x: Math.round(win.x / scale),
           y: Math.round(win.y / scale),
           width: Math.round(win.width / scale),
           height: Math.round(win.height / scale)
         }))
-        .filter(win => {
-          // 过滤掉在屏幕外的窗口
-          return win.x >= -win.width && 
-                 win.y >= -win.height &&
-                 win.x < window.innerWidth + win.width &&
-                 win.y < window.innerHeight + win.height
-        })
+        .filter(win => 
+          win.x >= -win.width && 
+          win.y >= -win.height &&
+          win.x < screenWidth + win.width &&
+          win.y < screenHeight + win.height
+        )
       
+      logger.info(`[截图] 加载了 ${this.allWindows.length} 个有效窗口`)
     } catch (error) {
       logger.error('[截图] 加载窗口列表失败', error)
       this.allWindows = []
+    }
+  }
+
+  // 检测初始窗口吸附（在窗口打开时立即调用）
+  private async detectInitialWindowSnap(): Promise<void> {
+    try {
+      // 如果没有窗口列表，直接返回
+      if (this.allWindows.length === 0) {
+        return
+      }
+
+      // 获取窗口信息和鼠标位置
+      const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
+      
+      // 尝试获取鼠标位置，如果失败则使用屏幕中心作为初始位置
+      let canvasMousePos: Point
+      try {
+        const mouseInfo = await invoke('get_mouse_position') as { x: number, y: number }
+        const scale = windowInfo?.scale || 1
+        
+        // 转换为canvas坐标
+        canvasMousePos = {
+          x: Math.round((mouseInfo.x - windowInfo.x) / scale),
+          y: Math.round((mouseInfo.y - windowInfo.y) / scale)
+        }
+      } catch (error) {
+        // 如果获取鼠标位置失败，使用屏幕中心
+        canvasMousePos = {
+          x: Math.round(this.canvas.width / (window.devicePixelRatio || 1) / 2),
+          y: Math.round(this.canvas.height / (window.devicePixelRatio || 1) / 2)
+        }
+        logger.info('[截图] 无法获取鼠标位置，使用屏幕中心进行初始检测')
+      }
+      
+      // 检测鼠标位置附近的窗口
+      const nearbyWindow = this.detectNearbyWindow(canvasMousePos)
+      
+      if (nearbyWindow) {
+        this.snappedWindow = nearbyWindow
+        this.showSnapPreview = true
+        this.draw()
+        logger.info(`[截图] 初始检测到窗口: ${nearbyWindow.title}`)
+      }
+    } catch (error) {
+      logger.warn('[截图] 初始窗口吸附检测失败', error)
+      // 失败不影响正常使用，用户移动鼠标后会重新检测
     }
   }
 
@@ -1080,12 +1187,16 @@ export class ScreenshotManager {
   draw(): void {
     this.drawingEngine.clear()
     
-    // 绘制背景图像（如果已加载）
-    if (this.backgroundImage) {
-      this.drawBackground()
+    // 【关键修复】只有在背景图像加载完成后才绘制任何内容
+    // 这样可以避免在背景未加载时显示黑色遮罩或其他内容
+    if (!this.backgroundImage) {
+      // 背景未加载完成，不绘制任何内容，保持透明
+      return
     }
-    // 如果背景还未加载，保持画布透明
-
+    
+    // 绘制背景图像
+    this.drawBackground()
+    
     // 【遮罩层】绘制选择区域外的半透明遮罩
     if (this.selectionRect) {
       this.drawingEngine.drawMask(this.selectionRect)
@@ -1288,21 +1399,17 @@ export class ScreenshotManager {
       return defaultColor
     }
 
-    // 创建临时canvas用于采样
-    const tempCanvas = document.createElement('canvas')
-    const tempCtx = tempCanvas.getContext('2d')
-    if (!tempCtx) {
-      return defaultColor
-    }
-
-    // 获取设备像素比
+    // 从 Canvas 池获取临时 canvas
     const dpr = window.devicePixelRatio || 1
-
-    // 设置临时canvas大小为采样区域大小（物理像素）
     const physicalWidth = Math.round(rect.width * dpr)
     const physicalHeight = Math.round(rect.height * dpr)
-    tempCanvas.width = physicalWidth
-    tempCanvas.height = physicalHeight
+    
+    const tempCanvas = this.canvasPool.acquire(physicalWidth, physicalHeight)
+    const tempCtx = tempCanvas.getContext('2d')
+    if (!tempCtx) {
+      this.canvasPool.release(tempCanvas)
+      return defaultColor
+    }
 
     // 计算背景图像中对应的区域
     // 背景图像是全屏截图，需要根据canvas位置计算
@@ -1330,6 +1437,7 @@ export class ScreenshotManager {
       )
     } catch (error) {
       logger.warn('[截图] 采样区域绘制失败', error)
+      this.canvasPool.release(tempCanvas)
       return defaultColor
     }
 
@@ -1339,6 +1447,7 @@ export class ScreenshotManager {
       imageData = tempCtx.getImageData(0, 0, physicalWidth, physicalHeight)
     } catch (error) {
       logger.warn('[截图] 获取像素数据失败', error)
+      this.canvasPool.release(tempCanvas)
       return defaultColor
     }
 
@@ -1375,6 +1484,9 @@ export class ScreenshotManager {
         }
       }
     }
+
+    // 释放 canvas 回池
+    this.canvasPool.release(tempCanvas)
 
     // 计算平均值
     if (sampleCount === 0) {
@@ -1478,21 +1590,17 @@ export class ScreenshotManager {
       return false
     }
 
-    // 创建临时canvas用于采样
-    const tempCanvas = document.createElement('canvas')
-    const tempCtx = tempCanvas.getContext('2d')
-    if (!tempCtx) {
-      return false
-    }
-
-    // 获取设备像素比
+    // 从 Canvas 池获取临时 canvas
     const dpr = window.devicePixelRatio || 1
-
-    // 设置临时canvas大小为采样区域大小（物理像素）
     const physicalWidth = Math.round(rect.width * dpr)
     const physicalHeight = Math.round(rect.height * dpr)
-    tempCanvas.width = physicalWidth
-    tempCanvas.height = physicalHeight
+    
+    const tempCanvas = this.canvasPool.acquire(physicalWidth, physicalHeight)
+    const tempCtx = tempCanvas.getContext('2d')
+    if (!tempCtx) {
+      this.canvasPool.release(tempCanvas)
+      return false
+    }
 
     // 计算背景图像中对应的区域
     const bgWidth = this.backgroundImage.width
@@ -1519,6 +1627,7 @@ export class ScreenshotManager {
       )
     } catch (error) {
       logger.warn('[截图] isUniformColor: 采样区域绘制失败', error)
+      this.canvasPool.release(tempCanvas)
       return false
     }
 
@@ -1528,6 +1637,7 @@ export class ScreenshotManager {
       imageData = tempCtx.getImageData(0, 0, physicalWidth, physicalHeight)
     } catch (error) {
       logger.warn('[截图] isUniformColor: 获取像素数据失败', error)
+      this.canvasPool.release(tempCanvas)
       return false
     }
 
@@ -1562,6 +1672,9 @@ export class ScreenshotManager {
         }
       }
     }
+
+    // 释放 canvas 回池
+    this.canvasPool.release(tempCanvas)
 
     // 如果采样点不足，无法判断
     if (samples.length < 2) {
@@ -2418,11 +2531,18 @@ export class ScreenshotManager {
   private throttledUpdateColorPreview(mousePos: Point): void {
     const now = Date.now()
     if (now - this.lastThrottledTimestamp < this.throttleInterval) {
-      // 如果仍在节流间隔内，则不执行
       return
     }
     this.lastThrottledTimestamp = now
-    this.updateColorPreview(mousePos)
+    
+    // 使用requestAnimationFrame优化渲染性能
+    if (this.throttleTimer) {
+      cancelAnimationFrame(this.throttleTimer)
+    }
+    this.throttleTimer = requestAnimationFrame(() => {
+      this.updateColorPreview(mousePos)
+      this.throttleTimer = null
+    })
   }
 
   // RGB 转 HEX
@@ -2448,21 +2568,19 @@ export class ScreenshotManager {
       const { x, y, width, height } = this.selectionRect
       const dpr = window.devicePixelRatio || 1
       
-      // 创建临时canvas提取选区图像
-      const tempCanvas = document.createElement('canvas')
+      // 从 Canvas 池获取临时 canvas
+      const srcWidth = width * dpr
+      const srcHeight = height * dpr
+      const tempCanvas = this.canvasPool.acquire(srcWidth, srcHeight)
       const tempCtx = tempCanvas.getContext('2d')
       if (!tempCtx) {
+        this.canvasPool.release(tempCanvas)
         throw new Error('无法创建临时canvas')
       }
       
       // 计算在背景图像中的对应区域（考虑DPR）
       const srcX = x * dpr
       const srcY = y * dpr
-      const srcWidth = width * dpr
-      const srcHeight = height * dpr
-      
-      tempCanvas.width = srcWidth
-      tempCanvas.height = srcHeight
       
       // 从背景图像中裁剪选区
       tempCtx.drawImage(
@@ -2474,20 +2592,24 @@ export class ScreenshotManager {
       logger.info('[OCR] 开始纯前端 OCR 识别（PaddleOCR）...')
       logger.debug(`[OCR] 选区信息: x=${x}, y=${y}, width=${width}, height=${height}, dpr=${dpr}`)
 
-      // 2. 使用前端 PaddleOCR 进行 OCR 识别
+      // 2. 懒加载 OCR 模块并执行识别
+      const { recognizeFromCanvas } = await LazyLoader.loadOCR()
       const ocrResult = await recognizeFromCanvas(tempCanvas)
+      
+      // 释放 canvas 回池
+      this.canvasPool.release(tempCanvas)
 
       logger.info(`[OCR] 前端识别完成: ${ocrResult.blocks?.length || 0} 个文字块, 置信度: ${ocrResult.confidence.toFixed(1)}%`)
       logger.debug(`[OCR] 前端完整文本: ${ocrResult.full_text}`)
 
       // 打印每个识别出的文字块详情（仅调试模式）
       logger.debug('[OCR] ========== 前端 PaddleOCR 识别结果 ==========')
-      ocrResult.blocks.forEach((block, index) => {
+      ocrResult.blocks.forEach((block: OcrTextBlock, index: number) => {
         logger.debug(`[OCR] 文字块 #${index + 1}:`)
         logger.debug(`[OCR]   文本内容: "${block.text}"`)
         logger.debug(`[OCR]   位置: x=${block.x.toFixed(1)}, y=${block.y.toFixed(1)}`)
         logger.debug(`[OCR]   尺寸: width=${block.width.toFixed(1)}, height=${block.height.toFixed(1)}`)
-        logger.debug(`[OCR]   置信度: ${block.confidence?.toFixed(1) || 'N/A'}%`)
+        logger.debug(`[OCR]   置信度: N/A`)
       })
       logger.debug('[OCR] ================================================')
 
@@ -2504,7 +2626,7 @@ export class ScreenshotManager {
       const widthTolerance = 0.15  // 宽度容差比例（15%）
       
       // 计算最大行宽度作为参考
-      const maxWidth = Math.max(...blocks.map(b => b.width))
+      const maxWidth = Math.max(...blocks.map((b: OcrTextBlock) => b.width))
       
       for (let i = 0; i < blocks.length; i++) {
         const currBlock = blocks[i]
@@ -2610,14 +2732,20 @@ export class ScreenshotManager {
         logger.info(`[OCR] 开始翻译... 引擎: ${this.translationOverlay.engine}`)
         try {
           if (this.translationOverlay.engine === 'offline') {
+            // 懒加载离线翻译模块
+            const { 
+              translateOffline, 
+              canUseOfflineTranslation, 
+              warmupOfflineTranslator, 
+              getModelCacheInfo 
+            } = await LazyLoader.loadOfflineTranslator()
+            
             // 离线翻译 - 懒加载模型
             const memoryLoaded = canUseOfflineTranslation()
             logger.info(`[OCR] 离线翻译检查 - 后端激活状态: ${this.offlineModelActivated}, 内存加载状态: ${memoryLoaded}`)
             
             // 如果后端已激活但内存未加载，尝试懒加载
             if (this.offlineModelActivated && !memoryLoaded) {
-              const { warmupOfflineTranslator, getModelCacheInfo } = await import('@/utils/offlineTranslator')
-              
               // 检查缓存状态
               const cacheInfo = await getModelCacheInfo()
               logger.info(`[OCR] 离线翻译懒加载 - 缓存信息: ${JSON.stringify(cacheInfo)}`)
@@ -2679,22 +2807,22 @@ export class ScreenshotManager {
       const translatedBlocks: OcrTextBlock[] = []
       
       for (let i = 0; i < mergedBlocks.length; i++) {
-        const block = mergedBlocks[i]
+        const b = mergedBlocks[i]
         // 对应的翻译行（如果翻译行数不够，使用原文）
-        const translatedLine = i < translatedLines.length ? translatedLines[i] : block.text
+        const translatedLine = i < translatedLines.length ? translatedLines[i] : b.text
         
         // 将坐标和尺寸除以 DPR 转换到 canvas 坐标系
         translatedBlocks.push({
-          text: block.text,
-          x: block.x / dpr,
-          y: block.y / dpr,
-          width: block.width / dpr,
-          height: block.height / dpr,
-          fontSize: block.fontSize / dpr,
-          lineHeight: block.lineHeight / dpr,
-          angle: block.angle,
+          text: b.text,
+          x: b.x / dpr,
+          y: b.y / dpr,
+          width: b.width / dpr,
+          height: b.height / dpr,
+          fontSize: b.fontSize / dpr,
+          lineHeight: b.lineHeight / dpr,
+          angle: b.angle,
           translatedText: translatedLine,
-          isCodeBlock: isCodeBlock(block.text)
+          isCodeBlock: isCodeBlock(b.text)
         })
       }
 
@@ -2720,9 +2848,14 @@ export class ScreenshotManager {
   }
 
   // 清除翻译覆盖层
-  clearTranslationOverlay(): void {
-    // 取消正在进行的离线翻译
-    cancelOfflineTranslation()
+  async clearTranslationOverlay(): Promise<void> {
+    // 懒加载并取消正在进行的离线翻译
+    try {
+      const { cancelOfflineTranslation } = await LazyLoader.loadOfflineTranslator()
+      cancelOfflineTranslation()
+    } catch (error) {
+      // 如果模块未加载，忽略错误
+    }
     
     this.translationOverlay = {
       blocks: [],
@@ -2786,12 +2919,17 @@ export class ScreenshotManager {
 
   // 销毁
   destroy(): void {
-    // 取消正在进行的离线翻译
-    cancelOfflineTranslation()
+    // 取消正在进行的离线翻译（异步，不等待）
+    LazyLoader.loadOfflineTranslator()
+      .then(({ cancelOfflineTranslation }) => cancelOfflineTranslation())
+      .catch(() => {})
+    
+    // 清理 Canvas 池
+    this.canvasPool.clear()
     
     // 清理节流定时器
     if (this.throttleTimer) {
-      clearTimeout(this.throttleTimer)
+      cancelAnimationFrame(this.throttleTimer)
       this.throttleTimer = null
     }
 
@@ -2799,6 +2937,7 @@ export class ScreenshotManager {
     if (this.backgroundImage) {
       this.backgroundImage.onload = null
       this.backgroundImage.onerror = null
+      this.backgroundImage.src = ''
       this.backgroundImage = null
     }
     
@@ -2837,9 +2976,14 @@ export class ScreenshotManager {
     this.translationOverlay.isLoading = false
     
     // 清理取色器状态
+    if (this.colorPickerState.previewImage) {
+      this.colorPickerState.previewImage.close?.()  // 释放ImageBitmap
+      this.colorPickerState.previewImage = undefined
+    }
     this.colorPickerState.isActive = false
     this.colorPickerState.isVisible = false
     this.colorPickerState.isCopied = false
+    this.colorPickerState.colorInfo = undefined
 
     // 清理事件处理器
     this.eventHandler.unbind()
@@ -2858,12 +3002,14 @@ export class ScreenshotManager {
     this.onStateChange = undefined
     this.onTextInputRequest = undefined
     this.onColorPicked = undefined
-    this.onLoadComplete = undefined
     
     // 清理画布上下文（如果需要）
     const ctx = this.canvas.getContext('2d')
     if (ctx) {
+      ctx.save()
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+      ctx.restore()
     }
   }
 }

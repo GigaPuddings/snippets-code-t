@@ -74,8 +74,7 @@ const showSizeInfo = ref(true)
 const isTextInputVisible = ref(false)
 const textInput = ref('')
 const textInputPosition = ref({ x: 0, y: 0 })
-const isLoading = ref(true) // 加载状态
-const isProcessing = ref(false) // 处理中状态（复制/保存）
+const isLoading = ref(false) // 不显示加载状态，让用户可以立即开始截图
 const translateEngine = ref<'google' | 'bing' | 'offline'>('bing') // 翻译引擎
 
 // 响应式状态
@@ -585,17 +584,12 @@ onMounted(async () => {
   appWindow.value = new Window('screenshot')
   await appWindow.value.emit('screenshot_ready')
 
-  // 初始化截图管理器
+  // 初始化截图管理器（不需要加载完成回调，让用户可以立即开始截图）
   screenshotManager = new ScreenshotManager(
     canvasRef.value,
     handleStateChange,
     startTextInput,
-    handleColorPicked,
-    () => {
-      // 背景加载完成，隐藏加载提示
-      isLoading.value = false
-      // logger.info('[截图] 初始化完成')
-    }
+    handleColorPicked
   )
 
   // 从后端获取翻译引擎设置
@@ -690,7 +684,6 @@ onUnmounted(() => {
 
 .mask-full {
   @apply absolute inset-0 pointer-events-none;
-  background: rgba(0, 0, 0, 0.6);
   z-index: 1;
 }
 

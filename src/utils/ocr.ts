@@ -209,7 +209,7 @@ function processResult(result: any, startTime: number): OcrResult {
   
   const data = result.data as any
   const blocks: OcrTextBlock[] = []
-  const CONFIDENCE_THRESHOLD = 50 // 置信度阈值：低于50%的文字块将被过滤
+  const CONFIDENCE_THRESHOLD = 85 // 置信度阈值：低于85%的文字块将被过滤
   
   // 收集所有 lines: data.blocks[].paragraphs[].lines[]
   const allLines: any[] = []
