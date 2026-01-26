@@ -90,12 +90,6 @@ const routes: RouteRecordRaw[] = [
               import('@/pages/config/components/retrieve/index.vue'),
             name: 'Retrieve'
           },
-          // {
-          //   path: 'summarize',
-          //   component: () =>
-          //     import('@/pages/config/components/summarize/index.vue'),
-          //   name: 'Summarize'
-          // },
           {
             path: 'todo',
             component: () => import('@/pages/config/components/todo/index.vue'),

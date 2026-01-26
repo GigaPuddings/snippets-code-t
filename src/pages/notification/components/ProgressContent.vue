@@ -82,7 +82,6 @@ let unlistenComplete: UnlistenFn | null = null;
 let pollTimer: any = null;
 
 onMounted(async () => {
-  console.log('[ProgressContent] 组件已挂载，开始监听事件');
   state.stage = t('progress.preparing');
 
   // 1. 启动轮询（作为兜底方案）

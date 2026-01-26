@@ -422,7 +422,7 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
     emit_progress(30, "下载加密数据...");
     // 根据文件大小选择下载方式
     let encrypted_data = if file_info.size > 1_000_000 {
-        // 大文件：使用 download_url（返回的是原始文件内容，即我们的 Base64 字符串）
+        // 大文件：使用 download_url
         let download_url = file_info.download_url
             .ok_or("文件过大但没有 download_url")?;
         
@@ -438,30 +438,41 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
             return Err(format!("下载文件内容失败: {}", download_response.status()));
         }
         
-        // download_url 返回的是原始二进制数据
         // GitHub Contents API 的行为：
-        // 1. 上传时：我们发送 Base64 字符串，GitHub 自动解码并存储为二进制
-        // 2. 下载时：download_url 直接返回存储的二进制数据（已解码）
-        // 所以我们不需要再进行 Base64 解码，直接使用这些字节作为加密数据
+        // 上传时：我们发送 Base64 字符串，GitHub 自动解码并存储为二进制
+        // 下载时：download_url 直接返回存储的二进制数据（已解码）
         let encrypted_bytes = download_response.bytes().await
             .map_err(|e| format!("读取文件内容失败: {}", e))?;
         
-        // 直接返回字节数据（这就是我们加密后的数据）
         encrypted_bytes.to_vec()
     } else {
-        // 小文件：直接使用 content 字段（GitHub API 返回的是 Base64）
+        // 小文件：直接使用 content 字段
+        // GitHub API 返回的 content 字段是 Base64 编码的
+        // 但是 GitHub 存储的是我们上传的 Base64 字符串（已经是 Base64 编码的加密数据）
+        // 所以这里需要：
+        // 1. 先 Base64 解码 GitHub 的 content 字段（得到我们上传的 Base64 字符串）
+        // 2. 再 Base64 解码一次（得到真正的加密数据）
         if file_info.content.is_empty() {
             return Err("文件内容为空".to_string());
         }
         
-        // 移除空白字符
+        // 第一次解码：GitHub API 的 Base64 编码
         let content_cleaned = file_info.content.chars()
             .filter(|c| !c.is_whitespace())
             .collect::<String>();
         
-        general_purpose::STANDARD
+        let first_decode = general_purpose::STANDARD
             .decode(&content_cleaned)
-            .map_err(|e| format!("Base64 解码失败: {}", e))?
+            .map_err(|e| format!("第一次 Base64 解码失败: {}", e))?;
+        
+        // 第二次解码：我们上传时的 Base64 编码
+        // 将字节转换为字符串
+        let base64_string = String::from_utf8(first_decode)
+            .map_err(|e| format!("转换为 UTF-8 字符串失败: {}", e))?;
+        
+        general_purpose::STANDARD
+            .decode(&base64_string)
+            .map_err(|e| format!("第二次 Base64 解码失败: {}", e))?
     };
     
     emit_progress(60, "解密数据...");
@@ -510,26 +521,50 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
             // 清空目标表
             let _ = target_conn.execute(&format!("DELETE FROM {}", table), []);
             
-            // 获取表的列信息
-            let columns: Vec<String> = {
+            // 获取源表的列信息
+            let source_columns: Vec<String> = {
                 let mut stmt = restore_conn
                     .prepare(&format!("PRAGMA table_info({})", table))
-                    .map_err(|e| format!("获取表结构失败: {}", e))?;
+                    .map_err(|e| format!("获取源表结构失败: {}", e))?;
                 
                 let mapped: Vec<String> = stmt.query_map([], |row| row.get::<_, String>(1))
-                    .map_err(|e| format!("读取列信息失败: {}", e))?
+                    .map_err(|e| format!("读取源列信息失败: {}", e))?
                     .filter_map(|r| r.ok())
                     .collect();
                 mapped
             };
             
-            if columns.is_empty() {
+            if source_columns.is_empty() {
                 continue;
             }
             
-            // 从源表读取数据并插入目标表
-            let columns_str = columns.join(", ");
-            let placeholders = columns.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+            // 获取目标表的列信息
+            let target_columns: Vec<String> = {
+                let mut stmt = target_conn
+                    .prepare(&format!("PRAGMA table_info({})", table))
+                    .map_err(|e| format!("获取目标表结构失败: {}", e))?;
+                
+                let mapped: Vec<String> = stmt.query_map([], |row| row.get::<_, String>(1))
+                    .map_err(|e| format!("读取目标列信息失败: {}", e))?
+                    .filter_map(|r| r.ok())
+                    .collect();
+                mapped
+            };
+            
+            // 只选择源表和目标表都存在的列
+            let common_columns: Vec<String> = source_columns
+                .iter()
+                .filter(|col| target_columns.contains(col))
+                .cloned()
+                .collect();
+            
+            if common_columns.is_empty() {
+                continue;
+            }
+            
+            // 从源表读取数据并插入目标表（只使用共同的列）
+            let columns_str = common_columns.join(", ");
+            let placeholders = common_columns.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
             
             let select_sql = format!("SELECT {} FROM {}", columns_str, table);
             let insert_sql = format!("INSERT INTO {} ({}) VALUES ({})", table, columns_str, placeholders);
@@ -543,7 +578,7 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
                 .map_err(|e| format!("查询失败: {}", e))?;
             
             while let Some(row) = rows.next().map_err(|e| format!("读取行失败: {}", e))? {
-                let values: Vec<rusqlite::types::Value> = (0..columns.len())
+                let values: Vec<rusqlite::types::Value> = (0..common_columns.len())
                     .map(|i| row.get::<_, rusqlite::types::Value>(i).unwrap_or(rusqlite::types::Value::Null))
                     .collect();
                 
@@ -551,6 +586,11 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
                 let _ = target_conn.execute(&insert_sql, params.as_slice());
             }
         }
+        
+        // 执行数据库迁移，确保所有新字段都被添加
+        emit_progress(85, "执行数据库迁移...");
+        crate::db::migrate_fragment_type_support(&target_conn)
+            .map_err(|e| format!("数据库迁移失败: {}", e))?;
     }
     
     // 清理临时文件

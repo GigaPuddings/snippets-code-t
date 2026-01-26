@@ -6,17 +6,18 @@
       class="editor-content"
     ></div>
     <div class="editor-status">
-      <div class="editor-status-item">
-        <span class="editor-status-title">{{ $t('codeEditor.lines') }}:</span>
-        <span class="editor-status-text w-6">{{ lines }}</span>
+      <div class="editor-status-left">
+        <div class="editor-status-item">
+          <span class="editor-status-text">{{ lines }} {{ $t('codeEditor.lines') }}</span>
+        </div>
+        <div class="editor-status-item">
+          <span class="editor-status-text">{{ length }} {{ $t('codeEditor.chars') }}</span>
+        </div>
       </div>
-      <div class="editor-status-item">
-        <span class="editor-status-title">{{ $t('codeEditor.chars') }}:</span>
-        <span class="editor-status-text w-8">{{ length }}</span>
-      </div>
-      <div class="editor-status-item">
-        <span class="editor-status-title">{{ $t('codeEditor.language') }}:</span>
-        <span class="editor-status-text w-18">{{ detectedLanguage }}</span>
+      <div class="editor-status-right">
+        <div class="editor-status-item">
+          <span class="editor-status-text">{{ detectedLanguage }}</span>
+        </div>
       </div>
     </div>
   </main>
@@ -371,39 +372,42 @@ defineExpose({
 
 <style lang="scss" scoped>
 .editor-container {
-  @apply relative overflow-hidden;
+  @apply relative overflow-hidden flex flex-col;
+  height: 100%;
 
   &.dark-theme {
     .editor-status {
-      @apply bg-panel border-t border-panel text-panel;
+      @apply bg-[#1a1a1a] border-[#2a2a2a] text-[#9ca3af];
     }
   }
 }
 
-.editor-status-item {
-  @apply flex items-center gap-2;
-}
-
-.editor-status-title {
-  @apply opacity-80;
-}
-
-.editor-status-text {
-  @apply opacity-90;
-}
-
 .editor-content {
   @apply flex-1 overflow-auto;
+  min-height: 0;
 }
 
 .editor-status {
-  @apply h-6 px-2 bg-panel border-t flex items-center justify-end gap-4 text-sm text-content;
+  @apply h-6 px-2 bg-panel border-t flex items-center justify-between text-sm text-content;
+  flex-shrink: 0;
+}
 
-  span:last-child {
-    @apply font-medium;
+.editor-status-left {
+  @apply flex items-center gap-3;
+}
 
-    text-transform: capitalize;
-  }
+.editor-status-right {
+  @apply flex items-center;
+}
+
+.editor-status-item {
+  @apply flex items-center;
+}
+
+.editor-status-text {
+  @apply text-xs opacity-70;
+  font-weight: 400;
+  text-transform: capitalize;
 }
 
 :deep(.cm-editor) {

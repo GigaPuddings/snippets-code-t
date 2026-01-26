@@ -145,7 +145,6 @@ export class ScreenshotManager {
     
     // 【DPI修复】获取设备像素比 (DPR)
     const dpr = window.devicePixelRatio || 1
-    // logger.info(`[截图] 设备像素比: ${dpr}, 容器尺寸: ${containerWidth}x${containerHeight}`)
 
     // 1. 设置 Canvas 的【物理像素尺寸】为：逻辑尺寸 * DPR
     this.canvas.width = Math.round(containerWidth * dpr)
@@ -159,7 +158,6 @@ export class ScreenshotManager {
     const ctx = this.canvas.getContext('2d')
     if (ctx) {
       ctx.scale(dpr, dpr)
-      // logger.info(`[截图] Canvas物理尺寸: ${this.canvas.width}x${this.canvas.height}, 缩放因子: ${dpr}`)
     }
 
     // 4. 设置canvas初始背景为半透明黑色（与遮罩层颜色一致）
@@ -209,11 +207,6 @@ export class ScreenshotManager {
               img.onload = () => {
                 clearTimeout(timeout)
                 this.backgroundImage = img
-                
-                // 记录内存使用情况
-                const memoryUsage = ImageCompressor.estimateMemoryUsage(img.width, img.height)
-                logger.info(`[截图] 背景图像加载成功 (${img.width}x${img.height}, ~${ImageCompressor.formatMemorySize(memoryUsage)})`)
-                
                 this.draw()
                 resolve()
               }
@@ -269,7 +262,6 @@ export class ScreenshotManager {
       img.onload = () => {
         this.backgroundImage = img
         this.draw()
-        logger.info('[截图] 使用后备背景')
       }
     } catch (error) {
       logger.error('[截图] 创建后备背景失败', error)
@@ -329,8 +321,6 @@ export class ScreenshotManager {
           win.x < screenWidth + win.width &&
           win.y < screenHeight + win.height
         )
-      
-      logger.info(`[截图] 加载了 ${this.allWindows.length} 个有效窗口`)
     } catch (error) {
       logger.error('[截图] 加载窗口列表失败', error)
       this.allWindows = []
@@ -365,7 +355,6 @@ export class ScreenshotManager {
           x: Math.round(this.canvas.width / (window.devicePixelRatio || 1) / 2),
           y: Math.round(this.canvas.height / (window.devicePixelRatio || 1) / 2)
         }
-        logger.info('[截图] 无法获取鼠标位置，使用屏幕中心进行初始检测')
       }
       
       // 检测鼠标位置附近的窗口
@@ -375,7 +364,6 @@ export class ScreenshotManager {
         this.snappedWindow = nearbyWindow
         this.showSnapPreview = true
         this.draw()
-        logger.info(`[截图] 初始检测到窗口: ${nearbyWindow.title}`)
       }
     } catch (error) {
       logger.warn('[截图] 初始窗口吸附检测失败', error)
@@ -2116,10 +2104,8 @@ export class ScreenshotManager {
       // 执行相应操作
       if (action === 'copy') {
         await invoke('copy_to_clipboard', { image: finalImage })
-        logger.info('[截图] 截图已复制到剪贴板')
       } else {
-        const result = await invoke('save_screenshot_to_file', { image: finalImage }) as string
-        logger.info('[截图] ' + result)
+        await invoke('save_screenshot_to_file', { image: finalImage })
       }
       
     } catch (error: any) {
@@ -2589,29 +2575,12 @@ export class ScreenshotManager {
         0, 0, srcWidth, srcHeight
       )
 
-      logger.info('[OCR] 开始纯前端 OCR 识别（PaddleOCR）...')
-      logger.debug(`[OCR] 选区信息: x=${x}, y=${y}, width=${width}, height=${height}, dpr=${dpr}`)
-
       // 2. 懒加载 OCR 模块并执行识别
       const { recognizeFromCanvas } = await LazyLoader.loadOCR()
       const ocrResult = await recognizeFromCanvas(tempCanvas)
       
       // 释放 canvas 回池
       this.canvasPool.release(tempCanvas)
-
-      logger.info(`[OCR] 前端识别完成: ${ocrResult.blocks?.length || 0} 个文字块, 置信度: ${ocrResult.confidence.toFixed(1)}%`)
-      logger.debug(`[OCR] 前端完整文本: ${ocrResult.full_text}`)
-
-      // 打印每个识别出的文字块详情（仅调试模式）
-      logger.debug('[OCR] ========== 前端 PaddleOCR 识别结果 ==========')
-      ocrResult.blocks.forEach((block: OcrTextBlock, index: number) => {
-        logger.debug(`[OCR] 文字块 #${index + 1}:`)
-        logger.debug(`[OCR]   文本内容: "${block.text}"`)
-        logger.debug(`[OCR]   位置: x=${block.x.toFixed(1)}, y=${block.y.toFixed(1)}`)
-        logger.debug(`[OCR]   尺寸: width=${block.width.toFixed(1)}, height=${block.height.toFixed(1)}`)
-        logger.debug(`[OCR]   置信度: N/A`)
-      })
-      logger.debug('[OCR] ================================================')
 
       // 3. 智能合并被截断的句子
       // 规则：如果当前行以标点结尾，上一行没有标点结尾且宽度接近，则合并
@@ -2687,9 +2656,6 @@ export class ScreenshotManager {
       }
       
       const fullText = mergedLines.join('\n')
-      logger.info(`[OCR] 纯前端识别完成 - 检测语言: ${ocrResult.language}`)
-      logger.debug(`[OCR] 合并后段落数: ${mergedLines.length}`)
-      logger.debug(`[OCR] 完整文本: "${fullText.substring(0, 100)}${fullText.length > 100 ? '...' : ''}"`)
 
       if (!fullText || !fullText.trim()) {
         logger.warn('[OCR] 未识别到任何文字')
@@ -2725,11 +2691,10 @@ export class ScreenshotManager {
       let translationError = ''
       
       if (isChineseText(fullText)) {
-        logger.info('[OCR] 文本是中文，跳过翻译')
+        // 跳过翻译
       } else if (isCodeBlock(fullText)) {
-        logger.info('[OCR] 文本是代码块，跳过翻译')
+        // 跳过翻译
       } else {
-        logger.info(`[OCR] 开始翻译... 引擎: ${this.translationOverlay.engine}`)
         try {
           if (this.translationOverlay.engine === 'offline') {
             // 懒加载离线翻译模块
@@ -2742,18 +2707,14 @@ export class ScreenshotManager {
             
             // 离线翻译 - 懒加载模型
             const memoryLoaded = canUseOfflineTranslation()
-            logger.info(`[OCR] 离线翻译检查 - 后端激活状态: ${this.offlineModelActivated}, 内存加载状态: ${memoryLoaded}`)
             
             // 如果后端已激活但内存未加载，尝试懒加载
             if (this.offlineModelActivated && !memoryLoaded) {
               // 检查缓存状态
               const cacheInfo = await getModelCacheInfo()
-              logger.info(`[OCR] 离线翻译懒加载 - 缓存信息: ${JSON.stringify(cacheInfo)}`)
               
               if (cacheInfo.isCached) {
-                logger.info('[OCR] 离线翻译懒加载：开始加载模型...')
                 await warmupOfflineTranslator()
-                logger.info('[OCR] 离线翻译懒加载：模型加载完成')
               } else {
                 logger.warn('[OCR] 离线翻译不可用 - 缓存不存在')
                 throw new Error('离线翻译模型未下载，请在设置-翻译配置中下载模型')
@@ -2764,9 +2725,7 @@ export class ScreenshotManager {
             }
             
             // 使用离线翻译
-            logger.info('[OCR] 开始离线翻译...')
             translatedText = await translateOffline(fullText)
-            logger.info('[OCR] 离线翻译完成')
           } else {
             // 使用在线翻译（Google/Bing）
             translatedText = (await invoke('translate_text', {
@@ -2776,14 +2735,12 @@ export class ScreenshotManager {
               engine: this.translationOverlay.engine
             })) as string
           }
-          logger.info('[OCR] 翻译完成')
         } catch (err) {
           logger.warn('[OCR] 翻译失败:', err)
           const errMsg = err instanceof Error ? err.message : String(err)
           
           // 如果是取消操作，直接返回不显示错误
           if (errMsg === '翻译已取消') {
-            logger.info('[OCR] 翻译已被用户取消')
             return
           }
           

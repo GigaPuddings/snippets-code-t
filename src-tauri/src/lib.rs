@@ -535,7 +535,6 @@ pub fn run() {
             get_auto_hide_on_blur,            // 获取自动失焦隐藏设置
             translate_text,                   // 翻译文本
             translate_texts,                  // 批量翻译文本
-            get_selection_translate_shortcut, // 获取划词翻译快捷键
             add_search_history,               // 添加搜索历史
             get_search_history,               // 获取搜索历史
             get_window_info,                  // 获取窗口信息

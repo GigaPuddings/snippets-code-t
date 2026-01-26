@@ -254,7 +254,7 @@ const resetSoftware = async () => {
                   }
                   modal.msg(successMsg);
                 } catch (error) {
-                  console.log('Reset failed:', error);
+                  console.error('Reset failed:', error);
                   modal.msg(`${t('settings.resetFailed')}: ${error}`, 'error');
                 } finally {
                   resetSoftwareLoading.value = false;
@@ -329,7 +329,7 @@ const exitApplication = async () => {
                   await invoke('exit_application');
                   modal.msg(t('settings.exitAppSuccess'));
                 } catch (error) {
-                  console.log('Exit failed:', error);
+                  console.error('Exit failed:', error);
                 } finally {
                   exitApplicationLoading.value = false;
                 }

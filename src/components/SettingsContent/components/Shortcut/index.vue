@@ -342,7 +342,6 @@ function keyDown(e: Event | KeyboardEvent, setKey: (arg0: string) => void) {
   }
 
   let parts = [];
-  console.log('event', event);
 
   if (event.ctrlKey) parts.push('Ctrl');
   if (event.shiftKey) parts.push('Shift');
@@ -388,7 +387,6 @@ function hasMainKey(shortcut: string): boolean {
 // 注册快捷键
 function registerHandler(name: string, key: string) {
   if (key.trim() === '') {
-    console.log('Invalid hotkey');
     return;
   }
   
@@ -438,7 +436,6 @@ function setSelectionDarkModeHotkey(value: string) {
 // 快捷键取消
 function handleFocusUnregister(name: string, key: string) {
   if (key.trim() === '') {
-    console.log('Empty hotkey');
     return;
   }
   switch (name) {

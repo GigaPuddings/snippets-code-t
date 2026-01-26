@@ -19,6 +19,7 @@
         <span class="hint-text">{{ $t('searchResult.backToSearch') }}</span>
       </div>
     </div>
+    
     <RecycleScroller
       ref="scrollerRef"
       class="result"
@@ -62,16 +63,24 @@
               loading="lazy"
             />
             <img
+              v-else-if="item.type === 'note'"
+              src="@/assets/svg/note.svg"
+              class="icon type-icon note"
+              loading="lazy"
+            />
+            <img
               v-else
               src="@/assets/svg/code.svg"
-              class="icon"
+              class="icon type-icon code"
               loading="lazy"
             />
           </template>
         </div>
         <div class="content">
-          <div class="title" v-html="highlightText(item.title || item.content.split('/')[2])"></div>
-          <p class="text" v-html="highlightText(item.content)"></p>
+          <div class="title-row">
+            <div class="title" v-html="highlightText(item.title || item.content.split('/')[2])"></div>
+          </div>
+          <p class="text" v-html="highlightText(getDisplayContent(item))"></p>
         </div>
         <div class="item-actions">
           <div v-if="getItemRealIndex(item) < 5" class="shortcut-key">
@@ -111,9 +120,10 @@ const emit = defineEmits<{
   backToSearch: [];
 }>();
 
-const scrollerRef = ref<any>(null); // RecycleScroller 组件引用
+const scrollerRef = ref<any>(null);
 const activeTab = ref<SummarizeType>('text');
-const currentTabIndex = ref(0); // 当前分类索引
+const currentTabIndex = ref(0);
+
 const tabs = computed(() => [
   {
     label: t('searchResult.all'),
@@ -128,6 +138,21 @@ const tabs = computed(() => [
     value: 'bookmark' as SummarizeType
   }
 ]);
+
+// 从 HTML 内容中提取纯文本用于显示
+const extractPlainText = (html: string): string => {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || div.innerText || '';
+};
+
+// 获取显示内容（对于 HTML 格式的笔记，提取纯文本）
+const getDisplayContent = (item: ContentType): string => {
+  if (item.format === 'html' && item.type === 'note') {
+    return extractPlainText(item.content);
+  }
+  return item.content;
+};
 
 // 高亮匹配文本
 const highlightText = (text: string): string => {
@@ -178,6 +203,7 @@ const filteredResults = computed(() => {
       results = props.results;
       break;
   }
+  
   return results;
 });
 
@@ -213,12 +239,10 @@ function switchTab(tab: SummarizeType) {
   activeTab.value = tab;
   currentTabIndex.value = tabs.value.findIndex(t => t.value === tab);
   
-  // 鼠标点击分类时，切换到TAB模式（显示返回提示）
   if (!isTabMode.value && !isListMode.value) {
     setMode('TAB');
   }
   
-  // 切换分类后，如果在列表模式，滚动到第一项
   if (isListMode.value && filteredResults.value.length > 0) {
     nextTick(() => {
       scrollToItem(0);
@@ -423,7 +447,7 @@ const scrollToItem = (index: number) => {
   });
 };
 
-// 处理列表项点击 - 点击打开预览，不直接粘贴
+// 处理列表项点击 - 代码和笔记都打开预览
 function handleItemClick(item: ContentType, event?: MouseEvent) {
   // 鼠标点击列表项时，切换到LIST模式
   if (!isListMode.value) {
@@ -435,7 +459,7 @@ function handleItemClick(item: ContentType, event?: MouseEvent) {
   if (item.summarize === 'app' || item.summarize === 'bookmark' || item.summarize === 'search') {
     selectItem(item);
   } else {
-    // 代码片段打开预览
+    // 代码片段和笔记都打开预览
     const target = event?.currentTarget as HTMLElement;
     openPreview(item, target);
   }
@@ -459,28 +483,39 @@ async function selectItem(item: ContentType) {
   } else if (item.summarize === 'bookmark' || item.summarize === 'search') {
     showHideWindow();
     await invoke('open_url', { url: item.content });
-  } else {
-    const codeContent = item.content;
+  } else if (item.type === 'note') {
+    // 笔记类型：跳转到配置窗口的对应页面
     try {
-      await navigator.clipboard.writeText(codeContent);
+      const navigationData = {
+        fragmentId: item.id,
+        categoryId: item.category_id,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('pendingNavigation', JSON.stringify(navigationData));
+      
+      await invoke('show_hide_window_command', { 
+        label: 'config',
+        context: 'search_navigation'
+      });
     } catch (err) {
-      logger.error('[代码片段] 直接复制到剪贴板失败:', err);
+      logger.error('[搜索窗口] Failed to open config window:', err);
+      localStorage.removeItem('pendingNavigation');
+    }
+  } else {
+    // 代码类型：复制并粘贴
+    try {
+      await navigator.clipboard.writeText(item.content);
+    } catch (err) {
+      logger.error('[代码片段] 复制到剪贴板失败:', err);
     }
 
     showHideWindow();
 
     setTimeout(async () => {
       try {
-        await invoke('insert_text_to_last_window', { text: codeContent })
-          .then(() => {
-            logger.info('[代码片段] 成功调用');
-          })
-          .catch((error) => {
-            logger.error('[代码片段] 插入文本失败:', error);
-            alert('文本已复制到剪贴板，请手动粘贴 (Ctrl+V)');
-          });
+        await invoke('insert_text_to_last_window', { text: item.content });
       } catch (error) {
-        logger.error('[代码片段] 执行插入文本命令异常:', error);
+        logger.error('[代码片段] 插入文本失败:', error);
         alert('文本已复制到剪贴板，请手动粘贴 (Ctrl+V)');
       }
     }, 300);
@@ -536,24 +571,18 @@ const backToSearchMode = () => {
 
 // ========== 预览功能 ==========
 
-// 打开预览窗口
+// 打开预览窗口 - 支持代码和笔记
 const openPreview = async (item: ContentType, targetElement?: HTMLElement) => {
-  // 只对代码片段显示预览
   if (item.summarize !== 'text' && item.summarize !== undefined) return;
   
-  // 获取结果容器的实际屏幕位置
   const resultContainer = document.querySelector('.result-container') as HTMLElement;
   
-  // 如果没有传入 targetElement，尝试查找 active 元素
-  // 注意：在虚拟滚动中，querySelector 可能找不到或者找到错误的元素（如果没有及时更新）
   let activeElement = targetElement;
   if (!activeElement) {
-    // 等待 DOM 更新
     await nextTick();
     activeElement = document.querySelector('.result .item.active') as HTMLElement;
   }
   
-  // 计算预览窗口的相对位置（相对于搜索窗口左上角）
   let relativeX = 484;
   let relativeY = 0;
   
@@ -565,18 +594,13 @@ const openPreview = async (item: ContentType, targetElement?: HTMLElement) => {
   if (activeElement) {
     const rect = activeElement.getBoundingClientRect();
     relativeY = rect.top;
-    logger.info(`[预览窗口] 相对位置: ${relativeX}, ${relativeY}`);
   } else {
-    logger.warn('[预览窗口] 无法定位列表项元素，使用默认位置');
     relativeY = 100;
   }
   
-  // 调用后端创建预览窗口，传递相对坐标
   try {
-    // 使用 URL 安全的 base64 编码：将 + 替换为 -，/ 替换为 _，移除 =
     const base64 = btoa(encodeURIComponent(JSON.stringify(item)));
     const snippetData = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    // 传递相对坐标，由后端加上主窗口位置
     const previewX = relativeX + 4;
     const previewY = relativeY;
     await invoke('open_preview_window', { snippetData, previewX, previewY });
@@ -688,17 +712,33 @@ defineExpose({
 
         .icon {
           @apply w-6 h-6 object-contain;
+          
+          &.type-icon {
+            @apply opacity-80;
+            
+            &.code {
+              @apply opacity-70;
+            }
+            
+            &.note {
+              @apply opacity-80;
+            }
+          }
         }
       }
 
       .content {
         @apply flex-grow overflow-hidden;
-
-        .title {
-          @apply flex gap-[1px] text-sm truncate font-sans text-search;
+        
+        .title-row {
+          @apply flex items-center gap-2;
           
-          :deep(.highlight) {
-            @apply text-blue-500 dark:text-blue-400 font-semibold;
+          .title {
+            @apply flex gap-[1px] text-sm truncate font-sans text-search flex-1;
+            
+            :deep(.highlight) {
+              @apply text-blue-500 dark:text-blue-400 font-semibold;
+            }
           }
         }
 

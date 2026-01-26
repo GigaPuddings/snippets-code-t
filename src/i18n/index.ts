@@ -20,7 +20,7 @@ function getStoredLanguage(): LocaleType {
       }
     }
   } catch (e) {
-    console.warn('Failed to get stored language:', e);
+    // Failed to get stored language
   }
   return 'zh-CN'; // 默认中文
 }

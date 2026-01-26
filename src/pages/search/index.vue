@@ -49,6 +49,14 @@ onMounted(async () => {
       searchInputRef.value?.focus();
     }
   });
+  
+  // 监听重置搜索状态事件（当窗口被其他操作关闭时）
+  listen('reset-search-state', () => {
+    // 清除搜索内容和结果
+    clearSearch();
+    // 重置到搜索模式
+    setMode('SEARCH');
+  });
 });
 
 

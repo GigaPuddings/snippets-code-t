@@ -67,8 +67,6 @@ onMounted(async () => {
     reminder_time?: string;
   };
 
-  console.log('[Notification] 页面加载', { type, label });
-
   state.label = label ? decodeURIComponent(label) : '';
   state.type = (type as 'reminder' | 'progress') || 'reminder';
   state.body = body ? decodeURIComponent(body) : '';
@@ -82,7 +80,6 @@ onMounted(async () => {
   }, 100);
 
   // 通知后端页面已准备好
-  console.log('[Notification] 发送 notification-ready 事件');
   await appWindow.value.emit('notification-ready');
 });
 </script>

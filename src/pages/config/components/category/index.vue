@@ -26,9 +26,9 @@
           </el-tooltip>
         </div>
       </div>
-      <div v-if="store.categories.length > 0" class="category-list">
+      <div v-if="filteredCategories.length > 0" class="category-list">
         <CategoryItem
-          v-for="item in store.categories"
+          v-for="item in filteredCategories"
           :key="item.id"
           :category="item"
           v-memo="[item.id, item.name, store.editCategoryId]"
@@ -49,7 +49,10 @@ import { SortAmountUp, SortAmountDown, FolderPlus } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
 import { getCategories, addCategory, getFragmentList } from '@/api/fragment';
 import { useRoute, useRouter } from 'vue-router';
-import { onMounted, watch } from 'vue';
+import { onMounted, watch, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 const store = useConfigurationStore();
 const route = useRoute();
 const router = useRouter();
@@ -57,6 +60,11 @@ const router = useRouter();
 defineOptions({
   name: 'Category',
   keepAlive: true
+});
+
+// 过滤掉"未分类"，因为它已经在 QuickNav 中显示
+const filteredCategories = computed(() => {
+  return store.categories.filter(cat => cat.name !== t('nav.uncategorized'));
 });
 
 // 获取分类

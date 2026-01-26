@@ -262,14 +262,64 @@ export default {
     delete: 'Delete',
     noContent: 'No snippets',
     folders: 'Folders',
-    newSnippet: 'New Snippet',
+    newSnippet: 'New Content',
     searchPlaceholder: 'Search...',
     ascending: 'Ascending',
     descending: 'Descending',
     saveFailed: 'Save failed, please retry',
     loadFailed: 'Failed to load content, please retry',
+    loadingEditor: 'Loading editor...',
+    retry: 'Retry',
     deleteConfirm: 'Delete folder "{name}"? All snippets inside will also be deleted.',
-    deleteSuccess: 'Folder deleted'
+    deleteSuccess: 'Folder deleted',
+    convertType: 'Convert Type',
+    convertToNote: 'Convert to Note',
+    convertToCode: 'Convert to Code',
+    convertConfirmTitle: 'Confirm Type Conversion',
+    convertToNoteConfirm: 'Converting code snippet to note will wrap the code in a code block. Continue?',
+    convertToCodeConfirm: 'Converting note to code snippet will lose all formatting and keep only plain text. Continue?',
+    convertSuccess: 'Type conversion successful',
+    convertFailed: 'Type conversion failed',
+    unsavedChanges: 'You have unsaved changes. Do you want to save them?',
+    discardChanges: 'Discard Changes'
+  },
+
+  // Advanced Search
+  search: {
+    filterByDate: 'Filter by Date',
+    createdDate: 'Created Date',
+    updatedDate: 'Updated Date',
+    startDate: 'Start Date',
+    endDate: 'End Date',
+    today: 'Today',
+    thisWeek: 'This Week',
+    thisMonth: 'This Month',
+    customRange: 'Custom Range',
+    clearFilters: 'Clear Filters',
+    activeFilters: 'Active Filters',
+    noResults: 'No Results',
+    suggestRelax: 'Try relaxing filter conditions',
+    sortBy: 'Sort By',
+    defaultSort: 'Default Sort',
+    sortByCreated: 'Created Time',
+    sortByUpdated: 'Updated Time',
+    sortByTitle: 'Title',
+    ascending: 'Ascending',
+    descending: 'Descending',
+    createdDesc: 'Created (Newest First)',
+    createdAsc: 'Created (Oldest First)',
+    updatedDesc: 'Updated (Newest First)',
+    updatedAsc: 'Updated (Oldest First)',
+    filterPanel: 'Filter Panel',
+    applyFilter: 'Apply Filter',
+    resetFilter: 'Reset',
+    allTypes: 'All Types',
+    allDates: 'All Dates',
+    selectTags: 'Select Tags',
+    syntaxHelp: 'Search Syntax Help',
+    syntaxExamples: 'Examples: type:code tag:vue created:week',
+    filterCount: 'Filters',
+    resultCount: '{count} results'
   },
 
   // Search Engine Settings
@@ -529,7 +579,11 @@ export default {
     uncategorized: 'Uncategorized',
     updateFailed: 'Failed to update category',
     deleteConfirm: 'Delete snippet "{name}"?',
-    deleteSuccess: 'Snippet deleted'
+    deleteSuccess: 'Snippet deleted',
+    codeSnippet: 'Code Snippet',
+    note: 'Note',
+    filterByType: 'Filter by Type',
+    allTypes: 'All Types'
   },
 
   // Search Result
@@ -560,6 +614,100 @@ export default {
     language: 'Lang'
   },
 
+  // Note Editor
+  noteEditor: {
+    words: 'Words',
+    chars: 'Chars',
+    livePreview: 'Live Preview',
+    sourceMode: 'Source Mode',
+    readingView: 'Reading View',
+    outline: 'Outline',
+    toggleReading: 'Toggle Reading Mode',
+    toggleEditing: 'Toggle Editing Mode',
+    noHeadings: 'No Headings',
+    noSearchResults: 'No matching headings found',
+    searchHeadings: 'Search headings...',
+    search: 'Search',
+    collapseAll: 'Collapse All',
+    expandAll: 'Expand All',
+    scrollToActive: 'Scroll to Active'
+  },
+
+  // Editor Toolbar
+  toolbar: {
+    bold: 'Bold (Ctrl+B)',
+    italic: 'Italic (Ctrl+I)',
+    strikethrough: 'Strikethrough',
+    code: 'Inline Code',
+    heading: 'Heading',
+    paragraph: 'Paragraph',
+    heading1: 'Heading 1',
+    heading2: 'Heading 2',
+    heading3: 'Heading 3',
+    heading4: 'Heading 4',
+    heading5: 'Heading 5',
+    heading6: 'Heading 6',
+    bulletList: 'Bullet List',
+    orderedList: 'Ordered List',
+    taskList: 'Task List',
+    blockquote: 'Blockquote',
+    codeBlock: 'Code Block',
+    link: 'Link',
+    table: 'Insert Table',
+    horizontalRule: 'Horizontal Rule'
+  },
+
+  // Editor Context Menu
+  contextMenu: {
+    addLink: 'Add Link',
+    addExternalLink: 'Add External Link',
+    textFormat: 'Text Format',
+    paragraphSettings: 'Paragraph Settings',
+    insert: 'Insert',
+    bold: 'Bold',
+    italic: 'Italic',
+    strikethrough: 'Strikethrough',
+    highlight: 'Highlight',
+    code: 'Code',
+    clearFormat: 'Clear Format',
+    bulletList: 'Bullet List',
+    orderedList: 'Ordered List',
+    taskList: 'Task List',
+    heading1: 'Heading 1',
+    heading2: 'Heading 2',
+    heading3: 'Heading 3',
+    heading4: 'Heading 4',
+    heading5: 'Heading 5',
+    heading6: 'Heading 6',
+    paragraph: 'Paragraph',
+    blockquote: 'Blockquote',
+    footnote: 'Footnote',
+    table: 'Table',
+    callout: 'Callout',
+    horizontalRule: 'Horizontal Rule',
+    codeBlock: 'Code Block',
+    mathBlock: 'Math Block',
+    database: 'New Database',
+    cut: 'Cut',
+    copy: 'Copy',
+    paste: 'Paste',
+    pasteAsPlainText: 'Paste as Plain Text',
+    selectAll: 'Select All',
+    enterUrl: 'Enter URL',
+    urlPlaceholder: 'Enter link URL',
+    cancel: 'Cancel',
+    confirm: 'Confirm'
+  },
+
+  // Fragment Type Selector
+  fragmentType: {
+    selectType: 'Create New Content',
+    codeSnippet: 'Code Snippet',
+    codeSnippetDesc: 'Store and manage code with syntax highlighting',
+    note: 'Note',
+    noteDesc: 'Create rich text notes with formatting'
+  },
+
   // Screenshot Tool
   screenshotTool: {
     loading: 'Loading screenshot...',
@@ -568,12 +716,94 @@ export default {
     colorPicker: 'Color Picker'
   },
 
+  // Search Syntax Helper
+  searchSyntax: {
+    typeFilter: 'Type Filter',
+    typeCodeDesc: 'Filter code snippets',
+    typeNoteDesc: 'Filter notes',
+    tagFilter: 'Tag Filter',
+    tagDesc: 'Filter by tag',
+    multipleTags: 'Multiple tags',
+    dateFilter: 'Date Filter',
+    createdTodayDesc: 'Created today',
+    createdWeekDesc: 'Created this week',
+    createdMonthDesc: 'Created this month',
+    specificDateDesc: 'Specific date',
+    afterDateDesc: 'After this date',
+    beforeDateDesc: 'Before this date',
+    updatedTodayDesc: 'Updated today',
+    updatedWeekDesc: 'Updated this week',
+    updatedMonthDesc: 'Updated this month',
+    combinedSearch: 'Combined search'
+  },
+
   // Snippet Preview
   snippetPreview: {
     untitled: 'Untitled Snippet',
     pleaseInput: 'Please input',
     copyAndClose: 'Copy & Close',
-    close: 'Close'
+    close: 'Close',
+    openDetail: 'View Details',
+    noContent: 'No Content'
+  },
+
+  // Tag Management
+  tags: {
+    tag: 'Tag',
+    tags: 'Tags',
+    addTag: 'Add Tag',
+    inputPlaceholder: 'Enter tag name',
+    emptyTag: 'Tag cannot be empty',
+    noComma: 'Tag cannot contain comma',
+    duplicateTag: 'Tag already exists',
+    filterByTag: 'Filter by Tag',
+    allTags: 'All Tags',
+    noTags: 'No tags',
+    clickToFilter: 'Click tag to view related snippets'
+  },
+
+  // Error Handling
+  errors: {
+    // API Errors
+    invalidFragmentType: 'Invalid fragment type. Must be "code" or "note"',
+    invalidFormat: 'Invalid content format',
+    invalidMetadata: 'Invalid metadata format',
+    invalidJson: 'Invalid JSON format',
+    apiCallFailed: 'Operation failed: {message}',
+    networkError: 'Network error, please check connection',
+    unknownError: 'Unknown error, please retry',
+    
+    // Editor Errors
+    editorLoadFailed: 'Editor failed to load',
+    editorInitFailed: 'Editor initialization failed, please refresh',
+    editorNotReady: 'Editor not ready',
+    
+    // Save Errors
+    saveFailed: 'Save failed',
+    saveFailedRetry: 'Save failed, please retry',
+    saveFailedDetail: 'Save failed: {message}',
+    
+    // Load Errors
+    loadFailed: 'Load failed',
+    loadFailedRetry: 'Load failed, please retry',
+    loadFailedDetail: 'Load failed: {message}',
+    
+    // Conversion Errors
+    conversionFailed: 'Type conversion failed',
+    conversionFailedDetail: 'Type conversion failed: {message}',
+    conversionFailedRetain: 'Type conversion failed, retaining original type',
+    
+    // Validation Errors
+    validationFailed: 'Data validation failed',
+    emptyTitle: 'Title cannot be empty',
+    emptyContent: 'Content cannot be empty',
+    invalidParameter: 'Invalid parameter',
+    
+    // General Errors
+    operationFailed: 'Operation failed',
+    operationCancelled: 'Operation cancelled',
+    timeout: 'Operation timeout',
+    permissionDenied: 'Permission denied'
   },
 
   // Translation Settings

@@ -262,14 +262,64 @@ export default {
     delete: '删除',
     noContent: '暂无片段内容',
     folders: '文件夹',
-    newSnippet: '新建片段',
+    newSnippet: '新建内容',
     searchPlaceholder: '搜索...',
     ascending: '升序',
     descending: '降序',
     saveFailed: '保存失败，请重试',
     loadFailed: '获取内容失败，请重试',
+    loadingEditor: '编辑器加载中...',
+    retry: '重试',
     deleteConfirm: '确定要删除文件夹「{name}」吗？其中的片段也会被删除。',
-    deleteSuccess: '文件夹已删除'
+    deleteSuccess: '文件夹已删除',
+    convertType: '转换类型',
+    convertToNote: '转换为笔记',
+    convertToCode: '转换为代码',
+    convertConfirmTitle: '确认类型转换',
+    convertToNoteConfirm: '将代码片段转换为笔记后，代码将被包装在代码块中。是否继续？',
+    convertToCodeConfirm: '将笔记转换为代码片段后，所有格式将丢失，只保留纯文本内容。是否继续？',
+    convertSuccess: '类型转换成功',
+    convertFailed: '类型转换失败',
+    unsavedChanges: '当前内容有未保存的更改，是否保存？',
+    discardChanges: '放弃更改'
+  },
+
+  // 高级搜索
+  search: {
+    filterByDate: '按日期筛选',
+    createdDate: '创建日期',
+    updatedDate: '更新日期',
+    startDate: '开始日期',
+    endDate: '结束日期',
+    today: '今天',
+    thisWeek: '本周',
+    thisMonth: '本月',
+    customRange: '自定义范围',
+    clearFilters: '清除筛选',
+    activeFilters: '激活的筛选',
+    noResults: '无匹配结果',
+    suggestRelax: '尝试放宽筛选条件',
+    sortBy: '排序方式',
+    defaultSort: '默认排序',
+    sortByCreated: '创建时间',
+    sortByUpdated: '更新时间',
+    sortByTitle: '标题',
+    ascending: '升序',
+    descending: '降序',
+    createdDesc: '创建时间（新到旧）',
+    createdAsc: '创建时间（旧到新）',
+    updatedDesc: '更新时间（新到旧）',
+    updatedAsc: '更新时间（旧到新）',
+    filterPanel: '筛选面板',
+    applyFilter: '应用筛选',
+    resetFilter: '重置',
+    allTypes: '全部类型',
+    allDates: '全部日期',
+    selectTags: '选择标签',
+    syntaxHelp: '搜索语法帮助',
+    syntaxExamples: '示例：type:code tag:vue created:week',
+    filterCount: '筛选条件',
+    resultCount: '{count} 个结果'
   },
 
   // 搜索引擎设置
@@ -529,7 +579,11 @@ export default {
     uncategorized: '未分类',
     updateFailed: '更新分类失败',
     deleteConfirm: '确定要删除片段「{name}」吗？',
-    deleteSuccess: '片段已删除'
+    deleteSuccess: '片段已删除',
+    codeSnippet: '代码片段',
+    note: '笔记',
+    filterByType: '按类型筛选',
+    allTypes: '全部类型'
   },
 
   // 搜索结果
@@ -555,9 +609,103 @@ export default {
 
   // 代码编辑器
   codeEditor: {
-    lines: '行数',
-    chars: '字数',
+    lines: '行',
+    chars: '个字符',
     language: '语言'
+  },
+
+  // 笔记编辑器
+  noteEditor: {
+    words: '个词',
+    chars: '个字符',
+    livePreview: '实时阅览',
+    sourceMode: '源码模式',
+    readingView: '阅读视图',
+    outline: '大纲',
+    toggleReading: '切换阅读模式',
+    toggleEditing: '切换编辑模式',
+    noHeadings: '暂无标题',
+    noSearchResults: '未找到匹配的标题',
+    searchHeadings: '搜索标题...',
+    search: '搜索',
+    collapseAll: '全部折叠',
+    expandAll: '展开全部',
+    scrollToActive: '定位当前章节'
+  },
+
+  // 编辑器工具栏
+  toolbar: {
+    bold: '加粗 (Ctrl+B)',
+    italic: '斜体 (Ctrl+I)',
+    strikethrough: '删除线',
+    code: '行内代码',
+    heading: '标题',
+    paragraph: '段落',
+    heading1: '一级标题',
+    heading2: '二级标题',
+    heading3: '三级标题',
+    heading4: '四级标题',
+    heading5: '五级标题',
+    heading6: '六级标题',
+    bulletList: '无序列表',
+    orderedList: '有序列表',
+    taskList: '任务列表',
+    blockquote: '引用块',
+    codeBlock: '代码块',
+    link: '链接',
+    table: '插入表格',
+    horizontalRule: '水平分隔线'
+  },
+
+  // 编辑器右键菜单
+  contextMenu: {
+    addLink: '新增链接',
+    addExternalLink: '新增外部链接',
+    textFormat: '文本格式',
+    paragraphSettings: '段落设置',
+    insert: '插入',
+    bold: '加粗',
+    italic: '斜体',
+    strikethrough: '删除线',
+    highlight: '高亮',
+    code: '代码',
+    clearFormat: '清除格式',
+    bulletList: '无序列表',
+    orderedList: '有序列表',
+    taskList: '任务列表',
+    heading1: '1级标题',
+    heading2: '2级标题',
+    heading3: '3级标题',
+    heading4: '4级标题',
+    heading5: '5级标题',
+    heading6: '6级标题',
+    paragraph: '正文',
+    blockquote: '引用',
+    footnote: '脚注',
+    table: '表格',
+    callout: '标注',
+    horizontalRule: '分隔线',
+    codeBlock: '代码块',
+    mathBlock: '数学块',
+    database: '新建数据库',
+    cut: '剪切',
+    copy: '复制',
+    paste: '粘贴',
+    pasteAsPlainText: '以纯文本形式粘贴',
+    selectAll: '全选',
+    enterUrl: '输入 URL',
+    urlPlaceholder: '请输入链接地址',
+    cancel: '取消',
+    confirm: '确定'
+  },
+
+  // 片段类型选择器
+  fragmentType: {
+    selectType: '创建新内容',
+    codeSnippet: '代码片段',
+    codeSnippetDesc: '存储和管理带语法高亮的代码',
+    note: '笔记',
+    noteDesc: '创建带格式的富文本笔记'
   },
 
   // 截图工具
@@ -568,12 +716,94 @@ export default {
     colorPicker: '取色器'
   },
 
+  // 搜索语法提示
+  searchSyntax: {
+    typeFilter: '类型筛选',
+    typeCodeDesc: '筛选代码片段',
+    typeNoteDesc: '筛选笔记',
+    tagFilter: '标签筛选',
+    tagDesc: '按标签筛选',
+    multipleTags: '多标签',
+    dateFilter: '日期筛选',
+    createdTodayDesc: '今天创建',
+    createdWeekDesc: '本周创建',
+    createdMonthDesc: '本月创建',
+    specificDateDesc: '指定日期',
+    afterDateDesc: '此日期后',
+    beforeDateDesc: '此日期前',
+    updatedTodayDesc: '今天更新',
+    updatedWeekDesc: '本周更新',
+    updatedMonthDesc: '本月更新',
+    combinedSearch: '组合搜索'
+  },
+
   // 片段预览
   snippetPreview: {
     untitled: '未命名片段',
     pleaseInput: '请输入',
     copyAndClose: '复制并关闭',
-    close: '关闭'
+    close: '关闭',
+    openDetail: '详细查看',
+    noContent: '无内容'
+  },
+
+  // 标签管理
+  tags: {
+    tag: '标签',
+    tags: '标签',
+    addTag: '添加标签',
+    inputPlaceholder: '输入标签名称',
+    emptyTag: '标签不能为空',
+    noComma: '标签不能包含逗号',
+    duplicateTag: '标签已存在',
+    filterByTag: '按标签筛选',
+    allTags: '全部标签',
+    noTags: '暂无标签',
+    clickToFilter: '点击标签查看相关片段'
+  },
+
+  // 错误处理
+  errors: {
+    // API 错误
+    invalidFragmentType: '片段类型无效，请选择"代码"或"笔记"',
+    invalidFormat: '内容格式无效',
+    invalidMetadata: '元数据格式错误',
+    invalidJson: '无效的 JSON 格式',
+    apiCallFailed: '操作失败：{message}',
+    networkError: '网络错误，请检查连接',
+    unknownError: '未知错误，请重试',
+    
+    // 编辑器错误
+    editorLoadFailed: '编辑器加载失败',
+    editorInitFailed: '编辑器初始化失败，请刷新页面',
+    editorNotReady: '编辑器未就绪',
+    
+    // 保存错误
+    saveFailed: '保存失败',
+    saveFailedRetry: '保存失败，请重试',
+    saveFailedDetail: '保存失败：{message}',
+    
+    // 加载错误
+    loadFailed: '加载失败',
+    loadFailedRetry: '加载失败，请重试',
+    loadFailedDetail: '加载失败：{message}',
+    
+    // 类型转换错误
+    conversionFailed: '类型转换失败',
+    conversionFailedDetail: '类型转换失败：{message}',
+    conversionFailedRetain: '类型转换失败，保持原类型',
+    
+    // 数据验证错误
+    validationFailed: '数据验证失败',
+    emptyTitle: '标题不能为空',
+    emptyContent: '内容不能为空',
+    invalidParameter: '参数无效',
+    
+    // 通用错误
+    operationFailed: '操作失败',
+    operationCancelled: '操作已取消',
+    timeout: '操作超时',
+    permissionDenied: '权限不足'
   },
 
   // 翻译配置

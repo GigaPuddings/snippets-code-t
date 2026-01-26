@@ -278,10 +278,39 @@ const loadSettings = async () => {
       try {
         userInfo.value = await getGitHubUserCached(settings.value.github_token);
         isLoggedIn.value = true;
-      } catch (error) {
+      } catch (error: any) {
         // Token 失效，清除设置
         console.error('Token 验证失败:', error);
+        
+        // 清除所有用户信息和设置
+        settings.value = {
+          github_token: null,
+          github_username: null,
+          github_repo: null,
+          last_sync_time: null,
+          auto_sync_on_exit: false,
+          auto_restore_on_start: false
+        };
+        
+        userInfo.value = {
+          login: '',
+          avatar_url: '',
+          name: null
+        };
+        
+        // 保存清空后的设置到后端
+        try {
+          await saveUserSettings(settings.value);
+          // 发送用户登出事件，通知标题栏更新
+          await emit('user-login-status-changed', { loggedIn: false });
+        } catch (saveError) {
+          console.error('清除设置失败:', saveError);
+        }
+        
         isLoggedIn.value = false;
+        
+        // 显示错误提示
+        ElMessage.error(t('github.connectFailed') + ': ' + (error.message || error));
       }
     }
   } catch (error) {
@@ -384,7 +413,6 @@ const handleSync = async () => {
     const { progress, message } = event.payload;
     syncProgress.value = progress;
     syncMessage.value = message;
-    console.log(`同步进度: ${progress}% - ${message}`);
   });
   
   try {
@@ -426,7 +454,6 @@ const handleRestore = async () => {
       const { progress, message } = event.payload;
       restoreProgress.value = progress;
       restoreMessage.value = message;
-      console.log(`恢复进度: ${progress}% - ${message}`);
     });
     
     try {

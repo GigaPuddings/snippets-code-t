@@ -23,6 +23,13 @@ export const useConfigurationStore = defineStore('configuration', {
     autoUpdateCheck: false, // 检查更新
     autoHideOnBlur: true // 搜索窗口失焦时是否自动隐藏
   }),
+  getters: {
+    // 获取"未分类"分类的 ID
+    uncategorizedId(): number | null {
+      const uncategorized = this.categories.find(cat => cat.name === '未分类');
+      return uncategorized ? uncategorized.id : null;
+    }
+  },
   actions: {
     // 初始化配置
     async initialize() {
@@ -49,18 +56,6 @@ export const useConfigurationStore = defineStore('configuration', {
         this.selectionTranslateHotkey = selectionTranslateHotkey || '';
         this.screenshotHotkey = screenshotHotkey || '';
         this.darkModeHotkey = darkModeHotkey || '';
-
-        // 如果没有获取到划词翻译快捷键，可能是旧版本，尝试单独获取
-        if (!this.selectionTranslateHotkey) {
-          try {
-            this.selectionTranslateHotkey = await invoke(
-              'get_selection_translate_shortcut'
-            );
-          } catch (e) {
-            logger.error('获取划词翻译快捷键失败，可能尚未设置');
-            this.selectionTranslateHotkey = '';
-          }
-        }
       } catch (error) {
         logger.error('获取快捷键配置失败:', error);
       }
@@ -128,6 +123,7 @@ export const useConfigurationStore = defineStore('configuration', {
         }
       } catch (e) {
         // 解析失败时使用当前 store 值
+        logger.error('Failed to sync theme from localStorage:', e);
       }
 
       if (currentTheme === 'auto') {
@@ -145,5 +141,4 @@ export const useConfigurationStore = defineStore('configuration', {
   }
 });
 
-// 导出类型以便在其他地方使用
 export type StoreType = ReturnType<typeof useConfigurationStore>;

@@ -15,8 +15,19 @@ export function getFragmentList(
 }
 
 // 新增片段 没有categoryId时，默认新增到未分类
-export function addFragment(categoryId: number): Promise<number> {
-  return addFragmentApi(categoryId);
+export function addFragment(
+  categoryId: number,
+  params?: {
+    fragmentType?: FragmentType;
+    format?: ContentFormat;
+    metadata?: FragmentMetadata;
+    tags?: string[];
+  }
+): Promise<number> {
+  return addFragmentApi({
+    categoryId,
+    ...params
+  });
 }
 
 // 删除片段

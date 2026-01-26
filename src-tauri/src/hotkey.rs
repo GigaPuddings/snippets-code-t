@@ -155,10 +155,3 @@ pub fn get_shortcuts(_app_handle: AppHandle) -> Result<(String, String, String, 
         dark_mode_hotkey,
     ))
 }
-
-#[tauri::command]
-pub fn get_selection_translate_shortcut(_app_handle: AppHandle) -> Result<String, String> {
-    // 从数据库读取划词翻译快捷键
-    let selection_translate_hotkey = db::get_setting_string("selectionTranslate").unwrap_or_default();
-    Ok(selection_translate_hotkey)
-}

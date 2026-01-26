@@ -151,7 +151,7 @@ const restoreData = async () => {
                   await invoke('restore_database');
                   modal.msg(t('dataManager.restoreSuccess'));
                 } catch (error) {
-                  console.log('Restore failed:', error);
+                  console.error('Restore failed:', error);
                 } finally {
                   restoreLoading.value = false;
                 }
@@ -205,7 +205,7 @@ const selectCustomPath = async () => {
                   store.dbPath = newPath as string;
                   modal.msg(t('dataManager.pathSuccess'));
                 } catch (error) {
-                  console.log('Path change failed:', error);
+                  console.error('Path change failed:', error);
                 } finally {
                   pathLoading.value = false;
                 }

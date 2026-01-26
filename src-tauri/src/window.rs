@@ -358,9 +358,17 @@ impl WindowManager {
         if let Some(app) = APP.get() {
             if let Some(search_window) = app.get_webview_window("main") {
                 if search_window.is_visible().unwrap_or(false) {
+                    // 发送事件到前端，让前端清除搜索状态
+                    let _ = search_window.emit("reset-search-state", ());
+                    
+                    // 隐藏搜索窗口
                     let _ = search_window.hide();
-                    // 同时也关闭预览窗口
-                    let _ = close_preview_window();
+                    
+                    // 同时也关闭预览窗口（直接调用而不是通过 command）
+                    if let Some(preview_window) = app.get_webview_window("preview") {
+                        let _ = preview_window.close();
+                    }
+                    
                     stop_mouse_tracking();
                     let _ = search_window.set_ignore_cursor_events(false);
                 }
@@ -577,10 +585,10 @@ pub fn open_config_settings() {
 
 // 创建config窗口
 pub fn hotkey_config() {
-    // 先关闭搜索窗口
+    // 先关闭搜索窗口（与 open_config_settings 保持一致）
     WindowManager::close_search_window_if_visible();
     
-    // 定义窗口规格
+    // 定义窗口规格 - 不等待 ready_event
     let spec = WindowSpec {
         label: "config",
         url: "/#config/category/contentList",
@@ -591,7 +599,7 @@ pub fn hotkey_config() {
         transparent: true,
         shadow: false,
         always_on_top: false,
-        ready_event: Some("config_ready"),
+        ready_event: None,  // 改为 None，不等待 ready 事件
     };
     
     // 使用智能切换行为
@@ -788,7 +796,7 @@ pub fn create_update_window() {
 
 // 显示隐藏窗口
 #[tauri::command]
-pub fn show_hide_window_command(label: &str, context: Option<String>) -> Result<(), String> {
+pub async fn show_hide_window_command(label: &str, context: Option<String>) -> Result<(), String> {
     match label {
         "search" => {
             hotkey_search(context);
@@ -812,12 +820,13 @@ pub fn show_hide_window_command(label: &str, context: Option<String>) -> Result<
             return Err("Invalid label".to_string());
         }
     }
+    
     Ok(())
 }
 
 // 关闭片段预览窗口
 #[tauri::command]
-pub fn close_preview_window() -> Result<(), String> {
+pub async fn close_preview_window() -> Result<(), String> {
     let app_handle = APP.get().ok_or("无法获取应用句柄")?;
     if let Some(window) = app_handle.get_webview_window("preview") {
         let _ = window.close();
@@ -1178,8 +1187,12 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                                 // 取消忽略光标
                                 let _ = window_clone.set_ignore_cursor_events(false);
                                 let _ = window_clone.hide();
-                                // 同时关闭预览窗口
-                                let _ = close_preview_window();
+                                // 同时关闭预览窗口（直接调用而不是通过 command）
+                                if let Some(app) = APP.get() {
+                                    if let Some(preview_window) = app.get_webview_window("preview") {
+                                        let _ = preview_window.close();
+                                    }
+                                }
                             }
                         }
                     } else {
