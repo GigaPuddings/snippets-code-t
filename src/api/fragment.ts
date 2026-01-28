@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { parseFragment } from '@/utils/fragment';
 import { handleApiError } from '@/utils/errorHandler';
+import { logger } from '@/utils/logger';
 
 // ============= 分类相关 API =============
 
@@ -10,9 +11,24 @@ import { handleApiError } from '@/utils/errorHandler';
  */
 export async function getCategories(sort: 'asc' | 'desc' = 'desc'): Promise<CategoryType[]> {
   try {
-    return await invoke('get_categories', { sort });
+    const result = await invoke('get_categories', { sort });
+    return result as CategoryType[];
   } catch (error) {
+    logger.error('[API] getCategories 失败', error);
     handleApiError(error, 'getCategories');
+    throw error;
+  }
+}
+
+/**
+ * 获取"未分类"分类的 ID（用于前端显示）
+ */
+export async function getUncategorizedId(): Promise<number | null> {
+  try {
+    const result = await invoke<number | null>('get_uncategorized_id');
+    return result;
+  } catch (error) {
+    handleApiError(error, 'getUncategorizedId');
     throw error;
   }
 }
@@ -24,8 +40,10 @@ export async function getCategories(sort: 'asc' | 'desc' = 'desc'): Promise<Cate
  */
 export async function addCategory(name?: string): Promise<number> {
   try {
-    return await invoke('add_category', { name });
+    const result = await invoke('add_category', { name });
+    return result as number;
   } catch (error) {
+    logger.error('[API] addCategory 失败', error);
     handleApiError(error, 'addCategory');
     throw error;
   }
@@ -39,8 +57,9 @@ export async function addCategory(name?: string): Promise<number> {
 export async function editCategory(id: number | string, name: string): Promise<void> {
   try {
     const numId = typeof id === 'string' ? parseInt(id, 10) : id;
-    return await invoke('edit_category', { id: numId, name });
+    await invoke('edit_category', { id: numId, name });
   } catch (error) {
+    logger.error('[API] editCategory 失败', error);
     handleApiError(error, 'editCategory');
     throw error;
   }
@@ -53,8 +72,9 @@ export async function editCategory(id: number | string, name: string): Promise<v
 export async function deleteCategory(id: number | string): Promise<void> {
   try {
     const numId = typeof id === 'string' ? parseInt(id, 10) : id;
-    return await invoke('delete_category', { id: numId });
+    await invoke('delete_category', { id: numId });
   } catch (error) {
+    logger.error('[API] deleteCategory 失败', error);
     handleApiError(error, 'deleteCategory');
     throw error;
   }
@@ -84,6 +104,7 @@ export async function getFragmentList(
     // Parse each fragment to ensure all fields are present with defaults
     return fragments.map(parseFragment);
   } catch (error) {
+    logger.error('[API] getFragmentList 失败', error);
     handleApiError(error, 'getFragmentList');
     throw error;
   }
@@ -108,14 +129,18 @@ export async function addFragment(params?: {
     // Serialize tags to comma-separated string if provided
     const tagsStr = params?.tags ? params.tags.join(',') : null;
     
-    return await invoke('add_fragment', {
+    const invokeParams = {
       categoryId: params?.categoryId ?? null,
       fragmentType: params?.fragmentType ?? null,
       format: params?.format ?? null,
       metadata: metadataStr,
       tags: tagsStr,
-    });
+    };
+    
+    const result = await invoke('add_fragment', invokeParams);
+    return result as number;
   } catch (error) {
+    logger.error('[API] addFragment 失败', error);
     handleApiError(error, 'addFragment');
     throw error;
   }
@@ -127,8 +152,9 @@ export async function addFragment(params?: {
  */
 export async function deleteFragment(id: number): Promise<void> {
   try {
-    return await invoke('delete_fragment', { id });
+    await invoke('delete_fragment', { id });
   } catch (error) {
+    logger.error('[API] deleteFragment 失败', error);
     handleApiError(error, 'deleteFragment');
     throw error;
   }
@@ -142,15 +168,18 @@ export async function editFragment(params: {
   id: number | string;
   title: string;
   content: string;
-  category_id: number | string;
+  category_id: number | string | null;
   fragmentType?: FragmentType;
   format?: ContentFormat;
   metadata?: FragmentMetadata | null;
   tags?: string[] | null;
 }): Promise<void> {
   try {
+    
     const numId = typeof params.id === 'string' ? parseInt(params.id, 10) : params.id;
-    const numCategoryId = typeof params.category_id === 'string' ? parseInt(params.category_id, 10) : params.category_id;
+    const numCategoryId = params.category_id !== null && params.category_id !== undefined
+      ? (typeof params.category_id === 'string' ? parseInt(params.category_id, 10) : params.category_id)
+      : null;
     
     // Serialize metadata to JSON string if provided
     const metadataStr = params.metadata ? JSON.stringify(params.metadata) : null;
@@ -158,17 +187,21 @@ export async function editFragment(params: {
     // Serialize tags to comma-separated string if provided
     const tagsStr = params.tags ? params.tags.join(',') : null;
     
-    return await invoke('edit_fragment', {
+    // Backend expects a single 'params' object with snake_case field names matching EditFragmentParams struct
+    const backendParams = {
       id: numId,
       title: params.title,
       content: params.content,
-      categoryId: numCategoryId,
-      fragmentType: params.fragmentType ?? null,
+      category_id: numCategoryId,  // snake_case to match Rust struct
+      fragment_type: params.fragmentType ?? null,  // snake_case to match Rust struct
       format: params.format ?? null,
       metadata: metadataStr,
       tags: tagsStr,
-    });
+    };
+    
+    await invoke('edit_fragment', { params: backendParams });
   } catch (error) {
+    logger.error('[API] editFragment 失败', error);
     handleApiError(error, 'editFragment');
     throw error;
   }
@@ -185,6 +218,7 @@ export async function getFragmentContent(id: number): Promise<ContentType | null
     // Parse fragment to ensure all fields are present with defaults
     return result ? parseFragment(result) : null;
   } catch (error) {
+    logger.error('[API] getFragmentContent 失败', error);
     handleApiError(error, 'getFragmentContent');
     throw error;
   }

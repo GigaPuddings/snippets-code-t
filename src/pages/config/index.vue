@@ -22,6 +22,7 @@ const router = useRouter();
 // 监听导航到设置页面的事件
 let unlisten: (() => void) | null = null;
 let unlistenFragment: (() => void) | null = null;
+let unlistenCheckNav: (() => void) | null = null;
 
 // 检查是否有待处理的导航
 const checkPendingNavigation = () => {
@@ -78,6 +79,11 @@ onMounted(async () => {
       checkPendingNavigation();
     }
   });
+  
+  // 监听自定义的导航检查事件（从预览窗口或搜索窗口触发）
+  unlistenCheckNav = await currentWindow.listen('check-pending-navigation', () => {
+    checkPendingNavigation();
+  });
 });
 
 // 清理事件监听器
@@ -87,6 +93,9 @@ onUnmounted(() => {
   }
   if (unlistenFragment) {
     unlistenFragment();
+  }
+  if (unlistenCheckNav) {
+    unlistenCheckNav();
   }
 });
 </script>

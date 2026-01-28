@@ -18,6 +18,10 @@ export function parseFragment(fragment: any): ContentType {
     format: fragment.format || 'plain',
     metadata: parseMetadata(fragment.metadata),
     tags: parseTags(fragment.tags),
+    // Ensure category_id is always a valid number or null (never undefined)
+    category_id: fragment.category_id !== undefined && fragment.category_id !== null 
+      ? (typeof fragment.category_id === 'string' ? parseInt(fragment.category_id, 10) : fragment.category_id)
+      : null,
   };
 }
 

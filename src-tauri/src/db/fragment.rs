@@ -109,14 +109,14 @@ pub fn validate_metadata(metadata: &str) -> Result<(), String> {
 
 // ============= 分类相关操作 =============
 
-/// 获取所有分类
+/// 获取所有分类（排除系统分类）
 #[tauri::command]
 pub fn get_categories(sort: Option<String>) -> Result<Vec<Category>, String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
     
     let sort_order = sort.unwrap_or_else(|| "desc".to_string());
     let query = format!(
-        "SELECT id, name, created_at FROM categories ORDER BY created_at {}",
+        "SELECT id, name, created_at FROM categories WHERE is_system = 0 ORDER BY created_at {}",
         if sort_order == "asc" { "ASC" } else { "DESC" }
     );
     
@@ -134,6 +134,24 @@ pub fn get_categories(sort: Option<String>) -> Result<Vec<Category>, String> {
         .map_err(|e| e.to_string())?;
     
     Ok(categories)
+}
+
+/// 获取"未分类"分类的 ID
+#[tauri::command]
+pub fn get_uncategorized_id() -> Result<Option<i64>, String> {
+    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
+    
+    let result = conn.query_row(
+        "SELECT id FROM categories WHERE name = '未分类' AND is_system = 1 LIMIT 1",
+        [],
+        |row| row.get(0)
+    );
+    
+    match result {
+        Ok(id) => Ok(Some(id)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e.to_string())
+    }
 }
 
 /// 添加分类
@@ -301,7 +319,7 @@ pub fn add_fragment(
         _ => {
             // 查找"未分类"分类，如果不存在则创建
             let uncategorized_id: Result<i64, _> = conn.query_row(
-                "SELECT id FROM categories WHERE name = '未分类' LIMIT 1",
+                "SELECT id FROM categories WHERE name = '未分类' AND is_system = 1 LIMIT 1",
                 [],
                 |row| row.get(0)
             );
@@ -309,10 +327,10 @@ pub fn add_fragment(
             match uncategorized_id {
                 Ok(id) => id,
                 Err(_) => {
-                    // 创建"未分类"分类
+                    // 创建"未分类"分类，并标记为系统分类
                     let created_at = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
                     conn.execute(
-                        "INSERT INTO categories (name, created_at) VALUES (?1, ?2)",
+                        "INSERT INTO categories (name, created_at, is_system) VALUES (?1, ?2, 1)",
                         rusqlite::params!["未分类", created_at],
                     ).map_err(|e| e.to_string())?;
                     
@@ -322,13 +340,20 @@ pub fn add_fragment(
         }
     };
     
+    // 根据 fragment_type 设置默认标题
+    let default_title = if ftype == "note" {
+        "未命名笔记"
+    } else {
+        "未命名片段"
+    };
+    
     let created_at = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     
     conn.execute(
         "INSERT INTO contents (title, content, category_id, created_at, type, format, metadata, tags) 
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         rusqlite::params![
-            "未命名片段",
+            default_title,
             "",
             cid,
             created_at,

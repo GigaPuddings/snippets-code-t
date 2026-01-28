@@ -25,7 +25,7 @@ use crate::config::{
     set_offline_model_activated, get_offline_model_activated,
 };
 use crate::db::{
-    get_categories, add_category, edit_category, delete_category,
+    get_categories, add_category, edit_category, delete_category, get_uncategorized_id,
     get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content,
     search_fragment_content,add_search_history, backup_database, get_db_path, get_data_dir_info,
     get_search_history, restore_database,set_custom_db_path,
@@ -573,6 +573,7 @@ pub fn run() {
             delete_bookmark,                  // 删除书签
             get_bookmarks,                    // 获取所有书签
             get_categories,                   // 获取所有分类
+            get_uncategorized_id,             // 获取未分类ID
             add_category,                     // 添加分类
             edit_category,                    // 编辑分类
             delete_category,                  // 删除分类

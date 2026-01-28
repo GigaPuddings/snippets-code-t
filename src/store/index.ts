@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@/utils/logger';
+
 export const useConfigurationStore = defineStore('configuration', {
   state: (): StoreState => ({
     id: '', // 搜索框的 id
@@ -23,13 +24,7 @@ export const useConfigurationStore = defineStore('configuration', {
     autoUpdateCheck: false, // 检查更新
     autoHideOnBlur: true // 搜索窗口失焦时是否自动隐藏
   }),
-  getters: {
-    // 获取"未分类"分类的 ID
-    uncategorizedId(): number | null {
-      const uncategorized = this.categories.find(cat => cat.name === '未分类');
-      return uncategorized ? uncategorized.id : null;
-    }
-  },
+  getters: {},
   actions: {
     // 初始化配置
     async initialize() {

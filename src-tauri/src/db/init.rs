@@ -101,7 +101,8 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         "CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             name TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            is_system INTEGER DEFAULT 0
         )",
         [],
     )?;
@@ -182,6 +183,9 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
 
     // 执行片段类型支持迁移
     migrate_fragment_type_support(&conn)?;
+    
+    // 执行分类系统字段迁移
+    migrate_category_system_field(&conn)?;
 
     Ok(())
 }
@@ -276,6 +280,49 @@ pub fn migrate_fragment_type_support(conn: &rusqlite::Connection) -> Result<(), 
     // 注意：SQLite 的 ALTER TABLE 不支持添加 CHECK 约束
     // CHECK 约束将在应用层（Rust API）中进行验证
     // 对于新创建的表，可以在 CREATE TABLE 时添加 CHECK 约束
+    
+    Ok(())
+}
+
+// ============= 数据库迁移：分类系统字段 =============
+
+/// 迁移数据库以支持系统分类标识
+/// 添加 is_system 字段到 categories 表，并标记"未分类"为系统分类
+pub fn migrate_category_system_field(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    // 检查 categories 表是否存在
+    let table_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='categories'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|count| count > 0)
+        .unwrap_or(false);
+    
+    if !table_exists {
+        return Ok(());
+    }
+    
+    // 检查 is_system 字段是否已存在
+    let mut stmt = conn.prepare("PRAGMA table_info(categories)")?;
+    let columns: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    
+    if !columns.contains(&"is_system".to_string()) {
+        // 添加 is_system 字段
+        conn.execute(
+            "ALTER TABLE categories ADD COLUMN is_system INTEGER DEFAULT 0",
+            []
+        )?;
+        
+        // 将所有名为"未分类"的分类标记为系统分类
+        conn.execute(
+            "UPDATE categories SET is_system = 1 WHERE name = '未分类'",
+            []
+        )?;
+    }
     
     Ok(())
 }

@@ -4,6 +4,7 @@ use aes_gcm::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
+use serde_json;
 use sha2::{Digest, Sha256};
 use tauri::Emitter;
 use tauri_plugin_autostart::ManagerExt;
@@ -414,17 +415,28 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
         return Err(format!("文件不存在或下载失败: {}", response.status()));
     }
     
-    let file_info: FileInfo = response
-        .json()
-        .await
+    // 先获取响应文本以便调试
+    let response_text = response.text().await
+        .map_err(|e| format!("读取响应失败: {}", e))?;
+    
+    println!("[DEBUG] GitHub API 响应前 500 字符: {}", &response_text[..500.min(response_text.len())]);
+    
+    let file_info: FileInfo = serde_json::from_str(&response_text)
         .map_err(|e| format!("解析文件信息失败: {}", e))?;
+    
+    println!("[DEBUG] 解析后的 file_info.size: {}", file_info.size);
+    println!("[DEBUG] file_info.size > 100_000: {}", file_info.size > 100_000);
     
     emit_progress(30, "下载加密数据...");
     // 根据文件大小选择下载方式
-    let encrypted_data = if file_info.size > 1_000_000 {
+    // 对于大于 100KB 的文件，使用 download_url 更可靠
+    let encrypted_data = if file_info.size > 100_000 {
         // 大文件：使用 download_url
         let download_url = file_info.download_url
             .ok_or("文件过大但没有 download_url")?;
+        
+        println!("[DEBUG] 文件大小: {} 字节，使用 download_url", file_info.size);
+        println!("[DEBUG] download_url: {}", download_url);
         
         let download_response = client
             .get(&download_url)
@@ -438,14 +450,43 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
             return Err(format!("下载文件内容失败: {}", download_response.status()));
         }
         
-        // GitHub Contents API 的行为：
-        // 上传时：我们发送 Base64 字符串，GitHub 自动解码并存储为二进制
-        // 下载时：download_url 直接返回存储的二进制数据（已解码）
-        let encrypted_bytes = download_response.bytes().await
+        let response_bytes = download_response.bytes().await
             .map_err(|e| format!("读取文件内容失败: {}", e))?;
         
-        encrypted_bytes.to_vec()
+        println!("[DEBUG] 下载的字节数: {}", response_bytes.len());
+        println!("[DEBUG] 前 20 字节: {:?}", &response_bytes[..20.min(response_bytes.len())]);
+        
+        // 尝试将前100字节转换为字符串看看
+        if let Ok(preview) = String::from_utf8(response_bytes[..100.min(response_bytes.len())].to_vec()) {
+            println!("[DEBUG] 前100字节作为字符串: {}", preview);
+        }
+        
+        // 检查是否是 Base64 文本（ASCII 字符）
+        let is_base64_text = response_bytes.iter().take(100).all(|&b| {
+            b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=' || b.is_ascii_whitespace()
+        });
+        
+        println!("[DEBUG] 是否为 Base64 文本: {}", is_base64_text);
+        
+        if is_base64_text {
+            // 是 Base64 文本，需要解码
+            let base64_string = String::from_utf8(response_bytes.to_vec())
+                .map_err(|e| format!("转换为 UTF-8 字符串失败: {}。这可能是因为文件已损坏。", e))?;
+            
+            println!("[DEBUG] Base64 字符串长度: {}", base64_string.len());
+            
+            // Base64 解码得到加密数据
+            general_purpose::STANDARD
+                .decode(&base64_string)
+                .map_err(|e| format!("Base64 解码失败: {}", e))?
+        } else {
+            // 已经是二进制数据（加密数据），直接使用
+            println!("[DEBUG] 数据已经是二进制格式，直接使用");
+            response_bytes.to_vec()
+        }
     } else {
+        println!("[DEBUG] 文件大小: {} 字节，使用 content 字段", file_info.size);
+        
         // 小文件：直接使用 content 字段
         // GitHub API 返回的 content 字段是 Base64 编码的
         // 但是 GitHub 存储的是我们上传的 Base64 字符串（已经是 Base64 编码的加密数据）
@@ -461,19 +502,27 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
             .filter(|c| !c.is_whitespace())
             .collect::<String>();
         
+        println!("[DEBUG] content 字段长度: {}", content_cleaned.len());
+        
         let first_decode = general_purpose::STANDARD
             .decode(&content_cleaned)
             .map_err(|e| format!("第一次 Base64 解码失败: {}", e))?;
+        
+        println!("[DEBUG] 第一次解码后字节数: {}", first_decode.len());
         
         // 第二次解码：我们上传时的 Base64 编码
         // 将字节转换为字符串
         let base64_string = String::from_utf8(first_decode)
             .map_err(|e| format!("转换为 UTF-8 字符串失败: {}", e))?;
         
+        println!("[DEBUG] Base64 字符串长度: {}", base64_string.len());
+        
         general_purpose::STANDARD
             .decode(&base64_string)
             .map_err(|e| format!("第二次 Base64 解码失败: {}", e))?
     };
+    
+    println!("[DEBUG] 最终加密数据字节数: {}", encrypted_data.len());
     
     emit_progress(60, "解密数据...");
     // 解密数据
@@ -590,7 +639,9 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
         // 执行数据库迁移，确保所有新字段都被添加
         emit_progress(85, "执行数据库迁移...");
         crate::db::migrate_fragment_type_support(&target_conn)
-            .map_err(|e| format!("数据库迁移失败: {}", e))?;
+            .map_err(|e| format!("片段类型迁移失败: {}", e))?;
+        crate::db::migrate_category_system_field(&target_conn)
+            .map_err(|e| format!("分类系统字段迁移失败: {}", e))?;
     }
     
     // 清理临时文件

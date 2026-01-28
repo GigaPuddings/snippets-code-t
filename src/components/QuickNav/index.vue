@@ -18,8 +18,7 @@
       </div>
     </router-link>
     <router-link
-      v-if="uncategorizedId !== null"
-      :to="`/config/category/contentList/${uncategorizedId}`"
+      to="/config/category/contentList/0"
       class="link"
       :class="{ active: isUncategorizedActive }"
       replace
@@ -41,29 +40,22 @@
 import { AllApplication, FolderOne } from '@icon-park/vue-next';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { useConfigurationStore } from '@/store';
 
 defineOptions({
   name: 'QuickNav'
 });
 
 const route = useRoute();
-const store = useConfigurationStore();
-
-// 获取"未分类"分类的 ID
-const uncategorizedId = computed(() => store.uncategorizedId);
 
 // 判断"所有片段"是否激活
 const isAllSnippetsActive = computed(() => {
-  // 使用 route.params.cid 而不是 categoryId (路由参数名是 cid)
-  // 只有当没有 cid 参数时,才认为是"所有片段"视图
   return !route.params.cid;
 });
 
 // 判断"未分类"是否激活
 const isUncategorizedActive = computed(() => {
-  // 如果 cid 等于"未分类"的 ID,说明是"未分类"
-  return route.params.cid === String(uncategorizedId.value);
+  // cid 为 "0" 表示未分类
+  return route.params.cid === '0';
 });
 </script>
 

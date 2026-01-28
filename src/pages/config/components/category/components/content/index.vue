@@ -3,9 +3,10 @@
     <div class="content-header">
       <div class="content-title">
         <el-input
+          ref="titleInputRef"
           v-model="state.title"
-          autofocus
           placeholder=""
+          @input="handleTitleInput"
           @change="handleTitleChange"
         />
         
@@ -210,6 +211,8 @@ const updateStore = (data: Partial<ContentType>) => {
 
 // TipTap 编辑器引用
 const tipTapEditorRef = ref<any>(null);
+// 标题输入框引用
+const titleInputRef = ref<any>(null);
 
 // 编辑器视图模式状态
 const editorViewMode = ref<'reading' | 'preview' | 'source'>('preview');
@@ -317,8 +320,10 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
       metadata,
       tags: state.tags,
       ...data,
-      // 确保 category_id 存在，如果没有则使用当前编辑分类的 ID
-      category_id: state.currentContent.category_id ?? store.editCategoryId
+      // 保持原有的 category_id，即使是 null（未分类）
+      category_id: state.currentContent.category_id,
+      // 确保传递 fragmentType
+      fragmentType: state.currentContent.type || 'code'
     };
 
     await editFragment(params);
@@ -365,9 +370,24 @@ const handleContentChange = (
   }
 };
 
-// 处理标题变更
-const handleTitleChange = (value: string) =>
-  handleContentChange(value, 'title', state.currentContent?.title);
+// 处理标题输入（实时更新 store，不保存到数据库）
+const handleTitleInput = (value: string) => {
+  if (state.isInitializing) return;
+  
+  state.title = value;
+  // 实时更新 store 中的标题，让 contentList 立即看到变化
+  updateStore({ title: value });
+};
+
+// 处理标题变更（失焦时保存到数据库）
+const handleTitleChange = (value: string) => {
+  if (state.isInitializing) return;
+  
+  if (value !== state.currentContent?.title) {
+    state.contentChanged = true;
+    debouncedSave();
+  }
+};
 
 // 处理编辑器内容变更
 const handleEditorChange = (value: string) =>
@@ -539,6 +559,23 @@ watch(
     // 加载新内容
     if (newId) {
       await fetchContent();
+      
+      // 只有在重命名操作时才聚焦标题输入框
+      if (route.query.rename === 'true') {
+        nextTick(() => {
+          if (titleInputRef.value) {
+            titleInputRef.value.focus();
+            // 选中所有文本
+            titleInputRef.value.select();
+          }
+        });
+        
+        // 清除 query 参数，避免下次进入时误触发
+        router.replace({
+          path: route.path,
+          query: {}
+        });
+      }
     }
   },
   { immediate: true } // 立即执行一次，替代 onMounted 的逻辑

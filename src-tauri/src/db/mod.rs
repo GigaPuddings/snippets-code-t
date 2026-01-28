@@ -17,9 +17,10 @@ pub use connection::DbConnectionManager;
 // 重新导出初始化函数
 pub use init::init_db;
 pub use init::migrate_fragment_type_support;
+pub use init::migrate_category_system_field;
 
 // 重新导出片段相关函数
-pub use fragment::{get_categories, add_category, edit_category, delete_category};
+pub use fragment::{get_categories, add_category, edit_category, delete_category, get_uncategorized_id};
 pub use fragment::{get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content, search_fragment_content};
 
 // 重新导出应用相关函数

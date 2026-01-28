@@ -73,6 +73,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit, listen } from '@tauri-apps/api/event';
 import { useConfigurationStore } from '@/store';
 import { processTemplate, previewTemplate } from '@/utils/templateParser';
@@ -242,11 +243,19 @@ const handleOpenDetail = async () => {
     };
     localStorage.setItem('pendingNavigation', JSON.stringify(navigationData));
     
-    // 调用异步 command 打开配置窗口
-    await invoke('show_hide_window_command', { 
-      label: 'config',
-      context: 'preview_navigation'
-    });
+    // 检查 config 窗口是否已经存在
+    const configWindow = await WebviewWindow.getByLabel('config');
+    
+    if (configWindow) {
+      // 窗口已存在，显示并聚焦
+      await configWindow.show();
+      await configWindow.setFocus();
+      // 触发导航检查（通过发送自定义事件）
+      await configWindow.emit('check-pending-navigation', {});
+    } else {
+      // 窗口不存在，创建新窗口
+      await invoke('hotkey_config_command');
+    }
     
     // 关闭预览窗口
     await handleClose();

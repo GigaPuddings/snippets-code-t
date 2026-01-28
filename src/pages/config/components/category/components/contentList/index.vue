@@ -109,7 +109,7 @@
 
 <script setup lang="ts">
 import { Search, Plus, Filter } from '@icon-park/vue-next';
-import { getFragmentList, addFragment, getCategories } from '@/api/fragment';
+import { getFragmentList, addFragment, getCategories, getUncategorizedId } from '@/api/fragment';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore } from '@/store';
 import { onMounted, nextTick, computed } from 'vue';
@@ -220,9 +220,23 @@ function handleSyntaxInsert(syntax: string) {
 // 查询片段列表
 const queryFragments = async (cid?: string) => {
   try {
+    let categoryId: number | undefined;
+    
+    if (!cid) {
+      // 没有 cid，查询所有片段
+      categoryId = undefined;
+    } else if (cid === '0') {
+      // cid 为 "0"，查询未分类片段（需要获取实际的未分类 ID）
+      const uncategorizedId = await getUncategorizedId();
+      categoryId = uncategorizedId ?? undefined;
+    } else {
+      // 普通分类 ID
+      categoryId = Number(cid);
+    }
+    
     // 不传递 searchText 到后端，在前端进行筛选
     const result = await getFragmentList(
-      cid ? Number(cid) : undefined,
+      categoryId,
       '' // 始终传递空字符串，在前端进行筛选
     );
     store.contents = result as ContentType[];
@@ -273,31 +287,50 @@ const handleTypeConfirm = async (type: 'code' | 'note') => {
   const cid = route.params.cid as string;
   
   try {
+    let categoryId: number | undefined;
+    
+    if (!cid) {
+      // 没有 cid，使用未分类
+      categoryId = undefined;
+    } else if (cid === '0') {
+      // cid 为 "0"，获取实际的未分类 ID
+      const uncategorizedId = await getUncategorizedId();
+      categoryId = uncategorizedId ?? undefined;
+    } else {
+      // 普通分类 ID
+      categoryId = Number(cid);
+    }
+    
     // Create fragment with the selected type
-    // 如果没有 cid，传递 undefined 让后端自动使用"未分类"
     const id = await addFragment({ 
-      categoryId: cid ? Number(cid) : undefined,
+      categoryId,
       fragmentType: type
     });
 
     // 刷新分类列表（可能创建了新的"未分类"分类）
     store.categories = await getCategories(store.categorySort);
     
-    // 获取新创建片段的详细信息以确定其实际的 category_id
-    const newFragment = await getFragmentList(undefined, '').then(list => 
-      list.find(f => f.id === id)
-    );
-    
-    const actualCategoryId = newFragment?.category_id || store.uncategorizedId || 0;
-
     // Clear search box
     searchText.value = '';
     
-    // Refresh content list
-    store.contents = await getFragmentList(cid ? Number(cid) : actualCategoryId, '');
+    // Refresh content list based on current view
+    if (!cid) {
+      // 在"所有片段"视图中，刷新所有片段
+      store.contents = await getFragmentList(undefined, '');
+    } else if (cid === '0') {
+      // 在"未分类"视图中，刷新未分类片段
+      const uncategorizedId = await getUncategorizedId();
+      store.contents = await getFragmentList(uncategorizedId ?? undefined, '');
+    } else {
+      // 在特定分类视图中，刷新该分类的片段
+      store.contents = await getFragmentList(Number(cid), '');
+    }
     
-    // Navigate to the new fragment with the correct category ID
-    router.replace(`/config/category/contentList/${actualCategoryId}/content/${id}`);
+    // Navigate to the new fragment, preserving the current view context
+    const targetPath = cid 
+      ? `/config/category/contentList/${cid}/content/${id}`
+      : `/config/category/contentList/content/${id}`;
+    router.replace(targetPath);
   } catch (error) {
     // Error already handled by API layer
   }

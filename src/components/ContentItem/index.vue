@@ -57,7 +57,8 @@ import { formatDate } from '@/utils';
 import {
   deleteFragment,
   editFragment,
-  getFragmentList
+  getFragmentList,
+  getUncategorizedId
 } from '@/api/fragment';
 import { useConfigurationStore } from '@/store';
 import { EditTwo, DeleteFour, CategoryManagement, Notebook, FileCodeOne } from '@icon-park/vue-next';
@@ -146,9 +147,11 @@ const handleTagClick = (tag: string) => {
 
 const handleContextMenu = async (item: any) => {
   if (item.type === 'rename') {
-    router.push(
-      `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`
-    );
+    // 重命名时，通过 query 参数传递标识
+    router.push({
+      path: `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`,
+      query: { rename: 'true' }
+    });
   } else if (item.type === 'delete') {
     try {
       await ElMessageBox.confirm(
@@ -164,9 +167,30 @@ const handleContextMenu = async (item: any) => {
       await deleteFragment(Number(content.value.id));
       ElMessage.success(t('contentItem.deleteSuccess'));
       if (route.params.id) {
-        router.push(`/config/category/contentList/${content.value.category_id}`);
+        // 如果当前在详情页，跳转回列表页
+        const cid = route.params.cid;
+        const targetPath = cid 
+          ? `/config/category/contentList/${cid}`
+          : '/config/category/contentList';
+        router.push(targetPath);
       } else {
-        const result = await getFragmentList(content.value.category_id);
+        // 如果在列表页，刷新列表
+        const cid = route.params.cid as string | undefined;
+        let categoryId: number | undefined;
+        
+        if (!cid) {
+          // 没有 cid，查询所有片段
+          categoryId = undefined;
+        } else if (cid === '0') {
+          // cid 为 "0"，查询未分类片段
+          const uncategorizedId = await getUncategorizedId();
+          categoryId = uncategorizedId ?? undefined;
+        } else {
+          // 普通分类 ID
+          categoryId = Number(cid);
+        }
+        
+        const result = await getFragmentList(categoryId);
         store.contents = result;
       }
     } catch (error) {
@@ -179,12 +203,18 @@ const handleContextMenu = async (item: any) => {
 
 const showCategorySelector = async () => {
   try {
+    // 获取"未分类"的实际 ID
+    const uncategorizedId = await getUncategorizedId();
+    
     const categoryOptions = categories.value.map((category) => ({
       label: category.name,
       value: category.id
     }));
 
-    const categoryId = ref(content.value.category_id); // 使用 ref 来保持选中的值
+    // 如果当前片段的 category_id 等于"未分类"的实际 ID，则显示为 0
+    const currentCategoryId = content.value.category_id === uncategorizedId ? 0 : content.value.category_id;
+    const categoryId = ref(currentCategoryId); // 使用 ref 来保持选中的值
+    
     // 取消ElMessageBox自带的确定按钮、取消按钮, 自定义确定按钮、取消按钮
     await ElMessageBox({
       title: t('contentItem.changeCategory'),
@@ -231,8 +261,11 @@ const showCategorySelector = async () => {
                 type: 'primary',
                 size: '',
                 onClick: async () => {
-                  if (categoryId.value !== content.value.category_id) {
-                    await handleCategoryChange(categoryId.value!);
+                  // 将前端的 0 转换回实际的"未分类" ID
+                  const actualCategoryId = categoryId.value === 0 ? uncategorizedId : categoryId.value;
+                  
+                  if (actualCategoryId !== content.value.category_id) {
+                    await handleCategoryChange(actualCategoryId!, uncategorizedId);
                   }
                   ElMessageBox.close();
                 }
@@ -248,13 +281,15 @@ const showCategorySelector = async () => {
   }
 };
 
-const handleCategoryChange = async (categoryId: string | number) => {
+const handleCategoryChange = async (categoryId: string | number, uncategorizedId: number | null) => {
   try {
     let params = Object.assign(content.value, { category_id: categoryId });
     await editFragment(params);
-    router.replace(`/config/category/contentList/${categoryId}`);
-    // const result = await getFragmentList(content.value.category_id);
-    // store.contents = result;
+    
+    // 如果修改为未分类，跳转到未分类视图（使用前端标识 0）
+    // 否则跳转到对应的分类 ID
+    const targetCid = categoryId === uncategorizedId ? '0' : categoryId;
+    router.replace(`/config/category/contentList/${targetCid}`);
   } catch (error) {
     console.error('Update category failed:', error);
   }
@@ -332,18 +367,15 @@ const handleCategoryChange = async (categoryId: string | number) => {
       @apply flex-shrink-0 w-6 h-6 rounded flex items-center justify-center;
       transition: all 0.15s ease;
 
-      &.type-code {
-        background-color: rgba(96, 165, 250, 0.1);
-        color: #60a5fa;
-      }
-
+      &.type-code,
       &.type-note {
-        background-color: rgba(52, 211, 153, 0.1);
-        color: #34d399;
+        background-color: rgba(0, 0, 0, 0.04);
+        color: #666;
       }
       
       &:hover {
         transform: scale(1.05);
+        background-color: rgba(0, 0, 0, 0.08);
       }
     }
   }
@@ -384,6 +416,18 @@ const handleCategoryChange = async (categoryId: string | number) => {
 
 // 暗色模式
 :global(.dark) {
+  .fragment-type-icon {
+    &.type-code,
+    &.type-note {
+      background-color: rgba(255, 255, 255, 0.06);
+      color: #999;
+    }
+    
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+  }
+  
   .content-item-tags {
     .tag-item {
       background-color: rgba(255, 255, 255, 0.06);

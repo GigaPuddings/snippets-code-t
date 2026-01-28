@@ -493,10 +493,20 @@ async function selectItem(item: ContentType) {
       };
       localStorage.setItem('pendingNavigation', JSON.stringify(navigationData));
       
-      await invoke('show_hide_window_command', { 
-        label: 'config',
-        context: 'search_navigation'
-      });
+      // 动态导入 WebviewWindow
+      const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+      const configWindow = await WebviewWindow.getByLabel('config');
+      
+      if (configWindow) {
+        // 窗口已存在，显示并聚焦
+        await configWindow.show();
+        await configWindow.setFocus();
+        // 触发导航检查
+        await configWindow.emit('check-pending-navigation', {});
+      } else {
+        // 窗口不存在，创建新窗口
+        await invoke('hotkey_config_command');
+      }
     } catch (err) {
       logger.error('[搜索窗口] Failed to open config window:', err);
       localStorage.removeItem('pendingNavigation');
