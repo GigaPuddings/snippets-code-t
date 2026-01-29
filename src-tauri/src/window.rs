@@ -1446,24 +1446,15 @@ fn capture_full_screen_to_base64() -> Result<String, String> {
             let img = image::RgbaImage::from_raw(screen_width as u32, screen_height as u32, rgba_buffer)
                 .ok_or("Failed to create image from raw data")?;
 
-            // 【性能优化】使用JPEG格式，平衡速度和质量
-            let mut jpeg_data = Vec::new();
-            let dynamic_img = image::DynamicImage::ImageRgba8(img);
-            
-            // 使用 75% JPEG 质量作为背景
-            let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
-                &mut jpeg_data,
-                75
-            );
-            
-            encoder.encode(
-                dynamic_img.as_bytes(),
-                screen_width as u32,
-                screen_height as u32,
-                dynamic_img.color()
-            ).map_err(|e| format!("Failed to encode JPEG: {}", e))?;
+            // 【高质量优化】使用PNG格式，完全无损
+            let mut png_data = Vec::new();
+            img.write_to(
+                &mut std::io::Cursor::new(&mut png_data),
+                image::ImageFormat::Png,
+            )
+            .map_err(|e| format!("Failed to encode PNG: {}", e))?;
 
-            let base64_data = general_purpose::STANDARD.encode(&jpeg_data);
+            let base64_data = general_purpose::STANDARD.encode(&png_data);
             
             Ok(base64_data)
         }

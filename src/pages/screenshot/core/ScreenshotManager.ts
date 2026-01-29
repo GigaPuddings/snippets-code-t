@@ -4,7 +4,6 @@ import { CoordinateSystem } from './CoordinateSystem'
 import { EventHandler } from './EventHandler'
 import { AnnotationFactory } from './AnnotationFactory'
 import { CanvasPool } from './CanvasPool'
-import { ImageCompressor } from './ImageCompressor'
 import { LazyLoader } from './LazyLoader'
 import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, TranslationOverlay, SampledColor, OverlayStyle } from './types'
 import { invoke } from '@tauri-apps/api/core'
@@ -186,15 +185,7 @@ export class ScreenshotManager {
         try {
           const base64Image = await invoke('get_screenshot_background') as string
           if (base64Image) {
-            // 压缩图像以减少内存占用
-            const compressed = await ImageCompressor.compress(
-              base64Image,
-              0.85, // 85% 质量
-              window.screen.width * 2, // 最大宽度（考虑高DPI）
-              window.screen.height * 2  // 最大高度
-            )
-            
-            // 加载压缩后的图像
+            // 【优化】后端已改用PNG无损格式，前端直接加载，不再压缩
             const img = new Image()
             
             await new Promise<void>((resolve, reject) => {
@@ -216,7 +207,8 @@ export class ScreenshotManager {
                 reject(error)
               }
               
-              img.src = `data:image/jpeg;base64,${compressed}`
+              // 后端现在返回PNG格式
+              img.src = `data:image/png;base64,${base64Image}`
             })
             
             return
@@ -2250,15 +2242,10 @@ export class ScreenshotManager {
           // 根据操作类型选择编码方式
           let dataUrl: string
           if (action === 'copy') {
-            // 复制到剪贴板：使用 WebP 格式（更快）
-            // 如果浏览器不支持 WebP，回退到 PNG
-            dataUrl = tempCanvas.toDataURL('image/webp', 0.95)
-            if (!dataUrl.startsWith('data:image/webp')) {
-              // 浏览器不支持 WebP，使用 PNG
-              dataUrl = tempCanvas.toDataURL('image/png')
-            }
+            // 复制到剪贴板：使用 PNG 格式（高质量，避免压缩损失）
+            dataUrl = tempCanvas.toDataURL('image/png')
           } else {
-            // 保存到文件：使用 PNG 格式（高质量）
+            // 保存到文件：使用 PNG 格式（高质量，无损）
             dataUrl = tempCanvas.toDataURL('image/png')
           }
           
