@@ -375,8 +375,8 @@ watch(() => props.show, (newShow) => {
   }
   
   &.is-active {
-    background-color: rgba(74, 158, 255, 0.15);
-    color: #4a9eff;
+    background-color: var(--categories-bg-tab-active);
+    color: var(--el-color-primary);
   }
   
   svg {
@@ -392,8 +392,8 @@ watch(() => props.show, (newShow) => {
     }
     
     &.is-active {
-      background-color: rgba(74, 158, 255, 0.2);
-      color: #4a9eff;
+      background-color: var(--categories-bg-tab-active);
+      color: var(--el-color-primary);
     }
   }
 }
@@ -530,18 +530,18 @@ watch(() => props.show, (newShow) => {
   pointer-events: auto;
   
   &:hover {
-    background-color: rgba(0, 0, 0, 0.04);
+    background-color: var(--categories-panel-bg-hover);
     
     .outline-sidebar-text {
-      color: #4a9eff;
+      color: var(--el-color-primary);
     }
   }
   
   &.is-active {
-    background-color: rgba(74, 158, 255, 0.12);
+    background-color: var(--categories-bg-tab-active);
     
     .outline-sidebar-text {
-      color: #4a9eff;
+      color: var(--el-color-primary);
       font-weight: 600;
     }
   }
@@ -616,18 +616,18 @@ watch(() => props.show, (newShow) => {
     }
     
     &:hover {
-      background-color: rgba(255, 255, 255, 0.05);
+      background-color: var(--categories-panel-bg-hover);
       
       .outline-sidebar-text {
-        color: #4a9eff;
+        color: var(--el-color-primary);
       }
     }
     
     &.is-active {
-      background-color: rgba(74, 158, 255, 0.18);
+      background-color: var(--categories-bg-tab-active);
       
       .outline-sidebar-text {
-        color: #4a9eff;
+        color: var(--el-color-primary);
       }
     }
   }

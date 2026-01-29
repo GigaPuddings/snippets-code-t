@@ -78,9 +78,9 @@
         </div>
         <div class="content">
           <div class="title-row">
-            <div class="title" v-html="highlightText(item.title || item.content.split('/')[2])"></div>
+            <div class="title" v-html="getDisplayTitle(item)"></div>
           </div>
-          <p class="text" v-html="highlightText(getDisplayContent(item))"></p>
+          <p class="text" v-html="getDisplayContentHighlighted(item)"></p>
         </div>
         <div class="item-actions">
           <div v-if="getItemRealIndex(item) < 5" class="shortcut-key">
@@ -180,6 +180,24 @@ const highlightText = (text: string): string => {
   }
   
   return result;
+};
+
+// 获取显示标题（搜索引擎结果不高亮）
+const getDisplayTitle = (item: ContentType): string => {
+  // 搜索引擎结果不高亮
+  if (item.summarize === 'search') {
+    return escapeHtml(item.title || item.content.split('/')[2]);
+  }
+  return highlightText(item.title || item.content.split('/')[2]);
+};
+
+// 获取显示内容（搜索引擎结果不高亮）
+const getDisplayContentHighlighted = (item: ContentType): string => {
+  // 搜索引擎结果不高亮
+  if (item.summarize === 'search') {
+    return escapeHtml(getDisplayContent(item));
+  }
+  return highlightText(getDisplayContent(item));
 };
 
 // HTML 转义，防止 XSS
@@ -699,7 +717,7 @@ defineExpose({
   }
 
   .result {
-    @apply max-h-[218px] overflow-y-auto;
+    @apply max-h-[220px] overflow-y-auto;
 
     .item {
       @apply flex items-center gap-2 text-search px-2 py-1 rounded-lg cursor-pointer relative;

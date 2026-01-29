@@ -583,7 +583,7 @@ export default {
     updateFailed: '更新分类失败',
     deleteConfirm: '确定要删除片段「{name}」吗？',
     deleteSuccess: '片段已删除',
-    codeSnippet: '代码片段',
+    codeSnippet: '片段',
     note: '笔记',
     filterByType: '按类型筛选',
     allTypes: '全部类型'
@@ -705,7 +705,7 @@ export default {
   // 片段类型选择器
   fragmentType: {
     selectType: '创建新内容',
-    codeSnippet: '代码片段',
+    codeSnippet: '片段',
     codeSnippetDesc: '存储和管理带语法高亮的代码',
     note: '笔记',
     noteDesc: '创建带格式的富文本笔记'

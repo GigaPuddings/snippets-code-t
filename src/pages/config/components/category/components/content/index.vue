@@ -736,12 +736,12 @@ onMounted(() => {
   transition: all 0.2s ease;
   
   &:hover {
-    background: rgba(59, 130, 246, 0.1);
+    background-color: var(--categories-panel-bg-hover);
   }
   
   &:active {
     transform: scale(0.95);
-    background: rgba(59, 130, 246, 0.15);
+    background-color: var(--categories-bg-tab-active);
   }
   
   svg {
@@ -750,18 +750,18 @@ onMounted(() => {
   }
   
   &:hover svg {
-    @apply text-blue-500;
+    color: var(--el-color-primary);
   }
 }
 
 :global(.dark) {
   .control-btn {
     &:hover {
-      background: rgba(59, 130, 246, 0.15);
+      background-color: var(--categories-panel-bg-hover);
     }
     
     &:active {
-      background: rgba(59, 130, 246, 0.2);
+      background-color: var(--categories-bg-tab-active);
     }
     
     svg {
@@ -769,7 +769,7 @@ onMounted(() => {
     }
     
     &:hover svg {
-      @apply text-blue-400;
+      color: var(--el-color-primary);
     }
   }
 }

@@ -19,20 +19,38 @@
               <div class="filter-section">
                 <div class="section-title">{{ $t('contentItem.filterByType') }}</div>
                 <el-radio-group v-model="localFilter.type" size="small" class="type-radio-group">
-                  <el-radio-button label="all">{{ $t('search.allTypes') }}</el-radio-button>
-                  <el-radio-button label="code">{{ $t('contentItem.codeSnippet') }}</el-radio-button>
-                  <el-radio-button label="note">{{ $t('contentItem.note') }}</el-radio-button>
+                  <el-radio-button value="all">{{ $t('search.allTypes') }}</el-radio-button>
+                  <el-radio-button value="code">{{ $t('contentItem.codeSnippet') }}</el-radio-button>
+                  <el-radio-button value="note">{{ $t('contentItem.note') }}</el-radio-button>
                 </el-radio-group>
               </div>
 
               <div v-if="availableTags.length > 0" class="filter-section">
                 <div class="section-title">{{ $t('tags.tags') }}</div>
                 <div class="tags-container">
-                  <el-checkbox-group v-model="selectedTags" size="small">
+                  <RecycleScroller
+                    v-if="availableTags.length > 10"
+                    class="tags-scroller"
+                    :items="tagItems"
+                    :item-size="32"
+                    :buffer="100"
+                    key-field="tag"
+                    v-slot="{ item }"
+                  >
+                    <el-checkbox
+                      :model-value="selectedTags.includes(item.tag)"
+                      :value="item.tag"
+                      class="tag-checkbox"
+                      @change="handleTagToggle(item.tag, $event)"
+                    >
+                      {{ item.tag }}
+                    </el-checkbox>
+                  </RecycleScroller>
+                  <el-checkbox-group v-else v-model="selectedTags" size="small">
                     <el-checkbox
                       v-for="tag in availableTags"
                       :key="tag"
-                      :label="tag"
+                      :value="tag"
                       class="tag-checkbox"
                     >
                       {{ tag }}
@@ -71,8 +89,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Close } from '@icon-park/vue-next';
+import { RecycleScroller } from 'vue-virtual-scroller';
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 
 interface Props {
   visible: boolean;
@@ -92,6 +112,11 @@ const selectedTags = ref<string[]>(props.filter.tags || []);
 
 // 排序选项（合并排序字段和顺序）
 const sortOption = ref<string>('');
+
+// 将标签数组转换为对象数组（用于虚拟滚动）
+const tagItems = computed(() => {
+  return props.availableTags.map(tag => ({ tag }));
+});
 
 // 初始化排序选项
 if (props.filter.sortBy && props.filter.sortOrder) {
@@ -126,6 +151,21 @@ watch(sortOption, (option) => {
     localFilter.value.sortOrder = undefined;
   }
 });
+
+// 处理标签切换（用于虚拟滚动）
+function handleTagToggle(tag: string, checked: any) {
+  const isChecked = Boolean(checked);
+  if (isChecked) {
+    if (!selectedTags.value.includes(tag)) {
+      selectedTags.value.push(tag);
+    }
+  } else {
+    const index = selectedTags.value.indexOf(tag);
+    if (index > -1) {
+      selectedTags.value.splice(index, 1);
+    }
+  }
+}
 
 // 关闭面板
 function handleClose() {
@@ -227,22 +267,38 @@ function handleReset() {
 }
 
 .tags-container {
-  @apply max-h-32 overflow-y-auto pr-2;
+  @apply max-h-48 overflow-hidden;
+  
+  .tags-scroller {
+    height: 192px; // max-h-48 = 12rem = 192px
+    
+    :deep(.vue-recycle-scroller__item-view) {
+      padding-right: 8px;
+    }
+  }
+  
+  // 非虚拟滚动时的样式
+  .el-checkbox-group {
+    @apply max-h-48 overflow-y-auto pr-2 block;
+  }
   
   // 自定义滚动条
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    @apply bg-panel rounded-full;
+  :deep(.vue-recycle-scroller__item-wrapper),
+  .el-checkbox-group {
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
     
-    &:hover {
-      @apply bg-hover;
+    &::-webkit-scrollbar-track {
+      @apply bg-transparent;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      @apply bg-panel rounded-full;
+      
+      &:hover {
+        @apply bg-hover;
+      }
     }
   }
   

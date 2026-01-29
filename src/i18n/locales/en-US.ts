@@ -583,7 +583,7 @@ export default {
     updateFailed: 'Failed to update category',
     deleteConfirm: 'Delete snippet "{name}"?',
     deleteSuccess: 'Snippet deleted',
-    codeSnippet: 'Code Snippet',
+    codeSnippet: 'Snippet',
     note: 'Note',
     filterByType: 'Filter by Type',
     allTypes: 'All Types'
@@ -705,7 +705,7 @@ export default {
   // Fragment Type Selector
   fragmentType: {
     selectType: 'Create New Content',
-    codeSnippet: 'Code Snippet',
+    codeSnippet: 'Snippet',
     codeSnippetDesc: 'Store and manage code with syntax highlighting',
     note: 'Note',
     noteDesc: 'Create rich text notes with formatting'

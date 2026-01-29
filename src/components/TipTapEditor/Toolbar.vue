@@ -288,7 +288,8 @@ const insertTable = () => {
       }
 
       &.is-active {
-        @apply bg-[#282d32] text-[#82AAFF];
+        background-color: var(--categories-bg-tab-active);
+        color: var(--el-color-primary);
       }
 
       &:disabled {
@@ -305,7 +306,8 @@ const insertTable = () => {
       }
 
       &:focus {
-        @apply ring-[#5d6dfd] ring-opacity-50;
+        @apply ring-opacity-50;
+        ring-color: var(--el-color-primary);
       }
 
       &:disabled {
@@ -336,7 +338,8 @@ const insertTable = () => {
   }
 
   &.is-active {
-    @apply bg-gray-200 text-blue-600;
+    background-color: var(--categories-bg-tab-active);
+    color: var(--el-color-primary);
   }
 
   &:active:not(:disabled) {
@@ -366,7 +369,8 @@ const insertTable = () => {
   }
 
   &:focus {
-    @apply outline-none ring-2 ring-blue-500 ring-opacity-50;
+    @apply outline-none ring-2 ring-opacity-50;
+    ring-color: var(--el-color-primary);
   }
 
   &:disabled {
