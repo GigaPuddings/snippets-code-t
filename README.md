@@ -113,6 +113,3 @@ pnpm tauri build
 ## 许可证
 
 [MIT](LICENSE)
-<img width="1770" height="963" alt="image" src="https://github.com/user-attachments/assets/e8a2dcb5-f90e-49ca-878e-95e2bea73d17" />
-<img width="726" height="486" alt="image" src="https://github.com/user-attachments/assets/bdc347ff-7d66-4a85-9913-72050b3c7c3d" />
-
