@@ -240,3 +240,88 @@
     color: rgb(156 163 175) !important;
   }
 }
+
+// ============================================
+// 优化的对话框样式
+// ============================================
+.el-dialog {
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  
+  .el-dialog__header {
+    padding: 16px 20px 10px !important;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+    margin-right: 0 !important;
+    
+    .el-dialog__title {
+      font-size: 15px !important;
+      font-weight: 600 !important;
+      color: var(--el-text-color-primary) !important;
+    }
+    
+    .el-dialog__headerbtn {
+      top: 14px !important;
+      right: 16px !important;
+      width: 28px !important;
+      height: 28px !important;
+      
+      .el-dialog__close {
+        font-size: 16px !important;
+        color: var(--el-text-color-secondary) !important;
+        
+        &:hover {
+          color: var(--el-text-color-primary) !important;
+        }
+      }
+    }
+  }
+  
+  .el-dialog__body {
+    padding: 14px 20px 10px !important;
+    color: var(--el-text-color-regular) !important;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+  }
+  
+  .el-dialog__footer {
+    padding: 10px 20px 16px !important;
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+}
+
+// 暗色模式优化
+.dark .el-dialog {
+  background: var(--el-bg-color) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 4px 12px rgba(0, 0, 0, 0.24) !important;
+  
+  .el-dialog__header {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+  
+  .el-dialog__footer {
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
+// 警告类型对话框样式
+.el-dialog.warning-dialog {
+  .el-dialog__header {
+    .el-dialog__title {
+      color: var(--el-color-warning) !important;
+      
+      &::before {
+        content: '⚠️ ';
+        margin-right: 4px;
+      }
+    }
+  }
+}
+
+// 删除确认对话框样式
+.el-dialog.delete-dialog {
+  .el-dialog__header {
+    .el-dialog__title {
+      color: var(--el-color-danger) !important;
+    }
+  }
+}

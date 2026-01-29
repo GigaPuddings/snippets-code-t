@@ -23,6 +23,18 @@
         </router-link>
       </ContextMenu>
     </div>
+
+    <!-- 删除确认对话框 -->
+    <ConfirmDialog
+      v-model="showDeleteDialog"
+      :title="$t('common.warning')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      type="danger"
+      @confirm="confirmDelete"
+    >
+      <div>{{ $t('category.deleteConfirm', { name: category.name }) }}</div>
+    </ConfirmDialog>
   </main>
 </template>
 
@@ -36,6 +48,8 @@ import {
   getCategories
 } from '@/api/fragment';
 import { useRouter } from 'vue-router';
+import { ElMessage } from 'element-plus';
+import { ConfirmDialog } from '@/components/UI';
 
 const { t } = useI18n();
 const props = defineProps<{
@@ -44,6 +58,7 @@ const props = defineProps<{
 const store = useConfigurationStore();
 const inputRef = ref<HTMLInputElement | null>(null);
 const router = useRouter();
+const showDeleteDialog = ref(false);
 
 defineOptions({
   name: 'CategoryItem'
@@ -82,24 +97,20 @@ const handleContextMenu = async (item: any) => {
   if (item.type === 'edit') {
     store.editCategoryId = props.category.id as string;
   } else if (item.type === 'delete') {
-    try {
-      await ElMessageBox.confirm(
-        t('category.deleteConfirm', { name: props.category.name }),
-        t('common.warning'),
-        {
-          confirmButtonText: t('common.confirm'),
-          cancelButtonText: t('common.cancel'),
-          type: 'warning'
-        }
-      );
-      
-      await deleteCategory(props.category.id);
-      ElMessage.success(t('category.deleteSuccess'));
-      store.categories = await getCategories(store.categorySort);
-      router.replace(`/config/category/contentList`);
-    } catch (error) {
-      // 用户取消
-    }
+    showDeleteDialog.value = true;
+  }
+};
+
+const confirmDelete = async () => {
+  try {
+    await deleteCategory(props.category.id);
+    ElMessage.success(t('category.deleteSuccess'));
+    store.categories = await getCategories(store.categorySort);
+    router.replace(`/config/category/contentList`);
+    showDeleteDialog.value = false;
+  } catch (error) {
+    console.error('Delete category failed:', error);
+    ElMessage.error(t('category.deleteFailed'));
   }
 };
 </script>

@@ -21,7 +21,8 @@ export default {
     next: '下一步',
     start: '开始使用',
     browse: '浏览',
-    quickStart: '快速开始'
+    quickStart: '快速开始',
+    create: '创建'
   },
 
   // 设置向导
@@ -272,6 +273,7 @@ export default {
     retry: '重试',
     deleteConfirm: '确定要删除文件夹「{name}」吗？其中的片段也会被删除。',
     deleteSuccess: '文件夹已删除',
+    deleteFailed: '删除失败',
     convertType: '转换类型',
     convertToNote: '转换为笔记',
     convertToCode: '转换为代码',
@@ -281,7 +283,8 @@ export default {
     convertSuccess: '类型转换成功',
     convertFailed: '类型转换失败',
     unsavedChanges: '当前内容有未保存的更改，是否保存？',
-    discardChanges: '放弃更改'
+    discardChanges: '放弃更改',
+    createNoteConfirm: '未找到名为"{name}"的笔记，是否创建新笔记？'
   },
 
   // 高级搜索

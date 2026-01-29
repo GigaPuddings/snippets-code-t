@@ -21,7 +21,8 @@ export default {
     next: 'Next',
     start: 'Get Started',
     browse: 'Browse',
-    quickStart: 'Quick Start'
+    quickStart: 'Quick Start',
+    create: 'Create'
   },
 
   // Setup Wizard
@@ -272,6 +273,7 @@ export default {
     retry: 'Retry',
     deleteConfirm: 'Delete folder "{name}"? All snippets inside will also be deleted.',
     deleteSuccess: 'Folder deleted',
+    deleteFailed: 'Delete failed',
     convertType: 'Convert Type',
     convertToNote: 'Convert to Note',
     convertToCode: 'Convert to Code',
@@ -281,7 +283,8 @@ export default {
     convertSuccess: 'Type conversion successful',
     convertFailed: 'Type conversion failed',
     unsavedChanges: 'You have unsaved changes. Do you want to save them?',
-    discardChanges: 'Discard Changes'
+    discardChanges: 'Discard Changes',
+    createNoteConfirm: 'Note "{name}" not found. Create a new note?'
   },
 
   // Advanced Search

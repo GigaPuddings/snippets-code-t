@@ -50,21 +50,30 @@
       </main>
     </div>
   </ContextMenu>
+  
+  <!-- 更改分类对话框 -->
+  <SelectConfirmDialog
+    v-model="showCategoryDialog"
+    v-model:selected="selectedCategoryId"
+    :title="$t('contentItem.changeCategory')"
+    :options="categoryOptions"
+    :confirm-text="$t('common.confirm')"
+    :cancel-text="$t('common.cancel')"
+    @confirm="confirmCategoryChange"
+  />
 </template>
 
 <script setup lang="ts">
 import { formatDate } from '@/utils';
 import {
-  deleteFragment,
   editFragment,
-  getFragmentList,
   getUncategorizedId
 } from '@/api/fragment';
 import { useConfigurationStore } from '@/store';
 import { EditTwo, DeleteFour, CategoryManagement, Notebook, FileCodeOne } from '@icon-park/vue-next';
-import { h, computed } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { CustomButton } from '../UI';
+import { SelectConfirmDialog } from '../UI';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -76,9 +85,18 @@ const props = defineProps<{
 const { content } = toRefs(props);
 const router = useRouter();
 
+const emit = defineEmits<{
+  (e: 'delete', content: ContentType): void;
+}>();
+
 defineOptions({
   name: 'ContentItem'
 });
+
+// 对话框状态
+const showCategoryDialog = ref(false);
+const selectedCategoryId = ref<number>(0);
+const uncategorizedId = ref<number | null>(null);
 
 const menu = computed(() => [
   {
@@ -99,6 +117,17 @@ const menu = computed(() => [
 ]);
 
 const categories = computed(() => store.categories);
+
+// 分类选项（包括"未分类"）
+const categoryOptions = computed(() => {
+  return [
+    { label: t('contentItem.uncategorized'), value: 0 },
+    ...categories.value.map((category) => ({
+      label: category.name,
+      value: category.id as number
+    }))
+  ];
+});
 
 const isActive = computed(() => {
   return route.params.id === content.value.id.toString();
@@ -153,49 +182,8 @@ const handleContextMenu = async (item: any) => {
       query: { rename: 'true' }
     });
   } else if (item.type === 'delete') {
-    try {
-      await ElMessageBox.confirm(
-        t('contentItem.deleteConfirm', { name: content.value.title }),
-        t('common.warning'),
-        {
-          confirmButtonText: t('common.confirm'),
-          cancelButtonText: t('common.cancel'),
-          type: 'warning'
-        }
-      );
-      
-      await deleteFragment(Number(content.value.id));
-      ElMessage.success(t('contentItem.deleteSuccess'));
-      if (route.params.id) {
-        // 如果当前在详情页，跳转回列表页
-        const cid = route.params.cid;
-        const targetPath = cid 
-          ? `/config/category/contentList/${cid}`
-          : '/config/category/contentList';
-        router.push(targetPath);
-      } else {
-        // 如果在列表页，刷新列表
-        const cid = route.params.cid as string | undefined;
-        let categoryId: number | undefined;
-        
-        if (!cid) {
-          // 没有 cid，查询所有片段
-          categoryId = undefined;
-        } else if (cid === '0') {
-          // cid 为 "0"，查询未分类片段
-          const uncategorizedId = await getUncategorizedId();
-          categoryId = uncategorizedId ?? undefined;
-        } else {
-          // 普通分类 ID
-          categoryId = Number(cid);
-        }
-        
-        const result = await getFragmentList(categoryId);
-        store.contents = result;
-      }
-    } catch (error) {
-      // 用户取消
-    }
+    // 触发删除事件，让父组件处理
+    emit('delete', content.value);
   } else if (item.type === 'edit') {
     showCategorySelector();
   }
@@ -204,80 +192,30 @@ const handleContextMenu = async (item: any) => {
 const showCategorySelector = async () => {
   try {
     // 获取"未分类"的实际 ID
-    const uncategorizedId = await getUncategorizedId();
+    uncategorizedId.value = await getUncategorizedId();
     
-    const categoryOptions = categories.value.map((category) => ({
-      label: category.name,
-      value: category.id
-    }));
-
     // 如果当前片段的 category_id 等于"未分类"的实际 ID，则显示为 0
-    const currentCategoryId = content.value.category_id === uncategorizedId ? 0 : content.value.category_id;
-    const categoryId = ref(currentCategoryId); // 使用 ref 来保持选中的值
+    selectedCategoryId.value = content.value.category_id === uncategorizedId.value ? 0 : content.value.category_id as number;
     
-    // 取消ElMessageBox自带的确定按钮、取消按钮, 自定义确定按钮、取消按钮
-    await ElMessageBox({
-      title: t('contentItem.changeCategory'),
-      showCancelButton: false,
-      showConfirmButton: false,
-      closeOnClickModal: false,
-      closeOnPressEscape: false,
-      customClass: 'category-edit',
-      message: () => {
-        return h('div', [
-          h(
-            ElSelect,
-            {
-              modelValue: categoryId.value,
-              'onUpdate:modelValue': (newValue: number) => {
-                categoryId.value = newValue;
-              },
-              class: 'category-management'
-            },
-            {
-              default: () => [
-                h(ElOption, { label: t('contentItem.uncategorized'), value: 0 }),
-                ...categoryOptions.map((option: any) =>
-                  h(ElOption, { label: option.label, value: option.value })
-                )
-              ]
-            }
-          ),
-          h('div', { class: 'message-footer' }, [
-            h(
-              CustomButton,
-              {
-                type: 'default',
-                size: '',
-                onClick: () => {
-                  ElMessageBox.close();
-                }
-              },
-              { default: () => t('common.cancel') }
-            ),
-            h(
-              CustomButton,
-              {
-                type: 'primary',
-                size: '',
-                onClick: async () => {
-                  // 将前端的 0 转换回实际的"未分类" ID
-                  const actualCategoryId = categoryId.value === 0 ? uncategorizedId : categoryId.value;
-                  
-                  if (actualCategoryId !== content.value.category_id) {
-                    await handleCategoryChange(actualCategoryId!, uncategorizedId);
-                  }
-                  ElMessageBox.close();
-                }
-              },
-              { default: () => t('common.confirm') }
-            )
-          ])
-        ]);
-      }
-    });
-  } catch {
-    // User cancelled
+    // 显示对话框
+    showCategoryDialog.value = true;
+  } catch (error) {
+    console.error('Failed to get uncategorized ID:', error);
+  }
+};
+
+const confirmCategoryChange = async () => {
+  try {
+    // 将前端的 0 转换回实际的"未分类" ID
+    const actualCategoryId = selectedCategoryId.value === 0 ? uncategorizedId.value : selectedCategoryId.value;
+    
+    if (actualCategoryId !== content.value.category_id) {
+      await handleCategoryChange(actualCategoryId!, uncategorizedId.value);
+    }
+    
+    showCategoryDialog.value = false;
+  } catch (error) {
+    console.error('Failed to change category:', error);
   }
 };
 

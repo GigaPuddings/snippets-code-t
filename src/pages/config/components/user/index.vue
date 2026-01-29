@@ -202,15 +202,38 @@
       </div>
     </div>
   </div>
+
+  <!-- 登出确认对话框 -->
+  <ConfirmDialog
+    v-model="showLogoutDialog"
+    :title="$t('github.logoutTitle')"
+    :confirm-text="$t('common.confirm')"
+    :cancel-text="$t('common.cancel')"
+    @confirm="confirmLogout"
+  >
+    <div>{{ $t('github.logoutConfirm') }}</div>
+  </ConfirmDialog>
+
+  <!-- 恢复确认对话框 -->
+  <ConfirmDialog
+    v-model="showRestoreDialog"
+    :title="$t('github.restoreTitle')"
+    :confirm-text="$t('common.confirm')"
+    :cancel-text="$t('common.cancel')"
+    :loading="restoring"
+    @confirm="confirmRestore"
+  >
+    <div v-html="$t('github.restoreConfirm')"></div>
+  </ConfirmDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
-import { CustomButton, CustomSwitch } from '@/components/UI';
+import { CustomButton, CustomSwitch, ConfirmDialog } from '@/components/UI';
 import {
   Help,
   Info as WarningIcon,
@@ -250,6 +273,8 @@ const syncProgress = ref(0);
 const restoreProgress = ref(0);
 const syncMessage = ref('');
 const restoreMessage = ref('');
+const showLogoutDialog = ref(false);
+const showRestoreDialog = ref(false);
 
 // 用户信息
 const userInfo = ref<GitHubUser>({
@@ -363,18 +388,12 @@ const handleLogin = async () => {
 };
 
 // 登出
-const handleLogout = async () => {
+const handleLogout = () => {
+  showLogoutDialog.value = true;
+};
+
+const confirmLogout = async () => {
   try {
-    await ElMessageBox.confirm(
-      t('github.logoutConfirm'),
-      t('github.logoutTitle'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    );
-    
     // 清除设置
     settings.value = {
       github_token: null,
@@ -398,8 +417,10 @@ const handleLogout = async () => {
     await emit('user-login-status-changed', { loggedIn: false });
     
     ElMessage.success(t('github.logoutSuccess'));
-  } catch {
-    // 用户取消
+    showLogoutDialog.value = false;
+  } catch (error) {
+    console.error('Logout failed:', error);
+    ElMessage.error(t('github.logoutFailed'));
   }
 };
 
@@ -433,44 +454,34 @@ const handleSync = async () => {
 };
 
 // 从 GitHub 恢复
-const handleRestore = async () => {
+const handleRestore = () => {
+  showRestoreDialog.value = true;
+};
+
+const confirmRestore = async () => {
+  restoring.value = true;
+  restoreProgress.value = 0;
+  
+  // 监听后端进度事件
+  const unlisten = await listen('restore-progress', (event: any) => {
+    const { progress, message } = event.payload;
+    restoreProgress.value = progress;
+    restoreMessage.value = message;
+  });
+  
   try {
-    await ElMessageBox.confirm(
-      t('github.restoreConfirm'),
-      t('github.restoreTitle'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning',
-        dangerouslyUseHTMLString: true
-      }
-    );
-    
-    restoring.value = true;
+    await restoreFromGitHub();
+    // 注意：恢复成功后应用会自动重启
+    ElMessage.success(t('github.restoreSuccess'));
+    showRestoreDialog.value = false;
+  } catch (error: any) {
+    ElMessage.error(error || t('github.restoreFailed'));
+    unlisten();
+    restoring.value = false;
     restoreProgress.value = 0;
-    
-    // 监听后端进度事件
-    const unlisten = await listen('restore-progress', (event: any) => {
-      const { progress, message } = event.payload;
-      restoreProgress.value = progress;
-      restoreMessage.value = message;
-    });
-    
-    try {
-      await restoreFromGitHub();
-      // 注意：恢复成功后应用会自动重启
-      ElMessage.success(t('github.restoreSuccess'));
-    } catch (error: any) {
-      ElMessage.error(error || t('github.restoreFailed'));
-      unlisten();
-      restoring.value = false;
-      restoreProgress.value = 0;
-      restoreMessage.value = '';
-    }
-    // 注意：不在 finally 中重置，因为应用会重启
-  } catch {
-    // 用户取消
+    restoreMessage.value = '';
   }
+  // 注意：不在 finally 中重置，因为应用会重启
 };
 
 // 设置变更

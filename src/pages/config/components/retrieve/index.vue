@@ -144,6 +144,18 @@
       </div>
     </div>
   </main>
+
+  <!-- 删除确认对话框 -->
+  <ConfirmDialog
+    v-model="showDeleteDialog"
+    :title="$t('common.warning')"
+    :confirm-text="$t('common.confirm')"
+    :cancel-text="$t('common.cancel')"
+    type="danger"
+    @confirm="confirmDelete"
+  >
+    <div>{{ $t('retrieve.deleteConfirm', { name: searchEngines[deleteIndex]?.name || searchEngines[deleteIndex]?.keyword || '' }) }}</div>
+  </ConfirmDialog>
 </template>
 
 <script setup lang="ts">
@@ -153,10 +165,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
+import { ConfirmDialog } from '@/components/UI';
 
 const { t } = useI18n();
 const searchEngines = ref<SearchEngineConfig[]>([]);
 const defaultSearchEngines = ref<SearchEngineConfig[]>([]);
+const showDeleteDialog = ref(false);
+const deleteIndex = ref<number>(-1);
 // 节流函数，防止频繁保存
 const saveThrottleTimer = ref<number | null>(null);
 
@@ -374,39 +389,31 @@ const handleAdd = async () => {
   modal.msg(t('retrieve.addSuccess'), 'info');
 };
 
-const handleDelete = async (index: number) => {
-  const engine = searchEngines.value[index];
+const handleDelete = (index: number) => {
+  deleteIndex.value = index;
+  showDeleteDialog.value = true;
+};
+
+const confirmDelete = async () => {
+  if (deleteIndex.value === -1) return;
   
-  try {
-    await ElMessageBox.confirm(
-      t('retrieve.deleteConfirm', { name: engine.name || engine.keyword }),
-      t('common.warning'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    );
-    
-    const updatedEngines = searchEngines.value.filter((_, idx) => idx !== index);
-    searchEngines.value = updatedEngines;
+  const updatedEngines = searchEngines.value.filter((_, idx) => idx !== deleteIndex.value);
+  searchEngines.value = updatedEngines;
 
-    // 如果删除的是默认搜索引擎，且还有其他引擎，则将第一个设为默认
-    if (
-      searchEngines.value.length > 0 &&
-      !searchEngines.value.some((e) => e.enabled)
-    ) {
-      searchEngines.value[0].enabled = true;
-    }
-
-    // 自动保存更改
-    const success = await saveAll(false);
-    if (success) {
-      modal.msg(t('retrieve.deleteSuccess'));
-    }
-  } catch (error) {
-    // 用户取消，不做任何操作
+  // 如果删除的是默认搜索引擎，且还有其他引擎，则将第一个设为默认
+  if (
+    searchEngines.value.length > 0 &&
+    !searchEngines.value.some((e) => e.enabled)
+  ) {
+    searchEngines.value[0].enabled = true;
   }
+
+  const success = await saveAll(false);
+  if (success) {
+    modal.msg(t('retrieve.deleteSuccess'), 'info');
+  }
+  showDeleteDialog.value = false;
+  deleteIndex.value = -1;
 };
 
 // 只允许一个引擎为默认

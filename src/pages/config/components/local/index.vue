@@ -153,6 +153,18 @@
       @submit="handleSubmit"
       @delete="handleDeleteFromDialog"
     />
+
+    <!-- 删除确认对话框 -->
+    <ConfirmDialog
+      v-model="showDeleteDialog"
+      :title="$t('local.deleteTitle')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      type="danger"
+      @confirm="confirmDelete"
+    >
+      <div>{{ $t('local.deleteConfirm', { name: deleteTarget?.title || '' }) }}</div>
+    </ConfirmDialog>
   </main>
 </template>
 
@@ -160,7 +172,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -179,6 +191,7 @@ import {
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import EditDialog from './components/EditDialog.vue';
+import { ConfirmDialog } from '@/components/UI';
 
 defineOptions({
   name: 'Local',
@@ -215,6 +228,9 @@ const apps = ref<AppInfo[]>([]);
 const bookmarks = ref<BookmarkInfo[]>([]);
 const editDialogRef = ref();
 const currentEditData = ref<AppInfo | BookmarkInfo | null>(null);
+const showDeleteDialog = ref(false);
+const deleteTarget = ref<AppInfo | BookmarkInfo | null>(null);
+const deleteFromDialog = ref(false);
 
 // 扫描状态
 const isScanning = ref(false);
@@ -352,60 +368,42 @@ const handleSubmit = async (data: any) => {
 };
 
 // 删除
-const handleDelete = async (item: AppInfo | BookmarkInfo) => {
-  try {
-    await ElMessageBox.confirm(
-      t('local.deleteConfirm', { name: item.title }),
-      t('local.deleteTitle'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    );
-
-    if (activeTab.value === 'app') {
-      await invoke('delete_app', { id: item.id });
-      ElMessage.success(t('local.deleteSuccess', { type: t('local.apps') }));
-    } else {
-      await invoke('delete_bookmark', { id: item.id });
-      ElMessage.success(t('local.deleteSuccess', { type: t('local.bookmarks') }));
-    }
-    await loadData();
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('Delete failed:', error);
-      ElMessage.error(t('local.deleteFailed'));
-    }
-  }
+const handleDelete = (item: AppInfo | BookmarkInfo) => {
+  deleteTarget.value = item;
+  deleteFromDialog.value = false;
+  showDeleteDialog.value = true;
 };
 
 // Delete from dialog
-const handleDeleteFromDialog = async (id: string) => {
-  try {
-    await ElMessageBox.confirm(
-      t('local.deleteConfirm', { name: '' }),
-      t('local.deleteTitle'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    );
+const handleDeleteFromDialog = (id: string) => {
+  const item = activeTab.value === 'app' 
+    ? apps.value.find(a => a.id === id)
+    : bookmarks.value.find(b => b.id === id);
+  
+  if (item) {
+    deleteTarget.value = item;
+    deleteFromDialog.value = true;
+    showDeleteDialog.value = true;
+  }
+};
 
+const confirmDelete = async () => {
+  if (!deleteTarget.value) return;
+  
+  try {
     if (activeTab.value === 'app') {
-      await invoke('delete_app', { id });
+      await invoke('delete_app', { id: deleteTarget.value.id });
       ElMessage.success(t('local.deleteSuccess', { type: t('local.apps') }));
     } else {
-      await invoke('delete_bookmark', { id });
+      await invoke('delete_bookmark', { id: deleteTarget.value.id });
       ElMessage.success(t('local.deleteSuccess', { type: t('local.bookmarks') }));
     }
     await loadData();
+    showDeleteDialog.value = false;
+    deleteTarget.value = null;
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除失败:', error);
-      ElMessage.error(t('local.deleteFailed'));
-    }
+    console.error('Delete failed:', error);
+    ElMessage.error(t('local.deleteFailed'));
   }
 };
 

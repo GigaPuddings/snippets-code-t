@@ -1,4 +1,7 @@
 import CustomButton from './CustomButton.vue';
 import CustomSwitch from './CustomSwitch.vue';
+import CommonDialog from './CommonDialog.vue';
+import ConfirmDialog from './ConfirmDialog.vue';
+import SelectConfirmDialog from './SelectConfirmDialog.vue';
 
-export { CustomButton, CustomSwitch };
+export { CustomButton, CustomSwitch, CommonDialog, ConfirmDialog, SelectConfirmDialog };

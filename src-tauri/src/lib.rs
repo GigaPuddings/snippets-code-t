@@ -381,7 +381,7 @@ pub fn run() {
             let app_handle_init = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 // 第一步：核心UI组件（托盘和快捷键）
-                log::info!("开始初始化核心UI组件...");
+                // log::info!("开始初始化核心UI组件...");
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
                 
                 #[cfg(desktop)]
@@ -392,7 +392,7 @@ pub fn run() {
                         log::info!("最小托盘创建完成");
                     } else if let Ok(()) = tray::create_tray(&app_handle_init) {
                         tray::update_tray_theme_status(&app_handle_init);
-                        log::info!("完整托盘创建完成");
+                        // log::info!("完整托盘创建完成");
                     }
                 }
                 
@@ -402,44 +402,39 @@ pub fn run() {
                         .title("snippets-code")
                         .body(format!("快捷键注册失败：{}", e))
                         .show();
-                } else {
-                    log::info!("快捷键注册完成");
                 }
                 
                 // 第二步：后台服务（提醒、Dark Mode、更新状态重置）
-                log::info!("开始初始化后台服务...");
+                // log::info!("开始初始化后台服务...");
                 alarm::start_alarm_service(app_handle_init.clone());
-                log::info!("提醒服务启动完成");
+                // log::info!("提醒服务启动完成");
                 
                 use dark_mode::ThemeMode;
                 let config = load_dark_mode_config(&app_handle_init);
                 if config.theme_mode == ThemeMode::Schedule {
                     if let Err(e) = start_scheduler(app_handle_init.clone()) {
                         log::warn!("Dark Mode调度器启动失败: {}", e);
-                    } else {
-                        log::info!("Dark Mode调度器启动完成");
                     }
-                } else {
-                    log::info!("Dark Mode调度器未启用");
                 }
                 
+                // 重置更新状态
                 let path = std::path::PathBuf::from("store.bin");
                 if let Ok(store) = tauri_plugin_store::StoreBuilder::new(&app_handle_init, path).build() {
                     let _ = store.delete("update_available");
                     let _ = store.save();
-                    log::info!("更新状态重置完成");
                 }
                 
                 // 第三步：资源加载（应用和书签图标）
-                log::info!("开始加载应用和书签图标...");
+                // log::info!("开始加载应用和书签图标...");
                 init_app_and_bookmark_icons(&app_handle_init);
-                log::info!("图标加载完成");
+                // log::info!("图标加载完成");
                 
                 // 第四步：网络操作（自动更新检查）
                 if get_auto_update_check(app_handle_init.clone()) {
-                    log::info!("开始检查更新...");
+                    // log::info!("开始检查更新...");
                     match check_update(&app_handle_init, false).await {
-                        Ok(_) => log::info!("更新检查完成"),
+                        Ok(_) => {},
+                        //  => log::info!("更新检查完成"),
                         Err(e) => log::warn!("更新检查失败: {}", e),
                     }
                 } else {
@@ -458,7 +453,7 @@ pub fn run() {
                     log::warn!("优化数据库失败: {}", e);
                 }
                 cleanup_old_logs();
-                log::info!("所有初始化任务完成");
+                // log::info!("所有初始化任务完成");
             });
 
             // 启动窗口逻辑
@@ -505,9 +500,9 @@ pub fn run() {
             backup_database,                  // 备份数据库
             restore_database,                 // 恢复数据库
             set_custom_db_path,               // 设置自定义数据库路径
-            is_setup_completed,
-            set_setup_completed,
-            set_data_dir_from_setup,
+            is_setup_completed,               // 检查是否已完成首次设置
+            set_setup_completed,              // 标记首次设置已完成
+            set_data_dir_from_setup,          // 从设置向导保存数据目录
             clear_cache,                      // 清理缓存
             get_alarm_cards,                  // 获取代办提醒卡片
             add_alarm_card,                   // 添加代办提醒卡片

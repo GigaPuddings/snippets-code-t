@@ -1,11 +1,8 @@
 <template>
-  <el-dialog
+  <CommonDialog
     v-model="dialogVisible"
     :title="isEdit ? (type === 'app' ? $t('editDialog.editApp') : $t('editDialog.editBookmark')) : (type === 'app' ? $t('editDialog.addApp') : $t('editDialog.addBookmark'))"
     width="540px"
-    :close-on-click-modal="false"
-    :draggable="true"
-    class="edit-dialog"
   >
     <el-form
       ref="formRef"
@@ -132,16 +129,17 @@
         </div>
       </div>
     </template>
-  </el-dialog>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed } from 'vue';
+import { ref, reactive, watch, computed, nextTick } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Application, Browser, Delete, Check, Down } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
+import { CommonDialog } from '@/components/UI';
 
 const { t } = useI18n();
 
@@ -205,17 +203,29 @@ watch(
       formData.content = '';
       formData.icon = null;
     }
+    // 清除表单验证状态
+    nextTick(() => {
+      formRef.value?.clearValidate();
+    });
   },
   { immediate: true, deep: true }
 );
 
 const open = () => {
   dialogVisible.value = true;
+  // 在打开时重置表单验证状态
+  nextTick(() => {
+    formRef.value?.clearValidate();
+  });
 };
 
 const handleClose = () => {
   dialogVisible.value = false;
-  formRef.value?.resetFields();
+  // 重置表单字段和验证状态
+  nextTick(() => {
+    formRef.value?.resetFields();
+    formRef.value?.clearValidate();
+  });
   // 确保所有字段都被清空，包括 id
   Object.assign(formData, { id: undefined, title: '', content: '', icon: null });
 };
@@ -338,23 +348,9 @@ defineExpose({ open });
 </script>
 
 <style scoped lang="scss">
-:deep(.edit-dialog) {
-  .el-dialog__header {
-    @apply pb-3 border-b border-gray-200 dark:border-neutral-700;
-    
-    .el-dialog__title {
-      @apply text-lg font-semibold text-gray-900 dark:text-white;
-    }
-  }
-  
-  .el-dialog__body {
-    @apply pt-6 pb-4;
-  }
-}
-
 .edit-form {
   :deep(.el-form-item) {
-    @apply mb-6;
+    @apply mb-4;
     
     .el-form-item__label {
       @apply text-gray-700 dark:text-gray-300 font-medium flex items-center gap-1;

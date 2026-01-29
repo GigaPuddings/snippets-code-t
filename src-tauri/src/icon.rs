@@ -306,14 +306,14 @@ pub fn load_icon_cache(_app_handle: &AppHandle) {
         let mut sorted_icons: Vec<_> = cache_data.into_iter().collect();
         sorted_icons.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
         
-        let mut loaded_count = 0;
+        // let mut loaded_count = 0;
         let mut invalid_keys = Vec::new();
         
         for (key, icon) in sorted_icons.into_iter().take(MAX_CACHE_SIZE) {
             // 验证缓存数据是否有效
             if is_valid_cached_icon(&icon.data) {
                 cache.put(key, icon);
-                loaded_count += 1;
+                // loaded_count += 1;
             } else {
                 invalid_keys.push(key);
             }
@@ -330,7 +330,7 @@ pub fn load_icon_cache(_app_handle: &AppHandle) {
             }
         }
         
-        log::info!("加载了 {} 个有效图标缓存", loaded_count);
+        // log::info!("加载了 {} 个有效图标缓存", loaded_count);
     }
 }
 

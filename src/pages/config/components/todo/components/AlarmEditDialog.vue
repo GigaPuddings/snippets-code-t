@@ -1,8 +1,7 @@
 <template>
-  <el-dialog
+  <CommonDialog
     v-model="dialogVisible"
-    draggable
-    center
+    :center="true"
     :show-close="false"
     width="28%"
   >
@@ -152,7 +151,7 @@
         </CustomButton>
       </div>
     </template>
-  </el-dialog>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
@@ -168,7 +167,7 @@ import {
   Calendar
 } from '@icon-park/vue-next';
 import dayjs from 'dayjs';
-import { CustomButton } from '@/components/UI';
+import { CustomButton, CommonDialog } from '@/components/UI';
 import { ElMessage } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
@@ -426,11 +425,15 @@ defineExpose({
   }
 }
 
+.time-picker {
+  @apply mb-1;
+}
+
 .time-unit {
   @apply flex flex-col items-center;
 
   .time-value {
-    @apply text-4xl font-bold my-2 select-none;
+    @apply text-4xl font-bold my-1 select-none;
   }
 }
 
@@ -447,7 +450,7 @@ defineExpose({
 }
 
 .alarm-edit-form {
-  @apply flex flex-col gap-3 p-1;
+  @apply flex flex-col gap-2 py-2;
 }
 
 .alarm-title-input {
@@ -464,7 +467,7 @@ defineExpose({
   }
 
   .repeat-section-weekdays {
-    @apply flex gap-2 mt-2 select-none;
+    @apply flex gap-2 mt-1 select-none;
   }
 }
 
@@ -482,7 +485,7 @@ defineExpose({
   }
 
   .alarm-type-options {
-    @apply flex gap-2 mt-2 select-none;
+    @apply flex gap-2 mt-1 select-none;
   }
 
   .type-item {

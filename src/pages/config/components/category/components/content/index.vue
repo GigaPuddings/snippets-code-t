@@ -58,6 +58,30 @@
       </div>
     </div>
     
+    <!-- 创建新笔记确认对话框 -->
+    <ConfirmDialog
+      v-model="showCreateNoteDialog"
+      :title="$t('common.tip')"
+      :confirm-text="$t('common.create')"
+      :cancel-text="$t('common.cancel')"
+      @confirm="confirmCreateNote"
+    >
+      <div>{{ t('category.createNoteConfirm', { name: pendingNoteName }) }}</div>
+    </ConfirmDialog>
+    
+    <!-- 未保存更改确认对话框 -->
+    <ConfirmDialog
+      v-model="showUnsavedDialog"
+      :title="$t('common.warning')"
+      :confirm-text="$t('common.save')"
+      :cancel-text="$t('category.discardChanges')"
+      type="warning"
+      @confirm="confirmSaveBeforeNavigation"
+      @cancel="discardChangesAndNavigate"
+    >
+      <div>{{ t('category.unsavedChanges') }}</div>
+    </ConfirmDialog>
+    
     <!-- 编辑器加载指示器 -->
     <div v-if="state.isEditorLoading" class="editor-loading">
       <div class="loading-spinner"></div>
@@ -106,9 +130,10 @@ import { debounce } from '@/utils';
 import { parseFragment } from '@/utils/fragment';
 import { handleSaveError, handleLoadError, handleEditorError } from '@/utils/errorHandler';
 import { useI18n } from 'vue-i18n';
-import { ElMessageBox, ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import TagInput from '@/components/TagInput/index.vue';
 import { useRouter } from 'vue-router';
+import { ConfirmDialog } from '@/components/UI';
 
 const { t } = useI18n();
 
@@ -157,6 +182,12 @@ const isDark = computed(() => {
     ? document.documentElement.classList.contains('dark')
     : store.theme === 'dark';
 });
+
+// 对话框状态
+const showCreateNoteDialog = ref(false);
+const showUnsavedDialog = ref(false);
+const pendingNoteName = ref('');
+const pendingNavigationId = ref<string | null>(null);
 
 // 获取所有已存在的标签（用于自动完成）
 const allTags = computed(() => {
@@ -313,26 +344,30 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
       state.currentContent.format || 'plain'
     );
 
-    const params = {
+    // 准备更新参数（用于 store）
+    const updateParams = {
       ...state.currentContent,
       title: state.title,
       content: serializedContent,
       metadata,
       tags: state.tags,
       ...data,
-      // 保持原有的 category_id，即使是 null（未分类）
-      category_id: state.currentContent.category_id,
-      // 确保传递 fragmentType
       fragmentType: state.currentContent.type || 'code'
     };
 
-    await editFragment(params);
-    updateStore(params);
+    // 准备 API 参数（category_id 转换为 null 而不是 undefined）
+    const apiParams = {
+      ...updateParams,
+      category_id: state.currentContent.category_id ?? null
+    };
+
+    await editFragment(apiParams);
+    updateStore(updateParams);
 
     // 更新当前内容的引用
     state.currentContent = {
       ...state.currentContent,
-      ...params
+      ...updateParams
     };
     state.contentChanged = false;
     state.lastSavedAt = new Date();
@@ -413,56 +448,56 @@ const handleWikilinkClick = async (noteName: string) => {
         path: `/config/category/contentList/${targetFragment.category_id}/content/${targetFragment.id}`
       });
     } else {
-      // 未找到匹配的片段，询问用户是否创建
-      try {
-        await ElMessageBox.confirm(
-          `未找到名为"${noteName}"的笔记，是否创建新笔记？`,
-          '提示',
-          {
-            confirmButtonText: '创建',
-            cancelButtonText: '取消',
-            type: 'info'
-          }
-        );
-        
-        // 用户确认创建，创建新笔记
-        const currentCategoryId = typeof state.currentContent?.category_id === 'number' 
-          ? state.currentContent.category_id 
-          : Number(state.currentContent?.category_id) || 0;
-        const newFragmentId = await addFragment({
-          categoryId: currentCategoryId,
-          fragmentType: 'note'
-        });
-        
-        // 刷新内容列表
-        const result = await getFragmentList(currentCategoryId);
-        store.contents = result;
-        
-        // 跳转到新笔记并设置标题
-        router.push({
-          path: `/config/category/contentList/${currentCategoryId}/content/${newFragmentId}`
-        });
-        
-        // 等待路由跳转完成后设置标题
-        await nextTick();
-        await nextTick();
-        
-        // 通过 API 更新标题
-        await editFragment({
-          id: newFragmentId,
-          title: noteName,
-          content: '',
-          category_id: currentCategoryId,
-          fragmentType: 'note'
-        });
-        
-      } catch (error) {
-        // 用户取消创建
-      }
+      // 未找到匹配的片段，显示创建确认对话框
+      pendingNoteName.value = noteName;
+      showCreateNoteDialog.value = true;
     }
   } catch (error) {
     console.error('Failed to handle wikilink click:', error);
     ElMessage.error('处理链接失败');
+  }
+};
+
+// 确认创建新笔记
+const confirmCreateNote = async () => {
+  try {
+    const noteName = pendingNoteName.value;
+    
+    // 用户确认创建，创建新笔记
+    const currentCategoryId = typeof state.currentContent?.category_id === 'number' 
+      ? state.currentContent.category_id 
+      : Number(state.currentContent?.category_id) || 0;
+    const newFragmentId = await addFragment({
+      categoryId: currentCategoryId,
+      fragmentType: 'note'
+    });
+    
+    // 刷新内容列表
+    const result = await getFragmentList(currentCategoryId);
+    store.contents = result;
+    
+    // 跳转到新笔记并设置标题
+    router.push({
+      path: `/config/category/contentList/${currentCategoryId}/content/${newFragmentId}`
+    });
+    
+    // 等待路由跳转完成后设置标题
+    await nextTick();
+    await nextTick();
+    
+    // 通过 API 更新标题
+    await editFragment({
+      id: newFragmentId,
+      title: noteName,
+      content: '',
+      category_id: currentCategoryId,
+      fragmentType: 'note'
+    });
+    
+    showCreateNoteDialog.value = false;
+  } catch (error) {
+    console.error('Failed to create note:', error);
+    ElMessage.error('创建笔记失败');
   }
 };
 
@@ -534,26 +569,9 @@ watch(
     // 如果路由参数变化，先检查是否有未保存的更改
     if (oldId && state.currentContent && state.contentChanged) {
       // 显示未保存提示
-      try {
-        await ElMessageBox.confirm(
-          t('category.unsavedChanges'),
-          t('common.warning'),
-          {
-            confirmButtonText: t('common.save'),
-            cancelButtonText: t('category.discardChanges'),
-            type: 'warning'
-          }
-        );
-        
-        // 用户选择保存
-        debouncedSave.cancel();
-        await saveContent();
-      } catch (error) {
-        // 用户选择放弃更改或关闭对话框
-        if (error !== 'cancel') {
-          console.error('Save before navigation failed:', error);
-        }
-      }
+      pendingNavigationId.value = newId as string;
+      showUnsavedDialog.value = true;
+      return;
     }
     
     // 加载新内容
@@ -580,6 +598,36 @@ watch(
   },
   { immediate: true } // 立即执行一次，替代 onMounted 的逻辑
 );
+
+// 确认保存并导航
+const confirmSaveBeforeNavigation = async () => {
+  try {
+    debouncedSave.cancel();
+    await saveContent();
+    showUnsavedDialog.value = false;
+    
+    // 执行导航
+    if (pendingNavigationId.value) {
+      await fetchContent();
+      pendingNavigationId.value = null;
+    }
+  } catch (error) {
+    console.error('Save before navigation failed:', error);
+    ElMessage.error(t('category.saveFailed'));
+  }
+};
+
+// 放弃更改并导航
+const discardChangesAndNavigate = async () => {
+  state.contentChanged = false;
+  showUnsavedDialog.value = false;
+  
+  // 执行导航
+  if (pendingNavigationId.value) {
+    await fetchContent();
+    pendingNavigationId.value = null;
+  }
+};
 
 // 监听编辑器类型变化，确保内容保持不变
 watch(currentEditorType, (newType, oldType) => {

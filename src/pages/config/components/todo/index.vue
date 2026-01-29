@@ -111,6 +111,18 @@
       @submit="handleAlarmSubmit"
       @delete="deleteAlarmCard"
     />
+
+    <!-- 删除确认对话框 -->
+    <ConfirmDialog
+      v-model="showDeleteDialog"
+      :title="$t('common.warning')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      type="danger"
+      @confirm="confirmDelete"
+    >
+      <div>{{ $t('alarm.deleteConfirm', { name: deleteTarget?.title || '' }) }}</div>
+    </ConfirmDialog>
   </div>
 </template>
 
@@ -120,10 +132,14 @@ import { Write, Plus, CheckSmall, Delete, Remind } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import AlarmEditDialog from './components/AlarmEditDialog.vue';
 import { invoke } from '@tauri-apps/api/core';
+import { ElMessage } from 'element-plus';
+import { ConfirmDialog } from '@/components/UI';
 
 const { t } = useI18n();
 
 const alarmCards = ref<AlarmCard[]>([]);
+const showDeleteDialog = ref(false);
+const deleteTarget = ref<AlarmCard | null>(null);
 const weekdays = computed(() => [
   t('alarm.weekdays.mon'),
   t('alarm.weekdays.tue'),
@@ -206,25 +222,23 @@ const handleAlarmSubmit = async (formData: Partial<AlarmCard>) => {
   }
 };
 
-const deleteAlarmCard = async (item: AlarmCard) => {
+const deleteAlarmCard = (item: AlarmCard) => {
+  deleteTarget.value = item;
+  showDeleteDialog.value = true;
+};
+
+const confirmDelete = async () => {
+  if (!deleteTarget.value) return;
+  
   try {
-    await ElMessageBox.confirm(
-      t('alarm.deleteConfirm', { name: item.title }),
-      t('common.warning'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    );
-    
-    await invoke('delete_alarm_card', { id: item.id });
+    await invoke('delete_alarm_card', { id: deleteTarget.value.id });
     ElMessage.success(t('alarm.deleteSuccess'));
     await fetchAlarmCards();
+    showDeleteDialog.value = false;
+    deleteTarget.value = null;
   } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close') {
-      console.error('Failed to delete alarm card:', error);
-    }
+    console.error('Failed to delete alarm card:', error);
+    ElMessage.error(`${t('alarm.deleteFailed')}: ${error?.message || error}`);
   }
 };
 

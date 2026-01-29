@@ -1,6 +1,5 @@
 use crate::config::{control_logging, get_value, set_value, UPDATE_AVAILABLE_KEY, UPDATE_INFO_KEY};
 use crate::APP;
-use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_notification::NotificationExt;
@@ -28,7 +27,7 @@ struct ProgressData {
 
 // 检查更新
 pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bool, String> {
-    info!("Checking for updates...");
+    // info!("Checking for updates...");
     control_logging(false); // 禁用日志存储
     match app.updater() {
         Ok(updater) => {

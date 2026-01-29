@@ -96,6 +96,33 @@
       </div>
     </section>
   </main>
+
+  <!-- 重置软件对话框 -->
+  <SelectConfirmDialog
+    v-model="showResetDialog"
+    :title="$t('settings.resetSoftwareTitle')"
+    :message="$t('settings.resetSelectContent')"
+    :options="resetOptions"
+    :default-value="selectedResetType"
+    :confirm-text="$t('common.confirm')"
+    :cancel-text="$t('common.cancel')"
+    :loading="resetSoftwareLoading"
+    @confirm="handleResetConfirm"
+    @cancel="resetSoftwareLoading = false"
+  />
+
+  <!-- 退出应用对话框 -->
+  <ConfirmDialog
+    v-model="showExitDialog"
+    :title="$t('common.tip')"
+    :confirm-text="$t('common.confirm')"
+    :cancel-text="$t('common.cancel')"
+    :loading="exitApplicationLoading"
+    @confirm="handleExitConfirm"
+    @cancel="exitApplicationLoading = false"
+  >
+    <div>{{ $t('settings.exitAppConfirm') }}</div>
+  </ConfirmDialog>
   </div>
 </template>
 
@@ -107,7 +134,7 @@ import { useConfigurationStore } from '@/store';
 import { initTheme } from '@/utils/theme';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
-import { CustomButton, CustomSwitch } from '@/components/UI';
+import { CustomButton, CustomSwitch, ConfirmDialog, SelectConfirmDialog } from '@/components/UI';
 import { setLocale, type LocaleType } from '@/i18n';
 import modal from '@/utils/modal';
 
@@ -120,6 +147,9 @@ const store = useConfigurationStore();
 
 const resetSoftwareLoading = ref(false);
 const exitApplicationLoading = ref(false);
+const showResetDialog = ref(false);
+const showExitDialog = ref(false);
+const selectedResetType = ref('all');
 
 const dictTheme = computed(() => [
   { value: 'light', label: t('settings.themeLight'), icon: SunOne },
@@ -180,95 +210,39 @@ const handleAutoStartChange = async (value: boolean) => {
 };
 
 // 重置软件
-const resetSoftware = async () => {
+const resetOptions = computed(() => [
+  { value: 'all', label: t('settings.resetAll') },
+  { value: 'apps', label: t('settings.resetApps') },
+  { value: 'bookmarks', label: t('settings.resetBookmarks') }
+]);
+
+const resetSoftware = () => {
+  selectedResetType.value = 'all';
+  showResetDialog.value = true;
+};
+
+const handleResetConfirm = async (value: string | number) => {
   resetSoftwareLoading.value = true;
-
-  const resetOptions = computed(() => [
-    { value: 'all', label: t('settings.resetAll') },
-    { value: 'apps', label: t('settings.resetApps') },
-    { value: 'bookmarks', label: t('settings.resetBookmarks') }
-  ]);
-
-  const selectedResetType = ref('all');
-
-  await ElMessageBox({
-    title: t('settings.resetSoftwareTitle'),
-    showCancelButton: false,
-    showConfirmButton: false,
-    closeOnClickModal: false,
-    closeOnPressEscape: false,
-    message: () => {
-      return h('div', [
-        h('div', t('settings.resetSelectContent')),
-        h('div', { class: 'mt-4 mb-4' }, [
-          h(
-            ElSelect,
-            {
-              modelValue: selectedResetType.value,
-              'onUpdate:modelValue': (val) => {
-                selectedResetType.value = val;
-              },
-              class: 'w-full border border-panel rounded-md shadow-sm'
-            },
-            () =>
-              resetOptions.value.map((option) =>
-                h(ElOption, {
-                  key: option.value,
-                  label: option.label,
-                  value: option.value
-                })
-              )
-          )
-        ]),
-        h('div', { class: 'message-footer' }, [
-          h(
-            CustomButton,
-            {
-              type: 'default',
-              size: '',
-              onClick: () => {
-                ElMessageBox.close();
-                resetSoftwareLoading.value = false;
-              }
-            },
-            { default: () => t('common.cancel') }
-          ),
-          h(
-            CustomButton,
-            {
-              type: 'primary',
-              size: '',
-              onClick: async () => {
-                ElMessageBox.close();
-                try {
-                  await invoke('reset_software', {
-                    resetType: selectedResetType.value
-                  });
-                  let successMsg = '';
-                  if (selectedResetType.value === 'apps') {
-                    successMsg = t('settings.resetAppsSuccess');
-                  } else if (selectedResetType.value === 'bookmarks') {
-                    successMsg = t('settings.resetBookmarksSuccess');
-                  } else {
-                    successMsg = t('settings.resetAllSuccess');
-                  }
-                  modal.msg(successMsg);
-                } catch (error) {
-                  console.error('Reset failed:', error);
-                  modal.msg(`${t('settings.resetFailed')}: ${error}`, 'error');
-                } finally {
-                  resetSoftwareLoading.value = false;
-                }
-              }
-            },
-            { default: () => t('common.confirm') }
-          )
-        ])
-      ]);
+  try {
+    await invoke('reset_software', {
+      resetType: value
+    });
+    let successMsg = '';
+    if (value === 'apps') {
+      successMsg = t('settings.resetAppsSuccess');
+    } else if (value === 'bookmarks') {
+      successMsg = t('settings.resetBookmarksSuccess');
+    } else {
+      successMsg = t('settings.resetAllSuccess');
     }
-  }).catch(() => {
+    modal.msg(successMsg);
+    showResetDialog.value = false;
+  } catch (error) {
+    console.error('Reset failed:', error);
+    modal.msg(`${t('settings.resetFailed')}: ${error}`, 'error');
+  } finally {
     resetSoftwareLoading.value = false;
-  });
+  }
 };
 
 // 切换自动检查更新
@@ -294,55 +268,22 @@ const toggleAutoHideOnBlur = async (value: boolean) => {
 };
 
 // 退出应用
-const exitApplication = async () => {
+const exitApplication = () => {
+  showExitDialog.value = true;
+};
+
+const handleExitConfirm = async () => {
   exitApplicationLoading.value = true;
-  await ElMessageBox({
-    title: t('common.tip'),
-    showCancelButton: false,
-    showConfirmButton: false,
-    closeOnClickModal: false,
-    closeOnPressEscape: false,
-    message: () => {
-      return h('div', [
-        h('div', t('settings.exitAppConfirm')),
-        h('div', { class: 'message-footer' }, [
-          h(
-            CustomButton,
-            {
-              type: 'default',
-              size: '',
-              onClick: () => {
-                ElMessageBox.close();
-                exitApplicationLoading.value = false;
-              }
-            },
-            { default: () => t('common.cancel') }
-          ),
-          h(
-            CustomButton,
-            {
-              type: 'primary',
-              size: '',
-              onClick: async () => {
-                ElMessageBox.close();
-                try {
-                  await invoke('exit_application');
-                  modal.msg(t('settings.exitAppSuccess'));
-                } catch (error) {
-                  console.error('Exit failed:', error);
-                } finally {
-                  exitApplicationLoading.value = false;
-                }
-              }
-            },
-            { default: () => t('common.confirm') }
-          )
-        ])
-      ]);
-    }
-  }).catch(() => {
+  try {
+    await invoke('exit_application');
+    modal.msg(t('settings.exitAppSuccess'));
+    showExitDialog.value = false;
+  } catch (error) {
+    console.error('Exit failed:', error);
+    modal.msg(`${t('settings.exitFailed')}: ${error}`, 'error');
+  } finally {
     exitApplicationLoading.value = false;
-  });
+  }
 };
 
 onMounted(async () => {
@@ -361,9 +302,5 @@ onMounted(async () => {
 
 .text-primary {
   color: var(--el-color-primary);
-}
-
-.message-footer {
-  @apply flex justify-end gap-2 mt-4;
 }
 </style>

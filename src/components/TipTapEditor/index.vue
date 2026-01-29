@@ -50,7 +50,7 @@
     />
     
     <!-- 右键上下文菜单 -->
-    <ContextMenu ref="contextMenuRef" :editor="editor ?? null" :dark="props.dark" />
+    <TipTapContextMenu ref="contextMenuRef" :editor="editor ?? null" :dark="props.dark" />
   </main>
 </template>
 
@@ -61,7 +61,7 @@ import { debounce } from '@/utils';
 import { handleEditorError } from '@/utils/errorHandler';
 import { createTurndownService, markdownToHtml, htmlToMarkdown } from './utils/markdown';
 import { createEditorExtensions } from './config/extensions';
-import ContextMenu from './ContextMenu.vue';
+import TipTapContextMenu from './TipTapContextMenu.vue';
 import EditorStatusBar from './components/EditorStatusBar.vue';
 import OutlinePanel from './components/OutlinePanel.vue';
 import EditorActions from './components/EditorActions.vue';
@@ -111,7 +111,7 @@ const emits = defineEmits<{
 }>();
 
 // Refs
-const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null);
+const contextMenuRef = ref<InstanceType<typeof TipTapContextMenu> | null>(null);
 const sourceEditorRef = ref<InstanceType<typeof SourceEditor> | null>(null);
 const wordCount = ref(0);
 const charCount = ref(0);

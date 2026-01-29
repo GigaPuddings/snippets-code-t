@@ -62,7 +62,7 @@
         <CustomButton
           type="primary"
           size="small"
-          @click="restoreData"
+          @click="showRestoreDialog = true"
           :loading="restoreLoading"
         >
           {{ $t('dataManager.restoreBtn') }}
@@ -70,6 +70,32 @@
       </div>
     </section>
   </main>
+
+  <!-- 恢复数据确认对话框 -->
+  <ConfirmDialog
+    v-model="showRestoreDialog"
+    :title="$t('dataManager.warning')"
+    :confirm-text="$t('common.confirm')"
+    :cancel-text="$t('common.cancel')"
+    type="warning"
+    @confirm="handleRestoreConfirm"
+    @cancel="restoreLoading = false"
+  >
+    <div>{{ $t('dataManager.restoreWarning') }}</div>
+  </ConfirmDialog>
+
+  <!-- 更改路径确认对话框 -->
+  <ConfirmDialog
+    v-model="showPathDialog"
+    :title="$t('dataManager.warning')"
+    :confirm-text="$t('common.confirm')"
+    :cancel-text="$t('common.cancel')"
+    type="warning"
+    @confirm="handlePathConfirm"
+    @cancel="pathLoading = false"
+  >
+    <div>{{ $t('dataManager.pathWarning') }}</div>
+  </ConfirmDialog>
   </div>
 </template>
 
@@ -78,8 +104,7 @@ import { useConfigurationStore } from '@/store';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import modal from '@/utils/modal';
-import { CustomButton } from '@/components/UI';
-import { h } from 'vue';
+import { CustomButton, ConfirmDialog } from '@/components/UI';
 
 defineOptions({
   name: 'Manger'
@@ -90,6 +115,8 @@ const store = useConfigurationStore();
 const backupLoading = ref(false);
 const restoreLoading = ref(false);
 const pathLoading = ref(false);
+const showRestoreDialog = ref(false);
+const showPathDialog = ref(false);
 
 const dictDBBackup = computed(() => [
   { value: 'A', label: t('dataManager.backupFormat.date') },
@@ -117,108 +144,38 @@ const startBackup = async () => {
   }
 };
 // 恢复数据
-const restoreData = async () => {
+const handleRestoreConfirm = async () => {
   restoreLoading.value = true;
-  await ElMessageBox({
-    title: t('dataManager.warning'),
-    showCancelButton: false,
-    showConfirmButton: false,
-    closeOnClickModal: false,
-    closeOnPressEscape: false,
-    message: () => {
-      return h('div', [
-        h('div', t('dataManager.restoreWarning')),
-        h('div', { class: 'message-footer' }, [
-          h(
-            CustomButton,
-            {
-              type: 'default',
-              size: '',
-              onClick: () => {
-                ElMessageBox.close();
-                restoreLoading.value = false;
-              }
-            },
-            { default: () => t('common.cancel') }
-          ),
-          h(
-            CustomButton,
-            {
-              type: 'primary',
-              onClick: async () => {
-                ElMessageBox.close();
-                try {
-                  await invoke('restore_database');
-                  modal.msg(t('dataManager.restoreSuccess'));
-                } catch (error) {
-                  console.error('Restore failed:', error);
-                } finally {
-                  restoreLoading.value = false;
-                }
-              }
-            },
-            { default: () => t('common.confirm') }
-          )
-        ])
-      ]);
-    }
-  }).catch(() => {
+  try {
+    await invoke('restore_database');
+    modal.msg(t('dataManager.restoreSuccess'));
+    showRestoreDialog.value = false;
+  } catch (error) {
+    console.error('Restore failed:', error);
+    modal.msg(`${t('dataManager.restoreFailed')}: ${error}`, 'error');
+  } finally {
     restoreLoading.value = false;
-  });
+  }
 };
 
 // 选择数据库路径
-const selectCustomPath = async () => {
+const selectCustomPath = () => {
   pathLoading.value = true;
+  showPathDialog.value = true;
+};
 
-  await ElMessageBox({
-    title: t('dataManager.warning'),
-    showCancelButton: false,
-    showConfirmButton: false,
-    closeOnClickModal: false,
-    closeOnPressEscape: false,
-    message: () => {
-      return h('div', [
-        h('div', t('dataManager.pathWarning')),
-        h('div', { class: 'message-footer' }, [
-          h(
-            CustomButton,
-            {
-              type: 'default',
-              size: '',
-              onClick: () => {
-                ElMessageBox.close();
-                pathLoading.value = false;
-              }
-            },
-            { default: () => t('common.cancel') }
-          ),
-          h(
-            CustomButton,
-            {
-              type: 'primary',
-              size: '',
-              onClick: async () => {
-                ElMessageBox.close();
-                try {
-                  const newPath = await invoke('set_custom_db_path');
-                  store.dbPath = newPath as string;
-                  modal.msg(t('dataManager.pathSuccess'));
-                } catch (error) {
-                  console.error('Path change failed:', error);
-                } finally {
-                  pathLoading.value = false;
-                }
-              }
-            },
-            { default: () => t('common.confirm') }
-          )
-        ])
-      ]);
-    }
-  }).catch(() => {
+const handlePathConfirm = async () => {
+  try {
+    const newPath = await invoke('set_custom_db_path');
+    store.dbPath = newPath as string;
+    modal.msg(t('dataManager.pathSuccess'));
+    showPathDialog.value = false;
+  } catch (error) {
+    console.error('Path change failed:', error);
+    modal.msg(`${t('dataManager.pathFailed')}: ${error}`, 'error');
+  } finally {
     pathLoading.value = false;
-  });
+  }
 };
 </script>
 
@@ -229,9 +186,5 @@ const selectCustomPath = async () => {
 
 .panel-title {
   @apply text-base font-bold mb-4 pb-2 border-b border-panel;
-}
-
-.message-footer {
-  @apply flex justify-end gap-2 mt-4;
 }
 </style>

@@ -37,7 +37,7 @@ const props = defineProps({
     type: String,
     default: 'default',
     validator: (value: string) =>
-      ['default', 'primary', 'success', 'danger'].includes(value)
+      ['default', 'primary', 'success', 'danger', 'warning'].includes(value)
   },
   size: {
     type: String,
@@ -89,6 +89,10 @@ defineEmits(['click']);
     @apply bg-green-500 text-white hover:bg-green-600;
   }
 
+  &--warning {
+    @apply bg-orange-500 text-white hover:bg-orange-600;
+  }
+
   &--danger {
     @apply bg-red-500 text-white hover:bg-red-600;
   }
@@ -104,21 +108,34 @@ defineEmits(['click']);
       @apply border-green-500 text-green-600 hover:bg-green-500 hover:text-white;
     }
     
+    &.custom-button--warning {
+      @apply border-orange-500 text-orange-600 hover:bg-orange-500 hover:text-white;
+    }
+    
     &.custom-button--danger {
       @apply border-red-500 text-red-600 hover:bg-red-500 hover:text-white;
     }
   }
 
   &--medium {
-    @apply text-sm py-2 px-4 h-8;
+    @apply text-sm px-4 h-8;
+    line-height: 32px;
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
   &--small {
-    @apply text-xs py-1 px-3 h-6;
+    @apply text-xs px-3 h-6;
+    line-height: 24px;
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
   &--large {
-    @apply text-base py-2.5 px-5 h-12;
+    @apply text-base px-5 h-10;
+    line-height: 40px;
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
   &--loading {

@@ -74,6 +74,7 @@
             >
               <ContentItem
                 :content="item"
+                @delete="handleDelete"
               />
             </RecycleScroller>
             <div v-else class="content-empty">
@@ -104,12 +105,24 @@
       @update:filter="handleFilterUpdate"
       @close="showFilterPanel = false"
     />
+
+    <!-- 删除确认对话框 -->
+    <ConfirmDialog
+      v-model="showDeleteDialog"
+      :title="$t('common.warning')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      type="danger"
+      @confirm="confirmDelete"
+    >
+      <div>{{ $t('contentItem.deleteConfirm', { name: deleteTarget?.title }) }}</div>
+    </ConfirmDialog>
   </main>
 </template>
 
 <script setup lang="ts">
 import { Search, Plus, Filter } from '@icon-park/vue-next';
-import { getFragmentList, addFragment, getCategories, getUncategorizedId } from '@/api/fragment';
+import { getFragmentList, addFragment, getCategories, getUncategorizedId, deleteFragment } from '@/api/fragment';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore } from '@/store';
 import { onMounted, nextTick, computed } from 'vue';
@@ -122,6 +135,8 @@ import { parseSearchText } from '@/utils/searchParser';
 import { applyFilter } from '@/utils/filterEngine';
 import Splitter from '@/components/Splitter/index.vue';
 import ContentItem from '@/components/ContentItem/index.vue';
+import { ConfirmDialog } from '@/components/UI';
+import { ElMessage } from 'element-plus';
 
 const route = useRoute();
 const router = useRouter();
@@ -132,6 +147,8 @@ const showFilterPanel = ref(false);
 const showSyntaxHelper = ref(false);
 const panelFilter = ref<SearchFilter>({ type: 'all' });
 const tagFilter = ref<string | null>(null);
+const showDeleteDialog = ref(false);
+const deleteTarget = ref<ContentType | null>(null);
 
 defineOptions({
   name: 'ContentList'
@@ -339,6 +356,54 @@ const handleTypeConfirm = async (type: 'code' | 'note') => {
 const handleTypeCancel = () => {
   // Hide the type selector without creating a fragment
   showTypeSelector.value = false;
+};
+
+const handleDelete = (content: ContentType) => {
+  deleteTarget.value = content;
+  showDeleteDialog.value = true;
+};
+
+const confirmDelete = async () => {
+  if (!deleteTarget.value) return;
+  
+  try {
+    await deleteFragment(Number(deleteTarget.value.id));
+    ElMessage.success('删除成功');
+    
+    if (route.params.id) {
+      // 如果当前在详情页，跳转回列表页
+      const cid = route.params.cid;
+      const targetPath = cid 
+        ? `/config/category/contentList/${cid}`
+        : '/config/category/contentList';
+      router.push(targetPath);
+    } else {
+      // 如果在列表页，刷新列表
+      const cid = route.params.cid as string | undefined;
+      let categoryId: number | undefined;
+      
+      if (!cid) {
+        // 没有 cid，查询所有片段
+        categoryId = undefined;
+      } else if (cid === '0') {
+        // cid 为 "0"，查询未分类片段
+        const uncategorizedId = await getUncategorizedId();
+        categoryId = uncategorizedId ?? undefined;
+      } else {
+        // 普通分类 ID
+        categoryId = Number(cid);
+      }
+      
+      const result = await getFragmentList(categoryId);
+      store.contents = result;
+    }
+    
+    showDeleteDialog.value = false;
+    deleteTarget.value = null;
+  } catch (error) {
+    console.error('Delete failed:', error);
+    ElMessage.error('删除失败');
+  }
 };
 
 const clearTagFilter = () => {
