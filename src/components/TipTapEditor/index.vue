@@ -751,13 +751,14 @@ defineExpose({
       transition: background-color 0.3s ease, color 0.3s ease;
     }
 
-    pre {
-      @apply bg-[#282d32] border-[#727377];
-      transition: background-color 0.3s ease, border-color 0.3s ease;
+    /* 代码块内的 code 不应用内联样式 */
+    pre code {
+      @apply bg-transparent text-inherit p-0 rounded-none;
+    }
 
-      code {
-        @apply bg-transparent;
-      }
+    /* 代码块样式已移至 CodeBlockComponent.vue */
+    pre {
+      @apply mb-4;
     }
 
     blockquote {
@@ -871,13 +872,14 @@ defineExpose({
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  pre {
-    @apply bg-gray-100 border border-gray-300 rounded p-4 mb-4 overflow-x-auto;
-    transition: background-color 0.3s ease, border-color 0.3s ease;
+  /* 代码块内的 code 不应用内联样式 */
+  pre code {
+    @apply bg-transparent text-inherit p-0 rounded-none;
+  }
 
-    code {
-      @apply bg-transparent text-gray-800 p-0;
-    }
+  /* 代码块样式已移至 CodeBlockComponent.vue */
+  pre {
+    @apply mb-4;
   }
 
   ul {

@@ -422,24 +422,43 @@ onUnmounted(() => {
   border-radius: 4px;
   transition: all 0.2s ease;
   
+  &:hover {
+    background-color: rgba(93, 109, 253, 0.08);
+    
+    .icon {
+      color: #5d6dfd;
+      background-color: transparent !important;
+    }
+  }
+  
   &--update {
     &:hover .icon {
       @apply animate-spin;
       animation-duration: 1s;
+      color: #5d6dfd;
       background-color: transparent !important;
     }
   }
   
   &--window {
-    @apply hover:bg-gray-200 dark:hover:bg-gray-700;
+    &:hover {
+      background-color: rgba(93, 109, 253, 0.08);
+      
+      .icon {
+        color: #5d6dfd;
+        background-color: transparent !important;
+      }
+    }
   }
   
   &--close {
-    @apply hover:bg-red-500 dark:hover:bg-red-600;
-    
-    &:hover .icon {
-      @apply text-white;
-      background-color: transparent !important;
+    &:hover {
+      background-color: rgba(239, 68, 68, 0.1);
+      
+      .icon {
+        color: #ef4444;
+        background-color: transparent !important;
+      }
     }
   }
   
@@ -480,16 +499,21 @@ onUnmounted(() => {
   @apply cursor-pointer relative flex items-center justify-center;
   min-width: 32px;
   height: 32px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
   
   &:hover {
+    background-color: rgba(93, 109, 253, 0.08);
+    
     .user-avatar-wrapper {
-      @apply ring-2 ring-blue-400 dark:ring-blue-500;
+      @apply ring-2;
+      ring-color: #5d6dfd;
       transform: scale(1.08);
     }
     
     .icon {
-      color: var(--categories-text-color);
-      background-color: rgba(var(--categories-panel-bg-hover-rgb), 0.6);
+      color: #5d6dfd;
+      background-color: transparent !important;
     }
   }
 }
@@ -522,22 +546,23 @@ onUnmounted(() => {
   transition: all 0.2s ease;
 
   &:hover {
-    color: var(--categories-text-color);
-    background-color: rgba(var(--categories-panel-bg-hover-rgb), 0.6);
+    color: #5d6dfd;
+    background-color: rgba(93, 109, 253, 0.08);
   }
   
   &.icon-active {
-    @apply text-blue-500 dark:text-blue-400;
-    background-color: rgba(59, 130, 246, 0.1);
+    color: #5d6dfd;
+    background-color: rgba(93, 109, 253, 0.1);
     
     &:hover {
-      background-color: rgba(59, 130, 246, 0.15);
+      background-color: rgba(93, 109, 253, 0.15);
     }
   }
 }
 
 .update-dot {
-  @apply absolute top-0.5 right-0.5 w-[6px] h-[6px] bg-red-500 rounded-full;
+  @apply absolute top-0.5 right-0.5 w-[6px] h-[6px] rounded-full;
+  background-color: #5d6dfd;
   animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
@@ -558,17 +583,17 @@ onUnmounted(() => {
 
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgb(239 68 68 / 70%);
+    box-shadow: 0 0 0 0 rgba(93, 109, 253, 0.7);
     transform: scale(0.95);
   }
 
   70% {
-    box-shadow: 0 0 0 6px rgb(239 68 68 / 0%);
+    box-shadow: 0 0 0 6px rgba(93, 109, 253, 0);
     transform: scale(1);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgb(239 68 68 / 0%);
+    box-shadow: 0 0 0 0 rgba(93, 109, 253, 0);
     transform: scale(0.95);
   }
 }

@@ -9,6 +9,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import Typography from '@tiptap/extension-typography';
 import { Wikilink } from '../extensions/Wikilink';
 import { EnhancedMarkdown } from '../extensions/EnhancedMarkdown';
+import { CodeBlockLowlight } from '../extensions/CodeBlockLowlight';
 
 export function createEditorExtensions(onWikilinkClick: (noteName: string) => void) {
   return [
@@ -16,13 +17,16 @@ export function createEditorExtensions(onWikilinkClick: (noteName: string) => vo
       heading: {
         levels: [1, 2, 3, 4, 5, 6]
       },
-      codeBlock: {
-        HTMLAttributes: {
-          class: 'code-block'
-        }
-      },
+      // 禁用 StarterKit 自带的 codeBlock，使用自定义的
+      codeBlock: false,
       // 禁用 StarterKit 自带的扩展,使用自定义配置
       link: false  // 禁用默认的 Link,使用下面自定义的
+    }),
+    CodeBlockLowlight.configure({
+      languageClassPrefix: 'language-',
+      HTMLAttributes: {
+        class: 'code-block'
+      }
     }),
     Typography,
     EnhancedMarkdown,
