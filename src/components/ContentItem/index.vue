@@ -54,14 +54,12 @@
 
 <script setup lang="ts">
 import { formatDate } from '@/utils';
-import { useConfigurationStore } from '@/store';
 import { EditTwo, DeleteFour, CategoryManagement, Notebook, FileCodeOne } from '@icon-park/vue-next';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 const route = useRoute();
-const store = useConfigurationStore();
 
 const props = defineProps<{
   content: ContentType;
