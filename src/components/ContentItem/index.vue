@@ -54,10 +54,6 @@
 
 <script setup lang="ts">
 import { formatDate } from '@/utils';
-import {
-  editFragment,
-  getUncategorizedId
-} from '@/api/fragment';
 import { useConfigurationStore } from '@/store';
 import { EditTwo, DeleteFour, CategoryManagement, Notebook, FileCodeOne } from '@icon-park/vue-next';
 import { computed } from 'vue';
@@ -99,8 +95,6 @@ const menu = computed(() => [
     icon: DeleteFour
   }
 ]);
-
-const categories = computed(() => store.categories);
 
 const isActive = computed(() => {
   return route.params.id === content.value.id.toString();
