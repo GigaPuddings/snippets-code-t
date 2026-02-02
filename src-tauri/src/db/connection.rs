@@ -313,18 +313,25 @@ fn verify_write_permission(dir: &std::path::Path) -> Result<(), String> {
 fn is_protected_path(path: &std::path::Path) -> bool {
     let path_str = path.to_string_lossy().to_lowercase();
     
-    // Windows 受保护目录列表
+    // 只拦截直接选择这些系统目录本身，不拦截其子目录
+    // 例如：拦截 "C:\Windows" 但允许 "C:\Windows\MyApp"（虽然写入权限测试会失败）
     let protected_dirs = [
         "c:\\program files",
         "c:\\program files (x86)",
-        "c:\\windows",
-        "c:\\programdata",
         "d:\\program files",
         "d:\\program files (x86)",
+        "e:\\program files",
+        "e:\\program files (x86)",
+        "f:\\program files",
+        "f:\\program files (x86)",
+        "c:\\windows",
+        "c:\\programdata",
     ];
     
+    // 检查是否完全匹配这些目录（不包括子目录）
     for protected in &protected_dirs {
-        if path_str.starts_with(protected) {
+        // 完全匹配或者后面只跟着路径分隔符
+        if path_str == *protected || path_str == format!("{}\\", protected) {
             return true;
         }
     }
@@ -395,6 +402,10 @@ pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Re
             let _ = key.set_value(REG_VALUE, &final_path);
         }
     }
+    
+    // 初始化数据库（创建所有表）
+    use crate::db::init_db;
+    init_db().map_err(|e| format!("初始化数据库失败: {}", e))?;
     
     // 返回实际使用的路径
     Ok(final_path)

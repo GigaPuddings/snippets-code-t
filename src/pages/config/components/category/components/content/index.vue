@@ -454,7 +454,7 @@ const handleWikilinkClick = async (noteName: string) => {
     }
   } catch (error) {
     console.error('Failed to handle wikilink click:', error);
-    ElMessage.error('处理链接失败');
+    ElMessage.error(t('content.handleLinkFailed'));
   }
 };
 
@@ -497,7 +497,7 @@ const confirmCreateNote = async () => {
     showCreateNoteDialog.value = false;
   } catch (error) {
     console.error('Failed to create note:', error);
-    ElMessage.error('创建笔记失败');
+    ElMessage.error(t('content.createNoteFailed'));
   }
 };
 

@@ -211,11 +211,28 @@ const prevStep = () => {
   }
 };
 
-const nextStep = () => {
-  if (step.value === 1 && pathOption.value === 'custom' && !customPath.value) {
-    modal.msg(t('setup.selectDir'), 'warning');
-    return;
+const nextStep = async () => {
+  // 在数据目录设置步骤，验证路径
+  if (step.value === 1) {
+    if (pathOption.value === 'custom' && !customPath.value) {
+      modal.msg(t('setup.selectDir'), 'warning');
+      return;
+    }
+    
+    // 如果选择了自定义路径，提前验证
+    if (pathOption.value === 'custom' && customPath.value && customPath.value !== defaultPath.value) {
+      try {
+        // 验证路径是否可用（后端会检查保护目录和写入权限）
+        const actualPath = await invoke<string>('set_data_dir_from_setup', { path: customPath.value });
+        customPath.value = actualPath;
+      } catch (error: any) {
+        // 显示详细的错误信息，阻止进入下一步
+        modal.msg(`${t('setup.pathError') || '路径设置失败'}: ${error}`, 'error');
+        return;
+      }
+    }
   }
+  
   if (step.value < steps.value.length - 1) {
     step.value++;
   }
@@ -247,19 +264,7 @@ const completeSetup = async () => {
     store.language = language.value;
     await invoke('set_language', { language: language.value });
 
-    // 如果选择了自定义路径，保存到配置
-    if (pathOption.value === 'custom' && customPath.value && customPath.value !== defaultPath.value) {
-      try {
-        // 后端会返回实际使用的路径（可能添加了 snippets-code 子文件夹）
-        const actualPath = await invoke<string>('set_data_dir_from_setup', { path: customPath.value });
-        customPath.value = actualPath;
-      } catch (error: any) {
-        // 显示详细的错误信息
-        modal.msg(`${t('setup.pathError') || '路径设置失败'}: ${error}`, 'error');
-        completing.value = false;
-        return;
-      }
-    }
+    // 路径已在 nextStep 中验证和保存，这里不需要再次调用
 
     // 标记设置已完成
     await invoke('set_setup_completed');

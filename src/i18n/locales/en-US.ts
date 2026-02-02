@@ -287,6 +287,12 @@ export default {
     createNoteConfirm: 'Note "{name}" not found. Create a new note?'
   },
 
+  // Content Editing
+  content: {
+    handleLinkFailed: 'Failed to handle link',
+    createNoteFailed: 'Failed to create note'
+  },
+
   // Advanced Search
   search: {
     filterByDate: 'Filter by Date',
@@ -577,12 +583,15 @@ export default {
   // Content Item Context Menu
   contentItem: {
     changeCategory: 'Change Category',
+    changeCategorySuccess: 'Category changed successfully',
+    changeCategoryFailed: 'Failed to change category',
     rename: 'Rename',
     delete: 'Delete',
     uncategorized: 'Uncategorized',
     updateFailed: 'Failed to update category',
     deleteConfirm: 'Delete snippet "{name}"?',
     deleteSuccess: 'Snippet deleted',
+    deleteFailed: 'Failed to delete',
     codeSnippet: 'Snippet',
     note: 'Note',
     filterByType: 'Filter by Type',

@@ -50,17 +50,6 @@
       </main>
     </div>
   </ContextMenu>
-  
-  <!-- 更改分类对话框 -->
-  <SelectConfirmDialog
-    v-model="showCategoryDialog"
-    v-model:selected="selectedCategoryId"
-    :title="$t('contentItem.changeCategory')"
-    :options="categoryOptions"
-    :confirm-text="$t('common.confirm')"
-    :cancel-text="$t('common.cancel')"
-    @confirm="confirmCategoryChange"
-  />
 </template>
 
 <script setup lang="ts">
@@ -73,7 +62,6 @@ import { useConfigurationStore } from '@/store';
 import { EditTwo, DeleteFour, CategoryManagement, Notebook, FileCodeOne } from '@icon-park/vue-next';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { SelectConfirmDialog } from '../UI';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -87,16 +75,12 @@ const router = useRouter();
 
 const emit = defineEmits<{
   (e: 'delete', content: ContentType): void;
+  (e: 'changeCategory', content: ContentType): void;
 }>();
 
 defineOptions({
   name: 'ContentItem'
 });
-
-// 对话框状态
-const showCategoryDialog = ref(false);
-const selectedCategoryId = ref<number>(0);
-const uncategorizedId = ref<number | null>(null);
 
 const menu = computed(() => [
   {
@@ -117,17 +101,6 @@ const menu = computed(() => [
 ]);
 
 const categories = computed(() => store.categories);
-
-// 分类选项（包括"未分类"）
-const categoryOptions = computed(() => {
-  return [
-    { label: t('contentItem.uncategorized'), value: 0 },
-    ...categories.value.map((category) => ({
-      label: category.name,
-      value: category.id as number
-    }))
-  ];
-});
 
 const isActive = computed(() => {
   return route.params.id === content.value.id.toString();
@@ -185,51 +158,8 @@ const handleContextMenu = async (item: any) => {
     // 触发删除事件，让父组件处理
     emit('delete', content.value);
   } else if (item.type === 'edit') {
-    showCategorySelector();
-  }
-};
-
-const showCategorySelector = async () => {
-  try {
-    // 获取"未分类"的实际 ID
-    uncategorizedId.value = await getUncategorizedId();
-    
-    // 如果当前片段的 category_id 等于"未分类"的实际 ID，则显示为 0
-    selectedCategoryId.value = content.value.category_id === uncategorizedId.value ? 0 : content.value.category_id as number;
-    
-    // 显示对话框
-    showCategoryDialog.value = true;
-  } catch (error) {
-    console.error('Failed to get uncategorized ID:', error);
-  }
-};
-
-const confirmCategoryChange = async () => {
-  try {
-    // 将前端的 0 转换回实际的"未分类" ID
-    const actualCategoryId = selectedCategoryId.value === 0 ? uncategorizedId.value : selectedCategoryId.value;
-    
-    if (actualCategoryId !== content.value.category_id) {
-      await handleCategoryChange(actualCategoryId!, uncategorizedId.value);
-    }
-    
-    showCategoryDialog.value = false;
-  } catch (error) {
-    console.error('Failed to change category:', error);
-  }
-};
-
-const handleCategoryChange = async (categoryId: string | number, uncategorizedId: number | null) => {
-  try {
-    let params = Object.assign(content.value, { category_id: categoryId });
-    await editFragment(params);
-    
-    // 如果修改为未分类，跳转到未分类视图（使用前端标识 0）
-    // 否则跳转到对应的分类 ID
-    const targetCid = categoryId === uncategorizedId ? '0' : categoryId;
-    router.replace(`/config/category/contentList/${targetCid}`);
-  } catch (error) {
-    console.error('Update category failed:', error);
+    // 触发更改分类事件，让父组件处理
+    emit('changeCategory', content.value);
   }
 };
 </script>

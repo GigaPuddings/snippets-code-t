@@ -75,6 +75,7 @@
               <ContentItem
                 :content="item"
                 @delete="handleDelete"
+                @changeCategory="handleChangeCategory"
               />
             </RecycleScroller>
             <div v-else class="content-empty">
@@ -117,12 +118,23 @@
     >
       <div>{{ $t('contentItem.deleteConfirm', { name: deleteTarget?.title }) }}</div>
     </ConfirmDialog>
+    
+    <!-- 更改分类对话框 -->
+    <SelectConfirmDialog
+      v-model="showCategoryDialog"
+      :title="$t('contentItem.changeCategory')"
+      :options="categoryOptions"
+      :default-value="selectedCategoryId"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      @confirm="confirmCategoryChange"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
 import { Search, Plus, Filter } from '@icon-park/vue-next';
-import { getFragmentList, addFragment, getCategories, getUncategorizedId, deleteFragment } from '@/api/fragment';
+import { getFragmentList, addFragment, getCategories, getUncategorizedId, deleteFragment, editFragment } from '@/api/fragment';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore } from '@/store';
 import { onMounted, nextTick, computed } from 'vue';
@@ -135,12 +147,13 @@ import { parseSearchText } from '@/utils/searchParser';
 import { applyFilter } from '@/utils/filterEngine';
 import Splitter from '@/components/Splitter/index.vue';
 import ContentItem from '@/components/ContentItem/index.vue';
-import { ConfirmDialog } from '@/components/UI';
-import { ElMessage } from 'element-plus';
+import { ConfirmDialog, SelectConfirmDialog } from '@/components/UI';
+import { useI18n } from 'vue-i18n';
 
 const route = useRoute();
 const router = useRouter();
 const store = useConfigurationStore();
+const { t } = useI18n();
 const searchText = ref('');
 const showTypeSelector = ref(false);
 const showFilterPanel = ref(false);
@@ -149,6 +162,10 @@ const panelFilter = ref<SearchFilter>({ type: 'all' });
 const tagFilter = ref<string | null>(null);
 const showDeleteDialog = ref(false);
 const deleteTarget = ref<ContentType | null>(null);
+const showCategoryDialog = ref(false);
+const changeCategoryTarget = ref<ContentType | null>(null);
+const selectedCategoryId = ref<number>(0);
+const uncategorizedId = ref<number | null>(null);
 
 defineOptions({
   name: 'ContentList'
@@ -368,7 +385,7 @@ const confirmDelete = async () => {
   
   try {
     await deleteFragment(Number(deleteTarget.value.id));
-    ElMessage.success('删除成功');
+    ElMessage.success(t('contentItem.deleteSuccess'));
     
     if (route.params.id) {
       // 如果当前在详情页，跳转回列表页
@@ -402,7 +419,7 @@ const confirmDelete = async () => {
     deleteTarget.value = null;
   } catch (error) {
     console.error('Delete failed:', error);
-    ElMessage.error('删除失败');
+    ElMessage.error(t('contentItem.deleteFailed'));
   }
 };
 
@@ -412,6 +429,61 @@ const clearTagFilter = () => {
     path: `/config/category/contentList/${route.params.cid || 0}`,
     query: {}
   });
+};
+
+// 分类选项（包括"未分类"）
+const categoryOptions = computed(() => {
+  return [
+    { label: t('contentItem.uncategorized'), value: 0 },
+    ...store.categories.map((category) => ({
+      label: category.name,
+      value: category.id as number
+    }))
+  ];
+});
+
+const handleChangeCategory = async (content: ContentType) => {
+  changeCategoryTarget.value = content;
+  
+  try {
+    // 获取"未分类"的实际 ID
+    uncategorizedId.value = await getUncategorizedId();
+    
+    // 如果当前片段的 category_id 等于"未分类"的实际 ID，则显示为 0
+    selectedCategoryId.value = content.category_id === uncategorizedId.value ? 0 : content.category_id as number;
+    
+    // 显示对话框
+    showCategoryDialog.value = true;
+  } catch (error) {
+    console.error('Failed to get uncategorized ID:', error);
+  }
+};
+
+const confirmCategoryChange = async (selectedValue: string | number) => {
+  if (!changeCategoryTarget.value) return;
+  
+  try {
+    // 将前端的 0 转换回实际的"未分类" ID
+    const actualCategoryId = selectedValue === 0 ? uncategorizedId.value : selectedValue;
+    
+    if (actualCategoryId !== changeCategoryTarget.value.category_id) {
+      let params = Object.assign(changeCategoryTarget.value, { category_id: actualCategoryId });
+      await editFragment(params);
+      
+      ElMessage.success(t('contentItem.changeCategorySuccess'));
+      
+      // 如果修改为未分类，跳转到未分类视图（使用前端标识 0）
+      // 否则跳转到对应的分类 ID
+      const targetCid = actualCategoryId === uncategorizedId.value ? '0' : actualCategoryId;
+      router.replace(`/config/category/contentList/${targetCid}`);
+    }
+    
+    showCategoryDialog.value = false;
+    changeCategoryTarget.value = null;
+  } catch (error) {
+    console.error('Failed to change category:', error);
+    ElMessage.error(t('contentItem.changeCategoryFailed'));
+  }
 };
 
 // 监听 store 中的内容变化，用于更新列表

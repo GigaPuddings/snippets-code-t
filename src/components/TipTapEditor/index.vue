@@ -209,9 +209,14 @@ const editor = useEditor({
       const text = event.clipboardData?.getData('text/plain');
       if (!text) return false;
       
-      const hasMarkdown = /^#{1,6}\s|^\*\*|^\*|^-\s|^>\s|^```|^\d+\.\s|^-\s\[[ x]\]/.test(text);
+      // 改进的 Markdown 检测策略：
+      // 1. 检查是否包含明显的 Markdown 语法
+      // 2. 或者包含多行文本（可能是从 Markdown 文档复制的）
+      const hasMarkdownSyntax = /^#{1,6}\s|^\*\*|^\*|^-\s|^>\s|^```|^\d+\.\s|^-\s\[[ x]\]|\*\*.*\*\*|__.*__|`.*`|\[.*\]\(.*\)|^---$|^\|.*\|/m.test(text);
+      const isMultiLine = text.includes('\n');
       
-      if (hasMarkdown) {
+      // 如果包含 Markdown 语法或者是多行文本，尝试作为 Markdown 解析
+      if (hasMarkdownSyntax || isMultiLine) {
         try {
           const html = marked.parse(text) as string;
           view.dispatch(view.state.tr.insertText(''));

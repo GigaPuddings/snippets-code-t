@@ -101,6 +101,16 @@ watch(
   }
 );
 
+// 监听 defaultValue 的变化，确保对话框打开时使用最新的值
+watch(
+  () => props.defaultValue,
+  (val) => {
+    if (visible.value) {
+      selectedValue.value = val;
+    }
+  }
+);
+
 watch(visible, (val) => {
   emit('update:modelValue', val);
 });

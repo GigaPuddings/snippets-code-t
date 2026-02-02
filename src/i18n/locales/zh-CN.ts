@@ -287,6 +287,12 @@ export default {
     createNoteConfirm: '未找到名为"{name}"的笔记，是否创建新笔记？'
   },
 
+  // 内容编辑
+  content: {
+    handleLinkFailed: '处理链接失败',
+    createNoteFailed: '创建笔记失败'
+  },
+
   // 高级搜索
   search: {
     filterByDate: '按日期筛选',
@@ -577,12 +583,15 @@ export default {
   // 内容项目右键菜单
   contentItem: {
     changeCategory: '修改分类',
+    changeCategorySuccess: '分类修改成功',
+    changeCategoryFailed: '分类修改失败',
     rename: '重命名',
     delete: '删除',
     uncategorized: '未分类',
     updateFailed: '更新分类失败',
     deleteConfirm: '确定要删除片段「{name}」吗？',
     deleteSuccess: '片段已删除',
+    deleteFailed: '删除失败',
     codeSnippet: '片段',
     note: '笔记',
     filterByType: '按类型筛选',
