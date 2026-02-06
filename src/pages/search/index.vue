@@ -79,6 +79,7 @@ const handleKeyDown = async (e: Event) => {
         } else {
           // 如果有搜索结果，进入列表模式
           e.preventDefault();
+          input.blur(); // 让输入框失焦
           resultRef.value?.enterListMode();
         }
       }
@@ -88,6 +89,7 @@ const handleKeyDown = async (e: Event) => {
       // 下键进入列表模式
       if (canSwitchToList.value) {
         e.preventDefault();
+        input.blur(); // 让输入框失焦
         resultRef.value?.enterListMode();
       }
       break;
@@ -103,6 +105,7 @@ const handleKeyDown = async (e: Event) => {
       if ((e.code === 'ArrowLeft' && atStart) || (e.code === 'ArrowRight' && atEnd)) {
         // 即使没有结果也允许进入分类标签模式（用于切换分类）
         e.preventDefault();
+        input.blur(); // 让输入框失焦
         resultRef.value?.enterTabMode();
       }
       break;
@@ -111,9 +114,11 @@ const handleKeyDown = async (e: Event) => {
       e.preventDefault();
       // Shift+Tab：如果有结果直接进入列表模式
       if (e.shiftKey && canSwitchToList.value) {
+        input.blur(); // 让输入框失焦
         resultRef.value?.enterListMode();
       } else {
         // Tab 键：进入分类标签模式（即使没有结果也可以切换分类）
+        input.blur(); // 让输入框失焦
         resultRef.value?.enterTabMode();
       }
       break;

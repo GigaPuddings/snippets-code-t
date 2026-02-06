@@ -270,17 +270,6 @@ function switchTab(tab: SummarizeType) {
 
 // 键盘事件处理函数
 const handleKeyEvent = (e: KeyboardEvent) => {
-  // 全局快捷键：数字键 1-5 快速选择（任何模式下都可用）
-  if (/^Digit[1-5]$/.test(e.code) || /^Numpad[1-5]$/.test(e.code)) {
-    e.preventDefault();
-    e.stopPropagation();
-    const num = parseInt(e.code.replace('Digit', '').replace('Numpad', ''));
-    if (filteredResults.value.length >= num) {
-      selectItem(filteredResults.value[num - 1]);
-    }
-    return;
-  }
-
   // Escape 键：关闭预览窗口并隐藏搜索窗口（任何模式下都可用）
   if (e.code === 'Escape') {
     e.preventDefault();
@@ -300,6 +289,17 @@ const handleKeyEvent = (e: KeyboardEvent) => {
       setMode('TAB');
     }
     // 其他键让搜索框处理，不阻止
+    return;
+  }
+
+  // 数字键 1-5 快速选择（仅在列表模式或标签模式下可用，避免与输入框输入冲突）
+  if (/^Digit[1-5]$/.test(e.code) || /^Numpad[1-5]$/.test(e.code)) {
+    e.preventDefault();
+    e.stopPropagation();
+    const num = parseInt(e.code.replace('Digit', '').replace('Numpad', ''));
+    if (filteredResults.value.length >= num) {
+      selectItem(filteredResults.value[num - 1]);
+    }
     return;
   }
 
