@@ -176,14 +176,17 @@ const searchFilter = computed(() => parseSearchText(searchText.value));
 
 // 合并所有筛选条件
 const combinedFilter = computed(() => {
-  const filter: SearchFilter = { ...searchFilter.value, ...panelFilter.value };
+  const filter: SearchFilter = { 
+    ...searchFilter.value, 
+    ...panelFilter.value 
+  };
   
-  // 合并标签（来自路由的标签筛选）
-  if (tagFilter.value) {
-    filter.tags = filter.tags || [];
-    if (!filter.tags.includes(tagFilter.value)) {
-      filter.tags.push(tagFilter.value);
-    }
+  // 处理标签合并：优先使用 panelFilter 中的标签
+  // 如果 panelFilter 有标签，使用它；否则检查路由中的 tagFilter
+  if (panelFilter.value.tags && panelFilter.value.tags.length > 0) {
+    filter.tags = [...panelFilter.value.tags];
+  } else if (tagFilter.value) {
+    filter.tags = [tagFilter.value];
   }
   
   return filter;
@@ -225,12 +228,54 @@ const filteredContents = computed(() => {
 
 // 切换筛选面板
 function toggleFilterPanel() {
+  if (!showFilterPanel.value) {
+    // 打开面板前，创建一个干净的筛选对象
+    const currentFilter: SearchFilter = { 
+      type: panelFilter.value.type || 'all',
+      sortBy: panelFilter.value.sortBy,
+      sortOrder: panelFilter.value.sortOrder
+    };
+    
+    // 如果路由中有 tag 参数，添加到筛选条件中
+    if (tagFilter.value) {
+      currentFilter.tags = [tagFilter.value];
+    } else if (panelFilter.value.tags) {
+      // 否则使用面板中已有的标签
+      currentFilter.tags = [...panelFilter.value.tags];
+    }
+    
+    panelFilter.value = currentFilter;
+  }
+  
   showFilterPanel.value = !showFilterPanel.value;
 }
 
 // 处理筛选面板更新
 function handleFilterUpdate(filter: SearchFilter) {
+  // 完全替换 panelFilter，而不是合并
   panelFilter.value = { ...filter };
+  
+  // 如果筛选条件中没有标签，清除路由中的 tag 参数
+  if (!filter.tags || filter.tags.length === 0) {
+    if (route.query.tag) {
+      const { tag, ...restQuery } = route.query;
+      router.replace({
+        path: route.path,
+        query: restQuery
+      });
+    }
+    tagFilter.value = null;
+  } else {
+    // 如果筛选条件中有标签，但路由中的 tag 不在其中，清除路由 tag
+    if (route.query.tag && !filter.tags.includes(route.query.tag as string)) {
+      const { tag, ...restQuery } = route.query;
+      router.replace({
+        path: route.path,
+        query: restQuery
+      });
+      tagFilter.value = null;
+    }
+  }
 }
 
 // 处理搜索框失焦

@@ -115,6 +115,7 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
             content TEXT NOT NULL,
             category_id INTEGER,
             created_at TEXT NOT NULL,
+            updated_at TEXT,
             FOREIGN KEY (category_id) REFERENCES categories(id)
         )",
         [],
@@ -255,6 +256,14 @@ pub fn migrate_fragment_type_support(conn: &rusqlite::Connection) -> Result<(), 
     if !column_exists("tags") {
         let _ = conn.execute(
             "ALTER TABLE contents ADD COLUMN tags TEXT",
+            []
+        );
+    }
+    
+    // 添加 updated_at 字段（可选，存储最后更新时间）
+    if !column_exists("updated_at") {
+        let _ = conn.execute(
+            "ALTER TABLE contents ADD COLUMN updated_at TEXT",
             []
         );
     }

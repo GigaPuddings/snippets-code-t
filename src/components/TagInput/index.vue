@@ -19,10 +19,11 @@
         ref="inputRef"
         v-model="inputValue"
         type="text"
+        autocomplete="off"
         :placeholder="$t('tags.inputPlaceholder')"
         class="tag-input"
         @keyup.enter="handleInputConfirm"
-        @blur="handleInputConfirm"
+        @blur="handleInputBlur"
         @keyup.esc="handleInputCancel"
       />
       
@@ -75,6 +76,7 @@ const emit = defineEmits<{
 const inputValue = ref('');
 const showInput = ref(false);
 const inputRef = ref<HTMLInputElement | null>(null);
+const isSelectingSuggestion = ref(false);
 
 // 过滤建议标签
 const filteredSuggestions = computed(() => {
@@ -133,6 +135,21 @@ const handleInputConfirm = () => {
   showInput.value = false;
 };
 
+// 处理输入框失焦
+const handleInputBlur = () => {
+  // 如果正在选择建议，不处理失焦
+  if (isSelectingSuggestion.value) {
+    return;
+  }
+  
+  // 延迟执行，给点击建议项留出时间
+  setTimeout(() => {
+    if (!isSelectingSuggestion.value) {
+      handleInputConfirm();
+    }
+  }, 200);
+};
+
 // 取消输入
 const handleInputCancel = () => {
   inputValue.value = '';
@@ -147,6 +164,8 @@ const handleRemoveTag = (index: number) => {
 
 // 选择建议标签
 const selectSuggestion = (tag: string) => {
+  isSelectingSuggestion.value = true;
+  
   if (validateTag(tag)) {
     const newTags = [...props.modelValue, tag];
     emit('update:modelValue', newTags);
@@ -154,6 +173,10 @@ const selectSuggestion = (tag: string) => {
   
   inputValue.value = '';
   showInput.value = false;
+  
+  nextTick(() => {
+    isSelectingSuggestion.value = false;
+  });
 };
 </script>
 

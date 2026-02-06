@@ -28,47 +28,37 @@
               <div v-if="availableTags.length > 0" class="filter-section">
                 <div class="section-title">{{ $t('tags.tags') }}</div>
                 <div class="tags-container">
-                  <RecycleScroller
-                    v-if="availableTags.length > 10"
-                    class="tags-scroller"
-                    :items="tagItems"
-                    :item-size="32"
-                    :buffer="100"
-                    key-field="tag"
-                    v-slot="{ item }"
-                  >
-                    <el-checkbox
-                      :model-value="selectedTags.includes(item.tag)"
-                      :value="item.tag"
-                      class="tag-checkbox"
-                      @change="handleTagToggle(item.tag, $event)"
-                    >
-                      {{ item.tag }}
-                    </el-checkbox>
-                  </RecycleScroller>
-                  <el-checkbox-group v-else v-model="selectedTags" size="small">
-                    <el-checkbox
+                  <div class="tags-list">
+                    <div
                       v-for="tag in availableTags"
                       :key="tag"
-                      :value="tag"
-                      class="tag-checkbox"
+                      class="tag-item"
+                      :class="{ active: localSelectedTags.includes(tag) }"
+                      @click="toggleTag(tag)"
                     >
-                      {{ tag }}
-                    </el-checkbox>
-                  </el-checkbox-group>
+                      <span class="tag-text">{{ tag }}</span>
+                      <Check v-if="localSelectedTags.includes(tag)" theme="filled" size="14" class="tag-check" />
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div class="filter-section">
                 <div class="section-title">{{ $t('search.sortBy') }}</div>
-                <div class="sort-controls">
-                  <el-select v-model="sortOption" size="small" class="sort-select-full">
-                    <el-option :label="$t('search.defaultSort')" value="" />
-                    <el-option :label="$t('search.createdDesc')" value="created-desc" />
-                    <el-option :label="$t('search.createdAsc')" value="created-asc" />
-                    <el-option :label="$t('search.updatedDesc')" value="updated-desc" />
-                    <el-option :label="$t('search.updatedAsc')" value="updated-asc" />
-                  </el-select>
+                <div class="sort-options">
+                  <div
+                    v-for="option in sortOptions"
+                    :key="option.value"
+                    class="sort-option"
+                    :class="{ active: sortOption === option.value }"
+                    @click="sortOption = option.value"
+                  >
+                    <div class="sort-option-content">
+                      <component :is="option.icon" theme="outline" size="16" :strokeWidth="3" />
+                      <span class="sort-option-label">{{ option.label }}</span>
+                    </div>
+                    <Check v-if="sortOption === option.value" theme="filled" size="14" class="sort-check" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -90,9 +80,10 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { Close } from '@icon-park/vue-next';
-import { RecycleScroller } from 'vue-virtual-scroller';
-import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
+import { Close, Check, SortAmountDown, Time, Edit } from '@icon-park/vue-next';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 interface Props {
   visible: boolean;
@@ -108,37 +99,57 @@ const emit = defineEmits<{
 
 // 本地筛选条件
 const localFilter = ref<SearchFilter>({ ...props.filter });
-const selectedTags = ref<string[]>(props.filter.tags || []);
+// 使用独立的本地标签数组，避免与外部状态混淆
+const localSelectedTags = ref<string[]>([...(props.filter.tags || [])]);
 
 // 排序选项（合并排序字段和顺序）
 const sortOption = ref<string>('');
 
-// 将标签数组转换为对象数组（用于虚拟滚动）
-const tagItems = computed(() => {
-  return props.availableTags.map(tag => ({ tag }));
-});
+// 排序选项配置
+const sortOptions = computed(() => [
+  { label: t('search.defaultSort'), value: '', icon: SortAmountDown },
+  { label: t('search.createdDesc'), value: 'created-desc', icon: Time },
+  { label: t('search.createdAsc'), value: 'created-asc', icon: Time },
+  { label: t('search.updatedDesc'), value: 'updated-desc', icon: Edit },
+  { label: t('search.updatedAsc'), value: 'updated-asc', icon: Edit },
+]);
 
 // 初始化排序选项
 if (props.filter.sortBy && props.filter.sortOrder) {
   sortOption.value = `${props.filter.sortBy}-${props.filter.sortOrder}`;
 }
 
-// 监听外部 filter 变化
-watch(() => props.filter, (newFilter) => {
-  localFilter.value = { ...newFilter };
-  selectedTags.value = newFilter.tags || [];
-  
-  if (newFilter.sortBy && newFilter.sortOrder) {
-    sortOption.value = `${newFilter.sortBy}-${newFilter.sortOrder}`;
+// 切换标签选择
+function toggleTag(tag: string) {
+  const index = localSelectedTags.value.indexOf(tag);
+  if (index > -1) {
+    // 取消选中
+    localSelectedTags.value.splice(index, 1);
   } else {
-    sortOption.value = '';
+    // 选中
+    localSelectedTags.value.push(tag);
   }
-}, { deep: true });
+}
 
-// 监听标签选择变化
-watch(selectedTags, (newTags) => {
-  localFilter.value.tags = newTags.length > 0 ? newTags : undefined;
+// 监听面板显示状态，重新同步标签选择
+watch(() => props.visible, (visible) => {
+  if (visible) {
+    // 面板打开时，完全重置本地状态为外部传入的状态
+    localFilter.value = { ...props.filter };
+    localSelectedTags.value = [...(props.filter.tags || [])];
+    
+    if (props.filter.sortBy && props.filter.sortOrder) {
+      sortOption.value = `${props.filter.sortBy}-${props.filter.sortOrder}`;
+    } else {
+      sortOption.value = '';
+    }
+  }
 });
+
+// 监听标签选择变化，更新 localFilter
+watch(localSelectedTags, (newTags) => {
+  localFilter.value.tags = newTags.length > 0 ? [...newTags] : undefined;
+}, { deep: true });
 
 // 监听排序选项变化
 watch(sortOption, (option) => {
@@ -152,21 +163,6 @@ watch(sortOption, (option) => {
   }
 });
 
-// 处理标签切换（用于虚拟滚动）
-function handleTagToggle(tag: string, checked: any) {
-  const isChecked = Boolean(checked);
-  if (isChecked) {
-    if (!selectedTags.value.includes(tag)) {
-      selectedTags.value.push(tag);
-    }
-  } else {
-    const index = selectedTags.value.indexOf(tag);
-    if (index > -1) {
-      selectedTags.value.splice(index, 1);
-    }
-  }
-}
-
 // 关闭面板
 function handleClose() {
   emit('close');
@@ -174,15 +170,22 @@ function handleClose() {
 
 // 应用筛选
 function handleApply() {
-  emit('update:filter', { ...localFilter.value });
+  // 创建一个新的筛选对象，确保标签数组是新的引用
+  const newFilter: SearchFilter = {
+    ...localFilter.value,
+    tags: localSelectedTags.value.length > 0 ? [...localSelectedTags.value] : undefined
+  };
+  emit('update:filter', newFilter);
   emit('close');
 }
 
 // 重置筛选
 function handleReset() {
   localFilter.value = { type: 'all' };
-  selectedTags.value = [];
+  localSelectedTags.value = [];
   sortOption.value = '';
+  
+  // 立即应用重置
   emit('update:filter', { type: 'all' });
 }
 </script>
@@ -202,6 +205,7 @@ function handleReset() {
   max-height: calc(100vh - 4rem);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 // 面板头部
@@ -219,7 +223,10 @@ function handleReset() {
 
 // 面板内容
 .panel-content {
-  @apply flex-1 overflow-y-auto px-4 py-3;
+  @apply px-4 py-3;
+  overflow-y: visible;
+  flex-shrink: 1;
+  min-height: 0;
 }
 
 .filter-section {
@@ -264,49 +271,86 @@ function handleReset() {
       @apply w-full;
     }
   }
-}
-
-.tags-container {
-  @apply max-h-48 overflow-hidden;
   
-  .tags-scroller {
-    height: 192px; // max-h-48 = 12rem = 192px
+  .sort-options {
+    @apply flex flex-col gap-2;
     
-    :deep(.vue-recycle-scroller__item-view) {
-      padding-right: 8px;
-    }
-  }
-  
-  // 非虚拟滚动时的样式
-  .el-checkbox-group {
-    @apply max-h-48 overflow-y-auto pr-2 block;
-  }
-  
-  // 自定义滚动条
-  :deep(.vue-recycle-scroller__item-wrapper),
-  .el-checkbox-group {
-    &::-webkit-scrollbar {
-      width: 6px;
-    }
-    
-    &::-webkit-scrollbar-track {
-      @apply bg-transparent;
-    }
-    
-    &::-webkit-scrollbar-thumb {
-      @apply bg-panel rounded-full;
+    .sort-option {
+      @apply flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all;
+      @apply bg-transparent hover:bg-hover border border-transparent;
       
-      &:hover {
-        @apply bg-hover;
+      &.active {
+        @apply bg-active border-blue-500;
+        
+        .sort-option-content {
+          @apply text-white;
+        }
+        
+        .sort-option-check {
+          @apply text-white;
+        }
+      }
+      
+      .sort-option-content {
+        @apply flex items-center gap-2 text-content;
+        
+        .sort-option-label {
+          @apply text-xs;
+        }
+      }
+      
+      .sort-check {
+        @apply text-white;
       }
     }
   }
+}
+
+.tags-container {
+  @apply flex flex-col gap-2 max-h-20 overflow-auto;
   
-  .tag-checkbox {
-    @apply block mb-2;
+  .tags-list {
+    @apply grid grid-cols-2 gap-2;
+  }
+  
+  .tag-item {
+    @apply min-h-9 flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all bg-transparent hover:bg-hover border border-transparent;
     
-    &:last-child {
-      @apply mb-0;
+    &.active {
+      @apply bg-active border-blue-500;
+      
+      .tag-text {
+        @apply text-white;
+      }
+      
+      .tag-check {
+        @apply text-white;
+      }
+    }
+    
+    .tag-text {
+      @apply text-xs text-content truncate flex-1;
+    }
+    
+    .tag-check {
+      @apply text-blue-500 flex-shrink-0 ml-2;
+    }
+  }
+  
+  // 自定义滚动条
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    @apply bg-panel rounded-full;
+    
+    &:hover {
+      @apply bg-hover;
     }
   }
 }

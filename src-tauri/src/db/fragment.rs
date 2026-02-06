@@ -23,6 +23,8 @@ pub struct Fragment {
     pub category_id: i64,
     pub created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub category_name: Option<String>,
     #[serde(default)]
     pub summarize: String,
@@ -222,7 +224,7 @@ pub fn get_fragment_list(
     
     // 构建基础查询
     let mut query = String::from(
-        "SELECT c.id, c.title, c.content, c.category_id, c.created_at, cat.name as category_name,
+        "SELECT c.id, c.title, c.content, c.category_id, c.created_at, c.updated_at, cat.name as category_name,
          c.type, c.format, c.metadata, c.tags
          FROM contents c 
          LEFT JOIN categories cat ON c.category_id = cat.id 
@@ -250,13 +252,14 @@ pub fn get_fragment_list(
                 content: row.get(2)?,
                 category_id: row.get(3)?,
                 created_at: row.get(4)?,
-                category_name: row.get(5)?,
+                updated_at: row.get(5).ok(),
+                category_name: row.get(6)?,
                 summarize: "text".to_string(),
                 icon: None,
-                fragment_type: row.get(6).unwrap_or_else(|_| "code".to_string()),
-                format: row.get(7).unwrap_or_else(|_| "plain".to_string()),
-                metadata: row.get(8).ok(),
-                tags: row.get(9).ok(),
+                fragment_type: row.get(7).unwrap_or_else(|_| "code".to_string()),
+                format: row.get(8).unwrap_or_else(|_| "plain".to_string()),
+                metadata: row.get(9).ok(),
+                tags: row.get(10).ok(),
             })
         })
         .map_err(|e| e.to_string())?
@@ -350,8 +353,8 @@ pub fn add_fragment(
     let created_at = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     
     conn.execute(
-        "INSERT INTO contents (title, content, category_id, created_at, type, format, metadata, tags) 
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO contents (title, content, category_id, created_at, updated_at, type, format, metadata, tags) 
+         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, ?7, ?8)",
         rusqlite::params![
             default_title,
             "",
@@ -405,15 +408,17 @@ pub fn edit_fragment(params: EditFragmentParams) -> Result<(), String> {
         }
     }
     
-    // 构建动态 SQL - 始终更新基本字段
-    let mut sql = "UPDATE contents SET title = ?1, content = ?2, category_id = ?3".to_string();
+    // 构建动态 SQL - 始终更新基本字段和 updated_at
+    let updated_at = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let mut sql = "UPDATE contents SET title = ?1, content = ?2, category_id = ?3, updated_at = ?4".to_string();
     let mut sql_params: Vec<Box<dyn rusqlite::ToSql>> = vec![
         Box::new(params.title),
         Box::new(params.content),
         Box::new(params.category_id),
+        Box::new(updated_at),
     ];
     
-    let mut param_index = 4;
+    let mut param_index = 5;
     
     // 如果提供了 fragment_type，添加到更新中
     if let Some(ftype) = params.fragment_type {
@@ -463,7 +468,7 @@ pub fn get_fragment_content(id: i64) -> Result<Option<Fragment>, String> {
     
     let mut stmt = conn
         .prepare(
-            "SELECT c.id, c.title, c.content, c.category_id, c.created_at, cat.name as category_name,
+            "SELECT c.id, c.title, c.content, c.category_id, c.created_at, c.updated_at, cat.name as category_name,
              c.type, c.format, c.metadata, c.tags
              FROM contents c 
              LEFT JOIN categories cat ON c.category_id = cat.id 
@@ -479,13 +484,14 @@ pub fn get_fragment_content(id: i64) -> Result<Option<Fragment>, String> {
                 content: row.get(2)?,
                 category_id: row.get(3)?,
                 created_at: row.get(4)?,
-                category_name: row.get(5)?,
+                updated_at: row.get(5).ok(),
+                category_name: row.get(6)?,
                 summarize: "text".to_string(),
                 icon: None,
-                fragment_type: row.get(6).unwrap_or_else(|_| "code".to_string()),
-                format: row.get(7).unwrap_or_else(|_| "plain".to_string()),
-                metadata: row.get(8).ok(),
-                tags: row.get(9).ok(),
+                fragment_type: row.get(7).unwrap_or_else(|_| "code".to_string()),
+                format: row.get(8).unwrap_or_else(|_| "plain".to_string()),
+                metadata: row.get(9).ok(),
+                tags: row.get(10).ok(),
             })
         })
         .optional()
@@ -548,7 +554,7 @@ pub fn search_fragment_content(keyword: String) -> Result<Vec<Fragment>, String>
     
     // 获取所有片段
     let query = "
-        SELECT c.id, c.title, c.content, c.category_id, c.created_at, cat.name as category_name,
+        SELECT c.id, c.title, c.content, c.category_id, c.created_at, c.updated_at, cat.name as category_name,
         c.type, c.format, c.metadata, c.tags
         FROM contents c
         LEFT JOIN categories cat ON c.category_id = cat.id
@@ -565,13 +571,14 @@ pub fn search_fragment_content(keyword: String) -> Result<Vec<Fragment>, String>
                 content: row.get(2)?,
                 category_id: row.get(3)?,
                 created_at: row.get(4)?,
-                category_name: row.get(5)?,
+                updated_at: row.get(5).ok(),
+                category_name: row.get(6)?,
                 summarize: "text".to_string(),
                 icon: None,
-                fragment_type: row.get(6).unwrap_or_else(|_| "code".to_string()),
-                format: row.get(7).unwrap_or_else(|_| "plain".to_string()),
-                metadata: row.get(8).ok(),
-                tags: row.get(9).ok(),
+                fragment_type: row.get(7).unwrap_or_else(|_| "code".to_string()),
+                format: row.get(8).unwrap_or_else(|_| "plain".to_string()),
+                metadata: row.get(9).ok(),
+                tags: row.get(10).ok(),
             })
         })
         .map_err(|e| e.to_string())?

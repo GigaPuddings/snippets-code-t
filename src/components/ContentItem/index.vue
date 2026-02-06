@@ -43,8 +43,12 @@
               +{{ content.tags.length - 2 }}
             </span>
           </div>
+          <div v-else-if="content.category_name" class="content-item-category">
+            <folder-open theme="outline" size="12" :strokeWidth="3" />
+            <span class="category-name">{{ content.category_name }}</span>
+          </div>
           <div class="content-item-info-time">
-            {{ formatDate(content.created_at) }}
+            {{ formatDate(content.updated_at || content.created_at) }}
           </div>
         </div>
       </main>
@@ -54,7 +58,7 @@
 
 <script setup lang="ts">
 import { formatDate } from '@/utils';
-import { EditTwo, DeleteFour, CategoryManagement, Notebook, FileCodeOne } from '@icon-park/vue-next';
+import { EditTwo, DeleteFour, CategoryManagement, Notebook, FileCodeOne, FolderOpen } from '@icon-park/vue-next';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -132,9 +136,16 @@ const handleClick = () => {
 };
 
 const handleTagClick = (tag: string) => {
-  // 触发标签筛选
+  // 保持在当前视图下进行标签筛选
+  // 如果在"所有片段"视图，不传 cid
+  // 如果在特定分类视图，保持当前 cid
+  const currentCid = route.params.cid;
+  const targetPath = currentCid 
+    ? `/config/category/contentList/${currentCid}`
+    : '/config/category/contentList';
+  
   router.push({
-    path: `/config/category/contentList/${content.value.category_id}`,
+    path: targetPath,
     query: { tag }
   });
 };
@@ -173,7 +184,7 @@ const handleContextMenu = async (item: any) => {
     color: #fff !important;
   }
 
-  .content-item-info {
+  .content-item-info, .content-item-category {
     color: #fff !important;
   }
   
@@ -241,10 +252,10 @@ const handleContextMenu = async (item: any) => {
   }
 
   .content-item-info {
-    @apply flex justify-between items-center gap-2 text-content;
+    @apply flex items-center gap-2 text-content;
 
     .content-item-info-time {
-      @apply text-[10px] opacity-60 flex-shrink-0;
+      @apply text-[10px] opacity-60 flex-shrink-0 ml-auto;
     }
   }
   
@@ -270,6 +281,15 @@ const handleContextMenu = async (item: any) => {
     
     .more-tags {
       @apply text-[10px] text-content opacity-50 flex-shrink-0;
+    }
+  }
+  
+  .content-item-category {
+    @apply flex gap-1 items-center flex-1 min-w-0 overflow-hidden;
+    @apply text-[10px] text-content opacity-60;
+    
+    .category-name {
+      @apply truncate;
     }
   }
 }
@@ -312,6 +332,10 @@ const handleContextMenu = async (item: any) => {
           border-color: rgba(74, 158, 255, 0.6);
         }
       }
+    }
+    
+    .content-item-category {
+      color: rgba(255, 255, 255, 0.7) !important;
     }
   }
 }
