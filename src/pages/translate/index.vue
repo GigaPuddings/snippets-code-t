@@ -8,6 +8,7 @@ import bingIcon from '@/assets/svg/bing.svg';
 import { nextTick, onMounted, onUnmounted, ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
+import { processTextForTranslation, detectLanguage } from '@/utils/text';
 import { translateOffline } from '@/utils/offlineTranslator';
 import {
   Pushpin,
@@ -258,55 +259,6 @@ const speakText = (text: string, lang: string) => {
 
   utterance.lang = langCode;
   window.speechSynthesis.speak(utterance);
-};
-
-// 处理驼峰命名转换为空格分隔
-const processTextForTranslation = (text: string) => {
-  // 处理驼峰命名：insertCamelCase => insert Camel Case
-  return (
-    text
-      // 在大写字母前添加空格（如果前面有字母）
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      // 处理连续大写字母后跟小写字母的情况（如：APIKey => API Key）
-      .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-  );
-};
-
-// 检测文本语言类型（简单判断是中文还是英文）
-const detectLanguage = (text: string) => {
-  if (!text) return 'unknown';
-
-  // 中文字符范围
-  const chineseRegex = /[\u4e00-\u9fa5]/;
-  // 英文字符范围（包括常见标点符号）
-  const englishRegex = /[a-zA-Z0-9]/;
-
-  // 统计中英文字符数量
-  let chineseCount = 0;
-  let englishCount = 0;
-
-  for (let i = 0; i < text.length; i++) {
-    if (chineseRegex.test(text[i])) {
-      chineseCount++;
-    } else if (englishRegex.test(text[i])) {
-      englishCount++;
-    }
-  }
-
-  // 根据字符数量比例判断语言类型
-  // 如果包含中文字符，优先认为是中文
-  if (chineseCount > 0) {
-    // 如果英文字符数量明显多于中文（比例超过2倍），则判断为英文
-    if (englishCount > chineseCount * 2) {
-      return 'en';
-    }
-    return 'zh';
-  } else if (englishCount > 0) {
-    return 'en';
-  } else {
-    // 对于无法识别的语言，默认按英文处理
-    return 'en';
-  }
 };
 
 // 自动设置目标语言

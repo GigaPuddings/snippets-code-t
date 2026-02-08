@@ -101,6 +101,7 @@ import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import { useFocusMode } from '@/hooks/useFocusMode';
 import { processTemplate } from '@/utils/templateParser';
+import { extractPlainText, escapeHtml, highlightText } from '@/utils/text';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
@@ -139,13 +140,6 @@ const tabs = computed(() => [
   }
 ]);
 
-// 从 HTML 内容中提取纯文本用于显示
-const extractPlainText = (html: string): string => {
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  return div.textContent || div.innerText || '';
-};
-
 // 获取显示内容（对于 HTML 格式的笔记，提取纯文本）
 const getDisplayContent = (item: ContentType): string => {
   if (item.format === 'html' && item.type === 'note') {
@@ -154,57 +148,30 @@ const getDisplayContent = (item: ContentType): string => {
   return item.content;
 };
 
-// 高亮匹配文本
-const highlightText = (text: string): string => {
-  if (!text || !props.searchQuery?.trim()) {
-    return escapeHtml(text || '');
-  }
-  
-  const query = props.searchQuery.trim().toLowerCase();
-  
-  // 模糊匹配：将查询拆分为字符，按顺序匹配
-  let result = '';
-  let textIndex = 0;
-  let queryIndex = 0;
-  const textLower = text.toLowerCase();
-  
-  while (textIndex < text.length) {
-    if (queryIndex < query.length && textLower[textIndex] === query[queryIndex]) {
-      // 匹配到字符，添加高亮
-      result += `<span class="highlight">${escapeHtml(text[textIndex])}</span>`;
-      queryIndex++;
-    } else {
-      result += escapeHtml(text[textIndex]);
-    }
-    textIndex++;
-  }
-  
-  return result;
-};
-
 // 获取显示标题（搜索引擎结果不高亮）
 const getDisplayTitle = (item: ContentType): string => {
+  // URL 打开项特殊处理
+  if (item.id === 'url-open') {
+    return escapeHtml(item.title);
+  }
   // 搜索引擎结果不高亮
   if (item.summarize === 'search') {
     return escapeHtml(item.title || item.content.split('/')[2]);
   }
-  return highlightText(item.title || item.content.split('/')[2]);
+  return highlightText(item.title || item.content.split('/')[2], props.searchQuery);
 };
 
 // 获取显示内容（搜索引擎结果不高亮）
 const getDisplayContentHighlighted = (item: ContentType): string => {
+  // URL 打开项显示完整 URL
+  if (item.id === 'url-open') {
+    return `<span class="url-display">${escapeHtml(item.content)}</span>`;
+  }
   // 搜索引擎结果不高亮
   if (item.summarize === 'search') {
     return escapeHtml(getDisplayContent(item));
   }
-  return highlightText(getDisplayContent(item));
-};
-
-// HTML 转义，防止 XSS
-const escapeHtml = (text: string): string => {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  return highlightText(getDisplayContent(item), props.searchQuery);
 };
 
 // 过滤结果
@@ -775,6 +742,10 @@ defineExpose({
           
           :deep(.highlight) {
             @apply text-blue-500 dark:text-blue-400 font-medium;
+          }
+          
+          :deep(.url-display) {
+            @apply text-blue-600 dark:text-blue-400 font-mono;
           }
         }
       }

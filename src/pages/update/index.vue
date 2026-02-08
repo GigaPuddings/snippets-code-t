@@ -171,6 +171,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { useI18n } from 'vue-i18n';
+import { formatBytes, formatPercentage } from '@/utils/format';
 
 const { t } = useI18n();
 import dayjs from 'dayjs';
@@ -198,15 +199,7 @@ const update = reactive({
 });
 
 const progressFormat = (percentage: number) => {
-  return update.downloading ? `${percentage}%` : '';
-};
-
-const formatBytes = (bytes: number) => {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+  return update.downloading ? formatPercentage(percentage) : '';
 };
 
 // 配置 dayjs

@@ -1,5 +1,6 @@
 import { searchFragmentContent } from '@/api/fragment';
 import { debounce } from '@/utils';
+import { isURL, normalizeURL } from '@/utils/url';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { onMounted, ref, watch } from 'vue';
@@ -68,10 +69,25 @@ export function useSearch() {
     const query = searchText.value.toLowerCase();
     const results: ContentType[] = [];
 
-    // 先检查是否是搜索引擎快捷方式
+    // 1. 优先检查是否为 URL
+    if (isURL(searchText.value)) {
+      const normalizedUrl = normalizeURL(searchText.value);
+      results.push({
+        id: 'url-open',
+        title: `在浏览器中打开`,
+        content: normalizedUrl,
+        summarize: 'search',
+        icon: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xOCAxM3Y2YTIgMiAwIDAgMS0yIDJINWEyIDIgMCAwIDEtMi0yVjhhMiAyIDAgMCAxIDItMmg2Ij48L3BhdGg+PHBvbHlsaW5lIHBvaW50cz0iMTUgMyAyMSAzIDIxIDkiPjwvcG9seWxpbmU+PGxpbmUgeDE9IjEwIiB5MT0iMTQiIHgyPSIyMSIgeTI9IjMiPjwvbGluZT48L3N2Zz4='
+      });
+      searchResults.value = results;
+      return;
+    }
+
+    // 2. 检查是否是搜索引擎快捷方式
     const isEngineSearch = await handleEngineSearch(searchText.value);
     if (isEngineSearch) return;
 
+    // 3. 搜索本地内容
     // 搜索代码片段
     const codeResults = await searchCode(query);
     results.push(...codeResults);
@@ -117,7 +133,7 @@ export function useSearch() {
       });
     }
 
-    // 默认搜索引擎选项始终显示
+    // 4. 默认搜索引擎选项（仅在非 URL 时显示）
     const defaultEngine = searchEngines.value.find((e) => e.enabled);
     if (defaultEngine) {
       results.unshift({
@@ -139,9 +155,21 @@ export function useSearch() {
 
     if (searchResults.value.length > 0) return;
 
+    // 1. 优先检查是否为 URL
+    if (isURL(text)) {
+      const normalizedUrl = normalizeURL(text);
+      await invoke('open_url', { url: normalizedUrl });
+      addSearchHistory('url-open');
+      searchText.value = '';
+      invoke('show_hide_window_command', { label: 'search' });
+      return;
+    }
+
+    // 2. 检查是否是搜索引擎快捷方式
     const isEngineSearch = await handleEngineSearch(text, true);
     if (isEngineSearch) return;
 
+    // 3. 使用默认搜索引擎
     const defaultEngine = searchEngines.value.find((e) => e.enabled);
     if (defaultEngine) {
       const searchUrl = defaultEngine.url.replace(

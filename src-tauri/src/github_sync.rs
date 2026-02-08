@@ -4,7 +4,6 @@ use aes_gcm::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use sha2::{Digest, Sha256};
 use tauri::Emitter;
 use tauri_plugin_autostart::ManagerExt;

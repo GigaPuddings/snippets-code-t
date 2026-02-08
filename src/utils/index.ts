@@ -1,5 +1,10 @@
 import { dayjs } from 'element-plus';
 
+// 重新导出其他模块的工具函数
+export * from './url';
+export * from './text';
+export * from './format';
+
 // 防抖函数
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
