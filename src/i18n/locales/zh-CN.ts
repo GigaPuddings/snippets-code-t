@@ -211,9 +211,9 @@ export default {
     pathRequired: '请输入路径',
     urlRequired: '请输入网址',
     iconSourceAuto: '自动获取',
-    iconSourceAutoDesc: '自动尝试多个图标源',
-    iconSourceGoogleDesc: '使用 Google Favicon 服务',
-    iconSourceYandexDesc: '使用 Yandex Favicon 服务',
+    iconSourceAutoDesc: '自动尝试多个图标源（推荐）',
+    iconSourceGoogleDesc: '使用 Google 服务（高清晰度）',
+    iconSourceYandexDesc: '使用 Yandex 服务（覆盖面广）',
     iconSourceWebsite: '网站直接获取',
     iconSourceWebsiteDesc: '直接从网站获取图标'
   },

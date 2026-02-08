@@ -386,27 +386,39 @@ impl IconSource {
 fn get_icon_urls_for_source(source: IconSource, domain: &str) -> Vec<String> {
     match source {
         IconSource::Google => vec![
+            // Google Favicon V2 API - 支持更大尺寸和更好的回退选项
+            format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=128", domain),
+            format!("https://www.google.com/s2/favicons?domain={}&sz=128", domain),
+            // 备用较小尺寸
             format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=64", domain),
-            format!("https://www.google.com/s2/favicons?domain={}&sz=64", domain),
         ],
         IconSource::Yandex => vec![
+            // Yandex API 不支持尺寸参数，返回的图标通常较小
+            // 但某些网站可能在 Yandex 有更好的缓存
+            format!("https://favicon.yandex.net/favicon/v2/{}", domain),
             format!("https://favicon.yandex.net/favicon/{}", domain),
         ],
         IconSource::Website => vec![
-            format!("https://{}/favicon.ico", domain),
-            format!("https://{}/favicon.png", domain),
+            // 直接从网站获取，优先尝试高分辨率图标
             format!("https://{}/apple-touch-icon.png", domain),
+            format!("https://{}/apple-touch-icon-precomposed.png", domain),
+            format!("https://{}/favicon.png", domain),
+            format!("https://{}/favicon.ico", domain),
         ],
         IconSource::Auto => vec![
-            // 优先使用 Google Favicon 服务
+            // 优先使用 Google Favicon 服务 - 128x128 提供最佳清晰度
+            format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=128", domain),
+            format!("https://www.google.com/s2/favicons?domain={}&sz=128", domain),
+            // 备用 Google 64x64
             format!("https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=64", domain),
-            format!("https://www.google.com/s2/favicons?domain={}&sz=64", domain),
-            // 如果 Google 获取不到，使用 Yandex
+            // 尝试从网站直接获取高分辨率图标
+            format!("https://{}/apple-touch-icon.png", domain),
+            // Yandex 作为备选（图标较小但覆盖面广）
+            format!("https://favicon.yandex.net/favicon/v2/{}", domain),
             format!("https://favicon.yandex.net/favicon/{}", domain),
-            // 最后尝试直接从网站获取
+            // 最后尝试标准 favicon
             format!("https://{}/favicon.ico", domain),
             format!("https://{}/favicon.png", domain),
-            format!("https://{}/apple-touch-icon.png", domain),
         ],
     }
 }
@@ -482,8 +494,9 @@ fn is_valid_image_data(bytes: &[u8]) -> bool {
         return false;
     }
     
-    // PNG 图片太小可能是占位图
-    if is_png && bytes.len() < 200 {
+    // PNG 图片太小可能是占位图（但要允许小的有效图标）
+    // 降低阈值以支持小但有效的图标
+    if is_png && bytes.len() < 150 {
         return false;
     }
     
@@ -547,7 +560,7 @@ pub async fn fetch_favicon_with_source(url: &str, source: IconSource) -> Option<
     let _permit = ICON_SEMAPHORE.acquire().await.ok()?;
     
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(10)) // 增加超时时间以支持更大图标
         .build()
         .ok()?;
 

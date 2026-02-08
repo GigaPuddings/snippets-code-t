@@ -211,9 +211,9 @@ export default {
     pathRequired: 'Path is required',
     urlRequired: 'URL is required',
     iconSourceAuto: 'Auto',
-    iconSourceAutoDesc: 'Try multiple icon sources automatically',
-    iconSourceGoogleDesc: 'Use Google Favicon service',
-    iconSourceYandexDesc: 'Use Yandex Favicon service',
+    iconSourceAutoDesc: 'Try multiple icon sources automatically (Recommended)',
+    iconSourceGoogleDesc: 'Use Google service (High quality)',
+    iconSourceYandexDesc: 'Use Yandex service (Wide coverage)',
     iconSourceWebsite: 'Website Direct',
     iconSourceWebsiteDesc: 'Fetch icon directly from website'
   },
