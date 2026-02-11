@@ -20,6 +20,45 @@ export interface OcrResult {
   confidence: number
 }
 
+/** Tesseract 行数据接口 */
+interface TesseractLine {
+  text?: string
+  bbox?: {
+    x0: number
+    y0: number
+    x1: number
+    y1: number
+  }
+  confidence?: number
+  rowAttributes?: {
+    ascenders?: number
+    descenders?: number
+    rowHeight?: number
+  }
+}
+
+/** Tesseract 段落接口 */
+interface TesseractParagraph {
+  lines?: TesseractLine[]
+}
+
+/** Tesseract 块接口 */
+interface TesseractBlock {
+  paragraphs?: TesseractParagraph[]
+}
+
+/** Tesseract 识别结果数据接口 */
+interface TesseractData {
+  text?: string
+  confidence?: number
+  blocks?: TesseractBlock[]
+}
+
+/** Tesseract 识别结果接口 */
+interface TesseractResult {
+  data: TesseractData
+}
+
 // Worker 单例
 let worker: Worker | null = null
 let initPromise: Promise<Worker> | null = null
@@ -47,7 +86,7 @@ async function getWorker(): Promise<Worker> {
 }
 
 /** 从 Tesseract 行数据提取字体信息 */
-function extractFontInfo(line: any, defaultConfidence: number): { fontSize: number; lineHeight: number; confidence: number } {
+function extractFontInfo(line: TesseractLine, defaultConfidence: number): { fontSize: number; lineHeight: number; confidence: number } {
   const bbox = line.bbox
   const rowAttrs = line.rowAttributes
   const bboxHeight = bbox ? bbox.y1 - bbox.y0 : 24
@@ -185,7 +224,7 @@ export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<Oc
       blocks: true,
       layoutBlocks: true,
       text: true,
-    })
+    }) as TesseractResult
     return processResult(result, startTime)
   }
   
@@ -197,22 +236,22 @@ export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<Oc
     blocks: true,
     layoutBlocks: true,
     text: true,
-  })
+  }) as TesseractResult
   
   return processResult(result, startTime)
 }
 
 /** 处理 OCR 识别结果 */
-function processResult(result: any, startTime: number): OcrResult {
+function processResult(result: TesseractResult, startTime: number): OcrResult {
   
   logger.info(`[OCR] 识别完成，耗时: ${Date.now() - startTime}ms`)
   
-  const data = result.data as any
+  const data = result.data
   const blocks: OcrTextBlock[] = []
   const CONFIDENCE_THRESHOLD = 85 // 置信度阈值：低于85%的文字块将被过滤
   
   // 收集所有 lines: data.blocks[].paragraphs[].lines[]
-  const allLines: any[] = []
+  const allLines: TesseractLine[] = []
   for (const block of data.blocks || []) {
     for (const para of block.paragraphs || []) {
       allLines.push(...(para.lines || []))

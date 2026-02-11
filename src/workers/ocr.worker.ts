@@ -3,6 +3,8 @@
  * 在独立线程中处理 OCR 识别，避免阻塞主线程
  */
 
+import type { Worker as TesseractWorker } from 'tesseract.js'
+
 // Worker 消息类型
 interface OCRRequest {
   type: 'recognize'
@@ -10,14 +12,21 @@ interface OCRRequest {
   language?: string
 }
 
+/** OCR 识别结果数据 */
+interface OCRResultData {
+  text: string
+  confidence: number
+  blocks: unknown[]
+}
+
 interface OCRResponse {
   type: 'success' | 'error'
-  data?: any
+  data?: OCRResultData
   error?: string
 }
 
 // 导入 Tesseract (需要在 worker 中使用)
-let tesseractWorker: any = null
+let tesseractWorker: TesseractWorker | null = null
 
 // 初始化 Tesseract Worker
 async function initTesseract() {
@@ -38,7 +47,7 @@ async function initTesseract() {
 }
 
 // 处理 OCR 识别请求
-async function handleRecognize(imageData: ImageData, _language?: string) {
+async function handleRecognize(imageData: ImageData, _language?: string): Promise<OCRResultData> {
   try {
     const worker = await initTesseract()
     
@@ -60,8 +69,9 @@ async function handleRecognize(imageData: ImageData, _language?: string) {
       confidence: result.data.confidence,
       blocks: result.data.blocks || []
     }
-  } catch (error: any) {
-    throw new Error(`OCR 识别失败: ${error.message || error}`)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    throw new Error(`OCR 识别失败: ${errorMessage}`)
   }
 }
 
@@ -83,10 +93,11 @@ self.onmessage = async (event: MessageEvent<OCRRequest>) => {
       default:
         throw new Error(`未知的消息类型: ${type}`)
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
     const response: OCRResponse = {
       type: 'error',
-      error: error.message || String(error)
+      error: errorMessage
     }
     self.postMessage(response)
   }
