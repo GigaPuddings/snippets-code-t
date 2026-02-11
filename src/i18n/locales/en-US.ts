@@ -218,6 +218,20 @@ export default {
     iconSourceWebsiteDesc: 'Fetch icon directly from website'
   },
 
+  // Dialogs
+  dialog: {
+    updateBacklinks: {
+      title: 'Update Backlinks',
+      message: 'Title changed from "{oldTitle}" to "{newTitle}". Found {count} fragment(s) referencing the old title. Update these references?',
+      affectedFragments: 'Affected fragments:',
+      occurrences: 'reference(s)',
+      updating: 'Updating',
+      successCount: 'Successfully updated {count} fragment(s)',
+      failureCount: 'Failed {count}',
+      confirm: 'Update References'
+    }
+  },
+
   // Alarms/Reminders
   alarm: {
     noAlarms: 'No reminders set',
@@ -643,6 +657,24 @@ export default {
     collapseAll: 'Collapse All',
     expandAll: 'Expand All',
     scrollToActive: 'Scroll to Active'
+  },
+
+  // Backlinks
+  backlinks: {
+    title: 'Backlinks',
+    togglePanel: 'Toggle Backlinks Panel',
+    linkedReferences: 'Linked References',
+    unlinkedMentions: 'Unlinked Mentions',
+    noLinkedReferences: 'No other notes link to this file',
+    noUnlinkedMentions: 'No other notes mention this file name',
+    occurrences: ' references',
+    deleteWithBacklinks: 'Delete Fragment with Backlinks',
+    deleteMessage: 'Fragment "{title}" is referenced by {count} other fragment(s). These references will become invalid after deletion.',
+    deleteOptions: 'Delete Options:',
+    deleteOnly: 'Delete fragment only',
+    deleteAndRemoveLinks: 'Delete fragment and remove reference links',
+    updateSuccess: 'Successfully updated {count} fragment(s)',
+    updatePartialFailed: 'Updated {success}, failed {failed}'
   },
 
   // Editor Toolbar

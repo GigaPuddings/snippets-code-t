@@ -218,6 +218,20 @@ export default {
     iconSourceWebsiteDesc: '直接从网站获取图标'
   },
 
+  // 对话框
+  dialog: {
+    updateBacklinks: {
+      title: '更新反向链接',
+      message: '标题从 "{oldTitle}" 改为 "{newTitle}"，发现 {count} 个片段引用了旧标题。是否更新这些引用？',
+      affectedFragments: '受影响的片段：',
+      occurrences: '处引用',
+      updating: '正在更新',
+      successCount: '成功更新 {count} 个片段',
+      failureCount: '失败 {count} 个',
+      confirm: '更新引用'
+    }
+  },
+
   // 提醒事项
   alarm: {
     noAlarms: '暂无设定提醒事项',
@@ -643,6 +657,24 @@ export default {
     collapseAll: '全部折叠',
     expandAll: '展开全部',
     scrollToActive: '定位当前章节'
+  },
+
+  // 反向链接
+  backlinks: {
+    title: '反向链接',
+    togglePanel: '切换反向链接面板',
+    linkedReferences: '链接当前文件',
+    unlinkedMentions: '提及当前文件名',
+    noLinkedReferences: '暂无其他笔记链接到此文件',
+    noUnlinkedMentions: '暂无其他笔记提及此文件名',
+    occurrences: '处引用',
+    deleteWithBacklinks: '删除包含反向链接的片段',
+    deleteMessage: '片段「{title}」被 {count} 个其他片段引用。删除后这些引用将失效。',
+    deleteOptions: '删除选项：',
+    deleteOnly: '仅删除片段',
+    deleteAndRemoveLinks: '删除片段并移除引用链接',
+    updateSuccess: '成功更新 {count} 个片段',
+    updatePartialFailed: '成功更新 {success} 个，失败 {failed} 个'
   },
 
   // 编辑器工具栏
