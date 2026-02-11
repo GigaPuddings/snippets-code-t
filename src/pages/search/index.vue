@@ -3,33 +3,62 @@ import { invoke } from '@tauri-apps/api/core';
 import { useSetIgnoreCursorEvents } from '@/hooks/useSetIgnoreCursorEvents';
 import { useSearch } from '@/hooks/useSearch';
 import { useFocusMode } from '@/hooks/useFocusMode';
+import { useSearchKeyboard } from './composables/useSearchKeyboard';
 import { listen } from '@tauri-apps/api/event';
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
+import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
-const { searchText, searchResults, handleEnterSearch, clearSearch } =
-  useSearch();
+
+const { searchText, searchResults, handleEnterSearch, clearSearch } = useSearch();
 const { isSearchMode, setMode, canSwitchToList } = useFocusMode();
 
 const searchRef = ref<HTMLElement | null>(null);
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const resultRef = ref<InstanceType<typeof Result> | null>(null);
 
-// 搜索框获得焦点时，切换到搜索模式
-const handleInputFocus = () => {
+// 使用键盘导航 composable
+const { handleKeyDown } = useSearchKeyboard({
+  searchInputRef,
+  resultRef,
+  isSearchMode,
+  canSwitchToList,
+  searchResultsLength: computed(() => searchResults.value.length).value,
+  handleEnterSearch
+});
+
+/**
+ * 搜索框获得焦点时，切换到搜索模式
+ */
+const handleInputFocus = (): void => {
   setMode('SEARCH');
 };
 
-// 从结果列表返回到搜索框
-const handleBackToSearch = () => {
+/**
+ * 从结果列表返回到搜索框
+ */
+const handleBackToSearch = (): void => {
   setMode('SEARCH');
   searchInputRef.value?.focus();
 };
 
-const handleGoConfig = async () => {
+/**
+ * 打开配置窗口
+ */
+const handleGoConfig = async (): Promise<void> => {
   try {
     await invoke('hotkey_config_command');
   } catch (error) {
-    console.error('创建窗口失败:', error);
+    ErrorHandler.handle(
+      error,
+      {
+        type: ErrorType.TAURI_COMMAND_ERROR,
+        operation: 'handleGoConfig',
+        timestamp: new Date()
+      },
+      {
+        userMessage: '打开配置窗口失败'
+      }
+    );
   }
 };
 
@@ -58,72 +87,6 @@ onMounted(async () => {
     setMode('SEARCH');
   });
 });
-
-
-// 搜索框键盘事件处理
-const handleKeyDown = async (e: Event) => {
-  if (!(e instanceof KeyboardEvent)) return;
-  
-  // 只在搜索框模式下处理键盘事件
-  if (!isSearchMode.value) return;
-
-  const input = searchInputRef.value;
-  if (!input) return;
-
-  switch (e.code) {
-    case 'Enter':
-      if (!e.isComposing) {
-        // 如果没有搜索结果，执行搜索
-        if (searchResults.value.length === 0) {
-          await handleEnterSearch();
-        } else {
-          // 如果有搜索结果，进入列表模式
-          e.preventDefault();
-          input.blur(); // 让输入框失焦
-          resultRef.value?.enterListMode();
-        }
-      }
-      break;
-    
-    case 'ArrowDown':
-      // 下键进入列表模式
-      if (canSwitchToList.value) {
-        e.preventDefault();
-        input.blur(); // 让输入框失焦
-        resultRef.value?.enterListMode();
-      }
-      break;
-    
-    case 'ArrowLeft':
-    case 'ArrowRight':
-      // 当光标在边界时，可以用左右键切换到分类标签
-      const inputValue = input.value || '';
-      const atStart = input.selectionStart === 0;
-      const atEnd = input.selectionEnd === inputValue.length;
-      
-      // 边界检测：光标在开头按左键，或在结尾按右键
-      if ((e.code === 'ArrowLeft' && atStart) || (e.code === 'ArrowRight' && atEnd)) {
-        // 即使没有结果也允许进入分类标签模式（用于切换分类）
-        e.preventDefault();
-        input.blur(); // 让输入框失焦
-        resultRef.value?.enterTabMode();
-      }
-      break;
-    
-    case 'Tab':
-      e.preventDefault();
-      // Shift+Tab：如果有结果直接进入列表模式
-      if (e.shiftKey && canSwitchToList.value) {
-        input.blur(); // 让输入框失焦
-        resultRef.value?.enterListMode();
-      } else {
-        // Tab 键：进入分类标签模式（即使没有结果也可以切换分类）
-        input.blur(); // 让输入框失焦
-        resultRef.value?.enterTabMode();
-      }
-      break;
-  }
-};
 </script>
 
 <template>
