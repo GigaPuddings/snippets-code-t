@@ -82,6 +82,17 @@
       <div>{{ t('category.unsavedChanges') }}</div>
     </ConfirmDialog>
     
+    <!-- 反向链接更新对话框 -->
+    <BacklinkUpdateDialog
+      v-model="showBacklinkDialog"
+      :fragment-title="backlinkUpdateData?.oldTitle || ''"
+      :new-fragment-title="backlinkUpdateData?.newTitle || ''"
+      :backlink-count="backlinkStats?.count || 0"
+      :backlink-fragments="backlinkStats?.fragments || []"
+      @confirm="handleBacklinkUpdateConfirm"
+      @cancel="handleBacklinkUpdateCancel"
+    />
+    
     <!-- 编辑器加载指示器 -->
     <div v-if="state.isEditorLoading" class="editor-loading">
       <div class="loading-spinner"></div>
@@ -114,10 +125,13 @@
       :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }"
       :show-view-toggle="true"
       :show-editor-actions="false"
+      :current-title="state.title"
+      :current-fragment-id="typeof state.currentContent?.id === 'number' ? state.currentContent.id : Number(state.currentContent?.id)"
       @update:content="handleEditorChange"
       @wikilink-click="handleWikilinkClick"
       @view-mode-change="handleViewModeChange"
       @outline-toggle="handleOutlineToggle"
+      @backlink-navigate="handleBacklinkNavigate"
       :dark="isDark"
     />
   </main>
@@ -128,12 +142,14 @@ import { useConfigurationStore } from '@/store';
 import { getFragmentContent, editFragment, searchFragmentContent, addFragment, getFragmentList } from '@/api/fragment';
 import { debounce } from '@/utils';
 import { parseFragment } from '@/utils/fragment';
-import { handleSaveError, handleLoadError, handleEditorError } from '@/utils/errorHandler';
+import { handleSaveError, handleLoadError, handleEditorError } from '@/utils/error-handler';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import TagInput from '@/components/TagInput/index.vue';
 import { useRouter } from 'vue-router';
 import { ConfirmDialog } from '@/components/UI';
+import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
+import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 
 const { t } = useI18n();
 
@@ -189,6 +205,20 @@ const showUnsavedDialog = ref(false);
 const pendingNoteName = ref('');
 const pendingNavigationId = ref<string | null>(null);
 
+// 反向链接更新对话框状态
+const showBacklinkDialog = ref(false);
+const backlinkUpdateData = ref<{
+  oldTitle: string;
+  newTitle: string;
+} | null>(null);
+const backlinkStats = ref<{
+  count: number;
+  fragments: Array<{ id: number; title: string; occurrences: number }>;
+} | null>(null);
+
+// 保存原始标题用于检测变化
+const originalTitle = ref<string>('');
+
 // 获取所有已存在的标签（用于自动完成）
 const allTags = computed(() => {
   const tagsSet = new Set<string>();
@@ -202,6 +232,15 @@ const allTags = computed(() => {
 
 defineOptions({
   name: 'Content'
+});
+
+// 添加生命周期日志
+onMounted(() => {
+  console.log('[Content] 组件挂载, id:', route.params.id);
+});
+
+onBeforeUnmount(() => {
+  console.log('[Content] 组件卸载');
 });
 
 // 计算当前应该显示的编辑器类型
@@ -335,6 +374,31 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
   try {
     state.isLoading = true;
 
+    // 检测标题是否改变
+    const titleChanged = state.title !== originalTitle.value;
+    
+    // 如果标题改变，检查是否有反向链接
+    if (titleChanged && originalTitle.value) {
+      const backlinks = await findBacklinks(originalTitle.value);
+      
+      if (backlinks.length > 0) {
+        // 有反向链接，显示对话框让用户确认
+        backlinkUpdateData.value = {
+          oldTitle: originalTitle.value,
+          newTitle: state.title
+        };
+        
+        // 加载反向链接统计信息
+        backlinkStats.value = await getBacklinkStats(originalTitle.value);
+        
+        showBacklinkDialog.value = true;
+        state.isLoading = false;
+        
+        // 等待用户确认，不继续保存
+        return;
+      }
+    }
+
     // 获取编辑器元数据
     const metadata = getEditorMetadata();
     
@@ -371,6 +435,9 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
     };
     state.contentChanged = false;
     state.lastSavedAt = new Date();
+    
+    // 更新原始标题
+    originalTitle.value = state.title;
   } catch (error) {
     handleSaveError(error, 'saveContent');
     // Re-throw to allow caller to handle if needed
@@ -380,8 +447,82 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
   }
 };
 
-// 使用 useDebounceFn 代替普通的 debounce
-const debouncedSave = debounce(saveContent, 300);
+// 使用 debounce，保留 cancel 方法
+const debouncedSave = debounce(saveContent as (...args: unknown[]) => unknown, 300);
+
+// 处理反向链接更新确认
+const handleBacklinkUpdateConfirm = async () => {
+  // 对话框内部已经处理了更新，这里只需要继续保存当前片段
+  showBacklinkDialog.value = false;
+  backlinkUpdateData.value = null;
+  backlinkStats.value = null;
+  
+  await saveContentWithoutBacklinkCheck();
+};
+
+// 处理反向链接更新取消
+const handleBacklinkUpdateCancel = async () => {
+  showBacklinkDialog.value = false;
+  backlinkUpdateData.value = null;
+  backlinkStats.value = null;
+  
+  // 用户选择不更新反向链接，直接保存当前片段
+  await saveContentWithoutBacklinkCheck();
+};
+
+// 保存内容但不检查反向链接（用于反向链接对话框确认后）
+const saveContentWithoutBacklinkCheck = async (data: Partial<ContentType> = {}) => {
+  if (!state.currentContent || state.isLoading) return;
+
+  try {
+    state.isLoading = true;
+
+    // 获取编辑器元数据
+    const metadata = getEditorMetadata();
+    
+    // 序列化内容
+    const serializedContent = serializeContent(
+      state.editorContent,
+      state.currentContent.format || 'plain'
+    );
+
+    // 准备更新参数（用于 store）
+    const updateParams = {
+      ...state.currentContent,
+      title: state.title,
+      content: serializedContent,
+      metadata,
+      tags: state.tags,
+      ...data,
+      fragmentType: state.currentContent.type || 'code'
+    };
+
+    // 准备 API 参数（category_id 转换为 null 而不是 undefined）
+    const apiParams = {
+      ...updateParams,
+      category_id: state.currentContent.category_id ?? null
+    };
+
+    await editFragment(apiParams);
+    updateStore(updateParams);
+
+    // 更新当前内容的引用
+    state.currentContent = {
+      ...state.currentContent,
+      ...updateParams
+    };
+    state.contentChanged = false;
+    state.lastSavedAt = new Date();
+    
+    // 更新原始标题
+    originalTitle.value = state.title;
+  } catch (error) {
+    handleSaveError(error, 'saveContent');
+    throw error;
+  } finally {
+    state.isLoading = false;
+  }
+};
 
 // 处理内容变更的通用函数
 const handleContentChange = (
@@ -458,6 +599,88 @@ const handleWikilinkClick = async (noteName: string) => {
   }
 };
 
+// 处理反向链接导航
+const handleBacklinkNavigate = async (fragmentId: number, searchTitle: string) => {
+  try {
+    // 如果有未保存的更改，先保存
+    if (state.contentChanged) {
+      await saveContent();
+    }
+    
+    // 获取目标片段信息
+    const targetFragment = await getFragmentContent(fragmentId);
+    
+    if (targetFragment) {
+      // 判断当前是否在"所有片段"视图
+      const isAllSnippetsView = !route.params.cid;
+      
+      // 构建目标路径
+      const targetPath = isAllSnippetsView 
+        ? `/config/category/contentList/content/${fragmentId}`
+        : `/config/category/contentList/${targetFragment.category_id}/content/${fragmentId}`;
+      
+      // 使用 replace 导航
+      await router.replace({
+        path: targetPath,
+        replace: true
+      });
+      
+      // 等待路由完全切换
+      await nextTick();
+      
+      // 等待编辑器加载完成（带超时和详细日志）
+      const waitForEditor = () => {
+        return new Promise<boolean>((resolve) => {
+          let attempts = 0;
+          const maxAttempts = 30; // 最多尝试30次，每次100ms，总共3秒
+          
+          const checkEditor = () => {
+            attempts++;
+            
+            // 等待编辑器加载完成且引用存在
+            if (!state.isEditorLoading && tipTapEditorRef.value && currentEditorType.value === 'note') {
+              console.log('[Content] 编辑器已准备好，尝试次数:', attempts);
+              resolve(true);
+            } else if (attempts >= maxAttempts) {
+              console.warn('[Content] 等待编辑器超时，状态:', {
+                isEditorLoading: state.isEditorLoading,
+                hasTipTapRef: !!tipTapEditorRef.value,
+                editorType: currentEditorType.value,
+                attempts
+              });
+              resolve(false);
+            } else {
+              // 继续等待
+              setTimeout(checkEditor, 100);
+            }
+          };
+          
+          checkEditor();
+        });
+      };
+      
+      const editorReady = await waitForEditor();
+      
+      // 如果是笔记类型且编辑器准备好了，滚动到对应的 wikilink
+      if (editorReady && tipTapEditorRef.value && searchTitle) {
+        console.log('[Content] 开始滚动到标题:', searchTitle);
+        tipTapEditorRef.value.scrollToWikilink(searchTitle);
+      } else if (!editorReady) {
+        console.warn('[Content] 编辑器未准备好，无法滚动');
+      } else if (!searchTitle) {
+        console.warn('[Content] 没有提供搜索标题');
+      } else {
+        console.warn('[Content] 无法滚动到 wikilink，编辑器引用不存在或非笔记类型');
+      }
+    } else {
+      console.error('[Content] 未找到目标片段');
+    }
+  } catch (error) {
+    console.error('[Content] 反向链接导航失败:', error);
+    ElMessage.error(t('content.handleLinkFailed'));
+  }
+};
+
 // 确认创建新笔记
 const confirmCreateNote = async () => {
   try {
@@ -508,6 +731,8 @@ const fetchContent = async () => {
   state.editorError = null;
 
   try {
+    console.log('[Content] 开始加载内容, id:', route.params.id);
+    
     const result = await getFragmentContent(Number(route.params.id));
 
     if (result) {
@@ -517,6 +742,9 @@ const fetchContent = async () => {
       state.currentContent = parsedContent;
       state.title = parsedContent.title;
       state.tags = parsedContent.tags || [];
+      
+      // 保存原始标题用于检测变化
+      originalTitle.value = parsedContent.title;
       
       // 反序列化内容（根据 format 字段）
       state.editorContent = deserializeContent(
@@ -530,6 +758,8 @@ const fetchContent = async () => {
       // 编辑器加载完成
       await nextTick();
       state.isEditorLoading = false;
+      
+      console.log('[Content] 内容加载完成, 标题:', parsedContent.title);
       
       // 如果有保存的光标位置，恢复它
       if (parsedContent.metadata && parsedContent.metadata.lastCursorPosition && currentEditorType.value === 'note') {
@@ -545,6 +775,7 @@ const fetchContent = async () => {
       }
     }
   } catch (error) {
+    console.error('[Content] 内容加载失败:', error);
     handleLoadError(error, 'fetchContent');
     state.editorError = t('category.loadFailed');
   } finally {
@@ -566,6 +797,8 @@ const deserializeContent = (content: string, _format: ContentFormat): string => 
 watch(
   () => route.params.id,
   async (newId, oldId) => {
+    console.log('[Content] id 参数变化:', { from: oldId, to: newId });
+    
     // 如果路由参数变化，先检查是否有未保存的更改
     if (oldId && state.currentContent && state.contentChanged) {
       // 显示未保存提示
@@ -650,7 +883,6 @@ onMounted(() => {
     if (state.contentChanged) {
       e.preventDefault();
       e.returnValue = '';
-      return '';
     }
   };
   

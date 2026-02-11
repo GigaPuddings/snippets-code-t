@@ -11,16 +11,16 @@
         @blur="handleEditCategory"
       />
       <ContextMenu v-else :menu="menu" @select="handleContextMenu">
-        <router-link
-          :to="`/config/category/contentList/${category.id}`"
+        <div
           class="link"
-          active-class="active"
+          :class="{ active: isActive }"
+          @click="handleClick"
         >
           <div class="flex items-center gap-1">
             <FolderClose theme="outline" size="16" :strokeWidth="2" />
             <div class="truncate ml-1">{{ category.name }}</div>
           </div>
-        </router-link>
+        </div>
       </ContextMenu>
     </div>
 
@@ -47,7 +47,7 @@ import {
   deleteCategory,
   getCategories
 } from '@/api/fragment';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { ConfirmDialog } from '@/components/UI';
 
@@ -58,6 +58,7 @@ const props = defineProps<{
 const store = useConfigurationStore();
 const inputRef = ref<HTMLInputElement | null>(null);
 const router = useRouter();
+const route = useRoute();
 const showDeleteDialog = ref(false);
 
 defineOptions({
@@ -69,8 +70,27 @@ const menu = computed(() => [
   { label: t('common.delete'), icon: DeleteFour, type: 'delete' }
 ]);
 
-// // 判断是否是编辑状态
+// 判断是否是编辑状态
 const isEdit = computed(() => store.editCategoryId == props.category.id);
+
+// 判断是否是当前激活的分类
+const isActive = computed(() => {
+  return route.params.cid === props.category.id.toString();
+});
+
+// 处理点击事件
+const handleClick = () => {
+  // 如果已经在当前分类，不做任何操作
+  if (isActive.value) {
+    return;
+  }
+  
+  // 使用 replace 导航，只刷新 contentList 和 content 子路由
+  router.replace({
+    path: `/config/category/contentList/${props.category.id}`,
+    replace: true
+  });
+};
 
 // 监听是否处于编辑状态并选中文本
 watchEffect(() => {

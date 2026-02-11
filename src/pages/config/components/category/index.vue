@@ -2,42 +2,21 @@
   <main class="category-container">
     <section class="category-page">
       <QuickNav />
-      <div class="category-header-list">
-        <div class="category-header-title">{{ $t('category.folders') }}</div>
-        <div class="category-header-action">
-          <el-tooltip :content="$t('category.newFolder')" placement="bottom">
-            <FolderPlus
-              class="category-header-action-item-icon"
-              theme="outline"
-              size="16"
-              :strokeWidth="3"
-              @click="handleAddCategory"
-            />
-          </el-tooltip>
-          <el-tooltip
-            :content="store.categorySort === 'asc' ? $t('category.ascending') : $t('category.descending')"
-            placement="bottom"
-          >
-            <component
-              class="category-header-action-item-icon"
-              :is="store.categorySort === 'asc' ? SortAmountUp : SortAmountDown"
-              @click="handleSort"
-            />
-          </el-tooltip>
-        </div>
-      </div>
-      <div v-if="store.categories.length > 0" class="category-list">
-        <CategoryItem
-          v-for="item in store.categories"
-          :key="item.id"
-          :category="item"
-          v-memo="[item.id, item.name, store.editCategoryId]"
-        />
-      </div>
-      <div v-else class="category-empty">
-        <div class="category-empty-text">{{ $t('nav.noFolders') }}</div>
-      </div>
+      
+      <!-- 分类头部 -->
+      <CategoryHeader
+        :sort-order="categorySort"
+        @sort="handleSort"
+        @add="handleAddCategory"
+      />
+      
+      <!-- 分类列表 -->
+      <CategoryListView
+        :categories="categories"
+        :edit-category-id="store.editCategoryId"
+      />
     </section>
+    
     <section class="content-page">
       <router-view />
     </section>
@@ -45,54 +24,52 @@
 </template>
 
 <script setup lang="ts">
-import { SortAmountUp, SortAmountDown, FolderPlus } from '@icon-park/vue-next';
+import { onMounted, onBeforeUnmount, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useConfigurationStore } from '@/store';
-import { getCategories, addCategory, getFragmentList } from '@/api/fragment';
-import { useRoute, useRouter } from 'vue-router';
-import { onMounted, watch } from 'vue';
+import { useCategoryManagement } from './composables/useCategoryManagement';
+import CategoryHeader from './components/CategoryHeader.vue';
+import CategoryListView from './components/CategoryListView.vue';
 
 const store = useConfigurationStore();
 const route = useRoute();
-const router = useRouter();
 
 defineOptions({
-  name: 'Category',
-  keepAlive: true
+  name: 'Category'
 });
 
-// 获取分类
-const queryCategories = async () => {
-  const res = await getCategories(store.categorySort);
-  return res;
-};
+// 添加生命周期日志
+onMounted(() => {
+  console.log('[Category] 组件挂载');
+});
 
-// 获取片段列表
-const queryFragments = async () => {
-  const result = await getFragmentList();
-  return result;
-};
+onBeforeUnmount(() => {
+  console.log('[Category] 组件卸载');
+});
 
-onMounted(async () => {
-  if (store.categories.length === 0 && store.contents.length === 0) {
-    // 获取分类
-    store.categories = await queryCategories();
-    // 获取片段列表
-    store.contents = await queryFragments();
+// 监听路由变化
+watch(
+  () => route.fullPath,
+  (newPath, oldPath) => {
+    console.log('[Category] 路由变化:', { from: oldPath, to: newPath });
   }
+);
+
+// 使用分类管理 Composable
+const {
+  categories,
+  categorySort,
+  loadCategories,
+  handleSort,
+  handleAddCategory
+} = useCategoryManagement();
+
+// 初始化加载数据
+onMounted(async () => {
+  await loadCategories();
 });
 
-const handleSort = async () => {
-  store.categorySort = store.categorySort === 'asc' ? 'desc' : 'asc';
-  store.categories = await getCategories(store.categorySort);
-};
-
-const handleAddCategory = async () => {
-  const category_id = await addCategory();
-  store.categories = await queryCategories();
-  store.editCategoryId = category_id.toString();
-  router.replace(`/config/category/contentList/${category_id}`);
-};
-
+// 监听路由变化，清除编辑状态
 watch(
   () => route.params.id,
   (newId) => {
@@ -102,12 +79,6 @@ watch(
   },
   { immediate: true }
 );
-
-onMounted(async () => {
-  if (store.categories.length === 0) {
-    store.categories = await getCategories(store.categorySort);
-  }
-});
 </script>
 
 <style scoped lang="scss">
@@ -120,34 +91,6 @@ onMounted(async () => {
 
   .category-page {
     @apply relative bg-panel dark:bg-panel border dark:border-panel px-2 text-sm text-slate-700 rounded-md;
-
-    .category-header-list {
-      @apply flex justify-between items-center mt-2;
-
-      .category-header-title {
-        @apply px-1 opacity-90 text-content text-xs select-none;
-      }
-
-      .category-header-action {
-        @apply flex items-center;
-
-        .category-header-action-item-icon {
-          @apply p-1 rounded-md cursor-pointer text-content hover:bg-hover dark:hover:bg-hover;
-        }
-      }
-    }
-
-    .category-empty {
-      @apply flex justify-center h-full mt-6;
-
-      .category-empty-text {
-        @apply opacity-90 text-content text-xs select-none;
-      }
-    }
-
-    .category-list {
-      @apply h-[calc(100vh-174px)] overflow-y-auto;
-    }
   }
 
   .content-page {
