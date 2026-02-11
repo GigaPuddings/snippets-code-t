@@ -32,21 +32,14 @@ export function createEditorExtensions(onWikilinkClick: (noteName: string) => vo
     Typography,
     EnhancedMarkdown,
     MarkdownLinkHandler,
-    Link.configure({
-      openOnClick: false,  // 禁用默认的点击打开行为，我们自己处理
-      HTMLAttributes: {
-        class: 'editor-link',
-        rel: 'noopener noreferrer'
-        // 移除 target="_blank"，避免打开两个标签
-      },
-      // 添加自定义属性来保存原始 URL
+    Link.extend({
       addAttributes() {
         return {
           ...this.parent?.(),
           'data-original-url': {
             default: null,
-            parseHTML: element => element.getAttribute('data-original-url'),
-            renderHTML: attributes => {
+            parseHTML: (element: HTMLElement) => element.getAttribute('data-original-url'),
+            renderHTML: (attributes: Record<string, unknown>) => {
               if (!attributes['data-original-url']) {
                 return {};
               }
@@ -56,9 +49,15 @@ export function createEditorExtensions(onWikilinkClick: (noteName: string) => vo
             }
           }
         };
+      }
+    }).configure({
+      openOnClick: false,  // 禁用默认的点击打开行为，我们自己处理
+      HTMLAttributes: {
+        class: 'editor-link',
+        rel: 'noopener noreferrer'
+        // 移除 target="_blank"，避免打开两个标签
       },
-      // 验证并自动补全 URL 协议
-      validate: href => {
+      validate: (href: string) => {
         // 允许锚点链接（目录链接）
         if (href.startsWith('#')) return true;
         
@@ -69,35 +68,6 @@ export function createEditorExtensions(onWikilinkClick: (noteName: string) => vo
         
         // 如果没有协议，认为是有效的（会在后续自动补全）
         return true;
-      },
-      // 自动补全 URL 协议
-      transformPastedHTML(html) {
-        // 处理粘贴的 HTML 中的链接
-        return html.replace(/<a\s+([^>]*href=["'])([^"']+)(["'][^>]*)>/gi, (match, prefix, href, suffix) => {
-          // 保留锚点链接不变
-          if (href.startsWith('#')) {
-            return match;
-          }
-          if (!href.includes('://')) {
-            return `<a ${prefix}https://${href}${suffix}>`;
-          }
-          return match;
-        });
-      },
-      // 自动补全输入的链接协议
-      transformHTMLAttributes(attributes) {
-        const href = attributes.href;
-        // 保留锚点链接不变
-        if (href && href.startsWith('#')) {
-          return attributes;
-        }
-        if (href && !href.includes('://')) {
-          return {
-            ...attributes,
-            href: `https://${href}`
-          };
-        }
-        return attributes;
       }
     }),
     Wikilink.configure({

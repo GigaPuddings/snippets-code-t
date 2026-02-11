@@ -57,7 +57,6 @@ declare module 'vue' {
     FilterPanel: typeof import('./../pages/config/components/category/components/contentList/FilterPanel.vue')['default']
     FragmentTypeSelector: typeof import('./../components/FragmentTypeSelector/index.vue')['default']
     General: typeof import('./../components/SettingsContent/components/General/index.vue')['default']
-    'Index.refactored': typeof import('./../pages/config/components/category/index.refactored.vue')['default']
     Local: typeof import('./../pages/config/components/local/index.vue')['default']
     Manger: typeof import('./../components/SettingsContent/components/Manger/index.vue')['default']
     OutlinePanel: typeof import('./../components/TipTapEditor/components/OutlinePanel.vue')['default']

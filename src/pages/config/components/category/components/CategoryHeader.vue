@@ -50,7 +50,7 @@ defineOptions({
   name: 'CategoryHeader'
 });
 
-const props = defineProps<CategoryHeaderProps>();
+defineProps<CategoryHeaderProps>();
 const emit = defineEmits<CategoryHeaderEmits>();
 
 const handleSort = () => {

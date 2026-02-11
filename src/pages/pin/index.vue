@@ -357,11 +357,11 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 }
 
-const handleKeydown = (event: KeyboardEvent) => {
+const handleKeydown = (event: KeyboardEvent): void => {
   if (event.altKey && event.code === 'Space') {
     event.preventDefault()
     event.stopPropagation()
-    return false
+    return
   }
   
   if (event.key === 'Escape') {
