@@ -48,7 +48,7 @@
             <span class="category-name">{{ content.category_name }}</span>
           </div>
           <div class="content-item-info-time">
-            {{ formatDate(content.updated_at || content.created_at) }}
+            {{ formatDate(content.updated_at || content.created_at || new Date()) }}
           </div>
         </div>
       </main>
@@ -59,28 +59,53 @@
 <script setup lang="ts">
 import { formatDate } from '@/utils';
 import { EditTwo, DeleteFour, CategoryManagement, Notebook, FileCodeOne, FolderOpen } from '@icon-park/vue-next';
-import { computed } from 'vue';
+import { computed, toRefs } from 'vue';
+import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
+import { ErrorHandler, ErrorType } from '@/utils/error-handler';
+
+/**
+ * 组件 Props 接口
+ */
+interface ContentItemProps {
+  /** 内容项数据 */
+  content: ContentType;
+}
+
+/**
+ * 组件 Emits 接口
+ */
+interface ContentItemEmits {
+  /** 删除内容项 */
+  (e: 'delete', content: ContentType): void;
+  /** 更改分类 */
+  (e: 'changeCategory', content: ContentType): void;
+}
+
+/**
+ * 右键菜单项接口
+ */
+interface MenuItem {
+  label: string;
+  type: string;
+  icon: Component;
+}
 
 const { t } = useI18n();
 const route = useRoute();
-
-const props = defineProps<{
-  content: ContentType;
-}>();
-const { content } = toRefs(props);
 const router = useRouter();
 
-const emit = defineEmits<{
-  (e: 'delete', content: ContentType): void;
-  (e: 'changeCategory', content: ContentType): void;
-}>();
+const props = defineProps<ContentItemProps>();
+const { content } = toRefs(props);
+
+const emit = defineEmits<ContentItemEmits>();
 
 defineOptions({
   name: 'ContentItem'
 });
 
-const menu = computed(() => [
+const menu = computed<MenuItem[]>(() => [
   {
     label: t('contentItem.changeCategory'),
     type: 'edit',
@@ -109,60 +134,105 @@ const fragmentTypeLabel = computed(() => {
 
 // 显示最多2个标签(标签多时避免换行)
 const displayTags = computed(() => {
-  if (!content.value.tags || !Array.isArray(content.value.tags)) {
+  if (!content.value.tags) {
     return [];
   }
-  return content.value.tags.slice(0, 2);
+  
+  // tags 现在是 string[] 类型
+  const tagsArray = Array.isArray(content.value.tags) 
+    ? content.value.tags 
+    : [];
+  
+  return tagsArray.slice(0, 2);
 });
 
-const handleClick = () => {
-  const oContentScroller = document.querySelector('.content-scroller .vue-recycle-scroller__item-view') || document.querySelector('.content-list');
-  const scrollY = oContentScroller?.scrollTop || 0; // 确保获取当前滚动位置
+/**
+ * 处理点击事件
+ */
+const handleClick = (): void => {
+  try {
+    // 如果已经在当前内容，不做任何操作
+    if (isActive.value) {
+      return;
+    }
+    
+    // 判断当前是否在"所有片段"视图
+    // 使用 route.params.cid 而不是 categoryId (路由参数名是 cid)
+    const isAllSnippetsView = !route.params.cid;
+    
+    // 如果在"所有片段"视图,跳转到不带 categoryId 的路由
+    const targetPath = isAllSnippetsView 
+      ? `/config/category/contentList/content/${content.value.id}`
+      : `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`;
 
-  // 判断当前是否在"所有片段"视图
-  // 使用 route.params.cid 而不是 categoryId (路由参数名是 cid)
-  const isAllSnippetsView = !route.params.cid;
-  
-  // 如果在"所有片段"视图,跳转到不带 categoryId 的路由
-  const targetPath = isAllSnippetsView 
-    ? `/config/category/contentList/content/${content.value.id}`
-    : `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`;
-
-  router.replace({
-    path: targetPath,
-    query: { scrollY: scrollY.toString() }, // 通过查询参数传递滚动位置
-    replace: true
-  });
-};
-
-const handleTagClick = (tag: string) => {
-  // 保持在当前视图下进行标签筛选
-  // 如果在"所有片段"视图，不传 cid
-  // 如果在特定分类视图，保持当前 cid
-  const currentCid = route.params.cid;
-  const targetPath = currentCid 
-    ? `/config/category/contentList/${currentCid}`
-    : '/config/category/contentList';
-  
-  router.push({
-    path: targetPath,
-    query: { tag }
-  });
-};
-
-const handleContextMenu = async (item: any) => {
-  if (item.type === 'rename') {
-    // 重命名时，通过 query 参数传递标识
-    router.push({
-      path: `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`,
-      query: { rename: 'true' }
+    router.replace({
+      path: targetPath,
+      replace: true
     });
-  } else if (item.type === 'delete') {
-    // 触发删除事件，让父组件处理
-    emit('delete', content.value);
-  } else if (item.type === 'edit') {
-    // 触发更改分类事件，让父组件处理
-    emit('changeCategory', content.value);
+  } catch (error) {
+    ErrorHandler.handle(error, {
+      type: ErrorType.UNKNOWN_ERROR,
+      operation: 'ContentItem.handleClick',
+      details: { contentId: content.value.id },
+      timestamp: new Date()
+    });
+  }
+};
+
+/**
+ * 处理标签点击事件
+ * @param tag - 标签名称
+ */
+const handleTagClick = (tag: string): void => {
+  try {
+    // 保持在当前视图下进行标签筛选
+    // 如果在"所有片段"视图，不传 cid
+    // 如果在特定分类视图，保持当前 cid
+    const currentCid = route.params.cid;
+    const targetPath = currentCid 
+      ? `/config/category/contentList/${currentCid}`
+      : '/config/category/contentList';
+    
+    router.push({
+      path: targetPath,
+      query: { tag }
+    });
+  } catch (error) {
+    ErrorHandler.handle(error, {
+      type: ErrorType.UNKNOWN_ERROR,
+      operation: 'ContentItem.handleTagClick',
+      details: { tag },
+      timestamp: new Date()
+    });
+  }
+};
+
+/**
+ * 处理右键菜单选择
+ * @param item - 菜单项
+ */
+const handleContextMenu = async (item: MenuItem): Promise<void> => {
+  try {
+    if (item.type === 'rename') {
+      // 重命名时，通过 query 参数传递标识
+      router.push({
+        path: `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`,
+        query: { rename: 'true' }
+      });
+    } else if (item.type === 'delete') {
+      // 触发删除事件，让父组件处理
+      emit('delete', content.value);
+    } else if (item.type === 'edit') {
+      // 触发更改分类事件，让父组件处理
+      emit('changeCategory', content.value);
+    }
+  } catch (error) {
+    ErrorHandler.handle(error, {
+      type: ErrorType.UNKNOWN_ERROR,
+      operation: 'ContentItem.handleContextMenu',
+      details: { menuType: item.type },
+      timestamp: new Date()
+    });
   }
 };
 </script>

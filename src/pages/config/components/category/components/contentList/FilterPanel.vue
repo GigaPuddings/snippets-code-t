@@ -85,17 +85,44 @@ import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
-interface Props {
+/**
+ * FilterPanel 组件的 Props 接口
+ */
+interface FilterPanelProps {
+  /** 面板是否可见 */
   visible: boolean;
+  /** 当前筛选条件 */
   filter: SearchFilter;
+  /** 可用的标签列表 */
   availableTags: string[];
 }
 
-const props = defineProps<Props>();
-const emit = defineEmits<{
+/**
+ * FilterPanel 组件的 Emits 接口
+ */
+interface FilterPanelEmits {
+  /** 更新筛选条件 */
   'update:filter': [filter: SearchFilter];
+  /** 关闭面板 */
   'close': [];
-}>();
+  /** 重置所有筛选（包括搜索框） */
+  'reset': [];
+}
+
+/**
+ * 排序选项配置接口
+ */
+interface SortOption {
+  /** 选项显示标签 */
+  label: string;
+  /** 选项值 */
+  value: string;
+  /** 选项图标组件 */
+  icon: unknown;
+}
+
+const props = defineProps<FilterPanelProps>();
+const emit = defineEmits<FilterPanelEmits>();
 
 // 本地筛选条件
 const localFilter = ref<SearchFilter>({ ...props.filter });
@@ -106,7 +133,7 @@ const localSelectedTags = ref<string[]>([...(props.filter.tags || [])]);
 const sortOption = ref<string>('');
 
 // 排序选项配置
-const sortOptions = computed(() => [
+const sortOptions = computed<SortOption[]>(() => [
   { label: t('search.defaultSort'), value: '', icon: SortAmountDown },
   { label: t('search.createdDesc'), value: 'created-desc', icon: Time },
   { label: t('search.createdAsc'), value: 'created-asc', icon: Time },
@@ -119,8 +146,11 @@ if (props.filter.sortBy && props.filter.sortOrder) {
   sortOption.value = `${props.filter.sortBy}-${props.filter.sortOrder}`;
 }
 
-// 切换标签选择
-function toggleTag(tag: string) {
+/**
+ * 切换标签选择状态
+ * @param tag - 要切换的标签
+ */
+function toggleTag(tag: string): void {
   const index = localSelectedTags.value.indexOf(tag);
   if (index > -1) {
     // 取消选中
@@ -132,7 +162,7 @@ function toggleTag(tag: string) {
 }
 
 // 监听面板显示状态，重新同步标签选择
-watch(() => props.visible, (visible) => {
+watch(() => props.visible, (visible: boolean) => {
   if (visible) {
     // 面板打开时，完全重置本地状态为外部传入的状态
     localFilter.value = { ...props.filter };
@@ -147,12 +177,12 @@ watch(() => props.visible, (visible) => {
 });
 
 // 监听标签选择变化，更新 localFilter
-watch(localSelectedTags, (newTags) => {
+watch(localSelectedTags, (newTags: string[]) => {
   localFilter.value.tags = newTags.length > 0 ? [...newTags] : undefined;
 }, { deep: true });
 
 // 监听排序选项变化
-watch(sortOption, (option) => {
+watch(sortOption, (option: string) => {
   if (option) {
     const [sortBy, sortOrder] = option.split('-');
     localFilter.value.sortBy = sortBy as 'created' | 'updated';
@@ -163,13 +193,17 @@ watch(sortOption, (option) => {
   }
 });
 
-// 关闭面板
-function handleClose() {
+/**
+ * 关闭筛选面板
+ */
+function handleClose(): void {
   emit('close');
 }
 
-// 应用筛选
-function handleApply() {
+/**
+ * 应用筛选条件
+ */
+function handleApply(): void {
   // 创建一个新的筛选对象，确保标签数组是新的引用
   const newFilter: SearchFilter = {
     ...localFilter.value,
@@ -179,13 +213,16 @@ function handleApply() {
   emit('close');
 }
 
-// 重置筛选
-function handleReset() {
+/**
+ * 重置筛选条件
+ */
+function handleReset(): void {
   localFilter.value = { type: 'all' };
   localSelectedTags.value = [];
   sortOption.value = '';
   
-  // 立即应用重置
+  // 通知父组件重置所有筛选（包括搜索框）
+  emit('reset');
   emit('update:filter', { type: 'all' });
 }
 </script>
