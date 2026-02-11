@@ -185,8 +185,7 @@ snippets-code/
 │   └── tauri.conf.json           # Tauri 配置
 ├── docs/                         # 文档
 │   ├── ARCHITECTURE.md           # 架构文档
-│   ├── CODING_STANDARDS.md       # 编码规范
-│   └── BACKLINKS_FEATURE.md      # 反向链接功能说明
+│   └── CODING_STANDARDS.md       # 编码规范
 ├── package.json                  # 前端依赖配置
 ├── vite.config.ts                # Vite 配置
 ├── tsconfig.json                 # TypeScript 配置
@@ -355,19 +354,6 @@ snippets-code/
 ## 更新日志
 
 查看 [RELEASE_NOTES.md](RELEASE_NOTES.md) 了解最新版本的更新内容。
-
-### 最新版本 v1.3.6
-
-🎉 新增功能：
-- 搜索框智能识别网址，直接在浏览器中打开
-- 支持多种网址格式识别
-
-🐛 问题修复：
-- 修复搜索框输入网址时无法显示结果的问题
-
-🔧 优化改进：
-- 优化搜索体验，智能判断输入内容类型
-- 改进代码结构，提升应用性能和稳定性
 
 ---
 

@@ -172,6 +172,7 @@ import { listen, emit } from '@tauri-apps/api/event';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { useI18n } from 'vue-i18n';
 import { formatBytes, formatPercentage } from '@/utils/format';
+import { marked } from 'marked';
 
 const { t } = useI18n();
 import dayjs from 'dayjs';
@@ -202,6 +203,12 @@ const progressFormat = (percentage: number) => {
   return update.downloading ? formatPercentage(percentage) : '';
 };
 
+// 配置 marked
+marked.setOptions({
+  breaks: true, // 支持 GitHub 风格的换行
+  gfm: true, // 启用 GitHub 风格的 Markdown
+});
+
 // 配置 dayjs
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -214,8 +221,8 @@ onMounted(async () => {
   const updateInfo: UpdateInfo = await invoke('get_update_info');
   if (updateInfo) {
     update.newVersion = updateInfo.version;
-    // 将 notes 中的 \n 替换为 <br />
-    update.releaseNotes = updateInfo.notes.replace(/\n/g, '<br />');
+    // 使用 marked 渲染 Markdown
+    update.releaseNotes = marked(updateInfo.notes) as string;
     update.releaseDate = updateInfo.pub_date
       ? dayjs(updateInfo.pub_date.replace(' +00:00:00', 'Z').replace('.0', ''))
           .tz()
@@ -420,6 +427,75 @@ const handleCancel = () => {
 
         .notes-content {
           @apply pr-2 text-gray-600 text-sm leading-relaxed;
+
+          // Markdown 样式
+          :deep(h1),
+          :deep(h2),
+          :deep(h3),
+          :deep(h4) {
+            @apply font-semibold text-gray-800 mt-4 mb-2;
+          }
+
+          :deep(h1) {
+            @apply text-lg;
+          }
+
+          :deep(h2) {
+            @apply text-base;
+          }
+
+          :deep(h3) {
+            @apply text-sm;
+          }
+
+          :deep(h4) {
+            @apply text-sm;
+          }
+
+          :deep(p) {
+            @apply mb-2;
+          }
+
+          :deep(ul),
+          :deep(ol) {
+            @apply pl-5 mb-2;
+          }
+
+          :deep(li) {
+            @apply mb-1;
+          }
+
+          :deep(strong) {
+            @apply font-semibold text-gray-800;
+          }
+
+          :deep(em) {
+            @apply italic;
+          }
+
+          :deep(code) {
+            @apply bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-gray-800;
+          }
+
+          :deep(pre) {
+            @apply bg-gray-100 p-3 rounded-lg mb-2 overflow-x-auto;
+
+            code {
+              @apply bg-transparent p-0;
+            }
+          }
+
+          :deep(blockquote) {
+            @apply border-l-4 border-blue-300 pl-3 py-1 my-2 text-gray-600 italic;
+          }
+
+          :deep(a) {
+            @apply text-blue-600 hover:text-blue-700 underline;
+          }
+
+          :deep(hr) {
+            @apply my-3 border-gray-200;
+          }
         }
       }
     }
