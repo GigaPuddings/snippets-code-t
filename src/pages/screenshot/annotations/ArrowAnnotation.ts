@@ -1,5 +1,6 @@
 import { BaseAnnotation } from '../core/BaseAnnotation'
 import { DrawingContext, Point, ToolType } from '../core/types'
+import { distance } from '../utils/geometry'
 
 export class ArrowAnnotation extends BaseAnnotation {
   constructor(startPoint: Point, style: { color: string, lineWidth: number }) {
@@ -95,8 +96,7 @@ export class ArrowAnnotation extends BaseAnnotation {
     const lenSq = C * C + D * D
 
     if (lenSq === 0) {
-      const distance = Math.sqrt(A * A + B * B)
-      return distance <= tolerance
+      return distance(point, start) <= tolerance
     }
 
     const param = dot / lenSq
@@ -113,11 +113,7 @@ export class ArrowAnnotation extends BaseAnnotation {
       }
     }
 
-    const dx = point.x - closestPoint.x
-    const dy = point.y - closestPoint.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
-
-    return distance <= tolerance
+    return distance(point, closestPoint) <= tolerance
   }
 
   getBounds() {
@@ -182,11 +178,7 @@ export class ArrowAnnotation extends BaseAnnotation {
 
     for (let i = 0; i < this.data.points.length; i++) {
       const controlPoint = this.data.points[i]
-      const distance = Math.sqrt(
-        Math.pow(point.x - controlPoint.x, 2) + 
-        Math.pow(point.y - controlPoint.y, 2)
-      )
-      if (distance <= tolerance) {
+      if (distance(point, controlPoint) <= tolerance) {
         return i
       }
     }

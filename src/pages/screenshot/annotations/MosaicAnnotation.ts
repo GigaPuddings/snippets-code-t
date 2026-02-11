@@ -1,5 +1,6 @@
 import { BaseAnnotation } from '../core/BaseAnnotation'
 import { DrawingContext, Point, ToolType } from '../core/types'
+import { distance } from '../utils/geometry'
 
 export class MosaicAnnotation extends BaseAnnotation {
   // 缓存离屏 Canvas 以减少 GC 压力（静态复用）
@@ -28,13 +29,10 @@ export class MosaicAnnotation extends BaseAnnotation {
   addPoint(point: Point): void {
     if (this.data.points.length > 0) {
       const lastPoint = this.data.points[this.data.points.length - 1]
-      const distance = Math.sqrt(
-        Math.pow(point.x - lastPoint.x, 2) +
-        Math.pow(point.y - lastPoint.y, 2)
-      )
+      const dist = distance(point, lastPoint)
 
-      if (distance > 2) {
-        const steps = Math.ceil(distance / 2) 
+      if (dist > 2) {
+        const steps = Math.ceil(dist / 2) 
         for (let i = 1; i < steps; i++) {
           const t = i / steps
           const interpX = lastPoint.x + (point.x - lastPoint.x) * t
@@ -250,9 +248,7 @@ export class MosaicAnnotation extends BaseAnnotation {
   hitTest(point: Point, tolerance: number = 8): boolean {
     if (this.data.points.length === 0) return false
     if (this.data.points.length === 1) {
-      const start = this.data.points[0]
-      const distance = Math.sqrt(Math.pow(point.x - start.x, 2) + Math.pow(point.y - start.y, 2))
-      return distance <= (this.data.mosaicSize || 5) / 2 + tolerance
+      return distance(point, this.data.points[0]) <= (this.data.mosaicSize || 5) / 2 + tolerance
     }
     for (let i = 0; i < this.data.points.length - 1; i++) {
       const start = this.data.points[i]

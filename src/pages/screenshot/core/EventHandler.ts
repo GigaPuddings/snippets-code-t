@@ -1,6 +1,8 @@
 import { BaseAnnotation } from './BaseAnnotation'
 import { CoordinateSystem } from './CoordinateSystem'
 import { Point, Rect, OperationType, ToolType } from './types'
+import { distance, getRectCenter } from '../utils/geometry'
+import { isValidPoint } from '../utils/validation'
 
 // 事件处理器 - 统一管理鼠标事件和交互逻辑
 export class EventHandler {
@@ -115,6 +117,9 @@ export class EventHandler {
       return OperationType.None
     }
 
+    // 使用工具函数获取中心点
+    const center = getRectCenter(selectionRect)
+
     // 检查角点
     if (this.isInHandle(mousePos, { x: x, y: y }, handleSize)) {
       return OperationType.ResizingNW
@@ -129,17 +134,17 @@ export class EventHandler {
       return OperationType.ResizingSE
     }
 
-    // 检查边界中点
-    if (this.isInHandle(mousePos, { x: x + width / 2, y: y }, handleSize)) {
+    // 检查边界中点（使用中心点坐标）
+    if (this.isInHandle(mousePos, { x: center.x, y: y }, handleSize)) {
       return OperationType.ResizingN
     }
-    if (this.isInHandle(mousePos, { x: x + width / 2, y: y + height }, handleSize)) {
+    if (this.isInHandle(mousePos, { x: center.x, y: y + height }, handleSize)) {
       return OperationType.ResizingS
     }
-    if (this.isInHandle(mousePos, { x: x, y: y + height / 2 }, handleSize)) {
+    if (this.isInHandle(mousePos, { x: x, y: center.y }, handleSize)) {
       return OperationType.ResizingW
     }
-    if (this.isInHandle(mousePos, { x: x + width, y: y + height / 2 }, handleSize)) {
+    if (this.isInHandle(mousePos, { x: x + width, y: center.y }, handleSize)) {
       return OperationType.ResizingE
     }
 
@@ -171,6 +176,11 @@ export class EventHandler {
 
   // 获取标注控制点操作类型
   private getAnnotationControlPointOperation(mousePos: Point, annotation: BaseAnnotation): OperationType {
+    // 验证输入
+    if (!isValidPoint(mousePos)) {
+      return OperationType.None
+    }
+
     const data = annotation.getData()
     
     // 马赛克不需要编辑
@@ -191,15 +201,9 @@ export class EventHandler {
         const handleSize = 8
         const tolerance = 6
 
-        // 检查起点和终点控制点
-        const startDistance = Math.sqrt(
-          Math.pow(mousePos.x - start.x, 2) + 
-          Math.pow(mousePos.y - start.y, 2)
-        )
-        const endDistance = Math.sqrt(
-          Math.pow(mousePos.x - end.x, 2) + 
-          Math.pow(mousePos.y - end.y, 2)
-        )
+        // 使用工具函数计算距离
+        const startDistance = distance(mousePos, start)
+        const endDistance = distance(mousePos, end)
 
         if (startDistance <= handleSize + tolerance) {
           return OperationType.ResizingAnnotationNW // 起点拖拽

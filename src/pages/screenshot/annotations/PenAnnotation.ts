@@ -1,5 +1,6 @@
 import { BaseAnnotation } from '../core/BaseAnnotation'
 import { DrawingContext, Point, ToolType } from '../core/types'
+import { distance } from '../utils/geometry'
 
 export class PenAnnotation extends BaseAnnotation {
   constructor(startPoint: Point, style: { color: string, lineWidth: number }) {
@@ -19,14 +20,11 @@ export class PenAnnotation extends BaseAnnotation {
   addPoint(point: Point): void {
     if (this.data.points.length > 0) {
       const lastPoint = this.data.points[this.data.points.length - 1]
-      const distance = Math.sqrt(
-        Math.pow(point.x - lastPoint.x, 2) +
-        Math.pow(point.y - lastPoint.y, 2)
-      )
+      const dist = distance(point, lastPoint)
 
       // 如果距离太大，添加插值点防止断线
-      if (distance > 5) {
-        const steps = Math.ceil(distance / 3)
+      if (dist > 5) {
+        const steps = Math.ceil(dist / 3)
         for (let i = 1; i < steps; i++) {
           const t = i / steps
           const interpX = lastPoint.x + (point.x - lastPoint.x) * t
@@ -84,12 +82,7 @@ export class PenAnnotation extends BaseAnnotation {
     if (this.data.points.length < 2) {
       // 单点情况
       if (this.data.points.length === 1) {
-        const start = this.data.points[0]
-        const distance = Math.sqrt(
-          Math.pow(point.x - start.x, 2) + 
-          Math.pow(point.y - start.y, 2)
-        )
-        return distance <= tolerance
+        return distance(point, this.data.points[0]) <= tolerance
       }
       return false
     }
@@ -116,8 +109,7 @@ export class PenAnnotation extends BaseAnnotation {
     const lenSq = C * C + D * D
 
     if (lenSq === 0) {
-      const distance = Math.sqrt(A * A + B * B)
-      return distance <= tolerance
+      return distance(point, start) <= tolerance
     }
 
     const param = dot / lenSq
@@ -134,11 +126,7 @@ export class PenAnnotation extends BaseAnnotation {
       }
     }
 
-    const dx = point.x - closestPoint.x
-    const dy = point.y - closestPoint.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
-
-    return distance <= tolerance
+    return distance(point, closestPoint) <= tolerance
   }
 
   getBounds() {

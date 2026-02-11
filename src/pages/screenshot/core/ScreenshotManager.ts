@@ -9,6 +9,7 @@ import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, Color
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
 import { logger } from '@/utils/logger'
+import { distance, getRectCenter } from '../utils/geometry'
 
 interface WindowInfo {
   x: number
@@ -607,10 +608,8 @@ export class ScreenshotManager {
       
       // 检查是否处于待定吸附状态且开始拖拽
       if (this.pendingSnapWindow && this.dragStartPosition && !this.selectionRect) {
-        const dragDistance = Math.sqrt(
-          Math.pow(mousePos.x - this.dragStartPosition.x, 2) + 
-          Math.pow(mousePos.y - this.dragStartPosition.y, 2)
-        )
+        // 使用工具函数计算拖拽距离
+        const dragDistance = distance(mousePos, this.dragStartPosition)
         
         if (dragDistance > this.dragThreshold) {
           // 超过拖拽阈值，切换到自定义框选模式
@@ -1804,7 +1803,8 @@ export class ScreenshotManager {
       ctx.textAlign = 'center'
       ctx.textBaseline = 'bottom'
       
-      const titleX = this.snappedWindow.x + this.snappedWindow.width / 2
+      const center = getRectCenter(this.snappedWindow)
+      const titleX = center.x
       const titleY = this.snappedWindow.y - 5
       
       // 绘制文字背景
@@ -1982,16 +1982,12 @@ export class ScreenshotManager {
     // 计算路径的总长度
     let pathLength = 0
     for (let i = 1; i < points.length; i++) {
-      const dx = points[i].x - points[i - 1].x
-      const dy = points[i].y - points[i - 1].y
-      pathLength += Math.sqrt(dx * dx + dy * dy)
+      // 使用工具函数计算距离
+      pathLength += distance(points[i - 1], points[i])
     }
     
-    // 判断是否为直线
-    const straightLineLength = Math.sqrt(
-      Math.pow(points[points.length - 1].x - points[0].x, 2) +
-      Math.pow(points[points.length - 1].y - points[0].y, 2)
-    )
+    // 判断是否为直线（使用工具函数计算直线距离）
+    const straightLineLength = distance(points[0], points[points.length - 1])
     const straightness = straightLineLength / pathLength
     const aspectRatio = Math.max(width, height) / Math.max(Math.min(width, height), 1)
     

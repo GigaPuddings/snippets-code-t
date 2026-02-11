@@ -1,5 +1,6 @@
 import { BaseAnnotation } from '../core/BaseAnnotation'
 import { DrawingContext, Point, ToolType } from '../core/types'
+import { distance } from '../utils/geometry'
 
 export class RectangleAnnotation extends BaseAnnotation {
   constructor(startPoint: Point, style: { color: string, lineWidth: number }) {
@@ -137,11 +138,7 @@ export class RectangleAnnotation extends BaseAnnotation {
 
     for (let i = 0; i < this.data.points.length; i++) {
       const controlPoint = this.data.points[i]
-      const distance = Math.sqrt(
-        Math.pow(point.x - controlPoint.x, 2) + 
-        Math.pow(point.y - controlPoint.y, 2)
-      )
-      if (distance <= tolerance) {
+      if (distance(point, controlPoint) <= tolerance) {
         return i
       }
     }

@@ -1,5 +1,7 @@
 import { BaseAnnotation } from './BaseAnnotation'
 import { DrawingContext, Rect, CoordinateTransform, ColorPickerState } from './types'
+import { getRectCenter } from '../utils/geometry'
+import { isValidRect } from '../utils/validation'
 
 // 绘制引擎 - 统一处理所有绘制逻辑
 export class DrawingEngine {
@@ -30,6 +32,12 @@ export class DrawingEngine {
 
   // 绘制遮罩层（选择区域外的半透明黑色遮罩）
   drawMask(selectionRect: Rect) {
+    // 验证输入
+    if (!isValidRect(selectionRect)) {
+      console.warn('Invalid selection rect in drawMask:', selectionRect);
+      return;
+    }
+
     this.ctx.save()
     
     // 获取Canvas的逻辑尺寸
@@ -104,6 +112,9 @@ export class DrawingEngine {
   private drawHandles(rect: Rect) {
     const { x, y, width, height } = rect
     
+    // 使用工具函数获取中心点和边缘中点
+    const center = getRectCenter(rect)
+    
     this.ctx.setLineDash([])
     this.ctx.fillStyle = '#ffffff'
     this.ctx.strokeStyle = '#3b82f6'
@@ -111,14 +122,14 @@ export class DrawingEngine {
 
     const handleRadius = 4
     const handles = [
-      { x: x, y: y },
-      { x: x + width, y: y },
-      { x: x, y: y + height },
-      { x: x + width, y: y + height },
-      { x: x + width / 2, y: y },
-      { x: x + width / 2, y: y + height },
-      { x: x, y: y + height / 2 },
-      { x: x + width, y: y + height / 2 }
+      { x: x, y: y },                    // 左上
+      { x: x + width, y: y },            // 右上
+      { x: x, y: y + height },           // 左下
+      { x: x + width, y: y + height },   // 右下
+      { x: center.x, y: y },             // 上中
+      { x: center.x, y: y + height },    // 下中
+      { x: x, y: center.y },             // 左中
+      { x: x + width, y: center.y }      // 右中
     ]
 
     handles.forEach(handle => {
