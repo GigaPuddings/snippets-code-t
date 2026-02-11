@@ -6,14 +6,14 @@ export * from './text';
 export * from './format';
 
 // 防抖函数
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ) {
-  let timeout: any = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
   let lastArgs: Parameters<T> | null = null;
 
-  const debounced = function (this: any, ...args: Parameters<T>) {
+  const debounced = function (this: unknown, ...args: Parameters<T>) {
     lastArgs = args;
 
     if (timeout) {
@@ -51,7 +51,7 @@ export function uuid(): string {
 }
 
 // 日期格式化
-export function formatDate(date: any) {
+export function formatDate(date: string | number | Date) {
   // 判断当前时间是否与内容创建时间在同一天
   const isSameDay = dayjs().isSame(dayjs(date), 'day');
   // 今天，显示 AM/PM 格式 , 非当天，显示普通日期

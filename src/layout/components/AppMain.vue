@@ -9,9 +9,9 @@
       <router-view>
         <template #default="{ Component, route }">
           <keep-alive v-if="route.meta.keepAlive">
-            <component :is="Component" :key="route.path" />
+            <component :is="Component" />
           </keep-alive>
-          <component v-else :is="Component" :key="route.path" />
+          <component v-else :is="Component" />
         </template>
       </router-view>
     </div>

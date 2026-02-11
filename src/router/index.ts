@@ -39,6 +39,7 @@ const routes: RouteRecordRaw[] = [
               import('@/pages/config/components/category/index.vue'),
             name: 'Category',
             redirect: '/config/category/contentList',
+            meta: { keepAlive: true },
             children: [
               {
                 path: 'contentList/:cid?',
@@ -47,6 +48,7 @@ const routes: RouteRecordRaw[] = [
                     '@/pages/config/components/category/components/contentList/index.vue'
                   ),
                 name: 'ContentList',
+                meta: { keepAlive: true },
                 children: [
                   {
                     path: '',
