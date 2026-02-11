@@ -33,7 +33,10 @@
         :char-count="charCount"
         :view-mode="viewMode"
         :show-view-toggle="props.showViewToggle"
+        :show-backlink-button="!!props.currentTitle"
+        :backlink-count="backlinkCount"
         @view-mode-change="handleViewModeCommand"
+        @toggle-backlinks="toggleBacklinks"
       />
     </div>
     
@@ -51,6 +54,16 @@
     
     <!-- 右键上下文菜单 -->
     <TipTapContextMenu ref="contextMenuRef" :editor="editor ?? null" :dark="props.dark" />
+    
+    <!-- 反向链接面板 -->
+    <BacklinkPanel
+      :show="showBacklinks"
+      :dark="props.dark"
+      :current-title="props.currentTitle"
+      :current-fragment-id="props.currentFragmentId"
+      @close="showBacklinks = false"
+      @navigate="handleBacklinkNavigate"
+    />
   </main>
 </template>
 
@@ -58,7 +71,7 @@
 import { ref, watch, onBeforeUnmount, nextTick } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { debounce } from '@/utils';
-import { handleEditorError } from '@/utils/errorHandler';
+import { handleEditorError } from '@/utils/error-handler';
 import { createTurndownService, markdownToHtml, htmlToMarkdown } from './utils/markdown';
 import { createEditorExtensions } from './config/extensions';
 import TipTapContextMenu from './TipTapContextMenu.vue';
@@ -66,6 +79,7 @@ import EditorStatusBar from './components/EditorStatusBar.vue';
 import OutlinePanel from './components/OutlinePanel.vue';
 import EditorActions from './components/EditorActions.vue';
 import SourceEditor from './components/SourceEditor.vue';
+import BacklinkPanel from './components/BacklinkPanel.vue';
 import type { CSSProperties } from 'vue';
 import { marked } from 'marked';
 
@@ -80,6 +94,8 @@ interface Props {
   showViewToggle?: boolean;
   showEditorActions?: boolean;
   showContextMenu?: boolean;
+  currentTitle?: string;
+  currentFragmentId?: number;
 }
 
 defineOptions({
@@ -96,7 +112,9 @@ const props = withDefaults(defineProps<Props>(), {
   autoDestroy: true,
   showViewToggle: true,
   showEditorActions: true,
-  showContextMenu: true
+  showContextMenu: true,
+  currentTitle: '',
+  currentFragmentId: undefined
 });
 
 const emits = defineEmits<{
@@ -108,6 +126,7 @@ const emits = defineEmits<{
   'wikilink-click': [noteName: string];
   'view-mode-change': [mode: 'reading' | 'preview' | 'source'];
   'outline-toggle': [show: boolean];
+  'backlink-navigate': [fragmentId: number, searchTitle: string];
 }>();
 
 // Refs
@@ -116,11 +135,16 @@ const sourceEditorRef = ref<InstanceType<typeof SourceEditor> | null>(null);
 const wordCount = ref(0);
 const charCount = ref(0);
 const showOutline = ref(false);
+const showBacklinks = ref(false);
 const headings = ref<Array<{ level: number; text: string; pos: number }>>([]);
 const viewMode = ref<'reading' | 'preview' | 'source'>('preview');
 const sourceContent = ref('');
 const currentCursorPos = ref(0);
 const visibleHeadingIndex = ref(-1);
+const backlinkCount = ref(0);
+
+// 常量：标题跳转时的顶部偏移量（为工具栏和状态栏留出空间）
+const HEADING_SCROLL_OFFSET = 120;
 
 // Turndown service
 const turndownService = createTurndownService();
@@ -154,6 +178,7 @@ const updateStats = (text: string) => {
 };
 
 // 防抖更新
+// @ts-ignore - debounce 函数的类型定义不够精确
 const debouncedEmitUpdate = debounce((html: string) => {
   emits('update:content', html);
   emits('change', html);
@@ -190,6 +215,29 @@ const editor = useEditor({
       emits('ready', editor);
       // 初始化光标位置
       currentCursorPos.value = editor.state.selection.from;
+      
+      // 添加全局事件监听器，在捕获阶段拦截锚点链接
+      const editorElement = editor.view.dom;
+      const handleAnchorClick = (event: MouseEvent) => {
+        const target = event.target as HTMLElement;
+        const link = target.closest('a');
+        
+        if (link) {
+          const href = link.getAttribute('href');
+          
+          // 只拦截锚点链接
+          if (href && href.startsWith('#')) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            // 不执行任何操作，让 handleClick 处理
+          }
+        }
+      };
+      
+      // 在捕获阶段添加监听器，优先级最高
+      editorElement.addEventListener('click', handleAnchorClick, true);
+      
       // 如果大纲面板已打开，设置滚动监听
       if (showOutline.value) {
         nextTick(() => {
@@ -204,6 +252,147 @@ const editor = useEditor({
     attributes: {
       class: props.dark ? 'tiptap-editor dark' : 'tiptap-editor',
       spellcheck: 'false'
+    },
+    handleClick: (view, _pos, event) => {
+      // 处理链接点击
+      const target = event.target as HTMLElement;
+      
+      // 首先检查是否点击了 Markdown 链接（通过 Decoration 添加的）
+      // 注意：Markdown 链接的点击已在 MarkdownLinkHandler 的 mousedown 中处理
+      // 这里保留检查以防万一
+      if (target.classList.contains('markdown-link-text')) {
+        const url = target.getAttribute('data-url');
+        
+        if (url) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          
+          // 使用 Tauri 的 shell 在系统默认浏览器中打开链接
+          import('@tauri-apps/plugin-shell').then(({ open }) => {
+            open(url).catch(err => {
+              console.error('Failed to open external link:', err);
+            });
+          });
+          
+          return true;
+        }
+      }
+      
+      // 然后检查普通的 <a> 标签链接
+      const link = target.closest('a');
+      
+      if (link) {
+        const href = link.getAttribute('href');
+        
+        if (href) {
+          // 处理锚点链接（文档内跳转）
+          if (href.startsWith('#')) {
+            // 立即阻止所有默认行为和事件传播
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            
+            // 提取锚点 ID（移除开头的 #）
+            const anchorId = decodeURIComponent(href.substring(1));
+            
+            // 首先尝试直接查找 DOM 元素（最可靠的方式）
+            const scrollContainer = view.dom as HTMLElement;
+            const targetElement = scrollContainer.querySelector(`[id="${anchorId}"]`) ||
+                                 scrollContainer.querySelector(`a[name="${anchorId}"]`);
+            
+            if (targetElement) {
+              // 找到了对应的元素，直接滚动到该位置
+              const elementTop = (targetElement as HTMLElement).offsetTop;
+              const targetScroll = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
+              scrollContainer.scrollTop = targetScroll;
+            } else {
+              // 如果没找到 DOM 元素，尝试实时提取标题并查找
+              const currentHeadings: Array<{ level: number; text: string; pos: number }> = [];
+              
+              if (editor.value) {
+                editor.value.state.doc.descendants((node, nodePos) => {
+                  if (node.type.name === 'heading') {
+                    currentHeadings.push({
+                      level: node.attrs.level,
+                      text: node.textContent,
+                      pos: nodePos
+                    });
+                  }
+                });
+              }
+              
+              const heading = currentHeadings.find(h => {
+                // 将标题文本转换为锚点 ID 格式
+                const headingId = h.text
+                  .toLowerCase()
+                  .trim()
+                  .replace(/\s+/g, '-')
+                  .replace(/[^\w\u4e00-\u9fa5-]/g, '');
+                return headingId === anchorId;
+              });
+              
+              if (heading) {
+                // 直接滚动到标题位置，不设置文本选择
+                const allHeadingElements = scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                let targetElement: HTMLElement | null = null;
+                
+                allHeadingElements.forEach((el: Element) => {
+                  const headingEl = el as HTMLElement;
+                  const text = headingEl.textContent?.trim() || '';
+                  if (text === heading.text && !targetElement) {
+                    targetElement = headingEl;
+                  }
+                });
+                
+                if (targetElement) {
+                  let elementTop = 0;
+                  let currentElement: HTMLElement | null = targetElement;
+                  
+                  while (currentElement && currentElement !== scrollContainer) {
+                    elementTop += currentElement.offsetTop;
+                    currentElement = currentElement.offsetParent as HTMLElement | null;
+                    if (currentElement === scrollContainer) break;
+                  }
+                  
+                  const targetScroll = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
+                  scrollContainer.scrollTop = targetScroll;
+                } else {
+                  console.warn('Target element not found in DOM');
+                }
+              } else {
+                console.warn('No matching heading found for anchor:', anchorId);
+              }
+            }
+            
+            return true;
+          }
+          // 处理外部链接
+          else if (href.startsWith('http://') || href.startsWith('https://') || !href.startsWith('#')) {
+            // 立即阻止所有默认行为和事件传播
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            
+            // 自动补全协议（如果缺少）
+            let fullUrl = href;
+            if (!href.includes('://')) {
+              fullUrl = `https://${href}`;
+            }
+            
+            // 使用 Tauri 的 shell 在系统默认浏览器中打开链接
+            import('@tauri-apps/plugin-shell').then(({ open }) => {
+              open(fullUrl).catch(err => {
+                console.error('Failed to open external link:', err);
+              });
+            });
+            
+            return true;
+          }
+        }
+      }
+      
+      return false;
     },
     handlePaste: (view, event) => {
       const text = event.clipboardData?.getData('text/plain');
@@ -446,6 +635,38 @@ const toggleOutline = () => {
   }
 };
 
+// 切换反向链接面板
+const toggleBacklinks = () => {
+  showBacklinks.value = !showBacklinks.value;
+};
+
+// 处理反向链接导航
+const handleBacklinkNavigate = (fragmentId: number, searchTitle: string) => {
+  emits('backlink-navigate', fragmentId, searchTitle);
+};
+
+// 更新反向链接计数
+const updateBacklinkCount = async () => {
+  if (!props.currentTitle) {
+    backlinkCount.value = 0;
+    return;
+  }
+  
+  try {
+    const { getBacklinkStats } = await import('@/utils/wikilink-updater');
+    const stats = await getBacklinkStats(props.currentTitle, props.currentFragmentId);
+    backlinkCount.value = stats.count;
+  } catch (error) {
+    console.error('Failed to update backlink count:', error);
+    backlinkCount.value = 0;
+  }
+};
+
+// 监听标题变化，更新反向链接计数
+watch(() => props.currentTitle, () => {
+  updateBacklinkCount();
+}, { immediate: true });
+
 // 提取标题
 const extractHeadings = () => {
   if (!editor.value) {
@@ -574,18 +795,15 @@ const jumpToHeading = (pos: number) => {
   
   if (!editor.value) return;
   
-  // 只在预览模式下设置光标位置
-  if (viewMode.value === 'preview') {
-    editor.value.commands.focus();
-    editor.value.commands.setTextSelection(pos);
-  }
-  
   try {
     const scrollContainer = editor.value.view.dom as HTMLElement;
     const allHeadingElements = scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
     
     const targetHeading = headings.value.find(h => h.pos === pos);
-    if (!targetHeading) return;
+    if (!targetHeading) {
+      console.warn('Target heading not found for pos:', pos);
+      return;
+    }
     
     let targetElement: HTMLElement | null = null;
     allHeadingElements.forEach((el: Element) => {
@@ -606,11 +824,10 @@ const jumpToHeading = (pos: number) => {
         if (currentElement === scrollContainer) break;
       }
       
-      // 调整偏移量：阅读模式和预览模式使用不同的偏移
-      // 阅读模式下减少偏移，让标题更靠近顶部
-      const offset = viewMode.value === 'reading' ? 10 : 20;
-      const targetScroll = Math.max(0, elementTop - offset);
+      const targetScroll = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
       scrollContainer.scrollTop = targetScroll;
+    } else {
+      console.warn('Target element not found in DOM');
     }
   } catch (error) {
     console.error('Failed to scroll to heading:', error);
@@ -686,7 +903,144 @@ defineExpose({
   getJSON: () => editor.value?.getJSON() || null,
   setViewMode: toggleViewMode,
   toggleOutline: toggleOutline,
-  getViewMode: () => viewMode.value
+  toggleBacklinks: toggleBacklinks,
+  getViewMode: () => viewMode.value,
+  scrollToWikilink: (searchTitle: string) => {
+    if (!editor.value) return;
+    
+    nextTick(() => {
+      try {
+        const scrollContainer = editor.value!.view.dom as HTMLElement;
+        let targetElement: HTMLElement | null = null;
+        let highlightRange: Range | null = null;
+        
+        const wikilinkElements = scrollContainer.querySelectorAll('.wikilink-decoration');
+        for (const element of wikilinkElements) {
+          const cleanText = (element.textContent || '').replace(/\[\[|\]\]/g, '').trim();
+          if (cleanText === searchTitle) {
+            targetElement = element as HTMLElement;
+            break;
+          }
+        }
+        
+        if (!targetElement) {
+          const walker = document.createTreeWalker(scrollContainer, NodeFilter.SHOW_TEXT, null);
+          let node: Node | null;
+          
+          while ((node = walker.nextNode())) {
+            const textContent = node.textContent || '';
+            const index = textContent.indexOf(searchTitle);
+            
+            if (index !== -1) {
+              const parentElement = node.parentElement;
+              if (!parentElement) continue;
+              
+              let parent: HTMLElement | null = parentElement;
+              let isInWikilink = false;
+              
+              while (parent && parent !== scrollContainer) {
+                if (parent.classList.contains('wikilink-decoration')) {
+                  isInWikilink = true;
+                  break;
+                }
+                parent = parent.parentElement;
+              }
+              
+              if (!isInWikilink) {
+                targetElement = parentElement;
+                try {
+                  const range = document.createRange();
+                  range.setStart(node, index);
+                  range.setEnd(node, index + searchTitle.length);
+                  if (range.getClientRects().length > 0) {
+                    highlightRange = range;
+                  }
+                } catch (error) {
+                  // Ignore range creation errors
+                }
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!targetElement) return;
+        
+        const targetRect = targetElement.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        
+        let elementOffsetTop = 0;
+        let currentElement: HTMLElement | null = targetElement;
+        while (currentElement && currentElement !== scrollContainer) {
+          elementOffsetTop += currentElement.offsetTop;
+          currentElement = currentElement.offsetParent as HTMLElement | null;
+          if (currentElement === scrollContainer) break;
+        }
+        
+        const viewportHeight = containerRect.height;
+        const elementHeight = targetRect.height;
+        const targetPositionInViewport = viewportHeight / 2;
+        
+        let isInCodeBlock = false;
+        let checkElement: HTMLElement | null = targetElement;
+        while (checkElement && checkElement !== scrollContainer) {
+          if (checkElement.tagName === 'PRE' || 
+              checkElement.classList.contains('code-block-wrapper') ||
+              checkElement.classList.contains('hljs')) {
+            isInCodeBlock = true;
+            break;
+          }
+          checkElement = checkElement.parentElement;
+        }
+        
+        const scrollAdjustment = isInCodeBlock ? 580 : -80;
+        const newScrollTop = elementOffsetTop - targetPositionInViewport + (elementHeight / 2) + scrollAdjustment;
+        scrollContainer.scrollTop = Math.max(0, newScrollTop);
+        
+        setTimeout(() => {
+          const createHighlight = (rect: DOMRect) => {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+              position: fixed;
+              left: ${rect.left}px;
+              top: ${rect.top}px;
+              width: ${rect.width}px;
+              height: ${rect.height}px;
+              background-color: rgba(255, 235, 59, 0.3);
+              border-radius: 2px;
+              pointer-events: none;
+              z-index: 9999;
+              animation: highlight-pulse 1.5s ease-out;
+            `;
+            
+            if (!document.getElementById('highlight-animation-style')) {
+              const style = document.createElement('style');
+              style.id = 'highlight-animation-style';
+              style.textContent = `
+                @keyframes highlight-pulse {
+                  0% { background-color: rgba(255, 235, 59, 0.6); box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.4); }
+                  50% { background-color: rgba(255, 235, 59, 0.4); box-shadow: 0 0 0 4px rgba(255, 235, 59, 0.2); }
+                  100% { background-color: rgba(255, 235, 59, 0); box-shadow: 0 0 0 0 rgba(255, 235, 59, 0); }
+                }
+              `;
+              document.head.appendChild(style);
+            }
+            
+            document.body.appendChild(overlay);
+            setTimeout(() => overlay.remove(), 2000);
+          };
+          
+          if (highlightRange) {
+            Array.from<DOMRect>(highlightRange.getClientRects()).forEach(createHighlight);
+          } else if (targetElement) {
+            createHighlight(targetElement.getBoundingClientRect());
+          }
+        }, 200);
+      } catch (error) {
+        console.error('Failed to scroll to wikilink:', error);
+      }
+    });
+  }
 });
 </script>
 
@@ -738,9 +1092,15 @@ defineExpose({
 }
 
 :deep(.tiptap-editor) {
-  @apply outline-none p-4 overflow-y-auto;
+  @apply outline-none overflow-y-auto;
   min-height: 100%;
   height: 100%;
+  padding: 0 1rem 1.5rem 1.5rem;
+  max-width: 900px;
+  margin: 0 auto;
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: pre-wrap;
   transition: background-color 0.3s ease, color 0.3s ease;
 
   &.dark {
@@ -795,6 +1155,31 @@ defineExpose({
       }
     }
 
+    .wikilink-bracket-hidden {
+      @apply opacity-0;
+      font-size: 0;
+      width: 0;
+      display: inline-block;
+      overflow: hidden;
+    }
+
+    .markdown-link-bracket-hidden {
+      @apply opacity-0;
+      font-size: 0;
+      width: 0;
+      display: inline-block;
+      overflow: hidden;
+    }
+
+    .markdown-link-text {
+      @apply text-[#82AAFF] underline;
+      transition: color 0.2s ease;
+
+      &:hover {
+        @apply text-[#9CB4FF];
+      }
+    }
+
     table {
       @apply border-[#727377];
       transition: border-color 0.3s ease;
@@ -826,37 +1211,50 @@ defineExpose({
   }
 
   h1 {
-    @apply text-3xl font-bold mb-4 mt-6;
+    @apply font-bold mb-4 mt-8;
+    font-size: 2em;
+    line-height: 1.3;
     transition: color 0.3s ease;
   }
 
   h2 {
-    @apply text-2xl font-bold mb-3 mt-5;
+    @apply font-bold mb-3 mt-7;
+    font-size: 1.6em;
+    line-height: 1.3;
     transition: color 0.3s ease;
   }
 
   h3 {
-    @apply text-xl font-bold mb-3 mt-4;
+    @apply font-bold mb-3 mt-6;
+    font-size: 1.4em;
+    line-height: 1.4;
     transition: color 0.3s ease;
   }
 
   h4 {
-    @apply text-lg font-bold mb-2 mt-3;
+    @apply font-bold mb-2 mt-5;
+    font-size: 1.2em;
+    line-height: 1.4;
     transition: color 0.3s ease;
   }
 
   h5 {
-    @apply text-base font-bold mb-2 mt-3;
+    @apply font-bold mb-2 mt-4;
+    font-size: 1.1em;
+    line-height: 1.4;
     transition: color 0.3s ease;
   }
 
   h6 {
-    @apply text-sm font-bold mb-2 mt-2;
+    @apply font-bold mb-2 mt-3;
+    font-size: 1em;
+    line-height: 1.4;
     transition: color 0.3s ease;
   }
 
   p {
-    @apply mb-3 leading-relaxed;
+    @apply mb-4;
+    line-height: 1.7;
     transition: color 0.3s ease;
   }
 
@@ -873,7 +1271,8 @@ defineExpose({
   }
 
   code {
-    @apply bg-gray-100 text-red-600 px-1.5 py-0.5 rounded text-sm font-mono;
+    @apply bg-gray-100 text-red-600 rounded text-sm font-mono;
+    padding: 0.2em 0.4em;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
@@ -884,29 +1283,31 @@ defineExpose({
 
   /* 代码块样式已移至 CodeBlockComponent.vue */
   pre {
-    @apply mb-4;
+    @apply mb-5;
   }
 
   ul {
-    @apply list-disc list-inside mb-4 pl-4;
+    @apply list-disc mb-5 pl-6;
 
     li {
-      @apply mb-1;
+      @apply mb-2;
+      line-height: 1.7;
       transition: color 0.3s ease;
     }
   }
 
   ol {
-    @apply list-decimal list-inside mb-4 pl-4;
+    @apply list-decimal mb-5 pl-6;
 
     li {
-      @apply mb-1;
+      @apply mb-2;
+      line-height: 1.7;
       transition: color 0.3s ease;
     }
   }
 
   .task-list {
-    @apply list-none pl-0;
+    @apply list-none pl-0 mb-5;
 
     .task-item {
       @apply flex items-start mb-2;
@@ -916,6 +1317,8 @@ defineExpose({
 
         input[type="checkbox"] {
           @apply mr-2 cursor-pointer;
+          width: 18px;
+          height: 18px;
           transition: border-color 0.3s ease, background-color 0.3s ease;
 
           &:checked {
@@ -926,17 +1329,19 @@ defineExpose({
 
       > div {
         @apply flex-1;
+        line-height: 1.7;
       }
     }
   }
 
   blockquote {
-    @apply border-l-4 border-gray-300 pl-4 italic text-gray-600 mb-4;
+    @apply border-l-4 border-gray-300 pl-4 italic text-gray-600 mb-5;
+    line-height: 1.7;
     transition: border-color 0.3s ease, color 0.3s ease;
   }
 
   hr {
-    @apply border-t border-gray-300 my-6;
+    @apply border-t border-gray-300 my-8;
     transition: border-color 0.3s ease;
   }
 
@@ -963,12 +1368,38 @@ defineExpose({
     }
   }
 
+  .wikilink-bracket-hidden {
+    @apply opacity-0;
+    font-size: 0;
+    width: 0;
+    display: inline-block;
+    overflow: hidden;
+  }
+
+  .markdown-link-bracket-hidden {
+    @apply opacity-0;
+    font-size: 0;
+    width: 0;
+    display: inline-block;
+    overflow: hidden;
+  }
+
+  .markdown-link-text {
+    @apply text-blue-600 underline cursor-pointer;
+    transition: color 0.2s ease;
+
+    &:hover {
+      @apply text-blue-800;
+    }
+  }
+
   table {
-    @apply border-collapse w-full mb-4 border border-gray-300;
+    @apply border-collapse w-full mb-5 border border-gray-300;
     transition: border-color 0.3s ease;
 
     th, td {
-      @apply border border-gray-300 px-3 py-2 text-left;
+      @apply border border-gray-300 px-4 py-2 text-left;
+      line-height: 1.6;
       transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
     }
 

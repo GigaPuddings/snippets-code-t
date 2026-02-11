@@ -94,6 +94,9 @@ export const Wikilink = Mark.create<WikilinkOptions>({
           decorations: (state) => {
             const decorations: any[] = [];
             const doc = state.doc;
+            const { selection } = state;
+            const isFocused = state.selection.from !== state.selection.to || 
+                            document.activeElement?.classList.contains('ProseMirror');
 
             // 正则表达式匹配 [[笔记名称]]
             const wikilinkRegex = /\[\[([^\]]+)\]\]/g;
@@ -113,14 +116,44 @@ export const Wikilink = Mark.create<WikilinkOptions>({
                 const noteName = match[1];
                 const from = pos + match.index;
                 const to = from + match[0].length;
+                
+                // 检查光标是否在这个 wikilink 内部
+                const cursorInside = selection.from >= from && selection.from <= to;
 
-                decorations.push(
-                  Decoration.inline(from, to, {
-                    class: 'wikilink-decoration',
-                    'data-note-name': noteName,
-                    style: 'cursor: pointer;'
-                  })
-                );
+                // 如果失焦或光标不在内部，隐藏括号
+                if (!isFocused || !cursorInside) {
+                  // 隐藏开始的 [[
+                  decorations.push(
+                    Decoration.inline(from, from + 2, {
+                      class: 'wikilink-bracket-hidden'
+                    })
+                  );
+                  
+                  // 显示文本部分
+                  decorations.push(
+                    Decoration.inline(from + 2, to - 2, {
+                      class: 'wikilink-decoration',
+                      'data-note-name': noteName,
+                      style: 'cursor: pointer;'
+                    })
+                  );
+                  
+                  // 隐藏结束的 ]]
+                  decorations.push(
+                    Decoration.inline(to - 2, to, {
+                      class: 'wikilink-bracket-hidden'
+                    })
+                  );
+                } else {
+                  // 编辑时显示完整的 [[笔记名称]]
+                  decorations.push(
+                    Decoration.inline(from, to, {
+                      class: 'wikilink-decoration',
+                      'data-note-name': noteName,
+                      style: 'cursor: pointer;'
+                    })
+                  );
+                }
               }
             });
 

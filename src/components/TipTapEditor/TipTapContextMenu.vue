@@ -213,41 +213,6 @@
         </div>
       </teleport>
     </div>
-
-    <!-- 外部链接对话框 -->
-    <div
-      v-if="showLinkDialog"
-      class="link-dialog-overlay"
-      @click="closeLinkDialog"
-    >
-      <div
-        class="link-dialog"
-        :class="{ 'dark-theme': dark }"
-        @click.stop
-      >
-        <div class="link-dialog-header">
-          <span class="link-dialog-title">{{ $t('contextMenu.enterUrl') }}</span>
-        </div>
-        <div class="link-dialog-body">
-          <input
-            v-model="linkUrl"
-            type="text"
-            class="link-dialog-input"
-            :placeholder="$t('contextMenu.urlPlaceholder')"
-            autofocus
-            @keydown="handleLinkDialogKeydown"
-          />
-        </div>
-        <div class="link-dialog-footer">
-          <button class="link-dialog-button cancel" @click="closeLinkDialog">
-            {{ $t('contextMenu.cancel') }}
-          </button>
-          <button class="link-dialog-button confirm" @click="confirmLink">
-            {{ $t('contextMenu.confirm') }}
-          </button>
-        </div>
-      </div>
-    </div>
   </teleport>
 </template>
 
@@ -278,10 +243,6 @@ const activeSubmenu = ref<string | null>(null);
 const menuPosition = ref({ x: 0, y: 0 });
 const submenuPosition = ref({ x: 0, y: 0 });
 let submenuTimer: ReturnType<typeof setTimeout> | null = null;
-
-// 外部链接对话框
-const showLinkDialog = ref(false);
-const linkUrl = ref('');
 
 // 菜单样式
 const menuStyle = computed(() => ({
@@ -498,8 +459,23 @@ const handleAddLink = () => {
 };
 
 const handleAddExternalLink = () => {
-  // 显示外部链接对话框
-  showLinkDialog.value = true;
+  // 像 Obsidian 一样，直接插入 Markdown 格式的链接
+  const { from, to } = props.editor?.state.selection || { from: 0, to: 0 };
+  const selectedText = props.editor?.state.doc.textBetween(from, to, ' ');
+  
+  if (selectedText && selectedText.trim()) {
+    // 如果有选中文本，将其作为链接文本，光标定位到 URL 位置
+    props.editor?.chain().focus()
+      .insertContent(`[${selectedText}]()`)
+      .setTextSelection(from + selectedText.length + 3) // 定位到 () 中间
+      .run();
+  } else {
+    // 如果没有选中文本，插入空的链接格式，光标定位到文本位置
+    props.editor?.chain().focus()
+      .insertContent('[]()')
+      .setTextSelection(from + 1) // 定位到 [] 中间
+      .run();
+  }
   hide();
 };
 
@@ -551,52 +527,6 @@ onBeforeUnmount(() => {
     clearTimeout(submenuTimer);
   }
 });
-
-// 外部链接对话框操作
-const confirmLink = () => {
-  if (linkUrl.value.trim()) {
-    const url = linkUrl.value.trim();
-    const { from, to } = props.editor?.state.selection || { from: 0, to: 0 };
-    const selectedText = props.editor?.state.doc.textBetween(from, to, ' ');
-    
-    if (selectedText && selectedText.trim()) {
-      // 如果有选中文本，将其转换为链接
-      props.editor?.chain().focus().setLink({ href: url }).run();
-    } else {
-      // 如果没有选中文本，插入带链接的文本
-      // 从 URL 中提取域名作为显示文本
-      let displayText = url;
-      try {
-        const urlObj = new URL(url);
-        displayText = urlObj.hostname;
-      } catch (e) {
-        // 如果不是有效的 URL，使用原始文本
-        displayText = url;
-      }
-      
-      // 插入链接
-      props.editor?.chain().focus()
-        .insertContent(`<a href="${url}" target="_blank" rel="noopener noreferrer">${displayText}</a>`)
-        .run();
-    }
-  }
-  closeLinkDialog();
-};
-
-const closeLinkDialog = () => {
-  showLinkDialog.value = false;
-  linkUrl.value = '';
-};
-
-const handleLinkDialogKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    confirmLink();
-  } else if (event.key === 'Escape') {
-    event.preventDefault();
-    closeLinkDialog();
-  }
-};
 
 // 暴露方法
 defineExpose({
@@ -779,183 +709,6 @@ defineExpose({
   }
 }
 
-// 外部链接对话框样式
-.link-dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 10000;
-  background: rgba(0, 0, 0, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.2s ease-out;
-}
-
-.link-dialog {
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
-  width: 460px;
-  max-width: 90vw;
-  overflow: hidden;
-  animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-
-  &.dark-theme {
-    background: #2a2a2a;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
-
-    .link-dialog-title {
-      color: #e5e7eb;
-    }
-
-    .link-dialog-input {
-      background: #1f2937;
-      border-color: #374151;
-      color: #e5e7eb;
-
-      &:focus {
-        border-color: #5d6dfd;
-        box-shadow: 0 0 0 3px rgba(93, 109, 253, 0.1);
-      }
-
-      &::placeholder {
-        color: #6b7280;
-      }
-    }
-
-    .link-dialog-button {
-      &.cancel {
-        background: #374151;
-        color: #e5e7eb;
-        border-color: #4b5563;
-
-        &:hover {
-          background: #4b5563;
-        }
-      }
-
-      &.confirm {
-        background: #5d6dfd;
-        color: #ffffff;
-
-        &:hover {
-          background: #4a5ce8;
-          box-shadow: 0 4px 12px rgba(93, 109, 253, 0.4);
-        }
-      }
-    }
-  }
-}
-
-.link-dialog-header {
-  padding: 18px 20px;
-  border-bottom: 1px solid #e5e7eb;
-
-  .dark-theme & {
-    border-bottom-color: #374151;
-  }
-}
-
-.link-dialog-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  transition: color 0.2s ease;
-}
-
-.link-dialog-body {
-  padding: 20px;
-}
-
-.link-dialog-input {
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 1.5px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-  color: #1f2937;
-  background: #ffffff;
-  outline: none;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: inherit;
-
-  &:focus {
-    border-color: #5d6dfd;
-    box-shadow: 0 0 0 3px rgba(93, 109, 253, 0.1);
-  }
-
-  &::placeholder {
-    color: #9ca3af;
-  }
-}
-
-.link-dialog-footer {
-  padding: 14px 20px;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  background: #f9fafb;
-
-  .dark-theme & {
-    border-top-color: #374151;
-    background: #1f2937;
-  }
-}
-
-.link-dialog-button {
-  height: 36px;
-  padding: 0 20px;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: inherit;
-
-  &.cancel {
-    background: #ffffff;
-    color: #374151;
-    border: 1.5px solid #d1d5db;
-
-    &:hover {
-      background: #f3f4f6;
-      border-color: #9ca3af;
-    }
-  }
-
-  &.confirm {
-    background: #5d6dfd;
-    color: #ffffff;
-
-    &:hover {
-      background: #4a5ce8;
-      box-shadow: 0 4px 12px rgba(93, 109, 253, 0.3);
-      transform: translateY(-1px);
-    }
-
-    &:active {
-      transform: translateY(0);
-    }
-  }
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 // 响应式优化
 @media (max-width: 768px) {
   .context-menu {
@@ -967,11 +720,6 @@ defineExpose({
     min-height: 36px;
     padding: 6px 10px;
     font-size: 14px;
-  }
-  
-  .link-dialog {
-    width: calc(100vw - 32px);
-    margin: 16px;
   }
 }
 </style>

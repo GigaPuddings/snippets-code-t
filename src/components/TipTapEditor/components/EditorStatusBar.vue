@@ -10,9 +10,22 @@
       </div>
     </div>
     
-    <!-- 视图切换按钮 -->
-    <div v-if="showViewToggle" class="editor-status-right">
-      <el-dropdown trigger="click" @command="handleCommand">
+    <div class="editor-status-right">
+      <!-- 反向链接按钮 -->
+      <button
+        v-if="showBacklinkButton && backlinkCount > 0"
+        class="backlink-btn"
+        :title="$t('backlinks.togglePanel')"
+        @click="$emit('toggle-backlinks')"
+      >
+        <svg class="backlink-icon" viewBox="0 0 24 24" width="16" height="16">
+          <path fill="currentColor" d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z" />
+        </svg>
+        <span class="backlink-count">{{ backlinkCount }}</span>
+      </button>
+      
+      <!-- 视图切换按钮 -->
+      <el-dropdown v-if="showViewToggle" trigger="click" @command="handleCommand">
         <span class="view-toggle-btn">
           <svg v-if="viewMode === 'reading'" class="view-icon" viewBox="0 0 24 24" width="16" height="16">
             <path fill="currentColor" d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z" />
@@ -75,14 +88,19 @@ interface Props {
   charCount: number;
   viewMode: 'reading' | 'preview' | 'source';
   showViewToggle?: boolean;
+  showBacklinkButton?: boolean;
+  backlinkCount?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showViewToggle: true
+  showViewToggle: true,
+  showBacklinkButton: false,
+  backlinkCount: 0
 });
 
 const emits = defineEmits<{
   'view-mode-change': [mode: 'reading' | 'preview' | 'source'];
+  'toggle-backlinks': [];
 }>();
 
 const { t } = useI18n();
@@ -129,12 +147,31 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 }
 
 .editor-status-text {
-  @apply text-xs opacity-70;
-  font-weight: 400;
+  @apply text-xs opacity-70  font-normal;
+}
+
+.editor-status-right {
+  @apply flex items-center gap-2;
+}
+
+.backlink-btn {
+  @apply flex items-center gap-1 px-2 pt-[0.1rem] pb-[0.2rem] rounded cursor-pointer text-xs transition-all;
+  
+  &:hover {
+    @apply bg-gray-200;
+  }
+  
+  .backlink-icon {
+    @apply flex-shrink-0;
+  }
+  
+  .backlink-count {
+    @apply text-center min-w-[18px] px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full;
+  }
 }
 
 .view-toggle-btn {
-  @apply flex items-center gap-1 px-2 py-1 rounded cursor-pointer text-xs;
+  @apply flex items-center gap-1 px-2 pt-[0.1rem] pb-[0.2rem] rounded cursor-pointer text-xs;
   transition: background-color 0.2s ease, color 0.2s ease;
 
   &:hover {
