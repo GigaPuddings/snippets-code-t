@@ -35,7 +35,7 @@ declare global {
     id: string | number;
     title: string;
     content: string;
-    summarize: SummarizeType;
+    summarize?: SummarizeType;
     icon?: string;
     score?: number;
     category_id?: string | number;
@@ -90,7 +90,7 @@ declare global {
   }
 
   // 在适当的位置添加 'search' 类型
-  type SummarizeType = 'text' | 'app' | 'bookmark' | 'search';
+  type SummarizeType = 'text' | 'app' | 'bookmark' | 'search' | 'code' | 'note';
 
   // 代办提醒类型
   interface AlarmCard {
