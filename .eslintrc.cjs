@@ -53,20 +53,43 @@ module.exports = {
       }
     ],
 
-    '@typescript-eslint/no-empty-function': 'off', // 关闭空方法检查
-    '@typescript-eslint/no-explicit-any': 'off', // 关闭any类型的警告
-    '@typescript-eslint/no-non-null-assertion': 'off',
-    '@typescript-eslint/ban-ts-ignore': 'off',
-    '@typescript-eslint/ban-ts-comment': 'off',
-    '@typescript-eslint/ban-types': 'off',
-    '@typescript-eslint/explicit-function-return-type': 'off',
-    '@typescript-eslint/no-explicit-any': 'off',
-    '@typescript-eslint/no-var-requires': 'off',
-    '@typescript-eslint/no-empty-function': 'off',
-    '@typescript-eslint/no-use-before-define': 'off',
-    '@typescript-eslint/no-non-null-assertion': 'off',
-    '@typescript-eslint/explicit-module-boundary-types': 'off',
-    '@typescript-eslint/no-unused-vars': 'off',
+    // TypeScript 严格规则
+    '@typescript-eslint/no-explicit-any': 'error', // 禁止使用 any 类型
+    '@typescript-eslint/explicit-function-return-type': 'warn', // 要求函数有明确的返回类型
+    '@typescript-eslint/explicit-module-boundary-types': 'warn', // 要求导出函数有明确的类型
+    '@typescript-eslint/no-unused-vars': ['warn', { 
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_' 
+    }], // 警告未使用的变量
+    '@typescript-eslint/no-empty-function': 'warn', // 警告空函数
+    '@typescript-eslint/no-non-null-assertion': 'warn', // 警告非空断言
+    '@typescript-eslint/ban-ts-comment': ['error', {
+      'ts-expect-error': 'allow-with-description',
+      'ts-ignore': true,
+      'ts-nocheck': true,
+      'ts-check': false,
+      minimumDescriptionLength: 3
+    }],
+    '@typescript-eslint/no-var-requires': 'error',
+    '@typescript-eslint/no-use-before-define': ['error', { 
+      functions: false,
+      classes: true,
+      variables: true 
+    }],
+
+    // 代码长度限制规则
+    'max-lines': ['warn', { 
+      max: 300, 
+      skipBlankLines: true, 
+      skipComments: true 
+    }],
+    'max-lines-per-function': ['warn', { 
+      max: 50, 
+      skipBlankLines: true, 
+      skipComments: true,
+      IIFEs: true 
+    }],
+    'complexity': ['warn', 10], // 圈复杂度限制
 
     'prettier/prettier': [
       'error',
