@@ -5,6 +5,18 @@
       :style="codeStyle"
       class="editor-content"
     ></div>
+    
+    <!-- 搜索面板 -->
+    <SearchPanel
+      ref="searchPanelRef"
+      :show="showSearch"
+      :dark="props.dark"
+      @close="closeSearch"
+      @search="handleSearch"
+      @next="findNext"
+      @previous="findPrevious"
+    />
+    
     <div class="editor-status">
       <div class="editor-status-left">
         <div class="editor-status-item">
@@ -43,6 +55,7 @@ import {
 } from '@codemirror/commands';
 import type { Extension } from '@codemirror/state';
 import type { CreateThemeOptions } from '@uiw/codemirror-themes';
+import { SearchPanel } from '@/components/UI';
 
 interface Props {
   codeStyle?: CSSProperties;
@@ -155,6 +168,9 @@ const customTheme = computed(() => {
 // 添加状态变量
 const lines = ref(1);
 const length = ref(0);
+const showSearch = ref(false);
+const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
+const searchMatches = ref<Array<{ from: number; to: number }>>([]);
 
 // 更新状态栏信息
 function updateStatusInfo(state: EditorState) {
@@ -262,12 +278,13 @@ const getLanguageExtension = (code: string) => {
 };
 
 // 计算Codemirror扩展
-const extensions = computed((): Extension[] => {
-  const baseExtensions: Extension[] = [
+const getExtensions = (): Extension[] => {
+  const extensions = [
     EditorView.lineWrapping,
     customTheme.value,
     getLanguageExtension(props.code),
     history(),
+    // 键盘映射
     keymap.of([
       ...defaultKeymap,
       ...historyKeymap,
@@ -295,9 +312,9 @@ const extensions = computed((): Extension[] => {
       }
     })
   ];
-
-  return baseExtensions;
-});
+  
+  return extensions;
+};
 
 const editorViewRef = ref<EditorView>();
 const editorContainerRef = ref<HTMLElement>();
@@ -307,7 +324,7 @@ onMounted(() => {
     nextTick(() => {
       const state = EditorState.create({
         doc: props.code,
-        extensions: extensions.value
+        extensions: getExtensions()
       });
 
       const view = new EditorView({
@@ -322,9 +339,140 @@ onMounted(() => {
       if (props.autofocus) {
         view.focus();
       }
+      
+      // 添加键盘事件监听器
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+          e.preventDefault();
+          e.stopPropagation();
+          openSearch();
+        }
+      };
+      
+      view.dom.addEventListener('keydown', handleKeyDown, true);
     });
   }
 });
+
+// 搜索功能
+const openSearch = () => {
+  showSearch.value = true;
+  nextTick(() => {
+    searchPanelRef.value?.focus();
+  });
+};
+
+const closeSearch = () => {
+  showSearch.value = false;
+  clearSearchHighlights();
+};
+
+const handleSearch = (query: string, matchCase: boolean) => {
+  if (!editorViewRef.value || !query) {
+    clearSearchHighlights();
+    return;
+  }
+
+  const view = editorViewRef.value;
+  const text = view.state.doc.toString();
+  const matches: Array<{ from: number; to: number }> = [];
+  
+  const flags = matchCase ? 'g' : 'gi';
+  const searchRegex = new RegExp(
+    query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    flags
+  );
+  
+  let match;
+  while ((match = searchRegex.exec(text)) !== null) {
+    matches.push({
+      from: match.index,
+      to: match.index + match[0].length
+    });
+  }
+  
+  searchMatches.value = matches;
+  searchPanelRef.value?.updateMatchInfo(
+    matches.length > 0 ? 0 : -1,
+    matches.length
+  );
+  
+  if (matches.length > 0) {
+    scrollToMatch(0);
+  }
+};
+
+const findNext = () => {
+  if (searchMatches.value.length === 0) return;
+  
+  const currentIndex = getCurrentMatchIndex();
+  const nextIndex = (currentIndex + 1) % searchMatches.value.length;
+  searchPanelRef.value?.updateMatchInfo(nextIndex, searchMatches.value.length);
+  scrollToMatch(nextIndex);
+};
+
+const findPrevious = () => {
+  if (searchMatches.value.length === 0) return;
+  
+  const currentIndex = getCurrentMatchIndex();
+  const prevIndex = currentIndex <= 0 
+    ? searchMatches.value.length - 1 
+    : currentIndex - 1;
+  searchPanelRef.value?.updateMatchInfo(prevIndex, searchMatches.value.length);
+  scrollToMatch(prevIndex);
+};
+
+const getCurrentMatchIndex = (): number => {
+  if (!editorViewRef.value || searchMatches.value.length === 0) return -1;
+  
+  const selection = editorViewRef.value.state.selection.main;
+  const index = searchMatches.value.findIndex(
+    match => match.from === selection.from && match.to === selection.to
+  );
+  return index >= 0 ? index : 0;
+};
+
+const scrollToMatch = (index: number) => {
+  if (!editorViewRef.value || index < 0 || index >= searchMatches.value.length) return;
+  
+  const view = editorViewRef.value;
+  const match = searchMatches.value[index];
+  
+  view.dispatch({
+    selection: { anchor: match.from, head: match.to },
+    scrollIntoView: true
+  });
+  view.focus();
+  
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const scrollContainer = view.dom as HTMLElement;
+      const coords = view.coordsAtPos(match.from);
+      
+      if (coords) {
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const relativeTop = coords.top - containerRect.top + scrollContainer.scrollTop;
+        const targetScroll = relativeTop - 100;
+        
+        scrollContainer.scrollTo({
+          top: Math.max(0, targetScroll),
+          behavior: 'smooth'
+        });
+      }
+    });
+  });
+};
+
+const clearSearchHighlights = () => {
+  searchMatches.value = [];
+  searchPanelRef.value?.updateMatchInfo(0, 0);
+  
+  if (editorViewRef.value) {
+    editorViewRef.value.dispatch({
+      selection: { anchor: editorViewRef.value.state.selection.main.head }
+    });
+  }
+};
 
 // 监听代码变化
 watchEffect(() => {

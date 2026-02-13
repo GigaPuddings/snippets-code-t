@@ -67,6 +67,7 @@ declare module 'vue' {
     Retrieve: typeof import('./../pages/config/components/retrieve/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SearchPanel: typeof import('./../components/UI/SearchPanel.vue')['default']
     SearchSyntaxHelper: typeof import('./../components/SearchSyntaxHelper/index.vue')['default']
     SegmentedToggle: typeof import('./../components/SegmentedToggle/index.vue')['default']
     SelectConfirmDialog: typeof import('./../components/UI/SelectConfirmDialog.vue')['default']

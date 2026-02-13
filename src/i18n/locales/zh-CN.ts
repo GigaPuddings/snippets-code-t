@@ -659,6 +659,15 @@ export default {
     scrollToActive: '定位当前章节'
   },
 
+  // 编辑器搜索
+  editor: {
+    searchPlaceholder: '在文档中查找...',
+    nextMatch: '下一个匹配项',
+    previousMatch: '上一个匹配项',
+    matchCase: '区分大小写',
+    closeSearch: '关闭搜索'
+  },
+
   // 反向链接
   backlinks: {
     title: '反向链接',
@@ -668,6 +677,7 @@ export default {
     noLinkedReferences: '暂无其他笔记链接到此文件',
     noUnlinkedMentions: '暂无其他笔记提及此文件名',
     occurrences: '处引用',
+    searchPlaceholder: '搜索反向链接...',
     deleteWithBacklinks: '删除包含反向链接的片段',
     deleteMessage: '片段「{title}」被 {count} 个其他片段引用。删除后这些引用将失效。',
     deleteOptions: '删除选项：',

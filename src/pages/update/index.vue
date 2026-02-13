@@ -1,4 +1,4 @@
-<template>
+n<template>
   <div class="update-container" data-tauri-drag-region>
     <div class="update-header" data-tauri-drag-region>
       <div class="logo-container">

@@ -18,6 +18,17 @@
         @scroll="handleSourceScroll"
       />
       
+      <!-- 搜索面板 -->
+      <SearchPanel
+        ref="searchPanelRef"
+        :show="showSearch"
+        :dark="props.dark"
+        @close="closeSearch"
+        @search="handleSearch"
+        @next="findNext"
+        @previous="findPrevious"
+      />
+      
       <!-- 右上角功能按钮 -->
       <EditorActions
         v-if="props.showEditorActions"
@@ -68,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount, nextTick } from 'vue';
+import { ref, watch, onBeforeUnmount, nextTick, onMounted } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { debounce } from '@/utils';
 import { handleEditorError } from '@/utils/error-handler';
@@ -80,6 +91,7 @@ import OutlinePanel from './components/OutlinePanel.vue';
 import EditorActions from './components/EditorActions.vue';
 import SourceEditor from './components/SourceEditor.vue';
 import BacklinkPanel from './components/BacklinkPanel.vue';
+import { SearchPanel } from '@/components/UI';
 import type { CSSProperties } from 'vue';
 import { marked } from 'marked';
 
@@ -132,16 +144,22 @@ const emits = defineEmits<{
 // Refs
 const contextMenuRef = ref<InstanceType<typeof TipTapContextMenu> | null>(null);
 const sourceEditorRef = ref<InstanceType<typeof SourceEditor> | null>(null);
+const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 const wordCount = ref(0);
 const charCount = ref(0);
 const showOutline = ref(false);
 const showBacklinks = ref(false);
+const showSearch = ref(false);
 const headings = ref<Array<{ level: number; text: string; pos: number }>>([]);
 const viewMode = ref<'reading' | 'preview' | 'source'>('preview');
 const sourceContent = ref('');
 const currentCursorPos = ref(0);
 const visibleHeadingIndex = ref(-1);
 const backlinkCount = ref(0);
+
+// 搜索相关状态
+const searchMatches = ref<Array<{ from: number; to: number }>>([]);
+const currentSearchIndex = ref(-1);
 
 // 常量：标题跳转时的顶部偏移量（为工具栏和状态栏留出空间）
 const HEADING_SCROLL_OFFSET = 120;
@@ -237,6 +255,17 @@ const editor = useEditor({
       
       // 在捕获阶段添加监听器，优先级最高
       editorElement.addEventListener('click', handleAnchorClick, true);
+      
+      // 添加编辑器级别的键盘事件监听器
+      const handleEditorKeyDown = (event: KeyboardEvent) => {
+        // Ctrl+F 或 Cmd+F 打开搜索
+        if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+          event.preventDefault();
+          event.stopPropagation();
+          openSearch();
+        }
+      };
+      editorElement.addEventListener('keydown', handleEditorKeyDown, true);
       
       // 如果大纲面板已打开，设置滚动监听
       if (showOutline.value) {
@@ -640,6 +669,119 @@ const toggleBacklinks = () => {
   showBacklinks.value = !showBacklinks.value;
 };
 
+// 搜索功能
+const openSearch = () => {
+  showSearch.value = true;
+  nextTick(() => {
+    searchPanelRef.value?.focus();
+  });
+};
+
+const closeSearch = () => {
+  showSearch.value = false;
+  clearSearchHighlights();
+};
+
+const handleSearch = (query: string, matchCase: boolean) => {
+  if (!editor.value || !query) {
+    clearSearchHighlights();
+    return;
+  }
+
+  const doc = editor.value.state.doc;
+  const matches: Array<{ from: number; to: number }> = [];
+  const flags = matchCase ? 'g' : 'gi';
+  const searchRegex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+  
+  doc.descendants((node, pos) => {
+    if (node.isText && node.text) {
+      searchRegex.lastIndex = 0;
+      let match;
+      while ((match = searchRegex.exec(node.text)) !== null) {
+        matches.push({ 
+          from: pos + match.index, 
+          to: pos + match.index + match[0].length 
+        });
+      }
+    }
+  });
+  
+  searchMatches.value = matches;
+  currentSearchIndex.value = matches.length > 0 ? 0 : -1;
+  
+  searchPanelRef.value?.updateMatchInfo(currentSearchIndex.value, matches.length);
+  
+  if (matches.length > 0) {
+    scrollToMatch(0);
+  }
+};
+
+const findNext = () => {
+  if (searchMatches.value.length === 0) return;
+  currentSearchIndex.value = (currentSearchIndex.value + 1) % searchMatches.value.length;
+  searchPanelRef.value?.updateMatchInfo(currentSearchIndex.value, searchMatches.value.length);
+  scrollToMatch(currentSearchIndex.value);
+};
+
+const findPrevious = () => {
+  if (searchMatches.value.length === 0) return;
+  currentSearchIndex.value = currentSearchIndex.value <= 0 
+    ? searchMatches.value.length - 1 
+    : currentSearchIndex.value - 1;
+  searchPanelRef.value?.updateMatchInfo(currentSearchIndex.value, searchMatches.value.length);
+  scrollToMatch(currentSearchIndex.value);
+};
+
+const scrollToMatch = (index: number) => {
+  if (!editor.value || index < 0 || index >= searchMatches.value.length) return;
+  
+  const match = searchMatches.value[index];
+  editor.value.commands.setTextSelection({ from: match.from, to: match.to });
+  editor.value.commands.focus();
+  
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (!editor.value) return;
+      
+      const { view } = editor.value;
+      const scrollContainer = view.dom as HTMLElement;
+      const domSelection = window.getSelection();
+      
+      if (!domSelection || domSelection.rangeCount === 0) {
+        const coords = view.coordsAtPos(match.from);
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const relativeTop = coords.top - containerRect.top + scrollContainer.scrollTop;
+        
+        scrollContainer.scrollTo({
+          top: Math.max(0, relativeTop - 100),
+          behavior: 'smooth'
+        });
+        return;
+      }
+      
+      const range = domSelection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const relativeTop = rect.top - containerRect.top + scrollContainer.scrollTop;
+      const isVisible = rect.top >= containerRect.top && rect.bottom <= containerRect.bottom;
+      
+      if (!isVisible) {
+        scrollContainer.scrollTo({
+          top: Math.max(0, relativeTop - 100),
+          behavior: 'smooth'
+        });
+      }
+    });
+  });
+};
+
+const clearSearchHighlights = () => {
+  searchMatches.value = [];
+  currentSearchIndex.value = -1;
+  searchPanelRef.value?.updateMatchInfo(0, 0);
+  editor.value?.commands.blur();
+};
+
 // 处理反向链接导航
 const handleBacklinkNavigate = (fragmentId: number, searchTitle: string) => {
   emits('backlink-navigate', fragmentId, searchTitle);
@@ -883,9 +1025,42 @@ watch(() => props.dark, (isDark) => {
   }
 });
 
+// 键盘快捷键
+const handleKeyDown = (event: KeyboardEvent) => {
+  // 检查事件目标是否在 CodeMirror 编辑器中
+  const target = event.target as HTMLElement;
+  const isInCodeMirror = target.closest('.cm-editor') !== null;
+  
+  // 如果在 CodeMirror 编辑器中，不拦截事件，让 CodeMirror 自己处理
+  if (isInCodeMirror) {
+    return;
+  }
+  
+  // Ctrl+F 或 Cmd+F 打开搜索
+  if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+    event.preventDefault();
+    event.stopPropagation();
+    openSearch();
+    return;
+  }
+  // Esc 关闭搜索
+  if (event.key === 'Escape' && showSearch.value) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeSearch();
+  }
+};
+
+// 生命周期
+onMounted(() => {
+  // 使用捕获阶段监听，优先级更高
+  document.addEventListener('keydown', handleKeyDown, true);
+});
+
 // 清理
 onBeforeUnmount(() => {
   try {
+    document.removeEventListener('keydown', handleKeyDown, true);
     cleanupScrollListener();
     if (editor.value) {
       editor.value.destroy();
@@ -904,6 +1079,7 @@ defineExpose({
   setViewMode: toggleViewMode,
   toggleOutline: toggleOutline,
   toggleBacklinks: toggleBacklinks,
+  openSearch: openSearch,
   getViewMode: () => viewMode.value,
   scrollToWikilink: (searchTitle: string) => {
     if (!editor.value) return;

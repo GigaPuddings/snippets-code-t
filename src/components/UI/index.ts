@@ -4,5 +4,6 @@ import CommonDialog from './CommonDialog.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 import SelectConfirmDialog from './SelectConfirmDialog.vue';
 import BacklinkUpdateDialog from './BacklinkUpdateDialog.vue';
+import SearchPanel from './SearchPanel.vue';
 
-export { CustomButton, CustomSwitch, CommonDialog, ConfirmDialog, SelectConfirmDialog, BacklinkUpdateDialog };
+export { CustomButton, CustomSwitch, CommonDialog, ConfirmDialog, SelectConfirmDialog, BacklinkUpdateDialog, SearchPanel };

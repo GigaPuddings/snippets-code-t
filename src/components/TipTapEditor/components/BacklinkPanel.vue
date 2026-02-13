@@ -1,9 +1,44 @@
 <template>
   <div class="backlink-sidebar" :class="{ 'dark': dark, 'is-visible': show }">
     <div class="backlink-sidebar-header">
-      <h3 class="backlink-sidebar-title">{{ t('backlinks.title') }}</h3>
-      <button class="backlink-sidebar-close" @click="$emit('close')" :title="t('common.close')">
-        <svg viewBox="0 0 24 24" width="16" height="16">
+      <div class="backlink-sidebar-actions">
+        <!-- 搜索按钮 -->
+        <button 
+          class="backlink-action-btn" 
+          @click="toggleSearch"
+          :title="$t('noteEditor.search')"
+          :class="{ 'is-active': showSearch }"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14">
+            <path fill="currentColor" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" />
+          </svg>
+        </button>
+        <button class="backlink-sidebar-close" @click="$emit('close')" :title="t('common.close')">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 搜索框 -->
+    <div v-show="showSearch" class="backlink-search-box">
+      <svg viewBox="0 0 24 24" width="14" height="14" class="search-icon">
+        <path fill="currentColor" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" />
+      </svg>
+      <input 
+        ref="searchInputRef"
+        v-model="searchQuery"
+        type="text"
+        class="search-input"
+        :placeholder="t('backlinks.searchPlaceholder')"
+      />
+      <button 
+        v-if="searchQuery"
+        class="clear-search-btn"
+        @click="clearSearch"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14">
           <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
         </svg>
       </button>
@@ -22,23 +57,26 @@
         <div class="backlink-section">
           <div class="section-header">
             <h4 class="section-title">{{ t('backlinks.linkedReferences') }}</h4>
-            <span class="count-badge">{{ linkedReferences.length }}</span>
+            <span class="count-badge">{{ filteredLinkedReferences.length }}</span>
           </div>
-          <div v-if="linkedReferences.length === 0" class="empty-state">
+          <div v-if="filteredLinkedReferences.length === 0 && !searchQuery" class="empty-state">
             {{ t('backlinks.noLinkedReferences') }}
+          </div>
+          <div v-else-if="filteredLinkedReferences.length === 0 && searchQuery" class="empty-state">
+            {{ t('noteEditor.noSearchResults') }}
           </div>
           <div v-else class="backlink-list">
             <div
-              v-for="item in linkedReferences"
+              v-for="item in filteredLinkedReferences"
               :key="item.id"
               class="backlink-item"
               @click="handleNavigate(item.id)"
             >
               <div class="item-header">
-                <span class="item-title">{{ item.title }}</span>
+                <span class="item-title" v-html="highlightSearchText(item.title)"></span>
                 <span class="item-count">{{ item.occurrences }}{{ t('backlinks.occurrences') }}</span>
               </div>
-              <div class="item-preview" v-html="highlightWikilink(item.preview, currentTitle)"></div>
+              <div class="item-preview" v-html="highlightSearchInPreview(highlightWikilink(item.preview, currentTitle))"></div>
             </div>
           </div>
         </div>
@@ -47,23 +85,26 @@
         <div class="backlink-section">
           <div class="section-header">
             <h4 class="section-title">{{ t('backlinks.unlinkedMentions') }}</h4>
-            <span class="count-badge">{{ unlinkedMentions.length }}</span>
+            <span class="count-badge">{{ filteredUnlinkedMentions.length }}</span>
           </div>
-          <div v-if="unlinkedMentions.length === 0" class="empty-state">
+          <div v-if="filteredUnlinkedMentions.length === 0 && !searchQuery" class="empty-state">
             {{ t('backlinks.noUnlinkedMentions') }}
+          </div>
+          <div v-else-if="filteredUnlinkedMentions.length === 0 && searchQuery" class="empty-state">
+            {{ t('noteEditor.noSearchResults') }}
           </div>
           <div v-else class="backlink-list">
             <div
-              v-for="item in unlinkedMentions"
+              v-for="item in filteredUnlinkedMentions"
               :key="item.id"
               class="backlink-item"
               @click="handleNavigate(item.id)"
             >
               <div class="item-header">
-                <span class="item-title">{{ item.title }}</span>
+                <span class="item-title" v-html="highlightSearchText(item.title)"></span>
                 <span class="item-count">{{ item.occurrences }}{{ t('backlinks.occurrences') }}</span>
               </div>
-              <div class="item-preview" v-html="highlightMention(item.preview, currentTitle)"></div>
+              <div class="item-preview" v-html="highlightSearchInPreview(highlightMention(item.preview, currentTitle))"></div>
             </div>
           </div>
         </div>
@@ -73,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { findBacklinks, findUnlinkedMentions } from '@/utils/wikilink-updater';
 
@@ -106,8 +147,90 @@ const { t } = useI18n();
 const loading = ref(false);
 const linkedReferences = ref<BacklinkItem[]>([]);
 const unlinkedMentions = ref<BacklinkItem[]>([]);
+const searchQuery = ref('');
+const showSearch = ref(false);
+const searchInputRef = ref<HTMLInputElement | null>(null);
 
 const regexCache = new Map<string, RegExp>();
+
+// 搜索功能
+const toggleSearch = () => {
+  showSearch.value = !showSearch.value;
+  if (showSearch.value) {
+    nextTick(() => searchInputRef.value?.focus());
+  } else {
+    searchQuery.value = '';
+  }
+};
+
+const clearSearch = () => {
+  searchQuery.value = '';
+};
+
+// 过滤反向链接
+const filteredLinkedReferences = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return linkedReferences.value;
+  }
+  
+  const query = searchQuery.value.toLowerCase();
+  return linkedReferences.value.filter(item => 
+    item.title.toLowerCase().includes(query) || 
+    item.preview.toLowerCase().includes(query)
+  );
+});
+
+// 过滤未链接提及
+const filteredUnlinkedMentions = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return unlinkedMentions.value;
+  }
+  
+  const query = searchQuery.value.toLowerCase();
+  return unlinkedMentions.value.filter(item => 
+    item.title.toLowerCase().includes(query) || 
+    item.preview.toLowerCase().includes(query)
+  );
+});
+
+// 高亮搜索文本
+const highlightSearchText = (text: string): string => {
+  if (!searchQuery.value.trim()) return text;
+  
+  const regex = new RegExp(`(${escapeRegExp(searchQuery.value)})`, 'gi');
+  return text.replace(regex, '<mark class="search-highlight">$1</mark>');
+};
+
+// 在预览中高亮搜索文本（保留已有的高亮）
+const highlightSearchInPreview = (html: string): string => {
+  if (!searchQuery.value.trim()) return html;
+  
+  // 创建临时 div 来解析 HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  
+  // 递归处理文本节点
+  const highlightTextNodes = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      if (text.toLowerCase().includes(searchQuery.value.toLowerCase())) {
+        const regex = new RegExp(`(${escapeRegExp(searchQuery.value)})`, 'gi');
+        const highlightedHTML = text.replace(regex, '<mark class="search-highlight">$1</mark>');
+        const span = document.createElement('span');
+        span.innerHTML = highlightedHTML;
+        node.parentNode?.replaceChild(span, node);
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      // 跳过已经高亮的 mark 元素
+      if ((node as Element).tagName !== 'MARK') {
+        Array.from(node.childNodes).forEach(highlightTextNodes);
+      }
+    }
+  };
+  
+  highlightTextNodes(tempDiv);
+  return tempDiv.innerHTML;
+};
 
 const getCachedRegex = (pattern: string, flags: string = 'gi'): RegExp => {
   const key = `${pattern}_${flags}`;
@@ -311,11 +434,96 @@ watch(() => [props.show, props.currentTitle], () => {
   }
 }
 
-.backlink-sidebar-title {
-  @apply text-sm font-semibold text-gray-900;
+.backlink-sidebar-actions {
+  @apply flex items-center gap-1 w-full justify-end;
+}
+
+.backlink-action-btn {
+  @apply w-7 h-7 flex items-center justify-center rounded cursor-pointer;
+  transition: all 0.15s ease;
+  color: #999;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #666;
+  }
+  
+  &.is-active {
+    background-color: var(--categories-bg-tab-active);
+    color: var(--el-color-primary);
+  }
+  
+  svg {
+    @apply text-current;
+  }
   
   .dark & {
-    @apply text-[#CECFD0];
+    color: #8a8a8a;
+    
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+      color: #b3b3b3;
+    }
+    
+    &.is-active {
+      background-color: var(--categories-bg-tab-active);
+      color: var(--el-color-primary);
+    }
+  }
+}
+
+.backlink-search-box {
+  @apply flex items-center px-3 py-2 border-b border-gray-200 gap-2;
+  flex-shrink: 0;
+  
+  .dark & {
+    @apply border-[#2a2a2a];
+  }
+}
+
+.search-icon {
+  @apply flex-shrink-0;
+  color: #999;
+  
+  .dark & {
+    color: #8a8a8a;
+  }
+}
+
+.search-input {
+  @apply flex-1 bg-transparent border-none outline-none text-sm;
+  color: #333;
+  
+  &::placeholder {
+    color: #999;
+  }
+  
+  .dark & {
+    color: #ccc;
+    
+    &::placeholder {
+      color: #666;
+    }
+  }
+}
+
+.clear-search-btn {
+  @apply w-5 h-5 flex items-center justify-center rounded cursor-pointer flex-shrink-0;
+  transition: background-color 0.15s ease;
+  color: #999;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #666;
+  }
+  
+  .dark & {
+    color: #8a8a8a;
+    
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+      color: #b3b3b3;
+    }
   }
 }
 
@@ -457,6 +665,14 @@ watch(() => [props.show, props.currentTitle], () => {
   .dark & {
     @apply text-[#ccc];
   }
+
+  :deep(.search-highlight) {
+    @apply bg-blue-100 text-blue-700 px-0.5 rounded font-semibold;
+    
+    .dark & {
+      @apply bg-blue-900 bg-opacity-30 text-blue-400;
+    }
+  }
 }
 
 .item-count {
@@ -472,6 +688,14 @@ watch(() => [props.show, props.currentTitle], () => {
   
   .dark & {
     @apply text-[#999];
+  }
+
+  :deep(.search-highlight) {
+    @apply bg-blue-100 text-blue-700 px-0.5 rounded font-semibold;
+    
+    .dark & {
+      @apply bg-blue-900 bg-opacity-30 text-blue-400;
+    }
   }
 
   :deep(mark.wikilink-highlight) {

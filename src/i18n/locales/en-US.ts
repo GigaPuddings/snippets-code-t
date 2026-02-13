@@ -659,6 +659,15 @@ export default {
     scrollToActive: 'Scroll to Active'
   },
 
+  // Editor Search
+  editor: {
+    searchPlaceholder: 'Find in document...',
+    nextMatch: 'Next Match',
+    previousMatch: 'Previous Match',
+    matchCase: 'Match Case',
+    closeSearch: 'Close Search'
+  },
+
   // Backlinks
   backlinks: {
     title: 'Backlinks',
@@ -668,6 +677,7 @@ export default {
     noLinkedReferences: 'No other notes link to this file',
     noUnlinkedMentions: 'No other notes mention this file name',
     occurrences: ' references',
+    searchPlaceholder: 'Search backlinks...',
     deleteWithBacklinks: 'Delete Fragment with Backlinks',
     deleteMessage: 'Fragment "{title}" is referenced by {count} other fragment(s). These references will become invalid after deletion.',
     deleteOptions: 'Delete Options:',

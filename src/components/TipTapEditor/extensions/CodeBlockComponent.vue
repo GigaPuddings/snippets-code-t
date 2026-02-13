@@ -83,7 +83,6 @@ const languageMap: Record<string, string> = {
   apache: 'Apache',
 };
 
-// 显示的语言名称
 const displayLanguage = computed(() => {
   const lang = props.node.attrs.language;
   if (!lang) return 'Plain Text';
@@ -128,128 +127,90 @@ const copyCode = async () => {
 
 <style lang="scss" scoped>
 .code-block-wrapper {
-  position: relative;
-  margin: 8px 0;
-  border-radius: 8px;
-  background: #f6f8fa;
-  border: 1px solid #d0d7de;
-  overflow: hidden;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: #afb8c1;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
-
-    .copy-language-button {
-      opacity: 1;
-    }
-  }
+  @apply relative my-3 rounded-md bg-gray-50 overflow-hidden;
 
   .dark & {
-    background: #22272e;
-    border-color: #444c56;
-
-    &:hover {
-      border-color: #636e7b;
-      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
-    }
+    @apply bg-[#1e1e1e];
   }
 }
 
 .copy-language-button {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #6e7781;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(27, 31, 36, 0.15);
-  border-radius: 6px;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0;
-  backdrop-filter: blur(8px);
-  z-index: 10;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  @apply absolute top-2 right-2 flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-50 rounded cursor-pointer outline-none transition-all duration-150 z-10;
+  border: none;
 
   .language-text {
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    letter-spacing: 0.5px;
-    font-size: 9px;
+    font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
+    letter-spacing: 0.3px;
   }
 
   .copy-icon,
   .check-icon {
-    flex-shrink: 0;
-    opacity: 0.8;
+    @apply flex-shrink-0;
   }
 
   &:hover {
-    opacity: 1 !important;
-    color: #ffffff;
-    background: #5d6dfd;
-    border-color: #5d6dfd;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(93, 109, 253, 0.3);
-
-    .copy-icon,
-    .check-icon {
-      opacity: 1;
-    }
+    @apply bg-gray-200;
   }
 
   &:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(93, 109, 253, 0.3);
+    @apply bg-gray-300;
   }
 
   .dark & {
-    color: #adbac7;
-    background: rgba(34, 39, 46, 0.95);
-    border-color: rgba(99, 110, 123, 0.4);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    @apply text-gray-400 bg-[#1e1e1e];
 
     &:hover {
-      color: #ffffff;
-      background: #7c8aff;
-      border-color: #7c8aff;
-      box-shadow: 0 4px 12px rgba(124, 138, 255, 0.4);
+      @apply bg-[#2d2d2d];
+    }
+
+    &:active {
+      @apply bg-[#3a3a3a];
     }
   }
 }
 
 pre {
-  margin: 0;
-  padding: 12px 16px;
-  padding-top: 32px;
-  overflow-x: visible;
-  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  background: transparent;
+  @apply m-0 pt-10 px-4 pb-4 overflow-x-auto bg-transparent;
+  font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
+  font-size: 13.5px;
+  line-height: 1.65;
+
+  &::-webkit-scrollbar {
+    @apply h-2;
+  }
+
+  &::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    @apply rounded bg-black/15;
+
+    &:hover {
+      @apply bg-black/25;
+    }
+  }
+
+  .dark & {
+    &::-webkit-scrollbar-thumb {
+      @apply bg-white/15;
+
+      &:hover {
+        @apply bg-white/25;
+      }
+    }
+  }
 
   code {
-    display: block;
-    padding: 0;
-    background: transparent !important;
-    border: none;
+    @apply block p-0 bg-transparent border-none text-gray-900;
     font-family: inherit;
     font-size: inherit;
     line-height: inherit;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    word-break: break-word;
-    overflow-wrap: break-word;
-    color: #24292f !important;
+    white-space: pre;
+    tab-size: 2;
 
     .dark & {
-      color: #e5e7eb !important;
+      @apply text-gray-100;
     }
   }
 }

@@ -155,18 +155,34 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 }
 
 .backlink-btn {
-  @apply flex items-center gap-1 px-2 pt-[0.1rem] pb-[0.2rem] rounded cursor-pointer text-xs transition-all;
+  @apply flex items-center gap-1 px-2 pt-[0.1rem] pb-[0.2rem] rounded cursor-pointer text-xs transition-all border-none bg-transparent;
   
   &:hover {
     @apply bg-gray-200;
   }
   
   .backlink-icon {
-    @apply flex-shrink-0;
+    @apply flex-shrink-0 text-gray-600;
+    transition: color 0.3s ease;
   }
   
   .backlink-count {
     @apply text-center min-w-[18px] px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  .dark-theme & {
+    &:hover {
+      @apply bg-[#2a2a2a];
+    }
+    
+    .backlink-icon {
+      @apply text-gray-400;
+    }
+    
+    .backlink-count {
+      @apply bg-blue-900 text-blue-300;
+    }
   }
 }
 

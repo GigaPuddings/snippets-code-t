@@ -39,8 +39,8 @@ Snippets Code 是一个基于 Tauri 2 + Vue 3 + Rust 的跨平台桌面应用，
 - **路由**: Vue Router 4
 - **UI 组件**: Element Plus 2.9+
 - **编辑器**: 
-  - TipTap 3.17+ (富文本编辑)
-  - CodeMirror 6 (代码编辑)
+  - TipTap 3.17+ (富文本编辑，带自定义搜索)
+  - CodeMirror 6 (代码编辑，带自定义搜索)
 - **国际化**: Vue I18n 11.2+
 - **样式**: 
   - SCSS
@@ -82,12 +82,14 @@ snippets-code/
 │   ├── assets/                   # 静态资源
 │   ├── components/               # 可复用组件
 │   │   ├── CategoryItem/         # 分类项组件
-│   │   ├── CodeMirrorEditor/     # 代码编辑器
+│   │   ├── CodeMirrorEditor/     # 代码编辑器（带搜索）
 │   │   ├── ContentItem/          # 内容项组件
 │   │   ├── ContextMenu/          # 右键菜单
-│   │   ├── TipTapEditor/         # 富文本编辑器
+│   │   ├── TipTapEditor/         # 富文本编辑器（带搜索）
 │   │   ├── TagInput/             # 标签输入
 │   │   └── UI/                   # 基础 UI 组件
+│   │       ├── SearchPanel.vue   # 共享搜索面板
+│   │       └── ...               # 其他 UI 组件
 │   ├── database/                 # 数据库操作层
 │   │   ├── category.ts           # 分类操作
 │   │   ├── fragment.ts           # 片段操作
@@ -349,6 +351,8 @@ category/
 
 ### 3. 编辑器模块 (Editor Module)
 
+#### 3.1 TipTap 编辑器
+
 **位置**: `src/components/TipTapEditor/`
 
 **功能**:
@@ -357,6 +361,7 @@ category/
 - 代码高亮
 - 表格支持
 - 任务列表
+- 全局搜索（Ctrl+F）
 
 **架构**:
 ```
@@ -368,6 +373,7 @@ TipTapEditor/
 │   ├── EditorActions.vue
 │   ├── EditorStatusBar.vue
 │   ├── OutlinePanel.vue
+│   ├── BacklinkPanel.vue
 │   └── SourceEditor.vue
 ├── config/                       # 配置
 │   └── extensions.ts
@@ -379,10 +385,66 @@ TipTapEditor/
     └── markdown.ts
 ```
 
+**搜索功能**:
+- 使用共享的 `SearchPanel` 组件（`src/components/UI/SearchPanel.vue`）
+- 支持实时搜索、区分大小写、上一个/下一个匹配
+- 通过遍历 TipTap 文档节点查找匹配项
+- 使用浏览器原生文本选择高亮显示
+
 **关键技术**:
 - TipTap 3.17+ (基于 ProseMirror)
 - Lowlight (代码高亮)
 - Turndown (HTML 转 Markdown)
+
+#### 3.2 CodeMirror 编辑器
+
+**位置**: `src/components/CodeMirrorEditor/`
+
+**功能**:
+- 代码编辑
+- 语法高亮
+- 自动语言检测
+- 全局搜索（Ctrl+F）
+
+**搜索功能**:
+- 使用共享的 `SearchPanel` 组件
+- 通过正则表达式在文档文本中查找匹配项
+- 使用 CodeMirror 的 `dispatch` API 设置选区
+- 自动滚动到匹配位置
+
+**关键技术**:
+- CodeMirror 6
+- 自定义搜索实现（不使用 `@codemirror/search`）
+
+### 4. 搜索面板组件 (Search Panel Component)
+
+**位置**: `src/components/UI/SearchPanel.vue`
+
+**功能**:
+- 统一的搜索 UI
+- 实时搜索
+- 区分大小写选项
+- 匹配计数显示
+- 上一个/下一个导航
+- 键盘快捷键支持
+
+**特点**:
+- 可复用组件，被 TipTap 和 CodeMirror 编辑器共享
+- 支持明暗主题
+- 使用 Tailwind CSS 实现响应式设计
+- 参考 Obsidian 的设计风格
+
+**使用示例**:
+```vue
+<SearchPanel
+  :show="showSearch"
+  :dark="isDark"
+  @close="closeSearch"
+  @search="handleSearch"
+  @next="findNext"
+  @previous="findPrevious"
+/>
+```
 
 ### 4. 截图模块 (Screenshot Module)
 

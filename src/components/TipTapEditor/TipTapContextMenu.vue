@@ -537,148 +537,109 @@ defineExpose({
 
 <style lang="scss" scoped>
 .context-menu {
-  position: fixed;
-  z-index: 9999;
-  min-width: 200px;
-  max-width: 280px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  @apply fixed z-[9999] min-w-[200px] max-w-[280px] bg-white border border-gray-200 rounded-lg p-1 select-none;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
-  padding: 4px;
-  user-select: none;
   transition: background-color 0.2s ease, border-color 0.2s ease;
+  animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 
   &.dark-theme {
-    background: #2a2a2a;
-    border-color: #3a3a3a;
+    @apply bg-[#2a2a2a] border-[#3a3a3a];
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
 
     .menu-item {
-      color: #e5e7eb;
+      @apply text-gray-200;
 
       &:hover:not(.disabled) {
+        @apply text-white;
         background: rgba(93, 109, 253, 0.12);
-        color: #ffffff;
       }
 
       &.active {
-        color: #7c8aff;
+        @apply text-[#7c8aff];
         background: rgba(93, 109, 253, 0.08);
       }
 
       &.disabled {
-        color: #6b7280;
+        @apply text-gray-500;
       }
     }
 
     .menu-divider {
-      background: #3a3a3a;
+      @apply bg-[#3a3a3a];
     }
 
     .menu-arrow {
-      color: #9ca3af;
+      @apply text-gray-400;
     }
 
     .menu-icon {
-      color: #9ca3af;
+      @apply text-gray-400;
     }
+  }
+
+  &.submenu {
+    animation: slideIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
 .menu-item {
-  display: flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 5px 10px;
-  color: #374151;
-  font-size: 13px;
-  cursor: pointer;
+  @apply flex items-center min-h-[32px] px-2.5 py-[5px] text-gray-700 text-[13px] cursor-pointer relative rounded-[5px] gap-2;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  border-radius: 5px;
-  gap: 8px;
 
   &:hover:not(.disabled) {
+    @apply text-gray-800;
     background: rgba(93, 109, 253, 0.08);
-    color: #1f2937;
   }
 
   &.active {
-    color: #5d6dfd;
-    font-weight: 500;
+    @apply text-[#5d6dfd] font-medium;
     background: rgba(93, 109, 253, 0.05);
   }
 
   &.disabled {
-    color: #9ca3af;
-    cursor: not-allowed;
-    opacity: 0.5;
+    @apply text-gray-400 cursor-not-allowed opacity-50;
     
     &:hover {
-      background: transparent;
+      @apply bg-transparent;
       transform: none;
     }
   }
 
   &.has-submenu {
-    padding-right: 6px;
+    @apply pr-1.5;
   }
 
   .menu-icon {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-    color: #6b7280;
+    @apply w-4 h-4 flex-shrink-0 text-gray-500;
     transition: color 0.15s ease;
   }
 
   .menu-arrow {
-    margin-left: auto;
-    width: 16px;
-    height: 16px;
-    color: #9ca3af;
-    flex-shrink: 0;
+    @apply ml-auto w-4 h-4 text-gray-400 flex-shrink-0;
     transition: color 0.15s ease;
   }
 
   .check-mark {
-    margin-left: auto;
-    width: 16px;
-    height: 16px;
-    color: #5d6dfd;
-    flex-shrink: 0;
+    @apply ml-auto w-4 h-4 text-[#5d6dfd] flex-shrink-0;
   }
 
   .menu-shortcut {
-    margin-left: auto;
-    padding: 1px 6px;
-    color: #9ca3af;
-    font-size: 10px;
+    @apply ml-auto px-1.5 py-px text-gray-400 text-[10px] flex-shrink-0 rounded font-medium;
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    flex-shrink: 0;
     background: rgba(0, 0, 0, 0.04);
-    border-radius: 3px;
-    font-weight: 500;
     letter-spacing: 0.3px;
   }
 
   span {
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    @apply flex-1 whitespace-nowrap overflow-hidden text-ellipsis;
   }
 }
 
 .menu-divider {
-  height: 1px;
-  background: #e5e7eb;
-  margin: 4px 6px;
+  @apply h-px bg-gray-200 mx-1.5 my-1;
   transition: background-color 0.2s ease;
 }
 
-// 动画
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -701,25 +662,14 @@ defineExpose({
   }
 }
 
-.context-menu {
-  animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-  
-  &.submenu {
-    animation: slideIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-}
-
-// 响应式优化
 @media (max-width: 768px) {
   .context-menu {
-    min-width: 180px;
+    @apply min-w-[180px];
     max-width: calc(100vw - 24px);
   }
   
   .menu-item {
-    min-height: 36px;
-    padding: 6px 10px;
-    font-size: 14px;
+    @apply min-h-[36px] px-2.5 py-1.5 text-sm;
   }
 }
 </style>
