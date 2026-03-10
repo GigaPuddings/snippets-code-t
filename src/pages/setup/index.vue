@@ -8,7 +8,7 @@
           <span class="step-label">{{ s.title }}</span>
         </div>
       </div>
-      
+
       <!-- 欢迎页的拖拽区域 -->
       <div v-else class="welcome-drag-region" data-tauri-drag-region></div>
 
@@ -29,13 +29,14 @@
             <CustomButton type="primary" class="quick-start-btn" @click="nextStep">
               {{ $t('common.quickStart') || 'Quick start' }}
             </CustomButton>
-            
+
             <div class="welcome-desc-text">{{ $t('setup.welcomeDesc') }}</div>
           </div>
 
           <!-- 语言选择下拉框 - 底部居中 -->
           <div class="language-footer">
-             <el-select v-model="language" class="lang-select dark-input" popper-class="dark-select-popper" @change="onLanguageChange">
+            <el-select v-model="language" class="lang-select dark-input" popper-class="dark-select-popper"
+              @change="onLanguageChange">
               <el-option v-for="lang in languages" :key="lang.value" :label="lang.label" :value="lang.value">
                 <div class="flex items-center gap-2">
                   <span>{{ lang.flag }}</span>
@@ -68,8 +69,8 @@
               <div class="option-info">
                 <div class="option-title">{{ $t('setup.customLocation') }}</div>
                 <div v-if="pathOption === 'custom'" class="custom-path-input">
-                  <el-input v-model="customPath" :placeholder="$t('common.browse')" class="path-input dark-input" clearable
-                    @blur="onPathBlur" />
+                  <el-input v-model="customPath" :placeholder="$t('common.browse')" class="path-input dark-input"
+                    clearable @blur="onPathBlur" />
                   <CustomButton type="primary" size="small" @click.stop="selectCustomPath" class="browse-btn">
                     {{ $t('common.browse') }}
                   </CustomButton>
@@ -77,7 +78,7 @@
                 <div v-else class="option-desc">{{ $t('setup.customLocationDesc') || 'Choose a custom folder' }}</div>
               </div>
               <div class="option-action">
-                 <div class="radio-circle">
+                <div class="radio-circle">
                   <div v-if="pathOption === 'custom'" class="radio-dot"></div>
                 </div>
               </div>
@@ -212,27 +213,22 @@ const prevStep = () => {
 };
 
 const nextStep = async () => {
-  // 在数据目录设置步骤，验证路径
+  // 在数据目录设置步骤，只验证路径（不保存）
   if (step.value === 1) {
     if (pathOption.value === 'custom' && !customPath.value) {
       modal.msg(t('setup.selectDir'), 'warning');
       return;
     }
-    
-    // 如果选择了自定义路径，提前验证
-    if (pathOption.value === 'custom' && customPath.value && customPath.value !== defaultPath.value) {
-      try {
-        // 验证路径是否可用（后端会检查保护目录和写入权限）
-        const actualPath = await invoke<string>('set_data_dir_from_setup', { path: customPath.value });
-        customPath.value = actualPath;
-      } catch (error: any) {
-        // 显示详细的错误信息，阻止进入下一步
-        modal.msg(`${t('setup.pathError') || '路径设置失败'}: ${error}`, 'error');
-        return;
+
+    // 验证自定义路径格式（不调用后端）
+    if (pathOption.value === 'custom' && customPath.value) {
+      // 确保路径格式正确
+      if (needsAppFolder(customPath.value)) {
+        customPath.value = customPath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
       }
     }
   }
-  
+
   if (step.value < steps.value.length - 1) {
     step.value++;
   }
@@ -260,18 +256,39 @@ const selectCustomPath = async () => {
 const completeSetup = async () => {
   completing.value = true;
   try {
-    // 保存语言设置到 store 和后端
+    // 1. 保存数据目录（如果选择了自定义路径）
+    if (pathOption.value === 'custom' && customPath.value && customPath.value !== defaultPath.value) {
+      try {
+        // 保存路径并创建数据库和 app.json
+        const actualPath = await invoke<string>('set_data_dir_from_setup', { path: customPath.value });
+        customPath.value = actualPath;
+      } catch (error: any) {
+        // 显示详细的错误信息
+        modal.msg(`${t('setup.pathError') || '路径设置失败'}: ${error}`, 'error');
+        completing.value = false;
+        return;
+      }
+    } else {
+      // 使用默认路径，也需要调用后端初始化数据库和创建 app.json
+      try {
+        await invoke<string>('set_data_dir_from_setup', { path: defaultPath.value });
+      } catch (error: any) {
+        modal.msg(`${t('setup.pathError') || '初始化失败'}: ${error}`, 'error');
+        completing.value = false;
+        return;
+      }
+    }
+
+    // 2. 保存语言设置到后端（更新 app.json）
     store.language = language.value;
     await invoke('set_language', { language: language.value });
 
-    // 路径已在 nextStep 中验证和保存，这里不需要再次调用
-
-    // 标记设置已完成
+    // 3. 标记设置已完成
     await invoke('set_setup_completed');
 
     modal.msg(t('setup.setupComplete'));
 
-    // 关闭设置向导窗口并打开主窗口
+    // 4. 关闭设置向导窗口并重启应用
     await invoke('close_setup_window');
   } catch (error: any) {
     modal.msg(`${t('setup.setupFailed')}: ${error}`, 'error');
@@ -302,28 +319,28 @@ const completeSetup = async () => {
   @apply flex items-center justify-center gap-6 py-6 px-8;
   @apply cursor-move select-none;
   -webkit-app-region: drag;
-  
+
   /* Minimalist step indicator */
   .step {
     @apply flex items-center gap-2;
     opacity: 0.5;
     transition: opacity 0.3s, color 0.3s;
-    
+
     &.active {
       opacity: 1;
       color: #dcddde;
-      
+
       .step-dot {
         background-color: var(--el-color-primary);
         border-color: var(--el-color-primary);
         color: white;
       }
     }
-    
+
     &.completed {
       opacity: 1;
       color: var(--el-color-primary);
-      
+
       .step-dot {
         background-color: transparent;
         border-color: var(--el-color-primary);
@@ -352,15 +369,22 @@ const completeSetup = async () => {
 .step-page {
   @apply flex flex-col items-center text-center w-full max-w-md;
   animation: fadeIn 0.3s ease-out;
-  
+
   &.welcome-page {
     @apply mb-auto mt-1 gap-6 pb-4;
   }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .welcome-header {
@@ -412,11 +436,11 @@ const completeSetup = async () => {
     border: 1px solid transparent;
     border-radius: 4px;
     padding: 0 8px;
-    
+
     &:hover {
       border-color: #444;
     }
-    
+
     &.is-focus {
       border-color: var(--el-color-primary) !important;
     }
@@ -445,7 +469,8 @@ const completeSetup = async () => {
 .path-option {
   @apply flex items-center justify-between gap-4 p-4 rounded-lg;
   @apply border border-transparent cursor-pointer transition-all;
-  background-color: #2b2b2b; /* Card background */
+  background-color: #2b2b2b;
+  /* Card background */
   border: 1px solid #333;
 
   &:hover {
@@ -455,12 +480,13 @@ const completeSetup = async () => {
 
   &.selected {
     border-color: var(--el-color-primary);
-    background-color: rgba(93, 109, 253, 0.1); /* #5d6dfd with 10% opacity */
-    
+    background-color: rgba(93, 109, 253, 0.1);
+    /* #5d6dfd with 10% opacity */
+
     .radio-dot {
       background-color: var(--el-color-primary);
     }
-    
+
     .radio-circle {
       border-color: var(--el-color-primary);
     }
@@ -499,17 +525,17 @@ const completeSetup = async () => {
 
   .path-input {
     @apply flex-1;
-    
+
     :deep(.el-input__wrapper) {
       background-color: #1e1e1e;
       box-shadow: 0 0 0 1px #444 inset;
-      
+
       &:hover {
-         box-shadow: 0 0 0 1px #666 inset;
+        box-shadow: 0 0 0 1px #666 inset;
       }
-      
+
       &.is-focus {
-         box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+        box-shadow: 0 0 0 1px var(--el-color-primary) inset;
       }
     }
   }

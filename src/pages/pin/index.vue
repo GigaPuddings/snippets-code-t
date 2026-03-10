@@ -309,23 +309,34 @@ const handleCopyImage = async () => {
 }
 
 const handleSaveImage = async () => {
+  const imageDataToSave = imageData.value
+  closeContextMenu()
+  
+  if (appWindow.value) {
+    await appWindow.value.hide()
+  }
+  
   try {
-    const imageDataToSave = imageData.value
-    closeContextMenu()
-    
-    if (appWindow.value) {
-      await appWindow.value.hide()
-    }
-    
     await invoke('save_pin_image', { imageData: imageDataToSave })
     
+    // 保存成功，关闭窗口
     if (appWindow.value) {
       await appWindow.value.close()
     }
-  } catch (error) {
-    logger.error('[PIN窗口] 保存图片失败', error)
-    if (appWindow.value) {
-      await appWindow.value.close()
+  } catch (error: any) {
+    // 检查是否是用户取消保存
+    if (error === 'SAVE_CANCELLED') {
+      logger.info('[PIN窗口] 用户取消保存，恢复窗口显示')
+      // 用户取消保存，恢复窗口显示
+      if (appWindow.value) {
+        await appWindow.value.show()
+      }
+    } else {
+      // 真正的保存失败，关闭窗口
+      logger.error('[PIN窗口] 保存图片失败', error)
+      if (appWindow.value) {
+        await appWindow.value.close()
+      }
     }
   }
 }

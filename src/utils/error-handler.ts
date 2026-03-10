@@ -3,7 +3,7 @@
  * 提供集中式的错误捕获、日志记录和用户提示
  */
 
-import { ElMessage } from 'element-plus';
+import modal from './modal';
 
 /**
  * 错误类型枚举
@@ -70,8 +70,7 @@ export class ErrorHandler {
       showNotification = true,
       logToConsole = true,
       logToFile = false,
-      userMessage,
-      duration = 3000
+      userMessage
     } = options;
 
     // 记录错误日志
@@ -87,17 +86,11 @@ export class ErrorHandler {
     // 显示用户友好的错误消息
     if (showNotification) {
       const message = userMessage || this.getUserMessage(error, context);
-      
+
       if (context.type === ErrorType.VALIDATION_ERROR) {
-        ElMessage.warning({
-          message,
-          duration
-        });
+        modal.warning(message);
       } else {
-        ElMessage.error({
-          message,
-          duration
-        });
+        modal.error(message);
       }
     }
   }
@@ -151,14 +144,29 @@ export class ErrorHandler {
   static getUserMessage(error: Error | unknown, context: ErrorContext): string {
     // 如果是 Error 对象，尝试从 message 中提取信息
     if (error instanceof Error) {
+      const msg = error.message.toLowerCase();
       // 检查是否是网络错误
-      if (error.message.includes('fetch') || error.message.includes('network')) {
+      if (msg.includes('fetch') || msg.includes('network')) {
         return '网络连接失败，请检查网络设置';
       }
-      
+
       // 检查是否是超时错误
-      if (error.message.includes('timeout')) {
+      if (msg.includes('timeout')) {
         return '请求超时，请稍后重试';
+      }
+
+      // 检查是否是文件系统权限错误（测试用例 6.4）
+      // 含 Windows 中文 "拒绝访问"、英文 Permission/Access denied、EACCES 等
+      if (
+        msg.includes('permission denied') ||
+        msg.includes('拒绝访问') ||
+        msg.includes('只读') ||
+        msg.includes('没有写入权限') ||
+        msg.includes('access denied') ||
+        msg.includes('eacces') ||
+        msg.includes('readonly')
+      ) {
+        return '工作区目录没有写入权限，请检查目录权限或选择可写的目录';
       }
     }
 
@@ -197,37 +205,25 @@ export class ErrorHandler {
   /**
    * 显示成功消息
    * @param message - 成功消息
-   * @param duration - 持续时间（毫秒）
    */
-  static success(message: string, duration = 2000): void {
-    ElMessage.success({
-      message,
-      duration
-    });
+  static success(message: string): void {
+    modal.success(message);
   }
 
   /**
    * 显示警告消息
    * @param message - 警告消息
-   * @param duration - 持续时间（毫秒）
    */
-  static warning(message: string, duration = 3000): void {
-    ElMessage.warning({
-      message,
-      duration
-    });
+  static warning(message: string): void {
+    modal.warning(message);
   }
 
   /**
    * 显示信息消息
    * @param message - 信息消息
-   * @param duration - 持续时间（毫秒）
    */
-  static info(message: string, duration = 2000): void {
-    ElMessage.info({
-      message,
-      duration
-    });
+  static info(message: string): void {
+    modal.info(message);
   }
 }
 
@@ -305,12 +301,16 @@ export function handleEditorError(error: unknown, context?: string): void {
  * ```
  */
 export function handleSaveError(error: unknown, context?: string): void {
+  // 权限类错误使用 getUserMessage 的智能提示；其余使用通用保存失败提示
+  const isPermissionError = error instanceof Error && (
+    /拒绝访问|permission denied|只读|没有写入权限|access denied|eacces|readonly/i.test(error.message)
+  );
   ErrorHandler.handle(error, {
     type: ErrorType.DATABASE_ERROR,
     operation: context || '保存操作',
     timestamp: new Date()
   }, {
-    userMessage: '保存失败，请重试'
+    userMessage: isPermissionError ? undefined : '保存失败，请重试'
   });
 }
 

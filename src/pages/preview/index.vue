@@ -6,9 +6,20 @@
         {{ snippet?.title || $t('snippetPreview.untitled') }}
       </span>
       <div class="header-actions" data-tauri-drag-region="false">
-        <button 
-          class="detail-btn" 
-          @click="handleOpenDetail" 
+        <button
+          v-if="snippet?.type === 'note' || snippet?.type === 'code'"
+          class="folder-btn"
+          @click="handleOpenFolder"
+          title="打开存储位置"
+          data-tauri-drag-region="false"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z" />
+          </svg>
+        </button>
+        <button
+          class="detail-btn"
+          @click="handleOpenDetail"
           :title="$t('snippetPreview.openDetail') || '详细查看'"
           data-tauri-drag-region="false"
         >
@@ -28,11 +39,11 @@
 
     <!-- 内容区域 -->
     <div v-else class="preview-content">
-      <!-- 笔记类型 - 使用 TipTap 富文本编辑器 -->
+      <!-- 笔记类型 - 使用 TipTap 富文本编辑器（图片路径已解析为可访问 URL） -->
       <TipTapEditor
         v-if="snippet?.type === 'note' && snippet?.content"
         ref="noteEditorRef"
-        :content="snippet.content"
+        :content="noteContentWithResolvedImages"
         :dark="isDark"
         :disabled="true"
         :autofocus="false"
@@ -75,8 +86,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit, listen } from '@tauri-apps/api/event';
+import type { ContentType } from '@/types/models';
 import { useConfigurationStore } from '@/store';
 import { processTemplate, previewTemplate } from '@/utils/templateParser';
+import { resolvePreviewImageUrls } from '@/components/TipTapEditor/utils/markdown';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
 import TipTapEditor from '@/components/TipTapEditor/index.vue';
 
@@ -99,6 +112,16 @@ const isDark = computed(() => {
 const displayContent = computed(() => {
   if (!snippet.value?.content) return '';
   return previewTemplate(snippet.value.content);
+});
+
+// 笔记内容：将相对路径图片解析为 Tauri 可访问 URL，供预览窗口正确显示图片
+const noteContentWithResolvedImages = computed(() => {
+  if (!snippet.value?.content || snippet.value.type !== 'note') return snippet.value?.content ?? '';
+  const payload = snippet.value as ContentType & { workspaceRoot?: string };
+  const workspaceRoot = payload.workspaceRoot;
+  const notePath = snippet.value.id;
+  if (!workspaceRoot || !notePath) return snippet.value.content;
+  return resolvePreviewImageUrls(snippet.value.content, workspaceRoot, String(notePath));
 });
 
 // 应用主题到 document
@@ -224,6 +247,30 @@ const handleCopy = async () => {
   }
 };
 
+// 打开文件所在文件夹
+const handleOpenFolder = async () => {
+  if (!snippet.value) {
+    console.error('[Preview] No snippet data available');
+    return;
+  }
+
+  const payload = snippet.value as ContentType & { workspaceRoot?: string };
+  const fileId = payload.id;
+
+  // 如果是文件路径，直接打开所在目录
+  if (fileId && typeof fileId === 'string' && (fileId.endsWith('.md') || fileId.includes('/') || fileId.includes('\\'))) {
+    try {
+      await invoke('show_file_in_folder', { file_path: fileId });
+      // 打开文件夹后关闭预览窗口
+      handleClose();
+    } catch (err) {
+      console.error('[Preview] Failed to open folder:', err);
+    }
+  } else {
+    console.warn('[Preview] Invalid file path:', fileId);
+  }
+};
+
 // 打开详细查看 - 跳转到配置窗口
 const handleOpenDetail = async () => {
   if (!snippet.value) {
@@ -294,7 +341,28 @@ const handleClose = async () => {
       position: relative;
       z-index: 100;
     }
-    
+
+    .folder-btn {
+      @apply w-6 h-6 flex items-center justify-center rounded transition-colors cursor-pointer;
+      color: var(--search-info-text-color);
+      background: transparent;
+      border: none;
+
+      &:hover {
+        background: var(--categories-panel-bg-hover);
+        color: var(--el-color-primary);
+      }
+
+      &:active {
+        transform: scale(0.95);
+      }
+
+      svg {
+        @apply flex-shrink-0;
+        pointer-events: none;
+      }
+    }
+
     .detail-btn {
       @apply w-6 h-6 flex items-center justify-center rounded transition-colors cursor-pointer;
       color: var(--search-info-text-color);

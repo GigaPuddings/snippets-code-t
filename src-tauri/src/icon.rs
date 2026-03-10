@@ -362,7 +362,7 @@ pub fn extract_domain(url: &str) -> Option<String> {
 }
 
 // 获取网站的Fetch Favicon
-/// 图标源类型
+// 图标源类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IconSource {
     Auto,           // 自动尝试所有源
@@ -382,7 +382,7 @@ impl IconSource {
     }
 }
 
-/// 根据指定源获取图标URL列表
+// 根据指定源获取图标URL列表
 fn get_icon_urls_for_source(source: IconSource, domain: &str) -> Vec<String> {
     match source {
         IconSource::Google => vec![
@@ -423,7 +423,7 @@ fn get_icon_urls_for_source(source: IconSource, domain: &str) -> Vec<String> {
     }
 }
 
-/// 检查图标数据是否是有效的图片格式（不是占位图或错误页面）
+// 检查图标数据是否是有效的图片格式（不是占位图或错误页面）
 fn is_valid_image_data(bytes: &[u8]) -> bool {
     if bytes.len() < 32 {
         return false;
@@ -503,7 +503,7 @@ fn is_valid_image_data(bytes: &[u8]) -> bool {
     is_png || is_jpeg || is_gif || is_ico || is_bmp || is_webp || is_svg
 }
 
-/// 根据图片数据返回正确的 MIME 类型
+// 根据图片数据返回正确的 MIME 类型
 fn get_image_mime_type(bytes: &[u8]) -> &'static str {
     if bytes.len() < 4 {
         return "image/png";
@@ -548,7 +548,7 @@ fn get_image_mime_type(bytes: &[u8]) -> &'static str {
     "image/png"
 }
 
-/// 使用指定源获取 favicon
+// 使用指定源获取 favicon
 pub async fn fetch_favicon_with_source(url: &str, source: IconSource) -> Option<String> {
     if source == IconSource::Auto {
         if let Some(cached_icon) = get_cached_icon(url) {
@@ -714,14 +714,14 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 
 // ============= 通用图标加载框架 =============
 
-/// 通用图标加载器 - 统一处理应用和书签的图标加载逻辑
-/// 
-/// 参数说明：
-/// - items: 需要加载图标的项目列表
-/// - has_icon: 检查项目是否已有图标的函数
-/// - fetch_icon: 获取图标数据的函数
-/// - update_db: 更新数据库的函数
-/// - item_name: 日志中使用的项目名称（"应用" 或 "书签"）
+// 通用图标加载器 - 统一处理应用和书签的图标加载逻辑
+// 
+// 参数说明：
+// - items: 需要加载图标的项目列表
+// - has_icon: 检查项目是否已有图标的函数
+// - fetch_icon: 获取图标数据的函数
+// - update_db: 更新数据库的函数
+// - item_name: 日志中使用的项目名称（"应用" 或 "书签"）
 pub fn load_icons_generic<T>(
     items: Vec<T>,
     has_icon: impl Fn(&T) -> bool,

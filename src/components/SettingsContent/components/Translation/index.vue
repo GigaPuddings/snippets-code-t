@@ -1,7 +1,12 @@
 <template>
   <div class="settings-panel">
-    <h3 class="panel-title">{{ $t('translation.title') }}</h3>
-    <main class="summarize-container">
+    <!-- 固定标题 -->
+    <div class="panel-header">
+      <h3 class="panel-title">{{ $t('translation.title') }}</h3>
+    </div>
+    
+    <!-- 可滚动内容 -->
+    <main class="panel-content">
     <!-- 默认翻译引擎 -->
     <section class="summarize-section">
       <div class="summarize-label">
@@ -404,14 +409,6 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.settings-panel {
-  @apply flex flex-col;
-}
-
-.panel-title {
-  @apply text-base font-bold mb-4 pb-2 border-b border-panel;
-}
-
 .model-info-card {
   @apply space-y-3;
   

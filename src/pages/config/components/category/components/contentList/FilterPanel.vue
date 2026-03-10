@@ -351,13 +351,18 @@ function handleReset(): void {
   }
   
   .tag-item {
-    @apply min-h-9 flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all bg-transparent hover:bg-hover border border-transparent;
+    @apply min-h-9 flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all;
+    @apply bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700;
+    
+    &:hover {
+      @apply bg-gray-100 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600;
+    }
     
     &.active {
-      @apply bg-active border-blue-500;
+      @apply bg-blue-500 border-blue-500;
       
       .tag-text {
-        @apply text-white;
+        @apply text-white font-medium;
       }
       
       .tag-check {
@@ -366,11 +371,11 @@ function handleReset(): void {
     }
     
     .tag-text {
-      @apply text-xs text-content truncate flex-1;
+      @apply text-xs text-gray-700 dark:text-gray-300 truncate flex-1;
     }
     
     .tag-check {
-      @apply text-blue-500 flex-shrink-0 ml-2;
+      @apply flex-shrink-0 ml-2;
     }
   }
   

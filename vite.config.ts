@@ -77,5 +77,33 @@ export default defineConfig(async () => ({
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ['**/src-tauri/**']
     }
+  },
+
+  // 代码分割优化配置
+  build: {
+    rollupOptions: {
+      output: {
+        // 手动分割代码块
+        manualChunks: (id) => {
+          // Vue 核心生态模块
+          if (id.includes('node_modules/vue') ||
+              id.includes('node_modules/vue-router') ||
+              id.includes('node_modules/pinia') ||
+              id.includes('node_modules/vue-i18n')) {
+            return 'vue-ecosystem';
+          }
+          // Element Plus 组件库
+          if (id.includes('node_modules/element-plus')) {
+            return 'element-plus';
+          }
+          // Markdown 解析相关
+          if (id.includes('node_modules/marked')) {
+            return 'markdown';
+          }
+        }
+      }
+    },
+    // 调整 chunk 大小警告阈值（单位: kB）
+    chunkSizeWarningLimit: 600
   }
 }));

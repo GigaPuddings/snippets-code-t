@@ -64,7 +64,7 @@
     />
     
     <!-- 右键上下文菜单 -->
-    <TipTapContextMenu ref="contextMenuRef" :editor="editor ?? null" :dark="props.dark" />
+    <TipTapContextMenu ref="contextMenuRef" :editor="editor ?? null" :dark="props.dark" :view-mode="viewMode" :source-editor-ref="sourceEditorRef" />
     
     <!-- 反向链接面板 -->
     <BacklinkPanel
@@ -81,10 +81,13 @@
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount, nextTick, onMounted } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
+import { TextSelection, NodeSelection } from '@tiptap/pm/state';
 import { debounce } from '@/utils';
 import { handleEditorError } from '@/utils/error-handler';
-import { createTurndownService, markdownToHtml, htmlToMarkdown } from './utils/markdown';
+import { markdownToHtml, jsonToMarkdown } from './utils/markdown';
 import { createEditorExtensions } from './config/extensions';
+import { uploadImage } from '@/utils/image-upload';
+import { getWorkspaceRoot } from '@/api/markdown';
 import TipTapContextMenu from './TipTapContextMenu.vue';
 import EditorStatusBar from './components/EditorStatusBar.vue';
 import OutlinePanel from './components/OutlinePanel.vue';
@@ -93,7 +96,8 @@ import SourceEditor from './components/SourceEditor.vue';
 import BacklinkPanel from './components/BacklinkPanel.vue';
 import { SearchPanel } from '@/components/UI';
 import type { CSSProperties } from 'vue';
-import { marked } from 'marked';
+import type { EditorView } from '@tiptap/pm/view';
+import modal from '@/utils/modal';
 
 interface Props {
   codeStyle?: CSSProperties;
@@ -107,7 +111,7 @@ interface Props {
   showEditorActions?: boolean;
   showContextMenu?: boolean;
   currentTitle?: string;
-  currentFragmentId?: number;
+  currentFragmentId?: number | string;
 }
 
 defineOptions({
@@ -138,7 +142,8 @@ const emits = defineEmits<{
   'wikilink-click': [noteName: string];
   'view-mode-change': [mode: 'reading' | 'preview' | 'source'];
   'outline-toggle': [show: boolean];
-  'backlink-navigate': [fragmentId: number, searchTitle: string];
+  'backlink-navigate': [fragmentId: number | string, searchTitle: string];
+  'scroll-position': [scrollTop: number];
 }>();
 
 // Refs
@@ -156,6 +161,11 @@ const sourceContent = ref('');
 const currentCursorPos = ref(0);
 const visibleHeadingIndex = ref(-1);
 const backlinkCount = ref(0);
+const workspaceRoot = ref<string>('');
+
+// 防止循环更新的标志位
+const isInternalUpdate = ref(false);
+const lastEmittedContent = ref('');
 
 // 搜索相关状态
 const searchMatches = ref<Array<{ from: number; to: number }>>([]);
@@ -164,12 +174,134 @@ const currentSearchIndex = ref(-1);
 // 常量：标题跳转时的顶部偏移量（为工具栏和状态栏留出空间）
 const HEADING_SCROLL_OFFSET = 120;
 
-// Turndown service
-const turndownService = createTurndownService();
-
 // Wikilink 点击处理
 const handleWikilinkClick = (noteName: string) => {
   emits('wikilink-click', noteName);
+};
+
+// 图片上传处理
+const handleImageUpload = async (file: File, _view: EditorView) => {
+  console.log('[handleImageUpload] 开始上传图片:', file.name);
+
+  // 检查是否有当前笔记 ID
+  if (!props.currentFragmentId) {
+    console.error('[handleImageUpload] 未找到当前笔记 ID');
+    modal.error('无法上传图片：未找到当前笔记');
+    return;
+  }
+
+  console.log('[handleImageUpload] 当前笔记 ID:', props.currentFragmentId);
+
+  // 显示上传提示
+  modal.info('正在上传图片...', 'center', 0);
+  
+  try {
+    // 上传图片
+    console.log('[handleImageUpload] 调用 uploadImage');
+    const attachmentInfo = await uploadImage(file, String(props.currentFragmentId));
+    console.log('[handleImageUpload] 上传成功, attachmentInfo:', attachmentInfo);
+    
+    // 构建绝对路径
+    const absolutePath = `${workspaceRoot.value}\\${attachmentInfo.relativePath.replace('../', '').replace(/\//g, '\\')}`;
+    console.log('[handleImageUpload] 绝对路径:', absolutePath);
+    
+    // 使用 Tauri 的 convertFileSrc 转换为可访问的 URL
+    const { convertFileSrc } = await import('@tauri-apps/api/core');
+    const tauriUrl = convertFileSrc(absolutePath);
+    console.log('[handleImageUpload] Tauri URL:', tauriUrl);
+    
+    // 直接插入图片节点，包含所有必要的属性
+    if (editor.value) {
+      console.log('[handleImageUpload] 编辑器存在，准备插入图片');
+      
+      // 获取当前选区
+      const { from } = editor.value.state.selection;
+      const $from = editor.value.state.doc.resolve(from);
+      
+      // 检查当前是否在段落中且段落不为空
+      const isInParagraph = $from.parent.type.name === 'paragraph';
+      const paragraphHasContent = $from.parent.textContent.trim().length > 0;
+      
+      console.log('[handleImageUpload] 插入位置:', {
+        isInParagraph,
+        paragraphHasContent,
+        parentType: $from.parent.type.name
+      });
+      
+      // 使用 HTML 方式插入图片，确保 VueNodeViewRenderer 能够识别
+      // 不设置初始宽度，让图片自适应显示
+      const imgHtml = `<img src="${tauriUrl}" alt="${file.name}" data-original-path="${attachmentInfo.relativePath}" />`;
+      console.log('[handleImageUpload] 图片 HTML:', imgHtml);
+      
+      // 记录插入前的位置
+      const insertPos = editor.value.state.selection.from;
+      console.log('[handleImageUpload] 插入位置:', insertPos);
+      
+      if (isInParagraph && paragraphHasContent) {
+        // 如果在非空段落中，先换行再插入图片
+        console.log('[handleImageUpload] 在非空段落中，先换行');
+        editor.value
+          .chain()
+          .focus()
+          .command(({ tr }) => {
+            // 在当前位置后插入新段落
+            tr.split(tr.selection.from);
+            return true;
+          })
+          .insertContent(imgHtml)
+          .run();
+      } else {
+        // 如果在空段落或其他位置，直接插入
+        console.log('[handleImageUpload] 直接插入图片');
+        editor.value
+          .chain()
+          .focus()
+          .insertContent(imgHtml)
+          .run();
+      }
+      
+      // 插入后选中图片
+      nextTick(() => {
+        if (!editor.value) return;
+        
+        const { state } = editor.value;
+        const { doc } = state;
+        
+        // 从插入位置开始查找图片节点
+        let imagePos = -1;
+        doc.descendants((node, pos) => {
+          if (node.type.name === 'image' && pos >= insertPos) {
+            imagePos = pos;
+            return false; // 找到后停止遍历
+          }
+          return true; // 继续遍历
+        });
+        
+        console.log('[handleImageUpload] 找到图片节点位置:', imagePos);
+        
+        if (imagePos >= 0) {
+          // 选中图片节点
+          const nodeSelection = NodeSelection.create(doc, imagePos);
+          editor.value.view.dispatch(
+            state.tr.setSelection(nodeSelection)
+          );
+          console.log('[handleImageUpload] ✅ 图片已选中');
+        } else {
+          console.warn('[handleImageUpload] ⚠️ 未找到图片节点');
+        }
+      });
+      
+      console.log('[handleImageUpload] 图片插入完成');
+    } else {
+      console.error('[handleImageUpload] 编辑器不存在');
+    }
+
+    // 显示成功提示
+    modal.success('图片上传成功');
+  } catch (error) {
+    console.error('图片上传失败:', error);
+    modal.error(`图片上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
+  }
 };
 
 // 更新统计信息
@@ -207,15 +339,28 @@ const editor = useEditor({
   content: props.content,
   editable: !props.disabled,
   autofocus: props.autofocus,
-  extensions: createEditorExtensions(handleWikilinkClick),
+  extensions: createEditorExtensions(handleWikilinkClick, {
+    getMatches: () => searchMatches.value,
+    getCurrentIndex: () => currentSearchIndex.value
+  }),
   onUpdate: ({ editor }) => {
     try {
       const html = editor.getHTML();
       const text = editor.getText();
+      
+      // 设置标志位，防止 watch 触发循环更新
+      isInternalUpdate.value = true;
+      lastEmittedContent.value = html;
+      
       updateStats(text);
       debouncedEmitUpdate(html);
       // 更新光标位置
       currentCursorPos.value = editor.state.selection.from;
+      
+      // 在下一个 tick 重置标志位
+      nextTick(() => {
+        isInternalUpdate.value = false;
+      });
     } catch (error) {
       handleEditorError(error, 'TipTap onUpdate');
     }
@@ -397,26 +542,37 @@ const editor = useEditor({
             return true;
           }
           // 处理外部链接
-          else if (href.startsWith('http://') || href.startsWith('https://') || !href.startsWith('#')) {
-            // 立即阻止所有默认行为和事件传播
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation();
+          else if (href && href.trim() !== '') {
+            // 检查是否是有效的外部链接
+            const isValidExternalLink = 
+              href.startsWith('http://') || 
+              href.startsWith('https://') || 
+              href.startsWith('www.') ||
+              /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(href);
             
-            // 自动补全协议（如果缺少）
-            let fullUrl = href;
-            if (!href.includes('://')) {
-              fullUrl = `https://${href}`;
-            }
-            
-            // 使用 Tauri 的 shell 在系统默认浏览器中打开链接
-            import('@tauri-apps/plugin-shell').then(({ open }) => {
-              open(fullUrl).catch(err => {
-                console.error('Failed to open external link:', err);
+            if (isValidExternalLink) {
+              // 立即阻止所有默认行为和事件传播
+              event.preventDefault();
+              event.stopPropagation();
+              event.stopImmediatePropagation();
+              
+              // 自动补全协议（如果缺少）
+              let fullUrl = href;
+              if (!href.includes('://')) {
+                fullUrl = `https://${href}`;
+              }
+              
+              // 使用 Tauri 的 shell 在系统默认浏览器中打开链接
+              import('@tauri-apps/plugin-shell').then(({ open }) => {
+                open(fullUrl).catch(err => {
+                  console.error('Failed to open external link:', err);
+                });
               });
-            });
-            
-            return true;
+              
+              return true;
+            }
+            // 如果不是有效的外部链接（如空URL、相对路径等），不做任何处理
+            // 让它显示为普通的 <a> 标签
           }
         }
       }
@@ -424,6 +580,23 @@ const editor = useEditor({
       return false;
     },
     handlePaste: (view, event) => {
+      // 首先检查是否有图片
+      const items = event.clipboardData?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.type.startsWith('image/')) {
+            event.preventDefault();
+            const file = item.getAsFile();
+            if (file && props.currentFragmentId) {
+              handleImageUpload(file, view);
+            }
+            return true;
+          }
+        }
+      }
+      
+      // 如果没有图片，处理文本粘贴
       const text = event.clipboardData?.getData('text/plain');
       if (!text) return false;
       
@@ -436,7 +609,7 @@ const editor = useEditor({
       // 如果包含 Markdown 语法或者是多行文本，尝试作为 Markdown 解析
       if (hasMarkdownSyntax || isMultiLine) {
         try {
-          const html = marked.parse(text) as string;
+          const html = markdownToHtml(text, workspaceRoot.value);
           view.dispatch(view.state.tr.insertText(''));
           if (editor.value) {
             editor.value.commands.insertContent(html);
@@ -446,6 +619,36 @@ const editor = useEditor({
           console.error('Failed to parse pasted Markdown:', error);
           return false;
         }
+      }
+      
+      return false;
+    },
+    handleDrop: (view, event) => {
+      const files = event.dataTransfer?.files;
+      if (!files || files.length === 0) return false;
+      
+      const imageFiles = Array.from(files).filter(file => 
+        file.type.startsWith('image/')
+      );
+      
+      if (imageFiles.length > 0 && props.currentFragmentId) {
+        event.preventDefault();
+        
+        // 获取拖放位置
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        if (pos) {
+          // 设置光标到拖放位置
+          view.dispatch(view.state.tr.setSelection(
+            TextSelection.create(view.state.doc, pos.pos)
+          ));
+        }
+        
+        // 上传所有图片
+        for (const file of imageFiles) {
+          handleImageUpload(file, view);
+        }
+        
+        return true;
       }
       
       return false;
@@ -468,8 +671,10 @@ const toggleViewMode = (mode: 'reading' | 'preview' | 'source') => {
     cleanupScrollListener();
     
     if (editor.value) {
-      const html = editor.value.getHTML();
-      sourceContent.value = htmlToMarkdown(html, turndownService);
+      // 使用 JSON 格式转换，而不是 HTML
+      // 因为 TipTap 的 getHTML() 会丢失任务列表的结构
+      const json = editor.value.getJSON();
+      sourceContent.value = jsonToMarkdown(json);
     }
     viewMode.value = 'source';
     emits('view-mode-change', 'source');
@@ -484,8 +689,20 @@ const toggleViewMode = (mode: 'reading' | 'preview' | 'source') => {
   } else if (mode === 'preview') {
     if (wasSourceMode && editor.value && sourceContent.value) {
       try {
-        const html = markdownToHtml(sourceContent.value);
+        const html = markdownToHtml(sourceContent.value, workspaceRoot.value);
         editor.value.commands.setContent(html, { emitUpdate: false });
+        
+        // 更新 lastEmittedContent
+        lastEmittedContent.value = html;
+        
+        // 触发内容更新事件，确保父组件同步
+        nextTick(() => {
+          if (editor.value) {
+            const updatedHtml = editor.value.getHTML();
+            emits('update:content', updatedHtml);
+            emits('change', updatedHtml);
+          }
+        });
       } catch (error) {
         console.error('Failed to parse Markdown:', error);
         handleEditorError(error, 'Markdown to HTML conversion');
@@ -507,8 +724,20 @@ const toggleViewMode = (mode: 'reading' | 'preview' | 'source') => {
   } else if (mode === 'reading') {
     if (wasSourceMode && editor.value && sourceContent.value) {
       try {
-        const html = markdownToHtml(sourceContent.value);
+        const html = markdownToHtml(sourceContent.value, workspaceRoot.value);
         editor.value.commands.setContent(html, { emitUpdate: false });
+        
+        // 更新 lastEmittedContent
+        lastEmittedContent.value = html;
+        
+        // 触发内容更新事件，确保父组件同步
+        nextTick(() => {
+          if (editor.value) {
+            const updatedHtml = editor.value.getHTML();
+            emits('update:content', updatedHtml);
+            emits('change', updatedHtml);
+          }
+        });
       } catch (error) {
         console.error('Failed to parse Markdown:', error);
         handleEditorError(error, 'Markdown to HTML conversion');
@@ -692,79 +921,97 @@ const handleSearch = (query: string, matchCase: boolean) => {
   const matches: Array<{ from: number; to: number }> = [];
   const flags = matchCase ? 'g' : 'gi';
   const searchRegex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
-  
+
   doc.descendants((node, pos) => {
     if (node.isText && node.text) {
       searchRegex.lastIndex = 0;
       let match;
       while ((match = searchRegex.exec(node.text)) !== null) {
-        matches.push({ 
-          from: pos + match.index, 
-          to: pos + match.index + match[0].length 
+        matches.push({
+          from: pos + match.index,
+          to: pos + match.index + match[0].length
         });
       }
     }
   });
-  
-  searchMatches.value = matches;
-  currentSearchIndex.value = matches.length > 0 ? 0 : -1;
-  
+
+  // 更新搜索匹配结果
+  searchMatches.value = [...matches];
+  currentSearchIndex.value = -1; // 不自动选中第一个，保持 -1 表示未选中状态
+
   searchPanelRef.value?.updateMatchInfo(currentSearchIndex.value, matches.length);
-  
-  if (matches.length > 0) {
-    scrollToMatch(0);
+
+  // 强制触发 Decoration 更新
+  if (editor.value?.view && matches.length > 0) {
+    const view = editor.value.view;
+    const { state } = view;
+    const tr = state.tr;
+    if (doc.content.size > 0) {
+      const tempText = state.schema.text('\u200B');
+      if (tempText) {
+        tr.insert(doc.content.size, tempText);
+        tr.delete(doc.content.size, doc.content.size + 1);
+        view.dispatch(tr);
+      }
+    }
   }
 };
 
 const findNext = () => {
   if (searchMatches.value.length === 0) return;
-  currentSearchIndex.value = (currentSearchIndex.value + 1) % searchMatches.value.length;
+
+  // 如果当前没有选中任何匹配项（-1），则从第一个开始
+  if (currentSearchIndex.value === -1) {
+    currentSearchIndex.value = 0;
+  } else {
+    currentSearchIndex.value = (currentSearchIndex.value + 1) % searchMatches.value.length;
+  }
+
   searchPanelRef.value?.updateMatchInfo(currentSearchIndex.value, searchMatches.value.length);
-  scrollToMatch(currentSearchIndex.value);
+  scrollToMatch(currentSearchIndex.value, true);
 };
 
 const findPrevious = () => {
   if (searchMatches.value.length === 0) return;
-  currentSearchIndex.value = currentSearchIndex.value <= 0 
-    ? searchMatches.value.length - 1 
-    : currentSearchIndex.value - 1;
+
+  // 如果当前没有选中任何匹配项（-1），则从最后一个开始
+  if (currentSearchIndex.value === -1) {
+    currentSearchIndex.value = searchMatches.value.length - 1;
+  } else {
+    currentSearchIndex.value = currentSearchIndex.value <= 0
+      ? searchMatches.value.length - 1
+      : currentSearchIndex.value - 1;
+  }
+
   searchPanelRef.value?.updateMatchInfo(currentSearchIndex.value, searchMatches.value.length);
-  scrollToMatch(currentSearchIndex.value);
+  scrollToMatch(currentSearchIndex.value, true);
 };
 
-const scrollToMatch = (index: number) => {
+const scrollToMatch = (index: number, shouldFocusEditor: boolean = false) => {
   if (!editor.value || index < 0 || index >= searchMatches.value.length) return;
-  
+
   const match = searchMatches.value[index];
   editor.value.commands.setTextSelection({ from: match.from, to: match.to });
-  editor.value.commands.focus();
-  
+
+  // 只有在明确需要时才聚焦编辑器（如点击上一项/下一项）
+  // 输入搜索时保留焦点在搜索框
+  if (shouldFocusEditor) {
+    editor.value.commands.focus();
+  }
+
+  // 使用 coordsAtPos 计算滚动位置，不依赖 DOM 选区（未聚焦时选区可能在搜索框）
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       if (!editor.value) return;
-      
+
       const { view } = editor.value;
       const scrollContainer = view.dom as HTMLElement;
-      const domSelection = window.getSelection();
-      
-      if (!domSelection || domSelection.rangeCount === 0) {
-        const coords = view.coordsAtPos(match.from);
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const relativeTop = coords.top - containerRect.top + scrollContainer.scrollTop;
-        
-        scrollContainer.scrollTo({
-          top: Math.max(0, relativeTop - 100),
-          behavior: 'smooth'
-        });
-        return;
-      }
-      
-      const range = domSelection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+      const coords = view.coordsAtPos(match.from);
       const containerRect = scrollContainer.getBoundingClientRect();
-      const relativeTop = rect.top - containerRect.top + scrollContainer.scrollTop;
-      const isVisible = rect.top >= containerRect.top && rect.bottom <= containerRect.bottom;
-      
+      const relativeTop = coords.top - containerRect.top + scrollContainer.scrollTop;
+      const isVisible =
+        coords.top >= containerRect.top && coords.bottom <= containerRect.bottom;
+
       if (!isVisible) {
         scrollContainer.scrollTo({
           top: Math.max(0, relativeTop - 100),
@@ -778,12 +1025,12 @@ const scrollToMatch = (index: number) => {
 const clearSearchHighlights = () => {
   searchMatches.value = [];
   currentSearchIndex.value = -1;
-  searchPanelRef.value?.updateMatchInfo(0, 0);
+  searchPanelRef.value?.updateMatchInfo(-1, 0);
   editor.value?.commands.blur();
 };
 
 // 处理反向链接导航
-const handleBacklinkNavigate = (fragmentId: number, searchTitle: string) => {
+const handleBacklinkNavigate = (fragmentId: number | string, searchTitle: string) => {
   emits('backlink-navigate', fragmentId, searchTitle);
 };
 
@@ -909,11 +1156,17 @@ const setupScrollListener = () => {
   if (!scrollContainer) return;
   
   const debouncedUpdate = debounce(updateVisibleHeading, 100);
+  const debouncedEmitScroll = debounce(() => {
+    const top = scrollContainer.scrollTop;
+    emits('scroll-position', top);
+  }, 400);
   scrollContainer.addEventListener('scroll', debouncedUpdate);
+  scrollContainer.addEventListener('scroll', debouncedEmitScroll);
   updateVisibleHeading();
-  
+
   scrollCleanup = () => {
     scrollContainer.removeEventListener('scroll', debouncedUpdate);
+    scrollContainer.removeEventListener('scroll', debouncedEmitScroll);
   };
 };
 
@@ -995,9 +1248,20 @@ const handleSourceContextMenu = (event: MouseEvent) => {
 
 // 监听内容变化
 watch(() => props.content, (newContent) => {
+  // 如果是内部更新触发的，跳过以防止循环更新
+  if (isInternalUpdate.value) {
+    return;
+  }
+  
+  // 如果内容相同，跳过
+  if (lastEmittedContent.value === newContent) {
+    return;
+  }
+  
   try {
     if (editor.value && editor.value.getHTML() !== newContent) {
       editor.value.commands.setContent(newContent);
+      lastEmittedContent.value = newContent;
       const text = editor.value.getText();
       updateStats(text);
     }
@@ -1027,15 +1291,21 @@ watch(() => props.dark, (isDark) => {
 
 // 键盘快捷键
 const handleKeyDown = (event: KeyboardEvent) => {
-  // 检查事件目标是否在 CodeMirror 编辑器中
   const target = event.target as HTMLElement;
+
+  // 检查是否在搜索面板中（输入框等），不拦截任何按键，让用户正常输入和移动光标
+  if (target.closest('.search-panel') !== null) {
+    return;
+  }
+
+  // 检查事件目标是否在 CodeMirror 编辑器中
   const isInCodeMirror = target.closest('.cm-editor') !== null;
-  
+
   // 如果在 CodeMirror 编辑器中，不拦截事件，让 CodeMirror 自己处理
   if (isInCodeMirror) {
     return;
   }
-  
+
   // Ctrl+F 或 Cmd+F 打开搜索
   if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
     event.preventDefault();
@@ -1052,7 +1322,18 @@ const handleKeyDown = (event: KeyboardEvent) => {
 };
 
 // 生命周期
-onMounted(() => {
+onMounted(async () => {
+  // 获取工作区根目录
+  try {
+    workspaceRoot.value = await getWorkspaceRoot();
+    // 保存到 localStorage 供图片组件使用
+    if (workspaceRoot.value) {
+      localStorage.setItem('workspaceRoot', workspaceRoot.value);
+    }
+  } catch (error) {
+    console.error('Failed to get workspace root:', error);
+  }
+  
   // 使用捕获阶段监听，优先级更高
   document.addEventListener('keydown', handleKeyDown, true);
 });
@@ -1063,7 +1344,10 @@ onBeforeUnmount(() => {
     document.removeEventListener('keydown', handleKeyDown, true);
     cleanupScrollListener();
     if (editor.value) {
-      editor.value.destroy();
+      // 先检查 editor 是否已经被销毁
+      if (!editor.value.isDestroyed) {
+        editor.value.destroy();
+      }
     }
   } catch (error) {
     console.error('Error destroying TipTap editor:', error);
@@ -1081,6 +1365,22 @@ defineExpose({
   toggleBacklinks: toggleBacklinks,
   openSearch: openSearch,
   getViewMode: () => viewMode.value,
+  /** 获取当前编辑器内容区域滚动位置（用于会话恢复） */
+  getScrollPosition: (): number => {
+    if (!editor.value) return 0;
+    const scrollContainer = editor.value.view.dom as HTMLElement;
+    return scrollContainer?.scrollTop ?? 0;
+  },
+  /** 设置编辑器内容区域滚动位置（用于会话恢复） */
+  setScrollPosition: (scrollTop: number) => {
+    if (!editor.value) return;
+    nextTick(() => {
+      const scrollContainer = editor.value?.view.dom as HTMLElement;
+      if (scrollContainer) {
+        scrollContainer.scrollTop = Math.max(0, scrollTop);
+      }
+    });
+  },
   scrollToWikilink: (searchTitle: string) => {
     if (!editor.value) return;
     
@@ -1356,6 +1656,23 @@ defineExpose({
       }
     }
 
+    .invalid-link {
+      @apply text-[#9ca3af];
+      font-family: inherit;
+      font-size: inherit;
+      cursor: text;
+    }
+
+    code.invalid-link-display,
+    span.invalid-link-text {
+      @apply bg-transparent text-[#9ca3af];
+      padding: 0;
+      font-family: inherit;
+      font-size: inherit;
+      cursor: text;
+      border-radius: 0;
+    }
+
     table {
       @apply border-[#727377];
       transition: border-color 0.3s ease;
@@ -1377,6 +1694,24 @@ defineExpose({
 
         &:checked {
           @apply bg-[#5d6dfd] border-[#5d6dfd];
+        }
+      }
+    }
+
+    // TipTap 标准任务列表暗色模式
+    ul[data-type="taskList"],
+    ul.task-list {
+      li[data-type="taskItem"],
+      li.task-item {
+        > label {
+          input[type="checkbox"] {
+            @apply border-[#727377];
+            transition: border-color 0.3s ease;
+
+            &:checked {
+              @apply bg-[#5d6dfd] border-[#5d6dfd];
+            }
+          }
         }
       }
     }
@@ -1462,23 +1797,33 @@ defineExpose({
     @apply mb-5;
   }
 
-  ul {
-    @apply list-disc mb-5 pl-6;
+  ul:not([data-type="taskList"]) {
+    @apply mb-5;
+    padding-left: 1.5rem !important;
+    list-style: disc !important;
+    list-style-position: outside !important;
 
     li {
       @apply mb-2;
       line-height: 1.7;
       transition: color 0.3s ease;
+      display: list-item !important;
+      list-style: inherit !important;
     }
   }
 
   ol {
-    @apply list-decimal mb-5 pl-6;
+    @apply mb-5;
+    padding-left: 1.5rem !important;
+    list-style: decimal !important;
+    list-style-position: outside !important;
 
     li {
       @apply mb-2;
       line-height: 1.7;
       transition: color 0.3s ease;
+      display: list-item !important;
+      list-style: inherit !important;
     }
   }
 
@@ -1493,8 +1838,8 @@ defineExpose({
 
         input[type="checkbox"] {
           @apply mr-2 cursor-pointer;
-          width: 18px;
-          height: 18px;
+          width: 16px;
+          height: 16px;
           transition: border-color 0.3s ease, background-color 0.3s ease;
 
           &:checked {
@@ -1506,6 +1851,58 @@ defineExpose({
       > div {
         @apply flex-1;
         line-height: 1.7;
+      }
+    }
+  }
+
+  // TipTap 标准任务列表样式
+  ul[data-type="taskList"],
+  ul.task-list {
+    @apply list-none mb-5;
+    padding-left: 0 !important;
+    list-style: none !important;
+
+    li[data-type="taskItem"],
+    li.task-item {
+      @apply mb-2;
+      display: flex !important;
+      align-items: center !important;
+      list-style: none !important;
+
+      > label {
+        margin-right: 6px;
+        flex-shrink: 0;
+        display: flex !important;
+        align-items: center !important;
+        height: 16px;
+
+        input[type="checkbox"] {
+          @apply cursor-pointer;
+          width: 16px;
+          height: 16px;
+          flex-shrink: 0;
+          margin: 0;
+          transition: border-color 0.3s ease, background-color 0.3s ease;
+
+          &:checked {
+            @apply bg-blue-600 border-blue-600;
+          }
+        }
+
+        // 隐藏 TipTap 自动添加的空 span
+        > span {
+          display: none;
+        }
+      }
+
+      > div {
+        flex: 1;
+        line-height: 1.7;
+
+        > p {
+          margin-bottom: 0;
+          line-height: 1.7;
+        }
       }
     }
   }
@@ -1569,6 +1966,23 @@ defineExpose({
     }
   }
 
+  .invalid-link {
+    @apply text-gray-600;
+    font-family: inherit;
+    font-size: inherit;
+    cursor: text;
+  }
+
+  code.invalid-link-display,
+  span.invalid-link-text {
+    @apply bg-transparent text-gray-600;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    cursor: text;
+    border-radius: 0;
+  }
+
   table {
     @apply border-collapse w-full mb-5 border border-gray-300;
     transition: border-color 0.3s ease;
@@ -1596,6 +2010,24 @@ defineExpose({
 
   ::selection {
     @apply bg-blue-200;
+  }
+
+  :deep(.search-highlight) {
+    @apply bg-yellow-200 rounded px-0.5;
+  }
+
+  :deep(.search-highlight-current) {
+    @apply bg-amber-300 font-medium;
+  }
+
+  &.dark {
+    :deep(.search-highlight) {
+      @apply bg-yellow-600/40 text-yellow-100;
+    }
+
+    :deep(.search-highlight-current) {
+      @apply bg-amber-500/50;
+    }
   }
 }
 </style>

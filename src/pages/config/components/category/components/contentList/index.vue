@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore } from '@/store';
 import { useI18n } from 'vue-i18n';
@@ -99,6 +99,8 @@ import ContentSearchBar from './components/ContentSearchBar.vue';
 import ContentListView from './components/ContentListView.vue';
 import { useContentList } from './composables/useContentList';
 import { useContentDialogs } from './composables/useContentDialogs';
+import { rebuildSearchIndex } from '@/api/markdown';
+import { logger } from '@/utils/logger';
 
 /**
  * 分类选项接口
@@ -119,22 +121,7 @@ defineOptions({
   name: 'ContentList'
 });
 
-// 添加生命周期日志
-onMounted(() => {
-  console.log('[ContentList] 组件挂载, cid:', route.params.cid);
-});
 
-onBeforeUnmount(() => {
-  console.log('[ContentList] 组件卸载');
-});
-
-// 监听路由参数变化
-watch(
-  () => route.params.cid,
-  (newCid, oldCid) => {
-    console.log('[ContentList] cid 参数变化:', { from: oldCid, to: newCid });
-  }
-);
 
 // 使用内容列表 Composable
 const {
@@ -146,6 +133,7 @@ const {
   hasActiveFilters,
   availableTags,
   filteredContents,
+  queryFragments,
   updateFilter,
   clearTagFilter
 } = useContentList();
@@ -250,15 +238,101 @@ function handleFilterReset(): void {
 const categoryOptions = computed<CategoryOption[]>(() => {
   return [
     { label: t('contentItem.uncategorized'), value: 0 },
-    ...store.categories.map((category) => ({
-      label: category.name,
-      value: category.id as number
-    }))
+    // 过滤掉系统分类（如"未分类"），只显示用户创建的分类
+    ...store.categories
+      .filter(category => !category.isSystem)
+      .map((category) => ({
+        label: category.name,
+        value: category.id as number
+      }))
   ];
 });
 
+// 监听数据刷新事件（Git Pull 完成后的无感刷新）
+const handleRefreshData = async (event: Event) => {
+  const customEvent = event as CustomEvent;
+  logger.info('[ContentList] 🔔 收到数据刷新事件:', customEvent.detail);
+  
+  try {
+    // 重新加载当前分类的文件列表
+    const categoryId = route.params.cid as string;
+    logger.info('[ContentList] 🔄 开始重新加载分类数据, categoryId:', categoryId);
+    
+    // 保存当前的搜索文本，以便刷新后恢复
+    const currentSearchText = searchText.value;
+    logger.info('[ContentList] 💾 保存当前搜索状态:', currentSearchText);
+    
+    // git-pull 事件：后端会发送 files-changed-batch，此处做兜底全量刷新
+    if (customEvent.detail?.source === 'git-pull') {
+      logger.info('[ContentList] 📥 Git Pull 事件，执行兜底刷新');
+      await queryFragments(categoryId, currentSearchText);
+      logger.info('[ContentList] ✅ Git Pull 兜底刷新完成');
+      return;
+    }
+    
+    // 处理批量文件变更事件
+    if (customEvent.detail?.source === 'files-changed-batch') {
+      const { created, modified, deleted, renamed } = customEvent.detail;
+      console.log(`[ContentList] 📦 批量文件变更: ${created?.length || 0} 创建, ${modified?.length || 0} 修改, ${deleted?.length || 0} 删除, ${renamed?.length || 0} 重命名`);
+      
+      // 先重建搜索索引，等待完成后再刷新列表
+      console.log('[ContentList] 🔄 开始重建搜索索引');
+      try {
+        await rebuildSearchIndex();
+        console.log('[ContentList] ✅ 搜索索引重建完成');
+      } catch (err) {
+        console.error('[ContentList] ❌ 重建搜索索引失败:', err);
+      }
+      
+      // 刷新列表（保持搜索状态）
+      await queryFragments(categoryId, currentSearchText);
+      console.log('[ContentList] ✅ 批量数据刷新完成（保持搜索状态）');
+      return;
+    }
+    
+    // 其他事件：正常刷新列表（保持搜索状态）
+    await queryFragments(categoryId, currentSearchText);
+    console.log('[ContentList] ✅ 数据刷新完成（保持搜索状态）');
+  } catch (error) {
+    console.error('[ContentList] ❌ 数据刷新失败:', error);
+  }
+};
+
+// 监听目录变更事件（外部编辑器创建/删除/重命名文件夹）
+const handleDirsChanged = async (event: Event) => {
+  const customEvent = event as CustomEvent<{
+    source: string;
+    created: string[];
+    deleted: string[];
+    renamed: Array<{ from: string; to: string }>;
+  }>;
+  const { created, deleted, renamed } = customEvent.detail;
+  console.log(
+    `[ContentList] dirs-changed-batch: +${created.length} -${deleted.length} r${renamed?.length ?? 0}，重新加载内容列表`
+  );
+  
+  // 重新加载当前分类的内容列表
+  const categoryId = route.params.cid as string;
+  const currentSearchText = searchText.value;
+  await queryFragments(categoryId, currentSearchText);
+};
+
 onMounted(() => {
   // 组件挂载时不执行任何滚动操作
+  logger.info('[ContentList] 🎬 组件已挂载，开始监听 refresh-data 事件');
+  
+  // 监听数据刷新事件
+  window.addEventListener('refresh-data', handleRefreshData);
+  // 监听目录变更事件（外部编辑器创建/删除/重命名文件夹）
+  window.addEventListener('refresh-categories', handleDirsChanged);
+  logger.info('[ContentList] ✅ refresh-data 事件监听器已设置');
+});
+
+onUnmounted(() => {
+  // 清理事件监听器
+  logger.info('[ContentList] 🛑 组件卸载，清理事件监听器');
+  window.removeEventListener('refresh-data', handleRefreshData);
+  window.removeEventListener('refresh-categories', handleDirsChanged);
 });
 </script>
 

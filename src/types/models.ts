@@ -142,3 +142,179 @@ export interface SyncResult {
   /** 同步时间 */
   timestamp: Date;
 }
+
+/**
+ * Markdown 文件元数据
+ */
+export interface MarkdownFile {
+  /** 唯一标识符 */
+  id: string;
+  /** 标题 */
+  title: string;
+  /** 内容 */
+  content: string;
+  /** 所属分类 ID（后端提供） */
+  categoryId: number;
+  /** 所属分类名称（后端提供） */
+  categoryName: string;
+  /** 标签列表 */
+  tags: string[];
+  /** 创建时间 (ISO 8601) */
+  created: string;
+  /** 修改时间 (ISO 8601) */
+  modified: string;
+  /** 类型：code 或 note（与数据库保持一致） */
+  type: 'code' | 'note';
+  /** 编程语言（用于代码片段） */
+  language?: string;
+  /** 是否收藏 */
+  favorite: boolean;
+  /** 文件路径 */
+  filePath: string;
+}
+
+/**
+ * 迁移配置
+ */
+export interface MigrationConfig {
+  /** 工作区根目录 */
+  workspaceRoot: string;
+  /** 是否备份数据库 */
+  backupDatabase: boolean;
+  /** 备份文件路径 */
+  backupPath?: string;
+}
+
+/**
+ * 迁移进度信息
+ */
+export interface MigrationProgress {
+  /** 当前步骤 */
+  step: string;
+  /** 已处理数量 */
+  processed: number;
+  /** 总数量 */
+  total: number;
+  /** 当前文件名 */
+  currentFile?: string;
+}
+
+/**
+ * 迁移结果
+ */
+export interface MigrationResult {
+  /** 是否成功 */
+  success: boolean;
+  /** 成功数量 */
+  successCount: number;
+  /** 失败数量 */
+  failedCount: number;
+  /** 错误信息 */
+  errors: string[];
+  /** 工作区路径 */
+  workspacePath: string;
+}
+
+/**
+ * 附件配置
+ */
+export interface AttachmentConfig {
+  /** 附件路径模板 */
+  pathTemplate: string;
+  /** 文件名生成格式 */
+  filenameFormat: 'obsidian' | 'simple' | 'uuid';
+}
+
+/**
+ * 附件信息
+ */
+export interface AttachmentInfo {
+  /** 原始文件名 */
+  originalName: string;
+  /** 生成的文件名 */
+  generatedName: string;
+  /** 相对路径 */
+  relativePath: string;
+  /** 绝对路径 */
+  absolutePath: string;
+  /** 文件大小（字节） */
+  size: number;
+  /** MIME 类型 */
+  mimeType: string;
+}
+
+/**
+ * 应用配置
+ */
+export interface AppConfig {
+  version: string;
+  theme: string;
+  language: string;
+  autoStart: boolean;
+  autoUpdateCheck: boolean;
+  autoHideOnBlur: boolean;
+  git: GitSettings;
+}
+
+/**
+ * Git 同步设置
+ */
+export interface GitSettings {
+  enabled: boolean;
+  auto_sync: boolean;
+  auto_sync_delay: number;
+  pull_on_start: boolean;
+  user_name: string;
+  user_email: string;
+  remote_url: string;
+  token: string;
+  last_sync_time?: string;
+}
+
+/**
+ * Git 配置
+ */
+export interface GitConfig {
+  user_name: string;
+  user_email: string;
+  remote_url: string;
+  token: string;
+}
+
+/**
+ * Pull 结果
+ */
+export interface PullResult {
+  success: boolean;
+  files_updated: number;
+  has_conflicts: boolean;
+  conflict_files: string[];
+  message: string;
+  untracked_files?: string[];
+}
+
+/**
+ * Push 结果
+ */
+export interface PushResult {
+  success: boolean;
+  filesPushed: number;
+  commitHash: string;
+  message: string;
+}
+
+/**
+ * Git 状态
+ */
+export interface GitStatus {
+  isRepo: boolean;
+  hasRemote: boolean;
+  hasChanges: boolean;
+  changedFiles: string[];
+  branch: string;
+}
+
+/**
+ * 冲突解决策略
+ */
+export type ConflictStrategy = 'KeepLocal' | 'KeepRemote';

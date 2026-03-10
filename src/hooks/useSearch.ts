@@ -1,10 +1,9 @@
-import { searchFragmentContent } from '@/api/fragment';
 import { debounce } from '@/utils';
 import { isURL, normalizeURL } from '@/utils/url';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { onMounted, ref, watch, type Ref, type ComputedRef, computed } from 'vue';
-import type { ContentType, SearchEngine, SearchHistoryItem } from '@/types';
+import type { ContentType, SearchEngine, SearchHistoryItem, MarkdownFile } from '@/types';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import { isContentType } from '@/utils/type-guards';
 
@@ -331,14 +330,29 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
 }
 
 /**
- * 搜索代码片段
+ * 搜索代码片段和笔记（使用 Markdown 文件搜索）
  * @param query - 搜索查询
  * @returns 搜索结果列表
  */
 async function searchCode(query: string): Promise<ContentType[]> {
   try {
-    const codeResults = await searchFragmentContent(query);
-    return Array.isArray(codeResults) ? codeResults.filter(isContentType) : [];
+    // 使用新的 Markdown 文件搜索（已支持全文搜索和中文分词）
+    const markdownResults = await invoke<MarkdownFile[]>('search_markdown_files_optimized', { query });
+    if (Array.isArray(markdownResults) && markdownResults.length > 0) {
+      return markdownResults.map((file: MarkdownFile) => ({
+        id: file.id,
+        title: file.title,
+        content: file.content || '',
+        summarize: file.type === 'code' ? 'code' as const : 'note' as const,
+        type: file.type,
+        category_id: file.categoryId,
+        category_name: file.categoryName,
+        tags: file.tags,
+        created_at: file.created,
+        updated_at: file.modified,
+      }));
+    }
+    return [];
   } catch (error) {
     ErrorHandler.handle(error, {
       type: ErrorType.API_ERROR,

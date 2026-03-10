@@ -11,8 +11,19 @@ import { Wikilink } from '../extensions/Wikilink';
 import { EnhancedMarkdown } from '../extensions/EnhancedMarkdown';
 import { CodeBlockLowlight } from '../extensions/CodeBlockLowlight';
 import { MarkdownLinkHandler } from '../extensions/MarkdownLinkHandler';
+import { CustomEnterBehavior } from '../extensions/CustomEnterBehavior';
+import { LocalImage } from '../extensions/LocalImage';
+import { SearchHighlight } from '../extensions/SearchHighlight';
 
-export function createEditorExtensions(onWikilinkClick: (noteName: string) => void) {
+export interface SearchHighlightGetters {
+  getMatches: () => Array<{ from: number; to: number }>;
+  getCurrentIndex: () => number;
+}
+
+export function createEditorExtensions(
+  onWikilinkClick: (noteName: string) => void,
+  searchHighlight?: SearchHighlightGetters
+) {
   return [
     StarterKit.configure({
       heading: {
@@ -23,6 +34,7 @@ export function createEditorExtensions(onWikilinkClick: (noteName: string) => vo
       // 禁用 StarterKit 自带的扩展,使用自定义配置
       link: false  // 禁用默认的 Link,使用下面自定义的
     }),
+    LocalImage,  // 使用自定义的本地图片扩展（StarterKit 不包含 Image，所以不需要禁用）
     CodeBlockLowlight.configure({
       languageClassPrefix: 'language-',
       HTMLAttributes: {
@@ -32,6 +44,7 @@ export function createEditorExtensions(onWikilinkClick: (noteName: string) => vo
     Typography,
     EnhancedMarkdown,
     MarkdownLinkHandler,
+    CustomEnterBehavior,
     Link.extend({
       addAttributes() {
         return {
@@ -76,6 +89,14 @@ export function createEditorExtensions(onWikilinkClick: (noteName: string) => vo
       },
       onLinkClick: onWikilinkClick
     }),
+    ...(searchHighlight
+      ? [
+          SearchHighlight.configure({
+            getMatches: searchHighlight.getMatches,
+            getCurrentIndex: searchHighlight.getCurrentIndex
+          })
+        ]
+      : []),
     Table.configure({
       resizable: true,
       HTMLAttributes: {

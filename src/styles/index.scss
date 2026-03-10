@@ -44,9 +44,14 @@
   box-shadow: none !important;
 }
 
+// 密码输入框的小眼睛图标样式调整
+.summarize-input-wrapper .el-input__inner ~ .el-input__suffix .el-input__icon {
+  @apply m-0 !-ml-1;
+}
+
 // 配置css
 .summarize-container {
-  @apply flex-1 w-full h-full overflow-hidden;
+  @apply flex-1 w-full h-full overflow-y-auto;
 }
 
 .summarize-section {
@@ -79,6 +84,9 @@
 
 .summarize-input {
   @apply bg-content rounded-md;
+  .el-input__inner {
+    @apply pl-[10px];
+  }
 }
 
 .summarize-button {
@@ -324,4 +332,208 @@
       color: var(--el-color-danger) !important;
     }
   }
+}
+
+// ============================================
+// 自定义通知样式（深色简洁）
+// ============================================
+.el-notification.custom-notification {
+  padding: 10px 14px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  
+  .el-notification__group {
+    display: flex;
+    align-items: center;
+    margin: 0;
+  }
+  
+  .el-notification__content {
+    margin: 0;
+    padding: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #303133 !important;
+    display: flex;
+    align-items: center;
+  }
+  
+  .el-notification__icon {
+    font-size: 16px;
+    margin-right: 8px;
+    margin-top: 0;
+  }
+}
+
+// 暗色模式优化
+.dark .el-notification.custom-notification {
+  .el-notification__content {
+    color: #e0e0e0 !important;
+  }
+}
+
+// ============================================
+// 图片组件暗色模式样式
+// ============================================
+.dark .image-path {
+  color: rgb(209 213 219) !important;
+  background-color: rgb(31 41 55) !important;
+  
+  &:hover {
+    color: rgb(243 244 246) !important;
+    background-color: rgb(55 65 81) !important;
+  }
+}
+
+// ============================================
+// 设置面板通用样式
+// 所有设置组件共享的布局样式
+// ============================================
+.settings-panel {
+  @apply flex flex-col h-full;
+}
+
+.panel-header {
+  @apply flex-shrink-0 pb-4 border-b border-panel;
+}
+
+.panel-title {
+  @apply text-base font-bold;
+}
+
+.panel-content {
+  @apply flex-1 overflow-y-auto pt-4;
+  overflow-x: hidden; /* 防止横向滚动 */
+  max-width: 100%; /* 确保不超出容器宽度 */
+}
+
+// Git 同步状态：同面板内左右分栏（一块卡片）
+.sync-status-panel {
+  @apply flex items-stretch rounded-lg border mb-4 overflow-hidden;
+
+  .sync-status-panel__left {
+    @apply flex items-center gap-3 p-4 min-w-0;
+    flex: 1 0 0%;
+    max-width: 320px;
+  }
+
+  .sync-status-icon {
+    @apply flex-shrink-0;
+  }
+
+  .sync-status-info {
+    @apply flex flex-col gap-0.5;
+  }
+
+  .sync-status-label {
+    @apply text-sm font-medium;
+  }
+
+  .sync-status-detail {
+    @apply text-xs opacity-80;
+
+    .pending-count {
+      @apply font-medium;
+    }
+  }
+
+  .sync-status-panel__divider {
+    @apply w-px flex-shrink-0 self-stretch opacity-40;
+  }
+
+  .sync-status-panel__right {
+    @apply flex flex-col p-3 pl-4 min-w-0;
+    flex: 1 1 0%;
+  }
+
+  .sync-pending-files-header {
+    @apply flex-shrink-0 text-sm font-medium mb-2;
+  }
+
+  .sync-pending-files-list {
+    @apply flex-1 min-h-0 overflow-y-auto space-y-0.5;
+  }
+
+  .sync-pending-file-item {
+    @apply flex items-center text-xs py-1.5 px-2 rounded;
+    opacity: 0.9;
+
+    .file-name {
+      @apply truncate;
+    }
+  }
+
+  // 同步中 - 蓝色
+  &--syncing {
+    @apply border-blue-500/30 bg-blue-500/10;
+    .sync-status-icon { @apply text-blue-500; }
+    .sync-status-label { @apply text-blue-600 dark:text-blue-400; }
+    .sync-status-detail .pending-count { @apply text-blue-500; }
+    .sync-status-panel__divider { @apply bg-blue-500/50; }
+    .sync-pending-files-header { @apply text-blue-600 dark:text-blue-400; }
+    .sync-pending-file-item { @apply hover:bg-blue-500/20; }
+    .git-sync-icon { animation: spin 1s linear infinite; }
+  }
+
+  // 已同步/空闲 - 绿色
+  &--synced,
+  &--idle {
+    @apply border-green-500/30 bg-green-500/10;
+    .sync-status-icon { @apply text-green-500; }
+    .sync-status-label { @apply text-green-600 dark:text-green-400; }
+    .sync-status-detail .pending-count { @apply text-green-500; }
+    .sync-status-panel__divider { @apply bg-green-500/50; }
+    .sync-pending-files-header { @apply text-green-600 dark:text-green-400; }
+    .sync-pending-file-item { @apply hover:bg-green-500/20; }
+  }
+
+  // 有待同步文件 - 橙色
+  &--has_changes {
+    @apply border-amber-500/30 bg-amber-500/10;
+    .sync-status-icon { @apply text-amber-500; }
+    .sync-status-label { @apply text-amber-600 dark:text-amber-400; }
+    .sync-status-detail .pending-count { @apply text-amber-500; }
+    .sync-status-panel__divider { @apply bg-amber-500/50; }
+    .sync-pending-files-header { @apply text-amber-600 dark:text-amber-400; }
+    .sync-pending-file-item { @apply hover:bg-amber-500/20; }
+  }
+
+  // 错误 - 红色
+  &--error {
+    @apply border-red-500/30 bg-red-500/10;
+    .sync-status-icon { @apply text-red-500; }
+    .sync-status-label { @apply text-red-600 dark:text-red-400; }
+    .sync-status-detail .pending-count { @apply text-red-500; }
+    .sync-status-panel__divider { @apply bg-red-500/50; }
+    .sync-pending-files-header { @apply text-red-600 dark:text-red-400; }
+    .sync-pending-file-item { @apply hover:bg-red-500/20; }
+  }
+}
+
+// 待同步文件列表
+.pending-files-section {
+  @apply mb-4 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10;
+
+  .pending-files-header {
+    @apply flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400 mb-2;
+  }
+
+  .pending-files-list {
+    @apply max-h-40 overflow-y-auto space-y-1;
+  }
+
+  .pending-file-item {
+    @apply flex items-center gap-2 text-xs text-panel py-1 px-2 rounded hover:bg-amber-500/20;
+    opacity: 0.8;
+
+    .file-name {
+      @apply truncate;
+    }
+  }
+}
+
+// 设置分区标题
+.settings-section-title {
+  @apply text-sm font-medium text-panel mt-6 mb-3 pb-2 border-b border-panel;
 }

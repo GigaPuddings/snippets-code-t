@@ -33,21 +33,12 @@
     <div class="titlebar-list">
       <!-- 个人中心 -->
       <div
-        class="titlebar-user"
+        class="titlebar-button"
         @click="goToUserCenter"
-        :title="isLoggedIn ? `${userInfo?.login} - ${$t('titlebar.userCenter')}` : $t('titlebar.userCenter')"
+        :title="$t('titlebar.userCenter')"
         :aria-label="$t('titlebar.userCenter')"
       >
-        <div v-if="isLoggedIn && userInfo" class="user-avatar-wrapper">
-          <img 
-            :src="userInfo.avatar_url" 
-            :alt="userInfo.login"
-            class="user-avatar"
-            @error="handleAvatarError"
-          />
-        </div>
         <me
-          v-else
           class="icon"
           theme="outline"
           size="18"
@@ -56,6 +47,36 @@
       </div>
 
       <div class="titlebar-divider"></div>
+
+      <!-- Git 同步状态指示器 -->
+      <div
+        v-if="syncState !== 'disabled'"
+        class="git-status-indicator"
+        :class="`git-status-${syncState}`"
+        :title="stateDescription"
+        @click="goToGitSettings"
+      >
+        <loading
+          v-if="syncState === 'syncing'"
+          class="icon git-sync-icon"
+          theme="outline"
+          size="16"
+          :strokeWidth="3"
+        />
+        <branch
+          v-else
+          class="icon"
+          theme="outline"
+          size="16"
+          :strokeWidth="3"
+        />
+        <span v-if="syncState === 'has_changes'" class="git-badge">
+          {{ pendingFilesCount }}
+        </span>
+        <span v-if="formattedLastSyncTime && syncState !== 'syncing'" class="git-time">
+          {{ formattedLastSyncTime }}
+        </span>
+      </div>
       
       <div 
         class="titlebar-button titlebar-button--update" 
@@ -165,7 +186,9 @@ import {
   MessageSearch,
   Notepad,
   Application,
-  Me
+  Me,
+  Branch,
+  Loading
 } from '@icon-park/vue-next';
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
@@ -173,9 +196,21 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
-import { getUserSettingsCached, type UserSettings, type GitHubUser } from '@/api/github';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useGitStatus, setupGitStatusListener, initWorkspaceChangeListener, cleanupGitStatusListener } from '@/hooks/useGitStatus';
+import { logger } from '@/utils/logger';
 
 const { t } = useI18n();
+
+// Git 状态
+const {
+  syncState,
+  pendingFilesCount,
+  formattedLastSyncTime,
+  refreshStatus,
+  refreshSettings,
+  stateDescription
+} = useGitStatus();
 
 defineOptions({
   name: 'Titlebar'
@@ -193,33 +228,6 @@ const state = reactive({
 });
 
 const hasUpdate = ref(false);
-
-// 用户信息
-const userInfo = ref<GitHubUser | null>(null);
-const isLoggedIn = ref(false);
-
-// 加载用户信息
-const loadUserInfo = async () => {
-  try {
-    const settings: UserSettings = await getUserSettingsCached();
-    if (settings.github_token && settings.github_username) {
-      isLoggedIn.value = true;
-      // 从设置中获取用户名，构建头像URL（GitHub头像URL格式）
-      userInfo.value = {
-        login: settings.github_username,
-        avatar_url: `https://github.com/${settings.github_username}.png`,
-        name: null
-      };
-    } else {
-      isLoggedIn.value = false;
-      userInfo.value = null;
-    }
-  } catch (error) {
-    console.error('加载用户信息失败:', error);
-    isLoggedIn.value = false;
-    userInfo.value = null;
-  }
-};
 
 // 当前激活的tab索引
 const activeTabIndex = ref(0);
@@ -320,23 +328,17 @@ const goToUserCenter = () => {
   router.push('/config/category/contentList/user');
 };
 
-// 头像加载失败处理
-const handleAvatarError = (e: Event) => {
-  const img = e.target as HTMLImageElement;
-  img.style.display = 'none';
-  isLoggedIn.value = false;
+// 跳转到 Git 设置页面
+const goToGitSettings = () => {
+  router.push('/config/category/settings?tab=gitSync');
 };
 
 let unListen: UnlistenFn;
-let unListenUserLogin: UnlistenFn;
 
 onMounted(async () => {
   await initEnv();
   state.appName = appName;
   state.appVersion = appVersion;
-
-  // 加载用户信息
-  await loadUserInfo();
 
   // 检查是否有更新
   hasUpdate.value = await invoke('get_update_status');
@@ -346,13 +348,29 @@ onMounted(async () => {
     hasUpdate.value = event.payload;
   });
 
-  // 监听用户登录/登出事件
-  unListenUserLogin = await listen('user-login-status-changed', async () => {
-    await loadUserInfo();
-  });
-
   // 设置初始激活的tab
   setActiveTabFromRoute();
+
+  // 获取当前窗口 label
+  const winLabel = getCurrentWindow().label;
+  logger.info('[Titlebar] 当前窗口 label', { winLabel });
+
+  // 初始化 Git 状态监听
+  // setupGitStatusListener() 会监听 pull/push/sync-complete 事件
+  // initWorkspaceChangeListener() 监听工作区变化，文件修改时自动刷新 Git 状态
+  logger.info('[Titlebar] 开始初始化 Git 状态监听', {
+    initialSyncState: syncState.value,
+  });
+  setupGitStatusListener();
+  initWorkspaceChangeListener(refreshStatus);
+  await refreshSettings();
+  logger.info('[Titlebar] refreshSettings 完成', {
+    syncState: syncState.value,
+  });
+  await refreshStatus();
+  logger.info('[Titlebar] refreshStatus 完成', {
+    syncState: syncState.value,
+  });
 });
 
 // 监听路由变化，同步更新activeTabIndex
@@ -365,10 +383,12 @@ watch(
 );
 
 onUnmounted(() => {
-  unListen();
-  if (unListenUserLogin) {
-    unListenUserLogin();
+  if (unListen) {
+    unListen();
   }
+  // 清理 Git 状态监听
+  cleanupGitStatusListener();
+  logger.info('[Titlebar] 已卸载并清理 Git 状态监听');
 });
 </script>
 
@@ -494,43 +514,6 @@ onUnmounted(() => {
   }
 }
 
-// 用户头像相关
-.titlebar-user {
-  @apply cursor-pointer relative flex items-center justify-center;
-  min-width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: rgba(93, 109, 253, 0.08);
-    
-    .user-avatar-wrapper {
-      @apply ring-2;
-      ring-color: #5d6dfd;
-      transform: scale(1.08);
-    }
-    
-    .icon {
-      color: #5d6dfd;
-      background-color: transparent !important;
-    }
-  }
-}
-
-.user-avatar-wrapper {
-  @apply rounded-full overflow-hidden ring-1 ring-gray-300 dark:ring-gray-600;
-  width: 26px;
-  height: 26px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-}
-
-.user-avatar {
-  @apply w-full h-full object-cover;
-  display: block;
-}
-
 .icon {
   @include commonIcon;
 
@@ -579,6 +562,71 @@ onUnmounted(() => {
 
 .nav-bar-wrapper {
   @apply ml-4 flex items-center;
+}
+
+// Git 状态指示器样式
+.git-status-indicator {
+  @apply flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-all;
+  min-height: 28px;
+  font-size: 12px;
+  
+  &:hover {
+    background-color: rgba(93, 109, 253, 0.08);
+  }
+  
+  .git-sync-icon {
+    animation: spin 1s linear infinite;
+  }
+  
+  .git-badge {
+    @apply px-1.5 py-0.5 rounded-full text-white text-xs font-medium;
+    background-color: #f59e0b;
+  }
+  
+  .git-time {
+    @apply text-xs;
+    color: rgba(var(--categories-text-color-rgb), 0.6);
+  }
+  
+  // 不同状态的样式
+  &.git-status-syncing {
+    color: #3b82f6;
+    
+    .git-sync-icon {
+      animation: spin 1s linear infinite;
+    }
+  }
+  
+  &.git-status-synced {
+    color: #10b981;
+  }
+  
+  &.git-status-has_changes {
+    color: #f59e0b;
+    
+    .git-badge {
+      @apply flex items-center justify-center;
+      min-width: 18px;
+      height: 18px;
+    }
+  }
+  
+  &.git-status-error {
+    color: #ef4444;
+  }
+  
+  &.git-status-idle {
+    color: rgba(var(--categories-text-color-rgb), 0.7);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse {

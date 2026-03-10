@@ -6,9 +6,10 @@
 import { ref, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useConfigurationStore } from '@/store';
-import { getFragmentList, getUncategorizedId } from '@/api/fragment';
+import { getFragmentList } from '@/api/fragment';
 import { parseSearchText } from '@/utils/searchParser';
-import { applyFilter } from '@/utils/filterEngine';
+import { applyFilter, applySorting } from '@/utils/filterEngine';
+import { debounce } from '@/utils';
 
 /**
  * useContentList 返回值接口
@@ -31,7 +32,7 @@ export interface UseContentListReturn {
   /** 筛选后的内容列表 */
   filteredContents: ComputedRef<ContentType[]>;
   /** 查询片段列表 */
-  queryFragments: (cid?: string) => Promise<void>;
+  queryFragments: (cid?: string, search?: string) => Promise<void>;
   /** 更新筛选条件 */
   updateFilter: (filter: SearchFilter) => void;
   /** 清除标签筛选 */
@@ -71,11 +72,18 @@ export function useContentList(): UseContentListReturn {
       ...panelFilter.value 
     };
     
+    // 如果 searchFilter 有 type，且 panelFilter 的 type 是默认值 'all'，则使用 searchFilter 的 type
+    if (searchFilter.value.type && panelFilter.value.type === 'all') {
+      filter.type = searchFilter.value.type;
+    }
+    
     // 处理标签合并
     if (panelFilter.value.tags && panelFilter.value.tags.length > 0) {
       filter.tags = [...panelFilter.value.tags];
     } else if (tagFilter.value) {
       filter.tags = [tagFilter.value];
+    } else if (searchFilter.value.tags) {
+      filter.tags = [...searchFilter.value.tags];
     }
     
     return filter;
@@ -112,14 +120,28 @@ export function useContentList(): UseContentListReturn {
 
   // 应用筛选后的内容列表
   const filteredContents = computed<ContentType[]>(() => {
-    return applyFilter(store.contents, combinedFilter.value);
+    // 统一使用前端过滤器处理所有情况
+    // 后端搜索只负责文本搜索，前端负责语法过滤（type:, tag:, created:, updated:）
+    const result = applyFilter(store.contents, combinedFilter.value);
+    
+    // 应用排序（如果有指定排序方式）
+    if (combinedFilter.value.sortBy) {
+      return applySorting(
+        result,
+        combinedFilter.value.sortBy,
+        combinedFilter.value.sortOrder || 'desc'
+      );
+    }
+    
+    // 默认排序：按更新时间降序（最新的在前面）
+    return applySorting(result, 'updated', 'desc');
   });
 
   /**
    * 查询片段列表
-   * @param cid - 分类 ID（可选）
+   * 后端现在直接返回包含 categoryId 和 categoryName 的数据
    */
-  const queryFragments = async (cid?: string): Promise<void> => {
+  const queryFragments = async (cid?: string, search?: string): Promise<void> => {
     // 避免重复加载
     if (isLoadingFragments.value) {
       return;
@@ -130,39 +152,33 @@ export function useContentList(): UseContentListReturn {
       let categoryId: number | undefined;
       
       if (!cid) {
+        // 没有 cid，获取所有文件
         categoryId = undefined;
-      } else if (cid === '0') {
-        const uncategorizedId = await getUncategorizedId();
-        categoryId = uncategorizedId ?? undefined;
       } else {
+        // 使用数字 ID
         categoryId = Number(cid);
       }
       
-      const result = await getFragmentList(categoryId, '');
+      // 使用传入的搜索文本，如果没有则使用当前的 searchText
+      const searchQuery = search !== undefined ? search : searchText.value;
       
-      // 为每个内容项添加 category_name
-      const contentsWithCategoryName = (result as ContentType[]).map(content => {
-        if (content.category_id && !content.category_name) {
-          // 从 store.categories 中查找对应的分类名称
-          const category = store.categories.find(cat => cat.id === content.category_id);
-          if (category) {
-            return {
-              ...content,
-              category_name: category.name
-            };
-          }
-        }
-        return content;
-      });
+      const result = await getFragmentList(categoryId, searchQuery);
       
-      store.contents = contentsWithCategoryName;
+      // 直接使用后端返回的数据，无需额外处理
+      store.contents = result as ContentType[];
     } catch (error) {
-      console.error('[useContentList] 片段列表加载失败:', error);
       // Error already handled by API layer
     } finally {
       isLoadingFragments.value = false;
     }
   };
+
+  /**
+   * 防抖版本的查询函数，用于搜索文本变化时
+   */
+  const debouncedQueryFragments = debounce((cid: string | undefined, search: string) => {
+    queryFragments(cid, search);
+  }, 300);
 
   /**
    * 更新筛选条件
@@ -190,12 +206,33 @@ export function useContentList(): UseContentListReturn {
       const tag = route.query.tag as string | undefined;
       tagFilter.value = tag || null;
       
-      if (newCid !== oldCid) {
-        queryFragments(newCid as string);
+      // 检查是否在 content 子路由中（通过 route.params.id 判断）
+      const isInContentPage = !!route.params.id;
+      
+      // 只有当 cid 真正改变时才重新加载数据
+      // 并且不在 content 页面时加载（避免进入 content 页面时清空列表）
+      if (newCid !== oldCid && !isInContentPage) {
+        // 解析当前搜索文本，提取纯文本部分
+        const parsedFilter = parseSearchText(searchText.value);
+        const textQuery = parsedFilter.text || '';
+        queryFragments(newCid as string, textQuery);
       }
     },
     { immediate: true }
   );
+
+  // 监听搜索文本变化
+  watch(searchText, (newSearchText) => {
+    const cid = route.params.cid as string | undefined;
+    
+    // 解析搜索文本，提取纯文本部分（去除语法前缀）
+    const parsedFilter = parseSearchText(newSearchText);
+    const textQuery = parsedFilter.text || '';
+    
+    // 使用防抖版本的查询函数
+    // 如果有文本搜索，传递给后端；否则传递空字符串加载所有文件
+    debouncedQueryFragments(cid, textQuery);
+  });
 
   // 监听标签筛选变化
   watch(

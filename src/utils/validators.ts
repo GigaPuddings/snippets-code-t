@@ -54,8 +54,8 @@ export function validateCategory(data: unknown): data is Category {
   // 必填字段验证
   if (typeof category.id !== 'number') return false;
   if (typeof category.name !== 'string' || category.name.trim() === '') return false;
-  if (typeof category.is_system !== 'boolean') return false;
-  if (typeof category.created_at !== 'string') return false;
+  if (typeof category.isSystem !== 'boolean') return false;
+  if (typeof category.createdAt !== 'string') return false;
 
   // 可选字段验证
   if (category.parent_id !== undefined && typeof category.parent_id !== 'number') return false;

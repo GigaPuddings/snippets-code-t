@@ -223,6 +223,8 @@ import { useI18n } from 'vue-i18n';
 interface Props {
   editor: Editor | null;
   dark?: boolean;
+  viewMode?: 'reading' | 'preview' | 'source';
+  sourceEditorRef?: any; // 源码编辑器的引用
 }
 
 defineOptions({
@@ -231,7 +233,9 @@ defineOptions({
 
 const props = withDefaults(defineProps<Props>(), {
   editor: null,
-  dark: false
+  dark: false,
+  viewMode: 'preview',
+  sourceEditorRef: null
 });
 
 const { t: $t } = useI18n();
@@ -243,6 +247,9 @@ const activeSubmenu = ref<string | null>(null);
 const menuPosition = ref({ x: 0, y: 0 });
 const submenuPosition = ref({ x: 0, y: 0 });
 let submenuTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 是否在源码模式
+const isSourceMode = computed(() => props.viewMode === 'source');
 
 // 菜单样式
 const menuStyle = computed(() => ({
@@ -275,23 +282,36 @@ const show = (event: MouseEvent) => {
     const menuRect = menuRef.value.getBoundingClientRect();
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
+    const padding = 10; // 边距
     
     let adjustedX = x;
     let adjustedY = y;
     
-    // 调整 X 位置
-    if (x + menuRect.width > windowWidth - 10) {
-      adjustedX = Math.max(10, windowWidth - menuRect.width - 10);
+    // 调整 X 位置 - 如果右侧空间不足，向左调整
+    if (x + menuRect.width > windowWidth - padding) {
+      // 尝试向左对齐
+      adjustedX = windowWidth - menuRect.width - padding;
+      
+      // 如果还是超出左边界，就贴左边
+      if (adjustedX < padding) {
+        adjustedX = padding;
+      }
     }
     
-    // 调整 Y 位置
-    if (y + menuRect.height > windowHeight - 10) {
-      adjustedY = Math.max(10, windowHeight - menuRect.height - 10);
+    // 调整 Y 位置 - 如果下方空间不足，向上调整
+    if (y + menuRect.height > windowHeight - padding) {
+      // 尝试向上对齐
+      adjustedY = windowHeight - menuRect.height - padding;
+      
+      // 如果还是超出上边界，就贴上边
+      if (adjustedY < padding) {
+        adjustedY = padding;
+      }
     }
     
     // 确保不超出左上边界
-    adjustedX = Math.max(10, adjustedX);
-    adjustedY = Math.max(10, adjustedY);
+    adjustedX = Math.max(padding, adjustedX);
+    adjustedY = Math.max(padding, adjustedY);
     
     menuPosition.value = { x: adjustedX, y: adjustedY };
   });
@@ -322,29 +342,45 @@ const showSubmenu = (submenu: string) => {
     const submenuRect = submenuRef.value.getBoundingClientRect();
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
+    const padding = 10;
+    const gap = 8; // 主菜单和子菜单之间的间距
     
-    // 子菜单默认显示在右侧
-    let x = menuRect.right + 8;
+    let x = 0;
     let y = menuRect.top;
     
-    // 如果右侧空间不足，显示在左侧
-    if (x + submenuRect.width > windowWidth - 10) {
-      x = menuRect.left - submenuRect.width - 8;
-    }
+    // 默认尝试在右侧显示
+    const rightX = menuRect.right + gap;
+    const leftX = menuRect.left - submenuRect.width - gap;
     
-    // 确保不超出左边界
-    if (x < 10) {
-      x = 10;
+    // 判断右侧是否有足够空间
+    if (rightX + submenuRect.width <= windowWidth - padding) {
+      // 右侧有空间
+      x = rightX;
+    } else if (leftX >= padding) {
+      // 右侧没空间，但左侧有空间
+      x = leftX;
+    } else {
+      // 两侧都没空间，选择空间较大的一侧
+      const rightSpace = windowWidth - rightX;
+      const leftSpace = menuRect.left;
+      
+      if (rightSpace > leftSpace) {
+        // 右侧空间更大，贴右边
+        x = windowWidth - submenuRect.width - padding;
+      } else {
+        // 左侧空间更大，贴左边
+        x = padding;
+      }
     }
     
     // 调整 Y 位置，确保不超出底部
-    if (y + submenuRect.height > windowHeight - 10) {
-      y = Math.max(10, windowHeight - submenuRect.height - 10);
+    if (y + submenuRect.height > windowHeight - padding) {
+      y = windowHeight - submenuRect.height - padding;
     }
     
     // 确保不超出顶部
-    if (y < 10) {
-      y = 10;
+    if (y < padding) {
+      y = padding;
     }
     
     submenuPosition.value = { x, y };
@@ -368,113 +404,204 @@ const keepSubmenuOpen = () => {
 
 // 文本格式操作
 const toggleBold = () => {
-  props.editor?.chain().focus().toggleBold().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.wrapSelection('**', '**');
+  } else {
+    props.editor?.chain().focus().toggleBold().run();
+  }
   hide();
 };
 
 const toggleItalic = () => {
-  props.editor?.chain().focus().toggleItalic().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.wrapSelection('*', '*');
+  } else {
+    props.editor?.chain().focus().toggleItalic().run();
+  }
   hide();
 };
 
 const toggleStrike = () => {
-  props.editor?.chain().focus().toggleStrike().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.wrapSelection('~~', '~~');
+  } else {
+    props.editor?.chain().focus().toggleStrike().run();
+  }
   hide();
 };
 
 const toggleCode = () => {
-  props.editor?.chain().focus().toggleCode().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.wrapSelection('`', '`');
+  } else {
+    props.editor?.chain().focus().toggleCode().run();
+  }
   hide();
 };
 
 const clearFormat = () => {
-  props.editor?.chain().focus().clearNodes().unsetAllMarks().run();
+  if (!isSourceMode.value && props.editor) {
+    props.editor.chain().focus().clearNodes().unsetAllMarks().run();
+  }
   hide();
 };
 
 // 段落格式操作
 const toggleBulletList = () => {
-  props.editor?.chain().focus().toggleBulletList().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.insertLinePrefix('- ');
+  } else {
+    props.editor?.chain().focus().toggleBulletList().run();
+  }
   hide();
 };
 
 const toggleOrderedList = () => {
-  props.editor?.chain().focus().toggleOrderedList().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.insertLinePrefix('1. ');
+  } else {
+    props.editor?.chain().focus().toggleOrderedList().run();
+  }
   hide();
 };
 
 const toggleTaskList = () => {
-  props.editor?.chain().focus().toggleTaskList().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.insertLinePrefix('- [ ] ');
+  } else {
+    props.editor?.chain().focus().toggleTaskList().run();
+  }
   hide();
 };
 
 const setHeading = (level: 1 | 2 | 3 | 4 | 5 | 6) => {
-  props.editor?.chain().focus().setHeading({ level }).run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    const prefix = '#'.repeat(level) + ' ';
+    props.sourceEditorRef.insertLinePrefix(prefix);
+  } else {
+    props.editor?.chain().focus().setHeading({ level }).run();
+  }
   hide();
 };
 
 const setParagraph = () => {
-  props.editor?.chain().focus().setParagraph().run();
+  if (!isSourceMode.value && props.editor) {
+    props.editor.chain().focus().setParagraph().run();
+  }
   hide();
 };
 
 const toggleBlockquote = () => {
-  props.editor?.chain().focus().toggleBlockquote().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.insertLinePrefix('> ');
+  } else {
+    props.editor?.chain().focus().toggleBlockquote().run();
+  }
   hide();
 };
 
 // 插入操作
 const insertTable = () => {
-  props.editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    const tableMarkdown = `| Header 1 | Header 2 | Header 3 |\n| -------- | -------- | -------- |\n| Cell 1   | Cell 2   | Cell 3   |\n| Cell 4   | Cell 5   | Cell 6   |\n`;
+    props.sourceEditorRef.insertText(tableMarkdown);
+  } else {
+    props.editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  }
   hide();
 };
 
 const insertCodeBlock = () => {
-  props.editor?.chain().focus().toggleCodeBlock().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.insertText('```\n\n```');
+    const textarea = props.sourceEditorRef.getTextarea();
+    if (textarea) {
+      const pos = textarea.selectionStart;
+      textarea.setSelectionRange(pos - 4, pos - 4);
+      textarea.focus();
+    }
+  } else {
+    props.editor?.chain().focus().toggleCodeBlock().run();
+  }
   hide();
 };
 
 const insertHorizontalRule = () => {
-  props.editor?.chain().focus().setHorizontalRule().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.insertText('\n---\n');
+  } else {
+    props.editor?.chain().focus().setHorizontalRule().run();
+  }
   hide();
 };
 
 // 链接操作
 const handleAddLink = () => {
-  // 获取选中的文本
-  const { from, to } = props.editor?.state.selection || { from: 0, to: 0 };
-  const selectedText = props.editor?.state.doc.textBetween(from, to, ' ');
-  
-  if (selectedText && selectedText.trim()) {
-    // 如果有选中文本，提示输入链接地址
-    const url = window.prompt($t('contextMenu.enterUrl'), '');
-    if (url && url.trim()) {
-      props.editor?.chain().focus().setLink({ href: url.trim() }).run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    // 源码模式：插入 [[]] 格式
+    props.sourceEditorRef.insertText('[[]]');
+    // 将光标移动到 [[ 和 ]] 之间
+    const textarea = props.sourceEditorRef.getTextarea();
+    if (textarea) {
+      const pos = textarea.selectionStart;
+      textarea.setSelectionRange(pos - 2, pos - 2);
+      textarea.focus();
     }
-  } else {
-    // 如果没有选中文本，插入内部链接格式 [[]]
-    props.editor?.chain().focus().insertContent('[[]]').setTextSelection(from + 2).run();
+  } else if (props.editor) {
+    // 预览/阅读模式：使用 TipTap 命令
+    const { from, to } = props.editor.state.selection;
+    const selectedText = props.editor.state.doc.textBetween(from, to, ' ');
+    
+    if (selectedText && selectedText.trim()) {
+      const url = window.prompt($t('contextMenu.enterUrl'), '');
+      if (url && url.trim()) {
+        props.editor.chain().focus().setLink({ href: url.trim() }).run();
+      }
+    } else {
+      props.editor.chain().focus().insertContent('[[]]').setTextSelection(from + 2).run();
+    }
   }
   hide();
 };
 
 const handleAddExternalLink = () => {
-  // 像 Obsidian 一样，直接插入 Markdown 格式的链接
-  const { from, to } = props.editor?.state.selection || { from: 0, to: 0 };
-  const selectedText = props.editor?.state.doc.textBetween(from, to, ' ');
-  
-  if (selectedText && selectedText.trim()) {
-    // 如果有选中文本，将其作为链接文本，光标定位到 URL 位置
-    props.editor?.chain().focus()
-      .insertContent(`[${selectedText}]()`)
-      .setTextSelection(from + selectedText.length + 3) // 定位到 () 中间
-      .run();
-  } else {
-    // 如果没有选中文本，插入空的链接格式，光标定位到文本位置
-    props.editor?.chain().focus()
-      .insertContent('[]()')
-      .setTextSelection(from + 1) // 定位到 [] 中间
-      .run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    // 源码模式：插入 []() 格式
+    const textarea = props.sourceEditorRef.getTextarea();
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selectedText = textarea.value.substring(start, end);
+      
+      if (selectedText) {
+        // 有选中文本，包裹为链接
+        props.sourceEditorRef.insertText(`[${selectedText}]()`);
+        // 光标移动到 () 中间
+        textarea.setSelectionRange(start + selectedText.length + 3, start + selectedText.length + 3);
+      } else {
+        // 无选中文本，插入空链接
+        props.sourceEditorRef.insertText('[]()');
+        // 光标移动到 [] 中间
+        textarea.setSelectionRange(start + 1, start + 1);
+      }
+      textarea.focus();
+    }
+  } else if (props.editor) {
+    // 预览/阅读模式：使用 TipTap 命令
+    const { from, to } = props.editor.state.selection;
+    const selectedText = props.editor.state.doc.textBetween(from, to, ' ');
+    
+    if (selectedText && selectedText.trim()) {
+      props.editor.chain().focus()
+        .insertContent(`[${selectedText}]()`)
+        .setTextSelection(from + selectedText.length + 3)
+        .run();
+    } else {
+      props.editor.chain().focus()
+        .insertContent('[]()')
+        .setTextSelection(from + 1)
+        .run();
+    }
   }
   hide();
 };

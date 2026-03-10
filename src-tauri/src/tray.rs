@@ -10,7 +10,7 @@ use tauri::{
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
-/// 托盘菜单翻译结构
+// 托盘菜单翻译结构
 struct TrayTranslations {
     search: &'static str,
     config: &'static str,
@@ -29,7 +29,7 @@ struct TrayTranslations {
     quit: &'static str,
 }
 
-/// 获取当前语言的翻译
+// 获取当前语言的翻译
 fn get_translations(lang: &str) -> TrayTranslations {
     match lang {
         "en-US" => TrayTranslations {
@@ -65,7 +65,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
     }
 }
 
-/// 创建主题子菜单
+// 创建主题子菜单
 fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<tauri::Wry>> {
     let trans = get_translations(lang);
     let config = load_config(app);
@@ -106,7 +106,7 @@ fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<ta
     )
 }
 
-/// 处理主题菜单项点击
+// 处理主题菜单项点击
 pub fn handle_theme_menu_click(app: &AppHandle, menu_id: &str) {
     let mut config = load_config(app);
     
@@ -258,7 +258,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// 更新托盘菜单主题状态显示
+// 更新托盘菜单主题状态显示
 pub fn update_tray_theme_status(app_handle: &AppHandle) {
     if !crate::db::is_setup_completed_internal(app_handle) {
         return;
@@ -268,7 +268,7 @@ pub fn update_tray_theme_status(app_handle: &AppHandle) {
     }
 }
 
-/// 更新托盘菜单语言
+// 更新托盘菜单语言
 pub fn update_tray_language(app_handle: &AppHandle) {
     let is_first_run = !crate::db::is_setup_completed_internal(app_handle);
     if is_first_run {
@@ -289,7 +289,7 @@ fn recreate_minimal_tray_menu(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// 创建最小化托盘（首次运行时使用）
+// 创建最小化托盘（首次运行时使用）
 pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let lang = get_language_internal(app);
     let trans = get_translations(&lang);
@@ -314,7 +314,7 @@ pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// 重新创建托盘菜单
+// 重新创建托盘菜单
 fn recreate_tray_menu(app: &AppHandle) -> tauri::Result<()> {
     let lang = get_language_internal(app);
     let trans = get_translations(&lang);

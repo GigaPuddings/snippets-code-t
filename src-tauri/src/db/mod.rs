@@ -1,7 +1,7 @@
 // 数据库模块 - 统一管理所有数据库相关操作
 mod connection;
 mod entity;
-mod fragment;
+// mod fragment; // 已迁移到基于文件系统的 Markdown 存储
 mod apps;
 mod bookmarks;
 mod search_engines;
@@ -16,12 +16,12 @@ pub use connection::DbConnectionManager;
 
 // 重新导出初始化函数
 pub use init::init_db;
-pub use init::migrate_fragment_type_support;
-pub use init::migrate_category_system_field;
+pub use init::migrate_remove_fragment_tables;
 
-// 重新导出片段相关函数
-pub use fragment::{get_categories, add_category, edit_category, delete_category, get_uncategorized_id};
-pub use fragment::{get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content, search_fragment_content};
+// 注意：片段相关函数已迁移到基于文件系统的 Markdown 存储
+// 请使用 markdown 模块中的相关函数
+// pub use fragment::{get_categories, add_category, edit_category, delete_category, get_uncategorized_id};
+// pub use fragment::{get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content, search_fragment_content};
 
 // 重新导出应用相关函数
 pub use apps::{insert_apps, get_all_apps, update_app_icon, update_app_icon_silent, clear_apps, count_apps};
@@ -44,16 +44,13 @@ pub use alarm::{get_all_alarm_cards, add_or_update_alarm_card, delete_alarm_card
 pub use icon_cache::{load_all_icon_cache, insert_icon_to_cache};
 
 // 重新导出命令函数
-pub use connection::{get_db_path, get_data_dir_info, backup_database, restore_database, set_custom_db_path, optimize_database};
+pub use connection::{get_db_path, get_data_dir_info, backup_database, restore_database, set_custom_db_path, optimize_database, optimize_database_cmd};
 pub use connection::{is_setup_completed, is_setup_completed_internal, set_setup_completed, set_data_dir_from_setup};
 pub use connection::{set_show_progress_on_restart, consume_show_progress_flag};
 pub use search_history::{add_search_history, get_search_history};
 
 // 重新导出应用设置相关函数
 pub use settings::{
-    get_setting_string, get_setting_bool,
-    set_setting_string, set_setting_bool,
-    get_all_app_settings, update_all_app_settings,
-    set_auto_start_setting, get_auto_start_setting,
-    ensure_default_settings
+    set_auto_start_setting, 
+    get_auto_hide_on_blur, set_auto_hide_on_blur,
 };

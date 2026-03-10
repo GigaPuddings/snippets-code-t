@@ -3,7 +3,7 @@ use crate::db::DbConnectionManager;
 
 // ============= 搜索引擎相关数据库操作 =============
 
-/// 获取所有搜索引擎
+// 获取所有搜索引擎
 pub fn get_all_search_engines() -> Result<Vec<SearchEngine>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
 
@@ -27,7 +27,7 @@ pub fn get_all_search_engines() -> Result<Vec<SearchEngine>, rusqlite::Error> {
     Ok(engines)
 }
 
-/// 替换所有搜索引擎
+// 替换所有搜索引擎
 pub fn replace_all_search_engines(engines: &[SearchEngine]) -> Result<(), rusqlite::Error> {
     let mut conn = DbConnectionManager::get()?;
     let tx = conn.transaction()?;

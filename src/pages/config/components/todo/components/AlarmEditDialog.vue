@@ -168,9 +168,9 @@ import {
 } from '@icon-park/vue-next';
 import dayjs from 'dayjs';
 import { CustomButton, CommonDialog } from '@/components/UI';
-import { ElMessage } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
+import modal from '@/utils/modal';
 
 const { t } = useI18n();
 interface FormData {
@@ -343,7 +343,7 @@ const validateForm = (): string | null => {
 const handleSubmit = () => {
   const error = validateForm();
   if (error) {
-    ElMessage.error(error);
+    modal.error(error);
     return;
   }
 

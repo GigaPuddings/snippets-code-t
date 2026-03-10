@@ -3,22 +3,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { setLocale, type LocaleType } from '@/i18n';
+import { onMounted, onUnmounted, ref } from 'vue';
+import { setupBaseEventListeners, cleanupBaseEventListeners, type BaseEventListeners } from '@/utils/app-init';
+import { logger } from './utils/logger';
 
-let unlistenLanguageChange: UnlistenFn | null = null;
+const eventListeners = ref<BaseEventListeners | null>(null);
 
 onMounted(async () => {
-  // 监听语言变更事件，同步所有窗口的语言设置
-  unlistenLanguageChange = await listen<{ language: LocaleType }>('language-changed', (event) => {
-    setLocale(event.payload.language);
-  });
+  logger.info('[App] 🎬 App 组件已挂载，设置基础事件监听器');
+  // 只设置基础事件监听器（语言变更）
+  eventListeners.value = await setupBaseEventListeners();
+  logger.info('[App] ✅ 基础事件监听器设置完成');
 });
 
 onUnmounted(() => {
-  if (unlistenLanguageChange) {
-    unlistenLanguageChange();
+  logger.info('[App] 🛑 App 组件卸载，清理事件监听器');
+  if (eventListeners.value) {
+    cleanupBaseEventListeners(eventListeners.value);
   }
 });
 </script>

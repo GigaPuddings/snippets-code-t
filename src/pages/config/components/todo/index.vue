@@ -132,8 +132,8 @@ import { Write, Plus, CheckSmall, Delete, Remind } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import AlarmEditDialog from './components/AlarmEditDialog.vue';
 import { invoke } from '@tauri-apps/api/core';
-import { ElMessage } from 'element-plus';
 import { ConfirmDialog } from '@/components/UI';
+import modal from '@/utils/modal';
 
 const { t } = useI18n();
 
@@ -218,7 +218,7 @@ const handleAlarmSubmit = async (formData: Partial<AlarmCard>) => {
     await fetchAlarmCards();
   } catch (error: any) {
     console.error('Failed to save alarm card:', error);
-    ElMessage.error(`${t('alarm.saveFailed')}: ${error?.message || error}`);
+    modal.error(`${t('alarm.saveFailed')}: ${error?.message || error}`);
   }
 };
 
@@ -232,13 +232,13 @@ const confirmDelete = async () => {
   
   try {
     await invoke('delete_alarm_card', { id: deleteTarget.value.id });
-    ElMessage.success(t('alarm.deleteSuccess'));
+    modal.success(t('alarm.deleteSuccess'));
     await fetchAlarmCards();
     showDeleteDialog.value = false;
     deleteTarget.value = null;
   } catch (error: any) {
     console.error('Failed to delete alarm card:', error);
-    ElMessage.error(`${t('alarm.deleteFailed')}: ${error?.message || error}`);
+    modal.error(`${t('alarm.deleteFailed')}: ${error?.message || error}`);
   }
 };
 

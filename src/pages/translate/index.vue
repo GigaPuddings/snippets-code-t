@@ -2,7 +2,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { ElMessage } from 'element-plus';
+import modal from '@/utils/modal';
 import googleIcon from '@/assets/svg/google.svg';
 import bingIcon from '@/assets/svg/bing.svg';
 import { nextTick, onMounted, onUnmounted, ref, computed } from 'vue';
@@ -237,7 +237,7 @@ const clearInput = () => {
 const copyResult = async (text: string) => {
   if (text) {
     await navigator.clipboard.writeText(text);
-    ElMessage.success(t('translate.copiedToClipboard'));
+    modal.success(t('translate.copiedToClipboard'));
   }
 };
 
@@ -319,11 +319,11 @@ const translateWithEngine = async (engine: string) => {
 
   try {
     let translatedText: string;
-    
+
     if (engine === 'offline') {
       // 离线翻译 - 懒加载模型
       const { canUseOfflineTranslation, isModelCached, warmupOfflineTranslator } = await import('@/utils/offlineTranslator');
-      
+
       // 检查内存中是否已加载
       if (!canUseOfflineTranslation()) {
         // 检查缓存是否存在
@@ -336,7 +336,7 @@ const translateWithEngine = async (engine: string) => {
           throw new Error('离线翻译模型未下载，请在设置中下载模型');
         }
       }
-      
+
       translatedText = await translateOffline(textToTranslate);
     } else {
       // 调用Rust后端进行翻译
@@ -351,7 +351,7 @@ const translateWithEngine = async (engine: string) => {
     result.text = translatedText;
   } catch (error) {
     logger.error(`[翻译] ${engine}翻译出错`, error);
-    
+
     const errorMessage = String(error);
     if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
       result.text = t('translate.tooManyRequests');
@@ -435,12 +435,12 @@ const handleSelectionText = (text: string) => {
 
   lastTranslatedText = text;
   isTranslating = true;
-  
+
   sourceText.value = text;
   showDeleteButton.value = true;
 
   autoSetTargetLanguage();
-  
+
   translateAll().finally(() => {
     setTimeout(() => {
       isTranslating = false;
@@ -530,20 +530,20 @@ onMounted(async () => {
     logger.error('[翻译窗口] 获取离线模型激活状态失败:', error)
     offlineModelAvailable.value = false
   }
-  
+
   // 先设置监听器，等待所有监听器设置完成
   await setupListeners();
-  
+
   // 组件挂载后自动设置目标语言（如果有文本）
   if (sourceText.value.trim()) {
     autoSetTargetLanguage();
   }
-  
+
   // 组件挂载后也聚焦输入框
   focusSourceTextArea();
-  
+
   await nextTick();
-  
+
   setTimeout(() => {
     appWindow.emit('translate_ready');
   }, 100);
@@ -567,10 +567,7 @@ onUnmounted(() => {
   <main class="translate-window">
     <div class="header" data-tauri-drag-region>
       <div class="left-buttons">
-        <div
-          @click="togglePin"
-          :class="['pin-button', isPinned ? 'pinned' : '']"
-        >
+        <div @click="togglePin" :class="['pin-button', isPinned ? 'pinned' : '']">
           <Pushpin :size="18" />
         </div>
       </div>
@@ -585,67 +582,32 @@ onUnmounted(() => {
     <div class="translate-container transparent-input">
       <!-- 语言选择区域 -->
       <div class="language-selector">
-        <el-select
-          v-model="sourceLanguage"
-          size="small"
-          @change="onSourceLanguageChange"
-          class="lang-select"
-        >
-          <el-option
-            v-for="item in languageOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
+        <el-select v-model="sourceLanguage" size="small" @change="onSourceLanguageChange" class="lang-select">
+          <el-option v-for="item in languageOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
 
         <div size="small" @click="swapLanguages" class="swap-button">
           <SwitchIcon :size="22" />
         </div>
 
-        <el-select
-          v-model="targetLanguage"
-          size="small"
-          @change="onTargetLanguageChange"
-          class="lang-select"
-        >
-          <el-option
-            v-for="item in languageOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
+        <el-select v-model="targetLanguage" size="small" @change="onTargetLanguageChange" class="lang-select">
+          <el-option v-for="item in languageOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
       </div>
 
       <!-- 源文本输入区域 -->
       <div class="source-area">
-        <el-input
-          ref="sourceTextArea"
-          v-model="sourceText"
-          type="textarea"
-          :rows="2"
-          :placeholder="$t('translate.inputPlaceholder')"
-          resize="none"
-          @input="handleInput"
-          class="source-textarea"
-        />
+        <el-input ref="sourceTextArea" v-model="sourceText" type="textarea" :rows="2"
+          :placeholder="$t('translate.inputPlaceholder')" resize="none" @input="handleInput" class="source-textarea" />
         <div class="source-actions">
           <div class="source-material">
             <el-tooltip :content="$t('translate.speakText')" placement="top" :hide-after="1000">
-              <div
-                @click="speakText(sourceText, sourceLanguage)"
-                class="action-btn"
-              >
+              <div @click="speakText(sourceText, sourceLanguage)" class="action-btn">
                 <VolumeUp :size="18" />
               </div>
             </el-tooltip>
-            <el-tooltip
-              v-if="showDeleteButton"
-              :content="$t('translate.deleteText')"
-              placement="top"
-              :hide-after="1000"
-            >
+            <el-tooltip v-if="showDeleteButton" :content="$t('translate.deleteText')" placement="top"
+              :hide-after="1000">
               <div @click="clearInput" class="action-btn">
                 <Delete :size="18" />
               </div>
@@ -656,26 +618,12 @@ onUnmounted(() => {
 
       <!-- 多引擎翻译结果区域 -->
       <div class="translation-results">
-        <div
-          v-for="result in availableResults"
-          :key="result.engine"
-          class="result-card"
-          :class="{ 'result-expanded': result.expanded }"
-        >
+        <div v-for="result in availableResults" :key="result.engine" class="result-card"
+          :class="{ 'result-expanded': result.expanded }">
           <div class="result-header" @click="toggleExpand(result)">
             <div class="result-title">
-              <img
-                v-if="result.engine === 'google'"
-                :src="googleIcon"
-                class="engine-icon"
-                alt="Google"
-              />
-              <img
-                v-else-if="result.engine === 'bing'"
-                :src="bingIcon"
-                class="engine-icon"
-                alt="Bing"
-              />
+              <img v-if="result.engine === 'google'" :src="googleIcon" class="engine-icon" alt="Google" />
+              <img v-else-if="result.engine === 'bing'" :src="bingIcon" class="engine-icon" alt="Bing" />
               <span v-else class="offline-icon">离</span>
               <span>{{ getEngineName(result.engine) }}</span>
             </div>
@@ -693,10 +641,7 @@ onUnmounted(() => {
 
             <div class="result-actions">
               <el-tooltip :content="$t('translate.speakText')" placement="top" :hide-after="1000">
-                <div
-                  @click="speakText(result.text, targetLanguage)"
-                  class="action-btn"
-                >
+                <div @click="speakText(result.text, targetLanguage)" class="action-btn">
                   <VolumeUp :size="18" />
                 </div>
               </el-tooltip>

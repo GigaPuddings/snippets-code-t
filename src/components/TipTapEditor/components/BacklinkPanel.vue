@@ -119,7 +119,7 @@ import { useI18n } from 'vue-i18n';
 import { findBacklinks, findUnlinkedMentions } from '@/utils/wikilink-updater';
 
 interface BacklinkItem {
-  id: number;
+  id: number | string; // 支持数字 ID 和文件路径
   title: string;
   occurrences: number;
   preview: string;
@@ -129,7 +129,7 @@ interface Props {
   show: boolean;
   dark?: boolean;
   currentTitle: string;
-  currentFragmentId?: number;
+  currentFragmentId?: number | string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -139,7 +139,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   close: [];
-  navigate: [id: number, searchTitle: string];
+  navigate: [id: number | string, searchTitle: string];
 }>();
 
 const { t } = useI18n();
@@ -240,7 +240,7 @@ const getCachedRegex = (pattern: string, flags: string = 'gi'): RegExp => {
   return regexCache.get(key)!;
 };
 
-const handleNavigate = (fragmentId: number) => {
+const handleNavigate = (fragmentId: number | string) => {
   emit('navigate', fragmentId, props.currentTitle);
 };
 
@@ -363,7 +363,7 @@ const loadBacklinks = async () => {
       .map(item => {
         const matches = (item.content || '').match(wikilinkRegex);
         return {
-          id: typeof item.id === 'string' ? parseInt(item.id, 10) : item.id,
+          id: item.id, // 保持原始 ID（文件路径）
           title: item.title,
           occurrences: matches ? matches.length : 0,
           preview: extractPreview(item.content || '', props.currentTitle, true)
@@ -379,7 +379,7 @@ const loadBacklinks = async () => {
         const mentionOccurrences = (allMatches?.length || 0) - (wikilinkMatches?.length || 0);
         
         return {
-          id: typeof item.id === 'string' ? parseInt(item.id, 10) : item.id,
+          id: item.id, // 保持原始 ID（文件路径）
           title: item.title,
           occurrences: mentionOccurrences,
           preview: extractPreview(item.content || '', props.currentTitle, false)

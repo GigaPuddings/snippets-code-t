@@ -2,7 +2,7 @@ use crate::db::DbConnectionManager;
 
 // ============= 数据库初始化 =============
 
-/// 初始化数据库 - 创建所有表和索引
+// 初始化数据库 - 创建所有表和索引
 pub fn init_db() -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
 
@@ -96,30 +96,8 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
-    // 创建 categories 表
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            name TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            is_system INTEGER DEFAULT 0
-        )",
-        [],
-    )?;
-
-    // 创建 contents 表
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS contents (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            category_id INTEGER,
-            created_at TEXT NOT NULL,
-            updated_at TEXT,
-            FOREIGN KEY (category_id) REFERENCES categories(id)
-        )",
-        [],
-    )?;
+    // 注意：contents 和 categories 表已迁移到基于文件系统的 Markdown 存储
+    // 这些表不再需要，已在迁移后移除
 
     // 创建 user_settings 表 (用于存储GitHub同步配置)
     conn.execute(
@@ -137,7 +115,9 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
-    // 创建 app_settings 表 (用于存储应用设置)
+    // 注意：app_settings 表已废弃，配置已迁移到 app.json
+    // 保留表结构以便向后兼容，但不再使用
+    // 所有应用配置现在存储在：[数据目录]/app.json
     conn.execute(
         "CREATE TABLE IF NOT EXISTS app_settings (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -157,12 +137,6 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         )",
         [],
     )?;
-    
-    // 确保 app_settings 有一条默认记录
-    conn.execute(
-        "INSERT OR IGNORE INTO app_settings (id) VALUES (1)",
-        [],
-    )?;
 
     // 创建索引以优化查询性能
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_usage ON search_history(usage_count DESC)", []);
@@ -172,17 +146,16 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_apps_created ON apps(created_at DESC)", []);
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_created ON bookmarks(created_at DESC)", []);
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_icon_cache_timestamp ON icon_cache(timestamp)", []);
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_category ON contents(category_id)", []);
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_created ON contents(created_at DESC)", []);
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_title ON contents(title)", []);
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_categories_created ON categories(created_at DESC)", []);
-    
-    // 为片段类型支持添加额外的索引以优化查询
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_type ON contents(type)", []);
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_format ON contents(format)", []);
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_type_category ON contents(type, category_id)", []);
 
-    // 执行片段类型支持迁移
+    // contents 表索引（如果表存在）
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_category_created ON contents(category_id, created_at DESC)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_title ON contents(title)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_tags ON contents(tags)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_created ON contents(created_at DESC)", []);
+    
+    // 注意：contents 和 categories 表的索引已移除，因为这些表已迁移到文件系统
+
+    // 执行片段类型支持迁移（已废弃，保留以兼容旧版本）
     migrate_fragment_type_support(&conn)?;
     
     // 执行分类系统字段迁移
@@ -193,8 +166,8 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
 
 // ============= 数据库迁移：片段类型支持 =============
 
-/// 迁移数据库以支持片段类型功能
-/// 添加 type、format、metadata、tags 字段到 contents 表
+// 迁移数据库以支持片段类型功能
+// 添加 type、format、metadata、tags 字段到 contents 表
 pub fn migrate_fragment_type_support(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 检查 contents 表是否存在
     let table_exists: bool = conn
@@ -295,8 +268,8 @@ pub fn migrate_fragment_type_support(conn: &rusqlite::Connection) -> Result<(), 
 
 // ============= 数据库迁移：分类系统字段 =============
 
-/// 迁移数据库以支持系统分类标识
-/// 添加 is_system 字段到 categories 表，并标记"未分类"为系统分类
+// 迁移数据库以支持系统分类标识
+// 添加 is_system 字段到 categories 表，并标记"未分类"为系统分类
 pub fn migrate_category_system_field(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 检查 categories 表是否存在
     let table_exists: bool = conn
@@ -332,6 +305,92 @@ pub fn migrate_category_system_field(conn: &rusqlite::Connection) -> Result<(), 
             []
         )?;
     }
+    
+    Ok(())
+}
+
+// ============= 数据库迁移：移除 contents 和 categories 表 =============
+
+// 迁移数据库以移除 contents 和 categories 表
+// 
+// 这些表的功能已迁移到基于文件系统的 Markdown 存储。
+// 
+// # 何时调用
+// 
+// 此函数应该在用户完成 Markdown 迁移向导后调用，确保：
+// 1. 所有数据已成功导出到 Markdown 文件
+// 2. 数据库已备份
+// 3. 用户确认迁移成功
+// 
+// # 删除的表
+// 
+// - `contents` - 存储代码片段和笔记的表
+// - `categories` - 存储分类信息的表
+// 
+// # 删除的索引
+// 
+// - `idx_contents_category`
+// - `idx_contents_created`
+// - `idx_contents_title`
+// - `idx_contents_type`
+// - `idx_contents_format`
+// - `idx_contents_type_category`
+// - `idx_categories_created`
+// 
+// # 保留的表
+// 
+// - `apps` - 应用快捷方式
+// - `bookmarks` - 书签数据
+// - `icon_cache` - 图标缓存
+// - `search_engines` - 搜索引擎配置
+// - `alarm_cards` - 提醒数据
+// - `search_history` - 搜索历史
+// - `user_settings` - 用户设置
+// - `app_settings` - 应用设置（已废弃但保留）
+// 
+// # 安全性
+// 
+// 使用 `DROP TABLE IF EXISTS` 确保即使表不存在也不会报错。
+// 
+// # 需求
+// 
+// 满足需求 4.1, 4.2, 4.3, 4.4, 4.5
+// 
+// # 示例
+// 
+// ```rust
+// use crate::db::init::migrate_remove_fragment_tables;
+// use crate::db::DbConnectionManager;
+// 
+// let conn = DbConnectionManager::get()?;
+// migrate_remove_fragment_tables(&conn)?;
+// ```
+pub fn migrate_remove_fragment_tables(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    log::info!("🗑️  [数据库迁移] 开始移除 contents 和 categories 表...");
+    
+    // 删除 contents 表的索引
+    log::debug!("删除 contents 表的索引...");
+    let _ = conn.execute("DROP INDEX IF EXISTS idx_contents_category", []);
+    let _ = conn.execute("DROP INDEX IF EXISTS idx_contents_created", []);
+    let _ = conn.execute("DROP INDEX IF EXISTS idx_contents_title", []);
+    let _ = conn.execute("DROP INDEX IF EXISTS idx_contents_type", []);
+    let _ = conn.execute("DROP INDEX IF EXISTS idx_contents_format", []);
+    let _ = conn.execute("DROP INDEX IF EXISTS idx_contents_type_category", []);
+    
+    // 删除 categories 表的索引
+    log::debug!("删除 categories 表的索引...");
+    let _ = conn.execute("DROP INDEX IF EXISTS idx_categories_created", []);
+    
+    // 删除 contents 表
+    log::info!("删除 contents 表...");
+    conn.execute("DROP TABLE IF EXISTS contents", [])?;
+    
+    // 删除 categories 表
+    log::info!("删除 categories 表...");
+    conn.execute("DROP TABLE IF EXISTS categories", [])?;
+    
+    log::info!("✅ [数据库迁移] 已成功移除 contents 和 categories 表");
+    log::info!("📝 [数据库迁移] 片段和分类数据现在存储在 Markdown 文件中");
     
     Ok(())
 }

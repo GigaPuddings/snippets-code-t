@@ -1,662 +1,332 @@
 <template>
   <div class="user-center-container">
-    <!-- 加载中状态 -->
-    <div v-if="initialLoading" class="loading-container">
-      <div class="loading-content">
-        <div class="loading-spinner"></div>
-        <p class="loading-text">{{ $t('github.loading') }}</p>
-      </div>
+    <!-- 固定标题 -->
+    <div class="user-center-header">
+      <h3 class="panel-title">{{ $t('userCenter.title') }}</h3>
+      <p class="panel-subtitle">{{ $t('userCenter.subtitle') }}</p>
     </div>
+    
+    <!-- 可滚动内容 -->
+    <div class="user-center-content">
 
-    <div v-else class="user-center-content">
-      <!-- 标题 -->
-      <h3 class="panel-title">{{ $t('github.title') }}</h3>
-      <p class="panel-subtitle">{{ $t('github.subtitle') }}</p>
-
-      <!-- 登录区域 -->
-      <div v-if="!isLoggedIn" class="settings-section">
-        <div class="section-header">
-          <h4 class="section-title">{{ $t('github.connectGithub') }}</h4>
+      <!-- 用户信息卡片 -->
+      <div class="info-card">
+        <div class="info-item">
+          <span class="info-label">{{ $t('userCenter.appVersion') }}</span>
+          <span class="info-value">{{ appVersion }}</span>
         </div>
-        <el-form :model="loginForm" label-position="top" class="settings-form">
-          <el-form-item :label="$t('github.token')">
-            <el-input
-              v-model="loginForm.token"
-              type="password"
-              :placeholder="$t('github.tokenPlaceholder')"
-              show-password
-              clearable
-            />
-          </el-form-item>
-          
-          <el-form-item :label="$t('github.repoName')">
-            <el-input
-              v-model="loginForm.repo"
-              :placeholder="$t('github.repoPlaceholder')"
-              clearable
-            />
-          </el-form-item>
-          
-          <div class="help-text">
-            <Help theme="outline" size="16" :strokeWidth="3" />
-            <span>{{ $t('github.howToGetToken') }}</span>
-            <el-button
-              link
-              type="primary"
-              @click="openTokenHelp"
-            >
-              {{ $t('github.viewTutorial') }}
-            </el-button>
+        
+        <div class="info-item">
+          <span class="info-label">{{ $t('userCenter.workspaceRoot') }}</span>
+          <span class="info-value">{{ workspaceRoot || $t('userCenter.notSet') }}</span>
+        </div>
+        
+        <div class="info-item">
+          <span class="info-label">{{ $t('userCenter.gitSyncStatus') }}</span>
+          <span class="info-value">
+            <span v-if="gitConfigured" class="status-badge status-badge--success">
+              {{ $t('userCenter.configured') }}
+            </span>
+            <span v-else class="status-badge status-badge--warning">
+              {{ $t('userCenter.notConfigured') }}
+            </span>
+          </span>
+        </div>
+        
+        <!-- 显示 Git 账户信息（如果已配置） -->
+        <template v-if="gitConfigured && gitAccountInfo">
+          <div class="info-item">
+            <span class="info-label">{{ $t('userCenter.gitAccount') }}</span>
+            <span class="info-value">{{ gitAccountInfo.user_name }}</span>
           </div>
           
-          <CustomButton
-            type="primary"
-            :loading="logging"
-            :disabled="!loginForm.token"
-            @click="handleLogin"
+          <div class="info-item">
+            <span class="info-label">{{ $t('userCenter.gitEmail') }}</span>
+            <span class="info-value">{{ gitAccountInfo.user_email }}</span>
+          </div>
+          
+          <div v-if="gitAccountInfo.remote_url" class="info-item">
+            <span class="info-label">{{ $t('userCenter.gitRemote') }}</span>
+            <span class="info-value text-xs">{{ gitAccountInfo.remote_url }}</span>
+          </div>
+        </template>
+      </div>
+
+      <!-- Git 同步提示 -->
+      <div class="tip-card">
+        <div class="tip-icon">
+          <Github theme="outline" size="24" :strokeWidth="3" />
+        </div>
+        <div class="tip-content">
+          <h4 class="tip-title">{{ $t('userCenter.gitSyncTitle') }}</h4>
+          <p class="tip-desc">{{ gitConfigured ? $t('userCenter.gitSyncConfigured') : $t('userCenter.gitSyncDesc') }}</p>
+          <CustomButton 
+            type="primary" 
+          size="small"
+            @click="goToGitSync"
           >
-            {{ logging ? $t('github.connecting') : $t('github.connect') }}
-          </CustomButton>
-        </el-form>
-      </div>
-
-      <!-- 用户信息区域 -->
-      <div v-else class="settings-section">
-        <div class="section-header">
-          <h4 class="section-title">{{ $t('github.accountInfo') }}</h4>
-        </div>
-        <div class="user-info">
-          <img :src="userInfo.avatar_url" alt="avatar" class="user-avatar" />
-          <div class="user-details">
-            <div class="user-name">{{ userInfo.name || userInfo.login }}</div>
-            <div class="user-login">@{{ userInfo.login }}</div>
-          </div>
-          <CustomButton type="danger" plain @click="handleLogout">
-            {{ $t('github.logout') }}
+            {{ gitConfigured ? $t('userCenter.manageSettings') : $t('userCenter.goToSettings') }}
           </CustomButton>
         </div>
       </div>
 
-      <!-- 同步状态 -->
-      <div v-if="isLoggedIn" class="settings-section">
-        <div class="section-header">
-          <h4 class="section-title">{{ $t('github.syncStatus') }}</h4>
-        </div>
-        <div class="sync-status">
-          <div class="status-item">
-            <span class="status-label">{{ $t('github.lastSyncTime') }}</span>
-            <span class="status-value">
-              {{ settings.last_sync_time || $t('github.neverSynced') }}
-            </span>
-          </div>
+      <!-- 快捷操作 -->
+      <div class="actions-section">
+        <h4 class="section-title">{{ $t('userCenter.quickActions') }}</h4>
+        <div class="action-buttons">
+          <CustomButton 
+            @click="openDataDir"
+          >
+            <FolderOpen theme="outline" size="16" :strokeWidth="3" class="mr-1" />
+            {{ $t('userCenter.openDataDir') }}
+          </CustomButton>
           
-          <div class="status-item">
-            <span class="status-label">{{ $t('github.repoAddress') }}</span>
-            <span class="status-value">
-              <el-link
-                v-if="userInfo.login"
-                :href="`https://github.com/${userInfo.login}/${settings.github_repo || 'snippets-code-backup'}`"
-                target="_blank"
-                type="primary"
-              >
-                {{ userInfo.login }}/{{ settings.github_repo || 'snippets-code-backup' }}
-              </el-link>
-            </span>
-          </div>
+          <CustomButton 
+            @click="goToSettings"
+          >
+            <SettingTwo theme="outline" size="16" :strokeWidth="3" class="mr-1" />
+            {{ $t('userCenter.openSettings') }}
+          </CustomButton>
         </div>
       </div>
 
-      <!-- 同步操作 -->
-      <div v-if="isLoggedIn" class="settings-section">
-        <div class="section-header">
-          <h4 class="section-title">{{ $t('github.dataSync') }}</h4>
-        </div>
-        <div class="sync-actions">
-          <div class="sync-buttons">
-            <CustomButton
-              type="primary"
-              :loading="syncing"
-              :disabled="syncing || restoring"
-              @click="handleSync"
-            >
-              <UploadIcon theme="outline" size="16" :strokeWidth="3" class="mr-1" />
-              {{ syncing ? $t('github.uploading') : $t('github.uploadToGithub') }}
-            </CustomButton>
-            
-            <CustomButton
-              type="success"
-              :loading="restoring"
-              :disabled="syncing || restoring"
-              @click="handleRestore"
-            >
-              <DownloadIcon theme="outline" size="16" :strokeWidth="3" class="mr-1" />
-              {{ restoring ? $t('github.restoring') : $t('github.restoreFromGithub') }}
-            </CustomButton>
-          </div>
-          
-          <!-- 同步进度条 -->
-          <div v-if="syncing" class="progress-container">
-            <div class="progress-header">
-              <span class="progress-label">{{ syncMessage || $t('github.uploadingData') }}</span>
-              <span class="progress-percentage">{{ syncProgress }}%</span>
-            </div>
-            <el-progress 
-              :percentage="syncProgress" 
-              :stroke-width="12" 
-              :show-text="false"
-              color="#3b82f6"
-              class="custom-progress"
-            />
-          </div>
-          
-          <!-- 恢复进度条 -->
-          <div v-if="restoring" class="progress-container progress-container--restore">
-            <div class="progress-header">
-              <span class="progress-label">{{ restoreMessage || $t('github.restoringData') }}</span>
-              <span class="progress-percentage progress-percentage--restore">{{ restoreProgress }}%</span>
-            </div>
-            <el-progress 
-              :percentage="restoreProgress" 
-              :stroke-width="12" 
-              :show-text="false"
-              color="#10b981"
-              class="custom-progress"
-            />
-          </div>
-          
-          <div class="warning-text">
-            <WarningIcon theme="filled" size="16" :strokeWidth="3" />
-            <span>{{ $t('github.restoreWarning') }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 同步设置 -->
-      <div v-if="isLoggedIn" class="settings-section">
-        <div class="section-header">
-          <h4 class="section-title">{{ $t('github.autoSync') }}</h4>
-        </div>
-        <div class="sync-settings">
-          <div class="setting-item">
-            <div class="setting-info">
-              <span class="setting-label">{{ $t('github.autoSyncOnExit') }}</span>
-              <span class="setting-desc">{{ $t('github.autoSyncOnExitDesc') }}</span>
-            </div>
-            <CustomSwitch
-              v-model="settings.auto_sync_on_exit"
-              @change="handleSettingChange"
-            />
-          </div>
-          
-          <div class="setting-item">
-            <div class="setting-info">
-              <span class="setting-label">{{ $t('github.autoRestoreOnStart') }}</span>
-              <span class="setting-desc">{{ $t('github.autoRestoreOnStartDesc') }}</span>
-            </div>
-            <CustomSwitch
-              v-model="settings.auto_restore_on_start"
-              @change="handleSettingChange"
-            />
+      <!-- 关于信息 -->
+      <div class="about-section">
+        <h4 class="section-title">{{ $t('userCenter.about') }}</h4>
+        <div class="about-content">
+          <p class="about-text">{{ $t('userCenter.appDescription') }}</p>
+          <div class="about-links">
+            <el-link type="primary" @click="openGitHub">
+              {{ $t('userCenter.viewOnGitHub') }}
+            </el-link>
+            <span class="link-separator">•</span>
+            <el-link type="primary" @click="checkUpdate">
+              {{ $t('userCenter.checkUpdate') }}
+            </el-link>
           </div>
         </div>
       </div>
     </div>
   </div>
-
-  <!-- 登出确认对话框 -->
-  <ConfirmDialog
-    v-model="showLogoutDialog"
-    :title="$t('github.logoutTitle')"
-    :confirm-text="$t('common.confirm')"
-    :cancel-text="$t('common.cancel')"
-    @confirm="confirmLogout"
-  >
-    <div>{{ $t('github.logoutConfirm') }}</div>
-  </ConfirmDialog>
-
-  <!-- 恢复确认对话框 -->
-  <ConfirmDialog
-    v-model="showRestoreDialog"
-    :title="$t('github.restoreTitle')"
-    :confirm-text="$t('common.confirm')"
-    :cancel-text="$t('common.cancel')"
-    :loading="restoring"
-    @confirm="confirmRestore"
-  >
-    <div v-html="$t('github.restoreConfirm')"></div>
-  </ConfirmDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-
-const { t } = useI18n();
-import { CustomButton, CustomSwitch, ConfirmDialog } from '@/components/UI';
-import {
-  Help,
-  Info as WarningIcon,
-  Upload as UploadIcon,
-  Download as DownloadIcon
-} from '@icon-park/vue-next';
+import { useRouter } from 'vue-router';
+import { CustomButton } from '@/components/UI';
+import { Github, FolderOpen, SettingTwo } from '@icon-park/vue-next';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
-import {
-  getUserSettingsCached,
-  getGitHubUserCached,
-  saveUserSettings,
-  verifyGitHubToken,
-  syncToGitHub,
-  restoreFromGitHub,
-  type UserSettings,
-  type GitHubUser
-} from '@/api/github';
-import { listen, emit } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
+import { getGitSettings } from '@/api/appConfig';
+import modal from '@/utils/modal';
 
 defineOptions({
   name: 'UserCenter'
 });
 
-// 登录表单
-const loginForm = reactive({
-  token: '',
-  repo: ''
-});
+const { t } = useI18n();
+const router = useRouter();
 
-// 状态
-const initialLoading = ref(true);
-const isLoggedIn = ref(false);
-const logging = ref(false);
-const syncing = ref(false);
-const restoring = ref(false);
-const syncProgress = ref(0);
-const restoreProgress = ref(0);
-const syncMessage = ref('');
-const restoreMessage = ref('');
-const showLogoutDialog = ref(false);
-const showRestoreDialog = ref(false);
+const appVersion = ref('');
+const workspaceRoot = ref('');
+const gitConfigured = ref(false);
+const gitAccountInfo = ref<{ user_name: string; user_email: string; remote_url?: string } | null>(null);
 
-// 用户信息
-const userInfo = ref<GitHubUser>({
-  login: '',
-  avatar_url: '',
-  name: null
-});
-
-// 用户设置
-const settings = ref<UserSettings>({
-  github_token: null,
-  github_username: null,
-  github_repo: null,
-  last_sync_time: null,
-  auto_sync_on_exit: false,
-  auto_restore_on_start: false
-});
-
-// 加载用户设置
-const loadSettings = async () => {
+// 加载应用信息
+const loadAppInfo = async () => {
   try {
-    settings.value = await getUserSettingsCached();
+    appVersion.value = await getVersion();
     
-    // 如果已有 Token，自动验证
-    if (settings.value.github_token) {
-      try {
-        userInfo.value = await getGitHubUserCached(settings.value.github_token);
-        isLoggedIn.value = true;
-      } catch (error: any) {
-        // Token 失效，清除设置
-        console.error('Token 验证失败:', error);
-        
-        // 清除所有用户信息和设置
-        settings.value = {
-          github_token: null,
-          github_username: null,
-          github_repo: null,
-          last_sync_time: null,
-          auto_sync_on_exit: false,
-          auto_restore_on_start: false
-        };
-        
-        userInfo.value = {
-          login: '',
-          avatar_url: '',
-          name: null
-        };
-        
-        // 保存清空后的设置到后端
-        try {
-          await saveUserSettings(settings.value);
-          // 发送用户登出事件，通知标题栏更新
-          await emit('user-login-status-changed', { loggedIn: false });
-        } catch (saveError) {
-          console.error('清除设置失败:', saveError);
-        }
-        
-        isLoggedIn.value = false;
-        
-        // 显示错误提示
-        ElMessage.error(t('github.connectFailed') + ': ' + (error.message || error));
+    // 获取工作区根目录
+    try {
+      const root = await invoke<string | null>('get_workspace_root_path');
+      
+      if (root) {
+        workspaceRoot.value = root;
       }
+    } catch (error) {
+      console.error('[UserCenter] 获取工作区根目录失败:', error);
+    }
+    
+    // 检查 Git 配置状态
+    try {
+      const gitSettings = await getGitSettings();
+      
+      // 判断是否已配置（启用且有必要的配置信息）
+      gitConfigured.value = gitSettings.enabled && 
+                           !!gitSettings.user_name && 
+                           !!gitSettings.user_email && 
+                           !!gitSettings.remote_url;
+      
+      // 保存账户信息用于显示
+      if (gitConfigured.value) {
+        gitAccountInfo.value = {
+          user_name: gitSettings.user_name,
+          user_email: gitSettings.user_email,
+          remote_url: gitSettings.remote_url
+        };
+      }
+    } catch (error) {
+      console.error('[UserCenter] 获取 Git 配置失败:', error);
+      gitConfigured.value = false;
     }
   } catch (error) {
-    console.error('加载设置失败:', error);
-  } finally {
-    initialLoading.value = false;
+    console.error('[UserCenter] 加载应用信息失败:', error);
   }
 };
 
-// 登录
-const handleLogin = async () => {
-  if (!loginForm.token) {
-    ElMessage.warning(t('github.pleaseInputToken'));
-    return;
-  }
-  
-  logging.value = true;
+// 跳转到 Git 同步设置
+const goToGitSync = () => {
   try {
-    // 验证 Token
-    const user = await verifyGitHubToken(loginForm.token);
-    userInfo.value = user;
-    
-    // 保存设置
-    settings.value = {
-      github_token: loginForm.token,
-      github_username: user.login,
-      github_repo: loginForm.repo || 'snippets-code-backup',
-      last_sync_time: null,
-      auto_sync_on_exit: false,
-      auto_restore_on_start: false
-    };
-    
-    await saveUserSettings(settings.value);
-    
-    isLoggedIn.value = true;
-    
-    // 发送用户登录事件，通知标题栏更新
-    await emit('user-login-status-changed', { loggedIn: true });
-    
-    ElMessage.success(t('github.connectSuccess'));
-    
-    // 清空表单
-    loginForm.token = '';
-    loginForm.repo = '';
-  } catch (error: any) {
-    ElMessage.error(error || t('github.connectFailed'));
-  } finally {
-    logging.value = false;
-  }
-};
-
-// 登出
-const handleLogout = () => {
-  showLogoutDialog.value = true;
-};
-
-const confirmLogout = async () => {
-  try {
-    // 清除设置
-    settings.value = {
-      github_token: null,
-      github_username: null,
-      github_repo: null,
-      last_sync_time: null,
-      auto_sync_on_exit: false,
-      auto_restore_on_start: false
-    };
-    
-    await saveUserSettings(settings.value);
-    
-    isLoggedIn.value = false;
-    userInfo.value = {
-      login: '',
-      avatar_url: '',
-      name: null
-    };
-    
-    // 发送用户登出事件，通知标题栏更新
-    await emit('user-login-status-changed', { loggedIn: false });
-    
-    ElMessage.success(t('github.logoutSuccess'));
-    showLogoutDialog.value = false;
+    // 跳转到设置页面，并通过 query 参数指定打开 gitSync tab
+    router.push({ path: '/config/category/settings', query: { tab: 'gitSync' } });
   } catch (error) {
-    console.error('Logout failed:', error);
-    ElMessage.error(t('github.logoutFailed'));
+    console.error('[UserCenter] 路由跳转失败:', error);
+    modal.error('跳转失败: ' + error);
   }
 };
 
-// 同步到 GitHub
-const handleSync = async () => {
-  syncing.value = true;
-  syncProgress.value = 0;
-  
-  // 监听后端进度事件
-  const unlisten = await listen('sync-progress', (event: any) => {
-    const { progress, message } = event.payload;
-    syncProgress.value = progress;
-    syncMessage.value = message;
-  });
-  
+// 打开数据目录
+const openDataDir = async () => {
   try {
-    const syncTime = await syncToGitHub();
-    settings.value.last_sync_time = syncTime;
-    await saveUserSettings(settings.value);
-    ElMessage.success(t('github.syncSuccess'));
-  } catch (error: any) {
-    ElMessage.error(error || t('github.syncFailed'));
-  } finally {
-    unlisten();
-    setTimeout(() => {
-      syncing.value = false;
-      syncProgress.value = 0;
-      syncMessage.value = '';
-    }, 500);
+    if (workspaceRoot.value) {
+      await invoke('open_folder', { folderPath: workspaceRoot.value });
+    } else {
+      modal.warning(t('userCenter.workspaceNotSet'));
+    }
+  } catch (error) {
+    console.error('[UserCenter] 打开数据目录失败:', error);
+    modal.error(t('userCenter.openDirFailed') + ': ' + error);
   }
 };
 
-// 从 GitHub 恢复
-const handleRestore = () => {
-  showRestoreDialog.value = true;
-};
-
-const confirmRestore = async () => {
-  restoring.value = true;
-  restoreProgress.value = 0;
-  
-  // 监听后端进度事件
-  const unlisten = await listen('restore-progress', (event: any) => {
-    const { progress, message } = event.payload;
-    restoreProgress.value = progress;
-    restoreMessage.value = message;
-  });
-  
+// 跳转到设置（通用设置）
+const goToSettings = () => {
   try {
-    await restoreFromGitHub();
-    // 注意：恢复成功后应用会自动重启
-    ElMessage.success(t('github.restoreSuccess'));
-    showRestoreDialog.value = false;
-  } catch (error: any) {
-    ElMessage.error(error || t('github.restoreFailed'));
-    unlisten();
-    restoring.value = false;
-    restoreProgress.value = 0;
-    restoreMessage.value = '';
+    // 跳转到设置页面，默认打开 general tab
+    router.push({ path: '/config/category/settings', query: { tab: 'general' } });
+  } catch (error) {
+    console.error('[UserCenter] 路由跳转失败:', error);
+    modal.error('跳转失败: ' + error);
   }
-  // 注意：不在 finally 中重置，因为应用会重启
 };
 
-// 设置变更
-const handleSettingChange = async () => {
+// 打开 GitHub
+const openGitHub = () => {
+  openUrl('https://github.com/GigaPuddings/snippets-code');
+};
+
+// 检查更新
+const checkUpdate = async () => {
   try {
-    await saveUserSettings(settings.value);
-    ElMessage.success(t('github.settingSaved'));
-  } catch (error: any) {
-    ElMessage.error(t('github.settingFailed'));
+    await invoke('check_update', { showNotification: true });
+  } catch (error) {
+    console.error('检查更新失败:', error);
   }
 };
 
-// 打开 Token 帮助
-const openTokenHelp = () => {
-  openUrl('https://github.com/settings/tokens/new?description=snippets-code-backup&scopes=repo');
-};
-
-// 初始化
 onMounted(() => {
-  loadSettings();
+  loadAppInfo();
 });
 </script>
 
 <style scoped lang="scss">
 .user-center-container {
-  @apply w-full h-full overflow-y-auto p-6 bg-white dark:bg-neutral-900;
+  @apply w-full h-full flex flex-col bg-white dark:bg-neutral-900;
+}
+
+.user-center-header {
+  @apply flex-shrink-0 px-6 pt-6 pb-4 border-b border-gray-200 dark:border-neutral-700;
 }
 
 .user-center-content {
-  @apply max-w-3xl space-y-6;
+  @apply flex-1 overflow-y-auto px-6 py-6 space-y-6;
 }
 
 .panel-title {
-  @apply text-base font-bold mb-2 pb-2 border-b border-gray-200 dark:border-neutral-700;
+  @apply text-base font-bold mb-2;
 }
 
 .panel-subtitle {
-  @apply text-sm text-gray-600 dark:text-gray-400 mb-6;
-}
-
-.settings-section {
-  @apply mb-6;
-}
-
-.section-header {
-  @apply mb-3;
-}
-
-.section-title {
-  @apply text-sm font-semibold text-gray-900 dark:text-white;
-}
-
-.settings-form {
-  @apply space-y-4;
-}
-
-.help-text {
-  @apply flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 mb-4;
-}
-
-.user-info {
-  @apply flex items-center gap-4 p-4 bg-gray-50 dark:bg-neutral-800 rounded-md;
-}
-
-.user-avatar {
-  @apply w-12 h-12 rounded-full;
-}
-
-.user-details {
-  @apply flex-1;
-}
-
-.user-name {
-  @apply text-sm font-semibold text-gray-900 dark:text-white;
-}
-
-.user-login {
-  @apply text-xs text-gray-600 dark:text-gray-400;
-}
-
-.sync-status {
-  @apply space-y-3;
-}
-
-.status-item {
-  @apply flex items-center py-2 border-b border-gray-200 dark:border-neutral-700 last:border-0;
-}
-
-.status-label {
-  @apply text-sm text-gray-600 dark:text-gray-400 min-w-[120px];
-}
-
-.status-value {
-  @apply text-sm text-gray-900 dark:text-white;
-}
-
-.sync-actions {
-  @apply space-y-3;
-}
-
-.sync-buttons {
-  @apply flex gap-3;
-}
-
-.warning-text {
-  @apply flex items-center gap-2 text-xs text-orange-600 bg-orange-50 dark:bg-orange-900/20 p-3 rounded-md;
-}
-
-.sync-settings {
-  @apply space-y-3;
-}
-
-.setting-item {
-  @apply flex items-center justify-between py-3 border-b border-gray-200 dark:border-neutral-700 last:border-0;
-}
-
-.setting-info {
-  @apply flex-1;
-}
-
-.setting-label {
-  @apply block text-sm font-medium text-gray-900 dark:text-white mb-1;
-}
-
-.setting-desc {
-  @apply block text-xs text-gray-600 dark:text-gray-400;
-}
-
-.loading-container {
-  @apply w-full h-full flex items-center justify-center min-h-[400px];
-}
-
-.loading-content {
-  @apply flex flex-col items-center gap-4;
-}
-
-.loading-spinner {
-  @apply w-12 h-12 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin;
-}
-
-.loading-text {
   @apply text-sm text-gray-600 dark:text-gray-400;
 }
 
-.progress-container {
-  @apply mt-4 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-200 dark:border-blue-800;
+.info-card {
+  @apply bg-gray-50 dark:bg-neutral-800 rounded-lg p-4 space-y-3;
+}
+
+.info-item {
+  @apply flex items-center justify-between py-2 border-b border-gray-200 dark:border-neutral-700 last:border-0;
+}
+
+.info-label {
+  @apply text-sm text-gray-600 dark:text-gray-400;
+}
+
+.info-value {
+  @apply text-sm text-gray-900 dark:text-white font-mono;
+}
+
+.status-badge {
+  @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium;
   
-  &--restore {
-    @apply bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800;
-  }
-}
-
-.progress-header {
-  @apply flex items-center justify-between mb-3;
-}
-
-.progress-label {
-  @apply text-sm font-medium text-gray-700 dark:text-gray-300;
-}
-
-.progress-percentage {
-  @apply text-lg font-bold text-blue-600 dark:text-blue-400 tabular-nums;
-  
-  &--restore {
-    @apply text-green-600 dark:text-green-400;
-  }
-}
-
-.custom-progress {
-  :deep(.el-progress-bar__outer) {
-    @apply bg-gray-200 dark:bg-neutral-700 rounded-full;
+  &--success {
+    @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400;
   }
   
-  :deep(.el-progress-bar__inner) {
-    @apply rounded-full transition-all duration-300 ease-out shadow-sm;
+  &--warning {
+    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400;
   }
+}
+
+.tip-card {
+  @apply flex gap-4 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg;
+}
+
+.tip-icon {
+  @apply flex-shrink-0 w-12 h-12 flex items-center justify-center bg-blue-100 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400;
+}
+
+.tip-content {
+  @apply flex-1;
+}
+
+.tip-title {
+  @apply text-sm font-semibold text-gray-900 dark:text-white mb-1;
+}
+
+.tip-desc {
+  @apply text-sm text-gray-600 dark:text-gray-400 mb-3;
+}
+
+.actions-section,
+.about-section {
+  @apply space-y-3;
+}
+
+.section-title {
+  @apply text-sm font-semibold text-gray-900 dark:text-white mb-3;
+}
+
+.action-buttons {
+  @apply flex gap-3;
+}
+
+.about-content {
+  @apply space-y-3;
+}
+
+.about-text {
+  @apply text-sm text-gray-600 dark:text-gray-400;
+}
+
+.about-links {
+  @apply flex items-center gap-2 text-sm;
+}
+
+.link-separator {
+  @apply text-gray-400 dark:text-gray-600;
 }
 </style>

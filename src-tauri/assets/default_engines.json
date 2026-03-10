@@ -19,7 +19,7 @@
     "id": "npm",
     "keyword": "npm",
     "name": "npm",
-    "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAFVBMVEXLAAD////nh4fyv7/aSEj87+/gZmbNxl0BAAAAMklEQVQ4jWNgGDKAhQkLYEFSwMSIBTANmAJmEGDFowDMZx5VMJwVICVaMJ8NPdEOcgAAfIMCHLe7zNYAAAAASUVORK5CYII=",
+    "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAFVBMVEXLAAD///nh4fyv7/aSEj87+/gZmbNxl0BAAAAMklEQVQ4jWNgGDKAhQkLYEFSwMSIBTANmAJmEGDFowDMZx5VMJwVICVaMJ8NPdEOcgAAfIMCHLe7zNYAAAAASUVORK5CYII=",
     "url": "https://www.npmjs.com/search?q=%s",
     "enabled": false
   },
@@ -43,7 +43,7 @@
     "id": "baidu",
     "keyword": "bd",
     "name": "百度",
-    "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAPFBMVEVHcEwbJuELG+DZ2vooMeH///8ACt/9/f/////////p6/3IyvesrvK6vPWLj+1pb+pWXOc9ReWbn+98gexQefhTAAAACnRSTlMA////////+awRrCCpDAAAAV9JREFUOI2Fk+u2hCAIhQWVSi2t3v9dD+CtZtas0x9MvpC9SWO2dfE/nmXdjNl+ZeuzmXWsQ9o12hQnsJpR3xLiyXEnoDxPMWN5OucweY8cadYwswAnIHuLNX4BuyTcOeIXEDVRRvwC9GzpgVp8AjvQ4SOrAH65WEXx1lFeOhD5I0pvH7gelA4UORVfBiYVaxsAAlBQN/fqQJY93BtAHVgK96HbCkBqQMXFzFqLiQt6UQECgcjwt+Y1oVv3kBnunGRKjtQl8bFuvYwSsXUSTeCHk0labYCDc/kEbvaPkAHQ/gHsGyiIl7rI5gBc/oD+S1TgRtFsrQKoQHOuqSCxAeSICcDxmCZKf6piAvw2AB4NcR+tgpgmAEyA/6JW0FIduRxRHk1ydcw2hMBo5BDYdXw6yS47QCSSEchEuUD7b9vFiSyB8+W4ruyEqJOSi9Ovno0xtOXC6271+v/l/e/6/wGQyhaouL2nMgAAAABJRU5ErkJggg==",
+    "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAPFBMVEVHcEwbJuELG+DZ2vooMeH//8ACt/9/f//////p6/3IyvesrvK6vPWLj+1pb+pWXOc9ReWbn+98gexQefhTAAAACnRSTlMA//////+awRrCCpDAAAAV9JREFUOI2Fk+u2hCAIhQWVSi2t3v9dD+CtZtas0x9MvpC9SWO2dfE/nmXdjNl+ZeuzmXWsQ9o12hQnsJpR3xLiyXEnoDxPMWN5OucweY8cadYwswAnIHuLNX4BuyTcOeIXEDVRRvwC9GzpgVp8AjvQ4SOrAH65WEXx1lFeOhD5I0pvH7gelA4UORVfBiYVaxsAAlBQN/fqQJY93BtAHVgK96HbCkBqQMXFzFqLiQt6UQECgcjwt+Y1oVv3kBnunGRKjtQl8bFuvYwSsXUSTeCHk0labYCDc/kEbvaPkAHQ/gHsGyiIl7rI5gBc/oD+S1TgRtFsrQKoQHOuqSCxAeSICcDxmCZKf6piAvw2AB4NcR+tgpgmAEyA/6JW0FIduRxRHk1ydcw2hMBo5BDYdXw6yS47QCSSEchEuUD7b9vFiSyB8+W4ruyEqJOSi9Ovno0xtOXC6271+v/l/e/6/wGQyhaouL2nMgAAAABJRU5ErkJggg==",
     "url": "https://www.baidu.com/s?wd=%s",
     "enabled": false
   }

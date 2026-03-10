@@ -5,7 +5,7 @@ use crate::search::invalidate_apps_cache;
 
 // ============= 应用相关数据库操作 =============
 
-/// 批量插入应用
+// 批量插入应用
 pub fn insert_apps(apps: &[AppInfo]) -> Result<(), rusqlite::Error> {
     let result = insert_entities(apps);
     if result.is_ok() {
@@ -14,12 +14,12 @@ pub fn insert_apps(apps: &[AppInfo]) -> Result<(), rusqlite::Error> {
     result
 }
 
-/// 获取所有应用
+// 获取所有应用
 pub fn get_all_apps() -> Result<Vec<AppInfo>, rusqlite::Error> {
     get_all_entities::<AppInfo>()
 }
 
-/// 更新应用图标
+// 更新应用图标
 pub fn update_app_icon(app_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
     let result = update_entity_icon::<AppInfo>(app_id, icon);
     if result.is_ok() {
@@ -28,12 +28,12 @@ pub fn update_app_icon(app_id: &str, icon: &str) -> Result<(), rusqlite::Error> 
     result
 }
 
-/// 更新应用图标（不触发缓存失效，用于批量操作）
+// 更新应用图标（不触发缓存失效，用于批量操作）
 pub fn update_app_icon_silent(app_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
     update_entity_icon::<AppInfo>(app_id, icon)
 }
 
-/// 清空所有应用
+// 清空所有应用
 pub fn clear_apps() -> Result<(), rusqlite::Error> {
     let result = clear_entities::<AppInfo>();
     if result.is_ok() {
@@ -42,14 +42,14 @@ pub fn clear_apps() -> Result<(), rusqlite::Error> {
     result
 }
 
-/// 统计应用数量
+// 统计应用数量
 pub fn count_apps() -> Result<i64, rusqlite::Error> {
     count_entities::<AppInfo>()
 }
 
 // ============= Tauri 命令函数 =============
 
-/// 添加单个应用
+// 添加单个应用
 #[tauri::command]
 pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<String, String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -65,7 +65,7 @@ pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<S
     Ok(id)
 }
 
-/// 更新单个应用
+// 更新单个应用
 #[tauri::command]
 pub fn update_app(id: String, title: String, content: String, icon: Option<String>) -> Result<(), String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -80,7 +80,7 @@ pub fn update_app(id: String, title: String, content: String, icon: Option<Strin
     Ok(())
 }
 
-/// 删除单个应用
+// 删除单个应用
 #[tauri::command]
 pub fn delete_app(id: String) -> Result<(), String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -95,7 +95,7 @@ pub fn delete_app(id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// 获取所有应用（Tauri command 版本）
+// 获取所有应用（Tauri command 版本）
 #[tauri::command]
 pub fn get_apps() -> Result<Vec<AppInfo>, String> {
     get_all_apps().map_err(|e| e.to_string())

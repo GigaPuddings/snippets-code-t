@@ -93,6 +93,7 @@
   </main>
 </template>
 <script lang="ts" setup>
+import { getWorkspaceRoot } from '@/api/markdown';
 import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -568,7 +569,9 @@ const backToSearchMode = () => {
 
 // 打开预览窗口 - 支持代码和笔记
 const openPreview = async (item: ContentType, targetElement?: HTMLElement) => {
-  if (item.summarize !== 'text' && item.summarize !== undefined) return;
+  // 只有文本类型、笔记和代码片段可以打开预览
+  // app、bookmark、search 类型直接打开，不预览
+  if (item.summarize === 'app' || item.summarize === 'bookmark' || item.summarize === 'search') return;
   
   const resultContainer = document.querySelector('.result-container') as HTMLElement;
   
@@ -594,7 +597,12 @@ const openPreview = async (item: ContentType, targetElement?: HTMLElement) => {
   }
   
   try {
-    const base64 = btoa(encodeURIComponent(JSON.stringify(item)));
+    let payload: ContentType & { workspaceRoot?: string } = { ...item };
+    if (item.type === 'note' && item.id) {
+      const workspaceRoot = await getWorkspaceRoot();
+      if (workspaceRoot) payload.workspaceRoot = workspaceRoot;
+    }
+    const base64 = btoa(encodeURIComponent(JSON.stringify(payload)));
     const snippetData = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const previewX = relativeX + 4;
     const previewY = relativeY;
@@ -606,7 +614,8 @@ const openPreview = async (item: ContentType, targetElement?: HTMLElement) => {
 
 // 复制但保持窗口打开
 const copyKeepWindow = async (item: ContentType) => {
-  if (item.summarize !== 'text' && item.summarize !== undefined) return;
+  // 只有文本类型、笔记和代码片段可以复制
+  if (item.summarize === 'app' || item.summarize === 'bookmark' || item.summarize === 'search') return;
   
   const result = await processTemplate(item.content);
   try {

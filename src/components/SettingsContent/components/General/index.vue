@@ -1,7 +1,12 @@
 <template>
   <div class="settings-panel">
-    <h3 class="panel-title">{{ $t('settings.general') }}</h3>
-    <main class="summarize-container">
+    <!-- 固定标题 -->
+    <div class="panel-header">
+      <h3 class="panel-title">{{ $t('settings.general') }}</h3>
+    </div>
+    
+    <!-- 可滚动内容 -->
+    <main class="panel-content">
     <section class="summarize-section">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('settings.theme') }}</div>
@@ -292,14 +297,6 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.settings-panel {
-  @apply flex flex-col;
-}
-
-.panel-title {
-  @apply text-base font-bold mb-4 pb-2 border-b border-panel;
-}
-
 .text-primary {
   color: var(--el-color-primary);
 }

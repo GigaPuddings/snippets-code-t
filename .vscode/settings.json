@@ -80,5 +80,6 @@
   "rust-analyzer.checkOnSave.command": "clippy",
   "rust-analyzer.cargo.allFeatures": true,
   "rust-analyzer.procMacro.enable": true,
-  "rust-analyzer.rustup.toolchain": "stable"
+  "rust-analyzer.rustup.toolchain": "stable",
+  "kiroAgent.configureMCP": "Disabled"
 }

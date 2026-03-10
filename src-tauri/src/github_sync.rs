@@ -1,10 +1,5 @@
-use aes_gcm::{
-    aead::{Aead, KeyInit},
-    Aes256Gcm, Nonce,
-};
-use base64::{engine::general_purpose, Engine as _};
+use crate::git_common;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tauri::Emitter;
 use tauri_plugin_autostart::ManagerExt;
 
@@ -29,7 +24,7 @@ pub struct GitHubUser {
 
 // ============= 数据库操作 =============
 
-/// 获取用户设置
+// 获取用户设置
 #[tauri::command]
 pub async fn get_user_settings() -> Result<UserSettings, String> {
     use crate::db::DbConnectionManager;
@@ -63,7 +58,7 @@ pub async fn get_user_settings() -> Result<UserSettings, String> {
     Ok(settings)
 }
 
-/// 保存用户设置
+// 保存用户设置
 #[tauri::command]
 pub async fn save_user_settings(settings: UserSettings) -> Result<(), String> {
     use crate::db::DbConnectionManager;
@@ -89,7 +84,7 @@ pub async fn save_user_settings(settings: UserSettings) -> Result<(), String> {
 
 // ============= GitHub API 操作 =============
 
-/// 验证 GitHub Token 并获取用户信息
+// 验证 GitHub Token 并获取用户信息
 #[tauri::command]
 pub async fn verify_github_token(token: String) -> Result<GitHubUser, String> {
     let client = reqwest::Client::new();
@@ -114,7 +109,7 @@ pub async fn verify_github_token(token: String) -> Result<GitHubUser, String> {
     Ok(user)
 }
 
-/// 创建或获取 GitHub 仓库
+// 创建或获取 GitHub 仓库
 async fn ensure_repo_exists(token: &str, username: &str, repo_name: &str) -> Result<(), String> {
     let client = reqwest::Client::new();
     
@@ -164,50 +159,19 @@ async fn ensure_repo_exists(token: &str, username: &str, repo_name: &str) -> Res
 
 // ============= 加密/解密 =============
 
-/// 使用 AES-256-GCM 加密数据
+// 使用 git_common 模块的加密函数
 fn encrypt_data(data: &[u8], token: &str) -> Result<Vec<u8>, String> {
-    // 使用 Token 的 SHA256 作为密钥
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    let key_bytes = hasher.finalize();
-    
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
-        .map_err(|e| format!("创建加密器失败: {}", e))?;
-    
-    // 使用固定的 12 字节 nonce
-    let nonce_bytes: [u8; 12] = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B];
-    let nonce = Nonce::from_slice(&nonce_bytes);
-    
-    let ciphertext = cipher
-        .encrypt(nonce, data)
-        .map_err(|e| format!("加密失败: {}", e))?;
-    
-    Ok(ciphertext)
+    git_common::encrypt_data(data, token)
 }
 
-/// 使用 AES-256-GCM 解密数据
+// 使用 git_common 模块的解密函数
 fn decrypt_data(encrypted_data: &[u8], token: &str) -> Result<Vec<u8>, String> {
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    let key_bytes = hasher.finalize();
-    
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
-        .map_err(|e| format!("创建解密器失败: {}", e))?;
-    
-    // 使用与加密时相同的 nonce
-    let nonce_bytes: [u8; 12] = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B];
-    let nonce = Nonce::from_slice(&nonce_bytes);
-    
-    let plaintext = cipher
-        .decrypt(nonce, encrypted_data)
-        .map_err(|e| format!("解密失败: {} (加密数据长度: {} 字节)", e, encrypted_data.len()))?;
-    
-    Ok(plaintext)
+    git_common::decrypt_data(encrypted_data, token)
 }
 
 // ============= 数据同步 =============
 
-/// 备份数据库到 GitHub
+// 备份数据库到 GitHub
 #[tauri::command]
 pub async fn sync_to_github(app_handle: tauri::AppHandle) -> Result<String, String> {
     use crate::db::DbConnectionManager;
@@ -283,7 +247,7 @@ pub async fn sync_to_github(app_handle: tauri::AppHandle) -> Result<String, Stri
     
     emit_progress(60, "编码数据...");
     // Base64 编码
-    let encoded_data = general_purpose::STANDARD.encode(&encrypted_data);
+    let encoded_data = git_common::encode_base64(&encrypted_data);
     
     emit_progress(70, "上传到 GitHub...");
     // 上传到 GitHub
@@ -363,7 +327,7 @@ pub async fn sync_to_github(app_handle: tauri::AppHandle) -> Result<String, Stri
     Ok(now)
 }
 
-/// 从 GitHub 恢复数据库
+// 从 GitHub 恢复数据库
 #[tauri::command]
 pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String, String> {
     use crate::db::DbConnectionManager;
@@ -418,13 +382,13 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
     let response_text = response.text().await
         .map_err(|e| format!("读取响应失败: {}", e))?;
     
-    println!("[DEBUG] GitHub API 响应前 500 字符: {}", &response_text[..500.min(response_text.len())]);
+    log::debug!("GitHub API 响应前 500 字符: {}", &response_text[..500.min(response_text.len())]);
     
     let file_info: FileInfo = serde_json::from_str(&response_text)
         .map_err(|e| format!("解析文件信息失败: {}", e))?;
     
-    println!("[DEBUG] 解析后的 file_info.size: {}", file_info.size);
-    println!("[DEBUG] file_info.size > 100_000: {}", file_info.size > 100_000);
+    log::debug!("解析后的 file_info.size: {}", file_info.size);
+    log::debug!("file_info.size > 100_000: {}", file_info.size > 100_000);
     
     emit_progress(30, "下载加密数据...");
     // 根据文件大小选择下载方式
@@ -434,8 +398,8 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
         let download_url = file_info.download_url
             .ok_or("文件过大但没有 download_url")?;
         
-        println!("[DEBUG] 文件大小: {} 字节，使用 download_url", file_info.size);
-        println!("[DEBUG] download_url: {}", download_url);
+        log::debug!("文件大小: {} 字节，使用 download_url", file_info.size);
+        log::debug!("download_url: {}", download_url);
         
         let download_response = client
             .get(&download_url)
@@ -452,12 +416,12 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
         let response_bytes = download_response.bytes().await
             .map_err(|e| format!("读取文件内容失败: {}", e))?;
         
-        println!("[DEBUG] 下载的字节数: {}", response_bytes.len());
-        println!("[DEBUG] 前 20 字节: {:?}", &response_bytes[..20.min(response_bytes.len())]);
+        log::debug!("下载的字节数: {}", response_bytes.len());
+        log::debug!("前 20 字节: {:?}", &response_bytes[..20.min(response_bytes.len())]);
         
         // 尝试将前100字节转换为字符串看看
         if let Ok(preview) = String::from_utf8(response_bytes[..100.min(response_bytes.len())].to_vec()) {
-            println!("[DEBUG] 前100字节作为字符串: {}", preview);
+            log::debug!("前100字节作为字符串: {}", preview);
         }
         
         // 检查是否是 Base64 文本（ASCII 字符）
@@ -465,26 +429,24 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
             b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=' || b.is_ascii_whitespace()
         });
         
-        println!("[DEBUG] 是否为 Base64 文本: {}", is_base64_text);
+        log::debug!("是否为 Base64 文本: {}", is_base64_text);
         
         if is_base64_text {
             // 是 Base64 文本，需要解码
             let base64_string = String::from_utf8(response_bytes.to_vec())
                 .map_err(|e| format!("转换为 UTF-8 字符串失败: {}。这可能是因为文件已损坏。", e))?;
             
-            println!("[DEBUG] Base64 字符串长度: {}", base64_string.len());
+            log::debug!("Base64 字符串长度: {}", base64_string.len());
             
             // Base64 解码得到加密数据
-            general_purpose::STANDARD
-                .decode(&base64_string)
-                .map_err(|e| format!("Base64 解码失败: {}", e))?
+            git_common::decode_base64(&base64_string)?
         } else {
             // 已经是二进制数据（加密数据），直接使用
-            println!("[DEBUG] 数据已经是二进制格式，直接使用");
+            log::debug!("数据已经是二进制格式，直接使用");
             response_bytes.to_vec()
         }
     } else {
-        println!("[DEBUG] 文件大小: {} 字节，使用 content 字段", file_info.size);
+        log::debug!("文件大小: {} 字节，使用 content 字段", file_info.size);
         
         // 小文件：直接使用 content 字段
         // GitHub API 返回的 content 字段是 Base64 编码的
@@ -501,27 +463,23 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
             .filter(|c| !c.is_whitespace())
             .collect::<String>();
         
-        println!("[DEBUG] content 字段长度: {}", content_cleaned.len());
+        log::debug!("content 字段长度: {}", content_cleaned.len());
         
-        let first_decode = general_purpose::STANDARD
-            .decode(&content_cleaned)
-            .map_err(|e| format!("第一次 Base64 解码失败: {}", e))?;
+        let first_decode = git_common::decode_base64(&content_cleaned)?;
         
-        println!("[DEBUG] 第一次解码后字节数: {}", first_decode.len());
+        log::debug!("第一次解码后字节数: {}", first_decode.len());
         
         // 第二次解码：我们上传时的 Base64 编码
         // 将字节转换为字符串
         let base64_string = String::from_utf8(first_decode)
             .map_err(|e| format!("转换为 UTF-8 字符串失败: {}", e))?;
         
-        println!("[DEBUG] Base64 字符串长度: {}", base64_string.len());
+        log::debug!("Base64 字符串长度: {}", base64_string.len());
         
-        general_purpose::STANDARD
-            .decode(&base64_string)
-            .map_err(|e| format!("第二次 Base64 解码失败: {}", e))?
+        git_common::decode_base64(&base64_string)?
     };
     
-    println!("[DEBUG] 最终加密数据字节数: {}", encrypted_data.len());
+    log::debug!("最终加密数据字节数: {}", encrypted_data.len());
     
     emit_progress(60, "解密数据...");
     // 解密数据
@@ -542,11 +500,10 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
         let target_conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
         
         // 需要从备份恢复的表（用户数据）
+        // 注意：categories 和 contents 表已迁移到文件系统，不再同步
         let tables_to_restore = [
             "search_engines",
-            "alarm_cards", 
-            "categories",
-            "contents",
+            "alarm_cards",
             "user_settings",
             "app_settings",
         ];
@@ -646,10 +603,10 @@ pub async fn restore_from_github(app_handle: tauri::AppHandle) -> Result<String,
     // 清理临时文件
     let _ = std::fs::remove_file(restore_path);
     
-    // 应用自启动设置（从数据库读取并应用到系统）
+    // 应用自启动设置（从 app.json 读取并应用到系统）
     emit_progress(90, "应用自启动设置...");
     let autostart_manager = app_handle.autolaunch();
-    let auto_start_enabled = crate::db::get_setting_bool("autoStart").unwrap_or(false);
+    let auto_start_enabled = crate::db::get_auto_start_setting();
     if auto_start_enabled {
         let _ = autostart_manager.enable();
     } else {

@@ -71,7 +71,7 @@
 <script setup lang="ts">
 import { ref, nextTick, computed, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage } from 'element-plus';
+import modal from '@/utils/modal';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 
 const { t } = useI18n();
@@ -142,17 +142,17 @@ const validateTag = (tag: string): boolean => {
   const trimmedTag = tag.trim();
   
   if (!trimmedTag) {
-    ElMessage.warning(t('tags.emptyTag'));
+    modal.warning(t('tags.emptyTag'));
     return false;
   }
   
   if (trimmedTag.includes(',')) {
-    ElMessage.warning(t('tags.noComma'));
+    modal.warning(t('tags.noComma'));
     return false;
   }
   
   if (props.modelValue.includes(trimmedTag)) {
-    ElMessage.warning(t('tags.duplicateTag'));
+    modal.warning(t('tags.duplicateTag'));
     return false;
   }
   
@@ -240,12 +240,12 @@ const handleEditConfirm = (): void => {
     const newTag = editingValue.value.trim();
     
     if (!newTag) {
-      ElMessage.warning(t('tags.emptyTag'));
+      modal.warning(t('tags.emptyTag'));
       return;
     }
     
     if (newTag.includes(',')) {
-      ElMessage.warning(t('tags.noComma'));
+      modal.warning(t('tags.noComma'));
       return;
     }
     
@@ -255,7 +255,7 @@ const handleEditConfirm = (): void => {
     );
     
     if (isDuplicate) {
-      ElMessage.warning(t('tags.duplicateTag'));
+      modal.warning(t('tags.duplicateTag'));
       return;
     }
     

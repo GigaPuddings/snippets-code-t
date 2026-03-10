@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, watch } from 'vue';
+import { onMounted, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useConfigurationStore } from '@/store';
 import { useCategoryManagement } from './composables/useCategoryManagement';
@@ -38,22 +38,7 @@ defineOptions({
   name: 'Category'
 });
 
-// 添加生命周期日志
-onMounted(() => {
-  console.log('[Category] 组件挂载');
-});
 
-onBeforeUnmount(() => {
-  console.log('[Category] 组件卸载');
-});
-
-// 监听路由变化
-watch(
-  () => route.fullPath,
-  (newPath, oldPath) => {
-    console.log('[Category] 路由变化:', { from: oldPath, to: newPath });
-  }
-);
 
 // 使用分类管理 Composable
 const {
@@ -64,9 +49,40 @@ const {
   handleAddCategory
 } = useCategoryManagement();
 
+// 监听数据刷新事件（Git Pull 完成后的无感刷新）
+const handleRefreshData = (event: Event) => {
+  const customEvent = event as CustomEvent;
+  console.log('[Category] 收到数据刷新事件:', customEvent.detail);
+  loadCategories(true);
+};
+
+// 监听目录变更事件（外部编辑器创建/删除/重命名文件夹）
+const handleDirsChanged = (event: Event) => {
+  const customEvent = event as CustomEvent<{
+    source: string;
+    created: string[];
+    deleted: string[];
+    renamed: Array<{ from: string; to: string }>;
+  }>;
+  const { created, deleted, renamed } = customEvent.detail;
+  console.log(
+    `[Category] dirs-changed-batch: +${created.length} -${deleted.length} r${renamed?.length ?? 0}，重新加载分类列表`
+  );
+  loadCategories(true);
+};
+
 // 初始化加载数据
 onMounted(async () => {
   await loadCategories();
+
+  window.addEventListener('refresh-data', handleRefreshData);
+  window.addEventListener('refresh-categories', handleDirsChanged);
+});
+
+// 清理事件监听器
+onUnmounted(() => {
+  window.removeEventListener('refresh-data', handleRefreshData);
+  window.removeEventListener('refresh-categories', handleDirsChanged);
 });
 
 // 监听路由变化，清除编辑状态

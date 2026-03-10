@@ -136,10 +136,11 @@
 import { ref, reactive, watch, computed, nextTick } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
 import { Application, Browser, Delete, Check, Down } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import { CommonDialog } from '@/components/UI';
+import modal from '@/utils/modal';
 
 const { t } = useI18n();
 
@@ -267,13 +268,13 @@ const handleSelectFile = async () => {
     }
   } catch (error) {
     console.error('选择文件失败:', error);
-    ElMessage.error(t('editDialog.selectFile'));
+    modal.error(t('editDialog.selectFile'));
   }
 };
 
 const handleExtractAppIcon = async () => {
   if (!formData.content) {
-    ElMessage.warning(t('editDialog.enterPathFirst'));
+    modal.warning(t('editDialog.enterPathFirst'));
     return;
   }
 
@@ -284,13 +285,13 @@ const handleExtractAppIcon = async () => {
     });
     if (iconResult) {
       formData.icon = iconResult;
-      ElMessage.success(t('editDialog.extractSuccess'));
+      modal.success(t('editDialog.extractSuccess'));
     } else {
-      ElMessage.warning(t('editDialog.noIconFound'));
+      modal.warning(t('editDialog.noIconFound'));
     }
   } catch (error) {
     console.error('Extract icon failed:', error);
-    ElMessage.error(t('editDialog.extractFailed'));
+    modal.error(t('editDialog.extractFailed'));
   } finally {
     fetchingIcon.value = false;
   }
@@ -298,7 +299,7 @@ const handleExtractAppIcon = async () => {
 
 const handleFetchIconWithSource = async (source: string) => {
   if (!formData.content) {
-    ElMessage.warning(t('editDialog.enterUrlFirst'));
+    modal.warning(t('editDialog.enterUrlFirst'));
     return;
   }
 
@@ -310,13 +311,13 @@ const handleFetchIconWithSource = async (source: string) => {
     });
     if (icon) {
       formData.icon = icon;
-      ElMessage.success(t('editDialog.fetchSuccess'));
+      modal.success(t('editDialog.fetchSuccess'));
     } else {
-      ElMessage.warning(t('editDialog.noIconFound'));
+      modal.warning(t('editDialog.noIconFound'));
     }
   } catch (error) {
     console.error('Fetch icon failed:', error);
-    ElMessage.error(t('editDialog.fetchFailed'));
+    modal.error(t('editDialog.fetchFailed'));
   } finally {
     fetchingIcon.value = false;
   }

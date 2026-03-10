@@ -3,7 +3,7 @@ use crate::db::DbConnectionManager;
 
 // ============= 提醒卡片相关数据库操作 =============
 
-/// 获取所有提醒卡片
+// 获取所有提醒卡片
 pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     let mut stmt = conn.prepare("SELECT id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_dates FROM alarm_cards")?;
@@ -46,7 +46,7 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
     Ok(cards)
 }
 
-/// 添加或更新提醒卡片
+// 添加或更新提醒卡片
 pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     let weekdays_str = serde_json::to_string(&card.weekdays).unwrap_or_default();
@@ -74,7 +74,7 @@ pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error>
     Ok(())
 }
 
-/// 删除提醒卡片
+// 删除提醒卡片
 pub fn delete_alarm_card_by_id(id: &str) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     conn.execute(
@@ -84,7 +84,7 @@ pub fn delete_alarm_card_by_id(id: &str) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-/// 切换提醒卡片的激活状态
+// 切换提醒卡片的激活状态
 #[allow(dead_code)]
 pub fn toggle_alarm_card_active(id: &str) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;

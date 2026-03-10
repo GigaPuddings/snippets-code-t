@@ -7,7 +7,7 @@ use tauri::{
     WindowEvent,
 };
 
-/// 窗口准备回调类型别名，用于简化复杂类型
+// 窗口准备回调类型别名，用于简化复杂类型
 type WindowReadyCallback = Box<dyn FnOnce(&WebviewWindow) + Send + 'static>;
 // use crate::config::get_adjusted_position;
 use base64::{engine::general_purpose, Engine as _};
@@ -193,33 +193,33 @@ pub fn stop_mouse_tracking() {
 
 // ==================== 窗口管理器框架 ====================
 
-/// 窗口规格配置
+// 窗口规格配置
 #[derive(Debug, Clone)]
 pub struct WindowSpec {
-    /// 窗口标签（唯一标识）
+    // 窗口标签（唯一标识）
     pub label: &'static str,
-    /// URL路径
+    // URL路径
     pub url: &'static str,
-    /// 窗口标题
+    // 窗口标题
     pub title: &'static str,
-    /// 窗口宽度
+    // 窗口宽度
     pub width: f64,
-    /// 窗口高度
+    // 窗口高度
     pub height: f64,
-    /// 是否可调整大小
+    // 是否可调整大小
     pub resizable: bool,
-    /// 是否透明
+    // 是否透明
     pub transparent: bool,
-    /// 是否显示阴影
+    // 是否显示阴影
     pub shadow: bool,
-    /// 是否总是在顶层
+    // 是否总是在顶层
     pub always_on_top: bool,
-    /// 前端准备完成的事件名称
+    // 前端准备完成的事件名称
     pub ready_event: Option<&'static str>,
 }
 
 impl WindowSpec {
-    /// 转换为 WindowConfig
+    // 转换为 WindowConfig
     fn to_window_config(&self) -> WindowConfig {
         WindowConfig {
             title: self.title.to_string(),
@@ -234,22 +234,22 @@ impl WindowSpec {
     }
 }
 
-/// 窗口显示行为
+// 窗口显示行为
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WindowShowBehavior {
-    /// 简单切换：可见则隐藏，不可见则显示
+    // 简单切换：可见则隐藏，不可见则显示
     SimpleToggle,
-    /// 智能切换：可见且有焦点则隐藏，可见无焦点则聚焦，不可见则显示
+    // 智能切换：可见且有焦点则隐藏，可见无焦点则聚焦，不可见则显示
     SmartToggle,
-    /// 总是显示并聚焦
+    // 总是显示并聚焦
     AlwaysShow,
 }
 
-/// 窗口管理器 - 提供统一的窗口创建和管理功能
+// 窗口管理器 - 提供统一的窗口创建和管理功能
 pub struct WindowManager;
 
 impl WindowManager {
-    /// 获取或创建窗口，并根据显示行为处理窗口状态
+    // 获取或创建窗口，并根据显示行为处理窗口状态
     pub fn get_or_create_with_behavior(
         spec: &WindowSpec,
         behavior: WindowShowBehavior,
@@ -276,7 +276,7 @@ impl WindowManager {
         Ok(window)
     }
     
-    /// 简单切换：可见则隐藏，不可见则显示
+    // 简单切换：可见则隐藏，不可见则显示
     fn handle_simple_toggle(window: &WebviewWindow) -> Result<(), String> {
         if window.is_visible().unwrap_or(false) {
             window.hide().map_err(|e| e.to_string())?;
@@ -287,7 +287,7 @@ impl WindowManager {
         Ok(())
     }
     
-    /// 智能切换：可见且有焦点则隐藏，可见无焦点则聚焦，不可见则显示
+    // 智能切换：可见且有焦点则隐藏，可见无焦点则聚焦，不可见则显示
     fn handle_smart_toggle(
         window: &WebviewWindow,
         ready_event: Option<&'static str>,
@@ -322,7 +322,7 @@ impl WindowManager {
         Ok(())
     }
     
-    /// 总是显示并聚焦
+    // 总是显示并聚焦
     fn handle_always_show(
         window: &WebviewWindow,
         ready_event: Option<&'static str>,
@@ -353,7 +353,7 @@ impl WindowManager {
         Ok(())
     }
     
-    /// 关闭搜索窗口的辅助方法（很多窗口打开时需要关闭搜索窗口）
+    // 关闭搜索窗口的辅助方法（很多窗口打开时需要关闭搜索窗口）
     pub fn close_search_window_if_visible() {
         if let Some(app) = APP.get() {
             if let Some(search_window) = app.get_webview_window("main") {
@@ -612,11 +612,19 @@ pub fn hotkey_config() {
 
 // 划词翻译快捷键处理
 pub fn hotkey_selection_translate() {
-    // 直接使用selection获取选中文本
-    let selected_text = get_text();
-
     let app_handle = APP.get().unwrap().clone();
-
+    
+    // 给系统一点时间完成焦点转移
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    
+    // 尝试获取选中文本，支持重试
+    let selected_text = get_selected_text_with_retry();
+    
+    log::info!("[划词翻译] 最终获取的文本长度: {}, 内容预览: {}", 
+        selected_text.len(), 
+        if selected_text.len() > 50 { format!("{}...", &selected_text[..50]) } else { selected_text.clone() }
+    );
+    
     // 检查窗口是否已经存在
     if let Some(window) = app_handle.get_webview_window("translate") {
         // 如果窗口已经存在并且可见
@@ -668,6 +676,32 @@ pub fn hotkey_selection_translate() {
             );
         }
     }
+}
+
+// 带重试机制的获取选中文本
+fn get_selected_text_with_retry() -> String {
+    // 首先尝试直接获取
+    let text = get_text();
+    log::info!("[划词翻译] 第1次尝试获取选中文本，长度: {}", text.len());
+    if !text.trim().is_empty() {
+        return text;
+    }
+    
+    // 如果第一次失败，等待更长时间后重试
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    
+    let text = get_text();
+    log::info!("[划词翻译] 第2次尝试获取选中文本，长度: {}", text.len());
+    if !text.trim().is_empty() {
+        return text;
+    }
+    
+    // 第二次重试
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    
+    let text = get_text();
+    log::info!("[划词翻译] 第3次尝试获取选中文本，长度: {}", text.len());
+    text
 }
 
 // 翻译窗口快捷键处理
@@ -742,21 +776,31 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
         // 如果有选中文本，在窗口准备完成后发送
         let on_ready: Option<WindowReadyCallback> = text.map(|txt| {
             Box::new(move |window: &WebviewWindow| {
-                info!("翻译窗口准备完成，发送选中的文本");
-                let _ = window.emit(
-                    "selection-text",
-                    serde_json::json!({ "text": txt.clone() }),
-                );
+                info!("翻译窗口准备完成，发送选中的文本: {}", txt);
                 
-                // 添加超时保护机制
+                // 延迟发送事件，确保前端已经准备好监听
                 let window_clone = window.clone();
                 let text_clone = txt.clone();
                 tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
-                    info!("翻译窗口超时保护：尝试发送选中的文本");
-                    let _ = window_clone.emit(
+                    // 等待前端组件挂载
+                    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                    info!("[延迟发送] 翻译窗口延迟发送选中的文本: {}", text_clone);
+                    let emit_result = window_clone.emit(
                         "selection-text",
                         serde_json::json!({ "text": text_clone }),
+                    );
+                    info!("发送 selection-text 事件结果: {:?}", emit_result);
+                });
+                
+                // 添加超时保护机制
+                let window_clone2 = window.clone();
+                let text_clone2 = txt.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+                    info!("翻译窗口超时保护：尝试发送选中的文本");
+                    let _ = window_clone2.emit(
+                        "selection-text",
+                        serde_json::json!({ "text": text_clone2 }),
                     );
                 });
             }) as Box<dyn FnOnce(&WebviewWindow) + Send + 'static>
@@ -957,15 +1001,15 @@ pub async fn open_preview_window(snippet_data: String, preview_x: f64, preview_y
     Ok(())
 }
 
-/// 通知类型
+// 通知类型
 pub enum NotificationType {
-    /// 代办提醒
+    // 代办提醒
     Reminder { body: String, reminder_time: Option<i64> },
-    /// 扫描进度
+    // 扫描进度
     Progress,
 }
 
-/// 统一的通知窗口创建函数
+// 统一的通知窗口创建函数
 pub fn create_notification_window_unified(ntype: NotificationType) -> Option<WebviewWindow> {
     let app_handle = APP.get()?;
     
@@ -1156,8 +1200,8 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                     // 等待200毫秒，这段时间足够判断是否是拖拽引起的失焦
                     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
-                    // 检查是否需要自动隐藏窗口（从数据库读取）
-                    let auto_hide_on_blur = crate::db::get_setting_bool("autoHideOnBlur").unwrap_or(true);
+                    // 检查是否需要自动隐藏窗口（从 app.json 读取）
+                    let auto_hide_on_blur = crate::db::get_auto_hide_on_blur();
 
                     // 如果不需要自动隐藏窗口，直接返回
                     if !auto_hide_on_blur {
@@ -1216,8 +1260,8 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                     // 重置拖拽状态
                     *WINDOW_DRAGGING.lock().unwrap() = false;
 
-                    // 检查是否需要自动隐藏窗口（从数据库读取）
-                    let auto_hide_on_blur = crate::db::get_setting_bool("autoHideOnBlur").unwrap_or(true);
+                    // 检查是否需要自动隐藏窗口（从 app.json 读取）
+                    let auto_hide_on_blur = crate::db::get_auto_hide_on_blur();
 
                     // 如果不需要自动隐藏窗口，直接返回
                     if !auto_hide_on_blur {
@@ -1672,184 +1716,6 @@ pub fn cleanup_screenshot_resources() {
     info!("所有截图资源已清理");
 }
 
-// 捕获屏幕指定区域
-#[tauri::command]
-pub fn capture_screen_area(
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-) -> Result<serde_json::Value, String> {
-    info!(
-        "capture_screen_area: x: {}, y: {}, width: {}, height: {}",
-        x, y, width, height
-    );
-
-    let app_handle = APP.get().unwrap();
-
-    // 临时隐藏截图窗口，避免捕获到UI元素
-    if let Some(screenshot_window) = app_handle.get_webview_window("screenshot") {
-        screenshot_window.hide().unwrap();
-
-        // 等待一小段时间确保窗口完全隐藏
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        use windows::Win32::Graphics::Gdi::{
-            BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
-            GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
-            HGDIOBJ, RGBQUAD, SRCCOPY,
-        };
-        use windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow;
-
-        // 定义一个闭包用于重新显示窗口
-        let show_window = || {
-            if let Some(screenshot_window) = app_handle.get_webview_window("screenshot") {
-                let _ = screenshot_window.show();
-                let _ = screenshot_window.set_focus();
-            }
-        };
-
-        unsafe {
-            // 获取桌面窗口的DC
-            let desktop_dc = GetDC(Some(GetDesktopWindow()));
-            if desktop_dc.is_invalid() {
-                show_window();
-                return Err("Failed to get desktop DC".to_string());
-            }
-
-            // 创建兼容的DC
-            let mem_dc = CreateCompatibleDC(Some(desktop_dc));
-            if mem_dc.is_invalid() {
-                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
-                show_window();
-                return Err("Failed to create compatible DC".to_string());
-            }
-
-            // 创建兼容的位图
-            let bitmap = CreateCompatibleBitmap(desktop_dc, width, height);
-            if bitmap.is_invalid() {
-                let _ = DeleteDC(mem_dc);
-                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
-                show_window();
-                return Err("Failed to create compatible bitmap".to_string());
-            }
-
-            // 选择位图到DC
-            let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
-
-            // 复制屏幕内容到位图
-            let result = BitBlt(mem_dc, 0, 0, width, height, Some(desktop_dc), x, y, SRCCOPY);
-
-            if result.is_err() {
-                SelectObject(mem_dc, old_bitmap);
-                let _ = DeleteObject(HGDIOBJ(bitmap.0));
-                let _ = DeleteDC(mem_dc);
-                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
-                show_window();
-                return Err("Failed to copy screen content".to_string());
-            }
-
-            // 准备位图信息
-            let mut bitmap_info = BITMAPINFO {
-                bmiHeader: BITMAPINFOHEADER {
-                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-                    biWidth: width,
-                    biHeight: -height, // 负值表示自上而下的DIB
-                    biPlanes: 1,
-                    biBitCount: 32,
-                    biCompression: 0, // BI_RGB is 0
-                    biSizeImage: 0,
-                    biXPelsPerMeter: 0,
-                    biYPelsPerMeter: 0,
-                    biClrUsed: 0,
-                    biClrImportant: 0,
-                },
-                bmiColors: [RGBQUAD::default()],
-            };
-
-            // 分配内存存储像素数据 (BGRA 格式)
-            let buffer_size = (width * height * 4) as usize;
-            let mut buffer = vec![0u8; buffer_size];
-
-            // 获取位图数据
-            let result = GetDIBits(
-                mem_dc,
-                bitmap,
-                0,
-                height as u32,
-                Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
-                &mut bitmap_info,
-                DIB_RGB_COLORS,
-            );
-
-            // 清理资源
-            SelectObject(mem_dc, old_bitmap);
-            let _ = DeleteObject(HGDIOBJ(bitmap.0));
-            let _ = DeleteDC(mem_dc);
-            ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
-
-            if result == 0 {
-                show_window();
-                return Err("Failed to get bitmap data".to_string());
-            }
-
-            // 转换为RGBA格式
-            let mut rgba_buffer = vec![0u8; buffer_size];
-            for i in 0..(width * height) as usize {
-                let src_idx = i * 4;
-                let dst_idx = i * 4;
-                // BGRA -> RGBA
-                rgba_buffer[dst_idx] = buffer[src_idx + 2]; // R
-                rgba_buffer[dst_idx + 1] = buffer[src_idx + 1]; // G
-                rgba_buffer[dst_idx + 2] = buffer[src_idx]; // B
-                rgba_buffer[dst_idx + 3] = buffer[src_idx + 3]; // A
-            }
-
-            // 使用image crate创建图像
-            let img = image::RgbaImage::from_raw(width as u32, height as u32, rgba_buffer)
-                .ok_or("Failed to create image from raw data")?;
-
-            // 转换为PNG格式的base64
-            let mut png_data = Vec::new();
-            img.write_to(
-                &mut std::io::Cursor::new(&mut png_data),
-                image::ImageFormat::Png,
-            )
-            .map_err(|e| format!("Failed to encode PNG: {}", e))?;
-
-            let base64_data = general_purpose::STANDARD.encode(&png_data);
-
-            // 重新显示截图窗口
-            if let Some(screenshot_window) = app_handle.get_webview_window("screenshot") {
-                let _ = screenshot_window.show();
-                let _ = screenshot_window.set_focus();
-            }
-
-            // 返回包含图像数据和尺寸的JSON对象
-            Ok(serde_json::json!({
-                "image": base64_data,
-                "adjusted_width": width,
-                "adjusted_height": height,
-                "original_width": width,
-                "original_height": height
-            }))
-        }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        // 重新显示截图窗口
-        if let Some(screenshot_window) = app_handle.get_webview_window("screenshot") {
-            let _ = screenshot_window.show();
-            let _ = screenshot_window.set_focus();
-        }
-        Err("Screen capture not implemented for this platform".to_string())
-    }
-}
-
 // 复制图像到剪贴板
 #[tauri::command]
 pub fn copy_to_clipboard(app_handle: AppHandle, image: String) -> Result<(), String> {
@@ -2153,7 +2019,8 @@ pub async fn save_screenshot_to_file(app_handle: AppHandle, image: String) -> Re
 
         Ok(format!("截图已保存到: {}", path.display()))
     } else {
-        Err("保存已取消".to_string())
+        // 用户取消保存，返回特殊错误码让前端区分
+        Err("SAVE_CANCELLED".to_string())
     }
 }
 
@@ -2262,13 +2129,9 @@ pub async fn create_pin_window(
                     "imageData": img_data.clone()
                 })) {
                     Ok(_) => {
-                        info!("第 {} 次发送成功（emit_to）", attempt);
-                        // 不立即 break，再发送几次确保前端收到
-                        if attempt < 3 {
-                            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-                        } else {
-                            break;
-                        }
+                        info!("第 {} 次发送成功（emit_to），停止继续发送", attempt);
+                        // 成功后立即停止，避免前端重复渲染
+                        break;
                     },
                     Err(e) => {
                         info!("第 {} 次发送失败: {}", attempt, e);
@@ -2295,25 +2158,6 @@ pub async fn create_pin_window(
     
     info!("返回窗口标签: {}", window_label);
     Ok(window_label)
-}
-
-// 获取贴图窗口的图片数据
-#[tauri::command]
-pub fn get_pin_image_data(window_label: String) -> Result<String, String> {
-    info!("前端请求获取图片数据: {}", window_label);
-    
-    let data_map = PIN_IMAGE_DATA.lock().unwrap();
-    match data_map.get(&window_label) {
-        Some(image_data) => {
-            info!("返回图片数据，大小: {} bytes", image_data.len());
-            Ok(image_data.clone())
-        },
-        None => {
-            let error = format!("未找到窗口的图片数据: {}", window_label);
-            info!("{}", error);
-            Err(error)
-        }
-    }
 }
 
 // 复制图片到剪贴板（用于贴图窗口）
@@ -2614,7 +2458,7 @@ fn calculate_overlap_area(window1: &WindowInfo, window2: &WindowInfo) -> i32 {
 
 // ==================== 设置向导窗口 ====================
 
-/// 创建设置向导窗口
+// 创建设置向导窗口
 pub fn create_setup_window() {
     let spec = WindowSpec {
         label: "setup",
@@ -2636,7 +2480,7 @@ pub fn create_setup_window() {
     );
 }
 
-/// 关闭设置向导窗口并重启应用
+// 关闭设置向导窗口并重启应用
 #[tauri::command]
 pub fn close_setup_window() {
     let app = match APP.get() {

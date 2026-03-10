@@ -22,7 +22,7 @@ const { handleKeyDown } = useSearchKeyboard({
   resultRef,
   isSearchMode,
   canSwitchToList,
-  searchResultsLength: computed(() => searchResults.value.length).value,
+  searchResultsLength: computed(() => searchResults.value.length),
   handleEnterSearch
 });
 

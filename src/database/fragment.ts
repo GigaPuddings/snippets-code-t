@@ -23,7 +23,7 @@ export function addFragment(
     metadata?: FragmentMetadata;
     tags?: string[];
   }
-): Promise<number> {
+): Promise<string> {
   return addFragmentApi({
     categoryId,
     ...params
@@ -31,17 +31,17 @@ export function addFragment(
 }
 
 // 删除片段
-export function deleteFragment(id: number): Promise<void> {
+export function deleteFragment(id: number | string): Promise<void> {
   return deleteFragmentApi(id);
 }
 
 // 编辑片段
-export function editFragment(params: any): Promise<void> {
+export function editFragment(params: any): Promise<string | null> {
   return editFragmentApi(params);
 }
 
 // 获取片段内容
-export async function getFragmentContent(id: number): Promise<ContentType[]> {
+export async function getFragmentContent(id: number | string): Promise<ContentType[]> {
   const result = await getFragmentContentApi(id);
   // 转换为数组格式以保持兼容性
   return result ? [result] : [];

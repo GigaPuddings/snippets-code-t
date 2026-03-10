@@ -3,34 +3,34 @@ use crate::db::DbConnectionManager;
 
 // ============= 通用数据库实体框架 =============
 
-/// 数据库实体 Trait - 定义通用的数据库操作接口
+// 数据库实体 Trait - 定义通用的数据库操作接口
 #[allow(dead_code)]
 pub trait DbEntity: Sized {
-    /// 表名
+    // 表名
     const TABLE_NAME: &'static str;
-    /// 汇总类型（用于 summarize 字段）
+    // 汇总类型（用于 summarize 字段）
     const SUMMARIZE_TYPE: &'static str;
     
-    /// 从数据库行构造实体
+    // 从数据库行构造实体
     fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self>;
     
-    /// 获取实体的 ID
+    // 获取实体的 ID
     fn id(&self) -> &str;
     
-    /// 获取实体的标题
+    // 获取实体的标题
     fn title(&self) -> &str;
     
-    /// 获取实体的内容
+    // 获取实体的内容
     fn content(&self) -> &str;
     
-    /// 获取实体的图标
+    // 获取实体的图标
     fn icon(&self) -> &Option<String>;
     
-    /// 转换为 SQL 参数（用于插入）
+    // 转换为 SQL 参数（用于插入）
     fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>>;
 }
 
-/// 为 AppInfo 实现 DbEntity
+// 为 AppInfo 实现 DbEntity
 impl DbEntity for AppInfo {
     const TABLE_NAME: &'static str = "apps";
     const SUMMARIZE_TYPE: &'static str = "app";
@@ -62,7 +62,7 @@ impl DbEntity for AppInfo {
     }
 }
 
-/// 为 BookmarkInfo 实现 DbEntity
+// 为 BookmarkInfo 实现 DbEntity
 impl DbEntity for BookmarkInfo {
     const TABLE_NAME: &'static str = "bookmarks";
     const SUMMARIZE_TYPE: &'static str = "bookmark";
@@ -96,7 +96,7 @@ impl DbEntity for BookmarkInfo {
 
 // ============= 通用数据库操作函数 =============
 
-/// 通用查询所有实体（带使用计数和排序）
+// 通用查询所有实体（带使用计数和排序）
 pub(crate) fn get_all_entities<T: DbEntity>() -> Result<Vec<T>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
 
@@ -130,7 +130,7 @@ pub(crate) fn get_all_entities<T: DbEntity>() -> Result<Vec<T>, rusqlite::Error>
     iter.collect()
 }
 
-/// 通用更新图标
+// 通用更新图标
 pub(crate) fn update_entity_icon<T: DbEntity>(entity_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     conn.execute(
@@ -140,14 +140,14 @@ pub(crate) fn update_entity_icon<T: DbEntity>(entity_id: &str, icon: &str) -> Re
     Ok(())
 }
 
-/// 通用清空表
+// 通用清空表
 pub(crate) fn clear_entities<T: DbEntity>() -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     conn.execute(&format!("DELETE FROM {}", T::TABLE_NAME), [])?;
     Ok(())
 }
 
-/// 通用计数
+// 通用计数
 pub(crate) fn count_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     let count = conn.query_row(
@@ -158,7 +158,7 @@ pub(crate) fn count_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
     Ok(count)
 }
 
-/// 通用批量插入
+// 通用批量插入
 pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlite::Error> {
     if entities.is_empty() {
         return Ok(());

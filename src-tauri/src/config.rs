@@ -1,46 +1,14 @@
 use crate::db;
+use crate::json_config;
 // use crate::search::{SearchEngine, DEFAULT_ENGINES};
 use log::{info, LevelFilter};
-use serde_json::{json, Value};
-use std::path::PathBuf;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Code, Modifiers};
-use tauri_plugin_store::StoreBuilder;
 // use mouse_position::mouse_position::{Mouse, Position};
 
-// 仅保留不需要同步的配置键（存储在 store.bin）
-pub const DB_PATH_KEY: &str = "custom_db_path"; // 自定义数据库路径
-pub const UPDATE_AVAILABLE_KEY: &str = "update_available"; // 更新可用标志
-pub const UPDATE_INFO_KEY: &str = "update_info"; // 更新信息
-pub const TRANSLATION_ENGINE_KEY: &str = "translation_engine"; // 默认翻译引擎
-pub const OFFLINE_MODEL_ACTIVATED_KEY: &str = "offline_model_activated"; // 离线模型激活状态
-// 注：SETUP_COMPLETED_KEY 和 SHOW_PROGRESS_KEY 在 db/connection.rs 中定义和使用
-
-// 以下配置已迁移到数据库 app_settings 表中：
-// - AUTO_UPDATE_CHECK_KEY -> auto_update_check
-// - DARK_MODE_CONFIG_KEY -> dark_mode_config  
-// - LANGUAGE_KEY -> language
-// - 快捷键配置 (search, config, translate, selectionTranslate, screenshot, darkMode)
-
-// 获取值
-pub fn get_value(app_handle: &tauri::AppHandle, key: &str) -> Option<Value> {
-    let path = PathBuf::from("store.bin");
-    let store = StoreBuilder::new(app_handle, path).build();
-
-    #[allow(clippy::map_clone)]
-    match store {
-        Ok(store) => store.get(key).map(|v| v.clone()),
-        Err(_) => None,
-    }
-}
-// 设置值
-#[allow(clippy::let_unit_value)]
-pub fn set_value<T: serde::ser::Serialize>(app_handle: &tauri::AppHandle, key: &str, value: T) {
-    let path = PathBuf::from("store.bin");
-    if let Ok(store) = StoreBuilder::new(app_handle, path).build() {
-        let _ = store.set(key.to_string(), json!(value));
-        let _ = store.save();
-    }
-}
+// 注：所有配置已迁移到 JSON 文件系统：
+// - path.json: 数据目录路径
+// - app.json: 所有应用配置（更新、翻译、快捷键、语言等）
+// - 数据库 app_settings 表已废弃，配置统一存储在 app.json
 
 // 解析快捷键
 pub fn parse_hotkey(hotkey: &str) -> Result<(Option<Modifiers>, Code), String> {
@@ -304,16 +272,16 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
     Ok(())
 }
 
-// 设置自动检查更新（使用数据库存储）
+// 设置自动检查更新（使用 app.json 存储）
 #[tauri::command]
-pub fn set_auto_update_check(_app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
-    db::set_setting_bool("autoUpdateCheck", enabled).map_err(|e| e.to_string())
+pub fn set_auto_update_check(app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    json_config::set_app_config_value(&app_handle, "auto_update_check", enabled)
 }
 
-// 获取自动检查更新设置（从数据库读取）
+// 获取自动检查更新设置（从 app.json 读取）
 #[tauri::command]
-pub fn get_auto_update_check(_app_handle: tauri::AppHandle) -> bool {
-    db::get_setting_bool("autoUpdateCheck").unwrap_or(true) // 默认为开启
+pub fn get_auto_update_check(app_handle: tauri::AppHandle) -> bool {
+    json_config::get_app_config_value(&app_handle, "auto_update_check").unwrap_or(true)
 }
 
 // 退出应用
@@ -325,54 +293,53 @@ pub fn exit_application(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
 }
 
-// 设置界面语言（使用数据库存储）
+// 设置界面语言（使用 app.json 存储）
 #[tauri::command]
 pub fn set_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
-    db::set_setting_string("language", &language).map_err(|e| e.to_string())?;
+    info!("🌐 设置语言: {} (保存到 app.json)", language);
+    json_config::set_app_config_value(&app_handle, "language", language)?;
     // 更新托盘菜单语言
     crate::tray::update_tray_language(&app_handle);
     Ok(())
 }
 
-// 获取界面语言（从数据库读取）
+// 获取界面语言（从 app.json 读取）
 #[tauri::command]
-pub fn get_language(_app_handle: tauri::AppHandle) -> String {
-    db::get_setting_string("language").unwrap_or_else(|| "zh-CN".to_string())
+pub fn get_language(app_handle: tauri::AppHandle) -> String {
+    json_config::get_app_config_value(&app_handle, "language")
+        .unwrap_or_else(|| "zh-CN".to_string())
 }
 
-// 内部使用，不作为命令暴露（从数据库读取）
-pub fn get_language_internal(_app_handle: &tauri::AppHandle) -> String {
-    db::get_setting_string("language").unwrap_or_else(|| "zh-CN".to_string())
+// 内部使用，不作为命令暴露（从 app.json 读取）
+pub fn get_language_internal(app_handle: &tauri::AppHandle) -> String {
+    json_config::get_app_config_value(app_handle, "language")
+        .unwrap_or_else(|| "zh-CN".to_string())
 }
 
-// ============= 翻译设置（存储在 store.bin）=============
+// ============= 翻译设置（存储在 app.json）=============
 
 // 设置默认翻译引擎
 #[tauri::command]
 pub fn set_translation_engine(app_handle: tauri::AppHandle, engine: String) -> Result<(), String> {
-    set_value(&app_handle, TRANSLATION_ENGINE_KEY, engine);
-    Ok(())
+    info!("🔄 设置翻译引擎: {} (保存到 app.json)", engine);
+    json_config::set_app_config_value(&app_handle, "translation_engine", engine)
 }
 
 // 获取默认翻译引擎
 #[tauri::command]
 pub fn get_translation_engine(app_handle: tauri::AppHandle) -> String {
-    get_value(&app_handle, TRANSLATION_ENGINE_KEY)
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
+    json_config::get_app_config_value(&app_handle, "translation_engine")
         .unwrap_or_else(|| "bing".to_string())
 }
 
 // 设置离线模型激活状态
 #[tauri::command]
 pub fn set_offline_model_activated(app_handle: tauri::AppHandle, activated: bool) -> Result<(), String> {
-    set_value(&app_handle, OFFLINE_MODEL_ACTIVATED_KEY, activated);
-    Ok(())
+    json_config::set_app_config_value(&app_handle, "offline_model_activated", activated)
 }
 
 // 获取离线模型激活状态
 #[tauri::command]
 pub fn get_offline_model_activated(app_handle: tauri::AppHandle) -> bool {
-    get_value(&app_handle, OFFLINE_MODEL_ACTIVATED_KEY)
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
+    json_config::get_app_config_value(&app_handle, "offline_model_activated").unwrap_or(false)
 }

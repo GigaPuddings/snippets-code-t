@@ -1,7 +1,12 @@
 <template>
   <div class="settings-panel">
-    <h3 class="panel-title">{{ $t('shortcut.title') }}</h3>
-    <main class="summarize-container">
+    <!-- 固定标题 -->
+    <div class="panel-header">
+      <h3 class="panel-title">{{ $t('shortcut.title') }}</h3>
+    </div>
+    
+    <!-- 可滚动内容 -->
+    <main class="panel-content">
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.searchHotkey') }}</div>
@@ -138,7 +143,7 @@
           @focus="
             () =>
               handleFocusUnregister(
-                'selectionTranslate',
+                'selection_translate',
                 store.selectionTranslateHotkey
               )
           "
@@ -163,7 +168,7 @@
               @click="
                 () =>
                   registerHandler(
-                    'selectionTranslate',
+                    'selection_translate',
                     store.selectionTranslateHotkey
                   )
               "
@@ -242,7 +247,7 @@
           @focus="
             () =>
               handleFocusUnregister(
-                'darkMode',
+                'dark_mode',
                 store.darkModeHotkey
               )
           "
@@ -267,7 +272,7 @@
               @click="
                 () =>
                   registerHandler(
-                    'darkMode',
+                    'dark_mode',
                     store.darkModeHotkey
                   )
               "
@@ -451,7 +456,7 @@ function handleFocusUnregister(name: string, key: string) {
       unregister(key);
       setSelectionTranslate('');
       break;
-    case 'selectionTranslate':
+    case 'selection_translate':
       unregister(key);
       setSelectionTranslateHotkey('');
       break;
@@ -459,7 +464,7 @@ function handleFocusUnregister(name: string, key: string) {
       unregister(key);
       setSelectionScreenshotHotkey('');
       break;
-    case 'darkMode':
+    case 'dark_mode':
       unregister(key);
       setSelectionDarkModeHotkey('');
       break;
@@ -467,13 +472,3 @@ function handleFocusUnregister(name: string, key: string) {
   invoke('register_shortcut_by_frontend', { name: name, shortcut: '' });
 }
 </script>
-
-<style scoped lang="scss">
-.settings-panel {
-  @apply flex flex-col;
-}
-
-.panel-title {
-  @apply text-base font-bold mb-4 pb-2 border-b border-panel;
-}
-</style>

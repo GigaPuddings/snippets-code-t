@@ -47,9 +47,9 @@ export interface Category {
   /** 分类名称 */
   name: string;
   /** 创建时间 */
-  created_at: string;
+  createdAt: string;
   /** 是否为系统分类 */
-  is_system: boolean;
+  isSystem: boolean;
   /** 父分类 ID */
   parent_id?: number;
   /** 排序顺序 */

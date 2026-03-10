@@ -1,8 +1,8 @@
-﻿# Snippets Code
+# Snippets Code
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.6-blue.svg)
+![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Tauri](https://img.shields.io/badge/Tauri-2.0-orange.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.5-brightgreen.svg)
@@ -26,12 +26,16 @@
 - **键盘导航**：完整的键盘快捷键支持
 
 ### 📝 代码片段管理
+- **Markdown 文件存储**：每个笔记都是独立的 `.md` 文件，支持外部编辑器
+- **工作区支持**：支持多工作区管理，可同时管理多个笔记库
 - **富文本编辑器**：基于 TipTap 的 Markdown 编辑器
 - **代码高亮**：支持多种编程语言的语法高亮
-- **分类管理**：灵活的分类和标签系统
+- **分类管理**：灵活的分类和标签系统，分类对应文件夹
 - **反向链接**：类似 Obsidian 的双向链接功能
 - **实时预览**：Markdown 实时渲染
 - **快速检索**：全文搜索，支持高级搜索语法
+- **文件监听**：自动同步外部编辑器的修改
+- **智能缓存**：优化的搜索索引，支持百万级文件快速搜索
 
 ### 📚 知识管理
 - **Wikilink 支持**：使用 `[[链接]]` 语法创建笔记链接
@@ -45,6 +49,7 @@
 - **划词翻译**：选中文本即可翻译
 - **离线翻译**：基于 Transformers.js 的本地翻译
 - **快速切换**：一键切换翻译引擎
+- **Screenshot 翻译**：截图后 OCR 识别并翻译
 
 ### 📸 截图标注
 - **快速截图**：全局快捷键快速截图
@@ -52,13 +57,15 @@
 - **OCR 识别**：集成 Tesseract.js 文字识别
 - **颜色吸取**：取色器功能
 - **贴图显示**：截图钉在桌面
+- **图片导入**：支持导入本地图片进行标注
 
 ### 🎯 效率工具
 - **应用启动器**：快速启动系统应用
 - **书签管理**：统一管理浏览器书签
 - **待办提醒**：创建待办事项，支持定时提醒
 - **自动更新**：应用内自动更新
-- **GitHub 同步**：同步数据到 GitHub Gist
+- **Git 同步**：使用系统 Git 命令同步数据到任意 Git 仓库（支持 GitHub、GitLab、Gitee 等）
+- **工作区管理**：支持多工作区，可切换不同笔记库
 
 ### 🎨 界面与主题
 - **现代化 UI**：基于 Element Plus 的精美界面
@@ -111,6 +118,23 @@ pnpm tauri build
 3. 选择界面语言
 4. 完成设置，开始使用
 
+### Markdown 存储迁移
+
+如果您是从旧版本升级，可以将笔记迁移到 Markdown 文件存储：
+
+1. 打开设置 → 数据管理
+2. 点击"迁移到 Markdown 存储"
+3. 选择工作区文件夹
+4. 等待迁移完成
+
+**迁移后的优势**：
+- ✅ 每个笔记都是独立的 `.md` 文件
+- ✅ 可以使用任何文本编辑器（VS Code、Obsidian 等）
+- ✅ 支持 Git 版本控制
+- ✅ 更好的数据可移植性
+
+详细说明请查看 [Markdown 存储迁移指南](docs/MARKDOWN_STORAGE_USER_GUIDE.md)。
+
 ---
 
 ## 技术栈
@@ -153,10 +177,23 @@ pnpm tauri build
 snippets-code/
 ├── src/                          # 前端源代码
 │   ├── api/                      # API 调用层
+│   │   ├── fragment.ts           # 片段 API
+│   │   ├── markdown.ts           # Markdown API
+│   │   ├── git.ts                # Git 同步 API
+│   │   ├── appConfig.ts          # 应用配置 API
+│   │   └── github.ts             # GitHub API
 │   ├── components/               # 可复用组件
 │   │   ├── TipTapEditor/         # 富文本编辑器
-│   │   ├── CodeMirrorEditor/     # 代码编辑器
-│   │   ├── CategoryItem/         # 分类项
+│   │   │   ├── extensions/       # 编辑器扩展
+│   │   │   │   ├── LocalImage.ts # 本地图片扩展
+│   │   │   │   └── CustomEnterBehavior.ts  # 自定义回车行为
+│   │   │   ├── BacklinkPanel.vue # 反向链接面板
+│   │   │   └── ...
+│   │   ├── GitConflictDialog/    # Git 冲突对话框
+│   │   ├── GitManualMerge/       # Git 手动合并
+│   │   ├── GitConfigDialog/     # Git 配置对话框
+│   │   ├── SettingsContent/     # 设置内容组件
+│   │   │   └── components/GitSync/  # Git 同步设置
 │   │   └── ...
 │   ├── pages/                    # 页面组件
 │   │   ├── search/               # 搜索页面
@@ -164,23 +201,44 @@ snippets-code/
 │   │   ├── screenshot/           # 截图页面
 │   │   └── ...
 │   ├── hooks/                    # Composables
+│   │   ├── useFileWatcher.ts     # 文件监听 Hook
+│   │   └── ...
 │   ├── store/                    # Pinia 状态管理
 │   ├── types/                    # TypeScript 类型定义
 │   ├── utils/                    # 工具函数
 │   │   ├── error-handler.ts      # 错误处理系统
-│   │   ├── type-guards.ts        # 类型守卫
+│   │   ├── wikilink-parser.ts    # Wikilink 解析器
+│   │   ├── wikilink-updater.ts   # Wikilink 更新器
+│   │   ├── image-upload.ts       # 图片上传工具
+│   │   ├── file-sort.ts          # 文件排序工具
+│   │   ├── time-format.ts        # 时间格式化
 │   │   └── ...
 │   ├── i18n/                     # 国际化
 │   └── styles/                   # 全局样式
 ├── src-tauri/                    # Rust 后端
 │   ├── src/                      # Rust 源代码
 │   │   ├── db/                   # 数据库模块
+│   │   ├── markdown/             # Markdown 文件系统（新增多个子模块）
+│   │   │   ├── commands.rs       # Markdown 操作命令
+│   │   │   ├── workspace.rs      # 工作区管理
+│   │   │   ├── workspace_manager.rs  # 工作区管理器
+│   │   │   ├── file_ops.rs       # 文件操作
+│   │   │   ├── file_system_manager.rs  # 文件系统管理
+│   │   │   ├── watcher.rs        # 文件监听
+│   │   │   ├── metadata.rs       # 元数据管理
+│   │   │   ├── migration.rs      # 数据迁移
+│   │   │   ├── index_optimized.rs  # 优化的搜索索引
+│   │   │   └── cache_manager.rs  # 缓存管理
 │   │   ├── alarm.rs              # 提醒功能
 │   │   ├── apps.rs               # 应用管理
 │   │   ├── bookmarks.rs          # 书签管理
-│   │   ├── github_sync.rs        # GitHub 同步
+│   │   ├── git_sync.rs           # Git 同步（基于系统 Git）
+│   │   ├── github_sync.rs        # GitHub Gist 同步（旧版）
 │   │   ├── translation.rs        # 翻译功能
-│   │   └── ...
+│   │   ├── hotkey.rs             # 快捷键管理
+│   │   ├── window.rs             # 窗口管理
+│   │   ├── json_config.rs        # JSON 配置管理
+│   │   └── attachment.rs         # 附件管理
 │   ├── Cargo.toml                # Rust 依赖配置
 │   └── tauri.conf.json           # Tauri 配置
 ├── docs/                         # 文档
@@ -208,7 +266,8 @@ snippets-code/
 - 全文搜索和高级搜索语法
 - 反向链接和 Wikilink 支持
 - 导入/导出功能
-- GitHub Gist 同步
+- Git 同步（支持任意 Git 仓库）
+- 多工作区支持
 
 ### 搜索功能
 
@@ -255,10 +314,17 @@ snippets-code/
 
 ## 文档
 
-- [架构文档](docs/ARCHITECTURE.md) - 详细的技术架构说明
-- [编码规范](docs/CODING_STANDARDS.md) - 代码质量标准和最佳实践
+### 用户文档
+- [Markdown 存储迁移指南](docs/MARKDOWN_STORAGE_USER_GUIDE.md) - 完整的 Markdown 文件存储使用指南
+- [Markdown 存储快速入门](docs/MARKDOWN_STORAGE_QUICK_START.md) - 5 分钟快速上手
+- [Markdown 存储故障排除](docs/MARKDOWN_STORAGE_TROUBLESHOOTING.md) - 常见问题解决方案
 - [反向链接功能](docs/BACKLINKS_FEATURE.md) - Backlinks 功能使用说明
 - [反向链接使用指南](docs/BACKLINKS_USAGE.md) - 详细的使用教程
+
+### 开发者文档
+- [架构文档](docs/ARCHITECTURE.md) - 详细的技术架构说明
+- [编码规范](docs/CODING_STANDARDS.md) - 代码质量标准和最佳实践
+- [配置迁移指南](docs/CONFIG_MIGRATION_GUIDE.md) - 配置系统重构说明
 
 ---
 

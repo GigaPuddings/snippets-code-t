@@ -32,24 +32,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Data, EnterTheKeyboard, SettingTwo, Translate } from '@icon-park/vue-next';
+import { useRoute } from 'vue-router';
+import { Data, EnterTheKeyboard, SettingTwo, Translate, FolderOpen, Github } from '@icon-park/vue-next';
 import General from './components/General/index.vue';
 import Shortcut from './components/Shortcut/index.vue';
 import Manger from './components/Manger/index.vue';
 import Translation from './components/Translation/index.vue';
+import Attachment from './components/Attachment/index.vue';
+import GitSync from './components/GitSync/index.vue';
 
 defineOptions({
   name: 'SettingsContent'
 });
 
 const { t } = useI18n();
+const route = useRoute();
 
 const menuItems = computed(() => [
   { id: 'general', label: t('settings.general'), icon: SettingTwo },
   { id: 'shortcut', label: t('shortcut.title'), icon: EnterTheKeyboard },
   { id: 'data', label: t('dataManager.title'), icon: Data },
+  { id: 'attachment', label: t('settings.attachment.menu'), icon: FolderOpen },
+  { id: 'gitSync', label: t('settings.gitSync.menu'), icon: Github },
   { id: 'translation', label: t('translation.title'), icon: Translate }
 ]);
 
@@ -61,6 +67,8 @@ const componentMap: Record<string, any> = {
   general: General,
   shortcut: Shortcut,
   data: Manger,
+  attachment: Attachment,
+  gitSync: GitSync,
   translation: Translation
 };
 
@@ -72,6 +80,21 @@ const switchTab = (tabId: string) => {
     loadedTabs.value.push(tabId);
   }
 };
+
+// 监听路由 query 参数变化
+watch(() => route.query.tab, (newTab) => {
+  if (newTab && typeof newTab === 'string') {
+    switchTab(newTab);
+  }
+}, { immediate: true });
+
+onMounted(() => {
+  // 如果 URL 中有 tab 参数，切换到对应的 tab
+  const tabFromQuery = route.query.tab;
+  if (tabFromQuery && typeof tabFromQuery === 'string') {
+    switchTab(tabFromQuery);
+  }
+});
 </script>
 
 <style scoped lang="scss">

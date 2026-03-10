@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 // ============= 搜索历史相关数据库操作 =============
 
-/// 搜索历史项
+// 搜索历史项
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SearchHistoryItem {
     pub id: String,
@@ -12,7 +12,7 @@ pub struct SearchHistoryItem {
     pub last_used_at: String,
 }
 
-/// 添加或更新搜索历史
+// 添加或更新搜索历史
 pub fn add_search_history_item(id: &str) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     let now = Local::now().to_rfc3339();
@@ -28,7 +28,7 @@ pub fn add_search_history_item(id: &str) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-/// 获取所有搜索历史
+// 获取所有搜索历史
 pub fn get_all_search_history() -> Result<Vec<SearchHistoryItem>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
 

@@ -80,10 +80,10 @@ pub struct SunTimes {
 static DARK_MODE_CONFIG: Mutex<Option<DarkModeConfig>> = Mutex::new(None);
 static SCHEDULER_RUNNING: Mutex<bool> = Mutex::new(false);
 
-/// Windows系统主题控制
-/// 设置 Windows 10/11 全局深色/浅色模式，包括：
-/// - 应用程序主题 (AppsUseLightTheme)
-/// - 系统主题 (SystemUsesLightTheme) - 任务栏、开始菜单、通知中心、搜索等
+// Windows系统主题控制
+// 设置 Windows 10/11 全局深色/浅色模式，包括：
+// - 应用程序主题 (AppsUseLightTheme)
+// - 系统主题 (SystemUsesLightTheme) - 任务栏、开始菜单、通知中心、搜索等
 #[cfg(target_os = "windows")]
 pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
     use winreg::enums::*;
@@ -171,7 +171,7 @@ pub fn set_windows_dark_mode(_enabled: bool) -> Result<(), String> {
     Err("此功能仅在Windows系统上可用".to_string())
 }
 
-/// 获取当前Windows主题模式
+// 获取当前Windows主题模式
 #[cfg(target_os = "windows")]
 pub fn get_windows_dark_mode() -> Result<bool, String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
@@ -193,7 +193,7 @@ pub fn get_windows_dark_mode() -> Result<bool, String> {
     Err("此功能仅在Windows系统上可用".to_string())
 }
 
-/// 获取Windows系统时区信息
+// 获取Windows系统时区信息
 #[cfg(target_os = "windows")]
 pub fn get_windows_timezone_info() -> Result<(String, i32), String> {
     // 使用chrono获取本地时区偏移
@@ -211,7 +211,7 @@ pub fn get_windows_timezone_info() -> Result<(String, i32), String> {
     Err("此功能仅在Windows系统上可用".to_string())
 }
 
-/// 通过IP获取地理位置信息
+// 通过IP获取地理位置信息
 pub async fn get_location_by_ip() -> Result<LocationInfo, String> {
     let client = reqwest::Client::new();
     
@@ -251,7 +251,7 @@ pub async fn get_location_by_ip() -> Result<LocationInfo, String> {
     })
 }
 
-/// 计算日出日落时间
+// 计算日出日落时间
 pub fn calculate_sun_times(latitude: f64, longitude: f64, timezone_offset: i32) -> Result<SunTimes, String> {
     let now = Local::now();
     let julian_day = calculate_julian_day(now.year(), now.month() as i32, now.day() as i32);
@@ -277,7 +277,7 @@ pub fn calculate_sun_times(latitude: f64, longitude: f64, timezone_offset: i32) 
     })
 }
 
-/// 计算儒略日
+// 计算儒略日
 fn calculate_julian_day(year: i32, month: i32, day: i32) -> f64 {
     let a = (14 - month) / 12;
     let y = year + 4800 - a;
@@ -286,8 +286,8 @@ fn calculate_julian_day(year: i32, month: i32, day: i32) -> f64 {
     day as f64 + (153 * m + 2) as f64 / 5.0 + 365.0 * y as f64 + y as f64 / 4.0 - y as f64 / 100.0 + y as f64 / 400.0 - 32045.0
 }
 
-/// 计算日出日落时间（返回小时数，UTC时间）
-/// 使用更精确的算法，参考NOAA Solar Calculator
+// 计算日出日落时间（返回小时数，UTC时间）
+// 使用更精确的算法，参考NOAA Solar Calculator
 fn calculate_sunrise_sunset(lat: f64, lon: f64, julian_day: f64) -> Result<(f64, f64), String> {
     let lat_rad = lat.to_radians();
     
@@ -349,7 +349,7 @@ fn calculate_sunrise_sunset(lat: f64, lon: f64, julian_day: f64) -> Result<(f64,
     Ok((sunrise_utc, sunset_utc))
 }
 
-/// 格式化时间为 HH:MM 格式
+// 格式化时间为 HH:MM 格式
 fn format_time(hours: f64) -> String {
     let mut h = hours as i32;
     let m = ((hours - h as f64) * 60.0) as i32;
@@ -365,30 +365,31 @@ fn format_time(hours: f64) -> String {
     format!("{:02}:{:02}", h, m.clamp(0, 59))
 }
 
-/// 保存配置（使用数据库存储）
+// 保存配置（使用数据库存储）
 pub fn save_config(_app_handle: &AppHandle, config: &DarkModeConfig) -> Result<(), String> {
-    use crate::db;
+    use crate::json_config;
+    use crate::APP;
     
     // 序列化配置为 JSON 字符串
     let config_json = serde_json::to_string(config)
         .map_err(|e| format!("序列化深色模式配置失败: {}", e))?;
     
-    // 保存到数据库
-    db::set_setting_string("darkModeConfig", &config_json)
-        .map_err(|e| format!("保存深色模式配置失败: {}", e))?;
+    // 保存到 app.json
+    let app = APP.get().ok_or("应用未初始化")?;
+    info!("🌙 保存深色模式配置到 app.json");
+    json_config::set_app_config_value(app, "dark_mode_config", config_json)?;
     
     // 更新全局状态
     *DARK_MODE_CONFIG.lock().unwrap() = Some(config.clone());
     
-    info!("深色模式配置已保存到数据库");
     Ok(())
 }
 
-/// 加载配置（从数据库读取）
+// 加载配置（从 app.json 读取）
 pub fn load_config(_app_handle: &AppHandle) -> DarkModeConfig {
-    use crate::db;
+    use crate::json_config;
     
-    if let Some(config_json) = db::get_setting_string("darkModeConfig") {
+    if let Some(config_json) = json_config::get_app_config_value::<String>(_app_handle, "dark_mode_config") {
         if !config_json.is_empty() {
             if let Ok(config) = serde_json::from_str::<DarkModeConfig>(&config_json) {
                 *DARK_MODE_CONFIG.lock().unwrap() = Some(config.clone());
@@ -397,17 +398,15 @@ pub fn load_config(_app_handle: &AppHandle) -> DarkModeConfig {
         }
     }
     
+    // 如果配置不存在，只返回默认配置，不自动保存
+    // 配置应该在用户首次设置时保存
     let default_config = DarkModeConfig::default();
     *DARK_MODE_CONFIG.lock().unwrap() = Some(default_config.clone());
-    
-    if let Ok(config_json) = serde_json::to_string(&default_config) {
-        let _ = db::set_setting_string("darkModeConfig", &config_json);
-    }
     
     default_config
 }
 
-/// 启动定时切换服务
+// 启动定时切换服务
 pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
     let mut running = SCHEDULER_RUNNING.lock().unwrap();
     if *running {
@@ -482,13 +481,13 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// 停止定时切换服务
+// 停止定时切换服务
 pub fn stop_scheduler() {
     info!("停止Auto Dark Mode定时切换服务");
     *SCHEDULER_RUNNING.lock().unwrap() = false;
 }
 
-/// 检查并切换主题
+// 检查并切换主题
 async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig) -> Result<(), String> {
     let now = Local::now();
     let current_time = format!("{:02}:{:02}", now.hour(), now.minute());
@@ -538,7 +537,7 @@ async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig)
     Ok(())
 }
 
-/// 判断指定时间是否应该为深色模式
+// 判断指定时间是否应该为深色模式
 fn is_dark_time(current: &str, sunrise: &str, sunset: &str) -> bool {
     fn time_to_minutes(time_str: &str) -> i32 {
         let parts: Vec<&str> = time_str.split(':').collect();
@@ -558,7 +557,7 @@ fn is_dark_time(current: &str, sunrise: &str, sunset: &str) -> bool {
     current_min < sunrise_min || current_min >= sunset_min
 }
 
-/// 手动切换主题
+// 手动切换主题
 pub fn toggle_theme(app_handle: Option<&AppHandle>) -> Result<bool, String> {
     // 检查启动定时切换服务是否启用，如果启用，则停止
     if *SCHEDULER_RUNNING.lock().unwrap() {
@@ -589,7 +588,7 @@ pub fn toggle_theme(app_handle: Option<&AppHandle>) -> Result<bool, String> {
     Ok(new_state)
 }
 
-/// 获取当前配置状态
+// 获取当前配置状态
 pub fn get_current_status(app_handle: &AppHandle) -> Result<serde_json::Value, String> {
     let config = load_config(app_handle);
     let current_is_dark = get_windows_dark_mode().unwrap_or(false);

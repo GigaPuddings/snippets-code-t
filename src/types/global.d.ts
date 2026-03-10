@@ -4,6 +4,7 @@ declare global {
     id: string | number;
     name: string;
     created_at?: string;
+    isSystem: boolean;  // 必填字段，与后端保持一致
   };
 
   // 片段类型枚举

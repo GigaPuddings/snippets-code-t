@@ -98,7 +98,7 @@ interface Props {
   fragmentTitle: string;
   newFragmentTitle?: string;
   backlinkCount: number;
-  backlinkFragments: Array<{ id: number; title: string; occurrences: number }>;
+  backlinkFragments: Array<{ id: number | string; title: string; occurrences: number }>;
   confirmText?: string;
   cancelText?: string;
 }
@@ -159,9 +159,23 @@ const handleConfirm = async () => {
       progress.value = 100;
       result.value = updateResult;
       
+      // 等待一小段时间让用户看到结果
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       emit('confirm', true);
+      emit('update:modelValue', false);
     } catch (error) {
       console.error('Failed to update backlinks:', error);
+      result.value = {
+        successCount: 0,
+        failureCount: props.backlinkFragments.length,
+        updatedIds: [],
+        failures: props.backlinkFragments.map(f => ({
+          id: f.id,
+          title: f.title,
+          error: error instanceof Error ? error.message : String(error)
+        }))
+      };
     } finally {
       updating.value = false;
     }

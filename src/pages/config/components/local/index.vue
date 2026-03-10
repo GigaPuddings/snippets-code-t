@@ -172,8 +172,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { ElMessage } from 'element-plus';
 import { useI18n } from 'vue-i18n';
+import modal from '@/utils/modal';
 
 const { t } = useI18n();
 import {
@@ -264,7 +264,7 @@ const loadApps = async () => {
     apps.value = result || [];
   } catch (error) {
     console.error('加载应用失败:', error);
-    ElMessage.error(t('local.loadFailed', { type: t('local.apps') }));
+    modal.error(t('local.loadFailed', { type: t('local.apps') }));
   }
 };
 
@@ -274,7 +274,7 @@ const loadBookmarks = async () => {
     bookmarks.value = result || [];
   } catch (error) {
     console.error('加载书签失败:', error);
-    ElMessage.error(t('local.loadFailed', { type: t('local.bookmarks') }));
+    modal.error(t('local.loadFailed', { type: t('local.bookmarks') }));
   }
 };
 
@@ -316,7 +316,7 @@ const handleItemClick = async (item: AppInfo | BookmarkInfo) => {
     await loadData();
   } catch (error) {
     console.error(`打开${activeTab.value === 'app' ? '应用' : '书签'}失败:`, error);
-    ElMessage.error(t('local.openFailed', { type: activeTab.value === 'app' ? t('local.apps') : t('local.bookmarks') }));
+    modal.error(t('local.openFailed', { type: activeTab.value === 'app' ? t('local.apps') : t('local.bookmarks') }));
   }
 };
 
@@ -332,7 +332,7 @@ const handleSubmit = async (data: any) => {
           content: data.content,
           icon: data.icon || null
         });
-        ElMessage.success(t('local.updateSuccess', { type: t('local.apps') }));
+        modal.success(t('local.updateSuccess', { type: t('local.apps') }));
       } else {
         await invoke('update_bookmark', {
           id: data.id,
@@ -340,7 +340,7 @@ const handleSubmit = async (data: any) => {
           content: data.content,
           icon: data.icon || null
         });
-        ElMessage.success(t('local.updateSuccess', { type: t('local.bookmarks') }));
+        modal.success(t('local.updateSuccess', { type: t('local.bookmarks') }));
       }
     } else {
       // 新增
@@ -350,20 +350,20 @@ const handleSubmit = async (data: any) => {
           content: data.content,
           icon: data.icon || null
         });
-        ElMessage.success(t('local.addSuccess', { type: t('local.apps') }));
+        modal.success(t('local.addSuccess', { type: t('local.apps') }));
       } else {
         await invoke('add_bookmark', {
           title: data.title,
           content: data.content,
           icon: data.icon || null
         });
-        ElMessage.success(t('local.addSuccess', { type: t('local.bookmarks') }));
+        modal.success(t('local.addSuccess', { type: t('local.bookmarks') }));
       }
     }
     await loadData();
   } catch (error) {
     console.error('操作失败:', error);
-    ElMessage.error(t('local.operationFailed'));
+    modal.error(t('local.operationFailed'));
   }
 };
 
@@ -393,17 +393,17 @@ const confirmDelete = async () => {
   try {
     if (activeTab.value === 'app') {
       await invoke('delete_app', { id: deleteTarget.value.id });
-      ElMessage.success(t('local.deleteSuccess', { type: t('local.apps') }));
+      modal.success(t('local.deleteSuccess', { type: t('local.apps') }));
     } else {
       await invoke('delete_bookmark', { id: deleteTarget.value.id });
-      ElMessage.success(t('local.deleteSuccess', { type: t('local.bookmarks') }));
+      modal.success(t('local.deleteSuccess', { type: t('local.bookmarks') }));
     }
     await loadData();
     showDeleteDialog.value = false;
     deleteTarget.value = null;
   } catch (error) {
     console.error('Delete failed:', error);
-    ElMessage.error(t('local.deleteFailed'));
+    modal.error(t('local.deleteFailed'));
   }
 };
 

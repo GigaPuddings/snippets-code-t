@@ -41,6 +41,12 @@ export const MarkdownLinkHandler = Extension.create({
                 return;
               }
 
+              // 检查节点是否有 code mark（在反引号内）
+              const hasCodeMark = node.marks.some((mark: any) => mark.type.name === 'code');
+              if (hasCodeMark) {
+                return; // 跳过反引号内的内容
+              }
+
               const text = node.text || '';
               let match;
 
@@ -55,6 +61,18 @@ export const MarkdownLinkHandler = Extension.create({
                 
                 // 跳过锚点链接
                 if (url.startsWith('#')) {
+                  continue;
+                }
+                
+                // 跳过无效链接（只处理有效的外部链接）
+                const isValidExternalLink = url && (
+                  url.startsWith('http://') || 
+                  url.startsWith('https://') || 
+                  url.startsWith('www.') ||
+                  /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(url)
+                );
+                
+                if (!isValidExternalLink) {
                   continue;
                 }
                 

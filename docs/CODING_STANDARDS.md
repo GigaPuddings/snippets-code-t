@@ -652,6 +652,77 @@ try {
 }
 ```
 
+## 消息提示
+
+### 1. 使用统一的 modal 工具
+
+**所有消息提示都必须使用 `modal` 工具，不要直接使用 `ElMessage` 或 `ElNotification`。**
+
+```typescript
+import modal from '@/utils/modal';
+
+// ✅ 推荐
+modal.success('保存成功');
+modal.error('操作失败');
+
+// ❌ 避免
+import { ElMessage } from 'element-plus';
+ElMessage.success('保存成功');
+```
+
+### 2. 根据场景选择位置
+
+#### 居中显示（center）- 默认
+
+用于用户主动触发的重要操作反馈：
+
+```typescript
+// 保存操作
+modal.success('保存成功');
+
+// 删除操作
+modal.success('片段已删除');
+
+// 错误提示
+modal.error('操作失败');
+```
+
+#### 右上角显示（top-right）
+
+用于后台操作通知、不打断用户的信息：
+
+```typescript
+// 反向链接更新
+modal.success('已更新 3 个反向链接', 'top-right');
+
+// 同步通知
+modal.info('正在同步...', 'top-right');
+
+// 批量操作
+modal.success('已导入 10 个文件', 'top-right');
+```
+
+### 3. 使用国际化
+
+```typescript
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
+
+modal.success(t('common.saveSuccess'));
+modal.error(t('common.saveFailed'));
+```
+
+### 4. 详细文档
+
+参见 [消息提示使用规范](./MESSAGE_NOTIFICATION_GUIDE.md) 了解更多详情。
+
+## 错误处理（续）
+
+### 4. 提供用户友好的错误消息（续）
+  });
+}
+```
+
 ## 性能优化
 
 ### 1. 使用 computed 缓存计算结果
@@ -702,6 +773,157 @@ import { useDebounce } from '@/hooks/useDebounce';
 const debouncedSearch = useDebounce((query: string) => {
   performSearch(query);
 }, 300);
+```
+
+## 路径处理规范
+
+本项目涉及多种路径格式：文件系统绝对路径、URL 编码路径、相对路径等。正确处理路径格式是避免 bug 的关键。
+
+### 1. 路径格式统一
+
+**必须统一使用正斜杠 `/` 进行路径比较和存储。**
+
+```typescript
+// ✅ 推荐：统一转义为正斜杠
+const normalizedPath = path.replace(/\\/g, '/');
+
+// ✅ 推荐：路径比较时双方都规范化
+const isMatch = normalizedPathA === normalizedPathB;
+
+// ❌ 避免：直接比较未规范化的路径
+if (pathA === pathB) { ... }
+```
+
+### 2. 绝对路径与相对路径混用问题
+
+**后端与前端路径格式可能不同，跨系统调用时必须注意：**
+
+| 来源 | 路径格式 | 示例 |
+|------|----------|------|
+| 数据库/文件 API | 绝对路径 | `D:\Program Files\snippets-code\Css\渐变色.md` |
+| 文件监控事件 | 相对路径 | `Css/窗体拖拽.md` |
+| Vue Router | URL 编码 | `D%3A%2F...%2F%E6%B8%90%E8%89%B2.md` |
+
+**处理流程：**
+
+```typescript
+// 1. 文件监控事件路径（相对路径）→ 拼接 workspaceRoot 转绝对路径
+const wsRoot = workspaceRoot.value.replace(/\\/g, '/');
+const absDeletedPath = `${wsRoot}/${relativePath}`.replace(/\/+/g, '/');
+
+// 2. 路由参数（URL 编码）→ 解码后比较
+const routeId = decodeURIComponent(route.params.id as string);
+
+// 3. 路径比较：统一规范化
+const normalizedRouteId = decodeURIComponent(routeId).replace(/\\/g, '/');
+const normalizedContentId = (content.id as string).replace(/\\/g, '/');
+const isActive = normalizedRouteId === normalizedContentId;
+```
+
+### 3. 常见路径处理场景
+
+#### 3.1 检查文件是否在某个目录中
+
+```typescript
+const isInDirectory = (filePath: string, dirPath: string): boolean => {
+  const normalizedFile = filePath.replace(/\\/g, '/');
+  const normalizedDir = dirPath.replace(/\\/g, '/');
+  return normalizedFile === normalizedDir || 
+         normalizedFile.startsWith(normalizedDir + '/');
+};
+```
+
+#### 3.2 检查文件是否被删除
+
+```typescript
+// files-changed-batch 事件中的 deleted 是相对路径数组
+const isDeleted = (currentFileId: string, deleted: string[]): boolean => {
+  const normalizedCurrent = currentFileId.replace(/\\/g, '/');
+  const wsRoot = workspaceRoot.value.replace(/\\/g, '/');
+  
+  return deleted.some((delRelPath: string) => {
+    const absDelPath = delRelPath.startsWith('/') || delRelPath.match(/^[A-Za-z]:/)
+      ? delRelPath.replace(/\\/g, '/')
+      : `${wsRoot}/${delRelPath}`.replace(/\/+/g, '/');
+    return normalizedCurrent === absDelPath;
+  });
+};
+```
+
+## 事件与数据流规范
+
+### 1. 路由参数与数据 ID 的匹配
+
+**Vue Router 的 `route.params` 会自动进行 URL 编码：**
+
+```typescript
+// 路由定义
+/path/:id  →  /path/D%3A%2F...%2Ffile.md
+
+// 获取时需要解码
+const id = decodeURIComponent(route.params.id as string);
+
+// 组件内比较时必须统一处理
+const isActive = computed(() => {
+  const routeId = route.params.id as string | undefined;
+  if (!routeId) return false;
+  // 必须解码后再比较
+  const normalizedRouteId = decodeURIComponent(routeId).replace(/\\/g, '/');
+  const normalizedContentId = (content.value.id as string).replace(/\\/g, '/');
+  return normalizedRouteId === normalizedContentId;
+});
+```
+
+### 2. 组件卸载时清理事件监听
+
+**防止事件监听器内存泄漏和重复执行：**
+
+```typescript
+onMounted(() => {
+  window.addEventListener('refresh-data', handleRefreshData);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('refresh-data', handleRefreshData);
+});
+```
+
+### 3. 事件处理中的异步问题
+
+**事件处理函数必须是 `async`，确保状态更新后再执行后续逻辑：**
+
+```typescript
+const handleRefreshData = async (event: Event) => {
+  const customEvent = event as CustomEvent;
+  const { source, deleted } = customEvent.detail;
+  
+  // ✅ 正确：await 确保导航完成后再继续
+  if (shouldNavigate) {
+    await router.push('/config/category');
+    return;
+  }
+  
+  // 刷新数据
+  await queryFragments(categoryId, searchText);
+};
+```
+
+### 4. 刷新列表时保持激活状态
+
+**数据刷新后，需要重新计算列表项的激活状态：**
+
+```typescript
+// ❌ 错误：刷新后所有项变成未激活
+const isActive = route.params.id === content.id.toString();
+
+// ✅ 正确：统一解码和规范化后再比较
+const isActive = computed(() => {
+  const routeId = route.params.id;
+  if (!routeId) return false;
+  const normalizedRoute = decodeURIComponent(routeId as string).replace(/\\/g, '/');
+  const normalizedContent = (content.id as string).replace(/\\/g, '/');
+  return normalizedRoute === normalizedContent;
+});
 ```
 
 ## 总结

@@ -12,10 +12,14 @@
         :placeholder="$t('editor.searchPlaceholder')"
         @keydown.enter.prevent="handleEnter"
         @keydown.esc="close"
+        @keydown.left.stop
+        @keydown.right.stop
+        @keydown.home.stop
+        @keydown.end.stop
       />
       <div class="search-controls">
         <span v-if="totalMatches > 0" class="match-count">
-          {{ currentMatchIndex + 1 }} / {{ totalMatches }}
+          {{ currentMatchIndex === -1 ? '-' : currentMatchIndex + 1 }} / {{ totalMatches }}
         </span>
         <button
           class="search-btn"
@@ -60,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, onUnmounted } from 'vue';
 
 interface Props {
   show: boolean;
@@ -84,6 +88,32 @@ const matchCase = ref(false);
 const currentMatchIndex = ref(0);
 const totalMatches = ref(0);
 
+// 防抖定时器
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const DEBOUNCE_DELAY = 150; // 减少防抖延迟
+
+const debounceSearch = () => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
+  debounceTimer = setTimeout(() => {
+    if (searchQuery.value) {
+      emits('search', searchQuery.value, matchCase.value);
+    }
+  }, DEBOUNCE_DELAY);
+
+  // 立即触发一次搜索（防抖期间也更新高亮）
+  if (searchQuery.value) {
+    emits('search', searchQuery.value, matchCase.value);
+  }
+};
+
+onUnmounted(() => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
+});
+
 watch(() => props.show, (show) => {
   if (show) {
     nextTick(() => {
@@ -93,10 +123,16 @@ watch(() => props.show, (show) => {
   }
 });
 
+// 移除直接监听 searchQuery 和 matchCase，改为使用防抖搜索
+// watch([searchQuery, matchCase], () => {
+//   if (searchQuery.value) {
+//     emits('search', searchQuery.value, matchCase.value);
+//   }
+// });
+
+// 监听输入和大小写切换，使用防抖
 watch([searchQuery, matchCase], () => {
-  if (searchQuery.value) {
-    emits('search', searchQuery.value, matchCase.value);
-  }
+  debounceSearch();
 });
 
 const handleEnter = (event: KeyboardEvent) => {

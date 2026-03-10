@@ -69,7 +69,7 @@ enum BrowserType {
 
 // ============= 浏览器路径配置 =============
 
-/// 浏览器配置结构
+// 浏览器配置结构
 struct BrowserConfig {
     name: &'static str,
     env_var: &'static str,  // LOCALAPPDATA 或 APPDATA
@@ -78,7 +78,7 @@ struct BrowserConfig {
     enable_log: bool,
 }
 
-/// 所有支持的浏览器配置
+// 所有支持的浏览器配置
 const BROWSERS: &[BrowserConfig] = &[
     BrowserConfig {
         name: "Chrome",
@@ -171,7 +171,7 @@ const BROWSERS: &[BrowserConfig] = &[
     },
 ];
 
-/// 通用浏览器路径查找函数
+// 通用浏览器路径查找函数
 fn find_browser_favicon_path(config: &BrowserConfig) -> Option<PathBuf> {
     let base = std::env::var(config.env_var).ok()?;
     
@@ -184,7 +184,7 @@ fn find_browser_favicon_path(config: &BrowserConfig) -> Option<PathBuf> {
     None
 }
 
-/// 根据浏览器名称查找配置
+// 根据浏览器名称查找配置
 fn get_browser_config(name: &str) -> Option<&'static BrowserConfig> {
     BROWSERS.iter().find(|b| b.name == name)
 }
@@ -226,8 +226,8 @@ fn get_shuanghe_favicon_db_path() -> Option<PathBuf> {
     get_browser_config("ShuangHe").and_then(find_browser_favicon_path)
 }
 
-/// 获取所有已安装浏览器的 Favicon 数据库路径
-/// 返回一个 HashMap，键为浏览器名称，值为数据库路径
+// 获取所有已安装浏览器的 Favicon 数据库路径
+// 返回一个 HashMap，键为浏览器名称，值为数据库路径
 #[allow(dead_code)]
 fn get_all_browser_favicon_paths() -> std::collections::HashMap<&'static str, PathBuf> {
     BROWSERS

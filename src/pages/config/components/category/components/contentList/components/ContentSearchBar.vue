@@ -117,10 +117,8 @@ function handleBlur(): void {
  * @param syntax - 要插入的语法字符串
  */
 function handleSyntaxInsert(syntax: string): void {
-  if (localSearchText.value && !localSearchText.value.endsWith(' ')) {
-    localSearchText.value += ' ';
-  }
-  localSearchText.value += syntax;
+  // 清空输入框，然后插入语法
+  localSearchText.value = syntax;
   showSyntaxHelper.value = false;
 }
 </script>

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 // ============= 数据结构定义 =============
 
-/// 分类数据结构
+// 分类数据结构
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Category {
     pub id: i64,
@@ -14,7 +14,7 @@ pub struct Category {
     pub created_at: String,
 }
 
-/// 片段数据结构
+// 片段数据结构
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Fragment {
     pub id: i64,
@@ -45,7 +45,7 @@ pub struct Fragment {
     pub tags: Option<String>,  // 逗号分隔的标签
 }
 
-/// 编辑片段的参数结构
+// 编辑片段的参数结构
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EditFragmentParams {
     pub id: i64,
@@ -64,19 +64,19 @@ pub struct EditFragmentParams {
 
 // ============= 默认值函数 =============
 
-/// 片段类型默认值
+// 片段类型默认值
 fn default_fragment_type() -> String {
     "code".to_string()
 }
 
-/// 内容格式默认值
+// 内容格式默认值
 fn default_format() -> String {
     "plain".to_string()
 }
 
 // ============= 验证函数 =============
 
-/// 验证片段类型
+// 验证片段类型
 pub fn validate_fragment_type(fragment_type: &str) -> Result<(), String> {
     match fragment_type {
         "code" | "note" => Ok(()),
@@ -87,7 +87,7 @@ pub fn validate_fragment_type(fragment_type: &str) -> Result<(), String> {
     }
 }
 
-/// 验证内容格式
+// 验证内容格式
 pub fn validate_format(format: &str) -> Result<(), String> {
     match format {
         "plain" | "markdown" | "html" => Ok(()),
@@ -98,7 +98,7 @@ pub fn validate_format(format: &str) -> Result<(), String> {
     }
 }
 
-/// 验证元数据（必须是有效的 JSON）
+// 验证元数据（必须是有效的 JSON）
 pub fn validate_metadata(metadata: &str) -> Result<(), String> {
     if metadata.is_empty() {
         return Ok(());
@@ -111,7 +111,7 @@ pub fn validate_metadata(metadata: &str) -> Result<(), String> {
 
 // ============= 分类相关操作 =============
 
-/// 获取所有分类（排除系统分类）
+// 获取所有分类（排除系统分类）
 #[tauri::command]
 pub fn get_categories(sort: Option<String>) -> Result<Vec<Category>, String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -138,7 +138,7 @@ pub fn get_categories(sort: Option<String>) -> Result<Vec<Category>, String> {
     Ok(categories)
 }
 
-/// 获取"未分类"分类的 ID
+// 获取"未分类"分类的 ID
 #[tauri::command]
 pub fn get_uncategorized_id() -> Result<Option<i64>, String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -156,7 +156,7 @@ pub fn get_uncategorized_id() -> Result<Option<i64>, String> {
     }
 }
 
-/// 添加分类
+// 添加分类
 #[tauri::command]
 pub fn add_category(name: Option<String>) -> Result<i64, String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -174,7 +174,7 @@ pub fn add_category(name: Option<String>) -> Result<i64, String> {
     Ok(id)
 }
 
-/// 编辑分类
+// 编辑分类
 #[tauri::command]
 pub fn edit_category(id: i64, name: String) -> Result<(), String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -188,7 +188,7 @@ pub fn edit_category(id: i64, name: String) -> Result<(), String> {
     Ok(())
 }
 
-/// 删除分类（同时删除该分类下的所有片段）
+// 删除分类（同时删除该分类下的所有片段）
 #[tauri::command]
 pub fn delete_category(id: i64) -> Result<(), String> {
     let mut conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -214,36 +214,54 @@ pub fn delete_category(id: i64) -> Result<(), String> {
 
 // ============= 片段相关操作 =============
 
-/// 获取片段列表（支持拼音模糊搜索）
+// 获取片段列表（支持拼音模糊搜索）
 #[tauri::command]
 pub fn get_fragment_list(
     category_id: Option<i64>,
     search_val: Option<String>,
+    limit: Option<i64>,
 ) -> Result<Vec<Fragment>, String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
-    
+
+    // 默认 limit 为 100，最大 500
+    let query_limit = std::cmp::min(limit.unwrap_or(100), 500);
+
     // 构建基础查询
     let mut query = String::from(
         "SELECT c.id, c.title, c.content, c.category_id, c.created_at, c.updated_at, cat.name as category_name,
          c.type, c.format, c.metadata, c.tags
-         FROM contents c 
-         LEFT JOIN categories cat ON c.category_id = cat.id 
+         FROM contents c
+         LEFT JOIN categories cat ON c.category_id = cat.id
          WHERE 1=1"
     );
-    
+
     let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-    
+
     // 按分类过滤
     if let Some(cid) = category_id {
         query.push_str(" AND c.category_id = ?");
         params.push(Box::new(cid));
     }
-    
+
+    // SQL 层预过滤：搜索词过滤（减少内存数据量）
+    if let Some(ref search) = search_val {
+        if !search.is_empty() {
+            // 在 title、content、tags 上做 LIKE 预过滤
+            query.push_str(" AND (c.title LIKE ? OR c.content LIKE ? OR c.tags LIKE ? OR cat.name LIKE ?)");
+            let like_pattern = format!("%{}%", search);
+            params.push(Box::new(like_pattern.clone()));
+            params.push(Box::new(like_pattern.clone()));
+            params.push(Box::new(like_pattern.clone()));
+            params.push(Box::new(like_pattern));
+        }
+    }
+
     query.push_str(" ORDER BY c.id DESC");
-    
+    query.push_str(&format!(" LIMIT {}", query_limit));
+
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
     let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-    
+
     let mut fragments: Vec<Fragment> = stmt
         .query_map(param_refs.as_slice(), |row| {
             Ok(Fragment {
@@ -265,8 +283,8 @@ pub fn get_fragment_list(
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
-    
-    // 如果有搜索词，使用拼音模糊搜索过滤
+
+    // 如果有搜索词，使用拼音模糊搜索进行精细排序
     if let Some(search) = search_val {
         if !search.is_empty() {
             let results = fuzzy_search(
@@ -278,11 +296,11 @@ pub fn get_fragment_list(
             fragments = results.into_iter().map(|(frag, _score)| frag).collect();
         }
     }
-    
+
     Ok(fragments)
 }
 
-/// 添加片段（扩展版本）
+// 添加片段（扩展版本）
 #[tauri::command]
 pub fn add_fragment(
     category_id: Option<i64>,
@@ -372,7 +390,7 @@ pub fn add_fragment(
     Ok(id)
 }
 
-/// 删除片段
+// 删除片段
 #[tauri::command]
 pub fn delete_fragment(id: i64) -> Result<(), String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -386,7 +404,7 @@ pub fn delete_fragment(id: i64) -> Result<(), String> {
     Ok(())
 }
 
-/// 编辑片段（扩展版本）
+// 编辑片段（扩展版本）
 #[tauri::command]
 pub fn edit_fragment(params: EditFragmentParams) -> Result<(), String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -461,7 +479,7 @@ pub fn edit_fragment(params: EditFragmentParams) -> Result<(), String> {
     Ok(())
 }
 
-/// 获取单个片段内容
+// 获取单个片段内容
 #[tauri::command]
 pub fn get_fragment_content(id: i64) -> Result<Option<Fragment>, String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
@@ -500,8 +518,8 @@ pub fn get_fragment_content(id: i64) -> Result<Option<Fragment>, String> {
     Ok(fragment)
 }
 
-/// 搜索片段内容（支持拼音模糊搜索）
-/// 从 HTML 内容中提取纯文本（简单实现，移除 HTML 标签）
+// 搜索片段内容（支持拼音模糊搜索）
+// 从 HTML 内容中提取纯文本（简单实现，移除 HTML 标签）
 fn extract_plain_text_from_html(html: &str) -> String {
     // 简单的 HTML 标签移除
     let mut result = String::new();
@@ -547,24 +565,68 @@ fn extract_plain_text_from_html(html: &str) -> String {
     result.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// 在标题、内容、标签和分类名中搜索关键词
+// 在标题、内容、标签和分类名中搜索关键词
 #[tauri::command]
-pub fn search_fragment_content(keyword: String) -> Result<Vec<Fragment>, String> {
+pub fn search_fragment_content(keyword: String, limit: Option<i64>) -> Result<Vec<Fragment>, String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
-    
-    // 获取所有片段
+
+    // 默认 limit 为 200，最大 500
+    let query_limit = std::cmp::min(limit.unwrap_or(200), 500);
+
+    // 如果没有关键词，返回最近的片段（带 LIMIT）
+    if keyword.trim().is_empty() {
+        let query = "
+            SELECT c.id, c.title, c.content, c.category_id, c.created_at, c.updated_at, cat.name as category_name,
+            c.type, c.format, c.metadata, c.tags
+            FROM contents c
+            LEFT JOIN categories cat ON c.category_id = cat.id
+            ORDER BY c.created_at DESC
+            LIMIT ?
+        ";
+
+        let mut stmt = conn.prepare(query).map_err(|e| e.to_string())?;
+
+        let fragments: Vec<Fragment> = stmt
+            .query_map([query_limit], |row| {
+                Ok(Fragment {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    content: row.get(2)?,
+                    category_id: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5).ok(),
+                    category_name: row.get(6)?,
+                    summarize: "text".to_string(),
+                    icon: None,
+                    fragment_type: row.get(7).unwrap_or_else(|_| "code".to_string()),
+                    format: row.get(8).unwrap_or_else(|_| "plain".to_string()),
+                    metadata: row.get(9).ok(),
+                    tags: row.get(10).ok(),
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        return Ok(fragments);
+    }
+
+    // SQL 层预过滤：在 title、content、tags、category_name 上做 LIKE 过滤
+    let like_pattern = format!("%{}%", keyword);
     let query = "
         SELECT c.id, c.title, c.content, c.category_id, c.created_at, c.updated_at, cat.name as category_name,
         c.type, c.format, c.metadata, c.tags
         FROM contents c
         LEFT JOIN categories cat ON c.category_id = cat.id
+        WHERE c.title LIKE ?1 OR c.content LIKE ?1 OR c.tags LIKE ?1 OR cat.name LIKE ?1
         ORDER BY c.created_at DESC
+        LIMIT ?2
     ";
-    
+
     let mut stmt = conn.prepare(query).map_err(|e| e.to_string())?;
-    
+
     let all_fragments: Vec<Fragment> = stmt
-        .query_map([], |row| {
+        .query_map(rusqlite::params![like_pattern, query_limit], |row| {
             Ok(Fragment {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -584,49 +646,44 @@ pub fn search_fragment_content(keyword: String) -> Result<Vec<Fragment>, String>
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
-    
-    // 如果没有关键词，返回所有片段
-    if keyword.trim().is_empty() {
-        return Ok(all_fragments);
-    }
-    
-    // 使用拼音模糊搜索，包括标签
+
+    // 使用拼音模糊搜索进行精细排序
     let keyword_lower = keyword.to_lowercase();
     let mut results: Vec<(Fragment, f64)> = Vec::new();
-    
+
     for fragment in all_fragments {
         let mut score = 0.0;
-        
+
         // 搜索标题
         if fragment.title.to_lowercase().contains(&keyword_lower) {
             score += 10.0;
         }
-        
+
         // 搜索内容 - 对于 HTML 格式的笔记，提取纯文本后搜索
         let searchable_content = if fragment.format == "html" {
             extract_plain_text_from_html(&fragment.content)
         } else {
             fragment.content.clone()
         };
-        
+
         if searchable_content.to_lowercase().contains(&keyword_lower) {
             score += 5.0;
         }
-        
+
         // 搜索标签
         if let Some(ref tags) = fragment.tags {
             if tags.to_lowercase().contains(&keyword_lower) {
                 score += 8.0; // 标签匹配权重较高
             }
         }
-        
+
         // 搜索分类名
         if let Some(ref cat_name) = fragment.category_name {
             if cat_name.to_lowercase().contains(&keyword_lower) {
                 score += 3.0;
             }
         }
-        
+
         if score > 0.0 {
             results.push((fragment, score));
         }

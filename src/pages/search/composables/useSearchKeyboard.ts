@@ -17,8 +17,8 @@ export interface SearchKeyboardOptions {
   isSearchMode: Ref<boolean>;
   /** 是否可以切换到列表模式 */
   canSwitchToList: Ref<boolean>;
-  /** 搜索结果数量 */
-  searchResultsLength: number;
+  /** 搜索结果数量（响应式） */
+  searchResultsLength: Ref<number>;
   /** 执行搜索的回调函数 */
   handleEnterSearch: () => Promise<void>;
 }
@@ -83,7 +83,7 @@ export function useSearchKeyboard(options: SearchKeyboardOptions): SearchKeyboar
       case 'Enter':
         if (!e.isComposing) {
           // 如果没有搜索结果，执行搜索
-          if (searchResultsLength === 0) {
+          if (searchResultsLength.value === 0) {
             await handleEnterSearch();
           } else {
             // 如果有搜索结果，进入列表模式

@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 // ============= 图标缓存相关数据库操作 =============
 
-/// 从数据库加载所有图标缓存
+// 从数据库加载所有图标缓存
 pub fn load_all_icon_cache() -> Result<HashMap<String, CachedIcon>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
 
@@ -29,7 +29,7 @@ pub fn load_all_icon_cache() -> Result<HashMap<String, CachedIcon>, rusqlite::Er
     Ok(cache)
 }
 
-/// 将图标插入缓存数据库
+// 将图标插入缓存数据库
 pub fn insert_icon_to_cache(key: &str, icon: &CachedIcon) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     conn.execute(
@@ -39,7 +39,7 @@ pub fn insert_icon_to_cache(key: &str, icon: &CachedIcon) -> Result<(), rusqlite
     Ok(())
 }
 
-/// 从缓存中获取图标
+// 从缓存中获取图标
 #[allow(dead_code)]
 pub fn get_icon_from_cache(key: &str) -> Result<Option<CachedIcon>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
@@ -55,7 +55,7 @@ pub fn get_icon_from_cache(key: &str) -> Result<Option<CachedIcon>, rusqlite::Er
     Ok(result)
 }
 
-/// 设置图标到缓存
+// 设置图标到缓存
 #[allow(dead_code)]
 pub fn set_icon_to_cache(key: &str, data: &str) -> Result<(), rusqlite::Error> {
     let timestamp = SystemTime::now()
@@ -89,7 +89,7 @@ pub fn set_icon_to_cache(key: &str, data: &str) -> Result<(), rusqlite::Error> {
 //     Ok(rows_affected)
 // }
 
-/// 从缓存中删除指定的图标
+// 从缓存中删除指定的图标
 #[allow(dead_code)]
 pub fn delete_icon_from_cache(key: &str) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;

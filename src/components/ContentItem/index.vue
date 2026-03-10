@@ -124,7 +124,13 @@ const menu = computed<MenuItem[]>(() => [
 ]);
 
 const isActive = computed(() => {
-  return route.params.id === content.value.id.toString();
+  const routeId = route.params.id as string | undefined;
+  if (!routeId) return false;
+  const currentId = content.value.id as string;
+  // route.params.id 为 encodeURIComponent 编码，需解码后比较；路径统一为 / 以便跨平台一致
+  const normalizedRouteId = decodeURIComponent(routeId).replace(/\\/g, '/');
+  const normalizedContentId = currentId.replace(/\\/g, '/');
+  return normalizedRouteId === normalizedContentId;
 });
 
 const fragmentTypeLabel = computed(() => {
@@ -156,14 +162,13 @@ const handleClick = (): void => {
       return;
     }
     
-    // 判断当前是否在"所有片段"视图
-    // 使用 route.params.cid 而不是 categoryId (路由参数名是 cid)
-    const isAllSnippetsView = !route.params.cid;
+    // 获取当前的 cid（保持当前分类上下文）
+    const currentCid = route.params.cid;
     
-    // 如果在"所有片段"视图,跳转到不带 categoryId 的路由
-    const targetPath = isAllSnippetsView 
-      ? `/config/category/contentList/content/${content.value.id}`
-      : `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`;
+    // 构建路由路径，始终保持当前的 cid
+    const targetPath = currentCid 
+      ? `/config/category/contentList/${currentCid}/content/${encodeURIComponent(content.value.id as string)}`
+      : `/config/category/contentList/content/${encodeURIComponent(content.value.id as string)}`;
 
     router.replace({
       path: targetPath,
@@ -215,8 +220,16 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   try {
     if (item.type === 'rename') {
       // 重命名时，通过 query 参数传递标识
+      // 获取当前的 cid（保持当前分类上下文）
+      const currentCid = route.params.cid;
+      
+      // 构建正确的路由路径，始终保持当前的 cid
+      const targetPath = currentCid 
+        ? `/config/category/contentList/${currentCid}/content/${encodeURIComponent(content.value.id as string)}`
+        : `/config/category/contentList/content/${encodeURIComponent(content.value.id as string)}`;
+      
       router.push({
-        path: `/config/category/contentList/${content.value.category_id}/content/${content.value.id}`,
+        path: targetPath,
         query: { rename: 'true' }
       });
     } else if (item.type === 'delete') {

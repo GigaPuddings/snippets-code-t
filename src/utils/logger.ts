@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 const DEBUG_MODE = import.meta.env.DEV || false
 
 export const logger = {
-  info: (msg: string, data?: unknown) => {
+  info: (msg: string, data?: unknown, ..._args: unknown[]) => {
     invoke('frontend_log', { 
       level: 'info', 
       message: msg, 
