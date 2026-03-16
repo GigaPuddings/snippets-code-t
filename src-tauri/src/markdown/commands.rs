@@ -8,7 +8,7 @@ use crate::markdown::watcher::FileWatcher;
 use crate::markdown::CacheManager;
 use crate::markdown::file_ops::{get_relative_path, FileNameGenerator};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::{command, AppHandle, State, Manager};
 use log::{debug, info, warn};
@@ -86,12 +86,12 @@ pub fn get_markdown_categories(
     app_handle: AppHandle,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
 ) -> Result<Vec<Category>, String> {
-    info!("📁 [获取分类] ========== 开始 ==========");
-    
+    debug!("📁 [获取分类] ========== 开始 ==========");
+
     let fs_manager = get_fs_manager(&app_handle)?;
     let folder_names = fs_manager.list_categories()?;
-    info!("📁 [获取分类] 找到 {} 个文件夹", folder_names.len());
-    
+    debug!("📁 [获取分类] 找到 {} 个文件夹", folder_names.len());
+
     // 获取 cache 管理器
     let mut cache = cache_manager.write()
         .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
@@ -112,7 +112,6 @@ pub fn get_markdown_categories(
                 .unwrap_or_default(),
             is_system: metadata.is_system,
         });
-        info!("   ✅ 未分类 (ID: {})", metadata.id);
     }
     
     // 然后添加实际的文件夹分类（跳过系统文件夹）
@@ -121,11 +120,10 @@ pub fn get_markdown_categories(
         // - "未分类"：已作为系统分类添加
         // - "assets"：用于存储图片等资源文件
         if folder_name == "未分类" || folder_name == "assets" {
-            info!("   ⏭️ 跳过系统文件夹: {}", folder_name);
             continue;
         }
         
-        let category_id = cache.get_or_create_category_id(&folder_name);
+        let _category_id = cache.get_or_create_category_id(&folder_name);
         
         if let Some(metadata) = cache.get_category_metadata(&folder_name) {
             categories.push(Category {
@@ -136,15 +134,12 @@ pub fn get_markdown_categories(
                     .unwrap_or_default(),
                 is_system: metadata.is_system,
             });
-            info!("   ✅ {} (ID: {})", folder_name, category_id);
         }
     }
     
     // 保存 cache（如果有新分类被创建）
     cache.save()?;
-    
-    info!("📁 [获取分类] 返回 {} 个分类", categories.len());
-    info!("📁 [获取分类] ========== 结束 ==========");
+
     Ok(categories)
 }
 
@@ -157,24 +152,17 @@ pub async fn create_markdown_file(
     index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
 ) -> Result<String, String> {
-    info!("📝 [创建文件] ========== 开始 ==========");
-    info!("📝 [创建文件] category: {:?}", category);
-    info!("📝 [创建文件] metadata: {:?}", metadata);
-    
-    let fs_manager = get_fs_manager(&app_handle)?;
-    let workspace_root = fs_manager.workspace_root().to_path_buf();
-    
     // 解析元数据
     let title = metadata.get("title")
         .and_then(|v| v.as_str())
         .ok_or("缺少 title 字段")?
         .to_string();
-    
+
     let content = metadata.get("content")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    
+
     let tags: Vec<String> = metadata.get("tags")
         .and_then(|v| v.as_array())
         .map(|arr| {
@@ -183,29 +171,25 @@ pub async fn create_markdown_file(
                 .collect()
         })
         .unwrap_or_default();
-    
+
     let file_type = metadata.get("type")
         .and_then(|v| v.as_str())
         .unwrap_or("note")
         .to_string();
-    
+
     let language = metadata.get("language")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
-    
+
     let favorite = metadata.get("favorite")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    
-    info!("📝 [创建文件] 解析后的元数据: title={}, type={}", title, file_type);
-    
+
     // 生成 ID 和时间戳
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now();
     let now_timestamp = now.timestamp_millis();
-    
-    info!("📝 [创建文件] 生成 ID: {}", id);
-    
+
     // 创建 FrontMatter（用于兼容，但不会写入文件）
     let front_matter = FrontMatter {
         id: id.clone(),
@@ -217,27 +201,25 @@ pub async fn create_markdown_file(
         language: language.clone(),
         favorite,
     };
-    
+
+    let fs_manager = get_fs_manager(&app_handle)?;
+    let workspace_root = fs_manager.workspace_root().to_path_buf();
+
     // 创建文件（只包含纯内容，不含 Front Matter）
-    info!("📝 [创建文件] 调用 fs_manager.create_markdown_file");
     let file_path = fs_manager.create_markdown_file(
         category.as_deref(),
         &title,
         &content,
         &front_matter,
     )?;
-    info!("📝 [创建文件] 文件已创建: {}", file_path.display());
-    
+
     // 获取相对路径
     let relative_path = get_relative_path(&workspace_root, &file_path)?;
-    info!("📝 [创建文件] 相对路径: {}", relative_path);
-    
+
     // 添加元数据到 cache.json
-    info!("📝 [创建文件] 获取 cache 写锁");
     let mut cache = cache_manager.write()
         .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-    
-    info!("📝 [创建文件] 设置文件索引元数据（内容元数据已写入 Frontmatter）");
+
     cache.set_file_metadata(
         relative_path.clone(),
         FileMetadata {
@@ -248,33 +230,23 @@ pub async fn create_markdown_file(
             hash: None,
         },
     );
-    
-    info!("📝 [创建文件] 保存 cache.json");
+
     cache.save()?;
-    info!("📝 [创建文件] cache.json 已保存");
-    
+
     // 释放写锁
     drop(cache);
-    info!("📝 [创建文件] cache 写锁已释放");
-    
+
     // 更新索引
-    info!("📝 [创建文件] 更新搜索索引");
     if let Ok(manager_lock) = index_manager.read() {
         if let Some(ref manager) = *manager_lock {
             let cache = cache_manager.read()
                 .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
             let _ = manager.update_entry(&file_path, &workspace_root, &*cache);
-            info!("📝 [创建文件] 索引已更新");
-        } else {
-            info!("📝 [创建文件] 索引管理器未初始化，跳过索引更新");
         }
-    } else {
-        warn!("📝 [创建文件] 无法获取索引管理器锁");
     }
-    
+
     let result = file_path.to_string_lossy().to_string();
-    info!("✅ [创建文件] 完成，返回路径: {}", result);
-    info!("📝 [创建文件] ========== 结束 ==========");
+    debug!("✅ [创建文件] 完成: {}", result);
     Ok(result)
 }
 
@@ -419,72 +391,71 @@ pub async fn update_markdown_file(
     let fs_manager = get_fs_manager(&app_handle)?;
     let workspace_root = fs_manager.workspace_root().to_path_buf();
     let mut path = PathBuf::from(&file_path);
-    
+
     // 忽略下一次文件变化（避免触发文件监听器）
     if let Ok(watcher_lock) = watcher.lock() {
         if let Some(ref w) = *watcher_lock {
             w.ignore_next_change(path.clone());
         }
     }
-    
+
     // 获取相对路径
     let mut relative_path = get_relative_path(&workspace_root, &path)?;
-    
+
     // 检查是否需要重命名文件（标题改变）
     let mut new_path: Option<PathBuf> = None;
+    let mut title_changed = false;
+
     if let Some(ref meta) = metadata {
         if let Some(new_title) = meta.get("title").and_then(|v| v.as_str()) {
             // 从当前文件名提取标题
             let current_title = path.file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("");
-            
-            info!("📝 [更新文件] 当前标题: {}", current_title);
-            info!("📝 [更新文件] 新标题: {}", new_title);
-            
+
             // 如果标题改变了，需要重命名文件
             if new_title != current_title {
-                info!("📝 [更新文件] 标题改变，需要重命名文件");
-                
+                title_changed = true;
+                debug!("📝 [更新文件] 标题改变: {} -> {}", current_title, new_title);
+
                 // 生成新文件名
                 let parent_dir = path.parent().ok_or("无法获取父目录")?;
                 let safe_filename = FileNameGenerator::generate_filename(new_title);
                 let mut target_path = parent_dir.join(&safe_filename);
-                
-                info!("📝 [更新文件] 生成的安全文件名: {}", safe_filename);
-                info!("📝 [更新文件] 目标路径: {}", target_path.display());
-                
+
                 // 处理文件名冲突
                 if target_path.exists() && target_path != path {
-                    info!("📝 [更新文件] 目标文件已存在，解决冲突");
                     let resolved_name = FileNameGenerator::resolve_conflict(parent_dir, &safe_filename);
                     target_path = parent_dir.join(&resolved_name);
-                    info!("📝 [更新文件] 解决冲突后的文件名: {}", resolved_name);
                 }
-                
+
                 // 重命名文件
-                info!("📝 [更新文件] 执行重命名: {} -> {}", path.display(), target_path.display());
                 std::fs::rename(&path, &target_path)
                     .map_err(|e| format!("重命名文件失败: {}", e))?;
-                info!("✅ [更新文件] 文件重命名成功");
-                
+
                 // 忽略新文件的变化
                 if let Ok(watcher_lock) = watcher.lock() {
                     if let Some(ref w) = *watcher_lock {
                         w.ignore_next_change(target_path.clone());
                     }
                 }
-                
+
                 new_path = Some(target_path.clone());
                 path = target_path;
                 relative_path = get_relative_path(&workspace_root, &path)?;
-                info!("📝 [更新文件] 新的相对路径: {}", relative_path);
-            } else {
-                info!("📝 [更新文件] 标题未改变，无需重命名");
             }
         }
     }
-    
+
+    // 如果内容没有变化且元数据也没有变化，提前返回
+    let needs_content_update = content.is_some();
+    let needs_metadata_update = metadata.is_some();
+
+    if !needs_content_update && !needs_metadata_update && !title_changed {
+        debug!("📝 [更新文件] 内容无变化，跳过");
+        return Ok(None);
+    }
+
     // 构建 FrontMatter（当有 metadata 时，用于写入文件的 Front Matter）
     let frontmatter_opt: Option<FrontMatter> = if let Some(ref meta) = metadata {
         let cache = cache_manager.read()
@@ -519,19 +490,19 @@ pub async fn update_markdown_file(
     } else {
         None
     };
-    
+
     // 更新文件内容（含 Front Matter 当有 metadata 时）
     fs_manager.update_markdown_file(
         &path,
         content.as_deref(),
         frontmatter_opt.as_ref(),
     )?;
-    
+
     // 更新元数据到 cache.json
-    if metadata.is_some() {
+    if needs_metadata_update {
         let mut cache = cache_manager.write()
             .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-        
+
         // 如果文件被重命名，需要先移除旧的元数据
         if new_path.is_some() {
             let old_relative_path = get_relative_path(&workspace_root, &PathBuf::from(&file_path))?;
@@ -540,43 +511,38 @@ pub async fn update_markdown_file(
                 cache.set_file_metadata(relative_path.clone(), old_metadata);
             }
         }
-        
-        // cache.json 只存储文件系统索引字段，内容元数据（tags/type/language/favorite）
-        // 已写入 Frontmatter，不再同步到 cache.json
+
         cache.update_file_metadata(&relative_path, |m| {
             m.modified = chrono::Utc::now().timestamp_millis();
             if let Some(new_content) = &content {
                 m.size = Some(new_content.len() as u64);
             }
         })?;
-        
+
         cache.save()?;
     }
-    
+
     // 更新索引
     if let Ok(manager_lock) = index_manager.read() {
         if let Some(ref manager) = *manager_lock {
             let cache = cache_manager.read()
                 .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-            
+
             // 如果文件被重命名，先移除旧索引
             if new_path.is_some() {
                 let _ = manager.remove_entry(&PathBuf::from(&file_path));
             }
-            
+
             let _ = manager.update_entry(&path, &workspace_root, &*cache);
         }
     }
-    
-    info!("✅ [更新文件] 更新完成: {}", path.display());
-    
+
     // 如果文件被重命名，返回新路径
     if let Some(new_path) = new_path {
-        let result = new_path.to_string_lossy().to_string();
-        info!("📝 [更新文件] 返回新路径: {}", result);
-        Ok(Some(result))
+        debug!("✅ [更新文件] 完成（已重命名）: {}", path.display());
+        Ok(Some(new_path.to_string_lossy().to_string()))
     } else {
-        info!("📝 [更新文件] 文件未重命名，返回 None");
+        debug!("✅ [更新文件] 完成: {}", path.display());
         Ok(None)
     }
 }
@@ -595,7 +561,7 @@ pub async fn delete_markdown_file(
     
     // 获取相对路径（在删除文件前）
     let relative_path = get_relative_path(&workspace_root, &path)?;
-    info!("🗑️ [删除文件] 相对路径: {}", relative_path);
+    debug!("🗑️ [删除文件] 相对路径: {}", relative_path);
     
     // 删除文件
     fs_manager.delete_markdown_file(&path)?;
@@ -607,7 +573,7 @@ pub async fn delete_markdown_file(
     if cache.get_file_metadata(&relative_path).is_some() {
         cache.remove_file_metadata(&relative_path);
         cache.save()?;
-        info!("🗑️ [删除文件] 已从 cache.json 移除元数据: {}", relative_path);
+        debug!("🗑️ [删除文件] 已从 cache.json 移除元数据: {}", relative_path);
     } else {
         warn!("⚠️ [删除文件] cache.json 中未找到文件元数据: {}", relative_path);
     }
@@ -619,11 +585,11 @@ pub async fn delete_markdown_file(
     if let Ok(manager_lock) = index_manager.read() {
         if let Some(ref manager) = *manager_lock {
             let _ = manager.remove_entry(&path);
-            info!("🗑️ [删除文件] 已从搜索索引移除");
+            debug!("🗑️ [删除文件] 已从搜索索引移除");
         }
     }
     
-    info!("✅ 删除文件: {}", path.display());
+    debug!("✅ 删除文件: {}", path.display());
     Ok(())
 }
 
@@ -1141,58 +1107,61 @@ pub async fn move_markdown_file(
     let fs_manager = get_fs_manager(&app_handle)?;
     let workspace_root = get_workspace_root(&app_handle)?
         .ok_or_else(|| "工作区根目录未设置".to_string())?;
-    
+
     let old_path = PathBuf::from(&file_path);
-    
-    info!("📦 [移动文件] 开始移动文件");
-    info!("📦 [移动文件] 原文件路径: {}", old_path.display());
-    info!("📦 [移动文件] 目标分类: {}", new_category);
-    info!("📦 [移动文件] 工作区根目录: {}", workspace_root.display());
-    
+
     // 获取旧文件的相对路径（用于查找 cache.json）
     let old_relative_path = get_relative_path(&workspace_root, &old_path)?;
-    info!("📦 [移动文件] 旧相对路径: {}", old_relative_path);
-    
+
+    // 获取当前文件所在分类
+    let current_category = Path::new(&old_relative_path)
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+
+    // 标准化目标分类（空字符串表示"未分类"）
+    let target_category = if new_category.is_empty() { "未分类" } else { &new_category };
+
+    // 如果目标分类与当前分类相同，跳过移动
+    if current_category == target_category {
+        debug!("📦 [移动文件] 目标分类与当前分类相同，跳过移动: {}", old_path.display());
+        return Ok(file_path);
+    }
+
+    debug!("📦 [移动文件] 开始移动: {} -> {}", old_relative_path, target_category);
+
     // 移动文件
     let new_relative_path = fs_manager.move_markdown_file(&old_path, &new_category)?;
-    info!("📦 [移动文件] 新相对路径: {}", new_relative_path.display());
-    
+
     // 更新 cache.json
     let mut cache = cache_manager.write()
         .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-    
+
     // 移动元数据
     // 标准化新路径（统一使用 / 作为分隔符）
     let new_relative_path_str = new_relative_path.to_string_lossy().replace('\\', "/");
-    
+
     if let Some(metadata) = cache.get_file_metadata(&old_relative_path).cloned() {
-        info!("📦 [移动文件] 找到旧元数据，开始移动");
         cache.remove_file_metadata(&old_relative_path);
         cache.set_file_metadata(new_relative_path_str.clone(), metadata);
-        info!("📦 [移动文件] 元数据移动完成");
     } else {
         warn!("⚠️ [移动文件] 未找到旧文件的元数据: {}", old_relative_path);
-        warn!("📋 [移动文件] cache.json 中的所有文件:");
-        for (key, _) in cache.get_all_files() {
-            warn!("   - {}", key);
-        }
         return Err(format!("未找到文件元数据: {}", old_relative_path));
     }
-    
+
     // 保存 cache
     cache.save()?;
-    
+
     // 更新索引
     if let Ok(manager_lock) = index_manager.read() {
         if let Some(ref manager) = *manager_lock {
             let _ = manager.remove_entry(&old_path);
-            // 新文件会在下次扫描时自动添加到索引
         }
     }
-    
+
     let new_path_str = workspace_root.join(&new_relative_path).to_string_lossy().to_string();
-    info!("✅ 移动文件: {} -> {}", old_relative_path, new_path_str);
-    info!("📦 [移动文件] cache.json 中使用的路径: {}", new_relative_path_str);
+    debug!("✅ [移动文件] 完成: {} -> {}", old_relative_path, new_relative_path_str);
     Ok(new_path_str)
 }
 // 搜索 Markdown 文件（包装器，调用优化版本的索引管理器）
@@ -1290,23 +1259,20 @@ pub fn scan_new_files(
     app_handle: AppHandle,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
 ) -> Result<usize, String> {
-    info!("🔍 [扫描新文件] ========== 开始 ==========");
-    
     let fs_manager = get_fs_manager(&app_handle)?;
     let workspace_root = fs_manager.workspace_root().to_path_buf();
-    
+
     let mut cache = cache_manager.write()
         .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-    
+
     // 重建缓存（会扫描所有文件，添加新文件到 cache）
     let file_count = cache.rebuild_cache(&workspace_root)?;
-    
+
     // 保存 cache
     cache.save()?;
-    
-    info!("✅ [扫描新文件] 扫描完成，共 {} 个文件", file_count);
-    info!("🔍 [扫描新文件] ========== 结束 ==========");
-    
+
+    info!("✅ [扫描新文件] 完成，共 {} 个文件", file_count);
+
     Ok(file_count)
 }
 

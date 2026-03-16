@@ -4,7 +4,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use log::info;
+use log::debug;
 use crate::markdown::metadata::{FrontMatter, parse_front_matter, try_parse_front_matter, format_frontmatter_block};
 use crate::markdown::file_ops::FileNameGenerator;
 
@@ -181,7 +181,7 @@ impl FileSystemManager {
         };
         fs::write(&file_path, full_content).map_err(|e| map_io_error(&e, "写入文件", &file_path))?;
         
-        info!("📝 创建文件（含 Front Matter）: {}", file_path.display());
+        debug!("📝 创建文件（含 Front Matter）: {}", file_path.display());
         Ok(file_path)
     }
     
@@ -248,7 +248,7 @@ impl FileSystemManager {
         // 尝试解析 Front Matter（用于向后兼容）
         match parse_front_matter(&content) {
             Ok((metadata, body)) => {
-                info!("📖 读取文件（包含 Front Matter）: {}", full_path.display());
+                debug!("📖 读取文件（包含 Front Matter）: {}", full_path.display());
                 Ok((metadata, body))
             },
             Err(_) => {
@@ -272,7 +272,7 @@ impl FileSystemManager {
                     favorite: false,
                 };
                 
-                info!("📖 读取文件（无 Front Matter）: {}", full_path.display());
+                debug!("📖 读取文件（无 Front Matter）: {}", full_path.display());
                 Ok((metadata, content))
             }
         }
@@ -323,7 +323,7 @@ impl FileSystemManager {
                 };
                 fs::write(&full_path, full_content)
                     .map_err(|e| map_io_error(&e, "写入文件", &full_path))?;
-                info!("✏️ 更新文件（含 Front Matter）: {}", full_path.display());
+                debug!("✏️ 更新文件（含 Front Matter）: {}", full_path.display());
                 return Ok(());
             }
             (None, Some(meta)) => {
@@ -340,7 +340,7 @@ impl FileSystemManager {
                 };
                 fs::write(&full_path, full_content)
                     .map_err(|e| map_io_error(&e, "写入文件", &full_path))?;
-                info!("✏️ 更新文件 Front Matter: {}", full_path.display());
+                debug!("✏️ 更新文件 Front Matter: {}", full_path.display());
                 return Ok(());
             }
             (Some(new_content), None) => {
@@ -360,7 +360,7 @@ impl FileSystemManager {
                 };
                 fs::write(&full_path, full_content)
                     .map_err(|e| map_io_error(&e, "写入文件", &full_path))?;
-                info!("✏️ 更新文件内容: {}", full_path.display());
+                debug!("✏️ 更新文件内容: {}", full_path.display());
                 return Ok(());
             }
             (None, None) => {
@@ -400,7 +400,7 @@ impl FileSystemManager {
         fs::write(&full_path, new_content)
             .map_err(|e| map_io_error(&e, "写入文件", &full_path))?;
         
-        info!("✏️ 更新文件 Front Matter: {}", full_path.display());
+        debug!("✏️ 更新文件 Front Matter: {}", full_path.display());
         Ok(())
     }
     
@@ -430,7 +430,7 @@ impl FileSystemManager {
         fs::remove_file(&full_path)
             .map_err(|e| format!("删除文件失败 '{}': {}", full_path.display(), e))?;
         
-        info!("🗑️ 删除文件: {}", full_path.display());
+        debug!("🗑️ 删除文件: {}", full_path.display());
         Ok(())
     }
     
@@ -527,7 +527,7 @@ impl FileSystemManager {
         let relative_path = new_full_path.strip_prefix(&self.workspace_root)
             .map_err(|e| format!("获取相对路径失败: {}", e))?;
         
-        info!("📦 移动文件: {} -> {}", old_full_path.display(), new_full_path.display());
+        debug!("📦 移动文件: {} -> {}", old_full_path.display(), new_full_path.display());
         Ok(relative_path.to_path_buf())
     }
     
@@ -561,7 +561,7 @@ impl FileSystemManager {
         fs::create_dir_all(&folder_path)
             .map_err(|e| map_io_error(&e, "创建文件夹", &folder_path))?;
         
-        info!("📁 创建文件夹: {}", safe_name);
+        debug!("📁 创建文件夹: {}", safe_name);
         Ok(folder_path)
     }
     
@@ -621,7 +621,7 @@ impl FileSystemManager {
                 self.validate_path(&folder_path)?;
                 
                 if !folder_path.exists() {
-                    info!("   ⚠️ 分类文件夹不存在: {}", folder_path.display());
+                    debug!("   ⚠️ 分类文件夹不存在: {}", folder_path.display());
                     return Ok(Vec::new());
                 }
                 
@@ -634,7 +634,7 @@ impl FileSystemManager {
                     
                     // 只包含 .md 文件（不包含子目录）
                     if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
-                        info!("   ✅ 找到分类文件: {}", path.display());
+                        debug!("   ✅ 找到分类文件: {}", path.display());
                         files.push(path);
                     }
                 }

@@ -24,7 +24,7 @@
               :strokeWidth="3"
             />
             <check-one
-              v-else-if="syncState === 'synced' || syncState === 'idle'"
+              v-else-if="syncState === 'synced' || syncState === 'idle' || syncState === 'disabled'"
               theme="outline"
               size="24"
               :strokeWidth="3"
@@ -58,6 +58,9 @@
               </template>
               <template v-else-if="syncState === 'error'">
                 {{ $t('settings.gitSync.status.error') }}
+              </template>
+              <template v-else-if="syncState === 'disabled'">
+                {{ $t('settings.gitSync.status.checking') }}
               </template>
             </div>
           </div>
@@ -105,109 +108,8 @@
         </div>
       </section>
 
-      <!-- Git 配置（仅在启用时显示） -->
+      <!-- 同步选项（Git 必要配置在个人中心填写，此处仅保留开关与同步操作） -->
       <template v-if="gitSettings.enabled">
-        <!-- 自动检测按钮 -->
-        <section class="summarize-section">
-          <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.autoDetect') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.autoDetectDesc') }}</div>
-          </div>
-          <div class="summarize-input-wrapper">
-            <CustomButton 
-              size="small" 
-              :loading="isDetecting"
-              @click="handleDetectConfig"
-            >
-              {{ $t('settings.gitSync.detectButton') }}
-            </CustomButton>
-          </div>
-        </section>
-
-        <!-- Git 用户名 -->
-        <section class="summarize-section transparent-input">
-          <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.userName') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.userNameDesc') }}</div>
-          </div>
-          <div class="summarize-input-wrapper">
-            <el-input 
-              v-model="gitSettings.user_name" 
-              :placeholder="$t('settings.gitSync.userNamePlaceholder')"
-              :disabled="isSaving"
-              class="summarize-input"
-            />
-          </div>
-        </section>
-
-        <!-- Git 邮箱 -->
-        <section class="summarize-section transparent-input">
-          <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.userEmail') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.userEmailDesc') }}</div>
-          </div>
-          <div class="summarize-input-wrapper">
-            <el-input 
-              v-model="gitSettings.user_email" 
-              :placeholder="$t('settings.gitSync.userEmailPlaceholder')"
-              :disabled="isSaving"
-              class="summarize-input"
-            />
-          </div>
-        </section>
-
-        <!-- GitHub Token -->
-        <section class="summarize-section transparent-input">
-          <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.token') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.tokenDesc') }}</div>
-          </div>
-          <div class="summarize-input-wrapper">
-            <el-input 
-              v-model="gitSettings.token" 
-              type="password"
-              show-password
-              :placeholder="$t('settings.gitSync.tokenPlaceholder')"
-              :disabled="isSaving"
-              class="summarize-input !w-96"
-            />
-          </div>
-        </section>
-
-        <!-- 远程仓库 URL -->
-        <section class="summarize-section transparent-input">
-          <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.remoteUrl') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.remoteUrlDesc') }}</div>
-          </div>
-          <div class="summarize-input-wrapper">
-            <el-input 
-              v-model="gitSettings.remote_url" 
-              :placeholder="$t('settings.gitSync.remoteUrlPlaceholder')"
-              :disabled="isSaving"
-              class="summarize-input !w-96"
-            />
-          </div>
-        </section>
-
-        <!-- 保存 Git 配置按钮 -->
-        <section class="summarize-section">
-          <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.saveConfig') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.saveConfigDesc') }}</div>
-          </div>
-          <div class="summarize-input-wrapper">
-            <CustomButton 
-              type="primary" 
-              size="small" 
-              :loading="isSaving"
-              @click="saveGitConfig"
-            >
-              {{ $t('common.save') }}
-            </CustomButton>
-          </div>
-        </section>
-
         <!-- 启动时自动拉取 -->
         <section class="summarize-section">
           <div class="summarize-label">
@@ -294,22 +196,6 @@
       </template>
     </main>
     
-    <!-- 配置选择对话框 -->
-    <GitConfigDialog
-      v-model="showConfigDialog"
-      :system-config="detectedConfig"
-      @confirm="handleConfigSelected"
-    />
-    
-    <!-- 保存配置确认对话框 -->
-    <GitSaveConfigDialog
-      v-model="showSaveConfigDialog"
-      :config="gitSettings"
-      :loading="isSaving"
-      @confirm="handleSaveConfigConfirm"
-      @cancel="handleSaveConfigCancel"
-    />
-
     <!-- 自定义确认框 -->
     <ConfirmChoiceDialog
       v-model="pullConfirmVisible"
@@ -330,21 +216,10 @@ import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Loading, CheckOne, Attention, CloseSmall } from '@icon-park/vue-next';
 import { CustomButton, CustomSwitch } from '@/components/UI';
-import GitConfigDialog from '@/components/GitConfigDialog/index.vue';
-import GitSaveConfigDialog from '@/components/GitSaveConfigDialog/index.vue';
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import { getGitSettings, updateGitSettings } from '@/api/appConfig';
 import { useGitStatus } from '@/hooks/useGitStatus';
-import { 
-  configureGit, 
-  gitPull, 
-  gitPush, 
-  getSystemGitConfig, 
-  startAutoSync,
-  stopAutoSync,
-  resumeAutoSync,
-  type SystemGitConfig 
-} from '@/api/git';
+import { gitPull, gitPush, startAutoSync, stopAutoSync } from '@/api/git';
 import type { GitSettings } from '@/types/models';
 import modal from '@/utils/modal';
 import { analyzeGitError, getErrorTypeIcon } from '@/utils/git-error';
@@ -385,8 +260,10 @@ const getSyncStatusLabel = (state: string) => {
       return t('settings.gitSync.status.error') || '同步出错';
     case 'idle':
       return t('settings.gitSync.status.idle') || '空闲';
+    case 'disabled':
+      return t('settings.gitSync.status.ready') || '就绪';
     default:
-      return t('settings.gitSync.status.unknown') || '未知';
+      return t('settings.gitSync.status.ready') || '就绪';
   }
 };
 
@@ -404,10 +281,6 @@ const gitSettings = ref<GitSettings>({
 const isSaving = ref(false);
 const isPulling = ref(false);
 const isPushing = ref(false);
-const isDetecting = ref(false);
-const showConfigDialog = ref(false);
-const showSaveConfigDialog = ref(false);
-const isShowingPullConfirm = ref(false);
 const pullConfirmVisible = ref(false);
 const pullConfirmOptions = ref({
   title: '',
@@ -442,19 +315,19 @@ const showFriendlyError = (error: unknown) => {
   console.groupEnd();
 };
 
-const showPullConfirm = () => {
-  pullConfirmOptions.value = {
-    title: t('settings.gitSync.pullNowTitle'),
-    message: t('settings.gitSync.pullNowMessage'),
-    primaryText: t('common.confirm'),
-    secondaryText: t('common.cancel'),
-    type: 'info'
-  };
-  pullConfirmVisible.value = true;
-  return new Promise<'primary' | 'secondary' | 'close'>((resolve) => {
-    pullConfirmResolve = resolve;
-  });
-};
+// const showPullConfirm = () => {
+//   pullConfirmOptions.value = {
+//     title: t('settings.gitSync.pullNowTitle'),
+//     message: t('settings.gitSync.pullNowMessage'),
+//     primaryText: t('common.confirm'),
+//     secondaryText: t('common.cancel'),
+//     type: 'info'
+//   };
+//   pullConfirmVisible.value = true;
+//   return new Promise<'primary' | 'secondary' | 'close'>((resolve) => {
+//     pullConfirmResolve = resolve;
+//   });
+// };
 
 const handlePullConfirmResult = (result: 'primary' | 'secondary' | 'close') => {
   pullConfirmVisible.value = false;
@@ -463,14 +336,6 @@ const handlePullConfirmResult = (result: 'primary' | 'secondary' | 'close') => {
     pullConfirmResolve = null;
   }
 };
-const detectedConfig = ref<SystemGitConfig>({
-  global_user_name: null,
-  global_user_email: null,
-  local_user_name: null,
-  local_user_email: null,
-  remote_url: null
-});
-
 // 加载 Git 设置
 const loadGitSettings = async () => {
   try {
@@ -481,67 +346,6 @@ const loadGitSettings = async () => {
   } catch (error) {
     logger.error('[GitSync] 加载 Git 设置失败', error);
     modal.msg(t('settings.gitSync.loadFailed'), 'error', 'top-right');
-  }
-};
-
-// 手动检测系统 Git 配置
-const handleDetectConfig = async () => {
-  isDetecting.value = true;
-  try {
-    const systemConfig = await getSystemGitConfig();
-    logger.info('[GitSync] 检测到的系统 Git 配置', systemConfig);
-    
-    // 检查是否有可用配置
-    const hasLocal = !!(systemConfig.local_user_name && systemConfig.local_user_email);
-    const hasGlobal = !!(systemConfig.global_user_name && systemConfig.global_user_email);
-    
-    if (!hasLocal && !hasGlobal) {
-      modal.msg(t('settings.gitSync.noConfigDetected'), 'warning', 'bottom-right');
-      return;
-    }
-    
-    // 显示配置选择对话框
-    detectedConfig.value = systemConfig;
-    showConfigDialog.value = true;
-  } catch (error) {
-    logger.error('[GitSync] 检测系统 Git 配置失败', error);
-    modal.msg(t('settings.gitSync.detectFailed'), 'error', 'top-right');
-  } finally {
-    isDetecting.value = false;
-  }
-};
-
-// 处理配置选择
-const handleConfigSelected = (selection: { type: 'local' | 'global' | 'manual'; data?: SystemGitConfig }) => {
-  if (selection.type === 'manual') {
-    // 用户选择手动配置，不填充
-    return;
-  }
-  
-  const config = selection.data;
-  if (!config) return;
-  
-  if (selection.type === 'local') {
-    // 使用本地配置
-    if (config.local_user_name) {
-      gitSettings.value.user_name = config.local_user_name;
-    }
-    if (config.local_user_email) {
-      gitSettings.value.user_email = config.local_user_email;
-    }
-    if (config.remote_url) {
-      gitSettings.value.remote_url = config.remote_url;
-    }
-    modal.msg(t('settings.gitSync.localConfigApplied'), 'success', 'bottom-right');
-  } else if (selection.type === 'global') {
-    // 使用全局配置
-    if (config.global_user_name) {
-      gitSettings.value.user_name = config.global_user_name;
-    }
-    if (config.global_user_email) {
-      gitSettings.value.user_email = config.global_user_email;
-    }
-    modal.msg(t('settings.gitSync.globalConfigApplied'), 'success', 'bottom-right');
   }
 };
 
@@ -567,114 +371,6 @@ const handleEnabledChange = async (value: boolean) => {
   } finally {
     isSaving.value = false;
   }
-};
-
-// 验证 URL 格式
-const validateUrl = (url: string): boolean => {
-  // 支持 HTTPS 格式
-  try {
-    const urlObj = new URL(url);
-    if (urlObj.protocol === 'https:' || urlObj.protocol === 'http:') {
-      return true;
-    }
-  } catch {
-    // 不是标准 URL 格式，继续检查 SSH 格式
-  }
-  
-  // 支持 SSH 格式：git@github.com:user/repo.git
-  const sshPattern = /^git@[\w.-]+:[\w/-]+\.git$/;
-  return sshPattern.test(url);
-};
-
-// 验证邮箱格式
-const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-// 保存 Git 配置
-const saveGitConfig = async () => {
-  // 验证必填字段
-  if (!gitSettings.value.user_name || !gitSettings.value.user_email || 
-      !gitSettings.value.token || !gitSettings.value.remote_url) {
-    modal.msg(t('settings.gitSync.fillAllFields'), 'warning', 'bottom-right');
-    return;
-  }
-  
-  // 验证邮箱格式
-  if (!validateEmail(gitSettings.value.user_email)) {
-    modal.msg(t('settings.gitSync.invalidEmail'), 'warning', 'bottom-right');
-    return;
-  }
-  
-  // 验证 URL 格式
-  if (!validateUrl(gitSettings.value.remote_url)) {
-    modal.msg(t('settings.gitSync.invalidUrl'), 'warning', 'bottom-right');
-    return;
-  }
-
-  // 显示确认对话框
-  showSaveConfigDialog.value = true;
-};
-
-// 确认保存配置
-const handleSaveConfigConfirm = async () => {
-  isSaving.value = true;
-  try {
-    // 1. 先配置 Git（含 Token 校验），成功后再保存，避免无效 Token 被持久化
-    await configureGit({
-      user_name: gitSettings.value.user_name,
-      user_email: gitSettings.value.user_email,
-      remote_url: gitSettings.value.remote_url,
-      token: gitSettings.value.token
-    });
-
-    // 2. 配置成功后保存到配置文件
-    await saveSettings();
-
-    // 3. 重新加载配置以确保状态同步
-    await loadGitSettings();
-
-    // 4. 如果自动同步已启用，确保启动自动同步管理器
-    if (gitSettings.value.auto_sync) {
-      await startAutoSync();
-      // 尝试恢复自动同步（如果之前被暂停）
-      try {
-        await resumeAutoSync();
-        logger.info('[GitSync] 自动同步已恢复');
-      } catch (e) {
-        // 如果恢复失败（可能之前没有暂停），静默忽略
-        logger.debug('[GitSync] 恢复自动同步失败', e);
-      }
-    }
-    
-    // 5. 显示成功消息
-    modal.msg(t('settings.gitSync.configSuccess'), 'success', 'bottom-right');
-    showSaveConfigDialog.value = false;
-    
-    // 6. 询问是否立即拉取（防止重复显示）
-    if (!isShowingPullConfirm.value) {
-      isShowingPullConfirm.value = true;
-      try {
-        const result = await showPullConfirm();
-        if (result === 'primary') {
-          await handlePull();
-        }
-      } finally {
-        isShowingPullConfirm.value = false;
-      }
-    }
-  } catch (error) {
-    logger.error('[GitSync] 配置 Git 失败', error);
-    modal.msg(`${t('settings.gitSync.configFailed')}: ${error}`, 'error', 'top-right');
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-// 取消保存配置
-const handleSaveConfigCancel = () => {
-  isSaving.value = false;
 };
 
 // 启动时自动拉取

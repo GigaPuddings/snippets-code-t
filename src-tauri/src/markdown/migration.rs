@@ -524,69 +524,69 @@ fn convert_to_markdown(content: &str, format: &Option<String>) -> Result<String,
 }
 
 // 将 HTML 转换为 Markdown
-fn html_to_markdown(html: &str) -> Result<String, String> {
+pub fn html_to_markdown(html: &str) -> Result<String, String> {
     use regex::Regex;
     
     let mut markdown = html.to_string();
     
     // 移除 HTML 标签并转换为 Markdown
-    // 注意：这是一个简化的转换，可能需要更复杂的处理
+    // 使用 (?s) 标志让 . 可以匹配换行符
     
     // 标题转换
-    let h1_re = Regex::new(r"<h1[^>]*>(.*?)</h1>").unwrap();
+    let h1_re = Regex::new(r"(?s)<h1[^>]*>(.*?)</h1>").unwrap();
     markdown = h1_re.replace_all(&markdown, "# $1").to_string();
     
-    let h2_re = Regex::new(r"<h2[^>]*>(.*?)</h2>").unwrap();
+    let h2_re = Regex::new(r"(?s)<h2[^>]*>(.*?)</h2>").unwrap();
     markdown = h2_re.replace_all(&markdown, "## $1").to_string();
     
-    let h3_re = Regex::new(r"<h3[^>]*>(.*?)</h3>").unwrap();
+    let h3_re = Regex::new(r"(?s)<h3[^>]*>(.*?)</h3>").unwrap();
     markdown = h3_re.replace_all(&markdown, "### $1").to_string();
     
-    let h4_re = Regex::new(r"<h4[^>]*>(.*?)</h4>").unwrap();
+    let h4_re = Regex::new(r"(?s)<h4[^>]*>(.*?)</h4>").unwrap();
     markdown = h4_re.replace_all(&markdown, "#### $1").to_string();
     
-    let h5_re = Regex::new(r"<h5[^>]*>(.*?)</h5>").unwrap();
+    let h5_re = Regex::new(r"(?s)<h5[^>]*>(.*?)</h5>").unwrap();
     markdown = h5_re.replace_all(&markdown, "##### $1").to_string();
     
-    let h6_re = Regex::new(r"<h6[^>]*>(.*?)</h6>").unwrap();
+    let h6_re = Regex::new(r"(?s)<h6[^>]*>(.*?)</h6>").unwrap();
     markdown = h6_re.replace_all(&markdown, "###### $1").to_string();
     
     // 段落转换
-    let p_re = Regex::new(r"<p[^>]*>(.*?)</p>").unwrap();
+    let p_re = Regex::new(r"(?s)<p[^>]*>(.*?)</p>").unwrap();
     markdown = p_re.replace_all(&markdown, "$1\n\n").to_string();
     
     // 加粗转换
-    let strong_re = Regex::new(r"<strong[^>]*>(.*?)</strong>").unwrap();
+    let strong_re = Regex::new(r"(?s)<strong[^>]*>(.*?)</strong>").unwrap();
     markdown = strong_re.replace_all(&markdown, "**$1**").to_string();
     
-    let b_re = Regex::new(r"<b[^>]*>(.*?)</b>").unwrap();
+    let b_re = Regex::new(r"(?s)<b[^>]*>(.*?)</b>").unwrap();
     markdown = b_re.replace_all(&markdown, "**$1**").to_string();
     
     // 斜体转换
-    let em_re = Regex::new(r"<em[^>]*>(.*?)</em>").unwrap();
+    let em_re = Regex::new(r"(?s)<em[^>]*>(.*?)</em>").unwrap();
     markdown = em_re.replace_all(&markdown, "*$1*").to_string();
     
-    let i_re = Regex::new(r"<i[^>]*>(.*?)</i>").unwrap();
+    let i_re = Regex::new(r"(?s)<i[^>]*>(.*?)</i>").unwrap();
     markdown = i_re.replace_all(&markdown, "*$1*").to_string();
     
     // 代码转换
-    let code_re = Regex::new(r"<code[^>]*>(.*?)</code>").unwrap();
+    let code_re = Regex::new(r"(?s)<code[^>]*>(.*?)</code>").unwrap();
     markdown = code_re.replace_all(&markdown, "`$1`").to_string();
     
-    // 代码块转换
-    let pre_re = Regex::new(r#"<pre[^>]*><code[^>]*class="language-([^"]*)"[^>]*>(.*?)</code></pre>"#).unwrap();
+    // 代码块转换 - 使用 (?s) 开启 dotall 模式匹配换行符
+    let pre_re = Regex::new(r#"(?s)<pre[^>]*><code[^>]*class="language-([^"]*)"[^>]*>(.*?)</code></pre>"#).unwrap();
     markdown = pre_re.replace_all(&markdown, "```$1\n$2\n```").to_string();
     
-    let pre_simple_re = Regex::new(r"<pre[^>]*><code[^>]*>(.*?)</code></pre>").unwrap();
+    let pre_simple_re = Regex::new(r#"(?s)<pre[^>]*><code[^>]*>(.*?)</code></pre>"#).unwrap();
     markdown = pre_simple_re.replace_all(&markdown, "```\n$1\n```").to_string();
     
     // 链接转换
-    let a_re = Regex::new(r#"<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>"#).unwrap();
+    let a_re = Regex::new(r#"(?s)<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>"#).unwrap();
     markdown = a_re.replace_all(&markdown, "[$2]($1)").to_string();
     
     // 无序列表转换
-    let ul_re = Regex::new(r"<ul[^>]*>(.*?)</ul>").unwrap();
-    let li_re = Regex::new(r"<li[^>]*>(.*?)</li>").unwrap();
+    let ul_re = Regex::new(r"(?s)<ul[^>]*>(.*?)</ul>").unwrap();
+    let li_re = Regex::new(r"(?s)<li[^>]*>(.*?)</li>").unwrap();
     
     // 先处理列表项
     markdown = li_re.replace_all(&markdown, "- $1\n").to_string();
@@ -594,11 +594,11 @@ fn html_to_markdown(html: &str) -> Result<String, String> {
     markdown = ul_re.replace_all(&markdown, "$1\n").to_string();
     
     // 有序列表转换
-    let ol_re = Regex::new(r"<ol[^>]*>(.*?)</ol>").unwrap();
+    let ol_re = Regex::new(r"(?s)<ol[^>]*>(.*?)</ol>").unwrap();
     markdown = ol_re.replace_all(&markdown, "$1\n").to_string();
     
     // 引用转换
-    let blockquote_re = Regex::new(r"<blockquote[^>]*>(.*?)</blockquote>").unwrap();
+    let blockquote_re = Regex::new(r"(?s)<blockquote[^>]*>(.*?)</blockquote>").unwrap();
     markdown = blockquote_re.replace_all(&markdown, "> $1\n").to_string();
     
     // 水平线转换
@@ -606,7 +606,7 @@ fn html_to_markdown(html: &str) -> Result<String, String> {
     markdown = hr_re.replace_all(&markdown, "\n---\n").to_string();
     
     // 换行转换
-    let br_re = Regex::new(r"<br[^>]*>").unwrap();
+    let br_re = Regex::new(r"(?s)<br[^>]*>").unwrap();
     markdown = br_re.replace_all(&markdown, "\n").to_string();
     
     // 移除其他 HTML 标签

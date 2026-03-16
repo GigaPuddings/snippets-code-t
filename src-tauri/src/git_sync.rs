@@ -3,7 +3,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::sync::RwLock as StdRwLock;
 use log::{info, warn, error};
@@ -120,7 +119,7 @@ pub struct RepoNotFoundPayload {
 
 /// 检查系统是否安装了 Git
 pub fn check_git_installed() -> Result<bool, String> {
-    match Command::new("git").arg("--version").output() {
+    match crate::git_common::git_command().arg("--version").output() {
         Ok(output) => {
             if output.status.success() {
                 let version = String::from_utf8_lossy(&output.stdout);
@@ -142,7 +141,7 @@ pub fn check_git_repo(workspace_root: &Path) -> Result<bool, String> {
 
 /// 检查是否配置了远程仓库
 pub fn check_remote_configured(workspace_root: &Path) -> Result<bool, String> {
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&["remote", "-v"])
         .current_dir(workspace_root)
         .output()
@@ -170,7 +169,7 @@ pub struct SystemGitConfig {
 
 /// 获取 Git 配置值
 fn get_git_config_value(workspace_root: Option<&Path>, key: &str, global: bool) -> Option<String> {
-    let mut cmd = Command::new("git");
+    let mut cmd = crate::git_common::git_command();
     
     if global {
         cmd.args(&["config", "--global", key]);
@@ -255,7 +254,7 @@ fn read_git_config_from_file(workspace_root: &Path) -> Option<SystemGitConfig> {
     }
 }
 
-/// 获取系统 Git 配置
+/// 获取系统 Git 配置（含全局，可能触发终端，生产环境慎用）
 pub fn get_system_git_config(workspace_root: Option<&Path>) -> Result<SystemGitConfig, String> {
     // 优先从工作区 .git/config 读取
     if let Some(root) = workspace_root {
@@ -295,10 +294,28 @@ pub fn get_system_git_config(workspace_root: Option<&Path>) -> Result<SystemGitC
     })
 }
 
+/// 仅从工作区 .git/config 读取 Git 配置，不调用系统 git config（避免生产环境终端闪退）
+pub fn get_workspace_git_config(workspace_root: Option<&Path>) -> Result<SystemGitConfig, String> {
+    let root = workspace_root.ok_or_else(|| "工作区未设置".to_string())?;
+    match read_git_config_from_file(root) {
+        Some(config) => {
+            info!("✅ [Git] 从工作区 .git/config 读取配置成功");
+            Ok(config)
+        }
+        None => Ok(SystemGitConfig {
+            global_user_name: None,
+            global_user_email: None,
+            local_user_name: None,
+            local_user_email: None,
+            remote_url: None,
+        }),
+    }
+}
+
 /// 配置 Git 用户信息
 pub fn configure_git_user(workspace_root: &Path, user_name: &str, user_email: &str) -> Result<(), String> {
     // 配置用户名
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&["config", "user.name", user_name])
         .current_dir(workspace_root)
         .output()
@@ -310,7 +327,7 @@ pub fn configure_git_user(workspace_root: &Path, user_name: &str, user_email: &s
     }
     
     // 配置邮箱
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&["config", "user.email", user_email])
         .current_dir(workspace_root)
         .output()
@@ -326,8 +343,8 @@ pub fn configure_git_user(workspace_root: &Path, user_name: &str, user_email: &s
 }
 
 /// 校验 Token 有效性（仅 HTTPS + token，不修改仓库配置）
-fn validate_token_url(workspace_root: &Path, authenticated_url: &str) -> Result<(), String> {
-    let ls_output = Command::new("git")
+pub fn validate_token_url(workspace_root: &Path, authenticated_url: &str) -> Result<(), String> {
+    let ls_output = crate::git_common::git_command()
         .args(&["-c", "credential.helper=", "ls-remote", authenticated_url])
         .current_dir(workspace_root)
         .output()
@@ -381,7 +398,7 @@ pub fn configure_remote(workspace_root: &Path, remote_url: &str, token: &str) ->
     }
 
     // 检查是否已有 origin
-    let check_output = Command::new("git")
+    let check_output = crate::git_common::git_command()
         .args(&["remote", "get-url", "origin"])
         .current_dir(workspace_root)
         .output()
@@ -393,7 +410,7 @@ pub fn configure_remote(workspace_root: &Path, remote_url: &str, token: &str) ->
         vec!["remote", "add", "origin", &authenticated_url]
     };
 
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&command)
         .current_dir(workspace_root)
         .output()
@@ -411,7 +428,7 @@ pub fn configure_remote(workspace_root: &Path, remote_url: &str, token: &str) ->
 
     if !branch.is_empty() && branch != "master" {
         // 设置上游分支
-        let upstream_output = Command::new("git")
+        let upstream_output = crate::git_common::git_command()
             .args(&["branch", &format!("--set-upstream-to=origin/{}", branch), &branch])
             .current_dir(workspace_root)
             .output();
@@ -464,7 +481,7 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
     let has_remote = check_remote_configured(workspace_root)?;
     
     // 获取当前分支
-    let branch_output = Command::new("git")
+    let branch_output = crate::git_common::git_command()
         .args(&["branch", "--show-current"])
         .current_dir(workspace_root)
         .output()
@@ -477,7 +494,7 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
     };
     
     // 获取变更文件
-    let status_output = Command::new("git")
+    let status_output = crate::git_common::git_command()
         .args(&["status", "--porcelain"])
         .current_dir(workspace_root)
         .output()
@@ -538,7 +555,7 @@ fn get_changed_files_with_status(
     let base_ref = match pre_pull_head {
         Some(hash) if !hash.is_empty() => hash.to_string(),
         _ => {
-            let orig_head = Command::new("git")
+            let orig_head = crate::git_common::git_command()
                 .args(&["rev-parse", "ORIG_HEAD"])
                 .current_dir(workspace_root)
                 .output();
@@ -554,7 +571,7 @@ fn get_changed_files_with_status(
         }
     };
 
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&["diff", "--name-status", &base_ref, "HEAD"])
         .current_dir(workspace_root)
         .output()
@@ -630,7 +647,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
     info!("🔄 [Git] 开始 pull 操作");
     
     // 记录 pull 前的 HEAD commit hash
-    let pre_pull_head = Command::new("git")
+    let pre_pull_head = crate::git_common::git_command()
         .args(&["rev-parse", "HEAD"])
         .current_dir(workspace_root)
         .output()
@@ -739,8 +756,36 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
             });
         }
         
-        // 检查是否是远程分支不存在
+        // 检查是否是远程分支不存在（常见：本地 master，远程只有 main）
         if stderr.contains("couldn't find remote ref") || stderr.contains("does not exist") {
+            if let Ok(remote_branch) = get_remote_default_branch(workspace_root) {
+                if remote_branch != branch {
+                    // 远程默认分支与当前分支不同，先 stash 未跟踪文件，再 reset --hard 到远程分支
+                    let _ = run_git_command(workspace_root, &["stash", "-u"]);
+                    let _ = run_git_command(workspace_root, &["fetch", "origin"]);
+                    let reset_out = run_git_command(
+                        workspace_root,
+                        &["reset", "--hard", &format!("origin/{}", remote_branch)],
+                    );
+                    if let Ok(re) = reset_out {
+                        if re.status.success() {
+                            let _ = run_git_command(workspace_root, &["stash", "pop"]);
+                            info!("✅ [Git] 已重置到远程分支 origin/{} 并拉取最新数据", remote_branch);
+                            let last_sync_time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                            return Ok(PullResult {
+                                success: true,
+                                files_updated: 1,
+                                has_conflicts: false,
+                                conflict_files: vec![],
+                                message: format!("已从远程分支 {} 拉取最新数据", remote_branch),
+                                pre_pull_head: None,
+                                untracked_files: vec![],
+                                last_sync_time: Some(last_sync_time),
+                            });
+                        }
+                    }
+                }
+            }
             info!("ℹ️ [Git] 远程分支不存在，可能是首次推送前");
             return Ok(PullResult {
                 success: true,
@@ -809,7 +854,7 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
     info!("🔄 [Git] 开始 push 操作");
     
     // 1. git add .
-    let add_output = Command::new("git")
+    let add_output = crate::git_common::git_command()
         .args(&["add", "."])
         .current_dir(workspace_root)
         .output()
@@ -834,7 +879,7 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
     }
     
     // 3. git commit
-    let commit_output = Command::new("git")
+    let commit_output = crate::git_common::git_command()
         .args(&["commit", "-m", message])
         .current_dir(workspace_root)
         .output()
@@ -978,7 +1023,7 @@ fn extract_untracked_files_from_error(error_msg: &str) -> Vec<String> {
 
 /// 检测冲突文件
 pub fn detect_conflicts(workspace_root: &Path) -> Result<Vec<String>, String> {
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&["diff", "--name-only", "--diff-filter=U"])
         .current_dir(workspace_root)
         .output()
@@ -1003,7 +1048,7 @@ pub fn resolve_conflict(workspace_root: &Path, file_path: &str, strategy: Confli
     match strategy {
         ConflictStrategy::KeepLocal => {
             // 使用本地版本
-            let output = Command::new("git")
+            let output = crate::git_common::git_command()
                 .args(&["checkout", "--ours", file_path])
                 .current_dir(workspace_root)
                 .output()
@@ -1016,7 +1061,7 @@ pub fn resolve_conflict(workspace_root: &Path, file_path: &str, strategy: Confli
         }
         ConflictStrategy::KeepRemote => {
             // 使用远程版本
-            let output = Command::new("git")
+            let output = crate::git_common::git_command()
                 .args(&["checkout", "--theirs", file_path])
                 .current_dir(workspace_root)
                 .output()
@@ -1041,7 +1086,7 @@ pub fn resolve_conflict(workspace_root: &Path, file_path: &str, strategy: Confli
     }
     
     // 标记为已解决
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&["add", file_path])
         .current_dir(workspace_root)
         .output()
@@ -1091,11 +1136,129 @@ pub fn check_gitignore(workspace_root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// 默认 .gitignore 内容（工作区无此文件时自动创建）
+const DEFAULT_GITIGNORE: &str = r#"# ================================
+# Snippets Code 工作区 .gitignore
+# 此文件用于过滤不应上传到 Git 远程仓库的文件和文件夹
+# ================================
+
+# ------------------------------
+# 注意：以下内容应该提交到仓库
+# ------------------------------
+# .snippets-code/   - 应用配置和缓存（请勿忽略）
+# assets/           - 附件目录（请勿忽略）
+# attachments/      - 附件目录（请勿忽略）
+# *.md              - Markdown 笔记文件（请勿忽略）
+# 你的笔记分类文件夹    - 自定义的笔记目录（请勿忽略）
+
+# ------------------------------
+# 临时文件和编辑器配置（可以忽略）
+# ------------------------------
+# 编辑器临时文件
+*.swp
+*.swo
+*~
+
+# VSCode
+.vscode/
+.idea/
+
+# ------------------------------
+# 用户基本数据（建议忽略）
+# ------------------------------
+.snippets-code/app.json
+.snippets-code/cache.json
+*.db
+
+# ------------------------------
+# 操作系统临时文件（建议忽略）
+# ------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ------------------------------
+# 备份文件（建议忽略）
+# ------------------------------
+*.bak
+*.backup
+*.old
+
+# ------------------------------
+# 构建产物（如果工作区包含前端项目）
+# ------------------------------
+node_modules/
+dist/
+target/
+
+# ------------------------------
+# 应用程序与安装包（勿提交到远程）
+# ------------------------------
+*.exe
+*.msi
+*.dmg
+*.AppImage
+uninstall.exe
+"#;
+
+/// 确保工作区存在 .gitignore，不存在则用默认内容创建
+pub fn ensure_gitignore(workspace_root: &Path) -> Result<bool, String> {
+    let gitignore_path = workspace_root.join(".gitignore");
+    if gitignore_path.exists() {
+        return Ok(false);
+    }
+    std::fs::write(&gitignore_path, DEFAULT_GITIGNORE)
+        .map_err(|e| format!("创建 .gitignore 失败: {}", e))?;
+    info!("✅ [Git] 已自动创建 .gitignore");
+    Ok(true)
+}
+
 // ============= 辅助函数 =============
+
+/// 获取远程 origin 的默认分支名（如 main / master）
+fn get_remote_default_branch(workspace_root: &Path) -> Result<String, String> {
+    let out = crate::git_common::git_command()
+        .args(&["ls-remote", "--symref", "origin", "HEAD"])
+        .current_dir(workspace_root)
+        .output()
+        .map_err(|e| format!("获取远程默认分支失败: {}", e))?;
+    if !out.status.success() {
+        let err = get_git_stderr(&out);
+        return Err(err);
+    }
+    let s = String::from_utf8_lossy(&out.stdout);
+    // 格式: "ref: refs/heads/main	HEAD" 或 "ref: refs/heads/master	HEAD"
+    for line in s.lines() {
+        let line = line.trim();
+        if line.starts_with("ref: refs/heads/") {
+            if let Some(rest) = line.strip_prefix("ref: refs/heads/") {
+                if let Some(branch) = rest.split_whitespace().next() {
+                    return Ok(branch.to_string());
+                }
+            }
+        }
+    }
+    // 回退：先试 main，再试 master
+    let main_out = crate::git_common::git_command()
+        .args(&["ls-remote", "origin", "refs/heads/main"])
+        .current_dir(workspace_root)
+        .output();
+    if main_out.as_ref().map(|o| o.status.success()).unwrap_or(false) {
+        return Ok("main".to_string());
+    }
+    let master_out = crate::git_common::git_command()
+        .args(&["ls-remote", "origin", "refs/heads/master"])
+        .current_dir(workspace_root)
+        .output();
+    if master_out.as_ref().map(|o| o.status.success()).unwrap_or(false) {
+        return Ok("master".to_string());
+    }
+    Ok("main".to_string())
+}
 
 /// 获取当前分支名
 pub fn get_current_branch(workspace_root: &Path) -> Result<String, String> {
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&["branch", "--show-current"])
         .current_dir(workspace_root)
         .output()
@@ -1169,16 +1332,185 @@ pub fn get_system_git_config_command(app_handle: AppHandle) -> Result<SystemGitC
 pub fn configure_git_command(app_handle: AppHandle, config: GitConfig) -> Result<(), String> {
     let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
         .ok_or("工作区未设置".to_string())?;
-    
+
     // 配置用户信息
     configure_git_user(&workspace_root, &config.user_name, &config.user_email)?;
-    
+
     // 配置远程仓库
     configure_remote(&workspace_root, &config.remote_url, &config.token)?;
-    
+
     // 检查 .gitignore（仅检查，不自动创建）
     check_gitignore(&workspace_root)?;
-    
+
+    Ok(())
+}
+
+/// 初始化 Git 仓库并配置远程（保存 Git 配置后自动调用）
+#[command]
+pub fn init_git_repository_command(
+    app_handle: AppHandle,
+    user_name: String,
+    user_email: String,
+    remote_url: String,
+    token: String,
+) -> Result<(), String> {
+    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
+        .ok_or("工作区未设置".to_string())?;
+
+    info!("🚀 [Git] 开始初始化 Git 仓库，workspace_root: {}", workspace_root.display());
+
+    // 1. 检查是否已是 Git 仓库
+    if !check_git_repo(&workspace_root)? {
+        // 初始化仓库
+        let init_output = crate::git_common::git_command()
+            .args(&["init"])
+            .current_dir(&workspace_root)
+            .output()
+            .map_err(|e| format!("初始化 Git 仓库失败: {}", e))?;
+
+        if !init_output.status.success() {
+            let error = get_git_stderr(&init_output);
+            return Err(format!("初始化 Git 仓库失败: {}", error));
+        }
+        info!("✅ [Git] Git 仓库初始化成功");
+    } else {
+        info!("ℹ️ [Git] 已是 Git 仓库，跳过初始化");
+    }
+
+    // 2. 配置用户名和邮箱
+    configure_git_user(&workspace_root, &user_name, &user_email)?;
+
+    // 3. 配置远程仓库（内部会校验 token）
+    configure_remote(&workspace_root, &remote_url, &token)?;
+
+    // 4. 首次拉取：fetch 后切换到远程默认分支（如 main），避免本地 master 与远程 main 不一致导致拉不到数据
+    let fetch_out = crate::git_common::git_command()
+        .args(&["fetch", "origin"])
+        .current_dir(&workspace_root)
+        .output();
+
+    if let Ok(ref out) = fetch_out {
+        if out.status.success() {
+            match get_remote_default_branch(&workspace_root) {
+                Ok(remote_branch) => {
+                    // 将当前工作区切换为远程默认分支内容（本地无提交时等价于“拉取远程”）
+                    // 先 stash 未跟踪文件（-u 表示 include untracked）
+                    let _ = crate::git_common::git_command()
+                        .args(&["stash", "-u"])
+                        .current_dir(&workspace_root)
+                        .output();
+                    // 用 reset --hard 将本地 reset 到远程分支（会丢弃本地未提交的更改）
+                    let reset_out = crate::git_common::git_command()
+                        .args(&["reset", "--hard", &format!("origin/{}", remote_branch)])
+                        .current_dir(&workspace_root)
+                        .output();
+                    if let Ok(re) = reset_out {
+                        if re.status.success() {
+                            info!("✅ [Git] 首次拉取成功，已重置到远程分支 origin/{}", remote_branch);
+                        } else {
+                            let err = get_git_stderr(&re);
+                            warn!("⚠️ [Git] 首次重置到远程分支失败: {}", err);
+                        }
+                    }
+                    // 尝试恢复 stash（如果有冲突会失败，这没问题，用户可手动处理）
+                    let _ = crate::git_common::git_command()
+                        .args(&["stash", "pop"])
+                        .current_dir(&workspace_root)
+                        .output();
+                }
+                Err(e) => {
+                    info!("ℹ️ [Git] 无法获取远程默认分支，跳过首次拉取: {}", e);
+                }
+            }
+        } else {
+            let err = get_git_stderr(out);
+            info!("ℹ️ [Git] 首次 fetch 失败（可能网络或空仓库）: {}", err);
+        }
+    } else {
+        info!("ℹ️ [Git] 首次 fetch 执行失败，跳过拉取");
+    }
+
+    info!("✅ [Git] Git 仓库初始化完成");
+
+    // 首次拉取后异步重建搜索索引，使快捷搜索能命中刚同步下来的 Markdown（与 git_pull_command 中逻辑一致）
+    let workspace_root_buf = workspace_root.to_path_buf();
+    let app_handle_rebuild = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        let workspace_root = &workspace_root_buf;
+        let mut new_index_opt = None;
+        if let Some(cache_state) = app_handle_rebuild.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>() {
+            let cache_clone_opt = match cache_state.read() {
+                Ok(cache) => Some(cache.clone()),
+                Err(e) => {
+                    error!("❌ [Git] 获取 CacheManager 读锁失败，无法在初始化后重建索引: {}", e);
+                    None
+                }
+            };
+            if let Some(cache_clone) = cache_clone_opt {
+                match crate::markdown::IndexManager::build_index(workspace_root, &cache_clone).await {
+                    Ok(new_index) => {
+                        info!("✅ [Git] 初始化后搜索索引重建完成");
+                        new_index_opt = Some(new_index);
+                    }
+                    Err(e) => {
+                        error!("❌ [Git] 初始化后重建搜索索引失败: {}", e);
+                    }
+                }
+            }
+        }
+        if let Some(new_index) = new_index_opt {
+            if let Some(index_state) = app_handle_rebuild
+                .try_state::<Arc<std::sync::RwLock<Option<crate::markdown::IndexManager>>>>()
+            {
+                if let Ok(mut index_lock) = index_state.write() {
+                    *index_lock = Some(new_index);
+                    info!("✅ [Git] 全局搜索索引已更新（配置 Git 首次拉取后）");
+                }
+            }
+        }
+    });
+
+    Ok(())
+}
+
+/// 测试 Git 连接（验证 Token 和远程仓库是否可用）
+#[command]
+pub fn test_git_connection_command(app_handle: AppHandle, remote_url: String, token: String) -> Result<(), String> {
+    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
+        .ok_or("工作区未设置".to_string())?;
+
+    // 构建带 token 的 URL
+    let authenticated_url = if remote_url.starts_with("git@") {
+        remote_url.clone()
+    } else if !token.is_empty() {
+        if let Some(idx) = remote_url.find("://") {
+            let protocol = &remote_url[..idx + 3];
+            let rest = &remote_url[idx + 3..];
+            format!("{}{}@{}", protocol, token, rest)
+        } else {
+            remote_url.clone()
+        }
+    } else {
+        remote_url.clone()
+    };
+
+    // 仅 HTTPS + token 需要验证
+    if remote_url.starts_with("https://") && !token.is_empty() {
+        validate_token_url(&workspace_root, &authenticated_url)?;
+    } else if remote_url.starts_with("git@") || token.is_empty() {
+        // SSH 或无 token，简单检查 remote 是否可访问
+        let output = crate::git_common::git_command()
+            .args(&["ls-remote", "--heads", &remote_url])
+            .current_dir(&workspace_root)
+            .output()
+            .map_err(|e| format!("验证远程连接失败: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("远程仓库不可访问: {}", stderr));
+        }
+    }
+
     Ok(())
 }
 
@@ -1353,6 +1685,50 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
             })) {
                 warn!("⚠️ [Git] 发送 git-sync-complete 到 main 失败: {}", e);
             }
+
+            // Pull 完成后，重建搜索索引，确保快捷搜索能命中新同步的 Markdown 文件
+            // 步骤：
+            // 1. 从应用状态中读取最新的 CacheManager 并克隆一份（避免跨 await 持有锁）
+            // 2. 基于当前工作区和缓存重建索引
+            // 3. 将新的 IndexManager 写回全局状态
+            let mut new_index_opt = None;
+            if let Some(cache_state) = app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>() {
+                let cache_clone_opt = match cache_state.read() {
+                    Ok(cache) => Some(cache.clone()),
+                    Err(e) => {
+                        error!("❌ [Git] 获取 CacheManager 读锁失败，无法在 Pull 后重建索引: {}", e);
+                        None
+                    }
+                };
+
+                if let Some(cache_clone) = cache_clone_opt {
+                    match crate::markdown::IndexManager::build_index(&workspace_root, &cache_clone).await {
+                        Ok(new_index) => {
+                            info!("✅ [Git] Pull 后搜索索引重建完成");
+                            new_index_opt = Some(new_index);
+                        }
+                        Err(e) => {
+                            error!("❌ [Git] Pull 后重建搜索索引失败: {}", e);
+                        }
+                    }
+                }
+            }
+
+            if let Some(new_index) = new_index_opt {
+                if let Some(index_state) =
+                    app_handle.try_state::<Arc<std::sync::RwLock<Option<crate::markdown::IndexManager>>>>()
+                {
+                    match index_state.write() {
+                        Ok(mut index_lock) => {
+                            *index_lock = Some(new_index);
+                            info!("✅ [Git] 全局搜索索引已更新（包含远程同步的文件）");
+                        }
+                        Err(e) => {
+                            error!("❌ [Git] 获取 IndexManager 写锁失败，无法更新搜索索引: {}", e);
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -1435,6 +1811,21 @@ pub fn check_gitignore_command(app_handle: AppHandle) -> Result<(), String> {
     let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
         .ok_or("工作区未设置".to_string())?;
     check_gitignore(&workspace_root)
+}
+
+/// 仅从工作区检测 Git 配置（不调用系统 git config，避免终端闪退）
+#[command]
+pub fn get_workspace_git_config_command(app_handle: AppHandle) -> Result<SystemGitConfig, String> {
+    let workspace_root = crate::json_config::get_workspace_root(&app_handle).ok().flatten();
+    get_workspace_git_config(workspace_root.as_deref())
+}
+
+/// 确保工作区存在 .gitignore，不存在则创建
+#[command]
+pub fn ensure_gitignore_command(app_handle: AppHandle) -> Result<bool, String> {
+    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
+        .ok_or("工作区未设置".to_string())?;
+    ensure_gitignore(&workspace_root)
 }
 
 
@@ -1821,14 +2212,14 @@ impl AutoSyncManager {
                                         let _ = app_handle.emit_to("config", "git-conflict-detected", payload);
                                     } else {
                                         info!("✅ [AutoSync] Pull 成功，重试 Push");
-                                        let branch_output = Command::new("git")
+                                        let branch_output = crate::git_common::git_command()
                                             .args(&["branch", "--show-current"])
                                             .current_dir(&workspace_root)
                                             .output()
                                             .map_err(|e| format!("获取分支失败: {}", e));
                                         if let Ok(out) = branch_output {
                                             let branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                                            let push_out = Command::new("git")
+                                            let push_out = crate::git_common::git_command()
                                                 .args(&["push", "origin", &branch])
                                                 .current_dir(&workspace_root)
                                                 .output();
@@ -2112,7 +2503,7 @@ pub fn get_conflict_file_content(
     let is_merge_conflict = merge_head_path.exists();
     
     let local_content = if is_merge_conflict {
-        let head_output = Command::new("git")
+        let head_output = crate::git_common::git_command()
             .args(&["show", &format!("HEAD:{}", file_path)])
             .current_dir(&workspace_root)
             .output()
@@ -2131,7 +2522,7 @@ pub fn get_conflict_file_content(
     };
     
     // 获取远程版本（MERGE_HEAD 或 origin/branch）
-    let remote_output = Command::new("git")
+    let remote_output = crate::git_common::git_command()
         .args(&["show", &format!("MERGE_HEAD:{}", file_path)])
         .current_dir(&workspace_root)
         .output()
@@ -2141,7 +2532,7 @@ pub fn get_conflict_file_content(
         String::from_utf8_lossy(&remote_output.stdout).to_string()
     } else {
         // 如果 MERGE_HEAD 不存在，尝试从 origin/branch 获取
-        let branch_output = Command::new("git")
+        let branch_output = crate::git_common::git_command()
             .args(&["branch", "--show-current"])
             .current_dir(&workspace_root)
             .output()
@@ -2149,7 +2540,7 @@ pub fn get_conflict_file_content(
         
         let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
         
-        let origin_output = Command::new("git")
+        let origin_output = crate::git_common::git_command()
             .args(&["show", &format!("origin/{}:{}", branch, file_path)])
             .current_dir(&workspace_root)
             .output()
@@ -2163,7 +2554,7 @@ pub fn get_conflict_file_content(
     };
     
     // 获取共同祖先版本（可选）
-    let base_output = Command::new("git")
+    let base_output = crate::git_common::git_command()
         .args(&["show", &format!(":1:{}", file_path)])
         .current_dir(&workspace_root)
         .output()
@@ -2203,7 +2594,7 @@ pub async fn force_push_command(
     let merge_head_path = workspace_root.join(".git/MERGE_HEAD");
     if merge_head_path.exists() {
         info!("⚠️ [Git] 检测到 merge 状态，先执行 merge --abort");
-        let abort_output = Command::new("git")
+        let abort_output = crate::git_common::git_command()
             .args(&["merge", "--abort"])
             .current_dir(&workspace_root)
             .output()
@@ -2216,7 +2607,7 @@ pub async fn force_push_command(
     }
     
     // 1. 添加所有文件
-    let add_output = Command::new("git")
+    let add_output = crate::git_common::git_command()
         .args(&["add", "."])
         .current_dir(&workspace_root)
         .output()
@@ -2232,7 +2623,7 @@ pub async fn force_push_command(
         format!("Force push: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"))
     });
     
-    let commit_output = Command::new("git")
+    let commit_output = crate::git_common::git_command()
         .args(&["commit", "-m", &commit_message])
         .current_dir(&workspace_root)
         .output()
@@ -2247,7 +2638,7 @@ pub async fn force_push_command(
     }
     
     // 3. 获取当前分支
-    let branch_output = Command::new("git")
+    let branch_output = crate::git_common::git_command()
         .args(&["branch", "--show-current"])
         .current_dir(&workspace_root)
         .output()
@@ -2256,7 +2647,7 @@ pub async fn force_push_command(
     let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
     
     // 4. 强制推送
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&["push", "--force", "origin", &branch])
         .current_dir(&workspace_root)
         .output()
@@ -2287,7 +2678,7 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
     info!("🔄 [Git] 开始强制拉取");
     
     // 1. 获取远程更新
-    let fetch_output = Command::new("git")
+    let fetch_output = crate::git_common::git_command()
         .args(&["fetch", "origin"])
         .current_dir(&workspace_root)
         .output()
@@ -2299,7 +2690,7 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
     }
     
     // 2. 获取当前分支
-    let branch_output = Command::new("git")
+    let branch_output = crate::git_common::git_command()
         .args(&["branch", "--show-current"])
         .current_dir(&workspace_root)
         .output()
@@ -2308,7 +2699,7 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
     let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
     
     // 3. 重置到远程分支
-    let output = Command::new("git")
+    let output = crate::git_common::git_command()
         .args(&["reset", "--hard", &format!("origin/{}", branch)])
         .current_dir(&workspace_root)
         .output()
@@ -2424,7 +2815,7 @@ pub fn resolve_conflicts_batch(
             match strategy {
                 ConflictStrategy::KeepLocal => {
                     // write_conflict_file 已将正确内容写入磁盘，直接 git add
-                    let output = Command::new("git")
+                    let output = crate::git_common::git_command()
                         .args(&["add", &file_path])
                         .current_dir(&workspace_root)
                         .output()
@@ -2445,7 +2836,7 @@ pub fn resolve_conflicts_batch(
             }
         }
         
-        let output = Command::new("git")
+        let output = crate::git_common::git_command()
             .args(&["commit", "--no-edit"])
             .current_dir(&workspace_root)
             .output()
@@ -2466,7 +2857,7 @@ pub fn resolve_conflicts_batch(
             match strategy {
                 ConflictStrategy::KeepLocal => {
                     // 保留本地版本：先 add，然后 commit
-                    let output = Command::new("git")
+                    let output = crate::git_common::git_command()
                         .args(&["add", &file_path])
                         .current_dir(&workspace_root)
                         .output()
@@ -2479,7 +2870,7 @@ pub fn resolve_conflicts_batch(
                 }
                 ConflictStrategy::KeepRemote => {
                     // 保留远程版本：stash 本地更改，pull 后丢弃 stash
-                    let output = Command::new("git")
+                    let output = crate::git_common::git_command()
                         .args(&["stash", "push", "-u", "--", &file_path])
                         .current_dir(&workspace_root)
                         .output()
@@ -2488,7 +2879,7 @@ pub fn resolve_conflicts_batch(
                     if output.status.success() {
                         let stdout = String::from_utf8_lossy(&output.stdout);
                         if !stdout.contains("No local changes") {
-                            let drop_output = Command::new("git")
+                            let drop_output = crate::git_common::git_command()
                                 .args(&["stash", "drop"])
                                 .current_dir(&workspace_root)
                                 .output();
@@ -2514,7 +2905,7 @@ pub fn resolve_conflicts_batch(
         
         // 对于保留本地版本的情况，需要 commit
         if has_local_strategy {
-            let output = Command::new("git")
+            let output = crate::git_common::git_command()
                 .args(&["commit", "-m", "Resolve conflicts: keep local changes"])
                 .current_dir(&workspace_root)
                 .output()
@@ -2524,7 +2915,7 @@ pub fn resolve_conflicts_batch(
                 let error = String::from_utf8_lossy(&output.stderr);
                 if error.contains("nothing to commit") {
                     info!("ℹ️ [Git] 没有更改需要提交，使用 reset 清理状态");
-                    let reset_output = Command::new("git")
+                    let reset_output = crate::git_common::git_command()
                         .args(&["reset", "HEAD"])
                         .current_dir(&workspace_root)
                         .output()
@@ -2542,14 +2933,14 @@ pub fn resolve_conflicts_batch(
         // 保留本地：push 到远程（用户选择的是覆盖远程）
         // 保留远程：pull 拉取远程（用户选择的是丢弃本地）
         if has_local_strategy {
-            let branch_output = Command::new("git")
+            let branch_output = crate::git_common::git_command()
                 .args(&["branch", "--show-current"])
                 .current_dir(&workspace_root)
                 .output()
                 .map_err(|e| format!("获取分支失败: {}", e))?;
             let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
             
-            let push_output = Command::new("git")
+            let push_output = crate::git_common::git_command()
                 .args(&["push", "origin", &branch])
                 .current_dir(&workspace_root)
                 .output()
@@ -2559,7 +2950,7 @@ pub fn resolve_conflicts_batch(
                 let stderr = String::from_utf8_lossy(&push_output.stderr);
                 if stderr.contains("rejected") || stderr.contains("non-fast-forward") {
                     info!("ℹ️ [Git] 普通 push 被拒绝，尝试 force push");
-                    let force_output = Command::new("git")
+                    let force_output = crate::git_common::git_command()
                         .args(&["push", "--force", "origin", &branch])
                         .current_dir(&workspace_root)
                         .output()
@@ -2574,7 +2965,7 @@ pub fn resolve_conflicts_batch(
             }
         } else if has_remote_strategy {
             // 保留远程：先 fetch，再 pull；若 pull 冲突则 reset --hard 到远程
-            let fetch_output = Command::new("git")
+            let fetch_output = crate::git_common::git_command()
                 .args(&["fetch", "origin"])
                 .current_dir(&workspace_root)
                 .output()
@@ -2584,14 +2975,14 @@ pub fn resolve_conflicts_batch(
                 return Err(format!("Fetch 失败: {}", err));
             }
             
-            let branch_output = Command::new("git")
+            let branch_output = crate::git_common::git_command()
                 .args(&["branch", "--show-current"])
                 .current_dir(&workspace_root)
                 .output()
                 .map_err(|e| format!("获取分支失败: {}", e))?;
             let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
             
-            let pull_output = Command::new("git")
+            let pull_output = crate::git_common::git_command()
                 .args(&["pull"])
                 .current_dir(&workspace_root)
                 .output()
@@ -2602,13 +2993,13 @@ pub fn resolve_conflicts_batch(
                 let stdout = String::from_utf8_lossy(&pull_output.stdout);
                 if stderr.contains("CONFLICT") || stdout.contains("CONFLICT") {
                     info!("ℹ️ [Git] Pull 产生冲突，用户选择保留远程，reset 到 origin");
-                    let reset_output = Command::new("git")
+                    let reset_output = crate::git_common::git_command()
                         .args(&["merge", "--abort"])
                         .current_dir(&workspace_root)
                         .output();
                     let _ = reset_output;
                     
-                    let reset_output = Command::new("git")
+                    let reset_output = crate::git_common::git_command()
                         .args(&["reset", "--hard", &format!("origin/{}", branch)])
                         .current_dir(&workspace_root)
                         .output()

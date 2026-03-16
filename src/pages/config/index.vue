@@ -13,6 +13,7 @@
       :untracked-files="untrackedFiles"
       @confirm="handleConflictResolution"
       @cancel="handleConflictCancel"
+      @escape="handleConflictEscape"
       ref="conflictDialogRef"
     />
     
@@ -23,6 +24,7 @@
       @complete="handleManualMergeComplete"
       @cancel="handleManualMergeCancel"
       @back="handleManualMergeBack"
+      @escape="handleManualMergeEscape"
       ref="manualMergeRef"
     />
 
@@ -64,7 +66,7 @@ import { startAutoSync, stopAutoSync, getAutoSyncStatus, pauseAutoSync, resumeAu
 import { getGitSettings } from '@/api/appConfig';
 import { readMarkdownFile } from '@/api/markdown';
 import { logger } from '@/utils/logger';
-import { setupGitEventListeners, cleanupGitEventListeners, initCleanupCache, initGitSync, checkShouldInitialize, type GitEventListeners } from '@/utils/app-init';
+import { setupGitEventListeners, cleanupGitEventListeners, initCleanupCache, initGitSync, checkShouldInitialize, ensureWorkspaceGitignore, type GitEventListeners } from '@/utils/app-init';
 import GitConflictDialog from '@/components/GitConflictDialog/index.vue';
 import GitManualMerge from '@/components/GitManualMerge/index.vue';
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
@@ -352,7 +354,13 @@ const handleConflictResolution = async (strategy: string) => {
   }
 };
 
-// 取消冲突处理
+// 按 ESC 关闭冲突弹框：仅关闭，不弹出「取消冲突处理」二次确认
+const handleConflictEscape = () => {
+  showConflictDialog.value = false;
+  hasConflictBeenHandled = false;
+};
+
+// 取消冲突处理（点击取消按钮时弹出二次确认）
 const handleConflictCancel = async () => {
   const result = await showConfirm({
     title: t('settings.gitSync.cancelConflictTitle'),
@@ -504,6 +512,12 @@ const handleManualMergeBack = () => {
   logger.info('[Config] 用户从手动合并返回到冲突对话框');
 };
 
+// 按 ESC 关闭手动合并弹框：仅关闭，不弹出「取消冲突处理」二次确认
+const handleManualMergeEscape = () => {
+  showManualMergeDialog.value = false;
+  hasConflictBeenHandled = false;
+};
+
 // 检查是否有待处理的导航
 const checkPendingNavigation = () => {
   const pendingNav = localStorage.getItem('pendingNavigation');
@@ -643,13 +657,15 @@ onMounted(async () => {
     logger.error('[Config] 设置仓库不存在事件监听器失败:', error);
   }
 
-  // 3. 检查是否应该执行初始化（防抖机制）
+  // 3. 确保工作区存在 .gitignore（有工作区且无此文件时自动创建，不依赖 shouldInit）
+  await ensureWorkspaceGitignore();
+
+  // 4. 检查是否应该执行初始化（防抖机制）
   const shouldInit = await checkShouldInitialize();
   if (shouldInit) {
-    // 4. 清理缓存
+    // 5. 清理缓存
     await initCleanupCache();
-    
-    // 5. Git 同步初始化
+    // 6. Git 同步初始化
     const shouldRefresh = await initGitSync(t);
     if (shouldRefresh) {
       // 触发数据刷新

@@ -9,11 +9,22 @@ export const CustomEnterBehavior = Extension.create({
   
   addKeyboardShortcuts() {
     return {
-      // Enter 键创建软换行（<br>）
+      // Enter 键根据上下文决定行为
       'Enter': () => {
+        const { state } = this.editor;
+        const { $from } = state.selection;
+        const parent = $from.parent;
+        const textBefore = parent.textBetween(0, $from.parentOffset, '\n', '\n').trim();
+        const isHeading = parent.type.name === 'heading';
+        const isCodeFence = /^```[a-zA-Z]*$/.test(textBefore);
+
+        if (isHeading || isCodeFence) {
+          return this.editor.commands.splitBlock();
+        }
+
         return this.editor.commands.setHardBreak();
       },
-      // Shift+Enter 创建新段落
+      // Shift+Enter: 始终创建新段落
       'Shift-Enter': () => {
         return this.editor.commands.splitBlock();
       }

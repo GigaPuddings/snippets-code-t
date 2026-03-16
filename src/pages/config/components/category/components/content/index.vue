@@ -2,8 +2,7 @@
   <main class="content-container transparent-input">
     <div class="content-header">
       <div class="content-title">
-        <el-input ref="titleInputRef" v-model="state.title" placeholder="" @input="handleTitleInput"
-          @change="handleTitleChange" />
+        <el-input ref="titleInputRef" v-model="state.title" placeholder="" @change="handleTitleChange" />
 
         <!-- 编辑器控制按钮（仅笔记类型显示） -->
         <div v-if="currentEditorType === 'note'" class="editor-controls">
@@ -78,7 +77,7 @@
 
     <!-- TipTap 富文本编辑器 (type === 'note') -->
     <TipTapEditor v-else-if="currentEditorType === 'note'" ref="tipTapEditorRef" :key="'note-editor'"
-      :content="state.editorContent" :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }"
+      :content="noteEditorDisplayContent" :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }"
       :show-view-toggle="true" :show-editor-actions="false" :current-title="state.title"
       :current-fragment-id="state.currentContent?.id" @update:content="handleEditorChange"
       @wikilink-click="handleWikilinkClick" @view-mode-change="handleViewModeChange"
@@ -92,6 +91,7 @@ import { useConfigurationStore } from '@/store';
 import { getFragmentContent, editFragment, addFragment, getFragmentList } from '@/api/fragment';
 import { searchMarkdownFiles } from '@/api/markdown';
 import { debounce } from '@/utils';
+import { logger } from '@/utils/logger';
 import { parseFragment } from '@/utils/fragment';
 import { handleSaveError, handleLoadError, handleEditorError } from '@/utils/error-handler';
 import { useI18n } from 'vue-i18n';
@@ -146,6 +146,18 @@ const state = reactive({
 
 // 工作区根目录
 const workspaceRoot = ref<string>('');
+
+// 笔记编辑器展示用内容：始终传 HTML。若 state.editorContent 已是 HTML（如旧文件）则原样传，否则按 Markdown 转 HTML
+const noteEditorDisplayContent = computed(() => {
+  const c = state.editorContent;
+  if (!c || currentEditorType.value !== 'note') return c ?? '';
+  if (c.trimStart().startsWith('<') && c.includes('</')) return c;
+  try {
+    return markdownToHtml(c, workspaceRoot.value);
+  } catch {
+    return c;
+  }
+});
 
 const route = useRoute();
 const router = useRouter();
@@ -305,26 +317,40 @@ const getEditorMetadata = (): FragmentMetadata => {
 
 // 序列化内容（根据 format 字段）
 const serializeContent = (content: string, _format: ContentFormat, editorType: 'code' | 'note'): string => {
-  // 如果是笔记类型，需要将 HTML 转换为 Markdown 保存
+  // 如果是笔记类型，需要将内容转换为 Markdown 保存
   if (editorType === 'note') {
     // 检查内容是否为空或仅包含空白
     if (!content || content.trim() === '' || content === '<p></p>') {
       return '';
     }
 
-    // 检查编辑器是否就绪
+    // 检测当前是否处于源码模式
+    const isSourceMode = tipTapEditorRef.value?.getViewMode() === 'source';
+
+    // 如果处于源码模式，content 已经是 Markdown 格式，直接返回
+    if (isSourceMode) {
+      return content;
+    }
+
+    // 检测内容是否为 HTML（需要转换）；否则假定已是 Markdown，直接返回
+    const isHtmlContent = content.trim().startsWith('<') && content.includes('</');
+
+    // 编辑器未就绪时的回退：绝不把 HTML 写入磁盘，统一转为 Markdown
     if (!tipTapEditorRef.value) {
-      // 如果内容看起来像 HTML，尝试转换
-      if (content.includes('<') && content.includes('>')) {
+      if (isHtmlContent) {
         try {
           const turndownService = createTurndownService();
-          const markdown = htmlToMarkdown(content, turndownService);
-          return markdown;
+          return htmlToMarkdown(content, turndownService);
         } catch (error) {
-          console.error('[Content] Markdown 转换失败:', error);
+          console.error('[Content] HTML 转 Markdown 失败:', error);
           return content;
         }
       }
+      return content;
+    }
+
+    // 内容已是 Markdown（TipTapEditor 现在会发射 Markdown），直接返回
+    if (!isHtmlContent) {
       return content;
     }
 
@@ -377,25 +403,36 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
   const oldTitle = originalTitle.value;
   const newTitle = state.title;
 
-  // 获取编辑器元数据
-  const metadata = getEditorMetadata();
-
-  // 序列化内容
+  // 序列化当前编辑器内容
   const editorType = currentEditorType.value || 'code';
-  let serializedContent = serializeContent(
+  const serializedContent = serializeContent(
     state.editorContent,
     state.currentContent.format || 'plain',
     editorType
   );
 
-  // 如果标题改变且是 Markdown 格式，同步附件
-  if (titleChanged && oldTitle && state.currentContent.format === 'markdown') {
+  // 比较内容是否真的发生变化（类似 Obsidian 的做法）
+  const originalContent = state.currentContent.content || '';
+  const contentChanged = serializedContent !== originalContent;
+
+  // 如果标题和内容都没有变化，则跳过保存（不更新 modified 时间）
+  if (!titleChanged && !contentChanged) {
+    logger.info('[performSave] 内容无变化，跳过保存');
+    return;
+  }
+
+  // 获取编辑器元数据（仅在内容变化时更新）
+  const metadata = getEditorMetadata();
+
+  // 标题改变且内容有变化时，如果是 Markdown 格式，同步附件
+  let finalContent = serializedContent;
+  if (titleChanged && contentChanged && oldTitle && state.currentContent.format === 'markdown') {
     try {
-      const updatedContent = await syncAttachmentsOnRename(oldTitle, newTitle, serializedContent);
+      const updatedContent = await syncAttachmentsOnRename(oldTitle, newTitle, finalContent);
 
       // 只有在内容实际改变时才显示通知（说明有附件被同步）
-      if (updatedContent !== serializedContent) {
-        serializedContent = updatedContent;
+      if (updatedContent !== finalContent) {
+        finalContent = updatedContent;
 
         // 更新编辑器内容以反映路径变化
         if (editorType === 'note') {
@@ -427,7 +464,7 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
   const updateParams = {
     ...state.currentContent,
     title: state.title,
-    content: serializedContent,
+    content: finalContent,
     metadata,
     tags: state.tags,
     ...data,
@@ -445,7 +482,7 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
   // 清理未使用的附件（如果是 Markdown 格式）
   if (state.currentContent.format === 'markdown') {
     try {
-      const deletedCount = await cleanupUnusedAttachments(state.title, serializedContent);
+      const deletedCount = await cleanupUnusedAttachments(state.title, finalContent);
       // 只有在实际删除了文件时才显示通知
       if (deletedCount > 0) {
         modal.success(
@@ -632,16 +669,6 @@ const handleContentChange = (
   }
 };
 
-// 处理标题输入（实时更新，标记为已修改）
-const handleTitleInput = (value: string) => {
-  if (state.isInitializing) return;
-
-  state.title = value;
-  // 与原始标题对比，恢复原样时清除修改标记，避免多余保存
-  const original = originalTitle.value ?? state.currentContent?.title;
-  state.contentChanged = value !== original;
-};
-
 // 处理标题变更（失焦时触发防抖保存）
 const handleTitleChange = (value: string) => {
   if (state.isInitializing) return;
@@ -653,8 +680,11 @@ const handleTitleChange = (value: string) => {
 };
 
 // 处理编辑器内容变更
-const handleEditorChange = (value: string) =>
+const handleEditorChange = (value: string) => {
+  if (state.isInitializing) return;
+
   handleContentChange(value, 'content', state.currentContent?.content);
+};
 
 // 处理 Wikilink 点击
 const handleWikilinkClick = async (noteName: string) => {

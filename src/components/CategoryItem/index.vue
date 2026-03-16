@@ -250,7 +250,6 @@ const handleEditCategory = async () => {
 
 // 菜单的点击事件
 const handleContextMenu = async (item: any) => {
-  
   if (item.type === 'edit') {
     const categoryIdStr = String(props.category.id);
     store.editCategoryId = categoryIdStr;

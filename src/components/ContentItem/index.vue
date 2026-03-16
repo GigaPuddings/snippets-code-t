@@ -64,6 +64,8 @@ import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
+import { invoke } from '@tauri-apps/api/core';
+import { getWorkspaceRoot } from '@/api/markdown';
 
 /**
  * 组件 Props 接口
@@ -106,6 +108,11 @@ defineOptions({
 });
 
 const menu = computed<MenuItem[]>(() => [
+  {
+    label: t('contentItem.showInExplorer'),
+    type: 'showInExplorer',
+    icon: FolderOpen
+  },
   {
     label: t('contentItem.changeCategory'),
     type: 'edit',
@@ -218,7 +225,21 @@ const handleTagClick = (tag: string): void => {
  */
 const handleContextMenu = async (item: MenuItem): Promise<void> => {
   try {
-    if (item.type === 'rename') {
+    if (item.type === 'showInExplorer') {
+      // 在文件资源管理器中显示
+      const workspaceRoot = await getWorkspaceRoot();
+      if (!workspaceRoot) {
+        ElMessage.warning(t('settings.workspaceNotSet'));
+        return;
+      }
+      const rawPath = content.value.id as string;
+      // 判断是否为绝对路径
+      const isAbsolute = /^[a-zA-Z]:[/\\]/.test(rawPath);
+      // 拼接为绝对路径，统一用反斜杠（Windows 兼容）
+      let fullPath = isAbsolute ? rawPath : `${workspaceRoot}\\${rawPath}`;
+      // explorer /select 需要 Windows 风格的反斜杠路径
+      await invoke('show_file_in_folder', { filePath: fullPath });
+    } else if (item.type === 'rename') {
       // 重命名时，通过 query 参数传递标识
       // 获取当前的 cid（保持当前分类上下文）
       const currentCid = route.params.cid;

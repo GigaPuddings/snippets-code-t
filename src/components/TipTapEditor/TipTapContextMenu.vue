@@ -32,7 +32,7 @@
       <div
         class="menu-item has-submenu"
         @mouseenter="showSubmenu('textFormat')"
-        @mouseleave="hideSubmenu"
+        @mouseleave="handleMenuMouseLeave"
       >
         <svg class="menu-icon" viewBox="0 0 24 24">
           <path fill="currentColor" d="M9.6,14L12,7.7L14.4,14M11,5L5.5,19H7.7L8.8,16H15.2L16.3,19H18.5L13,5H11Z" />
@@ -47,7 +47,7 @@
       <div
         class="menu-item has-submenu"
         @mouseenter="showSubmenu('paragraphSettings')"
-        @mouseleave="hideSubmenu"
+        @mouseleave="handleMenuMouseLeave"
       >
         <svg class="menu-icon" viewBox="0 0 24 24">
           <path fill="currentColor" d="M13,4A4,4 0 0,1 17,8A4,4 0 0,1 13,12H11V18H9V4H13M13,10A2,2 0 0,0 15,8A2,2 0 0,0 13,6H11V10H13Z" />
@@ -62,7 +62,7 @@
       <div
         class="menu-item has-submenu"
         @mouseenter="showSubmenu('insert')"
-        @mouseleave="hideSubmenu"
+        @mouseleave="handleMenuMouseLeave"
       >
         <svg class="menu-icon" viewBox="0 0 24 24">
           <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
@@ -258,10 +258,10 @@ const menuStyle = computed(() => ({
 }));
 
 // 子菜单样式
-const submenuStyle = computed(() => ({
-  left: `${submenuPosition.value.x}px`,
-  top: `${submenuPosition.value.y}px`
-}));
+  const submenuStyle = computed(() => ({
+    left: `${submenuPosition.value.x}px`,
+    top: `${submenuPosition.value.y}px`
+  }));
 
 // 显示菜单
 const show = (event: MouseEvent) => {
@@ -392,6 +392,14 @@ const hideSubmenu = () => {
   submenuTimer = setTimeout(() => {
     activeSubmenu.value = null;
   }, 150);
+};
+
+const handleMenuMouseLeave = (event: MouseEvent) => {
+  const relatedTarget = event.relatedTarget as Node | null;
+  if (submenuRef.value && relatedTarget && submenuRef.value.contains(relatedTarget)) {
+    return;
+  }
+  hideSubmenu();
 };
 
 // 保持子菜单打开
@@ -608,19 +616,41 @@ const handleAddExternalLink = () => {
 
 // 剪贴板操作
 const handlePaste = () => {
-  document.execCommand('paste');
+  if (isSourceMode.value && props.sourceEditorRef) {
+    // 源码模式：先聚焦编辑器，然后使用粘贴命令
+    props.sourceEditorRef.focus();
+    document.execCommand('paste');
+  } else {
+    // 预览模式：聚焦编辑器，然后使用粘贴命令
+    props.editor?.chain().focus().run();
+    document.execCommand('paste');
+  }
   hide();
 };
 
 const handlePasteAsPlainText = () => {
-  navigator.clipboard.readText().then(text => {
-    props.editor?.chain().focus().insertContent(text).run();
-  });
+  if (isSourceMode.value && props.sourceEditorRef) {
+    // 源码模式：先聚焦编辑器，然后插入纯文本
+    props.sourceEditorRef.focus();
+    navigator.clipboard.readText().then(text => {
+      props.sourceEditorRef?.insertText(text);
+    });
+  } else {
+    // 预览模式：聚焦编辑器，然后插入纯文本
+    props.editor?.chain().focus().run();
+    navigator.clipboard.readText().then(text => {
+      props.editor?.chain().focus().insertContent(text).run();
+    });
+  }
   hide();
 };
 
 const handleSelectAll = () => {
-  props.editor?.chain().focus().selectAll().run();
+  if (isSourceMode.value && props.sourceEditorRef) {
+    props.sourceEditorRef.selectAll();
+  } else {
+    props.editor?.chain().focus().selectAll().run();
+  }
   hide();
 };
 

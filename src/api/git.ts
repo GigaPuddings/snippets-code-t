@@ -107,13 +107,24 @@ export async function getGitStatus(): Promise<GitStatus> {
 }
 
 /**
- * 获取系统 Git 配置
+ * 获取系统 Git 配置（会调用系统 git config，生产环境可能触发终端闪退）
  */
 export async function getSystemGitConfig(): Promise<SystemGitConfig> {
   try {
     return await invoke<SystemGitConfig>('get_system_git_config_command');
   } catch (error) {
     throw new Error(`获取系统 Git 配置失败: ${error}`);
+  }
+}
+
+/**
+ * 仅从工作区 .git/config 检测 Git 配置（不调用系统 git，避免生产环境终端闪退）
+ */
+export async function getWorkspaceGitConfig(): Promise<SystemGitConfig> {
+  try {
+    return await invoke<SystemGitConfig>('get_workspace_git_config_command');
+  } catch (error) {
+    throw new Error(`获取工作区 Git 配置失败: ${error}`);
   }
 }
 
@@ -125,6 +136,33 @@ export async function configureGit(config: GitConfig): Promise<void> {
     await invoke('configure_git_command', { config });
   } catch (error) {
     throw new Error(`配置 Git 失败: ${error}`);
+  }
+}
+
+/**
+ * 测试 Git 连接（验证 Token 和远程仓库是否可用）
+ */
+export async function testGitConnection(remoteUrl: string, token: string): Promise<void> {
+  try {
+    await invoke('test_git_connection_command', { remoteUrl, token });
+  } catch (error) {
+    throw new Error(`连接测试失败: ${error}`);
+  }
+}
+
+/**
+ * 初始化 Git 仓库并配置远程（保存 Git 配置后自动调用）
+ */
+export async function initGitRepository(
+  userName: string,
+  userEmail: string,
+  remoteUrl: string,
+  token: string
+): Promise<void> {
+  try {
+    await invoke('init_git_repository_command', { userName, userEmail, remoteUrl, token });
+  } catch (error) {
+    throw new Error(`Git 仓库初始化失败: ${error}`);
   }
 }
 
@@ -302,5 +340,17 @@ export async function checkGitignore(): Promise<void> {
     await invoke('check_gitignore_command');
   } catch (error) {
     throw new Error(`检查 .gitignore 失败: ${error}`);
+  }
+}
+
+/**
+ * 确保工作区存在 .gitignore，不存在则用默认内容创建
+ * @returns 是否新建了文件（true=新建，false=已存在）
+ */
+export async function ensureGitignore(): Promise<boolean> {
+  try {
+    return await invoke<boolean>('ensure_gitignore_command');
+  } catch (error) {
+    throw new Error(`确保 .gitignore 失败: ${error}`);
   }
 }

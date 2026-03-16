@@ -61,8 +61,11 @@ pub fn decode_base64(encoded: &str) -> Result<Vec<u8>, String> {
 /// 固定的 12 字节 nonce
 const FIXED_NONCE: [u8; 12] = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B];
 
-use std::process::Command;
 use std::path::Path;
+use std::process::Command;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 /// 从 Git remote URL 中移除 token（安全展示用）
 ///
@@ -173,9 +176,17 @@ pub fn decode_git_quoted_path(input: &str) -> String {
 
 // ============= Git 辅助函数 =============
 
+/// 创建不弹控制台窗口的 git Command（Windows 下使用 CREATE_NO_WINDOW）
+pub fn git_command() -> Command {
+    let mut cmd = Command::new("git");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW，避免保存/校验时闪终端
+    cmd
+}
+
 /// 执行 Git 命令并返回输出
 pub fn run_git_command(workspace_root: &Path, args: &[&str]) -> Result<std::process::Output, String> {
-    Command::new("git")
+    git_command()
         .args(args)
         .current_dir(workspace_root)
         .output()

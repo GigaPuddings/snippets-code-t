@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc::{channel, Receiver};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
-use log::{info, error, warn};
+use log::{debug, error, info, warn};
 
 use crate::attachment::{cleanup_attachments_for_deleted_files, sync_attachments_for_renamed_files};
 
@@ -140,7 +140,7 @@ impl FileWatcher {
                             .collect();
 
                         if !batch.is_empty() {
-                            info!("🔄 [FileWatcher] 批量处理 {} 个变更事件", batch.len());
+                            debug!("🔄 [FileWatcher] 批量处理 {} 个变更事件", batch.len());
                             Self::handle_batch(batch, &workspace_root, &ignore_list, &app_handle);
                         }
                     }
@@ -245,13 +245,13 @@ impl FileWatcher {
             match kind {
                 PendingKind::DirCreate => {
                     if let Some(rel) = Self::rel(workspace_root, path) {
-                        info!("📂 [FileWatcher] 目录创建: {}", rel);
+                        debug!("📂 [FileWatcher] 目录创建: {}", rel);
                         dir_created.push(rel);
                     }
                 }
                 PendingKind::DirRemove => {
                     if let Some(rel) = Self::rel(workspace_root, path) {
-                        info!("🗑️ [FileWatcher] 目录删除: {}", rel);
+                        debug!("🗑️ [FileWatcher] 目录删除: {}", rel);
                         dir_deleted.push(rel);
                     }
                 }
@@ -265,7 +265,7 @@ impl FileWatcher {
                         .map(|mut l| !l.remove(path))
                         .unwrap_or(true);
                     if !should_process {
-                        info!("⏭️ [FileWatcher] 忽略应用内部修改: {}", path.display());
+                        debug!("⏭️ [FileWatcher] 忽略应用内部修改: {}", path.display());
                         continue;
                     }
 
@@ -276,19 +276,19 @@ impl FileWatcher {
 
                     match kind {
                         PendingKind::Create => {
-                            info!("📄 [FileWatcher] 文件创建: {}", rel);
+                            debug!("📄 [FileWatcher] 文件创建: {}", rel);
                             md_created.push((path.clone(), rel));
                         }
                         PendingKind::Modify => {
-                            info!("✏️ [FileWatcher] 文件修改: {}", rel);
+                            debug!("✏️ [FileWatcher] 文件修改: {}", rel);
                             md_modified.push((path.clone(), rel));
                         }
                         PendingKind::Remove => {
                             if path.exists() {
-                                info!("✏️ [FileWatcher] 文件仍存在，视为修改: {}", rel);
+                                debug!("✏️ [FileWatcher] 文件仍存在，视为修改: {}", rel);
                                 md_modified.push((path.clone(), rel));
                             } else {
-                                info!("🗑️ [FileWatcher] 文件删除: {}", rel);
+                                debug!("🗑️ [FileWatcher] 文件删除: {}", rel);
                                 md_deleted.push((path.clone(), rel));
                             }
                         }
@@ -388,7 +388,7 @@ impl FileWatcher {
                     if let Err(e) = cache.save() {
                         error!("保存 cache 失败: {}", e);
                     } else {
-                        info!("💾 [FileWatcher] 批量保存 cache 完成");
+                        debug!("💾 [FileWatcher] 批量保存 cache 完成");
                     }
                 }
             }
@@ -442,20 +442,25 @@ impl FileWatcher {
                 deleted: final_md_deleted,
                 renamed: renames,
             };
-            if let Some(w) = &win {
-                if let Err(e) = w.emit("files-changed-batch", &payload) {
-                    warn!("发送 files-changed-batch 失败: {}", e);
-                } else {
-                    info!("📤 [FileWatcher] files-changed-batch → config 窗口");
-                }
-            } else {
-                warn!("⚠️ [FileWatcher] config 窗口不存在，跳过 files-changed-batch");
-            }
 
-            // 通知 Git 状态可能已变化（工作区有文件变更）
-            if let Some(w) = &win {
-                if let Err(e) = w.emit("git-workspace-changed", ()) {
-                    warn!("发送 git-workspace-changed 失败: {}", e);
+            // 只有当有实际变化时才发送事件
+            let has_changes = !payload.created.is_empty()
+                || !payload.modified.is_empty()
+                || !payload.deleted.is_empty()
+                || !payload.renamed.is_empty();
+
+            if has_changes {
+                if let Some(w) = &win {
+                    if let Err(e) = w.emit("files-changed-batch", &payload) {
+                        warn!("发送 files-changed-batch 失败: {}", e);
+                    }
+                }
+
+                // 通知 Git 状态可能已变化（工作区有文件变更）
+                if let Some(w) = &win {
+                    if let Err(e) = w.emit("git-workspace-changed", ()) {
+                        warn!("发送 git-workspace-changed 失败: {}", e);
+                    }
                 }
             }
         }
@@ -470,8 +475,6 @@ impl FileWatcher {
             if let Some(w) = &win {
                 if let Err(e) = w.emit("dirs-changed-batch", &payload) {
                     warn!("发送 dirs-changed-batch 失败: {}", e);
-                } else {
-                    info!("📤 [FileWatcher] dirs-changed-batch → config 窗口");
                 }
 
                 // 通知 Git 状态可能已变化（目录有变更）

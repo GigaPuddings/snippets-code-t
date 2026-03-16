@@ -206,13 +206,9 @@ export function useContentList(): UseContentListReturn {
       const tag = route.query.tag as string | undefined;
       tagFilter.value = tag || null;
       
-      // 检查是否在 content 子路由中（通过 route.params.id 判断）
-      const isInContentPage = !!route.params.id;
-      
-      // 只有当 cid 真正改变时才重新加载数据
-      // 并且不在 content 页面时加载（避免进入 content 页面时清空列表）
-      if (newCid !== oldCid && !isInContentPage) {
-        // 解析当前搜索文本，提取纯文本部分
+      // 当 cid 改变时，或首次加载时（oldCid === undefined），都重新加载列表数据
+      // 不区分是否在内容页：在内容页刷新时也必须加载列表，否则会显示「暂无片段内容」
+      if (newCid !== oldCid || oldCid === undefined) {
         const parsedFilter = parseSearchText(searchText.value);
         const textQuery = parsedFilter.text || '';
         queryFragments(newCid as string, textQuery);

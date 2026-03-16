@@ -24,7 +24,7 @@
         <div class="info-item">
           <span class="info-label">{{ $t('userCenter.gitSyncStatus') }}</span>
           <span class="info-value">
-            <span v-if="gitConfigured" class="status-badge status-badge--success">
+            <span v-if="hasRequiredGitFieldsFilled" class="status-badge status-badge--success">
               {{ $t('userCenter.configured') }}
             </span>
             <span v-else class="status-badge status-badge--warning">
@@ -52,20 +52,61 @@
         </template>
       </div>
 
-      <!-- Git 同步提示 -->
-      <div class="tip-card">
+      <!-- Git 必要字段配置（个人中心配置后，设置中才会显示 Git 同步 tab） -->
+      <div class="git-config-card">
+        <h4 class="section-title">{{ $t('userCenter.gitConfigSection') }}</h4>
+        <p class="git-config-desc">{{ $t('userCenter.gitConfigSectionDesc') }}</p>
+        <div class="git-config-form">
+          <div class="form-row">
+            <span class="form-label">{{ $t('userCenter.gitAccount') }}</span>
+            <el-input
+              v-model="gitForm.user_name"
+              :placeholder="$t('settings.gitSync.userNamePlaceholder')"
+              class="form-input"
+            />
+          </div>
+          <div class="form-row">
+            <span class="form-label">{{ $t('userCenter.gitEmail') }}</span>
+            <el-input
+              v-model="gitForm.user_email"
+              :placeholder="$t('settings.gitSync.userEmailPlaceholder')"
+              class="form-input"
+            />
+          </div>
+          <div class="form-row">
+            <span class="form-label">{{ $t('userCenter.gitToken') }}</span>
+            <el-input
+              v-model="gitForm.token"
+              type="password"
+              show-password
+              :placeholder="$t('settings.gitSync.tokenPlaceholder')"
+              class="form-input"
+            />
+          </div>
+          <div class="form-row">
+            <span class="form-label">{{ $t('userCenter.gitRemote') }}</span>
+            <el-input
+              v-model="gitForm.remote_url"
+              :placeholder="$t('settings.gitSync.remoteUrlPlaceholder')"
+              class="form-input"
+            />
+          </div>
+          <CustomButton type="primary" size="small" :loading="isSavingGit" @click="saveGitConfig">
+            {{ $t('userCenter.saveGitConfig') }}
+          </CustomButton>
+        </div>
+      </div>
+
+      <!-- Git 同步引导卡片：必要字段（用户名、邮箱、远程 URL）都填写后才隐藏，与是否启用无关 -->
+      <div v-if="hasRequiredGitFieldsFilled" class="tip-card">
         <div class="tip-icon">
           <Github theme="outline" size="24" :strokeWidth="3" />
         </div>
         <div class="tip-content">
           <h4 class="tip-title">{{ $t('userCenter.gitSyncTitle') }}</h4>
-          <p class="tip-desc">{{ gitConfigured ? $t('userCenter.gitSyncConfigured') : $t('userCenter.gitSyncDesc') }}</p>
-          <CustomButton 
-            type="primary" 
-          size="small"
-            @click="goToGitSync"
-          >
-            {{ gitConfigured ? $t('userCenter.manageSettings') : $t('userCenter.goToSettings') }}
+          <p class="tip-desc">{{ $t('userCenter.gitSyncDesc') }}</p>
+          <CustomButton type="primary" size="small" @click="goToGitSync">
+            {{ $t('userCenter.goToSettings') }}
           </CustomButton>
         </div>
       </div>
@@ -111,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { CustomButton } from '@/components/UI';
@@ -119,8 +160,10 @@ import { Github, FolderOpen, SettingTwo } from '@icon-park/vue-next';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { getGitSettings } from '@/api/appConfig';
+import { getGitSettings, updateGitSettings } from '@/api/appConfig';
+import { testGitConnection, initGitRepository } from '@/api/git';
 import modal from '@/utils/modal';
+import type { GitSettings } from '@/types/models';
 
 defineOptions({
   name: 'UserCenter'
@@ -133,6 +176,24 @@ const appVersion = ref('');
 const workspaceRoot = ref('');
 const gitConfigured = ref(false);
 const gitAccountInfo = ref<{ user_name: string; user_email: string; remote_url?: string } | null>(null);
+
+/** 个人中心 Git 配置表单（用户名、邮箱、Token、远程 URL） */
+const gitForm = ref<Pick<GitSettings, 'user_name' | 'user_email' | 'token' | 'remote_url'>>({
+  user_name: '',
+  user_email: '',
+  token: '',
+  remote_url: ''
+});
+const isSavingGit = ref(false);
+
+/** 所有 Git 字段（用户名、邮箱、Token、远程 URL）是否已填写，用于控制引导卡片显示 */
+const hasRequiredGitFieldsFilled = computed(
+  () =>
+    !!gitForm.value.user_name?.trim() &&
+    !!gitForm.value.user_email?.trim() &&
+    !!gitForm.value.token?.trim() &&
+    !!gitForm.value.remote_url?.trim()
+);
 
 // 加载应用信息
 const loadAppInfo = async () => {
@@ -150,17 +211,17 @@ const loadAppInfo = async () => {
       console.error('[UserCenter] 获取工作区根目录失败:', error);
     }
     
-    // 检查 Git 配置状态
+    // 检查 Git 配置状态并填充表单
     try {
       const gitSettings = await getGitSettings();
-      
-      // 判断是否已配置（启用且有必要的配置信息）
-      gitConfigured.value = gitSettings.enabled && 
-                           !!gitSettings.user_name && 
-                           !!gitSettings.user_email && 
-                           !!gitSettings.remote_url;
-      
-      // 保存账户信息用于显示
+      gitForm.value = {
+        user_name: gitSettings.user_name || '',
+        user_email: gitSettings.user_email || '',
+        token: gitSettings.token || '',
+        remote_url: gitSettings.remote_url || ''
+      };
+      // 只要必要字段填了就标记为已配置（不再依赖 enabled）
+      gitConfigured.value = hasRequiredGitFieldsFilled.value;
       if (gitConfigured.value) {
         gitAccountInfo.value = {
           user_name: gitSettings.user_name,
@@ -177,10 +238,75 @@ const loadAppInfo = async () => {
   }
 };
 
-// 跳转到 Git 同步设置
+// 保存 Git 配置（仅更新四字段，其余设置保留）
+const saveGitConfig = async () => {
+  // 校验必填字段
+  if (!gitForm.value.user_name?.trim()) {
+    modal.warning(t('userCenter.gitConfigSaveWarningName'), 'bottom-right');
+    return;
+  }
+  if (!gitForm.value.user_email?.trim()) {
+    modal.warning(t('userCenter.gitConfigSaveWarningEmail'), 'bottom-right');
+    return;
+  }
+  if (!gitForm.value.remote_url?.trim()) {
+    modal.warning(t('userCenter.gitConfigSaveWarningRemote'), 'bottom-right');
+    return;
+  }
+  isSavingGit.value = true;
+  try {
+    // 先测试连接（Token + 远程仓库）
+    if (gitForm.value.token?.trim() && gitForm.value.remote_url?.trim()) {
+      try {
+        await testGitConnection(gitForm.value.remote_url, gitForm.value.token);
+      } catch (error) {
+        modal.error(String(error), 'bottom-right');
+        isSavingGit.value = false;
+        return;
+      }
+    }
+
+    const current = await getGitSettings();
+    await updateGitSettings({
+      ...current,
+      user_name: gitForm.value.user_name,
+      user_email: gitForm.value.user_email,
+      token: gitForm.value.token,
+      remote_url: gitForm.value.remote_url
+    });
+    // 保存成功后，初始化本地 Git 仓库（配置用户、远程）
+    if (gitForm.value.token?.trim() && gitForm.value.remote_url?.trim()) {
+      try {
+        await initGitRepository(
+          gitForm.value.user_name,
+          gitForm.value.user_email,
+          gitForm.value.remote_url,
+          gitForm.value.token
+        );
+      } catch (error) {
+        console.warn('[UserCenter] 初始化 Git 仓库失败:', error);
+      }
+    }
+
+    modal.msg(t('userCenter.gitConfigSaved'), 'success', 'bottom-right');
+    gitAccountInfo.value = {
+      user_name: gitForm.value.user_name,
+      user_email: gitForm.value.user_email,
+      remote_url: gitForm.value.remote_url || undefined
+    };
+    // 只有 Token 也填了才算完整配置，显示 Git 同步面板
+    gitConfigured.value = !!gitForm.value.token?.trim();
+  } catch (error) {
+    console.error('[UserCenter] 保存 Git 配置失败:', error);
+    modal.error(t('userCenter.gitConfigSaveFailed') + ': ' + error);
+  } finally {
+    isSavingGit.value = false;
+  }
+};
+
+// 跳转到 Git 同步设置（需先配置工作区与上述四字段，设置中才会显示 Git 同步 tab）
 const goToGitSync = () => {
   try {
-    // 跳转到设置页面，并通过 query 参数指定打开 gitSync tab
     router.push({ path: '/config/category/settings', query: { tab: 'gitSync' } });
   } catch (error) {
     console.error('[UserCenter] 路由跳转失败:', error);
@@ -299,6 +425,30 @@ onMounted(() => {
 
 .tip-desc {
   @apply text-sm text-gray-600 dark:text-gray-400 mb-3;
+}
+
+.git-config-card {
+  @apply bg-gray-50 dark:bg-neutral-800 rounded-lg p-4 space-y-3;
+}
+
+.git-config-desc {
+  @apply text-sm text-gray-600 dark:text-gray-400 mb-3;
+}
+
+.git-config-form {
+  @apply space-y-3;
+}
+
+.form-row {
+  @apply flex flex-col gap-1;
+}
+
+.form-label {
+  @apply text-sm text-gray-600 dark:text-gray-400;
+}
+
+.form-input {
+  @apply max-w-md;
 }
 
 .actions-section,

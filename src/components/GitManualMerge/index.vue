@@ -1,7 +1,7 @@
 <template>
   <teleport to="body">
     <transition name="merge-fade">
-      <div v-if="visible" class="merge-overlay" @click.self="handleCancel">
+      <div v-if="visible" class="merge-overlay" @click.self="handleClose">
         <div class="merge-dialog">
           <!-- 顶栏 -->
           <div class="merge-titlebar">
@@ -24,7 +24,7 @@
                 </button>
               </div>
             </div>
-            <button class="titlebar-close" @click="handleCancel">
+            <button class="titlebar-close" @click="handleClose">
               <span>×</span>
             </button>
           </div>
@@ -221,6 +221,7 @@ interface Emits {
   (e: 'complete', selections: Record<number, 'remote' | 'local'>, editedContents: Record<number, string>): void;
   (e: 'cancel'): void;
   (e: 'back'): void;
+  (e: 'escape'): void;
 }
 
 const props = defineProps<Props>();
@@ -507,6 +508,9 @@ async function loadFileContents() {
 
 // 键盘快捷键
 function handleKeydown(e: KeyboardEvent) {
+  // 只在对话框可见时处理键盘快捷键
+  if (!visible.value) return;
+
   // Ctrl+1 或 ←: 接受本地版本
   if ((e.ctrlKey && e.key === '1') || (e.key === 'ArrowLeft' && !e.ctrlKey)) {
     e.preventDefault();
@@ -524,10 +528,10 @@ function handleKeydown(e: KeyboardEvent) {
       completeMerge();
     }
   }
-  // Escape: 取消
+  // Escape: 直接关闭（不触发取消确认）
   else if (e.key === 'Escape') {
     e.preventDefault();
-    handleCancel();
+    handleClose();
   }
   // Ctrl+← / Ctrl+→: 切换文件
   else if (e.ctrlKey && e.key === 'ArrowLeft') {
@@ -611,6 +615,11 @@ function handleBack() {
 function handleCancel() {
   visible.value = false;
   emit('cancel');
+}
+
+function handleClose() {
+  visible.value = false;
+  emit('escape');
 }
 
 // 监听对话框打开

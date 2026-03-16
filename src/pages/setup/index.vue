@@ -14,26 +14,43 @@
 
       <!-- 步骤内容 -->
       <div class="setup-content">
-        <!-- 欢迎页 + 语言选择 -->
+        <!-- 欢迎页：三选项卡片（类 Obsidian）或 登录子视图 -->
         <div v-if="step === 0" class="step-page welcome-page">
           <div class="welcome-header">
             <div class="welcome-icon">
               <img src="../../assets/128x128.png" alt="Logo" class="app-logo" />
             </div>
             <h1 class="welcome-title">Snippets Code</h1>
-            <p class="app-version">Version {{ version }}</p>
+            <p class="app-version">{{ $t('setup.versionLabel') }} {{ version }}</p>
           </div>
 
-          <div class="welcome-actions">
-            <!-- 快速开始按钮 -->
-            <CustomButton type="primary" class="quick-start-btn" @click="nextStep">
-              {{ $t('common.quickStart') || 'Quick start' }}
-            </CustomButton>
 
-            <div class="welcome-desc-text">{{ $t('setup.welcomeDesc') }}</div>
+          <!-- 主视图：三选项 -->
+          <div class="welcome-actions options-card">
+            <div
+              class="option-row"
+              @click="chooseSetupMode('create')"
+            >
+              <div class="option-info">
+                <div class="option-title">{{ $t('setup.createWorkspace') }}</div>
+                <div class="option-desc">{{ $t('setup.createWorkspaceDesc') }}</div>
+              </div>
+              <CustomButton type="primary" size="small" class="option-btn">{{ $t('setup.create') }}</CustomButton>
+            </div>
+            <div
+              class="option-row"
+              @click="chooseSetupMode('open')"
+            >
+              <div class="option-info">
+                <div class="option-title">{{ $t('setup.openWorkspace') }}</div>
+                <div class="option-desc">{{ $t('setup.openWorkspaceDesc') }}</div>
+              </div>
+              <CustomButton type="default" size="small" class="option-btn">{{ $t('setup.open') }}</CustomButton>
+            </div>
           </div>
+          <p class="welcome-desc-text">{{ $t('setup.welcomeDesc') }}</p>
 
-          <!-- 语言选择下拉框 - 底部居中 -->
+          <!-- 语言选择 -->
           <div class="language-footer">
             <el-select v-model="language" class="lang-select dark-input" popper-class="dark-select-popper"
               @change="onLanguageChange">
@@ -174,6 +191,16 @@ const defaultPath = ref('');
 const customPath = ref('');
 const completing = ref(false);
 
+/** 引导模式：新建 / 打开 */
+type SetupMode = 'create' | 'open';
+const setupMode = ref<SetupMode>('create');
+
+const chooseSetupMode = (mode: 'create' | 'open') => {
+  setupMode.value = mode;
+  pathOption.value = mode === 'create' ? 'default' : 'custom';
+  step.value = 1;
+};
+
 // 检查路径是否需要添加 snippets-code
 const needsAppFolder = (path: string) => {
   if (!path || path === defaultPath.value) return false;
@@ -301,9 +328,9 @@ const completeSetup = async () => {
 <style scoped lang="scss">
 .setup-container {
   @apply w-full h-full rounded-xl overflow-hidden;
-  background-color: #1e1e1e;
-  color: #dcddde;
-  border: 1px solid #333;
+  background: linear-gradient(180deg, #1a1b26 0%, #16171f 100%);
+  color: #e2e4e8;
+  border: 1px solid rgba(93, 109, 253, 0.12);
 }
 
 .setup-card {
@@ -351,8 +378,8 @@ const completeSetup = async () => {
 }
 
 .step-dot {
-  @apply w-6 h-6 rounded-full border border-gray-600;
-  @apply flex items-center justify-center text-xs font-medium;
+  @apply w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium;
+  border: 1px solid rgba(93, 109, 253, 0.3);
   background-color: transparent;
   transition: all 0.3s ease;
 }
@@ -362,16 +389,16 @@ const completeSetup = async () => {
 }
 
 .setup-content {
-  @apply flex-1 px-8 pt-4 flex flex-col items-center justify-start;
+  @apply flex-1 min-h-0 px-8 pt-2 pb-2 flex flex-col items-center justify-start;
   overflow-y: auto;
 }
 
 .step-page {
-  @apply flex flex-col items-center text-center w-full max-w-md;
+  @apply flex flex-col items-center text-center w-full max-w-md flex-1 min-h-0;
   animation: fadeIn 0.3s ease-out;
 
   &.welcome-page {
-    @apply mb-auto mt-1 gap-6 pb-4;
+    @apply justify-start gap-3 pb-2;
   }
 }
 
@@ -388,65 +415,157 @@ const completeSetup = async () => {
 }
 
 .welcome-header {
-  @apply flex flex-col items-center;
+  @apply flex flex-col items-center flex-shrink-0;
 }
 
 .welcome-icon {
-  @apply mb-6;
-  /* Removed the radial gradient glow for a cleaner look */
+  @apply mb-3;
 }
 
 .app-logo {
-  @apply w-24 h-24 object-contain;
-  /* Subtle drop shadow */
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+  @apply w-16 h-16 object-contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.2));
 }
 
 .welcome-title {
-  @apply text-2xl font-semibold mb-2 text-white;
+  @apply text-xl font-semibold mb-0.5;
+  color: #f0f1f4;
   letter-spacing: -0.02em;
 }
 
 .app-version {
-  @apply text-gray-500 text-xs font-mono;
+  @apply text-xs font-mono mb-1;
+  color: rgba(148, 163, 184, 0.9);
 }
 
 .welcome-actions {
-  @apply flex flex-col items-center gap-4 w-full max-w-xs;
+  @apply flex flex-col items-center gap-4 w-full max-w-lg;
 }
 
-.quick-start-btn {
+.welcome-actions.options-card {
+  @apply w-full px-4 gap-0 rounded-xl overflow-hidden;
+  background: rgba(37, 40, 54, 0.85);
+  border: 1px solid rgba(93, 109, 253, 0.18);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
+.option-row {
+  @apply flex items-center w-full gap-4 cursor-pointer transition-all;
+  min-height: 3.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: rgba(93, 109, 253, 0.08);
+  }
+}
+
+.option-row .option-info {
+  @apply flex-1 min-w-0 text-left;
+}
+
+.option-row .option-title {
+  @apply font-medium text-sm leading-tight;
+  color: #f0f1f4;
+  margin-bottom: 0.125rem;
+}
+
+.option-row .option-desc {
+  @apply text-xs leading-snug;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.option-btn {
+  flex-shrink: 0;
+  width: 5rem;
+  margin-left: auto;
+}
+
+.login-card {
+  @apply w-full max-w-md text-left rounded-xl flex-shrink-0;
+  padding: 1rem 1.25rem;
+  background: rgba(37, 40, 54, 0.85);
+  border: 1px solid rgba(93, 109, 253, 0.18);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
+.back-btn {
+  @apply mb-2;
+}
+
+.login-form-title {
+  @apply text-base font-semibold mb-0.5;
+  color: #f0f1f4;
+}
+
+.login-form-desc {
+  @apply text-xs mb-4;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.login-form {
+  @apply space-y-3;
+}
+
+.login-form .form-row {
+  @apply flex flex-col gap-1.5;
+}
+
+.login-form .form-label {
+  @apply text-sm;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.login-input {
   @apply w-full;
+
+  :deep(.el-input__wrapper) {
+    height: 2.25rem;
+  }
+}
+
+.login-input :deep(.el-input__wrapper) {
+  background: rgba(26, 27, 38, 0.8) !important;
+  box-shadow: 0 0 0 1px rgba(93, 109, 253, 0.2) inset !important;
+  border-radius: 8px;
+}
+
+.login-submit-btn {
+  @apply w-full mt-4;
 }
 
 .welcome-desc-text {
-  @apply text-gray-500 text-xs text-center px-4 leading-relaxed;
+  @apply text-xs text-center px-4 leading-relaxed mt-4 flex-shrink-0 max-w-md;
+  color: rgba(148, 163, 184, 0.75);
 }
 
 .language-footer {
-  @apply mt-4;
+  @apply mt-2 flex-shrink-0;
 }
 
 .lang-select {
   width: 140px;
 
   :deep(.el-input__wrapper) {
-    background-color: transparent !important;
-    box-shadow: none !important;
-    border: 1px solid transparent;
-    border-radius: 4px;
+    background: rgba(37, 40, 54, 0.6) !important;
+    box-shadow: 0 0 0 1px rgba(93, 109, 253, 0.2) !important;
+    border-radius: 8px;
     padding: 0 8px;
 
     &:hover {
-      border-color: #444;
+      box-shadow: 0 0 0 1px rgba(93, 109, 253, 0.35) !important;
     }
 
     &.is-focus {
-      border-color: var(--el-color-primary) !important;
+      box-shadow: 0 0 0 1px var(--el-color-primary) !important;
     }
 
     .el-input__inner {
-      color: #999;
+      color: rgba(148, 163, 184, 0.95);
       font-size: 12px;
       text-align: center;
     }
@@ -455,11 +574,13 @@ const completeSetup = async () => {
 
 
 .step-title {
-  @apply text-lg font-semibold text-white mb-2;
+  @apply text-lg font-semibold mb-2;
+  color: #f0f1f4;
 }
 
 .step-desc {
-  @apply text-gray-400 mb-8 text-sm;
+  @apply mb-8 text-sm;
+  color: rgba(148, 163, 184, 0.9);
 }
 
 .path-options {
@@ -467,21 +588,18 @@ const completeSetup = async () => {
 }
 
 .path-option {
-  @apply flex items-center justify-between gap-4 p-4 rounded-lg;
-  @apply border border-transparent cursor-pointer transition-all;
-  background-color: #2b2b2b;
-  /* Card background */
-  border: 1px solid #333;
+  @apply flex items-center justify-between gap-4 p-4 rounded-xl cursor-pointer transition-all;
+  background: rgba(37, 40, 54, 0.85);
+  border: 1px solid rgba(93, 109, 253, 0.18);
 
   &:hover {
-    border-color: #555;
-    background-color: #303030;
+    border-color: rgba(93, 109, 253, 0.35);
+    background: rgba(93, 109, 253, 0.06);
   }
 
   &.selected {
-    border-color: var(--el-color-primary);
-    background-color: rgba(93, 109, 253, 0.1);
-    /* #5d6dfd with 10% opacity */
+    border-color: rgba(93, 109, 253, 0.5);
+    background: rgba(93, 109, 253, 0.1);
 
     .radio-dot {
       background-color: var(--el-color-primary);
@@ -502,8 +620,8 @@ const completeSetup = async () => {
 }
 
 .radio-circle {
-  @apply w-4 h-4 rounded-full border border-gray-500;
-  @apply flex items-center justify-center;
+  @apply w-4 h-4 rounded-full flex items-center justify-center;
+  border: 1px solid rgba(93, 109, 253, 0.4);
   transition: all 0.2s;
 }
 
@@ -513,11 +631,13 @@ const completeSetup = async () => {
 }
 
 .option-title {
-  @apply font-medium text-gray-200 mb-0.5 text-sm;
+  @apply font-medium text-sm mb-0.5;
+  color: #f0f1f4;
 }
 
 .option-desc {
-  @apply text-xs text-gray-500 break-all;
+  @apply text-xs break-all;
+  color: rgba(148, 163, 184, 0.85);
 }
 
 .custom-path-input {
@@ -526,12 +646,13 @@ const completeSetup = async () => {
   .path-input {
     @apply flex-1;
 
-    :deep(.el-input__wrapper) {
-      background-color: #1e1e1e;
-      box-shadow: 0 0 0 1px #444 inset;
+  :deep(.el-input__wrapper) {
+    background: rgba(26, 27, 38, 0.8);
+    box-shadow: 0 0 0 1px rgba(93, 109, 253, 0.2) inset;
+    border-radius: 8px;
 
       &:hover {
-        box-shadow: 0 0 0 1px #666 inset;
+        box-shadow: 0 0 0 1px rgba(93, 109, 253, 0.35) inset;
       }
 
       &.is-focus {
@@ -546,7 +667,10 @@ const completeSetup = async () => {
 }
 
 .path-tip {
-  @apply flex items-start gap-2 mt-6 text-xs text-gray-500 bg-gray-800/30 p-3 rounded border border-gray-700/50;
+  @apply flex items-start gap-2 mt-6 text-xs p-3 rounded-lg;
+  background: rgba(93, 109, 253, 0.06);
+  border: 1px solid rgba(93, 109, 253, 0.15);
+  color: rgba(148, 163, 184, 0.9);
   text-align: left;
 }
 
@@ -556,9 +680,9 @@ const completeSetup = async () => {
 }
 
 .summary {
-  @apply w-full mt-6 p-4 rounded-lg text-left;
-  background-color: #2b2b2b;
-  border: 1px solid #333;
+  @apply w-full mt-6 p-4 rounded-xl text-left;
+  background: rgba(37, 40, 54, 0.85);
+  border: 1px solid rgba(93, 109, 253, 0.18);
 }
 
 .summary-item {
@@ -566,16 +690,19 @@ const completeSetup = async () => {
 }
 
 .summary-label {
-  @apply text-gray-500 text-xs uppercase tracking-wider;
+  @apply text-xs uppercase tracking-wider;
+  color: rgba(148, 163, 184, 0.8);
 }
 
 .summary-value {
-  @apply text-gray-200 text-sm font-mono break-all bg-black/20 p-2 rounded;
+  @apply text-sm font-mono break-all p-2 rounded;
+  color: #e2e4e8;
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .setup-footer {
   @apply flex items-center gap-3 px-8 py-5;
-  border-top: 1px solid #333;
-  background-color: #252525;
+  border-top: 1px solid rgba(93, 109, 253, 0.12);
+  background: rgba(22, 23, 31, 0.95);
 }
 </style>

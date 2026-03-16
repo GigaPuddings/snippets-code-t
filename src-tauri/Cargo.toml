@@ -76,6 +76,8 @@ notify = "6"
 jieba-rs = "0.7"
 rayon = "1.10"
 pathdiff = "0.2"
+pulldown-cmark = { version = "0.13", features = ["html"] }
+pulldown-cmark-toc = "0.7"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"

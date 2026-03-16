@@ -81,8 +81,6 @@ impl CacheManager {
     
     // 保存 cache 到文件
     pub fn save(&self) -> Result<(), String> {
-        info!("💾 [CacheManager] 保存 cache.json，文件数: {}, 分类数: {}", 
-            self.cache.files.len(), self.cache.categories.len());
         write_cache(&self.config_dir, &self.cache)
     }
     
@@ -90,8 +88,6 @@ impl CacheManager {
     pub fn reload_from_disk(&mut self) -> Result<(), String> {
         match read_cache(&self.config_dir) {
             Ok(new_cache) => {
-                info!("🔄 [CacheManager] 从磁盘重新加载 cache.json，文件数: {}, 分类数: {}", 
-                    new_cache.files.len(), new_cache.categories.len());
                 self.cache = new_cache;
                 Ok(())
             }
@@ -367,10 +363,19 @@ impl CacheManager {
                 info!("➕ [CacheManager] 添加文件到缓存: {}", file_path);
                 added_count += 1;
             } else {
-                // 如果已存在，更新修改时间
-                if let Some(metadata) = self.cache.files.get_mut(file_path) {
-                    metadata.modified = chrono::Utc::now().timestamp_millis();
-                    info!("🔄 [CacheManager] 更新文件元数据: {}", file_path);
+                // 如果已存在，检查文件是否真的有修改（比较实际修改时间）
+                let full_path = workspace_root.join(file_path);
+                if let Ok(file_meta) = std::fs::metadata(&full_path) {
+                    if let Ok(modified) = file_meta.modified() {
+                        let file_modified_ts = chrono::DateTime::<chrono::Utc>::from(modified).timestamp_millis();
+                        if let Some(metadata) = self.cache.files.get_mut(file_path) {
+                            // 仅当文件真实修改时间与缓存不同时才更新
+                            if metadata.modified != file_modified_ts {
+                                metadata.modified = file_modified_ts;
+                                info!("🔄 [CacheManager] 文件实际修改时间变化，更新: {}", file_path);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -401,10 +406,18 @@ impl CacheManager {
             .ok_or_else(|| "路径包含非 UTF-8 字符".to_string())?
             .replace('\\', "/");
         
-        // 更新修改时间
-        if let Some(metadata) = self.cache.files.get_mut(&relative_path) {
-            metadata.modified = chrono::Utc::now().timestamp_millis();
-            info!("🔄 [CacheManager] 更新文件元数据: {}", relative_path);
+        // 检查文件是否真的有修改（比较实际修改时间）
+        if let Ok(file_meta) = std::fs::metadata(file_path) {
+            if let Ok(modified) = file_meta.modified() {
+                let file_modified_ts = chrono::DateTime::<chrono::Utc>::from(modified).timestamp_millis();
+                if let Some(metadata) = self.cache.files.get_mut(&relative_path) {
+                    // 仅当文件真实修改时间与缓存不同时才更新
+                    if metadata.modified != file_modified_ts {
+                        metadata.modified = file_modified_ts;
+                        info!("🔄 [CacheManager] 文件实际修改时间变化，更新: {}", relative_path);
+                    }
+                }
+            }
         } else {
             // 如果不存在，添加新文件
             warn!("⚠️ [CacheManager] 文件不存在于缓存，尝试添加: {}", relative_path);

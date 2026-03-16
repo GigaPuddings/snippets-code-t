@@ -327,11 +327,19 @@ const updateStats = (text: string) => {
   wordCount.value = chineseChars.length + englishWords.length;
 };
 
-// 防抖更新
+// 防抖更新：始终向外发射 Markdown，保证持久化到磁盘的是 Markdown 而非 HTML
 // @ts-ignore - debounce 函数的类型定义不够精确
-const debouncedEmitUpdate = debounce((html: string) => {
-  emits('update:content', html);
-  emits('change', html);
+const debouncedEmitUpdate = debounce((editorInstance: Editor) => {
+  try {
+    const json = editorInstance.getJSON();
+    const markdown = jsonToMarkdown(json);
+    emits('update:content', markdown);
+    emits('change', markdown);
+    // 用于 watch(props.content) 时跳过由本次发射触发的回写
+    lastEmittedContent.value = markdownToHtml(markdown, workspaceRoot.value);
+  } catch (e) {
+    handleEditorError(e, 'jsonToMarkdown on emit');
+  }
 }, 150);
 
 // 初始化编辑器
@@ -345,15 +353,10 @@ const editor = useEditor({
   }),
   onUpdate: ({ editor }) => {
     try {
-      const html = editor.getHTML();
       const text = editor.getText();
-      
-      // 设置标志位，防止 watch 触发循环更新
       isInternalUpdate.value = true;
-      lastEmittedContent.value = html;
-      
       updateStats(text);
-      debouncedEmitUpdate(html);
+      debouncedEmitUpdate(editor);
       // 更新光标位置
       currentCursorPos.value = editor.state.selection.from;
       
@@ -691,17 +694,10 @@ const toggleViewMode = (mode: 'reading' | 'preview' | 'source') => {
       try {
         const html = markdownToHtml(sourceContent.value, workspaceRoot.value);
         editor.value.commands.setContent(html, { emitUpdate: false });
-        
-        // 更新 lastEmittedContent
         lastEmittedContent.value = html;
-        
-        // 触发内容更新事件，确保父组件同步
         nextTick(() => {
-          if (editor.value) {
-            const updatedHtml = editor.value.getHTML();
-            emits('update:content', updatedHtml);
-            emits('change', updatedHtml);
-          }
+          emits('update:content', sourceContent.value);
+          emits('change', sourceContent.value);
         });
       } catch (error) {
         console.error('Failed to parse Markdown:', error);
@@ -726,17 +722,10 @@ const toggleViewMode = (mode: 'reading' | 'preview' | 'source') => {
       try {
         const html = markdownToHtml(sourceContent.value, workspaceRoot.value);
         editor.value.commands.setContent(html, { emitUpdate: false });
-        
-        // 更新 lastEmittedContent
         lastEmittedContent.value = html;
-        
-        // 触发内容更新事件，确保父组件同步
         nextTick(() => {
-          if (editor.value) {
-            const updatedHtml = editor.value.getHTML();
-            emits('update:content', updatedHtml);
-            emits('change', updatedHtml);
-          }
+          emits('update:content', sourceContent.value);
+          emits('change', sourceContent.value);
         });
       } catch (error) {
         console.error('Failed to parse Markdown:', error);
@@ -766,6 +755,9 @@ const handleSourceContentChange = (value: string) => {
   if (showOutline.value) {
     extractHeadingsFromSource();
   }
+  // 实时触发内容更新事件，确保父组件能够获取到源码模式下的内容
+  emits('update:content', value);
+  emits('change', value);
 };
 
 // 从源码中提取标题
@@ -1260,7 +1252,8 @@ watch(() => props.content, (newContent) => {
   
   try {
     if (editor.value && editor.value.getHTML() !== newContent) {
-      editor.value.commands.setContent(newContent);
+      // 使用 emitUpdate: false 避免触发循环更新（尤其是初始化加载时）
+      editor.value.commands.setContent(newContent, { emitUpdate: false });
       lastEmittedContent.value = newContent;
       const text = editor.value.getText();
       updateStats(text);

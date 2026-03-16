@@ -89,7 +89,9 @@ watch(
   }
 );
 
-// 手动调整菜单位置
+const PADDING = 8;
+
+// 手动调整菜单位置，保证不超出视口且留出边距
 function adjustMenuPosition() {
   if (!menuElementRef.value) return;
 
@@ -97,18 +99,16 @@ function adjustMenuPosition() {
   const menuWidth = menu.offsetWidth;
   const menuHeight = menu.offsetHeight;
 
-  // 获取视口宽高
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
 
-  // 检查并调整X坐标
-  if (x.value + menuWidth > viewportWidth) {
-    x.value = viewportWidth - menuWidth - 5; // 保留5px边距
+  if (x.value < PADDING) x.value = PADDING;
+  if (x.value + menuWidth > viewportWidth - PADDING) {
+    x.value = viewportWidth - menuWidth - PADDING;
   }
-
-  // 检查并调整Y坐标
-  if (y.value + menuHeight > viewportHeight) {
-    y.value = viewportHeight - menuHeight - 5; // 保留5px边距
+  if (y.value < PADDING) y.value = PADDING;
+  if (y.value + menuHeight > viewportHeight - PADDING) {
+    y.value = viewportHeight - menuHeight - PADDING;
   }
 }
 

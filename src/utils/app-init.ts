@@ -8,6 +8,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { ensureGitignore } from '@/api/git';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useGitStatus } from '@/hooks/useGitStatus';
@@ -248,6 +249,22 @@ export async function initCleanupCache(): Promise<void> {
     }
   } catch (error) {
     logger.error('[AppInit] 清理缓存失败', error);
+  }
+}
+
+/**
+ * 确保工作区存在 .gitignore，不存在则用默认内容创建
+ */
+export async function ensureWorkspaceGitignore(): Promise<void> {
+  try {
+    const root = await invoke<string | null>('get_workspace_root_path');
+    if (!root) return;
+    const created = await ensureGitignore();
+    if (created) {
+      logger.info('[AppInit] 已为工作区自动创建 .gitignore');
+    }
+  } catch (error) {
+    logger.debug('[AppInit] 确保 .gitignore 跳过或失败', error);
   }
 }
 

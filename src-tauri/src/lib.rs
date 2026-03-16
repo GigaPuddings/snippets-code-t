@@ -1001,12 +1001,16 @@ pub fn run() {
             git_sync::check_git_installed_command,      // 检查 Git 是否安装
             git_sync::check_git_repo_command,           // 检查是否是 Git 仓库
             git_sync::get_git_status_command,           // 获取 Git 状态
-            git_sync::get_system_git_config_command,    // 获取系统 Git 配置
+            git_sync::get_system_git_config_command,    // 获取系统 Git 配置（保留兼容）
+            git_sync::get_workspace_git_config_command, // 仅工作区检测 Git 配置（不调系统，防闪退）
             git_sync::configure_git_command,            // 配置 Git
+            git_sync::init_git_repository_command,      // 初始化 Git 仓库并配置远程
+            git_sync::test_git_connection_command,      // 测试 Git 连接
             git_sync::git_pull_command,                 // 执行 git pull
             git_sync::git_push_command,                 // 执行 git push
             git_sync::resolve_conflict_command,         // 解决冲突
             git_sync::check_gitignore_command,          // 检查 .gitignore
+            git_sync::ensure_gitignore_command,         // 确保 .gitignore 存在（不存在则创建）
             git_sync::start_auto_sync_command,          // 启动自动同步
             git_sync::stop_auto_sync_command,           // 停止自动同步
             git_sync::notify_file_edit_command,         // 通知文件编辑

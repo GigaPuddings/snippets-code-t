@@ -31,8 +31,8 @@ export function createEditorExtensions(
       },
       // 禁用 StarterKit 自带的 codeBlock，使用自定义的
       codeBlock: false,
-      // 禁用 StarterKit 自带的扩展,使用自定义配置
-      link: false  // 禁用默认的 Link,使用下面自定义的
+      // 禁用默认的 Link，使用自定义的
+      link: false,
     }),
     LocalImage,  // 使用自定义的本地图片扩展（StarterKit 不包含 Image，所以不需要禁用）
     CodeBlockLowlight.configure({

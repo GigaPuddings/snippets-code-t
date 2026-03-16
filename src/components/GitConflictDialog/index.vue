@@ -1,7 +1,7 @@
 <template>
   <teleport to="body">
     <transition name="conflict-fade">
-      <div v-if="visible" class="conflict-overlay" @click.self="handleCancel">
+      <div v-if="visible" class="conflict-overlay" @click.self="handleClose">
         <div class="conflict-dialog">
           <!-- 顶栏 -->
           <div class="conflict-header">
@@ -9,7 +9,7 @@
               <span class="header-icon">⚠️</span>
               <span>{{ $t('settings.gitSync.conflictDetected') }}</span>
             </div>
-            <button class="header-close" @click="handleCancel">
+            <button class="header-close" @click="handleClose">
               <span>×</span>
             </button>
           </div>
@@ -117,7 +117,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
 interface Props {
   modelValue: boolean;
@@ -129,6 +129,8 @@ interface Emits {
   (e: 'update:modelValue', value: boolean): void;
   (e: 'confirm', strategy: string): void;
   (e: 'cancel'): void;
+  /** 按 ESC 关闭：仅关闭弹框，不触发「取消冲突处理」二次确认 */
+  (e: 'escape'): void;
 }
 
 const props = defineProps<Props>();
@@ -145,11 +147,29 @@ const untrackedFiles = computed(() => props.untrackedFiles || []);
 const selectedStrategy = ref<string>('');
 const loading = ref(false);
 
+function onEsc(e: KeyboardEvent) {
+  if (e.key === 'Escape' && visible.value) {
+    e.preventDefault();
+    visible.value = false;
+    emit('escape');
+  }
+}
+
 watch(visible, (val) => {
   if (val) {
     selectedStrategy.value = '';
     loading.value = false;
+    document.addEventListener('keydown', onEsc);
+  } else {
+    document.removeEventListener('keydown', onEsc);
   }
+});
+
+onMounted(() => {
+  if (visible.value) document.addEventListener('keydown', onEsc);
+});
+onUnmounted(() => {
+  document.removeEventListener('keydown', onEsc);
 });
 
 function handleConfirm() {
@@ -160,6 +180,11 @@ function handleConfirm() {
 function handleCancel() {
   visible.value = false;
   emit('cancel');
+}
+
+function handleClose() {
+  visible.value = false;
+  emit('escape');
 }
 
 defineExpose({

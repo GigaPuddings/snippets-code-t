@@ -620,9 +620,10 @@ pub fn hotkey_selection_translate() {
     // 尝试获取选中文本，支持重试
     let selected_text = get_selected_text_with_retry();
     
-    log::info!("[划词翻译] 最终获取的文本长度: {}, 内容预览: {}", 
-        selected_text.len(), 
-        if selected_text.len() > 50 { format!("{}...", &selected_text[..50]) } else { selected_text.clone() }
+    let preview: String = selected_text.chars().take(50).collect();
+    log::info!("[划词翻译] 最终获取的文本长度: {}, 内容预览: {}",
+        selected_text.len(),
+        if selected_text.len() > 50 { format!("{}...", preview) } else { selected_text.clone() }
     );
     
     // 检查窗口是否已经存在

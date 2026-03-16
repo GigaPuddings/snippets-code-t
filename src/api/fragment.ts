@@ -226,8 +226,6 @@ export async function getFragmentList(
   searchVal = ''
 ): Promise<ContentType[]> {
   try {
-    logger.info('[getFragmentList] 开始查询, categoryId:', categoryId, 'searchVal:', searchVal);
-    
     let files: MarkdownFile[] = [];
     
     // 解析搜索文本，提取过滤条件
@@ -235,40 +233,28 @@ export async function getFragmentList(
     const searchFilter = parseSearchText(searchVal);
     const textQuery = searchFilter.text || '';
     
-    logger.info('[getFragmentList] 解析后的过滤条件:', searchFilter);
-    logger.info('[getFragmentList] 纯文本查询:', textQuery);
-    
     if (textQuery) {
       // 如果有搜索关键词，使用搜索 API
       files = await markdownApi.searchMarkdownFiles(textQuery);
-      logger.info('[getFragmentList] 搜索结果:', files.length, '个文件');
       
       // 如果指定了分类，过滤结果
       if (categoryId !== undefined && categoryId !== null) {
         const numId = typeof categoryId === 'string' ? parseInt(categoryId, 10) : categoryId;
         files = files.filter(file => file.categoryId === numId);
-        logger.info('[getFragmentList] 分类过滤后:', files.length, '个文件');
       }
     } else if (categoryId !== undefined && categoryId !== null) {
       // 如果指定了分类但没有搜索关键词，获取该分类下的所有文件
       const numId = typeof categoryId === 'string' ? parseInt(categoryId, 10) : categoryId;
       files = await markdownApi.getFilesByCategory(numId);
-      logger.info('[getFragmentList] 分类文件:', files.length, '个文件');
     } else {
       // 获取所有文件
       files = await markdownApi.getAllFiles();
-      logger.info('[getFragmentList] 所有文件:', files.length, '个文件');
     }
     
     // 应用 type 过滤器
     if (searchFilter.type) {
-      logger.info('[getFragmentList] 应用 type 过滤器:', searchFilter.type);
-      logger.info('[getFragmentList] 过滤前文件类型:', files.map(f => f.type));
       files = files.filter(file => file.type === searchFilter.type);
-      logger.info('[getFragmentList] type 过滤后:', files.length, '个文件');
     }
-    
-    logger.info('[getFragmentList] 最终返回:', files.length, '个文件');
     
     // 转换为 ContentType
     return files.map(file => markdownFileToContentType(file));

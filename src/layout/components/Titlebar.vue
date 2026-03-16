@@ -48,9 +48,9 @@
 
       <div class="titlebar-divider"></div>
 
-      <!-- Git 同步状态指示器 -->
+      <!-- Git 同步状态指示器：仅启用且状态有效时显示，无效或未启用不显示 -->
       <div
-        v-if="syncState !== 'disabled'"
+        v-if="showGitIndicator"
         class="git-status-indicator"
         :class="`git-status-${syncState}`"
         :title="stateDescription"
@@ -209,8 +209,14 @@ const {
   formattedLastSyncTime,
   refreshStatus,
   refreshSettings,
-  stateDescription
+  stateDescription,
+  gitSettings
 } = useGitStatus();
+
+/** 启用 Git 同步时显示标题栏指示器；仅在有错误时隐藏，其余状态（就绪/空闲/已同步/有变更/同步中）均显示 */
+const showGitIndicator = computed(
+  () => !!gitSettings.value?.enabled && syncState.value !== 'error'
+);
 
 defineOptions({
   name: 'Titlebar'

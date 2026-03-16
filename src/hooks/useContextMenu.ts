@@ -47,9 +47,9 @@ export default function useContextMenu(
       e.preventDefault();
       e.stopPropagation();
 
-      // 先设置临时位置
-      x.value = e.clientX;
-      y.value = e.clientY;
+      // 位置：略向右下偏移，避免完全盖住触发项，便于与侧边栏视觉协调
+      x.value = e.clientX + 4;
+      y.value = e.clientY + 2;
 
       // 显示菜单
       showMenu.value = true;
@@ -68,8 +68,10 @@ export default function useContextMenu(
     }
   };
 
+  const PADDING = 8;
+
   /**
-   * 调整菜单位置，确保菜单不会超出视口
+   * 调整菜单位置，确保菜单不超出视口且与侧边栏协调
    */
   const adjustMenuPosition = (): void => {
     try {
@@ -79,18 +81,24 @@ export default function useContextMenu(
       const menuWidth = menu.offsetWidth;
       const menuHeight = menu.offsetHeight;
 
-      // 获取视口宽高
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
 
-      // 检查并调整X坐标
-      if (x.value + menuWidth > viewportWidth) {
-        x.value = viewportWidth - menuWidth;
+      // 左边界：不超出视口左侧
+      if (x.value < PADDING) {
+        x.value = PADDING;
       }
-
-      // 检查并调整Y坐标
-      if (y.value + menuHeight > viewportHeight) {
-        y.value = viewportHeight - menuHeight;
+      // 右边界
+      if (x.value + menuWidth > viewportWidth - PADDING) {
+        x.value = viewportWidth - menuWidth - PADDING;
+      }
+      // 上边界：避免与顶部搜索栏重叠
+      if (y.value < PADDING) {
+        y.value = PADDING;
+      }
+      // 下边界
+      if (y.value + menuHeight > viewportHeight - PADDING) {
+        y.value = viewportHeight - menuHeight - PADDING;
       }
     } catch (error) {
       ErrorHandler.log(error, {
