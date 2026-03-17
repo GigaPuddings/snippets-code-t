@@ -67,12 +67,12 @@ export const EnhancedMarkdown = Extension.create({
       // 注意：不要求 - 后面必须有空格，这样 -[ 也能触发（避免被无序列表抢走）
       wrappingInputRule({
         // 支持 -[x]、- [x]、-[]、- [] 等格式
-        find: /^-?\[x\]\s*(.*)$/i,
+        find: /^-\s*\[x\]\s*/i,
         type: this.editor.schema.nodes.taskList,
       }),
       wrappingInputRule({
         // 支持 -[ ]、- [ ]、-[ ]、- [ ] 等格式
-        find: /^-?\[\s?\]\s*(.*)$/,
+        find: /^-\s*\[\s?\]\s*/,
         type: this.editor.schema.nodes.taskList,
       }),
 
@@ -141,17 +141,70 @@ export const EnhancedMarkdown = Extension.create({
   addProseMirrorPlugins() {
     log('addProseMirrorPlugins: 初始化 ProseMirror 插件');
     return [
-      // ==================== 键盘输入监听 ====================
+      // ==================== 换行后 Markdown 转换处理 ====================
+      // 处理用户按 Enter 后在新行输入 Markdown 语法的情况
+      new Plugin({
+        key: new PluginKey('newlineMarkdownHandler'),
+        props: {
+          handleTextInput: (view, from, _to, text) => {
+            // 只处理单字符输入
+            if (text.length !== 1) {
+              return false;
+            }
+
+            const { state } = view;
+            const { doc } = state;
+
+            // 检查光标前是否是换行符
+            if (from <= 0) {
+              return false;
+            }
+
+            const charBefore = doc.textBetween(from - 1, from, '\n', '\n');
+            if (charBefore !== '\n') {
+              return false;
+            }
+
+            // 获取当前行的开始位置
+            const $from = state.selection.$from;
+            const lineStart = $from.start();
+            const textInLine = doc.textBetween(lineStart, from, '\n', '\n');
+
+            // 检查是否是空行（只有换行符）
+            if (textInLine.trim() !== '') {
+              return false;
+            }
+
+            // 检查输入的字符是否是 Markdown 触发字符
+            const markdownTriggers: Record<string, string> = {
+              '#': 'heading',
+              '>': 'blockquote',
+              '-': 'bulletList',
+              '*': 'bulletList',
+              '+': 'bulletList',
+              '`': 'codeBlock',
+              '1': 'orderedList',
+            };
+
+            const expectedNext = markdownTriggers[text];
+            if (!expectedNext) {
+              return false;
+            }
+
+            log('换行后 Markdown 处理: 检测到行首 Markdown 触发', { text, textInLine, expectedNext });
+
+            // 不阻止输入，让输入规则自然触发
+            return false;
+          },
+        },
+      }),
+
+      // ==================== 键盘输入监听（调试用）================
       new Plugin({
         key: new PluginKey('markdownInputLogger'),
         props: {
-          handleTextInput: (view, _from, _to, text) => {
+          handleTextInput: (_view, _from, _to, text) => {
             log('handleTextInput: 监听文本输入', { text });
-            const { state } = view;
-            const { doc } = state;
-            const $from = state.selection.$from;
-            const textBefore = doc.textBetween(Math.max(0, $from.start() - 20), $from.pos, '\n', '\n');
-            log('handleTextInput: 光标前文本', { textBefore });
             return false;
           },
         },
