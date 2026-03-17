@@ -9,7 +9,7 @@ import { markInputRule, nodeInputRule, textblockTypeInputRule, wrappingInputRule
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 
 // 调试日志开关
-const DEBUG = false;
+const DEBUG = true;
 
 const log = (message: string, ...args: unknown[]) => {
   if (DEBUG) {
@@ -64,13 +64,15 @@ export const EnhancedMarkdown = Extension.create({
       }),
 
       // ==================== 任务列表规则 ====================
-      // 支持 -[x]、-[ ]、- [x]、- [ ] 等格式（- 后面可以有零个或多个空格）
+      // 注意：不要求 - 后面必须有空格，这样 -[ 也能触发（避免被无序列表抢走）
       wrappingInputRule({
-        find: /^-\s*\[x\]\s*/i,
+        // 支持 -[x]、- [x]、-[]、- [] 等格式
+        find: /^-?\[x\]\s*(.*)$/i,
         type: this.editor.schema.nodes.taskList,
       }),
       wrappingInputRule({
-        find: /^-\s*\[\s?\]\s*/,
+        // 支持 -[ ]、- [ ]、-[ ]、- [ ] 等格式
+        find: /^-?\[\s?\]\s*(.*)$/,
         type: this.editor.schema.nodes.taskList,
       }),
 
