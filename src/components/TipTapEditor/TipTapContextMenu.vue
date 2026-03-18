@@ -694,43 +694,47 @@ defineExpose({
 
 <style lang="scss" scoped>
 .context-menu {
-  @apply fixed z-[9999] min-w-[200px] max-w-[280px] bg-white border border-gray-200 rounded-lg p-1 select-none;
+  @apply fixed z-[9999] min-w-[200px] max-w-[280px] border rounded-lg p-1 select-none;
+  background-color: var(--panel-bg);
+  border-color: var(--panel-border);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
   transition: background-color 0.2s ease, border-color 0.2s ease;
   animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 
   &.dark-theme {
-    @apply bg-[#2a2a2a] border-[#3a3a3a];
+    background-color: var(--panel-bg);
+    border-color: var(--panel-border);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
 
     .menu-item {
-      @apply text-gray-200;
+      color: var(--panel-text);
 
       &:hover:not(.disabled) {
-        @apply text-white;
+        color: var(--panel-text);
         background: rgba(93, 109, 253, 0.12);
       }
 
       &.active {
-        @apply text-[#7c8aff];
+        color: var(--el-color-primary);
         background: rgba(93, 109, 253, 0.08);
       }
 
       &.disabled {
-        @apply text-gray-500;
+        color: var(--panel-text-secondary);
+        opacity: 0.5;
       }
     }
 
     .menu-divider {
-      @apply bg-[#3a3a3a];
+      background-color: var(--panel-border);
     }
 
     .menu-arrow {
-      @apply text-gray-400;
+      color: var(--panel-text-secondary);
     }
 
     .menu-icon {
-      @apply text-gray-400;
+      color: var(--panel-text-secondary);
     }
   }
 
@@ -740,22 +744,26 @@ defineExpose({
 }
 
 .menu-item {
-  @apply flex items-center min-h-[32px] px-2.5 py-[5px] text-gray-700 text-[13px] cursor-pointer relative rounded-[5px] gap-2;
+  @apply flex items-center min-h-[32px] px-2.5 py-[5px] text-[13px] cursor-pointer relative rounded-[5px] gap-2;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--panel-text);
 
   &:hover:not(.disabled) {
-    @apply text-gray-800;
+    color: var(--panel-text);
     background: rgba(93, 109, 253, 0.08);
   }
 
   &.active {
-    @apply text-[#5d6dfd] font-medium;
+    color: var(--el-color-primary);
+    font-weight: 500;
     background: rgba(93, 109, 253, 0.05);
   }
 
   &.disabled {
-    @apply text-gray-400 cursor-not-allowed opacity-50;
-    
+    color: var(--panel-text-secondary);
+    cursor: not-allowed;
+    opacity: 0.5;
+
     &:hover {
       @apply bg-transparent;
       transform: none;
@@ -767,22 +775,25 @@ defineExpose({
   }
 
   .menu-icon {
-    @apply w-4 h-4 flex-shrink-0 text-gray-500;
+    @apply w-4 h-4 flex-shrink-0;
+    color: var(--panel-text-secondary);
     transition: color 0.15s ease;
   }
 
   .menu-arrow {
-    @apply ml-auto w-4 h-4 text-gray-400 flex-shrink-0;
+    @apply ml-auto w-4 h-4 text-panel-text-secondary flex-shrink-0;
     transition: color 0.15s ease;
   }
 
   .check-mark {
-    @apply ml-auto w-4 h-4 text-[#5d6dfd] flex-shrink-0;
+    @apply ml-auto w-4 h-4 flex-shrink-0;
+    color: var(--el-color-primary);
   }
 
   .menu-shortcut {
-    @apply ml-auto px-1.5 py-px text-gray-400 text-[10px] flex-shrink-0 rounded font-medium;
+    @apply ml-auto px-1.5 py-px text-[10px] flex-shrink-0 rounded font-medium;
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    color: var(--panel-text-secondary);
     background: rgba(0, 0, 0, 0.04);
     letter-spacing: 0.3px;
   }
@@ -793,7 +804,7 @@ defineExpose({
 }
 
 .menu-divider {
-  @apply h-px bg-gray-200 mx-1.5 my-1;
+  @apply h-px bg-panel mx-1.5 my-1;
   transition: background-color 0.2s ease;
 }
 

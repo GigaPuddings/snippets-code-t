@@ -25,7 +25,12 @@
       </button>
       
       <!-- 视图切换按钮 -->
-      <el-dropdown v-if="showViewToggle" trigger="click" @command="handleCommand">
+      <el-dropdown
+        v-if="showViewToggle"
+        trigger="click"
+        :popper-class="dark ? 'editor-statusbar-dropdown-dark' : undefined"
+        @command="handleCommand"
+      >
         <span class="view-toggle-btn">
           <svg v-if="viewMode === 'reading'" class="view-icon" viewBox="0 0 24 24" width="16" height="16">
             <path fill="currentColor" d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z" />
@@ -90,12 +95,14 @@ interface Props {
   showViewToggle?: boolean;
   showBacklinkButton?: boolean;
   backlinkCount?: number;
+  dark?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showViewToggle: true,
   showBacklinkButton: false,
-  backlinkCount: 0
+  backlinkCount: 0,
+  dark: false
 });
 
 const emits = defineEmits<{
@@ -125,7 +132,10 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 
 <style lang="scss" scoped>
 .editor-status {
-  @apply h-6 px-2 bg-gray-50 border-t border-gray-200 flex items-center justify-between text-sm text-gray-700;
+  @apply h-6 px-2 flex items-center justify-between text-sm;
+  background-color: var(--statusbar-bg);
+  border-top: 1px solid var(--statusbar-border);
+  color: var(--statusbar-text);
   position: absolute;
   bottom: 0;
   left: 0;
@@ -147,7 +157,8 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 }
 
 .editor-status-text {
-  @apply text-xs opacity-70  font-normal;
+  @apply text-xs opacity-70 font-normal;
+  color: var(--statusbar-text);
 }
 
 .editor-status-right {
@@ -156,42 +167,32 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 
 .backlink-btn {
   @apply flex items-center gap-1 px-2 pt-[0.1rem] pb-[0.2rem] rounded cursor-pointer text-xs transition-all border-none bg-transparent;
-  
+
   &:hover {
-    @apply bg-gray-200;
+    background-color: var(--editor-hover-bg);
   }
-  
+
   .backlink-icon {
-    @apply flex-shrink-0 text-gray-600;
+    @apply flex-shrink-0;
+    color: var(--editor-text-secondary);
     transition: color 0.3s ease;
   }
-  
+
   .backlink-count {
-    @apply text-center min-w-[18px] px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full;
+    @apply text-center min-w-[18px] px-1.5 py-0.5 text-xs font-medium rounded-full;
+    background-color: var(--categories-bg-active);
+    color: var(--categories-text-color-active);
     transition: background-color 0.3s ease, color 0.3s ease;
-  }
-  
-  .dark-theme & {
-    &:hover {
-      @apply bg-[#2a2a2a];
-    }
-    
-    .backlink-icon {
-      @apply text-gray-400;
-    }
-    
-    .backlink-count {
-      @apply bg-blue-900 text-blue-300;
-    }
   }
 }
 
 .view-toggle-btn {
   @apply flex items-center gap-1 px-2 pt-[0.1rem] pb-[0.2rem] rounded cursor-pointer text-xs;
+  color: var(--editor-text-secondary);
   transition: background-color 0.2s ease, color 0.2s ease;
 
   &:hover {
-    @apply bg-gray-200;
+    background-color: var(--editor-hover-bg);
   }
 
   .view-icon {
@@ -221,11 +222,11 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 
     .check-icon {
       @apply flex-shrink-0 ml-auto;
-      color: #5d6dfd;
+      color: var(--el-color-primary);
     }
 
     &.is-active {
-      @apply text-[#5d6dfd];
+      color: var(--el-color-primary);
       font-weight: 500;
     }
   }

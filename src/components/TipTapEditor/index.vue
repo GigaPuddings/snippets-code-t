@@ -46,6 +46,7 @@
         :show-view-toggle="props.showViewToggle"
         :show-backlink-button="!!props.currentTitle"
         :backlink-count="backlinkCount"
+        :dark="props.dark"
         @view-mode-change="handleViewModeCommand"
         @toggle-backlinks="toggleBacklinks"
       />
@@ -1537,21 +1538,23 @@ defineExpose({
 
 .dark-theme {
   :deep(.editor-status) {
-    @apply bg-[#1a1a1a] border-[#2a2a2a] text-[#9ca3af];
+    background-color: var(--statusbar-bg);
+    border-color: var(--statusbar-border);
+    color: var(--statusbar-text);
   }
-  
+
   :deep(.action-btn) {
-    color: var(--text-muted, #9ca3af);
-    
+    color: var(--editor-text-secondary);
+
     &:hover {
-      @apply bg-[#2a2a2a];
-      color: var(--text-normal, #d1d5db);
+      background-color: var(--editor-hover-bg);
+      color: var(--editor-text);
     }
   }
-  
+
   :deep(.view-toggle-btn) {
     &:hover {
-      @apply bg-[#2a2a2a];
+      background-color: var(--editor-hover-bg);
     }
   }
 }
@@ -1573,15 +1576,17 @@ defineExpose({
   transition: background-color 0.3s ease, color 0.3s ease;
 
   &.dark {
-    @apply bg-[#1a1a1a] text-[#CECFD0];
+    background-color: var(--editor-bg);
+    color: var(--editor-text);
 
     h1, h2, h3, h4, h5, h6 {
-      @apply text-[#CECFD0];
+      color: var(--editor-text);
       transition: color 0.3s ease;
     }
 
     code {
-      @apply bg-[#282d32] text-[#FF8170];
+      background-color: var(--editor-hover-bg);
+      color: var(--el-color-primary);
       transition: background-color 0.3s ease, color 0.3s ease;
     }
 
@@ -1596,7 +1601,8 @@ defineExpose({
     }
 
     blockquote {
-      @apply border-l-[#727377] text-[#7F8C98];
+      border-left-color: var(--panel-border);
+      color: var(--panel-text-secondary);
       transition: border-color 0.3s ease, color 0.3s ease;
     }
 
@@ -1775,7 +1781,7 @@ defineExpose({
   }
 
   code {
-    @apply bg-gray-100 text-red-600 rounded text-sm font-mono;
+    @apply bg-content text-red-600 rounded text-sm font-mono;
     padding: 0.2em 0.4em;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
@@ -1901,13 +1907,13 @@ defineExpose({
   }
 
   blockquote {
-    @apply border-l-4 border-gray-300 pl-4 italic text-gray-600 mb-5;
+    @apply border-l-4 border-panel pl-4 italic text-panel-text-secondary mb-5;
     line-height: 1.7;
     transition: border-color 0.3s ease, color 0.3s ease;
   }
 
   hr {
-    @apply border-t border-gray-300 my-8;
+    @apply border-t border-panel my-8;
     transition: border-color 0.3s ease;
   }
 
@@ -1960,7 +1966,7 @@ defineExpose({
   }
 
   .invalid-link {
-    @apply text-gray-600;
+    @apply text-panel-text-secondary;
     font-family: inherit;
     font-size: inherit;
     cursor: text;
@@ -1968,7 +1974,7 @@ defineExpose({
 
   code.invalid-link-display,
   span.invalid-link-text {
-    @apply bg-transparent text-gray-600;
+    @apply bg-transparent text-panel-text-secondary;
     padding: 0;
     font-family: inherit;
     font-size: inherit;
@@ -1977,17 +1983,17 @@ defineExpose({
   }
 
   table {
-    @apply border-collapse w-full mb-5 border border-gray-300;
+    @apply border-collapse w-full mb-5 border border-panel;
     transition: border-color 0.3s ease;
 
     th, td {
-      @apply border border-gray-300 px-4 py-2 text-left;
+      @apply border border-panel px-4 py-2 text-left;
       line-height: 1.6;
       transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
     }
 
     th {
-      @apply bg-gray-100 font-bold;
+      @apply bg-content font-bold;
     }
   }
 
@@ -1996,7 +2002,7 @@ defineExpose({
   }
 
   p.is-editor-empty:first-child::before {
-    @apply text-gray-400 float-left h-0 pointer-events-none;
+    @apply text-panel-text-secondary float-left h-0 pointer-events-none;
     content: attr(data-placeholder);
     transition: color 0.3s ease;
   }

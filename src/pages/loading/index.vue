@@ -82,7 +82,7 @@
 }
 
 .loading-text {
-  @apply text-sm text-gray-300/80 mt-6 font-normal tracking-wide relative pb-1;
+  @apply text-sm text-panel-text-secondary mt-6 font-normal tracking-wide relative pb-1;
 
   animation: fadeIn 1.5s ease-in-out;
 
@@ -107,7 +107,7 @@
 }
 
 .loading-progress {
-  @apply w-full mt-6 h-1 bg-gray-700/30 rounded-full overflow-hidden;
+  @apply w-full mt-6 h-1 bg-panel rounded-full overflow-hidden;
 }
 
 .progress-bar {

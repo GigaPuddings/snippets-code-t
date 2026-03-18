@@ -509,24 +509,24 @@ onUnmounted(() => {
   }
   
   .context-menu {
-    @apply fixed bg-white dark:bg-panel rounded-lg py-2 min-w-24;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    @apply fixed bg-panel rounded-lg py-2 min-w-24;
+    border: 1px solid var(--panel-border);
     z-index: 9999;
-    
+
     .menu-item {
-      @apply px-3 py-1 hover:bg-gray-100 dark:hover:bg-hover cursor-pointer text-sm;
+      @apply px-3 py-1 hover:bg-panel-hover-bg cursor-pointer text-sm;
 
       .menu-item-icon {
         @apply mr-2 inline-block align-middle mb-[1px];
       }
-      
+
       &.danger {
         @apply text-red-500;
       }
     }
-    
+
     .menu-divider {
-      @apply h-px bg-gray-200 dark:bg-gray-600 my-1;
+      @apply h-px bg-panel my-1;
     }
   }
 }

@@ -124,7 +124,7 @@ onMounted(async () => {
 }
 
 .title {
-  @apply text-base font-medium text-gray-800 dark:text-gray-200;
+  @apply text-base font-medium text-panel;
 }
 
 .notification-content {
@@ -132,7 +132,7 @@ onMounted(async () => {
 }
 
 .notification-body {
-  @apply text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis;
+  @apply text-sm text-panel-text-secondary whitespace-nowrap overflow-hidden text-ellipsis;
 
   padding: 0 4px;
 }
@@ -146,11 +146,11 @@ onMounted(async () => {
 }
 
 .titlebar-button {
-  @apply flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 w-6 h-6 transition-all duration-200;
+  @apply flex items-center justify-center rounded-full hover:bg-panel-hover-bg w-6 h-6 transition-all duration-200;
 }
 
 .close-icon {
-  @apply text-gray-500 dark:text-gray-400;
+  @apply text-panel-text-secondary;
 }
 
 :deep(.el-button) {

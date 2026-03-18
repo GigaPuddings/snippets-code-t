@@ -145,10 +145,10 @@ onUnmounted(() => {
 }
 
 .splitter-divider {
-  @apply absolute w-[1px] h-[98%] top-[6px] bg-gray-200 dark:bg-gray-800 cursor-col-resize z-10 hover:bg-blue-200;
+  @apply absolute w-[1px] h-[98%] top-[6px] bg-panel cursor-col-resize z-10 hover:bg-blue-200;
 }
 
 .splitter-divider-line {
-  @apply absolute top-1/2 -translate-y-1/2 -translate-x-1/2 left-[1px] w-[2px] h-4 bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 cursor-col-resize z-10 hover:bg-blue-200;
+  @apply absolute top-1/2 -translate-y-1/2 -translate-x-1/2 left-[1px] w-[2px] h-4 bg-panel cursor-col-resize z-10 hover:bg-blue-200;
 }
 </style>

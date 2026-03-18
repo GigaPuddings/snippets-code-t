@@ -336,7 +336,7 @@ watch(() => props.currentTool, () => {
   @apply flex flex-col gap-2;
 
   .toolbar-panel {
-    @apply flex items-center gap-3 bg-white dark:bg-panel rounded-lg shadow-lg px-2 py-2 border dark:border-panel;
+    @apply flex items-center gap-3 bg-panel rounded-lg shadow-lg px-2 py-2 border border-panel;
 
     &.first-panel {
       min-width: 400px;
@@ -352,11 +352,11 @@ watch(() => props.currentTool, () => {
     @apply flex items-center gap-1;
 
     .tool-btn {
-      @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 border dark:border-panel bg-white dark:bg-content hover:bg-gray-50 dark:hover:bg-hover;
+      @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 border border-panel bg-content hover:bg-panel-hover-bg;
 
       &.active {
         @apply text-white !bg-blue-500 border-blue-500;
-        
+
         // 暗黑模式下使用更柔和的蓝色
         &:is(.dark *) {
           @apply border-blue-500/80 !bg-blue-600/90;
@@ -366,7 +366,7 @@ watch(() => props.currentTool, () => {
   }
 
   .toolbar-divider {
-    @apply w-[1px] h-5 bg-gray-300;
+    @apply w-[1px] h-5 bg-panel;
   }
 
   .style-section {
@@ -386,11 +386,11 @@ watch(() => props.currentTool, () => {
       .width-btn,
       .size-btn,
       .engine-btn {
-        @apply w-8 h-8 flex items-center justify-center rounded border border-gray-300 dark:border-panel bg-white dark:bg-content hover:bg-gray-50 dark:hover:bg-hover transition-all duration-200;
+        @apply w-8 h-8 flex items-center justify-center rounded border border-panel bg-content hover:bg-panel-hover-bg transition-all duration-200;
 
         &.active {
           @apply border-blue-500 bg-blue-50;
-          
+
           // 暗黑模式下使用更和谐的背景
           &:is(.dark *) {
             @apply border-blue-500/70 bg-blue-600/20;
@@ -403,24 +403,24 @@ watch(() => props.currentTool, () => {
         }
 
         .size-text {
-          @apply text-gray-600;
+          @apply text-panel-text-secondary;
         }
 
         .mosaic-preview {
-          @apply rounded-full bg-gray-200 inline-block;
+          @apply rounded-full bg-panel-hover-bg inline-block;
         }
       }
 
       .engine-btn {
         @apply text-xs font-medium;
-        
+
         &.active {
           @apply text-blue-500;
         }
       }
 
       .color-btn {
-        @apply w-6 h-6 rounded border border-gray-300 cursor-pointer transition-all duration-200;
+        @apply w-6 h-6 rounded border border-panel cursor-pointer transition-all duration-200;
 
         &.active {
           @apply border-gray-500 transform scale-110;
@@ -436,7 +436,7 @@ watch(() => props.currentTool, () => {
         @apply relative;
 
         .color-trigger-btn {
-          @apply w-8 h-8 rounded border-2 border-gray-300 dark:border-panel cursor-pointer transition-all duration-200 flex items-center justify-center relative;
+          @apply w-8 h-8 rounded border-2 border-panel cursor-pointer transition-all duration-200 flex items-center justify-center relative;
 
           &:hover {
             @apply border-blue-500 transform scale-105;
@@ -448,7 +448,7 @@ watch(() => props.currentTool, () => {
         }
 
         .color-picker-panel {
-          @apply fixed bg-white dark:bg-panel rounded-lg shadow-xl border dark:border-panel p-2 z-50;
+          @apply fixed bg-panel rounded-lg shadow-xl border border-panel p-2 z-50;
 
           .color-row {
             @apply flex items-center gap-2;
@@ -504,7 +504,7 @@ watch(() => props.currentTool, () => {
       @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200;
 
       &:disabled {
-        @apply text-gray-300 cursor-not-allowed;
+        @apply text-panel-text-secondary cursor-not-allowed;
       }
 
       &.save {
@@ -521,7 +521,7 @@ watch(() => props.currentTool, () => {
       }
 
       &:hover:not(:disabled) {
-        @apply bg-gray-100 dark:bg-hover;
+        @apply bg-panel-hover-bg;
       }
 
       &:active:not(:disabled) {

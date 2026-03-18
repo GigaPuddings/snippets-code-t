@@ -206,14 +206,14 @@ export default {
 }
 
 .dialog-container {
-  @apply bg-white rounded-lg shadow-xl max-w-md w-full mx-4;
+  @apply bg-panel rounded-lg shadow-xl max-w-md w-full mx-4;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
 }
 
 .dialog-header {
-  @apply flex items-center justify-between p-4 border-b;
+  @apply flex items-center justify-between p-4 border-b border-panel;
   flex-shrink: 0;
 }
 
@@ -222,7 +222,7 @@ export default {
 }
 
 .close-btn {
-  @apply text-gray-400 hover:text-gray-600 text-2xl leading-none;
+  @apply text-panel-text-secondary hover:text-panel text-2xl leading-none;
   
   span {
     @apply block;
@@ -234,15 +234,15 @@ export default {
 }
 
 .message {
-  @apply text-gray-700 mb-4;
+  @apply text-panel-text-secondary mb-4;
 }
 
 .delete-options {
-  @apply mt-4 mb-4 p-3 bg-gray-50 rounded;
+  @apply mt-4 mb-4 p-3 bg-content rounded;
 }
 
 .options-title {
-  @apply text-sm font-semibold text-gray-600 mb-2;
+  @apply text-sm font-semibold text-panel-text-secondary mb-2;
 }
 
 .option-item {
@@ -253,7 +253,7 @@ export default {
   }
   
   span {
-    @apply text-sm text-gray-700;
+    @apply text-sm text-panel-text-secondary;
   }
 }
 
@@ -262,7 +262,7 @@ export default {
 }
 
 .list-title {
-  @apply text-sm font-semibold text-gray-600 mb-2;
+  @apply text-sm font-semibold text-panel-text-secondary mb-2;
 }
 
 .backlink-items {
@@ -270,15 +270,15 @@ export default {
 }
 
 .backlink-item {
-  @apply flex items-center justify-between py-2 px-3 bg-gray-50 rounded mb-2;
+  @apply flex items-center justify-between py-2 px-3 bg-content rounded mb-2;
 }
 
 .fragment-title {
-  @apply text-sm text-gray-800;
+  @apply text-sm text-panel;
 }
 
 .occurrence-count {
-  @apply text-xs text-gray-500;
+  @apply text-xs text-panel-text-secondary;
 }
 
 .progress {
@@ -286,7 +286,7 @@ export default {
 }
 
 .progress-bar {
-  @apply w-full h-2 bg-gray-200 rounded-full overflow-hidden;
+  @apply w-full h-2 bg-content rounded-full overflow-hidden;
 }
 
 .progress-fill {
@@ -294,7 +294,7 @@ export default {
 }
 
 .progress-text {
-  @apply text-sm text-gray-600 mt-2 text-center;
+  @apply text-sm text-panel-text-secondary mt-2 text-center;
 }
 
 .result {
@@ -310,7 +310,7 @@ export default {
 }
 
 .dialog-footer {
-  @apply flex items-center justify-end gap-2 p-4 border-t;
+  @apply flex items-center justify-end gap-2 p-4 border-t border-panel;
   flex-shrink: 0;
 }
 
@@ -319,7 +319,7 @@ export default {
 }
 
 .btn-secondary {
-  @apply bg-gray-200 hover:bg-gray-300 text-gray-800;
+  @apply bg-panel-hover-bg hover:bg-panel text-panel;
 }
 
 .btn-primary {
@@ -329,59 +329,59 @@ export default {
 /* 暗色主题 */
 .dark {
   .dialog-container {
-    @apply bg-gray-800;
+    @apply bg-panel;
   }
-  
+
   .dialog-title {
-    @apply text-gray-100;
+    @apply text-panel;
   }
-  
+
   .close-btn {
-    @apply text-gray-400 hover:text-gray-200;
+    @apply text-panel-text-secondary hover:text-panel;
   }
-  
+
   .message {
-    @apply text-gray-300;
+    @apply text-panel;
   }
-  
+
   .delete-options {
-    @apply bg-gray-700;
+    @apply bg-panel-hover-bg;
   }
-  
+
   .options-title {
-    @apply text-gray-400;
+    @apply text-panel-text-secondary;
   }
-  
+
   .option-item span {
-    @apply text-gray-300;
+    @apply text-panel;
   }
-  
+
   .list-title {
-    @apply text-gray-400;
+    @apply text-panel-text-secondary;
   }
-  
+
   .backlink-item {
-    @apply bg-gray-700;
+    @apply bg-panel-hover-bg;
   }
-  
+
   .fragment-title {
-    @apply text-gray-200;
+    @apply text-panel;
   }
-  
+
   .occurrence-count {
-    @apply text-gray-400;
+    @apply text-panel-text-secondary;
   }
-  
+
   .progress-bar {
-    @apply bg-gray-700;
+    @apply bg-panel-hover-bg;
   }
-  
+
   .progress-text {
-    @apply text-gray-400;
+    @apply text-panel-text-secondary;
   }
-  
+
   .btn-secondary {
-    @apply bg-gray-700 hover:bg-gray-600 text-gray-200;
+    @apply bg-panel-hover-bg hover:bg-panel text-panel;
   }
 }
 </style>

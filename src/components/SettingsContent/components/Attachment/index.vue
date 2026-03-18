@@ -144,8 +144,8 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .preview-box {
-  @apply bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2;
-  
+  @apply bg-content border border-panel rounded px-3 py-2;
+
   code {
     @apply text-sm text-blue-600 dark:text-blue-400 font-mono;
   }

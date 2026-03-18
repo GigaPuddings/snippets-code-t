@@ -80,12 +80,12 @@
               <span v-if="file.status === 'done'" class="text-green-500 text-base">✓</span>
               <span v-else-if="file.status === 'error'" class="text-red-500 text-base">✗</span>
               <span v-else-if="file.status === 'downloading'" class="text-yellow-500 text-base">↓</span>
-              <span v-else class="text-gray-400 text-base">○</span>
+              <span v-else class="text-panel-text-secondary text-base">○</span>
             </span>
-            <span class="w-64 truncate text-sm text-gray-600 dark:text-gray-400" :title="file.file">
+            <span class="w-64 truncate text-sm text-panel-text-secondary" :title="file.file">
               {{ file.file }}
             </span>
-            <span class="w-16 text-right text-xs text-gray-500">{{ file.size }}</span>
+            <span class="w-16 text-right text-xs text-panel-text-secondary">{{ file.size }}</span>
             <div class="w-24">
               <el-progress 
                 v-if="file.status === 'downloading'"
@@ -96,7 +96,7 @@
               />
               <span v-else-if="file.status === 'done'" class="text-green-500 text-xs">{{ $t('translation.completed') }}</span>
               <span v-else-if="file.status === 'error'" class="text-red-500 text-xs">{{ $t('translation.failed') }}</span>
-              <span v-else class="text-gray-400 text-xs">{{ $t('translation.waiting') }}</span>
+              <span v-else class="text-panel-text-secondary text-xs">{{ $t('translation.waiting') }}</span>
             </div>
           </div>
         </div>
@@ -222,7 +222,7 @@ const modelStatusClass = computed(() => {
   if (modelLoaded.value) return 'text-green-500'
   if (modelCached.value && backendActivated.value) return 'text-green-500'  // 已激活
   if (modelCached.value) return 'text-blue-500'  // 已缓存
-  return 'text-gray-500'
+  return 'text-panel-text-secondary'
 })
 
 // 显示模型信息（已缓存或已加载）
@@ -411,19 +411,19 @@ onMounted(async () => {
 <style scoped lang="scss">
 .model-info-card {
   @apply space-y-3;
-  
+
   .info-row {
     @apply flex gap-16 justify-end items-center;
-    
+
     .info-item {
       @apply flex flex-col gap-1;
-      
+
       .info-label {
-        @apply text-xs text-gray-500 dark:text-gray-400;
+        @apply text-xs text-panel-text-secondary;
       }
-      
+
       .info-value {
-        @apply text-sm font-medium text-gray-700 dark:text-gray-300;
+        @apply text-sm font-medium text-panel;
       }
     }
   }
@@ -431,16 +431,16 @@ onMounted(async () => {
 
 .usage-tips {
   @apply space-y-2.5;
-  
+
   .tip-item {
     @apply flex items-start gap-2;
-    
+
     .tip-icon {
       @apply text-blue-500 dark:text-blue-400 text-lg leading-none mt-0.5 shrink-0;
     }
-    
+
     .tip-text {
-      @apply text-sm text-gray-600 dark:text-gray-400 leading-relaxed;
+      @apply text-sm text-panel-text-secondary leading-relaxed;
     }
   }
 }

@@ -323,7 +323,7 @@ const handleCancel = () => {
 
 <style scoped lang="scss">
 .update-container {
-  @apply w-full h-full bg-white px-6 py-5 flex flex-col box-border border rounded-xl border-gray-200;
+  @apply w-full h-full bg-panel px-6 py-5 flex flex-col box-border border rounded-xl border-panel;
   min-height: 0;
   animation: fadeIn 0.3s ease-out;
 
@@ -345,9 +345,9 @@ const handleCancel = () => {
     }
 
     .title {
-      @apply text-lg font-semibold text-gray-800;
+      @apply text-lg font-semibold text-panel;
 
-      background: linear-gradient(90deg, #4f46e5, #7c3aed);
+      background: linear-gradient(90deg, var(--el-color-primary), #7c3aed);
       background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -363,13 +363,13 @@ const handleCancel = () => {
       animation: slideUp 0.4s ease-out;
 
       .version-comparison {
-        @apply flex items-center justify-center gap-4 mb-3 bg-gradient-to-br from-gray-50 to-blue-50/30 p-3 rounded-lg flex-shrink-0;
+        @apply flex items-center justify-center gap-4 mb-3 bg-gradient-to-br from-content to-blue-50/30 p-3 rounded-lg flex-shrink-0;
 
         .version-item {
           @apply flex flex-col items-center gap-1.5;
 
           .version-label {
-            @apply text-xs text-gray-500 font-medium;
+            @apply text-xs text-panel-text-secondary font-medium;
           }
 
           .version-tag {
@@ -391,24 +391,24 @@ const handleCancel = () => {
         }
 
         .version-arrow {
-          @apply text-gray-400 flex items-center;
+          @apply text-panel-text-secondary flex items-center;
 
           animation: arrowPulse 1.5s infinite ease-in-out;
         }
       }
 
       .release-date {
-        @apply text-gray-500 text-xs text-center mb-3 flex-shrink-0;
+        @apply text-panel-text-secondary text-xs text-center mb-3 flex-shrink-0;
       }
 
       .release-notes {
-        @apply rounded-lg px-3 py-2.5 border bg-white/80 flex-1 flex flex-col overflow-hidden;
+        @apply rounded-lg px-3 py-2.5 border bg-panel flex-1 flex flex-col overflow-hidden;
 
         box-shadow: inset 0 2px 4px rgb(0 0 0 / 3%);
         min-height: 0;
 
         .notes-title {
-          @apply font-medium text-gray-700 text-sm mb-2 flex-shrink-0;
+          @apply font-medium text-panel text-sm mb-2 flex-shrink-0;
         }
 
         .notes-scrollbar {
@@ -426,14 +426,14 @@ const handleCancel = () => {
         }
 
         .notes-content {
-          @apply pr-2 text-gray-600 text-sm leading-relaxed;
+          @apply pr-2 text-panel-text-secondary text-sm leading-relaxed;
 
           // Markdown 样式
           :deep(h1),
           :deep(h2),
           :deep(h3),
           :deep(h4) {
-            @apply font-semibold text-gray-800 mt-4 mb-2;
+            @apply font-semibold text-panel mt-4 mb-2;
           }
 
           :deep(h1) {
@@ -466,7 +466,7 @@ const handleCancel = () => {
           }
 
           :deep(strong) {
-            @apply font-semibold text-gray-800;
+            @apply font-semibold text-panel;
           }
 
           :deep(em) {
@@ -474,11 +474,11 @@ const handleCancel = () => {
           }
 
           :deep(code) {
-            @apply bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-gray-800;
+            @apply bg-content px-1.5 py-0.5 rounded text-xs font-mono text-panel;
           }
 
           :deep(pre) {
-            @apply bg-gray-100 p-3 rounded-lg mb-2 overflow-x-auto;
+            @apply bg-content p-3 rounded-lg mb-2 overflow-x-auto;
 
             code {
               @apply bg-transparent p-0;
@@ -486,7 +486,7 @@ const handleCancel = () => {
           }
 
           :deep(blockquote) {
-            @apply border-l-4 border-blue-300 pl-3 py-1 my-2 text-gray-600 italic;
+            @apply border-l-4 border-blue-300 pl-3 py-1 my-2 text-panel-text-secondary italic;
           }
 
           :deep(a) {
@@ -494,7 +494,7 @@ const handleCancel = () => {
           }
 
           :deep(hr) {
-            @apply my-3 border-gray-200;
+            @apply my-3 border-panel;
           }
         }
       }
@@ -542,8 +542,8 @@ const handleCancel = () => {
           @apply flex-1;
 
           .status-text {
-            @apply text-gray-700 font-medium text-sm;
-            
+            @apply text-panel font-medium text-sm;
+
             &.error {
               @apply text-red-600;
             }
@@ -614,7 +614,7 @@ const handleCancel = () => {
       }
 
       &.cancel-button {
-        @apply hover:bg-gray-100 border border-gray-200 text-gray-700;
+        @apply hover:bg-panel-hover-bg border border-panel text-panel;
       }
 
       &.update-button {

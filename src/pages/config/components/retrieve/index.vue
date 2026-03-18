@@ -497,11 +497,11 @@ const handleIconError = async (engine: SearchEngineConfig) => {
     }
     
     .scanning-text {
-      @apply text-base font-medium text-gray-700 dark:text-gray-200;
+      @apply text-base font-medium text-panel;
     }
-    
+
     .scanning-progress {
-      @apply text-sm text-gray-500 dark:text-gray-400 font-mono;
+      @apply text-sm text-panel-text-secondary font-mono;
     }
   }
 }
@@ -547,7 +547,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
         }
 
         &.is-editing {
-          @apply bg-gray-50;
+          @apply bg-content;
         }
 
         .item-left {

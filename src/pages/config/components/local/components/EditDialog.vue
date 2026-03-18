@@ -352,105 +352,105 @@ defineExpose({ open });
 .edit-form {
   :deep(.el-form-item) {
     @apply mb-4;
-    
+
     .el-form-item__label {
-      @apply text-gray-700 dark:text-gray-300 font-medium flex items-center gap-1;
-      
+      @apply text-panel font-medium flex items-center gap-1;
+
       &::before {
         @apply hidden;
       }
-      
+
       &::after {
         content: '：';
-        @apply text-gray-500 dark:text-gray-400;
+        @apply text-panel-text-secondary;
       }
     }
-    
+
     .el-form-item__error {
       @apply mt-1;
     }
   }
-  
+
   .form-item-name, .form-item-path {
     :deep(.el-input) {
       .el-input__wrapper {
-        @apply border-gray-300 dark:border-neutral-600 hover:border-blue-400 dark:hover:border-blue-500;
+        @apply border-panel hover:border-blue-400;
         transition: all 0.3s ease;
-        
+
         &.is-focus {
-          @apply border-blue-500 dark:border-blue-400;
+          @apply border-blue-500;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
       }
     }
   }
-  
+
   .form-item-icon {
     :deep(.el-form-item__content) {
       @apply flex items-start;
     }
-    
+
     .icon-section {
       @apply flex gap-4 items-center justify-center;
-      
+
       .icon-display {
         .icon-preview {
-          @apply relative w-16 h-16 rounded-xl overflow-hidden bg-gray-50 dark:bg-neutral-800 border-2 border-gray-200 dark:border-neutral-700;
+          @apply relative w-16 h-16 rounded-xl overflow-hidden bg-content border-2 border-panel;
           transition: all 0.3s ease;
-          
+
           &.has-icon {
             @apply border-transparent shadow-md hover:shadow-lg;
-            
+
             &:hover {
               transform: scale(1.05);
-              
+
               .icon-overlay {
                 @apply opacity-100;
               }
             }
           }
-          
+
           img {
             @apply w-full h-full object-contain p-2;
           }
-          
+
           .icon-overlay {
             @apply absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 transition-opacity duration-200;
-            
+
             .remove-btn {
               @apply text-white hover:text-red-400;
-              
+
               :deep(.i-icon) {
                 @apply text-current;
               }
             }
           }
         }
-        
+
         .icon-placeholder {
-          @apply w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 dark:border-neutral-600 bg-gray-50 dark:bg-neutral-800 flex flex-col items-center justify-center gap-1 text-gray-400 dark:text-gray-500;
+          @apply w-16 h-16 rounded-xl border-2 border-dashed border-panel bg-content flex flex-col items-center justify-center gap-1 text-panel-text-secondary;
           transition: all 0.3s ease;
-          
+
           &:hover {
-            @apply border-gray-400 dark:border-neutral-500 bg-gray-100 dark:bg-neutral-700;
+            @apply border-panel bg-panel-hover-bg;
           }
-          
+
           .placeholder-text {
             @apply text-xs;
           }
         }
       }
-      
+
       .icon-actions {
         @apply flex flex-col gap-2;
-        
+
         .extract-btn {
           @apply flex items-center gap-1;
-          
+
           :deep(.el-button__text) {
             @apply flex items-center gap-1;
           }
-          
+
           &:hover {
             @apply shadow-sm;
           }
@@ -464,50 +464,50 @@ defineExpose({ open });
 :deep(.el-dropdown-menu) {
   .dropdown-item-content {
     @apply flex flex-col gap-0.5 py-1;
-    
+
     .item-label {
-      @apply font-medium text-gray-800 dark:text-gray-200;
+      @apply font-medium text-panel;
     }
-    
+
     .item-desc {
-      @apply text-xs text-gray-500 dark:text-gray-400;
+      @apply text-xs text-panel-text-secondary;
     }
   }
 }
 
 .dialog-footer {
-  @apply flex justify-between items-center pt-4 border-t border-gray-200 dark:border-neutral-700;
-  
+  @apply flex justify-between items-center pt-4 border-t border-panel;
+
   .footer-left {
     @apply flex items-center;
-    
+
     .delete-btn {
       @apply flex items-center gap-1;
-      
+
       &:hover {
         @apply bg-red-50 dark:bg-red-900/20 border-red-400 dark:border-red-600;
       }
-      
+
       :deep(.el-button__text) {
         @apply flex items-center gap-1;
       }
     }
   }
-  
+
   .footer-right {
     @apply flex items-center gap-3;
-    
+
     .cancel-btn {
-      @apply hover:bg-gray-100 dark:hover:bg-neutral-700;
+      @apply hover:bg-panel-hover-bg;
     }
-    
+
     .submit-btn {
       @apply min-w-[100px] flex items-center gap-1;
-      
+
       :deep(.el-button__text) {
         @apply flex items-center gap-1;
       }
-      
+
       &:not(:disabled):hover {
         @apply shadow-md;
         transform: translateY(-1px);

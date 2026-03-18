@@ -127,15 +127,11 @@ const copyCode = async () => {
 
 <style lang="scss" scoped>
 .code-block-wrapper {
-  @apply relative my-3 rounded-md bg-gray-50 overflow-hidden;
-
-  .dark & {
-    @apply bg-[#1e1e1e];
-  }
+  @apply relative my-3 rounded-md bg-content overflow-hidden;
 }
 
 .copy-language-button {
-  @apply absolute top-2 right-2 flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-50 rounded cursor-pointer outline-none transition-all duration-150 z-10;
+  @apply absolute top-2 right-2 flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-panel-text-secondary bg-content rounded cursor-pointer outline-none transition-all duration-150 z-10;
   border: none;
 
   .language-text {
@@ -149,23 +145,11 @@ const copyCode = async () => {
   }
 
   &:hover {
-    @apply bg-gray-200;
+    @apply bg-panel-hover-bg;
   }
 
   &:active {
-    @apply bg-gray-300;
-  }
-
-  .dark & {
-    @apply text-gray-400 bg-[#1e1e1e];
-
-    &:hover {
-      @apply bg-[#2d2d2d];
-    }
-
-    &:active {
-      @apply bg-[#3a3a3a];
-    }
+    @apply bg-panel;
   }
 }
 
@@ -202,16 +186,12 @@ pre {
   }
 
   code {
-    @apply block p-0 bg-transparent border-none text-gray-900;
+    @apply block p-0 bg-transparent border-none text-panel;
     font-family: inherit;
     font-size: inherit;
     line-height: inherit;
     white-space: pre;
     tab-size: 2;
-
-    .dark & {
-      @apply text-gray-100;
-    }
   }
 }
 </style>

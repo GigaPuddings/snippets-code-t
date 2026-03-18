@@ -328,7 +328,7 @@ watch(() => props.show, (newShow) => {
 
 <style lang="scss" scoped>
 .outline-sidebar {
-  @apply bg-white flex-shrink-0;
+  @apply bg-panel flex-shrink-0;
   width: 0;
   display: flex;
   flex-direction: column;
@@ -336,28 +336,25 @@ watch(() => props.show, (newShow) => {
   transition: width 0.25s ease;
   overflow: hidden;
   border-left: 0 solid transparent;
-  
+
   &.is-visible {
     width: 280px;
-    @apply border-l border-gray-200;
+    border-left: 1px solid var(--panel-border);
   }
-  
+
   &.dark {
-    @apply bg-[#1e1e1e];
-    
+    background-color: var(--panel-bg);
+
     &.is-visible {
-      @apply border-[#2a2a2a];
+      border-color: var(--panel-border);
     }
   }
 }
 
 .outline-sidebar-header {
-  @apply flex items-center justify-between px-3 py-2 border-b border-gray-200;
+  @apply flex items-center justify-between px-3 py-2;
+  border-bottom: 1px solid var(--panel-border);
   flex-shrink: 0;
-  
-  .dark & {
-    @apply border-[#2a2a2a];
-  }
 }
 
 .outline-sidebar-actions {
@@ -367,143 +364,96 @@ watch(() => props.show, (newShow) => {
 .outline-action-btn {
   @apply w-7 h-7 flex items-center justify-center rounded cursor-pointer;
   transition: all 0.15s ease;
-  color: #999;
-  
+  color: var(--panel-text-secondary);
+
   &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: #666;
+    background-color: var(--panel-hover-bg);
+    color: var(--panel-text);
   }
-  
+
   &.is-active {
     background-color: var(--categories-bg-tab-active);
     color: var(--el-color-primary);
   }
-  
+
   svg {
     @apply text-current;
-  }
-  
-  .dark & {
-    color: #8a8a8a;
-    
-    &:hover {
-      background-color: rgba(255, 255, 255, 0.08);
-      color: #b3b3b3;
-    }
-    
-    &.is-active {
-      background-color: var(--categories-bg-tab-active);
-      color: var(--el-color-primary);
-    }
   }
 }
 
 .outline-sidebar-close {
   @apply w-7 h-7 flex items-center justify-center rounded cursor-pointer;
   transition: background-color 0.15s ease;
-  color: #999;
-  
+  color: var(--panel-text-secondary);
+
   &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: #666;
+    background-color: var(--panel-hover-bg);
+    color: var(--panel-text);
   }
-  
+
   svg {
     @apply text-current;
-  }
-  
-  .dark & {
-    color: #8a8a8a;
-    
-    &:hover {
-      background-color: rgba(255, 255, 255, 0.08);
-      color: #b3b3b3;
-    }
   }
 }
 
 .outline-search-box {
-  @apply flex items-center px-3 py-2 border-b border-gray-200 gap-2;
+  @apply flex items-center px-3 py-2 gap-2;
+  border-bottom: 1px solid var(--panel-border);
   flex-shrink: 0;
-  
-  .dark & {
-    @apply border-[#2a2a2a];
-  }
 }
 
 .search-icon {
   @apply flex-shrink-0;
-  color: #999;
-  
-  .dark & {
-    color: #8a8a8a;
-  }
+  color: var(--panel-text-secondary);
 }
 
 .search-input {
   @apply flex-1 bg-transparent border-none outline-none text-sm;
-  color: #333;
-  
+  color: var(--panel-text);
+
   &::placeholder {
-    color: #999;
-  }
-  
-  .dark & {
-    color: #ccc;
-    
-    &::placeholder {
-      color: #666;
-    }
+    color: var(--panel-text-secondary);
   }
 }
 
 .clear-search-btn {
   @apply w-5 h-5 flex items-center justify-center rounded cursor-pointer flex-shrink-0;
   transition: background-color 0.15s ease;
-  color: #999;
-  
+  color: var(--panel-text-secondary);
+
   &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: #666;
-  }
-  
-  .dark & {
-    color: #8a8a8a;
-    
-    &:hover {
-      background-color: rgba(255, 255, 255, 0.08);
-      color: #b3b3b3;
-    }
+    background-color: var(--panel-hover-bg);
+    color: var(--panel-text);
   }
 }
 
 .outline-sidebar-content {
   @apply overflow-y-auto flex-1 py-2 px-2;
   padding-bottom: 48px; /* 为底部状态栏留出空间 */
-  
+
   &::-webkit-scrollbar {
     width: 10px;
   }
-  
+
   &::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
-  
+
   &::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.15);
+    background-color: var(--editor-scrollbar-thumb);
     border-radius: 5px;
     border: 3px solid transparent;
     background-clip: padding-box;
-    
+
     &:hover {
       background-color: rgba(0, 0, 0, 0.25);
     }
   }
-  
+
   .dark & {
     &::-webkit-scrollbar-thumb {
-      background-color: rgba(255, 255, 255, 0.15);
-      
+      background-color: var(--editor-scrollbar-thumb);
+
       &:hover {
         background-color: rgba(255, 255, 255, 0.25);
       }
@@ -512,11 +462,7 @@ watch(() => props.show, (newShow) => {
 }
 
 .outline-sidebar-empty {
-  @apply text-sm text-gray-400 text-center py-8 px-4;
-  
-  .dark & {
-    @apply text-[#666];
-  }
+  @apply text-sm text-panel-text-secondary text-center py-8 px-4;
 }
 
 .outline-sidebar-item {

@@ -441,7 +441,7 @@ defineExpose({
   @apply px-[8px] py-[4px] rounded-full cursor-pointer text-sm border transition-colors;
 
   &:hover {
-    @apply bg-gray-100;
+    @apply bg-content;
   }
 
   &.active {
@@ -463,7 +463,7 @@ defineExpose({
 
 .alarm-repeat-section {
   .repeat-section-title {
-    @apply text-sm text-gray-600 select-none;
+    @apply text-sm text-panel-text-secondary select-none;
   }
 
   .repeat-section-weekdays {
@@ -481,7 +481,7 @@ defineExpose({
 
 .alarm-type-selection {
   .alarm-type-title {
-    @apply text-sm text-gray-600 select-none;
+    @apply text-sm text-panel-text-secondary select-none;
   }
 
   .alarm-type-options {
@@ -492,7 +492,7 @@ defineExpose({
     @apply px-[8px] py-[4px] rounded-full cursor-pointer text-sm border transition-colors;
 
     &:hover {
-      @apply bg-gray-100;
+      @apply bg-content;
     }
 
     &.active {

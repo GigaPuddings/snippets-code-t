@@ -356,19 +356,19 @@ onMounted(() => {
 }
 
 .image-path {
-  @apply flex items-center gap-2 px-3 py-1 mb-2 text-sm text-gray-600 bg-gray-100 rounded cursor-pointer;
+  @apply flex items-center gap-2 px-3 py-1 mb-2 text-sm text-panel-text-secondary bg-content rounded cursor-pointer;
   transition: all 0.2s ease;
   max-width: 100%;
-  line-height: normal; // 恢复正常行高
-  
+  line-height: normal;
+
   &:hover {
-    @apply bg-gray-200 text-gray-800;
+    @apply bg-panel-hover-bg text-panel;
   }
-  
+
   .path-icon {
     @apply text-base;
   }
-  
+
   .path-text {
     @apply truncate;
     max-width: 600px;
@@ -377,11 +377,11 @@ onMounted(() => {
 
 .image-container {
   @apply relative;
-  display: inline-block; // 改为 inline-block
+  display: inline-block;
   max-width: 100%;
-  vertical-align: bottom; // 消除底部空白
-  line-height: 0; // 消除行高造成的空白
-  
+  vertical-align: bottom;
+  line-height: 0;
+
   img {
     @apply block;
     transition: opacity 0.2s ease;
@@ -391,19 +391,19 @@ onMounted(() => {
 }
 
 .image-controls {
-  @apply absolute top-2 right-2 bg-white rounded-lg shadow-lg p-2;
+  @apply absolute top-2 right-2 bg-panel rounded-lg shadow-lg p-2;
   z-index: 10;
-  
+
   .control-group {
     @apply flex gap-1;
   }
-  
+
   .control-btn {
-    @apply px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 hover:border-gray-400;
+    @apply px-3 py-1 text-sm font-medium text-panel bg-panel border border-panel rounded hover:bg-panel-hover-bg hover:border-panel;
     transition: all 0.2s ease;
-    
+
     &:active {
-      @apply bg-gray-100;
+      @apply bg-content;
     }
   }
 }
@@ -411,76 +411,37 @@ onMounted(() => {
 .resize-handle {
   @apply absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-ew-resize;
   z-index: 10;
-  
+
   &.resize-handle-right {
     @apply top-1/2 -right-1.5;
     transform: translateY(-50%);
   }
-  
+
   &:hover {
     @apply bg-blue-600 scale-125;
   }
 }
 
-// 暗色模式
-:global(.dark) {
-  .image-controls {
-    @apply bg-gray-800 border border-gray-700;
-  }
-  
-  .control-btn {
-    @apply text-gray-300 bg-gray-800 border-gray-600;
-    
-    &:hover {
-      @apply bg-gray-700 border-gray-500;
-    }
-    
-    &:active {
-      @apply bg-gray-600;
-    }
-  }
-  
-  .image-context-menu {
-    @apply bg-gray-800 border-gray-700;
-    
-    .menu-item {
-      @apply text-gray-300;
-      
-      &:hover {
-        @apply bg-gray-700;
-      }
-      
-      &:active {
-        @apply bg-gray-600;
-      }
-    }
-    
-    .menu-divider {
-      @apply bg-gray-700;
-    }
-  }
-}
-
 // 图片右键菜单
 .image-context-menu {
-  @apply fixed z-[9999] min-w-[180px] bg-white border border-gray-200 rounded-lg p-1 select-none;
+  @apply fixed z-[9999] min-w-[180px] bg-panel border border-panel rounded-lg p-1 select-none;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
-  
+
   .menu-item {
-    @apply flex items-center gap-2 px-3 py-2 text-sm text-gray-700 cursor-pointer rounded hover:bg-gray-100;
+    @apply flex items-center gap-2 px-3 py-2 text-sm text-panel cursor-pointer rounded hover:bg-panel-hover-bg;
     transition: all 0.15s ease;
-    
+
     .menu-icon {
       @apply text-base;
     }
-    
+
     &:active {
-      @apply bg-gray-200;
+      @apply bg-content;
     }
   }
-  
+
   .menu-divider {
-    @apply h-px bg-gray-200 mx-2 my-1;
+    @apply h-px bg-panel mx-2 my-1;
   }
 }
 </style>

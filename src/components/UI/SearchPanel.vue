@@ -171,45 +171,50 @@ defineExpose({
 
 <style lang="scss" scoped>
 .search-panel {
-  @apply absolute top-2 right-2 z-20 bg-white border border-gray-300 rounded-lg shadow-lg;
+  @apply absolute top-2 right-2 z-20 border rounded-lg shadow-lg;
+  background-color: var(--panel-bg);
+  border-color: var(--panel-border);
   animation: slideDown 0.2s ease-out;
 
   &.dark-theme {
-    @apply bg-[#2a2a2a] border-[#3a3a3a];
-
     .search-input {
-      @apply bg-[#1e1e1e] text-gray-200 border-[#3a3a3a];
+      background-color: var(--editor-bg);
+      color: var(--editor-text);
+      border-color: var(--panel-border);
 
       &::placeholder {
-        @apply text-gray-500;
+        color: var(--panel-text-secondary);
       }
 
       &:focus {
-        @apply border-[#5d6dfd];
+        border-color: var(--el-color-primary);
       }
     }
 
     .search-icon {
-      @apply text-gray-400;
+      color: var(--panel-text-secondary);
     }
 
     .match-count {
-      @apply text-gray-400;
+      color: var(--panel-text-secondary);
     }
 
     .search-btn {
-      @apply text-gray-400;
+      color: var(--panel-text-secondary);
 
       &:hover:not(:disabled) {
-        @apply bg-[#3a3a3a] text-gray-200;
+        background-color: var(--panel-hover-bg);
+        color: var(--panel-text);
       }
 
       &:disabled {
-        @apply text-gray-600;
+        color: var(--panel-text-secondary);
+        opacity: 0.5;
       }
 
       &.active {
-        @apply bg-[#5d6dfd] text-white;
+        background-color: var(--el-color-primary);
+        color: white;
       }
     }
   }
@@ -220,20 +225,24 @@ defineExpose({
 }
 
 .search-icon {
-  @apply flex-shrink-0 text-gray-500;
+  @apply flex-shrink-0;
+  color: var(--panel-text-secondary);
 }
 
 .search-input {
-  @apply flex-1 px-2 py-1 text-sm bg-white border border-gray-300 rounded outline-none;
+  @apply flex-1 px-2 py-1 text-sm rounded outline-none;
   min-width: 200px;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--panel-text);
   transition: border-color 0.2s ease;
 
   &::placeholder {
-    @apply text-gray-400;
+    color: var(--panel-text-secondary);
   }
 
   &:focus {
-    @apply border-blue-500;
+    border-color: var(--el-color-primary);
   }
 }
 
@@ -242,21 +251,25 @@ defineExpose({
 }
 
 .match-count {
-  @apply text-xs text-gray-600 px-2;
+  @apply text-xs px-2;
   min-width: 50px;
   text-align: center;
+  color: var(--panel-text-secondary);
 }
 
 .search-btn {
-  @apply flex items-center justify-center w-7 h-7 text-gray-600 rounded cursor-pointer border-none bg-transparent;
+  @apply flex items-center justify-center w-7 h-7 rounded cursor-pointer border-none bg-transparent;
   transition: all 0.15s ease;
+  color: var(--panel-text-secondary);
 
   &:hover:not(:disabled) {
-    @apply bg-gray-100 text-gray-800;
+    background-color: var(--panel-hover-bg);
+    color: var(--panel-text);
   }
 
   &:disabled {
-    @apply text-gray-400 cursor-not-allowed opacity-50;
+    cursor: not-allowed;
+    opacity: 0.5;
   }
 
   &.match-case-btn {

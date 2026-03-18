@@ -402,7 +402,7 @@ watch(() => [props.show, props.currentTitle], () => {
 
 <style lang="scss" scoped>
 .backlink-sidebar {
-  @apply bg-white flex-shrink-0;
+  @apply bg-panel flex-shrink-0;
   width: 0;
   display: flex;
   flex-direction: column;
@@ -410,28 +410,25 @@ watch(() => [props.show, props.currentTitle], () => {
   transition: width 0.25s ease;
   overflow: hidden;
   border-left: 0 solid transparent;
-  
+
   &.is-visible {
     width: 320px;
-    @apply border-l border-gray-200;
+    border-left: 1px solid var(--panel-border);
   }
-  
+
   &.dark {
-    @apply bg-[#1e1e1e];
-    
+    background-color: var(--panel-bg);
+
     &.is-visible {
-      @apply border-[#2a2a2a];
+      border-color: var(--panel-border);
     }
   }
 }
 
 .backlink-sidebar-header {
-  @apply flex items-center justify-between px-3 py-2 border-b border-gray-200;
+  @apply flex items-center justify-between px-3 py-2;
+  border-bottom: 1px solid var(--panel-border);
   flex-shrink: 0;
-  
-  .dark & {
-    @apply border-[#2a2a2a];
-  }
 }
 
 .backlink-sidebar-actions {
@@ -441,113 +438,66 @@ watch(() => [props.show, props.currentTitle], () => {
 .backlink-action-btn {
   @apply w-7 h-7 flex items-center justify-center rounded cursor-pointer;
   transition: all 0.15s ease;
-  color: #999;
-  
+  color: var(--panel-text-secondary);
+
   &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: #666;
+    background-color: var(--panel-hover-bg);
+    color: var(--panel-text);
   }
-  
+
   &.is-active {
     background-color: var(--categories-bg-tab-active);
     color: var(--el-color-primary);
   }
-  
+
   svg {
     @apply text-current;
-  }
-  
-  .dark & {
-    color: #8a8a8a;
-    
-    &:hover {
-      background-color: rgba(255, 255, 255, 0.08);
-      color: #b3b3b3;
-    }
-    
-    &.is-active {
-      background-color: var(--categories-bg-tab-active);
-      color: var(--el-color-primary);
-    }
   }
 }
 
 .backlink-search-box {
-  @apply flex items-center px-3 py-2 border-b border-gray-200 gap-2;
+  @apply flex items-center px-3 py-2 gap-2;
+  border-bottom: 1px solid var(--panel-border);
   flex-shrink: 0;
-  
-  .dark & {
-    @apply border-[#2a2a2a];
-  }
 }
 
 .search-icon {
   @apply flex-shrink-0;
-  color: #999;
-  
-  .dark & {
-    color: #8a8a8a;
-  }
+  color: var(--panel-text-secondary);
 }
 
 .search-input {
   @apply flex-1 bg-transparent border-none outline-none text-sm;
-  color: #333;
-  
+  color: var(--panel-text);
+
   &::placeholder {
-    color: #999;
-  }
-  
-  .dark & {
-    color: #ccc;
-    
-    &::placeholder {
-      color: #666;
-    }
+    color: var(--panel-text-secondary);
   }
 }
 
 .clear-search-btn {
   @apply w-5 h-5 flex items-center justify-center rounded cursor-pointer flex-shrink-0;
   transition: background-color 0.15s ease;
-  color: #999;
-  
+  color: var(--panel-text-secondary);
+
   &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: #666;
-  }
-  
-  .dark & {
-    color: #8a8a8a;
-    
-    &:hover {
-      background-color: rgba(255, 255, 255, 0.08);
-      color: #b3b3b3;
-    }
+    background-color: var(--panel-hover-bg);
+    color: var(--panel-text);
   }
 }
 
 .backlink-sidebar-close {
   @apply w-7 h-7 flex items-center justify-center rounded cursor-pointer;
   transition: background-color 0.15s ease;
-  color: #999;
-  
+  color: var(--panel-text-secondary);
+
   &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: #666;
+    background-color: var(--panel-hover-bg);
+    color: var(--panel-text);
   }
-  
+
   svg {
     @apply text-current;
-  }
-  
-  .dark & {
-    color: #8a8a8a;
-    
-    &:hover {
-      background-color: rgba(255, 255, 255, 0.08);
-      color: #b3b3b3;
-    }
   }
 }
 
@@ -586,19 +536,13 @@ watch(() => [props.show, props.currentTitle], () => {
 }
 
 .loading-state {
-  @apply flex flex-col items-center justify-center py-8 text-gray-500;
-  
-  .dark & {
-    @apply text-[#9ca3af];
-  }
+  @apply flex flex-col items-center justify-center py-8 text-panel-text-secondary;
 }
 
 .spinner {
-  @apply w-8 h-8 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mb-2;
-  
-  .dark & {
-    @apply border-[#2a2a2a] border-t-blue-500;
-  }
+  @apply w-8 h-8 border-4 rounded-full animate-spin mb-2;
+  border-color: var(--panel-border);
+  border-top-color: var(--el-color-primary);
 }
 
 .backlink-sections {
@@ -614,27 +558,19 @@ watch(() => [props.show, props.currentTitle], () => {
 }
 
 .section-title {
-  @apply text-xs font-semibold text-gray-600 uppercase tracking-wide;
-  
-  .dark & {
-    @apply text-[#8a8a8a];
-  }
+  @apply text-xs font-semibold uppercase tracking-wide;
+  color: var(--panel-text-secondary);
 }
 
 .count-badge {
-  @apply px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded;
-  
-  .dark & {
-    @apply bg-[#2a2a2a] text-[#8a8a8a];
-  }
+  @apply px-1.5 py-0.5 text-xs font-medium rounded;
+  background-color: var(--editor-hover-bg);
+  color: var(--panel-text-secondary);
 }
 
 .empty-state {
-  @apply text-xs text-gray-400 italic py-2;
-  
-  .dark & {
-    @apply text-[#666];
-  }
+  @apply text-xs italic py-2;
+  color: var(--panel-text-secondary);
 }
 
 .backlink-list {
@@ -660,15 +596,11 @@ watch(() => [props.show, props.currentTitle], () => {
 }
 
 .item-title {
-  @apply text-sm font-medium text-gray-900 truncate flex-1;
-  
-  .dark & {
-    @apply text-[#ccc];
-  }
+  @apply text-sm font-medium text-panel truncate flex-1;
 
   :deep(.search-highlight) {
     @apply bg-blue-100 text-blue-700 px-0.5 rounded font-semibold;
-    
+
     .dark & {
       @apply bg-blue-900 bg-opacity-30 text-blue-400;
     }
@@ -676,19 +608,11 @@ watch(() => [props.show, props.currentTitle], () => {
 }
 
 .item-count {
-  @apply text-xs text-gray-400 ml-2 flex-shrink-0;
-  
-  .dark & {
-    @apply text-[#666];
-  }
+  @apply text-xs text-panel-text-secondary ml-2 flex-shrink-0;
 }
 
 .item-preview {
-  @apply text-xs text-gray-600 line-clamp-2 leading-relaxed;
-  
-  .dark & {
-    @apply text-[#999];
-  }
+  @apply text-xs text-panel-text-secondary line-clamp-2 leading-relaxed;
 
   :deep(.search-highlight) {
     @apply bg-blue-100 text-blue-700 px-0.5 rounded font-semibold;

@@ -84,11 +84,11 @@
     </div>
 
     <div
-      class="fixed bottom-6 right-6 rounded-md shadow-md border dark:border-none bg-panel p-1"
+      class="fixed bottom-6 right-6 rounded-md shadow-md border bg-panel p-1"
     >
       <div class="flex items-center justify-center gap-4">
         <div
-          class="cursor-pointer hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-md p-[4px] leading-3"
+          class="cursor-pointer hover:bg-panel-hover-bg rounded-md p-[4px] leading-3"
           :class="{ 'opacity-50': alarmCards.length === 0 }"
           @click="handleEdit"
         >
@@ -96,8 +96,8 @@
           <check-small v-else theme="outline" size="20" :strokeWidth="3" />
         </div>
         <div
-          :class="[isEdit ? 'bg-gray-200' : '']"
-          class="cursor-pointer hover:bg-gray-200 dark:hover:bg-neutral-800 rounded-md p-[2px] leading-3"
+          :class="[isEdit ? 'bg-panel-hover-bg' : '']"
+          class="cursor-pointer hover:bg-panel-hover-bg rounded-md p-[2px] leading-3"
           @click="addAlarmCard"
         >
           <plus theme="outline" size="24" :strokeWidth="3" />
@@ -303,10 +303,10 @@ onUnmounted(() => {
   @apply w-full p-6 pt-1 rounded-md overflow-hidden;
 
   .alarm-card {
-    @apply min-h-[180px] border dark:border-panel bg-white dark:bg-panel rounded-lg p-4 relative shadow-sm cursor-pointer select-none transition-all;
+    @apply min-h-[180px] border border-panel bg-panel rounded-lg p-4 relative shadow-sm cursor-pointer select-none transition-all;
 
     &.disabled {
-      @apply opacity-50 bg-gray-50 dark:bg-gray-800;
+      @apply opacity-50 bg-content;
     }
 
     &.expired {
@@ -337,7 +337,7 @@ onUnmounted(() => {
       }
 
       .time-left {
-        @apply flex items-center gap-2 text-sm text-gray-500 mb-2;
+        @apply flex items-center gap-2 text-sm text-panel-text-secondary mb-2;
       }
 
       .alarm-type {
@@ -365,7 +365,7 @@ onUnmounted(() => {
       @apply flex gap-2 mb-4;
 
       .weekday {
-        @apply text-sm text-gray-600 dark:text-white px-[8px] py-[4px] rounded-full shadow-sm;
+        @apply text-sm text-panel px-[8px] py-[4px] rounded-full shadow-sm;
 
         border: 1px solid #e5e7eb;
       }
@@ -408,7 +408,7 @@ onUnmounted(() => {
     }
 
     .alarm-no-description {
-      @apply text-sm text-gray-500;
+      @apply text-sm text-panel-text-secondary;
     }
   }
 }

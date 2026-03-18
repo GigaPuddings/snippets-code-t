@@ -179,15 +179,11 @@ const handleScroll = () => {
 
 .source-textarea {
   @apply w-full h-full p-4 outline-none resize-none font-mono text-sm;
-  background-color: #ffffff;
-  color: #2e2e2e;
+  background-color: var(--editor-bg);
+  color: var(--editor-text);
   transition: background-color 0.3s ease, color 0.3s ease;
   padding-bottom: 28px;
   line-height: 1.5;
-
-  &.dark {
-    @apply bg-[#1a1a1a] text-[#CECFD0];
-  }
 
   &::selection {
     @apply bg-blue-200;

@@ -196,13 +196,12 @@ onUnmounted(() => {
 }
 
 .title {
-  @apply text-sm font-semibold text-gray-800 dark:text-gray-100;
+  @apply text-sm font-semibold text-panel;
 }
 
 .close-btn {
   @apply flex items-center justify-center w-6 h-6 rounded-lg transition-all;
-  @apply text-gray-400 hover:text-gray-600 hover:bg-gray-100;
-  @apply dark:text-gray-500 dark:hover:text-gray-300 dark:hover:bg-gray-700/50;
+  @apply text-panel-text-secondary hover:text-panel hover:bg-panel-hover-bg;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -218,26 +217,26 @@ onUnmounted(() => {
 }
 
 .progress-stage {
-  @apply text-xs text-gray-500 dark:text-gray-400 truncate;
+  @apply text-xs text-panel-text-secondary truncate;
   max-width: 180px;
 }
 
 .progress-percent {
   @apply text-sm font-bold;
-  background: linear-gradient(135deg, #5d6dfd 0%, #9333ea 100%);
+  background: linear-gradient(135deg, var(--el-color-primary) 0%, #9333ea 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .progress-bar-container {
-  @apply w-full h-2 bg-gray-100 dark:bg-gray-700/50 rounded-full overflow-hidden;
+  @apply w-full h-2 bg-content rounded-full overflow-hidden;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .progress-bar {
   @apply h-full rounded-full transition-all duration-500 ease-out;
-  background: linear-gradient(90deg, #5d6dfd 0%, #9333ea 50%, #ec4899 100%);
+  background: linear-gradient(90deg, var(--el-color-primary) 0%, #9333ea 50%, #ec4899 100%);
   background-size: 200% 100%;
   animation: shimmer 2s ease-in-out infinite;
 }
@@ -248,7 +247,7 @@ onUnmounted(() => {
 }
 
 .progress-detail {
-  @apply flex justify-end text-xs text-gray-400 dark:text-gray-500;
+  @apply flex justify-end text-xs text-panel-text-secondary;
 }
 
 .item-count {

@@ -172,7 +172,7 @@ defineExpose({
 }
 
 .dialog-desc {
-  @apply text-sm text-gray-600 dark:text-gray-400 mb-4;
+  @apply text-sm text-panel-text-secondary mb-4;
 }
 
 .config-list {
@@ -180,12 +180,12 @@ defineExpose({
 }
 
 .config-item {
-  @apply border border-gray-200 dark:border-neutral-700 rounded-lg p-4 cursor-pointer transition-all;
-  
+  @apply border border-panel rounded-lg p-4 cursor-pointer transition-all;
+
   &:hover {
     @apply border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/10;
   }
-  
+
   &--selected {
     @apply border-blue-500 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20;
   }
@@ -196,7 +196,7 @@ defineExpose({
 }
 
 .config-item-title {
-  @apply text-sm font-semibold text-gray-900 dark:text-white;
+  @apply text-sm font-semibold text-panel;
 }
 
 .config-item-content {
@@ -208,15 +208,15 @@ defineExpose({
 }
 
 .config-label {
-  @apply text-gray-600 dark:text-gray-400 min-w-20;
+  @apply text-panel-text-secondary min-w-20;
 }
 
 .config-value {
-  @apply text-gray-900 dark:text-white font-mono break-all;
+  @apply text-panel font-mono break-all;
 }
 
 .config-desc {
-  @apply text-sm text-gray-600 dark:text-gray-400;
+  @apply text-sm text-panel-text-secondary;
 }
 
 .dialog-footer {

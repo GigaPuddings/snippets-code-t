@@ -352,28 +352,28 @@ function handleReset(): void {
   
   .tag-item {
     @apply min-h-9 flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all;
-    @apply bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700;
-    
+    @apply bg-content border border-panel;
+
     &:hover {
-      @apply bg-gray-100 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600;
+      @apply bg-panel-hover-bg border-panel;
     }
-    
+
     &.active {
       @apply bg-blue-500 border-blue-500;
-      
+
       .tag-text {
         @apply text-white font-medium;
       }
-      
+
       .tag-check {
         @apply text-white;
       }
     }
-    
+
     .tag-text {
-      @apply text-xs text-gray-700 dark:text-gray-300 truncate flex-1;
+      @apply text-xs text-panel truncate flex-1;
     }
-    
+
     .tag-check {
       @apply flex-shrink-0 ml-2;
     }

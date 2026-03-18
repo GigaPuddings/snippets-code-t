@@ -2,7 +2,7 @@
 @use 'sass:color';
 
 :root {
-  // 浅色主题变量
+  // ==================== 基础面板主题变量 ====================
   --categories-panel-bg: #fff;
   --categories-panel-bg-rgb: 255, 255, 255;
   --categories-content-bg: #f8f8f8;
@@ -16,12 +16,15 @@
   --categories-text-color-active: #fff;
   --categories-border-color: #d8d8d8;
   --categories-border-color-rgb: 228, 231, 237;
+
+  // ==================== 主色调 ====================
   --el-color-primary: #5d6dfd !important;
   --el-color-primary-light-3: #7b88fd;
   --el-color-primary-dark-2: #4a5cfd;
   --el-button-hover-bg-color: #4a5bef;
   --el-button-hover-border-color: #5d6dfd;
-  // 搜索窗口主题变量
+
+  // ==================== 搜索窗口主题变量 ====================
   --search-bg-color: #faf8f8;
   --search-text-color: #1e1e1e;
   --search-info-text-color: #8a8a89;
@@ -30,6 +33,27 @@
   --search-placeholder: #999;
   --search-result-hover: #f0eeee;
   --search-border: #e4e7ed;
+
+  // ==================== 编辑器主题变量 ====================
+  --editor-bg: #ffffff;
+  --editor-border: #e4e7ed;
+  --editor-text: #333333;
+  --editor-text-secondary: #666666;
+  --editor-hover-bg: #f5f7fa;
+  --editor-scrollbar-thumb: #c0c4cc;
+  --editor-scrollbar-track: #f5f7fa;
+
+  // ==================== 状态栏主题变量 ====================
+  --statusbar-bg: #f8f8f8;
+  --statusbar-border: #e4e7ed;
+  --statusbar-text: #666666;
+
+  // ==================== 弹出层/面板主题变量 ====================
+  --panel-bg: #ffffff;
+  --panel-border: #e4e7ed;
+  --panel-text: #333333;
+  --panel-text-secondary: #666666;
+  --panel-hover-bg: #f5f7fa;
 }
 
 html.dark {
@@ -39,7 +63,7 @@ html.dark {
 }
 
 .dark {
-  // 深色主题变量
+  // ==================== 基础面板深色主题变量 ====================
   --categories-panel-bg: #1a1a1a;
   --categories-panel-bg-rgb: 26, 26, 26;
   --categories-content-bg: #2c2c2c;
@@ -54,7 +78,7 @@ html.dark {
   --categories-border-color: #363636;
   --categories-border-color-rgb: 54, 54, 54;
 
-  // 搜索窗口深色主题变量
+  // ==================== 搜索窗口深色主题变量 ====================
   --search-bg-color: #202020;
   --search-text-color: #fcfcfc;
   --search-info-text-color: #949494;
@@ -63,6 +87,27 @@ html.dark {
   --search-placeholder: #666;
   --search-result-hover: #363636;
   --search-border: #363636;
+
+  // ==================== 编辑器深色主题变量 ====================
+  --editor-bg: #1e1e1e;
+  --editor-border: #2a2a2a;
+  --editor-text: #e5e7eb;
+  --editor-text-secondary: #9ca3af;
+  --editor-hover-bg: #2a2a2a;
+  --editor-scrollbar-thumb: #4b5563;
+  --editor-scrollbar-track: #1e1e1e;
+
+  // ==================== 状态栏深色主题变量 ====================
+  --statusbar-bg: #1e1e1e;
+  --statusbar-border: #333333;
+  --statusbar-text: #9ca3af;
+
+  // ==================== 弹出层/面板深色主题变量 ====================
+  --panel-bg: #1e1e1e;
+  --panel-border: #2a2a2a;
+  --panel-text: #e5e7eb;
+  --panel-text-secondary: #9ca3af;
+  --panel-hover-bg: #2a2a2a;
 }
 
 $btnColors: #5d6dfd, #67c23a, #e6a23c, #f56c6c, #909399;

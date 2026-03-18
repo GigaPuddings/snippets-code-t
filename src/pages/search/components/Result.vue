@@ -683,9 +683,9 @@ defineExpose({
       }
       
       .hint-text {
-        @apply text-gray-600 dark:text-gray-400;
+        @apply text-panel-text-secondary;
       }
-      
+
       &:hover .hint-key {
         transform: scale(1.05);
       }
@@ -708,7 +708,7 @@ defineExpose({
       }
 
       .shortcut-key {
-        @apply flex items-center justify-center gap-1 text-gray-500 dark:text-gray-200 text-xs font-medium opacity-80;
+        @apply flex items-center justify-center gap-1 text-panel-text-secondary text-xs font-medium opacity-80;
       }
 
       .icon-wrapper {

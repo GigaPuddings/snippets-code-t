@@ -1,4 +1,5 @@
 @use './reset';
+@use './theme';
 
 @tailwind base;
 @tailwind components;
@@ -207,6 +208,43 @@
   .el-popper__arrow::before {
     background: rgb(30 30 50) !important;
     border-color: rgb(75 85 99) !important;
+  }
+}
+
+// ============================================
+// 笔记编辑器状态栏「视图切换」下拉深色样式
+// 使用方式: popper-class="editor-statusbar-dropdown-dark"
+// ============================================
+.editor-statusbar-dropdown-dark.el-popper {
+  --el-bg-color-overlay: var(--panel-bg);
+  --el-fill-color-blank: var(--panel-bg);
+  --el-text-color-regular: var(--panel-text);
+  --el-border-color-light: var(--panel-border);
+
+  background: var(--panel-bg) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 8px !important;
+
+  .el-dropdown-menu {
+    background: var(--panel-bg) !important;
+  }
+
+  .el-dropdown-menu__item {
+    color: var(--panel-text) !important;
+
+    &:hover {
+      background: var(--panel-hover-bg) !important;
+    }
+
+    &.is-active {
+      color: var(--el-color-primary) !important;
+      font-weight: 500;
+    }
+  }
+
+  .el-popper__arrow::before {
+    background: var(--panel-bg) !important;
+    border-color: var(--panel-border) !important;
   }
 }
 

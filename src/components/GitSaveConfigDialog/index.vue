@@ -128,14 +128,14 @@ const handleCancel = () => {
   }
   
   &::-webkit-scrollbar-track {
-    @apply bg-gray-100 dark:bg-gray-800 rounded;
+    @apply bg-panel rounded;
   }
-  
+
   &::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-gray-600 rounded;
-    
+    @apply bg-panel-hover-bg rounded;
+
     &:hover {
-      @apply bg-gray-400 dark:bg-gray-500;
+      @apply bg-panel-hover-bg;
     }
   }
 }
@@ -156,23 +156,23 @@ const handleCancel = () => {
   @apply space-y-2;
   
   .summary-title {
-    @apply text-sm font-semibold text-gray-900 dark:text-white mb-3;
+    @apply text-sm font-semibold text-panel mb-3;
   }
-  
+
   .summary-list {
-    @apply space-y-2 bg-gray-50 dark:bg-gray-800 rounded-lg p-3;
+    @apply space-y-2 bg-content rounded-lg p-3;
   }
-  
+
   .summary-item {
     @apply flex gap-2 text-sm;
-    
+
     .label {
-      @apply font-medium text-gray-600 dark:text-gray-400 flex-shrink-0;
+      @apply font-medium text-panel-text-secondary flex-shrink-0;
     }
-    
+
     .value {
-      @apply text-gray-900 dark:text-white font-mono;
-      
+      @apply text-panel font-mono;
+
       &.text-break {
         @apply break-all;
       }

@@ -273,7 +273,7 @@ const insertTable = () => {
 
 <style lang="scss" scoped>
 .editor-toolbar {
-  @apply flex items-center gap-1 px-2 py-1.5 bg-gray-50 border-b border-gray-200 flex-wrap;
+  @apply flex items-center gap-1 px-2 py-1.5 bg-content border-b border-panel flex-wrap;
   transition: background-color 0.3s ease, border-color 0.3s ease;
 
   &.dark-theme {
@@ -331,10 +331,10 @@ const insertTable = () => {
 }
 
 .toolbar-btn {
-  @apply flex items-center justify-center w-8 h-8 rounded transition-all duration-200 cursor-pointer border-none bg-transparent text-gray-700;
+  @apply flex items-center justify-center w-8 h-8 rounded transition-all duration-200 cursor-pointer border-none bg-transparent text-panel;
 
   &:hover:not(:disabled) {
-    @apply bg-gray-200 transform scale-105;
+    @apply bg-panel-hover-bg transform scale-105;
   }
 
   &.is-active {
@@ -347,7 +347,7 @@ const insertTable = () => {
   }
 
   &:disabled {
-    @apply text-gray-400 cursor-not-allowed opacity-50;
+    @apply text-panel-text-secondary cursor-not-allowed opacity-50;
   }
 
   svg {
@@ -361,11 +361,11 @@ const insertTable = () => {
 }
 
 .toolbar-select {
-  @apply h-8 px-2 rounded border border-gray-300 bg-white text-sm cursor-pointer;
+  @apply h-8 px-2 rounded border border-panel bg-panel text-sm cursor-pointer;
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 
   &:hover:not(:disabled) {
-    @apply bg-gray-100;
+    @apply bg-content;
   }
 
   &:focus {
@@ -374,16 +374,16 @@ const insertTable = () => {
   }
 
   &:disabled {
-    @apply text-gray-400 cursor-not-allowed opacity-50;
+    @apply text-panel-text-secondary cursor-not-allowed opacity-50;
   }
 
   option {
-    @apply bg-white text-gray-900;
+    @apply bg-panel text-panel;
   }
 }
 
 .toolbar-divider {
-  @apply w-px h-6 bg-gray-300 mx-1;
+  @apply w-px h-6 bg-panel mx-1;
   transition: background-color 0.3s ease;
 }
 

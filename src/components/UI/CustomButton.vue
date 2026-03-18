@@ -78,7 +78,7 @@ defineEmits(['click']);
   }
 
   &--default {
-    @apply bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 border border-gray-300 dark:border-neutral-600;
+    @apply bg-panel dark:bg-panel text-panel-text-secondary dark:text-panel hover:bg-content dark:hover:bg-panel-hover-bg border border-panel dark:border-panel;
   }
 
   &--primary {

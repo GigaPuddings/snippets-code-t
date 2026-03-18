@@ -496,11 +496,11 @@ onUnmounted(() => {
       }
       
       .scanning-text {
-        @apply text-base font-medium text-gray-700 dark:text-gray-200;
+        @apply text-base font-medium text-panel;
       }
-      
+
       .scanning-progress {
-        @apply text-sm text-gray-500 dark:text-gray-400 font-mono;
+        @apply text-sm text-panel-text-secondary font-mono;
       }
     }
   }
@@ -509,7 +509,7 @@ onUnmounted(() => {
     @apply mb-3;
 
     .header-main {
-      @apply flex items-center justify-between gap-4 p-3 rounded-lg bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700;
+      @apply flex items-center justify-between gap-4 p-3 rounded-lg bg-content border border-panel;
 
       .header-left {
         @apply flex items-center gap-4;
@@ -520,13 +520,13 @@ onUnmounted(() => {
         }
 
         .header-stats {
-          @apply flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400;
+          @apply flex items-center gap-2 text-sm text-panel-text-secondary;
 
           .stat-text {
             @apply flex items-center gap-1;
 
             strong {
-              @apply text-gray-900 dark:text-white font-semibold;
+              @apply text-panel font-semibold;
             }
           }
         }
@@ -540,7 +540,7 @@ onUnmounted(() => {
           width: 240px;
 
           .search-icon {
-            @apply absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none z-10;
+            @apply absolute left-2.5 top-1/2 transform -translate-y-1/2 text-panel-text-secondary pointer-events-none z-10;
           }
 
           .search-input {
@@ -570,10 +570,10 @@ onUnmounted(() => {
       }
 
       .local-item {
-        @apply flex items-center gap-3 p-4 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-panel hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 cursor-pointer transition-all duration-200;
-        
+        @apply flex items-center gap-3 p-4 rounded-xl border border-panel bg-panel hover:shadow-lg hover:border-blue-300 cursor-pointer transition-all duration-200;
+
         &.is-editing {
-          @apply cursor-default hover:shadow-none hover:border-gray-200 dark:hover:border-neutral-700;
+          @apply cursor-default hover:shadow-none hover:border-panel;
         }
 
         &:hover:not(.is-editing) {
@@ -588,14 +588,14 @@ onUnmounted(() => {
           @apply flex items-center gap-4 flex-1 overflow-hidden;
 
           .item-icon {
-            @apply flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-neutral-800 dark:to-neutral-700 shadow-sm;
+            @apply flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-xl bg-content shadow-sm;
 
             .icon-image {
               @apply w-11 h-11 object-contain;
             }
 
             .icon-placeholder {
-              @apply text-gray-400 dark:text-gray-500;
+              @apply text-panel-text-secondary;
             }
           }
 
@@ -606,27 +606,27 @@ onUnmounted(() => {
               @apply flex items-center gap-2 mb-1;
 
               .item-title {
-                @apply text-base font-semibold text-gray-900 dark:text-white truncate;
+                @apply text-base font-semibold text-panel truncate;
               }
 
               .usage-indicator {
                 @apply flex-shrink-0 w-2 h-2 rounded-full;
-                
+
                 &.usage-level-1 {
                   @apply bg-blue-500;
                   box-shadow: 0 0 4px rgba(59, 130, 246, 0.5);
                 }
-                
+
                 &.usage-level-2 {
                   @apply bg-green-500;
                   box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
                 }
-                
+
                 &.usage-level-3 {
                   @apply bg-orange-500;
                   box-shadow: 0 0 4px rgba(249, 115, 22, 0.5);
                 }
-                
+
                 &.usage-level-4 {
                   @apply bg-red-500;
                   box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
@@ -636,7 +636,7 @@ onUnmounted(() => {
             }
 
             .item-path {
-              @apply flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 truncate;
+              @apply flex items-center gap-1 text-sm text-panel-text-secondary truncate;
 
               span {
                 @apply truncate;

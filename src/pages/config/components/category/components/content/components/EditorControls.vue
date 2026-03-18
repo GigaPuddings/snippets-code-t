@@ -64,19 +64,19 @@ defineEmits<{
 }
 
 .control-btn {
-  @apply w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded cursor-pointer;
+  @apply w-8 h-8 flex items-center justify-center bg-panel border border-panel rounded cursor-pointer;
   transition: all 0.2s ease;
-  color: var(--text-muted, #6b7280);
-  
+  color: var(--panel-text-secondary);
+
   &:hover {
-    @apply bg-gray-50 border-gray-300;
-    color: var(--text-normal, #374151);
+    @apply bg-content border-panel;
+    color: var(--panel-text);
   }
-  
+
   &:active {
     transform: scale(0.95);
   }
-  
+
   svg {
     flex-shrink: 0;
   }

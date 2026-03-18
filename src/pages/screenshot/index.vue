@@ -733,7 +733,7 @@ onUnmounted(() => {
     min-width: 100px;
 
     &::placeholder {
-      @apply text-gray-400;
+      @apply text-panel-text-secondary;
     }
 
     &:focus {
@@ -745,33 +745,33 @@ onUnmounted(() => {
 // 颜色信息显示
 .color-info-container {
   @apply absolute z-30;
-  
+
   .color-info {
-    @apply bg-white dark:bg-panel rounded-lg shadow-lg p-3 border dark:border-panel flex items-center gap-3 min-w-48;
-    
+    @apply bg-panel rounded-lg shadow-lg p-3 border border-panel flex items-center gap-3 min-w-48;
+
     .color-preview {
-      @apply w-8 h-8 rounded border border-gray-300 dark:border-panel flex-shrink-0;
+      @apply w-8 h-8 rounded border border-panel flex-shrink-0;
     }
-    
+
     .color-details {
       @apply flex-1 space-y-1;
-      
+
       .color-value {
         @apply flex items-center gap-2 text-sm;
-        
+
         .label {
-          @apply font-medium text-gray-600 dark:text-gray-400 w-8;
+          @apply font-medium text-panel-text-secondary w-8;
         }
-        
+
         .value {
-          @apply font-mono text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-hover px-1 rounded;
+          @apply font-mono text-panel cursor-pointer hover:bg-panel-hover-bg px-1 rounded;
           font-size: 12px;
         }
       }
     }
-    
+
     .color-tip {
-      @apply text-xs text-gray-500 dark:text-gray-400 text-center;
+      @apply text-xs text-panel-text-secondary text-center;
     }
   }
 }

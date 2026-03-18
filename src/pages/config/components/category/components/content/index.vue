@@ -1265,7 +1265,7 @@ onMounted(async () => {
   @apply flex flex-col items-center justify-center h-full gap-4 text-content;
 
   .loading-spinner {
-    @apply w-12 h-12 border-4 border-gray-300 border-t-blue-500 rounded-full;
+    @apply w-12 h-12 border-4 border-panel-border border-t-blue-500 rounded-full;
     animation: spin 1s linear infinite;
   }
 
@@ -1275,13 +1275,13 @@ onMounted(async () => {
 }
 
 @keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
+ 0% {
+   transform: rotate(0deg);
+ }
 
-  100% {
-    transform: rotate(360deg);
-  }
+ 100% {
+   transform: rotate(360deg);
+ }
 }
 
 .editor-error {
@@ -1316,7 +1316,7 @@ onMounted(async () => {
   }
 
   svg {
-    @apply text-gray-500;
+    @apply text-panel-text-secondary;
     transition: color 0.2s ease;
   }
 
@@ -1336,7 +1336,7 @@ onMounted(async () => {
     }
 
     svg {
-      @apply text-gray-400;
+      @apply text-panel-text-secondary;
     }
 
     &:hover svg {

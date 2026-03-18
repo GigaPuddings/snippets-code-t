@@ -2,7 +2,7 @@
   <div class="fragment-type-selector-overlay" @click="handleCancel">
     <div class="fragment-type-selector" @click.stop>
       <h3 class="selector-title">{{ t('fragmentType.selectType') }}</h3>
-      
+
       <div class="type-options">
         <div
           class="type-option"
@@ -110,7 +110,7 @@ onMounted(() => {
   if (codeOption.value) {
     codeOption.value.focus();
   }
-  
+
   // Add keyboard event listener
   window.addEventListener('keydown', handleKeydown);
 });
@@ -138,7 +138,7 @@ onBeforeUnmount(() => {
 }
 
 .fragment-type-selector {
-  @apply bg-white rounded-xl shadow-2xl p-8 mx-4;
+  @apply bg-panel rounded-xl shadow-2xl p-8 mx-4;
   max-width: 600px;
   width: 100%;
   animation: slideUp 0.3s ease-out;
@@ -156,7 +156,7 @@ onBeforeUnmount(() => {
 }
 
 .selector-title {
-  @apply text-2xl font-semibold text-gray-900 mb-8 text-center;
+  @apply text-2xl font-semibold text-panel mb-8 text-center;
 }
 
 .type-options {
@@ -165,35 +165,35 @@ onBeforeUnmount(() => {
 
 .type-option {
   @apply relative flex flex-col items-center p-6 rounded-xl cursor-pointer transition-all duration-200;
-  border: 2px solid #e5e7eb;
-  background: #ffffff;
-  
+  border: 2px solid var(--panel-border);
+  background: var(--panel-bg);
+
   &:hover {
-    border-color: #3b82f6;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    border-color: var(--el-color-primary);
+    box-shadow: 0 4px 12px rgba(var(--el-color-primary), 0.15);
     transform: translateY(-2px);
   }
-  
+
   &:focus {
     @apply outline-none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--el-color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--el-color-primary), 0.1);
   }
-  
+
   &.selected {
-    border-color: #3b82f6;
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(59, 130, 246, 0.02) 100%);
-    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.2);
+    border-color: var(--el-color-primary);
+    background: linear-gradient(135deg, rgba(var(--el-color-primary), 0.05) 0%, rgba(var(--el-color-primary), 0.02) 100%);
+    box-shadow: 0 4px 16px rgba(var(--el-color-primary), 0.2);
   }
 }
 
 .type-icon {
   @apply mb-4;
-  color: #6b7280;
+  color: var(--panel-text-secondary);
   transition: all 0.2s ease;
-  
+
   .selected & {
-    color: #3b82f6;
+    color: var(--el-color-primary);
     transform: scale(1.05);
   }
 }
@@ -203,16 +203,16 @@ onBeforeUnmount(() => {
 }
 
 .type-name {
-  @apply text-lg font-semibold text-gray-900 mb-2;
+  @apply text-lg font-semibold text-panel mb-2;
 }
 
 .type-desc {
-  @apply text-sm text-gray-500 leading-relaxed;
+  @apply text-sm text-panel-text-secondary leading-relaxed;
 }
 
 .check-icon {
   @apply absolute top-3 right-3;
-  color: #3b82f6;
+  color: var(--el-color-primary);
   animation: checkIn 0.3s ease-out;
 }
 
@@ -234,90 +234,27 @@ onBeforeUnmount(() => {
 .btn-cancel,
 .btn-confirm {
   @apply px-6 py-2.5 rounded-lg font-medium transition-all duration-200;
-  
+
   &:active {
     transform: scale(0.98);
   }
 }
 
 .btn-cancel {
-  @apply bg-gray-100 text-gray-700;
-  
+  @apply bg-panel-hover-bg text-panel;
+
   &:hover {
-    @apply bg-gray-200;
+    @apply bg-panel-hover-bg;
   }
 }
 
 .btn-confirm {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
   @apply text-white shadow-md;
-  
-  &:hover {
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-    transform: translateY(-1px);
-  }
-}
 
-// 暗色模式
-:global(.dark) {
-  .fragment-type-selector {
-    @apply bg-[#1e1e1e];
-  }
-  
-  .selector-title {
-    @apply text-gray-100;
-  }
-  
-  .type-option {
-    border-color: #374151;
-    background: #262626;
-    
-    &:hover {
-      border-color: #3b82f6;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
-    }
-    
-    &.selected {
-      border-color: #3b82f6;
-      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
-      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
-    }
-  }
-  
-  .type-icon {
-    color: #9ca3af;
-    
-    .selected & {
-      color: #60a5fa;
-    }
-  }
-  
-  .type-name {
-    @apply text-gray-100;
-  }
-  
-  .type-desc {
-    @apply text-gray-400;
-  }
-  
-  .check-icon {
-    color: #60a5fa;
-  }
-  
-  .btn-cancel {
-    @apply bg-[#2a2a2a] text-gray-300;
-    
-    &:hover {
-      @apply bg-[#333333];
-    }
-  }
-  
-  .btn-confirm {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    
-    &:hover {
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
-    }
+  &:hover {
+    box-shadow: 0 4px 12px rgba(var(--el-color-primary), 0.4);
+    transform: translateY(-1px);
   }
 }
 </style>

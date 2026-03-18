@@ -421,19 +421,19 @@ const selectSuggestion = (tag: string): void => {
   }
   
   .tag-suggestions {
-    @apply absolute left-0 mt-1 bg-white rounded shadow-lg border border-gray-200 z-50;
+    @apply absolute left-0 mt-1 bg-panel rounded shadow-lg border border-panel z-50;
     min-width: 150px;
     max-height: 200px;
     overflow-y: auto;
-    
+
     .suggestion-item {
       @apply px-3 py-1.5 text-xs cursor-pointer;
-      color: #666;
+      color: var(--panel-text-secondary);
       transition: all 0.1s ease;
-      
+
       &:hover {
         background-color: rgba(74, 158, 255, 0.08);
-        color: #4a9eff;
+        color: var(--el-color-primary);
       }
       
       &:first-child {

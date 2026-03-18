@@ -360,11 +360,11 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .user-center-container {
-  @apply w-full h-full flex flex-col bg-white dark:bg-neutral-900;
+  @apply w-full h-full flex flex-col bg-panel;
 }
 
 .user-center-header {
-  @apply flex-shrink-0 px-6 pt-6 pb-4 border-b border-gray-200 dark:border-neutral-700;
+  @apply flex-shrink-0 px-6 pt-6 pb-4 border-b border-panel;
 }
 
 .user-center-content {
@@ -376,32 +376,32 @@ onMounted(() => {
 }
 
 .panel-subtitle {
-  @apply text-sm text-gray-600 dark:text-gray-400;
+  @apply text-sm text-panel-text-secondary;
 }
 
 .info-card {
-  @apply bg-gray-50 dark:bg-neutral-800 rounded-lg p-4 space-y-3;
+  @apply bg-content rounded-lg p-4 space-y-3;
 }
 
 .info-item {
-  @apply flex items-center justify-between py-2 border-b border-gray-200 dark:border-neutral-700 last:border-0;
+  @apply flex items-center justify-between py-2 border-b border-panel last:border-0;
 }
 
 .info-label {
-  @apply text-sm text-gray-600 dark:text-gray-400;
+  @apply text-sm text-panel-text-secondary;
 }
 
 .info-value {
-  @apply text-sm text-gray-900 dark:text-white font-mono;
+  @apply text-sm text-panel font-mono;
 }
 
 .status-badge {
   @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium;
-  
+
   &--success {
     @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400;
   }
-  
+
   &--warning {
     @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400;
   }
@@ -420,19 +420,19 @@ onMounted(() => {
 }
 
 .tip-title {
-  @apply text-sm font-semibold text-gray-900 dark:text-white mb-1;
+  @apply text-sm font-semibold text-panel mb-1;
 }
 
 .tip-desc {
-  @apply text-sm text-gray-600 dark:text-gray-400 mb-3;
+  @apply text-sm text-panel-text-secondary mb-3;
 }
 
 .git-config-card {
-  @apply bg-gray-50 dark:bg-neutral-800 rounded-lg p-4 space-y-3;
+  @apply bg-content rounded-lg p-4 space-y-3;
 }
 
 .git-config-desc {
-  @apply text-sm text-gray-600 dark:text-gray-400 mb-3;
+  @apply text-sm text-panel-text-secondary mb-3;
 }
 
 .git-config-form {
@@ -444,7 +444,7 @@ onMounted(() => {
 }
 
 .form-label {
-  @apply text-sm text-gray-600 dark:text-gray-400;
+  @apply text-sm text-panel-text-secondary;
 }
 
 .form-input {
@@ -457,7 +457,7 @@ onMounted(() => {
 }
 
 .section-title {
-  @apply text-sm font-semibold text-gray-900 dark:text-white mb-3;
+  @apply text-sm font-semibold text-panel mb-3;
 }
 
 .action-buttons {
@@ -469,7 +469,7 @@ onMounted(() => {
 }
 
 .about-text {
-  @apply text-sm text-gray-600 dark:text-gray-400;
+  @apply text-sm text-panel-text-secondary;
 }
 
 .about-links {
@@ -477,6 +477,6 @@ onMounted(() => {
 }
 
 .link-separator {
-  @apply text-gray-400 dark:text-gray-600;
+  @apply text-panel-text-secondary;
 }
 </style>

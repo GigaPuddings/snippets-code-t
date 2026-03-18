@@ -436,47 +436,47 @@ const startMigrationFromFile = async () => {
   .progress-step {
     @apply mb-4 text-lg;
   }
-  
+
   .progress-detail {
-    @apply mt-2 text-sm text-gray-500;
+    @apply mt-2 text-sm text-panel-text-secondary;
   }
 }
 
 
 .migration-result {
   @apply max-h-[60vh] overflow-y-auto;
-  
+
   .result-summary {
     @apply mb-3 space-y-2;
-    
+
     .result-item {
       @apply flex justify-between p-2 rounded;
-      
+
       &.success {
         @apply bg-green-50 dark:bg-green-900/20;
       }
-      
+
       &.error {
         @apply bg-red-50 dark:bg-red-900/20;
       }
-      
+
       .label {
-        @apply text-sm text-gray-600 dark:text-gray-400;
+        @apply text-sm text-panel-text-secondary;
       }
-      
+
       .value {
         @apply text-sm font-semibold;
       }
     }
   }
-  
+
   .result-path {
-    @apply mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded;
-    
+    @apply mb-4 p-3 bg-content rounded;
+
     .label {
-      @apply text-sm text-gray-600 dark:text-gray-400 mr-2;
+      @apply text-sm text-panel-text-secondary mr-2;
     }
-    
+
     .value {
       @apply font-mono text-sm break-all;
     }
