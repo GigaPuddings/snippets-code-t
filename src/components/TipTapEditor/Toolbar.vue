@@ -142,7 +142,7 @@
         <button
           class="toolbar-btn"
           :class="{ 'is-active': editor?.isActive('codeBlock') }"
-          @click="editor?.chain().focus().toggleCodeBlock().run()"
+          @click="toggleCodeBlockWithHighlight"
           :disabled="!editor"
         >
           <svg viewBox="0 0 24 24" width="18" height="18">
@@ -262,12 +262,18 @@ const toggleLink = () => {
 // Insert table
 const insertTable = () => {
   if (!props.editor) return;
-  
+
   props.editor
     .chain()
     .focus()
     .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
     .run();
+};
+
+// Toggle code block with highlight support
+const toggleCodeBlockWithHighlight = () => {
+  if (!props.editor) return;
+  props.editor.chain().focus().toggleCodeBlock().run();
 };
 </script>
 

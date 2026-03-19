@@ -162,7 +162,7 @@ pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
         let _ = PostMessageW(Some(HWND_BROADCAST), WM_THEMECHANGED, WPARAM(0), LPARAM(0));
     }
 
-    info!("Windows深色模式设置完成: {}", if enabled { "深色" } else { "浅色" });
+    info!("Windows dark mode set to: {}", if enabled { "dark" } else { "light" });
     Ok(())
 }
 
@@ -211,44 +211,60 @@ pub fn get_windows_timezone_info() -> Result<(String, i32), String> {
     Err("此功能仅在Windows系统上可用".to_string())
 }
 
-// 通过IP获取地理位置信息
+// 通过IP获取地理位置信息（带重试和备用源）
 pub async fn get_location_by_ip() -> Result<LocationInfo, String> {
-    let client = reqwest::Client::new();
-    
-    // 使用免费的IP地理位置服务
-    let response = client
-        .get("http://ip-api.com/json/?fields=status,country,regionName,city,lat,lon,timezone,offset")
-        .send()
-        .await
-        .map_err(|e| format!("请求地理位置失败: {}", e))?;
+    // 尝试多个IP定位服务
+    let apis = [
+        // 主服务：ip-api.com（英文，国内可能访问慢）
+        ("http://ip-api.com/json/?fields=status,country,regionName,city,lat,lon,timezone,offset", "ip-api.com"),
+        // 备用服务：ip-api.com 中文站点
+        ("http://ip-api.com/json/?fields=status,country,regionName,city,lat,lon,timezone,offset&lang=zh", "ip-api.com (CN)"),
+    ];
 
-    let json: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("解析地理位置响应失败: {}", e))?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-    if json["status"] != "success" {
-        return Err("获取地理位置失败".to_string());
+    for (url, name) in apis.iter() {
+        match client.get(*url).send().await {
+            Ok(response) => match response.json::<serde_json::Value>().await {
+                Ok(json) if json["status"] == "success" => {
+                    let latitude = json["lat"].as_f64().ok_or("Invalid latitude")?;
+                    let longitude = json["lon"].as_f64().ok_or("Invalid longitude")?;
+                    let city = json["city"].as_str().unwrap_or("Unknown").to_string();
+                    let region = json["regionName"].as_str().unwrap_or("Unknown").to_string();
+                    let country = json["country"].as_str().unwrap_or("Unknown").to_string();
+                    let timezone = json["timezone"].as_str().unwrap_or("Unknown").to_string();
+                    let timezone_offset_seconds = json["offset"].as_i64().unwrap_or(0) as i32;
+                    let timezone_offset = timezone_offset_seconds / 60;
+
+                    info!("Location fetched from {}: {}, {}", name, city, country);
+                    return Ok(LocationInfo {
+                        latitude,
+                        longitude,
+                        city,
+                        region,
+                        country,
+                        timezone,
+                        timezone_offset,
+                    });
+                }
+                Ok(json) => {
+                    warn!("Location API {} returned error: {:?}", name, json);
+                }
+                Err(e) => {
+                    warn!("Failed to parse response from {}: {}", name, e);
+                }
+            },
+            Err(e) => {
+                warn!("Failed to fetch location from {}: {}", name, e);
+            }
+        }
     }
 
-    let latitude = json["lat"].as_f64().ok_or("无效的纬度")?;
-    let longitude = json["lon"].as_f64().ok_or("无效的经度")?;
-    let city = json["city"].as_str().unwrap_or("Unknown").to_string();
-    let region = json["regionName"].as_str().unwrap_or("Unknown").to_string();
-    let country = json["country"].as_str().unwrap_or("Unknown").to_string();
-    let timezone = json["timezone"].as_str().unwrap_or("Unknown").to_string();
-    let timezone_offset_seconds = json["offset"].as_i64().unwrap_or(0) as i32; // 偏移量是秒为单位
-    let timezone_offset = timezone_offset_seconds / 60; // 转换为分钟
-    
-    Ok(LocationInfo {
-        latitude,
-        longitude,
-        city,
-        region,
-        country,
-        timezone,
-        timezone_offset,
-    })
+    // 所有API都失败时，返回错误
+    Err("Failed to fetch location from all available APIs".to_string())
 }
 
 // 计算日出日落时间
@@ -376,7 +392,7 @@ pub fn save_config(_app_handle: &AppHandle, config: &DarkModeConfig) -> Result<(
     
     // 保存到 app.json
     let app = APP.get().ok_or("应用未初始化")?;
-    info!("🌙 保存深色模式配置到 app.json");
+    info!("Saving dark mode config to app.json");
     json_config::set_app_config_value(app, "dark_mode_config", config_json)?;
     
     // 更新全局状态
@@ -406,6 +422,63 @@ pub fn load_config(_app_handle: &AppHandle) -> DarkModeConfig {
     default_config
 }
 
+// 计算下次主题切换的时间（秒），用于优化调度器
+// 返回从现在到下次切换需要的秒数，如果无法计算则返回默认 60 秒
+fn calculate_next_switch_seconds(config: &DarkModeConfig) -> u64 {
+    let now = Local::now();
+    let current_time = format!("{:02}:{:02}", now.hour(), now.minute());
+    let current_min = time_to_minutes(&current_time);
+
+    match config.schedule_type {
+        ScheduleType::Custom => {
+            if let (Some(light_time), Some(dark_time)) = (&config.custom_light_time, &config.custom_dark_time) {
+                let light_min = time_to_minutes(light_time);
+                let dark_min = time_to_minutes(dark_time);
+
+                let (next_switch_min, _is_going_to_dark) = if dark_min <= light_min {
+                    // 同一天：深色 [dark_min, light_min)
+                    if current_min >= light_min || current_min < dark_min {
+                        // 当前是浅色，下一个是 dark_min
+                        (dark_min, true)
+                    } else {
+                        // 当前是深色，下一个是 light_min
+                        (light_min, false)
+                    }
+                } else {
+                    // 跨天：深色 [dark_min, 24:00) ∪ [0, light_min)
+                    if current_min >= dark_min || current_min < light_min {
+                        // 当前是深色
+                        if current_min >= dark_min {
+                            // 下一个是 light_min（第二天）
+                            (light_min, false)
+                        } else {
+                            // 下一个是 light_min（当天）
+                            (light_min, false)
+                        }
+                    } else {
+                        // 当前是浅色，下一个是 dark_min
+                        (dark_min, true)
+                    }
+                };
+
+                // 计算秒数
+                let mut diff = next_switch_min - current_min;
+                if diff <= 0 {
+                    diff += 24 * 60; // 跨天
+                }
+                (diff * 60) as u64
+            } else {
+                60 // 默认
+            }
+        }
+        ScheduleType::SunBased => {
+            // 日出日落模式使用固定间隔检查，因为 sunrise/sunset 每天变化
+            // 但可以延长检查间隔到 5 分钟（300 秒），因为日落不会突变
+            300
+        }
+    }
+}
+
 // 启动定时切换服务
 pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
     let mut running = SCHEDULER_RUNNING.lock().unwrap();
@@ -418,64 +491,72 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
     let app_handle_clone = app_handle.clone();
     tauri::async_runtime::spawn(async move {
         let mut config = load_config(&app_handle_clone);
-        
+
         // System模式不需要调度器，直接返回
         if config.theme_mode == ThemeMode::System {
             *SCHEDULER_RUNNING.lock().unwrap() = false;
             return;
         }
-        
+
         // 首次启动时检查是否需要自动获取位置信息（仅Schedule+SunBased模式）
-        if config.theme_mode == ThemeMode::Schedule 
-            && config.schedule_type == ScheduleType::SunBased 
-            && config.latitude.is_none() 
+        if config.theme_mode == ThemeMode::Schedule
+            && config.schedule_type == ScheduleType::SunBased
+            && config.latitude.is_none()
         {
-            info!("定时模式启用，自动获取位置信息...");
+            info!("Schedule mode enabled, auto-fetching location...");
             if let Ok(location) = get_location_by_ip().await {
                 config.latitude = Some(location.latitude);
                 config.longitude = Some(location.longitude);
                 config.timezone_offset = Some(location.timezone_offset);
                 config.location_name = Some(format!("{}, {}", location.city, location.country));
-                
+
                 if let Err(e) = save_config(&app_handle_clone, &config) {
-                    error!("保存位置信息失败: {}", e);
+                    error!("Failed to save location: {}", e);
                 } else {
-                    info!("自动获取位置信息成功: {}, {}", location.city, location.country);
+                    info!("Location auto-fetched: {}, {}", location.city, location.country);
                 }
             } else {
-                warn!("自动获取位置信息失败，将使用默认时间");
+                warn!("Failed to auto-fetch location, using default times");
             }
         }
-        
+
         // 立即执行一次主题检查
         if let Err(e) = check_and_switch_theme(&app_handle_clone, &config).await {
-            error!("首次主题切换失败: {}", e);
+            error!("Initial theme switch failed: {}", e);
         }
-        
-        let mut interval = time::interval(Duration::from_secs(60)); // 每分钟检查一次
 
+        // 主循环：使用动态间隔
         loop {
-            interval.tick().await;
-
             // 检查是否应该停止
             if !*SCHEDULER_RUNNING.lock().unwrap() {
                 break;
             }
 
             let config = load_config(&app_handle_clone);
-            
+
             // 只有定时模式才需要调度
             if config.theme_mode != ThemeMode::Schedule {
+                // 非 Schedule 模式，每 60 秒检查一次是否切换回 Schedule
+                time::sleep(Duration::from_secs(60)).await;
                 continue;
+            }
+
+            // 计算下次切换时间，优化休眠
+            let sleep_seconds = calculate_next_switch_seconds(&config);
+            time::sleep(Duration::from_secs(sleep_seconds)).await;
+
+            // 再次检查是否应该停止（防止停止后还在执行）
+            if !*SCHEDULER_RUNNING.lock().unwrap() {
+                break;
             }
 
             // 执行主题切换逻辑
             if let Err(e) = check_and_switch_theme(&app_handle_clone, &config).await {
-                error!("主题切换失败: {}", e);
+                error!("Theme switch failed: {}", e);
             }
         }
 
-        info!("Auto Dark Mode定时切换服务已停止");
+        info!("Auto Dark Mode scheduler stopped");
     });
 
     Ok(())
@@ -483,7 +564,7 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
 
 // 停止定时切换服务
 pub fn stop_scheduler() {
-    info!("停止Auto Dark Mode定时切换服务");
+    info!("Stopping Auto Dark Mode scheduler");
     *SCHEDULER_RUNNING.lock().unwrap() = false;
 }
 
@@ -491,12 +572,12 @@ pub fn stop_scheduler() {
 async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig) -> Result<(), String> {
     let now = Local::now();
     let current_time = format!("{:02}:{:02}", now.hour(), now.minute());
-    
+
     let should_be_dark = match config.schedule_type {
         ScheduleType::Custom => {
-            // 自定义时间模式
+            // 自定义时间：深色时段为 [dark_time, light_time)，支持跨天（如 dark 16:19, light 16:20）
             if let (Some(light_time), Some(dark_time)) = (&config.custom_light_time, &config.custom_dark_time) {
-                is_dark_time(&current_time, light_time, dark_time)
+                is_dark_time_custom(&current_time, dark_time, light_time)
             } else {
                 return Ok(()); // 没有设置自定义时间
             }
@@ -507,7 +588,7 @@ async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig)
                 let timezone_offset = config.timezone_offset.unwrap_or_else(|| {
                     get_windows_timezone_info().map(|(_, offset)| offset).unwrap_or(0)
                 });
-                
+
                 let sun_times = calculate_sun_times(lat, lon, timezone_offset)?;
                 is_dark_time(&current_time, &sun_times.sunrise, &sun_times.sunset)
             } else {
@@ -518,43 +599,68 @@ async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig)
 
     // 获取当前系统主题状态
     let current_is_dark = get_windows_dark_mode().unwrap_or(false);
-    
+
     // 只有当需要切换时才执行
     if should_be_dark != current_is_dark {
-        set_windows_dark_mode(should_be_dark)?;
-        
+        // 设置主题，失败时记录并通知用户
+        if let Err(e) = set_windows_dark_mode(should_be_dark) {
+            error!("Failed to switch theme: {}", e);
+            // 通知前端主题切换失败
+            let _ = app_handle.emit("dark-mode-changed", serde_json::json!({
+                "isDark": current_is_dark,
+                "reason": "switch_failed",
+                "error": e
+            }));
+            return Err(e);
+        }
+
         // 更新托盘菜单主题状态
         crate::tray::update_tray_theme_status(app_handle);
-        
+
         // 通知前端主题已更改
         let _ = app_handle.emit("dark-mode-changed", serde_json::json!({
             "isDark": should_be_dark,
             "reason": "auto_switch"
         }));
-        
+
+        info!("Theme auto-switched to: {}", if should_be_dark { "dark" } else { "light" });
     }
 
     Ok(())
 }
 
-// 判断指定时间是否应该为深色模式
-fn is_dark_time(current: &str, sunrise: &str, sunset: &str) -> bool {
-    fn time_to_minutes(time_str: &str) -> i32 {
-        let parts: Vec<&str> = time_str.split(':').collect();
-        if parts.len() == 2 {
-            let hours: i32 = parts[0].parse().unwrap_or(0);
-            let minutes: i32 = parts[1].parse().unwrap_or(0);
-            hours * 60 + minutes
-        } else {
-            0
-        }
+// 将 "HH:MM" 转为当日分钟数 (0..1440)
+fn time_to_minutes(time_str: &str) -> i32 {
+    let parts: Vec<&str> = time_str.split(':').collect();
+    if parts.len() == 2 {
+        let hours: i32 = parts[0].parse().unwrap_or(0);
+        let minutes: i32 = parts[1].parse().unwrap_or(0);
+        hours * 60 + minutes
+    } else {
+        0
     }
+}
 
+// 日出日落模式：日出前或日落后为深色
+fn is_dark_time(current: &str, sunrise: &str, sunset: &str) -> bool {
     let current_min = time_to_minutes(current);
     let sunrise_min = time_to_minutes(sunrise);
     let sunset_min = time_to_minutes(sunset);
-
     current_min < sunrise_min || current_min >= sunset_min
+}
+
+// 自定义时间模式：深色时段为 [dark_time, light_time)，支持跨天（如深色 16:19、浅色 16:20）
+fn is_dark_time_custom(current: &str, dark_time: &str, light_time: &str) -> bool {
+    let current_min = time_to_minutes(current);
+    let dark_min = time_to_minutes(dark_time);
+    let light_min = time_to_minutes(light_time);
+    if dark_min <= light_min {
+        // 同一天内：深色 = [dark_time, light_time)
+        current_min >= dark_min && current_min < light_min
+    } else {
+        // 跨天：深色 = [dark_time, 24:00) 或 [0, light_time)
+        current_min >= dark_min || current_min < light_min
+    }
 }
 
 // 手动切换主题
@@ -569,9 +675,9 @@ pub fn toggle_theme(app_handle: Option<&AppHandle>) -> Result<bool, String> {
     
     set_windows_dark_mode(new_state)?;
     
-    info!("手动切换主题: {} -> {}", 
-        if current_is_dark { "深色" } else { "浅色" },
-        if new_state { "深色" } else { "浅色" }
+    info!("Manual theme toggle: {} -> {}",
+        if current_is_dark { "dark" } else { "light" },
+        if new_state { "dark" } else { "light" }
     );
     
     // 发送主题变化事件通知前端

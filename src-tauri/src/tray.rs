@@ -314,8 +314,8 @@ pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-// 重新创建托盘菜单
-fn recreate_tray_menu(app: &AppHandle) -> tauri::Result<()> {
+// 重新创建托盘菜单（公开给其他模块调用）
+pub fn recreate_tray_menu(app: &AppHandle) -> tauri::Result<()> {
     let lang = get_language_internal(app);
     let trans = get_translations(&lang);
     

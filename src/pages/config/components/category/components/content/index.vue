@@ -162,11 +162,7 @@ const noteEditorDisplayContent = computed(() => {
 const route = useRoute();
 const router = useRouter();
 const store = useConfigurationStore();
-const isDark = computed(() => {
-  return store.theme === 'auto'
-    ? document.documentElement.classList.contains('dark')
-    : store.theme === 'dark';
-});
+const isDark = computed(() => store.effectiveDark);
 
 // 对话框状态
 const showCreateNoteDialog = ref(false);

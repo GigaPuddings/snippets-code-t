@@ -19,12 +19,18 @@ export const useConfigurationStore = defineStore('configuration', {
     dbPath: null, // 数据库路径
     dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
+    systemPrefersDark: false, // 系统是否深色（auto 时与 html.dark 同步，供组件响应式使用）
     language: 'zh-CN', // 界面语言
     autoStart: false, // 开机自启
     autoUpdateCheck: false, // 检查更新
     autoHideOnBlur: true // 搜索窗口失焦时是否自动隐藏
   }),
-  getters: {},
+  getters: {
+    /** 当前实际是否为深色模式（供组件 :dark 等使用，会随系统主题变化更新） */
+    effectiveDark(): boolean {
+      return this.theme === 'dark' || (this.theme === 'auto' && this.systemPrefersDark);
+    }
+  },
   actions: {
     // 初始化配置
     async initialize() {
@@ -86,12 +92,16 @@ export const useConfigurationStore = defineStore('configuration', {
       this.applyTheme();
     },
 
-    // 应用主题到DOM
+    // 应用主题到DOM，并同步 systemPrefersDark 供组件响应式使用
     applyTheme() {
       const root = document.documentElement;
-      const isDark = 
-        this.theme === 'dark' || 
-        (this.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (this.theme === 'auto') {
+        this.systemPrefersDark = prefersDark;
+      }
+      const isDark =
+        this.theme === 'dark' ||
+        (this.theme === 'auto' && prefersDark);
 
       if (isDark) {
         root.classList.add('dark');
@@ -122,6 +132,7 @@ export const useConfigurationStore = defineStore('configuration', {
       }
 
       if (currentTheme === 'auto') {
+        this.systemPrefersDark = isDark;
         const root = document.documentElement;
         if (isDark) {
           root.classList.add('dark');

@@ -206,6 +206,8 @@ pub fn is_setup_completed(app_handle: tauri::AppHandle) -> bool {
 #[tauri::command]
 pub fn set_setup_completed(app_handle: tauri::AppHandle) {
     let _ = json_config::set_app_config_value(&app_handle, "setup_completed", true);
+    // 重建托盘菜单（完整菜单）
+    let _ = crate::tray::recreate_tray_menu(&app_handle);
 }
 
 // ============= 进度窗口显示标记 =============

@@ -74,6 +74,8 @@ declare global {
     dbPath: string | null;
     dbBackup: string;
     theme: 'light' | 'dark' | 'auto';
+    /** 系统偏好是否为深色（仅 theme===auto 时有效，由 applyTheme/syncSystemThemeStyle 更新，用于界面响应式判断） */
+    systemPrefersDark: boolean;
     language: 'zh-CN' | 'en-US';
     autoStart: boolean;
     autoUpdateCheck: boolean;

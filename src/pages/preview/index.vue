@@ -102,11 +102,7 @@ const codeEditorRef = ref<InstanceType<typeof CodeMirrorEditor> | null>(null);
 const noteEditorRef = ref<InstanceType<typeof TipTapEditor> | null>(null);
 
 // 主题计算 - 与 content 页面保持一致
-const isDark = computed(() => {
-  return store.theme === 'auto'
-    ? document.documentElement.classList.contains('dark')
-    : store.theme === 'dark';
-});
+const isDark = computed(() => store.effectiveDark);
 
 // 预览内容（处理模板变量显示）
 const displayContent = computed(() => {
