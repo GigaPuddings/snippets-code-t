@@ -363,7 +363,8 @@ const handleCancel = () => {
       animation: slideUp 0.4s ease-out;
 
       .version-comparison {
-        @apply flex items-center justify-center gap-4 mb-3 bg-gradient-to-br from-content to-blue-50/30 p-3 rounded-lg flex-shrink-0;
+        @apply flex items-center justify-center gap-4 mb-3 p-3 rounded-lg flex-shrink-0;
+        background: linear-gradient(135deg, var(--panel-bg, #fff) 0%, rgba(59, 130, 246, 0.08) 100%);
 
         .version-item {
           @apply flex flex-col items-center gap-1.5;
