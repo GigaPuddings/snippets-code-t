@@ -9,7 +9,9 @@ import TaskItem from '@tiptap/extension-task-item';
 import Typography from '@tiptap/extension-typography';
 import { Wikilink } from '../extensions/Wikilink';
 import { EnhancedMarkdown } from '../extensions/EnhancedMarkdown';
-import { CodeBlockLowlight } from '../extensions/CodeBlockLowlight';
+import { CodeBlockHighlight } from '../extensions/CodeBlockHighlight';
+// 未使用的导入 - 保留以备后用
+// import { CodeBlockLowlight } from '../extensions/CodeBlockLowlight';
 import { MarkdownLinkHandler } from '../extensions/MarkdownLinkHandler';
 import { CustomEnterBehavior } from '../extensions/CustomEnterBehavior';
 import { LocalImage } from '../extensions/LocalImage';
@@ -35,7 +37,7 @@ export function createEditorExtensions(
       link: false,
     }),
     LocalImage,  // 使用自定义的本地图片扩展（StarterKit 不包含 Image，所以不需要禁用）
-    CodeBlockLowlight.configure({
+    CodeBlockHighlight.configure({
       languageClassPrefix: 'language-',
       HTMLAttributes: {
         class: 'code-block'

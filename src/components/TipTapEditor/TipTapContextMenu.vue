@@ -519,6 +519,7 @@ const insertTable = () => {
   hide();
 };
 
+// 代码块名称映射
 const insertCodeBlock = () => {
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertText('```\n\n```');
@@ -529,6 +530,7 @@ const insertCodeBlock = () => {
       textarea.focus();
     }
   } else {
+    // 使用标准的 toggleCodeBlock 命令
     props.editor?.chain().focus().toggleCodeBlock().run();
   }
   hide();

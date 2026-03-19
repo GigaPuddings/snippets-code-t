@@ -584,6 +584,32 @@ const editor = useEditor({
       return false;
     },
     handlePaste: (view, event) => {
+      const { state } = view;
+      const $from = state.selection.$from;
+      const inCodeBlock = $from.parent.type.name === 'codeBlock';
+
+      // 代码块内只能存纯文本：多行/Markdown 粘贴走 insertContent 会落到块外，必须只插纯文本
+      if (inCodeBlock) {
+        const plain = event.clipboardData?.getData('text/plain');
+        if (plain !== undefined && plain !== null) {
+          event.preventDefault();
+          const { from, to } = state.selection;
+          const tr = state.tr.insertText(plain, from, to);
+          view.dispatch(tr);
+          return true;
+        }
+        const cbItems = event.clipboardData?.items;
+        if (cbItems) {
+          for (let j = 0; j < cbItems.length; j++) {
+            if (cbItems[j].type.startsWith('image/')) {
+              event.preventDefault();
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+
       // 首先检查是否有图片
       const items = event.clipboardData?.items;
       if (items) {
@@ -1557,6 +1583,12 @@ defineExpose({
       background-color: var(--editor-hover-bg);
     }
   }
+
+  :deep(.code-block-wrapper) {
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  }
 }
 
 .editor-content > div {
@@ -1598,6 +1630,26 @@ defineExpose({
     /* 代码块样式已移至 CodeBlockComponent.vue */
     pre {
       @apply mb-4;
+    }
+
+    /* 暗色编辑区：代码块关键词高亮 */
+    pre code .hljs-keyword,
+    .code-block-wrapper .hljs-keyword {
+      color: #c4b5fd !important;
+      font-weight: 600 !important;
+    }
+    pre code .hljs-string,
+    .code-block-wrapper .hljs-string {
+      color: #4ade80 !important;
+    }
+    pre code .hljs-number,
+    .code-block-wrapper .hljs-number {
+      color: #fb923c !important;
+    }
+    pre code .hljs-comment,
+    .code-block-wrapper .hljs-comment {
+      color: #9ca3af !important;
+      font-style: italic !important;
     }
 
     blockquote {
@@ -1794,6 +1846,26 @@ defineExpose({
   /* 代码块样式已移至 CodeBlockComponent.vue */
   pre {
     @apply mb-5;
+  }
+
+  /* 亮色编辑区：代码块关键词高亮 */
+  pre code .hljs-keyword,
+  .code-block-wrapper .hljs-keyword {
+    color: #7c3aed !important;
+    font-weight: 600 !important;
+  }
+  pre code .hljs-string,
+  .code-block-wrapper .hljs-string {
+    color: #16a34a !important;
+  }
+  pre code .hljs-number,
+  .code-block-wrapper .hljs-number {
+    color: #ea580c !important;
+  }
+  pre code .hljs-comment,
+  .code-block-wrapper .hljs-comment {
+    color: #6b7280 !important;
+    font-style: italic !important;
   }
 
   ul:not([data-type="taskList"]) {
