@@ -235,9 +235,9 @@ import {
   Branch,
   Loading,
   MoreOne,
-  ViewList,
-  MenuFoldOne,
-  MenuUnfoldOne
+  // ViewList,
+  // MenuFoldOne,
+  // MenuUnfoldOne
 } from '@icon-park/vue-next';
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
