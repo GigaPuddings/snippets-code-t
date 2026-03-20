@@ -3,128 +3,173 @@
     data-tauri-drag-region
     :class="[activeTabIndex !== 2 ? 'gradient titlebar' : 'titlebar']"
   >
-    <div class="titlebar-title">
-      <div class="flex items-center gap-2">
-        <img src="@/assets/128x128.png" alt="" class="w-6 h-6" />
-        <div class="text-lg -ml-1">{{ state.appName }}</div>
-        <span class="text-sm text-stone-300 -ml-1 mt-1">{{ state.appVersion }}</span>
-        <!-- 导航栏 -->
-        <div class="nav-bar-wrapper">
-          <SegmentedToggle
-            v-model="activeTabIndex"
-            :items="tabs"
-            @change="handleTabChange"
-          >
-            <template #item="scope">
-              <component
-                :is="scope.item.icon"
-                class="text-panel"
-                theme="outline"
-                size="18"
-                :strokeWidth="3"
-              />
-            </template>
-          </SegmentedToggle>
-        </div>
+    <!-- 左侧：品牌 + 版本号；宽屏时含导航 -->
+    <div class="titlebar-left">
+      <img src="@/assets/128x128.png" alt="" class="titlebar-logo" />
+      <span class="titlebar-app-name">{{ state.appName }}</span>
+      <!-- <span class="titlebar-app-version">{{ state.appVersion }}</span> -->
+      <div v-show="!isNarrow" class="titlebar-nav">
+        <SegmentedToggle
+          v-model="activeTabIndex"
+          :items="tabs"
+          @change="handleTabChange"
+        >
+          <template #item="scope">
+            <component
+              :is="scope.item.icon"
+              class="text-panel"
+              theme="outline"
+              size="18"
+              :strokeWidth="3"
+            />
+          </template>
+        </SegmentedToggle>
       </div>
-      <slot></slot>
     </div>
-    <!-- 标题栏按钮 -->
-    <div class="titlebar-list">
-      <!-- 个人中心 -->
-      <div
-        class="titlebar-button"
-        @click="goToUserCenter"
-        :title="$t('titlebar.userCenter')"
-        :aria-label="$t('titlebar.userCenter')"
-      >
-        <me
-          class="icon"
-          theme="outline"
-          size="18"
-          :strokeWidth="3"
-        />
-      </div>
 
-      <div class="titlebar-divider"></div>
+    <!-- 中间：宽屏=面包屑；窄屏=导航+面包屑 -->
+    <div class="titlebar-center" data-tauri-drag-region >
+      <div v-show="isNarrow" class="titlebar-nav titlebar-nav--center">
+        <SegmentedToggle
+          v-model="activeTabIndex"
+          :items="tabs"
+          @change="handleTabChange"
+        >
+          <template #item="scope">
+            <component
+              :is="scope.item.icon"
+              class="text-panel"
+              theme="outline"
+              size="18"
+              :strokeWidth="3"
+            />
+          </template>
+        </SegmentedToggle>
+      </div>
+      <div class="titlebar-center-inner">
+        <slot></slot>
+      </div>
+    </div>
 
-      <!-- Git 同步状态指示器：仅启用且状态有效时显示，无效或未启用不显示 -->
-      <div
-        v-if="showGitIndicator"
-        class="git-status-indicator"
-        :class="`git-status-${syncState}`"
-        :title="stateDescription"
-        @click="goToGitSettings"
+    <!-- 右侧：仅保留 Git 同步、置顶窗口 + 更多；其余进更多面板 -->
+    <div class="titlebar-right">
+      <!-- 非窄屏时：仅显示 Git、置顶 -->
+      <template v-if="!isNarrow">
+        <div
+          v-if="showGitIndicator"
+          class="git-status-indicator"
+          :class="`git-status-${syncState}`"
+          :title="stateDescription"
+          @click="goToGitSettings"
+        >
+          <loading
+            v-if="syncState === 'syncing'"
+            class="icon git-sync-icon"
+            theme="outline"
+            size="16"
+            :strokeWidth="3"
+          />
+          <branch v-else class="icon" theme="outline" size="16" :strokeWidth="3" />
+          <span v-if="syncState === 'has_changes'" class="git-badge">{{ pendingFilesCount }}</span>
+          <span v-if="formattedLastSyncTime && syncState !== 'syncing'" class="git-time">{{ formattedLastSyncTime }}</span>
+        </div>
+        <div
+          class="titlebar-button"
+          @click="handleTitlebar('isAlwaysOnTop')"
+          :title="isAlwaysOnTop ? $t('titlebar.unpinWindow') : $t('titlebar.pinWindow')"
+          :aria-label="$t('titlebar.pinWindow')"
+        >
+          <component
+            :is="isAlwaysOnTop ? Pushpin : Pin"
+            class="icon"
+            :class="{ 'icon-active': isAlwaysOnTop }"
+            size="18"
+            :strokeWidth="3"
+            theme="outline"
+            strokeLinecap="butt"
+          />
+        </div>
+      </template>
+
+      <!-- 面板折叠控制按钮：仅在 config 且窗口足够宽时显示，分类/列表按钮分别按宽度阈值显示，避免窄屏时可见却无法展开 -->
+      <!-- <div v-if="showPanelToggle" class="panel-toggle-group">
+        <div
+          v-if="layoutStore.isWideEnoughForCategoryPanel"
+          class="titlebar-button"
+          :title="layoutStore.categoryPanelCollapsed ? $t('titlebar.expandFolders') : $t('titlebar.collapseFolders')"
+          :aria-label="layoutStore.categoryPanelCollapsed ? $t('titlebar.expandFolders') : $t('titlebar.collapseFolders')"
+          @click="layoutStore.toggleCategoryPanel()"
+        >
+          <menu-fold-one
+            v-if="!layoutStore.categoryPanelCollapsed"
+            class="icon"
+            theme="outline"
+            size="16"
+            :strokeWidth="3"
+          />
+          <menu-unfold-one
+            v-else
+            class="icon"
+            theme="outline"
+            size="16"
+            :strokeWidth="3"
+          />
+        </div>
+        <div
+          v-if="layoutStore.isWideEnoughForContentListPanel"
+          class="titlebar-button"
+          :title="layoutStore.contentListPanelCollapsed ? $t('titlebar.expandSnippetList') : $t('titlebar.collapseSnippetList')"
+          :aria-label="layoutStore.contentListPanelCollapsed ? $t('titlebar.expandSnippetList') : $t('titlebar.collapseSnippetList')"
+          @click="layoutStore.toggleContentListPanel()"
+        >
+          <view-list class="icon" theme="outline" size="16" :strokeWidth="3" />
+        </div>
+      </div> -->
+
+      <!-- 更多选项：非窄屏=个人中心/检查更新/设置；窄屏=全部 5 项 -->
+      <el-dropdown
+        ref="moreDropdownRef"
+        trigger="click"
+        placement="bottom-end"
+        :teleported="true"
+        @command="handleMoreMenuCommand"
       >
-        <loading
-          v-if="syncState === 'syncing'"
-          class="icon git-sync-icon"
-          theme="outline"
-          size="16"
-          :strokeWidth="3"
-        />
-        <branch
-          v-else
-          class="icon"
-          theme="outline"
-          size="16"
-          :strokeWidth="3"
-        />
-        <span v-if="syncState === 'has_changes'" class="git-badge">
-          {{ pendingFilesCount }}
-        </span>
-        <span v-if="formattedLastSyncTime && syncState !== 'syncing'" class="git-time">
-          {{ formattedLastSyncTime }}
-        </span>
-      </div>
-      
-      <div 
-        class="titlebar-button titlebar-button--update" 
-        @click="handleUpdateClick" 
-        :title="$t('titlebar.checkUpdate')" 
-        :aria-label="$t('titlebar.checkUpdate')"
-      >
-        <update-rotation
-          class="icon"
-          theme="outline"
-          size="18"
-          :strokeWidth="3"
-        />
-        <div v-if="hasUpdate" class="update-dot"></div>
-      </div>
-      
-      <div
-        class="titlebar-button"
-        @click="handleTitlebar('isAlwaysOnTop')"
-        :title="isAlwaysOnTop ? $t('titlebar.unpinWindow') : $t('titlebar.pinWindow')"
-        :aria-label="$t('titlebar.pinWindow')"
-      >
-        <component
-          :is="isAlwaysOnTop ? Pushpin : Pin"
-          class="icon"
-          :class="{ 'icon-active': isAlwaysOnTop }"
-          size="18"
-          :strokeWidth="3"
-          theme="outline"
-          strokeLinecap="butt"
-        />
-      </div>
-      
-      <div
-        class="titlebar-button"
-        @click="openSettingsDialog"
-        :title="$t('titlebar.settings')"
-        :aria-label="$t('titlebar.settings')"
-      >
-        <setting-two
-          class="icon"
-          theme="outline"
-          size="18"
-          :strokeWidth="3"
-          strokeLinecap="butt"
-        />
-      </div>
-      
+        <div
+          class="titlebar-button titlebar-button--more"
+          :title="$t('titlebar.more')"
+          :aria-label="$t('titlebar.more')"
+        >
+          <more-one class="icon" theme="outline" size="18" :strokeWidth="3" />
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="userCenter">
+              <me theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+              <span class="ml-2">{{ $t('titlebar.userCenter') }}</span>
+            </el-dropdown-item>
+            <!-- 窄屏时更多里才显示 Git / 置顶 -->
+            <el-dropdown-item v-if="showGitIndicator && isNarrow" command="gitSettings">
+              <branch theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+              <span class="ml-2">{{ $t('titlebar.gitSync') }}</span>
+              <span v-if="syncState === 'has_changes'" class="git-badge ml-1">{{ pendingFilesCount }}</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="checkUpdate">
+              <update-rotation theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+              <span class="ml-2">{{ $t('titlebar.checkUpdate') }}</span>
+              <span v-if="hasUpdate" class="update-dot-inline"></span>
+            </el-dropdown-item>
+            <el-dropdown-item v-if="isNarrow" command="pinWindow">
+              <component :is="isAlwaysOnTop ? Pushpin : Pin" theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+              <span class="ml-2">{{ isAlwaysOnTop ? $t('titlebar.unpinWindow') : $t('titlebar.pinWindow') }}</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="settings">
+              <setting-two theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+              <span class="ml-2">{{ $t('titlebar.settings') }}</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+
       <div class="titlebar-divider titlebar-divider--thick"></div>
       
       <div
@@ -188,7 +233,11 @@ import {
   Application,
   Me,
   Branch,
-  Loading
+  Loading,
+  MoreOne,
+  ViewList,
+  MenuFoldOne,
+  MenuUnfoldOne
 } from '@icon-park/vue-next';
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
@@ -196,11 +245,26 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useGitStatus, setupGitStatusListener, initWorkspaceChangeListener, cleanupGitStatusListener } from '@/hooks/useGitStatus';
-import { logger } from '@/utils/logger';
+import { useLayoutStore } from '@/store';
 
 const { t } = useI18n();
+const layoutStore = useLayoutStore();
+
+/** 窄屏断点：小于等于此宽度时 左侧仅应用名+版本、导航居中、右侧仅折叠菜单+窗口控制 */
+const TITLEBAR_NARROW_BREAKPOINT = 720;
+
+const isNarrow = computed(() => layoutStore.windowWidth <= TITLEBAR_NARROW_BREAKPOINT);
+
+// 窄屏下拉菜单 ref，用于在 isNarrow 变为 false 时主动关闭
+const moreDropdownRef = ref();
+
+// 窗口拉大时（isNarrow false），如果下拉菜单开着则关闭
+watch(isNarrow, (narrow) => {
+  if (!narrow && moreDropdownRef.value) {
+    moreDropdownRef.value.hide?.();
+  }
+});
 
 // Git 状态
 const {
@@ -217,6 +281,14 @@ const {
 const showGitIndicator = computed(
   () => !!gitSettings.value?.enabled && syncState.value !== 'error'
 );
+
+/** 仅在配置页面（/config）且窗口非窄屏时显示面板折叠区域；单个按钮再按宽度阈值显示，避免窄屏时按钮可见却无法展开 */
+// const showPanelToggle = computed(
+//   () =>
+//     router.currentRoute.value.path.startsWith('/config') &&
+//     !isNarrow.value &&
+//     (layoutStore.isWideEnoughForCategoryPanel || layoutStore.isWideEnoughForContentListPanel)
+// );
 
 defineOptions({
   name: 'Titlebar'
@@ -339,6 +411,27 @@ const goToGitSettings = () => {
   router.push('/config/category/settings?tab=gitSync');
 };
 
+/** 窄屏折叠菜单命令 */
+const handleMoreMenuCommand = (command: string) => {
+  switch (command) {
+    case 'userCenter':
+      goToUserCenter();
+      break;
+    case 'gitSettings':
+      goToGitSettings();
+      break;
+    case 'checkUpdate':
+      handleUpdateClick();
+      break;
+    case 'pinWindow':
+      handleTitlebar('isAlwaysOnTop');
+      break;
+    case 'settings':
+      openSettingsDialog();
+      break;
+  }
+};
+
 let unListen: UnlistenFn;
 
 onMounted(async () => {
@@ -357,26 +450,13 @@ onMounted(async () => {
   // 设置初始激活的tab
   setActiveTabFromRoute();
 
-  // 获取当前窗口 label
-  const winLabel = getCurrentWindow().label;
-  logger.info('[Titlebar] 当前窗口 label', { winLabel });
-
   // 初始化 Git 状态监听
   // setupGitStatusListener() 会监听 pull/push/sync-complete 事件
   // initWorkspaceChangeListener() 监听工作区变化，文件修改时自动刷新 Git 状态
-  logger.info('[Titlebar] 开始初始化 Git 状态监听', {
-    initialSyncState: syncState.value,
-  });
   setupGitStatusListener();
   initWorkspaceChangeListener(refreshStatus);
   await refreshSettings();
-  logger.info('[Titlebar] refreshSettings 完成', {
-    syncState: syncState.value,
-  });
   await refreshStatus();
-  logger.info('[Titlebar] refreshStatus 完成', {
-    syncState: syncState.value,
-  });
 });
 
 // 监听路由变化，同步更新activeTabIndex
@@ -394,7 +474,6 @@ onUnmounted(() => {
   }
   // 清理 Git 状态监听
   cleanupGitStatusListener();
-  logger.info('[Titlebar] 已卸载并清理 Git 状态监听');
 });
 </script>
 
@@ -404,9 +483,10 @@ onUnmounted(() => {
 }
 
 .titlebar {
-  @apply relative flex justify-between items-center rounded-t-md w-full h-10 leading-10 select-none pr-1;
+  @apply relative flex items-center rounded-t-md w-full h-10 leading-10 select-none pr-1 gap-1;
 
   z-index: 50;
+  min-width: 0; /* 允许 flex 子项收缩 */
   background-color: rgba(var(--categories-panel-bg-rgb), 0.9);
   border-bottom: 1px solid rgba(var(--categories-border-color-rgb), 0.3);
   box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
@@ -429,15 +509,51 @@ onUnmounted(() => {
   }
 }
 
-.titlebar-title {
-  @apply text-slate-800 dark:text-panel pl-1 flex items-center;
-
+/* 左侧：品牌 + 导航，不收缩 */
+.titlebar-left {
+  @apply flex items-center gap-2 text-slate-800 dark:text-panel pl-1 flex-shrink-0;
   text-shadow: 0 1px 1px rgb(0 0 0 / 5%);
 }
 
-.titlebar-list {
-  @apply flex h-full items-center;
-  gap: 6px;
+.titlebar-logo {
+  @apply w-6 h-6 flex-shrink-0;
+}
+
+.titlebar-app-name {
+  @apply text-lg flex-shrink-0;
+}
+
+.titlebar-app-version {
+  @apply text-sm text-stone-300 mt-1 flex-shrink-0;
+}
+
+.titlebar-nav {
+  @apply flex items-center flex-shrink-0 ml-2;
+}
+
+.titlebar-nav--center {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+/* 中间：当前页标签/面包屑，占据剩余空间并可收缩省略 */
+.titlebar-center {
+  flex: 1 1 0;
+  min-width: 0;
+  @apply flex items-center justify-center overflow-hidden;
+}
+
+.titlebar-center-inner {
+  @apply overflow-hidden text-ellipsis whitespace-nowrap max-w-full;
+  min-width: 0;
+  color: rgba(var(--categories-text-color-rgb), 0.85);
+  font-size: 13px;
+}
+
+/* 右侧：操作按钮 + 窗口控制，不收缩 */
+.titlebar-right {
+  @apply flex h-full items-center flex-shrink-0;
+  gap: 4px;
   padding-right: 4px;
 }
 
@@ -493,6 +609,11 @@ onUnmounted(() => {
       @apply animate-none;
     }
   }
+}
+
+.panel-toggle-group {
+  @apply flex items-center;
+  gap: 2px;
 }
 
 .titlebar-divider {
@@ -566,8 +687,55 @@ onUnmounted(() => {
   }
 }
 
-.nav-bar-wrapper {
-  @apply ml-4 flex items-center;
+/* 窄屏（≤880px）：缩小间距，Git 仅显示图标与角标 */
+@media (max-width: 880px) {
+  .titlebar {
+    gap: 2px;
+  }
+
+  .titlebar-left {
+    gap: 6px;
+  }
+
+  .titlebar-nav {
+    margin-left: 6px;
+  }
+
+  .titlebar-right {
+    gap: 2px;
+  }
+
+  .git-status-indicator .git-time {
+    display: none;
+  }
+
+  .git-status-indicator {
+    padding-left: 6px;
+    padding-right: 6px;
+    min-width: 28px;
+    justify-content: center;
+  }
+}
+
+/* 极窄屏（≤640px）：应用名可截断；窄屏布局由 isNarrow 控制，此处仅保留版本号 */
+@media (max-width: 640px) {
+  .titlebar-app-name {
+    max-width: 7em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* 下拉菜单内更新角标 */
+.update-dot-inline {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background-color: #5d6dfd;
+  vertical-align: middle;
 }
 
 // Git 状态指示器样式

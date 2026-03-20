@@ -21,7 +21,6 @@ export const EnhancedMarkdown = Extension.create({
   name: 'enhancedMarkdown',
 
   addInputRules() {
-    log('addInputRules: 初始化输入规则');
     return [
       // ==================== 标题规则 ====================
       // ATX 标题：在行首输入 # - ###### 后跟空格或文字时自动转换
@@ -139,7 +138,6 @@ export const EnhancedMarkdown = Extension.create({
   },
 
   addProseMirrorPlugins() {
-    log('addProseMirrorPlugins: 初始化 ProseMirror 插件');
     return [
       // ==================== 换行后 Markdown 转换处理 ====================
       // 处理用户按 Enter 后在新行输入 Markdown 语法的情况

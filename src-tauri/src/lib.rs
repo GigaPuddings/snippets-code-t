@@ -480,7 +480,6 @@ pub fn run() {
             // 使用全局监听器而不是窗口监听器，确保能收到前端发送的事件
             let app_handle_conflict = app.handle().clone();
             let _listener_id = app.listen("config_ready", move |_event| {
-                log::info!("📬 [Git] 收到 config_ready 事件，检查待处理冲突...");
                 
                 // 检查待处理冲突队列
                 if let Some(pending_conflicts) = app_handle_conflict.try_state::<Arc<Mutex<Vec<git_sync::ConflictPayload>>>>() {
@@ -507,7 +506,6 @@ pub fn run() {
             // 监听 config_ready 事件，发送待处理的「仓库不存在」通知
             let app_handle_repo_not_found = app.handle().clone();
             let _repo_not_found_listener_id = app.listen("config_ready", move |_event| {
-                log::info!("📬 [Git] 收到 config_ready 事件，检查待处理仓库不存在通知...");
 
                 // 检查待处理仓库不存在队列
                 if let Some(pending_repo_not_found) = app_handle_repo_not_found.try_state::<Arc<Mutex<Vec<git_sync::RepoNotFoundPayload>>>>() {

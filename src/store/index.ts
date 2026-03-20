@@ -148,3 +148,5 @@ export const useConfigurationStore = defineStore('configuration', {
 });
 
 export type StoreType = ReturnType<typeof useConfigurationStore>;
+
+export { useLayoutStore } from './layout';

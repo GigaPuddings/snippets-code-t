@@ -1,30 +1,35 @@
 <template>
   <main class="content-list-container">
-    <Splitter default-size="25%" min-size="25%" max-size="40%">
+    <Splitter
+      default-size="25%"
+      min-size="25%"
+      max-size="40%"
+      :first-collapsed="layoutStore.effectiveContentListCollapsed"
+    >
       <template #first>
-        <div class="left-panel transparent-input">
-          <!-- Search Bar Component -->
-          <ContentSearchBar
-            v-model:searchText="searchText"
-            :show-filter-panel="showFilterPanel"
-            :has-active-filters="hasActiveFilters"
-            :active-filter-count="activeFilterCount"
-            @toggle-filter="toggleFilterPanel"
-            @add-content="handleAddContent"
-          />
-          
-          <!-- List View Component -->
-          <ContentListView
-            :contents="filteredContents"
-            :tag-filter="tagFilter"
-            :combined-filter="combinedFilter"
-            @delete="handleDelete"
-            @change-category="handleChangeCategory"
-            @clear-tag-filter="handleClearTagFilter"
-          />
+        <!-- 折叠态不显示边条/箭头；展开态仅显示列表，无折叠把手 -->
+        <div v-if="!layoutStore.effectiveContentListCollapsed" class="left-panel transparent-input">
+          <div class="left-panel__content">
+            <ContentSearchBar
+              v-model:searchText="searchText"
+              :show-filter-panel="showFilterPanel"
+              :has-active-filters="hasActiveFilters"
+              :active-filter-count="activeFilterCount"
+              @toggle-filter="toggleFilterPanel"
+              @add-content="handleAddContent"
+            />
+            <ContentListView
+              :contents="filteredContents"
+              :tag-filter="tagFilter"
+              :combined-filter="combinedFilter"
+              @delete="handleDelete"
+              @change-category="handleChangeCategory"
+              @clear-tag-filter="handleClearTagFilter"
+            />
+          </div>
         </div>
       </template>
-      
+
       <template #second>
         <div class="right-panel">
           <router-view />
@@ -89,7 +94,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useConfigurationStore } from '@/store';
+import { useConfigurationStore, useLayoutStore } from '@/store';
 import { useI18n } from 'vue-i18n';
 import Splitter from '@/components/Splitter/index.vue';
 import FragmentTypeSelector from '@/components/FragmentTypeSelector/index.vue';
@@ -115,6 +120,7 @@ interface CategoryOption {
 const route = useRoute();
 const router = useRouter();
 const store = useConfigurationStore();
+const layoutStore = useLayoutStore();
 const { t } = useI18n();
 
 defineOptions({
@@ -325,7 +331,11 @@ onUnmounted(() => {
 }
 
 .left-panel {
-  @apply h-full bg-panel dark:bg-panel border dark:border-panel rounded-md px-2 overflow-hidden;
+  @apply h-full flex overflow-hidden bg-panel dark:bg-panel border dark:border-panel rounded-md;
+}
+
+.left-panel__content {
+  @apply flex-1 flex flex-col overflow-hidden px-2 min-w-0;
 }
 
 .right-panel {

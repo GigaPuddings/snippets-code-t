@@ -793,7 +793,12 @@ export default {
 
   // Titlebar
   titlebar: {
+    more: 'More',
     userCenter: 'User Center',
+    collapseFolders: 'Collapse folders',
+    expandFolders: 'Expand folders',
+    collapseSnippetList: 'Collapse snippet list',
+    expandSnippetList: 'Expand snippet list',
     checkUpdate: 'Check Update',
     pinWindow: 'Pin Window',
     unpinWindow: 'Unpin Window',

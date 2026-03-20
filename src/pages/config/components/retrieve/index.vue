@@ -528,7 +528,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
       @apply flex-grow overflow-y-auto rounded-md;
 
       .search-item {
-        @apply flex items-center justify-between px-6 py-4 mb-2 last:mb-0 bg-content rounded-lg shadow-sm hover:shadow transition-all;
+        @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 px-4 sm:px-6 py-4 mb-2 last:mb-0 bg-content rounded-lg shadow-sm hover:shadow transition-all;
 
         &.default-engine {
           @apply border-l-4 border-panel;
@@ -551,10 +551,10 @@ const handleIconError = async (engine: SearchEngineConfig) => {
         }
 
         .item-left {
-          @apply flex items-center;
+          @apply flex items-center gap-2 flex-wrap sm:flex-nowrap;
 
           .icon-wrapper {
-            @apply flex items-center justify-center w-10 h-10 mx-3 bg-panel rounded-full overflow-hidden;
+            @apply flex items-center justify-center w-10 h-10 mx-1 sm:mx-3 bg-panel rounded-full overflow-hidden flex-shrink-0;
 
             .engine-icon {
               @apply w-6 h-6 object-contain rounded-md;
@@ -566,23 +566,23 @@ const handleIconError = async (engine: SearchEngineConfig) => {
           }
 
           .keyword-input {
-            @apply w-[100px] shrink-0;
+            @apply w-[80px] sm:w-[100px] shrink-0;
           }
 
           .engine-input {
-            @apply shrink-0 w-[140px];
+            @apply shrink-0 w-[100px] sm:w-[140px];
           }
         }
 
         .item-center {
-          @apply flex-1 mx-4;
+          @apply flex-1 mx-0 sm:mx-4 min-w-0;
         }
 
         .item-right {
-          @apply flex items-center gap-4;
+          @apply flex items-center gap-2 sm:gap-4 flex-wrap sm:flex-nowrap justify-end;
 
           .engine-select {
-            @apply w-[140px];
+            @apply w-full sm:w-[140px] min-w-[120px];
 
             :deep(.el-select__wrapper) {
               @apply border border-panel rounded-md !bg-panel dark:!bg-content;
@@ -594,7 +594,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
           }
 
           .delete-icon {
-            @apply cursor-pointer text-red-500 hover:text-red-600 transition-colors;
+            @apply cursor-pointer text-red-500 hover:text-red-600 transition-colors flex-shrink-0;
           }
         }
       }

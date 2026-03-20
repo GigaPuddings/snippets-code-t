@@ -160,6 +160,19 @@ const copyCode = async () => {
   &:active {
     @apply bg-panel;
   }
+
+  .dark & {
+    background: var(--code-block-toolbar-bg, rgba(255, 255, 255, 0.08));
+    color: var(--panel-text-secondary, #9ca3af);
+
+    &:hover {
+      background: var(--panel-hover-bg, rgba(255, 255, 255, 0.12));
+    }
+
+    &:active {
+      background: var(--panel-bg, rgba(255, 255, 255, 0.06));
+    }
+  }
 }
 
 .code-block-pre {

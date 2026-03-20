@@ -808,7 +808,12 @@ export default {
 
   // 标题栏
   titlebar: {
+    more: '更多',
     userCenter: '个人中心',
+    collapseFolders: '折叠文件夹',
+    expandFolders: '展开文件夹',
+    collapseSnippetList: '折叠片段列表',
+    expandSnippetList: '展开片段列表',
     checkUpdate: '检查更新',
     pinWindow: '置顶窗口',
     unpinWindow: '取消置顶',

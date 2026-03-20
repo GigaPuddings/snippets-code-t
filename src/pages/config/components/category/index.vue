@@ -1,22 +1,21 @@
 <template>
-  <main class="category-container">
-    <section class="category-page">
-      <QuickNav />
-      
-      <!-- 分类头部 -->
-      <CategoryHeader
-        :sort-order="categorySort"
-        @sort="handleSort"
-        @add="handleAddCategory"
-      />
-      
-      <!-- 分类列表 -->
-      <CategoryListView
-        :categories="categories"
-        :edit-category-id="store.editCategoryId"
-      />
+  <main class="category-container" :style="gridStyle">
+    <section class="category-page" :class="{ 'category-page--collapsed': layoutStore.effectiveCategoryCollapsed }">
+      <!-- 折叠态不显示边条/箭头；展开态仅显示内容，无折叠把手 -->
+      <div v-if="!layoutStore.effectiveCategoryCollapsed" class="category-page__content">
+        <QuickNav />
+        <CategoryHeader
+          :sort-order="categorySort"
+          @sort="handleSort"
+          @add="handleAddCategory"
+        />
+        <CategoryListView
+          :categories="categories"
+          :edit-category-id="store.editCategoryId"
+        />
+      </div>
     </section>
-    
+
     <section class="content-page">
       <router-view />
     </section>
@@ -24,15 +23,20 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue';
+import { onMounted, onUnmounted, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { useConfigurationStore } from '@/store';
+import { useConfigurationStore, useLayoutStore } from '@/store';
 import { useCategoryManagement } from './composables/useCategoryManagement';
 import CategoryHeader from './components/CategoryHeader.vue';
 import CategoryListView from './components/CategoryListView.vue';
 
 const store = useConfigurationStore();
+const layoutStore = useLayoutStore();
 const route = useRoute();
+
+const gridStyle = computed(() => ({
+  gridTemplateColumns: layoutStore.effectiveCategoryCollapsed ? '0px 1fr' : '160px 1fr'
+}));
 
 defineOptions({
   name: 'Category'
@@ -104,13 +108,23 @@ watch(
   display: grid;
   grid-template-rows: 1fr;
   grid-template-columns: 160px 1fr;
+  transition: grid-template-columns 0.2s ease;
 
   .category-page {
-    @apply relative bg-panel dark:bg-panel border dark:border-panel px-2 text-sm text-slate-700 rounded-md;
+    @apply relative bg-panel dark:bg-panel border dark:border-panel text-sm text-slate-700 rounded-md overflow-hidden flex;
+    transition: min-width 0.2s ease;
+
+    &.category-page--collapsed {
+      @apply p-0 border-r border-panel;
+    }
+  }
+
+  .category-page__content {
+    @apply flex-1 flex flex-col overflow-hidden px-2 min-w-0;
   }
 
   .content-page {
-    @apply overflow-hidden;
+    @apply overflow-hidden min-w-0;
   }
 }
 </style>

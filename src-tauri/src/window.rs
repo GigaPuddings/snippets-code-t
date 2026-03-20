@@ -392,11 +392,18 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
         None => {
             // info!("Create new window: {}", label);
 
+            // config 窗口允许缩小到较小尺寸，以便前端折叠左侧面板的响应式逻辑生效
+            let (min_w, min_h) = if label == "config" {
+                (720.0, 480.0)
+            } else {
+                (option.width, option.height)
+            };
+
             let mut builder =
                 WebviewWindowBuilder::new(app_handle, label, WebviewUrl::App(url.into()))
                     .title(option.title)
                     .inner_size(option.width, option.height)
-                    .min_inner_size(option.width, option.height)
+                    .min_inner_size(min_w, min_h)
                     .resizable(option.resizable)
                     .shadow(option.shadow)
                     .transparent(option.transparent)

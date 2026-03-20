@@ -3,7 +3,9 @@
     v-model="dialogVisible"
     :center="true"
     :show-close="false"
-    width="28%"
+    width="auto"
+    class="alarm-edit-dialog"
+    :style="dialogStyle"
   >
     <template #header>
       <div class="title-container">
@@ -173,6 +175,34 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import modal from '@/utils/modal';
 
 const { t } = useI18n();
+
+/**
+ * 弹窗宽度：监听窗口实时变化，用 ref + resize 保持响应
+ * min(vw, px) 限制最大宽度，两侧至少各留 16px 边距
+ */
+const dialogStyle = ref({ width: 'min(28vw, 480px)' });
+
+const calcWidth = () => {
+  const w = window.innerWidth;
+  if (w < 768) return 'min(52vw, 440px)';
+  if (w < 900) return 'min(48vw, 500px)'
+  if (w >= 900) return 'min(38vw, 420px)';
+  return 'min(38vw, 420px)';
+};
+
+onMounted(() => {
+  dialogStyle.value = { width: calcWidth() };
+  window.addEventListener('resize', calcWidthAndUpdate);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', calcWidthAndUpdate);
+});
+
+const calcWidthAndUpdate = () => {
+  dialogStyle.value = { width: calcWidth() };
+};
+
 interface FormData {
   hour: string;
   minute: string;
@@ -467,7 +497,7 @@ defineExpose({
   }
 
   .repeat-section-weekdays {
-    @apply flex gap-2 mt-1 select-none;
+    @apply flex flex-wrap gap-2 mt-1 select-none;
   }
 }
 
@@ -485,7 +515,7 @@ defineExpose({
   }
 
   .alarm-type-options {
-    @apply flex gap-2 mt-1 select-none;
+    @apply flex flex-wrap gap-2 mt-1 select-none;
   }
 
   .type-item {

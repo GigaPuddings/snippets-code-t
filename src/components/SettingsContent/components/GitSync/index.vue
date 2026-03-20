@@ -474,17 +474,9 @@ const handlePush = async () => {
 };
 
 onMounted(async () => {
-  logger.info('[GitSync] 页面挂载，开始初始化 Git 状态');
   await loadGitSettings();
   // 与标题栏共用同一状态：进入页面时刷新，保证「最后同步」时间与指示器一致
   await refreshSettings();
-  logger.info('[GitSync] refreshSettings 完成', {
-    syncState: syncState.value,
-  });
   await refreshStatus();
-  logger.info('[GitSync] refreshStatus 完成', {
-    syncState: syncState.value,
-    pendingFilesCount: pendingFilesCount.value,
-  });
 });
 </script>
