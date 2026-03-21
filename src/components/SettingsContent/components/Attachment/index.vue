@@ -84,7 +84,7 @@ const { t } = useI18n();
 
 const config = ref<AttachmentConfig>({
   pathTemplate: 'assets/${noteFileName}/',
-  filenameFormat: 'obsidian'
+  filenameFormat: 'snippets-code'
 });
 
 const isLoading = ref(false);
@@ -103,7 +103,7 @@ function generateExampleFilename(format: string): string {
   const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
   
   switch (format) {
-    case 'obsidian':
+    case 'snippets-code':
       return `Pasted image ${dateStr}${timeStr}.png`;
     case 'simple':
       return `image-${dateStr}-${timeStr}.png`;

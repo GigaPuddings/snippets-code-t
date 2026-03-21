@@ -1,5 +1,5 @@
 /**
- * Markdown 链接处理器（Obsidian 风格）
+ * Markdown 链接处理器
  * 
  * 功能：
  * 1. 编辑时显示 Markdown 格式 [文本](url)（普通文本，无特殊样式）

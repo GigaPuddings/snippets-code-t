@@ -50,7 +50,7 @@ use crate::window::{
   hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info,
   copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows,
   create_pin_window, copy_image_to_clipboard, save_pin_image, frontend_log,
-  get_screenshot_background, clear_screenshot_background, cleanup_screenshot_resources, create_setup_window, close_setup_window, get_scan_progress_state,
+  get_screenshot_background, get_screenshot_preview, get_cached_window_list, get_cached_monitor_info, clear_screenshot_background, cleanup_screenshot_resources, create_setup_window, close_setup_window, get_scan_progress_state,
   open_preview_window, close_preview_window
 };
 use crate::dark_mode::{
@@ -905,6 +905,9 @@ pub fn run() {
             get_screen_preview,               // 获取屏幕预览
             get_all_windows,                  // 获取所有窗口信息
             get_screenshot_background,        // 获取预捕获的屏幕背景
+            get_screenshot_preview,           // 获取截图预览图
+            get_cached_window_list,          // 获取预缓存的窗口列表
+            get_cached_monitor_info,          // 获取预缓存的显示器信息
             clear_screenshot_background,      // 清理截图背景缓存
             cleanup_screenshot_resources,     // 深度清理截图资源
             create_pin_window,                // 创建贴图窗口

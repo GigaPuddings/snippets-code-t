@@ -307,7 +307,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
         // 执行删除 - 直接传递 ID（文件路径），不需要转换为数字
         await deleteFragment(deleteTarget.value.id);
         
-        // 显示综合消息（右上角显示，类似 Obsidian）
+        // 显示综合消息（右上角显示）
         if (updateResult.failureCount > 0) {
           modal.warning(t('backlinks.deleteWithPartialUpdate', { 
             success: updateResult.successCount, 

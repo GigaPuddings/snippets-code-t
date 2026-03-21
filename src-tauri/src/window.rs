@@ -79,9 +79,31 @@ use std::collections::HashMap;
 static PIN_IMAGE_DATA: LazyLock<Mutex<HashMap<String, String>>> = 
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-// 存储截图窗口的预捕获屏幕图像
-static SCREENSHOT_BACKGROUND: LazyLock<Mutex<Option<String>>> = 
+// 存储截图窗口的预捕获屏幕图像（PNG格式，高质量）
+static SCREENSHOT_BACKGROUND: LazyLock<Mutex<Option<String>>> =
     LazyLock::new(|| Mutex::new(None));
+
+// 存储截图预览图（JPEG格式，快速显示）
+static SCREENSHOT_PREVIEW: LazyLock<Mutex<Option<String>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+// 缓存窗口列表（用于快速截图初始化）
+static CACHED_WINDOW_LIST: LazyLock<Mutex<Option<Vec<WindowInfo>>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+// 缓存主显示器信息
+static CACHED_MONITOR_INFO: LazyLock<Mutex<Option<MonitorInfo>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+// 主显示器信息结构
+#[derive(Clone, serde::Serialize)]
+pub struct MonitorInfo {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub scale: f64,
+}
 
 // 标记是否正在捕获屏幕（防止并发捕获）
 static IS_CAPTURING: Mutex<bool> = Mutex::new(false);
@@ -1386,136 +1408,136 @@ pub fn emit_scan_complete(apps_count: usize, bookmarks_count: usize) {
     }
 }
 
-// 捕获全屏并存储为base64
-fn capture_full_screen_to_base64() -> Result<String, String> {
-    #[cfg(target_os = "windows")]
-    {
-        use windows::Win32::Graphics::Gdi::{
-            BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
-            GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
-            HGDIOBJ, RGBQUAD, SRCCOPY,
-        };
-        use windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow;
+// 优化后的 GDI 截图函数
+#[cfg(target_os = "windows")]
+fn capture_screen_gdi_optimized() -> Result<(Vec<u8>, i32, i32), String> {
+    use windows::Win32::Graphics::Gdi::{
+        BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
+        GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
+        HGDIOBJ, SRCCOPY, RGBQUAD,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow;
 
-        unsafe {
-            // 获取屏幕尺寸
-            let screen_width = GetSystemMetrics(SM_CXSCREEN);
-            let screen_height = GetSystemMetrics(SM_CYSCREEN);
-            
-            // info!("捕获全屏: {}x{}", screen_width, screen_height);
-            
-            // 获取桌面窗口的DC
-            let desktop_dc = GetDC(Some(GetDesktopWindow()));
-            if desktop_dc.is_invalid() {
-                return Err("Failed to get desktop DC".to_string());
-            }
+    unsafe {
+        let screen_width = GetSystemMetrics(SM_CXSCREEN);
+        let screen_height = GetSystemMetrics(SM_CYSCREEN);
 
-            // 创建兼容的DC
-            let mem_dc = CreateCompatibleDC(Some(desktop_dc));
-            if mem_dc.is_invalid() {
-                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
-                return Err("Failed to create compatible DC".to_string());
-            }
+        let desktop_dc = GetDC(Some(GetDesktopWindow()));
+        if desktop_dc.is_invalid() {
+            return Err("Failed to get desktop DC".to_string());
+        }
 
-            // 创建兼容的位图
-            let bitmap = CreateCompatibleBitmap(desktop_dc, screen_width, screen_height);
-            if bitmap.is_invalid() {
-                let _ = DeleteDC(mem_dc);
-                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
-                return Err("Failed to create compatible bitmap".to_string());
-            }
+        let mem_dc = CreateCompatibleDC(Some(desktop_dc));
+        if mem_dc.is_invalid() {
+            ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+            return Err("Failed to create compatible DC".to_string());
+        }
 
-            // 选择位图到DC
-            let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+        let bitmap = CreateCompatibleBitmap(desktop_dc, screen_width, screen_height);
+        if bitmap.is_invalid() {
+            let _ = DeleteDC(mem_dc);
+            ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+            return Err("Failed to create bitmap".to_string());
+        }
 
-            // 复制屏幕内容到位图
-            let result = BitBlt(mem_dc, 0, 0, screen_width, screen_height, Some(desktop_dc), 0, 0, SRCCOPY);
+        let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
 
-            if result.is_err() {
-                SelectObject(mem_dc, old_bitmap);
-                let _ = DeleteObject(HGDIOBJ(bitmap.0));
-                let _ = DeleteDC(mem_dc);
-                ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
-                return Err("Failed to copy screen content".to_string());
-            }
+        // 直接 BitBlt 复制全屏（最高效的方式）
+        let result = BitBlt(mem_dc, 0, 0, screen_width, screen_height, Some(desktop_dc), 0, 0, SRCCOPY);
 
-            // 准备位图信息
-            let mut bitmap_info = BITMAPINFO {
-                bmiHeader: BITMAPINFOHEADER {
-                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-                    biWidth: screen_width,
-                    biHeight: -screen_height, // 负值表示自上而下的DIB
-                    biPlanes: 1,
-                    biBitCount: 32,
-                    biCompression: 0, // BI_RGB is 0
-                    biSizeImage: 0,
-                    biXPelsPerMeter: 0,
-                    biYPelsPerMeter: 0,
-                    biClrUsed: 0,
-                    biClrImportant: 0,
-                },
-                bmiColors: [RGBQUAD::default()],
-            };
+        SelectObject(mem_dc, old_bitmap);
 
-            // 分配内存存储像素数据 (BGRA 格式)
-            let buffer_size = (screen_width * screen_height * 4) as usize;
-            let mut buffer = vec![0u8; buffer_size];
-
-            // 获取位图数据
-            let result = GetDIBits(
-                mem_dc,
-                bitmap,
-                0,
-                screen_height as u32,
-                Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
-                &mut bitmap_info,
-                DIB_RGB_COLORS,
-            );
-
-            // 清理资源
-            SelectObject(mem_dc, old_bitmap);
+        if result.is_err() {
             let _ = DeleteObject(HGDIOBJ(bitmap.0));
             let _ = DeleteDC(mem_dc);
             ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
-
-            if result == 0 {
-                return Err("Failed to get bitmap data".to_string());
-            }
-
-            // 转换为RGBA格式
-            let mut rgba_buffer = vec![0u8; buffer_size];
-            for i in 0..(screen_width * screen_height) as usize {
-                let src_idx = i * 4;
-                let dst_idx = i * 4;
-                // BGRA -> RGBA
-                rgba_buffer[dst_idx] = buffer[src_idx + 2]; // R
-                rgba_buffer[dst_idx + 1] = buffer[src_idx + 1]; // G
-                rgba_buffer[dst_idx + 2] = buffer[src_idx]; // B
-                rgba_buffer[dst_idx + 3] = buffer[src_idx + 3]; // A
-            }
-
-            // 使用image crate创建图像
-            let img = image::RgbaImage::from_raw(screen_width as u32, screen_height as u32, rgba_buffer)
-                .ok_or("Failed to create image from raw data")?;
-
-            // 【高质量优化】使用PNG格式，完全无损
-            let mut png_data = Vec::new();
-            img.write_to(
-                &mut std::io::Cursor::new(&mut png_data),
-                image::ImageFormat::Png,
-            )
-            .map_err(|e| format!("Failed to encode PNG: {}", e))?;
-
-            let base64_data = general_purpose::STANDARD.encode(&png_data);
-            
-            Ok(base64_data)
+            return Err("BitBlt failed".to_string());
         }
+
+        // 使用 BITMAPINFOHEADER 快速读取
+        let buffer_size = (screen_width * screen_height * 4) as usize;
+        let mut buffer = vec![0u8; buffer_size];
+
+        let mut bitmap_info = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: screen_width,
+                biHeight: -screen_height,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: 0,
+                biSizeImage: 0,
+                biXPelsPerMeter: 0,
+                biYPelsPerMeter: 0,
+                biClrUsed: 0,
+                biClrImportant: 0,
+            },
+            bmiColors: [RGBQUAD::default()],
+        };
+
+        let get_result = GetDIBits(
+            mem_dc,
+            bitmap,
+            0,
+            screen_height as u32,
+            Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
+            &mut bitmap_info,
+            DIB_RGB_COLORS,
+        );
+
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        let _ = DeleteDC(mem_dc);
+        ReleaseDC(Some(GetDesktopWindow()), desktop_dc);
+
+        if get_result == 0 {
+            return Err("GetDIBits failed".to_string());
+        }
+
+        // BGRA -> RGBA 转换
+        let rgba_buffer: Vec<u8> = buffer
+            .chunks_exact(4)
+            .flat_map(|chunk| [chunk[2], chunk[1], chunk[0], chunk[3]])
+            .collect();
+
+        Ok((rgba_buffer, screen_width, screen_height))
+    }
+}
+
+// 捕获全屏并返回 base64
+#[cfg(target_os = "windows")]
+fn capture_screen_and_encode() -> Result<(String, String), String> {
+    use image::codecs::jpeg::JpegEncoder;
+
+    // 使用优化后的 GDI 方式捕获
+    let (rgba_data, width, height) = capture_screen_gdi_optimized()?;
+
+    // 创建图像
+    let img = image::RgbaImage::from_raw(width as u32, height as u32, rgba_data)
+        .ok_or("Failed to create image")?;
+
+    // 编码为 JPEG
+    let mut jpeg_data = Vec::new();
+    {
+        let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 85);
+        encoder.encode(&img, width as u32, height as u32, image::ColorType::Rgba8)
+            .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
     }
 
-    #[cfg(not(target_os = "windows"))]
+    let base64_str = general_purpose::STANDARD.encode(&jpeg_data);
+
+    // 存储预览图（备用）
     {
-        Err("Screen capture not implemented for this platform".to_string())
+        let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
+        *preview = Some(base64_str.clone());
     }
+
+    Ok((base64_str.clone(), base64_str))
+}
+
+// 旧的函数，保留用于兼容
+#[cfg(target_os = "windows")]
+fn capture_full_screen_to_base64() -> Result<(String, String), String> {
+    capture_screen_and_encode()
 }
 
 // 创建截图窗口
@@ -1542,7 +1564,48 @@ pub fn hotkey_screenshot() {
         }
     }
     
-    // 【关键修复】清除旧的背景图像，确保重新捕获
+    // 获取主显示器信息（同步操作，很快）
+    let monitor = match app_handle.primary_monitor() {
+        Ok(Some(m)) => m,
+        _ => {
+            info!("无法获取主显示器信息");
+            return;
+        }
+    };
+    let monitor_size = monitor.size();
+    let monitor_pos = monitor.position();
+    // scale_factor() 返回 f64，不需要 unwrap_or
+    let scale_factor = monitor.scale_factor();
+
+    // 【优化】立即预加载窗口列表到缓存（同步操作，很快）
+    // 这样前端初始化时可以直接获取，无需等待
+    let windows_result = get_all_windows();
+    match windows_result {
+        Ok(windows) => {
+            let mut cached = CACHED_WINDOW_LIST.lock().unwrap();
+            *cached = Some(windows);
+            info!("窗口列表已预加载到缓存 (窗口数: {})", cached.as_ref().map(|w| w.len()).unwrap_or(0));
+        }
+        Err(e) => {
+            info!("预加载窗口列表失败: {}", e);
+        }
+    }
+
+    // 【优化】缓存显示器信息（必须在创建窗口之前完成）
+    let cached_monitor = MonitorInfo {
+        x: monitor_pos.x,
+        y: monitor_pos.y,
+        width: monitor_size.width,
+        height: monitor_size.height,
+        scale: scale_factor,
+    };
+    {
+        let mut cached = CACHED_MONITOR_INFO.lock().unwrap();
+        *cached = Some(cached_monitor.clone());
+        info!("显示器信息已预缓存: {:?}", cached.as_ref().map(|m| format!("{}x{} @({},{}) scale:{}", m.width, m.height, m.x, m.y, m.scale)));
+    }
+    
+    // 清除旧的背景图像，确保重新捕获
     {
         let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
         *bg = None;
@@ -1575,18 +1638,20 @@ pub fn hotkey_screenshot() {
             Ok(Ok(img)) => img,
             Ok(Err(e)) => {
                 info!("捕获屏幕失败: {}", e);
-                String::new()
+                return;
             },
             Err(e) => {
                 info!("捕获线程错误: {}", e);
-                String::new()
+                return;
             }
         };
         
         // 存储捕获的屏幕图像
         {
             let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
-            *bg = Some(screen_image);
+            let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
+            *bg = Some(screen_image.1);
+            *preview = Some(screen_image.0);
         }
         
         // 标记捕获完成
@@ -1600,16 +1665,6 @@ pub fn hotkey_screenshot() {
             let _ = window.emit("background-ready", ());
         }
     });
-    
-    // 获取主显示器信息
-    let monitor = match app_handle.primary_monitor() {
-        Ok(Some(m)) => m,
-        _ => {
-            info!("无法获取主显示器信息");
-            return;
-        }
-    };
-    let monitor_size = monitor.size();
     
     // 【优化2】创建窗口（与屏幕捕获并行）
     let builder = WebviewWindowBuilder::new(
@@ -1698,11 +1753,55 @@ pub fn get_screenshot_background() -> Result<String, String> {
     }
 }
 
+// 获取截图预览图（JPEG格式，快速加载）
+#[tauri::command]
+pub fn get_screenshot_preview() -> Result<String, String> {
+    let preview = SCREENSHOT_PREVIEW.lock().unwrap();
+    match preview.as_ref() {
+        Some(image) => {
+            if image.is_empty() {
+                Err("Screenshot preview is being captured".to_string())
+            } else {
+                Ok(image.clone())
+            }
+        },
+        None => {
+            Err("No screenshot preview available".to_string())
+        }
+    }
+}
+
+// 获取预缓存的窗口列表（用于快速截图初始化）
+#[tauri::command]
+pub fn get_cached_window_list() -> Result<Vec<WindowInfo>, String> {
+    let cached = CACHED_WINDOW_LIST.lock().unwrap();
+    match cached.as_ref() {
+        Some(windows) => Ok(windows.clone()),
+        None => Err("No cached window list available".to_string())
+    }
+}
+
+// 获取预缓存的显示器信息（用于快速截图初始化）
+#[tauri::command]
+pub fn get_cached_monitor_info() -> Result<MonitorInfo, String> {
+    let cached = CACHED_MONITOR_INFO.lock().unwrap();
+    match cached.as_ref() {
+        Some(info) => Ok(info.clone()),
+        None => Err("No cached monitor info available".to_string())
+    }
+}
+
 // 清理截图背景缓存（窗口关闭时调用）
 #[tauri::command]
 pub fn clear_screenshot_background() {
-    let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
-    *bg = None;
+    {
+        let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+        *bg = None;
+    }
+    {
+        let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
+        *preview = None;
+    }
     info!("截图背景缓存已清理");
 }
 
@@ -1714,13 +1813,28 @@ pub fn cleanup_screenshot_resources() {
         let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
         *bg = None;
     }
-    
+    // 清理截图预览
+    {
+        let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
+        *preview = None;
+    }
+    // 清理预缓存的窗口列表
+    {
+        let mut cached = CACHED_WINDOW_LIST.lock().unwrap();
+        *cached = None;
+    }
+    // 清理预缓存的显示器信息
+    {
+        let mut cached = CACHED_MONITOR_INFO.lock().unwrap();
+        *cached = None;
+    }
+
     // 重置捕获状态
     {
         let mut capturing = IS_CAPTURING.lock().unwrap();
         *capturing = false;
     }
-    
+
     info!("所有截图资源已清理");
 }
 

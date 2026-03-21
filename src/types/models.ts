@@ -222,7 +222,7 @@ export interface AttachmentConfig {
   /** 附件路径模板 */
   pathTemplate: string;
   /** 文件名生成格式 */
-  filenameFormat: 'obsidian' | 'simple' | 'uuid';
+  filenameFormat: 'snippets-code' | 'simple' | 'uuid';
 }
 
 /**

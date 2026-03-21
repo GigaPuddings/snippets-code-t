@@ -14,7 +14,7 @@
 
       <!-- 步骤内容 -->
       <div class="setup-content">
-        <!-- 欢迎页：三选项卡片（类 Obsidian）或 登录子视图 -->
+        <!-- 欢迎页：三选项卡片或 登录子视图 -->
         <div v-if="step === 0" class="step-page welcome-page">
           <div class="welcome-header">
             <div class="welcome-icon">

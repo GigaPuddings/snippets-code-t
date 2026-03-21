@@ -1815,7 +1815,6 @@ defineExpose({
   }
 
   p {
-    @apply mb-4;
     line-height: 1.7;
     transition: color 0.3s ease;
   }

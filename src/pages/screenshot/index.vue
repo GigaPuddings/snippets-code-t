@@ -616,8 +616,8 @@ onMounted(async () => {
 
   // 监听后端背景准备完成事件
   unlistenBgReady.value = await listen('background-ready', () => {
-    // 背景准备完成，可以触发重新加载
-    logger.info('[截图] 背景准备完成')
+    logger.info('[截图] 背景准备完成，触发重载')
+    screenshotManager?.triggerBackgroundReload()
   })
 
   // 监听窗口失焦（用户切换到其他窗口）
@@ -659,7 +659,7 @@ onUnmounted(() => {
   // 清理Tauri事件监听器
   unlisten.value?.()
   unlistenBgReady.value?.()
-  
+
   // 清理引用
   unlisten.value = undefined
   unlistenBgReady.value = undefined

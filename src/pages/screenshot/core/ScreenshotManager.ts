@@ -84,6 +84,8 @@ export class ScreenshotManager {
 
   // 背景图像（预捕获的屏幕）
   private backgroundImage: HTMLImageElement | null = null
+  // 是否正在加载完整背景图
+  private isLoadingBackground = false
 
   // 翻译覆盖层状态
   private translationOverlay: TranslationOverlay = {
@@ -106,6 +108,30 @@ export class ScreenshotManager {
   private onTextInputRequest?: (position: Point, existingAnnotation?: BaseAnnotation) => void
   private onColorPicked?: (colorInfo: ColorInfo) => void
 
+  // 背景重载标记（用于避免重复加载）
+  private backgroundReloadPending = false
+
+  // 公开方法：触发背景图重新加载（响应 preview-ready 事件）
+  public triggerBackgroundReload(): void {
+    if (this.backgroundReloadPending) return
+    this.backgroundReloadPending = true
+
+    // 重置加载状态，强制重新加载
+    this.isLoadingBackground = false
+
+    // 清除旧的背景图像引用
+    if (this.backgroundImage) {
+      this.backgroundImage.onload = null
+      this.backgroundImage.onerror = null
+      this.backgroundImage = null
+    }
+
+    // 异步重新加载背景
+    this.loadScreenBackground().finally(() => {
+      this.backgroundReloadPending = false
+    })
+  }
+
   constructor(
     canvas: HTMLCanvasElement, 
     onStateChange?: () => void,
@@ -124,13 +150,18 @@ export class ScreenshotManager {
     // 绑定鼠标事件
     this.bindMouseEvents()
 
+    // 初始化画布（必须首先执行，设置画布尺寸）
     this.initCanvas()
-    this.loadAllWindows().then(() => {
-      // 窗口列表加载完成后，立即检测初始鼠标位置附近的窗口
-      this.detectInitialWindowSnap()
-    })
-    this.loadScreenBackground() // 加载预捕获的屏幕背景
-    
+
+    // 并行加载窗口列表和屏幕背景
+    Promise.all([
+      this.loadAllWindows().then(() => {
+        // 窗口列表加载完成后，检测初始鼠标位置附近的窗口
+        this.detectInitialWindowSnap()
+      }),
+      this.loadScreenBackground()
+    ])
+
     // 预加载非关键模块
     LazyLoader.preloadModules()
   }
@@ -142,7 +173,7 @@ export class ScreenshotManager {
 
     const containerWidth = container.clientWidth
     const containerHeight = container.clientHeight
-    
+
     // 【DPI修复】获取设备像素比 (DPR)
     const dpr = window.devicePixelRatio || 1
 
@@ -160,15 +191,32 @@ export class ScreenshotManager {
       ctx.scale(dpr, dpr)
     }
 
-    // 4. 设置canvas初始背景为半透明黑色（与遮罩层颜色一致）
-    // 这样在背景图加载前后都保持统一的视觉效果，不会有颜色跳变
-    this.canvas.style.backgroundColor = 'rgba(0, 0, 0, 0.6)'
+    // 4. 【优化】在背景图加载前先显示半透明遮罩，避免黑屏
+    // 这样用户立即开始截图时不会看到黑色背景
+    this.drawPendingState()
 
     this.coordinateSystem.updateCanvasRect(this.canvas)
   }
 
+  // 绘制等待状态（背景图加载前的中间状态）
+  private drawPendingState(): void {
+    const ctx = this.canvas.getContext('2d')
+    if (!ctx) return
+
+    // 使用与遮罩层一致的半透明黑色
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+    ctx.restore()
+  }
+
   // 加载预捕获的屏幕背景图像
   private async loadScreenBackground(): Promise<void> {
+    // 防止重复加载
+    if (this.isLoadingBackground) return
+    this.isLoadingBackground = true
+
     try {
       // 清除旧的背景图像引用
       if (this.backgroundImage) {
@@ -176,61 +224,113 @@ export class ScreenshotManager {
         this.backgroundImage.onerror = null
         this.backgroundImage = null
       }
-      
-      // 简化等待逻辑，减少轮询次数
-      const maxWaitTime = 3000
-      const checkInterval = 100
-      let waitedTime = 0
-      
-      while (waitedTime < maxWaitTime) {
-        try {
-          const base64Image = await invoke('get_screenshot_background') as string
-          if (base64Image) {
-            // 【优化】后端已改用PNG无损格式，前端直接加载，不再压缩
-            const img = new Image()
-            
-            await new Promise<void>((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                img.onload = null
-                img.onerror = null
-                reject(new Error('Image load timeout'))
-              }, 3000)
-              
-              img.onload = () => {
-                clearTimeout(timeout)
-                this.backgroundImage = img
-                this.draw()
-                resolve()
-              }
-              
-              img.onerror = (error) => {
-                clearTimeout(timeout)
-                reject(error)
-              }
-              
-              // 后端现在返回PNG格式
-              img.src = `data:image/png;base64,${base64Image}`
-            })
-            
-            return
-          }
-        } catch (error: any) {
-          if (error?.toString().includes('No screenshot background available') || 
-              error?.toString().includes('being captured')) {
-            await new Promise(resolve => setTimeout(resolve, checkInterval))
-            waitedTime += checkInterval
-            continue
-          }
-          throw error
-        }
-      }
-      
-      logger.warn('[截图] 等待后端准备背景超时')
-      this.createFallbackBackground()
+
+      // 1. 优先加载预览图（快速显示）
+      await this.loadPreviewImage()
+
+      // 2. 再加载完整背景图（高质量）
+      await this.loadFullBackgroundImage()
+
     } catch (error) {
       logger.error('[截图] 加载屏幕背景失败', error)
       this.createFallbackBackground()
+    } finally {
+      this.isLoadingBackground = false
     }
+  }
+
+  // 加载预览图（等待但不显示）
+  // 注意：预览图只用于等待，不作为背景显示（避免模糊）
+  private async loadPreviewImage(): Promise<void> {
+    const maxWaitTime = 5000  // 预览图最多等待5秒
+    const checkInterval = 100   // 每100ms检查一次
+    let waitedTime = 0
+
+    while (waitedTime < maxWaitTime) {
+      try {
+        // 尝试获取预览图（JPEG格式，小体积）
+        const previewData = await invoke('get_screenshot_preview') as string
+
+        // 检查是否有效（非空字符串）
+        if (previewData && previewData.trim().length > 0) {
+          // 预览图数据已可用，但不作为背景显示
+          // 直接返回，让 loadFullBackgroundImage 继续
+          return
+        }
+        // 预览图不可用，等待后重试
+        await new Promise(resolve => setTimeout(resolve, checkInterval))
+        waitedTime += checkInterval
+      } catch (error: any) {
+        const errorMsg = error?.toString() || ''
+        // 检查是否是"不可用"或"正在捕获"的错误，如果是则等待重试
+        if (errorMsg.includes('No screenshot preview available') ||
+            errorMsg.includes('being captured') ||
+            errorMsg.includes('Preview load timeout')) {
+          await new Promise(resolve => setTimeout(resolve, checkInterval))
+          waitedTime += checkInterval
+          continue
+        }
+        // 其他错误，继续尝试加载完整图
+        logger.warn('[截图] 预览图加载错误:', errorMsg)
+        break
+      }
+    }
+
+    // 等待超时，让完整图继续加载
+    logger.debug('[截图] 预览图等待超时')
+  }
+
+  // 加载完整背景图（高质量PNG）
+  private async loadFullBackgroundImage(): Promise<void> {
+    const maxWaitTime = 5000  // 完整图等待时间更长
+    const checkInterval = 100
+    let waitedTime = 0
+
+    while (waitedTime < maxWaitTime) {
+      try {
+        const base64Image = await invoke('get_screenshot_background') as string
+        if (base64Image) {
+          const img = new Image()
+
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              img.onload = null
+              img.onerror = null
+              reject(new Error('Image load timeout'))
+            }, 5000)
+
+            img.onload = () => {
+              clearTimeout(timeout)
+              this.backgroundImage = img
+              this.draw()
+              resolve()
+            }
+
+            img.onerror = (error) => {
+              clearTimeout(timeout)
+              reject(error)
+            }
+
+            // 后端现在返回PNG格式
+            img.src = `data:image/png;base64,${base64Image}`
+          })
+
+          logger.info('[截图] 完整背景图加载成功')
+          return
+        }
+      } catch (error: any) {
+        if (error?.toString().includes('No screenshot background available') ||
+            error?.toString().includes('being captured')) {
+          await new Promise(resolve => setTimeout(resolve, checkInterval))
+          waitedTime += checkInterval
+          continue
+        }
+        throw error
+      }
+    }
+
+    logger.warn('[截图] 等待后端准备背景超时')
+    this.createFallbackBackground()
   }
 
   // 创建后备背景（当背景图加载失败时使用）
@@ -261,43 +361,87 @@ export class ScreenshotManager {
     }
   }
 
-  // 绘制背景图像
+  // 绘制背景图像（支持预览图和完整图）
   private drawBackground(): void {
-    if (!this.backgroundImage) return
-    
     const ctx = this.canvas.getContext('2d')
-    if (ctx) {
-      // 保存当前的绘图状态（包含 scale 设置）
-      ctx.save()
-      
-      // 【关键】重置变换矩阵，强制使用物理像素坐标系 (1:1)
-      // 这样可以确保背景图的每一个像素都精确对应屏幕的一个物理像素，绝不模糊
-      ctx.setTransform(1, 0, 0, 1, 0, 0)
+    if (!ctx) return
 
-      // 禁用平滑（虽然这里已经是点对点绘制，但加上保险）
-      ctx.imageSmoothingEnabled = false
-      
-      // 直接绘制填满整个物理 Canvas
-      // 注意：这里的 width/height 已经是乘以 DPR 后的物理尺寸
-      ctx.drawImage(this.backgroundImage, 0, 0, this.canvas.width, this.canvas.height)
-      
-      // 恢复之前的绘图状态（恢复 scale，以便后续绘制标注）
-      ctx.restore()
-    }
+    // 只使用完整背景图（不再使用预览图）
+    if (!this.backgroundImage) return
+
+    ctx.save()
+
+    // 【关键】重置变换矩阵，强制使用物理像素坐标系 (1:1)
+    // 这样可以确保背景图的每一个像素都精确对应屏幕的一个物理像素，绝不模糊
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+
+    // 禁用平滑（虽然这里已经是点对点绘制，但加上保险）
+    ctx.imageSmoothingEnabled = false
+
+    // 直接绘制填满整个物理 Canvas
+    // 注意：这里的 width/height 已经是乘以 DPR 后的物理尺寸
+    ctx.drawImage(this.backgroundImage, 0, 0, this.canvas.width, this.canvas.height)
+
+    // 恢复之前的绘图状态（恢复 scale，以便后续绘制标注）
+    ctx.restore()
   }
 
-  // 加载所有窗口信息
+  // 加载所有窗口信息（使用预缓存数据 + 重试机制）
   private async loadAllWindows(): Promise<void> {
     try {
-      const [windowInfo, windows] = await Promise.all([
-        invoke('get_window_info') as Promise<{ x: number, y: number, scale: number, isFullscreen: boolean }>,
-        invoke('get_all_windows') as Promise<WindowInfo[]>
-      ])
-      
+      // 【优化】优先使用预缓存的数据，添加重试机制确保缓存就绪
+      // 预缓存在 hotkey_screenshot() 中已完成
+      let windowInfo: { x: number, y: number, scale: number, isFullscreen: boolean } = { x: 0, y: 0, scale: 1, isFullscreen: false }
+      let windows: WindowInfo[] = []
+
+      // 重试配置
+      const maxRetries = 10
+      const retryDelay = 50 // ms
+
+      // 首次尝试前等待一小段时间，让后端预加载完成
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          // 尝试从缓存获取
+          const [cachedMonitor, cachedWindows] = await Promise.all([
+            invoke('get_cached_monitor_info') as Promise<{ x: number, y: number, scale: number, width: number, height: number }>,
+            invoke('get_cached_window_list') as Promise<WindowInfo[]>
+          ])
+
+          windowInfo = {
+            x: cachedMonitor.x,
+            y: cachedMonitor.y,
+            scale: cachedMonitor.scale,
+            isFullscreen: false
+          }
+          windows = cachedWindows
+          logger.info(`[截图] 使用预缓存的窗口列表 (尝试 ${attempt + 1}, 原始窗口数: ${cachedWindows.length})`)
+          break // 成功获取，退出重试循环
+        } catch (error) {
+          if (attempt < maxRetries - 1) {
+            // 还有重试次数，等待后重试
+            logger.debug(`[截图] 缓存获取失败，${retryDelay}ms后重试 (尝试 ${attempt + 1}/${maxRetries})`)
+            await new Promise(resolve => setTimeout(resolve, retryDelay))
+            continue
+          }
+          // 最后一个尝试也失败，回退到实时获取
+          logger.warn('[截图] 预缓存不可用，使用实时获取')
+          const results = await Promise.all([
+            invoke('get_window_info') as Promise<{ x: number, y: number, scale: number, isFullscreen: boolean }>,
+            invoke('get_all_windows') as Promise<WindowInfo[]>
+          ])
+          windowInfo = results[0]
+          windows = results[1]
+        }
+      }
+
       const scale = windowInfo?.scale || 1
       const screenWidth = window.innerWidth
       const screenHeight = window.innerHeight
-      
+
+      logger.debug(`[截图] 窗口过滤前: ${windows.length} 个, scale: ${scale}, screen: ${screenWidth}x${screenHeight}`)
+
       // 使用单次遍历优化性能
       this.allWindows = windows
         .filter(win => this.isValidWindow(win))
@@ -308,12 +452,14 @@ export class ScreenshotManager {
           width: Math.round(win.width / scale),
           height: Math.round(win.height / scale)
         }))
-        .filter(win => 
-          win.x >= -win.width && 
+        .filter(win =>
+          win.x >= -win.width &&
           win.y >= -win.height &&
           win.x < screenWidth + win.width &&
           win.y < screenHeight + win.height
         )
+
+      logger.info(`[截图] 窗口过滤后: ${this.allWindows.length} 个可用窗口`)
     } catch (error) {
       logger.error('[截图] 加载窗口列表失败', error)
       this.allWindows = []
@@ -323,40 +469,82 @@ export class ScreenshotManager {
   // 检测初始窗口吸附（在窗口打开时立即调用）
   private async detectInitialWindowSnap(): Promise<void> {
     try {
+      // 【优化】等待窗口列表加载完成
+      const maxWaitTime = 500 // 最大等待500ms
+      const checkInterval = 50 // 每50ms检查一次
+      let waitedTime = 0
+
+      while (this.allWindows.length === 0 && waitedTime < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, checkInterval))
+        waitedTime += checkInterval
+      }
+
+      // 调试日志：显示窗口列表状态
+      logger.info(`[截图] 初始窗口吸附检测 - allWindows数量: ${this.allWindows.length}`)
+
       // 如果没有窗口列表，直接返回
       if (this.allWindows.length === 0) {
+        logger.debug('[截图] 没有可用的窗口列表，跳过初始吸附')
         return
       }
 
-      // 获取窗口信息和鼠标位置
-      const windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
-      
+      // 显示前3个窗口用于调试
+      const debugWindows = this.allWindows.slice(0, 3).map(w => ({
+        title: w.title.substring(0, 20),
+        x: w.x,
+        y: w.y,
+        width: w.width,
+        height: w.height
+      }))
+      logger.debug(`[截图] 可用窗口列表: ${JSON.stringify(debugWindows)}`)
+
+      // 【优化】优先使用预缓存的显示器信息
+      let windowInfo: { x: number, y: number, scale: number }
+      try {
+        const cachedMonitor = await invoke('get_cached_monitor_info') as { x: number, y: number, scale: number, width: number, height: number }
+        windowInfo = {
+          x: cachedMonitor.x,
+          y: cachedMonitor.y,
+          scale: cachedMonitor.scale
+        }
+        logger.debug(`[截图] 使用缓存的显示器信息: ${JSON.stringify(windowInfo)}`)
+      } catch {
+        // 缓存不可用，实时获取
+        windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
+        logger.debug(`[截图] 使用实时的显示器信息: ${JSON.stringify(windowInfo)}`)
+      }
+
       // 尝试获取鼠标位置，如果失败则使用屏幕中心作为初始位置
       let canvasMousePos: Point
       try {
         const mouseInfo = await invoke('get_mouse_position') as { x: number, y: number }
         const scale = windowInfo?.scale || 1
-        
+
         // 转换为canvas坐标
         canvasMousePos = {
           x: Math.round((mouseInfo.x - windowInfo.x) / scale),
           y: Math.round((mouseInfo.y - windowInfo.y) / scale)
         }
+        logger.debug(`[截图] 鼠标位置(屏幕): (${mouseInfo.x}, ${mouseInfo.y}), (Canvas): (${canvasMousePos.x}, ${canvasMousePos.y})`)
       } catch (error) {
         // 如果获取鼠标位置失败，使用屏幕中心
         canvasMousePos = {
           x: Math.round(this.canvas.width / (window.devicePixelRatio || 1) / 2),
           y: Math.round(this.canvas.height / (window.devicePixelRatio || 1) / 2)
         }
+        logger.debug(`[截图] 使用屏幕中心作为初始位置: (${canvasMousePos.x}, ${canvasMousePos.y})`)
       }
-      
+
       // 检测鼠标位置附近的窗口
       const nearbyWindow = this.detectNearbyWindow(canvasMousePos)
-      
+
       if (nearbyWindow) {
         this.snappedWindow = nearbyWindow
         this.showSnapPreview = true
+        logger.info(`[截图] 初始吸附到窗口: "${nearbyWindow.title}"`)
         this.draw()
+      } else {
+        logger.debug('[截图] 鼠标位置没有匹配的窗口，不进行初始吸附')
       }
     } catch (error) {
       logger.warn('[截图] 初始窗口吸附检测失败', error)
@@ -1165,14 +1353,13 @@ export class ScreenshotManager {
   // 绘制所有内容
   draw(): void {
     this.drawingEngine.clear()
-    
-    // 【关键修复】只有在背景图像加载完成后才绘制任何内容
-    // 这样可以避免在背景未加载时显示黑色遮罩或其他内容
+
+    // 在完整背景图加载前，先绘制等待状态
     if (!this.backgroundImage) {
-      // 背景未加载完成，不绘制任何内容，保持透明
+      this.drawPendingState()
       return
     }
-    
+
     // 绘制背景图像
     this.drawBackground()
     

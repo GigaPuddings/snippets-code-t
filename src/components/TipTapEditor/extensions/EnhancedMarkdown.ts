@@ -1,7 +1,6 @@
 /**
  * 增强的 Markdown 输入规则
  * 用于支持行内代码、代码块和各种 Markdown 语法指令的快捷输入
- * 参考 Typora、Obsidian 等成熟编辑器的实现
  */
 import { logger } from '@/utils/logger';
 import { Extension } from '@tiptap/core';

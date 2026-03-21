@@ -196,7 +196,7 @@ pub fn get_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
 }
 
 // 获取 app.json 的路径（公开函数）
-// app.json 存储在 .snippets-code 隐藏文件夹中，类似 Obsidian 的 .obsidian 文件夹
+// app.json 存储在 .snippets-code 隐藏文件夹中
 pub fn get_app_config_file(app_handle: &tauri::AppHandle) -> PathBuf {
     let config_dir = get_data_dir(app_handle).join(".snippets-code");
     

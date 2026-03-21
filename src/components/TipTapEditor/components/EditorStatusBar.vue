@@ -1,7 +1,7 @@
 <template>
   <div class="editor-status">
     <div class="editor-status-left">
-      <!-- Obsidian 风格：71 个词 164 个字符 -->
+      <!-- 71 个词 164 个字符 -->
       <div class="editor-status-item">
         <span class="editor-status-text">{{ wordCount }} {{ $t('noteEditor.words') }}</span>
       </div>

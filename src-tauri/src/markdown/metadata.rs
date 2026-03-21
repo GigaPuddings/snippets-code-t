@@ -1,5 +1,4 @@
 // 元数据结构定义
-// 参考 Obsidian 的设计理念
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -118,7 +117,7 @@ impl Default for AttachmentSettings {
     fn default() -> Self {
         Self {
             path_template: "assets/${noteFileName}/".to_string(),
-            filename_format: "obsidian".to_string(),
+            filename_format: "snippets-code".to_string(),
         }
     }
 }

@@ -2,7 +2,7 @@
  * Wikilink 反向链接更新工具
  * 
  * 当修改片段/笔记标题时，自动更新所有引用了该标题的内部链接
- * 类似 Obsidian 的自动重命名功能
+ * 自动重命名功能
  */
 
 import { getFragmentList, editFragment, type EditFragmentParams } from '@/api/fragment';

@@ -407,7 +407,7 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
     editorType
   );
 
-  // 比较内容是否真的发生变化（类似 Obsidian 的做法）
+  // 比较内容是否真的发生变化
   const originalContent = state.currentContent.content || '';
   const contentChanged = serializedContent !== originalContent;
 
