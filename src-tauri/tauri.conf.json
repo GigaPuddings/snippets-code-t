@@ -36,21 +36,6 @@
         "shadow": false,
         "visible": false,
         "decorations": false
-      },
-      {
-        "label": "loading",
-        "title": "启动",
-        "url": "/#/loading",
-        "width": 340,
-        "height": 280,
-        "resizable": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "transparent": true,
-        "center": true,
-        "shadow": false,
-        "visible": false,
-        "decorations": false
       }
     ],
     "security": {

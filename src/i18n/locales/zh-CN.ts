@@ -611,7 +611,7 @@ export default {
     // 主题模式（四选一）
     themeMode: '主题模式',
     systemMode: '跟随系统',
-    systemModeDesc: '跟随Windows系统主题',
+    systemModeDesc: '跟随系统主题',
     lightMode: '浅色',
     lightModeDesc: '始终使用浅色主题',
     darkMode: '深色',

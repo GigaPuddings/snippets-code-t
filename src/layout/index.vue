@@ -23,20 +23,37 @@ onMounted(async () => {
     logger.error('检查 setup 状态失败:', error);
   }
 
-  // 监听主题变化事件（用户在通用设置中切换主题）
+  // 监听主题变化事件（仅处理用户主动切换，避免与系统/后端事件形成广播风暴）
   await listen('theme-changed', (event: any) => {
+    const source = event.payload?.source;
+    if (source !== 'user-change') {
+      return;
+    }
+
+    logger.debug(`[主题][窗口:layout] 收到用户主题切换事件：${JSON.stringify(event.payload)}`);
+
     // 同步 store.theme 值，确保跨窗口一致
     if (event.payload?.theme) {
       store.theme = event.payload.theme;
     }
+
+    // 用户主动切换时，优先应用 payload.isDark（auto + 当前系统态）
+    if (typeof event.payload?.isDark === 'boolean' && store.theme === 'auto') {
+      store.syncSystemThemeStyle(event.payload.isDark);
+      return;
+    }
+
     store.applyTheme();
   });
 
-  // 监听系统主题变化事件（Windows 注册表主题切换）
+  // 监听前端主题变化事件（由 theme.ts 全局监听器触发）
   // 仅在 auto 模式下同步样式，不修改 store.theme
-  await listen('dark-mode-changed', (event: any) => {
-    store.syncSystemThemeStyle(event.payload.isDark);
-  });
+  // await listen('theme-changed', (event: any) => {
+  //   console.log('[Layout] theme-changed received:', JSON.stringify(event.payload));
+  //   if (store.theme === 'auto') {
+  //     store.applyTheme();
+  //   }
+  // });
 });
 </script>
 

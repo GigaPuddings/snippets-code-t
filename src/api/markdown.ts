@@ -565,6 +565,49 @@ export async function cleanupOrphanedAttachments(): Promise<number> {
 }
 
 /**
+ * 从软删除目录恢复被误删的单个附件
+ * 当检测到笔记内容中引用了某个附件但该附件不存在时调用此函数
+ * @param noteName 笔记名称
+ * @param fileName 文件名
+ * @returns 是否成功恢复
+ */
+export async function restoreDeletedAttachment(noteName: string, fileName: string): Promise<boolean> {
+  try {
+    return await invoke<boolean>('restore_deleted_attachment', { noteName, fileName });
+  } catch (error) {
+    throw new Error(`恢复被误删的附件失败: ${error}`);
+  }
+}
+
+/**
+ * 恢复笔记所有被软删除的附件
+ * 当加载笔记后发现内容中有图片引用但文件不存在时调用此函数
+ * @param noteName 笔记名称
+ * @param noteContent 笔记内容
+ * @returns 恢复的文件数量
+ */
+export async function restoreAllDeletedAttachments(noteName: string, noteContent: string): Promise<number> {
+  try {
+    return await invoke<number>('restore_all_deleted_attachments', { noteName, noteContent });
+  } catch (error) {
+    throw new Error(`恢复所有被误删的附件失败: ${error}`);
+  }
+}
+
+/**
+ * 删除所有软删除的附件（Config 窗口关闭时调用）
+ * 不管是否有撤销，直接删除整个临时目录
+ * @returns 删除的文件数量
+ */
+export async function deleteAllTrashAttachments(): Promise<number> {
+  try {
+    return await invoke<number>('delete_all_trash_attachments');
+  } catch (error) {
+    throw new Error(`删除软删除附件失败: ${error}`);
+  }
+}
+
+/**
  * 获取同步开关状态
  * @returns 是否启用同步
  */

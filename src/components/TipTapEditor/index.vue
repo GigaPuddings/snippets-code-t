@@ -193,9 +193,6 @@ const handleImageUpload = async (file: File, _view: EditorView) => {
 
   console.log('[handleImageUpload] 当前笔记 ID:', props.currentFragmentId);
 
-  // 显示上传提示
-  modal.info('正在上传图片...', 'center', 0);
-  
   try {
     // 上传图片
     console.log('[handleImageUpload] 调用 uploadImage');
@@ -435,29 +432,10 @@ const editor = useEditor({
       // 处理链接点击
       const target = event.target as HTMLElement;
       
-      // 首先检查是否点击了 Markdown 链接（通过 Decoration 添加的）
-      // 注意：Markdown 链接的点击已在 MarkdownLinkHandler 的 mousedown 中处理
-      // 这里保留检查以防万一
-      if (target.classList.contains('markdown-link-text')) {
-        const url = target.getAttribute('data-url');
-        
-        if (url) {
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-          
-          // 使用 Tauri 的 shell 在系统默认浏览器中打开链接
-          import('@tauri-apps/plugin-shell').then(({ open }) => {
-            open(url).catch(err => {
-              console.error('Failed to open external link:', err);
-            });
-          });
-          
-          return true;
-        }
-      }
+      // 注意：.markdown-link-text 的点击已在 MarkdownLinkHandler 的 mousedown 中处理
+      // 此处不再重复处理，避免双标签页问题
       
-      // 然后检查普通的 <a> 标签链接
+      // 检查普通的 <a> 标签链接
       const link = target.closest('a');
       
       if (link) {

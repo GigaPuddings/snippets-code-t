@@ -167,11 +167,11 @@
           <div class="inset-card time-settings">
             <label class="time-row">
               <span class="time-label-text"><SunOne theme="filled" :size="18" /> {{ $t('darkMode.lightModeStart') }}</span>
-              <input type="time" v-model="config.custom_light_time" @blur="handleTimeBlur" class="time-input" />
+              <input type="time" v-model="config.custom_light_time" @change="handleTimeChange" class="time-input" />
             </label>
             <label class="time-row">
               <span class="time-label-text"><Moon theme="filled" :size="18" /> {{ $t('darkMode.darkModeStart') }}</span>
-              <input type="time" v-model="config.custom_dark_time" @blur="handleTimeBlur" class="time-input" />
+              <input type="time" v-model="config.custom_dark_time" @change="handleTimeChange" class="time-input" />
             </label>
           </div>
         </div>
@@ -253,6 +253,7 @@ const locationInfo = ref<LocationInfo | null>(null);
 const sunTimes = ref<SunTimes | null>(null);
 const locationLoading = ref<boolean>(false);
 const saving = ref<boolean>(false);
+const syncingFromBackend = ref<boolean>(false);
 const unlisten = ref<any>(null);
 
 // 方法
@@ -323,6 +324,10 @@ const calculateSunTimes = async () => {
 
 // 主题模式切换处理
 const handleThemeModeChange = async () => {
+  if (syncingFromBackend.value) {
+    return;
+  }
+
   await saveConfig();
   
   // 如果切换到定时模式，且选择了日出日落，则获取位置
@@ -333,20 +338,32 @@ const handleThemeModeChange = async () => {
 
 // 定时类型切换处理
 const handleScheduleTypeChange = async () => {
+  if (syncingFromBackend.value) {
+    return;
+  }
+
   if (config.value.schedule_type === 'SunBased' && !locationInfo.value) {
     await refreshLocation();
   }
   await saveConfig();
 };
 
-const handleTimeBlur = async () => {
-  // 只在自定义时间模式下，用户设置完时间输入框失焦时保存配置
+const handleTimeChange = async () => {
+  if (syncingFromBackend.value) {
+    return;
+  }
+
+  // 只在自定义时间模式下，时间变更后立即保存并触发后端重算
   if (config.value.schedule_type === 'Custom') {
     await saveConfig();
   }
 };
 
 const saveConfig = async () => {
+  if (syncingFromBackend.value) {
+    return;
+  }
+
   saving.value = true;
   try {
     await invoke('save_dark_mode_config_command', { config: config.value });
@@ -389,11 +406,24 @@ onMounted(async () => {
     await refreshLocation();
   }
 
-  // 监听主题变化（自动模式/手动模式触发）
-  unlisten.value = await listen('dark-mode-changed', (event: any) => {
+  // 监听后端主题变化（自动模式/手动模式触发）
+  unlisten.value = await listen('dark-mode-changed', async (event: any) => {
+    logger.debug(`[主题][窗口:dark_mode] 收到主题变更：${JSON.stringify(event.payload)}`);
     currentTheme.value = event.payload.isDark;
-    // 同步其他窗口样式（仅 auto 模式下生效）
-    store.syncSystemThemeStyle(event.payload.isDark);
+
+    // 托盘/后端切换后，主动刷新后端配置，确保窗口单选状态与托盘一致
+    syncingFromBackend.value = true;
+    try {
+      await loadConfig();
+      logger.debug(`[主题][窗口:dark_mode] 已从后端刷新配置：theme_mode=${config.value.theme_mode}, schedule_type=${config.value.schedule_type}`);
+    } finally {
+      syncingFromBackend.value = false;
+    }
+
+    // 这里使用后端回传的权威状态，避免 matchMedia 延迟导致界面闪烁
+    if (store.theme === 'auto') {
+      store.syncSystemThemeStyle(event.payload.isDark);
+    }
   });
 
   // 通知后端前端已准备完成

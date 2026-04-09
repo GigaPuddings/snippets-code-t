@@ -136,7 +136,7 @@ import { SunOne, Moon, Computer } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { useConfigurationStore } from '@/store';
-import { initTheme } from '@/utils/theme';
+import { broadcastThemeChanged } from '@/utils/theme';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { CustomButton, CustomSwitch, ConfirmDialog, SelectConfirmDialog } from '@/components/UI';
@@ -167,9 +167,14 @@ const dictLanguage = [
   { value: 'en-US' as LocaleType, label: 'English', flag: '🇺🇸' }
 ];
 
-const changeTheme = (value: 'light' | 'dark' | 'auto') => {
+const changeTheme = async (value: 'light' | 'dark' | 'auto') => {
   store.updateTheme(value);
-  initTheme();
+
+  const isDark =
+    value === 'dark' ||
+    (value === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  await broadcastThemeChanged(isDark, value, 'user-change');
 };
 
 const changeLanguage = async (value: LocaleType) => {

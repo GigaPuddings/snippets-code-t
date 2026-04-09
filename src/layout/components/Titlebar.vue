@@ -27,26 +27,9 @@
       </div>
     </div>
 
-    <!-- 中间：宽屏=面包屑；窄屏=导航+面包屑 -->
-    <div class="titlebar-center" data-tauri-drag-region >
-      <div v-show="isNarrow" class="titlebar-nav titlebar-nav--center">
-        <SegmentedToggle
-          v-model="activeTabIndex"
-          :items="tabs"
-          @change="handleTabChange"
-        >
-          <template #item="scope">
-            <component
-              :is="scope.item.icon"
-              class="text-panel"
-              theme="outline"
-              size="18"
-              :strokeWidth="3"
-            />
-          </template>
-        </SegmentedToggle>
-      </div>
-      <div class="titlebar-center-inner">
+    <!-- 中间：仅宽屏显示面包屑；窄屏/最小宽度(≤720) 不显示中间导航（与左侧导航二选一已取消，窄屏仅保留拖拽区） -->
+    <div class="titlebar-center" data-tauri-drag-region>
+      <div v-show="!isNarrow" class="titlebar-center-inner">
         <slot></slot>
       </div>
     </div>
@@ -140,6 +123,7 @@
           :aria-label="$t('titlebar.more')"
         >
           <more-one class="icon" theme="outline" size="18" :strokeWidth="3" />
+          <span v-if="hasUpdate" class="update-dot"></span>
         </div>
         <template #dropdown>
           <el-dropdown-menu>
@@ -251,7 +235,7 @@ import { useLayoutStore } from '@/store';
 const { t } = useI18n();
 const layoutStore = useLayoutStore();
 
-/** 窄屏断点：小于等于此宽度时 左侧仅应用名+版本、导航居中、右侧仅折叠菜单+窗口控制 */
+/** 窄屏/最小窗口断点：小于等于此宽度时 左侧仅应用名+版本、导航居中、右侧仅折叠菜单+窗口控制 */
 const TITLEBAR_NARROW_BREAKPOINT = 720;
 
 const isNarrow = computed(() => layoutStore.windowWidth <= TITLEBAR_NARROW_BREAKPOINT);
@@ -529,11 +513,6 @@ onUnmounted(() => {
 
 .titlebar-nav {
   @apply flex items-center flex-shrink-0 ml-2;
-}
-
-.titlebar-nav--center {
-  margin-left: 0;
-  margin-right: 8px;
 }
 
 /* 中间：当前页标签/面包屑，占据剩余空间并可收缩省略 */

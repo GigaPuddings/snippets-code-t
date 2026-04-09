@@ -1,35 +1,109 @@
 import { useConfigurationStore } from '@/store';
-import { emit } from '@tauri-apps/api/event';
+import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { logger } from '@/utils/logger';
+
+let themeListenerInitialized = false;
+let unlistenDarkModeChanged: UnlistenFn | null = null;
+let mediaQueryCleanup: (() => void) | null = null;
+let lastBackendThemeAt = 0;
+let lastBackendIsDark: boolean | null = null;
+let windowLabel = 'unknown';
+
+// 托盘/模式切换后的短暂稳定期：忽略与目标态相反的瞬时事件，避免闪烁
+let themeSwitchGuardUntil = 0;
+let guardedTargetIsDark: boolean | null = null;
+const THEME_SWITCH_GUARD_MS = 1500;
+
+const withWindowTag = (message: string) => `[主题][窗口:${windowLabel}] ${message}`;
+
+// 仅用于“用户主动改设置”时跨窗口同步；
+// 系统变化/后端变化由各窗口本地监听 dark-mode-changed + matchMedia 处理，避免事件风暴。
+export const broadcastThemeChanged = async (isDark: boolean, theme: string, source: string) => {
+  try {
+    await emit('theme-changed', { isDark, theme, source });
+    logger.debug(withWindowTag(`已广播 theme-changed：source=${source}, isDark=${isDark}, theme=${theme}`));
+  } catch (error) {
+    logger.error(withWindowTag('发送 theme-changed 事件失败'), error);
+  }
+};
 
 export const initTheme = async () => {
   const store = useConfigurationStore();
 
-  // 应用当前主题
-  store.applyTheme();
-
-  const isDark =
-    store.theme === 'dark' ||
-    (store.theme === 'auto' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches);
-
-  // 通知其他窗口更新主题（包含 theme 值用于跨窗口同步）
   try {
-    await emit('theme-changed', { isDark, theme: store.theme });
-  } catch (error) {
-    console.error('主题事件发送失败:', error);
+    windowLabel = getCurrentWindow().label || 'unknown';
+  } catch {
+    windowLabel = 'unknown';
   }
 
-  // 监听系统主题变化
+  // 每次调用都先应用一次当前主题，保证 UI 及时同步
+  store.applyTheme();
+
+  if (themeListenerInitialized) {
+    logger.debug(withWindowTag('全局监听器已初始化，本次仅执行主题应用'));
+    return;
+  }
+
+  themeListenerInitialized = true;
+  logger.debug(withWindowTag('开始初始化全局主题监听器'));
+
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-  mediaQuery.addEventListener('change', async (e) => {
-    if (store.theme === 'auto') {
-      store.applyTheme();
-      // 通知其他窗口更新主题
-      try {
-        await emit('theme-changed', { isDark: e.matches, theme: store.theme });
-      } catch (error) {
-        console.error('主题事件发送失败:', error);
-      }
+
+  const inGuardWindow = () => Date.now() < themeSwitchGuardUntil;
+
+  // 监听 Windows 系统主题变化（仅 auto 模式下生效）
+  const handleMediaChange = (e: MediaQueryListEvent) => {
+    if (store.theme !== 'auto') {
+      return;
     }
+
+    // 后端刚发过同状态事件时，跳过 matchMedia 的重复处理（常见于托盘切换后）
+    const now = Date.now();
+    if (lastBackendIsDark === e.matches && now - lastBackendThemeAt < 1500) {
+      logger.debug(withWindowTag(`已忽略重复 matchMedia 主题事件：isDark=${e.matches}`));
+      return;
+    }
+
+    // 模式切换稳定期内，忽略与目标态相反的瞬时抖动事件
+    if (inGuardWindow() && guardedTargetIsDark !== null && e.matches !== guardedTargetIsDark) {
+      logger.debug(withWindowTag(`稳定期内忽略反向 matchMedia 事件：isDark=${e.matches}, target=${guardedTargetIsDark}`));
+      return;
+    }
+
+    logger.debug(withWindowTag(`检测到系统主题变化（matchMedia）：isDark=${e.matches}`));
+    store.syncSystemThemeStyle(e.matches);
+  };
+
+  mediaQuery.addEventListener('change', handleMediaChange);
+  mediaQueryCleanup = () => mediaQuery.removeEventListener('change', handleMediaChange);
+
+  // 监听后端主题变化事件（定时切换、手动切换、托盘切换等）
+  unlistenDarkModeChanged = await listen<{ isDark: boolean; reason?: string }>('dark-mode-changed', (event) => {
+    const { isDark, reason } = event.payload;
+    lastBackendThemeAt = Date.now();
+    lastBackendIsDark = isDark;
+
+    logger.debug(withWindowTag(`收到后端主题事件 dark-mode-changed：isDark=${isDark}, reason=${reason || 'unknown'}`));
+
+    // 托盘/自动切换触发时开启短暂稳定期，抑制反向瞬时事件导致的闪烁
+    if (reason === 'tray_menu' || reason === 'auto_switch') {
+      guardedTargetIsDark = isDark;
+      themeSwitchGuardUntil = Date.now() + THEME_SWITCH_GUARD_MS;
+      logger.debug(withWindowTag(`开启主题稳定期：target=${isDark}, duration=${THEME_SWITCH_GUARD_MS}ms`));
+    }
+
+    // 后端事件是权威状态，避免依赖可能滞后的 matchMedia
+    store.syncSystemThemeStyle(isDark);
   });
+};
+
+// 仅供测试或热更新场景使用
+export const disposeThemeListeners = () => {
+  unlistenDarkModeChanged?.();
+  unlistenDarkModeChanged = null;
+  mediaQueryCleanup?.();
+  mediaQueryCleanup = null;
+  themeListenerInitialized = false;
+  logger.debug('[主题] 已释放全局主题监听器');
 };

@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
-// 调试模式控制（可以通过环境变量或配置控制）
-const DEBUG_MODE = import.meta.env.DEV || false
+// 调试模式控制（开发环境默认开启；生产环境默认关闭，可通过 VITE_ENABLE_DEBUG_LOG=true 打开）
+const DEBUG_MODE = import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEBUG_LOG === 'true'
 
 export const logger = {
   info: (msg: string, data?: unknown, ..._args: unknown[]) => {

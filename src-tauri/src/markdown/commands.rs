@@ -760,9 +760,9 @@ pub fn get_files_by_category(
     
     // 根据分类 ID 获取分类名称
     let category_name = if let Some(cat_id) = category {
-        for (name, metadata) in cache.get_all_categories() {
-            info!("   - {} (ID: {})", name, metadata.id);
-        }
+        // for (name, metadata) in cache.get_all_categories() {
+        //     info!("   - {} (ID: {})", name, metadata.id);
+        // }
         
         // 从 cache 中查找分类名称
         let mut found_name: Option<String> = None;

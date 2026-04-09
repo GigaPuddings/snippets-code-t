@@ -663,35 +663,79 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     let mut apps_to_load = Vec::new();
     let mut bookmarks_to_load = Vec::new();
 
-    if apps_count == 0 {
-        crate::window::emit_scan_progress("正在扫描本地应用...", 0, 100, "");
+    // 进度改为“动态阶段步进 + 图标逐项进度”：
+    // - 基础阶段：扫描/保存（每类 2 步）
+    // - 图标阶段：按“待加载图标数量”逐项推进，进度更贴近真实耗时
+    let scan_apps = apps_count == 0;
+    let scan_bookmarks = bookmarks_count == 0;
+    let base_steps = (scan_apps as usize + scan_bookmarks as usize) * 2;
+    let mut current_step = 0usize;
+
+    if scan_apps {
+        if show_progress {
+            crate::window::emit_scan_progress("正在扫描本地应用...", current_step, base_steps.max(1), "");
+        }
         apps_to_load = get_installed_apps();
-        crate::window::emit_scan_progress("正在保存应用数据...", 50, 100, &format!("共 {} 个应用", apps_to_load.len()));
+        current_step += 1;
+
+        if show_progress {
+            crate::window::emit_scan_progress(
+                "正在保存应用数据...",
+                current_step,
+                base_steps.max(1),
+                &format!("共 {} 个应用", apps_to_load.len()),
+            );
+        }
         if let Err(e) = db::insert_apps(&apps_to_load) {
             log::error!("插入应用到数据库失败: {}", e);
         }
+        current_step += 1;
     }
 
-    if bookmarks_count == 0 {
-        crate::window::emit_scan_progress("正在扫描浏览器书签...", 60, 100, "");
+    if scan_bookmarks {
+        if show_progress {
+            crate::window::emit_scan_progress("正在扫描浏览器书签...", current_step, base_steps.max(1), "");
+        }
         bookmarks_to_load = get_browser_bookmarks();
-        crate::window::emit_scan_progress("正在保存书签数据...", 90, 100, &format!("共 {} 个书签", bookmarks_to_load.len()));
+        current_step += 1;
+
+        if show_progress {
+            crate::window::emit_scan_progress(
+                "正在保存书签数据...",
+                current_step,
+                base_steps.max(1),
+                &format!("共 {} 个书签", bookmarks_to_load.len()),
+            );
+        }
         if let Err(e) = db::insert_bookmarks(&bookmarks_to_load) {
             log::error!("插入书签到数据库失败: {}", e);
         }
+        current_step += 1;
     }
+
+    // 统计图标任务数，用于细粒度进度
+    let app_icon_tasks = apps_to_load.iter().filter(|app| app.icon.is_none()).count();
+    let bookmark_icon_tasks = bookmarks_to_load.iter().filter(|b| b.icon.is_none()).count();
+    let icon_tasks = app_icon_tasks + bookmark_icon_tasks;
 
     // 发送扫描完成事件
     let apps_loaded = apps_to_load.len();
     let bookmarks_loaded = bookmarks_to_load.len();
     let total_loaded = apps_loaded + bookmarks_loaded;
-    
-    if total_loaded > 0 {
-        if show_progress {
-            // 手动重置后：发送完成事件到进度窗口
-            crate::window::emit_scan_complete(apps_loaded, bookmarks_loaded);
-        } else {
-            // setup完成后的正常启动：使用系统通知
+
+    if show_progress {
+        // 手动重置后：图标也纳入进度窗口（真实逐项推进）
+        if total_loaded > 0 && icon_tasks > 0 {
+            let total_steps = base_steps + icon_tasks;
+            load_icons_with_realtime_progress(apps_to_load, bookmarks_to_load, current_step, total_steps);
+        } else if total_loaded > 0 {
+            // 无图标任务时，仍保持原有完成流程
+        }
+
+        crate::window::emit_scan_complete(apps_loaded, bookmarks_loaded);
+    } else {
+        // setup完成后的正常启动：静默加载图标 + 系统通知
+        if total_loaded > 0 {
             use tauri_plugin_notification::NotificationExt;
             let _ = app_handle
                 .notification()
@@ -701,14 +745,10 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
                 .show();
         }
 
-    } else if show_progress {
-        // 如果没有找到数据但创建了进度窗口，也发送完成事件
-        crate::window::emit_scan_complete(0, 0);
-    }
-
-    // 只为需要加载的数据异步加载图标（静默加载，不发送通知）
-    if !apps_to_load.is_empty() || !bookmarks_to_load.is_empty() {
-        load_icons_with_combined_notification(app_handle.clone(), apps_to_load, bookmarks_to_load);
+        // 只为需要加载的数据异步加载图标（静默加载，不发送通知）
+        if !apps_to_load.is_empty() || !bookmarks_to_load.is_empty() {
+            load_icons_with_combined_notification(app_handle.clone(), apps_to_load, bookmarks_to_load);
+        }
     }
 }
 
@@ -868,4 +908,265 @@ fn load_icons_with_combined_notification(
             crate::search::invalidate_bookmarks_cache();
         }
     });
+}
+
+fn format_progress_item_name(name: &str, max_chars: usize) -> String {
+    let mut out = String::new();
+    let mut count = 0usize;
+    for ch in name.chars() {
+        if count >= max_chars {
+            break;
+        }
+        out.push(ch);
+        count += 1;
+    }
+
+    if name.chars().count() > max_chars {
+        out.push('…');
+    }
+
+    out
+}
+
+fn format_bookmark_progress_item(bookmark: &BookmarkInfo) -> String {
+    let domain = extract_domain(&bookmark.content)
+        .or_else(|| Url::parse(&bookmark.content).ok().and_then(|u| u.host_str().map(|s| s.to_string())));
+
+    match domain {
+        Some(d) if !d.is_empty() => format_progress_item_name(&d, 32),
+        _ => format_progress_item_name(&bookmark.title, 32),
+    }
+}
+
+fn extract_app_icon_with_timeout(app_path: &str, timeout_ms: u64) -> Option<String> {
+    use std::sync::mpsc;
+
+    let started = std::time::Instant::now();
+    let app_path_owned = app_path.to_string();
+    let (tx, rx) = mpsc::channel();
+
+    std::thread::spawn(move || {
+        let icon = extract_app_icon(&app_path_owned);
+        let _ = tx.send(icon);
+    });
+
+    match rx.recv_timeout(Duration::from_millis(timeout_ms)) {
+        Ok(icon) => {
+            log::debug!(
+                "[IconDiag] extract_app_icon done: elapsed={}ms, path={}",
+                started.elapsed().as_millis(),
+                app_path
+            );
+            icon
+        }
+        Err(_) => {
+            log::warn!(
+                "[IconDiag] extract_app_icon timeout: timeout={}ms, elapsed={}ms, path={}",
+                timeout_ms,
+                started.elapsed().as_millis(),
+                app_path
+            );
+            None
+        }
+    }
+}
+
+fn fetch_favicon_with_hard_timeout(url: &str, timeout_ms: u64) -> Option<String> {
+    use std::sync::mpsc;
+
+    let started = std::time::Instant::now();
+    let url_owned = url.to_string();
+    let (tx, rx) = mpsc::channel();
+
+    std::thread::spawn(move || {
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                log::error!("[IconDiag] create runtime failed for bookmark fetch: {}", e);
+                let _ = tx.send(None);
+                return;
+            }
+        };
+
+        let result = rt.block_on(fetch_favicon_async(&url_owned));
+        let _ = tx.send(result);
+    });
+
+    match rx.recv_timeout(Duration::from_millis(timeout_ms)) {
+        Ok(icon) => {
+            icon
+        }
+        Err(_) => {
+            log::warn!(
+                "[IconDiag] bookmark fetch hard-timeout: timeout={}ms, elapsed={}ms, url={}",
+                timeout_ms,
+                started.elapsed().as_millis(),
+                url
+            );
+            None
+        }
+    }
+}
+
+fn batch_update_app_icons_silent(updates: &[(String, String)]) -> Result<(), rusqlite::Error> {
+    if updates.is_empty() {
+        return Ok(());
+    }
+
+    let started = std::time::Instant::now();
+    log::info!("[IconDiag] app batch db write start: count={}", updates.len());
+
+    let mut conn = db::DbConnectionManager::get()?;
+    let tx = conn.transaction()?;
+    {
+        let mut stmt = tx.prepare("UPDATE apps SET icon = ?1 WHERE id = ?2")?;
+        for (id, icon) in updates {
+            stmt.execute(rusqlite::params![icon, id])?;
+        }
+    }
+    tx.commit()?;
+
+    log::info!(
+        "[IconDiag] app batch db write done: count={}, elapsed={}ms",
+        updates.len(),
+        started.elapsed().as_millis()
+    );
+    Ok(())
+}
+
+fn batch_update_bookmark_icons_silent(updates: &[(String, String)]) -> Result<(), rusqlite::Error> {
+    if updates.is_empty() {
+        return Ok(());
+    }
+
+    let started = std::time::Instant::now();
+    log::info!("[IconDiag] bookmark batch db write start: count={}", updates.len());
+
+    let mut conn = db::DbConnectionManager::get()?;
+    let tx = conn.transaction()?;
+    {
+        let mut stmt = tx.prepare("UPDATE bookmarks SET icon = ?1 WHERE id = ?2")?;
+        for (id, icon) in updates {
+            stmt.execute(rusqlite::params![icon, id])?;
+        }
+    }
+    tx.commit()?;
+
+    log::info!(
+        "[IconDiag] bookmark batch db write done: count={}, elapsed={}ms",
+        updates.len(),
+        started.elapsed().as_millis()
+    );
+    Ok(())
+}
+
+// 重置场景：在进度窗口中按“每个图标任务”更新真实进度
+fn load_icons_with_realtime_progress(
+    apps: Vec<AppInfo>,
+    bookmarks: Vec<BookmarkInfo>,
+    mut current_step: usize,
+    total_steps: usize,
+) {
+    if total_steps == 0 {
+        return;
+    }
+
+    let flow_started = std::time::Instant::now();
+    let app_tasks = apps.iter().filter(|a| a.icon.is_none()).count();
+    let bookmark_tasks = bookmarks.iter().filter(|b| b.icon.is_none()).count();
+    log::info!(
+        "[IconDiag] realtime icon loading start: app_tasks={}, bookmark_tasks={}, start_step={}, total_steps={}",
+        app_tasks,
+        bookmark_tasks,
+        current_step,
+        total_steps
+    );
+
+    // 先收集结果，再批量写库，减少锁竞争
+    let mut app_icon_updates: Vec<(String, String)> = Vec::new();
+
+    // 应用图标逐项加载进度
+    for app in apps.into_iter() {
+        if app.icon.is_some() {
+            continue;
+        }
+
+        if let Some(icon_data) = extract_app_icon_with_timeout(&app.content, 500) {
+            app_icon_updates.push((app.id.clone(), icon_data));
+        }
+
+        current_step += 1;
+        let progress_item = format_progress_item_name(&app.title, 32);
+
+        crate::window::emit_scan_progress(
+            "正在加载应用图标...",
+            current_step.min(total_steps),
+            total_steps,
+            &progress_item,
+        );
+    }
+
+    log::info!(
+        "[IconDiag] app extract phase done: extracted={}, elapsed={}ms",
+        app_icon_updates.len(),
+        flow_started.elapsed().as_millis()
+    );
+
+    if let Err(e) = batch_update_app_icons_silent(&app_icon_updates) {
+        log::warn!("[IconDiag] app batch write failed: {}", e);
+    }
+
+    // 书签图标逐项加载进度（串行，更准确反映实时进度）
+    let mut bookmark_icon_updates: Vec<(String, String)> = Vec::new();
+
+    if !bookmarks.is_empty() {
+        log::info!(
+            "[IconDiag] bookmark phase start: total_bookmarks={}, elapsed={}ms",
+            bookmarks.len(),
+            flow_started.elapsed().as_millis()
+        );
+
+        for bookmark in bookmarks.into_iter() {
+            if bookmark.icon.is_some() {
+                continue;
+            }
+
+            let progress_item = format_bookmark_progress_item(&bookmark);
+
+            let icon_result = fetch_favicon_with_hard_timeout(&bookmark.content, 2500);
+
+            if let Some(icon_data) = icon_result {
+                bookmark_icon_updates.push((bookmark.id.clone(), icon_data));
+            }
+
+            current_step += 1;
+
+            crate::window::emit_scan_progress(
+                "正在加载书签图标...",
+                current_step.min(total_steps),
+                total_steps,
+                &progress_item,
+            );
+        }
+    }
+
+    log::info!(
+        "[IconDiag] bookmark extract phase done: extracted={}, elapsed={}ms",
+        bookmark_icon_updates.len(),
+        flow_started.elapsed().as_millis()
+    );
+
+    if let Err(e) = batch_update_bookmark_icons_silent(&bookmark_icon_updates) {
+        log::warn!("[IconDiag] bookmark batch write failed: {}", e);
+    }
+
+    log::info!(
+        "[IconDiag] realtime icon loading end: final_step={}/{}, total_elapsed={}ms",
+        current_step.min(total_steps),
+        total_steps,
+        flow_started.elapsed().as_millis()
+    );
+
+    crate::search::invalidate_apps_cache();
+    crate::search::invalidate_bookmarks_cache();
 }

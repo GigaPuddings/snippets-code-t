@@ -29,6 +29,8 @@ impl DbConnectionManager {
         let _ = conn.execute("PRAGMA cache_size=10000", []);
         // 临时数据存储在内存中：提升临时表性能
         let _ = conn.execute("PRAGMA temp_store=memory", []);
+        // 锁等待超时：缓解并发读写时偶发卡顿（单位：毫秒）
+        let _ = conn.execute("PRAGMA busy_timeout=800", []);
         
         Ok(conn)
     }

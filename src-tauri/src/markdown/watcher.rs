@@ -103,17 +103,20 @@ impl FileWatcher {
         app_handle: AppHandle,
     ) {
         tauri::async_runtime::spawn(async move {
-            let debounce = Duration::from_millis(1000);
-
+            let debounce = Duration::from_millis(500);
             let mut pending: HashMap<PathBuf, (PendingKind, Instant)> = HashMap::new();
             let mut remove_candidates: HashMap<PathBuf, RemoveCandidate> = HashMap::new();
             let mut last_event_time = Instant::now();
+            let mut total_events_received: usize = 0;
+            let mut total_batches_sent: usize = 0;
 
             loop {
                 match rx.recv_timeout(Duration::from_millis(100)) {
                     Ok(event) => {
                         if Self::should_ignore(&event, &workspace_root) { continue; }
                         last_event_time = Instant::now();
+                        let event_file_count = event.paths.len();
+                        total_events_received += event_file_count;
                         Self::merge_event(event, &mut pending, &mut remove_candidates, last_event_time);
                     }
                     Err(_) => {
@@ -140,7 +143,15 @@ impl FileWatcher {
                             .collect();
 
                         if !batch.is_empty() {
-                            debug!("🔄 [FileWatcher] 批量处理 {} 个变更事件", batch.len());
+                            total_batches_sent += 1;
+                            let merged = total_events_received - batch.len();
+                            debug!(
+                                "🔄 [FileWatcher] 批量处理 {} 个变更事件（累计收到 {} 个，合并 {} 个，已发送 {} 批）",
+                                batch.len(),
+                                total_events_received,
+                                merged,
+                                total_batches_sent
+                            );
                             Self::handle_batch(batch, &workspace_root, &ignore_list, &app_handle);
                         }
                     }

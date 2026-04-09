@@ -88,6 +88,7 @@ export const useConfigurationStore = defineStore('configuration', {
 
     // 更新主题并立即应用
     updateTheme(newTheme: 'auto' | 'dark' | 'light') {
+      logger.debug(`[主题][Store] 更新主题并立即应用：newTheme=${newTheme}`);
       this.theme = newTheme;
       this.applyTheme();
     },
@@ -96,6 +97,7 @@ export const useConfigurationStore = defineStore('configuration', {
     applyTheme() {
       const root = document.documentElement;
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      logger.debug(`[主题][Store] 应用主题到 DOM：theme=${this.theme}, prefersDark=${prefersDark}`);
       if (this.theme === 'auto') {
         this.systemPrefersDark = prefersDark;
       }
@@ -105,16 +107,18 @@ export const useConfigurationStore = defineStore('configuration', {
 
       if (isDark) {
         root.classList.add('dark');
+        logger.debug('[主题][Store] applyTheme：添加 dark 类');
       } else {
         root.classList.remove('dark');
+        logger.debug('[主题][Store] applyTheme：移除 dark 类');
       }
     },
 
     // 同步系统主题样式（仅在 auto 模式下生效，不修改 store.theme）
     // 用于响应 Windows 系统主题变化
     syncSystemThemeStyle(isDark: boolean) {
-      // 从 localStorage 获取最新的 theme 值，确保跨窗口同步
-      // 因为不同窗口的 store 实例不会自动同步
+      logger.debug(`[主题][Store] 同步系统主题样式：isDark=${isDark}, store.theme=${this.theme}`);
+
       let currentTheme = this.theme;
       try {
         const stored = localStorage.getItem('configuration');
@@ -122,23 +126,26 @@ export const useConfigurationStore = defineStore('configuration', {
           const parsed = JSON.parse(stored);
           if (parsed.theme) {
             currentTheme = parsed.theme;
-            // 同步到当前 store 实例
             this.theme = currentTheme;
           }
         }
       } catch (e) {
-        // 解析失败时使用当前 store 值
-        logger.error('Failed to sync theme from localStorage:', e);
+        logger.error('从 localStorage 同步主题失败:', e);
       }
 
+      logger.debug(`[主题][Store] syncSystemThemeStyle：currentTheme=${currentTheme}, isDark=${isDark}`);
       if (currentTheme === 'auto') {
         this.systemPrefersDark = isDark;
         const root = document.documentElement;
         if (isDark) {
           root.classList.add('dark');
+          logger.debug('[主题][Store] 添加 dark 类到 <html>');
         } else {
           root.classList.remove('dark');
+          logger.debug('[主题][Store] 从 <html> 移除 dark 类');
         }
+      } else {
+        logger.debug(`[主题][Store] currentTheme=${currentTheme} 非 auto，跳过 dark 类切换`);
       }
     }
   },

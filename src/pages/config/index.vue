@@ -581,7 +581,10 @@ const stopAutoSyncOnHide = async () => {
 
 // 通知后端前端已准备完成
 onMounted(async () => {
-  logger.info('[Config] ========== Config 页面初始化开始 ==========');
+  const initStart = performance.now();
+  logger.info('[Config] ========== Config 页面初始化开始 ==========', {
+    ts: Date.now()
+  });
   
   // 1. 设置 Git 事件监听器
   gitListeners = await setupGitEventListeners(t);
@@ -677,9 +680,17 @@ onMounted(async () => {
     }
   }
   
-  logger.info('[Config] ========== Config 页面初始化完成 ==========');
+  const initCostMs = Math.round(performance.now() - initStart);
+  logger.info('[Config] ========== Config 页面初始化完成 ==========', {
+    initCostMs,
+    ts: Date.now()
+  });
   
   nextTick(() => {
+    logger.info('[Config] emit config_ready', {
+      initCostMs,
+      ts: Date.now()
+    });
     getCurrentWindow().emit('config_ready');
     checkPendingNavigation();
   });
@@ -785,7 +796,7 @@ onUnmounted(async () => {
 
   // 窗口卸载时停止自动同步
   await stopAutoSyncOnHide();
-  
+
   logger.info('[Config] ✅ Config 页面资源清理完成');
 });
 </script>

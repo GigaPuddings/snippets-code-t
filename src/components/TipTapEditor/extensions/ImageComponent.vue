@@ -88,6 +88,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { NodeViewWrapper } from '@tiptap/vue-3';
 import { logger } from '@/utils/logger';
+import { restoreDeletedAttachment } from '@/api/markdown';
 
 interface Props {
   node: any;
@@ -109,6 +110,7 @@ const showContextMenu = ref(false);
 const contextMenuRef = ref<HTMLElement | null>(null);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const imageContainerRef = ref<HTMLElement | null>(null);
+const hasLoadError = ref(false);
 
 // 获取原始路径
 const originalPath = computed(() => {
@@ -289,9 +291,61 @@ const openFileLocation = async () => {
     }
     
     // 使用 Tauri 命令打开文件位置
-    await invoke('show_file_in_folder', { file_path: absolutePath });
+    await invoke('show_file_in_folder', { filePath: absolutePath });
   } catch (error) {
     logger.error('打开文件位置失败:', error);
+  }
+};
+
+// 尝试从软删除目录恢复被误删的附件
+const tryRestoreAttachment = async () => {
+  if (!originalPath.value) {
+    logger.warn('[ImageComponent] 无法恢复附件：原始路径为空');
+    return;
+  }
+
+  // 从路径中提取笔记名称和文件名
+  // 路径格式通常是: ../assets/笔记名称/文件名 或 assets/笔记名称/文件名
+  const pathParts = originalPath.value.replace(/^\.\.\//, '').split('/');
+  if (pathParts.length < 2) {
+    logger.warn('[ImageComponent] 无法恢复附件：路径格式不正确', originalPath.value);
+    return;
+  }
+
+  // 获取文件名（最后一部分）
+  const fileName = pathParts[pathParts.length - 1];
+  // 获取笔记名称（倒数第二部分，但需要确认是 assets 目录）
+  const assetsIndex = pathParts.findIndex((part: string) => part === 'assets' || part === '.assets');
+  if (assetsIndex === -1 || assetsIndex >= pathParts.length - 2) {
+    logger.warn('[ImageComponent] 无法恢复附件：路径中未找到 assets 目录', originalPath.value);
+    return;
+  }
+  const noteName = pathParts[assetsIndex + 1];
+
+  logger.info('[ImageComponent] 尝试恢复附件:', { noteName, fileName, originalPath: originalPath.value });
+
+  try {
+    const restored = await restoreDeletedAttachment(noteName, fileName);
+
+    if (restored) {
+      logger.info('[ImageComponent] 附件恢复成功:', { noteName, fileName });
+
+      // 重新加载图片以显示恢复后的文件
+      // 触发图片重新加载：先设置一个空 src，然后恢复原 src
+      const container = imageContainerRef.value?.querySelector('img') as HTMLImageElement;
+      if (container) {
+        const originalSrc = props.node.attrs.src;
+        container.src = '';
+        // 使用 nextTick 确保 DOM 更新后再设置新 src
+        nextTick(() => {
+          container.src = originalSrc + '?t=' + Date.now(); // 添加时间戳避免缓存
+        });
+      }
+    } else {
+      logger.warn('[ImageComponent] 附件在软删除目录中不存在，可能已被永久删除:', { noteName, fileName });
+    }
+  } catch (error) {
+    logger.error('[ImageComponent] 恢复附件失败:', error);
   }
 };
 
@@ -301,22 +355,31 @@ onMounted(() => {
   img.onload = () => {
     originalWidth.value = img.naturalWidth;
     originalHeight.value = img.naturalHeight;
-    
+
     if (props.node.attrs.width) {
-      currentWidth.value = props.node.attrs.width;  
+      currentWidth.value = props.node.attrs.width;
     }
-    
+
     if (props.node.attrs.height) {
       currentHeight.value = props.node.attrs.height;
     }
 
+    // 图片加载成功后，重置错误状态
+    hasLoadError.value = false;
   };
-  
-  img.onerror = (error) => {
+
+  img.onerror = async (error) => {
     logger.error('[ImageComponent] 图片加载失败:', error);
     logger.error('[ImageComponent] 图片 src:', props.node.attrs.src);
+    logger.error('[ImageComponent] 原始路径:', originalPath.value);
+
+    // 尝试从软删除目录恢复附件
+    if (originalPath.value && !hasLoadError.value) {
+      hasLoadError.value = true;
+      await tryRestoreAttachment();
+    }
   };
-  
+
   img.src = props.node.attrs.src;
   
   // 添加全局点击事件监听器，关闭右键菜单

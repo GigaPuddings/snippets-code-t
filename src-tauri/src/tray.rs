@@ -1,7 +1,8 @@
 use crate::window::{ hotkey_config, hotkey_translate, hotkey_dark_mode, open_config_settings, hotkey_screenshot };
-use crate::dark_mode::{stop_scheduler, load_config, save_config, set_windows_dark_mode, ThemeMode, ScheduleType, start_scheduler};
+use crate::dark_mode::{stop_scheduler, load_config, save_config, set_windows_dark_mode, get_windows_dark_mode, ThemeMode, ScheduleType, start_scheduler};
+use tauri::Emitter;
 use crate::config::get_language_internal;
-use log::info;
+use log::{debug, info};
 use tauri::{
     menu::{Menu, MenuItem, CheckMenuItem, Submenu, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -79,6 +80,9 @@ fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<ta
     let is_custom = matches!(config.theme_mode, ThemeMode::Schedule) 
         && matches!(config.schedule_type, ScheduleType::Custom);
     
+    debug!("[托盘菜单] 主题子菜单状态: 跟随系统={}, 浅色={}, 深色={}, 日出日落={}, 自定义={}", 
+        is_system, is_light, is_dark, is_sun_based, is_custom);
+    
     // 创建带勾选状态的菜单项
     let system_i = CheckMenuItem::with_id(app, "theme_system", trans.theme_system, true, is_system, None::<&str>)?;
     let light_i = CheckMenuItem::with_id(app, "theme_light", trans.theme_light, true, is_light, None::<&str>)?;
@@ -108,56 +112,68 @@ fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<ta
 
 // 处理主题菜单项点击
 pub fn handle_theme_menu_click(app: &AppHandle, menu_id: &str) {
+debug!("[托盘菜单] 点击主题菜单项: {}", menu_id);
     let mut config = load_config(app);
+    let mut should_restart_scheduler = false;
     
     match menu_id {
         "theme_system" => {
             config.theme_mode = ThemeMode::System;
             stop_scheduler();
-            info!("切换到跟随系统模式");
+            info!("[TrayMenu] 切换到跟随系统模式");
         }
         "theme_light" => {
             config.theme_mode = ThemeMode::Light;
             stop_scheduler();
             let _ = set_windows_dark_mode(false);
-            info!("切换到浅色模式");
+            info!("[TrayMenu] 切换到浅色模式");
         }
         "theme_dark" => {
             config.theme_mode = ThemeMode::Dark;
             stop_scheduler();
             let _ = set_windows_dark_mode(true);
-            info!("切换到深色模式");
+            info!("[TrayMenu] 切换到深色模式");
         }
         "theme_sun_based" => {
             config.theme_mode = ThemeMode::Schedule;
             config.schedule_type = ScheduleType::SunBased;
-            // 启动调度器
-            let app_clone = app.clone();
-            std::thread::spawn(move || {
-                let _ = start_scheduler(app_clone);
-            });
-            info!("切换到日出日落模式");
+            should_restart_scheduler = true;
+            info!("[TrayMenu] 切换到日出日落模式");
         }
         "theme_custom" => {
             config.theme_mode = ThemeMode::Schedule;
             config.schedule_type = ScheduleType::Custom;
-            // 启动调度器
-            let app_clone = app.clone();
-            std::thread::spawn(move || {
-                let _ = start_scheduler(app_clone);
-            });
-            info!("切换到自定义时间模式");
+            should_restart_scheduler = true;
+            info!("[TrayMenu] 切换到自定义时间模式");
         }
         "theme_settings" => {
             hotkey_dark_mode();
+            info!("[TrayMenu] 打开主题设置");
             return; // 不需要保存配置
         }
         _ => return,
     }
-    
-    // 保存配置并更新托盘菜单
-    let _ = save_config(app, &config);
+
+    if should_restart_scheduler {
+        // Schedule 模式：先保存，再重启调度器，避免读取旧配置造成瞬时抖动
+        if let Err(e) = save_config(app, &config) {
+            log::error!("[TrayMenu] 保存定时主题配置失败: {}", e);
+        }
+        stop_scheduler();
+        let _ = start_scheduler(app.clone());
+    } else {
+        debug!("[托盘菜单] 已保存主题配置并刷新托盘菜单");
+        let _ = save_config(app, &config);
+    }
+
     update_tray_theme_status(app);
+
+    // 广播后端权威主题状态，确保 dark_mode/config 等窗口立即同步状态徽标
+    let current_is_dark = get_windows_dark_mode().unwrap_or(false);
+    let _ = app.emit("dark-mode-changed", serde_json::json!({
+        "isDark": current_is_dark,
+        "reason": "tray_menu"
+    }));
 }
 
 pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
@@ -207,7 +223,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             
             match menu_id {
                 "search" => {
-                    info!("============== Search ==============");
+debug!("[托盘菜单] 执行：快速搜索");
                     if let Some(window) = app.get_webview_window("main") {
                         let _ = window.center();
                         let _ = window.show();
@@ -215,19 +231,19 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     }
                 }
                 "config" => {
-                    info!("============== Config ==============");
+debug!("[托盘菜单] 执行：打开配置窗口");
                     open_config_settings();
                 }
                 "translate" => {
-                    info!("============== Translate ==============");
+debug!("[托盘菜单] 执行：输入翻译");
                     hotkey_translate();
                 }
                 "screenshot" => {
-                    info!("============== Screenshot ==============");
+debug!("[托盘菜单] 执行：快速截图");
                     hotkey_screenshot();
                 }
                 "view_log" => {
-                    info!("============== View Log ==============");
+debug!("[托盘菜单] 执行：打开日志目录");
                     if let Ok(log_path) = app.path().app_log_dir() {
                         if let Some(path_str) = log_path.to_str() {
                             let _ = app.opener().open_path(path_str, Option::<String>::None);
@@ -235,7 +251,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     }
                 }
                 "quit" => {
-                    info!("============== Quit App ==============");
+info!("[托盘菜单] 用户选择退出程序");
                     stop_scheduler();
                     let _ = app.global_shortcut().unregister_all();
                     app.exit(0);

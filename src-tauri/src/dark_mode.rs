@@ -1,7 +1,7 @@
 use chrono::{Datelike, Local, Timelike};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::{atomic::{AtomicU64, Ordering}, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::time;
@@ -79,6 +79,8 @@ pub struct SunTimes {
 // 全局状态存储
 static DARK_MODE_CONFIG: Mutex<Option<DarkModeConfig>> = Mutex::new(None);
 static SCHEDULER_RUNNING: Mutex<bool> = Mutex::new(false);
+static SCHEDULER_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
+static ACTIVE_SCHEDULER_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
 
 // Windows系统主题控制
 // 设置 Windows 10/11 全局深色/浅色模式，包括：
@@ -90,6 +92,8 @@ pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
     use winreg::RegKey;
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+    debug!("Windows 系统主题控制开始执行");
     
     // 打开主题个性化注册表项
     let theme_key = hkcu
@@ -113,6 +117,7 @@ pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
         .map_err(|e| format!("设置系统主题失败: {}", e))?;
 
     // 3. 发送系统广播消息，通知所有窗口和系统组件主题已更改
+    // 使用更短的超时时间（500ms）和异步消息，避免被慢响应的应用阻塞
     unsafe {
         use windows::Win32::Foundation::{LPARAM, WPARAM};
         use windows::Win32::UI::WindowsAndMessaging::{
@@ -123,6 +128,7 @@ pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
         let mut result = 0;
 
         // 发送 ImmersiveColorSet 消息 - 通知 UWP 和现代应用颜色变化
+        // 减少超时时间到 500ms，避免长时间阻塞
         let immersive_color = "ImmersiveColorSet\0".encode_utf16().collect::<Vec<u16>>();
         SendMessageTimeoutW(
             HWND_BROADCAST,
@@ -130,7 +136,7 @@ pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
             WPARAM(0),
             LPARAM(immersive_color.as_ptr() as isize),
             SMTO_ABORTIFHUNG,
-            3000,
+            500,
             Some(&mut result),
         );
 
@@ -142,27 +148,24 @@ pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
             WPARAM(0),
             LPARAM(theme_element.as_ptr() as isize),
             SMTO_ABORTIFHUNG,
-            3000,
+            500,
             Some(&mut result),
         );
 
-        // 发送通用 WM_SETTINGCHANGE 消息
+        // 使用 PostMessage 异步发送，不等待响应，立即返回
         let personalize = "Personalize\0".encode_utf16().collect::<Vec<u16>>();
-        SendMessageTimeoutW(
-            HWND_BROADCAST,
+        let _ = PostMessageW(
+            Some(HWND_BROADCAST),
             WM_SETTINGCHANGE,
             WPARAM(0),
             LPARAM(personalize.as_ptr() as isize),
-            SMTO_ABORTIFHUNG,
-            3000,
-            Some(&mut result),
         );
 
-        // 发送 WM_THEMECHANGED 消息 - 通知主题完全变化
+        // 发送 WM_THEMECHANGED 消息 - 通知主题完全变化（异步）
         let _ = PostMessageW(Some(HWND_BROADCAST), WM_THEMECHANGED, WPARAM(0), LPARAM(0));
     }
 
-    info!("Windows dark mode set to: {}", if enabled { "dark" } else { "light" });
+    info!("Windows 主题已设置为: {}", if enabled { "深色" } else { "浅色" });
     Ok(())
 }
 
@@ -392,7 +395,7 @@ pub fn save_config(_app_handle: &AppHandle, config: &DarkModeConfig) -> Result<(
     
     // 保存到 app.json
     let app = APP.get().ok_or("应用未初始化")?;
-    info!("Saving dark mode config to app.json");
+    info!("正在保存深色模式配置到 app.json");
     json_config::set_app_config_value(app, "dark_mode_config", config_json)?;
     
     // 更新全局状态
@@ -422,71 +425,21 @@ pub fn load_config(_app_handle: &AppHandle) -> DarkModeConfig {
     default_config
 }
 
-// 计算下次主题切换的时间（秒），用于优化调度器
-// 返回从现在到下次切换需要的秒数，如果无法计算则返回默认 60 秒
-fn calculate_next_switch_seconds(config: &DarkModeConfig) -> u64 {
-    let now = Local::now();
-    let current_time = format!("{:02}:{:02}", now.hour(), now.minute());
-    let current_min = time_to_minutes(&current_time);
-
-    match config.schedule_type {
-        ScheduleType::Custom => {
-            if let (Some(light_time), Some(dark_time)) = (&config.custom_light_time, &config.custom_dark_time) {
-                let light_min = time_to_minutes(light_time);
-                let dark_min = time_to_minutes(dark_time);
-
-                let (next_switch_min, _is_going_to_dark) = if dark_min <= light_min {
-                    // 同一天：深色 [dark_min, light_min)
-                    if current_min >= light_min || current_min < dark_min {
-                        // 当前是浅色，下一个是 dark_min
-                        (dark_min, true)
-                    } else {
-                        // 当前是深色，下一个是 light_min
-                        (light_min, false)
-                    }
-                } else {
-                    // 跨天：深色 [dark_min, 24:00) ∪ [0, light_min)
-                    if current_min >= dark_min || current_min < light_min {
-                        // 当前是深色
-                        if current_min >= dark_min {
-                            // 下一个是 light_min（第二天）
-                            (light_min, false)
-                        } else {
-                            // 下一个是 light_min（当天）
-                            (light_min, false)
-                        }
-                    } else {
-                        // 当前是浅色，下一个是 dark_min
-                        (dark_min, true)
-                    }
-                };
-
-                // 计算秒数
-                let mut diff = next_switch_min - current_min;
-                if diff <= 0 {
-                    diff += 24 * 60; // 跨天
-                }
-                (diff * 60) as u64
-            } else {
-                60 // 默认
-            }
-        }
-        ScheduleType::SunBased => {
-            // 日出日落模式使用固定间隔检查，因为 sunrise/sunset 每天变化
-            // 但可以延长检查间隔到 5 分钟（300 秒），因为日落不会突变
-            300
-        }
-    }
-}
-
 // 启动定时切换服务
 pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
+    let instance_id = SCHEDULER_INSTANCE_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
+
     let mut running = SCHEDULER_RUNNING.lock().unwrap();
     if *running {
+        let active_id = ACTIVE_SCHEDULER_INSTANCE_ID.load(Ordering::SeqCst);
+        info!("[调度器] start_scheduler 被调用，但已有实例在运行: active_instance_id={}", active_id);
         return Ok(()); // 已经在运行
     }
     *running = true;
+    ACTIVE_SCHEDULER_INSTANCE_ID.store(instance_id, Ordering::SeqCst);
     drop(running);
+
+    info!("[调度器] 启动新实例: instance_id={}", instance_id);
 
     let app_handle_clone = app_handle.clone();
     tauri::async_runtime::spawn(async move {
@@ -503,7 +456,7 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
             && config.schedule_type == ScheduleType::SunBased
             && config.latitude.is_none()
         {
-            info!("Schedule mode enabled, auto-fetching location...");
+            info!("定时模式已启用，正在自动获取位置信息...");
             if let Ok(location) = get_location_by_ip().await {
                 config.latitude = Some(location.latitude);
                 config.longitude = Some(location.longitude);
@@ -513,22 +466,39 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
                 if let Err(e) = save_config(&app_handle_clone, &config) {
                     error!("Failed to save location: {}", e);
                 } else {
-                    info!("Location auto-fetched: {}, {}", location.city, location.country);
+                    info!("位置信息自动获取成功: {}, {}", location.city, location.country);
+                    // 位置更新后，重新用新位置计算一次主题（避免用旧/无效位置导致判断错误）
+                    if let Err(e) = check_and_switch_theme(&app_handle_clone, &config).await {
+                        error!("Theme recheck after location fetch failed: {}", e);
+                    }
                 }
             } else {
                 warn!("Failed to auto-fetch location, using default times");
             }
         }
 
-        // 立即执行一次主题检查
+        // 立即执行一次主题检查，确保前端能收到当前实际状态
         if let Err(e) = check_and_switch_theme(&app_handle_clone, &config).await {
             error!("Initial theme switch failed: {}", e);
         }
 
-        // 主循环：使用动态间隔
+        // 主循环：简化策略 - 每 30 秒检查一次，确保可靠性
+        // 这种方式虽然会多一些 CPU 唤醒，但能保证：
+        // 1. 到达切换时间后 30 秒内必定执行
+        // 2. 能应对系统时间变更
+        // 3. 逻辑简单，不易出错
+        info!("[调度器][实例:{}] 主循环已启动，每 30 秒检查一次主题", instance_id);
         loop {
+            // 防并发：若当前实例已不是活跃实例，立即退出
+            let active_id = ACTIVE_SCHEDULER_INSTANCE_ID.load(Ordering::SeqCst);
+            if active_id != instance_id {
+                info!("[调度器][实例:{}] 检测到已被新实例接管(active_instance_id={})，当前实例退出", instance_id, active_id);
+                break;
+            }
+
             // 检查是否应该停止
             if !*SCHEDULER_RUNNING.lock().unwrap() {
+                info!("[调度器][实例:{}] 收到停止信号，准备退出", instance_id);
                 break;
             }
 
@@ -537,26 +507,30 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
             // 只有定时模式才需要调度
             if config.theme_mode != ThemeMode::Schedule {
                 // 非 Schedule 模式，每 60 秒检查一次是否切换回 Schedule
+                info!("[调度器][实例:{}] 当前非 Schedule 模式，60 秒后重试", instance_id);
                 time::sleep(Duration::from_secs(60)).await;
                 continue;
             }
 
-            // 计算下次切换时间，优化休眠
-            let sleep_seconds = calculate_next_switch_seconds(&config);
-            time::sleep(Duration::from_secs(sleep_seconds)).await;
-
-            // 再次检查是否应该停止（防止停止后还在执行）
-            if !*SCHEDULER_RUNNING.lock().unwrap() {
-                break;
-            }
-
-            // 执行主题切换逻辑
+            // 执行主题检查和切换
+            debug!("[调度器][实例:{}] 开始主题检查，当前时间 {}", instance_id, Local::now().format("%H:%M:%S"));
             if let Err(e) = check_and_switch_theme(&app_handle_clone, &config).await {
-                error!("Theme switch failed: {}", e);
+                error!("[调度器][实例:{}] 主题切换检查失败: {}", instance_id, e);
             }
+
+            // 等待 30 秒后再次检查
+            time::sleep(Duration::from_secs(30)).await;
         }
 
-        info!("Auto Dark Mode scheduler stopped");
+        // 实例退出时，仅当自己仍为活跃实例才清理全局状态
+        let active_id = ACTIVE_SCHEDULER_INSTANCE_ID.load(Ordering::SeqCst);
+        if active_id == instance_id {
+            *SCHEDULER_RUNNING.lock().unwrap() = false;
+            ACTIVE_SCHEDULER_INSTANCE_ID.store(0, Ordering::SeqCst);
+            info!("[调度器][实例:{}] 已停止，并清理活跃实例标记", instance_id);
+        } else {
+            info!("[调度器][实例:{}] 已退出（当前活跃实例为:{}）", instance_id, active_id);
+        }
     });
 
     Ok(())
@@ -564,44 +538,60 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
 
 // 停止定时切换服务
 pub fn stop_scheduler() {
-    info!("Stopping Auto Dark Mode scheduler");
+    let active_id = ACTIVE_SCHEDULER_INSTANCE_ID.load(Ordering::SeqCst);
+    info!("[调度器] 请求停止调度器，active_instance_id={}", active_id);
     *SCHEDULER_RUNNING.lock().unwrap() = false;
+    ACTIVE_SCHEDULER_INSTANCE_ID.store(0, Ordering::SeqCst);
 }
 
 // 检查并切换主题
 async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig) -> Result<(), String> {
     let now = Local::now();
     let current_time = format!("{:02}:{:02}", now.hour(), now.minute());
+    debug!("[主题检查] 当前时间={}, 定时类型={:?}", current_time, config.schedule_type);
 
     let should_be_dark = match config.schedule_type {
         ScheduleType::Custom => {
-            // 自定义时间：深色时段为 [dark_time, light_time)，支持跨天（如 dark 16:19, light 16:20）
             if let (Some(light_time), Some(dark_time)) = (&config.custom_light_time, &config.custom_dark_time) {
+                debug!("[主题检查] 自定义模式: 深色时间={}, 浅色时间={}", dark_time, light_time);
                 is_dark_time_custom(&current_time, dark_time, light_time)
             } else {
+                debug!("[主题检查] 自定义模式未设置时间，跳过");
                 return Ok(()); // 没有设置自定义时间
             }
         }
         ScheduleType::SunBased => {
-            // 日出日落模式
             if let (Some(lat), Some(lon)) = (config.latitude, config.longitude) {
                 let timezone_offset = config.timezone_offset.unwrap_or_else(|| {
                     get_windows_timezone_info().map(|(_, offset)| offset).unwrap_or(0)
                 });
 
-                let sun_times = calculate_sun_times(lat, lon, timezone_offset)?;
-                is_dark_time(&current_time, &sun_times.sunrise, &sun_times.sunset)
+                match calculate_sun_times(lat, lon, timezone_offset) {
+                    Ok(sun_times) => {
+                        debug!("[主题检查] 日出日落模式: 日出={}, 日落={}, 白天={}, 纬度={}, 经度={}", sun_times.sunrise, sun_times.sunset, sun_times.is_day, lat, lon);
+                        is_dark_time(&current_time, &sun_times.sunrise, &sun_times.sunset)
+                    }
+                    Err(e) => {
+                        error!("[ThemeCheck] SunBased: calculate_sun_times failed: {}", e);
+                        return Err(e);
+                    }
+                }
             } else {
+                debug!("[主题检查] 日出日落模式缺少位置信息，跳过");
                 return Ok(()); // 没有位置信息
             }
         }
     };
 
+    debug!("[主题检查] 目标是否深色={}", should_be_dark);
+
     // 获取当前系统主题状态
     let current_is_dark = get_windows_dark_mode().unwrap_or(false);
+    debug!("[主题检查] 当前是否深色={}", current_is_dark);
 
-    // 只有当需要切换时才执行
+    // 只有当需要切换时才修改 Windows 主题
     if should_be_dark != current_is_dark {
+        info!("[主题检查] 主题不一致，准备切换: {} -> {}", if current_is_dark { "深色" } else { "浅色" }, if should_be_dark { "深色" } else { "浅色" });
         // 设置主题，失败时记录并通知用户
         if let Err(e) = set_windows_dark_mode(should_be_dark) {
             error!("Failed to switch theme: {}", e);
@@ -618,12 +608,16 @@ async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig)
         crate::tray::update_tray_theme_status(app_handle);
 
         // 通知前端主题已更改
+    debug!("[主题检查] 已通知前端主题变化: isDark={}", should_be_dark);
         let _ = app_handle.emit("dark-mode-changed", serde_json::json!({
             "isDark": should_be_dark,
             "reason": "auto_switch"
         }));
 
-        info!("Theme auto-switched to: {}", if should_be_dark { "dark" } else { "light" });
+        info!("主题已自动切换为: {}", if should_be_dark { "深色" } else { "浅色" });
+    } else {
+        // 不需要切换，只保留调试日志
+        debug!("[主题检查] 无需切换，当前={} 与目标={} 一致", current_is_dark, should_be_dark);
     }
 
     Ok(())
@@ -649,18 +643,29 @@ fn is_dark_time(current: &str, sunrise: &str, sunset: &str) -> bool {
     current_min < sunrise_min || current_min >= sunset_min
 }
 
-// 自定义时间模式：深色时段为 [dark_time, light_time)，支持跨天（如深色 16:19、浅色 16:20）
+// 自定义时间模式：
+// dark_time: 切换到深色的时间
+// light_time: 切换到浅色的时间
+// 例如：dark_time=18:00, light_time=06:00 表示 18:00 切换到深色，06:00 切换到浅色
 fn is_dark_time_custom(current: &str, dark_time: &str, light_time: &str) -> bool {
     let current_min = time_to_minutes(current);
     let dark_min = time_to_minutes(dark_time);
     let light_min = time_to_minutes(light_time);
-    if dark_min <= light_min {
-        // 同一天内：深色 = [dark_time, light_time)
+    
+    let result = if dark_min < light_min {
+        // 同一天内切换：深色时段 = [dark_time, light_time)
+        // 例如：dark=08:00, light=20:00，则 08:00-20:00 是深色
         current_min >= dark_min && current_min < light_min
     } else {
-        // 跨天：深色 = [dark_time, 24:00) 或 [0, light_time)
+        // 跨天切换：深色时段 = [dark_time, 24:00) ∪ [0, light_time)
+        // 例如：dark=18:00, light=06:00，则 18:00-06:00 是深色
         current_min >= dark_min || current_min < light_min
-    }
+    };
+    
+    debug!("[自定义时间判断] 当前={}({}分), 深色={}({}分), 浅色={}({}分), 结果={}", 
+        current, current_min, dark_time, dark_min, light_time, light_min, result);
+    
+    result
 }
 
 // 手动切换主题
@@ -675,15 +680,17 @@ pub fn toggle_theme(app_handle: Option<&AppHandle>) -> Result<bool, String> {
     
     set_windows_dark_mode(new_state)?;
     
-    info!("Manual theme toggle: {} -> {}",
-        if current_is_dark { "dark" } else { "light" },
-        if new_state { "dark" } else { "light" }
+    info!("手动切换系统主题: {} -> {}",
+        if current_is_dark { "深色" } else { "浅色" },
+        if new_state { "深色" } else { "浅色" }
     );
     
     // 发送主题变化事件通知前端
     if let Some(handle) = app_handle {
         // 更新托盘菜单主题状态
         crate::tray::update_tray_theme_status(handle);
+        
+        debug!("手动切换后已更新托盘菜单并通知前端主题变化");
         
         let _ = handle.emit("dark-mode-changed", serde_json::json!({
             "isDark": new_state,

@@ -275,7 +275,8 @@ async fn save_dark_mode_config_command(app_handle: AppHandle, config: DarkModeCo
             crate::tray::update_tray_theme_status(&app_handle);
         }
         ThemeMode::Schedule => {
-            // 启动定时调度
+            // 重新启动定时调度：确保切换到 Schedule 或修改时间后立即按新配置执行一次检查
+            stop_scheduler();
             start_scheduler(app_handle)?;
         }
     }
@@ -434,23 +435,35 @@ pub fn run() {
                     Target::new(TargetKind::LogDir { file_name: None }),
                     Target::new(TargetKind::Webview),
                 ])
-                // .filter(|metadata| {
-                //     // 过滤掉 tao 的事件循环警告（这些是已知的无害警告）
-                //     if metadata.target().starts_with("tao::platform_impl::platform::event_loop") {
-                //         return metadata.level() > log::LevelFilter::Warn;
-                //     }
-                //     // 过滤掉 tauri::manager 关于 asset 的调试信息
-                //     if metadata.target() == "tauri::manager" && metadata.level() == log::LevelFilter::Debug {
-                //         return false;
-                //     }
-                //     // 过滤掉 HTTP 客户端的 TRACE/DEBUG 日志（图标加载时会产生大量日志）
-                //     if metadata.target().starts_with("hyper_util::") || 
-                //        metadata.target().starts_with("reqwest::") ||
-                //        metadata.target().starts_with("hyper::") {
-                //         return metadata.level() >= log::LevelFilter::Info;
-                //     }
-                //     true
-                // })
+                .filter(|metadata| {
+                    let target = metadata.target();
+                    let level = metadata.level();
+
+                    // 压制 Windows 文件监听的高频日志，避免索引期间日志风暴
+                    if target.starts_with("notify::windows") {
+                        return level <= log::Level::Info;
+                    }
+
+                    // 过滤掉 tao 的事件循环噪音
+                    if target.starts_with("tao::platform_impl::platform::event_loop") {
+                        return level >= log::Level::Warn;
+                    }
+
+                    // 过滤 tauri::manager 的调试日志
+                    if target == "tauri::manager" && level == log::Level::Debug {
+                        return false;
+                    }
+
+                    // 过滤 HTTP 客户端 TRACE/DEBUG（图标加载会非常多）
+                    if target.starts_with("hyper_util::")
+                        || target.starts_with("reqwest::")
+                        || target.starts_with("hyper::")
+                    {
+                        return level >= log::Level::Warn;
+                    }
+
+                    true
+                })
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -475,7 +488,19 @@ pub fn run() {
 
             // 初始化待处理的「系统打开 Markdown 文件」队列（用于双击/关联打开 .md 时 Config 窗口未就绪）
             app.manage(Arc::new(Mutex::new(Vec::<String>::new())));
-            
+
+            // === Dark Mode 调度器：立即在后台启动（与窗口初始化完全并行）===
+            let app_handle_scheduler = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use dark_mode::ThemeMode;
+                let config = dark_mode::load_config(&app_handle_scheduler);
+                if config.theme_mode == ThemeMode::Schedule {
+                    if let Err(e) = dark_mode::start_scheduler(app_handle_scheduler) {
+                        log::warn!("Dark Mode调度器启动失败: {}", e);
+                    }
+                }
+            });
+
             // 监听 config_ready 事件，发送待处理的冲突
             // 使用全局监听器而不是窗口监听器，确保能收到前端发送的事件
             let app_handle_conflict = app.handle().clone();
@@ -556,7 +581,7 @@ pub fn run() {
             });
             
             // 检查是否已完成首次设置
-            let is_setup_completed = db::is_setup_completed_internal(&app.handle());
+            let is_setup_completed = db::is_setup_completed_internal(app.handle());
             
             // 如果已完成设置，才初始化数据库
             if is_setup_completed {
@@ -772,17 +797,9 @@ pub fn run() {
                         .show();
                 }
                 
-                // 第三步：后台服务（提醒、Dark Mode、更新状态重置）
+                // 第三步：后台服务（提醒已在setup立即启动，Dark Mode调度器已在前台阶段立即启动）
                 alarm::start_alarm_service(app_handle_init.clone());
-                
-                use dark_mode::ThemeMode;
-                let config = load_dark_mode_config(&app_handle_init);
-                if config.theme_mode == ThemeMode::Schedule {
-                    if let Err(e) = start_scheduler(app_handle_init.clone()) {
-                        log::warn!("Dark Mode调度器启动失败: {}", e);
-                    }
-                }
-                
+
                 // 重置更新状态（使用 JSON 配置）
                 let _ = json_config::set_app_config_value(&app_handle_init, "update_available", false);
                 
@@ -835,13 +852,8 @@ pub fn run() {
                         // 首次启动：只显示 setup 窗口
                         create_setup_window();
                     } else {
-                        // 正常启动：显示加载窗口后打开主窗口
-                        if let Some(w) = app_handle_startup.get_webview_window("loading") {
-                            let _ = w.show();
-                            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                            let _ = w.hide();
-                        }
-                        crate::window::hotkey_config();
+                        // 正常启动：loading 过渡 + config 静默加载，ready 后再展示
+                        crate::window::open_config_with_loading_transition();
                     }
                 });
             }
@@ -988,6 +1000,9 @@ pub fn run() {
             attachment::cleanup_attachments_on_delete,  // 删除笔记时清理附件
             attachment::cleanup_unused_attachments,     // 清理未使用的附件
             attachment::cleanup_orphaned_attachments,   // 清理孤立附件
+            attachment::restore_deleted_attachment,     // 恢复单个被误删的附件
+            attachment::restore_all_deleted_attachments, // 恢复笔记所有被误删的附件
+            attachment::delete_all_trash_attachments,   // 删除所有软删除的附件
             // 工作区配置命令
             markdown::get_sync_enabled,                 // 获取同步开关状态
             markdown::set_sync_enabled,                 // 设置同步开关状态

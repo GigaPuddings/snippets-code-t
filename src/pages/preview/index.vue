@@ -85,7 +85,7 @@ import { useRoute } from 'vue-router';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { emit, listen } from '@tauri-apps/api/event';
+import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ContentType } from '@/types/models';
 import { useConfigurationStore } from '@/store';
 import { processTemplate, previewTemplate } from '@/utils/templateParser';
@@ -100,6 +100,7 @@ const snippet = ref<ContentType | null>(null);
 const isLoading = ref(true);
 const codeEditorRef = ref<InstanceType<typeof CodeMirrorEditor> | null>(null);
 const noteEditorRef = ref<InstanceType<typeof TipTapEditor> | null>(null);
+let unlistenThemeChanged: UnlistenFn | null = null;
 
 // 主题计算 - 与 content 页面保持一致
 const isDark = computed(() => store.effectiveDark);
@@ -137,18 +138,15 @@ onMounted(async () => {
   // 应用主题
   applyTheme();
   
-  // 监听主题变化事件
-  await listen('theme-changed', (event: any) => {
+  // 监听主题变化事件（只保留一个监听器，避免重复处理）
+  unlistenThemeChanged = await listen('theme-changed', (event: any) => {
     if (event.payload?.theme) {
       store.theme = event.payload.theme;
     }
-    applyTheme();
-  });
 
-  // 监听系统主题变化
-  await listen('dark-mode-changed', (event: any) => {
-    if (store.theme === 'auto') {
-      store.syncSystemThemeStyle(event.payload.isDark);
+    // 仅在用户主动切换时处理，系统/后端事件由全局主题监听器处理
+    if (event.payload?.source === 'user-change') {
+      logger.debug(`[主题][窗口:preview] 收到用户主题切换事件：${JSON.stringify(event.payload)}`);
       applyTheme();
     }
   });
@@ -185,6 +183,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown);
+  unlistenThemeChanged?.();
+  unlistenThemeChanged = null;
 });
 
 // 键盘事件

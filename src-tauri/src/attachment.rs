@@ -321,7 +321,19 @@ pub async fn cleanup_attachments_on_delete(
     }
 }
 
+/// 获取软删除目录路径
+pub fn get_trash_dir(workspace_root: &Path) -> Result<PathBuf, String> {
+    let trash_dir = workspace_root.join(".snippets-code").join("deleted_attachments");
+    if !trash_dir.exists() {
+        fs::create_dir_all(&trash_dir)
+            .map_err(|e| format!("Failed to create trash directory: {}", e))?;
+    }
+    Ok(trash_dir)
+}
+
 /// 清理未使用的附件（检测笔记内容中未引用的图片）
+/// 注意：文件不会真正删除，而是移动到 .snippets-code/deleted_attachments/ 临时目录
+/// 这样可以支持撤销删除后恢复
 #[command]
 pub async fn cleanup_unused_attachments(
     note_name: String,
@@ -339,25 +351,52 @@ pub async fn cleanup_unused_attachments(
         return Ok(0);
     }
     
+    // 获取软删除目录
+    let trash_dir = get_trash_dir(&workspace_root)?;
+    
+    // 确保笔记在软删除目录中有子目录
+    let note_trash_dir = trash_dir.join(&note_name);
+    if !note_trash_dir.exists() {
+        fs::create_dir_all(&note_trash_dir)
+            .map_err(|e| format!("Failed to create note trash directory: {}", e))?;
+    }
+    
     // 读取附件文件夹中的所有文件
-    let entries = fs::read_dir(&attachment_dir)
-        .map_err(|e| format!("Failed to read attachment directory: {}", e))?;
+    let entries: Vec<_> = fs::read_dir(&attachment_dir)
+        .map_err(|e| format!("Failed to read attachment directory: {}", e))?
+        .filter_map(|e| e.ok())
+        .collect();
     
     let mut deleted_count = 0;
     
     for entry in entries {
-        if let Ok(entry) = entry {
-            let file_name = entry.file_name();
-            let file_name_str = file_name.to_string_lossy();
+        let file_name = entry.file_name();
+        let file_name_str = file_name.to_string_lossy();
+        
+        // 检查文件名是否在笔记内容中被引用
+        if !note_content.contains(&*file_name_str) {
+            // 未被引用，移动到软删除目录而不是直接删除
+            let source_path = entry.path();
+            let target_path = note_trash_dir.join(&*file_name_str);
             
-            // 检查文件名是否在笔记内容中被引用
-            if !note_content.contains(&*file_name_str) {
-                // 未被引用，删除文件
-                if let Err(e) = fs::remove_file(entry.path()) {
-                    log::warn!("Failed to delete unused attachment {}: {}", file_name_str, e);
+            // 如果目标已存在（之前也被标记为删除），先删除旧的
+            if target_path.exists() {
+                let _ = fs::remove_file(&target_path);
+            }
+            
+            if let Err(e) = fs::rename(&source_path, &target_path) {
+                // 如果重命名失败（可能是跨设备），尝试复制后删除
+                log::warn!("Failed to move attachment to trash (rename): {}, trying copy", e);
+                if let Err(e2) = fs::copy(&source_path, &target_path) {
+                    log::warn!("Failed to move attachment to trash (copy): {}", e2);
+                } else if let Err(e2) = fs::remove_file(&source_path) {
+                    log::warn!("Failed to delete original after copy: {}", e2);
                 } else {
                     deleted_count += 1;
                 }
+            } else {
+                deleted_count += 1;
+                log::info!("Soft-deleted attachment: {} -> {}", source_path.display(), target_path.display());
             }
         }
     }
@@ -370,6 +409,179 @@ pub async fn cleanup_unused_attachments(
     }
     
     Ok(deleted_count)
+}
+
+/// 从软删除目录恢复被误删的附件
+/// 当检测到笔记内容中引用了某个附件但该附件不存在时调用此函数
+#[command]
+pub async fn restore_deleted_attachment(
+    note_name: String,
+    file_name: String,
+    app_handle: tauri::AppHandle,
+) -> Result<bool, String> {
+    let workspace_root = get_workspace_root(&app_handle)?;
+    let config = get_attachment_config_internal(&app_handle)?;
+    
+    // 计算目标附件文件夹路径
+    let attachment_dir = workspace_root
+        .join(config.path_template.replace("${noteFileName}", &note_name));
+    
+    // 确保目标目录存在
+    if !attachment_dir.exists() {
+        fs::create_dir_all(&attachment_dir)
+            .map_err(|e| format!("Failed to create attachment directory: {}", e))?;
+    }
+    
+    // 从软删除目录查找文件
+    let trash_dir = get_trash_dir(&workspace_root)?;
+    let note_trash_dir = trash_dir.join(&note_name);
+    let source_path = note_trash_dir.join(&file_name);
+    
+    if !source_path.exists() {
+        log::warn!("File not found in trash: {}", source_path.display());
+        return Ok(false);
+    }
+    
+    let target_path = attachment_dir.join(&file_name);
+    
+    // 如果目标已存在，不需要恢复
+    if target_path.exists() {
+        log::info!("File already exists, no need to restore: {}", target_path.display());
+        // 清理软删除目录中的副本
+        let _ = fs::remove_file(&source_path);
+        return Ok(true);
+    }
+    
+    // 恢复文件
+    if let Err(e) = fs::rename(&source_path, &target_path) {
+        // 如果重命名失败（可能是跨设备），尝试复制后删除
+        log::warn!("Failed to restore attachment (rename): {}, trying copy", e);
+        fs::copy(&source_path, &target_path)
+            .map_err(|e| format!("Failed to copy attachment: {}", e))?;
+        fs::remove_file(&source_path)
+            .map_err(|e| format!("Failed to delete trash file: {}", e))?;
+    }
+    
+    log::info!("Restored attachment: {} -> {}", source_path.display(), target_path.display());
+    
+    // 如果软删除目录为空，删除它
+    if let Ok(entries) = fs::read_dir(&note_trash_dir) {
+        if entries.count() == 0 {
+            let _ = fs::remove_dir(&note_trash_dir);
+        }
+    }
+    
+    Ok(true)
+}
+
+/// 恢复笔记的所有被软删除的附件
+#[command]
+pub async fn restore_all_deleted_attachments(
+    note_name: String,
+    note_content: String,
+    app_handle: tauri::AppHandle,
+) -> Result<usize, String> {
+    let workspace_root = get_workspace_root(&app_handle)?;
+    let config = get_attachment_config_internal(&app_handle)?;
+    
+    // 计算目标附件文件夹路径
+    let attachment_dir = workspace_root
+        .join(config.path_template.replace("${noteFileName}", &note_name));
+    
+    // 获取软删除目录
+    let trash_dir = get_trash_dir(&workspace_root)?;
+    let note_trash_dir = trash_dir.join(&note_name);
+    
+    if !note_trash_dir.exists() {
+        return Ok(0);
+    }
+    
+    // 确保目标目录存在
+    if !attachment_dir.exists() {
+        fs::create_dir_all(&attachment_dir)
+            .map_err(|e| format!("Failed to create attachment directory: {}", e))?;
+    }
+    
+    // 读取软删除目录中的所有文件
+    let entries: Vec<_> = fs::read_dir(&note_trash_dir)
+        .map_err(|e| format!("Failed to read trash directory: {}", e))?
+        .filter_map(|e| e.ok())
+        .collect();
+    
+    let mut restored_count = 0;
+    
+    for entry in entries {
+        let file_name = entry.file_name();
+        let file_name_str = file_name.to_string_lossy();
+        
+        // 检查文件名是否在笔记内容中被引用
+        if note_content.contains(&*file_name_str) {
+            let source_path = entry.path();
+            let target_path = attachment_dir.join(&*file_name_str);
+            
+            // 如果目标已存在，跳过
+            if target_path.exists() {
+                let _ = fs::remove_file(&source_path);
+                continue;
+            }
+            
+            // 恢复文件
+            if let Err(e) = fs::rename(&source_path, &target_path) {
+                log::warn!("Failed to restore attachment (rename): {}, trying copy", e);
+                if fs::copy(&source_path, &target_path).is_ok() {
+                    let _ = fs::remove_file(&source_path);
+                    restored_count += 1;
+                }
+            } else {
+                restored_count += 1;
+                log::info!("Restored attachment: {} -> {}", source_path.display(), target_path.display());
+            }
+        }
+    }
+    
+    // 如果软删除目录为空，删除它
+    if let Ok(entries) = fs::read_dir(&note_trash_dir) {
+        if entries.count() == 0 {
+            let _ = fs::remove_dir(&note_trash_dir);
+        }
+    }
+    
+    Ok(restored_count)
+}
+
+/// 删除所有软删除的附件（Config 窗口关闭时调用）
+/// 不管是否有撤销，直接删除整个 deleted_attachments 临时目录
+#[command]
+pub async fn delete_all_trash_attachments(
+    app_handle: tauri::AppHandle,
+) -> Result<usize, String> {
+    let workspace_root = get_workspace_root(&app_handle)?;
+    let trash_dir = get_trash_dir(&workspace_root)?;
+
+    if !trash_dir.exists() {
+        return Ok(0);
+    }
+
+    // 计算文件总数
+    let mut file_count = 0;
+    if let Ok(entries) = fs::read_dir(&trash_dir) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            if entry.path().is_dir() {
+                if let Ok(sub_entries) = fs::read_dir(entry.path()) {
+                    file_count += sub_entries.filter_map(|e| e.ok()).count();
+                }
+            }
+        }
+    }
+
+    // 删除整个目录
+    if let Err(e) = fs::remove_dir_all(&trash_dir) {
+        log::warn!("Failed to delete trash directory: {}", e);
+        return Err(format!("Failed to delete trash directory: {}", e));
+    }
+
+    log::info!("Deleted all trash attachments: {} files", file_count);
+    Ok(file_count)
 }
 
 /// 获取附件配置

@@ -3,9 +3,9 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, LazyLock};
 use std::sync::RwLock as StdRwLock;
-use log::{info, warn, error};
+use log::{info, warn, error, debug};
 use tauri::{Manager, Emitter};
 use crate::git_common::decode_git_quoted_path;
 use crate::git_common::remove_token_from_url;
@@ -14,6 +14,51 @@ use crate::git_common::is_git_success;
 use crate::git_common::get_git_stdout;
 use crate::git_common::get_git_stderr;
 use crate::git_common::parse_git_file_count_output;
+
+// ============= Git 状态缓存 =============
+
+/// Git 状态缓存条目
+struct GitStatusCacheEntry {
+    status: GitStatus,
+    timestamp: std::time::Instant,
+}
+
+/// Git 状态缓存（短时缓存，减少频繁调用）
+static GIT_STATUS_CACHE: LazyLock<Mutex<Option<GitStatusCacheEntry>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+/// 缓存有效期（毫秒）
+const GIT_STATUS_CACHE_TTL_MS: u64 = 2000;
+
+/// 获取缓存的 Git 状态（如果有效）
+fn get_cached_git_status() -> Option<GitStatus> {
+    let cache = GIT_STATUS_CACHE.lock().ok()?;
+    if let Some(ref entry) = *cache {
+        let elapsed = entry.timestamp.elapsed().as_millis() as u64;
+        if elapsed < GIT_STATUS_CACHE_TTL_MS {
+            return Some(entry.status.clone());
+        }
+    }
+    None
+}
+
+/// 更新 Git 状态缓存
+fn update_git_status_cache(status: GitStatus) {
+    if let Ok(mut cache) = GIT_STATUS_CACHE.lock() {
+        *cache = Some(GitStatusCacheEntry {
+            status,
+            timestamp: std::time::Instant::now(),
+        });
+    }
+}
+
+/// 清除 Git 状态缓存（Git 操作成功后调用）
+pub fn clear_git_status_cache() {
+    if let Ok(mut cache) = GIT_STATUS_CACHE.lock() {
+        *cache = None;
+        debug!("🗑️ [Git] Git 状态缓存已清除");
+    }
+}
 
 // ============= 数据结构 =============
 
@@ -54,7 +99,7 @@ pub struct PushResult {
 }
 
 /// Git 状态
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitStatus {
     pub is_repo: bool,
     pub has_remote: bool,
@@ -459,10 +504,7 @@ pub fn configure_remote(workspace_root: &Path, remote_url: &str, token: &str) ->
 
 /// 获取 Git 状态
 pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
-    info!(
-        "📊 [Git] 开始获取 Git 状态，workspace_root: {}",
-        workspace_root.display()
-    );
+    // 不在此处输出 "开始获取" 日志，避免与 command 层重复
 
     // 检查是否是仓库
     let is_repo = check_git_repo(workspace_root)?;
@@ -1168,6 +1210,7 @@ const DEFAULT_GITIGNORE: &str = r#"# ================================
 # ------------------------------
 .snippets-code/app.json
 .snippets-code/cache.json
+.snippets-code/deleted_attachments/
 *.db
 
 # ------------------------------
@@ -1308,16 +1351,31 @@ pub fn check_git_repo_command(app_handle: AppHandle) -> Result<bool, String> {
     check_git_repo(&workspace_root)
 }
 
-/// 获取 Git 状态
+/// 获取 Git 状态（带 2 秒缓存，减少频繁调用）
 #[command]
 pub fn get_git_status_command(app_handle: AppHandle) -> Result<GitStatus, String> {
     let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
         .ok_or("工作区未设置".to_string())?;
-    info!(
+
+    // 尝试从缓存获取
+    if let Some(cached) = get_cached_git_status() {
+        debug!(
+            "📬 [Git] 使用缓存的 Git 状态（2秒内），workspace_root: {}",
+            workspace_root.display()
+        );
+        return Ok(cached);
+    }
+
+    debug!(
         "📬 [Git] 前端请求 Git 状态，workspace_root: {}",
         workspace_root.display()
     );
-    get_git_status(&workspace_root)
+    let status = get_git_status(&workspace_root)?;
+
+    // 更新缓存
+    update_git_status_cache(status.clone());
+
+    Ok(status)
 }
 
 /// 获取系统 Git 配置
@@ -1731,7 +1789,10 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
             }
         }
     }
-    
+
+    // 清除 Git 状态缓存（pull 成功后状态已变化）
+    clear_git_status_cache();
+
     Ok(result)
 }
 
@@ -1789,6 +1850,9 @@ pub async fn git_push_command(app_handle: AppHandle, message: Option<String>) ->
             }
         }
     }
+
+    // 清除 Git 状态缓存（push 成功后状态已变化）
+    clear_git_status_cache();
 
     push_result
 }

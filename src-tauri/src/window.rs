@@ -16,9 +16,16 @@ use mouse_position::mouse_position::Mouse;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
+
+// 用于跟踪 config 窗口是否已添加关闭清理监听器
+static CONFIG_CLEANUP_REGISTERED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
+
+// 启动过渡耗时统计起点（loading 显示时记录）
+static STARTUP_TRANSITION_STARTED_AT: LazyLock<Mutex<Option<Instant>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 use selection::get_text;
 use tauri::image::Image;
@@ -359,14 +366,37 @@ impl WindowManager {
                 }
             }
             Err(_) => {
-                // 显示失败，可能是新窗口，等待ready事件
+                // 显示失败，可能是新窗口尚未 ready
                 if let Some(event) = ready_event {
+                    // 有 ready 事件：按事件重试
                     let window_clone = window.clone();
                     window.once(event, move |_| {
                         window_clone.show().ok();
                         window_clone.set_focus().ok();
-                        if let Some(callback) = on_ready {
-                            callback(&window_clone);
+                    });
+                }
+
+                // 无论是否有 ready 事件，都做多次短重试，避免首次 show 丢失
+                let window_clone = window.clone();
+                tauri::async_runtime::spawn(async move {
+                    for _ in 0..8 {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+                        if window_clone.show().is_ok() {
+                            let _ = window_clone.set_focus();
+                            break;
+                        }
+                    }
+                });
+
+                if let Some(callback) = on_ready {
+                    let window_clone = window.clone();
+                    tauri::async_runtime::spawn(async move {
+                        for _ in 0..8 {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+                            if window_clone.is_visible().unwrap_or(false) {
+                                callback(&window_clone);
+                                break;
+                            }
                         }
                     });
                 }
@@ -612,6 +642,167 @@ pub fn open_config_settings() {
     );
 }
 
+fn ensure_config_cleanup_listener(window: &WebviewWindow) {
+    // 只在首次创建窗口时注册清理监听器
+    let mut registered = CONFIG_CLEANUP_REGISTERED.lock().unwrap();
+    if !*registered {
+        *registered = true;
+        drop(registered); // 释放锁
+
+        // 监听 config 窗口关闭事件，清理软删除附件
+        let app_for_cleanup = APP.get().unwrap().clone();
+        let app_for_thread = app_for_cleanup.clone();
+        window.on_window_event(move |event| {
+            if let WindowEvent::Destroyed = event {
+                // 在窗口关闭后清理软删除附件
+                let app = app_for_thread.clone();
+                std::thread::spawn(move || {
+                    if let Ok(Some(workspace_root)) = crate::json_config::get_workspace_root(&app) {
+                        if let Ok(trash_dir) = crate::attachment::get_trash_dir(&workspace_root) {
+                            if trash_dir.exists() {
+                                if let Err(e) = std::fs::remove_dir_all(&trash_dir) {
+                                    log::warn!("[Config] 清理软删除目录失败: {}", e);
+                                } else {
+                                    log::info!("[Config] 已清理软删除目录: {}", trash_dir.display());
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    }
+}
+
+// 启动阶段：先显示 loading，静默加载 config，待 config_ready 再切换
+pub fn open_config_with_loading_transition() {
+    WindowManager::close_search_window_if_visible();
+    {
+        let mut started = STARTUP_TRANSITION_STARTED_AT.lock().unwrap();
+        *started = Some(Instant::now());
+    }
+    show_loading_window();
+    info!("[StartupTransition] loading shown");
+
+    let spec = WindowSpec {
+        label: "config",
+        url: "/#/config/category/contentList",
+        title: "配置",
+        width: 1180.0,
+        height: 642.0,
+        resizable: true,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: Some("config_ready"),
+    };
+
+    let window = build_window(spec.label, spec.url, spec.to_window_config());
+    info!("[StartupTransition] config created and preloading under loading");
+    ensure_config_cleanup_listener(&window);
+
+    // 先挂监听，再触发显示，避免极端时序下丢失 ready 事件
+    let window_clone = window.clone();
+    window.once("config_ready", move |_| {
+        let elapsed_ms = STARTUP_TRANSITION_STARTED_AT
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|t| t.elapsed().as_millis())
+            .unwrap_or(0);
+
+        info!(
+            "[StartupTransition] config ready -> switch to config (loading_to_ready={}ms)",
+            elapsed_ms
+        );
+
+        let _ = window_clone.show();
+        let _ = window_clone.set_focus();
+        close_and_destroy_loading_window();
+
+        let total_ms = STARTUP_TRANSITION_STARTED_AT
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|t| t.elapsed().as_millis())
+            .unwrap_or(elapsed_ms);
+
+        info!(
+            "[StartupTransition] loading closed (normal path, total={}ms)",
+            total_ms
+        );
+
+        // 清理统计起点
+        let mut started = STARTUP_TRANSITION_STARTED_AT.lock().unwrap();
+        *started = None;
+    });
+
+    // 显示重试：某些平台首次 show 可能失败，导致前端不挂载
+    let window_for_retry = window.clone();
+    tauri::async_runtime::spawn(async move {
+        for attempt in 1..=20 {
+            if window_for_retry.is_visible().unwrap_or(false) {
+                break;
+            }
+            let _ = window_for_retry.show();
+            if window_for_retry.is_visible().unwrap_or(false) {
+                info!("[StartupTransition] config show success on attempt {}", attempt);
+                // 触发挂载后立即隐藏，避免与 loading 同时可见
+                let _ = window_for_retry.hide();
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+        }
+    });
+
+    // 超时兜底：避免异常情况下卡在 loading
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+
+        // 若正常路径已完成并清理了计时起点，则不再执行兜底逻辑
+        let still_pending = STARTUP_TRANSITION_STARTED_AT.lock().unwrap().is_some();
+        if !still_pending {
+            return;
+        }
+
+        if let Some(app) = APP.get() {
+            if let Some(config_window) = app.get_webview_window("config") {
+                if !config_window.is_visible().unwrap_or(false) {
+                    let elapsed_ms = STARTUP_TRANSITION_STARTED_AT
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map(|t| t.elapsed().as_millis())
+                        .unwrap_or(0);
+
+                    info!(
+                        "[StartupTransition] timeout fallback -> show config (elapsed={}ms)",
+                        elapsed_ms
+                    );
+                    let _ = config_window.show();
+                    let _ = config_window.set_focus();
+                }
+            }
+        }
+        close_and_destroy_loading_window();
+
+        let total_ms = STARTUP_TRANSITION_STARTED_AT
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|t| t.elapsed().as_millis())
+            .unwrap_or(0);
+
+        info!(
+            "[StartupTransition] loading closed (timeout fallback, total={}ms)",
+            total_ms
+        );
+
+        let mut started = STARTUP_TRANSITION_STARTED_AT.lock().unwrap();
+        *started = None;
+    });
+}
+
 // 创建config窗口
 pub fn hotkey_config() {
     // 先关闭搜索窗口（与 open_config_settings 保持一致）
@@ -628,15 +819,20 @@ pub fn hotkey_config() {
         transparent: true,
         shadow: false,
         always_on_top: false,
-        ready_event: None,  // 改为 None，不等待 ready 事件
+        ready_event: None,
     };
     
     // 使用智能切换行为
-    let _ = WindowManager::get_or_create_with_behavior(
+    let window = match WindowManager::get_or_create_with_behavior(
         &spec,
         WindowShowBehavior::SmartToggle,
         None,
-    );
+    ) {
+        Ok(w) => w,
+        Err(_) => return,
+    };
+
+    ensure_config_cleanup_listener(&window);
 }
 
 // 划词翻译快捷键处理
@@ -866,6 +1062,37 @@ pub fn create_update_window() {
         WindowShowBehavior::AlwaysShow,
         None,
     );
+}
+
+// 按需创建启动 loading 窗口
+pub fn show_loading_window() {
+    let spec = WindowSpec {
+        label: "loading",
+        url: "/#/loading",
+        title: "启动",
+        width: 340.0,
+        height: 280.0,
+        resizable: false,
+        transparent: true,
+        shadow: false,
+        always_on_top: true,
+        ready_event: None,
+    };
+
+    let _ = WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::AlwaysShow,
+        None,
+    );
+}
+
+// 关闭并销毁 loading 窗口
+pub fn close_and_destroy_loading_window() {
+    if let Some(app) = APP.get() {
+        if let Some(window) = app.get_webview_window("loading") {
+            let _ = window.close();
+        }
+    }
 }
 
 // 显示隐藏窗口
@@ -1367,6 +1594,8 @@ pub fn get_scan_progress_state() -> ScanProgressState {
 
 // 发送扫描进度事件（使用全局 emit_all 确保所有窗口都能收到）
 pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_item: &str) {
+    let emit_started = std::time::Instant::now();
+
     // 更新状态
     {
         let mut state = PROGRESS_STATE.lock().unwrap();
@@ -1379,12 +1608,42 @@ pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_ite
 
     if let Some(app) = APP.get() {
         info!("发送进度事件: stage={}, {}/{}", stage, current, total);
-        let _ = app.emit("scan-progress", serde_json::json!({
+        let emit_result = app.emit("scan-progress", serde_json::json!({
             "stage": stage,
             "current": current,
             "total": total,
             "currentItem": current_item
         }));
+
+        let elapsed_ms = emit_started.elapsed().as_millis();
+        if elapsed_ms > 50 {
+            log::warn!(
+                "[ProgressDiag] emit_scan_progress slow: stage={}, {}/{}, elapsed={}ms, item={}",
+                stage,
+                current,
+                total,
+                elapsed_ms,
+                current_item
+            );
+        } else {
+            log::debug!(
+                "[ProgressDiag] emit_scan_progress ok: stage={}, {}/{}, elapsed={}ms",
+                stage,
+                current,
+                total,
+                elapsed_ms
+            );
+        }
+
+        if let Err(e) = emit_result {
+            log::error!(
+                "[ProgressDiag] emit_scan_progress failed: stage={}, {}/{}, err={}",
+                stage,
+                current,
+                total,
+                e
+            );
+        }
     }
 }
 
