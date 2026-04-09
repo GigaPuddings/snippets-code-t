@@ -92,6 +92,7 @@ import { processTemplate, previewTemplate } from '@/utils/templateParser';
 import { resolvePreviewImageUrls } from '@/components/TipTapEditor/utils/markdown';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
 import TipTapEditor from '@/components/TipTapEditor/index.vue';
+import { logger } from '@/utils/logger';
 
 const route = useRoute();
 const store = useConfigurationStore();

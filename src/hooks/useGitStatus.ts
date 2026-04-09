@@ -56,8 +56,6 @@ const pendingRefresh = ref(false);
 let eventCount = 0;
 /** 统计：实际执行的请求总数 */
 let requestCount = 0;
-/** 统计：合并的事件数（eventCount - requestCount） */
-const statsDebouncedCount = computed(() => Math.max(0, eventCount - requestCount));
 /** 用于触发 formattedLastSyncTime 周期性更新的 tick（因为 computed 依赖的 new Date() 不是响应式的） */
 const formatTick = ref(0);
 /** 统一的“当前时间”快照，避免不同组件在边界秒数上出现显示不一致 */
