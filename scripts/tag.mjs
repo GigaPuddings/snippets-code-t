@@ -1,11 +1,9 @@
-import { createRequire } from 'module';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import readline from 'readline';
 
-const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RELEASE_NOTES_PATH = path.resolve(__dirname, '../RELEASE_NOTES.md');
 
@@ -24,6 +22,14 @@ const execCommand = (command) => {
   }
 };
 
+async function readJson(jsonPath) {
+  const content = await fs.readFile(jsonPath, 'utf-8');
+  return JSON.parse(content);
+}
+
+async function writeJson(jsonPath, data) {
+  await fs.writeFile(jsonPath, JSON.stringify(data, null, 2) + '\n');
+}
 
 async function checkTagExists(version) {
   try {
@@ -34,13 +40,21 @@ async function checkTagExists(version) {
   }
 }
 
-async function hasChanges(files) {
-  try {
-    execSync(`git diff --quiet HEAD ${files.join(' ')}`);
-    return false;
-  } catch {
-    return true;
+function getChangedFiles() {
+  const output = execSync('git status --porcelain', { encoding: 'utf-8' }).trim();
+  if (!output) {
+    return [];
   }
+
+  return output
+    .split('\n')
+    .map((line) => line.slice(3).trim())
+    .map((filePath) => {
+      if (filePath.includes(' -> ')) {
+        return filePath.split(' -> ')[1].trim();
+      }
+      return filePath;
+    });
 }
 
 async function getReleaseNotes() {
@@ -94,10 +108,34 @@ async function updateVersion() {
     // 1. 检查更新说明
     await checkReleaseNotes();
     
-    // 2. 获取用户输入的版本号
+    // 2. 显示当前版本并获取用户输入的新版本号
+    const packagePath = path.resolve(__dirname, '../package.json');
+    const tauriConfigPath = path.resolve(__dirname, '../src-tauri/tauri.conf.json');
+
+    const currentPackageJson = await readJson(packagePath);
+    const currentTauriConfig = await readJson(tauriConfigPath);
+
+    const currentPackageVersion = currentPackageJson.version;
+    const currentTauriVersion = currentTauriConfig.version;
+
+    console.log(`\n当前 package.json 版本: ${currentPackageVersion}`);
+    console.log(`当前 tauri.conf.json 版本: ${currentTauriVersion}`);
+
+    if (currentPackageVersion !== currentTauriVersion) {
+      console.log('\n⚠️  检测到版本不一致，请确认是否继续发布。');
+      const continueOnMismatch = await question('版本不一致，是否继续？(y/N): ');
+      if (continueOnMismatch.toLowerCase() !== 'y') {
+        console.log('操作已取消');
+        process.exit(0);
+      }
+    }
+
     const version = await question('\n请输入新的版本号 (例如: 1.2.5): ');
     if (!version.match(/^\d+\.\d+\.\d+$/)) {
       throw new Error('版本号格式错误，请使用 x.y.z 格式');
+    }
+    if (version === currentPackageVersion) {
+      throw new Error('新版本号不能与当前版本号相同');
     }
 
     // 3. 检查标签是否存在
@@ -119,32 +157,45 @@ async function updateVersion() {
       'RELEASE_NOTES.md'
     ];
 
+    // 4. 检查是否存在发布文件之外的改动，避免遗漏提交
+    const changedFiles = getChangedFiles();
+    const unexpectedFiles = changedFiles.filter((file) => !filesToUpdate.includes(file));
+
+    if (unexpectedFiles.length > 0) {
+      console.log('\n⚠️  检测到发布文件之外仍有改动：');
+      unexpectedFiles.forEach((file) => console.log(`  - ${file}`));
+
+      const continueWithUncommitted = await question('\n这些改动不会被本次 release 提交。是否继续？(y/N): ');
+      if (continueWithUncommitted.toLowerCase() !== 'y') {
+        console.log('操作已取消，请先处理这些文件后再发布。');
+        process.exit(0);
+      }
+    }
+
     // 更新 package.json
     console.log('正在更新 package.json...');
-    const packagePath = path.resolve(__dirname, '../package.json');
-    const packageJson = require(packagePath);
+    const packageJson = await readJson(packagePath);
     packageJson.version = version;
-    await fs.writeFile(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
+    await writeJson(packagePath, packageJson);
 
     // 更新 tauri.conf.json
     console.log('正在更新 tauri.conf.json...');
-    const tauriConfigPath = path.resolve(__dirname, '../src-tauri/tauri.conf.json');
-    const tauriConfig = require(tauriConfigPath);
+    const tauriConfig = await readJson(tauriConfigPath);
     tauriConfig.version = version;
-    await fs.writeFile(tauriConfigPath, JSON.stringify(tauriConfig, null, 2) + '\n');
+    await writeJson(tauriConfigPath, tauriConfig);
 
     // Git 操作
     console.log('\n正在提交更改...');
     
-    // 添加所有更改的文件（包括其他修改）
-    execCommand('git add -A');
+    // 仅添加发布相关文件，避免误提交无关改动
+    execCommand(`git add ${filesToUpdate.join(' ')}`);
     
     // 检查是否有待提交的更改
     try {
       execSync('git diff --cached --quiet');
       console.log('没有待提交的更改');
     } catch {
-      execCommand(`git commit -m "release: v${version}" --no-verify`);
+      execCommand(`git commit -m "release: v${version}"`);
     }
 
     console.log('\n正在创建标签...');
