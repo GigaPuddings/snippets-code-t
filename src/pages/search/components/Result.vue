@@ -526,11 +526,25 @@ function showHideWindow() {
   });
 }
 
+// 预览窗口状态（防止重复创建）
+const isPreviewWindowVisible = ref(false);
+const currentPreviewItemKey = ref<string | null>(null);
+
+const getPreviewItemKey = (item: ContentType): string => {
+  const stableId = item.id ?? item.title ?? item.content;
+  return `${item.type}:${stableId}`;
+};
+
 // 关闭预览窗口
-function closePreviewWindow() {
-  invoke('close_preview_window').catch(() => {
+async function closePreviewWindow() {
+  try {
+    await invoke('close_preview_window');
+  } catch {
     // 忽略错误（窗口可能不存在）
-  });
+  } finally {
+    isPreviewWindowVisible.value = false;
+    currentPreviewItemKey.value = null;
+  }
 }
 
 // 鼠标悬停处理
@@ -572,30 +586,37 @@ const openPreview = async (item: ContentType, targetElement?: HTMLElement) => {
   // 只有文本类型、笔记和代码片段可以打开预览
   // app、bookmark、search 类型直接打开，不预览
   if (item.summarize === 'app' || item.summarize === 'bookmark' || item.summarize === 'search') return;
-  
+
+  const previewItemKey = getPreviewItemKey(item);
+
+  // 如果当前预览窗口已显示且内容是同一个条目，则不重复创建
+  if (isPreviewWindowVisible.value && currentPreviewItemKey.value === previewItemKey) {
+    return;
+  }
+
   const resultContainer = document.querySelector('.result-container') as HTMLElement;
-  
+
   let activeElement = targetElement;
   if (!activeElement) {
     await nextTick();
     activeElement = document.querySelector('.result .item.active') as HTMLElement;
   }
-  
+
   let relativeX = 484;
   let relativeY = 0;
-  
+
   if (resultContainer) {
     const containerRect = resultContainer.getBoundingClientRect();
     relativeX = containerRect.right;
   }
-  
+
   if (activeElement) {
     const rect = activeElement.getBoundingClientRect();
     relativeY = rect.top;
   } else {
     relativeY = 100;
   }
-  
+
   try {
     let payload: ContentType & { workspaceRoot?: string } = { ...item };
     if (item.type === 'note' && item.id) {
@@ -606,7 +627,11 @@ const openPreview = async (item: ContentType, targetElement?: HTMLElement) => {
     const snippetData = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const previewX = relativeX + 4;
     const previewY = relativeY;
+
+    // 切换到不同条目时，允许刷新预览内容
     await invoke('open_preview_window', { snippetData, previewX, previewY });
+    isPreviewWindowVisible.value = true;
+    currentPreviewItemKey.value = previewItemKey;
   } catch (err) {
     logger.error('[预览窗口] 打开失败:', err);
   }
