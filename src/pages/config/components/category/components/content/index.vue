@@ -141,11 +141,14 @@ const state = reactive({
   lastSavedAt: null as Date | null,
   autoSaveEnabled: true,
   tags: [] as string[],
-  editorLoadRetries: 0
+  editorLoadRetries: 0,
+  // 保存基线：用于避免等价值内容误触发保存
+  lastSavedContentHash: ''
 });
 
 // 工作区根目录
 const workspaceRoot = ref<string>('');
+
 
 // 笔记编辑器展示用内容：始终传 HTML。若 state.editorContent 已是 HTML（如旧文件）则原样传，否则按 Markdown 转 HTML
 const noteEditorDisplayContent = computed(() => {
@@ -407,9 +410,17 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
     editorType
   );
 
-  // 比较内容是否真的发生变化
+  // 双重比较：
+  // 1) 与当前文档原始内容比较（防初始化抖动）
+  // 2) 与最近一次成功保存的哈希比较（防重复保存）
   const originalContent = state.currentContent.content || '';
-  const contentChanged = serializedContent !== originalContent;
+  const normalizedContentChanged =
+    normalizeForDirtyCheck(serializedContent) !== normalizeForDirtyCheck(originalContent);
+
+  const currentContentHash = computeContentHash(serializedContent);
+  const hashChangedFromLastSaved = currentContentHash !== state.lastSavedContentHash;
+
+  const contentChanged = normalizedContentChanged && hashChangedFromLastSaved;
 
   // 如果标题和内容都没有变化，则跳过保存（不更新 modified 时间）
   if (!titleChanged && !contentChanged) {
@@ -540,6 +551,7 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
 
   state.contentChanged = false;
   state.lastSavedAt = new Date();
+  state.lastSavedContentHash = computeContentHash(finalContent);
 
   // 更新原始标题
   originalTitle.value = state.title;
@@ -675,9 +687,35 @@ const handleTitleChange = (value: string) => {
   }
 };
 
+// 统一的内容归一化（用于脏检查，避免仅换行/行尾空白导致误判）
+const normalizeForDirtyCheck = (content: string): string => {
+  return (content || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n+$/g, '\n')
+    .trim();
+};
+
+const computeContentHash = (content: string): string => {
+  // 基于归一化内容的轻量哈希（djb2）
+  const normalized = normalizeForDirtyCheck(content);
+  let hash = 5381;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = ((hash << 5) + hash) + normalized.charCodeAt(i);
+    hash |= 0;
+  }
+  return `${normalized.length}:${hash}`;
+};
+
 // 处理编辑器内容变更
 const handleEditorChange = (value: string) => {
   if (state.isInitializing) return;
+
+  // TipTap 在刚挂载/切换文档时可能触发一次“等价值”更新；这里做归一化后再判断
+  const original = state.currentContent?.content || '';
+  if (normalizeForDirtyCheck(value) === normalizeForDirtyCheck(original)) {
+    return;
+  }
 
   handleContentChange(value, 'content', state.currentContent?.content);
 };
@@ -880,6 +918,7 @@ const fetchContentById = async (id: string) => {
       state.editorContent = newContent;
       state.contentChanged = false;
       state.lastSavedAt = null;
+      state.lastSavedContentHash = computeContentHash(parsedContent.content || '');
       // 若 TipTap watch 未触发，显式 setContent
       await nextTick();
       if (currentEditorType.value === 'note' && tipTapEditorRef.value) {
@@ -926,6 +965,7 @@ const fetchContent = async () => {
 
       state.contentChanged = false;
       state.lastSavedAt = null;
+      state.lastSavedContentHash = computeContentHash(parsedContent.content || '');
 
       // 编辑器加载完成
       await nextTick();

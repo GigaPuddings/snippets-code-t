@@ -89,7 +89,7 @@ import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ContentType } from '@/types/models';
 import { useConfigurationStore } from '@/store';
 import { processTemplate, previewTemplate } from '@/utils/templateParser';
-import { resolvePreviewImageUrls } from '@/components/TipTapEditor/utils/markdown';
+import { markdownToHtml, resolvePreviewImageUrls } from '@/components/TipTapEditor/utils/markdown';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
 import TipTapEditor from '@/components/TipTapEditor/index.vue';
 import { logger } from '@/utils/logger';
@@ -112,14 +112,28 @@ const displayContent = computed(() => {
   return previewTemplate(snippet.value.content);
 });
 
-// 笔记内容：将相对路径图片解析为 Tauri 可访问 URL，供预览窗口正确显示图片
+// 笔记内容：统一按 Markdown 渲染（兼容内嵌 HTML），并解析图片相对路径
 const noteContentWithResolvedImages = computed(() => {
   if (!snippet.value?.content || snippet.value.type !== 'note') return snippet.value?.content ?? '';
+
   const payload = snippet.value as ContentType & { workspaceRoot?: string };
   const workspaceRoot = payload.workspaceRoot;
   const notePath = snippet.value.id;
-  if (!workspaceRoot || !notePath) return snippet.value.content;
-  return resolvePreviewImageUrls(snippet.value.content, workspaceRoot, String(notePath));
+
+  try {
+    // marked 本身兼容 Markdown 中内嵌 HTML，这里统一走 Markdown -> HTML
+    // 避免将包含尖括号的 Markdown 文本误判为 HTML 原文
+    let html = markdownToHtml(snippet.value.content, workspaceRoot ?? '');
+
+    if (workspaceRoot && notePath) {
+      html = resolvePreviewImageUrls(html, workspaceRoot, String(notePath));
+    }
+
+    return html;
+  } catch (error) {
+    console.error('[Preview] Failed to render note markdown:', error);
+    return snippet.value.content;
+  }
 });
 
 // 应用主题到 document
@@ -175,6 +189,12 @@ onMounted(async () => {
   // 等待渲染完成
   await nextTick();
   isLoading.value = false;
+
+  // 笔记预览默认使用阅读模式（只读且更贴近预览场景）
+  if (snippet.value?.type === 'note') {
+    await nextTick();
+    noteEditorRef.value?.setViewMode?.('reading');
+  }
   
   // 通知后端窗口已准备好
   if (snippet.value) {
@@ -589,6 +609,19 @@ const handleClose = async () => {
   * {
     max-width: 100%;
   }
+}
+
+// 预览窗口：禁用图片交互（右键、缩放、拖拽、打开路径等）
+:deep(.image-wrapper),
+:deep(.image-container img) {
+  pointer-events: none !important;
+}
+
+:deep(.image-path),
+:deep(.image-controls),
+:deep(.resize-handle),
+:deep(.image-context-menu) {
+  display: none !important;
 }
 
 // CodeMirror 容器样式覆盖

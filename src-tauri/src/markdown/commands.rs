@@ -8,6 +8,8 @@ use crate::markdown::watcher::FileWatcher;
 use crate::markdown::CacheManager;
 use crate::markdown::file_ops::{get_relative_path, FileNameGenerator};
 use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::{command, AppHandle, State, Manager};
@@ -76,6 +78,23 @@ fn get_fs_manager(app_handle: &AppHandle) -> Result<FileSystemManager, String> {
     Ok(FileSystemManager::new(workspace_root))
 }
 
+fn normalize_for_content_compare(content: &str) -> String {
+    content
+        .replace("\r\n", "\n")
+        .lines()
+        .map(|line| line.trim_end_matches([' ', '\t']))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
+}
+
+fn compute_content_hash(content: &str) -> u64 {
+    let normalized = normalize_for_content_compare(content);
+    let mut hasher = DefaultHasher::new();
+    normalized.hash(&mut hasher);
+    hasher.finish()
+}
 
 
 // ============= 文件操作命令 =============
@@ -456,6 +475,25 @@ pub async fn update_markdown_file(
         return Ok(None);
     }
 
+    // 读取当前文件内容，做后端兜底的等价比较（防止前端误触发保存）
+    let raw_before = fs_manager.read_markdown_file_content(&path)?;
+    let (_, current_body) = try_parse_front_matter(&raw_before);
+    let incoming_content = content.as_deref().unwrap_or(&current_body);
+
+    let current_hash = compute_content_hash(&current_body);
+    let incoming_hash = compute_content_hash(incoming_content);
+    let content_equivalent = current_hash == incoming_hash;
+
+    debug!(
+        "[save-debug] backend-save-check: title_changed={}, has_content={}, has_metadata={}, content_equivalent={}, current_hash={}, incoming_hash={}",
+        title_changed,
+        content.is_some(),
+        metadata.is_some(),
+        content_equivalent,
+        current_hash,
+        incoming_hash
+    );
+
     // 构建 FrontMatter（当有 metadata 时，用于写入文件的 Front Matter）
     let frontmatter_opt: Option<FrontMatter> = if let Some(ref meta) = metadata {
         let cache = cache_manager.read()
@@ -491,12 +529,17 @@ pub async fn update_markdown_file(
         None
     };
 
-    // 更新文件内容（含 Front Matter 当有 metadata 时）
-    fs_manager.update_markdown_file(
-        &path,
-        content.as_deref(),
-        frontmatter_opt.as_ref(),
-    )?;
+    // 仅在“文件名变化 / 内容有实质变化”时写文件，避免无效写入导致 modified 变化
+    let should_write_file = title_changed || !content_equivalent;
+    if should_write_file {
+        fs_manager.update_markdown_file(
+            &path,
+            content.as_deref(),
+            frontmatter_opt.as_ref(),
+        )?;
+    } else {
+        debug!("📝 [更新文件] 内容等价，跳过文件写入");
+    }
 
     // 更新元数据到 cache.json
     if needs_metadata_update {
@@ -513,7 +556,11 @@ pub async fn update_markdown_file(
         }
 
         cache.update_file_metadata(&relative_path, |m| {
-            m.modified = chrono::Utc::now().timestamp_millis();
+            // 只有在实际写入文件（内容变化或重命名）时才更新 modified
+            if should_write_file {
+                m.modified = chrono::Utc::now().timestamp_millis();
+            }
+
             if let Some(new_content) = &content {
                 m.size = Some(new_content.len() as u64);
             }
