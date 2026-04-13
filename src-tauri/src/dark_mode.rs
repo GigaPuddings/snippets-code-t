@@ -35,10 +35,19 @@ pub struct DarkModeConfig {
     pub schedule_type: ScheduleType,
     pub custom_light_time: Option<String>,
     pub custom_dark_time: Option<String>,
+
+    // 手动坐标（如果存在，始终优先于自动定位）
+    pub manual_latitude: Option<f64>,
+    pub manual_longitude: Option<f64>,
+    pub manual_timezone_offset: Option<i32>,
+    pub manual_location_name: Option<String>,
+
+    // 自动定位缓存（IP）
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
     pub timezone_offset: Option<i32>,
     pub location_name: Option<String>,
+    pub location_updated_at: Option<i64>, // Unix 时间戳（秒）
 }
 
 impl Default for DarkModeConfig {
@@ -48,10 +57,15 @@ impl Default for DarkModeConfig {
             schedule_type: ScheduleType::SunBased,
             custom_light_time: Some("06:00".to_string()),
             custom_dark_time: Some("18:00".to_string()),
+            manual_latitude: None,
+            manual_longitude: None,
+            manual_timezone_offset: None,
+            manual_location_name: None,
             latitude: None,
             longitude: None,
             timezone_offset: None,
             location_name: None,
+            location_updated_at: None,
         }
     }
 }
@@ -425,6 +439,91 @@ pub fn load_config(_app_handle: &AppHandle) -> DarkModeConfig {
     default_config
 }
 
+fn now_unix_ts() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+fn location_cache_expired(config: &DarkModeConfig, ttl_seconds: i64) -> bool {
+    match config.location_updated_at {
+        Some(updated_at) => now_unix_ts().saturating_sub(updated_at) > ttl_seconds,
+        None => true,
+    }
+}
+
+async fn refresh_location_if_needed(app_handle: &AppHandle, config: &mut DarkModeConfig, force: bool) {
+    // 手动坐标存在时，不覆盖自动缓存，也不触发 IP 定位
+    if config.manual_latitude.is_some() && config.manual_longitude.is_some() {
+        return;
+    }
+
+    let should_refresh = force
+        || config.latitude.is_none()
+        || config.longitude.is_none()
+        || location_cache_expired(config, 24 * 60 * 60);
+
+    if !should_refresh {
+        return;
+    }
+
+    info!("定时模式：开始刷新定位信息（force={}）", force);
+    match get_location_by_ip().await {
+        Ok(location) => {
+            config.latitude = Some(location.latitude);
+            config.longitude = Some(location.longitude);
+            config.timezone_offset = Some(location.timezone_offset);
+            config.location_name = Some(format!("{}, {}", location.city, location.country));
+            config.location_updated_at = Some(now_unix_ts());
+
+            if let Err(e) = save_config(app_handle, config) {
+                error!("Failed to save refreshed location: {}", e);
+            } else {
+                info!("定位信息刷新成功: {}, {}", location.city, location.country);
+            }
+        }
+        Err(e) => {
+            warn!("定位信息刷新失败: {}", e);
+        }
+    }
+}
+
+fn resolve_sun_calc_params(config: &DarkModeConfig) -> Option<(f64, f64, i32, String)> {
+    // 手动坐标优先
+    if let (Some(lat), Some(lon)) = (config.manual_latitude, config.manual_longitude) {
+        let tz = config
+            .manual_timezone_offset
+            .or(config.timezone_offset)
+            .or_else(|| get_windows_timezone_info().ok().map(|(_, offset)| offset))
+            .unwrap_or(0);
+
+        let name = config
+            .manual_location_name
+            .clone()
+            .unwrap_or_else(|| "Manual Location".to_string());
+
+        return Some((lat, lon, tz, format!("manual:{}", name)));
+    }
+
+    if let (Some(lat), Some(lon)) = (config.latitude, config.longitude) {
+        let tz = config
+            .timezone_offset
+            .or_else(|| get_windows_timezone_info().ok().map(|(_, offset)| offset))
+            .unwrap_or(0);
+
+        let name = config
+            .location_name
+            .clone()
+            .unwrap_or_else(|| "IP Location".to_string());
+
+        return Some((lat, lon, tz, format!("ip:{}", name)));
+    }
+
+    None
+}
+
 // 启动定时切换服务
 pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
     let instance_id = SCHEDULER_INSTANCE_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
@@ -451,30 +550,9 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
             return;
         }
 
-        // 首次启动时检查是否需要自动获取位置信息（仅Schedule+SunBased模式）
-        if config.theme_mode == ThemeMode::Schedule
-            && config.schedule_type == ScheduleType::SunBased
-            && config.latitude.is_none()
-        {
-            info!("定时模式已启用，正在自动获取位置信息...");
-            if let Ok(location) = get_location_by_ip().await {
-                config.latitude = Some(location.latitude);
-                config.longitude = Some(location.longitude);
-                config.timezone_offset = Some(location.timezone_offset);
-                config.location_name = Some(format!("{}, {}", location.city, location.country));
-
-                if let Err(e) = save_config(&app_handle_clone, &config) {
-                    error!("Failed to save location: {}", e);
-                } else {
-                    info!("位置信息自动获取成功: {}, {}", location.city, location.country);
-                    // 位置更新后，重新用新位置计算一次主题（避免用旧/无效位置导致判断错误）
-                    if let Err(e) = check_and_switch_theme(&app_handle_clone, &config).await {
-                        error!("Theme recheck after location fetch failed: {}", e);
-                    }
-                }
-            } else {
-                warn!("Failed to auto-fetch location, using default times");
-            }
+        // 首次启动时刷新定位（仅 Schedule + SunBased）
+        if config.theme_mode == ThemeMode::Schedule && config.schedule_type == ScheduleType::SunBased {
+            refresh_location_if_needed(&app_handle_clone, &mut config, false).await;
         }
 
         // 立即执行一次主题检查，确保前端能收到当前实际状态
@@ -502,7 +580,7 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
                 break;
             }
 
-            let config = load_config(&app_handle_clone);
+            let mut config = load_config(&app_handle_clone);
 
             // 只有定时模式才需要调度
             if config.theme_mode != ThemeMode::Schedule {
@@ -510,6 +588,11 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
                 info!("[调度器][实例:{}] 当前非 Schedule 模式，60 秒后重试", instance_id);
                 time::sleep(Duration::from_secs(60)).await;
                 continue;
+            }
+
+            // SunBased 模式下，周期性刷新定位缓存（24h 过期）
+            if config.schedule_type == ScheduleType::SunBased {
+                refresh_location_if_needed(&app_handle_clone, &mut config, false).await;
             }
 
             // 执行主题检查和切换
@@ -561,14 +644,19 @@ async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig)
             }
         }
         ScheduleType::SunBased => {
-            if let (Some(lat), Some(lon)) = (config.latitude, config.longitude) {
-                let timezone_offset = config.timezone_offset.unwrap_or_else(|| {
-                    get_windows_timezone_info().map(|(_, offset)| offset).unwrap_or(0)
-                });
-
+            if let Some((lat, lon, timezone_offset, source)) = resolve_sun_calc_params(config) {
                 match calculate_sun_times(lat, lon, timezone_offset) {
                     Ok(sun_times) => {
-                        debug!("[主题检查] 日出日落模式: 日出={}, 日落={}, 白天={}, 纬度={}, 经度={}", sun_times.sunrise, sun_times.sunset, sun_times.is_day, lat, lon);
+                        debug!(
+                            "[主题检查] 日出日落模式: 来源={}, 日出={}, 日落={}, 白天={}, 纬度={}, 经度={}, 时区偏移={}分钟",
+                            source,
+                            sun_times.sunrise,
+                            sun_times.sunset,
+                            sun_times.is_day,
+                            lat,
+                            lon,
+                            timezone_offset
+                        );
                         is_dark_time(&current_time, &sun_times.sunrise, &sun_times.sunset)
                     }
                     Err(e) => {
@@ -577,7 +665,7 @@ async fn check_and_switch_theme(app_handle: &AppHandle, config: &DarkModeConfig)
                     }
                 }
             } else {
-                debug!("[主题检查] 日出日落模式缺少位置信息，跳过");
+                debug!("[主题检查] 日出日落模式缺少位置信息（手动/IP均无），跳过");
                 return Ok(()); // 没有位置信息
             }
         }
@@ -706,11 +794,39 @@ pub fn get_current_status(app_handle: &AppHandle) -> Result<serde_json::Value, S
     let config = load_config(app_handle);
     let current_is_dark = get_windows_dark_mode().unwrap_or(false);
     let scheduler_running = *SCHEDULER_RUNNING.lock().unwrap();
+
+    let sun_calc_debug = if config.schedule_type == ScheduleType::SunBased {
+        if let Some((lat, lon, timezone_offset, source)) = resolve_sun_calc_params(&config) {
+            match calculate_sun_times(lat, lon, timezone_offset) {
+                Ok(sun_times) => serde_json::json!({
+                    "source": source,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "timezoneOffset": timezone_offset,
+                    "sunrise": sun_times.sunrise,
+                    "sunset": sun_times.sunset,
+                    "isDay": sun_times.is_day
+                }),
+                Err(e) => serde_json::json!({
+                    "source": source,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "timezoneOffset": timezone_offset,
+                    "error": e
+                }),
+            }
+        } else {
+            serde_json::json!({"error": "no_location"})
+        }
+    } else {
+        serde_json::json!({"info": "not_sun_based_mode"})
+    };
     
     Ok(serde_json::json!({
         "config": config,
         "currentIsDark": current_is_dark,
         "schedulerRunning": scheduler_running,
-        "systemTimezone": get_windows_timezone_info().unwrap_or(("Unknown".to_string(), 0))
+        "systemTimezone": get_windows_timezone_info().unwrap_or(("Unknown".to_string(), 0)),
+        "sunCalcDebug": sun_calc_debug
     }))
 }

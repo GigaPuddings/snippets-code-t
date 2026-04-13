@@ -119,18 +119,13 @@ export const EnhancedMarkdown = Extension.create({
       }),
 
       // ==================== 代码块规则 ====================
+      // 仅在输入 ```、```vue、```flutter 等后再输入空格时触发，
+      // 避免输入第 3 个 ` 就立刻自动转换。
       textblockTypeInputRule({
-        find: /^```([a-zA-Z0-9]*)$/,
+        find: /^```([a-zA-Z0-9+-]*)\s$/,
         type: this.editor.schema.nodes.codeBlock,
         getAttributes: (match) => ({
-          language: match[1] || '',
-        }),
-      }),
-      textblockTypeInputRule({
-        find: /(?<=[\s\S])```([a-zA-Z0-9]*)$/,
-        type: this.editor.schema.nodes.codeBlock,
-        getAttributes: (match) => ({
-          language: match[1] || '',
+          language: match[1] || null,
         }),
       }),
     ];

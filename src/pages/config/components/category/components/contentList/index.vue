@@ -54,6 +54,21 @@
       @close="showFilterPanel = false"
     />
 
+    <PromptDialog
+      v-model="showCreateContentDialog"
+      :title="$t('category.newSnippet')"
+      :message="$t('category.newSnippet')"
+      :placeholder="$t('category.newSnippet')"
+      :initial-value="newContentTitle"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :required="true"
+      :max-length="120"
+      :validator="validateContentTitle"
+      @confirm="handleCreateContentConfirm"
+      @cancel="showCreateContentDialog = false"
+    />
+
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
       v-model="showDeleteDialog"
@@ -92,14 +107,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore, useLayoutStore } from '@/store';
 import { useI18n } from 'vue-i18n';
 import Splitter from '@/components/Splitter/index.vue';
 import FragmentTypeSelector from '@/components/FragmentTypeSelector/index.vue';
 import FilterPanel from './FilterPanel.vue';
-import { ConfirmDialog, SelectConfirmDialog, BacklinkUpdateDialog } from '@/components/UI';
+import { ConfirmDialog, SelectConfirmDialog, BacklinkUpdateDialog, PromptDialog } from '@/components/UI';
 import ContentSearchBar from './components/ContentSearchBar.vue';
 import ContentListView from './components/ContentListView.vue';
 import { useContentList } from './composables/useContentList';
@@ -148,6 +163,8 @@ const {
 const {
   showTypeSelector,
   showDeleteDialog,
+  showCreateContentDialog,
+  newContentTitle,
   showCategoryDialog,
   showBacklinkUpdateDialog,
   deleteTarget,
@@ -156,6 +173,7 @@ const {
   handleAddContent,
   handleTypeConfirm,
   handleTypeCancel,
+  handleCreateContentConfirm,
   handleDelete,
   confirmDelete,
   confirmDeleteWithBacklinks,
@@ -164,6 +182,13 @@ const {
 } = useContentDialogs();
 
 const showFilterPanel = ref<boolean>(false);
+
+const validateContentTitle = (value: string) => {
+  if (!value.trim()) {
+    return { valid: false, message: t('category.emptyContentTitle') };
+  }
+  return { valid: true };
+};
 
 /**
  * 切换筛选面板显示状态

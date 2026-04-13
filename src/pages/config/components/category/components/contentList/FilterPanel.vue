@@ -1,86 +1,75 @@
 <template>
-  <teleport to="body">
-    <transition name="fade">
-      <div v-if="visible" class="filter-panel-overlay" @click="handleClose">
-        <transition name="slide-fade">
-          <div v-if="visible" class="filter-panel-popup" @click.stop>
-            <div class="panel-header">
-              <span class="panel-title">{{ $t('search.filterPanel') }}</span>
-              <Close
-                class="close-icon"
-                theme="outline"
-                size="18"
-                :strokeWidth="2"
-                @click="handleClose"
-              />
-            </div>
+  <CommonDialog
+    :model-value="visible"
+    :title="$t('search.filterPanel')"
+    width="460px"
+    @update:model-value="val => !val && handleClose()"
+  >
+    <div class="panel-content">
+      <div class="filter-section">
+        <div class="section-title">{{ $t('contentItem.filterByType') }}</div>
+        <el-radio-group v-model="localFilter.type" size="small" class="type-radio-group">
+          <el-radio-button value="all">{{ $t('search.allTypes') }}</el-radio-button>
+          <el-radio-button value="code">{{ $t('contentItem.codeSnippet') }}</el-radio-button>
+          <el-radio-button value="note">{{ $t('contentItem.note') }}</el-radio-button>
+        </el-radio-group>
+      </div>
 
-            <div class="panel-content">
-              <div class="filter-section">
-                <div class="section-title">{{ $t('contentItem.filterByType') }}</div>
-                <el-radio-group v-model="localFilter.type" size="small" class="type-radio-group">
-                  <el-radio-button value="all">{{ $t('search.allTypes') }}</el-radio-button>
-                  <el-radio-button value="code">{{ $t('contentItem.codeSnippet') }}</el-radio-button>
-                  <el-radio-button value="note">{{ $t('contentItem.note') }}</el-radio-button>
-                </el-radio-group>
-              </div>
-
-              <div v-if="availableTags.length > 0" class="filter-section">
-                <div class="section-title">{{ $t('tags.tags') }}</div>
-                <div class="tags-container">
-                  <div class="tags-list">
-                    <div
-                      v-for="tag in availableTags"
-                      :key="tag"
-                      class="tag-item"
-                      :class="{ active: localSelectedTags.includes(tag) }"
-                      @click="toggleTag(tag)"
-                    >
-                      <span class="tag-text">{{ tag }}</span>
-                      <Check v-if="localSelectedTags.includes(tag)" theme="filled" size="14" class="tag-check" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="filter-section">
-                <div class="section-title">{{ $t('search.sortBy') }}</div>
-                <div class="sort-options">
-                  <div
-                    v-for="option in sortOptions"
-                    :key="option.value"
-                    class="sort-option"
-                    :class="{ active: sortOption === option.value }"
-                    @click="sortOption = option.value"
-                  >
-                    <div class="sort-option-content">
-                      <component :is="option.icon" theme="outline" size="16" :strokeWidth="3" />
-                      <span class="sort-option-label">{{ option.label }}</span>
-                    </div>
-                    <Check v-if="sortOption === option.value" theme="filled" size="14" class="sort-check" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="panel-footer">
-              <el-button size="small" @click="handleReset">
-                {{ $t('search.resetFilter') }}
-              </el-button>
-              <el-button type="primary" size="small" @click="handleApply">
-                {{ $t('search.applyFilter') }}
-              </el-button>
+      <div v-if="availableTags.length > 0" class="filter-section">
+        <div class="section-title">{{ $t('tags.tags') }}</div>
+        <div class="tags-container">
+          <div class="tags-list">
+            <div
+              v-for="tag in availableTags"
+              :key="tag"
+              class="tag-item"
+              :class="{ active: localSelectedTags.includes(tag) }"
+              @click="toggleTag(tag)"
+            >
+              <span class="tag-text">{{ tag }}</span>
+              <Check v-if="localSelectedTags.includes(tag)" theme="filled" size="14" class="tag-check" />
             </div>
           </div>
-        </transition>
+        </div>
       </div>
-    </transition>
-  </teleport>
+
+      <div class="filter-section">
+        <div class="section-title">{{ $t('search.sortBy') }}</div>
+        <div class="sort-options">
+          <div
+            v-for="option in sortOptions"
+            :key="option.value"
+            class="sort-option"
+            :class="{ active: sortOption === option.value }"
+            @click="sortOption = option.value"
+          >
+            <div class="sort-option-content">
+              <component :is="option.icon" theme="outline" size="16" :strokeWidth="3" />
+              <span class="sort-option-label">{{ option.label }}</span>
+            </div>
+            <Check v-if="sortOption === option.value" theme="filled" size="14" class="sort-check" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="panel-footer">
+        <el-button size="small" @click="handleReset">
+          {{ $t('search.resetFilter') }}
+        </el-button>
+        <el-button type="primary" size="small" @click="handleApply">
+          {{ $t('search.applyFilter') }}
+        </el-button>
+      </div>
+    </template>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { Close, Check, SortAmountDown, Time, Edit } from '@icon-park/vue-next';
+import { Check, SortAmountDown, Time, Edit } from '@icon-park/vue-next';
+import { CommonDialog } from '@/components/UI';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -228,35 +217,6 @@ function handleReset(): void {
 </script>
 
 <style scoped lang="scss">
-// 遮罩层
-.filter-panel-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center;
-  background-color: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(2px);
-}
-
-// 悬浮面板
-.filter-panel-popup {
-  @apply bg-panel rounded-lg shadow-2xl w-full max-w-md mx-4;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  max-height: calc(100vh - 4rem);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-// 面板头部
-.panel-header {
-  @apply flex items-center justify-between px-4 py-3 border-b border-panel;
-  
-  .panel-title {
-    @apply text-sm font-medium text-content;
-  }
-  
-  .close-icon {
-    @apply text-panel cursor-pointer hover:text-content transition-colors;
-  }
-}
 
 // 面板内容
 .panel-content {

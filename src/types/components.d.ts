@@ -73,6 +73,7 @@ declare module 'vue' {
     MigrationWizard: typeof import('./../components/MigrationWizard/index.vue')['default']
     OutlinePanel: typeof import('./../components/TipTapEditor/components/OutlinePanel.vue')['default']
     ProgressContent: typeof import('./../pages/notification/components/ProgressContent.vue')['default']
+    PromptDialog: typeof import('./../components/UI/PromptDialog.vue')['default']
     QuickNav: typeof import('./../components/QuickNav/index.vue')['default']
     ReminderContent: typeof import('./../pages/notification/components/ReminderContent.vue')['default']
     Result: typeof import('./../pages/search/components/Result.vue')['default']

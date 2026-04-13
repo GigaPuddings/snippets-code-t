@@ -48,6 +48,10 @@ export interface UseContentDialogsReturn {
   showTypeSelector: Ref<boolean>;
   /** 显示删除对话框 */
   showDeleteDialog: Ref<boolean>;
+  /** 显示创建内容输入对话框 */
+  showCreateContentDialog: Ref<boolean>;
+  /** 创建内容标题 */
+  newContentTitle: Ref<string>;
   /** 显示分类更改对话框 */
   showCategoryDialog: Ref<boolean>;
   /** 显示反向链接更新对话框 */
@@ -68,6 +72,8 @@ export interface UseContentDialogsReturn {
   handleTypeConfirm: (type: 'code' | 'note') => Promise<void>;
   /** 处理类型取消 */
   handleTypeCancel: () => void;
+  /** 确认创建内容 */
+  handleCreateContentConfirm: (title: string) => Promise<void>;
   /** 处理删除 */
   handleDelete: (content: ContentType) => Promise<void>;
   /** 确认删除 */
@@ -101,6 +107,9 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const { t } = useI18n();
 
   const showTypeSelector = ref<boolean>(false);
+  const showCreateContentDialog = ref<boolean>(false);
+  const pendingFragmentType = ref<'code' | 'note'>('code');
+  const newContentTitle = ref<string>('');
   const showDeleteDialog = ref<boolean>(false);
   const showCategoryDialog = ref<boolean>(false);
   const showBacklinkUpdateDialog = ref<boolean>(false);
@@ -123,6 +132,14 @@ export function useContentDialogs(): UseContentDialogsReturn {
    */
   const handleTypeConfirm = async (type: 'code' | 'note'): Promise<void> => {
       showTypeSelector.value = false;
+      pendingFragmentType.value = type;
+      newContentTitle.value = '';
+      showCreateContentDialog.value = true;
+    };
+
+  const handleCreateContentConfirm = async (title: string): Promise<void> => {
+      const normalizedTitle = title.trim();
+      showCreateContentDialog.value = false;
 
       const cid = route.params.cid as string;
 
@@ -152,7 +169,10 @@ export function useContentDialogs(): UseContentDialogsReturn {
 
         const filePath = await addFragment({ 
           categoryId,
-          fragmentType: type
+          fragmentType: pendingFragmentType.value,
+          metadata: {
+            title: normalizedTitle,
+          }
         });
 
         // 再次刷新分类列表（以防创建文件时创建了新分类）
@@ -428,6 +448,8 @@ export function useContentDialogs(): UseContentDialogsReturn {
   return {
     showTypeSelector,
     showDeleteDialog,
+    showCreateContentDialog,
+    newContentTitle,
     showCategoryDialog,
     showBacklinkUpdateDialog,
     deleteTarget,
@@ -438,6 +460,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
     handleAddContent,
     handleTypeConfirm,
     handleTypeCancel,
+    handleCreateContentConfirm,
     handleDelete,
     confirmDelete,
     confirmDeleteWithBacklinks,

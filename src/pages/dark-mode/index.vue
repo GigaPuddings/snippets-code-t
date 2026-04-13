@@ -161,6 +161,33 @@
           </div>
         </div>
 
+        <!-- 计算调试信息 -->
+        <div class="section" v-if="config.schedule_type === 'SunBased'">
+          <h2 class="section-title">计算依据</h2>
+          <div class="inset-card location-card">
+            <div class="info-row">
+              <span class="info-label">来源</span>
+              <span class="info-value">{{ sunCalcSourceLabel }}</span>
+            </div>
+            <div class="info-row" v-if="sunCalcDebug?.latitude !== undefined && sunCalcDebug?.longitude !== undefined">
+              <span class="info-label">计算坐标</span>
+              <span class="info-value">{{ Number(sunCalcDebug?.latitude).toFixed(4) }}, {{ Number(sunCalcDebug?.longitude).toFixed(4) }}</span>
+            </div>
+            <div class="info-row" v-if="sunCalcDebug?.timezoneOffset !== undefined">
+              <span class="info-label">时区偏移(分钟)</span>
+              <span class="info-value">{{ sunCalcDebug?.timezoneOffset }}</span>
+            </div>
+            <div class="info-row" v-if="sunCalcDebug?.sunset">
+              <span class="info-label">用于切换的日落时间</span>
+              <span class="info-value">{{ sunCalcDebug?.sunset }}</span>
+            </div>
+            <div class="info-row" v-if="sunCalcDebug?.error">
+              <span class="info-label">错误</span>
+              <span class="info-value">{{ sunCalcDebug?.error }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 自定义时间 -->
         <div class="section" v-if="config.schedule_type === 'Custom'">
           <h2 class="section-title">{{ $t('darkMode.customTime') }}</h2>
@@ -202,10 +229,15 @@ interface DarkModeConfig {
   schedule_type: ScheduleType;
   custom_light_time: string | null;
   custom_dark_time: string | null;
+  manual_latitude?: number | null;
+  manual_longitude?: number | null;
+  manual_timezone_offset?: number | null;
+  manual_location_name?: string | null;
   latitude: number | null;
   longitude: number | null;
   timezone_offset: number | null;
   location_name: string | null;
+  location_updated_at?: number | null;
 }
 
 interface LocationInfo {
@@ -222,6 +254,17 @@ interface SunTimes {
   sunrise: string;
   sunset: string;
   is_day: boolean;
+}
+
+interface SunCalcDebug {
+  source?: string;
+  latitude?: number;
+  longitude?: number;
+  timezoneOffset?: number;
+  sunrise?: string;
+  sunset?: string;
+  isDay?: boolean;
+  error?: string;
 }
 
 const store = useConfigurationStore();
@@ -251,10 +294,18 @@ const currentTheme = ref<boolean>(false);
 const schedulerRunning = ref<boolean>(false);
 const locationInfo = ref<LocationInfo | null>(null);
 const sunTimes = ref<SunTimes | null>(null);
+const sunCalcDebug = ref<SunCalcDebug | null>(null);
 const locationLoading = ref<boolean>(false);
 const saving = ref<boolean>(false);
 const syncingFromBackend = ref<boolean>(false);
 const unlisten = ref<any>(null);
+
+const sunCalcSourceLabel = computed(() => {
+  const source = sunCalcDebug.value?.source || '';
+  if (source.startsWith('manual:')) return `手动位置（${source.replace('manual:', '')}）`;
+  if (source.startsWith('ip:')) return `自动定位（${source.replace('ip:', '')}）`;
+  return source || '-';
+});
 
 // 方法
 const loadConfig = async () => {
@@ -275,6 +326,7 @@ const loadStatus = async () => {
     const result = await invoke<any>('get_dark_mode_status_command');
     currentTheme.value = result.currentIsDark;
     schedulerRunning.value = result.schedulerRunning;
+    sunCalcDebug.value = result.sunCalcDebug ?? null;
   } catch (error) {
     logger.error('[主题] 加载状态失败', error);
   }
@@ -303,6 +355,7 @@ const refreshLocation = async () => {
     logger.error('[主题] 获取位置失败', error);
     modal.msg(t('darkMode.getLocationFailed'), 'error');
   } finally {
+    await loadStatus();
     locationLoading.value = false;
   }
 };

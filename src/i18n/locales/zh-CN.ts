@@ -22,7 +22,11 @@ export default {
     start: '开始使用',
     browse: '浏览',
     quickStart: '快速开始',
-    create: '创建'
+    create: '创建',
+    inputTitle: '输入',
+    requiredField: '该项不能为空',
+    maxLengthExceeded: '长度不能超过 {max} 个字符',
+    invalidInput: '输入不合法'
   },
 
   // 设置向导
@@ -532,7 +536,20 @@ export default {
     convertFailed: '类型转换失败',
     unsavedChanges: '当前内容有未保存的更改，是否保存？',
     discardChanges: '放弃更改',
-    createNoteConfirm: '未找到名为"{name}"的笔记，是否创建新笔记？'
+    createNoteConfirm: '未找到名为"{name}"的笔记，是否创建新笔记？',
+    emptyName: '分类名称不能为空',
+    invalidNameChars: '分类名称不能包含 \\ / : * ? " < > |',
+    duplicateName: '分类名称已存在',
+    createSuccess: '分类创建成功',
+    createFailed: '分类创建失败',
+    emptyContentTitle: '内容标题不能为空'
+  },
+
+  codeBlock: {
+    editLanguageTitle: '修改代码语言',
+    editLanguageMessage: '输入代码语言（如: ts、vue、flutter、bash），留空表示自动检测',
+    editLanguagePlaceholder: '例如：ts / vue / flutter / bash',
+    invalidLanguage: '语言标识仅支持字母、数字、#、+、.、_、-'
   },
 
   // 内容编辑

@@ -5,11 +5,73 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
+import type { EditorView, DecorationSource } from '@tiptap/pm/view';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
+import { createHighlighterCore, type HighlighterCore } from 'shiki/core';
+import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
+import javascriptLang from 'shiki/langs/javascript.mjs';
+import typescriptLang from 'shiki/langs/typescript.mjs';
+import tsxLang from 'shiki/langs/tsx.mjs';
+import jsxLang from 'shiki/langs/jsx.mjs';
+import jsonLang from 'shiki/langs/json.mjs';
+import htmlLang from 'shiki/langs/html.mjs';
+import cssLang from 'shiki/langs/css.mjs';
+import vueLang from 'shiki/langs/vue.mjs';
+import markdownLang from 'shiki/langs/markdown.mjs';
+import bashLang from 'shiki/langs/bash.mjs';
+import shellscriptLang from 'shiki/langs/shellscript.mjs';
+import pythonLang from 'shiki/langs/python.mjs';
+import javaLang from 'shiki/langs/java.mjs';
+import cLang from 'shiki/langs/c.mjs';
+import cppLang from 'shiki/langs/cpp.mjs';
+import csharpLang from 'shiki/langs/csharp.mjs';
+import goLang from 'shiki/langs/go.mjs';
+import rustLang from 'shiki/langs/rust.mjs';
+import phpLang from 'shiki/langs/php.mjs';
+import sqlLang from 'shiki/langs/sql.mjs';
+import yamlLang from 'shiki/langs/yaml.mjs';
+import dockerLang from 'shiki/langs/docker.mjs';
+import dartLang from 'shiki/langs/dart.mjs';
+import githubDarkDefault from 'shiki/themes/github-dark-default.mjs';
+import githubLightDefault from 'shiki/themes/github-light-default.mjs';
 import CodeBlockHighlightComponent from './CodeBlockHighlightComponent.vue';
 
 const codeBlockSyntaxKey = new PluginKey<DecorationSet>('codeBlockSyntaxHighlight');
+
+let shikiHighlighter: HighlighterCore | null = null;
+let shikiReadyPromise: Promise<HighlighterCore | null> | null = null;
+let currentEditorDarkMode = false;
+
+const SHIKI_LANGS = [
+  javascriptLang,
+  typescriptLang,
+  tsxLang,
+  jsxLang,
+  jsonLang,
+  htmlLang,
+  cssLang,
+  vueLang,
+  markdownLang,
+  bashLang,
+  shellscriptLang,
+  pythonLang,
+  javaLang,
+  cLang,
+  cppLang,
+  csharpLang,
+  goLang,
+  rustLang,
+  phpLang,
+  sqlLang,
+  yamlLang,
+  dockerLang,
+  dartLang,
+];
+
+const SHIKI_THEME_LIGHT = 'github-light-default';
+const SHIKI_THEME_DARK = 'github-dark-default';
+
 
 /** Markdown 围栏语言别名 → 内部语言 key */
 const LANG_ALIASES: Record<string, string> = {
@@ -28,10 +90,43 @@ const LANG_ALIASES: Record<string, string> = {
   yml: 'yaml',
   md: 'markdown',
   docker: 'dockerfile',
+  dart: 'dart',
+  flutter: 'flutter',
 };
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function ensureShikiHighlighter(): Promise<HighlighterCore | null> {
+  if (shikiHighlighter) return shikiHighlighter;
+  if (shikiReadyPromise) return shikiReadyPromise;
+
+  shikiReadyPromise = createHighlighterCore({
+    themes: [githubLightDefault, githubDarkDefault],
+    langs: SHIKI_LANGS,
+    engine: createJavaScriptRegexEngine(),
+  })
+    .then(highlighter => {
+      shikiHighlighter = highlighter;
+      return highlighter;
+    })
+    .catch(error => {
+      console.warn('[CodeBlockHighlight] Shiki 初始化失败，回退到内置高亮。', error);
+      shikiHighlighter = null;
+      return null;
+    });
+
+  return shikiReadyPromise;
+}
+
+function toShikiLang(language: string): string {
+  const normalized = (LANG_ALIASES[language] || language || 'plaintext').toLowerCase();
+  if (normalized === 'flutter') return 'dart';
+  if (normalized === 'shell') return 'bash';
+  if (normalized === 'dockerfile') return 'docker';
+  if (normalized === 'plaintext') return 'txt';
+  return normalized;
 }
 
 /** 解析用于高亮的语言 key（含别名与空语言时的自动检测） */
@@ -43,80 +138,190 @@ export function resolveCodeBlockLang(languageAttr: string | null | undefined, co
   return detectLanguage(code) || 'plaintext';
 }
 
-function buildCodeBlockSyntaxDecorations(doc: PMNode): DecorationSet {
+function getCurrentDarkMode(view?: EditorView): boolean {
+  if (typeof document === 'undefined') return false;
+
+  const editorRoot = view?.dom?.closest?.('.dark-theme, .dark');
+  if (editorRoot) return true;
+
+  const root = document.documentElement;
+  const body = document.body;
+  return Boolean(
+    root.classList.contains('dark') ||
+      root.classList.contains('dark-theme') ||
+      body?.classList.contains('dark') ||
+      body?.classList.contains('dark-theme')
+  );
+}
+
+function buildCodeBlockSyntaxDecorations(
+  doc: PMNode,
+  highlighter?: HighlighterCore | null,
+  isDarkMode = false
+): DecorationSet {
   const decorations: Decoration[] = [];
+
+  const addDeco = (start: number, from: number, to: number, className: string) => {
+    if (to <= from) return;
+    decorations.push(Decoration.inline(start + from, start + to, { class: className }));
+  };
+
+  const markRange = (occupied: boolean[], from: number, to: number) => {
+    for (let i = Math.max(0, from); i < Math.min(occupied.length, to); i += 1) {
+      occupied[i] = true;
+    }
+  };
+
+  const isRangeFree = (occupied: boolean[], from: number, to: number): boolean => {
+    for (let i = Math.max(0, from); i < Math.min(occupied.length, to); i += 1) {
+      if (occupied[i]) return false;
+    }
+    return true;
+  };
+
   doc.descendants((node, pos) => {
     if (node.type.name !== 'codeBlock') return;
     const text = node.textContent;
     if (!text) return;
-    const lang = resolveCodeBlockLang(node.attrs.language as string | null, text);
-    const keywords = languageKeywords[lang];
-    const start = pos + 1;
 
-    // 1. 字符串高亮（双引号、单引号、模板字符串）
-    const stringPatterns = [
-      /"(?:[^"\\]|\\.)*"/g,
-      /'(?:[^'\\]|\\.)*'/g,
-      /`(?:[^`\\]|\\.)*`/g,
-    ];
-    for (const pat of stringPatterns) {
-      let m: RegExpExecArray | null;
-      while ((m = pat.exec(text)) !== null) {
-        decorations.push(
-          Decoration.inline(start + m.index, start + m.index + m[0].length, {
-            class: 'hljs-string',
-          })
-        );
+    const lang = resolveCodeBlockLang(node.attrs.language as string | null, text);
+    const keywords = languageKeywords[lang] ?? [];
+    const start = pos + 1;
+    const occupied = new Array(text.length).fill(false);
+
+    if (highlighter) {
+      try {
+        const shikiLang = toShikiLang(lang);
+        const tokens = highlighter.codeToTokens(text, {
+          lang: shikiLang,
+          theme: isDarkMode ? SHIKI_THEME_DARK : SHIKI_THEME_LIGHT,
+        });
+
+        let cursor = 0;
+        for (const lineTokens of tokens.tokens) {
+          for (const token of lineTokens) {
+            const value = token.content || '';
+            if (!value) continue;
+            const from = cursor;
+            const to = cursor + value.length;
+            const className = 'shiki-token';
+            const style = token.color ? `--shiki-color: ${token.color};` : undefined;
+            if (to > from) {
+              decorations.push(
+                Decoration.inline(start + from, start + to, style ? { class: className, style } : { class: className })
+              );
+            }
+            cursor = to;
+          }
+          cursor += 1; // newline
+        }
+        return;
+      } catch (error) {
+        console.warn('[CodeBlockHighlight] Shiki 渲染失败，回退到正则高亮。', error);
       }
     }
 
-    // 2. 数字高亮
-    const numberPattern = /\b\d+\.?\d*\b/g;
-    let m: RegExpExecArray | null;
-    while ((m = numberPattern.exec(text)) !== null) {
-      decorations.push(
-        Decoration.inline(start + m.index, start + m.index + m[0].length, {
-          class: 'hljs-number',
-        })
-      );
-    }
-
-    // 3. 注释高亮（行注释 //、块注释 /* */、#）
-    const commentPatterns = [
-      /\/\/.*$/gm,
-      /\/\*[\s\S]*?\*\//g,
-      /#.*$/gm,
-    ];
+    const commentPatterns = [/\/\/.*$/gm, /\/\*[\s\S]*?\*\//g, /#.*$/gm];
     for (const pat of commentPatterns) {
       let m: RegExpExecArray | null;
       while ((m = pat.exec(text)) !== null) {
-        decorations.push(
-          Decoration.inline(start + m.index, start + m.index + m[0].length, {
-            class: 'hljs-comment',
-          })
-        );
+        const from = m.index;
+        const to = m.index + m[0].length;
+        if (!isRangeFree(occupied, from, to)) continue;
+        addDeco(start, from, to, 'hljs-comment');
+        markRange(occupied, from, to);
       }
     }
 
-    // 4. 关键词高亮
-    if (keywords?.length) {
-      const sorted = [...keywords].sort((a, b) => b.length - a.length);
-      const pattern = new RegExp(`\\b(${sorted.map(escapeRegExp).join('|')})\\b`, 'g');
+    const stringPatterns = [/"(?:[^"\\]|\\.)*"/g, /'(?:[^'\\]|\\.)*'/g, /`(?:[^`\\]|\\.)*`/g];
+    for (const pat of stringPatterns) {
       let m: RegExpExecArray | null;
-      while ((m = pattern.exec(text)) !== null) {
-        const before = text[m.index - 1];
-        const isInString = before === '"' || before === "'" || before === '`';
-        const isInComment = before === '/' && text[m.index - 2] === '/';
-        if (!isInString && !isInComment) {
-          decorations.push(
-            Decoration.inline(start + m.index, start + m.index + m[0].length, {
-              class: 'hljs-keyword',
-            })
-          );
-        }
+      while ((m = pat.exec(text)) !== null) {
+        const from = m.index;
+        const to = m.index + m[0].length;
+        if (!isRangeFree(occupied, from, to)) continue;
+        addDeco(start, from, to, 'hljs-string');
+        markRange(occupied, from, to);
       }
     }
+
+    const numberPattern = /\b(?:0x[\da-fA-F]+|\d+\.?\d*)\b/g;
+    let numberMatch: RegExpExecArray | null;
+    while ((numberMatch = numberPattern.exec(text)) !== null) {
+      const from = numberMatch.index;
+      const to = numberMatch.index + numberMatch[0].length;
+      if (!isRangeFree(occupied, from, to)) continue;
+      addDeco(start, from, to, 'hljs-number');
+    }
+
+    if (keywords.length) {
+      const sorted = [...keywords].sort((a, b) => b.length - a.length);
+      const keywordPattern = new RegExp(`\\b(${sorted.map(escapeRegExp).join('|')})\\b`, 'g');
+      let keywordMatch: RegExpExecArray | null;
+      while ((keywordMatch = keywordPattern.exec(text)) !== null) {
+        const from = keywordMatch.index;
+        const to = keywordMatch.index + keywordMatch[0].length;
+        if (!isRangeFree(occupied, from, to)) continue;
+        addDeco(start, from, to, 'hljs-keyword');
+      }
+    }
+
+    const commandBuiltins = ['flutter', 'dart', 'npm', 'pnpm', 'yarn', 'node', 'git', 'cargo', 'go', 'python'];
+    const builtInPattern = new RegExp(`\\b(${commandBuiltins.map(escapeRegExp).join('|')})\\b`, 'g');
+    let builtInMatch: RegExpExecArray | null;
+    while ((builtInMatch = builtInPattern.exec(text)) !== null) {
+      const from = builtInMatch.index;
+      const to = builtInMatch.index + builtInMatch[0].length;
+      if (!isRangeFree(occupied, from, to)) continue;
+      addDeco(start, from, to, 'hljs-built_in');
+    }
+
+    const titlePattern = /\b([A-Za-z_][\w]*)\s*(?=\()/g;
+    let titleMatch: RegExpExecArray | null;
+    while ((titleMatch = titlePattern.exec(text)) !== null) {
+      const from = titleMatch.index;
+      const to = titleMatch.index + titleMatch[1].length;
+      if (!isRangeFree(occupied, from, to)) continue;
+      addDeco(start, from, to, 'hljs-title function_');
+    }
+
+    const typePattern = /\b([A-Z][A-Za-z0-9_]*)\b/g;
+    let typeMatch: RegExpExecArray | null;
+    while ((typeMatch = typePattern.exec(text)) !== null) {
+      const from = typeMatch.index;
+      const to = typeMatch.index + typeMatch[1].length;
+      if (!isRangeFree(occupied, from, to)) continue;
+      addDeco(start, from, to, 'hljs-type');
+    }
+
+    const attrPattern = /\B(--[\w-]+|[\w-]+)(?==)/g;
+    let attrMatch: RegExpExecArray | null;
+    while ((attrMatch = attrPattern.exec(text)) !== null) {
+      const from = attrMatch.index;
+      const to = attrMatch.index + attrMatch[1].length;
+      if (!isRangeFree(occupied, from, to)) continue;
+      addDeco(start, from, to, 'hljs-attr');
+    }
+
+    const operatorPattern = /[=+\-*/%<>!&|^~?:]+/g;
+    let operatorMatch: RegExpExecArray | null;
+    while ((operatorMatch = operatorPattern.exec(text)) !== null) {
+      const from = operatorMatch.index;
+      const to = operatorMatch.index + operatorMatch[0].length;
+      if (!isRangeFree(occupied, from, to)) continue;
+      addDeco(start, from, to, 'hljs-operator');
+    }
+
+    const punctuationPattern = /[{}()[\].,;]+/g;
+    let punctuationMatch: RegExpExecArray | null;
+    while ((punctuationMatch = punctuationPattern.exec(text)) !== null) {
+      const from = punctuationMatch.index;
+      const to = punctuationMatch.index + punctuationMatch[0].length;
+      if (!isRangeFree(occupied, from, to)) continue;
+      addDeco(start, from, to, 'hljs-punctuation');
+    }
   });
+
   return DecorationSet.create(doc, decorations);
 }
 
@@ -152,19 +357,24 @@ const languageKeywords: Record<string, string[]> = {
   sql: ['SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'TABLE', 'INDEX', 'VIEW', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'ON', 'AND', 'OR', 'NOT', 'IN', 'LIKE', 'BETWEEN', 'IS', 'NULL', 'TRUE', 'FALSE', 'AS', 'ORDER', 'BY', 'GROUP', 'HAVING', 'LIMIT', 'OFFSET', 'UNION', 'ALL', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CONSTRAINT', 'DEFAULT', 'AUTO_INCREMENT', 'CASCADE', 'VALUES', 'SET', 'INTO', 'EXISTS', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'COMMIT', 'ROLLBACK', 'TRANSACTION', 'GRANT', 'REVOKE', 'TRIGGER', 'PROCEDURE', 'FUNCTION'],
   bash: ['#!/bin/bash', 'echo', 'read', 'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'do', 'done', 'case', 'esac', 'function', 'return', 'exit', 'break', 'continue', 'export', 'source', 'alias', 'unset', 'set', 'local', 'shift', 'trap', 'exec', 'test', 'true', 'false', 'cd', 'pwd', 'ls', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'touch', 'cat', 'grep', 'sed', 'awk', 'find', 'xargs', 'sort', 'uniq', 'head', 'tail', 'cut', 'wc', 'chmod', 'chown', 'sudo', 'su', 'curl', 'wget', 'npm', 'yarn', 'node', 'git'],
   vue: ['template', 'script', 'style', 'export', 'default', 'import', 'from', 'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'class', 'extends', 'new', 'this', 'async', 'await', 'ref', 'reactive', 'computed', 'watch', 'watchEffect', 'onMounted', 'onUpdated', 'onUnmounted', 'onBeforeMount', 'onBeforeUpdate', 'onBeforeUnmount', 'provide', 'inject', 'defineProps', 'defineEmits', 'defineExpose', 'v-if', 'v-else', 'v-else-if', 'v-for', 'v-on', 'v-bind', 'v-model', 'v-show', 'v-text', 'v-html', 'v-once', 'v-pre', 'v-cloak'],
+  dart: ['import', 'library', 'part', 'class', 'abstract', 'mixin', 'extension', 'enum', 'typedef', 'void', 'final', 'const', 'var', 'late', 'required', 'dynamic', 'String', 'int', 'double', 'bool', 'List', 'Map', 'Set', 'Future', 'Stream', 'return', 'if', 'else', 'switch', 'case', 'default', 'for', 'while', 'do', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'rethrow', 'on', 'is', 'as', 'this', 'super', 'new', 'true', 'false', 'null', 'async', 'await', 'yield', 'with', 'implements', 'extends', 'override', 'Widget', 'StatefulWidget', 'StatelessWidget', 'BuildContext', 'setState'],
+  flutter: ['flutter', 'dart', 'clean', 'pub', 'get', 'build', 'apk', 'appbundle', 'ios', 'web', 'windows', 'linux', 'macos', 'run', 'test', 'doctor', 'upgrade', 'analyze', 'gen-l10n', '--release', '--debug', '--profile', '--flavor', '--target', '--dart-define'],
 };
 
 // 自动语言检测函数
 function detectLanguage(code: string): string | null {
   const trimmed = code.trim();
 
-  // 检查是否已有语言标记
-  const firstLine = trimmed.split('\n')[0];
-  if (firstLine.match(/^(javascript|typescript|python|java|c|c\+\+|c#|csharp|go|rust|php|ruby|swift|html|css|scss|json|xml|sql|bash|shell|vue|jsx|tsx)/i)) {
-    const lang = firstLine.toLowerCase().trim();
-    if (lang.startsWith('c++') || lang.startsWith('cpp')) return 'cpp';
-    if (lang.startsWith('c#') || lang.startsWith('csharp')) return 'csharp';
-    return lang.split(' ')[0];
+  // 检查是否已有语言标记（必须是完整语言标识，避免把 "cd ..." 误判为 "c"）
+  const firstLine = trimmed.split('\n')[0].trim();
+  const langMarkerMatch = firstLine.match(
+    /^(javascript|typescript|python|java|c|c\+\+|cpp|c#|csharp|go|rust|php|ruby|swift|html|css|scss|json|xml|sql|bash|shell|vue|jsx|tsx|dart|flutter)\b/i
+  );
+  if (langMarkerMatch) {
+    const marker = langMarkerMatch[1].toLowerCase();
+    if (marker === 'c++' || marker === 'cpp') return 'cpp';
+    if (marker === 'c#' || marker === 'csharp') return 'csharp';
+    return marker;
   }
 
   // 基于代码特征检测
@@ -493,17 +703,65 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
         key: codeBlockSyntaxKey,
         state: {
           init(_, { doc }) {
-            return buildCodeBlockSyntaxDecorations(doc);
+            return buildCodeBlockSyntaxDecorations(doc, shikiHighlighter, currentEditorDarkMode);
           },
           apply(tr, oldDeco) {
-            if (!tr.docChanged) return oldDeco;
-            return buildCodeBlockSyntaxDecorations(tr.doc);
+            const shouldRefresh = Boolean(tr.getMeta(codeBlockSyntaxKey)?.refresh);
+            if (!tr.docChanged && !shouldRefresh) return oldDeco;
+            return buildCodeBlockSyntaxDecorations(tr.doc, shikiHighlighter, currentEditorDarkMode);
           },
         },
         props: {
-          decorations(state) {
+          decorations(state): DecorationSource | null {
             return codeBlockSyntaxKey.getState(state) ?? DecorationSet.empty;
           },
+        },
+        view: (view: EditorView) => {
+          let mounted = true;
+          let lastDarkMode = getCurrentDarkMode(view);
+          currentEditorDarkMode = lastDarkMode;
+
+          const refreshDecorations = () => {
+            if (!mounted) return;
+            const tr = view.state.tr;
+            tr.setMeta(codeBlockSyntaxKey, { refresh: true });
+            view.dispatch(tr);
+          };
+
+          ensureShikiHighlighter().then(highlighter => {
+            if (!mounted || !highlighter) return;
+            refreshDecorations();
+          });
+
+          const mediaQuery =
+            typeof window !== 'undefined' && window.matchMedia
+              ? window.matchMedia('(prefers-color-scheme: dark)')
+              : null;
+
+          const themeListener = () => {
+            const nextDarkMode = getCurrentDarkMode(view);
+            if (nextDarkMode === lastDarkMode) return;
+            lastDarkMode = nextDarkMode;
+            currentEditorDarkMode = nextDarkMode;
+            refreshDecorations();
+          };
+
+          mediaQuery?.addEventListener?.('change', themeListener);
+
+          return {
+            update(updatedView) {
+              const nextDarkMode = getCurrentDarkMode(updatedView);
+              if (nextDarkMode !== lastDarkMode) {
+                lastDarkMode = nextDarkMode;
+                currentEditorDarkMode = nextDarkMode;
+                refreshDecorations();
+              }
+            },
+            destroy() {
+              mounted = false;
+              mediaQuery?.removeEventListener?.('change', themeListener);
+            },
+          };
         },
       }),
     ];

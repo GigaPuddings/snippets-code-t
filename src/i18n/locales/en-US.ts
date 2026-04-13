@@ -22,7 +22,11 @@ export default {
     start: 'Get Started',
     browse: 'Browse',
     quickStart: 'Quick Start',
-    create: 'Create'
+    create: 'Create',
+    inputTitle: 'Input',
+    requiredField: 'This field is required',
+    maxLengthExceeded: 'Length cannot exceed {max} characters',
+    invalidInput: 'Invalid input'
   },
 
   // Setup Wizard
@@ -517,7 +521,20 @@ export default {
     convertFailed: 'Type conversion failed',
     unsavedChanges: 'You have unsaved changes. Do you want to save them?',
     discardChanges: 'Discard Changes',
-    createNoteConfirm: 'Note "{name}" not found. Create a new note?'
+    createNoteConfirm: 'Note "{name}" not found. Create a new note?',
+    emptyName: 'Category name cannot be empty',
+    invalidNameChars: 'Category name cannot contain \\ / : * ? " < > |',
+    duplicateName: 'Category name already exists',
+    createSuccess: 'Category created successfully',
+    createFailed: 'Failed to create category',
+    emptyContentTitle: 'Content title cannot be empty'
+  },
+
+  codeBlock: {
+    editLanguageTitle: 'Edit code language',
+    editLanguageMessage: 'Enter language (e.g. ts, vue, flutter, bash), leave empty for auto detection',
+    editLanguagePlaceholder: 'e.g. ts / vue / flutter / bash',
+    invalidLanguage: 'Language only allows letters, numbers, #, +, ., _, -'
   },
 
   // Content Editing

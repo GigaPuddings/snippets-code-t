@@ -31,7 +31,7 @@
       <!-- 文本格式子菜单 -->
       <div
         class="menu-item has-submenu"
-        @mouseenter="showSubmenu('textFormat')"
+        @mouseenter="showSubmenu('textFormat', $event)"
         @mouseleave="handleMenuMouseLeave"
       >
         <svg class="menu-icon" viewBox="0 0 24 24">
@@ -46,7 +46,7 @@
       <!-- 段落设置子菜单 -->
       <div
         class="menu-item has-submenu"
-        @mouseenter="showSubmenu('paragraphSettings')"
+        @mouseenter="showSubmenu('paragraphSettings', $event)"
         @mouseleave="handleMenuMouseLeave"
       >
         <svg class="menu-icon" viewBox="0 0 24 24">
@@ -61,7 +61,7 @@
       <!-- 插入子菜单 -->
       <div
         class="menu-item has-submenu"
-        @mouseenter="showSubmenu('insert')"
+        @mouseenter="showSubmenu('insert', $event)"
         @mouseleave="handleMenuMouseLeave"
       >
         <svg class="menu-icon" viewBox="0 0 24 24">
@@ -328,9 +328,10 @@ const hide = () => {
 };
 
 // 显示子菜单
-const showSubmenu = (submenu: string) => {
+const showSubmenu = (submenu: string, event: MouseEvent) => {
   if (submenuTimer) {
     clearTimeout(submenuTimer);
+    submenuTimer = null;
   }
   
   activeSubmenu.value = submenu;
@@ -339,14 +340,15 @@ const showSubmenu = (submenu: string) => {
     if (!menuRef.value || !submenuRef.value) return;
     
     const menuRect = menuRef.value.getBoundingClientRect();
+    const triggerRect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect();
     const submenuRect = submenuRef.value.getBoundingClientRect();
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     const padding = 10;
-    const gap = 8; // 主菜单和子菜单之间的间距
+    const gap = 0; // 主菜单和子菜单之间不留缝隙，避免鼠标移动时丢失 hover
     
     let x = 0;
-    let y = menuRect.top;
+    let y = triggerRect ? triggerRect.top : menuRect.top;
     
     // 默认尝试在右侧显示
     const rightX = menuRect.right + gap;

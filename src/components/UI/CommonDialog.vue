@@ -111,6 +111,38 @@ defineExpose({
 </script>
 
 <style scoped lang="scss">
+:deep(.el-dialog) {
+  border-radius: 10px;
+  border: 1px solid var(--categories-border-color);
+  background: var(--categories-panel-bg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+:deep(.el-dialog__header) {
+  margin: 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--categories-border-color);
+  background: var(--categories-content-bg);
+}
+
+:deep(.el-dialog__title) {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--categories-text-color);
+}
+
+:deep(.el-dialog__body) {
+  padding: 16px;
+  color: var(--categories-text-color);
+}
+
+:deep(.el-dialog__footer) {
+  padding: 12px 16px;
+  border-top: 1px solid var(--categories-border-color);
+  background: var(--categories-content-bg);
+}
+
 .dialog-footer-default {
   @apply flex justify-between items-center;
 

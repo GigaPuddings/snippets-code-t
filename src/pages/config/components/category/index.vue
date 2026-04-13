@@ -7,7 +7,7 @@
         <CategoryHeader
           :sort-order="categorySort"
           @sort="handleSort"
-          @add="handleAddCategory"
+          @add="openAddCategoryDialog"
         />
         <CategoryListView
           :categories="categories"
@@ -19,20 +19,40 @@
     <section class="content-page">
       <router-view />
     </section>
+
+    <PromptDialog
+      v-model="showAddCategoryDialog"
+      :title="$t('category.newFolder')"
+      :message="$t('category.newFolder')"
+      :placeholder="$t('category.newFolder')"
+      :initial-value="newCategoryName"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :required="true"
+      :max-length="60"
+      :validator="validateCategoryName"
+      @confirm="handleConfirmAddCategory"
+      @cancel="showAddCategoryDialog = false"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch, computed } from 'vue';
+import { onMounted, onUnmounted, watch, computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useConfigurationStore, useLayoutStore } from '@/store';
 import { useCategoryManagement } from './composables/useCategoryManagement';
 import CategoryHeader from './components/CategoryHeader.vue';
 import CategoryListView from './components/CategoryListView.vue';
+import { PromptDialog } from '@/components/UI';
+import { addCategory, getCategories } from '@/api/fragment';
+import modal from '@/utils/modal';
 
 const store = useConfigurationStore();
 const layoutStore = useLayoutStore();
 const route = useRoute();
+const { t } = useI18n();
 
 const gridStyle = computed(() => ({
   gridTemplateColumns: layoutStore.effectiveCategoryCollapsed ? '0px 1fr' : '160px 1fr'
@@ -50,8 +70,44 @@ const {
   categorySort,
   loadCategories,
   handleSort,
-  handleAddCategory
 } = useCategoryManagement();
+
+const showAddCategoryDialog = ref(false);
+const newCategoryName = ref('');
+
+const openAddCategoryDialog = () => {
+  newCategoryName.value = '';
+  showAddCategoryDialog.value = true;
+};
+
+const invalidCategoryChars = /[\\/:*?"<>|]/;
+
+const validateCategoryName = (value: string) => {
+  if (!value.trim()) {
+    return { valid: false, message: t('category.emptyName') };
+  }
+  if (invalidCategoryChars.test(value)) {
+    return { valid: false, message: t('category.invalidNameChars') };
+  }
+  if (store.categories.some(c => c.name.toLowerCase() === value.trim().toLowerCase())) {
+    return { valid: false, message: t('category.duplicateName') };
+  }
+  return { valid: true };
+};
+
+const handleConfirmAddCategory = async (value: string) => {
+  const name = value.trim();
+
+  try {
+    await addCategory(name);
+    store.categories = await getCategories(store.categorySort);
+    showAddCategoryDialog.value = false;
+    modal.success(t('category.createSuccess'));
+  } catch (error) {
+    console.error('[Category] 创建分类失败:', error);
+    modal.error(t('category.createFailed'));
+  }
+};
 
 // 监听数据刷新事件（Git Pull 完成后的无感刷新）
 const handleRefreshData = (event: Event) => {
