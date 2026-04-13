@@ -3,6 +3,7 @@
     :model-value="visible"
     :title="$t('search.filterPanel')"
     width="460px"
+    top="6vh"
     @update:model-value="val => !val && handleClose()"
   >
     <div class="panel-content">
@@ -220,7 +221,7 @@ function handleReset(): void {
 
 // 面板内容
 .panel-content {
-  @apply px-4 py-3;
+  @apply h-[calc(100vh-300px)] px-4 py-3;
   overflow-y: visible;
   flex-shrink: 1;
   min-height: 0;
