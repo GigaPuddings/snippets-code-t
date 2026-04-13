@@ -40,6 +40,38 @@ async function checkTagExists(version) {
   }
 }
 
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+
+  for (let i = 0; i < 3; i += 1) {
+    if (pa[i] > pb[i]) return 1;
+    if (pa[i] < pb[i]) return -1;
+  }
+  return 0;
+}
+
+function getLatestRemoteTagVersion() {
+  try {
+    const output = execSync('git ls-remote --tags --refs origin "v*"', { encoding: 'utf-8' }).trim();
+    if (!output) return null;
+
+    const versions = output
+      .split('\n')
+      .map((line) => line.split('\t')[1])
+      .filter(Boolean)
+      .map((ref) => ref.replace('refs/tags/v', ''))
+      .filter((v) => /^\d+\.\d+\.\d+$/.test(v));
+
+    if (versions.length === 0) return null;
+
+    versions.sort(compareVersions);
+    return versions[versions.length - 1];
+  } catch {
+    return null;
+  }
+}
+
 function getChangedFiles() {
   const output = execSync('git status --porcelain', { encoding: 'utf-8' }).trim();
   if (!output) {
@@ -117,9 +149,11 @@ async function updateVersion() {
 
     const currentPackageVersion = currentPackageJson.version;
     const currentTauriVersion = currentTauriConfig.version;
+    const latestRemoteVersion = getLatestRemoteTagVersion();
 
     console.log(`\n当前 package.json 版本: ${currentPackageVersion}`);
     console.log(`当前 tauri.conf.json 版本: ${currentTauriVersion}`);
+    console.log(`远程最新标签版本: ${latestRemoteVersion ? `v${latestRemoteVersion}` : '未找到'}`);
 
     if (currentPackageVersion !== currentTauriVersion) {
       console.log('\n⚠️  检测到版本不一致，请确认是否继续发布。');
@@ -134,8 +168,9 @@ async function updateVersion() {
     if (!version.match(/^\d+\.\d+\.\d+$/)) {
       throw new Error('版本号格式错误，请使用 x.y.z 格式');
     }
-    if (version === currentPackageVersion) {
-      throw new Error('新版本号不能与当前版本号相同');
+
+    if (latestRemoteVersion && compareVersions(version, latestRemoteVersion) <= 0) {
+      throw new Error(`新版本号必须大于远程最新版本 v${latestRemoteVersion}`);
     }
 
     // 3. 检查标签是否存在
