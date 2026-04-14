@@ -22,6 +22,19 @@ const execCommand = (command) => {
   }
 };
 
+function validateCommitMessage(message) {
+  try {
+    execSync('pnpm exec commitlint', {
+      input: `${message}\n`,
+      stdio: ['pipe', 'inherit', 'inherit']
+    });
+  } catch {
+    throw new Error(
+      `提交信息不符合规范: "${message}"\n请检查 commitlint 配置，或调整发布提交前缀（例如 chore(release)）。`
+    );
+  }
+}
+
 async function readJson(jsonPath) {
   const content = await fs.readFile(jsonPath, 'utf-8');
   return JSON.parse(content);
@@ -221,16 +234,20 @@ async function updateVersion() {
 
     // Git 操作
     console.log('\n正在提交更改...');
-    
+
+    const releaseCommitMessage = `chore(release): v${version}`;
+
     // 仅添加发布相关文件，避免误提交无关改动
     execCommand(`git add ${filesToUpdate.join(' ')}`);
-    
+
     // 检查是否有待提交的更改
     try {
       execSync('git diff --cached --quiet');
       console.log('没有待提交的更改');
     } catch {
-      execCommand(`git commit -m "release: v${version}"`);
+      // 提交前先做 commitlint 预校验，避免在 git commit hook 阶段才失败
+      validateCommitMessage(releaseCommitMessage);
+      execCommand(`git commit -m "${releaseCommitMessage}"`);
     }
 
     console.log('\n正在创建标签...');
