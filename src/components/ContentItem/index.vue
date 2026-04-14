@@ -273,57 +273,80 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
 <style scoped lang="scss">
 @mixin commonLink {
-  @apply block py-1 truncate rounded-lg cursor-pointer transition-all hover:bg-hover dark:hover:bg-hover hover:border-panel border-b-transparent;
+  @apply block py-1 truncate rounded-lg cursor-pointer transition-colors duration-200 ease-out border-b-transparent;
 }
 
 .link {
   @include commonLink();
 }
 
+.link:not(.active):hover {
+  @apply bg-hover dark:bg-hover border-panel;
+
+  .fragment-type-icon {
+    transform: scale(1.05);
+    background-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .content-item-tags {
+    .tag-item {
+      background-color: rgba(0, 0, 0, 0.08);
+      color: #4a9eff;
+    }
+  }
+}
+
 .active {
   @apply bg-active dark:bg-active hover:bg-active dark:hover:bg-active;
 
-  .content-item-title {
-    @apply truncate;
-    color: #fff !important;
-  }
+  .content-item-wrapper {
+    .content-item-header {
+      .content-item-title {
+        @apply truncate;
+        color: #fff;
+      }
 
-  .content-item-info, .content-item-category {
-    color: #fff !important;
-  }
-  
-  .content-item-info-time {
-    color: rgba(255, 255, 255, 0.7) !important;
-  }
-  
-  .fragment-type-icon {
-    &.type-code {
-      background-color: rgba(255, 255, 255, 0.2);
-      color: #fff !important;
-    }
+      .fragment-type-icon {
+        &.type-code,
+        &.type-note {
+          background-color: rgba(255, 255, 255, 0.2);
+          color: #fff;
+        }
 
-    &.type-note {
-      background-color: rgba(255, 255, 255, 0.2);
-      color: #fff !important;
-    }
-  }
-  
-  .content-item-tags {
-    .tag-item {
-      background-color: rgba(255, 255, 255, 0.2);
-      color: #fff !important;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      
-      &:hover {
-        background-color: rgba(255, 255, 255, 0.3);
-        border-color: rgba(255, 255, 255, 0.5);
-        color: #fff !important;
+        :deep(svg) {
+          color: inherit;
+        }
       }
     }
-    
-    .more-tags {
-      color: rgba(255, 255, 255, 0.7) !important;
-      opacity: 1;
+
+    .content-item-info,
+    .content-item-category {
+      color: #fff;
+      transition: color 0.2s ease;
+    }
+
+    .content-item-info-time {
+      color: rgba(255, 255, 255, 0.7);
+      transition: color 0.2s ease;
+    }
+
+    .content-item-tags {
+      .tag-item {
+        background-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+
+        &:hover {
+          background-color: rgba(255, 255, 255, 0.3);
+          border-color: rgba(255, 255, 255, 0.5);
+          color: #fff;
+        }
+      }
+
+      .more-tags {
+        color: rgba(255, 255, 255, 0.7);
+        opacity: 1;
+      }
     }
   }
 }
@@ -336,21 +359,17 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
     .content-item-title {
       @apply truncate text-panel flex-1 font-medium;
+      transition: none;
     }
 
     .fragment-type-icon {
       @apply flex-shrink-0 w-6 h-6 rounded flex items-center justify-center;
-      transition: all 0.15s ease;
+      transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
 
       &.type-code,
       &.type-note {
         background-color: rgba(0, 0, 0, 0.04);
         color: #666;
-      }
-      
-      &:hover {
-        transform: scale(1.05);
-        background-color: rgba(0, 0, 0, 0.08);
       }
     }
   }
@@ -370,17 +389,12 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
       @apply inline-flex items-center px-1.5 py-0.5 rounded text-[10px] cursor-pointer flex-shrink-0;
       background-color: rgba(0, 0, 0, 0.04);
       color: #666;
-      transition: all 0.15s ease;
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
       line-height: 1.2;
       max-width: 60px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      
-      &:hover {
-        background-color: rgba(0, 0, 0, 0.08);
-        color: #4a9eff;
-      }
     }
     
     .more-tags {
@@ -400,15 +414,24 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
 // 暗色模式
 :global(.dark) {
+  .link:not(.active):hover {
+    .fragment-type-icon {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .content-item-tags {
+      .tag-item {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #4a9eff;
+      }
+    }
+  }
+
   .fragment-type-icon {
     &.type-code,
     &.type-note {
       background-color: rgba(255, 255, 255, 0.06);
       color: #999;
-    }
-    
-    &:hover {
-      background-color: rgba(255, 255, 255, 0.1);
     }
   }
   
@@ -416,11 +439,6 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
     .tag-item {
       background-color: rgba(255, 255, 255, 0.06);
       color: #999;
-      
-      &:hover {
-        background-color: rgba(255, 255, 255, 0.1);
-        color: #4a9eff;
-      }
     }
   }
   
@@ -439,7 +457,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
     }
     
     .content-item-category {
-      color: rgba(255, 255, 255, 0.7) !important;
+      color: rgba(255, 255, 255, 0.7);
     }
   }
 }
