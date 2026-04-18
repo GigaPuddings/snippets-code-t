@@ -271,13 +271,11 @@ export class ScreenshotManager {
           continue
         }
         // 其他错误，继续尝试加载完整图
-        logger.warn('[截图] 预览图加载错误:', errorMsg)
-        break
+          break
       }
     }
 
     // 等待超时，让完整图继续加载
-    logger.debug('[截图] 预览图等待超时')
   }
 
   // 加载完整背景图（高质量PNG）
@@ -315,7 +313,6 @@ export class ScreenshotManager {
             img.src = `data:image/png;base64,${base64Image}`
           })
 
-          logger.info('[截图] 完整背景图加载成功')
           return
         }
       } catch (error: any) {
@@ -329,7 +326,6 @@ export class ScreenshotManager {
       }
     }
 
-    logger.warn('[截图] 等待后端准备背景超时')
     this.createFallbackBackground()
   }
 
@@ -416,18 +412,15 @@ export class ScreenshotManager {
             isFullscreen: false
           }
           windows = cachedWindows
-          logger.info(`[截图] 使用预缓存的窗口列表 (尝试 ${attempt + 1}, 原始窗口数: ${cachedWindows.length})`)
           break // 成功获取，退出重试循环
         } catch (error) {
           if (attempt < maxRetries - 1) {
             // 还有重试次数，等待后重试
-            logger.debug(`[截图] 缓存获取失败，${retryDelay}ms后重试 (尝试 ${attempt + 1}/${maxRetries})`)
             await new Promise(resolve => setTimeout(resolve, retryDelay))
             continue
           }
           // 最后一个尝试也失败，回退到实时获取
-          logger.warn('[截图] 预缓存不可用，使用实时获取')
-          const results = await Promise.all([
+              const results = await Promise.all([
             invoke('get_window_info') as Promise<{ x: number, y: number, scale: number, isFullscreen: boolean }>,
             invoke('get_all_windows') as Promise<WindowInfo[]>
           ])
@@ -440,7 +433,6 @@ export class ScreenshotManager {
       const screenWidth = window.innerWidth
       const screenHeight = window.innerHeight
 
-      logger.debug(`[截图] 窗口过滤前: ${windows.length} 个, scale: ${scale}, screen: ${screenWidth}x${screenHeight}`)
 
       // 使用单次遍历优化性能
       this.allWindows = windows
@@ -459,7 +451,6 @@ export class ScreenshotManager {
           win.y < screenHeight + win.height
         )
 
-      logger.info(`[截图] 窗口过滤后: ${this.allWindows.length} 个可用窗口`)
     } catch (error) {
       logger.error('[截图] 加载窗口列表失败', error)
       this.allWindows = []
@@ -479,24 +470,10 @@ export class ScreenshotManager {
         waitedTime += checkInterval
       }
 
-      // 调试日志：显示窗口列表状态
-      logger.info(`[截图] 初始窗口吸附检测 - allWindows数量: ${this.allWindows.length}`)
-
       // 如果没有窗口列表，直接返回
       if (this.allWindows.length === 0) {
-        logger.debug('[截图] 没有可用的窗口列表，跳过初始吸附')
         return
       }
-
-      // 显示前3个窗口用于调试
-      const debugWindows = this.allWindows.slice(0, 3).map(w => ({
-        title: w.title.substring(0, 20),
-        x: w.x,
-        y: w.y,
-        width: w.width,
-        height: w.height
-      }))
-      logger.debug(`[截图] 可用窗口列表: ${JSON.stringify(debugWindows)}`)
 
       // 【优化】优先使用预缓存的显示器信息
       let windowInfo: { x: number, y: number, scale: number }
@@ -507,11 +484,9 @@ export class ScreenshotManager {
           y: cachedMonitor.y,
           scale: cachedMonitor.scale
         }
-        logger.debug(`[截图] 使用缓存的显示器信息: ${JSON.stringify(windowInfo)}`)
       } catch {
         // 缓存不可用，实时获取
         windowInfo = await invoke('get_window_info') as { x: number, y: number, scale: number }
-        logger.debug(`[截图] 使用实时的显示器信息: ${JSON.stringify(windowInfo)}`)
       }
 
       // 尝试获取鼠标位置，如果失败则使用屏幕中心作为初始位置
@@ -525,14 +500,12 @@ export class ScreenshotManager {
           x: Math.round((mouseInfo.x - windowInfo.x) / scale),
           y: Math.round((mouseInfo.y - windowInfo.y) / scale)
         }
-        logger.debug(`[截图] 鼠标位置(屏幕): (${mouseInfo.x}, ${mouseInfo.y}), (Canvas): (${canvasMousePos.x}, ${canvasMousePos.y})`)
       } catch (error) {
         // 如果获取鼠标位置失败，使用屏幕中心
         canvasMousePos = {
           x: Math.round(this.canvas.width / (window.devicePixelRatio || 1) / 2),
           y: Math.round(this.canvas.height / (window.devicePixelRatio || 1) / 2)
         }
-        logger.debug(`[截图] 使用屏幕中心作为初始位置: (${canvasMousePos.x}, ${canvasMousePos.y})`)
       }
 
       // 检测鼠标位置附近的窗口
@@ -541,13 +514,11 @@ export class ScreenshotManager {
       if (nearbyWindow) {
         this.snappedWindow = nearbyWindow
         this.showSnapPreview = true
-        logger.info(`[截图] 初始吸附到窗口: "${nearbyWindow.title}"`)
         this.draw()
       } else {
-        logger.debug('[截图] 鼠标位置没有匹配的窗口，不进行初始吸附')
       }
     } catch (error) {
-      logger.warn('[截图] 初始窗口吸附检测失败', error)
+      logger.error('[截图] 初始窗口吸附检测失败', error)
       // 失败不影响正常使用，用户移动鼠标后会重新检测
     }
   }
@@ -1602,7 +1573,7 @@ export class ScreenshotManager {
         0, 0, physicalWidth, physicalHeight
       )
     } catch (error) {
-      logger.warn('[截图] 采样区域绘制失败', error)
+      logger.error('[截图] 采样区域绘制失败', error)
       this.canvasPool.release(tempCanvas)
       return defaultColor
     }
@@ -1612,7 +1583,7 @@ export class ScreenshotManager {
     try {
       imageData = tempCtx.getImageData(0, 0, physicalWidth, physicalHeight)
     } catch (error) {
-      logger.warn('[截图] 获取像素数据失败', error)
+      logger.error('[截图] 获取像素数据失败', error)
       this.canvasPool.release(tempCanvas)
       return defaultColor
     }
@@ -1792,7 +1763,7 @@ export class ScreenshotManager {
         0, 0, physicalWidth, physicalHeight
       )
     } catch (error) {
-      logger.warn('[截图] isUniformColor: 采样区域绘制失败', error)
+      logger.error('[截图] isUniformColor: 采样区域绘制失败', error)
       this.canvasPool.release(tempCanvas)
       return false
     }
@@ -1802,7 +1773,7 @@ export class ScreenshotManager {
     try {
       imageData = tempCtx.getImageData(0, 0, physicalWidth, physicalHeight)
     } catch (error) {
-      logger.warn('[截图] isUniformColor: 获取像素数据失败', error)
+      logger.error('[截图] isUniformColor: 获取像素数据失败', error)
       this.canvasPool.release(tempCanvas)
       return false
     }
@@ -2815,7 +2786,6 @@ export class ScreenshotManager {
                 text: prevLine + ' ' + currText,
                 height: currBlock.y + currBlock.height - prevBlock.y
               }
-              logger.debug(`[OCR] 合并行: "...${currText.substring(currText.length - 20, currText.length)}" -> 上一行`)
               continue
             }
           }
@@ -2828,7 +2798,6 @@ export class ScreenshotManager {
       const fullText = mergedLines.join('\n')
 
       if (!fullText || !fullText.trim()) {
-        logger.warn('[OCR] 未识别到任何文字')
         this.translationOverlay.isLoading = false
         this.translationOverlay.isVisible = false
         this.draw()
@@ -2886,11 +2855,9 @@ export class ScreenshotManager {
               if (cacheInfo.isCached) {
                 await warmupOfflineTranslator()
               } else {
-                logger.warn('[OCR] 离线翻译不可用 - 缓存不存在')
                 throw new Error('离线翻译模型未下载，请在设置-翻译配置中下载模型')
               }
             } else if (!this.offlineModelActivated) {
-              logger.warn('[OCR] 离线翻译不可用 - 后端未激活')
               throw new Error('离线翻译模型未激活，请在设置-翻译配置中激活模型')
             }
             
@@ -2906,7 +2873,7 @@ export class ScreenshotManager {
             })) as string
           }
         } catch (err) {
-          logger.warn('[OCR] 翻译失败:', err)
+          logger.error('[OCR] 翻译失败', err)
           const errMsg = err instanceof Error ? err.message : String(err)
           
           // 如果是取消操作，直接返回不显示错误
@@ -2953,11 +2920,6 @@ export class ScreenshotManager {
         })
       }
 
-      logger.info('[OCR] ========== 翻译结果 ==========')
-      logger.debug(`[OCR] 原文: "${fullText.substring(0, 100)}${fullText.length > 100 ? '...' : ''}"`)
-      logger.debug(`[OCR] 译文: "${translatedText.substring(0, 100)}${translatedText.length > 100 ? '...' : ''}"`)
-      logger.info(`[OCR] 翻译块数: ${translatedBlocks.length}`)
-      logger.info('[OCR] ================================')
 
       this.translationOverlay.blocks = translatedBlocks
       this.translationOverlay.isLoading = false
@@ -3009,7 +2971,6 @@ export class ScreenshotManager {
 
   // 设置离线模型激活状态
   setOfflineModelActivated(activated: boolean): void {
-    logger.info(`[截图] 设置离线模型激活状态: ${activated}`)
     this.offlineModelActivated = activated
   }
 

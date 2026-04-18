@@ -31,6 +31,7 @@
       <!-- 文本格式子菜单 -->
       <div
         class="menu-item has-submenu"
+        :class="{ disabled: isMarkdownSyntaxDisabled }"
         @mouseenter="showSubmenu('textFormat', $event)"
         @mouseleave="handleMenuMouseLeave"
       >
@@ -46,6 +47,7 @@
       <!-- 段落设置子菜单 -->
       <div
         class="menu-item has-submenu"
+        :class="{ disabled: isMarkdownSyntaxDisabled }"
         @mouseenter="showSubmenu('paragraphSettings', $event)"
         @mouseleave="handleMenuMouseLeave"
       >
@@ -61,6 +63,7 @@
       <!-- 插入子菜单 -->
       <div
         class="menu-item has-submenu"
+        :class="{ disabled: isMarkdownSyntaxDisabled }"
         @mouseenter="showSubmenu('insert', $event)"
         @mouseleave="handleMenuMouseLeave"
       >
@@ -123,89 +126,89 @@
           @mouseleave="hideSubmenu"
         >
         <template v-if="activeSubmenu === 'textFormat'">
-          <div class="menu-item" :class="{ active: editor?.isActive('bold') }" @click="toggleBold">
+          <div class="menu-item" :class="[{ active: editor?.isActive('bold') }, markdownDisabledClass]" @click="toggleBold">
             <span>{{ $t('contextMenu.bold') }}</span>
             <span class="menu-shortcut">**</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('italic') }" @click="toggleItalic">
+          <div class="menu-item" :class="[{ active: editor?.isActive('italic') }, markdownDisabledClass]" @click="toggleItalic">
             <span>{{ $t('contextMenu.italic') }}</span>
             <span class="menu-shortcut">*</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('strike') }" @click="toggleStrike">
+          <div class="menu-item" :class="[{ active: editor?.isActive('strike') }, markdownDisabledClass]" @click="toggleStrike">
             <span>{{ $t('contextMenu.strikethrough') }}</span>
             <span class="menu-shortcut">~~</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('code') }" @click="toggleCode">
+          <div class="menu-item" :class="[{ active: editor?.isActive('code') }, markdownDisabledClass]" @click="toggleCode">
             <span>{{ $t('contextMenu.code') }}</span>
             <span class="menu-shortcut">`</span>
           </div>
           <div class="menu-divider"></div>
-          <div class="menu-item" @click="clearFormat">
+          <div class="menu-item" :class="markdownDisabledClass" @click="clearFormat">
             <span>{{ $t('contextMenu.clearFormat') }}</span>
           </div>
         </template>
 
         <template v-else-if="activeSubmenu === 'paragraphSettings'">
-          <div class="menu-item" :class="{ active: editor?.isActive('bulletList') }" @click="toggleBulletList">
+          <div class="menu-item" :class="[{ active: editor?.isActive('bulletList') }, markdownDisabledClass]" @click="toggleBulletList">
             <span>{{ $t('contextMenu.bulletList') }}</span>
             <span class="menu-shortcut">-</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('orderedList') }" @click="toggleOrderedList">
+          <div class="menu-item" :class="[{ active: editor?.isActive('orderedList') }, markdownDisabledClass]" @click="toggleOrderedList">
             <span>{{ $t('contextMenu.orderedList') }}</span>
             <span class="menu-shortcut">1.</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('taskList') }" @click="toggleTaskList">
+          <div class="menu-item" :class="[{ active: editor?.isActive('taskList') }, markdownDisabledClass]" @click="toggleTaskList">
             <span>{{ $t('contextMenu.taskList') }}</span>
             <span class="menu-shortcut">- [ ]</span>
           </div>
           <div class="menu-divider"></div>
-          <div class="menu-item" :class="{ active: editor?.isActive('heading', { level: 1 }) }" @click="setHeading(1)">
+          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 1 }) }, markdownDisabledClass]" @click="setHeading(1)">
             <span>H₁ {{ $t('contextMenu.heading1') }}</span>
             <span class="menu-shortcut">#</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('heading', { level: 2 }) }" @click="setHeading(2)">
+          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 2 }) }, markdownDisabledClass]" @click="setHeading(2)">
             <span>H₂ {{ $t('contextMenu.heading2') }}</span>
             <span class="menu-shortcut">##</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('heading', { level: 3 }) }" @click="setHeading(3)">
+          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 3 }) }, markdownDisabledClass]" @click="setHeading(3)">
             <span>H₃ {{ $t('contextMenu.heading3') }}</span>
             <span class="menu-shortcut">###</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('heading', { level: 4 }) }" @click="setHeading(4)">
+          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 4 }) }, markdownDisabledClass]" @click="setHeading(4)">
             <span>H₄ {{ $t('contextMenu.heading4') }}</span>
             <span class="menu-shortcut">####</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('heading', { level: 5 }) }" @click="setHeading(5)">
+          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 5 }) }, markdownDisabledClass]" @click="setHeading(5)">
             <span>H₅ {{ $t('contextMenu.heading5') }}</span>
             <span class="menu-shortcut">#####</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('heading', { level: 6 }) }" @click="setHeading(6)">
+          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 6 }) }, markdownDisabledClass]" @click="setHeading(6)">
             <span>H₆ {{ $t('contextMenu.heading6') }}</span>
             <span class="menu-shortcut">######</span>
           </div>
-          <div class="menu-item" :class="{ active: editor?.isActive('paragraph') }" @click="setParagraph">
+          <div class="menu-item" :class="[{ active: editor?.isActive('paragraph') }, markdownDisabledClass]" @click="setParagraph">
             <span>≡ {{ $t('contextMenu.paragraph') }}</span>
             <svg v-if="editor?.isActive('paragraph')" class="check-mark" viewBox="0 0 24 24" width="16" height="16">
               <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
             </svg>
           </div>
           <div class="menu-divider"></div>
-          <div class="menu-item" :class="{ active: editor?.isActive('blockquote') }" @click="toggleBlockquote">
+          <div class="menu-item" :class="[{ active: editor?.isActive('blockquote') }, markdownDisabledClass]" @click="toggleBlockquote">
             <span>❝❞ {{ $t('contextMenu.blockquote') }}</span>
             <span class="menu-shortcut">></span>
           </div>
         </template>
 
         <template v-else-if="activeSubmenu === 'insert'">
-          <div class="menu-item" @click="insertTable">
+          <div class="menu-item" :class="markdownDisabledClass" @click="insertTable">
             <span>⊞ {{ $t('contextMenu.table') }}</span>
           </div>
           <div class="menu-divider"></div>
-          <div class="menu-item" @click="insertCodeBlock">
+          <div class="menu-item" :class="markdownDisabledClass" @click="insertCodeBlock">
             <span>&lt;&gt; {{ $t('contextMenu.codeBlock') }}</span>
             <span class="menu-shortcut">```</span>
           </div>
-          <div class="menu-item" @click="insertHorizontalRule">
+          <div class="menu-item" :class="markdownDisabledClass" @click="insertHorizontalRule">
             <span>— {{ $t('contextMenu.horizontalRule') }}</span>
             <span class="menu-shortcut">---</span>
           </div>
@@ -250,6 +253,9 @@ let submenuTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 是否在源码模式
 const isSourceMode = computed(() => props.viewMode === 'source');
+const isCodeBlockActive = computed(() => props.editor?.isActive('codeBlock') ?? false);
+const isMarkdownSyntaxDisabled = computed(() => isCodeBlockActive.value && !isSourceMode.value);
+const markdownDisabledClass = computed(() => ({ disabled: isMarkdownSyntaxDisabled.value }));
 
 // 菜单样式
 const menuStyle = computed(() => ({
@@ -414,6 +420,7 @@ const keepSubmenuOpen = () => {
 
 // 文本格式操作
 const toggleBold = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.wrapSelection('**', '**');
   } else {
@@ -423,6 +430,7 @@ const toggleBold = () => {
 };
 
 const toggleItalic = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.wrapSelection('*', '*');
   } else {
@@ -432,6 +440,7 @@ const toggleItalic = () => {
 };
 
 const toggleStrike = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.wrapSelection('~~', '~~');
   } else {
@@ -441,6 +450,7 @@ const toggleStrike = () => {
 };
 
 const toggleCode = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.wrapSelection('`', '`');
   } else {
@@ -450,6 +460,7 @@ const toggleCode = () => {
 };
 
 const clearFormat = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (!isSourceMode.value && props.editor) {
     props.editor.chain().focus().clearNodes().unsetAllMarks().run();
   }
@@ -458,6 +469,7 @@ const clearFormat = () => {
 
 // 段落格式操作
 const toggleBulletList = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertLinePrefix('- ');
   } else {
@@ -467,6 +479,7 @@ const toggleBulletList = () => {
 };
 
 const toggleOrderedList = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertLinePrefix('1. ');
   } else {
@@ -476,6 +489,7 @@ const toggleOrderedList = () => {
 };
 
 const toggleTaskList = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertLinePrefix('- [ ] ');
   } else {
@@ -485,6 +499,7 @@ const toggleTaskList = () => {
 };
 
 const setHeading = (level: 1 | 2 | 3 | 4 | 5 | 6) => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     const prefix = '#'.repeat(level) + ' ';
     props.sourceEditorRef.insertLinePrefix(prefix);
@@ -495,6 +510,7 @@ const setHeading = (level: 1 | 2 | 3 | 4 | 5 | 6) => {
 };
 
 const setParagraph = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (!isSourceMode.value && props.editor) {
     props.editor.chain().focus().setParagraph().run();
   }
@@ -502,6 +518,7 @@ const setParagraph = () => {
 };
 
 const toggleBlockquote = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertLinePrefix('> ');
   } else {
@@ -512,6 +529,7 @@ const toggleBlockquote = () => {
 
 // 插入操作
 const insertTable = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     const tableMarkdown = `| Header 1 | Header 2 | Header 3 |\n| -------- | -------- | -------- |\n| Cell 1   | Cell 2   | Cell 3   |\n| Cell 4   | Cell 5   | Cell 6   |\n`;
     props.sourceEditorRef.insertText(tableMarkdown);
@@ -523,6 +541,7 @@ const insertTable = () => {
 
 // 代码块名称映射
 const insertCodeBlock = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertText('```\n\n```');
     const textarea = props.sourceEditorRef.getTextarea();
@@ -539,6 +558,7 @@ const insertCodeBlock = () => {
 };
 
 const insertHorizontalRule = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertText('\n---\n');
   } else {

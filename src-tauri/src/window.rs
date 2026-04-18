@@ -1095,6 +1095,50 @@ pub fn close_and_destroy_loading_window() {
     }
 }
 
+// 关闭并销毁截图窗口，避免仅隐藏不释放导致残留窗口
+#[tauri::command]
+pub fn close_and_destroy_screenshot_window() -> Result<(), String> {
+    let app = APP.get().ok_or("无法获取应用句柄")?;
+
+
+    if let Some(window) = app.get_webview_window("screenshot") {
+        let _ = window.emit("screenshot-close-requested", ());
+        let _ = window.set_ignore_cursor_events(false);
+
+        match window.destroy() {
+            Ok(_) => {},
+            Err(e) => {
+                return Err(format!("销毁截图窗口失败: {}", e));
+            }
+        }
+    } else {
+    }
+
+    // 同步清理截图资源，防止下次快速截图复用到旧状态
+    {
+        let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+        *bg = None;
+    }
+    {
+        let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
+        *preview = None;
+    }
+    {
+        let mut cached = CACHED_WINDOW_LIST.lock().unwrap();
+        *cached = None;
+    }
+    {
+        let mut cached = CACHED_MONITOR_INFO.lock().unwrap();
+        *cached = None;
+    }
+    {
+        let mut capturing = IS_CAPTURING.lock().unwrap();
+        *capturing = false;
+    }
+
+    Ok(())
+}
+
 // 显示隐藏窗口
 #[tauri::command]
 pub async fn show_hide_window_command(label: &str, context: Option<String>) -> Result<(), String> {
@@ -1811,16 +1855,12 @@ pub fn hotkey_screenshot() {
 
     // 检查窗口是否已存在，如果存在则先关闭（不等待）
     if let Some(existing_window) = app_handle.get_webview_window("screenshot") {
-        info!("截图窗口已存在，关闭旧窗口");
-        let _ = existing_window.close();
+        let _ = existing_window.emit("screenshot-close-requested", ());
+        let _ = existing_window.set_ignore_cursor_events(false);
+        let _ = existing_window.destroy();
         
         // 只等待很短时间，避免阻塞
         thread::sleep(Duration::from_millis(50));
-        
-        // 如果窗口仍然存在，强制继续（让系统自动处理）
-        if app_handle.get_webview_window("screenshot").is_some() {
-            info!("旧窗口未完全关闭，但继续创建新窗口");
-        }
     }
     
     // 获取主显示器信息（同步操作，很快）
@@ -1896,11 +1936,11 @@ pub fn hotkey_screenshot() {
         let screen_image = match capture_result {
             Ok(Ok(img)) => img,
             Ok(Err(e)) => {
-                info!("捕获屏幕失败: {}", e);
+                log::error!("截图屏幕捕获失败: {}", e);
                 return;
             },
             Err(e) => {
-                info!("捕获线程错误: {}", e);
+                log::error!("截图捕获线程错误: {}", e);
                 return;
             }
         };
@@ -1945,10 +1985,11 @@ pub fn hotkey_screenshot() {
     let window = match builder.build() {
         Ok(w) => w,
         Err(e) => {
-            info!("创建截图窗口失败: {}", e);
+            log::error!("创建截图窗口失败: {}", e);
             return;
         }
     };
+
 
     // 【优化3】立即显示窗口，不等待背景加载
     // 监听窗口准备事件

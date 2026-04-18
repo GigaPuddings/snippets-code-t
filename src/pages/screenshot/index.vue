@@ -76,6 +76,7 @@ const textInput = ref('')
 const textInputPosition = ref({ x: 0, y: 0 })
 const isLoading = ref(false) // 不显示加载状态，让用户可以立即开始截图
 const translateEngine = ref<'google' | 'bing' | 'offline'>('bing') // 翻译引擎
+let isClosing = false
 
 // 响应式状态
 const state = ref({
@@ -331,22 +332,18 @@ const handleDelete = () => {
 
 const handleSave = async () => {
   try {
-    logger.info('[截图] 开始保存截图...')
     await screenshotManager?.processScreenshot('save')
-    logger.info('[截图] 截图保存成功')
     closeWindow()
   } catch (error: any) {
-    logger.error('[截图] 保存失败', error)
     
     const errorMessage = error?.message || error?.toString() || '保存失败'
     
     // 如果是用户取消保存，不显示错误
     if (errorMessage.includes('保存已取消') || errorMessage.includes('cancelled')) {
-      logger.info('[截图] 用户取消保存')
       return
     }
     
-    console.error('保存截图时发生错误:', errorMessage)
+    logger.error('保存截图时发生错误', errorMessage)
   }
 }
 
@@ -355,7 +352,6 @@ const handleConfirm = async () => {
     await screenshotManager?.processScreenshot('copy')
     closeWindow()
   } catch (error) {
-    logger.error('[截图] 复制失败', error)
   }
 }
 
@@ -442,7 +438,7 @@ const handleColorPicked = (colorInfo: ColorInfo) => {
   // 自动复制HEX值到剪贴板
   if (navigator.clipboard) {
     navigator.clipboard.writeText(colorInfo.hex).catch(error => {
-      logger.warn('[截图] 复制颜色到剪贴板失败', error)
+      logger.error('[截图] 复制颜色到剪贴板失败', error)
     })
   }
 }
@@ -526,6 +522,9 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 // 关闭窗口
 const closeWindow = async () => {
+  if (isClosing) return
+  isClosing = true
+
   // 先销毁截图管理器，清理所有资源
   screenshotManager?.destroy()
   screenshotManager = null
@@ -538,7 +537,7 @@ const closeWindow = async () => {
     try {
       await invoke('clear_screenshot_background')
     } catch (fallbackError) {
-      logger.warn('[截图] 清理后台缓存失败', fallbackError)
+      logger.error('[截图] 清理后台缓存失败', fallbackError)
     }
   }
   
@@ -565,8 +564,15 @@ const closeWindow = async () => {
   isLoading.value = false
   showSizeInfo.value = true
   
-  // 关闭窗口
-  appWindow.value?.close()
+  // 关闭并销毁窗口，避免仅隐藏导致任务管理器残留
+  try {
+    await invoke('close_and_destroy_screenshot_window')
+  } catch (error) {
+    logger.error('[截图] 销毁截图窗口失败，回退到 close()', error)
+    await appWindow.value?.close()
+  } finally {
+    isClosing = false
+  }
 }
 
 // 状态更新回调
@@ -600,7 +606,7 @@ onMounted(async () => {
       screenshotManager?.setTranslationEngine(savedEngine as 'google' | 'bing' | 'offline')
     }
   } catch (error) {
-    logger.error('[截图] 获取翻译引擎设置失败:', error)
+    logger.error('[截图] 获取翻译引擎设置失败', error)
   }
 
   // 从后端获取离线模型激活状态
@@ -608,7 +614,7 @@ onMounted(async () => {
     const backendActivated = await invoke<boolean>('get_offline_model_activated')
     screenshotManager?.setOfflineModelActivated(backendActivated)
   } catch (error) {
-    logger.error('[截图] 获取离线模型激活状态失败:', error)
+    logger.error('[截图] 获取离线模型激活状态失败', error)
   }
 
   // 添加键盘事件监听
@@ -616,8 +622,12 @@ onMounted(async () => {
 
   // 监听后端背景准备完成事件
   unlistenBgReady.value = await listen('background-ready', () => {
-    logger.info('[截图] 背景准备完成，触发重载')
     screenshotManager?.triggerBackgroundReload()
+  })
+
+  // 监听后端主动请求关闭截图窗口
+  unlistenBgReady.value = await listen('screenshot-close-requested', () => {
+    closeWindow()
   })
 
   // 监听窗口失焦（用户切换到其他窗口）

@@ -48,10 +48,6 @@ export interface UseContentDialogsReturn {
   showTypeSelector: Ref<boolean>;
   /** 显示删除对话框 */
   showDeleteDialog: Ref<boolean>;
-  /** 显示创建内容输入对话框 */
-  showCreateContentDialog: Ref<boolean>;
-  /** 创建内容标题 */
-  newContentTitle: Ref<string>;
   /** 显示分类更改对话框 */
   showCategoryDialog: Ref<boolean>;
   /** 显示反向链接更新对话框 */
@@ -107,9 +103,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const { t } = useI18n();
 
   const showTypeSelector = ref<boolean>(false);
-  const showCreateContentDialog = ref<boolean>(false);
   const pendingFragmentType = ref<'code' | 'note'>('code');
-  const newContentTitle = ref<string>('');
   const showDeleteDialog = ref<boolean>(false);
   const showCategoryDialog = ref<boolean>(false);
   const showBacklinkUpdateDialog = ref<boolean>(false);
@@ -133,13 +127,11 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const handleTypeConfirm = async (type: 'code' | 'note'): Promise<void> => {
       showTypeSelector.value = false;
       pendingFragmentType.value = type;
-      newContentTitle.value = '';
-      showCreateContentDialog.value = true;
+      await handleCreateContentConfirm('');
     };
 
   const handleCreateContentConfirm = async (title: string): Promise<void> => {
       const normalizedTitle = title.trim();
-      showCreateContentDialog.value = false;
 
       const cid = route.params.cid as string;
 
@@ -193,15 +185,12 @@ export function useContentDialogs(): UseContentDialogsReturn {
         // 等待下一个 tick 确保 store 更新已经传播到所有组件
         await nextTick();
 
-        // 导航到新片段（使用文件路径，并添加 rename=true 参数以自动聚焦标题）
+        // 导航到新片段，内容页会自动聚焦标题输入框中的默认标题
         // 如果没有 cid，使用 categoryId 作为 cid（确保路由参数正确）
         const routeCid = cid || (categoryId === '未分类' ? '0' : categoryId);
         const targetPath = `/config/category/contentList/${routeCid}/content/${encodeURIComponent(filePath)}`;
 
-        router.replace({
-          path: targetPath,
-          query: { rename: 'true' }
-        });
+        router.replace(targetPath);
       } catch (error) {
         // Error already handled by API layer
       }
@@ -448,8 +437,6 @@ export function useContentDialogs(): UseContentDialogsReturn {
   return {
     showTypeSelector,
     showDeleteDialog,
-    showCreateContentDialog,
-    newContentTitle,
     showCategoryDialog,
     showBacklinkUpdateDialog,
     deleteTarget,

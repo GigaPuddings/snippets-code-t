@@ -410,6 +410,12 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
     editorType
   );
 
+  // 标题不能为空
+  if (!state.title.trim()) {
+    modal.error(t('category.emptyContentTitle'));
+    return;
+  }
+
   // 双重比较：
   // 1) 与当前文档原始内容比较（防初始化抖动）
   // 2) 与最近一次成功保存的哈希比较（防重复保存）
@@ -680,6 +686,12 @@ const handleContentChange = (
 // 处理标题变更（失焦时触发防抖保存）
 const handleTitleChange = (value: string) => {
   if (state.isInitializing) return;
+
+  if (!value.trim()) {
+    modal.error(t('category.emptyContentTitle'));
+    state.title = originalTitle.value;
+    return;
+  }
 
   const original = originalTitle.value ?? state.currentContent?.title;
   if (value !== original) {
@@ -971,7 +983,7 @@ const fetchContent = async () => {
       await nextTick();
       state.isEditorLoading = false;
 
-      // 如果是新建的笔记（标题是 "New Fragment"），全选标题让用户修改
+      // 如果是新建的内容，自动聚焦并选中标题输入框中的默认标题
       if (parsedContent.title === 'New Fragment' && titleInputRef.value) {
         nextTick(() => {
           const inputElement = titleInputRef.value?.$el?.querySelector('input') || titleInputRef.value?.input;
