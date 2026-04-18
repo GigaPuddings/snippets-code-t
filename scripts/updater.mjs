@@ -1,11 +1,9 @@
-import { createRequire } from 'module'
 import { Octokit } from '@octokit/rest'
 import fs from 'fs'
 import path from 'path'
 import { execFileSync } from 'child_process'
 
-const require = createRequire(import.meta.url)
-const tauriConfig = require('../src-tauri/tauri.conf.json')
+import tauriConfig from '../src-tauri/tauri.conf.json' assert { type: 'json' }
 
 // 从环境变量获取 GitHub token
 const token = process.env.GITHUB_TOKEN
@@ -53,7 +51,7 @@ async function main() {
     const { data: fullRelease } = await octokit.repos.getRelease({
       owner,
       repo,
-      release_id: release.id
+      release_id: release.id,
     })
 
     // 构建文件路径 - 本地构建的文件不带 _windows 后缀

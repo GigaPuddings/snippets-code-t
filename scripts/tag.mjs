@@ -102,6 +102,15 @@ function getChangedFiles() {
     });
 }
 
+function assertCleanWorkingTree() {
+  const changedFiles = getChangedFiles();
+  if (changedFiles.length > 0) {
+    throw new Error(
+      `发布前工作区必须保持干净，请先提交或清理以下文件：\n${changedFiles.map((file) => `- ${file}`).join('\n')}`
+    );
+  }
+}
+
 async function getReleaseNotes() {
   try {
     const content = await fs.readFile(RELEASE_NOTES_PATH, 'utf-8');
@@ -169,12 +178,9 @@ async function updateVersion() {
     console.log(`远程最新标签版本: ${latestRemoteVersion ? `v${latestRemoteVersion}` : '未找到'}`);
 
     if (currentPackageVersion !== currentTauriVersion) {
-      console.log('\n⚠️  检测到版本不一致，请确认是否继续发布。');
-      const continueOnMismatch = await question('版本不一致，是否继续？(y/N): ');
-      if (continueOnMismatch.toLowerCase() !== 'y') {
-        console.log('操作已取消');
-        process.exit(0);
-      }
+      throw new Error(
+        `版本文件不一致，请先同步后再发布。package.json=${currentPackageVersion}, tauri.conf.json=${currentTauriVersion}`
+      );
     }
 
     const version = await question('\n请输入新的版本号 (例如: 1.2.5): ');
@@ -189,14 +195,7 @@ async function updateVersion() {
     // 3. 检查标签是否存在
     const tagExists = await checkTagExists(version);
     if (tagExists) {
-      const overwrite = await question('标签已存在，是否覆盖？(y/N): ');
-      if (overwrite.toLowerCase() !== 'y') {
-        console.log('操作已取消');
-        process.exit(0);
-      }
-      console.log('正在删除已存在的标签...');
-      execCommand(`git tag -d v${version}`);
-      execCommand(`git push origin :refs/tags/v${version}`);
+      throw new Error(`标签 v${version} 已存在，请先删除远程和本地旧标签后再发布。`);
     }
 
     const filesToUpdate = [
@@ -205,20 +204,8 @@ async function updateVersion() {
       'RELEASE_NOTES.md'
     ];
 
-    // 4. 检查是否存在发布文件之外的改动，避免遗漏提交
-    const changedFiles = getChangedFiles();
-    const unexpectedFiles = changedFiles.filter((file) => !filesToUpdate.includes(file));
-
-    if (unexpectedFiles.length > 0) {
-      console.log('\n⚠️  检测到发布文件之外仍有改动：');
-      unexpectedFiles.forEach((file) => console.log(`  - ${file}`));
-
-      const continueWithUncommitted = await question('\n这些改动不会被本次 release 提交。是否继续？(y/N): ');
-      if (continueWithUncommitted.toLowerCase() !== 'y') {
-        console.log('操作已取消，请先处理这些文件后再发布。');
-        process.exit(0);
-      }
-    }
+    // 4. 确认工作区是干净的，避免发布内容不一致
+    assertCleanWorkingTree();
 
     // 更新 package.json
     console.log('正在更新 package.json...');
@@ -241,22 +228,30 @@ async function updateVersion() {
     execCommand(`git add ${filesToUpdate.join(' ')}`);
 
     // 检查是否有待提交的更改
-    try {
-      execSync('git diff --cached --quiet');
-      console.log('没有待提交的更改');
-    } catch {
-      // 提交前先做 commitlint 预校验，避免在 git commit hook 阶段才失败
-      validateCommitMessage(releaseCommitMessage);
-      execCommand(`git commit -m "${releaseCommitMessage}"`);
+    const hasStagedChanges = (() => {
+      try {
+        execSync('git diff --cached --quiet');
+        return false;
+      } catch (error) {
+        return error.status === 1;
+      }
+    })();
+
+    if (!hasStagedChanges) {
+      throw new Error('发布文件未产生任何改动，无法继续生成版本提交。');
     }
 
+    validateCommitMessage(releaseCommitMessage);
+    execCommand(`git commit -m "${releaseCommitMessage}"`);
+
     console.log('\n正在创建标签...');
-    // 创建简单标签（不带注释）
-    execCommand(`git tag v${version}`);
-    
+    // 创建规范的带注释标签，便于追溯发布信息
+    const tagMessage = `release: v${version}`;
+    execCommand(`git tag -a v${version} -m "${tagMessage}"`);
+
     console.log('正在推送到远程仓库...');
+    execCommand('git push origin HEAD');
     execCommand(`git push origin v${version}`);
-    execCommand('git push');
 
     console.log(`\n✨ 发布成功！版本 v${version} 已推送到远程仓库`);
     console.log(`\n📦 GitHub Actions 正在构建中...`);
