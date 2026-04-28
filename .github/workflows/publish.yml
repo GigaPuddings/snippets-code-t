@@ -1,5 +1,4 @@
-name: Publish Release
-run-name: Publish release ${{ github.ref_name }}
+name: Release
 on:
   push:
     tags:
@@ -8,7 +7,6 @@ on:
 
 jobs:
   release:
-    name: Build and publish release
     permissions:
       contents: write
     runs-on: windows-latest
@@ -41,10 +39,9 @@ jobs:
         id: release_notes
         run: |
           $content = node scripts/format-release-notes.mjs --raw
-          $content = $content -replace "`r`n", "`n"
-          "RELEASE_BODY<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          $content | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          echo "RELEASE_BODY<<EOF" >> $env:GITHUB_OUTPUT
+          echo $content >> $env:GITHUB_OUTPUT
+          echo "EOF" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
       - name: Create Release
@@ -54,9 +51,15 @@ jobs:
         with:
           name: 'snippets-code ${{ github.ref_name }}'
           body: ${{ steps.release_notes.outputs.RELEASE_BODY }}
-          draft: true
-          prerelease: true
+          draft: false
+          prerelease: false
           files: ''
+
+      - name: Build Tauri (without upload)
+        run: pnpm tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
 
       - name: Upload assets to release
         env:
@@ -70,5 +73,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
-        run: node scripts/updater.mjs
+        run: node scripts/updater.mjs 
 
