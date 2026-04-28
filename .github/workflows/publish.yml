@@ -3,7 +3,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 jobs:
   release:
@@ -54,6 +53,7 @@ jobs:
           draft: false
           prerelease: false
           files: ''
+          allow_duplicates: false
 
       - name: Build Tauri (without upload)
         run: pnpm tauri build

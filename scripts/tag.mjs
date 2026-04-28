@@ -152,7 +152,6 @@ async function updateVersion() {
     
     console.log('正在推送到远程仓库...');
     execCommand(`git push origin v${version}`);
-    execCommand('git push');
 
     console.log(`\n✨ 发布成功！版本 v${version} 已推送到远程仓库`);
     console.log(`\n📦 GitHub Actions 正在构建中...`);
