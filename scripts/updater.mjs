@@ -36,7 +36,7 @@ async function getReleaseByTagIncludingDrafts() {
   const release = releases.find(item => item.tag_name === tag)
 
   if (!release) {
-    throw new Error(`Release not found for tag ${tag}. 请确认 GitHub Release 已创建。`)
+    throw new Error(`Release not found for tag ${tag}. 请确认上传资产步骤已创建 GitHub Release。`)
   }
 
   return release
