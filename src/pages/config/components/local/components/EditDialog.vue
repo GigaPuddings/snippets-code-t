@@ -133,7 +133,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed, nextTick } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import type { FormInstance, FormRules } from 'element-plus';

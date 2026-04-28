@@ -198,6 +198,8 @@ const allTags = computed(() => {
   return Array.from(tagsSet);
 });
 
+const normalizeFragmentId = (id: string) => id.replace(/^markdown:/i, '');
+
 defineOptions({
   name: 'Content'
 });
@@ -916,7 +918,7 @@ const fetchContentById = async (id: string) => {
   state.editorError = null;
 
   try {
-    const result = await getFragmentContent(id);
+    const result = await getFragmentContent(normalizeFragmentId(id));
     if (result) {
       const parsedContent = parseFragment(result);
       state.currentContent = parsedContent;
@@ -956,7 +958,7 @@ const fetchContent = async () => {
   state.editorError = null;
 
   try {
-    const result = await getFragmentContent(route.params.id as string);
+    const result = await getFragmentContent(normalizeFragmentId(route.params.id as string));
 
     if (result) {
       // 使用 parseFragment 确保所有字段存在

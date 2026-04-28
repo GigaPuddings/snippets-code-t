@@ -5,11 +5,10 @@ import { useSearch } from '@/hooks/useSearch';
 import { useFocusMode } from '@/hooks/useFocusMode';
 import { useSearchKeyboard } from './composables/useSearchKeyboard';
 import { listen } from '@tauri-apps/api/event';
-import { onMounted, ref, computed } from 'vue';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
 
-const { searchText, searchResults, handleEnterSearch, clearSearch } = useSearch();
+const { searchText, searchResults, hasResults, handleEnterSearch, clearSearch } = useSearch();
 const { isSearchMode, setMode, canSwitchToList } = useFocusMode();
 
 const searchRef = ref<HTMLElement | null>(null);
@@ -112,6 +111,7 @@ onMounted(async () => {
       :results="searchResults"
       :searchQuery="searchText"
       :onClearSearch="clearSearch"
+      :class="{ hidden: !hasResults }"
       @back-to-search="handleBackToSearch"
     />
   </main>
@@ -137,7 +137,7 @@ onMounted(async () => {
 
 .main {
   /* 拖拽手势 */
-  @apply relative bg-search rounded-md p-3 border-[0.1rem] border-zinc-300 dark:border-black box-border;
+  @apply relative bg-search rounded-md p-2 border-[0.1rem] border-zinc-300 dark:border-black box-border;
 
   .search {
     @apply flex items-center border-b border-search;
@@ -149,6 +149,10 @@ onMounted(async () => {
     .home {
       @apply p-1 w-9 h-9 rounded-md opacity-90 hover:opacity-100 cursor-pointer;
     }
+  }
+
+  :deep(.hidden) {
+    display: none;
   }
 }
 </style>

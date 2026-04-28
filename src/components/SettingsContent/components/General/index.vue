@@ -170,6 +170,16 @@ const dictLanguage = [
 const changeTheme = async (value: 'light' | 'dark' | 'auto') => {
   store.updateTheme(value);
 
+  // 立即写入持久化存储，避免关闭设置窗口后主题状态回退
+  try {
+    localStorage.setItem('configuration', JSON.stringify({
+      ...JSON.parse(localStorage.getItem('configuration') || '{}'),
+      theme: value
+    }));
+  } catch (error) {
+    console.error('Failed to persist theme locally:', error);
+  }
+
   const isDark =
     value === 'dark' ||
     (value === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -223,7 +233,8 @@ const handleAutoStartChange = async (value: boolean) => {
 const resetOptions = computed(() => [
   { value: 'all', label: t('settings.resetAll') },
   { value: 'apps', label: t('settings.resetApps') },
-  { value: 'bookmarks', label: t('settings.resetBookmarks') }
+  { value: 'bookmarks', label: t('settings.resetBookmarks') },
+  { value: 'desktopFiles', label: t('settings.resetDesktopFiles') }
 ]);
 
 const resetSoftware = () => {
@@ -242,6 +253,8 @@ const handleResetConfirm = async (value: string | number) => {
       successMsg = t('settings.resetAppsSuccess');
     } else if (value === 'bookmarks') {
       successMsg = t('settings.resetBookmarksSuccess');
+    } else if (value === 'desktopFiles') {
+      successMsg = t('settings.resetDesktopFilesSuccess');
     } else {
       successMsg = t('settings.resetAllSuccess');
     }

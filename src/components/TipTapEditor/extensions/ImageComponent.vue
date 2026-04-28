@@ -85,7 +85,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { NodeViewWrapper } from '@tiptap/vue-3';
 import { logger } from '@/utils/logger';
 import { restoreDeletedAttachment } from '@/api/markdown';

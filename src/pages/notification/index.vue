@@ -20,7 +20,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { Window } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';

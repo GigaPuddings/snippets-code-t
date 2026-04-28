@@ -10,7 +10,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
 import { logger } from '@/utils/logger';
 
 const isLoading = ref(false);

@@ -52,7 +52,6 @@
 <script setup lang="ts">
 import { Search, Plus, Filter } from '@icon-park/vue-next';
 import SearchSyntaxHelper from '@/components/SearchSyntaxHelper/index.vue';
-import { ref, watch } from 'vue';
 
 /**
  * 组件 Props 接口

@@ -68,7 +68,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
 import { Check, SortAmountDown, Time, Edit } from '@icon-park/vue-next';
 import { CommonDialog } from '@/components/UI';
 import { useI18n } from 'vue-i18n';

@@ -6,6 +6,8 @@ import { logger } from '@/utils/logger';
 let themeListenerInitialized = false;
 let unlistenDarkModeChanged: UnlistenFn | null = null;
 let mediaQueryCleanup: (() => void) | null = null;
+let focusCleanup: (() => void) | null = null;
+let visibilityCleanup: (() => void) | null = null;
 let lastBackendThemeAt = 0;
 let lastBackendIsDark: boolean | null = null;
 let windowLabel = 'unknown';
@@ -37,35 +39,37 @@ export const initTheme = async () => {
     windowLabel = 'unknown';
   }
 
+  const syncThemeFromStorage = () => {
+    try {
+      const stored = localStorage.getItem('configuration');
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      if (parsed?.theme === 'light' || parsed?.theme === 'dark' || parsed?.theme === 'auto') {
+        if (store.theme !== parsed.theme) {
+          store.theme = parsed.theme;
+        }
+      }
+    } catch (error) {
+      logger.error(withWindowTag('同步本地主题配置失败'), error);
+    }
+  };
+
+  syncThemeFromStorage();
   // 每次调用都先应用一次当前主题，保证 UI 及时同步
   store.applyTheme();
 
-  if (themeListenerInitialized) {
-    logger.debug(withWindowTag('全局监听器已初始化，本次仅执行主题应用'));
-    return;
-  }
-
-  themeListenerInitialized = true;
-  logger.debug(withWindowTag('开始初始化全局主题监听器'));
-
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
   const inGuardWindow = () => Date.now() < themeSwitchGuardUntil;
 
-  // 监听 Windows 系统主题变化（仅 auto 模式下生效）
   const handleMediaChange = (e: MediaQueryListEvent) => {
-    if (store.theme !== 'auto') {
-      return;
-    }
+    if (store.theme !== 'auto') return;
 
-    // 后端刚发过同状态事件时，跳过 matchMedia 的重复处理（常见于托盘切换后）
     const now = Date.now();
     if (lastBackendIsDark === e.matches && now - lastBackendThemeAt < 1500) {
       logger.debug(withWindowTag(`已忽略重复 matchMedia 主题事件：isDark=${e.matches}`));
       return;
     }
 
-    // 模式切换稳定期内，忽略与目标态相反的瞬时抖动事件
     if (inGuardWindow() && guardedTargetIsDark !== null && e.matches !== guardedTargetIsDark) {
       logger.debug(withWindowTag(`稳定期内忽略反向 matchMedia 事件：isDark=${e.matches}, target=${guardedTargetIsDark}`));
       return;
@@ -75,10 +79,28 @@ export const initTheme = async () => {
     store.syncSystemThemeStyle(e.matches);
   };
 
+  const handleWindowRefresh = () => {
+    syncThemeFromStorage();
+    store.applyTheme();
+  };
+
+  if (themeListenerInitialized) {
+    logger.debug(withWindowTag('全局监听器已初始化，本次仅执行主题应用'));
+    handleWindowRefresh();
+    return;
+  }
+
+  themeListenerInitialized = true;
+  logger.debug(withWindowTag('开始初始化全局主题监听器'));
+
   mediaQuery.addEventListener('change', handleMediaChange);
   mediaQueryCleanup = () => mediaQuery.removeEventListener('change', handleMediaChange);
 
-  // 监听后端主题变化事件（定时切换、手动切换、托盘切换等）
+  window.addEventListener('focus', handleWindowRefresh);
+  window.addEventListener('visibilitychange', handleWindowRefresh);
+  focusCleanup = () => window.removeEventListener('focus', handleWindowRefresh);
+  visibilityCleanup = () => window.removeEventListener('visibilitychange', handleWindowRefresh);
+
   unlistenDarkModeChanged = await listen<{ isDark: boolean; reason?: string }>('dark-mode-changed', (event) => {
     const { isDark, reason } = event.payload;
     lastBackendThemeAt = Date.now();
@@ -86,14 +108,12 @@ export const initTheme = async () => {
 
     logger.debug(withWindowTag(`收到后端主题事件 dark-mode-changed：isDark=${isDark}, reason=${reason || 'unknown'}`));
 
-    // 托盘/自动切换触发时开启短暂稳定期，抑制反向瞬时事件导致的闪烁
     if (reason === 'tray_menu' || reason === 'auto_switch') {
       guardedTargetIsDark = isDark;
       themeSwitchGuardUntil = Date.now() + THEME_SWITCH_GUARD_MS;
       logger.debug(withWindowTag(`开启主题稳定期：target=${isDark}, duration=${THEME_SWITCH_GUARD_MS}ms`));
     }
 
-    // 后端事件是权威状态，避免依赖可能滞后的 matchMedia
     store.syncSystemThemeStyle(isDark);
   });
 };
@@ -104,6 +124,10 @@ export const disposeThemeListeners = () => {
   unlistenDarkModeChanged = null;
   mediaQueryCleanup?.();
   mediaQueryCleanup = null;
+  focusCleanup?.();
+  focusCleanup = null;
+  visibilityCleanup?.();
+  visibilityCleanup = null;
   themeListenerInitialized = false;
   logger.debug('[主题] 已释放全局主题监听器');
 };

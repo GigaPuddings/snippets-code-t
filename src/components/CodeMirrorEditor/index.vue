@@ -17,7 +17,10 @@
       @previous="findPrevious"
     />
     
-    <div class="editor-status">
+    <div
+      class="editor-status"
+      :style="resolvedStatusBackground ? { background: resolvedStatusBackground } : undefined"
+    >
       <div class="editor-status-left">
         <div class="editor-status-item">
           <span class="editor-status-text">{{ lines }} {{ $t('codeEditor.lines') }}</span>
@@ -60,6 +63,8 @@ import { SearchPanel } from '@/components/UI';
 interface Props {
   codeStyle?: CSSProperties;
   dark?: boolean;
+  background?: string;
+  statusBackground?: string;
   code?: string;
   placeholder?: string;
   autofocus?: boolean;
@@ -76,6 +81,8 @@ defineOptions({
 const props = withDefaults(defineProps<Props>(), {
   codeStyle: () => ({}),
   dark: false,
+  background: '',
+  statusBackground: '',
   code: '',
   placeholder: 'Code goes here...',
   autofocus: false,
@@ -85,11 +92,21 @@ const props = withDefaults(defineProps<Props>(), {
   autoDestroy: true
 });
 
+const resolvedBackground = computed(() => {
+  if (props.background?.trim()) return props.background.trim();
+  return props.dark ? '#1a1a1a' : '#ffffff';
+});
+
+const resolvedStatusBackground = computed(() => {
+  if (props.statusBackground?.trim()) return props.statusBackground.trim();
+  return '';
+});
+
 // 计算自定义主题
 const customTheme = computed(() => {
   const settings: CreateThemeOptions['settings'] = props.dark
     ? {
-        background: '#1a1a1a',
+        background: resolvedBackground.value,
         foreground: '#CECFD0',
         caret: '#faf7f5',
         selection: '#727377',
@@ -97,7 +114,7 @@ const customTheme = computed(() => {
         gutterForeground: '#7F8C98'
       }
     : {
-        background: '#ffffff',
+        background: resolvedBackground.value,
         foreground: '#3D3D3D',
         caret: '#000000',
         selection: '#BBDFFF',
@@ -522,6 +539,7 @@ defineExpose({
 .editor-container {
   @apply relative overflow-hidden flex flex-col;
   height: 100%;
+  min-height: 0;
 
   &.dark-theme {
     .editor-status {
@@ -533,10 +551,11 @@ defineExpose({
 .editor-content {
   @apply flex-1 overflow-auto;
   min-height: 0;
+  height: 0;
 }
 
 .editor-status {
-  @apply h-6 px-2 bg-panel border-t flex items-center justify-between text-sm text-content;
+  @apply h-6 px-2 border-t flex items-center justify-between text-sm text-content;
   flex-shrink: 0;
 }
 

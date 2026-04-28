@@ -59,7 +59,6 @@
 <script setup lang="ts">
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { startAutoSync, stopAutoSync, getAutoSyncStatus, pauseAutoSync, resumeAutoSync, forcePush, forcePull, resolveConflictsBatch, ConflictStrategy } from '@/api/git';
@@ -519,19 +518,21 @@ const handleManualMergeEscape = () => {
 };
 
 // 检查是否有待处理的导航
+const normalizePendingFragmentId = (id: unknown) => String(id ?? '').replace(/^markdown:/i, '');
+
 const checkPendingNavigation = () => {
   const pendingNav = localStorage.getItem('pendingNavigation');
-  
+
   if (pendingNav) {
     try {
       const { fragmentId, categoryId, timestamp } = JSON.parse(pendingNav);
-      
+
       // 检查时间戳，只处理 5 秒内的导航请求
       if (Date.now() - timestamp < 5000) {
         // 清除标记
         localStorage.removeItem('pendingNavigation');
         // 导航到对应的片段 - 修正路由路径（需要对文件路径进行编码）
-        const targetPath = `/config/category/contentList/${categoryId}/content/${encodeURIComponent(fragmentId)}`;
+        const targetPath = `/config/category/contentList/${categoryId}/content/${encodeURIComponent(normalizePendingFragmentId(fragmentId))}`;
         router.push(targetPath);
       } else {
         // 过期的导航请求，清除
@@ -540,6 +541,30 @@ const checkPendingNavigation = () => {
     } catch (err) {
       console.error('Failed to parse pending navigation:', err);
       localStorage.removeItem('pendingNavigation');
+    }
+  }
+};
+
+const checkPendingSnippetOpen = () => {
+  const pendingSnippet = localStorage.getItem('pendingSnippetOpen');
+
+  if (pendingSnippet) {
+    try {
+      const { fragmentId, content, categoryId, timestamp } = JSON.parse(pendingSnippet);
+
+      if (Date.now() - timestamp < 5000) {
+        localStorage.removeItem('pendingSnippetOpen');
+        const targetPath = `/config/category/contentList/${categoryId}/content/${encodeURIComponent(normalizePendingFragmentId(fragmentId))}`;
+        router.push({
+          path: targetPath,
+          query: content ? { preview: '1' } : undefined
+        });
+      } else {
+        localStorage.removeItem('pendingSnippetOpen');
+      }
+    } catch (err) {
+      console.error('Failed to parse pending snippet open:', err);
+      localStorage.removeItem('pendingSnippetOpen');
     }
   }
 };
@@ -584,6 +609,16 @@ onMounted(async () => {
   const initStart = performance.now();
   logger.info('[Config] ========== Config 页面初始化开始 ==========', {
     ts: Date.now()
+  });
+
+  nextTick(() => {
+    logger.info('[Config] emit config_ready after first render', {
+      initCostMs: Math.round(performance.now() - initStart),
+      ts: Date.now()
+    });
+    getCurrentWindow().emit('config_ready');
+    checkPendingNavigation();
+    checkPendingSnippetOpen();
   });
   
   // 1. 设置 Git 事件监听器
@@ -686,14 +721,6 @@ onMounted(async () => {
     ts: Date.now()
   });
   
-  nextTick(() => {
-    logger.info('[Config] emit config_ready', {
-      initCostMs,
-      ts: Date.now()
-    });
-    getCurrentWindow().emit('config_ready');
-    checkPendingNavigation();
-  });
 
   // 监听导航到设置页面的事件
   const currentWindow = getCurrentWindow();
@@ -734,6 +761,7 @@ onMounted(async () => {
   // 监听自定义的导航检查事件（从预览窗口或搜索窗口触发）
   unlistenCheckNav = await currentWindow.listen('check-pending-navigation', () => {
     checkPendingNavigation();
+    checkPendingSnippetOpen();
   });
   
   // 监听窗口显示事件（启动自动同步）

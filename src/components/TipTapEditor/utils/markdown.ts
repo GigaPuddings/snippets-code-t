@@ -478,7 +478,11 @@ export function resolvePreviewImageUrls(
       s.startsWith('https://') ||
       s.startsWith('blob:') ||
       s.startsWith('data:') ||
-      /^https:\/\/asset\.localhost\//.test(s)
+      s.startsWith('file://') ||
+      s.startsWith('markdown:') ||
+      /^https?:\/\/asset\.localhost\//.test(s) ||
+      /^[a-zA-Z]:[\\/]/.test(s) ||
+      s.startsWith('/')
     );
   };
 

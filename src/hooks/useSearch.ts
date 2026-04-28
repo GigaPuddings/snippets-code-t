@@ -60,6 +60,17 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
 
   const hasResults = computed(() => searchResults.value.length > 0);
 
+  const withSourceId = (item: ContentType, source: string, index = 0): ContentType => ({
+    ...item,
+    id: `${source}:${String(item.id)}`,
+    metadata: {
+      ...(item.metadata ?? {}),
+      raw_id: item.id,
+      source,
+      source_index: index
+    }
+  });
+
   /**
    * 处理搜索引擎快捷方式
    * @param text - 搜索文本
@@ -84,7 +95,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         if (engine) {
           if (!forceSearch) {
             searchResults.value = [
-              {
+              withSourceId({
                 id: `search-${engine.id}`,
                 title: `使用 ${engine.name} 搜索: ${query}`,
                 content: engine.url.replace(
@@ -93,7 +104,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
                 ),
                 summarize: 'search',
                 icon: engine.icon
-              }
+              }, 'engine-shortcut', 0)
             ];
             return true;
           }
@@ -143,13 +154,13 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       // 1. 优先检查是否为 URL
       if (isURL(searchText.value)) {
         const normalizedUrl = normalizeURL(searchText.value);
-        results.push({
+        results.push(withSourceId({
           id: 'url-open',
           title: `在浏览器中打开`,
           content: normalizedUrl,
           summarize: 'search',
           icon: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xOCAxM3Y2YTIgMiAwIDAgMS0yIDJINWEyIDIgMCAwIDEtMi0yVjhhMiAyIDAgMCAxIDItMmg2Ij48L3BhdGg+PHBvbHlsaW5lIHBvaW50cz0iMTUgMyAyMSAzIDIxIDkiPjwvcG9seWxpbmU+PGxpbmUgeDE9IjEwIiB5MT0iMTQiIHgyPSIyMSIgeTI9IjMiPjwvbGluZT48L3N2Zz4='
-        });
+        }, 'url-open', results.length));
         searchResults.value = results;
         return;
       }
@@ -161,18 +172,24 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       // 3. 搜索本地内容
       // 搜索代码片段
       const codeResults = await searchCode(query);
-      results.push(...codeResults);
+      results.push(...codeResults.map((item, index) => withSourceId(item, 'markdown', index)));
 
       // 使用后端模糊搜索应用
       const appResults = await invoke<ContentType[]>('search_apps', { query });
       if (Array.isArray(appResults)) {
-        results.push(...appResults.filter(isContentType));
+        results.push(...appResults.filter(isContentType).map((item, index) => withSourceId(item, 'app', index)));
       }
 
       // 使用后端模糊搜索书签
       const bookmarkResults = await invoke<ContentType[]>('search_bookmarks', { query });
       if (Array.isArray(bookmarkResults)) {
-        results.push(...bookmarkResults.filter(isContentType).slice(0, 10));
+        results.push(...bookmarkResults.filter(isContentType).slice(0, 10).map((item, index) => withSourceId(item, 'bookmark', index)));
+      }
+
+      // 搜索桌面常用文件
+      const desktopFileResults = await invoke<ContentType[]>('search_desktop_files', { query });
+      if (Array.isArray(desktopFileResults)) {
+        results.push(...desktopFileResults.filter(isContentType).map((item, index) => withSourceId(item, 'file', index)));
       }
 
       // 根据历史记录排序
@@ -186,8 +203,10 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         );
 
         results.sort((a, b) => {
-          const aHistory = historyMap.get(String(a.id));
-          const bHistory = historyMap.get(String(b.id));
+          const aRawId = (a.metadata as Record<string, unknown> | null)?.raw_id;
+          const bRawId = (b.metadata as Record<string, unknown> | null)?.raw_id;
+          const aHistory = historyMap.get(String(aRawId ?? a.id));
+          const bHistory = historyMap.get(String(bRawId ?? b.id));
 
           if (aHistory && !bHistory) return -1;
           if (!aHistory && bHistory) return 1;
@@ -207,13 +226,13 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       // 4. 默认搜索引擎选项（仅在非 URL 时显示）
       const defaultEngine = searchEngines.value.find((e) => e.enabled);
       if (defaultEngine) {
-        results.unshift({
+        results.unshift(withSourceId({
           id: 'default-search',
           title: `使用 ${defaultEngine.name} 搜索: ${query}`,
           content: defaultEngine.url.replace('%s', encodeURIComponent(query)),
           summarize: 'search',
           icon: defaultEngine.icon
-        });
+        }, 'default-search', 0));
       }
 
       searchResults.value = results;
@@ -343,6 +362,7 @@ async function searchCode(query: string): Promise<ContentType[]> {
         id: file.id,
         title: file.title,
         content: file.content || '',
+        file_path: file.filePath,
         summarize: file.type === 'code' ? 'code' as const : 'note' as const,
         type: file.type,
         category_id: file.categoryId,

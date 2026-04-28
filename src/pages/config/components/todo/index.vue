@@ -127,7 +127,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Write, Plus, CheckSmall, Delete, Remind } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import AlarmEditDialog from './components/AlarmEditDialog.vue';

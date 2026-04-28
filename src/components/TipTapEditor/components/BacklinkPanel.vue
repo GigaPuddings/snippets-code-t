@@ -114,7 +114,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { findBacklinks, findUnlinkedMentions } from '@/utils/wikilink-updater';
 

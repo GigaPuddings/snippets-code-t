@@ -1,6 +1,6 @@
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::APP;
-use log::info;
+use log::{error, info};
 use tauri::utils::config::WindowConfig;
 use tauri::{
     Emitter, Listener, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
@@ -26,6 +26,16 @@ static CONFIG_CLEANUP_REGISTERED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex
 // 启动过渡耗时统计起点（loading 显示时记录）
 static STARTUP_TRANSITION_STARTED_AT: LazyLock<Mutex<Option<Instant>>> =
     LazyLock::new(|| Mutex::new(None));
+
+fn get_app_handle_or_log(context: &str) -> Option<&'static AppHandle> {
+    match APP.get() {
+        Some(app) => Some(app),
+        None => {
+            error!("{}: 无法获取应用句柄", context);
+            None
+        }
+    }
+}
 
 use selection::get_text;
 use tauri::image::Image;
@@ -138,7 +148,10 @@ fn is_point_in_search_area(x: f64, y: f64) -> bool {
 
 // 监听鼠标位置并控制穿透
 pub fn start_mouse_tracking() {
-    let window_option = APP.get().unwrap().get_webview_window("main");
+    let Some(app_handle) = get_app_handle_or_log("start_mouse_tracking") else {
+        return;
+    };
+    let window_option = app_handle.get_webview_window("main");
 
     if let Some(window) = window_option {
         // info!("开始鼠标追踪");
@@ -180,7 +193,7 @@ pub fn start_mouse_tracking() {
 
                         // 检查鼠标是否在搜索框范围内
                         if is_point_in_search_area(rel_x, rel_y) {
-                            window.set_ignore_cursor_events(false).unwrap();
+                            let _ = window.set_ignore_cursor_events(false);
                             stop_mouse_tracking();
                             // // 设置为在搜索框内设置为false，如果已经在搜索框内，则不重复设置
                             // if *IS_OUT_OF_WINDOW.lock().unwrap() {
@@ -193,7 +206,7 @@ pub fn start_mouse_tracking() {
 
                         // 修正窗口边界检查逻辑
                         if rel_x < 0.0 || rel_y < 0.0 || rel_x > win_width || rel_y > win_height {
-                            window.set_ignore_cursor_events(false).unwrap();
+                            let _ = window.set_ignore_cursor_events(false);
                             stop_mouse_tracking();
                             // // 设置为在窗口外，如果已经是true，则不重复设置
                             // if !*IS_OUT_OF_WINDOW.lock().unwrap() {
@@ -287,7 +300,7 @@ impl WindowManager {
         let _app = APP.get().ok_or("无法获取应用句柄")?;
         
         // 获取或创建窗口
-        let window = build_window(spec.label, spec.url, spec.to_window_config());
+        let window = build_window(spec.label, spec.url, spec.to_window_config())?;
         
         // 根据行为处理窗口显示逻辑
         match behavior {
@@ -416,10 +429,6 @@ impl WindowManager {
                     // 隐藏搜索窗口
                     let _ = search_window.hide();
                     
-                    // 同时也关闭预览窗口（直接调用而不是通过 command）
-                    if let Some(preview_window) = app.get_webview_window("preview") {
-                        let _ = preview_window.close();
-                    }
                     
                     stop_mouse_tracking();
                     let _ = search_window.set_ignore_cursor_events(false);
@@ -430,8 +439,10 @@ impl WindowManager {
 }
 
 //相对于前端body元素，宽误差16、 高误差39
-pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWindow {
-    let app_handle = APP.get().unwrap();
+pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<WebviewWindow, String> {
+    let Some(app_handle) = get_app_handle_or_log("build_window") else {
+        return Err("无法获取应用句柄".to_string());
+    };
     // let (adjusted_x, adjusted_y) = get_adjusted_position(app_handle, width, height);
 
     match app_handle.get_webview_window(label) {
@@ -439,7 +450,7 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
             info!("Window exists: {}", label);
             // 更新窗口位置到鼠标位置
             // let _ = v.set_position(tauri::PhysicalPosition::new(adjusted_x, adjusted_y));
-            window
+            Ok(window)
         }
         None => {
             // info!("Create new window: {}", label);
@@ -477,7 +488,11 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
                 builder = builder.decorations(false);
             }
 
-            builder.build().expect("Failed to build window")
+            builder.build().map_err(|e| {
+                let msg = format!("build_window: 创建窗口失败 label={}, err={}", label, e);
+                error!("{}", msg);
+                msg
+            })
         }
     }
 }
@@ -485,13 +500,21 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> WebviewWind
 // 将文本插入到上次活动窗口
 #[tauri::command]
 pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
-    info!("尝试将文本插入到上次活动窗口");
+    // 保留错误日志，减少正常流程噪音
 
     // 使用clipboard-manager插件复制文本到剪贴板
-    let app_handle = APP.get().unwrap();
+    let app_handle = APP.get().ok_or_else(|| {
+        let msg = "insert_text_to_last_window: 无法获取应用句柄".to_string();
+        error!("{}", msg);
+        msg
+    })?;
     match app_handle.clipboard().write_text(text) {
         Ok(_) => info!("成功使用插件复制文本到剪贴板"),
-        Err(e) => return Err(format!("复制文本到剪贴板失败: {}", e)),
+        Err(e) => {
+            let msg = format!("复制文本到剪贴板失败: {}", e);
+            error!("insert_text_to_last_window: {}", msg);
+            return Err(msg);
+        }
     }
 
     // 检查是否有记录的上次活动窗口
@@ -556,20 +579,27 @@ pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
 
 pub fn hotkey_search(context: Option<String>) {
     // 显示隐藏搜索窗口
-    let app_handle = APP.get().unwrap();
-    let window = app_handle.get_webview_window("main").unwrap();
-    if window.is_visible().unwrap() {
-        window.hide().unwrap();
+    let Some(app_handle) = get_app_handle_or_log("hotkey_search") else {
+        return;
+    };
+    let Some(window) = app_handle.get_webview_window("main") else {
+        error!("hotkey_search: main 窗口不存在");
+        return;
+    };
+    let is_visible = match window.is_visible() {
+        Ok(v) => v,
+        Err(e) => {
+            error!("hotkey_search: 获取窗口可见状态失败: {}", e);
+            return;
+        }
+    };
+    if is_visible {
+        let _ = window.hide();
         // 停止鼠标追踪
         stop_mouse_tracking();
         // 取消忽略光标
-        window.set_ignore_cursor_events(false).unwrap();
+        let _ = window.set_ignore_cursor_events(false);
         
-        // 关闭预览窗口（搜索窗口隐藏时，预览窗口也要隐藏）
-        if let Some(preview_window) = app_handle.get_webview_window("preview") {
-            let _ = preview_window.close();
-        }
-
         // 只有当不是从 selectItem 上下文调用，或者 context 为 None 时才清除
         let should_clear_last_active_id = match context.as_deref() {
             Some("selectItem") => false, // 如果是 selectItem，则不清除
@@ -600,8 +630,8 @@ pub fn hotkey_search(context: Option<String>) {
             *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some("last_active".to_string());
         }
 
-        window.show().unwrap();
-        window.set_focus().unwrap();
+        let _ = window.show();
+        let _ = window.set_focus();
         // 启动鼠标追踪
         start_mouse_tracking();
     }
@@ -644,13 +674,21 @@ pub fn open_config_settings() {
 
 fn ensure_config_cleanup_listener(window: &WebviewWindow) {
     // 只在首次创建窗口时注册清理监听器
-    let mut registered = CONFIG_CLEANUP_REGISTERED.lock().unwrap();
+    let mut registered = match CONFIG_CLEANUP_REGISTERED.lock() {
+        Ok(registered) => registered,
+        Err(e) => {
+            error!("ensure_config_cleanup_listener: 清理监听状态锁定失败: {}", e);
+            return;
+        }
+    };
     if !*registered {
         *registered = true;
         drop(registered); // 释放锁
 
         // 监听 config 窗口关闭事件，清理软删除附件
-        let app_for_cleanup = APP.get().unwrap().clone();
+        let Some(app_for_cleanup) = get_app_handle_or_log("ensure_config_cleanup_listener") else {
+            return;
+        };
         let app_for_thread = app_for_cleanup.clone();
         window.on_window_event(move |event| {
             if let WindowEvent::Destroyed = event {
@@ -678,7 +716,13 @@ fn ensure_config_cleanup_listener(window: &WebviewWindow) {
 pub fn open_config_with_loading_transition() {
     WindowManager::close_search_window_if_visible();
     {
-        let mut started = STARTUP_TRANSITION_STARTED_AT.lock().unwrap();
+        let mut started = match STARTUP_TRANSITION_STARTED_AT.lock() {
+            Ok(started) => started,
+            Err(e) => {
+                error!("open_config_with_loading_transition: 启动计时状态锁定失败: {}", e);
+                return;
+            }
+        };
         *started = Some(Instant::now());
     }
     show_loading_window();
@@ -697,19 +741,31 @@ pub fn open_config_with_loading_transition() {
         ready_event: Some("config_ready"),
     };
 
-    let window = build_window(spec.label, spec.url, spec.to_window_config());
+    let window = match build_window(spec.label, spec.url, spec.to_window_config()) {
+        Ok(window) => window,
+        Err(e) => {
+            error!("open_config_with_loading_transition: 创建 config 窗口失败: {}", e);
+            close_and_destroy_loading_window();
+            return;
+        }
+    };
     info!("[StartupTransition] config created and preloading under loading");
     ensure_config_cleanup_listener(&window);
 
     // 先挂监听，再触发显示，避免极端时序下丢失 ready 事件
     let window_clone = window.clone();
     window.once("config_ready", move |_| {
-        let elapsed_ms = STARTUP_TRANSITION_STARTED_AT
-            .lock()
-            .unwrap()
-            .as_ref()
-            .map(|t| t.elapsed().as_millis())
-            .unwrap_or(0);
+        let Some(started_at) = (match STARTUP_TRANSITION_STARTED_AT.lock() {
+            Ok(mut started) => started.take(),
+            Err(e) => {
+                error!("open_config_with_loading_transition: 读取启动计时状态失败: {}", e);
+                None
+            }
+        }) else {
+            // 超时兜底已完成切换，忽略迟到的 ready 事件
+            return;
+        };
+        let elapsed_ms = started_at.elapsed().as_millis();
 
         info!(
             "[StartupTransition] config ready -> switch to config (loading_to_ready={}ms)",
@@ -720,21 +776,10 @@ pub fn open_config_with_loading_transition() {
         let _ = window_clone.set_focus();
         close_and_destroy_loading_window();
 
-        let total_ms = STARTUP_TRANSITION_STARTED_AT
-            .lock()
-            .unwrap()
-            .as_ref()
-            .map(|t| t.elapsed().as_millis())
-            .unwrap_or(elapsed_ms);
-
         info!(
             "[StartupTransition] loading closed (normal path, total={}ms)",
-            total_ms
+            elapsed_ms
         );
-
-        // 清理统计起点
-        let mut started = STARTUP_TRANSITION_STARTED_AT.lock().unwrap();
-        *started = None;
     });
 
     // 显示重试：某些平台首次 show 可能失败，导致前端不挂载
@@ -760,21 +805,20 @@ pub fn open_config_with_loading_transition() {
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
         // 若正常路径已完成并清理了计时起点，则不再执行兜底逻辑
-        let still_pending = STARTUP_TRANSITION_STARTED_AT.lock().unwrap().is_some();
-        if !still_pending {
+        let Some(started_at) = (match STARTUP_TRANSITION_STARTED_AT.lock() {
+            Ok(mut started) => started.take(),
+            Err(e) => {
+                error!("open_config_with_loading_transition: 读取启动计时状态失败: {}", e);
+                None
+            }
+        }) else {
             return;
-        }
+        };
+        let elapsed_ms = started_at.elapsed().as_millis();
 
         if let Some(app) = APP.get() {
             if let Some(config_window) = app.get_webview_window("config") {
                 if !config_window.is_visible().unwrap_or(false) {
-                    let elapsed_ms = STARTUP_TRANSITION_STARTED_AT
-                        .lock()
-                        .unwrap()
-                        .as_ref()
-                        .map(|t| t.elapsed().as_millis())
-                        .unwrap_or(0);
-
                     info!(
                         "[StartupTransition] timeout fallback -> show config (elapsed={}ms)",
                         elapsed_ms
@@ -786,20 +830,10 @@ pub fn open_config_with_loading_transition() {
         }
         close_and_destroy_loading_window();
 
-        let total_ms = STARTUP_TRANSITION_STARTED_AT
-            .lock()
-            .unwrap()
-            .as_ref()
-            .map(|t| t.elapsed().as_millis())
-            .unwrap_or(0);
-
         info!(
             "[StartupTransition] loading closed (timeout fallback, total={}ms)",
-            total_ms
+            elapsed_ms
         );
-
-        let mut started = STARTUP_TRANSITION_STARTED_AT.lock().unwrap();
-        *started = None;
     });
 }
 
@@ -837,7 +871,9 @@ pub fn hotkey_config() {
 
 // 划词翻译快捷键处理
 pub fn hotkey_selection_translate() {
-    let app_handle = APP.get().unwrap().clone();
+    let Some(app_handle) = get_app_handle_or_log("hotkey_selection_translate").cloned() else {
+        return;
+    };
     
     // 给系统一点时间完成焦点转移
     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -932,7 +968,9 @@ fn get_selected_text_with_retry() -> String {
 
 // 翻译窗口快捷键处理
 pub fn hotkey_translate() {
-    let app = APP.get().unwrap();
+    let Some(app) = get_app_handle_or_log("hotkey_translate") else {
+        return;
+    };
     
     // 检查窗口是否已存在
     if let Some(window) = app.get_webview_window("translate") {
@@ -1111,29 +1149,23 @@ pub fn close_and_destroy_screenshot_window() -> Result<(), String> {
                 return Err(format!("销毁截图窗口失败: {}", e));
             }
         }
-    } else {
-    }
+    } 
 
     // 同步清理截图资源，防止下次快速截图复用到旧状态
-    {
-        let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
-        *bg = None;
+    if let Err(e) = SCREENSHOT_BACKGROUND.lock().map(|mut bg| *bg = None) {
+        error!("close_and_destroy_screenshot_window: 清理截图背景锁定失败: {}", e);
     }
-    {
-        let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
-        *preview = None;
+    if let Err(e) = SCREENSHOT_PREVIEW.lock().map(|mut preview| *preview = None) {
+        error!("close_and_destroy_screenshot_window: 清理截图预览锁定失败: {}", e);
     }
-    {
-        let mut cached = CACHED_WINDOW_LIST.lock().unwrap();
-        *cached = None;
+    if let Err(e) = CACHED_WINDOW_LIST.lock().map(|mut cached| *cached = None) {
+        error!("close_and_destroy_screenshot_window: 清理窗口列表缓存锁定失败: {}", e);
     }
-    {
-        let mut cached = CACHED_MONITOR_INFO.lock().unwrap();
-        *cached = None;
+    if let Err(e) = CACHED_MONITOR_INFO.lock().map(|mut cached| *cached = None) {
+        error!("close_and_destroy_screenshot_window: 清理显示器缓存锁定失败: {}", e);
     }
-    {
-        let mut capturing = IS_CAPTURING.lock().unwrap();
-        *capturing = false;
+    if let Err(e) = IS_CAPTURING.lock().map(|mut capturing| *capturing = false) {
+        error!("close_and_destroy_screenshot_window: 重置截图捕获状态锁定失败: {}", e);
     }
 
     Ok(())
@@ -1165,139 +1197,6 @@ pub async fn show_hide_window_command(label: &str, context: Option<String>) -> R
             return Err("Invalid label".to_string());
         }
     }
-    
-    Ok(())
-}
-
-// 关闭片段预览窗口
-#[tauri::command]
-pub async fn close_preview_window() -> Result<(), String> {
-    let app_handle = APP.get().ok_or("无法获取应用句柄")?;
-    if let Some(window) = app_handle.get_webview_window("preview") {
-        let _ = window.close();
-    }
-    Ok(())
-}
-
-// 打开片段预览窗口
-#[tauri::command]
-pub async fn open_preview_window(snippet_data: String, preview_x: f64, preview_y: f64) -> Result<(), String> {
-    let app_handle = APP.get().ok_or("无法获取应用句柄")?.clone();
-    
-    // 在异步任务中创建窗口，避免阻塞主线程
-    tauri::async_runtime::spawn(async move {
-        // 关闭已存在的预览窗口
-        if let Some(existing) = app_handle.get_webview_window("preview") {
-            let _ = existing.close();
-            // 等待窗口关闭
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        }
-        
-        // 预览窗口尺寸
-        let preview_width = 380.0;
-        let preview_height = 300.0;
-        
-        // 获取屏幕尺寸，自适应调整预览窗口位置
-        let (mut pos_x, mut pos_y) = (preview_x, preview_y);
-        
-        // 获取搜索窗口信息用于边界计算
-        if let Some(main_window) = app_handle.get_webview_window("main") {
-            // 获取主窗口位置并转换为绝对坐标
-            if let Ok(main_pos) = main_window.outer_position() {
-                let scale = main_window.scale_factor().unwrap_or(1.0);
-                let main_x = main_pos.x as f64 / scale;
-                let main_y = main_pos.y as f64 / scale;
-                
-                pos_x += main_x;
-                pos_y += main_y;
-            }
-
-            if let Ok(Some(monitor)) = main_window.current_monitor() {
-                let screen_size = monitor.size();
-                let screen_pos = monitor.position();
-                let scale = monitor.scale_factor();
-                
-                let screen_width = screen_size.width as f64 / scale;
-                let screen_height = screen_size.height as f64 / scale;
-                let screen_x = screen_pos.x as f64 / scale;
-                let screen_y = screen_pos.y as f64 / scale;
-                
-                // log::info!("屏幕信息: {}x{} @ ({}, {}), scale={}", 
-                //     screen_width, screen_height, screen_x, screen_y, scale);
-                
-                // 检查右侧是否有足够空间
-                if pos_x + preview_width > screen_x + screen_width {
-                    // 右侧空间不足，尝试放到搜索窗口左侧
-                    if let Ok(main_pos) = main_window.outer_position() {
-                        let main_x = main_pos.x as f64 / scale;
-                        let left_x = main_x - preview_width - 4.0;
-                        if left_x >= screen_x {
-                            pos_x = left_x;
-                            log::info!("预览窗口移至左侧: x={}", pos_x);
-                        } else {
-                            // 左侧也不够，贴着屏幕右边缘
-                            pos_x = screen_x + screen_width - preview_width - 10.0;
-                            log::info!("预览窗口贴右边缘: x={}", pos_x);
-                        }
-                    }
-                }
-                
-                // 检查底部是否有足够空间
-                if pos_y + preview_height > screen_y + screen_height {
-                    // 底部空间不足，向上调整
-                    pos_y = screen_y + screen_height - preview_height - 10.0;
-                    log::info!("预览窗口向上调整: y={}", pos_y);
-                }
-                
-                // 确保不超出顶部
-                if pos_y < screen_y {
-                    pos_y = screen_y + 10.0;
-                }
-            }
-        }
-        
-        // log::info!("最终预览窗口位置: x={}, y={}", pos_x, pos_y);
-        
-        let url = format!("/#/preview?data={}", snippet_data);
-        
-        match WebviewWindowBuilder::new(&app_handle, "preview", WebviewUrl::App(url.into()))
-            .title("片段预览")
-            .inner_size(380.0, 300.0)
-            .position(pos_x, pos_y)
-            .decorations(false)
-            .always_on_top(true)
-            .resizable(true)
-            .skip_taskbar(true)
-            .focused(false)  // 不抢夺焦点
-            .visible(false)  // 先隐藏，等待内容加载
-            .build()
-        {
-            Ok(window) => {
-                // log::info!("预览窗口创建成功: x={}, y={}", pos_x, pos_y);
-                
-                // 监听前端准备事件
-                let window_clone = window.clone();
-                window.listen("preview-ready", move |_| {
-                    let _ = window_clone.show();
-                });
-                
-                // 超时后强制显示（防止事件丢失）
-                let window_timeout = window.clone();
-                let app_clone = app_handle.clone();
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-                    let _ = window_timeout.show();
-                    // 保持搜索窗口焦点
-                    if let Some(main_window) = app_clone.get_webview_window("main") {
-                        let _ = main_window.set_focus();
-                    }
-                });
-            }
-            Err(e) => {
-                log::error!("预览窗口创建失败: {}", e);
-            }
-        }
-    });
     
     Ok(())
 }
@@ -1335,8 +1234,10 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
             return Some(window);
         }
         // 重置进度状态
-        let mut state = PROGRESS_STATE.lock().unwrap();
-        *state = ScanProgressState::default();
+        match PROGRESS_STATE.lock() {
+            Ok(mut state) => *state = ScanProgressState::default(),
+            Err(e) => error!("create_notification_window_unified: 重置进度状态锁定失败: {}", e),
+        }
     }
     
     // 获取主显示器
@@ -1421,10 +1322,7 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
     window.listen("notification-ready", move |_| {
         thread::sleep(Duration::from_millis(50));
         
-        if let Err(e) = window_handle.show() {
-            info!("显示窗口失败: {}", e);
-            return;
-        }
+        let _ = window_handle.show();
         
         if with_animation {
             // 滑入动画
@@ -1487,7 +1385,7 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                 // 重置失焦时间
                 *LAST_FOCUS_LOST_TIME.lock().unwrap() = None;
                 // 发送窗口聚焦事件
-                window.emit("windowFocused", ()).unwrap();
+                let _ = window.emit("windowFocused", ());
             }
             // 失焦
             WindowEvent::Focused(false) => {
@@ -1626,6 +1524,7 @@ pub struct ScanProgressState {
     pub completed: bool,
     pub apps_count: usize,
     pub bookmarks_count: usize,
+    pub desktop_files_count: usize,
 }
 
 static PROGRESS_STATE: LazyLock<Mutex<ScanProgressState>> = LazyLock::new(|| Mutex::new(ScanProgressState::default()));
@@ -1651,33 +1550,12 @@ pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_ite
     }
 
     if let Some(app) = APP.get() {
-        info!("发送进度事件: stage={}, {}/{}", stage, current, total);
         let emit_result = app.emit("scan-progress", serde_json::json!({
             "stage": stage,
             "current": current,
             "total": total,
             "currentItem": current_item
         }));
-
-        let elapsed_ms = emit_started.elapsed().as_millis();
-        if elapsed_ms > 50 {
-            log::warn!(
-                "[ProgressDiag] emit_scan_progress slow: stage={}, {}/{}, elapsed={}ms, item={}",
-                stage,
-                current,
-                total,
-                elapsed_ms,
-                current_item
-            );
-        } else {
-            log::debug!(
-                "[ProgressDiag] emit_scan_progress ok: stage={}, {}/{}, elapsed={}ms",
-                stage,
-                current,
-                total,
-                elapsed_ms
-            );
-        }
 
         if let Err(e) = emit_result {
             log::error!(
@@ -1687,26 +1565,50 @@ pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_ite
                 total,
                 e
             );
+        } else {
+            let elapsed_ms = emit_started.elapsed().as_millis();
+            if elapsed_ms > 50 {
+                log::error!(
+                    "[ProgressDiag] emit_scan_progress slow: stage={}, {}/{}, elapsed={}ms, item={}",
+                    stage,
+                    current,
+                    total,
+                    elapsed_ms,
+                    current_item
+                );
+            }
         }
     }
 }
 
 // 发送扫描完成事件
-pub fn emit_scan_complete(apps_count: usize, bookmarks_count: usize) {
+pub fn emit_scan_complete(apps_count: usize, bookmarks_count: usize, desktop_files_count: usize) {
     // 更新状态
     {
         let mut state = PROGRESS_STATE.lock().unwrap();
         state.completed = true;
         state.apps_count = apps_count;
         state.bookmarks_count = bookmarks_count;
-        state.stage = format!("扫描完成 (应用: {}, 书签: {})", apps_count, bookmarks_count);
+        state.desktop_files_count = desktop_files_count;
+        state.stage = format!(
+            "扫描完成 (应用: {}, 书签: {}, 桌面文件: {})",
+            apps_count,
+            bookmarks_count,
+            desktop_files_count
+        );
     }
 
     if let Some(app) = APP.get() {
-        info!("发送完成事件: apps={}, bookmarks={}", apps_count, bookmarks_count);
+        info!(
+            "发送完成事件: apps={}, bookmarks={}, desktop_files={}",
+            apps_count,
+            bookmarks_count,
+            desktop_files_count
+        );
         let _ = app.emit("scan-complete", serde_json::json!({
             "appsCount": apps_count,
-            "bookmarksCount": bookmarks_count
+            "bookmarksCount": bookmarks_count,
+            "desktopFilesCount": desktop_files_count
         }));
     }
 }
@@ -2015,7 +1917,11 @@ pub fn hotkey_screenshot() {
 // 获取窗口信息
 #[tauri::command]
 pub fn get_window_info() -> Result<serde_json::Value, String> {
-    let app_handle = APP.get().unwrap();
+    let app_handle = APP.get().ok_or_else(|| {
+        let msg = "get_window_info: 无法获取应用句柄".to_string();
+        error!("{}", msg);
+        msg
+    })?;
     if let Some(window) = app_handle.get_webview_window("screenshot") {
         let position = window.outer_position().unwrap_or_default();
         let scale_factor = window.scale_factor().unwrap_or(1.0);
@@ -2423,7 +2329,11 @@ pub async fn save_screenshot_to_file(app_handle: AppHandle, image: String) -> Re
     }).await.map_err(|e| format!("Dialog task failed: {}", e))?;
 
     if let Some(selected_path) = selected_path {
-        let path = selected_path.as_path().unwrap();
+        let path = selected_path.as_path().ok_or_else(|| {
+            let msg = "保存截图失败: 选择的文件路径无效".to_string();
+            error!("save_screenshot_to_file: {}", msg);
+            msg
+        })?;
 
         // 根据文件扩展名确定格式
         let format = match path.extension().and_then(|s| s.to_str()) {
@@ -2462,7 +2372,11 @@ pub async fn create_pin_window(
     
     // 存储图片数据到全局静态变量
     {
-        let mut data_map = PIN_IMAGE_DATA.lock().unwrap();
+        let mut data_map = PIN_IMAGE_DATA.lock().map_err(|e| {
+            let msg = format!("create_pin_window: 图片数据缓存锁定失败: {}", e);
+            error!("{}", msg);
+            msg
+        })?;
         data_map.insert(window_label.clone(), image_data);
         info!("图片数据已存储，窗口标签: {}", window_label);
     }
@@ -2511,15 +2425,19 @@ pub async fn create_pin_window(
         },
         Ok(Err(e)) => {
             let error_msg = format!("创建贴图窗口失败: {}", e);
-            info!("{}", error_msg);
+            error!("create_pin_window: {}", error_msg);
             // 创建失败时清理数据
-            PIN_IMAGE_DATA.lock().unwrap().remove(&window_label);
+            if let Err(lock_err) = PIN_IMAGE_DATA.lock().map(|mut data| data.remove(&window_label)) {
+                error!("create_pin_window: 清理图片数据缓存失败: {}", lock_err);
+            }
             return Err(error_msg);
         },
         Err(e) => {
             let error_msg = format!("窗口创建任务失败: {}", e);
-            info!("{}", error_msg);
-            PIN_IMAGE_DATA.lock().unwrap().remove(&window_label);
+            error!("create_pin_window: {}", error_msg);
+            if let Err(lock_err) = PIN_IMAGE_DATA.lock().map(|mut data| data.remove(&window_label)) {
+                error!("create_pin_window: 清理图片数据缓存失败: {}", lock_err);
+            }
             return Err(error_msg);
         }
     };
@@ -2527,9 +2445,12 @@ pub async fn create_pin_window(
     info!("贴图窗口创建成功: {}", window_label);
     
     // 立即发送图片数据到窗口（不等待前端请求）
-    let image_data = {
-        let data_map = PIN_IMAGE_DATA.lock().unwrap();
-        data_map.get(&window_label).cloned()
+    let image_data = match PIN_IMAGE_DATA.lock() {
+        Ok(data_map) => data_map.get(&window_label).cloned(),
+        Err(e) => {
+            error!("create_pin_window: 读取图片数据缓存失败: {}", e);
+            None
+        }
     };
     
     if let Some(img_data) = image_data {
@@ -2573,7 +2494,9 @@ pub async fn create_pin_window(
     let label_for_cleanup = window_label.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::Destroyed = event {
-            PIN_IMAGE_DATA.lock().unwrap().remove(&label_for_cleanup);
+            if let Err(e) = PIN_IMAGE_DATA.lock().map(|mut data| data.remove(&label_for_cleanup)) {
+                error!("create_pin_window: 窗口销毁时清理图片数据失败: {}", e);
+            }
             info!("贴图窗口已关闭，清理数据: {}", label_for_cleanup);
         }
     });
@@ -2597,19 +2520,17 @@ pub async fn save_pin_image(app_handle: AppHandle, image_data: String) -> Result
 // 前端日志转发到后台
 #[tauri::command]
 pub fn frontend_log(level: String, message: String, data: Option<String>) {
+    if level.as_str() != "error" {
+        return;
+    }
+
     let log_msg = if let Some(d) = data {
         format!("[Frontend] {} - {}", message, d)
     } else {
         format!("[Frontend] {}", message)
     };
-    
-    match level.as_str() {
-        "error" => log::error!("{}", log_msg),
-        "warn" => log::warn!("{}", log_msg),
-        "info" => log::info!("{}", log_msg),
-        "debug" => log::debug!("{}", log_msg),
-        _ => log::info!("{}", log_msg),
-    }
+
+    log::error!("{}", log_msg);
 }
 
 // 获取所有窗口信息

@@ -5,7 +5,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import modal from '@/utils/modal';
 import googleIcon from '@/assets/svg/google.svg';
 import bingIcon from '@/assets/svg/bing.svg';
-import { nextTick, onMounted, onUnmounted, ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import { processTextForTranslation, detectLanguage } from '@/utils/text';

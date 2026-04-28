@@ -79,6 +79,8 @@ rayon = "1.10"
 pathdiff = "0.2"
 pulldown-cmark = { version = "0.13", features = ["html"] }
 pulldown-cmark-toc = "0.7"
+lopdf = "0.35"
+zip = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"

@@ -326,6 +326,10 @@ const handleUndo = () => {
   screenshotManager?.undoAnnotation()
 }
 
+const handleRedo = () => {
+  screenshotManager?.redoAnnotation()
+}
+
 const handleDelete = () => {
   screenshotManager?.deleteSelectedAnnotation()
 }
@@ -492,6 +496,25 @@ const handleKeydown = (event: KeyboardEvent) => {
 
   // 已选中区域时，让ScreenshotManager先处理特殊键盘事件（取色器的Q/Shift）
   if (screenshotManager?.handleKeyDown(event)) {
+    event.preventDefault()
+    return
+  }
+
+  const isMacLike = navigator.platform.toLowerCase().includes('mac')
+  const isPrimaryModifierPressed = isMacLike ? event.metaKey : event.ctrlKey
+
+  if (isPrimaryModifierPressed && event.key.toLowerCase() === 'z') {
+    if (event.shiftKey) {
+      handleRedo()
+    } else {
+      handleUndo()
+    }
+    event.preventDefault()
+    return
+  }
+
+  if (!isMacLike && event.ctrlKey && event.key.toLowerCase() === 'y') {
+    handleRedo()
     event.preventDefault()
     return
   }
@@ -702,7 +725,7 @@ onUnmounted(() => {
 .mask-left,
 .mask-right {
   @apply absolute pointer-events-none;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.52);
 }
 
 .drawing-canvas {
@@ -711,13 +734,16 @@ onUnmounted(() => {
 }
 
 .instructions {
-  @apply absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center text-white pointer-events-none;
+  @apply absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
 
   p {
-    @apply text-xl mb-3 drop-shadow-lg;
+    @apply text-lg mb-2 font-medium;
 
     &.hint {
-      @apply text-sm opacity-70;
+      @apply text-sm font-normal;
+      color: rgba(255, 255, 255, 0.72);
     }
   }
 }
@@ -726,7 +752,14 @@ onUnmounted(() => {
   @apply absolute pointer-events-none z-10;
 
   .size-text {
-    @apply text-white px-3 py-2 text-center rounded-md text-sm font-mono whitespace-nowrap;
+    @apply text-sm font-medium whitespace-nowrap;
+    color: var(--el-text-color-primary);
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color);
+    border-radius: 10px;
+    padding: 6px 10px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+    backdrop-filter: blur(12px);
     min-width: 60px;
   }
 }
@@ -739,15 +772,23 @@ onUnmounted(() => {
   @apply absolute z-20;
 
   .text-input {
-    @apply min-w-24 outline-none px-2 py-1 border-2 rounded bg-transparent border-solid font-serif;
     min-width: 100px;
+    color: var(--el-text-color-primary);
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color);
+    border-radius: 10px;
+    padding: 8px 12px;
+    outline: none;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+    backdrop-filter: blur(12px);
 
     &::placeholder {
-      @apply text-panel-text-secondary;
+      color: var(--el-text-color-placeholder);
     }
 
     &:focus {
-      @apply outline-none bg-transparent;
+      border-color: var(--el-color-primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-color-primary) 18%, transparent);
     }
   }
 }

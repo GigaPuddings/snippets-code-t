@@ -41,7 +41,6 @@
 
 <script setup lang="ts">
 import useContextMenu from '@/hooks/useContextMenu';
-import { ref, watchEffect, nextTick, watch } from 'vue';
 
 interface MenuItem {
   label: string;

@@ -83,8 +83,10 @@ export default {
     resetAll: 'Reset All',
     resetApps: 'Reset Apps',
     resetBookmarks: 'Reset Bookmarks',
+    resetDesktopFiles: 'Reset Desktop Files',
     resetAppsSuccess: 'Apps reset successfully',
     resetBookmarksSuccess: 'Bookmarks reset successfully',
+    resetDesktopFilesSuccess: 'Desktop files reset successfully',
     resetAllSuccess: 'Software reset successfully',
     resetFailed: 'Reset failed',
     autoUpdateCheck: 'Auto Update Check',
@@ -681,9 +683,10 @@ export default {
     preparing: 'Preparing...',
     scanningApps: 'Scanning local applications',
     scanningBookmarks: 'Scanning browser bookmarks',
+    scanningDesktopFiles: 'Scanning desktop files',
     loadingIcons: 'Loading icons',
     savingToDatabase: 'Saving to database',
-    scanComplete: 'Scan complete: {apps} apps, {bookmarks} bookmarks'
+    scanComplete: 'Scan complete: {apps} apps, {bookmarks} bookmarks, {desktopFiles} desktop files'
   },
 
   // Pin Window
@@ -805,7 +808,45 @@ export default {
     all: 'All',
     apps: 'Apps',
     bookmarks: 'Bookmarks',
-    backToSearch: 'Back to Search'
+    files: 'Files',
+    code: 'Code',
+    notes: 'Notes',
+    search: 'Search',
+    total: 'items',
+    backToSearch: 'Back to Search',
+    backToResults: 'Back to Results'
+  },
+
+  searchPreview: {
+    expandPreview: 'Expand Preview',
+    collapsePreview: 'Collapse Preview',
+    availableActions: 'Available Actions',
+    url: 'URL',
+    path: 'Path',
+    createdAt: 'Created At',
+    size: 'Size',
+    open: 'Open',
+    revealFileLocation: 'Open File Location',
+    openWithOtherWays: 'Open With Other Apps',
+    pasteContent: 'Paste Content',
+    openInConfig: 'View in Config',
+    name: 'Name',
+    type: 'Type',
+    category: 'Category',
+    tags: 'Tags',
+    imagePreviewFailed: 'Image preview failed to load',
+    noPreviewItem: 'No preview item available',
+    selectResultHint: 'Select a result on the left to see details here.',
+    loading: 'Loading preview...',
+    noPreviewContent: 'No preview content available',
+    noContent: 'No content available',
+    previewLoadFailed: 'Failed to load file preview',
+    openApp: 'Open App',
+    openAppAsAdmin: 'Open App as Administrator',
+    openAppFolder: 'Open App Folder',
+    openWebpage: 'Open Webpage',
+    copyUrl: 'Copy URL',
+    search: 'Search'
   },
 
   // Titlebar

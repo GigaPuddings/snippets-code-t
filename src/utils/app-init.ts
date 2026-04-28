@@ -20,6 +20,8 @@ import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import type { Composer } from 'vue-i18n';
 
+export { closeWindowByLabel, shouldCloseWindowOnEscape } from '@/utils/window-shortcuts';
+
 /**
  * 基础事件监听器（所有窗口通用）
  */

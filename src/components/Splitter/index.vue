@@ -18,7 +18,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
 
 defineOptions({
   name: 'Splitter'

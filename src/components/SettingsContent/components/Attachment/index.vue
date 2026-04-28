@@ -70,7 +70,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
 import { getAttachmentConfig, updateAttachmentConfig } from '@/api/markdown';
 import type { AttachmentConfig } from '@/types/models';
 import modal from '@/utils/modal';

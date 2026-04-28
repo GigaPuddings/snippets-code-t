@@ -51,7 +51,6 @@
 
 <script setup lang="ts">
 import { NodeViewWrapper, NodeViewContent, nodeViewProps } from '@tiptap/vue-3';
-import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import { PromptDialog } from '@/components/UI';

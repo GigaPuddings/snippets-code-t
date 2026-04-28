@@ -8,6 +8,7 @@ mod search_engines;
 mod alarm;
 mod search_history;
 mod icon_cache;
+mod desktop_files;
 mod init;
 mod settings;
 
@@ -41,12 +42,13 @@ pub use alarm::{get_all_alarm_cards, add_or_update_alarm_card, delete_alarm_card
 // pub use search_history::cleanup_old_search_history;
 
 // 重新导出图标缓存相关函数
-pub use icon_cache::{load_all_icon_cache, insert_icon_to_cache};
+pub use icon_cache::{load_all_icon_cache, insert_icon_to_cache, get_icon_from_cache, delete_icon_from_cache};
+pub use desktop_files::{load_all_desktop_file_cache, upsert_desktop_file_cache, clear_desktop_file_cache, delete_desktop_file_cache_by_ids, DesktopFileCacheRecord};
 
 // 重新导出命令函数
 pub use connection::{get_db_path, get_data_dir_info, backup_database, restore_database, set_custom_db_path, optimize_database, optimize_database_cmd};
 pub use connection::{is_setup_completed, is_setup_completed_internal, set_setup_completed, set_data_dir_from_setup};
-pub use connection::{set_show_progress_on_restart, consume_show_progress_flag};
+pub use connection::{set_show_progress_on_restart_with_kind, consume_show_progress_kind};
 pub use search_history::{add_search_history, get_search_history};
 
 // 重新导出应用设置相关函数

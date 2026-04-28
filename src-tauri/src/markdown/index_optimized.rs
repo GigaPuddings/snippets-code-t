@@ -14,7 +14,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use walkdir::WalkDir;
-use log::{info, warn};
+use log::warn;
 
 // 搜索索引项
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +59,6 @@ pub struct OptimizedIndexManager {
 impl OptimizedIndexManager {
     // 创建新的索引管理器
     pub fn new() -> Self {
-        info!("🔧 [优化索引] 初始化中文分词器和模糊匹配器...");
         Self {
             entries: Arc::new(RwLock::new(Vec::new())),
             tag_index: Arc::new(RwLock::new(HashMap::new())),
@@ -148,8 +147,6 @@ impl OptimizedIndexManager {
         workspace_root: &Path,
         _cache_manager: &CacheManager,
     ) -> Result<Self, String> {
-        info!("🔍 [优化索引] 开始构建搜索索引");
-        info!("📁 [优化索引] 工作区根目录: {}", workspace_root.display());
         
         let manager = Self::new();
 
@@ -247,9 +244,6 @@ impl OptimizedIndexManager {
             }
         }
 
-        info!("✅ [优化索引] 索引构建完成，共 {} 个文件", entries.len());
-        info!("📊 [优化索引] 倒排索引词数: {}", inverted_index.len());
-
         // 更新管理器的数据
         if let Ok(mut e) = manager.entries.write() {
             *e = entries;
@@ -329,9 +323,6 @@ impl OptimizedIndexManager {
 
     // 并行搜索（支持精确匹配 + 模糊匹配）
     pub fn search(&self, query: &str) -> Vec<IndexEntry> {
-        use std::time::Instant;
-        let start = Instant::now();
-        
         let entries = match self.entries.read() {
             Ok(e) => e,
             Err(_) => return Vec::new(),
@@ -348,9 +339,6 @@ impl OptimizedIndexManager {
             // 如果分词为空但查询有内容，直接用原查询
             query_tokens.iter().for_each(|_| {});
         }
-
-        info!("🔍 [优化索引] 搜索查询: \"{}\"", query);
-        info!("📝 [优化索引] 分词结果: {:?}", query_tokens);
 
         // 第一轮：精确匹配
         let exact_results: Vec<(usize, f32)> = entries
@@ -419,9 +407,6 @@ impl OptimizedIndexManager {
             .take(100)
             .filter_map(|(idx, _score)| entries.get(idx).cloned())
             .collect();
-
-        let duration = start.elapsed();
-        info!("✅ [优化索引] 搜索完成，找到 {} 个结果，耗时 {:?}", result_entries.len(), duration);
 
         result_entries
     }

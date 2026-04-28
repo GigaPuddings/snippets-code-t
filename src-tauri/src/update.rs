@@ -1,5 +1,6 @@
 use crate::config::control_logging;
 use crate::json_config;
+use crate::window::create_update_window;
 use crate::APP;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
@@ -80,6 +81,31 @@ pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bo
     }
 }
 
+// 手动检查更新，并在发现更新时打开更新窗口。
+// 托盘菜单、标题栏按钮等入口都应复用该函数，避免各处重复处理检查结果和错误通知。
+pub async fn check_update_and_open_window(app: AppHandle) -> Result<bool, String> {
+    match check_update(&app, true).await {
+        Ok(true) => {
+            create_update_window();
+            Ok(true)
+        }
+        Ok(false) => Ok(false),
+        Err(e) => {
+            log::error!("检查更新失败: {}", e);
+            if let Err(notification_error) = app
+                .notification()
+                .builder()
+                .title("snippets-code")
+                .body(format!("检查更新失败：{}", e))
+                .show()
+            {
+                log::warn!("显示检查更新失败通知失败: {}", notification_error);
+            }
+            Err(e)
+        }
+    }
+}
+
 // 获取更新状态
 #[tauri::command]
 pub fn get_update_status(app: AppHandle) -> bool {
@@ -150,5 +176,5 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn check_update_manually(app: AppHandle) -> Result<bool, String> {
-    check_update(&app, true).await
+    check_update_and_open_window(app).await
 }

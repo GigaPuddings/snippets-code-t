@@ -1,12 +1,18 @@
-use crate::window::{ hotkey_config, hotkey_translate, hotkey_dark_mode, open_config_settings, hotkey_screenshot };
-use crate::dark_mode::{stop_scheduler, load_config, save_config, set_windows_dark_mode, get_windows_dark_mode, ThemeMode, ScheduleType, start_scheduler};
-use tauri::Emitter;
 use crate::config::get_language_internal;
+use crate::dark_mode::{
+    get_windows_dark_mode, load_config, save_config, set_windows_dark_mode, start_scheduler,
+    stop_scheduler, ScheduleType, ThemeMode,
+};
+use crate::update::check_update_and_open_window;
+use crate::window::{
+    hotkey_config, hotkey_dark_mode, hotkey_screenshot, hotkey_translate, open_config_settings,
+};
 use log::{debug, info};
+use tauri::Emitter;
 use tauri::{
-    menu::{Menu, MenuItem, CheckMenuItem, Submenu, PredefinedMenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, AppHandle
+    AppHandle, Manager,
 };
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
@@ -26,6 +32,7 @@ struct TrayTranslations {
     theme_custom: &'static str,
     theme_settings: &'static str,
     // 其他
+    check_update: &'static str,
     view_log: &'static str,
     quit: &'static str,
 }
@@ -45,10 +52,12 @@ fn get_translations(lang: &str) -> TrayTranslations {
             theme_sun_based: "Sunrise/Sunset",
             theme_custom: "Custom Schedule",
             theme_settings: "More Settings...",
+            check_update: "Check for Updates",
             view_log: "View Logs",
             quit: "Quit",
         },
-        _ => TrayTranslations { // zh-CN 默认
+        _ => TrayTranslations {
+            // zh-CN 默认
             search: "快速搜索",
             config: "配置管理",
             translate: "输入翻译",
@@ -60,6 +69,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             theme_sun_based: "日出日落",
             theme_custom: "自定义时间",
             theme_settings: "更多设置...",
+            check_update: "检查更新",
             view_log: "日志记录",
             quit: "退出程序",
         },
@@ -70,29 +80,72 @@ fn get_translations(lang: &str) -> TrayTranslations {
 fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<tauri::Wry>> {
     let trans = get_translations(lang);
     let config = load_config(app);
-    
+
     // 判断当前选中状态
     let is_system = matches!(config.theme_mode, ThemeMode::System);
     let is_light = matches!(config.theme_mode, ThemeMode::Light);
     let is_dark = matches!(config.theme_mode, ThemeMode::Dark);
-    let is_sun_based = matches!(config.theme_mode, ThemeMode::Schedule) 
+    let is_sun_based = matches!(config.theme_mode, ThemeMode::Schedule)
         && matches!(config.schedule_type, ScheduleType::SunBased);
-    let is_custom = matches!(config.theme_mode, ThemeMode::Schedule) 
+    let is_custom = matches!(config.theme_mode, ThemeMode::Schedule)
         && matches!(config.schedule_type, ScheduleType::Custom);
-    
-    debug!("[托盘菜单] 主题子菜单状态: 跟随系统={}, 浅色={}, 深色={}, 日出日落={}, 自定义={}", 
-        is_system, is_light, is_dark, is_sun_based, is_custom);
-    
+
+    debug!(
+        "[托盘菜单] 主题子菜单状态: 跟随系统={}, 浅色={}, 深色={}, 日出日落={}, 自定义={}",
+        is_system, is_light, is_dark, is_sun_based, is_custom
+    );
+
     // 创建带勾选状态的菜单项
-    let system_i = CheckMenuItem::with_id(app, "theme_system", trans.theme_system, true, is_system, None::<&str>)?;
-    let light_i = CheckMenuItem::with_id(app, "theme_light", trans.theme_light, true, is_light, None::<&str>)?;
-    let dark_i = CheckMenuItem::with_id(app, "theme_dark", trans.theme_dark, true, is_dark, None::<&str>)?;
+    let system_i = CheckMenuItem::with_id(
+        app,
+        "theme_system",
+        trans.theme_system,
+        true,
+        is_system,
+        None::<&str>,
+    )?;
+    let light_i = CheckMenuItem::with_id(
+        app,
+        "theme_light",
+        trans.theme_light,
+        true,
+        is_light,
+        None::<&str>,
+    )?;
+    let dark_i = CheckMenuItem::with_id(
+        app,
+        "theme_dark",
+        trans.theme_dark,
+        true,
+        is_dark,
+        None::<&str>,
+    )?;
     let separator1 = PredefinedMenuItem::separator(app)?;
-    let sun_based_i = CheckMenuItem::with_id(app, "theme_sun_based", trans.theme_sun_based, true, is_sun_based, None::<&str>)?;
-    let custom_i = CheckMenuItem::with_id(app, "theme_custom", trans.theme_custom, true, is_custom, None::<&str>)?;
+    let sun_based_i = CheckMenuItem::with_id(
+        app,
+        "theme_sun_based",
+        trans.theme_sun_based,
+        true,
+        is_sun_based,
+        None::<&str>,
+    )?;
+    let custom_i = CheckMenuItem::with_id(
+        app,
+        "theme_custom",
+        trans.theme_custom,
+        true,
+        is_custom,
+        None::<&str>,
+    )?;
     let separator2 = PredefinedMenuItem::separator(app)?;
-    let settings_i = MenuItem::with_id(app, "theme_settings", trans.theme_settings, true, None::<&str>)?;
-    
+    let settings_i = MenuItem::with_id(
+        app,
+        "theme_settings",
+        trans.theme_settings,
+        true,
+        None::<&str>,
+    )?;
+
     Submenu::with_items(
         app,
         trans.theme_menu,
@@ -112,10 +165,10 @@ fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<ta
 
 // 处理主题菜单项点击
 pub fn handle_theme_menu_click(app: &AppHandle, menu_id: &str) {
-debug!("[托盘菜单] 点击主题菜单项: {}", menu_id);
+    debug!("[托盘菜单] 点击主题菜单项: {}", menu_id);
     let mut config = load_config(app);
     let mut should_restart_scheduler = false;
-    
+
     match menu_id {
         "theme_system" => {
             config.theme_mode = ThemeMode::System;
@@ -170,25 +223,30 @@ debug!("[托盘菜单] 点击主题菜单项: {}", menu_id);
 
     // 广播后端权威主题状态，确保 dark_mode/config 等窗口立即同步状态徽标
     let current_is_dark = get_windows_dark_mode().unwrap_or(false);
-    let _ = app.emit("dark-mode-changed", serde_json::json!({
-        "isDark": current_is_dark,
-        "reason": "tray_menu"
-    }));
+    let _ = app.emit(
+        "dark-mode-changed",
+        serde_json::json!({
+            "isDark": current_is_dark,
+            "reason": "tray_menu"
+        }),
+    );
 }
 
 pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let lang = get_language_internal(app);
     let trans = get_translations(&lang);
-    
+
     let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
     let translate_i = MenuItem::with_id(app, "translate", trans.translate, true, None::<&str>)?;
     let screenshot_i = MenuItem::with_id(app, "screenshot", trans.screenshot, true, None::<&str>)?;
-    
+
     // 创建主题子菜单
     let theme_submenu = create_theme_submenu(app, &lang)?;
-    
+
     let separator1 = PredefinedMenuItem::separator(app)?;
+    let check_update_i =
+        MenuItem::with_id(app, "check_update", trans.check_update, true, None::<&str>)?;
     let view_log_i = MenuItem::with_id(app, "view_log", trans.view_log, true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
     let menu = Menu::with_items(
@@ -200,6 +258,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             &screenshot_i,
             &theme_submenu,
             &separator1,
+            &check_update_i,
             &view_log_i,
             &quit_i,
         ],
@@ -214,16 +273,16 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| {
             let menu_id = event.id.as_ref();
-            
+
             // 主题菜单项处理
             if menu_id.starts_with("theme_") {
                 handle_theme_menu_click(app, menu_id);
                 return;
             }
-            
+
             match menu_id {
                 "search" => {
-debug!("[托盘菜单] 执行：快速搜索");
+                    debug!("[托盘菜单] 执行：快速搜索");
                     if let Some(window) = app.get_webview_window("main") {
                         let _ = window.center();
                         let _ = window.show();
@@ -231,19 +290,26 @@ debug!("[托盘菜单] 执行：快速搜索");
                     }
                 }
                 "config" => {
-debug!("[托盘菜单] 执行：打开配置窗口");
+                    debug!("[托盘菜单] 执行：打开配置窗口");
                     open_config_settings();
                 }
                 "translate" => {
-debug!("[托盘菜单] 执行：输入翻译");
+                    debug!("[托盘菜单] 执行：输入翻译");
                     hotkey_translate();
                 }
                 "screenshot" => {
-debug!("[托盘菜单] 执行：快速截图");
+                    debug!("[托盘菜单] 执行：快速截图");
                     hotkey_screenshot();
                 }
+                "check_update" => {
+                    debug!("[托盘菜单] 执行：检查更新");
+                    let app_handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = check_update_and_open_window(app_handle).await;
+                    });
+                }
                 "view_log" => {
-debug!("[托盘菜单] 执行：打开日志目录");
+                    debug!("[托盘菜单] 执行：打开日志目录");
                     if let Ok(log_path) = app.path().app_log_dir() {
                         if let Some(path_str) = log_path.to_str() {
                             let _ = app.opener().open_path(path_str, Option::<String>::None);
@@ -251,7 +317,7 @@ debug!("[托盘菜单] 执行：打开日志目录");
                     }
                 }
                 "quit" => {
-info!("[托盘菜单] 用户选择退出程序");
+                    info!("[托盘菜单] 用户选择退出程序");
                     stop_scheduler();
                     let _ = app.global_shortcut().unregister_all();
                     app.exit(0);
@@ -334,19 +400,21 @@ pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 pub fn recreate_tray_menu(app: &AppHandle) -> tauri::Result<()> {
     let lang = get_language_internal(app);
     let trans = get_translations(&lang);
-    
+
     let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
     let translate_i = MenuItem::with_id(app, "translate", trans.translate, true, None::<&str>)?;
     let screenshot_i = MenuItem::with_id(app, "screenshot", trans.screenshot, true, None::<&str>)?;
-    
+
     // 创建主题子菜单
     let theme_submenu = create_theme_submenu(app, &lang)?;
-    
+
     let separator1 = PredefinedMenuItem::separator(app)?;
+    let check_update_i =
+        MenuItem::with_id(app, "check_update", trans.check_update, true, None::<&str>)?;
     let view_log_i = MenuItem::with_id(app, "view_log", trans.view_log, true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
-    
+
     let menu = Menu::with_items(
         app,
         &[
@@ -356,15 +424,16 @@ pub fn recreate_tray_menu(app: &AppHandle) -> tauri::Result<()> {
             &screenshot_i,
             &theme_submenu,
             &separator1,
+            &check_update_i,
             &view_log_i,
             &quit_i,
         ],
     )?;
-    
+
     // 更新托盘菜单
     if let Some(tray) = app.tray_by_id("tray") {
         tray.set_menu(Some(menu))?;
     }
-    
+
     Ok(())
 }

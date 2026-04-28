@@ -26,6 +26,7 @@ _tmp*
 *.njsproj
 *.sln
 *.sw?
+.cursor
 
 # 忽略所有以 ~ 结尾的文件和文件夹
 *~

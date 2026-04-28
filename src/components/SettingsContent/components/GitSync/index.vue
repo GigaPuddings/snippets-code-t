@@ -212,7 +212,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Loading, CheckOne, Attention, CloseSmall } from '@icon-park/vue-next';
 import { CustomButton, CustomSwitch } from '@/components/UI';

@@ -93,7 +93,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore, useLayoutStore } from '@/store';
 import { useI18n } from 'vue-i18n';

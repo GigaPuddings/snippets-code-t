@@ -32,7 +32,6 @@
 
 <script setup lang="ts">
 import { Loading, CheckOne, CloseSmall } from '@icon-park/vue-next';
-import { reactive, onMounted, onUnmounted } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
@@ -66,6 +65,7 @@ interface BackendProgressState {
   completed: boolean;
   apps_count: number;
   bookmarks_count: number;
+  desktop_files_count: number;
 }
 
 const state = reactive<ProgressState>({
@@ -92,7 +92,7 @@ onMounted(async () => {
       
       if (backendState.completed) {
         if (!state.completed) {
-            handleComplete(backendState.apps_count, backendState.bookmarks_count);
+            handleComplete(backendState.apps_count, backendState.bookmarks_count, backendState.desktop_files_count);
         }
       } else if (backendState.total > 0) {
         // 更新进度
@@ -125,13 +125,14 @@ onMounted(async () => {
   unlistenComplete = await listen<{
     appsCount: number;
     bookmarksCount: number;
+    desktopFilesCount: number;
   }>('scan-complete', (event) => {
     // console.log('[ProgressContent] 收到完成事件', event.payload);
-    handleComplete(event.payload.appsCount, event.payload.bookmarksCount);
+    handleComplete(event.payload.appsCount, event.payload.bookmarksCount, event.payload.desktopFilesCount);
   });
 });
 
-const handleComplete = (appsCount: number, bookmarksCount: number) => {
+const handleComplete = (appsCount: number, bookmarksCount: number, desktopFilesCount: number) => {
     if (state.completed) return;
     
     state.completed = true;
@@ -139,7 +140,8 @@ const handleComplete = (appsCount: number, bookmarksCount: number) => {
     state.total = 0; // 隐藏进度详情
     state.stage = t('progress.scanComplete', {
       apps: appsCount,
-      bookmarks: bookmarksCount
+      bookmarks: bookmarksCount,
+      desktopFiles: desktopFilesCount
     });
     state.currentItem = '';
     
@@ -175,14 +177,16 @@ onUnmounted(() => {
 
 .icon-wrapper {
   @apply flex items-center justify-center rounded-lg p-1.5;
-  background: linear-gradient(135deg, rgb(93 109 253 / 15%) 0%, rgb(147 51 234 / 15%) 100%);
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
+  border: 1px solid var(--el-border-color);
   
   :deep(svg) {
     animation: spin 1.2s linear infinite;
   }
   
   &.completed {
-    background: linear-gradient(135deg, rgb(16 185 129 / 15%) 0%, rgb(52 211 153 / 15%) 100%);
+    color: var(--el-color-success);
     
     :deep(svg) {
       animation: none;
@@ -196,16 +200,22 @@ onUnmounted(() => {
 }
 
 .title {
-  @apply text-sm font-semibold text-panel;
+  @apply text-sm font-semibold;
+  color: var(--el-text-color-primary);
 }
 
 .close-btn {
   @apply flex items-center justify-center w-6 h-6 rounded-lg transition-all;
-  @apply text-panel-text-secondary hover:text-panel hover:bg-panel-hover-bg;
+  color: var(--el-text-color-secondary);
   border: none;
   background: transparent;
   cursor: pointer;
   padding: 0;
+
+  &:hover {
+    color: var(--el-text-color-primary);
+    background: var(--el-fill-color-light);
+  }
 }
 
 .progress-body {
@@ -217,37 +227,30 @@ onUnmounted(() => {
 }
 
 .progress-stage {
-  @apply text-xs text-panel-text-secondary truncate;
+  @apply text-xs truncate;
+  color: var(--el-text-color-secondary);
   max-width: 180px;
 }
 
 .progress-percent {
   @apply text-sm font-bold;
-  background: linear-gradient(135deg, var(--el-color-primary) 0%, #9333ea 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--el-color-primary);
 }
 
 .progress-bar-container {
-  @apply w-full h-2 bg-content rounded-full overflow-hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  @apply w-full h-2 rounded-full overflow-hidden;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color);
 }
 
 .progress-bar {
   @apply h-full rounded-full transition-all duration-500 ease-out;
-  background: linear-gradient(90deg, var(--el-color-primary) 0%, #9333ea 50%, #ec4899 100%);
-  background-size: 200% 100%;
-  animation: shimmer 2s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  background: var(--el-color-primary);
 }
 
 .progress-detail {
-  @apply flex justify-end text-xs text-panel-text-secondary;
+  @apply flex justify-end text-xs;
+  color: var(--el-text-color-secondary);
 }
 
 .item-count {

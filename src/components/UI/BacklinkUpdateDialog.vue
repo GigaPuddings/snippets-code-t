@@ -89,7 +89,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
 import { updateBacklinks, type UpdateBacklinksResult } from '@/utils/wikilink-updater';
 
 interface Props {

@@ -7,6 +7,7 @@ mod commands;
 mod config;
 mod dark_mode;
 mod db;
+mod desktop_watcher;
 pub mod git_common;
 mod git_sync;
 mod hotkey;
@@ -51,8 +52,9 @@ use crate::window::{
   copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows,
   create_pin_window, copy_image_to_clipboard, save_pin_image, frontend_log,
   get_screenshot_background, get_screenshot_preview, get_cached_window_list, get_cached_monitor_info, clear_screenshot_background, cleanup_screenshot_resources, create_setup_window, close_setup_window, get_scan_progress_state,
-  open_preview_window, close_preview_window, close_and_destroy_screenshot_window
+  close_and_destroy_screenshot_window
 };
+use dirs::desktop_dir;
 use crate::dark_mode::{
     load_config as load_dark_mode_config, save_config as save_dark_mode_config,
     get_location_by_ip, calculate_sun_times, toggle_theme, 
@@ -60,11 +62,11 @@ use crate::dark_mode::{
     DarkModeConfig, LocationInfo, SunTimes
 };
 
-use apps::open_app_command;
+use apps::{open_app_as_admin_command, open_app_command};
 use bookmarks::open_url;
 use hotkey::*;
 use icon::{init_app_and_bookmark_icons, extract_icon_from_app};
-use log::info;
+use log::{LevelFilter, info};
 use search::*;
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -435,35 +437,11 @@ pub fn run() {
                     Target::new(TargetKind::LogDir { file_name: None }),
                     Target::new(TargetKind::Webview),
                 ])
-                .filter(|metadata| {
-                    let target = metadata.target();
-                    let level = metadata.level();
-
-                    // 压制 Windows 文件监听的高频日志，避免索引期间日志风暴
-                    if target.starts_with("notify::windows") {
-                        return level <= log::Level::Info;
-                    }
-
-                    // 过滤掉 tao 的事件循环噪音
-                    if target.starts_with("tao::platform_impl::platform::event_loop") {
-                        return level >= log::Level::Warn;
-                    }
-
-                    // 过滤 tauri::manager 的调试日志
-                    if target == "tauri::manager" && level == log::Level::Debug {
-                        return false;
-                    }
-
-                    // 过滤 HTTP 客户端 TRACE/DEBUG（图标加载会非常多）
-                    if target.starts_with("hyper_util::")
-                        || target.starts_with("reqwest::")
-                        || target.starts_with("hyper::")
-                    {
-                        return level >= log::Level::Warn;
-                    }
-
-                    true
-                })
+                .level(LevelFilter::Info)
+                .level_for("tauri_app_lib", LevelFilter::Debug)
+                .level_for("reqwest", LevelFilter::Warn)
+                .level_for("hyper_util", LevelFilter::Warn)
+                .level_for("notify", LevelFilter::Warn)
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -479,6 +457,9 @@ pub fn run() {
             
             // 初始化 AutoSyncManager 状态（先设置为 None，后续根据配置启动）
             app.manage(Arc::new(Mutex::new(None::<git_sync::AutoSyncManager>)));
+
+            // 初始化桌面文件监听器状态（必须持久化保存，否则 watcher 会在 setup 结束后被释放）
+            app.manage(Arc::new(Mutex::new(None::<desktop_watcher::DesktopFileWatcher>)));
             
             // 初始化待处理的 Git 冲突队列（用于启动时 pull 检测到冲突但 Config 窗口未就绪）
             app.manage(Arc::new(Mutex::new(Vec::<git_sync::ConflictPayload>::new())));
@@ -496,7 +477,7 @@ pub fn run() {
                 let config = dark_mode::load_config(&app_handle_scheduler);
                 if config.theme_mode == ThemeMode::Schedule {
                     if let Err(e) = dark_mode::start_scheduler(app_handle_scheduler) {
-                        log::warn!("Dark Mode调度器启动失败: {}", e);
+                        log::error!("Dark Mode调度器启动失败: {}", e);
                     }
                 }
             });
@@ -505,25 +486,16 @@ pub fn run() {
             // 使用全局监听器而不是窗口监听器，确保能收到前端发送的事件
             let app_handle_conflict = app.handle().clone();
             let _listener_id = app.listen("config_ready", move |_event| {
-                
-                // 检查待处理冲突队列
                 if let Some(pending_conflicts) = app_handle_conflict.try_state::<Arc<Mutex<Vec<git_sync::ConflictPayload>>>>() {
                     if let Ok(mut queue) = pending_conflicts.lock() {
                         if !queue.is_empty() {
-                            log::info!("📬 [Git] 发送待处理冲突，数量: {}", queue.len());
-                            // 发送所有待处理的冲突
                             for payload in queue.iter() {
                                 if let Err(e) = app_handle_conflict.emit_to("config", "git-conflict-detected", payload.clone()) {
                                     log::error!("❌ [Git] 发送待处理冲突失败: {}", e);
-                                } else {
-                                    log::info!("📬 [Git] 待处理冲突已发送: conflict={:?}, untracked={:?}", 
-                                        payload.conflict_files, payload.untracked_files);
                                 }
                             }
-                            // 清空队列
                             queue.clear();
                         }
-                        // 队列为空时不打印日志，这是正常状态
                     }
                 }
             });
@@ -531,22 +503,14 @@ pub fn run() {
             // 监听 config_ready 事件，发送待处理的「仓库不存在」通知
             let app_handle_repo_not_found = app.handle().clone();
             let _repo_not_found_listener_id = app.listen("config_ready", move |_event| {
-
-                // 检查待处理仓库不存在队列
                 if let Some(pending_repo_not_found) = app_handle_repo_not_found.try_state::<Arc<Mutex<Vec<git_sync::RepoNotFoundPayload>>>>() {
                     if let Ok(mut queue) = pending_repo_not_found.lock() {
                         if !queue.is_empty() {
-                            log::info!("📬 [Git] 发送待处理仓库不存在通知，数量: {}", queue.len());
-                            // 发送所有待处理的通知
                             for payload in queue.iter() {
                                 if let Err(e) = app_handle_repo_not_found.emit_to("config", "git-repo-not-found", payload.clone()) {
                                     log::error!("❌ [Git] 发送待处理仓库不存在通知失败: {}", e);
-                                } else {
-                                    log::info!("📬 [Git] 待处理仓库不存在通知已发送: remote_url={}, operation={}",
-                                        payload.remote_url, payload.operation);
                                 }
                             }
-                            // 清空队列
                             queue.clear();
                         }
                     }
@@ -570,8 +534,6 @@ pub fn run() {
                                 };
                                 if let Err(e) = app_handle_open_file.emit_to("config", "open-markdown-from-system", payload) {
                                     log::error!("❌ [OpenFile] 发送待处理文件失败: {}", e);
-                                } else {
-                                    log::info!("📬 [OpenFile] 待处理文件已发送: {}", p);
                                 }
                             }
                             queue.clear();
@@ -749,6 +711,24 @@ pub fn run() {
                                             log::warn!("文件监听器启动失败: {}", e);
                                         }
                                     }
+
+                                    if let Some(desktop_path) = desktop_dir() {
+                                        match desktop_watcher::DesktopFileWatcher::start(desktop_path) {
+                                            Ok(desktop_watcher) => {
+                                                log::info!("桌面目录监听器启动成功");
+                                                if let Some(watcher_state) = app_handle_markdown.try_state::<Arc<Mutex<Option<desktop_watcher::DesktopFileWatcher>>>>() {
+                                                    if let Ok(mut watcher_lock) = watcher_state.lock() {
+                                                        *watcher_lock = Some(desktop_watcher);
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                log::warn!("桌面目录监听器启动失败: {}", e);
+                                            }
+                                        }
+                                    } else {
+                                        log::warn!("未找到桌面目录，跳过桌面目录监听");
+                                    }
                                 }
                                 Err(e) => {
                                     log::warn!("搜索索引构建失败: {}", e);
@@ -774,9 +754,7 @@ pub fn run() {
                 {
                     if is_setup_completed {
                         // 已完成设置：创建完整托盘
-                        if let Ok(()) = tray::create_tray(&app_handle_init) {
-                            tray::update_tray_theme_status(&app_handle_init);
-                        }
+                        let _ = tray::create_tray(&app_handle_init);
                     } else {
                         // 首次启动：只创建最小托盘
                         let _ = tray::create_minimal_tray(&app_handle_init);
@@ -803,8 +781,9 @@ pub fn run() {
                 // 重置更新状态（使用 JSON 配置）
                 let _ = json_config::set_app_config_value(&app_handle_init, "update_available", false);
                 
-                // 第四步：资源加载（应用和书签图标）
+                // 第四步：资源加载（应用、书签和桌面文件图标）
                 init_app_and_bookmark_icons(&app_handle_init);
+                search::refresh_desktop_files_cache();
                 
                 // 第五步：网络操作（自动更新检查）
                 if get_auto_update_check(app_handle_init.clone()) {
@@ -872,6 +851,7 @@ pub fn run() {
             hotkey_config_command,            // 快捷键配置
             hotkey_update_command,            // 快捷键更新
             open_app_command,                 // 打开应用
+            open_app_as_admin_command,        // 以管理员身份打开应用
             show_hide_window_command,         // 显示隐藏窗口
             open_url,                         // 打开书签
             insert_text_to_last_window,       // 插入文本到上次活动窗口
@@ -963,8 +943,6 @@ pub fn run() {
             get_translation_engine,           // 获取默认翻译引擎
             set_offline_model_activated,      // 设置离线模型激活状态
             get_offline_model_activated,      // 获取离线模型激活状态
-            open_preview_window,              // 打开片段预览窗口
-            close_preview_window,             // 关闭片段预览窗口
             migrate_to_markdown_command,      // 迁移数据到 Markdown
             migrate_to_markdown_from_file_command,  // 从选择的数据库文件迁移
             finalize_migration,               // 完成迁移：移除数据库表
@@ -974,6 +952,9 @@ pub fn run() {
             commands::set_workspace_root_path,// 设置工作区根目录
             commands::change_workspace,       // 更改工作区
             markdown::search_markdown_files_optimized,  // 搜索 Markdown 文件
+            search_desktop_files,             // 搜索桌面文件
+            refresh_desktop_files_cache_cmd,   // 刷新桌面文件缓存
+            preview_desktop_file,              // 预览桌面文件
             // Markdown 文件操作命令
             markdown::get_markdown_categories,          // 获取所有分类
             markdown::create_markdown_file,             // 创建 Markdown 文件
@@ -1043,7 +1024,9 @@ pub fn run() {
             register_app_init_request,                  // 注册 App 初始化请求（防抖）
             should_execute_app_init,                    // 检查是否应该执行 App 初始化（防抖）
             // 文件系统命令
+            commands::open_file_with_default_app,       // 使用默认应用打开文件
             commands::show_file_in_folder,              // 在文件管理器中显示文件
+            commands::open_path,                        // 打开“选择其他方式打开”对话框
             commands::open_folder,                      // 打开文件夹
             optimize_database_cmd,                     // 优化数据库
         ])

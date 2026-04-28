@@ -38,7 +38,6 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch, computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useConfigurationStore, useLayoutStore } from '@/store';

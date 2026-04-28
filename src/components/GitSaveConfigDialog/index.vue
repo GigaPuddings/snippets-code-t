@@ -64,7 +64,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
 import { Info, Attention } from '@icon-park/vue-next';
 import type { GitSettings } from '@/types/models';
 

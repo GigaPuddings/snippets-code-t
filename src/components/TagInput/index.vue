@@ -69,7 +69,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';

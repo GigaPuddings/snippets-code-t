@@ -83,8 +83,10 @@ export default {
     resetAll: '重置全部',
     resetApps: '重置应用数据',
     resetBookmarks: '重置书签数据',
+    resetDesktopFiles: '重置桌面文件数据',
     resetAppsSuccess: '重置应用列表成功',
     resetBookmarksSuccess: '重置书签数据成功',
+    resetDesktopFilesSuccess: '重置桌面文件数据成功',
     resetAllSuccess: '重置软件成功',
     resetFailed: '重置失败',
     autoUpdateCheck: '自动检查更新',
@@ -696,9 +698,10 @@ export default {
     preparing: '准备中...',
     scanningApps: '正在扫描本地应用',
     scanningBookmarks: '正在扫描浏览器书签',
+    scanningDesktopFiles: '正在扫描桌面文件',
     loadingIcons: '正在加载图标',
     savingToDatabase: '正在保存到数据库',
-    scanComplete: '扫描完成：{apps} 个应用，{bookmarks} 个书签'
+    scanComplete: '扫描完成：{apps} 个应用，{bookmarks} 个书签，{desktopFiles} 个桌面文件'
   },
 
   // 贴图窗口
@@ -820,7 +823,45 @@ export default {
     all: '全部',
     apps: '应用',
     bookmarks: '书签',
-    backToSearch: '返回搜索'
+    files: '文件',
+    code: '代码',
+    notes: '笔记',
+    search: '搜索',
+    total: '条',
+    backToSearch: '返回搜索',
+    backToResults: '返回结果'
+  },
+
+  searchPreview: {
+    expandPreview: '展开预览',
+    collapsePreview: '收起预览',
+    availableActions: '可用操作',
+    url: 'Url',
+    path: '路径',
+    createdAt: '创建时间',
+    size: '大小',
+    open: '打开',
+    revealFileLocation: '打开文件所在位置',
+    openWithOtherWays: '选择其他方式打开',
+    pasteContent: '粘贴内容',
+    openInConfig: '在配置中查看',
+    name: '名称',
+    type: '类型',
+    category: '分类',
+    tags: '标签',
+    imagePreviewFailed: '图片预览加载失败',
+    noPreviewItem: '暂无可预览项',
+    selectResultHint: '在左侧选择结果后，这里会显示详细信息。',
+    loading: '预览加载中...',
+    noPreviewContent: '暂无可预览内容',
+    noContent: '暂无内容',
+    previewLoadFailed: '文件预览加载失败',
+    openApp: '打开应用',
+    openAppAsAdmin: '以管理员身份打开应用',
+    openAppFolder: '打开应用文件文件夹',
+    openWebpage: '打开网页',
+    copyUrl: '复制 URL',
+    search: '搜索'
   },
 
   // 标题栏

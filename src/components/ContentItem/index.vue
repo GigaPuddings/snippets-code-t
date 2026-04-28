@@ -59,7 +59,6 @@
 <script setup lang="ts">
 import { formatDate } from '@/utils';
 import { EditTwo, DeleteFour, CategoryManagement, Notebook, FileCodeOne, FolderOpen } from '@icon-park/vue-next';
-import { computed, toRefs } from 'vue';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
@@ -273,7 +272,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
 <style scoped lang="scss">
 @mixin commonLink {
-  @apply block py-1 truncate rounded-lg cursor-pointer transition-colors duration-200 ease-out border-b-transparent;
+  @apply block py-1 rounded-lg cursor-pointer transition-colors duration-200 ease-out border-b-transparent;
 }
 
 .link {

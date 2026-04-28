@@ -27,8 +27,8 @@ export function escapeHtml(text: string): string {
 }
 
 /**
- * 使用模糊搜索高亮匹配的文本
- * 
+ * 使用连续子串高亮匹配的文本
+ *
  * @param text - 要高亮的文本
  * @param query - 搜索查询词
  * @returns 带高亮标记的 HTML 字符串
@@ -37,27 +37,22 @@ export function highlightText(text: string, query?: string): string {
   if (!text || !query?.trim()) {
     return escapeHtml(text || '');
   }
-  
-  const queryLower = query.trim().toLowerCase();
-  
-  // 模糊匹配：将查询拆分为字符，按顺序匹配
-  let result = '';
-  let textIndex = 0;
-  let queryIndex = 0;
+
+  const escapedText = escapeHtml(text);
+  const queryTrimmed = query.trim();
   const textLower = text.toLowerCase();
-  
-  while (textIndex < text.length) {
-    if (queryIndex < queryLower.length && textLower[textIndex] === queryLower[queryIndex]) {
-      // 字符匹配，添加高亮
-      result += `<span class="highlight">${escapeHtml(text[textIndex])}</span>`;
-      queryIndex++;
-    } else {
-      result += escapeHtml(text[textIndex]);
-    }
-    textIndex++;
+  const queryLower = queryTrimmed.toLowerCase();
+  const matchIndex = textLower.indexOf(queryLower);
+
+  if (matchIndex === -1) {
+    return escapedText;
   }
-  
-  return result;
+
+  const before = escapeHtml(text.slice(0, matchIndex));
+  const match = escapeHtml(text.slice(matchIndex, matchIndex + queryTrimmed.length));
+  const after = escapeHtml(text.slice(matchIndex + queryTrimmed.length));
+
+  return `${before}<span class="highlight">${match}</span>${after}`;
 }
 
 /**

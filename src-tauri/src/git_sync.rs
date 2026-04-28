@@ -562,8 +562,8 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
         branch,
     };
 
-    info!(
-        "📊 [Git] 获取 Git 状态完成: is_repo={}, has_remote={}, has_changes={}, branch={}",
+    debug!(
+        "📊 [Git] Git 状态计算完成: is_repo={}, has_remote={}, has_changes={}, branch={}",
         status.is_repo, status.has_remote, status.has_changes, status.branch
     );
 
@@ -1371,6 +1371,10 @@ pub fn get_git_status_command(app_handle: AppHandle) -> Result<GitStatus, String
         workspace_root.display()
     );
     let status = get_git_status(&workspace_root)?;
+    info!(
+        "📊 [Git] 前端 Git 状态请求完成: is_repo={}, has_remote={}, has_changes={}, branch={}",
+        status.is_repo, status.has_remote, status.has_changes, status.branch
+    );
 
     // 更新缓存
     update_git_status_cache(status.clone());

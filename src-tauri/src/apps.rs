@@ -1214,3 +1214,37 @@ pub fn open_app_command(app_path: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+pub fn open_app_as_admin_command(app_path: String) -> Result<(), String> {
+    let path = Path::new(&app_path);
+    if !path.exists() {
+        return Err(format!("应用程序路径不存在: {}", app_path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let actual_path = if app_path.ends_with(".lnk") {
+            resolve_shortcut(path).unwrap_or(app_path.clone())
+        } else {
+            app_path.clone()
+        };
+
+        let ps_script = format!(
+            "Start-Process -FilePath '{}' -Verb RunAs",
+            actual_path.replace('\'', "''")
+        );
+
+        Command::new("powershell")
+            .args(["-NoProfile", "-Command", &ps_script])
+            .spawn()
+            .map_err(|e| format!("以管理员身份打开应用失败: {}", e))?;
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("以管理员身份打开仅支持 Windows".to_string())
+    }
+}
+

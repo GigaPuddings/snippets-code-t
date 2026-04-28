@@ -203,71 +203,78 @@ pub fn control_logging(enable: bool) {
 //   (adjusted_x as f64, adjusted_y as f64)
 // }
 
+fn log_reset_step(reset_type: &str, step: &str, status: &str, detail: &str) {
+    if detail.is_empty() {
+        info!("[Reset] type={} step={} status={}", reset_type, step, status);
+    } else {
+        info!("[Reset] type={} step={} status={} detail={}", reset_type, step, status, detail);
+    }
+}
+
+fn log_reset_db_result(reset_type: &str, step: &str, result: Result<(), rusqlite::Error>) -> Result<(), String> {
+    match result {
+        Ok(_) => {
+            log_reset_step(reset_type, step, "ok", "");
+            Ok(())
+        }
+        Err(e) => {
+            let detail = e.to_string();
+            log_reset_step(reset_type, step, "error", &detail);
+            Err(format!("{} failed: {}", step, detail))
+        }
+    }
+}
+
+fn schedule_reset_restart(app_handle: tauri::AppHandle, reset_type: String) {
+    log_reset_step(&reset_type, "restart_scheduled", "ok", "delay_secs=3");
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        log_reset_step(&reset_type, "unregister_shortcuts", "start", "");
+        match app_handle.global_shortcut().unregister_all() {
+            Ok(_) => log_reset_step(&reset_type, "unregister_shortcuts", "ok", ""),
+            Err(e) => log_reset_step(&reset_type, "unregister_shortcuts", "error", &e.to_string()),
+        }
+        log_reset_step(&reset_type, "restart", "start", "");
+        app_handle.restart();
+    });
+}
+
 // 重置软件
 #[tauri::command]
 pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Result<(), String> {
-    match reset_type.as_str() {
-        "" | "all" => {
-            info!("执行重置全部数据");
-            let _ = db::clear_apps();
-            let _ = db::clear_bookmarks();
-            // 设置重启后显示进度窗口的标记
-            db::set_show_progress_on_restart(&app_handle);
-            // let _ = db::clear_search_engines();
-            // let _ = db::clear_alarm_cards();
+    let normalized_reset_type = if reset_type.is_empty() {
+        "all".to_string()
+    } else {
+        reset_type
+    };
 
-            // 使用默认配置,并且第一条数据设置为默认搜索引擎
-            // let mut engines: Vec<SearchEngine> =
-            //     serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
-            // if !engines.is_empty() {
-            //     engines[0].enabled = true;
-            // }
-            // db::replace_all_search_engines(&engines).map_err(|e| e.to_string())?;
+    log_reset_step(&normalized_reset_type, "request", "start", "");
 
-            // 在后台线程中注销所有快捷键并重启应用程序
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(3));
-                // 注销所有快捷键
-                let _ = app_handle.global_shortcut().unregister_all();
-                // 重启应用程序
-                app_handle.restart();
-            });
+    match normalized_reset_type.as_str() {
+        "all" => {
+            log_reset_db_result(&normalized_reset_type, "clear_apps", db::clear_apps())?;
+            log_reset_db_result(&normalized_reset_type, "clear_bookmarks", db::clear_bookmarks())?;
+            crate::search::clear_desktop_files_cache_for_reset(&normalized_reset_type)?;
         }
-        // 重置应用列表
         "apps" => {
-            info!("执行重置应用列表");
-            let _ = db::clear_apps();
-            db::set_show_progress_on_restart(&app_handle);
-
-            // 在后台线程中注销所有快捷键并重启应用程序
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(3));
-                // 注销所有快捷键
-                let _ = app_handle.global_shortcut().unregister_all();
-                // 重启应用程序
-                app_handle.restart();
-            });
+            log_reset_db_result(&normalized_reset_type, "clear_apps", db::clear_apps())?;
         }
-        // 重置书签
         "bookmarks" => {
-            info!("执行重置书签");
-            let _ = db::clear_bookmarks();
-            db::set_show_progress_on_restart(&app_handle);
-
-            // 在后台线程中注销所有快捷键并重启应用程序
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(3));
-                // 注销所有快捷键
-                let _ = app_handle.global_shortcut().unregister_all();
-                // 重启应用程序
-                app_handle.restart();
-            });
+            log_reset_db_result(&normalized_reset_type, "clear_bookmarks", db::clear_bookmarks())?;
         }
-        // 不支持的重置类型
+        "desktopFiles" => {
+            crate::search::clear_desktop_files_cache_for_reset(&normalized_reset_type)?;
+        }
         _ => {
-            return Err(format!("不支持的重置类型: {}", reset_type));
+            log_reset_step(&normalized_reset_type, "request", "error", "unsupported_reset_type");
+            return Err(format!("不支持的重置类型: {}", normalized_reset_type));
         }
     }
+
+    db::set_show_progress_on_restart_with_kind(&app_handle, &normalized_reset_type);
+    log_reset_step(&normalized_reset_type, "set_progress_on_restart", "ok", "");
+    log_reset_step(&normalized_reset_type, "request", "ok", "");
+    schedule_reset_restart(app_handle, normalized_reset_type);
 
     Ok(())
 }

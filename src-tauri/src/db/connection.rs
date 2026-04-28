@@ -214,22 +214,29 @@ pub fn set_setup_completed(app_handle: tauri::AppHandle) {
 
 // ============= 进度窗口显示标记 =============
 
-// 设置重启后显示进度窗口标记
-pub fn set_show_progress_on_restart(app_handle: &tauri::AppHandle) {
+// 设置重启后显示进度窗口标记，并记录本次重置类型
+pub fn set_show_progress_on_restart_with_kind(app_handle: &tauri::AppHandle, reset_kind: &str) {
     let _ = json_config::set_app_config_value(app_handle, "show_progress_on_restart", true);
+    let _ = json_config::set_app_config_value(app_handle, "show_progress_reset_kind", reset_kind);
 }
 
-// 消费进度窗口标记（读取后清除）
-pub fn consume_show_progress_flag(app_handle: &tauri::AppHandle) -> bool {
+// 消费进度窗口标记与重置类型（读取后清除）
+pub fn consume_show_progress_kind(app_handle: &tauri::AppHandle) -> Option<String> {
     let should_show: bool = json_config::get_app_config_value(app_handle, "show_progress_on_restart")
         .unwrap_or(false);
     
-    if should_show {
-        // 清除标记
-        let _ = json_config::set_app_config_value(app_handle, "show_progress_on_restart", false);
+    if !should_show {
+        return None;
     }
+
+    let reset_kind: String = json_config::get_app_config_value(app_handle, "show_progress_reset_kind")
+        .unwrap_or_else(|| "all".to_string());
+
+    // 清除标记
+    let _ = json_config::set_app_config_value(app_handle, "show_progress_on_restart", false);
+    let _ = json_config::set_app_config_value(app_handle, "show_progress_reset_kind", "");
     
-    should_show
+    Some(reset_kind)
 }
 
 // 验证目录是否有写入权限

@@ -4,6 +4,7 @@ import { dayjs } from 'element-plus';
 export * from './url';
 export * from './text';
 export * from './format';
+export * from './file-open';
 
 // 防抖函数
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

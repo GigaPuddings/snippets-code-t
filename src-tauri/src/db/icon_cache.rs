@@ -10,13 +10,14 @@ use std::time::SystemTime;
 pub fn load_all_icon_cache() -> Result<HashMap<String, CachedIcon>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
 
-    let mut stmt = conn.prepare("SELECT key, data, timestamp FROM icon_cache")?;
+    let mut stmt = conn.prepare("SELECT key, data, timestamp, COALESCE(source_mtime, 0) FROM icon_cache")?;
     let cache_iter = stmt.query_map([], |row| {
         Ok((
             row.get(0)?,
             CachedIcon {
                 data: row.get(1)?,
                 timestamp: row.get(2)?,
+                source_mtime: row.get(3)?,
             },
         ))
     })?;
@@ -33,8 +34,8 @@ pub fn load_all_icon_cache() -> Result<HashMap<String, CachedIcon>, rusqlite::Er
 pub fn insert_icon_to_cache(key: &str, icon: &CachedIcon) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     conn.execute(
-        "INSERT OR REPLACE INTO icon_cache (key, data, timestamp) VALUES (?1, ?2, ?3)",
-        rusqlite::params![key, icon.data, icon.timestamp],
+        "INSERT OR REPLACE INTO icon_cache (key, data, timestamp, source_mtime) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![key, icon.data, icon.timestamp, icon.source_mtime],
     )?;
     Ok(())
 }
@@ -44,11 +45,12 @@ pub fn insert_icon_to_cache(key: &str, icon: &CachedIcon) -> Result<(), rusqlite
 pub fn get_icon_from_cache(key: &str) -> Result<Option<CachedIcon>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     
-    let mut stmt = conn.prepare("SELECT data, timestamp FROM icon_cache WHERE key = ?1")?;
+    let mut stmt = conn.prepare("SELECT data, timestamp, source_mtime FROM icon_cache WHERE key = ?1")?;
     let result = stmt.query_row([key], |row| {
         Ok(CachedIcon {
             data: row.get(0)?,
             timestamp: row.get(1)?,
+            source_mtime: row.get(2)?,
         })
     }).optional()?;
     
@@ -66,6 +68,7 @@ pub fn set_icon_to_cache(key: &str, data: &str) -> Result<(), rusqlite::Error> {
     let icon = CachedIcon {
         data: data.to_string(),
         timestamp,
+        source_mtime: None,
     };
     
     insert_icon_to_cache(key, &icon)

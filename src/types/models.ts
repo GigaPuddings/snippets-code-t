@@ -13,8 +13,10 @@ export interface ContentType {
   title: string;
   /** 内容 */
   content: string;
+  /** 文件路径（桌面文件等） */
+  file_path?: string;
   /** 摘要类型（可选） */
-  summarize?: 'text' | 'app' | 'bookmark' | 'search' | 'code' | 'note';
+  summarize?: 'text' | 'app' | 'bookmark' | 'search' | 'code' | 'note' | 'file';
   /** 图标 */
   icon?: string;
   /** 评分 */

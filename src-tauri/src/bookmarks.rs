@@ -228,7 +228,6 @@ fn get_shuanghe_favicon_db_path() -> Option<PathBuf> {
 
 // 获取所有已安装浏览器的 Favicon 数据库路径
 // 返回一个 HashMap，键为浏览器名称，值为数据库路径
-#[allow(dead_code)]
 fn get_all_browser_favicon_paths() -> std::collections::HashMap<&'static str, PathBuf> {
     BROWSERS
         .iter()
@@ -236,6 +235,23 @@ fn get_all_browser_favicon_paths() -> std::collections::HashMap<&'static str, Pa
             find_browser_favicon_path(config).map(|path| (config.name, path))
         })
         .collect()
+}
+
+// 优先从本机浏览器 favicon 缓存查找图标，避免离线环境重复请求网络
+pub fn get_favicon_from_browser_cache(url: &str) -> Option<String> {
+    for (_browser_name, db_path) in get_all_browser_favicon_paths() {
+        if let Some(icon) = get_favicon_from_chrome_db(url, &db_path) {
+            return Some(icon);
+        }
+    }
+
+    if let Some(firefox_db) = get_firefox_bookmarks_file() {
+        if let Some(icon) = get_favicon_from_firefox_db(url, &firefox_db) {
+            return Some(icon);
+        }
+    }
+
+    None
 }
 
 // 从Chrome/Edge的Favicons数据库获取图标

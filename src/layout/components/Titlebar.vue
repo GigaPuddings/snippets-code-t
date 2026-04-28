@@ -342,11 +342,7 @@ const handleUpdateClick = async () => {
   if (hasUpdate.value) {
     await invoke('hotkey_update_command');
   } else {
-    // 手动检查更新
-    const hasNewUpdate = await invoke('check_update_manually');
-    if (hasNewUpdate) {
-      await invoke('hotkey_update_command');
-    }
+    await invoke('check_update_manually');
   }
 };
 

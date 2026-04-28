@@ -80,7 +80,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount, nextTick, onMounted } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { TextSelection, NodeSelection } from '@tiptap/pm/state';
 import { debounce } from '@/utils';

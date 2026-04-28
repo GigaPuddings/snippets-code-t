@@ -93,7 +93,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
 import { CustomButton } from '@/components/UI';
 import type { SystemGitConfig } from '@/api/git';
 

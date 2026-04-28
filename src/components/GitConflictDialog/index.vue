@@ -117,7 +117,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
 interface Props {
   modelValue: boolean;

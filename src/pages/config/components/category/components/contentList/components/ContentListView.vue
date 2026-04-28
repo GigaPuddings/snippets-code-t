@@ -15,9 +15,10 @@
     <div class="content-list">
       <RecycleScroller
         v-if="contents.length > 0"
+        ref="scrollerRef"
         class="content-scroller"
         :items="contents"
-        :item-size="70"
+        :item-size="69"
         :buffer="200"
         key-field="id"
         v-slot="{ item }"
@@ -39,7 +40,7 @@
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import ContentItem from '@/components/ContentItem/index.vue';
-import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 
 /**
  * 组件 Props 接口
@@ -68,6 +69,9 @@ interface ContentListViewEmits {
 const props = defineProps<ContentListViewProps>();
 defineEmits<ContentListViewEmits>();
 
+const route = useRoute();
+const scrollerRef = ref<InstanceType<typeof RecycleScroller> | null>(null);
+
 /**
  * 检查标签是否在筛选条件中
  */
@@ -75,6 +79,49 @@ const isTagInFilter = computed<boolean>(() => {
   if (!props.tagFilter) return false;
   return props.combinedFilter.tags?.includes(props.tagFilter) ?? false;
 });
+
+const activeContentIndex = computed(() => {
+  const routeId = route.params.id as string | undefined;
+  if (!routeId) return -1;
+  const normalizedRouteId = decodeURIComponent(routeId).replace(/\\/g, '/');
+  return props.contents.findIndex((content) => String(content.id).replace(/\\/g, '/') === normalizedRouteId);
+});
+
+const ITEM_SIZE = 70;
+
+const isIndexVisibleInScroller = (index: number, container: HTMLElement) => {
+  const scrollTop = container.scrollTop;
+  const viewportTop = scrollTop;
+  const viewportBottom = scrollTop + container.clientHeight;
+  const itemTop = index * ITEM_SIZE;
+  const itemBottom = itemTop + ITEM_SIZE;
+  return itemTop >= viewportTop && itemBottom <= viewportBottom;
+};
+
+watch(
+  () => [activeContentIndex.value, props.contents.length],
+  async ([index]) => {
+    if (index < 0) return;
+    await nextTick();
+
+    const scroller = scrollerRef.value as any;
+    const container = document.querySelector('.content-list-view .content-scroller') as HTMLElement | null;
+
+    if (container && isIndexVisibleInScroller(index, container)) {
+      return;
+    }
+
+    if (scroller?.scrollToItem) {
+      scroller.scrollToItem(index);
+      return;
+    }
+
+    if (container) {
+      container.scrollTop = Math.max(0, index * ITEM_SIZE - Math.floor(container.clientHeight / 2) + Math.floor(ITEM_SIZE / 2));
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped lang="scss">

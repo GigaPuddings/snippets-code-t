@@ -38,7 +38,6 @@
 
 <script setup lang="ts">
 import { AllApplication, FolderOne } from '@icon-park/vue-next';
-import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
 defineOptions({

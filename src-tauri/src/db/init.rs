@@ -47,7 +47,26 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         "CREATE TABLE IF NOT EXISTS icon_cache (
             key TEXT PRIMARY KEY,
             data TEXT NOT NULL,
-            timestamp INTEGER NOT NULL
+            timestamp INTEGER NOT NULL,
+            source_mtime INTEGER
+        )",
+        [],
+    )?;
+
+    let _ = conn.execute("ALTER TABLE icon_cache ADD COLUMN source_mtime INTEGER", []);
+
+    // 创建 desktop_file_cache 表，用于持久化桌面文件检索缓存
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS desktop_file_cache (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            icon TEXT,
+            source_mtime INTEGER,
+            size INTEGER,
+            created TEXT,
+            modified TEXT,
+            last_indexed_at INTEGER NOT NULL
         )",
         [],
     )?;

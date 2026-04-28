@@ -5,11 +5,16 @@ import { EventHandler } from './EventHandler'
 import { AnnotationFactory } from './AnnotationFactory'
 import { CanvasPool } from './CanvasPool'
 import { LazyLoader } from './LazyLoader'
-import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, TranslationOverlay, SampledColor, OverlayStyle } from './types'
+import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, TranslationOverlay, SampledColor, OverlayStyle, AnnotationData } from './types'
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
 import { logger } from '@/utils/logger'
 import { distance, getRectCenter } from '../utils/geometry'
+
+interface AnnotationHistorySnapshot {
+  annotations: AnnotationData[]
+  selectedAnnotationId: string | null
+}
 
 interface WindowInfo {
   x: number
@@ -45,6 +50,12 @@ export class ScreenshotManager {
   
   // 编辑状态
   private editingAnnotation: BaseAnnotation | null = null
+
+  // 标注历史记录（用于撤销/恢复）
+  private annotationUndoStack: AnnotationHistorySnapshot[] = []
+  private annotationRedoStack: AnnotationHistorySnapshot[] = []
+  private pendingDragSnapshot: AnnotationHistorySnapshot | null = null
+  private pendingResizeSnapshot: AnnotationHistorySnapshot | null = null
   
   // 工具设置
   private currentTool: ToolType = ToolType.Select
@@ -164,6 +175,51 @@ export class ScreenshotManager {
 
     // 预加载非关键模块
     LazyLoader.preloadModules()
+  }
+
+  private cloneAnnotationData(data: AnnotationData): AnnotationData {
+    return {
+      ...data,
+      points: data.points.map(point => ({ ...point })),
+      style: { ...data.style },
+      selected: false,
+      hovered: false
+    }
+  }
+
+  private createHistorySnapshot(): AnnotationHistorySnapshot {
+    return {
+      annotations: this.annotations.map(annotation => this.cloneAnnotationData(annotation.getData())),
+      selectedAnnotationId: this.selectedAnnotation?.getData().id || null
+    }
+  }
+
+  private pushAnnotationHistory(): void {
+    this.annotationUndoStack.push(this.createHistorySnapshot())
+    this.annotationRedoStack = []
+  }
+
+  private restoreHistorySnapshot(snapshot: AnnotationHistorySnapshot): void {
+    this.annotations = snapshot.annotations
+      .map(data => AnnotationFactory.fromData(this.cloneAnnotationData(data)))
+      .filter((annotation): annotation is BaseAnnotation => annotation !== null)
+
+    this.selectedAnnotation = null
+    this.hoveredAnnotation = null
+    this.draggedAnnotation = null
+    this.resizingAnnotation = null
+    this.editingAnnotation = null
+
+    if (snapshot.selectedAnnotationId) {
+      const selectedAnnotation = this.annotations.find(annotation => annotation.getData().id === snapshot.selectedAnnotationId)
+      if (selectedAnnotation) {
+        selectedAnnotation.updateData({ selected: true })
+        this.selectedAnnotation = selectedAnnotation
+      }
+    }
+
+    this.draw()
+    this.onStateChange?.()
   }
 
   // 初始化画布
@@ -1029,6 +1085,7 @@ export class ScreenshotManager {
     if (annotationAtPoint) {
       this.draggedAnnotation = annotationAtPoint
       this.dragStartPoint = mousePos
+      this.pendingDragSnapshot = this.createHistorySnapshot()
       
       // 确保标注被选中
       if (this.selectedAnnotation !== annotationAtPoint) {
@@ -1063,6 +1120,18 @@ export class ScreenshotManager {
   // 完成标注拖拽
   private finishAnnotationDrag(): void {
     if (this.draggedAnnotation) {
+      if (this.pendingDragSnapshot) {
+        const currentData = this.draggedAnnotation.getData()
+        const previousData = this.pendingDragSnapshot.annotations.find(data => data.id === currentData.id)
+        const hasMoved = previousData ? JSON.stringify(previousData.points) !== JSON.stringify(currentData.points) : false
+
+        if (hasMoved) {
+          this.annotationUndoStack.push(this.pendingDragSnapshot)
+          this.annotationRedoStack = []
+        }
+
+        this.pendingDragSnapshot = null
+      }
       this.draggedAnnotation = null
       this.dragStartPoint = null
     }
@@ -1075,6 +1144,7 @@ export class ScreenshotManager {
     if (annotationAtPoint) {
       this.resizingAnnotation = annotationAtPoint
       this.resizeOperation = operation
+      this.pendingResizeSnapshot = this.createHistorySnapshot()
       
       const bounds = annotationAtPoint.getBounds()
       if (bounds) {
@@ -1127,6 +1197,18 @@ export class ScreenshotManager {
   // 完成标注缩放
   private finishAnnotationResize(): void {
     if (this.resizingAnnotation) {
+      if (this.pendingResizeSnapshot) {
+        const currentData = this.resizingAnnotation.getData()
+        const previousData = this.pendingResizeSnapshot.annotations.find(data => data.id === currentData.id)
+        const hasResized = previousData ? JSON.stringify(previousData.points) !== JSON.stringify(currentData.points) : false
+
+        if (hasResized) {
+          this.annotationUndoStack.push(this.pendingResizeSnapshot)
+          this.annotationRedoStack = []
+        }
+
+        this.pendingResizeSnapshot = null
+      }
       this.resizingAnnotation = null
       this.resizeStartBounds = null
       this.resizeOperation = null
@@ -2107,6 +2189,7 @@ export class ScreenshotManager {
       const isValid = this.currentAnnotation.isValid()
       
       if (isValid) {
+        this.pushAnnotationHistory()
         this.annotations.push(this.currentAnnotation)
         this.onStateChange?.()
       }
@@ -2167,13 +2250,33 @@ export class ScreenshotManager {
       this.clearTranslationOverlay()
       return
     }
-    
-    // 撤销最后一个标注
-    if (this.annotations.length > 0) {
-      this.annotations.pop()
-      this.draw()
-      this.onStateChange?.()
+
+    if (this.annotationUndoStack.length === 0) {
+      return
     }
+
+    this.annotationRedoStack.push(this.createHistorySnapshot())
+    const previousSnapshot = this.annotationUndoStack.pop()
+    if (!previousSnapshot) {
+      return
+    }
+
+    this.restoreHistorySnapshot(previousSnapshot)
+  }
+
+  // 恢复最后一次撤销的操作
+  redoAnnotation(): void {
+    if (this.annotationRedoStack.length === 0) {
+      return
+    }
+
+    this.annotationUndoStack.push(this.createHistorySnapshot())
+    const nextSnapshot = this.annotationRedoStack.pop()
+    if (!nextSnapshot) {
+      return
+    }
+
+    this.restoreHistorySnapshot(nextSnapshot)
   }
 
   // 删除选中的标注
@@ -2181,6 +2284,7 @@ export class ScreenshotManager {
     if (this.selectedAnnotation) {
       const index = this.annotations.findIndex(a => a.getData().id === this.selectedAnnotation!.getData().id)
       if (index !== -1) {
+        this.pushAnnotationHistory()
         this.annotations.splice(index, 1)
         this.selectedAnnotation = null
         this.draw()
@@ -2213,6 +2317,7 @@ export class ScreenshotManager {
     )
 
     if (textAnnotation && textAnnotation.isValid()) {
+      this.pushAnnotationHistory()
       this.annotations.push(textAnnotation)
       this.draw()
       this.onStateChange?.()
@@ -2481,6 +2586,7 @@ export class ScreenshotManager {
   deleteAnnotation(annotation: BaseAnnotation): void {
     const index = this.annotations.findIndex(a => a === annotation)
     if (index !== -1) {
+      this.pushAnnotationHistory()
       this.annotations.splice(index, 1)
       if (this.selectedAnnotation === annotation) {
         this.selectedAnnotation = null
@@ -2496,6 +2602,12 @@ export class ScreenshotManager {
   // 更新文字标注内容
   updateTextAnnotation(annotation: BaseAnnotation, text: string): void {
     if (annotation.getData().type === ToolType.Text) {
+      if (annotation.getData().text === text) {
+        this.clearEditingAnnotation()
+        return
+      }
+
+      this.pushAnnotationHistory()
       annotation.updateData({ text })
       this.clearEditingAnnotation() // 清除编辑状态
       this.draw()
@@ -3037,6 +3149,10 @@ export class ScreenshotManager {
       }
     })
     this.annotations = []
+    this.annotationUndoStack = []
+    this.annotationRedoStack = []
+    this.pendingDragSnapshot = null
+    this.pendingResizeSnapshot = null
     this.currentAnnotation = null
     this.selectedAnnotation = null
     this.hoveredAnnotation = null

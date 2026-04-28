@@ -336,7 +336,11 @@ watch(() => props.currentTool, () => {
   @apply flex flex-col gap-2;
 
   .toolbar-panel {
-    @apply flex items-center gap-3 bg-panel rounded-lg shadow-lg px-2 py-2 border border-panel;
+    @apply flex items-center gap-3 px-3 py-2 border backdrop-blur-md;
+    background: color-mix(in srgb, var(--el-bg-color) 86%, transparent);
+    border-color: var(--el-border-color);
+    border-radius: 14px;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.14);
 
     &.first-panel {
       min-width: 400px;
@@ -352,21 +356,30 @@ watch(() => props.currentTool, () => {
     @apply flex items-center gap-1;
 
     .tool-btn {
-      @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 border border-panel bg-content hover:bg-panel-hover-bg;
+      @apply w-9 h-9 flex items-center justify-center transition-all duration-200 border;
+      background: var(--el-bg-color);
+      border-color: var(--el-border-color);
+      color: var(--el-text-color-regular);
+      border-radius: 10px;
+
+      &:hover {
+        background: var(--el-fill-color-light);
+        transform: translateY(-1px);
+      }
 
       &.active {
-        @apply text-white !bg-blue-500 border-blue-500;
-
-        // 暗黑模式下使用更柔和的蓝色
-        &:is(.dark *) {
-          @apply border-blue-500/80 !bg-blue-600/90;
-        }
+        color: #fff;
+        background: var(--el-color-primary);
+        border-color: var(--el-color-primary);
+        box-shadow: 0 8px 18px color-mix(in srgb, var(--el-color-primary) 28%, transparent);
       }
     }
   }
 
   .toolbar-divider {
-    @apply w-[1px] h-5 bg-panel;
+    width: 1px;
+    height: 20px;
+    background: var(--el-border-color);
   }
 
   .style-section {
@@ -386,15 +399,21 @@ watch(() => props.currentTool, () => {
       .width-btn,
       .size-btn,
       .engine-btn {
-        @apply w-8 h-8 flex items-center justify-center rounded border border-panel bg-content hover:bg-panel-hover-bg transition-all duration-200;
+        @apply w-9 h-9 flex items-center justify-center transition-all duration-200 border;
+        background: var(--el-bg-color);
+        border-color: var(--el-border-color);
+        color: var(--el-text-color-regular);
+        border-radius: 10px;
+
+        &:hover {
+          background: var(--el-fill-color-light);
+          transform: translateY(-1px);
+        }
 
         &.active {
-          @apply border-blue-500 bg-blue-50;
-
-          // 暗黑模式下使用更和谐的背景
-          &:is(.dark *) {
-            @apply border-blue-500/70 bg-blue-600/20;
-          }
+          color: var(--el-color-primary);
+          border-color: var(--el-color-primary);
+          background: color-mix(in srgb, var(--el-color-primary) 10%, var(--el-bg-color));
         }
 
         .line-preview {
@@ -403,31 +422,31 @@ watch(() => props.currentTool, () => {
         }
 
         .size-text {
-          @apply text-panel-text-secondary;
+          color: inherit;
+          font-weight: 600;
         }
 
         .mosaic-preview {
-          @apply rounded-full bg-panel-hover-bg inline-block;
+          @apply rounded-full inline-block;
+          background: color-mix(in srgb, var(--el-text-color-regular) 42%, transparent);
         }
       }
 
       .engine-btn {
         @apply text-xs font-medium;
-
-        &.active {
-          @apply text-blue-500;
-        }
       }
 
       .color-btn {
-        @apply w-6 h-6 rounded border border-panel cursor-pointer transition-all duration-200;
+        @apply w-6 h-6 rounded cursor-pointer transition-all duration-200 border;
+        border-color: var(--el-border-color);
 
         &.active {
-          @apply border-gray-500 transform scale-110;
+          transform: scale(1.08);
+          box-shadow: 0 0 0 2px var(--el-bg-color), 0 0 0 4px var(--el-color-primary);
         }
 
         &:hover {
-          @apply transform scale-105;
+          transform: scale(1.06);
         }
       }
 
@@ -436,19 +455,28 @@ watch(() => props.currentTool, () => {
         @apply relative;
 
         .color-trigger-btn {
-          @apply w-8 h-8 rounded border-2 border-panel cursor-pointer transition-all duration-200 flex items-center justify-center relative;
+          @apply w-9 h-9 rounded cursor-pointer transition-all duration-200 flex items-center justify-center relative border;
+          border-color: var(--el-border-color);
+          background: var(--el-bg-color);
 
           &:hover {
-            @apply border-blue-500 transform scale-105;
+            border-color: var(--el-color-primary);
+            transform: translateY(-1px);
           }
 
           .color-trigger-inner {
-            @apply w-6 h-6 rounded border border-white/50;
+            @apply w-6 h-6 rounded;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
           }
         }
 
         .color-picker-panel {
-          @apply fixed bg-panel rounded-lg shadow-xl border border-panel p-2 z-50;
+          @apply fixed p-2 z-50 border;
+          background: color-mix(in srgb, var(--el-bg-color) 92%, transparent);
+          border-color: var(--el-border-color);
+          border-radius: 14px;
+          box-shadow: 0 18px 38px rgba(0, 0, 0, 0.18);
+          backdrop-filter: blur(14px);
 
           .color-row {
             @apply flex items-center gap-2;
@@ -471,7 +499,7 @@ watch(() => props.currentTool, () => {
           
           .custom-color-btn {
             @apply flex items-center justify-center;
-            background: linear-gradient(135deg, #ff0000 0%, #00ff00 50%, #0000ff 100%);
+            background: linear-gradient(135deg, #ff595e 0%, #8ac926 45%, #1982c4 100%);
             position: relative;
             pointer-events: none;
             
@@ -479,17 +507,14 @@ watch(() => props.currentTool, () => {
               content: '';
               position: absolute;
               inset: 2px;
-              background: white;
+              background: var(--el-bg-color);
               border-radius: 2px;
-            }
-            
-            &:is(.dark *)::before {
-              background: #1a1a1a;
             }
             
             svg {
               position: relative;
               z-index: 1;
+              color: var(--el-text-color-primary);
             }
           }
         }
@@ -501,27 +526,34 @@ watch(() => props.currentTool, () => {
     @apply flex items-center gap-2;
 
     .action-btn {
-      @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200;
+      @apply w-9 h-9 flex items-center justify-center transition-all duration-200 border;
+      background: var(--el-bg-color);
+      border-color: var(--el-border-color);
+      color: var(--el-text-color-regular);
+      border-radius: 10px;
 
       &:disabled {
-        @apply text-panel-text-secondary cursor-not-allowed;
+        color: var(--el-text-color-placeholder);
+        cursor: not-allowed;
+        opacity: 0.72;
       }
 
       &.save {
-        @apply text-blue-500;
+        color: var(--el-color-primary);
       }
 
       &.confirm {
-        @apply text-green-500;
+        color: var(--el-color-success);
       }
 
       &.delete,
       &.cancel {
-        @apply text-red-500;
+        color: var(--el-color-danger);
       }
 
       &:hover:not(:disabled) {
-        @apply bg-panel-hover-bg;
+        background: var(--el-fill-color-light);
+        transform: translateY(-1px);
       }
 
       &:active:not(:disabled) {
