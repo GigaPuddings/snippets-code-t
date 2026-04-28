@@ -3,7 +3,8 @@ import fs from 'fs'
 import path from 'path'
 import { execFileSync } from 'child_process'
 
-import tauriConfig from '../src-tauri/tauri.conf.json' assert { type: 'json' }
+const tauriConfigPath = path.resolve('./src-tauri/tauri.conf.json')
+const tauriConfig = JSON.parse(fs.readFileSync(tauriConfigPath, 'utf8'))
 
 // 从环境变量获取 GitHub token
 const token = process.env.GITHUB_TOKEN
@@ -12,6 +13,34 @@ const octokit = new Octokit({ auth: token })
 // GitHub 仓库信息
 const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
 const tag = process.env.GITHUB_REF_NAME
+
+async function getReleaseByTagIncludingDrafts() {
+  try {
+    const { data: release } = await octokit.repos.getReleaseByTag({
+      owner,
+      repo,
+      tag,
+    })
+    return release
+  } catch (error) {
+    if (error.status !== 404) {
+      throw error
+    }
+  }
+
+  const { data: releases } = await octokit.repos.listReleases({
+    owner,
+    repo,
+    per_page: 100,
+  })
+  const release = releases.find(item => item.tag_name === tag)
+
+  if (!release) {
+    throw new Error(`Release not found for tag ${tag}. 请确认 GitHub Release 已创建。`)
+  }
+
+  return release
+}
 
 function getReleaseNotes() {
   try {
@@ -40,12 +69,8 @@ function getReleaseNotes() {
 
 async function main() {
   try {
-    // 获取最新的 release
-    const { data: release } = await octokit.repos.getReleaseByTag({
-      owner,
-      repo,
-      tag,
-    })
+    // 获取最新的 release，包含草稿 Release
+    const release = await getReleaseByTagIncludingDrafts()
 
     // 获取完整的 release 信息
     const { data: fullRelease } = await octokit.repos.getRelease({

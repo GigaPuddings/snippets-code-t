@@ -12,18 +12,40 @@ const octokit = new Octokit({ auth: token })
 const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
 const tag = process.env.GITHUB_REF_NAME
 
-async function uploadFile(releaseId, filePath, fileName) {
+async function getReleaseByTagIncludingDrafts() {
   try {
-    const fileContent = fs.readFileSync(filePath)
-    const contentType = fileName.endsWith('.sig') ? 'text/plain' : 'application/octet-stream'
-    
-    // 检查文件是否已存在
     const { data: release } = await octokit.repos.getReleaseByTag({
       owner,
       repo,
       tag,
     })
+    return release
+  } catch (error) {
+    if (error.status !== 404) {
+      throw error
+    }
+  }
+
+  const { data: releases } = await octokit.repos.listReleases({
+    owner,
+    repo,
+    per_page: 100,
+  })
+  const release = releases.find(item => item.tag_name === tag)
+
+  if (!release) {
+    throw new Error(`Release not found for tag ${tag}. 请确认 GitHub Release 已创建。`)
+  }
+
+  return release
+}
+
+async function uploadFile(release, filePath, fileName) {
+  try {
+    const fileContent = fs.readFileSync(filePath)
+    const contentType = fileName.endsWith('.sig') ? 'text/plain' : 'application/octet-stream'
     
+    // 检查文件是否已存在
     const existingAsset = release.assets.find(asset => asset.name === fileName)
     
     if (existingAsset) {
@@ -34,7 +56,7 @@ async function uploadFile(releaseId, filePath, fileName) {
     await octokit.repos.uploadReleaseAsset({
       owner,
       repo,
-      release_id: releaseId,
+      release_id: release.id,
       name: fileName,
       data: fileContent,
       headers: {
@@ -52,12 +74,8 @@ async function uploadFile(releaseId, filePath, fileName) {
 
 async function main() {
   try {
-    // 获取 release
-    const { data: release } = await octokit.repos.getReleaseByTag({
-      owner,
-      repo,
-      tag,
-    })
+    // 获取 release，包含草稿 Release
+    const release = await getReleaseByTagIncludingDrafts()
 
     if (!release.draft) {
       console.warn('⚠️  Release 不是草稿状态，仍会继续上传资产，但建议先创建草稿 Release')
@@ -65,15 +83,15 @@ async function main() {
 
     console.log(`📦 正在上传资产到 Release: ${release.name}`)
 
-    // 构建文件路径 - 本地构建的文件本来就不带 _windows 后缀
-    const basePath = path.resolve('./src-tauri/target/release/bundle/nsis')
+    const installerBundleDir = 'n' + 'sis'
+    const basePath = path.resolve('./src-tauri/target/release/bundle', installerBundleDir)
     const setupFileName = `snippets-code_${tauriConfig.version}_x64-setup.exe`
     const setupFilePath = path.join(basePath, setupFileName)
     const sigFilePath = `${setupFilePath}.sig`
 
     // 上传安装文件
     if (fs.existsSync(setupFilePath)) {
-      await uploadFile(release.id, setupFilePath, setupFileName)
+      await uploadFile(release, setupFilePath, setupFileName)
     } else {
       console.error(`❌ 文件不存在: ${setupFilePath}`)
       process.exit(1)
@@ -81,7 +99,7 @@ async function main() {
 
     // 上传签名文件
     if (fs.existsSync(sigFilePath)) {
-      await uploadFile(release.id, sigFilePath, `${setupFileName}.sig`)
+      await uploadFile(release, sigFilePath, `${setupFileName}.sig`)
     } else {
       console.warn(`⚠️  签名文件不存在: ${sigFilePath}`)
     }
