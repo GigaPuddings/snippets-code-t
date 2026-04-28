@@ -2,7 +2,7 @@ import { Octokit } from '@octokit/rest'
 import fs from 'fs'
 import path from 'path'
 
-import tauriConfig from '../src-tauri/tauri.conf.json' assert { type: 'json' }
+const tauriConfig = JSON.parse(fs.readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'))
 
 // 从环境变量获取 GitHub token
 const token = process.env.GITHUB_TOKEN
