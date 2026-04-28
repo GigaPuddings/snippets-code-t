@@ -3,9 +3,6 @@ import fs from 'fs'
 import path from 'path'
 
 const tauriConfig = JSON.parse(fs.readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'))
-const releaseNotes = fs.existsSync('RELEASE_NOTES.md')
-  ? fs.readFileSync('RELEASE_NOTES.md', 'utf8').trim()
-  : ''
 
 // 从环境变量获取 GitHub token
 const token = process.env.GITHUB_TOKEN
@@ -36,22 +33,11 @@ async function getReleaseByTagIncludingDrafts() {
   })
   const release = releases.find(item => item.tag_name === tag)
 
-  if (release) {
-    return release
+  if (!release) {
+    throw new Error(`Release not found for tag ${tag}. 请确认 Create Release 步骤已成功创建非草稿 Release。`)
   }
 
-  console.warn(`⚠️  未找到 tag ${tag} 对应的 Release，正在自动创建草稿 Release...`)
-  const { data: createdRelease } = await octokit.repos.createRelease({
-    owner,
-    repo,
-    tag_name: tag,
-    name: `snippets-code ${tag}`,
-    body: releaseNotes,
-    draft: true,
-    prerelease: true,
-  })
-
-  return createdRelease
+  return release
 }
 
 async function uploadFile(release, filePath, fileName) {
