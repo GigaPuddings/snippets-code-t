@@ -237,12 +237,14 @@ async function updateVersion() {
       }
     })();
 
-    if (!hasStagedChanges) {
+    if (hasStagedChanges) {
+      validateCommitMessage(releaseCommitMessage);
+      execCommand(`git commit -m "${releaseCommitMessage}"`);
+    } else if (currentPackageVersion === version && currentTauriVersion === version) {
+      console.log('发布文件已是目标版本，跳过版本提交，直接创建标签...');
+    } else {
       throw new Error('发布文件未产生任何改动，无法继续生成版本提交。');
     }
-
-    validateCommitMessage(releaseCommitMessage);
-    execCommand(`git commit -m "${releaseCommitMessage}"`);
 
     console.log('\n正在创建标签...');
     // 创建规范的带注释标签，便于追溯发布信息
