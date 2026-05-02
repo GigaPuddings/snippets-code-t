@@ -80,6 +80,7 @@ defineOptions({
 });
 
 const router = useRouter();
+const PENDING_NAVIGATION_TTL = 30_000;
 
 // 监听导航到设置页面的事件
 let unlisten: (() => void) | null = null;
@@ -527,8 +528,8 @@ const checkPendingNavigation = () => {
     try {
       const { fragmentId, categoryId, timestamp } = JSON.parse(pendingNav);
 
-      // 检查时间戳，只处理 5 秒内的导航请求
-      if (Date.now() - timestamp < 5000) {
+      // 检查时间戳，只处理近期的导航请求
+      if (Date.now() - timestamp < PENDING_NAVIGATION_TTL) {
         // 清除标记
         localStorage.removeItem('pendingNavigation');
         // 导航到对应的片段 - 修正路由路径（需要对文件路径进行编码）
@@ -552,7 +553,7 @@ const checkPendingSnippetOpen = () => {
     try {
       const { fragmentId, content, categoryId, timestamp } = JSON.parse(pendingSnippet);
 
-      if (Date.now() - timestamp < 5000) {
+      if (Date.now() - timestamp < PENDING_NAVIGATION_TTL) {
         localStorage.removeItem('pendingSnippetOpen');
         const targetPath = `/config/category/contentList/${categoryId}/content/${encodeURIComponent(normalizePendingFragmentId(fragmentId))}`;
         router.push({

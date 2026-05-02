@@ -16,7 +16,6 @@
       <RecycleScroller
         v-if="contents.length > 0"
         ref="scrollerRef"
-        class="content-scroller"
         :items="contents"
         :item-size="69"
         :buffer="200"
@@ -142,12 +141,8 @@ watch(
 }
 
 .content-list {
-  @apply overflow-hidden;
+  @apply overflow-auto;
   height: calc(100vh - 82px);
-
-  .content-scroller {
-    @apply h-full p-2;
-  }
 
   .content-empty {
     @apply flex justify-center h-full pt-6;

@@ -437,7 +437,7 @@ async function openInConfig() {
     if (props.item.type === 'note') {
       const navigationData = {
         fragmentId: props.item.id,
-        categoryId: props.item.category_id,
+        categoryId: props.item.category_id, 
         timestamp: Date.now()
       };
       localStorage.setItem('pendingNavigation', JSON.stringify(navigationData));
@@ -461,6 +461,8 @@ async function openInConfig() {
       await configWindow.setFocus();
       await configWindow.emit('check-pending-navigation', {});
       await configWindow.emit('check-pending-snippet-open', {});
+    } else {
+      await invoke('hotkey_config_command');
     }
   } catch (err) {
     localStorage.removeItem('pendingNavigation');

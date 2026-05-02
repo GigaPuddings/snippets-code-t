@@ -5,7 +5,7 @@
       : ''
   ]">
     <Titlebar v-if="!hasTabbar" />
-    <div :class="[`relative w-full overflow-hidden ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-41px)] bg-panel p-[1px] rounded-b-lg pb-0.5'}`]">
+    <div :class="[`relative w-full overflow-hidden ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-42px)] bg-panel p-[1px] rounded-b-lg pb-0.5'}`]">
       <router-view>
         <template #default="{ Component, route }">
           <keep-alive v-if="route.meta.keepAlive">

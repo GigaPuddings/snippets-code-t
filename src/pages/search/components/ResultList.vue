@@ -14,18 +14,18 @@
         <div class="icon-wrapper">
           <img v-if="item.icon" :src="item.icon" class="icon" @error="handleIconError(item)" loading="lazy" />
           <template v-else>
-            <!-- <img v-if="item.summarize === 'app'" src="@/assets/svg/app.svg" class="icon" loading="lazy" />
-            <img v-else-if="item.summarize === 'bookmark'" src="@/assets/svg/bookmark.svg" class="icon"
+            <img v-if="item.summarize === 'app'" src="@/assets/svg/app.svg" class="icon default-type-icon" loading="lazy" />
+            <img v-else-if="item.summarize === 'bookmark'" src="@/assets/svg/bookmark.svg" class="icon default-type-icon"
               loading="lazy" />
-            <img v-else-if="item.summarize === 'search'" src="@/assets/svg/search.svg" class="icon" loading="lazy" /> -->
+            <img v-else-if="item.summarize === 'search'" src="@/assets/svg/search.svg" class="icon default-type-icon" loading="lazy" />
             <div v-if="item.summarize === 'file'" class="file-type-icon" :class="getFileIconClass(item)">
               <component v-if="getFileIconComponent(item)" :is="getFileIconComponent(item)"
                 class="file-type-icon-svg" />
               <span v-else class="file-type-icon-text">{{ getFileIconText(item) }}</span>
             </div>
-            <img v-else-if="item.type === 'note'" src="@/assets/svg/note.svg" class="icon type-icon note"
+            <img v-else-if="item.type === 'note'" src="@/assets/svg/note.svg" class="icon default-type-icon type-icon note"
               loading="lazy" />
-            <img v-else src="@/assets/svg/code.svg" class="icon type-icon code" loading="lazy" />
+            <img v-else src="@/assets/svg/code.svg" class="icon default-type-icon type-icon code" loading="lazy" />
           </template>
         </div>
         <div class="content">
@@ -370,10 +370,22 @@ defineExpose({
       }
 
       .icon-wrapper {
+        // 统一配置图标大小和默认类型图标的缩放比例
+        --result-icon-size: 24px;
+        --default-type-icon-scale: 1.18;
+
         @apply flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-lg bg-search-hover;
 
         .icon {
-          @apply w-6 h-6 object-contain;
+          width: var(--result-icon-size);
+          height: var(--result-icon-size);
+
+          @apply object-contain;
+
+          &.default-type-icon {
+            transform: scale(var(--default-type-icon-scale));
+            transform-origin: center;
+          }
 
           &.type-icon {
             @apply opacity-80;

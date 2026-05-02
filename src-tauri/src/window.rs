@@ -845,7 +845,7 @@ pub fn hotkey_config() {
     // 定义窗口规格 - 不等待 ready_event
     let spec = WindowSpec {
         label: "config",
-        url: "/#config/category/contentList",
+        url: "/#/config/category/contentList",
         title: "配置",
         width: 1180.0,
         height: 642.0,
@@ -2836,4 +2836,3 @@ pub fn close_setup_window() {
     // 重启应用以使用新的数据库路径
     app.restart();
 }
-
