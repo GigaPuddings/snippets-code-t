@@ -65,7 +65,7 @@ export function useSearchResultDisplay(searchQuery: () => string | undefined, t:
   const isSingleWordText = (text: string): boolean => !/[\s\-_/|.,:;()[\]{}]/.test(text.trim());
 
   const isNonHighlightResult = (item: ContentType): boolean => {
-    return getRawSearchResultId(item) === 'url-open' || item.summarize === 'app' || item.summarize === 'search';
+    return getRawSearchResultId(item) === 'url-open';
   };
 
   const isHistoryLikeResult = (item: ContentType): boolean => {
@@ -75,6 +75,7 @@ export function useSearchResultDisplay(searchQuery: () => string | undefined, t:
   const shouldHighlightTitle = (item: ContentType, title: string): boolean => {
     if (!searchQuery()?.trim() || !title.trim()) return false;
     if (isNonHighlightResult(item) || isHistoryLikeResult(item)) return false;
+    if (item.summarize === 'app' || item.summarize === 'search') return true;
     if (item.summarize === 'bookmark' || item.type === 'note') return true;
     return !isSingleWordText(title);
   };

@@ -45,7 +45,48 @@ export function highlightText(text: string, query?: string): string {
   const matchIndex = textLower.indexOf(queryLower);
 
   if (matchIndex === -1) {
-    return escapedText;
+    const textChars = Array.from(text);
+    const queryChars = Array.from(queryLower).filter((char) => !/\s/.test(char));
+    const matchedIndexes = new Set<number>();
+    let queryIndex = 0;
+
+    if (queryChars.length === 0) {
+      return escapedText;
+    }
+
+    for (let index = 0; index < textChars.length && queryIndex < queryChars.length; index += 1) {
+      if (textChars[index].toLowerCase() === queryChars[queryIndex]) {
+        matchedIndexes.add(index);
+        queryIndex += 1;
+      }
+    }
+
+    if (queryIndex !== queryChars.length) {
+      return escapedText;
+    }
+
+    let result = '';
+    let highlighted = false;
+
+    for (let index = 0; index < textChars.length; index += 1) {
+      const shouldHighlight = matchedIndexes.has(index);
+
+      if (shouldHighlight && !highlighted) {
+        result += '<span class="highlight">';
+        highlighted = true;
+      } else if (!shouldHighlight && highlighted) {
+        result += '</span>';
+        highlighted = false;
+      }
+
+      result += escapeHtml(textChars[index]);
+    }
+
+    if (highlighted) {
+      result += '</span>';
+    }
+
+    return result;
   }
 
   const before = escapeHtml(text.slice(0, matchIndex));
