@@ -1,7 +1,9 @@
 use crate::db;
 use crate::window::create_notification_window;
 use crate::APP;
-use chrono::{DateTime, Datelike as _, Duration, Local, NaiveDate, NaiveTime, TimeZone, Timelike as _};
+use chrono::{
+    DateTime, Datelike as _, Duration, Local, NaiveDate, NaiveTime, TimeZone, Timelike as _,
+};
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -50,7 +52,7 @@ fn should_start_service() -> bool {
             if !card.is_active {
                 return false;
             }
-            
+
             match card.alarm_type {
                 AlarmType::Daily => {
                     if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
@@ -59,7 +61,7 @@ fn should_start_service() -> bool {
                         return alarm_time > current_time;
                     }
                     false
-                },
+                }
                 AlarmType::Weekly => {
                     // 检查是否是今天需要提醒的事项
                     if card.weekdays.is_empty() || card.weekdays.contains(&current_weekday) {
@@ -70,14 +72,19 @@ fn should_start_service() -> bool {
                         }
                     }
                     false
-                },
+                }
                 AlarmType::SpecificDate => {
                     if let Some(dates) = &card.specific_dates {
                         for date_str in dates {
-                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-                                if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
+                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+                            {
+                                if let Ok(alarm_time) =
+                                    NaiveTime::parse_from_str(&card.time, "%H:%M")
+                                {
                                     let target_datetime = target_date.and_time(alarm_time);
-                                    if let Some(target) = Local.from_local_datetime(&target_datetime).single() {
+                                    if let Some(target) =
+                                        Local.from_local_datetime(&target_datetime).single()
+                                    {
                                         // 如果任何一个指定日期时间还没到，就需要启动服务
                                         if target > now {
                                             return true;
@@ -131,7 +138,7 @@ impl AlarmCard {
             Ok(time) => time,
             Err(_) => return "时间格式错误".to_string(),
         };
-        
+
         match self.alarm_type {
             AlarmType::Daily => {
                 let now_time = now.time();
@@ -142,38 +149,47 @@ impl AlarmCard {
                 };
 
                 Self::format_duration(diff)
-            },
+            }
             AlarmType::SpecificDate => {
                 if let Some(dates) = &self.specific_dates {
                     if dates.is_empty() {
                         return "未设置日期".to_string();
                     }
-                    
+
                     // 找到最近的未过期日期
                     let mut nearest_duration = None;
-                    
+
                     for date_str in dates {
                         if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
                             let target_datetime = target_date.and_time(alarm_time);
-                            if let Some(target) = Local.from_local_datetime(&target_datetime).single() {
+                            if let Some(target) =
+                                Local.from_local_datetime(&target_datetime).single()
+                            {
                                 let diff = target.signed_duration_since(now);
-                                if diff.num_seconds() > 0 && (nearest_duration.is_none() || diff < nearest_duration.unwrap()) {
+                                if diff.num_seconds() > 0
+                                    && (nearest_duration.is_none()
+                                        || diff < nearest_duration.unwrap())
+                                {
                                     nearest_duration = Some(diff);
                                 }
                             }
                         }
                     }
-                    
+
                     if let Some(duration) = nearest_duration {
                         Self::format_duration(duration)
                     } else {
                         // 如果所有日期都已过期，显示最晚的过期时间
                         let mut latest_expired = None;
                         for date_str in dates {
-                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+                            {
                                 let target_datetime = target_date.and_time(alarm_time);
-                                if let Some(target) = Local.from_local_datetime(&target_datetime).single() {
-                                    if latest_expired.is_none() || target > latest_expired.unwrap() {
+                                if let Some(target) =
+                                    Local.from_local_datetime(&target_datetime).single()
+                                {
+                                    if latest_expired.is_none() || target > latest_expired.unwrap()
+                                    {
                                         latest_expired = Some(target);
                                     }
                                 }
@@ -184,7 +200,7 @@ impl AlarmCard {
                 } else {
                     "未设置日期".to_string()
                 }
-            },
+            }
             AlarmType::Weekly => {
                 let current_weekday = now.format("%a").to_string();
                 let now_time = now.time();
@@ -440,7 +456,7 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
                 AlarmType::Daily => {
                     // 每天提醒，只要时间匹配就触发
                     current_minutes == alarm_minutes
-                },
+                }
                 AlarmType::Weekly => {
                     // 每周指定星期提醒
                     if !card.weekdays.is_empty() && !card.weekdays.contains(&current_weekday) {
@@ -448,12 +464,13 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
                     } else {
                         current_minutes == alarm_minutes
                     }
-                },
+                }
                 AlarmType::SpecificDate => {
                     // 指定日期提醒
                     if let Some(dates) = &card.specific_dates {
                         dates.iter().any(|date_str| {
-                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+                            {
                                 target_date == current_date && current_minutes == alarm_minutes
                             } else {
                                 false
@@ -481,17 +498,17 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
                     if matches!(card_clone.alarm_type, AlarmType::SpecificDate) {
                         let mut updated_card = card_clone.clone();
                         let current_date = Local::now().date_naive().format("%Y-%m-%d").to_string();
-                        
+
                         if let Some(ref mut dates) = updated_card.specific_dates {
                             // 移除今天的日期
                             dates.retain(|date| date != &current_date);
-                            
+
                             // 如果没有剩余日期，则禁用提醒
                             if dates.is_empty() {
                                 updated_card.is_active = false;
                             }
                         }
-                        
+
                         updated_card.updated_at = Local::now();
                         let _ = db::add_or_update_alarm_card(&updated_card);
                     }

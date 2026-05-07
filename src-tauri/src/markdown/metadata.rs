@@ -58,7 +58,7 @@ impl Default for CacheConfig {
 }
 
 // 文件元数据（存储在 cache.json）
-// 
+//
 // 设计原则：cache.json 只作为文件系统索引（id、时间戳、大小、hash），
 // 用于快速判断文件是否存在/是否变更，以及按日期排序。
 // tags/type/language/favorite 等内容元数据统一存储在各 .md 文件的
@@ -77,8 +77,8 @@ pub struct FileMetadata {
 // 分类元数据（存储在 cache.json）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoryMetadata {
-    pub id: i64,                 // 数字 ID（稳定的分类标识符）
-    pub created: i64,            // Unix 时间戳（毫秒）
+    pub id: i64,      // 数字 ID（稳定的分类标识符）
+    pub created: i64, // Unix 时间戳（毫秒）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -86,7 +86,7 @@ pub struct CategoryMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[serde(default)]
-    pub is_system: bool,         // 是否为系统分类（如"未分类"）
+    pub is_system: bool, // 是否为系统分类（如"未分类"）
 }
 
 // 工作区设置
@@ -188,7 +188,6 @@ pub fn format_frontmatter_block(metadata: &FrontMatter) -> Result<String, String
     Ok(format!("---\n{}\n---\n", yaml_with_newline))
 }
 
-
 /// 尝试解析 Front Matter，无 frontmatter 时返回 None
 pub fn try_parse_front_matter(content: &str) -> (Option<FrontMatter>, String) {
     match parse_front_matter(content) {
@@ -198,17 +197,17 @@ pub fn try_parse_front_matter(content: &str) -> (Option<FrontMatter>, String) {
 }
 
 // 解析 Markdown 文件中的 Front Matter
-// 
+//
 // 从 markdown 字符串中提取 YAML front matter 和内容
 // Front Matter 必须在文件开头，用 --- 分隔符包围
-// 
+//
 // # Arguments
 // * `content` - 完整的 markdown 文件内容
-// 
+//
 // # Returns
 // * `Ok((FrontMatter, String))` - 解析的元数据和正文内容
 // * `Err(String)` - 解析错误信息
-// 
+//
 // # Example
 // ```
 // let markdown = r#"---
@@ -220,34 +219,34 @@ pub fn try_parse_front_matter(content: &str) -> (Option<FrontMatter>, String) {
 // type: "note"
 // favorite: false
 // ---
-// 
+//
 // # Content here
 // "#;
 // let (metadata, content) = parse_front_matter(markdown).unwrap();
 // ```
 pub fn parse_front_matter(content: &str) -> Result<(FrontMatter, String), String> {
     let content = content.trim_start();
-    
+
     // 检查是否以 --- 开头
     if !content.starts_with("---") {
         return Err("Front matter must start with '---'".to_string());
     }
-    
+
     // 查找第二个 --- 分隔符
     let after_first_delimiter = &content[3..];
     let end_delimiter_pos = after_first_delimiter.find("\n---");
-    
+
     if end_delimiter_pos.is_none() {
         return Err("Front matter must end with '---'".to_string());
     }
-    
+
     let end_pos = end_delimiter_pos.unwrap();
     let yaml_content = &after_first_delimiter[..end_pos].trim();
-    
+
     // 解析 YAML
     let metadata: FrontMatter = serde_yaml::from_str(yaml_content)
         .map_err(|e| format!("Failed to parse YAML front matter: {}", e))?;
-    
+
     // 提取正文内容（跳过第二个 --- 之后的内容）
     let body_start = 3 + end_pos + 4; // "---" + yaml + "\n---"
     let body = if body_start < content.len() {
@@ -255,9 +254,6 @@ pub fn parse_front_matter(content: &str) -> Result<(FrontMatter, String), String
     } else {
         String::new()
     };
-    
+
     Ok((metadata, body))
 }
-
-
-

@@ -48,7 +48,7 @@ pub fn show_file_in_folder(file_path: String) -> Result<(), String> {
     if !path.exists() {
         return Err(format!("文件不存在: {}", file_path));
     }
-    
+
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
@@ -58,7 +58,7 @@ pub fn show_file_in_folder(file_path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("打开文件夹失败: {}", e))?;
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
@@ -68,7 +68,7 @@ pub fn show_file_in_folder(file_path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("打开文件夹失败: {}", e))?;
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         use std::process::Command;
@@ -82,7 +82,7 @@ pub fn show_file_in_folder(file_path: String) -> Result<(), String> {
             return Err("无法获取父目录".to_string());
         }
     }
-    
+
     Ok(())
 }
 
@@ -130,15 +130,15 @@ pub fn open_path(path_str: String) -> Result<(), String> {
 #[command]
 pub fn open_folder(folder_path: String) -> Result<(), String> {
     let path = Path::new(&folder_path);
-    
+
     if !path.exists() {
         return Err(format!("文件夹不存在: {}", folder_path));
     }
-    
+
     if !path.is_dir() {
         return Err(format!("路径不是文件夹: {}", folder_path));
     }
-    
+
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
@@ -147,7 +147,7 @@ pub fn open_folder(folder_path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("打开文件夹失败: {}", e))?;
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
@@ -156,7 +156,7 @@ pub fn open_folder(folder_path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("打开文件夹失败: {}", e))?;
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         use std::process::Command;
@@ -165,6 +165,6 @@ pub fn open_folder(folder_path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("打开文件夹失败: {}", e))?;
     }
-    
+
     Ok(())
 }

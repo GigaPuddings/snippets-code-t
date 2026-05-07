@@ -1,4 +1,4 @@
-use crate::apps::AppInfo;
+use crate::apps::{is_shell_apps_folder_path, resolve_shell_apps_folder_display_path, AppInfo};
 use crate::bookmarks::BookmarkInfo;
 use crate::db;
 use crate::db::DesktopFileCacheRecord;
@@ -7,8 +7,8 @@ use dirs::desktop_dir;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use log::{info, warn};
-use pinyin::ToPinyin;
 use lopdf::{content::Content, Document, Object};
+use pinyin::ToPinyin;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Read;
@@ -115,7 +115,10 @@ fn cleanup_missing_desktop_file_icons(_current_paths: &[String]) {
         return;
     };
 
-    for key in cache.keys().filter(|key| key.starts_with("desktop-file-icon:")) {
+    for key in cache
+        .keys()
+        .filter(|key| key.starts_with("desktop-file-icon:"))
+    {
         let path = key.trim_start_matches("desktop-file-icon:");
         let _ = db::delete_icon_from_cache(key);
         crate::icon::remove_icon_cache_for_path(path);
@@ -140,8 +143,10 @@ pub struct DesktopFilePreview {
 
 // 缓存结构
 static APPS_CACHE: LazyLock<Mutex<Option<Vec<AppInfo>>>> = LazyLock::new(|| Mutex::new(None));
-static BOOKMARKS_CACHE: LazyLock<Mutex<Option<Vec<BookmarkInfo>>>> = LazyLock::new(|| Mutex::new(None));
-static DESKTOP_FILES_CACHE: LazyLock<Mutex<Option<Vec<DesktopFileInfo>>>> = LazyLock::new(|| Mutex::new(None));
+static BOOKMARKS_CACHE: LazyLock<Mutex<Option<Vec<BookmarkInfo>>>> =
+    LazyLock::new(|| Mutex::new(None));
+static DESKTOP_FILES_CACHE: LazyLock<Mutex<Option<Vec<DesktopFileInfo>>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 // 缓存失效函数
 pub fn invalidate_apps_cache() {
@@ -157,8 +162,6 @@ pub fn invalidate_bookmarks_cache() {
         info!("书签搜索缓存已清除");
     }
 }
-
-
 
 // 默认搜索引擎配置
 pub const DEFAULT_ENGINES: &str = include_str!("../assets/default_engines.json");
@@ -188,9 +191,9 @@ pub fn text_to_pinyin(text: &str) -> (String, String) {
 
 fn is_supported_desktop_file(path: &Path) -> bool {
     const SUPPORTED_EXTENSIONS: &[&str] = &[
-        "txt", "text", "md", "markdown", "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg",
-        "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pdf", "csv", "json", "yaml", "yml",
-        "toml", "ini", "log", "zip", "rar", "7z",
+        "txt", "text", "md", "markdown", "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "doc",
+        "docx", "xls", "xlsx", "ppt", "pptx", "pdf", "csv", "json", "yaml", "yml", "toml", "ini",
+        "log", "zip", "rar", "7z",
     ];
 
     path.extension()
@@ -200,7 +203,10 @@ fn is_supported_desktop_file(path: &Path) -> bool {
 }
 
 fn get_file_icon(path: &Path) -> Option<String> {
-    let extension = path.extension().and_then(|ext| ext.to_str())?.to_lowercase();
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())?
+        .to_lowercase();
     let icon = match extension.as_str() {
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg" => "🖼️",
         "md" | "markdown" | "txt" | "text" | "log" => "📄",
@@ -340,7 +346,7 @@ pub fn search_apps(_app_handle: AppHandle, query: String) -> Result<Vec<SearchRe
             }
         }
     }
-    
+
     let apps = cache.as_ref().unwrap();
 
     let results = fuzzy_search(
@@ -352,22 +358,43 @@ pub fn search_apps(_app_handle: AppHandle, query: String) -> Result<Vec<SearchRe
 
     Ok(results
         .into_iter()
-        .map(|(app, score)| SearchResult {
-            id: app.id,
-            title: app.title,
-            content: app.content,
-            summarize: "app".to_string(),
-            icon: app.icon.unwrap_or_default(),
-            score,
-            file_path: None,
-            metadata: None,
+        .map(|(app, score)| {
+            let is_shell_app = is_shell_apps_folder_path(&app.content);
+            let display_content = if is_shell_app {
+                resolve_shell_apps_folder_display_path(&app.content)
+                    .unwrap_or_else(|| app.content.clone())
+            } else {
+                app.content.clone()
+            };
+            let metadata = if is_shell_app {
+                Some(serde_json::json!({
+                    "launch_path": app.content,
+                    "display_path": display_content,
+                }))
+            } else {
+                None
+            };
+
+            SearchResult {
+                id: app.id,
+                title: app.title,
+                content: display_content,
+                summarize: "app".to_string(),
+                icon: app.icon.unwrap_or_default(),
+                score,
+                file_path: None,
+                metadata,
+            }
         })
         .collect())
 }
 
 // 搜索书签
 #[tauri::command]
-pub fn search_bookmarks(_app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
+pub fn search_bookmarks(
+    _app_handle: AppHandle,
+    query: String,
+) -> Result<Vec<SearchResult>, String> {
     // 尝试从缓存获取
     let mut cache = BOOKMARKS_CACHE.lock().unwrap();
     if cache.is_none() {
@@ -380,7 +407,7 @@ pub fn search_bookmarks(_app_handle: AppHandle, query: String) -> Result<Vec<Sea
             }
         }
     }
-    
+
     let bookmarks = cache.as_ref().unwrap();
 
     let results = fuzzy_search(
@@ -470,16 +497,25 @@ pub fn clear_desktop_files_cache_for_reset(reset_type: &str) -> Result<(), Strin
     if let Ok(mut cache) = DESKTOP_FILES_CACHE.lock() {
         *cache = None;
     }
-    info!("[Reset] type={} step=clear_desktop_files_memory_cache status=ok", reset_type);
+    info!(
+        "[Reset] type={} step=clear_desktop_files_memory_cache status=ok",
+        reset_type
+    );
 
     match db::clear_desktop_file_cache() {
         Ok(_) => {
-            info!("[Reset] type={} step=clear_desktop_files_db_cache status=ok", reset_type);
+            info!(
+                "[Reset] type={} step=clear_desktop_files_db_cache status=ok",
+                reset_type
+            );
             Ok(())
         }
         Err(e) => {
             let detail = e.to_string();
-            warn!("[Reset] type={} step=clear_desktop_files_db_cache status=error detail={}", reset_type, detail);
+            warn!(
+                "[Reset] type={} step=clear_desktop_files_db_cache status=error detail={}",
+                reset_type, detail
+            );
             Err(format!("clear_desktop_files_db_cache failed: {}", detail))
         }
     }
@@ -492,7 +528,10 @@ pub fn refresh_desktop_files_cache_cmd() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn search_desktop_files(_app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
+pub fn search_desktop_files(
+    _app_handle: AppHandle,
+    query: String,
+) -> Result<Vec<SearchResult>, String> {
     let mut cache = DESKTOP_FILES_CACHE.lock().unwrap();
     if cache.is_none() {
         if let Some(files) = load_desktop_files_from_db() {
@@ -568,7 +607,10 @@ fn is_image_preview_extension(ext: &str) -> bool {
 }
 
 fn is_document_preview_extension(ext: &str) -> bool {
-    matches!(ext, "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx")
+    matches!(
+        ext,
+        "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx"
+    )
 }
 
 fn truncate_preview_text(text: String, max_chars: usize) -> (String, bool) {
@@ -594,8 +636,8 @@ fn extract_pdf_text(path: &Path) -> Result<String, String> {
         let content_data = document
             .get_page_content(page_id)
             .map_err(|e| format!("读取 PDF 页面内容失败: {}", e))?;
-        let content = Content::decode(&content_data)
-            .map_err(|e| format!("解析 PDF 页面内容失败: {}", e))?;
+        let content =
+            Content::decode(&content_data).map_err(|e| format!("解析 PDF 页面内容失败: {}", e))?;
 
         for operation in content.operations {
             match operation.operator.as_str() {
@@ -631,7 +673,8 @@ fn extract_pdf_text(path: &Path) -> Result<String, String> {
 }
 
 fn normalize_xml_text(mut text: String) -> Result<String, String> {
-    let tag_re = regex::Regex::new(r"<[^>]+>").map_err(|e| format!("构建 XML 解析正则失败: {}", e))?;
+    let tag_re =
+        regex::Regex::new(r"<[^>]+>").map_err(|e| format!("构建 XML 解析正则失败: {}", e))?;
     text = tag_re.replace_all(&text, "").to_string();
 
     let xml_entities = [
@@ -700,14 +743,17 @@ fn extract_pptx_text(path: &Path) -> Result<String, String> {
     let mut texts = Vec::new();
 
     for index in 0..archive.len() {
-        let mut entry = archive.by_index(index).map_err(|e| format!("读取 PPTX 条目失败: {}", e))?;
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|e| format!("读取 PPTX 条目失败: {}", e))?;
         let name = entry.name().to_string();
         if name.starts_with("ppt/slides/slide") && name.ends_with(".xml") {
             let mut xml = String::new();
             entry
                 .read_to_string(&mut xml)
                 .map_err(|e| format!("读取 PPTX 幻灯片失败: {}", e))?;
-            let normalized = normalize_xml_text(xml.replace("</a:p>", "\n").replace("</a:tr>", "\n"))?;
+            let normalized =
+                normalize_xml_text(xml.replace("</a:p>", "\n").replace("</a:tr>", "\n"))?;
             if !normalized.is_empty() {
                 texts.push(normalized);
             }
@@ -718,7 +764,10 @@ fn extract_pptx_text(path: &Path) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn preview_desktop_file(_app_handle: AppHandle, file_path: String) -> Result<DesktopFilePreview, String> {
+pub fn preview_desktop_file(
+    _app_handle: AppHandle,
+    file_path: String,
+) -> Result<DesktopFilePreview, String> {
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err(format!("文件不存在: {}", file_path));
@@ -816,7 +865,9 @@ pub fn preview_desktop_file(_app_handle: AppHandle, file_path: String) -> Result
                     created,
                     modified: None,
                     truncated,
-                    message: Some("DOCX 文本预览（Enter 可使用系统默认程序打开原文件）".to_string()),
+                    message: Some(
+                        "DOCX 文本预览（Enter 可使用系统默认程序打开原文件）".to_string(),
+                    ),
                 });
             }
         }
@@ -836,7 +887,10 @@ pub fn preview_desktop_file(_app_handle: AppHandle, file_path: String) -> Result
                     created,
                     modified: None,
                     truncated,
-                    message: Some("XLSX 文本预览（基于共享字符串抽取，Enter 可使用系统默认程序打开原文件）".to_string()),
+                    message: Some(
+                        "XLSX 文本预览（基于共享字符串抽取，Enter 可使用系统默认程序打开原文件）"
+                            .to_string(),
+                    ),
                 });
             }
         }
@@ -856,7 +910,10 @@ pub fn preview_desktop_file(_app_handle: AppHandle, file_path: String) -> Result
                     created,
                     modified: None,
                     truncated,
-                    message: Some("PPTX 文本预览（按幻灯片抽取，Enter 可使用系统默认程序打开原文件）".to_string()),
+                    message: Some(
+                        "PPTX 文本预览（按幻灯片抽取，Enter 可使用系统默认程序打开原文件）"
+                            .to_string(),
+                    ),
                 });
             }
         }
@@ -872,7 +929,9 @@ pub fn preview_desktop_file(_app_handle: AppHandle, file_path: String) -> Result
             created,
             modified: None,
             truncated: false,
-            message: Some("该文档暂不支持内嵌文本预览，按 Enter 可使用系统默认程序打开".to_string()),
+            message: Some(
+                "该文档暂不支持内嵌文本预览，按 Enter 可使用系统默认程序打开".to_string(),
+            ),
         });
     }
 
@@ -897,17 +956,17 @@ pub fn get_search_engines(_app_handle: AppHandle) -> Result<Vec<SearchEngine>, S
     match db::get_all_search_engines() {
         Ok(engines) => {
             if engines.is_empty() {
-            // 如果没有保存的搜索引擎配置，使用默认配置,并且第一条数据设置为默认搜索引擎
+                // 如果没有保存的搜索引擎配置，使用默认配置,并且第一条数据设置为默认搜索引擎
                 let mut default_engines: Vec<SearchEngine> =
-                serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
+                    serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
                 if !default_engines.is_empty() {
                     default_engines[0].enabled = true;
-            }
+                }
                 db::replace_all_search_engines(&default_engines).map_err(|e| e.to_string())?;
                 Ok(default_engines)
             } else {
-            Ok(engines)
-        }
+                Ok(engines)
+            }
         }
         Err(e) => Err(e.to_string()),
     }

@@ -20,53 +20,68 @@ mod tray;
 mod update;
 mod window;
 
-use serde::Serialize;
 use crate::alarm::{
     add_alarm_card, delete_alarm_card, get_alarm_cards, remind_notification_window,
     toggle_alarm_card, update_alarm_card,
 };
 use crate::config::{
-    exit_application, get_auto_update_check, reset_software, set_auto_update_check,
-    get_language, set_language,
-    set_translation_engine, get_translation_engine,
-    set_offline_model_activated, get_offline_model_activated,
+    exit_application, get_auto_update_check, get_language, get_offline_model_activated,
+    get_translation_engine, reset_software, set_auto_update_check, set_language,
+    set_offline_model_activated, set_translation_engine,
+};
+use crate::dark_mode::{
+    calculate_sun_times, get_current_status as get_dark_mode_status, get_location_by_ip,
+    load_config as load_dark_mode_config, save_config as save_dark_mode_config, start_scheduler,
+    stop_scheduler, toggle_theme, DarkModeConfig, LocationInfo, SunTimes,
 };
 use crate::db::{
+    add_app,
+    add_bookmark,
     // get_categories, add_category, edit_category, delete_category, get_uncategorized_id,
     // get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content,
     // search_fragment_content, // 已迁移到基于文件系统的 Markdown 存储
-    add_search_history, backup_database, get_db_path, get_data_dir_info,
-    get_search_history, restore_database,set_custom_db_path,
-    optimize_database, optimize_database_cmd, add_app, update_app, delete_app, get_apps,
-    add_bookmark, update_bookmark, delete_bookmark, get_bookmarks,
-    is_setup_completed, set_setup_completed, set_data_dir_from_setup,
-    set_auto_start_setting, 
-    get_auto_hide_on_blur, set_auto_hide_on_blur,
+    add_search_history,
+    backup_database,
+    delete_app,
+    delete_bookmark,
+    get_apps,
+    get_auto_hide_on_blur,
+    get_bookmarks,
+    get_data_dir_info,
+    get_db_path,
+    get_search_history,
+    is_setup_completed,
+    optimize_database,
+    optimize_database_cmd,
+    restore_database,
+    set_auto_hide_on_blur,
+    set_auto_start_setting,
+    set_custom_db_path,
+    set_data_dir_from_setup,
+    set_setup_completed,
+    update_app,
+    update_bookmark,
 };
 use crate::translation::translate_text;
 use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
 };
 use crate::window::{
-  hotkey_config, insert_text_to_last_window, start_mouse_tracking, get_window_info,
-  copy_to_clipboard, save_screenshot_to_file, get_pixel_color, get_screen_preview, get_all_windows,
-  create_pin_window, copy_image_to_clipboard, save_pin_image, frontend_log,
-  get_screenshot_background, get_screenshot_preview, get_cached_window_list, get_cached_monitor_info, clear_screenshot_background, cleanup_screenshot_resources, create_setup_window, close_setup_window, get_scan_progress_state,
-  close_and_destroy_screenshot_window
+    cleanup_screenshot_resources, clear_screenshot_background, close_and_destroy_screenshot_window,
+    close_setup_window, copy_image_to_clipboard, copy_to_clipboard, create_pin_window,
+    create_setup_window, frontend_log, get_all_windows, get_cached_monitor_info,
+    get_cached_window_list, get_pixel_color, get_scan_progress_state, get_screen_preview,
+    get_screenshot_background, get_screenshot_preview, get_window_info, hotkey_config,
+    insert_text_to_last_window, save_pin_image, save_screenshot_to_file, start_mouse_tracking,
 };
 use dirs::desktop_dir;
-use crate::dark_mode::{
-    load_config as load_dark_mode_config, save_config as save_dark_mode_config,
-    get_location_by_ip, calculate_sun_times, toggle_theme, 
-    start_scheduler, stop_scheduler, get_current_status as get_dark_mode_status,
-    DarkModeConfig, LocationInfo, SunTimes
-};
+use serde::Serialize;
 
-use apps::{open_app_as_admin_command, open_app_command};
+use apps::{open_app_as_admin_command, open_app_command, open_app_file_location_command};
 use bookmarks::open_url;
 use hotkey::*;
-use icon::{init_app_and_bookmark_icons, extract_icon_from_app};
-use log::{LevelFilter, info};
+use icon::{extract_icon_from_app, init_app_and_bookmark_icons};
+use log::{info, LevelFilter};
 use search::*;
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -101,15 +116,15 @@ fn register_app_init_request() {
 #[tauri::command]
 async fn should_execute_app_init() -> bool {
     use tokio::time::sleep;
-    
+
     // 等待 500ms
     sleep(Duration::from_millis(500)).await;
-    
+
     let mut initialized = APP_INITIALIZED.lock().unwrap();
     if *initialized {
         return false; // 已经初始化过了
     }
-    
+
     // 检查是否有更新的请求
     let state = APP_INIT_STATE.lock().unwrap();
     if let Some(last_request) = *state {
@@ -121,20 +136,20 @@ async fn should_execute_app_init() -> bool {
             return true;
         }
     }
-    
+
     false
 }
 
 // 清理旧日志文件（保留最近7天的日志）
 fn cleanup_old_logs() {
     use std::fs;
-    use std::time::{SystemTime, Duration};
-    
+    use std::time::{Duration, SystemTime};
+
     let app = match APP.get() {
         Some(app) => app,
         None => return,
     };
-    
+
     // 获取日志目录
     let log_dir = match app.path().app_log_dir() {
         Ok(dir) => dir,
@@ -143,22 +158,22 @@ fn cleanup_old_logs() {
             return;
         }
     };
-    
+
     if !log_dir.exists() {
         return;
     }
-    
+
     let now = SystemTime::now();
     let seven_days_ago = now - Duration::from_secs(7 * 24 * 3600);
-    
+
     let mut cleaned_count = 0;
     let mut cleaned_size = 0u64;
-    
+
     // 遍历日志目录
     if let Ok(entries) = fs::read_dir(&log_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            
+
             // 只处理.log文件
             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("log") {
                 // 检查文件修改时间
@@ -176,9 +191,13 @@ fn cleanup_old_logs() {
             }
         }
     }
-    
+
     if cleaned_count > 0 {
-        log::info!("清理了 {} 个旧日志文件，释放空间 {} KB", cleaned_count, cleaned_size / 1024);
+        log::info!(
+            "清理了 {} 个旧日志文件，释放空间 {} KB",
+            cleaned_count,
+            cleaned_size / 1024
+        );
     }
 }
 
@@ -253,11 +272,14 @@ async fn get_dark_mode_config(app_handle: AppHandle) -> Result<DarkModeConfig, S
 
 // 保存Auto Dark Mode配置
 #[tauri::command]
-async fn save_dark_mode_config_command(app_handle: AppHandle, config: DarkModeConfig) -> Result<(), String> {
+async fn save_dark_mode_config_command(
+    app_handle: AppHandle,
+    config: DarkModeConfig,
+) -> Result<(), String> {
     use dark_mode::ThemeMode;
-    
+
     save_dark_mode_config(&app_handle, &config)?;
-    
+
     match config.theme_mode {
         ThemeMode::System => {
             // 跟随系统，不需要调度器，不改变当前主题
@@ -282,7 +304,7 @@ async fn save_dark_mode_config_command(app_handle: AppHandle, config: DarkModeCo
             start_scheduler(app_handle)?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -294,7 +316,11 @@ async fn get_location_info() -> Result<LocationInfo, String> {
 
 // 计算日出日落时间
 #[tauri::command]
-async fn calculate_sun_times_command(latitude: f64, longitude: f64, timezone_offset: i32) -> Result<SunTimes, String> {
+async fn calculate_sun_times_command(
+    latitude: f64,
+    longitude: f64,
+    timezone_offset: i32,
+) -> Result<SunTimes, String> {
     calculate_sun_times(latitude, longitude, timezone_offset)
 }
 
@@ -319,7 +345,7 @@ async fn migrate_to_markdown_command(
     cache_manager: tauri::State<'_, std::sync::Arc<std::sync::RwLock<markdown::CacheManager>>>,
 ) -> Result<markdown::MigrationResult, String> {
     let result = markdown::migrate_to_markdown(&app_handle)?;
-    
+
     // 迁移完成后重新加载内存中的 CacheManager，确保与磁盘数据同步
     match cache_manager.write() {
         Ok(mut cache) => {
@@ -333,7 +359,7 @@ async fn migrate_to_markdown_command(
             log::warn!("⚠️ [迁移] 获取 CacheManager 写锁失败: {}", e);
         }
     }
-    
+
     Ok(result)
 }
 
@@ -344,7 +370,7 @@ async fn migrate_to_markdown_from_file_command(
     cache_manager: tauri::State<'_, std::sync::Arc<std::sync::RwLock<markdown::CacheManager>>>,
 ) -> Result<markdown::MigrationResult, String> {
     let result = markdown::migrate_to_markdown_from_file(&app_handle)?;
-    
+
     // 迁移完成后重新加载内存中的 CacheManager，确保与磁盘数据同步
     match cache_manager.write() {
         Ok(mut cache) => {
@@ -358,7 +384,7 @@ async fn migrate_to_markdown_from_file_command(
             log::warn!("⚠️ [迁移] 获取 CacheManager 写锁失败: {}", e);
         }
     }
-    
+
     Ok(result)
 }
 
@@ -368,15 +394,13 @@ async fn migrate_to_markdown_from_file_command(
 async fn finalize_migration() -> Result<(), String> {
     use crate::db::migrate_remove_fragment_tables;
     use crate::db::DbConnectionManager;
-    
+
     log::info!("🔧 [迁移] 用户确认迁移成功，开始清理数据库表...");
-    
-    let conn = DbConnectionManager::get()
-        .map_err(|e| format!("数据库连接失败: {}", e))?;
-    
-    migrate_remove_fragment_tables(&conn)
-        .map_err(|e| format!("移除数据库表失败: {}", e))?;
-    
+
+    let conn = DbConnectionManager::get().map_err(|e| format!("数据库连接失败: {}", e))?;
+
+    migrate_remove_fragment_tables(&conn).map_err(|e| format!("移除数据库表失败: {}", e))?;
+
     log::info!("✅ [迁移] 数据库清理完成");
     Ok(())
 }
@@ -852,6 +876,7 @@ pub fn run() {
             hotkey_update_command,            // 快捷键更新
             open_app_command,                 // 打开应用
             open_app_as_admin_command,        // 以管理员身份打开应用
+            open_app_file_location_command,    // 打开应用文件位置
             show_hide_window_command,         // 显示隐藏窗口
             open_url,                         // 打开书签
             insert_text_to_last_window,       // 插入文本到上次活动窗口

@@ -56,11 +56,13 @@ pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bo
                     } else {
                         let _ = json_config::set_app_config_value(app, "update_available", false);
                         if show_notification {
-                            if let Err(e) = app.notification()
+                            if let Err(e) = app
+                                .notification()
                                 .builder()
-                                .title("snippets-code")  // 在标题中包含应用名
+                                .title("snippets-code") // 在标题中包含应用名
                                 .body("检查更新：当前已是最新版本")
-                                .show() {
+                                .show()
+                            {
                                 log::warn!("显示通知失败: {}", e);
                             }
                         }
@@ -156,7 +158,8 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                             log::warn!("发送下载完成事件失败: {}", e);
                         }
                         // 更新完成后重置更新状态
-                        let _ = json_config::set_app_config_value(app_clone, "update_available", false);
+                        let _ =
+                            json_config::set_app_config_value(app_clone, "update_available", false);
                     },
                 )
                 .await

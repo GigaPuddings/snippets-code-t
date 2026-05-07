@@ -1,6 +1,9 @@
 use crate::config::parse_hotkey;
 use crate::json_config;
-use crate::window::{hotkey_config, hotkey_selection_translate, hotkey_translate, hotkey_search_wrapper, hotkey_screenshot, hotkey_dark_mode};
+use crate::window::{
+    hotkey_config, hotkey_dark_mode, hotkey_screenshot, hotkey_search_wrapper,
+    hotkey_selection_translate, hotkey_translate,
+};
 use crate::APP;
 use log::warn;
 use tauri::AppHandle;
@@ -15,7 +18,8 @@ where
         if key.is_empty() {
             // 从 app.json 读取快捷键配置
             let field_name = format!("{}_hotkey", name);
-            json_config::get_app_config_value::<String>(_app_handle, &field_name).unwrap_or_default()
+            json_config::get_app_config_value::<String>(_app_handle, &field_name)
+                .unwrap_or_default()
         } else {
             key.to_string()
         }
@@ -26,7 +30,7 @@ where
         Some(app) => app,
         None => return Err("应用未初始化".to_string()),
     };
-    
+
     if !hotkey.is_empty() {
         // info!("{}：窗口尝试注册快捷键：{}", name, hotkey);
 
@@ -107,7 +111,7 @@ pub fn register_shortcut_by_frontend(
     let field_name = format!("{}_hotkey", name);
     log::info!("🔑 注册快捷键: {} = {} (保存到 app.json)", name, shortcut);
     json_config::set_app_config_value(&app_handle, &field_name, shortcut)?;
-    
+
     match name {
         "search" => {
             register(&app_handle, "search", hotkey_search_wrapper, shortcut)?;
@@ -140,14 +144,26 @@ pub fn register_shortcut_by_frontend(
 }
 
 #[tauri::command]
-pub fn get_shortcuts(app_handle: AppHandle) -> Result<(String, String, String, String, String, String), String> {
+pub fn get_shortcuts(
+    app_handle: AppHandle,
+) -> Result<(String, String, String, String, String, String), String> {
     // 从 app.json 读取所有快捷键配置（静默读取，不输出日志）
-    let search_hotkey = json_config::get_app_config_value::<String>(&app_handle, "search_hotkey").unwrap_or_default();
-    let config_hotkey = json_config::get_app_config_value::<String>(&app_handle, "config_hotkey").unwrap_or_default();
-    let translate_hotkey = json_config::get_app_config_value::<String>(&app_handle, "translate_hotkey").unwrap_or_default();
-    let selection_translate_hotkey = json_config::get_app_config_value::<String>(&app_handle, "selection_translate_hotkey").unwrap_or_default();
-    let screenshot_hotkey = json_config::get_app_config_value::<String>(&app_handle, "screenshot_hotkey").unwrap_or_default();
-    let dark_mode_hotkey = json_config::get_app_config_value::<String>(&app_handle, "dark_mode_hotkey").unwrap_or_default();
+    let search_hotkey = json_config::get_app_config_value::<String>(&app_handle, "search_hotkey")
+        .unwrap_or_default();
+    let config_hotkey = json_config::get_app_config_value::<String>(&app_handle, "config_hotkey")
+        .unwrap_or_default();
+    let translate_hotkey =
+        json_config::get_app_config_value::<String>(&app_handle, "translate_hotkey")
+            .unwrap_or_default();
+    let selection_translate_hotkey =
+        json_config::get_app_config_value::<String>(&app_handle, "selection_translate_hotkey")
+            .unwrap_or_default();
+    let screenshot_hotkey =
+        json_config::get_app_config_value::<String>(&app_handle, "screenshot_hotkey")
+            .unwrap_or_default();
+    let dark_mode_hotkey =
+        json_config::get_app_config_value::<String>(&app_handle, "dark_mode_hotkey")
+            .unwrap_or_default();
 
     Ok((
         search_hotkey,

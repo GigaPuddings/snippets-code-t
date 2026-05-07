@@ -72,7 +72,7 @@ enum BrowserType {
 // 浏览器配置结构
 struct BrowserConfig {
     name: &'static str,
-    env_var: &'static str,  // LOCALAPPDATA 或 APPDATA
+    env_var: &'static str, // LOCALAPPDATA 或 APPDATA
     paths: &'static [&'static str],
     #[allow(dead_code)]
     enable_log: bool,
@@ -174,11 +174,11 @@ const BROWSERS: &[BrowserConfig] = &[
 // 通用浏览器路径查找函数
 fn find_browser_favicon_path(config: &BrowserConfig) -> Option<PathBuf> {
     let base = std::env::var(config.env_var).ok()?;
-    
+
     for path_template in config.paths {
         let path = PathBuf::from(format!("{}\\{}", base, path_template));
         if path.exists() {
-                return Some(path);
+            return Some(path);
         }
     }
     None
@@ -231,9 +231,7 @@ fn get_shuanghe_favicon_db_path() -> Option<PathBuf> {
 fn get_all_browser_favicon_paths() -> std::collections::HashMap<&'static str, PathBuf> {
     BROWSERS
         .iter()
-        .filter_map(|config| {
-            find_browser_favicon_path(config).map(|path| (config.name, path))
-        })
+        .filter_map(|config| find_browser_favicon_path(config).map(|path| (config.name, path)))
         .collect()
 }
 
@@ -714,67 +712,108 @@ pub fn get_browser_bookmarks() -> Vec<BookmarkInfo> {
     let mut bookmarks = Vec::new();
     let mut browser_stats = std::collections::HashMap::new();
 
-
     // Chrome书签
     for bookmarks_path in get_chrome_bookmarks_paths() {
         let favicon_db_path = get_chrome_favicon_db_path();
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Chrome);
+        let new_bookmarks = extract_chromium_bookmarks(
+            &bookmarks_path,
+            favicon_db_path.as_ref(),
+            &BrowserType::Chrome,
+        );
         bookmarks.extend(new_bookmarks);
         *browser_stats.entry("Chrome".to_string()).or_insert(0) += 1;
     }
 
     for bookmarks_path in get_edge_bookmarks_paths() {
         let favicon_db_path = get_edge_favicon_db_path();
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Edge);
+        let new_bookmarks = extract_chromium_bookmarks(
+            &bookmarks_path,
+            favicon_db_path.as_ref(),
+            &BrowserType::Edge,
+        );
         bookmarks.extend(new_bookmarks);
         *browser_stats.entry("Edge".to_string()).or_insert(0) += 1;
     }
 
     for bookmarks_path in get_360_speed_bookmarks_paths() {
         let favicon_db_path = get_360_speed_favicon_db_path();
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Speed360);
+        let new_bookmarks = extract_chromium_bookmarks(
+            &bookmarks_path,
+            favicon_db_path.as_ref(),
+            &BrowserType::Speed360,
+        );
         bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("360极速浏览器".to_string()).or_insert(0) += 1;
+        *browser_stats
+            .entry("360极速浏览器".to_string())
+            .or_insert(0) += 1;
     }
 
     for bookmarks_path in get_qq_browser_bookmarks_paths() {
         let favicon_db_path = get_qq_browser_favicon_db_path();
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::QQBrowser);
+        let new_bookmarks = extract_chromium_bookmarks(
+            &bookmarks_path,
+            favicon_db_path.as_ref(),
+            &BrowserType::QQBrowser,
+        );
         bookmarks.extend(new_bookmarks);
         *browser_stats.entry("QQ浏览器".to_string()).or_insert(0) += 1;
     }
 
     for bookmarks_path in get_brave_bookmarks_paths() {
         let favicon_db_path = get_brave_favicon_db_path();
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Brave);
+        let new_bookmarks = extract_chromium_bookmarks(
+            &bookmarks_path,
+            favicon_db_path.as_ref(),
+            &BrowserType::Brave,
+        );
         bookmarks.extend(new_bookmarks);
         *browser_stats.entry("Brave浏览器".to_string()).or_insert(0) += 1;
     }
 
     for bookmarks_path in get_vivaldi_bookmarks_paths() {
         let favicon_db_path = get_vivaldi_favicon_db_path();
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Vivaldi);
+        let new_bookmarks = extract_chromium_bookmarks(
+            &bookmarks_path,
+            favicon_db_path.as_ref(),
+            &BrowserType::Vivaldi,
+        );
         bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("Vivaldi浏览器".to_string()).or_insert(0) += 1;
+        *browser_stats
+            .entry("Vivaldi浏览器".to_string())
+            .or_insert(0) += 1;
     }
 
     for bookmarks_path in get_opera_bookmarks_paths() {
         let favicon_db_path = get_opera_favicon_db_path();
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::Opera);
+        let new_bookmarks = extract_chromium_bookmarks(
+            &bookmarks_path,
+            favicon_db_path.as_ref(),
+            &BrowserType::Opera,
+        );
         bookmarks.extend(new_bookmarks);
         *browser_stats.entry("Opera浏览器".to_string()).or_insert(0) += 1;
     }
 
     for bookmarks_path in get_chromecore_bookmarks_paths() {
         let favicon_db_path = get_chromecore_favicon_db_path();
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::ChromeCore);
+        let new_bookmarks = extract_chromium_bookmarks(
+            &bookmarks_path,
+            favicon_db_path.as_ref(),
+            &BrowserType::ChromeCore,
+        );
         bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("ChromeCore浏览器".to_string()).or_insert(0) += 1;
+        *browser_stats
+            .entry("ChromeCore浏览器".to_string())
+            .or_insert(0) += 1;
     }
 
     for bookmarks_path in get_shuanghe_bookmarks_paths() {
         let favicon_db_path = get_shuanghe_favicon_db_path();
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, favicon_db_path.as_ref(), &BrowserType::ShuangHe);
+        let new_bookmarks = extract_chromium_bookmarks(
+            &bookmarks_path,
+            favicon_db_path.as_ref(),
+            &BrowserType::ShuangHe,
+        );
         bookmarks.extend(new_bookmarks);
         *browser_stats.entry("双核浏览器".to_string()).or_insert(0) += 1;
     }
@@ -784,15 +823,18 @@ pub fn get_browser_bookmarks() -> Vec<BookmarkInfo> {
         *browser_stats.entry("Firefox".to_string()).or_insert(0) += 1;
     }
 
-
     // 去除重复书签（基于URL去重，这是最准确的去重方式）
     let mut unique_bookmarks = Vec::new();
     let mut seen_urls = std::collections::HashSet::new();
 
     for bookmark in bookmarks {
         // 标准化URL（转为小写，移除尾部斜杠）
-        let normalized_url = bookmark.content.to_lowercase().trim_end_matches('/').to_string();
-        
+        let normalized_url = bookmark
+            .content
+            .to_lowercase()
+            .trim_end_matches('/')
+            .to_string();
+
         if !seen_urls.contains(&normalized_url) {
             seen_urls.insert(normalized_url);
             unique_bookmarks.push(bookmark);
@@ -816,7 +858,11 @@ fn extract_chromium_bookmarks(
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(roots) = json.get("roots") {
                 if let Some(bookmark_bar) = roots.get("bookmark_bar") {
-                    bookmarks.extend(extract_bookmarks(bookmark_bar, favicon_db_path, browser_type));
+                    bookmarks.extend(extract_bookmarks(
+                        bookmark_bar,
+                        favicon_db_path,
+                        browser_type,
+                    ));
                 }
                 if let Some(other) = roots.get("other") {
                     bookmarks.extend(extract_bookmarks(other, favicon_db_path, browser_type));

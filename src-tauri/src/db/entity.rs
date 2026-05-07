@@ -1,5 +1,5 @@
-use crate::{apps::AppInfo, bookmarks::BookmarkInfo};
 use crate::db::DbConnectionManager;
+use crate::{apps::AppInfo, bookmarks::BookmarkInfo};
 
 // ============= 通用数据库实体框架 =============
 
@@ -10,22 +10,22 @@ pub trait DbEntity: Sized {
     const TABLE_NAME: &'static str;
     // 汇总类型（用于 summarize 字段）
     const SUMMARIZE_TYPE: &'static str;
-    
+
     // 从数据库行构造实体
     fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self>;
-    
+
     // 获取实体的 ID
     fn id(&self) -> &str;
-    
+
     // 获取实体的标题
     fn title(&self) -> &str;
-    
+
     // 获取实体的内容
     fn content(&self) -> &str;
-    
+
     // 获取实体的图标
     fn icon(&self) -> &Option<String>;
-    
+
     // 转换为 SQL 参数（用于插入）
     fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>>;
 }
@@ -34,7 +34,7 @@ pub trait DbEntity: Sized {
 impl DbEntity for AppInfo {
     const TABLE_NAME: &'static str = "apps";
     const SUMMARIZE_TYPE: &'static str = "app";
-    
+
     fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         Ok(AppInfo {
             id: row.get(0)?,
@@ -45,12 +45,20 @@ impl DbEntity for AppInfo {
             usage_count: row.get(5)?,
         })
     }
-    
-    fn id(&self) -> &str { &self.id }
-    fn title(&self) -> &str { &self.title }
-    fn content(&self) -> &str { &self.content }
-    fn icon(&self) -> &Option<String> { &self.icon }
-    
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn content(&self) -> &str {
+        &self.content
+    }
+    fn icon(&self) -> &Option<String> {
+        &self.icon
+    }
+
     fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>> {
         vec![
             Box::new(self.id.clone()),
@@ -66,7 +74,7 @@ impl DbEntity for AppInfo {
 impl DbEntity for BookmarkInfo {
     const TABLE_NAME: &'static str = "bookmarks";
     const SUMMARIZE_TYPE: &'static str = "bookmark";
-    
+
     fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         Ok(BookmarkInfo {
             id: row.get(0)?,
@@ -77,12 +85,20 @@ impl DbEntity for BookmarkInfo {
             usage_count: row.get(5)?,
         })
     }
-    
-    fn id(&self) -> &str { &self.id }
-    fn title(&self) -> &str { &self.title }
-    fn content(&self) -> &str { &self.content }
-    fn icon(&self) -> &Option<String> { &self.icon }
-    
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn content(&self) -> &str {
+        &self.content
+    }
+    fn icon(&self) -> &Option<String> {
+        &self.icon
+    }
+
     fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>> {
         vec![
             Box::new(self.id.clone()),
@@ -126,12 +142,15 @@ pub(crate) fn get_all_entities<T: DbEntity>() -> Result<Vec<T>, rusqlite::Error>
 
     let mut stmt = conn.prepare(&query)?;
     let iter = stmt.query_map([], |row| T::from_row(row))?;
-    
+
     iter.collect()
 }
 
 // 通用更新图标
-pub(crate) fn update_entity_icon<T: DbEntity>(entity_id: &str, icon: &str) -> Result<(), rusqlite::Error> {
+pub(crate) fn update_entity_icon<T: DbEntity>(
+    entity_id: &str,
+    icon: &str,
+) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     conn.execute(
         &format!("UPDATE {} SET icon = ?1 WHERE id = ?2", T::TABLE_NAME),
@@ -153,7 +172,7 @@ pub(crate) fn count_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
     let count = conn.query_row(
         &format!("SELECT COUNT(*) FROM {}", T::TABLE_NAME),
         [],
-        |row| row.get(0)
+        |row| row.get(0),
     )?;
     Ok(count)
 }
@@ -168,7 +187,8 @@ pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlit
     let placeholders = "(?1, ?2, ?3, ?4, ?5)";
     let query = format!(
         "INSERT OR REPLACE INTO {} (id, title, content, icon, summarize) VALUES {}",
-        T::TABLE_NAME, placeholders
+        T::TABLE_NAME,
+        placeholders
     );
 
     let mut stmt = conn.prepare(&query)?;

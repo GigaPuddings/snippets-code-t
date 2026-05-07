@@ -12,20 +12,18 @@
         @dblclick="handleItemDoubleClick(item)">
         <!-- 图标，用于显示结果的图标 -->
         <div class="icon-wrapper">
-          <img v-if="item.icon" :src="item.icon" class="icon" @error="handleIconError(item)" loading="lazy" />
+          <div v-if="item.summarize === 'file' && !item.icon" class="file-type-icon" :class="getFileIconClass(item)">
+            <component v-if="getFileIconComponent(item)" :is="getFileIconComponent(item)"
+              class="file-type-icon-svg" />
+            <span v-else class="file-type-icon-text">{{ getFileIconText(item) }}</span>
+          </div>
           <template v-else>
-            <img v-if="item.summarize === 'app'" src="@/assets/svg/app.svg" class="icon default-type-icon" loading="lazy" />
-            <img v-else-if="item.summarize === 'bookmark'" src="@/assets/svg/bookmark.svg" class="icon default-type-icon"
-              loading="lazy" />
-            <img v-else-if="item.summarize === 'search'" src="@/assets/svg/search.svg" class="icon default-type-icon" loading="lazy" />
-            <div v-if="item.summarize === 'file'" class="file-type-icon" :class="getFileIconClass(item)">
-              <component v-if="getFileIconComponent(item)" :is="getFileIconComponent(item)"
-                class="file-type-icon-svg" />
-              <span v-else class="file-type-icon-text">{{ getFileIconText(item) }}</span>
+            <img v-if="getIconState(item).src" :src="getIconState(item).src" class="icon"
+              :class="getImageIconClass(item)"
+              @error="handleIconError(item)" loading="lazy" />
+            <div v-else class="text-fallback-icon" :class="`type-${getIconState(item).typeClass || 'default'}`">
+              {{ getIconState(item).fallbackText }}
             </div>
-            <img v-else-if="item.type === 'note'" src="@/assets/svg/note.svg" class="icon default-type-icon type-icon note"
-              loading="lazy" />
-            <img v-else src="@/assets/svg/code.svg" class="icon default-type-icon type-icon code" loading="lazy" />
           </template>
         </div>
         <div class="content">
@@ -58,14 +56,10 @@ import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import { useFocusMode } from '@/hooks/useFocusMode';
 import { useSearchResultActions } from '../composables/useSearchResultActions';
 import { useSearchResultDisplay } from '../composables/useSearchResultDisplay';
+import { getSearchResultIcon } from '../composables/useSearchResultIcon';
 import { useSearchResultKeyboard } from '../composables/useSearchResultKeyboard';
 import { useSearchResultState } from '../composables/useSearchResultState';
 import { useI18n } from 'vue-i18n';
-// import appIcon from '@/assets/svg/app.svg';
-// import bookmarkIcon from '@/assets/svg/bookmark.svg';
-// import searchIcon from '@/assets/svg/search.svg';
-// import noteIcon from '@/assets/svg/note.svg';
-// import codeIcon from '@/assets/svg/code.svg';
 
 const { t } = useI18n();
 
@@ -228,6 +222,16 @@ function handleItemDoubleClick(item: ContentType) {
 
 const handleIconError = (item: ContentType) => {
   item.icon = undefined;
+};
+
+const getIconState = getSearchResultIcon;
+const getImageIconClass = (item: ContentType) => {
+  const icon = getIconState(item);
+  return {
+    'default-type-icon': icon.isDefaultTypeIcon,
+    'type-icon': Boolean(icon.typeClass),
+    [icon.typeClass]: Boolean(icon.typeClass)
+  };
 };
 
 const enterListMode = () => {
@@ -398,6 +402,10 @@ defineExpose({
               @apply opacity-80;
             }
           }
+        }
+
+        .text-fallback-icon {
+          @apply flex items-center justify-center w-6 h-6 rounded-md text-xs font-semibold text-blue-700 bg-blue-100 dark:text-blue-100 dark:bg-blue-500/30;
         }
       }
 

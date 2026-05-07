@@ -14,12 +14,12 @@ pub struct DbConnectionManager;
 impl DbConnectionManager {
     // 获取数据库连接并统一设置优化参数
     pub fn get() -> Result<rusqlite::Connection, rusqlite::Error> {
-        let app = APP.get().ok_or_else(|| {
-            rusqlite::Error::InvalidPath("APP 未初始化".into())
-        })?;
+        let app = APP
+            .get()
+            .ok_or_else(|| rusqlite::Error::InvalidPath("APP 未初始化".into()))?;
         let db_path = get_database_path(app);
         let conn = rusqlite::Connection::open(db_path)?;
-        
+
         // 统一设置数据库优化参数
         // WAL模式：提升并发性能（持久化配置，只需设置一次但重复设置无害）
         let _ = conn.execute("PRAGMA journal_mode=WAL", []);
@@ -31,7 +31,7 @@ impl DbConnectionManager {
         let _ = conn.execute("PRAGMA temp_store=memory", []);
         // 锁等待超时：缓解并发读写时偶发卡顿（单位：毫秒）
         let _ = conn.execute("PRAGMA busy_timeout=800", []);
-        
+
         Ok(conn)
     }
 }
@@ -63,7 +63,7 @@ pub fn get_db_path() -> String {
 pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
     let data_dir = json_config::get_data_dir(&app_handle);
     let db_path = data_dir.join("snippets.db");
-    
+
     // 检查路径来源
     let path_config = json_config::read_path_config(&app_handle);
     let source = if path_config.data_dir.is_some() {
@@ -71,7 +71,7 @@ pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
     } else {
         "default" // 默认位置
     };
-    
+
     serde_json::json!({
         "path": data_dir.to_str().unwrap_or(""),
         "dbPath": db_path.to_str().unwrap_or(""),
@@ -82,15 +82,18 @@ pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
 #[tauri::command]
 pub async fn backup_database(app_handle: tauri::AppHandle, format: String) -> Result<(), String> {
     let source_path = get_database_path(&app_handle);
-    
+
     // 使用对话框选择保存位置
     let file_path = app_handle
         .dialog()
         .file()
         .set_title("选择备份保存位置")
-        .set_file_name(format!("snippets_backup_{}.db", generate_backup_suffix(&format)))
+        .set_file_name(format!(
+            "snippets_backup_{}.db",
+            generate_backup_suffix(&format)
+        ))
         .blocking_save_file();
-    
+
     match file_path {
         Some(path) => {
             // 将FilePath转换为PathBuf
@@ -105,7 +108,7 @@ pub async fn backup_database(app_handle: tauri::AppHandle, format: String) -> Re
 #[tauri::command]
 pub async fn restore_database(app_handle: tauri::AppHandle) -> Result<(), String> {
     let target_path = get_database_path(&app_handle);
-    
+
     // 使用对话框选择要恢复的文件
     let file_path = app_handle
         .dialog()
@@ -113,23 +116,25 @@ pub async fn restore_database(app_handle: tauri::AppHandle) -> Result<(), String
         .set_title("选择要恢复的数据库文件")
         .add_filter("Database", &["db"])
         .blocking_pick_file();
-    
+
     match file_path {
         Some(path) => {
             // 将FilePath转换为PathBuf
             let source_path_buf = PathBuf::from(path.as_path().unwrap());
-            
+
             // 验证文件是否为有效的 SQLite 数据库
-            let mut file = fs::File::open(&source_path_buf).map_err(|e| format!("打开文件失败: {}", e))?;
+            let mut file =
+                fs::File::open(&source_path_buf).map_err(|e| format!("打开文件失败: {}", e))?;
             let mut header = [0u8; 16];
-            file.read_exact(&mut header).map_err(|e| format!("读取文件失败: {}", e))?;
-            
+            file.read_exact(&mut header)
+                .map_err(|e| format!("读取文件失败: {}", e))?;
+
             if &header != b"SQLite format 3\0" {
                 return Err("选择的文件不是有效的 SQLite 数据库".to_string());
             }
-            
+
             fs::copy(&source_path_buf, &target_path).map_err(|e| format!("恢复失败: {}", e))?;
-            
+
             // 重启应用以加载新数据库
             app_handle.restart();
             #[allow(unreachable_code)]
@@ -148,7 +153,7 @@ pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, 
         .set_title("选择数据库存储位置")
         .set_directory(std::env::current_dir().unwrap_or_default())
         .blocking_pick_folder();
-    
+
     match folder_path {
         Some(path) => {
             // 将FilePath转换为PathBuf
@@ -156,25 +161,24 @@ pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, 
             let new_data_dir = folder_pathbuf.join("snippets-code");
             let new_db_path = new_data_dir.join("snippets.db");
             let old_db_path = get_database_path(&app_handle);
-            
+
             // 确保新目录存在
             if !new_data_dir.exists() {
-                fs::create_dir_all(&new_data_dir)
-                    .map_err(|e| format!("创建目录失败: {}", e))?;
+                fs::create_dir_all(&new_data_dir).map_err(|e| format!("创建目录失败: {}", e))?;
             }
-            
+
             // 如果旧数据库存在，复制到新位置
             if old_db_path.exists() {
                 fs::copy(&old_db_path, &new_db_path)
                     .map_err(|e| format!("迁移数据库失败: {}", e))?;
             }
-            
+
             // 保存新路径到 path.json
             let path_config = json_config::PathConfig {
                 data_dir: Some(new_data_dir.to_str().unwrap().to_string()),
             };
             json_config::write_path_config(&app_handle, &path_config)?;
-            
+
             // 重启应用
             app_handle.restart();
             #[allow(unreachable_code)]
@@ -193,7 +197,7 @@ pub fn is_setup_completed_internal(app_handle: &tauri::AppHandle) -> bool {
     if !app_config_path.exists() {
         return false;
     }
-    
+
     // 读取 setup_completed 配置
     json_config::get_app_config_value(app_handle, "setup_completed").unwrap_or(false)
 }
@@ -222,20 +226,21 @@ pub fn set_show_progress_on_restart_with_kind(app_handle: &tauri::AppHandle, res
 
 // 消费进度窗口标记与重置类型（读取后清除）
 pub fn consume_show_progress_kind(app_handle: &tauri::AppHandle) -> Option<String> {
-    let should_show: bool = json_config::get_app_config_value(app_handle, "show_progress_on_restart")
-        .unwrap_or(false);
-    
+    let should_show: bool =
+        json_config::get_app_config_value(app_handle, "show_progress_on_restart").unwrap_or(false);
+
     if !should_show {
         return None;
     }
 
-    let reset_kind: String = json_config::get_app_config_value(app_handle, "show_progress_reset_kind")
-        .unwrap_or_else(|| "all".to_string());
+    let reset_kind: String =
+        json_config::get_app_config_value(app_handle, "show_progress_reset_kind")
+            .unwrap_or_else(|| "all".to_string());
 
     // 清除标记
     let _ = json_config::set_app_config_value(app_handle, "show_progress_on_restart", false);
     let _ = json_config::set_app_config_value(app_handle, "show_progress_reset_kind", "");
-    
+
     Some(reset_kind)
 }
 
@@ -243,7 +248,7 @@ pub fn consume_show_progress_kind(app_handle: &tauri::AppHandle) -> Option<Strin
 fn verify_write_permission(dir: &std::path::Path) -> Result<(), String> {
     // 创建一个临时测试文件来验证写入权限
     let test_file = dir.join(".write_test_snippets");
-    
+
     // 尝试创建并写入测试文件
     match fs::File::create(&test_file) {
         Ok(mut file) => {
@@ -271,7 +276,7 @@ fn verify_write_permission(dir: &std::path::Path) -> Result<(), String> {
 // 检查路径是否在受保护的系统目录中
 fn is_protected_path(path: &std::path::Path) -> bool {
     let path_str = path.to_string_lossy().to_lowercase();
-    
+
     // 只拦截直接选择这些系统目录本身，不拦截其子目录
     // 例如：拦截 "C:\Windows" 但允许 "C:\Windows\MyApp"（虽然写入权限测试会失败）
     let protected_dirs = [
@@ -286,7 +291,7 @@ fn is_protected_path(path: &std::path::Path) -> bool {
         "c:\\windows",
         "c:\\programdata",
     ];
-    
+
     // 检查是否完全匹配这些目录（不包括子目录）
     for protected in &protected_dirs {
         // 完全匹配或者后面只跟着路径分隔符
@@ -294,26 +299,29 @@ fn is_protected_path(path: &std::path::Path) -> bool {
             return true;
         }
     }
-    
+
     false
 }
 
 // 从设置向导保存数据目录
 #[tauri::command]
-pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Result<String, String> {
+pub fn set_data_dir_from_setup(
+    app_handle: tauri::AppHandle,
+    path: String,
+) -> Result<String, String> {
     let mut data_dir = PathBuf::from(&path);
-    
+
     log::info!("📁 设置向导：设置数据目录 = {}", path);
-    
+
     // 获取应用默认数据目录
     let default_data_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| format!("获取默认数据目录失败: {}", e))?;
-    
+
     // 检查是否是应用默认数据目录或其子目录
     let is_default_path = data_dir.starts_with(&default_data_dir);
-    
+
     // 如果不是默认路径，自动添加 snippets-code 子文件夹
     if !is_default_path {
         // 检查路径是否已经以 snippets-code 结尾
@@ -322,34 +330,34 @@ pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Re
             .map(|name| name.to_string_lossy().to_lowercase())
             .map(|name| name == "snippets-code" || name == "snippets code")
             .unwrap_or(false);
-        
+
         if !ends_with_app_folder {
             data_dir = data_dir.join("snippets-code");
         }
     }
-    
+
     // 检查是否在受保护的系统目录中
     if is_protected_path(&data_dir) {
         return Err("不能选择系统保护目录（如 Program Files），请选择其他位置".to_string());
     }
-    
+
     // 确保新目录存在
     if !data_dir.exists() {
         std::fs::create_dir_all(&data_dir)
             .map_err(|e| format!("创建目录失败: {}。请检查是否有权限或选择其他位置", e))?;
     }
-    
+
     // 验证目录写入权限
     verify_write_permission(&data_dir)?;
-    
+
     // 如果不是默认路径，删除旧的默认目录
     if !is_default_path && default_data_dir.exists() {
         log::info!("删除旧的默认数据目录: {:?}", default_data_dir);
         let _ = std::fs::remove_dir_all(&default_data_dir);
     }
-    
+
     let final_path = data_dir.to_str().unwrap().to_string();
-    
+
     // 保存到 path.json
     let path_config = json_config::PathConfig {
         data_dir: if is_default_path {
@@ -360,16 +368,16 @@ pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Re
     };
     log::info!("💾 保存数据目录到 path.json");
     json_config::write_path_config(&app_handle, &path_config)?;
-    
+
     // 初始化数据库（创建所有表）
     use crate::db::init_db;
     init_db().map_err(|e| format!("初始化数据库失败: {}", e))?;
-    
+
     // 在新的数据目录创建默认的 app.json
     log::info!("📝 在新数据目录创建 .snippets-code/app.json");
     let default_app_config = json_config::AppConfig::default();
     json_config::write_app_config(&app_handle, &default_app_config)?;
-    
+
     log::info!("✅ 数据目录设置完成: {}", final_path);
     // 返回实际使用的路径
     Ok(final_path)
@@ -379,7 +387,7 @@ pub fn set_data_dir_from_setup(app_handle: tauri::AppHandle, path: String) -> Re
 
 fn generate_backup_suffix(format: &str) -> String {
     use chrono::Local;
-    
+
     let now = Local::now();
     match format {
         "A" => now.format("%Y%m%d").to_string(),

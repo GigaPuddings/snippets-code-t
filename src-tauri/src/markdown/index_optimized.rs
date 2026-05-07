@@ -1,11 +1,12 @@
 // 优化的搜索索引实现
 // 集成中文分词、并行搜索和相关性评分
 
-use crate::markdown::CacheManager;
 use crate::markdown::metadata::try_parse_front_matter;
+use crate::markdown::CacheManager;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use jieba_rs::Jieba;
+use log::warn;
 use pinyin::ToPinyin;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use walkdir::WalkDir;
-use log::warn;
 
 // 搜索索引项
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,11 +74,12 @@ impl OptimizedIndexManager {
         let mut tokens = Vec::new();
 
         // 中文分词
-        let chinese_tokens: Vec<String> = self.jieba
+        let chinese_tokens: Vec<String> = self
+            .jieba
             .cut(text, false)
             .into_iter()
             .map(|s| s.to_lowercase())
-            .filter(|s| s.len() > 1)  // 过滤单字
+            .filter(|s| s.len() > 1) // 过滤单字
             .collect();
         tokens.extend(chinese_tokens.clone());
 
@@ -147,7 +148,6 @@ impl OptimizedIndexManager {
         workspace_root: &Path,
         _cache_manager: &CacheManager,
     ) -> Result<Self, String> {
-        
         let manager = Self::new();
 
         // 扫描所有 Markdown 文件
@@ -181,7 +181,14 @@ impl OptimizedIndexManager {
             let (title, tags, file_type, language, favorite, body) = {
                 let (fm_opt, body) = try_parse_front_matter(&raw_content);
                 if let Some(fm) = fm_opt {
-                    (fm.title, fm.tags, fm.fragment_type, fm.language, fm.favorite, body)
+                    (
+                        fm.title,
+                        fm.tags,
+                        fm.fragment_type,
+                        fm.language,
+                        fm.favorite,
+                        body,
+                    )
                 } else {
                     // 无 Frontmatter：使用文件名作为标题，其余默认值
                     let file_stem = path
@@ -189,7 +196,14 @@ impl OptimizedIndexManager {
                         .and_then(|s| s.to_str())
                         .unwrap_or("Untitled")
                         .to_string();
-                    (file_stem, vec![], "note".to_string(), None, false, raw_content.clone())
+                    (
+                        file_stem,
+                        vec![],
+                        "note".to_string(),
+                        None,
+                        false,
+                        raw_content.clone(),
+                    )
                 }
             };
 
@@ -215,19 +229,19 @@ impl OptimizedIndexManager {
             };
 
             let entry_index = entries.len();
-            
+
             // 构建倒排索引
             let text_to_index = format!("{} {} {}", title, body, index_entry.tags.join(" "));
             let tokens = manager.tokenize(&text_to_index);
-            
+
             for token in tokens {
                 let entry_list = inverted_index.entry(token.clone()).or_insert_with(Vec::new);
-                
+
                 // 计算词频
                 let count = text_to_index.matches(&token).count();
                 entry_list.push((entry_index, count));
             }
-            
+
             entries.push(index_entry.clone());
 
             // 更新标签索引
@@ -264,7 +278,7 @@ impl OptimizedIndexManager {
     // 计算相关性评分
     fn calculate_relevance_score(&self, entry: &IndexEntry, query_tokens: &[String]) -> f32 {
         let mut score = 0.0;
-        
+
         // 标题匹配（权重 5.0）
         let title_lower = entry.title.to_lowercase();
         for token in query_tokens {
@@ -281,7 +295,7 @@ impl OptimizedIndexManager {
                 score += 4.0;
             }
         }
-        
+
         // 内容匹配（权重 1.0，使用 TF）
         let content_lower = entry.full_content.to_lowercase();
         for token in query_tokens {
@@ -293,7 +307,7 @@ impl OptimizedIndexManager {
                 score += 0.5;
             }
         }
-        
+
         // 标签匹配（权重 3.0）
         for tag in &entry.tags {
             let tag_lower = tag.to_lowercase();
@@ -312,12 +326,12 @@ impl OptimizedIndexManager {
                 }
             }
         }
-        
+
         // 收藏加权（1.5倍）
         if entry.favorite {
             score *= 1.5;
         }
-        
+
         score
     }
 
@@ -334,7 +348,7 @@ impl OptimizedIndexManager {
 
         // 分词查询
         let query_tokens = self.tokenize(query);
-        
+
         if query_tokens.is_empty() && query.chars().any(|c| c.is_alphanumeric()) {
             // 如果分词为空但查询有内容，直接用原查询
             query_tokens.iter().for_each(|_| {});
@@ -360,7 +374,7 @@ impl OptimizedIndexManager {
         // 如果精确匹配结果不足 10 条，补充模糊匹配
         if all_results.len() < 10 && !query.is_empty() {
             let query_lower = query.to_lowercase();
-            
+
             let fuzzy_results: Vec<(usize, f32)> = entries
                 .par_iter()
                 .enumerate()
@@ -371,13 +385,15 @@ impl OptimizedIndexManager {
                     }
 
                     // 模糊匹配标题
-                    let title_score = self.fuzzy_matcher
+                    let title_score = self
+                        .fuzzy_matcher
                         .fuzzy_match(&entry.title.to_lowercase(), &query_lower)
                         .map(|s| s as f32 * 5.0) // 标题权重高
                         .unwrap_or(0.0);
 
                     // 模糊匹配标签
-                    let tag_score: f32 = entry.tags
+                    let tag_score: f32 = entry
+                        .tags
                         .iter()
                         .map(|tag| {
                             self.fuzzy_matcher
@@ -483,21 +499,35 @@ impl OptimizedIndexManager {
         _cache_manager: &CacheManager,
     ) -> Result<(), String> {
         // 读取文件内容
-        let raw_content = fs::read_to_string(file_path)
-            .map_err(|e| format!("读取文件失败: {}", e))?;
+        let raw_content =
+            fs::read_to_string(file_path).map_err(|e| format!("读取文件失败: {}", e))?;
 
         // 从 Frontmatter 读取所有内容元数据（唯一数据源）
         let (title, tags, file_type, language, favorite, body) = {
             let (fm_opt, body) = try_parse_front_matter(&raw_content);
             if let Some(fm) = fm_opt {
-                (fm.title, fm.tags, fm.fragment_type, fm.language, fm.favorite, body)
+                (
+                    fm.title,
+                    fm.tags,
+                    fm.fragment_type,
+                    fm.language,
+                    fm.favorite,
+                    body,
+                )
             } else {
                 let file_stem = file_path
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("Untitled")
                     .to_string();
-                (file_stem, vec![], "note".to_string(), None, false, raw_content.clone())
+                (
+                    file_stem,
+                    vec![],
+                    "note".to_string(),
+                    None,
+                    false,
+                    raw_content.clone(),
+                )
             }
         };
 
@@ -557,7 +587,7 @@ impl OptimizedIndexManager {
             // 重建倒排索引
             let text_to_index = format!("{} {} {}", title, body, new_entry.tags.join(" "));
             let tokens = self.tokenize(&text_to_index);
-            
+
             for token in tokens {
                 let entry_list = inverted_index.entry(token.clone()).or_insert_with(Vec::new);
                 let count = text_to_index.matches(&token).count();
@@ -584,7 +614,7 @@ impl OptimizedIndexManager {
             // 构建倒排索引
             let text_to_index = format!("{} {} {}", title, body, new_entry.tags.join(" "));
             let tokens = self.tokenize(&text_to_index);
-            
+
             for token in tokens {
                 let entry_list = inverted_index.entry(token.clone()).or_insert_with(Vec::new);
                 let count = text_to_index.matches(&token).count();

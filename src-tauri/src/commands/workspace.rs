@@ -1,26 +1,27 @@
 // 工作区相关的 Tauri 命令
 
-use std::path::PathBuf;
 use crate::json_config::{get_workspace_root, set_workspace_root, validate_workspace};
+use std::path::PathBuf;
 
 // 打开文件夹选择对话框
 #[tauri::command]
 pub async fn select_workspace(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
-    
+
     // 打开文件夹选择对话框
-    let folder = app_handle.dialog()
+    let folder = app_handle
+        .dialog()
         .file()
         .set_title("选择 Markdown 工作区文件夹")
         .blocking_pick_folder();
-    
+
     if let Some(file_path) = folder {
         // 将 FilePath 转换为 PathBuf
         let path = PathBuf::from(file_path.as_path().unwrap());
-        
+
         // 验证选择的目录
         validate_workspace(&path)?;
-        
+
         // 返回路径字符串
         Ok(Some(path.to_string_lossy().to_string()))
     } else {
@@ -58,13 +59,13 @@ pub fn change_workspace(
     migrate_files: bool,
 ) -> Result<String, String> {
     let new_path_buf = PathBuf::from(&new_path);
-    
+
     // 验证新目录
     validate_workspace(&new_path_buf)?;
-    
+
     // 获取旧的工作区路径
     let old_path = get_workspace_root(&app_handle)?;
-    
+
     if migrate_files && old_path.is_some() {
         // 返回需要迁移的信息，让前端处理
         Ok(format!(

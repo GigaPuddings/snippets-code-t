@@ -1,13 +1,15 @@
+use log::{debug, error, info, warn};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc::{channel, Receiver};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
-use log::{debug, error, info, warn};
 
-use crate::attachment::{cleanup_attachments_for_deleted_files, sync_attachments_for_renamed_files};
+use crate::attachment::{
+    cleanup_attachments_for_deleted_files, sync_attachments_for_renamed_files,
+};
 
 // ── 发往前端的事件负载 ────────────────────────────────────────────────────────
 
@@ -70,7 +72,9 @@ impl FileWatcher {
         let (tx, rx) = channel::<Event>();
 
         let event_handler = move |res: Result<Event, notify::Error>| match res {
-            Ok(event) => { let _ = tx.send(event); }
+            Ok(event) => {
+                let _ = tx.send(event);
+            }
             Err(e) => error!("文件监听错误: {:?}", e),
         };
 
@@ -81,11 +85,17 @@ impl FileWatcher {
             .watch(&workspace_root, RecursiveMode::Recursive)
             .map_err(|e| format!("启动文件监听失败: {}", e))?;
 
-        info!("✅ [FileWatcher] 文件监听器已启动，监听目录: {}", workspace_root.display());
+        info!(
+            "✅ [FileWatcher] 文件监听器已启动，监听目录: {}",
+            workspace_root.display()
+        );
 
         Self::start_debounce_processor(rx, root_clone, ignore_clone, app_handle);
 
-        Ok(Self { _watcher: watcher, ignore_list })
+        Ok(Self {
+            _watcher: watcher,
+            ignore_list,
+        })
     }
 
     pub fn ignore_next_change(&self, path: PathBuf) {
@@ -113,17 +123,28 @@ impl FileWatcher {
             loop {
                 match rx.recv_timeout(Duration::from_millis(100)) {
                     Ok(event) => {
-                        if Self::should_ignore(&event, &workspace_root) { continue; }
+                        if Self::should_ignore(&event, &workspace_root) {
+                            continue;
+                        }
                         last_event_time = Instant::now();
                         let event_file_count = event.paths.len();
                         total_events_received += event_file_count;
-                        Self::merge_event(event, &mut pending, &mut remove_candidates, last_event_time);
+                        Self::merge_event(
+                            event,
+                            &mut pending,
+                            &mut remove_candidates,
+                            last_event_time,
+                        );
                     }
                     Err(_) => {
-                        if pending.is_empty() && remove_candidates.is_empty() { continue; }
+                        if pending.is_empty() && remove_candidates.is_empty() {
+                            continue;
+                        }
 
                         let now = Instant::now();
-                        if now.duration_since(last_event_time) < debounce { continue; }
+                        if now.duration_since(last_event_time) < debounce {
+                            continue;
+                        }
 
                         // 孤立的 Remove 候选 → 升级为真正的删除事件
                         let stale: Vec<PathBuf> = remove_candidates
@@ -133,14 +154,16 @@ impl FileWatcher {
                             .collect();
                         for p in stale {
                             let c = remove_candidates.remove(&p).unwrap();
-                            let kind = if c.was_dir { PendingKind::DirRemove } else { PendingKind::Remove };
+                            let kind = if c.was_dir {
+                                PendingKind::DirRemove
+                            } else {
+                                PendingKind::Remove
+                            };
                             pending.entry(p).or_insert((kind, now));
                         }
 
-                        let batch: Vec<(PathBuf, PendingKind)> = pending
-                            .drain()
-                            .map(|(p, (k, _))| (p, k))
-                            .collect();
+                        let batch: Vec<(PathBuf, PendingKind)> =
+                            pending.drain().map(|(p, (k, _))| (p, k)).collect();
 
                         if !batch.is_empty() {
                             total_batches_sent += 1;
@@ -213,7 +236,9 @@ impl FileWatcher {
                     continue;
                 }
                 EventKind::Modify(_) => {
-                    if is_dir { continue; }
+                    if is_dir {
+                        continue;
+                    }
                     PendingKind::Modify
                 }
                 _ => continue,
@@ -223,17 +248,21 @@ impl FileWatcher {
             let entry = pending.entry(path).or_insert((new_kind.clone(), now));
             match (&entry.0, &new_kind) {
                 // Remove 后跟 Create/Modify → git pull 替换场景，视为 Modify
-                (PendingKind::Remove, PendingKind::Create) |
-                (PendingKind::Remove, PendingKind::Modify) => {
+                (PendingKind::Remove, PendingKind::Create)
+                | (PendingKind::Remove, PendingKind::Modify) => {
                     *entry = (PendingKind::Modify, now);
                 }
                 // 已是 Remove → 保持
                 (PendingKind::Remove, _) => {}
                 // 新事件是 Remove → 覆盖
-                (_, PendingKind::Remove) => { *entry = (PendingKind::Remove, now); }
+                (_, PendingKind::Remove) => {
+                    *entry = (PendingKind::Remove, now);
+                }
                 // Create 后跟 Modify → 保持 Create
                 (PendingKind::Create, PendingKind::Modify) => {}
-                _ => { *entry = (new_kind, now); }
+                _ => {
+                    *entry = (new_kind, now);
+                }
             }
         }
     }
@@ -246,9 +275,9 @@ impl FileWatcher {
         ignore_list: &Arc<Mutex<HashSet<PathBuf>>>,
         app_handle: &AppHandle,
     ) {
-        let mut md_created:  Vec<(PathBuf, String)> = Vec::new();
+        let mut md_created: Vec<(PathBuf, String)> = Vec::new();
         let mut md_modified: Vec<(PathBuf, String)> = Vec::new();
-        let mut md_deleted:  Vec<(PathBuf, String)> = Vec::new();
+        let mut md_deleted: Vec<(PathBuf, String)> = Vec::new();
         let mut dir_created: Vec<String> = Vec::new();
         let mut dir_deleted: Vec<String> = Vec::new();
 
@@ -268,11 +297,16 @@ impl FileWatcher {
                 }
                 _ => {
                     // 只处理 .md 文件
-                    if path.extension().and_then(|s| s.to_str()) != Some("md") { continue; }
-                    if !path.starts_with(workspace_root) { continue; }
+                    if path.extension().and_then(|s| s.to_str()) != Some("md") {
+                        continue;
+                    }
+                    if !path.starts_with(workspace_root) {
+                        continue;
+                    }
 
                     // 应用内部修改 → 忽略
-                    let should_process = ignore_list.lock()
+                    let should_process = ignore_list
+                        .lock()
                         .map(|mut l| !l.remove(path))
                         .unwrap_or(true);
                     if !should_process {
@@ -317,10 +351,15 @@ impl FileWatcher {
 
         for (di, (dp, dr)) in md_deleted.iter().enumerate() {
             for (ci, (_, cr)) in md_created.iter().enumerate() {
-                if cre_used.contains(&ci) { continue; }
+                if cre_used.contains(&ci) {
+                    continue;
+                }
                 // 同目录视为 rename 候选，由前端根据 frontmatter id 进一步确认
                 if dp.parent() == md_created[ci].0.parent() {
-                    renames.push(RenameEntry { from: dr.clone(), to: cr.clone() });
+                    renames.push(RenameEntry {
+                        from: dr.clone(),
+                        to: cr.clone(),
+                    });
                     del_used.insert(di);
                     cre_used.insert(ci);
                     break;
@@ -328,11 +367,15 @@ impl FileWatcher {
             }
         }
 
-        let final_md_created: Vec<String> = md_created.iter().enumerate()
+        let final_md_created: Vec<String> = md_created
+            .iter()
+            .enumerate()
             .filter(|(i, _)| !cre_used.contains(i))
             .map(|(_, (_, r))| r.clone())
             .collect();
-        let final_md_deleted: Vec<String> = md_deleted.iter().enumerate()
+        let final_md_deleted: Vec<String> = md_deleted
+            .iter()
+            .enumerate()
             .filter(|(i, _)| !del_used.contains(i))
             .map(|(_, (_, r))| r.clone())
             .collect();
@@ -344,11 +387,20 @@ impl FileWatcher {
 
         for (di, del) in dir_deleted.iter().enumerate() {
             for (ci, cre) in dir_created.iter().enumerate() {
-                if dc_used.contains(&ci) { continue; }
-                let dp = Path::new(del).parent().map(|p| p.to_string_lossy().to_string());
-                let cp = Path::new(cre).parent().map(|p| p.to_string_lossy().to_string());
+                if dc_used.contains(&ci) {
+                    continue;
+                }
+                let dp = Path::new(del)
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string());
+                let cp = Path::new(cre)
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string());
                 if dp == cp {
-                    dir_renames.push(RenameEntry { from: del.clone(), to: cre.clone() });
+                    dir_renames.push(RenameEntry {
+                        from: del.clone(),
+                        to: cre.clone(),
+                    });
                     dd_used.insert(di);
                     dc_used.insert(ci);
                     break;
@@ -356,11 +408,15 @@ impl FileWatcher {
             }
         }
 
-        let final_dir_deleted: Vec<String> = dir_deleted.iter().enumerate()
+        let final_dir_deleted: Vec<String> = dir_deleted
+            .iter()
+            .enumerate()
             .filter(|(i, _)| !dd_used.contains(i))
             .map(|(_, s)| s.clone())
             .collect();
-        let final_dir_created: Vec<String> = dir_created.iter().enumerate()
+        let final_dir_created: Vec<String> = dir_created
+            .iter()
+            .enumerate()
             .filter(|(i, _)| !dc_used.contains(i))
             .map(|(_, s)| s.clone())
             .collect();
@@ -370,14 +426,20 @@ impl FileWatcher {
             if let Ok(mut cache) = cs.write() {
                 let mut dirty = false;
 
-                for (path, rel) in md_created.iter().filter(|(_, r)| final_md_created.contains(r)) {
+                for (path, rel) in md_created
+                    .iter()
+                    .filter(|(_, r)| final_md_created.contains(r))
+                {
                     dirty |= cache.add_file(path, workspace_root).is_ok();
                     let _ = rel;
                 }
                 for (path, _) in &md_modified {
                     dirty |= cache.update_file(path, workspace_root).is_ok();
                 }
-                for (path, rel) in md_deleted.iter().filter(|(_, r)| final_md_deleted.contains(r)) {
+                for (path, rel) in md_deleted
+                    .iter()
+                    .filter(|(_, r)| final_md_deleted.contains(r))
+                {
                     dirty |= cache.remove_file(path, workspace_root).is_ok();
                     let _ = rel;
                 }
@@ -392,7 +454,10 @@ impl FileWatcher {
                     if removed > 0 {
                         dirty = true;
                     }
-                    info!("🗑️ [FileWatcher] 目录删除，清理 cache 文件元数据 {} 条: {}", removed, dir_rel);
+                    info!(
+                        "🗑️ [FileWatcher] 目录删除，清理 cache 文件元数据 {} 条: {}",
+                        removed, dir_rel
+                    );
                 }
 
                 if dirty {
@@ -404,7 +469,6 @@ impl FileWatcher {
                 }
             }
         }
-
 
         // ── 发送事件到 config 窗口 ────────────────────────────────────────────
         // Git 同步、文件列表、编辑器均在 config 窗口，无需广播到其他窗口。
@@ -420,12 +484,16 @@ impl FileWatcher {
             // ── 同步附件 ───────────────────────────────────────────────────────
             // 文件删除时清理附件
             if !final_md_deleted.is_empty() {
-                let deleted_abs_paths: Vec<String> = final_md_deleted.iter()
+                let deleted_abs_paths: Vec<String> = final_md_deleted
+                    .iter()
                     .map(|r| workspace_root.join(r).to_string_lossy().to_string())
                     .collect();
                 let app_handle_clone = app_handle.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = cleanup_attachments_for_deleted_files(&app_handle_clone, &deleted_abs_paths).await {
+                    if let Err(e) =
+                        cleanup_attachments_for_deleted_files(&app_handle_clone, &deleted_abs_paths)
+                            .await
+                    {
                         warn!("清理删除文件的附件失败: {}", e);
                     }
                 });
@@ -433,15 +501,20 @@ impl FileWatcher {
 
             // 文件重命名时同步附件
             if !renames.is_empty() {
-                let renamed_abs: Vec<(String, String)> = renames.iter()
-                    .map(|r| (
-                        workspace_root.join(&r.from).to_string_lossy().to_string(),
-                        workspace_root.join(&r.to).to_string_lossy().to_string(),
-                    ))
+                let renamed_abs: Vec<(String, String)> = renames
+                    .iter()
+                    .map(|r| {
+                        (
+                            workspace_root.join(&r.from).to_string_lossy().to_string(),
+                            workspace_root.join(&r.to).to_string_lossy().to_string(),
+                        )
+                    })
                     .collect();
                 let app_handle_clone = app_handle.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = sync_attachments_for_renamed_files(&app_handle_clone, &renamed_abs).await {
+                    if let Err(e) =
+                        sync_attachments_for_renamed_files(&app_handle_clone, &renamed_abs).await
+                    {
                         warn!("同步重命名文件的附件失败: {}", e);
                     }
                 });

@@ -1,6 +1,5 @@
 use crate::db::DbConnectionManager;
 
-
 #[derive(Debug, Clone)]
 pub struct DesktopFileCacheRecord {
     pub id: String,
@@ -37,7 +36,9 @@ pub fn load_all_desktop_file_cache() -> Result<Vec<DesktopFileCacheRecord>, rusq
     rows.collect()
 }
 
-pub fn upsert_desktop_file_cache(records: &[DesktopFileCacheRecord]) -> Result<(), rusqlite::Error> {
+pub fn upsert_desktop_file_cache(
+    records: &[DesktopFileCacheRecord],
+) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     let mut stmt = conn.prepare(
         "INSERT OR REPLACE INTO desktop_file_cache (id, title, content, icon, source_mtime, size, created, modified, last_indexed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { processTemplate } from '@/utils/templateParser';
 import { logger } from '@/utils/logger';
 import { getRawSearchResultId } from './useSearchResultDisplay';
+import { getSearchResultLaunchPath } from './useSearchResultPaths';
 
 interface UseSearchResultActionsOptions {
   onClearSearch: () => void;
@@ -25,7 +26,7 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
   }
 
   async function openAppItem(item: ContentType) {
-    await runAfterClosingSearchWindow(() => invoke('open_app_command', { appPath: item.content }));
+    await runAfterClosingSearchWindow(() => invoke('open_app_command', { appPath: getSearchResultLaunchPath(item) }));
   }
 
   async function openExternalItem(item: ContentType) {

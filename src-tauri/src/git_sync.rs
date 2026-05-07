@@ -1,19 +1,19 @@
 // Git 同步模块
 // 使用系统 Git 命令实现同步功能
 
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, LazyLock};
-use std::sync::RwLock as StdRwLock;
-use log::{info, warn, error, debug};
-use tauri::{Manager, Emitter};
 use crate::git_common::decode_git_quoted_path;
+use crate::git_common::get_git_stderr;
+use crate::git_common::get_git_stdout;
+use crate::git_common::is_git_success;
+use crate::git_common::parse_git_file_count_output;
 use crate::git_common::remove_token_from_url;
 use crate::git_common::run_git_command;
-use crate::git_common::is_git_success;
-use crate::git_common::get_git_stdout;
-use crate::git_common::get_git_stderr;
-use crate::git_common::parse_git_file_count_output;
+use log::{debug, error, info, warn};
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use std::sync::RwLock as StdRwLock;
+use std::sync::{Arc, LazyLock, Mutex};
+use tauri::{Emitter, Manager};
 
 // ============= Git 状态缓存 =============
 
@@ -140,9 +140,9 @@ fn format_git_status_line_for_display(line: &str) -> String {
 /// 冲突解决策略
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ConflictStrategy {
-    KeepLocal,      // 保留本地版本
-    KeepRemote,     // 保留远程版本
-    DiscardLocalUntracked,  // 删除本地未跟踪文件（用于 untracked files 场景）
+    KeepLocal,             // 保留本地版本
+    KeepRemote,            // 保留远程版本
+    DiscardLocalUntracked, // 删除本地未跟踪文件（用于 untracked files 场景）
 }
 
 /// Git 冲突载荷 - 用于前端事件通知
@@ -191,11 +191,11 @@ pub fn check_remote_configured(workspace_root: &Path) -> Result<bool, String> {
         .current_dir(workspace_root)
         .output()
         .map_err(|e| format!("执行 git remote 失败: {}", e))?;
-    
+
     if !output.status.success() {
         return Ok(false);
     }
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     Ok(!stdout.trim().is_empty())
 }
@@ -215,7 +215,7 @@ pub struct SystemGitConfig {
 /// 获取 Git 配置值
 fn get_git_config_value(workspace_root: Option<&Path>, key: &str, global: bool) -> Option<String> {
     let mut cmd = crate::git_common::git_command();
-    
+
     if global {
         cmd.args(&["config", "--global", key]);
     } else {
@@ -224,7 +224,7 @@ fn get_git_config_value(workspace_root: Option<&Path>, key: &str, global: bool) 
             cmd.current_dir(root);
         }
     }
-    
+
     match cmd.output() {
         Ok(output) if output.status.success() => {
             let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -241,35 +241,35 @@ fn get_git_config_value(workspace_root: Option<&Path>, key: &str, global: bool) 
 /// 从 .git/config 文件直接读取配置（更准确）
 fn read_git_config_from_file(workspace_root: &Path) -> Option<SystemGitConfig> {
     let git_config_path = workspace_root.join(".git").join("config");
-    
+
     if !git_config_path.exists() {
         return None;
     }
-    
+
     match std::fs::read_to_string(&git_config_path) {
         Ok(content) => {
             let mut local_user_name = None;
             let mut local_user_email = None;
             let mut remote_url = None;
-            
+
             let mut in_user_section = false;
             let mut in_remote_section = false;
-            
+
             for line in content.lines() {
                 let line = line.trim();
-                
+
                 // 检测 section
                 if line.starts_with('[') && line.ends_with(']') {
                     in_user_section = line == "[user]";
                     in_remote_section = line.starts_with("[remote \"origin\"]");
                     continue;
                 }
-                
+
                 // 解析配置项
                 if let Some(eq_pos) = line.find('=') {
                     let key = line[..eq_pos].trim();
                     let value = line[eq_pos + 1..].trim().to_string();
-                    
+
                     if in_user_section {
                         match key {
                             "name" => local_user_name = Some(value),
@@ -283,7 +283,7 @@ fn read_git_config_from_file(workspace_root: &Path) -> Option<SystemGitConfig> {
                     }
                 }
             }
-            
+
             Some(SystemGitConfig {
                 global_user_name: None,
                 global_user_email: None,
@@ -307,29 +307,29 @@ pub fn get_system_git_config(workspace_root: Option<&Path>) -> Result<SystemGitC
             // 补充全局配置
             config.global_user_name = get_git_config_value(None, "user.name", true);
             config.global_user_email = get_git_config_value(None, "user.email", true);
-            
+
             info!("✅ [Git] 从 .git/config 读取配置成功");
             return Ok(config);
         }
     }
-    
+
     // 如果没有 .git/config，使用 git config 命令
     let global_user_name = get_git_config_value(None, "user.name", true);
     let global_user_email = get_git_config_value(None, "user.email", true);
-    
+
     let (local_user_name, local_user_email, remote_url) = if let Some(root) = workspace_root {
         let local_name = get_git_config_value(Some(root), "user.name", false);
         let local_email = get_git_config_value(Some(root), "user.email", false);
-        
+
         // 获取远程仓库 URL（不带 token）
         let remote = get_git_config_value(Some(root), "remote.origin.url", false)
             .map(|url| remove_token_from_url(&url));
-        
+
         (local_name, local_email, remote)
     } else {
         (None, None, None)
     };
-    
+
     Ok(SystemGitConfig {
         global_user_name,
         global_user_email,
@@ -358,31 +358,35 @@ pub fn get_workspace_git_config(workspace_root: Option<&Path>) -> Result<SystemG
 }
 
 /// 配置 Git 用户信息
-pub fn configure_git_user(workspace_root: &Path, user_name: &str, user_email: &str) -> Result<(), String> {
+pub fn configure_git_user(
+    workspace_root: &Path,
+    user_name: &str,
+    user_email: &str,
+) -> Result<(), String> {
     // 配置用户名
     let output = crate::git_common::git_command()
         .args(&["config", "user.name", user_name])
         .current_dir(workspace_root)
         .output()
         .map_err(|e| format!("配置 Git 用户名失败: {}", e))?;
-    
+
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         return Err(format!("配置 Git 用户名失败: {}", error));
     }
-    
+
     // 配置邮箱
     let output = crate::git_common::git_command()
         .args(&["config", "user.email", user_email])
         .current_dir(workspace_root)
         .output()
         .map_err(|e| format!("配置 Git 邮箱失败: {}", e))?;
-    
+
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         return Err(format!("配置 Git 邮箱失败: {}", error));
     }
-    
+
     info!("✅ [Git] 用户配置成功: {} <{}>", user_name, user_email);
     Ok(())
 }
@@ -411,7 +415,10 @@ pub fn validate_token_url(workspace_root: &Path, authenticated_url: &str) -> Res
             error!("❌ [Git] Token 校验失败: {}", stderr);
             return Err("GitHub Token 无效或已过期，请检查并更新 Token 后重试".to_string());
         }
-        warn!("⚠️ [Git] ls-remote 失败（可能为网络或仓库不存在）: {}", stderr);
+        warn!(
+            "⚠️ [Git] ls-remote 失败（可能为网络或仓库不存在）: {}",
+            stderr
+        );
     } else {
         info!("✅ [Git] Token 校验通过");
     }
@@ -419,7 +426,11 @@ pub fn validate_token_url(workspace_root: &Path, authenticated_url: &str) -> Res
 }
 
 /// 配置远程仓库（使用 token 认证）
-pub fn configure_remote(workspace_root: &Path, remote_url: &str, token: &str) -> Result<(), String> {
+pub fn configure_remote(
+    workspace_root: &Path,
+    remote_url: &str,
+    token: &str,
+) -> Result<(), String> {
     // 构建带 token 的 URL（仅对 HTTPS URL）
     let authenticated_url = if remote_url.starts_with("git@") {
         // SSH 格式，不需要 token
@@ -474,7 +485,11 @@ pub fn configure_remote(workspace_root: &Path, remote_url: &str, token: &str) ->
     if !branch.is_empty() && branch != "master" {
         // 设置上游分支
         let upstream_output = crate::git_common::git_command()
-            .args(&["branch", &format!("--set-upstream-to=origin/{}", branch), &branch])
+            .args(&[
+                "branch",
+                &format!("--set-upstream-to=origin/{}", branch),
+                &branch,
+            ])
             .current_dir(workspace_root)
             .output();
 
@@ -518,30 +533,32 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
             branch: String::new(),
         });
     }
-    
+
     // 检查远程仓库
     let has_remote = check_remote_configured(workspace_root)?;
-    
+
     // 获取当前分支
     let branch_output = crate::git_common::git_command()
         .args(&["branch", "--show-current"])
         .current_dir(workspace_root)
         .output()
         .map_err(|e| format!("获取分支失败: {}", e))?;
-    
+
     let branch = if branch_output.status.success() {
-        String::from_utf8_lossy(&branch_output.stdout).trim().to_string()
+        String::from_utf8_lossy(&branch_output.stdout)
+            .trim()
+            .to_string()
     } else {
         "main".to_string()
     };
-    
+
     // 获取变更文件
     let status_output = crate::git_common::git_command()
         .args(&["status", "--porcelain"])
         .current_dir(workspace_root)
         .output()
         .map_err(|e| format!("获取状态失败: {}", e))?;
-    
+
     let changed_files: Vec<String> = if status_output.status.success() {
         String::from_utf8_lossy(&status_output.stdout)
             .lines()
@@ -551,9 +568,9 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
     } else {
         vec![]
     };
-    
+
     let has_changes = !changed_files.is_empty();
-    
+
     let status = GitStatus {
         is_repo,
         has_remote,
@@ -621,7 +638,10 @@ fn get_changed_files_with_status(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        warn!("⚠️ [Git] 无法获取变更文件列表 (base_ref={}): {}", base_ref, stderr);
+        warn!(
+            "⚠️ [Git] 无法获取变更文件列表 (base_ref={}): {}",
+            base_ref, stderr
+        );
         return Ok(ChangedFilesByStatus::default());
     }
 
@@ -687,7 +707,7 @@ fn get_changed_files_after_pull(
 /// 执行 git pull
 pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
     info!("🔄 [Git] 开始 pull 操作");
-    
+
     // 记录 pull 前的 HEAD commit hash
     let pre_pull_head = crate::git_common::git_command()
         .args(&["rev-parse", "HEAD"])
@@ -696,23 +716,23 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
-    
+
     // 首先检查是否有未解决的冲突
     let conflict_files = detect_conflicts(workspace_root)?;
     if !conflict_files.is_empty() {
         warn!("⚠️ [Git] 检测到未解决的冲突文件: {:?}", conflict_files);
-            return Ok(PullResult {
-                success: false,
-                files_updated: 0,
-                has_conflicts: true,
-                conflict_files,
-                message: "存在未解决的冲突，请先解决冲突".to_string(),
-                pre_pull_head: None,
-                untracked_files: vec![],
-                last_sync_time: None,
-            });
+        return Ok(PullResult {
+            success: false,
+            files_updated: 0,
+            has_conflicts: true,
+            conflict_files,
+            message: "存在未解决的冲突，请先解决冲突".to_string(),
+            pre_pull_head: None,
+            untracked_files: vec![],
+            last_sync_time: None,
+        });
     }
-    
+
     // 获取当前分支名
     let branch = get_current_branch(workspace_root)?;
 
@@ -722,14 +742,15 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
 
     let stdout = get_git_stdout(&output);
     let stderr = get_git_stderr(&output);
-    
+
     if !output.status.success() {
         // 检查是否是本地有未提交的更改会被覆盖
-        if stderr.contains("Your local changes to the following files would be overwritten") 
-            || stderr.contains("Please commit your changes or stash them before you merge") {
+        if stderr.contains("Your local changes to the following files would be overwritten")
+            || stderr.contains("Please commit your changes or stash them before you merge")
+        {
             // 从错误信息中提取文件名
             let conflict_files = extract_files_from_error(&stderr);
-            
+
             if !conflict_files.is_empty() {
                 warn!("⚠️ [Git] 本地有未提交的更改会被覆盖: {:?}", conflict_files);
                 return Ok(PullResult {
@@ -748,7 +769,8 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
         // 检查是否是未跟踪文件会被覆盖
         // 如：The following untracked working tree files would be overwritten by merge
         if stderr.contains("untracked working tree files would be overwritten")
-            || stderr.contains("The following untracked working tree files") {
+            || stderr.contains("The following untracked working tree files")
+        {
             let untracked_files = extract_untracked_files_from_error(&stderr);
 
             if !untracked_files.is_empty() {
@@ -781,7 +803,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                 last_sync_time: None,
             });
         }
-        
+
         // 检查是否是未解决的冲突（unmerged files）
         if stderr.contains("unmerged files") || stderr.contains("unresolved conflict") {
             let conflict_files = detect_conflicts(workspace_root)?;
@@ -797,7 +819,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                 last_sync_time: None,
             });
         }
-        
+
         // 检查是否是远程分支不存在（常见：本地 master，远程只有 main）
         if stderr.contains("couldn't find remote ref") || stderr.contains("does not exist") {
             if let Ok(remote_branch) = get_remote_default_branch(workspace_root) {
@@ -812,8 +834,12 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                     if let Ok(re) = reset_out {
                         if re.status.success() {
                             let _ = run_git_command(workspace_root, &["stash", "pop"]);
-                            info!("✅ [Git] 已重置到远程分支 origin/{} 并拉取最新数据", remote_branch);
-                            let last_sync_time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                            info!(
+                                "✅ [Git] 已重置到远程分支 origin/{} 并拉取最新数据",
+                                remote_branch
+                            );
+                            let last_sync_time =
+                                chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
                             return Ok(PullResult {
                                 success: true,
                                 files_updated: 1,
@@ -846,7 +872,8 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
         if stderr_lower.contains("repository not found")
             || stderr_lower.contains("remote repository not found")
             || stderr_lower.contains("could not read remote")
-            || (stderr_lower.contains("not found") && stderr_lower.contains("remote")) {
+            || (stderr_lower.contains("not found") && stderr_lower.contains("remote"))
+        {
             info!("⚠️ [Git] 远程仓库不存在");
             return Ok(PullResult {
                 success: false,
@@ -863,10 +890,10 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
         error!("❌ [Git] Pull 失败: {}", stderr);
         return Err(format!("git pull 失败: {}", stderr));
     }
-    
+
     // 解析更新的文件数量
     let files_updated = parse_pull_output(&stdout);
-    
+
     // 只有当有文件更新时才打印日志
     if files_updated > 0 {
         info!("✅ [Git] Pull 成功，更新了 {} 个文件", files_updated);
@@ -894,20 +921,20 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
 /// 执行 git push
 pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult, String> {
     info!("🔄 [Git] 开始 push 操作");
-    
+
     // 1. git add .
     let add_output = crate::git_common::git_command()
         .args(&["add", "."])
         .current_dir(workspace_root)
         .output()
         .map_err(|e| format!("git add 失败: {}", e))?;
-    
+
     if !add_output.status.success() {
         let error = String::from_utf8_lossy(&add_output.stderr);
         error!("❌ [Git] Add 失败: {}", error);
         return Err(format!("git add 失败: {}", error));
     }
-    
+
     // 2. 检查是否有变更
     let status = get_git_status(workspace_root)?;
     if !status.has_changes {
@@ -919,14 +946,14 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
             message: "没有变更需要提交".to_string(),
         });
     }
-    
+
     // 3. git commit
     let commit_output = crate::git_common::git_command()
         .args(&["commit", "-m", message])
         .current_dir(workspace_root)
         .output()
         .map_err(|e| format!("git commit 失败: {}", e))?;
-    
+
     if !commit_output.status.success() {
         let error = String::from_utf8_lossy(&commit_output.stderr);
         // 如果是 "nothing to commit" 不算错误
@@ -942,7 +969,7 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
         error!("❌ [Git] Commit 失败: {}", error);
         return Err(format!("git commit 失败: {}", error));
     }
-    
+
     let commit_stdout = get_git_stdout(&commit_output);
     let files_pushed = parse_commit_output(&commit_stdout);
 
@@ -958,7 +985,10 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
     // 如果失败且提示需要设置上游分支，则使用 --set-upstream
     if !is_git_success(&push_output) && push_stderr.contains("--set-upstream") {
         info!("ℹ️ [Git] 首次推送，设置上游分支");
-        let push_upstream_output = run_git_command(workspace_root, &["push", "--set-upstream", "origin", &branch])?;
+        let push_upstream_output = run_git_command(
+            workspace_root,
+            &["push", "--set-upstream", "origin", &branch],
+        )?;
 
         if !is_git_success(&push_upstream_output) {
             let error = get_git_stderr(&push_upstream_output);
@@ -971,7 +1001,8 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
         if push_stderr_lower.contains("repository not found")
             || push_stderr_lower.contains("remote repository not found")
             || push_stderr_lower.contains("could not read remote")
-            || (push_stderr_lower.contains("not found") && push_stderr_lower.contains("remote")) {
+            || (push_stderr_lower.contains("not found") && push_stderr_lower.contains("remote"))
+        {
             info!("⚠️ [Git] 远程仓库不存在");
             return Err("remote_not_found".to_string());
         }
@@ -981,7 +1012,7 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
     }
 
     info!("✅ [Git] Push 成功，推送了 {} 个文件", files_pushed);
-    
+
     Ok(PushResult {
         success: true,
         files_pushed,
@@ -995,34 +1026,41 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
 fn extract_files_from_error(error_msg: &str) -> Vec<String> {
     let mut files = Vec::new();
     let mut in_file_list = false;
-    
+
     for line in error_msg.lines() {
         let trimmed = line.trim();
-        
+
         // 检测文件列表开始
         if trimmed.contains("Your local changes to the following files would be overwritten") {
             in_file_list = true;
             continue;
         }
-        
+
         // 检测文件列表结束
-        if in_file_list && (trimmed.starts_with("Please ") || trimmed.starts_with("Aborting") || trimmed.is_empty()) {
+        if in_file_list
+            && (trimmed.starts_with("Please ")
+                || trimmed.starts_with("Aborting")
+                || trimmed.is_empty())
+        {
             if !trimmed.is_empty() {
                 break;
             }
             continue;
         }
-        
+
         // 提取文件名（通常以 tab 开头）
         if in_file_list && !trimmed.is_empty() {
             // 移除前导的 tab 或空格，并解码可能存在的 Git 转义路径
             let file_path = trimmed.trim_start();
-            if !file_path.is_empty() && !file_path.starts_with("Please") && !file_path.starts_with("Aborting") {
+            if !file_path.is_empty()
+                && !file_path.starts_with("Please")
+                && !file_path.starts_with("Aborting")
+            {
                 files.push(decode_git_quoted_path(file_path));
             }
         }
     }
-    
+
     info!("📋 [Git] 从错误信息中提取到 {} 个文件", files.len());
     files
 }
@@ -1043,7 +1081,11 @@ fn extract_untracked_files_from_error(error_msg: &str) -> Vec<String> {
         }
 
         // 检测文件列表结束
-        if in_file_list && (trimmed.starts_with("Please ") || trimmed.starts_with("Aborting") || trimmed.is_empty()) {
+        if in_file_list
+            && (trimmed.starts_with("Please ")
+                || trimmed.starts_with("Aborting")
+                || trimmed.is_empty())
+        {
             if !trimmed.is_empty() {
                 break;
             }
@@ -1053,7 +1095,10 @@ fn extract_untracked_files_from_error(error_msg: &str) -> Vec<String> {
         // 提取文件名（通常以 tab 或空格开头）
         if in_file_list && !trimmed.is_empty() {
             let file_path = trimmed.trim_start();
-            if !file_path.is_empty() && !file_path.starts_with("Please") && !file_path.starts_with("Aborting") {
+            if !file_path.is_empty()
+                && !file_path.starts_with("Please")
+                && !file_path.starts_with("Aborting")
+            {
                 files.push(decode_git_quoted_path(file_path));
             }
         }
@@ -1070,23 +1115,27 @@ pub fn detect_conflicts(workspace_root: &Path) -> Result<Vec<String>, String> {
         .current_dir(workspace_root)
         .output()
         .map_err(|e| format!("检测冲突失败: {}", e))?;
-    
+
     if !output.status.success() {
         return Ok(vec![]);
     }
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     let conflicts: Vec<String> = stdout
         .lines()
         .map(|line| decode_git_quoted_path(line.trim()))
         .filter(|line| !line.is_empty())
         .collect();
-    
+
     Ok(conflicts)
 }
 
 /// 解决冲突
-pub fn resolve_conflict(workspace_root: &Path, file_path: &str, strategy: ConflictStrategy) -> Result<(), String> {
+pub fn resolve_conflict(
+    workspace_root: &Path,
+    file_path: &str,
+    strategy: ConflictStrategy,
+) -> Result<(), String> {
     match strategy {
         ConflictStrategy::KeepLocal => {
             // 使用本地版本
@@ -1095,7 +1144,7 @@ pub fn resolve_conflict(workspace_root: &Path, file_path: &str, strategy: Confli
                 .current_dir(workspace_root)
                 .output()
                 .map_err(|e| format!("解决冲突失败: {}", e))?;
-            
+
             if !output.status.success() {
                 let error = String::from_utf8_lossy(&output.stderr);
                 return Err(format!("保留本地版本失败: {}", error));
@@ -1108,7 +1157,7 @@ pub fn resolve_conflict(workspace_root: &Path, file_path: &str, strategy: Confli
                 .current_dir(workspace_root)
                 .output()
                 .map_err(|e| format!("解决冲突失败: {}", e))?;
-            
+
             if !output.status.success() {
                 let error = String::from_utf8_lossy(&output.stderr);
                 return Err(format!("保留远程版本失败: {}", error));
@@ -1118,27 +1167,26 @@ pub fn resolve_conflict(workspace_root: &Path, file_path: &str, strategy: Confli
             // 删除本地未跟踪文件
             let full_path = workspace_root.join(file_path);
             if full_path.exists() {
-                std::fs::remove_file(&full_path)
-                    .map_err(|e| format!("删除本地文件失败: {}", e))?;
+                std::fs::remove_file(&full_path).map_err(|e| format!("删除本地文件失败: {}", e))?;
                 info!("🗑️ [Git] 已删除本地未跟踪文件: {}", file_path);
             } else {
                 info!("ℹ️ [Git] 文件不存在，无需删除: {}", file_path);
             }
         }
     }
-    
+
     // 标记为已解决
     let output = crate::git_common::git_command()
         .args(&["add", file_path])
         .current_dir(workspace_root)
         .output()
         .map_err(|e| format!("标记冲突已解决失败: {}", e))?;
-    
+
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         return Err(format!("标记冲突已解决失败: {}", error));
     }
-    
+
     info!("✅ [Git] 冲突已解决: {}", file_path);
     Ok(())
 }
@@ -1148,18 +1196,18 @@ pub fn resolve_conflict(workspace_root: &Path, file_path: &str, strategy: Confli
 /// 检查 .gitignore 文件（仅检查，不自动创建或修改）
 pub fn check_gitignore(workspace_root: &Path) -> Result<(), String> {
     let gitignore_path = workspace_root.join(".gitignore");
-    
+
     if !gitignore_path.exists() {
         warn!("⚠️ [Git] .gitignore 文件不存在，建议手动创建");
         return Ok(());
     }
-    
+
     // 读取内容检查是否包含关键规则
     let content = std::fs::read_to_string(&gitignore_path)
         .map_err(|e| format!("读取 .gitignore 失败: {}", e))?;
-    
+
     let mut missing_rules = Vec::new();
-    
+
     if !content.contains(".snippets-code") {
         missing_rules.push(".snippets-code/");
     }
@@ -1169,12 +1217,12 @@ pub fn check_gitignore(workspace_root: &Path) -> Result<(), String> {
     if !content.contains("*.exe") {
         missing_rules.push("*.exe");
     }
-    
+
     if !missing_rules.is_empty() {
         warn!("⚠️ [Git] .gitignore 中缺少以下规则: {:?}", missing_rules);
         warn!("⚠️ [Git] 建议手动添加这些规则以避免同步不必要的文件");
     }
-    
+
     Ok(())
 }
 
@@ -1286,14 +1334,22 @@ fn get_remote_default_branch(workspace_root: &Path) -> Result<String, String> {
         .args(&["ls-remote", "origin", "refs/heads/main"])
         .current_dir(workspace_root)
         .output();
-    if main_out.as_ref().map(|o| o.status.success()).unwrap_or(false) {
+    if main_out
+        .as_ref()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
         return Ok("main".to_string());
     }
     let master_out = crate::git_common::git_command()
         .args(&["ls-remote", "origin", "refs/heads/master"])
         .current_dir(workspace_root)
         .output();
-    if master_out.as_ref().map(|o| o.status.success()).unwrap_or(false) {
+    if master_out
+        .as_ref()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
         return Ok("master".to_string());
     }
     Ok("main".to_string())
@@ -1326,12 +1382,10 @@ fn parse_pull_output(output: &str) -> usize {
     parse_git_file_count_output(output)
 }
 
-
 /// 解析 commit 输出，统计提交的文件数量
 fn parse_commit_output(output: &str) -> usize {
     parse_git_file_count_output(output)
 }
-
 
 // ============= Tauri 命令 =============
 
@@ -1346,16 +1400,16 @@ pub fn check_git_installed_command() -> Result<bool, String> {
 /// 检查是否是 Git 仓库
 #[command]
 pub fn check_git_repo_command(app_handle: AppHandle) -> Result<bool, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     check_git_repo(&workspace_root)
 }
 
 /// 获取 Git 状态（带 2 秒缓存，减少频繁调用）
 #[command]
 pub fn get_git_status_command(app_handle: AppHandle) -> Result<GitStatus, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
     // 尝试从缓存获取
     if let Some(cached) = get_cached_git_status() {
@@ -1385,15 +1439,17 @@ pub fn get_git_status_command(app_handle: AppHandle) -> Result<GitStatus, String
 /// 获取系统 Git 配置
 #[command]
 pub fn get_system_git_config_command(app_handle: AppHandle) -> Result<SystemGitConfig, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle).ok().flatten();
+    let workspace_root = crate::json_config::get_workspace_root(&app_handle)
+        .ok()
+        .flatten();
     get_system_git_config(workspace_root.as_deref())
 }
 
 /// 配置 Git
 #[command]
 pub fn configure_git_command(app_handle: AppHandle, config: GitConfig) -> Result<(), String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
     // 配置用户信息
     configure_git_user(&workspace_root, &config.user_name, &config.user_email)?;
@@ -1416,10 +1472,13 @@ pub fn init_git_repository_command(
     remote_url: String,
     token: String,
 ) -> Result<(), String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
-    info!("🚀 [Git] 开始初始化 Git 仓库，workspace_root: {}", workspace_root.display());
+    info!(
+        "🚀 [Git] 开始初始化 Git 仓库，workspace_root: {}",
+        workspace_root.display()
+    );
 
     // 1. 检查是否已是 Git 仓库
     if !check_git_repo(&workspace_root)? {
@@ -1468,7 +1527,10 @@ pub fn init_git_repository_command(
                         .output();
                     if let Ok(re) = reset_out {
                         if re.status.success() {
-                            info!("✅ [Git] 首次拉取成功，已重置到远程分支 origin/{}", remote_branch);
+                            info!(
+                                "✅ [Git] 首次拉取成功，已重置到远程分支 origin/{}",
+                                remote_branch
+                            );
                         } else {
                             let err = get_git_stderr(&re);
                             warn!("⚠️ [Git] 首次重置到远程分支失败: {}", err);
@@ -1500,16 +1562,22 @@ pub fn init_git_repository_command(
     tauri::async_runtime::spawn(async move {
         let workspace_root = &workspace_root_buf;
         let mut new_index_opt = None;
-        if let Some(cache_state) = app_handle_rebuild.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>() {
+        if let Some(cache_state) =
+            app_handle_rebuild.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>()
+        {
             let cache_clone_opt = match cache_state.read() {
                 Ok(cache) => Some(cache.clone()),
                 Err(e) => {
-                    error!("❌ [Git] 获取 CacheManager 读锁失败，无法在初始化后重建索引: {}", e);
+                    error!(
+                        "❌ [Git] 获取 CacheManager 读锁失败，无法在初始化后重建索引: {}",
+                        e
+                    );
                     None
                 }
             };
             if let Some(cache_clone) = cache_clone_opt {
-                match crate::markdown::IndexManager::build_index(workspace_root, &cache_clone).await {
+                match crate::markdown::IndexManager::build_index(workspace_root, &cache_clone).await
+                {
                     Ok(new_index) => {
                         info!("✅ [Git] 初始化后搜索索引重建完成");
                         new_index_opt = Some(new_index);
@@ -1537,9 +1605,13 @@ pub fn init_git_repository_command(
 
 /// 测试 Git 连接（验证 Token 和远程仓库是否可用）
 #[command]
-pub fn test_git_connection_command(app_handle: AppHandle, remote_url: String, token: String) -> Result<(), String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+pub fn test_git_connection_command(
+    app_handle: AppHandle,
+    remote_url: String,
+    token: String,
+) -> Result<(), String> {
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
     // 构建带 token 的 URL
     let authenticated_url = if remote_url.starts_with("git@") {
@@ -1579,8 +1651,8 @@ pub fn test_git_connection_command(app_handle: AppHandle, remote_url: String, to
 /// 执行 git pull
 #[command]
 pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
     if let Err(e) = app_handle.emit_to("config", "git-pull-start", ()) {
         warn!("⚠️ [Git] 发送 git-pull-start 事件失败: {}", e);
@@ -1599,15 +1671,16 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
             conflict_files: result.conflict_files.clone(),
             untracked_files: result.untracked_files.clone(),
         };
-        
+
         // 将冲突存入待处理队列
-        if let Some(pending_conflicts) = app_handle.try_state::<Arc<Mutex<Vec<ConflictPayload>>>>() {
+        if let Some(pending_conflicts) = app_handle.try_state::<Arc<Mutex<Vec<ConflictPayload>>>>()
+        {
             if let Ok(mut queue) = pending_conflicts.lock() {
                 queue.push(payload.clone());
                 info!("📋 [Git] 冲突已存入待处理队列");
             }
         }
-        
+
         // 尝试发送到 config 窗口（如果窗口已就绪）
         if let Err(_e) = app_handle.emit_to("config", "git-conflict-detected", payload) {
             info!("ℹ️ [Git] Config 窗口未就绪");
@@ -1630,7 +1703,9 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
         if let Err(e) = app_handle.emit_to("config", "git-repo-not-found", payload.clone()) {
             error!("❌ [Git] 发送仓库不存在事件失败，存入待处理队列: {}", e);
             // 存入待处理队列
-            if let Some(pending_queue) = app_handle.try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>() {
+            if let Some(pending_queue) =
+                app_handle.try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>()
+            {
                 if let Ok(mut queue) = pending_queue.lock() {
                     queue.push(payload);
                 }
@@ -1640,17 +1715,25 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
 
     // 发送 git-sync-complete 事件
     let last_sync_time = result.last_sync_time.clone();
-    if let Err(e) = app_handle.emit_to("config", "git-sync-complete", serde_json::json!({
-        "success": result.success,
-        "last_sync_time": last_sync_time
-    })) {
+    if let Err(e) = app_handle.emit_to(
+        "config",
+        "git-sync-complete",
+        serde_json::json!({
+            "success": result.success,
+            "last_sync_time": last_sync_time
+        }),
+    ) {
         warn!("⚠️ [Git] 发送 git-sync-complete 事件失败: {}", e);
     }
     // 同时发送到 main
-    if let Err(e) = app_handle.emit_to("main", "git-sync-complete", serde_json::json!({
-        "success": result.success,
-        "last_sync_time": last_sync_time
-    })) {
+    if let Err(e) = app_handle.emit_to(
+        "main",
+        "git-sync-complete",
+        serde_json::json!({
+            "success": result.success,
+            "last_sync_time": last_sync_time
+        }),
+    ) {
         warn!("⚠️ [Git] 发送 git-sync-complete 到 main 失败: {}", e);
     }
 
@@ -1658,27 +1741,35 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
     if result.success && result.files_updated > 0 {
         info!("🔍 [Git] Pull 完成，开始增量扫描变更文件...");
 
-        let by_status = get_changed_files_with_status(&workspace_root, result.pre_pull_head.as_deref())?;
+        let by_status =
+            get_changed_files_with_status(&workspace_root, result.pre_pull_head.as_deref())?;
         let changed_files = by_status.all();
 
         if changed_files.is_empty() {
             info!("ℹ️ [Git] 没有检测到 .md 文件变更，跳过扫描");
         } else {
             // 将变更文件添加到 FileWatcher 忽略列表
-            if let Some(watcher_state) = app_handle.try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>() {
+            if let Some(watcher_state) =
+                app_handle.try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>()
+            {
                 if let Ok(watcher_lock) = watcher_state.lock() {
                     if let Some(ref watcher) = *watcher_lock {
                         for file in &changed_files {
                             let file_path = workspace_root.join(file);
                             watcher.ignore_next_change(file_path);
                         }
-                        info!("🔕 [Git] 已将 {} 个文件添加到 FileWatcher 忽略列表", changed_files.len());
+                        info!(
+                            "🔕 [Git] 已将 {} 个文件添加到 FileWatcher 忽略列表",
+                            changed_files.len()
+                        );
                     }
                 }
             }
 
             // 增量更新 cache：新增/修改用 scan_files，删除用 remove_file
-            if let Some(cache_state) = app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>() {
+            if let Some(cache_state) =
+                app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>()
+            {
                 match cache_state.write() {
                     Ok(mut cache) => {
                         let to_scan: Vec<String> = by_status
@@ -1694,9 +1785,7 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
                                 }
                                 Err(e) => {
                                     error!("❌ [Git] 增量扫描失败: {}，回退到全量扫描", e);
-                                    if let Err(rebuild_err) =
-                                        cache.rebuild_cache(&workspace_root)
-                                    {
+                                    if let Err(rebuild_err) = cache.rebuild_cache(&workspace_root) {
                                         error!("❌ [Git] 全量扫描也失败: {}", rebuild_err);
                                     }
                                 }
@@ -1728,23 +1817,32 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
                 }
             }
 
-            if let Err(e) = app_handle.emit_to("config", "git-pull-completed", result.files_updated) {
+            if let Err(e) = app_handle.emit_to("config", "git-pull-completed", result.files_updated)
+            {
                 error!("❌ [Git] 发送 git-pull-completed 失败: {}", e);
             }
 
             // 发送 git-sync-complete 事件
             let last_sync_time = result.last_sync_time.clone();
-            if let Err(e) = app_handle.emit_to("config", "git-sync-complete", serde_json::json!({
-                "success": result.success,
-                "last_sync_time": last_sync_time
-            })) {
+            if let Err(e) = app_handle.emit_to(
+                "config",
+                "git-sync-complete",
+                serde_json::json!({
+                    "success": result.success,
+                    "last_sync_time": last_sync_time
+                }),
+            ) {
                 warn!("⚠️ [Git] 发送 git-sync-complete 事件失败: {}", e);
             }
             // 同时发送到 main
-            if let Err(e) = app_handle.emit_to("main", "git-sync-complete", serde_json::json!({
-                "success": result.success,
-                "last_sync_time": last_sync_time
-            })) {
+            if let Err(e) = app_handle.emit_to(
+                "main",
+                "git-sync-complete",
+                serde_json::json!({
+                    "success": result.success,
+                    "last_sync_time": last_sync_time
+                }),
+            ) {
                 warn!("⚠️ [Git] 发送 git-sync-complete 到 main 失败: {}", e);
             }
 
@@ -1754,17 +1852,24 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
             // 2. 基于当前工作区和缓存重建索引
             // 3. 将新的 IndexManager 写回全局状态
             let mut new_index_opt = None;
-            if let Some(cache_state) = app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>() {
+            if let Some(cache_state) =
+                app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>()
+            {
                 let cache_clone_opt = match cache_state.read() {
                     Ok(cache) => Some(cache.clone()),
                     Err(e) => {
-                        error!("❌ [Git] 获取 CacheManager 读锁失败，无法在 Pull 后重建索引: {}", e);
+                        error!(
+                            "❌ [Git] 获取 CacheManager 读锁失败，无法在 Pull 后重建索引: {}",
+                            e
+                        );
                         None
                     }
                 };
 
                 if let Some(cache_clone) = cache_clone_opt {
-                    match crate::markdown::IndexManager::build_index(&workspace_root, &cache_clone).await {
+                    match crate::markdown::IndexManager::build_index(&workspace_root, &cache_clone)
+                        .await
+                    {
                         Ok(new_index) => {
                             info!("✅ [Git] Pull 后搜索索引重建完成");
                             new_index_opt = Some(new_index);
@@ -1777,8 +1882,8 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
             }
 
             if let Some(new_index) = new_index_opt {
-                if let Some(index_state) =
-                    app_handle.try_state::<Arc<std::sync::RwLock<Option<crate::markdown::IndexManager>>>>()
+                if let Some(index_state) = app_handle
+                    .try_state::<Arc<std::sync::RwLock<Option<crate::markdown::IndexManager>>>>()
                 {
                     match index_state.write() {
                         Ok(mut index_lock) => {
@@ -1786,7 +1891,10 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
                             info!("✅ [Git] 全局搜索索引已更新（包含远程同步的文件）");
                         }
                         Err(e) => {
-                            error!("❌ [Git] 获取 IndexManager 写锁失败，无法更新搜索索引: {}", e);
+                            error!(
+                                "❌ [Git] 获取 IndexManager 写锁失败，无法更新搜索索引: {}",
+                                e
+                            );
                         }
                     }
                 }
@@ -1802,9 +1910,12 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
 
 /// 执行 git push
 #[command]
-pub async fn git_push_command(app_handle: AppHandle, message: Option<String>) -> Result<PushResult, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+pub async fn git_push_command(
+    app_handle: AppHandle,
+    message: Option<String>,
+) -> Result<PushResult, String> {
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
     // 发送 push 开始事件到前端
     if let Err(e) = app_handle.emit_to("config", "git-push-start", ()) {
@@ -1846,7 +1957,9 @@ pub async fn git_push_command(app_handle: AppHandle, message: Option<String>) ->
             if let Err(e) = app_handle.emit_to("config", "git-repo-not-found", payload.clone()) {
                 error!("❌ [Git] 发送仓库不存在事件失败，存入待处理队列: {}", e);
                 // 存入待处理队列
-                if let Some(pending_queue) = app_handle.try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>() {
+                if let Some(pending_queue) =
+                    app_handle.try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>()
+                {
                     if let Ok(mut queue) = pending_queue.lock() {
                         queue.push(payload);
                     }
@@ -1868,34 +1981,35 @@ pub fn resolve_conflict_command(
     file_path: String,
     strategy: ConflictStrategy,
 ) -> Result<(), String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     resolve_conflict(&workspace_root, &file_path, strategy)
 }
 
 /// 检查 .gitignore
 #[command]
 pub fn check_gitignore_command(app_handle: AppHandle) -> Result<(), String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     check_gitignore(&workspace_root)
 }
 
 /// 仅从工作区检测 Git 配置（不调用系统 git config，避免终端闪退）
 #[command]
 pub fn get_workspace_git_config_command(app_handle: AppHandle) -> Result<SystemGitConfig, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle).ok().flatten();
+    let workspace_root = crate::json_config::get_workspace_root(&app_handle)
+        .ok()
+        .flatten();
     get_workspace_git_config(workspace_root.as_deref())
 }
 
 /// 确保工作区存在 .gitignore，不存在则创建
 #[command]
 pub fn ensure_gitignore_command(app_handle: AppHandle) -> Result<bool, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     ensure_gitignore(&workspace_root)
 }
-
 
 // ============= 自动同步管理器 =============
 
@@ -1924,32 +2038,37 @@ impl AutoSyncManager {
             app_handle,
         }
     }
-    
+
     /// 启动自动同步
     pub fn start(&self) -> Result<(), String> {
-        let mut is_running = self.is_running.lock()
+        let mut is_running = self
+            .is_running
+            .lock()
             .map_err(|e| format!("获取运行状态锁失败: {}", e))?;
-        
+
         if *is_running {
             return Ok(()); // 已经在运行
         }
-        
+
         *is_running = true;
-        
+
         let workspace_root = self.workspace_root.clone();
         let delay_minutes = self.delay_minutes;
         let last_edit_time = Arc::clone(&self.last_edit_time);
         let is_running_clone = Arc::clone(&self.is_running);
         let is_paused_clone = Arc::clone(&self.is_paused);
         let app_handle = self.app_handle.clone();
-        
+
         // 启动后台任务
         tauri::async_runtime::spawn(async move {
-            info!("🚀 [AutoSync] 自动同步管理器已启动，延迟: {} 分钟", delay_minutes);
-            
+            info!(
+                "🚀 [AutoSync] 自动同步管理器已启动，延迟: {} 分钟",
+                delay_minutes
+            );
+
             let pull_interval = Duration::from_secs(delay_minutes * 60); // Pull 间隔
             let mut last_pull_time = Instant::now();
-            
+
             loop {
                 // 检查是否应该停止
                 {
@@ -1959,30 +2078,30 @@ impl AutoSyncManager {
                         break;
                     }
                 }
-                
+
                 // 每 1 秒检查一次（提高精度）
                 sleep(Duration::from_secs(1)).await;
-                
+
                 // 检查是否暂停（冲突处理中）
                 let is_paused = {
                     let paused = is_paused_clone.lock().unwrap();
                     *paused
                 };
-                
+
                 if is_paused {
                     // 暂停期间不执行任何同步操作
                     continue;
                 }
-                
+
                 // 1. 检查是否需要定期 Pull
                 let should_pull = last_pull_time.elapsed() >= pull_interval;
-                
+
                 if should_pull {
                     // 执行 Pull，带重试机制
                     let max_retries = 3;
                     let mut retry_count = 0;
                     let mut pull_result = None;
-                    
+
                     while retry_count < max_retries {
                         match git_pull(&workspace_root).await {
                             Ok(result) => {
@@ -1998,11 +2117,14 @@ impl AutoSyncManager {
                                     || error_msg.contains("connection")
                                     || error_msg.contains("network")
                                     || error_msg.contains("schannel");
-                                
+
                                 if is_network_error && retry_count < max_retries - 1 {
                                     retry_count += 1;
                                     let delay_secs = 2u64.pow(retry_count as u32); // 指数退避: 2s, 4s, 8s
-                                    warn!("⚠️ [AutoSync] Pull 遇到网络错误，{} 秒后重试 ({}/{}): {}", delay_secs, retry_count, max_retries, e);
+                                    warn!(
+                                        "⚠️ [AutoSync] Pull 遇到网络错误，{} 秒后重试 ({}/{}): {}",
+                                        delay_secs, retry_count, max_retries, e
+                                    );
                                     sleep(Duration::from_secs(delay_secs)).await;
                                 } else {
                                     // 非网络错误或已达到最大重试次数
@@ -2012,15 +2134,21 @@ impl AutoSyncManager {
                             }
                         }
                     }
-                    
+
                     // 处理 Pull 结果
                     match pull_result {
                         Some(Ok(result)) => {
                             if result.success {
                                 if result.files_updated > 0 {
-                                    info!("✅ [AutoSync] 定期 Pull 成功，更新了 {} 个文件", result.files_updated);
+                                    info!(
+                                        "✅ [AutoSync] 定期 Pull 成功，更新了 {} 个文件",
+                                        result.files_updated
+                                    );
 
-                                    let by_status = match get_changed_files_with_status(&workspace_root, result.pre_pull_head.as_deref()) {
+                                    let by_status = match get_changed_files_with_status(
+                                        &workspace_root,
+                                        result.pre_pull_head.as_deref(),
+                                    ) {
                                         Ok(s) => s,
                                         Err(e) => {
                                             warn!("⚠️ [AutoSync] 获取变更文件失败: {}", e);
@@ -2030,7 +2158,10 @@ impl AutoSyncManager {
                                     let changed_files = by_status.all();
 
                                     if !changed_files.is_empty() {
-                                        info!("📋 [AutoSync] 检测到 {} 个 .md 文件变更", changed_files.len());
+                                        info!(
+                                            "📋 [AutoSync] 检测到 {} 个 .md 文件变更",
+                                            changed_files.len()
+                                        );
 
                                         // 将变更文件添加到 FileWatcher 忽略列表
                                         if let Some(watcher_state) = app_handle.try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>() {
@@ -2068,57 +2199,95 @@ impl AutoSyncManager {
                                         }
 
                                         // 发送 files-changed-batch，使 Content 页面能重新加载已修改的当前文件
-                                        if let Some(config_window) = app_handle.get_webview_window("config") {
+                                        if let Some(config_window) =
+                                            app_handle.get_webview_window("config")
+                                        {
                                             let payload = serde_json::json!({
                                                 "created": by_status.created,
                                                 "modified": by_status.modified,
                                                 "deleted": by_status.deleted,
                                             });
-                                            if let Err(e) = config_window.emit("files-changed-batch", payload) {
+                                            if let Err(e) =
+                                                config_window.emit("files-changed-batch", payload)
+                                            {
                                                 error!("❌ [AutoSync] 发送 files-changed-batch 失败: {}", e);
                                             }
                                         }
                                     }
 
                                     // 发送 Pull 完成事件到 config 窗口
-                                    if let Err(e) = app_handle.emit_to("config", "git-pull-completed", result.files_updated) {
+                                    if let Err(e) = app_handle.emit_to(
+                                        "config",
+                                        "git-pull-completed",
+                                        result.files_updated,
+                                    ) {
                                         error!("❌ [AutoSync] 发送 Pull 完成事件失败: {}", e);
                                     }
 
                                     // 发送 git-sync-complete 事件
-                                    if let Err(e) = app_handle.emit_to("config", "git-sync-complete", serde_json::json!({
-                                        "success": true,
-                                        "last_sync_time": result.last_sync_time
-                                    })) {
-                                        warn!("⚠️ [AutoSync] 发送 git-sync-complete 事件失败: {}", e);
+                                    if let Err(e) = app_handle.emit_to(
+                                        "config",
+                                        "git-sync-complete",
+                                        serde_json::json!({
+                                            "success": true,
+                                            "last_sync_time": result.last_sync_time
+                                        }),
+                                    ) {
+                                        warn!(
+                                            "⚠️ [AutoSync] 发送 git-sync-complete 事件失败: {}",
+                                            e
+                                        );
                                     }
                                     // 同时发送到 main
-                                    if let Err(e) = app_handle.emit_to("main", "git-sync-complete", serde_json::json!({
-                                        "success": true,
-                                        "last_sync_time": result.last_sync_time
-                                    })) {
-                                        warn!("⚠️ [AutoSync] 发送 git-sync-complete 到 main 失败: {}", e);
+                                    if let Err(e) = app_handle.emit_to(
+                                        "main",
+                                        "git-sync-complete",
+                                        serde_json::json!({
+                                            "success": true,
+                                            "last_sync_time": result.last_sync_time
+                                        }),
+                                    ) {
+                                        warn!(
+                                            "⚠️ [AutoSync] 发送 git-sync-complete 到 main 失败: {}",
+                                            e
+                                        );
                                     }
 
                                     // 发送成功通知到 config 窗口
-                                    let notification_message = format!("已从远程同步 {} 个文件", result.files_updated);
-                                    if let Err(e) = app_handle.emit_to("config", "git-sync-success", notification_message.clone()) {
+                                    let notification_message =
+                                        format!("已从远程同步 {} 个文件", result.files_updated);
+                                    if let Err(e) = app_handle.emit_to(
+                                        "config",
+                                        "git-sync-success",
+                                        notification_message.clone(),
+                                    ) {
                                         error!("❌ [AutoSync] 发送通知失败: {}", e);
                                     }
                                 } else {
                                     info!("ℹ️ [AutoSync] 定期 Pull 完成，已是最新版本");
                                 }
-                                } else if result.has_conflicts {
+                            } else if result.has_conflicts {
                                 // 检测到冲突，暂停自动同步并发送冲突事件到前端
-                                warn!("⚠️ [AutoSync] 定期 Pull 检测到冲突: {:?}", result.conflict_files);
-                                
+                                warn!(
+                                    "⚠️ [AutoSync] 定期 Pull 检测到冲突: {:?}",
+                                    result.conflict_files
+                                );
+
                                 // 更新 cache 中的冲突文件，确保它们在界面上可见
                                 if !result.conflict_files.is_empty() {
-                                    if let Some(cache_state) = app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>() {
+                                    if let Some(cache_state) = app_handle
+                                        .try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>(
+                                        )
+                                    {
                                         if let Ok(mut cache) = cache_state.write() {
-                                            match cache.scan_files(&result.conflict_files, &workspace_root) {
+                                            match cache
+                                                .scan_files(&result.conflict_files, &workspace_root)
+                                            {
                                                 Ok(added_count) => {
-                                                    info!("[AutoSync] 更新了 {} 个冲突文件到 cache", added_count);
+                                                    info!(
+                                                        "[AutoSync] 更新了 {} 个冲突文件到 cache",
+                                                        added_count
+                                                    );
                                                     let _ = cache.save();
                                                 }
                                                 Err(e) => {
@@ -2128,47 +2297,59 @@ impl AutoSyncManager {
                                         }
                                     }
                                 }
-                                
+
                                 // 暂停自动同步
                                 {
                                     let mut paused = is_paused_clone.lock().unwrap();
                                     *paused = true;
                                     info!("⏸️ [AutoSync] 已暂停自动同步，等待冲突解决");
                                 }
-                                
+
                                 #[derive(serde::Serialize, Clone)]
                                 struct ConflictPayload {
                                     conflict_files: Vec<String>,
                                     #[serde(skip_serializing_if = "Vec::is_empty")]
                                     untracked_files: Vec<String>,
                                 }
-                                
+
                                 let payload = ConflictPayload {
                                     conflict_files: result.conflict_files.clone(),
                                     untracked_files: result.untracked_files.clone(),
                                 };
-                                
-                                if let Err(e) = app_handle.emit_to("config", "git-conflict-detected", payload) {
+
+                                if let Err(e) =
+                                    app_handle.emit_to("config", "git-conflict-detected", payload)
+                                {
                                     error!("❌ [AutoSync] 发送冲突事件失败: {}", e);
                                 }
                             } else if result.message == "remote_not_found" {
                                 // 检测到仓库不存在，发送事件到前端提示用户重新配置
                                 warn!("⚠️ [AutoSync] 定期 Pull 检测到远程仓库不存在");
-                                
-                                let remote_url = crate::git_sync::get_system_git_config(Some(&workspace_root))
-                                    .ok()
-                                    .and_then(|config| config.remote_url)
-                                    .unwrap_or_else(|| "未知".to_string());
-                                
+
+                                let remote_url =
+                                    crate::git_sync::get_system_git_config(Some(&workspace_root))
+                                        .ok()
+                                        .and_then(|config| config.remote_url)
+                                        .unwrap_or_else(|| "未知".to_string());
+
                                 let payload = RepoNotFoundPayload {
                                     remote_url,
                                     operation: "pull".to_string(),
                                 };
-                                
+
                                 // 发送仓库不存在事件
-                                if let Err(e) = app_handle.emit_to("config", "git-repo-not-found", payload.clone()) {
-                                    error!("❌ [AutoSync] 发送仓库不存在事件失败，存入待处理队列: {}", e);
-                                    if let Some(pending_queue) = app_handle.try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>() {
+                                if let Err(e) = app_handle.emit_to(
+                                    "config",
+                                    "git-repo-not-found",
+                                    payload.clone(),
+                                ) {
+                                    error!(
+                                        "❌ [AutoSync] 发送仓库不存在事件失败，存入待处理队列: {}",
+                                        e
+                                    );
+                                    if let Some(pending_queue) = app_handle
+                                        .try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>()
+                                    {
                                         if let Ok(mut queue) = pending_queue.lock() {
                                             queue.push(payload);
                                             info!("📋 [AutoSync] 仓库不存在通知已存入待处理队列");
@@ -2195,20 +2376,30 @@ impl AutoSyncManager {
                                 // 仓库不存在：发送特殊事件到前端，提示用户重新配置
                                 warn!("⚠️ [AutoSync] 远程仓库不存在");
 
-                                let remote_url = crate::git_sync::get_system_git_config(Some(&workspace_root))
-                                    .ok()
-                                    .and_then(|config| config.remote_url)
-                                    .unwrap_or_else(|| "未知".to_string());
+                                let remote_url =
+                                    crate::git_sync::get_system_git_config(Some(&workspace_root))
+                                        .ok()
+                                        .and_then(|config| config.remote_url)
+                                        .unwrap_or_else(|| "未知".to_string());
 
                                 let payload = RepoNotFoundPayload {
                                     remote_url,
                                     operation: "pull".to_string(),
                                 };
 
-                                if let Err(err) = app_handle.emit_to("config", "git-repo-not-found", payload.clone()) {
-                                    error!("❌ [AutoSync] 发送仓库不存在事件失败，存入待处理队列: {}", err);
+                                if let Err(err) = app_handle.emit_to(
+                                    "config",
+                                    "git-repo-not-found",
+                                    payload.clone(),
+                                ) {
+                                    error!(
+                                        "❌ [AutoSync] 发送仓库不存在事件失败，存入待处理队列: {}",
+                                        err
+                                    );
                                     // 存入待处理队列
-                                    if let Some(pending_queue) = app_handle.try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>() {
+                                    if let Some(pending_queue) = app_handle
+                                        .try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>()
+                                    {
                                         if let Ok(mut queue) = pending_queue.lock() {
                                             queue.push(payload);
                                             info!("📋 [AutoSync] 仓库不存在通知已存入待处理队列");
@@ -2217,12 +2408,19 @@ impl AutoSyncManager {
                                 }
                             } else if is_network_error {
                                 // 网络错误：静默失败，不发送通知
-                                error!("❌ [AutoSync] 定期 Pull 失败（网络错误，已重试 {} 次）: {}", max_retries, e);
+                                error!(
+                                    "❌ [AutoSync] 定期 Pull 失败（网络错误，已重试 {} 次）: {}",
+                                    max_retries, e
+                                );
                             } else {
                                 // 非网络错误：记录并发送通知
                                 error!("❌ [AutoSync] 定期 Pull 失败: {}", e);
 
-                                if let Err(err) = app_handle.emit_to("config", "git-sync-error", format!("Auto pull failed: {}", e)) {
+                                if let Err(err) = app_handle.emit_to(
+                                    "config",
+                                    "git-sync-error",
+                                    format!("Auto pull failed: {}", e),
+                                ) {
                                     error!("❌ [AutoSync] 发送错误通知失败: {}", err);
                                 }
                             }
@@ -2232,11 +2430,11 @@ impl AutoSyncManager {
                             error!("❌ [AutoSync] Pull 结果为空");
                         }
                     }
-                    
+
                     // 更新最后 Pull 时间
                     last_pull_time = Instant::now();
                 }
-                
+
                 // 2. 检查是否需要 Push（文件编辑后）
                 let should_push = {
                     let last_edit = last_edit_time.lock().unwrap();
@@ -2248,14 +2446,17 @@ impl AutoSyncManager {
                         false
                     }
                 };
-                
+
                 if should_push {
                     let mut push_result = git_push(&workspace_root, "Auto sync").await;
-                    
+
                     // Push 被 non-fast-forward 拒绝时：先 pull 再重试
                     if let Err(ref e) = push_result {
                         let err_lower = e.to_string().to_lowercase();
-                        if err_lower.contains("rejected") || err_lower.contains("non-fast-forward") || err_lower.contains("behind") {
+                        if err_lower.contains("rejected")
+                            || err_lower.contains("non-fast-forward")
+                            || err_lower.contains("behind")
+                        {
                             info!("ℹ️ [AutoSync] Push 被拒绝（本地落后于远程），先 Pull 再重试");
                             match git_pull(&workspace_root).await {
                                 Ok(pull_result) => {
@@ -2275,9 +2476,17 @@ impl AutoSyncManager {
                                             info!("⏸️ [AutoSync] 已暂停自动同步，等待冲突解决");
                                         }
                                         #[derive(serde::Serialize, Clone)]
-                                        struct ConflictPayload { conflict_files: Vec<String> }
-                                        let payload = ConflictPayload { conflict_files: pull_result.conflict_files.clone() };
-                                        let _ = app_handle.emit_to("config", "git-conflict-detected", payload);
+                                        struct ConflictPayload {
+                                            conflict_files: Vec<String>,
+                                        }
+                                        let payload = ConflictPayload {
+                                            conflict_files: pull_result.conflict_files.clone(),
+                                        };
+                                        let _ = app_handle.emit_to(
+                                            "config",
+                                            "git-conflict-detected",
+                                            payload,
+                                        );
                                     } else {
                                         info!("✅ [AutoSync] Pull 成功，重试 Push");
                                         let branch_output = crate::git_common::git_command()
@@ -2286,7 +2495,9 @@ impl AutoSyncManager {
                                             .output()
                                             .map_err(|e| format!("获取分支失败: {}", e));
                                         if let Ok(out) = branch_output {
-                                            let branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                                            let branch = String::from_utf8_lossy(&out.stdout)
+                                                .trim()
+                                                .to_string();
                                             let push_out = crate::git_common::git_command()
                                                 .args(&["push", "origin", &branch])
                                                 .current_dir(&workspace_root)
@@ -2302,7 +2513,8 @@ impl AutoSyncManager {
                                                     });
                                                 } else {
                                                     let err = String::from_utf8_lossy(&po.stderr);
-                                                    push_result = Err(format!("重试 Push 失败: {}", err));
+                                                    push_result =
+                                                        Err(format!("重试 Push 失败: {}", err));
                                                 }
                                             }
                                         }
@@ -2310,18 +2522,24 @@ impl AutoSyncManager {
                                 }
                                 Err(pull_err) => {
                                     error!("❌ [AutoSync] Pull 失败: {}", pull_err);
-                                    push_result = Err(format!("Push 失败后 Pull 也失败: {}", pull_err));
+                                    push_result =
+                                        Err(format!("Push 失败后 Pull 也失败: {}", pull_err));
                                 }
                             }
                         }
                     }
-                    
+
                     match push_result {
                         Ok(result) => {
                             if result.success && result.files_pushed > 0 {
                                 info!("✅ [AutoSync] 自动 Push 成功: {}", result.message);
-                                let notification_message = format!("已推送 {} 个文件到远程", result.files_pushed);
-                                if let Err(e) = app_handle.emit_to("config", "git-sync-success", notification_message.clone()) {
+                                let notification_message =
+                                    format!("已推送 {} 个文件到远程", result.files_pushed);
+                                if let Err(e) = app_handle.emit_to(
+                                    "config",
+                                    "git-sync-success",
+                                    notification_message.clone(),
+                                ) {
                                     error!("❌ [AutoSync] 发送通知失败: {}", e);
                                 }
                             }
@@ -2336,20 +2554,30 @@ impl AutoSyncManager {
                                 // 仓库不存在：发送特殊事件到前端，提示用户重新配置
                                 warn!("⚠️ [AutoSync] 远程仓库不存在");
 
-                                let remote_url = crate::git_sync::get_system_git_config(Some(&workspace_root))
-                                    .ok()
-                                    .and_then(|config| config.remote_url)
-                                    .unwrap_or_else(|| "未知".to_string());
+                                let remote_url =
+                                    crate::git_sync::get_system_git_config(Some(&workspace_root))
+                                        .ok()
+                                        .and_then(|config| config.remote_url)
+                                        .unwrap_or_else(|| "未知".to_string());
 
                                 let payload = RepoNotFoundPayload {
                                     remote_url,
                                     operation: "push".to_string(),
                                 };
 
-                                if let Err(err) = app_handle.emit_to("config", "git-repo-not-found", payload.clone()) {
-                                    error!("❌ [AutoSync] 发送仓库不存在事件失败，存入待处理队列: {}", err);
+                                if let Err(err) = app_handle.emit_to(
+                                    "config",
+                                    "git-repo-not-found",
+                                    payload.clone(),
+                                ) {
+                                    error!(
+                                        "❌ [AutoSync] 发送仓库不存在事件失败，存入待处理队列: {}",
+                                        err
+                                    );
                                     // 存入待处理队列
-                                    if let Some(pending_queue) = app_handle.try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>() {
+                                    if let Some(pending_queue) = app_handle
+                                        .try_state::<Arc<Mutex<Vec<RepoNotFoundPayload>>>>()
+                                    {
                                         if let Ok(mut queue) = pending_queue.lock() {
                                             queue.push(payload);
                                             info!("📋 [AutoSync] 仓库不存在通知已存入待处理队列");
@@ -2358,65 +2586,75 @@ impl AutoSyncManager {
                                 }
                             } else {
                                 error!("❌ [AutoSync] 自动 Push 失败: {}", e);
-                                if let Err(err) = app_handle.emit_to("config", "git-sync-error", format!("Auto push failed: {}", e)) {
+                                if let Err(err) = app_handle.emit_to(
+                                    "config",
+                                    "git-sync-error",
+                                    format!("Auto push failed: {}", e),
+                                ) {
                                     error!("❌ [AutoSync] 发送错误通知失败: {}", err);
                                 }
                             }
                         }
                     }
-                    
+
                     // 重置最后编辑时间
                     let mut last_edit = last_edit_time.lock().unwrap();
                     *last_edit = None;
                 }
             }
         });
-        
+
         Ok(())
     }
-    
+
     /// 停止自动同步
     pub fn stop(&self) -> Result<(), String> {
-        let mut is_running = self.is_running.lock()
+        let mut is_running = self
+            .is_running
+            .lock()
             .map_err(|e| format!("获取运行状态锁失败: {}", e))?;
         *is_running = false;
-        
+
         info!("🛑 [AutoSync] 停止自动同步管理器");
         Ok(())
     }
-    
+
     /// 通知文件编辑
     pub fn notify_edit(&self) -> Result<(), String> {
-        let mut last_edit = self.last_edit_time.lock()
+        let mut last_edit = self
+            .last_edit_time
+            .lock()
             .map_err(|e| format!("获取编辑时间锁失败: {}", e))?;
         *last_edit = Some(Instant::now());
-        
+
         Ok(())
     }
-    
+
     /// 检查是否正在运行
     pub fn is_running(&self) -> bool {
-        self.is_running.lock()
-            .map(|guard| *guard)
-            .unwrap_or(false)
+        self.is_running.lock().map(|guard| *guard).unwrap_or(false)
     }
-    
+
     /// 暂停自动同步（用于冲突处理）
     pub fn pause(&self) -> Result<(), String> {
-        let mut is_paused = self.is_paused.lock()
+        let mut is_paused = self
+            .is_paused
+            .lock()
             .map_err(|e| format!("获取暂停状态锁失败: {}", e))?;
         *is_paused = true;
-        
+
         info!("⏸️ [AutoSync] 暂停自动同步");
         Ok(())
     }
-    
+
     /// 恢复自动同步（冲突解决后）
     pub fn resume(&self) -> Result<(), String> {
-        let mut is_paused = self.is_paused.lock()
+        let mut is_paused = self
+            .is_paused
+            .lock()
             .map_err(|e| format!("获取暂停状态锁失败: {}", e))?;
         *is_paused = false;
-        
+
         info!("▶️ [AutoSync] 恢复自动同步");
         Ok(())
     }
@@ -2428,35 +2666,42 @@ impl AutoSyncManager {
 #[command]
 pub fn start_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
     // 获取工作区根目录
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
-    
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+
     // 获取 Git 设置
     use crate::app_config::AppConfigManager;
-    
-    let config_state = app_handle.try_state::<Arc<StdRwLock<AppConfigManager>>>()
+
+    let config_state = app_handle
+        .try_state::<Arc<StdRwLock<AppConfigManager>>>()
         .ok_or("AppConfigManager 未初始化".to_string())?;
-    
-    let manager = config_state.read()
+
+    let manager = config_state
+        .read()
         .map_err(|e| format!("获取配置锁失败: {}", e))?;
-    
+
     let git_settings = manager.get_git_settings();
-    
+
     if !git_settings.enabled || !git_settings.auto_sync {
         return Err("自动同步未启用".to_string());
     }
-    
+
     let delay_minutes = git_settings.auto_sync_delay;
-    
+
     // 创建或获取 AutoSyncManager
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
-        let mut sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state.lock()
+        let mut sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
+            .lock()
             .map_err(|e| format!("获取同步管理器锁失败: {}", e))?;
-        
+
         if sync_manager.is_none() {
-            *sync_manager = Some(AutoSyncManager::new(workspace_root, delay_minutes, app_handle.clone()));
+            *sync_manager = Some(AutoSyncManager::new(
+                workspace_root,
+                delay_minutes,
+                app_handle.clone(),
+            ));
         }
-        
+
         if let Some(ref manager) = *sync_manager {
             manager.start()?;
         }
@@ -2466,7 +2711,7 @@ pub fn start_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
         manager.start()?;
         app_handle.manage(Arc::new(Mutex::new(Some(manager))));
     }
-    
+
     Ok(())
 }
 
@@ -2474,14 +2719,15 @@ pub fn start_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
 #[command]
 pub fn stop_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
-        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state.lock()
+        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
+            .lock()
             .map_err(|e| format!("获取同步管理器锁失败: {}", e))?;
-        
+
         if let Some(ref manager) = *sync_manager {
             manager.stop()?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -2489,14 +2735,15 @@ pub fn stop_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
 #[command]
 pub fn notify_file_edit_command(app_handle: AppHandle) -> Result<(), String> {
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
-        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state.lock()
+        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
+            .lock()
             .map_err(|e| format!("获取同步管理器锁失败: {}", e))?;
-        
+
         if let Some(ref manager) = *sync_manager {
             manager.notify_edit()?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -2504,14 +2751,15 @@ pub fn notify_file_edit_command(app_handle: AppHandle) -> Result<(), String> {
 #[command]
 pub fn get_auto_sync_status_command(app_handle: AppHandle) -> Result<bool, String> {
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
-        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state.lock()
+        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
+            .lock()
             .map_err(|e| format!("获取同步管理器锁失败: {}", e))?;
-        
+
         if let Some(ref manager) = *sync_manager {
             return Ok(manager.is_running());
         }
     }
-    
+
     Ok(false)
 }
 
@@ -2519,14 +2767,15 @@ pub fn get_auto_sync_status_command(app_handle: AppHandle) -> Result<bool, Strin
 #[command]
 pub fn pause_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
-        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state.lock()
+        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
+            .lock()
             .map_err(|e| format!("获取同步管理器锁失败: {}", e))?;
-        
+
         if let Some(ref manager) = *sync_manager {
             manager.pause()?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -2534,14 +2783,15 @@ pub fn pause_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
 #[command]
 pub fn resume_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
-        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state.lock()
+        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
+            .lock()
             .map_err(|e| format!("获取同步管理器锁失败: {}", e))?;
-        
+
         if let Some(ref manager) = *sync_manager {
             manager.resume()?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -2562,40 +2812,41 @@ pub fn get_conflict_file_content(
     app_handle: AppHandle,
     file_path: String,
 ) -> Result<ConflictFileContent, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
-    
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+
     let full_path = workspace_root.join(&file_path);
-    
+
     let merge_head_path = workspace_root.join(".git/MERGE_HEAD");
     let is_merge_conflict = merge_head_path.exists();
-    
+
     let local_content = if is_merge_conflict {
         let head_output = crate::git_common::git_command()
             .args(&["show", &format!("HEAD:{}", file_path)])
             .current_dir(&workspace_root)
             .output()
             .map_err(|e| format!("获取本地版本失败: {}", e))?;
-        
+
         if head_output.status.success() {
             String::from_utf8_lossy(&head_output.stdout).to_string()
         } else {
-            warn!("⚠️ [Git] git show HEAD:{} 失败，回退读取磁盘文件", file_path);
-            std::fs::read_to_string(&full_path)
-                .map_err(|e| format!("读取本地文件失败: {}", e))?
+            warn!(
+                "⚠️ [Git] git show HEAD:{} 失败，回退读取磁盘文件",
+                file_path
+            );
+            std::fs::read_to_string(&full_path).map_err(|e| format!("读取本地文件失败: {}", e))?
         }
     } else {
-        std::fs::read_to_string(&full_path)
-            .map_err(|e| format!("读取本地文件失败: {}", e))?
+        std::fs::read_to_string(&full_path).map_err(|e| format!("读取本地文件失败: {}", e))?
     };
-    
+
     // 获取远程版本（MERGE_HEAD 或 origin/branch）
     let remote_output = crate::git_common::git_command()
         .args(&["show", &format!("MERGE_HEAD:{}", file_path)])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("获取远程版本失败: {}", e))?;
-    
+
     let remote_content = if remote_output.status.success() {
         String::from_utf8_lossy(&remote_output.stdout).to_string()
     } else {
@@ -2605,40 +2856,41 @@ pub fn get_conflict_file_content(
             .current_dir(&workspace_root)
             .output()
             .map_err(|e| format!("获取当前分支失败: {}", e))?;
-        
-        let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
-        
+
+        let branch = String::from_utf8_lossy(&branch_output.stdout)
+            .trim()
+            .to_string();
+
         let origin_output = crate::git_common::git_command()
             .args(&["show", &format!("origin/{}:{}", branch, file_path)])
             .current_dir(&workspace_root)
             .output()
             .map_err(|e| format!("获取远程版本失败: {}", e))?;
-        
+
         if origin_output.status.success() {
             String::from_utf8_lossy(&origin_output.stdout).to_string()
         } else {
             String::new()
         }
     };
-    
+
     // 获取共同祖先版本（可选）
     let base_output = crate::git_common::git_command()
         .args(&["show", &format!(":1:{}", file_path)])
         .current_dir(&workspace_root)
         .output()
         .ok();
-    
-    let base_content = base_output
-        .and_then(|output| {
-            if output.status.success() {
-                Some(String::from_utf8_lossy(&output.stdout).to_string())
-            } else {
-                None
-            }
-        });
-    
+
+    let base_content = base_output.and_then(|output| {
+        if output.status.success() {
+            Some(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            None
+        }
+    });
+
     info!("✅ [Git] 获取冲突文件内容: {}", file_path);
-    
+
     Ok(ConflictFileContent {
         file_path,
         remote_content,
@@ -2653,11 +2905,11 @@ pub async fn force_push_command(
     app_handle: AppHandle,
     message: Option<String>,
 ) -> Result<PushResult, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
-    
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+
     info!("🔄 [Git] 开始强制推送");
-    
+
     // 如果处于 merge 状态，先 abort 以恢复干净的本地状态，避免提交冲突标记
     let merge_head_path = workspace_root.join(".git/MERGE_HEAD");
     if merge_head_path.exists() {
@@ -2667,36 +2919,39 @@ pub async fn force_push_command(
             .current_dir(&workspace_root)
             .output()
             .map_err(|e| format!("git merge --abort 失败: {}", e))?;
-        
+
         if !abort_output.status.success() {
             let error = String::from_utf8_lossy(&abort_output.stderr);
             warn!("⚠️ [Git] merge --abort 失败: {}", error);
         }
     }
-    
+
     // 1. 添加所有文件
     let add_output = crate::git_common::git_command()
         .args(&["add", "."])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("git add 失败: {}", e))?;
-    
+
     if !add_output.status.success() {
         let error = String::from_utf8_lossy(&add_output.stderr);
         return Err(format!("git add 失败: {}", error));
     }
-    
+
     // 2. 提交
     let commit_message = message.unwrap_or_else(|| {
-        format!("Force push: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"))
+        format!(
+            "Force push: {}",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+        )
     });
-    
+
     let commit_output = crate::git_common::git_command()
         .args(&["commit", "-m", &commit_message])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("git commit 失败: {}", e))?;
-    
+
     // 如果没有变更，也不算错误
     if !commit_output.status.success() {
         let stderr = String::from_utf8_lossy(&commit_output.stderr);
@@ -2704,31 +2959,33 @@ pub async fn force_push_command(
             return Err(format!("git commit 失败: {}", stderr));
         }
     }
-    
+
     // 3. 获取当前分支
     let branch_output = crate::git_common::git_command()
         .args(&["branch", "--show-current"])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("获取当前分支失败: {}", e))?;
-    
-    let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
-    
+
+    let branch = String::from_utf8_lossy(&branch_output.stdout)
+        .trim()
+        .to_string();
+
     // 4. 强制推送
     let output = crate::git_common::git_command()
         .args(&["push", "--force", "origin", &branch])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("git push --force 失败: {}", e))?;
-    
+
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         error!("❌ [Git] 强制推送失败: {}", error);
         return Err(format!("强制推送失败: {}", error));
     }
-    
+
     info!("✅ [Git] 强制推送成功");
-    
+
     Ok(PushResult {
         success: true,
         files_pushed: 1,
@@ -2740,70 +2997,79 @@ pub async fn force_push_command(
 /// 强制拉取（覆盖本地）
 #[command]
 pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
-    
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+
     info!("🔄 [Git] 开始强制拉取");
-    
+
     // 1. 获取远程更新
     let fetch_output = crate::git_common::git_command()
         .args(&["fetch", "origin"])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("git fetch 失败: {}", e))?;
-    
+
     if !fetch_output.status.success() {
         let error = String::from_utf8_lossy(&fetch_output.stderr);
         return Err(format!("git fetch 失败: {}", error));
     }
-    
+
     // 2. 获取当前分支
     let branch_output = crate::git_common::git_command()
         .args(&["branch", "--show-current"])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("获取当前分支失败: {}", e))?;
-    
-    let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
-    
+
+    let branch = String::from_utf8_lossy(&branch_output.stdout)
+        .trim()
+        .to_string();
+
     // 3. 重置到远程分支
     let output = crate::git_common::git_command()
         .args(&["reset", "--hard", &format!("origin/{}", branch)])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("git reset 失败: {}", e))?;
-    
+
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         error!("❌ [Git] 强制拉取失败: {}", error);
         return Err(format!("强制拉取失败: {}", error));
     }
-    
+
     info!("✅ [Git] 强制拉取成功");
-    
+
     // 获取变更的文件列表用于增量扫描（强制拉取无 pre_pull_head，使用 ORIG_HEAD 回退）
     let changed_files = get_changed_files_after_pull(&workspace_root, None)?;
-    
+
     // 将变更的文件添加到 FileWatcher 忽略列表，避免触发删除事件
     if !changed_files.is_empty() {
-        if let Some(watcher_state) = app_handle.try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>() {
+        if let Some(watcher_state) =
+            app_handle.try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>()
+        {
             if let Ok(watcher_lock) = watcher_state.lock() {
                 if let Some(ref watcher) = *watcher_lock {
                     for file in &changed_files {
                         let file_path = workspace_root.join(file);
                         watcher.ignore_next_change(file_path);
                     }
-                    info!("🔕 [Git] 已将 {} 个文件添加到 FileWatcher 忽略列表", changed_files.len());
+                    info!(
+                        "🔕 [Git] 已将 {} 个文件添加到 FileWatcher 忽略列表",
+                        changed_files.len()
+                    );
                 }
             }
         }
     }
-    
+
     // 使用增量扫描更新 cache
     if !changed_files.is_empty() {
         info!("📋 [Git] 检测到 {} 个 .md 文件变更", changed_files.len());
-        
-        if let Some(cache_state) = app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>() {
+
+        if let Some(cache_state) =
+            app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>()
+        {
             if let Ok(mut cache) = cache_state.write() {
                 if let Ok(added_count) = cache.scan_files(&changed_files, &workspace_root) {
                     info!("✅ [Git] 增量扫描完成，添加 {} 个新文件", added_count);
@@ -2812,7 +3078,7 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
             }
         }
     }
-    
+
     Ok(PullResult {
         success: true,
         files_updated: changed_files.len(),
@@ -2838,30 +3104,41 @@ pub fn resolve_conflicts_batch(
     app_handle: AppHandle,
     resolutions: Vec<(String, ConflictStrategy)>,
 ) -> Result<ResolveConflictsResult, String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
-    
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+
     info!("🔄 [Git] 开始批量解决冲突，共 {} 个文件", resolutions.len());
-    
+
     // 收集所有冲突文件路径
-    let conflict_file_paths: Vec<String> = resolutions.iter()
-        .map(|(path, _)| path.clone())
-        .collect();
-    
+    let conflict_file_paths: Vec<String> =
+        resolutions.iter().map(|(path, _)| path.clone()).collect();
+
     let resolved_count = conflict_file_paths.len();
-    
+
     // 检查是否处于 merge 状态
     let merge_head_path = workspace_root.join(".git/MERGE_HEAD");
     let is_merge_conflict = merge_head_path.exists();
-    
-    info!("📋 [Git] 冲突类型: {}", if is_merge_conflict { "Merge 冲突" } else { "本地更改冲突" });
-    
+
+    info!(
+        "📋 [Git] 冲突类型: {}",
+        if is_merge_conflict {
+            "Merge 冲突"
+        } else {
+            "本地更改冲突"
+        }
+    );
+
     // 在执行任何 Git 操作之前，将冲突文件添加到 FileWatcher 的忽略列表
     // 注意：每个 Git 操作都可能触发文件变更事件，需要多次添加忽略
     if !conflict_file_paths.is_empty() {
-        info!("🔒 [Git] 将 {} 个冲突文件添加到 FileWatcher 忽略列表（多次）", conflict_file_paths.len());
-        
-        if let Some(watcher_state) = app_handle.try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>() {
+        info!(
+            "🔒 [Git] 将 {} 个冲突文件添加到 FileWatcher 忽略列表（多次）",
+            conflict_file_paths.len()
+        );
+
+        if let Some(watcher_state) =
+            app_handle.try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>()
+        {
             if let Ok(watcher_lock) = watcher_state.lock() {
                 if let Some(ref watcher) = *watcher_lock {
                     for _ in 0..5 {
@@ -2875,11 +3152,11 @@ pub fn resolve_conflicts_batch(
             }
         }
     }
-    
+
     if is_merge_conflict {
         for (file_path, strategy) in resolutions {
             info!("📝 [Git] 解决 Merge 冲突: {} - {:?}", file_path, strategy);
-            
+
             match strategy {
                 ConflictStrategy::KeepLocal => {
                     // write_conflict_file 已将正确内容写入磁盘，直接 git add
@@ -2888,7 +3165,7 @@ pub fn resolve_conflicts_batch(
                         .current_dir(&workspace_root)
                         .output()
                         .map_err(|e| format!("标记冲突已解决失败: {}", e))?;
-                    
+
                     if !output.status.success() {
                         let error = String::from_utf8_lossy(&output.stderr);
                         return Err(format!("标记冲突已解决失败: {}", error));
@@ -2899,29 +3176,36 @@ pub fn resolve_conflicts_batch(
                 }
                 ConflictStrategy::DiscardLocalUntracked => {
                     // Untracked files 场景不应出现在 merge conflict 中
-                    warn!("⚠️ [Git] DiscardLocalUntracked 策略不适用于 merge 冲突，跳过: {}", file_path);
+                    warn!(
+                        "⚠️ [Git] DiscardLocalUntracked 策略不适用于 merge 冲突，跳过: {}",
+                        file_path
+                    );
                 }
             }
         }
-        
+
         let output = crate::git_common::git_command()
             .args(&["commit", "--no-edit"])
             .current_dir(&workspace_root)
             .output()
             .map_err(|e| format!("完成合并失败: {}", e))?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
             return Err(format!("完成合并失败: {}", error));
         }
     } else {
         // 本地更改冲突：根据策略处理
-        let has_local_strategy = resolutions.iter().any(|(_, s)| matches!(s, ConflictStrategy::KeepLocal));
-        let has_remote_strategy = resolutions.iter().any(|(_, s)| matches!(s, ConflictStrategy::KeepRemote));
-        
+        let has_local_strategy = resolutions
+            .iter()
+            .any(|(_, s)| matches!(s, ConflictStrategy::KeepLocal));
+        let has_remote_strategy = resolutions
+            .iter()
+            .any(|(_, s)| matches!(s, ConflictStrategy::KeepRemote));
+
         for (file_path, strategy) in resolutions {
             info!("📝 [Git] 解决本地更改冲突: {} - {:?}", file_path, strategy);
-            
+
             match strategy {
                 ConflictStrategy::KeepLocal => {
                     // 保留本地版本：先 add，然后 commit
@@ -2930,7 +3214,7 @@ pub fn resolve_conflicts_batch(
                         .current_dir(&workspace_root)
                         .output()
                         .map_err(|e| format!("添加文件失败: {}", e))?;
-                    
+
                     if !output.status.success() {
                         let error = String::from_utf8_lossy(&output.stderr);
                         return Err(format!("添加文件失败: {}", error));
@@ -2943,7 +3227,7 @@ pub fn resolve_conflicts_batch(
                         .current_dir(&workspace_root)
                         .output()
                         .map_err(|e| format!("Stash 失败: {}", e))?;
-                    
+
                     if output.status.success() {
                         let stdout = String::from_utf8_lossy(&output.stdout);
                         if !stdout.contains("No local changes") {
@@ -2964,13 +3248,16 @@ pub fn resolve_conflicts_batch(
                 }
                 ConflictStrategy::DiscardLocalUntracked => {
                     // Untracked files 场景不应出现在本地更改冲突中
-                    warn!("⚠️ [Git] DiscardLocalUntracked 策略不适用于本地更改冲突，跳过: {}", file_path);
+                    warn!(
+                        "⚠️ [Git] DiscardLocalUntracked 策略不适用于本地更改冲突，跳过: {}",
+                        file_path
+                    );
                 }
             }
-            
+
             info!("✅ [Git] 冲突已解决: {}", file_path);
         }
-        
+
         // 对于保留本地版本的情况，需要 commit
         if has_local_strategy {
             let output = crate::git_common::git_command()
@@ -2978,7 +3265,7 @@ pub fn resolve_conflicts_batch(
                 .current_dir(&workspace_root)
                 .output()
                 .map_err(|e| format!("提交失败: {}", e))?;
-            
+
             if !output.status.success() {
                 let error = String::from_utf8_lossy(&output.stderr);
                 if error.contains("nothing to commit") {
@@ -2997,7 +3284,7 @@ pub fn resolve_conflicts_batch(
                 }
             }
         }
-        
+
         // 保留本地：push 到远程（用户选择的是覆盖远程）
         // 保留远程：pull 拉取远程（用户选择的是丢弃本地）
         if has_local_strategy {
@@ -3006,14 +3293,16 @@ pub fn resolve_conflicts_batch(
                 .current_dir(&workspace_root)
                 .output()
                 .map_err(|e| format!("获取分支失败: {}", e))?;
-            let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
-            
+            let branch = String::from_utf8_lossy(&branch_output.stdout)
+                .trim()
+                .to_string();
+
             let push_output = crate::git_common::git_command()
                 .args(&["push", "origin", &branch])
                 .current_dir(&workspace_root)
                 .output()
                 .map_err(|e| format!("Push 失败: {}", e))?;
-            
+
             if !push_output.status.success() {
                 let stderr = String::from_utf8_lossy(&push_output.stderr);
                 if stderr.contains("rejected") || stderr.contains("non-fast-forward") {
@@ -3042,20 +3331,22 @@ pub fn resolve_conflicts_batch(
                 let err = String::from_utf8_lossy(&fetch_output.stderr);
                 return Err(format!("Fetch 失败: {}", err));
             }
-            
+
             let branch_output = crate::git_common::git_command()
                 .args(&["branch", "--show-current"])
                 .current_dir(&workspace_root)
                 .output()
                 .map_err(|e| format!("获取分支失败: {}", e))?;
-            let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
-            
+            let branch = String::from_utf8_lossy(&branch_output.stdout)
+                .trim()
+                .to_string();
+
             let pull_output = crate::git_common::git_command()
                 .args(&["pull"])
                 .current_dir(&workspace_root)
                 .output()
                 .map_err(|e| format!("Pull 失败: {}", e))?;
-            
+
             if !pull_output.status.success() {
                 let stderr = String::from_utf8_lossy(&pull_output.stderr);
                 let stdout = String::from_utf8_lossy(&pull_output.stdout);
@@ -3066,7 +3357,7 @@ pub fn resolve_conflicts_batch(
                         .current_dir(&workspace_root)
                         .output();
                     let _ = reset_output;
-                    
+
                     let reset_output = crate::git_common::git_command()
                         .args(&["reset", "--hard", &format!("origin/{}", branch)])
                         .current_dir(&workspace_root)
@@ -3083,27 +3374,32 @@ pub fn resolve_conflicts_batch(
             }
         }
     }
-    
+
     info!("✅ [Git] 批量解决冲突成功");
-    
+
     // 等待 FileWatcher 处理完所有事件（给它一点时间）
     std::thread::sleep(Duration::from_millis(500));
-    
+
     // 更新 cache 中的冲突文件
     if !conflict_file_paths.is_empty() {
-        info!("📋 [Git] 更新 cache，共 {} 个冲突文件", conflict_file_paths.len());
-        
-        if let Some(cache_state) = app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>() {
+        info!(
+            "📋 [Git] 更新 cache，共 {} 个冲突文件",
+            conflict_file_paths.len()
+        );
+
+        if let Some(cache_state) =
+            app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>()
+        {
             if let Ok(mut cache) = cache_state.write() {
                 match cache.scan_files(&conflict_file_paths, &workspace_root) {
                     Ok(added_count) => {
                         info!("✅ [Git] Cache 更新完成，添加 {} 个文件", added_count);
                         let _ = cache.save();
-                        
+
                         // 再次等待，确保 FileWatcher 不会在我们保存后删除
                         drop(cache);
                         std::thread::sleep(Duration::from_millis(500));
-                        
+
                         // 最后再次确认文件在 cache 中
                         if let Ok(mut cache) = cache_state.write() {
                             info!("🔍 [Git] 最后确认：再次扫描冲突文件");
@@ -3129,7 +3425,7 @@ pub fn resolve_conflicts_batch(
             }
         }
     }
-    
+
     // 冲突解决后，恢复自动同步
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
         if let Ok(sync_manager) = sync_state.lock() {
@@ -3140,7 +3436,7 @@ pub fn resolve_conflicts_batch(
             }
         }
     }
-    
+
     Ok(ResolveConflictsResult {
         success: true,
         resolved_count,
@@ -3154,18 +3450,17 @@ pub fn write_conflict_file(
     file_path: String,
     content: String,
 ) -> Result<(), String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
-    
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+
     let full_path = workspace_root.join(&file_path);
-    
+
     info!("💾 [Git] 写入编辑后的冲突文件: {}", file_path);
-    
-    std::fs::write(&full_path, content)
-        .map_err(|e| format!("写入文件失败: {}", e))?;
-    
+
+    std::fs::write(&full_path, content).map_err(|e| format!("写入文件失败: {}", e))?;
+
     info!("✅ [Git] 文件写入成功: {}", file_path);
-    
+
     Ok(())
 }
 
@@ -3175,22 +3470,21 @@ pub fn remove_untracked_file_command(
     app_handle: AppHandle,
     file_path: String,
 ) -> Result<(), String> {
-    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
-        .ok_or("工作区未设置".to_string())?;
-    
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+
     let full_path = workspace_root.join(&file_path);
-    
+
     info!("🗑️ [Git] 删除未跟踪文件: {}", file_path);
-    
+
     if !full_path.exists() {
         info!("ℹ️ [Git] 文件不存在，无需删除: {}", file_path);
         return Ok(());
     }
-    
-    std::fs::remove_file(&full_path)
-        .map_err(|e| format!("删除文件失败: {}", e))?;
-    
+
+    std::fs::remove_file(&full_path).map_err(|e| format!("删除文件失败: {}", e))?;
+
     info!("✅ [Git] 已删除未跟踪文件: {}", file_path);
-    
+
     Ok(())
 }

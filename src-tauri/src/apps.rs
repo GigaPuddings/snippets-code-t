@@ -4,12 +4,12 @@ use crate::APP;
 use glob::glob;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use tauri_plugin_opener::OpenerExt;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::mem::size_of;
 use std::os::windows::process::CommandExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::System::ProcessStatus::{K32EnumProcesses, K32GetModuleFileNameExA};
@@ -33,6 +33,125 @@ pub struct AppInfo {
     pub usage_count: u32,
 }
 
+pub fn is_shell_apps_folder_path(app_path: &str) -> bool {
+    app_path.to_lowercase().starts_with("shell:appsfolder\\")
+}
+
+pub fn shell_apps_folder_app_id(app_path: &str) -> Option<&str> {
+    if !is_shell_apps_folder_path(app_path) {
+        return None;
+    }
+
+    app_path.split_once('\\').map(|(_, app_id)| app_id.trim())
+}
+
+fn resolve_known_folder_app_id(app_id: &str) -> Option<String> {
+    let (folder_id, relative_path) = app_id.split_once('\\')?;
+    let relative_path = relative_path.trim();
+    if relative_path.is_empty() {
+        return None;
+    }
+
+    let base_path = match folder_id.to_ascii_uppercase().as_str() {
+        "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}" => "C:\\Windows\\System32",
+        "{D65231B0-B2F1-4857-A4CE-A8E7C6EA7D27}" => "C:\\Windows\\SysWOW64",
+        "{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}" => "C:\\Program Files (x86)",
+        "{6D809377-6AF0-444B-8957-A3773F02200E}" => "C:\\Program Files",
+        _ => return None,
+    };
+
+    let path = Path::new(base_path).join(relative_path);
+    if path.exists() {
+        Some(path.to_string_lossy().to_string())
+    } else {
+        None
+    }
+}
+
+pub fn resolve_shell_apps_folder_display_path(app_path: &str) -> Option<String> {
+    let app_id = shell_apps_folder_app_id(app_path)?;
+
+    if let Some(path) = resolve_known_folder_app_id(app_id) {
+        return Some(path);
+    }
+
+    if Path::new(app_id).exists() {
+        return Some(app_id.to_string());
+    }
+
+    if let Some((package_family, app_entry_id)) = app_id.split_once('!') {
+        let package_root = get_package_root_for_family(package_family)?;
+        let manifest_path = Path::new(&package_root).join("AppxManifest.xml");
+        let manifest_content = fs::read_to_string(manifest_path).ok()?;
+        let executable =
+            extract_executable_for_app_id_from_manifest(&manifest_content, app_entry_id)
+                .or_else(|| extract_executable_from_manifest(&manifest_content))?;
+        let full_path = Path::new(&package_root).join(executable);
+
+        return Some(full_path.to_string_lossy().to_string());
+    }
+
+    None
+}
+
+fn get_package_root_for_family(package_family: &str) -> Option<String> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let path = r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages";
+    let key = hkcu.open_subkey(path).ok()?;
+
+    for package_name in key.enum_keys().filter_map(Result::ok) {
+        if !package_name.starts_with(package_family) {
+            continue;
+        }
+
+        if let Ok(package_key) = key.open_subkey(&package_name) {
+            if let Ok(package_root) = package_key.get_value::<String, _>("PackageRootFolder") {
+                if Path::new(&package_root).exists() {
+                    return Some(package_root);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn extract_executable_for_app_id_from_manifest(
+    manifest_content: &str,
+    app_entry_id: &str,
+) -> Option<String> {
+    let parser = EventReader::new(manifest_content.as_bytes());
+
+    for event in parser {
+        let Ok(XmlEvent::StartElement {
+            name, attributes, ..
+        }) = event
+        else {
+            continue;
+        };
+
+        if name.local_name != "Application" {
+            continue;
+        }
+
+        let mut id = None;
+        let mut executable = None;
+        for attr in attributes {
+            match attr.name.local_name.as_str() {
+                "Id" => id = Some(attr.value),
+                "Executable" => executable = Some(attr.value),
+                _ => {}
+            }
+        }
+
+        if id.as_deref() == Some(app_entry_id) {
+            return executable;
+        }
+    }
+
+    None
+}
+
 fn extract_icon_path(icon_path: &str) -> Option<String> {
     let re = Regex::new(r".*?([A-Z]:\\[^,]+(?:\.exe)).*").unwrap();
     re.captures(icon_path)
@@ -45,12 +164,12 @@ fn format_shortcut_title(raw_title: &str) -> String {
     let mut title = raw_title.to_string();
     let suffixes_to_remove = [
         ".exe - 快捷方式",
-        ".exe - Shortcut", 
+        ".exe - Shortcut",
         " - 快捷方式",
         " - Shortcut",
         ".exe",
     ];
-    
+
     for suffix in &suffixes_to_remove {
         if title.ends_with(suffix) {
             title = title[..title.len() - suffix.len()].to_string();
@@ -62,7 +181,7 @@ fn format_shortcut_title(raw_title: &str) -> String {
             title = title[..last_dot_pos].to_string();
         }
     }
-    
+
     title.trim().to_string()
 }
 
@@ -136,13 +255,9 @@ fn parse_appx_manifest(manifest_path: &Path) -> Option<UwpAppInfo> {
     let mut display_name = None;
     let mut logo_path = None;
     let mut executable = None;
-    let mut package_path = manifest_path.parent()?.to_path_buf();
+    let package_path = manifest_path.parent()?.to_path_buf();
 
-    // 移除掉最后一级目录(通常是AppxManifest.xml所在的目录)
-    if let Some(parent) = package_path.parent() {
-        package_path = parent.to_path_buf();
-    }
-
+    // AppxManifest.xml 所在目录就是包根目录。
     for event in parser {
         match event {
             Ok(XmlEvent::StartElement {
@@ -248,17 +363,14 @@ fn get_uwp_apps() -> Vec<AppInfo> {
 fn get_desktop_shortcuts() -> Vec<AppInfo> {
     let mut apps = Vec::new();
 
-
     // 尝试获取公共桌面和用户桌面路径
     let desktop_paths = [
         dirs::desktop_dir(),
-        dirs::document_dir()
-            .and_then(|p| p.join("..").join("Desktop").canonicalize().ok()),
+        dirs::document_dir().and_then(|p| p.join("..").join("Desktop").canonicalize().ok()),
         Some(Path::new("C:\\Users\\Public\\Desktop").to_path_buf()),
     ];
 
     for desktop_path in desktop_paths.iter().flatten() {
-
         // 查找所有.lnk快捷方式
         if let Ok(entries) = fs::read_dir(desktop_path) {
             for entry in entries.filter_map(Result::ok) {
@@ -279,7 +391,8 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                         .unwrap_or_else(|| path.to_string_lossy().to_string());
 
                     // 检查是否为有效的可执行文件或快捷方式
-                    let is_valid = (target_path.ends_with(".exe") && Path::new(&target_path).exists())
+                    let is_valid = (target_path.ends_with(".exe")
+                        && Path::new(&target_path).exists())
                         || target_path.ends_with(".lnk");
 
                     if is_valid {
@@ -310,7 +423,6 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
 
 // 解析快捷方式获取目标路径
 fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
-
     let filename = shortcut_path
         .file_stem()
         .unwrap_or_default()
@@ -439,7 +551,6 @@ where
 fn get_windows_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
 
-
     // Windows常用内置应用的路径 - 增加更多变体以提高检测成功率
     let windows_apps = [
         ("计算器", "C:\\Windows\\System32\\calc.exe"),
@@ -459,7 +570,6 @@ fn get_windows_apps() -> Vec<AppInfo> {
                 if let Some(first_match) = matches.filter_map(Result::ok).next() {
                     let path_str = first_match.to_string_lossy().to_string();
                     if Path::new(&path_str).exists() {
-
                         apps.push(AppInfo {
                             id: Uuid::new_v4().to_string(),
                             title: name.to_string(),
@@ -472,7 +582,6 @@ fn get_windows_apps() -> Vec<AppInfo> {
                 }
             }
         } else if Path::new(path).exists() {
-
             apps.push(AppInfo {
                 id: Uuid::new_v4().to_string(),
                 title: name.to_string(),
@@ -528,7 +637,6 @@ fn get_app_path_from_registry(exe_name: &str) -> Option<String> {
 fn get_office_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
 
-
     // 定义Office版本号和应用
     let office_versions = [
         "16.0", // Office 2016/2019/365
@@ -553,7 +661,6 @@ fn get_office_apps() -> Vec<AppInfo> {
         if let Some(path) = get_app_path_from_registry(exe_name) {
             // 再次验证路径确实存在和可访问
             if Path::new(&path).exists() && Path::new(&path).is_file() {
-
                 apps.push(AppInfo {
                     id: Uuid::new_v4().to_string(),
                     title: display_name.to_string(),
@@ -571,12 +678,10 @@ fn get_office_apps() -> Vec<AppInfo> {
         // 首先检查Office主安装路径
         let install_root = detect_office_install_root(version);
         if let Some(root_path) = install_root {
-
             // 检查每个应用的路径
             for (app_name, exe_name, display_name) in office_apps.iter() {
                 let app_path = format!("{}\\{}", root_path, exe_name);
                 if Path::new(&app_path).exists() && Path::new(&app_path).is_file() {
-
                     apps.push(AppInfo {
                         id: Uuid::new_v4().to_string(),
                         title: display_name.to_string(),
@@ -591,7 +696,6 @@ fn get_office_apps() -> Vec<AppInfo> {
                     if let Some(path) = app_install_path {
                         let full_path = format!("{}\\{}", path, exe_name);
                         if Path::new(&full_path).exists() && Path::new(&full_path).is_file() {
-
                             apps.push(AppInfo {
                                 id: Uuid::new_v4().to_string(),
                                 title: display_name.to_string(),
@@ -611,7 +715,6 @@ fn get_office_apps() -> Vec<AppInfo> {
                 if let Some(path) = app_install_path {
                     let full_path = format!("{}\\{}", path, exe_name);
                     if Path::new(&full_path).exists() && Path::new(&full_path).is_file() {
-
                         apps.push(AppInfo {
                             id: Uuid::new_v4().to_string(),
                             title: display_name.to_string(),
@@ -649,7 +752,6 @@ fn get_office_apps() -> Vec<AppInfo> {
 
                     // 检查是否已添加此路径
                     if !apps.iter().any(|app| app.content == app_path) {
-
                         apps.push(AppInfo {
                             id: Uuid::new_v4().to_string(),
                             title: display_name.to_string(),
@@ -674,11 +776,10 @@ fn get_office_apps() -> Vec<AppInfo> {
         if Path::new(c2r_path).exists() {
             for (_, exe_name, display_name) in office_apps.iter() {
                 let app_path = format!("{}\\{}", c2r_path, exe_name);
-                if Path::new(&app_path).exists() 
-                    && Path::new(&app_path).is_file() 
+                if Path::new(&app_path).exists()
+                    && Path::new(&app_path).is_file()
                     && !apps.iter().any(|app| app.content == app_path)
                 {
-
                     apps.push(AppInfo {
                         id: Uuid::new_v4().to_string(),
                         title: display_name.to_string(),
@@ -798,7 +899,6 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
     let system32_dir = "C:\\Windows\\System32";
     let search_pattern = format!("{}\\*.exe", system32_dir);
 
-
     if let Ok(paths) = glob(&search_pattern) {
         for entry in paths.filter_map(Result::ok) {
             if let Some(file_name) = entry.file_name() {
@@ -842,9 +942,193 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
     apps
 }
 
+fn get_windows_store_apps_from_start_apps() -> Vec<AppInfo> {
+    let result = try_with_timeout(
+        || {
+            let script = r#"$utf8 = [System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = $utf8; $OutputEncoding = $utf8; Get-StartApps | ForEach-Object { if ($_.Name -and $_.AppID) { [Console]::Out.WriteLine(($_.Name -replace "`t", " ") + "`t" + $_.AppID) } }"#;
+            let output = std::process::Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    script,
+                ])
+                .creation_flags(0x08000000)
+                .output()
+                .map_err(|e| e.to_string())?;
+
+            if !output.status.success() {
+                return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+            }
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let apps = stdout
+                .lines()
+                .filter_map(|line| {
+                    let (name, app_id) = line.split_once('\t')?;
+                    let name = name.trim();
+                    let app_id = app_id.trim();
+
+                    if name.is_empty() || app_id.is_empty() {
+                        return None;
+                    }
+
+                    if app_id.starts_with("http://") || app_id.starts_with("https://") {
+                        return None;
+                    }
+
+                    let content = if Path::new(app_id).exists() {
+                        app_id.to_string()
+                    } else if let Some(path) = resolve_known_folder_app_id(app_id) {
+                        path
+                    } else {
+                        format!("shell:AppsFolder\\{}", app_id)
+                    };
+
+                    let title = normalize_start_app_title(name, app_id, &content);
+                    if title.is_empty() {
+                        return None;
+                    }
+
+                    if !is_shell_apps_folder_path(&content) {
+                        let ext = Path::new(&content)
+                            .extension()
+                            .and_then(|ext| ext.to_str())
+                            .unwrap_or_default();
+                        if !ext.eq_ignore_ascii_case("exe") && !ext.eq_ignore_ascii_case("lnk") {
+                            return None;
+                        }
+                    }
+
+                    Some(AppInfo {
+                        id: Uuid::new_v4().to_string(),
+                        title,
+                        content,
+                        icon: None,
+                        summarize: "app".to_string(),
+                        usage_count: 0,
+                    })
+                })
+                .collect();
+
+            Ok(apps)
+        },
+        std::time::Duration::from_secs(3),
+    );
+
+    match result {
+        Ok(Ok(apps)) => apps,
+        _ => Vec::new(),
+    }
+}
+
+fn normalize_start_app_title(name: &str, app_id: &str, content: &str) -> String {
+    let title = name.trim();
+    let has_replacement = title.contains('\u{FFFD}');
+    let visible_chars: Vec<char> = title.chars().filter(|ch| !ch.is_whitespace()).collect();
+    let is_boxed = !visible_chars.is_empty()
+        && visible_chars
+            .iter()
+            .all(|ch| matches!(ch, '□' | '▯' | '�' | '?'));
+
+    if !title.is_empty() && !has_replacement && !is_boxed {
+        return title.to_string();
+    }
+
+    if let Some(name) = known_start_app_title(app_id) {
+        return name.to_string();
+    }
+
+    let content_path = Path::new(content);
+    if content_path.exists() {
+        if let Some(file_stem) = content_path.file_stem() {
+            let title = format_shortcut_title(&file_stem.to_string_lossy());
+            if !title.is_empty() {
+                return title;
+            }
+        }
+    }
+
+    app_id
+        .split('!')
+        .next()
+        .unwrap_or(app_id)
+        .split('.')
+        .filter(|part| !part.is_empty() && !part.eq_ignore_ascii_case("Microsoft"))
+        .last()
+        .unwrap_or(app_id)
+        .replace('_', " ")
+        .trim()
+        .to_string()
+}
+
+fn known_start_app_title(app_id: &str) -> Option<&'static str> {
+    match app_id {
+        "Microsoft.Windows.Explorer" => Some("文件资源管理器"),
+        "Microsoft.Windows.ControlPanel" => Some("控制面板"),
+        "Microsoft.Windows.Computer" => Some("此电脑"),
+        "Microsoft.Windows.Settings" => Some("设置"),
+        _ => None,
+    }
+}
+
+fn get_windows_store_app_aliases() -> Vec<AppInfo> {
+    let mut apps = Vec::new();
+    let mut alias_dirs: Vec<PathBuf> = Vec::new();
+
+    if let Some(local_data_dir) = dirs::data_local_dir() {
+        alias_dirs.push(local_data_dir.join("Microsoft").join("WindowsApps"));
+    }
+
+    alias_dirs.push(Path::new("C:\\Program Files\\WindowsApps").to_path_buf());
+
+    for alias_dir in alias_dirs {
+        if !alias_dir.is_dir() {
+            continue;
+        }
+
+        if let Ok(entries) = fs::read_dir(alias_dir) {
+            for entry in entries.filter_map(Result::ok) {
+                let path = entry.path();
+                if !path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
+                {
+                    continue;
+                }
+
+                let Some(file_stem) = path.file_stem() else {
+                    continue;
+                };
+
+                let title = format_shortcut_title(&file_stem.to_string_lossy());
+                if title.is_empty() {
+                    continue;
+                }
+
+                apps.push(AppInfo {
+                    id: Uuid::new_v4().to_string(),
+                    title,
+                    content: path.to_string_lossy().to_string(),
+                    icon: None,
+                    summarize: "app".to_string(),
+                    usage_count: 0,
+                });
+            }
+        }
+    }
+
+    apps
+}
+
 // 获取 Windows 商店应用
 fn get_windows_store_apps() -> Vec<AppInfo> {
     let mut apps = Vec::new();
+
+    apps.extend(get_windows_store_apps_from_start_apps());
+    apps.extend(get_windows_store_app_aliases());
 
     // 访问 Windows 应用清单注册表位置
     let hklm = RegKey::predef(HKEY_CURRENT_USER);
@@ -884,8 +1168,6 @@ fn get_windows_store_apps() -> Vec<AppInfo> {
 
                                 if let Some(exe_path) = app_exe_path {
                                     if Path::new(&exe_path).exists() {
-
-
                                         apps.push(AppInfo {
                                             id: Uuid::new_v4().to_string(),
                                             title: display_name,
@@ -969,7 +1251,6 @@ fn extract_executable_from_manifest(manifest_content: &str) -> Option<String> {
 
 // 获取已安装应用
 pub fn get_installed_apps() -> Vec<AppInfo> {
-
     let paths = [
         (
             HKEY_LOCAL_MACHINE,
@@ -1041,11 +1322,11 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
                 || app.title.contains("Publisher")
                 || app.title.contains("OneNote"))
         {
-            if seen_titles.contains(&app.title) { 
+            if seen_titles.contains(&app.title) {
                 continue;
             }
             seen_titles.insert(app.title.clone());
-        } 
+        }
         // 对于其他应用，检查标题是否重复（避免 "Snippets Code" 和 "snippets-code" 同时存在）
         else if seen_titles.contains(&normalized_title) {
             continue;
@@ -1180,8 +1461,104 @@ fn find_existing_window(target_path: &str) -> Option<HWND> {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn open_shell_apps_folder_path(app_path: &str) -> Result<(), String> {
+    std::process::Command::new("explorer.exe")
+        .arg(app_path)
+        .creation_flags(0x08000000)
+        .spawn()
+        .map_err(|e| format!("启动 Windows Store 应用失败 '{}': {}", app_path, e))?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn open_shell_apps_folder() -> Result<(), String> {
+    std::process::Command::new("explorer.exe")
+        .arg("shell:AppsFolder")
+        .creation_flags(0x08000000)
+        .spawn()
+        .map_err(|e| format!("打开 Windows Applications 文件夹失败: {}", e))?;
+
+    Ok(())
+}
+
+fn escape_powershell_single_quoted(value: &str) -> String {
+    value.replace('\'', "''")
+}
+
+#[cfg(target_os = "windows")]
+fn invoke_shell_apps_folder_verb(app_path: &str, verb_kind: &str) -> Result<(), String> {
+    let app_id = shell_apps_folder_app_id(app_path)
+        .filter(|id| !id.is_empty())
+        .ok_or_else(|| format!("无效的 Windows Applications 入口: {}", app_path))?;
+
+    let app_id = escape_powershell_single_quoted(app_id);
+    let verb_kind = escape_powershell_single_quoted(verb_kind);
+    let script = format!(
+        r#"
+$ErrorActionPreference = 'Stop'
+$shell = New-Object -ComObject Shell.Application
+$folder = $shell.Namespace('shell:AppsFolder')
+$item = $folder.ParseName('{app_id}')
+if ($null -eq $item) {{ throw '找不到应用入口' }}
+$kind = '{verb_kind}'
+$verbs = @($item.Verbs())
+$verb = $null
+foreach ($candidate in $verbs) {{
+  $name = ($candidate.Name -replace '&', '').Trim()
+  if ($kind -eq 'runas' -and ($name -match '管理员|administrator')) {{
+    $verb = $candidate
+    break
+  }}
+  if ($kind -eq 'openfilelocation' -and ($name -match '文件位置|file location')) {{
+    $verb = $candidate
+    break
+  }}
+}}
+if ($null -eq $verb) {{ throw ('找不到应用操作: ' + $kind) }}
+$verb.DoIt()
+"#
+    );
+
+    let output = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &script,
+        ])
+        .creation_flags(0x08000000)
+        .output()
+        .map_err(|e| format!("执行 Windows Applications 操作失败 '{}': {}", app_path, e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(format!(
+            "执行 Windows Applications 操作失败 '{}': {}",
+            app_path, stderr
+        ));
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn open_app_command(app_path: String) -> Result<(), String> {
+    if is_shell_apps_folder_path(&app_path) {
+        #[cfg(target_os = "windows")]
+        {
+            return open_shell_apps_folder_path(&app_path);
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            return Err("Windows Store 应用入口仅支持 Windows".to_string());
+        }
+    }
+
     let path = Path::new(&app_path);
     if !path.exists() {
         return Err(format!("应用程序路径不存在: {}", app_path));
@@ -1206,16 +1583,29 @@ pub fn open_app_command(app_path: String) -> Result<(), String> {
             } else {
                 app_path.clone()
             };
-            
-            app.opener().open_path(actual_path.clone(), None::<&str>)
+
+            app.opener()
+                .open_path(actual_path.clone(), None::<&str>)
                 .map_err(|e| format!("启动应用程序失败 '{}': {}", app_path, e))
         }
-        None => Err("无法获取应用程序实例".to_string())
+        None => Err("无法获取应用程序实例".to_string()),
     }
 }
 
 #[tauri::command]
 pub fn open_app_as_admin_command(app_path: String) -> Result<(), String> {
+    if is_shell_apps_folder_path(&app_path) {
+        #[cfg(target_os = "windows")]
+        {
+            return invoke_shell_apps_folder_verb(&app_path, "runas");
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            return Err("Windows Applications 入口仅支持 Windows".to_string());
+        }
+    }
+
     let path = Path::new(&app_path);
     if !path.exists() {
         return Err(format!("应用程序路径不存在: {}", app_path));
@@ -1248,3 +1638,50 @@ pub fn open_app_as_admin_command(app_path: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+pub fn open_app_file_location_command(app_path: String) -> Result<(), String> {
+    if is_shell_apps_folder_path(&app_path) {
+        #[cfg(target_os = "windows")]
+        {
+            return invoke_shell_apps_folder_verb(&app_path, "openfilelocation")
+                .or_else(|_| open_shell_apps_folder());
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            return Err("Windows Applications 入口仅支持 Windows".to_string());
+        }
+    }
+
+    let actual_path = if app_path.ends_with(".lnk") {
+        resolve_shortcut(Path::new(&app_path)).unwrap_or(app_path.clone())
+    } else {
+        app_path.clone()
+    };
+
+    let path = Path::new(&actual_path);
+    if !path.exists() {
+        return Err(format!("应用程序路径不存在: {}", actual_path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .args(["/select,", &actual_path])
+            .creation_flags(0x08000000)
+            .spawn()
+            .map_err(|e| format!("打开应用文件夹失败 '{}': {}", actual_path, e))?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Some(parent) = path.parent() {
+            std::process::Command::new("open")
+                .arg(parent)
+                .spawn()
+                .map_err(|e| format!("打开应用文件夹失败 '{}': {}", actual_path, e))?;
+        }
+    }
+
+    Ok(())
+}

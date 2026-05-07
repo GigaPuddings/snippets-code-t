@@ -1,13 +1,14 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use lru::LruCache;
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
-use tokio::sync::Semaphore;
 use tauri::AppHandle;
 use tauri_plugin_http::reqwest;
+use tokio::sync::Semaphore;
 use url::Url;
 use windows::core::HSTRING;
 use windows::Win32::Foundation::SIZE;
@@ -19,9 +20,8 @@ use windows::Win32::System::Com::CoInitialize;
 use windows::Win32::UI::Shell::{
     IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
 };
-use serde::{Deserialize, Serialize};
 
-use crate::apps::{get_installed_apps, AppInfo};
+use crate::apps::{get_installed_apps, is_shell_apps_folder_path, AppInfo};
 use crate::bookmarks::{get_browser_bookmarks, get_favicon_from_browser_cache, BookmarkInfo};
 use crate::db;
 
@@ -40,12 +40,11 @@ const MAX_CACHE_SIZE: usize = 500; // 最多缓存500个图标，防止内存溢
 const STARTUP_BOOKMARK_ICON_NETWORK_REFRESH: bool = false; // 启动时只使用已有缓存，避免离线环境批量请求网络
 
 // 全局图标缓存 - 使用 LRU 缓存自动淘汰最少使用的图标
-static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> =
-    Lazy::new(|| {
-        Arc::new(Mutex::new(
-            LruCache::new(NonZeroUsize::new(MAX_CACHE_SIZE).unwrap())
-        ))
-    });
+static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> = Lazy::new(|| {
+    Arc::new(Mutex::new(LruCache::new(
+        NonZeroUsize::new(MAX_CACHE_SIZE).unwrap(),
+    )))
+});
 
 // 并发管理 - 限制同时进行的图标加载任务数量以优化性能
 static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(10))); // 并发10个任务，平衡性能和资源占用
@@ -64,23 +63,27 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
     }
 
     // 验证路径是否存在且为有效文件
+    let is_shell_app = is_shell_apps_folder_path(app_path);
     let path = std::path::Path::new(app_path);
-    if !path.exists() || !path.is_file() {
+    if !is_shell_app && (!path.exists() || !path.is_file()) {
         return None;
     }
 
     // 规范化路径，去除可能的路径问题
     let canonical_path = match path.canonicalize() {
-        Ok(p) => {
+        Ok(p) if !is_shell_app => {
             let path_str = p.to_string_lossy().to_string();
             // 移除 Windows 扩展长度路径前缀 "\\?\"，因为 Shell API 不支持
             if path_str.starts_with(r"\\?\") {
-                path_str.strip_prefix(r"\\?\").unwrap_or(&path_str).to_string()
+                path_str
+                    .strip_prefix(r"\\?\")
+                    .unwrap_or(&path_str)
+                    .to_string()
             } else {
                 path_str
             }
-        },
-        Err(_) => app_path.to_string()
+        }
+        Ok(_) | Err(_) => app_path.to_string(),
     };
 
     // info!("提取应用图标: {}", canonical_path);
@@ -267,7 +270,7 @@ fn is_valid_cached_icon(data: &str) -> bool {
     if !data.starts_with("data:image/") {
         return false;
     }
-    
+
     // 提取 base64 部分
     if let Some(base64_start) = data.find(";base64,") {
         let base64_data = &data[base64_start + 8..];
@@ -277,7 +280,7 @@ fn is_valid_cached_icon(data: &str) -> bool {
             return is_valid_image_data(&decoded);
         }
     }
-    
+
     false
 }
 
@@ -299,7 +302,6 @@ pub fn remove_icon_cache_for_path(path: &str) {
     remove_cached_icon(&key);
 }
 
-
 // 将图标存储在缓存中
 fn cache_icon(key: &str, icon: CachedIcon) {
     let mut cache = ICON_CACHE.lock().unwrap();
@@ -311,14 +313,14 @@ fn cache_icon(key: &str, icon: CachedIcon) {
 pub fn load_icon_cache(_app_handle: &AppHandle) {
     if let Ok(cache_data) = db::load_all_icon_cache() {
         let mut cache = ICON_CACHE.lock().unwrap();
-        
+
         // 由于 LRU 缓存有大小限制，优先加载最新的图标
         let mut sorted_icons: Vec<_> = cache_data.into_iter().collect();
         sorted_icons.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
-        
+
         // let mut loaded_count = 0;
         let mut invalid_keys = Vec::new();
-        
+
         for (key, icon) in sorted_icons.into_iter().take(MAX_CACHE_SIZE) {
             // 验证缓存数据是否有效
             if is_valid_cached_icon(&icon.data) {
@@ -328,7 +330,7 @@ pub fn load_icon_cache(_app_handle: &AppHandle) {
                 invalid_keys.push(key);
             }
         }
-        
+
         // 删除无效的缓存
         drop(cache);
         for key in invalid_keys {
@@ -339,7 +341,7 @@ pub fn load_icon_cache(_app_handle: &AppHandle) {
                 );
             }
         }
-        
+
         // log::info!("加载了 {} 个有效图标缓存", loaded_count);
     }
 }
@@ -375,10 +377,10 @@ pub fn extract_domain(url: &str) -> Option<String> {
 // 图标源类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IconSource {
-    Auto,           // 自动尝试所有源
-    Google,         // Google Favicon API
-    Yandex,         // Yandex Favicon
-    Website,        // 直接从网站获取
+    Auto,    // 自动尝试所有源
+    Google,  // Google Favicon API
+    Yandex,  // Yandex Favicon
+    Website, // 直接从网站获取
 }
 
 impl IconSource {
@@ -438,78 +440,97 @@ fn is_valid_image_data(bytes: &[u8]) -> bool {
     if bytes.len() < 32 {
         return false;
     }
-    
+
     // 检查常见图片格式的魔数（文件头）
     // PNG: 89 50 4E 47 0D 0A 1A 0A
-    let is_png = bytes.len() >= 8 && 
-        bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 &&
-        bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A && bytes[7] == 0x0A;
-    
+    let is_png = bytes.len() >= 8
+        && bytes[0] == 0x89
+        && bytes[1] == 0x50
+        && bytes[2] == 0x4E
+        && bytes[3] == 0x47
+        && bytes[4] == 0x0D
+        && bytes[5] == 0x0A
+        && bytes[6] == 0x1A
+        && bytes[7] == 0x0A;
+
     // JPEG: FF D8 FF
-    let is_jpeg = bytes.len() >= 3 && 
-        bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
-    
+    let is_jpeg = bytes.len() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
+
     // GIF: 47 49 46 38 (GIF8)
-    let is_gif = bytes.len() >= 6 && 
-        bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38;
-    
+    let is_gif = bytes.len() >= 6
+        && bytes[0] == 0x47
+        && bytes[1] == 0x49
+        && bytes[2] == 0x46
+        && bytes[3] == 0x38;
+
     // ICO: 00 00 01 00 或 00 00 02 00 (CUR)
-    let is_ico = bytes.len() >= 4 && 
-        bytes[0] == 0x00 && bytes[1] == 0x00 && (bytes[2] == 0x01 || bytes[2] == 0x02) && bytes[3] == 0x00;
-    
+    let is_ico = bytes.len() >= 4
+        && bytes[0] == 0x00
+        && bytes[1] == 0x00
+        && (bytes[2] == 0x01 || bytes[2] == 0x02)
+        && bytes[3] == 0x00;
+
     // BMP: 42 4D (BM)
-    let is_bmp = bytes.len() >= 2 && 
-        bytes[0] == 0x42 && bytes[1] == 0x4D;
-    
+    let is_bmp = bytes.len() >= 2 && bytes[0] == 0x42 && bytes[1] == 0x4D;
+
     // WebP: 52 49 46 46 ... 57 45 42 50 (RIFF...WEBP)
-    let is_webp = bytes.len() >= 12 && 
-        bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
-        bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50;
-    
+    let is_webp = bytes.len() >= 12
+        && bytes[0] == 0x52
+        && bytes[1] == 0x49
+        && bytes[2] == 0x46
+        && bytes[3] == 0x46
+        && bytes[8] == 0x57
+        && bytes[9] == 0x45
+        && bytes[10] == 0x42
+        && bytes[11] == 0x50;
+
     // SVG: 检查是否以 <?xml 或 <svg 开头（文本格式），也检查带 BOM 的情况
     let is_svg = if bytes.len() >= 5 {
         // 跳过可能的 BOM
-        let start = if bytes.len() >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF {
+        let start = if bytes.len() >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF
+        {
             3
         } else {
             0
         };
         let check_bytes = &bytes[start..];
-        check_bytes.len() >= 4 && (
-            // <?xml
-            (check_bytes[0] == 0x3C && check_bytes[1] == 0x3F) ||
+        check_bytes.len() >= 4
+            && (
+                // <?xml
+                (check_bytes[0] == 0x3C && check_bytes[1] == 0x3F) ||
             // <svg
             (check_bytes[0] == 0x3C && check_bytes[1] == 0x73 && check_bytes[2] == 0x76 && check_bytes[3] == 0x67) ||
             // < svg (with space)
-            (check_bytes[0] == 0x3C && check_bytes.len() > 4 && 
+            (check_bytes[0] == 0x3C && check_bytes.len() > 4 &&
              String::from_utf8_lossy(&check_bytes[..std::cmp::min(100, check_bytes.len())]).contains("<svg"))
-        )
+            )
     } else {
         false
     };
-    
+
     // 检查是否是 HTML 错误页面（以 <!DOCTYPE 或 <html 开头）
     let is_html = bytes.len() >= 15 && {
-        let text = String::from_utf8_lossy(&bytes[..std::cmp::min(100, bytes.len())]).to_lowercase();
+        let text =
+            String::from_utf8_lossy(&bytes[..std::cmp::min(100, bytes.len())]).to_lowercase();
         text.contains("<!doctype") || text.contains("<html") || text.contains("<head")
     };
-    
+
     if is_html {
         return false;
     }
-    
+
     // 检查是否是已知的占位图（1x1 透明 GIF 等）
     // 1x1 透明 GIF 的标准大小是 43 字节
     if is_gif && bytes.len() < 100 {
         return false;
     }
-    
+
     // PNG 图片太小可能是占位图（但要允许小的有效图标）
     // 降低阈值以支持小但有效的图标
     if is_png && bytes.len() < 150 {
         return false;
     }
-    
+
     is_png || is_jpeg || is_gif || is_ico || is_bmp || is_webp || is_svg
 }
 
@@ -518,43 +539,56 @@ fn get_image_mime_type(bytes: &[u8]) -> &'static str {
     if bytes.len() < 4 {
         return "image/png";
     }
-    
+
     // PNG
-    if bytes.len() >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 {
+    if bytes.len() >= 8
+        && bytes[0] == 0x89
+        && bytes[1] == 0x50
+        && bytes[2] == 0x4E
+        && bytes[3] == 0x47
+    {
         return "image/png";
     }
-    
+
     // JPEG
     if bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF {
         return "image/jpeg";
     }
-    
+
     // GIF
     if bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38 {
         return "image/gif";
     }
-    
+
     // ICO
     if bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0x01 && bytes[3] == 0x00 {
         return "image/x-icon";
     }
-    
+
     // BMP
     if bytes[0] == 0x42 && bytes[1] == 0x4D {
         return "image/bmp";
     }
-    
+
     // WebP
-    if bytes.len() >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
-       bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50 {
+    if bytes.len() >= 12
+        && bytes[0] == 0x52
+        && bytes[1] == 0x49
+        && bytes[2] == 0x46
+        && bytes[3] == 0x46
+        && bytes[8] == 0x57
+        && bytes[9] == 0x45
+        && bytes[10] == 0x42
+        && bytes[11] == 0x50
+    {
         return "image/webp";
     }
-    
+
     // SVG
     if bytes.len() >= 5 && bytes[0] == 0x3C && (bytes[1] == 0x3F || bytes[1] == 0x73) {
         return "image/svg+xml";
     }
-    
+
     "image/png"
 }
 
@@ -568,7 +602,7 @@ pub async fn fetch_favicon_with_source(url: &str, source: IconSource) -> Option<
 
     // 使用信号量控制并发
     let _permit = ICON_SEMAPHORE.acquire().await.ok()?;
-    
+
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10)) // 增加超时时间以支持更大图标
         .build()
@@ -589,7 +623,8 @@ pub async fn fetch_favicon_with_source(url: &str, source: IconSource) -> Option<
                     if let Ok(bytes) = response.bytes().await {
                         if !bytes.is_empty() && bytes.len() > 16 && is_valid_image_data(&bytes) {
                             let mime_type = get_image_mime_type(&bytes);
-                            let favicon = format!("data:{};base64,{}", mime_type, STANDARD.encode(&bytes));
+                            let favicon =
+                                format!("data:{};base64,{}", mime_type, STANDARD.encode(&bytes));
 
                             if source == IconSource::Auto {
                                 let cached_icon = CachedIcon {
@@ -633,14 +668,12 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
 
 // 获取应用和书签的图标
 pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
-    
     // 先加载图标缓存到内存，提升后续查询速度
     load_icon_cache(app_handle);
 
     // 检查数据库中是否已有数据
     let apps_count = db::count_apps().unwrap_or(0);
     let bookmarks_count = db::count_bookmarks().unwrap_or(0);
-
 
     if apps_count > 0 && bookmarks_count > 0 {
         load_missing_icons(app_handle.clone());
@@ -667,12 +700,18 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     let scan_apps = apps_count == 0 || matches!(reset_kind, Some("all" | "apps"));
     let scan_bookmarks = bookmarks_count == 0 || matches!(reset_kind, Some("all" | "bookmarks"));
     let scan_desktop_files = matches!(reset_kind, Some("all" | "desktopFiles"));
-    let base_steps = (scan_apps as usize + scan_bookmarks as usize) * 2 + scan_desktop_files as usize;
+    let base_steps =
+        (scan_apps as usize + scan_bookmarks as usize) * 2 + scan_desktop_files as usize;
     let mut current_step = 0usize;
 
     if scan_apps {
         if show_progress {
-            crate::window::emit_scan_progress("正在扫描本地应用...", current_step, base_steps.max(1), "");
+            crate::window::emit_scan_progress(
+                "正在扫描本地应用...",
+                current_step,
+                base_steps.max(1),
+                "",
+            );
         }
         apps_to_load = get_installed_apps();
         current_step += 1;
@@ -693,7 +732,12 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 
     if scan_bookmarks {
         if show_progress {
-            crate::window::emit_scan_progress("正在扫描浏览器书签...", current_step, base_steps.max(1), "");
+            crate::window::emit_scan_progress(
+                "正在扫描浏览器书签...",
+                current_step,
+                base_steps.max(1),
+                "",
+            );
         }
         bookmarks_to_load = get_browser_bookmarks();
         current_step += 1;
@@ -715,7 +759,12 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     let mut desktop_files_loaded = 0usize;
     if scan_desktop_files {
         if show_progress {
-            crate::window::emit_scan_progress("正在扫描桌面文件...", current_step, base_steps.max(1), "");
+            crate::window::emit_scan_progress(
+                "正在扫描桌面文件...",
+                current_step,
+                base_steps.max(1),
+                "",
+            );
         }
         desktop_files_loaded = crate::search::refresh_desktop_files_cache_with_count();
         current_step += 1;
@@ -723,7 +772,10 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 
     // 统计图标任务数，用于细粒度进度
     let app_icon_tasks = apps_to_load.iter().filter(|app| app.icon.is_none()).count();
-    let bookmark_icon_tasks = bookmarks_to_load.iter().filter(|b| b.icon.is_none()).count();
+    let bookmark_icon_tasks = bookmarks_to_load
+        .iter()
+        .filter(|b| b.icon.is_none())
+        .count();
     let icon_tasks = app_icon_tasks + bookmark_icon_tasks;
 
     // 发送扫描完成事件
@@ -735,7 +787,12 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         // 手动重置后：图标也纳入进度窗口（真实逐项推进）
         if total_loaded > 0 && icon_tasks > 0 {
             let total_steps = base_steps + icon_tasks;
-            load_icons_with_realtime_progress(apps_to_load, bookmarks_to_load, current_step, total_steps);
+            load_icons_with_realtime_progress(
+                apps_to_load,
+                bookmarks_to_load,
+                current_step,
+                total_steps,
+            );
         } else if total_loaded > 0 {
             // 无图标任务时，仍保持原有完成流程
         }
@@ -749,13 +806,20 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
                 .notification()
                 .builder()
                 .title("数据索引完成")
-                .body(format!("已索引 {} 个应用，{} 个书签", apps_loaded, bookmarks_loaded))
+                .body(format!(
+                    "已索引 {} 个应用，{} 个书签",
+                    apps_loaded, bookmarks_loaded
+                ))
                 .show();
         }
 
         // 只为需要加载的数据异步加载图标（静默加载，不发送通知）
         if !apps_to_load.is_empty() || !bookmarks_to_load.is_empty() {
-            load_icons_with_combined_notification(app_handle.clone(), apps_to_load, bookmarks_to_load);
+            load_icons_with_combined_notification(
+                app_handle.clone(),
+                apps_to_load,
+                bookmarks_to_load,
+            );
         }
     }
 }
@@ -763,7 +827,7 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 // ============= 通用图标加载框架 =============
 
 // 通用图标加载器 - 统一处理应用和书签的图标加载逻辑
-// 
+//
 // 参数说明：
 // - items: 需要加载图标的项目列表
 // - has_icon: 检查项目是否已有图标的函数
@@ -776,7 +840,7 @@ pub fn load_icons_generic<T>(
     fetch_icon: impl Fn(&T) -> Option<String>,
     update_db: impl Fn(&T, &str) -> Result<(), String>,
     _item_name: &str,
-) -> usize 
+) -> usize
 where
     T: std::marker::Send,
 {
@@ -859,7 +923,7 @@ fn load_icons_with_combined_notification(
         if apps.is_empty() {
             return;
         }
-        
+
         let count = load_icons_generic(
             apps,
             |app| app.icon.is_some(),
@@ -867,7 +931,7 @@ fn load_icons_with_combined_notification(
             |app, icon| db::update_app_icon_silent(&app.id, icon).map_err(|e| e.to_string()),
             "应用",
         );
-        
+
         *app_count_clone.lock().unwrap() = count;
     });
 
@@ -887,17 +951,16 @@ fn load_icons_with_combined_notification(
             }
         };
 
-
         // 并行处理所有书签图标加载
         let count = runtime.block_on(async {
             let mut tasks = Vec::new();
-            
+
             for bookmark in bookmarks {
                 // 跳过已有图标的书签
                 if bookmark.icon.is_some() {
                     continue;
                 }
-                
+
                 let bookmark_clone = bookmark.clone();
                 tasks.push(async move {
                     let bookmark_desc = describe_bookmark_for_log(&bookmark_clone);
@@ -905,20 +968,14 @@ fn load_icons_with_combined_notification(
                         if db::update_bookmark_icon_silent(&bookmark_clone.id, &icon_data).is_ok() {
                             return 1;
                         }
-                        log::warn!(
-                            "[IconDiag] 书签图标写入数据库失败: {}",
-                            bookmark_desc
-                        );
+                        log::warn!("[IconDiag] 书签图标写入数据库失败: {}", bookmark_desc);
                         return 0;
                     }
-                    log::info!(
-                        "[IconDiag] 书签图标抓取失败，未写入缓存: {}",
-                        bookmark_desc
-                    );
+                    log::info!("[IconDiag] 书签图标抓取失败，未写入缓存: {}", bookmark_desc);
                     0
                 });
             }
-            
+
             // 并行执行所有任务并统计成功数量
             let results = futures::future::join_all(tasks).await;
             results.into_iter().sum::<usize>()
@@ -962,8 +1019,11 @@ fn format_progress_item_name(name: &str, max_chars: usize) -> String {
 }
 
 fn format_bookmark_progress_item(bookmark: &BookmarkInfo) -> String {
-    let domain = extract_domain(&bookmark.content)
-        .or_else(|| Url::parse(&bookmark.content).ok().and_then(|u| u.host_str().map(|s| s.to_string())));
+    let domain = extract_domain(&bookmark.content).or_else(|| {
+        Url::parse(&bookmark.content)
+            .ok()
+            .and_then(|u| u.host_str().map(|s| s.to_string()))
+    });
 
     match domain {
         Some(d) if !d.is_empty() => format_progress_item_name(&d, 32),
@@ -973,7 +1033,11 @@ fn format_bookmark_progress_item(bookmark: &BookmarkInfo) -> String {
 
 fn describe_bookmark_for_log(bookmark: &BookmarkInfo) -> String {
     let domain = extract_domain(&bookmark.content)
-        .or_else(|| Url::parse(&bookmark.content).ok().and_then(|u| u.host_str().map(|s| s.to_string())))
+        .or_else(|| {
+            Url::parse(&bookmark.content)
+                .ok()
+                .and_then(|u| u.host_str().map(|s| s.to_string()))
+        })
         .unwrap_or_else(|| bookmark.content.clone());
 
     format!(
@@ -1039,9 +1103,7 @@ fn fetch_favicon_with_hard_timeout(url: &str, timeout_ms: u64) -> Option<String>
     });
 
     match rx.recv_timeout(Duration::from_millis(timeout_ms)) {
-        Ok(icon) => {
-            icon
-        }
+        Ok(icon) => icon,
         Err(_) => {
             log::warn!(
                 "[IconDiag] bookmark fetch hard-timeout: timeout={}ms, elapsed={}ms, url={}",
@@ -1060,7 +1122,10 @@ fn batch_update_app_icons_silent(updates: &[(String, String)]) -> Result<(), rus
     }
 
     let started = std::time::Instant::now();
-    log::info!("[IconDiag] app batch db write start: count={}", updates.len());
+    log::info!(
+        "[IconDiag] app batch db write start: count={}",
+        updates.len()
+    );
 
     let mut conn = db::DbConnectionManager::get()?;
     let tx = conn.transaction()?;
@@ -1086,7 +1151,10 @@ fn batch_update_bookmark_icons_silent(updates: &[(String, String)]) -> Result<()
     }
 
     let started = std::time::Instant::now();
-    log::info!("[IconDiag] bookmark batch db write start: count={}", updates.len());
+    log::info!(
+        "[IconDiag] bookmark batch db write start: count={}",
+        updates.len()
+    );
 
     let mut conn = db::DbConnectionManager::get()?;
     let tx = conn.transaction()?;

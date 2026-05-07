@@ -1,5 +1,5 @@
-use crate::icon::CachedIcon;
 use crate::db::DbConnectionManager;
+use crate::icon::CachedIcon;
 use rusqlite::{self, OptionalExtension};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -10,7 +10,8 @@ use std::time::SystemTime;
 pub fn load_all_icon_cache() -> Result<HashMap<String, CachedIcon>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
 
-    let mut stmt = conn.prepare("SELECT key, data, timestamp, COALESCE(source_mtime, 0) FROM icon_cache")?;
+    let mut stmt =
+        conn.prepare("SELECT key, data, timestamp, COALESCE(source_mtime, 0) FROM icon_cache")?;
     let cache_iter = stmt.query_map([], |row| {
         Ok((
             row.get(0)?,
@@ -44,16 +45,19 @@ pub fn insert_icon_to_cache(key: &str, icon: &CachedIcon) -> Result<(), rusqlite
 #[allow(dead_code)]
 pub fn get_icon_from_cache(key: &str) -> Result<Option<CachedIcon>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
-    
-    let mut stmt = conn.prepare("SELECT data, timestamp, source_mtime FROM icon_cache WHERE key = ?1")?;
-    let result = stmt.query_row([key], |row| {
-        Ok(CachedIcon {
-            data: row.get(0)?,
-            timestamp: row.get(1)?,
-            source_mtime: row.get(2)?,
+
+    let mut stmt =
+        conn.prepare("SELECT data, timestamp, source_mtime FROM icon_cache WHERE key = ?1")?;
+    let result = stmt
+        .query_row([key], |row| {
+            Ok(CachedIcon {
+                data: row.get(0)?,
+                timestamp: row.get(1)?,
+                source_mtime: row.get(2)?,
+            })
         })
-    }).optional()?;
-    
+        .optional()?;
+
     Ok(result)
 }
 
@@ -64,30 +68,30 @@ pub fn set_icon_to_cache(key: &str, data: &str) -> Result<(), rusqlite::Error> {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    
+
     let icon = CachedIcon {
         data: data.to_string(),
         timestamp,
         source_mtime: None,
     };
-    
+
     insert_icon_to_cache(key, &icon)
 }
 
 // 清理过期的图标缓存（删除超过30天的缓存）
 // pub fn cleanup_old_icon_cache() -> Result<usize, rusqlite::Error> {
 //     let conn = DbConnectionManager::get()?;
-    
+
 //     let thirty_days_ago = SystemTime::now()
 //         .duration_since(SystemTime::UNIX_EPOCH)
 //         .unwrap_or_default()
 //         .as_secs() - (30 * 24 * 3600);
-    
+
 //     let rows_affected = conn.execute(
 //         "DELETE FROM icon_cache WHERE timestamp < ?1",
 //         rusqlite::params![thirty_days_ago],
 //     )?;
-    
+
 //     // log::info!("清理了 {} 条过期的图标缓存记录", rows_affected);
 //     Ok(rows_affected)
 // }

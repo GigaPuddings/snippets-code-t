@@ -2,7 +2,7 @@ use crate::db;
 use crate::json_config;
 // use crate::search::{SearchEngine, DEFAULT_ENGINES};
 use log::{info, LevelFilter};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Code, Modifiers};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
 // use mouse_position::mouse_position::{Mouse, Position};
 
 // 注：所有配置已迁移到 JSON 文件系统：
@@ -123,7 +123,10 @@ pub fn parse_hotkey(hotkey: &str) -> Result<(Option<Modifiers>, Code), String> {
         };
         (final_modifiers, code)
     })
-    .ok_or_else(|| "未指定按键，快捷键必须包含一个主键（如 A、1、F1 等），不能只有修饰键（Ctrl、Alt、Shift）".to_string())
+    .ok_or_else(|| {
+        "未指定按键，快捷键必须包含一个主键（如 A、1、F1 等），不能只有修饰键（Ctrl、Alt、Shift）"
+            .to_string()
+    })
 }
 
 // 控制日志存储
@@ -205,13 +208,23 @@ pub fn control_logging(enable: bool) {
 
 fn log_reset_step(reset_type: &str, step: &str, status: &str, detail: &str) {
     if detail.is_empty() {
-        info!("[Reset] type={} step={} status={}", reset_type, step, status);
+        info!(
+            "[Reset] type={} step={} status={}",
+            reset_type, step, status
+        );
     } else {
-        info!("[Reset] type={} step={} status={} detail={}", reset_type, step, status, detail);
+        info!(
+            "[Reset] type={} step={} status={} detail={}",
+            reset_type, step, status, detail
+        );
     }
 }
 
-fn log_reset_db_result(reset_type: &str, step: &str, result: Result<(), rusqlite::Error>) -> Result<(), String> {
+fn log_reset_db_result(
+    reset_type: &str,
+    step: &str,
+    result: Result<(), rusqlite::Error>,
+) -> Result<(), String> {
     match result {
         Ok(_) => {
             log_reset_step(reset_type, step, "ok", "");
@@ -253,20 +266,33 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
     match normalized_reset_type.as_str() {
         "all" => {
             log_reset_db_result(&normalized_reset_type, "clear_apps", db::clear_apps())?;
-            log_reset_db_result(&normalized_reset_type, "clear_bookmarks", db::clear_bookmarks())?;
+            log_reset_db_result(
+                &normalized_reset_type,
+                "clear_bookmarks",
+                db::clear_bookmarks(),
+            )?;
             crate::search::clear_desktop_files_cache_for_reset(&normalized_reset_type)?;
         }
         "apps" => {
             log_reset_db_result(&normalized_reset_type, "clear_apps", db::clear_apps())?;
         }
         "bookmarks" => {
-            log_reset_db_result(&normalized_reset_type, "clear_bookmarks", db::clear_bookmarks())?;
+            log_reset_db_result(
+                &normalized_reset_type,
+                "clear_bookmarks",
+                db::clear_bookmarks(),
+            )?;
         }
         "desktopFiles" => {
             crate::search::clear_desktop_files_cache_for_reset(&normalized_reset_type)?;
         }
         _ => {
-            log_reset_step(&normalized_reset_type, "request", "error", "unsupported_reset_type");
+            log_reset_step(
+                &normalized_reset_type,
+                "request",
+                "error",
+                "unsupported_reset_type",
+            );
             return Err(format!("不支持的重置类型: {}", normalized_reset_type));
         }
     }
@@ -319,8 +345,7 @@ pub fn get_language(app_handle: tauri::AppHandle) -> String {
 
 // 内部使用，不作为命令暴露（从 app.json 读取）
 pub fn get_language_internal(app_handle: &tauri::AppHandle) -> String {
-    json_config::get_app_config_value(app_handle, "language")
-        .unwrap_or_else(|| "zh-CN".to_string())
+    json_config::get_app_config_value(app_handle, "language").unwrap_or_else(|| "zh-CN".to_string())
 }
 
 // ============= 翻译设置（存储在 app.json）=============
@@ -341,7 +366,10 @@ pub fn get_translation_engine(app_handle: tauri::AppHandle) -> String {
 
 // 设置离线模型激活状态
 #[tauri::command]
-pub fn set_offline_model_activated(app_handle: tauri::AppHandle, activated: bool) -> Result<(), String> {
+pub fn set_offline_model_activated(
+    app_handle: tauri::AppHandle,
+    activated: bool,
+) -> Result<(), String> {
     json_config::set_app_config_value(&app_handle, "offline_model_activated", activated)
 }
 

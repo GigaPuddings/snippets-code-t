@@ -143,11 +143,12 @@ import { extractPlainText } from '@/utils/text';
 import { markdownToHtml, resolvePreviewImageUrls } from '@/components/TipTapEditor/utils/markdown';
 import type { ContentType } from '@/types/models';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
-import appIcon from '@/assets/svg/app.svg';
-import bookmarkIcon from '@/assets/svg/bookmark.svg';
-import searchIcon from '@/assets/svg/search.svg';
-import noteIcon from '@/assets/svg/note.svg';
-import codeIcon from '@/assets/svg/code.svg';
+import { getSearchResultIcon } from '../composables/useSearchResultIcon';
+import {
+  getSearchResultDisplayPath,
+  getSearchResultLaunchPath,
+  toDisplayText
+} from '../composables/useSearchResultPaths';
 import { logger } from '@/utils/logger';
 
 const props = defineProps<{
@@ -172,9 +173,10 @@ const displayTypeText = computed(() => {
 });
 const previewTitle = computed(() => displayTitle.value || filePreviewTitle.value);
 const previewSubtitle = computed(() => displayPath.value || fileSubtitle.value || displayBookmarkUrl.value || displayTypeText.value);
-const canOpenApp = computed(() => Boolean(displayPath.value));
-const canOpenAppAsAdmin = computed(() => Boolean(displayPath.value));
-const canRevealAppFolder = computed(() => Boolean(displayPath.value));
+const appLaunchPath = computed(() => getSearchResultLaunchPath(props.item));
+const canOpenApp = computed(() => Boolean(appLaunchPath.value));
+const canOpenAppAsAdmin = computed(() => Boolean(appLaunchPath.value));
+const canRevealAppFolder = computed(() => Boolean(appLaunchPath.value || displayPath.value));
 const canOpenBookmark = computed(() => Boolean(displayBookmarkUrl.value));
 const canCopyBookmarkUrl = computed(() => Boolean(displayBookmarkUrl.value));
 const canSearchBookmark = computed(() => Boolean(displayTitle.value || displayBookmarkUrl.value));
@@ -200,7 +202,7 @@ const isAppOrBookmark = computed(() => props.item?.summarize === 'app' || props.
 const canPreview = computed(() => !isAppOrBookmark.value && !!props.item && (isImageFile.value || isTextFile.value || isNotePreview.value || isCodePreview.value));
 const isCodePreview = computed(() => props.item?.type === 'code' || (!isFilePreview.value && !isNotePreview.value && props.item?.summarize !== 'app' && props.item?.summarize !== 'bookmark' && props.item?.summarize !== 'search'));
 const displayTags = computed(() => props.item?.tags?.filter(Boolean) ?? []);
-const displayPath = computed(() => toDisplayText(props.item?.file_path) || toDisplayText(props.item?.metadata?.file_path) || toDisplayText(props.item?.content) || '');
+const displayPath = computed(() => getSearchResultDisplayPath(props.item));
 const fileSubtitle = computed(() => {
   if (!props.item || props.item.summarize !== 'file') return '';
   const path = displayPath.value;
@@ -344,16 +346,8 @@ watch(
   { immediate: true }
 );
 
-const heroIconSrc = computed(() => {
-  const item = props.item;
-  if (!item) return '';
-  if (item.icon) return item.icon;
-  if (item.summarize === 'app') return appIcon;
-  if (item.summarize === 'bookmark') return bookmarkIcon;
-  if (item.summarize === 'search') return searchIcon;
-  if (item.type === 'note') return noteIcon;
-  return codeIcon;
-});
+const heroIconState = computed(() => getSearchResultIcon(props.item));
+const heroIconSrc = computed(() => heroIconState.value.src);
 
 const infoIconClass = computed(() => {
   if (props.item?.summarize !== 'file') return '';
@@ -361,13 +355,8 @@ const infoIconClass = computed(() => {
 });
 
 const heroFallbackText = computed(() => {
-  if (!props.item) return '∎';
-  if (props.item.summarize === 'file') return 'F';
-  if (props.item.type === 'note') return 'N';
-  if (props.item.type === 'code') return '{}';
-  if (props.item.summarize === 'bookmark') return 'B';
-  if (props.item.summarize === 'search') return 'S';
-  return 'T';
+  if (props.item?.summarize === 'file') return 'F';
+  return heroIconState.value.fallbackText || '∎';
 });
 
 async function closeAndRun(action: () => Promise<void> | void) {
@@ -377,18 +366,19 @@ async function closeAndRun(action: () => Promise<void> | void) {
 }
 
 async function openApp() {
-  if (!canOpenApp.value || !displayPath.value) return;
-  await closeAndRun(() => invoke('open_app_command', { appPath: displayPath.value }));
+  if (!canOpenApp.value || !appLaunchPath.value) return;
+  await closeAndRun(() => invoke('open_app_command', { appPath: appLaunchPath.value }));
 }
 
 async function openAppAsAdmin() {
-  if (!canOpenAppAsAdmin.value || !displayPath.value) return;
-  await closeAndRun(() => invoke('open_app_as_admin_command', { appPath: displayPath.value }));
+  if (!canOpenAppAsAdmin.value || !appLaunchPath.value) return;
+  await closeAndRun(() => invoke('open_app_as_admin_command', { appPath: appLaunchPath.value }));
 }
 
 async function revealAppFolder() {
-  if (!canRevealAppFolder.value || !displayPath.value) return;
-  await closeAndRun(() => revealFileInFolder(displayPath.value));
+  const targetPath = appLaunchPath.value || displayPath.value;
+  if (!canRevealAppFolder.value || !targetPath) return;
+  await closeAndRun(() => invoke('open_app_file_location_command', { appPath: targetPath }));
 }
 
 async function openBookmark() {
@@ -567,9 +557,6 @@ function formatDateText(value: unknown): string {
   return `${year}/${month}/${day} ${hour}:${minute}`;
 }
 
-function toDisplayText(value: unknown): string {
-  return typeof value === 'string' ? value : '';
-}
 </script>
 
 <style lang="scss" scoped>
@@ -607,7 +594,7 @@ function toDisplayText(value: unknown): string {
       @apply w-24 h-24 rounded-xl bg-search-hover flex items-center justify-center text-base font-semibold text-search-secondary overflow-hidden shadow-sm;
 
       img {
-        @apply w-full h-full object-cover;
+        @apply w-full h-full object-contain p-2;
       }
 
       &.file-preview-icon {

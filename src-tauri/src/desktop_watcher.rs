@@ -1,6 +1,6 @@
 use log::{debug, warn};
-use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use notify::event::ModifyKind;
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
@@ -55,7 +55,11 @@ impl DesktopFileWatcher {
                             continue;
                         }
 
-                        debug!("[DesktopWatcher] recv kind={:?} paths={}", event.kind, filtered_paths.len());
+                        debug!(
+                            "[DesktopWatcher] recv kind={:?} paths={}",
+                            event.kind,
+                            filtered_paths.len()
+                        );
 
                         pending = true;
                         last_event = Instant::now();
@@ -63,7 +67,10 @@ impl DesktopFileWatcher {
                         for path in filtered_paths {
                             let id = format!("desktop-file:{}", path.to_string_lossy());
                             match event.kind {
-                                EventKind::Create(_) | EventKind::Modify(ModifyKind::Data(_)) | EventKind::Modify(ModifyKind::Metadata(_)) | EventKind::Modify(ModifyKind::Name(_)) => {
+                                EventKind::Create(_)
+                                | EventKind::Modify(ModifyKind::Data(_))
+                                | EventKind::Modify(ModifyKind::Metadata(_))
+                                | EventKind::Modify(ModifyKind::Name(_)) => {
                                     changed_ids.insert(id);
                                 }
                                 EventKind::Remove(_) => {
@@ -92,7 +99,10 @@ impl DesktopFileWatcher {
 
                         let changed_count = changed_ids.len();
                         let removed_count = removed_ids.len();
-                        debug!("[DesktopWatcher] sync changed={} removed={}", changed_count, removed_count);
+                        debug!(
+                            "[DesktopWatcher] sync changed={} removed={}",
+                            changed_count, removed_count
+                        );
 
                         pending = false;
                     }

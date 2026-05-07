@@ -38,7 +38,7 @@
 import ResultList from './ResultList.vue';
 import InlinePreview from './InlinePreview.vue';
 import { useFocusMode } from '@/hooks/useFocusMode';
-import { useSearchResultState } from '../composables/useSearchResultState';
+import { useSearchResultTabs } from '../composables/useSearchResultTabs';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -56,48 +56,40 @@ const emit = defineEmits<{
 const { isListMode } = useFocusMode();
 
 const resultListRef = ref<InstanceType<typeof ResultList> | null>(null);
-const measureItemSize = () => {
-};
+const activeTab = ref<SummarizeType>('text');
+const selectedItem = ref<ContentType | null>(null);
 const {
   tabs: resultTabs,
-  activeTab,
-  activeTabCount,
-  selectedItem,
-  getTabCount,
-  switchTab: setActiveTab,
-  selectItem
-} = useSearchResultState(() => props.results, t);
+  getTabCount
+} = useSearchResultTabs(() => props.results, t);
+const activeTabCount = computed(() => getTabCount(activeTab.value));
 
 function switchTab(tab: SummarizeType) {
-  setActiveTab(tab);
+  activeTab.value = tab;
   resultListRef.value?.switchTab(tab);
-  nextTick(measureItemSize);
 }
 
 function handleTabChange(tab: SummarizeType) {
   activeTab.value = tab;
   if (getTabCount(tab) === 0) {
-    selectItem(null);
+    selectedItem.value = null;
   }
-  nextTick(measureItemSize);
 }
 
 function handleSelectionChange(item: ContentType | null) {
-  selectItem(item);
+  selectedItem.value = item;
 }
+
+watch(() => props.results, (results) => {
+  if (results.length === 0) {
+    selectedItem.value = null;
+    activeTab.value = 'text';
+  }
+});
 
 async function handlePrimaryAction(item: ContentType) {
   await resultListRef.value?.runPrimaryAction(item);
 }
-
-onMounted(() => {
-  measureItemSize();
-  window.addEventListener('resize', measureItemSize);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', measureItemSize);
-});
 
 defineExpose({
   switchTab: (tab: SummarizeType) => switchTab(tab),

@@ -11,8 +11,8 @@ use sha2::{Digest, Sha256};
 /// 使用 AES-256-GCM 加密数据
 pub fn encrypt_data(data: &[u8], token: &str) -> Result<Vec<u8>, String> {
     let key_bytes = derive_key(token);
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
-        .map_err(|e| format!("创建加密器失败: {}", e))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| format!("创建加密器失败: {}", e))?;
 
     let nonce = Nonce::from_slice(&FIXED_NONCE);
     let ciphertext = cipher
@@ -25,8 +25,8 @@ pub fn encrypt_data(data: &[u8], token: &str) -> Result<Vec<u8>, String> {
 /// 使用 AES-256-GCM 解密数据
 pub fn decrypt_data(encrypted_data: &[u8], token: &str) -> Result<Vec<u8>, String> {
     let key_bytes = derive_key(token);
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
-        .map_err(|e| format!("创建解密器失败: {}", e))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| format!("创建解密器失败: {}", e))?;
 
     let nonce = Nonce::from_slice(&FIXED_NONCE);
     let plaintext = cipher
@@ -59,7 +59,9 @@ pub fn decode_base64(encoded: &str) -> Result<Vec<u8>, String> {
 }
 
 /// 固定的 12 字节 nonce
-const FIXED_NONCE: [u8; 12] = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B];
+const FIXED_NONCE: [u8; 12] = [
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+];
 
 use std::path::Path;
 use std::process::Command;
@@ -185,7 +187,10 @@ pub fn git_command() -> Command {
 }
 
 /// 执行 Git 命令并返回输出
-pub fn run_git_command(workspace_root: &Path, args: &[&str]) -> Result<std::process::Output, String> {
+pub fn run_git_command(
+    workspace_root: &Path,
+    args: &[&str],
+) -> Result<std::process::Output, String> {
     git_command()
         .args(args)
         .current_dir(workspace_root)
