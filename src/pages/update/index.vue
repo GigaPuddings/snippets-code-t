@@ -1,61 +1,85 @@
-n<template>
+<template>
   <div class="update-container" data-tauri-drag-region>
     <div class="update-header" data-tauri-drag-region>
-      <div class="logo-container">
-        <div class="logo-circle">
+      <div class="header-title">
+        <div class="logo-mark">
           <img src="@/assets/128x128.png" alt="Logo" class="app-logo" />
+          <span class="spark spark-one"></span>
+          <span class="spark spark-two"></span>
         </div>
+        <h2 class="title">{{ $t('update.title') }}</h2>
       </div>
-      <h2 class="title">{{ $t('update.title') }}</h2>
+      <button class="close-button" type="button" aria-label="Close" @click="handleCancel">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </svg>
+      </button>
     </div>
 
     <div class="update-content">
       <div class="info-section">
-        <div class="version-comparison">
-          <div class="version-item">
-            <div class="version-label">{{ $t('update.currentVersion') }}</div>
-            <el-tag size="default" class="version-tag current">
-              {{ update.appVersion }}
-            </el-tag>
-          </div>
-          <div class="version-arrow">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M5 12h14" />
-              <path d="m12 5 7 7-7 7" />
-            </svg>
-          </div>
-          <div class="version-item">
-            <div class="version-label">{{ $t('update.newVersion') }}</div>
-            <el-tag type="success" size="default" class="version-tag new">
-              {{ update.newVersion }}
-            </el-tag>
-          </div>
+        <div class="version-summary">
+          <div class="new-version">{{ formatVersionLabel(update.newVersion) }}</div>
+          <p class="version-copy">
+            {{ $t('update.currentVersion') }}
+            {{ formatVersionLabel(update.appVersion) }} / {{ $t('update.newVersion') }}
+            {{ formatVersionLabel(update.newVersion) }}
+          </p>
+          <p class="release-date">{{ $t('update.releaseDate') }}{{ update.releaseDate }}</p>
         </div>
 
-        <p class="release-date">{{ $t('update.releaseDate') }}{{ update.releaseDate }}</p>
-
-        <div v-if="!update.downloading" class="release-notes">
-          <div class="notes-title">{{ $t('update.releaseNotes') }}</div>
-          <el-scrollbar class="notes-scrollbar" :view-style="{ height: '100%' }">
-            <div class="notes-content" v-html="update.releaseNotes"></div>
-          </el-scrollbar>
+        <div v-if="!update.downloading" class="status-banner" :class="{ error: update.error }">
+          <svg
+            v-if="!update.error"
+            xmlns="http://www.w3.org/2000/svg"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          <svg
+            v-else
+            xmlns="http://www.w3.org/2000/svg"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4" />
+            <path d="M12 16h.01" />
+          </svg>
+          <span>
+            {{ update.error || readyText }}
+          </span>
         </div>
 
-        <div v-else class="download-progress">
+        <div v-if="update.downloading" class="download-progress">
           <div class="progress-status">
             <div
               class="status-icon"
-              :class="{ 
+              :class="{
                 completed: update.progress === 100 && !update.error,
                 error: update.error
               }"
@@ -90,8 +114,7 @@ n<template>
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
+                <path d="M20 6 9 17l-5-5" />
               </svg>
               <svg
                 v-else
@@ -119,7 +142,7 @@ n<template>
           </div>
           <div v-if="!update.error" class="progress-wrapper">
             <el-progress
-              :stroke-width="6"
+              :stroke-width="8"
               :percentage="update.progress"
               :format="progressFormat"
               :status="update.progress === 100 ? 'success' : ''"
@@ -132,15 +155,37 @@ n<template>
           </div>
           <div v-else class="error-message">
             <div class="error-title">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="15" y1="9" x2="9" y2="15"/>
-                <line x1="9" y1="9" x2="15" y2="15"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
               </svg>
               <span>{{ $t('update.installFailed') }}</span>
             </div>
             <pre class="error-content">{{ update.error }}</pre>
           </div>
+        </div>
+
+        <div class="notes-divider"></div>
+
+        <div class="release-notes">
+          <div class="notes-heading">
+            <div class="notes-title">{{ $t('update.releaseNotes') }}</div>
+            <div v-if="update.releaseDate" class="notes-date">{{ update.releaseDate }}</div>
+          </div>
+          <el-scrollbar class="notes-scrollbar" :view-style="{ height: '100%' }">
+            <div class="notes-content" v-html="update.releaseNotes"></div>
+          </el-scrollbar>
         </div>
       </div>
     </div>
@@ -159,6 +204,22 @@ n<template>
         v-if="!update.downloading || update.error"
         class="action-button update-button"
       >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+          <path d="M3 21v-5h5" />
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+          <path d="M16 8h5V3" />
+        </svg>
         {{ update.error && update.downloadComplete ? $t('update.retryInstall') : $t('update.updateNow') }}
       </el-button>
     </div>
@@ -173,8 +234,6 @@ import { relaunch } from '@tauri-apps/plugin-process';
 import { useI18n } from 'vue-i18n';
 import { formatBytes, formatPercentage } from '@/utils/format';
 import { marked } from 'marked';
-
-const { t } = useI18n();
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -185,6 +244,8 @@ interface UpdateInfo {
   notes: string;
   pub_date: string;
 }
+
+const { t } = useI18n();
 
 const update = reactive({
   downloading: false,
@@ -199,41 +260,53 @@ const update = reactive({
   downloadComplete: false
 });
 
+const formatVersionLabel = (version: string) => {
+  if (!version) {
+    return 'v--';
+  }
+
+  return version.startsWith('v') ? version : `v${version}`;
+};
+
+const readyText = computed(() => {
+  const version = formatVersionLabel(update.newVersion);
+
+  if (t('update.readyToRestart') !== 'update.readyToRestart') {
+    return t('update.readyToRestart', { version });
+  }
+
+  return `${version} 已就绪，重启后生效。`;
+});
+
 const progressFormat = (percentage: number) => {
   return update.downloading ? formatPercentage(percentage) : '';
 };
 
-// 配置 marked
 marked.setOptions({
-  breaks: true, // 支持 GitHub 风格的换行
-  gfm: true, // 启用 GitHub 风格的 Markdown
+  breaks: true,
+  gfm: true
 });
 
-// 配置 dayjs
 dayjs.extend(utc);
 dayjs.extend(timezone);
-dayjs.tz.setDefault('Asia/Shanghai'); // 设置默认时区为中国
+dayjs.tz.setDefault('Asia/Shanghai');
 
-// 初始化更新信息
 onMounted(async () => {
   await initEnv();
   update.appVersion = appVersion;
   const updateInfo: UpdateInfo = await invoke('get_update_info');
   if (updateInfo) {
     update.newVersion = updateInfo.version;
-    // 使用 marked 渲染 Markdown
     update.releaseNotes = marked(updateInfo.notes) as string;
     update.releaseDate = updateInfo.pub_date
       ? dayjs(updateInfo.pub_date.replace(' +00:00:00', 'Z').replace('.0', ''))
           .tz()
           .format('YYYY-MM-DD HH:mm:ss')
-      : '未知时间';
+      : 'Unknown';
   }
 
-  // 通知后端页面已就绪
   await emit('update-ready');
 
-  // 监听下载进度
   const unListenProgress = await listen('download-progress', (event: any) => {
     const { event: eventType, data } = event.payload;
 
@@ -260,7 +333,6 @@ onMounted(async () => {
     }
   });
 
-  // 监听下载完成
   const unListenFinished = await listen('download-finished', () => {
     update.statusText = t('update.installing');
   });
@@ -270,42 +342,35 @@ onMounted(async () => {
     unListenFinished();
   });
 
-  // 在页面加载完成后发送事件
   nextTick(() => {
-    // 使用 emit 函数代替直接访问 window.__TAURI__
     emit('update-ready');
   });
 });
 
 const handleUpdate = async () => {
   try {
-    // 如果是重试安装，重置状态
     if (update.error) {
       update.error = '';
       update.progress = 0;
       update.downloadComplete = false;
     }
-    
+
     update.downloading = true;
     update.statusText = t('update.preparing');
 
     await invoke('perform_update');
 
-    // 如果到达这里说明安装成功，准备重启
     update.statusText = t('update.installSuccess');
 
-    // 延迟重启
     setTimeout(async () => {
       await relaunch();
     }, 2000);
   } catch (error: any) {
     logger.error('Update failed:', error);
-    
-    // 统一错误处理：直接使用后端返回的错误信息
-    const errorMsg = typeof error === 'string' ? error : (error.message || '更新失败');
+
+    const errorMsg = typeof error === 'string' ? error : error.message || 'Update failed';
     update.error = errorMsg;
-    
-    // 设置状态文本
+
     if (update.downloadComplete) {
       update.statusText = t('update.installFailed');
     } else {
@@ -323,194 +388,245 @@ const handleCancel = () => {
 
 <style scoped lang="scss">
 .update-container {
-  @apply w-full h-full bg-panel px-6 py-5 flex flex-col box-border border rounded-xl border-panel;
+  @apply w-full h-full bg-panel flex flex-col box-border border border-panel overflow-hidden;
+
   min-height: 0;
-  animation: fadeIn 0.3s ease-out;
+  border-radius: 22px;
+  animation: fadeIn 0.24s ease-out;
 
   .update-header {
-    @apply w-full flex flex-row items-center justify-center gap-3 mb-4;
+    @apply w-full flex items-center justify-between px-9 py-7 flex-shrink-0;
 
-    .logo-container {
-      .logo-circle {
-        @apply w-10 h-10 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center shadow-sm;
+    min-height: 108px;
+    border-bottom: 1px solid rgb(148 163 184 / 16%);
 
-        animation: pulse 2s infinite ease-in-out;
+    .header-title {
+      @apply flex items-center gap-5;
+    }
 
-        .app-logo {
-          @apply w-7 h-7 object-contain;
+    .logo-mark {
+      @apply relative w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0;
 
-          animation: float 3s ease-in-out infinite;
+      background: linear-gradient(135deg, var(--el-color-primary) 0%, #2fb7ad 100%);
+      box-shadow: 0 12px 26px rgb(59 130 246 / 26%);
+
+      .app-logo {
+        @apply relative z-10 w-8 h-8 object-contain;
+      }
+
+      .spark {
+        @apply absolute rounded-full;
+
+        border: 2px solid rgb(255 255 255 / 88%);
+
+        &.spark-one {
+          top: 8px;
+          right: 9px;
+          width: 9px;
+          height: 9px;
+        }
+
+        &.spark-two {
+          right: 20px;
+          bottom: 11px;
+          width: 5px;
+          height: 5px;
         }
       }
     }
 
     .title {
-      @apply text-lg font-semibold text-panel;
+      @apply text-3xl font-bold text-panel m-0;
 
-      background: linear-gradient(90deg, var(--el-color-primary), #7c3aed);
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
+      letter-spacing: 0;
+    }
+
+    .close-button {
+      @apply w-10 h-10 rounded-lg flex items-center justify-center text-panel-text-secondary transition-all duration-200;
+
+      &:hover {
+        @apply bg-panel-hover-bg text-panel;
+      }
     }
   }
 
   .update-content {
-    @apply w-full flex-1 flex flex-col overflow-hidden;
+    @apply w-full flex-1 flex flex-col overflow-hidden px-9 py-7;
+
     min-height: 0;
 
     .info-section {
       @apply w-full flex-1 flex flex-col;
+
       min-height: 0;
-      animation: slideUp 0.4s ease-out;
+      animation: slideUp 0.28s ease-out;
+    }
 
-      .version-comparison {
-        @apply flex items-center justify-center gap-4 mb-3 p-3 rounded-lg flex-shrink-0;
-        background: linear-gradient(135deg, var(--panel-bg, #fff) 0%, rgba(59, 130, 246, 0.08) 100%);
+    .version-summary {
+      @apply flex-shrink-0;
 
-        .version-item {
-          @apply flex flex-col items-center gap-1.5;
+      .new-version {
+        @apply text-xl font-bold mb-4;
 
-          .version-label {
-            @apply text-xs text-panel-text-secondary font-medium;
-          }
+        color: var(--el-color-primary);
+      }
 
-          .version-tag {
-            @apply transition-all duration-300 px-3 py-1 font-medium text-sm;
-
-            &.current {
-              @apply bg-blue-50 text-blue-600 border-blue-200;
-            }
-
-            &.new {
-              @apply bg-green-50 text-green-600 border-green-200;
-            }
-
-            &:hover {
-              box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
-              transform: scale(1.05);
-            }
-          }
-        }
-
-        .version-arrow {
-          @apply text-panel-text-secondary flex items-center;
-
-          animation: arrowPulse 1.5s infinite ease-in-out;
-        }
+      .version-copy {
+        @apply text-base text-panel-text-secondary leading-relaxed m-0;
       }
 
       .release-date {
-        @apply text-panel-text-secondary text-xs text-center mb-3 flex-shrink-0;
+        @apply text-xs text-panel-text-secondary mt-2 mb-0;
+      }
+    }
+
+    .status-banner {
+      @apply flex items-center gap-3 mt-6 px-5 py-4 rounded-lg text-base font-semibold;
+
+      color: #19c463;
+      background: rgb(22 163 74 / 10%);
+
+      &.error {
+        @apply text-red-600 bg-red-50;
       }
 
-      .release-notes {
-        @apply rounded-lg px-3 py-2.5 border bg-panel flex-1 flex flex-col overflow-hidden;
+      svg {
+        @apply flex-shrink-0;
+      }
+    }
 
-        box-shadow: inset 0 2px 4px rgb(0 0 0 / 3%);
+    .notes-divider {
+      @apply w-full flex-shrink-0 my-8;
+
+      height: 1px;
+      background: rgb(148 163 184 / 18%);
+    }
+
+    .release-notes {
+      @apply flex-1 flex flex-col overflow-hidden;
+
+      min-height: 0;
+
+      .notes-heading {
+        @apply flex items-center justify-between gap-4 mb-5 flex-shrink-0;
+      }
+
+      .notes-title {
+        @apply text-lg font-bold text-panel;
+      }
+
+      .notes-date {
+        @apply text-xs text-panel-text-secondary;
+      }
+
+      .notes-scrollbar {
+        @apply flex-1 pr-1;
+
+        height: 0;
         min-height: 0;
 
-        .notes-title {
-          @apply font-medium text-panel text-sm mb-2 flex-shrink-0;
+        :deep(.el-scrollbar__wrap) {
+          max-height: 100%;
         }
 
-        .notes-scrollbar {
-          @apply rounded-md flex-1;
-          height: 0;
-          min-height: 0;
+        :deep(.el-scrollbar__bar.is-vertical) {
+          width: 8px;
+        }
 
-          :deep(.el-scrollbar__wrap) {
-            max-height: 100%;
-          }
+        :deep(.el-scrollbar__thumb) {
+          background: rgb(148 163 184 / 42%);
+        }
+      }
 
-          :deep(.el-scrollbar__view) {
-            height: auto !important;
+      .notes-content {
+        @apply pr-4 text-panel-text-secondary text-base leading-relaxed;
+
+        :deep(h1),
+        :deep(h2),
+        :deep(h3),
+        :deep(h4) {
+          @apply font-semibold text-panel mt-4 mb-3;
+        }
+
+        :deep(h1) {
+          @apply text-xl;
+        }
+
+        :deep(h2) {
+          @apply text-lg;
+        }
+
+        :deep(h3),
+        :deep(h4) {
+          @apply text-base;
+        }
+
+        :deep(p) {
+          @apply mb-3;
+        }
+
+        :deep(ul),
+        :deep(ol) {
+          @apply pl-6 mb-3;
+        }
+
+        :deep(li) {
+          @apply mb-3 pl-1;
+        }
+
+        :deep(li::marker) {
+          color: var(--el-color-primary);
+        }
+
+        :deep(strong) {
+          @apply font-bold text-panel;
+        }
+
+        :deep(em) {
+          @apply italic;
+        }
+
+        :deep(code) {
+          @apply bg-content px-1.5 py-0.5 rounded text-sm font-mono text-panel;
+        }
+
+        :deep(pre) {
+          @apply bg-content p-4 rounded-lg mb-3 overflow-x-auto;
+
+          code {
+            @apply bg-transparent p-0;
           }
         }
 
-        .notes-content {
-          @apply pr-2 text-panel-text-secondary text-sm leading-relaxed;
+        :deep(blockquote) {
+          @apply border-l-4 pl-4 py-1 my-3 text-panel-text-secondary italic;
 
-          // Markdown 样式
-          :deep(h1),
-          :deep(h2),
-          :deep(h3),
-          :deep(h4) {
-            @apply font-semibold text-panel mt-4 mb-2;
-          }
+          border-color: var(--el-color-primary);
+        }
 
-          :deep(h1) {
-            @apply text-lg;
-          }
+        :deep(a) {
+          @apply underline;
 
-          :deep(h2) {
-            @apply text-base;
-          }
+          color: var(--el-color-primary);
+        }
 
-          :deep(h3) {
-            @apply text-sm;
-          }
-
-          :deep(h4) {
-            @apply text-sm;
-          }
-
-          :deep(p) {
-            @apply mb-2;
-          }
-
-          :deep(ul),
-          :deep(ol) {
-            @apply pl-5 mb-2;
-          }
-
-          :deep(li) {
-            @apply mb-1;
-          }
-
-          :deep(strong) {
-            @apply font-semibold text-panel;
-          }
-
-          :deep(em) {
-            @apply italic;
-          }
-
-          :deep(code) {
-            @apply bg-content px-1.5 py-0.5 rounded text-xs font-mono text-panel;
-          }
-
-          :deep(pre) {
-            @apply bg-content p-3 rounded-lg mb-2 overflow-x-auto;
-
-            code {
-              @apply bg-transparent p-0;
-            }
-          }
-
-          :deep(blockquote) {
-            @apply border-l-4 border-blue-300 pl-3 py-1 my-2 text-panel-text-secondary italic;
-          }
-
-          :deep(a) {
-            @apply text-blue-600 hover:text-blue-700 underline;
-          }
-
-          :deep(hr) {
-            @apply my-3 border-panel;
-          }
+        :deep(hr) {
+          @apply my-4 border-panel;
         }
       }
     }
 
     .download-progress {
-      @apply flex flex-col items-center justify-center space-y-4 py-6 w-full;
+      @apply flex flex-col gap-4 mt-6 px-5 py-4 rounded-lg flex-shrink-0;
 
-      animation: fadeIn 0.3s ease-out;
+      background: rgb(59 130 246 / 8%);
+      animation: fadeIn 0.24s ease-out;
 
       .progress-status {
         @apply flex items-center justify-start gap-3 w-full;
 
         .status-icon {
-          @apply w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0;
+          @apply w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0;
 
           &.completed {
             @apply bg-green-50;
@@ -529,21 +645,19 @@ const handleCancel = () => {
           .check-icon {
             @apply text-green-500;
 
-            animation: scaleIn 0.5s ease-out;
+            animation: scaleIn 0.32s ease-out;
           }
 
           .error-icon {
             @apply text-red-500;
-
-            animation: shake 0.5s ease-out;
           }
         }
 
         .status-text-container {
-          @apply flex-1;
+          @apply flex-1 min-w-0;
 
           .status-text {
-            @apply text-panel font-medium text-sm;
+            @apply text-panel font-semibold text-sm break-words;
 
             &.error {
               @apply text-red-600;
@@ -556,47 +670,50 @@ const handleCancel = () => {
         @apply w-full;
 
         .progress-bar {
-          @apply mb-3;
+          @apply mb-2;
 
           :deep(.el-progress-bar__outer) {
-            background-color: rgb(59 130 246 / 10%);
-            border-radius: 10px;
+            background-color: rgb(59 130 246 / 12%);
+            border-radius: 999px;
           }
 
           :deep(.el-progress-bar__inner) {
-            background: linear-gradient(90deg, #3b82f6, #6366f1);
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgb(59 130 246 / 25%);
+            background: linear-gradient(90deg, var(--el-color-primary), #2fb7ad);
+            border-radius: 999px;
+            box-shadow: 0 6px 14px rgb(59 130 246 / 24%);
             transition: width 0.3s ease-in-out;
           }
         }
 
         .progress-info {
-          @apply flex items-center justify-center text-sm;
+          @apply flex items-center justify-end text-sm;
 
           .percentage {
-            @apply font-semibold text-blue-600 text-base;
+            @apply font-bold;
+
+            color: var(--el-color-primary);
           }
         }
       }
-      
+
       .error-message {
-        @apply w-full mt-3 p-4 bg-red-50 border border-red-200 rounded-lg;
-        
+        @apply w-full mt-1 p-4 bg-red-50 border border-red-200 rounded-lg;
+
         .error-title {
           @apply flex items-center gap-2 mb-3 pb-3 border-b border-red-200;
-          
+
           svg {
             @apply text-red-500;
           }
-          
+
           span {
             @apply font-semibold text-red-700 text-base;
           }
         }
-        
+
         .error-content {
           @apply text-sm text-red-600 leading-relaxed m-0 font-normal whitespace-pre-wrap;
+
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
         }
       }
@@ -604,24 +721,37 @@ const handleCancel = () => {
   }
 
   .footer {
-    @apply w-full flex items-center justify-center gap-3 mt-4 pt-4;
+    @apply w-full flex items-center justify-end gap-4 px-9 py-6 flex-shrink-0;
+
+    background: rgb(241 245 249 / 82%);
+    border-top: 1px solid rgb(148 163 184 / 18%);
 
     .action-button {
-      @apply min-w-[120px] transition-all duration-300 rounded-lg py-2 font-medium text-sm;
+      @apply min-w-[130px] h-12 transition-all duration-200 rounded-xl px-6 font-semibold text-base;
 
       &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
+        transform: translateY(-1px);
       }
 
       &.cancel-button {
-        @apply hover:bg-panel-hover-bg border border-panel text-panel;
+        @apply bg-panel border border-panel text-panel shadow-sm;
+
+        &:hover {
+          @apply bg-panel-hover-bg;
+
+          box-shadow: 0 10px 22px rgb(15 23 42 / 8%);
+        }
       }
 
       &.update-button {
-        @apply bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-medium;
+        @apply border-0 text-white;
 
-        box-shadow: 0 4px 14px rgb(59 130 246 / 35%);
+        background: linear-gradient(90deg, var(--el-color-primary), #2fb7ad);
+        box-shadow: 0 12px 26px rgb(59 130 246 / 28%);
+
+        :deep(span) {
+          @apply flex items-center gap-2;
+        }
       }
     }
   }
@@ -640,67 +770,12 @@ const handleCancel = () => {
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(12px);
   }
 
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgb(79 70 229 / 20%);
-  }
-
-  70% {
-    box-shadow: 0 0 0 10px rgb(79 70 229 / 0%);
-  }
-
-  100% {
-    box-shadow: 0 0 0 0 rgb(79 70 229 / 0%);
-  }
-}
-
-@keyframes float {
-  0% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-5px);
-  }
-
-  100% {
-    transform: translateY(0);
-  }
-}
-
-@keyframes arrowPulse {
-  0% {
-    opacity: 0.6;
-    transform: translateX(0);
-  }
-
-  50% {
-    opacity: 1;
-    transform: translateX(3px);
-  }
-
-  100% {
-    opacity: 0.6;
-    transform: translateX(0);
   }
 }
 
@@ -717,30 +792,12 @@ const handleCancel = () => {
 @keyframes scaleIn {
   from {
     opacity: 0;
-    transform: scale(0);
+    transform: scale(0.8);
   }
 
   to {
     opacity: 1;
     transform: scale(1);
   }
-}
-
-@keyframes shake {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  10%, 30%, 50%, 70%, 90% {
-    transform: translateX(-5px);
-  }
-  20%, 40%, 60%, 80% {
-    transform: translateX(5px);
-  }
-}
-
-.update-dot {
-  @apply absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full;
-
-  animation: pulse 1.5s infinite;
 }
 </style>

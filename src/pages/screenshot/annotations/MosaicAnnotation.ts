@@ -47,7 +47,7 @@ export class MosaicAnnotation extends BaseAnnotation {
   draw(context: DrawingContext): void {
     if (this.data.points.length === 0) return
     const { ctx, bounds } = context
-    this.renderRealMosaic(ctx, 1, { x: 0, y: 0 }, bounds)
+    this.renderRealMosaic(ctx, window.devicePixelRatio || 1, { x: 0, y: 0 }, bounds)
   }
 
   drawToScreenshot(context: DrawingContext): void {
@@ -62,9 +62,9 @@ export class MosaicAnnotation extends BaseAnnotation {
    * 使用 ImageData 直接操作像素，避免坐标转换问题
    */
   private renderRealMosaic(
-    ctx: CanvasRenderingContext2D, 
-    _scale: number, 
-    _offset: Point,
+    ctx: CanvasRenderingContext2D,
+    scale: number,
+    offset: Point,
     clipBounds?: { x: number, y: number, width: number, height: number }
   ): void {
     // 1. 初始化辅助 Canvas
@@ -76,10 +76,10 @@ export class MosaicAnnotation extends BaseAnnotation {
     const helperCtx = MosaicAnnotation.helperCtx!
 
     // 2. 获取 DPI 和计算参数
-    const dpr = window.devicePixelRatio || 1
+    const renderScale = scale || 1
     const mosaicSize = this.data.mosaicSize || 5
     // 物理像素的马赛克块大小
-    const physicalBlockSize = Math.max(Math.round(mosaicSize * dpr), 2)
+    const physicalBlockSize = Math.max(Math.round(mosaicSize * renderScale), 2)
     // 笔刷大小（逻辑像素）
     const brushSize = mosaicSize * 3
 
@@ -97,10 +97,10 @@ export class MosaicAnnotation extends BaseAnnotation {
     if (logicalWidth <= 0 || logicalHeight <= 0) return
 
     // 5. 转换为物理坐标
-    const physicalX = Math.floor(logicalX * dpr)
-    const physicalY = Math.floor(logicalY * dpr)
-    const physicalWidth = Math.ceil(logicalWidth * dpr)
-    const physicalHeight = Math.ceil(logicalHeight * dpr)
+    const physicalX = Math.floor(logicalX * renderScale - offset.x)
+    const physicalY = Math.floor(logicalY * renderScale - offset.y)
+    const physicalWidth = Math.ceil(logicalWidth * renderScale)
+    const physicalHeight = Math.ceil(logicalHeight * renderScale)
 
     // 6. 边界检查
     const canvasWidth = ctx.canvas.width
@@ -182,12 +182,12 @@ export class MosaicAnnotation extends BaseAnnotation {
     helperCtx.globalCompositeOperation = 'destination-in'
     helperCtx.lineCap = 'round'
     helperCtx.lineJoin = 'round'
-    helperCtx.lineWidth = brushSize * dpr
+    helperCtx.lineWidth = brushSize * renderScale
     helperCtx.fillStyle = '#000000'
     helperCtx.strokeStyle = '#000000'
 
     // 绘制路径（物理坐标系）
-    this.drawPathPhysical(helperCtx, dpr, srcX, srcY)
+    this.drawPathPhysical(helperCtx, renderScale, offset, srcX, srcY)
 
     // 12. 绘制回主画布
     ctx.save()
@@ -196,10 +196,10 @@ export class MosaicAnnotation extends BaseAnnotation {
     if (clipBounds) {
       ctx.beginPath()
       ctx.rect(
-        clipBounds.x * dpr, 
-        clipBounds.y * dpr, 
-        clipBounds.width * dpr, 
-        clipBounds.height * dpr
+        clipBounds.x * renderScale - offset.x,
+        clipBounds.y * renderScale - offset.y,
+        clipBounds.width * renderScale,
+        clipBounds.height * renderScale
       )
       ctx.clip()
     }
@@ -211,7 +211,8 @@ export class MosaicAnnotation extends BaseAnnotation {
   // 在物理坐标系中绘制路径
   private drawPathPhysical(
     ctx: CanvasRenderingContext2D,
-    dpr: number,
+    scale: number,
+    offset: Point,
     offsetX: number,
     offsetY: number
   ): void {
@@ -220,8 +221,8 @@ export class MosaicAnnotation extends BaseAnnotation {
     ctx.beginPath()
 
     // 转换到 helperCanvas 的局部坐标
-    const toLocalX = (p: Point) => p.x * dpr - offsetX
-    const toLocalY = (p: Point) => p.y * dpr - offsetY
+    const toLocalX = (p: Point) => p.x * scale - offset.x - offsetX
+    const toLocalY = (p: Point) => p.y * scale - offset.y - offsetY
 
     if (this.data.points.length === 1) {
       const p = this.data.points[0]

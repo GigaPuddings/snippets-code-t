@@ -732,6 +732,7 @@ export default {
     preparing: '准备下载...',
     updateLater: '稍后更新',
     updateNow: '立即更新',
+    readyToRestart: '{version} 已就绪，重启后生效。',
     retryInstall: '重试安装',
     close: '关闭'
   },

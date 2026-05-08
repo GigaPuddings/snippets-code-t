@@ -2483,9 +2483,12 @@ export class ScreenshotManager {
           tempCtx.drawImage(img, 0, 0)
 
           if (this.annotations.length > 0 && this.selectionRect) {
+            const annotationScale = this.selectionRect.width > 0
+              ? captureResult.adjusted_width / this.selectionRect.width
+              : scale
             const context = this.drawingEngine.createScreenshotContext(
               tempCtx,
-              scale,
+              annotationScale,
               this.selectionRect
             )
 
@@ -3217,4 +3220,3 @@ export class ScreenshotManager {
     }
   }
 }
-

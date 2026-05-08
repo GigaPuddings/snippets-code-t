@@ -717,6 +717,7 @@ export default {
     preparing: 'Preparing download...',
     updateLater: 'Update Later',
     updateNow: 'Update Now',
+    readyToRestart: '{version} is ready and will take effect after restart.',
     retryInstall: 'Retry Install',
     close: 'Close'
   },
