@@ -104,6 +104,12 @@ use std::time::{Duration, Instant};
 static APP_INIT_STATE: Mutex<Option<Instant>> = Mutex::new(None);
 static APP_INITIALIZED: Mutex<bool> = Mutex::new(false);
 
+const AUTO_START_BACKGROUND_DELAY_SECS: u64 = 15;
+
+fn is_auto_start_launch() -> bool {
+    std::env::args().any(|arg| arg == "--flag1" || arg == "--flag2")
+}
+
 // 注册 App 初始化请求（防抖）
 #[tauri::command]
 fn register_app_init_request() {
@@ -473,6 +479,8 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
+            let is_auto_start = is_auto_start_launch();
+
             // 在应用启动时初始化 APP
             let _ = APP.set(app.handle().clone());
             
@@ -597,6 +605,13 @@ pub fn run() {
                 });
 
                 tauri::async_runtime::spawn(async move {
+                    if is_auto_start {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(
+                            AUTO_START_BACKGROUND_DELAY_SECS,
+                        ))
+                        .await;
+                    }
+
                     if let Ok(Some(workspace_root)) = crate::json_config::get_workspace_root(&app_handle_markdown) {
                         // 初始化 CacheManager
                         let config_dir = workspace_root.join(".snippets-code");
@@ -802,6 +817,17 @@ pub fn run() {
                 // 第三步：后台服务（提醒已在setup立即启动，Dark Mode调度器已在前台阶段立即启动）
                 alarm::start_alarm_service(app_handle_init.clone());
 
+                if is_auto_start {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(
+                        AUTO_START_BACKGROUND_DELAY_SECS,
+                    ))
+                    .await;
+                    log::info!(
+                        "[Startup] auto-start background initialization begins after {}s delay",
+                        AUTO_START_BACKGROUND_DELAY_SECS
+                    );
+                }
+
                 // 重置更新状态（使用 JSON 配置）
                 let _ = json_config::set_app_config_value(&app_handle_init, "update_available", false);
                 
@@ -818,15 +844,17 @@ pub fn run() {
                 }
                 
                 // 第六步：清理任务（数据库优化、日志清理）
-                if let Err(e) = optimize_database() {
-                    log::warn!("优化数据库失败: {}", e);
-                }
-                cleanup_old_logs();
+                let _ = tokio::task::spawn_blocking(move || {
+                    if let Err(e) = optimize_database() {
+                        log::warn!("优化数据库失败: {}", e);
+                    }
+                    cleanup_old_logs();
+                })
+                .await;
             });
 
             // 启动窗口逻辑
             let args: Vec<String> = std::env::args().collect();
-            let is_auto_start = args.iter().any(|arg| arg == "--flag1" || arg == "--flag2");
 
             // 捕获系统传入的 Markdown 文件路径（首实例启动时也可能带文件参数）
             // 交由 config_ready 后统一派发到前端
