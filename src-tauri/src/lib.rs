@@ -71,8 +71,9 @@ use crate::window::{
     close_setup_window, copy_image_to_clipboard, copy_to_clipboard, create_pin_window,
     create_setup_window, frontend_log, get_all_windows, get_cached_monitor_info,
     get_cached_window_list, get_pixel_color, get_scan_progress_state, get_screen_preview,
-    get_screenshot_background, get_screenshot_preview, get_window_info, hotkey_config,
-    insert_text_to_last_window, save_pin_image, save_screenshot_to_file, start_mouse_tracking,
+    get_pin_window_data, get_screenshot_background, get_screenshot_preview, get_window_info,
+    hotkey_config, insert_text_to_last_window, save_pin_image, save_screenshot_to_file,
+    start_mouse_tracking,
 };
 use dirs::desktop_dir;
 use serde::Serialize;
@@ -957,6 +958,7 @@ pub fn run() {
             cleanup_screenshot_resources,     // 深度清理截图资源
             close_and_destroy_screenshot_window, // 关闭并销毁截图窗口
             create_pin_window,                // 创建贴图窗口
+            get_pin_window_data,              // 获取贴图窗口缓存数据
             copy_image_to_clipboard,          // 复制图片到剪贴板
             save_pin_image,                   // 保存贴图图片
             frontend_log,                     // 前端日志转发
@@ -1081,6 +1083,7 @@ pub fn run() {
             commands::show_file_in_folder,              // 在文件管理器中显示文件
             commands::open_path,                        // 打开“选择其他方式打开”对话框
             commands::open_folder,                      // 打开文件夹
+            commands::save_text_to_file,                // 保存文本到文件
             optimize_database_cmd,                     // 优化数据库
         ])
         .run(tauri::generate_context!())

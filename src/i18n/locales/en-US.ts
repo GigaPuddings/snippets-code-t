@@ -696,7 +696,30 @@ export default {
     resetZoom: 'Reset Zoom',
     copyImage: 'Copy Image',
     saveImage: 'Save Image',
-    closePin: 'Close Pin'
+    closePin: 'Close Pin',
+    ocrResult: 'OCR Result',
+    viewOriginal: 'View Original',
+    recognizing: 'Recognizing',
+    recognizeFailed: 'Recognition Failed',
+    recognizeSuccess: 'Recognition Completed',
+    noTextRecognized: 'No text recognized',
+    copyText: 'Copy Text',
+    translate: 'Translate',
+    recognizeAgain: 'Recognize Again',
+    saveAsText: 'Save as Text',
+    more: 'More',
+    minimize: 'Minimize',
+    maximize: 'Maximize',
+    close: 'Close',
+    screenshotPreview: 'Screenshot Preview',
+    screenshotPrefix: 'Screenshot',
+    copySuccess: 'Copied successfully',
+    copyFailed: 'Failed to copy',
+    saveSuccess: 'Saved successfully',
+    saveFailed: 'Failed to save',
+    translateSuccess: 'Translated successfully',
+    translateFailed: 'Failed to translate',
+    viewResult: 'View Result'
   },
 
   // Update Window
@@ -776,7 +799,11 @@ export default {
     cancel: 'Cancel',
     confirm: 'Confirm',
     colorPicker: 'Color Picker',
-    delete: 'Delete'
+    customColor: 'Custom Color',
+    brush: 'Brush',
+    delete: 'Delete',
+    ocr: 'OCR',
+    translate: 'Translate'
   },
 
   // 404 Page

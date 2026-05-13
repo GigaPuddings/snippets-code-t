@@ -2630,8 +2630,16 @@ export class ScreenshotManager {
     this.draw()
   }
 
-  // 创建贴图窗口
   async createPinWindow(): Promise<void> {
+    return this.createPinLikeWindow('pin')
+  }
+
+  async createOcrPinWindow(): Promise<void> {
+    return this.createPinLikeWindow('ocr')
+  }
+
+  // 创建贴图/文字识别复用窗口
+  private async createPinLikeWindow(mode: 'pin' | 'ocr'): Promise<void> {
     if (!this.selectionRect) return
     
     try {
@@ -2647,6 +2655,13 @@ export class ScreenshotManager {
       const screenY = Math.round(windowInfo.y + y * scale)
       const screenWidth = Math.round(width * scale)
       const screenHeight = Math.round(height * scale)
+      const screenRight = Math.round(windowInfo.x + window.innerWidth * scale)
+      const expandedX = mode === 'ocr'
+        ? Math.round(screenX - Math.max(0, screenWidth - screenWidth) / 2)
+        : screenX
+      const pinWindowX = mode === 'ocr'
+        ? Math.max(windowInfo.x, Math.min(expandedX, screenRight - screenWidth))
+        : screenX
       
       // 2. 从背景图像裁剪选区，而不是重新截屏
       const captureResult = await this.cropFromBackground(x, y, width, height)
@@ -2660,8 +2675,9 @@ export class ScreenshotManager {
       
       // 4. 创建贴图窗口
       await invoke('create_pin_window', {
+        mode,
         imageData: finalImage,
-        x: screenX,
+        x: pinWindowX,
         y: screenY,
         width: screenWidth,
         height: screenHeight
@@ -2675,7 +2691,7 @@ export class ScreenshotManager {
       }, 100)
       
     } catch (error) {
-      logger.error('[截图] 创建贴图窗口失败', error)
+      logger.error(`[截图] 创建${mode === 'ocr' ? '文字识别' : '贴图'}窗口失败`, error)
       throw error
     }
   }

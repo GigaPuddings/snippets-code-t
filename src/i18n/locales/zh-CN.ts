@@ -711,7 +711,30 @@ export default {
     resetZoom: '重置缩放',
     copyImage: '复制图片',
     saveImage: '保存图片',
-    closePin: '关闭贴图'
+    closePin: '关闭贴图',
+    ocrResult: '文字识别结果',
+    viewOriginal: '查看原图',
+    recognizing: '识别中',
+    recognizeFailed: '识别失败',
+    recognizeSuccess: '识别完成',
+    noTextRecognized: '未识别到文字',
+    copyText: '复制文本',
+    translate: '翻译',
+    recognizeAgain: '重新识别',
+    saveAsText: '保存为文本',
+    more: '更多',
+    minimize: '最小化',
+    maximize: '最大化',
+    close: '关闭',
+    screenshotPreview: '截图预览',
+    screenshotPrefix: '截图',
+    copySuccess: '复制成功',
+    copyFailed: '复制失败',
+    saveSuccess: '保存成功',
+    saveFailed: '保存失败',
+    translateSuccess: '翻译成功',
+    translateFailed: '翻译失败',
+    viewResult: '查看结果'
   },
 
   // 更新窗口
@@ -791,7 +814,11 @@ export default {
     cancel: '取消',
     confirm: '确定',
     colorPicker: '取色器',
-    delete: '删除'
+    customColor: '自定义颜色',
+    brush: '笔刷',
+    delete: '删除',
+    ocr: '文字识别',
+    translate: '翻译'
   },
 
   // 404页面

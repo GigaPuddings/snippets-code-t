@@ -1,26 +1,15 @@
 <template>
-  <button
-    :class="[
-      'custom-button',
-      `custom-button--${props.type || 'default'}`,
-      props.size ? `custom-button--${props.size}` : 'custom-button--medium',
-      { 'custom-button--loading': props.loading },
-      { 'custom-button--circle': props.circle },
-      { 'custom-button--plain': props.plain }
-    ]"
-    :disabled="loading || disabled"
-    @click="$emit('click', $event)"
-  >
+  <button :class="[
+    'custom-button',
+    `custom-button--${props.type || 'default'}`,
+    props.size ? `custom-button--${props.size}` : 'custom-button--medium',
+    { 'custom-button--loading': props.loading },
+    { 'custom-button--circle': props.circle },
+    { 'custom-button--plain': props.plain }
+  ]" :disabled="loading || disabled" @click="$emit('click', $event)">
     <div v-if="loading" class="custom-button__loading">
       <svg class="custom-button__spinner" viewBox="0 0 50 50">
-        <circle
-          class="path"
-          cx="25"
-          cy="25"
-          r="20"
-          fill="none"
-          stroke-width="5"
-        />
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5" />
       </svg>
     </div>
     <slot></slot>
@@ -37,7 +26,7 @@ const props = defineProps({
     type: String,
     default: 'default',
     validator: (value: string) =>
-      ['default', 'primary', 'success', 'danger', 'warning'].includes(value)
+      ['default', 'primary', 'success', 'danger', 'warning', 'text'].includes(value)
   },
   size: {
     type: String,
@@ -66,6 +55,10 @@ defineEmits(['click']);
 </script>
 
 <style scoped lang="scss">
+.custom-button--text {
+  @apply bg-transparent border-none shadow-none text-panel-text-secondary dark:text-panel hover:bg-content dark:hover:bg-panel-hover-bg;
+}
+
 .custom-button {
   @apply inline-flex items-center justify-center rounded-md shadow-sm transition-all duration-200 font-medium outline-none relative overflow-hidden;
 
@@ -99,19 +92,19 @@ defineEmits(['click']);
 
   &--plain {
     @apply bg-transparent border;
-    
+
     &.custom-button--primary {
       @apply border-active text-primary hover:bg-active hover:text-white;
     }
-    
+
     &.custom-button--success {
       @apply border-green-500 text-green-600 hover:bg-green-500 hover:text-white;
     }
-    
+
     &.custom-button--warning {
       @apply border-orange-500 text-orange-600 hover:bg-orange-500 hover:text-white;
     }
-    
+
     &.custom-button--danger {
       @apply border-red-500 text-red-600 hover:bg-red-500 hover:text-white;
     }

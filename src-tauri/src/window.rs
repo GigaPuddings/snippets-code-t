@@ -93,7 +93,14 @@ static LAST_ACTIVE_WINDOW_ID: Mutex<Option<String>> = Mutex::new(None);
 
 // 存储贴图窗口的图片数据 (窗口标签 -> 图片数据)
 use std::collections::HashMap;
-static PIN_IMAGE_DATA: LazyLock<Mutex<HashMap<String, String>>> =
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PinWindowData {
+    mode: String,
+    image_data: String,
+}
+
+static PIN_IMAGE_DATA: LazyLock<Mutex<HashMap<String, PinWindowData>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 // 存储截图窗口的预捕获屏幕图像（PNG格式，高质量）
@@ -1098,8 +1105,8 @@ pub fn create_update_window() {
         label: "update",
         url: "/#update",
         title: "系统更新",
-        width: 820.0,
-        height: 760.0,
+        width: 560.0,
+        height: 550.0,
         resizable: false,
         transparent: true,
         shadow: false,
@@ -1883,7 +1890,7 @@ pub fn hotkey_screenshot() {
         }
 
         // 在后台线程捕获屏幕
-        let capture_result = tokio::task::spawn_blocking(|| capture_full_screen_to_base64()).await;
+        let capture_result = tokio::task::spawn_blocking(capture_full_screen_to_base64).await;
 
         let screen_image = match capture_result {
             Ok(Ok(img)) => img,
@@ -2409,12 +2416,18 @@ pub async fn save_screenshot_to_file(
 #[tauri::command]
 pub async fn create_pin_window(
     app_handle: AppHandle,
+    mode: Option<String>,
     image_data: String,
     x: i32,
     y: i32,
     width: i32,
     height: i32,
 ) -> Result<String, String> {
+    let mode = match mode.as_deref() {
+        Some("ocr") => "ocr".to_string(),
+        _ => "pin".to_string(),
+    };
+
     // 生成唯一的窗口标签
     let window_label = format!("pin_{}", uuid::Uuid::new_v4());
 
@@ -2425,7 +2438,13 @@ pub async fn create_pin_window(
             error!("{}", msg);
             msg
         })?;
-        data_map.insert(window_label.clone(), image_data);
+        data_map.insert(
+            window_label.clone(),
+            PinWindowData {
+                mode: mode.clone(),
+                image_data,
+            },
+        );
         info!("图片数据已存储，窗口标签: {}", window_label);
     }
 
@@ -2437,16 +2456,42 @@ pub async fn create_pin_window(
     };
 
     // 转换为逻辑像素
-    let window_width = (width as f64) / scale_factor;
-    let window_height = (height as f64) / scale_factor;
-    let window_x = (x as f64) / scale_factor;
-    let window_y = (y as f64) / scale_factor;
+    let is_ocr_mode = mode == "ocr";
+    let mut window_width = (width as f64) / scale_factor;
+    let mut window_height = (height as f64) / scale_factor;
+    let mut window_x = (x as f64) / scale_factor;
+    let mut window_y = (y as f64) / scale_factor;
+
+    if is_ocr_mode {
+        const OCR_WINDOW_WIDTH: f64 = 555.0;
+        const OCR_WINDOW_HEIGHT: f64 = 450.0;
+
+        if let Ok(Some(monitor)) = app_handle.primary_monitor() {
+            let monitor_scale = monitor.scale_factor();
+            let monitor_size = monitor.size();
+            let monitor_position = monitor.position();
+            let logical_monitor_width = monitor_size.width as f64 / monitor_scale;
+            let logical_monitor_height = monitor_size.height as f64 / monitor_scale;
+            let logical_monitor_x = monitor_position.x as f64 / monitor_scale;
+            let logical_monitor_y = monitor_position.y as f64 / monitor_scale;
+
+            window_width = OCR_WINDOW_WIDTH;
+            window_height = OCR_WINDOW_HEIGHT;
+            window_x = logical_monitor_x + (logical_monitor_width - window_width) / 2.0;
+            window_y = logical_monitor_y + (logical_monitor_height - window_height) / 2.0;
+        } else {
+            window_width = OCR_WINDOW_WIDTH;
+            window_height = OCR_WINDOW_HEIGHT;
+        }
+    }
 
     let label_clone = window_label.clone();
     let app_handle_clone = app_handle.clone();
 
+    let mode_clone = mode.clone();
     // 在单独的任务中创建窗口，避免阻塞
     let result = tokio::task::spawn_blocking(move || {
+        let is_ocr = mode_clone == "ocr";
         let builder = WebviewWindowBuilder::new(
             &app_handle_clone,
             &label_clone,
@@ -2457,10 +2502,10 @@ pub async fn create_pin_window(
         .position(window_x, window_y)
         .decorations(false)
         .always_on_top(true)
-        .resizable(false)
-        .skip_taskbar(true)
+        .resizable(is_ocr)
+        .skip_taskbar(!is_ocr)
         .transparent(true)
-        .shadow(false)
+        .shadow(is_ocr)
         .focused(true)
         .visible(true);
         builder.build()
@@ -2508,8 +2553,11 @@ pub async fn create_pin_window(
         }
     };
 
-    if let Some(img_data) = image_data {
-        info!("准备发送图片数据到窗口: {} bytes", img_data.len());
+    if let Some(pin_data) = image_data {
+        info!(
+            "准备发送图片数据到窗口: {} bytes",
+            pin_data.image_data.len()
+        );
         let label_for_emit = window_label.clone();
         let app_for_emit = app_handle.clone();
 
@@ -2528,10 +2576,8 @@ pub async fn create_pin_window(
                 // 使用 emit_to 明确指定目标窗口
                 match app_for_emit.emit_to(
                     &label_for_emit,
-                    "pin-image-data",
-                    serde_json::json!({
-                        "imageData": img_data.clone()
-                    }),
+                    "pin-window-data",
+                    pin_data.clone(),
                 ) {
                     Ok(_) => {
                         info!("第 {} 次发送成功（emit_to），停止继续发送", attempt);
@@ -2568,6 +2614,14 @@ pub async fn create_pin_window(
 
     info!("返回窗口标签: {}", window_label);
     Ok(window_label)
+}
+
+#[tauri::command]
+pub fn get_pin_window_data(label: String) -> Result<Option<PinWindowData>, String> {
+    PIN_IMAGE_DATA
+        .lock()
+        .map(|data_map| data_map.get(&label).cloned())
+        .map_err(|e| format!("get_pin_window_data: 图片数据缓存锁定失败: {}", e))
 }
 
 // 复制图片到剪贴板（用于贴图窗口）

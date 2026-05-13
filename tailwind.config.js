@@ -21,7 +21,10 @@ export default {
         editor: 'var(--editor-bg)',
         'editor-hover': 'var(--editor-hover-bg)',
         // 状态栏
-        statusbar: 'var(--statusbar-bg)'
+        statusbar: 'var(--statusbar-bg)',
+        'ocr-shell': 'var(--ocr-shell-bg)',
+        'ocr-panel': 'var(--ocr-panel-bg)',
+        'ocr-panel-hover': 'var(--ocr-panel-hover-bg)'
       },
       textColor: {
         // 基础面板
@@ -40,7 +43,10 @@ export default {
         statusbar: 'var(--statusbar-text)',
         // 弹出层/面板
         'panel-text': 'var(--panel-text)',
-        'panel-text-secondary': 'var(--panel-text-secondary)'
+        'panel-text-secondary': 'var(--panel-text-secondary)',
+        ocr: 'var(--ocr-text)',
+        'ocr-secondary': 'var(--ocr-text-secondary)',
+        'ocr-muted': 'var(--ocr-text-muted)'
       },
       borderColor: {
         // 基础面板
@@ -52,7 +58,8 @@ export default {
         // 状态栏
         statusbar: 'var(--statusbar-border)',
         // 弹出层/面板
-        'panel-border': 'var(--panel-border)'
+        'panel-border': 'var(--panel-border)',
+        ocr: 'var(--ocr-border)'
       },
       colors: {
         // 主色调
@@ -61,6 +68,10 @@ export default {
           light: 'var(--el-color-primary-light-3)',
           dark: 'var(--el-color-primary-dark-2)'
         }
+      },
+      boxShadow: {
+        ocr: 'var(--ocr-shadow)',
+        'ocr-panel': 'var(--ocr-panel-shadow)'
       }
     }
   },

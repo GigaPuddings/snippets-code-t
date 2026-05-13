@@ -40,6 +40,51 @@ pub fn open_file_with_default_app(file_path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 保存文本到文件，弹出对话框让用户选择位置
+#[command]
+pub async fn save_text_to_file(
+    app_handle: tauri::AppHandle,
+    text: String,
+) -> Result<String, String> {
+    use std::sync::Arc;
+    use tokio::task;
+    use tauri_plugin_dialog::DialogExt;
+
+    let desktop = dirs::desktop_dir().ok_or("Cannot find desktop directory")?;
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+    let default_filename = format!("ocr_{}.txt", timestamp);
+
+    let app_handle = Arc::new(app_handle);
+
+    let selected_path = task::spawn_blocking({
+        let app_handle = Arc::clone(&app_handle);
+        let default_filename = default_filename.clone();
+        let desktop = desktop.clone();
+        move || {
+            app_handle
+                .dialog()
+                .file()
+                .add_filter("Text Document", &["txt"])
+                .add_filter("All Files", &["*"])
+                .set_title("保存文本")
+                .set_file_name(&default_filename)
+                .set_directory(&desktop)
+                .blocking_save_file()
+        }
+    })
+    .await
+    .map_err(|e| format!("Task joined failed: {}", e))?;
+
+    match selected_path {
+        Some(path) => {
+            let file_path = path.into_path().map_err(|_| "Invalid path")?;
+            std::fs::write(&file_path, text).map_err(|e| format!("写入文件失败: {}", e))?;
+            Ok(file_path.to_string_lossy().to_string())
+        }
+        None => Err("SAVE_CANCELLED".to_string()),
+    }
+}
+
 /// 在文件管理器中显示文件
 #[command]
 pub fn show_file_in_folder(file_path: String) -> Result<(), String> {

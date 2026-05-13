@@ -154,7 +154,7 @@ const toolbarStyle = computed(() => {
   const margin = 10
   
   // 根据工具类型计算需要的总高度
-  const hasSecondPanel = ![ToolType.Select, ToolType.ColorPicker, ToolType.Pin].includes(state.value.currentTool)
+  const hasSecondPanel = ![ToolType.Select, ToolType.ColorPicker, ToolType.Ocr, ToolType.Pin].includes(state.value.currentTool)
   const toolbarHeight = hasSecondPanel ? firstPanelHeight + secondPanelHeight + panelGap : firstPanelHeight
   
   // 第一个面板实际宽度（包含所有按钮 + padding + gap + margin）
@@ -286,6 +286,11 @@ const handleToolSelect = (tool: ToolType) => {
     handlePin()
     return
   }
+
+  if (tool === ToolType.Ocr && state.value.selectionRect) {
+    handleOcr()
+    return
+  }
   
   screenshotManager?.setTool(tool)
 }
@@ -296,6 +301,14 @@ const handlePin = async () => {
     await screenshotManager?.createPinWindow()
   } catch (error) {
     logger.error('[截图] 创建贴图失败', error)
+  }
+}
+
+const handleOcr = async () => {
+  try {
+    await screenshotManager?.createOcrPinWindow()
+  } catch (error) {
+    logger.error('[截图] 创建文字识别贴图失败', error)
   }
 }
 

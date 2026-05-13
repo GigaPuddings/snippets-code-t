@@ -44,6 +44,7 @@ export enum ToolType {
   Mosaic = 'mosaic',
   Text = 'text',
   ColorPicker = 'color-picker',
+  Ocr = 'ocr',
   Pin = 'pin',
   Translate = 'translate'
 }

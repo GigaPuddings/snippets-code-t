@@ -24,7 +24,7 @@
           @click="onUndo"
           :disabled="!canUndo"
           class="action-btn undo"
-          title="撤销"
+          :title="t('screenshot.undo')"
         >
         <return theme="outline" size="18" :strokeWidth="3"/>
         </button>
@@ -33,7 +33,7 @@
           @click="onDelete"
           :disabled="!canDelete"
           class="action-btn delete"
-          title="删除选中"
+          :title="t('screenshot.delete')"
         >
         <delete-four theme="outline" size="18" :strokeWidth="3"/>
         </button>
@@ -41,7 +41,7 @@
         <button
           @click="onSave"
           class="action-btn save"
-          title="保存"
+          :title="t('screenshot.save')"
         >
         <download theme="outline" size="18" :strokeWidth="3"/>
         </button>
@@ -49,7 +49,7 @@
         <button
           @click="onConfirm"
           class="action-btn confirm"
-          title="确认"
+          :title="t('screenshot.confirm')"
         >
         <check theme="outline" size="18" :strokeWidth="3"/>
         </button>
@@ -57,7 +57,7 @@
         <button
           @click="onCancel"
           class="action-btn cancel"
-          title="取消"
+          :title="t('screenshot.cancel')"
         >
         <close theme="outline" size="18" :strokeWidth="3"/>
         </button>
@@ -85,10 +85,10 @@
       <!-- 颜色设置 -->
       <div v-if="showColors" class="style-group color-picker-group">
         <button
-          @click="toggleColorPicker($event)"
+          @click="toggleColorPicker"
           class="color-trigger-btn"
           :style="{ backgroundColor: currentColor }"
-          title="选择颜色"
+          :title="t('screenshot.colorPicker')"
         >
           <div class="color-trigger-inner"></div>
         </button>
@@ -112,7 +112,7 @@
                 @click="openCustomColorPicker"
                 class="color-btn custom-color-btn"
                 :class="{ active: !presetColors.includes(currentColor) }"
-                title="自定义颜色"
+                :title="t('screenshot.customColor')"
               >
                 <Platte theme="outline" size="14" :strokeWidth="3"/>
               </button>
@@ -151,7 +151,7 @@
             :key="size"
             @click="onMosaicSizeChange(size)"
             :class="['size-btn', { active: currentMosaicSize === size }]"
-            :title="`笔刷 ${size * 3}px`"
+            :title="`${t('screenshot.brush')} ${size * 3}px`"
           >
             <div class="mosaic-preview" :style="{
               width: `${Math.min(size * 1.5, 24)}px`,
@@ -183,12 +183,31 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, nextTick, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ToolType } from '../core/types'
-import { MoveOne, RectangleOne, ArrowLeftUp, Write, Mosaic, FontSize, Return, DeleteFour, Download, Check, Close, Platte, Pushpin, Translate } from '@icon-park/vue-next'
+import { 
+  MoveOne, 
+  RectangleOne, 
+  ArrowLeftUp, 
+  Write, 
+  Mosaic, 
+  FontSize, 
+  Return, 
+  DeleteFour, 
+  Download, 
+  Check, 
+  Close, 
+  Platte, 
+  Pushpin, 
+  Translate, 
+  TextRecognition
+} from '@icon-park/vue-next'
 
 // 颜色选择器状态
 const showColorPicker = ref(false)
+
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 
 interface Props {
   currentTool: ToolType
@@ -221,24 +240,25 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>()
 
 // 工具配置
-const tools = [
-  { type: ToolType.Select, icon: MoveOne, title: '选择工具' },
-  { type: ToolType.Rectangle, icon: RectangleOne, title: '矩形工具' },
-  { type: ToolType.Arrow, icon: ArrowLeftUp, title: '箭头工具' },
-  { type: ToolType.Pen, icon: Write, title: '画笔工具' },
-  { type: ToolType.Mosaic, icon: Mosaic, title: '马赛克工具' },
-  { type: ToolType.Text, icon: FontSize, title: '文字工具' },
-  { type: ToolType.ColorPicker, icon: Platte, title: '取色工具' },
-  { type: ToolType.Translate, icon: Translate, title: '翻译工具' },
-  { type: ToolType.Pin, icon: Pushpin, title: '贴图工具' }
-]
+const tools = computed(() => [
+  { type: ToolType.Select, icon: MoveOne, title: t('screenshot.select') },
+  { type: ToolType.Rectangle, icon: RectangleOne, title: t('screenshot.rectangle') },
+  { type: ToolType.Arrow, icon: ArrowLeftUp, title: t('screenshot.arrow') },
+  { type: ToolType.Pen, icon: Write, title: t('screenshot.pen') },
+  { type: ToolType.Mosaic, icon: Mosaic, title: t('screenshot.mosaic') },
+  { type: ToolType.Text, icon: FontSize, title: t('screenshot.text') },
+  { type: ToolType.ColorPicker, icon: Platte, title: t('screenshot.colorPicker') },
+  { type: ToolType.Ocr, icon: TextRecognition, title: t('screenshot.ocr') },
+  { type: ToolType.Translate, icon: Translate, title: t('screenshot.translate') },
+  { type: ToolType.Pin, icon: Pushpin, title: t('screenshot.pin') }
+])
 
 // 翻译引擎配置
-const translateEngines = [
+const translateEngines = computed(() => [
   { value: 'google' as const, label: 'Google', short: 'G' },
-  { value: 'bing' as const, label: '必应', short: 'B' },
-  { value: 'offline' as const, label: '离线', short: '离' }
-]
+  { value: 'bing' as const, label: t('translate.bingTranslate'), short: 'B' },
+  { value: 'offline' as const, label: t('translate.offlineTranslate'), short: '离' }
+])
 
 // 样式配置
 const lineWidths = [2, 3, 5, 8]
@@ -248,7 +268,7 @@ const textSizes = [12, 14, 16, 18, 20, 24]
 const mosaicSizes = [5, 8, 10, 15]
 
 // 是否显示样式设置
-const showStyleSettings = computed(() => ![ToolType.Select, ToolType.ColorPicker, ToolType.Pin].includes(props.currentTool))
+const showStyleSettings = computed(() => ![ToolType.Select, ToolType.ColorPicker, ToolType.Ocr, ToolType.Pin].includes(props.currentTool))
 
 const showLineWidth = computed(() => 
   [ToolType.Rectangle, ToolType.Arrow, ToolType.Pen].includes(props.currentTool)
@@ -282,26 +302,8 @@ const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline') => {
 }
 
 // 颜色选择器方法
-const toggleColorPicker = (event: MouseEvent) => {
+const toggleColorPicker = () => {
   showColorPicker.value = !showColorPicker.value
-  
-  if (showColorPicker.value) {
-    // 计算颜色面板的位置
-    nextTick(() => {
-      const triggerBtn = event.currentTarget as HTMLElement
-      const secondPanel = triggerBtn.closest('.second-panel') as HTMLElement
-      const colorPanel = triggerBtn.parentElement?.querySelector('.color-picker-panel') as HTMLElement
-      
-      if (secondPanel && colorPanel) {
-        const secondPanelRect = secondPanel.getBoundingClientRect()
-        const panelGap = 8 // 与第二面板的间距
-        
-        // 对齐第二面板的左边缘
-        colorPanel.style.left = `${secondPanelRect.left}px`
-        colorPanel.style.top = `${secondPanelRect.bottom + panelGap}px`
-      }
-    })
-  }
 }
 
 const selectColor = (color: string) => {
@@ -471,7 +473,8 @@ watch(() => props.currentTool, () => {
         }
 
         .color-picker-panel {
-          @apply fixed p-2 z-50 border;
+          @apply absolute left-0 p-2 z-50 border;
+          top: calc(100% + 8px);
           background: color-mix(in srgb, var(--el-bg-color) 92%, transparent);
           border-color: var(--el-border-color);
           border-radius: 14px;

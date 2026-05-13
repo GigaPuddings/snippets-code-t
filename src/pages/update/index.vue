@@ -4,8 +4,6 @@
       <div class="header-title">
         <div class="logo-mark">
           <img src="@/assets/128x128.png" alt="Logo" class="app-logo" />
-          <span class="spark spark-one"></span>
-          <span class="spark spark-two"></span>
         </div>
         <h2 class="title">{{ $t('update.title') }}</h2>
       </div>
@@ -33,7 +31,7 @@
           <div class="new-version">{{ formatVersionLabel(update.newVersion) }}</div>
           <p class="version-copy">
             {{ $t('update.currentVersion') }}
-            {{ formatVersionLabel(update.appVersion) }} / {{ $t('update.newVersion') }}
+            {{ formatVersionLabel(update.appVersion) }} → {{ $t('update.newVersion') }}
             {{ formatVersionLabel(update.newVersion) }}
           </p>
           <p class="release-date">{{ $t('update.releaseDate') }}{{ update.releaseDate }}</p>
@@ -388,55 +386,29 @@ const handleCancel = () => {
 
 <style scoped lang="scss">
 .update-container {
-  @apply w-full h-full bg-panel flex flex-col box-border border border-panel overflow-hidden;
+  @apply w-full h-full bg-panel flex flex-col box-border border rounded-xl border-panel overflow-hidden;
 
   min-height: 0;
-  border-radius: 22px;
   animation: fadeIn 0.24s ease-out;
 
   .update-header {
-    @apply w-full flex items-center justify-between px-9 py-7 flex-shrink-0;
-
-    min-height: 108px;
+    @apply w-full flex items-center justify-between px-4 py-2 flex-shrink-0;
     border-bottom: 1px solid rgb(148 163 184 / 16%);
 
     .header-title {
-      @apply flex items-center gap-5;
+      @apply flex items-center gap-1;
     }
 
     .logo-mark {
       @apply relative w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0;
 
-      background: linear-gradient(135deg, var(--el-color-primary) 0%, #2fb7ad 100%);
-      box-shadow: 0 12px 26px rgb(59 130 246 / 26%);
-
       .app-logo {
         @apply relative z-10 w-8 h-8 object-contain;
-      }
-
-      .spark {
-        @apply absolute rounded-full;
-
-        border: 2px solid rgb(255 255 255 / 88%);
-
-        &.spark-one {
-          top: 8px;
-          right: 9px;
-          width: 9px;
-          height: 9px;
-        }
-
-        &.spark-two {
-          right: 20px;
-          bottom: 11px;
-          width: 5px;
-          height: 5px;
-        }
       }
     }
 
     .title {
-      @apply text-3xl font-bold text-panel m-0;
+      @apply text-xl font-bold text-panel m-0;
 
       letter-spacing: 0;
     }
@@ -451,7 +423,7 @@ const handleCancel = () => {
   }
 
   .update-content {
-    @apply w-full flex-1 flex flex-col overflow-hidden px-9 py-7;
+    @apply w-full flex-1 flex flex-col overflow-hidden px-8 py-4;
 
     min-height: 0;
 
@@ -481,7 +453,7 @@ const handleCancel = () => {
     }
 
     .status-banner {
-      @apply flex items-center gap-3 mt-6 px-5 py-4 rounded-lg text-base font-semibold;
+      @apply flex items-center gap-3 mt-4 px-5 py-4 rounded-lg text-base font-semibold;
 
       color: #19c463;
       background: rgb(22 163 74 / 10%);
@@ -496,7 +468,7 @@ const handleCancel = () => {
     }
 
     .notes-divider {
-      @apply w-full flex-shrink-0 my-8;
+      @apply w-full flex-shrink-0 my-7;
 
       height: 1px;
       background: rgb(148 163 184 / 18%);
@@ -721,13 +693,13 @@ const handleCancel = () => {
   }
 
   .footer {
-    @apply w-full flex items-center justify-end gap-4 px-9 py-6 flex-shrink-0;
+    @apply w-full flex items-center justify-end gap-4 px-8 py-4 flex-shrink-0;
 
     background: rgb(241 245 249 / 82%);
     border-top: 1px solid rgb(148 163 184 / 18%);
 
     .action-button {
-      @apply min-w-[130px] h-12 transition-all duration-200 rounded-xl px-6 font-semibold text-base;
+      @apply min-w-[130px] h-10 transition-all duration-200 rounded-lg;
 
       &:hover {
         transform: translateY(-1px);
@@ -744,11 +716,6 @@ const handleCancel = () => {
       }
 
       &.update-button {
-        @apply border-0 text-white;
-
-        background: linear-gradient(90deg, var(--el-color-primary), #2fb7ad);
-        box-shadow: 0 12px 26px rgb(59 130 246 / 28%);
-
         :deep(span) {
           @apply flex items-center gap-2;
         }
