@@ -25,18 +25,12 @@ use crate::config::{
     set_language, set_ocr_language, set_offline_model_activated, set_translation_engine,
 };
 use crate::db::{
-    add_app,
-    add_bookmark,
     // get_categories, add_category, edit_category, delete_category, get_uncategorized_id,
     // get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content,
     // search_fragment_content, // 已迁移到基于文件系统的 Markdown 存储
     add_search_history,
     backup_database,
-    delete_app,
-    delete_bookmark,
-    get_apps,
     get_auto_hide_on_blur,
-    get_bookmarks,
     get_data_dir_info,
     get_db_path,
     get_search_history,
@@ -49,8 +43,6 @@ use crate::db::{
     set_custom_db_path,
     set_data_dir_from_setup,
     set_setup_completed,
-    update_app,
-    update_bookmark,
 };
 use crate::plugins::system_theme as dark_mode;
 use crate::update::{
@@ -890,14 +882,14 @@ pub fn run() {
             plugins::system_theme::calculate_sun_times_command,      // 计算日出日落时间
             plugins::system_theme::toggle_system_theme,              // 手动切换系统主题
             plugins::system_theme::get_dark_mode_status_command,     // 获取Auto Dark Mode状态
-            add_app,                          // 添加应用
-            update_app,                       // 更新应用
-            delete_app,                       // 删除应用
-            get_apps,                         // 获取所有应用
-            add_bookmark,                     // 添加书签
-            update_bookmark,                  // 更新书签
-            delete_bookmark,                  // 删除书签
-            get_bookmarks,                    // 获取所有书签
+            plugins::local_launcher::add_app,                          // 添加应用
+            plugins::local_launcher::update_app,                       // 更新应用
+            plugins::local_launcher::delete_app,                       // 删除应用
+            plugins::local_launcher::get_apps,                         // 获取所有应用
+            plugins::local_launcher::add_bookmark,                     // 添加书签
+            plugins::local_launcher::update_bookmark,                  // 更新书签
+            plugins::local_launcher::delete_bookmark,                  // 删除书签
+            plugins::local_launcher::get_bookmarks,                    // 获取所有书签
             // get_categories,                   // 获取所有分类 - 已迁移到 Markdown
             // get_uncategorized_id,             // 获取未分类ID - 已迁移到 Markdown
             // add_category,                     // 添加分类 - 已迁移到 Markdown

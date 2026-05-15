@@ -49,10 +49,9 @@ pub fn count_bookmarks() -> Result<i64, rusqlite::Error> {
     count_entities::<BookmarkInfo>()
 }
 
-// ============= Tauri 命令函数 =============
+// ============= 书签管理函数 =============
 
 // 添加单个书签
-#[tauri::command]
 pub fn add_bookmark(
     title: String,
     content: String,
@@ -73,7 +72,6 @@ pub fn add_bookmark(
 }
 
 // 更新单个书签
-#[tauri::command]
 pub fn update_bookmark(
     id: String,
     title: String,
@@ -94,7 +92,6 @@ pub fn update_bookmark(
 }
 
 // 删除单个书签
-#[tauri::command]
 pub fn delete_bookmark(id: String) -> Result<(), String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
 
@@ -107,7 +104,6 @@ pub fn delete_bookmark(id: String) -> Result<(), String> {
 }
 
 // 获取所有书签（Tauri command 版本）
-#[tauri::command]
 pub fn get_bookmarks() -> Result<Vec<BookmarkInfo>, String> {
     get_all_bookmarks().map_err(|e| e.to_string())
 }

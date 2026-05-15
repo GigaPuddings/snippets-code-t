@@ -45,6 +45,60 @@ pub fn open_app_file_location_command(
 }
 
 #[tauri::command]
+pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<String, String> {
+    db::add_app(title, content, icon)
+}
+
+#[tauri::command]
+pub fn update_app(
+    id: String,
+    title: String,
+    content: String,
+    icon: Option<String>,
+) -> Result<(), String> {
+    db::update_app(id, title, content, icon)
+}
+
+#[tauri::command]
+pub fn delete_app(id: String) -> Result<(), String> {
+    db::delete_app(id)
+}
+
+#[tauri::command]
+pub fn get_apps() -> Result<Vec<AppInfo>, String> {
+    db::get_apps()
+}
+
+#[tauri::command]
+pub fn add_bookmark(
+    title: String,
+    content: String,
+    icon: Option<String>,
+) -> Result<String, String> {
+    db::add_bookmark(title, content, icon)
+}
+
+#[tauri::command]
+pub fn update_bookmark(
+    id: String,
+    title: String,
+    content: String,
+    icon: Option<String>,
+) -> Result<(), String> {
+    db::update_bookmark(id, title, content, icon)
+}
+
+#[tauri::command]
+pub fn delete_bookmark(id: String) -> Result<(), String> {
+    db::delete_bookmark(id)
+}
+
+#[tauri::command]
+pub fn get_bookmarks() -> Result<Vec<BookmarkInfo>, String> {
+    db::get_bookmarks()
+}
+
+#[tauri::command]
 pub fn search_apps(
     app_handle: tauri::AppHandle,
     query: String,

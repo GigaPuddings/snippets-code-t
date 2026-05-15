@@ -49,10 +49,9 @@ pub fn count_apps() -> Result<i64, rusqlite::Error> {
     count_entities::<AppInfo>()
 }
 
-// ============= Tauri 命令函数 =============
+// ============= 应用管理函数 =============
 
 // 添加单个应用
-#[tauri::command]
 pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<String, String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
 
@@ -69,7 +68,6 @@ pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<S
 }
 
 // 更新单个应用
-#[tauri::command]
 pub fn update_app(
     id: String,
     title: String,
@@ -90,7 +88,6 @@ pub fn update_app(
 }
 
 // 删除单个应用
-#[tauri::command]
 pub fn delete_app(id: String) -> Result<(), String> {
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
 
@@ -103,7 +100,6 @@ pub fn delete_app(id: String) -> Result<(), String> {
 }
 
 // 获取所有应用（Tauri command 版本）
-#[tauri::command]
 pub fn get_apps() -> Result<Vec<AppInfo>, String> {
     get_all_apps().map_err(|e| e.to_string())
 }
