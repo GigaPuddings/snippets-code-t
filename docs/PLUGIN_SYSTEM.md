@@ -28,6 +28,7 @@ The first stage does not move feature files yet. Instead, it introduces a regist
 ## Frontend
 
 - Registry: `src/plugins/registry.ts`
+- Settings panels: `src/plugins/settings.ts`
 - Types: `src/plugins/types.ts`
 - Routes: `src/plugins/routes.ts`
 - Store: `src/store/plugins.ts`
@@ -37,13 +38,14 @@ The router checks `route.meta.pluginId` and redirects disabled plugin routes to 
 
 Search sources are gated in `src/hooks/useSearch.ts`.
 
-Each built-in plugin now owns a colocated manifest, and plugins with pages also own their route records and plugin-owned page entry points:
+Each built-in plugin now owns a colocated manifest. Plugins with pages also own their route records and plugin-owned page entry points, while plugin-owned settings panels are registered through `src/plugins/settings.ts`:
 
 ```text
 src/plugins/<plugin-id>/
   manifest.ts
   routes.ts
   pages/
+  settings/
   index.ts
 ```
 

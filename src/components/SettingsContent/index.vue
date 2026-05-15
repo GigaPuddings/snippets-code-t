@@ -39,13 +39,11 @@ import { invoke } from '@tauri-apps/api/core';
 import General from './components/General/index.vue';
 import Shortcut from './components/Shortcut/index.vue';
 import Manger from './components/Manger/index.vue';
-import Translation from '@/plugins/translation/settings/index.vue';
-import Attachment from '@/plugins/attachments/settings/index.vue';
-import GitSync from '@/plugins/git-sync/settings/index.vue';
 import Plugins from './components/Plugins/index.vue';
 import { getGitStatus } from '@/api/git';
 import { getGitSettings } from '@/api/appConfig';
 import { getPluginBySettingsTab } from '@/plugins/registry';
+import { pluginSettingsComponents } from '@/plugins/settings';
 import { usePluginStore } from '@/store';
 
 defineOptions({
@@ -90,10 +88,8 @@ const componentMap: Record<string, any> = {
   general: General,
   shortcut: Shortcut,
   data: Manger,
-  attachment: Attachment,
-  gitSync: GitSync,
-  translation: Translation,
-  plugins: Plugins
+  plugins: Plugins,
+  ...pluginSettingsComponents
 };
 
 async function refreshCanShowGitSyncTab() {
