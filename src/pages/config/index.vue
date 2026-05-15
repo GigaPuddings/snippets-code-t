@@ -65,7 +65,8 @@ import { startAutoSync, stopAutoSync, getAutoSyncStatus, pauseAutoSync, resumeAu
 import { getGitSettings } from '@/api/appConfig';
 import { readMarkdownFile } from '@/api/markdown';
 import { logger } from '@/utils/logger';
-import { setupGitEventListeners, cleanupGitEventListeners, initCleanupCache, initGitSync, checkShouldInitialize, ensureWorkspaceGitignore, type GitEventListeners } from '@/utils/app-init';
+import { initCleanupCache, checkShouldInitialize } from '@/utils/app-init';
+import { setupGitEventListeners, cleanupGitEventListeners, initGitSync, ensureWorkspaceGitignore, type GitEventListeners } from '@/plugins/git-sync/lifecycle';
 import GitConflictDialog from '@/plugins/git-sync/components/GitConflictDialog/index.vue';
 import GitManualMerge from '@/plugins/git-sync/components/GitManualMerge/index.vue';
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
