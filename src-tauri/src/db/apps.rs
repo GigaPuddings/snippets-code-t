@@ -3,7 +3,7 @@ use crate::db::entity::{
     clear_entities, count_entities, get_all_entities, insert_entities, update_entity_icon,
 };
 use crate::db::DbConnectionManager;
-use crate::search::invalidate_apps_cache;
+use crate::plugins::local_launcher::invalidate_apps_cache;
 
 // ============= 应用相关数据库操作 =============
 

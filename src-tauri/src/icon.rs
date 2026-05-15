@@ -994,10 +994,10 @@ fn load_icons_with_combined_notification(
         let apps_loaded = *app_count.lock().unwrap();
         let bookmarks_loaded = *bookmark_count.lock().unwrap();
         if apps_loaded > 0 {
-            crate::search::invalidate_apps_cache();
+            crate::plugins::local_launcher::invalidate_apps_cache();
         }
         if bookmarks_loaded > 0 {
-            crate::search::invalidate_bookmarks_cache();
+            crate::plugins::local_launcher::invalidate_bookmarks_cache();
         }
     });
 }
@@ -1281,6 +1281,6 @@ fn load_icons_with_realtime_progress(
         flow_started.elapsed().as_millis()
     );
 
-    crate::search::invalidate_apps_cache();
-    crate::search::invalidate_bookmarks_cache();
+    crate::plugins::local_launcher::invalidate_apps_cache();
+    crate::plugins::local_launcher::invalidate_bookmarks_cache();
 }

@@ -89,7 +89,7 @@ Optional Tauri command entry points must also check plugin state. The first guar
 
 Rust command registration now goes through plugin adapter modules under `src-tauri/src/plugins/*`. The adapters preserve existing frontend `invoke` command names while delegating to the current implementation modules. This gives each built-in plugin an explicit backend command boundary before moving the implementation code itself.
 
-The first implementation moves are also in place: `translation`, `search-engines`, and shared URL opening now live under the Rust plugin modules instead of the older broad implementation modules.
+The first implementation moves are also in place: `translation`, `search-engines`, local launcher app/bookmark search, and shared URL opening now live under the Rust plugin modules instead of the older broad implementation modules.
 
 ## Next Steps
 

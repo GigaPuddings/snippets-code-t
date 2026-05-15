@@ -1,5 +1,3 @@
-use crate::apps::{is_shell_apps_folder_path, resolve_shell_apps_folder_display_path, AppInfo};
-use crate::bookmarks::BookmarkInfo;
 use crate::db;
 use crate::db::DesktopFileCacheRecord;
 use crate::icon::{extract_app_icon, CachedIcon};
@@ -132,26 +130,8 @@ pub struct DesktopFilePreview {
 }
 
 // 缓存结构
-static APPS_CACHE: LazyLock<Mutex<Option<Vec<AppInfo>>>> = LazyLock::new(|| Mutex::new(None));
-static BOOKMARKS_CACHE: LazyLock<Mutex<Option<Vec<BookmarkInfo>>>> =
-    LazyLock::new(|| Mutex::new(None));
 static DESKTOP_FILES_CACHE: LazyLock<Mutex<Option<Vec<DesktopFileInfo>>>> =
     LazyLock::new(|| Mutex::new(None));
-
-// 缓存失效函数
-pub fn invalidate_apps_cache() {
-    if let Ok(mut cache) = APPS_CACHE.lock() {
-        *cache = None;
-        info!("应用搜索缓存已清除");
-    }
-}
-
-pub fn invalidate_bookmarks_cache() {
-    if let Ok(mut cache) = BOOKMARKS_CACHE.lock() {
-        *cache = None;
-        info!("书签搜索缓存已清除");
-    }
-}
 
 // 转换文本为拼音（全拼和首字母）
 pub fn text_to_pinyin(text: &str) -> (String, String) {
@@ -316,106 +296,6 @@ pub fn fuzzy_search<T: Clone>(
     // 按分数降序排序
     results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
     results
-}
-
-// 搜索应用
-pub fn search_apps(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
-
-    // 尝试从缓存获取
-    let mut cache = APPS_CACHE.lock().unwrap();
-    if cache.is_none() {
-        match db::get_all_apps() {
-            Ok(apps) => {
-                *cache = Some(apps);
-            }
-            Err(_) => {
-                *cache = Some(Vec::new());
-            }
-        }
-    }
-
-    let apps = cache.as_ref().unwrap();
-
-    let results = fuzzy_search(
-        apps,
-        &query,
-        |app: &AppInfo| &app.title,
-        |app: &AppInfo| &app.content,
-    );
-
-    Ok(results
-        .into_iter()
-        .map(|(app, score)| {
-            let is_shell_app = is_shell_apps_folder_path(&app.content);
-            let display_content = if is_shell_app {
-                resolve_shell_apps_folder_display_path(&app.content)
-                    .unwrap_or_else(|| app.content.clone())
-            } else {
-                app.content.clone()
-            };
-            let metadata = if is_shell_app {
-                Some(serde_json::json!({
-                    "launch_path": app.content,
-                    "display_path": display_content,
-                }))
-            } else {
-                None
-            };
-
-            SearchResult {
-                id: app.id,
-                title: app.title,
-                content: display_content,
-                summarize: "app".to_string(),
-                icon: app.icon.unwrap_or_default(),
-                score,
-                file_path: None,
-                metadata,
-            }
-        })
-        .collect())
-}
-
-// 搜索书签
-pub fn search_bookmarks(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
-
-    // 尝试从缓存获取
-    let mut cache = BOOKMARKS_CACHE.lock().unwrap();
-    if cache.is_none() {
-        match db::get_all_bookmarks() {
-            Ok(bookmarks) => {
-                *cache = Some(bookmarks);
-            }
-            Err(_) => {
-                *cache = Some(Vec::new());
-            }
-        }
-    }
-
-    let bookmarks = cache.as_ref().unwrap();
-
-    let results = fuzzy_search(
-        bookmarks,
-        &query,
-        |bookmark: &BookmarkInfo| &bookmark.title,
-        |bookmark: &BookmarkInfo| &bookmark.content,
-    );
-
-    Ok(results
-        .into_iter()
-        .map(|(bookmark, score)| SearchResult {
-            id: bookmark.id,
-            title: bookmark.title,
-            content: bookmark.content,
-            summarize: "bookmark".to_string(),
-            icon: bookmark.icon.unwrap_or_default(),
-            score,
-            file_path: None,
-            metadata: None,
-        })
-        .collect())
 }
 
 // 搜索桌面常用文件
