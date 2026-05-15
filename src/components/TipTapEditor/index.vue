@@ -86,7 +86,7 @@ import { debounce } from '@/utils';
 import { handleEditorError } from '@/utils/error-handler';
 import { markdownToHtml, jsonToMarkdown } from './utils/markdown';
 import { createEditorExtensions } from './config/extensions';
-import { uploadImage } from '@/utils/image-upload';
+import { uploadImage } from '@/plugins/attachments/image-upload';
 import { getWorkspaceRoot } from '@/api/markdown';
 import TipTapContextMenu from './TipTapContextMenu.vue';
 import EditorStatusBar from './components/EditorStatusBar.vue';
