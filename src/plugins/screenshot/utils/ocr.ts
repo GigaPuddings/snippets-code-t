@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
-import { logger, ocrDiagnosticLogger } from './logger'
-import { detectLanguage } from './text'
+import { logger, ocrDiagnosticLogger } from '@/utils/logger'
+import { detectLanguage } from '@/utils/text'
 
 export interface OcrTextBlock {
   text: string

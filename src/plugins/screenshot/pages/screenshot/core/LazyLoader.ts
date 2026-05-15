@@ -20,7 +20,7 @@ export class LazyLoader {
       return this.loadingPromises.get(moduleKey)
     }
 
-    const loadPromise = import('@/utils/ocr').then(module => {
+    const loadPromise = import('@/plugins/screenshot/utils/ocr').then(module => {
       this.loadedModules.set(moduleKey, module)
       this.loadingPromises.delete(moduleKey)
       return module
