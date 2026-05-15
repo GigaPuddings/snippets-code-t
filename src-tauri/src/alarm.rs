@@ -265,7 +265,12 @@ fn convert_weekday(day: &str) -> &str {
 
 // 修改 add_alarm_card 函数
 #[tauri::command]
-pub fn add_alarm_card(mut card: AlarmCard) -> Result<AlarmCard, String> {
+pub fn add_alarm_card(
+    app_handle: tauri::AppHandle,
+    mut card: AlarmCard,
+) -> Result<AlarmCard, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+
     // 转换星期格式
     card.weekdays = card
         .weekdays
@@ -300,7 +305,12 @@ pub fn add_alarm_card(mut card: AlarmCard) -> Result<AlarmCard, String> {
 
 // 修改 update_alarm_card 函数
 #[tauri::command]
-pub fn update_alarm_card(mut card: AlarmCard) -> Result<AlarmCard, String> {
+pub fn update_alarm_card(
+    app_handle: tauri::AppHandle,
+    mut card: AlarmCard,
+) -> Result<AlarmCard, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+
     // 转换星期格式
     card.weekdays = card
         .weekdays
@@ -353,9 +363,11 @@ fn convert_weekday_back(day: &str) -> &str {
 }
 
 #[tauri::command]
-pub fn get_alarm_cards() -> Vec<AlarmCard> {
+pub fn get_alarm_cards(app_handle: tauri::AppHandle) -> Result<Vec<AlarmCard>, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+
     if let Ok(cards) = db::get_all_alarm_cards() {
-        cards
+        Ok(cards
             .into_iter()
             .map(|mut card| {
                 card.time_left = card.calculate_time_left();
@@ -367,14 +379,16 @@ pub fn get_alarm_cards() -> Vec<AlarmCard> {
                     .collect();
                 card
             })
-            .collect()
+            .collect())
     } else {
-        Vec::new()
+        Ok(Vec::new())
     }
 }
 
 #[tauri::command]
-pub fn delete_alarm_card(id: String) -> Result<(), String> {
+pub fn delete_alarm_card(app_handle: tauri::AppHandle, id: String) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+
     if let Err(e) = db::delete_alarm_card_by_id(&id) {
         return Err(e.to_string());
     }
@@ -394,7 +408,9 @@ pub fn delete_alarm_card(id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn toggle_alarm_card(id: String) -> Result<AlarmCard, String> {
+pub fn toggle_alarm_card(app_handle: tauri::AppHandle, id: String) -> Result<AlarmCard, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+
     if let Ok(cards) = db::get_all_alarm_cards() {
         if let Some(index) = cards.iter().position(|c| c.id == id) {
             let mut card = cards[index].clone();
@@ -590,20 +606,26 @@ pub fn stop_alarm_service() {
 }
 
 #[tauri::command]
-pub fn remind_notification_window(title: String, reminder_time: String) {
+pub fn remind_notification_window(
+    app_handle: tauri::AppHandle,
+    title: String,
+    reminder_time: String,
+) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+
     info!("稍后提醒: {} - {} 分钟后", title, reminder_time);
     let reminder_minutes = match reminder_time.parse::<i64>() {
         Ok(m) => m,
         Err(_) => {
             log::warn!("无效的提醒时间: {}", reminder_time);
-            return;
+            return Ok(());
         }
     };
     let handle_reminder = match APP.get() {
         Some(app) => app.clone(),
         None => {
             log::warn!("应用未初始化，无法设置提醒");
-            return;
+            return Ok(());
         }
     };
 
@@ -620,4 +642,6 @@ pub fn remind_notification_window(title: String, reminder_time: String) {
             Local::now().format("%Y-%m-%d %H:%M:%S")
         );
     });
+
+    Ok(())
 }

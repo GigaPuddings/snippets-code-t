@@ -78,11 +78,14 @@ Runtime plugin toggles also apply side effects immediately:
 
 - Tray menu is rebuilt after a plugin is enabled or disabled.
 - Tray actions re-check plugin state before executing optional features.
+- Frontend windows listen for `plugin-state-changed` and update their local plugin store.
 - `system-theme` stops or starts the dark-mode scheduler.
 - `todo` stops or starts the reminder service.
 - `desktop-files` stops or starts the desktop watcher and refreshes its cache when enabled.
 - `git-sync` stops or starts auto sync according to its saved Git settings.
 - `local-launcher` refreshes app and bookmark icons when re-enabled.
+
+Optional Tauri command entry points must also check plugin state. The first guarded set covers translation, reminders, search engines, desktop files, and local launcher open/search actions. This protects stale windows and direct `invoke` calls after a plugin has been disabled.
 
 ## Next Steps
 

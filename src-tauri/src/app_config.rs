@@ -395,6 +395,14 @@ pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
     default_plugin_enabled()
 }
 
+pub fn require_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
+    if is_plugin_enabled(app_handle, plugin_id) {
+        Ok(())
+    } else {
+        Err(format!("插件 '{}' 未启用", plugin_id))
+    }
+}
+
 fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
     match plugin_id {
         "system-theme" => {

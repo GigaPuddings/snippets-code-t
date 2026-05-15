@@ -333,7 +333,9 @@ pub fn fuzzy_search<T: Clone>(
 
 // 搜索应用
 #[tauri::command]
-pub fn search_apps(_app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
+pub fn search_apps(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
+
     // 尝试从缓存获取
     let mut cache = APPS_CACHE.lock().unwrap();
     if cache.is_none() {
@@ -391,10 +393,9 @@ pub fn search_apps(_app_handle: AppHandle, query: String) -> Result<Vec<SearchRe
 
 // 搜索书签
 #[tauri::command]
-pub fn search_bookmarks(
-    _app_handle: AppHandle,
-    query: String,
-) -> Result<Vec<SearchResult>, String> {
+pub fn search_bookmarks(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
+
     // 尝试从缓存获取
     let mut cache = BOOKMARKS_CACHE.lock().unwrap();
     if cache.is_none() {
@@ -522,16 +523,19 @@ pub fn clear_desktop_files_cache_for_reset(reset_type: &str) -> Result<(), Strin
 }
 
 #[tauri::command]
-pub fn refresh_desktop_files_cache_cmd() -> Result<(), String> {
+pub fn refresh_desktop_files_cache_cmd(app_handle: AppHandle) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "desktop-files")?;
     refresh_desktop_files_cache();
     Ok(())
 }
 
 #[tauri::command]
 pub fn search_desktop_files(
-    _app_handle: AppHandle,
+    app_handle: AppHandle,
     query: String,
 ) -> Result<Vec<SearchResult>, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "desktop-files")?;
+
     let mut cache = DESKTOP_FILES_CACHE.lock().unwrap();
     if cache.is_none() {
         if let Some(files) = load_desktop_files_from_db() {
@@ -765,9 +769,11 @@ fn extract_pptx_text(path: &Path) -> Result<String, String> {
 
 #[tauri::command]
 pub fn preview_desktop_file(
-    _app_handle: AppHandle,
+    app_handle: AppHandle,
     file_path: String,
 ) -> Result<DesktopFilePreview, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "desktop-files")?;
+
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err(format!("文件不存在: {}", file_path));
@@ -952,7 +958,9 @@ pub fn preview_desktop_file(
 
 // 获取搜索引擎配置
 #[tauri::command]
-pub fn get_search_engines(_app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
+pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "search-engines")?;
+
     match db::get_all_search_engines() {
         Ok(engines) => {
             if engines.is_empty() {
@@ -975,15 +983,18 @@ pub fn get_search_engines(_app_handle: AppHandle) -> Result<Vec<SearchEngine>, S
 // 更新搜索引擎配置
 #[tauri::command]
 pub fn update_search_engines(
-    _app_handle: AppHandle,
+    app_handle: AppHandle,
     engines: Vec<SearchEngine>,
 ) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "search-engines")?;
+
     info!("更新搜索引擎配置");
     db::replace_all_search_engines(&engines).map_err(|e| e.to_string())
 }
 
 // 获取默认搜索引擎配置
 #[tauri::command]
-pub fn get_default_engines() -> Result<Vec<SearchEngine>, String> {
+pub fn get_default_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "search-engines")?;
     serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())
 }

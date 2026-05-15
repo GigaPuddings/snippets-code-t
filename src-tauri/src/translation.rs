@@ -1,7 +1,7 @@
 use log::info;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::command;
+use tauri::{command, AppHandle};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct BingTranslation {
@@ -16,11 +16,14 @@ struct BingTranslationText {
 // 翻译文本命令
 #[command]
 pub async fn translate_text(
+    app_handle: AppHandle,
     text: String,
     from: String,
     to: String,
     engine: String,
 ) -> Result<String, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "translation")?;
+
     info!(
         "翻译请求: 引擎={}, 源语言={}, 目标语言={}",
         engine, from, to

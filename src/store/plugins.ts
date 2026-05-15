@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getPluginStates, setPluginEnabled } from '@/api/plugins';
 import {
   BUILTIN_PLUGINS,
@@ -7,6 +8,11 @@ import {
 } from '@/plugins/registry';
 import type { PluginId, PluginStateMap } from '@/plugins/types';
 import { logger } from '@/utils/logger';
+
+interface PluginStateChangedPayload {
+  pluginId: string;
+  enabled: boolean;
+}
 
 const normalizePluginStates = (states?: Partial<Record<string, boolean>>): PluginStateMap => {
   const normalized = { ...DEFAULT_PLUGIN_STATES };
@@ -26,9 +32,10 @@ const normalizePluginStates = (states?: Partial<Record<string, boolean>>): Plugi
 };
 
 export const usePluginStore = defineStore('plugins', {
-  state: (): { enabled: PluginStateMap; initialized: boolean } => ({
+  state: (): { enabled: PluginStateMap; initialized: boolean; stateUnlisten: UnlistenFn | null } => ({
     enabled: { ...DEFAULT_PLUGIN_STATES },
-    initialized: false
+    initialized: false,
+    stateUnlisten: null
   }),
   getters: {
     isEnabled: (state) => (id: PluginId | string): boolean => (
@@ -37,7 +44,10 @@ export const usePluginStore = defineStore('plugins', {
   },
   actions: {
     async initialize(): Promise<void> {
-      if (this.initialized) return;
+      if (this.initialized) {
+        await this.ensureStateListener();
+        return;
+      }
 
       try {
         const backendStates = await getPluginStates();
@@ -50,6 +60,25 @@ export const usePluginStore = defineStore('plugins', {
         this.enabled = normalizePluginStates(this.enabled);
       } finally {
         this.initialized = true;
+        await this.ensureStateListener();
+      }
+    },
+
+    async ensureStateListener(): Promise<void> {
+      if (this.stateUnlisten) return;
+
+      try {
+        this.stateUnlisten = await listen<PluginStateChangedPayload>(
+          'plugin-state-changed',
+          (event) => {
+            const { pluginId, enabled } = event.payload;
+            if (isPluginId(pluginId)) {
+              this.enabled[pluginId] = enabled;
+            }
+          }
+        );
+      } catch (error) {
+        logger.warn('[PluginStore] 监听插件状态变化失败', error);
       }
     },
 

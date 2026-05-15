@@ -1545,7 +1545,9 @@ $verb.DoIt()
 }
 
 #[tauri::command]
-pub fn open_app_command(app_path: String) -> Result<(), String> {
+pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
+
     if is_shell_apps_folder_path(&app_path) {
         #[cfg(target_os = "windows")]
         {
@@ -1592,7 +1594,12 @@ pub fn open_app_command(app_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn open_app_as_admin_command(app_path: String) -> Result<(), String> {
+pub fn open_app_as_admin_command(
+    app_handle: tauri::AppHandle,
+    app_path: String,
+) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
+
     if is_shell_apps_folder_path(&app_path) {
         #[cfg(target_os = "windows")]
         {
@@ -1638,7 +1645,12 @@ pub fn open_app_as_admin_command(app_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn open_app_file_location_command(app_path: String) -> Result<(), String> {
+pub fn open_app_file_location_command(
+    app_handle: tauri::AppHandle,
+    app_path: String,
+) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
+
     if is_shell_apps_folder_path(&app_path) {
         #[cfg(target_os = "windows")]
         {
