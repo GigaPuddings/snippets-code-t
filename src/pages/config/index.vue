@@ -61,7 +61,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { startAutoSync, stopAutoSync, getAutoSyncStatus, pauseAutoSync, resumeAutoSync, forcePush, forcePull, resolveConflictsBatch, ConflictStrategy } from '@/api/git';
+import { startAutoSync, stopAutoSync, getAutoSyncStatus, pauseAutoSync, resumeAutoSync, forcePush, forcePull, resolveConflictsBatch, ConflictStrategy } from '@/plugins/git-sync/api';
 import { getGitSettings } from '@/api/appConfig';
 import { readMarkdownFile } from '@/api/markdown';
 import { logger } from '@/utils/logger';

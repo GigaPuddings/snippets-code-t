@@ -104,7 +104,7 @@ import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import { htmlToMarkdown, createTurndownService, markdownToHtml, jsonToMarkdown } from '@/components/TipTapEditor/utils/markdown';
 import { getWorkspaceRoot } from '@/api/markdown';
 import { syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/plugins/attachments/api';
-import { notifyFileEdit } from '@/api/git';
+import { notifyFileEdit } from '@/plugins/git-sync/api';
 
 const { t } = useI18n();
 

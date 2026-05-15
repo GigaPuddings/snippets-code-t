@@ -201,8 +201,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { getConflictFileContent } from '@/api/git';
-import type { ConflictFileContent } from '@/api/git';
+import { getConflictFileContent } from '@/plugins/git-sync/api';
+import type { ConflictFileContent } from '@/plugins/git-sync/api';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';

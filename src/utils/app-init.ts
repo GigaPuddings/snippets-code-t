@@ -8,14 +8,14 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { ensureGitignore } from '@/api/git';
+import { ensureGitignore } from '@/plugins/git-sync/api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { useGitStatus } from '@/hooks/useGitStatus';
+import { useGitStatus } from '@/plugins/git-sync/useGitStatus';
 import { setLocale, type LocaleType } from '@/i18n';
 import { cleanupCache } from '@/api/markdown';
 import { getGitSettings } from '@/api/appConfig';
-import { gitPull, startAutoSync, pauseAutoSync } from '@/api/git';
+import { gitPull, startAutoSync, pauseAutoSync } from '@/plugins/git-sync/api';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import type { Composer } from 'vue-i18n';

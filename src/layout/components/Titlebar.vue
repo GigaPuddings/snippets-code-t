@@ -229,7 +229,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
-import { useGitStatus, setupGitStatusListener, initWorkspaceChangeListener, cleanupGitStatusListener } from '@/hooks/useGitStatus';
+import { useGitStatus, setupGitStatusListener, initWorkspaceChangeListener, cleanupGitStatusListener } from '@/plugins/git-sync/useGitStatus';
 import { useLayoutStore, usePluginStore } from '@/store';
 import type { PluginId } from '@/plugins/types';
 

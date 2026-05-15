@@ -160,7 +160,7 @@ import { open as openUrl } from '@tauri-apps/plugin-shell';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { getGitSettings, updateGitSettings } from '@/api/appConfig';
-import { testGitConnection, initGitRepository } from '@/api/git';
+import { testGitConnection, initGitRepository } from '@/plugins/git-sync/api';
 import modal from '@/utils/modal';
 import type { GitSettings } from '@/types/models';
 

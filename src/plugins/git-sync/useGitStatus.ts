@@ -1,6 +1,6 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { getGitStatus, type GitStatus } from '@/api/git';
+import { getGitStatus, type GitStatus } from '@/plugins/git-sync/api';
 import { getGitSettings } from '@/api/appConfig';
 import type { GitSettings } from '@/types/models';
 import { logger } from '@/utils/logger';

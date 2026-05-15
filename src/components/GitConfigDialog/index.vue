@@ -94,7 +94,7 @@
 
 <script setup lang="ts">
 import { CustomButton } from '@/components/UI';
-import type { SystemGitConfig } from '@/api/git';
+import type { SystemGitConfig } from '@/plugins/git-sync/api';
 
 defineOptions({
   name: 'GitConfigDialog'

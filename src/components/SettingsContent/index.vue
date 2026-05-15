@@ -40,7 +40,7 @@ import General from './components/General/index.vue';
 import Shortcut from './components/Shortcut/index.vue';
 import Manger from './components/Manger/index.vue';
 import Plugins from './components/Plugins/index.vue';
-import { getGitStatus } from '@/api/git';
+import { getGitStatus } from '@/plugins/git-sync/api';
 import { getGitSettings } from '@/api/appConfig';
 import { getPluginBySettingsTab } from '@/plugins/registry';
 import { pluginSettingsComponents, pluginSettingsMenuItems } from '@/plugins/settings';
