@@ -2,6 +2,7 @@ import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import type { Category, FragmentMetadata } from '@/types/database';
 import type { ContentType, MarkdownFile } from '@/types/models';
 import * as markdownApi from './markdown';
+import { cleanupAttachmentsOnDelete, syncAttachmentsOnRename } from '@/plugins/attachments/api';
 import { logger } from '@/utils/logger';
 
 /**
@@ -182,7 +183,7 @@ export async function deleteCategory(id: number | string): Promise<void> {
     let cleanedCount = 0;
     for (const file of files) {
       try {
-        const hasAttachments = await markdownApi.cleanupAttachmentsOnDelete(file.title);
+        const hasAttachments = await cleanupAttachmentsOnDelete(file.title);
         if (hasAttachments) {
           cleanedCount++;
         }
@@ -378,7 +379,7 @@ export async function deleteFragment(id: number | string): Promise<void> {
         
         // 清理附件并显示通知
         try {
-          const hasAttachments = await markdownApi.cleanupAttachmentsOnDelete(file.title);
+          const hasAttachments = await cleanupAttachmentsOnDelete(file.title);
           
           // 只有在实际删除了附件时才显示通知
           if (hasAttachments) {
@@ -489,7 +490,7 @@ export async function editFragment(params: EditFragmentParams): Promise<string |
     // 如果标题变更，同步附件
     let updatedContent = params.content;
     if (titleChanged) {
-      updatedContent = await markdownApi.syncAttachmentsOnRename(
+      updatedContent = await syncAttachmentsOnRename(
         oldTitle,
         params.title,
         params.content

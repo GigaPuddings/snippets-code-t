@@ -70,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { getAttachmentConfig, updateAttachmentConfig } from '@/api/markdown';
+import { getAttachmentConfig, updateAttachmentConfig } from '@/plugins/attachments/api';
 import type { AttachmentConfig } from '@/types/models';
 import modal from '@/utils/modal';
 import { useI18n } from 'vue-i18n';

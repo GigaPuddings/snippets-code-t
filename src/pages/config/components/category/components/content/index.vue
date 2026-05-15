@@ -102,7 +102,8 @@ import { ConfirmDialog } from '@/components/UI';
 import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import { htmlToMarkdown, createTurndownService, markdownToHtml, jsonToMarkdown } from '@/components/TipTapEditor/utils/markdown';
-import { getWorkspaceRoot, syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/api/markdown';
+import { getWorkspaceRoot } from '@/api/markdown';
+import { syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/plugins/attachments/api';
 import { notifyFileEdit } from '@/api/git';
 
 const { t } = useI18n();

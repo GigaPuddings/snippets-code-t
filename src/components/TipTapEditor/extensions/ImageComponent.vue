@@ -87,7 +87,7 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from '@tiptap/vue-3';
 import { logger } from '@/utils/logger';
-import { restoreDeletedAttachment } from '@/api/markdown';
+import { restoreDeletedAttachment } from '@/plugins/attachments/api';
 
 interface Props {
   node: any;

@@ -2,7 +2,7 @@
  * 图片上传工具函数
  */
 
-import { saveImageAttachment } from '@/api/markdown';
+import { saveImageAttachment } from '@/plugins/attachments/api';
 import type { AttachmentInfo } from '@/types/models';
 
 /**
