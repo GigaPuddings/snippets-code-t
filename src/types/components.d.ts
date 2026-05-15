@@ -79,7 +79,6 @@ declare module 'vue' {
     ReminderContent: typeof import('./../pages/notification/components/ReminderContent.vue')['default']
     Result: typeof import('./../pages/search/components/Result.vue')['default']
     ResultList: typeof import('./../pages/search/components/ResultList.vue')['default']
-    Retrieve: typeof import('./../pages/config/components/retrieve/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SearchPanel: typeof import('./../components/UI/SearchPanel.vue')['default']
