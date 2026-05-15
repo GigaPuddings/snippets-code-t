@@ -1,5 +1,5 @@
 import { pipeline, TranslationPipeline, env } from '@huggingface/transformers'
-import { logger } from './logger'
+import { logger } from '@/utils/logger'
 
 // 配置 Transformers.js 环境
 // 强制使用浏览器缓存，避免重复下载

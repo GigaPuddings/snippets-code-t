@@ -395,7 +395,7 @@ import {
   translateOffline,
   getModelCacheInfo,
   warmupOfflineTranslator
-} from '@/utils/offlineTranslator';
+} from '@/plugins/translation/utils/offlineTranslator';
 import {
   canTranslateDetectedLanguage,
   detectTranslationLanguage

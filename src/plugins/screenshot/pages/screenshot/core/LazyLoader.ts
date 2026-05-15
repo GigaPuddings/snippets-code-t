@@ -44,7 +44,7 @@ export class LazyLoader {
       return this.loadingPromises.get(moduleKey)
     }
 
-    const loadPromise = import('@/utils/offlineTranslator').then(module => {
+    const loadPromise = import('@/plugins/translation/utils/offlineTranslator').then(module => {
       this.loadedModules.set(moduleKey, module)
       this.loadingPromises.delete(moduleKey)
       return module

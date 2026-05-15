@@ -177,7 +177,7 @@ import {
   getModelFiles,
   type ModelCacheInfo,
   type FileDownloadStatus
-} from '@/utils/offlineTranslator'
+} from '@/plugins/translation/utils/offlineTranslator'
 import { logger } from '@/utils/logger'
 
 defineOptions({
