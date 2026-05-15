@@ -37,12 +37,13 @@ The router checks `route.meta.pluginId` and redirects disabled plugin routes to 
 
 Search sources are gated in `src/hooks/useSearch.ts`.
 
-Each built-in plugin now owns a colocated manifest, and plugins with pages also own their route records:
+Each built-in plugin now owns a colocated manifest, and plugins with pages also own their route records and plugin-owned page entry points:
 
 ```text
 src/plugins/<plugin-id>/
   manifest.ts
   routes.ts
+  pages/
   index.ts
 ```
 

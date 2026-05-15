@@ -4,7 +4,7 @@ export const translationRoutes: RouteRecordRaw[] = [
   {
     path: '/translate',
     name: 'Translate',
-    component: () => import('@/pages/translate/index.vue'),
+    component: () => import('./pages/translate/index.vue'),
     meta: { pluginId: 'translation' }
   }
 ];

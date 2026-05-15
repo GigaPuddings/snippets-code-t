@@ -4,7 +4,7 @@ export const todoConfigRoutes: RouteRecordRaw[] = [
   {
     path: 'todo',
     name: 'Todo',
-    component: () => import('@/pages/config/components/todo/index.vue'),
+    component: () => import('./pages/config/index.vue'),
     meta: { pluginId: 'todo' }
   }
 ];

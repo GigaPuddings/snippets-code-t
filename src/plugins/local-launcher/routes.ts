@@ -4,7 +4,7 @@ export const localLauncherConfigRoutes: RouteRecordRaw[] = [
   {
     path: 'local',
     name: 'Local',
-    component: () => import('@/pages/config/components/local/index.vue'),
+    component: () => import('./pages/config/index.vue'),
     meta: { pluginId: 'local-launcher' }
   }
 ];

@@ -448,7 +448,7 @@ TipTapEditor/
 
 ### 4. 截图模块 (Screenshot Module)
 
-**位置**: `src/pages/screenshot/`
+**位置**: `src/plugins/screenshot/pages/screenshot/`
 
 **功能**:
 - 屏幕截图
@@ -489,7 +489,7 @@ screenshot/
 
 ### 5. 翻译模块 (Translation Module)
 
-**位置**: `src/pages/translate/`
+**位置**: `src/plugins/translation/pages/translate/`
 
 **功能**:
 - 文本翻译
@@ -846,7 +846,7 @@ export const useStore = defineStore('store', {
 **Canvas 对象池**:
 
 ```typescript
-// src/pages/screenshot/core/CanvasPool.ts
+// src/plugins/screenshot/pages/screenshot/core/CanvasPool.ts
 class CanvasPool {
   acquire(): HTMLCanvasElement
   release(canvas: HTMLCanvasElement): void
@@ -856,7 +856,7 @@ class CanvasPool {
 **图像压缩**:
 
 ```typescript
-// src/pages/screenshot/core/ImageCompressor.ts
+// src/plugins/screenshot/pages/screenshot/core/ImageCompressor.ts
 class ImageCompressor {
   compress(image: ImageData, quality: number): Promise<Blob>
 }

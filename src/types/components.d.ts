@@ -7,7 +7,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    AlarmEditDialog: typeof import('./../pages/config/components/todo/components/AlarmEditDialog.vue')['default']
+    AlarmEditDialog: typeof import('./../plugins/todo/pages/config/components/AlarmEditDialog.vue')['default']
     AppMain: typeof import('./../layout/components/AppMain.vue')['default']
     Attachment: typeof import('./../components/SettingsContent/components/Attachment/index.vue')['default']
     BacklinkPanel: typeof import('./../components/TipTapEditor/components/BacklinkPanel.vue')['default']
@@ -30,7 +30,7 @@ declare module 'vue' {
     ContextMenu: typeof import('./../components/ContextMenu/index.vue')['default']
     CustomButton: typeof import('./../components/UI/CustomButton.vue')['default']
     CustomSwitch: typeof import('./../components/UI/CustomSwitch.vue')['default']
-    EditDialog: typeof import('./../pages/config/components/local/components/EditDialog.vue')['default']
+    EditDialog: typeof import('./../plugins/local-launcher/pages/config/components/EditDialog.vue')['default']
     EditorActions: typeof import('./../components/TipTapEditor/components/EditorActions.vue')['default']
     EditorControls: typeof import('./../pages/config/components/category/components/content/components/EditorControls.vue')['default']
     EditorStatusBar: typeof import('./../components/TipTapEditor/components/EditorStatusBar.vue')['default']
@@ -69,7 +69,6 @@ declare module 'vue' {
     ImageComponent: typeof import('./../components/TipTapEditor/extensions/ImageComponent.vue')['default']
     InlinePreview: typeof import('./../pages/search/components/InlinePreview.vue')['default']
     LoadingIndicator: typeof import('./../components/LoadingIndicator/index.vue')['default']
-    Local: typeof import('./../pages/config/components/local/index.vue')['default']
     Manger: typeof import('./../components/SettingsContent/components/Manger/index.vue')['default']
     MigrationWizard: typeof import('./../components/MigrationWizard/index.vue')['default']
     OutlinePanel: typeof import('./../components/TipTapEditor/components/OutlinePanel.vue')['default']
@@ -96,9 +95,8 @@ declare module 'vue' {
     TipTapContextMenu: typeof import('./../components/TipTapEditor/TipTapContextMenu.vue')['default']
     TipTapEditor: typeof import('./../components/TipTapEditor/index.vue')['default']
     Titlebar: typeof import('./../layout/components/Titlebar.vue')['default']
-    Todo: typeof import('./../pages/config/components/todo/index.vue')['default']
     Toolbar: typeof import('./../components/TipTapEditor/Toolbar.vue')['default']
-    ToolbarSection: typeof import('./../pages/screenshot/components/ToolbarSection.vue')['default']
+    ToolbarSection: typeof import('./../plugins/screenshot/pages/screenshot/components/ToolbarSection.vue')['default']
     Translation: typeof import('./../components/SettingsContent/components/Translation/index.vue')['default']
     User: typeof import('./../pages/config/components/user/index.vue')['default']
   }
