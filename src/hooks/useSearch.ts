@@ -1,12 +1,20 @@
 import { debounce } from '@/utils';
 import { isURL, normalizeURL } from '@/utils/url';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { onMounted, ref, watch, type Ref, type ComputedRef, computed } from 'vue';
 import type { ContentType, SearchEngine, SearchHistoryItem, MarkdownFile } from '@/types';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
-import { isContentType } from '@/utils/type-guards';
 import { usePluginStore } from '@/store';
+import { searchSourceProviders } from '@/plugins/search-providers';
+import {
+  createDefaultSearchResult,
+  createEngineShortcutResult,
+  findSearchEngine,
+  getDefaultSearchEngine,
+  listenSearchEngineUpdates,
+  loadSearchEngines,
+  openSearchEngine
+} from '@/plugins/search-engines/searchRuntime';
 
 interface SearchHistoryMeta {
   usage_count: number;
@@ -259,46 +267,21 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     }
 
     try {
-      const parts = text.trim().split(/\s+/);
-      if ((parts.length >= 2 || forceSearch) && parts.length > 0) {
-        const keyword = parts[0];
-        const query = parts.slice(1).join(' ');
-
-        // 先检查是否匹配名称
-        let engine = searchEngines.value.find((e) => e.name === keyword);
-
-        // 如果名称没有匹配到，再检查是否匹配关键词
-        if (!engine) {
-          engine = searchEngines.value.find((e) => e.keyword === keyword);
-        }
-
-        if (engine) {
-          if (!forceSearch) {
-            searchResults.value = [
-              withSourceId({
-                id: `search-${engine.id}`,
-                title: `使用 ${engine.name} 搜索: ${query}`,
-                content: engine.url.replace(
-                  '%s',
-                  encodeURIComponent(query || '')
-                ),
-                summarize: 'search',
-                icon: engine.icon
-              }, 'engine-shortcut', 0)
-            ];
-            return true;
-          }
-          const searchUrl = engine.url.replace(
-            '%s',
-            encodeURIComponent(query || '')
-          );
-          await invoke('open_url', { url: searchUrl });
-          searchText.value = '';
-          invoke('show_hide_window_command', { label: 'search' });
-          return true;
-        }
+      const match = findSearchEngine(searchEngines.value, text, forceSearch);
+      if (!match) {
+        return false;
       }
-      return false;
+
+      if (!forceSearch) {
+        searchResults.value = [
+          withSourceId(createEngineShortcutResult(match.engine, match.query), 'engine-shortcut', 0)
+        ];
+        return true;
+      }
+
+      await openSearchEngine(match.engine, match.query);
+      searchText.value = '';
+      return true;
     } catch (error) {
       ErrorHandler.handle(error, {
         type: ErrorType.UNKNOWN_ERROR,
@@ -354,25 +337,12 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       const codeResults = await searchCode(query);
       results.push(...codeResults.map((item, index) => withSourceId(item, 'markdown', index)));
 
-      // 使用后端模糊搜索应用
-      if (pluginStore.isEnabled('local-launcher')) {
-        const appResults = await invoke<ContentType[]>('search_apps', { query });
-        if (Array.isArray(appResults)) {
-          results.push(...appResults.filter(isContentType).map((item, index) => withSourceId(item, 'app', index)));
-        }
+      for (const provider of searchSourceProviders) {
+        if (!pluginStore.isEnabled(provider.pluginId)) continue;
 
-        // 使用后端模糊搜索书签
-        const bookmarkResults = await invoke<ContentType[]>('search_bookmarks', { query });
-        if (Array.isArray(bookmarkResults)) {
-          results.push(...bookmarkResults.filter(isContentType).slice(0, 10).map((item, index) => withSourceId(item, 'bookmark', index)));
-        }
-      }
-
-      // 搜索桌面常用文件
-      if (pluginStore.isEnabled('desktop-files')) {
-        const desktopFileResults = await invoke<ContentType[]>('search_desktop_files', { query });
-        if (Array.isArray(desktopFileResults)) {
-          results.push(...desktopFileResults.filter(isContentType).map((item, index) => withSourceId(item, 'file', index)));
+        const sourceResults = await provider.search(query);
+        for (const sourceResult of sourceResults) {
+          results.push(...sourceResult.items.map((item, index) => withSourceId(item, sourceResult.source, index)));
         }
       }
 
@@ -388,18 +358,10 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         : new Map<string, SearchHistoryMeta>();
 
       // 4. 默认搜索引擎选项（仅在非 URL 时显示）
-      const defaultEngine = pluginStore.isEnabled('search-engines')
-        ? searchEngines.value.find((e) => e.enabled)
-        : undefined;
+      const defaultEngine = getDefaultSearchEngine(pluginStore, searchEngines.value);
       let defaultSearchResult: ContentType | null = null;
       if (defaultEngine) {
-        defaultSearchResult = withSourceId({
-          id: 'default-search',
-          title: `使用 ${defaultEngine.name} 搜索: ${query}`,
-          content: defaultEngine.url.replace('%s', encodeURIComponent(query)),
-          summarize: 'search',
-          icon: defaultEngine.icon
-        }, 'default-search', 0);
+        defaultSearchResult = withSourceId(createDefaultSearchResult(defaultEngine, query), 'default-search', 0);
       }
 
       searchResults.value = [
@@ -442,19 +404,12 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       if (isEngineSearch) return;
 
       // 3. 使用默认搜索引擎
-      const defaultEngine = pluginStore.isEnabled('search-engines')
-        ? searchEngines.value.find((e) => e.enabled)
-        : undefined;
+      const defaultEngine = getDefaultSearchEngine(pluginStore, searchEngines.value);
       if (defaultEngine) {
-        const searchUrl = defaultEngine.url.replace(
-          '%s',
-          encodeURIComponent(text)
-        );
         // add history
         addSearchHistory('default-search');
-        await invoke('open_url', { url: searchUrl });
+        await openSearchEngine(defaultEngine, text);
         searchText.value = '';
-        invoke('show_hide_window_command', { label: 'search' });
       }
     } catch (error) {
       ErrorHandler.handle(error, {
@@ -489,19 +444,11 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   onMounted(async () => {
     try {
       await pluginStore.initialize();
-      // 获取搜索引擎
-      if (pluginStore.isEnabled('search-engines')) {
-        const engines = await invoke<SearchEngine[]>('get_search_engines');
-        if (Array.isArray(engines)) {
-          searchEngines.value = engines;
-        }
-      }
+      searchEngines.value = await loadSearchEngines(pluginStore);
 
       // 监听搜索引擎更新
-      await listen('search-engines-updated', (event: { payload: unknown }) => {
-        if (Array.isArray(event.payload)) {
-          searchEngines.value = event.payload as SearchEngine[];
-        }
+      await listenSearchEngineUpdates((engines) => {
+        searchEngines.value = engines;
       });
     } catch (error) {
       ErrorHandler.handle(error, {
