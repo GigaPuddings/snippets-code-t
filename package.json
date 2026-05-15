@@ -18,7 +18,8 @@
     "upload-assets": "node scripts/upload-assets.mjs",
     "tag": "node scripts/tag.mjs",
     "release-notes": "node scripts/format-release-notes.mjs",
-    "release-notes:copy": "node scripts/format-release-notes.mjs --copy"
+    "release-notes:copy": "node scripts/format-release-notes.mjs --copy",
+    "rapidocr:install": "node scripts/install-rapidocr.mjs"
   },
   "config": {
     "commitizen": {
@@ -93,7 +94,6 @@
     "pinia": "^2.3.0",
     "pinia-plugin-persistedstate": "^4.2.0",
     "shiki": "^4.0.2",
-    "tesseract.js": "^7.0.0",
     "turndown": "^7.2.2",
     "vue": "^3.5.13",
     "vue-codemirror": "^6.1.1",

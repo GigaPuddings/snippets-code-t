@@ -364,6 +364,31 @@ pub fn get_translation_engine(app_handle: tauri::AppHandle) -> String {
         .unwrap_or_else(|| "bing".to_string())
 }
 
+// 设置默认 OCR 语言
+#[tauri::command]
+pub fn set_ocr_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
+    let normalized = language.trim().to_ascii_lowercase();
+    let language = match normalized.as_str() {
+        "auto" | "zh" | "zh-tw" | "en" | "ja" | "ko" => normalized,
+        _ => "auto".to_string(),
+    };
+
+    info!("设置 OCR 语言: {} (保存到 app.json)", language);
+    json_config::set_app_config_value(&app_handle, "ocr_language", language)
+}
+
+// 获取默认 OCR 语言
+#[tauri::command]
+pub fn get_ocr_language(app_handle: tauri::AppHandle) -> String {
+    let language = json_config::get_app_config_value::<String>(&app_handle, "ocr_language")
+        .unwrap_or_else(|| "auto".to_string());
+
+    match language.trim().to_ascii_lowercase().as_str() {
+        "zh" | "zh-tw" | "en" | "ja" | "ko" => language,
+        _ => "auto".to_string(),
+    }
+}
+
 // 设置离线模型激活状态
 #[tauri::command]
 pub fn set_offline_model_activated(

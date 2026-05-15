@@ -1056,8 +1056,7 @@ fn normalize_start_app_title(name: &str, app_id: &str, content: &str) -> String 
         .next()
         .unwrap_or(app_id)
         .split('.')
-        .filter(|part| !part.is_empty() && !part.eq_ignore_ascii_case("Microsoft"))
-        .last()
+        .rfind(|part| !part.is_empty() && !part.eq_ignore_ascii_case("Microsoft"))
         .unwrap_or(app_id)
         .replace('_', " ")
         .trim()
@@ -1629,7 +1628,7 @@ pub fn open_app_as_admin_command(app_path: String) -> Result<(), String> {
             .args(["-NoProfile", "-Command", &ps_script])
             .spawn()
             .map_err(|e| format!("以管理员身份打开应用失败: {}", e))?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(target_os = "windows"))]

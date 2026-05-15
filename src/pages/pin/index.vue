@@ -223,16 +223,55 @@
             </div>
           </div>
         </div>
-        <CustomButton
-          class="ocr-action-btn"
-          type="text"
-          :title="$t('pin.recognizeAgain')"
-          :disabled="ocrLoading || !imageData"
-          @click.stop="recognizeCurrentImage"
-        >
-          <Refresh size="22" theme="outline" :strokeWidth="2.7" />
-          <span>{{ $t('pin.recognizeAgain') }}</span>
-        </CustomButton>
+        <div class="ocr-engine-btn-group relative">
+          <CustomButton
+            class="ocr-action-btn ocr-engine-main"
+            type="text"
+            :title="$t('pin.ocrLanguage')"
+            :disabled="ocrLoading"
+            @click.stop="toggleOcrLanguageMenu"
+          >
+            <TextRecognition size="22" theme="outline" :strokeWidth="2.7" />
+            <span>{{ currentOcrLanguageLabel }}</span>
+          </CustomButton>
+          <CustomButton
+            class="ocr-action-btn ocr-engine-arrow"
+            type="text"
+            :disabled="ocrLoading"
+            @click.stop="toggleOcrLanguageMenu"
+          >
+            <Down size="14" theme="outline" :strokeWidth="3" />
+          </CustomButton>
+          <div v-if="showOcrLanguageMenu" class="ocr-engine-menu">
+            <div
+              v-for="language in ocrLanguages"
+              :key="language.value"
+              class="menu-item"
+              @click="selectOcrLanguage(language.value)"
+              :class="{ active: currentOcrLanguage === language.value }"
+            >
+              <span class="engine-label">{{ language.label }}</span>
+              <component
+                v-if="currentOcrLanguage === language.value"
+                :is="Check"
+                class="menu-item-icon"
+                size="16"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="ocr-engine-btn-group relative">
+          <CustomButton
+            class="ocr-action-btn ocr-engine-main"
+            type="text"
+            :title="$t('pin.recognizeAgain')"
+            :disabled="ocrLoading || !imageData"
+            @click.stop="recognizeCurrentImage"
+          >
+            <Refresh size="22" theme="outline" :strokeWidth="2.7" />
+            <span>{{ $t('pin.recognizeAgain') }}</span>
+          </CustomButton>
+        </div>
         <CustomButton
           class="ocr-action-btn"
           type="text"
@@ -349,7 +388,7 @@ import {
   More,
   Check
 } from '@icon-park/vue-next';
-import { logger } from '@/utils/logger';
+import { logger, ocrDiagnosticLogger } from '@/utils/logger';
 import modal from '@/utils/modal';
 import CustomButton from '@/components/UI/CustomButton.vue';
 import {
@@ -357,6 +396,10 @@ import {
   getModelCacheInfo,
   warmupOfflineTranslator
 } from '@/utils/offlineTranslator';
+import {
+  canTranslateDetectedLanguage,
+  detectTranslationLanguage
+} from '@/utils/text';
 
 const { t } = useI18n();
 
@@ -379,6 +422,9 @@ const showOriginalImage = ref(false);
 const isTranslating = ref(false);
 const showTranslateMenu = ref(false);
 const currentTranslateEngine = ref<'google' | 'bing' | 'offline'>('bing');
+const showOcrLanguageMenu = ref(false);
+type OcrLanguageValue = 'auto' | 'zh' | 'zh-tw' | 'en' | 'ja' | 'ko';
+const currentOcrLanguage = ref<OcrLanguageValue>('auto');
 
 const translateEngines = computed(() => [
   { value: 'google' as const, label: 'Google', short: 'G' },
@@ -389,6 +435,38 @@ const translateEngines = computed(() => [
     short: '离'
   }
 ]);
+
+const ocrLanguages = computed(() => [
+  { value: 'auto' as const, label: t('pin.ocrLanguageAuto') },
+  { value: 'zh' as const, label: t('pin.ocrLanguageZh') },
+  { value: 'zh-tw' as const, label: t('pin.ocrLanguageZhTw') },
+  { value: 'en' as const, label: t('pin.ocrLanguageEn') },
+  { value: 'ja' as const, label: t('pin.ocrLanguageJa') },
+  { value: 'ko' as const, label: t('pin.ocrLanguageKo') }
+]);
+
+const normalizeOcrLanguage = (language: unknown): OcrLanguageValue => {
+  const normalized =
+    typeof language === 'string' ? language.trim().toLowerCase() : '';
+  if (
+    normalized === 'auto' ||
+    normalized === 'zh' ||
+    normalized === 'zh-tw' ||
+    normalized === 'en' ||
+    normalized === 'ja' ||
+    normalized === 'ko'
+  ) {
+    return normalized;
+  }
+  return 'auto';
+};
+
+const currentOcrLanguageLabel = computed(() => {
+  return (
+    ocrLanguages.value.find((item) => item.value === currentOcrLanguage.value)
+      ?.label || t('pin.ocrLanguageAuto')
+  );
+});
 
 const scale = ref(1);
 const showZoomInfo = ref(false);
@@ -543,40 +621,52 @@ const recognizeCurrentImage = async () => {
   const requestId = ++ocrRequestId;
   ocrLoading.value = true;
   ocrError.value = '';
+  const startedAt = Date.now();
+
+  ocrDiagnosticLogger.log('[Pin OCR] recognize start', {
+    requestId,
+    imageDataLength: imageData.value.length,
+    imageWidth: imageWidth.value,
+    imageHeight: imageHeight.value,
+    language: currentOcrLanguage.value
+  });
 
   try {
-    let text = '';
-
-    try {
-      const result = await invoke<any>('recognize_text_from_image', {
-        imageData: imageData.value
-      });
-      if (typeof result === 'string') {
-        text = result;
-      } else if (result?.text) {
-        text = result.text;
-      } else if (result?.full_text) {
-        text = result.full_text;
-      } else if (Array.isArray(result?.blocks)) {
-        text = result.blocks
-          .map((block: any) => block?.text)
-          .filter(Boolean)
-          .join('\n');
-      }
-    } catch (backendError) {
-      logger.info('[PIN窗口] 后端 OCR 不可用，回退到前端 OCR', backendError);
-      const { recognizeFromCanvas } = await import('@/utils/ocr');
-      const canvas = await imageDataToCanvas();
-      const result = await recognizeFromCanvas(canvas);
-      text =
-        result.full_text || result.blocks.map((block) => block.text).join('\n');
-    }
+    ocrDiagnosticLogger.log('[Pin OCR] invoking RapidOCR backend', {
+      requestId,
+      language: currentOcrLanguage.value
+    });
+    const result = await invoke<any>('recognize_text_from_image', {
+      imageData: imageData.value,
+      engine: 'rapidocr',
+      language: currentOcrLanguage.value
+    });
+    const text = extractTextFromOcrResult(result);
+    ocrDiagnosticLogger.log('[Pin OCR] backend OCR success', {
+      requestId,
+      resultEngine: result?.engine,
+      resultLanguage: result?.language,
+      confidence: result?.confidence,
+      blocks: Array.isArray(result?.blocks) ? result.blocks.length : 0,
+      textLength: text.trim().length
+    });
 
     if (requestId !== ocrRequestId) return;
     ocrText.value = text.trim();
+    ocrDiagnosticLogger.log('[Pin OCR] recognize success', {
+      requestId,
+      durationMs: Date.now() - startedAt,
+      textLength: ocrText.value.length,
+      textPreview: ocrText.value.slice(0, 300)
+    });
   } catch (error) {
     if (requestId !== ocrRequestId) return;
     logger.error('[PIN窗口] OCR 识别失败', error);
+    ocrDiagnosticLogger.log('[Pin OCR] recognize failed', {
+      requestId,
+      durationMs: Date.now() - startedAt,
+      error: formatErrorForLog(error)
+    });
     ocrError.value = t('pin.recognizeFailed');
     ocrText.value = '';
     modal.error(t('pin.recognizeFailed'));
@@ -587,20 +677,32 @@ const recognizeCurrentImage = async () => {
   }
 };
 
-const imageDataToCanvas = async (): Promise<HTMLCanvasElement> => {
-  const img = new Image();
-  img.src = imageBlobUrl.value || imageData.value;
-  await img.decode();
-
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('无法创建 OCR Canvas');
+const extractTextFromOcrResult = (result: any): string => {
+  if (typeof result === 'string') {
+    return result;
   }
-  ctx.drawImage(img, 0, 0);
-  return canvas;
+  if (result?.text) {
+    return result.text;
+  }
+  if (result?.full_text) {
+    return result.full_text;
+  }
+  if (Array.isArray(result?.blocks)) {
+    return result.blocks
+      .map((block: any) => block?.text)
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+};
+
+const formatErrorForLog = (error: unknown): string => {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}\n${error.stack || ''}`.trim();
+  }
+  return typeof error === 'string'
+    ? error
+    : JSON.stringify(error) || String(error);
 };
 
 const handleCopyOcrText = async () => {
@@ -635,6 +737,7 @@ const handleSaveOcrText = async () => {
 
 const toggleTranslateMenu = () => {
   showTranslateMenu.value = !showTranslateMenu.value;
+  showOcrLanguageMenu.value = false;
 };
 
 const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline') => {
@@ -646,11 +749,34 @@ const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline') => {
   });
 };
 
+const toggleOcrLanguageMenu = () => {
+  showOcrLanguageMenu.value = !showOcrLanguageMenu.value;
+  showTranslateMenu.value = false;
+};
+
+const selectOcrLanguage = (language: OcrLanguageValue) => {
+  currentOcrLanguage.value = language;
+  showOcrLanguageMenu.value = false;
+  invoke('set_ocr_language', { language }).catch((err) => {
+    logger.error('[PIN窗口] 保存 OCR 语言设置失败', err);
+  });
+  if (imageData.value) {
+    recognizeCurrentImage();
+  }
+};
+
 const handleTranslateOcr = async () => {
   closeContextMenu();
   showTranslateMenu.value = false;
+  showOcrLanguageMenu.value = false;
 
   if (!ocrText.value.trim() || isTranslating.value) return;
+
+  const sourceLanguage = detectTranslationLanguage(ocrText.value);
+  if (!canTranslateDetectedLanguage(sourceLanguage)) {
+    modal.warning(t('pin.unsupportedTranslateLanguage'));
+    return;
+  }
 
   isTranslating.value = true;
 
@@ -867,6 +993,8 @@ const handleContextMenu = (event: MouseEvent) => {
 
 const closeContextMenu = () => {
   showContextMenu.value = false;
+  showTranslateMenu.value = false;
+  showOcrLanguageMenu.value = false;
 };
 
 // 切换置顶状态
@@ -1031,7 +1159,7 @@ const handleMouseDown = async (event: MouseEvent) => {
 
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
-  if (!target.closest('.context-menu')) {
+  if (!target.closest('.context-menu') && !target.closest('.ocr-engine-btn-group')) {
     closeContextMenu();
   }
 };
@@ -1085,6 +1213,24 @@ const hydratePinWindowData = async () => {
 onMounted(async () => {
   if (!containerRef.value) {
     return;
+  }
+
+  try {
+    const [translationEngine, ocrLanguage] = await Promise.all([
+      invoke<string>('get_translation_engine'),
+      invoke<string>('get_ocr_language')
+    ]);
+
+    if (
+      translationEngine === 'google' ||
+      translationEngine === 'bing' ||
+      translationEngine === 'offline'
+    ) {
+      currentTranslateEngine.value = translationEngine;
+    }
+    currentOcrLanguage.value = normalizeOcrLanguage(ocrLanguage);
+  } catch (error) {
+    logger.error('[PIN窗口] 读取默认 OCR/翻译设置失败', error);
   }
 
   try {
@@ -1355,7 +1501,8 @@ onUnmounted(() => {
       height: 54px;
       padding: 8px 8px 0;
 
-      .translate-btn-group {
+      .translate-btn-group,
+      .ocr-engine-btn-group {
         @apply flex items-center bg-transparent;
         border-radius: 6px;
         box-shadow: var(--ocr-panel-shadow);
@@ -1364,7 +1511,8 @@ onUnmounted(() => {
           @apply bg-ocr-panel-hover;
         }
 
-        .translate-main {
+        .translate-main,
+        .ocr-engine-main {
           @apply pr-1 hover:bg-transparent;
           min-width: 86px;
           border-right: 0;
@@ -1373,7 +1521,8 @@ onUnmounted(() => {
           box-shadow: none;
         }
 
-        .translate-arrow {
+        .translate-arrow,
+        .ocr-engine-arrow {
           @apply px-1 hover:bg-transparent;
           min-width: 30px;
           width: 30px;
@@ -1383,7 +1532,8 @@ onUnmounted(() => {
           box-shadow: none;
         }
 
-        .translate-menu {
+        .translate-menu,
+        .ocr-engine-menu {
           @apply absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-panel rounded-lg py-1.5 shadow-lg border z-50;
           min-width: 130px;
           border-color: var(--panel-border);

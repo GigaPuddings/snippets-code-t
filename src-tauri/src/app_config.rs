@@ -39,6 +39,10 @@ pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub translation_engine: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub ocr_engine: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ocr_language: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub offline_model_activated: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub show_progress_on_restart: Option<bool>,
@@ -127,6 +131,8 @@ impl Default for AppConfig {
             update_available: None,
             update_info: None,
             translation_engine: None,
+            ocr_engine: None,
+            ocr_language: None,
             offline_model_activated: None,
             show_progress_on_restart: None,
             search_hotkey: None,

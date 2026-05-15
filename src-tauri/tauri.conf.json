@@ -67,6 +67,9 @@
     "shortDescription": "效率工具",
     "longDescription": "使用 Tauri、Vue 3 和 Rust 构建的一款效率工具",
     "publisher": "snippets-code",
+    "resources": [
+      "resources/rapidocr/**/*"
+    ],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",

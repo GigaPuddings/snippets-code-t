@@ -2463,8 +2463,8 @@ pub async fn create_pin_window(
     let mut window_y = (y as f64) / scale_factor;
 
     if is_ocr_mode {
-        const OCR_WINDOW_WIDTH: f64 = 555.0;
-        const OCR_WINDOW_HEIGHT: f64 = 450.0;
+        const OCR_WINDOW_WIDTH: f64 = 680.0;
+        const OCR_WINDOW_HEIGHT: f64 = 476.0;
 
         if let Ok(Some(monitor)) = app_handle.primary_monitor() {
             let monitor_scale = monitor.scale_factor();
@@ -2574,11 +2574,7 @@ pub async fn create_pin_window(
                 );
 
                 // 使用 emit_to 明确指定目标窗口
-                match app_for_emit.emit_to(
-                    &label_for_emit,
-                    "pin-window-data",
-                    pin_data.clone(),
-                ) {
+                match app_for_emit.emit_to(&label_for_emit, "pin-window-data", pin_data.clone()) {
                     Ok(_) => {
                         info!("第 {} 次发送成功（emit_to），停止继续发送", attempt);
                         // 成功后立即停止，避免前端重复渲染

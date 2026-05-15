@@ -103,7 +103,7 @@ pub fn remove_token_from_url(url: &str) -> String {
 /// - 去掉首尾引号
 /// - 解析 `\\ooo` 八进制转义为字节并按 UTF-8 解码
 /// - 处理常见的转义字符（`\\n`、`\\t`、`\\\\`、`\\\"`）
-/// 解码失败时会安全地回退为原始输入。
+///   解码失败时会安全地回退为原始输入。
 pub fn decode_git_quoted_path(input: &str) -> String {
     // 去掉首尾引号（如果存在）
     let inner = input

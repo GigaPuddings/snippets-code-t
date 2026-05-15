@@ -37,4 +37,28 @@ export const logger = {
   }
 }
 
+export const ocrDiagnosticLogger = {
+  log: (message: string, data?: unknown) => {
+    invoke('append_ocr_diagnostic_log', {
+      message,
+      data: data === undefined ? null : stringifyLogData(data)
+    }).catch(() => {})
+  }
+}
+
+function stringifyLogData(data: unknown): string {
+  if (data instanceof Error) {
+    return `${data.name}: ${data.message}\n${data.stack || ''}`.trim()
+  }
+
+  if (typeof data === 'string') {
+    return data
+  }
+
+  try {
+    return JSON.stringify(data, null, 2)
+  } catch {
+    return String(data)
+  }
+}
 

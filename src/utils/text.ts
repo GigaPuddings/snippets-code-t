@@ -119,17 +119,48 @@ export function processTextForTranslation(text: string): string {
  * @param text - 要检测的文本
  * @returns 语言代码：'zh'（中文）、'en'（英文）或 'unknown'（未知）
  */
-export function detectLanguage(text: string): 'zh' | 'en' | 'unknown' {
+export type DetectedLanguage = 'zh' | 'en' | 'ja' | 'ko' | 'unknown';
+
+export function detectLanguage(text: string): DetectedLanguage {
   if (!text) return 'unknown';
-  
+
   // 统计中文字符
   const chineseChars = text.match(/[\u4e00-\u9fa5]/g);
   const chineseCount = chineseChars ? chineseChars.length : 0;
+
+  const japaneseChars = text.match(/[\u3040-\u30ff]/g);
+  const japaneseCount = japaneseChars ? japaneseChars.length : 0;
+
+  const koreanChars = text.match(/[\uac00-\ud7af]/g);
+  const koreanCount = koreanChars ? koreanChars.length : 0;
   
   // 统计英文字母
   const englishChars = text.match(/[a-zA-Z]/g);
   const englishCount = englishChars ? englishChars.length : 0;
-  
+  const cjkCount = chineseCount + japaneseCount + koreanCount;
+  const languageCharCount = cjkCount + englishCount;
+
+  if (languageCharCount === 0) {
+    return 'unknown';
+  }
+
+  if (
+    japaneseCount >= 3 &&
+    japaneseCount > englishCount &&
+    japaneseCount / languageCharCount >= 0.2
+  ) {
+    return 'ja';
+  }
+
+  if (
+    koreanCount >= 3 &&
+    koreanCount > chineseCount &&
+    koreanCount > englishCount &&
+    koreanCount / languageCharCount >= 0.2
+  ) {
+    return 'ko';
+  }
+
   // 根据字符数量判断语言
   if (chineseCount > englishCount) {
     return 'zh';
@@ -138,4 +169,12 @@ export function detectLanguage(text: string): 'zh' | 'en' | 'unknown' {
   }
   
   return 'unknown';
+}
+
+export function canTranslateDetectedLanguage(language: DetectedLanguage): boolean {
+  return language === 'zh' || language === 'en';
+}
+
+export function detectTranslationLanguage(text: string): DetectedLanguage {
+  return detectLanguage(text);
 }

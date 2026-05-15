@@ -14,6 +14,7 @@ mod hotkey;
 mod icon;
 mod json_config;
 mod markdown;
+mod ocr;
 mod search;
 mod translation;
 mod tray;
@@ -25,9 +26,9 @@ use crate::alarm::{
     toggle_alarm_card, update_alarm_card,
 };
 use crate::config::{
-    exit_application, get_auto_update_check, get_language, get_offline_model_activated,
-    get_translation_engine, reset_software, set_auto_update_check, set_language,
-    set_offline_model_activated, set_translation_engine,
+    exit_application, get_auto_update_check, get_language, get_ocr_language,
+    get_offline_model_activated, get_translation_engine, reset_software, set_auto_update_check,
+    set_language, set_ocr_language, set_offline_model_activated, set_translation_engine,
 };
 use crate::dark_mode::{
     calculate_sun_times, get_current_status as get_dark_mode_status, get_location_by_ip,
@@ -70,8 +71,8 @@ use crate::window::{
     cleanup_screenshot_resources, clear_screenshot_background, close_and_destroy_screenshot_window,
     close_setup_window, copy_image_to_clipboard, copy_to_clipboard, create_pin_window,
     create_setup_window, frontend_log, get_all_windows, get_cached_monitor_info,
-    get_cached_window_list, get_pixel_color, get_scan_progress_state, get_screen_preview,
-    get_pin_window_data, get_screenshot_background, get_screenshot_preview, get_window_info,
+    get_cached_window_list, get_pin_window_data, get_pixel_color, get_scan_progress_state,
+    get_screen_preview, get_screenshot_background, get_screenshot_preview, get_window_info,
     hotkey_config, insert_text_to_last_window, save_pin_image, save_screenshot_to_file,
     start_mouse_tracking,
 };
@@ -959,6 +960,8 @@ pub fn run() {
             close_and_destroy_screenshot_window, // 关闭并销毁截图窗口
             create_pin_window,                // 创建贴图窗口
             get_pin_window_data,              // 获取贴图窗口缓存数据
+            ocr::recognize_text_from_image,   // 后端 OCR 识别（不可用时前端回退）
+            ocr::append_ocr_diagnostic_log,   // 写入 OCR 诊断日志
             copy_image_to_clipboard,          // 复制图片到剪贴板
             save_pin_image,                   // 保存贴图图片
             frontend_log,                     // 前端日志转发
@@ -996,6 +999,8 @@ pub fn run() {
             set_auto_hide_on_blur,            // 设置自动失焦隐藏
             set_translation_engine,           // 设置默认翻译引擎
             get_translation_engine,           // 获取默认翻译引擎
+            set_ocr_language,                 // 设置默认 OCR 语言
+            get_ocr_language,                 // 获取默认 OCR 语言
             set_offline_model_activated,      // 设置离线模型激活状态
             get_offline_model_activated,      // 获取离线模型激活状态
             migrate_to_markdown_command,      // 迁移数据到 Markdown

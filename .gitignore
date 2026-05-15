@@ -42,3 +42,7 @@ _tmp*
 .release-notes.tmp
 release-notes.txt
 RELEASE_NOTES_TEMP.md
+
+# RapidOCR 本地二进制和模型较大，由 pnpm rapidocr:install 下载
+src-tauri/resources/rapidocr/*
+!src-tauri/resources/rapidocr/README.md

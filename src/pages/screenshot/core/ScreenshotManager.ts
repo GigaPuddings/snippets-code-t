@@ -8,13 +8,33 @@ import { LazyLoader } from './LazyLoader'
 import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, TranslationOverlay, SampledColor, OverlayStyle, AnnotationData } from './types'
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
-import { logger } from '@/utils/logger'
+import { logger, ocrDiagnosticLogger } from '@/utils/logger'
+import { canTranslateDetectedLanguage, detectTranslationLanguage } from '@/utils/text'
 import { distance, getRectCenter } from '../utils/geometry'
+import { reflowOcrBlocks, type ParagraphBlock } from './OcrLayoutReflow'
+import type { DetectedLanguage } from '@/utils/text'
 
 interface AnnotationHistorySnapshot {
   annotations: AnnotationData[]
   selectedAnnotationId: string | null
 }
+
+interface CropResult {
+  image: string
+  adjusted_width: number
+  adjusted_height: number
+  logical_x: number
+  logical_y: number
+  logical_width: number
+  logical_height: number
+}
+
+interface CropOptions {
+  padding?: number
+  fillColor?: string
+}
+
+type TranslationLanguage = 'zh' | 'en'
 
 interface WindowInfo {
   x: number
@@ -33,7 +53,6 @@ export class ScreenshotManager {
   private coordinateSystem: CoordinateSystem
   private drawingEngine: DrawingEngine
   private eventHandler: EventHandler
-  
   // 状态管理
   private selectionRect: Rect | null = null
   private annotations: BaseAnnotation[] = []
@@ -1536,41 +1555,183 @@ export class ScreenshotManager {
     ctx.fillStyle = backgroundColor
     ctx.fillRect(x, y, width, height)
 
-    // 4. 按块渲染翻译文本，使用原文的位置和字体大小
+    // 4. 按语义段落渲染翻译文本，使用段落覆盖区域和原文字体大小
     ctx.fillStyle = textColor
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
 
-    for (const block of this.translationOverlay.blocks) {
-      const translatedText = block.translatedText || block.text
-      if (!translatedText || !translatedText.trim()) continue
+    const renderBlocks = this.translationOverlay.paragraphBlocks?.length
+      ? this.translationOverlay.paragraphBlocks
+      : this.translationOverlay.blocks.map((block): ParagraphBlock => ({
+        text: block.text,
+        translatedText: block.translatedText,
+        blocks: [block],
+        bbox: {
+          x: block.x,
+          y: block.y,
+          width: block.width,
+          height: block.height
+        },
+        isCodeBlock: block.isCodeBlock,
+        isStructuredBlock: false,
+        fontSize: block.fontSize,
+        lineHeight: block.lineHeight,
+        angle: block.angle
+      }))
 
-      // 使用原文的字体大小，限制在合理范围内
-      const fontSize = Math.max(12, Math.min(block.fontSize || 16, 48))
-      const fontFamily = block.isCodeBlock 
-        ? '"Consolas", "Monaco", monospace'
-        : '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif'
-      
-      ctx.font = `${fontSize}px ${fontFamily}`
+    const structuredBlocks = renderBlocks.filter((block) => block.isStructuredBlock)
+    const naturalBlocks = renderBlocks.filter((block) => !block.isStructuredBlock)
 
-      // 计算块的实际位置（相对于选区）
-      const blockX = x + block.x + padding
-      const blockY = y + block.y
-      const blockWidth = block.width - padding * 2
+    if (naturalBlocks.length > 0) {
+      this.drawFlowedTranslationBlocks(ctx, naturalBlocks, x, y, padding, width, height)
+    }
 
-      // 自动换行绘制
-      const lines = this.wrapTextToLines(ctx, translatedText.trim(), blockWidth > 0 ? blockWidth : width - padding * 2)
-      const lineHeight = block.lineHeight || fontSize * 1.4
-      
+    for (const block of structuredBlocks) {
+      this.drawStructuredTranslationBlock(ctx, block, x, y, padding, width, height)
+    }
+
+    ctx.restore()
+  }
+
+  private drawFlowedTranslationBlocks(
+    ctx: CanvasRenderingContext2D,
+    paragraphs: ParagraphBlock[],
+    selectionX: number,
+    selectionY: number,
+    padding: number,
+    selectionWidth: number,
+    selectionHeight: number
+  ): void {
+    const visibleParagraphs = [...paragraphs]
+      .filter((paragraph) => (paragraph.translatedText || paragraph.text).trim())
+      .sort((a, b) => {
+        const yDiff = a.bbox.y - b.bbox.y
+        return Math.abs(yDiff) > 4 ? yDiff : a.bbox.x - b.bbox.x
+      })
+
+    if (visibleParagraphs.length === 0) {
+      return
+    }
+
+    const availableHeight = Math.max(24, selectionHeight - padding * 2)
+    const selectionRightPadding = padding
+
+    const buildLayouts = (scale: number, forceFullWidth: boolean, compact: boolean) => {
+      return visibleParagraphs.map((paragraph) => {
+        const text = (paragraph.translatedText || paragraph.text).trim()
+        const baseFontSize = Math.max(12, Math.min(paragraph.fontSize || 16, 48))
+        const fontSize = Math.max(8, Math.round(baseFontSize * scale))
+        const fontFamily = paragraph.isCodeBlock
+          ? '"Consolas", "Monaco", monospace'
+          : '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif'
+        const originalInset = Math.max(
+          padding,
+          Math.min(paragraph.bbox.x + padding, selectionWidth * 0.38)
+        )
+        const leftInset = forceFullWidth ? padding : originalInset
+        const maxWidth = Math.max(48, selectionWidth - leftInset - selectionRightPadding)
+        const rawLineHeight = paragraph.lineHeight || fontSize * 1.35
+        const lineHeight = Math.max(
+          fontSize * (compact ? 1.04 : 1.14),
+          Math.min(rawLineHeight * scale, fontSize * (compact ? 1.18 : 1.42))
+        )
+
+        ctx.font = `${fontSize}px ${fontFamily}`
+        return {
+          text,
+          fontSize,
+          fontFamily,
+          lineHeight,
+          paragraphGap: compact ? Math.max(1, lineHeight * 0.16) : Math.max(3, lineHeight * 0.35),
+          x: selectionX + leftInset,
+          lines: this.wrapTextToLines(ctx, text, maxWidth)
+        }
+      })
+    }
+
+    const getLayoutHeight = (layouts: ReturnType<typeof buildLayouts>): number => {
+      return layouts.reduce((height, layout, index) => {
+        const gap = index === layouts.length - 1 ? 0 : layout.paragraphGap
+        return height + layout.lines.length * layout.lineHeight + gap
+      }, 0)
+    }
+
+    let layouts = buildLayouts(1, false, false)
+    let layoutHeight = getLayoutHeight(layouts)
+
+    if (layoutHeight > availableHeight) {
+      const fitScale = Math.max(0.56, availableHeight / layoutHeight)
+      layouts = buildLayouts(fitScale, false, false)
+      layoutHeight = getLayoutHeight(layouts)
+    }
+
+    if (layoutHeight > availableHeight) {
+      layouts = buildLayouts(1, true, false)
+      layoutHeight = getLayoutHeight(layouts)
+    }
+
+    if (layoutHeight > availableHeight) {
+      const fitScale = Math.max(0.38, (availableHeight / layoutHeight) * 0.96)
+      layouts = buildLayouts(fitScale, true, true)
+      layoutHeight = getLayoutHeight(layouts)
+    }
+
+    if (layoutHeight > availableHeight) {
+      const fitScale = Math.max(0.3, (availableHeight / layoutHeight) * 0.94)
+      layouts = buildLayouts(fitScale, true, true)
+      layoutHeight = getLayoutHeight(layouts)
+    }
+
+    const firstSourceY = Math.min(...visibleParagraphs.map((paragraph) => paragraph.bbox.y))
+    const sourceStartY = selectionY + Math.max(padding, Math.min(firstSourceY, selectionHeight - padding))
+    const bottomLimit = selectionY + selectionHeight - padding
+    let currentY = sourceStartY + layoutHeight > bottomLimit
+      ? selectionY + padding
+      : sourceStartY
+
+    for (const layout of layouts) {
+      ctx.font = `${layout.fontSize}px ${layout.fontFamily}`
+      for (const line of layout.lines) {
+        ctx.fillText(line, layout.x, currentY)
+        currentY += layout.lineHeight
+      }
+      currentY += layout.paragraphGap
+    }
+  }
+
+  private drawStructuredTranslationBlock(
+    ctx: CanvasRenderingContext2D,
+    paragraph: ParagraphBlock,
+    selectionX: number,
+    selectionY: number,
+    padding: number,
+    selectionWidth: number,
+    selectionHeight: number
+  ): void {
+    const sortedBlocks = [...paragraph.blocks].sort((a, b) => a.x - b.x)
+    const fontSize = Math.max(12, Math.min(paragraph.fontSize || 14, 32))
+    const lineHeight = paragraph.lineHeight || fontSize * 1.35
+    ctx.font = `${fontSize}px "Consolas", "Monaco", monospace`
+
+    for (const sourceBlock of sortedBlocks) {
+      const text = sourceBlock.translatedText || sourceBlock.text
+      if (!text.trim()) continue
+
+      const blockX = selectionX + sourceBlock.x + Math.min(4, padding)
+      const blockY = selectionY + sourceBlock.y
+      const nextColumn = sortedBlocks.find((item) => item.x > sourceBlock.x)
+      const maxWidth = nextColumn
+        ? Math.max(sourceBlock.width, nextColumn.x - sourceBlock.x - 8)
+        : Math.max(sourceBlock.width, selectionWidth - sourceBlock.x - padding)
+      const lines = this.wrapTextToLines(ctx, text.trim(), maxWidth)
       let currentY = blockY
+
       for (const line of lines) {
-        if (currentY + fontSize > y + height) break
+        if (currentY + fontSize > selectionY + selectionHeight) break
         ctx.fillText(line, blockX, currentY)
         currentY += lineHeight
       }
     }
-
-    ctx.restore()
   }
 
   /**
@@ -1581,26 +1742,62 @@ export class ScreenshotManager {
     text: string,
     maxWidth: number
   ): string[] {
+    const normalizedText = text.replace(/\s+/g, ' ').trim()
+    if (!normalizedText) {
+      return []
+    }
+
     const lines: string[] = []
-    const chars = text.split('')
+    const tokens = /\s/.test(normalizedText)
+      ? normalizedText.split(/(\s+)/).filter((token) => token.length > 0)
+      : Array.from(normalizedText)
     let line = ''
-    
-    for (const char of chars) {
-      const testLine = line + char
-      const metrics = ctx.measureText(testLine)
-      
-      if (metrics.width > maxWidth && line !== '') {
-        lines.push(line)
-        line = char
-      } else {
+
+    const pushLongToken = (token: string) => {
+      let chunk = ''
+      for (const char of Array.from(token)) {
+        const testChunk = chunk + char
+        if (ctx.measureText(testChunk).width > maxWidth && chunk !== '') {
+          lines.push(chunk)
+          chunk = char
+        } else {
+          chunk = testChunk
+        }
+      }
+
+      line = chunk
+    }
+
+    for (const token of tokens) {
+      const isWhitespace = /^\s+$/.test(token)
+      const normalizedToken = isWhitespace ? ' ' : token
+      const testLine = line + normalizedToken
+
+      if (ctx.measureText(testLine).width <= maxWidth) {
         line = testLine
+        continue
+      }
+
+      if (line.trim()) {
+        lines.push(line.trimEnd())
+        line = ''
+      }
+
+      if (isWhitespace) {
+        continue
+      }
+
+      if (ctx.measureText(normalizedToken).width > maxWidth) {
+        pushLongToken(normalizedToken)
+      } else {
+        line = normalizedToken
       }
     }
-    
-    if (line) {
-      lines.push(line)
+
+    if (line.trim()) {
+      lines.push(line.trimEnd())
     }
-    
+
     return lines
   }
 
@@ -2373,8 +2570,9 @@ export class ScreenshotManager {
     x: number, 
     y: number, 
     width: number, 
-    height: number
-  ): Promise<{ image: string, adjusted_width: number, adjusted_height: number }> {
+    height: number,
+    options: CropOptions = {}
+  ): Promise<CropResult> {
     return new Promise(async (resolve, reject) => {
       // 设置超时处理，避免无限等待
       const timeoutId = setTimeout(() => {
@@ -2400,10 +2598,35 @@ export class ScreenshotManager {
 
         // 计算裁剪区域（考虑设备像素比）
         const dpr = window.devicePixelRatio || 1
-        const cropX = Math.round(x * dpr)
-        const cropY = Math.round(y * dpr)
-        const cropWidth = Math.round(width * dpr)
-        const cropHeight = Math.round(height * dpr)
+        const padding = Math.max(0, options.padding || 0)
+        const logicalCanvasWidth = this.canvas.width / dpr
+        const logicalCanvasHeight = this.canvas.height / dpr
+        const requestedX = x - padding
+        const requestedY = y - padding
+        const requestedWidth = width + padding * 2
+        const requestedHeight = height + padding * 2
+        const cropWidth = Math.max(1, Math.round(requestedWidth * dpr))
+        const cropHeight = Math.max(1, Math.round(requestedHeight * dpr))
+
+        const sourceLogicalX = Math.max(0, requestedX)
+        const sourceLogicalY = Math.max(0, requestedY)
+        const sourceLogicalRight = Math.min(logicalCanvasWidth, requestedX + requestedWidth)
+        const sourceLogicalBottom = Math.min(logicalCanvasHeight, requestedY + requestedHeight)
+        const sourceLogicalWidth = Math.max(0, sourceLogicalRight - sourceLogicalX)
+        const sourceLogicalHeight = Math.max(0, sourceLogicalBottom - sourceLogicalY)
+
+        const cropX = Math.round(sourceLogicalX * dpr)
+        const cropY = Math.round(sourceLogicalY * dpr)
+        const sourceWidth = Math.min(
+          this.canvas.width - cropX,
+          Math.round(sourceLogicalWidth * dpr)
+        )
+        const sourceHeight = Math.min(
+          this.canvas.height - cropY,
+          Math.round(sourceLogicalHeight * dpr)
+        )
+        const destX = Math.round((sourceLogicalX - requestedX) * dpr)
+        const destY = Math.round((sourceLogicalY - requestedY) * dpr)
 
         // 创建临时canvas进行裁剪
         const tempCanvas = document.createElement('canvas')
@@ -2421,13 +2644,20 @@ export class ScreenshotManager {
 
         // 设置高质量渲染
         tempCtx.imageSmoothingEnabled = false // 裁剪时禁用平滑，保持像素精确
+
+        if (options.fillColor) {
+          tempCtx.fillStyle = options.fillColor
+          tempCtx.fillRect(0, 0, cropWidth, cropHeight)
+        }
         
         // 从背景图像裁剪指定区域
-        tempCtx.drawImage(
-          this.backgroundImage,
-          cropX, cropY, cropWidth, cropHeight,
-          0, 0, cropWidth, cropHeight
-        )
+        if (sourceWidth > 0 && sourceHeight > 0) {
+          tempCtx.drawImage(
+            this.backgroundImage,
+            cropX, cropY, sourceWidth, sourceHeight,
+            destX, destY, sourceWidth, sourceHeight
+          )
+        }
 
         // 使用最高质量的 PNG 编码
         const dataUrl = tempCanvas.toDataURL('image/png', 1.0)
@@ -2437,7 +2667,11 @@ export class ScreenshotManager {
         resolve({
           image: base64,
           adjusted_width: cropWidth,
-          adjusted_height: cropHeight
+          adjusted_height: cropHeight,
+          logical_x: requestedX,
+          logical_y: requestedY,
+          logical_width: requestedWidth,
+          logical_height: requestedHeight
         })
       } catch (err: any) {
         clearTimeout(timeoutId)
@@ -2448,7 +2682,7 @@ export class ScreenshotManager {
 
   // 渲染带标注的图像
   private async renderWithAnnotations(
-    captureResult: { image: string, adjusted_width: number, adjusted_height: number },
+    captureResult: CropResult,
     scale: number,
     action: 'copy' | 'save'
   ): Promise<string> {
@@ -2483,13 +2717,19 @@ export class ScreenshotManager {
           tempCtx.drawImage(img, 0, 0)
 
           if (this.annotations.length > 0 && this.selectionRect) {
-            const annotationScale = this.selectionRect.width > 0
-              ? captureResult.adjusted_width / this.selectionRect.width
+            const annotationScale = captureResult.logical_width > 0
+              ? captureResult.adjusted_width / captureResult.logical_width
               : scale
+            const annotationBounds = {
+              x: captureResult.logical_x,
+              y: captureResult.logical_y,
+              width: captureResult.logical_width,
+              height: captureResult.logical_height
+            }
             const context = this.drawingEngine.createScreenshotContext(
               tempCtx,
               annotationScale,
-              this.selectionRect
+              annotationBounds
             )
 
             this.annotations.forEach((annotation, index) => {
@@ -2664,7 +2904,9 @@ export class ScreenshotManager {
         : screenX
       
       // 2. 从背景图像裁剪选区，而不是重新截屏
-      const captureResult = await this.cropFromBackground(x, y, width, height)
+      const cropOptions: CropOptions = {}
+
+      const captureResult = await this.cropFromBackground(x, y, width, height, cropOptions)
       
       if (!captureResult?.image) {
         throw new Error('Failed to crop from background image')
@@ -2821,6 +3063,12 @@ export class ScreenshotManager {
     }
 
     try {
+      const pipelineStartedAt = performance.now()
+      let cropDurationMs = 0
+      let ocrLoadDurationMs = 0
+      let ocrDurationMs = 0
+      let reflowDurationMs = 0
+      let translationDurationMs = 0
       
       // 1. 从已有的背景图像中提取选区，避免重新捕获屏幕导致窗口闪烁
       const { x, y, width, height } = this.selectionRect
@@ -2841,92 +3089,64 @@ export class ScreenshotManager {
       const srcY = y * dpr
       
       // 从背景图像中裁剪选区
+      const cropStartedAt = performance.now()
       tempCtx.drawImage(
         this.backgroundImage,
         srcX, srcY, srcWidth, srcHeight,
         0, 0, srcWidth, srcHeight
       )
+      cropDurationMs = Math.round(performance.now() - cropStartedAt)
 
       // 2. 懒加载 OCR 模块并执行识别
+      const ocrLoadStartedAt = performance.now()
       const { recognizeFromCanvas } = await LazyLoader.loadOCR()
+      ocrLoadDurationMs = Math.round(performance.now() - ocrLoadStartedAt)
+      const ocrStartedAt = performance.now()
       const ocrResult = await recognizeFromCanvas(tempCanvas)
+      ocrDurationMs = Math.round(performance.now() - ocrStartedAt)
       
       // 释放 canvas 回池
       this.canvasPool.release(tempCanvas)
-
-      // 3. 智能合并被截断的句子
-      // 规则：如果当前行以标点结尾，上一行没有标点结尾且宽度接近，则合并
-      // 新增：字体大小不一致时不合并（说明是不同段落/标题）
-      const blocks = ocrResult.blocks
-      const mergedLines: string[] = []
-      const mergedBlocks: typeof blocks = []  // 保存合并后的块信息
-      const punctuationEnd = /[.。!！?？:]$/  // 只有句号、问号、感叹号才算完整句子
-      const numberedListStart = /^\d+[.、)）]\s*/  // 匹配 1. 2. 1、 2、 1) 2) 等编号列表
-      const bulletListStart = /^[*•·\-+]\s+/  // 匹配 * • · - + 等列表符号
-      const fontSizeTolerance = 3  // 字体大小容差（像素）
-      const widthTolerance = 0.15  // 宽度容差比例（15%）
-      
-      // 计算最大行宽度作为参考
-      const maxWidth = Math.max(...blocks.map((b: OcrTextBlock) => b.width))
-      
-      for (let i = 0; i < blocks.length; i++) {
-        const currBlock = blocks[i]
-        const currText = currBlock.text.trim()
-        if (!currText) continue
-        
-        // 检查是否应该与上一行合并
-        if (mergedLines.length > 0 && mergedBlocks.length > 0) {
-          const prevBlock = mergedBlocks[mergedBlocks.length - 1]
-          
-          // 检查字体大小是否一致（容差范围内）
-          const fontSizeDiff = Math.abs(currBlock.fontSize - prevBlock.fontSize)
-          if (fontSizeDiff > fontSizeTolerance) {
-            // 字体大小不一致，不合并（可能是标题和正文）
-            mergedLines.push(currText)
-            mergedBlocks.push(currBlock)
-            continue
-          }
-          
-          // 当前行以编号开头（1. 2. 等），不合并（新列表项）
-          if (numberedListStart.test(currText) || bulletListStart.test(currText)) {
-            mergedLines.push(currText)
-            mergedBlocks.push(currBlock)
-            continue
-          }
-          
-          // 当前行首字母大写，不合并（新句子开始）
-          const firstChar = currText.charAt(0)
-          if (/[A-Z]/.test(firstChar)) {
-            mergedLines.push(currText)
-            mergedBlocks.push(currBlock)
-            continue
-          }
-          
-          const prevLine = mergedLines[mergedLines.length - 1]
-          const prevHasPunctuation = punctuationEnd.test(prevLine)
-          
-          if (!prevHasPunctuation) {
-            // 上一行没有标点结尾（不完整）
-            // 条件：上一行宽度接近最大宽度（说明是满行被截断）
-            const prevWidthRatio = prevBlock.width / maxWidth
-            if (prevWidthRatio >= (1 - widthTolerance)) {
-              mergedLines[mergedLines.length - 1] = prevLine + ' ' + currText
-              // 更新合并后块的宽度和高度
-              mergedBlocks[mergedBlocks.length - 1] = {
-                ...prevBlock,
-                text: prevLine + ' ' + currText,
-                height: currBlock.y + currBlock.height - prevBlock.y
-              }
-              continue
-            }
-          }
-        }
-        
-        mergedLines.push(currText)
-        mergedBlocks.push(currBlock)
+      const ocrTimingData = {
+        cropDurationMs,
+        ocrModuleLoadDurationMs: ocrLoadDurationMs,
+        ocrRecognitionDurationMs: ocrDurationMs,
+        confidence: ocrResult.confidence,
+        rawLineCount: ocrResult.blocks.length,
+        textLength: ocrResult.full_text.trim().length
       }
-      
-      const fullText = mergedLines.join('\n')
+      logger.info('[OCR] 识别耗时统计', ocrTimingData)
+      ocrDiagnosticLogger.log('[OCR] recognition timing', ocrTimingData)
+
+      // 3. 将 OCR 行重组成语义段落，翻译单位不再是单行文本
+      const blocks = ocrResult.blocks
+      const reflowStartedAt = performance.now()
+      const paragraphs = reflowOcrBlocks(blocks)
+      reflowDurationMs = Math.round(performance.now() - reflowStartedAt)
+      const fullText = paragraphs.map((paragraph) => paragraph.text).join('\n\n')
+      const reflowLogData = {
+        rawLineCount: blocks.length,
+        paragraphCount: paragraphs.length,
+        durationMs: reflowDurationMs,
+        paragraphs: paragraphs.map((paragraph, index) => ({
+          index,
+          text: paragraph.text,
+          blockCount: paragraph.blocks.length,
+          isCodeBlock: Boolean(paragraph.isCodeBlock),
+          isStructuredBlock: Boolean(paragraph.isStructuredBlock),
+          bbox: paragraph.bbox,
+          sourceBlocks: paragraph.blocks.map((block) => ({
+            text: block.text,
+            x: block.x,
+            y: block.y,
+            width: block.width,
+            height: block.height
+          }))
+        }))
+      }
+
+      logger.info('[OCR] 版面重组完成', reflowLogData)
+      ocrDiagnosticLogger.log('[OCR] layout reflow complete', reflowLogData)
 
       if (!fullText || !fullText.trim()) {
         this.translationOverlay.isLoading = false
@@ -2937,15 +3157,9 @@ export class ScreenshotManager {
       }
 
       // 4. 翻译
+      const selectedTranslationEngine = this.translationOverlay.engine
       this.translationOverlay.sourceLanguage = 'auto'
-      this.translationOverlay.targetLanguage = 'zh'
-
-      // 判断文本是否主要是中文
-      const isChineseText = (text: string): boolean => {
-        const chineseChars = text.match(/[\u4e00-\u9fa5]/g)?.length || 0
-        const totalChars = text.replace(/\s/g, '').length
-        return totalChars > 0 && chineseChars / totalChars > 0.3
-      }
+      this.translationOverlay.targetLanguage = this.getAutoTargetLanguage(detectTranslationLanguage(fullText))
 
       // 判断文本是否是代码/命令（不应翻译）
       const isCodeBlock = (text: string): boolean => {
@@ -2957,113 +3171,415 @@ export class ScreenshotManager {
         return false
       }
 
-      let translatedText = fullText
       let translationError = ''
-      
-      if (isChineseText(fullText)) {
-        // 跳过翻译
-      } else if (isCodeBlock(fullText)) {
-        // 跳过翻译
-      } else {
+      const detectedLanguage = detectTranslationLanguage(fullText)
+      const languageLogData = {
+        detectedLanguage,
+        textLength: fullText.trim().length,
+        textPreview: fullText.trim().slice(0, 500)
+      }
+      logger.info('[OCR] 翻译语言检测完成', languageLogData)
+      ocrDiagnosticLogger.log('[OCR] translation language detected', languageLogData)
+
+      if (canTranslateDetectedLanguage(detectedLanguage)) {
+        this.translationOverlay.sourceLanguage = detectedLanguage
+        this.translationOverlay.targetLanguage = this.getAutoTargetLanguage(detectedLanguage)
+      }
+
+      type ParagraphTranslationResult = {
+        index: number
+        skipped: boolean
+        cancelled: boolean
+        durationMs: number
+        errorMessage?: string
+      }
+
+      const offlineTranslatorPromise =
+        selectedTranslationEngine === 'offline'
+          ? LazyLoader.loadOfflineTranslator()
+          : null
+
+      const getTranslationErrorMessage = (errMsg: string): string => {
+        if (selectedTranslationEngine === 'offline') {
+          if (errMsg.includes('未激活') || errMsg.includes('未下载')) {
+            return errMsg
+          }
+          if (errMsg.includes('超时')) {
+            return '模型加载超时，请重试'
+          }
+          return errMsg.includes('离线翻译暂仅支持')
+            ? errMsg
+            : '离线翻译失败: ' + errMsg.substring(0, 50)
+        }
+
+        return '翻译失败，请检查网络连接'
+      }
+
+      const loadOfflineTranslator = async () => {
+        if (!offlineTranslatorPromise) {
+          throw new Error('离线翻译模块未加载')
+        }
+
+        const {
+          translateOffline,
+          canUseOfflineTranslation,
+          warmupOfflineTranslator,
+          getModelCacheInfo
+        } = await offlineTranslatorPromise
+
+        const memoryLoaded = canUseOfflineTranslation()
+        if (this.offlineModelActivated && !memoryLoaded) {
+          const cacheInfo = await getModelCacheInfo()
+          if (cacheInfo.isCached) {
+            await warmupOfflineTranslator()
+          } else {
+            throw new Error('离线翻译模型未下载，请在设置-翻译配置中下载模型')
+          }
+        } else if (!this.offlineModelActivated) {
+          throw new Error('离线翻译模型未激活，请在设置-翻译配置中激活模型')
+        }
+
+        return translateOffline
+      }
+
+      const translateText = async (
+        text: string,
+        sourceLanguage: DetectedLanguage,
+        targetLanguage: TranslationLanguage
+      ): Promise<string> => {
+        if (!text.trim()) {
+          return text
+        }
+
+        if (selectedTranslationEngine === 'offline') {
+          if (sourceLanguage !== 'en' || targetLanguage !== 'zh') {
+            throw new Error('离线翻译暂仅支持英译中，请切换 Google 或 Bing 进行中译英')
+          }
+
+          const translateOffline = await loadOfflineTranslator()
+          return translateOffline(text)
+        }
+
+        return (await invoke('translate_text', {
+          text,
+          from: sourceLanguage,
+          to: targetLanguage,
+          engine: selectedTranslationEngine
+        })) as string
+      }
+
+      const isStructuredIdentifierKey = (text: string): boolean => {
+        const trimmed = text.trim()
+        if (/^(?:option|description|name|value|type|default|example|required)$/i.test(trimmed)) {
+          return false
+        }
+
+        return /^[A-Za-z_][A-Za-z0-9_-]{1,32}$/.test(trimmed)
+      }
+
+      const translateStructuredText = async (
+        text: string,
+        paragraphIndex: number,
+        blockIndex: number
+      ): Promise<string> => {
+        const trimmed = text.trim()
+        if (!trimmed || isCodeBlock(trimmed)) {
+          return text
+        }
+
+        const inlineTableMatch = text.match(/^(\s*)(\S+)(\s{2,})(.+?)(\s*)$/)
+        if (inlineTableMatch) {
+          const [, leadingSpace, leftText, spacer, rightText, trailingSpace] = inlineTableMatch
+          const leftLanguage = detectTranslationLanguage(leftText)
+          const leftTranslated = isStructuredIdentifierKey(leftText) || !canTranslateDetectedLanguage(leftLanguage)
+            ? leftText
+            : await translateText(leftText, leftLanguage, this.getAutoTargetLanguage(leftLanguage))
+          const rightLanguage = detectTranslationLanguage(rightText)
+          const rightTranslated = canTranslateDetectedLanguage(rightLanguage) && !isCodeBlock(rightText)
+            ? await translateText(rightText, rightLanguage, this.getAutoTargetLanguage(rightLanguage))
+            : rightText
+          return `${leadingSpace}${leftTranslated}${spacer}${rightTranslated}${trailingSpace}`
+        }
+
+        if (isStructuredIdentifierKey(trimmed)) {
+          return text
+        }
+
+        const blockSourceLanguage = detectTranslationLanguage(trimmed)
+        if (!canTranslateDetectedLanguage(blockSourceLanguage)) {
+          return text
+        }
+
+        const blockTargetLanguage = this.getAutoTargetLanguage(blockSourceLanguage)
+        const translatedBlock = await translateText(trimmed, blockSourceLanguage, blockTargetLanguage)
+        const structuredBlockLogData = {
+          paragraphIndex,
+          blockIndex,
+          sourceLanguage: blockSourceLanguage,
+          targetLanguage: blockTargetLanguage,
+          sourceText: trimmed,
+          translatedText: translatedBlock.slice(0, 200)
+        }
+        logger.info('[OCR] 结构化块翻译完成', structuredBlockLogData)
+        ocrDiagnosticLogger.log('[OCR] structured block translation complete', structuredBlockLogData)
+        return translatedBlock
+      }
+
+      const translateParagraph = async (
+        paragraph: ParagraphBlock,
+        index: number
+      ): Promise<ParagraphTranslationResult> => {
+        const paragraphStartedAt = performance.now()
+        const finish = (
+          result: Omit<ParagraphTranslationResult, 'index' | 'durationMs'>
+        ): ParagraphTranslationResult => ({
+          index,
+          durationMs: Math.round(performance.now() - paragraphStartedAt),
+          ...result
+        })
+
+        const paragraphSourceLanguage = detectTranslationLanguage(paragraph.text)
+        const paragraphTargetLanguage = this.getAutoTargetLanguage(paragraphSourceLanguage)
+
+        const paragraphLanguageLogData = {
+          index,
+          text: paragraph.text,
+          sourceLanguage: paragraphSourceLanguage,
+          targetLanguage: paragraphTargetLanguage,
+          engine: selectedTranslationEngine,
+          structured: Boolean(paragraph.isStructuredBlock)
+        }
+        logger.info('[OCR] 段落翻译方向', paragraphLanguageLogData)
+        ocrDiagnosticLogger.log('[OCR] paragraph translation direction', paragraphLanguageLogData)
+
+        if (!canTranslateDetectedLanguage(paragraphSourceLanguage)) {
+          paragraph.translatedText = paragraph.text
+          const skippedResult = finish({
+            skipped: true,
+            cancelled: false,
+            errorMessage: '部分文本暂不支持翻译，已保留原文'
+          })
+          const skipLogData = {
+            index,
+            detectedLanguage: paragraphSourceLanguage,
+            durationMs: skippedResult.durationMs,
+            text: paragraph.text
+          }
+          logger.warn('[OCR] 跳过不支持的段落语言', skipLogData)
+          ocrDiagnosticLogger.log('[OCR] skip unsupported paragraph language', skipLogData)
+          return skippedResult
+        }
+
         try {
-          if (this.translationOverlay.engine === 'offline') {
-            // 懒加载离线翻译模块
-            const { 
-              translateOffline, 
-              canUseOfflineTranslation, 
-              warmupOfflineTranslator, 
-              getModelCacheInfo 
-            } = await LazyLoader.loadOfflineTranslator()
-            
-            // 离线翻译 - 懒加载模型
-            const memoryLoaded = canUseOfflineTranslation()
-            
-            // 如果后端已激活但内存未加载，尝试懒加载
-            if (this.offlineModelActivated && !memoryLoaded) {
-              // 检查缓存状态
-              const cacheInfo = await getModelCacheInfo()
-              
-              if (cacheInfo.isCached) {
-                await warmupOfflineTranslator()
-              } else {
-                throw new Error('离线翻译模型未下载，请在设置-翻译配置中下载模型')
+          if (paragraph.isStructuredBlock && paragraph.blocks.length > 0) {
+            const translateBlock = async (block: OcrTextBlock, blockIndex: number): Promise<string> => {
+              const translatedBlock = await translateStructuredText(block.text, index, blockIndex)
+              block.translatedText = translatedBlock
+              return translatedBlock
+            }
+
+            const translatedSegments: string[] = []
+            if (selectedTranslationEngine === 'offline') {
+              for (let blockIndex = 0; blockIndex < paragraph.blocks.length; blockIndex += 1) {
+                translatedSegments.push(await translateBlock(paragraph.blocks[blockIndex], blockIndex))
               }
-            } else if (!this.offlineModelActivated) {
-              throw new Error('离线翻译模型未激活，请在设置-翻译配置中激活模型')
-            }
-            
-            // 使用离线翻译
-            translatedText = await translateOffline(fullText)
-          } else {
-            // 使用在线翻译（Google/Bing）
-            translatedText = (await invoke('translate_text', {
-              text: fullText,
-              from: 'en',
-              to: 'zh',
-              engine: this.translationOverlay.engine
-            })) as string
-          }
-        } catch (err) {
-          logger.error('[OCR] 翻译失败', err)
-          const errMsg = err instanceof Error ? err.message : String(err)
-          
-          // 如果是取消操作，直接返回不显示错误
-          if (errMsg === '翻译已取消') {
-            return
-          }
-          
-          if (this.translationOverlay.engine === 'offline') {
-            if (errMsg.includes('未激活') || errMsg.includes('未下载')) {
-              translationError = errMsg
-            } else if (errMsg.includes('超时')) {
-              translationError = '模型加载超时，请重试'
             } else {
-              translationError = '离线翻译失败: ' + errMsg.substring(0, 50)
+              translatedSegments.push(
+                ...(await Promise.all(
+                  paragraph.blocks.map((block, blockIndex) => translateBlock(block, blockIndex))
+                ))
+              )
             }
+
+            paragraph.translatedText = translatedSegments.join(' ')
+          } else if (isCodeBlock(paragraph.text) || paragraph.isCodeBlock) {
+            paragraph.translatedText = paragraph.text
+            const skipReason = paragraph.isCodeBlock ? 'code_block' : 'command_like_text'
+            const skippedResult = finish({ skipped: true, cancelled: false })
+            const skipLogData = {
+              index,
+              reason: skipReason,
+              durationMs: skippedResult.durationMs,
+              text: paragraph.text
+            }
+            logger.info('[OCR] 跳过代码段翻译', skipLogData)
+            ocrDiagnosticLogger.log('[OCR] skip code paragraph translation', skipLogData)
+            return skippedResult
           } else {
-            translationError = '翻译失败，请检查网络连接'
+            paragraph.translatedText = await translateText(
+              paragraph.text,
+              paragraphSourceLanguage,
+              paragraphTargetLanguage
+            )
           }
+
+          const translatedResult = finish({ skipped: false, cancelled: false })
+          const completeLogData = {
+            index,
+            durationMs: translatedResult.durationMs,
+            sourceLanguage: paragraphSourceLanguage,
+            targetLanguage: paragraphTargetLanguage,
+            engine: selectedTranslationEngine,
+            structured: Boolean(paragraph.isStructuredBlock),
+            sourceLength: paragraph.text.length,
+            translatedLength: (paragraph.translatedText || '').length,
+            translatedPreview: (paragraph.translatedText || '').slice(0, 300)
+          }
+          logger.info('[OCR] 段落翻译完成', completeLogData)
+          ocrDiagnosticLogger.log('[OCR] paragraph translation complete', completeLogData)
+          return translatedResult
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err)
+
+          if (errMsg === '翻译已取消') {
+            return finish({ skipped: false, cancelled: true })
+          }
+
+          paragraph.translatedText = paragraph.text
+          const errorMessage = getTranslationErrorMessage(errMsg)
+          const failedResult = finish({
+            skipped: false,
+            cancelled: false,
+            errorMessage
+          })
+          const errorLogData = {
+            index,
+            durationMs: failedResult.durationMs,
+            sourceLanguage: paragraphSourceLanguage,
+            targetLanguage: paragraphTargetLanguage,
+            engine: selectedTranslationEngine,
+            error: errMsg,
+            structured: Boolean(paragraph.isStructuredBlock),
+            text: paragraph.text
+          }
+          logger.error('[OCR] 段落翻译失败', errorLogData)
+          ocrDiagnosticLogger.log('[OCR] paragraph translation failed', errorLogData)
+          return failedResult
         }
       }
 
-      // 5. 将翻译结果按原文行数分配到各个块
-      // 注意：OCR 坐标是基于高 DPR 图像的，需要除以 DPR 转换到 canvas 坐标
-      const translatedLines = translatedText.split('\n')
-      const translatedBlocks: OcrTextBlock[] = []
-      
-      for (let i = 0; i < mergedBlocks.length; i++) {
-        const b = mergedBlocks[i]
-        // 对应的翻译行（如果翻译行数不够，使用原文）
-        const translatedLine = i < translatedLines.length ? translatedLines[i] : b.text
-        
-        // 将坐标和尺寸除以 DPR 转换到 canvas 坐标系
-        translatedBlocks.push({
-          text: b.text,
-          x: b.x / dpr,
-          y: b.y / dpr,
-          width: b.width / dpr,
-          height: b.height / dpr,
-          fontSize: b.fontSize / dpr,
-          lineHeight: b.lineHeight / dpr,
-          angle: b.angle,
-          translatedText: translatedLine,
-          isCodeBlock: isCodeBlock(b.text)
-        })
+      const translationStartedAt = performance.now()
+      let translationResults: ParagraphTranslationResult[] = []
+      if (selectedTranslationEngine === 'offline') {
+        for (let index = 0; index < paragraphs.length; index += 1) {
+          const result = await translateParagraph(paragraphs[index], index)
+          translationResults.push(result)
+          if (result.cancelled) {
+            return
+          }
+          if (result.errorMessage) {
+            translationError = result.errorMessage
+            break
+          }
+        }
+      } else {
+        translationResults = await Promise.all(
+          paragraphs.map((paragraph, index) => translateParagraph(paragraph, index))
+        )
+        if (translationResults.some((result) => result.cancelled)) {
+          return
+        }
+        translationError = translationResults.find((result) => result.errorMessage)?.errorMessage || ''
       }
+      translationDurationMs = Math.round(performance.now() - translationStartedAt)
+      const translationTimingData = {
+        durationMs: translationDurationMs,
+        engine: selectedTranslationEngine,
+        paragraphCount: paragraphs.length,
+        translatedParagraphCount: translationResults.filter((result) => !result.skipped && !result.errorMessage).length,
+        skippedParagraphCount: translationResults.filter((result) => result.skipped).length,
+        failedParagraphCount: translationResults.filter((result) => Boolean(result.errorMessage)).length
+      }
+      logger.info('[OCR] 翻译耗时统计', translationTimingData)
+      ocrDiagnosticLogger.log('[OCR] translation timing', translationTimingData)
 
+      // 5. 将段落 bbox 和尺寸转换到 canvas 坐标系，overlay 以段落为单位绘制
+      // 注意：OCR 坐标是基于高 DPR 图像的，需要除以 DPR 转换到 canvas 坐标
+      const displayParagraphs = paragraphs.map((paragraph) => this.toDisplayParagraph(paragraph, dpr))
+      const translatedBlocks = displayParagraphs.map((paragraph) => this.toLegacyOverlayBlock(paragraph))
 
       this.translationOverlay.blocks = translatedBlocks
+      this.translationOverlay.paragraphBlocks = displayParagraphs
       this.translationOverlay.isLoading = false
       this.translationOverlay.errorMessage = translationError || undefined
+      const pipelineTimingData = {
+        cropDurationMs,
+        ocrModuleLoadDurationMs: ocrLoadDurationMs,
+        ocrRecognitionDurationMs: ocrDurationMs,
+        reflowDurationMs,
+        translationDurationMs,
+        totalDurationMs: Math.round(performance.now() - pipelineStartedAt),
+        rawLineCount: blocks.length,
+        paragraphCount: paragraphs.length,
+        engine: selectedTranslationEngine
+      }
+      logger.info('[OCR] 截图翻译总耗时统计', pipelineTimingData)
+      ocrDiagnosticLogger.log('[OCR] pipeline timing', pipelineTimingData)
       this.draw()
       this.onStateChange?.()
 
     } catch (error) {
       logger.error('[OCR] OCR翻译失败:', error)
+      const errMsg = error instanceof Error ? error.message : String(error)
       this.translationOverlay.isLoading = false
-      this.translationOverlay.isVisible = false
+      this.translationOverlay.isVisible = true
+      this.translationOverlay.errorMessage = this.getOcrTranslationErrorMessage(errMsg)
       this.draw()
       this.onStateChange?.()
+    }
+  }
+
+  private getOcrTranslationErrorMessage(message: string): string {
+    if (message.includes('OCR_RECOGNITION_LOW_QUALITY')) {
+      return 'OCR识别质量过低，请重新选择更清晰或方向正确的文本区域'
+    }
+
+    if (message.includes('RAPIDOCR_UNAVAILABLE')) {
+      return 'RapidOCR 未配置，无法识别截图文字'
+    }
+
+    return message ? message.slice(0, 80) : 'OCR翻译失败'
+  }
+
+  private getAutoTargetLanguage(sourceLanguage: DetectedLanguage): TranslationLanguage {
+    return sourceLanguage === 'zh' ? 'en' : 'zh'
+  }
+
+  private toDisplayParagraph(paragraph: ParagraphBlock, dpr: number): ParagraphBlock {
+    return {
+      ...paragraph,
+      blocks: paragraph.blocks.map((block) => ({
+        ...block,
+        x: block.x / dpr,
+        y: block.y / dpr,
+        width: block.width / dpr,
+        height: block.height / dpr,
+        fontSize: block.fontSize / dpr,
+        lineHeight: block.lineHeight / dpr
+      })),
+      bbox: {
+        x: paragraph.bbox.x / dpr,
+        y: paragraph.bbox.y / dpr,
+        width: paragraph.bbox.width / dpr,
+        height: paragraph.bbox.height / dpr
+      },
+      fontSize: paragraph.fontSize ? paragraph.fontSize / dpr : undefined,
+      lineHeight: paragraph.lineHeight ? paragraph.lineHeight / dpr : undefined
+    }
+  }
+
+  private toLegacyOverlayBlock(paragraph: ParagraphBlock): OcrTextBlock {
+    return {
+      text: paragraph.text,
+      x: paragraph.bbox.x,
+      y: paragraph.bbox.y,
+      width: paragraph.bbox.width,
+      height: paragraph.bbox.height,
+      fontSize: paragraph.fontSize || 16,
+      lineHeight: paragraph.lineHeight || (paragraph.fontSize || 16) * 1.4,
+      angle: paragraph.angle || 0,
+      translatedText: paragraph.translatedText || paragraph.text,
+      isCodeBlock: paragraph.isCodeBlock
     }
   }
 
@@ -3079,6 +3595,7 @@ export class ScreenshotManager {
     
     this.translationOverlay = {
       blocks: [],
+      paragraphBlocks: [],
       isVisible: false,
       isLoading: false,
       sourceLanguage: 'auto',
@@ -3195,6 +3712,7 @@ export class ScreenshotManager {
     
     // 清理翻译覆盖层
     this.translationOverlay.blocks = []
+    this.translationOverlay.paragraphBlocks = []
     this.translationOverlay.isVisible = false
     this.translationOverlay.isLoading = false
     

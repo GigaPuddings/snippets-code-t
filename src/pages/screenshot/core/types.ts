@@ -72,6 +72,7 @@ export interface SampledColor {
 
 export interface TranslationOverlay {
   blocks: OcrTextBlock[]
+  paragraphBlocks?: import('./OcrLayoutReflow').ParagraphBlock[]
   isVisible: boolean
   isLoading: boolean
   errorMessage?: string

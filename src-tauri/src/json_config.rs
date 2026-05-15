@@ -6,15 +6,9 @@ use tauri::Manager;
 
 // ============= 路径配置结构 (path.json) =============
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PathConfig {
     pub data_dir: Option<String>,
-}
-
-impl Default for PathConfig {
-    fn default() -> Self {
-        Self { data_dir: None }
-    }
 }
 
 // ============= 应用配置结构 (app.json) =============
@@ -52,6 +46,12 @@ pub struct AppConfig {
     // 翻译引擎
     #[serde(default)]
     pub translation_engine: Option<String>,
+
+    // OCR 识别引擎
+    #[serde(default)]
+    pub ocr_engine: Option<String>,
+    #[serde(default)]
+    pub ocr_language: Option<String>,
 
     // 离线模型
     #[serde(default)]
@@ -98,6 +98,8 @@ impl Default for AppConfig {
             update_available: Some(false),
             update_info: None,
             translation_engine: Some("bing".to_string()),
+            ocr_engine: Some("auto".to_string()),
+            ocr_language: Some("zh".to_string()),
             offline_model_activated: Some(false),
             show_progress_on_restart: Some(false),
             search_hotkey: None,

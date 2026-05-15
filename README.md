@@ -54,7 +54,7 @@
 ### 📸 截图标注
 - **快速截图**：全局快捷键快速截图
 - **丰富标注**：矩形、箭头、画笔、马赛克、文字
-- **OCR 识别**：集成 Tesseract.js 文字识别
+- **OCR 识别**：集成 RapidOCR 自动文字识别
 - **颜色吸取**：取色器功能
 - **贴图显示**：截图钉在桌面
 - **图片导入**：支持导入本地图片进行标注
@@ -304,7 +304,7 @@ snippets-code/
 - 文字标注
 
 **功能**：
-- OCR 文字识别（基于 Tesseract.js）
+- OCR 文字识别（基于 RapidOCR 自动识别）
 - 颜色吸取器
 - 贴图到桌面
 - 复制到剪贴板
@@ -439,7 +439,7 @@ snippets-code/
 - [Element Plus](https://element-plus.org/) - Vue 3 UI 组件库
 - [CodeMirror](https://codemirror.net/) - 代码编辑器
 - [Transformers.js](https://huggingface.co/docs/transformers.js) - 机器学习模型
-- [Tesseract.js](https://tesseract.projectnaptha.com/) - OCR 引擎
+- [RapidOCR-json](https://github.com/hiroi-sora/RapidOCR-json) - OCR 引擎
 
 ---
 
