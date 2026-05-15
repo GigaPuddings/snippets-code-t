@@ -9,7 +9,6 @@ declare module 'vue' {
   export interface GlobalComponents {
     AlarmEditDialog: typeof import('./../plugins/todo/pages/config/components/AlarmEditDialog.vue')['default']
     AppMain: typeof import('./../layout/components/AppMain.vue')['default']
-    Attachment: typeof import('./../components/SettingsContent/components/Attachment/index.vue')['default']
     BacklinkPanel: typeof import('./../components/TipTapEditor/components/BacklinkPanel.vue')['default']
     BacklinkUpdateDialog: typeof import('./../components/UI/BacklinkUpdateDialog.vue')['default']
     Category: typeof import('./../pages/config/components/category/index.vue')['default']
@@ -65,7 +64,6 @@ declare module 'vue' {
     GitConflictDialog: typeof import('./../components/GitConflictDialog/index.vue')['default']
     GitManualMerge: typeof import('./../components/GitManualMerge/index.vue')['default']
     GitSaveConfigDialog: typeof import('./../components/GitSaveConfigDialog/index.vue')['default']
-    GitSync: typeof import('./../components/SettingsContent/components/GitSync/index.vue')['default']
     ImageComponent: typeof import('./../components/TipTapEditor/extensions/ImageComponent.vue')['default']
     InlinePreview: typeof import('./../pages/search/components/InlinePreview.vue')['default']
     LoadingIndicator: typeof import('./../components/LoadingIndicator/index.vue')['default']
@@ -96,7 +94,6 @@ declare module 'vue' {
     Titlebar: typeof import('./../layout/components/Titlebar.vue')['default']
     Toolbar: typeof import('./../components/TipTapEditor/Toolbar.vue')['default']
     ToolbarSection: typeof import('./../plugins/screenshot/pages/screenshot/components/ToolbarSection.vue')['default']
-    Translation: typeof import('./../components/SettingsContent/components/Translation/index.vue')['default']
     User: typeof import('./../pages/config/components/user/index.vue')['default']
   }
 }
