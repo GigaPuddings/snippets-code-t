@@ -10,13 +10,47 @@ use log::warn;
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-fn plugin_for_hotkey(name: &str) -> Option<&'static str> {
-    match name {
-        "translate" | "selection_translate" => Some("translation"),
-        "screenshot" => Some("screenshot"),
-        "dark_mode" => Some("system-theme"),
-        _ => None,
-    }
+struct HotkeySpec {
+    name: &'static str,
+    plugin_id: Option<&'static str>,
+    handler: fn(),
+}
+
+const HOTKEY_SPECS: &[HotkeySpec] = &[
+    HotkeySpec {
+        name: "search",
+        plugin_id: None,
+        handler: hotkey_search_wrapper,
+    },
+    HotkeySpec {
+        name: "config",
+        plugin_id: None,
+        handler: hotkey_config,
+    },
+    HotkeySpec {
+        name: "translate",
+        plugin_id: Some("translation"),
+        handler: hotkey_translate,
+    },
+    HotkeySpec {
+        name: "selection_translate",
+        plugin_id: Some("translation"),
+        handler: hotkey_selection_translate,
+    },
+    HotkeySpec {
+        name: "screenshot",
+        plugin_id: Some("screenshot"),
+        handler: hotkey_screenshot,
+    },
+    HotkeySpec {
+        name: "dark_mode",
+        plugin_id: Some("system-theme"),
+        handler: hotkey_dark_mode,
+    },
+];
+
+fn hotkey_spec(name: &str) -> Option<&'static HotkeySpec> {
+    HOTKEY_SPECS.iter().find(|spec| spec.name == name)
 }
 
 // 注册单个快捷键的核心函数（使用 app.json 存储）
@@ -24,7 +58,7 @@ fn register<F>(_app_handle: &AppHandle, name: &str, handler: F, key: &str) -> Re
 where
     F: Fn() + Send + Sync + 'static,
 {
-    if let Some(plugin_id) = plugin_for_hotkey(name) {
+    if let Some(plugin_id) = hotkey_spec(name).and_then(|spec| spec.plugin_id) {
         if !app_config::is_plugin_enabled(_app_handle, plugin_id) {
             return Ok(());
         }
@@ -87,33 +121,15 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
         Some(app) => app,
         None => return Err("应用未初始化".to_string()),
     };
-    match shortcut {
-        "search" => register(app_handle, "search", hotkey_search_wrapper, "")?,
-        "config" => register(app_handle, "config", hotkey_config, "")?,
-        "screenshot" => register(app_handle, "screenshot", hotkey_screenshot, "")?,
-        "translate" => register(app_handle, "translate", hotkey_translate, "")?,
-        "selection_translate" => register(
-            app_handle,
-            "selection_translate",
-            hotkey_selection_translate,
-            "",
-        )?,
-        "dark_mode" => register(app_handle, "dark_mode", hotkey_dark_mode, "")?,
-        "all" => {
-            register(app_handle, "search", hotkey_search_wrapper, "")?;
-            register(app_handle, "config", hotkey_config, "")?;
-            register(app_handle, "screenshot", hotkey_screenshot, "")?;
-            register(app_handle, "translate", hotkey_translate, "")?;
-            register(
-                app_handle,
-                "selection_translate",
-                hotkey_selection_translate,
-                "",
-            )?;
-            register(app_handle, "dark_mode", hotkey_dark_mode, "")?;
+
+    if shortcut == "all" {
+        for spec in HOTKEY_SPECS {
+            register(app_handle, spec.name, spec.handler, "")?;
         }
-        _ => {}
+    } else if let Some(spec) = hotkey_spec(shortcut) {
+        register(app_handle, spec.name, spec.handler, "")?;
     }
+
     Ok(())
 }
 
@@ -124,7 +140,7 @@ pub fn register_shortcut_by_frontend(
     shortcut: &str,
 ) -> Result<(), String> {
     if !shortcut.is_empty() {
-        if let Some(plugin_id) = plugin_for_hotkey(name) {
+        if let Some(plugin_id) = hotkey_spec(name).and_then(|spec| spec.plugin_id) {
             if !app_config::is_plugin_enabled(&app_handle, plugin_id) {
                 return Err(format!("插件 '{}' 未启用，无法注册快捷键", plugin_id));
             }
@@ -136,34 +152,12 @@ pub fn register_shortcut_by_frontend(
     log::info!("🔑 注册快捷键: {} = {} (保存到 app.json)", name, shortcut);
     json_config::set_app_config_value(&app_handle, &field_name, shortcut)?;
 
-    match name {
-        "search" => {
-            register(&app_handle, "search", hotkey_search_wrapper, shortcut)?;
-        }
-        "config" => {
-            register(&app_handle, "config", hotkey_config, shortcut)?;
-        }
-        "screenshot" => {
-            register(&app_handle, "screenshot", hotkey_screenshot, shortcut)?;
-        }
-        "translate" => {
-            register(&app_handle, "translate", hotkey_translate, shortcut)?;
-        }
-        "selection_translate" => {
-            register(
-                &app_handle,
-                "selection_translate",
-                hotkey_selection_translate,
-                shortcut,
-            )?;
-        }
-        "dark_mode" => {
-            register(&app_handle, "dark_mode", hotkey_dark_mode, shortcut)?;
-        }
-        _ => {
-            return Err("未知的快捷键名称".to_string());
-        }
+    if let Some(spec) = hotkey_spec(name) {
+        register(&app_handle, spec.name, spec.handler, shortcut)?;
+    } else {
+        return Err("未知的快捷键名称".to_string());
     }
+
     Ok(())
 }
 
