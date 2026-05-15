@@ -294,6 +294,7 @@ import { useI18n } from 'vue-i18n';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { osType } from '@/utils/env';
 import { getPluginByHotkey } from '@/plugins/registry';
+import { setHotkeyValue } from '@/plugins/hotkeys';
 import { useConfigurationStore, usePluginStore } from '@/store';
 import { CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
@@ -426,27 +427,27 @@ function registerHandler(name: string, key: string) {
 
 // 设置快捷键
 function setSelectionSearch(value: string) {
-  store.searchHotkey = value;
+  setHotkeyValue(store, 'search', value);
 }
 
 function setSelectionConfig(value: string) {
-  store.configHotkey = value;
+  setHotkeyValue(store, 'config', value);
 }
 
 function setSelectionTranslate(value: string) {
-  store.translateHotkey = value;
+  setHotkeyValue(store, 'translate', value);
 }
 
 function setSelectionTranslateHotkey(value: string) {
-  store.selectionTranslateHotkey = value;
+  setHotkeyValue(store, 'selection_translate', value);
 }
 
 function setSelectionScreenshotHotkey(value: string) {
-  store.screenshotHotkey = value;
+  setHotkeyValue(store, 'screenshot', value);
 }
 
 function setSelectionDarkModeHotkey(value: string) {
-  store.darkModeHotkey = value;
+  setHotkeyValue(store, 'dark_mode', value);
 }
 
 // 快捷键取消
@@ -454,32 +455,8 @@ function handleFocusUnregister(name: string, key: string) {
   if (key.trim() === '') {
     return;
   }
-  switch (name) {
-    case 'search':
-      unregister(key);
-      setSelectionSearch('');
-      break;
-    case 'config':
-      unregister(key);
-      setSelectionConfig('');
-      break;
-    case 'translate':
-      unregister(key);
-      setSelectionTranslate('');
-      break;
-    case 'selection_translate':
-      unregister(key);
-      setSelectionTranslateHotkey('');
-      break;
-    case 'screenshot':
-      unregister(key);
-      setSelectionScreenshotHotkey('');
-      break;
-    case 'dark_mode':
-      unregister(key);
-      setSelectionDarkModeHotkey('');
-      break;
-  }
+  unregister(key);
+  setHotkeyValue(store, name, '');
   invoke('register_shortcut_by_frontend', { name: name, shortcut: '' });
 }
 </script>

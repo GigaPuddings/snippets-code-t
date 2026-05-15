@@ -40,6 +40,7 @@
 import { useI18n } from 'vue-i18n';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { BUILTIN_PLUGINS, getPluginById } from '@/plugins/registry';
+import { getHotkeyValue } from '@/plugins/hotkeys';
 import type { PluginId } from '@/plugins/types';
 import { useConfigurationStore, usePluginStore } from '@/store';
 import { CustomSwitch } from '@/components/UI';
@@ -70,28 +71,13 @@ const handleToggle = async (pluginId: PluginId, enabled: boolean) => {
   }
 };
 
-const getShortcutValue = (hotkeyName: string): string => {
-  switch (hotkeyName) {
-    case 'translate':
-      return configurationStore.translateHotkey;
-    case 'selection_translate':
-      return configurationStore.selectionTranslateHotkey;
-    case 'screenshot':
-      return configurationStore.screenshotHotkey;
-    case 'dark_mode':
-      return configurationStore.darkModeHotkey;
-    default:
-      return '';
-  }
-};
-
 const unregisterPluginHotkeys = async (pluginId: PluginId): Promise<void> => {
   const plugin = getPluginById(pluginId);
   if (!plugin?.hotkeys?.length) return;
 
   await Promise.all(
     plugin.hotkeys
-      .map(getShortcutValue)
+      .map((hotkeyName) => getHotkeyValue(configurationStore, hotkeyName))
       .filter(Boolean)
       .map((shortcut) => unregister(shortcut).catch(() => undefined))
   );
