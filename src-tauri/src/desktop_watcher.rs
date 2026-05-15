@@ -3,7 +3,7 @@ use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
 use crate::search::refresh_desktop_files_cache;
@@ -80,7 +80,7 @@ impl DesktopFileWatcher {
                             }
                         }
                     }
-                    Err(_) => {
+                    Err(RecvTimeoutError::Timeout) => {
                         if !pending || last_event.elapsed() < debounce {
                             continue;
                         }
@@ -105,6 +105,10 @@ impl DesktopFileWatcher {
                         );
 
                         pending = false;
+                    }
+                    Err(RecvTimeoutError::Disconnected) => {
+                        debug!("[DesktopWatcher] event channel disconnected, stopping");
+                        break;
                     }
                 }
             }

@@ -377,7 +377,7 @@ impl AppConfigManager {
 // ============= Tauri 命令 =============
 
 use std::sync::{Arc, RwLock};
-use tauri::{command, AppHandle, Manager};
+use tauri::{command, AppHandle, Emitter, Manager};
 
 pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
@@ -393,6 +393,75 @@ pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
     }
 
     default_plugin_enabled()
+}
+
+fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
+    match plugin_id {
+        "system-theme" => {
+            if enabled {
+                let config = crate::dark_mode::load_config(app_handle);
+                if matches!(config.theme_mode, crate::dark_mode::ThemeMode::Schedule) {
+                    let _ = crate::dark_mode::start_scheduler(app_handle.clone());
+                }
+            } else {
+                crate::dark_mode::stop_scheduler();
+            }
+        }
+        "todo" => {
+            if enabled {
+                crate::alarm::start_alarm_service(app_handle.clone());
+            } else {
+                crate::alarm::stop_alarm_service();
+            }
+        }
+        "desktop-files" => {
+            if let Some(watcher_state) = app_handle.try_state::<Arc<std::sync::Mutex<Option<crate::desktop_watcher::DesktopFileWatcher>>>>() {
+                if let Ok(mut watcher_lock) = watcher_state.lock() {
+                    *watcher_lock = None;
+                    if enabled {
+                        if let Some(desktop_path) = dirs::desktop_dir() {
+                            match crate::desktop_watcher::DesktopFileWatcher::start(desktop_path) {
+                                Ok(watcher) => {
+                                    *watcher_lock = Some(watcher);
+                                }
+                                Err(e) => {
+                                    warn!("[Plugin] 启动桌面文件监听失败: {}", e);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if enabled {
+                crate::search::refresh_desktop_files_cache();
+            }
+        }
+        "local-launcher" if enabled => {
+            crate::icon::init_app_and_bookmark_icons(app_handle);
+        }
+        "git-sync" => {
+            if enabled {
+                let _ = crate::git_sync::start_auto_sync_command(app_handle.clone());
+            } else {
+                let _ = crate::git_sync::stop_auto_sync_command(app_handle.clone());
+            }
+        }
+        _ => {}
+    }
+
+    if crate::db::is_setup_completed_internal(app_handle) {
+        if let Err(e) = crate::tray::recreate_tray_menu(app_handle) {
+            warn!("[Plugin] 刷新托盘菜单失败: {}", e);
+        }
+    }
+
+    let _ = app_handle.emit(
+        "plugin-state-changed",
+        serde_json::json!({
+            "pluginId": plugin_id,
+            "enabled": enabled
+        }),
+    );
 }
 
 /// 获取应用配置
@@ -517,12 +586,15 @@ pub fn set_plugin_enabled(
     enabled: bool,
 ) -> Result<(), String> {
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
-        let mut manager = config_state
-            .write()
-            .map_err(|e| format!("获取配置锁失败: {}", e))?;
-        manager.set_plugin_enabled(plugin_id.clone(), enabled);
-        manager.save()?;
+        {
+            let mut manager = config_state
+                .write()
+                .map_err(|e| format!("获取配置锁失败: {}", e))?;
+            manager.set_plugin_enabled(plugin_id.clone(), enabled);
+            manager.save()?;
+        }
         info!("✅ [Plugin] {} enabled={}", plugin_id, enabled);
+        apply_plugin_runtime_change(&app_handle, &plugin_id, enabled);
         return Ok(());
     }
 
@@ -532,5 +604,6 @@ pub fn set_plugin_enabled(
     manager.set_plugin_enabled(plugin_id.clone(), enabled);
     manager.save()?;
     info!("✅ [Plugin] {} enabled={}", plugin_id, enabled);
+    apply_plugin_runtime_change(&app_handle, &plugin_id, enabled);
     Ok(())
 }

@@ -74,6 +74,16 @@ Commands:
 
 Startup now checks plugin states before starting optional services such as reminders, Auto Dark Mode scheduling, desktop file watching, and desktop file cache refresh.
 
+Runtime plugin toggles also apply side effects immediately:
+
+- Tray menu is rebuilt after a plugin is enabled or disabled.
+- Tray actions re-check plugin state before executing optional features.
+- `system-theme` stops or starts the dark-mode scheduler.
+- `todo` stops or starts the reminder service.
+- `desktop-files` stops or starts the desktop watcher and refreshes its cache when enabled.
+- `git-sync` stops or starts auto sync according to its saved Git settings.
+- `local-launcher` refreshes app and bookmark icons when re-enabled.
+
 ## Next Steps
 
 1. Move feature view/composable files into their owning `src/plugins/<plugin-id>` folders.

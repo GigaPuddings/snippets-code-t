@@ -585,6 +585,10 @@ pub fn start_alarm_service(app_handle: tauri::AppHandle) {
     });
 }
 
+pub fn stop_alarm_service() {
+    SERVICE_RUNNING.store(false, Ordering::SeqCst);
+}
+
 #[tauri::command]
 pub fn remind_notification_window(title: String, reminder_time: String) {
     info!("稍后提醒: {} - {} 分钟后", title, reminder_time);

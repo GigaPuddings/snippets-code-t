@@ -1,3 +1,4 @@
+use crate::app_config;
 use crate::config::get_language_internal;
 use crate::dark_mode::{
     get_windows_dark_mode, load_config, save_config, set_windows_dark_mode, start_scheduler,
@@ -10,7 +11,7 @@ use crate::window::{
 use log::{debug, info};
 use tauri::Emitter;
 use tauri::{
-    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager,
 };
@@ -163,8 +164,71 @@ fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<ta
     )
 }
 
+fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry>> {
+    let trans = get_translations(lang);
+    let translation_enabled = app_config::is_plugin_enabled(app, "translation");
+    let screenshot_enabled = app_config::is_plugin_enabled(app, "screenshot");
+    let system_theme_enabled = app_config::is_plugin_enabled(app, "system-theme");
+
+    let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
+    let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
+    let translate_i = if translation_enabled {
+        Some(MenuItem::with_id(
+            app,
+            "translate",
+            trans.translate,
+            true,
+            None::<&str>,
+        )?)
+    } else {
+        None
+    };
+    let screenshot_i = if screenshot_enabled {
+        Some(MenuItem::with_id(
+            app,
+            "screenshot",
+            trans.screenshot,
+            true,
+            None::<&str>,
+        )?)
+    } else {
+        None
+    };
+    let theme_submenu = if system_theme_enabled {
+        Some(create_theme_submenu(app, lang)?)
+    } else {
+        None
+    };
+    let separator1 = PredefinedMenuItem::separator(app)?;
+    let check_update_i =
+        MenuItem::with_id(app, "check_update", trans.check_update, true, None::<&str>)?;
+    let view_log_i = MenuItem::with_id(app, "view_log", trans.view_log, true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
+
+    let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&search_i, &config_i];
+    if let Some(item) = &translate_i {
+        items.push(item);
+    }
+    if let Some(item) = &screenshot_i {
+        items.push(item);
+    }
+    if let Some(item) = &theme_submenu {
+        items.push(item);
+    }
+    items.push(&separator1);
+    items.push(&check_update_i);
+    items.push(&view_log_i);
+    items.push(&quit_i);
+
+    Menu::with_items(app, &items)
+}
+
 // 处理主题菜单项点击
 pub fn handle_theme_menu_click(app: &AppHandle, menu_id: &str) {
+    if !app_config::is_plugin_enabled(app, "system-theme") {
+        return;
+    }
+
     debug!("[托盘菜单] 点击主题菜单项: {}", menu_id);
     let mut config = load_config(app);
     let mut should_restart_scheduler = false;
@@ -234,35 +298,7 @@ pub fn handle_theme_menu_click(app: &AppHandle, menu_id: &str) {
 
 pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let lang = get_language_internal(app);
-    let trans = get_translations(&lang);
-
-    let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
-    let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
-    let translate_i = MenuItem::with_id(app, "translate", trans.translate, true, None::<&str>)?;
-    let screenshot_i = MenuItem::with_id(app, "screenshot", trans.screenshot, true, None::<&str>)?;
-
-    // 创建主题子菜单
-    let theme_submenu = create_theme_submenu(app, &lang)?;
-
-    let separator1 = PredefinedMenuItem::separator(app)?;
-    let check_update_i =
-        MenuItem::with_id(app, "check_update", trans.check_update, true, None::<&str>)?;
-    let view_log_i = MenuItem::with_id(app, "view_log", trans.view_log, true, None::<&str>)?;
-    let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
-    let menu = Menu::with_items(
-        app,
-        &[
-            &search_i,
-            &config_i,
-            &translate_i,
-            &screenshot_i,
-            &theme_submenu,
-            &separator1,
-            &check_update_i,
-            &view_log_i,
-            &quit_i,
-        ],
-    )?;
+    let menu = build_tray_menu(app, &lang)?;
 
     let app_name = app.package_info().name.clone();
 
@@ -294,10 +330,16 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     open_config_settings();
                 }
                 "translate" => {
+                    if !app_config::is_plugin_enabled(app, "translation") {
+                        return;
+                    }
                     debug!("[托盘菜单] 执行：输入翻译");
                     hotkey_translate();
                 }
                 "screenshot" => {
+                    if !app_config::is_plugin_enabled(app, "screenshot") {
+                        return;
+                    }
                     debug!("[托盘菜单] 执行：快速截图");
                     hotkey_screenshot();
                 }
@@ -399,36 +441,7 @@ pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 // 重新创建托盘菜单（公开给其他模块调用）
 pub fn recreate_tray_menu(app: &AppHandle) -> tauri::Result<()> {
     let lang = get_language_internal(app);
-    let trans = get_translations(&lang);
-
-    let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
-    let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
-    let translate_i = MenuItem::with_id(app, "translate", trans.translate, true, None::<&str>)?;
-    let screenshot_i = MenuItem::with_id(app, "screenshot", trans.screenshot, true, None::<&str>)?;
-
-    // 创建主题子菜单
-    let theme_submenu = create_theme_submenu(app, &lang)?;
-
-    let separator1 = PredefinedMenuItem::separator(app)?;
-    let check_update_i =
-        MenuItem::with_id(app, "check_update", trans.check_update, true, None::<&str>)?;
-    let view_log_i = MenuItem::with_id(app, "view_log", trans.view_log, true, None::<&str>)?;
-    let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
-
-    let menu = Menu::with_items(
-        app,
-        &[
-            &search_i,
-            &config_i,
-            &translate_i,
-            &screenshot_i,
-            &theme_submenu,
-            &separator1,
-            &check_update_i,
-            &view_log_i,
-            &quit_i,
-        ],
-    )?;
+    let menu = build_tray_menu(app, &lang)?;
 
     // 更新托盘菜单
     if let Some(tray) = app.tray_by_id("tray") {
