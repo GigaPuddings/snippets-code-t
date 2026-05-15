@@ -14,8 +14,8 @@ async function initApp() {
   const pinia = createPinia();
   pinia.use(piniaPluginPersistedstate);
   
-  app.use(router);
   app.use(pinia);
+  app.use(router);
   app.use(i18n);
 
   // 动态导入样式文件，减少主线程阻塞

@@ -294,6 +294,62 @@ export default {
     }
   },
 
+  // 插件管理
+  plugins: {
+    title: '插件管理',
+    builtinTitle: '官方内置插件',
+    builtinDesc: '这些功能仍随应用发布，但现在通过插件注册表接入。关闭后会隐藏入口、搜索源、快捷键和相关后台服务。',
+    enabled: '插件已开启',
+    disabled: '插件已关闭',
+    saveFailed: '插件状态保存失败',
+    categories: {
+      capture: '截图',
+      automation: '自动化',
+      search: '搜索',
+      sync: '同步',
+      editor: '编辑器',
+      appearance: '外观'
+    },
+    translation: {
+      name: '翻译工具',
+      description: '翻译窗口、划词翻译、截图翻译和离线翻译模型管理。',
+      resourceHint: '离线翻译模型会在首次启用时按需下载。'
+    },
+    screenshot: {
+      name: '截图与 OCR',
+      description: '截图标注、取色、贴图、OCR 识别和截图翻译入口。',
+      resourceHint: 'RapidOCR 属于重资源，后续会迁移为按需安装。'
+    },
+    todo: {
+      name: '待办提醒',
+      description: '待办事项、定时提醒和系统通知窗口。'
+    },
+    systemTheme: {
+      name: '系统主题',
+      description: '自动深色模式、日出日落调度和系统主题快捷切换。'
+    },
+    localLauncher: {
+      name: '应用与书签启动器',
+      description: '本地应用、浏览器书签管理，以及搜索框中的快速启动结果。'
+    },
+    desktopFiles: {
+      name: '桌面文件搜索',
+      description: '索引桌面常用文件，并在全局搜索中展示文件结果。'
+    },
+    searchEngines: {
+      name: '搜索引擎',
+      description: '自定义搜索引擎、关键词搜索和默认网页搜索入口。'
+    },
+    gitSync: {
+      name: 'Git 同步',
+      description: '工作区 Git 初始化、拉取、推送、自动同步和冲突处理。'
+    },
+    attachments: {
+      name: '附件管理',
+      description: '笔记图片附件的路径模板、命名规则和清理工具。'
+    }
+  },
+
   // 语言选项
   languages: {
     'zh-CN': '简体中文',

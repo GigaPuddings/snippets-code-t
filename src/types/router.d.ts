@@ -16,5 +16,10 @@ declare module "vue-router" {
      * @default false
      */
     keepAlive?: boolean;
+
+    /**
+     * 可选内置插件 ID。插件关闭时路由会重定向到插件管理页。
+     */
+    pluginId?: string;
   }
 }

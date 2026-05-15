@@ -7,7 +7,7 @@
     
     <!-- 可滚动内容 -->
     <main class="panel-content">
-    <section class="summarize-section transparent-input">
+    <section v-if="isPluginEnabled('translation')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.searchHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.searchHotkeyDesc') }}</div>
@@ -47,7 +47,7 @@
       </div>
     </section>
 
-    <section class="summarize-section transparent-input">
+    <section v-if="isPluginEnabled('translation')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.configHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.configHotkeyDesc') }}</div>
@@ -87,7 +87,7 @@
       </div>
     </section>
 
-    <section class="summarize-section transparent-input">
+    <section v-if="isPluginEnabled('screenshot')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.translateHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.translateHotkeyDesc') }}</div>
@@ -129,7 +129,7 @@
       </div>
     </section>
 
-    <section class="summarize-section transparent-input">
+    <section v-if="isPluginEnabled('system-theme')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.selectionTranslateHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.selectionTranslateHotkeyDesc') }}</div>
@@ -293,18 +293,20 @@ import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { osType } from '@/utils/env';
-import { useConfigurationStore } from '@/store';
+import { useConfigurationStore, usePluginStore } from '@/store';
 import { CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
 
 const { t } = useI18n();
 const store = useConfigurationStore();
+const pluginStore = usePluginStore();
 
 defineOptions({
   name: 'Shortcut'
 });
 
 const labelText = computed(() => t('shortcut.pressToSet').split(''));
+const isPluginEnabled = (pluginId: string) => pluginStore.isEnabled(pluginId);
 
 // 快捷键映射
 const keyMap: any = {

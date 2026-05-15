@@ -1,3 +1,4 @@
+use crate::app_config;
 use crate::config::parse_hotkey;
 use crate::json_config;
 use crate::window::{
@@ -9,11 +10,26 @@ use log::warn;
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
+fn plugin_for_hotkey(name: &str) -> Option<&'static str> {
+    match name {
+        "translate" | "selection_translate" => Some("translation"),
+        "screenshot" => Some("screenshot"),
+        "dark_mode" => Some("system-theme"),
+        _ => None,
+    }
+}
+
 // 注册单个快捷键的核心函数（使用 app.json 存储）
 fn register<F>(_app_handle: &AppHandle, name: &str, handler: F, key: &str) -> Result<(), String>
 where
     F: Fn() + Send + Sync + 'static,
 {
+    if let Some(plugin_id) = plugin_for_hotkey(name) {
+        if !app_config::is_plugin_enabled(_app_handle, plugin_id) {
+            return Ok(());
+        }
+    }
+
     let hotkey = {
         if key.is_empty() {
             // 从 app.json 读取快捷键配置
@@ -107,6 +123,14 @@ pub fn register_shortcut_by_frontend(
     name: &str,
     shortcut: &str,
 ) -> Result<(), String> {
+    if !shortcut.is_empty() {
+        if let Some(plugin_id) = plugin_for_hotkey(name) {
+            if !app_config::is_plugin_enabled(&app_handle, plugin_id) {
+                return Err(format!("插件 '{}' 未启用，无法注册快捷键", plugin_id));
+            }
+        }
+    }
+
     // 保存快捷键到 app.json
     let field_name = format!("{}_hotkey", name);
     log::info!("🔑 注册快捷键: {} = {} (保存到 app.json)", name, shortcut);

@@ -2869,7 +2869,7 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                     "Windows PowerShell" | "Command Prompt" | "Cortana" |
                     "Action Center" | "Volume Control" | "Network Connections" |
                     "Task Manager" | "截图"  // 过滤截图窗口本身
-                ) && 
+                ) &&
                 !title.starts_with("Desktop") &&
                 !title.starts_with("NVIDIA") &&
                 !title.starts_with("Intel") &&

@@ -37,6 +37,10 @@ pub struct AppConfig {
     #[serde(default)]
     pub git: Option<serde_json::Value>,
 
+    // 官方内置插件状态（作为 JSON 值存储，避免降级写入时丢失）
+    #[serde(default)]
+    pub plugins: Option<serde_json::Value>,
+
     // 更新相关
     #[serde(default)]
     pub update_available: Option<bool>,
@@ -95,6 +99,7 @@ impl Default for AppConfig {
             auto_hide_on_blur: Some(true),
             setup_completed: Some(false),
             git: None,
+            plugins: None,
             update_available: Some(false),
             update_info: None,
             translation_engine: Some("bing".to_string()),

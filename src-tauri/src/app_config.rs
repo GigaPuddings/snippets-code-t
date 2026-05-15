@@ -3,6 +3,7 @@
 
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -29,6 +30,10 @@ pub struct AppConfig {
     // Git 同步配置
     #[serde(default)]
     pub git: GitSettings,
+
+    // 官方内置插件启用状态。默认全部开启，保持旧版本行为不变。
+    #[serde(default = "default_plugin_states")]
+    pub plugins: PluginStates,
 
     // 以下字段用于兼容旧系统（json_config 模块）
     // 使用 Option 类型，不存在时不序列化
@@ -85,6 +90,54 @@ fn default_setup_completed() -> bool {
     true // 默认为 true，避免重复进入 setup
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginRuntimeState {
+    #[serde(default = "default_plugin_enabled")]
+    pub enabled: bool,
+}
+
+pub type PluginStates = HashMap<String, PluginRuntimeState>;
+
+const DEFAULT_PLUGIN_IDS: &[&str] = &[
+    "translation",
+    "screenshot",
+    "todo",
+    "system-theme",
+    "local-launcher",
+    "desktop-files",
+    "search-engines",
+    "git-sync",
+    "attachments",
+];
+
+fn default_plugin_enabled() -> bool {
+    true
+}
+
+fn default_plugin_states() -> PluginStates {
+    DEFAULT_PLUGIN_IDS
+        .iter()
+        .map(|id| {
+            (
+                (*id).to_string(),
+                PluginRuntimeState {
+                    enabled: default_plugin_enabled(),
+                },
+            )
+        })
+        .collect()
+}
+
+fn normalize_plugin_states(plugins: &mut PluginStates) {
+    for id in DEFAULT_PLUGIN_IDS {
+        plugins
+            .entry((*id).to_string())
+            .or_insert(PluginRuntimeState {
+                enabled: default_plugin_enabled(),
+            });
+    }
+}
+
 // Git 同步设置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitSettings {
@@ -127,6 +180,7 @@ impl Default for AppConfig {
             auto_hide_on_blur: false,
             setup_completed: true, // 默认为 true
             git: GitSettings::default(),
+            plugins: default_plugin_states(),
             // 兼容字段默认为 None
             update_available: None,
             update_info: None,
@@ -184,7 +238,7 @@ impl AppConfigManager {
         }
 
         // 尝试加载现有配置
-        let config = if config_path.exists() {
+        let mut config = if config_path.exists() {
             match Self::load_from_file(&config_path) {
                 Ok(cfg) => {
                     info!("✅ [AppConfig] 加载配置成功");
@@ -199,6 +253,8 @@ impl AppConfigManager {
             info!("📝 [AppConfig] 配置文件不存在，创建默认配置");
             AppConfig::default()
         };
+
+        normalize_plugin_states(&mut config.plugins);
 
         let manager = Self {
             config_path,
@@ -262,6 +318,30 @@ impl AppConfigManager {
         self.config.language = language;
     }
 
+    pub fn get_plugin_states(&self) -> HashMap<String, bool> {
+        self.config
+            .plugins
+            .iter()
+            .map(|(id, state)| (id.clone(), state.enabled))
+            .collect()
+    }
+
+    pub fn is_plugin_enabled(&self, plugin_id: &str) -> bool {
+        self.config
+            .plugins
+            .get(plugin_id)
+            .map(|state| state.enabled)
+            .unwrap_or_else(default_plugin_enabled)
+    }
+
+    pub fn set_plugin_enabled(&mut self, plugin_id: String, enabled: bool) {
+        self.config
+            .plugins
+            .entry(plugin_id)
+            .and_modify(|state| state.enabled = enabled)
+            .or_insert(PluginRuntimeState { enabled });
+    }
+
     /// 通用方法：获取配置值（用于兼容旧代码）
     pub fn get_value<T>(&self, key: &str) -> Option<T>
     where
@@ -298,6 +378,22 @@ impl AppConfigManager {
 
 use std::sync::{Arc, RwLock};
 use tauri::{command, AppHandle, Manager};
+
+pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        if let Ok(manager) = config_state.read() {
+            return manager.is_plugin_enabled(plugin_id);
+        }
+    }
+
+    if let Ok(Some(workspace_root)) = crate::json_config::get_workspace_root(app_handle) {
+        if let Ok(manager) = AppConfigManager::new(&workspace_root) {
+            return manager.is_plugin_enabled(plugin_id);
+        }
+    }
+
+    default_plugin_enabled()
+}
 
 /// 获取应用配置
 #[command]
@@ -397,4 +493,44 @@ pub fn update_language_config(app_handle: AppHandle, language: String) -> Result
     } else {
         Err("AppConfigManager 未初始化".to_string())
     }
+}
+
+#[command]
+pub fn get_plugin_states(app_handle: AppHandle) -> Result<HashMap<String, bool>, String> {
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let manager = config_state
+            .read()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        return Ok(manager.get_plugin_states());
+    }
+
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let manager = AppConfigManager::new(&workspace_root)?;
+    Ok(manager.get_plugin_states())
+}
+
+#[command]
+pub fn set_plugin_enabled(
+    app_handle: AppHandle,
+    plugin_id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let mut manager = config_state
+            .write()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        manager.set_plugin_enabled(plugin_id.clone(), enabled);
+        manager.save()?;
+        info!("✅ [Plugin] {} enabled={}", plugin_id, enabled);
+        return Ok(());
+    }
+
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let mut manager = AppConfigManager::new(&workspace_root)?;
+    manager.set_plugin_enabled(plugin_id.clone(), enabled);
+    manager.save()?;
+    info!("✅ [Plugin] {} enabled={}", plugin_id, enabled);
+    Ok(())
 }

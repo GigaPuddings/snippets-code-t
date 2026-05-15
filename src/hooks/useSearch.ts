@@ -6,6 +6,7 @@ import { onMounted, ref, watch, type Ref, type ComputedRef, computed } from 'vue
 import type { ContentType, SearchEngine, SearchHistoryItem, MarkdownFile } from '@/types';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import { isContentType } from '@/utils/type-guards';
+import { usePluginStore } from '@/store';
 
 interface SearchHistoryMeta {
   usage_count: number;
@@ -231,6 +232,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const searchText = ref(initialQuery);
   const searchResults = ref<ContentType[]>([]);
   const searchEngines = ref<SearchEngine[]>([]);
+  const pluginStore = usePluginStore();
 
   const hasResults = computed(() => searchResults.value.length > 0);
 
@@ -252,6 +254,10 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
    * @returns 是否匹配到搜索引擎
    */
   const handleEngineSearch = async (text: string, forceSearch = false): Promise<boolean> => {
+    if (!pluginStore.isEnabled('search-engines')) {
+      return false;
+    }
+
     try {
       const parts = text.trim().split(/\s+/);
       if ((parts.length >= 2 || forceSearch) && parts.length > 0) {
@@ -349,21 +355,25 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       results.push(...codeResults.map((item, index) => withSourceId(item, 'markdown', index)));
 
       // 使用后端模糊搜索应用
-      const appResults = await invoke<ContentType[]>('search_apps', { query });
-      if (Array.isArray(appResults)) {
-        results.push(...appResults.filter(isContentType).map((item, index) => withSourceId(item, 'app', index)));
-      }
+      if (pluginStore.isEnabled('local-launcher')) {
+        const appResults = await invoke<ContentType[]>('search_apps', { query });
+        if (Array.isArray(appResults)) {
+          results.push(...appResults.filter(isContentType).map((item, index) => withSourceId(item, 'app', index)));
+        }
 
-      // 使用后端模糊搜索书签
-      const bookmarkResults = await invoke<ContentType[]>('search_bookmarks', { query });
-      if (Array.isArray(bookmarkResults)) {
-        results.push(...bookmarkResults.filter(isContentType).slice(0, 10).map((item, index) => withSourceId(item, 'bookmark', index)));
+        // 使用后端模糊搜索书签
+        const bookmarkResults = await invoke<ContentType[]>('search_bookmarks', { query });
+        if (Array.isArray(bookmarkResults)) {
+          results.push(...bookmarkResults.filter(isContentType).slice(0, 10).map((item, index) => withSourceId(item, 'bookmark', index)));
+        }
       }
 
       // 搜索桌面常用文件
-      const desktopFileResults = await invoke<ContentType[]>('search_desktop_files', { query });
-      if (Array.isArray(desktopFileResults)) {
-        results.push(...desktopFileResults.filter(isContentType).map((item, index) => withSourceId(item, 'file', index)));
+      if (pluginStore.isEnabled('desktop-files')) {
+        const desktopFileResults = await invoke<ContentType[]>('search_desktop_files', { query });
+        if (Array.isArray(desktopFileResults)) {
+          results.push(...desktopFileResults.filter(isContentType).map((item, index) => withSourceId(item, 'file', index)));
+        }
       }
 
       // 根据本次查询相关度和历史记录排序
@@ -378,7 +388,9 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         : new Map<string, SearchHistoryMeta>();
 
       // 4. 默认搜索引擎选项（仅在非 URL 时显示）
-      const defaultEngine = searchEngines.value.find((e) => e.enabled);
+      const defaultEngine = pluginStore.isEnabled('search-engines')
+        ? searchEngines.value.find((e) => e.enabled)
+        : undefined;
       let defaultSearchResult: ContentType | null = null;
       if (defaultEngine) {
         defaultSearchResult = withSourceId({
@@ -430,7 +442,9 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       if (isEngineSearch) return;
 
       // 3. 使用默认搜索引擎
-      const defaultEngine = searchEngines.value.find((e) => e.enabled);
+      const defaultEngine = pluginStore.isEnabled('search-engines')
+        ? searchEngines.value.find((e) => e.enabled)
+        : undefined;
       if (defaultEngine) {
         const searchUrl = defaultEngine.url.replace(
           '%s',
@@ -474,10 +488,13 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   // 合并初始化和事件监听
   onMounted(async () => {
     try {
+      await pluginStore.initialize();
       // 获取搜索引擎
-      const engines = await invoke<SearchEngine[]>('get_search_engines');
-      if (Array.isArray(engines)) {
-        searchEngines.value = engines;
+      if (pluginStore.isEnabled('search-engines')) {
+        const engines = await invoke<SearchEngine[]>('get_search_engines');
+        if (Array.isArray(engines)) {
+          searchEngines.value = engines;
+        }
       }
 
       // 监听搜索引擎更新

@@ -1,4 +1,7 @@
 import { createWebHashHistory, createRouter, RouteRecordRaw } from 'vue-router';
+import { usePluginStore } from '@/store';
+import { isPluginId } from '@/plugins/registry';
+import type { PluginId } from '@/plugins/types';
 
 export const Layout = () => import('@/layout/index.vue');
 
@@ -84,18 +87,21 @@ const routes: RouteRecordRaw[] = [
             path: 'local',
             component: () =>
               import('@/pages/config/components/local/index.vue'),
-            name: 'Local'
+            name: 'Local',
+            meta: { pluginId: 'local-launcher' }
           },
           {
             path: 'retrieve',
             component: () =>
               import('@/pages/config/components/retrieve/index.vue'),
-            name: 'Retrieve'
+            name: 'Retrieve',
+            meta: { pluginId: 'search-engines' }
           },
           {
             path: 'todo',
             component: () => import('@/pages/config/components/todo/index.vue'),
-            name: 'Todo'
+            name: 'Todo',
+            meta: { pluginId: 'todo' }
           }
         ]
       },
@@ -112,12 +118,14 @@ const routes: RouteRecordRaw[] = [
       {
         path: '/translate',
         name: 'Translate',
-        component: () => import('@/pages/translate/index.vue')
+        component: () => import('@/pages/translate/index.vue'),
+        meta: { pluginId: 'translation' }
       },
       {
         path: '/dark-mode',
         name: 'DarkMode',
-        component: () => import('@/pages/dark-mode/index.vue')
+        component: () => import('@/pages/dark-mode/index.vue'),
+        meta: { pluginId: 'system-theme' }
       }
     ]
   },
@@ -129,12 +137,14 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/screenshot',
     name: 'Screenshot',
-    component: () => import('@/pages/screenshot/index.vue')
+    component: () => import('@/pages/screenshot/index.vue'),
+    meta: { pluginId: 'screenshot' }
   },
   {
     path: '/pin',
     name: 'Pin',
-    component: () => import('@/pages/pin/index.vue')
+    component: () => import('@/pages/pin/index.vue'),
+    meta: { pluginId: 'screenshot' }
   },
   {
     path: '/setup',
@@ -146,6 +156,27 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHashHistory(),
   routes
+});
+
+router.beforeEach(async (to) => {
+  const pluginStore = usePluginStore();
+  await pluginStore.initialize();
+
+  const pluginId = to.matched
+    .map((record) => record.meta.pluginId)
+    .find((id): id is PluginId => typeof id === 'string' && isPluginId(id));
+
+  if (pluginId && !pluginStore.isEnabled(pluginId)) {
+    return {
+      path: '/config/category/settings',
+      query: {
+        tab: 'plugins',
+        disabled: pluginId
+      }
+    };
+  }
+
+  return true;
 });
 
 export default router;

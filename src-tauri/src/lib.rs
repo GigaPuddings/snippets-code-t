@@ -485,16 +485,16 @@ pub fn run() {
 
             // 在应用启动时初始化 APP
             let _ = APP.set(app.handle().clone());
-            
+
             // 初始化 index_manager 状态（先设置为 None，后续异步初始化）
             app.manage(Arc::new(RwLock::new(None::<markdown::IndexManager>)));
-            
+
             // 初始化 AutoSyncManager 状态（先设置为 None，后续根据配置启动）
             app.manage(Arc::new(Mutex::new(None::<git_sync::AutoSyncManager>)));
 
             // 初始化桌面文件监听器状态（必须持久化保存，否则 watcher 会在 setup 结束后被释放）
             app.manage(Arc::new(Mutex::new(None::<desktop_watcher::DesktopFileWatcher>)));
-            
+
             // 初始化待处理的 Git 冲突队列（用于启动时 pull 检测到冲突但 Config 窗口未就绪）
             app.manage(Arc::new(Mutex::new(Vec::<git_sync::ConflictPayload>::new())));
 
@@ -508,6 +508,9 @@ pub fn run() {
             let app_handle_scheduler = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 use dark_mode::ThemeMode;
+                if !app_config::is_plugin_enabled(&app_handle_scheduler, "system-theme") {
+                    return;
+                }
                 let config = dark_mode::load_config(&app_handle_scheduler);
                 if config.theme_mode == ThemeMode::Schedule {
                     if let Err(e) = dark_mode::start_scheduler(app_handle_scheduler) {
@@ -575,16 +578,16 @@ pub fn run() {
                     }
                 }
             });
-            
+
             // 检查是否已完成首次设置
             let is_setup_completed = db::is_setup_completed_internal(app.handle());
-            
+
             // 如果已完成设置，才初始化数据库
             if is_setup_completed {
                 if let Err(e) = db::init_db() {
                     log::error!("数据库初始化失败: {}", e);
                 }
-                
+
                 // 初始化 Markdown 文件系统（如果已配置工作区）
                 let app_handle_markdown = app.handle().clone();
 
@@ -618,7 +621,7 @@ pub fn run() {
                         // 初始化 CacheManager
                         let config_dir = workspace_root.join(".snippets-code");
                         log::info!("🔧 [初始化] 配置目录: {}", config_dir.display());
-                        
+
                         if !config_dir.exists() {
                             log::info!("📁 [初始化] 创建配置目录");
                             if let Err(e) = std::fs::create_dir_all(&config_dir) {
@@ -626,18 +629,18 @@ pub fn run() {
                                 return;
                             }
                         }
-                        
+
                         // 初始化 WorkspaceManager
                         match markdown::WorkspaceManager::new(config_dir.clone()) {
                             Ok(workspace_manager) => {
                                 log::info!("✅ [初始化] WorkspaceManager 初始化成功");
                                 log::info!("📊 [初始化] workspace.json 路径: {}", config_dir.join("workspace.json").display());
-                                
+
                                 // 保存初始配置（如果是首次创建）
                                 if let Err(e) = workspace_manager.save() {
                                     log::warn!("⚠️ [初始化] 保存 workspace.json 失败: {}", e);
                                 }
-                                
+
                                 // 将 WorkspaceManager 存储到应用状态
                                 app_handle_markdown.manage(Arc::new(RwLock::new(workspace_manager)));
                             }
@@ -645,13 +648,13 @@ pub fn run() {
                                 log::error!("❌ [初始化] WorkspaceManager 初始化失败: {}", e);
                             }
                         }
-                        
+
                         // 初始化 AppConfigManager
                         match app_config::AppConfigManager::new(&workspace_root) {
                             Ok(app_config_manager) => {
                                 log::info!("✅ [初始化] AppConfigManager 初始化成功");
                                 log::info!("📊 [初始化] app.json 路径: {}", config_dir.join("app.json").display());
-                                
+
                                 // 将 AppConfigManager 存储到应用状态
                                 app_handle_markdown.manage(Arc::new(RwLock::new(app_config_manager)));
                             }
@@ -659,12 +662,12 @@ pub fn run() {
                                 log::error!("❌ [初始化] AppConfigManager 初始化失败: {}", e);
                             }
                         }
-                        
+
                         match markdown::CacheManager::new(config_dir.clone()) {
                             Ok(mut cache_manager) => {
                                 log::info!("✅ [初始化] CacheManager 初始化成功");
                                 log::info!("📊 [初始化] cache.json 路径: {}", config_dir.join("cache.json").display());
-                                
+
                                 // 清理已删除文件的元数据
                                 let removed_count = cache_manager.cleanup_missing_files(&workspace_root);
                                 if removed_count > 0 {
@@ -674,7 +677,7 @@ pub fn run() {
                                         log::error!("❌ [初始化] 保存清理后的 cache.json 失败: {}", e);
                                     }
                                 }
-                                
+
                                 // 如果 cache.json 中没有文件，扫描文件系统并重建缓存
                                 if cache_manager.get_all_files().is_empty() {
                                     log::info!("🔄 [初始化] cache.json 中没有文件，开始扫描文件系统...");
@@ -693,10 +696,10 @@ pub fn run() {
                                         }
                                     }
                                 }
-                                
+
                                 // 将 CacheManager 存储到应用状态
                                 app_handle_markdown.manage(Arc::new(RwLock::new(cache_manager)));
-                                
+
                                 // 初始化空的 FileWatcher 状态（即使还没有实际的监听器）
                                 app_handle_markdown.manage(Arc::new(Mutex::new(None::<markdown::FileWatcher>)));
                             }
@@ -705,11 +708,11 @@ pub fn run() {
                                 return;
                             }
                         }
-                        
+
                         // 构建搜索索引
                         // 需要先获取 CacheManager 的引用
                         let cache_manager_state = app_handle_markdown.state::<Arc<RwLock<markdown::CacheManager>>>();
-                        
+
                         // 克隆 CacheManager 以避免跨 await 持有锁
                         let cache_manager_clone = {
                             match cache_manager_state.read() {
@@ -723,12 +726,12 @@ pub fn run() {
                                 }
                             }
                         }; // 锁在这里释放
-                        
+
                         if let Some(cache_mgr) = cache_manager_clone {
                             match markdown::IndexManager::build_index(&workspace_root, &cache_mgr).await {
                                 Ok(index_manager) => {
                                     log::info!("搜索索引构建完成");
-                                    
+
                                     // 更新索引管理器状态（替换之前的 None）
                                     if let Some(index_state) = app_handle_markdown.try_state::<Arc<RwLock<Option<markdown::IndexManager>>>>() {
                                         if let Ok(mut index_lock) = index_state.write() {
@@ -736,7 +739,7 @@ pub fn run() {
                                             log::info!("索引管理器状态已更新");
                                         }
                                     }
-                                    
+
                                     // 启动文件监听器（使用 AppHandle 而非 WebviewWindow，
                                     // 避免监听器生命周期与窗口绑定）
                                     match markdown::FileWatcher::start(workspace_root.clone(), app_handle_markdown.clone()) {
@@ -753,7 +756,8 @@ pub fn run() {
                                         }
                                     }
 
-                                    if let Some(desktop_path) = desktop_dir() {
+                                    if app_config::is_plugin_enabled(&app_handle_markdown, "desktop-files") {
+                                        if let Some(desktop_path) = desktop_dir() {
                                         match desktop_watcher::DesktopFileWatcher::start(desktop_path) {
                                             Ok(desktop_watcher) => {
                                                 log::info!("桌面目录监听器启动成功");
@@ -767,8 +771,9 @@ pub fn run() {
                                                 log::warn!("桌面目录监听器启动失败: {}", e);
                                             }
                                         }
-                                    } else {
-                                        log::warn!("未找到桌面目录，跳过桌面目录监听");
+                                        } else {
+                                            log::warn!("未找到桌面目录，跳过桌面目录监听");
+                                        }
                                     }
                                 }
                                 Err(e) => {
@@ -787,9 +792,9 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 // 检查是否已完成首次设置
                 let is_setup_completed = db::is_setup_completed_internal(&app_handle_init);
-                
+
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-                
+
                 // 第一步：创建托盘（首次启动只创建最小托盘）
                 #[cfg(desktop)]
                 {
@@ -804,9 +809,9 @@ pub fn run() {
                         return;
                     }
                 }
-                
+
                 // 以下所有初始化只在 setup 完成后执行
-                
+
                 // 第二步：注册快捷键
                 if let Err(e) = register_shortcut("all") {
                     log::warn!("快捷键注册失败: {}", e);
@@ -815,9 +820,11 @@ pub fn run() {
                         .body(format!("快捷键注册失败：{}", e))
                         .show();
                 }
-                
-                // 第三步：后台服务（提醒已在setup立即启动，Dark Mode调度器已在前台阶段立即启动）
-                alarm::start_alarm_service(app_handle_init.clone());
+
+                // 第三步：后台服务（根据插件启用状态启动）
+                if app_config::is_plugin_enabled(&app_handle_init, "todo") {
+                    alarm::start_alarm_service(app_handle_init.clone());
+                }
 
                 if is_auto_start {
                     tokio::time::sleep(tokio::time::Duration::from_secs(
@@ -832,11 +839,15 @@ pub fn run() {
 
                 // 重置更新状态（使用 JSON 配置）
                 let _ = json_config::set_app_config_value(&app_handle_init, "update_available", false);
-                
-                // 第四步：资源加载（应用、书签和桌面文件图标）
-                init_app_and_bookmark_icons(&app_handle_init);
-                search::refresh_desktop_files_cache();
-                
+
+                // 第四步：资源加载（按插件启用状态加载应用、书签和桌面文件图标）
+                if app_config::is_plugin_enabled(&app_handle_init, "local-launcher") {
+                    init_app_and_bookmark_icons(&app_handle_init);
+                }
+                if app_config::is_plugin_enabled(&app_handle_init, "desktop-files") {
+                    search::refresh_desktop_files_cache();
+                }
+
                 // 第五步：网络操作（自动更新检查）
                 if get_auto_update_check(app_handle_init.clone()) {
                     match check_update(&app_handle_init, false).await {
@@ -844,7 +855,7 @@ pub fn run() {
                         Err(e) => log::warn!("更新检查失败: {}", e),
                     }
                 }
-                
+
                 // 第六步：清理任务（数据库优化、日志清理）
                 let _ = tokio::task::spawn_blocking(move || {
                     if let Err(e) = optimize_database() {
@@ -880,7 +891,7 @@ pub fn run() {
                 let app_handle_startup = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    
+
                     if !db::is_setup_completed_internal(&app_handle_startup) {
                         // 首次启动：只显示 setup 窗口
                         create_setup_window();
@@ -1055,6 +1066,8 @@ pub fn run() {
             app_config::update_git_settings_command,    // 更新 Git 设置
             app_config::update_theme_config,            // 更新主题设置
             app_config::update_language_config,         // 更新语言设置
+            app_config::get_plugin_states,              // 获取官方内置插件状态
+            app_config::set_plugin_enabled,             // 设置官方内置插件状态
             // Git 同步命令
             git_sync::check_git_installed_command,      // 检查 Git 是否安装
             git_sync::check_git_repo_command,           // 检查是否是 Git 仓库

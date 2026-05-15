@@ -70,10 +70,12 @@ import GitConflictDialog from '@/components/GitConflictDialog/index.vue';
 import GitManualMerge from '@/components/GitManualMerge/index.vue';
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import modal from '@/utils/modal';
+import { usePluginStore } from '@/store';
 
 type ConfirmResult = 'primary' | 'secondary' | 'close';
 
 const { t } = useI18n();
+const pluginStore = usePluginStore();
 
 defineOptions({
   name: 'Config'
@@ -572,6 +574,10 @@ const checkPendingSnippetOpen = () => {
 
 // 启动自动同步（如果启用）
 const startAutoSyncIfEnabled = async () => {
+  if (!pluginStore.isEnabled('git-sync')) {
+    return;
+  }
+
   try {
     const gitSettings = await getGitSettings();
     
@@ -593,6 +599,10 @@ const startAutoSyncIfEnabled = async () => {
 
 // 停止自动同步
 const stopAutoSyncOnHide = async () => {
+  if (!pluginStore.isEnabled('git-sync')) {
+    return;
+  }
+
   try {
     const isRunning = await getAutoSyncStatus();
     
@@ -621,14 +631,23 @@ onMounted(async () => {
     checkPendingNavigation();
     checkPendingSnippetOpen();
   });
-  
-  // 1. 设置 Git 事件监听器
-  gitListeners = await setupGitEventListeners(t);
-  logger.info('[Config] ✅ Git 事件监听器已设置');
 
-  // 2. 优先设置冲突事件监听器（在 Git 同步之前），确保能收到启动时的冲突事件
-  try {
-    unlistenConflict = await listen<{ conflict_files: string[]; untracked_files?: string[] }>('git-conflict-detected', async (event) => {
+  await pluginStore.initialize();
+
+  // 全局初始化防抖与缓存清理不属于 Git 插件本身。
+  const shouldInit = await checkShouldInitialize();
+  if (shouldInit) {
+    await initCleanupCache();
+  }
+
+  if (pluginStore.isEnabled('git-sync')) {
+    // 1. 设置 Git 事件监听器
+    gitListeners = await setupGitEventListeners(t);
+    logger.info('[Config] ✅ Git 事件监听器已设置');
+
+    // 2. 优先设置冲突事件监听器（在 Git 同步之前），确保能收到启动时的冲突事件
+    try {
+      unlistenConflict = await listen<{ conflict_files: string[]; untracked_files?: string[] }>('git-conflict-detected', async (event) => {
       // 防止重复处理：已经显示过冲突对话框就不再处理
       if (hasConflictBeenHandled && showConflictDialog.value) {
         logger.info('[Config] 冲突事件已处理，跳过重复事件');
@@ -663,15 +682,15 @@ onMounted(async () => {
       showConflictDialog.value = true;
       logger.info('[Config] 显示冲突对话框后, showConflictDialog:', showConflictDialog.value);
       logger.info('[Config] 显示冲突对话框');
-    });
-    logger.info('[Config] ✅ Git 冲突事件监听器已设置（优先）');
-  } catch (error) {
-    logger.error('[Config] 设置冲突事件监听器失败:', error);
-  }
+      });
+      logger.info('[Config] ✅ Git 冲突事件监听器已设置（优先）');
+    } catch (error) {
+      logger.error('[Config] 设置冲突事件监听器失败:', error);
+    }
 
-  // 设置仓库不存在事件监听器
-  try {
-    unlistenRepoNotFound = await listen<{ remote_url: string; operation: string }>('git-repo-not-found', async (event) => {
+    // 设置仓库不存在事件监听器
+    try {
+      unlistenRepoNotFound = await listen<{ remote_url: string; operation: string }>('git-repo-not-found', async (event) => {
       logger.info('[Config] 收到仓库不存在事件:', event.payload);
 
       // 保存仓库不存在信息
@@ -690,30 +709,29 @@ onMounted(async () => {
 
       // 显示仓库不存在对话框
       showRepoNotFoundDialog.value = true;
-    });
-    logger.info('[Config] ✅ Git 仓库不存在事件监听器已设置');
-  } catch (error) {
-    logger.error('[Config] 设置仓库不存在事件监听器失败:', error);
-  }
-
-  // 3. 确保工作区存在 .gitignore（有工作区且无此文件时自动创建，不依赖 shouldInit）
-  await ensureWorkspaceGitignore();
-
-  // 4. 检查是否应该执行初始化（防抖机制）
-  const shouldInit = await checkShouldInitialize();
-  if (shouldInit) {
-    // 5. 清理缓存
-    await initCleanupCache();
-    // 6. Git 同步初始化
-    const shouldRefresh = await initGitSync(t);
-    if (shouldRefresh) {
-      // 触发数据刷新
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('refresh-data', { 
-          detail: { source: 'startup-pull' } 
-        }));
-      }, 500);
+      });
+      logger.info('[Config] ✅ Git 仓库不存在事件监听器已设置');
+    } catch (error) {
+      logger.error('[Config] 设置仓库不存在事件监听器失败:', error);
     }
+
+    // 3. 确保工作区存在 .gitignore（有工作区且无此文件时自动创建，不依赖 shouldInit）
+    await ensureWorkspaceGitignore();
+
+    if (shouldInit) {
+      // 4. Git 同步初始化
+      const shouldRefresh = await initGitSync(t);
+      if (shouldRefresh) {
+        // 触发数据刷新
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('refresh-data', {
+            detail: { source: 'startup-pull' }
+          }));
+        }, 500);
+      }
+    }
+  } else {
+    logger.info('[Config] Git 同步插件未启用，跳过 Git 事件监听和自动同步初始化');
   }
   
   const initCostMs = Math.round(performance.now() - initStart);

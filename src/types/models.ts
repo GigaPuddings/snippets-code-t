@@ -256,6 +256,7 @@ export interface AppConfig {
   autoUpdateCheck: boolean;
   autoHideOnBlur: boolean;
   git: GitSettings;
+  plugins?: Record<string, { enabled: boolean }>;
 }
 
 /**

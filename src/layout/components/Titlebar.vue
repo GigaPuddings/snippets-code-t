@@ -11,7 +11,7 @@
       <div v-show="!isNarrow" class="titlebar-nav">
         <SegmentedToggle
           v-model="activeTabIndex"
-          :items="tabs"
+          :items="visibleTabs"
           @change="handleTabChange"
         >
           <template #item="scope">
@@ -230,10 +230,12 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
 import { useGitStatus, setupGitStatusListener, initWorkspaceChangeListener, cleanupGitStatusListener } from '@/hooks/useGitStatus';
-import { useLayoutStore } from '@/store';
+import { useLayoutStore, usePluginStore } from '@/store';
+import type { PluginId } from '@/plugins/types';
 
 const { t } = useI18n();
 const layoutStore = useLayoutStore();
+const pluginStore = usePluginStore();
 
 /** 窄屏/最小窗口断点：小于等于此宽度时 左侧仅应用名+版本、导航居中、右侧仅折叠菜单+窗口控制 */
 const TITLEBAR_NARROW_BREAKPOINT = 720;
@@ -263,7 +265,7 @@ const {
 
 /** 启用 Git 同步时显示标题栏指示器；仅在有错误时隐藏，其余状态（就绪/空闲/已同步/有变更/同步中）均显示 */
 const showGitIndicator = computed(
-  () => !!gitSettings.value?.enabled && syncState.value !== 'error'
+  () => pluginStore.isEnabled('git-sync') && !!gitSettings.value?.enabled && syncState.value !== 'error'
 );
 
 /** 仅在配置页面（/config）且窗口非窄屏时显示面板折叠区域；单个按钮再按宽度阈值显示，避免窄屏时按钮可见却无法展开 */
@@ -297,6 +299,7 @@ const activeTabIndex = ref(0);
 interface TabItem {
   icon: any;
   path: string;
+  pluginId?: PluginId;
 }
 
 const tabs: TabItem[] = [
@@ -308,24 +311,31 @@ const tabs: TabItem[] = [
   // 本地应用、浏览器书签
   {
     icon: Application,
-    path: '/config/local'
+    path: '/config/local',
+    pluginId: 'local-launcher'
   },
   // 引擎搜索
   {
     icon: MessageSearch,
-    path: '/config/retrieve'
+    path: '/config/retrieve',
+    pluginId: 'search-engines'
   },
   // 待办
   {
     icon: Notepad,
-    path: '/config/todo'
+    path: '/config/todo',
+    pluginId: 'todo'
   }
 ];
+
+const visibleTabs = computed(() => (
+  tabs.filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
+));
 
 // 根据当前路由设置激活的tab
 const setActiveTabFromRoute = () => {
   const currentPath = router.currentRoute.value.path;
-  const index = tabs.findIndex((tab) => currentPath.startsWith(tab.path));
+  const index = visibleTabs.value.findIndex((tab) => currentPath.startsWith(tab.path));
   if (index !== -1) {
     activeTabIndex.value = index;
   }
@@ -333,8 +343,8 @@ const setActiveTabFromRoute = () => {
 
 // 切换Tab并跳转路由
 const handleTabChange = (index: number) => {
-  if (tabs[index]) {
-    router.push(tabs[index].path);
+  if (visibleTabs.value[index]) {
+    router.push(visibleTabs.value[index].path);
   }
 };
 
@@ -413,9 +423,11 @@ const handleMoreMenuCommand = (command: string) => {
 };
 
 let unListen: UnlistenFn;
+let gitStatusListenerActive = false;
 
 onMounted(async () => {
   await initEnv();
+  await pluginStore.initialize();
   state.appName = appName;
   state.appVersion = appVersion;
 
@@ -430,13 +442,16 @@ onMounted(async () => {
   // 设置初始激活的tab
   setActiveTabFromRoute();
 
-  // 初始化 Git 状态监听
-  // setupGitStatusListener() 会监听 pull/push/sync-complete 事件
-  // initWorkspaceChangeListener() 监听工作区变化，文件修改时自动刷新 Git 状态
-  setupGitStatusListener();
-  initWorkspaceChangeListener(refreshStatus);
-  await refreshSettings();
-  await refreshStatus();
+  if (pluginStore.isEnabled('git-sync')) {
+    // 初始化 Git 状态监听
+    // setupGitStatusListener() 会监听 pull/push/sync-complete 事件
+    // initWorkspaceChangeListener() 监听工作区变化，文件修改时自动刷新 Git 状态
+    setupGitStatusListener();
+    initWorkspaceChangeListener(refreshStatus);
+    gitStatusListenerActive = true;
+    await refreshSettings();
+    await refreshStatus();
+  }
 });
 
 // 监听路由变化，同步更新activeTabIndex
@@ -452,8 +467,10 @@ onUnmounted(() => {
   if (unListen) {
     unListen();
   }
-  // 清理 Git 状态监听
-  cleanupGitStatusListener();
+  if (gitStatusListenerActive) {
+    // 清理 Git 状态监听
+    cleanupGitStatusListener();
+  }
 });
 </script>
 

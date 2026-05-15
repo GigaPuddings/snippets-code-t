@@ -280,6 +280,62 @@ export default {
     }
   },
 
+  // Plugin Management
+  plugins: {
+    title: 'Plugins',
+    builtinTitle: 'Official Built-in Plugins',
+    builtinDesc: 'These features still ship with the app, but now enter through the plugin registry. Disabling one hides its entries, search sources, hotkeys, and related background services.',
+    enabled: 'Plugin enabled',
+    disabled: 'Plugin disabled',
+    saveFailed: 'Failed to save plugin state',
+    categories: {
+      capture: 'Capture',
+      automation: 'Automation',
+      search: 'Search',
+      sync: 'Sync',
+      editor: 'Editor',
+      appearance: 'Appearance'
+    },
+    translation: {
+      name: 'Translation',
+      description: 'Translate window, selection translation, screenshot translation, and offline model management.',
+      resourceHint: 'Offline translation models are downloaded on demand.'
+    },
+    screenshot: {
+      name: 'Screenshot and OCR',
+      description: 'Screenshot annotation, color picker, pin windows, OCR, and screenshot translation.',
+      resourceHint: 'RapidOCR is a large resource and is ready for on-demand installation in the next step.'
+    },
+    todo: {
+      name: 'Reminders',
+      description: 'Todo cards, timed reminders, and system notification windows.'
+    },
+    systemTheme: {
+      name: 'System Theme',
+      description: 'Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling.'
+    },
+    localLauncher: {
+      name: 'Apps and Bookmarks Launcher',
+      description: 'Local app and browser bookmark management, plus quick-launch search results.'
+    },
+    desktopFiles: {
+      name: 'Desktop File Search',
+      description: 'Index desktop files and show file results in global search.'
+    },
+    searchEngines: {
+      name: 'Search Engines',
+      description: 'Custom search engines, keyword search, and default web search entries.'
+    },
+    gitSync: {
+      name: 'Git Sync',
+      description: 'Workspace Git initialization, pull, push, auto sync, and conflict handling.'
+    },
+    attachments: {
+      name: 'Attachments',
+      description: 'Image attachment path templates, naming rules, and cleanup tools.'
+    }
+  },
+
   // Language Options
   languages: {
     'zh-CN': '简体中文',

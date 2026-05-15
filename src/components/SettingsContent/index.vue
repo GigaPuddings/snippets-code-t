@@ -42,8 +42,11 @@ import Manger from './components/Manger/index.vue';
 import Translation from './components/Translation/index.vue';
 import Attachment from './components/Attachment/index.vue';
 import GitSync from './components/GitSync/index.vue';
+import Plugins from './components/Plugins/index.vue';
 import { getGitStatus } from '@/api/git';
 import { getGitSettings } from '@/api/appConfig';
+import { getPluginBySettingsTab } from '@/plugins/registry';
+import { usePluginStore } from '@/store';
 
 defineOptions({
   name: 'SettingsContent'
@@ -51,12 +54,14 @@ defineOptions({
 
 const { t } = useI18n();
 const route = useRoute();
+const pluginStore = usePluginStore();
 
 /** 是否显示 Git 同步 tab：工作区有效、已是仓库、已配置远程、且必要字段（用户名、邮箱、远程 URL）已在个人中心配置 */
 const canShowGitSyncTab = ref(false);
 
 const allMenuItems = [
   { id: 'general', label: () => t('settings.general'), icon: SettingTwo },
+  { id: 'plugins', label: () => t('plugins.title'), icon: Data },
   { id: 'shortcut', label: () => t('shortcut.title'), icon: EnterTheKeyboard },
   { id: 'data', label: () => t('dataManager.title'), icon: Data },
   { id: 'attachment', label: () => t('settings.attachment.menu'), icon: FolderOpen },
@@ -65,10 +70,16 @@ const allMenuItems = [
 ];
 
 const menuItems = computed(() => {
-  const items = canShowGitSyncTab.value
-    ? allMenuItems
-    : allMenuItems.filter((item) => item.id !== 'gitSync');
-  return items.map((item) => ({ id: item.id, label: item.label(), icon: item.icon }));
+  return allMenuItems
+    .filter((item) => {
+      if (item.id === 'gitSync' && !canShowGitSyncTab.value) {
+        return false;
+      }
+
+      const plugin = getPluginBySettingsTab(item.id);
+      return !plugin || pluginStore.isEnabled(plugin.id);
+    })
+    .map((item) => ({ id: item.id, label: item.label(), icon: item.icon }));
 });
 
 const activeTab = ref('general');
@@ -81,7 +92,8 @@ const componentMap: Record<string, any> = {
   data: Manger,
   attachment: Attachment,
   gitSync: GitSync,
-  translation: Translation
+  translation: Translation,
+  plugins: Plugins
 };
 
 async function refreshCanShowGitSyncTab() {
@@ -107,6 +119,14 @@ async function refreshCanShowGitSyncTab() {
 // 切换 tab
 const switchTab = (tabId: string) => {
   if (tabId === 'gitSync' && !canShowGitSyncTab.value) return;
+  const plugin = getPluginBySettingsTab(tabId);
+  if (plugin && !pluginStore.isEnabled(plugin.id)) {
+    activeTab.value = 'plugins';
+    if (!loadedTabs.value.includes('plugins')) {
+      loadedTabs.value.push('plugins');
+    }
+    return;
+  }
   activeTab.value = tabId;
   if (!loadedTabs.value.includes(tabId)) {
     loadedTabs.value.push(tabId);
@@ -125,6 +145,7 @@ watch(() => route.query.tab, (newTab) => {
 }, { immediate: true });
 
 onMounted(async () => {
+  await pluginStore.initialize();
   await refreshCanShowGitSyncTab();
   const tabFromQuery = route.query.tab;
   if (tabFromQuery && typeof tabFromQuery === 'string') {
