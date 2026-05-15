@@ -15,16 +15,13 @@ mod icon;
 mod json_config;
 mod markdown;
 mod ocr;
+mod plugins;
 mod search;
 mod translation;
 mod tray;
 mod update;
 mod window;
 
-use crate::alarm::{
-    add_alarm_card, delete_alarm_card, get_alarm_cards, remind_notification_window,
-    toggle_alarm_card, update_alarm_card,
-};
 use crate::config::{
     exit_application, get_auto_update_check, get_language, get_ocr_language,
     get_offline_model_activated, get_translation_engine, reset_software, set_auto_update_check,
@@ -63,7 +60,6 @@ use crate::db::{
     update_app,
     update_bookmark,
 };
-use crate::translation::translate_text;
 use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
 };
@@ -79,12 +75,9 @@ use crate::window::{
 use dirs::desktop_dir;
 use serde::Serialize;
 
-use apps::{open_app_as_admin_command, open_app_command, open_app_file_location_command};
-use bookmarks::open_url;
 use hotkey::*;
 use icon::{extract_icon_from_app, init_app_and_bookmark_icons};
 use log::{info, LevelFilter};
-use search::*;
 use std::sync::Mutex;
 use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
@@ -915,11 +908,11 @@ pub fn run() {
             ignore_cursor_events,             // 忽略鼠标事件
             hotkey_config_command,            // 快捷键配置
             hotkey_update_command,            // 快捷键更新
-            open_app_command,                 // 打开应用
-            open_app_as_admin_command,        // 以管理员身份打开应用
-            open_app_file_location_command,    // 打开应用文件位置
+            plugins::local_launcher::open_app_command,                 // 打开应用
+            plugins::local_launcher::open_app_as_admin_command,        // 以管理员身份打开应用
+            plugins::local_launcher::open_app_file_location_command,    // 打开应用文件位置
             show_hide_window_command,         // 显示隐藏窗口
-            open_url,                         // 打开书签
+            plugins::shared::open_url,        // 打开书签或搜索 URL
             insert_text_to_last_window,       // 插入文本到上次活动窗口
             get_db_path,                      // 获取数据库路径
             get_data_dir_info,                // 获取数据目录信息
@@ -929,15 +922,15 @@ pub fn run() {
             is_setup_completed,               // 检查是否已完成首次设置
             set_setup_completed,              // 标记首次设置已完成
             set_data_dir_from_setup,          // 从设置向导保存数据目录
-            get_alarm_cards,                  // 获取代办提醒卡片
-            add_alarm_card,                   // 添加代办提醒卡片
-            update_alarm_card,                // 更新代办提醒卡片
-            delete_alarm_card,                // 删除代办提醒卡片
-            toggle_alarm_card,                // 切换代办提醒卡片
-            get_search_engines,               // 获取搜索引擎
-            update_search_engines,            // 更新搜索引擎
-            get_default_engines,              // 获取默认搜索引擎
-            remind_notification_window,       // 提醒通知窗口
+            plugins::todo::get_alarm_cards,                  // 获取代办提醒卡片
+            plugins::todo::add_alarm_card,                   // 添加代办提醒卡片
+            plugins::todo::update_alarm_card,                // 更新代办提醒卡片
+            plugins::todo::delete_alarm_card,                // 删除代办提醒卡片
+            plugins::todo::toggle_alarm_card,                // 切换代办提醒卡片
+            plugins::search_engines::get_search_engines,               // 获取搜索引擎
+            plugins::search_engines::update_search_engines,            // 更新搜索引擎
+            plugins::search_engines::get_default_engines,              // 获取默认搜索引擎
+            plugins::todo::remind_notification_window,       // 提醒通知窗口
             get_update_status,                // 获取更新状态
             get_update_info,                  // 获取更新信息
             perform_update,                   // 执行更新
@@ -945,15 +938,15 @@ pub fn run() {
             fetch_favicon,                    // 获取网站favicon
             fetch_favicon_with_source,        // 使用指定源获取网站favicon
             extract_icon_from_app,            // 提取应用图标
-            search_apps,                      // 搜索应用
-            search_bookmarks,                 // 搜索书签
+            plugins::local_launcher::search_apps,                      // 搜索应用
+            plugins::local_launcher::search_bookmarks,                 // 搜索书签
             reset_software,                   // 重置软件
             get_auto_update_check,            // 获取自动检查更新设置
             set_auto_update_check,            // 设置自动检查更新设置
             exit_application,                 // 退出应用
             set_auto_hide_on_blur,            // 设置自动失焦隐藏
             get_auto_hide_on_blur,            // 获取自动失焦隐藏设置
-            translate_text,                   // 翻译文本
+            plugins::translation::translate_text,                   // 翻译文本
             add_search_history,               // 添加搜索历史
             get_search_history,               // 获取搜索历史
             get_window_info,                  // 获取窗口信息
@@ -1023,9 +1016,9 @@ pub fn run() {
             commands::set_workspace_root_path,// 设置工作区根目录
             commands::change_workspace,       // 更改工作区
             markdown::search_markdown_files_optimized,  // 搜索 Markdown 文件
-            search_desktop_files,             // 搜索桌面文件
-            refresh_desktop_files_cache_cmd,   // 刷新桌面文件缓存
-            preview_desktop_file,              // 预览桌面文件
+            plugins::desktop_files::search_desktop_files,             // 搜索桌面文件
+            plugins::desktop_files::refresh_desktop_files_cache_cmd,   // 刷新桌面文件缓存
+            plugins::desktop_files::preview_desktop_file,              // 预览桌面文件
             // Markdown 文件操作命令
             markdown::get_markdown_categories,          // 获取所有分类
             markdown::create_markdown_file,             // 创建 Markdown 文件

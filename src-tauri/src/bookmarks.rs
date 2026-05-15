@@ -989,7 +989,6 @@ pub fn load_bookmark_icons_async_silent(
     }
 }
 
-#[tauri::command]
 pub fn open_url(app_handle: tauri::AppHandle, url: String) -> Result<(), String> {
     if !(crate::app_config::is_plugin_enabled(&app_handle, "local-launcher")
         || crate::app_config::is_plugin_enabled(&app_handle, "search-engines"))

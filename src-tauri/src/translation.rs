@@ -1,7 +1,7 @@
 use log::info;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::{command, AppHandle};
+use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct BingTranslation {
@@ -13,8 +13,7 @@ struct BingTranslationText {
     text: String,
 }
 
-// 翻译文本命令
-#[command]
+// 翻译文本
 pub async fn translate_text(
     app_handle: AppHandle,
     text: String,

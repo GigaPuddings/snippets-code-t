@@ -332,7 +332,6 @@ pub fn fuzzy_search<T: Clone>(
 }
 
 // 搜索应用
-#[tauri::command]
 pub fn search_apps(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
 
@@ -392,7 +391,6 @@ pub fn search_apps(app_handle: AppHandle, query: String) -> Result<Vec<SearchRes
 }
 
 // 搜索书签
-#[tauri::command]
 pub fn search_bookmarks(app_handle: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
 
@@ -522,14 +520,12 @@ pub fn clear_desktop_files_cache_for_reset(reset_type: &str) -> Result<(), Strin
     }
 }
 
-#[tauri::command]
 pub fn refresh_desktop_files_cache_cmd(app_handle: AppHandle) -> Result<(), String> {
     crate::app_config::require_plugin_enabled(&app_handle, "desktop-files")?;
     refresh_desktop_files_cache();
     Ok(())
 }
 
-#[tauri::command]
 pub fn search_desktop_files(
     app_handle: AppHandle,
     query: String,
@@ -767,7 +763,6 @@ fn extract_pptx_text(path: &Path) -> Result<String, String> {
     Ok(texts.join("\n\n---\n\n"))
 }
 
-#[tauri::command]
 pub fn preview_desktop_file(
     app_handle: AppHandle,
     file_path: String,
@@ -957,7 +952,6 @@ pub fn preview_desktop_file(
 }
 
 // 获取搜索引擎配置
-#[tauri::command]
 pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "search-engines")?;
 
@@ -981,7 +975,6 @@ pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, St
 }
 
 // 更新搜索引擎配置
-#[tauri::command]
 pub fn update_search_engines(
     app_handle: AppHandle,
     engines: Vec<SearchEngine>,
@@ -993,7 +986,6 @@ pub fn update_search_engines(
 }
 
 // 获取默认搜索引擎配置
-#[tauri::command]
 pub fn get_default_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "search-engines")?;
     serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())

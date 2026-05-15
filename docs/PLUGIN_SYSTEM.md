@@ -87,10 +87,12 @@ Runtime plugin toggles also apply side effects immediately:
 
 Optional Tauri command entry points must also check plugin state. The first guarded set covers translation, reminders, search engines, desktop files, and local launcher open/search actions. This protects stale windows and direct `invoke` calls after a plugin has been disabled.
 
+Rust command registration now goes through plugin adapter modules under `src-tauri/src/plugins/*`. The adapters preserve existing frontend `invoke` command names while delegating to the current implementation modules. This gives each built-in plugin an explicit backend command boundary before moving the implementation code itself.
+
 ## Next Steps
 
 1. Move feature view/composable files into their owning `src/plugins/<plugin-id>` folders.
-2. Split Rust commands and services by plugin under `src-tauri/src/plugins/<plugin-id>`.
+2. Move Rust service implementation code behind the plugin adapters.
 3. Replace bundled RapidOCR with an on-demand plugin resource installer.
 4. Add plugin lifecycle hooks: install, enable, disable, uninstall, migrate.
 5. Add a permission manifest before supporting third-party plugins.

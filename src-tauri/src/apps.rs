@@ -1544,7 +1544,6 @@ $verb.DoIt()
     Ok(())
 }
 
-#[tauri::command]
 pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Result<(), String> {
     crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
 
@@ -1593,7 +1592,6 @@ pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Resul
     }
 }
 
-#[tauri::command]
 pub fn open_app_as_admin_command(
     app_handle: tauri::AppHandle,
     app_path: String,
@@ -1644,7 +1642,6 @@ pub fn open_app_as_admin_command(
     }
 }
 
-#[tauri::command]
 pub fn open_app_file_location_command(
     app_handle: tauri::AppHandle,
     app_path: String,

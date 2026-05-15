@@ -264,7 +264,6 @@ fn convert_weekday(day: &str) -> &str {
 }
 
 // 修改 add_alarm_card 函数
-#[tauri::command]
 pub fn add_alarm_card(
     app_handle: tauri::AppHandle,
     mut card: AlarmCard,
@@ -304,7 +303,6 @@ pub fn add_alarm_card(
 }
 
 // 修改 update_alarm_card 函数
-#[tauri::command]
 pub fn update_alarm_card(
     app_handle: tauri::AppHandle,
     mut card: AlarmCard,
@@ -362,7 +360,6 @@ fn convert_weekday_back(day: &str) -> &str {
     }
 }
 
-#[tauri::command]
 pub fn get_alarm_cards(app_handle: tauri::AppHandle) -> Result<Vec<AlarmCard>, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
 
@@ -385,7 +382,6 @@ pub fn get_alarm_cards(app_handle: tauri::AppHandle) -> Result<Vec<AlarmCard>, S
     }
 }
 
-#[tauri::command]
 pub fn delete_alarm_card(app_handle: tauri::AppHandle, id: String) -> Result<(), String> {
     crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
 
@@ -407,7 +403,6 @@ pub fn delete_alarm_card(app_handle: tauri::AppHandle, id: String) -> Result<(),
     Ok(())
 }
 
-#[tauri::command]
 pub fn toggle_alarm_card(app_handle: tauri::AppHandle, id: String) -> Result<AlarmCard, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
 
@@ -605,7 +600,6 @@ pub fn stop_alarm_service() {
     SERVICE_RUNNING.store(false, Ordering::SeqCst);
 }
 
-#[tauri::command]
 pub fn remind_notification_window(
     app_handle: tauri::AppHandle,
     title: String,
