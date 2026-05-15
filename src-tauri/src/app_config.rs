@@ -407,19 +407,22 @@ fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled:
     match plugin_id {
         "system-theme" => {
             if enabled {
-                let config = crate::dark_mode::load_config(app_handle);
-                if matches!(config.theme_mode, crate::dark_mode::ThemeMode::Schedule) {
-                    let _ = crate::dark_mode::start_scheduler(app_handle.clone());
+                let config = crate::plugins::system_theme::load_config(app_handle);
+                if matches!(
+                    config.theme_mode,
+                    crate::plugins::system_theme::ThemeMode::Schedule
+                ) {
+                    let _ = crate::plugins::system_theme::start_scheduler(app_handle.clone());
                 }
             } else {
-                crate::dark_mode::stop_scheduler();
+                crate::plugins::system_theme::stop_scheduler();
             }
         }
         "todo" => {
             if enabled {
-                crate::alarm::start_alarm_service(app_handle.clone());
+                crate::plugins::todo::start_alarm_service(app_handle.clone());
             } else {
-                crate::alarm::stop_alarm_service();
+                crate::plugins::todo::stop_alarm_service();
             }
         }
         "desktop-files" => {
@@ -441,7 +444,7 @@ fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled:
                 }
             }
             if enabled {
-                crate::search::refresh_desktop_files_cache();
+                crate::plugins::desktop_files::refresh_desktop_files_cache();
             }
         }
         "local-launcher" if enabled => {

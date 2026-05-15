@@ -1145,7 +1145,6 @@ pub fn close_and_destroy_loading_window() {
 }
 
 // 关闭并销毁截图窗口，避免仅隐藏不释放导致残留窗口
-#[tauri::command]
 pub fn close_and_destroy_screenshot_window() -> Result<(), String> {
     let app = APP.get().ok_or("无法获取应用句柄")?;
 
@@ -1998,7 +1997,6 @@ pub fn get_window_info() -> Result<serde_json::Value, String> {
 }
 
 // 获取预捕获的屏幕背景图像
-#[tauri::command]
 pub fn get_screenshot_background() -> Result<String, String> {
     let bg = SCREENSHOT_BACKGROUND.lock().unwrap();
     match bg.as_ref() {
@@ -2014,7 +2012,6 @@ pub fn get_screenshot_background() -> Result<String, String> {
 }
 
 // 获取截图预览图（JPEG格式，快速加载）
-#[tauri::command]
 pub fn get_screenshot_preview() -> Result<String, String> {
     let preview = SCREENSHOT_PREVIEW.lock().unwrap();
     match preview.as_ref() {
@@ -2030,7 +2027,6 @@ pub fn get_screenshot_preview() -> Result<String, String> {
 }
 
 // 获取预缓存的窗口列表（用于快速截图初始化）
-#[tauri::command]
 pub fn get_cached_window_list() -> Result<Vec<WindowInfo>, String> {
     let cached = CACHED_WINDOW_LIST.lock().unwrap();
     match cached.as_ref() {
@@ -2040,7 +2036,6 @@ pub fn get_cached_window_list() -> Result<Vec<WindowInfo>, String> {
 }
 
 // 获取预缓存的显示器信息（用于快速截图初始化）
-#[tauri::command]
 pub fn get_cached_monitor_info() -> Result<MonitorInfo, String> {
     let cached = CACHED_MONITOR_INFO.lock().unwrap();
     match cached.as_ref() {
@@ -2050,7 +2045,6 @@ pub fn get_cached_monitor_info() -> Result<MonitorInfo, String> {
 }
 
 // 清理截图背景缓存（窗口关闭时调用）
-#[tauri::command]
 pub fn clear_screenshot_background() {
     {
         let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
@@ -2064,7 +2058,6 @@ pub fn clear_screenshot_background() {
 }
 
 // 清理所有截图相关的缓存和状态（可选的深度清理）
-#[tauri::command]
 pub fn cleanup_screenshot_resources() {
     // 清理截图背景
     {
@@ -2097,7 +2090,6 @@ pub fn cleanup_screenshot_resources() {
 }
 
 // 复制图像到剪贴板
-#[tauri::command]
 pub fn copy_to_clipboard(app_handle: AppHandle, image: String) -> Result<(), String> {
     let base64_data = image.split(',').nth(1).unwrap_or(&image);
 
@@ -2120,7 +2112,6 @@ pub fn copy_to_clipboard(app_handle: AppHandle, image: String) -> Result<(), Str
 }
 
 // 获取指定位置的像素颜色
-#[tauri::command]
 pub fn get_pixel_color(x: i32, y: i32) -> Result<serde_json::Value, String> {
     info!("get_pixel_color: x: {}, y: {}", x, y);
 
@@ -2232,7 +2223,6 @@ pub fn get_pixel_color(x: i32, y: i32) -> Result<serde_json::Value, String> {
 }
 
 // 获取屏幕预览图像
-#[tauri::command]
 pub fn get_screen_preview(
     x: i32,
     y: i32,
@@ -2335,7 +2325,6 @@ pub fn get_screen_preview(
 }
 
 // 保存截图到文件
-#[tauri::command]
 pub async fn save_screenshot_to_file(
     app_handle: AppHandle,
     image: String,
@@ -2413,7 +2402,6 @@ pub async fn save_screenshot_to_file(
 }
 
 // 创建贴图窗口命令
-#[tauri::command]
 pub async fn create_pin_window(
     app_handle: AppHandle,
     mode: Option<String>,
@@ -2612,7 +2600,6 @@ pub async fn create_pin_window(
     Ok(window_label)
 }
 
-#[tauri::command]
 pub fn get_pin_window_data(label: String) -> Result<Option<PinWindowData>, String> {
     PIN_IMAGE_DATA
         .lock()
@@ -2621,13 +2608,11 @@ pub fn get_pin_window_data(label: String) -> Result<Option<PinWindowData>, Strin
 }
 
 // 复制图片到剪贴板（用于贴图窗口）
-#[tauri::command]
 pub fn copy_image_to_clipboard(app_handle: AppHandle, image_data: String) -> Result<(), String> {
     copy_to_clipboard(app_handle, image_data)
 }
 
 // 保存贴图图片
-#[tauri::command]
 pub async fn save_pin_image(app_handle: AppHandle, image_data: String) -> Result<String, String> {
     save_screenshot_to_file(app_handle, image_data).await
 }
@@ -2649,7 +2634,6 @@ pub fn frontend_log(level: String, message: String, data: Option<String>) {
 }
 
 // 获取所有窗口信息
-#[tauri::command]
 pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
     let mut windows = Vec::new();
 

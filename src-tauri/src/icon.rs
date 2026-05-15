@@ -766,7 +766,8 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
                 "",
             );
         }
-        desktop_files_loaded = crate::search::refresh_desktop_files_cache_with_count();
+        desktop_files_loaded =
+            crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
         current_step += 1;
     }
 

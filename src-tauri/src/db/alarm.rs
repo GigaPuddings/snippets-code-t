@@ -1,5 +1,5 @@
-use crate::alarm::AlarmCard;
 use crate::db::DbConnectionManager;
+use crate::plugins::todo::AlarmCard;
 
 // ============= 提醒卡片相关数据库操作 =============
 
@@ -11,9 +11,9 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
         let weekdays_str: String = row.get(3)?;
         let alarm_type_str: Option<String> = row.get(8).ok();
         let alarm_type = match alarm_type_str.as_deref() {
-            Some("Daily") => crate::alarm::AlarmType::Daily,
-            Some("SpecificDate") => crate::alarm::AlarmType::SpecificDate,
-            _ => crate::alarm::AlarmType::Weekly, // 默认为每周
+            Some("Daily") => crate::plugins::todo::AlarmType::Daily,
+            Some("SpecificDate") => crate::plugins::todo::AlarmType::SpecificDate,
+            _ => crate::plugins::todo::AlarmType::Weekly, // 默认为每周
         };
         Ok(AlarmCard {
             id: row.get(0)?,
@@ -51,9 +51,9 @@ pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error>
     let conn = DbConnectionManager::get()?;
     let weekdays_str = serde_json::to_string(&card.weekdays).unwrap_or_default();
     let alarm_type_str = match card.alarm_type {
-        crate::alarm::AlarmType::Daily => "Daily",
-        crate::alarm::AlarmType::Weekly => "Weekly",
-        crate::alarm::AlarmType::SpecificDate => "SpecificDate",
+        crate::plugins::todo::AlarmType::Daily => "Daily",
+        crate::plugins::todo::AlarmType::Weekly => "Weekly",
+        crate::plugins::todo::AlarmType::SpecificDate => "SpecificDate",
     };
 
     conn.execute(

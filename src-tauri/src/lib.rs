@@ -1,11 +1,9 @@
-mod alarm;
 mod app_config;
 mod apps;
 mod attachment;
 mod bookmarks;
 mod commands;
 mod config;
-mod dark_mode;
 mod db;
 mod desktop_watcher;
 pub mod git_common;
@@ -25,11 +23,6 @@ use crate::config::{
     exit_application, get_auto_update_check, get_language, get_ocr_language,
     get_offline_model_activated, get_translation_engine, reset_software, set_auto_update_check,
     set_language, set_ocr_language, set_offline_model_activated, set_translation_engine,
-};
-use crate::dark_mode::{
-    calculate_sun_times, get_current_status as get_dark_mode_status, get_location_by_ip,
-    load_config as load_dark_mode_config, save_config as save_dark_mode_config, start_scheduler,
-    stop_scheduler, toggle_theme, DarkModeConfig, LocationInfo, SunTimes,
 };
 use crate::db::{
     add_app,
@@ -59,17 +52,13 @@ use crate::db::{
     update_app,
     update_bookmark,
 };
+use crate::plugins::system_theme as dark_mode;
 use crate::update::{
     check_update, check_update_manually, get_update_info, get_update_status, perform_update,
 };
 use crate::window::{
-    cleanup_screenshot_resources, clear_screenshot_background, close_and_destroy_screenshot_window,
-    close_setup_window, copy_image_to_clipboard, copy_to_clipboard, create_pin_window,
-    create_setup_window, frontend_log, get_all_windows, get_cached_monitor_info,
-    get_cached_window_list, get_pin_window_data, get_pixel_color, get_scan_progress_state,
-    get_screen_preview, get_screenshot_background, get_screenshot_preview, get_window_info,
-    hotkey_config, insert_text_to_last_window, save_pin_image, save_screenshot_to_file,
-    start_mouse_tracking,
+    close_setup_window, create_setup_window, frontend_log, get_scan_progress_state,
+    get_window_info, hotkey_config, insert_text_to_last_window, start_mouse_tracking,
 };
 use dirs::desktop_dir;
 use serde::Serialize;
@@ -260,80 +249,6 @@ async fn fetch_favicon_with_source(url: String, source: String) -> String {
         Some(icon_data) => icon_data,
         None => "".to_string(),
     }
-}
-
-// ============= Auto Dark Mode 相关命令 =============
-
-// 获取Auto Dark Mode配置
-#[tauri::command]
-async fn get_dark_mode_config(app_handle: AppHandle) -> Result<DarkModeConfig, String> {
-    Ok(load_dark_mode_config(&app_handle))
-}
-
-// 保存Auto Dark Mode配置
-#[tauri::command]
-async fn save_dark_mode_config_command(
-    app_handle: AppHandle,
-    config: DarkModeConfig,
-) -> Result<(), String> {
-    use dark_mode::ThemeMode;
-
-    save_dark_mode_config(&app_handle, &config)?;
-
-    match config.theme_mode {
-        ThemeMode::System => {
-            // 跟随系统，不需要调度器，不改变当前主题
-            stop_scheduler();
-            crate::tray::update_tray_theme_status(&app_handle);
-        }
-        ThemeMode::Light => {
-            // 立即应用浅色主题并停止调度
-            stop_scheduler();
-            let _ = dark_mode::set_windows_dark_mode(false);
-            crate::tray::update_tray_theme_status(&app_handle);
-        }
-        ThemeMode::Dark => {
-            // 立即应用深色主题并停止调度
-            stop_scheduler();
-            let _ = dark_mode::set_windows_dark_mode(true);
-            crate::tray::update_tray_theme_status(&app_handle);
-        }
-        ThemeMode::Schedule => {
-            // 重新启动定时调度：确保切换到 Schedule 或修改时间后立即按新配置执行一次检查
-            stop_scheduler();
-            start_scheduler(app_handle)?;
-        }
-    }
-
-    Ok(())
-}
-
-// 获取地理位置信息
-#[tauri::command]
-async fn get_location_info() -> Result<LocationInfo, String> {
-    get_location_by_ip().await
-}
-
-// 计算日出日落时间
-#[tauri::command]
-async fn calculate_sun_times_command(
-    latitude: f64,
-    longitude: f64,
-    timezone_offset: i32,
-) -> Result<SunTimes, String> {
-    calculate_sun_times(latitude, longitude, timezone_offset)
-}
-
-// 手动切换系统主题
-#[tauri::command]
-async fn toggle_system_theme(app_handle: AppHandle) -> Result<bool, String> {
-    toggle_theme(Some(&app_handle))
-}
-
-// 获取Auto Dark Mode状态
-#[tauri::command]
-async fn get_dark_mode_status_command(app_handle: AppHandle) -> Result<serde_json::Value, String> {
-    get_dark_mode_status(&app_handle)
 }
 
 // ============= Markdown 迁移相关命令 =============
@@ -815,7 +730,7 @@ pub fn run() {
 
                 // 第三步：后台服务（根据插件启用状态启动）
                 if app_config::is_plugin_enabled(&app_handle_init, "todo") {
-                    alarm::start_alarm_service(app_handle_init.clone());
+                    plugins::todo::start_alarm_service(app_handle_init.clone());
                 }
 
                 if is_auto_start {
@@ -837,7 +752,7 @@ pub fn run() {
                     init_app_and_bookmark_icons(&app_handle_init);
                 }
                 if app_config::is_plugin_enabled(&app_handle_init, "desktop-files") {
-                    search::refresh_desktop_files_cache();
+                    plugins::desktop_files::refresh_desktop_files_cache();
                 }
 
                 // 第五步：网络操作（自动更新检查）
@@ -949,32 +864,32 @@ pub fn run() {
             add_search_history,               // 添加搜索历史
             get_search_history,               // 获取搜索历史
             get_window_info,                  // 获取窗口信息
-            copy_to_clipboard,                // 复制图片到剪切板
-            save_screenshot_to_file,          // 保存截图到文件
-            get_pixel_color,                  // 获取像素颜色
-            get_screen_preview,               // 获取屏幕预览
-            get_all_windows,                  // 获取所有窗口信息
-            get_screenshot_background,        // 获取预捕获的屏幕背景
-            get_screenshot_preview,           // 获取截图预览图
-            get_cached_window_list,          // 获取预缓存的窗口列表
-            get_cached_monitor_info,          // 获取预缓存的显示器信息
-            clear_screenshot_background,      // 清理截图背景缓存
-            cleanup_screenshot_resources,     // 深度清理截图资源
-            close_and_destroy_screenshot_window, // 关闭并销毁截图窗口
-            create_pin_window,                // 创建贴图窗口
-            get_pin_window_data,              // 获取贴图窗口缓存数据
+            plugins::screenshot::copy_to_clipboard,                // 复制图片到剪切板
+            plugins::screenshot::save_screenshot_to_file,          // 保存截图到文件
+            plugins::screenshot::get_pixel_color,                  // 获取像素颜色
+            plugins::screenshot::get_screen_preview,               // 获取屏幕预览
+            plugins::screenshot::get_all_windows,                  // 获取所有窗口信息
+            plugins::screenshot::get_screenshot_background,        // 获取预捕获的屏幕背景
+            plugins::screenshot::get_screenshot_preview,           // 获取截图预览图
+            plugins::screenshot::get_cached_window_list,          // 获取预缓存的窗口列表
+            plugins::screenshot::get_cached_monitor_info,          // 获取预缓存的显示器信息
+            plugins::screenshot::clear_screenshot_background,      // 清理截图背景缓存
+            plugins::screenshot::cleanup_screenshot_resources,     // 深度清理截图资源
+            plugins::screenshot::close_and_destroy_screenshot_window, // 关闭并销毁截图窗口
+            plugins::screenshot::create_pin_window,                // 创建贴图窗口
+            plugins::screenshot::get_pin_window_data,              // 获取贴图窗口缓存数据
             ocr::recognize_text_from_image,   // 后端 OCR 识别（不可用时前端回退）
             ocr::append_ocr_diagnostic_log,   // 写入 OCR 诊断日志
-            copy_image_to_clipboard,          // 复制图片到剪贴板
-            save_pin_image,                   // 保存贴图图片
+            plugins::screenshot::copy_image_to_clipboard,          // 复制图片到剪贴板
+            plugins::screenshot::save_pin_image,                   // 保存贴图图片
             frontend_log,                     // 前端日志转发
             close_setup_window,               // 关闭设置向导窗口
-            get_dark_mode_config,             // 获取Auto Dark Mode配置
-            save_dark_mode_config_command,    // 保存Auto Dark Mode配置
-            get_location_info,                // 获取地理位置信息
-            calculate_sun_times_command,      // 计算日出日落时间
-            toggle_system_theme,              // 手动切换系统主题
-            get_dark_mode_status_command,     // 获取Auto Dark Mode状态
+            plugins::system_theme::get_dark_mode_config,             // 获取Auto Dark Mode配置
+            plugins::system_theme::save_dark_mode_config_command,    // 保存Auto Dark Mode配置
+            plugins::system_theme::get_location_info,                // 获取地理位置信息
+            plugins::system_theme::calculate_sun_times_command,      // 计算日出日落时间
+            plugins::system_theme::toggle_system_theme,              // 手动切换系统主题
+            plugins::system_theme::get_dark_mode_status_command,     // 获取Auto Dark Mode状态
             add_app,                          // 添加应用
             update_app,                       // 更新应用
             delete_app,                       // 删除应用

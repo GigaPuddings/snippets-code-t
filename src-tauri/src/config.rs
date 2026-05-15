@@ -270,7 +270,9 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
                 "clear_bookmarks",
                 db::clear_bookmarks(),
             )?;
-            crate::search::clear_desktop_files_cache_for_reset(&normalized_reset_type)?;
+            crate::plugins::desktop_files::clear_desktop_files_cache_for_reset(
+                &normalized_reset_type,
+            )?;
         }
         "apps" => {
             log_reset_db_result(&normalized_reset_type, "clear_apps", db::clear_apps())?;
@@ -283,7 +285,9 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
             )?;
         }
         "desktopFiles" => {
-            crate::search::clear_desktop_files_cache_for_reset(&normalized_reset_type)?;
+            crate::plugins::desktop_files::clear_desktop_files_cache_for_reset(
+                &normalized_reset_type,
+            )?;
         }
         _ => {
             log_reset_step(

@@ -1,6 +1,6 @@
 use crate::app_config;
 use crate::config::get_language_internal;
-use crate::dark_mode::{
+use crate::plugins::system_theme::{
     get_windows_dark_mode, load_config, save_config, set_windows_dark_mode, start_scheduler,
     stop_scheduler, ScheduleType, ThemeMode,
 };

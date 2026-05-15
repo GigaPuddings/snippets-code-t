@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
-use crate::search::refresh_desktop_files_cache;
+use crate::plugins::desktop_files::refresh_desktop_files_cache;
 
 pub struct DesktopFileWatcher {
     _watcher: RecommendedWatcher,

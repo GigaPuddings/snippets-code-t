@@ -911,3 +911,65 @@ pub fn get_current_status(app_handle: &AppHandle) -> Result<serde_json::Value, S
         "sunCalcDebug": sun_calc_debug
     }))
 }
+
+#[tauri::command]
+pub async fn get_dark_mode_config(app_handle: AppHandle) -> Result<DarkModeConfig, String> {
+    Ok(load_config(&app_handle))
+}
+
+#[tauri::command]
+pub async fn save_dark_mode_config_command(
+    app_handle: AppHandle,
+    config: DarkModeConfig,
+) -> Result<(), String> {
+    save_config(&app_handle, &config)?;
+
+    match config.theme_mode {
+        ThemeMode::System => {
+            stop_scheduler();
+            crate::tray::update_tray_theme_status(&app_handle);
+        }
+        ThemeMode::Light => {
+            stop_scheduler();
+            let _ = set_windows_dark_mode(false);
+            crate::tray::update_tray_theme_status(&app_handle);
+        }
+        ThemeMode::Dark => {
+            stop_scheduler();
+            let _ = set_windows_dark_mode(true);
+            crate::tray::update_tray_theme_status(&app_handle);
+        }
+        ThemeMode::Schedule => {
+            stop_scheduler();
+            start_scheduler(app_handle)?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_location_info() -> Result<LocationInfo, String> {
+    get_location_by_ip().await
+}
+
+#[tauri::command]
+pub async fn calculate_sun_times_command(
+    latitude: f64,
+    longitude: f64,
+    timezone_offset: i32,
+) -> Result<SunTimes, String> {
+    calculate_sun_times(latitude, longitude, timezone_offset)
+}
+
+#[tauri::command]
+pub async fn toggle_system_theme(app_handle: AppHandle) -> Result<bool, String> {
+    toggle_theme(Some(&app_handle))
+}
+
+#[tauri::command]
+pub async fn get_dark_mode_status_command(
+    app_handle: AppHandle,
+) -> Result<serde_json::Value, String> {
+    get_current_status(&app_handle)
+}
