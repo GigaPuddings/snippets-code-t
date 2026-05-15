@@ -1,0 +1,1 @@
+export { attachmentsPlugin } from './manifest';

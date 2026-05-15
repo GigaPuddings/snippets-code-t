@@ -1,0 +1,1 @@
+export { desktopFilesPlugin } from './manifest';

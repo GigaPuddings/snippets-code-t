@@ -7,7 +7,7 @@
     
     <!-- 可滚动内容 -->
     <main class="panel-content">
-    <section v-if="isPluginEnabled('translation')" class="summarize-section transparent-input">
+    <section v-if="isHotkeyVisible('search')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.searchHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.searchHotkeyDesc') }}</div>
@@ -47,7 +47,7 @@
       </div>
     </section>
 
-    <section v-if="isPluginEnabled('translation')" class="summarize-section transparent-input">
+    <section v-if="isHotkeyVisible('config')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.configHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.configHotkeyDesc') }}</div>
@@ -87,7 +87,7 @@
       </div>
     </section>
 
-    <section v-if="isPluginEnabled('screenshot')" class="summarize-section transparent-input">
+    <section v-if="isHotkeyVisible('translate')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.translateHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.translateHotkeyDesc') }}</div>
@@ -129,7 +129,7 @@
       </div>
     </section>
 
-    <section v-if="isPluginEnabled('system-theme')" class="summarize-section transparent-input">
+    <section v-if="isHotkeyVisible('selection_translate')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.selectionTranslateHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.selectionTranslateHotkeyDesc') }}</div>
@@ -181,7 +181,7 @@
       </div>
     </section>
 
-    <section class="summarize-section transparent-input">
+    <section v-if="isHotkeyVisible('screenshot')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.screenshotHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.screenshotHotkeyDesc') }}</div>
@@ -233,7 +233,7 @@
       </div>
     </section>
 
-    <section class="summarize-section transparent-input">
+    <section v-if="isHotkeyVisible('dark_mode')" class="summarize-section transparent-input">
       <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('shortcut.darkModeHotkey') }}</div>
         <div class="summarize-label-desc">{{ $t('shortcut.darkModeHotkeyDesc') }}</div>
@@ -293,6 +293,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { osType } from '@/utils/env';
+import { getPluginByHotkey } from '@/plugins/registry';
 import { useConfigurationStore, usePluginStore } from '@/store';
 import { CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
@@ -306,7 +307,15 @@ defineOptions({
 });
 
 const labelText = computed(() => t('shortcut.pressToSet').split(''));
-const isPluginEnabled = (pluginId: string) => pluginStore.isEnabled(pluginId);
+
+const isHotkeyVisible = (hotkeyName: string) => {
+  const plugin = getPluginByHotkey(hotkeyName);
+  return !plugin || pluginStore.isEnabled(plugin.id);
+};
+
+onMounted(() => {
+  void pluginStore.initialize();
+});
 
 // 快捷键映射
 const keyMap: any = {

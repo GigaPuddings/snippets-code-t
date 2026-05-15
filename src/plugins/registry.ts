@@ -1,90 +1,24 @@
 import type { BuiltinPlugin, PluginId, PluginStateMap } from './types';
+import { attachmentsPlugin } from './attachments/manifest';
+import { desktopFilesPlugin } from './desktop-files/manifest';
+import { gitSyncPlugin } from './git-sync/manifest';
+import { localLauncherPlugin } from './local-launcher/manifest';
+import { screenshotPlugin } from './screenshot/manifest';
+import { searchEnginesPlugin } from './search-engines/manifest';
+import { systemThemePlugin } from './system-theme/manifest';
+import { todoPlugin } from './todo/manifest';
+import { translationPlugin } from './translation/manifest';
 
 export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
-  {
-    id: 'translation',
-    nameKey: 'plugins.translation.name',
-    descriptionKey: 'plugins.translation.description',
-    category: 'automation',
-    enabledByDefault: true,
-    routeNames: ['Translate'],
-    settingsTabs: ['translation'],
-    hotkeys: ['translate', 'selection_translate'],
-    searchSources: [],
-    resourceHintKey: 'plugins.translation.resourceHint'
-  },
-  {
-    id: 'screenshot',
-    nameKey: 'plugins.screenshot.name',
-    descriptionKey: 'plugins.screenshot.description',
-    category: 'capture',
-    enabledByDefault: true,
-    routeNames: ['Screenshot', 'Pin'],
-    hotkeys: ['screenshot'],
-    resourceHintKey: 'plugins.screenshot.resourceHint'
-  },
-  {
-    id: 'todo',
-    nameKey: 'plugins.todo.name',
-    descriptionKey: 'plugins.todo.description',
-    category: 'automation',
-    enabledByDefault: true,
-    routeNames: ['Todo'],
-    settingsTabs: ['todo']
-  },
-  {
-    id: 'system-theme',
-    nameKey: 'plugins.systemTheme.name',
-    descriptionKey: 'plugins.systemTheme.description',
-    category: 'appearance',
-    enabledByDefault: true,
-    routeNames: ['DarkMode'],
-    hotkeys: ['dark_mode']
-  },
-  {
-    id: 'local-launcher',
-    nameKey: 'plugins.localLauncher.name',
-    descriptionKey: 'plugins.localLauncher.description',
-    category: 'search',
-    enabledByDefault: true,
-    routeNames: ['Local'],
-    settingsTabs: ['local'],
-    searchSources: ['apps', 'bookmarks']
-  },
-  {
-    id: 'desktop-files',
-    nameKey: 'plugins.desktopFiles.name',
-    descriptionKey: 'plugins.desktopFiles.description',
-    category: 'search',
-    enabledByDefault: true,
-    searchSources: ['desktop-files']
-  },
-  {
-    id: 'search-engines',
-    nameKey: 'plugins.searchEngines.name',
-    descriptionKey: 'plugins.searchEngines.description',
-    category: 'search',
-    enabledByDefault: true,
-    routeNames: ['Retrieve'],
-    settingsTabs: ['retrieve'],
-    searchSources: ['web-search']
-  },
-  {
-    id: 'git-sync',
-    nameKey: 'plugins.gitSync.name',
-    descriptionKey: 'plugins.gitSync.description',
-    category: 'sync',
-    enabledByDefault: true,
-    settingsTabs: ['gitSync']
-  },
-  {
-    id: 'attachments',
-    nameKey: 'plugins.attachments.name',
-    descriptionKey: 'plugins.attachments.description',
-    category: 'editor',
-    enabledByDefault: true,
-    settingsTabs: ['attachment']
-  }
+  translationPlugin,
+  screenshotPlugin,
+  todoPlugin,
+  systemThemePlugin,
+  localLauncherPlugin,
+  desktopFilesPlugin,
+  searchEnginesPlugin,
+  gitSyncPlugin,
+  attachmentsPlugin
 ];
 
 export const PLUGIN_IDS = BUILTIN_PLUGINS.map((plugin) => plugin.id);

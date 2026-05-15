@@ -1,6 +1,6 @@
 # Plugin System Refactor
 
-This document describes the first-stage built-in plugin architecture.
+This document describes the built-in plugin architecture refactor.
 
 ## Goals
 
@@ -29,12 +29,39 @@ The first stage does not move feature files yet. Instead, it introduces a regist
 
 - Registry: `src/plugins/registry.ts`
 - Types: `src/plugins/types.ts`
+- Routes: `src/plugins/routes.ts`
 - Store: `src/store/plugins.ts`
 - Settings UI: `src/components/SettingsContent/components/Plugins/index.vue`
 
 The router checks `route.meta.pluginId` and redirects disabled plugin routes to the plugin settings page.
 
 Search sources are gated in `src/hooks/useSearch.ts`.
+
+Each built-in plugin now owns a colocated manifest, and plugins with pages also own their route records:
+
+```text
+src/plugins/<plugin-id>/
+  manifest.ts
+  routes.ts
+  index.ts
+```
+
+The central registry is now a thin aggregation layer. This keeps plugin metadata, routes, hotkeys, settings tabs, and search sources under the same feature boundary before moving heavier view and command code.
+
+## Hotkeys
+
+Core app hotkeys remain outside plugins:
+
+- `search`
+- `config`
+
+Optional hotkeys are declared by plugin manifests:
+
+- `translation`: `translate`, `selection_translate`
+- `screenshot`: `screenshot`
+- `system-theme`: `dark_mode`
+
+The shortcut settings page uses the registry to decide whether a hotkey should be visible. The Rust hotkey registration path performs the same plugin-state check before registering optional hotkeys.
 
 ## Backend
 
@@ -49,7 +76,8 @@ Startup now checks plugin states before starting optional services such as remin
 
 ## Next Steps
 
-1. Move each built-in plugin into its own frontend folder under `src/plugins/<plugin-id>`.
-2. Split Rust commands by plugin under `src-tauri/src/plugins/<plugin-id>`.
+1. Move feature view/composable files into their owning `src/plugins/<plugin-id>` folders.
+2. Split Rust commands and services by plugin under `src-tauri/src/plugins/<plugin-id>`.
 3. Replace bundled RapidOCR with an on-demand plugin resource installer.
-4. Add a permission manifest before supporting third-party plugins.
+4. Add plugin lifecycle hooks: install, enable, disable, uninstall, migrate.
+5. Add a permission manifest before supporting third-party plugins.
