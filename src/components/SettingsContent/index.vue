@@ -34,7 +34,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import { Data, EnterTheKeyboard, SettingTwo, Translate, FolderOpen, Github } from '@icon-park/vue-next';
+import { Data, EnterTheKeyboard, SettingTwo } from '@icon-park/vue-next';
 import { invoke } from '@tauri-apps/api/core';
 import General from './components/General/index.vue';
 import Shortcut from './components/Shortcut/index.vue';
@@ -43,7 +43,7 @@ import Plugins from './components/Plugins/index.vue';
 import { getGitStatus } from '@/api/git';
 import { getGitSettings } from '@/api/appConfig';
 import { getPluginBySettingsTab } from '@/plugins/registry';
-import { pluginSettingsComponents } from '@/plugins/settings';
+import { pluginSettingsComponents, pluginSettingsMenuItems } from '@/plugins/settings';
 import { usePluginStore } from '@/store';
 
 defineOptions({
@@ -58,13 +58,11 @@ const pluginStore = usePluginStore();
 const canShowGitSyncTab = ref(false);
 
 const allMenuItems = [
-  { id: 'general', label: () => t('settings.general'), icon: SettingTwo },
-  { id: 'plugins', label: () => t('plugins.title'), icon: Data },
-  { id: 'shortcut', label: () => t('shortcut.title'), icon: EnterTheKeyboard },
-  { id: 'data', label: () => t('dataManager.title'), icon: Data },
-  { id: 'attachment', label: () => t('settings.attachment.menu'), icon: FolderOpen },
-  { id: 'gitSync', label: () => t('settings.gitSync.menu'), icon: Github },
-  { id: 'translation', label: () => t('translation.title'), icon: Translate }
+  { id: 'general', labelKey: 'settings.general', icon: SettingTwo },
+  { id: 'plugins', labelKey: 'plugins.title', icon: Data },
+  { id: 'shortcut', labelKey: 'shortcut.title', icon: EnterTheKeyboard },
+  { id: 'data', labelKey: 'dataManager.title', icon: Data },
+  ...pluginSettingsMenuItems
 ];
 
 const menuItems = computed(() => {
@@ -77,7 +75,7 @@ const menuItems = computed(() => {
       const plugin = getPluginBySettingsTab(item.id);
       return !plugin || pluginStore.isEnabled(plugin.id);
     })
-    .map((item) => ({ id: item.id, label: item.label(), icon: item.icon }));
+    .map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon }));
 });
 
 const activeTab = ref('general');
