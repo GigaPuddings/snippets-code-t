@@ -17,7 +17,6 @@ mod markdown;
 mod ocr;
 mod plugins;
 mod search;
-mod translation;
 mod tray;
 mod update;
 mod window;

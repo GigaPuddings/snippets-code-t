@@ -89,10 +89,12 @@ Optional Tauri command entry points must also check plugin state. The first guar
 
 Rust command registration now goes through plugin adapter modules under `src-tauri/src/plugins/*`. The adapters preserve existing frontend `invoke` command names while delegating to the current implementation modules. This gives each built-in plugin an explicit backend command boundary before moving the implementation code itself.
 
+The first implementation moves are also in place: `translation`, `search-engines`, and shared URL opening now live under the Rust plugin modules instead of the older broad implementation modules.
+
 ## Next Steps
 
 1. Move feature view/composable files into their owning `src/plugins/<plugin-id>` folders.
-2. Move Rust service implementation code behind the plugin adapters.
+2. Continue moving Rust service implementation code behind the plugin adapters.
 3. Replace bundled RapidOCR with an on-demand plugin resource installer.
 4. Add plugin lifecycle hooks: install, enable, disable, uninstall, migrate.
 5. Add a permission manifest before supporting third-party plugins.

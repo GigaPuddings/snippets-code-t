@@ -1,6 +1,5 @@
 use crate::db;
 use crate::json_config;
-// use crate::search::{SearchEngine, DEFAULT_ENGINES};
 use log::{info, LevelFilter};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
 // use mouse_position::mouse_position::{Mouse, Position};

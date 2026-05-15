@@ -20,16 +20,6 @@ use walkdir::WalkDir;
 use zip::ZipArchive;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SearchEngine {
-    pub id: String,
-    pub keyword: String,
-    pub name: String,
-    pub icon: String,
-    pub url: String,
-    pub enabled: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SearchResult {
     pub id: String,
     pub title: String,
@@ -162,9 +152,6 @@ pub fn invalidate_bookmarks_cache() {
         info!("书签搜索缓存已清除");
     }
 }
-
-// 默认搜索引擎配置
-pub const DEFAULT_ENGINES: &str = include_str!("../assets/default_engines.json");
 
 // 转换文本为拼音（全拼和首字母）
 pub fn text_to_pinyin(text: &str) -> (String, String) {
@@ -949,44 +936,4 @@ pub fn preview_desktop_file(
         truncated: false,
         message: Some("该文件类型暂不支持快速预览".to_string()),
     })
-}
-
-// 获取搜索引擎配置
-pub fn get_search_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
-    crate::app_config::require_plugin_enabled(&app_handle, "search-engines")?;
-
-    match db::get_all_search_engines() {
-        Ok(engines) => {
-            if engines.is_empty() {
-                // 如果没有保存的搜索引擎配置，使用默认配置,并且第一条数据设置为默认搜索引擎
-                let mut default_engines: Vec<SearchEngine> =
-                    serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())?;
-                if !default_engines.is_empty() {
-                    default_engines[0].enabled = true;
-                }
-                db::replace_all_search_engines(&default_engines).map_err(|e| e.to_string())?;
-                Ok(default_engines)
-            } else {
-                Ok(engines)
-            }
-        }
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-// 更新搜索引擎配置
-pub fn update_search_engines(
-    app_handle: AppHandle,
-    engines: Vec<SearchEngine>,
-) -> Result<(), String> {
-    crate::app_config::require_plugin_enabled(&app_handle, "search-engines")?;
-
-    info!("更新搜索引擎配置");
-    db::replace_all_search_engines(&engines).map_err(|e| e.to_string())
-}
-
-// 获取默认搜索引擎配置
-pub fn get_default_engines(app_handle: AppHandle) -> Result<Vec<SearchEngine>, String> {
-    crate::app_config::require_plugin_enabled(&app_handle, "search-engines")?;
-    serde_json::from_str(DEFAULT_ENGINES).map_err(|e| e.to_string())
 }

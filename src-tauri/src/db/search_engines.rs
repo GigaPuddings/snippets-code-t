@@ -1,5 +1,5 @@
 use crate::db::DbConnectionManager;
-use crate::search::SearchEngine;
+use crate::plugins::search_engines::SearchEngine;
 
 // ============= 搜索引擎相关数据库操作 =============
 
