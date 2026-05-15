@@ -210,11 +210,7 @@ import {
   SquareSmall,
   CloseSmall,
   UpdateRotation,
-  BookOpen,
   SettingTwo,
-  MessageSearch,
-  Notepad,
-  Application,
   Me,
   Branch,
   Loading,
@@ -231,7 +227,7 @@ import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
 import { useGitStatus, setupGitStatusListener, initWorkspaceChangeListener, cleanupGitStatusListener } from '@/plugins/git-sync/useGitStatus';
 import { useLayoutStore, usePluginStore } from '@/store';
-import type { PluginId } from '@/plugins/types';
+import { configNavigationTabs } from '@/plugins/navigation';
 
 const { t } = useI18n();
 const layoutStore = useLayoutStore();
@@ -296,40 +292,8 @@ const hasUpdate = ref(false);
 // 当前激活的tab索引
 const activeTabIndex = ref(0);
 
-interface TabItem {
-  icon: any;
-  path: string;
-  pluginId?: PluginId;
-}
-
-const tabs: TabItem[] = [
-  // 片段
-  {
-    icon: BookOpen,
-    path: '/config/category/contentList'
-  },
-  // 本地应用、浏览器书签
-  {
-    icon: Application,
-    path: '/config/local',
-    pluginId: 'local-launcher'
-  },
-  // 引擎搜索
-  {
-    icon: MessageSearch,
-    path: '/config/retrieve',
-    pluginId: 'search-engines'
-  },
-  // 待办
-  {
-    icon: Notepad,
-    path: '/config/todo',
-    pluginId: 'todo'
-  }
-];
-
 const visibleTabs = computed(() => (
-  tabs.filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
+  configNavigationTabs.filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
 ));
 
 // 根据当前路由设置激活的tab
