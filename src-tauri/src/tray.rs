@@ -38,6 +38,51 @@ struct TrayTranslations {
     quit: &'static str,
 }
 
+struct TrayPluginMenuSpec {
+    id: &'static str,
+    plugin_id: &'static str,
+    label: fn(&TrayTranslations) -> &'static str,
+    handler: fn(&AppHandle),
+    log_message: &'static str,
+}
+
+const TRAY_PLUGIN_MENU_SPECS: &[TrayPluginMenuSpec] = &[
+    TrayPluginMenuSpec {
+        id: "translate",
+        plugin_id: "translation",
+        label: |trans| trans.translate,
+        handler: |_| hotkey_translate(),
+        log_message: "[托盘菜单] 执行：输入翻译",
+    },
+    TrayPluginMenuSpec {
+        id: "screenshot",
+        plugin_id: "screenshot",
+        label: |trans| trans.screenshot,
+        handler: |_| hotkey_screenshot(),
+        log_message: "[托盘菜单] 执行：快速截图",
+    },
+];
+
+fn tray_plugin_menu_spec(menu_id: &str) -> Option<&'static TrayPluginMenuSpec> {
+    TRAY_PLUGIN_MENU_SPECS
+        .iter()
+        .find(|spec| spec.id == menu_id)
+}
+
+fn handle_plugin_tray_menu_click(app: &AppHandle, menu_id: &str) -> bool {
+    let Some(spec) = tray_plugin_menu_spec(menu_id) else {
+        return false;
+    };
+
+    if !app_config::is_plugin_enabled(app, spec.plugin_id) {
+        return true;
+    }
+
+    debug!("{}", spec.log_message);
+    (spec.handler)(app);
+    true
+}
+
 // 获取当前语言的翻译
 fn get_translations(lang: &str) -> TrayTranslations {
     match lang {
@@ -166,34 +211,15 @@ fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<ta
 
 fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry>> {
     let trans = get_translations(lang);
-    let translation_enabled = app_config::is_plugin_enabled(app, "translation");
-    let screenshot_enabled = app_config::is_plugin_enabled(app, "screenshot");
     let system_theme_enabled = app_config::is_plugin_enabled(app, "system-theme");
 
     let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
-    let translate_i = if translation_enabled {
-        Some(MenuItem::with_id(
-            app,
-            "translate",
-            trans.translate,
-            true,
-            None::<&str>,
-        )?)
-    } else {
-        None
-    };
-    let screenshot_i = if screenshot_enabled {
-        Some(MenuItem::with_id(
-            app,
-            "screenshot",
-            trans.screenshot,
-            true,
-            None::<&str>,
-        )?)
-    } else {
-        None
-    };
+    let plugin_items = TRAY_PLUGIN_MENU_SPECS
+        .iter()
+        .filter(|spec| app_config::is_plugin_enabled(app, spec.plugin_id))
+        .map(|spec| MenuItem::with_id(app, spec.id, (spec.label)(&trans), true, None::<&str>))
+        .collect::<tauri::Result<Vec<_>>>()?;
     let theme_submenu = if system_theme_enabled {
         Some(create_theme_submenu(app, lang)?)
     } else {
@@ -206,10 +232,7 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
 
     let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&search_i, &config_i];
-    if let Some(item) = &translate_i {
-        items.push(item);
-    }
-    if let Some(item) = &screenshot_i {
+    for item in &plugin_items {
         items.push(item);
     }
     if let Some(item) = &theme_submenu {
@@ -329,20 +352,6 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     debug!("[托盘菜单] 执行：打开配置窗口");
                     open_config_settings();
                 }
-                "translate" => {
-                    if !app_config::is_plugin_enabled(app, "translation") {
-                        return;
-                    }
-                    debug!("[托盘菜单] 执行：输入翻译");
-                    hotkey_translate();
-                }
-                "screenshot" => {
-                    if !app_config::is_plugin_enabled(app, "screenshot") {
-                        return;
-                    }
-                    debug!("[托盘菜单] 执行：快速截图");
-                    hotkey_screenshot();
-                }
                 "check_update" => {
                     debug!("[托盘菜单] 执行：检查更新");
                     let app_handle = app.clone();
@@ -365,6 +374,10 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     app.exit(0);
                 }
                 _ => {}
+            }
+
+            if handle_plugin_tray_menu_click(app, menu_id) {
+                return;
             }
         })
         .on_tray_icon_event(move |_tray, event| {
