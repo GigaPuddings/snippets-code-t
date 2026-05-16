@@ -1,15 +1,23 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { PluginStateMap, PluginId } from '@/plugins/types';
-import type { PluginPackageManifest } from '@/plugins/protocol';
+import type { LocalPluginPackage } from '@/plugins/protocol';
 
 export async function getPluginStates(): Promise<Partial<PluginStateMap>> {
   return await invoke<Partial<PluginStateMap>>('get_plugin_states');
 }
 
-export async function getInstalledPluginManifests(): Promise<PluginPackageManifest[]> {
-  return await invoke<PluginPackageManifest[]>('get_installed_plugin_manifests');
+export async function getInstalledPluginManifests(): Promise<LocalPluginPackage[]> {
+  return await invoke<LocalPluginPackage[]>('get_installed_plugin_manifests');
 }
 
-export async function setPluginEnabled(pluginId: PluginId, enabled: boolean): Promise<void> {
+export async function installLocalPluginPackage(sourcePath: string, overwrite = false): Promise<LocalPluginPackage> {
+  return await invoke<LocalPluginPackage>('install_local_plugin_package', { sourcePath, overwrite });
+}
+
+export async function uninstallLocalPluginPackage(pluginId: PluginId | string): Promise<void> {
+  await invoke('uninstall_local_plugin_package', { pluginId });
+}
+
+export async function setPluginEnabled(pluginId: PluginId | string, enabled: boolean): Promise<void> {
   await invoke('set_plugin_enabled', { pluginId, enabled });
 }

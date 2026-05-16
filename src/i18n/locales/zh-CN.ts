@@ -299,9 +299,22 @@ export default {
     title: '插件管理',
     builtinTitle: '官方内置插件',
     builtinDesc: '这些功能仍随应用发布，但现在通过插件注册表接入。关闭后会隐藏入口、搜索源、快捷键和相关后台服务。',
+    installLocal: '安装本地插件',
+    selectPluginDirectory: '选择包含 plugin.json 的插件目录',
+    installSuccess: '本地插件已安装',
+    installFailed: '本地插件安装失败',
+    uninstallSuccess: '本地插件已卸载',
+    uninstallFailed: '本地插件卸载失败',
+    refresh: '刷新',
+    refreshed: '插件列表已刷新',
+    refreshFailed: '插件列表刷新失败',
     enabled: '插件已开启',
     disabled: '插件已关闭',
     saveFailed: '插件状态保存失败',
+    sources: {
+      builtin: '内置',
+      local: '本地'
+    },
     categories: {
       capture: '截图',
       automation: '自动化',

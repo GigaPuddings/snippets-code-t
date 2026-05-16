@@ -342,6 +342,10 @@ impl AppConfigManager {
             .or_insert(PluginRuntimeState { enabled });
     }
 
+    pub fn remove_plugin_state(&mut self, plugin_id: &str) {
+        self.config.plugins.remove(plugin_id);
+    }
+
     /// 通用方法：获取配置值（用于兼容旧代码）
     pub fn get_value<T>(&self, key: &str) -> Option<T>
     where
@@ -378,6 +382,14 @@ impl AppConfigManager {
 
 use std::sync::{Arc, RwLock};
 use tauri::{command, AppHandle, Emitter, Manager};
+use walkdir::WalkDir;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalPluginPackage {
+    manifest: serde_json::Value,
+    package_path: String,
+}
 
 pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
@@ -642,15 +654,88 @@ pub fn get_plugin_states(app_handle: AppHandle) -> Result<HashMap<String, bool>,
     Ok(manager.get_plugin_states())
 }
 
-#[command]
-pub fn get_installed_plugin_manifests(
-    app_handle: AppHandle,
-) -> Result<Vec<serde_json::Value>, String> {
-    let plugins_dir = app_handle
+fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_handle
         .path()
         .app_data_dir()
         .map_err(|e| format!("获取应用数据目录失败: {}", e))?
-        .join("plugins");
+        .join("plugins"))
+}
+
+fn validate_plugin_package_id(plugin_id: &str) -> Result<(), String> {
+    if plugin_id.is_empty() || plugin_id == "." || plugin_id == ".." || plugin_id.len() > 96 {
+        return Err("插件 ID 无效".to_string());
+    }
+
+    if plugin_id
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+    {
+        Ok(())
+    } else {
+        Err("插件 ID 只能包含字母、数字、点、短横线和下划线".to_string())
+    }
+}
+
+fn read_plugin_package_manifest(manifest_path: &Path) -> Result<serde_json::Value, String> {
+    fs::read_to_string(manifest_path)
+        .map_err(|e| format!("读取插件清单失败: {} ({})", manifest_path.display(), e))
+        .and_then(|content| {
+            serde_json::from_str::<serde_json::Value>(&content)
+                .map_err(|e| format!("解析插件清单失败: {} ({})", manifest_path.display(), e))
+        })
+}
+
+fn plugin_package_record(
+    manifest: serde_json::Value,
+    package_path: &Path,
+) -> Result<LocalPluginPackage, String> {
+    Ok(LocalPluginPackage {
+        manifest,
+        package_path: package_path
+            .canonicalize()
+            .unwrap_or_else(|_| package_path.to_path_buf())
+            .to_string_lossy()
+            .to_string(),
+    })
+}
+
+fn copy_plugin_package_dir(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
+    for entry in WalkDir::new(source_dir).follow_links(false) {
+        let entry = entry.map_err(|e| format!("读取插件包文件失败: {}", e))?;
+        let source_path = entry.path();
+        let relative_path = source_path
+            .strip_prefix(source_dir)
+            .map_err(|e| format!("计算插件包路径失败: {}", e))?;
+        let target_path = target_dir.join(relative_path);
+
+        if entry.file_type().is_dir() {
+            fs::create_dir_all(&target_path)
+                .map_err(|e| format!("创建插件目录失败: {} ({})", target_path.display(), e))?;
+        } else if entry.file_type().is_file() {
+            if let Some(parent) = target_path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("创建插件目录失败: {} ({})", parent.display(), e))?;
+            }
+            fs::copy(source_path, &target_path).map_err(|e| {
+                format!(
+                    "复制插件文件失败: {} -> {} ({})",
+                    source_path.display(),
+                    target_path.display(),
+                    e
+                )
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+pub fn get_installed_plugin_manifests(
+    app_handle: AppHandle,
+) -> Result<Vec<LocalPluginPackage>, String> {
+    let plugins_dir = plugin_packages_dir(&app_handle)?;
 
     if !plugins_dir.exists() {
         return Ok(Vec::new());
@@ -661,23 +746,103 @@ pub fn get_installed_plugin_manifests(
 
     let mut manifests = Vec::new();
     for entry in entries.flatten() {
-        let manifest_path = entry.path().join("plugin.json");
+        let package_path = entry.path();
+        let manifest_path = package_path.join("plugin.json");
         if !manifest_path.is_file() {
             continue;
         }
 
-        match fs::read_to_string(&manifest_path)
-            .map_err(|e| format!("读取插件清单失败: {} ({})", manifest_path.display(), e))
-            .and_then(|content| {
-                serde_json::from_str::<serde_json::Value>(&content)
-                    .map_err(|e| format!("解析插件清单失败: {} ({})", manifest_path.display(), e))
-            }) {
-            Ok(manifest) => manifests.push(manifest),
+        match read_plugin_package_manifest(&manifest_path)
+            .and_then(|manifest| plugin_package_record(manifest, &package_path))
+        {
+            Ok(plugin_package) => manifests.push(plugin_package),
             Err(error) => warn!("[Plugin] {}", error),
         }
     }
 
     Ok(manifests)
+}
+
+#[command]
+pub fn install_local_plugin_package(
+    app_handle: AppHandle,
+    source_path: String,
+    overwrite: bool,
+) -> Result<LocalPluginPackage, String> {
+    let source_dir = PathBuf::from(source_path);
+    if !source_dir.is_dir() {
+        return Err("请选择包含 plugin.json 的插件目录".to_string());
+    }
+
+    let source_dir = source_dir
+        .canonicalize()
+        .map_err(|e| format!("解析插件目录失败: {}", e))?;
+    let manifest_path = source_dir.join("plugin.json");
+    if !manifest_path.is_file() {
+        return Err("插件目录缺少 plugin.json".to_string());
+    }
+
+    let manifest = read_plugin_package_manifest(&manifest_path)?;
+    let plugin_id = manifest
+        .get("id")
+        .and_then(|value| value.as_str())
+        .ok_or("插件清单缺少 id".to_string())?;
+    validate_plugin_package_id(plugin_id)?;
+
+    let plugins_dir = plugin_packages_dir(&app_handle)?;
+    fs::create_dir_all(&plugins_dir)
+        .map_err(|e| format!("创建插件目录失败: {} ({})", plugins_dir.display(), e))?;
+
+    let target_dir = plugins_dir.join(plugin_id);
+    if target_dir.exists() {
+        if !overwrite {
+            return Err(format!("插件 '{}' 已安装", plugin_id));
+        }
+        fs::remove_dir_all(&target_dir)
+            .map_err(|e| format!("移除旧插件目录失败: {} ({})", target_dir.display(), e))?;
+    }
+
+    fs::create_dir_all(&target_dir)
+        .map_err(|e| format!("创建插件目录失败: {} ({})", target_dir.display(), e))?;
+    if let Err(error) = copy_plugin_package_dir(&source_dir, &target_dir) {
+        let _ = fs::remove_dir_all(&target_dir);
+        return Err(error);
+    }
+
+    info!("✅ [Plugin] installed local package {}", plugin_id);
+    plugin_package_record(manifest, &target_dir)
+}
+
+#[command]
+pub fn uninstall_local_plugin_package(
+    app_handle: AppHandle,
+    plugin_id: String,
+) -> Result<(), String> {
+    validate_plugin_package_id(&plugin_id)?;
+
+    let plugins_dir = plugin_packages_dir(&app_handle)?;
+    let target_dir = plugins_dir.join(&plugin_id);
+    if !target_dir.exists() {
+        return Err(format!("本地插件 '{}' 未安装", plugin_id));
+    }
+
+    fs::remove_dir_all(&target_dir)
+        .map_err(|e| format!("删除插件目录失败: {} ({})", target_dir.display(), e))?;
+
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let mut manager = config_state
+            .write()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        manager.remove_plugin_state(&plugin_id);
+        manager.save()?;
+    } else if let Ok(Some(workspace_root)) = crate::json_config::get_workspace_root(&app_handle) {
+        let mut manager = AppConfigManager::new(&workspace_root)?;
+        manager.remove_plugin_state(&plugin_id);
+        manager.save()?;
+    }
+
+    info!("✅ [Plugin] uninstalled local package {}", plugin_id);
+    Ok(())
 }
 
 #[command]

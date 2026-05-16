@@ -109,7 +109,9 @@ plugin-id/
   assets/
 ```
 
-The first loader implementation validates manifest shape and deduplicates plugins by id. It intentionally does not execute local plugin code yet. The next backend step is to scan an application-data plugin directory, read `plugin.json`, and pass those manifests into the frontend registry loader.
+The first loader implementation validates manifest shape and deduplicates plugins by id. The backend now scans the application-data `plugins` directory, reads each `plugin.json`, and passes `{ manifest, packagePath }` records into the frontend registry loader.
+
+Local package installation currently accepts an unpacked directory that contains `plugin.json`. The installer copies it into the application-data plugin directory under its manifest `id`; uninstall removes that directory and clears the saved enabled state. It intentionally does not execute local plugin code yet.
 
 ## Hotkeys
 
@@ -133,6 +135,9 @@ Plugin states are stored in `.snippets-code/app.json` under `plugins`.
 Commands:
 
 - `get_plugin_states`
+- `get_installed_plugin_manifests`
+- `install_local_plugin_package`
+- `uninstall_local_plugin_package`
 - `set_plugin_enabled`
 
 Startup now checks plugin states before starting optional services such as reminders, Auto Dark Mode scheduling, desktop file watching, and desktop file cache refresh.
@@ -156,8 +161,8 @@ The first implementation moves are also in place: `translation`, `search-engines
 
 ## Next Steps
 
-1. Add backend commands to scan the local plugin directory and return validated `plugin.json` manifests.
-2. Wire frontend plugin store initialization to merge backend-provided local manifests into the registry.
-3. Add plugin lifecycle hooks: install, enable, disable, uninstall, migrate.
+1. Add dynamic frontend entry loading for local plugin packages.
+2. Add backend plugin runtime entry points or sandboxed WASM/native host boundaries.
+3. Add plugin lifecycle hooks: enable, disable, migrate, before-uninstall cleanup.
 4. Replace bundled RapidOCR/offline translation resources with on-demand plugin resources.
 5. Enforce plugin permissions before executing third-party frontend or backend entries.

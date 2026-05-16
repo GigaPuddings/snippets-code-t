@@ -46,6 +46,11 @@ export interface PluginPackageManifest {
   compatibleAppVersion?: string;
 }
 
+export interface LocalPluginPackage {
+  manifest: PluginPackageManifest;
+  packagePath: string;
+}
+
 export interface RegisteredPlugin {
   id: PluginId;
   source: PluginSourceKind;

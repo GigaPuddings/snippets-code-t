@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { getInstalledPluginManifests, getPluginStates, setPluginEnabled } from '@/api/plugins';
+import {
+  getInstalledPluginManifests,
+  getPluginStates,
+  installLocalPluginPackage,
+  setPluginEnabled,
+  uninstallLocalPluginPackage
+} from '@/api/plugins';
 import {
   DEFAULT_PLUGIN_STATES,
   INSTALLED_PLUGINS,
@@ -62,6 +68,7 @@ export const usePluginStore = defineStore('plugins', {
   actions: {
     async initialize(): Promise<void> {
       if (this.initialized) {
+        await this.refreshInstalledPlugins();
         await this.ensureStateListener();
         return;
       }
@@ -82,6 +89,22 @@ export const usePluginStore = defineStore('plugins', {
         this.initialized = true;
         await this.ensureStateListener();
       }
+    },
+
+    async refreshInstalledPlugins(): Promise<void> {
+      const localManifests = await getInstalledPluginManifests();
+      this.installedPlugins = loadPluginRegistry(localManifests);
+      this.enabled = normalizePluginStates(this.installedPlugins, this.enabled);
+    },
+
+    async installFromPath(sourcePath: string, overwrite = false): Promise<void> {
+      await installLocalPluginPackage(sourcePath, overwrite);
+      await this.refreshInstalledPlugins();
+    },
+
+    async uninstall(pluginId: PluginId | string): Promise<void> {
+      await uninstallLocalPluginPackage(pluginId);
+      await this.refreshInstalledPlugins();
     },
 
     async ensureStateListener(): Promise<void> {

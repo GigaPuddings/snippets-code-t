@@ -8,7 +8,7 @@ import { systemThemePlugin } from './system-theme/manifest';
 import { todoPlugin } from './todo/manifest';
 import { translationPlugin } from './translation/manifest';
 import type { PluginCategory, PluginId, BuiltinPlugin } from './types';
-import type { PluginPackageManifest, RegisteredPlugin } from './protocol';
+import type { LocalPluginPackage, PluginPackageManifest, RegisteredPlugin } from './protocol';
 
 export const BUILTIN_PLUGIN_PACKAGES: BuiltinPlugin[] = [
   translationPlugin,
@@ -79,6 +79,23 @@ const isObject = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null
 );
 
+const readManifestInput = (
+  value: unknown
+): { manifest: unknown; packagePath?: string } => {
+  if (
+    isObject(value)
+    && 'manifest' in value
+    && isObject(value.manifest)
+  ) {
+    return {
+      manifest: value.manifest,
+      packagePath: typeof value.packagePath === 'string' ? value.packagePath : undefined
+    };
+  }
+
+  return { manifest: value };
+};
+
 const isPluginCategory = (value: unknown): value is PluginCategory => (
   typeof value === 'string'
   && ['capture', 'automation', 'search', 'sync', 'editor', 'appearance'].includes(value)
@@ -127,12 +144,27 @@ export const loadBuiltinPluginManifests = (): PluginPackageManifest[] => (
   BUILTIN_PLUGIN_PACKAGES.map(createBuiltinPackageManifest)
 );
 
+export const loadLocalPluginPackages = (
+  manifests: unknown[]
+): LocalPluginPackage[] => (
+  manifests
+    .map((value) => {
+      const { manifest, packagePath } = readManifestInput(value);
+      const normalized = normalizePluginPackageManifest(manifest);
+      if (!normalized) return null;
+
+      return {
+        manifest: normalized,
+        packagePath: packagePath ?? ''
+      };
+    })
+    .filter((pluginPackage): pluginPackage is LocalPluginPackage => pluginPackage !== null)
+);
+
 export const loadLocalPluginManifests = (
   manifests: unknown[]
 ): PluginPackageManifest[] => (
-  manifests
-    .map((manifest) => normalizePluginPackageManifest(manifest))
-    .filter((manifest): manifest is PluginPackageManifest => manifest !== null)
+  loadLocalPluginPackages(manifests).map((pluginPackage) => pluginPackage.manifest)
 );
 
 export const loadPluginRegistry = (
@@ -140,7 +172,13 @@ export const loadPluginRegistry = (
 ): RegisteredPlugin[] => {
   const registered = [
     ...loadBuiltinPluginManifests().map((manifest) => createRegisteredPlugin(manifest, 'builtin')),
-    ...loadLocalPluginManifests(localManifests).map((manifest) => createRegisteredPlugin(manifest, 'local'))
+    ...loadLocalPluginPackages(localManifests).map((pluginPackage) => (
+      createRegisteredPlugin(
+        pluginPackage.manifest,
+        'local',
+        pluginPackage.packagePath || undefined
+      )
+    ))
   ];
 
   const byId = new Map<PluginId, RegisteredPlugin>();

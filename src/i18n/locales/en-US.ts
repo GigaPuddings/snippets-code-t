@@ -285,9 +285,22 @@ export default {
     title: 'Plugins',
     builtinTitle: 'Official Built-in Plugins',
     builtinDesc: 'These features still ship with the app, but now enter through the plugin registry. Disabling one hides its entries, search sources, hotkeys, and related background services.',
+    installLocal: 'Install Local Plugin',
+    selectPluginDirectory: 'Select a plugin directory containing plugin.json',
+    installSuccess: 'Local plugin installed',
+    installFailed: 'Failed to install local plugin',
+    uninstallSuccess: 'Local plugin uninstalled',
+    uninstallFailed: 'Failed to uninstall local plugin',
+    refresh: 'Refresh',
+    refreshed: 'Plugin list refreshed',
+    refreshFailed: 'Failed to refresh plugin list',
     enabled: 'Plugin enabled',
     disabled: 'Plugin disabled',
     saveFailed: 'Failed to save plugin state',
+    sources: {
+      builtin: 'Built-in',
+      local: 'Local'
+    },
     categories: {
       capture: 'Capture',
       automation: 'Automation',
