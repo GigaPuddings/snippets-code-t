@@ -464,8 +464,9 @@ fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
         .try_state::<Arc<std::sync::Mutex<Option<crate::desktop_watcher::DesktopFileWatcher>>>>()
     {
         if let Ok(mut watcher_lock) = watcher_state.lock() {
-            *watcher_lock = None;
-            if enabled {
+            if !enabled {
+                *watcher_lock = None;
+            } else if watcher_lock.is_none() {
                 if let Some(desktop_path) = dirs::desktop_dir() {
                     match crate::desktop_watcher::DesktopFileWatcher::start(desktop_path) {
                         Ok(watcher) => {
@@ -516,6 +517,14 @@ fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled:
             "enabled": enabled
         }),
     );
+}
+
+pub fn apply_enabled_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str) {
+    if is_plugin_enabled(app_handle, plugin_id) {
+        if let Some(spec) = plugin_runtime_spec(plugin_id) {
+            (spec.apply_runtime_change)(app_handle, true);
+        }
+    }
 }
 
 /// 获取应用配置

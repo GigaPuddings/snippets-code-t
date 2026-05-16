@@ -52,11 +52,10 @@ use crate::window::{
     close_setup_window, create_setup_window, frontend_log, get_scan_progress_state,
     get_window_info, hotkey_config, insert_text_to_last_window, start_mouse_tracking,
 };
-use dirs::desktop_dir;
 use serde::Serialize;
 
 use hotkey::*;
-use icon::{extract_icon_from_app, init_app_and_bookmark_icons};
+use icon::extract_icon_from_app;
 use log::{info, LevelFilter};
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -655,25 +654,7 @@ pub fn run() {
                                         }
                                     }
 
-                                    if app_config::is_plugin_enabled(&app_handle_markdown, "desktop-files") {
-                                        if let Some(desktop_path) = desktop_dir() {
-                                        match desktop_watcher::DesktopFileWatcher::start(desktop_path) {
-                                            Ok(desktop_watcher) => {
-                                                log::info!("桌面目录监听器启动成功");
-                                                if let Some(watcher_state) = app_handle_markdown.try_state::<Arc<Mutex<Option<desktop_watcher::DesktopFileWatcher>>>>() {
-                                                    if let Ok(mut watcher_lock) = watcher_state.lock() {
-                                                        *watcher_lock = Some(desktop_watcher);
-                                                    }
-                                                }
-                                            }
-                                            Err(e) => {
-                                                log::warn!("桌面目录监听器启动失败: {}", e);
-                                            }
-                                        }
-                                        } else {
-                                            log::warn!("未找到桌面目录，跳过桌面目录监听");
-                                        }
-                                    }
+                                    app_config::apply_enabled_plugin_runtime_change(&app_handle_markdown, "desktop-files");
                                 }
                                 Err(e) => {
                                     log::warn!("搜索索引构建失败: {}", e);
@@ -721,9 +702,7 @@ pub fn run() {
                 }
 
                 // 第三步：后台服务（根据插件启用状态启动）
-                if app_config::is_plugin_enabled(&app_handle_init, "todo") {
-                    plugins::todo::start_alarm_service(app_handle_init.clone());
-                }
+                app_config::apply_enabled_plugin_runtime_change(&app_handle_init, "todo");
 
                 if is_auto_start {
                     tokio::time::sleep(tokio::time::Duration::from_secs(
@@ -740,12 +719,8 @@ pub fn run() {
                 let _ = json_config::set_app_config_value(&app_handle_init, "update_available", false);
 
                 // 第四步：资源加载（按插件启用状态加载应用、书签和桌面文件图标）
-                if app_config::is_plugin_enabled(&app_handle_init, "local-launcher") {
-                    init_app_and_bookmark_icons(&app_handle_init);
-                }
-                if app_config::is_plugin_enabled(&app_handle_init, "desktop-files") {
-                    plugins::desktop_files::refresh_desktop_files_cache();
-                }
+                app_config::apply_enabled_plugin_runtime_change(&app_handle_init, "local-launcher");
+                app_config::apply_enabled_plugin_runtime_change(&app_handle_init, "desktop-files");
 
                 // 第五步：网络操作（自动更新检查）
                 if get_auto_update_check(app_handle_init.clone()) {
