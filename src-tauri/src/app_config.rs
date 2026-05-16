@@ -98,7 +98,7 @@ pub struct PluginRuntimeState {
 
 pub type PluginStates = HashMap<String, PluginRuntimeState>;
 
-const DEFAULT_PLUGIN_IDS: &[&str] = &[
+const BUILTIN_PLUGIN_IDS: &[&str] = &[
     "translation",
     "screenshot",
     "todo",
@@ -115,7 +115,7 @@ fn default_plugin_enabled() -> bool {
 }
 
 fn default_plugin_states() -> PluginStates {
-    DEFAULT_PLUGIN_IDS
+    BUILTIN_PLUGIN_IDS
         .iter()
         .map(|id| {
             (
@@ -129,7 +129,7 @@ fn default_plugin_states() -> PluginStates {
 }
 
 fn normalize_plugin_states(plugins: &mut PluginStates) {
-    for id in DEFAULT_PLUGIN_IDS {
+    for id in BUILTIN_PLUGIN_IDS {
         plugins
             .entry((*id).to_string())
             .or_insert(PluginRuntimeState {
@@ -403,61 +403,104 @@ pub fn require_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> Result
     }
 }
 
-fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
-    match plugin_id {
-        "system-theme" => {
-            if enabled {
-                let config = crate::plugins::system_theme::load_config(app_handle);
-                if matches!(
-                    config.theme_mode,
-                    crate::plugins::system_theme::ThemeMode::Schedule
-                ) {
-                    let _ = crate::plugins::system_theme::start_scheduler(app_handle.clone());
-                }
-            } else {
-                crate::plugins::system_theme::stop_scheduler();
-            }
+struct PluginRuntimeSpec {
+    id: &'static str,
+    apply_runtime_change: fn(&AppHandle, bool),
+}
+
+const PLUGIN_RUNTIME_SPECS: &[PluginRuntimeSpec] = &[
+    PluginRuntimeSpec {
+        id: "system-theme",
+        apply_runtime_change: apply_system_theme_runtime_change,
+    },
+    PluginRuntimeSpec {
+        id: "todo",
+        apply_runtime_change: apply_todo_runtime_change,
+    },
+    PluginRuntimeSpec {
+        id: "desktop-files",
+        apply_runtime_change: apply_desktop_files_runtime_change,
+    },
+    PluginRuntimeSpec {
+        id: "local-launcher",
+        apply_runtime_change: apply_local_launcher_runtime_change,
+    },
+    PluginRuntimeSpec {
+        id: "git-sync",
+        apply_runtime_change: apply_git_sync_runtime_change,
+    },
+];
+
+fn plugin_runtime_spec(plugin_id: &str) -> Option<&'static PluginRuntimeSpec> {
+    PLUGIN_RUNTIME_SPECS
+        .iter()
+        .find(|spec| spec.id == plugin_id)
+}
+
+fn apply_system_theme_runtime_change(app_handle: &AppHandle, enabled: bool) {
+    if enabled {
+        let config = crate::plugins::system_theme::load_config(app_handle);
+        if matches!(
+            config.theme_mode,
+            crate::plugins::system_theme::ThemeMode::Schedule
+        ) {
+            let _ = crate::plugins::system_theme::start_scheduler(app_handle.clone());
         }
-        "todo" => {
+    } else {
+        crate::plugins::system_theme::stop_scheduler();
+    }
+}
+
+fn apply_todo_runtime_change(app_handle: &AppHandle, enabled: bool) {
+    if enabled {
+        crate::plugins::todo::start_alarm_service(app_handle.clone());
+    } else {
+        crate::plugins::todo::stop_alarm_service();
+    }
+}
+
+fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
+    if let Some(watcher_state) = app_handle
+        .try_state::<Arc<std::sync::Mutex<Option<crate::desktop_watcher::DesktopFileWatcher>>>>()
+    {
+        if let Ok(mut watcher_lock) = watcher_state.lock() {
+            *watcher_lock = None;
             if enabled {
-                crate::plugins::todo::start_alarm_service(app_handle.clone());
-            } else {
-                crate::plugins::todo::stop_alarm_service();
-            }
-        }
-        "desktop-files" => {
-            if let Some(watcher_state) = app_handle.try_state::<Arc<std::sync::Mutex<Option<crate::desktop_watcher::DesktopFileWatcher>>>>() {
-                if let Ok(mut watcher_lock) = watcher_state.lock() {
-                    *watcher_lock = None;
-                    if enabled {
-                        if let Some(desktop_path) = dirs::desktop_dir() {
-                            match crate::desktop_watcher::DesktopFileWatcher::start(desktop_path) {
-                                Ok(watcher) => {
-                                    *watcher_lock = Some(watcher);
-                                }
-                                Err(e) => {
-                                    warn!("[Plugin] 启动桌面文件监听失败: {}", e);
-                                }
-                            }
+                if let Some(desktop_path) = dirs::desktop_dir() {
+                    match crate::desktop_watcher::DesktopFileWatcher::start(desktop_path) {
+                        Ok(watcher) => {
+                            *watcher_lock = Some(watcher);
+                        }
+                        Err(e) => {
+                            warn!("[Plugin] 启动桌面文件监听失败: {}", e);
                         }
                     }
                 }
             }
-            if enabled {
-                crate::plugins::desktop_files::refresh_desktop_files_cache();
-            }
         }
-        "local-launcher" if enabled => {
-            crate::icon::init_app_and_bookmark_icons(app_handle);
-        }
-        "git-sync" => {
-            if enabled {
-                let _ = crate::git_sync::start_auto_sync_command(app_handle.clone());
-            } else {
-                let _ = crate::git_sync::stop_auto_sync_command(app_handle.clone());
-            }
-        }
-        _ => {}
+    }
+    if enabled {
+        crate::plugins::desktop_files::refresh_desktop_files_cache();
+    }
+}
+
+fn apply_local_launcher_runtime_change(app_handle: &AppHandle, enabled: bool) {
+    if enabled {
+        crate::icon::init_app_and_bookmark_icons(app_handle);
+    }
+}
+
+fn apply_git_sync_runtime_change(app_handle: &AppHandle, enabled: bool) {
+    if enabled {
+        let _ = crate::git_sync::start_auto_sync_command(app_handle.clone());
+    } else {
+        let _ = crate::git_sync::stop_auto_sync_command(app_handle.clone());
+    }
+}
+
+fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
+    if let Some(spec) = plugin_runtime_spec(plugin_id) {
+        (spec.apply_runtime_change)(app_handle, enabled);
     }
 
     if crate::db::is_setup_completed_internal(app_handle) {
