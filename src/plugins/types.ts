@@ -1,4 +1,4 @@
-export type PluginId =
+export type BuiltinPluginId =
   | 'translation'
   | 'screenshot'
   | 'todo'
@@ -9,12 +9,17 @@ export type PluginId =
   | 'git-sync'
   | 'attachments';
 
+export type PluginId = BuiltinPluginId | (string & {});
+
 export type PluginCategory = 'capture' | 'automation' | 'search' | 'sync' | 'editor' | 'appearance';
 
 export interface BuiltinPlugin {
   id: PluginId;
+  version?: string;
   nameKey: string;
+  fallbackName?: string;
   descriptionKey: string;
+  fallbackDescription?: string;
   category: PluginCategory;
   enabledByDefault: boolean;
   routeNames?: string[];
@@ -24,4 +29,4 @@ export interface BuiltinPlugin {
   resourceHintKey?: string;
 }
 
-export type PluginStateMap = Record<PluginId, boolean>;
+export type PluginStateMap = Record<string, boolean>;

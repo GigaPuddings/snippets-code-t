@@ -1,3 +1,5 @@
+export * from './loader';
+export * from './protocol';
 export * from './registry';
 export * from './routes';
 export * from './titlebar';

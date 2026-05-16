@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { getPluginStates, setPluginEnabled } from '@/api/plugins';
+import { getInstalledPluginManifests, getPluginStates, setPluginEnabled } from '@/api/plugins';
 import {
-  BUILTIN_PLUGINS,
   DEFAULT_PLUGIN_STATES,
+  INSTALLED_PLUGINS,
   isPluginId
 } from '@/plugins/registry';
+import { loadPluginRegistry } from '@/plugins/loader';
+import type { RegisteredPlugin } from '@/plugins/protocol';
 import type { PluginId, PluginStateMap } from '@/plugins/types';
 import { logger } from '@/utils/logger';
 
@@ -14,14 +16,20 @@ interface PluginStateChangedPayload {
   enabled: boolean;
 }
 
-const normalizePluginStates = (states?: Partial<Record<string, boolean>>): PluginStateMap => {
-  const normalized = { ...DEFAULT_PLUGIN_STATES };
+const normalizePluginStates = (
+  plugins: RegisteredPlugin[],
+  states?: Partial<Record<string, boolean>>
+): PluginStateMap => {
+  const normalized = plugins.reduce((pluginStates, plugin) => {
+    pluginStates[plugin.id] = plugin.enabledByDefault;
+    return pluginStates;
+  }, { ...DEFAULT_PLUGIN_STATES } as PluginStateMap);
 
   if (!states) {
     return normalized;
   }
 
-  for (const plugin of BUILTIN_PLUGINS) {
+  for (const plugin of plugins) {
     const value = states[plugin.id];
     if (typeof value === 'boolean') {
       normalized[plugin.id] = value;
@@ -32,14 +40,23 @@ const normalizePluginStates = (states?: Partial<Record<string, boolean>>): Plugi
 };
 
 export const usePluginStore = defineStore('plugins', {
-  state: (): { enabled: PluginStateMap; initialized: boolean; stateUnlisten: UnlistenFn | null } => ({
+  state: (): {
+    enabled: PluginStateMap;
+    installedPlugins: RegisteredPlugin[];
+    initialized: boolean;
+    stateUnlisten: UnlistenFn | null;
+  } => ({
     enabled: { ...DEFAULT_PLUGIN_STATES },
+    installedPlugins: INSTALLED_PLUGINS,
     initialized: false,
     stateUnlisten: null
   }),
   getters: {
+    plugins: (state): RegisteredPlugin[] => state.installedPlugins,
     isEnabled: (state) => (id: PluginId | string): boolean => (
-      isPluginId(id) ? state.enabled[id] ?? DEFAULT_PLUGIN_STATES[id] : true
+      state.installedPlugins.some((plugin) => plugin.id === id)
+        ? state.enabled[id] ?? true
+        : (isPluginId(id) ? state.enabled[id] ?? DEFAULT_PLUGIN_STATES[id] : true)
     )
   },
   actions: {
@@ -50,14 +67,17 @@ export const usePluginStore = defineStore('plugins', {
       }
 
       try {
+        const localManifests = await getInstalledPluginManifests();
+        this.installedPlugins = loadPluginRegistry(localManifests);
         const backendStates = await getPluginStates();
-        this.enabled = normalizePluginStates({
+        this.enabled = normalizePluginStates(this.installedPlugins, {
           ...this.enabled,
           ...backendStates
         });
       } catch (error) {
         logger.warn('[PluginStore] 加载插件状态失败，使用默认状态', error);
-        this.enabled = normalizePluginStates(this.enabled);
+        this.installedPlugins = INSTALLED_PLUGINS;
+        this.enabled = normalizePluginStates(this.installedPlugins, this.enabled);
       } finally {
         this.initialized = true;
         await this.ensureStateListener();
@@ -72,7 +92,7 @@ export const usePluginStore = defineStore('plugins', {
           'plugin-state-changed',
           (event) => {
             const { pluginId, enabled } = event.payload;
-            if (isPluginId(pluginId)) {
+            if (this.installedPlugins.some((plugin) => plugin.id === pluginId) || isPluginId(pluginId)) {
               this.enabled[pluginId] = enabled;
             }
           }
@@ -82,7 +102,7 @@ export const usePluginStore = defineStore('plugins', {
       }
     },
 
-    async setEnabled(pluginId: PluginId, enabled: boolean): Promise<void> {
+    async setEnabled(pluginId: PluginId | string, enabled: boolean): Promise<void> {
       this.enabled[pluginId] = enabled;
 
       try {

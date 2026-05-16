@@ -941,6 +941,7 @@ pub fn run() {
             app_config::update_theme_config,            // 更新主题设置
             app_config::update_language_config,         // 更新语言设置
             app_config::get_plugin_states,              // 获取官方内置插件状态
+            app_config::get_installed_plugin_manifests, // 获取本地插件清单
             app_config::set_plugin_enabled,             // 设置官方内置插件状态
             // Git 同步命令
             git_sync::check_git_installed_command,      // 检查 Git 是否安装

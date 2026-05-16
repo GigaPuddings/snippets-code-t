@@ -643,6 +643,44 @@ pub fn get_plugin_states(app_handle: AppHandle) -> Result<HashMap<String, bool>,
 }
 
 #[command]
+pub fn get_installed_plugin_manifests(
+    app_handle: AppHandle,
+) -> Result<Vec<serde_json::Value>, String> {
+    let plugins_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {}", e))?
+        .join("plugins");
+
+    if !plugins_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let entries = fs::read_dir(&plugins_dir)
+        .map_err(|e| format!("读取插件目录失败: {} ({})", plugins_dir.display(), e))?;
+
+    let mut manifests = Vec::new();
+    for entry in entries.flatten() {
+        let manifest_path = entry.path().join("plugin.json");
+        if !manifest_path.is_file() {
+            continue;
+        }
+
+        match fs::read_to_string(&manifest_path)
+            .map_err(|e| format!("读取插件清单失败: {} ({})", manifest_path.display(), e))
+            .and_then(|content| {
+                serde_json::from_str::<serde_json::Value>(&content)
+                    .map_err(|e| format!("解析插件清单失败: {} ({})", manifest_path.display(), e))
+            }) {
+            Ok(manifest) => manifests.push(manifest),
+            Err(error) => warn!("[Plugin] {}", error),
+        }
+    }
+
+    Ok(manifests)
+}
+
+#[command]
 pub fn set_plugin_enabled(
     app_handle: AppHandle,
     plugin_id: String,

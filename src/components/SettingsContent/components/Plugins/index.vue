@@ -39,7 +39,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
-import { BUILTIN_PLUGINS, getPluginById } from '@/plugins/registry';
+import { getPluginById } from '@/plugins/registry';
+import type { RegisteredPlugin } from '@/plugins/protocol';
 import { getHotkeyValue } from '@/plugins/hotkeys';
 import type { PluginId } from '@/plugins/types';
 import { useConfigurationStore, usePluginStore } from '@/store';
@@ -53,13 +54,13 @@ defineOptions({
 const { t } = useI18n();
 const pluginStore = usePluginStore();
 const configurationStore = useConfigurationStore();
-const plugins = BUILTIN_PLUGINS;
+const plugins = computed(() => pluginStore.plugins);
 
 onMounted(() => {
   pluginStore.initialize();
 });
 
-const handleToggle = async (pluginId: PluginId, enabled: boolean) => {
+const handleToggle = async (pluginId: PluginId | string, enabled: boolean) => {
   try {
     await pluginStore.setEnabled(pluginId, enabled);
     if (!enabled) {
@@ -71,8 +72,9 @@ const handleToggle = async (pluginId: PluginId, enabled: boolean) => {
   }
 };
 
-const unregisterPluginHotkeys = async (pluginId: PluginId): Promise<void> => {
-  const plugin = getPluginById(pluginId);
+const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<void> => {
+  const plugin = getPluginById(pluginId as PluginId)
+    ?? pluginStore.plugins.find((item: RegisteredPlugin) => item.id === pluginId);
   if (!plugin?.hotkeys?.length) return;
 
   await Promise.all(

@@ -28,6 +28,8 @@ The first stage does not move feature files yet. Instead, it introduces a regist
 ## Frontend
 
 - Registry: `src/plugins/registry.ts`
+- Package protocol: `src/plugins/protocol.ts`
+- Package loader: `src/plugins/loader.ts`
 - Settings panels: `src/plugins/settings.ts`
 - Types: `src/plugins/types.ts`
 - Routes: `src/plugins/routes.ts`
@@ -50,6 +52,64 @@ src/plugins/<plugin-id>/
 ```
 
 The central registry is now a thin aggregation layer. This keeps plugin metadata, routes, hotkeys, settings tabs, and search sources under the same feature boundary before moving heavier view and command code.
+
+## Local Plugin Package Protocol
+
+The second stage introduces a package manifest protocol. Built-in plugins are normalized through the same manifest shape that local plugin packages will use later. The runtime registry now consumes `RegisteredPlugin` records produced by `loadPluginRegistry()` instead of directly consuming TypeScript manifest objects.
+
+Current package manifest shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "example-plugin",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.example.name",
+    "fallback": "Example Plugin"
+  },
+  "description": {
+    "i18nKey": "plugins.example.description",
+    "fallback": "Adds an example feature."
+  },
+  "category": "automation",
+  "enabledByDefault": false,
+  "capabilities": {
+    "routeNames": ["Example"],
+    "settingsTabs": ["example"],
+    "hotkeys": ["example_hotkey"],
+    "searchSources": ["example-source"],
+    "titlebarActions": [],
+    "trayItems": [],
+    "windows": []
+  },
+  "resources": {
+    "hintKey": "plugins.example.resourceHint",
+    "bundled": false,
+    "sizeBytes": 1048576
+  },
+  "entry": {
+    "frontend": "dist/frontend.js",
+    "backend": "dist/backend.wasm"
+  },
+  "permissions": ["network", "workspace:read"],
+  "compatibleAppVersion": ">=1.5.6"
+}
+```
+
+Planned local package directory:
+
+```text
+plugin-id/
+  plugin.json
+  dist/
+    frontend.js
+    backend.wasm
+  assets/
+```
+
+The first loader implementation validates manifest shape and deduplicates plugins by id. It intentionally does not execute local plugin code yet. The next backend step is to scan an application-data plugin directory, read `plugin.json`, and pass those manifests into the frontend registry loader.
 
 ## Hotkeys
 
@@ -96,8 +156,8 @@ The first implementation moves are also in place: `translation`, `search-engines
 
 ## Next Steps
 
-1. Move feature view/composable files into their owning `src/plugins/<plugin-id>` folders.
-2. Continue moving Rust service implementation code behind the plugin adapters.
-3. Replace bundled RapidOCR with an on-demand plugin resource installer.
-4. Add plugin lifecycle hooks: install, enable, disable, uninstall, migrate.
-5. Add a permission manifest before supporting third-party plugins.
+1. Add backend commands to scan the local plugin directory and return validated `plugin.json` manifests.
+2. Wire frontend plugin store initialization to merge backend-provided local manifests into the registry.
+3. Add plugin lifecycle hooks: install, enable, disable, uninstall, migrate.
+4. Replace bundled RapidOCR/offline translation resources with on-demand plugin resources.
+5. Enforce plugin permissions before executing third-party frontend or backend entries.
