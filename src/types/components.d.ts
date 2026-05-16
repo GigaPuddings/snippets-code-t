@@ -92,6 +92,7 @@ declare module 'vue' {
     TipTapContextMenu: typeof import('./../components/TipTapEditor/TipTapContextMenu.vue')['default']
     TipTapEditor: typeof import('./../components/TipTapEditor/index.vue')['default']
     Titlebar: typeof import('./../layout/components/Titlebar.vue')['default']
+    TitlebarGitStatus: typeof import('./../plugins/git-sync/components/TitlebarGitStatus.vue')['default']
     Toolbar: typeof import('./../components/TipTapEditor/Toolbar.vue')['default']
     ToolbarSection: typeof import('./../plugins/screenshot/pages/screenshot/components/ToolbarSection.vue')['default']
     User: typeof import('./../pages/config/components/user/index.vue')['default']

@@ -34,28 +34,16 @@
       </div>
     </div>
 
-    <!-- 右侧：仅保留 Git 同步、置顶窗口 + 更多；其余进更多面板 -->
+    <!-- 右侧：插件动作、置顶窗口 + 更多；其余进更多面板 -->
     <div class="titlebar-right">
-      <!-- 非窄屏时：仅显示 Git、置顶 -->
+      <!-- 非窄屏时：显示插件动作、置顶 -->
       <template v-if="!isNarrow">
-        <div
-          v-if="showGitIndicator"
-          class="git-status-indicator"
-          :class="`git-status-${syncState}`"
-          :title="stateDescription"
-          @click="goToGitSettings"
-        >
-          <loading
-            v-if="syncState === 'syncing'"
-            class="icon git-sync-icon"
-            theme="outline"
-            size="16"
-            :strokeWidth="3"
-          />
-          <branch v-else class="icon" theme="outline" size="16" :strokeWidth="3" />
-          <span v-if="syncState === 'has_changes'" class="git-badge">{{ pendingFilesCount }}</span>
-          <span v-if="formattedLastSyncTime && syncState !== 'syncing'" class="git-time">{{ formattedLastSyncTime }}</span>
-        </div>
+        <component
+          :is="action.component"
+          v-for="action in visibleTitlebarActions"
+          :key="action.id"
+          variant="inline"
+        />
         <div
           class="titlebar-button"
           @click="handleTitlebar('isAlwaysOnTop')"
@@ -131,12 +119,13 @@
               <me theme="outline" size="16" :strokeWidth="3" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.userCenter') }}</span>
             </el-dropdown-item>
-            <!-- 窄屏时更多里才显示 Git / 置顶 -->
-            <el-dropdown-item v-if="showGitIndicator && isNarrow" command="gitSettings">
-              <branch theme="outline" size="16" :strokeWidth="3" class="align-middle" />
-              <span class="ml-2">{{ $t('titlebar.gitSync') }}</span>
-              <span v-if="syncState === 'has_changes'" class="git-badge ml-1">{{ pendingFilesCount }}</span>
-            </el-dropdown-item>
+            <!-- 窄屏时更多里才显示插件动作 / 置顶 -->
+            <component
+              :is="action.component"
+              v-for="action in isNarrow ? visibleTitlebarActions : []"
+              :key="action.id"
+              variant="dropdown"
+            />
             <el-dropdown-item command="checkUpdate">
               <update-rotation theme="outline" size="16" :strokeWidth="3" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.checkUpdate') }}</span>
@@ -212,8 +201,6 @@ import {
   UpdateRotation,
   SettingTwo,
   Me,
-  Branch,
-  Loading,
   MoreOne,
   // ViewList,
   // MenuFoldOne,
@@ -225,9 +212,9 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
-import { useGitStatus, setupGitStatusListener, initWorkspaceChangeListener, cleanupGitStatusListener } from '@/plugins/git-sync/useGitStatus';
 import { useLayoutStore, usePluginStore } from '@/store';
 import { configNavigationTabs } from '@/plugins/navigation';
+import { titlebarPluginActions } from '@/plugins/titlebar';
 
 const { t } = useI18n();
 const layoutStore = useLayoutStore();
@@ -247,22 +234,6 @@ watch(isNarrow, (narrow) => {
     moreDropdownRef.value.hide?.();
   }
 });
-
-// Git 状态
-const {
-  syncState,
-  pendingFilesCount,
-  formattedLastSyncTime,
-  refreshStatus,
-  refreshSettings,
-  stateDescription,
-  gitSettings
-} = useGitStatus();
-
-/** 启用 Git 同步时显示标题栏指示器；仅在有错误时隐藏，其余状态（就绪/空闲/已同步/有变更/同步中）均显示 */
-const showGitIndicator = computed(
-  () => pluginStore.isEnabled('git-sync') && !!gitSettings.value?.enabled && syncState.value !== 'error'
-);
 
 /** 仅在配置页面（/config）且窗口非窄屏时显示面板折叠区域；单个按钮再按宽度阈值显示，避免窄屏时按钮可见却无法展开 */
 // const showPanelToggle = computed(
@@ -294,6 +265,10 @@ const activeTabIndex = ref(0);
 
 const visibleTabs = computed(() => (
   configNavigationTabs.filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
+));
+
+const visibleTitlebarActions = computed(() => (
+  titlebarPluginActions.filter((action) => !action.pluginId || pluginStore.isEnabled(action.pluginId))
 ));
 
 // 根据当前路由设置激活的tab
@@ -360,19 +335,11 @@ const goToUserCenter = () => {
   router.push('/config/category/contentList/user');
 };
 
-// 跳转到 Git 设置页面
-const goToGitSettings = () => {
-  router.push('/config/category/settings?tab=gitSync');
-};
-
 /** 窄屏折叠菜单命令 */
 const handleMoreMenuCommand = (command: string) => {
   switch (command) {
     case 'userCenter':
       goToUserCenter();
-      break;
-    case 'gitSettings':
-      goToGitSettings();
       break;
     case 'checkUpdate':
       handleUpdateClick();
@@ -387,7 +354,6 @@ const handleMoreMenuCommand = (command: string) => {
 };
 
 let unListen: UnlistenFn;
-let gitStatusListenerActive = false;
 
 onMounted(async () => {
   await initEnv();
@@ -406,16 +372,6 @@ onMounted(async () => {
   // 设置初始激活的tab
   setActiveTabFromRoute();
 
-  if (pluginStore.isEnabled('git-sync')) {
-    // 初始化 Git 状态监听
-    // setupGitStatusListener() 会监听 pull/push/sync-complete 事件
-    // initWorkspaceChangeListener() 监听工作区变化，文件修改时自动刷新 Git 状态
-    setupGitStatusListener();
-    initWorkspaceChangeListener(refreshStatus);
-    gitStatusListenerActive = true;
-    await refreshSettings();
-    await refreshStatus();
-  }
 });
 
 // 监听路由变化，同步更新activeTabIndex
@@ -430,10 +386,6 @@ watch(
 onUnmounted(() => {
   if (unListen) {
     unListen();
-  }
-  if (gitStatusListenerActive) {
-    // 清理 Git 状态监听
-    cleanupGitStatusListener();
   }
 });
 </script>
@@ -643,7 +595,7 @@ onUnmounted(() => {
   }
 }
 
-/* 窄屏（≤880px）：缩小间距，Git 仅显示图标与角标 */
+/* 窄屏（≤880px）：缩小间距 */
 @media (max-width: 880px) {
   .titlebar {
     gap: 2px;
@@ -661,16 +613,6 @@ onUnmounted(() => {
     gap: 2px;
   }
 
-  .git-status-indicator .git-time {
-    display: none;
-  }
-
-  .git-status-indicator {
-    padding-left: 6px;
-    padding-right: 6px;
-    min-width: 28px;
-    justify-content: center;
-  }
 }
 
 /* 极窄屏（≤640px）：应用名可截断；窄屏布局由 isNarrow 控制，此处仅保留版本号 */
@@ -692,71 +634,6 @@ onUnmounted(() => {
   border-radius: 50%;
   background-color: #5d6dfd;
   vertical-align: middle;
-}
-
-// Git 状态指示器样式
-.git-status-indicator {
-  @apply flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-all;
-  min-height: 28px;
-  font-size: 12px;
-  
-  &:hover {
-    background-color: rgba(93, 109, 253, 0.08);
-  }
-  
-  .git-sync-icon {
-    animation: spin 1s linear infinite;
-  }
-  
-  .git-badge {
-    @apply px-1.5 py-0.5 rounded-full text-white text-xs font-medium;
-    background-color: #f59e0b;
-  }
-  
-  .git-time {
-    @apply text-xs;
-    color: rgba(var(--categories-text-color-rgb), 0.6);
-  }
-  
-  // 不同状态的样式
-  &.git-status-syncing {
-    color: #3b82f6;
-    
-    .git-sync-icon {
-      animation: spin 1s linear infinite;
-    }
-  }
-  
-  &.git-status-synced {
-    color: #10b981;
-  }
-  
-  &.git-status-has_changes {
-    color: #f59e0b;
-    
-    .git-badge {
-      @apply flex items-center justify-center;
-      min-width: 18px;
-      height: 18px;
-    }
-  }
-  
-  &.git-status-error {
-    color: #ef4444;
-  }
-  
-  &.git-status-idle {
-    color: rgba(var(--categories-text-color-rgb), 0.7);
-  }
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @keyframes pulse {
