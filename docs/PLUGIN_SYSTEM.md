@@ -111,7 +111,7 @@ plugin-id/
 
 The first loader implementation validates manifest shape and deduplicates plugins by id. The backend now scans the application-data `plugins` directory, reads each `plugin.json`, and passes `{ manifest, packagePath }` records into the frontend registry loader.
 
-Local package installation currently accepts an unpacked directory that contains `plugin.json`. The installer copies it into the application-data plugin directory under its manifest `id`; uninstall removes that directory and clears the saved enabled state. It can execute local frontend entries for enabled plugins, but local backend entries are still not executed.
+Local package installation currently accepts either an unpacked directory that contains `plugin.json` or a `.zip` package whose root, or single top-level directory, contains `plugin.json`. The installer copies it into the application-data plugin directory under its manifest `id`; uninstall removes that directory and clears the saved enabled state. It can execute local frontend entries for enabled plugins, but local backend entries are still not executed.
 
 Frontend local plugin entries now use `entry.frontend`. When an enabled local plugin is initialized, the runtime loads that module from the installed package directory and calls `activate(context)`.
 

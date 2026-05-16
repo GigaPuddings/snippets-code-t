@@ -4,8 +4,10 @@
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // 应用配置结构
 // 兼容旧的 json_config 模块使用的字段
@@ -383,6 +385,7 @@ impl AppConfigManager {
 use std::sync::{Arc, RwLock};
 use tauri::{command, AppHandle, Emitter, Manager};
 use walkdir::WalkDir;
+use zip::ZipArchive;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -776,6 +779,109 @@ fn copy_plugin_package_dir(source_dir: &Path, target_dir: &Path) -> Result<(), S
     Ok(())
 }
 
+fn create_plugin_install_temp_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| format!("生成临时目录失败: {}", e))?
+        .as_millis();
+    let temp_dir = plugin_packages_dir(app_handle)?.join(format!(".install-tmp-{}", now));
+    fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("创建插件临时目录失败: {} ({})", temp_dir.display(), e))?;
+    Ok(temp_dir)
+}
+
+fn extract_plugin_zip_package(zip_path: &Path, target_dir: &Path) -> Result<(), String> {
+    let file = File::open(zip_path)
+        .map_err(|e| format!("打开插件压缩包失败: {} ({})", zip_path.display(), e))?;
+    let mut archive = ZipArchive::new(file)
+        .map_err(|e| format!("读取插件压缩包失败: {} ({})", zip_path.display(), e))?;
+
+    for index in 0..archive.len() {
+        let mut file = archive
+            .by_index(index)
+            .map_err(|e| format!("读取插件压缩包条目失败: {}", e))?;
+        let enclosed_name = file
+            .enclosed_name()
+            .ok_or_else(|| format!("插件压缩包包含不安全路径: {}", file.name()))?;
+        let output_path = target_dir.join(enclosed_name);
+
+        if file.is_dir() {
+            fs::create_dir_all(&output_path)
+                .map_err(|e| format!("创建插件目录失败: {} ({})", output_path.display(), e))?;
+            continue;
+        }
+
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("创建插件目录失败: {} ({})", parent.display(), e))?;
+        }
+
+        let mut output_file = File::create(&output_path)
+            .map_err(|e| format!("创建插件文件失败: {} ({})", output_path.display(), e))?;
+        io::copy(&mut file, &mut output_file)
+            .map_err(|e| format!("解压插件文件失败: {} ({})", output_path.display(), e))?;
+    }
+
+    Ok(())
+}
+
+fn find_plugin_source_root(extracted_dir: &Path) -> Result<PathBuf, String> {
+    if extracted_dir.join("plugin.json").is_file() {
+        return Ok(extracted_dir.to_path_buf());
+    }
+
+    let mut candidates = Vec::new();
+    for entry in fs::read_dir(extracted_dir)
+        .map_err(|e| format!("读取插件临时目录失败: {} ({})", extracted_dir.display(), e))?
+    {
+        let entry = entry.map_err(|e| format!("读取插件临时目录条目失败: {}", e))?;
+        let path = entry.path();
+        if path.is_dir() && path.join("plugin.json").is_file() {
+            candidates.push(path);
+        }
+    }
+
+    match candidates.len() {
+        1 => Ok(candidates.remove(0)),
+        0 => Err("插件包缺少 plugin.json".to_string()),
+        _ => Err("插件包中包含多个 plugin.json 根目录".to_string()),
+    }
+}
+
+fn resolve_plugin_install_source(
+    app_handle: &AppHandle,
+    source_path: &Path,
+) -> Result<(PathBuf, Option<PathBuf>), String> {
+    if source_path.is_dir() {
+        return source_path
+            .canonicalize()
+            .map(|path| (path, None))
+            .map_err(|e| format!("解析插件目录失败: {}", e));
+    }
+
+    let is_zip = source_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("zip"))
+        .unwrap_or(false);
+
+    if !source_path.is_file() || !is_zip {
+        return Err("请选择包含 plugin.json 的插件目录，或 .zip 插件包".to_string());
+    }
+
+    let temp_dir = create_plugin_install_temp_dir(app_handle)?;
+    let result = extract_plugin_zip_package(source_path, &temp_dir)
+        .and_then(|_| find_plugin_source_root(&temp_dir));
+
+    match result {
+        Ok(source_dir) => Ok((source_dir, Some(temp_dir))),
+        Err(error) => {
+            let _ = fs::remove_dir_all(&temp_dir);
+            Err(error)
+        }
+    }
+}
+
 #[command]
 pub fn get_installed_plugin_manifests(
     app_handle: AppHandle,
@@ -815,44 +921,49 @@ pub fn install_local_plugin_package(
     source_path: String,
     overwrite: bool,
 ) -> Result<LocalPluginPackage, String> {
-    let source_dir = PathBuf::from(source_path);
-    if !source_dir.is_dir() {
-        return Err("请选择包含 plugin.json 的插件目录".to_string());
-    }
-
-    let source_dir = source_dir
-        .canonicalize()
-        .map_err(|e| format!("解析插件目录失败: {}", e))?;
+    let source_path = PathBuf::from(source_path);
+    let (source_dir, temp_dir) = resolve_plugin_install_source(&app_handle, &source_path)?;
     let manifest_path = source_dir.join("plugin.json");
     if !manifest_path.is_file() {
+        if let Some(temp_dir) = temp_dir {
+            let _ = fs::remove_dir_all(temp_dir);
+        }
         return Err("插件目录缺少 plugin.json".to_string());
     }
 
-    let manifest = read_plugin_package_manifest(&manifest_path)?;
-    let plugin_id = validate_local_plugin_manifest(&manifest)?;
+    let result = (|| -> Result<LocalPluginPackage, String> {
+        let manifest = read_plugin_package_manifest(&manifest_path)?;
+        let plugin_id = validate_local_plugin_manifest(&manifest)?;
 
-    let plugins_dir = plugin_packages_dir(&app_handle)?;
-    fs::create_dir_all(&plugins_dir)
-        .map_err(|e| format!("创建插件目录失败: {} ({})", plugins_dir.display(), e))?;
+        let plugins_dir = plugin_packages_dir(&app_handle)?;
+        fs::create_dir_all(&plugins_dir)
+            .map_err(|e| format!("创建插件目录失败: {} ({})", plugins_dir.display(), e))?;
 
-    let target_dir = plugins_dir.join(&plugin_id);
-    if target_dir.exists() {
-        if !overwrite {
-            return Err(format!("插件 '{}' 已安装", plugin_id));
+        let target_dir = plugins_dir.join(&plugin_id);
+        if target_dir.exists() {
+            if !overwrite {
+                return Err(format!("插件 '{}' 已安装", plugin_id));
+            }
+            fs::remove_dir_all(&target_dir)
+                .map_err(|e| format!("移除旧插件目录失败: {} ({})", target_dir.display(), e))?;
         }
-        fs::remove_dir_all(&target_dir)
-            .map_err(|e| format!("移除旧插件目录失败: {} ({})", target_dir.display(), e))?;
+
+        fs::create_dir_all(&target_dir)
+            .map_err(|e| format!("创建插件目录失败: {} ({})", target_dir.display(), e))?;
+        if let Err(error) = copy_plugin_package_dir(&source_dir, &target_dir) {
+            let _ = fs::remove_dir_all(&target_dir);
+            return Err(error);
+        }
+
+        info!("✅ [Plugin] installed local package {}", plugin_id);
+        plugin_package_record(manifest, &target_dir)
+    })();
+
+    if let Some(temp_dir) = temp_dir {
+        let _ = fs::remove_dir_all(temp_dir);
     }
 
-    fs::create_dir_all(&target_dir)
-        .map_err(|e| format!("创建插件目录失败: {} ({})", target_dir.display(), e))?;
-    if let Err(error) = copy_plugin_package_dir(&source_dir, &target_dir) {
-        let _ = fs::remove_dir_all(&target_dir);
-        return Err(error);
-    }
-
-    info!("✅ [Plugin] installed local package {}", plugin_id);
-    plugin_package_record(manifest, &target_dir)
+    result
 }
 
 #[command]

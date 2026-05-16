@@ -7,6 +7,10 @@
           <FolderOpen theme="outline" size="14" class="button-icon" />
           {{ t('plugins.installLocal') }}
         </CustomButton>
+        <CustomButton size="small" :loading="installing" @click="handleInstallZip">
+          <FileZip theme="outline" size="14" class="button-icon" />
+          {{ t('plugins.installZip') }}
+        </CustomButton>
         <CustomButton size="small" plain @click="handleRefresh">
           <Refresh theme="outline" size="14" class="button-icon" />
           {{ t('plugins.refresh') }}
@@ -69,7 +73,7 @@
 import { useI18n } from 'vue-i18n';
 import { open } from '@tauri-apps/plugin-dialog';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
-import { Delete, FolderOpen, Refresh } from '@icon-park/vue-next';
+import { Delete, FileZip, FolderOpen, Refresh } from '@icon-park/vue-next';
 import { getPluginById } from '@/plugins/registry';
 import type { PluginI18nText, RegisteredPlugin } from '@/plugins/protocol';
 import { getHotkeyValue } from '@/plugins/hotkeys';
@@ -112,6 +116,30 @@ const handleInstall = async () => {
     directory: true,
     multiple: false,
     title: t('plugins.selectPluginDirectory')
+  });
+  if (!selected || Array.isArray(selected)) return;
+
+  installing.value = true;
+  try {
+    await pluginStore.installFromPath(selected);
+    modal.msg(t('plugins.installSuccess'));
+  } catch (error) {
+    modal.msg(`${t('plugins.installFailed')}: ${error}`, 'error');
+  } finally {
+    installing.value = false;
+  }
+};
+
+const handleInstallZip = async () => {
+  const selected = await open({
+    multiple: false,
+    title: t('plugins.selectPluginZip'),
+    filters: [
+      {
+        name: 'Plugin Package',
+        extensions: ['zip']
+      }
+    ]
   });
   if (!selected || Array.isArray(selected)) return;
 
