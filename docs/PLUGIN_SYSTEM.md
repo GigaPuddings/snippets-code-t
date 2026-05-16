@@ -127,6 +127,8 @@ It also exposes `context.ui.h` and `context.ui.defineComponent` so simple local 
 
 Each local plugin has an isolated JSON data file exposed through `context.storage.get`, `context.storage.set`, and `context.storage.delete`. Data is stored under the installed package directory and is removed with the plugin package.
 
+`context.api.invoke` is permission-gated. A local plugin must declare `command:<tauri-command-name>` or `command:*` in `permissions` before it can call a Tauri command through the provided context API.
+
 Runtime-registered routes are added to Vue Router after the plugin registry initializes. Runtime settings tabs, titlebar actions, search providers, and window shortcuts are merged with the built-in registries and still respect the plugin enabled state.
 
 See `docs/examples/hello-local-plugin` for a minimal installable package.

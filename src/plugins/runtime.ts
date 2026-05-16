@@ -111,6 +111,21 @@ const resolvePluginAssetUrl = (plugin: RegisteredPlugin, relativePath: string): 
   convertFileSrc(resolvePluginAssetPath(plugin, relativePath))
 );
 
+const canInvokeCommand = (plugin: RegisteredPlugin, command: string): boolean => {
+  const permissions = plugin.manifest.permissions ?? [];
+  return permissions.includes('command:*') || permissions.includes(`command:${command}`);
+};
+
+const createPluginInvoke = (plugin: RegisteredPlugin): typeof invoke => (
+  (async (command: string, args?: Record<string, unknown>, options?: unknown) => {
+    if (!canInvokeCommand(plugin, command)) {
+      throw new Error(`插件 ${plugin.id} 没有调用命令 ${command} 的权限`);
+    }
+
+    return invoke(command, args, options as Parameters<typeof invoke>[2]);
+  }) as typeof invoke
+);
+
 const pluginComponent = (
   plugin: RegisteredPlugin,
   component?: Component,
@@ -174,7 +189,7 @@ const createRuntimeContext = (plugin: RegisteredPlugin): PluginFrontendRuntimeCo
   manifest: plugin.manifest,
   resolveAssetUrl: (relativePath: string) => resolvePluginAssetUrl(plugin, relativePath),
   api: {
-    invoke,
+    invoke: createPluginInvoke(plugin),
     listen,
     emit
   },
