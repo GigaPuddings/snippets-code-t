@@ -111,7 +111,19 @@ plugin-id/
 
 The first loader implementation validates manifest shape and deduplicates plugins by id. The backend now scans the application-data `plugins` directory, reads each `plugin.json`, and passes `{ manifest, packagePath }` records into the frontend registry loader.
 
-Local package installation currently accepts an unpacked directory that contains `plugin.json`. The installer copies it into the application-data plugin directory under its manifest `id`; uninstall removes that directory and clears the saved enabled state. It intentionally does not execute local plugin code yet.
+Local package installation currently accepts an unpacked directory that contains `plugin.json`. The installer copies it into the application-data plugin directory under its manifest `id`; uninstall removes that directory and clears the saved enabled state. It can execute local frontend entries for enabled plugins, but local backend entries are still not executed.
+
+Frontend local plugin entries now use `entry.frontend`. When an enabled local plugin is initialized, the runtime loads that module from the installed package directory and calls `activate(context)`.
+
+The activation context exposes these registration methods:
+
+- `registerRoute`
+- `registerSettingsTab`
+- `registerSearchProvider`
+- `registerTitlebarAction`
+- `registerWindowShortcut`
+
+Runtime-registered routes are added to Vue Router after the plugin registry initializes. Runtime settings tabs, titlebar actions, search providers, and window shortcuts are merged with the built-in registries and still respect the plugin enabled state.
 
 ## Hotkeys
 

@@ -267,9 +267,10 @@ const visibleTabs = computed(() => (
   configNavigationTabs.filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
 ));
 
-const visibleTitlebarActions = computed(() => (
-  titlebarPluginActions.filter((action) => !action.pluginId || pluginStore.isEnabled(action.pluginId))
-));
+const visibleTitlebarActions = computed(() => {
+  pluginStore.runtimeRevision;
+  return titlebarPluginActions.filter((action) => !action.pluginId || pluginStore.isEnabled(action.pluginId));
+});
 
 // 根据当前路由设置激活的tab
 const setActiveTabFromRoute = () => {

@@ -13,6 +13,7 @@ import {
   isPluginId
 } from '@/plugins/registry';
 import { loadPluginRegistry } from '@/plugins/loader';
+import { ensureLocalPluginFrontendEntries } from '@/plugins/runtime';
 import type { RegisteredPlugin } from '@/plugins/protocol';
 import type { PluginId, PluginStateMap } from '@/plugins/types';
 import { logger } from '@/utils/logger';
@@ -50,11 +51,13 @@ export const usePluginStore = defineStore('plugins', {
     enabled: PluginStateMap;
     installedPlugins: RegisteredPlugin[];
     initialized: boolean;
+    runtimeRevision: number;
     stateUnlisten: UnlistenFn | null;
   } => ({
     enabled: { ...DEFAULT_PLUGIN_STATES },
     installedPlugins: INSTALLED_PLUGINS,
     initialized: false,
+    runtimeRevision: 0,
     stateUnlisten: null
   }),
   getters: {
@@ -81,6 +84,7 @@ export const usePluginStore = defineStore('plugins', {
           ...this.enabled,
           ...backendStates
         });
+        await this.loadEnabledPluginEntries();
       } catch (error) {
         logger.warn('[PluginStore] 加载插件状态失败，使用默认状态', error);
         this.installedPlugins = INSTALLED_PLUGINS;
@@ -95,6 +99,7 @@ export const usePluginStore = defineStore('plugins', {
       const localManifests = await getInstalledPluginManifests();
       this.installedPlugins = loadPluginRegistry(localManifests);
       this.enabled = normalizePluginStates(this.installedPlugins, this.enabled);
+      await this.loadEnabledPluginEntries();
     },
 
     async installFromPath(sourcePath: string, overwrite = false): Promise<void> {
@@ -130,10 +135,21 @@ export const usePluginStore = defineStore('plugins', {
 
       try {
         await setPluginEnabled(pluginId, enabled);
+        if (enabled) {
+          await this.loadEnabledPluginEntries();
+        }
       } catch (error) {
         logger.error('[PluginStore] 保存插件状态失败', { pluginId, enabled, error });
         throw error;
       }
+    },
+
+    async loadEnabledPluginEntries(): Promise<void> {
+      await ensureLocalPluginFrontendEntries(
+        this.installedPlugins,
+        (pluginId) => this.isEnabled(pluginId)
+      );
+      this.runtimeRevision += 1;
     }
   },
   persist: {

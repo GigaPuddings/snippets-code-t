@@ -42,8 +42,7 @@ import Manger from './components/Manger/index.vue';
 import Plugins from './components/Plugins/index.vue';
 import { getGitStatus } from '@/plugins/git-sync/api';
 import { getGitSettings } from '@/api/appConfig';
-import { getPluginBySettingsTab } from '@/plugins/registry';
-import { pluginSettingsComponents, pluginSettingsMenuItems } from '@/plugins/settings';
+import { pluginSettingsComponents, pluginSettingsMenuItems, type PluginSettingsMenuItem } from '@/plugins/settings';
 import { usePluginStore } from '@/store';
 
 defineOptions({
@@ -57,38 +56,55 @@ const pluginStore = usePluginStore();
 /** 是否显示 Git 同步 tab：工作区有效、已是仓库、已配置远程、且必要字段（用户名、邮箱、远程 URL）已在个人中心配置 */
 const canShowGitSyncTab = ref(false);
 
-const allMenuItems = [
+const coreMenuItems: PluginSettingsMenuItem[] = [
   { id: 'general', labelKey: 'settings.general', icon: SettingTwo },
   { id: 'plugins', labelKey: 'plugins.title', icon: Data },
   { id: 'shortcut', labelKey: 'shortcut.title', icon: EnterTheKeyboard },
-  { id: 'data', labelKey: 'dataManager.title', icon: Data },
-  ...pluginSettingsMenuItems
+  { id: 'data', labelKey: 'dataManager.title', icon: Data }
 ];
 
 const menuItems = computed(() => {
+  pluginStore.runtimeRevision;
+
+  const allMenuItems = [
+    ...coreMenuItems,
+    ...pluginSettingsMenuItems
+  ];
+
   return allMenuItems
     .filter((item) => {
       if (item.id === 'gitSync' && !canShowGitSyncTab.value) {
         return false;
       }
 
-      const plugin = getPluginBySettingsTab(item.id);
+      const plugin = pluginStore.plugins.find((candidate) => candidate.settingsTabs?.includes(item.id));
       return !plugin || pluginStore.isEnabled(plugin.id);
     })
-    .map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon }));
+    .map((item) => {
+      const translated = t(item.labelKey);
+      return {
+        id: item.id,
+        label: translated === item.labelKey ? item.label ?? translated : translated,
+        icon: item.icon
+      };
+    });
 });
 
 const activeTab = ref('general');
 const loadedTabs = ref<string[]>(['general']); // 已加载的 tab
 
 // 组件映射
-const componentMap: Record<string, any> = {
+const componentMap = computed<Record<string, any>>(() => {
+  pluginStore.runtimeRevision;
+
+  return {
   general: General,
   shortcut: Shortcut,
   data: Manger,
   plugins: Plugins,
   ...pluginSettingsComponents
-};
+  };
+});
 
 async function refreshCanShowGitSyncTab() {
   try {
@@ -113,7 +129,7 @@ async function refreshCanShowGitSyncTab() {
 // 切换 tab
 const switchTab = (tabId: string) => {
   if (tabId === 'gitSync' && !canShowGitSyncTab.value) return;
-  const plugin = getPluginBySettingsTab(tabId);
+  const plugin = pluginStore.plugins.find((candidate) => candidate.settingsTabs?.includes(tabId));
   if (plugin && !pluginStore.isEnabled(plugin.id)) {
     activeTab.value = 'plugins';
     if (!loadedTabs.value.includes('plugins')) {

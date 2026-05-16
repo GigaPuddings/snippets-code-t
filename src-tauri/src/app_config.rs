@@ -677,6 +677,51 @@ fn validate_plugin_package_id(plugin_id: &str) -> Result<(), String> {
     }
 }
 
+fn validate_plugin_relative_path(value: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.contains("://")
+        || value.starts_with('/')
+        || Path::new(value).is_absolute()
+        || value
+            .split(['/', '\\'])
+            .any(|segment| segment == ".." || segment.is_empty())
+    {
+        return Err(format!("插件资源路径无效: {}", value));
+    }
+
+    Ok(())
+}
+
+fn validate_local_plugin_manifest(manifest: &serde_json::Value) -> Result<String, String> {
+    if manifest
+        .get("schemaVersion")
+        .and_then(|value| value.as_i64())
+        != Some(1)
+    {
+        return Err("插件清单 schemaVersion 必须为 1".to_string());
+    }
+
+    if manifest.get("kind").and_then(|value| value.as_str()) != Some("local") {
+        return Err("本地插件清单 kind 必须为 local".to_string());
+    }
+
+    let plugin_id = manifest
+        .get("id")
+        .and_then(|value| value.as_str())
+        .ok_or("插件清单缺少 id".to_string())?;
+    validate_plugin_package_id(plugin_id)?;
+
+    if let Some(entry) = manifest.get("entry").and_then(|value| value.as_object()) {
+        for key in ["frontend", "backend"] {
+            if let Some(path) = entry.get(key).and_then(|value| value.as_str()) {
+                validate_plugin_relative_path(path)?;
+            }
+        }
+    }
+
+    Ok(plugin_id.to_string())
+}
+
 fn read_plugin_package_manifest(manifest_path: &Path) -> Result<serde_json::Value, String> {
     fs::read_to_string(manifest_path)
         .map_err(|e| format!("读取插件清单失败: {} ({})", manifest_path.display(), e))
@@ -752,9 +797,10 @@ pub fn get_installed_plugin_manifests(
             continue;
         }
 
-        match read_plugin_package_manifest(&manifest_path)
-            .and_then(|manifest| plugin_package_record(manifest, &package_path))
-        {
+        match read_plugin_package_manifest(&manifest_path).and_then(|manifest| {
+            validate_local_plugin_manifest(&manifest)?;
+            plugin_package_record(manifest, &package_path)
+        }) {
             Ok(plugin_package) => manifests.push(plugin_package),
             Err(error) => warn!("[Plugin] {}", error),
         }
@@ -783,17 +829,13 @@ pub fn install_local_plugin_package(
     }
 
     let manifest = read_plugin_package_manifest(&manifest_path)?;
-    let plugin_id = manifest
-        .get("id")
-        .and_then(|value| value.as_str())
-        .ok_or("插件清单缺少 id".to_string())?;
-    validate_plugin_package_id(plugin_id)?;
+    let plugin_id = validate_local_plugin_manifest(&manifest)?;
 
     let plugins_dir = plugin_packages_dir(&app_handle)?;
     fs::create_dir_all(&plugins_dir)
         .map_err(|e| format!("创建插件目录失败: {} ({})", plugins_dir.display(), e))?;
 
-    let target_dir = plugins_dir.join(plugin_id);
+    let target_dir = plugins_dir.join(&plugin_id);
     if target_dir.exists() {
         if !overwrite {
             return Err(format!("插件 '{}' 已安装", plugin_id));

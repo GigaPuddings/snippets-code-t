@@ -1,8 +1,7 @@
 import { createWebHashHistory, createRouter, RouteRecordRaw } from 'vue-router';
 import { usePluginStore } from '@/store';
-import { isPluginId } from '@/plugins/registry';
 import { configPluginRoutes, layoutPluginRoutes, windowPluginRoutes } from '@/plugins/routes';
-import type { PluginId } from '@/plugins/types';
+import { installRuntimePluginRoutes } from '@/plugins/runtime';
 
 export const Layout = () => import('@/layout/index.vue');
 
@@ -24,6 +23,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/',
+    name: 'Root',
     component: Layout,
     redirect: '/search',
     children: [
@@ -122,9 +122,14 @@ router.beforeEach(async (to) => {
   const pluginStore = usePluginStore();
   await pluginStore.initialize();
 
+  const addedRuntimeRoutes = installRuntimePluginRoutes(router);
+  if (addedRuntimeRoutes > 0 && to.name === undefined) {
+    return to.fullPath;
+  }
+
   const pluginId = to.matched
     .map((record) => record.meta.pluginId)
-    .find((id): id is PluginId => typeof id === 'string' && isPluginId(id));
+    .find((id): id is string => typeof id === 'string');
 
   if (pluginId && !pluginStore.isEnabled(pluginId)) {
     return {
