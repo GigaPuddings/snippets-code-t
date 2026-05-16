@@ -1,5 +1,7 @@
 export async function activate(context) {
   const { h, defineComponent } = context.ui;
+  const activations = (await context.storage.get('activations')) ?? 0;
+  await context.storage.set('activations', activations + 1);
 
   const Panel = defineComponent({
     name: 'HelloLocalPluginPanel',
@@ -18,6 +20,7 @@ export async function activate(context) {
           }
         }, 'Hello Local Plugin'),
         h('p', 'This panel was registered by a local plugin frontend entry.'),
+        h('p', `Activation count stored by plugin storage: ${activations + 1}`),
         h('p', `Package path: ${context.packagePath}`)
       ]);
     }

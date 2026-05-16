@@ -60,6 +60,11 @@ export interface PluginFrontendRuntimeContext {
     h: typeof h;
     defineComponent: typeof defineComponent;
   };
+  storage: {
+    get<T = unknown>(key: string): Promise<T | null>;
+    set(key: string, value: unknown): Promise<void>;
+    delete(key: string): Promise<void>;
+  };
   registerRoute(route: RuntimeRouteRegistration): void;
   registerSettingsTab(tab: RuntimeSettingsRegistration): void;
   registerSearchProvider(provider: RuntimeSearchProviderRegistration): void;
@@ -176,6 +181,28 @@ const createRuntimeContext = (plugin: RegisteredPlugin): PluginFrontendRuntimeCo
   ui: {
     h,
     defineComponent
+  },
+  storage: {
+    get: async <T = unknown>(key: string): Promise<T | null> => {
+      const value = await invoke<T | null>('get_local_plugin_data', {
+        pluginId: plugin.id,
+        key
+      });
+      return value ?? null;
+    },
+    set: async (key: string, value: unknown): Promise<void> => {
+      await invoke('set_local_plugin_data', {
+        pluginId: plugin.id,
+        key,
+        value
+      });
+    },
+    delete: async (key: string): Promise<void> => {
+      await invoke('delete_local_plugin_data', {
+        pluginId: plugin.id,
+        key
+      });
+    }
   },
   registerRoute(route) {
     const target = route.target ?? 'layout';

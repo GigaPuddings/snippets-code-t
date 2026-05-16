@@ -125,6 +125,8 @@ The activation context exposes these registration methods:
 
 It also exposes `context.ui.h` and `context.ui.defineComponent` so simple local plugins can register Vue components without bundling their own copy of Vue.
 
+Each local plugin has an isolated JSON data file exposed through `context.storage.get`, `context.storage.set`, and `context.storage.delete`. Data is stored under the installed package directory and is removed with the plugin package.
+
 Runtime-registered routes are added to Vue Router after the plugin registry initializes. Runtime settings tabs, titlebar actions, search providers, and window shortcuts are merged with the built-in registries and still respect the plugin enabled state.
 
 See `docs/examples/hello-local-plugin` for a minimal installable package.
@@ -154,6 +156,9 @@ Commands:
 - `get_installed_plugin_manifests`
 - `install_local_plugin_package`
 - `uninstall_local_plugin_package`
+- `get_local_plugin_data`
+- `set_local_plugin_data`
+- `delete_local_plugin_data`
 - `set_plugin_enabled`
 
 Startup now checks plugin states before starting optional services such as reminders, Auto Dark Mode scheduling, desktop file watching, and desktop file cache refresh.

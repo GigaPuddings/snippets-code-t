@@ -680,6 +680,21 @@ fn validate_plugin_package_id(plugin_id: &str) -> Result<(), String> {
     }
 }
 
+fn validate_plugin_data_key(key: &str) -> Result<(), String> {
+    if key.is_empty() || key.len() > 128 {
+        return Err("插件数据 key 无效".to_string());
+    }
+
+    if key
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | ':'))
+    {
+        Ok(())
+    } else {
+        Err("插件数据 key 只能包含字母、数字、点、冒号、短横线和下划线".to_string())
+    }
+}
+
 fn validate_plugin_relative_path(value: &str) -> Result<(), String> {
     if value.is_empty()
         || value.contains("://")
@@ -746,6 +761,51 @@ fn plugin_package_record(
             .to_string_lossy()
             .to_string(),
     })
+}
+
+fn local_plugin_package_dir(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
+    validate_plugin_package_id(plugin_id)?;
+    let package_dir = plugin_packages_dir(app_handle)?.join(plugin_id);
+    if !package_dir.join("plugin.json").is_file() {
+        return Err(format!("本地插件 '{}' 未安装", plugin_id));
+    }
+    Ok(package_dir)
+}
+
+fn local_plugin_data_path(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
+    Ok(local_plugin_package_dir(app_handle, plugin_id)?.join("data.json"))
+}
+
+fn read_local_plugin_data(
+    app_handle: &AppHandle,
+    plugin_id: &str,
+) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    let data_path = local_plugin_data_path(app_handle, plugin_id)?;
+    if !data_path.exists() {
+        return Ok(serde_json::Map::new());
+    }
+
+    let content = fs::read_to_string(&data_path)
+        .map_err(|e| format!("读取插件数据失败: {} ({})", data_path.display(), e))?;
+    serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content)
+        .map_err(|e| format!("解析插件数据失败: {} ({})", data_path.display(), e))
+}
+
+fn write_local_plugin_data(
+    app_handle: &AppHandle,
+    plugin_id: &str,
+    data: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
+    let data_path = local_plugin_data_path(app_handle, plugin_id)?;
+    if let Some(parent) = data_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("创建插件数据目录失败: {} ({})", parent.display(), e))?;
+    }
+
+    let content =
+        serde_json::to_string_pretty(data).map_err(|e| format!("序列化插件数据失败: {}", e))?;
+    fs::write(&data_path, content)
+        .map_err(|e| format!("写入插件数据失败: {} ({})", data_path.display(), e))
 }
 
 fn copy_plugin_package_dir(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
@@ -996,6 +1056,42 @@ pub fn uninstall_local_plugin_package(
 
     info!("✅ [Plugin] uninstalled local package {}", plugin_id);
     Ok(())
+}
+
+#[command]
+pub fn get_local_plugin_data(
+    app_handle: AppHandle,
+    plugin_id: String,
+    key: String,
+) -> Result<Option<serde_json::Value>, String> {
+    validate_plugin_data_key(&key)?;
+    let data = read_local_plugin_data(&app_handle, &plugin_id)?;
+    Ok(data.get(&key).cloned())
+}
+
+#[command]
+pub fn set_local_plugin_data(
+    app_handle: AppHandle,
+    plugin_id: String,
+    key: String,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    validate_plugin_data_key(&key)?;
+    let mut data = read_local_plugin_data(&app_handle, &plugin_id)?;
+    data.insert(key, value);
+    write_local_plugin_data(&app_handle, &plugin_id, &data)
+}
+
+#[command]
+pub fn delete_local_plugin_data(
+    app_handle: AppHandle,
+    plugin_id: String,
+    key: String,
+) -> Result<(), String> {
+    validate_plugin_data_key(&key)?;
+    let mut data = read_local_plugin_data(&app_handle, &plugin_id)?;
+    data.remove(&key);
+    write_local_plugin_data(&app_handle, &plugin_id, &data)
 }
 
 #[command]
