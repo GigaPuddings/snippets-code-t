@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "screenshot-rapidocr",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.screenshotRapidocr.name",
+    "fallback": "Screenshot RapidOCR Resource"
+  },
+  "description": {
+    "i18nKey": "plugins.screenshotRapidocr.description",
+    "fallback": "Provides the optional RapidOCR runtime used by the screenshot plugin."
+  },
+  "category": "capture",
+  "enabledByDefault": true,
+  "resources": {
+    "hintKey": "plugins.screenshot.resourceHint",
+    "bundled": false
+  }
+}

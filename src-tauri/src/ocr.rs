@@ -40,6 +40,17 @@ pub struct OcrRecognizeResult {
     pub language: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RapidOcrResourceStatus {
+    pub plugin_id: String,
+    pub resource_id: String,
+    pub available: bool,
+    pub source: Option<String>,
+    pub path: Option<String>,
+    pub searched_paths: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OcrLanguage {
     ChineseSimplified,
@@ -323,29 +334,112 @@ fn decode_image_data(image_data: &str) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("OCR 图片 base64 解码失败: {}", e))
 }
 
+#[tauri::command]
+pub fn get_rapidocr_resource_status(
+    app_handle: tauri::AppHandle,
+) -> Result<RapidOcrResourceStatus, String> {
+    let exe_names = rapidocr_exe_names();
+    let roots = rapidocr_search_roots(&app_handle);
+    let searched_paths = roots
+        .iter()
+        .flat_map(|(root, _)| {
+            exe_names
+                .iter()
+                .map(move |exe_name| root.join(exe_name).display().to_string())
+        })
+        .collect::<Vec<_>>();
+
+    let found = find_rapidocr_candidate(&app_handle, None);
+    Ok(RapidOcrResourceStatus {
+        plugin_id: "screenshot".to_string(),
+        resource_id: "rapidocr".to_string(),
+        available: found.is_some(),
+        source: found.as_ref().map(|candidate| candidate.source.clone()),
+        path: found
+            .as_ref()
+            .map(|candidate| candidate.path.display().to_string()),
+        searched_paths,
+    })
+}
+
 fn find_rapidocr_sidecar(app_handle: &tauri::AppHandle, log_path: &Path) -> Option<PathBuf> {
+    find_rapidocr_candidate(app_handle, Some(log_path)).map(|candidate| candidate.path)
+}
+
+#[derive(Debug, Clone)]
+struct RapidOcrCandidate {
+    path: PathBuf,
+    source: String,
+}
+
+fn find_rapidocr_candidate(
+    app_handle: &tauri::AppHandle,
+    log_path: Option<&Path>,
+) -> Option<RapidOcrCandidate> {
     for env_key in ["SNIPPETS_RAPIDOCR_PATH", "RAPIDOCR_PATH"] {
         if let Ok(path) = env::var(env_key) {
             let candidate = PathBuf::from(path);
-            append_ocr_log(
-                log_path,
-                "backend",
-                "check sidecar env path",
-                Some(&format!("{}={}", env_key, candidate.display())),
-            );
-            if candidate.is_file() {
+            if let Some(log_path) = log_path {
                 append_ocr_log(
                     log_path,
                     "backend",
-                    "sidecar found from env",
-                    Some(&format!("path={}", candidate.display())),
+                    "check sidecar env path",
+                    Some(&format!("{}={}", env_key, candidate.display())),
                 );
-                return Some(candidate);
+            }
+            if candidate.is_file() {
+                if let Some(log_path) = log_path {
+                    append_ocr_log(
+                        log_path,
+                        "backend",
+                        "sidecar found from env",
+                        Some(&format!("path={}", candidate.display())),
+                    );
+                }
+                return Some(RapidOcrCandidate {
+                    path: candidate,
+                    source: format!("env:{}", env_key),
+                });
             }
         }
     }
 
-    let exe_names: &[&str] = if cfg!(target_os = "windows") {
+    let exe_names = rapidocr_exe_names();
+    let roots = rapidocr_search_roots(app_handle);
+
+    for (root, source) in roots {
+        for exe_name in exe_names {
+            let candidate = root.join(exe_name);
+            if let Some(log_path) = log_path {
+                append_ocr_log(
+                    log_path,
+                    "backend",
+                    "check sidecar path",
+                    Some(&format!("source={}, path={}", source, candidate.display())),
+                );
+            }
+            if candidate.is_file() {
+                if let Some(log_path) = log_path {
+                    append_ocr_log(
+                        log_path,
+                        "backend",
+                        "sidecar found",
+                        Some(&format!("source={}, path={}", source, candidate.display())),
+                    );
+                }
+                return Some(RapidOcrCandidate {
+                    path: candidate,
+                    source,
+                });
+            }
+        }
+    }
+
+    None
+}
+
+fn rapidocr_exe_names() -> &'static [&'static str] {
+    if cfg!(target_os = "windows") {
         &[
             "RapidOCR-json.exe",
             "rapidocr.exe",
@@ -360,67 +454,99 @@ fn find_rapidocr_sidecar(app_handle: &tauri::AppHandle, log_path: &Path) -> Opti
             "rapidocr_onnxruntime",
             "rapidocr_openvino",
         ]
-    };
+    }
+}
 
+fn rapidocr_search_roots(app_handle: &tauri::AppHandle) -> Vec<(PathBuf, String)> {
     let mut roots = Vec::new();
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+        for plugin_id in ["screenshot", "screenshot-rapidocr"] {
+            let plugin_dir = app_data_dir.join("plugins").join(plugin_id);
+            roots.push((
+                plugin_dir.join("resources").join("rapidocr"),
+                format!("plugin:{}:resources/rapidocr", plugin_id),
+            ));
+            roots.push((
+                plugin_dir.join("rapidocr"),
+                format!("plugin:{}:rapidocr", plugin_id),
+            ));
+            roots.push((
+                plugin_dir.join("resources").join("rapidocr").join("bin"),
+                format!("plugin:{}:resources/rapidocr/bin", plugin_id),
+            ));
+        }
+    }
     if let Ok(resource_dir) = app_handle.path().resource_dir() {
-        roots.push(resource_dir.clone());
-        roots.push(resource_dir.join("resources").join("rapidocr"));
-        roots.push(resource_dir.join("rapidocr"));
-        roots.push(resource_dir.join("rapidocr").join("bin"));
-        roots.push(resource_dir.join("sidecars"));
-        roots.push(resource_dir.join("bin"));
+        roots.push((resource_dir.clone(), "bundled:root".to_string()));
+        roots.push((
+            resource_dir.join("resources").join("rapidocr"),
+            "bundled:resources/rapidocr".to_string(),
+        ));
+        roots.push((
+            resource_dir.join("rapidocr"),
+            "bundled:rapidocr".to_string(),
+        ));
+        roots.push((
+            resource_dir.join("rapidocr").join("bin"),
+            "bundled:rapidocr/bin".to_string(),
+        ));
+        roots.push((
+            resource_dir.join("sidecars"),
+            "bundled:sidecars".to_string(),
+        ));
+        roots.push((resource_dir.join("bin"), "bundled:bin".to_string()));
     }
     if let Ok(exe_path) = env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
-            roots.push(exe_dir.to_path_buf());
-            roots.push(exe_dir.join("resources").join("rapidocr"));
-            roots.push(exe_dir.join("rapidocr"));
-            roots.push(exe_dir.join("rapidocr").join("bin"));
-            roots.push(exe_dir.join("sidecars"));
-            roots.push(exe_dir.join("bin"));
+            roots.push((exe_dir.to_path_buf(), "exe:root".to_string()));
+            roots.push((
+                exe_dir.join("resources").join("rapidocr"),
+                "exe:resources/rapidocr".to_string(),
+            ));
+            roots.push((exe_dir.join("rapidocr"), "exe:rapidocr".to_string()));
+            roots.push((
+                exe_dir.join("rapidocr").join("bin"),
+                "exe:rapidocr/bin".to_string(),
+            ));
+            roots.push((exe_dir.join("sidecars"), "exe:sidecars".to_string()));
+            roots.push((exe_dir.join("bin"), "exe:bin".to_string()));
         }
     }
     if let Ok(cwd) = env::current_dir() {
-        roots.push(cwd.clone());
-        roots.push(cwd.join("src-tauri").join("resources").join("rapidocr"));
-        roots.push(
+        roots.push((cwd.clone(), "dev:cwd".to_string()));
+        roots.push((
+            cwd.join("src-tauri").join("resources").join("rapidocr"),
+            "dev:src-tauri/resources/rapidocr".to_string(),
+        ));
+        roots.push((
             cwd.join("src-tauri")
                 .join("resources")
                 .join("rapidocr")
                 .join("bin"),
-        );
-        roots.push(cwd.join("src-tauri").join("sidecars"));
-        roots.push(cwd.join("src-tauri").join("bin"));
-        roots.push(cwd.join("resources").join("rapidocr"));
-        roots.push(cwd.join("resources").join("rapidocr").join("bin"));
-        roots.push(cwd.join("rapidocr"));
-        roots.push(cwd.join("sidecars"));
-        roots.push(cwd.join("bin"));
+            "dev:src-tauri/resources/rapidocr/bin".to_string(),
+        ));
+        roots.push((
+            cwd.join("src-tauri").join("sidecars"),
+            "dev:src-tauri/sidecars".to_string(),
+        ));
+        roots.push((
+            cwd.join("src-tauri").join("bin"),
+            "dev:src-tauri/bin".to_string(),
+        ));
+        roots.push((
+            cwd.join("resources").join("rapidocr"),
+            "dev:resources/rapidocr".to_string(),
+        ));
+        roots.push((
+            cwd.join("resources").join("rapidocr").join("bin"),
+            "dev:resources/rapidocr/bin".to_string(),
+        ));
+        roots.push((cwd.join("rapidocr"), "dev:rapidocr".to_string()));
+        roots.push((cwd.join("sidecars"), "dev:sidecars".to_string()));
+        roots.push((cwd.join("bin"), "dev:bin".to_string()));
     }
 
-    for root in roots {
-        for exe_name in exe_names {
-            let candidate = root.join(exe_name);
-            append_ocr_log(
-                log_path,
-                "backend",
-                "check sidecar path",
-                Some(&candidate.display().to_string()),
-            );
-            if candidate.is_file() {
-                append_ocr_log(
-                    log_path,
-                    "backend",
-                    "sidecar found",
-                    Some(&candidate.display().to_string()),
-                );
-                return Some(candidate);
-            }
-        }
-    }
-
-    None
+    roots
 }
 
 fn run_rapidocr_sidecar(

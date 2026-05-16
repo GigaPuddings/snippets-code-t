@@ -1095,6 +1095,31 @@ pub fn delete_local_plugin_data(
 }
 
 #[command]
+pub fn get_local_plugin_resource_path(
+    app_handle: AppHandle,
+    plugin_id: String,
+    relative_path: String,
+) -> Result<Option<String>, String> {
+    validate_plugin_relative_path(&relative_path)?;
+    let package_dir = match local_plugin_package_dir(&app_handle, &plugin_id) {
+        Ok(package_dir) => package_dir,
+        Err(_) => return Ok(None),
+    };
+    let resource_path = package_dir.join(relative_path);
+    if !resource_path.is_file() {
+        return Ok(None);
+    }
+
+    Ok(Some(
+        resource_path
+            .canonicalize()
+            .unwrap_or(resource_path)
+            .to_string_lossy()
+            .to_string(),
+    ))
+}
+
+#[command]
 pub fn set_plugin_enabled(
     app_handle: AppHandle,
     plugin_id: String,

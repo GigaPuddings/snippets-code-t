@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "translation-offline-runtime",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.translationOfflineRuntime.name",
+    "fallback": "Translation Offline Runtime"
+  },
+  "description": {
+    "i18nKey": "plugins.translationOfflineRuntime.description",
+    "fallback": "Provides the optional Transformers.js runtime used by offline translation."
+  },
+  "category": "automation",
+  "enabledByDefault": true,
+  "resources": {
+    "hintKey": "plugins.translation.resourceHint",
+    "bundled": false
+  }
+}

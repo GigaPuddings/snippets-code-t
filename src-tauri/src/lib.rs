@@ -846,6 +846,7 @@ pub fn run() {
             plugins::screenshot::create_pin_window,                // 创建贴图窗口
             plugins::screenshot::get_pin_window_data,              // 获取贴图窗口缓存数据
             ocr::recognize_text_from_image,   // 后端 OCR 识别（不可用时前端回退）
+            ocr::get_rapidocr_resource_status, // 获取 RapidOCR 插件资源状态
             ocr::append_ocr_diagnostic_log,   // 写入 OCR 诊断日志
             plugins::screenshot::copy_image_to_clipboard,          // 复制图片到剪贴板
             plugins::screenshot::save_pin_image,                   // 保存贴图图片
@@ -947,6 +948,7 @@ pub fn run() {
             app_config::get_local_plugin_data,          // 获取本地插件数据
             app_config::set_local_plugin_data,          // 设置本地插件数据
             app_config::delete_local_plugin_data,       // 删除本地插件数据
+            app_config::get_local_plugin_resource_path, // 获取本地插件资源文件
             app_config::set_plugin_enabled,             // 设置官方内置插件状态
             // Git 同步命令
             git_sync::check_git_installed_command,      // 检查 Git 是否安装

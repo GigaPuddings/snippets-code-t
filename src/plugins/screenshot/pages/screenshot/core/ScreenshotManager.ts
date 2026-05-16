@@ -3201,7 +3201,7 @@ export class ScreenshotManager {
 
       const getTranslationErrorMessage = (errMsg: string): string => {
         if (selectedTranslationEngine === 'offline') {
-          if (errMsg.includes('未激活') || errMsg.includes('未下载')) {
+          if (errMsg.includes('未激活') || errMsg.includes('未下载') || errMsg.includes('运行时未安装')) {
             return errMsg
           }
           if (errMsg.includes('超时')) {

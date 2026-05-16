@@ -7,7 +7,7 @@ This document describes the built-in plugin architecture refactor.
 - Keep the core app focused on workspace, Markdown storage, editors, base search, settings, and window lifecycle.
 - Move personalized tools behind explicit feature boundaries.
 - Preserve current behavior by enabling all built-in plugins by default.
-- Prepare heavy resources such as RapidOCR and offline translation models for on-demand installation.
+- Keep heavy resources such as RapidOCR and offline translation models outside the core installer and load them on demand.
 
 ## Built-in Plugins
 
@@ -98,7 +98,7 @@ Current package manifest shape:
 }
 ```
 
-Planned local package directory:
+Local package directory:
 
 ```text
 plugin-id/
@@ -106,6 +106,8 @@ plugin-id/
   dist/
     frontend.js
     backend.wasm
+  resources/
+    optional-resource/
   assets/
 ```
 
@@ -132,6 +134,11 @@ Each local plugin has an isolated JSON data file exposed through `context.storag
 Runtime-registered routes are added to Vue Router after the plugin registry initializes. Runtime settings tabs, titlebar actions, search providers, and window shortcuts are merged with the built-in registries and still respect the plugin enabled state.
 
 See `docs/examples/hello-local-plugin` for a minimal installable package.
+
+Resource-only local plugins are supported by omitting `entry`. The first
+resource-only packages cover the optional RapidOCR runtime and the offline
+translation runtime; see `docs/examples/screenshot-rapidocr-resource` and
+`docs/examples/translation-offline-runtime`.
 
 ## Hotkeys
 
@@ -161,7 +168,9 @@ Commands:
 - `get_local_plugin_data`
 - `set_local_plugin_data`
 - `delete_local_plugin_data`
+- `get_local_plugin_resource_path`
 - `set_plugin_enabled`
+- `get_rapidocr_resource_status`
 
 Startup now checks plugin states before starting optional services such as reminders, Auto Dark Mode scheduling, desktop file watching, and desktop file cache refresh.
 
@@ -182,10 +191,42 @@ Rust command registration now goes through plugin adapter modules under `src-tau
 
 The first implementation moves are also in place: `translation`, `search-engines`, `desktop-files`, `todo`, `system-theme`, local launcher app/bookmark management/search, screenshot command adapters, and shared URL opening now live under the Rust plugin modules instead of the older broad implementation modules.
 
+## Optional Resources
+
+RapidOCR is no longer listed in `tauri.conf.json` bundle resources, so the core
+installer does not carry the OCR runtime and model files. The OCR backend now
+searches application-data plugin resource roots first:
+
+```text
+<app-data>/plugins/screenshot/resources/rapidocr
+<app-data>/plugins/screenshot-rapidocr/resources/rapidocr
+```
+
+Development fallback paths such as `src-tauri/resources/rapidocr` still work for
+local testing, and `SNIPPETS_RAPIDOCR_PATH` / `RAPIDOCR_PATH` can override the
+executable location.
+
+The plugin settings page calls `get_rapidocr_resource_status` and shows whether
+the optional resource is installed.
+
+For development and release packaging, run `pnpm rapidocr:install` to download
+the local RapidOCR runtime, then `pnpm rapidocr:package` to generate an
+installable `dist-plugin-packages/screenshot-rapidocr` resource package.
+
+Offline translation no longer statically imports `@huggingface/transformers`.
+Instead, it loads the ESM runtime from an installed local plugin resource:
+
+```text
+<app-data>/plugins/translation-offline-runtime/resources/transformers/transformers.min.js
+<app-data>/plugins/translation/resources/transformers/transformers.min.js
+```
+
+If the runtime package is not installed, offline translation fails with an
+installation prompt instead of pulling the runtime into the core app bundle.
+
 ## Next Steps
 
-1. Add dynamic frontend entry loading for local plugin packages.
-2. Add backend plugin runtime entry points or sandboxed WASM/native host boundaries.
-3. Add plugin lifecycle hooks: enable, disable, migrate, before-uninstall cleanup.
-4. Replace bundled RapidOCR/offline translation resources with on-demand plugin resources.
-5. Enforce plugin permissions before executing third-party frontend or backend entries.
+1. Add backend plugin runtime entry points or sandboxed WASM/native host boundaries.
+2. Add plugin lifecycle hooks: enable, disable, migrate, before-uninstall cleanup.
+3. Move offline translation model cache/status behind the same optional resource protocol.
+4. Add signed plugin package metadata before enabling remote marketplace installation.

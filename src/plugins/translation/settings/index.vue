@@ -300,7 +300,7 @@ const loadModel = async () => {
       }
     })
     modelLoaded.value = false
-    modal.msg(t('translation.modelLoadFailed'), 'error')
+    modal.msg(error instanceof Error ? error.message : t('translation.modelLoadFailed'), 'error')
   } finally {
     isLoading.value = false
     setProgressCallback(null)
@@ -326,7 +326,7 @@ const activateModel = async () => {
   } catch (error) {
     logger.error('[翻译设置] 模型激活失败:', error)
     modelLoaded.value = false
-    modal.msg(t('translation.modelLoadFailed'), 'error')
+    modal.msg(error instanceof Error ? error.message : t('translation.modelLoadFailed'), 'error')
   } finally {
     isLoading.value = false
     modelLoaded.value = isOfflineTranslatorReady()

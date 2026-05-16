@@ -299,6 +299,8 @@ export default {
     enabled: 'Plugin enabled',
     disabled: 'Plugin disabled',
     saveFailed: 'Failed to save plugin state',
+    resourceReady: 'Resource installed',
+    resourceMissing: 'Resource is not installed and will be requested when used',
     sources: {
       builtin: 'Built-in',
       local: 'Local'
@@ -314,12 +316,12 @@ export default {
     translation: {
       name: 'Translation',
       description: 'Translate window, selection translation, screenshot translation, and offline model management.',
-      resourceHint: 'Offline translation models are downloaded on demand.'
+      resourceHint: 'Offline translation runtime and models are loaded on demand as plugin resources.'
     },
     screenshot: {
       name: 'Screenshot and OCR',
       description: 'Screenshot annotation, color picker, pin windows, OCR, and screenshot translation.',
-      resourceHint: 'RapidOCR is a large resource and is ready for on-demand installation in the next step.'
+      resourceHint: 'RapidOCR is a large resource and is now kept out of the core installer as an on-demand plugin resource.'
     },
     todo: {
       name: 'Reminders',

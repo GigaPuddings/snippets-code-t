@@ -358,7 +358,7 @@ const translateWithEngine = async (engine: string) => {
       result.text = t('translate.timeout');
     } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
       result.text = t('translate.networkError');
-    } else if (errorMessage.includes('未下载') || errorMessage.includes('未激活')) {
+    } else if (errorMessage.includes('未下载') || errorMessage.includes('未激活') || errorMessage.includes('运行时未安装')) {
       result.text = errorMessage;
     } else {
       result.text = t('translate.translateFailed');

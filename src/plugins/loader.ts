@@ -50,7 +50,7 @@ export const createBuiltinPackageManifest = (plugin: BuiltinPlugin): PluginPacka
   resources: plugin.resourceHintKey
     ? {
         hintKey: plugin.resourceHintKey,
-        bundled: true
+        bundled: false
       }
     : undefined
 });

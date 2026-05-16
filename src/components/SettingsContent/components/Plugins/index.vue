@@ -44,6 +44,26 @@
           <div v-if="plugin.resourceHintKey" class="plugin-resource">
             {{ t(plugin.resourceHintKey) }}
           </div>
+          <div
+            v-if="plugin.resourceHintKey && pluginStore.resourceStatusByPluginId[plugin.id]"
+            class="plugin-resource-status"
+            :class="{
+              'plugin-resource-status--ready': pluginStore.resourceStatusByPluginId[plugin.id]?.available,
+              'plugin-resource-status--missing': !pluginStore.resourceStatusByPluginId[plugin.id]?.available
+            }"
+          >
+            {{
+              pluginStore.resourceStatusByPluginId[plugin.id]?.available
+                ? t('plugins.resourceReady')
+                : t('plugins.resourceMissing')
+            }}
+            <span
+              v-if="pluginStore.resourceStatusByPluginId[plugin.id]?.source"
+              class="plugin-resource-source"
+            >
+              {{ pluginStore.resourceStatusByPluginId[plugin.id]?.source }}
+            </span>
+          </div>
           <div v-if="plugin.packagePath" class="plugin-path">{{ plugin.packagePath }}</div>
         </div>
         <div class="plugin-controls">
@@ -255,6 +275,22 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
 
 .plugin-resource {
   @apply mt-1 text-xs text-amber-600 dark:text-amber-400 leading-5;
+}
+
+.plugin-resource-status {
+  @apply mt-1 inline-flex max-w-full items-center gap-2 rounded px-1.5 py-0.5 text-xs leading-5;
+
+  &--ready {
+    @apply bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300;
+  }
+
+  &--missing {
+    @apply bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300;
+  }
+}
+
+.plugin-resource-source {
+  @apply truncate text-panel-text-secondary;
 }
 
 .plugin-path {

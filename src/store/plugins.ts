@@ -2,8 +2,11 @@ import { defineStore } from 'pinia';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
   getInstalledPluginManifests,
+  getLocalPluginResourcePath,
   getPluginStates,
+  getRapidOcrResourceStatus,
   installLocalPluginPackage,
+  type PluginResourceStatus,
   setPluginEnabled,
   uninstallLocalPluginPackage
 } from '@/api/plugins';
@@ -51,12 +54,14 @@ export const usePluginStore = defineStore('plugins', {
     enabled: PluginStateMap;
     installedPlugins: RegisteredPlugin[];
     initialized: boolean;
+    resourceStatusByPluginId: Record<string, PluginResourceStatus | undefined>;
     runtimeRevision: number;
     stateUnlisten: UnlistenFn | null;
   } => ({
     enabled: { ...DEFAULT_PLUGIN_STATES },
     installedPlugins: INSTALLED_PLUGINS,
     initialized: false,
+    resourceStatusByPluginId: {},
     runtimeRevision: 0,
     stateUnlisten: null
   }),
@@ -84,6 +89,7 @@ export const usePluginStore = defineStore('plugins', {
           ...this.enabled,
           ...backendStates
         });
+        await this.refreshPluginResourceStatus();
         await this.loadEnabledPluginEntries();
       } catch (error) {
         logger.warn('[PluginStore] 加载插件状态失败，使用默认状态', error);
@@ -113,6 +119,7 @@ export const usePluginStore = defineStore('plugins', {
 
       this.installedPlugins = nextInstalledPlugins;
       this.enabled = normalizePluginStates(this.installedPlugins, this.enabled);
+      await this.refreshPluginResourceStatus();
       await this.loadEnabledPluginEntries();
     },
 
@@ -166,6 +173,45 @@ export const usePluginStore = defineStore('plugins', {
         (pluginId) => this.isEnabled(pluginId)
       );
       this.runtimeRevision += 1;
+    },
+
+    async refreshPluginResourceStatus(): Promise<void> {
+      const nextStatus: Record<string, PluginResourceStatus | undefined> = {};
+
+      if (this.installedPlugins.some((plugin) => plugin.id === 'screenshot')) {
+        try {
+          const status = await getRapidOcrResourceStatus();
+          nextStatus[status.pluginId] = status;
+        } catch (error) {
+          logger.warn('[PluginStore] 获取截图插件资源状态失败', error);
+        }
+      }
+
+      if (this.installedPlugins.some((plugin) => plugin.id === 'translation')) {
+        const runtimeEntry = 'resources/transformers/transformers.min.js';
+        const packageIds = ['translation-offline-runtime', 'translation'];
+        let runtimePath: string | null = null;
+        let source: string | undefined;
+
+        for (const packageId of packageIds) {
+          runtimePath = await getLocalPluginResourcePath(packageId, runtimeEntry);
+          if (runtimePath) {
+            source = `plugin:${packageId}:${runtimeEntry}`;
+            break;
+          }
+        }
+
+        nextStatus.translation = {
+          pluginId: 'translation',
+          resourceId: 'offline-transformers-runtime',
+          available: Boolean(runtimePath),
+          source,
+          path: runtimePath ?? undefined,
+          searchedPaths: packageIds.map((packageId) => `plugins/${packageId}/${runtimeEntry}`)
+        };
+      }
+
+      this.resourceStatusByPluginId = nextStatus;
     }
   },
   persist: {

@@ -1,10 +1,49 @@
-import { pipeline, TranslationPipeline, env } from '@huggingface/transformers'
+import { convertFileSrc } from '@tauri-apps/api/core'
+import { getLocalPluginResourcePath } from '@/api/plugins'
 import { logger } from '@/utils/logger'
 
-// 配置 Transformers.js 环境
-// 强制使用浏览器缓存，避免重复下载
-env.useBrowserCache = true
-env.allowRemoteModels = true
+type TranslationPipeline = (text: string) => Promise<unknown>
+
+interface TransformersModule {
+  pipeline: (
+    task: string,
+    model: string,
+    options: Record<string, unknown>
+  ) => Promise<TranslationPipeline>
+  env: {
+    useBrowserCache: boolean
+    allowRemoteModels: boolean
+  }
+}
+
+const TRANSFORMERS_RUNTIME_ENTRY = 'resources/transformers/transformers.min.js'
+const TRANSFORMERS_RUNTIME_PACKAGES = ['translation-offline-runtime', 'translation']
+let transformersModulePromise: Promise<TransformersModule> | null = null
+
+async function loadTransformersModule(): Promise<TransformersModule> {
+  if (transformersModulePromise) return transformersModulePromise
+
+  transformersModulePromise = (async () => {
+    for (const pluginId of TRANSFORMERS_RUNTIME_PACKAGES) {
+      const runtimePath = await getLocalPluginResourcePath(pluginId, TRANSFORMERS_RUNTIME_ENTRY)
+      if (!runtimePath) continue
+
+      const runtimeUrl = convertFileSrc(runtimePath)
+      const module = await import(/* @vite-ignore */ runtimeUrl) as TransformersModule
+      module.env.useBrowserCache = true
+      module.env.allowRemoteModels = true
+      logger.info(`[离线翻译] 已从插件资源加载 Transformers runtime: ${pluginId}`)
+      return module
+    }
+
+    throw new Error('离线翻译运行时未安装，请先安装 translation-offline-runtime 插件资源包')
+  })().catch((error) => {
+    transformersModulePromise = null
+    throw error
+  })
+
+  return transformersModulePromise
+}
 
 // 翻译管道缓存
 let translatorEnZh: TranslationPipeline | null = null
@@ -87,6 +126,7 @@ async function getTranslator(): Promise<TranslationPipeline> {
   initPromise = (async () => {
     try {
       // 确保允许使用缓存
+      const { pipeline, env } = await loadTransformersModule()
       env.useBrowserCache = true
       env.allowRemoteModels = true
       
@@ -191,6 +231,10 @@ export async function translateOffline(text: string): Promise<string> {
   } catch (error) {
     if (error instanceof Error && error.message === '翻译已取消') {
       logger.info('[离线翻译] 翻译已取消')
+      throw error
+    }
+    if (error instanceof Error && error.message.includes('离线翻译运行时未安装')) {
+      logger.warn('[离线翻译] 运行时资源未安装')
       throw error
     }
     logger.error('[离线翻译] 翻译失败:', error)

@@ -313,6 +313,8 @@ export default {
     enabled: '插件已开启',
     disabled: '插件已关闭',
     saveFailed: '插件状态保存失败',
+    resourceReady: '资源已安装',
+    resourceMissing: '资源未安装，启用后会在调用时提示安装',
     sources: {
       builtin: '内置',
       local: '本地'
@@ -328,12 +330,12 @@ export default {
     translation: {
       name: '翻译工具',
       description: '翻译窗口、划词翻译、截图翻译和离线翻译模型管理。',
-      resourceHint: '离线翻译模型会在首次启用时按需下载。'
+      resourceHint: '离线翻译运行时与模型均按需作为插件资源加载。'
     },
     screenshot: {
       name: '截图与 OCR',
       description: '截图标注、取色、贴图、OCR 识别和截图翻译入口。',
-      resourceHint: 'RapidOCR 属于重资源，后续会迁移为按需安装。'
+      resourceHint: 'RapidOCR 属于重资源，已从主安装包移出，按需作为插件资源安装。'
     },
     todo: {
       name: '待办提醒',

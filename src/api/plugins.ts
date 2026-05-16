@@ -2,6 +2,15 @@ import { invoke } from '@tauri-apps/api/core';
 import type { PluginStateMap, PluginId } from '@/plugins/types';
 import type { LocalPluginPackage } from '@/plugins/protocol';
 
+export interface PluginResourceStatus {
+  pluginId: string;
+  resourceId: string;
+  available: boolean;
+  source?: string;
+  path?: string;
+  searchedPaths: string[];
+}
+
 export async function getPluginStates(): Promise<Partial<PluginStateMap>> {
   return await invoke<Partial<PluginStateMap>>('get_plugin_states');
 }
@@ -20,4 +29,15 @@ export async function uninstallLocalPluginPackage(pluginId: PluginId | string): 
 
 export async function setPluginEnabled(pluginId: PluginId | string, enabled: boolean): Promise<void> {
   await invoke('set_plugin_enabled', { pluginId, enabled });
+}
+
+export async function getRapidOcrResourceStatus(): Promise<PluginResourceStatus> {
+  return await invoke<PluginResourceStatus>('get_rapidocr_resource_status');
+}
+
+export async function getLocalPluginResourcePath(
+  pluginId: PluginId | string,
+  relativePath: string
+): Promise<string | null> {
+  return await invoke<string | null>('get_local_plugin_resource_path', { pluginId, relativePath });
 }
