@@ -1,7 +1,7 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event';
 import { SettingTwo } from '@icon-park/vue-next';
-import { defineAsyncComponent, markRaw, type Component } from 'vue';
+import { defineAsyncComponent, defineComponent, h, markRaw, type Component } from 'vue';
 import type { RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
 import type { SearchSourceProvider, SearchSourceResult } from './search';
@@ -56,6 +56,10 @@ export interface PluginFrontendRuntimeContext {
     listen: typeof listen;
     emit: typeof emit;
   };
+  ui: {
+    h: typeof h;
+    defineComponent: typeof defineComponent;
+  };
   registerRoute(route: RuntimeRouteRegistration): void;
   registerSettingsTab(tab: RuntimeSettingsRegistration): void;
   registerSearchProvider(provider: RuntimeSearchProviderRegistration): void;
@@ -75,6 +79,7 @@ const runtimeLayoutPluginRoutes: RouteRecordRaw[] = [];
 const runtimeWindowPluginRoutes: RouteRecordRaw[] = [];
 const loadedFrontendEntries = new Set<string>();
 const installedRuntimeRouteNames = new Set<string>();
+const installedRuntimeRouteRemovers = new Map<string, () => void>();
 
 const trimSlashes = (value: string): string => value.replace(/^[\\/]+|[\\/]+$/g, '');
 
@@ -131,6 +136,17 @@ const pushRoute = (
   runtimeLayoutPluginRoutes.push(route);
 };
 
+const removeRoutesForPlugin = (
+  routes: RouteRecordRaw[],
+  pluginId: string
+): void => {
+  for (let index = routes.length - 1; index >= 0; index -= 1) {
+    if (routes[index].meta?.pluginId === pluginId) {
+      routes.splice(index, 1);
+    }
+  }
+};
+
 const appendCapability = (
   plugin: RegisteredPlugin,
   key: 'routeNames' | 'settingsTabs' | 'hotkeys' | 'searchSources',
@@ -157,6 +173,10 @@ const createRuntimeContext = (plugin: RegisteredPlugin): PluginFrontendRuntimeCo
     listen,
     emit
   },
+  ui: {
+    h,
+    defineComponent
+  },
   registerRoute(route) {
     const target = route.target ?? 'layout';
     appendCapability(plugin, 'routeNames', route.name);
@@ -174,6 +194,7 @@ const createRuntimeContext = (plugin: RegisteredPlugin): PluginFrontendRuntimeCo
     const labelKey = tab.labelKey ?? `plugins.${plugin.id}.${tab.id}`;
     const item: PluginSettingsMenuItem = {
       id: tab.id,
+      pluginId: String(plugin.id),
       labelKey,
       label: tab.label,
       icon: tab.icon ?? SettingTwo
@@ -246,12 +267,14 @@ export const installRuntimePluginRoutes = (router: Router): number => {
   const installRoute = (route: RouteRecordRaw, parentName?: string): void => {
     if (!route.name || installedRuntimeRouteNames.has(String(route.name))) return;
     if (router.hasRoute(route.name)) return;
+    let removeRoute: () => void;
     if (parentName) {
-      router.addRoute(parentName, route);
+      removeRoute = router.addRoute(parentName, route);
     } else {
-      router.addRoute(route);
+      removeRoute = router.addRoute(route);
     }
     installedRuntimeRouteNames.add(String(route.name));
+    installedRuntimeRouteRemovers.set(String(route.name), removeRoute);
     added += 1;
   };
 
@@ -260,6 +283,53 @@ export const installRuntimePluginRoutes = (router: Router): number => {
   runtimeWindowPluginRoutes.forEach((route) => installRoute(route));
 
   return added;
+};
+
+export const clearRuntimePluginRegistrations = (pluginId: string): void => {
+  loadedFrontendEntries.delete(pluginId);
+
+  for (const [routeName, removeRoute] of installedRuntimeRouteRemovers.entries()) {
+    const shouldRemove = [
+      ...runtimeConfigPluginRoutes,
+      ...runtimeLayoutPluginRoutes,
+      ...runtimeWindowPluginRoutes
+    ].some((route) => route.name === routeName && route.meta?.pluginId === pluginId);
+    if (!shouldRemove) continue;
+
+    removeRoute();
+    installedRuntimeRouteNames.delete(routeName);
+    installedRuntimeRouteRemovers.delete(routeName);
+  }
+
+  removeRoutesForPlugin(runtimeConfigPluginRoutes, pluginId);
+  removeRoutesForPlugin(runtimeLayoutPluginRoutes, pluginId);
+  removeRoutesForPlugin(runtimeWindowPluginRoutes, pluginId);
+
+  for (let index = pluginSettingsMenuItems.length - 1; index >= 0; index -= 1) {
+    const item = pluginSettingsMenuItems[index];
+    if (item.pluginId === pluginId) {
+      delete pluginSettingsComponents[item.id];
+      pluginSettingsMenuItems.splice(index, 1);
+    }
+  }
+
+  for (let index = searchSourceProviders.length - 1; index >= 0; index -= 1) {
+    if (searchSourceProviders[index].pluginId === pluginId) {
+      searchSourceProviders.splice(index, 1);
+    }
+  }
+
+  for (let index = titlebarPluginActions.length - 1; index >= 0; index -= 1) {
+    if (titlebarPluginActions[index].pluginId === pluginId) {
+      titlebarPluginActions.splice(index, 1);
+    }
+  }
+
+  for (let index = pluginWindowShortcuts.length - 1; index >= 0; index -= 1) {
+    if (pluginWindowShortcuts[index].pluginId === pluginId) {
+      pluginWindowShortcuts.splice(index, 1);
+    }
+  }
 };
 
 export type RuntimeUnlisten = UnlistenFn;

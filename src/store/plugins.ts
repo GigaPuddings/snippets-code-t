@@ -13,7 +13,7 @@ import {
   isPluginId
 } from '@/plugins/registry';
 import { loadPluginRegistry } from '@/plugins/loader';
-import { ensureLocalPluginFrontendEntries } from '@/plugins/runtime';
+import { clearRuntimePluginRegistrations, ensureLocalPluginFrontendEntries } from '@/plugins/runtime';
 import type { RegisteredPlugin } from '@/plugins/protocol';
 import type { PluginId, PluginStateMap } from '@/plugins/types';
 import { logger } from '@/utils/logger';
@@ -65,7 +65,7 @@ export const usePluginStore = defineStore('plugins', {
     isEnabled: (state) => (id: PluginId | string): boolean => (
       state.installedPlugins.some((plugin) => plugin.id === id)
         ? state.enabled[id] ?? true
-        : (isPluginId(id) ? state.enabled[id] ?? DEFAULT_PLUGIN_STATES[id] : true)
+        : (isPluginId(id) ? state.enabled[id] ?? DEFAULT_PLUGIN_STATES[id] : false)
     )
   },
   actions: {
@@ -96,19 +96,35 @@ export const usePluginStore = defineStore('plugins', {
     },
 
     async refreshInstalledPlugins(): Promise<void> {
+      const previousLocalIds = this.installedPlugins
+        .filter((plugin) => plugin.source === 'local')
+        .map((plugin) => String(plugin.id));
       const localManifests = await getInstalledPluginManifests();
-      this.installedPlugins = loadPluginRegistry(localManifests);
+      const nextInstalledPlugins = loadPluginRegistry(localManifests);
+      const nextLocalIds = new Set(
+        nextInstalledPlugins
+          .filter((plugin) => plugin.source === 'local')
+          .map((plugin) => String(plugin.id))
+      );
+
+      previousLocalIds
+        .filter((pluginId) => !nextLocalIds.has(pluginId))
+        .forEach((pluginId) => clearRuntimePluginRegistrations(pluginId));
+
+      this.installedPlugins = nextInstalledPlugins;
       this.enabled = normalizePluginStates(this.installedPlugins, this.enabled);
       await this.loadEnabledPluginEntries();
     },
 
     async installFromPath(sourcePath: string, overwrite = false): Promise<void> {
-      await installLocalPluginPackage(sourcePath, overwrite);
+      const pluginPackage = await installLocalPluginPackage(sourcePath, overwrite);
+      clearRuntimePluginRegistrations(String(pluginPackage.manifest.id));
       await this.refreshInstalledPlugins();
     },
 
     async uninstall(pluginId: PluginId | string): Promise<void> {
       await uninstallLocalPluginPackage(pluginId);
+      clearRuntimePluginRegistrations(String(pluginId));
       await this.refreshInstalledPlugins();
     },
 

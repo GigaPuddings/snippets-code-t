@@ -77,7 +77,12 @@ const menuItems = computed(() => {
         return false;
       }
 
-      const plugin = pluginStore.plugins.find((candidate) => candidate.settingsTabs?.includes(item.id));
+      const plugin = item.pluginId
+        ? pluginStore.plugins.find((candidate) => candidate.id === item.pluginId)
+        : pluginStore.plugins.find((candidate) => candidate.settingsTabs?.includes(item.id));
+      if (item.pluginId) {
+        return !!plugin && pluginStore.isEnabled(plugin.id);
+      }
       return !plugin || pluginStore.isEnabled(plugin.id);
     })
     .map((item) => {
@@ -129,7 +134,17 @@ async function refreshCanShowGitSyncTab() {
 // 切换 tab
 const switchTab = (tabId: string) => {
   if (tabId === 'gitSync' && !canShowGitSyncTab.value) return;
-  const plugin = pluginStore.plugins.find((candidate) => candidate.settingsTabs?.includes(tabId));
+  const item = pluginSettingsMenuItems.find((candidate) => candidate.id === tabId);
+  const plugin = item?.pluginId
+    ? pluginStore.plugins.find((candidate) => candidate.id === item.pluginId)
+    : pluginStore.plugins.find((candidate) => candidate.settingsTabs?.includes(tabId));
+  if (item?.pluginId && !plugin) {
+    activeTab.value = 'plugins';
+    if (!loadedTabs.value.includes('plugins')) {
+      loadedTabs.value.push('plugins');
+    }
+    return;
+  }
   if (plugin && !pluginStore.isEnabled(plugin.id)) {
     activeTab.value = 'plugins';
     if (!loadedTabs.value.includes('plugins')) {

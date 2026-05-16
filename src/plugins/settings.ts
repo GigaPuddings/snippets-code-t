@@ -3,6 +3,7 @@ import { FolderOpen, Github, Translate } from '@icon-park/vue-next';
 
 export interface PluginSettingsMenuItem {
   id: string;
+  pluginId?: string;
   labelKey: string;
   label?: string;
   icon: Component;

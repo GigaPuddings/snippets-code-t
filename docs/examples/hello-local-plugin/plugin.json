@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "hello-local-plugin",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.helloLocal.name",
+    "fallback": "Hello Local Plugin"
+  },
+  "description": {
+    "i18nKey": "plugins.helloLocal.description",
+    "fallback": "A minimal local plugin used to verify package installation and frontend activation."
+  },
+  "category": "automation",
+  "enabledByDefault": false,
+  "capabilities": {
+    "routeNames": [
+      "HelloLocalPlugin"
+    ],
+    "settingsTabs": [
+      "helloLocalPlugin"
+    ],
+    "searchSources": [
+      "hello-local-plugin"
+    ]
+  },
+  "entry": {
+    "frontend": "dist/frontend.js"
+  },
+  "permissions": []
+}

@@ -123,7 +123,11 @@ The activation context exposes these registration methods:
 - `registerTitlebarAction`
 - `registerWindowShortcut`
 
+It also exposes `context.ui.h` and `context.ui.defineComponent` so simple local plugins can register Vue components without bundling their own copy of Vue.
+
 Runtime-registered routes are added to Vue Router after the plugin registry initializes. Runtime settings tabs, titlebar actions, search providers, and window shortcuts are merged with the built-in registries and still respect the plugin enabled state.
+
+See `docs/examples/hello-local-plugin` for a minimal installable package.
 
 ## Hotkeys
 
