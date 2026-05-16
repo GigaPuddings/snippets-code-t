@@ -1,302 +1,72 @@
 <template>
   <div class="settings-panel">
-    <!-- 固定标题 -->
     <div class="panel-header">
       <h3 class="panel-title">{{ $t('shortcut.title') }}</h3>
     </div>
-    
-    <!-- 可滚动内容 -->
+
     <main class="panel-content">
-    <section v-if="isHotkeyVisible('search')" class="summarize-section transparent-input">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('shortcut.searchHotkey') }}</div>
-        <div class="summarize-label-desc">{{ $t('shortcut.searchHotkeyDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <el-input
-          class="summarize-input"
-          required
-          v-model="store.searchHotkey"
-          @keydown="keyDown($event, setSelectionSearch)"
-          @focus="() => handleFocusUnregister('search', store.searchHotkey)"
-        >
-          <template #suffix>
-            <label class="label">
-              <span
-                v-for="(char, index) in labelText"
-                :key="index"
-                class="label-char"
-                :style="{ '--index': index }"
+      <section
+        v-for="hotkey in visibleHotkeySettings"
+        :key="hotkey.name"
+        class="summarize-section transparent-input"
+      >
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t(hotkey.labelKey) }}</div>
+          <div class="summarize-label-desc">{{ $t(hotkey.descriptionKey) }}</div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <el-input
+            class="summarize-input"
+            required
+            :model-value="getHotkeyValue(store, hotkey.name)"
+            @update:model-value="(value) => setHotkeyValue(store, hotkey.name, String(value))"
+            @keydown="keyDown($event, (value) => setHotkeyValue(store, hotkey.name, value))"
+            @focus="() => handleFocusUnregister(hotkey.name, getHotkeyValue(store, hotkey.name))"
+          >
+            <template #suffix>
+              <label class="label">
+                <span
+                  v-for="(char, index) in labelText"
+                  :key="index"
+                  class="label-char"
+                  :style="{ '--index': index }"
+                >
+                  {{ char }}
+                </span>
+              </label>
+            </template>
+            <template #append>
+              <CustomButton
+                v-if="getHotkeyValue(store, hotkey.name)"
+                type="default"
+                size="small"
+                class="button-shortcut"
+                @click="() => registerHandler(hotkey.name, getHotkeyValue(store, hotkey.name))"
               >
-                {{ char }}
-              </span>
-            </label>
-          </template>
-          <template #append>
-            <CustomButton
-              v-if="store.searchHotkey"
-              type="default"
-              size="small"
-              @click="() => registerHandler('search', store.searchHotkey)"
-              class="button-shortcut"
-            >
-              {{ $t('shortcut.register') }}
-            </CustomButton>
-          </template>
-        </el-input>
-      </div>
-    </section>
-
-    <section v-if="isHotkeyVisible('config')" class="summarize-section transparent-input">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('shortcut.configHotkey') }}</div>
-        <div class="summarize-label-desc">{{ $t('shortcut.configHotkeyDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <el-input
-          class="summarize-input"
-          v-model="store.configHotkey"
-          required
-          @keydown="keyDown($event, setSelectionConfig)"
-          @focus="() => handleFocusUnregister('config', store.configHotkey)"
-        >
-          <template #suffix>
-            <label class="label">
-              <span
-                v-for="(char, index) in labelText"
-                :key="index"
-                class="label-char"
-                :style="{ '--index': index }"
-              >
-                {{ char }}
-              </span>
-            </label>
-          </template>
-          <template #append>
-            <CustomButton
-              v-if="store.configHotkey"
-              type="default"
-              size="small"
-              @click="() => registerHandler('config', store.configHotkey)"
-              class="button-shortcut"
-            >
-              {{ $t('shortcut.register') }}
-            </CustomButton>
-          </template>
-        </el-input>
-      </div>
-    </section>
-
-    <section v-if="isHotkeyVisible('translate')" class="summarize-section transparent-input">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('shortcut.translateHotkey') }}</div>
-        <div class="summarize-label-desc">{{ $t('shortcut.translateHotkeyDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <el-input
-          class="summarize-input"
-          v-model="store.translateHotkey"
-          required
-          @keydown="keyDown($event, setSelectionTranslate)"
-          @focus="
-            () => handleFocusUnregister('translate', store.translateHotkey)
-          "
-        >
-          <template #suffix>
-            <label class="label">
-              <span
-                v-for="(char, index) in labelText"
-                :key="index"
-                class="label-char"
-                :style="{ '--index': index }"
-              >
-                {{ char }}
-              </span>
-            </label>
-          </template>
-          <template #append>
-            <CustomButton
-              v-if="store.translateHotkey"
-              type="default"
-              size="small"
-              @click="() => registerHandler('translate', store.translateHotkey)"
-              class="button-shortcut"
-            >
-              {{ $t('shortcut.register') }}
-            </CustomButton>
-          </template>
-        </el-input>
-      </div>
-    </section>
-
-    <section v-if="isHotkeyVisible('selection_translate')" class="summarize-section transparent-input">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('shortcut.selectionTranslateHotkey') }}</div>
-        <div class="summarize-label-desc">{{ $t('shortcut.selectionTranslateHotkeyDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <el-input
-          class="summarize-input"
-          v-model="store.selectionTranslateHotkey"
-          required
-          @keydown="keyDown($event, setSelectionTranslateHotkey)"
-          @focus="
-            () =>
-              handleFocusUnregister(
-                'selection_translate',
-                store.selectionTranslateHotkey
-              )
-          "
-        >
-          <template #suffix>
-            <label class="label">
-              <span
-                v-for="(char, index) in labelText"
-                :key="index"
-                class="label-char"
-                :style="{ '--index': index }"
-              >
-                {{ char }}
-              </span>
-            </label>
-          </template>
-          <template #append>
-            <CustomButton
-              v-if="store.selectionTranslateHotkey"
-              type="default"
-              size="small"
-              @click="
-                () =>
-                  registerHandler(
-                    'selection_translate',
-                    store.selectionTranslateHotkey
-                  )
-              "
-              class="button-shortcut"
-            >
-              {{ $t('shortcut.register') }}
-            </CustomButton>
-          </template>
-        </el-input>
-      </div>
-    </section>
-
-    <section v-if="isHotkeyVisible('screenshot')" class="summarize-section transparent-input">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('shortcut.screenshotHotkey') }}</div>
-        <div class="summarize-label-desc">{{ $t('shortcut.screenshotHotkeyDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <el-input
-          class="summarize-input"
-          v-model="store.screenshotHotkey"
-          required
-          @keydown="keyDown($event, setSelectionScreenshotHotkey)"
-          @focus="
-            () =>
-              handleFocusUnregister(
-                'screenshot',
-                store.screenshotHotkey
-              )
-          "
-        >
-          <template #suffix>
-            <label class="label">
-              <span
-                v-for="(char, index) in labelText"
-                :key="index"
-                class="label-char"
-                :style="{ '--index': index }"
-              >
-                {{ char }}
-              </span>
-            </label>
-          </template>
-          <template #append>
-            <CustomButton
-              v-if="store.screenshotHotkey"
-              type="default"
-              size="small"
-              @click="
-                () =>
-                  registerHandler(
-                    'screenshot',
-                    store.screenshotHotkey
-                  )
-              "
-              class="button-shortcut"
-            >
-              {{ $t('shortcut.register') }}
-            </CustomButton>
-          </template>
-        </el-input>
-      </div>
-    </section>
-
-    <section v-if="isHotkeyVisible('dark_mode')" class="summarize-section transparent-input">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('shortcut.darkModeHotkey') }}</div>
-        <div class="summarize-label-desc">{{ $t('shortcut.darkModeHotkeyDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <el-input
-          class="summarize-input"
-          v-model="store.darkModeHotkey"
-          required
-          @keydown="keyDown($event, setSelectionDarkModeHotkey)"
-          @focus="
-            () =>
-              handleFocusUnregister(
-                'dark_mode',
-                store.darkModeHotkey
-              )
-          "
-        >
-          <template #suffix>
-            <label class="label">
-              <span
-                v-for="(char, index) in labelText"
-                :key="index"
-                class="label-char"
-                :style="{ '--index': index }"
-              >
-                {{ char }}
-              </span>
-            </label>
-          </template>
-          <template #append>
-            <CustomButton
-              v-if="store.darkModeHotkey"
-              type="default"
-              size="small"
-              @click="
-                () =>
-                  registerHandler(
-                    'dark_mode',
-                    store.darkModeHotkey
-                  )
-              "
-              class="button-shortcut"
-            >
-              {{ $t('shortcut.register') }}
-            </CustomButton>
-          </template>
-        </el-input>
-      </div>
-    </section>
-  </main>
+                {{ $t('shortcut.register') }}
+              </CustomButton>
+            </template>
+          </el-input>
+        </div>
+      </section>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core';
-import { useI18n } from 'vue-i18n';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
-import { osType } from '@/utils/env';
-import { getPluginByHotkey } from '@/plugins/registry';
-import { setHotkeyValue } from '@/plugins/hotkeys';
-import { useConfigurationStore, usePluginStore } from '@/store';
+import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
+import { getPluginByHotkey } from '@/plugins/registry';
+import {
+  getHotkeyValue,
+  hotkeySettingDefinitions,
+  setHotkeyValue,
+  type HotkeyName
+} from '@/plugins/hotkeys';
+import { useConfigurationStore, usePluginStore } from '@/store';
+import { osType } from '@/utils/env';
 import modal from '@/utils/modal';
 
 const { t } = useI18n();
@@ -309,17 +79,20 @@ defineOptions({
 
 const labelText = computed(() => t('shortcut.pressToSet').split(''));
 
-const isHotkeyVisible = (hotkeyName: string) => {
+const isHotkeyVisible = (hotkeyName: HotkeyName) => {
   const plugin = getPluginByHotkey(hotkeyName);
   return !plugin || pluginStore.isEnabled(plugin.id);
 };
+
+const visibleHotkeySettings = computed(() => (
+  hotkeySettingDefinitions.filter((hotkey) => isHotkeyVisible(hotkey.name))
+));
 
 onMounted(() => {
   void pluginStore.initialize();
 });
 
-// 快捷键映射
-const keyMap: any = {
+const keyMap: Record<string, string> = {
   Backquote: '`',
   Backslash: '\\',
   BracketLeft: '[',
@@ -348,8 +121,7 @@ const keyMap: any = {
   Insert: 'Insert'
 };
 
-// 快捷键监听
-function keyDown(e: Event | KeyboardEvent, setKey: (arg0: string) => void) {
+function keyDown(e: Event | KeyboardEvent, setKey: (value: string) => void) {
   const event = e as KeyboardEvent;
   event.preventDefault();
 
@@ -358,7 +130,7 @@ function keyDown(e: Event | KeyboardEvent, setKey: (arg0: string) => void) {
     return;
   }
 
-  let parts = [];
+  const parts: string[] = [];
 
   if (event.ctrlKey) parts.push('Ctrl');
   if (event.shiftKey) parts.push('Shift');
@@ -387,34 +159,29 @@ function keyDown(e: Event | KeyboardEvent, setKey: (arg0: string) => void) {
   }
 
   const shortcut = parts.join('+');
-  // 显示当前按键状态（包括只有修饰键的情况）
   if (shortcut) {
     setKey(shortcut);
   }
 }
 
-// 检查快捷键是否包含主键
 function hasMainKey(shortcut: string): boolean {
   const modifiers = ['Ctrl', 'Control', 'Shift', 'Alt', 'Option', 'Command', 'Super', 'Meta'];
-  const parts = shortcut.split('+').map(p => p.trim());
-  // 检查是否有非修饰键的部分
-  return parts.some(part => !modifiers.includes(part));
+  const parts = shortcut.split('+').map((part) => part.trim());
+  return parts.some((part) => !modifiers.includes(part));
 }
 
-// 注册快捷键
-function registerHandler(name: string, key: string) {
+function registerHandler(name: HotkeyName, key: string) {
   if (key.trim() === '') {
     return;
   }
-  
-  // 检查是否包含主键
+
   if (!hasMainKey(key)) {
     modal.msg(t('shortcut.needMainKey'), 'warning');
     return;
   }
-  
+
   invoke('register_shortcut_by_frontend', {
-    name: name,
+    name,
     shortcut: key
   })
     .then(() => {
@@ -425,38 +192,12 @@ function registerHandler(name: string, key: string) {
     });
 }
 
-// 设置快捷键
-function setSelectionSearch(value: string) {
-  setHotkeyValue(store, 'search', value);
-}
-
-function setSelectionConfig(value: string) {
-  setHotkeyValue(store, 'config', value);
-}
-
-function setSelectionTranslate(value: string) {
-  setHotkeyValue(store, 'translate', value);
-}
-
-function setSelectionTranslateHotkey(value: string) {
-  setHotkeyValue(store, 'selection_translate', value);
-}
-
-function setSelectionScreenshotHotkey(value: string) {
-  setHotkeyValue(store, 'screenshot', value);
-}
-
-function setSelectionDarkModeHotkey(value: string) {
-  setHotkeyValue(store, 'dark_mode', value);
-}
-
-// 快捷键取消
-function handleFocusUnregister(name: string, key: string) {
+function handleFocusUnregister(name: HotkeyName, key: string) {
   if (key.trim() === '') {
     return;
   }
   unregister(key);
   setHotkeyValue(store, name, '');
-  invoke('register_shortcut_by_frontend', { name: name, shortcut: '' });
+  invoke('register_shortcut_by_frontend', { name, shortcut: '' });
 }
 </script>

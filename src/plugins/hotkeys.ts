@@ -10,42 +10,75 @@ export type HotkeyName =
   | 'screenshot'
   | 'dark_mode';
 
-const hotkeyAccessors: Record<HotkeyName, {
+export interface HotkeySettingDefinition {
+  name: HotkeyName;
+  labelKey: string;
+  descriptionKey: string;
+}
+
+const hotkeyDefinitions: Record<HotkeyName, HotkeySettingDefinition & {
   get: (store: ConfigurationStore) => string;
   set: (store: ConfigurationStore, value: string) => void;
 }> = {
   search: {
+    name: 'search',
+    labelKey: 'shortcut.searchHotkey',
+    descriptionKey: 'shortcut.searchHotkeyDesc',
     get: (store) => store.searchHotkey,
     set: (store, value) => { store.searchHotkey = value; }
   },
   config: {
+    name: 'config',
+    labelKey: 'shortcut.configHotkey',
+    descriptionKey: 'shortcut.configHotkeyDesc',
     get: (store) => store.configHotkey,
     set: (store, value) => { store.configHotkey = value; }
   },
   translate: {
+    name: 'translate',
+    labelKey: 'shortcut.translateHotkey',
+    descriptionKey: 'shortcut.translateHotkeyDesc',
     get: (store) => store.translateHotkey,
     set: (store, value) => { store.translateHotkey = value; }
   },
   selection_translate: {
+    name: 'selection_translate',
+    labelKey: 'shortcut.selectionTranslateHotkey',
+    descriptionKey: 'shortcut.selectionTranslateHotkeyDesc',
     get: (store) => store.selectionTranslateHotkey,
     set: (store, value) => { store.selectionTranslateHotkey = value; }
   },
   screenshot: {
+    name: 'screenshot',
+    labelKey: 'shortcut.screenshotHotkey',
+    descriptionKey: 'shortcut.screenshotHotkeyDesc',
     get: (store) => store.screenshotHotkey,
     set: (store, value) => { store.screenshotHotkey = value; }
   },
   dark_mode: {
+    name: 'dark_mode',
+    labelKey: 'shortcut.darkModeHotkey',
+    descriptionKey: 'shortcut.darkModeHotkeyDesc',
     get: (store) => store.darkModeHotkey,
     set: (store, value) => { store.darkModeHotkey = value; }
   }
 };
 
+export const hotkeySettingDefinitions: HotkeySettingDefinition[] = [
+  hotkeyDefinitions.search,
+  hotkeyDefinitions.config,
+  hotkeyDefinitions.translate,
+  hotkeyDefinitions.selection_translate,
+  hotkeyDefinitions.screenshot,
+  hotkeyDefinitions.dark_mode
+].map(({ name, labelKey, descriptionKey }) => ({ name, labelKey, descriptionKey }));
+
 export const isHotkeyName = (value: string): value is HotkeyName => (
-  value in hotkeyAccessors
+  value in hotkeyDefinitions
 );
 
 export const getHotkeyValue = (store: ConfigurationStore, hotkeyName: string): string => (
-  isHotkeyName(hotkeyName) ? hotkeyAccessors[hotkeyName].get(store) : ''
+  isHotkeyName(hotkeyName) ? hotkeyDefinitions[hotkeyName].get(store) : ''
 );
 
 export const setHotkeyValue = (
@@ -54,6 +87,6 @@ export const setHotkeyValue = (
   value: string
 ): void => {
   if (isHotkeyName(hotkeyName)) {
-    hotkeyAccessors[hotkeyName].set(store, value);
+    hotkeyDefinitions[hotkeyName].set(store, value);
   }
 };
