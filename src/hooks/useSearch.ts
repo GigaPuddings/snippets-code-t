@@ -6,15 +6,15 @@ import type { ContentType, SearchEngine, SearchHistoryItem, MarkdownFile } from 
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import { usePluginStore } from '@/store';
 import { searchSourceProviders } from '@/plugins/search-providers';
-import {
-  createDefaultSearchResult,
-  createEngineShortcutResult,
-  findSearchEngine,
-  getDefaultSearchEngine,
-  listenSearchEngineUpdates,
-  loadSearchEngines,
-  openSearchEngine
-} from '@/plugins/search-engines/searchRuntime';
+
+type SearchEngineRuntime = typeof import('@/plugins/search-engines/searchRuntime');
+
+let searchEngineRuntimePromise: Promise<SearchEngineRuntime> | null = null;
+
+const loadSearchEngineRuntime = async (): Promise<SearchEngineRuntime> => {
+  searchEngineRuntimePromise ??= import('@/plugins/search-engines/searchRuntime');
+  return searchEngineRuntimePromise;
+};
 
 interface SearchHistoryMeta {
   usage_count: number;
@@ -267,6 +267,11 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     }
 
     try {
+      const {
+        createEngineShortcutResult,
+        findSearchEngine,
+        openSearchEngine
+      } = await loadSearchEngineRuntime();
       const match = findSearchEngine(searchEngines.value, text, forceSearch);
       if (!match) {
         return false;
@@ -358,10 +363,16 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         : new Map<string, SearchHistoryMeta>();
 
       // 4. 默认搜索引擎选项（仅在非 URL 时显示）
-      const defaultEngine = getDefaultSearchEngine(pluginStore, searchEngines.value);
       let defaultSearchResult: ContentType | null = null;
-      if (defaultEngine) {
-        defaultSearchResult = withSourceId(createDefaultSearchResult(defaultEngine, query), 'default-search', 0);
+      if (pluginStore.isEnabled('search-engines')) {
+        const {
+          createDefaultSearchResult,
+          getDefaultSearchEngine
+        } = await loadSearchEngineRuntime();
+        const defaultEngine = getDefaultSearchEngine(pluginStore, searchEngines.value);
+        if (defaultEngine) {
+          defaultSearchResult = withSourceId(createDefaultSearchResult(defaultEngine, query), 'default-search', 0);
+        }
       }
 
       searchResults.value = [
@@ -404,12 +415,18 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       if (isEngineSearch) return;
 
       // 3. 使用默认搜索引擎
-      const defaultEngine = getDefaultSearchEngine(pluginStore, searchEngines.value);
-      if (defaultEngine) {
-        // add history
-        addSearchHistory('default-search');
-        await openSearchEngine(defaultEngine, text);
-        searchText.value = '';
+      if (pluginStore.isEnabled('search-engines')) {
+        const {
+          getDefaultSearchEngine,
+          openSearchEngine
+        } = await loadSearchEngineRuntime();
+        const defaultEngine = getDefaultSearchEngine(pluginStore, searchEngines.value);
+        if (defaultEngine) {
+          // add history
+          addSearchHistory('default-search');
+          await openSearchEngine(defaultEngine, text);
+          searchText.value = '';
+        }
       }
     } catch (error) {
       ErrorHandler.handle(error, {
@@ -444,6 +461,14 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   onMounted(async () => {
     try {
       await pluginStore.initialize();
+      if (!pluginStore.isEnabled('search-engines')) {
+        return;
+      }
+
+      const {
+        listenSearchEngineUpdates,
+        loadSearchEngines
+      } = await loadSearchEngineRuntime();
       searchEngines.value = await loadSearchEngines(pluginStore);
 
       // 监听搜索引擎更新

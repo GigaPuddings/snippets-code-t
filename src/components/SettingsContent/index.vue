@@ -40,7 +40,6 @@ import General from './components/General/index.vue';
 import Shortcut from './components/Shortcut/index.vue';
 import Manger from './components/Manger/index.vue';
 import Plugins from './components/Plugins/index.vue';
-import { getGitStatus } from '@/plugins/git-sync/api';
 import { getGitSettings } from '@/api/appConfig';
 import { pluginSettingsComponents, pluginSettingsMenuItems, type PluginSettingsMenuItem } from '@/plugins/settings';
 import { usePluginStore } from '@/store';
@@ -113,11 +112,17 @@ const componentMap = computed<Record<string, any>>(() => {
 
 async function refreshCanShowGitSyncTab() {
   try {
+    if (!pluginStore.isEnabled('git-sync')) {
+      canShowGitSyncTab.value = false;
+      return;
+    }
+
     const root = await invoke<string | null>('get_workspace_root_path');
     if (!root) {
       canShowGitSyncTab.value = false;
       return;
     }
+    const { getGitStatus } = await import('@/plugins/git-sync/api');
     const [status, settings] = await Promise.all([getGitStatus(), getGitSettings()]);
     const hasRequiredFields =
       !!settings.user_name?.trim() &&
