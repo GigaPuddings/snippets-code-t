@@ -239,6 +239,14 @@ Official package manifests live under:
 docs/plugin-packages/<plugin-id>/plugin.json
 ```
 
+Published official packages live in one GitHub repository per plugin, such as:
+
+```text
+https://github.com/GigaPuddings/snippets-code-plugin-screenshot
+https://github.com/GigaPuddings/snippets-code-plugin-translation
+https://github.com/GigaPuddings/snippets-code-plugin-git-sync
+```
+
 Marketplace entries use schema version `1`:
 
 ```json
@@ -246,31 +254,31 @@ Marketplace entries use schema version `1`:
   "schemaVersion": 1,
   "plugins": [
     {
-      "id": "hello-local-plugin",
+      "id": "screenshot",
       "version": "1.0.0",
-      "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/examples/hello-local-plugin",
-      "status": "available"
+      "category": "capture",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/heads/main.zip",
+      "status": "included"
     }
   ]
 }
 ```
 
 `packageUrl` must be HTTPS, except for local development URLs under
-`http://localhost`, `http://127.0.0.1`, or `http://[::1]`. `packageSubdir`
-lets a GitHub repository archive act as a multi-plugin source: the installer
-downloads the archive, extracts it to a temporary directory, locates the
-subdirectory containing `plugin.json`, and installs that package into
+`http://localhost`, `http://127.0.0.1`, or `http://[::1]`. A per-plugin
+repository archive should contain a single root directory with `plugin.json`.
+`packageSubdir` is still supported for development and multi-package archives.
+The installer downloads the archive, extracts it to a temporary directory,
+locates `plugin.json`, and installs that package into
 `<app-data>/plugins/<plugin-id>`.
 
 The plugin settings page fetches this manifest through
 `fetch_plugin_marketplace`, supports keyword search across plugin metadata, and
 installs available entries through `install_plugin_package_from_url`.
 
-For now, the previously built-in feature modules are listed in the marketplace
-as `included`, with GitHub package subdirectories already prepared for the point
-where each module moves from bundled code to an installable package:
+The previously built-in feature modules are listed in the marketplace as
+`included`, with independent GitHub package repositories prepared for external
+mode installation:
 
 - screenshot / OCR / pin windows
 - translation / offline translation runtime
@@ -295,8 +303,8 @@ pnpm build
 
 In this mode, the bundled registry starts empty for official feature plugins.
 The settings marketplace treats `included` official entries that have
-`packageUrl` and `packageSubdir` as installable packages, then installs their
-manifest into `<app-data>/plugins/<plugin-id>`.
+`packageUrl` as installable packages, then installs their manifest and compiled
+frontend runtime into `<app-data>/plugins/<plugin-id>`.
 
 Official plugin routes, settings tabs, titlebar actions, window shortcuts, and
 search providers are not statically registered in external mode. After a
@@ -306,9 +314,7 @@ plugin id.
 
 ## Next Steps
 
-1. Publish real package archives or per-plugin repositories for each marketplace
-   entry that should move from `included` to `available`.
-2. Add backend plugin runtime entry points or sandboxed WASM/native host boundaries.
-3. Add plugin lifecycle hooks: enable, disable, migrate, before-uninstall cleanup.
+1. Add backend plugin runtime entry points or sandboxed WASM/native host boundaries.
+2. Add plugin lifecycle hooks: enable, disable, migrate, before-uninstall cleanup.
 4. Move offline translation model cache/status behind the same optional resource protocol.
 5. Add signed plugin package metadata before enabling third-party marketplace installation.

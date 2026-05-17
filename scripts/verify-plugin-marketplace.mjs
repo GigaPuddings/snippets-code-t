@@ -12,22 +12,62 @@ async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
 }
 
+async function readRemoteJson(url) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'user-agent': 'snippets-code-plugin-marketplace-verifier'
+        }
+      });
+
+      assert(response.ok, `远程 plugin.json 获取失败: ${url} (HTTP ${response.status})`);
+      return response.json();
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolveTimeout) => setTimeout(resolveTimeout, attempt * 1000));
+    }
+  }
+
+  throw new Error(`远程 plugin.json 获取失败: ${url} (${lastError?.message ?? lastError})`);
+}
+
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
 }
 
-async function verifyInstallablePackage(item) {
-  assert(typeof item.packageUrl === 'string' && item.packageUrl.length > 0, `${item.id}: packageUrl 无效`);
+function githubArchivePluginJsonUrl(packageUrl) {
+  const match = packageUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/archive\/refs\/heads\/([^/.]+)\.zip$/);
+  if (!match) return null;
+
+  const [, owner, repo, branch] = match;
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/plugin.json`;
+}
+
+async function readPackageManifest(item) {
+  if (!item.packageSubdir) {
+    const remotePluginJsonUrl = githubArchivePluginJsonUrl(item.packageUrl);
+    assert(remotePluginJsonUrl, `${item.id}: 缺少 packageSubdir 时 packageUrl 必须指向 GitHub 分支归档`);
+    return readRemoteJson(remotePluginJsonUrl);
+  }
+
   assert(typeof item.packageSubdir === 'string' && item.packageSubdir.length > 0, `${item.id}: packageSubdir 无效`);
   assert(!item.packageSubdir.includes('..'), `${item.id}: packageSubdir 不允许包含 ..`);
 
   const packageDir = resolve(ROOT, item.packageSubdir);
   const manifestPath = join(packageDir, 'plugin.json');
   assert(existsSync(manifestPath), `${item.id}: packageSubdir 缺少 plugin.json (${item.packageSubdir})`);
+  return readJson(manifestPath);
+}
 
-  const manifest = await readJson(manifestPath);
+async function verifyInstallablePackage(item) {
+  assert(typeof item.packageUrl === 'string' && item.packageUrl.length > 0, `${item.id}: packageUrl 无效`);
+
+  const manifest = await readPackageManifest(item);
   assert(manifest.schemaVersion === 1, `${item.id}: plugin.json schemaVersion 必须为 1`);
   assert(manifest.kind === 'local', `${item.id}: plugin.json kind 必须为 local`);
   assert(manifest.id === item.id, `${item.id}: marketplace id 与 plugin.json id 不一致 (${manifest.id})`);

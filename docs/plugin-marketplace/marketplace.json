@@ -15,11 +15,14 @@
         "fallback": "Screenshot annotation, color picker, pin windows, OCR, and screenshot translation."
       },
       "category": "capture",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/plugin-packages/screenshot",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/heads/main.zip",
       "builtinPluginId": "screenshot",
       "status": "included",
-      "tags": ["screenshot", "ocr", "pin"]
+      "tags": [
+        "screenshot",
+        "ocr",
+        "pin"
+      ]
     },
     {
       "id": "screenshot-rapidocr",
@@ -35,7 +38,11 @@
       "category": "capture",
       "resourceFor": "screenshot",
       "status": "planned",
-      "tags": ["ocr", "resource", "rapidocr"]
+      "tags": [
+        "ocr",
+        "resource",
+        "rapidocr"
+      ]
     },
     {
       "id": "translation",
@@ -49,11 +56,13 @@
         "fallback": "Translate window, selection translation, screenshot translation, and offline model management."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/plugin-packages/translation",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/heads/main.zip",
       "builtinPluginId": "translation",
       "status": "included",
-      "tags": ["translate", "offline"]
+      "tags": [
+        "translate",
+        "offline"
+      ]
     },
     {
       "id": "translation-offline-runtime",
@@ -69,7 +78,11 @@
       "category": "automation",
       "resourceFor": "translation",
       "status": "planned",
-      "tags": ["translate", "resource", "offline"]
+      "tags": [
+        "translate",
+        "resource",
+        "offline"
+      ]
     },
     {
       "id": "todo",
@@ -83,11 +96,13 @@
         "fallback": "Todo cards, timed reminders, and system notification windows."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/plugin-packages/todo",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/heads/main.zip",
       "builtinPluginId": "todo",
       "status": "included",
-      "tags": ["todo", "reminder"]
+      "tags": [
+        "todo",
+        "reminder"
+      ]
     },
     {
       "id": "system-theme",
@@ -101,11 +116,13 @@
         "fallback": "Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling."
       },
       "category": "appearance",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/plugin-packages/system-theme",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/heads/main.zip",
       "builtinPluginId": "system-theme",
       "status": "included",
-      "tags": ["theme", "dark-mode"]
+      "tags": [
+        "theme",
+        "dark-mode"
+      ]
     },
     {
       "id": "local-launcher",
@@ -119,11 +136,14 @@
         "fallback": "Local app and browser bookmark management, plus quick-launch search results."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/plugin-packages/local-launcher",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/archive/refs/heads/main.zip",
       "builtinPluginId": "local-launcher",
       "status": "included",
-      "tags": ["apps", "bookmarks", "launcher"]
+      "tags": [
+        "apps",
+        "bookmarks",
+        "launcher"
+      ]
     },
     {
       "id": "desktop-files",
@@ -137,11 +157,14 @@
         "fallback": "Index desktop files and show file results in global search."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/plugin-packages/desktop-files",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/archive/refs/heads/main.zip",
       "builtinPluginId": "desktop-files",
       "status": "included",
-      "tags": ["desktop", "files", "search"]
+      "tags": [
+        "desktop",
+        "files",
+        "search"
+      ]
     },
     {
       "id": "search-engines",
@@ -155,11 +178,14 @@
         "fallback": "Custom search engines, keyword search, and default web search entries."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/plugin-packages/search-engines",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/heads/main.zip",
       "builtinPluginId": "search-engines",
       "status": "included",
-      "tags": ["search", "web", "keyword"]
+      "tags": [
+        "search",
+        "web",
+        "keyword"
+      ]
     },
     {
       "id": "git-sync",
@@ -173,11 +199,13 @@
         "fallback": "Workspace Git initialization, pull, push, auto sync, and conflict handling."
       },
       "category": "sync",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/plugin-packages/git-sync",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/archive/refs/heads/main.zip",
       "builtinPluginId": "git-sync",
       "status": "included",
-      "tags": ["git", "sync"]
+      "tags": [
+        "git",
+        "sync"
+      ]
     },
     {
       "id": "hello-local-plugin",
@@ -194,7 +222,10 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
       "packageSubdir": "docs/examples/hello-local-plugin",
       "status": "available",
-      "tags": ["example", "plugin"]
+      "tags": [
+        "example",
+        "plugin"
+      ]
     }
   ]
 }
