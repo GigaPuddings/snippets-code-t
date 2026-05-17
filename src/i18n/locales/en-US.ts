@@ -293,15 +293,20 @@ export default {
     marketplaceRefreshFailed: 'Failed to refresh plugin marketplace',
     marketplaceEmpty: 'No matching plugins',
     marketplaceInstall: 'Install from marketplace',
+    marketplaceInstallDependencies: 'Install missing dependencies',
     marketplaceUpdate: 'Update plugin',
     marketplaceInstalled: 'Installed',
     marketplaceIncluded: 'Provided',
     marketplacePlanned: 'Planned',
     marketplaceAvailable: 'Available',
     marketplaceUpdateAvailable: 'Update available',
+    marketplaceDependencyMissing: 'Missing dependency',
     marketplaceIncompatible: 'App update required',
     versionLabel: 'Version {version}',
     minAppVersion: 'Min app {version}',
+    dependenciesLabel: 'Requires {dependencies}',
+    dependencyMissing: 'Missing dependency plugin {id}',
+    dependencyIncompatible: 'Dependency plugin {plugin} requires a newer app',
     selectPluginDirectory: 'Select a plugin directory containing plugin.json',
     selectPluginZip: 'Select a .zip plugin package',
     installSuccess: 'Local plugin installed',
@@ -347,7 +352,7 @@ export default {
     },
     screenshotRapidocr: {
       name: 'RapidOCR Resource',
-      description: 'Optional RapidOCR runtime, models, and local recognition files for the screenshot plugin.'
+      description: 'RapidOCR runtime, models, and local recognition files required by screenshot OCR and screenshot translation.'
     },
     todo: {
       name: 'Reminders',

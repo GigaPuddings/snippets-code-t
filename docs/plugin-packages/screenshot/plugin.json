@@ -29,6 +29,9 @@
   "permissions": [
     "command:*"
   ],
+  "dependencies": [
+    "screenshot-rapidocr"
+  ],
   "compatibleAppVersion": ">=1.5.6",
   "entry": {
     "frontend": "dist/frontend.js",

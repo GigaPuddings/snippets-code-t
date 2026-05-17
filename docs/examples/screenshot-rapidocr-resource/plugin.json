@@ -9,7 +9,7 @@
   },
   "description": {
     "i18nKey": "plugins.screenshotRapidocr.description",
-    "fallback": "Provides the optional RapidOCR runtime used by the screenshot plugin."
+    "fallback": "Provides the RapidOCR runtime required by screenshot OCR and screenshot translation."
   },
   "category": "capture",
   "enabledByDefault": true,

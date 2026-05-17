@@ -307,15 +307,20 @@ export default {
     marketplaceRefreshFailed: '插件仓库刷新失败',
     marketplaceEmpty: '没有匹配的插件',
     marketplaceInstall: '从仓库安装',
+    marketplaceInstallDependencies: '安装缺失依赖',
     marketplaceUpdate: '更新插件',
     marketplaceInstalled: '已安装',
     marketplaceIncluded: '随应用提供',
     marketplacePlanned: '待发布',
     marketplaceAvailable: '可安装',
     marketplaceUpdateAvailable: '可更新',
+    marketplaceDependencyMissing: '缺少依赖',
     marketplaceIncompatible: '需要更新应用',
     versionLabel: '版本 {version}',
     minAppVersion: '最低应用版本 {version}',
+    dependenciesLabel: '依赖 {dependencies}',
+    dependencyMissing: '缺少依赖插件 {id}',
+    dependencyIncompatible: '依赖插件 {plugin} 需要更新应用',
     selectPluginDirectory: '选择包含 plugin.json 的插件目录',
     selectPluginZip: '选择 .zip 插件包',
     installSuccess: '本地插件已安装',
@@ -361,7 +366,7 @@ export default {
     },
     screenshotRapidocr: {
       name: 'RapidOCR 资源',
-      description: '截图插件可选的 RapidOCR 运行时、模型与本地识别资源。'
+      description: '截图 OCR 与截图翻译所需的 RapidOCR 运行时、模型与本地识别资源。'
     },
     todo: {
       name: '待办提醒',

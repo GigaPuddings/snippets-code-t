@@ -18,6 +18,9 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "screenshot",
       "status": "included",
+      "dependencies": [
+        "screenshot-rapidocr"
+      ],
       "tags": [
         "screenshot",
         "ocr",
@@ -37,7 +40,7 @@
       },
       "description": {
         "i18nKey": "plugins.screenshotRapidocr.description",
-        "fallback": "Optional RapidOCR runtime and model files for the screenshot plugin."
+        "fallback": "RapidOCR runtime and model files required by screenshot OCR and screenshot translation."
       },
       "category": "capture",
       "resourceFor": "screenshot",

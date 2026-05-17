@@ -61,6 +61,9 @@
                   {{ t('plugins.minAppVersion', { version: item.minAppVersion }) }}
                 </span>
               </div>
+              <div v-if="getMarketplaceDependencyNames(item).length" class="plugin-meta">
+                <span>{{ t('plugins.dependenciesLabel', { dependencies: getMarketplaceDependencyNames(item).join(', ') }) }}</span>
+              </div>
               <div v-if="item.tags?.length" class="marketplace-tags">
                 <span v-for="tag in item.tags" :key="tag" class="marketplace-tag">{{ tag }}</span>
               </div>
@@ -78,7 +81,7 @@
               <CustomButton
                 v-if="canInstallMarketplaceItem(item)"
                 size="small"
-                :title="t('plugins.marketplaceInstall')"
+                :title="hasMissingMarketplaceDependencies(item) ? t('plugins.marketplaceInstallDependencies') : t('plugins.marketplaceInstall')"
                 :loading="installingMarketplaceId === item.id"
                 @click="handleInstallMarketplace(item, false)"
               >
@@ -247,6 +250,23 @@ const getInstalledMarketplacePlugin = (item: PluginMarketplaceItem): RegisteredP
   pluginStore.plugins.find((plugin) => plugin.id === item.id)
 );
 
+const getMarketplaceItemById = (id: string): PluginMarketplaceItem | undefined => (
+  marketplaceItems.value.find((item) => item.id === id)
+);
+
+const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] => (
+  Array.isArray(item.dependencies)
+    ? item.dependencies.filter((dependencyId) => typeof dependencyId === 'string' && dependencyId.trim())
+    : []
+);
+
+const getMarketplaceDependencyNames = (item: PluginMarketplaceItem): string[] => (
+  getMarketplaceDependencies(item)
+    .map((dependencyId) => getMarketplaceItemById(dependencyId))
+    .filter((dependency): dependency is PluginMarketplaceItem => Boolean(dependency))
+    .map((dependency) => pluginText(dependency.name))
+);
+
 const versionParts = (version: string): number[] => (
   version
     .replace(/^v/i, '')
@@ -278,6 +298,9 @@ const marketplaceStatusText = (item: PluginMarketplaceItem): string => {
   if (installedPlugin?.source === 'local' && compareVersions(item.version, installedPlugin.manifest.version) > 0) {
     return t('plugins.marketplaceUpdateAvailable');
   }
+  if (isMarketplaceItemInstalled(item) && hasMissingMarketplaceDependencies(item)) {
+    return t('plugins.marketplaceDependencyMissing');
+  }
   if (installedPlugin?.source === 'local') return t('plugins.marketplaceInstalled');
   if (
     item.status === 'included'
@@ -293,12 +316,17 @@ const marketplaceStatusText = (item: PluginMarketplaceItem): string => {
   return t('plugins.marketplaceAvailable');
 };
 
-const canInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => (
-  Boolean(item.packageUrl)
-  && isCompatibleWithApp(item)
-  && !isMarketplaceItemInstalled(item)
-  && (item.status !== 'included' || isExternalOfficialPluginMode)
-);
+const canInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
+  if (!item.packageUrl || !isCompatibleWithApp(item)) return false;
+  if (item.status === 'included' && !isExternalOfficialPluginMode) return false;
+
+  const installedPlugin = getInstalledMarketplacePlugin(item);
+  if (!installedPlugin) return true;
+  if (installedPlugin.source === 'local' && compareVersions(item.version, installedPlugin.manifest.version) > 0) {
+    return false;
+  }
+  return hasMissingMarketplaceDependencies(item);
+};
 
 const canUpdateMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
   const installedPlugin = getInstalledMarketplacePlugin(item);
@@ -307,6 +335,19 @@ const canUpdateMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
     && installedPlugin?.source === 'local'
     && compareVersions(item.version, installedPlugin.manifest.version) > 0;
 };
+
+const shouldInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
+  const installedPlugin = getInstalledMarketplacePlugin(item);
+  return !installedPlugin
+    || (installedPlugin.source === 'local' && compareVersions(item.version, installedPlugin.manifest.version) > 0);
+};
+
+const hasMissingMarketplaceDependencies = (item: PluginMarketplaceItem): boolean => (
+  getMarketplaceDependencies(item).some((dependencyId) => {
+    const dependency = getMarketplaceItemById(dependencyId);
+    return !dependency || shouldInstallMarketplaceItem(dependency);
+  })
+);
 
 const refreshMarketplace = async (notify = true) => {
   marketplaceLoading.value = true;
@@ -325,12 +366,43 @@ const handleRefreshMarketplace = async () => {
   await refreshMarketplace(true);
 };
 
+const installMarketplaceItemWithDependencies = async (
+  item: PluginMarketplaceItem,
+  visited = new Set<string>()
+): Promise<void> => {
+  if (visited.has(item.id)) {
+    throw new Error(`Circular plugin dependency: ${item.id}`);
+  }
+  visited.add(item.id);
+
+  try {
+    for (const dependencyId of getMarketplaceDependencies(item)) {
+      const dependency = getMarketplaceItemById(dependencyId);
+      if (!dependency) {
+        throw new Error(t('plugins.dependencyMissing', { id: dependencyId }));
+      }
+      if (!isCompatibleWithApp(dependency)) {
+        throw new Error(t('plugins.dependencyIncompatible', { plugin: pluginText(dependency.name) }));
+      }
+      if (shouldInstallMarketplaceItem(dependency)) {
+        await installMarketplaceItemWithDependencies(dependency, visited);
+      }
+    }
+
+    if (item.packageUrl && shouldInstallMarketplaceItem(item)) {
+      await pluginStore.installFromUrl(item.packageUrl, true, item.packageSubdir);
+    }
+  } finally {
+    visited.delete(item.id);
+  }
+};
+
 const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = false) => {
   if (!item.packageUrl) return;
 
   installingMarketplaceId.value = item.id;
   try {
-    await pluginStore.installFromUrl(item.packageUrl, true, item.packageSubdir);
+    await installMarketplaceItemWithDependencies(item);
     modal.msg(update ? t('plugins.updateSuccess') : t('plugins.installSuccess'));
   } catch (error) {
     modal.msg(`${update ? t('plugins.updateFailed') : t('plugins.installFailed')}: ${error}`, 'error');

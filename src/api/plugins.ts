@@ -30,6 +30,7 @@ export interface PluginMarketplaceItem {
   homepage?: string;
   releaseUrl?: string;
   tags?: string[];
+  dependencies?: string[];
   builtinPluginId?: string;
   resourceFor?: string;
   sizeBytes?: number;

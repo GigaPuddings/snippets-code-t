@@ -96,6 +96,7 @@ Current package manifest shape:
     "backendKind": "native-host"
   },
   "permissions": ["network", "workspace:read", "backend:*"],
+  "dependencies": ["example-runtime-resource"],
   "compatibleAppVersion": ">=1.5.6"
 }
 ```
@@ -130,6 +131,12 @@ The activation context exposes these registration methods:
 It also exposes `context.ui.h` and `context.ui.defineComponent` so simple local plugins can register Vue components without bundling their own copy of Vue.
 
 Each local plugin has an isolated JSON data file exposed through `context.storage.get`, `context.storage.set`, and `context.storage.delete`. Data is stored under the installed package directory and is removed with the plugin package.
+
+Plugin packages and marketplace entries may declare `dependencies`. The plugin
+settings page installs missing dependencies first. This is used by
+`screenshot`: the feature plugin stays small, while the required RapidOCR
+runtime and model files live in `screenshot-rapidocr` and are installed
+automatically with the screenshot/OCR plugin.
 
 `context.api.invoke` is permission-gated. A local plugin must declare `command:<tauri-command-name>` or `command:*` in `permissions` before it can call a Tauri command through the provided context API.
 
@@ -183,8 +190,9 @@ Runtime-registered routes are added to Vue Router after the plugin registry init
 See `docs/examples/hello-local-plugin` for a minimal installable package.
 
 Resource-only local plugins are supported by omitting `entry`. The first
-resource-only packages cover the optional RapidOCR runtime and the offline
-translation runtime; see `docs/examples/screenshot-rapidocr-resource` and
+resource-only packages cover the RapidOCR runtime required by screenshot OCR
+and screenshot translation, plus the offline translation runtime; see
+`docs/examples/screenshot-rapidocr-resource` and
 `docs/examples/translation-offline-runtime`.
 
 ## Hotkeys
@@ -246,7 +254,7 @@ back to the bundled implementation. This keeps current installations working
 while allowing a future screenshot package to override capture, OCR, clipboard,
 save, and pin-window backend behavior through a plugin-only release.
 
-## Optional Resources
+## Plugin Resources
 
 RapidOCR is no longer listed in `tauri.conf.json` bundle resources, so the core
 installer does not carry the OCR runtime and model files. The OCR backend now
@@ -261,8 +269,9 @@ Development fallback paths such as `src-tauri/resources/rapidocr` still work for
 local testing, and `SNIPPETS_RAPIDOCR_PATH` / `RAPIDOCR_PATH` can override the
 executable location.
 
-The plugin settings page calls `get_rapidocr_resource_status` and shows whether
-the optional resource is installed.
+The plugin settings page installs `screenshot-rapidocr` as a required dependency
+of `screenshot`, then calls `get_rapidocr_resource_status` and shows whether the
+resource is installed.
 
 For development and release packaging, run `pnpm rapidocr:install` to download
 the local RapidOCR runtime, then `pnpm rapidocr:package` to generate an
@@ -317,6 +326,7 @@ Marketplace entries use schema version `1`:
       "version": "1.5.6",
       "category": "capture",
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/v1.5.6.zip",
+      "dependencies": ["screenshot-rapidocr"],
       "status": "included"
     }
   ]

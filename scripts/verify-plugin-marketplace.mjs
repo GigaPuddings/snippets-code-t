@@ -95,6 +95,15 @@ async function main() {
     }
   }
 
+  for (const item of marketplace.plugins) {
+    if (!Array.isArray(item.dependencies)) continue;
+    for (const dependencyId of item.dependencies) {
+      assert(typeof dependencyId === 'string' && dependencyId.length > 0, `${item.id}: dependency id 无效`);
+      assert(ids.has(dependencyId), `${item.id}: dependency 不存在: ${dependencyId}`);
+      assert(dependencyId !== item.id, `${item.id}: dependency 不能指向自身`);
+    }
+  }
+
   console.log(`[Plugins] 插件市场校验通过: ${marketplace.plugins.length} entries, ${installableCount} installable packages`);
 }
 

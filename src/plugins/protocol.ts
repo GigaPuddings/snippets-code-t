@@ -46,6 +46,7 @@ export interface PluginPackageManifest {
   resources?: PluginResourceDescriptor;
   entry?: PluginPackageEntry;
   permissions?: string[];
+  dependencies?: string[];
   compatibleAppVersion?: string;
   minAppVersion?: string;
   repository?: string;
