@@ -77,13 +77,19 @@ export const usePluginStore = defineStore('plugins', {
   actions: {
     async initialize(): Promise<void> {
       if (this.initialized) {
+        logger.info('[PluginStore] initialize skipped; refreshing installed plugins');
         await this.refreshInstalledPlugins();
         await this.ensureStateListener();
         return;
       }
 
       try {
+        logger.info('[PluginStore] initialize start');
         const localManifests = await getInstalledPluginManifests();
+        logger.info('[PluginStore] loaded local manifests', {
+          count: localManifests.length,
+          ids: localManifests.map((pluginPackage) => pluginPackage.manifest.id)
+        });
         this.installedPlugins = loadPluginRegistry(localManifests);
         const backendStates = await getPluginStates();
         this.enabled = normalizePluginStates(this.installedPlugins, {
@@ -92,6 +98,14 @@ export const usePluginStore = defineStore('plugins', {
         });
         await this.refreshPluginResourceStatus();
         await this.loadEnabledPluginEntries();
+        logger.info('[PluginStore] initialize complete', {
+          plugins: this.installedPlugins.map((plugin) => ({
+            id: plugin.id,
+            source: plugin.source,
+            enabled: this.isEnabled(plugin.id),
+            packagePath: plugin.packagePath
+          }))
+        });
       } catch (error) {
         logger.warn('[PluginStore] 加载插件状态失败，使用默认状态', error);
         this.installedPlugins = INSTALLED_PLUGINS;
@@ -103,6 +117,7 @@ export const usePluginStore = defineStore('plugins', {
     },
 
     async refreshInstalledPlugins(): Promise<void> {
+      logger.info('[PluginStore] refresh installed plugins start');
       const previousLocalIds = this.installedPlugins
         .filter((plugin) => plugin.source === 'local')
         .map((plugin) => String(plugin.id));
@@ -122,24 +137,51 @@ export const usePluginStore = defineStore('plugins', {
       this.enabled = normalizePluginStates(this.installedPlugins, this.enabled);
       await this.refreshPluginResourceStatus();
       await this.loadEnabledPluginEntries();
+      logger.info('[PluginStore] refresh installed plugins complete', {
+        plugins: this.installedPlugins.map((plugin) => ({
+          id: plugin.id,
+          source: plugin.source,
+          enabled: this.isEnabled(plugin.id),
+          hotkeys: plugin.hotkeys,
+          packagePath: plugin.packagePath
+        }))
+      });
     },
 
     async installFromPath(sourcePath: string, overwrite = false): Promise<void> {
+      logger.info('[PluginStore] install from path start', { sourcePath, overwrite });
       const pluginPackage = await installLocalPluginPackage(sourcePath, overwrite);
+      logger.info('[PluginStore] install from path complete', {
+        pluginId: pluginPackage.manifest.id,
+        packagePath: pluginPackage.packagePath
+      });
       clearRuntimePluginRegistrations(String(pluginPackage.manifest.id));
       await this.refreshInstalledPlugins();
     },
 
-    async installFromUrl(packageUrl: string, overwrite = false, packageSubdir?: string): Promise<void> {
-      const pluginPackage = await installPluginPackageFromUrl(packageUrl, overwrite, packageSubdir);
+    async installFromUrl(
+      packageUrl: string,
+      overwrite = false,
+      packageSubdir?: string,
+      expectedSizeBytes?: number
+    ): Promise<void> {
+      logger.info('[PluginStore] install from url start', { packageUrl, overwrite, packageSubdir, expectedSizeBytes });
+      const pluginPackage = await installPluginPackageFromUrl(packageUrl, overwrite, packageSubdir, expectedSizeBytes);
+      logger.info('[PluginStore] install from url complete', {
+        pluginId: pluginPackage.manifest.id,
+        packagePath: pluginPackage.packagePath,
+        packageUrl
+      });
       clearRuntimePluginRegistrations(String(pluginPackage.manifest.id));
       await this.refreshInstalledPlugins();
     },
 
     async uninstall(pluginId: PluginId | string): Promise<void> {
+      logger.info('[PluginStore] uninstall start', { pluginId });
       await uninstallLocalPluginPackage(pluginId);
       clearRuntimePluginRegistrations(String(pluginId));
       await this.refreshInstalledPlugins();
+      logger.info('[PluginStore] uninstall complete', { pluginId });
     },
 
     async ensureStateListener(): Promise<void> {
@@ -164,10 +206,12 @@ export const usePluginStore = defineStore('plugins', {
       this.enabled[pluginId] = enabled;
 
       try {
+        logger.info('[PluginStore] set enabled start', { pluginId, enabled });
         await setPluginEnabled(pluginId, enabled);
         if (enabled) {
           await this.loadEnabledPluginEntries();
         }
+        logger.info('[PluginStore] set enabled complete', { pluginId, enabled });
       } catch (error) {
         logger.error('[PluginStore] 保存插件状态失败', { pluginId, enabled, error });
         throw error;

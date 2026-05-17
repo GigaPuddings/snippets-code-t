@@ -57,6 +57,7 @@
               <div class="plugin-description">{{ pluginText(item.description) }}</div>
               <div class="plugin-meta">
                 <span>{{ t('plugins.versionLabel', { version: item.version }) }}</span>
+                <span>{{ t('plugins.sizeLabel', { size: formatBytes(item.sizeBytes) }) }}</span>
                 <span v-if="item.minAppVersion">
                   {{ t('plugins.minAppVersion', { version: item.minAppVersion }) }}
                 </span>
@@ -67,13 +68,31 @@
               <div v-if="item.tags?.length" class="marketplace-tags">
                 <span v-for="tag in item.tags" :key="tag" class="marketplace-tag">{{ tag }}</span>
               </div>
+              <div
+                v-if="isMarketplaceItemInstalling(item) && installProgress"
+                class="plugin-install-progress"
+              >
+                <div class="plugin-install-progress-text">
+                  <span>{{ currentInstallProgressText }}</span>
+                  <span>{{ currentInstallProgressSizeText }}</span>
+                </div>
+                <div
+                  class="plugin-install-progress-track"
+                  :class="{ 'plugin-install-progress-track--indeterminate': installProgress.progress === undefined }"
+                >
+                  <div
+                    class="plugin-install-progress-bar"
+                    :style="{ width: installProgress.progress === undefined ? '35%' : `${Math.round(installProgress.progress)}%` }"
+                  />
+                </div>
+              </div>
             </div>
             <div class="plugin-controls">
               <CustomButton
                 v-if="canUpdateMarketplaceItem(item)"
                 size="small"
                 :title="t('plugins.marketplaceUpdate')"
-                :loading="installingMarketplaceId === item.id"
+                :loading="isMarketplaceItemInstalling(item)"
                 @click="handleInstallMarketplace(item, true)"
               >
                 <Refresh theme="outline" size="14" />
@@ -82,7 +101,7 @@
                 v-if="canInstallMarketplaceItem(item)"
                 size="small"
                 :title="hasMissingMarketplaceDependencies(item) ? t('plugins.marketplaceInstallDependencies') : t('plugins.marketplaceInstall')"
-                :loading="installingMarketplaceId === item.id"
+                :loading="isMarketplaceItemInstalling(item)"
                 @click="handleInstallMarketplace(item, false)"
               >
                 <Download theme="outline" size="14" />
@@ -169,11 +188,13 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { getVersion } from '@tauri-apps/api/app';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { Delete, Download, FileZip, FolderOpen, Refresh, Search } from '@icon-park/vue-next';
 import {
   fetchPluginMarketplace,
+  type PluginInstallProgress,
   type PluginMarketplaceItem
 } from '@/api/plugins';
 import { getPluginById } from '@/plugins/registry';
@@ -183,6 +204,7 @@ import { getHotkeyValue } from '@/plugins/hotkeys';
 import type { PluginId } from '@/plugins/types';
 import { useConfigurationStore, usePluginStore } from '@/store';
 import { CustomButton, CustomSwitch } from '@/components/UI';
+import { logger } from '@/utils/logger';
 import modal from '@/utils/modal';
 
 defineOptions({
@@ -199,14 +221,28 @@ const marketplaceLoading = ref(false);
 const marketplaceItems = ref<PluginMarketplaceItem[]>([]);
 const marketplaceQuery = ref('');
 const installingMarketplaceId = ref<string | null>(null);
+const installingPackageId = ref<string | null>(null);
+const installProgress = ref<PluginInstallProgress | null>(null);
+const installProgressUnlisten = ref<UnlistenFn | null>(null);
 const appVersion = ref('');
 
 const DEFAULT_MARKETPLACE_URL = 'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/codex/plugin-system-refactor/docs/plugin-marketplace/marketplace.json';
 const isExternalOfficialPluginMode = OFFICIAL_PLUGINS_MODE === 'external';
 
-onMounted(() => {
+onMounted(async () => {
   pluginStore.initialize();
   refreshMarketplace(false);
+  try {
+    installProgressUnlisten.value = await listen<PluginInstallProgress>(
+      'plugin-install-progress',
+      (event) => {
+        installProgress.value = event.payload;
+        logger.info('[PluginSettings] install progress', event.payload);
+      }
+    );
+  } catch (error) {
+    logger.warn('[PluginSettings] 监听插件安装进度失败', error);
+  }
   getVersion()
     .then((version) => {
       appVersion.value = version;
@@ -214,6 +250,11 @@ onMounted(() => {
     .catch(() => {
       appVersion.value = '';
     });
+});
+
+onUnmounted(() => {
+  installProgressUnlisten.value?.();
+  installProgressUnlisten.value = null;
 });
 
 const pluginText = (text: PluginI18nText): string => {
@@ -265,6 +306,69 @@ const getMarketplaceDependencyNames = (item: PluginMarketplaceItem): string[] =>
     .map((dependencyId) => getMarketplaceItemById(dependencyId))
     .filter((dependency): dependency is PluginMarketplaceItem => Boolean(dependency))
     .map((dependency) => pluginText(dependency.name))
+);
+
+const formatBytes = (value?: number | null): string => {
+  if (!Number.isFinite(value) || !value || value <= 0) {
+    return t('plugins.sizeUnknown');
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  const precision = unitIndex === 0 || size >= 10 ? 0 : 1;
+  return `${size.toFixed(precision)} ${units[unitIndex]}`;
+};
+
+const marketplaceItemByPackageUrl = computed(() => {
+  const byUrl = new Map<string, PluginMarketplaceItem>();
+  for (const item of marketplaceItems.value) {
+    if (item.packageUrl) {
+      byUrl.set(item.packageUrl, item);
+    }
+  }
+  return byUrl;
+});
+
+const currentInstallingItem = computed(() => {
+  if (!installProgress.value?.packageUrl) return null;
+  return marketplaceItemByPackageUrl.value.get(installProgress.value.packageUrl) ?? null;
+});
+
+const installPhaseText = (phase: string): string => {
+  const key = `plugins.installPhases.${phase}`;
+  const translated = t(key);
+  return translated === key ? phase : translated;
+};
+
+const currentInstallProgressText = computed(() => {
+  if (!installProgress.value) return '';
+  const itemName = currentInstallingItem.value
+    ? pluginText(currentInstallingItem.value.name)
+    : t('plugins.installingPlugin');
+  const phase = installPhaseText(installProgress.value.phase);
+  const percent = installProgress.value.progress === undefined
+    ? ''
+    : ` ${Math.round(installProgress.value.progress)}%`;
+  return `${phase} ${itemName}${percent}`;
+});
+
+const currentInstallProgressSizeText = computed(() => {
+  if (!installProgress.value) return '';
+  const downloaded = formatBytes(installProgress.value.downloadedBytes);
+  return installProgress.value.totalBytes
+    ? `${downloaded} / ${formatBytes(installProgress.value.totalBytes)}`
+    : downloaded;
+});
+
+const isMarketplaceItemInstalling = (item: PluginMarketplaceItem): boolean => (
+  installingMarketplaceId.value === item.id
+  || installingPackageId.value === item.id
 );
 
 const versionParts = (version: string): number[] => (
@@ -390,7 +494,19 @@ const installMarketplaceItemWithDependencies = async (
     }
 
     if (item.packageUrl && shouldInstallMarketplaceItem(item)) {
-      await pluginStore.installFromUrl(item.packageUrl, true, item.packageSubdir);
+      installingPackageId.value = item.id;
+      installProgress.value = null;
+      logger.info('[PluginSettings] marketplace install package start', {
+        pluginId: item.id,
+        packageUrl: item.packageUrl,
+        packageSubdir: item.packageSubdir,
+        dependencies: getMarketplaceDependencies(item)
+      });
+      await pluginStore.installFromUrl(item.packageUrl, true, item.packageSubdir, item.sizeBytes);
+      logger.info('[PluginSettings] marketplace install package complete', {
+        pluginId: item.id,
+        packageUrl: item.packageUrl
+      });
     }
   } finally {
     visited.delete(item.id);
@@ -401,13 +517,27 @@ const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = fa
   if (!item.packageUrl) return;
 
   installingMarketplaceId.value = item.id;
+  installingPackageId.value = item.id;
+  installProgress.value = null;
   try {
+    logger.info('[PluginSettings] marketplace install start', {
+      pluginId: item.id,
+      update,
+      dependencies: getMarketplaceDependencies(item)
+    });
     await installMarketplaceItemWithDependencies(item);
+    logger.info('[PluginSettings] marketplace install complete', {
+      pluginId: item.id,
+      update
+    });
     modal.msg(update ? t('plugins.updateSuccess') : t('plugins.installSuccess'));
   } catch (error) {
+    logger.error('[PluginSettings] marketplace install failed', { pluginId: item.id, update, error });
     modal.msg(`${update ? t('plugins.updateFailed') : t('plugins.installFailed')}: ${error}`, 'error');
   } finally {
     installingMarketplaceId.value = null;
+    installingPackageId.value = null;
+    installProgress.value = null;
   }
 };
 
@@ -431,9 +561,12 @@ const handleInstall = async () => {
 
   installing.value = true;
   try {
+    logger.info('[PluginSettings] install local directory start', { selected });
     await pluginStore.installFromPath(selected);
+    logger.info('[PluginSettings] install local directory complete', { selected });
     modal.msg(t('plugins.installSuccess'));
   } catch (error) {
+    logger.error('[PluginSettings] install local directory failed', { selected, error });
     modal.msg(`${t('plugins.installFailed')}: ${error}`, 'error');
   } finally {
     installing.value = false;
@@ -455,9 +588,12 @@ const handleInstallZip = async () => {
 
   installing.value = true;
   try {
+    logger.info('[PluginSettings] install zip start', { selected });
     await pluginStore.installFromPath(selected);
+    logger.info('[PluginSettings] install zip complete', { selected });
     modal.msg(t('plugins.installSuccess'));
   } catch (error) {
+    logger.error('[PluginSettings] install zip failed', { selected, error });
     modal.msg(`${t('plugins.installFailed')}: ${error}`, 'error');
   } finally {
     installing.value = false;
@@ -467,9 +603,12 @@ const handleInstallZip = async () => {
 const handleUninstall = async (pluginId: PluginId | string) => {
   removingPluginId.value = String(pluginId);
   try {
+    logger.info('[PluginSettings] uninstall start', { pluginId });
     await pluginStore.uninstall(pluginId);
+    logger.info('[PluginSettings] uninstall complete', { pluginId });
     modal.msg(t('plugins.uninstallSuccess'));
   } catch (error) {
+    logger.error('[PluginSettings] uninstall failed', { pluginId, error });
     modal.msg(`${t('plugins.uninstallFailed')}: ${error}`, 'error');
   } finally {
     removingPluginId.value = null;
@@ -478,12 +617,15 @@ const handleUninstall = async (pluginId: PluginId | string) => {
 
 const handleToggle = async (pluginId: PluginId | string, enabled: boolean) => {
   try {
+    logger.info('[PluginSettings] toggle start', { pluginId, enabled });
     await pluginStore.setEnabled(pluginId, enabled);
     if (!enabled) {
       await unregisterPluginHotkeys(pluginId);
     }
+    logger.info('[PluginSettings] toggle complete', { pluginId, enabled });
     modal.msg(enabled ? t('plugins.enabled') : t('plugins.disabled'));
   } catch (error) {
+    logger.error('[PluginSettings] toggle failed', { pluginId, enabled, error });
     modal.msg(`${t('plugins.saveFailed')}: ${error}`, 'error');
   }
 };
@@ -573,6 +715,36 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
 
 .marketplace-empty {
   @apply py-3 text-center text-xs text-panel-text-secondary;
+}
+
+.plugin-install-progress {
+  @apply mt-2 max-w-md;
+}
+
+.plugin-install-progress-text {
+  @apply mb-1 flex items-center justify-between gap-3 text-xs text-panel-text-secondary;
+}
+
+.plugin-install-progress-track {
+  @apply h-1.5 overflow-hidden rounded bg-hover;
+}
+
+.plugin-install-progress-track--indeterminate .plugin-install-progress-bar {
+  animation: plugin-progress-indeterminate 1.1s ease-in-out infinite;
+}
+
+.plugin-install-progress-bar {
+  @apply h-full rounded bg-primary transition-all duration-200;
+}
+
+@keyframes plugin-progress-indeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(320%);
+  }
 }
 
 .plugin-main {

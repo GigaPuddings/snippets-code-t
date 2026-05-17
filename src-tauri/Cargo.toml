@@ -27,7 +27,7 @@ tauri-plugin-process = "2"
 tauri-plugin-autostart = "2.0.0"
 tauri-plugin-http = "2"
 tauri-plugin-shell = "2"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
 rusqlite = { version = "0.32.1", features = ["backup"] }
 windows = { version = "0.59", features = [
     "Win32_UI_WindowsAndMessaging",

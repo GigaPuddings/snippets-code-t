@@ -1804,6 +1804,12 @@ pub fn hotkey_screenshot() {
         }
     };
 
+    info!("[Plugin:screenshot] hotkey_screenshot requested");
+    if let Err(error) = crate::app_config::require_plugin_enabled(app_handle, "screenshot") {
+        log::warn!("[Plugin:screenshot] hotkey_screenshot blocked: {}", error);
+        return;
+    }
+
     // 检查窗口是否已存在，如果存在则先关闭（不等待）
     if let Some(existing_window) = app_handle.get_webview_window("screenshot") {
         let _ = existing_window.emit("screenshot-close-requested", ());

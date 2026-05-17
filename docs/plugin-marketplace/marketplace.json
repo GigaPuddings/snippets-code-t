@@ -18,6 +18,7 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "screenshot",
       "status": "included",
+      "sizeBytes": 694267,
       "dependencies": [
         "screenshot-rapidocr"
       ],
@@ -45,6 +46,7 @@
       "category": "capture",
       "resourceFor": "screenshot",
       "status": "available",
+      "sizeBytes": 168905779,
       "tags": [
         "ocr",
         "resource",
@@ -71,6 +73,7 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "translation",
       "status": "included",
+      "sizeBytes": 730929,
       "tags": [
         "translate",
         "offline"
@@ -94,6 +97,7 @@
       "category": "automation",
       "resourceFor": "translation",
       "status": "available",
+      "sizeBytes": 1607,
       "tags": [
         "translate",
         "resource",
@@ -120,6 +124,7 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "todo",
       "status": "included",
+      "sizeBytes": 874246,
       "tags": [
         "todo",
         "reminder"
@@ -144,6 +149,7 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "system-theme",
       "status": "included",
+      "sizeBytes": 651092,
       "tags": [
         "theme",
         "dark-mode"
@@ -168,6 +174,7 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "local-launcher",
       "status": "included",
+      "sizeBytes": 773233,
       "tags": [
         "apps",
         "bookmarks",
@@ -193,6 +200,7 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "desktop-files",
       "status": "included",
+      "sizeBytes": 1425,
       "tags": [
         "desktop",
         "files",
@@ -218,6 +226,7 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "search-engines",
       "status": "included",
+      "sizeBytes": 694234,
       "tags": [
         "search",
         "web",
@@ -243,6 +252,7 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "git-sync",
       "status": "included",
+      "sizeBytes": 660082,
       "tags": [
         "git",
         "sync"
@@ -267,6 +277,7 @@
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
       "packageSubdir": "docs/examples/hello-local-plugin",
       "status": "available",
+      "sizeBytes": 2837,
       "tags": [
         "example",
         "plugin"

@@ -1,6 +1,7 @@
 // 应用配置管理模块
 // 管理 .snippets-code/app.json 配置文件
 
+use futures::StreamExt;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -413,6 +414,16 @@ pub struct LocalPluginPackage {
     package_path: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PluginInstallProgressPayload {
+    package_url: String,
+    phase: String,
+    downloaded_bytes: u64,
+    total_bytes: Option<u64>,
+    progress: Option<f64>,
+}
+
 pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
     if is_external_install_gated_builtin(plugin_id)
         && !is_local_plugin_package_installed(app_handle, plugin_id)
@@ -542,6 +553,13 @@ fn apply_git_sync_runtime_change(app_handle: &AppHandle, enabled: bool) {
 fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
     if let Some(spec) = plugin_runtime_spec(plugin_id) {
         (spec.apply_runtime_change)(app_handle, enabled);
+    }
+
+    if let Err(e) = crate::hotkey::refresh_plugin_shortcuts(app_handle, plugin_id, enabled) {
+        warn!(
+            "[Plugin] refresh hotkeys for {} enabled={} failed: {}",
+            plugin_id, enabled, e
+        );
     }
 
     if crate::db::is_setup_completed_internal(app_handle) {
@@ -1227,15 +1245,45 @@ fn validate_plugin_remote_url(value: &str) -> Result<(), String> {
     }
 }
 
+fn emit_plugin_install_progress(
+    app_handle: &AppHandle,
+    package_url: &str,
+    phase: &str,
+    downloaded_bytes: u64,
+    total_bytes: Option<u64>,
+) {
+    let progress = total_bytes
+        .filter(|total| *total > 0)
+        .map(|total| ((downloaded_bytes as f64 / total as f64) * 100.0).clamp(0.0, 100.0));
+
+    let payload = PluginInstallProgressPayload {
+        package_url: package_url.to_string(),
+        phase: phase.to_string(),
+        downloaded_bytes,
+        total_bytes,
+        progress,
+    };
+
+    info!(
+        "[Plugin] install progress phase={} url={} downloaded={} total={:?} progress={:?}",
+        phase, package_url, downloaded_bytes, total_bytes, progress
+    );
+    let _ = app_handle.emit("plugin-install-progress", payload);
+}
+
 async fn download_plugin_url_to_temp(
     app_handle: &AppHandle,
     package_url: &str,
+    expected_size_bytes: Option<u64>,
 ) -> Result<PathBuf, String> {
     validate_plugin_remote_url(package_url)?;
 
     let temp_dir = create_plugin_install_temp_dir(app_handle)?;
     let temp_file = temp_dir.join("package.zip");
     let result = async {
+        info!("[Plugin] downloading remote package {}", package_url);
+        emit_plugin_install_progress(app_handle, package_url, "downloading", 0, None);
+
         let client = reqwest::Client::builder()
             .user_agent("snippets-code-plugin-installer")
             .build()
@@ -1249,6 +1297,9 @@ async fn download_plugin_url_to_temp(
         if !response.status().is_success() {
             return Err(format!("下载插件失败: HTTP {}", response.status()));
         }
+
+        let total_bytes = response.content_length().or(expected_size_bytes);
+        emit_plugin_install_progress(app_handle, package_url, "downloading", 0, total_bytes);
 
         let content_type = response
             .headers()
@@ -1266,18 +1317,46 @@ async fn download_plugin_url_to_temp(
             );
         }
 
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|e| format!("读取插件下载内容失败: {}", e))?;
-        if bytes.is_empty() {
+        let mut file = File::create(&temp_file)
+            .map_err(|e| format!("创建插件下载临时文件失败: {} ({})", temp_file.display(), e))?;
+        let mut downloaded_bytes = 0_u64;
+        let mut last_emitted_bytes = 0_u64;
+        let mut stream = response.bytes_stream();
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| format!("读取插件下载内容失败: {}", e))?;
+            file.write_all(&chunk).map_err(|e| {
+                format!("写入插件下载临时文件失败: {} ({})", temp_file.display(), e)
+            })?;
+            downloaded_bytes += chunk.len() as u64;
+
+            if total_bytes
+                .map(|total| downloaded_bytes >= total)
+                .unwrap_or(false)
+                || downloaded_bytes.saturating_sub(last_emitted_bytes) >= 512 * 1024
+            {
+                last_emitted_bytes = downloaded_bytes;
+                emit_plugin_install_progress(
+                    app_handle,
+                    package_url,
+                    "downloading",
+                    downloaded_bytes,
+                    total_bytes,
+                );
+            }
+        }
+
+        if downloaded_bytes == 0 {
             return Err("插件下载内容为空".to_string());
         }
 
-        let mut file = File::create(&temp_file)
-            .map_err(|e| format!("创建插件下载临时文件失败: {} ({})", temp_file.display(), e))?;
-        file.write_all(&bytes)
-            .map_err(|e| format!("写入插件下载临时文件失败: {} ({})", temp_file.display(), e))?;
+        emit_plugin_install_progress(
+            app_handle,
+            package_url,
+            "downloaded",
+            downloaded_bytes,
+            total_bytes,
+        );
         Ok(temp_file.clone())
     }
     .await;
@@ -1401,6 +1480,17 @@ pub fn install_local_plugin_package(
         }
 
         info!("✅ [Plugin] installed local package {}", plugin_id);
+        if is_plugin_enabled(&app_handle, &plugin_id) {
+            if let Err(error) =
+                crate::hotkey::refresh_plugin_shortcuts(&app_handle, &plugin_id, true)
+            {
+                warn!(
+                    "[Plugin] refresh hotkeys after installing {} failed: {}",
+                    plugin_id, error
+                );
+            }
+            apply_enabled_plugin_runtime_change(&app_handle, &plugin_id);
+        }
         plugin_package_record(manifest, &target_dir)
     })();
 
@@ -1416,10 +1506,13 @@ pub async fn install_plugin_package_from_url(
     app_handle: AppHandle,
     package_url: String,
     package_subdir: Option<String>,
+    expected_size_bytes: Option<u64>,
     overwrite: bool,
 ) -> Result<LocalPluginPackage, String> {
-    let downloaded_package = download_plugin_url_to_temp(&app_handle, &package_url).await?;
+    let downloaded_package =
+        download_plugin_url_to_temp(&app_handle, &package_url, expected_size_bytes).await?;
     let temp_dir = downloaded_package.parent().map(Path::to_path_buf);
+    emit_plugin_install_progress(&app_handle, &package_url, "extracting", 0, None);
     let result =
         if let Some(package_subdir) = package_subdir.filter(|value| !value.trim().is_empty()) {
             let extract_dir = temp_dir
@@ -1432,18 +1525,22 @@ pub async fn install_plugin_package_from_url(
                 .and_then(|_| find_plugin_archive_subdir(&extract_dir, package_subdir.trim()))
                 .and_then(|source_dir| {
                     install_local_plugin_package(
-                        app_handle,
+                        app_handle.clone(),
                         source_dir.to_string_lossy().to_string(),
                         overwrite,
                     )
                 })
         } else {
             install_local_plugin_package(
-                app_handle,
+                app_handle.clone(),
                 downloaded_package.to_string_lossy().to_string(),
                 overwrite,
             )
         };
+
+    if result.is_ok() {
+        emit_plugin_install_progress(&app_handle, &package_url, "installed", 0, None);
+    }
 
     if let Some(temp_dir) = temp_dir {
         let _ = fs::remove_dir_all(temp_dir);
@@ -1463,6 +1560,13 @@ pub fn uninstall_local_plugin_package(
     let target_dir = plugins_dir.join(&plugin_id);
     if !target_dir.exists() {
         return Err(format!("本地插件 '{}' 未安装", plugin_id));
+    }
+
+    if let Err(error) = crate::hotkey::refresh_plugin_shortcuts(&app_handle, &plugin_id, false) {
+        warn!(
+            "[Plugin] refresh hotkeys before uninstalling {} failed: {}",
+            plugin_id, error
+        );
     }
 
     fs::remove_dir_all(&target_dir)

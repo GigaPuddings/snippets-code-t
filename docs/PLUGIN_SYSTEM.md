@@ -138,6 +138,13 @@ settings page installs missing dependencies first. This is used by
 runtime and model files live in `screenshot-rapidocr` and are installed
 automatically with the screenshot/OCR plugin.
 
+Marketplace entries with `packageUrl` also declare `sizeBytes`. The settings
+page shows the package size before install and listens for
+`plugin-install-progress` events while downloading, extracting, and installing
+remote packages. Installer, registry refresh, enable/disable, uninstall, and
+hotkey activation paths all emit plugin-prefixed logs so failed installs or
+silent shortcut issues can be traced from the app log.
+
 `context.api.invoke` is permission-gated. A local plugin must declare `command:<tauri-command-name>` or `command:*` in `permissions` before it can call a Tauri command through the provided context API.
 
 `context.api.invokeBackend(command, payload)` calls the plugin's own native
@@ -208,7 +215,11 @@ Optional hotkeys are declared by plugin manifests:
 - `screenshot`: `screenshot`
 - `system-theme`: `dark_mode`
 
-The shortcut settings page uses the registry to decide whether a hotkey should be visible. The Rust hotkey registration path performs the same plugin-state check before registering optional hotkeys.
+The shortcut settings page uses the active plugin registry to decide whether a
+hotkey should be visible. The Rust hotkey registration path performs the same
+plugin-state check before registering optional hotkeys, and installing,
+enabling, disabling, or uninstalling a plugin refreshes the affected global
+shortcuts immediately.
 
 ## Backend
 
@@ -326,6 +337,7 @@ Marketplace entries use schema version `1`:
       "version": "1.5.6",
       "category": "capture",
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/v1.5.6.zip",
+      "sizeBytes": 694267,
       "dependencies": ["screenshot-rapidocr"],
       "status": "included"
     }

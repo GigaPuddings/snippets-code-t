@@ -14,6 +14,7 @@ export interface HotkeySettingDefinition {
   name: HotkeyName;
   labelKey: string;
   descriptionKey: string;
+  pluginId?: string;
 }
 
 const hotkeyDefinitions: Record<HotkeyName, HotkeySettingDefinition & {
@@ -36,6 +37,7 @@ const hotkeyDefinitions: Record<HotkeyName, HotkeySettingDefinition & {
   },
   translate: {
     name: 'translate',
+    pluginId: 'translation',
     labelKey: 'shortcut.translateHotkey',
     descriptionKey: 'shortcut.translateHotkeyDesc',
     get: (store) => store.translateHotkey,
@@ -43,6 +45,7 @@ const hotkeyDefinitions: Record<HotkeyName, HotkeySettingDefinition & {
   },
   selection_translate: {
     name: 'selection_translate',
+    pluginId: 'translation',
     labelKey: 'shortcut.selectionTranslateHotkey',
     descriptionKey: 'shortcut.selectionTranslateHotkeyDesc',
     get: (store) => store.selectionTranslateHotkey,
@@ -50,6 +53,7 @@ const hotkeyDefinitions: Record<HotkeyName, HotkeySettingDefinition & {
   },
   screenshot: {
     name: 'screenshot',
+    pluginId: 'screenshot',
     labelKey: 'shortcut.screenshotHotkey',
     descriptionKey: 'shortcut.screenshotHotkeyDesc',
     get: (store) => store.screenshotHotkey,
@@ -57,6 +61,7 @@ const hotkeyDefinitions: Record<HotkeyName, HotkeySettingDefinition & {
   },
   dark_mode: {
     name: 'dark_mode',
+    pluginId: 'system-theme',
     labelKey: 'shortcut.darkModeHotkey',
     descriptionKey: 'shortcut.darkModeHotkeyDesc',
     get: (store) => store.darkModeHotkey,
@@ -71,7 +76,7 @@ export const hotkeySettingDefinitions: HotkeySettingDefinition[] = [
   hotkeyDefinitions.selection_translate,
   hotkeyDefinitions.screenshot,
   hotkeyDefinitions.dark_mode
-].map(({ name, labelKey, descriptionKey }) => ({ name, labelKey, descriptionKey }));
+].map(({ name, labelKey, descriptionKey, pluginId }) => ({ name, labelKey, descriptionKey, pluginId }));
 
 export const isHotkeyName = (value: string): value is HotkeyName => (
   value in hotkeyDefinitions

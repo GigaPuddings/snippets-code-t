@@ -58,7 +58,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
-import { getPluginByHotkey } from '@/plugins/registry';
 import {
   getHotkeyValue,
   hotkeySettingDefinitions,
@@ -79,13 +78,14 @@ defineOptions({
 
 const labelText = computed(() => t('shortcut.pressToSet').split(''));
 
-const isHotkeyVisible = (hotkeyName: HotkeyName) => {
-  const plugin = getPluginByHotkey(hotkeyName);
-  return !plugin || pluginStore.isEnabled(plugin.id);
+const isHotkeyVisible = (hotkey: (typeof hotkeySettingDefinitions)[number]) => {
+  if (!hotkey.pluginId) return true;
+  return pluginStore.plugins.some((plugin) => plugin.id === hotkey.pluginId)
+    && pluginStore.isEnabled(hotkey.pluginId);
 };
 
 const visibleHotkeySettings = computed(() => (
-  hotkeySettingDefinitions.filter((hotkey) => isHotkeyVisible(hotkey.name))
+  hotkeySettingDefinitions.filter((hotkey) => isHotkeyVisible(hotkey))
 ));
 
 onMounted(() => {

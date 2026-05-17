@@ -67,6 +67,10 @@ async function readPackageManifest(item) {
 
 async function verifyInstallablePackage(item) {
   assert(typeof item.packageUrl === 'string' && item.packageUrl.length > 0, `${item.id}: packageUrl 无效`);
+  assert(
+    typeof item.sizeBytes === 'number' && Number.isFinite(item.sizeBytes) && item.sizeBytes > 0,
+    `${item.id}: 可安装插件必须声明 sizeBytes`
+  );
 
   const manifest = await readPackageManifest(item);
   assert(manifest.schemaVersion === 1, `${item.id}: plugin.json schemaVersion 必须为 1`);

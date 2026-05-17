@@ -44,6 +44,14 @@ export interface PluginMarketplaceIndex {
   plugins: PluginMarketplaceItem[];
 }
 
+export interface PluginInstallProgress {
+  packageUrl: string;
+  phase: 'downloading' | 'downloaded' | 'extracting' | 'installed' | string;
+  downloadedBytes: number;
+  totalBytes?: number;
+  progress?: number;
+}
+
 export async function getPluginStates(): Promise<Partial<PluginStateMap>> {
   return await invoke<Partial<PluginStateMap>>('get_plugin_states');
 }
@@ -67,9 +75,11 @@ export async function installLocalPluginPackage(
 export async function installPluginPackageFromUrl(
   packageUrl: string,
   overwrite = false,
-  packageSubdir?: string
+  packageSubdir?: string,
+  expectedSizeBytes?: number
 ): Promise<LocalPluginPackage> {
   return await invoke<LocalPluginPackage>('install_plugin_package_from_url', {
+    expectedSizeBytes,
     packageUrl,
     packageSubdir,
     overwrite

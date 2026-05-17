@@ -6,7 +6,7 @@ use crate::window::{
     hotkey_selection_translate, hotkey_translate,
 };
 use crate::APP;
-use log::warn;
+use log::{info, warn};
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -53,6 +53,15 @@ fn hotkey_spec(name: &str) -> Option<&'static HotkeySpec> {
     HOTKEY_SPECS.iter().find(|spec| spec.name == name)
 }
 
+fn configured_hotkey(app_handle: &AppHandle, name: &str, key: &str) -> String {
+    if key.is_empty() {
+        let field_name = format!("{}_hotkey", name);
+        json_config::get_app_config_value::<String>(app_handle, &field_name).unwrap_or_default()
+    } else {
+        key.to_string()
+    }
+}
+
 // 注册单个快捷键的核心函数（使用 app.json 存储）
 fn register<F>(_app_handle: &AppHandle, name: &str, handler: F, key: &str) -> Result<(), String>
 where
@@ -60,20 +69,15 @@ where
 {
     if let Some(plugin_id) = hotkey_spec(name).and_then(|spec| spec.plugin_id) {
         if !app_config::is_plugin_enabled(_app_handle, plugin_id) {
+            info!(
+                "[Hotkey] skip register {} because plugin '{}' is disabled or not installed",
+                name, plugin_id
+            );
             return Ok(());
         }
     }
 
-    let hotkey = {
-        if key.is_empty() {
-            // 从 app.json 读取快捷键配置
-            let field_name = format!("{}_hotkey", name);
-            json_config::get_app_config_value::<String>(_app_handle, &field_name)
-                .unwrap_or_default()
-        } else {
-            key.to_string()
-        }
-    };
+    let hotkey = configured_hotkey(_app_handle, name, key);
 
     // 获取应用句柄
     let app = match APP.get() {
@@ -93,16 +97,22 @@ where
         // 获取快捷键管理器
         let manager = app.global_shortcut();
 
+        if manager.is_registered(shortcut) {
+            info!("[Hotkey] {} shortcut {} already registered", name, hotkey);
+            return Ok(());
+        }
+
         // 注册新的快捷键
         // on_shortcut 会自动检测冲突（包括本应用内和系统级冲突）
+        let name_for_handler = name.to_string();
         match manager.on_shortcut(shortcut, move |_app_handle, _hotkey, event| {
             if event.state == ShortcutState::Pressed {
-                // info!("快捷键：{} 被触发", hotkey);
+                info!("[Hotkey] {} triggered", name_for_handler);
                 handler();
             }
         }) {
             Ok(_) => {
-                // info!("{}：快捷键 {} 注册成功", name, hotkey);
+                info!("[Hotkey] {} shortcut {} registered", name, hotkey);
             }
             Err(e) => {
                 warn!("快捷键 {} 注册失败: {}", hotkey, e);
@@ -111,6 +121,48 @@ where
                     hotkey, e
                 ));
             }
+        }
+    }
+    Ok(())
+}
+
+fn unregister_configured_shortcut(app_handle: &AppHandle, spec: &HotkeySpec) -> Result<(), String> {
+    let hotkey = configured_hotkey(app_handle, spec.name, "");
+    if hotkey.is_empty() {
+        return Ok(());
+    }
+
+    let (modifiers, code) = parse_hotkey(&hotkey)?;
+    let shortcut = Shortcut::new(modifiers, code);
+    let manager = app_handle.global_shortcut();
+    if !manager.is_registered(shortcut) {
+        info!(
+            "[Hotkey] {} shortcut {} already unregistered",
+            spec.name, hotkey
+        );
+        return Ok(());
+    }
+
+    manager
+        .unregister(shortcut)
+        .map_err(|e| format!("快捷键 '{}' 取消注册失败: {}", hotkey, e))?;
+    info!("[Hotkey] {} shortcut {} unregistered", spec.name, hotkey);
+    Ok(())
+}
+
+pub fn refresh_plugin_shortcuts(
+    app_handle: &AppHandle,
+    plugin_id: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    for spec in HOTKEY_SPECS
+        .iter()
+        .filter(|spec| spec.plugin_id == Some(plugin_id))
+    {
+        if enabled {
+            register(app_handle, spec.name, spec.handler, "")?;
+        } else {
+            unregister_configured_shortcut(app_handle, spec)?;
         }
     }
     Ok(())
