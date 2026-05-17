@@ -14,10 +14,24 @@
   "category": "search",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["Retrieve"],
-    "settingsTabs": ["retrieve"],
-    "searchSources": ["web-search"]
+    "routeNames": [
+      "Retrieve"
+    ],
+    "settingsTabs": [
+      "retrieve"
+    ],
+    "searchSources": [
+      "web-search"
+    ]
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=1.5.6"
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=1.5.6",
+  "entry": {
+    "frontend": "dist/frontend.js",
+    "styles": [
+      "dist/assets/index-D65mxNV6.css"
+    ]
+  }
 }

@@ -14,10 +14,25 @@
   "category": "search",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["Local"],
-    "settingsTabs": ["local"],
-    "searchSources": ["apps", "bookmarks"]
+    "routeNames": [
+      "Local"
+    ],
+    "settingsTabs": [
+      "local"
+    ],
+    "searchSources": [
+      "apps",
+      "bookmarks"
+    ]
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=1.5.6"
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=1.5.6",
+  "entry": {
+    "frontend": "dist/frontend.js",
+    "styles": [
+      "dist/assets/index-CqHlJtx3.css"
+    ]
+  }
 }

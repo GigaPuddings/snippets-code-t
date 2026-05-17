@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 dist-plugin-packages
+!docs/plugin-packages/**/dist/
+!docs/plugin-packages/**/dist/**
 target
 *.local
 _tmp*

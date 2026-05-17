@@ -28,6 +28,7 @@ export interface PluginResourceDescriptor {
 export interface PluginPackageEntry {
   frontend?: string;
   backend?: string;
+  styles?: string[];
 }
 
 export interface PluginPackageManifest {

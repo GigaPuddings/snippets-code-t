@@ -5,7 +5,6 @@ import { defineAsyncComponent, defineComponent, h, markRaw, type Component } fro
 import type { RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
 import type { SearchSourceProvider, SearchSourceResult } from './search';
-import { activateOfficialLocalPlugin } from './official-runtime';
 import { searchSourceProviders } from './search-providers';
 import { pluginSettingsComponents, pluginSettingsMenuItems, type PluginSettingsMenuItem } from './settings';
 import { titlebarPluginActions, type TitlebarPluginAction } from './titlebar';
@@ -84,6 +83,7 @@ const runtimeConfigPluginRoutes: RouteRecordRaw[] = [];
 const runtimeLayoutPluginRoutes: RouteRecordRaw[] = [];
 const runtimeWindowPluginRoutes: RouteRecordRaw[] = [];
 const loadedFrontendEntries = new Set<string>();
+const loadedPluginStyleLinks = new Map<string, HTMLLinkElement[]>();
 const installedRuntimeRouteNames = new Set<string>();
 const installedRuntimeRouteRemovers = new Map<string, () => void>();
 
@@ -284,6 +284,35 @@ const activateFrontendModule = async (
   await activate(createRuntimeContext(plugin));
 };
 
+const activateBundledOfficialLocalPlugin = async (
+  context: PluginFrontendRuntimeContext
+): Promise<boolean> => {
+  if (import.meta.env.VITE_OFFICIAL_PLUGINS_MODE === 'external') {
+    return false;
+  }
+
+  const { activateOfficialLocalPlugin } = await import('./official-runtime');
+  return activateOfficialLocalPlugin(context);
+};
+
+const ensurePluginStyles = (plugin: RegisteredPlugin): void => {
+  if (loadedPluginStyleLinks.has(String(plugin.id))) return;
+
+  const styles = plugin.manifest.entry?.styles ?? [];
+  if (!styles.length) return;
+
+  const links = styles.map((stylePath) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = resolvePluginAssetUrl(plugin, stylePath);
+    link.dataset.pluginId = String(plugin.id);
+    document.head.appendChild(link);
+    return link;
+  });
+
+  loadedPluginStyleLinks.set(String(plugin.id), links);
+};
+
 export const ensureLocalPluginFrontendEntries = async (
   plugins: RegisteredPlugin[],
   isEnabled: (pluginId: string) => boolean
@@ -295,6 +324,7 @@ export const ensureLocalPluginFrontendEntries = async (
 
     if (plugin.manifest.entry?.frontend) {
       try {
+        ensurePluginStyles(plugin);
         const entryUrl = resolvePluginAssetUrl(plugin, plugin.manifest.entry.frontend);
         const pluginModule = await import(/* @vite-ignore */ entryUrl) as PluginFrontendModule;
         await activateFrontendModule(plugin, pluginModule);
@@ -306,7 +336,7 @@ export const ensureLocalPluginFrontendEntries = async (
     }
 
     try {
-      const activated = await activateOfficialLocalPlugin(createRuntimeContext(plugin));
+      const activated = await activateBundledOfficialLocalPlugin(createRuntimeContext(plugin));
       if (activated) {
         loadedFrontendEntries.add(String(plugin.id));
       }
@@ -341,6 +371,10 @@ export const installRuntimePluginRoutes = (router: Router): number => {
 
 export const clearRuntimePluginRegistrations = (pluginId: string): void => {
   loadedFrontendEntries.delete(pluginId);
+
+  const styleLinks = loadedPluginStyleLinks.get(pluginId) ?? [];
+  styleLinks.forEach((link) => link.remove());
+  loadedPluginStyleLinks.delete(pluginId);
 
   for (const [routeName, removeRoute] of installedRuntimeRouteRemovers.entries()) {
     const shouldRemove = [

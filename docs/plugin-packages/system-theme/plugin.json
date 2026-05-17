@@ -14,9 +14,22 @@
   "category": "appearance",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["DarkMode"],
-    "hotkeys": ["dark_mode"]
+    "routeNames": [
+      "DarkMode"
+    ],
+    "hotkeys": [
+      "dark_mode"
+    ]
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=1.5.6"
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=1.5.6",
+  "entry": {
+    "frontend": "dist/frontend.js",
+    "styles": [
+      "dist/assets/index-fTz62839.css",
+      "dist/assets/TitlebarGitStatus-BFSOFKGh.css"
+    ]
+  }
 }

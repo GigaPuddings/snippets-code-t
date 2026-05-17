@@ -14,8 +14,20 @@
   "category": "sync",
   "enabledByDefault": true,
   "capabilities": {
-    "settingsTabs": ["gitSync"]
+    "settingsTabs": [
+      "gitSync"
+    ]
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=1.5.6"
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=1.5.6",
+  "entry": {
+    "frontend": "dist/frontend.js",
+    "styles": [
+      "dist/assets/index-DM75OeAj.css",
+      "dist/assets/TitlebarGitStatus-BFSOFKGh.css",
+      "dist/assets/useGitStatus-ECBcOGCr.css"
+    ]
+  }
 }

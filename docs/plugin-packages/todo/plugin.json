@@ -14,9 +14,21 @@
   "category": "automation",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["Todo"],
-    "settingsTabs": ["todo"]
+    "routeNames": [
+      "Todo"
+    ],
+    "settingsTabs": [
+      "todo"
+    ]
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=1.5.6"
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=1.5.6",
+  "entry": {
+    "frontend": "dist/frontend.js",
+    "styles": [
+      "dist/assets/index-BnfwBRB-.css"
+    ]
+  }
 }

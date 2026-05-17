@@ -22,6 +22,7 @@
     "rapidocr:install": "node scripts/install-rapidocr.mjs",
     "rapidocr:package": "node scripts/package-rapidocr-plugin.mjs",
     "plugins:package": "node scripts/package-official-plugins.mjs",
+    "plugins:build-official": "node scripts/build-official-plugin-runtimes.mjs",
     "plugins:verify-marketplace": "node scripts/verify-plugin-marketplace.mjs"
   },
   "config": {

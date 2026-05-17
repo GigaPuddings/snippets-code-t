@@ -14,13 +14,27 @@
   "category": "capture",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["Screenshot", "Pin"],
-    "hotkeys": ["screenshot"]
+    "routeNames": [
+      "Screenshot",
+      "Pin"
+    ],
+    "hotkeys": [
+      "screenshot"
+    ]
   },
   "resources": {
     "hintKey": "plugins.screenshot.resourceHint",
     "bundled": false
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=1.5.6"
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=1.5.6",
+  "entry": {
+    "frontend": "dist/frontend.js",
+    "styles": [
+      "dist/assets/index-CVVd-qCm.css",
+      "dist/assets/index-D8nqDbCw.css"
+    ]
+  }
 }

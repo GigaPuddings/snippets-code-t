@@ -14,8 +14,15 @@
   "category": "search",
   "enabledByDefault": true,
   "capabilities": {
-    "searchSources": ["desktop-files"]
+    "searchSources": [
+      "desktop-files"
+    ]
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=1.5.6"
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=1.5.6",
+  "entry": {
+    "frontend": "dist/frontend.js"
+  }
 }
