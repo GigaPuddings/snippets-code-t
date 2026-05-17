@@ -15,6 +15,8 @@
         "fallback": "Screenshot annotation, color picker, pin windows, OCR, and screenshot translation."
       },
       "category": "capture",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/plugin-packages/screenshot",
       "builtinPluginId": "screenshot",
       "status": "included",
       "tags": ["screenshot", "ocr", "pin"]
@@ -47,6 +49,8 @@
         "fallback": "Translate window, selection translation, screenshot translation, and offline model management."
       },
       "category": "automation",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/plugin-packages/translation",
       "builtinPluginId": "translation",
       "status": "included",
       "tags": ["translate", "offline"]
@@ -79,6 +83,8 @@
         "fallback": "Todo cards, timed reminders, and system notification windows."
       },
       "category": "automation",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/plugin-packages/todo",
       "builtinPluginId": "todo",
       "status": "included",
       "tags": ["todo", "reminder"]
@@ -95,6 +101,8 @@
         "fallback": "Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling."
       },
       "category": "appearance",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/plugin-packages/system-theme",
       "builtinPluginId": "system-theme",
       "status": "included",
       "tags": ["theme", "dark-mode"]
@@ -111,6 +119,8 @@
         "fallback": "Local app and browser bookmark management, plus quick-launch search results."
       },
       "category": "search",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/plugin-packages/local-launcher",
       "builtinPluginId": "local-launcher",
       "status": "included",
       "tags": ["apps", "bookmarks", "launcher"]
@@ -127,9 +137,29 @@
         "fallback": "Index desktop files and show file results in global search."
       },
       "category": "search",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/plugin-packages/desktop-files",
       "builtinPluginId": "desktop-files",
       "status": "included",
       "tags": ["desktop", "files", "search"]
+    },
+    {
+      "id": "search-engines",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.searchEngines.name",
+        "fallback": "Search Engines"
+      },
+      "description": {
+        "i18nKey": "plugins.searchEngines.description",
+        "fallback": "Custom search engines, keyword search, and default web search entries."
+      },
+      "category": "search",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/plugin-packages/search-engines",
+      "builtinPluginId": "search-engines",
+      "status": "included",
+      "tags": ["search", "web", "keyword"]
     },
     {
       "id": "git-sync",
@@ -143,6 +173,8 @@
         "fallback": "Workspace Git initialization, pull, push, auto sync, and conflict handling."
       },
       "category": "sync",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/plugin-packages/git-sync",
       "builtinPluginId": "git-sync",
       "status": "included",
       "tags": ["git", "sync"]

@@ -233,6 +233,12 @@ directly from GitHub-hosted archives. The current official manifest lives at:
 docs/plugin-marketplace/marketplace.json
 ```
 
+Official package manifests live under:
+
+```text
+docs/plugin-packages/<plugin-id>/plugin.json
+```
+
 Marketplace entries use schema version `1`:
 
 ```json
@@ -263,13 +269,14 @@ The plugin settings page fetches this manifest through
 installs available entries through `install_plugin_package_from_url`.
 
 For now, the previously built-in feature modules are listed in the marketplace
-as `included` while their heavy resources move out first:
+as `included`, with GitHub package subdirectories already prepared for the point
+where each module moves from bundled code to an installable package:
 
 - screenshot / OCR / pin windows
 - translation / offline translation runtime
 - reminders
 - Auto Dark Mode
-- apps / bookmarks / desktop file search
+- apps / bookmarks / desktop file search / web search engines
 - Git sync
 
 Markdown, editor, and workspace behavior remain the application core and are not

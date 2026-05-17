@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "desktop-files",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.desktopFiles.name",
+    "fallback": "Desktop File Search"
+  },
+  "description": {
+    "i18nKey": "plugins.desktopFiles.description",
+    "fallback": "Index desktop files and show file results in global search."
+  },
+  "category": "search",
+  "enabledByDefault": true,
+  "capabilities": {
+    "searchSources": ["desktop-files"]
+  },
+  "compatibleAppVersion": ">=1.5.6"
+}
+

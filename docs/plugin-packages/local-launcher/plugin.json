@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "local-launcher",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.localLauncher.name",
+    "fallback": "Apps and Bookmarks Launcher"
+  },
+  "description": {
+    "i18nKey": "plugins.localLauncher.description",
+    "fallback": "Local app and browser bookmark management, plus quick-launch search results."
+  },
+  "category": "search",
+  "enabledByDefault": true,
+  "capabilities": {
+    "routeNames": ["Local"],
+    "settingsTabs": ["local"],
+    "searchSources": ["apps", "bookmarks"]
+  },
+  "compatibleAppVersion": ">=1.5.6"
+}
+

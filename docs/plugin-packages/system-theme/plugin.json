@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "system-theme",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.systemTheme.name",
+    "fallback": "Auto Dark Mode"
+  },
+  "description": {
+    "i18nKey": "plugins.systemTheme.description",
+    "fallback": "Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling."
+  },
+  "category": "appearance",
+  "enabledByDefault": true,
+  "capabilities": {
+    "routeNames": ["DarkMode"],
+    "hotkeys": ["dark_mode"]
+  },
+  "compatibleAppVersion": ">=1.5.6"
+}
+

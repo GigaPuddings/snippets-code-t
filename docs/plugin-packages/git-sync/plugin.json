@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "git-sync",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.gitSync.name",
+    "fallback": "Git Sync"
+  },
+  "description": {
+    "i18nKey": "plugins.gitSync.description",
+    "fallback": "Workspace Git initialization, pull, push, auto sync, and conflict handling."
+  },
+  "category": "sync",
+  "enabledByDefault": true,
+  "capabilities": {
+    "settingsTabs": ["gitSync"]
+  },
+  "compatibleAppVersion": ">=1.5.6"
+}
+

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "screenshot",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.screenshot.name",
+    "fallback": "Screenshot and OCR"
+  },
+  "description": {
+    "i18nKey": "plugins.screenshot.description",
+    "fallback": "Screenshot annotation, color picker, pin windows, OCR, and screenshot translation."
+  },
+  "category": "capture",
+  "enabledByDefault": true,
+  "capabilities": {
+    "routeNames": ["Screenshot", "Pin"],
+    "hotkeys": ["screenshot"]
+  },
+  "resources": {
+    "hintKey": "plugins.screenshot.resourceHint",
+    "bundled": false
+  },
+  "compatibleAppVersion": ">=1.5.6"
+}
+

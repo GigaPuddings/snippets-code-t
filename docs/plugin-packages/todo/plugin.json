@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "todo",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.todo.name",
+    "fallback": "Reminders"
+  },
+  "description": {
+    "i18nKey": "plugins.todo.description",
+    "fallback": "Todo cards, timed reminders, and system notification windows."
+  },
+  "category": "automation",
+  "enabledByDefault": true,
+  "capabilities": {
+    "routeNames": ["Todo"],
+    "settingsTabs": ["todo"]
+  },
+  "compatibleAppVersion": ">=1.5.6"
+}
+

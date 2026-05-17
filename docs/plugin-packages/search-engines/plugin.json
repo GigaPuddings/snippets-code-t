@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "search-engines",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.searchEngines.name",
+    "fallback": "Search Engines"
+  },
+  "description": {
+    "i18nKey": "plugins.searchEngines.description",
+    "fallback": "Custom search engines, keyword search, and default web search entries."
+  },
+  "category": "search",
+  "enabledByDefault": true,
+  "capabilities": {
+    "routeNames": ["Retrieve"],
+    "settingsTabs": ["retrieve"],
+    "searchSources": ["web-search"]
+  },
+  "compatibleAppVersion": ">=1.5.6"
+}
+
