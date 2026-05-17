@@ -23,6 +23,6 @@
     "hintKey": "plugins.translation.resourceHint",
     "bundled": false
   },
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=1.5.6"
 }
-

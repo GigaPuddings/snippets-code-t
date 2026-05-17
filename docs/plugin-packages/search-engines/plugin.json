@@ -18,6 +18,6 @@
     "settingsTabs": ["retrieve"],
     "searchSources": ["web-search"]
   },
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=1.5.6"
 }
-

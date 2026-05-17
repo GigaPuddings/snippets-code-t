@@ -7,6 +7,7 @@ import { searchEnginesPlugin } from './search-engines/manifest';
 import { systemThemePlugin } from './system-theme/manifest';
 import { todoPlugin } from './todo/manifest';
 import { translationPlugin } from './translation/manifest';
+import { isBundledOfficialPluginsMode } from './official-mode';
 import type { PluginCategory, PluginId, BuiltinPlugin } from './types';
 import type { LocalPluginPackage, PluginPackageManifest, RegisteredPlugin } from './protocol';
 
@@ -23,9 +24,6 @@ export const BUILTIN_PLUGIN_PACKAGES: BuiltinPlugin[] = [
 ];
 
 const DEFAULT_PLUGIN_VERSION = '1.0.0';
-export const OFFICIAL_PLUGINS_MODE = import.meta.env.VITE_OFFICIAL_PLUGINS_MODE === 'external'
-  ? 'external'
-  : 'bundled';
 
 const fallbackName = (id: PluginId): string => String(id);
 
@@ -173,7 +171,7 @@ export const loadLocalPluginManifests = (
 export const loadPluginRegistry = (
   localManifests: unknown[] = []
 ): RegisteredPlugin[] => {
-  const builtinPlugins = OFFICIAL_PLUGINS_MODE === 'bundled'
+  const builtinPlugins = isBundledOfficialPluginsMode
     ? loadBuiltinPluginManifests().map((manifest) => createRegisteredPlugin(manifest, 'builtin'))
     : [];
 

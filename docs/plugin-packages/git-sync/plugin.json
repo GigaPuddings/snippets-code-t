@@ -16,6 +16,6 @@
   "capabilities": {
     "settingsTabs": ["gitSync"]
   },
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=1.5.6"
 }
-

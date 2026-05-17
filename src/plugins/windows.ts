@@ -1,3 +1,4 @@
+import { isBundledOfficialPluginsMode } from './official-mode';
 import type { PluginId } from './types';
 
 export interface PluginWindowShortcut {
@@ -6,9 +7,11 @@ export interface PluginWindowShortcut {
   closeCommandLabel?: string;
 }
 
-export const pluginWindowShortcuts: PluginWindowShortcut[] = [
-  {
-    label: 'dark_mode',
-    pluginId: 'system-theme'
-  }
-];
+export const pluginWindowShortcuts: PluginWindowShortcut[] = isBundledOfficialPluginsMode
+  ? [
+      {
+        label: 'dark_mode',
+        pluginId: 'system-theme'
+      }
+    ]
+  : [];

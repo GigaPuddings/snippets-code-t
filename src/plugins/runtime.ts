@@ -5,6 +5,7 @@ import { defineAsyncComponent, defineComponent, h, markRaw, type Component } fro
 import type { RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
 import type { SearchSourceProvider, SearchSourceResult } from './search';
+import { activateOfficialLocalPlugin } from './official-runtime';
 import { searchSourceProviders } from './search-providers';
 import { pluginSettingsComponents, pluginSettingsMenuItems, type PluginSettingsMenuItem } from './settings';
 import { titlebarPluginActions, type TitlebarPluginAction } from './titlebar';
@@ -290,16 +291,27 @@ export const ensureLocalPluginFrontendEntries = async (
   for (const plugin of plugins) {
     if (plugin.source !== 'local') continue;
     if (!isEnabled(String(plugin.id))) continue;
-    if (!plugin.manifest.entry?.frontend) continue;
     if (loadedFrontendEntries.has(String(plugin.id))) continue;
 
+    if (plugin.manifest.entry?.frontend) {
+      try {
+        const entryUrl = resolvePluginAssetUrl(plugin, plugin.manifest.entry.frontend);
+        const pluginModule = await import(/* @vite-ignore */ entryUrl) as PluginFrontendModule;
+        await activateFrontendModule(plugin, pluginModule);
+        loadedFrontendEntries.add(String(plugin.id));
+      } catch (error) {
+        console.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
+      }
+      continue;
+    }
+
     try {
-      const entryUrl = resolvePluginAssetUrl(plugin, plugin.manifest.entry.frontend);
-      const pluginModule = await import(/* @vite-ignore */ entryUrl) as PluginFrontendModule;
-      await activateFrontendModule(plugin, pluginModule);
-      loadedFrontendEntries.add(String(plugin.id));
+      const activated = await activateOfficialLocalPlugin(createRuntimeContext(plugin));
+      if (activated) {
+        loadedFrontendEntries.add(String(plugin.id));
+      }
     } catch (error) {
-      console.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
+      console.warn(`[PluginRuntime] 加载官方插件运行时失败: ${plugin.id}`, error);
     }
   }
 };

@@ -152,7 +152,7 @@ import {
   type PluginMarketplaceItem
 } from '@/api/plugins';
 import { getPluginById } from '@/plugins/registry';
-import { OFFICIAL_PLUGINS_MODE } from '@/plugins/loader';
+import { OFFICIAL_PLUGINS_MODE } from '@/plugins/official-mode';
 import type { PluginI18nText, RegisteredPlugin } from '@/plugins/protocol';
 import { getHotkeyValue } from '@/plugins/hotkeys';
 import type { PluginId } from '@/plugins/types';

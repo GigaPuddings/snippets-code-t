@@ -17,6 +17,6 @@
     "routeNames": ["Todo"],
     "settingsTabs": ["todo"]
   },
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=1.5.6"
 }
-

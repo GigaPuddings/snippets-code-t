@@ -1,22 +1,59 @@
 import type { RouteRecordRaw } from 'vue-router';
-import { localLauncherConfigRoutes } from './local-launcher/routes';
-import { screenshotWindowRoutes } from './screenshot/routes';
-import { searchEnginesConfigRoutes } from './search-engines/routes';
-import { systemThemeRoutes } from './system-theme/routes';
-import { todoConfigRoutes } from './todo/routes';
-import { translationRoutes } from './translation/routes';
+import { isBundledOfficialPluginsMode } from './official-mode';
 
-export const configPluginRoutes: RouteRecordRaw[] = [
-  ...localLauncherConfigRoutes,
-  ...searchEnginesConfigRoutes,
-  ...todoConfigRoutes
-];
+export const configPluginRoutes: RouteRecordRaw[] = isBundledOfficialPluginsMode
+  ? [
+      {
+        path: 'local',
+        name: 'Local',
+        component: () => import('./local-launcher/pages/config/index.vue'),
+        meta: { pluginId: 'local-launcher' }
+      },
+      {
+        path: 'retrieve',
+        name: 'Retrieve',
+        component: () => import('./search-engines/pages/config/index.vue'),
+        meta: { pluginId: 'search-engines' }
+      },
+      {
+        path: 'todo',
+        name: 'Todo',
+        component: () => import('./todo/pages/config/index.vue'),
+        meta: { pluginId: 'todo' }
+      }
+    ]
+  : [];
 
-export const layoutPluginRoutes: RouteRecordRaw[] = [
-  ...translationRoutes,
-  ...systemThemeRoutes
-];
+export const layoutPluginRoutes: RouteRecordRaw[] = isBundledOfficialPluginsMode
+  ? [
+      {
+        path: '/translate',
+        name: 'Translate',
+        component: () => import('./translation/pages/translate/index.vue'),
+        meta: { pluginId: 'translation' }
+      },
+      {
+        path: '/dark-mode',
+        name: 'DarkMode',
+        component: () => import('./system-theme/pages/dark-mode/index.vue'),
+        meta: { pluginId: 'system-theme' }
+      }
+    ]
+  : [];
 
-export const windowPluginRoutes: RouteRecordRaw[] = [
-  ...screenshotWindowRoutes
-];
+export const windowPluginRoutes: RouteRecordRaw[] = isBundledOfficialPluginsMode
+  ? [
+      {
+        path: '/screenshot',
+        name: 'Screenshot',
+        component: () => import('./screenshot/pages/screenshot/index.vue'),
+        meta: { pluginId: 'screenshot' }
+      },
+      {
+        path: '/pin',
+        name: 'Pin',
+        component: () => import('./screenshot/pages/pin/index.vue'),
+        meta: { pluginId: 'screenshot' }
+      }
+    ]
+  : [];

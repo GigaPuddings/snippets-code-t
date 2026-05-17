@@ -298,6 +298,12 @@ The settings marketplace treats `included` official entries that have
 `packageUrl` and `packageSubdir` as installable packages, then installs their
 manifest into `<app-data>/plugins/<plugin-id>`.
 
+Official plugin routes, settings tabs, titlebar actions, window shortcuts, and
+search providers are not statically registered in external mode. After a
+matching official manifest package is installed, the runtime bridge loads the
+official plugin entry and registers those capabilities for that installed
+plugin id.
+
 ## Next Steps
 
 1. Publish real package archives or per-plugin repositories for each marketplace

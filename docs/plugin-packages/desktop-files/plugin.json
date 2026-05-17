@@ -16,6 +16,6 @@
   "capabilities": {
     "searchSources": ["desktop-files"]
   },
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=1.5.6"
 }
-

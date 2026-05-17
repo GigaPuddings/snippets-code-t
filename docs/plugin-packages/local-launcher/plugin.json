@@ -18,6 +18,6 @@
     "settingsTabs": ["local"],
     "searchSources": ["apps", "bookmarks"]
   },
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=1.5.6"
 }
-

@@ -17,6 +17,6 @@
     "routeNames": ["DarkMode"],
     "hotkeys": ["dark_mode"]
   },
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=1.5.6"
 }
-
