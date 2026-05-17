@@ -196,6 +196,7 @@ pub fn append_ocr_diagnostic_log(
     message: String,
     data: Option<String>,
 ) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "screenshot")?;
     let log_path = ocr_diagnostic_log_path(&app_handle);
     write_ocr_diagnostic_log(&log_path, "frontend", &message, data.as_deref())
 }
@@ -215,6 +216,7 @@ pub async fn recognize_text_from_image(
     engine: Option<String>,
     language: Option<String>,
 ) -> Result<OcrRecognizeResult, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "screenshot")?;
     let command_started_at = Instant::now();
     let log_path = ocr_diagnostic_log_path(&app_handle);
     append_ocr_log(

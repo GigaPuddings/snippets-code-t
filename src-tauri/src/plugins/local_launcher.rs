@@ -9,6 +9,10 @@ static APPS_CACHE: LazyLock<Mutex<Option<Vec<AppInfo>>>> = LazyLock::new(|| Mute
 static BOOKMARKS_CACHE: LazyLock<Mutex<Option<Vec<BookmarkInfo>>>> =
     LazyLock::new(|| Mutex::new(None));
 
+fn require_local_launcher_plugin(app_handle: &tauri::AppHandle) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(app_handle, "local-launcher")
+}
+
 pub fn invalidate_apps_cache() {
     if let Ok(mut cache) = APPS_CACHE.lock() {
         *cache = None;
@@ -25,6 +29,7 @@ pub fn invalidate_bookmarks_cache() {
 
 #[tauri::command]
 pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Result<(), String> {
+    require_local_launcher_plugin(&app_handle)?;
     crate::apps::open_app_command(app_handle, app_path)
 }
 
@@ -33,6 +38,7 @@ pub fn open_app_as_admin_command(
     app_handle: tauri::AppHandle,
     app_path: String,
 ) -> Result<(), String> {
+    require_local_launcher_plugin(&app_handle)?;
     crate::apps::open_app_as_admin_command(app_handle, app_path)
 }
 
@@ -41,60 +47,77 @@ pub fn open_app_file_location_command(
     app_handle: tauri::AppHandle,
     app_path: String,
 ) -> Result<(), String> {
+    require_local_launcher_plugin(&app_handle)?;
     crate::apps::open_app_file_location_command(app_handle, app_path)
 }
 
 #[tauri::command]
-pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<String, String> {
+pub fn add_app(
+    app_handle: tauri::AppHandle,
+    title: String,
+    content: String,
+    icon: Option<String>,
+) -> Result<String, String> {
+    require_local_launcher_plugin(&app_handle)?;
     db::add_app(title, content, icon)
 }
 
 #[tauri::command]
 pub fn update_app(
+    app_handle: tauri::AppHandle,
     id: String,
     title: String,
     content: String,
     icon: Option<String>,
 ) -> Result<(), String> {
+    require_local_launcher_plugin(&app_handle)?;
     db::update_app(id, title, content, icon)
 }
 
 #[tauri::command]
-pub fn delete_app(id: String) -> Result<(), String> {
+pub fn delete_app(app_handle: tauri::AppHandle, id: String) -> Result<(), String> {
+    require_local_launcher_plugin(&app_handle)?;
     db::delete_app(id)
 }
 
 #[tauri::command]
-pub fn get_apps() -> Result<Vec<AppInfo>, String> {
+pub fn get_apps(app_handle: tauri::AppHandle) -> Result<Vec<AppInfo>, String> {
+    require_local_launcher_plugin(&app_handle)?;
     db::get_apps()
 }
 
 #[tauri::command]
 pub fn add_bookmark(
+    app_handle: tauri::AppHandle,
     title: String,
     content: String,
     icon: Option<String>,
 ) -> Result<String, String> {
+    require_local_launcher_plugin(&app_handle)?;
     db::add_bookmark(title, content, icon)
 }
 
 #[tauri::command]
 pub fn update_bookmark(
+    app_handle: tauri::AppHandle,
     id: String,
     title: String,
     content: String,
     icon: Option<String>,
 ) -> Result<(), String> {
+    require_local_launcher_plugin(&app_handle)?;
     db::update_bookmark(id, title, content, icon)
 }
 
 #[tauri::command]
-pub fn delete_bookmark(id: String) -> Result<(), String> {
+pub fn delete_bookmark(app_handle: tauri::AppHandle, id: String) -> Result<(), String> {
+    require_local_launcher_plugin(&app_handle)?;
     db::delete_bookmark(id)
 }
 
 #[tauri::command]
-pub fn get_bookmarks() -> Result<Vec<BookmarkInfo>, String> {
+pub fn get_bookmarks(app_handle: tauri::AppHandle) -> Result<Vec<BookmarkInfo>, String> {
+    require_local_launcher_plugin(&app_handle)?;
     db::get_bookmarks()
 }
 
@@ -103,7 +126,7 @@ pub fn search_apps(
     app_handle: tauri::AppHandle,
     query: String,
 ) -> Result<Vec<SearchResult>, String> {
-    crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
+    require_local_launcher_plugin(&app_handle)?;
 
     let mut cache = APPS_CACHE.lock().unwrap();
     if cache.is_none() {
@@ -163,7 +186,7 @@ pub fn search_bookmarks(
     app_handle: tauri::AppHandle,
     query: String,
 ) -> Result<Vec<SearchResult>, String> {
-    crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
+    require_local_launcher_plugin(&app_handle)?;
 
     let mut cache = BOOKMARKS_CACHE.lock().unwrap();
     if cache.is_none() {

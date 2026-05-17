@@ -1389,6 +1389,10 @@ fn parse_commit_output(output: &str) -> usize {
 
 use tauri::{command, AppHandle};
 
+fn require_git_sync_plugin(app_handle: &AppHandle) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(app_handle, "git-sync")
+}
+
 /// 检查 Git 是否安装
 #[command]
 pub fn check_git_installed_command() -> Result<bool, String> {
@@ -1398,6 +1402,7 @@ pub fn check_git_installed_command() -> Result<bool, String> {
 /// 检查是否是 Git 仓库
 #[command]
 pub fn check_git_repo_command(app_handle: AppHandle) -> Result<bool, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     check_git_repo(&workspace_root)
@@ -1406,6 +1411,7 @@ pub fn check_git_repo_command(app_handle: AppHandle) -> Result<bool, String> {
 /// 获取 Git 状态（带 2 秒缓存，减少频繁调用）
 #[command]
 pub fn get_git_status_command(app_handle: AppHandle) -> Result<GitStatus, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -1437,6 +1443,7 @@ pub fn get_git_status_command(app_handle: AppHandle) -> Result<GitStatus, String
 /// 获取系统 Git 配置
 #[command]
 pub fn get_system_git_config_command(app_handle: AppHandle) -> Result<SystemGitConfig, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root = crate::json_config::get_workspace_root(&app_handle)
         .ok()
         .flatten();
@@ -1446,6 +1453,7 @@ pub fn get_system_git_config_command(app_handle: AppHandle) -> Result<SystemGitC
 /// 配置 Git
 #[command]
 pub fn configure_git_command(app_handle: AppHandle, config: GitConfig) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -1470,6 +1478,7 @@ pub fn init_git_repository_command(
     remote_url: String,
     token: String,
 ) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -1608,6 +1617,7 @@ pub fn test_git_connection_command(
     remote_url: String,
     token: String,
 ) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -1649,6 +1659,7 @@ pub fn test_git_connection_command(
 /// 执行 git pull
 #[command]
 pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -1912,6 +1923,7 @@ pub async fn git_push_command(
     app_handle: AppHandle,
     message: Option<String>,
 ) -> Result<PushResult, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -1979,6 +1991,7 @@ pub fn resolve_conflict_command(
     file_path: String,
     strategy: ConflictStrategy,
 ) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     resolve_conflict(&workspace_root, &file_path, strategy)
@@ -1987,6 +2000,7 @@ pub fn resolve_conflict_command(
 /// 检查 .gitignore
 #[command]
 pub fn check_gitignore_command(app_handle: AppHandle) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     check_gitignore(&workspace_root)
@@ -1995,6 +2009,7 @@ pub fn check_gitignore_command(app_handle: AppHandle) -> Result<(), String> {
 /// 仅从工作区检测 Git 配置（不调用系统 git config，避免终端闪退）
 #[command]
 pub fn get_workspace_git_config_command(app_handle: AppHandle) -> Result<SystemGitConfig, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root = crate::json_config::get_workspace_root(&app_handle)
         .ok()
         .flatten();
@@ -2004,6 +2019,7 @@ pub fn get_workspace_git_config_command(app_handle: AppHandle) -> Result<SystemG
 /// 确保工作区存在 .gitignore，不存在则创建
 #[command]
 pub fn ensure_gitignore_command(app_handle: AppHandle) -> Result<bool, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     ensure_gitignore(&workspace_root)
@@ -2663,6 +2679,7 @@ impl AutoSyncManager {
 /// 启动自动同步
 #[command]
 pub fn start_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     // 获取工作区根目录
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
@@ -2716,6 +2733,7 @@ pub fn start_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
 /// 停止自动同步
 #[command]
 pub fn stop_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
         let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
             .lock()
@@ -2732,6 +2750,7 @@ pub fn stop_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
 /// 通知文件编辑
 #[command]
 pub fn notify_file_edit_command(app_handle: AppHandle) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
         let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
             .lock()
@@ -2748,6 +2767,7 @@ pub fn notify_file_edit_command(app_handle: AppHandle) -> Result<(), String> {
 /// 获取自动同步状态
 #[command]
 pub fn get_auto_sync_status_command(app_handle: AppHandle) -> Result<bool, String> {
+    require_git_sync_plugin(&app_handle)?;
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
         let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
             .lock()
@@ -2764,6 +2784,7 @@ pub fn get_auto_sync_status_command(app_handle: AppHandle) -> Result<bool, Strin
 /// 暂停自动同步
 #[command]
 pub fn pause_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
         let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
             .lock()
@@ -2780,6 +2801,7 @@ pub fn pause_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
 /// 恢复自动同步
 #[command]
 pub fn resume_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
         let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
             .lock()
@@ -2810,6 +2832,7 @@ pub fn get_conflict_file_content(
     app_handle: AppHandle,
     file_path: String,
 ) -> Result<ConflictFileContent, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -2903,6 +2926,7 @@ pub async fn force_push_command(
     app_handle: AppHandle,
     message: Option<String>,
 ) -> Result<PushResult, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -2995,6 +3019,7 @@ pub async fn force_push_command(
 /// 强制拉取（覆盖本地）
 #[command]
 pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -3102,6 +3127,7 @@ pub fn resolve_conflicts_batch(
     app_handle: AppHandle,
     resolutions: Vec<(String, ConflictStrategy)>,
 ) -> Result<ResolveConflictsResult, String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -3448,6 +3474,7 @@ pub fn write_conflict_file(
     file_path: String,
     content: String,
 ) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
@@ -3468,6 +3495,7 @@ pub fn remove_untracked_file_command(
     app_handle: AppHandle,
     file_path: String,
 ) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 

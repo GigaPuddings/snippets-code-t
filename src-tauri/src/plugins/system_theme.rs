@@ -914,6 +914,7 @@ pub fn get_current_status(app_handle: &AppHandle) -> Result<serde_json::Value, S
 
 #[tauri::command]
 pub async fn get_dark_mode_config(app_handle: AppHandle) -> Result<DarkModeConfig, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "system-theme")?;
     Ok(load_config(&app_handle))
 }
 
@@ -922,6 +923,7 @@ pub async fn save_dark_mode_config_command(
     app_handle: AppHandle,
     config: DarkModeConfig,
 ) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "system-theme")?;
     save_config(&app_handle, &config)?;
 
     match config.theme_mode {
@@ -949,21 +951,25 @@ pub async fn save_dark_mode_config_command(
 }
 
 #[tauri::command]
-pub async fn get_location_info() -> Result<LocationInfo, String> {
+pub async fn get_location_info(app_handle: AppHandle) -> Result<LocationInfo, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "system-theme")?;
     get_location_by_ip().await
 }
 
 #[tauri::command]
 pub async fn calculate_sun_times_command(
+    app_handle: AppHandle,
     latitude: f64,
     longitude: f64,
     timezone_offset: i32,
 ) -> Result<SunTimes, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "system-theme")?;
     calculate_sun_times(latitude, longitude, timezone_offset)
 }
 
 #[tauri::command]
 pub async fn toggle_system_theme(app_handle: AppHandle) -> Result<bool, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "system-theme")?;
     toggle_theme(Some(&app_handle))
 }
 
@@ -971,5 +977,6 @@ pub async fn toggle_system_theme(app_handle: AppHandle) -> Result<bool, String> 
 pub async fn get_dark_mode_status_command(
     app_handle: AppHandle,
 ) -> Result<serde_json::Value, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "system-theme")?;
     get_current_status(&app_handle)
 }
