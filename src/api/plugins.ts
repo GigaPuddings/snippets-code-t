@@ -1,6 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { PluginCategory, PluginStateMap, PluginId } from '@/plugins/types';
-import type { LocalPluginPackage, PluginI18nText, PluginPackageManifest } from '@/plugins/protocol';
+import type {
+  LocalPluginPackage,
+  PluginI18nText,
+  PluginPackageManifest
+} from '@/plugins/protocol';
 
 export interface PluginResourceStatus {
   pluginId: string;
@@ -43,12 +47,20 @@ export async function getPluginStates(): Promise<Partial<PluginStateMap>> {
   return await invoke<Partial<PluginStateMap>>('get_plugin_states');
 }
 
-export async function getInstalledPluginManifests(): Promise<LocalPluginPackage[]> {
+export async function getInstalledPluginManifests(): Promise<
+  LocalPluginPackage[]
+> {
   return await invoke<LocalPluginPackage[]>('get_installed_plugin_manifests');
 }
 
-export async function installLocalPluginPackage(sourcePath: string, overwrite = false): Promise<LocalPluginPackage> {
-  return await invoke<LocalPluginPackage>('install_local_plugin_package', { sourcePath, overwrite });
+export async function installLocalPluginPackage(
+  sourcePath: string,
+  overwrite = false
+): Promise<LocalPluginPackage> {
+  return await invoke<LocalPluginPackage>('install_local_plugin_package', {
+    sourcePath,
+    overwrite
+  });
 }
 
 export async function installPluginPackageFromUrl(
@@ -63,15 +75,24 @@ export async function installPluginPackageFromUrl(
   });
 }
 
-export async function fetchPluginMarketplace(marketplaceUrl: string): Promise<PluginMarketplaceIndex> {
-  return await invoke<PluginMarketplaceIndex>('fetch_plugin_marketplace', { marketplaceUrl });
+export async function fetchPluginMarketplace(
+  marketplaceUrl: string
+): Promise<PluginMarketplaceIndex> {
+  return await invoke<PluginMarketplaceIndex>('fetch_plugin_marketplace', {
+    marketplaceUrl
+  });
 }
 
-export async function uninstallLocalPluginPackage(pluginId: PluginId | string): Promise<void> {
+export async function uninstallLocalPluginPackage(
+  pluginId: PluginId | string
+): Promise<void> {
   await invoke('uninstall_local_plugin_package', { pluginId });
 }
 
-export async function setPluginEnabled(pluginId: PluginId | string, enabled: boolean): Promise<void> {
+export async function setPluginEnabled(
+  pluginId: PluginId | string,
+  enabled: boolean
+): Promise<void> {
   await invoke('set_plugin_enabled', { pluginId, enabled });
 }
 
@@ -83,5 +104,20 @@ export async function getLocalPluginResourcePath(
   pluginId: PluginId | string,
   relativePath: string
 ): Promise<string | null> {
-  return await invoke<string | null>('get_local_plugin_resource_path', { pluginId, relativePath });
+  return await invoke<string | null>('get_local_plugin_resource_path', {
+    pluginId,
+    relativePath
+  });
+}
+
+export async function invokePluginBackend<T = unknown>(
+  pluginId: PluginId | string,
+  command: string,
+  payload: unknown = null
+): Promise<T> {
+  return await invoke<T>('invoke_plugin_backend', {
+    pluginId,
+    command,
+    payload
+  });
 }

@@ -3,6 +3,7 @@ import type { PluginCategory, PluginId } from './types';
 export type PluginManifestSchemaVersion = 1;
 export type PluginPackageKind = 'builtin' | 'local';
 export type PluginSourceKind = 'builtin' | 'local';
+export type PluginBackendKind = 'native-host' | 'wasm' | 'script';
 
 export interface PluginI18nText {
   i18nKey: string;
@@ -28,6 +29,7 @@ export interface PluginResourceDescriptor {
 export interface PluginPackageEntry {
   frontend?: string;
   backend?: string;
+  backendKind?: PluginBackendKind;
   styles?: string[];
 }
 

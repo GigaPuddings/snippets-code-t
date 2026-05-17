@@ -91,9 +91,10 @@ Current package manifest shape:
   },
   "entry": {
     "frontend": "dist/frontend.js",
-    "backend": "dist/backend.wasm"
+    "backend": "dist/backend.exe",
+    "backendKind": "native-host"
   },
-  "permissions": ["network", "workspace:read"],
+  "permissions": ["network", "workspace:read", "backend:*"],
   "compatibleAppVersion": ">=1.5.6"
 }
 ```
@@ -130,6 +131,51 @@ It also exposes `context.ui.h` and `context.ui.defineComponent` so simple local 
 Each local plugin has an isolated JSON data file exposed through `context.storage.get`, `context.storage.set`, and `context.storage.delete`. Data is stored under the installed package directory and is removed with the plugin package.
 
 `context.api.invoke` is permission-gated. A local plugin must declare `command:<tauri-command-name>` or `command:*` in `permissions` before it can call a Tauri command through the provided context API.
+
+`context.api.invokeBackend(command, payload)` calls the plugin's own native
+host backend declared by `entry.backend`. A local plugin must declare
+`backend:<command>` or `backend:*` before this call is allowed. This is the
+boundary for official plugin backends that need independent fixes: the main app
+ships only the loader, permission check, and protocol bridge; the plugin package
+ships the executable backend.
+
+Native host backend protocol:
+
+- `entry.backendKind` is optional and defaults to `native-host`.
+- The backend path must be a safe relative path inside the installed package.
+- The host executable is started with the plugin package directory as its
+  working directory.
+- The app writes one JSON request to stdin:
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginId": "screenshot",
+  "command": "capture-screen",
+  "payload": {
+    "monitorId": 1
+  }
+}
+```
+
+- The backend writes one JSON response to stdout:
+
+```json
+{
+  "ok": true,
+  "result": {
+    "imagePath": "..."
+  }
+}
+```
+
+Failure responses use `{ "ok": false, "error": "message" }`. Non-zero process
+exit status is treated as a backend failure and stderr is surfaced to the app.
+
+`backendKind: "wasm"` and `backendKind: "script"` are reserved in the manifest
+schema, but the current runtime executes only `native-host`. That keeps the
+first backend split practical for screenshot/OCR, Git, and local search, while
+leaving room for sandboxed WASM or script workers later.
 
 Runtime-registered routes are added to Vue Router after the plugin registry initializes. Runtime settings tabs, titlebar actions, search providers, and window shortcuts are merged with the built-in registries and still respect the plugin enabled state.
 
@@ -169,6 +215,7 @@ Commands:
 - `set_local_plugin_data`
 - `delete_local_plugin_data`
 - `get_local_plugin_resource_path`
+- `invoke_plugin_backend`
 - `set_plugin_enabled`
 - `get_rapidocr_resource_status`
 
@@ -190,6 +237,13 @@ Optional Tauri command entry points must also check plugin state. The first guar
 Rust command registration now goes through plugin adapter modules under `src-tauri/src/plugins/*`. The adapters preserve existing frontend `invoke` command names while delegating to the current implementation modules. This gives each built-in plugin an explicit backend command boundary before moving the implementation code itself.
 
 The first implementation moves are also in place: `translation`, `search-engines`, `desktop-files`, `todo`, `system-theme`, local launcher app/bookmark management/search, screenshot command adapters, and shared URL opening now live under the Rust plugin modules instead of the older broad implementation modules.
+
+Screenshot adapters now try the installed `screenshot` plugin native host
+backend first, using the existing Tauri command name as the backend command
+name. If the installed plugin package has no backend entry, the adapter falls
+back to the bundled implementation. This keeps current installations working
+while allowing a future screenshot package to override capture, OCR, clipboard,
+save, and pin-window backend behavior through a plugin-only release.
 
 ## Optional Resources
 
@@ -334,9 +388,34 @@ matching official manifest package is installed, the runtime bridge loads the
 official plugin entry and registers those capabilities for that installed
 plugin id.
 
+## Native Host Backend Split
+
+Official plugins can now move backend implementation out of the main Tauri
+binary by shipping a native host executable in their own package repository.
+The app-level contract is intentionally small:
+
+1. The marketplace installs or updates `<app-data>/plugins/<plugin-id>`.
+2. `plugin.json` declares `entry.backend`, `entry.backendKind: "native-host"`,
+   and the required `backend:<command>` permissions.
+3. The frontend calls `context.api.invokeBackend`.
+4. The main app validates plugin enabled state, permissions, and package path,
+   then runs the plugin's backend executable.
+
+This means a screenshot backend bug can be fixed by publishing a new
+`snippets-code-plugin-screenshot` tag and updating the marketplace entry. Users
+update only that plugin package; the main app is rebuilt only when the bridge
+protocol or core workspace/editor behavior changes.
+
+For compatibility, the bundled screenshot Rust implementation remains as a
+fallback until the official screenshot native host package reaches feature
+parity. Once that package owns the commands completely, the fallback code can be
+removed from the main app without changing the plugin protocol.
+
 ## Next Steps
 
-1. Add backend plugin runtime entry points or sandboxed WASM/native host boundaries.
+1. Move each official backend command from compatibility adapters into native
+   host packages, starting with screenshot/OCR/pin window capture.
 2. Add plugin lifecycle hooks: enable, disable, migrate, before-uninstall cleanup.
-4. Move offline translation model cache/status behind the same optional resource protocol.
-5. Add signed plugin package metadata before enabling third-party marketplace installation.
+3. Add long-running backend session support for plugins that need warm caches or
+   streaming progress.
+4. Add signed plugin package metadata before enabling third-party marketplace installation.

@@ -1,12 +1,22 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event';
 import { SettingTwo } from '@icon-park/vue-next';
-import { defineAsyncComponent, defineComponent, h, markRaw, type Component } from 'vue';
+import {
+  defineAsyncComponent,
+  defineComponent,
+  h,
+  markRaw,
+  type Component
+} from 'vue';
 import type { RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
 import type { SearchSourceProvider, SearchSourceResult } from './search';
 import { searchSourceProviders } from './search-providers';
-import { pluginSettingsComponents, pluginSettingsMenuItems, type PluginSettingsMenuItem } from './settings';
+import {
+  pluginSettingsComponents,
+  pluginSettingsMenuItems,
+  type PluginSettingsMenuItem
+} from './settings';
 import { titlebarPluginActions, type TitlebarPluginAction } from './titlebar';
 import { pluginWindowShortcuts, type PluginWindowShortcut } from './windows';
 
@@ -53,6 +63,7 @@ export interface PluginFrontendRuntimeContext {
   resolveAssetUrl(relativePath: string): string;
   api: {
     invoke: typeof invoke;
+    invokeBackend<T = unknown>(command: string, payload?: unknown): Promise<T>;
     listen: typeof listen;
     emit: typeof emit;
   };
@@ -74,9 +85,13 @@ export interface PluginFrontendRuntimeContext {
 
 interface PluginFrontendModule {
   activate?: (context: PluginFrontendRuntimeContext) => void | Promise<void>;
-  default?: {
-    activate?: (context: PluginFrontendRuntimeContext) => void | Promise<void>;
-  } | ((context: PluginFrontendRuntimeContext) => void | Promise<void>);
+  default?:
+    | {
+        activate?: (
+          context: PluginFrontendRuntimeContext
+        ) => void | Promise<void>;
+      }
+    | ((context: PluginFrontendRuntimeContext) => void | Promise<void>);
 }
 
 const runtimeConfigPluginRoutes: RouteRecordRaw[] = [];
@@ -87,45 +102,87 @@ const loadedPluginStyleLinks = new Map<string, HTMLLinkElement[]>();
 const installedRuntimeRouteNames = new Set<string>();
 const installedRuntimeRouteRemovers = new Map<string, () => void>();
 
-const trimSlashes = (value: string): string => value.replace(/^[\\/]+|[\\/]+$/g, '');
+const trimSlashes = (value: string): string =>
+  value.replace(/^[\\/]+|[\\/]+$/g, '');
 
-const isSafeRelativePath = (value: string): boolean => (
-  !!value
-  && !value.includes('://')
-  && !value.startsWith('/')
-  && !/^[a-zA-Z]:[\\/]/.test(value)
-  && !trimSlashes(value).split(/[\\/]+/).includes('..')
-);
+const isSafeRelativePath = (value: string): boolean =>
+  !!value &&
+  !value.includes('://') &&
+  !value.startsWith('/') &&
+  !/^[a-zA-Z]:[\\/]/.test(value) &&
+  !trimSlashes(value)
+    .split(/[\\/]+/)
+    .includes('..');
 
-const resolvePluginAssetPath = (plugin: RegisteredPlugin, relativePath: string): string => {
+const resolvePluginAssetPath = (
+  plugin: RegisteredPlugin,
+  relativePath: string
+): string => {
   if (!plugin.packagePath) {
     throw new Error(`插件 ${plugin.id} 缺少 packagePath`);
   }
   if (!isSafeRelativePath(relativePath)) {
-    throw new Error(`插件 ${plugin.id} 使用了不安全的资源路径: ${relativePath}`);
+    throw new Error(
+      `插件 ${plugin.id} 使用了不安全的资源路径: ${relativePath}`
+    );
   }
 
   return `${plugin.packagePath.replace(/[\\/]+$/g, '')}/${trimSlashes(relativePath)}`;
 };
 
-const resolvePluginAssetUrl = (plugin: RegisteredPlugin, relativePath: string): string => (
-  convertFileSrc(resolvePluginAssetPath(plugin, relativePath))
-);
+const resolvePluginAssetUrl = (
+  plugin: RegisteredPlugin,
+  relativePath: string
+): string => convertFileSrc(resolvePluginAssetPath(plugin, relativePath));
 
-const canInvokeCommand = (plugin: RegisteredPlugin, command: string): boolean => {
+const canInvokeCommand = (
+  plugin: RegisteredPlugin,
+  command: string
+): boolean => {
   const permissions = plugin.manifest.permissions ?? [];
-  return permissions.includes('command:*') || permissions.includes(`command:${command}`);
+  return (
+    permissions.includes('command:*') ||
+    permissions.includes(`command:${command}`)
+  );
 };
 
-const createPluginInvoke = (plugin: RegisteredPlugin): typeof invoke => (
-  (async (command: string, args?: Record<string, unknown>, options?: unknown) => {
+const canInvokeBackendCommand = (
+  plugin: RegisteredPlugin,
+  command: string
+): boolean => {
+  const permissions = plugin.manifest.permissions ?? [];
+  return (
+    permissions.includes('backend:*') ||
+    permissions.includes(`backend:${command}`)
+  );
+};
+
+const createPluginInvoke = (plugin: RegisteredPlugin): typeof invoke =>
+  (async (
+    command: string,
+    args?: Record<string, unknown>,
+    options?: unknown
+  ) => {
     if (!canInvokeCommand(plugin, command)) {
       throw new Error(`插件 ${plugin.id} 没有调用命令 ${command} 的权限`);
     }
 
     return invoke(command, args, options as Parameters<typeof invoke>[2]);
-  }) as typeof invoke
-);
+  }) as typeof invoke;
+
+const createPluginBackendInvoke =
+  (plugin: RegisteredPlugin) =>
+  async <T = unknown>(command: string, payload: unknown = null): Promise<T> => {
+    if (!canInvokeBackendCommand(plugin, command)) {
+      throw new Error(`插件 ${plugin.id} 没有调用后端命令 ${command} 的权限`);
+    }
+
+    return await invoke<T>('invoke_plugin_backend', {
+      pluginId: plugin.id,
+      command,
+      payload
+    });
+  };
 
 const pluginComponent = (
   plugin: RegisteredPlugin,
@@ -134,18 +191,20 @@ const pluginComponent = (
 ): Component => {
   if (component) return markRaw(component);
   if (!componentUrl) {
-    throw new Error(`插件 ${plugin.id} 注册组件时缺少 component 或 componentUrl`);
+    throw new Error(
+      `插件 ${plugin.id} 注册组件时缺少 component 或 componentUrl`
+    );
   }
 
-  return markRaw(defineAsyncComponent(() => (
-    import(/* @vite-ignore */ resolvePluginAssetUrl(plugin, componentUrl))
-  )));
+  return markRaw(
+    defineAsyncComponent(
+      () =>
+        import(/* @vite-ignore */ resolvePluginAssetUrl(plugin, componentUrl))
+    )
+  );
 };
 
-const pushRoute = (
-  target: RuntimeRouteTarget,
-  route: RouteRecordRaw
-): void => {
+const pushRoute = (target: RuntimeRouteTarget, route: RouteRecordRaw): void => {
   if (target === 'config') {
     runtimeConfigPluginRoutes.push(route);
     return;
@@ -184,13 +243,17 @@ const appendCapability = (
   };
 };
 
-const createRuntimeContext = (plugin: RegisteredPlugin): PluginFrontendRuntimeContext => ({
+const createRuntimeContext = (
+  plugin: RegisteredPlugin
+): PluginFrontendRuntimeContext => ({
   pluginId: String(plugin.id),
   packagePath: plugin.packagePath ?? '',
   manifest: plugin.manifest,
-  resolveAssetUrl: (relativePath: string) => resolvePluginAssetUrl(plugin, relativePath),
+  resolveAssetUrl: (relativePath: string) =>
+    resolvePluginAssetUrl(plugin, relativePath),
   api: {
     invoke: createPluginInvoke(plugin),
+    invokeBackend: createPluginBackendInvoke(plugin),
     listen,
     emit
   },
@@ -244,7 +307,11 @@ const createRuntimeContext = (plugin: RegisteredPlugin): PluginFrontendRuntimeCo
     };
 
     pluginSettingsMenuItems.push(item);
-    pluginSettingsComponents[tab.id] = pluginComponent(plugin, tab.component, tab.componentUrl);
+    pluginSettingsComponents[tab.id] = pluginComponent(
+      plugin,
+      tab.component,
+      tab.componentUrl
+    );
     appendCapability(plugin, 'settingsTabs', tab.id);
   },
   registerSearchProvider(provider) {
@@ -274,8 +341,11 @@ const activateFrontendModule = async (
   plugin: RegisteredPlugin,
   module: PluginFrontendModule
 ): Promise<void> => {
-  const activate = module.activate
-    ?? (typeof module.default === 'function' ? module.default : module.default?.activate);
+  const activate =
+    module.activate ??
+    (typeof module.default === 'function'
+      ? module.default
+      : module.default?.activate);
 
   if (typeof activate !== 'function') {
     throw new Error(`插件 ${plugin.id} 的前端入口没有导出 activate(context)`);
@@ -325,8 +395,13 @@ export const ensureLocalPluginFrontendEntries = async (
     if (plugin.manifest.entry?.frontend) {
       try {
         ensurePluginStyles(plugin);
-        const entryUrl = resolvePluginAssetUrl(plugin, plugin.manifest.entry.frontend);
-        const pluginModule = await import(/* @vite-ignore */ entryUrl) as PluginFrontendModule;
+        const entryUrl = resolvePluginAssetUrl(
+          plugin,
+          plugin.manifest.entry.frontend
+        );
+        const pluginModule = (await import(
+          /* @vite-ignore */ entryUrl
+        )) as PluginFrontendModule;
         await activateFrontendModule(plugin, pluginModule);
         loadedFrontendEntries.add(String(plugin.id));
       } catch (error) {
@@ -336,12 +411,17 @@ export const ensureLocalPluginFrontendEntries = async (
     }
 
     try {
-      const activated = await activateBundledOfficialLocalPlugin(createRuntimeContext(plugin));
+      const activated = await activateBundledOfficialLocalPlugin(
+        createRuntimeContext(plugin)
+      );
       if (activated) {
         loadedFrontendEntries.add(String(plugin.id));
       }
     } catch (error) {
-      console.warn(`[PluginRuntime] 加载官方插件运行时失败: ${plugin.id}`, error);
+      console.warn(
+        `[PluginRuntime] 加载官方插件运行时失败: ${plugin.id}`,
+        error
+      );
     }
   }
 };
@@ -349,7 +429,8 @@ export const ensureLocalPluginFrontendEntries = async (
 export const installRuntimePluginRoutes = (router: Router): number => {
   let added = 0;
   const installRoute = (route: RouteRecordRaw, parentName?: string): void => {
-    if (!route.name || installedRuntimeRouteNames.has(String(route.name))) return;
+    if (!route.name || installedRuntimeRouteNames.has(String(route.name)))
+      return;
     if (router.hasRoute(route.name)) return;
     let removeRoute: () => void;
     if (parentName) {
@@ -376,12 +457,17 @@ export const clearRuntimePluginRegistrations = (pluginId: string): void => {
   styleLinks.forEach((link) => link.remove());
   loadedPluginStyleLinks.delete(pluginId);
 
-  for (const [routeName, removeRoute] of installedRuntimeRouteRemovers.entries()) {
+  for (const [
+    routeName,
+    removeRoute
+  ] of installedRuntimeRouteRemovers.entries()) {
     const shouldRemove = [
       ...runtimeConfigPluginRoutes,
       ...runtimeLayoutPluginRoutes,
       ...runtimeWindowPluginRoutes
-    ].some((route) => route.name === routeName && route.meta?.pluginId === pluginId);
+    ].some(
+      (route) => route.name === routeName && route.meta?.pluginId === pluginId
+    );
     if (!shouldRemove) continue;
 
     removeRoute();

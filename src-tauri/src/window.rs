@@ -60,7 +60,7 @@ struct SearchArea {
 }
 
 // 定义窗口信息结构体
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WindowInfo {
     x: i32,
     y: i32,
@@ -93,7 +93,7 @@ static LAST_ACTIVE_WINDOW_ID: Mutex<Option<String>> = Mutex::new(None);
 
 // 存储贴图窗口的图片数据 (窗口标签 -> 图片数据)
 use std::collections::HashMap;
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PinWindowData {
     mode: String,
@@ -118,7 +118,7 @@ static CACHED_MONITOR_INFO: LazyLock<Mutex<Option<MonitorInfo>>> =
     LazyLock::new(|| Mutex::new(None));
 
 // 主显示器信息结构
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct MonitorInfo {
     pub x: i32,
     pub y: i32,
