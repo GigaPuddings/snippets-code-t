@@ -287,6 +287,16 @@ export default {
     builtinDesc: 'These features still ship with the app, but now enter through the plugin registry. Disabling one hides its entries, search sources, hotkeys, and related background services.',
     installLocal: 'Install Local Plugin',
     installZip: 'Install Package',
+    marketplaceSearchPlaceholder: 'Search GitHub plugin marketplace',
+    marketplaceRefresh: 'Refresh Marketplace',
+    marketplaceRefreshed: 'Plugin marketplace refreshed',
+    marketplaceRefreshFailed: 'Failed to refresh plugin marketplace',
+    marketplaceEmpty: 'No matching plugins',
+    marketplaceInstall: 'Install from marketplace',
+    marketplaceInstalled: 'Installed',
+    marketplaceIncluded: 'Included',
+    marketplacePlanned: 'Planned',
+    marketplaceAvailable: 'Available',
     selectPluginDirectory: 'Select a plugin directory containing plugin.json',
     selectPluginZip: 'Select a .zip plugin package',
     installSuccess: 'Local plugin installed',
@@ -318,10 +328,18 @@ export default {
       description: 'Translate window, selection translation, screenshot translation, and offline model management.',
       resourceHint: 'Offline translation runtime and models are loaded on demand as plugin resources.'
     },
+    translationOfflineRuntime: {
+      name: 'Offline Translation Runtime',
+      description: 'Optional Transformers.js runtime loaded on demand by offline translation.'
+    },
     screenshot: {
       name: 'Screenshot and OCR',
       description: 'Screenshot annotation, color picker, pin windows, OCR, and screenshot translation.',
       resourceHint: 'RapidOCR is a large resource and is now kept out of the core installer as an on-demand plugin resource.'
+    },
+    screenshotRapidocr: {
+      name: 'RapidOCR Resource',
+      description: 'Optional RapidOCR runtime, models, and local recognition files for the screenshot plugin.'
     },
     todo: {
       name: 'Reminders',
@@ -350,6 +368,10 @@ export default {
     attachments: {
       name: 'Attachments',
       description: 'Image attachment path templates, naming rules, and cleanup tools.'
+    },
+    helloLocal: {
+      name: 'Hello Local Plugin',
+      description: 'Example plugin package used to validate marketplace download and installation.'
     }
   },
 

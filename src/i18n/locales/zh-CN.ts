@@ -301,6 +301,16 @@ export default {
     builtinDesc: '这些功能仍随应用发布，但现在通过插件注册表接入。关闭后会隐藏入口、搜索源、快捷键和相关后台服务。',
     installLocal: '安装本地插件',
     installZip: '安装插件包',
+    marketplaceSearchPlaceholder: '搜索 GitHub 插件仓库',
+    marketplaceRefresh: '刷新仓库',
+    marketplaceRefreshed: '插件仓库已刷新',
+    marketplaceRefreshFailed: '插件仓库刷新失败',
+    marketplaceEmpty: '没有匹配的插件',
+    marketplaceInstall: '从仓库安装',
+    marketplaceInstalled: '已安装',
+    marketplaceIncluded: '已内置',
+    marketplacePlanned: '待发布',
+    marketplaceAvailable: '可安装',
     selectPluginDirectory: '选择包含 plugin.json 的插件目录',
     selectPluginZip: '选择 .zip 插件包',
     installSuccess: '本地插件已安装',
@@ -332,10 +342,18 @@ export default {
       description: '翻译窗口、划词翻译、截图翻译和离线翻译模型管理。',
       resourceHint: '离线翻译运行时与模型均按需作为插件资源加载。'
     },
+    translationOfflineRuntime: {
+      name: '离线翻译运行时',
+      description: '离线翻译按需加载的 Transformers.js 运行时资源。'
+    },
     screenshot: {
       name: '截图与 OCR',
       description: '截图标注、取色、贴图、OCR 识别和截图翻译入口。',
       resourceHint: 'RapidOCR 属于重资源，已从主安装包移出，按需作为插件资源安装。'
+    },
+    screenshotRapidocr: {
+      name: 'RapidOCR 资源',
+      description: '截图插件可选的 RapidOCR 运行时、模型与本地识别资源。'
     },
     todo: {
       name: '待办提醒',
@@ -364,6 +382,10 @@ export default {
     attachments: {
       name: '附件管理',
       description: '笔记图片附件的路径模板、命名规则和清理工具。'
+    },
+    helloLocal: {
+      name: '示例本地插件',
+      description: '用于验证插件仓库下载与安装链路的示例插件包。'
     }
   },
 

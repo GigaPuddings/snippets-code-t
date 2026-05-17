@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -908,6 +909,34 @@ fn find_plugin_source_root(extracted_dir: &Path) -> Result<PathBuf, String> {
     }
 }
 
+fn find_plugin_archive_subdir(
+    extracted_dir: &Path,
+    package_subdir: &str,
+) -> Result<PathBuf, String> {
+    validate_plugin_relative_path(package_subdir)?;
+
+    let mut roots = vec![extracted_dir.to_path_buf()];
+    let entries = fs::read_dir(extracted_dir)
+        .map_err(|e| format!("读取插件临时目录失败: {} ({})", extracted_dir.display(), e))?
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().is_dir())
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+
+    if entries.len() == 1 {
+        roots.push(entries[0].clone());
+    }
+
+    for root in roots {
+        let candidate = root.join(package_subdir);
+        if candidate.join("plugin.json").is_file() {
+            return Ok(candidate);
+        }
+    }
+
+    Err(format!("插件压缩包中未找到子目录: {}", package_subdir))
+}
+
 fn resolve_plugin_install_source(
     app_handle: &AppHandle,
     source_path: &Path,
@@ -937,6 +966,79 @@ fn resolve_plugin_install_source(
         Ok(source_dir) => Ok((source_dir, Some(temp_dir))),
         Err(error) => {
             let _ = fs::remove_dir_all(&temp_dir);
+            Err(error)
+        }
+    }
+}
+
+fn validate_plugin_remote_url(value: &str) -> Result<(), String> {
+    let url = url::Url::parse(value).map_err(|e| format!("插件 URL 无效: {}", e))?;
+    match url.scheme() {
+        "https" => Ok(()),
+        "http" if matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "::1")) => Ok(()),
+        _ => Err("插件 URL 仅允许 https，或本地开发 http://localhost".to_string()),
+    }
+}
+
+async fn download_plugin_url_to_temp(
+    app_handle: &AppHandle,
+    package_url: &str,
+) -> Result<PathBuf, String> {
+    validate_plugin_remote_url(package_url)?;
+
+    let temp_dir = create_plugin_install_temp_dir(app_handle)?;
+    let temp_file = temp_dir.join("package.zip");
+    let result = async {
+        let client = reqwest::Client::builder()
+            .user_agent("snippets-code-plugin-installer")
+            .build()
+            .map_err(|e| format!("创建插件下载客户端失败: {}", e))?;
+        let response = client
+            .get(package_url)
+            .send()
+            .await
+            .map_err(|e| format!("下载插件失败: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("下载插件失败: HTTP {}", response.status()));
+        }
+
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if !content_type.is_empty()
+            && !content_type.contains("zip")
+            && !content_type.contains("octet-stream")
+        {
+            warn!(
+                "[Plugin] remote package content-type looks unusual: {}",
+                content_type
+            );
+        }
+
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| format!("读取插件下载内容失败: {}", e))?;
+        if bytes.is_empty() {
+            return Err("插件下载内容为空".to_string());
+        }
+
+        let mut file = File::create(&temp_file)
+            .map_err(|e| format!("创建插件下载临时文件失败: {} ({})", temp_file.display(), e))?;
+        file.write_all(&bytes)
+            .map_err(|e| format!("写入插件下载临时文件失败: {} ({})", temp_file.display(), e))?;
+        Ok(temp_file.clone())
+    }
+    .await;
+
+    match result {
+        Ok(path) => Ok(path),
+        Err(error) => {
+            let _ = fs::remove_dir_all(temp_dir);
             Err(error)
         }
     }
@@ -973,6 +1075,41 @@ pub fn get_installed_plugin_manifests(
     }
 
     Ok(manifests)
+}
+
+#[command]
+pub async fn fetch_plugin_marketplace(
+    marketplace_url: String,
+) -> Result<serde_json::Value, String> {
+    validate_plugin_remote_url(&marketplace_url)?;
+    let client = reqwest::Client::builder()
+        .user_agent("snippets-code-plugin-marketplace")
+        .build()
+        .map_err(|e| format!("创建插件市场客户端失败: {}", e))?;
+    let response = client
+        .get(&marketplace_url)
+        .send()
+        .await
+        .map_err(|e| format!("获取插件市场失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("获取插件市场失败: HTTP {}", response.status()));
+    }
+
+    let marketplace = response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("解析插件市场失败: {}", e))?;
+
+    if marketplace
+        .get("schemaVersion")
+        .and_then(|value| value.as_i64())
+        != Some(1)
+    {
+        return Err("插件市场 schemaVersion 必须为 1".to_string());
+    }
+
+    Ok(marketplace)
 }
 
 #[command]
@@ -1018,6 +1155,47 @@ pub fn install_local_plugin_package(
         info!("✅ [Plugin] installed local package {}", plugin_id);
         plugin_package_record(manifest, &target_dir)
     })();
+
+    if let Some(temp_dir) = temp_dir {
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    result
+}
+
+#[command]
+pub async fn install_plugin_package_from_url(
+    app_handle: AppHandle,
+    package_url: String,
+    package_subdir: Option<String>,
+    overwrite: bool,
+) -> Result<LocalPluginPackage, String> {
+    let downloaded_package = download_plugin_url_to_temp(&app_handle, &package_url).await?;
+    let temp_dir = downloaded_package.parent().map(Path::to_path_buf);
+    let result =
+        if let Some(package_subdir) = package_subdir.filter(|value| !value.trim().is_empty()) {
+            let extract_dir = temp_dir
+                .as_ref()
+                .ok_or("插件下载临时目录无效".to_string())?
+                .join("extract");
+            fs::create_dir_all(&extract_dir)
+                .map_err(|e| format!("创建插件解压目录失败: {} ({})", extract_dir.display(), e))?;
+            extract_plugin_zip_package(&downloaded_package, &extract_dir)
+                .and_then(|_| find_plugin_archive_subdir(&extract_dir, package_subdir.trim()))
+                .and_then(|source_dir| {
+                    install_local_plugin_package(
+                        app_handle,
+                        source_dir.to_string_lossy().to_string(),
+                        overwrite,
+                    )
+                })
+        } else {
+            install_local_plugin_package(
+                app_handle,
+                downloaded_package.to_string_lossy().to_string(),
+                overwrite,
+            )
+        };
 
     if let Some(temp_dir) = temp_dir {
         let _ = fs::remove_dir_all(temp_dir);

@@ -6,6 +6,7 @@ import {
   getPluginStates,
   getRapidOcrResourceStatus,
   installLocalPluginPackage,
+  installPluginPackageFromUrl,
   type PluginResourceStatus,
   setPluginEnabled,
   uninstallLocalPluginPackage
@@ -125,6 +126,12 @@ export const usePluginStore = defineStore('plugins', {
 
     async installFromPath(sourcePath: string, overwrite = false): Promise<void> {
       const pluginPackage = await installLocalPluginPackage(sourcePath, overwrite);
+      clearRuntimePluginRegistrations(String(pluginPackage.manifest.id));
+      await this.refreshInstalledPlugins();
+    },
+
+    async installFromUrl(packageUrl: string, overwrite = false, packageSubdir?: string): Promise<void> {
+      const pluginPackage = await installPluginPackageFromUrl(packageUrl, overwrite, packageSubdir);
       clearRuntimePluginRegistrations(String(pluginPackage.manifest.id));
       await this.refreshInstalledPlugins();
     },

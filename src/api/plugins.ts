@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { PluginStateMap, PluginId } from '@/plugins/types';
-import type { LocalPluginPackage } from '@/plugins/protocol';
+import type { PluginCategory, PluginStateMap, PluginId } from '@/plugins/types';
+import type { LocalPluginPackage, PluginI18nText, PluginPackageManifest } from '@/plugins/protocol';
 
 export interface PluginResourceStatus {
   pluginId: string;
@@ -9,6 +9,31 @@ export interface PluginResourceStatus {
   source?: string;
   path?: string;
   searchedPaths: string[];
+}
+
+export interface PluginMarketplaceItem {
+  id: string;
+  version: string;
+  name: PluginI18nText;
+  description: PluginI18nText;
+  category: PluginCategory;
+  packageUrl?: string;
+  packageSubdir?: string;
+  manifest?: PluginPackageManifest;
+  repository?: string;
+  homepage?: string;
+  tags?: string[];
+  builtinPluginId?: string;
+  resourceFor?: string;
+  sizeBytes?: number;
+  status?: 'available' | 'included' | 'planned';
+}
+
+export interface PluginMarketplaceIndex {
+  schemaVersion: 1;
+  updatedAt?: string;
+  source?: string;
+  plugins: PluginMarketplaceItem[];
 }
 
 export async function getPluginStates(): Promise<Partial<PluginStateMap>> {
@@ -21,6 +46,22 @@ export async function getInstalledPluginManifests(): Promise<LocalPluginPackage[
 
 export async function installLocalPluginPackage(sourcePath: string, overwrite = false): Promise<LocalPluginPackage> {
   return await invoke<LocalPluginPackage>('install_local_plugin_package', { sourcePath, overwrite });
+}
+
+export async function installPluginPackageFromUrl(
+  packageUrl: string,
+  overwrite = false,
+  packageSubdir?: string
+): Promise<LocalPluginPackage> {
+  return await invoke<LocalPluginPackage>('install_plugin_package_from_url', {
+    packageUrl,
+    packageSubdir,
+    overwrite
+  });
+}
+
+export async function fetchPluginMarketplace(marketplaceUrl: string): Promise<PluginMarketplaceIndex> {
+  return await invoke<PluginMarketplaceIndex>('fetch_plugin_marketplace', { marketplaceUrl });
 }
 
 export async function uninstallLocalPluginPackage(pluginId: PluginId | string): Promise<void> {

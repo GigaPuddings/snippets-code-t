@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-05-17",
+  "source": "snippets-code official GitHub marketplace",
+  "plugins": [
+    {
+      "id": "screenshot",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.screenshot.name",
+        "fallback": "Screenshot, OCR, and Pins"
+      },
+      "description": {
+        "i18nKey": "plugins.screenshot.description",
+        "fallback": "Screenshot annotation, color picker, pin windows, OCR, and screenshot translation."
+      },
+      "category": "capture",
+      "builtinPluginId": "screenshot",
+      "status": "included",
+      "tags": ["screenshot", "ocr", "pin"]
+    },
+    {
+      "id": "screenshot-rapidocr",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.screenshotRapidocr.name",
+        "fallback": "RapidOCR Resource"
+      },
+      "description": {
+        "i18nKey": "plugins.screenshotRapidocr.description",
+        "fallback": "Optional RapidOCR runtime and model files for the screenshot plugin."
+      },
+      "category": "capture",
+      "resourceFor": "screenshot",
+      "status": "planned",
+      "tags": ["ocr", "resource", "rapidocr"]
+    },
+    {
+      "id": "translation",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.translation.name",
+        "fallback": "Translation"
+      },
+      "description": {
+        "i18nKey": "plugins.translation.description",
+        "fallback": "Translate window, selection translation, screenshot translation, and offline model management."
+      },
+      "category": "automation",
+      "builtinPluginId": "translation",
+      "status": "included",
+      "tags": ["translate", "offline"]
+    },
+    {
+      "id": "translation-offline-runtime",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.translationOfflineRuntime.name",
+        "fallback": "Offline Translation Runtime"
+      },
+      "description": {
+        "i18nKey": "plugins.translationOfflineRuntime.description",
+        "fallback": "Optional Transformers.js runtime used by offline translation."
+      },
+      "category": "automation",
+      "resourceFor": "translation",
+      "status": "planned",
+      "tags": ["translate", "resource", "offline"]
+    },
+    {
+      "id": "todo",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.todo.name",
+        "fallback": "Reminders"
+      },
+      "description": {
+        "i18nKey": "plugins.todo.description",
+        "fallback": "Todo cards, timed reminders, and system notification windows."
+      },
+      "category": "automation",
+      "builtinPluginId": "todo",
+      "status": "included",
+      "tags": ["todo", "reminder"]
+    },
+    {
+      "id": "system-theme",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.systemTheme.name",
+        "fallback": "Auto Dark Mode"
+      },
+      "description": {
+        "i18nKey": "plugins.systemTheme.description",
+        "fallback": "Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling."
+      },
+      "category": "appearance",
+      "builtinPluginId": "system-theme",
+      "status": "included",
+      "tags": ["theme", "dark-mode"]
+    },
+    {
+      "id": "local-launcher",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.localLauncher.name",
+        "fallback": "Apps and Bookmarks Launcher"
+      },
+      "description": {
+        "i18nKey": "plugins.localLauncher.description",
+        "fallback": "Local app and browser bookmark management, plus quick-launch search results."
+      },
+      "category": "search",
+      "builtinPluginId": "local-launcher",
+      "status": "included",
+      "tags": ["apps", "bookmarks", "launcher"]
+    },
+    {
+      "id": "desktop-files",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.desktopFiles.name",
+        "fallback": "Desktop File Search"
+      },
+      "description": {
+        "i18nKey": "plugins.desktopFiles.description",
+        "fallback": "Index desktop files and show file results in global search."
+      },
+      "category": "search",
+      "builtinPluginId": "desktop-files",
+      "status": "included",
+      "tags": ["desktop", "files", "search"]
+    },
+    {
+      "id": "git-sync",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.gitSync.name",
+        "fallback": "Git Sync"
+      },
+      "description": {
+        "i18nKey": "plugins.gitSync.description",
+        "fallback": "Workspace Git initialization, pull, push, auto sync, and conflict handling."
+      },
+      "category": "sync",
+      "builtinPluginId": "git-sync",
+      "status": "included",
+      "tags": ["git", "sync"]
+    },
+    {
+      "id": "hello-local-plugin",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.helloLocal.name",
+        "fallback": "Hello Local Plugin"
+      },
+      "description": {
+        "i18nKey": "plugins.helloLocal.description",
+        "fallback": "Example installable local plugin package used to validate the marketplace installer."
+      },
+      "category": "automation",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/examples/hello-local-plugin",
+      "status": "available",
+      "tags": ["example", "plugin"]
+    }
+  ]
+}

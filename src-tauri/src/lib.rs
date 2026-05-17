@@ -943,7 +943,9 @@ pub fn run() {
             app_config::update_language_config,         // 更新语言设置
             app_config::get_plugin_states,              // 获取官方内置插件状态
             app_config::get_installed_plugin_manifests, // 获取本地插件清单
+            app_config::fetch_plugin_marketplace,       // 获取远程插件市场
             app_config::install_local_plugin_package,   // 安装本地插件包
+            app_config::install_plugin_package_from_url, // 从 URL 安装插件包
             app_config::uninstall_local_plugin_package, // 卸载本地插件包
             app_config::get_local_plugin_data,          // 获取本地插件数据
             app_config::set_local_plugin_data,          // 设置本地插件数据

@@ -224,9 +224,62 @@ Instead, it loads the ESM runtime from an installed local plugin resource:
 If the runtime package is not installed, offline translation fails with an
 installation prompt instead of pulling the runtime into the core app bundle.
 
+## GitHub Marketplace
+
+The app can now read a remote plugin marketplace manifest and install packages
+directly from GitHub-hosted archives. The current official manifest lives at:
+
+```text
+docs/plugin-marketplace/marketplace.json
+```
+
+Marketplace entries use schema version `1`:
+
+```json
+{
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "id": "hello-local-plugin",
+      "version": "1.0.0",
+      "category": "automation",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
+      "packageSubdir": "docs/examples/hello-local-plugin",
+      "status": "available"
+    }
+  ]
+}
+```
+
+`packageUrl` must be HTTPS, except for local development URLs under
+`http://localhost`, `http://127.0.0.1`, or `http://[::1]`. `packageSubdir`
+lets a GitHub repository archive act as a multi-plugin source: the installer
+downloads the archive, extracts it to a temporary directory, locates the
+subdirectory containing `plugin.json`, and installs that package into
+`<app-data>/plugins/<plugin-id>`.
+
+The plugin settings page fetches this manifest through
+`fetch_plugin_marketplace`, supports keyword search across plugin metadata, and
+installs available entries through `install_plugin_package_from_url`.
+
+For now, the previously built-in feature modules are listed in the marketplace
+as `included` while their heavy resources move out first:
+
+- screenshot / OCR / pin windows
+- translation / offline translation runtime
+- reminders
+- Auto Dark Mode
+- apps / bookmarks / desktop file search
+- Git sync
+
+Markdown, editor, and workspace behavior remain the application core and are not
+marketplace candidates.
+
 ## Next Steps
 
-1. Add backend plugin runtime entry points or sandboxed WASM/native host boundaries.
-2. Add plugin lifecycle hooks: enable, disable, migrate, before-uninstall cleanup.
-3. Move offline translation model cache/status behind the same optional resource protocol.
-4. Add signed plugin package metadata before enabling remote marketplace installation.
+1. Publish real package archives or per-plugin repositories for each marketplace
+   entry that should move from `included` to `available`.
+2. Add backend plugin runtime entry points or sandboxed WASM/native host boundaries.
+3. Add plugin lifecycle hooks: enable, disable, migrate, before-uninstall cleanup.
+4. Move offline translation model cache/status behind the same optional resource protocol.
+5. Add signed plugin package metadata before enabling third-party marketplace installation.

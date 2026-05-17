@@ -24,6 +24,59 @@
         <div class="plugins-intro-desc">{{ t('plugins.builtinDesc') }}</div>
       </section>
 
+      <section class="marketplace-panel">
+        <div class="marketplace-toolbar">
+          <div class="marketplace-search">
+            <Search theme="outline" size="15" />
+            <input
+              v-model="marketplaceQuery"
+              class="marketplace-input"
+              :placeholder="t('plugins.marketplaceSearchPlaceholder')"
+            >
+          </div>
+          <CustomButton size="small" plain :loading="marketplaceLoading" @click="handleRefreshMarketplace">
+            <Refresh theme="outline" size="14" class="button-icon" />
+            {{ t('plugins.marketplaceRefresh') }}
+          </CustomButton>
+        </div>
+
+        <div class="marketplace-list">
+          <div
+            v-for="item in filteredMarketplaceItems"
+            :key="item.id"
+            class="marketplace-row"
+          >
+            <div class="marketplace-main">
+              <div class="plugin-title-row">
+                <span class="plugin-name">{{ pluginText(item.name) }}</span>
+                <span class="plugin-category">{{ t(`plugins.categories.${item.category}`) }}</span>
+                <span class="plugin-source plugin-source--marketplace">
+                  {{ marketplaceStatusText(item) }}
+                </span>
+              </div>
+              <div class="plugin-description">{{ pluginText(item.description) }}</div>
+              <div v-if="item.tags?.length" class="marketplace-tags">
+                <span v-for="tag in item.tags" :key="tag" class="marketplace-tag">{{ tag }}</span>
+              </div>
+            </div>
+            <div class="plugin-controls">
+              <CustomButton
+                v-if="canInstallMarketplaceItem(item)"
+                size="small"
+                :title="t('plugins.marketplaceInstall')"
+                :loading="installingMarketplaceId === item.id"
+                @click="handleInstallMarketplace(item)"
+              >
+                <Download theme="outline" size="14" />
+              </CustomButton>
+            </div>
+          </div>
+          <div v-if="!marketplaceLoading && !filteredMarketplaceItems.length" class="marketplace-empty">
+            {{ t('plugins.marketplaceEmpty') }}
+          </div>
+        </div>
+      </section>
+
       <section
         v-for="plugin in plugins"
         :key="plugin.id"
@@ -93,7 +146,11 @@
 import { useI18n } from 'vue-i18n';
 import { open } from '@tauri-apps/plugin-dialog';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
-import { Delete, FileZip, FolderOpen, Refresh } from '@icon-park/vue-next';
+import { Delete, Download, FileZip, FolderOpen, Refresh, Search } from '@icon-park/vue-next';
+import {
+  fetchPluginMarketplace,
+  type PluginMarketplaceItem
+} from '@/api/plugins';
 import { getPluginById } from '@/plugins/registry';
 import type { PluginI18nText, RegisteredPlugin } from '@/plugins/protocol';
 import { getHotkeyValue } from '@/plugins/hotkeys';
@@ -112,9 +169,16 @@ const configurationStore = useConfigurationStore();
 const plugins = computed(() => pluginStore.plugins);
 const installing = ref(false);
 const removingPluginId = ref<string | null>(null);
+const marketplaceLoading = ref(false);
+const marketplaceItems = ref<PluginMarketplaceItem[]>([]);
+const marketplaceQuery = ref('');
+const installingMarketplaceId = ref<string | null>(null);
+
+const DEFAULT_MARKETPLACE_URL = 'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/codex/plugin-system-refactor/docs/plugin-marketplace/marketplace.json';
 
 onMounted(() => {
   pluginStore.initialize();
+  refreshMarketplace(false);
 });
 
 const pluginText = (text: PluginI18nText): string => {
@@ -122,9 +186,77 @@ const pluginText = (text: PluginI18nText): string => {
   return translated === text.i18nKey ? text.fallback : translated;
 };
 
+const filteredMarketplaceItems = computed(() => {
+  const query = marketplaceQuery.value.trim().toLowerCase();
+  if (!query) return marketplaceItems.value;
+
+  return marketplaceItems.value.filter((item) => {
+    const haystack = [
+      item.id,
+      item.name.fallback,
+      item.description.fallback,
+      item.category,
+      item.builtinPluginId,
+      item.resourceFor,
+      ...(item.tags ?? [])
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(query);
+  });
+});
+
+const isMarketplaceItemInstalled = (item: PluginMarketplaceItem): boolean => (
+  pluginStore.plugins.some((plugin) => plugin.id === item.id)
+);
+
+const marketplaceStatusText = (item: PluginMarketplaceItem): string => {
+  if (item.status === 'included') return t('plugins.marketplaceIncluded');
+  if (item.status === 'planned') return t('plugins.marketplacePlanned');
+  if (isMarketplaceItemInstalled(item)) return t('plugins.marketplaceInstalled');
+  return t('plugins.marketplaceAvailable');
+};
+
+const canInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => (
+  Boolean(item.packageUrl) && !isMarketplaceItemInstalled(item) && item.status !== 'included'
+);
+
+const refreshMarketplace = async (notify = true) => {
+  marketplaceLoading.value = true;
+  try {
+    const marketplace = await fetchPluginMarketplace(DEFAULT_MARKETPLACE_URL);
+    marketplaceItems.value = Array.isArray(marketplace.plugins) ? marketplace.plugins : [];
+    if (notify) modal.msg(t('plugins.marketplaceRefreshed'));
+  } catch (error) {
+    if (notify) modal.msg(`${t('plugins.marketplaceRefreshFailed')}: ${error}`, 'error');
+  } finally {
+    marketplaceLoading.value = false;
+  }
+};
+
+const handleRefreshMarketplace = async () => {
+  await refreshMarketplace(true);
+};
+
+const handleInstallMarketplace = async (item: PluginMarketplaceItem) => {
+  if (!item.packageUrl) return;
+
+  installingMarketplaceId.value = item.id;
+  try {
+    await pluginStore.installFromUrl(item.packageUrl, true, item.packageSubdir);
+    modal.msg(t('plugins.installSuccess'));
+  } catch (error) {
+    modal.msg(`${t('plugins.installFailed')}: ${error}`, 'error');
+  } finally {
+    installingMarketplaceId.value = null;
+  }
+};
+
 const handleRefresh = async () => {
   try {
     await pluginStore.refreshInstalledPlugins();
+    await refreshMarketplace(false);
     modal.msg(t('plugins.refreshed'));
   } catch (error) {
     modal.msg(`${t('plugins.refreshFailed')}: ${error}`, 'error');
@@ -241,6 +373,46 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
   @apply flex items-center justify-between gap-4 py-3 border-b border-panel last:border-b-0;
 }
 
+.marketplace-panel {
+  @apply mb-4 border-b border-panel pb-4;
+}
+
+.marketplace-toolbar {
+  @apply flex items-center justify-between gap-3 mb-3;
+}
+
+.marketplace-search {
+  @apply flex min-w-0 flex-1 items-center gap-2 rounded border border-panel bg-hover px-2 py-1.5 text-panel-text-secondary;
+}
+
+.marketplace-input {
+  @apply min-w-0 flex-1 bg-transparent text-xs text-panel outline-none;
+}
+
+.marketplace-list {
+  @apply flex flex-col gap-2;
+}
+
+.marketplace-row {
+  @apply flex items-center justify-between gap-4 rounded border border-panel px-3 py-2;
+}
+
+.marketplace-main {
+  @apply min-w-0 flex-1;
+}
+
+.marketplace-tags {
+  @apply mt-1 flex flex-wrap gap-1;
+}
+
+.marketplace-tag {
+  @apply rounded bg-hover px-1.5 py-0.5 text-xs text-panel-text-secondary;
+}
+
+.marketplace-empty {
+  @apply py-3 text-center text-xs text-panel-text-secondary;
+}
+
 .plugin-main {
   @apply min-w-0 flex-1;
 }
@@ -266,6 +438,10 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
 
   &--local {
     @apply text-green-600 bg-green-50 dark:text-green-300 dark:bg-green-950;
+  }
+
+  &--marketplace {
+    @apply text-violet-600 bg-violet-50 dark:text-violet-300 dark:bg-violet-950;
   }
 }
 
