@@ -282,6 +282,22 @@ where each module moves from bundled code to an installable package:
 Markdown, editor, and workspace behavior remain the application core and are not
 marketplace candidates.
 
+### External Official Plugin Mode
+
+By default, official plugins are still pre-registered as bundled plugins for
+upgrade compatibility. To test the Obsidian-style shape where official plugins
+must be installed from the marketplace before their entries appear, build with:
+
+```powershell
+$env:VITE_OFFICIAL_PLUGINS_MODE = "external"
+pnpm build
+```
+
+In this mode, the bundled registry starts empty for official feature plugins.
+The settings marketplace treats `included` official entries that have
+`packageUrl` and `packageSubdir` as installable packages, then installs their
+manifest into `<app-data>/plugins/<plugin-id>`.
+
 ## Next Steps
 
 1. Publish real package archives or per-plugin repositories for each marketplace

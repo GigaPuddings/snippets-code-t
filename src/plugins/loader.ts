@@ -23,6 +23,9 @@ export const BUILTIN_PLUGIN_PACKAGES: BuiltinPlugin[] = [
 ];
 
 const DEFAULT_PLUGIN_VERSION = '1.0.0';
+export const OFFICIAL_PLUGINS_MODE = import.meta.env.VITE_OFFICIAL_PLUGINS_MODE === 'external'
+  ? 'external'
+  : 'bundled';
 
 const fallbackName = (id: PluginId): string => String(id);
 
@@ -170,8 +173,12 @@ export const loadLocalPluginManifests = (
 export const loadPluginRegistry = (
   localManifests: unknown[] = []
 ): RegisteredPlugin[] => {
+  const builtinPlugins = OFFICIAL_PLUGINS_MODE === 'bundled'
+    ? loadBuiltinPluginManifests().map((manifest) => createRegisteredPlugin(manifest, 'builtin'))
+    : [];
+
   const registered = [
-    ...loadBuiltinPluginManifests().map((manifest) => createRegisteredPlugin(manifest, 'builtin')),
+    ...builtinPlugins,
     ...loadLocalPluginPackages(localManifests).map((pluginPackage) => (
       createRegisteredPlugin(
         pluginPackage.manifest,

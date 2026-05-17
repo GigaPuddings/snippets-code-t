@@ -152,6 +152,7 @@ import {
   type PluginMarketplaceItem
 } from '@/api/plugins';
 import { getPluginById } from '@/plugins/registry';
+import { OFFICIAL_PLUGINS_MODE } from '@/plugins/loader';
 import type { PluginI18nText, RegisteredPlugin } from '@/plugins/protocol';
 import { getHotkeyValue } from '@/plugins/hotkeys';
 import type { PluginId } from '@/plugins/types';
@@ -175,6 +176,7 @@ const marketplaceQuery = ref('');
 const installingMarketplaceId = ref<string | null>(null);
 
 const DEFAULT_MARKETPLACE_URL = 'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/codex/plugin-system-refactor/docs/plugin-marketplace/marketplace.json';
+const isExternalOfficialPluginMode = OFFICIAL_PLUGINS_MODE === 'external';
 
 onMounted(() => {
   pluginStore.initialize();
@@ -212,6 +214,14 @@ const isMarketplaceItemInstalled = (item: PluginMarketplaceItem): boolean => (
 );
 
 const marketplaceStatusText = (item: PluginMarketplaceItem): string => {
+  if (
+    item.status === 'included'
+    && isExternalOfficialPluginMode
+    && !isMarketplaceItemInstalled(item)
+    && item.packageUrl
+  ) {
+    return t('plugins.marketplaceAvailable');
+  }
   if (item.status === 'included') return t('plugins.marketplaceIncluded');
   if (item.status === 'planned') return t('plugins.marketplacePlanned');
   if (isMarketplaceItemInstalled(item)) return t('plugins.marketplaceInstalled');
@@ -219,7 +229,9 @@ const marketplaceStatusText = (item: PluginMarketplaceItem): string => {
 };
 
 const canInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => (
-  Boolean(item.packageUrl) && !isMarketplaceItemInstalled(item) && item.status !== 'included'
+  Boolean(item.packageUrl)
+  && !isMarketplaceItemInstalled(item)
+  && (item.status !== 'included' || isExternalOfficialPluginMode)
 );
 
 const refreshMarketplace = async (notify = true) => {
