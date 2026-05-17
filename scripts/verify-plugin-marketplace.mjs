@@ -41,17 +41,17 @@ function assert(condition, message) {
 }
 
 function githubArchivePluginJsonUrl(packageUrl) {
-  const match = packageUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/archive\/refs\/heads\/([^/.]+)\.zip$/);
+  const match = packageUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/archive\/refs\/(heads|tags)\/(.+)\.zip$/);
   if (!match) return null;
 
-  const [, owner, repo, branch] = match;
-  return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/plugin.json`;
+  const [, owner, repo, , ref] = match;
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/plugin.json`;
 }
 
 async function readPackageManifest(item) {
   if (!item.packageSubdir) {
     const remotePluginJsonUrl = githubArchivePluginJsonUrl(item.packageUrl);
-    assert(remotePluginJsonUrl, `${item.id}: 缺少 packageSubdir 时 packageUrl 必须指向 GitHub 分支归档`);
+    assert(remotePluginJsonUrl, `${item.id}: 缺少 packageSubdir 时 packageUrl 必须指向 GitHub 分支或标签归档`);
     return readRemoteJson(remotePluginJsonUrl);
   }
 

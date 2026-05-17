@@ -27,8 +27,17 @@ pnpm rapidocr:package
 ```
 
 The package is written to `dist-plugin-packages/screenshot-rapidocr`. Install
-that directory from the app's plugin settings page, or zip the directory and
-install the zip package.
+that directory from the app's plugin settings page. To publish the generated
+package to `GigaPuddings/snippets-code-plugin-screenshot-rapidocr` and create
+the matching plugin repository tag, run:
+
+```bash
+pnpm rapidocr:release
+```
+
+The app release script does not upload the large RapidOCR binaries implicitly;
+resource publishing is explicit so normal app tags do not unexpectedly push
+large OCR model files.
 
 At runtime the OCR backend searches these plugin resource roots first:
 

@@ -211,7 +211,9 @@ the optional resource is installed.
 
 For development and release packaging, run `pnpm rapidocr:install` to download
 the local RapidOCR runtime, then `pnpm rapidocr:package` to generate an
-installable `dist-plugin-packages/screenshot-rapidocr` resource package.
+installable `dist-plugin-packages/screenshot-rapidocr` resource package. To
+publish that generated resource package to the RapidOCR plugin repository and
+create the matching Git tag, run `pnpm rapidocr:release`.
 
 Offline translation no longer statically imports `@huggingface/transformers`.
 Instead, it loads the ESM runtime from an installed local plugin resource:
@@ -245,6 +247,8 @@ Published official packages live in one GitHub repository per plugin, such as:
 https://github.com/GigaPuddings/snippets-code-plugin-screenshot
 https://github.com/GigaPuddings/snippets-code-plugin-translation
 https://github.com/GigaPuddings/snippets-code-plugin-git-sync
+https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr
+https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime
 ```
 
 Marketplace entries use schema version `1`:
@@ -255,9 +259,9 @@ Marketplace entries use schema version `1`:
   "plugins": [
     {
       "id": "screenshot",
-      "version": "1.0.0",
+      "version": "1.5.6",
       "category": "capture",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/heads/main.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/v1.5.6.zip",
       "status": "included"
     }
   ]
@@ -275,6 +279,23 @@ locates `plugin.json`, and installs that package into
 The plugin settings page fetches this manifest through
 `fetch_plugin_marketplace`, supports keyword search across plugin metadata, and
 installs available entries through `install_plugin_package_from_url`.
+
+Release synchronization is part of the app tag flow:
+
+```bash
+pnpm plugins:release
+pnpm tag
+```
+
+`pnpm plugins:release` builds official plugin runtimes, updates plugin manifest
+versions, synchronizes each `snippets-code-plugin-*` repository, creates the
+matching `v<version>` tag in those repositories, generates local package
+outputs, and verifies the marketplace. `pnpm tag` runs the same plugin release
+chain before committing and tagging the main app release.
+
+The app package is marked `private`, so there is no npm registry publish or npm
+dist-tag update in this workflow. The synchronized release tag is the GitHub
+`v<version>` tag across the app repository and official plugin repositories.
 
 The previously built-in feature modules are listed in the marketplace as
 `included`, with independent GitHub package repositories prepared for external

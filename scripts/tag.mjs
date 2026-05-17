@@ -1,4 +1,5 @@
 import { createRequire } from 'module';
+import { existsSync } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -101,12 +102,14 @@ async function updateVersion() {
 
     // 3. 检查标签是否存在
     const tagExists = await checkTagExists(version);
+    let overwriteExistingTag = false;
     if (tagExists) {
       const overwrite = await question('标签已存在，是否覆盖？(y/N): ');
       if (overwrite.toLowerCase() !== 'y') {
         console.log('操作已取消');
         process.exit(0);
       }
+      overwriteExistingTag = true;
       console.log('正在删除已存在的标签...');
       execCommand(`git tag -d v${version}`);
       execCommand(`git push origin :refs/tags/v${version}`);
@@ -131,6 +134,37 @@ async function updateVersion() {
     const tauriConfig = require(tauriConfigPath);
     tauriConfig.version = version;
     await fs.writeFile(tauriConfigPath, JSON.stringify(tauriConfig, null, 2) + '\n');
+
+    // 同步官方插件包、插件仓库和插件标签。RapidOCR 二进制资源较大，
+    // 需要单独运行 pnpm rapidocr:release 才会上传完整资源包。
+    console.log('\n正在构建官方插件运行时...');
+    execCommand('pnpm plugins:build-official');
+
+    console.log('\n正在同步官方插件仓库和标签...');
+    const syncArgs = [
+      `--version ${version}`,
+      '--pin-marketplace-tags',
+      ...(overwriteExistingTag ? ['--force-tag'] : [])
+    ];
+    execCommand(`node scripts/sync-plugin-repositories.mjs ${syncArgs.join(' ')}`);
+
+    const rapidOcrExePath = path.resolve(__dirname, '../src-tauri/resources/rapidocr/RapidOCR-json.exe');
+    if (existsSync(rapidOcrExePath)) {
+      const publishRapidOcr = await question(
+        '\n检测到本地 RapidOCR 资源，是否同步完整 OCR 资源包到插件仓库并更新同版本标签？(y/N): '
+      );
+      if (publishRapidOcr.toLowerCase() === 'y') {
+        execCommand('pnpm rapidocr:release');
+      } else {
+        console.log('已跳过 RapidOCR 大资源包上传，可稍后运行 pnpm rapidocr:release。');
+      }
+    }
+
+    console.log('\n正在生成本地插件包索引...');
+    execCommand('pnpm plugins:package');
+
+    console.log('\n正在校验插件市场...');
+    execCommand('pnpm plugins:verify-marketplace');
 
     // Git 操作
     console.log('\n正在提交更改...');

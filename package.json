@@ -21,8 +21,11 @@
     "release-notes:copy": "node scripts/format-release-notes.mjs --copy",
     "rapidocr:install": "node scripts/install-rapidocr.mjs",
     "rapidocr:package": "node scripts/package-rapidocr-plugin.mjs",
+    "rapidocr:release": "pnpm rapidocr:package && node scripts/sync-plugin-repositories.mjs --only screenshot-rapidocr --include-rapidocr-resource --pin-marketplace-tags --force-tag",
     "plugins:package": "node scripts/package-official-plugins.mjs",
     "plugins:build-official": "node scripts/build-official-plugin-runtimes.mjs",
+    "plugins:sync-repos": "node scripts/sync-plugin-repositories.mjs",
+    "plugins:release": "pnpm plugins:build-official && pnpm plugins:sync-repos --pin-marketplace-tags && pnpm plugins:package && pnpm plugins:verify-marketplace",
     "plugins:verify-marketplace": "node scripts/verify-plugin-marketplace.mjs"
   },
   "config": {
