@@ -9,9 +9,10 @@ This document describes the built-in plugin architecture refactor.
 - Preserve current behavior by enabling all built-in plugins by default.
 - Keep heavy resources such as RapidOCR and offline translation models outside the core installer and load them on demand.
 
-## Built-in Plugins
+## Official Feature Plugins
 
-The first stage does not move feature files yet. Instead, it introduces a registry and feature gates.
+Official feature plugins are distributed as installable packages. The core app
+keeps the registry, marketplace, loader, permissions, and bridge protocol.
 
 | Plugin | Scope |
 | --- | --- |
@@ -366,19 +367,23 @@ mode installation:
 Markdown, editor, and workspace behavior remain the application core and are not
 marketplace candidates.
 
-### External Official Plugin Mode
+### Official Plugin Mode
 
-By default, official plugins are still pre-registered as bundled plugins for
-upgrade compatibility. To test the Obsidian-style shape where official plugins
-must be installed from the marketplace before their entries appear, build with:
+Official feature plugins now default to the Obsidian-style external mode:
+screenshots, OCR, translation, reminders, theme automation, search extensions,
+and Git sync must be installed from the marketplace before their entries,
+hotkeys, windows, and backend commands are available. Markdown, editor, and
+workspace behavior remain app core.
+
+For development only, the old bundled compatibility mode can be enabled with:
 
 ```powershell
-$env:VITE_OFFICIAL_PLUGINS_MODE = "external"
+$env:VITE_OFFICIAL_PLUGINS_MODE = "bundled"
 pnpm build
 ```
 
-In this mode, the bundled registry starts empty for official feature plugins.
-The settings marketplace treats `included` official entries that have
+In default external mode, the bundled registry starts empty for official feature
+plugins. The settings marketplace treats `included` official entries that have
 `packageUrl` as installable packages, then installs their manifest and compiled
 frontend runtime into `<app-data>/plugins/<plugin-id>`.
 

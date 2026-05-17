@@ -297,8 +297,8 @@ export default {
   // 插件管理
   plugins: {
     title: '插件管理',
-    builtinTitle: '官方内置插件',
-    builtinDesc: '这些功能仍随应用发布，但现在通过插件注册表接入。关闭后会隐藏入口、搜索源、快捷键和相关后台服务。',
+    builtinTitle: '官方插件仓库',
+    builtinDesc: '截图、OCR、翻译、提醒、主题、搜索和同步等功能需要安装对应插件后才会启用。主应用只保留 Markdown、编辑器和工作区核心能力。',
     installLocal: '安装本地插件',
     installZip: '安装插件包',
     marketplaceSearchPlaceholder: '搜索 GitHub 插件仓库',
@@ -309,7 +309,7 @@ export default {
     marketplaceInstall: '从仓库安装',
     marketplaceUpdate: '更新插件',
     marketplaceInstalled: '已安装',
-    marketplaceIncluded: '已内置',
+    marketplaceIncluded: '随应用提供',
     marketplacePlanned: '待发布',
     marketplaceAvailable: '可安装',
     marketplaceUpdateAvailable: '可更新',
@@ -334,7 +334,7 @@ export default {
     resourceReady: '资源已安装',
     resourceMissing: '资源未安装，启用后会在调用时提示安装',
     sources: {
-      builtin: '内置',
+      builtin: '核心',
       local: '本地'
     },
     categories: {

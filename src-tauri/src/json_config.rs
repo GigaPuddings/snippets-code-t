@@ -37,7 +37,7 @@ pub struct AppConfig {
     #[serde(default)]
     pub git: Option<serde_json::Value>,
 
-    // 官方内置插件状态（作为 JSON 值存储，避免降级写入时丢失）
+    // 插件状态（作为 JSON 值存储，避免降级写入时丢失）
     #[serde(default)]
     pub plugins: Option<serde_json::Value>,
 

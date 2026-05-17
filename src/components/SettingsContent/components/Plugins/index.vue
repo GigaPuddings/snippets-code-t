@@ -278,6 +278,7 @@ const marketplaceStatusText = (item: PluginMarketplaceItem): string => {
   if (installedPlugin?.source === 'local' && compareVersions(item.version, installedPlugin.manifest.version) > 0) {
     return t('plugins.marketplaceUpdateAvailable');
   }
+  if (installedPlugin?.source === 'local') return t('plugins.marketplaceInstalled');
   if (
     item.status === 'included'
     && isExternalOfficialPluginMode

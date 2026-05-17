@@ -283,8 +283,8 @@ export default {
   // Plugin Management
   plugins: {
     title: 'Plugins',
-    builtinTitle: 'Official Built-in Plugins',
-    builtinDesc: 'These features still ship with the app, but now enter through the plugin registry. Disabling one hides its entries, search sources, hotkeys, and related background services.',
+    builtinTitle: 'Official Plugin Repository',
+    builtinDesc: 'Screenshot, OCR, translation, reminders, theme, search, and sync features are enabled only after their plugins are installed. The main app keeps only Markdown, editor, and workspace core behavior.',
     installLocal: 'Install Local Plugin',
     installZip: 'Install Package',
     marketplaceSearchPlaceholder: 'Search GitHub plugin marketplace',
@@ -295,7 +295,7 @@ export default {
     marketplaceInstall: 'Install from marketplace',
     marketplaceUpdate: 'Update plugin',
     marketplaceInstalled: 'Installed',
-    marketplaceIncluded: 'Included',
+    marketplaceIncluded: 'Provided',
     marketplacePlanned: 'Planned',
     marketplaceAvailable: 'Available',
     marketplaceUpdateAvailable: 'Update available',
@@ -320,7 +320,7 @@ export default {
     resourceReady: 'Resource installed',
     resourceMissing: 'Resource is not installed and will be requested when used',
     sources: {
-      builtin: 'Built-in',
+      builtin: 'Core',
       local: 'Local'
     },
     categories: {

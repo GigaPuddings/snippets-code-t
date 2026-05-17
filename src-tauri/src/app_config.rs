@@ -35,7 +35,7 @@ pub struct AppConfig {
     #[serde(default)]
     pub git: GitSettings,
 
-    // 官方内置插件启用状态。默认全部开启，保持旧版本行为不变。
+    // 插件启用状态。官方功能默认需要安装本地插件包，核心功能除外。
     #[serde(default = "default_plugin_states")]
     pub plugins: PluginStates,
 
@@ -121,9 +121,12 @@ fn default_plugin_enabled() -> bool {
 }
 
 fn official_plugins_external_mode() -> bool {
-    option_env!("SNIPPETS_OFFICIAL_PLUGINS_MODE") == Some("external")
-        || std::env::var("SNIPPETS_OFFICIAL_PLUGINS_MODE").as_deref() == Ok("external")
-        || std::env::var("VITE_OFFICIAL_PLUGINS_MODE").as_deref() == Ok("external")
+    let mode = std::env::var("SNIPPETS_OFFICIAL_PLUGINS_MODE")
+        .or_else(|_| std::env::var("VITE_OFFICIAL_PLUGINS_MODE"))
+        .ok()
+        .or_else(|| option_env!("SNIPPETS_OFFICIAL_PLUGINS_MODE").map(str::to_string));
+
+    mode.as_deref() != Some("bundled")
 }
 
 fn is_external_install_gated_builtin(plugin_id: &str) -> bool {
@@ -948,6 +951,9 @@ pub fn try_invoke_local_plugin_backend(
 ) -> Result<Option<serde_json::Value>, String> {
     validate_plugin_package_id(plugin_id)?;
     validate_plugin_data_key(command)?;
+    if !is_local_plugin_package_installed(app_handle, plugin_id) {
+        return Ok(None);
+    }
     require_plugin_enabled(app_handle, plugin_id)?;
 
     let Some((manifest, package_dir, backend_path)) =

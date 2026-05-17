@@ -357,7 +357,7 @@ const activateFrontendModule = async (
 const activateBundledOfficialLocalPlugin = async (
   context: PluginFrontendRuntimeContext
 ): Promise<boolean> => {
-  if (import.meta.env.VITE_OFFICIAL_PLUGINS_MODE === 'external') {
+  if (import.meta.env.VITE_OFFICIAL_PLUGINS_MODE !== 'bundled') {
     return false;
   }
 

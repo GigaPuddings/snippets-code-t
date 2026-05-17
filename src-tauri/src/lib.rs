@@ -941,7 +941,7 @@ pub fn run() {
             app_config::update_git_settings_command,    // 更新 Git 设置
             app_config::update_theme_config,            // 更新主题设置
             app_config::update_language_config,         // 更新语言设置
-            app_config::get_plugin_states,              // 获取官方内置插件状态
+            app_config::get_plugin_states,              // 获取插件状态
             app_config::get_installed_plugin_manifests, // 获取本地插件清单
             app_config::fetch_plugin_marketplace,       // 获取远程插件市场
             app_config::install_local_plugin_package,   // 安装本地插件包
@@ -952,7 +952,7 @@ pub fn run() {
             app_config::delete_local_plugin_data,       // 删除本地插件数据
             app_config::get_local_plugin_resource_path, // 获取本地插件资源文件
             app_config::invoke_plugin_backend,          // 调用本地插件 native host 后端
-            app_config::set_plugin_enabled,             // 设置官方内置插件状态
+            app_config::set_plugin_enabled,             // 设置插件状态
             // Git 同步命令
             git_sync::check_git_installed_command,      // 检查 Git 是否安装
             git_sync::check_git_repo_command,           // 检查是否是 Git 仓库
