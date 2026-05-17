@@ -113,8 +113,22 @@ const BUILTIN_PLUGIN_IDS: &[&str] = &[
     "attachments",
 ];
 
+const CORE_BUILTIN_PLUGIN_IDS: &[&str] = &["attachments"];
+
 fn default_plugin_enabled() -> bool {
     true
+}
+
+fn official_plugins_external_mode() -> bool {
+    option_env!("SNIPPETS_OFFICIAL_PLUGINS_MODE") == Some("external")
+        || std::env::var("SNIPPETS_OFFICIAL_PLUGINS_MODE").as_deref() == Ok("external")
+        || std::env::var("VITE_OFFICIAL_PLUGINS_MODE").as_deref() == Ok("external")
+}
+
+fn is_external_install_gated_builtin(plugin_id: &str) -> bool {
+    official_plugins_external_mode()
+        && BUILTIN_PLUGIN_IDS.contains(&plugin_id)
+        && !CORE_BUILTIN_PLUGIN_IDS.contains(&plugin_id)
 }
 
 fn default_plugin_states() -> PluginStates {
@@ -396,6 +410,12 @@ pub struct LocalPluginPackage {
 }
 
 pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
+    if is_external_install_gated_builtin(plugin_id)
+        && !is_local_plugin_package_installed(app_handle, plugin_id)
+    {
+        return false;
+    }
+
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
         if let Ok(manager) = config_state.read() {
             return manager.is_plugin_enabled(plugin_id);
@@ -664,6 +684,12 @@ fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map_err(|e| format!("获取应用数据目录失败: {}", e))?
         .join("plugins"))
+}
+
+fn is_local_plugin_package_installed(app_handle: &AppHandle, plugin_id: &str) -> bool {
+    plugin_packages_dir(app_handle)
+        .map(|plugins_dir| plugins_dir.join(plugin_id).join("plugin.json").is_file())
+        .unwrap_or(false)
 }
 
 fn validate_plugin_package_id(plugin_id: &str) -> Result<(), String> {
