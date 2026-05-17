@@ -20,7 +20,9 @@
     "release-notes": "node scripts/format-release-notes.mjs",
     "release-notes:copy": "node scripts/format-release-notes.mjs --copy",
     "rapidocr:install": "node scripts/install-rapidocr.mjs",
-    "rapidocr:package": "node scripts/package-rapidocr-plugin.mjs"
+    "rapidocr:package": "node scripts/package-rapidocr-plugin.mjs",
+    "plugins:package": "node scripts/package-official-plugins.mjs",
+    "plugins:verify-marketplace": "node scripts/verify-plugin-marketplace.mjs"
   },
   "config": {
     "commitizen": {
