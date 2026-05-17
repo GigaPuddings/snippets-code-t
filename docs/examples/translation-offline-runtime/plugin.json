@@ -16,5 +16,8 @@
   "resources": {
     "hintKey": "plugins.translation.resourceHint",
     "bundled": false
-  }
+  },
+  "minAppVersion": "1.5.6",
+  "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime/releases/tag/1.5.6"
 }

@@ -30,5 +30,8 @@
     "styles": [
       "dist/assets/index-BnfwBRB-.css"
     ]
-  }
+  },
+  "minAppVersion": "1.5.6",
+  "repository": "https://github.com/GigaPuddings/snippets-code-plugin-todo",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/1.5.6"
 }

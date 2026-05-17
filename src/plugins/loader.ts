@@ -137,7 +137,10 @@ export const normalizePluginPackageManifest = (
     resources: isObject(value.resources) ? value.resources as PluginPackageManifest['resources'] : undefined,
     entry: isObject(value.entry) ? value.entry as PluginPackageManifest['entry'] : undefined,
     permissions: Array.isArray(value.permissions) ? value.permissions.filter((item): item is string => typeof item === 'string') : undefined,
-    compatibleAppVersion: typeof value.compatibleAppVersion === 'string' ? value.compatibleAppVersion : undefined
+    compatibleAppVersion: typeof value.compatibleAppVersion === 'string' ? value.compatibleAppVersion : undefined,
+    minAppVersion: typeof value.minAppVersion === 'string' ? value.minAppVersion : undefined,
+    repository: typeof value.repository === 'string' ? value.repository : undefined,
+    releaseUrl: typeof value.releaseUrl === 'string' ? value.releaseUrl : undefined
   };
 };
 

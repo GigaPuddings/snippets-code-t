@@ -36,5 +36,8 @@
       "dist/assets/index-CVVd-qCm.css",
       "dist/assets/index-D8nqDbCw.css"
     ]
-  }
+  },
+  "minAppVersion": "1.5.6",
+  "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/1.5.6"
 }

@@ -41,5 +41,8 @@
       "dist/assets/index-CKvn18OD.css",
       "dist/assets/_plugin-vue_export-helper-CHXRjTYS.css"
     ]
-  }
+  },
+  "minAppVersion": "1.5.6",
+  "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/1.5.6"
 }

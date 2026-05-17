@@ -15,19 +15,20 @@ async function readJson(path) {
 async function readRemoteJson(url) {
   let lastError;
 
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
     try {
       const response = await fetch(url, {
         headers: {
           'user-agent': 'snippets-code-plugin-marketplace-verifier'
-        }
+        },
+        signal: AbortSignal.timeout(15000)
       });
 
       assert(response.ok, `远程 plugin.json 获取失败: ${url} (HTTP ${response.status})`);
-      return response.json();
+      return await response.json();
     } catch (error) {
       lastError = error;
-      await new Promise((resolveTimeout) => setTimeout(resolveTimeout, attempt * 1000));
+      await new Promise((resolveTimeout) => setTimeout(resolveTimeout, attempt * 1500));
     }
   }
 

@@ -24,6 +24,10 @@ async function main() {
   await mkdir(join(TARGET_DIR, 'resources'), { recursive: true })
   const manifest = JSON.parse(await readFile(MANIFEST_PATH, 'utf8'))
   manifest.version = packageJson.version
+  manifest.minAppVersion = manifest.minAppVersion ?? packageJson.version
+  manifest.compatibleAppVersion = `>=${packageJson.version}`
+  manifest.repository = 'https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr'
+  manifest.releaseUrl = `https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/releases/tag/${packageJson.version}`
   await writeFile(join(TARGET_DIR, 'plugin.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
   await cp(SOURCE_DIR, join(TARGET_DIR, 'resources/rapidocr'), {
     recursive: true,

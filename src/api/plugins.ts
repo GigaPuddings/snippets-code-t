@@ -19,9 +19,12 @@ export interface PluginMarketplaceItem {
   category: PluginCategory;
   packageUrl?: string;
   packageSubdir?: string;
+  minAppVersion?: string;
+  compatibleAppVersion?: string;
   manifest?: PluginPackageManifest;
   repository?: string;
   homepage?: string;
+  releaseUrl?: string;
   tags?: string[];
   builtinPluginId?: string;
   resourceFor?: string;

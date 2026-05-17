@@ -1,4 +1,4 @@
-import { i as Ie, r as Z, a as da, m as mt, e as fa, b as pt, c as ms, t as xn, d as _a, n as cn, g as Go, o as Yo, w as tt, f as Rs, h as W, j as Be, k as ma, l as F, p as ha, V as Fs, s as Xo, q as Kt, u as Jo, v as re, x as Zo, T as pa, F as Gt, y as p, z as ze, A as ga, B as qo, C as Qo, D as $s, E as ya, G as Ut, H as va, N as Ea, I as J, J as B, K as Vt, L as ba, M as v, O as et, P as ve, Q as un, R as ae, S as qe, U, W as dn, X as hs, Y as Na, Z as Ne, _ as Y, $ as er, a0 as tr, a1 as xt, a2 as fn, a3 as ut, a4 as Us } from "./runtime-entry-jH2ytxGs.js";
+import { i as Ie, r as Z, a as da, m as mt, e as fa, b as pt, c as ms, t as xn, d as _a, n as cn, g as Go, o as Yo, w as tt, f as Rs, h as W, j as Be, k as ma, l as F, p as ha, V as Fs, s as Xo, q as Kt, u as Jo, v as re, x as Zo, T as pa, F as Gt, y as p, z as ze, A as ga, B as qo, C as Qo, D as $s, E as ya, G as Ut, H as va, N as Ea, I as J, J as B, K as Vt, L as ba, M as v, O as et, P as ve, Q as un, R as ae, S as qe, U, W as dn, X as hs, Y as Na, Z as Ne, _ as Y, $ as er, a0 as tr, a1 as xt, a2 as fn, a3 as ut, a4 as Us } from "./runtime-entry-aon156ox.js";
 function Qt(e, t, n) {
   return Array.isArray(e) ? (e.length = Math.max(e.length, t), e.splice(t, 1, n), n) : (e[t] = n, n);
 }
@@ -564,7 +564,10 @@ const Ra = {
     resources: We(e.resources) ? e.resources : void 0,
     entry: We(e.entry) ? e.entry : void 0,
     permissions: Array.isArray(e.permissions) ? e.permissions.filter((s) => typeof s == "string") : void 0,
-    compatibleAppVersion: typeof e.compatibleAppVersion == "string" ? e.compatibleAppVersion : void 0
+    compatibleAppVersion: typeof e.compatibleAppVersion == "string" ? e.compatibleAppVersion : void 0,
+    minAppVersion: typeof e.minAppVersion == "string" ? e.minAppVersion : void 0,
+    repository: typeof e.repository == "string" ? e.repository : void 0,
+    releaseUrl: typeof e.releaseUrl == "string" ? e.releaseUrl : void 0
   };
 }, Za = () => za.map(Ga), qa = (e) => e.map((t) => {
   const { manifest: n, packagePath: s } = Ya(t), o = Ja(n);
@@ -933,7 +936,7 @@ const oi = Ve("close", !1, function(e) {
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
 });
-mt(ha(() => import("./TitlebarGitStatus-KCMvCQR7.js")));
+mt(ha(() => import("./TitlebarGitStatus-DHcww25m.js")));
 const li = /* @__PURE__ */ La("configuration", {
   state: () => ({
     id: "",

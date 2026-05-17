@@ -15,14 +15,18 @@
         "fallback": "Screenshot annotation, color picker, pin windows, OCR, and screenshot translation."
       },
       "category": "capture",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/v1.5.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "screenshot",
       "status": "included",
       "tags": [
         "screenshot",
         "ocr",
         "pin"
-      ]
+      ],
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/1.5.6"
     },
     {
       "id": "screenshot-rapidocr",
@@ -43,7 +47,11 @@
         "resource",
         "rapidocr"
       ],
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/archive/refs/tags/v1.5.6.zip"
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/archive/refs/tags/1.5.6.zip",
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/releases/tag/1.5.6"
     },
     {
       "id": "translation",
@@ -57,13 +65,17 @@
         "fallback": "Translate window, selection translation, screenshot translation, and offline model management."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/tags/v1.5.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "translation",
       "status": "included",
       "tags": [
         "translate",
         "offline"
-      ]
+      ],
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/1.5.6"
     },
     {
       "id": "translation-offline-runtime",
@@ -84,7 +96,11 @@
         "resource",
         "offline"
       ],
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime/archive/refs/tags/v1.5.6.zip"
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime/archive/refs/tags/1.5.6.zip",
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime/releases/tag/1.5.6"
     },
     {
       "id": "todo",
@@ -98,13 +114,17 @@
         "fallback": "Todo cards, timed reminders, and system notification windows."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/tags/v1.5.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "todo",
       "status": "included",
       "tags": [
         "todo",
         "reminder"
-      ]
+      ],
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-todo",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/1.5.6"
     },
     {
       "id": "system-theme",
@@ -118,13 +138,17 @@
         "fallback": "Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling."
       },
       "category": "appearance",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/v1.5.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "system-theme",
       "status": "included",
       "tags": [
         "theme",
         "dark-mode"
-      ]
+      ],
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/1.5.6"
     },
     {
       "id": "local-launcher",
@@ -138,14 +162,18 @@
         "fallback": "Local app and browser bookmark management, plus quick-launch search results."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/archive/refs/tags/v1.5.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "local-launcher",
       "status": "included",
       "tags": [
         "apps",
         "bookmarks",
         "launcher"
-      ]
+      ],
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/releases/tag/1.5.6"
     },
     {
       "id": "desktop-files",
@@ -159,14 +187,18 @@
         "fallback": "Index desktop files and show file results in global search."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/archive/refs/tags/v1.5.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "desktop-files",
       "status": "included",
       "tags": [
         "desktop",
         "files",
         "search"
-      ]
+      ],
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/releases/tag/1.5.6"
     },
     {
       "id": "search-engines",
@@ -180,14 +212,18 @@
         "fallback": "Custom search engines, keyword search, and default web search entries."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/tags/v1.5.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "search-engines",
       "status": "included",
       "tags": [
         "search",
         "web",
         "keyword"
-      ]
+      ],
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/1.5.6"
     },
     {
       "id": "git-sync",
@@ -201,13 +237,17 @@
         "fallback": "Workspace Git initialization, pull, push, auto sync, and conflict handling."
       },
       "category": "sync",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/archive/refs/tags/v1.5.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/archive/refs/tags/1.5.6.zip",
       "builtinPluginId": "git-sync",
       "status": "included",
       "tags": [
         "git",
         "sync"
-      ]
+      ],
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/releases/tag/1.5.6"
     },
     {
       "id": "hello-local-plugin",

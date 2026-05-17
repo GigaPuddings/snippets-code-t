@@ -29,5 +29,8 @@
       "dist/assets/TitlebarGitStatus-BFSOFKGh.css",
       "dist/assets/useGitStatus-ECBcOGCr.css"
     ]
-  }
+  },
+  "minAppVersion": "1.5.6",
+  "repository": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/releases/tag/1.5.6"
 }

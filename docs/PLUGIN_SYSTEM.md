@@ -288,14 +288,15 @@ pnpm tag
 ```
 
 `pnpm plugins:release` builds official plugin runtimes, updates plugin manifest
-versions, synchronizes each `snippets-code-plugin-*` repository, creates the
-matching `v<version>` tag in those repositories, generates local package
+versions, synchronizes each `snippets-code-plugin-*` repository, writes an
+Obsidian-style `versions.json`, creates the matching `<version>` tag in those repositories, generates local package
 outputs, and verifies the marketplace. `pnpm tag` runs the same plugin release
 chain before committing and tagging the main app release.
 
 The app package is marked `private`, so there is no npm registry publish or npm
-dist-tag update in this workflow. The synchronized release tag is the GitHub
-`v<version>` tag across the app repository and official plugin repositories.
+dist-tag update in this workflow. The synchronized release tag is GitHub-based:
+the app repository keeps the `v<version>` tag convention, while plugin
+repositories use `<version>` so the tag matches `plugin.json.version`.
 
 The previously built-in feature modules are listed in the marketplace as
 `included`, with independent GitHub package repositories prepared for external

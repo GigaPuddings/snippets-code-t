@@ -767,6 +767,62 @@ fn validate_local_plugin_manifest(manifest: &serde_json::Value) -> Result<String
     Ok(plugin_id.to_string())
 }
 
+fn parse_semver_parts(version: &str) -> Vec<u64> {
+    version
+        .trim_start_matches('v')
+        .split('.')
+        .map(|part| {
+            part.chars()
+                .take_while(|value| value.is_ascii_digit())
+                .collect::<String>()
+                .parse::<u64>()
+                .unwrap_or(0)
+        })
+        .collect()
+}
+
+fn compare_semver(left: &str, right: &str) -> std::cmp::Ordering {
+    let left_parts = parse_semver_parts(left);
+    let right_parts = parse_semver_parts(right);
+    let length = left_parts.len().max(right_parts.len());
+
+    for index in 0..length {
+        let left_value = *left_parts.get(index).unwrap_or(&0);
+        let right_value = *right_parts.get(index).unwrap_or(&0);
+        match left_value.cmp(&right_value) {
+            std::cmp::Ordering::Equal => continue,
+            ordering => return ordering,
+        }
+    }
+
+    std::cmp::Ordering::Equal
+}
+
+fn validate_plugin_app_compatibility(
+    app_handle: &AppHandle,
+    manifest: &serde_json::Value,
+) -> Result<(), String> {
+    let min_app_version = manifest
+        .get("minAppVersion")
+        .or_else(|| manifest.get("compatibleAppVersion"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim_start_matches(">=").trim());
+
+    let Some(min_app_version) = min_app_version.filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+
+    let app_version = app_handle.package_info().version.to_string();
+    if compare_semver(&app_version, min_app_version) == std::cmp::Ordering::Less {
+        return Err(format!(
+            "插件需要应用版本 >= {}，当前版本为 {}",
+            min_app_version, app_version
+        ));
+    }
+
+    Ok(())
+}
+
 fn read_plugin_package_manifest(manifest_path: &Path) -> Result<serde_json::Value, String> {
     fs::read_to_string(manifest_path)
         .map_err(|e| format!("读取插件清单失败: {} ({})", manifest_path.display(), e))
@@ -1157,6 +1213,7 @@ pub fn install_local_plugin_package(
     let result = (|| -> Result<LocalPluginPackage, String> {
         let manifest = read_plugin_package_manifest(&manifest_path)?;
         let plugin_id = validate_local_plugin_manifest(&manifest)?;
+        validate_plugin_app_compatibility(&app_handle, &manifest)?;
 
         let plugins_dir = plugin_packages_dir(&app_handle)?;
         fs::create_dir_all(&plugins_dir)

@@ -139,7 +139,11 @@ function assertVersion(version) {
 }
 
 function tagArchiveUrl(repo, version) {
-  return `https://github.com/${OWNER}/${repo}/archive/refs/tags/v${version}.zip`;
+  return `https://github.com/${OWNER}/${repo}/archive/refs/tags/${version}.zip`;
+}
+
+function releaseUrl(repo, version) {
+  return `https://github.com/${OWNER}/${repo}/releases/tag/${version}`;
 }
 
 function mainArchiveUrl(repo) {
@@ -176,6 +180,9 @@ async function updateManifestVersion(plugin, version, sourceDir, options) {
   const manifestPath = join(sourceDir, 'plugin.json');
   const manifest = await readJson(manifestPath);
   manifest.version = version;
+  manifest.minAppVersion = manifest.minAppVersion ?? version;
+  manifest.repository = `https://github.com/${OWNER}/${plugin.repo}`;
+  manifest.releaseUrl = releaseUrl(plugin.repo, version);
   if (plugin.kind === 'feature') {
     manifest.compatibleAppVersion = `>=${version}`;
   }
@@ -195,6 +202,10 @@ async function updateMarketplace(selectedPlugins, version, options) {
     if (!plugin) continue;
 
     item.version = version;
+    item.minAppVersion = version;
+    item.compatibleAppVersion = `>=${version}`;
+    item.repository = `https://github.com/${OWNER}/${plugin.repo}`;
+    item.releaseUrl = releaseUrl(plugin.repo, version);
     item.packageUrl = options.pinMarketplaceTags
       ? tagArchiveUrl(plugin.repo, version)
       : mainArchiveUrl(plugin.repo);
@@ -270,6 +281,28 @@ async function cloneRepository(plugin, targetDir, options) {
   });
 }
 
+async function writeVersionsIndex(repoDir, version, manifest) {
+  const versionsPath = join(repoDir, 'versions.json');
+  let versions = {};
+  if (existsSync(versionsPath)) {
+    try {
+      versions = await readJson(versionsPath);
+    } catch {
+      versions = {};
+    }
+  }
+
+  versions[version] = manifest.minAppVersion ?? version;
+  await writeJson(
+    versionsPath,
+    Object.fromEntries(
+      Object.entries(versions).sort(([left], [right]) => (
+        left.localeCompare(right, undefined, { numeric: true })
+      ))
+    )
+  );
+}
+
 function gitOutput(cwd, args) {
   return execFileSync('git', args, {
     cwd,
@@ -297,7 +330,7 @@ function commitAndPush(plugin, repoDir, version, options) {
 
   const status = options.dryRun ? 'dry-run' : gitOutput(repoDir, ['status', '--short']);
   if (status.length > 0) {
-    run('git', ['commit', '-m', `release: sync plugin package v${version}`], {
+    run('git', ['commit', '-m', `release: sync plugin package ${version}`], {
       cwd: repoDir,
       inherit: true,
       dryRun: options.dryRun
@@ -311,7 +344,7 @@ function commitAndPush(plugin, repoDir, version, options) {
     console.log(`[Plugins] ${plugin.id}: 仓库内容无变化`);
   }
 
-  const tag = `v${version}`;
+  const tag = version;
   if (!options.dryRun && remoteTagExists(repoDir, tag) && !options.forceTag) {
     console.log(`[Plugins] ${plugin.id}: 远程标签 ${tag} 已存在，跳过`);
     return;
@@ -346,6 +379,7 @@ async function syncRepository(plugin, version, options) {
     await copyDirectoryContents(sourceDir, repoDir);
 
     const manifest = await readJson(join(sourceDir, 'plugin.json'));
+    await writeVersionsIndex(repoDir, version, manifest);
     await writeFile(join(repoDir, 'README.md'), renderReadme(plugin, manifest, version, sourceDir), 'utf8');
   }
 

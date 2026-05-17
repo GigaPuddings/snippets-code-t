@@ -55,17 +55,32 @@
                 </span>
               </div>
               <div class="plugin-description">{{ pluginText(item.description) }}</div>
+              <div class="plugin-meta">
+                <span>{{ t('plugins.versionLabel', { version: item.version }) }}</span>
+                <span v-if="item.minAppVersion">
+                  {{ t('plugins.minAppVersion', { version: item.minAppVersion }) }}
+                </span>
+              </div>
               <div v-if="item.tags?.length" class="marketplace-tags">
                 <span v-for="tag in item.tags" :key="tag" class="marketplace-tag">{{ tag }}</span>
               </div>
             </div>
             <div class="plugin-controls">
               <CustomButton
+                v-if="canUpdateMarketplaceItem(item)"
+                size="small"
+                :title="t('plugins.marketplaceUpdate')"
+                :loading="installingMarketplaceId === item.id"
+                @click="handleInstallMarketplace(item, true)"
+              >
+                <Refresh theme="outline" size="14" />
+              </CustomButton>
+              <CustomButton
                 v-if="canInstallMarketplaceItem(item)"
                 size="small"
                 :title="t('plugins.marketplaceInstall')"
                 :loading="installingMarketplaceId === item.id"
-                @click="handleInstallMarketplace(item)"
+                @click="handleInstallMarketplace(item, false)"
               >
                 <Download theme="outline" size="14" />
               </CustomButton>
@@ -94,6 +109,12 @@
             </span>
           </div>
           <div class="plugin-description">{{ pluginText(plugin.manifest.description) }}</div>
+          <div class="plugin-meta">
+            <span>{{ t('plugins.versionLabel', { version: plugin.manifest.version }) }}</span>
+            <span v-if="plugin.manifest.minAppVersion">
+              {{ t('plugins.minAppVersion', { version: plugin.manifest.minAppVersion }) }}
+            </span>
+          </div>
           <div v-if="plugin.resourceHintKey" class="plugin-resource">
             {{ t(plugin.resourceHintKey) }}
           </div>
@@ -144,6 +165,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { Delete, Download, FileZip, FolderOpen, Refresh, Search } from '@icon-park/vue-next';
@@ -174,6 +196,7 @@ const marketplaceLoading = ref(false);
 const marketplaceItems = ref<PluginMarketplaceItem[]>([]);
 const marketplaceQuery = ref('');
 const installingMarketplaceId = ref<string | null>(null);
+const appVersion = ref('');
 
 const DEFAULT_MARKETPLACE_URL = 'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/codex/plugin-system-refactor/docs/plugin-marketplace/marketplace.json';
 const isExternalOfficialPluginMode = OFFICIAL_PLUGINS_MODE === 'external';
@@ -181,6 +204,13 @@ const isExternalOfficialPluginMode = OFFICIAL_PLUGINS_MODE === 'external';
 onMounted(() => {
   pluginStore.initialize();
   refreshMarketplace(false);
+  getVersion()
+    .then((version) => {
+      appVersion.value = version;
+    })
+    .catch(() => {
+      appVersion.value = '';
+    });
 });
 
 const pluginText = (text: PluginI18nText): string => {
@@ -213,7 +243,41 @@ const isMarketplaceItemInstalled = (item: PluginMarketplaceItem): boolean => (
   pluginStore.plugins.some((plugin) => plugin.id === item.id)
 );
 
+const getInstalledMarketplacePlugin = (item: PluginMarketplaceItem): RegisteredPlugin | undefined => (
+  pluginStore.plugins.find((plugin) => plugin.id === item.id)
+);
+
+const versionParts = (version: string): number[] => (
+  version
+    .replace(/^v/i, '')
+    .split('.')
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isFinite(part) ? part : 0))
+);
+
+const compareVersions = (left: string, right: string): number => {
+  const leftParts = versionParts(left);
+  const rightParts = versionParts(right);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+};
+
+const isCompatibleWithApp = (item: PluginMarketplaceItem): boolean => (
+  !item.minAppVersion
+  || !appVersion.value
+  || compareVersions(appVersion.value, item.minAppVersion) >= 0
+);
+
 const marketplaceStatusText = (item: PluginMarketplaceItem): string => {
+  if (!isCompatibleWithApp(item)) return t('plugins.marketplaceIncompatible');
+  const installedPlugin = getInstalledMarketplacePlugin(item);
+  if (installedPlugin?.source === 'local' && compareVersions(item.version, installedPlugin.manifest.version) > 0) {
+    return t('plugins.marketplaceUpdateAvailable');
+  }
   if (
     item.status === 'included'
     && isExternalOfficialPluginMode
@@ -230,9 +294,18 @@ const marketplaceStatusText = (item: PluginMarketplaceItem): string => {
 
 const canInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => (
   Boolean(item.packageUrl)
+  && isCompatibleWithApp(item)
   && !isMarketplaceItemInstalled(item)
   && (item.status !== 'included' || isExternalOfficialPluginMode)
 );
+
+const canUpdateMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
+  const installedPlugin = getInstalledMarketplacePlugin(item);
+  return Boolean(item.packageUrl)
+    && isCompatibleWithApp(item)
+    && installedPlugin?.source === 'local'
+    && compareVersions(item.version, installedPlugin.manifest.version) > 0;
+};
 
 const refreshMarketplace = async (notify = true) => {
   marketplaceLoading.value = true;
@@ -251,15 +324,15 @@ const handleRefreshMarketplace = async () => {
   await refreshMarketplace(true);
 };
 
-const handleInstallMarketplace = async (item: PluginMarketplaceItem) => {
+const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = false) => {
   if (!item.packageUrl) return;
 
   installingMarketplaceId.value = item.id;
   try {
     await pluginStore.installFromUrl(item.packageUrl, true, item.packageSubdir);
-    modal.msg(t('plugins.installSuccess'));
+    modal.msg(update ? t('plugins.updateSuccess') : t('plugins.installSuccess'));
   } catch (error) {
-    modal.msg(`${t('plugins.installFailed')}: ${error}`, 'error');
+    modal.msg(`${update ? t('plugins.updateFailed') : t('plugins.installFailed')}: ${error}`, 'error');
   } finally {
     installingMarketplaceId.value = null;
   }
@@ -415,6 +488,10 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
 
 .marketplace-tags {
   @apply mt-1 flex flex-wrap gap-1;
+}
+
+.plugin-meta {
+  @apply mt-1 flex flex-wrap items-center gap-2 text-xs text-panel-text-secondary;
 }
 
 .marketplace-tag {

@@ -45,6 +45,9 @@ export interface PluginPackageManifest {
   entry?: PluginPackageEntry;
   permissions?: string[];
   compatibleAppVersion?: string;
+  minAppVersion?: string;
+  repository?: string;
+  releaseUrl?: string;
 }
 
 export interface LocalPluginPackage {

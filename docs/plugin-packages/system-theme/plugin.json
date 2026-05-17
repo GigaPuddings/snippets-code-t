@@ -31,5 +31,8 @@
       "dist/assets/index-fTz62839.css",
       "dist/assets/TitlebarGitStatus-BFSOFKGh.css"
     ]
-  }
+  },
+  "minAppVersion": "1.5.6",
+  "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/1.5.6"
 }
