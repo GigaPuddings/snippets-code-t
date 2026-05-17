@@ -309,6 +309,7 @@ export default {
     enabled: 'Plugin enabled',
     disabled: 'Plugin disabled',
     saveFailed: 'Failed to save plugin state',
+    gitSyncUnavailable: 'Git Sync plugin is not installed or enabled',
     resourceReady: 'Resource installed',
     resourceMissing: 'Resource is not installed and will be requested when used',
     sources: {

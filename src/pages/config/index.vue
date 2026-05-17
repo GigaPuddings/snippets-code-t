@@ -8,6 +8,7 @@
     
     <!-- 全局冲突对话框 -->
     <GitConflictDialog
+      v-if="isGitSyncRuntimeReady"
       v-model="showConflictDialog"
       :conflict-files="conflictFiles"
       :untracked-files="untrackedFiles"
@@ -19,6 +20,7 @@
     
     <!-- 手动合并对话框：同时包含冲突文件与未跟踪文件，以便都能展示远程/本地对比 -->
     <GitManualMerge
+      v-if="isGitSyncRuntimeReady"
       v-model="showManualMergeDialog"
       :conflict-files="mergeFileList"
       @complete="handleManualMergeComplete"
@@ -61,19 +63,37 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { startAutoSync, stopAutoSync, getAutoSyncStatus, pauseAutoSync, resumeAutoSync, forcePush, forcePull, resolveConflictsBatch, ConflictStrategy } from '@/plugins/git-sync/api';
 import { getGitSettings } from '@/api/appConfig';
 import { readMarkdownFile } from '@/api/markdown';
 import { logger } from '@/utils/logger';
 import { initCleanupCache, checkShouldInitialize } from '@/utils/app-init';
-import { setupGitEventListeners, cleanupGitEventListeners, initGitSync, ensureWorkspaceGitignore, type GitEventListeners } from '@/plugins/git-sync/lifecycle';
-import GitConflictDialog from '@/plugins/git-sync/components/GitConflictDialog/index.vue';
-import GitManualMerge from '@/plugins/git-sync/components/GitManualMerge/index.vue';
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
 
 type ConfirmResult = 'primary' | 'secondary' | 'close';
+type GitApi = typeof import('@/plugins/git-sync/api');
+type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
+
+interface LoadingDialogExpose {
+  setLoading: (loading: boolean) => void;
+}
+
+let gitApiPromise: Promise<GitApi> | null = null;
+let gitLifecyclePromise: Promise<GitLifecycle> | null = null;
+
+const loadGitApi = async (): Promise<GitApi> => {
+  gitApiPromise ??= import('@/plugins/git-sync/api');
+  return gitApiPromise;
+};
+
+const loadGitLifecycle = async (): Promise<GitLifecycle> => {
+  gitLifecyclePromise ??= import('@/plugins/git-sync/lifecycle');
+  return gitLifecyclePromise;
+};
+
+const GitConflictDialog = defineAsyncComponent(() => import('@/plugins/git-sync/components/GitConflictDialog/index.vue'));
+const GitManualMerge = defineAsyncComponent(() => import('@/plugins/git-sync/components/GitManualMerge/index.vue'));
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -84,6 +104,7 @@ defineOptions({
 
 const router = useRouter();
 const PENDING_NAVIGATION_TTL = 30_000;
+const isGitSyncRuntimeReady = ref(false);
 
 // 监听导航到设置页面的事件
 let unlisten: (() => void) | null = null;
@@ -96,7 +117,7 @@ let unlistenConflict: (() => void) | null = null;
 let unlistenRepoNotFound: (() => void) | null = null;
 
 // Git 事件监听器
-let gitListeners: GitEventListeners | null = null;
+let gitListeners: unknown | null = null;
 
 // 冲突对话框状态
 const showConflictDialog = ref(false);
@@ -108,8 +129,8 @@ const conflictFiles = ref<string[]>([]);
 const untrackedFiles = ref<string[]>([]); // 未跟踪文件（会被远程覆盖）
 /** 手动合并时使用的文件列表：冲突文件 + 未跟踪文件，保证“仅未跟踪”时也有数据 */
 const mergeFileList = computed(() => [...conflictFiles.value, ...untrackedFiles.value]);
-const conflictDialogRef = ref<InstanceType<typeof GitConflictDialog> | null>(null);
-const manualMergeRef = ref<InstanceType<typeof GitManualMerge> | null>(null);
+const conflictDialogRef = ref<LoadingDialogExpose | null>(null);
+const manualMergeRef = ref<LoadingDialogExpose | null>(null);
 
 /** 防止冲突事件重复处理的标志 */
 let hasConflictBeenHandled = false;
@@ -261,6 +282,7 @@ const handleConflictResolution = async (strategy: string) => {
     const hasUntrackedFiles = untrackedFiles.value.length > 0;
     
     if (strategy === 'force-push') {
+      const { forcePush, resumeAutoSync } = await loadGitApi();
       const confirmResult = await showConfirm({
         title: t('settings.gitSync.confirmForcePush'),
         message: t('settings.gitSync.confirmForcePushMessage'),
@@ -294,6 +316,7 @@ const handleConflictResolution = async (strategy: string) => {
       }
       
     } else if (strategy === 'force-pull') {
+      const { forcePull, resumeAutoSync } = await loadGitApi();
       const confirmResult = await showConfirm({
         title: t('settings.gitSync.confirmForcePull'),
         message: t('settings.gitSync.confirmForcePullMessage'),
@@ -378,6 +401,7 @@ const handleConflictCancel = async () => {
   hasConflictBeenHandled = false;
 
   if (result === 'secondary') {
+    const { resumeAutoSync } = await loadGitApi();
     sessionStorage.removeItem('git-conflict-state');
     conflictFiles.value = [];
     try {
@@ -421,6 +445,7 @@ const handleManualMergeComplete = async (selections: Record<number, 'remote' | '
   manualMergeRef.value.setLoading(true);
   
   try {
+    const { ConflictStrategy, resolveConflictsBatch } = await loadGitApi();
     // 如果有编辑过的本地内容，先保存到文件（使用与手动合并一致的列表）
     const files = mergeFileList.value;
     for (const [indexStr, content] of Object.entries(editedContents)) {
@@ -441,10 +466,10 @@ const handleManualMergeComplete = async (selections: Record<number, 'remote' | '
     }
     
     // 构建解决方案列表（与手动合并使用的文件顺序一致）
-    const resolutions = files.map((file, index) => [
+    const resolutions: Parameters<typeof resolveConflictsBatch>[0] = files.map((file, index) => [
       file,
       selections[index] === 'remote' ? ConflictStrategy.KeepRemote : ConflictStrategy.KeepLocal
-    ] as [string, ConflictStrategy]);
+    ]);
     
     // 批量解决冲突（后端会自动恢复自动同步）
     const result = await resolveConflictsBatch(resolutions);
@@ -493,6 +518,7 @@ const handleManualMergeCancel = async () => {
   hasConflictBeenHandled = false;
 
   if (result === 'secondary') {
+    const { resumeAutoSync } = await loadGitApi();
     sessionStorage.removeItem('git-conflict-state');
     conflictFiles.value = [];
     untrackedFiles.value = [];
@@ -583,6 +609,7 @@ const startAutoSyncIfEnabled = async () => {
     const gitSettings = await getGitSettings();
     
     if (gitSettings.enabled && gitSettings.auto_sync) {
+      const { getAutoSyncStatus, startAutoSync } = await loadGitApi();
       // 检查是否已经在运行
       const isRunning = await getAutoSyncStatus();
       
@@ -605,6 +632,7 @@ const stopAutoSyncOnHide = async () => {
   }
 
   try {
+    const { getAutoSyncStatus, stopAutoSync } = await loadGitApi();
     const isRunning = await getAutoSyncStatus();
     
     if (isRunning) {
@@ -642,6 +670,16 @@ onMounted(async () => {
   }
 
   if (pluginStore.isEnabled('git-sync')) {
+    isGitSyncRuntimeReady.value = true;
+    const {
+      pauseAutoSync
+    } = await loadGitApi();
+    const {
+      ensureWorkspaceGitignore,
+      initGitSync,
+      setupGitEventListeners
+    } = await loadGitLifecycle();
+
     // 1. 设置 Git 事件监听器
     gitListeners = await setupGitEventListeners(t);
     logger.info('[Config] ✅ Git 事件监听器已设置');
@@ -812,7 +850,8 @@ onUnmounted(async () => {
   
   // 清理 Git 事件监听器
   if (gitListeners) {
-    cleanupGitEventListeners(gitListeners);
+    const { cleanupGitEventListeners } = await loadGitLifecycle();
+    cleanupGitEventListeners(gitListeners as Parameters<typeof cleanupGitEventListeners>[0]);
     logger.info('[Config] ✅ Git 事件监听器已清理');
   }
   

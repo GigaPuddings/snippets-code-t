@@ -21,7 +21,7 @@
           <span class="info-value">{{ workspaceRoot || $t('userCenter.notSet') }}</span>
         </div>
         
-        <div class="info-item">
+        <div v-if="isGitSyncEnabled" class="info-item">
           <span class="info-label">{{ $t('userCenter.gitSyncStatus') }}</span>
           <span class="info-value">
             <span v-if="hasRequiredGitFieldsFilled" class="status-badge status-badge--success">
@@ -53,7 +53,7 @@
       </div>
 
       <!-- Git 必要字段配置（个人中心配置后，设置中才会显示 Git 同步 tab） -->
-      <div class="git-config-card">
+      <div v-if="isGitSyncEnabled" class="git-config-card">
         <h4 class="section-title">{{ $t('userCenter.gitConfigSection') }}</h4>
         <p class="git-config-desc">{{ $t('userCenter.gitConfigSectionDesc') }}</p>
         <div class="git-config-form">
@@ -98,7 +98,7 @@
       </div>
 
       <!-- Git 同步引导卡片：必要字段（用户名、邮箱、远程 URL）都填写后才隐藏，与是否启用无关 -->
-      <div v-if="hasRequiredGitFieldsFilled" class="tip-card">
+      <div v-if="isGitSyncEnabled && hasRequiredGitFieldsFilled" class="tip-card">
         <div class="tip-icon">
           <Github theme="outline" size="24" :strokeWidth="3" />
         </div>
@@ -160,9 +160,18 @@ import { open as openUrl } from '@tauri-apps/plugin-shell';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { getGitSettings, updateGitSettings } from '@/api/appConfig';
-import { testGitConnection, initGitRepository } from '@/plugins/git-sync/api';
+import { usePluginStore } from '@/store';
 import modal from '@/utils/modal';
 import type { GitSettings } from '@/types/models';
+
+type GitSyncApi = typeof import('@/plugins/git-sync/api');
+
+let gitSyncApiPromise: Promise<GitSyncApi> | null = null;
+
+const loadGitSyncApi = async (): Promise<GitSyncApi> => {
+  gitSyncApiPromise ??= import('@/plugins/git-sync/api');
+  return gitSyncApiPromise;
+};
 
 defineOptions({
   name: 'UserCenter'
@@ -170,6 +179,7 @@ defineOptions({
 
 const { t } = useI18n();
 const router = useRouter();
+const pluginStore = usePluginStore();
 
 const appVersion = ref('');
 const workspaceRoot = ref('');
@@ -184,6 +194,10 @@ const gitForm = ref<Pick<GitSettings, 'user_name' | 'user_email' | 'token' | 're
   remote_url: ''
 });
 const isSavingGit = ref(false);
+const isGitSyncEnabled = computed(() => {
+  pluginStore.runtimeRevision;
+  return pluginStore.isEnabled('git-sync');
+});
 
 /** 所有 Git 字段（用户名、邮箱、Token、远程 URL）是否已填写，用于控制引导卡片显示 */
 const hasRequiredGitFieldsFilled = computed(
@@ -210,6 +224,12 @@ const loadAppInfo = async () => {
       console.error('[UserCenter] 获取工作区根目录失败:', error);
     }
     
+    if (!isGitSyncEnabled.value) {
+      gitConfigured.value = false;
+      gitAccountInfo.value = null;
+      return;
+    }
+
     // 检查 Git 配置状态并填充表单
     try {
       const gitSettings = await getGitSettings();
@@ -239,6 +259,11 @@ const loadAppInfo = async () => {
 
 // 保存 Git 配置（仅更新四字段，其余设置保留）
 const saveGitConfig = async () => {
+  if (!isGitSyncEnabled.value) {
+    modal.warning(t('plugins.gitSyncUnavailable'), 'bottom-right');
+    return;
+  }
+
   // 校验必填字段
   if (!gitForm.value.user_name?.trim()) {
     modal.warning(t('userCenter.gitConfigSaveWarningName'), 'bottom-right');
@@ -254,10 +279,12 @@ const saveGitConfig = async () => {
   }
   isSavingGit.value = true;
   try {
+    const gitSyncApi = await loadGitSyncApi();
+
     // 先测试连接（Token + 远程仓库）
     if (gitForm.value.token?.trim() && gitForm.value.remote_url?.trim()) {
       try {
-        await testGitConnection(gitForm.value.remote_url, gitForm.value.token);
+        await gitSyncApi.testGitConnection(gitForm.value.remote_url, gitForm.value.token);
       } catch (error) {
         modal.error(String(error), 'bottom-right');
         isSavingGit.value = false;
@@ -276,7 +303,7 @@ const saveGitConfig = async () => {
     // 保存成功后，初始化本地 Git 仓库（配置用户、远程）
     if (gitForm.value.token?.trim() && gitForm.value.remote_url?.trim()) {
       try {
-        await initGitRepository(
+        await gitSyncApi.initGitRepository(
           gitForm.value.user_name,
           gitForm.value.user_email,
           gitForm.value.remote_url,
@@ -352,7 +379,8 @@ const checkUpdate = async () => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
+  await pluginStore.initialize();
   loadAppInfo();
 });
 </script>

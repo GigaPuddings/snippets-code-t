@@ -26,7 +26,7 @@ async function initApp() {
     import('@/styles/theme.scss')
   ];
 
-  const { initTheme } = await import('@/plugins/system-theme/theme');
+  const { initTheme } = await import('@/utils/theme-sync');
   
   try {
     await Promise.all(stylePromises);

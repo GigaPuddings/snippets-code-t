@@ -323,6 +323,7 @@ export default {
     enabled: '插件已开启',
     disabled: '插件已关闭',
     saveFailed: '插件状态保存失败',
+    gitSyncUnavailable: 'Git 同步插件未安装或未启用',
     resourceReady: '资源已安装',
     resourceMissing: '资源未安装，启用后会在调用时提示安装',
     sources: {

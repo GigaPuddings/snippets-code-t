@@ -136,7 +136,7 @@ import { SunOne, Moon, Computer } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { useConfigurationStore } from '@/store';
-import { broadcastThemeChanged } from '@/plugins/system-theme/theme';
+import { broadcastThemeChanged } from '@/utils/theme-sync';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { CustomButton, CustomSwitch, ConfirmDialog, SelectConfirmDialog } from '@/components/UI';

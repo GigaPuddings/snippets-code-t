@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { useConfigurationStore } from '@/store';
+import { useConfigurationStore, usePluginStore } from '@/store';
 import { getFragmentContent, editFragment, addFragment, getFragmentList } from '@/api/fragment';
 import { searchMarkdownFiles } from '@/api/markdown';
 import { debounce } from '@/utils';
@@ -104,7 +104,15 @@ import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import { htmlToMarkdown, createTurndownService, markdownToHtml, jsonToMarkdown } from '@/components/TipTapEditor/utils/markdown';
 import { getWorkspaceRoot } from '@/api/markdown';
 import { syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/plugins/attachments/api';
-import { notifyFileEdit } from '@/plugins/git-sync/api';
+
+type GitSyncApi = typeof import('@/plugins/git-sync/api');
+
+let gitSyncApiPromise: Promise<GitSyncApi> | null = null;
+
+const loadGitSyncApi = async (): Promise<GitSyncApi> => {
+  gitSyncApiPromise ??= import('@/plugins/git-sync/api');
+  return gitSyncApiPromise;
+};
 
 const { t } = useI18n();
 
@@ -166,7 +174,21 @@ const noteEditorDisplayContent = computed(() => {
 const route = useRoute();
 const router = useRouter();
 const store = useConfigurationStore();
+const pluginStore = usePluginStore();
 const isDark = computed(() => store.effectiveDark);
+
+const notifyFileEditIfGitSyncEnabled = async () => {
+  if (!pluginStore.initialized) {
+    await pluginStore.initialize();
+  }
+
+  if (!pluginStore.isEnabled('git-sync')) {
+    return;
+  }
+
+  const { notifyFileEdit } = await loadGitSyncApi();
+  await notifyFileEdit();
+};
 
 // 对话框状态
 const showCreateNoteDialog = ref(false);
@@ -567,7 +589,7 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
 
   // 通知自动同步管理器（如果启用）
   try {
-    await notifyFileEdit();
+    await notifyFileEditIfGitSyncEnabled();
   } catch (error) {
     // 静默失败，不影响保存流程
     console.debug('[performSave] 通知自动同步失败:', error);
