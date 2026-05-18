@@ -5,12 +5,13 @@ use futures::StreamExt;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::error::Error as StdError;
 use std::fs::{self, File};
 use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // 应用配置结构
 // 兼容旧的 json_config 模块使用的字段
@@ -1473,6 +1474,58 @@ fn validate_plugin_remote_url(value: &str) -> Result<(), String> {
     }
 }
 
+fn reqwest_error_details(error: &reqwest::Error) -> String {
+    let mut details = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        details.push_str(": ");
+        details.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    details
+}
+
+fn github_codeload_fallback_url(package_url: &str) -> Option<String> {
+    let url = url::Url::parse(package_url).ok()?;
+    if url.scheme() != "https" || url.host_str() != Some("github.com") {
+        return None;
+    }
+
+    let segments: Vec<_> = url.path_segments()?.collect();
+    if segments.len() < 6 || segments[2] != "archive" || segments[3] != "refs" {
+        return None;
+    }
+
+    let ref_kind = segments[4];
+    if ref_kind != "tags" && ref_kind != "heads" {
+        return None;
+    }
+
+    let mut ref_name = segments[5..].join("/");
+    if let Some(stripped) = ref_name.strip_suffix(".zip") {
+        ref_name = stripped.to_string();
+    }
+    if ref_name.is_empty() {
+        return None;
+    }
+
+    Some(format!(
+        "https://codeload.github.com/{}/{}/zip/refs/{}/{}",
+        segments[0], segments[1], ref_kind, ref_name
+    ))
+}
+
+fn plugin_package_download_urls(package_url: &str) -> Vec<String> {
+    let mut urls = Vec::new();
+    if let Some(fallback_url) = github_codeload_fallback_url(package_url) {
+        urls.push(fallback_url);
+    }
+    if !urls.iter().any(|url| url == package_url) {
+        urls.push(package_url.to_string());
+    }
+    urls
+}
+
 fn emit_plugin_install_progress(
     app_handle: &AppHandle,
     package_url: &str,
@@ -1505,6 +1558,10 @@ async fn download_plugin_url_to_temp(
     expected_size_bytes: Option<u64>,
 ) -> Result<PathBuf, String> {
     validate_plugin_remote_url(package_url)?;
+    let download_urls = plugin_package_download_urls(package_url);
+    for download_url in &download_urls {
+        validate_plugin_remote_url(download_url)?;
+    }
 
     let temp_dir = create_plugin_install_temp_dir(app_handle)?;
     let temp_file = temp_dir.join("package.zip");
@@ -1514,78 +1571,165 @@ async fn download_plugin_url_to_temp(
 
         let client = reqwest::Client::builder()
             .user_agent("snippets-code-plugin-installer")
+            .connect_timeout(Duration::from_secs(20))
+            .timeout(Duration::from_secs(180))
+            .redirect(reqwest::redirect::Policy::limited(10))
             .build()
             .map_err(|e| format!("创建插件下载客户端失败: {}", e))?;
-        let response = client
-            .get(package_url)
-            .send()
-            .await
-            .map_err(|e| format!("下载插件失败: {}", e))?;
+        let mut last_error: Option<String> = None;
+        const MAX_DOWNLOAD_ATTEMPTS: usize = 3;
 
-        if !response.status().is_success() {
-            return Err(format!("下载插件失败: HTTP {}", response.status()));
-        }
+        for download_url in &download_urls {
+            for attempt in 1..=MAX_DOWNLOAD_ATTEMPTS {
+                if download_url != package_url || attempt > 1 {
+                    info!(
+                        "[Plugin] retrying remote package download url={} attempt={}/{}",
+                        download_url, attempt, MAX_DOWNLOAD_ATTEMPTS
+                    );
+                    emit_plugin_install_progress(
+                        app_handle,
+                        package_url,
+                        "downloading",
+                        0,
+                        expected_size_bytes,
+                    );
+                }
 
-        let total_bytes = response.content_length().or(expected_size_bytes);
-        emit_plugin_install_progress(app_handle, package_url, "downloading", 0, total_bytes);
+                let response = match client.get(download_url).send().await {
+                    Ok(response) => response,
+                    Err(error) => {
+                        let message = format!(
+                            "请求插件包失败: {} ({})",
+                            download_url,
+                            reqwest_error_details(&error)
+                        );
+                        warn!(
+                            "[Plugin] download request failed url={} attempt={}/{} error={}",
+                            download_url, attempt, MAX_DOWNLOAD_ATTEMPTS, message
+                        );
+                        last_error = Some(message);
+                        tokio::time::sleep(Duration::from_millis(500 * attempt as u64)).await;
+                        continue;
+                    }
+                };
 
-        let content_type = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        if !content_type.is_empty()
-            && !content_type.contains("zip")
-            && !content_type.contains("octet-stream")
-        {
-            warn!(
-                "[Plugin] remote package content-type looks unusual: {}",
-                content_type
-            );
-        }
+                if !response.status().is_success() {
+                    let message = format!(
+                        "下载插件失败: HTTP {} ({})",
+                        response.status(),
+                        download_url
+                    );
+                    warn!(
+                        "[Plugin] download response failed url={} attempt={}/{} status={}",
+                        download_url,
+                        attempt,
+                        MAX_DOWNLOAD_ATTEMPTS,
+                        response.status()
+                    );
+                    last_error = Some(message);
+                    tokio::time::sleep(Duration::from_millis(500 * attempt as u64)).await;
+                    continue;
+                }
 
-        let mut file = File::create(&temp_file)
-            .map_err(|e| format!("创建插件下载临时文件失败: {} ({})", temp_file.display(), e))?;
-        let mut downloaded_bytes = 0_u64;
-        let mut last_emitted_bytes = 0_u64;
-        let mut stream = response.bytes_stream();
-
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|e| format!("读取插件下载内容失败: {}", e))?;
-            file.write_all(&chunk).map_err(|e| {
-                format!("写入插件下载临时文件失败: {} ({})", temp_file.display(), e)
-            })?;
-            downloaded_bytes += chunk.len() as u64;
-
-            if total_bytes
-                .map(|total| downloaded_bytes >= total)
-                .unwrap_or(false)
-                || downloaded_bytes.saturating_sub(last_emitted_bytes) >= 512 * 1024
-            {
-                last_emitted_bytes = downloaded_bytes;
+                let total_bytes = response.content_length().or(expected_size_bytes);
                 emit_plugin_install_progress(
                     app_handle,
                     package_url,
                     "downloading",
+                    0,
+                    total_bytes,
+                );
+
+                let content_type = response
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
+                if !content_type.is_empty()
+                    && !content_type.contains("zip")
+                    && !content_type.contains("octet-stream")
+                {
+                    warn!(
+                        "[Plugin] remote package content-type looks unusual: {}",
+                        content_type
+                    );
+                }
+
+                let mut file = File::create(&temp_file).map_err(|e| {
+                    format!("创建插件下载临时文件失败: {} ({})", temp_file.display(), e)
+                })?;
+                let mut downloaded_bytes = 0_u64;
+                let mut last_emitted_bytes = 0_u64;
+                let mut stream = response.bytes_stream();
+                let mut stream_failed = false;
+
+                while let Some(chunk) = stream.next().await {
+                    let chunk = match chunk {
+                        Ok(chunk) => chunk,
+                        Err(error) => {
+                            let message = format!(
+                                "读取插件下载内容失败: {} ({})",
+                                download_url,
+                                reqwest_error_details(&error)
+                            );
+                            warn!(
+                                "[Plugin] download stream failed url={} attempt={}/{} error={}",
+                                download_url, attempt, MAX_DOWNLOAD_ATTEMPTS, message
+                            );
+                            last_error = Some(message);
+                            stream_failed = true;
+                            break;
+                        }
+                    };
+                    file.write_all(&chunk).map_err(|e| {
+                        format!("写入插件下载临时文件失败: {} ({})", temp_file.display(), e)
+                    })?;
+                    downloaded_bytes += chunk.len() as u64;
+
+                    if total_bytes
+                        .map(|total| downloaded_bytes >= total)
+                        .unwrap_or(false)
+                        || downloaded_bytes.saturating_sub(last_emitted_bytes) >= 512 * 1024
+                    {
+                        last_emitted_bytes = downloaded_bytes;
+                        emit_plugin_install_progress(
+                            app_handle,
+                            package_url,
+                            "downloading",
+                            downloaded_bytes,
+                            total_bytes,
+                        );
+                    }
+                }
+
+                if stream_failed {
+                    tokio::time::sleep(Duration::from_millis(500 * attempt as u64)).await;
+                    continue;
+                }
+
+                if downloaded_bytes == 0 {
+                    last_error = Some(format!("插件下载内容为空 ({})", download_url));
+                    tokio::time::sleep(Duration::from_millis(500 * attempt as u64)).await;
+                    continue;
+                }
+
+                emit_plugin_install_progress(
+                    app_handle,
+                    package_url,
+                    "downloaded",
                     downloaded_bytes,
                     total_bytes,
                 );
+                return Ok(temp_file.clone());
             }
         }
 
-        if downloaded_bytes == 0 {
-            return Err("插件下载内容为空".to_string());
-        }
-
-        emit_plugin_install_progress(
-            app_handle,
-            package_url,
-            "downloaded",
-            downloaded_bytes,
-            total_bytes,
-        );
-        Ok(temp_file.clone())
+        Err(format!(
+            "下载插件失败，已尝试 {} 个地址: {}",
+            download_urls.len(),
+            last_error.unwrap_or_else(|| "未知错误".to_string())
+        ))
     }
     .await;
 
