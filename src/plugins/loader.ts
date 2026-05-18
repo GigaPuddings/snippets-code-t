@@ -59,11 +59,13 @@ export const createBuiltinPackageManifest = (plugin: BuiltinPlugin): PluginPacka
 export const createRegisteredPlugin = (
   manifest: PluginPackageManifest,
   source: RegisteredPlugin['source'],
-  packagePath?: string
+  packagePath?: string,
+  installedAt?: string
 ): RegisteredPlugin => ({
   id: manifest.id,
   source,
   packagePath,
+  installedAt,
   manifest,
   nameKey: manifest.name.i18nKey,
   descriptionKey: manifest.description.i18nKey,
@@ -73,7 +75,8 @@ export const createRegisteredPlugin = (
   settingsTabs: manifest.capabilities?.settingsTabs,
   hotkeys: manifest.capabilities?.hotkeys,
   searchSources: manifest.capabilities?.searchSources,
-  resourceHintKey: manifest.resources?.hintKey
+  resourceHintKey: manifest.resources?.hintKey,
+  resourceFor: manifest.resourceFor
 });
 
 const isObject = (value: unknown): value is Record<string, unknown> => (
@@ -82,7 +85,7 @@ const isObject = (value: unknown): value is Record<string, unknown> => (
 
 const readManifestInput = (
   value: unknown
-): { manifest: unknown; packagePath?: string } => {
+): { manifest: unknown; packagePath?: string; installedAt?: string } => {
   if (
     isObject(value)
     && 'manifest' in value
@@ -90,7 +93,8 @@ const readManifestInput = (
   ) {
     return {
       manifest: value.manifest,
-      packagePath: typeof value.packagePath === 'string' ? value.packagePath : undefined
+      packagePath: typeof value.packagePath === 'string' ? value.packagePath : undefined,
+      installedAt: typeof value.installedAt === 'string' ? value.installedAt : undefined
     };
   }
 
@@ -138,6 +142,7 @@ export const normalizePluginPackageManifest = (
     entry: isObject(value.entry) ? value.entry as PluginPackageManifest['entry'] : undefined,
     permissions: Array.isArray(value.permissions) ? value.permissions.filter((item): item is string => typeof item === 'string') : undefined,
     dependencies: Array.isArray(value.dependencies) ? value.dependencies.filter((item): item is string => typeof item === 'string') : undefined,
+    resourceFor: typeof value.resourceFor === 'string' ? value.resourceFor : undefined,
     compatibleAppVersion: typeof value.compatibleAppVersion === 'string' ? value.compatibleAppVersion : undefined,
     minAppVersion: typeof value.minAppVersion === 'string' ? value.minAppVersion : undefined,
     repository: typeof value.repository === 'string' ? value.repository : undefined,
@@ -153,15 +158,19 @@ export const loadLocalPluginPackages = (
   manifests: unknown[]
 ): LocalPluginPackage[] => (
   manifests
-    .map((value) => {
-      const { manifest, packagePath } = readManifestInput(value);
+    .map((value): LocalPluginPackage | null => {
+      const { manifest, packagePath, installedAt } = readManifestInput(value);
       const normalized = normalizePluginPackageManifest(manifest);
       if (!normalized) return null;
 
-      return {
+      const pluginPackage: LocalPluginPackage = {
         manifest: normalized,
         packagePath: packagePath ?? ''
       };
+      if (installedAt) {
+        pluginPackage.installedAt = installedAt;
+      }
+      return pluginPackage;
     })
     .filter((pluginPackage): pluginPackage is LocalPluginPackage => pluginPackage !== null)
 );
@@ -179,15 +188,20 @@ export const loadPluginRegistry = (
     ? loadBuiltinPluginManifests().map((manifest) => createRegisteredPlugin(manifest, 'builtin'))
     : [];
 
-  const registered = [
-    ...builtinPlugins,
-    ...loadLocalPluginPackages(localManifests).map((pluginPackage) => (
+  const localPlugins = loadLocalPluginPackages(localManifests)
+    .map((pluginPackage) => (
       createRegisteredPlugin(
         pluginPackage.manifest,
         'local',
-        pluginPackage.packagePath || undefined
+        pluginPackage.packagePath || undefined,
+        pluginPackage.installedAt
       )
     ))
+    .sort(compareLocalPluginsByInstallTime);
+
+  const registered = [
+    ...builtinPlugins,
+    ...localPlugins
   ];
 
   const byId = new Map<PluginId, RegisteredPlugin>();
@@ -198,4 +212,18 @@ export const loadPluginRegistry = (
   }
 
   return Array.from(byId.values());
+};
+
+const installTimeValue = (plugin: RegisteredPlugin): number => {
+  const timestamp = plugin.installedAt ? Date.parse(plugin.installedAt) : NaN;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const compareLocalPluginsByInstallTime = (
+  left: RegisteredPlugin,
+  right: RegisteredPlugin
+): number => {
+  const timeDiff = installTimeValue(right) - installTimeValue(left);
+  if (timeDiff !== 0) return timeDiff;
+  return String(left.id).localeCompare(String(right.id));
 };

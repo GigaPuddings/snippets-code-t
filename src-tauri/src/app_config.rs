@@ -1,6 +1,7 @@
 // 应用配置管理模块
 // 管理 .snippets-code/app.json 配置文件
 
+use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
@@ -372,6 +373,30 @@ impl AppConfigManager {
         self.config.plugins.remove(plugin_id);
     }
 
+    pub fn clear_plugin_owned_config(&mut self, plugin_id: &str) {
+        match plugin_id {
+            "git-sync" => {
+                self.config.git = GitSettings::default();
+            }
+            "system-theme" => {
+                self.config.dark_mode_config = None;
+                self.config.dark_mode_hotkey = None;
+            }
+            "translation" => {
+                self.config.translation_engine = None;
+                self.config.offline_model_activated = None;
+                self.config.translate_hotkey = None;
+                self.config.selection_translate_hotkey = None;
+            }
+            "screenshot" => {
+                self.config.ocr_engine = None;
+                self.config.ocr_language = None;
+                self.config.screenshot_hotkey = None;
+            }
+            _ => {}
+        }
+    }
+
     /// 通用方法：获取配置值（用于兼容旧代码）
     pub fn get_value<T>(&self, key: &str) -> Option<T>
     where
@@ -411,11 +436,21 @@ use tauri::{command, AppHandle, Emitter, Manager};
 use walkdir::WalkDir;
 use zip::ZipArchive;
 
+const PLUGIN_INSTALL_METADATA_FILE: &str = ".install-meta.json";
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalPluginPackage {
     manifest: serde_json::Value,
     package_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    installed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PluginInstallMetadata {
+    installed_at: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -602,6 +637,82 @@ pub fn ensure_enabled_plugin_storage(app_handle: &AppHandle) {
             }
         }
     }
+}
+
+fn clear_workspace_plugin_config(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
+    if plugin_id != "attachments" && plugin_id != "git-sync" {
+        return Ok(());
+    }
+
+    let update_manager = |manager: &mut crate::markdown::WorkspaceManager| -> Result<(), String> {
+        match plugin_id {
+            "attachments" => {
+                manager.update_attachment_settings(crate::markdown::AttachmentSettings::default());
+            }
+            "git-sync" => {
+                manager.set_sync_enabled(false);
+            }
+            _ => {}
+        }
+
+        manager.save()
+    };
+
+    if let Some(workspace_state) =
+        app_handle.try_state::<Arc<RwLock<crate::markdown::WorkspaceManager>>>()
+    {
+        let mut manager = workspace_state
+            .write()
+            .map_err(|e| format!("获取工作区配置锁失败: {}", e))?;
+        return update_manager(&mut manager);
+    }
+
+    let Some(workspace_root) = crate::json_config::get_workspace_root(app_handle)? else {
+        return Ok(());
+    };
+    let config_dir = workspace_root.join(".snippets-code");
+    if !config_dir.exists() {
+        fs::create_dir_all(&config_dir).map_err(|e| format!("创建工作区配置目录失败: {}", e))?;
+    }
+    let mut manager = crate::markdown::WorkspaceManager::new(config_dir)?;
+    update_manager(&mut manager)
+}
+
+fn clear_database_plugin_config(plugin_id: &str) -> Result<(), String> {
+    if plugin_id != "git-sync" {
+        return Ok(());
+    }
+
+    let conn = crate::db::DbConnectionManager::get().map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM user_settings WHERE id = 1", [])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn clear_app_plugin_config(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let mut manager = config_state
+            .write()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        manager.clear_plugin_owned_config(plugin_id);
+        manager.save()?;
+        return Ok(());
+    }
+
+    if let Ok(Some(workspace_root)) = crate::json_config::get_workspace_root(app_handle) {
+        let mut manager = AppConfigManager::new(&workspace_root)?;
+        manager.clear_plugin_owned_config(plugin_id);
+        manager.save()?;
+    }
+
+    Ok(())
+}
+
+fn clear_plugin_owned_config(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
+    clear_app_plugin_config(app_handle, plugin_id)?;
+    clear_workspace_plugin_config(app_handle, plugin_id)?;
+    clear_database_plugin_config(plugin_id)?;
+    Ok(())
 }
 
 fn refresh_plugin_shell_integration(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
@@ -1093,6 +1204,38 @@ fn read_plugin_package_manifest(manifest_path: &Path) -> Result<serde_json::Valu
         })
 }
 
+fn system_time_to_rfc3339(value: SystemTime) -> String {
+    let datetime: DateTime<Utc> = value.into();
+    datetime.to_rfc3339()
+}
+
+fn read_plugin_install_metadata(package_path: &Path) -> Option<PluginInstallMetadata> {
+    let metadata_path = package_path.join(PLUGIN_INSTALL_METADATA_FILE);
+    let content = fs::read_to_string(metadata_path).ok()?;
+    serde_json::from_str::<PluginInstallMetadata>(&content).ok()
+}
+
+fn write_plugin_install_metadata(package_path: &Path) -> Result<(), String> {
+    let metadata = PluginInstallMetadata {
+        installed_at: system_time_to_rfc3339(SystemTime::now()),
+    };
+    let content = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| format!("序列化插件安装元数据失败: {}", e))?;
+    fs::write(package_path.join(PLUGIN_INSTALL_METADATA_FILE), content)
+        .map_err(|e| format!("写入插件安装元数据失败: {} ({})", package_path.display(), e))
+}
+
+fn plugin_installed_at(package_path: &Path) -> Option<String> {
+    read_plugin_install_metadata(package_path)
+        .map(|metadata| metadata.installed_at)
+        .or_else(|| {
+            fs::metadata(package_path)
+                .ok()
+                .and_then(|metadata| metadata.created().or_else(|_| metadata.modified()).ok())
+                .map(system_time_to_rfc3339)
+        })
+}
+
 fn plugin_package_record(
     manifest: serde_json::Value,
     package_path: &Path,
@@ -1100,7 +1243,26 @@ fn plugin_package_record(
     Ok(LocalPluginPackage {
         manifest,
         package_path: path_to_display_string(&normalized_existing_path(package_path)),
+        installed_at: plugin_installed_at(package_path),
     })
+}
+
+fn plugin_package_manifest_id(plugin_package: &LocalPluginPackage) -> &str {
+    plugin_package
+        .manifest
+        .get("id")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default()
+}
+
+fn compare_plugin_package_install_time(
+    left: &LocalPluginPackage,
+    right: &LocalPluginPackage,
+) -> std::cmp::Ordering {
+    right
+        .installed_at
+        .cmp(&left.installed_at)
+        .then_with(|| plugin_package_manifest_id(left).cmp(plugin_package_manifest_id(right)))
 }
 
 fn local_plugin_package_dir(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
@@ -1772,6 +1934,8 @@ pub fn get_installed_plugin_manifests(
         }
     }
 
+    manifests.sort_by(compare_plugin_package_install_time);
+
     Ok(manifests)
 }
 
@@ -1850,6 +2014,7 @@ pub fn install_local_plugin_package(
             let _ = fs::remove_dir_all(&target_dir);
             return Err(error);
         }
+        write_plugin_install_metadata(&target_dir)?;
 
         info!("✅ [Plugin] installed local package {}", plugin_id);
         if is_plugin_enabled(&app_handle, &plugin_id) {
@@ -1952,6 +2117,8 @@ pub fn uninstall_local_plugin_package(
         );
     }
     apply_plugin_runtime_change(&app_handle, &plugin_id, false);
+
+    clear_plugin_owned_config(&app_handle, &plugin_id)?;
 
     fs::remove_dir_all(&target_dir)
         .map_err(|e| format!("删除插件目录失败: {} ({})", target_dir.display(), e))?;

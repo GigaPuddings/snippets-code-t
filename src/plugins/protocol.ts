@@ -47,6 +47,7 @@ export interface PluginPackageManifest {
   entry?: PluginPackageEntry;
   permissions?: string[];
   dependencies?: string[];
+  resourceFor?: string;
   compatibleAppVersion?: string;
   minAppVersion?: string;
   repository?: string;
@@ -56,6 +57,7 @@ export interface PluginPackageManifest {
 export interface LocalPluginPackage {
   manifest: PluginPackageManifest;
   packagePath: string;
+  installedAt?: string;
 }
 
 export interface RegisteredPlugin {
@@ -72,4 +74,6 @@ export interface RegisteredPlugin {
   hotkeys?: string[];
   searchSources?: string[];
   resourceHintKey?: string;
+  resourceFor?: string;
+  installedAt?: string;
 }
