@@ -85,7 +85,7 @@
         <button
           class="toolbar-btn"
           :class="{ 'is-active': editor?.isActive('bulletList') }"
-          @click="editor?.chain().focus().toggleBulletList().run()"
+          @click="toggleBulletList"
           :disabled="!editor"
         >
           <svg viewBox="0 0 24 24" width="18" height="18">
@@ -98,7 +98,7 @@
         <button
           class="toolbar-btn"
           :class="{ 'is-active': editor?.isActive('orderedList') }"
-          @click="editor?.chain().focus().toggleOrderedList().run()"
+          @click="toggleOrderedList"
           :disabled="!editor"
         >
           <svg viewBox="0 0 24 24" width="18" height="18">
@@ -111,7 +111,7 @@
         <button
           class="toolbar-btn"
           :class="{ 'is-active': editor?.isActive('taskList') }"
-          @click="editor?.chain().focus().toggleTaskList().run()"
+          @click="toggleTaskList"
           :disabled="!editor"
         >
           <svg viewBox="0 0 24 24" width="18" height="18">
@@ -194,6 +194,7 @@
 
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3';
+import { toggleCodeBlockForSelection, toggleListForSelection } from './utils/markdownCommands';
 
 interface Props {
   editor: Editor | null;
@@ -270,10 +271,25 @@ const insertTable = () => {
     .run();
 };
 
+const toggleBulletList = () => {
+  if (!props.editor) return;
+  toggleListForSelection(props.editor, 'bulletList');
+};
+
+const toggleOrderedList = () => {
+  if (!props.editor) return;
+  toggleListForSelection(props.editor, 'orderedList');
+};
+
+const toggleTaskList = () => {
+  if (!props.editor) return;
+  toggleListForSelection(props.editor, 'taskList');
+};
+
 // Toggle code block with highlight support
 const toggleCodeBlockWithHighlight = () => {
   if (!props.editor) return;
-  props.editor.chain().focus().toggleCodeBlock().run();
+  toggleCodeBlockForSelection(props.editor);
 };
 </script>
 

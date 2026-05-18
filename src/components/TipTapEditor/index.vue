@@ -1819,6 +1819,10 @@ defineExpose({
     @apply bg-transparent text-inherit p-0 rounded-none;
   }
 
+  pre code .ProseMirror-trailingBreak {
+    display: none;
+  }
+
   /* 代码块样式已移至 CodeBlockComponent.vue */
   pre {
     @apply mb-5;

@@ -8,7 +8,7 @@ import { markInputRule, nodeInputRule, textblockTypeInputRule, wrappingInputRule
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 
 // 调试日志开关
-const DEBUG = true;
+const DEBUG = false;
 
 const log = (message: string, ...args: unknown[]) => {
   if (DEBUG) {
@@ -261,39 +261,6 @@ export const EnhancedMarkdown = Extension.create({
               tr.split(from - 3);
               view.dispatch(tr);
               log('代码块退出处理: 成功退出代码块');
-              return true;
-            }
-
-            return false;
-          },
-        },
-      }),
-
-      // ==================== 标题结尾自动退出 ====================
-      new Plugin({
-        key: new PluginKey('headingExit'),
-        props: {
-          handleKeyDown: (view, event) => {
-            if (event.key !== 'Enter') {
-              return false;
-            }
-
-            const { state } = view;
-            const { $from } = state.selection;
-
-            if ($from.parent.type.name !== 'heading') {
-              return false;
-            }
-
-            const headingNode = $from.parent;
-            const isAtEnd = $from.parentOffset === headingNode.content.size;
-            log('标题退出处理: 检测到 Enter 键', { headingLevel: headingNode.attrs.level, isAtEnd });
-
-            if (isAtEnd) {
-              const { tr } = state;
-              tr.split($from.pos + headingNode.nodeSize);
-              view.dispatch(tr);
-              log('标题退出处理: 成功退出标题');
               return true;
             }
 

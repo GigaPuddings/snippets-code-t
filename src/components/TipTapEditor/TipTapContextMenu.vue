@@ -222,6 +222,7 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3';
 import { useI18n } from 'vue-i18n';
+import { toggleCodeBlockForSelection, toggleListForSelection } from './utils/markdownCommands';
 
 interface Props {
   editor: Editor | null;
@@ -473,7 +474,7 @@ const toggleBulletList = () => {
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertLinePrefix('- ');
   } else {
-    props.editor?.chain().focus().toggleBulletList().run();
+    props.editor && toggleListForSelection(props.editor, 'bulletList');
   }
   hide();
 };
@@ -483,7 +484,7 @@ const toggleOrderedList = () => {
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertLinePrefix('1. ');
   } else {
-    props.editor?.chain().focus().toggleOrderedList().run();
+    props.editor && toggleListForSelection(props.editor, 'orderedList');
   }
   hide();
 };
@@ -493,7 +494,7 @@ const toggleTaskList = () => {
   if (isSourceMode.value && props.sourceEditorRef) {
     props.sourceEditorRef.insertLinePrefix('- [ ] ');
   } else {
-    props.editor?.chain().focus().toggleTaskList().run();
+    props.editor && toggleListForSelection(props.editor, 'taskList');
   }
   hide();
 };
@@ -551,8 +552,7 @@ const insertCodeBlock = () => {
       textarea.focus();
     }
   } else {
-    // 使用标准的 toggleCodeBlock 命令
-    props.editor?.chain().focus().toggleCodeBlock().run();
+    props.editor && toggleCodeBlockForSelection(props.editor);
   }
   hide();
 };

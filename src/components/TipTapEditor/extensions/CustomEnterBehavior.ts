@@ -96,7 +96,14 @@ export const CustomEnterBehavior = Extension.create({
         if (d >= 0) {
           return this.editor.commands.insertContent('\n');
         }
-        return this.editor.commands.splitBlock();
+        if ($from.parent.type.name === 'heading') {
+          return this.editor
+            .chain()
+            .splitBlock({ keepMarks: false })
+            .setParagraph()
+            .run();
+        }
+        return false;
       },
       'Shift-Enter': () => {
         return this.editor.commands.setHardBreak();
