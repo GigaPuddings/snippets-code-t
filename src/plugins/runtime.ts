@@ -117,6 +117,8 @@ const loadedPluginModuleUrls = new Map<string, string[]>();
 const installedRuntimeRouteNames = new Set<string>();
 const installedRuntimeRouteRemovers = new Map<string, () => void>();
 const runtimeCleanupHandlers = new Map<string, Set<RuntimeCleanup>>();
+const runtimeSettingsTabKeys = new Set<string>();
+const runtimeTitlebarActionKeys = new Set<string>();
 
 const trimSlashes = (value: string): string =>
   value.replace(/^[\\/]+|[\\/]+$/g, '');
@@ -431,6 +433,9 @@ const appendCapability = (
   };
 };
 
+const runtimeRegistrationKey = (pluginId: string, id: string): string =>
+  `${pluginId}:${id}`;
+
 const createRuntimeContext = (
   plugin: RegisteredPlugin
 ): PluginFrontendRuntimeContext => ({
@@ -493,13 +498,21 @@ const createRuntimeContext = (
       label: tab.label,
       icon: tab.icon ?? SettingTwo
     };
-
-    pluginSettingsMenuItems.push(item);
-    pluginSettingsComponents[tab.id] = pluginComponent(
-      plugin,
-      tab.component,
-      tab.componentUrl
+    const registrationKey = runtimeRegistrationKey(String(plugin.id), tab.id);
+    const existingIndex = pluginSettingsMenuItems.findIndex(
+      (candidate) =>
+        candidate.id === tab.id && candidate.pluginId === String(plugin.id)
     );
+    const component = pluginComponent(plugin, tab.component, tab.componentUrl);
+
+    if (existingIndex === -1) {
+      pluginSettingsMenuItems.push(item);
+      pluginSettingsComponents[tab.id] = component;
+      runtimeSettingsTabKeys.add(registrationKey);
+    } else if (runtimeSettingsTabKeys.has(registrationKey)) {
+      pluginSettingsMenuItems[existingIndex] = item;
+      pluginSettingsComponents[tab.id] = component;
+    }
     appendCapability(plugin, 'settingsTabs', tab.id);
   },
   registerSearchProvider(provider) {
@@ -510,11 +523,26 @@ const createRuntimeContext = (
     appendCapability(plugin, 'searchSources', provider.source);
   },
   registerTitlebarAction(action) {
-    titlebarPluginActions.push({
+    const registrationKey = runtimeRegistrationKey(
+      String(plugin.id),
+      action.id
+    );
+    const existingIndex = titlebarPluginActions.findIndex(
+      (candidate) =>
+        candidate.id === action.id && candidate.pluginId === plugin.id
+    );
+    const titlebarAction = {
       id: action.id,
       pluginId: plugin.id,
       component: pluginComponent(plugin, action.component, action.componentUrl)
-    } satisfies TitlebarPluginAction);
+    } satisfies TitlebarPluginAction;
+
+    if (existingIndex === -1) {
+      titlebarPluginActions.push(titlebarAction);
+      runtimeTitlebarActionKeys.add(registrationKey);
+    } else if (runtimeTitlebarActionKeys.has(registrationKey)) {
+      titlebarPluginActions[existingIndex] = titlebarAction;
+    }
   },
   registerWindowShortcut(shortcut) {
     pluginWindowShortcuts.push({
@@ -709,9 +737,14 @@ export function clearRuntimePluginRegistrations(pluginId: string): void {
 
   for (let index = pluginSettingsMenuItems.length - 1; index >= 0; index -= 1) {
     const item = pluginSettingsMenuItems[index];
-    if (item.pluginId === pluginId) {
+    const registrationKey = runtimeRegistrationKey(pluginId, item.id);
+    if (
+      item.pluginId === pluginId &&
+      runtimeSettingsTabKeys.has(registrationKey)
+    ) {
       delete pluginSettingsComponents[item.id];
       pluginSettingsMenuItems.splice(index, 1);
+      runtimeSettingsTabKeys.delete(registrationKey);
     }
   }
 
@@ -722,8 +755,14 @@ export function clearRuntimePluginRegistrations(pluginId: string): void {
   }
 
   for (let index = titlebarPluginActions.length - 1; index >= 0; index -= 1) {
-    if (titlebarPluginActions[index].pluginId === pluginId) {
+    const action = titlebarPluginActions[index];
+    const registrationKey = runtimeRegistrationKey(pluginId, action.id);
+    if (
+      action.pluginId === pluginId &&
+      runtimeTitlebarActionKeys.has(registrationKey)
+    ) {
       titlebarPluginActions.splice(index, 1);
+      runtimeTitlebarActionKeys.delete(registrationKey);
     }
   }
 

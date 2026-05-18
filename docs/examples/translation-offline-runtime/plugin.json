@@ -9,9 +9,10 @@
   },
   "description": {
     "i18nKey": "plugins.translationOfflineRuntime.description",
-    "fallback": "Provides the optional Transformers.js runtime used by offline translation."
+    "fallback": "Provides the local runtime resource loaded on demand by offline translation."
   },
   "category": "automation",
+  "resourceFor": "translation",
   "enabledByDefault": true,
   "resources": {
     "hintKey": "plugins.translation.resourceHint",

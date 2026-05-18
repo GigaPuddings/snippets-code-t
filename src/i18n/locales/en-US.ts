@@ -361,7 +361,7 @@ export default {
     },
     translationOfflineRuntime: {
       name: 'Offline Translation Runtime',
-      description: 'Optional Transformers.js runtime loaded on demand by offline translation.'
+      description: 'Local runtime resource loaded on demand by offline translation; text recognition is provided by the RapidOCR resource.'
     },
     screenshot: {
       name: 'Screenshot and OCR',

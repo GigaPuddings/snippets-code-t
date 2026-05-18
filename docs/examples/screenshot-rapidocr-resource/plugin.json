@@ -12,6 +12,7 @@
     "fallback": "Provides the RapidOCR runtime required by screenshot OCR and screenshot translation."
   },
   "category": "capture",
+  "resourceFor": "screenshot",
   "enabledByDefault": true,
   "resources": {
     "hintKey": "plugins.screenshot.resourceHint",

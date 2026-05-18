@@ -132,6 +132,48 @@
                 <Download theme="outline" size="14" />
               </CustomButton>
             </div>
+            <div v-if="getMarketplaceResources(item).length" class="marketplace-resource-list">
+              <div
+                v-for="resource in getMarketplaceResources(item)"
+                :key="resource.id"
+                class="marketplace-resource-row"
+              >
+                <div class="marketplace-resource-main">
+                  <div class="plugin-title-row">
+                    <span class="plugin-name">{{ pluginText(resource.name) }}</span>
+                    <span class="plugin-category">{{ t(`plugins.categories.${resource.category}`) }}</span>
+                    <span class="plugin-source plugin-source--marketplace">
+                      {{ marketplaceStatusText(resource) }}
+                    </span>
+                  </div>
+                  <div class="plugin-description">{{ pluginText(resource.description) }}</div>
+                  <div class="plugin-meta">
+                    <span>{{ t('plugins.versionLabel', { version: resource.version }) }}</span>
+                    <span>{{ t('plugins.sizeLabel', { size: formatBytes(resource.sizeBytes) }) }}</span>
+                  </div>
+                </div>
+                <div class="plugin-controls">
+                  <CustomButton
+                    v-if="canUpdateMarketplaceItem(resource)"
+                    size="small"
+                    :title="t('plugins.marketplaceUpdate')"
+                    :loading="isMarketplaceItemInstalling(resource)"
+                    @click="handleInstallMarketplace(resource, true)"
+                  >
+                    <Refresh theme="outline" size="14" />
+                  </CustomButton>
+                  <CustomButton
+                    v-if="canInstallMarketplaceItem(resource)"
+                    size="small"
+                    :title="t('plugins.marketplaceInstall')"
+                    :loading="isMarketplaceItemInstalling(resource)"
+                    @click="handleInstallMarketplace(resource, false)"
+                  >
+                    <Download theme="outline" size="14" />
+                  </CustomButton>
+                </div>
+              </div>
+            </div>
           </div>
           <div v-if="!marketplaceLoading && !filteredMarketplaceItems.length" class="marketplace-empty">
             {{ t('plugins.marketplaceEmpty') }}
@@ -140,7 +182,7 @@
       </section>
 
       <section
-        v-for="plugin in plugins"
+        v-for="plugin in visiblePlugins"
         :key="plugin.id"
         class="plugin-row"
       >
@@ -205,6 +247,49 @@
             @change="(enabled) => handleToggle(plugin.id, Boolean(enabled))"
           />
         </div>
+        <div v-if="getInstalledResources(plugin).length" class="installed-resource-list">
+          <div
+            v-for="resource in getInstalledResources(plugin)"
+            :key="resource.id"
+            class="installed-resource-row"
+          >
+            <div class="plugin-main">
+              <div class="plugin-title-row">
+                <span class="plugin-name">{{ pluginText(resource.manifest.name) }}</span>
+                <span class="plugin-category">{{ t(`plugins.categories.${resource.category}`) }}</span>
+                <span
+                  class="plugin-source"
+                  :class="`plugin-source--${resource.source}`"
+                >
+                  {{ t(`plugins.sources.${resource.source}`) }}
+                </span>
+              </div>
+              <div class="plugin-description">{{ pluginText(resource.manifest.description) }}</div>
+              <div class="plugin-meta">
+                <span>{{ t('plugins.versionLabel', { version: resource.manifest.version }) }}</span>
+              </div>
+              <div v-if="resource.packagePath" class="plugin-path">{{ resource.packagePath }}</div>
+            </div>
+            <div class="plugin-controls">
+              <CustomButton
+                v-if="resource.source === 'local'"
+                type="danger"
+                size="small"
+                plain
+                :loading="removingPluginId === resource.id"
+                @click="handleUninstall(resource.id)"
+              >
+                <Delete theme="outline" size="14" />
+              </CustomButton>
+              <CustomSwitch
+                :model-value="pluginStore.isEnabled(resource.id)"
+                :active-text="t('common.on')"
+                :inactive-text="t('common.off')"
+                @change="(enabled) => handleToggle(resource.id, Boolean(enabled))"
+              />
+            </div>
+          </div>
+        </div>
       </section>
     </main>
   </div>
@@ -242,6 +327,7 @@ const { t } = useI18n();
 const pluginStore = usePluginStore();
 const configurationStore = useConfigurationStore();
 const plugins = computed(() => pluginStore.plugins);
+const visiblePlugins = computed(() => plugins.value.filter((plugin) => !plugin.resourceFor));
 const installing = ref(false);
 const removingPluginId = ref<string | null>(null);
 const marketplaceLoading = ref(false);
@@ -295,9 +381,11 @@ const pluginText = (text: PluginI18nText): string => {
 
 const filteredMarketplaceItems = computed(() => {
   const query = marketplaceQuery.value.trim().toLowerCase();
-  if (!query) return marketplaceItems.value;
+  const topLevelItems = marketplaceItems.value.filter((item) => !item.resourceFor);
+  if (!query) return topLevelItems;
 
-  return marketplaceItems.value.filter((item) => {
+  return topLevelItems.filter((item) => {
+    const resources = getMarketplaceResources(item);
     const haystack = [
       item.id,
       item.name.fallback,
@@ -305,7 +393,13 @@ const filteredMarketplaceItems = computed(() => {
       item.category,
       item.builtinPluginId,
       item.resourceFor,
-      ...(item.tags ?? [])
+      ...(item.tags ?? []),
+      ...resources.flatMap((resource) => [
+        resource.id,
+        resource.name.fallback,
+        resource.description.fallback,
+        ...(resource.tags ?? [])
+      ])
     ]
       .filter(Boolean)
       .join(' ')
@@ -324,6 +418,14 @@ const getInstalledMarketplacePlugin = (item: PluginMarketplaceItem): RegisteredP
 
 const getMarketplaceItemById = (id: string): PluginMarketplaceItem | undefined => (
   marketplaceItems.value.find((item) => item.id === id)
+);
+
+const getMarketplaceResources = (item: PluginMarketplaceItem): PluginMarketplaceItem[] => (
+  marketplaceItems.value.filter((resource) => resource.resourceFor === item.id)
+);
+
+const getInstalledResources = (plugin: RegisteredPlugin): RegisteredPlugin[] => (
+  plugins.value.filter((resource) => resource.resourceFor === plugin.id)
 );
 
 const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] => (
@@ -750,7 +852,7 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
 }
 
 .plugin-row {
-  @apply flex items-center justify-between gap-4 py-3 border-b border-panel last:border-b-0;
+  @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-3 border-b border-panel last:border-b-0;
 }
 
 .plugin-install-dir-panel {
@@ -798,10 +900,24 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
 }
 
 .marketplace-row {
-  @apply flex items-center justify-between gap-4 rounded border border-panel px-3 py-2;
+  @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded border border-panel px-3 py-2;
 }
 
 .marketplace-main {
+  @apply min-w-0 flex-1;
+}
+
+.marketplace-resource-list,
+.installed-resource-list {
+  @apply col-span-2 mt-1 flex flex-col gap-2 border-t border-panel pt-2;
+}
+
+.marketplace-resource-row,
+.installed-resource-row {
+  @apply flex items-center justify-between gap-4 rounded bg-hover px-3 py-2;
+}
+
+.marketplace-resource-main {
   @apply min-w-0 flex-1;
 }
 

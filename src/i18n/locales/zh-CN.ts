@@ -375,7 +375,7 @@ export default {
     },
     translationOfflineRuntime: {
       name: '离线翻译运行时',
-      description: '离线翻译按需加载的 Transformers.js 运行时资源。'
+      description: '离线翻译按需加载的本地运行时资源，文本识别由 RapidOCR 资源提供。'
     },
     screenshot: {
       name: '截图与 OCR',
