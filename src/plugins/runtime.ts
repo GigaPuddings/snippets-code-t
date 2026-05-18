@@ -19,6 +19,7 @@ import {
 } from './settings';
 import { titlebarPluginActions, type TitlebarPluginAction } from './titlebar';
 import { pluginWindowShortcuts, type PluginWindowShortcut } from './windows';
+import { logger } from '@/utils/logger';
 
 type RuntimeRouteTarget = 'config' | 'layout' | 'window';
 
@@ -354,6 +355,13 @@ const activateFrontendModule = async (
   await activate(createRuntimeContext(plugin));
 };
 
+const activateOfficialPluginRuntime = async (
+  context: PluginFrontendRuntimeContext
+): Promise<boolean> => {
+  const { activateOfficialLocalPlugin } = await import('./official-runtime');
+  return activateOfficialLocalPlugin(context);
+};
+
 const activateBundledOfficialLocalPlugin = async (
   context: PluginFrontendRuntimeContext
 ): Promise<boolean> => {
@@ -361,8 +369,7 @@ const activateBundledOfficialLocalPlugin = async (
     return false;
   }
 
-  const { activateOfficialLocalPlugin } = await import('./official-runtime');
-  return activateOfficialLocalPlugin(context);
+  return activateOfficialPluginRuntime(context);
 };
 
 const ensurePluginStyles = (plugin: RegisteredPlugin): void => {
@@ -381,6 +388,12 @@ const ensurePluginStyles = (plugin: RegisteredPlugin): void => {
   });
 
   loadedPluginStyleLinks.set(String(plugin.id), links);
+};
+
+const removePluginStyles = (pluginId: string): void => {
+  const links = loadedPluginStyleLinks.get(pluginId) ?? [];
+  links.forEach((link) => link.remove());
+  loadedPluginStyleLinks.delete(pluginId);
 };
 
 export const ensureLocalPluginFrontendEntries = async (
@@ -405,7 +418,24 @@ export const ensureLocalPluginFrontendEntries = async (
         await activateFrontendModule(plugin, pluginModule);
         loadedFrontendEntries.add(String(plugin.id));
       } catch (error) {
-        console.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
+        removePluginStyles(String(plugin.id));
+        logger.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
+        try {
+          const activated = await activateOfficialPluginRuntime(
+            createRuntimeContext(plugin)
+          );
+          if (activated) {
+            loadedFrontendEntries.add(String(plugin.id));
+            logger.warn(
+              `[PluginRuntime] 已回退到内置官方插件运行时: ${plugin.id}`
+            );
+          }
+        } catch (fallbackError) {
+          logger.warn(
+            `[PluginRuntime] 回退内置官方插件运行时失败: ${plugin.id}`,
+            fallbackError
+          );
+        }
       }
       continue;
     }
@@ -418,10 +448,7 @@ export const ensureLocalPluginFrontendEntries = async (
         loadedFrontendEntries.add(String(plugin.id));
       }
     } catch (error) {
-      console.warn(
-        `[PluginRuntime] 加载官方插件运行时失败: ${plugin.id}`,
-        error
-      );
+      logger.warn(`[PluginRuntime] 加载官方插件运行时失败: ${plugin.id}`, error);
     }
   }
 };

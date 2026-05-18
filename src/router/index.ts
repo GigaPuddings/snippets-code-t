@@ -18,10 +18,6 @@ const routes: RouteRecordRaw[] = [
     ]
   },
   {
-    path: '/:pathMatch(.*)*',
-    component: () => import('@/pages/error-page/404.vue')
-  },
-  {
     path: '/',
     name: 'Root',
     component: Layout,
@@ -111,6 +107,10 @@ const routes: RouteRecordRaw[] = [
     name: 'Setup',
     component: () => import('@/pages/setup/index.vue')
   },
+  {
+    path: '/:pathMatch(.*)*',
+    component: () => import('@/pages/error-page/404.vue')
+  },
 ];
 
 const router = createRouter({
@@ -123,7 +123,11 @@ router.beforeEach(async (to) => {
   await pluginStore.initialize();
 
   const addedRuntimeRoutes = installRuntimePluginRoutes(router);
-  if (addedRuntimeRoutes > 0 && to.name === undefined) {
+  if (
+    addedRuntimeRoutes > 0
+    && to.name === undefined
+    && to.matched.some((record) => record.path === '/:pathMatch(.*)*')
+  ) {
     return to.fullPath;
   }
 

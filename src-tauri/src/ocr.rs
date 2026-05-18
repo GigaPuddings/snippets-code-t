@@ -461,9 +461,9 @@ fn rapidocr_exe_names() -> &'static [&'static str] {
 
 fn rapidocr_search_roots(app_handle: &tauri::AppHandle) -> Vec<(PathBuf, String)> {
     let mut roots = Vec::new();
-    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+    if let Ok(plugins_dir) = crate::app_config::resolve_plugin_packages_dir(app_handle) {
         for plugin_id in ["screenshot", "screenshot-rapidocr"] {
-            let plugin_dir = app_data_dir.join("plugins").join(plugin_id);
+            let plugin_dir = plugins_dir.join(plugin_id);
             roots.push((
                 plugin_dir.join("resources").join("rapidocr"),
                 format!("plugin:{}:resources/rapidocr", plugin_id),
@@ -1126,7 +1126,7 @@ fn run_rapidocr_language_candidate(
                     "backend",
                     "RapidOCR parse success",
                     Some(&format!(
-                        "language={}, label={}, duration_ms={}, score={:.2}, chars={}, blocks={}, confidence={:.2}, readable_bonus={:.2}, garbage_penalty={:.2}, script_mismatch_penalty={:.2}, latin_gibberish_penalty={:.2}, low_confidence_penalty={:.2}, text_preview={}",
+                        "language={}, label={}, duration_ms={}, score={:.2}, chars={}, blocks={}, confidence={:.2}, readable_bonus={:.2}, script_presence_bonus={:.2}, garbage_penalty={:.2}, script_mismatch_penalty={:.2}, competing_script_penalty={:.2}, latin_gibberish_penalty={:.2}, low_confidence_penalty={:.2}, text_preview={}",
                         language.label(),
                         attempt.label,
                         language_started_at.elapsed().as_millis(),
@@ -1135,8 +1135,10 @@ fn run_rapidocr_language_candidate(
                         result.blocks.len(),
                         result.confidence,
                         score_breakdown.readable_bonus,
+                        score_breakdown.script_presence_bonus,
                         score_breakdown.garbage_penalty,
                         score_breakdown.script_mismatch_penalty,
+                        score_breakdown.competing_script_penalty,
                         score_breakdown.latin_gibberish_penalty,
                         score_breakdown.low_confidence_penalty,
                         preview_for_log(&result.full_text, 500)
@@ -1248,8 +1250,10 @@ fn build_fallback_language_candidates(
 struct OcrScoreBreakdown {
     total: f64,
     readable_bonus: f64,
+    script_presence_bonus: f64,
     garbage_penalty: f64,
     script_mismatch_penalty: f64,
+    competing_script_penalty: f64,
     latin_gibberish_penalty: f64,
     low_confidence_penalty: f64,
 }
@@ -1263,8 +1267,10 @@ fn score_ocr_result_breakdown(
         return OcrScoreBreakdown {
             total: -10000.0,
             readable_bonus: 0.0,
+            script_presence_bonus: 0.0,
             garbage_penalty: 0.0,
             script_mismatch_penalty: 0.0,
+            competing_script_penalty: 0.0,
             latin_gibberish_penalty: 0.0,
             low_confidence_penalty: 0.0,
         };
@@ -1275,8 +1281,10 @@ fn score_ocr_result_breakdown(
     let confidence = result.confidence.clamp(0.0, 100.0);
     let confidence_bonus = confidence * 4.0;
     let readable_bonus = text_readability_score(text, language);
+    let script_presence_bonus = text_script_presence_bonus(text, language);
     let garbage_penalty = text_garbage_penalty(text);
     let script_mismatch_penalty = text_script_mismatch_penalty(text, language);
+    let competing_script_penalty = text_competing_script_penalty(text, language);
     let latin_gibberish_penalty = text_latin_gibberish_penalty(text);
     let low_confidence_penalty = if confidence < 70.0 {
         (70.0 - confidence) * 4.0
@@ -1284,17 +1292,24 @@ fn score_ocr_result_breakdown(
         0.0
     };
 
-    let total = compact_chars * 0.6 + block_bonus + confidence_bonus + readable_bonus
+    let total = compact_chars * 0.6
+        + block_bonus
+        + confidence_bonus
+        + readable_bonus
+        + script_presence_bonus
         - garbage_penalty
         - script_mismatch_penalty
+        - competing_script_penalty
         - latin_gibberish_penalty
         - low_confidence_penalty;
 
     OcrScoreBreakdown {
         total,
         readable_bonus,
+        script_presence_bonus,
         garbage_penalty,
         script_mismatch_penalty,
+        competing_script_penalty,
         latin_gibberish_penalty,
         low_confidence_penalty,
     }
@@ -1319,6 +1334,42 @@ fn text_readability_score(text: &str, language: OcrLanguage) -> f64 {
     }
 
     (matching / total) * 140.0
+}
+
+fn text_script_presence_bonus(text: &str, language: OcrLanguage) -> f64 {
+    let stats = script_stats(text);
+    let compact = stats.compact_count as f64;
+    if compact < 20.0 {
+        return 0.0;
+    }
+
+    match language {
+        OcrLanguage::ChineseSimplified | OcrLanguage::ChineseTraditional => {
+            let cjk = stats.cjk_count as f64;
+            if cjk < 8.0 {
+                return 0.0;
+            }
+
+            let ratio = cjk / compact;
+            80.0 + cjk.min(80.0) * 3.5 + ratio * 180.0
+        }
+        OcrLanguage::Japanese => {
+            let cjk = stats.cjk_count as f64;
+            let kana = stats.kana_count as f64;
+            if cjk + kana < 8.0 {
+                return 0.0;
+            }
+            70.0 + (cjk + kana).min(80.0) * 3.0
+        }
+        OcrLanguage::Korean => {
+            let hangul = stats.hangul_count as f64;
+            if hangul < 8.0 {
+                return 0.0;
+            }
+            70.0 + hangul.min(80.0) * 3.0
+        }
+        OcrLanguage::English => 0.0,
+    }
 }
 
 fn text_script_mismatch_penalty(text: &str, language: OcrLanguage) -> f64 {
@@ -1378,6 +1429,73 @@ fn is_language_script_char(ch: char) -> bool {
             code,
             0x3040..=0x30FF | 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xAC00..=0xD7AF
         )
+}
+
+fn text_competing_script_penalty(text: &str, language: OcrLanguage) -> f64 {
+    let stats = script_stats(text);
+    let compact = stats.compact_count as f64;
+    if compact < 20.0 {
+        return 0.0;
+    }
+
+    match language {
+        OcrLanguage::English => {
+            let cjk = stats.cjk_count as f64;
+            if cjk < 4.0 {
+                return 0.0;
+            }
+            let ratio = cjk / compact;
+            140.0 + cjk * 7.0 + ratio * 360.0
+        }
+        OcrLanguage::ChineseSimplified | OcrLanguage::ChineseTraditional => {
+            let ascii_letters = stats.ascii_letter_count as f64;
+            let cjk = stats.cjk_count as f64;
+            if ascii_letters < 18.0 || cjk >= 4.0 {
+                return 0.0;
+            }
+            let ratio = ascii_letters / compact;
+            if ratio > 0.72 {
+                120.0 + ratio * 160.0
+            } else {
+                0.0
+            }
+        }
+        _ => 0.0,
+    }
+}
+
+#[derive(Default)]
+struct ScriptStats {
+    compact_count: usize,
+    cjk_count: usize,
+    kana_count: usize,
+    hangul_count: usize,
+    ascii_letter_count: usize,
+}
+
+fn script_stats(text: &str) -> ScriptStats {
+    let mut stats = ScriptStats::default();
+    for ch in text.chars() {
+        if ch.is_whitespace() {
+            continue;
+        }
+
+        stats.compact_count += 1;
+        if ch.is_ascii_alphabetic() {
+            stats.ascii_letter_count += 1;
+        }
+        let code = ch as u32;
+        if matches!(code, 0x3400..=0x4DBF | 0x4E00..=0x9FFF) {
+            stats.cjk_count += 1;
+        }
+        if matches!(code, 0x3040..=0x30FF) {
+            stats.kana_count += 1;
+        }
+        if matches!(code, 0xAC00..=0xD7AF) {
+            stats.hangul_count += 1;
+        }
+    }
+    stats
 }
 
 fn text_garbage_penalty(text: &str) -> f64 {
@@ -2092,6 +2210,62 @@ fn collect_split_rapidocr_arrays(value: &Value, blocks: &mut Vec<OcrTextBlock>) 
     }
 
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ocr_result(
+        text: &str,
+        confidence: f64,
+        block_count: usize,
+        language: &str,
+    ) -> OcrRecognizeResult {
+        OcrRecognizeResult {
+            full_text: text.to_string(),
+            text: text.to_string(),
+            confidence,
+            blocks: (0..block_count)
+                .map(|index| OcrTextBlock {
+                    text: format!("line {}", index),
+                    x: 0.0,
+                    y: index as f64 * 24.0,
+                    width: 120.0,
+                    height: 20.0,
+                    font_size: 16.0,
+                    line_height: 20.0,
+                    angle: 0.0,
+                    confidence,
+                })
+                .collect(),
+            engine: format!("rapidocr:{}", language),
+            language: language.to_string(),
+        }
+    }
+
+    #[test]
+    fn scores_chinese_candidate_above_short_english_gibberish() {
+        let chinese_text = "1.插件安装位置现在可自定义\n在插件设置页新增了“插件安装位置”，可以选择目录、保存、恢复默认。底层安装、卸载、扫描插件清单都\n会走同一个配置目录，不再固定到c：\\Users\\zero\\AppData\\Roaming\\com.snippets-\ncode.app\\plugins\\。";
+        let english_text =
+            "1\n7i\ncUsers\\zero\\AppDataRoaming\\com.snippets-\ncode.app\\plugins\\ o";
+
+        let chinese_score = score_ocr_result_breakdown(
+            &ocr_result(chinese_text, 98.02, 4, "zh"),
+            OcrLanguage::ChineseSimplified,
+        );
+        let english_score = score_ocr_result_breakdown(
+            &ocr_result(english_text, 82.75, 4, "en"),
+            OcrLanguage::English,
+        );
+
+        assert!(
+            chinese_score.total > english_score.total,
+            "expected zh score {} > en score {}",
+            chinese_score.total,
+            english_score.total
+        );
+    }
 }
 
 fn get_first_array<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a Vec<Value>> {

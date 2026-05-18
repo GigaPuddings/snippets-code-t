@@ -39,6 +39,8 @@ pub struct AppConfig {
     // 插件启用状态。官方功能默认需要安装本地插件包，核心功能除外。
     #[serde(default = "default_plugin_states")]
     pub plugins: PluginStates,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_install_dir: Option<String>,
 
     // 以下字段用于兼容旧系统（json_config 模块）
     // 使用 Option 类型，不存在时不序列化
@@ -203,6 +205,7 @@ impl Default for AppConfig {
             setup_completed: true, // 默认为 true
             git: GitSettings::default(),
             plugins: default_plugin_states(),
+            plugin_install_dir: None,
             // 兼容字段默认为 None
             update_available: None,
             update_info: None,
@@ -701,11 +704,209 @@ pub fn get_plugin_states(app_handle: AppHandle) -> Result<HashMap<String, bool>,
 }
 
 fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(configured_root) = configured_plugin_install_root_dir(app_handle)? {
+        return Ok(configured_root.join("plugins"));
+    }
+
+    default_plugin_packages_dir(app_handle)
+}
+
+fn default_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_handle
         .path()
         .app_data_dir()
         .map_err(|e| format!("获取应用数据目录失败: {}", e))?
         .join("plugins"))
+}
+
+pub fn resolve_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    plugin_packages_dir(app_handle)
+}
+
+fn configured_plugin_install_root_dir(app_handle: &AppHandle) -> Result<Option<PathBuf>, String> {
+    let config = if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>()
+    {
+        let manager = config_state
+            .read()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        Some(manager.get_config().clone())
+    } else if let Ok(Some(workspace_root)) = crate::json_config::get_workspace_root(app_handle) {
+        AppConfigManager::new(&workspace_root)
+            .map(|manager| Some(manager.get_config().clone()))
+            .unwrap_or(None)
+    } else {
+        None
+    };
+
+    Ok(config
+        .and_then(|value| value.plugin_install_dir)
+        .map(|value| normalize_plugin_install_root(Path::new(value.trim())))
+        .filter(|value| value.is_absolute()))
+}
+
+fn normalize_plugin_install_root(path: &Path) -> PathBuf {
+    if path
+        .file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("plugins"))
+    {
+        return path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| path.to_path_buf());
+    }
+
+    path.to_path_buf()
+}
+
+fn path_to_display_string(path: &Path) -> String {
+    let value = path.to_string_lossy().to_string();
+    #[cfg(windows)]
+    {
+        if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{}", rest);
+        }
+        if let Some(rest) = value.strip_prefix(r"\\?\") {
+            return rest.to_string();
+        }
+    }
+    value
+}
+
+fn normalized_existing_path(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn same_path(left: &Path, right: &Path) -> bool {
+    path_to_display_string(&normalized_existing_path(left))
+        .eq_ignore_ascii_case(&path_to_display_string(&normalized_existing_path(right)))
+}
+
+fn migrate_installed_plugin_packages(old_dir: &Path, new_dir: &Path) -> Result<(), String> {
+    if same_path(old_dir, new_dir) || !old_dir.exists() {
+        return Ok(());
+    }
+
+    fs::create_dir_all(new_dir)
+        .map_err(|e| format!("创建插件安装目录失败: {} ({})", new_dir.display(), e))?;
+
+    let entries = fs::read_dir(old_dir)
+        .map_err(|e| format!("读取原插件目录失败: {} ({})", old_dir.display(), e))?;
+
+    for entry in entries.flatten() {
+        let source_path = entry.path();
+        if !source_path.join("plugin.json").is_file() {
+            continue;
+        }
+
+        let Some(plugin_dir_name) = source_path.file_name() else {
+            continue;
+        };
+        let target_path = new_dir.join(plugin_dir_name);
+        if target_path.exists() {
+            warn!(
+                "[Plugin] 迁移插件时目标已存在，跳过: {}",
+                target_path.display()
+            );
+            continue;
+        }
+
+        let temp_path = new_dir.join(format!(
+            ".migration-tmp-{}-{}",
+            plugin_dir_name.to_string_lossy(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|e| format!("生成迁移临时目录失败: {}", e))?
+                .as_millis()
+        ));
+
+        if let Err(error) = copy_plugin_package_dir(&source_path, &temp_path).and_then(|_| {
+            fs::rename(&temp_path, &target_path).map_err(|e| {
+                format!(
+                    "完成插件迁移失败: {} -> {} ({})",
+                    temp_path.display(),
+                    target_path.display(),
+                    e
+                )
+            })
+        }) {
+            let _ = fs::remove_dir_all(&temp_path);
+            return Err(error);
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+pub fn get_plugin_install_dir(app_handle: AppHandle) -> Result<String, String> {
+    let plugins_dir = plugin_packages_dir(&app_handle)?;
+    Ok(path_to_display_string(&normalized_existing_path(
+        &plugins_dir,
+    )))
+}
+
+#[command]
+pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Result<(), String> {
+    let old_plugins_dir = plugin_packages_dir(&app_handle)?;
+    let legacy_direct_plugins_dir = configured_plugin_install_root_dir(&app_handle)?;
+    let configured_path = path
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let (new_plugins_dir, normalized_path) = if let Some(value) = configured_path {
+        let selected_root = normalize_plugin_install_root(&PathBuf::from(value));
+        if !selected_root.is_absolute() {
+            return Err("插件安装目录必须是绝对路径".to_string());
+        }
+        if selected_root.is_file() {
+            return Err("插件安装目录不能是文件".to_string());
+        }
+        fs::create_dir_all(&selected_root).map_err(|e| {
+            format!(
+                "创建插件安装根目录失败: {} ({})",
+                selected_root.display(),
+                e
+            )
+        })?;
+        let normalized_root = normalized_existing_path(&selected_root);
+        let plugins_dir = normalized_root.join("plugins");
+        fs::create_dir_all(&plugins_dir)
+            .map_err(|e| format!("创建插件安装目录失败: {} ({})", plugins_dir.display(), e))?;
+        (
+            normalized_existing_path(&plugins_dir),
+            Some(path_to_display_string(&normalized_root)),
+        )
+    } else {
+        let default_dir = default_plugin_packages_dir(&app_handle)?;
+        (normalized_existing_path(&default_dir), None)
+    };
+
+    migrate_installed_plugin_packages(&old_plugins_dir, &new_plugins_dir)?;
+    if let Some(legacy_direct_plugins_dir) = legacy_direct_plugins_dir {
+        migrate_installed_plugin_packages(&legacy_direct_plugins_dir, &new_plugins_dir)?;
+    }
+
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let mut manager = config_state
+            .write()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        let mut config = manager.get_config().clone();
+        config.plugin_install_dir = normalized_path;
+        manager.update_config(config);
+        manager.save()?;
+        info!("✅ [Plugin] 插件安装目录已更新");
+        return Ok(());
+    }
+
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let mut manager = AppConfigManager::new(&workspace_root)?;
+    let mut config = manager.get_config().clone();
+    config.plugin_install_dir = normalized_path;
+    manager.update_config(config);
+    manager.save()?;
+    info!("✅ [Plugin] 插件安装目录已更新");
+    Ok(())
 }
 
 fn is_local_plugin_package_installed(app_handle: &AppHandle, plugin_id: &str) -> bool {
@@ -866,11 +1067,7 @@ fn plugin_package_record(
 ) -> Result<LocalPluginPackage, String> {
     Ok(LocalPluginPackage {
         manifest,
-        package_path: package_path
-            .canonicalize()
-            .unwrap_or_else(|_| package_path.to_path_buf())
-            .to_string_lossy()
-            .to_string(),
+        package_path: path_to_display_string(&normalized_existing_path(package_path)),
     })
 }
 
@@ -1640,13 +1837,9 @@ pub fn get_local_plugin_resource_path(
         return Ok(None);
     }
 
-    Ok(Some(
-        resource_path
-            .canonicalize()
-            .unwrap_or(resource_path)
-            .to_string_lossy()
-            .to_string(),
-    ))
+    Ok(Some(path_to_display_string(&normalized_existing_path(
+        &resource_path,
+    ))))
 }
 
 #[command]
@@ -1686,4 +1879,18 @@ pub fn set_plugin_enabled(
     info!("✅ [Plugin] {} enabled={}", plugin_id, enabled);
     apply_plugin_runtime_change(&app_handle, &plugin_id, enabled);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_custom_plugin_root_to_plugins_child() {
+        let root = PathBuf::from(r"D:\zero\桌面");
+        let already_plugins = PathBuf::from(r"D:\zero\桌面\plugins");
+
+        assert_eq!(root, normalize_plugin_install_root(&root));
+        assert_eq!(root, normalize_plugin_install_root(&already_plugins));
+    }
 }

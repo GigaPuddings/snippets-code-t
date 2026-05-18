@@ -257,6 +257,7 @@ export interface AppConfig {
   autoHideOnBlur: boolean;
   git: GitSettings;
   plugins?: Record<string, { enabled: boolean }>;
+  pluginInstallDir?: string | null;
 }
 
 /**

@@ -942,6 +942,8 @@ pub fn run() {
             app_config::update_theme_config,            // 更新主题设置
             app_config::update_language_config,         // 更新语言设置
             app_config::get_plugin_states,              // 获取插件状态
+            app_config::get_plugin_install_dir,         // 获取插件安装目录
+            app_config::set_plugin_install_dir,         // 设置插件安装目录
             app_config::get_installed_plugin_manifests, // 获取本地插件清单
             app_config::fetch_plugin_marketplace,       // 获取远程插件市场
             app_config::install_local_plugin_package,   // 安装本地插件包

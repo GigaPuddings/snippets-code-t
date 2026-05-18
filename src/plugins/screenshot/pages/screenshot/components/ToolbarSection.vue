@@ -338,14 +338,11 @@ watch(() => props.currentTool, () => {
   @apply flex flex-col gap-2;
 
   .toolbar-panel {
-    @apply flex items-center gap-3 px-3 py-2 border backdrop-blur-md;
-    background: color-mix(in srgb, var(--el-bg-color) 86%, transparent);
-    border-color: var(--el-border-color);
-    border-radius: 14px;
-    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.14);
+    @apply flex items-center gap-3 bg-white rounded-lg shadow-lg px-2 py-1 border border-gray-200;
 
     &.first-panel {
       min-width: 400px;
+      max-width: 980px;
     }
 
     &.second-panel {
@@ -358,30 +355,16 @@ watch(() => props.currentTool, () => {
     @apply flex items-center gap-1;
 
     .tool-btn {
-      @apply w-9 h-9 flex items-center justify-center transition-all duration-200 border;
-      background: var(--el-bg-color);
-      border-color: var(--el-border-color);
-      color: var(--el-text-color-regular);
-      border-radius: 10px;
-
-      &:hover {
-        background: var(--el-fill-color-light);
-        transform: translateY(-1px);
-      }
+      @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 border border-gray-300 bg-white hover:bg-gray-50;
 
       &.active {
-        color: #fff;
-        background: var(--el-color-primary);
-        border-color: var(--el-color-primary);
-        box-shadow: 0 8px 18px color-mix(in srgb, var(--el-color-primary) 28%, transparent);
+        @apply bg-blue-500 text-white border-blue-500;
       }
     }
   }
 
   .toolbar-divider {
-    width: 1px;
-    height: 20px;
-    background: var(--el-border-color);
+    @apply w-[2px] h-8 bg-gray-300;
   }
 
   .style-section {
@@ -401,21 +384,10 @@ watch(() => props.currentTool, () => {
       .width-btn,
       .size-btn,
       .engine-btn {
-        @apply w-9 h-9 flex items-center justify-center transition-all duration-200 border;
-        background: var(--el-bg-color);
-        border-color: var(--el-border-color);
-        color: var(--el-text-color-regular);
-        border-radius: 10px;
-
-        &:hover {
-          background: var(--el-fill-color-light);
-          transform: translateY(-1px);
-        }
+        @apply w-8 h-8 flex items-center justify-center rounded border border-gray-300 bg-white hover:bg-gray-50 transition-all duration-200;
 
         &.active {
-          color: var(--el-color-primary);
-          border-color: var(--el-color-primary);
-          background: color-mix(in srgb, var(--el-color-primary) 10%, var(--el-bg-color));
+          @apply border-blue-500 bg-blue-50;
         }
 
         .line-preview {
@@ -424,13 +396,11 @@ watch(() => props.currentTool, () => {
         }
 
         .size-text {
-          color: inherit;
-          font-weight: 600;
+          @apply text-gray-600;
         }
 
         .mosaic-preview {
-          @apply rounded-full inline-block;
-          background: color-mix(in srgb, var(--el-text-color-regular) 42%, transparent);
+          @apply rounded-full bg-gray-200 inline-block;
         }
       }
 
@@ -439,16 +409,14 @@ watch(() => props.currentTool, () => {
       }
 
       .color-btn {
-        @apply w-6 h-6 rounded cursor-pointer transition-all duration-200 border;
-        border-color: var(--el-border-color);
+        @apply w-6 h-6 rounded border border-gray-300 cursor-pointer transition-all duration-200;
 
         &.active {
-          transform: scale(1.08);
-          box-shadow: 0 0 0 2px var(--el-bg-color), 0 0 0 4px var(--el-color-primary);
+          @apply border-gray-500 transform scale-110;
         }
 
         &:hover {
-          transform: scale(1.06);
+          @apply transform scale-105;
         }
       }
 
@@ -457,13 +425,10 @@ watch(() => props.currentTool, () => {
         @apply relative;
 
         .color-trigger-btn {
-          @apply w-9 h-9 rounded cursor-pointer transition-all duration-200 flex items-center justify-center relative border;
-          border-color: var(--el-border-color);
-          background: var(--el-bg-color);
+          @apply w-8 h-8 rounded border border-gray-300 cursor-pointer transition-all duration-200 flex items-center justify-center relative;
 
           &:hover {
-            border-color: var(--el-color-primary);
-            transform: translateY(-1px);
+            @apply transform scale-105;
           }
 
           .color-trigger-inner {
@@ -473,13 +438,8 @@ watch(() => props.currentTool, () => {
         }
 
         .color-picker-panel {
-          @apply absolute left-0 p-2 z-50 border;
+          @apply absolute left-0 p-2 z-50 border border-gray-200 bg-white rounded-lg shadow-lg;
           top: calc(100% + 8px);
-          background: color-mix(in srgb, var(--el-bg-color) 92%, transparent);
-          border-color: var(--el-border-color);
-          border-radius: 14px;
-          box-shadow: 0 18px 38px rgba(0, 0, 0, 0.18);
-          backdrop-filter: blur(14px);
 
           .color-row {
             @apply flex items-center gap-2;
@@ -529,34 +489,27 @@ watch(() => props.currentTool, () => {
     @apply flex items-center gap-2;
 
     .action-btn {
-      @apply w-9 h-9 flex items-center justify-center transition-all duration-200 border;
-      background: var(--el-bg-color);
-      border-color: var(--el-border-color);
-      color: var(--el-text-color-regular);
-      border-radius: 10px;
+      @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200;
 
       &:disabled {
-        color: var(--el-text-color-placeholder);
-        cursor: not-allowed;
-        opacity: 0.72;
+        @apply text-gray-300 cursor-not-allowed;
       }
 
       &.save {
-        color: var(--el-color-primary);
+        @apply text-blue-500;
       }
 
       &.confirm {
-        color: var(--el-color-success);
+        @apply text-green-500;
       }
 
       &.delete,
       &.cancel {
-        color: var(--el-color-danger);
+        @apply text-red-500;
       }
 
       &:hover:not(:disabled) {
-        background: var(--el-fill-color-light);
-        transform: translateY(-1px);
+        @apply bg-gray-100;
       }
 
       &:active:not(:disabled) {

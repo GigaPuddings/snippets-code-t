@@ -62,6 +62,14 @@ export async function getInstalledPluginManifests(): Promise<
   return await invoke<LocalPluginPackage[]>('get_installed_plugin_manifests');
 }
 
+export async function getPluginInstallDir(): Promise<string> {
+  return await invoke<string>('get_plugin_install_dir');
+}
+
+export async function setPluginInstallDir(path?: string | null): Promise<void> {
+  await invoke('set_plugin_install_dir', { path: path || null });
+}
+
 export async function installLocalPluginPackage(
   sourcePath: string,
   overwrite = false

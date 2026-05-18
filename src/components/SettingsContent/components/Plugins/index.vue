@@ -24,6 +24,31 @@
         <div class="plugins-intro-desc">{{ t('plugins.builtinDesc') }}</div>
       </section>
 
+      <section class="plugin-install-dir-panel">
+        <div class="plugin-install-dir-main">
+          <div class="plugin-install-dir-title">{{ t('plugins.installLocationTitle') }}</div>
+          <div class="plugin-install-dir-desc">{{ t('plugins.installLocationDesc') }}</div>
+          <input
+            v-model="pluginInstallDir"
+            class="plugin-install-dir-input"
+            readonly
+            :placeholder="t('plugins.installLocationDefault')"
+          >
+        </div>
+        <div class="plugin-install-dir-actions">
+          <CustomButton size="small" plain :loading="pluginInstallDirLoading" @click="handleChoosePluginInstallDir">
+            <FolderOpen theme="outline" size="14" class="button-icon" />
+            {{ t('plugins.chooseInstallLocation') }}
+          </CustomButton>
+          <CustomButton size="small" :loading="savingPluginInstallDir" @click="handleSavePluginInstallDir">
+            {{ t('common.save') }}
+          </CustomButton>
+          <CustomButton size="small" plain :loading="savingPluginInstallDir" @click="handleResetPluginInstallDir">
+            {{ t('plugins.resetInstallLocation') }}
+          </CustomButton>
+        </div>
+      </section>
+
       <section class="marketplace-panel">
         <div class="marketplace-toolbar">
           <div class="marketplace-search">
@@ -194,6 +219,8 @@ import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { Delete, Download, FileZip, FolderOpen, Refresh, Search } from '@icon-park/vue-next';
 import {
   fetchPluginMarketplace,
+  getPluginInstallDir,
+  setPluginInstallDir,
   type PluginInstallProgress,
   type PluginMarketplaceItem
 } from '@/api/plugins';
@@ -225,12 +252,16 @@ const installingPackageId = ref<string | null>(null);
 const installProgress = ref<PluginInstallProgress | null>(null);
 const installProgressUnlisten = ref<UnlistenFn | null>(null);
 const appVersion = ref('');
+const pluginInstallDir = ref('');
+const pluginInstallDirLoading = ref(false);
+const savingPluginInstallDir = ref(false);
 
 const DEFAULT_MARKETPLACE_URL = 'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/codex/plugin-system-refactor/docs/plugin-marketplace/marketplace.json';
 const isExternalOfficialPluginMode = OFFICIAL_PLUGINS_MODE === 'external';
 
 onMounted(async () => {
   pluginStore.initialize();
+  loadPluginInstallDir();
   refreshMarketplace(false);
   try {
     installProgressUnlisten.value = await listen<PluginInstallProgress>(
@@ -470,6 +501,55 @@ const handleRefreshMarketplace = async () => {
   await refreshMarketplace(true);
 };
 
+const loadPluginInstallDir = async () => {
+  pluginInstallDirLoading.value = true;
+  try {
+    pluginInstallDir.value = await getPluginInstallDir();
+  } catch (error) {
+    logger.warn('[PluginSettings] load plugin install dir failed', error);
+  } finally {
+    pluginInstallDirLoading.value = false;
+  }
+};
+
+const handleChoosePluginInstallDir = async () => {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title: t('plugins.selectInstallLocation')
+  });
+  if (!selected || Array.isArray(selected)) return;
+  pluginInstallDir.value = selected;
+};
+
+const handleSavePluginInstallDir = async () => {
+  savingPluginInstallDir.value = true;
+  try {
+    await setPluginInstallDir(pluginInstallDir.value.trim() || null);
+    pluginInstallDir.value = await getPluginInstallDir();
+    await pluginStore.refreshInstalledPlugins();
+    modal.msg(t('plugins.installLocationSaved'));
+  } catch (error) {
+    modal.msg(`${t('plugins.installLocationSaveFailed')}: ${error}`, 'error');
+  } finally {
+    savingPluginInstallDir.value = false;
+  }
+};
+
+const handleResetPluginInstallDir = async () => {
+  savingPluginInstallDir.value = true;
+  try {
+    await setPluginInstallDir(null);
+    pluginInstallDir.value = await getPluginInstallDir();
+    await pluginStore.refreshInstalledPlugins();
+    modal.msg(t('plugins.installLocationReset'));
+  } catch (error) {
+    modal.msg(`${t('plugins.installLocationSaveFailed')}: ${error}`, 'error');
+  } finally {
+    savingPluginInstallDir.value = false;
+  }
+};
+
 const installMarketplaceItemWithDependencies = async (
   item: PluginMarketplaceItem,
   visited = new Set<string>()
@@ -671,6 +751,30 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
 
 .plugin-row {
   @apply flex items-center justify-between gap-4 py-3 border-b border-panel last:border-b-0;
+}
+
+.plugin-install-dir-panel {
+  @apply mb-4 flex items-end justify-between gap-3 border-b border-panel pb-4;
+}
+
+.plugin-install-dir-main {
+  @apply min-w-0 flex-1;
+}
+
+.plugin-install-dir-title {
+  @apply mb-1 text-sm font-medium text-panel;
+}
+
+.plugin-install-dir-desc {
+  @apply mb-2 text-xs leading-5 text-panel-text-secondary;
+}
+
+.plugin-install-dir-input {
+  @apply w-full rounded border border-panel bg-hover px-2 py-1.5 text-xs text-panel outline-none;
+}
+
+.plugin-install-dir-actions {
+  @apply flex shrink-0 items-center gap-2;
 }
 
 .marketplace-panel {

@@ -2489,7 +2489,7 @@ pub async fn create_pin_window(
         let builder = WebviewWindowBuilder::new(
             &app_handle_clone,
             &label_clone,
-            WebviewUrl::App("/#pin".into()),
+            WebviewUrl::App("/#/pin".into()),
         )
         .title("贴图")
         .inner_size(window_width, window_height)
