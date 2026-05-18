@@ -113,6 +113,7 @@ const runtimeLayoutPluginRoutes: RouteRecordRaw[] = [];
 const runtimeWindowPluginRoutes: RouteRecordRaw[] = [];
 const loadedFrontendEntries = new Set<string>();
 const loadedPluginStyleLinks = new Map<string, HTMLLinkElement[]>();
+const loadedPluginModuleUrls = new Map<string, string[]>();
 const installedRuntimeRouteNames = new Set<string>();
 const installedRuntimeRouteRemovers = new Map<string, () => void>();
 const runtimeCleanupHandlers = new Map<string, Set<RuntimeCleanup>>();
@@ -149,6 +150,130 @@ const resolvePluginAssetUrl = (
   plugin: RegisteredPlugin,
   relativePath: string
 ): string => convertFileSrc(resolvePluginAssetPath(plugin, relativePath));
+
+const dirnameOfRelativePath = (relativePath: string): string => {
+  const segments = trimSlashes(relativePath).split(/[\\/]+/);
+  segments.pop();
+  return segments.join('/');
+};
+
+const splitAssetSpecifier = (
+  specifier: string
+): { path: string; suffix: string } => {
+  const match = /^([^?#]*)([?#].*)?$/.exec(specifier);
+  return {
+    path: match?.[1] ?? specifier,
+    suffix: match?.[2] ?? ''
+  };
+};
+
+const normalizePluginAssetPath = (
+  baseDir: string,
+  specifier: string
+): string => {
+  const { path } = splitAssetSpecifier(specifier);
+  const segments = [
+    ...trimSlashes(baseDir).split(/[\\/]+/),
+    ...path.split(/[\\/]+/)
+  ];
+  const normalized: string[] = [];
+
+  for (const segment of segments) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') {
+      if (!normalized.length) {
+        throw new Error(`插件资源路径越界: ${specifier}`);
+      }
+      normalized.pop();
+      continue;
+    }
+    normalized.push(segment);
+  }
+
+  return normalized.join('/');
+};
+
+const resolveRelativePluginAssetUrl = (
+  plugin: RegisteredPlugin,
+  fromRelativePath: string,
+  specifier: string
+): string => {
+  const { suffix } = splitAssetSpecifier(specifier);
+  const normalizedPath = normalizePluginAssetPath(
+    dirnameOfRelativePath(fromRelativePath),
+    specifier
+  );
+  return `${resolvePluginAssetUrl(plugin, normalizedPath)}${suffix}`;
+};
+
+const rewritePluginModuleSource = (
+  plugin: RegisteredPlugin,
+  entryRelativePath: string,
+  source: string
+): string => {
+  const rewriteSpecifier = (specifier: string): string => {
+    if (!specifier.startsWith('./') && !specifier.startsWith('../')) {
+      return specifier;
+    }
+    return resolveRelativePluginAssetUrl(plugin, entryRelativePath, specifier);
+  };
+
+  return source
+    .replace(
+      /((?:import|export)\s+(?:[^'"]*?\s+from\s*)?)(['"])(\.{1,2}\/[^'"]+)\2/g,
+      (_match, prefix: string, quote: string, specifier: string) =>
+        `${prefix}${quote}${rewriteSpecifier(specifier)}${quote}`
+    )
+    .replace(
+      /(import\s*\(\s*)(['"])(\.{1,2}\/[^'"]+)\2(\s*\))/g,
+      (
+        _match,
+        prefix: string,
+        quote: string,
+        specifier: string,
+        suffix: string
+      ) => `${prefix}${quote}${rewriteSpecifier(specifier)}${quote}${suffix}`
+    );
+};
+
+const rememberPluginModuleUrl = (pluginId: string, url: string): void => {
+  const urls = loadedPluginModuleUrls.get(pluginId) ?? [];
+  urls.push(url);
+  loadedPluginModuleUrls.set(pluginId, urls);
+};
+
+const revokePluginModuleUrls = (pluginId: string): void => {
+  const urls = loadedPluginModuleUrls.get(pluginId) ?? [];
+  urls.forEach((url) => URL.revokeObjectURL(url));
+  loadedPluginModuleUrls.delete(pluginId);
+};
+
+const loadPluginFrontendModule = async (
+  plugin: RegisteredPlugin,
+  entryRelativePath: string
+): Promise<PluginFrontendModule> => {
+  const entryUrl = resolvePluginAssetUrl(plugin, entryRelativePath);
+  const response = await fetch(entryUrl);
+
+  if (!response.ok) {
+    throw new Error(
+      `插件 ${plugin.id} 前端入口读取失败: ${response.status} ${response.statusText}`
+    );
+  }
+
+  const source = await response.text();
+  const rewrittenSource = rewritePluginModuleSource(
+    plugin,
+    entryRelativePath,
+    source
+  );
+  const moduleUrl = URL.createObjectURL(
+    new Blob([rewrittenSource], { type: 'text/javascript' })
+  );
+  rememberPluginModuleUrl(String(plugin.id), moduleUrl);
+
+  return (await import(/* @vite-ignore */ moduleUrl)) as PluginFrontendModule;
+};
 
 const canInvokeCommand = (
   plugin: RegisteredPlugin,
@@ -483,13 +608,10 @@ export const ensureLocalPluginFrontendEntries = async (
     if (plugin.manifest.entry?.frontend) {
       try {
         ensurePluginStyles(plugin);
-        const entryUrl = resolvePluginAssetUrl(
+        const pluginModule = await loadPluginFrontendModule(
           plugin,
           plugin.manifest.entry.frontend
         );
-        const pluginModule = (await import(
-          /* @vite-ignore */ entryUrl
-        )) as PluginFrontendModule;
         await activateFrontendModule(plugin, pluginModule);
         loadedFrontendEntries.add(String(plugin.id));
       } catch (error) {
@@ -561,6 +683,7 @@ export function clearRuntimePluginRegistrations(pluginId: string): void {
   runRuntimeCleanups(pluginId);
   loadedFrontendEntries.delete(pluginId);
   removePluginStyles(pluginId);
+  revokePluginModuleUrls(pluginId);
 
   for (const [
     routeName,
