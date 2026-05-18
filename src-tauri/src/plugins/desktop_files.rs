@@ -47,6 +47,12 @@ pub struct DesktopFilePreview {
 static DESKTOP_FILES_CACHE: LazyLock<Mutex<Option<Vec<DesktopFileInfo>>>> =
     LazyLock::new(|| Mutex::new(None));
 
+pub fn invalidate_desktop_files_cache() {
+    if let Ok(mut cache) = DESKTOP_FILES_CACHE.lock() {
+        *cache = None;
+    }
+}
+
 fn desktop_file_icon_cache_key(path: &str) -> String {
     format!("desktop-file-icon:{}", path)
 }
@@ -268,6 +274,11 @@ pub fn refresh_desktop_files_cache() {
 }
 
 pub fn refresh_desktop_files_cache_with_count() -> usize {
+    if let Err(e) = db::ensure_plugin_storage("desktop-files") {
+        warn!("初始化桌面文件插件存储失败: {}", e);
+        return 0;
+    }
+
     let files = scan_desktop_files();
     let count = files.len();
     persist_desktop_files_cache(&files);
@@ -278,9 +289,7 @@ pub fn refresh_desktop_files_cache_with_count() -> usize {
 }
 
 pub fn clear_desktop_files_cache_for_reset(reset_type: &str) -> Result<(), String> {
-    if let Ok(mut cache) = DESKTOP_FILES_CACHE.lock() {
-        *cache = None;
-    }
+    invalidate_desktop_files_cache();
     info!(
         "[Reset] type={} step=clear_desktop_files_memory_cache status=ok",
         reset_type
@@ -308,6 +317,7 @@ pub fn clear_desktop_files_cache_for_reset(reset_type: &str) -> Result<(), Strin
 #[tauri::command]
 pub fn refresh_desktop_files_cache_cmd(app_handle: AppHandle) -> Result<(), String> {
     crate::app_config::require_plugin_enabled(&app_handle, "desktop-files")?;
+    db::ensure_plugin_storage("desktop-files").map_err(|e| e.to_string())?;
     refresh_desktop_files_cache();
     Ok(())
 }
@@ -318,6 +328,7 @@ pub fn search_desktop_files(
     query: String,
 ) -> Result<Vec<SearchResult>, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "desktop-files")?;
+    db::ensure_plugin_storage("desktop-files").map_err(|e| e.to_string())?;
 
     let mut cache = DESKTOP_FILES_CACHE.lock().unwrap();
     if cache.is_none() {
@@ -556,6 +567,7 @@ pub fn preview_desktop_file(
     file_path: String,
 ) -> Result<DesktopFilePreview, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "desktop-files")?;
+    db::ensure_plugin_storage("desktop-files").map_err(|e| e.to_string())?;
 
     let path = Path::new(&file_path);
     if !path.exists() {

@@ -270,6 +270,7 @@ pub fn add_alarm_card(
     mut card: AlarmCard,
 ) -> Result<AlarmCard, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+    db::ensure_plugin_storage("todo").map_err(|e| e.to_string())?;
 
     // 转换星期格式
     card.weekdays = card
@@ -310,6 +311,7 @@ pub fn update_alarm_card(
     mut card: AlarmCard,
 ) -> Result<AlarmCard, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+    db::ensure_plugin_storage("todo").map_err(|e| e.to_string())?;
 
     // 转换星期格式
     card.weekdays = card
@@ -365,6 +367,7 @@ fn convert_weekday_back(day: &str) -> &str {
 #[tauri::command]
 pub fn get_alarm_cards(app_handle: tauri::AppHandle) -> Result<Vec<AlarmCard>, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+    db::ensure_plugin_storage("todo").map_err(|e| e.to_string())?;
 
     if let Ok(cards) = db::get_all_alarm_cards() {
         Ok(cards
@@ -388,6 +391,7 @@ pub fn get_alarm_cards(app_handle: tauri::AppHandle) -> Result<Vec<AlarmCard>, S
 #[tauri::command]
 pub fn delete_alarm_card(app_handle: tauri::AppHandle, id: String) -> Result<(), String> {
     crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+    db::ensure_plugin_storage("todo").map_err(|e| e.to_string())?;
 
     if let Err(e) = db::delete_alarm_card_by_id(&id) {
         return Err(e.to_string());
@@ -410,6 +414,7 @@ pub fn delete_alarm_card(app_handle: tauri::AppHandle, id: String) -> Result<(),
 #[tauri::command]
 pub fn toggle_alarm_card(app_handle: tauri::AppHandle, id: String) -> Result<AlarmCard, String> {
     crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+    db::ensure_plugin_storage("todo").map_err(|e| e.to_string())?;
 
     if let Ok(cards) = db::get_all_alarm_cards() {
         if let Some(index) = cards.iter().position(|c| c.id == id) {

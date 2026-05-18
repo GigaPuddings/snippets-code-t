@@ -47,7 +47,10 @@ export function useSearchResultState(
   };
 
   const ensureValidTab = () => {
-    if (filteredResults.value.length === 0 && toValue(results).length > 0) {
+    if (
+      !tabs.value.some((item) => item.value === activeTab.value)
+      || (filteredResults.value.length === 0 && toValue(results).length > 0)
+    ) {
       switchTab('text');
     }
   };
@@ -74,6 +77,10 @@ export function useSearchResultState(
       selectItem(firstResult);
       options.onSelectionAutoChange?.(firstResult);
     }
+  }, { immediate: true });
+
+  watch(tabs, () => {
+    ensureValidTab();
   }, { immediate: true });
 
   return {

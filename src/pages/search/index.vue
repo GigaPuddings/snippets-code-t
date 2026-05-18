@@ -4,7 +4,7 @@ import { useSetIgnoreCursorEvents } from '@/hooks/useSetIgnoreCursorEvents';
 import { useSearch } from '@/hooks/useSearch';
 import { useFocusMode } from '@/hooks/useFocusMode';
 import { useSearchKeyboard } from './composables/useSearchKeyboard';
-import { listen } from '@tauri-apps/api/event';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
 
@@ -14,6 +14,8 @@ const { isSearchMode, setMode, canSwitchToList } = useFocusMode();
 const searchRef = ref<HTMLElement | null>(null);
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const resultRef = ref<InstanceType<typeof Result> | null>(null);
+let unlistenWindowFocused: UnlistenFn | null = null;
+let unlistenResetSearchState: UnlistenFn | null = null;
 
 // 使用键盘导航 composable
 const { handleKeyDown } = useSearchKeyboard({
@@ -66,7 +68,7 @@ onMounted(async () => {
     useSetIgnoreCursorEvents(searchRef.value);
   }
   
-  listen('windowFocused', () => {
+  unlistenWindowFocused = await listen('windowFocused', () => {
     // 窗口聚焦时，重置到搜索框模式
     setMode('SEARCH');
     // 如果输入框有值选中文本，没有则聚焦
@@ -79,12 +81,19 @@ onMounted(async () => {
   });
   
   // 监听重置搜索状态事件（当窗口被其他操作关闭时）
-  listen('reset-search-state', () => {
+  unlistenResetSearchState = await listen('reset-search-state', () => {
     // 清除搜索内容和结果
     clearSearch();
     // 重置到搜索模式
     setMode('SEARCH');
   });
+});
+
+onUnmounted(() => {
+  unlistenWindowFocused?.();
+  unlistenResetSearchState?.();
+  unlistenWindowFocused = null;
+  unlistenResetSearchState = null;
 });
 </script>
 

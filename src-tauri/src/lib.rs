@@ -485,6 +485,7 @@ pub fn run() {
                 if let Err(e) = db::init_db() {
                     log::error!("数据库初始化失败: {}", e);
                 }
+                app_config::ensure_enabled_plugin_storage(app.handle());
 
                 // 初始化 Markdown 文件系统（如果已配置工作区）
                 let app_handle_markdown = app.handle().clone();

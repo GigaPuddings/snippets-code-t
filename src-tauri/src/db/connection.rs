@@ -377,6 +377,7 @@ pub fn set_data_dir_from_setup(
     log::info!("📝 在新数据目录创建 .snippets-code/app.json");
     let default_app_config = json_config::AppConfig::default();
     json_config::write_app_config(&app_handle, &default_app_config)?;
+    crate::app_config::ensure_enabled_plugin_storage(&app_handle);
 
     log::info!("✅ 数据目录设置完成: {}", final_path);
     // 返回实际使用的路径

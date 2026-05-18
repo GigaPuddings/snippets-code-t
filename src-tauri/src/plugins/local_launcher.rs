@@ -10,7 +10,8 @@ static BOOKMARKS_CACHE: LazyLock<Mutex<Option<Vec<BookmarkInfo>>>> =
     LazyLock::new(|| Mutex::new(None));
 
 fn require_local_launcher_plugin(app_handle: &tauri::AppHandle) -> Result<(), String> {
-    crate::app_config::require_plugin_enabled(app_handle, "local-launcher")
+    crate::app_config::require_plugin_enabled(app_handle, "local-launcher")?;
+    db::ensure_plugin_storage("local-launcher").map_err(|e| e.to_string())
 }
 
 pub fn invalidate_apps_cache() {

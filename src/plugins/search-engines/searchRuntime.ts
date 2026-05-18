@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ContentType, SearchEngine } from '@/types';
 import type { usePluginStore } from '@/store';
 
@@ -14,13 +14,13 @@ export const loadSearchEngines = async (pluginStore: PluginStore): Promise<Searc
   return Array.isArray(engines) ? engines : [];
 };
 
-export const listenSearchEngineUpdates = async (onUpdate: (engines: SearchEngine[]) => void): Promise<void> => {
-  await listen('search-engines-updated', (event: { payload: unknown }) => {
+export const listenSearchEngineUpdates = async (onUpdate: (engines: SearchEngine[]) => void): Promise<UnlistenFn> => (
+  listen('search-engines-updated', (event: { payload: unknown }) => {
     if (Array.isArray(event.payload)) {
       onUpdate(event.payload as SearchEngine[]);
     }
-  });
-};
+  })
+);
 
 export const findSearchEngine = (
   engines: SearchEngine[],

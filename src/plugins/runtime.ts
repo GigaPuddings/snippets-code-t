@@ -57,6 +57,15 @@ interface RuntimeWindowShortcutRegistration {
   closeCommandLabel?: string;
 }
 
+type RuntimeCleanup = () => void | Promise<void>;
+type RuntimeActivationResult =
+  | void
+  | RuntimeCleanup
+  | {
+      deactivate?: RuntimeCleanup;
+      dispose?: RuntimeCleanup;
+    };
+
 export interface PluginFrontendRuntimeContext {
   pluginId: string;
   packagePath: string;
@@ -85,14 +94,18 @@ export interface PluginFrontendRuntimeContext {
 }
 
 interface PluginFrontendModule {
-  activate?: (context: PluginFrontendRuntimeContext) => void | Promise<void>;
+  activate?: (
+    context: PluginFrontendRuntimeContext
+  ) => RuntimeActivationResult | Promise<RuntimeActivationResult>;
   default?:
     | {
         activate?: (
           context: PluginFrontendRuntimeContext
-        ) => void | Promise<void>;
+        ) => RuntimeActivationResult | Promise<RuntimeActivationResult>;
       }
-    | ((context: PluginFrontendRuntimeContext) => void | Promise<void>);
+    | ((
+        context: PluginFrontendRuntimeContext
+      ) => RuntimeActivationResult | Promise<RuntimeActivationResult>);
 }
 
 const runtimeConfigPluginRoutes: RouteRecordRaw[] = [];
@@ -102,6 +115,7 @@ const loadedFrontendEntries = new Set<string>();
 const loadedPluginStyleLinks = new Map<string, HTMLLinkElement[]>();
 const installedRuntimeRouteNames = new Set<string>();
 const installedRuntimeRouteRemovers = new Map<string, () => void>();
+const runtimeCleanupHandlers = new Map<string, Set<RuntimeCleanup>>();
 
 const trimSlashes = (value: string): string =>
   value.replace(/^[\\/]+|[\\/]+$/g, '');
@@ -185,6 +199,54 @@ const createPluginBackendInvoke =
     });
   };
 
+const addRuntimeCleanup = (pluginId: string, cleanup: RuntimeCleanup): void => {
+  const handlers = runtimeCleanupHandlers.get(pluginId) ?? new Set();
+  handlers.add(cleanup);
+  runtimeCleanupHandlers.set(pluginId, handlers);
+};
+
+const removeRuntimeCleanup = (
+  pluginId: string,
+  cleanup: RuntimeCleanup
+): void => {
+  const handlers = runtimeCleanupHandlers.get(pluginId);
+  if (!handlers) return;
+
+  handlers.delete(cleanup);
+  if (handlers.size === 0) {
+    runtimeCleanupHandlers.delete(pluginId);
+  }
+};
+
+const runRuntimeCleanups = (pluginId: string): void => {
+  const handlers = Array.from(runtimeCleanupHandlers.get(pluginId) ?? []);
+  runtimeCleanupHandlers.delete(pluginId);
+
+  for (const cleanup of handlers) {
+    try {
+      void cleanup();
+    } catch (error) {
+      logger.warn(`[PluginRuntime] 清理插件运行时失败: ${pluginId}`, error);
+    }
+  }
+};
+
+const createPluginListen = (plugin: RegisteredPlugin): typeof listen =>
+  (async (...args: Parameters<typeof listen>) => {
+    const pluginId = String(plugin.id);
+    const unlisten = await listen(...args);
+    let active = true;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      removeRuntimeCleanup(pluginId, cleanup);
+      unlisten();
+    };
+
+    addRuntimeCleanup(pluginId, cleanup);
+    return cleanup;
+  }) as typeof listen;
+
 const pluginComponent = (
   plugin: RegisteredPlugin,
   component?: Component,
@@ -255,7 +317,7 @@ const createRuntimeContext = (
   api: {
     invoke: createPluginInvoke(plugin),
     invokeBackend: createPluginBackendInvoke(plugin),
-    listen,
+    listen: createPluginListen(plugin),
     emit
   },
   ui: {
@@ -352,7 +414,20 @@ const activateFrontendModule = async (
     throw new Error(`插件 ${plugin.id} 的前端入口没有导出 activate(context)`);
   }
 
-  await activate(createRuntimeContext(plugin));
+  const result = await activate(createRuntimeContext(plugin));
+  const pluginId = String(plugin.id);
+
+  if (typeof result === 'function') {
+    addRuntimeCleanup(pluginId, result);
+    return;
+  }
+
+  if (typeof result?.deactivate === 'function') {
+    addRuntimeCleanup(pluginId, result.deactivate);
+  }
+  if (typeof result?.dispose === 'function') {
+    addRuntimeCleanup(pluginId, result.dispose);
+  }
 };
 
 const activateOfficialPluginRuntime = async (
@@ -418,7 +493,7 @@ export const ensureLocalPluginFrontendEntries = async (
         await activateFrontendModule(plugin, pluginModule);
         loadedFrontendEntries.add(String(plugin.id));
       } catch (error) {
-        removePluginStyles(String(plugin.id));
+        clearRuntimePluginRegistrations(String(plugin.id));
         logger.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
         try {
           const activated = await activateOfficialPluginRuntime(
@@ -431,6 +506,7 @@ export const ensureLocalPluginFrontendEntries = async (
             );
           }
         } catch (fallbackError) {
+          clearRuntimePluginRegistrations(String(plugin.id));
           logger.warn(
             `[PluginRuntime] 回退内置官方插件运行时失败: ${plugin.id}`,
             fallbackError
@@ -448,7 +524,11 @@ export const ensureLocalPluginFrontendEntries = async (
         loadedFrontendEntries.add(String(plugin.id));
       }
     } catch (error) {
-      logger.warn(`[PluginRuntime] 加载官方插件运行时失败: ${plugin.id}`, error);
+      clearRuntimePluginRegistrations(String(plugin.id));
+      logger.warn(
+        `[PluginRuntime] 加载官方插件运行时失败: ${plugin.id}`,
+        error
+      );
     }
   }
 };
@@ -477,12 +557,10 @@ export const installRuntimePluginRoutes = (router: Router): number => {
   return added;
 };
 
-export const clearRuntimePluginRegistrations = (pluginId: string): void => {
+export function clearRuntimePluginRegistrations(pluginId: string): void {
+  runRuntimeCleanups(pluginId);
   loadedFrontendEntries.delete(pluginId);
-
-  const styleLinks = loadedPluginStyleLinks.get(pluginId) ?? [];
-  styleLinks.forEach((link) => link.remove());
-  loadedPluginStyleLinks.delete(pluginId);
+  removePluginStyles(pluginId);
 
   for (const [
     routeName,
@@ -531,6 +609,6 @@ export const clearRuntimePluginRegistrations = (pluginId: string): void => {
       pluginWindowShortcuts.splice(index, 1);
     }
   }
-};
+}
 
 export type RuntimeUnlisten = UnlistenFn;

@@ -507,6 +507,10 @@ fn apply_system_theme_runtime_change(app_handle: &AppHandle, enabled: bool) {
 
 fn apply_todo_runtime_change(app_handle: &AppHandle, enabled: bool) {
     if enabled {
+        if let Err(e) = crate::db::ensure_plugin_storage("todo") {
+            warn!("[Plugin] 初始化待办插件存储失败: {}", e);
+            return;
+        }
         crate::plugins::todo::start_alarm_service(app_handle.clone());
     } else {
         crate::plugins::todo::stop_alarm_service();
@@ -535,13 +539,26 @@ fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
         }
     }
     if enabled {
+        if let Err(e) = crate::db::ensure_plugin_storage("desktop-files") {
+            warn!("[Plugin] 初始化桌面文件插件存储失败: {}", e);
+            return;
+        }
         crate::plugins::desktop_files::refresh_desktop_files_cache();
+    } else {
+        crate::plugins::desktop_files::invalidate_desktop_files_cache();
     }
 }
 
 fn apply_local_launcher_runtime_change(app_handle: &AppHandle, enabled: bool) {
     if enabled {
+        if let Err(e) = crate::db::ensure_plugin_storage("local-launcher") {
+            warn!("[Plugin] 初始化本地启动器插件存储失败: {}", e);
+            return;
+        }
         crate::icon::init_app_and_bookmark_icons(app_handle);
+    } else {
+        crate::plugins::local_launcher::invalidate_apps_cache();
+        crate::plugins::local_launcher::invalidate_bookmarks_cache();
     }
 }
 
@@ -565,6 +582,28 @@ fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled:
         );
     }
 
+    refresh_plugin_shell_integration(app_handle, plugin_id, enabled);
+}
+
+pub fn apply_enabled_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str) {
+    if is_plugin_enabled(app_handle, plugin_id) {
+        if let Some(spec) = plugin_runtime_spec(plugin_id) {
+            (spec.apply_runtime_change)(app_handle, true);
+        }
+    }
+}
+
+pub fn ensure_enabled_plugin_storage(app_handle: &AppHandle) {
+    for plugin_id in ["local-launcher", "desktop-files", "search-engines", "todo"] {
+        if is_plugin_enabled(app_handle, plugin_id) {
+            if let Err(e) = crate::db::ensure_plugin_storage(plugin_id) {
+                warn!("[Plugin] ensure storage for {} failed: {}", plugin_id, e);
+            }
+        }
+    }
+}
+
+fn refresh_plugin_shell_integration(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
     if crate::db::is_setup_completed_internal(app_handle) {
         if let Err(e) = crate::tray::recreate_tray_menu(app_handle) {
             warn!("[Plugin] 刷新托盘菜单失败: {}", e);
@@ -578,14 +617,6 @@ fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled:
             "enabled": enabled
         }),
     );
-}
-
-pub fn apply_enabled_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str) {
-    if is_plugin_enabled(app_handle, plugin_id) {
-        if let Some(spec) = plugin_runtime_spec(plugin_id) {
-            (spec.apply_runtime_change)(app_handle, true);
-        }
-    }
 }
 
 /// 获取应用配置
@@ -1678,6 +1709,12 @@ pub fn install_local_plugin_package(
 
         info!("✅ [Plugin] installed local package {}", plugin_id);
         if is_plugin_enabled(&app_handle, &plugin_id) {
+            if let Err(error) = crate::db::ensure_plugin_storage(&plugin_id) {
+                warn!(
+                    "[Plugin] ensure storage after installing {} failed: {}",
+                    plugin_id, error
+                );
+            }
             if let Err(error) =
                 crate::hotkey::refresh_plugin_shortcuts(&app_handle, &plugin_id, true)
             {
@@ -1688,6 +1725,11 @@ pub fn install_local_plugin_package(
             }
             apply_enabled_plugin_runtime_change(&app_handle, &plugin_id);
         }
+        refresh_plugin_shell_integration(
+            &app_handle,
+            &plugin_id,
+            is_plugin_enabled(&app_handle, &plugin_id),
+        );
         plugin_package_record(manifest, &target_dir)
     })();
 
@@ -1765,9 +1807,17 @@ pub fn uninstall_local_plugin_package(
             plugin_id, error
         );
     }
+    apply_plugin_runtime_change(&app_handle, &plugin_id, false);
 
     fs::remove_dir_all(&target_dir)
         .map_err(|e| format!("删除插件目录失败: {} ({})", target_dir.display(), e))?;
+
+    if let Err(error) = crate::db::clear_plugin_storage(&plugin_id) {
+        warn!(
+            "[Plugin] clear storage after uninstalling {} failed: {}",
+            plugin_id, error
+        );
+    }
 
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
         let mut manager = config_state
@@ -1782,6 +1832,7 @@ pub fn uninstall_local_plugin_package(
     }
 
     info!("✅ [Plugin] uninstalled local package {}", plugin_id);
+    refresh_plugin_shell_integration(&app_handle, &plugin_id, false);
     Ok(())
 }
 
@@ -1867,6 +1918,11 @@ pub fn set_plugin_enabled(
             manager.save()?;
         }
         info!("✅ [Plugin] {} enabled={}", plugin_id, enabled);
+        if enabled {
+            if let Err(e) = crate::db::ensure_plugin_storage(&plugin_id) {
+                warn!("[Plugin] ensure storage for {} failed: {}", plugin_id, e);
+            }
+        }
         apply_plugin_runtime_change(&app_handle, &plugin_id, enabled);
         return Ok(());
     }
@@ -1877,6 +1933,11 @@ pub fn set_plugin_enabled(
     manager.set_plugin_enabled(plugin_id.clone(), enabled);
     manager.save()?;
     info!("✅ [Plugin] {} enabled={}", plugin_id, enabled);
+    if enabled {
+        if let Err(e) = crate::db::ensure_plugin_storage(&plugin_id) {
+            warn!("[Plugin] ensure storage for {} failed: {}", plugin_id, e);
+        }
+    }
     apply_plugin_runtime_change(&app_handle, &plugin_id, enabled);
     Ok(())
 }

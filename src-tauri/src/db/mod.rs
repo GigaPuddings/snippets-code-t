@@ -17,7 +17,7 @@ pub use connection::DbConnectionManager;
 
 // 重新导出初始化函数
 pub use init::init_db;
-pub use init::migrate_remove_fragment_tables;
+pub use init::{clear_plugin_storage, ensure_plugin_storage, migrate_remove_fragment_tables};
 
 // 注意：片段相关函数已迁移到基于文件系统的 Markdown 存储
 // 请使用 markdown 模块中的相关函数

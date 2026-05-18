@@ -80,12 +80,14 @@ export function useSearchResultTabs(results: MaybeRefOrGetter<ContentType[]>, t:
     return groupedResults;
   });
 
-  const tabs = computed<SearchResultTab[]>(() => SEARCH_RESULT_TAB_DEFINITIONS.map((definition) => ({
-    label: t(definition.labelKey),
-    value: definition.value,
-    count: tabEntries.value.get(definition.value)?.length ?? 0,
-    matcher: definition.matcher
-  })));
+  const tabs = computed<SearchResultTab[]>(() => SEARCH_RESULT_TAB_DEFINITIONS
+    .map((definition) => ({
+      label: t(definition.labelKey),
+      value: definition.value,
+      count: tabEntries.value.get(definition.value)?.length ?? 0,
+      matcher: definition.matcher
+    }))
+    .filter((tab) => tab.value === 'text' || tab.count > 0));
 
   const getTabResults = (tab: SearchResultTabValue) => tabEntries.value.get(tab) ?? [];
   const getTabCount = (tab: SearchResultTabValue) => tabEntries.value.get(tab)?.length ?? 0;

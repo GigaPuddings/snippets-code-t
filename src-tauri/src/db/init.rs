@@ -6,6 +6,30 @@ use crate::db::DbConnectionManager;
 pub fn init_db() -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
 
+    create_core_tables(&conn)?;
+
+    // 注意：插件拥有的数据表不在核心初始化中创建。
+    // 这些表由插件启用/安装生命周期按需创建，卸载插件时可一并清理。
+
+    // 执行片段类型支持迁移（已废弃，保留以兼容旧版本）
+    migrate_fragment_type_support(&conn)?;
+
+    // 执行分类系统字段迁移
+    migrate_category_system_field(&conn)?;
+
+    Ok(())
+}
+
+fn create_core_tables(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    create_icon_cache_table(conn)?;
+    create_search_history_table(conn)?;
+    create_user_settings_table(conn)?;
+    create_legacy_app_settings_table(conn)?;
+
+    Ok(())
+}
+
+fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 创建 apps 表
     conn.execute(
         "CREATE TABLE IF NOT EXISTS apps (
@@ -54,6 +78,27 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     );
 
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_apps_usage ON apps(usage_count DESC)",
+        [],
+    );
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bookmarks_usage ON bookmarks(usage_count DESC)",
+        [],
+    );
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_apps_created ON apps(created_at DESC)",
+        [],
+    );
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bookmarks_created ON bookmarks(created_at DESC)",
+        [],
+    );
+
+    Ok(())
+}
+
+fn create_icon_cache_table(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 创建 icon_cache 表
     conn.execute(
         "CREATE TABLE IF NOT EXISTS icon_cache (
@@ -66,7 +111,15 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
     )?;
 
     let _ = conn.execute("ALTER TABLE icon_cache ADD COLUMN source_mtime INTEGER", []);
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_icon_cache_timestamp ON icon_cache(timestamp)",
+        [],
+    );
 
+    Ok(())
+}
+
+fn create_desktop_files_tables(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 创建 desktop_file_cache 表，用于持久化桌面文件检索缓存
     conn.execute(
         "CREATE TABLE IF NOT EXISTS desktop_file_cache (
@@ -83,6 +136,54 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    Ok(())
+}
+
+pub fn ensure_plugin_storage(plugin_id: &str) -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    match plugin_id {
+        "local-launcher" => create_local_launcher_tables(&conn),
+        "desktop-files" => create_desktop_files_tables(&conn),
+        "search-engines" => create_search_engines_table(&conn),
+        "todo" => create_alarm_cards_table(&conn),
+        _ => Ok(()),
+    }
+}
+
+pub fn clear_plugin_storage(plugin_id: &str) -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    match plugin_id {
+        "local-launcher" => {
+            conn.execute("DROP TABLE IF EXISTS apps", [])?;
+            conn.execute("DROP TABLE IF EXISTS bookmarks", [])?;
+            conn.execute("DROP INDEX IF EXISTS idx_apps_usage", [])?;
+            conn.execute("DROP INDEX IF EXISTS idx_bookmarks_usage", [])?;
+            conn.execute("DROP INDEX IF EXISTS idx_apps_created", [])?;
+            conn.execute("DROP INDEX IF EXISTS idx_bookmarks_created", [])?;
+            crate::plugins::local_launcher::invalidate_apps_cache();
+            crate::plugins::local_launcher::invalidate_bookmarks_cache();
+        }
+        "desktop-files" => {
+            conn.execute("DROP TABLE IF EXISTS desktop_file_cache", [])?;
+            let _ = conn.execute(
+                "DELETE FROM icon_cache WHERE key LIKE 'desktop-file-icon:%'",
+                [],
+            );
+            crate::plugins::desktop_files::invalidate_desktop_files_cache();
+        }
+        "search-engines" => {
+            conn.execute("DROP TABLE IF EXISTS search_engines", [])?;
+        }
+        "todo" => {
+            conn.execute("DROP TABLE IF EXISTS alarm_cards", [])?;
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
+fn create_search_engines_table(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 创建 search_engines 表
     conn.execute(
         "CREATE TABLE IF NOT EXISTS search_engines (
@@ -96,6 +197,10 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    Ok(())
+}
+
+fn create_alarm_cards_table(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 创建 alarm_cards 表
     conn.execute(
         "CREATE TABLE IF NOT EXISTS alarm_cards (
@@ -120,6 +225,10 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
     );
     let _ = conn.execute("ALTER TABLE alarm_cards ADD COLUMN specific_dates TEXT", []);
 
+    Ok(())
+}
+
+fn create_search_history_table(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 创建 search_history 表
     conn.execute(
         "CREATE TABLE IF NOT EXISTS search_history (
@@ -130,9 +239,31 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
-    // 注意：contents 和 categories 表已迁移到基于文件系统的 Markdown 存储
-    // 这些表不再需要，已在迁移后移除
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_search_history_usage ON search_history(usage_count DESC)",
+        [],
+    );
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_last_used ON search_history(last_used_at DESC)", []);
 
+    // contents 表索引（如果表存在）
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_category_created ON contents(category_id, created_at DESC)", []);
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_contents_title ON contents(title)",
+        [],
+    );
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_contents_tags ON contents(tags)",
+        [],
+    );
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_contents_created ON contents(created_at DESC)",
+        [],
+    );
+
+    Ok(())
+}
+
+fn create_user_settings_table(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 创建 user_settings 表 (用于存储GitHub同步配置)
     conn.execute(
         "CREATE TABLE IF NOT EXISTS user_settings (
@@ -149,6 +280,10 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    Ok(())
+}
+
+fn create_legacy_app_settings_table(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 注意：app_settings 表已废弃，配置已迁移到 app.json
     // 保留表结构以便向后兼容，但不再使用
     // 所有应用配置现在存储在：[数据目录]/app.json
@@ -171,56 +306,6 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
         )",
         [],
     )?;
-
-    // 创建索引以优化查询性能
-    let _ = conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_search_history_usage ON search_history(usage_count DESC)",
-        [],
-    );
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_search_history_last_used ON search_history(last_used_at DESC)", []);
-    let _ = conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_apps_usage ON apps(usage_count DESC)",
-        [],
-    );
-    let _ = conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_bookmarks_usage ON bookmarks(usage_count DESC)",
-        [],
-    );
-    let _ = conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_apps_created ON apps(created_at DESC)",
-        [],
-    );
-    let _ = conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_bookmarks_created ON bookmarks(created_at DESC)",
-        [],
-    );
-    let _ = conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_icon_cache_timestamp ON icon_cache(timestamp)",
-        [],
-    );
-
-    // contents 表索引（如果表存在）
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_contents_category_created ON contents(category_id, created_at DESC)", []);
-    let _ = conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_contents_title ON contents(title)",
-        [],
-    );
-    let _ = conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_contents_tags ON contents(tags)",
-        [],
-    );
-    let _ = conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_contents_created ON contents(created_at DESC)",
-        [],
-    );
-
-    // 注意：contents 和 categories 表的索引已移除，因为这些表已迁移到文件系统
-
-    // 执行片段类型支持迁移（已废弃，保留以兼容旧版本）
-    migrate_fragment_type_support(&conn)?;
-
-    // 执行分类系统字段迁移
-    migrate_category_system_field(&conn)?;
 
     Ok(())
 }

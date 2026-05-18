@@ -64,6 +64,12 @@ const {
 } = useSearchResultTabs(() => props.results, t);
 const activeTabCount = computed(() => getTabCount(activeTab.value));
 
+watch(resultTabs, (tabs) => {
+  if (!tabs.some((tab) => tab.value === activeTab.value)) {
+    switchTab('text');
+  }
+}, { immediate: true });
+
 function switchTab(tab: SummarizeType) {
   activeTab.value = tab;
   resultListRef.value?.switchTab(tab);
