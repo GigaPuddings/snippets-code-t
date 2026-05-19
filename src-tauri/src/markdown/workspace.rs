@@ -33,12 +33,16 @@ pub fn write_workspace(config_dir: &Path, workspace: &WorkspaceConfig) -> Result
     Ok(())
 }
 
-// 读取 cache.json
-pub fn read_cache(config_dir: &Path) -> Result<CacheConfig, String> {
+fn read_cache_inner(config_dir: &Path, log_missing: bool) -> Result<CacheConfig, String> {
     let cache_path = config_dir.join("cache.json");
 
     if !cache_path.exists() {
-        info!("⚠️ [读取缓存] cache.json 不存在，返回默认配置");
+        if log_missing {
+            info!(
+                "⚠️ [读取缓存] cache.json 不存在，返回默认配置: {}",
+                cache_path.display()
+            );
+        }
         // 如果文件不存在，返回默认配置
         return Ok(CacheConfig::default());
     }
@@ -50,6 +54,16 @@ pub fn read_cache(config_dir: &Path) -> Result<CacheConfig, String> {
         serde_json::from_str(&content).map_err(|e| format!("解析 cache.json 失败: {}", e))?;
 
     Ok(cache)
+}
+
+// 读取 cache.json
+pub fn read_cache(config_dir: &Path) -> Result<CacheConfig, String> {
+    read_cache_inner(config_dir, true)
+}
+
+// 静默读取 cache.json，用于启动期占位状态，避免误导性日志。
+pub fn read_cache_silent(config_dir: &Path) -> Result<CacheConfig, String> {
+    read_cache_inner(config_dir, false)
 }
 
 // 写入 cache.json

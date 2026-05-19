@@ -24,7 +24,10 @@
         <div v-if="isGitSyncEnabled" class="info-item">
           <span class="info-label">{{ $t('userCenter.gitSyncStatus') }}</span>
           <span class="info-value">
-            <span v-if="hasRequiredGitFieldsFilled" class="status-badge status-badge--success">
+            <span v-if="!hasWorkspace" class="status-badge status-badge--warning">
+              {{ $t('userCenter.workspaceNotSet') }}
+            </span>
+            <span v-else-if="hasRequiredGitFieldsFilled" class="status-badge status-badge--success">
               {{ $t('userCenter.configured') }}
             </span>
             <span v-else class="status-badge status-badge--warning">
@@ -52,8 +55,22 @@
         </template>
       </div>
 
+      <!-- 工作区引导：没有工作区时不展示 Git 必要配置 -->
+      <div v-if="isGitSyncEnabled && !hasWorkspace" class="workspace-guide-card">
+        <div class="workspace-guide-icon">
+          <FolderOpen theme="outline" size="24" :strokeWidth="3" />
+        </div>
+        <div class="workspace-guide-content">
+          <h4 class="workspace-guide-title">{{ $t('userCenter.workspaceSetupTitle') }}</h4>
+          <p class="workspace-guide-desc">{{ $t('userCenter.workspaceSetupDesc') }}</p>
+          <CustomButton type="primary" size="small" @click="goToWorkspaceSettings">
+            {{ $t('userCenter.goToWorkspaceSettings') }}
+          </CustomButton>
+        </div>
+      </div>
+
       <!-- Git 必要字段配置（个人中心配置后，设置中才会显示 Git 同步 tab） -->
-      <div v-if="isGitSyncEnabled" class="git-config-card">
+      <div v-if="isGitSyncEnabled && hasWorkspace" class="git-config-card">
         <h4 class="section-title">{{ $t('userCenter.gitConfigSection') }}</h4>
         <p class="git-config-desc">{{ $t('userCenter.gitConfigSectionDesc') }}</p>
         <div class="git-config-form">
@@ -98,7 +115,7 @@
       </div>
 
       <!-- Git 同步引导卡片：必要字段（用户名、邮箱、远程 URL）都填写后才隐藏，与是否启用无关 -->
-      <div v-if="isGitSyncEnabled && hasRequiredGitFieldsFilled" class="tip-card">
+      <div v-if="isGitSyncEnabled && hasWorkspace && hasRequiredGitFieldsFilled" class="tip-card">
         <div class="tip-icon">
           <Github theme="outline" size="24" :strokeWidth="3" />
         </div>
@@ -185,6 +202,7 @@ const appVersion = ref('');
 const workspaceRoot = ref('');
 const gitConfigured = ref(false);
 const gitAccountInfo = ref<{ user_name: string; user_email: string; remote_url?: string } | null>(null);
+const hasWorkspace = computed(() => !!workspaceRoot.value?.trim());
 
 /** 个人中心 Git 配置表单（用户名、邮箱、Token、远程 URL） */
 const gitForm = ref<Pick<GitSettings, 'user_name' | 'user_email' | 'token' | 'remote_url'>>({
@@ -217,14 +235,13 @@ const loadAppInfo = async () => {
     try {
       const root = await invoke<string | null>('get_workspace_root_path');
       
-      if (root) {
-        workspaceRoot.value = root;
-      }
+      workspaceRoot.value = root || '';
     } catch (error) {
+      workspaceRoot.value = '';
       console.error('[UserCenter] 获取工作区根目录失败:', error);
     }
     
-    if (!isGitSyncEnabled.value) {
+    if (!isGitSyncEnabled.value || !hasWorkspace.value) {
       gitConfigured.value = false;
       gitAccountInfo.value = null;
       return;
@@ -261,6 +278,11 @@ const loadAppInfo = async () => {
 const saveGitConfig = async () => {
   if (!isGitSyncEnabled.value) {
     modal.warning(t('plugins.gitSyncUnavailable'), 'bottom-right');
+    return;
+  }
+  if (!hasWorkspace.value) {
+    modal.warning(t('userCenter.workspaceSetupDesc'), 'bottom-right');
+    goToWorkspaceSettings();
     return;
   }
 
@@ -340,6 +362,16 @@ const goToGitSync = () => {
   }
 };
 
+// 跳转到工作区设置
+const goToWorkspaceSettings = () => {
+  try {
+    router.push({ path: '/config/category/settings', query: { tab: 'data' } });
+  } catch (error) {
+    console.error('[UserCenter] 路由跳转失败:', error);
+    modal.error('跳转失败: ' + error);
+  }
+};
+
 // 打开数据目录
 const openDataDir = async () => {
   try {
@@ -381,6 +413,10 @@ const checkUpdate = async () => {
 
 onMounted(async () => {
   await pluginStore.initialize();
+  loadAppInfo();
+});
+
+onActivated(() => {
   loadAppInfo();
 });
 </script>
@@ -436,6 +472,26 @@ onMounted(async () => {
 
 .tip-card {
   @apply flex gap-4 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg;
+}
+
+.workspace-guide-card {
+  @apply flex gap-4 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-lg;
+}
+
+.workspace-guide-icon {
+  @apply flex-shrink-0 w-12 h-12 flex items-center justify-center bg-yellow-100 dark:bg-yellow-900/20 rounded-lg text-yellow-700 dark:text-yellow-400;
+}
+
+.workspace-guide-content {
+  @apply flex-1;
+}
+
+.workspace-guide-title {
+  @apply text-sm font-semibold text-panel mb-1;
+}
+
+.workspace-guide-desc {
+  @apply text-sm text-panel-text-secondary mb-3;
 }
 
 .tip-icon {

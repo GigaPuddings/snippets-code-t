@@ -2,7 +2,7 @@
 // 负责管理文件元数据的缓存
 
 use super::metadata::{try_parse_front_matter, CacheConfig, CategoryMetadata, FileMetadata};
-use super::workspace::{read_cache, write_cache};
+use super::workspace::{read_cache, read_cache_silent, write_cache};
 use log::{info, warn};
 use std::path::{Path, PathBuf};
 
@@ -63,8 +63,22 @@ impl CacheManager {
     // # Arguments
     // * `config_dir` - 配置目录路径（.snippets-code）
     pub fn new(config_dir: PathBuf) -> Result<Self, String> {
+        Self::from_config_dir(config_dir, false)
+    }
+
+    pub fn new_silent(config_dir: PathBuf) -> Result<Self, String> {
+        Self::from_config_dir(config_dir, true)
+    }
+
+    fn from_config_dir(config_dir: PathBuf, silent_missing: bool) -> Result<Self, String> {
         // 尝试读取现有的 cache.json
-        let cache = match read_cache(&config_dir) {
+        let cache_result = if silent_missing {
+            read_cache_silent(&config_dir)
+        } else {
+            read_cache(&config_dir)
+        };
+
+        let cache = match cache_result {
             Ok(c) => c,
             Err(e) => {
                 warn!(

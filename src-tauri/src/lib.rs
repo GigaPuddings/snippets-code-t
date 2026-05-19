@@ -414,7 +414,7 @@ pub fn run() {
                     e
                 );
             }
-            match markdown::CacheManager::new(fallback_config_dir) {
+            match markdown::CacheManager::new_silent(fallback_config_dir) {
                 Ok(cache_manager) => {
                     app.manage(Arc::new(RwLock::new(cache_manager)));
                 }

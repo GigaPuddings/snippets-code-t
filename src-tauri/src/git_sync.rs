@@ -704,6 +704,57 @@ fn get_changed_files_after_pull(
     Ok(by_status.all())
 }
 
+/// 检查远端是否会删除本地已有的 Markdown 文件。
+///
+/// 这类删除不一定会触发 Git merge 冲突，但对笔记应用来说属于高风险同步：
+/// 远端缺少某个本地文件时，直接 pull 会让本地文件和 cache 一起消失。
+fn get_remote_deleted_local_markdown_files(
+    workspace_root: &Path,
+    branch: &str,
+) -> Result<Vec<String>, String> {
+    if branch.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let remote_ref = format!("origin/{}", branch);
+    let output = crate::git_common::git_command()
+        .args(["diff", "--name-status", "HEAD", &remote_ref])
+        .current_dir(workspace_root)
+        .output()
+        .map_err(|e| format!("检查远端删除文件失败: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        warn!("⚠️ [Git] 检查远端删除文件失败 ({}): {}", remote_ref, stderr);
+        return Ok(vec![]);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut deleted_files = Vec::new();
+
+    for line in stdout.lines() {
+        let mut parts = line.split_whitespace();
+        let Some(status) = parts.next() else {
+            continue;
+        };
+
+        if status != "D" {
+            continue;
+        }
+
+        let Some(path) = parts.next() else {
+            continue;
+        };
+
+        let relative_path = decode_git_quoted_path(path).replace('\\', "/");
+        if relative_path.ends_with(".md") && workspace_root.join(&relative_path).exists() {
+            deleted_files.push(relative_path);
+        }
+    }
+
+    Ok(deleted_files)
+}
+
 /// 执行 git pull
 pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
     info!("🔄 [Git] 开始 pull 操作");
@@ -735,6 +786,32 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
 
     // 获取当前分支名
     let branch = get_current_branch(workspace_root)?;
+
+    // 先 fetch 远端状态并预检删除风险。远端删除本地 Markdown 不一定会形成 Git 冲突，
+    // 但会导致本地笔记与 cache 被静默删除，因此必须交给用户确认。
+    let fetch_output = run_git_command(workspace_root, &["fetch", "origin", &branch]);
+    if let Ok(output) = &fetch_output {
+        if output.status.success() {
+            let remote_deleted_files =
+                get_remote_deleted_local_markdown_files(workspace_root, &branch)?;
+            if !remote_deleted_files.is_empty() {
+                warn!(
+                    "⚠️ [Git] 远端将删除本地 Markdown 文件，等待用户确认: {:?}",
+                    remote_deleted_files
+                );
+                return Ok(PullResult {
+                    success: false,
+                    files_updated: 0,
+                    has_conflicts: true,
+                    conflict_files: remote_deleted_files,
+                    message: "远端缺少部分本地文件，请确认保留本地还是使用远端删除结果".to_string(),
+                    pre_pull_head: None,
+                    untracked_files: vec![],
+                    last_sync_time: None,
+                });
+            }
+        }
+    }
 
     // 执行 git pull，先 fetch 再 merge/rebase
     // 使用 --no-rebase 避免 rebase 问题
@@ -824,34 +901,23 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
         if stderr.contains("couldn't find remote ref") || stderr.contains("does not exist") {
             if let Ok(remote_branch) = get_remote_default_branch(workspace_root) {
                 if remote_branch != branch {
-                    // 远程默认分支与当前分支不同，先 stash 未跟踪文件，再 reset --hard 到远程分支
-                    let _ = run_git_command(workspace_root, &["stash", "-u"]);
-                    let _ = run_git_command(workspace_root, &["fetch", "origin"]);
-                    let reset_out = run_git_command(
-                        workspace_root,
-                        &["reset", "--hard", &format!("origin/{}", remote_branch)],
+                    warn!(
+                        "⚠️ [Git] 当前分支 {} 在远程不存在，远程默认分支为 {}，停止自动覆盖本地",
+                        branch, remote_branch
                     );
-                    if let Ok(re) = reset_out {
-                        if re.status.success() {
-                            let _ = run_git_command(workspace_root, &["stash", "pop"]);
-                            info!(
-                                "✅ [Git] 已重置到远程分支 origin/{} 并拉取最新数据",
-                                remote_branch
-                            );
-                            let last_sync_time =
-                                chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                            return Ok(PullResult {
-                                success: true,
-                                files_updated: 1,
-                                has_conflicts: false,
-                                conflict_files: vec![],
-                                message: format!("已从远程分支 {} 拉取最新数据", remote_branch),
-                                pre_pull_head: None,
-                                untracked_files: vec![],
-                                last_sync_time: Some(last_sync_time),
-                            });
-                        }
-                    }
+                    return Ok(PullResult {
+                        success: false,
+                        files_updated: 0,
+                        has_conflicts: true,
+                        conflict_files: vec![],
+                        message: format!(
+                            "当前分支 {} 在远程不存在，远程默认分支为 {}。请确认保留本地或切换/拉取远程分支。",
+                            branch, remote_branch
+                        ),
+                        pre_pull_head: None,
+                        untracked_files: vec![],
+                        last_sync_time: None,
+                    });
                 }
             }
             info!("ℹ️ [Git] 远程分支不存在，可能是首次推送前");
@@ -1511,7 +1577,8 @@ pub fn init_git_repository_command(
     // 3. 配置远程仓库（内部会校验 token）
     configure_remote(&workspace_root, &remote_url, &token)?;
 
-    // 4. 首次拉取：fetch 后切换到远程默认分支（如 main），避免本地 master 与远程 main 不一致导致拉不到数据
+    // 4. 只做非破坏性的 fetch。保存/更新 Git 配置不应自动 reset 到远端，
+    // 否则远端缺少的本地文件会被静默删除，并进一步清理 cache。
     let fetch_out = crate::git_common::git_command()
         .args(["fetch", "origin"])
         .current_dir(&workspace_root)
@@ -1519,51 +1586,27 @@ pub fn init_git_repository_command(
 
     if let Ok(ref out) = fetch_out {
         if out.status.success() {
-            match get_remote_default_branch(&workspace_root) {
-                Ok(remote_branch) => {
-                    // 将当前工作区切换为远程默认分支内容（本地无提交时等价于“拉取远程”）
-                    // 先 stash 未跟踪文件（-u 表示 include untracked）
-                    let _ = crate::git_common::git_command()
-                        .args(["stash", "-u"])
-                        .current_dir(&workspace_root)
-                        .output();
-                    // 用 reset --hard 将本地 reset 到远程分支（会丢弃本地未提交的更改）
-                    let reset_out = crate::git_common::git_command()
-                        .args(["reset", "--hard", &format!("origin/{}", remote_branch)])
-                        .current_dir(&workspace_root)
-                        .output();
-                    if let Ok(re) = reset_out {
-                        if re.status.success() {
-                            info!(
-                                "✅ [Git] 首次拉取成功，已重置到远程分支 origin/{}",
-                                remote_branch
-                            );
-                        } else {
-                            let err = get_git_stderr(&re);
-                            warn!("⚠️ [Git] 首次重置到远程分支失败: {}", err);
-                        }
-                    }
-                    // 尝试恢复 stash（如果有冲突会失败，这没问题，用户可手动处理）
-                    let _ = crate::git_common::git_command()
-                        .args(["stash", "pop"])
-                        .current_dir(&workspace_root)
-                        .output();
-                }
-                Err(e) => {
-                    info!("ℹ️ [Git] 无法获取远程默认分支，跳过首次拉取: {}", e);
+            info!("✅ [Git] 远程信息获取成功，未自动覆盖本地工作区");
+            if let Ok(remote_branch) = get_remote_default_branch(&workspace_root) {
+                let local_branch = get_current_branch(&workspace_root).unwrap_or_default();
+                if !local_branch.is_empty() && local_branch != remote_branch {
+                    info!(
+                        "ℹ️ [Git] 当前分支为 {}，远程默认分支为 {}，需要同步时将由用户确认处理",
+                        local_branch, remote_branch
+                    );
                 }
             }
         } else {
             let err = get_git_stderr(out);
-            info!("ℹ️ [Git] 首次 fetch 失败（可能网络或空仓库）: {}", err);
+            info!("ℹ️ [Git] fetch 失败（可能网络或空仓库）: {}", err);
         }
     } else {
-        info!("ℹ️ [Git] 首次 fetch 执行失败，跳过拉取");
+        info!("ℹ️ [Git] fetch 执行失败，跳过远程状态同步");
     }
 
     info!("✅ [Git] Git 仓库初始化完成");
 
-    // 首次拉取后异步重建搜索索引，使快捷搜索能命中刚同步下来的 Markdown（与 git_pull_command 中逻辑一致）
+    // 配置完成后异步重建搜索索引。
     let workspace_root_buf = workspace_root.to_path_buf();
     let app_handle_rebuild = app_handle.clone();
     tauri::async_runtime::spawn(async move {
@@ -1601,7 +1644,7 @@ pub fn init_git_repository_command(
             {
                 if let Ok(mut index_lock) = index_state.write() {
                     *index_lock = Some(new_index);
-                    info!("✅ [Git] 全局搜索索引已更新（配置 Git 首次拉取后）");
+                    info!("✅ [Git] 全局搜索索引已更新（配置 Git 后）");
                 }
             }
         }
