@@ -326,8 +326,7 @@ defineOptions({
 const { t } = useI18n();
 const pluginStore = usePluginStore();
 const configurationStore = useConfigurationStore();
-const plugins = computed(() => pluginStore.plugins);
-const visiblePlugins = computed(() => plugins.value.filter((plugin) => !plugin.resourceFor));
+const visiblePlugins = computed(() => pluginStore.visiblePlugins);
 const installing = ref(false);
 const removingPluginId = ref<string | null>(null);
 const marketplaceLoading = ref(false);
@@ -425,7 +424,7 @@ const getMarketplaceResources = (item: PluginMarketplaceItem): PluginMarketplace
 );
 
 const getInstalledResources = (plugin: RegisteredPlugin): RegisteredPlugin[] => (
-  plugins.value.filter((resource) => resource.resourceFor === plugin.id)
+  pluginStore.resourcesForPlugin(plugin.id)
 );
 
 const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] => (
@@ -573,11 +572,9 @@ const canUpdateMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
     && compareVersions(item.version, installedPlugin.manifest.version) > 0;
 };
 
-const shouldInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
-  const installedPlugin = getInstalledMarketplacePlugin(item);
-  return !installedPlugin
-    || (installedPlugin.source === 'local' && compareVersions(item.version, installedPlugin.manifest.version) > 0);
-};
+const shouldInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => (
+  pluginStore.shouldInstallMarketplaceItem(item)
+);
 
 const hasMissingMarketplaceDependencies = (item: PluginMarketplaceItem): boolean => (
   getMarketplaceDependencies(item).some((dependencyId) => {
@@ -652,49 +649,6 @@ const handleResetPluginInstallDir = async () => {
   }
 };
 
-const installMarketplaceItemWithDependencies = async (
-  item: PluginMarketplaceItem,
-  visited = new Set<string>()
-): Promise<void> => {
-  if (visited.has(item.id)) {
-    throw new Error(`Circular plugin dependency: ${item.id}`);
-  }
-  visited.add(item.id);
-
-  try {
-    for (const dependencyId of getMarketplaceDependencies(item)) {
-      const dependency = getMarketplaceItemById(dependencyId);
-      if (!dependency) {
-        throw new Error(t('plugins.dependencyMissing', { id: dependencyId }));
-      }
-      if (!isCompatibleWithApp(dependency)) {
-        throw new Error(t('plugins.dependencyIncompatible', { plugin: pluginText(dependency.name) }));
-      }
-      if (shouldInstallMarketplaceItem(dependency)) {
-        await installMarketplaceItemWithDependencies(dependency, visited);
-      }
-    }
-
-    if (item.packageUrl && shouldInstallMarketplaceItem(item)) {
-      installingPackageId.value = item.id;
-      installProgress.value = null;
-      logger.info('[PluginSettings] marketplace install package start', {
-        pluginId: item.id,
-        packageUrl: item.packageUrl,
-        packageSubdir: item.packageSubdir,
-        dependencies: getMarketplaceDependencies(item)
-      });
-      await pluginStore.installFromUrl(item.packageUrl, true, item.packageSubdir, item.sizeBytes);
-      logger.info('[PluginSettings] marketplace install package complete', {
-        pluginId: item.id,
-        packageUrl: item.packageUrl
-      });
-    }
-  } finally {
-    visited.delete(item.id);
-  }
-};
-
 const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = false) => {
   if (!item.packageUrl) return;
 
@@ -707,7 +661,31 @@ const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = fa
       update,
       dependencies: getMarketplaceDependencies(item)
     });
-    await installMarketplaceItemWithDependencies(item);
+    await pluginStore.installMarketplaceItemWithDependencies(
+      item,
+      marketplaceItems.value,
+      {
+        isCompatible: isCompatibleWithApp,
+        formatCircularDependencyError: (packageItem) =>
+          `Circular plugin dependency: ${packageItem.id}`,
+        formatMissingDependencyError: (dependencyId) =>
+          t('plugins.dependencyMissing', { id: dependencyId }),
+        formatIncompatibleDependencyError: (dependency) =>
+          t('plugins.dependencyIncompatible', {
+            plugin: pluginText(dependency.name)
+          }),
+        onInstallingPackage: (packageItem) => {
+          installingPackageId.value = packageItem.id;
+          installProgress.value = null;
+          logger.info('[PluginSettings] marketplace install package start', {
+            pluginId: packageItem.id,
+            packageUrl: packageItem.packageUrl,
+            packageSubdir: packageItem.packageSubdir,
+            dependencies: getMarketplaceDependencies(packageItem)
+          });
+        }
+      }
+    );
     logger.info('[PluginSettings] marketplace install complete', {
       pluginId: item.id,
       update

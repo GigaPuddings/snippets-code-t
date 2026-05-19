@@ -7,6 +7,7 @@ import {
   getRapidOcrResourceStatus,
   installLocalPluginPackage,
   installPluginPackageFromUrl,
+  type PluginMarketplaceItem,
   type PluginResourceStatus,
   setPluginEnabled,
   uninstallLocalPluginPackage
@@ -29,6 +30,50 @@ interface PluginStateChangedPayload {
   pluginId: string;
   enabled: boolean;
 }
+
+const versionParts = (version: string): number[] =>
+  version
+    .replace(/^v/i, '')
+    .split('.')
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isFinite(part) ? part : 0));
+
+const compareVersions = (left: string, right: string): number => {
+  const leftParts = versionParts(left);
+  const rightParts = versionParts(right);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+};
+
+const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] =>
+  Array.isArray(item.dependencies)
+    ? item.dependencies.filter(
+        (dependencyId) =>
+          typeof dependencyId === 'string' && Boolean(dependencyId.trim())
+      )
+    : [];
+
+const pluginRuntimeSignature = (plugin: RegisteredPlugin): string =>
+  JSON.stringify({
+    id: plugin.id,
+    source: plugin.source,
+    packagePath: plugin.packagePath,
+    installedAt: plugin.installedAt,
+    version: plugin.manifest.version,
+    entry: plugin.manifest.entry,
+    capabilities: plugin.manifest.capabilities,
+    dependencies: plugin.manifest.dependencies,
+    resourceFor: plugin.resourceFor
+  });
+
+const hasPluginRuntimeChanged = (
+  previous: RegisteredPlugin,
+  next: RegisteredPlugin
+): boolean => pluginRuntimeSignature(previous) !== pluginRuntimeSignature(next);
 
 const normalizePluginStates = (
   plugins: RegisteredPlugin[],
@@ -74,6 +119,14 @@ export const usePluginStore = defineStore('plugins', {
   }),
   getters: {
     plugins: (state): RegisteredPlugin[] => state.installedPlugins,
+    visiblePlugins: (state): RegisteredPlugin[] =>
+      state.installedPlugins.filter((plugin) => !plugin.resourceFor),
+    resourcesForPlugin:
+      (state) =>
+      (pluginId: PluginId | string): RegisteredPlugin[] =>
+        state.installedPlugins.filter(
+          (plugin) => plugin.resourceFor === pluginId
+        ),
     isInstalled:
       (state) =>
       (id: PluginId | string): boolean =>
@@ -91,26 +144,14 @@ export const usePluginStore = defineStore('plugins', {
         logger.info(
           '[PluginStore] initialize skipped; refreshing installed plugins'
         );
-        await this.refreshInstalledPlugins();
+        await this.reconcileInstalledPlugins('initialize-refresh');
         await this.ensureStateListener();
         return;
       }
 
       try {
         logger.info('[PluginStore] initialize start');
-        const localManifests = await getInstalledPluginManifests();
-        logger.info('[PluginStore] loaded local manifests', {
-          count: localManifests.length,
-          ids: localManifests.map((pluginPackage) => pluginPackage.manifest.id)
-        });
-        this.installedPlugins = loadPluginRegistry(localManifests);
-        const backendStates = await getPluginStates();
-        this.enabled = normalizePluginStates(this.installedPlugins, {
-          ...this.enabled,
-          ...backendStates
-        });
-        await this.refreshPluginResourceStatus();
-        await this.loadEnabledPluginEntries();
+        await this.reconcileInstalledPlugins('initialize');
         logger.info('[PluginStore] initialize complete', {
           plugins: this.installedPlugins.map((plugin) => ({
             id: plugin.id,
@@ -133,30 +174,44 @@ export const usePluginStore = defineStore('plugins', {
     },
 
     async refreshInstalledPlugins(): Promise<void> {
-      logger.info('[PluginStore] refresh installed plugins start');
-      const previousInstalledIds = new Set(
-        this.installedPlugins.map((plugin) => String(plugin.id))
+      await this.reconcileInstalledPlugins('manual-refresh');
+    },
+
+    async reconcileInstalledPlugins(
+      reason: string,
+      resetPluginIds: Iterable<string> = []
+    ): Promise<void> {
+      logger.info('[PluginStore] reconcile installed plugins start', {
+        reason
+      });
+      const previousPlugins = this.installedPlugins;
+      const previousById = new Map(
+        previousPlugins.map((plugin) => [String(plugin.id), plugin])
       );
-      const previousLocalIds = this.installedPlugins
-        .filter((plugin) => plugin.source === 'local')
-        .map((plugin) => String(plugin.id));
       const localManifests = await getInstalledPluginManifests();
       const nextInstalledPlugins = loadPluginRegistry(localManifests);
-      const nextLocalIds = new Set(
-        nextInstalledPlugins
-          .filter((plugin) => plugin.source === 'local')
-          .map((plugin) => String(plugin.id))
+      const nextById = new Map(
+        nextInstalledPlugins.map((plugin) => [String(plugin.id), plugin])
       );
+      const runtimeResetPluginIds = new Set(resetPluginIds);
 
-      previousLocalIds
-        .filter((pluginId) => !nextLocalIds.has(pluginId))
-        .forEach((pluginId) => clearRuntimePluginRegistrations(pluginId));
+      for (const previousPlugin of previousPlugins) {
+        if (previousPlugin.source !== 'local') continue;
+        const pluginId = String(previousPlugin.id);
+        const nextPlugin = nextById.get(pluginId);
+        if (
+          !nextPlugin ||
+          hasPluginRuntimeChanged(previousPlugin, nextPlugin)
+        ) {
+          runtimeResetPluginIds.add(pluginId);
+        }
+      }
 
       this.installedPlugins = nextInstalledPlugins;
       const backendStates = await getPluginStates();
       const preservedStates = Object.fromEntries(
-        Object.entries(this.enabled).filter(([pluginId]) =>
-          previousInstalledIds.has(pluginId)
+        Object.entries(this.enabled).filter(
+          ([pluginId]) => previousById.has(pluginId) && nextById.has(pluginId)
         )
       );
       this.enabled = normalizePluginStates(this.installedPlugins, {
@@ -167,12 +222,15 @@ export const usePluginStore = defineStore('plugins', {
         .filter(
           (plugin) => plugin.source === 'local' && !this.isEnabled(plugin.id)
         )
-        .forEach((plugin) =>
-          clearRuntimePluginRegistrations(String(plugin.id))
-        );
+        .forEach((plugin) => runtimeResetPluginIds.add(String(plugin.id)));
+      runtimeResetPluginIds.forEach((pluginId) =>
+        clearRuntimePluginRegistrations(pluginId)
+      );
       await this.refreshPluginResourceStatus();
       await this.loadEnabledPluginEntries();
-      logger.info('[PluginStore] refresh installed plugins complete', {
+      logger.info('[PluginStore] reconcile installed plugins complete', {
+        reason,
+        resetPluginIds: Array.from(runtimeResetPluginIds),
         plugins: this.installedPlugins.map((plugin) => ({
           id: plugin.id,
           source: plugin.source,
@@ -199,8 +257,9 @@ export const usePluginStore = defineStore('plugins', {
         pluginId: pluginPackage.manifest.id,
         packagePath: pluginPackage.packagePath
       });
-      clearRuntimePluginRegistrations(String(pluginPackage.manifest.id));
-      await this.refreshInstalledPlugins();
+      await this.reconcileInstalledPlugins('install-path', [
+        String(pluginPackage.manifest.id)
+      ]);
     },
 
     async installFromUrl(
@@ -226,15 +285,15 @@ export const usePluginStore = defineStore('plugins', {
         packagePath: pluginPackage.packagePath,
         packageUrl
       });
-      clearRuntimePluginRegistrations(String(pluginPackage.manifest.id));
-      await this.refreshInstalledPlugins();
+      await this.reconcileInstalledPlugins('install-url', [
+        String(pluginPackage.manifest.id)
+      ]);
     },
 
     async uninstall(pluginId: PluginId | string): Promise<void> {
       logger.info('[PluginStore] uninstall start', { pluginId });
       await uninstallLocalPluginPackage(pluginId);
-      clearRuntimePluginRegistrations(String(pluginId));
-      await this.refreshInstalledPlugins();
+      await this.reconcileInstalledPlugins('uninstall', [String(pluginId)]);
       logger.info('[PluginStore] uninstall complete', { pluginId });
     },
 
@@ -252,7 +311,10 @@ export const usePluginStore = defineStore('plugins', {
             ) {
               this.enabled[pluginId] = enabled;
             }
-            await this.refreshInstalledPlugins();
+            await this.reconcileInstalledPlugins(
+              'backend-state-event',
+              enabled ? [] : [pluginId]
+            );
           }
         );
       } catch (error) {
@@ -274,11 +336,10 @@ export const usePluginStore = defineStore('plugins', {
           this.runtimeRevision += 1;
         }
         await setPluginEnabled(pluginId, enabled);
-        if (enabled) {
-          await this.loadEnabledPluginEntries();
-        } else {
-          await this.refreshPluginResourceStatus();
-        }
+        await this.reconcileInstalledPlugins(
+          'set-enabled',
+          enabled ? [] : [String(pluginId)]
+        );
         logger.info('[PluginStore] set enabled complete', {
           pluginId,
           enabled
@@ -309,10 +370,99 @@ export const usePluginStore = defineStore('plugins', {
       this.runtimeRevision += 1;
     },
 
+    shouldInstallMarketplaceItem(item: PluginMarketplaceItem): boolean {
+      const installedPlugin = this.installedPlugins.find(
+        (plugin) => plugin.id === item.id
+      );
+      return (
+        !installedPlugin ||
+        (installedPlugin.source === 'local' &&
+          compareVersions(item.version, installedPlugin.manifest.version) > 0)
+      );
+    },
+
+    async installMarketplaceItemWithDependencies(
+      item: PluginMarketplaceItem,
+      marketplaceItems: PluginMarketplaceItem[],
+      options: {
+        isCompatible?: (item: PluginMarketplaceItem) => boolean;
+        onInstallingPackage?: (item: PluginMarketplaceItem) => void;
+        formatCircularDependencyError?: (item: PluginMarketplaceItem) => string;
+        formatMissingDependencyError?: (dependencyId: string) => string;
+        formatIncompatibleDependencyError?: (
+          item: PluginMarketplaceItem
+        ) => string;
+      } = {},
+      visited = new Set<string>()
+    ): Promise<void> {
+      if (visited.has(item.id)) {
+        throw new Error(
+          options.formatCircularDependencyError?.(item) ??
+            `Circular plugin dependency: ${item.id}`
+        );
+      }
+      visited.add(item.id);
+
+      try {
+        for (const dependencyId of getMarketplaceDependencies(item)) {
+          const dependency = marketplaceItems.find(
+            (candidate) => candidate.id === dependencyId
+          );
+          if (!dependency) {
+            throw new Error(
+              options.formatMissingDependencyError?.(dependencyId) ??
+                `Missing plugin dependency: ${dependencyId}`
+            );
+          }
+          if (options.isCompatible && !options.isCompatible(dependency)) {
+            const label =
+              dependency.name?.fallback ||
+              dependency.name?.i18nKey ||
+              dependency.id;
+            throw new Error(
+              options.formatIncompatibleDependencyError?.(dependency) ??
+                `Incompatible plugin dependency: ${label}`
+            );
+          }
+          if (this.shouldInstallMarketplaceItem(dependency)) {
+            await this.installMarketplaceItemWithDependencies(
+              dependency,
+              marketplaceItems,
+              options,
+              visited
+            );
+          }
+        }
+
+        if (item.packageUrl && this.shouldInstallMarketplaceItem(item)) {
+          options.onInstallingPackage?.(item);
+          logger.info('[PluginStore] marketplace lifecycle install package', {
+            pluginId: item.id,
+            packageUrl: item.packageUrl,
+            packageSubdir: item.packageSubdir,
+            dependencies: getMarketplaceDependencies(item)
+          });
+          await this.installFromUrl(
+            item.packageUrl,
+            true,
+            item.packageSubdir,
+            item.sizeBytes
+          );
+        }
+      } finally {
+        visited.delete(item.id);
+      }
+    },
+
     async refreshPluginResourceStatus(): Promise<void> {
       const nextStatus: Record<string, PluginResourceStatus | undefined> = {};
 
-      if (this.installedPlugins.some((plugin) => plugin.id === 'screenshot')) {
+      const hasPluginOrResourceFor = (pluginId: string): boolean =>
+        this.installedPlugins.some(
+          (plugin) => plugin.id === pluginId || plugin.resourceFor === pluginId
+        );
+
+      if (hasPluginOrResourceFor('screenshot')) {
         try {
           const status = await getRapidOcrResourceStatus();
           nextStatus[status.pluginId] = status;
@@ -321,7 +471,7 @@ export const usePluginStore = defineStore('plugins', {
         }
       }
 
-      if (this.installedPlugins.some((plugin) => plugin.id === 'translation')) {
+      if (hasPluginOrResourceFor('translation')) {
         const runtimeEntry = 'resources/transformers/transformers.min.js';
         const packageIds = ['translation-offline-runtime', 'translation'];
         let runtimePath: string | null = null;

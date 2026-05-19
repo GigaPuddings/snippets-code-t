@@ -264,9 +264,25 @@ impl AppConfigManager {
             fs::create_dir_all(&config_dir).map_err(|e| format!("创建配置目录失败: {}", e))?;
         }
 
+        let config_exists = config_path.exists();
+        let existing_content = if config_exists {
+            match fs::read_to_string(&config_path) {
+                Ok(content) => Some(content),
+                Err(e) => {
+                    warn!(
+                        "⚠️ [AppConfig] 加载配置失败: 读取配置文件失败: {}，使用默认配置",
+                        e
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         // 尝试加载现有配置
-        let mut config = if config_path.exists() {
-            match Self::load_from_file(&config_path) {
+        let mut config = if let Some(content) = existing_content.as_deref() {
+            match Self::load_from_str(content) {
                 Ok(cfg) => {
                     info!("✅ [AppConfig] 加载配置成功");
                     cfg
@@ -276,6 +292,8 @@ impl AppConfigManager {
                     AppConfig::default()
                 }
             }
+        } else if config_exists {
+            AppConfig::default()
         } else {
             info!("📝 [AppConfig] 配置文件不存在，创建默认配置");
             AppConfig::default()
@@ -288,20 +306,34 @@ impl AppConfigManager {
             config,
         };
 
-        // 保存配置（确保文件存在）
-        manager.save()?;
+        // 保存配置（确保文件存在，并持久化 schema/default 归一化结果）
+        if Self::needs_save(existing_content.as_deref(), &manager.config) {
+            manager.save()?;
+        }
 
         Ok(manager)
     }
 
-    /// 从文件加载配置
-    fn load_from_file(path: &Path) -> Result<AppConfig, String> {
-        let content = fs::read_to_string(path).map_err(|e| format!("读取配置文件失败: {}", e))?;
-
+    /// 从字符串加载配置
+    fn load_from_str(content: &str) -> Result<AppConfig, String> {
         let config: AppConfig =
             serde_json::from_str(&content).map_err(|e| format!("解析配置文件失败: {}", e))?;
 
         Ok(config)
+    }
+
+    fn needs_save(existing_content: Option<&str>, config: &AppConfig) -> bool {
+        let Some(existing_content) = existing_content else {
+            return true;
+        };
+
+        match (
+            serde_json::from_str::<serde_json::Value>(existing_content),
+            serde_json::to_value(config),
+        ) {
+            (Ok(existing), Ok(current)) => existing != current,
+            _ => true,
+        }
     }
 
     /// 保存配置到文件
@@ -851,15 +883,35 @@ fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
         return Ok(configured_root.join("plugins"));
     }
 
-    default_plugin_packages_dir(app_handle)
+    let plugins_dir = default_plugin_packages_dir(app_handle)?;
+    migrate_legacy_default_plugin_packages(app_handle, &plugins_dir)?;
+    Ok(plugins_dir)
 }
 
 fn default_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    Ok(default_plugin_packages_dir_for_data_dir(
+        &crate::json_config::get_data_dir(app_handle),
+    ))
+}
+
+fn default_plugin_packages_dir_for_data_dir(data_dir: &Path) -> PathBuf {
+    data_dir.join("plugins")
+}
+
+fn legacy_default_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_handle
         .path()
         .app_data_dir()
         .map_err(|e| format!("获取应用数据目录失败: {}", e))?
         .join("plugins"))
+}
+
+fn migrate_legacy_default_plugin_packages(
+    app_handle: &AppHandle,
+    plugins_dir: &Path,
+) -> Result<(), String> {
+    let legacy_dir = legacy_default_plugin_packages_dir(app_handle)?;
+    migrate_installed_plugin_packages(&legacy_dir, plugins_dir)
 }
 
 pub fn resolve_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
@@ -991,6 +1043,7 @@ pub fn get_plugin_install_dir(app_handle: AppHandle) -> Result<String, String> {
 #[command]
 pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Result<(), String> {
     let old_plugins_dir = plugin_packages_dir(&app_handle)?;
+    let legacy_default_plugins_dir = legacy_default_plugin_packages_dir(&app_handle).ok();
     let legacy_direct_plugins_dir = configured_plugin_install_root_dir(&app_handle)?;
     let configured_path = path
         .map(|value| value.trim().to_string())
@@ -1025,6 +1078,9 @@ pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Re
     };
 
     migrate_installed_plugin_packages(&old_plugins_dir, &new_plugins_dir)?;
+    if let Some(legacy_default_plugins_dir) = legacy_default_plugins_dir {
+        migrate_installed_plugin_packages(&legacy_default_plugins_dir, &new_plugins_dir)?;
+    }
     if let Some(legacy_direct_plugins_dir) = legacy_direct_plugins_dir {
         migrate_installed_plugin_packages(&legacy_direct_plugins_dir, &new_plugins_dir)?;
     }
@@ -1245,6 +1301,38 @@ fn plugin_package_record(
         package_path: path_to_display_string(&normalized_existing_path(package_path)),
         installed_at: plugin_installed_at(package_path),
     })
+}
+
+fn plugin_has_owned_config(plugin_id: &str) -> bool {
+    matches!(
+        plugin_id,
+        "attachments" | "git-sync" | "screenshot" | "system-theme" | "translation"
+    )
+}
+
+fn manifest_version(manifest: &serde_json::Value) -> Option<&str> {
+    manifest
+        .get("version")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn should_clear_plugin_owned_config_for_reinstall(
+    plugin_id: &str,
+    target_dir: &Path,
+    next_manifest: &serde_json::Value,
+) -> bool {
+    if !plugin_has_owned_config(plugin_id) {
+        return false;
+    }
+
+    let existing_manifest = read_plugin_package_manifest(&target_dir.join("plugin.json")).ok();
+    existing_manifest
+        .as_ref()
+        .and_then(manifest_version)
+        .zip(manifest_version(next_manifest))
+        .is_some_and(|(existing_version, next_version)| existing_version == next_version)
 }
 
 fn plugin_package_manifest_id(plugin_package: &LocalPluginPackage) -> &str {
@@ -2004,6 +2092,10 @@ pub fn install_local_plugin_package(
             if !overwrite {
                 return Err(format!("插件 '{}' 已安装", plugin_id));
             }
+            apply_plugin_runtime_change(&app_handle, &plugin_id, false);
+            if should_clear_plugin_owned_config_for_reinstall(&plugin_id, &target_dir, &manifest) {
+                clear_plugin_owned_config(&app_handle, &plugin_id)?;
+            }
             fs::remove_dir_all(&target_dir)
                 .map_err(|e| format!("移除旧插件目录失败: {} ({})", target_dir.display(), e))?;
         }
@@ -2264,5 +2356,41 @@ mod tests {
 
         assert_eq!(root, normalize_plugin_install_root(&root));
         assert_eq!(root, normalize_plugin_install_root(&already_plugins));
+    }
+
+    #[test]
+    fn defaults_plugin_packages_to_configured_data_dir() {
+        let data_dir = PathBuf::from(r"D:\Program Files\snippets-code");
+
+        assert_eq!(
+            data_dir.join("plugins"),
+            default_plugin_packages_dir_for_data_dir(&data_dir)
+        );
+    }
+
+    #[test]
+    fn clearing_git_sync_owned_config_resets_app_settings() {
+        let mut manager = AppConfigManager {
+            config_path: PathBuf::from("unused-app.json"),
+            config: AppConfig::default(),
+        };
+        manager.config.git.enabled = true;
+        manager.config.git.auto_sync = true;
+        manager.config.git.user_name = "Zero".to_string();
+        manager.config.git.user_email = "zero@example.com".to_string();
+        manager.config.git.remote_url = "https://example.com/repo.git".to_string();
+        manager.config.git.token = "secret".to_string();
+        manager.config.git.last_sync_time = Some("2026-05-19T00:00:00Z".to_string());
+
+        manager.clear_plugin_owned_config("git-sync");
+
+        let git = manager.get_git_settings();
+        assert!(!git.enabled);
+        assert!(!git.auto_sync);
+        assert!(git.user_name.is_empty());
+        assert!(git.user_email.is_empty());
+        assert!(git.remote_url.is_empty());
+        assert!(git.token.is_empty());
+        assert!(git.last_sync_time.is_none());
     }
 }
