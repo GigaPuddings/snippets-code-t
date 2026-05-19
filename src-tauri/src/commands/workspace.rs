@@ -98,6 +98,25 @@ fn initialize_workspace_runtime(
     Ok(())
 }
 
+fn sync_workspace_root_to_app_config(
+    app_handle: &tauri::AppHandle,
+    workspace_root: &PathBuf,
+) -> Result<(), String> {
+    if let Some(config_state) =
+        app_handle.try_state::<Arc<RwLock<crate::app_config::AppConfigManager>>>()
+    {
+        let mut manager = config_state
+            .write()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        let mut config = manager.get_config().clone();
+        config.workspace_root = Some(workspace_root.to_string_lossy().to_string());
+        manager.update_config(config);
+        manager.save()?;
+    }
+
+    Ok(())
+}
+
 // 打开文件夹选择对话框
 #[tauri::command]
 pub async fn select_workspace(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
@@ -145,6 +164,7 @@ pub fn get_workspace_root_path(app_handle: tauri::AppHandle) -> Result<Option<St
 pub fn set_workspace_root_path(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
     let path_buf = PathBuf::from(path);
     set_workspace_root(&app_handle, path_buf.clone())?;
+    sync_workspace_root_to_app_config(&app_handle, &path_buf)?;
     initialize_workspace_runtime(&app_handle, path_buf)
 }
 
@@ -175,6 +195,7 @@ pub fn change_workspace(
     } else {
         // 直接设置新路径
         set_workspace_root(&app_handle, new_path_buf.clone())?;
+        sync_workspace_root_to_app_config(&app_handle, &new_path_buf)?;
         initialize_workspace_runtime(&app_handle, new_path_buf)?;
         Ok("工作区已更改".to_string())
     }

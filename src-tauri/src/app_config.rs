@@ -244,6 +244,27 @@ impl Default for GitSettings {
     }
 }
 
+fn is_default_git_settings(settings: &GitSettings) -> bool {
+    !settings.enabled
+        && !settings.auto_sync
+        && settings.auto_sync_delay == default_auto_sync_delay()
+        && settings.pull_on_start == default_pull_on_start()
+        && settings.user_name.is_empty()
+        && settings.user_email.is_empty()
+        && settings.remote_url.is_empty()
+        && settings.token.is_empty()
+        && settings.last_sync_time.is_none()
+}
+
+fn copy_option_if_empty<T: Clone>(target: &mut Option<T>, source: &Option<T>) -> bool {
+    if target.is_none() && source.is_some() {
+        *target = source.clone();
+        return true;
+    }
+
+    false
+}
+
 // 应用配置管理器
 pub struct AppConfigManager {
     config_path: PathBuf,
@@ -459,6 +480,91 @@ impl AppConfigManager {
 
         Ok(())
     }
+}
+
+fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> bool {
+    let mut changed = false;
+
+    changed |= copy_option_if_empty(&mut target.plugin_install_dir, &legacy.plugin_install_dir);
+    changed |= copy_option_if_empty(&mut target.workspace_root, &legacy.workspace_root);
+    changed |= copy_option_if_empty(&mut target.update_available, &legacy.update_available);
+    changed |= copy_option_if_empty(&mut target.update_info, &legacy.update_info);
+    changed |= copy_option_if_empty(&mut target.translation_engine, &legacy.translation_engine);
+    changed |= copy_option_if_empty(&mut target.ocr_engine, &legacy.ocr_engine);
+    changed |= copy_option_if_empty(&mut target.ocr_language, &legacy.ocr_language);
+    changed |= copy_option_if_empty(
+        &mut target.offline_model_activated,
+        &legacy.offline_model_activated,
+    );
+    changed |= copy_option_if_empty(
+        &mut target.show_progress_on_restart,
+        &legacy.show_progress_on_restart,
+    );
+    changed |= copy_option_if_empty(&mut target.search_hotkey, &legacy.search_hotkey);
+    changed |= copy_option_if_empty(&mut target.config_hotkey, &legacy.config_hotkey);
+    changed |= copy_option_if_empty(&mut target.translate_hotkey, &legacy.translate_hotkey);
+    changed |= copy_option_if_empty(
+        &mut target.selection_translate_hotkey,
+        &legacy.selection_translate_hotkey,
+    );
+    changed |= copy_option_if_empty(&mut target.screenshot_hotkey, &legacy.screenshot_hotkey);
+    changed |= copy_option_if_empty(&mut target.dark_mode_hotkey, &legacy.dark_mode_hotkey);
+    changed |= copy_option_if_empty(&mut target.dark_mode_config, &legacy.dark_mode_config);
+
+    if is_default_git_settings(&target.git) && !is_default_git_settings(&legacy.git) {
+        target.git = legacy.git.clone();
+        changed = true;
+    }
+
+    for (plugin_id, legacy_state) in &legacy.plugins {
+        let needs_update = target
+            .plugins
+            .get(plugin_id)
+            .map(|current| current.enabled != legacy_state.enabled)
+            .unwrap_or(true);
+        if needs_update {
+            target
+                .plugins
+                .insert(plugin_id.clone(), legacy_state.clone());
+            changed = true;
+        }
+    }
+
+    changed
+}
+
+pub fn migrate_workspace_app_config_to_data_dir(
+    app_handle: &AppHandle,
+    manager: &mut AppConfigManager,
+) -> Result<(), String> {
+    let Some(workspace_root) = crate::json_config::get_workspace_root(app_handle)? else {
+        return Ok(());
+    };
+
+    let data_dir = crate::json_config::get_data_dir(app_handle);
+    if same_path(&workspace_root, &data_dir) {
+        return Ok(());
+    }
+
+    let legacy_config_path = workspace_root.join(".snippets-code").join("app.json");
+    if !legacy_config_path.is_file() || same_path(&legacy_config_path, &manager.config_path) {
+        return Ok(());
+    }
+
+    let legacy_manager = AppConfigManager::new(&workspace_root)?;
+    let legacy_config = legacy_manager.get_config().clone();
+    let mut current_config = manager.get_config().clone();
+
+    if merge_legacy_workspace_config(&mut current_config, &legacy_config) {
+        manager.update_config(current_config);
+        manager.save()?;
+        info!(
+            "✅ [AppConfig] 已从旧工作区配置迁移应用级设置: {}",
+            legacy_config_path.display()
+        );
+    }
+
+    Ok(())
 }
 
 // ============= Tauri 命令 =============

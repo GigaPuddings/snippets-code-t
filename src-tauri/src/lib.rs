@@ -391,7 +391,13 @@ pub fn run() {
             // 插件安装/启用状态、设置页等都需要在未设置工作区时正常工作。
             let data_dir = json_config::get_data_dir(app.handle());
             match app_config::AppConfigManager::new(&data_dir) {
-                Ok(app_config_manager) => {
+                Ok(mut app_config_manager) => {
+                    if let Err(e) = app_config::migrate_workspace_app_config_to_data_dir(
+                        app.handle(),
+                        &mut app_config_manager,
+                    ) {
+                        log::warn!("⚠️ [初始化] 迁移旧工作区应用配置失败: {}", e);
+                    }
                     app.manage(Arc::new(RwLock::new(app_config_manager)));
                 }
                 Err(e) => {
