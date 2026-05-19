@@ -8,21 +8,21 @@ export const logger = {
     invoke('frontend_log', { 
       level: 'info', 
       message: msg, 
-      data: data ? JSON.stringify(data, null, 2) : null 
+      data: data === undefined ? null : stringifyLogData(data)
     }).catch(() => {})
   },
   error: (msg: string, data?: unknown) => {
     invoke('frontend_log', { 
       level: 'error', 
       message: msg, 
-      data: data ? JSON.stringify(data, null, 2) : null 
+      data: data === undefined ? null : stringifyLogData(data)
     }).catch(() => {})
   },
   warn: (msg: string, data?: unknown) => {
     invoke('frontend_log', { 
       level: 'warn', 
       message: msg, 
-      data: data ? JSON.stringify(data, null, 2) : null 
+      data: data === undefined ? null : stringifyLogData(data)
     }).catch(() => {})
   },
   // 调试日志 - 只在开发模式或调试模式下输出
@@ -31,7 +31,7 @@ export const logger = {
       invoke('frontend_log', { 
         level: 'info', 
         message: `[DEBUG] ${msg}`, 
-        data: data ? JSON.stringify(data, null, 2) : null 
+        data: data === undefined ? null : stringifyLogData(data)
       }).catch(() => {})
     }
   }
@@ -61,4 +61,3 @@ function stringifyLogData(data: unknown): string {
     return String(data)
   }
 }
-

@@ -13,12 +13,26 @@ interface TransformersModule {
   env: {
     useBrowserCache: boolean
     allowRemoteModels: boolean
+    backends?: {
+      onnx?: {
+        wasm?: {
+          wasmPaths?: string
+          numThreads?: number
+        }
+      }
+    }
   }
 }
 
 const TRANSFORMERS_RUNTIME_ENTRY = 'resources/transformers/transformers.min.js'
 const TRANSFORMERS_RUNTIME_PACKAGES = ['translation-offline-runtime', 'translation']
 let transformersModulePromise: Promise<TransformersModule> | null = null
+
+const getRuntimeBaseUrl = (runtimeUrl: string): string => {
+  const queryIndex = runtimeUrl.search(/[?#]/)
+  const cleanUrl = queryIndex >= 0 ? runtimeUrl.slice(0, queryIndex) : runtimeUrl
+  return cleanUrl.slice(0, cleanUrl.lastIndexOf('/') + 1)
+}
 
 async function loadTransformersModule(): Promise<TransformersModule> {
   if (transformersModulePromise) return transformersModulePromise
@@ -32,7 +46,15 @@ async function loadTransformersModule(): Promise<TransformersModule> {
       const module = await import(/* @vite-ignore */ runtimeUrl) as TransformersModule
       module.env.useBrowserCache = true
       module.env.allowRemoteModels = true
-      logger.info(`[离线翻译] 已从插件资源加载 Transformers runtime: ${pluginId}`)
+      module.env.backends ??= {}
+      module.env.backends.onnx ??= {}
+      module.env.backends.onnx.wasm ??= {}
+      module.env.backends.onnx.wasm.wasmPaths = getRuntimeBaseUrl(runtimeUrl)
+      module.env.backends.onnx.wasm.numThreads = 1
+      logger.info(`[离线翻译] 已从插件资源加载 Transformers runtime: ${pluginId}`, {
+        wasmPaths: module.env.backends.onnx.wasm.wasmPaths,
+        numThreads: module.env.backends.onnx.wasm.numThreads
+      })
       return module
     }
 
