@@ -352,6 +352,15 @@ const loadModel = async () => {
     return
   }
 
+  try {
+    await installTranslationOfflineRuntimeResources()
+    await refreshRuntimeAvailability()
+  } catch (error) {
+    logger.error('[翻译设置] 修复离线翻译运行时失败:', error)
+    modal.msg(error instanceof Error && error.message ? error.message : t('translation.runtimeInstallFailed'), 'error')
+    return
+  }
+
   isLoading.value = true
   initFileStatuses()
 
@@ -406,6 +415,15 @@ const activateModel = async () => {
   logger.info('[翻译设置] 开始激活离线模型...')
   if (!await refreshRuntimeAvailability()) {
     modal.msg(t('translation.runtimeMissingInstallFirst'), 'error')
+    return
+  }
+
+  try {
+    await installTranslationOfflineRuntimeResources()
+    await refreshRuntimeAvailability()
+  } catch (error) {
+    logger.error('[翻译设置] 修复离线翻译运行时失败:', error)
+    modal.msg(error instanceof Error && error.message ? error.message : t('translation.runtimeInstallFailed'), 'error')
     return
   }
 

@@ -2520,6 +2520,67 @@ async fn download_translation_runtime_file(
     Err(last_error.unwrap_or_else(|| format!("下载运行时资源失败: {}", file_name)))
 }
 
+fn sync_translation_runtime_wasm_fallbacks(runtime_dir: &Path) -> Result<(), String> {
+    let mut target_dirs = Vec::new();
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            target_dirs.push(exe_dir.to_path_buf());
+        }
+    }
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        target_dirs.push(current_dir);
+    }
+
+    target_dirs.sort();
+    target_dirs.dedup();
+
+    for target_dir in target_dirs {
+        for file_name in TRANSLATION_OFFLINE_RUNTIME_FILES {
+            if !file_name.ends_with(".wasm") {
+                continue;
+            }
+
+            let source_path = runtime_dir.join(file_name);
+            if !source_path.is_file() {
+                continue;
+            }
+
+            let target_path = target_dir.join(file_name);
+            if target_path == source_path {
+                continue;
+            }
+
+            let needs_copy = fs::metadata(&target_path)
+                .and_then(|target| {
+                    fs::metadata(&source_path).map(|source| {
+                        target.len() == 0 || target.len() != source.len()
+                    })
+                })
+                .unwrap_or(true);
+
+            if needs_copy {
+                fs::copy(&source_path, &target_path).map_err(|e| {
+                    format!(
+                        "同步离线翻译 wasm 兜底文件失败: {} -> {} ({})",
+                        source_path.display(),
+                        target_path.display(),
+                        e
+                    )
+                })?;
+                info!(
+                    "[Plugin] synced translation offline wasm fallback {} -> {}",
+                    file_name,
+                    target_path.display()
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[command]
 pub async fn install_translation_offline_runtime_resources(
     app_handle: AppHandle,
@@ -2568,6 +2629,8 @@ pub async fn install_translation_offline_runtime_resources(
             runtime_entry.display()
         ));
     }
+
+    sync_translation_runtime_wasm_fallbacks(&runtime_dir)?;
 
     Ok(())
 }
