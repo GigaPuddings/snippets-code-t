@@ -13,6 +13,10 @@ interface TransformersModule {
   env: {
     useBrowserCache: boolean
     allowRemoteModels: boolean
+    remoteHost?: string
+    remotePathTemplate?: string
+    allowLocalModels?: boolean
+    localModelPath?: string
     backends?: {
       onnx?: {
         wasm?: {
@@ -26,12 +30,35 @@ interface TransformersModule {
 
 const TRANSFORMERS_RUNTIME_ENTRY = 'resources/transformers/transformers.min.js'
 const TRANSFORMERS_RUNTIME_PACKAGES = ['translation-offline-runtime', 'translation']
+const TRANSFORMERS_REMOTE_HOST = 'https://huggingface.co/'
+const TRANSFORMERS_REMOTE_PATH_TEMPLATE = '{model}/resolve/{revision}/'
+const DISABLED_LOCAL_MODEL_PATH = '/__snippets_code_disabled_transformers_local_models__/'
 let transformersModulePromise: Promise<TransformersModule> | null = null
 
 const getRuntimeBaseUrl = (runtimeUrl: string): string => {
   const queryIndex = runtimeUrl.search(/[?#]/)
   const cleanUrl = queryIndex >= 0 ? runtimeUrl.slice(0, queryIndex) : runtimeUrl
   return cleanUrl.slice(0, cleanUrl.lastIndexOf('/') + 1)
+}
+
+const configureTransformersEnvironment = (
+  env: TransformersModule['env'],
+  runtimeUrl?: string
+): void => {
+  env.useBrowserCache = true
+  env.allowRemoteModels = true
+  env.remoteHost = TRANSFORMERS_REMOTE_HOST
+  env.remotePathTemplate = TRANSFORMERS_REMOTE_PATH_TEMPLATE
+  env.allowLocalModels = false
+  env.localModelPath = DISABLED_LOCAL_MODEL_PATH
+
+  if (runtimeUrl) {
+    env.backends ??= {}
+    env.backends.onnx ??= {}
+    env.backends.onnx.wasm ??= {}
+    env.backends.onnx.wasm.wasmPaths = getRuntimeBaseUrl(runtimeUrl)
+    env.backends.onnx.wasm.numThreads = 1
+  }
 }
 
 async function loadTransformersModule(): Promise<TransformersModule> {
@@ -44,16 +71,14 @@ async function loadTransformersModule(): Promise<TransformersModule> {
 
       const runtimeUrl = convertFileSrc(runtimePath)
       const module = await import(/* @vite-ignore */ runtimeUrl) as TransformersModule
-      module.env.useBrowserCache = true
-      module.env.allowRemoteModels = true
-      module.env.backends ??= {}
-      module.env.backends.onnx ??= {}
-      module.env.backends.onnx.wasm ??= {}
-      module.env.backends.onnx.wasm.wasmPaths = getRuntimeBaseUrl(runtimeUrl)
-      module.env.backends.onnx.wasm.numThreads = 1
+      configureTransformersEnvironment(module.env, runtimeUrl)
       logger.info(`[离线翻译] 已从插件资源加载 Transformers runtime: ${pluginId}`, {
-        wasmPaths: module.env.backends.onnx.wasm.wasmPaths,
-        numThreads: module.env.backends.onnx.wasm.numThreads
+        wasmPaths: module.env.backends?.onnx?.wasm?.wasmPaths,
+        numThreads: module.env.backends?.onnx?.wasm?.numThreads,
+        remoteHost: module.env.remoteHost,
+        remotePathTemplate: module.env.remotePathTemplate,
+        allowLocalModels: module.env.allowLocalModels,
+        localModelPath: module.env.localModelPath
       })
       return module
     }
@@ -149,8 +174,7 @@ async function getTranslator(): Promise<TranslationPipeline> {
     try {
       // 确保允许使用缓存
       const { pipeline, env } = await loadTransformersModule()
-      env.useBrowserCache = true
-      env.allowRemoteModels = true
+      configureTransformersEnvironment(env)
       
       let lastLoggedFile = ''
       
@@ -158,6 +182,7 @@ async function getTranslator(): Promise<TranslationPipeline> {
         dtype: 'q8',
         device: 'wasm',
         revision: 'main',
+        local_files_only: false,
         progress_callback: (progress: { status: string; progress?: number; file?: string }) => {
           // 只在文件完成时打印日志，避免过多的进度日志
           if (progress.status === 'done' && progress.file && progress.file !== lastLoggedFile) {
