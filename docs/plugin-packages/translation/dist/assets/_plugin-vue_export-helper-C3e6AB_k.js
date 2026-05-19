@@ -1,4 +1,4 @@
-import { g as Be, K as ue, r as F, a as L, l as T, i as St, s as gr, L as Pl, M as ra, O as xu, P as Wu, o as Re, n as We, w as Z, G as Hu, B as Tt, Q as ja, R as ju, H as Le, S as It, N as $r, d as H, e as z, f as k, m as te, x as Qr, j as K, t as sn, E as Rl, T as Rt, p as ae, q as ee, U as tt, k as x, A as Ke, V as zt, W as Kn, c as _e, F as un, X as Fn, Y as Ku, Z as zu, h as le, v as kn, _ as Gu, $ as Dl, a0 as Yu, a1 as wt, a2 as Xu, a3 as qu, a4 as Ju, z as He, J as Ao, y as xe, a5 as Zu, a6 as oa, a7 as Qu, a8 as gn, a9 as ec, C as Ka, aa as qn, ab as tc, ac as nc, ad as rc, ae as sr, af as Ur, ag as za, ah as Ml } from "./runtime-entry-BuTzysqW.js";
+import { g as Be, K as ue, r as F, a as L, l as T, i as St, s as gr, L as Pl, M as ra, O as xu, P as Wu, o as Re, n as We, w as Z, G as Hu, B as Tt, Q as ja, R as ju, H as Le, S as It, N as $r, d as H, e as z, f as k, m as te, x as Qr, j as K, t as sn, E as Rl, T as Rt, p as ae, q as ee, U as tt, k as x, A as Ke, V as zt, W as Kn, c as _e, F as un, X as Fn, Y as Ku, Z as zu, h as le, v as kn, _ as Gu, $ as Dl, a0 as Yu, a1 as wt, a2 as Xu, a3 as qu, a4 as Ju, z as He, J as Ao, y as xe, a5 as Zu, a6 as oa, a7 as Qu, a8 as gn, a9 as ec, C as Ka, aa as qn, ab as tc, ac as nc, ad as rc, ae as sr, af as Ur, ag as za, ah as Ml } from "./runtime-entry-BYS4P8M5.js";
 const kl = Symbol(), Dr = "el", oc = "is-", _n = (e, t, n, r, o) => {
   let a = `${e}-${t}`;
   return n && (a += `-${n}`), r && (a += `__${r}`), o && (a += `--${o}`), a;
@@ -8868,7 +8868,10 @@ const Oe = {
   }
 };
 async function ob(e, t) {
-  return await Kt("get_local_plugin_resource_path", { pluginId: e, relativePath: t });
+  return await Kt("get_local_plugin_resource_path", {
+    pluginId: e,
+    relativePath: t
+  });
 }
 const ab = "resources/transformers/transformers.min.js", sb = ["translation-offline-runtime", "translation"];
 let er = null;

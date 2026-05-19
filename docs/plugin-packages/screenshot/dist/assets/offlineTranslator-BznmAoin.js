@@ -1,6 +1,9 @@
-import { i as y, l as r, g as p } from "./_plugin-vue_export-helper-BTXnX6zC.js";
+import { i as y, l as r, g as p } from "./_plugin-vue_export-helper-BMh5SYAC.js";
 async function M(e, n) {
-  return await y("get_local_plugin_resource_path", { pluginId: e, relativePath: n });
+  return await y("get_local_plugin_resource_path", {
+    pluginId: e,
+    relativePath: n
+  });
 }
 const T = "resources/transformers/transformers.min.js", _ = ["translation-offline-runtime", "translation"];
 let d = null;

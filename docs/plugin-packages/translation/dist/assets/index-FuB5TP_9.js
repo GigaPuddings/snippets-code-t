@@ -1,5 +1,5 @@
-import { i as ft, a as $e, b as Ue, U as He, u as Tt, m as St, d as Ce, c as nt, e as It, f as ze, g as Et, _ as Ze, h as Te, j as Pt, k as Vt, l as Nt, n as Mt, o as Wt, V as Dt, v as Ot, p as Bt, q as jt, r as At, s as Rt, E as fe, t as $t, I as at, C as lt, w as pt, x as Ht, y as Ft, z as Ut, S as B, R as Zt, A as s, B as ie, D as Gt, F as Kt, G as qt, T as R, H as Jt, J as pe, K as Qt, L as Yt, M as Xt, N as en, O as tn, P as nn } from "./_plugin-vue_export-helper-D8AxRFyd.js";
-import { I as te, c as d, i as De, a as z, g as an, d as oe, u as ln, b as sn, s as Oe, r as N, w as Le, n as se, o as Ge, t as gt, e as m, f as h, h as k, F as Z, j as b, k as L, l, m as de, p as I, q as O, v as ge, x as Se, y as on, N as rn, z as ee, A as it, B as Ie, C as ve, D as un, E as cn, G as Be } from "./runtime-entry-BuTzysqW.js";
+import { i as ft, a as $e, b as Ue, U as He, u as Tt, m as St, d as Ce, c as nt, e as It, f as ze, g as Et, _ as Ze, h as Te, j as Pt, k as Vt, l as Nt, n as Mt, o as Wt, V as Dt, v as Ot, p as Bt, q as jt, r as At, s as Rt, E as fe, t as $t, I as at, C as lt, w as pt, x as Ht, y as Ft, z as Ut, S as B, R as Zt, A as s, B as ie, D as Gt, F as Kt, G as qt, T as R, H as Jt, J as pe, K as Qt, L as Yt, M as Xt, N as en, O as tn, P as nn } from "./_plugin-vue_export-helper-C3e6AB_k.js";
+import { I as te, c as d, i as De, a as z, g as an, d as oe, u as ln, b as sn, s as Oe, r as N, w as Le, n as se, o as Ge, t as gt, e as m, f as h, h as k, F as Z, j as b, k as L, l, m as de, p as I, q as O, v as ge, x as Se, y as on, N as rn, z as ee, A as it, B as Ie, C as ve, D as un, E as cn, G as Be } from "./runtime-entry-BYS4P8M5.js";
 const dn = te("close-small", !1, function(t) {
   return d("svg", {
     width: t.size,
@@ -2742,7 +2742,7 @@ const Fn = { class: "translate-window" }, Un = {
       try {
         let M;
         if (o === "offline") {
-          const { canUseOfflineTranslation: C, isModelCached: W, warmupOfflineTranslator: g } = await import("./_plugin-vue_export-helper-D8AxRFyd.js").then((U) => U.a6);
+          const { canUseOfflineTranslation: C, isModelCached: W, warmupOfflineTranslator: g } = await import("./_plugin-vue_export-helper-C3e6AB_k.js").then((U) => U.a6);
           if (!C())
             if (await W())
               pe.info("[翻译窗口] 离线翻译懒加载：开始加载模型..."), await g(), pe.info("[翻译窗口] 离线翻译懒加载：模型加载完成");

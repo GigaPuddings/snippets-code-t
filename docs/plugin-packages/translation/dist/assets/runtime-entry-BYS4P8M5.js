@@ -8005,12 +8005,12 @@ const yd = vd("translate", !0, function(e) {
     target: "layout",
     path: "/translate",
     name: "Translate",
-    component: /* @__PURE__ */ Co(() => import("./index-CeswTXZq.js"))
+    component: /* @__PURE__ */ Co(() => import("./index-FuB5TP_9.js"))
   }), e.registerSettingsTab({
     id: "translation",
     labelKey: "translation.title",
     icon: yd,
-    component: /* @__PURE__ */ Co(() => import("./index-DVq7Ihyg.js"))
+    component: /* @__PURE__ */ Co(() => import("./index-SxMXei6z.js"))
   });
 };
 export {
