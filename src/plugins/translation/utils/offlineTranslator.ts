@@ -20,7 +20,7 @@ interface TransformersModule {
     backends?: {
       onnx?: {
         wasm?: {
-          wasmPaths?: string
+          wasmPaths?: string | Record<string, string>
           numThreads?: number
         }
       }
@@ -33,12 +33,25 @@ const TRANSFORMERS_RUNTIME_PACKAGES = ['translation-offline-runtime', 'translati
 const TRANSFORMERS_REMOTE_HOST = 'https://huggingface.co/'
 const TRANSFORMERS_REMOTE_PATH_TEMPLATE = '{model}/resolve/{revision}/'
 const DISABLED_LOCAL_MODEL_PATH = '/__snippets_code_disabled_transformers_local_models__/'
+const TRANSFORMERS_WASM_FILES = [
+  'ort-wasm-simd-threaded.wasm',
+  'ort-wasm-simd.wasm',
+  'ort-wasm-threaded.wasm',
+  'ort-wasm.wasm'
+]
 let transformersModulePromise: Promise<TransformersModule> | null = null
 
 const getRuntimeBaseUrl = (runtimeUrl: string): string => {
   const queryIndex = runtimeUrl.search(/[?#]/)
   const cleanUrl = queryIndex >= 0 ? runtimeUrl.slice(0, queryIndex) : runtimeUrl
   return cleanUrl.slice(0, cleanUrl.lastIndexOf('/') + 1)
+}
+
+const getRuntimeWasmPaths = (runtimeUrl: string): Record<string, string> => {
+  const runtimeBaseUrl = getRuntimeBaseUrl(runtimeUrl)
+  return Object.fromEntries(
+    TRANSFORMERS_WASM_FILES.map((fileName) => [fileName, `${runtimeBaseUrl}${fileName}`])
+  )
 }
 
 const configureTransformersEnvironment = (
@@ -56,7 +69,7 @@ const configureTransformersEnvironment = (
     env.backends ??= {}
     env.backends.onnx ??= {}
     env.backends.onnx.wasm ??= {}
-    env.backends.onnx.wasm.wasmPaths = getRuntimeBaseUrl(runtimeUrl)
+    env.backends.onnx.wasm.wasmPaths = getRuntimeWasmPaths(runtimeUrl)
     env.backends.onnx.wasm.numThreads = 1
   }
 }
