@@ -1,7 +1,7 @@
-use log::{error, info};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 // ============= 路径配置结构 (path.json) =============
@@ -321,18 +321,51 @@ where
 
 // ============= 工作区配置管理 =============
 
+fn same_existing_path(left: &Path, right: &Path) -> bool {
+    match (left.canonicalize(), right.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
+}
+
+fn workspace_overlaps_app_data(app_handle: &tauri::AppHandle, path: &Path) -> bool {
+    let data_dir = get_data_dir(app_handle);
+    let config_dir = data_dir.join(".snippets-code");
+
+    same_existing_path(path, &data_dir)
+        || same_existing_path(path, &config_dir)
+        || path.starts_with(&config_dir)
+}
+
+pub fn ensure_workspace_not_app_data(
+    app_handle: &tauri::AppHandle,
+    path: &Path,
+) -> Result<(), String> {
+    if workspace_overlaps_app_data(app_handle, path) {
+        return Err(format!(
+            "不能将应用数据目录设置为 Markdown 工作区: {}",
+            path.display()
+        ));
+    }
+
+    Ok(())
+}
+
 // 获取 workspace_root 配置
 pub fn get_workspace_root(app_handle: &tauri::AppHandle) -> Result<Option<PathBuf>, String> {
     let config = read_app_config(app_handle);
 
-    // 如果 workspace_root 已配置，使用配置的值
     if let Some(workspace_root) = config.workspace_root {
-        return Ok(Some(PathBuf::from(workspace_root)));
+        let path = PathBuf::from(workspace_root);
+        if workspace_overlaps_app_data(app_handle, &path) {
+            warn!("⚠️ 工作区配置指向应用数据目录，已忽略: {}", path.display());
+            return Ok(None);
+        }
+
+        return Ok(Some(path));
     }
 
-    // 否则，使用 data_dir 作为默认值
-    let data_dir = get_data_dir(app_handle);
-    Ok(Some(data_dir))
+    Ok(None)
 }
 
 // 设置 workspace_root 配置
@@ -347,6 +380,8 @@ pub fn set_workspace_root(app_handle: &tauri::AppHandle, path: PathBuf) -> Resul
     if !path.is_dir() {
         return Err(format!("路径不是目录: {}", path.display()));
     }
+
+    ensure_workspace_not_app_data(app_handle, &path)?;
 
     // 验证读写权限（尝试创建临时文件）
     let test_file = path.join(".test_write_permission");

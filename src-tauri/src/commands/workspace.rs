@@ -1,6 +1,8 @@
 // 工作区相关的 Tauri 命令
 
-use crate::json_config::{get_workspace_root, set_workspace_root, validate_workspace};
+use crate::json_config::{
+    ensure_workspace_not_app_data, get_workspace_root, set_workspace_root, validate_workspace,
+};
 use std::path::PathBuf;
 
 // 打开文件夹选择对话框
@@ -21,6 +23,7 @@ pub async fn select_workspace(app_handle: tauri::AppHandle) -> Result<Option<Str
 
         // 验证选择的目录
         validate_workspace(&path)?;
+        ensure_workspace_not_app_data(&app_handle, &path)?;
 
         // 返回路径字符串
         Ok(Some(path.to_string_lossy().to_string()))
@@ -31,9 +34,10 @@ pub async fn select_workspace(app_handle: tauri::AppHandle) -> Result<Option<Str
 
 // 检查目录权限
 #[tauri::command]
-pub fn validate_workspace_dir(path: String) -> Result<(), String> {
+pub fn validate_workspace_dir(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
     let path_buf = PathBuf::from(path);
-    validate_workspace(&path_buf)
+    validate_workspace(&path_buf)?;
+    ensure_workspace_not_app_data(&app_handle, &path_buf)
 }
 
 // 获取配置的 workspace_root
@@ -62,6 +66,7 @@ pub fn change_workspace(
 
     // 验证新目录
     validate_workspace(&new_path_buf)?;
+    ensure_workspace_not_app_data(&app_handle, &new_path_buf)?;
 
     // 获取旧的工作区路径
     let old_path = get_workspace_root(&app_handle)?;
