@@ -64,7 +64,9 @@ const isUncategorizedActive = computed(() => {
 }
 
 .quick-nav-container {
-  @apply overflow-hidden border-b border-panel;
+  @apply border-b border-panel flex-shrink-0;
+  padding-bottom: 6px;
+  overflow: visible;
 
   .quick-nav-title {
     @apply px-1 mt-2 opacity-90 mb-1 text-content text-xs select-none;

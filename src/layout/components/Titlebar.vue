@@ -281,10 +281,16 @@ const setActiveTabFromRoute = () => {
   }
 };
 
+const navigateTo = (path: string) => {
+  router.push(path).catch((error) => {
+    console.warn('[Titlebar] navigation failed:', error);
+  });
+};
+
 // 切换Tab并跳转路由
 const handleTabChange = (index: number) => {
   if (visibleTabs.value[index]) {
-    router.push(visibleTabs.value[index].path);
+    navigateTo(visibleTabs.value[index].path);
   }
 };
 
@@ -328,12 +334,12 @@ const handleTitlebar = async (type: WindowAction) => {
 
 // 打开设置页面
 const openSettingsDialog = () => {
-  router.push('/config/category/settings');
+  navigateTo('/config/category/settings');
 };
 
 // 跳转到个人中心
 const goToUserCenter = () => {
-  router.push('/config/category/contentList/user');
+  navigateTo('/config/category/contentList/user');
 };
 
 /** 窄屏折叠菜单命令 */

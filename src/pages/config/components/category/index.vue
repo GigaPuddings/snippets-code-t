@@ -1,6 +1,10 @@
 <template>
-  <main class="category-container" :style="gridStyle">
-    <section class="category-page" :class="{ 'category-page--collapsed': layoutStore.effectiveCategoryCollapsed }">
+  <main class="category-container" :class="{ 'category-container--settings': isSettingsRoute }" :style="gridStyle">
+    <section
+      v-if="!isSettingsRoute"
+      class="category-page"
+      :class="{ 'category-page--collapsed': layoutStore.effectiveCategoryCollapsed }"
+    >
       <!-- 折叠态不显示边条/箭头；展开态仅显示内容，无折叠把手 -->
       <div v-if="!layoutStore.effectiveCategoryCollapsed" class="category-page__content">
         <QuickNav />
@@ -53,8 +57,14 @@ const layoutStore = useLayoutStore();
 const route = useRoute();
 const { t } = useI18n();
 
+const isSettingsRoute = computed(() => route.path.startsWith('/config/category/settings'));
+
 const gridStyle = computed(() => ({
-  gridTemplateColumns: layoutStore.effectiveCategoryCollapsed ? '0px 1fr' : '160px 1fr'
+  gridTemplateColumns: isSettingsRoute.value
+    ? '1fr'
+    : layoutStore.effectiveCategoryCollapsed
+      ? '0px 1fr'
+      : '160px 1fr'
 }));
 
 defineOptions({

@@ -226,10 +226,14 @@ export async function getWorkspaceRoot(): Promise<string> {
   try {
     const result = await invoke<string | null>('get_workspace_root_path');
     if (!result) {
-      throw new Error('工作区未设置');
+      return '';
     }
     return result;
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('工作区未设置') || message.includes('工作区未配置')) {
+      return '';
+    }
     throw new Error(`获取工作区路径失败: ${error}`);
   }
 }
