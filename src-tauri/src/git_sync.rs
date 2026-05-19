@@ -587,6 +587,16 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
     Ok(status)
 }
 
+fn empty_git_status() -> GitStatus {
+    GitStatus {
+        is_repo: false,
+        has_remote: false,
+        has_changes: false,
+        changed_files: vec![],
+        branch: String::new(),
+    }
+}
+
 /// 变更文件分类（用于增量更新）
 #[derive(Debug, Default)]
 struct ChangedFilesByStatus {
@@ -1478,8 +1488,10 @@ pub fn check_git_repo_command(app_handle: AppHandle) -> Result<bool, String> {
 #[command]
 pub fn get_git_status_command(app_handle: AppHandle) -> Result<GitStatus, String> {
     require_git_sync_plugin(&app_handle)?;
-    let workspace_root =
-        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let Some(workspace_root) = crate::json_config::get_workspace_root(&app_handle)? else {
+        debug!("📊 [Git] 工作区未设置，返回空 Git 状态");
+        return Ok(empty_git_status());
+    };
 
     // 尝试从缓存获取
     if let Some(cached) = get_cached_git_status() {

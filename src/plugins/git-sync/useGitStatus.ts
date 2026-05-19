@@ -69,6 +69,19 @@ let unlistenPush: UnlistenFn | null = null;
 let unlistenSyncComplete: UnlistenFn | null = null;
 let unlistenWorkspaceChanged: UnlistenFn | null = null;
 
+const isWorkspaceNotSetError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+
+  return [
+    '工作区未设置',
+    '工作区未配置',
+    'workspace not set',
+    'workspace is not set',
+    'workspace root'
+  ].some((keyword) => normalized.includes(keyword.toLowerCase()));
+};
+
 /**
  * Git 状态管理组合式函数
  * 管理标题栏 Git 同步状态显示
@@ -156,6 +169,12 @@ export function useGitStatus(): UseGitStatusReturn {
         syncState.value = 'synced';
       }
     } catch (error) {
+      if (isWorkspaceNotSetError(error)) {
+        gitStatus.value = null;
+        syncState.value = 'disabled';
+        return;
+      }
+
       logger.error('[GitStatus] 获取 Git 状态失败', error);
       syncState.value = 'error';
     } finally {

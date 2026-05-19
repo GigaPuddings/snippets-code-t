@@ -59,6 +59,21 @@ const normalizeSearchValue = (value: unknown): string =>
     .trim()
     .toLowerCase();
 
+const isWorkspaceSearchUnavailableError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+
+  return [
+    '工作区未设置',
+    '工作区未配置',
+    'workspace not set',
+    'workspace is not set',
+    'workspace root',
+    '索引管理器未初始化',
+    'index manager'
+  ].some((keyword) => normalized.includes(keyword.toLowerCase()));
+};
+
 const getSearchTokens = (query: string): string[] => {
   const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedQuery) return [];
@@ -634,6 +649,10 @@ async function searchCode(query: string): Promise<ContentType[]> {
     }
     return [];
   } catch (error) {
+    if (isWorkspaceSearchUnavailableError(error)) {
+      return [];
+    }
+
     ErrorHandler.handle(error, {
       type: ErrorType.API_ERROR,
       operation: 'searchCode',

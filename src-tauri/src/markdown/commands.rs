@@ -1277,18 +1277,23 @@ pub async fn search_markdown_files_optimized(
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
     query: String,
 ) -> Result<Vec<MarkdownFile>, String> {
+    // 快速搜索窗口在未设置工作区时仍可搜索应用、书签和网页搜索项。
+    // Markdown 工作区源缺失属于正常空态，不应打断整次搜索请求。
+    let Some(workspace_root) = get_workspace_root(&app_handle)? else {
+        debug!("🔎 [搜索] 工作区未配置，跳过 Markdown 搜索");
+        return Ok(Vec::new());
+    };
+
     let manager_lock = index_manager
         .read()
         .map_err(|e| format!("获取索引管理器锁失败: {}", e))?;
 
-    let manager = manager_lock
-        .as_ref()
-        .ok_or_else(|| "索引管理器未初始化".to_string())?;
+    let Some(manager) = manager_lock.as_ref() else {
+        debug!("🔎 [搜索] 索引管理器未初始化，返回空 Markdown 搜索结果");
+        return Ok(Vec::new());
+    };
 
     let results = manager.search(&query);
-
-    // 获取工作区根目录
-    let workspace_root = get_workspace_root(&app_handle)?.ok_or("工作区未配置")?;
 
     // 获取 CacheManager 以推断分类信息
     let cache = cache_manager
