@@ -387,9 +387,21 @@ pub fn run() {
             // 初始化 index_manager 状态（先设置为 None，后续异步初始化）
             app.manage(Arc::new(RwLock::new(None::<markdown::IndexManager>)));
 
+            // 应用级配置存放在 data_dir/.snippets-code，不能依赖 Markdown 工作区存在。
+            // 插件安装/启用状态、设置页等都需要在未设置工作区时正常工作。
+            let data_dir = json_config::get_data_dir(app.handle());
+            match app_config::AppConfigManager::new(&data_dir) {
+                Ok(app_config_manager) => {
+                    app.manage(Arc::new(RwLock::new(app_config_manager)));
+                }
+                Err(e) => {
+                    log::warn!("⚠️ [初始化] AppConfigManager 初始化失败: {}", e);
+                }
+            }
+
             // 初始化 Markdown 运行时状态。即使暂未配置工作区，命令状态也必须存在，
             // 否则前端请求分类/文件列表时会触发 Tauri 的 state not managed 错误。
-            let fallback_config_dir = json_config::get_data_dir(app.handle()).join(".snippets-code");
+            let fallback_config_dir = data_dir.join(".snippets-code");
             if let Err(e) = std::fs::create_dir_all(&fallback_config_dir) {
                 log::warn!(
                     "⚠️ [初始化] 创建默认 Markdown 配置目录失败: {}",
@@ -564,20 +576,6 @@ pub fn run() {
                             }
                             Err(e) => {
                                 log::error!("❌ [初始化] WorkspaceManager 初始化失败: {}", e);
-                            }
-                        }
-
-                        // 初始化 AppConfigManager
-                        match app_config::AppConfigManager::new(&workspace_root) {
-                            Ok(app_config_manager) => {
-                                log::info!("✅ [初始化] AppConfigManager 初始化成功");
-                                log::info!("📊 [初始化] app.json 路径: {}", config_dir.join("app.json").display());
-
-                                // 将 AppConfigManager 存储到应用状态
-                                app_handle_markdown.manage(Arc::new(RwLock::new(app_config_manager)));
-                            }
-                            Err(e) => {
-                                log::error!("❌ [初始化] AppConfigManager 初始化失败: {}", e);
                             }
                         }
 

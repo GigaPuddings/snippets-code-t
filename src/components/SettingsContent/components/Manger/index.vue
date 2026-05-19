@@ -9,6 +9,29 @@
     <main class="panel-content">
     <section class="summarize-section transparent-input">
       <div class="summarize-label">
+        <div class="summarize-label-title">{{ $t('dataManager.workspaceDir') }}</div>
+        <div class="summarize-label-desc">{{ $t('dataManager.workspaceDirDesc') }}</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <el-input
+          class="summarize-input !w-80"
+          v-model="workspaceRoot"
+          readonly
+          :placeholder="$t('dataManager.workspaceNotSet')"
+        />
+        <CustomButton
+          type="primary"
+          size="small"
+          @click="selectWorkspaceRoot"
+          :loading="workspaceLoading"
+        >
+          {{ $t('dataManager.changeWorkspace') }}
+        </CustomButton>
+      </div>
+    </section>
+
+    <section class="summarize-section transparent-input">
+      <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('dataManager.snippetDir') }}</div>
         <div class="summarize-label-desc">{{ $t('dataManager.snippetDirDesc') }}</div>
       </div>
@@ -244,6 +267,7 @@ import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import modal from '@/utils/modal';
 import { CustomButton, ConfirmDialog } from '@/components/UI';
+import { getWorkspaceRoot, selectWorkspace, setWorkspaceRoot } from '@/api/markdown';
 
 defineOptions({
   name: 'Manger'
@@ -254,8 +278,10 @@ const store = useConfigurationStore();
 const backupLoading = ref(false);
 const restoreLoading = ref(false);
 const pathLoading = ref(false);
+const workspaceLoading = ref(false);
 const showRestoreDialog = ref(false);
 const showPathDialog = ref(false);
+const workspaceRoot = ref('');
 
 // 迁移相关状态
 const migrating = ref(false);
@@ -285,6 +311,35 @@ const dictDBBackup = computed(() => [
   { value: 'B', label: t('dataManager.backupFormat.time') },
   { value: 'C', label: t('dataManager.backupFormat.datetime') }
 ]);
+
+const loadWorkspaceRoot = async () => {
+  workspaceRoot.value = await getWorkspaceRoot();
+};
+
+const selectWorkspaceRoot = async () => {
+  workspaceLoading.value = true;
+  try {
+    const selected = await selectWorkspace();
+    if (!selected) return;
+
+    await setWorkspaceRoot(selected);
+    workspaceRoot.value = selected;
+    window.dispatchEvent(new CustomEvent('refresh-categories', {
+      detail: { source: 'workspace-root-changed' }
+    }));
+    window.dispatchEvent(new CustomEvent('refresh-data', {
+      detail: { source: 'workspace-root-changed' }
+    }));
+    modal.msg(t('dataManager.workspaceSuccess'));
+  } catch (error) {
+    console.error('Workspace change failed:', error);
+    modal.msg(`${t('dataManager.workspaceFailed')}: ${error}`, 'error');
+  } finally {
+    workspaceLoading.value = false;
+  }
+};
+
+onMounted(loadWorkspaceRoot);
 
 // 备份数据
 const startBackup = async () => {

@@ -460,6 +460,12 @@ export default {
   // 数据管理
   dataManager: {
     title: '数据管理',
+    workspaceDir: 'Markdown 工作区：',
+    workspaceDirDesc: '设置 Markdown 文件工作区，插件和设置页可在未设置时继续使用',
+    workspaceNotSet: '工作区未设置',
+    changeWorkspace: '选择工作区',
+    workspaceSuccess: '工作区设置成功',
+    workspaceFailed: '工作区设置失败',
     snippetDir: '片段目录：',
     snippetDirDesc: '设置片段存储位置',
     changePath: '修改路径',

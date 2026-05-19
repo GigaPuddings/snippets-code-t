@@ -446,6 +446,12 @@ export default {
   // Data Management
   dataManager: {
     title: 'Data Management',
+    workspaceDir: 'Markdown Workspace:',
+    workspaceDirDesc: 'Set the Markdown file workspace. Plugins and settings remain available before it is set.',
+    workspaceNotSet: 'Workspace not set',
+    changeWorkspace: 'Choose Workspace',
+    workspaceSuccess: 'Workspace set successfully',
+    workspaceFailed: 'Failed to set workspace',
     snippetDir: 'Data Directory:',
     snippetDirDesc: 'Set snippet storage location',
     changePath: 'Change Path',
