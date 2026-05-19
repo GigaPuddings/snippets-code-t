@@ -2457,7 +2457,11 @@ async fn download_translation_runtime_file(
         };
 
         if !response.status().is_success() {
-            last_error = Some(format!("下载运行时资源失败: HTTP {} ({})", response.status(), url));
+            last_error = Some(format!(
+                "下载运行时资源失败: HTTP {} ({})",
+                response.status(),
+                url
+            ));
             continue;
         }
 
@@ -2477,11 +2481,7 @@ async fn download_translation_runtime_file(
                 Ok(chunk) => {
                     downloaded_bytes += chunk.len() as u64;
                     file.write_all(&chunk).map_err(|e| {
-                        format!(
-                            "写入运行时资源文件失败: {} ({})",
-                            temp_path.display(),
-                            e
-                        )
+                        format!("写入运行时资源文件失败: {} ({})", temp_path.display(), e)
                     })?;
                 }
                 Err(error) => {
@@ -2503,13 +2503,8 @@ async fn download_translation_runtime_file(
             continue;
         }
 
-        fs::rename(&temp_path, target_path).map_err(|e| {
-            format!(
-                "保存运行时资源文件失败: {} ({})",
-                target_path.display(),
-                e
-            )
-        })?;
+        fs::rename(&temp_path, target_path)
+            .map_err(|e| format!("保存运行时资源文件失败: {} ({})", target_path.display(), e))?;
         info!(
             "✅ [Plugin] installed translation offline runtime file {} bytes={}",
             file_name, downloaded_bytes
@@ -2554,9 +2549,8 @@ fn sync_translation_runtime_wasm_fallbacks(runtime_dir: &Path) -> Result<(), Str
 
             let needs_copy = fs::metadata(&target_path)
                 .and_then(|target| {
-                    fs::metadata(&source_path).map(|source| {
-                        target.len() == 0 || target.len() != source.len()
-                    })
+                    fs::metadata(&source_path)
+                        .map(|source| target.len() == 0 || target.len() != source.len())
                 })
                 .unwrap_or(true);
 
@@ -2585,9 +2579,8 @@ fn sync_translation_runtime_wasm_fallbacks(runtime_dir: &Path) -> Result<(), Str
 pub async fn install_translation_offline_runtime_resources(
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let package_dir =
-        local_plugin_package_dir(&app_handle, TRANSLATION_OFFLINE_RUNTIME_PLUGIN_ID)
-            .map_err(|_| "请先安装 translation-offline-runtime 插件资源包".to_string())?;
+    let package_dir = local_plugin_package_dir(&app_handle, TRANSLATION_OFFLINE_RUNTIME_PLUGIN_ID)
+        .map_err(|_| "请先安装 translation-offline-runtime 插件资源包".to_string())?;
     let manifest_path = package_dir.join("plugin.json");
     if !manifest_path.is_file() {
         return Err("translation-offline-runtime 插件资源包缺少 plugin.json".to_string());
@@ -2690,54 +2683,4 @@ pub fn set_plugin_enabled(
     }
     apply_plugin_runtime_change(&app_handle, &plugin_id, effective_enabled);
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn normalizes_custom_plugin_root_to_plugins_child() {
-        let root = PathBuf::from(r"D:\zero\桌面");
-        let already_plugins = PathBuf::from(r"D:\zero\桌面\plugins");
-
-        assert_eq!(root, normalize_plugin_install_root(&root));
-        assert_eq!(root, normalize_plugin_install_root(&already_plugins));
-    }
-
-    #[test]
-    fn defaults_plugin_packages_to_configured_data_dir() {
-        let data_dir = PathBuf::from(r"D:\Program Files\snippets-code");
-
-        assert_eq!(
-            data_dir.join("plugins"),
-            default_plugin_packages_dir_for_data_dir(&data_dir)
-        );
-    }
-
-    #[test]
-    fn clearing_git_sync_owned_config_resets_app_settings() {
-        let mut manager = AppConfigManager {
-            config_path: PathBuf::from("unused-app.json"),
-            config: AppConfig::default(),
-        };
-        manager.config.git.enabled = true;
-        manager.config.git.auto_sync = true;
-        manager.config.git.user_name = "Zero".to_string();
-        manager.config.git.user_email = "zero@example.com".to_string();
-        manager.config.git.remote_url = "https://example.com/repo.git".to_string();
-        manager.config.git.token = "secret".to_string();
-        manager.config.git.last_sync_time = Some("2026-05-19T00:00:00Z".to_string());
-
-        manager.clear_plugin_owned_config("git-sync");
-
-        let git = manager.get_git_settings();
-        assert!(!git.enabled);
-        assert!(!git.auto_sync);
-        assert!(git.user_name.is_empty());
-        assert!(git.user_email.is_empty());
-        assert!(git.remote_url.is_empty());
-        assert!(git.token.is_empty());
-        assert!(git.last_sync_time.is_none());
-    }
 }

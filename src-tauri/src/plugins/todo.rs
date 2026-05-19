@@ -4,7 +4,7 @@ use crate::APP;
 use chrono::{
     DateTime, Datelike as _, Duration, Local, NaiveDate, NaiveTime, TimeZone, Timelike as _,
 };
-use log::info;
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -43,63 +43,99 @@ pub struct AlarmCard {
 }
 
 static SERVICE_RUNNING: AtomicBool = AtomicBool::new(false);
+
+fn local_datetime(date: NaiveDate, time: NaiveTime) -> Option<DateTime<Local>> {
+    Local.from_local_datetime(&date.and_time(time)).earliest()
+}
+
+fn weekday_number(day: &str) -> Option<i32> {
+    match day {
+        "Mon" => Some(0),
+        "Tue" => Some(1),
+        "Wed" => Some(2),
+        "Thu" => Some(3),
+        "Fri" => Some(4),
+        "Sat" => Some(5),
+        "Sun" => Some(6),
+        _ => None,
+    }
+}
+
+fn next_alarm_datetime(card: &AlarmCard, now: DateTime<Local>) -> Option<DateTime<Local>> {
+    if !card.is_active {
+        return None;
+    }
+
+    let alarm_time = match NaiveTime::parse_from_str(&card.time, "%H:%M") {
+        Ok(time) => time,
+        Err(error) => {
+            warn!(
+                "[Todo] 提醒 {} 的时间格式无效，已跳过调度: {} ({})",
+                card.id, card.time, error
+            );
+            return None;
+        }
+    };
+
+    match card.alarm_type {
+        AlarmType::Daily => {
+            let today = now.date_naive();
+            local_datetime(today, alarm_time)
+                .filter(|target| *target > now)
+                .or_else(|| local_datetime(today + Duration::days(1), alarm_time))
+        }
+        AlarmType::Weekly => {
+            let current_day = now.weekday().num_days_from_monday() as i32;
+            card.weekdays
+                .iter()
+                .filter_map(|weekday| {
+                    let target_day = weekday_number(weekday)?;
+                    let mut days = (target_day - current_day) as i64;
+                    if days < 0 {
+                        days += 7;
+                    }
+                    let target_date = now.date_naive() + Duration::days(days);
+                    match local_datetime(target_date, alarm_time) {
+                        Some(target) if target > now => Some(target),
+                        _ => local_datetime(target_date + Duration::days(7), alarm_time),
+                    }
+                })
+                .min()
+        }
+        AlarmType::SpecificDate => card
+            .specific_dates
+            .as_ref()
+            .into_iter()
+            .flatten()
+            .filter_map(
+                |date_str| match NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                    Ok(target_date) => local_datetime(target_date, alarm_time),
+                    Err(error) => {
+                        warn!(
+                            "[Todo] 提醒 {} 的指定日期无效，已跳过: {} ({})",
+                            card.id, date_str, error
+                        );
+                        None
+                    }
+                },
+            )
+            .filter(|target| *target > now)
+            .min(),
+    }
+}
+
 fn should_start_service() -> bool {
-    if let Ok(cards) = db::get_all_alarm_cards() {
-        let now = Local::now();
-        let current_weekday = now.format("%a").to_string();
-
-        cards.iter().any(|card| {
-            if !card.is_active {
-                return false;
-            }
-
-            match card.alarm_type {
-                AlarmType::Daily => {
-                    if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
-                        let current_time = now.time();
-                        // 每天都要检查，如果今天时间还没到就需要启动服务
-                        return alarm_time > current_time;
-                    }
-                    false
-                }
-                AlarmType::Weekly => {
-                    // 检查是否是今天需要提醒的事项
-                    if card.weekdays.is_empty() || card.weekdays.contains(&current_weekday) {
-                        if let Ok(alarm_time) = NaiveTime::parse_from_str(&card.time, "%H:%M") {
-                            let current_time = now.time();
-                            // 如果代办提醒时间还没到，就需要启动服务
-                            return alarm_time > current_time;
-                        }
-                    }
-                    false
-                }
-                AlarmType::SpecificDate => {
-                    if let Some(dates) = &card.specific_dates {
-                        for date_str in dates {
-                            if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-                            {
-                                if let Ok(alarm_time) =
-                                    NaiveTime::parse_from_str(&card.time, "%H:%M")
-                                {
-                                    let target_datetime = target_date.and_time(alarm_time);
-                                    if let Some(target) =
-                                        Local.from_local_datetime(&target_datetime).single()
-                                    {
-                                        // 如果任何一个指定日期时间还没到，就需要启动服务
-                                        if target > now {
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    false
-                }
-            }
-        })
-    } else {
-        false
+    match db::get_all_alarm_cards() {
+        Ok(cards) => {
+            let now = Local::now();
+            cards
+                .iter()
+                .any(|card| next_alarm_datetime(card, now).is_some())
+        }
+        Err(error) => {
+            warn!("[Todo] 读取提醒列表失败，提醒服务暂不启动: {}", error);
+            false
+        }
     }
 }
 
@@ -161,14 +197,10 @@ impl AlarmCard {
 
                     for date_str in dates {
                         if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-                            let target_datetime = target_date.and_time(alarm_time);
-                            if let Some(target) =
-                                Local.from_local_datetime(&target_datetime).single()
-                            {
+                            if let Some(target) = local_datetime(target_date, alarm_time) {
                                 let diff = target.signed_duration_since(now);
                                 if diff.num_seconds() > 0
-                                    && (nearest_duration.is_none()
-                                        || diff < nearest_duration.unwrap())
+                                    && nearest_duration.is_none_or(|duration| diff < duration)
                                 {
                                     nearest_duration = Some(diff);
                                 }
@@ -184,12 +216,8 @@ impl AlarmCard {
                         for date_str in dates {
                             if let Ok(target_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
                             {
-                                let target_datetime = target_date.and_time(alarm_time);
-                                if let Some(target) =
-                                    Local.from_local_datetime(&target_datetime).single()
-                                {
-                                    if latest_expired.is_none() || target > latest_expired.unwrap()
-                                    {
+                                if let Some(target) = local_datetime(target_date, alarm_time) {
+                                    if latest_expired.is_none_or(|latest| target > latest) {
                                         latest_expired = Some(target);
                                     }
                                 }
@@ -212,21 +240,14 @@ impl AlarmCard {
                     }
 
                     let mut days_until_next = 7;
-                    let current_day = now.weekday().num_days_from_monday();
+                    let current_day = now.weekday().num_days_from_monday() as i32;
 
                     for weekday in &self.weekdays {
-                        let target_day = match weekday.as_str() {
-                            "Mon" => 0,
-                            "Tue" => 1,
-                            "Wed" => 2,
-                            "Thu" => 3,
-                            "Fri" => 4,
-                            "Sat" => 5,
-                            "Sun" => 6,
-                            _ => continue,
+                        let Some(target_day) = weekday_number(weekday) else {
+                            continue;
                         };
 
-                        let mut days = target_day - current_day as i32;
+                        let mut days = target_day - current_day;
                         if days <= 0 {
                             days += 7;
                         }
@@ -457,7 +478,10 @@ pub fn toggle_alarm_card(app_handle: tauri::AppHandle, id: String) -> Result<Ala
 pub fn check_alarms(_app_handle: tauri::AppHandle) {
     if let Ok(cards) = db::get_all_alarm_cards() {
         let now = Local::now();
-        let current_time = now.time().with_nanosecond(0).unwrap();
+        let Some(current_time) = now.time().with_nanosecond(0) else {
+            warn!("[Todo] 当前时间归零纳秒失败，跳过本轮提醒检查");
+            return;
+        };
         let current_weekday = now.format("%a").to_string();
         let current_date = now.date_naive();
         // info!("当前时间: {} - {}", current_weekday, current_time);
@@ -469,7 +493,16 @@ pub fn check_alarms(_app_handle: tauri::AppHandle) {
                 continue;
             }
 
-            let alarm_time = NaiveTime::parse_from_str(&card.time, "%H:%M").unwrap();
+            let alarm_time = match NaiveTime::parse_from_str(&card.time, "%H:%M") {
+                Ok(time) => time,
+                Err(error) => {
+                    warn!(
+                        "[Todo] 提醒 {} 的时间格式无效，已跳过本轮检查: {} ({})",
+                        card.id, card.time, error
+                    );
+                    continue;
+                }
+            };
             let current_minutes = current_time.hour() * 60 + current_time.minute();
             let alarm_minutes = alarm_time.hour() * 60 + alarm_time.minute();
 
@@ -577,11 +610,14 @@ pub fn start_alarm_service(app_handle: tauri::AppHandle) {
 
     // 计算到下一分钟的等待时间
     let now = Local::now();
-    let next_minute = (now + Duration::minutes(1))
+    let Some(next_minute) = (now + Duration::minutes(1))
         .with_second(0)
-        .unwrap()
-        .with_nanosecond(0)
-        .unwrap();
+        .and_then(|time| time.with_nanosecond(0))
+    else {
+        warn!("[Todo] 计算下一分钟检查时间失败，提醒服务未启动");
+        SERVICE_RUNNING.store(false, Ordering::SeqCst);
+        return;
+    };
     let wait_duration = next_minute.signed_duration_since(now);
 
     info!(

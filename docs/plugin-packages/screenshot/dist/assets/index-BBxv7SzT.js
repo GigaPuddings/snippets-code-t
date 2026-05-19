@@ -1,8 +1,8 @@
 var ue = Object.defineProperty;
 var ge = (s, t, e) => t in s ? ue(s, t, { enumerable: !0, configurable: !0, writable: !0, value: e }) : s[t] = e;
 var m = (s, t, e) => ge(s, typeof t != "symbol" ? t + "" : t, e);
-import { c as M, d as ne, r as ft, a as rt, w as fe, b as Z, e as I, f as P, F as zt, g as Dt, u as ht, n as xt, h as Tt, o as X, i as ie, j as xe, t as Ht, k as we, l as me, m as ye, v as pe, p as Gt, q as ve } from "./runtime-entry-wpUErwqM.js";
-import { l as z, i as j, W as se, o as pt, d as Lt, c as _t, I as bt, u as ke, T as Se, a as be, P as Me, C as Ce, b as Te, _ as oe, e as Ft } from "./_plugin-vue_export-helper-BMh5SYAC.js";
+import { c as M, d as ne, r as ft, a as rt, w as fe, b as Z, e as I, f as P, F as zt, g as Dt, u as ht, n as xt, h as Tt, o as X, i as ie, j as xe, t as Ht, k as we, l as me, m as ye, v as pe, p as Gt, q as ve } from "./runtime-entry-COWjERPV.js";
+import { l as z, i as j, W as se, o as pt, d as Lt, c as _t, I as bt, u as ke, T as Se, a as be, P as Me, C as Ce, b as Te, _ as oe, e as Ft } from "./_plugin-vue_export-helper-NwppVcow.js";
 function ot(s, t) {
   const e = t.x - s.x, n = t.y - s.y;
   return Math.sqrt(e * e + n * n);
@@ -1105,7 +1105,7 @@ class Rt {
       return this.loadedModules.get(t);
     if (this.loadingPromises.has(t))
       return this.loadingPromises.get(t);
-    const e = import("./ocr-UaVewcXE.js").then((n) => (this.loadedModules.set(t, n), this.loadingPromises.delete(t), n));
+    const e = import("./ocr-2L4pqM7U.js").then((n) => (this.loadedModules.set(t, n), this.loadingPromises.delete(t), n));
     return this.loadingPromises.set(t, e), e;
   }
   /**
@@ -1117,7 +1117,7 @@ class Rt {
       return this.loadedModules.get(t);
     if (this.loadingPromises.has(t))
       return this.loadingPromises.get(t);
-    const e = import("./offlineTranslator-BznmAoin.js").then((n) => (this.loadedModules.set(t, n), this.loadingPromises.delete(t), n));
+    const e = import("./offlineTranslator-BZsqdk0V.js").then((n) => (this.loadedModules.set(t, n), this.loadingPromises.delete(t), n));
     return this.loadingPromises.set(t, e), e;
   }
   /**

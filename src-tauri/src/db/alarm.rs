@@ -1,13 +1,31 @@
 use crate::db::DbConnectionManager;
 use crate::plugins::todo::AlarmCard;
+use chrono::{DateTime, Local};
 
 // ============= 提醒卡片相关数据库操作 =============
+
+fn parse_alarm_datetime(id: &str, field: &str, value: String) -> DateTime<Local> {
+    match DateTime::parse_from_rfc3339(&value) {
+        Ok(datetime) => datetime.with_timezone(&Local),
+        Err(error) => {
+            log::warn!(
+                "[Todo] 提醒 {} 的 {} 时间解析失败，已使用当前时间兜底: {} ({})",
+                id,
+                field,
+                value,
+                error
+            );
+            Local::now()
+        }
+    }
+}
 
 // 获取所有提醒卡片
 pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     let mut stmt = conn.prepare("SELECT id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_dates FROM alarm_cards")?;
     let card_iter = stmt.query_map([], |row| {
+        let id: String = row.get(0)?;
         let weekdays_str: String = row.get(3)?;
         let alarm_type_str: Option<String> = row.get(8).ok();
         let alarm_type = match alarm_type_str.as_deref() {
@@ -15,15 +33,29 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
             Some("SpecificDate") => crate::plugins::todo::AlarmType::SpecificDate,
             _ => crate::plugins::todo::AlarmType::Weekly, // 默认为每周
         };
+        let weekdays = match serde_json::from_str(&weekdays_str) {
+            Ok(weekdays) => weekdays,
+            Err(error) => {
+                log::warn!(
+                    "[Todo] 提醒 {} 的 weekdays 解析失败，已按空列表处理: {} ({})",
+                    id,
+                    weekdays_str,
+                    error
+                );
+                Vec::new()
+            }
+        };
+        let created_at = parse_alarm_datetime(&id, "created_at", row.get(6)?);
+        let updated_at = parse_alarm_datetime(&id, "updated_at", row.get(7)?);
         Ok(AlarmCard {
-            id: row.get(0)?,
+            id,
             time: row.get(1)?,
             title: row.get(2)?,
-            weekdays: serde_json::from_str(&weekdays_str).unwrap_or_default(),
+            weekdays,
             reminder_time: row.get(4)?,
             is_active: row.get(5)?,
-            created_at: row.get::<_, String>(6)?.parse().unwrap(),
-            updated_at: row.get::<_, String>(7)?.parse().unwrap(),
+            created_at,
+            updated_at,
             time_left: "".to_string(), // This is a calculated field
             alarm_type,
             specific_dates: {
@@ -49,7 +81,14 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
 // 添加或更新提醒卡片
 pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
-    let weekdays_str = serde_json::to_string(&card.weekdays).unwrap_or_default();
+    let weekdays_str = serde_json::to_string(&card.weekdays).unwrap_or_else(|error| {
+        log::warn!(
+            "[Todo] 提醒 {} 的 weekdays 序列化失败，已按空列表保存: {}",
+            card.id,
+            error
+        );
+        "[]".to_string()
+    });
     let alarm_type_str = match card.alarm_type {
         crate::plugins::todo::AlarmType::Daily => "Daily",
         crate::plugins::todo::AlarmType::Weekly => "Weekly",

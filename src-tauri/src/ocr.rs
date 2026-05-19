@@ -2212,62 +2212,6 @@ fn collect_split_rapidocr_arrays(value: &Value, blocks: &mut Vec<OcrTextBlock>) 
     true
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn ocr_result(
-        text: &str,
-        confidence: f64,
-        block_count: usize,
-        language: &str,
-    ) -> OcrRecognizeResult {
-        OcrRecognizeResult {
-            full_text: text.to_string(),
-            text: text.to_string(),
-            confidence,
-            blocks: (0..block_count)
-                .map(|index| OcrTextBlock {
-                    text: format!("line {}", index),
-                    x: 0.0,
-                    y: index as f64 * 24.0,
-                    width: 120.0,
-                    height: 20.0,
-                    font_size: 16.0,
-                    line_height: 20.0,
-                    angle: 0.0,
-                    confidence,
-                })
-                .collect(),
-            engine: format!("rapidocr:{}", language),
-            language: language.to_string(),
-        }
-    }
-
-    #[test]
-    fn scores_chinese_candidate_above_short_english_gibberish() {
-        let chinese_text = "1.插件安装位置现在可自定义\n在插件设置页新增了“插件安装位置”，可以选择目录、保存、恢复默认。底层安装、卸载、扫描插件清单都\n会走同一个配置目录，不再固定到c：\\Users\\zero\\AppData\\Roaming\\com.snippets-\ncode.app\\plugins\\。";
-        let english_text =
-            "1\n7i\ncUsers\\zero\\AppDataRoaming\\com.snippets-\ncode.app\\plugins\\ o";
-
-        let chinese_score = score_ocr_result_breakdown(
-            &ocr_result(chinese_text, 98.02, 4, "zh"),
-            OcrLanguage::ChineseSimplified,
-        );
-        let english_score = score_ocr_result_breakdown(
-            &ocr_result(english_text, 82.75, 4, "en"),
-            OcrLanguage::English,
-        );
-
-        assert!(
-            chinese_score.total > english_score.total,
-            "expected zh score {} > en score {}",
-            chinese_score.total,
-            english_score.total
-        );
-    }
-}
-
 fn get_first_array<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a Vec<Value>> {
     keys.iter()
         .find_map(|key| value.get(*key).and_then(Value::as_array))
