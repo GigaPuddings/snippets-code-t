@@ -42,6 +42,17 @@ function markdownFileToContentType(file: MarkdownFile): ContentType {
 
 // ============= 分类相关 API =============
 
+function isWorkspaceNotSetError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return [
+    '工作区未设置',
+    '工作区未配置',
+    'workspace not set',
+    'workspace is not set',
+    'workspace root'
+  ].some(keyword => message.toLowerCase().includes(keyword.toLowerCase()));
+}
+
 /**
  * 获取所有分类
  * 后端现在直接返回 Category 对象数组，无需前端转换
@@ -59,6 +70,10 @@ export async function getCategories(sort: 'asc' | 'desc' = 'desc'): Promise<Cate
     
     return categories;
   } catch (error) {
+    if (isWorkspaceNotSetError(error)) {
+      return [];
+    }
+
     ErrorHandler.handle(error, {
       type: ErrorType.API_ERROR,
       operation: 'getCategories',
@@ -260,6 +275,10 @@ export async function getFragmentList(
     // 转换为 ContentType
     return files.map(file => markdownFileToContentType(file));
   } catch (error) {
+    if (isWorkspaceNotSetError(error)) {
+      return [];
+    }
+
     logger.error('[getFragmentList] 查询失败:', error);
     ErrorHandler.handle(error, {
       type: ErrorType.API_ERROR,

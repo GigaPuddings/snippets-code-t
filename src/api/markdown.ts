@@ -240,7 +240,7 @@ export async function getWorkspaceRoot(): Promise<string> {
  */
 export async function setWorkspaceRoot(path: string): Promise<void> {
   try {
-    await invoke('set_workspace_root', { path });
+    await invoke('set_workspace_root_path', { path });
   } catch (error) {
     throw new Error(`设置工作区路径失败: ${error}`);
   }
@@ -253,7 +253,8 @@ export async function setWorkspaceRoot(path: string): Promise<void> {
  */
 export async function validateWorkspace(path: string): Promise<boolean> {
   try {
-    return await invoke<boolean>('validate_workspace', { path });
+    await invoke('validate_workspace_dir', { path });
+    return true;
   } catch (error) {
     throw new Error(`验证工作区失败: ${error}`);
   }

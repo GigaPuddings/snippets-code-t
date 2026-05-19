@@ -387,6 +387,25 @@ pub fn run() {
             // 初始化 index_manager 状态（先设置为 None，后续异步初始化）
             app.manage(Arc::new(RwLock::new(None::<markdown::IndexManager>)));
 
+            // 初始化 Markdown 运行时状态。即使暂未配置工作区，命令状态也必须存在，
+            // 否则前端请求分类/文件列表时会触发 Tauri 的 state not managed 错误。
+            let fallback_config_dir = json_config::get_data_dir(app.handle()).join(".snippets-code");
+            if let Err(e) = std::fs::create_dir_all(&fallback_config_dir) {
+                log::warn!(
+                    "⚠️ [初始化] 创建默认 Markdown 配置目录失败: {}",
+                    e
+                );
+            }
+            match markdown::CacheManager::new(fallback_config_dir) {
+                Ok(cache_manager) => {
+                    app.manage(Arc::new(RwLock::new(cache_manager)));
+                }
+                Err(e) => {
+                    log::warn!("⚠️ [初始化] 默认 CacheManager 初始化失败: {}", e);
+                }
+            }
+            app.manage(Arc::new(Mutex::new(None::<markdown::FileWatcher>)));
+
             // 初始化 AutoSyncManager 状态（先设置为 None，后续根据配置启动）
             app.manage(Arc::new(Mutex::new(None::<git_sync::AutoSyncManager>)));
 
@@ -596,11 +615,31 @@ pub fn run() {
                                     }
                                 }
 
-                                // 将 CacheManager 存储到应用状态
-                                app_handle_markdown.manage(Arc::new(RwLock::new(cache_manager)));
+                                // 将 CacheManager 刷新到应用状态
+                                if let Some(cache_state) =
+                                    app_handle_markdown.try_state::<Arc<RwLock<markdown::CacheManager>>>()
+                                {
+                                    match cache_state.write() {
+                                        Ok(mut managed_cache) => {
+                                            *managed_cache = cache_manager;
+                                        }
+                                        Err(e) => {
+                                            log::error!("❌ [初始化] 更新 CacheManager 状态失败: {}", e);
+                                            return;
+                                        }
+                                    }
+                                } else {
+                                    app_handle_markdown.manage(Arc::new(RwLock::new(cache_manager)));
+                                }
 
-                                // 初始化空的 FileWatcher 状态（即使还没有实际的监听器）
-                                app_handle_markdown.manage(Arc::new(Mutex::new(None::<markdown::FileWatcher>)));
+                                if app_handle_markdown
+                                    .try_state::<Arc<Mutex<Option<markdown::FileWatcher>>>>()
+                                    .is_none()
+                                {
+                                    app_handle_markdown.manage(Arc::new(Mutex::new(
+                                        None::<markdown::FileWatcher>,
+                                    )));
+                                }
                             }
                             Err(e) => {
                                 log::error!("❌ [初始化] CacheManager 初始化失败: {}", e);
