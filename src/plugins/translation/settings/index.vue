@@ -35,7 +35,16 @@
         <div class="flex items-center gap-3">
           <span class="text-sm font-medium" :class="modelStatusClass">{{ modelStatusText }}</span>
           <CustomButton
-            v-if="!modelCached && !isLoading"
+            v-if="!runtimeAvailable && !isLoading"
+            type="primary"
+            size="small"
+            :loading="isInstallingRuntime"
+            @click="installOfflineRuntime"
+          >
+            {{ $t('translation.installRuntime') }}
+          </CustomButton>
+          <CustomButton
+            v-if="runtimeAvailable && !modelCached && !isLoading"
             type="primary"
             size="small"
             @click="loadModel"
@@ -43,7 +52,7 @@
             {{ $t('translation.loadModel') }}
           </CustomButton>
           <CustomButton
-            v-if="modelCached && !modelLoaded && !backendActivated && !isLoading"
+            v-if="runtimeAvailable && modelCached && !modelLoaded && !backendActivated && !isLoading"
             type="primary"
             size="small"
             @click="activateModel"
@@ -165,6 +174,14 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { CustomButton } from '@/components/UI'
+import {
+  DEFAULT_PLUGIN_MARKETPLACE_URL,
+  fetchPluginMarketplace,
+  getLocalPluginResourcePath,
+  installTranslationOfflineRuntimeResources,
+  type PluginMarketplaceItem
+} from '@/api/plugins'
+import { usePluginStore } from '@/store'
 import modal from '@/utils/modal'
 import {
   isOfflineTranslatorReady,
@@ -185,6 +202,11 @@ defineOptions({
 })
 
 const { t } = useI18n()
+const pluginStore = usePluginStore()
+
+const TRANSFORMERS_RUNTIME_ENTRY = 'resources/transformers/transformers.min.js'
+const TRANSFORMERS_RUNTIME_PACKAGES = ['translation-offline-runtime', 'translation']
+const OFFLINE_RUNTIME_PLUGIN_ID = 'translation-offline-runtime'
 
 // 状态
 const defaultEngine = ref<'google' | 'bing' | 'offline'>('bing')
@@ -193,6 +215,8 @@ const backendActivated = ref(false)  // 后端激活状态（用户是否启用�
 const modelCacheInfo = ref<ModelCacheInfo>({ isCached: false, cacheType: 'none' })
 const isLoading = ref(false)
 const isDeleting = ref(false)
+const runtimeAvailable = ref(false)
+const isInstallingRuntime = ref(false)
 
 // 文件下载状态列表
 const fileStatuses = ref<FileDownloadStatus[]>([])
@@ -210,6 +234,7 @@ const engineOptions = computed(() => [
 // 模型状态文本
 const modelStatusText = computed(() => {
   if (isLoading.value) return t('translation.modelLoading')
+  if (!runtimeAvailable.value) return t('translation.runtimeMissing')
   if (modelLoaded.value) return t('translation.modelReady')  // 内存已加载
   if (modelCached.value && backendActivated.value) return t('translation.modelActivated')  // 已激活（懒加载）
   if (modelCached.value) return t('translation.modelCached')  // 已缓存（未激活）
@@ -219,6 +244,7 @@ const modelStatusText = computed(() => {
 // 模型状态样式
 const modelStatusClass = computed(() => {
   if (isLoading.value) return 'text-yellow-500'
+  if (!runtimeAvailable.value) return 'text-red-500'
   if (modelLoaded.value) return 'text-green-500'
   if (modelCached.value && backendActivated.value) return 'text-green-500'  // 已激活
   if (modelCached.value) return 'text-blue-500'  // 已缓存
@@ -248,6 +274,65 @@ const updateFileStatus = (fileName: string, progress: number, status: FileDownlo
   }
 }
 
+const refreshRuntimeAvailability = async () => {
+  for (const pluginId of TRANSFORMERS_RUNTIME_PACKAGES) {
+    const runtimePath = await getLocalPluginResourcePath(pluginId, TRANSFORMERS_RUNTIME_ENTRY)
+    if (runtimePath) {
+      runtimeAvailable.value = true
+      return true
+    }
+  }
+
+  runtimeAvailable.value = false
+  return false
+}
+
+const installOfflineRuntime = async () => {
+  isInstallingRuntime.value = true
+  try {
+    const marketplace = await fetchPluginMarketplace(DEFAULT_PLUGIN_MARKETPLACE_URL)
+    const marketplaceItems = Array.isArray(marketplace.plugins) ? marketplace.plugins : []
+    const runtimeItem = marketplaceItems.find((item) => item.id === OFFLINE_RUNTIME_PLUGIN_ID)
+
+    if (!runtimeItem) {
+      throw new Error(t('translation.runtimeMarketplaceMissing'))
+    }
+
+    await pluginStore.installMarketplaceItemWithDependencies(
+      runtimeItem,
+      marketplaceItems,
+      {
+        formatMissingDependencyError: (dependencyId) =>
+          t('plugins.dependencyMissing', { id: dependencyId }),
+        onInstallingPackage: (packageItem: PluginMarketplaceItem) => {
+          logger.info('[翻译设置] 开始安装离线翻译运行时资源包', {
+            pluginId: packageItem.id,
+            packageUrl: packageItem.packageUrl
+          })
+        }
+      }
+    )
+    if (!await refreshRuntimeAvailability()) {
+      logger.info('[翻译设置] 运行时资源包缺少 runtime 文件，开始补全资源')
+      await installTranslationOfflineRuntimeResources()
+    }
+
+    if (!await refreshRuntimeAvailability()) {
+      throw new Error(t('translation.runtimeInstallVerifyFailed'))
+    }
+
+    modal.msg(t('translation.runtimeInstallSuccess'))
+  } catch (error) {
+    logger.error('[翻译设置] 安装离线翻译运行时失败:', error)
+    modal.msg(
+      error instanceof Error ? error.message : t('translation.runtimeInstallFailed'),
+      'error'
+    )
+  } finally {
+    isInstallingRuntime.value = false
+  }
+}
+
 // 保存默认引擎到后端
 const saveDefaultEngine = async (value: string) => {
   try {
@@ -262,6 +347,11 @@ const saveDefaultEngine = async (value: string) => {
 // 加载模型（下载）
 const loadModel = async () => {
   logger.info('[翻译设置] 开始下载离线模型...')
+  if (!await refreshRuntimeAvailability()) {
+    modal.msg(t('translation.runtimeMissingInstallFirst'), 'error')
+    return
+  }
+
   isLoading.value = true
   initFileStatuses()
 
@@ -314,6 +404,11 @@ const loadModel = async () => {
 // 激活模型（从缓存加载到内存）
 const activateModel = async () => {
   logger.info('[翻译设置] 开始激活离线模型...')
+  if (!await refreshRuntimeAvailability()) {
+    modal.msg(t('translation.runtimeMissingInstallFirst'), 'error')
+    return
+  }
+
   isLoading.value = true
 
   try {
@@ -362,6 +457,7 @@ const deleteModel = async () => {
 // 初始化
 onMounted(async () => {
   logger.info('[翻译设置] 页面初始化...')
+  await refreshRuntimeAvailability()
   
   // 从后端读取默认引擎设置
   try {

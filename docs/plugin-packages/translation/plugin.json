@@ -30,6 +30,9 @@
     "hintKey": "plugins.translation.resourceHint",
     "bundled": false
   },
+  "dependencies": [
+    "translation-offline-runtime"
+  ],
   "permissions": [
     "command:*"
   ],
@@ -37,8 +40,20 @@
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/index-Cd8zdyIa.css",
+      "dist/assets/ConfirmDialog-95iTJ9XX.css",
+      "dist/assets/empty-iVBaPuAw.css",
+      "dist/assets/index-BPb9ZJkm.css",
       "dist/assets/index-CKvn18OD.css",
+      "dist/assets/index-CszAVXBm.css",
+      "dist/assets/index-CvgZUrUs.css",
+      "dist/assets/index-D48Zb36E.css",
+      "dist/assets/index-DGAFCL6F.css",
+      "dist/assets/index-DlSbut2A.css",
+      "dist/assets/index-Dq5KKDI3.css",
+      "dist/assets/index-dvk0pnIT.css",
+      "dist/assets/index-Odv9UvK0.css",
+      "dist/assets/switch-BVq8NMY0.css",
+      "dist/assets/TitlebarGitStatus-BFSOFKGh.css",
       "dist/assets/_plugin-vue_export-helper-CHXRjTYS.css"
     ]
   },

@@ -75,6 +75,9 @@
       "builtinPluginId": "translation",
       "status": "included",
       "sizeBytes": 730929,
+      "dependencies": [
+        "translation-offline-runtime"
+      ],
       "tags": [
         "translate",
         "offline"

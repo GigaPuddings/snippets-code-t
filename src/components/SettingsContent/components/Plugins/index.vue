@@ -303,6 +303,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
 import { Delete, Download, FileZip, FolderOpen, Refresh, Search } from '@icon-park/vue-next';
 import {
+  DEFAULT_PLUGIN_MARKETPLACE_URL,
   fetchPluginMarketplace,
   getPluginInstallDir,
   setPluginInstallDir,
@@ -341,7 +342,6 @@ const pluginInstallDir = ref('');
 const pluginInstallDirLoading = ref(false);
 const savingPluginInstallDir = ref(false);
 
-const DEFAULT_MARKETPLACE_URL = 'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/codex/plugin-system-refactor/docs/plugin-marketplace/marketplace.json';
 const isExternalOfficialPluginMode = OFFICIAL_PLUGINS_MODE === 'external';
 
 onMounted(async () => {
@@ -586,7 +586,7 @@ const hasMissingMarketplaceDependencies = (item: PluginMarketplaceItem): boolean
 const refreshMarketplace = async (notify = true) => {
   marketplaceLoading.value = true;
   try {
-    const marketplace = await fetchPluginMarketplace(DEFAULT_MARKETPLACE_URL);
+    const marketplace = await fetchPluginMarketplace(DEFAULT_PLUGIN_MARKETPLACE_URL);
     marketplaceItems.value = Array.isArray(marketplace.plugins) ? marketplace.plugins : [];
     if (notify) modal.msg(t('plugins.marketplaceRefreshed'));
   } catch (error) {

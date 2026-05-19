@@ -575,6 +575,15 @@ use walkdir::WalkDir;
 use zip::ZipArchive;
 
 const PLUGIN_INSTALL_METADATA_FILE: &str = ".install-meta.json";
+const TRANSLATION_OFFLINE_RUNTIME_PLUGIN_ID: &str = "translation-offline-runtime";
+const TRANSLATION_OFFLINE_RUNTIME_VERSION: &str = "2.17.2";
+const TRANSLATION_OFFLINE_RUNTIME_FILES: &[&str] = &[
+    "transformers.min.js",
+    "ort-wasm-simd-threaded.wasm",
+    "ort-wasm-simd.wasm",
+    "ort-wasm-threaded.wasm",
+    "ort-wasm.wasm",
+];
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2414,6 +2423,153 @@ pub fn get_local_plugin_resource_path(
     Ok(Some(path_to_display_string(&normalized_existing_path(
         &resource_path,
     ))))
+}
+
+async fn download_translation_runtime_file(
+    client: &reqwest::Client,
+    file_name: &str,
+    target_path: &Path,
+) -> Result<(), String> {
+    let urls = [
+        format!(
+            "https://cdn.jsdelivr.net/npm/@xenova/transformers@{}/dist/{}",
+            TRANSLATION_OFFLINE_RUNTIME_VERSION, file_name
+        ),
+        format!(
+            "https://unpkg.com/@xenova/transformers@{}/dist/{}",
+            TRANSLATION_OFFLINE_RUNTIME_VERSION, file_name
+        ),
+    ];
+    let temp_path = target_path.with_file_name(format!("{}.download", file_name));
+    let mut last_error: Option<String> = None;
+
+    for url in urls {
+        info!(
+            "[Plugin] downloading translation offline runtime file {}",
+            url
+        );
+        let response = match client.get(&url).send().await {
+            Ok(response) => response,
+            Err(error) => {
+                last_error = Some(format!("请求运行时资源失败: {} ({})", url, error));
+                continue;
+            }
+        };
+
+        if !response.status().is_success() {
+            last_error = Some(format!("下载运行时资源失败: HTTP {} ({})", response.status(), url));
+            continue;
+        }
+
+        let mut file = File::create(&temp_path).map_err(|e| {
+            format!(
+                "创建运行时资源临时文件失败: {} ({})",
+                temp_path.display(),
+                e
+            )
+        })?;
+        let mut downloaded_bytes = 0_u64;
+        let mut stream = response.bytes_stream();
+        let mut stream_error: Option<String> = None;
+
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                Ok(chunk) => {
+                    downloaded_bytes += chunk.len() as u64;
+                    file.write_all(&chunk).map_err(|e| {
+                        format!(
+                            "写入运行时资源文件失败: {} ({})",
+                            temp_path.display(),
+                            e
+                        )
+                    })?;
+                }
+                Err(error) => {
+                    stream_error = Some(format!("读取运行时资源失败: {} ({})", url, error));
+                    break;
+                }
+            }
+        }
+
+        if let Some(error) = stream_error {
+            let _ = fs::remove_file(&temp_path);
+            last_error = Some(error);
+            continue;
+        }
+
+        if downloaded_bytes == 0 {
+            let _ = fs::remove_file(&temp_path);
+            last_error = Some(format!("运行时资源内容为空: {}", url));
+            continue;
+        }
+
+        fs::rename(&temp_path, target_path).map_err(|e| {
+            format!(
+                "保存运行时资源文件失败: {} ({})",
+                target_path.display(),
+                e
+            )
+        })?;
+        info!(
+            "✅ [Plugin] installed translation offline runtime file {} bytes={}",
+            file_name, downloaded_bytes
+        );
+        return Ok(());
+    }
+
+    Err(last_error.unwrap_or_else(|| format!("下载运行时资源失败: {}", file_name)))
+}
+
+#[command]
+pub async fn install_translation_offline_runtime_resources(
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    let package_dir =
+        local_plugin_package_dir(&app_handle, TRANSLATION_OFFLINE_RUNTIME_PLUGIN_ID)
+            .map_err(|_| "请先安装 translation-offline-runtime 插件资源包".to_string())?;
+    let manifest_path = package_dir.join("plugin.json");
+    if !manifest_path.is_file() {
+        return Err("translation-offline-runtime 插件资源包缺少 plugin.json".to_string());
+    }
+
+    let runtime_dir = package_dir.join("resources").join("transformers");
+    fs::create_dir_all(&runtime_dir).map_err(|e| {
+        format!(
+            "创建离线翻译运行时资源目录失败: {} ({})",
+            runtime_dir.display(),
+            e
+        )
+    })?;
+
+    let client = reqwest::Client::builder()
+        .user_agent("snippets-code-translation-runtime-installer")
+        .connect_timeout(Duration::from_secs(20))
+        .timeout(Duration::from_secs(240))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| format!("创建运行时资源下载客户端失败: {}", e))?;
+
+    for file_name in TRANSLATION_OFFLINE_RUNTIME_FILES {
+        let target_path = runtime_dir.join(file_name);
+        if target_path.is_file()
+            && fs::metadata(&target_path)
+                .map(|metadata| metadata.len() > 0)
+                .unwrap_or(false)
+        {
+            continue;
+        }
+        download_translation_runtime_file(&client, file_name, &target_path).await?;
+    }
+
+    let runtime_entry = runtime_dir.join("transformers.min.js");
+    if !runtime_entry.is_file() {
+        return Err(format!(
+            "离线翻译运行时安装后仍缺少 {}",
+            runtime_entry.display()
+        ));
+    }
+
+    Ok(())
 }
 
 #[command]

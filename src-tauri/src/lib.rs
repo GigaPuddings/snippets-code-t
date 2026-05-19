@@ -997,6 +997,7 @@ pub fn run() {
             app_config::set_local_plugin_data,          // 设置本地插件数据
             app_config::delete_local_plugin_data,       // 删除本地插件数据
             app_config::get_local_plugin_resource_path, // 获取本地插件资源文件
+            app_config::install_translation_offline_runtime_resources, // 补全离线翻译运行时资源
             app_config::invoke_plugin_backend,          // 调用本地插件 native host 后端
             app_config::set_plugin_enabled,             // 设置插件状态
             // Git 同步命令
