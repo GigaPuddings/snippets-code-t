@@ -623,6 +623,16 @@ pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
     default_plugin_enabled()
 }
 
+fn apply_effective_plugin_state_gates(app_handle: &AppHandle, states: &mut HashMap<String, bool>) {
+    for plugin_id in BUILTIN_PLUGIN_IDS {
+        if is_external_install_gated_builtin(plugin_id)
+            && !is_local_plugin_package_installed(app_handle, plugin_id)
+        {
+            states.insert((*plugin_id).to_string(), false);
+        }
+    }
+}
+
 pub fn require_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
     if is_plugin_enabled(app_handle, plugin_id) {
         Ok(())
@@ -975,13 +985,17 @@ pub fn get_plugin_states(app_handle: AppHandle) -> Result<HashMap<String, bool>,
         let manager = config_state
             .read()
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
-        return Ok(manager.get_plugin_states());
+        let mut states = manager.get_plugin_states();
+        apply_effective_plugin_state_gates(&app_handle, &mut states);
+        return Ok(states);
     }
 
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     let manager = AppConfigManager::new(&workspace_root)?;
-    Ok(manager.get_plugin_states())
+    let mut states = manager.get_plugin_states();
+    apply_effective_plugin_state_gates(&app_handle, &mut states);
+    Ok(states)
 }
 
 fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
@@ -2426,13 +2440,17 @@ pub fn set_plugin_enabled(
             manager.set_plugin_enabled(plugin_id.clone(), enabled);
             manager.save()?;
         }
-        info!("✅ [Plugin] {} enabled={}", plugin_id, enabled);
-        if enabled {
+        let effective_enabled = is_plugin_enabled(&app_handle, &plugin_id);
+        info!(
+            "✅ [Plugin] {} enabled={} effective={}",
+            plugin_id, enabled, effective_enabled
+        );
+        if effective_enabled {
             if let Err(e) = crate::db::ensure_plugin_storage(&plugin_id) {
                 warn!("[Plugin] ensure storage for {} failed: {}", plugin_id, e);
             }
         }
-        apply_plugin_runtime_change(&app_handle, &plugin_id, enabled);
+        apply_plugin_runtime_change(&app_handle, &plugin_id, effective_enabled);
         return Ok(());
     }
 
@@ -2441,13 +2459,17 @@ pub fn set_plugin_enabled(
     let mut manager = AppConfigManager::new(&workspace_root)?;
     manager.set_plugin_enabled(plugin_id.clone(), enabled);
     manager.save()?;
-    info!("✅ [Plugin] {} enabled={}", plugin_id, enabled);
-    if enabled {
+    let effective_enabled = is_plugin_enabled(&app_handle, &plugin_id);
+    info!(
+        "✅ [Plugin] {} enabled={} effective={}",
+        plugin_id, enabled, effective_enabled
+    );
+    if effective_enabled {
         if let Err(e) = crate::db::ensure_plugin_storage(&plugin_id) {
             warn!("[Plugin] ensure storage for {} failed: {}", plugin_id, e);
         }
     }
-    apply_plugin_runtime_change(&app_handle, &plugin_id, enabled);
+    apply_plugin_runtime_change(&app_handle, &plugin_id, effective_enabled);
     Ok(())
 }
 

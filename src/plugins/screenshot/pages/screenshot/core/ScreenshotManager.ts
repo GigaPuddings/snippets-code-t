@@ -3200,6 +3200,12 @@ export class ScreenshotManager {
           : null
 
       const getTranslationErrorMessage = (errMsg: string): string => {
+        if (errMsg.includes('插件') && errMsg.includes('未启用')) {
+          return errMsg.includes('translation')
+            ? 'OCR识别已完成，但翻译插件未启用，请在插件设置中安装并启用 Translation 插件'
+            : errMsg
+        }
+
         if (selectedTranslationEngine === 'offline') {
           if (errMsg.includes('未激活') || errMsg.includes('未下载') || errMsg.includes('运行时未安装')) {
             return errMsg
@@ -3210,6 +3216,18 @@ export class ScreenshotManager {
           return errMsg.includes('离线翻译暂仅支持')
             ? errMsg
             : '离线翻译失败: ' + errMsg.substring(0, 50)
+        }
+
+        if (errMsg.includes('timeout') || errMsg.includes('超时')) {
+          return '翻译超时，请检查网络连接'
+        }
+
+        if (errMsg.includes('network') || errMsg.includes('网络') || errMsg.includes('请求') || errMsg.includes('令牌')) {
+          return '翻译失败，请检查网络连接'
+        }
+
+        if (errMsg.trim()) {
+          return errMsg.slice(0, 80)
         }
 
         return '翻译失败，请检查网络连接'

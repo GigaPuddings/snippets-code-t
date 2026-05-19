@@ -48,6 +48,7 @@ export const createBuiltinPackageManifest = (plugin: BuiltinPlugin): PluginPacka
     hotkeys: plugin.hotkeys,
     searchSources: plugin.searchSources
   },
+  dependencies: plugin.dependencies,
   resources: plugin.resourceHintKey
     ? {
         hintKey: plugin.resourceHintKey,

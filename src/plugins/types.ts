@@ -26,6 +26,7 @@ export interface BuiltinPlugin {
   settingsTabs?: string[];
   hotkeys?: string[];
   searchSources?: string[];
+  dependencies?: string[];
   resourceHintKey?: string;
 }
 

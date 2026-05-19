@@ -20,7 +20,8 @@
       "status": "included",
       "sizeBytes": 694267,
       "dependencies": [
-        "screenshot-rapidocr"
+        "screenshot-rapidocr",
+        "translation"
       ],
       "tags": [
         "screenshot",

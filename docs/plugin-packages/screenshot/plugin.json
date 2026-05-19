@@ -30,7 +30,8 @@
     "command:*"
   ],
   "dependencies": [
-    "screenshot-rapidocr"
+    "screenshot-rapidocr",
+    "translation"
   ],
   "compatibleAppVersion": ">=1.5.6",
   "entry": {
