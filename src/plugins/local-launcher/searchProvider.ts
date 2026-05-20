@@ -5,6 +5,7 @@ import type { SearchSourceProvider } from '../search';
 
 export const localLauncherSearchProvider: SearchSourceProvider = {
   pluginId: 'local-launcher',
+  source: 'local-launcher',
   async search(query) {
     const results = [];
 

@@ -91,6 +91,45 @@
 
     <section class="summarize-section">
       <div class="summarize-label">
+        <div class="summarize-label-title">{{ $t('settings.markdownEditor') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.markdownEditorDesc') }}</div>
+      </div>
+      <div class="summarize-input-wrapper markdown-settings">
+        <div class="markdown-setting-row">
+          <span>{{ $t('settings.markdownShowLineNumbers') }}</span>
+          <CustomSwitch
+            v-model="store.markdownShowLineNumbers"
+            :active-text="$t('common.on')"
+            :inactive-text="$t('common.off')"
+            @change="updateMarkdownShowLineNumbers"
+          />
+        </div>
+        <div class="markdown-setting-row">
+          <span>{{ $t('settings.markdownIndentWithTab') }}</span>
+          <CustomSwitch
+            v-model="store.markdownIndentWithTab"
+            :active-text="$t('common.on')"
+            :inactive-text="$t('common.off')"
+            @change="updateMarkdownIndentWithTab"
+          />
+        </div>
+        <div class="markdown-setting-row">
+          <span>{{ $t('settings.markdownTabSize') }}</span>
+          <el-input-number
+            v-model="store.markdownTabSize"
+            :min="2"
+            :max="8"
+            :step="2"
+            size="small"
+            controls-position="right"
+            @change="updateMarkdownTabSize"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('settings.exitApp') }}</div>
         <div class="summarize-label-desc">{{ $t('settings.exitAppDesc') }}</div>
       </div>
@@ -203,6 +242,22 @@ const changeLanguage = async (value: LocaleType) => {
   modal.msg(t('settings.languageChanged'));
 };
 
+const updateMarkdownSetting = (patch: Partial<Pick<StoreState, 'markdownShowLineNumbers' | 'markdownIndentWithTab' | 'markdownTabSize'>>) => {
+  store.updateMarkdownEditorSettings(patch);
+};
+
+const updateMarkdownShowLineNumbers = (value: boolean) => {
+  updateMarkdownSetting({ markdownShowLineNumbers: value });
+};
+
+const updateMarkdownIndentWithTab = (value: boolean) => {
+  updateMarkdownSetting({ markdownIndentWithTab: value });
+};
+
+const updateMarkdownTabSize = (value: number | undefined) => {
+  updateMarkdownSetting({ markdownTabSize: value });
+};
+
 const watchAutoStart = async () => {
   try {
     const enabled = await isEnabled();
@@ -313,6 +368,18 @@ onMounted(async () => {
   watchAutoStart();
 });
 </script>
+
+<style lang="scss" scoped>
+.markdown-settings {
+  @apply flex-col items-stretch gap-2;
+  min-width: 220px;
+}
+
+.markdown-setting-row {
+  @apply flex items-center justify-between gap-3 text-sm;
+  color: var(--text-color);
+}
+</style>
 
 <style scoped lang="scss">
 .text-primary {

@@ -15,6 +15,8 @@ use std::sync::RwLock as StdRwLock;
 use std::sync::{Arc, LazyLock, Mutex};
 use tauri::{Emitter, Manager};
 
+const MAIN_BRANCH: &str = "main";
+
 // ============= Git 状态缓存 =============
 
 /// Git 状态缓存条目
@@ -87,6 +89,17 @@ pub struct PullResult {
     /// 最后同步时间
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_sync_time: Option<String>,
+    /// 需要用户选择分支时返回候选分支
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch_selection: Option<BranchSelection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchSelection {
+    pub current_branch: String,
+    pub recommended_branch: String,
+    pub available_branches: Vec<String>,
+    pub reason: String,
 }
 
 /// Push 结果
@@ -106,6 +119,9 @@ pub struct GitStatus {
     pub has_changes: bool,
     pub changed_files: Vec<String>,
     pub branch: String,
+    pub main_branch: String,
+    pub available_branches: Vec<String>,
+    pub has_other_branches: bool,
 }
 
 /// 将 `git status --porcelain` 的原始行转换为适合前端展示的格式
@@ -479,10 +495,35 @@ pub fn configure_remote(
 
     info!("✅ [Git] 远程仓库配置成功");
 
-    // 获取当前分支名
-    let branch = get_current_branch(workspace_root)?;
+    // 获取当前分支名。新初始化但尚未提交的仓库没有 HEAD，此时直接对齐唯一主分支 main。
+    let mut branch = get_current_branch(workspace_root)?;
+    if !git_has_head(workspace_root) {
+        if branch != MAIN_BRANCH {
+            let target_ref = format!("refs/heads/{}", MAIN_BRANCH);
+            let switch_output = crate::git_common::git_command()
+                .args(["symbolic-ref", "HEAD", &target_ref])
+                .current_dir(workspace_root)
+                .output();
 
-    if !branch.is_empty() && branch != "master" {
+            match switch_output {
+                Ok(output) if output.status.success() => {
+                    info!(
+                        "ℹ️ [Git] 本地仓库尚无提交，已将当前分支从 {} 对齐到 {}",
+                        branch, MAIN_BRANCH
+                    );
+                    branch = MAIN_BRANCH.to_string();
+                }
+                Ok(output) => {
+                    warn!("⚠️ [Git] 对齐 main 分支失败: {}", get_git_stderr(&output));
+                }
+                Err(e) => {
+                    warn!("⚠️ [Git] 对齐 main 分支执行失败: {}", e);
+                }
+            }
+        }
+    }
+
+    if !branch.is_empty() {
         // 设置上游分支
         let upstream_output = crate::git_common::git_command()
             .args([
@@ -531,6 +572,9 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
             has_changes: false,
             changed_files: vec![],
             branch: String::new(),
+            main_branch: MAIN_BRANCH.to_string(),
+            available_branches: vec![MAIN_BRANCH.to_string()],
+            has_other_branches: false,
         });
     }
 
@@ -571,12 +615,20 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
 
     let has_changes = !changed_files.is_empty();
 
+    let available_branches = collect_available_branches(workspace_root);
+    let has_other_branches = available_branches
+        .iter()
+        .any(|branch| branch != MAIN_BRANCH);
+
     let status = GitStatus {
         is_repo,
         has_remote,
         has_changes,
         changed_files,
         branch,
+        main_branch: MAIN_BRANCH.to_string(),
+        available_branches,
+        has_other_branches,
     };
 
     debug!(
@@ -594,6 +646,95 @@ fn empty_git_status() -> GitStatus {
         has_changes: false,
         changed_files: vec![],
         branch: String::new(),
+        main_branch: MAIN_BRANCH.to_string(),
+        available_branches: vec![MAIN_BRANCH.to_string()],
+        has_other_branches: false,
+    }
+}
+
+fn git_has_head(workspace_root: &Path) -> bool {
+    crate::git_common::git_command()
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(workspace_root)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+fn normalize_branch_name(branch: &str) -> String {
+    branch
+        .trim()
+        .trim_start_matches('*')
+        .trim()
+        .trim_start_matches("remotes/")
+        .trim_start_matches("origin/")
+        .trim()
+        .to_string()
+}
+
+fn list_local_branches(workspace_root: &Path) -> Result<Vec<String>, String> {
+    let output = crate::git_common::git_command()
+        .args(["branch", "--format=%(refname:short)"])
+        .current_dir(workspace_root)
+        .output()
+        .map_err(|e| format!("获取本地分支失败: {}", e))?;
+
+    if !output.status.success() {
+        return Ok(vec![]);
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(normalize_branch_name)
+        .filter(|branch| !branch.is_empty())
+        .collect())
+}
+
+fn list_remote_branches(workspace_root: &Path) -> Result<Vec<String>, String> {
+    let output = crate::git_common::git_command()
+        .args(["branch", "-r", "--format=%(refname:short)"])
+        .current_dir(workspace_root)
+        .output()
+        .map_err(|e| format!("获取远程分支失败: {}", e))?;
+
+    if !output.status.success() {
+        return Ok(vec![]);
+    }
+
+    let mut branches: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.contains("HEAD ->"))
+        .map(normalize_branch_name)
+        .filter(|branch| !branch.is_empty())
+        .collect();
+    branches.sort();
+    branches.dedup();
+    Ok(branches)
+}
+
+fn collect_available_branches(workspace_root: &Path) -> Vec<String> {
+    let mut branches = vec![MAIN_BRANCH.to_string()];
+    if let Ok(local) = list_local_branches(workspace_root) {
+        branches.extend(local);
+    }
+    if let Ok(remote) = list_remote_branches(workspace_root) {
+        branches.extend(remote);
+    }
+    branches.sort();
+    branches.dedup();
+    branches
+}
+
+fn build_branch_selection(
+    workspace_root: &Path,
+    current_branch: &str,
+    reason: &str,
+) -> BranchSelection {
+    BranchSelection {
+        current_branch: current_branch.to_string(),
+        recommended_branch: MAIN_BRANCH.to_string(),
+        available_branches: collect_available_branches(workspace_root),
+        reason: reason.to_string(),
     }
 }
 
@@ -631,14 +772,23 @@ fn get_changed_files_with_status(
             if let Ok(ref out) = orig_head {
                 if out.status.success() {
                     String::from_utf8_lossy(&out.stdout).trim().to_string()
-                } else {
+                } else if git_has_head(workspace_root) {
                     "HEAD@{1}".to_string()
+                } else {
+                    String::new()
                 }
-            } else {
+            } else if git_has_head(workspace_root) {
                 "HEAD@{1}".to_string()
+            } else {
+                String::new()
             }
         }
     };
+
+    if base_ref.is_empty() {
+        info!("ℹ️ [Git] 当前仓库尚无可用于 diff 的基准引用，跳过 pull 后增量变更 diff");
+        return Ok(ChangedFilesByStatus::default());
+    }
 
     let output = crate::git_common::git_command()
         .args(["diff", "--name-status", &base_ref, "HEAD"])
@@ -726,6 +876,11 @@ fn get_remote_deleted_local_markdown_files(
         return Ok(vec![]);
     }
 
+    if !git_has_head(workspace_root) {
+        info!("ℹ️ [Git] 当前仓库尚无 HEAD，跳过远端删除文件预检");
+        return Ok(vec![]);
+    }
+
     let remote_ref = format!("origin/{}", branch);
     let output = crate::git_common::git_command()
         .args(["diff", "--name-status", "HEAD", &remote_ref])
@@ -770,13 +925,19 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
     info!("🔄 [Git] 开始 pull 操作");
 
     // 记录 pull 前的 HEAD commit hash
-    let pre_pull_head = crate::git_common::git_command()
-        .args(["rev-parse", "HEAD"])
-        .current_dir(workspace_root)
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+    let has_head_before_pull = git_has_head(workspace_root);
+    let pre_pull_head = if has_head_before_pull {
+        crate::git_common::git_command()
+            .args(["rev-parse", "HEAD"])
+            .current_dir(workspace_root)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    } else {
+        info!("ℹ️ [Git] 当前仓库尚无本地提交，pull 前没有 HEAD 基准");
+        None
+    };
 
     // 首先检查是否有未解决的冲突
     let conflict_files = detect_conflicts(workspace_root)?;
@@ -791,11 +952,29 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
             pre_pull_head: None,
             untracked_files: vec![],
             last_sync_time: None,
+            branch_selection: None,
         });
     }
 
-    // 获取当前分支名
     let branch = get_current_branch(workspace_root)?;
+    if branch != MAIN_BRANCH {
+        let branch_selection = build_branch_selection(
+            workspace_root,
+            &branch,
+            "当前工作区不在 main 分支，请选择要同步的分支",
+        );
+        return Ok(PullResult {
+            success: false,
+            files_updated: 0,
+            has_conflicts: false,
+            conflict_files: vec![],
+            message: "branch_selection_required".to_string(),
+            pre_pull_head: None,
+            untracked_files: vec![],
+            last_sync_time: None,
+            branch_selection: Some(branch_selection),
+        });
+    }
 
     // 先 fetch 远端状态并预检删除风险。远端删除本地 Markdown 不一定会形成 Git 冲突，
     // 但会导致本地笔记与 cache 被静默删除，因此必须交给用户确认。
@@ -818,6 +997,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                     pre_pull_head: None,
                     untracked_files: vec![],
                     last_sync_time: None,
+                    branch_selection: None,
                 });
             }
         }
@@ -849,6 +1029,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                     pre_pull_head: None,
                     untracked_files: vec![],
                     last_sync_time: None,
+                    branch_selection: None,
                 });
             }
         }
@@ -871,6 +1052,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                     pre_pull_head: None,
                     untracked_files,
                     last_sync_time: None,
+                    branch_selection: None,
                 });
             }
         }
@@ -888,6 +1070,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                 pre_pull_head: None,
                 untracked_files: vec![],
                 last_sync_time: None,
+                branch_selection: None,
             });
         }
 
@@ -904,15 +1087,16 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                 pre_pull_head: None,
                 untracked_files: vec![],
                 last_sync_time: None,
+                branch_selection: None,
             });
         }
 
-        // 检查是否是远程分支不存在（常见：本地 master，远程只有 main）
+        // 检查是否是远程分支不存在
         if stderr.contains("couldn't find remote ref") || stderr.contains("does not exist") {
             if let Ok(remote_branch) = get_remote_default_branch(workspace_root) {
                 if remote_branch != branch {
                     warn!(
-                        "⚠️ [Git] 当前分支 {} 在远程不存在，远程默认分支为 {}，停止自动覆盖本地",
+                        "⚠️ [Git] 当前分支 {} 在远程不存在，main 主分支为 {}，停止自动覆盖本地",
                         branch, remote_branch
                     );
                     return Ok(PullResult {
@@ -921,12 +1105,13 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                         has_conflicts: true,
                         conflict_files: vec![],
                         message: format!(
-                            "当前分支 {} 在远程不存在，远程默认分支为 {}。请确认保留本地或切换/拉取远程分支。",
+                            "当前分支 {} 在远程不存在，main 主分支为 {}。请确认保留本地或切换/拉取远程分支。",
                             branch, remote_branch
                         ),
                         pre_pull_head: None,
                         untracked_files: vec![],
                         last_sync_time: None,
+                        branch_selection: None,
                     });
                 }
             }
@@ -940,6 +1125,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                 pre_pull_head: None,
                 untracked_files: vec![],
                 last_sync_time: None,
+                branch_selection: None,
             });
         }
 
@@ -960,6 +1146,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
                 pre_pull_head: None,
                 untracked_files: vec![],
                 last_sync_time: None,
+                branch_selection: None,
             });
         }
 
@@ -991,6 +1178,7 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
         pre_pull_head,
         untracked_files: vec![],
         last_sync_time: Some(last_sync_time),
+        branch_selection: None,
     })
 }
 
@@ -1382,7 +1570,7 @@ pub fn ensure_gitignore(workspace_root: &Path) -> Result<bool, String> {
 
 // ============= 辅助函数 =============
 
-/// 获取远程 origin 的默认分支名（如 main / master）
+/// 获取远程 origin 的默认分支名。业务上只认可 main；远端未声明时也回退 main。
 fn get_remote_default_branch(workspace_root: &Path) -> Result<String, String> {
     let out = crate::git_common::git_command()
         .args(["ls-remote", "--symref", "origin", "HEAD"])
@@ -1405,7 +1593,7 @@ fn get_remote_default_branch(workspace_root: &Path) -> Result<String, String> {
             }
         }
     }
-    // 回退：先试 main，再试 master
+    // 回退：只认可 main
     let main_out = crate::git_common::git_command()
         .args(["ls-remote", "origin", "refs/heads/main"])
         .current_dir(workspace_root)
@@ -1417,18 +1605,7 @@ fn get_remote_default_branch(workspace_root: &Path) -> Result<String, String> {
     {
         return Ok("main".to_string());
     }
-    let master_out = crate::git_common::git_command()
-        .args(["ls-remote", "origin", "refs/heads/master"])
-        .current_dir(workspace_root)
-        .output();
-    if master_out
-        .as_ref()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
-        return Ok("master".to_string());
-    }
-    Ok("main".to_string())
+    Ok(MAIN_BRANCH.to_string())
 }
 
 /// 获取当前分支名
@@ -1440,14 +1617,48 @@ pub fn get_current_branch(workspace_root: &Path) -> Result<String, String> {
         .map_err(|e| format!("获取当前分支失败: {}", e))?;
 
     if !output.status.success() {
-        return Ok("master".to_string()); // 默认分支
+        return Ok(MAIN_BRANCH.to_string());
     }
 
     let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if branch.is_empty() {
-        Ok("master".to_string())
+        Ok(MAIN_BRANCH.to_string())
     } else {
         Ok(branch)
+    }
+}
+
+fn switch_git_branch(workspace_root: &Path, branch: &str) -> Result<(), String> {
+    let branch = normalize_branch_name(branch);
+    if branch.is_empty() {
+        return Err("分支名称不能为空".to_string());
+    }
+
+    let local_branches = list_local_branches(workspace_root)?;
+    let args: Vec<String> = if local_branches.iter().any(|item| item == &branch) {
+        vec!["switch".to_string(), branch.clone()]
+    } else {
+        vec![
+            "switch".to_string(),
+            "-c".to_string(),
+            branch.clone(),
+            "--track".to_string(),
+            format!("origin/{}", branch),
+        ]
+    };
+
+    let output = crate::git_common::git_command()
+        .args(args.iter().map(String::as_str))
+        .current_dir(workspace_root)
+        .output()
+        .map_err(|e| format!("切换分支失败: {}", e))?;
+
+    if output.status.success() {
+        clear_git_status_cache();
+        info!("✅ [Git] 已切换到分支 {}", branch);
+        Ok(())
+    } else {
+        Err(format!("切换分支失败: {}", get_git_stderr(&output)))
     }
 }
 
@@ -1569,7 +1780,7 @@ pub fn init_git_repository_command(
     if !check_git_repo(&workspace_root)? {
         // 初始化仓库
         let init_output = crate::git_common::git_command()
-            .args(["init"])
+            .args(["init", "-b", MAIN_BRANCH])
             .current_dir(&workspace_root)
             .output()
             .map_err(|e| format!("初始化 Git 仓库失败: {}", e))?;
@@ -1603,7 +1814,7 @@ pub fn init_git_repository_command(
                 let local_branch = get_current_branch(&workspace_root).unwrap_or_default();
                 if !local_branch.is_empty() && local_branch != remote_branch {
                     info!(
-                        "ℹ️ [Git] 当前分支为 {}，远程默认分支为 {}，需要同步时将由用户确认处理",
+                        "ℹ️ [Git] 当前分支为 {}，main 主分支为 {}，需要同步时将由用户确认处理",
                         local_branch, remote_branch
                     );
                 }
@@ -1663,6 +1874,14 @@ pub fn init_git_repository_command(
     });
 
     Ok(())
+}
+
+#[command]
+pub fn switch_git_branch_command(app_handle: AppHandle, branch: String) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    switch_git_branch(&workspace_root, &branch)
 }
 
 /// 测试 Git 连接（验证 Token 和远程仓库是否可用）
@@ -3166,6 +3385,7 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
         pre_pull_head: None,
         untracked_files: vec![],
         last_sync_time: Some(chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()),
+        branch_selection: None,
     })
 }
 

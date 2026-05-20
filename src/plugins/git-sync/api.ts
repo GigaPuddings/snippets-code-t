@@ -21,6 +21,14 @@ export interface PullResult {
   message: string;
   untracked_files?: string[];
   last_sync_time?: string;
+  branch_selection?: BranchSelection;
+}
+
+export interface BranchSelection {
+  current_branch: string;
+  recommended_branch: string;
+  available_branches: string[];
+  reason: string;
 }
 
 /**
@@ -42,6 +50,9 @@ export interface GitStatus {
   has_changes: boolean;
   changed_files: string[];
   branch: string;
+  main_branch: string;
+  available_branches: string[];
+  has_other_branches: boolean;
 }
 
 /**
@@ -174,6 +185,28 @@ export async function gitPull(): Promise<PullResult> {
     return await invoke<PullResult>('git_pull_command');
   } catch (error) {
     throw new Error(`Git pull 失败: ${error}`);
+  }
+}
+
+/**
+ * 切换 Git 分支
+ */
+export async function switchGitBranch(branch: string): Promise<void> {
+  try {
+    await invoke('switch_git_branch_command', { branch });
+  } catch (error) {
+    throw new Error(`切换 Git 分支失败: ${error}`);
+  }
+}
+
+/**
+ * 删除未跟踪文件（用于用户确认后处理分支切换/拉取覆盖风险）
+ */
+export async function removeUntrackedFile(filePath: string): Promise<void> {
+  try {
+    await invoke('remove_untracked_file_command', { filePath });
+  } catch (error) {
+    throw new Error(`删除未跟踪文件失败: ${error}`);
   }
 }
 

@@ -331,7 +331,7 @@ const handleConflictResolution = async (strategy: string) => {
         const { invoke } = await import('@tauri-apps/api/core');
         for (const file of untrackedFiles.value) {
           try {
-            await invoke('remove_untracked_file', { filePath: file });
+            await invoke('remove_untracked_file_command', { filePath: file });
             logger.info('[Config] 已删除未跟踪文件:', file);
           } catch (error) {
             logger.warn(`[Config] 删除未跟踪文件失败: ${file} ${error}`);

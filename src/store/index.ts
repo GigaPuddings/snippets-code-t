@@ -23,7 +23,10 @@ export const useConfigurationStore = defineStore('configuration', {
     language: 'zh-CN', // 界面语言
     autoStart: false, // 开机自启
     autoUpdateCheck: false, // 检查更新
-    autoHideOnBlur: true // 搜索窗口失焦时是否自动隐藏
+    autoHideOnBlur: true, // 搜索窗口失焦时是否自动隐藏
+    markdownShowLineNumbers: true, // Markdown 源码编辑器是否显示行号
+    markdownIndentWithTab: true, // Markdown/代码编辑器是否允许 Tab 缩进
+    markdownTabSize: 2 // Markdown/代码编辑器缩进宽度
   }),
   getters: {
     /** 当前实际是否为深色模式（供组件 :dark 等使用，会随系统主题变化更新） */
@@ -147,10 +150,34 @@ export const useConfigurationStore = defineStore('configuration', {
       } else {
         logger.debug(`[主题][Store] currentTheme=${currentTheme} 非 auto，跳过 dark 类切换`);
       }
+    },
+
+    updateMarkdownEditorSettings(settings: Partial<Pick<StoreState, 'markdownShowLineNumbers' | 'markdownIndentWithTab' | 'markdownTabSize'>>) {
+      if (typeof settings.markdownShowLineNumbers === 'boolean') {
+        this.markdownShowLineNumbers = settings.markdownShowLineNumbers;
+      }
+      if (typeof settings.markdownIndentWithTab === 'boolean') {
+        this.markdownIndentWithTab = settings.markdownIndentWithTab;
+      }
+      if (typeof settings.markdownTabSize === 'number') {
+        this.markdownTabSize = Math.min(8, Math.max(2, settings.markdownTabSize));
+      }
+
+      try {
+        const stored = JSON.parse(localStorage.getItem('configuration') || '{}');
+        localStorage.setItem('configuration', JSON.stringify({
+          ...stored,
+          markdownShowLineNumbers: this.markdownShowLineNumbers,
+          markdownIndentWithTab: this.markdownIndentWithTab,
+          markdownTabSize: this.markdownTabSize
+        }));
+      } catch (error) {
+        logger.error('保存 Markdown 编辑器设置失败:', error);
+      }
     }
   },
   persist: {
-    pick: ['theme', 'dbPath']
+    pick: ['theme', 'dbPath', 'markdownShowLineNumbers', 'markdownIndentWithTab', 'markdownTabSize']
   }
 });
 

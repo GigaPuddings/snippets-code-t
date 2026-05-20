@@ -1,5 +1,5 @@
 <template>
-  <div class="toolbar-container">
+  <div ref="toolbarContainerRef" class="toolbar-container">
     <!-- 第一个面板：工具选择 + 操作按钮 -->
     <div class="toolbar-panel first-panel">
       <!-- 工具选择区域 -->
@@ -183,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { ToolType } from '../core/types'
 import { 
   MoveOne, 
@@ -205,6 +205,7 @@ import {
 
 // 颜色选择器状态
 const showColorPicker = ref(false)
+const toolbarContainerRef = ref<HTMLElement | null>(null)
 
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
@@ -331,17 +332,43 @@ watch(() => props.currentTool, () => {
     showColorPicker.value = false
   }
 })
+
+const getToolbarSize = () => {
+  const rect = toolbarContainerRef.value?.getBoundingClientRect()
+  return {
+    width: rect?.width ?? 510,
+    height: rect?.height ?? 48
+  }
+}
+
+watch([
+  () => props.currentTool,
+  () => showColorPicker.value
+], () => {
+  nextTick(() => {
+    window.dispatchEvent(new CustomEvent('screenshot-toolbar-resize', {
+      detail: getToolbarSize()
+    }))
+  })
+}, { immediate: true })
+
+defineExpose({
+  getToolbarSize
+})
 </script>
 
 <style scoped lang="scss">
 .toolbar-container {
   @apply flex flex-col gap-2;
+  max-width: calc(100vw - 16px);
 
   .toolbar-panel {
     @apply flex items-center gap-3 bg-white rounded-lg shadow-lg px-2 py-1 border border-gray-200;
+    max-width: 100%;
+    overflow-x: auto;
 
     &.first-panel {
-      min-width: 400px;
+      min-width: 0;
       max-width: 980px;
     }
 
@@ -352,7 +379,7 @@ watch(() => props.currentTool, () => {
   }
 
   .tool-section {
-    @apply flex items-center gap-1;
+    @apply flex items-center gap-1 flex-wrap;
 
     .tool-btn {
       @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 border border-gray-300 bg-white hover:bg-gray-50;
@@ -486,7 +513,7 @@ watch(() => props.currentTool, () => {
   }
 
   .action-section {
-    @apply flex items-center gap-2;
+    @apply flex items-center gap-2 flex-wrap;
 
     .action-btn {
       @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200;

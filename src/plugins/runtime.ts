@@ -516,10 +516,21 @@ const createRuntimeContext = (
     appendCapability(plugin, 'settingsTabs', tab.id);
   },
   registerSearchProvider(provider) {
-    searchSourceProviders.push({
+    const nextProvider = {
       pluginId: plugin.id,
+      source: provider.source,
       search: provider.search
-    } satisfies SearchSourceProvider);
+    } satisfies SearchSourceProvider;
+    const existingIndex = searchSourceProviders.findIndex(
+      (candidate) =>
+        candidate.pluginId === plugin.id && candidate.source === provider.source
+    );
+
+    if (existingIndex === -1) {
+      searchSourceProviders.push(nextProvider);
+    } else {
+      searchSourceProviders[existingIndex] = nextProvider;
+    }
     appendCapability(plugin, 'searchSources', provider.source);
   },
   registerTitlebarAction(action) {

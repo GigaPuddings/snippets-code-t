@@ -8,5 +8,6 @@ export interface SearchSourceResult {
 
 export interface SearchSourceProvider {
   pluginId: PluginId;
+  source?: string;
   search(query: string): Promise<SearchSourceResult[]>;
 }

@@ -446,13 +446,24 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       for (const provider of searchSourceProviders) {
         if (!pluginStore.isEnabled(provider.pluginId)) continue;
 
-        const sourceResults = await provider.search(query);
-        for (const sourceResult of sourceResults) {
-          results.push(
-            ...sourceResult.items.map((item, index) =>
-              withSourceId(item, sourceResult.source, index)
-            )
-          );
+        try {
+          const sourceResults = await provider.search(query);
+          for (const sourceResult of sourceResults) {
+            results.push(
+              ...sourceResult.items.map((item, index) =>
+                withSourceId(item, sourceResult.source, index)
+              )
+            );
+          }
+        } catch (error) {
+          ErrorHandler.handle(error, {
+            type: ErrorType.API_ERROR,
+            operation: 'searchSourceProvider',
+            details: { pluginId: provider.pluginId, source: provider.source, query },
+            timestamp: new Date()
+          }, {
+            showNotification: false
+          });
         }
       }
 

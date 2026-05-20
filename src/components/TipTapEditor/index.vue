@@ -13,6 +13,9 @@
         v-show="viewMode === 'source'"
         :content="sourceContent"
         :dark="props.dark"
+        :show-line-numbers="configurationStore.markdownShowLineNumbers"
+        :indent-with-tab="configurationStore.markdownIndentWithTab"
+        :tab-size="configurationStore.markdownTabSize"
         @update:content="handleSourceContentChange"
         @contextmenu="handleSourceContextMenu"
         @scroll="handleSourceScroll"
@@ -98,6 +101,7 @@ import { SearchPanel } from '@/components/UI';
 import type { CSSProperties } from 'vue';
 import type { EditorView } from '@tiptap/pm/view';
 import modal from '@/utils/modal';
+import { useConfigurationStore } from '@/store';
 
 interface Props {
   codeStyle?: CSSProperties;
@@ -150,6 +154,7 @@ const emits = defineEmits<{
 const contextMenuRef = ref<InstanceType<typeof TipTapContextMenu> | null>(null);
 const sourceEditorRef = ref<InstanceType<typeof SourceEditor> | null>(null);
 const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
+const configurationStore = useConfigurationStore();
 const wordCount = ref(0);
 const charCount = ref(0);
 const showOutline = ref(false);

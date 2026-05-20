@@ -755,6 +755,67 @@ fn apply_local_launcher_runtime_change(app_handle: &AppHandle, enabled: bool) {
     }
 }
 
+fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String, enabled: bool) {
+    if !enabled {
+        return;
+    }
+
+    std::thread::spawn(move || match plugin_id.as_str() {
+        "local-launcher" => {
+            crate::window::create_progress_notification_window();
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            crate::window::emit_scan_progress("正在检索本地应用...", 0, 4, "");
+            let apps = crate::apps::get_installed_apps();
+            crate::window::emit_scan_progress(
+                "正在保存应用数据...",
+                1,
+                4,
+                &format!("共 {} 个应用", apps.len()),
+            );
+            if let Err(e) = crate::db::insert_apps(&apps) {
+                warn!("[Plugin] 保存本地应用索引失败: {}", e);
+            }
+            crate::plugins::local_launcher::invalidate_apps_cache();
+
+            crate::window::emit_scan_progress("正在检索浏览器书签...", 2, 4, "");
+            let bookmarks = crate::bookmarks::get_browser_bookmarks();
+            crate::window::emit_scan_progress(
+                "正在保存书签数据...",
+                3,
+                4,
+                &format!("共 {} 个书签", bookmarks.len()),
+            );
+            if let Err(e) = crate::db::insert_bookmarks(&bookmarks) {
+                warn!("[Plugin] 保存浏览器书签索引失败: {}", e);
+            }
+            crate::plugins::local_launcher::invalidate_bookmarks_cache();
+            let updated_count = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+            let completion_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+            crate::apps::load_app_icons_async_silent(
+                apps.clone(),
+                updated_count.clone(),
+                completion_counter.clone(),
+            );
+            crate::bookmarks::load_bookmark_icons_async_silent(
+                bookmarks.clone(),
+                updated_count,
+                completion_counter,
+            );
+            crate::window::emit_scan_complete(apps.len(), bookmarks.len(), 0);
+        }
+        "desktop-files" => {
+            crate::window::create_progress_notification_window();
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            crate::window::emit_scan_progress("正在检索桌面文件...", 0, 1, "");
+            let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
+            crate::window::emit_scan_complete(0, 0, count);
+        }
+        _ => {
+            let _ = app_handle;
+        }
+    });
+}
+
 fn apply_git_sync_runtime_change(app_handle: &AppHandle, enabled: bool) {
     if enabled {
         let _ = crate::git_sync::start_auto_sync_command(app_handle.clone());
@@ -776,6 +837,7 @@ fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled:
     }
 
     refresh_plugin_shell_integration(app_handle, plugin_id, enabled);
+    refresh_search_plugin_index_feedback(app_handle.clone(), plugin_id.to_string(), enabled);
 }
 
 pub fn apply_enabled_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str) {
@@ -2254,6 +2316,7 @@ pub fn install_local_plugin_package(
                 );
             }
             apply_enabled_plugin_runtime_change(&app_handle, &plugin_id);
+            refresh_search_plugin_index_feedback(app_handle.clone(), plugin_id.to_string(), true);
         }
         refresh_plugin_shell_integration(
             &app_handle,

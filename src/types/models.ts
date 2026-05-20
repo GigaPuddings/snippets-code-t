@@ -316,6 +316,9 @@ export interface GitStatus {
   hasChanges: boolean;
   changedFiles: string[];
   branch: string;
+  mainBranch: string;
+  availableBranches: string[];
+  hasOtherBranches: boolean;
 }
 
 /**

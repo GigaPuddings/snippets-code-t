@@ -49,7 +49,7 @@ import { java } from '@codemirror/lang-java';
 import { EditorView, ViewUpdate, keymap } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { createTheme } from '@uiw/codemirror-themes';
-import { EditorState } from '@codemirror/state';
+import { Compartment, EditorState } from '@codemirror/state';
 import {
   history,
   historyKeymap,
@@ -188,6 +188,8 @@ const length = ref(0);
 const showSearch = ref(false);
 const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 const searchMatches = ref<Array<{ from: number; to: number }>>([]);
+const tabSizeCompartment = new Compartment();
+const keymapCompartment = new Compartment();
 
 // 更新状态栏信息
 function updateStatusInfo(state: EditorState) {
@@ -301,13 +303,12 @@ const getExtensions = (): Extension[] => {
     customTheme.value,
     getLanguageExtension(props.code),
     history(),
-    // 键盘映射
-    keymap.of([
+    keymapCompartment.of(keymap.of([
       ...defaultKeymap,
       ...historyKeymap,
       ...(props.indentWithTab ? [indentWithTab] : [])
-    ]),
-    EditorState.tabSize.of(props.tabSize),
+    ])),
+    tabSizeCompartment.of(EditorState.tabSize.of(props.tabSize)),
     EditorView.editable.of(!props.disabled),
     EditorState.phrases.of({
       placeholder: props.placeholder
@@ -503,6 +504,22 @@ watchEffect(() => {
       }
     });
   }
+});
+
+watch(() => props.tabSize, (tabSize) => {
+  editorViewRef.value?.dispatch({
+    effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(tabSize))
+  });
+});
+
+watch(() => props.indentWithTab, (enabled) => {
+  editorViewRef.value?.dispatch({
+    effects: keymapCompartment.reconfigure(keymap.of([
+      ...defaultKeymap,
+      ...historyKeymap,
+      ...(enabled ? [indentWithTab] : [])
+    ]))
+  });
 });
 
 onBeforeUnmount(() => {

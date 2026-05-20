@@ -18,7 +18,7 @@
     </div>
 
     <!-- 工具栏 -->
-    <ToolbarSection v-if="state.selectionRect && !isDrawing" :style="toolbarStyle" class="toolbar"
+    <ToolbarSection ref="toolbarRef" v-if="state.selectionRect && !isDrawing" :style="toolbarStyle" class="toolbar"
       :current-tool="state.currentTool" :current-color="state.currentStyle.color"
       :current-line-width="state.currentStyle.lineWidth" :current-text-size="state.textSize"
       :current-mosaic-size="state.mosaicSize" :can-undo="state.hasAnnotations" :can-delete="!!state.selectedAnnotation"
@@ -64,6 +64,7 @@ import { logger } from '@/utils/logger'
 // 组件引用
 const canvasRef = ref<HTMLCanvasElement>()
 const textInputRef = ref<HTMLInputElement>()
+const toolbarRef = ref<InstanceType<typeof ToolbarSection> | null>(null)
 const appWindow = ref<Window | null>(null)
 
 // 截图管理器
@@ -76,6 +77,7 @@ const textInput = ref('')
 const textInputPosition = ref({ x: 0, y: 0 })
 const isLoading = ref(false) // 不显示加载状态，让用户可以立即开始截图
 const translateEngine = ref<'google' | 'bing' | 'offline'>('bing') // 翻译引擎
+const toolbarSize = ref({ width: 510, height: 48 })
 let isClosing = false
 
 // 响应式状态
@@ -148,86 +150,30 @@ const toolbarStyle = computed(() => {
   if (!state.value.selectionRect) return {}
 
   const { x, y, height } = state.value.selectionRect
-  const firstPanelHeight = 48  // 第一个面板的高度
-  const secondPanelHeight = 48 // 第二个面板的高度
-  const panelGap = 8 // 两个面板之间的间隙
-  const margin = 10
-  
-  // 根据工具类型计算需要的总高度
-  const hasSecondPanel = ![ToolType.Select, ToolType.ColorPicker, ToolType.Ocr, ToolType.Pin].includes(state.value.currentTool)
-  const toolbarHeight = hasSecondPanel ? firstPanelHeight + secondPanelHeight + panelGap : firstPanelHeight
-  
-  // 第一个面板实际宽度（包含所有按钮 + padding + gap + margin）
-  const firstPanelWidth = 510
-  
-  // 估算第二个面板的宽度（根据工具类型）
-  let secondPanelWidth = 0
-  if (hasSecondPanel) {
-    if (state.value.currentTool === ToolType.Text) {
-      secondPanelWidth = 380 // 线宽(4个) + 颜色(按钮) + 文字大小(6个) + gaps
-    } else if (state.value.currentTool === ToolType.Mosaic) {
-      secondPanelWidth = 250 // 马赛克大小(4个) + gaps
-    } else {
-      secondPanelWidth = 320 // 线宽(4个) + 颜色(按钮) + gaps
-    }
-  }
-  
-  // 使用较宽的面板作为总宽度
-  const toolbarWidth = Math.max(firstPanelWidth, secondPanelWidth)
+  const margin = 8
+  const toolbarWidth = Math.min(toolbarSize.value.width, Math.max(0, window.innerWidth - margin * 2))
+  const toolbarHeight = Math.min(toolbarSize.value.height, Math.max(0, window.innerHeight - margin * 2))
+  const maxTop = Math.max(margin, window.innerHeight - toolbarHeight - margin)
+  const maxLeft = Math.max(margin, window.innerWidth - toolbarWidth - margin)
 
   // 决定工具栏位置
   let top: number
   // 1. 优先尝试放在选区下方
-  if (y + height + toolbarHeight + margin < window.innerHeight) {
+  if (y + height + toolbarHeight + margin <= window.innerHeight) {
     top = y + height + margin
   } 
   // 2. 否则，尝试放在选区上方
-  else if (y - toolbarHeight - margin > 0) {
+  else if (y - toolbarHeight - margin >= margin) {
     top = y - toolbarHeight - margin
   }
   // 3. 如果上下都没空间，则放在选区内部的底部
   else {
-    top = Math.max(y + height - toolbarHeight - margin, y + 10)
+    top = y + height - toolbarHeight - margin
   }
+  top = Math.min(Math.max(top, margin), maxTop)
 
   // 计算左侧位置
-  let left: number
-  
-  // 计算屏幕可用区域
-  const screenLeftEdge = margin
-  const screenRightEdge = window.innerWidth - margin
-  const availableWidth = screenRightEdge - screenLeftEdge
-  
-  // 如果工具栏太宽，超过整个屏幕可用宽度
-  if (toolbarWidth > availableWidth) {
-    left = screenLeftEdge
-  } else {
-    // 策略：优先对齐选区左边，确保不超出边界
-    left = x
-    
-    // 严格检查右边界（留出少量安全边距避免浮点误差）
-    const safetyMargin = 5
-    if (left + toolbarWidth > screenRightEdge - safetyMargin) {
-      // 如果超出，计算能放置工具栏的最右位置
-      left = screenRightEdge - toolbarWidth - safetyMargin
-    }
-    
-    // 检查左边界
-    if (left < screenLeftEdge) {
-      left = screenLeftEdge
-    }
-    
-    // 最终验证：确保工具栏完全在屏幕内
-    const finalRightEdge = left + toolbarWidth
-    if (finalRightEdge > screenRightEdge) {
-      // 如果还超出（理论上不应该），强制调整
-      left = screenRightEdge - toolbarWidth
-      // 再次确保左边界
-      if (left < screenLeftEdge) {
-        left = screenLeftEdge
-      }
-    }
-  }
+  const left = Math.min(Math.max(x, margin), maxLeft)
 
   return {
     left: `${left}px`,
@@ -619,6 +565,18 @@ const handleStateChange = () => {
   }
 }
 
+const updateToolbarSize = () => {
+  const measured = toolbarRef.value?.getToolbarSize?.()
+  if (!measured) return
+  toolbarSize.value = measured
+}
+
+const handleToolbarResize = (event: Event) => {
+  const detail = (event as CustomEvent<{ width: number, height: number }>).detail
+  if (!detail) return
+  toolbarSize.value = detail
+}
+
 // 生命周期
 onMounted(async () => {
   if (!canvasRef.value) return
@@ -655,6 +613,8 @@ onMounted(async () => {
 
   // 添加键盘事件监听
   document.addEventListener('keydown', handleKeydown)
+  window.addEventListener('resize', updateToolbarSize)
+  window.addEventListener('screenshot-toolbar-resize', handleToolbarResize)
 
   // 监听后端背景准备完成事件
   unlistenBgReady.value = await listen('background-ready', () => {
@@ -692,6 +652,8 @@ onMounted(async () => {
       }
     }, 100)
   })
+
+  nextTick(updateToolbarSize)
 })
 
 onUnmounted(() => {
@@ -701,6 +663,8 @@ onUnmounted(() => {
   
   // 移除事件监听器
   document.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('resize', updateToolbarSize)
+  window.removeEventListener('screenshot-toolbar-resize', handleToolbarResize)
   
   // 清理Tauri事件监听器
   unlisten.value?.()

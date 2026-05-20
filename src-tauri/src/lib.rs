@@ -1008,6 +1008,7 @@ pub fn run() {
             git_sync::get_workspace_git_config_command, // 仅工作区检测 Git 配置（不调系统，防闪退）
             git_sync::configure_git_command,            // 配置 Git
             git_sync::init_git_repository_command,      // 初始化 Git 仓库并配置远程
+            git_sync::switch_git_branch_command,        // 切换 Git 分支
             git_sync::test_git_connection_command,      // 测试 Git 连接
             git_sync::git_pull_command,                 // 执行 git pull
             git_sync::git_push_command,                 // 执行 git push

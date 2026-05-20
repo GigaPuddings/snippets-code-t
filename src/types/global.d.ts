@@ -80,6 +80,9 @@ declare global {
     autoStart: boolean;
     autoUpdateCheck: boolean;
     autoHideOnBlur: boolean;
+    markdownShowLineNumbers: boolean;
+    markdownIndentWithTab: boolean;
+    markdownTabSize: number;
   }
 
   // 添加搜索引擎配置类型

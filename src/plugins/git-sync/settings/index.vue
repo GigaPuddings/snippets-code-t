@@ -110,6 +110,30 @@
 
       <!-- 同步选项（Git 必要配置在个人中心填写，此处仅保留开关与同步操作） -->
       <template v-if="gitSettings.enabled">
+        <section v-if="gitStatus?.available_branches?.length" class="summarize-section">
+          <div class="summarize-label">
+            <div class="summarize-label-title">同步分支</div>
+            <div class="summarize-label-desc">
+              主分支固定为 main，检测到其他分支时可在这里切换
+            </div>
+          </div>
+          <div class="summarize-input-wrapper">
+            <el-select
+              :model-value="gitStatus.branch || 'main'"
+              class="summarize-input !w-40"
+              :disabled="isSaving || isPulling || isPushing"
+              @change="handleBranchChange"
+            >
+              <el-option
+                v-for="branch in gitStatus.available_branches"
+                :key="branch"
+                :label="branch === 'main' ? `${branch}（主分支）` : branch"
+                :value="branch"
+              />
+            </el-select>
+          </div>
+        </section>
+
         <!-- 启动时自动拉取 -->
         <section class="summarize-section">
           <div class="summarize-label">
@@ -208,17 +232,43 @@
       @secondary="handlePullConfirmResult('secondary')"
       @close="handlePullConfirmResult('close')"
     />
+
+    <SelectConfirmDialog
+      v-model="branchSelectVisible"
+      title="选择同步分支"
+      :message="branchSelectMessage"
+      :options="branchSelectOptions"
+      :default-value="selectedBranch"
+      confirm-text="切换并同步"
+      cancel-text="取消"
+      :loading="isPulling"
+      @confirm="handleBranchSelectConfirm"
+      @cancel="branchSelectVisible = false"
+    />
+
+    <ConfirmChoiceDialog
+      v-model="branchOverwriteVisible"
+      title="切换分支前需要处理未跟踪文件"
+      :message="branchOverwriteMessage"
+      primary-text="使用目标分支文件"
+      secondary-text="取消"
+      type="warning"
+      @primary="handleBranchOverwriteConfirm"
+      @secondary="branchOverwriteVisible = false"
+      @close="branchOverwriteVisible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { Loading, CheckOne, Attention, CloseSmall } from '@icon-park/vue-next';
-import { CustomButton, CustomSwitch } from '@/components/UI';
+import { CustomButton, CustomSwitch, SelectConfirmDialog } from '@/components/UI';
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import { getGitSettings, updateGitSettings } from '@/api/appConfig';
 import { useGitStatus } from '@/plugins/git-sync/useGitStatus';
-import { gitPull, gitPush, startAutoSync, stopAutoSync } from '@/plugins/git-sync/api';
+import { gitPull, gitPush, removeUntrackedFile, startAutoSync, stopAutoSync, switchGitBranch } from '@/plugins/git-sync/api';
+import type { BranchSelection, PullResult } from '@/plugins/git-sync/api';
 import type { GitSettings } from '@/types/models';
 import modal from '@/utils/modal';
 import { analyzeGitError, getErrorTypeIcon } from '@/utils/git-error';
@@ -289,6 +339,32 @@ const pullConfirmOptions = ref({
   type: 'info' as const
 });
 let pullConfirmResolve: ((v: 'primary' | 'secondary' | 'close') => void) | null = null;
+const branchSelectVisible = ref(false);
+const branchSelection = ref<BranchSelection | null>(null);
+const selectedBranch = ref('main');
+const branchOverwriteVisible = ref(false);
+const pendingBranchSwitch = ref('');
+const pendingUntrackedFiles = ref<string[]>([]);
+
+const branchSelectOptions = computed(() => {
+  const branches = branchSelection.value?.available_branches?.length
+    ? branchSelection.value.available_branches
+    : ['main'];
+  return branches.map((branch) => ({
+    label: branch === 'main' ? `${branch}（主分支）` : branch,
+    value: branch
+  }));
+});
+
+const branchSelectMessage = computed(() => {
+  if (!branchSelection.value) return '请选择要同步的分支';
+  return `${branchSelection.value.reason}\n当前分支：${branchSelection.value.current_branch || '未知'}；建议选择：${branchSelection.value.recommended_branch}`;
+});
+
+const branchOverwriteMessage = computed(() => {
+  const files = pendingUntrackedFiles.value.map((file) => `- ${file}`).join('\n');
+  return `目标分支会覆盖以下未跟踪文件。选择“使用目标分支文件”会先删除这些本地未跟踪文件，再切换到 ${pendingBranchSwitch.value || '目标'} 分支。\n\n${files}`;
+});
 
 // 显示友好的错误消息
 const showFriendlyError = (error: unknown) => {
@@ -333,6 +409,106 @@ const handlePullConfirmResult = (result: 'primary' | 'secondary' | 'close') => {
   if (pullConfirmResolve) {
     pullConfirmResolve(result);
     pullConfirmResolve = null;
+  }
+};
+
+const requestBranchSelection = (selection: BranchSelection) => {
+  branchSelection.value = selection;
+  selectedBranch.value = selection.recommended_branch || 'main';
+  branchSelectVisible.value = true;
+};
+
+const extractUntrackedFilesFromError = (error: unknown): string[] => {
+  const message = String(error);
+  const marker = 'would be overwritten by checkout:';
+  const markerIndex = message.indexOf(marker);
+  if (markerIndex < 0) return [];
+
+  const tail = message.slice(markerIndex + marker.length);
+  const endIndex = tail.search(/Please move|Aborting|Error:/);
+  const fileBlock = endIndex >= 0 ? tail.slice(0, endIndex) : tail;
+
+  return fileBlock
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('Please ') && !line.startsWith('Aborting'));
+};
+
+const switchBranchWithPrompt = async (branch: string) => {
+  try {
+    await switchGitBranch(branch);
+    await refreshStatus();
+    modal.msg(`已切换到 ${branch} 分支`, 'success', 'bottom-right');
+    return true;
+  } catch (error) {
+    const untrackedFiles = extractUntrackedFilesFromError(error);
+    if (untrackedFiles.length > 0) {
+      pendingBranchSwitch.value = branch;
+      pendingUntrackedFiles.value = untrackedFiles;
+      branchSelectVisible.value = false;
+      branchOverwriteVisible.value = true;
+      return false;
+    }
+
+    throw error;
+  }
+};
+
+const handleBranchChange = async (branch: string) => {
+  isSaving.value = true;
+  try {
+    await switchBranchWithPrompt(branch);
+  } catch (error) {
+    logger.error('[GitSync] 切换分支失败', error);
+    showFriendlyError(error);
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const handleBranchOverwriteConfirm = async () => {
+  const branch = pendingBranchSwitch.value;
+  const files = [...pendingUntrackedFiles.value];
+  if (!branch || files.length === 0) {
+    branchOverwriteVisible.value = false;
+    return;
+  }
+
+  isSaving.value = true;
+  try {
+    for (const file of files) {
+      await removeUntrackedFile(file);
+    }
+    branchOverwriteVisible.value = false;
+    pendingUntrackedFiles.value = [];
+    pendingBranchSwitch.value = '';
+    await switchGitBranch(branch);
+    await refreshStatus();
+    modal.msg(`已切换到 ${branch} 分支`, 'success', 'bottom-right');
+  } catch (error) {
+    logger.error('[GitSync] 处理未跟踪文件后切换分支失败', error);
+    showFriendlyError(error);
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const processPullResult = (result: PullResult) => {
+  if (result.branch_selection) {
+    requestBranchSelection(result.branch_selection);
+    return;
+  }
+
+  if (result.success) {
+    if (result.has_conflicts) {
+      logger.info('[GitSync] Pull 检测到冲突，由全局对话框处理');
+    } else if (result.files_updated === 0) {
+      modal.msg(t('settings.gitSync.alreadyUpToDate'), 'success', 'bottom-right');
+    } else {
+      modal.msg(t('settings.gitSync.pullSuccess', { count: result.files_updated }), 'success', 'bottom-right');
+    }
+  } else {
+    modal.msg(t('settings.gitSync.pullFailed'), 'error', 'top-right');
   }
 };
 // 加载 Git 设置
@@ -430,23 +606,26 @@ const handlePull = async () => {
   isPulling.value = true;
   try {
     const result = await gitPull();
-    if (result.success) {
-      if (result.has_conflicts) {
-        // 冲突已由 Config 页面的全局对话框处理，这里不需要再显示
-        // 只记录日志
-        logger.info('[GitSync] Pull 检测到冲突，由全局对话框处理');
-      } else if (result.files_updated === 0) {
-        // 无变更时显示"已是最新版本"
-        modal.msg(t('settings.gitSync.alreadyUpToDate'), 'success', 'bottom-right');
-      } else {
-        // 有变更时显示更新的文件数
-        modal.msg(t('settings.gitSync.pullSuccess', { count: result.files_updated }), 'success', 'bottom-right');
-      }
-    } else {
-      modal.msg(t('settings.gitSync.pullFailed'), 'error', 'top-right');
-    }
+    processPullResult(result);
   } catch (error) {
     logger.error('[GitSync] 手动 Pull 失败', error);
+    showFriendlyError(error);
+  } finally {
+    isPulling.value = false;
+  }
+};
+
+const handleBranchSelectConfirm = async (value: string | number) => {
+  const branch = String(value || 'main');
+  isPulling.value = true;
+  try {
+    const switched = await switchBranchWithPrompt(branch);
+    if (!switched) return;
+    branchSelectVisible.value = false;
+    const result = await gitPull();
+    processPullResult(result);
+  } catch (error) {
+    logger.error('[GitSync] 切换分支后 Pull 失败', error);
     showFriendlyError(error);
   } finally {
     isPulling.value = false;

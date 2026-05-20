@@ -1,11 +1,15 @@
 <template>
   <div class="source-editor" @contextmenu="handleContextMenu">
+    <div v-if="props.showLineNumbers" ref="lineNumbersRef" class="line-numbers" aria-hidden="true">
+      <span v-for="line in lineCount" :key="line">{{ line }}</span>
+    </div>
     <textarea
       ref="textareaRef"
       v-model="localContent"
       class="source-textarea"
       :class="{ 'dark': dark }"
       @input="handleInput"
+      @keydown="handleKeyDown"
       @scroll="handleScroll"
       spellcheck="false"
       placeholder="# Markdown 源码"
@@ -18,9 +22,17 @@
 interface Props {
   content: string;
   dark?: boolean;
+  showLineNumbers?: boolean;
+  indentWithTab?: boolean;
+  tabSize?: number;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  dark: false,
+  showLineNumbers: true,
+  indentWithTab: true,
+  tabSize: 2
+});
 
 const emits = defineEmits<{
   'update:content': [value: string];
@@ -30,6 +42,9 @@ const emits = defineEmits<{
 
 const localContent = ref(props.content);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const lineNumbersRef = ref<HTMLDivElement | null>(null);
+
+const lineCount = computed(() => Math.max(1, localContent.value.split('\n').length));
 
 watch(() => props.content, (newContent) => {
   if (newContent !== localContent.value) {
@@ -41,11 +56,77 @@ const handleInput = () => {
   emits('update:content', localContent.value);
 };
 
+const updateContentWithSelection = (value: string, start: number, end: number) => {
+  localContent.value = value;
+  emits('update:content', localContent.value);
+
+  nextTick(() => {
+    textareaRef.value?.setSelectionRange(start, end);
+  });
+};
+
+const indentSelection = (textarea: HTMLTextAreaElement, indentText: string) => {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const lineStart = localContent.value.lastIndexOf('\n', start - 1) + 1;
+  const selectedBlock = localContent.value.slice(lineStart, end);
+  const indentedBlock = selectedBlock.replace(/^/gm, indentText);
+
+  updateContentWithSelection(
+    localContent.value.slice(0, lineStart) + indentedBlock + localContent.value.slice(end),
+    start + indentText.length,
+    end + indentedBlock.length - selectedBlock.length
+  );
+};
+
+const outdentSelection = (textarea: HTMLTextAreaElement, indentText: string) => {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const lineStart = localContent.value.lastIndexOf('\n', start - 1) + 1;
+  const selectedBlock = localContent.value.slice(lineStart, end);
+  const outdentedBlock = selectedBlock.replace(new RegExp(`^(?:${indentText}| {1,${props.tabSize}}|\\t)`, 'gm'), '');
+  const removedBeforeCursor = selectedBlock.length - selectedBlock.slice(0, start - lineStart).replace(new RegExp(`^(?:${indentText}| {1,${props.tabSize}}|\\t)`, 'gm'), '').length;
+
+  updateContentWithSelection(
+    localContent.value.slice(0, lineStart) + outdentedBlock + localContent.value.slice(end),
+    Math.max(lineStart, start - removedBeforeCursor),
+    Math.max(lineStart, end - (selectedBlock.length - outdentedBlock.length))
+  );
+};
+
+const handleKeyDown = (event: KeyboardEvent) => {
+  if (!props.indentWithTab || event.key !== 'Tab' || !textareaRef.value) return;
+
+  event.preventDefault();
+  const textarea = textareaRef.value;
+  const indentText = ' '.repeat(Math.max(1, props.tabSize));
+
+  if (event.shiftKey) {
+    outdentSelection(textarea, indentText);
+    return;
+  }
+
+  if (textarea.selectionStart === textarea.selectionEnd) {
+    const start = textarea.selectionStart;
+    updateContentWithSelection(
+      localContent.value.slice(0, start) + indentText + localContent.value.slice(start),
+      start + indentText.length,
+      start + indentText.length
+    );
+    return;
+  }
+
+  indentSelection(textarea, indentText);
+};
+
 const handleContextMenu = (event: MouseEvent) => {
   emits('contextmenu', event);
 };
 
 const handleScroll = () => {
+  if (lineNumbersRef.value && textareaRef.value) {
+    lineNumbersRef.value.scrollTop = textareaRef.value.scrollTop;
+  }
   emits('scroll');
 };
 
@@ -173,11 +254,26 @@ const handleScroll = () => {
 
 <style lang="scss" scoped>
 .source-editor {
-  @apply flex-1 overflow-hidden;
+  @apply flex flex-1 overflow-hidden;
+}
+
+.line-numbers {
+  @apply h-full flex flex-col flex-none overflow-hidden select-none border-r px-2 py-4 text-right font-mono text-sm;
+  min-width: 48px;
+  line-height: 1.5;
+  color: var(--text-color-secondary);
+  background-color: var(--editor-bg);
+  border-color: var(--border-color);
+
+  span {
+    @apply block;
+    height: 1.5em;
+  }
 }
 
 .source-textarea {
-  @apply w-full h-full p-4 outline-none resize-none font-mono text-sm;
+  @apply h-full flex-1 p-4 outline-none resize-none font-mono text-sm;
+  min-width: 0;
   background-color: var(--editor-bg);
   color: var(--editor-text);
   transition: background-color 0.3s ease, color 0.3s ease;
