@@ -420,3 +420,21 @@ Frontend Workspace
 
 这 5 件事能同时改善产品表达、用户效率和工程可维护性，是当前投入产出比最高的方向。
 
+## 6. 当前推进状态
+
+已完成的第一批落地改进：
+
+- README 已更新为 2.0.2，并将项目定位收敛为“本地优先代码片段与知识资产工作台”。
+- 内容列表搜索已支持 `lang:`、`language:`、`framework:`、`kind:` 语法。
+- 搜索提示面板已加入 `lang:ts`、`framework:vue`、`kind:component` 示例。
+- Markdown frontmatter 已扩展 `framework` 和 `kind` 字段，并保持旧文件兼容。
+- 后端 Markdown 文件列表、读取、创建、更新、迁移、索引链路已接入 `framework` 和 `kind`。
+- 前端 `MarkdownFile`、`FragmentMetadata`、`ContentType.metadata` 映射已接入 `framework` 和 `kind`。
+
+下一批建议优先推进：
+
+- 在新增/编辑片段 UI 中暴露“语言、框架、语义类型”字段，减少用户手写 frontmatter 的成本。
+- 为 `kind` 提供内置选项：`component`、`hook`、`style`、`api`、`regex`、`command`、`error-fix`、`package-note`、`config`、`pattern`。
+- 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
+- 为 `searchParser` 和 `filterEngine` 增加单元测试，锁住语义搜索行为。
+- 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。

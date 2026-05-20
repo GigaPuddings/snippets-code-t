@@ -143,6 +143,12 @@ pub struct FrontMatter {
     // 编程语言（用于代码片段）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    // 前端框架或主要生态（如 vue、react、svelte）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub framework: Option<String>,
+    // 片段语义类型（如 component、hook、style、api、regex、error-fix）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
     // 是否收藏
     #[serde(default)]
     pub favorite: bool,

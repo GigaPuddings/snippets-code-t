@@ -267,6 +267,8 @@ impl FileSystemManager {
                     modified: chrono::Utc::now().to_rfc3339(),
                     fragment_type: "note".to_string(),
                     language: None,
+                    framework: None,
+                    kind: None,
                     favorite: false,
                 };
 

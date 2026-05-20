@@ -33,6 +33,10 @@ pub struct IndexEntry {
     pub file_type: String,
     // 编程语言（代码片段）
     pub language: Option<String>,
+    // 前端框架或主要生态
+    pub framework: Option<String>,
+    // 片段语义类型
+    pub kind: Option<String>,
     // 内容摘要
     pub content_summary: String,
     // 完整内容（用于搜索）
@@ -178,7 +182,7 @@ impl OptimizedIndexManager {
             };
 
             // 从 Frontmatter 读取所有内容元数据（唯一数据源）
-            let (title, tags, file_type, language, favorite, body) = {
+            let (title, tags, file_type, language, framework, kind, favorite, body) = {
                 let (fm_opt, body) = try_parse_front_matter(&raw_content);
                 if let Some(fm) = fm_opt {
                     (
@@ -186,6 +190,8 @@ impl OptimizedIndexManager {
                         fm.tags,
                         fm.fragment_type,
                         fm.language,
+                        fm.framework,
+                        fm.kind,
                         fm.favorite,
                         body,
                     )
@@ -200,6 +206,8 @@ impl OptimizedIndexManager {
                         file_stem,
                         vec![],
                         "note".to_string(),
+                        None,
+                        None,
                         None,
                         false,
                         raw_content.clone(),
@@ -224,6 +232,8 @@ impl OptimizedIndexManager {
                 favorite,
                 file_type,
                 language,
+                framework,
+                kind,
                 content_summary,
                 full_content: body.clone(),
             };
@@ -231,7 +241,18 @@ impl OptimizedIndexManager {
             let entry_index = entries.len();
 
             // 构建倒排索引
-            let text_to_index = format!("{} {} {}", title, body, index_entry.tags.join(" "));
+            let text_to_index = format!(
+                "{} {} {} {} {}",
+                title,
+                body,
+                index_entry.tags.join(" "),
+                index_entry.language.as_deref().unwrap_or(""),
+                [
+                    index_entry.framework.as_deref().unwrap_or(""),
+                    index_entry.kind.as_deref().unwrap_or("")
+                ]
+                .join(" ")
+            );
             let tokens = manager.tokenize(&text_to_index);
 
             for token in tokens {
@@ -503,7 +524,7 @@ impl OptimizedIndexManager {
             fs::read_to_string(file_path).map_err(|e| format!("读取文件失败: {}", e))?;
 
         // 从 Frontmatter 读取所有内容元数据（唯一数据源）
-        let (title, tags, file_type, language, favorite, body) = {
+        let (title, tags, file_type, language, framework, kind, favorite, body) = {
             let (fm_opt, body) = try_parse_front_matter(&raw_content);
             if let Some(fm) = fm_opt {
                 (
@@ -511,6 +532,8 @@ impl OptimizedIndexManager {
                     fm.tags,
                     fm.fragment_type,
                     fm.language,
+                    fm.framework,
+                    fm.kind,
                     fm.favorite,
                     body,
                 )
@@ -524,6 +547,8 @@ impl OptimizedIndexManager {
                     file_stem,
                     vec![],
                     "note".to_string(),
+                    None,
+                    None,
                     None,
                     false,
                     raw_content.clone(),
@@ -548,6 +573,8 @@ impl OptimizedIndexManager {
             favorite,
             file_type,
             language,
+            framework,
+            kind,
             content_summary,
             full_content: body.clone(),
         };
@@ -585,7 +612,18 @@ impl OptimizedIndexManager {
             entries[index] = new_entry.clone();
 
             // 重建倒排索引
-            let text_to_index = format!("{} {} {}", title, body, new_entry.tags.join(" "));
+            let text_to_index = format!(
+                "{} {} {} {} {}",
+                title,
+                body,
+                new_entry.tags.join(" "),
+                new_entry.language.as_deref().unwrap_or(""),
+                [
+                    new_entry.framework.as_deref().unwrap_or(""),
+                    new_entry.kind.as_deref().unwrap_or("")
+                ]
+                .join(" ")
+            );
             let tokens = self.tokenize(&text_to_index);
 
             for token in tokens {
@@ -612,7 +650,18 @@ impl OptimizedIndexManager {
             entries.push(new_entry.clone());
 
             // 构建倒排索引
-            let text_to_index = format!("{} {} {}", title, body, new_entry.tags.join(" "));
+            let text_to_index = format!(
+                "{} {} {} {} {}",
+                title,
+                body,
+                new_entry.tags.join(" "),
+                new_entry.language.as_deref().unwrap_or(""),
+                [
+                    new_entry.framework.as_deref().unwrap_or(""),
+                    new_entry.kind.as_deref().unwrap_or("")
+                ]
+                .join(" ")
+            );
             let tokens = self.tokenize(&text_to_index);
 
             for token in tokens {

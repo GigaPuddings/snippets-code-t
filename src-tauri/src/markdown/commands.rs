@@ -32,6 +32,10 @@ pub struct MarkdownFile {
     pub file_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub framework: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
     pub favorite: bool,
     #[serde(rename = "filePath")]
     pub file_path: String,
@@ -65,6 +69,8 @@ impl MarkdownFile {
             modified: metadata.modified,
             file_type,
             language: metadata.language,
+            framework: metadata.framework,
+            kind: metadata.kind,
             favorite: metadata.favorite,
             file_path: file_path.to_string_lossy().to_string(),
         }
@@ -205,6 +211,16 @@ pub async fn create_markdown_file(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
+    let framework = metadata
+        .get("framework")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let kind = metadata
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
     let favorite = metadata
         .get("favorite")
         .and_then(|v| v.as_bool())
@@ -224,6 +240,8 @@ pub async fn create_markdown_file(
         modified: now.to_rfc3339(),
         fragment_type: file_type.clone(),
         language: language.clone(),
+        framework: framework.clone(),
+        kind: kind.clone(),
         favorite,
     };
 
@@ -293,7 +311,7 @@ pub fn read_markdown_file(
     let relative_path = get_relative_path(&workspace_root, &path)?;
 
     // 尝试解析 Front Matter：有则优先使用；无则生成默认 Frontmatter 并写回文件（保证“默认值”持久化）
-    let (content, title, tags, created, modified, file_type, language, favorite) = {
+    let (content, title, tags, created, modified, file_type, language, framework, kind, favorite) = {
         let (frontmatter_opt, body) = try_parse_front_matter(&raw_content);
         if let Some(fm) = frontmatter_opt {
             (
@@ -304,6 +322,8 @@ pub fn read_markdown_file(
                 fm.modified,
                 fm.fragment_type,
                 fm.language,
+                fm.framework,
+                fm.kind,
                 fm.favorite,
             )
         } else {
@@ -356,6 +376,8 @@ pub fn read_markdown_file(
                 modified: modified_str.clone(),
                 fragment_type: "note".to_string(),
                 language: None,
+                framework: None,
+                kind: None,
                 favorite: false,
             };
 
@@ -371,6 +393,8 @@ pub fn read_markdown_file(
                 created_str,
                 modified_str,
                 "note".to_string(),
+                None,
+                None,
                 None,
                 false,
             )
@@ -395,6 +419,8 @@ pub fn read_markdown_file(
         modified,
         file_type,
         language,
+        framework,
+        kind,
         favorite,
         file_path: file_path.clone(),
     })
@@ -546,6 +572,14 @@ pub async fn update_markdown_file(
                 .to_string(),
             language: meta
                 .get("language")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            framework: meta
+                .get("framework")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            kind: meta
+                .get("kind")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
             favorite: meta
@@ -897,6 +931,8 @@ pub fn get_files_by_category(
                                 modified: fm.modified,
                                 file_type: fm.fragment_type,
                                 language: fm.language,
+                                framework: fm.framework,
+                                kind: fm.kind,
                                 favorite: fm.favorite,
                                 file_path: path.to_string_lossy().to_string(),
                             });
@@ -921,6 +957,8 @@ pub fn get_files_by_category(
                                 modified: now,
                                 file_type: "note".to_string(),
                                 language: None,
+                                framework: None,
+                                kind: None,
                                 favorite: false,
                                 file_path: path.to_string_lossy().to_string(),
                             });
@@ -1338,6 +1376,8 @@ pub async fn search_markdown_files_optimized(
                 modified: "".to_string(),
                 file_type,
                 language: entry.language,
+                framework: entry.framework,
+                kind: entry.kind,
                 favorite: entry.favorite,
                 file_path: file_path_str,
             }

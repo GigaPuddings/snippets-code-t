@@ -34,6 +34,10 @@ export interface Fragment {
 export interface FragmentMetadata {
   /** 编程语言（用于代码片段） */
   language?: string;
+  /** 前端框架或主要生态 */
+  framework?: string;
+  /** 片段语义类型 */
+  kind?: string;
   /** 其他自定义字段 */
   [key: string]: unknown;
 }

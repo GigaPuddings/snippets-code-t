@@ -481,6 +481,8 @@ fn export_fragment(
         modified: modified_str,
         fragment_type: file_type,
         language: fragment.format.clone(),
+        framework: None,
+        kind: None,
         favorite: false,
     };
     let frontmatter_block = format_frontmatter_block(&fm)?;

@@ -23,6 +23,11 @@ type ContentFormat = 'plain' | 'markdown' | 'html';
  */
 function markdownFileToContentType(file: MarkdownFile): ContentType {
   const filePath = file.filePath || file.id || '';
+  const metadata = {
+    ...(file.language ? { language: file.language } : {}),
+    ...(file.framework ? { framework: file.framework } : {}),
+    ...(file.kind ? { kind: file.kind } : {})
+  };
   
   return {
     id: filePath,
@@ -33,7 +38,7 @@ function markdownFileToContentType(file: MarkdownFile): ContentType {
     category_id: file.categoryId || 0,
     category_name: file.categoryName || '未分类',
     tags: Array.isArray(file.tags) && file.tags.length > 0 ? file.tags : null,
-    metadata: file.language ? { language: file.language } : null,
+    metadata: Object.keys(metadata).length > 0 ? metadata : null,
     created_at: file.created,
     updated_at: file.modified,
     usage_count: 0,

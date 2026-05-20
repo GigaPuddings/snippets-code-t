@@ -17,6 +17,8 @@ declare global {
   interface FragmentMetadata {
     // 代码片段元数据
     language?: string;
+    framework?: string;
+    kind?: string;
     theme?: string;
     
     // 笔记元数据

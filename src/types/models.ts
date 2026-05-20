@@ -169,6 +169,10 @@ export interface MarkdownFile {
   type: 'code' | 'note';
   /** 编程语言（用于代码片段） */
   language?: string;
+  /** 前端框架或主要生态 */
+  framework?: string;
+  /** 片段语义类型 */
+  kind?: string;
   /** 是否收藏 */
   favorite: boolean;
   /** 文件路径 */
