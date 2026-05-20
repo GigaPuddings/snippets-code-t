@@ -34,12 +34,6 @@
       <p>{{ $t('screenshotTool.loading') }}</p>
     </div>
 
-    <!-- 提示信息 -->
-    <div v-if="!state.selectionRect && !isLoading" class="instructions">
-      <p>{{ $t('screenshotTool.dragToSelect') }}</p>
-      <p class="hint">{{ $t('screenshotTool.pressEscToClose') }}</p>
-    </div>
-
     <!-- 文字输入框 -->
     <div v-if="isTextInputVisible" class="text-input-container" :style="textInputStyle">
       <input ref="textInputRef" v-model="textInput" type="text" class="text-input" :style="{
@@ -708,21 +702,6 @@ onUnmounted(() => {
 .drawing-canvas {
   @apply absolute inset-0 cursor-crosshair touch-none select-none;
   z-index: 2;
-}
-
-.instructions {
-  @apply absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none;
-  color: rgba(255, 255, 255, 0.92);
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
-
-  p {
-    @apply text-lg mb-2 font-medium;
-
-    &.hint {
-      @apply text-sm font-normal;
-      color: rgba(255, 255, 255, 0.72);
-    }
-  }
 }
 
 .size-info {

@@ -120,6 +120,11 @@ declare global {
     
     // 标签筛选
     tags?: string[];
+
+    // 前端开发语义筛选
+    language?: string;
+    framework?: string;
+    kind?: string;
     
     // 日期筛选 - 创建日期
     createdAfter?: Date;
@@ -139,7 +144,7 @@ declare global {
   // 筛选条件标签接口
   interface FilterTag {
     id: string;
-    type: 'text' | 'type' | 'tag' | 'created' | 'updated' | 'sort';
+    type: 'text' | 'type' | 'tag' | 'language' | 'framework' | 'kind' | 'created' | 'updated' | 'sort';
     label: string;
     value: any;
   }

@@ -89,7 +89,7 @@ export class ScreenshotManager {
     isVisible: false, // 默认不可见
     mousePosition: { x: 0, y: 0 },
     showFormat: 'hex',
-    zoomFactor: 40, // 放大倍数，平衡精确度和预览范围
+    zoomFactor: 9, // 使用紧凑奇数采样，让中心像素醒目且面板不挤压底部信息
     isCopied: false
   }
 
@@ -2268,7 +2268,7 @@ export class ScreenshotManager {
     this.currentTool = tool
     this.clearSelection()
     
-    // 切换到标注工具时隐藏辅助线
+    // 仅在选择工具中显示选区控制点；不再绘制三分辅助线。
     this.showGuides = tool === ToolType.Select
     
     // 管理取色器状态
@@ -3008,6 +3008,7 @@ export class ScreenshotManager {
       await img.decode()
       
       const imageBitmap = await createImageBitmap(img)
+      this.colorPickerState.previewImage?.close?.()
       this.colorPickerState.previewImage = imageBitmap
 
       // 从预览图像中心获取颜色，避免额外API调用

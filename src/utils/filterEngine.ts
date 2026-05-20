@@ -5,6 +5,41 @@
 
 import { getDateRange } from './searchParser';
 
+function normalizeFilterValue(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function getMetadataValue(fragment: ContentType, keys: string[]): string {
+  const metadata = fragment.metadata ?? {};
+
+  for (const key of keys) {
+    const value = metadata[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+
+  return '';
+}
+
+function metadataOrTagsMatch(
+  fragment: ContentType,
+  value: string | undefined,
+  metadataKeys: string[],
+  fallbackValues: Array<unknown> = []
+): boolean {
+  if (!value) return true;
+
+  const expected = normalizeFilterValue(value);
+  const candidates = [
+    getMetadataValue(fragment, metadataKeys),
+    ...fallbackValues,
+    ...(fragment.tags ?? [])
+  ].map(normalizeFilterValue);
+
+  return candidates.some(candidate => candidate === expected);
+}
+
 /**
  * 应用筛选条件到片段列表
  */
@@ -61,6 +96,36 @@ export function matchesFilter(
     if (!hasMatchingTag) {
       return false;
     }
+  }
+
+  // 语言匹配：优先使用 metadata.language，同时允许用标签兜底。
+  if (!metadataOrTagsMatch(
+    fragment,
+    filter.language,
+    ['language', 'lang'],
+    [(fragment as ContentType & { language?: string }).language]
+  )) {
+    return false;
+  }
+
+  // 框架匹配：支持 frontmatter/metadata，也允许使用标签或分类名承载框架信息。
+  if (!metadataOrTagsMatch(
+    fragment,
+    filter.framework,
+    ['framework', 'frameworkName'],
+    [fragment.category_name]
+  )) {
+    return false;
+  }
+
+  // 语义类型匹配：支持 kind/snippetKind，也允许用标签、分类或基础 type 兜底。
+  if (!metadataOrTagsMatch(
+    fragment,
+    filter.kind,
+    ['kind', 'snippetKind'],
+    [fragment.type, fragment.category_name]
+  )) {
+    return false;
   }
   
   // 创建日期匹配

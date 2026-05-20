@@ -2,15 +2,15 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Tauri](https://img.shields.io/badge/Tauri-2.0-orange.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.5-brightgreen.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)
 
-一个使用 Tauri 2 + Vue 3 + Rust 构建的现代化跨平台效率工具，专为开发者设计。
+一个使用 Tauri 2 + Vue 3 + Rust 构建的本地优先代码片段与知识资产工作台，面向前端程序员和开发者设计。
 
-[功能特性](#功能特性) • [快速开始](#快速开始) • [技术栈](#技术栈) • [文档](#文档) • [贡献指南](#贡献指南)
+[功能特性](#功能特性) • [快速开始](#快速开始) • [技术栈](#技术栈) • [文档](#文档) • [产品优化建议](docs/FRONTEND_DEVELOPER_PRODUCT_REVIEW.md) • [贡献指南](#贡献指南)
 
 </div>
 
@@ -21,15 +21,17 @@
 ### 🔍 智能搜索
 - **全局快捷键唤起**：随时随地快速搜索
 - **多源搜索**：统一搜索代码片段、应用、书签
+- **前端语义筛选**：支持 `lang:ts`、`framework:vue`、`kind:component` 等开发语义搜索
 - **智能识别**：自动识别网址、应用名称
 - **使用频率优化**：常用项目优先显示
 - **键盘导航**：完整的键盘快捷键支持
 
 ### 📝 代码片段管理
-- **Markdown 文件存储**：每个笔记都是独立的 `.md` 文件，支持外部编辑器
+- **Markdown 文件存储**：每个片段和笔记都是独立的 `.md` 文件，支持 VS Code 等外部编辑器
 - **工作区支持**：支持多工作区管理，可同时管理多个笔记库
 - **富文本编辑器**：基于 TipTap 的 Markdown 编辑器
 - **代码高亮**：支持多种编程语言的语法高亮
+- **前端片段组织**：可按语言、框架、语义类型、标签和分类组织 Vue、React、CSS、TypeScript 等资产
 - **分类管理**：灵活的分类和标签系统，分类对应文件夹
 - **反向链接**：双向链接功能
 - **实时预览**：Markdown 实时渲染

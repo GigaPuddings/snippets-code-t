@@ -68,44 +68,29 @@ export class DrawingEngine {
   }
 
   // 绘制选择框
-  drawSelectionBox(rect: Rect, showGuides: boolean = true) {
+  drawSelectionBox(rect: Rect, showHandles: boolean = true) {
     const { x, y, width, height } = rect
 
-    // 绘制虚线边框
-    this.ctx.strokeStyle = '#3b82f6'
-    this.ctx.lineWidth = 2
-    this.ctx.setLineDash([6, 6])
-    this.ctx.strokeRect(x, y, width, height)
+    this.ctx.save()
 
-    if (showGuides) {
-      this.drawGuides(rect)
+    // Windows 11 截图工具风格：细白色虚线，带轻微暗色底线保证明暗背景都可见。
+    const strokeX = Math.round(x) + 0.5
+    const strokeY = Math.round(y) + 0.5
+    const strokeWidth = Math.max(0, Math.round(width) - 1)
+    const strokeHeight = Math.max(0, Math.round(height) - 1)
+
+    this.ctx.lineWidth = 1
+    this.ctx.setLineDash([4, 3])
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)'
+    this.ctx.strokeRect(strokeX + 1, strokeY + 1, strokeWidth, strokeHeight)
+    this.ctx.strokeStyle = '#ffffff'
+    this.ctx.strokeRect(strokeX, strokeY, strokeWidth, strokeHeight)
+
+    if (showHandles) {
       this.drawHandles(rect)
     }
-  }
 
-  // 绘制辅助线
-  private drawGuides(rect: Rect) {
-    const { x, y, width, height } = rect
-    
-    this.ctx.strokeStyle = '#3b82f6'
-    this.ctx.lineWidth = 1
-    this.ctx.setLineDash([4, 4])
-
-    const thirdWidth = width / 3
-    const thirdHeight = height / 3
-
-    this.ctx.beginPath()
-    // 垂直线
-    this.ctx.moveTo(x + thirdWidth, y)
-    this.ctx.lineTo(x + thirdWidth, y + height)
-    this.ctx.moveTo(x + thirdWidth * 2, y)
-    this.ctx.lineTo(x + thirdWidth * 2, y + height)
-    // 水平线
-    this.ctx.moveTo(x, y + thirdHeight)
-    this.ctx.lineTo(x + width, y + thirdHeight)
-    this.ctx.moveTo(x, y + thirdHeight * 2)
-    this.ctx.lineTo(x + width, y + thirdHeight * 2)
-    this.ctx.stroke()
+    this.ctx.restore()
   }
 
   // 绘制控制点
@@ -116,11 +101,8 @@ export class DrawingEngine {
     const center = getRectCenter(rect)
     
     this.ctx.setLineDash([])
-    this.ctx.fillStyle = '#ffffff'
-    this.ctx.strokeStyle = '#3b82f6'
-    this.ctx.lineWidth = 2
 
-    const handleRadius = 4
+    const handleSize = 5
     const handles = [
       { x: x, y: y },                    // 左上
       { x: x + width, y: y },            // 右上
@@ -133,10 +115,12 @@ export class DrawingEngine {
     ]
 
     handles.forEach(handle => {
-      this.ctx.beginPath()
-      this.ctx.arc(handle.x, handle.y, handleRadius, 0, Math.PI * 2)
-      this.ctx.fill()
-      this.ctx.stroke()
+      const handleX = Math.round(handle.x) - handleSize / 2
+      const handleY = Math.round(handle.y) - handleSize / 2
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.42)'
+      this.ctx.fillRect(handleX + 1, handleY + 1, handleSize, handleSize)
+      this.ctx.fillStyle = '#ffffff'
+      this.ctx.fillRect(handleX, handleY, handleSize, handleSize)
     })
   }
 
@@ -257,9 +241,9 @@ export class DrawingEngine {
     if (!state.isActive || !state.isVisible) return
 
     const { mousePosition, colorInfo, showFormat, previewImage, zoomFactor, isCopied } = state
-    const uiWidth = 150
-    const uiHeight = 190
-    const margin = 20
+    const uiWidth = 156
+    const uiHeight = 188
+    const margin = 18
     let uiX = mousePosition.x + margin
     let uiY = mousePosition.y + margin
 
@@ -280,24 +264,29 @@ export class DrawingEngine {
     this.ctx.save()
 
     // 绘制UI容器
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
-    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
+    this.ctx.fillStyle = 'rgba(250, 250, 250, 0.96)'
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.14)'
     this.ctx.lineWidth = 1
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.2)'
-    this.ctx.shadowBlur = 10
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.24)'
+    this.ctx.shadowBlur = 18
+    this.ctx.shadowOffsetY = 8
     this.ctx.beginPath()
-    this.ctx.roundRect(uiX, uiY, uiWidth, uiHeight, 8)
+    this.ctx.roundRect(uiX, uiY, uiWidth, uiHeight, 10)
     this.ctx.fill()
     this.ctx.stroke()
     this.ctx.shadowColor = 'transparent'
+    this.ctx.shadowBlur = 0
+    this.ctx.shadowOffsetY = 0
     
     // 绘制放大镜
-    const previewSize = 100
+    const previewSize = 108
     const previewX = uiX + (uiWidth - previewSize) / 2
-    const previewY = uiY + 15
+    const previewY = uiY + 16
     
     // 绘制放大镜边框
-    this.ctx.strokeStyle = '#ccc'
+    this.ctx.fillStyle = '#f3f4f6'
+    this.ctx.fillRect(previewX, previewY, previewSize, previewSize)
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.26)'
     this.ctx.lineWidth = 1
     this.ctx.strokeRect(previewX, previewY, previewSize, previewSize)
     
@@ -315,15 +304,46 @@ export class DrawingEngine {
       this.ctx.imageSmoothingEnabled = true
     }
 
+    // 绘制像素网格，放大每个色块的边界，便于精确定位。
+    this.ctx.beginPath()
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'
+    this.ctx.lineWidth = 1
+    for (let i = 1; i < actualPixelCount; i++) {
+      const lineOffset = previewX + i * pixelSize
+      this.ctx.moveTo(lineOffset, previewY)
+      this.ctx.lineTo(lineOffset, previewY + previewSize)
+      const horizontalOffset = previewY + i * pixelSize
+      this.ctx.moveTo(previewX, horizontalOffset)
+      this.ctx.lineTo(previewX + previewSize, horizontalOffset)
+    }
+    this.ctx.stroke()
+
+    this.ctx.beginPath()
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)'
+    for (let i = 1; i < actualPixelCount; i++) {
+      const lineOffset = previewX + i * pixelSize + 0.5
+      this.ctx.moveTo(lineOffset, previewY)
+      this.ctx.lineTo(lineOffset, previewY + previewSize)
+      const horizontalOffset = previewY + i * pixelSize + 0.5
+      this.ctx.moveTo(previewX, horizontalOffset)
+      this.ctx.lineTo(previewX + previewSize, horizontalOffset)
+    }
+    this.ctx.stroke()
+
     // 绘制放大镜中心定位框（当前选取的像素）
     // 使用实际像素大小，确保定位框与像素网格精确对齐
     const centerPixelIndex = Math.floor(actualPixelCount / 2)
     const boxX = previewX + centerPixelIndex * pixelSize
     const boxY = previewY + centerPixelIndex * pixelSize
+
+    // 中心色块半透明高亮，让目标格从网格中跳出来。
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.18)'
+    this.ctx.fillRect(boxX, boxY, pixelSize, pixelSize)
     
     // 绘制白色外框（增强对比度）
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
-    this.ctx.lineWidth = 2
+    this.ctx.setLineDash([])
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)'
+    this.ctx.lineWidth = 4
     this.ctx.strokeRect(
       boxX - 1, 
       boxY - 1, 
@@ -332,8 +352,8 @@ export class DrawingEngine {
     )
     
     // 绘制黑色内框
-    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)'
-    this.ctx.lineWidth = 1
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)'
+    this.ctx.lineWidth = 2
     this.ctx.strokeRect(
       boxX, 
       boxY, 
@@ -344,35 +364,36 @@ export class DrawingEngine {
     // 绘制颜色和文本信息
     this.ctx.fillStyle = '#333'
     this.ctx.font = '12px "SF Mono", "Consolas", "Monaco", monospace'
-    let textY = previewY + previewSize + 25
+    let textY = previewY + previewSize + 22
 
     if (colorInfo) {
       // 颜色块
       this.ctx.fillStyle = colorInfo.hex
-      this.ctx.fillRect(uiX + 15, textY - 13, 16, 16)
-      this.ctx.strokeStyle = '#ccc'
-      this.ctx.strokeRect(uiX + 15, textY - 13, 16, 16)
+      this.ctx.fillRect(uiX + 16, textY - 14, 20, 20)
+      this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)'
+      this.ctx.strokeRect(uiX + 16, textY - 14, 20, 20)
       
       // 颜色值
-      this.ctx.fillStyle = '#333'
+      this.ctx.fillStyle = '#111827'
+      this.ctx.font = '12px "SF Mono", "Consolas", "Monaco", monospace'
       const colorText = showFormat === 'hex'
         ? colorInfo.hex
         : `${colorInfo.rgb.r}, ${colorInfo.rgb.g}, ${colorInfo.rgb.b}`
-      this.ctx.fillText(colorText, uiX + 40, textY)
-      textY += 20
+      this.ctx.fillText(colorText, uiX + 44, textY)
+      textY += 19
     }
 
     // 坐标
-    this.ctx.fillStyle = '#666'
+    this.ctx.fillStyle = '#6b7280'
     this.ctx.font = '12px Arial'
-    this.ctx.fillText(`X: ${Math.round(mousePosition.x)}, Y: ${Math.round(mousePosition.y)}`, uiX + 15, textY)
-    textY += 20
+    this.ctx.fillText(`X: ${Math.round(mousePosition.x)}, Y: ${Math.round(mousePosition.y)}`, uiX + 16, textY)
+    textY += 17
     
     // 提示
     this.ctx.font = '12px Arial'
     const helpText = isCopied ? '已复制!' : 'Q:复制 Shift:切换'
-    this.ctx.fillStyle = isCopied ? '#00A000' : '#888'
-    this.ctx.fillText(helpText, uiX + 15, textY)
+    this.ctx.fillStyle = isCopied ? '#059669' : '#8b8f98'
+    this.ctx.fillText(helpText, uiX + 16, textY)
     
     this.ctx.restore()
   }

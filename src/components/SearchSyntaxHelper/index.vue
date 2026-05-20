@@ -10,6 +10,20 @@
         <code>type:note</code>
         <span>{{ $t('contentItem.note') }}</span>
       </div>
+
+      <!-- Frontend development filters -->
+      <div class="helper-item" @click="$emit('insert', 'lang:ts')">
+        <code>lang:ts</code>
+        <span>{{ $t('searchSyntax.languageDesc') }}</span>
+      </div>
+      <div class="helper-item" @click="$emit('insert', 'framework:vue')">
+        <code>framework:vue</code>
+        <span>{{ $t('searchSyntax.frameworkDesc') }}</span>
+      </div>
+      <div class="helper-item" @click="$emit('insert', 'kind:component')">
+        <code>kind:component</code>
+        <span>{{ $t('searchSyntax.kindDesc') }}</span>
+      </div>
       
       <!-- Tag filters -->
       <div class="helper-item" @click="$emit('insert', 'tag:')">
@@ -66,8 +80,8 @@
       </div>
       
       <!-- Combined search example -->
-      <div class="helper-item" @click="$emit('insert', 'type:code tag:js created:week')">
-        <code>type:code tag:js ...</code>
+      <div class="helper-item" @click="$emit('insert', 'type:code lang:ts framework:vue')">
+        <code>type:code lang:ts ...</code>
         <span>{{ $t('searchSyntax.combinedSearch') }}</span>
       </div>
     </div>

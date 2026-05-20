@@ -6,6 +6,9 @@
 // 搜索语法正则表达式
 const SYNTAX_PATTERNS = {
   type: /type:(code|note)/gi,
+  language: /(?:lang|language):([^\s]+)/gi,
+  framework: /framework:([^\s]+)/gi,
+  kind: /kind:([^\s]+)/gi,
   tag: /tag:([^\s]+)/gi,
   created: /created:(today|week|month|[<>]?\d{4}-\d{2}-\d{2})/gi,
   updated: /updated:(today|week|month|[<>]?\d{4}-\d{2}-\d{2})/gi,
@@ -96,6 +99,30 @@ export function parseSearchText(searchText: string): SearchFilter {
     // 移除匹配的文本
     remainingText = remainingText.replace(SYNTAX_PATTERNS.type, '');
   }
+
+  // 解析语言筛选，例如 lang:ts / language:vue
+  const languageMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.language));
+  if (languageMatches.length > 0) {
+    const lastMatch = languageMatches[languageMatches.length - 1];
+    filter.language = lastMatch[1].toLowerCase();
+    remainingText = remainingText.replace(SYNTAX_PATTERNS.language, '');
+  }
+
+  // 解析框架筛选，例如 framework:vue / framework:react
+  const frameworkMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.framework));
+  if (frameworkMatches.length > 0) {
+    const lastMatch = frameworkMatches[frameworkMatches.length - 1];
+    filter.framework = lastMatch[1].toLowerCase();
+    remainingText = remainingText.replace(SYNTAX_PATTERNS.framework, '');
+  }
+
+  // 解析片段语义类型，例如 kind:component / kind:hook / kind:error-fix
+  const kindMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.kind));
+  if (kindMatches.length > 0) {
+    const lastMatch = kindMatches[kindMatches.length - 1];
+    filter.kind = lastMatch[1].toLowerCase();
+    remainingText = remainingText.replace(SYNTAX_PATTERNS.kind, '');
+  }
   
   // 解析标签筛选
   const tagMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.tag));
@@ -165,6 +192,19 @@ export function filterToSearchText(filter: SearchFilter): string {
     filter.tags.forEach(tag => {
       parts.push(`tag:${tag}`);
     });
+  }
+
+  // 添加前端开发语义筛选
+  if (filter.language) {
+    parts.push(`lang:${filter.language}`);
+  }
+
+  if (filter.framework) {
+    parts.push(`framework:${filter.framework}`);
+  }
+
+  if (filter.kind) {
+    parts.push(`kind:${filter.kind}`);
   }
   
   // 添加创建日期

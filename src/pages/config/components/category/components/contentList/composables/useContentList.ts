@@ -97,6 +97,9 @@ export function useContentList(): UseContentListReturn {
     if (filter.text) count++;
     if (filter.type && filter.type !== 'all') count++;
     if (filter.tags && filter.tags.length > 0) count += filter.tags.length;
+    if (filter.language) count++;
+    if (filter.framework) count++;
+    if (filter.kind) count++;
     if (filter.createdPreset || filter.createdAfter || filter.createdBefore) count++;
     if (filter.updatedPreset || filter.updatedAfter || filter.updatedBefore) count++;
     if (filter.sortBy) count++;
