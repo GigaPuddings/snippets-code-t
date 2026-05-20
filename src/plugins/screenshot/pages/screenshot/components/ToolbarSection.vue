@@ -360,15 +360,12 @@ defineExpose({
 <style scoped lang="scss">
 .toolbar-container {
   @apply flex flex-col gap-2;
-  max-width: calc(100vw - 16px);
 
   .toolbar-panel {
     @apply flex items-center gap-3 bg-white rounded-lg shadow-lg px-2 py-1 border border-gray-200;
-    max-width: 100%;
-    overflow-x: auto;
 
     &.first-panel {
-      min-width: 0;
+      min-width: max-content;
       max-width: 980px;
     }
 
@@ -379,7 +376,7 @@ defineExpose({
   }
 
   .tool-section {
-    @apply flex items-center gap-1 flex-wrap;
+    @apply flex items-center gap-1;
 
     .tool-btn {
       @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 border border-gray-300 bg-white hover:bg-gray-50;
@@ -513,7 +510,7 @@ defineExpose({
   }
 
   .action-section {
-    @apply flex items-center gap-2 flex-wrap;
+    @apply flex items-center gap-2;
 
     .action-btn {
       @apply w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200;

@@ -73,7 +73,7 @@
     <!-- CodeMirror 代码编辑器 (type === 'code') -->
     <CodeMirrorEditor v-else-if="currentEditorType === 'code'" :key="'code-editor'" :code="state.editorContent"
       :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }" @update:code="handleEditorChange"
-      :dark="isDark" :indent-with-tab="store.markdownIndentWithTab" :tab-size="store.markdownTabSize" />
+      :dark="isDark" />
 
     <!-- TipTap 富文本编辑器 (type === 'note') -->
     <TipTapEditor v-else-if="currentEditorType === 'note'" ref="tipTapEditorRef" :key="'note-editor'"

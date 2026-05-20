@@ -1,7 +1,6 @@
 <template>
-  <main class="category-container" :class="{ 'category-container--settings': isSettingsRoute }" :style="gridStyle">
+  <main class="category-container" :style="gridStyle">
     <section
-      v-if="!isSettingsRoute"
       class="category-page"
       :class="{ 'category-page--collapsed': layoutStore.effectiveCategoryCollapsed }"
     >
@@ -57,14 +56,10 @@ const layoutStore = useLayoutStore();
 const route = useRoute();
 const { t } = useI18n();
 
-const isSettingsRoute = computed(() => route.path.startsWith('/config/category/settings'));
-
 const gridStyle = computed(() => ({
-  gridTemplateColumns: isSettingsRoute.value
-    ? '1fr'
-    : layoutStore.effectiveCategoryCollapsed
-      ? '0px 1fr'
-      : '160px 1fr'
+  gridTemplateColumns: layoutStore.effectiveCategoryCollapsed
+    ? '0px 1fr'
+    : '160px 1fr'
 }));
 
 defineOptions({

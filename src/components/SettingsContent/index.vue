@@ -190,12 +190,11 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .settings-container {
-  @apply flex h-full w-full overflow-hidden;
+  @apply flex h-full w-full border border-panel rounded-md overflow-hidden;
 }
 
 .settings-sidebar {
-  @apply w-48 border-r border-panel py-4 overflow-y-auto bg-panel px-2;
-  flex: 0 0 12rem;
+  @apply w-44 border-r border-panel py-4 overflow-y-auto bg-panel px-2;
 }
 
 .settings-menu-item {
@@ -207,7 +206,6 @@ onMounted(async () => {
 }
 
 .settings-content {
-  @apply bg-panel flex-1 overflow-hidden p-6;
-  min-width: 0;
+  @apply bg-panel flex-1 overflow-hidden p-4;
 }
 </style>
