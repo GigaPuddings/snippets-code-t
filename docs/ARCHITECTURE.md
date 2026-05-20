@@ -142,7 +142,7 @@ snippets-code/
 │   │   ├── apps.rs               # 应用管理
 │   │   ├── bookmarks.rs          # 书签管理
 │   │   ├── config.rs             # 配置管理
-│   │   ├── github_sync.rs        # GitHub 同步
+│   │   ├── git_sync.rs           # Git 同步
 │   │   ├── hotkey.rs             # 快捷键
 │   │   ├── icon.rs               # 图标处理
 │   │   ├── search.rs             # 搜索功能
@@ -500,14 +500,14 @@ screenshot/
 - Hugging Face Transformers
 - Web Workers (离线翻译)
 
-### 6. GitHub 同步模块 (GitHub Sync Module)
+### 6. Git 同步模块 (Git Sync Module)
 
 **位置**: 
-- 前端: `src/api/github.ts`
-- 后端: `src-tauri/src/github_sync.rs`
+- 前端: `src/plugins/git-sync/`
+- 后端: `src-tauri/src/git_sync.rs`
 
 **功能**:
-- GitHub Gist 同步
+- Git 仓库同步
 - 冲突解决
 - 增量同步
 

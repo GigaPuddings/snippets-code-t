@@ -233,7 +233,6 @@ snippets-code/
 │   │   ├── apps.rs               # 应用管理
 │   │   ├── bookmarks.rs          # 书签管理
 │   │   ├── git_sync.rs           # Git 同步（基于系统 Git）
-│   │   ├── github_sync.rs        # GitHub Gist 同步（旧版）
 │   │   ├── translation.rs        # 翻译功能
 │   │   ├── hotkey.rs             # 快捷键管理
 │   │   ├── window.rs             # 窗口管理

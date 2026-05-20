@@ -25,9 +25,6 @@ use crate::config::{
     set_language, set_ocr_language, set_offline_model_activated, set_translation_engine,
 };
 use crate::db::{
-    // get_categories, add_category, edit_category, delete_category, get_uncategorized_id,
-    // get_fragment_list, add_fragment, delete_fragment, edit_fragment, get_fragment_content,
-    // search_fragment_content, // 已迁移到基于文件系统的 Markdown 存储
     add_search_history,
     backup_database,
     get_auto_hide_on_blur,
@@ -910,17 +907,6 @@ pub fn run() {
             plugins::local_launcher::update_bookmark,                  // 更新书签
             plugins::local_launcher::delete_bookmark,                  // 删除书签
             plugins::local_launcher::get_bookmarks,                    // 获取所有书签
-            // get_categories,                   // 获取所有分类 - 已迁移到 Markdown
-            // get_uncategorized_id,             // 获取未分类ID - 已迁移到 Markdown
-            // add_category,                     // 添加分类 - 已迁移到 Markdown
-            // edit_category,                    // 编辑分类 - 已迁移到 Markdown
-            // delete_category,                  // 删除分类 - 已迁移到 Markdown
-            // get_fragment_list,                // 获取片段列表 - 已迁移到 Markdown
-            // add_fragment,                     // 添加片段 - 已迁移到 Markdown
-            // delete_fragment,                  // 删除片段 - 已迁移到 Markdown
-            // edit_fragment,                    // 编辑片段 - 已迁移到 Markdown
-            // get_fragment_content,             // 获取片段内容 - 已迁移到 Markdown
-            // search_fragment_content,          // 搜索片段内容 - 已迁移到 Markdown
             get_language,                     // 获取界面语言
             set_language,                     // 设置界面语言
             get_scan_progress_state,          // 获取扫描进度状态
