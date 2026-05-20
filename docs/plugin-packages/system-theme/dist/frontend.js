@@ -1,4 +1,4 @@
-import { a2 as e } from "./assets/runtime-entry-DNW581Dm.js";
+import { a2 as e } from "./assets/runtime-entry-Bi29cSqc.js";
 export {
   e as activate
 };

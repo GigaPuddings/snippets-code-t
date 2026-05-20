@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "translation",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.translation.name",
@@ -36,28 +36,29 @@
   "permissions": [
     "command:*"
   ],
-  "compatibleAppVersion": ">=2.0.1",
+  "compatibleAppVersion": ">=2.0.2",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/ConfirmDialog-95iTJ9XX.css",
+      "dist/assets/CommonDialog-TNyMUBVE.css",
+      "dist/assets/ConfirmDialog-CZedtFAu.css",
       "dist/assets/empty-iVBaPuAw.css",
-      "dist/assets/index-BPb9ZJkm.css",
-      "dist/assets/index-CKvn18OD.css",
-      "dist/assets/index-CszAVXBm.css",
-      "dist/assets/index-CvgZUrUs.css",
-      "dist/assets/index-D48Zb36E.css",
-      "dist/assets/index-DGAFCL6F.css",
-      "dist/assets/index-DlSbut2A.css",
-      "dist/assets/index-Dq5KKDI3.css",
-      "dist/assets/index-EUSD40nw.css",
-      "dist/assets/index-Odv9UvK0.css",
+      "dist/assets/index-76SVii_J.css",
+      "dist/assets/index-B2NTPGN-.css",
+      "dist/assets/index-BBb7G_3k.css",
+      "dist/assets/index-BEHhHzb4.css",
+      "dist/assets/index-BIRqQKX6.css",
+      "dist/assets/index-Blmn7J7p.css",
+      "dist/assets/index-BqIwKgA3.css",
+      "dist/assets/index-CWfSo5Zw.css",
+      "dist/assets/index-DQvhJ7Ik.css",
+      "dist/assets/index-DqY6lzV6.css",
       "dist/assets/switch-BVq8NMY0.css",
-      "dist/assets/TitlebarGitStatus-BFSOFKGh.css",
+      "dist/assets/TitlebarGitStatus-DB8ZU_mk.css",
       "dist/assets/_plugin-vue_export-helper-CHXRjTYS.css"
     ]
   },
   "minAppVersion": "1.5.6",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.1"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.2"
 }
