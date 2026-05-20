@@ -20,17 +20,23 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
     await showHideWindow();
   }
 
-  async function runAfterClosingSearchWindow(action: () => Promise<void> | void): Promise<void> {
+  async function runAfterClosingSearchWindow(
+    action: () => Promise<void> | void
+  ): Promise<void> {
     await closeSearchWindow();
     await action();
   }
 
   async function openAppItem(item: ContentType) {
-    await runAfterClosingSearchWindow(() => invoke('open_app_command', { appPath: getSearchResultLaunchPath(item) }));
+    await runAfterClosingSearchWindow(() =>
+      invoke('open_app_command', { appPath: getSearchResultLaunchPath(item) })
+    );
   }
 
   async function openExternalItem(item: ContentType) {
-    await runAfterClosingSearchWindow(() => invoke('open_url', { url: item.content }));
+    await runAfterClosingSearchWindow(() =>
+      invoke('open_url', { url: item.content })
+    );
   }
 
   async function openNoteItem(item: ContentType) {
@@ -83,13 +89,23 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
 
   function getItemPrimaryAction(item: ContentType) {
     if (item.summarize === 'app') return () => openAppItem(item);
-    if (item.summarize === 'bookmark' || item.summarize === 'search' || item.summarize === 'file') return () => openExternalItem(item);
+    if (
+      item.summarize === 'bookmark' ||
+      item.summarize === 'search' ||
+      item.summarize === 'file'
+    )
+      return () => openExternalItem(item);
     if (item.type === 'note') return () => openNoteItem(item);
     return () => copyAndInsertSnippet(item);
   }
 
   async function runPrimaryAction(item: ContentType) {
-    invoke('add_search_history', { id: getRawSearchResultId(item) });
+    try {
+      await invoke('add_search_history', { id: getRawSearchResultId(item) });
+    } catch (error) {
+      logger.error('[搜索窗口] Failed to add search history:', error);
+    }
+
     options.onClearSearch();
     await getItemPrimaryAction(item)();
   }

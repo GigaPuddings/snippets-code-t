@@ -20,7 +20,7 @@
           <template v-else>
             <img v-if="getIconState(item).src" :src="getIconState(item).src" class="icon"
               :class="getImageIconClass(item)"
-              @error="handleIconError(item)" loading="lazy" />
+              @error="handleIconError(item)" loading="eager" decoding="async" />
             <div v-else class="text-fallback-icon" :class="`type-${getIconState(item).typeClass || 'default'}`">
               {{ getIconState(item).fallbackText }}
             </div>

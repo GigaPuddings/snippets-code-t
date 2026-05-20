@@ -45,6 +45,10 @@ interface RankedSearchItem {
   history?: SearchHistoryMeta;
 }
 
+interface SearchMatchOptions {
+  deepSearch: boolean;
+}
+
 const SOURCE_TIE_BREAKER: Record<string, number> = {
   app: 4,
   file: 3,
@@ -86,6 +90,20 @@ const getSearchTokens = (query: string): string[] => {
   return Array.from(new Set([normalizedQuery, ...tokens]));
 };
 
+const isOrderedCharacterMatch = (value: string, query: string): boolean => {
+  if (query.length < 2) return false;
+
+  let queryIndex = 0;
+  for (const char of value) {
+    if (char === query[queryIndex]) {
+      queryIndex += 1;
+      if (queryIndex === query.length) return true;
+    }
+  }
+
+  return false;
+};
+
 const getFileNameParts = (item: ContentType): string[] => {
   const paths = [item.file_path, item.content].filter(Boolean).map(String);
 
@@ -120,6 +138,17 @@ const getLiteralSearchableText = (item: ContentType): string => {
   return getSearchableText(item);
 };
 
+const getTitleSearchableText = (item: ContentType): string =>
+  String(item.title ?? '');
+
+const getScopedSearchableText = (
+  item: ContentType,
+  options: SearchMatchOptions
+): string =>
+  options.deepSearch
+    ? getLiteralSearchableText(item)
+    : getTitleSearchableText(item);
+
 const getRawId = (item: ContentType): string =>
   String(item.metadata?.raw_id ?? item.id);
 
@@ -128,7 +157,23 @@ const getBackendScore = (item: ContentType): number =>
     ? item.score
     : 0;
 
-const calculateSearchRelevance = (item: ContentType, query: string): number => {
+const searchTextMatchesQuery = (text: string, query: string): boolean => {
+  if (!text || !query) return false;
+  if (text.includes(query)) return true;
+
+  const tokens = getSearchTokens(query).filter((token) => token !== query);
+  if (tokens.length > 0 && tokens.some((token) => text.includes(token))) {
+    return true;
+  }
+
+  return isOrderedCharacterMatch(text, query);
+};
+
+const calculateSearchRelevance = (
+  item: ContentType,
+  query: string,
+  options: SearchMatchOptions
+): number => {
   const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedQuery) return 0;
 
@@ -140,31 +185,65 @@ const calculateSearchRelevance = (item: ContentType, query: string): number => {
   const tags = (item.tags ?? []).map(normalizeSearchValue);
   const category = normalizeSearchValue(item.category_name);
   const source = getSource(item);
-  const searchableText = normalizeSearchValue(getLiteralSearchableText(item));
+  const searchableText = normalizeSearchValue(
+    getScopedSearchableText(item, options)
+  );
   const backendScore = getBackendScore(item);
 
-  let score = Math.min(backendScore, 200);
+  let score = Math.min(backendScore, options.deepSearch ? 200 : 80);
 
   if (title === normalizedQuery) score += 10000;
-  if (fileNames.some((fileName) => fileName === normalizedQuery)) score += 9500;
+  if (
+    options.deepSearch &&
+    fileNames.some((fileName) => fileName === normalizedQuery)
+  )
+    score += 9500;
   if (title.startsWith(normalizedQuery)) score += 8500;
-  if (fileNames.some((fileName) => fileName.startsWith(normalizedQuery)))
+  if (
+    options.deepSearch &&
+    fileNames.some((fileName) => fileName.startsWith(normalizedQuery))
+  )
     score += 8000;
   if (title.includes(normalizedQuery)) score += 6500;
-  if (fileNames.some((fileName) => fileName.includes(normalizedQuery)))
+  if (
+    options.deepSearch &&
+    fileNames.some((fileName) => fileName.includes(normalizedQuery))
+  )
     score += 6000;
-  if (tags.some((tag) => tag === normalizedQuery)) score += 4000;
-  if (category === normalizedQuery) score += 3000;
-  if (source !== 'app' && content.includes(normalizedQuery)) score += 1800;
-  if (source !== 'app' && filePath.includes(normalizedQuery)) score += 1500;
+  if (isOrderedCharacterMatch(title, normalizedQuery)) score += 2200;
+  if (
+    options.deepSearch &&
+    fileNames.some((fileName) =>
+      isOrderedCharacterMatch(fileName, normalizedQuery)
+    )
+  ) {
+    score += 2000;
+  }
+  if (options.deepSearch && tags.some((tag) => tag === normalizedQuery))
+    score += 4000;
+  if (options.deepSearch && category === normalizedQuery) score += 3000;
+  if (
+    options.deepSearch &&
+    source !== 'app' &&
+    content.includes(normalizedQuery)
+  )
+    score += 1800;
+  if (
+    options.deepSearch &&
+    source !== 'app' &&
+    filePath.includes(normalizedQuery)
+  )
+    score += 1500;
 
   const meaningfulTokens = tokens.filter((token) => token !== normalizedQuery);
   if (meaningfulTokens.length > 0) {
     const titleTokenMatches = meaningfulTokens.filter((token) =>
       title.includes(token)
     ).length;
-    const fileTokenMatches = meaningfulTokens.filter((token) =>
-      fileNames.some((fileName) => fileName.includes(token))
+    const fileTokenMatches = meaningfulTokens.filter(
+      (token) =>
+        options.deepSearch &&
+        fileNames.some((fileName) => fileName.includes(token))
     ).length;
     const textTokenMatches = meaningfulTokens.filter((token) =>
       searchableText.includes(token)
@@ -182,39 +261,39 @@ const calculateSearchRelevance = (item: ContentType, query: string): number => {
   return score;
 };
 
-const isRelevantSearchResult = (item: ContentType, query: string): boolean => {
+const isRelevantSearchResult = (
+  item: ContentType,
+  query: string,
+  options: SearchMatchOptions
+): boolean => {
   if (item.summarize === 'search') return true;
 
   const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedQuery) return false;
 
-  const searchableText = normalizeSearchValue(getLiteralSearchableText(item));
-  if (searchableText.includes(normalizedQuery)) return true;
-
-  const tokens = getSearchTokens(normalizedQuery).filter(
-    (token) => token !== normalizedQuery
+  const searchableText = normalizeSearchValue(
+    getScopedSearchableText(item, options)
   );
-  if (
-    tokens.length > 0 &&
-    tokens.some((token) => searchableText.includes(token))
-  ) {
-    return true;
-  }
+  if (searchTextMatchesQuery(searchableText, normalizedQuery)) return true;
 
-  return getBackendScore(item) >= 40;
+  return options.deepSearch && getBackendScore(item) >= 40;
 };
 
 const rankSearchResults = (
   items: ContentType[],
   query: string,
-  historyMap: Map<string, SearchHistoryMeta>
+  historyMap: Map<string, SearchHistoryMeta>,
+  options: SearchMatchOptions
 ): ContentType[] =>
   items
-    .filter((item) => isRelevantSearchResult(item, query))
+    .filter((item) => isRelevantSearchResult(item, query, options))
     .map<RankedSearchItem>((item, index) => {
       const history = historyMap.get(getRawId(item));
-      const historyScore = history ? Math.min(history.usage_count, 20) * 8 : 0;
-      const score = calculateSearchRelevance(item, query) + historyScore;
+      const historyScore = history
+        ? Math.min(history.usage_count, 20) * 1200
+        : 0;
+      const score =
+        calculateSearchRelevance(item, query, options) + historyScore;
 
       return {
         item: {
@@ -258,6 +337,8 @@ export interface UseSearchOptions {
   debounceMs?: number;
   /** 初始搜索查询 */
   initialQuery?: string;
+  /** 是否默认启用深度检索 */
+  initialDeepSearch?: boolean;
 }
 
 /**
@@ -270,14 +351,18 @@ export interface UseSearchReturn {
   searchResults: Ref<ContentType[]>;
   /** 搜索引擎列表（响应式） */
   searchEngines: Ref<SearchEngine[]>;
+  /** 是否启用深度检索 */
+  deepSearchEnabled: Ref<boolean>;
   /** 是否有搜索结果（计算属性） */
   hasResults: ComputedRef<boolean>;
   /** 处理回车键搜索 */
   handleEnterSearch: () => Promise<void>;
   /** 清除搜索 */
   clearSearch: () => void;
+  /** 切换深度检索 */
+  toggleDeepSearch: () => void;
   /** 添加搜索历史 */
-  addSearchHistory: (id: string) => void;
+  addSearchHistory: (id: string) => Promise<void>;
 }
 
 /**
@@ -295,15 +380,30 @@ export interface UseSearchReturn {
  * ```
  */
 export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
-  const { debounceMs = 300, initialQuery = '' } = options;
+  const {
+    debounceMs = 300,
+    initialQuery = '',
+    initialDeepSearch = false
+  } = options;
 
   const searchText = ref(initialQuery);
   const searchResults = ref<ContentType[]>([]);
   const searchEngines = ref<SearchEngine[]>([]);
+  const deepSearchEnabled = ref(initialDeepSearch);
   const pluginStore = usePluginStore();
   let unlistenSearchEngineUpdates: UnlistenFn | null = null;
+  let isSearchActive = true;
+  let searchRequestVersion = 0;
 
   const hasResults = computed(() => searchResults.value.length > 0);
+
+  const nextSearchRequest = (): number => {
+    searchRequestVersion += 1;
+    return searchRequestVersion;
+  };
+
+  const isLatestSearchRequest = (requestVersion: number): boolean =>
+    isSearchActive && requestVersion === searchRequestVersion;
 
   const withSourceId = (
     item: ContentType,
@@ -328,7 +428,8 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
    */
   const handleEngineSearch = async (
     text: string,
-    forceSearch = false
+    forceSearch = false,
+    requestVersion?: number
   ): Promise<boolean> => {
     if (!pluginStore.isEnabled('search-engines')) {
       return false;
@@ -343,6 +444,13 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       }
 
       if (!forceSearch) {
+        if (
+          requestVersion !== undefined &&
+          !isLatestSearchRequest(requestVersion)
+        ) {
+          return true;
+        }
+
         searchResults.value = [
           withSourceId(
             createEngineShortcutResult(match.engine, match.query),
@@ -371,8 +479,13 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
    * 清除搜索
    */
   const clearSearch = (): void => {
+    nextSearchRequest();
     searchText.value = '';
     searchResults.value = [];
+  };
+
+  const toggleDeepSearch = (): void => {
+    deepSearchEnabled.value = !deepSearchEnabled.value;
   };
 
   const cleanupSearchEngineUpdates = (): void => {
@@ -384,15 +497,22 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     cleanupSearchEngineUpdates();
 
     if (!pluginStore.isEnabled('search-engines')) {
-      searchEngines.value = [];
+      if (isSearchActive) {
+        searchEngines.value = [];
+      }
       return;
     }
 
     const { listenSearchEngineUpdates, loadSearchEngines } =
       await loadSearchEngineRuntime();
+    if (!isSearchActive) return;
 
-    searchEngines.value = await loadSearchEngines(pluginStore);
+    const engines = await loadSearchEngines(pluginStore);
+    if (!isSearchActive) return;
+
+    searchEngines.value = engines;
     unlistenSearchEngineUpdates = await listenSearchEngineUpdates((engines) => {
+      if (!isSearchActive) return;
       searchEngines.value = engines;
     });
   };
@@ -400,19 +520,25 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   /**
    * 防抖搜索函数
    */
-  const debouncedSearch = debounce(async () => {
+  const debouncedSearch = debounce(async (requestVersion: number) => {
     try {
-      if (!searchText.value.trim()) {
-        searchResults.value = [];
+      const text = searchText.value.trim();
+      if (!text) {
+        if (isLatestSearchRequest(requestVersion)) {
+          searchResults.value = [];
+        }
         return;
       }
 
-      const query = searchText.value.toLowerCase();
+      const query = text.toLowerCase();
+      const matchOptions = { deepSearch: deepSearchEnabled.value };
       const results: ContentType[] = [];
 
       // 1. 优先检查是否为 URL
-      if (isURL(searchText.value)) {
-        const normalizedUrl = normalizeURL(searchText.value);
+      if (isURL(text)) {
+        const normalizedUrl = normalizeURL(text);
+        if (!isLatestSearchRequest(requestVersion)) return;
+
         results.push(
           withSourceId(
             {
@@ -426,17 +552,25 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
             results.length
           )
         );
+        if (!isLatestSearchRequest(requestVersion)) return;
         searchResults.value = results;
         return;
       }
 
       // 2. 检查是否是搜索引擎快捷方式
-      const isEngineSearch = await handleEngineSearch(searchText.value);
+      const isEngineSearch = await handleEngineSearch(
+        text,
+        false,
+        requestVersion
+      );
+      if (!isLatestSearchRequest(requestVersion)) return;
       if (isEngineSearch) return;
 
       // 3. 搜索本地内容
       // 搜索代码片段
       const codeResults = await searchCode(query);
+      if (!isLatestSearchRequest(requestVersion)) return;
+
       results.push(
         ...codeResults.map((item, index) =>
           withSourceId(item, 'markdown', index)
@@ -448,6 +582,8 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
 
         try {
           const sourceResults = await provider.search(query);
+          if (!isLatestSearchRequest(requestVersion)) return;
+
           for (const sourceResult of sourceResults) {
             results.push(
               ...sourceResult.items.map((item, index) =>
@@ -456,19 +592,31 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
             );
           }
         } catch (error) {
-          ErrorHandler.handle(error, {
-            type: ErrorType.API_ERROR,
-            operation: 'searchSourceProvider',
-            details: { pluginId: provider.pluginId, source: provider.source, query },
-            timestamp: new Date()
-          }, {
-            showNotification: false
-          });
+          if (!isLatestSearchRequest(requestVersion)) return;
+
+          ErrorHandler.handle(
+            error,
+            {
+              type: ErrorType.API_ERROR,
+              operation: 'searchSourceProvider',
+              details: {
+                pluginId: provider.pluginId,
+                source: provider.source,
+                query
+              },
+              timestamp: new Date()
+            },
+            {
+              showNotification: false
+            }
+          );
         }
       }
 
       // 根据本次查询相关度和历史记录排序
       const history = await invoke<SearchHistoryItem[]>('get_search_history');
+      if (!isLatestSearchRequest(requestVersion)) return;
+
       const historyMap =
         Array.isArray(history) && history.length > 0
           ? new Map(
@@ -484,6 +632,8 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       if (pluginStore.isEnabled('search-engines')) {
         const { createDefaultSearchResult, getDefaultSearchEngine } =
           await loadSearchEngineRuntime();
+        if (!isLatestSearchRequest(requestVersion)) return;
+
         const defaultEngine = getDefaultSearchEngine(
           pluginStore,
           searchEngines.value
@@ -497,11 +647,15 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         }
       }
 
+      if (!isLatestSearchRequest(requestVersion)) return;
+
       searchResults.value = [
-        ...(defaultSearchResult ? [defaultSearchResult] : []),
-        ...rankSearchResults(results, query, historyMap)
+        ...rankSearchResults(results, query, historyMap, matchOptions),
+        ...(defaultSearchResult ? [defaultSearchResult] : [])
       ];
     } catch (error) {
+      if (!isLatestSearchRequest(requestVersion)) return;
+
       ErrorHandler.handle(error, {
         type: ErrorType.API_ERROR,
         operation: 'debouncedSearch',
@@ -516,15 +670,17 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
    * 添加搜索历史
    * @param id - 搜索项 ID
    */
-  const addSearchHistory = (id: string): void => {
-    invoke('add_search_history', { id }).catch((error) => {
+  const addSearchHistory = async (id: string): Promise<void> => {
+    try {
+      await invoke('add_search_history', { id });
+    } catch (error) {
       ErrorHandler.log(error, {
         type: ErrorType.DATABASE_ERROR,
         operation: 'addSearchHistory',
         details: { id },
         timestamp: new Date()
       });
-    });
+    }
   };
 
   /**
@@ -541,9 +697,9 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       if (isURL(text)) {
         const normalizedUrl = normalizeURL(text);
         await invoke('open_url', { url: normalizedUrl });
-        addSearchHistory('url-open');
+        await addSearchHistory('url-open');
         searchText.value = '';
-        invoke('show_hide_window_command', { label: 'search' });
+        await invoke('show_hide_window_command', { label: 'search' });
         return;
       }
 
@@ -561,7 +717,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         );
         if (defaultEngine) {
           // add history
-          addSearchHistory('default-search');
+          await addSearchHistory('default-search');
           await openSearchEngine(defaultEngine, text);
           searchText.value = '';
         }
@@ -577,7 +733,13 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   };
 
   watch(searchText, () => {
-    debouncedSearch();
+    debouncedSearch(nextSearchRequest());
+  });
+
+  watch(deepSearchEnabled, () => {
+    if (searchText.value.trim()) {
+      debouncedSearch(nextSearchRequest());
+    }
   });
 
   // 合并初始化和事件监听
@@ -604,7 +766,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       try {
         await syncSearchEngineRuntime();
         if (searchText.value.trim()) {
-          debouncedSearch();
+          debouncedSearch(nextSearchRequest());
         }
       } catch (error) {
         ErrorHandler.handle(error, {
@@ -617,6 +779,9 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   );
 
   onUnmounted(() => {
+    isSearchActive = false;
+    nextSearchRequest();
+    debouncedSearch.cancel();
     cleanupSearchEngineUpdates();
   });
 
@@ -624,9 +789,11 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     searchText,
     searchResults,
     searchEngines,
+    deepSearchEnabled,
     hasResults,
     handleEnterSearch,
     clearSearch,
+    toggleDeepSearch,
     addSearchHistory
   };
 }

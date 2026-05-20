@@ -27,6 +27,13 @@ static CONFIG_CLEANUP_REGISTERED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex
 static STARTUP_TRANSITION_STARTED_AT: LazyLock<Mutex<Option<Instant>>> =
     LazyLock::new(|| Mutex::new(None));
 
+fn hide_search_window_after_ipc_response(window: WebviewWindow) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        let _ = window.hide();
+    });
+}
+
 fn get_app_handle_or_log(context: &str) -> Option<&'static AppHandle> {
     match APP.get() {
         Some(app) => Some(app),
@@ -431,11 +438,12 @@ impl WindowManager {
                     // 发送事件到前端，让前端清除搜索状态
                     let _ = search_window.emit("reset-search-state", ());
 
+                    let _ = search_window.set_ignore_cursor_events(false);
+
                     // 隐藏搜索窗口
-                    let _ = search_window.hide();
+                    hide_search_window_after_ipc_response(search_window);
 
                     stop_mouse_tracking();
-                    let _ = search_window.set_ignore_cursor_events(false);
                 }
             }
         }
@@ -598,7 +606,7 @@ pub fn hotkey_search(context: Option<String>) {
         }
     };
     if is_visible {
-        let _ = window.hide();
+        let _ = window.emit("reset-search-state", ());
         // 停止鼠标追踪
         stop_mouse_tracking();
         // 取消忽略光标
@@ -614,6 +622,8 @@ pub fn hotkey_search(context: Option<String>) {
             // 取消记录当前活动窗口
             *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = None;
         }
+
+        hide_search_window_after_ipc_response(window);
     } else {
         // 记录当前活动窗口
         #[cfg(target_os = "windows")]
@@ -1466,6 +1476,7 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                                 stop_mouse_tracking();
                                 // 取消忽略光标
                                 let _ = window_clone.set_ignore_cursor_events(false);
+                                let _ = window_clone.emit("reset-search-state", ());
                                 let _ = window_clone.hide();
                                 // 同时关闭预览窗口（直接调用而不是通过 command）
                                 if let Some(app) = APP.get() {
@@ -1518,6 +1529,7 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                                     stop_mouse_tracking();
                                     // 取消忽略光标
                                     let _ = window_clone.set_ignore_cursor_events(false);
+                                    let _ = window_clone.emit("reset-search-state", ());
                                     let _ = window_clone.hide();
                                 }
                             }

@@ -4,7 +4,7 @@
 
 /**
  * 从 HTML 内容中提取纯文本
- * 
+ *
  * @param html - HTML 字符串
  * @returns 不含 HTML 标签的纯文本
  */
@@ -16,7 +16,7 @@ export function extractPlainText(html: string): string {
 
 /**
  * HTML 转义，防止 XSS 攻击
- * 
+ *
  * @param text - 要转义的文本
  * @returns HTML 转义后的文本
  */
@@ -34,34 +34,71 @@ export function escapeHtml(text: string): string {
  * @returns 带高亮标记的 HTML 字符串
  */
 export function highlightText(text: string, query?: string): string {
+  const minHighlightLength = 2;
+
   if (!text || !query?.trim()) {
     return escapeHtml(text || '');
   }
 
   const escapedText = escapeHtml(text);
   const queryTrimmed = query.trim();
+  const queryChars = Array.from(queryTrimmed).filter(
+    (char) => !/\s/.test(char)
+  );
+
+  if (queryChars.length < minHighlightLength) {
+    return escapedText;
+  }
+
   const textLower = text.toLowerCase();
   const queryLower = queryTrimmed.toLowerCase();
   const matchIndex = textLower.indexOf(queryLower);
 
   if (matchIndex === -1) {
     const textChars = Array.from(text);
-    const queryChars = Array.from(queryLower).filter((char) => !/\s/.test(char));
+    const normalizedQueryChars = Array.from(queryLower).filter(
+      (char) => !/\s/.test(char)
+    );
     const matchedIndexes = new Set<number>();
     let queryIndex = 0;
 
-    if (queryChars.length === 0) {
+    if (normalizedQueryChars.length === 0) {
       return escapedText;
     }
 
-    for (let index = 0; index < textChars.length && queryIndex < queryChars.length; index += 1) {
-      if (textChars[index].toLowerCase() === queryChars[queryIndex]) {
+    for (
+      let index = 0;
+      index < textChars.length && queryIndex < normalizedQueryChars.length;
+      index += 1
+    ) {
+      if (textChars[index].toLowerCase() === normalizedQueryChars[queryIndex]) {
         matchedIndexes.add(index);
         queryIndex += 1;
       }
     }
 
-    if (queryIndex !== queryChars.length) {
+    if (queryIndex !== normalizedQueryChars.length) {
+      return escapedText;
+    }
+
+    const highlightIndexes = new Set<number>();
+    let runStart: number | null = null;
+
+    for (let index = 0; index <= textChars.length; index += 1) {
+      if (matchedIndexes.has(index)) {
+        runStart ??= index;
+        continue;
+      }
+
+      if (runStart != null && index - runStart >= minHighlightLength) {
+        for (let matchIndex = runStart; matchIndex < index; matchIndex += 1) {
+          highlightIndexes.add(matchIndex);
+        }
+      }
+      runStart = null;
+    }
+
+    if (highlightIndexes.size === 0) {
       return escapedText;
     }
 
@@ -69,7 +106,7 @@ export function highlightText(text: string, query?: string): string {
     let highlighted = false;
 
     for (let index = 0; index < textChars.length; index += 1) {
-      const shouldHighlight = matchedIndexes.has(index);
+      const shouldHighlight = highlightIndexes.has(index);
 
       if (shouldHighlight && !highlighted) {
         result += '<span class="highlight">';
@@ -90,7 +127,9 @@ export function highlightText(text: string, query?: string): string {
   }
 
   const before = escapeHtml(text.slice(0, matchIndex));
-  const match = escapeHtml(text.slice(matchIndex, matchIndex + queryTrimmed.length));
+  const match = escapeHtml(
+    text.slice(matchIndex, matchIndex + queryTrimmed.length)
+  );
   const after = escapeHtml(text.slice(matchIndex + queryTrimmed.length));
 
   return `${before}<span class="highlight">${match}</span>${after}`;
@@ -98,7 +137,7 @@ export function highlightText(text: string, query?: string): string {
 
 /**
  * 处理文本用于翻译，将驼峰命名转换为空格分隔
- * 
+ *
  * @param text - 要处理的文本
  * @returns 带空格的处理后文本
  */
@@ -115,7 +154,7 @@ export function processTextForTranslation(text: string): string {
 
 /**
  * 检测语言类型（简单的中英文检测）
- * 
+ *
  * @param text - 要检测的文本
  * @returns 语言代码：'zh'（中文）、'en'（英文）或 'unknown'（未知）
  */
@@ -133,7 +172,7 @@ export function detectLanguage(text: string): DetectedLanguage {
 
   const koreanChars = text.match(/[\uac00-\ud7af]/g);
   const koreanCount = koreanChars ? koreanChars.length : 0;
-  
+
   // 统计英文字母
   const englishChars = text.match(/[a-zA-Z]/g);
   const englishCount = englishChars ? englishChars.length : 0;
@@ -167,11 +206,13 @@ export function detectLanguage(text: string): DetectedLanguage {
   } else if (englishCount > chineseCount) {
     return 'en';
   }
-  
+
   return 'unknown';
 }
 
-export function canTranslateDetectedLanguage(language: DetectedLanguage): boolean {
+export function canTranslateDetectedLanguage(
+  language: DetectedLanguage
+): boolean {
   return language === 'zh' || language === 'en';
 }
 

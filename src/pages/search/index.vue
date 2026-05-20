@@ -7,8 +7,19 @@ import { useSearchKeyboard } from './composables/useSearchKeyboard';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
+import { Search } from '@icon-park/vue-next';
+import { useI18n } from 'vue-i18n';
 
-const { searchText, searchResults, hasResults, handleEnterSearch, clearSearch } = useSearch();
+const { t } = useI18n();
+const {
+  searchText,
+  searchResults,
+  deepSearchEnabled,
+  hasResults,
+  handleEnterSearch,
+  clearSearch,
+  toggleDeepSearch
+} = useSearch();
 const { isSearchMode, setMode, canSwitchToList } = useFocusMode();
 
 const searchRef = ref<HTMLElement | null>(null);
@@ -67,7 +78,7 @@ onMounted(async () => {
   if (searchRef.value) {
     useSetIgnoreCursorEvents(searchRef.value);
   }
-  
+
   unlistenWindowFocused = await listen('windowFocused', () => {
     // 窗口聚焦时，重置到搜索框模式
     setMode('SEARCH');
@@ -79,7 +90,7 @@ onMounted(async () => {
       searchInputRef.value?.focus();
     }
   });
-  
+
   // 监听重置搜索状态事件（当窗口被其他操作关闭时）
   unlistenResetSearchState = await listen('reset-search-state', () => {
     // 清除搜索内容和结果
@@ -108,6 +119,27 @@ onUnmounted(() => {
         @keydown="handleKeyDown"
         @focus="handleInputFocus"
       />
+      <el-tooltip
+        effect="dark"
+        :content="
+          deepSearchEnabled
+            ? t('search.deepSearchOn')
+            : t('search.deepSearchOff')
+        "
+        placement="bottom"
+      >
+        <button
+          type="button"
+          class="deep-search-toggle"
+          :class="{ active: deepSearchEnabled }"
+          :aria-label="t('search.deepSearch')"
+          :aria-pressed="deepSearchEnabled"
+          @mousedown.prevent
+          @click="toggleDeepSearch"
+        >
+          <Search theme="outline" size="16" />
+        </button>
+      </el-tooltip>
       <img
         src="@tauri/icons/icon.png"
         class="home"
@@ -153,6 +185,19 @@ onUnmounted(() => {
 
     .input {
       @apply rounded-sm mr-2 py-[2px] text-base text-search;
+    }
+
+    .deep-search-toggle {
+      @apply flex items-center justify-center w-8 h-8 mr-2 rounded-md text-search-secondary bg-transparent border border-transparent cursor-pointer;
+      transition:
+        color 0.18s ease,
+        background-color 0.18s ease,
+        border-color 0.18s ease;
+
+      &:hover,
+      &.active {
+        @apply bg-search-hover text-search border-search;
+      }
     }
 
     .home {

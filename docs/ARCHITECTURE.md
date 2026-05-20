@@ -317,6 +317,12 @@ search/
 - `useSearch`: 搜索逻辑和状态管理
 - `useSearchKeyboard`: 键盘导航
 
+**窗口生命周期约定**:
+- 快速搜索使用主 Webview 窗口，关闭搜索时通常调用 `hide()`，不会销毁 Vue 组件，也不会触发 `onUnmounted`。
+- 所有隐藏搜索窗口的后端路径必须先向前端发送 `reset-search-state`，再调用 `hide()`。
+- 前端 `src/pages/search/index.vue` 负责监听 `reset-search-state`，调用 `clearSearch()` 并恢复 `SEARCH` 焦点模式。
+- 搜索相关 composable 不能依赖 `onUnmounted` 清理隐藏窗口状态；`onUnmounted` 只用于 HMR、页面 reload 或窗口真正销毁时的兜底清理。
+
 ### 2. 片段管理模块 (Fragment Module)
 
 **位置**: `src/pages/config/components/category/`

@@ -888,7 +888,36 @@ onUnmounted(() => {
 });
 ```
 
-### 3. 事件处理中的异步问题
+### 3. 隐藏窗口不是卸载组件
+
+**Tauri 窗口调用 `hide()` 只会隐藏 Webview，不会销毁 Vue 应用，也不会触发 `onUnmounted`。**
+
+对于搜索窗口、翻译窗口、贴图窗口这类复用窗口，关闭按钮、快捷键切换、失焦自动隐藏等路径都必须在隐藏前显式发送重置事件，前端在事件里清理输入、结果、选中项和未完成请求。
+
+```rust
+// ✅ 推荐：隐藏搜索窗口前通知前端重置状态
+let _ = window.emit("reset-search-state", ());
+let _ = window.hide();
+
+// ❌ 避免：只隐藏窗口，期望 onUnmounted 自动清理
+let _ = window.hide();
+```
+
+```typescript
+// ✅ 推荐：前端监听重置事件，主动清理状态
+const unlistenResetSearchState = await listen('reset-search-state', () => {
+  clearSearch();
+  setMode('SEARCH');
+});
+
+onUnmounted(() => {
+  unlistenResetSearchState?.();
+});
+```
+
+如果窗口内存在 Tauri `invoke`、定时器、防抖搜索或异步任务，也要提供 `cancel`/`reset` 方法，并在重置事件中让旧请求失效。不要把“窗口隐藏时清理状态”放在 `onUnmounted` 里。
+
+### 4. 事件处理中的异步问题
 
 **事件处理函数必须是 `async`，确保状态更新后再执行后续逻辑：**
 
@@ -908,7 +937,7 @@ const handleRefreshData = async (event: Event) => {
 };
 ```
 
-### 4. 刷新列表时保持激活状态
+### 5. 刷新列表时保持激活状态
 
 **数据刷新后，需要重新计算列表项的激活状态：**
 
