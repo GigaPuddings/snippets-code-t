@@ -59,7 +59,7 @@
       :dark="props.dark"
       :current-pos="currentCursorPos"
       :visible-heading-index="visibleHeadingIndex"
-      @close="showOutline = false"
+      @close="closeOutline"
       @heading-click="jumpToHeading"
       @update-visible-heading="updateVisibleHeading"
     />
@@ -82,7 +82,6 @@
 <script setup lang="ts">
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { TextSelection } from '@tiptap/pm/state';
-import { debounce } from '@/utils';
 import { handleEditorError } from '@/utils/error-handler';
 import { markdownToHtml, jsonToMarkdown } from './utils/markdown';
 import { createEditorExtensions } from './config/extensions';
@@ -98,6 +97,7 @@ import {
   useEditorImageUpload,
   type ImageUploadEditor
 } from './composables/useEditorImageUpload';
+import { useEditorOutline } from './composables/useEditorOutline';
 import { useEditorPersistenceBridge } from './composables/useEditorPersistenceBridge';
 import { useEditorSearch } from './composables/useEditorSearch';
 import { useEditorViewMode } from './composables/useEditorViewMode';
@@ -159,11 +159,7 @@ const sourceEditorRef = ref<InstanceType<typeof SourceEditor> | null>(null);
 const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 const wordCount = ref(0);
 const charCount = ref(0);
-const showOutline = ref(false);
-const headings = ref<Array<{ level: number; text: string; pos: number }>>([]);
 const sourceContent = ref('');
-const currentCursorPos = ref(0);
-const visibleHeadingIndex = ref(-1);
 const workspaceRoot = ref<string>('');
 
 // 常量：标题跳转时的顶部偏移量（为工具栏和状态栏留出空间）
@@ -211,6 +207,31 @@ const updateStats = (text: string) => {
   wordCount.value = chineseChars.length + englishWords.length;
 };
 
+const {
+  showOutline,
+  headings,
+  visibleHeadingIndex,
+  currentCursorPos,
+  setCurrentCursorPos,
+  extractHeadingsFromSource,
+  setupScrollListener,
+  cleanupScrollListener,
+  refreshSourceOutline,
+  refreshEditorOutline,
+  handleSourceScroll,
+  jumpToHeading,
+  updateVisibleHeading,
+  toggleOutline,
+  closeOutline
+} = useEditorOutline({
+  sourceContent,
+  getEditor: () => editor.value,
+  getViewMode: () => viewMode.value,
+  getSourceEditor: () => sourceEditorRef.value,
+  emitOutlineToggle: (show) => emits('outline-toggle', show),
+  emitScrollPosition: (scrollTop) => emits('scroll-position', scrollTop)
+});
+
 const editorPersistenceBridge = useEditorPersistenceBridge({
   sourceContent,
   workspaceRoot,
@@ -257,15 +278,13 @@ const editor = useEditor({
   onUpdate: ({ editor }) => {
     try {
       editorPersistenceBridge.handleEditorUpdate(editor);
-      // 更新光标位置
-      currentCursorPos.value = editor.state.selection.from;
+      setCurrentCursorPos(editor.state.selection.from);
     } catch (error) {
       handleEditorError(error, 'TipTap onUpdate');
     }
   },
   onSelectionUpdate: ({ editor }) => {
-    // 更新光标位置
-    currentCursorPos.value = editor.state.selection.from;
+    setCurrentCursorPos(editor.state.selection.from);
   },
   onFocus: () => emits('focus'),
   onBlur: () => emits('blur'),
@@ -274,8 +293,7 @@ const editor = useEditor({
       const text = editor.getText();
       updateStats(text);
       emits('ready', editor);
-      // 初始化光标位置
-      currentCursorPos.value = editor.state.selection.from;
+      setCurrentCursorPos(editor.state.selection.from);
       
       // 添加全局事件监听器，在捕获阶段拦截锚点链接
       const editorElement = editor.view.dom;
@@ -597,12 +615,10 @@ const {
   },
   isOutlineVisible: () => showOutline.value,
   refreshSourceOutline: () => {
-    extractHeadingsFromSource();
-    setupSourceScrollListener();
+    refreshSourceOutline();
   },
   refreshEditorOutline: () => {
-    extractHeadings();
-    setupScrollListener();
+    refreshEditorOutline();
   },
   emitViewModeChange: (mode) => emits('view-mode-change', mode)
 });
@@ -610,289 +626,6 @@ const {
 // 源码内容变更
 const handleSourceContentChange = (value: string) => {
   editorPersistenceBridge.emitSourceContentChange(value);
-};
-
-// 从源码中提取标题
-const extractHeadingsFromSource = () => {
-  const lines = sourceContent.value.split('\n');
-  const newHeadings: Array<{ level: number; text: string; pos: number }> = [];
-  
-  lines.forEach((line, index) => {
-    // 匹配 Markdown 标题格式：# 标题
-    const match = line.match(/^(#{1,6})\s+(.+)$/);
-    if (match) {
-      const level = match[1].length;
-      const text = match[2].trim();
-      newHeadings.push({
-        level,
-        text,
-        pos: index // 在源码模式下，pos 表示行号
-      });
-    }
-  });
-  
-  headings.value = newHeadings;
-};
-
-// 源码编辑器滚动处理
-const handleSourceScroll = () => {
-  if (showOutline.value) {
-    updateVisibleHeadingInSource();
-  }
-};
-
-// 更新源码模式下的可视标题
-const updateVisibleHeadingInSource = () => {
-  if (!sourceEditorRef.value || headings.value.length === 0) {
-    visibleHeadingIndex.value = -1;
-    return;
-  }
-  
-  const textarea = sourceEditorRef.value.getTextarea();
-  if (!textarea) {
-    visibleHeadingIndex.value = -1;
-    return;
-  }
-  
-  // 计算实际行高
-  const computedStyle = window.getComputedStyle(textarea);
-  const fontSize = parseFloat(computedStyle.fontSize);
-  const lineHeight = fontSize * 1.5; // line-height: 1.5
-  
-  // 计算当前可视区域的行号
-  const scrollTop = textarea.scrollTop;
-  const currentLine = Math.floor(scrollTop / lineHeight);
-  
-  // 找到最接近的标题
-  let closestIndex = -1;
-  for (let i = headings.value.length - 1; i >= 0; i--) {
-    if (headings.value[i].pos <= currentLine) {
-      closestIndex = i;
-      break;
-    }
-  }
-  
-  visibleHeadingIndex.value = closestIndex;
-};
-
-// 设置源码编辑器的滚动监听
-let sourceScrollCleanup: (() => void) | null = null;
-
-const setupSourceScrollListener = () => {
-  if (!sourceEditorRef.value) return;
-  
-  if (sourceScrollCleanup) {
-    sourceScrollCleanup();
-  }
-  
-  const textarea = sourceEditorRef.value.getTextarea();
-  if (!textarea) return;
-  
-  const debouncedUpdate = debounce(updateVisibleHeadingInSource, 100);
-  textarea.addEventListener('scroll', debouncedUpdate);
-  updateVisibleHeadingInSource();
-  
-  sourceScrollCleanup = () => {
-    textarea.removeEventListener('scroll', debouncedUpdate);
-  };
-};
-
-const cleanupSourceScrollListener = () => {
-  if (sourceScrollCleanup) {
-    sourceScrollCleanup();
-    sourceScrollCleanup = null;
-  }
-};
-
-// 切换大纲
-const toggleOutline = () => {
-  showOutline.value = !showOutline.value;
-  emits('outline-toggle', showOutline.value);
-  if (showOutline.value) {
-    extractHeadings();
-    // 设置滚动监听器
-    if (editor.value) {
-      nextTick(() => {
-        setupScrollListener();
-      });
-    }
-  } else {
-    // 清理滚动监听器
-    cleanupScrollListener();
-  }
-};
-
-// 提取标题
-const extractHeadings = () => {
-  if (!editor.value) {
-    headings.value = [];
-    return;
-  }
-  
-  const newHeadings: Array<{ level: number; text: string; pos: number }> = [];
-  
-  editor.value.state.doc.descendants((node, pos) => {
-    if (node.type.name === 'heading') {
-      newHeadings.push({
-        level: node.attrs.level,
-        text: node.textContent,
-        pos: pos
-      });
-    }
-  });
-  
-  headings.value = newHeadings;
-};
-
-// 计算可视区域内的标题
-const updateVisibleHeading = () => {
-  // 源码模式使用专门的函数
-  if (viewMode.value === 'source') {
-    updateVisibleHeadingInSource();
-    return;
-  }
-  
-  if (!editor.value || headings.value.length === 0) {
-    visibleHeadingIndex.value = -1;
-    return;
-  }
-  
-  const scrollContainer = editor.value.view.dom as HTMLElement;
-  if (!scrollContainer) {
-    visibleHeadingIndex.value = -1;
-    return;
-  }
-  
-  const scrollTop = scrollContainer.scrollTop;
-  const viewportHeight = scrollContainer.clientHeight;
-  const viewportCenter = scrollTop + viewportHeight * 0.2;
-  
-  const allHeadingElements = scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
-  const headingElementMap = new Map<number, HTMLElement>();
-  
-  allHeadingElements.forEach((el: Element) => {
-    const headingEl = el as HTMLElement;
-    const text = headingEl.textContent?.trim() || '';
-    
-    const matchIndex = headings.value.findIndex((h, idx) => {
-      if (headingElementMap.has(idx)) return false;
-      return h.text === text;
-    });
-    
-    if (matchIndex >= 0) {
-      headingElementMap.set(matchIndex, headingEl);
-    }
-  });
-  
-  let closestIndex = -1;
-  let closestDistance = Infinity;
-  
-  headings.value.forEach((_heading, index) => {
-    const element = headingElementMap.get(index);
-    
-    if (element) {
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = scrollContainer.getBoundingClientRect();
-      const elementTop = elementRect.top - containerRect.top + scrollTop;
-      
-      if (elementTop <= viewportCenter) {
-        const distance = viewportCenter - elementTop;
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestIndex = index;
-        }
-      }
-    }
-  });
-  
-  visibleHeadingIndex.value = closestIndex;
-};
-
-// 设置滚动监听器
-let scrollCleanup: (() => void) | null = null;
-
-const setupScrollListener = () => {
-  if (!editor.value) return;
-  
-  if (scrollCleanup) {
-    scrollCleanup();
-  }
-  
-  const scrollContainer = editor.value.view.dom as HTMLElement;
-  if (!scrollContainer) return;
-  
-  const debouncedUpdate = debounce(updateVisibleHeading, 100);
-  const debouncedEmitScroll = debounce(() => {
-    const top = scrollContainer.scrollTop;
-    emits('scroll-position', top);
-  }, 400);
-  scrollContainer.addEventListener('scroll', debouncedUpdate);
-  scrollContainer.addEventListener('scroll', debouncedEmitScroll);
-  updateVisibleHeading();
-
-  scrollCleanup = () => {
-    scrollContainer.removeEventListener('scroll', debouncedUpdate);
-    scrollContainer.removeEventListener('scroll', debouncedEmitScroll);
-  };
-};
-
-const cleanupScrollListener = () => {
-  if (scrollCleanup) {
-    scrollCleanup();
-    scrollCleanup = null;
-  }
-  cleanupSourceScrollListener();
-};
-
-// 跳转到标题
-const jumpToHeading = (pos: number) => {
-  if (viewMode.value === 'source') {
-    // 源码模式：跳转到指定行号
-    if (sourceEditorRef.value) {
-      sourceEditorRef.value.scrollToLine(pos);
-    }
-    return;
-  }
-  
-  if (!editor.value) return;
-  
-  try {
-    const scrollContainer = editor.value.view.dom as HTMLElement;
-    const allHeadingElements = scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
-    
-    const targetHeading = headings.value.find(h => h.pos === pos);
-    if (!targetHeading) {
-      console.warn('Target heading not found for pos:', pos);
-      return;
-    }
-    
-    let targetElement: HTMLElement | null = null;
-    allHeadingElements.forEach((el: Element) => {
-      const headingEl = el as HTMLElement;
-      const text = headingEl.textContent?.trim() || '';
-      if (text === targetHeading.text && !targetElement) {
-        targetElement = headingEl;
-      }
-    });
-    
-    if (targetElement) {
-      let elementTop = 0;
-      let currentElement: HTMLElement | null = targetElement;
-      
-      while (currentElement && currentElement !== scrollContainer) {
-        elementTop += currentElement.offsetTop;
-        currentElement = currentElement.offsetParent as HTMLElement | null;
-        if (currentElement === scrollContainer) break;
-      }
-      
-      const targetScroll = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
-      scrollContainer.scrollTop = targetScroll;
-    } else {
-      console.warn('Target element not found in DOM');
-    }
-  } catch (error) {
-    console.error('Failed to scroll to heading:', error);
-  }
 };
 
 // 处理右键菜单

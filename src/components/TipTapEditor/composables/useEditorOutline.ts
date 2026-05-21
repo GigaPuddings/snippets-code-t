@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue';
+import { nextTick, ref, type Ref } from 'vue';
 
 export interface Heading {
   level: number;
@@ -6,43 +6,73 @@ export interface Heading {
   pos: number;
 }
 
-/**
- * TipTap 编辑器大纲功能 Composable
- *
- * @param editor - 编辑器实例
- * @param viewMode - 当前视图模式
- * @returns 大纲相关的状态和方法
- */
-export function useEditorOutline(
-  editor: Ref<any | null>,
-  viewMode: Ref<'reading' | 'preview' | 'source'>,
-  sourceContent: Ref<string>
-) {
+type EditorViewMode = 'reading' | 'preview' | 'source';
+
+interface OutlineEditor {
+  state: {
+    doc: {
+      descendants: (callback: (node: any, pos: number) => void) => void;
+    };
+    selection?: { from: number };
+  };
+  view: {
+    dom: HTMLElement;
+  };
+}
+
+interface SourceEditorHandle {
+  getTextarea: () => HTMLTextAreaElement | null;
+  scrollToLine: (line: number) => void;
+}
+
+interface UseEditorOutlineOptions {
+  sourceContent: Ref<string>;
+  getEditor: () => OutlineEditor | null | undefined;
+  getViewMode: () => EditorViewMode;
+  getSourceEditor: () => SourceEditorHandle | null | undefined;
+  emitOutlineToggle: (show: boolean) => void;
+  emitScrollPosition: (scrollTop: number) => void;
+}
+
+const HEADING_SCROLL_OFFSET = 120;
+
+function debounce<T extends (...args: Parameters<T>) => void>(fn: T, wait: number) {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  return (...args: Parameters<T>) => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+
+    timeout = setTimeout(() => {
+      fn(...args);
+      timeout = null;
+    }, wait);
+  };
+}
+
+export function useEditorOutline(options: UseEditorOutlineOptions) {
   const showOutline = ref(false);
   const headings = ref<Heading[]>([]);
   const visibleHeadingIndex = ref(-1);
   const currentCursorPos = ref(0);
+  let scrollCleanup: (() => void) | null = null;
+  let sourceScrollCleanup: (() => void) | null = null;
 
-  // 标题跳转时的顶部偏移量
-  const HEADING_SCROLL_OFFSET = 120;
-
-  /**
-   * 从 TipTap 文档中提取标题
-   */
   const extractHeadings = () => {
-    if (!editor.value) {
+    const editor = options.getEditor();
+    if (!editor) {
       headings.value = [];
       return;
     }
 
     const newHeadings: Heading[] = [];
-
-    editor.value.state.doc.descendants((node: any, pos: number) => {
+    editor.state.doc.descendants((node: any, pos: number) => {
       if (node.type.name === 'heading') {
         newHeadings.push({
           level: node.attrs.level,
           text: node.textContent,
-          pos: pos
+          pos
         });
       }
     });
@@ -50,21 +80,15 @@ export function useEditorOutline(
     headings.value = newHeadings;
   };
 
-  /**
-   * 从源码中提取标题
-   */
   const extractHeadingsFromSource = () => {
-    const lines = sourceContent.value.split('\n');
     const newHeadings: Heading[] = [];
 
-    lines.forEach((line, index) => {
+    options.sourceContent.value.split('\n').forEach((line, index) => {
       const match = line.match(/^(#{1,6})\s+(.+)$/);
       if (match) {
-        const level = match[1].length;
-        const text = match[2].trim();
         newHeadings.push({
-          level,
-          text,
+          level: match[1].length,
+          text: match[2].trim(),
           pos: index
         });
       }
@@ -73,48 +97,64 @@ export function useEditorOutline(
     headings.value = newHeadings;
   };
 
-  /**
-   * 提取标题（根据视图模式自动选择）
-   */
   const extractHeadingsAuto = () => {
-    if (viewMode.value === 'source') {
+    if (options.getViewMode() === 'source') {
       extractHeadingsFromSource();
     } else {
       extractHeadings();
     }
   };
 
-  /**
-   * 计算可视区域内的标题（预览模式）
-   */
+  const updateVisibleHeadingInSource = () => {
+    const sourceEditor = options.getSourceEditor();
+    if (!sourceEditor || headings.value.length === 0) {
+      visibleHeadingIndex.value = -1;
+      return;
+    }
+
+    const textarea = sourceEditor.getTextarea();
+    if (!textarea) {
+      visibleHeadingIndex.value = -1;
+      return;
+    }
+
+    const computedStyle = window.getComputedStyle(textarea);
+    const fontSize = parseFloat(computedStyle.fontSize);
+    const lineHeight = fontSize * 1.5;
+    const currentLine = Math.floor(textarea.scrollTop / lineHeight);
+
+    let closestIndex = -1;
+    for (let i = headings.value.length - 1; i >= 0; i--) {
+      if (headings.value[i].pos <= currentLine) {
+        closestIndex = i;
+        break;
+      }
+    }
+
+    visibleHeadingIndex.value = closestIndex;
+  };
+
   const updateVisibleHeading = () => {
-    // 源码模式使用专门的函数
-    if (viewMode.value === 'source') {
+    if (options.getViewMode() === 'source') {
+      updateVisibleHeadingInSource();
       return;
     }
 
-    if (!editor.value || headings.value.length === 0) {
+    const editor = options.getEditor();
+    if (!editor || headings.value.length === 0) {
       visibleHeadingIndex.value = -1;
       return;
     }
 
-    const scrollContainer = editor.value.view.dom as HTMLElement;
-    if (!scrollContainer) {
-      visibleHeadingIndex.value = -1;
-      return;
-    }
-
+    const scrollContainer = editor.view.dom;
     const scrollTop = scrollContainer.scrollTop;
-    const viewportHeight = scrollContainer.clientHeight;
-    const viewportCenter = scrollTop + viewportHeight * 0.2;
-
+    const viewportCenter = scrollTop + scrollContainer.clientHeight * 0.2;
     const allHeadingElements = scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
     const headingElementMap = new Map<number, HTMLElement>();
 
     allHeadingElements.forEach((el: Element) => {
       const headingEl = el as HTMLElement;
       const text = headingEl.textContent?.trim() || '';
-
       const matchIndex = headings.value.findIndex((h, idx) => {
         if (headingElementMap.has(idx)) return false;
         return h.text === text;
@@ -127,21 +167,19 @@ export function useEditorOutline(
 
     let closestIndex = -1;
     let closestDistance = Infinity;
-
     headings.value.forEach((_heading, index) => {
       const element = headingElementMap.get(index);
+      if (!element) return;
 
-      if (element) {
-        const elementRect = element.getBoundingClientRect();
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const elementTop = elementRect.top - containerRect.top + scrollTop;
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const elementTop = elementRect.top - containerRect.top + scrollTop;
 
-        if (elementTop <= viewportCenter) {
-          const distance = viewportCenter - elementTop;
-          if (distance < closestDistance) {
-            closestDistance = distance;
-            closestIndex = index;
-          }
+      if (elementTop <= viewportCenter) {
+        const distance = viewportCenter - elementTop;
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = index;
         }
       }
     });
@@ -149,16 +187,114 @@ export function useEditorOutline(
     visibleHeadingIndex.value = closestIndex;
   };
 
-  /**
-   * 跳转到指定标题
-   */
+  const setupSourceScrollListener = () => {
+    const sourceEditor = options.getSourceEditor();
+    if (!sourceEditor) return;
+
+    if (sourceScrollCleanup) {
+      sourceScrollCleanup();
+    }
+
+    const textarea = sourceEditor.getTextarea();
+    if (!textarea) return;
+
+    const debouncedUpdate = debounce(updateVisibleHeadingInSource, 100);
+    textarea.addEventListener('scroll', debouncedUpdate);
+    updateVisibleHeadingInSource();
+
+    sourceScrollCleanup = () => {
+      textarea.removeEventListener('scroll', debouncedUpdate);
+    };
+  };
+
+  const cleanupSourceScrollListener = () => {
+    if (sourceScrollCleanup) {
+      sourceScrollCleanup();
+      sourceScrollCleanup = null;
+    }
+  };
+
+  const setupScrollListener = () => {
+    const editor = options.getEditor();
+    if (!editor) return;
+
+    if (scrollCleanup) {
+      scrollCleanup();
+    }
+
+    const scrollContainer = editor.view.dom;
+    const debouncedUpdate = debounce(updateVisibleHeading, 100);
+    const debouncedEmitScroll = debounce(() => {
+      options.emitScrollPosition(scrollContainer.scrollTop);
+    }, 400);
+
+    scrollContainer.addEventListener('scroll', debouncedUpdate);
+    scrollContainer.addEventListener('scroll', debouncedEmitScroll);
+    updateVisibleHeading();
+
+    scrollCleanup = () => {
+      scrollContainer.removeEventListener('scroll', debouncedUpdate);
+      scrollContainer.removeEventListener('scroll', debouncedEmitScroll);
+    };
+  };
+
+  const cleanupScrollListener = () => {
+    if (scrollCleanup) {
+      scrollCleanup();
+      scrollCleanup = null;
+    }
+    cleanupSourceScrollListener();
+  };
+
+  const refreshSourceOutline = () => {
+    extractHeadingsFromSource();
+    setupSourceScrollListener();
+  };
+
+  const refreshEditorOutline = () => {
+    extractHeadings();
+    setupScrollListener();
+  };
+
+  const handleSourceScroll = () => {
+    if (showOutline.value) {
+      updateVisibleHeadingInSource();
+    }
+  };
+
+  const toggleOutline = () => {
+    showOutline.value = !showOutline.value;
+    options.emitOutlineToggle(showOutline.value);
+
+    if (showOutline.value) {
+      extractHeadingsAuto();
+      if (options.getViewMode() === 'source') {
+        nextTick(setupSourceScrollListener);
+      } else if (options.getEditor()) {
+        nextTick(setupScrollListener);
+      }
+    } else {
+      cleanupScrollListener();
+    }
+  };
+
+  const closeOutline = () => {
+    showOutline.value = false;
+    options.emitOutlineToggle(false);
+    cleanupScrollListener();
+  };
+
   const jumpToHeading = (pos: number) => {
-    if (!editor.value) return;
+    if (options.getViewMode() === 'source') {
+      options.getSourceEditor()?.scrollToLine(pos);
+      return;
+    }
+
+    const editor = options.getEditor();
+    if (!editor) return;
 
     try {
-      const scrollContainer = editor.value.view.dom as HTMLElement;
-      const allHeadingElements = scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
-
+      const scrollContainer = editor.view.dom;
       const targetHeading = headings.value.find(h => h.pos === pos);
       if (!targetHeading) {
         console.warn('Target heading not found for pos:', pos);
@@ -166,7 +302,7 @@ export function useEditorOutline(
       }
 
       let targetElement: HTMLElement | null = null;
-      allHeadingElements.forEach((el: Element) => {
+      scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((el: Element) => {
         const headingEl = el as HTMLElement;
         const text = headingEl.textContent?.trim() || '';
         if (text === targetHeading.text && !targetElement) {
@@ -184,8 +320,7 @@ export function useEditorOutline(
           if (currentElement === scrollContainer) break;
         }
 
-        const targetScroll = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
-        scrollContainer.scrollTop = targetScroll;
+        scrollContainer.scrollTop = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
       } else {
         console.warn('Target element not found in DOM');
       }
@@ -194,15 +329,8 @@ export function useEditorOutline(
     }
   };
 
-  /**
-   * 切换大纲面板
-   */
-  const toggleOutline = () => {
-    showOutline.value = !showOutline.value;
-    if (showOutline.value) {
-      extractHeadingsAuto();
-    }
-    return showOutline.value;
+  const setCurrentCursorPos = (pos: number) => {
+    currentCursorPos.value = pos;
   };
 
   return {
@@ -210,11 +338,20 @@ export function useEditorOutline(
     headings,
     visibleHeadingIndex,
     currentCursorPos,
+    setCurrentCursorPos,
     extractHeadings,
     extractHeadingsFromSource,
     extractHeadingsAuto,
     updateVisibleHeading,
+    updateVisibleHeadingInSource,
+    setupScrollListener,
+    setupSourceScrollListener,
+    cleanupScrollListener,
+    refreshSourceOutline,
+    refreshEditorOutline,
+    handleSourceScroll,
     jumpToHeading,
-    toggleOutline
+    toggleOutline,
+    closeOutline
   };
 }
