@@ -3,6 +3,8 @@ import type { Category, FragmentMetadata } from '@/types/database';
 import type { ContentType, MarkdownFile } from '@/types/models';
 import * as markdownApi from './markdown';
 import { cleanupAttachmentsOnDelete, syncAttachmentsOnRename } from '@/plugins/attachments/api';
+import { applyFilter } from '@/utils/filterEngine';
+import { parseSearchText } from '@/utils/searchParser';
 import { logger } from '@/utils/logger';
 
 /**
@@ -250,7 +252,6 @@ export async function getFragmentList(
     let files: MarkdownFile[] = [];
     
     // 解析搜索文本，提取过滤条件
-    const { parseSearchText } = await import('@/utils/searchParser');
     const searchFilter = parseSearchText(searchVal);
     const textQuery = searchFilter.text || '';
     
@@ -272,13 +273,13 @@ export async function getFragmentList(
       files = await markdownApi.getAllFiles();
     }
     
-    // 应用 type 过滤器
-    if (searchFilter.type) {
-      files = files.filter(file => file.type === searchFilter.type);
-    }
-    
     // 转换为 ContentType
-    return files.map(file => markdownFileToContentType(file));
+    const fragments = files.map(file => markdownFileToContentType(file));
+
+    return applyFilter(fragments, {
+      ...searchFilter,
+      text: undefined
+    });
   } catch (error) {
     if (isWorkspaceNotSetError(error)) {
       return [];
