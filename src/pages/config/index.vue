@@ -73,6 +73,11 @@ import { useGitConflictConfirm } from '@/plugins/git-sync/useGitConflictConfirm'
 import { useGitRepoNotFoundDialog } from '@/plugins/git-sync/useGitRepoNotFoundDialog';
 import { createGitConflictFeedback } from '@/plugins/git-sync/conflictFeedback';
 import { useGitConflictFlow } from '@/plugins/git-sync/useGitConflictFlow';
+import {
+  cleanupGitSyncRuntimeHost,
+  setupGitSyncRuntimeHost,
+  type GitSyncRuntimeHost
+} from '@/plugins/git-sync/gitSyncRuntimeHost';
 
 type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
 type GitAutoSyncLifecycle = typeof import('@/plugins/git-sync/autoSyncLifecycle');
@@ -124,8 +129,7 @@ let unlistenHide: (() => void) | null = null;
 let unlistenOpenFromSystem: (() => void) | null = null;
 
 // Git 事件监听器
-let gitListeners: unknown | null = null;
-let gitRuntimeListeners: import('@/plugins/git-sync/gitSyncRuntime').GitSyncRuntimeListeners | null = null;
+let gitRuntimeHost: GitSyncRuntimeHost | null = null;
 
 const {
   showConflictDialog,
@@ -169,7 +173,7 @@ const conflictDialogRef = ref<LoadingDialogExpose | null>(null);
 const manualMergeRef = ref<LoadingDialogExpose | null>(null);
 
 const resetGitConflictHandled = () => {
-  gitRuntimeListeners?.resetConflictHandled();
+  gitRuntimeHost?.runtimeListeners?.resetConflictHandled();
 };
 
 const reportConflictFlowError = (context: 'conflict' | 'manual-merge', error: unknown) => {
@@ -372,12 +376,13 @@ onMounted(async () => {
       setupGitSyncRuntimeListeners
     } = await loadGitSyncRuntime();
 
-    // 1. 设置 Git 事件监听器
-    gitListeners = await setupGitEventListeners(t);
-    logger.info('[Config] ✅ Git 事件监听器已设置');
-
-    // 2. 优先设置冲突事件监听器（在 Git 同步之前），确保能收到启动时的冲突事件
-    gitRuntimeListeners = await setupGitSyncRuntimeListeners({
+    gitRuntimeHost = await setupGitSyncRuntimeHost({
+      t,
+      shouldInit,
+      setupGitEventListeners,
+      setupGitSyncRuntimeListeners,
+      ensureWorkspaceGitignore,
+      initGitSync,
       isConflictDialogVisible: () => showConflictDialog.value,
       onConflictDetected: ({ conflictFiles: nextConflictFiles, untrackedFiles: nextUntrackedFiles }) => {
         setConflictFiles({
@@ -390,25 +395,10 @@ onMounted(async () => {
           remoteUrl,
           operation
         });
-      }
+      },
+      logger
     });
-    logger.info('[Config] ✅ Git runtime 事件监听器已设置');
-
-    // 3. 确保工作区存在 .gitignore（有工作区且无此文件时自动创建，不依赖 shouldInit）
-    await ensureWorkspaceGitignore();
-
-    if (shouldInit) {
-      // 4. Git 同步初始化
-      const shouldRefresh = await initGitSync(t);
-      if (shouldRefresh) {
-        // 触发数据刷新
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('refresh-data', {
-            detail: { source: 'startup-pull' }
-          }));
-        }, 500);
-      }
-    }
+    logger.info('[Config] ✅ Git runtime host 已设置');
   } else {
     logger.info('[Config] Git 同步插件未启用，跳过 Git 事件监听和自动同步初始化');
   }
@@ -488,17 +478,16 @@ onMounted(async () => {
 onUnmounted(async () => {
   logger.info('[Config] 🧹 开始清理 Config 页面资源...');
   
-  // 清理 Git 事件监听器
-  if (gitListeners) {
+  if (gitRuntimeHost) {
     const { cleanupGitEventListeners } = await loadGitLifecycle();
-    cleanupGitEventListeners(gitListeners as Parameters<typeof cleanupGitEventListeners>[0]);
-    logger.info('[Config] ✅ Git 事件监听器已清理');
-  }
-
-  if (gitRuntimeListeners) {
     const { cleanupGitSyncRuntimeListeners } = await loadGitSyncRuntime();
-    cleanupGitSyncRuntimeListeners(gitRuntimeListeners);
-    logger.info('[Config] ✅ Git runtime 事件监听器已清理');
+    cleanupGitSyncRuntimeHost({
+      host: gitRuntimeHost,
+      cleanupGitEventListeners,
+      cleanupGitSyncRuntimeListeners,
+      logger
+    });
+    gitRuntimeHost = null;
   }
   
   // 清理其他事件监听器
