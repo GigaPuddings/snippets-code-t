@@ -661,7 +661,10 @@ export default {
     duplicateName: 'Category name already exists',
     createSuccess: 'Category created successfully',
     createFailed: 'Failed to create category',
-    emptyContentTitle: 'Content title cannot be empty'
+    emptyContentTitle: 'Content title cannot be empty',
+    language: 'Language',
+    framework: 'Framework',
+    kind: 'Kind'
   },
 
   codeBlock: {

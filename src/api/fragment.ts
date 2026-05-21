@@ -526,6 +526,8 @@ export async function editFragment(params: EditFragmentParams): Promise<string |
       title: params.title,
       tags: params.tags || [],
       language: params.metadata?.language as string | undefined,
+      framework: params.metadata?.framework as string | undefined,
+      kind: params.metadata?.kind as string | undefined,
     };
     
     // 只有在明确传递了 fragmentType 时才更新类型

@@ -591,8 +591,8 @@ pub async fn update_markdown_file(
         None
     };
 
-    // 仅在“文件名变化 / 内容有实质变化”时写文件，避免无效写入导致 modified 变化
-    let should_write_file = title_changed || !content_equivalent;
+    // 仅在“文件名变化 / 内容有实质变化 / 元数据变化”时写文件，避免无效写入导致 modified 变化
+    let should_write_file = title_changed || !content_equivalent || needs_metadata_update;
     if should_write_file {
         fs_manager.update_markdown_file(&path, content.as_deref(), frontmatter_opt.as_ref())?;
     } else {

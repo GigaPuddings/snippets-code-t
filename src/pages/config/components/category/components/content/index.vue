@@ -36,6 +36,61 @@
       <div v-if="state.currentContent" class="content-tags">
         <TagInput v-model="state.tags" :existing-tags="allTags" @update:model-value="handleTagsChange" />
       </div>
+
+      <!-- 前端片段属性 -->
+      <div v-if="state.currentContent" class="snippet-meta">
+        <el-select
+          v-model="snippetMeta.language"
+          class="meta-select"
+          size="small"
+          clearable
+          filterable
+          allow-create
+          :placeholder="t('category.language')"
+          @change="handleSnippetMetaChange"
+        >
+          <el-option
+            v-for="option in languageOptions"
+            :key="option"
+            :label="option"
+            :value="option"
+          />
+        </el-select>
+        <el-select
+          v-model="snippetMeta.framework"
+          class="meta-select"
+          size="small"
+          clearable
+          filterable
+          allow-create
+          :placeholder="t('category.framework')"
+          @change="handleSnippetMetaChange"
+        >
+          <el-option
+            v-for="option in frameworkOptions"
+            :key="option"
+            :label="option"
+            :value="option"
+          />
+        </el-select>
+        <el-select
+          v-model="snippetMeta.kind"
+          class="meta-select kind-select"
+          size="small"
+          clearable
+          filterable
+          allow-create
+          :placeholder="t('category.kind')"
+          @change="handleSnippetMetaChange"
+        >
+          <el-option
+            v-for="option in kindOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+      </div>
     </div>
 
     <!-- 创建新笔记确认对话框 -->
@@ -155,6 +210,51 @@ const state = reactive({
   lastSavedContentHash: ''
 });
 
+const snippetMeta = reactive({
+  language: '',
+  framework: '',
+  kind: ''
+});
+
+const languageOptions = [
+  'ts',
+  'tsx',
+  'js',
+  'jsx',
+  'vue',
+  'html',
+  'css',
+  'scss',
+  'less',
+  'json',
+  'bash'
+];
+
+const frameworkOptions = [
+  'vue',
+  'react',
+  'svelte',
+  'solid',
+  'angular',
+  'nuxt',
+  'next',
+  'vite',
+  'tailwind'
+];
+
+const kindOptions = [
+  { label: 'Component', value: 'component' },
+  { label: 'Hook / Composable', value: 'hook' },
+  { label: 'Style', value: 'style' },
+  { label: 'API', value: 'api' },
+  { label: 'Regex', value: 'regex' },
+  { label: 'Command', value: 'command' },
+  { label: 'Error Fix', value: 'error-fix' },
+  { label: 'Package Note', value: 'package-note' },
+  { label: 'Config', value: 'config' },
+  { label: 'Pattern', value: 'pattern' }
+];
+
 // 工作区根目录
 const workspaceRoot = ref<string>('');
 
@@ -222,6 +322,17 @@ const allTags = computed(() => {
 });
 
 const normalizeFragmentId = (id: string) => id.replace(/^markdown:/i, '');
+
+const getMetadataString = (metadata: Record<string, unknown> | null | undefined, key: string): string => {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value : '';
+};
+
+const syncSnippetMetaFromContent = (content: ContentType): void => {
+  snippetMeta.language = getMetadataString(content.metadata, 'language');
+  snippetMeta.framework = getMetadataString(content.metadata, 'framework');
+  snippetMeta.kind = getMetadataString(content.metadata, 'kind');
+};
 
 defineOptions({
   name: 'Content'
@@ -310,6 +421,11 @@ const toggleOutline = () => {
 // 获取编辑器元数据
 const getEditorMetadata = (): FragmentMetadata => {
   const metadata = state.currentContent?.metadata || {};
+  const semanticMetadata = {
+    language: snippetMeta.language || undefined,
+    framework: snippetMeta.framework || undefined,
+    kind: snippetMeta.kind || undefined
+  };
 
   if (currentEditorType.value === 'note' && tipTapEditorRef.value) {
     const editor = tipTapEditorRef.value.getEditor();
@@ -323,6 +439,7 @@ const getEditorMetadata = (): FragmentMetadata => {
 
       return {
         ...metadata,
+        ...semanticMetadata,
         wordCount,
         lastCursorPosition: from,
         updatedAt: new Date().toISOString()
@@ -332,11 +449,15 @@ const getEditorMetadata = (): FragmentMetadata => {
     // 代码片段元数据
     return {
       ...metadata,
+      ...semanticMetadata,
       updatedAt: new Date().toISOString()
     };
   }
 
-  return metadata;
+  return {
+    ...metadata,
+    ...semanticMetadata
+  };
 };
 
 // 序列化内容（根据 format 字段）
@@ -416,6 +537,13 @@ const handleTagsChange = (newTags: string[]) => {
   debouncedSave();
 };
 
+const handleSnippetMetaChange = () => {
+  if (state.isInitializing || !state.currentContent) return;
+
+  state.contentChanged = true;
+  debouncedSave();
+};
+
 // 保存内容的核心逻辑（提取公共部分）
 const performSave = async (data: Partial<ContentType> = {}, options: { updateRoute?: boolean } = {}) => {
   if (!state.currentContent) return;
@@ -453,8 +581,8 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
 
   const contentChanged = normalizedContentChanged && hashChangedFromLastSaved;
 
-  // 如果标题和内容都没有变化，则跳过保存（不更新 modified 时间）
-  if (!titleChanged && !contentChanged) {
+  // 如果标题、正文、标签和元数据都没有变化，则跳过保存（不更新 modified 时间）
+  if (!titleChanged && !contentChanged && !state.contentChanged) {
     logger.info('[performSave] 内容无变化，跳过保存');
     return;
   }
@@ -947,6 +1075,7 @@ const fetchContentById = async (id: string) => {
       state.currentContent = parsedContent;
       state.title = parsedContent.title;
       state.tags = parsedContent.tags || [];
+      syncSnippetMetaFromContent(parsedContent);
       originalTitle.value = parsedContent.title;
       const newContent = deserializeContent(
         parsedContent.content || '',
@@ -990,6 +1119,7 @@ const fetchContent = async () => {
       state.currentContent = parsedContent;
       state.title = parsedContent.title;
       state.tags = parsedContent.tags || [];
+      syncSnippetMetaFromContent(parsedContent);
 
       // 保存原始标题用于检测变化
       originalTitle.value = parsedContent.title;
@@ -1330,6 +1460,29 @@ onMounted(async () => {
 
     .content-tags {
       @apply py-2;
+    }
+
+    .snippet-meta {
+      @apply flex items-center gap-2 pb-2;
+
+      .meta-select {
+        width: 132px;
+      }
+
+      .kind-select {
+        width: 170px;
+      }
+
+      :deep(.el-select__wrapper) {
+        min-height: 28px;
+        background-color: var(--categories-panel-bg);
+        box-shadow: 0 0 0 1px var(--categories-border-color) inset;
+      }
+
+      :deep(.el-select__placeholder),
+      :deep(.el-select__selected-item) {
+        font-size: 12px;
+      }
     }
   }
 }

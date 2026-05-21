@@ -676,7 +676,10 @@ export default {
     duplicateName: '分类名称已存在',
     createSuccess: '分类创建成功',
     createFailed: '分类创建失败',
-    emptyContentTitle: '内容标题不能为空'
+    emptyContentTitle: '内容标题不能为空',
+    language: '语言',
+    framework: '框架',
+    kind: '类型'
   },
 
   codeBlock: {
