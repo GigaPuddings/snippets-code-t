@@ -6,7 +6,10 @@
       </keep-alive>
     </router-view>
     
-    <GitSyncRuntimeMount :runtime="gitSyncRuntime" />
+    <GitSyncRuntimeMount
+      :runtime="gitSyncRuntime"
+      :should-init="gitSyncRuntimeShouldInit"
+    />
   </div>
 </template>
 
@@ -45,6 +48,7 @@ const gitSyncRuntime = useGitSyncRuntimeFacade({
   isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
   logger
 });
+const gitSyncRuntimeShouldInit = ref<boolean | null>(null);
 
 // 检查是否有待处理的导航
 const normalizePendingFragmentId = (id: unknown) => String(id ?? '').replace(/^markdown:/i, '');
@@ -122,11 +126,7 @@ onMounted(async () => {
   if (shouldInit) {
     await initCleanupCache();
   }
-
-  await gitSyncRuntime.setupAndRestore({
-    shouldInit,
-    autoSyncWindow: getCurrentWindow()
-  });
+  gitSyncRuntimeShouldInit.value = shouldInit;
   
   const initCostMs = Math.round(performance.now() - initStart);
   logger.info('[Config] ========== Config 页面初始化完成 ==========', {

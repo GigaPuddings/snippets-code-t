@@ -462,11 +462,12 @@ Frontend Workspace
 - Git runtime mount 已新增到 `src/plugins/git-sync/components/GitSyncRuntimeMount.vue`，配置页不再直接传递 portal 的 ready/state/controller/ref 细节。
 - Git runtime setup 与冲突状态恢复已合并到 `useGitSyncRuntimeFacade.setupAndRestore`，配置页不再单独调用 Git 恢复逻辑。
 - Git runtime cleanup 已下沉到 `GitSyncRuntimeMount.vue`，配置页卸载时不再直接清理 Git runtime。
+- Git runtime setup/restore 已由 `GitSyncRuntimeMount.vue` 根据 `shouldInit` 启动，配置页不再直接调用 Git runtime 初始化。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
 - 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
-- Git 同步下一步建议把 `gitSyncRuntime.setupAndRestore` 也交给页面级插件 lifecycle composable，配置页只声明插件挂载和全局导航监听。
+- Git 同步下一步建议把配置页内导航事件监听拆成 `useConfigNavigationEvents`，让配置页主文件继续缩小。
 - 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。
