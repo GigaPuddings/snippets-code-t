@@ -72,11 +72,11 @@ import { useGitConflictDialogs } from '@/plugins/git-sync/useGitConflictDialogs'
 import { useGitConflictConfirm } from '@/plugins/git-sync/useGitConflictConfirm';
 import { useGitRepoNotFoundDialog } from '@/plugins/git-sync/useGitRepoNotFoundDialog';
 import { createGitConflictFeedback } from '@/plugins/git-sync/conflictFeedback';
+import { useGitConflictFlow } from '@/plugins/git-sync/useGitConflictFlow';
 
 type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
 type GitAutoSyncLifecycle = typeof import('@/plugins/git-sync/autoSyncLifecycle');
 type GitSyncRuntime = typeof import('@/plugins/git-sync/gitSyncRuntime');
-type GitConflictResolution = typeof import('@/plugins/git-sync/conflictResolution');
 
 interface LoadingDialogExpose {
   setLoading: (loading: boolean) => void;
@@ -85,7 +85,6 @@ interface LoadingDialogExpose {
 let gitLifecyclePromise: Promise<GitLifecycle> | null = null;
 let gitAutoSyncLifecyclePromise: Promise<GitAutoSyncLifecycle> | null = null;
 let gitSyncRuntimePromise: Promise<GitSyncRuntime> | null = null;
-let gitConflictResolutionPromise: Promise<GitConflictResolution> | null = null;
 
 const loadGitLifecycle = async (): Promise<GitLifecycle> => {
   gitLifecyclePromise ??= import('@/plugins/git-sync/lifecycle');
@@ -100,11 +99,6 @@ const loadGitAutoSyncLifecycle = async (): Promise<GitAutoSyncLifecycle> => {
 const loadGitSyncRuntime = async (): Promise<GitSyncRuntime> => {
   gitSyncRuntimePromise ??= import('@/plugins/git-sync/gitSyncRuntime');
   return gitSyncRuntimePromise;
-};
-
-const loadGitConflictResolution = async (): Promise<GitConflictResolution> => {
-  gitConflictResolutionPromise ??= import('@/plugins/git-sync/conflictResolution');
-  return gitConflictResolutionPromise;
 };
 
 const GitConflictDialog = defineAsyncComponent(() => import('@/plugins/git-sync/components/GitConflictDialog/index.vue'));
@@ -178,78 +172,63 @@ const resetGitConflictHandled = () => {
   gitRuntimeListeners?.resetConflictHandled();
 };
 
-// 处理冲突解决策略选择
+const reportConflictFlowError = (context: 'conflict' | 'manual-merge', error: unknown) => {
+  if (error === 'cancel') return;
+
+  if (context === 'manual-merge') {
+    logger.error('[Config] 手动合并失败:', error);
+    const errorMsg = String(error).replace(/^Error:\s*/, '');
+    modal.msg(`${t('settings.gitSync.mergeFailed')}: ${errorMsg}`, 'error', 'top-right');
+    return;
+  }
+
+  logger.error('[Config] 冲突处理失败:', error);
+  const errorMsg = String(error).replace(/^Error:\s*/, '');
+  modal.msg(`${t('settings.gitSync.conflictResolutionFailed')}: ${errorMsg}`, 'error', 'top-right');
+};
+
+const gitConflictFlow = useGitConflictFlow({
+  conflictDialogRef,
+  manualMergeRef,
+  resetConflictHandled: resetGitConflictHandled,
+  confirmForcePush,
+  confirmForcePull,
+  confirmCancelConflict,
+  closeConflictDialog,
+  openManualMergeDialog,
+  closeManualMergeDialog,
+  clearConflictFiles,
+  backToConflictDialog,
+  getUntrackedFiles: () => untrackedFiles.value,
+  getManualMergeInput: (selections, editedContents) => ({
+    files: mergeFileList.value,
+    selections,
+    editedContents
+  }),
+  feedback: {
+    notifyForcePushResolved,
+    notifyForcePullResolved,
+    notifyManualMergeResolved,
+    notifyAutoSyncResumed
+  },
+  logger
+});
+
 const handleConflictResolution = async (strategy: string) => {
-  if (!conflictDialogRef.value) return;
-  
-  // 重置冲突处理标志，允许后续冲突事件再次触发
-  resetGitConflictHandled();
-  
-  conflictDialogRef.value.setLoading(true);
-  
   try {
-    if (strategy === 'force-push') {
-      const { resolveConflictWithForcePush } = await loadGitConflictResolution();
-      if (!(await confirmForcePush())) throw 'cancel';
-      
-      await resolveConflictWithForcePush();
-      notifyForcePushResolved();
-      closeConflictDialog();
-      
-      // 清除冲突状态
-      clearConflictFiles();
-      
-    } else if (strategy === 'force-pull') {
-      const { resolveConflictWithForcePull } = await loadGitConflictResolution();
-      if (!(await confirmForcePull())) throw 'cancel';
-      
-      await resolveConflictWithForcePull(untrackedFiles.value);
-      notifyForcePullResolved();
-      closeConflictDialog();
-      
-      // 清除冲突状态
-      clearConflictFiles();
-      
-    } else if (strategy === 'manual-merge') {
-      // 显示手动合并对话框（不跳转）
-      openManualMergeDialog();
-    }
+    await gitConflictFlow.handleConflictResolution(strategy);
   } catch (error) {
-    if (error !== 'cancel') {
-      logger.error('[Config] 冲突处理失败:', error);
-      const errorMsg = String(error).replace(/^Error:\s*/, '');
-      modal.msg(`${t('settings.gitSync.conflictResolutionFailed')}: ${errorMsg}`, 'error', 'top-right');
-    }
-  } finally {
-    if (conflictDialogRef.value) {
-      conflictDialogRef.value.setLoading(false);
-    }
+    reportConflictFlowError('conflict', error);
   }
 };
 
-// 按 ESC 关闭冲突弹框：仅关闭，不弹出「取消冲突处理」二次确认
-const handleConflictEscape = () => {
-  closeConflictDialog();
-  resetGitConflictHandled();
-};
+const handleConflictEscape = gitConflictFlow.handleConflictEscape;
 
-// 取消冲突处理（点击取消按钮时弹出二次确认）
 const handleConflictCancel = async () => {
-  const result = await confirmCancelConflict();
-
-  closeConflictDialog();
-  // 重置冲突处理标志，允许后续冲突事件再次触发
-  resetGitConflictHandled();
-
-  if (result === 'secondary') {
-    const { resumeAutoSyncAfterConflict } = await loadGitConflictResolution();
-    clearConflictFiles({ clearUntracked: false });
-    const resumed = await resumeAutoSyncAfterConflict();
-    if (resumed) {
-      notifyAutoSyncResumed('conflict-dialog');
-    }
-  } else {
-    logger.info('[Config] 用户选择稍后处理冲突');
+  try {
+    await gitConflictFlow.handleConflictCancel();
+  } catch (error) {
+    reportConflictFlowError('conflict', error);
   }
 };
 
@@ -271,74 +250,25 @@ const handleRepoNotFoundIgnore = async () => {
   modal.msg(t('settings.gitSync.repoNotFoundIgnored'), 'info', 'bottom-right');
 };
 
-// 完成手动合并
 const handleManualMergeComplete = async (selections: Record<number, 'remote' | 'local'>, editedContents: Record<number, string>) => {
-  if (!manualMergeRef.value) return;
-  
-  // 重置冲突处理标志，允许后续冲突事件再次触发
-  resetGitConflictHandled();
-  
-  manualMergeRef.value.setLoading(true);
-  
   try {
-    const { completeManualMerge } = await loadGitConflictResolution();
-    const files = mergeFileList.value;
-    const result = await completeManualMerge({
-      files,
-      selections,
-      editedContents
-    });
-    
-    logger.info(`[Config] 手动合并成功，已解决 ${result.resolved_count} 个冲突`);
-    
-    notifyManualMergeResolved();
-    closeManualMergeDialog();
-    
-    // 清除冲突状态
-    clearConflictFiles();
+    await gitConflictFlow.handleManualMergeComplete(selections, editedContents);
   } catch (error) {
-    logger.error('[Config] 手动合并失败:', error);
-    const errorMsg = String(error).replace(/^Error:\s*/, '');
-    modal.msg(`${t('settings.gitSync.mergeFailed')}: ${errorMsg}`, 'error', 'top-right');
-  } finally {
-    if (manualMergeRef.value) {
-      manualMergeRef.value.setLoading(false);
-    }
+    reportConflictFlowError('manual-merge', error);
   }
 };
 
-// 取消手动合并
 const handleManualMergeCancel = async () => {
-  // 询问用户是否稍后处理
-  const result = await confirmCancelConflict();
-
-  closeManualMergeDialog();
-  // 重置冲突处理标志，允许后续冲突事件再次触发
-  resetGitConflictHandled();
-
-  if (result === 'secondary') {
-    const { resumeAutoSyncAfterConflict } = await loadGitConflictResolution();
-    clearConflictFiles();
-    const resumed = await resumeAutoSyncAfterConflict();
-    if (resumed) {
-      notifyAutoSyncResumed('manual-merge');
-    }
-  } else {
-    logger.info('[Config] 用户选择稍后处理手动合并');
+  try {
+    await gitConflictFlow.handleManualMergeCancel();
+  } catch (error) {
+    reportConflictFlowError('manual-merge', error);
   }
 };
 
-// 返回到冲突对话框
-const handleManualMergeBack = () => {
-  backToConflictDialog();
-  logger.info('[Config] 用户从手动合并返回到冲突对话框');
-};
+const handleManualMergeBack = gitConflictFlow.handleManualMergeBack;
 
-// 按 ESC 关闭手动合并弹框：仅关闭，不弹出「取消冲突处理」二次确认
-const handleManualMergeEscape = () => {
-  closeManualMergeDialog();
-  resetGitConflictHandled();
-};
+const handleManualMergeEscape = gitConflictFlow.handleManualMergeEscape;
 
 // 检查是否有待处理的导航
 const normalizePendingFragmentId = (id: unknown) => String(id ?? '').replace(/^markdown:/i, '');
