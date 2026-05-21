@@ -6,12 +6,7 @@
       </keep-alive>
     </router-view>
     
-    <GitSyncRuntimePortal
-      ref="gitSyncRuntimePortalRef"
-      :runtime-ready="gitSyncRuntime.ready.value"
-      :state="gitSyncRuntime.state"
-      :controller="gitSyncRuntime.controller"
-    />
+    <GitSyncRuntimeMount :runtime="gitSyncRuntime" />
   </div>
 </template>
 
@@ -24,7 +19,7 @@ import { logger } from '@/utils/logger';
 import { initCleanupCache, checkShouldInitialize } from '@/utils/app-init';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
-import GitSyncRuntimePortal from '@/plugins/git-sync/components/GitSyncRuntimePortal.vue';
+import GitSyncRuntimeMount from '@/plugins/git-sync/components/GitSyncRuntimeMount.vue';
 import { useGitSyncRuntimeFacade } from '@/plugins/git-sync/useGitSyncRuntimeFacade';
 
 const { t } = useI18n();
@@ -50,7 +45,6 @@ const gitSyncRuntime = useGitSyncRuntimeFacade({
   isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
   logger
 });
-const { portalRef: gitSyncRuntimePortalRef } = gitSyncRuntime;
 
 // 检查是否有待处理的导航
 const normalizePendingFragmentId = (id: unknown) => String(id ?? '').replace(/^markdown:/i, '');

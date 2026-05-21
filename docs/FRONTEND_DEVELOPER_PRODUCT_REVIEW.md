@@ -459,11 +459,12 @@ Frontend Workspace
 - Git runtime 冲突/仓库异常事件回调已由 `useGitRuntimeHostController.setupWithState` 根据 runtime state 自动创建，配置页不再拼装这些回调。
 - Git runtime controller 已改为直接接收 `runtime state`，配置页不再手动拼装 Git `dialogs/confirm/repoNotFound` 依赖。
 - Git runtime facade 已新增到 `src/plugins/git-sync/useGitSyncRuntimeFacade.ts`，配置页通过单一对象接入 state、controller、ready、setup、restore 和 cleanup。
+- Git runtime mount 已新增到 `src/plugins/git-sync/components/GitSyncRuntimeMount.vue`，配置页不再直接传递 portal 的 ready/state/controller/ref 细节。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
 - 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
-- Git 同步下一步建议把 `GitSyncRuntimePortal` 也收敛成 facade 内部专用宿主组件，配置页只挂载 `<GitSyncRuntimeMount />`。
+- Git 同步下一步建议把 facade 的 setup/restore/cleanup 调用继续下沉到插件 mount 或页面级 composable，进一步减少配置页 mounted/unmounted 中的 Git 分支。
 - 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。
