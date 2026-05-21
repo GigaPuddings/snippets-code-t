@@ -23,6 +23,7 @@ import GitSyncRuntimeMount from '@/plugins/git-sync/components/GitSyncRuntimeMou
 import { useGitSyncRuntimeFacade } from '@/plugins/git-sync/useGitSyncRuntimeFacade';
 import { useConfigNavigationEvents } from './composables/useConfigNavigationEvents';
 import { useConfigStartup } from './composables/useConfigStartup';
+import { useConfigLifecycle } from './composables/useConfigLifecycle';
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -54,19 +55,20 @@ const configStartup = useConfigStartup({
   },
   logger
 });
+const configLifecycle = useConfigLifecycle({
+  startup: configStartup,
+  navigationEvents: configNavigationEvents,
+  logger
+});
 
 // 通知后端前端已准备完成
 onMounted(async () => {
-  await configStartup.start();
-  await configNavigationEvents.setup();
+  await configLifecycle.start();
 });
 
 // 清理事件监听器
-onUnmounted(async () => {
-  logger.info('[Config] 🧹 开始清理 Config 页面资源...');
-  configNavigationEvents.cleanup();
-
-  logger.info('[Config] ✅ Config 页面资源清理完成');
+onUnmounted(() => {
+  configLifecycle.cleanup();
 });
 </script>
 
