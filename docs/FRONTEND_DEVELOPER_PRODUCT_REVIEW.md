@@ -438,10 +438,11 @@ Frontend Workspace
 - 插件前端 command/backend 权限判断已抽为可测试纯模块，并覆盖精确权限、通配权限和拒绝路径。
 - 搜索语法解析和语义过滤测试已补齐，`getFragmentList` 已复用统一过滤引擎，避免 `lang/framework/kind` 在不同入口表现不一致。
 - Rust 侧 Markdown frontmatter 已新增单元测试，覆盖 `language/framework/kind` 序列化、旧文件兼容和解析失败场景。
+- Rust 侧插件校验已新增单元测试，覆盖插件 ID、资源路径逃逸、manifest schema/kind/backendKind、backend 权限和 semver 比较。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
-- 继续为 Rust 侧插件权限或本地插件 manifest 校验增加测试。
+- 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
 - 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。

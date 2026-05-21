@@ -1967,6 +1967,167 @@ fn plugin_package_download_urls(package_url: &str) -> Vec<String> {
     urls
 }
 
+#[cfg(test)]
+mod plugin_validation_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn valid_manifest() -> serde_json::Value {
+        json!({
+            "schemaVersion": 1,
+            "id": "test-plugin",
+            "version": "1.0.0",
+            "kind": "local",
+            "name": {
+                "i18nKey": "plugins.test.name",
+                "fallback": "Test Plugin"
+            },
+            "description": {
+                "i18nKey": "plugins.test.description",
+                "fallback": "Test plugin"
+            },
+            "category": "automation",
+            "enabledByDefault": false,
+            "entry": {
+                "frontend": "dist/index.js",
+                "backend": "backend/host.exe",
+                "backendKind": "native-host"
+            },
+            "permissions": [
+                "backend:sync"
+            ]
+        })
+    }
+
+    #[test]
+    fn validate_plugin_package_id_accepts_safe_ids() {
+        for plugin_id in ["git-sync", "translation.offline_runtime", "plugin_1"] {
+            assert!(
+                validate_plugin_package_id(plugin_id).is_ok(),
+                "expected plugin id to be valid: {}",
+                plugin_id
+            );
+        }
+    }
+
+    #[test]
+    fn validate_plugin_package_id_rejects_path_like_or_empty_ids() {
+        for plugin_id in ["", ".", "..", "../plugin", "bad/plugin", "bad\\plugin", "插件"] {
+            assert!(
+                validate_plugin_package_id(plugin_id).is_err(),
+                "expected plugin id to be invalid: {}",
+                plugin_id
+            );
+        }
+    }
+
+    #[test]
+    fn validate_plugin_relative_path_accepts_nested_files() {
+        for path in ["dist/index.js", "assets/icons/icon.png", "backend/host.exe"] {
+            assert!(
+                validate_plugin_relative_path(path).is_ok(),
+                "expected relative path to be valid: {}",
+                path
+            );
+        }
+    }
+
+    #[test]
+    fn validate_plugin_relative_path_rejects_escape_attempts() {
+        for path in [
+            "",
+            "/absolute/file.js",
+            "C:\\plugin\\host.exe",
+            "../host.exe",
+            "dist/../host.exe",
+            "dist//index.js",
+            "https://example.com/index.js",
+        ] {
+            assert!(
+                validate_plugin_relative_path(path).is_err(),
+                "expected relative path to be invalid: {}",
+                path
+            );
+        }
+    }
+
+    #[test]
+    fn validate_local_plugin_manifest_returns_plugin_id_for_valid_manifest() {
+        let manifest = valid_manifest();
+
+        assert_eq!(
+            validate_local_plugin_manifest(&manifest).expect("valid manifest"),
+            "test-plugin"
+        );
+    }
+
+    #[test]
+    fn validate_local_plugin_manifest_rejects_wrong_schema_or_kind() {
+        let mut manifest = valid_manifest();
+        manifest["schemaVersion"] = json!(2);
+        assert_eq!(
+            validate_local_plugin_manifest(&manifest).expect_err("schema mismatch"),
+            "插件清单 schemaVersion 必须为 1"
+        );
+
+        let mut manifest = valid_manifest();
+        manifest["kind"] = json!("builtin");
+        assert_eq!(
+            validate_local_plugin_manifest(&manifest).expect_err("wrong kind"),
+            "本地插件清单 kind 必须为 local"
+        );
+    }
+
+    #[test]
+    fn validate_local_plugin_manifest_rejects_unsafe_entry_paths() {
+        let mut manifest = valid_manifest();
+        manifest["entry"]["frontend"] = json!("../dist/index.js");
+
+        assert!(
+            validate_local_plugin_manifest(&manifest)
+                .expect_err("unsafe frontend")
+                .contains("插件资源路径无效")
+        );
+    }
+
+    #[test]
+    fn validate_local_plugin_manifest_rejects_unknown_backend_kind() {
+        let mut manifest = valid_manifest();
+        manifest["entry"]["backendKind"] = json!("shell");
+
+        assert_eq!(
+            validate_local_plugin_manifest(&manifest).expect_err("unknown backend kind"),
+            "插件后端类型必须为 native-host、wasm 或 script"
+        );
+    }
+
+    #[test]
+    fn manifest_allows_exact_or_wildcard_backend_command_permissions() {
+        let manifest = valid_manifest();
+        assert!(manifest_allows_backend_command(&manifest, "sync"));
+        assert!(!manifest_allows_backend_command(&manifest, "delete_all"));
+
+        let mut wildcard_manifest = valid_manifest();
+        wildcard_manifest["permissions"] = json!(["backend:*"]);
+        assert!(manifest_allows_backend_command(&wildcard_manifest, "delete_all"));
+    }
+
+    #[test]
+    fn manifest_does_not_treat_frontend_command_permissions_as_backend_permissions() {
+        let mut manifest = valid_manifest();
+        manifest["permissions"] = json!(["command:sync"]);
+
+        assert!(!manifest_allows_backend_command(&manifest, "sync"));
+    }
+
+    #[test]
+    fn compare_semver_handles_prefixes_and_missing_parts() {
+        assert_eq!(compare_semver("v2.0.2", "2.0.1"), std::cmp::Ordering::Greater);
+        assert_eq!(compare_semver("2.0", "2.0.0"), std::cmp::Ordering::Equal);
+        assert_eq!(compare_semver("2.0.1", "2.1.0"), std::cmp::Ordering::Less);
+    }
+}
+
 fn emit_plugin_install_progress(
     app_handle: &AppHandle,
     package_url: &str,
