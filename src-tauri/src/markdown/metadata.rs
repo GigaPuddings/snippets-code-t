@@ -263,3 +263,92 @@ pub fn parse_front_matter(content: &str) -> Result<(FrontMatter, String), String
 
     Ok((metadata, body))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_frontmatter() -> FrontMatter {
+        FrontMatter {
+            id: "snippet-1".to_string(),
+            title: "Vue Modal".to_string(),
+            tags: vec!["vue".to_string(), "ui".to_string()],
+            created: "2026-05-21T00:00:00Z".to_string(),
+            modified: "2026-05-21T01:00:00Z".to_string(),
+            fragment_type: "code".to_string(),
+            language: Some("ts".to_string()),
+            framework: Some("vue".to_string()),
+            kind: Some("component".to_string()),
+            favorite: true,
+        }
+    }
+
+    #[test]
+    fn format_and_parse_frontmatter_preserves_frontend_metadata() {
+        let frontmatter = sample_frontmatter();
+        let block = format_frontmatter_block(&frontmatter).expect("format frontmatter");
+        let markdown = format!("{}\n# Body", block.trim_end());
+
+        let (parsed, body) = parse_front_matter(&markdown).expect("parse frontmatter");
+
+        assert_eq!(parsed, frontmatter);
+        assert_eq!(body, "# Body");
+    }
+
+    #[test]
+    fn optional_frontend_metadata_is_omitted_when_empty() {
+        let mut frontmatter = sample_frontmatter();
+        frontmatter.language = None;
+        frontmatter.framework = None;
+        frontmatter.kind = None;
+
+        let block = format_frontmatter_block(&frontmatter).expect("format frontmatter");
+
+        assert!(!block.contains("language:"));
+        assert!(!block.contains("framework:"));
+        assert!(!block.contains("kind:"));
+    }
+
+    #[test]
+    fn parse_frontmatter_accepts_legacy_files_without_frontend_metadata() {
+        let markdown = r#"---
+id: legacy-1
+title: Legacy Note
+tags:
+  - old
+created: "2026-05-21T00:00:00Z"
+modified: "2026-05-21T01:00:00Z"
+type: note
+favorite: false
+---
+
+Legacy body
+"#;
+
+        let (parsed, body) = parse_front_matter(markdown).expect("parse legacy frontmatter");
+
+        assert_eq!(parsed.id, "legacy-1");
+        assert_eq!(parsed.fragment_type, "note");
+        assert_eq!(parsed.language, None);
+        assert_eq!(parsed.framework, None);
+        assert_eq!(parsed.kind, None);
+        assert_eq!(body, "Legacy body\n");
+    }
+
+    #[test]
+    fn try_parse_front_matter_returns_original_content_without_frontmatter() {
+        let content = "# Plain Markdown";
+
+        let (frontmatter, body) = try_parse_front_matter(content);
+
+        assert_eq!(frontmatter, None);
+        assert_eq!(body, content);
+    }
+
+    #[test]
+    fn parse_front_matter_rejects_missing_delimiter() {
+        let error = parse_front_matter("---\ntitle: Broken").expect_err("missing delimiter");
+
+        assert_eq!(error, "Front matter must end with '---'");
+    }
+}
