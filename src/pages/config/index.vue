@@ -32,9 +32,9 @@
 
     <!-- 仓库不存在对话框 -->
     <ConfirmChoiceDialog
-      v-model="showRepoNotFoundDialog"
+      v-model="gitRepoNotFoundDialogVisible"
       :title="t('settings.gitSync.repoNotFoundTitle')"
-      :message="t('settings.gitSync.repoNotFoundMessage', { url: repoNotFoundInfo.remote_url, operation: repoNotFoundInfo.operation })"
+      :message="gitRepoNotFoundMessage"
       :primary-text="t('settings.gitSync.repoNotFoundReconfig')"
       :secondary-text="t('settings.gitSync.repoNotFoundIgnore')"
       type="warning"
@@ -70,6 +70,7 @@ import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
 import { useGitConflictDialogs } from '@/plugins/git-sync/useGitConflictDialogs';
 import { useGitConflictConfirm } from '@/plugins/git-sync/useGitConflictConfirm';
+import { useGitRepoNotFoundDialog } from '@/plugins/git-sync/useGitRepoNotFoundDialog';
 
 type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
 type GitAutoSyncLifecycle = typeof import('@/plugins/git-sync/autoSyncLifecycle');
@@ -131,9 +132,6 @@ let unlistenOpenFromSystem: (() => void) | null = null;
 let gitListeners: unknown | null = null;
 let gitRuntimeListeners: import('@/plugins/git-sync/gitSyncRuntime').GitSyncRuntimeListeners | null = null;
 
-// 仓库不存在对话框状态
-const showRepoNotFoundDialog = ref(false);
-const repoNotFoundInfo = ref<{ remote_url: string; operation: string }>({ remote_url: '', operation: '' });
 const {
   showConflictDialog,
   showManualMergeDialog,
@@ -156,6 +154,13 @@ const {
   confirmForcePull,
   confirmCancelConflict
 } = useGitConflictConfirm(t);
+const {
+  visible: gitRepoNotFoundDialogVisible,
+  message: gitRepoNotFoundMessage,
+  open: openGitRepoNotFoundDialog,
+  close: closeGitRepoNotFoundDialog,
+  ignore: ignoreGitRepoNotFoundDialog
+} = useGitRepoNotFoundDialog(t);
 const conflictDialogRef = ref<LoadingDialogExpose | null>(null);
 const manualMergeRef = ref<LoadingDialogExpose | null>(null);
 
@@ -251,7 +256,7 @@ const handleConflictCancel = async () => {
 
 // 处理仓库不存在 - 重新配置
 const handleRepoNotFoundReconfig = async () => {
-  showRepoNotFoundDialog.value = false;
+  closeGitRepoNotFoundDialog();
   logger.info('[Config] 用户选择重新配置仓库');
 
   // 导航到 Git 同步设置页面
@@ -260,8 +265,7 @@ const handleRepoNotFoundReconfig = async () => {
 
 // 处理仓库不存在 - 忽略
 const handleRepoNotFoundIgnore = async () => {
-  showRepoNotFoundDialog.value = false;
-  repoNotFoundInfo.value = { remote_url: '', operation: '' };
+  ignoreGitRepoNotFoundDialog();
   logger.info('[Config] 用户选择忽略仓库不存在错误');
 
   // 不恢复自动同步，让用户手动处理
@@ -462,11 +466,10 @@ onMounted(async () => {
         });
       },
       onRepoNotFound: ({ remoteUrl, operation }) => {
-        repoNotFoundInfo.value = {
-          remote_url: remoteUrl,
+        openGitRepoNotFoundDialog({
+          remoteUrl,
           operation
-        };
-        showRepoNotFoundDialog.value = true;
+        });
       }
     });
     logger.info('[Config] ✅ Git runtime 事件监听器已设置');
