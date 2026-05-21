@@ -16,4 +16,8 @@ const props = defineProps<{
 }>();
 
 const { portalRef } = props.runtime;
+
+onUnmounted(() => {
+  void props.runtime.cleanup();
+});
 </script>

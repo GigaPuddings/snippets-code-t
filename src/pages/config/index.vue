@@ -183,8 +183,6 @@ onMounted(async () => {
 onUnmounted(async () => {
   logger.info('[Config] 🧹 开始清理 Config 页面资源...');
   
-  await gitSyncRuntime.cleanup();
-  
   // 清理其他事件监听器
   if (unlisten) {
     unlisten();
