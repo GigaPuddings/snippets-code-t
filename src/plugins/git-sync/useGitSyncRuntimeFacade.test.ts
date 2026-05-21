@@ -116,6 +116,34 @@ describe('useGitSyncRuntimeFacade', () => {
     expect(facade.state.dialogs.showConflictDialog.value).toBe(true);
   });
 
+  it('sets up runtime and restores persisted conflict state through one entry', async () => {
+    const storage = createStorage();
+    storage.setItem('git-conflict-state', JSON.stringify({
+      conflictFiles: ['persisted.md'],
+      timestamp: Date.now()
+    }));
+    const setupHost = vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) => createHost());
+    const facade = useGitSyncRuntimeFacade({
+      t,
+      modalMsg: vi.fn(),
+      routeToGitSettings: vi.fn(),
+      isPluginEnabled: vi.fn(() => true),
+      stateDeps: {
+        storage,
+        logger: { info: vi.fn() }
+      },
+      hostControllerDeps: {
+        setupHost
+      }
+    });
+
+    await expect(facade.setupAndRestore({ shouldInit: true })).resolves.toBe(true);
+
+    expect(setupHost).toHaveBeenCalled();
+    expect(facade.ready.value).toBe(true);
+    expect(facade.state.dialogs.conflictFiles.value).toEqual(['persisted.md']);
+  });
+
   it('cleans up runtime host', async () => {
     const host = createHost();
     const cleanupHost = vi.fn(async () => undefined);

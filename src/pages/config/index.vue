@@ -123,7 +123,7 @@ onMounted(async () => {
     await initCleanupCache();
   }
 
-  await gitSyncRuntime.setup({
+  await gitSyncRuntime.setupAndRestore({
     shouldInit,
     autoSyncWindow: getCurrentWindow()
   });
@@ -177,8 +177,6 @@ onMounted(async () => {
     checkPendingSnippetOpen();
   });
   
-  // 恢复冲突状态（如果页面重载）
-  gitSyncRuntime.restoreConflictDialogState();
 });
 
 // 清理事件监听器

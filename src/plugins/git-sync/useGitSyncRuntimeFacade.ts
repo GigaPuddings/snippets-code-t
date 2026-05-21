@@ -78,6 +78,10 @@ export function useGitSyncRuntimeFacade(deps: GitSyncRuntimeFacadeDeps) {
   };
 
   const restoreConflictDialogState = () => state.dialogs.restoreConflictDialogState();
+  const setupAndRestore = async (setupDeps: SetupGitSyncRuntimeFacadeDeps) => {
+    await setup(setupDeps);
+    return restoreConflictDialogState();
+  };
   const cleanup = () => hostController.cleanup(deps.isPluginEnabled);
 
   return {
@@ -86,6 +90,7 @@ export function useGitSyncRuntimeFacade(deps: GitSyncRuntimeFacadeDeps) {
     portalRef: controller.gitSyncRuntimePortalRef,
     ready: hostController.ready,
     setup,
+    setupAndRestore,
     restoreConflictDialogState,
     cleanup
   };
