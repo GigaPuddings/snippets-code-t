@@ -10,6 +10,7 @@ import type {
   GitConflictRuntimeEvent,
   GitRepoNotFoundRuntimeEvent
 } from './gitSyncRuntime';
+import type { GitRuntimeState } from './useGitRuntimeState';
 
 type GitRuntimeHostControllerLogger = {
   info: (message: string, data?: unknown, ...args: unknown[]) => void;
@@ -29,6 +30,14 @@ export interface SetupGitRuntimeHostControllerDeps {
   isConflictDialogVisible: () => boolean;
   onConflictDetected: (event: GitConflictRuntimeEvent) => void | Promise<void>;
   onRepoNotFound: (event: GitRepoNotFoundRuntimeEvent) => void | Promise<void>;
+  autoSyncWindow?: GitRuntimeHostWindow;
+  isPluginEnabled?: () => boolean;
+}
+
+export interface SetupGitRuntimeHostControllerWithStateDeps {
+  t: Composer['t'];
+  shouldInit: boolean;
+  state: GitRuntimeState;
   autoSyncWindow?: GitRuntimeHostWindow;
   isPluginEnabled?: () => boolean;
 }
@@ -55,6 +64,26 @@ export function useGitRuntimeHostController(deps: GitRuntimeHostControllerDeps =
     logger.info('[GitSync] runtime host 已设置');
   };
 
+  const setupWithState = async (setupDeps: SetupGitRuntimeHostControllerWithStateDeps) => setup({
+    t: setupDeps.t,
+    shouldInit: setupDeps.shouldInit,
+    isConflictDialogVisible: () => setupDeps.state.dialogs.showConflictDialog.value,
+    onConflictDetected: ({ conflictFiles, untrackedFiles }) => {
+      setupDeps.state.dialogs.setConflictFiles({
+        conflictFiles,
+        untrackedFiles
+      });
+    },
+    onRepoNotFound: ({ remoteUrl, operation }) => {
+      setupDeps.state.repoNotFound.open({
+        remoteUrl,
+        operation
+      });
+    },
+    autoSyncWindow: setupDeps.autoSyncWindow,
+    isPluginEnabled: setupDeps.isPluginEnabled
+  });
+
   const cleanup = async (isPluginEnabled?: () => boolean) => {
     if (!host.value) return;
 
@@ -75,6 +104,7 @@ export function useGitRuntimeHostController(deps: GitRuntimeHostControllerDeps =
     ready,
     host,
     setup,
+    setupWithState,
     cleanup,
     resetConflictHandled
   };

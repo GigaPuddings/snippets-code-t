@@ -48,15 +48,10 @@ let unlistenOpenFromSystem: (() => void) | null = null;
 const gitRuntimeState = useGitRuntimeState({ t });
 const gitRuntimeHostController = useGitRuntimeHostController({ logger });
 const {
-  showConflictDialog,
   untrackedFiles,
   mergeFileList,
-  restoreConflictDialogState,
-  setConflictFiles
+  restoreConflictDialogState
 } = gitRuntimeState.dialogs;
-const {
-  open: openGitRepoNotFoundDialog
-} = gitRuntimeState.repoNotFound;
 
 const gitRuntimeController = useGitRuntimeController({
   t,
@@ -164,22 +159,10 @@ onMounted(async () => {
   }
 
   if (pluginStore.isEnabled('git-sync')) {
-    await gitRuntimeHostController.setup({
+    await gitRuntimeHostController.setupWithState({
       t,
       shouldInit,
-      isConflictDialogVisible: () => showConflictDialog.value,
-      onConflictDetected: ({ conflictFiles: nextConflictFiles, untrackedFiles: nextUntrackedFiles }) => {
-        setConflictFiles({
-          conflictFiles: nextConflictFiles,
-          untrackedFiles: nextUntrackedFiles
-        });
-      },
-      onRepoNotFound: ({ remoteUrl, operation }) => {
-        openGitRepoNotFoundDialog({
-          remoteUrl,
-          operation
-        });
-      },
+      state: gitRuntimeState,
       autoSyncWindow: getCurrentWindow(),
       isPluginEnabled: () => pluginStore.isEnabled('git-sync')
     });
