@@ -75,24 +75,19 @@ import {
 } from '@/plugins/git-sync/conflictState';
 
 type ConfirmResult = 'primary' | 'secondary' | 'close';
-type GitApi = typeof import('@/plugins/git-sync/api');
 type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
 type GitAutoSyncLifecycle = typeof import('@/plugins/git-sync/autoSyncLifecycle');
 type GitSyncRuntime = typeof import('@/plugins/git-sync/gitSyncRuntime');
+type GitConflictResolution = typeof import('@/plugins/git-sync/conflictResolution');
 
 interface LoadingDialogExpose {
   setLoading: (loading: boolean) => void;
 }
 
-let gitApiPromise: Promise<GitApi> | null = null;
 let gitLifecyclePromise: Promise<GitLifecycle> | null = null;
 let gitAutoSyncLifecyclePromise: Promise<GitAutoSyncLifecycle> | null = null;
 let gitSyncRuntimePromise: Promise<GitSyncRuntime> | null = null;
-
-const loadGitApi = async (): Promise<GitApi> => {
-  gitApiPromise ??= import('@/plugins/git-sync/api');
-  return gitApiPromise;
-};
+let gitConflictResolutionPromise: Promise<GitConflictResolution> | null = null;
 
 const loadGitLifecycle = async (): Promise<GitLifecycle> => {
   gitLifecyclePromise ??= import('@/plugins/git-sync/lifecycle');
@@ -107,6 +102,11 @@ const loadGitAutoSyncLifecycle = async (): Promise<GitAutoSyncLifecycle> => {
 const loadGitSyncRuntime = async (): Promise<GitSyncRuntime> => {
   gitSyncRuntimePromise ??= import('@/plugins/git-sync/gitSyncRuntime');
   return gitSyncRuntimePromise;
+};
+
+const loadGitConflictResolution = async (): Promise<GitConflictResolution> => {
+  gitConflictResolutionPromise ??= import('@/plugins/git-sync/conflictResolution');
+  return gitConflictResolutionPromise;
 };
 
 const GitConflictDialog = defineAsyncComponent(() => import('@/plugins/git-sync/components/GitConflictDialog/index.vue'));
@@ -204,11 +204,8 @@ const handleConflictResolution = async (strategy: string) => {
   conflictDialogRef.value.setLoading(true);
   
   try {
-    // 检查是否有未跟踪文件
-    const hasUntrackedFiles = untrackedFiles.value.length > 0;
-    
     if (strategy === 'force-push') {
-      const { forcePush, resumeAutoSync } = await loadGitApi();
+      const { resolveConflictWithForcePush } = await loadGitConflictResolution();
       const confirmResult = await showConfirm({
         title: t('settings.gitSync.confirmForcePush'),
         message: t('settings.gitSync.confirmForcePushMessage'),
@@ -218,8 +215,7 @@ const handleConflictResolution = async (strategy: string) => {
       });
       if (confirmResult !== 'primary') throw 'cancel';
       
-      // 执行强制推送
-      await forcePush();
+      await resolveConflictWithForcePush();
       modal.msg(t('settings.gitSync.forcePushSuccess'), 'success', 'bottom-right');
       showConflictDialog.value = false;
       
@@ -233,16 +229,8 @@ const handleConflictResolution = async (strategy: string) => {
         detail: { source: 'force-push' } 
       }));
       
-      // 恢复自动同步
-      try {
-        await resumeAutoSync();
-        logger.info('[Config] 冲突已解决，已恢复自动同步');
-      } catch (error) {
-        logger.error('[Config] 恢复自动同步失败:', error);
-      }
-      
     } else if (strategy === 'force-pull') {
-      const { forcePull, resumeAutoSync } = await loadGitApi();
+      const { resolveConflictWithForcePull } = await loadGitConflictResolution();
       const confirmResult = await showConfirm({
         title: t('settings.gitSync.confirmForcePull'),
         message: t('settings.gitSync.confirmForcePullMessage'),
@@ -252,21 +240,7 @@ const handleConflictResolution = async (strategy: string) => {
       });
       if (confirmResult !== 'primary') throw 'cancel';
       
-      // 如果有未跟踪文件，先删除它们
-      if (hasUntrackedFiles) {
-        const { invoke } = await import('@tauri-apps/api/core');
-        for (const file of untrackedFiles.value) {
-          try {
-            await invoke('remove_untracked_file_command', { filePath: file });
-            logger.info('[Config] 已删除未跟踪文件:', file);
-          } catch (error) {
-            logger.warn(`[Config] 删除未跟踪文件失败: ${file} ${error}`);
-          }
-        }
-      }
-      
-      // 执行强制拉取
-      await forcePull();
+      await resolveConflictWithForcePull(untrackedFiles.value);
       modal.msg(t('settings.gitSync.forcePullSuccess'), 'success', 'bottom-right');
       showConflictDialog.value = false;
       
@@ -279,14 +253,6 @@ const handleConflictResolution = async (strategy: string) => {
       window.dispatchEvent(new CustomEvent('refresh-data', { 
         detail: { source: 'force-pull' } 
       }));
-      
-      // 恢复自动同步
-      try {
-        await resumeAutoSync();
-        logger.info('[Config] 冲突已解决，已恢复自动同步');
-      } catch (error) {
-        logger.error('[Config] 恢复自动同步失败:', error);
-      }
       
     } else if (strategy === 'manual-merge') {
       // 显示手动合并对话框（不跳转）
@@ -327,15 +293,13 @@ const handleConflictCancel = async () => {
   resetGitConflictHandled();
 
   if (result === 'secondary') {
-    const { resumeAutoSync } = await loadGitApi();
+    const { resumeAutoSyncAfterConflict } = await loadGitConflictResolution();
     clearGitConflictState(sessionStorage);
     conflictFiles.value = [];
-    try {
-      await resumeAutoSync();
+    const resumed = await resumeAutoSyncAfterConflict();
+    if (resumed) {
       modal.msg(t('settings.gitSync.autoSyncResumed'), 'info', 'bottom-right');
       logger.info('[Config] 用户选择恢复自动同步');
-    } catch (error) {
-      logger.error('[Config] 恢复自动同步失败:', error);
     }
   } else {
     logger.info('[Config] 用户选择稍后处理冲突');
@@ -371,34 +335,13 @@ const handleManualMergeComplete = async (selections: Record<number, 'remote' | '
   manualMergeRef.value.setLoading(true);
   
   try {
-    const { ConflictStrategy, resolveConflictsBatch } = await loadGitApi();
-    // 如果有编辑过的本地内容，先保存到文件（使用与手动合并一致的列表）
+    const { completeManualMerge } = await loadGitConflictResolution();
     const files = mergeFileList.value;
-    for (const [indexStr, content] of Object.entries(editedContents)) {
-      const index = parseInt(indexStr);
-      if (selections[index] === 'local' && content) {
-        const filePath = files[index];
-        logger.info('[Config] 保存编辑后的本地内容:', filePath);
-        
-        // 使用 invoke 直接调用后端命令写入文件
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('write_conflict_file', {
-          filePath: filePath,
-          content: content
-        });
-        
-        logger.info('[Config] 已保存编辑后的内容到:', filePath);
-      }
-    }
-    
-    // 构建解决方案列表（与手动合并使用的文件顺序一致）
-    const resolutions: Parameters<typeof resolveConflictsBatch>[0] = files.map((file, index) => [
-      file,
-      selections[index] === 'remote' ? ConflictStrategy.KeepRemote : ConflictStrategy.KeepLocal
-    ]);
-    
-    // 批量解决冲突（后端会自动恢复自动同步）
-    const result = await resolveConflictsBatch(resolutions);
+    const result = await completeManualMerge({
+      files,
+      selections,
+      editedContents
+    });
     
     logger.info(`[Config] 手动合并成功，已解决 ${result.resolved_count} 个冲突`);
     
@@ -444,16 +387,14 @@ const handleManualMergeCancel = async () => {
   resetGitConflictHandled();
 
   if (result === 'secondary') {
-    const { resumeAutoSync } = await loadGitApi();
+    const { resumeAutoSyncAfterConflict } = await loadGitConflictResolution();
     clearGitConflictState(sessionStorage);
     conflictFiles.value = [];
     untrackedFiles.value = [];
-    try {
-      await resumeAutoSync();
+    const resumed = await resumeAutoSyncAfterConflict();
+    if (resumed) {
       modal.msg(t('settings.gitSync.autoSyncResumed'), 'info', 'bottom-right');
       logger.info('[Config] 用户从手动合并中选择恢复自动同步');
-    } catch (error) {
-      logger.error('[Config] 恢复自动同步失败:', error);
     }
   } else {
     logger.info('[Config] 用户选择稍后处理手动合并');
