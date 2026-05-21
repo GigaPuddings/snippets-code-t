@@ -45,8 +45,7 @@ import GitSyncRuntimePortal from '@/plugins/git-sync/components/GitSyncRuntimePo
 import { useGitConflictDialogs } from '@/plugins/git-sync/useGitConflictDialogs';
 import { useGitConflictConfirm } from '@/plugins/git-sync/useGitConflictConfirm';
 import { useGitRepoNotFoundDialog } from '@/plugins/git-sync/useGitRepoNotFoundDialog';
-import { createGitConflictFeedback } from '@/plugins/git-sync/conflictFeedback';
-import { useGitConflictFlow } from '@/plugins/git-sync/useGitConflictFlow';
+import { useGitRuntimeController } from '@/plugins/git-sync/useGitRuntimeController';
 import {
   cleanupGitSyncRuntimeHost,
   setupGitSyncRuntimeHost,
@@ -56,15 +55,6 @@ import {
 type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
 type GitAutoSyncLifecycle = typeof import('@/plugins/git-sync/autoSyncLifecycle');
 type GitSyncRuntime = typeof import('@/plugins/git-sync/gitSyncRuntime');
-
-interface LoadingDialogExpose {
-  setLoading: (loading: boolean) => void;
-}
-
-interface GitSyncRuntimePortalExpose {
-  setConflictDialogLoading: (loading: boolean) => void;
-  setManualMergeLoading: (loading: boolean) => void;
-}
 
 let gitLifecyclePromise: Promise<GitLifecycle> | null = null;
 let gitAutoSyncLifecyclePromise: Promise<GitAutoSyncLifecycle> | null = null;
@@ -134,130 +124,47 @@ const {
   close: closeGitRepoNotFoundDialog,
   ignore: ignoreGitRepoNotFoundDialog
 } = useGitRepoNotFoundDialog(t);
-const {
-  notifyForcePushResolved,
-  notifyForcePullResolved,
-  notifyManualMergeResolved,
-  notifyAutoSyncResumed
-} = createGitConflictFeedback({
-  t,
-  modalMsg: modal.msg
-});
-const gitSyncRuntimePortalRef = ref<GitSyncRuntimePortalExpose | null>(null);
-const conflictDialogRef = computed<LoadingDialogExpose | null>(() => {
-  if (!gitSyncRuntimePortalRef.value) return null;
-  return {
-    setLoading: gitSyncRuntimePortalRef.value.setConflictDialogLoading
-  };
-});
-const manualMergeRef = computed<LoadingDialogExpose | null>(() => {
-  if (!gitSyncRuntimePortalRef.value) return null;
-  return {
-    setLoading: gitSyncRuntimePortalRef.value.setManualMergeLoading
-  };
-});
 
 const resetGitConflictHandled = () => {
   gitRuntimeHost?.runtimeListeners?.resetConflictHandled();
 };
 
-const reportConflictFlowError = (context: 'conflict' | 'manual-merge', error: unknown) => {
-  if (error === 'cancel') return;
-
-  if (context === 'manual-merge') {
-    logger.error('[Config] 手动合并失败:', error);
-    const errorMsg = String(error).replace(/^Error:\s*/, '');
-    modal.msg(`${t('settings.gitSync.mergeFailed')}: ${errorMsg}`, 'error', 'top-right');
-    return;
-  }
-
-  logger.error('[Config] 冲突处理失败:', error);
-  const errorMsg = String(error).replace(/^Error:\s*/, '');
-  modal.msg(`${t('settings.gitSync.conflictResolutionFailed')}: ${errorMsg}`, 'error', 'top-right');
-};
-
-const gitConflictFlow = useGitConflictFlow({
-  conflictDialogRef,
-  manualMergeRef,
+const {
+  gitSyncRuntimePortalRef,
+  handleConflictResolution,
+  handleConflictEscape,
+  handleConflictCancel,
+  handleManualMergeComplete,
+  handleManualMergeCancel,
+  handleManualMergeBack,
+  handleManualMergeEscape,
+  handleRepoNotFoundReconfig,
+  handleRepoNotFoundIgnore
+} = useGitRuntimeController({
+  t,
+  modalMsg: modal.msg.bind(modal),
+  routeToGitSettings: () => router.push('/config/category/settings?tab=gitSync'),
   resetConflictHandled: resetGitConflictHandled,
-  confirmForcePush,
-  confirmForcePull,
-  confirmCancelConflict,
-  closeConflictDialog,
-  openManualMergeDialog,
-  closeManualMergeDialog,
-  clearConflictFiles,
-  backToConflictDialog,
-  getUntrackedFiles: () => untrackedFiles.value,
-  getManualMergeInput: (selections, editedContents) => ({
-    files: mergeFileList.value,
-    selections,
-    editedContents
-  }),
-  feedback: {
-    notifyForcePushResolved,
-    notifyForcePullResolved,
-    notifyManualMergeResolved,
-    notifyAutoSyncResumed
+  dialogs: {
+    untrackedFiles,
+    mergeFileList,
+    clearConflictFiles,
+    closeConflictDialog,
+    openManualMergeDialog,
+    closeManualMergeDialog,
+    backToConflictDialog
+  },
+  confirm: {
+    confirmForcePush,
+    confirmForcePull,
+    confirmCancelConflict
+  },
+  repoNotFound: {
+    close: closeGitRepoNotFoundDialog,
+    ignore: ignoreGitRepoNotFoundDialog
   },
   logger
 });
-
-const handleConflictResolution = async (strategy: string) => {
-  try {
-    await gitConflictFlow.handleConflictResolution(strategy);
-  } catch (error) {
-    reportConflictFlowError('conflict', error);
-  }
-};
-
-const handleConflictEscape = gitConflictFlow.handleConflictEscape;
-
-const handleConflictCancel = async () => {
-  try {
-    await gitConflictFlow.handleConflictCancel();
-  } catch (error) {
-    reportConflictFlowError('conflict', error);
-  }
-};
-
-// 处理仓库不存在 - 重新配置
-const handleRepoNotFoundReconfig = async () => {
-  closeGitRepoNotFoundDialog();
-  logger.info('[Config] 用户选择重新配置仓库');
-
-  // 导航到 Git 同步设置页面
-  router.push('/config/category/settings?tab=gitSync');
-};
-
-// 处理仓库不存在 - 忽略
-const handleRepoNotFoundIgnore = async () => {
-  ignoreGitRepoNotFoundDialog();
-  logger.info('[Config] 用户选择忽略仓库不存在错误');
-
-  // 不恢复自动同步，让用户手动处理
-  modal.msg(t('settings.gitSync.repoNotFoundIgnored'), 'info', 'bottom-right');
-};
-
-const handleManualMergeComplete = async (selections: Record<number, 'remote' | 'local'>, editedContents: Record<number, string>) => {
-  try {
-    await gitConflictFlow.handleManualMergeComplete(selections, editedContents);
-  } catch (error) {
-    reportConflictFlowError('manual-merge', error);
-  }
-};
-
-const handleManualMergeCancel = async () => {
-  try {
-    await gitConflictFlow.handleManualMergeCancel();
-  } catch (error) {
-    reportConflictFlowError('manual-merge', error);
-  }
-};
-
-const handleManualMergeBack = gitConflictFlow.handleManualMergeBack;
-
-const handleManualMergeEscape = gitConflictFlow.handleManualMergeEscape;
 
 // 检查是否有待处理的导航
 const normalizePendingFragmentId = (id: unknown) => String(id ?? '').replace(/^markdown:/i, '');

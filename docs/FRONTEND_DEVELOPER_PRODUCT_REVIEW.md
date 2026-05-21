@@ -451,11 +451,12 @@ Frontend Workspace
 - Git 事件监听、runtime 监听、gitignore 初始化和启动同步初始化已聚合到 `src/plugins/git-sync/gitSyncRuntimeHost.ts`，配置页不再直接编排 Git runtime 启动顺序。
 - Git 自动同步窗口 show/hide 监听、首次可见启动和卸载停止已收进 `src/plugins/git-sync/gitSyncRuntimeHost.ts`，配置页不再直接管理 Git 自动同步窗口事件。
 - Git 冲突、手动合并、仓库不存在和冲突确认弹窗已集中挂载到 `src/plugins/git-sync/components/GitSyncRuntimePortal.vue`，配置页只保留一个 Git 插件 portal 入口。
+- Git flow 装配、portal loading adapter、仓库不存在处理和错误反馈已收进 `src/plugins/git-sync/useGitRuntimeController.ts`，配置页不再直接拼装冲突处理依赖。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
 - 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
-- Git 同步下一步建议继续收敛配置页中的 Git flow 装配参数，形成更完整的插件 runtime controller。
+- Git 同步下一步建议继续收敛配置页中的 Git runtime 初始化依赖传入方式，形成更完整的插件 runtime controller。
 - 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。
