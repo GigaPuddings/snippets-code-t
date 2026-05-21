@@ -464,11 +464,12 @@ Frontend Workspace
 - Git runtime cleanup 已下沉到 `GitSyncRuntimeMount.vue`，配置页卸载时不再直接清理 Git runtime。
 - Git runtime setup/restore 已由 `GitSyncRuntimeMount.vue` 根据 `shouldInit` 启动，配置页不再直接调用 Git runtime 初始化。
 - 配置页导航事件、待处理跳转和系统打开 Markdown 已迁入 `src/pages/config/composables/useConfigNavigationEvents.ts`，并补充单元测试。
+- 配置页全局启动、`config_ready`、插件初始化和初始化清理已迁入 `src/pages/config/composables/useConfigStartup.ts`，并补充单元测试。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
 - 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
-- 配置页下一步建议把全局初始化防抖和缓存清理封装成 `useConfigStartup`，主文件只保留初始化编排和视图挂载。
+- 配置页下一步建议收敛剩余日志和初始化编排命名，让主文件只保留视图挂载、runtime facade 创建和 composable 串联。
 - 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。
