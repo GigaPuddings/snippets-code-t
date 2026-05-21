@@ -20,6 +20,10 @@ import {
 import { titlebarPluginActions, type TitlebarPluginAction } from './titlebar';
 import { pluginWindowShortcuts, type PluginWindowShortcut } from './windows';
 import { logger } from '@/utils/logger';
+import {
+  assertCanInvokeBackendCommand,
+  assertCanInvokeCommand
+} from './permissions';
 
 type RuntimeRouteTarget = 'config' | 'layout' | 'window';
 
@@ -277,37 +281,13 @@ const loadPluginFrontendModule = async (
   return (await import(/* @vite-ignore */ moduleUrl)) as PluginFrontendModule;
 };
 
-const canInvokeCommand = (
-  plugin: RegisteredPlugin,
-  command: string
-): boolean => {
-  const permissions = plugin.manifest.permissions ?? [];
-  return (
-    permissions.includes('command:*') ||
-    permissions.includes(`command:${command}`)
-  );
-};
-
-const canInvokeBackendCommand = (
-  plugin: RegisteredPlugin,
-  command: string
-): boolean => {
-  const permissions = plugin.manifest.permissions ?? [];
-  return (
-    permissions.includes('backend:*') ||
-    permissions.includes(`backend:${command}`)
-  );
-};
-
 const createPluginInvoke = (plugin: RegisteredPlugin): typeof invoke =>
   (async (
     command: string,
     args?: Record<string, unknown>,
     options?: unknown
   ) => {
-    if (!canInvokeCommand(plugin, command)) {
-      throw new Error(`插件 ${plugin.id} 没有调用命令 ${command} 的权限`);
-    }
+    assertCanInvokeCommand(plugin, command);
 
     return invoke(command, args, options as Parameters<typeof invoke>[2]);
   }) as typeof invoke;
@@ -315,9 +295,7 @@ const createPluginInvoke = (plugin: RegisteredPlugin): typeof invoke =>
 const createPluginBackendInvoke =
   (plugin: RegisteredPlugin) =>
   async <T = unknown>(command: string, payload: unknown = null): Promise<T> => {
-    if (!canInvokeBackendCommand(plugin, command)) {
-      throw new Error(`插件 ${plugin.id} 没有调用后端命令 ${command} 的权限`);
-    }
+    assertCanInvokeBackendCommand(plugin, command);
 
     return await invoke<T>('invoke_plugin_backend', {
       pluginId: plugin.id,

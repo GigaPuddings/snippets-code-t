@@ -435,10 +435,11 @@ Frontend Workspace
 - 新增工程优先级进度文档 `docs/ENGINEERING_PRIORITY_PROGRESS.md`，用于按任务标记推进状态。
 - 新增 Vitest 测试入口，并将搜索排序逻辑抽为 `src/hooks/searchRanking.ts`，已覆盖第一批搜索排序用例，同时修复普通片段正文被当作文件名评分的边界问题。
 - 已补充 wikilink 解析和 TipTap JSON 到 Markdown 序列化测试，开始覆盖编辑器长期维护风险较高的基础转换链路。
+- 插件前端 command/backend 权限判断已抽为可测试纯模块，并覆盖精确权限、通配权限和拒绝路径。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
-- 继续为索引解析、插件权限校验增加测试。
+- 继续为索引解析和 Rust 侧 frontmatter/权限校验增加测试。
 - 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。
