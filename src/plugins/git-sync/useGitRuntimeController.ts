@@ -4,9 +4,7 @@ import type { MessagePosition } from '@/utils/modal';
 import { logger as defaultLogger } from '@/utils/logger';
 import { createGitConflictFeedback } from './conflictFeedback';
 import { useGitConflictFlow } from './useGitConflictFlow';
-import type { useGitConflictDialogs } from './useGitConflictDialogs';
-import type { useGitConflictConfirm } from './useGitConflictConfirm';
-import type { useGitRepoNotFoundDialog } from './useGitRepoNotFoundDialog';
+import type { GitRuntimeState } from './useGitRuntimeState';
 
 type LoadingDialogExpose = {
   setLoading: (loading: boolean) => void;
@@ -29,40 +27,18 @@ type ModalMsg = (
   duration?: number
 ) => void;
 
-type ValueRef<T> = {
-  value: T;
-};
-
-type GitConflictDialogs = ReturnType<typeof useGitConflictDialogs>;
-type GitConflictConfirm = ReturnType<typeof useGitConflictConfirm>;
-type GitRepoNotFoundDialog = ReturnType<typeof useGitRepoNotFoundDialog>;
-
 export interface GitRuntimeControllerDeps {
   t: Composer['t'];
   modalMsg: ModalMsg;
   routeToGitSettings: () => unknown | Promise<unknown>;
   resetConflictHandled: () => void;
-  dialogs: Pick<
-    GitConflictDialogs,
-    | 'clearConflictFiles'
-    | 'closeConflictDialog'
-    | 'openManualMergeDialog'
-    | 'closeManualMergeDialog'
-    | 'backToConflictDialog'
-  > & {
-    untrackedFiles: ValueRef<string[]>;
-    mergeFileList: ValueRef<string[]>;
-  };
-  confirm: Pick<
-    GitConflictConfirm,
-    'confirmForcePush' | 'confirmForcePull' | 'confirmCancelConflict'
-  >;
-  repoNotFound: Pick<GitRepoNotFoundDialog, 'close' | 'ignore'>;
+  state: GitRuntimeState;
   logger?: GitRuntimeControllerLogger;
 }
 
 export function useGitRuntimeController(deps: GitRuntimeControllerDeps) {
   const logger = deps.logger ?? defaultLogger;
+  const { dialogs, confirm, repoNotFound } = deps.state;
   const gitSyncRuntimePortalRef = ref<GitRuntimePortalExpose | null>(null);
 
   const conflictDialogRef = computed<LoadingDialogExpose | null>(() => {
@@ -103,17 +79,17 @@ export function useGitRuntimeController(deps: GitRuntimeControllerDeps) {
     conflictDialogRef,
     manualMergeRef,
     resetConflictHandled: deps.resetConflictHandled,
-    confirmForcePush: deps.confirm.confirmForcePush,
-    confirmForcePull: deps.confirm.confirmForcePull,
-    confirmCancelConflict: deps.confirm.confirmCancelConflict,
-    closeConflictDialog: deps.dialogs.closeConflictDialog,
-    openManualMergeDialog: deps.dialogs.openManualMergeDialog,
-    closeManualMergeDialog: deps.dialogs.closeManualMergeDialog,
-    clearConflictFiles: deps.dialogs.clearConflictFiles,
-    backToConflictDialog: deps.dialogs.backToConflictDialog,
-    getUntrackedFiles: () => deps.dialogs.untrackedFiles.value,
+    confirmForcePush: confirm.confirmForcePush,
+    confirmForcePull: confirm.confirmForcePull,
+    confirmCancelConflict: confirm.confirmCancelConflict,
+    closeConflictDialog: dialogs.closeConflictDialog,
+    openManualMergeDialog: dialogs.openManualMergeDialog,
+    closeManualMergeDialog: dialogs.closeManualMergeDialog,
+    clearConflictFiles: dialogs.clearConflictFiles,
+    backToConflictDialog: dialogs.backToConflictDialog,
+    getUntrackedFiles: () => dialogs.untrackedFiles.value,
     getManualMergeInput: (selections, editedContents) => ({
-      files: deps.dialogs.mergeFileList.value,
+      files: dialogs.mergeFileList.value,
       selections,
       editedContents
     }),
@@ -157,13 +133,13 @@ export function useGitRuntimeController(deps: GitRuntimeControllerDeps) {
   };
 
   const handleRepoNotFoundReconfig = async () => {
-    deps.repoNotFound.close();
+    repoNotFound.close();
     logger.info('[GitSync] 用户选择重新配置仓库');
     await deps.routeToGitSettings();
   };
 
   const handleRepoNotFoundIgnore = () => {
-    deps.repoNotFound.ignore();
+    repoNotFound.ignore();
     logger.info('[GitSync] 用户选择忽略仓库不存在错误');
     deps.modalMsg(deps.t('settings.gitSync.repoNotFoundIgnored'), 'info', 'bottom-right');
   };

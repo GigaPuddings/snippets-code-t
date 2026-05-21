@@ -1,32 +1,43 @@
 import { describe, expect, it, vi } from 'vitest';
-import { nextTick, ref } from 'vue';
+import { nextTick } from 'vue';
 import { useGitRuntimeController, type GitRuntimeControllerDeps } from './useGitRuntimeController';
+import { useGitRuntimeState } from './useGitRuntimeState';
 
 const t = ((key: string) => key) as any;
+
+const createStorage = () => {
+  const data = new Map<string, string>();
+  return {
+    getItem: vi.fn((key: string) => data.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      data.set(key, value);
+    }),
+    removeItem: vi.fn((key: string) => {
+      data.delete(key);
+    })
+  };
+};
+
+const createRuntimeState = () => {
+  const state = useGitRuntimeState({
+    t,
+    storage: createStorage(),
+    logger: { info: vi.fn() }
+  });
+
+  state.dialogs.setConflictFiles({
+    conflictFiles: ['a.md'],
+    untrackedFiles: ['untracked.md']
+  });
+  return state;
+};
 
 const createDeps = (overrides: Partial<GitRuntimeControllerDeps> = {}): GitRuntimeControllerDeps => ({
   t,
   modalMsg: vi.fn(),
   routeToGitSettings: vi.fn(),
   resetConflictHandled: vi.fn(),
-  dialogs: {
-    untrackedFiles: ref(['untracked.md']),
-    mergeFileList: ref(['a.md']),
-    clearConflictFiles: vi.fn(),
-    closeConflictDialog: vi.fn(),
-    openManualMergeDialog: vi.fn(),
-    closeManualMergeDialog: vi.fn(),
-    backToConflictDialog: vi.fn()
-  },
-  confirm: {
-    confirmForcePush: vi.fn(async () => true),
-    confirmForcePull: vi.fn(async () => true),
-    confirmCancelConflict: vi.fn(async () => 'secondary' as const)
-  },
-  repoNotFound: {
-    close: vi.fn(),
-    ignore: vi.fn()
-  },
+  state: createRuntimeState(),
   logger: {
     info: vi.fn(),
     error: vi.fn()
@@ -51,7 +62,8 @@ describe('useGitRuntimeController', () => {
     expect(deps.resetConflictHandled).toHaveBeenCalled();
     expect(setConflictDialogLoading).toHaveBeenCalledWith(true);
     expect(setConflictDialogLoading).toHaveBeenLastCalledWith(false);
-    expect(deps.dialogs.openManualMergeDialog).toHaveBeenCalled();
+    expect(deps.state.dialogs.showConflictDialog.value).toBe(false);
+    expect(deps.state.dialogs.showManualMergeDialog.value).toBe(true);
   });
 
   it('routes to git settings for repo not found reconfiguration', async () => {
@@ -60,17 +72,25 @@ describe('useGitRuntimeController', () => {
 
     await controller.handleRepoNotFoundReconfig();
 
-    expect(deps.repoNotFound.close).toHaveBeenCalled();
+    expect(deps.state.repoNotFound.visible.value).toBe(false);
     expect(deps.routeToGitSettings).toHaveBeenCalled();
   });
 
   it('ignores repo not found and shows feedback', () => {
     const deps = createDeps();
+    deps.state.repoNotFound.open({
+      remoteUrl: 'git@example.com/repo.git',
+      operation: 'pull'
+    });
     const controller = useGitRuntimeController(deps);
 
     controller.handleRepoNotFoundIgnore();
 
-    expect(deps.repoNotFound.ignore).toHaveBeenCalled();
+    expect(deps.state.repoNotFound.visible.value).toBe(false);
+    expect(deps.state.repoNotFound.info.value).toEqual({
+      remoteUrl: '',
+      operation: ''
+    });
     expect(deps.modalMsg).toHaveBeenCalledWith(
       'settings.gitSync.repoNotFoundIgnored',
       'info',
@@ -79,14 +99,9 @@ describe('useGitRuntimeController', () => {
   });
 
   it('reports conflict flow errors through modal feedback', async () => {
-    const deps = createDeps({
-      confirm: {
-        confirmForcePush: vi.fn(async () => true),
-        confirmForcePull: vi.fn(async () => {
-          throw new Error('pull failed');
-        }),
-        confirmCancelConflict: vi.fn(async () => 'secondary' as const)
-      }
+    const deps = createDeps();
+    deps.state.confirm.confirmForcePull = vi.fn(async () => {
+      throw new Error('pull failed');
     });
     const controller = useGitRuntimeController(deps);
 

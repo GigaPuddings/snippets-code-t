@@ -48,8 +48,6 @@ let unlistenOpenFromSystem: (() => void) | null = null;
 const gitRuntimeState = useGitRuntimeState({ t });
 const gitRuntimeHostController = useGitRuntimeHostController({ logger });
 const {
-  untrackedFiles,
-  mergeFileList,
   restoreConflictDialogState
 } = gitRuntimeState.dialogs;
 
@@ -58,24 +56,7 @@ const gitRuntimeController = useGitRuntimeController({
   modalMsg: modal.msg.bind(modal),
   routeToGitSettings: () => router.push('/config/category/settings?tab=gitSync'),
   resetConflictHandled: gitRuntimeHostController.resetConflictHandled,
-  dialogs: {
-    untrackedFiles,
-    mergeFileList,
-    clearConflictFiles: gitRuntimeState.dialogs.clearConflictFiles,
-    closeConflictDialog: gitRuntimeState.dialogs.closeConflictDialog,
-    openManualMergeDialog: gitRuntimeState.dialogs.openManualMergeDialog,
-    closeManualMergeDialog: gitRuntimeState.dialogs.closeManualMergeDialog,
-    backToConflictDialog: gitRuntimeState.dialogs.backToConflictDialog
-  },
-  confirm: {
-    confirmForcePush: gitRuntimeState.confirm.confirmForcePush,
-    confirmForcePull: gitRuntimeState.confirm.confirmForcePull,
-    confirmCancelConflict: gitRuntimeState.confirm.confirmCancelConflict
-  },
-  repoNotFound: {
-    close: gitRuntimeState.repoNotFound.close,
-    ignore: gitRuntimeState.repoNotFound.ignore
-  },
+  state: gitRuntimeState,
   logger
 });
 const { gitSyncRuntimePortalRef } = gitRuntimeController;
