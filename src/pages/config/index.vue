@@ -70,6 +70,12 @@ import { initCleanupCache, checkShouldInitialize } from '@/utils/app-init';
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
+import {
+  clearGitConflictState,
+  decodeGitConflictFilePath,
+  restoreGitConflictState,
+  saveGitConflictState
+} from '@/plugins/git-sync/conflictState';
 
 type ConfirmResult = 'primary' | 'secondary' | 'close';
 type GitApi = typeof import('@/plugins/git-sync/api');
@@ -162,109 +168,18 @@ const handleConfirmResult = (result: ConfirmResult) => {
   }
 };
 
-// 解码文件路径（处理后端返回的转义字符）
-function decodeConflictFilePath(path: string): string {
-  try {
-    // 移除首尾的引号
-    let decoded = path.replace(/^"|"$/g, '');
-    
-    // 检查是否包含八进制转义序列
-    if (!decoded.includes('\\')) {
-      return decoded;
-    }
-    
-    // 将字符串转换为字节数组
-    const bytes: number[] = [];
-    let i = 0;
-    
-    while (i < decoded.length) {
-      if (decoded[i] === '\\' && i + 1 < decoded.length) {
-        // 检查是否是八进制转义序列 \ddd
-        if (i + 3 < decoded.length && /[0-7]{3}/.test(decoded.substring(i + 1, i + 4))) {
-          const oct = decoded.substring(i + 1, i + 4);
-          bytes.push(parseInt(oct, 8));
-          i += 4;
-        } else {
-          // 其他转义字符（如 \n, \t, \\）
-          const nextChar = decoded[i + 1];
-          switch (nextChar) {
-            case 'n':
-              bytes.push(10); // \n
-              break;
-            case 't':
-              bytes.push(9); // \t
-              break;
-            case 'r':
-              bytes.push(13); // \r
-              break;
-            case '\\':
-              bytes.push(92); // \\
-              break;
-            case '"':
-              bytes.push(34); // \"
-              break;
-            default:
-              // 未知转义，保留原字符
-              bytes.push(decoded.charCodeAt(i + 1));
-          }
-          i += 2;
-        }
-      } else {
-        // 普通 ASCII 字符
-        bytes.push(decoded.charCodeAt(i));
-        i++;
-      }
-    }
-    
-    // 使用 TextDecoder 解码 UTF-8 字节序列
-    const uint8Array = new Uint8Array(bytes);
-    const textDecoder = new TextDecoder('utf-8');
-    const result = textDecoder.decode(uint8Array);
-    
-    logger.info('[Config] 文件路径解码:', {
-      原始: path,
-      移除引号: decoded,
-      字节数组: bytes,
-      解码结果: result
-    });
-    
-    return result;
-  } catch (error) {
-    logger.error(`[Config] 解码文件路径失败: ${error} 原始路径: ${path}`);
-    // 如果解码失败，返回移除引号后的原始路径
-    return path.replace(/^"|"$/g, '').replace(/\\/g, '');
-  }
-}
-
 // 将冲突状态保存到 sessionStorage，以便页面重载后恢复
 const saveConflictState = () => {
-  if (conflictFiles.value.length > 0) {
-    sessionStorage.setItem('git-conflict-state', JSON.stringify({
-      conflictFiles: conflictFiles.value,
-      timestamp: Date.now()
-    }));
-  }
+  saveGitConflictState(sessionStorage, conflictFiles.value);
 };
 
 // 恢复冲突状态
 const restoreConflictState = () => {
-  const savedState = sessionStorage.getItem('git-conflict-state');
-  if (savedState) {
-    try {
-      const { conflictFiles: files, timestamp } = JSON.parse(savedState);
-      // 只恢复 10 秒内的状态
-      if (Date.now() - timestamp < 10000) {
-        conflictFiles.value = files;
-        showConflictDialog.value = true;
-        logger.info('[Config] 恢复冲突状态，显示对话框');
-      } else {
-        // 过期的状态，清除
-        sessionStorage.removeItem('git-conflict-state');
-      }
-    } catch (error) {
-      logger.error('[Config] 恢复冲突状态失败:', error);
-      sessionStorage.removeItem('git-conflict-state');
-    }
+  const restoredState = restoreGitConflictState(sessionStorage);
+  if (restoredState) {
+    conflictFiles.value = restoredState.conflictFiles;
+    showConflictDialog.value = true;
+    logger.info('[Config] 恢复冲突状态，显示对话框');
   }
 };
 
@@ -298,7 +213,7 @@ const handleConflictResolution = async (strategy: string) => {
       showConflictDialog.value = false;
       
       // 清除冲突状态
-      sessionStorage.removeItem('git-conflict-state');
+      clearGitConflictState(sessionStorage);
       conflictFiles.value = [];
       untrackedFiles.value = [];
       
@@ -345,7 +260,7 @@ const handleConflictResolution = async (strategy: string) => {
       showConflictDialog.value = false;
       
       // 清除冲突状态
-      sessionStorage.removeItem('git-conflict-state');
+      clearGitConflictState(sessionStorage);
       conflictFiles.value = [];
       untrackedFiles.value = [];
       
@@ -402,7 +317,7 @@ const handleConflictCancel = async () => {
 
   if (result === 'secondary') {
     const { resumeAutoSync } = await loadGitApi();
-    sessionStorage.removeItem('git-conflict-state');
+    clearGitConflictState(sessionStorage);
     conflictFiles.value = [];
     try {
       await resumeAutoSync();
@@ -480,7 +395,7 @@ const handleManualMergeComplete = async (selections: Record<number, 'remote' | '
     showManualMergeDialog.value = false;
     
     // 清除冲突状态
-    sessionStorage.removeItem('git-conflict-state');
+    clearGitConflictState(sessionStorage);
     conflictFiles.value = [];
     untrackedFiles.value = [];
     
@@ -519,7 +434,7 @@ const handleManualMergeCancel = async () => {
 
   if (result === 'secondary') {
     const { resumeAutoSync } = await loadGitApi();
-    sessionStorage.removeItem('git-conflict-state');
+    clearGitConflictState(sessionStorage);
     conflictFiles.value = [];
     untrackedFiles.value = [];
     try {
@@ -699,9 +614,9 @@ onMounted(async () => {
       hasConflictBeenHandled = true;
       
       // 解码文件路径
-      conflictFiles.value = event.payload.conflict_files.map(decodeConflictFilePath);
+      conflictFiles.value = event.payload.conflict_files.map(decodeGitConflictFilePath);
       // 处理未跟踪文件
-      untrackedFiles.value = (event.payload.untracked_files || []).map(decodeConflictFilePath);
+      untrackedFiles.value = (event.payload.untracked_files || []).map(decodeGitConflictFilePath);
       logger.info('[Config] 解码后的冲突文件:', conflictFiles.value);
       logger.info('[Config] 解码后的未跟踪文件:', untrackedFiles.value);
       
