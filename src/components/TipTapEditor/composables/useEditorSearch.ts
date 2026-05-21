@@ -1,46 +1,42 @@
-import { ref, type Ref } from 'vue';
+import { nextTick, ref } from 'vue';
 
 export interface SearchMatch {
   from: number;
   to: number;
 }
 
-/**
- * TipTap 编辑器搜索功能 Composable
- *
- * @param editor - 编辑器实例
- * @returns 搜索相关的状态和方法
- */
-export function useEditorSearch(editor: Ref<any | null>) {
+interface UseEditorSearchOptions {
+  getEditor: () => any | null | undefined;
+  focusSearchPanel?: () => void;
+  updateMatchInfo?: (currentIndex: number, total: number) => void;
+}
+
+export function useEditorSearch(options: UseEditorSearchOptions) {
   const showSearch = ref(false);
   const searchMatches = ref<SearchMatch[]>([]);
   const currentSearchIndex = ref(-1);
 
-  /**
-   * 打开搜索面板
-   */
   const openSearch = () => {
     showSearch.value = true;
+    nextTick(() => {
+      options.focusSearchPanel?.();
+    });
   };
 
-  /**
-   * 关闭搜索面板
-   */
   const closeSearch = () => {
     showSearch.value = false;
     clearSearchHighlights();
   };
 
-  /**
-   * 执行搜索
-   */
   const handleSearch = (query: string, matchCase: boolean) => {
-    if (!editor.value || !query) {
+    const editor = options.getEditor();
+
+    if (!editor || !query) {
       clearSearchHighlights();
       return;
     }
 
-    const doc = editor.value.state.doc;
+    const doc = editor.state.doc;
     const matches: SearchMatch[] = [];
     const flags = matchCase ? 'g' : 'gi';
     const searchRegex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
@@ -58,69 +54,76 @@ export function useEditorSearch(editor: Ref<any | null>) {
       }
     });
 
-    searchMatches.value = matches;
-    currentSearchIndex.value = matches.length > 0 ? 0 : -1;
+    searchMatches.value = [...matches];
+    currentSearchIndex.value = -1;
+    options.updateMatchInfo?.(currentSearchIndex.value, matches.length);
 
-    if (matches.length > 0) {
-      scrollToMatch(0);
+    if (editor.view && matches.length > 0) {
+      const view = editor.view;
+      const { state } = view;
+      const tr = state.tr;
+      if (doc.content.size > 0) {
+        const tempText = state.schema.text('\u200B');
+        if (tempText) {
+          tr.insert(doc.content.size, tempText);
+          tr.delete(doc.content.size, doc.content.size + 1);
+          view.dispatch(tr);
+        }
+      }
     }
   };
 
-  /**
-   * 查找下一个匹配
-   */
   const findNext = () => {
     if (searchMatches.value.length === 0) return;
-    currentSearchIndex.value = (currentSearchIndex.value + 1) % searchMatches.value.length;
-    scrollToMatch(currentSearchIndex.value);
+
+    if (currentSearchIndex.value === -1) {
+      currentSearchIndex.value = 0;
+    } else {
+      currentSearchIndex.value = (currentSearchIndex.value + 1) % searchMatches.value.length;
+    }
+
+    options.updateMatchInfo?.(currentSearchIndex.value, searchMatches.value.length);
+    scrollToMatch(currentSearchIndex.value, true);
   };
 
-  /**
-   * 查找上一个匹配
-   */
   const findPrevious = () => {
     if (searchMatches.value.length === 0) return;
-    currentSearchIndex.value = currentSearchIndex.value <= 0
-      ? searchMatches.value.length - 1
-      : currentSearchIndex.value - 1;
-    scrollToMatch(currentSearchIndex.value);
+
+    if (currentSearchIndex.value === -1) {
+      currentSearchIndex.value = searchMatches.value.length - 1;
+    } else {
+      currentSearchIndex.value = currentSearchIndex.value <= 0
+        ? searchMatches.value.length - 1
+        : currentSearchIndex.value - 1;
+    }
+
+    options.updateMatchInfo?.(currentSearchIndex.value, searchMatches.value.length);
+    scrollToMatch(currentSearchIndex.value, true);
   };
 
-  /**
-   * 滚动到指定匹配位置
-   */
-  const scrollToMatch = (index: number) => {
-    if (!editor.value || index < 0 || index >= searchMatches.value.length) return;
+  const scrollToMatch = (index: number, shouldFocusEditor: boolean = false) => {
+    const editor = options.getEditor();
+    if (!editor || index < 0 || index >= searchMatches.value.length) return;
 
     const match = searchMatches.value[index];
-    editor.value.commands.setTextSelection({ from: match.from, to: match.to });
-    editor.value.commands.focus();
+    editor.commands.setTextSelection({ from: match.from, to: match.to });
+
+    if (shouldFocusEditor) {
+      editor.commands.focus();
+    }
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (!editor.value) return;
+        const currentEditor = options.getEditor();
+        if (!currentEditor) return;
 
-        const { view } = editor.value;
+        const { view } = currentEditor;
         const scrollContainer = view.dom as HTMLElement;
-        const domSelection = window.getSelection();
-
-        if (!domSelection || domSelection.rangeCount === 0) {
-          const coords = view.coordsAtPos(match.from);
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const relativeTop = coords.top - containerRect.top + scrollContainer.scrollTop;
-
-          scrollContainer.scrollTo({
-            top: Math.max(0, relativeTop - 100),
-            behavior: 'smooth'
-          });
-          return;
-        }
-
-        const range = domSelection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
+        const coords = view.coordsAtPos(match.from);
         const containerRect = scrollContainer.getBoundingClientRect();
-        const relativeTop = rect.top - containerRect.top + scrollContainer.scrollTop;
-        const isVisible = rect.top >= containerRect.top && rect.bottom <= containerRect.bottom;
+        const relativeTop = coords.top - containerRect.top + scrollContainer.scrollTop;
+        const isVisible =
+          coords.top >= containerRect.top && coords.bottom <= containerRect.bottom;
 
         if (!isVisible) {
           scrollContainer.scrollTo({
@@ -132,13 +135,11 @@ export function useEditorSearch(editor: Ref<any | null>) {
     });
   };
 
-  /**
-   * 清除搜索高亮
-   */
   const clearSearchHighlights = () => {
     searchMatches.value = [];
     currentSearchIndex.value = -1;
-    editor.value?.commands.blur();
+    options.updateMatchInfo?.(-1, 0);
+    options.getEditor()?.commands.blur();
   };
 
   return {

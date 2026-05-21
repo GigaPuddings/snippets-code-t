@@ -99,6 +99,7 @@ import {
   type ImageUploadEditor
 } from './composables/useEditorImageUpload';
 import { useEditorPersistenceBridge } from './composables/useEditorPersistenceBridge';
+import { useEditorSearch } from './composables/useEditorSearch';
 import { useEditorViewMode } from './composables/useEditorViewMode';
 import { SearchPanel } from '@/components/UI';
 import type { CSSProperties, Ref } from 'vue';
@@ -159,16 +160,11 @@ const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 const wordCount = ref(0);
 const charCount = ref(0);
 const showOutline = ref(false);
-const showSearch = ref(false);
 const headings = ref<Array<{ level: number; text: string; pos: number }>>([]);
 const sourceContent = ref('');
 const currentCursorPos = ref(0);
 const visibleHeadingIndex = ref(-1);
 const workspaceRoot = ref<string>('');
-
-// 搜索相关状态
-const searchMatches = ref<Array<{ from: number; to: number }>>([]);
-const currentSearchIndex = ref(-1);
 
 // 常量：标题跳转时的顶部偏移量（为工具栏和状态栏留出空间）
 const HEADING_SCROLL_OFFSET = 120;
@@ -231,6 +227,23 @@ const editorPersistenceBridge = useEditorPersistenceBridge({
 const handleImageUpload = async (file: File, _view: EditorView) => {
   await editorImageUpload.handleImageUpload(file);
 };
+
+const {
+  showSearch,
+  searchMatches,
+  currentSearchIndex,
+  openSearch,
+  closeSearch,
+  handleSearch,
+  findNext,
+  findPrevious
+} = useEditorSearch({
+  getEditor: () => editor.value,
+  focusSearchPanel: () => searchPanelRef.value?.focus(),
+  updateMatchInfo: (currentIndex, total) => {
+    searchPanelRef.value?.updateMatchInfo(currentIndex, total);
+  }
+});
 
 // 初始化编辑器
 const editor = useEditor({
@@ -707,137 +720,6 @@ const toggleOutline = () => {
     // 清理滚动监听器
     cleanupScrollListener();
   }
-};
-
-// 搜索功能
-const openSearch = () => {
-  showSearch.value = true;
-  nextTick(() => {
-    searchPanelRef.value?.focus();
-  });
-};
-
-const closeSearch = () => {
-  showSearch.value = false;
-  clearSearchHighlights();
-};
-
-const handleSearch = (query: string, matchCase: boolean) => {
-  if (!editor.value || !query) {
-    clearSearchHighlights();
-    return;
-  }
-
-  const doc = editor.value.state.doc;
-  const matches: Array<{ from: number; to: number }> = [];
-  const flags = matchCase ? 'g' : 'gi';
-  const searchRegex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
-
-  doc.descendants((node, pos) => {
-    if (node.isText && node.text) {
-      searchRegex.lastIndex = 0;
-      let match;
-      while ((match = searchRegex.exec(node.text)) !== null) {
-        matches.push({
-          from: pos + match.index,
-          to: pos + match.index + match[0].length
-        });
-      }
-    }
-  });
-
-  // 更新搜索匹配结果
-  searchMatches.value = [...matches];
-  currentSearchIndex.value = -1; // 不自动选中第一个，保持 -1 表示未选中状态
-
-  searchPanelRef.value?.updateMatchInfo(currentSearchIndex.value, matches.length);
-
-  // 强制触发 Decoration 更新
-  if (editor.value?.view && matches.length > 0) {
-    const view = editor.value.view;
-    const { state } = view;
-    const tr = state.tr;
-    if (doc.content.size > 0) {
-      const tempText = state.schema.text('\u200B');
-      if (tempText) {
-        tr.insert(doc.content.size, tempText);
-        tr.delete(doc.content.size, doc.content.size + 1);
-        view.dispatch(tr);
-      }
-    }
-  }
-};
-
-const findNext = () => {
-  if (searchMatches.value.length === 0) return;
-
-  // 如果当前没有选中任何匹配项（-1），则从第一个开始
-  if (currentSearchIndex.value === -1) {
-    currentSearchIndex.value = 0;
-  } else {
-    currentSearchIndex.value = (currentSearchIndex.value + 1) % searchMatches.value.length;
-  }
-
-  searchPanelRef.value?.updateMatchInfo(currentSearchIndex.value, searchMatches.value.length);
-  scrollToMatch(currentSearchIndex.value, true);
-};
-
-const findPrevious = () => {
-  if (searchMatches.value.length === 0) return;
-
-  // 如果当前没有选中任何匹配项（-1），则从最后一个开始
-  if (currentSearchIndex.value === -1) {
-    currentSearchIndex.value = searchMatches.value.length - 1;
-  } else {
-    currentSearchIndex.value = currentSearchIndex.value <= 0
-      ? searchMatches.value.length - 1
-      : currentSearchIndex.value - 1;
-  }
-
-  searchPanelRef.value?.updateMatchInfo(currentSearchIndex.value, searchMatches.value.length);
-  scrollToMatch(currentSearchIndex.value, true);
-};
-
-const scrollToMatch = (index: number, shouldFocusEditor: boolean = false) => {
-  if (!editor.value || index < 0 || index >= searchMatches.value.length) return;
-
-  const match = searchMatches.value[index];
-  editor.value.commands.setTextSelection({ from: match.from, to: match.to });
-
-  // 只有在明确需要时才聚焦编辑器（如点击上一项/下一项）
-  // 输入搜索时保留焦点在搜索框
-  if (shouldFocusEditor) {
-    editor.value.commands.focus();
-  }
-
-  // 使用 coordsAtPos 计算滚动位置，不依赖 DOM 选区（未聚焦时选区可能在搜索框）
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (!editor.value) return;
-
-      const { view } = editor.value;
-      const scrollContainer = view.dom as HTMLElement;
-      const coords = view.coordsAtPos(match.from);
-      const containerRect = scrollContainer.getBoundingClientRect();
-      const relativeTop = coords.top - containerRect.top + scrollContainer.scrollTop;
-      const isVisible =
-        coords.top >= containerRect.top && coords.bottom <= containerRect.bottom;
-
-      if (!isVisible) {
-        scrollContainer.scrollTo({
-          top: Math.max(0, relativeTop - 100),
-          behavior: 'smooth'
-        });
-      }
-    });
-  });
-};
-
-const clearSearchHighlights = () => {
-  searchMatches.value = [];
-  currentSearchIndex.value = -1;
-  searchPanelRef.value?.updateMatchInfo(-1, 0);
-  editor.value?.commands.blur();
 };
 
 // 提取标题
