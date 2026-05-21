@@ -71,6 +71,7 @@ import { usePluginStore } from '@/store';
 import { useGitConflictDialogs } from '@/plugins/git-sync/useGitConflictDialogs';
 import { useGitConflictConfirm } from '@/plugins/git-sync/useGitConflictConfirm';
 import { useGitRepoNotFoundDialog } from '@/plugins/git-sync/useGitRepoNotFoundDialog';
+import { createGitConflictFeedback } from '@/plugins/git-sync/conflictFeedback';
 
 type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
 type GitAutoSyncLifecycle = typeof import('@/plugins/git-sync/autoSyncLifecycle');
@@ -161,6 +162,15 @@ const {
   close: closeGitRepoNotFoundDialog,
   ignore: ignoreGitRepoNotFoundDialog
 } = useGitRepoNotFoundDialog(t);
+const {
+  notifyForcePushResolved,
+  notifyForcePullResolved,
+  notifyManualMergeResolved,
+  notifyAutoSyncResumed
+} = createGitConflictFeedback({
+  t,
+  modalMsg: modal.msg
+});
 const conflictDialogRef = ref<LoadingDialogExpose | null>(null);
 const manualMergeRef = ref<LoadingDialogExpose | null>(null);
 
@@ -183,32 +193,22 @@ const handleConflictResolution = async (strategy: string) => {
       if (!(await confirmForcePush())) throw 'cancel';
       
       await resolveConflictWithForcePush();
-      modal.msg(t('settings.gitSync.forcePushSuccess'), 'success', 'bottom-right');
+      notifyForcePushResolved();
       closeConflictDialog();
       
       // 清除冲突状态
       clearConflictFiles();
-      
-      // 刷新数据（merge 状态下工作目录可能被 git 修改过）
-      window.dispatchEvent(new CustomEvent('refresh-data', { 
-        detail: { source: 'force-push' } 
-      }));
       
     } else if (strategy === 'force-pull') {
       const { resolveConflictWithForcePull } = await loadGitConflictResolution();
       if (!(await confirmForcePull())) throw 'cancel';
       
       await resolveConflictWithForcePull(untrackedFiles.value);
-      modal.msg(t('settings.gitSync.forcePullSuccess'), 'success', 'bottom-right');
+      notifyForcePullResolved();
       closeConflictDialog();
       
       // 清除冲突状态
       clearConflictFiles();
-      
-      // 刷新数据
-      window.dispatchEvent(new CustomEvent('refresh-data', { 
-        detail: { source: 'force-pull' } 
-      }));
       
     } else if (strategy === 'manual-merge') {
       // 显示手动合并对话框（不跳转）
@@ -246,8 +246,7 @@ const handleConflictCancel = async () => {
     clearConflictFiles({ clearUntracked: false });
     const resumed = await resumeAutoSyncAfterConflict();
     if (resumed) {
-      modal.msg(t('settings.gitSync.autoSyncResumed'), 'info', 'bottom-right');
-      logger.info('[Config] 用户选择恢复自动同步');
+      notifyAutoSyncResumed('conflict-dialog');
     }
   } else {
     logger.info('[Config] 用户选择稍后处理冲突');
@@ -292,19 +291,11 @@ const handleManualMergeComplete = async (selections: Record<number, 'remote' | '
     
     logger.info(`[Config] 手动合并成功，已解决 ${result.resolved_count} 个冲突`);
     
-    modal.msg(t('settings.gitSync.mergeSuccess'), 'success', 'bottom-right');
+    notifyManualMergeResolved();
     closeManualMergeDialog();
     
     // 清除冲突状态
     clearConflictFiles();
-    
-    // 刷新数据
-    window.dispatchEvent(new CustomEvent('refresh-data', { 
-      detail: { source: 'manual-merge' } 
-    }));
-    
-    // 恢复自动同步（后端已自动恢复，这里只是记录日志）
-    logger.info('[Config] 手动合并完成，自动同步已由后端恢复');
   } catch (error) {
     logger.error('[Config] 手动合并失败:', error);
     const errorMsg = String(error).replace(/^Error:\s*/, '');
@@ -330,8 +321,7 @@ const handleManualMergeCancel = async () => {
     clearConflictFiles();
     const resumed = await resumeAutoSyncAfterConflict();
     if (resumed) {
-      modal.msg(t('settings.gitSync.autoSyncResumed'), 'info', 'bottom-right');
-      logger.info('[Config] 用户从手动合并中选择恢复自动同步');
+      notifyAutoSyncResumed('manual-merge');
     }
   } else {
     logger.info('[Config] 用户选择稍后处理手动合并');
