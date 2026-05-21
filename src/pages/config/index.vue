@@ -45,15 +45,15 @@
 
     <!-- 自定义确认框 -->
     <ConfirmChoiceDialog
-      v-model="confirmDialogVisible"
-      :title="confirmDialogOptions.title"
-      :message="confirmDialogOptions.message"
-      :primary-text="confirmDialogOptions.primaryText"
-      :secondary-text="confirmDialogOptions.secondaryText"
-      :type="confirmDialogOptions.type"
-      @primary="handleConfirmResult('primary')"
-      @secondary="handleConfirmResult('secondary')"
-      @close="handleConfirmResult('close')"
+      v-model="gitConflictConfirmVisible"
+      :title="gitConflictConfirmOptions.title"
+      :message="gitConflictConfirmOptions.message"
+      :primary-text="gitConflictConfirmOptions.primaryText"
+      :secondary-text="gitConflictConfirmOptions.secondaryText"
+      :type="gitConflictConfirmOptions.type"
+      @primary="handleGitConflictConfirmResult('primary')"
+      @secondary="handleGitConflictConfirmResult('secondary')"
+      @close="handleGitConflictConfirmResult('close')"
     />
   </div>
 </template>
@@ -69,8 +69,8 @@ import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
 import { useGitConflictDialogs } from '@/plugins/git-sync/useGitConflictDialogs';
+import { useGitConflictConfirm } from '@/plugins/git-sync/useGitConflictConfirm';
 
-type ConfirmResult = 'primary' | 'secondary' | 'close';
 type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
 type GitAutoSyncLifecycle = typeof import('@/plugins/git-sync/autoSyncLifecycle');
 type GitSyncRuntime = typeof import('@/plugins/git-sync/gitSyncRuntime');
@@ -148,35 +148,16 @@ const {
   closeManualMergeDialog,
   backToConflictDialog
 } = useGitConflictDialogs();
+const {
+  visible: gitConflictConfirmVisible,
+  options: gitConflictConfirmOptions,
+  handleResult: handleGitConflictConfirmResult,
+  confirmForcePush,
+  confirmForcePull,
+  confirmCancelConflict
+} = useGitConflictConfirm(t);
 const conflictDialogRef = ref<LoadingDialogExpose | null>(null);
 const manualMergeRef = ref<LoadingDialogExpose | null>(null);
-
-// 自定义确认框
-const confirmDialogVisible = ref(false);
-const confirmDialogOptions = ref({
-  title: '',
-  message: '',
-  primaryText: '',
-  secondaryText: '',
-  type: 'info' as 'info' | 'warning' | 'danger'
-});
-let confirmResolve: ((v: ConfirmResult) => void) | null = null;
-
-const showConfirm = (opts: typeof confirmDialogOptions.value) => {
-  confirmDialogOptions.value = { ...confirmDialogOptions.value, ...opts };
-  confirmDialogVisible.value = true;
-  return new Promise<ConfirmResult>((resolve) => {
-    confirmResolve = resolve;
-  });
-};
-
-const handleConfirmResult = (result: ConfirmResult) => {
-  confirmDialogVisible.value = false;
-  if (confirmResolve) {
-    confirmResolve(result);
-    confirmResolve = null;
-  }
-};
 
 const resetGitConflictHandled = () => {
   gitRuntimeListeners?.resetConflictHandled();
@@ -194,14 +175,7 @@ const handleConflictResolution = async (strategy: string) => {
   try {
     if (strategy === 'force-push') {
       const { resolveConflictWithForcePush } = await loadGitConflictResolution();
-      const confirmResult = await showConfirm({
-        title: t('settings.gitSync.confirmForcePush'),
-        message: t('settings.gitSync.confirmForcePushMessage'),
-        primaryText: t('common.confirm'),
-        secondaryText: t('common.cancel'),
-        type: 'warning'
-      });
-      if (confirmResult !== 'primary') throw 'cancel';
+      if (!(await confirmForcePush())) throw 'cancel';
       
       await resolveConflictWithForcePush();
       modal.msg(t('settings.gitSync.forcePushSuccess'), 'success', 'bottom-right');
@@ -217,14 +191,7 @@ const handleConflictResolution = async (strategy: string) => {
       
     } else if (strategy === 'force-pull') {
       const { resolveConflictWithForcePull } = await loadGitConflictResolution();
-      const confirmResult = await showConfirm({
-        title: t('settings.gitSync.confirmForcePull'),
-        message: t('settings.gitSync.confirmForcePullMessage'),
-        primaryText: t('common.confirm'),
-        secondaryText: t('common.cancel'),
-        type: 'warning'
-      });
-      if (confirmResult !== 'primary') throw 'cancel';
+      if (!(await confirmForcePull())) throw 'cancel';
       
       await resolveConflictWithForcePull(untrackedFiles.value);
       modal.msg(t('settings.gitSync.forcePullSuccess'), 'success', 'bottom-right');
@@ -263,13 +230,7 @@ const handleConflictEscape = () => {
 
 // 取消冲突处理（点击取消按钮时弹出二次确认）
 const handleConflictCancel = async () => {
-  const result = await showConfirm({
-    title: t('settings.gitSync.cancelConflictTitle'),
-    message: t('settings.gitSync.cancelConflictMessage'),
-    primaryText: t('settings.gitSync.handleLater'),
-    secondaryText: t('settings.gitSync.resumeSync'),
-    type: 'warning'
-  });
+  const result = await confirmCancelConflict();
 
   closeConflictDialog();
   // 重置冲突处理标志，允许后续冲突事件再次触发
@@ -354,13 +315,7 @@ const handleManualMergeComplete = async (selections: Record<number, 'remote' | '
 // 取消手动合并
 const handleManualMergeCancel = async () => {
   // 询问用户是否稍后处理
-  const result = await showConfirm({
-    title: t('settings.gitSync.cancelConflictTitle'),
-    message: t('settings.gitSync.cancelConflictMessage'),
-    primaryText: t('settings.gitSync.handleLater'),
-    secondaryText: t('settings.gitSync.resumeSync'),
-    type: 'warning'
-  });
+  const result = await confirmCancelConflict();
 
   closeManualMergeDialog();
   // 重置冲突处理标志，允许后续冲突事件再次触发
