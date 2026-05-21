@@ -27,11 +27,7 @@ import { usePluginStore } from '@/store';
 import GitSyncRuntimePortal from '@/plugins/git-sync/components/GitSyncRuntimePortal.vue';
 import { useGitRuntimeState } from '@/plugins/git-sync/useGitRuntimeState';
 import { useGitRuntimeController } from '@/plugins/git-sync/useGitRuntimeController';
-import {
-  cleanupConfiguredGitSyncRuntimeHost,
-  setupConfiguredGitSyncRuntimeHost,
-  type GitSyncRuntimeHost
-} from '@/plugins/git-sync/gitSyncRuntimeHost';
+import { useGitRuntimeHostController } from '@/plugins/git-sync/useGitRuntimeHostController';
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -42,7 +38,6 @@ defineOptions({
 
 const router = useRouter();
 const PENDING_NAVIGATION_TTL = 30_000;
-const isGitSyncRuntimeReady = ref(false);
 
 // 监听导航到设置页面的事件
 let unlisten: (() => void) | null = null;
@@ -50,10 +45,8 @@ let unlistenFragment: (() => void) | null = null;
 let unlistenCheckNav: (() => void) | null = null;
 let unlistenOpenFromSystem: (() => void) | null = null;
 
-// Git 事件监听器
-let gitRuntimeHost: GitSyncRuntimeHost | null = null;
-
 const gitRuntimeState = useGitRuntimeState({ t });
+const gitRuntimeHostController = useGitRuntimeHostController({ logger });
 const {
   showConflictDialog,
   untrackedFiles,
@@ -65,15 +58,11 @@ const {
   open: openGitRepoNotFoundDialog
 } = gitRuntimeState.repoNotFound;
 
-const resetGitConflictHandled = () => {
-  gitRuntimeHost?.runtimeListeners?.resetConflictHandled();
-};
-
 const gitRuntimeController = useGitRuntimeController({
   t,
   modalMsg: modal.msg.bind(modal),
   routeToGitSettings: () => router.push('/config/category/settings?tab=gitSync'),
-  resetConflictHandled: resetGitConflictHandled,
+  resetConflictHandled: gitRuntimeHostController.resetConflictHandled,
   dialogs: {
     untrackedFiles,
     mergeFileList,
@@ -95,6 +84,7 @@ const gitRuntimeController = useGitRuntimeController({
   logger
 });
 const { gitSyncRuntimePortalRef } = gitRuntimeController;
+const isGitSyncRuntimeReady = gitRuntimeHostController.ready;
 
 // 检查是否有待处理的导航
 const normalizePendingFragmentId = (id: unknown) => String(id ?? '').replace(/^markdown:/i, '');
@@ -174,9 +164,7 @@ onMounted(async () => {
   }
 
   if (pluginStore.isEnabled('git-sync')) {
-    isGitSyncRuntimeReady.value = true;
-
-    gitRuntimeHost = await setupConfiguredGitSyncRuntimeHost({
+    await gitRuntimeHostController.setup({
       t,
       shouldInit,
       isConflictDialogVisible: () => showConflictDialog.value,
@@ -193,10 +181,8 @@ onMounted(async () => {
         });
       },
       autoSyncWindow: getCurrentWindow(),
-      isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
-      logger
+      isPluginEnabled: () => pluginStore.isEnabled('git-sync')
     });
-    logger.info('[Config] ✅ Git runtime host 已设置');
   } else {
     logger.info('[Config] Git 同步插件未启用，跳过 Git 事件监听和自动同步初始化');
   }
@@ -258,14 +244,7 @@ onMounted(async () => {
 onUnmounted(async () => {
   logger.info('[Config] 🧹 开始清理 Config 页面资源...');
   
-  if (gitRuntimeHost) {
-    await cleanupConfiguredGitSyncRuntimeHost({
-      host: gitRuntimeHost,
-      isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
-      logger
-    });
-    gitRuntimeHost = null;
-  }
+  await gitRuntimeHostController.cleanup(() => pluginStore.isEnabled('git-sync'));
   
   // 清理其他事件监听器
   if (unlisten) {

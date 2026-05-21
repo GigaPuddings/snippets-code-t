@@ -455,11 +455,12 @@ Frontend Workspace
 - Git runtime host 已提供默认装配/清理入口，配置页不再直接加载和拼接 Git lifecycle、runtime、auto-sync 三组模块。
 - Git 冲突状态、确认状态和仓库异常状态已聚合到 `src/plugins/git-sync/useGitRuntimeState.ts`，配置页不再逐个创建 Git 状态 composable。
 - Git runtime portal 已改为接收 `state/controller` 对象，配置页模板不再展开 Git 弹窗 props 和事件。
+- Git runtime ready、host 实例、冲突 handled reset、setup/cleanup 生命周期已收进 `src/plugins/git-sync/useGitRuntimeHostController.ts`。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
 - 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
-- Git 同步下一步建议继续把 Git runtime readiness 与 host 实例封装进插件侧入口，配置页只保留启用判断和挂载。
+- Git 同步下一步建议继续把配置页内 Git runtime 的事件回调创建封装成插件入口，进一步减少页面脚本里的 Git 细节。
 - 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。
