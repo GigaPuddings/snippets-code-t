@@ -9,25 +9,8 @@
     <GitSyncRuntimePortal
       ref="gitSyncRuntimePortalRef"
       :runtime-ready="isGitSyncRuntimeReady"
-      v-model:conflict-dialog-visible="showConflictDialog"
-      v-model:manual-merge-dialog-visible="showManualMergeDialog"
-      v-model:repo-not-found-dialog-visible="gitRepoNotFoundDialogVisible"
-      v-model:conflict-confirm-visible="gitConflictConfirmVisible"
-      :conflict-files="conflictFiles"
-      :untracked-files="untrackedFiles"
-      :merge-file-list="mergeFileList"
-      :repo-not-found-message="gitRepoNotFoundMessage"
-      :conflict-confirm-options="gitConflictConfirmOptions"
-      @conflict-confirm="handleConflictResolution"
-      @conflict-cancel="handleConflictCancel"
-      @conflict-escape="handleConflictEscape"
-      @merge-complete="handleManualMergeComplete"
-      @merge-cancel="handleManualMergeCancel"
-      @merge-back="handleManualMergeBack"
-      @merge-escape="handleManualMergeEscape"
-      @repo-not-found-reconfig="handleRepoNotFoundReconfig"
-      @repo-not-found-ignore="handleRepoNotFoundIgnore"
-      @conflict-confirm-result="handleGitConflictConfirmResult"
+      :state="gitRuntimeState"
+      :controller="gitRuntimeController"
     />
   </div>
 </template>
@@ -73,21 +56,12 @@ let gitRuntimeHost: GitSyncRuntimeHost | null = null;
 const gitRuntimeState = useGitRuntimeState({ t });
 const {
   showConflictDialog,
-  showManualMergeDialog,
-  conflictFiles,
   untrackedFiles,
   mergeFileList,
   restoreConflictDialogState,
   setConflictFiles
 } = gitRuntimeState.dialogs;
 const {
-  visible: gitConflictConfirmVisible,
-  options: gitConflictConfirmOptions,
-  handleResult: handleGitConflictConfirmResult
-} = gitRuntimeState.confirm;
-const {
-  visible: gitRepoNotFoundDialogVisible,
-  message: gitRepoNotFoundMessage,
   open: openGitRepoNotFoundDialog
 } = gitRuntimeState.repoNotFound;
 
@@ -95,18 +69,7 @@ const resetGitConflictHandled = () => {
   gitRuntimeHost?.runtimeListeners?.resetConflictHandled();
 };
 
-const {
-  gitSyncRuntimePortalRef,
-  handleConflictResolution,
-  handleConflictEscape,
-  handleConflictCancel,
-  handleManualMergeComplete,
-  handleManualMergeCancel,
-  handleManualMergeBack,
-  handleManualMergeEscape,
-  handleRepoNotFoundReconfig,
-  handleRepoNotFoundIgnore
-} = useGitRuntimeController({
+const gitRuntimeController = useGitRuntimeController({
   t,
   modalMsg: modal.msg.bind(modal),
   routeToGitSettings: () => router.push('/config/category/settings?tab=gitSync'),
@@ -131,6 +94,7 @@ const {
   },
   logger
 });
+const { gitSyncRuntimePortalRef } = gitRuntimeController;
 
 // 检查是否有待处理的导航
 const normalizePendingFragmentId = (id: unknown) => String(id ?? '').replace(/^markdown:/i, '');

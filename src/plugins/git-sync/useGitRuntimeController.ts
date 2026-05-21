@@ -181,3 +181,5 @@ export function useGitRuntimeController(deps: GitRuntimeControllerDeps) {
     handleRepoNotFoundIgnore
   };
 }
+
+export type GitRuntimeController = ReturnType<typeof useGitRuntimeController>;

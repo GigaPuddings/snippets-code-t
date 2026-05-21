@@ -22,3 +22,5 @@ export function useGitRuntimeState(deps: GitRuntimeStateDeps) {
     repoNotFound
   };
 }
+
+export type GitRuntimeState = ReturnType<typeof useGitRuntimeState>;
