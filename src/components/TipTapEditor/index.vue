@@ -94,6 +94,7 @@ import OutlinePanel from './components/OutlinePanel.vue';
 import EditorActions from './components/EditorActions.vue';
 import SourceEditor from './components/SourceEditor.vue';
 import BacklinkPanel from './components/BacklinkPanel.vue';
+import { useEditorPersistenceBridge } from './composables/useEditorPersistenceBridge';
 import { useEditorViewMode } from './composables/useEditorViewMode';
 import { SearchPanel } from '@/components/UI';
 import type { CSSProperties } from 'vue';
@@ -162,10 +163,6 @@ const currentCursorPos = ref(0);
 const visibleHeadingIndex = ref(-1);
 const backlinkCount = ref(0);
 const workspaceRoot = ref<string>('');
-
-// 防止循环更新的标志位
-const isInternalUpdate = ref(false);
-const lastEmittedContent = ref('');
 
 // 搜索相关状态
 const searchMatches = ref<Array<{ from: number; to: number }>>([]);
@@ -324,20 +321,18 @@ const updateStats = (text: string) => {
   wordCount.value = chineseChars.length + englishWords.length;
 };
 
-// 防抖更新：始终向外发射 Markdown，保证持久化到磁盘的是 Markdown 而非 HTML
-// @ts-ignore - debounce 函数的类型定义不够精确
-const debouncedEmitUpdate = debounce((editorInstance: Editor) => {
-  try {
-    const json = editorInstance.getJSON();
-    const markdown = jsonToMarkdown(json);
-    emits('update:content', markdown);
-    emits('change', markdown);
-    // 用于 watch(props.content) 时跳过由本次发射触发的回写
-    lastEmittedContent.value = markdownToHtml(markdown, workspaceRoot.value);
-  } catch (e) {
-    handleEditorError(e, 'jsonToMarkdown on emit');
-  }
-}, 150);
+const editorPersistenceBridge = useEditorPersistenceBridge({
+  sourceContent,
+  workspaceRoot,
+  emitContentChange: (value) => {
+    emits('update:content', value);
+    emits('change', value);
+  },
+  updateStats,
+  isOutlineVisible: () => showOutline.value,
+  refreshSourceOutline: () => extractHeadingsFromSource(),
+  handleError: handleEditorError
+});
 
 // 初始化编辑器
 const editor = useEditor({
@@ -350,17 +345,9 @@ const editor = useEditor({
   }),
   onUpdate: ({ editor }) => {
     try {
-      const text = editor.getText();
-      isInternalUpdate.value = true;
-      updateStats(text);
-      debouncedEmitUpdate(editor);
+      editorPersistenceBridge.handleEditorUpdate(editor);
       // 更新光标位置
       currentCursorPos.value = editor.state.selection.from;
-      
-      // 在下一个 tick 重置标志位
-      nextTick(() => {
-        isInternalUpdate.value = false;
-      });
     } catch (error) {
       handleEditorError(error, 'TipTap onUpdate');
     }
@@ -667,23 +654,6 @@ const editor = useEditor({
   injectCSS: false
 });
 
-const applySourceContentToEditor = () => {
-  if (!editor.value || !sourceContent.value) return;
-
-  try {
-    const html = markdownToHtml(sourceContent.value, workspaceRoot.value);
-    editor.value.commands.setContent(html, { emitUpdate: false });
-    lastEmittedContent.value = html;
-    nextTick(() => {
-      emits('update:content', sourceContent.value);
-      emits('change', sourceContent.value);
-    });
-  } catch (error) {
-    console.error('Failed to parse Markdown:', error);
-    handleEditorError(error, 'Markdown to HTML conversion');
-  }
-};
-
 const {
   viewMode,
   toggleViewMode,
@@ -700,7 +670,7 @@ const {
       sourceContent.value = jsonToMarkdown(json);
     }
   },
-  applySourceContent: applySourceContentToEditor,
+  applySourceContent: () => editorPersistenceBridge.applySourceContentToEditor(editor.value),
   setEditorEditable: (editable) => {
     if (editor.value) {
       editor.value.setEditable(editable);
@@ -720,14 +690,7 @@ const {
 
 // 源码内容变更
 const handleSourceContentChange = (value: string) => {
-  sourceContent.value = value;
-  // 如果大纲面板打开，重新提取标题
-  if (showOutline.value) {
-    extractHeadingsFromSource();
-  }
-  // 实时触发内容更新事件，确保父组件能够获取到源码模式下的内容
-  emits('update:content', value);
-  emits('change', value);
+  editorPersistenceBridge.emitSourceContentChange(value);
 };
 
 // 从源码中提取标题
@@ -1195,27 +1158,7 @@ const handleSourceContextMenu = (event: MouseEvent) => {
 
 // 监听内容变化
 watch(() => props.content, (newContent) => {
-  // 如果是内部更新触发的，跳过以防止循环更新
-  if (isInternalUpdate.value) {
-    return;
-  }
-  
-  // 如果内容相同，跳过
-  if (lastEmittedContent.value === newContent) {
-    return;
-  }
-  
-  try {
-    if (editor.value && editor.value.getHTML() !== newContent) {
-      // 使用 emitUpdate: false 避免触发循环更新（尤其是初始化加载时）
-      editor.value.commands.setContent(newContent, { emitUpdate: false });
-      lastEmittedContent.value = newContent;
-      const text = editor.value.getText();
-      updateStats(text);
-    }
-  } catch (error) {
-    handleEditorError(error, 'TipTap content update');
-  }
+  editorPersistenceBridge.syncIncomingContent(newContent, editor.value);
 });
 
 // 监听禁用状态变化
