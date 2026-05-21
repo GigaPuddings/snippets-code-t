@@ -8,9 +8,9 @@
     
     <GitSyncRuntimePortal
       ref="gitSyncRuntimePortalRef"
-      :runtime-ready="isGitSyncRuntimeReady"
-      :state="gitRuntimeState"
-      :controller="gitRuntimeController"
+      :runtime-ready="gitSyncRuntime.ready.value"
+      :state="gitSyncRuntime.state"
+      :controller="gitSyncRuntime.controller"
     />
   </div>
 </template>
@@ -25,9 +25,7 @@ import { initCleanupCache, checkShouldInitialize } from '@/utils/app-init';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
 import GitSyncRuntimePortal from '@/plugins/git-sync/components/GitSyncRuntimePortal.vue';
-import { useGitRuntimeState } from '@/plugins/git-sync/useGitRuntimeState';
-import { useGitRuntimeController } from '@/plugins/git-sync/useGitRuntimeController';
-import { useGitRuntimeHostController } from '@/plugins/git-sync/useGitRuntimeHostController';
+import { useGitSyncRuntimeFacade } from '@/plugins/git-sync/useGitSyncRuntimeFacade';
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -45,22 +43,14 @@ let unlistenFragment: (() => void) | null = null;
 let unlistenCheckNav: (() => void) | null = null;
 let unlistenOpenFromSystem: (() => void) | null = null;
 
-const gitRuntimeState = useGitRuntimeState({ t });
-const gitRuntimeHostController = useGitRuntimeHostController({ logger });
-const {
-  restoreConflictDialogState
-} = gitRuntimeState.dialogs;
-
-const gitRuntimeController = useGitRuntimeController({
+const gitSyncRuntime = useGitSyncRuntimeFacade({
   t,
   modalMsg: modal.msg.bind(modal),
   routeToGitSettings: () => router.push('/config/category/settings?tab=gitSync'),
-  resetConflictHandled: gitRuntimeHostController.resetConflictHandled,
-  state: gitRuntimeState,
+  isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
   logger
 });
-const { gitSyncRuntimePortalRef } = gitRuntimeController;
-const isGitSyncRuntimeReady = gitRuntimeHostController.ready;
+const { portalRef: gitSyncRuntimePortalRef } = gitSyncRuntime;
 
 // 检查是否有待处理的导航
 const normalizePendingFragmentId = (id: unknown) => String(id ?? '').replace(/^markdown:/i, '');
@@ -139,17 +129,10 @@ onMounted(async () => {
     await initCleanupCache();
   }
 
-  if (pluginStore.isEnabled('git-sync')) {
-    await gitRuntimeHostController.setupWithState({
-      t,
-      shouldInit,
-      state: gitRuntimeState,
-      autoSyncWindow: getCurrentWindow(),
-      isPluginEnabled: () => pluginStore.isEnabled('git-sync')
-    });
-  } else {
-    logger.info('[Config] Git 同步插件未启用，跳过 Git 事件监听和自动同步初始化');
-  }
+  await gitSyncRuntime.setup({
+    shouldInit,
+    autoSyncWindow: getCurrentWindow()
+  });
   
   const initCostMs = Math.round(performance.now() - initStart);
   logger.info('[Config] ========== Config 页面初始化完成 ==========', {
@@ -201,14 +184,14 @@ onMounted(async () => {
   });
   
   // 恢复冲突状态（如果页面重载）
-  restoreConflictDialogState();
+  gitSyncRuntime.restoreConflictDialogState();
 });
 
 // 清理事件监听器
 onUnmounted(async () => {
   logger.info('[Config] 🧹 开始清理 Config 页面资源...');
   
-  await gitRuntimeHostController.cleanup(() => pluginStore.isEnabled('git-sync'));
+  await gitSyncRuntime.cleanup();
   
   // 清理其他事件监听器
   if (unlisten) {
