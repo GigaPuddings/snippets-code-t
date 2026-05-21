@@ -73,7 +73,7 @@
       :dark="props.dark"
       :current-title="props.currentTitle"
       :current-fragment-id="props.currentFragmentId"
-      @close="showBacklinks = false"
+      @close="closeBacklinks"
       @navigate="handleBacklinkNavigate"
     />
   </main>
@@ -94,6 +94,7 @@ import OutlinePanel from './components/OutlinePanel.vue';
 import EditorActions from './components/EditorActions.vue';
 import SourceEditor from './components/SourceEditor.vue';
 import BacklinkPanel from './components/BacklinkPanel.vue';
+import { useEditorBacklinks } from './composables/useEditorBacklinks';
 import { useEditorPersistenceBridge } from './composables/useEditorPersistenceBridge';
 import { useEditorViewMode } from './composables/useEditorViewMode';
 import { SearchPanel } from '@/components/UI';
@@ -155,13 +156,11 @@ const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 const wordCount = ref(0);
 const charCount = ref(0);
 const showOutline = ref(false);
-const showBacklinks = ref(false);
 const showSearch = ref(false);
 const headings = ref<Array<{ level: number; text: string; pos: number }>>([]);
 const sourceContent = ref('');
 const currentCursorPos = ref(0);
 const visibleHeadingIndex = ref(-1);
-const backlinkCount = ref(0);
 const workspaceRoot = ref<string>('');
 
 // 搜索相关状态
@@ -175,6 +174,20 @@ const HEADING_SCROLL_OFFSET = 120;
 const handleWikilinkClick = (noteName: string) => {
   emits('wikilink-click', noteName);
 };
+
+const {
+  showBacklinks,
+  backlinkCount,
+  toggleBacklinks,
+  closeBacklinks,
+  handleBacklinkNavigate
+} = useEditorBacklinks({
+  currentTitle: toRef(props, 'currentTitle'),
+  currentFragmentId: toRef(props, 'currentFragmentId'),
+  emitNavigate: (fragmentId, searchTitle) => {
+    emits('backlink-navigate', fragmentId, searchTitle);
+  }
+});
 
 // 图片上传处理
 const handleImageUpload = async (file: File, _view: EditorView) => {
@@ -803,11 +816,6 @@ const toggleOutline = () => {
   }
 };
 
-// 切换反向链接面板
-const toggleBacklinks = () => {
-  showBacklinks.value = !showBacklinks.value;
-};
-
 // 搜索功能
 const openSearch = () => {
   showSearch.value = true;
@@ -938,33 +946,6 @@ const clearSearchHighlights = () => {
   searchPanelRef.value?.updateMatchInfo(-1, 0);
   editor.value?.commands.blur();
 };
-
-// 处理反向链接导航
-const handleBacklinkNavigate = (fragmentId: number | string, searchTitle: string) => {
-  emits('backlink-navigate', fragmentId, searchTitle);
-};
-
-// 更新反向链接计数
-const updateBacklinkCount = async () => {
-  if (!props.currentTitle) {
-    backlinkCount.value = 0;
-    return;
-  }
-  
-  try {
-    const { getBacklinkStats } = await import('@/utils/wikilink-updater');
-    const stats = await getBacklinkStats(props.currentTitle, props.currentFragmentId);
-    backlinkCount.value = stats.count;
-  } catch (error) {
-    console.error('Failed to update backlink count:', error);
-    backlinkCount.value = 0;
-  }
-};
-
-// 监听标题变化，更新反向链接计数
-watch(() => props.currentTitle, () => {
-  updateBacklinkCount();
-}, { immediate: true });
 
 // 提取标题
 const extractHeadings = () => {
