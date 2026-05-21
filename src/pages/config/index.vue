@@ -68,11 +68,7 @@ import { initCleanupCache, checkShouldInitialize } from '@/utils/app-init';
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
-import {
-  clearGitConflictState,
-  restoreGitConflictState,
-  saveGitConflictState
-} from '@/plugins/git-sync/conflictState';
+import { useGitConflictDialogs } from '@/plugins/git-sync/useGitConflictDialogs';
 
 type ConfirmResult = 'primary' | 'secondary' | 'close';
 type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
@@ -135,16 +131,23 @@ let unlistenOpenFromSystem: (() => void) | null = null;
 let gitListeners: unknown | null = null;
 let gitRuntimeListeners: import('@/plugins/git-sync/gitSyncRuntime').GitSyncRuntimeListeners | null = null;
 
-// 冲突对话框状态
-const showConflictDialog = ref(false);
-const showManualMergeDialog = ref(false);
 // 仓库不存在对话框状态
 const showRepoNotFoundDialog = ref(false);
 const repoNotFoundInfo = ref<{ remote_url: string; operation: string }>({ remote_url: '', operation: '' });
-const conflictFiles = ref<string[]>([]);
-const untrackedFiles = ref<string[]>([]); // 未跟踪文件（会被远程覆盖）
-/** 手动合并时使用的文件列表：冲突文件 + 未跟踪文件，保证“仅未跟踪”时也有数据 */
-const mergeFileList = computed(() => [...conflictFiles.value, ...untrackedFiles.value]);
+const {
+  showConflictDialog,
+  showManualMergeDialog,
+  conflictFiles,
+  untrackedFiles,
+  mergeFileList,
+  restoreConflictDialogState,
+  setConflictFiles,
+  clearConflictFiles,
+  closeConflictDialog,
+  openManualMergeDialog,
+  closeManualMergeDialog,
+  backToConflictDialog
+} = useGitConflictDialogs();
 const conflictDialogRef = ref<LoadingDialogExpose | null>(null);
 const manualMergeRef = ref<LoadingDialogExpose | null>(null);
 
@@ -175,21 +178,6 @@ const handleConfirmResult = (result: ConfirmResult) => {
   }
 };
 
-// 将冲突状态保存到 sessionStorage，以便页面重载后恢复
-const saveConflictState = () => {
-  saveGitConflictState(sessionStorage, conflictFiles.value);
-};
-
-// 恢复冲突状态
-const restoreConflictState = () => {
-  const restoredState = restoreGitConflictState(sessionStorage);
-  if (restoredState) {
-    conflictFiles.value = restoredState.conflictFiles;
-    showConflictDialog.value = true;
-    logger.info('[Config] 恢复冲突状态，显示对话框');
-  }
-};
-
 const resetGitConflictHandled = () => {
   gitRuntimeListeners?.resetConflictHandled();
 };
@@ -217,12 +205,10 @@ const handleConflictResolution = async (strategy: string) => {
       
       await resolveConflictWithForcePush();
       modal.msg(t('settings.gitSync.forcePushSuccess'), 'success', 'bottom-right');
-      showConflictDialog.value = false;
+      closeConflictDialog();
       
       // 清除冲突状态
-      clearGitConflictState(sessionStorage);
-      conflictFiles.value = [];
-      untrackedFiles.value = [];
+      clearConflictFiles();
       
       // 刷新数据（merge 状态下工作目录可能被 git 修改过）
       window.dispatchEvent(new CustomEvent('refresh-data', { 
@@ -242,12 +228,10 @@ const handleConflictResolution = async (strategy: string) => {
       
       await resolveConflictWithForcePull(untrackedFiles.value);
       modal.msg(t('settings.gitSync.forcePullSuccess'), 'success', 'bottom-right');
-      showConflictDialog.value = false;
+      closeConflictDialog();
       
       // 清除冲突状态
-      clearGitConflictState(sessionStorage);
-      conflictFiles.value = [];
-      untrackedFiles.value = [];
+      clearConflictFiles();
       
       // 刷新数据
       window.dispatchEvent(new CustomEvent('refresh-data', { 
@@ -256,8 +240,7 @@ const handleConflictResolution = async (strategy: string) => {
       
     } else if (strategy === 'manual-merge') {
       // 显示手动合并对话框（不跳转）
-      showConflictDialog.value = false;
-      showManualMergeDialog.value = true;
+      openManualMergeDialog();
     }
   } catch (error) {
     if (error !== 'cancel') {
@@ -274,7 +257,7 @@ const handleConflictResolution = async (strategy: string) => {
 
 // 按 ESC 关闭冲突弹框：仅关闭，不弹出「取消冲突处理」二次确认
 const handleConflictEscape = () => {
-  showConflictDialog.value = false;
+  closeConflictDialog();
   resetGitConflictHandled();
 };
 
@@ -288,14 +271,13 @@ const handleConflictCancel = async () => {
     type: 'warning'
   });
 
-  showConflictDialog.value = false;
+  closeConflictDialog();
   // 重置冲突处理标志，允许后续冲突事件再次触发
   resetGitConflictHandled();
 
   if (result === 'secondary') {
     const { resumeAutoSyncAfterConflict } = await loadGitConflictResolution();
-    clearGitConflictState(sessionStorage);
-    conflictFiles.value = [];
+    clearConflictFiles({ clearUntracked: false });
     const resumed = await resumeAutoSyncAfterConflict();
     if (resumed) {
       modal.msg(t('settings.gitSync.autoSyncResumed'), 'info', 'bottom-right');
@@ -346,12 +328,10 @@ const handleManualMergeComplete = async (selections: Record<number, 'remote' | '
     logger.info(`[Config] 手动合并成功，已解决 ${result.resolved_count} 个冲突`);
     
     modal.msg(t('settings.gitSync.mergeSuccess'), 'success', 'bottom-right');
-    showManualMergeDialog.value = false;
+    closeManualMergeDialog();
     
     // 清除冲突状态
-    clearGitConflictState(sessionStorage);
-    conflictFiles.value = [];
-    untrackedFiles.value = [];
+    clearConflictFiles();
     
     // 刷新数据
     window.dispatchEvent(new CustomEvent('refresh-data', { 
@@ -382,15 +362,13 @@ const handleManualMergeCancel = async () => {
     type: 'warning'
   });
 
-  showManualMergeDialog.value = false;
+  closeManualMergeDialog();
   // 重置冲突处理标志，允许后续冲突事件再次触发
   resetGitConflictHandled();
 
   if (result === 'secondary') {
     const { resumeAutoSyncAfterConflict } = await loadGitConflictResolution();
-    clearGitConflictState(sessionStorage);
-    conflictFiles.value = [];
-    untrackedFiles.value = [];
+    clearConflictFiles();
     const resumed = await resumeAutoSyncAfterConflict();
     if (resumed) {
       modal.msg(t('settings.gitSync.autoSyncResumed'), 'info', 'bottom-right');
@@ -403,14 +381,13 @@ const handleManualMergeCancel = async () => {
 
 // 返回到冲突对话框
 const handleManualMergeBack = () => {
-  showManualMergeDialog.value = false;
-  showConflictDialog.value = true;
+  backToConflictDialog();
   logger.info('[Config] 用户从手动合并返回到冲突对话框');
 };
 
 // 按 ESC 关闭手动合并弹框：仅关闭，不弹出「取消冲突处理」二次确认
 const handleManualMergeEscape = () => {
-  showManualMergeDialog.value = false;
+  closeManualMergeDialog();
   resetGitConflictHandled();
 };
 
@@ -524,10 +501,10 @@ onMounted(async () => {
     gitRuntimeListeners = await setupGitSyncRuntimeListeners({
       isConflictDialogVisible: () => showConflictDialog.value,
       onConflictDetected: ({ conflictFiles: nextConflictFiles, untrackedFiles: nextUntrackedFiles }) => {
-        conflictFiles.value = nextConflictFiles;
-        untrackedFiles.value = nextUntrackedFiles;
-        saveConflictState();
-        showConflictDialog.value = true;
+        setConflictFiles({
+          conflictFiles: nextConflictFiles,
+          untrackedFiles: nextUntrackedFiles
+        });
       },
       onRepoNotFound: ({ remoteUrl, operation }) => {
         repoNotFoundInfo.value = {
@@ -626,7 +603,7 @@ onMounted(async () => {
   }
   
   // 恢复冲突状态（如果页面重载）
-  restoreConflictState();
+  restoreConflictDialogState();
 });
 
 // 清理事件监听器
