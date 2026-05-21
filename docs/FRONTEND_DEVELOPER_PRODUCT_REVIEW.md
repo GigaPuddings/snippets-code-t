@@ -469,11 +469,12 @@ Frontend Workspace
 - `TipTapEditor` 已新增 `useEditorViewMode`，阅读、编辑预览、源码模式的状态机和切换命令已从主组件迁出，并补充源码回写、大纲刷新和重复切换测试。
 - `TipTapEditor` 已新增 `useEditorPersistenceBridge`，TipTap JSON 到 Markdown 发射、源码模式回写、外部内容同步和防循环状态已从主组件迁出，并补充单元测试。
 - `TipTapEditor` 已新增 `useEditorBacklinks`，反链面板开关、计数刷新和导航转发已从主组件迁出，并补充单元测试。
+- `TipTapEditor` 已新增 `useEditorImageUpload`，附件上传、Tauri 文件 URL 转换、图片插入、非空段落拆分和插入后选中图片节点已从主组件迁出，并补充单元测试。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
 - 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
 - 配置页下一步建议转向拆分内容编辑区或插件安装流程，配置页主入口已基本降为装配层。
-- 继续拆分 `TipTapEditor` 的图片上传逻辑，为后续模板变量做准备。
+- 继续收敛 `TipTapEditor` 的搜索、大纲和右键菜单逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。

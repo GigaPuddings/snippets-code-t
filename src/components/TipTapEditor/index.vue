@@ -81,12 +81,11 @@
 
 <script setup lang="ts">
 import { useEditor, EditorContent } from '@tiptap/vue-3';
-import { TextSelection, NodeSelection } from '@tiptap/pm/state';
+import { TextSelection } from '@tiptap/pm/state';
 import { debounce } from '@/utils';
 import { handleEditorError } from '@/utils/error-handler';
 import { markdownToHtml, jsonToMarkdown } from './utils/markdown';
 import { createEditorExtensions } from './config/extensions';
-import { uploadImage } from '@/plugins/attachments/image-upload';
 import { getWorkspaceRoot } from '@/api/markdown';
 import TipTapContextMenu from './TipTapContextMenu.vue';
 import EditorStatusBar from './components/EditorStatusBar.vue';
@@ -95,10 +94,14 @@ import EditorActions from './components/EditorActions.vue';
 import SourceEditor from './components/SourceEditor.vue';
 import BacklinkPanel from './components/BacklinkPanel.vue';
 import { useEditorBacklinks } from './composables/useEditorBacklinks';
+import {
+  useEditorImageUpload,
+  type ImageUploadEditor
+} from './composables/useEditorImageUpload';
 import { useEditorPersistenceBridge } from './composables/useEditorPersistenceBridge';
 import { useEditorViewMode } from './composables/useEditorViewMode';
 import { SearchPanel } from '@/components/UI';
-import type { CSSProperties } from 'vue';
+import type { CSSProperties, Ref } from 'vue';
 import type { EditorView } from '@tiptap/pm/view';
 import modal from '@/utils/modal';
 
@@ -189,128 +192,6 @@ const {
   }
 });
 
-// 图片上传处理
-const handleImageUpload = async (file: File, _view: EditorView) => {
-  console.log('[handleImageUpload] 开始上传图片:', file.name);
-
-  // 检查是否有当前笔记 ID
-  if (!props.currentFragmentId) {
-    console.error('[handleImageUpload] 未找到当前笔记 ID');
-    modal.error('无法上传图片：未找到当前笔记');
-    return;
-  }
-
-  console.log('[handleImageUpload] 当前笔记 ID:', props.currentFragmentId);
-
-  try {
-    // 上传图片
-    console.log('[handleImageUpload] 调用 uploadImage');
-    const attachmentInfo = await uploadImage(file, String(props.currentFragmentId));
-    console.log('[handleImageUpload] 上传成功, attachmentInfo:', attachmentInfo);
-    
-    // 构建绝对路径
-    const absolutePath = `${workspaceRoot.value}\\${attachmentInfo.relativePath.replace('../', '').replace(/\//g, '\\')}`;
-    console.log('[handleImageUpload] 绝对路径:', absolutePath);
-    
-    // 使用 Tauri 的 convertFileSrc 转换为可访问的 URL
-    const { convertFileSrc } = await import('@tauri-apps/api/core');
-    const tauriUrl = convertFileSrc(absolutePath);
-    console.log('[handleImageUpload] Tauri URL:', tauriUrl);
-    
-    // 直接插入图片节点，包含所有必要的属性
-    if (editor.value) {
-      console.log('[handleImageUpload] 编辑器存在，准备插入图片');
-      
-      // 获取当前选区
-      const { from } = editor.value.state.selection;
-      const $from = editor.value.state.doc.resolve(from);
-      
-      // 检查当前是否在段落中且段落不为空
-      const isInParagraph = $from.parent.type.name === 'paragraph';
-      const paragraphHasContent = $from.parent.textContent.trim().length > 0;
-      
-      console.log('[handleImageUpload] 插入位置:', {
-        isInParagraph,
-        paragraphHasContent,
-        parentType: $from.parent.type.name
-      });
-      
-      // 使用 HTML 方式插入图片，确保 VueNodeViewRenderer 能够识别
-      // 不设置初始宽度，让图片自适应显示
-      const imgHtml = `<img src="${tauriUrl}" alt="${file.name}" data-original-path="${attachmentInfo.relativePath}" />`;
-      console.log('[handleImageUpload] 图片 HTML:', imgHtml);
-      
-      // 记录插入前的位置
-      const insertPos = editor.value.state.selection.from;
-      console.log('[handleImageUpload] 插入位置:', insertPos);
-      
-      if (isInParagraph && paragraphHasContent) {
-        // 如果在非空段落中，先换行再插入图片
-        console.log('[handleImageUpload] 在非空段落中，先换行');
-        editor.value
-          .chain()
-          .focus()
-          .command(({ tr }) => {
-            // 在当前位置后插入新段落
-            tr.split(tr.selection.from);
-            return true;
-          })
-          .insertContent(imgHtml)
-          .run();
-      } else {
-        // 如果在空段落或其他位置，直接插入
-        console.log('[handleImageUpload] 直接插入图片');
-        editor.value
-          .chain()
-          .focus()
-          .insertContent(imgHtml)
-          .run();
-      }
-      
-      // 插入后选中图片
-      nextTick(() => {
-        if (!editor.value) return;
-        
-        const { state } = editor.value;
-        const { doc } = state;
-        
-        // 从插入位置开始查找图片节点
-        let imagePos = -1;
-        doc.descendants((node, pos) => {
-          if (node.type.name === 'image' && pos >= insertPos) {
-            imagePos = pos;
-            return false; // 找到后停止遍历
-          }
-          return true; // 继续遍历
-        });
-        
-        console.log('[handleImageUpload] 找到图片节点位置:', imagePos);
-        
-        if (imagePos >= 0) {
-          // 选中图片节点
-          const nodeSelection = NodeSelection.create(doc, imagePos);
-          editor.value.view.dispatch(
-            state.tr.setSelection(nodeSelection)
-          );
-          console.log('[handleImageUpload] ✅ 图片已选中');
-        } else {
-          console.warn('[handleImageUpload] ⚠️ 未找到图片节点');
-        }
-      });
-      
-      console.log('[handleImageUpload] 图片插入完成');
-    } else {
-      console.error('[handleImageUpload] 编辑器不存在');
-    }
-
-    // 显示成功提示
-    modal.success('图片上传成功');
-  } catch (error) {
-    console.error('图片上传失败:', error);
-    modal.error(`图片上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
-  }
-};
-
 // 更新统计信息
 const updateStats = (text: string) => {
   // 字符数：所有字符（包括空格、换行等）
@@ -346,6 +227,10 @@ const editorPersistenceBridge = useEditorPersistenceBridge({
   refreshSourceOutline: () => extractHeadingsFromSource(),
   handleError: handleEditorError
 });
+
+const handleImageUpload = async (file: File, _view: EditorView) => {
+  await editorImageUpload.handleImageUpload(file);
+};
 
 // 初始化编辑器
 const editor = useEditor({
@@ -665,6 +550,14 @@ const editor = useEditor({
   enablePasteRules: true,
   enableCoreExtensions: true,
   injectCSS: false
+});
+
+const editorImageUpload = useEditorImageUpload({
+  editor: editor as unknown as Ref<ImageUploadEditor | null | undefined>,
+  workspaceRoot,
+  getCurrentFragmentId: () => props.currentFragmentId,
+  notifySuccess: (message) => modal.success(message),
+  notifyError: (message) => modal.error(message)
 });
 
 const {
