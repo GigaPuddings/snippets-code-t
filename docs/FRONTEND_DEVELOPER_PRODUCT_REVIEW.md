@@ -466,11 +466,12 @@ Frontend Workspace
 - 配置页导航事件、待处理跳转和系统打开 Markdown 已迁入 `src/pages/config/composables/useConfigNavigationEvents.ts`，并补充单元测试。
 - 配置页全局启动、`config_ready`、插件初始化和初始化清理已迁入 `src/pages/config/composables/useConfigStartup.ts`，并补充单元测试。
 - 配置页生命周期启动/清理编排已迁入 `src/pages/config/composables/useConfigLifecycle.ts`，主文件只绑定 lifecycle start/cleanup。
+- `TipTapEditor` 已新增 `useEditorViewMode`，阅读、编辑预览、源码模式的状态机和切换命令已从主组件迁出，并补充源码回写、大纲刷新和重复切换测试。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
 - 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
 - 配置页下一步建议转向拆分内容编辑区或插件安装流程，配置页主入口已基本降为装配层。
-- 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。
+- 继续拆分 `TipTapEditor` 的持久化桥接、图片上传和反链逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。

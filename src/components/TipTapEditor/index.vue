@@ -94,6 +94,7 @@ import OutlinePanel from './components/OutlinePanel.vue';
 import EditorActions from './components/EditorActions.vue';
 import SourceEditor from './components/SourceEditor.vue';
 import BacklinkPanel from './components/BacklinkPanel.vue';
+import { useEditorViewMode } from './composables/useEditorViewMode';
 import { SearchPanel } from '@/components/UI';
 import type { CSSProperties } from 'vue';
 import type { EditorView } from '@tiptap/pm/view';
@@ -156,7 +157,6 @@ const showOutline = ref(false);
 const showBacklinks = ref(false);
 const showSearch = ref(false);
 const headings = ref<Array<{ level: number; text: string; pos: number }>>([]);
-const viewMode = ref<'reading' | 'preview' | 'source'>('preview');
 const sourceContent = ref('');
 const currentCursorPos = ref(0);
 const visibleHeadingIndex = ref(-1);
@@ -667,90 +667,56 @@ const editor = useEditor({
   injectCSS: false
 });
 
-// 切换视图模式
-const toggleViewMode = (mode: 'reading' | 'preview' | 'source') => {
-  if (mode === viewMode.value) return;
-  
-  const wasSourceMode = viewMode.value === 'source';
-  
-  if (mode === 'source') {
-    // 切换到源码模式：清理 TipTap 的滚动监听器
+const applySourceContentToEditor = () => {
+  if (!editor.value || !sourceContent.value) return;
+
+  try {
+    const html = markdownToHtml(sourceContent.value, workspaceRoot.value);
+    editor.value.commands.setContent(html, { emitUpdate: false });
+    lastEmittedContent.value = html;
+    nextTick(() => {
+      emits('update:content', sourceContent.value);
+      emits('change', sourceContent.value);
+    });
+  } catch (error) {
+    console.error('Failed to parse Markdown:', error);
+    handleEditorError(error, 'Markdown to HTML conversion');
+  }
+};
+
+const {
+  viewMode,
+  toggleViewMode,
+  handleViewModeCommand,
+  toggleToReadingMode,
+  toggleToEditingMode
+} = useEditorViewMode({
+  sourceContent,
+  enterSourceMode: () => {
     cleanupScrollListener();
-    
+
     if (editor.value) {
-      // 使用 JSON 格式转换，而不是 HTML
-      // 因为 TipTap 的 getHTML() 会丢失任务列表的结构
       const json = editor.value.getJSON();
       sourceContent.value = jsonToMarkdown(json);
     }
-    viewMode.value = 'source';
-    emits('view-mode-change', 'source');
-    
-    // 如果大纲面板已打开，提取源码中的标题并设置滚动监听
-    if (showOutline.value) {
-      nextTick(() => {
-        extractHeadingsFromSource();
-        setupSourceScrollListener();
-      });
-    }
-  } else if (mode === 'preview') {
-    if (wasSourceMode && editor.value && sourceContent.value) {
-      try {
-        const html = markdownToHtml(sourceContent.value, workspaceRoot.value);
-        editor.value.commands.setContent(html, { emitUpdate: false });
-        lastEmittedContent.value = html;
-        nextTick(() => {
-          emits('update:content', sourceContent.value);
-          emits('change', sourceContent.value);
-        });
-      } catch (error) {
-        console.error('Failed to parse Markdown:', error);
-        handleEditorError(error, 'Markdown to HTML conversion');
-      }
-    }
+  },
+  applySourceContent: applySourceContentToEditor,
+  setEditorEditable: (editable) => {
     if (editor.value) {
-      editor.value.setEditable(true);
+      editor.value.setEditable(editable);
     }
-    viewMode.value = 'preview';
-    emits('view-mode-change', 'preview');
-    
-    // 如果大纲面板已打开，重新设置滚动监听器和提取标题
-    if (showOutline.value) {
-      nextTick(() => {
-        extractHeadings();
-        setupScrollListener();
-      });
-    }
-  } else if (mode === 'reading') {
-    if (wasSourceMode && editor.value && sourceContent.value) {
-      try {
-        const html = markdownToHtml(sourceContent.value, workspaceRoot.value);
-        editor.value.commands.setContent(html, { emitUpdate: false });
-        lastEmittedContent.value = html;
-        nextTick(() => {
-          emits('update:content', sourceContent.value);
-          emits('change', sourceContent.value);
-        });
-      } catch (error) {
-        console.error('Failed to parse Markdown:', error);
-        handleEditorError(error, 'Markdown to HTML conversion');
-      }
-    }
-    if (editor.value) {
-      editor.value.setEditable(false);
-    }
-    viewMode.value = 'reading';
-    emits('view-mode-change', 'reading');
-    
-    // 如果大纲面板已打开，重新设置滚动监听器和提取标题
-    if (showOutline.value) {
-      nextTick(() => {
-        extractHeadings();
-        setupScrollListener();
-      });
-    }
-  }
-};
+  },
+  isOutlineVisible: () => showOutline.value,
+  refreshSourceOutline: () => {
+    extractHeadingsFromSource();
+    setupSourceScrollListener();
+  },
+  refreshEditorOutline: () => {
+    extractHeadings();
+    setupScrollListener();
+  },
+  emitViewModeChange: (mode) => emits('view-mode-change', mode)
+});
 
 // 源码内容变更
 const handleSourceContentChange = (value: string) => {
@@ -854,21 +820,6 @@ const cleanupSourceScrollListener = () => {
     sourceScrollCleanup();
     sourceScrollCleanup = null;
   }
-};
-
-// 处理视图模式切换命令
-const handleViewModeCommand = (command: 'reading' | 'preview' | 'source') => {
-  toggleViewMode(command);
-};
-
-// 切换到阅读模式
-const toggleToReadingMode = () => {
-  toggleViewMode('reading');
-};
-
-// 切换到编辑模式
-const toggleToEditingMode = () => {
-  toggleViewMode('preview');
 };
 
 // 切换大纲
