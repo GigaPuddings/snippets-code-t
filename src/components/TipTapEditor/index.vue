@@ -101,6 +101,7 @@ import { useEditorLinks } from './composables/useEditorLinks';
 import { useEditorOutline } from './composables/useEditorOutline';
 import { useEditorPersistenceBridge } from './composables/useEditorPersistenceBridge';
 import { useEditorSearch } from './composables/useEditorSearch';
+import { useEditorSessionScroll } from './composables/useEditorSessionScroll';
 import { useEditorViewMode } from './composables/useEditorViewMode';
 import { SearchPanel } from '@/components/UI';
 import type { CSSProperties, Ref } from 'vue';
@@ -270,6 +271,14 @@ const {
   updateMatchInfo: (currentIndex, total) => {
     searchPanelRef.value?.updateMatchInfo(currentIndex, total);
   }
+});
+
+const {
+  getScrollPosition,
+  setScrollPosition,
+  scrollToWikilink
+} = useEditorSessionScroll({
+  getEditor: () => editor.value
 });
 
 // 初始化编辑器
@@ -601,158 +610,9 @@ defineExpose({
   toggleBacklinks: toggleBacklinks,
   openSearch: openSearch,
   getViewMode: () => viewMode.value,
-  /** 获取当前编辑器内容区域滚动位置（用于会话恢复） */
-  getScrollPosition: (): number => {
-    if (!editor.value) return 0;
-    const scrollContainer = editor.value.view.dom as HTMLElement;
-    return scrollContainer?.scrollTop ?? 0;
-  },
-  /** 设置编辑器内容区域滚动位置（用于会话恢复） */
-  setScrollPosition: (scrollTop: number) => {
-    if (!editor.value) return;
-    nextTick(() => {
-      const scrollContainer = editor.value?.view.dom as HTMLElement;
-      if (scrollContainer) {
-        scrollContainer.scrollTop = Math.max(0, scrollTop);
-      }
-    });
-  },
-  scrollToWikilink: (searchTitle: string) => {
-    if (!editor.value) return;
-    
-    nextTick(() => {
-      try {
-        const scrollContainer = editor.value!.view.dom as HTMLElement;
-        let targetElement: HTMLElement | null = null;
-        let highlightRange: Range | null = null;
-        
-        const wikilinkElements = scrollContainer.querySelectorAll('.wikilink-decoration');
-        for (const element of wikilinkElements) {
-          const cleanText = (element.textContent || '').replace(/\[\[|\]\]/g, '').trim();
-          if (cleanText === searchTitle) {
-            targetElement = element as HTMLElement;
-            break;
-          }
-        }
-        
-        if (!targetElement) {
-          const walker = document.createTreeWalker(scrollContainer, NodeFilter.SHOW_TEXT, null);
-          let node: Node | null;
-          
-          while ((node = walker.nextNode())) {
-            const textContent = node.textContent || '';
-            const index = textContent.indexOf(searchTitle);
-            
-            if (index !== -1) {
-              const parentElement = node.parentElement;
-              if (!parentElement) continue;
-              
-              let parent: HTMLElement | null = parentElement;
-              let isInWikilink = false;
-              
-              while (parent && parent !== scrollContainer) {
-                if (parent.classList.contains('wikilink-decoration')) {
-                  isInWikilink = true;
-                  break;
-                }
-                parent = parent.parentElement;
-              }
-              
-              if (!isInWikilink) {
-                targetElement = parentElement;
-                try {
-                  const range = document.createRange();
-                  range.setStart(node, index);
-                  range.setEnd(node, index + searchTitle.length);
-                  if (range.getClientRects().length > 0) {
-                    highlightRange = range;
-                  }
-                } catch (error) {
-                  // Ignore range creation errors
-                }
-                break;
-              }
-            }
-          }
-        }
-        
-        if (!targetElement) return;
-        
-        const targetRect = targetElement.getBoundingClientRect();
-        const containerRect = scrollContainer.getBoundingClientRect();
-        
-        let elementOffsetTop = 0;
-        let currentElement: HTMLElement | null = targetElement;
-        while (currentElement && currentElement !== scrollContainer) {
-          elementOffsetTop += currentElement.offsetTop;
-          currentElement = currentElement.offsetParent as HTMLElement | null;
-          if (currentElement === scrollContainer) break;
-        }
-        
-        const viewportHeight = containerRect.height;
-        const elementHeight = targetRect.height;
-        const targetPositionInViewport = viewportHeight / 2;
-        
-        let isInCodeBlock = false;
-        let checkElement: HTMLElement | null = targetElement;
-        while (checkElement && checkElement !== scrollContainer) {
-          if (checkElement.tagName === 'PRE' || 
-              checkElement.classList.contains('code-block-wrapper') ||
-              checkElement.classList.contains('hljs')) {
-            isInCodeBlock = true;
-            break;
-          }
-          checkElement = checkElement.parentElement;
-        }
-        
-        const scrollAdjustment = isInCodeBlock ? 580 : -80;
-        const newScrollTop = elementOffsetTop - targetPositionInViewport + (elementHeight / 2) + scrollAdjustment;
-        scrollContainer.scrollTop = Math.max(0, newScrollTop);
-        
-        setTimeout(() => {
-          const createHighlight = (rect: DOMRect) => {
-            const overlay = document.createElement('div');
-            overlay.style.cssText = `
-              position: fixed;
-              left: ${rect.left}px;
-              top: ${rect.top}px;
-              width: ${rect.width}px;
-              height: ${rect.height}px;
-              background-color: rgba(255, 235, 59, 0.3);
-              border-radius: 2px;
-              pointer-events: none;
-              z-index: 9999;
-              animation: highlight-pulse 1.5s ease-out;
-            `;
-            
-            if (!document.getElementById('highlight-animation-style')) {
-              const style = document.createElement('style');
-              style.id = 'highlight-animation-style';
-              style.textContent = `
-                @keyframes highlight-pulse {
-                  0% { background-color: rgba(255, 235, 59, 0.6); box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.4); }
-                  50% { background-color: rgba(255, 235, 59, 0.4); box-shadow: 0 0 0 4px rgba(255, 235, 59, 0.2); }
-                  100% { background-color: rgba(255, 235, 59, 0); box-shadow: 0 0 0 0 rgba(255, 235, 59, 0); }
-                }
-              `;
-              document.head.appendChild(style);
-            }
-            
-            document.body.appendChild(overlay);
-            setTimeout(() => overlay.remove(), 2000);
-          };
-          
-          if (highlightRange) {
-            Array.from<DOMRect>(highlightRange.getClientRects()).forEach(createHighlight);
-          } else if (targetElement) {
-            createHighlight(targetElement.getBoundingClientRect());
-          }
-        }, 200);
-      } catch (error) {
-        console.error('Failed to scroll to wikilink:', error);
-      }
-    });
-  }
+  getScrollPosition,
+  setScrollPosition,
+  scrollToWikilink
 });
 </script>
 
