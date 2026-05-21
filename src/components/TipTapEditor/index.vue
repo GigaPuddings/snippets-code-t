@@ -97,6 +97,7 @@ import {
   useEditorImageUpload,
   type ImageUploadEditor
 } from './composables/useEditorImageUpload';
+import { useEditorLinks } from './composables/useEditorLinks';
 import { useEditorOutline } from './composables/useEditorOutline';
 import { useEditorPersistenceBridge } from './composables/useEditorPersistenceBridge';
 import { useEditorSearch } from './composables/useEditorSearch';
@@ -161,9 +162,6 @@ const wordCount = ref(0);
 const charCount = ref(0);
 const sourceContent = ref('');
 const workspaceRoot = ref<string>('');
-
-// 常量：标题跳转时的顶部偏移量（为工具栏和状态栏留出空间）
-const HEADING_SCROLL_OFFSET = 120;
 
 // Wikilink 点击处理
 const handleWikilinkClick = (noteName: string) => {
@@ -232,6 +230,14 @@ const {
   emitScrollPosition: (scrollTop) => emits('scroll-position', scrollTop)
 });
 
+const {
+  handleLinkClick,
+  setupAnchorClickInterceptor,
+  cleanupAnchorClickInterceptor
+} = useEditorLinks({
+  getEditor: () => editor.value
+});
+
 const editorPersistenceBridge = useEditorPersistenceBridge({
   sourceContent,
   workspaceRoot,
@@ -295,27 +301,8 @@ const editor = useEditor({
       emits('ready', editor);
       setCurrentCursorPos(editor.state.selection.from);
       
-      // 添加全局事件监听器，在捕获阶段拦截锚点链接
       const editorElement = editor.view.dom;
-      const handleAnchorClick = (event: MouseEvent) => {
-        const target = event.target as HTMLElement;
-        const link = target.closest('a');
-        
-        if (link) {
-          const href = link.getAttribute('href');
-          
-          // 只拦截锚点链接
-          if (href && href.startsWith('#')) {
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation();
-            // 不执行任何操作，让 handleClick 处理
-          }
-        }
-      };
-      
-      // 在捕获阶段添加监听器，优先级最高
-      editorElement.addEventListener('click', handleAnchorClick, true);
+      setupAnchorClickInterceptor(editorElement);
       
       // 添加编辑器级别的键盘事件监听器
       const handleEditorKeyDown = (event: KeyboardEvent) => {
@@ -343,139 +330,7 @@ const editor = useEditor({
       class: props.dark ? 'tiptap-editor dark' : 'tiptap-editor',
       spellcheck: 'false'
     },
-    handleClick: (view, _pos, event) => {
-      // 处理链接点击
-      const target = event.target as HTMLElement;
-      
-      // 注意：.markdown-link-text 的点击已在 MarkdownLinkHandler 的 mousedown 中处理
-      // 此处不再重复处理，避免双标签页问题
-      
-      // 检查普通的 <a> 标签链接
-      const link = target.closest('a');
-      
-      if (link) {
-        const href = link.getAttribute('href');
-        
-        if (href) {
-          // 处理锚点链接（文档内跳转）
-          if (href.startsWith('#')) {
-            // 立即阻止所有默认行为和事件传播
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation();
-            
-            // 提取锚点 ID（移除开头的 #）
-            const anchorId = decodeURIComponent(href.substring(1));
-            
-            // 首先尝试直接查找 DOM 元素（最可靠的方式）
-            const scrollContainer = view.dom as HTMLElement;
-            const targetElement = scrollContainer.querySelector(`[id="${anchorId}"]`) ||
-                                 scrollContainer.querySelector(`a[name="${anchorId}"]`);
-            
-            if (targetElement) {
-              // 找到了对应的元素，直接滚动到该位置
-              const elementTop = (targetElement as HTMLElement).offsetTop;
-              const targetScroll = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
-              scrollContainer.scrollTop = targetScroll;
-            } else {
-              // 如果没找到 DOM 元素，尝试实时提取标题并查找
-              const currentHeadings: Array<{ level: number; text: string; pos: number }> = [];
-              
-              if (editor.value) {
-                editor.value.state.doc.descendants((node, nodePos) => {
-                  if (node.type.name === 'heading') {
-                    currentHeadings.push({
-                      level: node.attrs.level,
-                      text: node.textContent,
-                      pos: nodePos
-                    });
-                  }
-                });
-              }
-              
-              const heading = currentHeadings.find(h => {
-                // 将标题文本转换为锚点 ID 格式
-                const headingId = h.text
-                  .toLowerCase()
-                  .trim()
-                  .replace(/\s+/g, '-')
-                  .replace(/[^\w\u4e00-\u9fa5-]/g, '');
-                return headingId === anchorId;
-              });
-              
-              if (heading) {
-                // 直接滚动到标题位置，不设置文本选择
-                const allHeadingElements = scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                let targetElement: HTMLElement | null = null;
-                
-                allHeadingElements.forEach((el: Element) => {
-                  const headingEl = el as HTMLElement;
-                  const text = headingEl.textContent?.trim() || '';
-                  if (text === heading.text && !targetElement) {
-                    targetElement = headingEl;
-                  }
-                });
-                
-                if (targetElement) {
-                  let elementTop = 0;
-                  let currentElement: HTMLElement | null = targetElement;
-                  
-                  while (currentElement && currentElement !== scrollContainer) {
-                    elementTop += currentElement.offsetTop;
-                    currentElement = currentElement.offsetParent as HTMLElement | null;
-                    if (currentElement === scrollContainer) break;
-                  }
-                  
-                  const targetScroll = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
-                  scrollContainer.scrollTop = targetScroll;
-                } else {
-                  console.warn('Target element not found in DOM');
-                }
-              } else {
-                console.warn('No matching heading found for anchor:', anchorId);
-              }
-            }
-            
-            return true;
-          }
-          // 处理外部链接
-          else if (href && href.trim() !== '') {
-            // 检查是否是有效的外部链接
-            const isValidExternalLink = 
-              href.startsWith('http://') || 
-              href.startsWith('https://') || 
-              href.startsWith('www.') ||
-              /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(href);
-            
-            if (isValidExternalLink) {
-              // 立即阻止所有默认行为和事件传播
-              event.preventDefault();
-              event.stopPropagation();
-              event.stopImmediatePropagation();
-              
-              // 自动补全协议（如果缺少）
-              let fullUrl = href;
-              if (!href.includes('://')) {
-                fullUrl = `https://${href}`;
-              }
-              
-              // 使用 Tauri 的 shell 在系统默认浏览器中打开链接
-              import('@tauri-apps/plugin-shell').then(({ open }) => {
-                open(fullUrl).catch(err => {
-                  console.error('Failed to open external link:', err);
-                });
-              });
-              
-              return true;
-            }
-            // 如果不是有效的外部链接（如空URL、相对路径等），不做任何处理
-            // 让它显示为普通的 <a> 标签
-          }
-        }
-      }
-      
-      return false;
-    },
+    handleClick: (view, _pos, event) => handleLinkClick(view, event),
     handlePaste: (view, event) => {
       const { state } = view;
       const $from = state.selection.$from;
@@ -723,6 +578,7 @@ onBeforeUnmount(() => {
   try {
     document.removeEventListener('keydown', handleKeyDown, true);
     cleanupScrollListener();
+    cleanupAnchorClickInterceptor();
     if (editor.value) {
       // 先检查 editor 是否已经被销毁
       if (!editor.value.isDestroyed) {
