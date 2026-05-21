@@ -432,10 +432,12 @@ Frontend Workspace
 - 前端 `MarkdownFile`、`FragmentMetadata`、`ContentType.metadata` 映射已接入 `framework` 和 `kind`。
 - 编辑器已暴露“语言、框架、类型”属性栏，并提供前端常用语言、框架、片段类型的内置选项。
 - 保存链路已修复“只修改标签或语义元数据时可能跳过写入”的问题，确保 frontmatter 能正确落盘。
+- 新增工程优先级进度文档 `docs/ENGINEERING_PRIORITY_PROGRESS.md`，用于按任务标记推进状态。
+- 新增 Vitest 测试入口，并将搜索排序逻辑抽为 `src/hooks/searchRanking.ts`，已覆盖第一批搜索排序用例，同时修复普通片段正文被当作文件名评分的边界问题。
 
 下一批建议优先推进：
 
 - 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
-- 为 `searchParser` 和 `filterEngine` 增加单元测试，锁住语义搜索行为。
+- 继续为 Markdown 转换、wikilink、索引解析、插件权限校验增加测试。
 - 开始拆分 `TipTapEditor` 的图片上传、搜索、大纲、反链逻辑，为后续模板变量做准备。
 - 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。
