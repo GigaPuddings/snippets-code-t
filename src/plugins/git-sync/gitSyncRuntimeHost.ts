@@ -6,6 +6,10 @@ import type {
   GitSyncRuntimeListeners
 } from './gitSyncRuntime';
 
+type GitLifecycleModule = typeof import('./lifecycle');
+type GitSyncRuntimeModule = typeof import('./gitSyncRuntime');
+type GitAutoSyncLifecycleModule = typeof import('./autoSyncLifecycle');
+
 type GitSyncRuntimeHostLogger = {
   info: (message: string, data?: unknown, ...args: unknown[]) => void;
 };
@@ -64,6 +68,30 @@ export interface CleanupGitSyncRuntimeHostDeps {
   logger?: GitSyncRuntimeHostLogger;
 }
 
+export interface SetupConfiguredGitSyncRuntimeHostDeps {
+  t: Composer['t'];
+  shouldInit: boolean;
+  isConflictDialogVisible: () => boolean;
+  onConflictDetected: (event: GitConflictRuntimeEvent) => void | Promise<void>;
+  onRepoNotFound: (event: GitRepoNotFoundRuntimeEvent) => void | Promise<void>;
+  autoSyncWindow?: GitSyncAutoSyncWindow;
+  isPluginEnabled?: () => boolean;
+  scheduleStartupRefresh?: () => void;
+  loadGitLifecycle?: () => Promise<GitLifecycleModule>;
+  loadGitSyncRuntime?: () => Promise<GitSyncRuntimeModule>;
+  loadGitAutoSyncLifecycle?: () => Promise<GitAutoSyncLifecycleModule>;
+  logger?: GitSyncRuntimeHostLogger;
+}
+
+export interface CleanupConfiguredGitSyncRuntimeHostDeps {
+  host: GitSyncRuntimeHost;
+  isPluginEnabled?: () => boolean;
+  loadGitLifecycle?: () => Promise<GitLifecycleModule>;
+  loadGitSyncRuntime?: () => Promise<GitSyncRuntimeModule>;
+  loadGitAutoSyncLifecycle?: () => Promise<GitAutoSyncLifecycleModule>;
+  logger?: GitSyncRuntimeHostLogger;
+}
+
 const defaultScheduleStartupRefresh = () => {
   setTimeout(() => {
     window.dispatchEvent(new CustomEvent('refresh-data', {
@@ -71,6 +99,65 @@ const defaultScheduleStartupRefresh = () => {
     }));
   }, 500);
 };
+
+const defaultLoadGitLifecycle = () => import('./lifecycle');
+const defaultLoadGitSyncRuntime = () => import('./gitSyncRuntime');
+const defaultLoadGitAutoSyncLifecycle = () => import('./autoSyncLifecycle');
+
+export async function setupConfiguredGitSyncRuntimeHost(
+  deps: SetupConfiguredGitSyncRuntimeHostDeps
+): Promise<GitSyncRuntimeHost> {
+  const [
+    lifecycle,
+    runtime,
+    autoSyncLifecycle
+  ] = await Promise.all([
+    (deps.loadGitLifecycle ?? defaultLoadGitLifecycle)(),
+    (deps.loadGitSyncRuntime ?? defaultLoadGitSyncRuntime)(),
+    (deps.loadGitAutoSyncLifecycle ?? defaultLoadGitAutoSyncLifecycle)()
+  ]);
+
+  return setupGitSyncRuntimeHost({
+    t: deps.t,
+    shouldInit: deps.shouldInit,
+    setupGitEventListeners: lifecycle.setupGitEventListeners,
+    setupGitSyncRuntimeListeners: runtime.setupGitSyncRuntimeListeners,
+    ensureWorkspaceGitignore: lifecycle.ensureWorkspaceGitignore,
+    initGitSync: lifecycle.initGitSync,
+    isConflictDialogVisible: deps.isConflictDialogVisible,
+    onConflictDetected: deps.onConflictDetected,
+    onRepoNotFound: deps.onRepoNotFound,
+    autoSyncWindow: deps.autoSyncWindow,
+    startAutoSyncForVisibleWindow: autoSyncLifecycle.startAutoSyncForVisibleWindow,
+    stopAutoSyncForHiddenWindow: autoSyncLifecycle.stopAutoSyncForHiddenWindow,
+    isPluginEnabled: deps.isPluginEnabled,
+    scheduleStartupRefresh: deps.scheduleStartupRefresh,
+    logger: deps.logger
+  });
+}
+
+export async function cleanupConfiguredGitSyncRuntimeHost(
+  deps: CleanupConfiguredGitSyncRuntimeHostDeps
+): Promise<void> {
+  const [
+    lifecycle,
+    runtime,
+    autoSyncLifecycle
+  ] = await Promise.all([
+    (deps.loadGitLifecycle ?? defaultLoadGitLifecycle)(),
+    (deps.loadGitSyncRuntime ?? defaultLoadGitSyncRuntime)(),
+    (deps.loadGitAutoSyncLifecycle ?? defaultLoadGitAutoSyncLifecycle)()
+  ]);
+
+  await cleanupGitSyncRuntimeHost({
+    host: deps.host,
+    cleanupGitEventListeners: lifecycle.cleanupGitEventListeners,
+    cleanupGitSyncRuntimeListeners: runtime.cleanupGitSyncRuntimeListeners,
+    stopAutoSyncForHiddenWindow: autoSyncLifecycle.stopAutoSyncForHiddenWindow,
+    isPluginEnabled: deps.isPluginEnabled,
+    logger: deps.logger
+  });
+}
 
 export async function setupGitSyncRuntimeHost(
   deps: GitSyncRuntimeHostDeps

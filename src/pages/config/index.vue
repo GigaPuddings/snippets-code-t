@@ -47,33 +47,10 @@ import { useGitConflictConfirm } from '@/plugins/git-sync/useGitConflictConfirm'
 import { useGitRepoNotFoundDialog } from '@/plugins/git-sync/useGitRepoNotFoundDialog';
 import { useGitRuntimeController } from '@/plugins/git-sync/useGitRuntimeController';
 import {
-  cleanupGitSyncRuntimeHost,
-  setupGitSyncRuntimeHost,
+  cleanupConfiguredGitSyncRuntimeHost,
+  setupConfiguredGitSyncRuntimeHost,
   type GitSyncRuntimeHost
 } from '@/plugins/git-sync/gitSyncRuntimeHost';
-
-type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
-type GitAutoSyncLifecycle = typeof import('@/plugins/git-sync/autoSyncLifecycle');
-type GitSyncRuntime = typeof import('@/plugins/git-sync/gitSyncRuntime');
-
-let gitLifecyclePromise: Promise<GitLifecycle> | null = null;
-let gitAutoSyncLifecyclePromise: Promise<GitAutoSyncLifecycle> | null = null;
-let gitSyncRuntimePromise: Promise<GitSyncRuntime> | null = null;
-
-const loadGitLifecycle = async (): Promise<GitLifecycle> => {
-  gitLifecyclePromise ??= import('@/plugins/git-sync/lifecycle');
-  return gitLifecyclePromise;
-};
-
-const loadGitAutoSyncLifecycle = async (): Promise<GitAutoSyncLifecycle> => {
-  gitAutoSyncLifecyclePromise ??= import('@/plugins/git-sync/autoSyncLifecycle');
-  return gitAutoSyncLifecyclePromise;
-};
-
-const loadGitSyncRuntime = async (): Promise<GitSyncRuntime> => {
-  gitSyncRuntimePromise ??= import('@/plugins/git-sync/gitSyncRuntime');
-  return gitSyncRuntimePromise;
-};
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -245,26 +222,10 @@ onMounted(async () => {
 
   if (pluginStore.isEnabled('git-sync')) {
     isGitSyncRuntimeReady.value = true;
-    const {
-      ensureWorkspaceGitignore,
-      initGitSync,
-      setupGitEventListeners
-    } = await loadGitLifecycle();
-    const {
-      setupGitSyncRuntimeListeners
-    } = await loadGitSyncRuntime();
-    const {
-      startAutoSyncForVisibleWindow,
-      stopAutoSyncForHiddenWindow
-    } = await loadGitAutoSyncLifecycle();
 
-    gitRuntimeHost = await setupGitSyncRuntimeHost({
+    gitRuntimeHost = await setupConfiguredGitSyncRuntimeHost({
       t,
       shouldInit,
-      setupGitEventListeners,
-      setupGitSyncRuntimeListeners,
-      ensureWorkspaceGitignore,
-      initGitSync,
       isConflictDialogVisible: () => showConflictDialog.value,
       onConflictDetected: ({ conflictFiles: nextConflictFiles, untrackedFiles: nextUntrackedFiles }) => {
         setConflictFiles({
@@ -279,8 +240,6 @@ onMounted(async () => {
         });
       },
       autoSyncWindow: getCurrentWindow(),
-      startAutoSyncForVisibleWindow,
-      stopAutoSyncForHiddenWindow,
       isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
       logger
     });
@@ -347,14 +306,8 @@ onUnmounted(async () => {
   logger.info('[Config] 🧹 开始清理 Config 页面资源...');
   
   if (gitRuntimeHost) {
-    const { cleanupGitEventListeners } = await loadGitLifecycle();
-    const { cleanupGitSyncRuntimeListeners } = await loadGitSyncRuntime();
-    const { stopAutoSyncForHiddenWindow } = await loadGitAutoSyncLifecycle();
-    await cleanupGitSyncRuntimeHost({
+    await cleanupConfiguredGitSyncRuntimeHost({
       host: gitRuntimeHost,
-      cleanupGitEventListeners,
-      cleanupGitSyncRuntimeListeners,
-      stopAutoSyncForHiddenWindow,
       isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
       logger
     });

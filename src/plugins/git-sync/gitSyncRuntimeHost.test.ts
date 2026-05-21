@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  cleanupConfiguredGitSyncRuntimeHost,
   cleanupGitSyncRuntimeHost,
+  setupConfiguredGitSyncRuntimeHost,
   setupGitSyncRuntimeHost,
   type GitSyncRuntimeHost
 } from './gitSyncRuntimeHost';
@@ -48,6 +50,41 @@ const createDeps = () => ({
 });
 
 describe('git sync runtime host', () => {
+  it('sets up configured host from plugin runtime modules', async () => {
+    const deps = createDeps();
+
+    await setupConfiguredGitSyncRuntimeHost({
+      t,
+      shouldInit: true,
+      isConflictDialogVisible: deps.isConflictDialogVisible,
+      onConflictDetected: deps.onConflictDetected,
+      onRepoNotFound: deps.onRepoNotFound,
+      autoSyncWindow: deps.autoSyncWindow,
+      isPluginEnabled: deps.isPluginEnabled,
+      scheduleStartupRefresh: deps.scheduleStartupRefresh,
+      loadGitLifecycle: async () => ({
+        setupGitEventListeners: deps.setupGitEventListeners,
+        cleanupGitEventListeners: vi.fn(),
+        ensureWorkspaceGitignore: deps.ensureWorkspaceGitignore,
+        initGitSync: deps.initGitSync
+      } as any),
+      loadGitSyncRuntime: async () => ({
+        setupGitSyncRuntimeListeners: deps.setupGitSyncRuntimeListeners,
+        cleanupGitSyncRuntimeListeners: vi.fn()
+      } as any),
+      loadGitAutoSyncLifecycle: async () => ({
+        startAutoSyncForVisibleWindow: deps.startAutoSyncForVisibleWindow,
+        stopAutoSyncForHiddenWindow: deps.stopAutoSyncForHiddenWindow
+      } as any)
+    });
+
+    expect(deps.setupGitEventListeners).toHaveBeenCalledWith(t);
+    expect(deps.setupGitSyncRuntimeListeners).toHaveBeenCalled();
+    expect(deps.ensureWorkspaceGitignore).toHaveBeenCalled();
+    expect(deps.initGitSync).toHaveBeenCalledWith(t);
+    expect(deps.autoSyncWindow.listen).toHaveBeenCalledWith('tauri://show', expect.any(Function));
+  });
+
   it('sets up event listeners, runtime listeners, gitignore, init, and startup refresh', async () => {
     const deps = createDeps();
 
@@ -153,6 +190,57 @@ describe('git sync runtime host', () => {
     expect(runtimeCleanup).toHaveBeenCalledWith(host.runtimeListeners);
     expect(showCleanup).toHaveBeenCalled();
     expect(hideCleanup).toHaveBeenCalled();
+    expect(stopAutoSync).toHaveBeenCalledWith({
+      isPluginEnabled
+    });
+  });
+
+  it('cleans up configured host from plugin runtime modules', async () => {
+    const gitCleanup = vi.fn();
+    const runtimeCleanup = vi.fn();
+    const stopAutoSync = vi.fn(async () => true);
+    const isPluginEnabled = vi.fn(() => true);
+    const host: GitSyncRuntimeHost = {
+      gitListeners: {
+        gitSyncSuccess: vi.fn(),
+        gitSyncError: null,
+        gitPullCompleted: null,
+        gitSyncComplete: null,
+        fileCreated: null,
+        fileModified: null,
+        fileDeleted: null,
+        filesChangedBatch: null,
+        dirsChangedBatch: null
+      },
+      runtimeListeners: {
+        conflict: vi.fn(),
+        repoNotFound: vi.fn(),
+        resetConflictHandled: vi.fn()
+      },
+      autoSyncWindowListeners: null
+    };
+
+    await cleanupConfiguredGitSyncRuntimeHost({
+      host,
+      isPluginEnabled,
+      loadGitLifecycle: async () => ({
+        setupGitEventListeners: vi.fn(),
+        cleanupGitEventListeners: gitCleanup,
+        ensureWorkspaceGitignore: vi.fn(),
+        initGitSync: vi.fn()
+      } as any),
+      loadGitSyncRuntime: async () => ({
+        setupGitSyncRuntimeListeners: vi.fn(),
+        cleanupGitSyncRuntimeListeners: runtimeCleanup
+      } as any),
+      loadGitAutoSyncLifecycle: async () => ({
+        startAutoSyncForVisibleWindow: vi.fn(),
+        stopAutoSyncForHiddenWindow: stopAutoSync
+      } as any)
+    });
+
+    expect(gitCleanup).toHaveBeenCalledWith(host.gitListeners);
+    expect(runtimeCleanup).toHaveBeenCalledWith(host.runtimeListeners);
     expect(stopAutoSync).toHaveBeenCalledWith({
       isPluginEnabled
     });
