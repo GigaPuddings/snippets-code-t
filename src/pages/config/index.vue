@@ -42,9 +42,7 @@ import { initCleanupCache, checkShouldInitialize } from '@/utils/app-init';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
 import GitSyncRuntimePortal from '@/plugins/git-sync/components/GitSyncRuntimePortal.vue';
-import { useGitConflictDialogs } from '@/plugins/git-sync/useGitConflictDialogs';
-import { useGitConflictConfirm } from '@/plugins/git-sync/useGitConflictConfirm';
-import { useGitRepoNotFoundDialog } from '@/plugins/git-sync/useGitRepoNotFoundDialog';
+import { useGitRuntimeState } from '@/plugins/git-sync/useGitRuntimeState';
 import { useGitRuntimeController } from '@/plugins/git-sync/useGitRuntimeController';
 import {
   cleanupConfiguredGitSyncRuntimeHost,
@@ -72,6 +70,7 @@ let unlistenOpenFromSystem: (() => void) | null = null;
 // Git 事件监听器
 let gitRuntimeHost: GitSyncRuntimeHost | null = null;
 
+const gitRuntimeState = useGitRuntimeState({ t });
 const {
   showConflictDialog,
   showManualMergeDialog,
@@ -79,28 +78,18 @@ const {
   untrackedFiles,
   mergeFileList,
   restoreConflictDialogState,
-  setConflictFiles,
-  clearConflictFiles,
-  closeConflictDialog,
-  openManualMergeDialog,
-  closeManualMergeDialog,
-  backToConflictDialog
-} = useGitConflictDialogs();
+  setConflictFiles
+} = gitRuntimeState.dialogs;
 const {
   visible: gitConflictConfirmVisible,
   options: gitConflictConfirmOptions,
-  handleResult: handleGitConflictConfirmResult,
-  confirmForcePush,
-  confirmForcePull,
-  confirmCancelConflict
-} = useGitConflictConfirm(t);
+  handleResult: handleGitConflictConfirmResult
+} = gitRuntimeState.confirm;
 const {
   visible: gitRepoNotFoundDialogVisible,
   message: gitRepoNotFoundMessage,
-  open: openGitRepoNotFoundDialog,
-  close: closeGitRepoNotFoundDialog,
-  ignore: ignoreGitRepoNotFoundDialog
-} = useGitRepoNotFoundDialog(t);
+  open: openGitRepoNotFoundDialog
+} = gitRuntimeState.repoNotFound;
 
 const resetGitConflictHandled = () => {
   gitRuntimeHost?.runtimeListeners?.resetConflictHandled();
@@ -125,20 +114,20 @@ const {
   dialogs: {
     untrackedFiles,
     mergeFileList,
-    clearConflictFiles,
-    closeConflictDialog,
-    openManualMergeDialog,
-    closeManualMergeDialog,
-    backToConflictDialog
+    clearConflictFiles: gitRuntimeState.dialogs.clearConflictFiles,
+    closeConflictDialog: gitRuntimeState.dialogs.closeConflictDialog,
+    openManualMergeDialog: gitRuntimeState.dialogs.openManualMergeDialog,
+    closeManualMergeDialog: gitRuntimeState.dialogs.closeManualMergeDialog,
+    backToConflictDialog: gitRuntimeState.dialogs.backToConflictDialog
   },
   confirm: {
-    confirmForcePush,
-    confirmForcePull,
-    confirmCancelConflict
+    confirmForcePush: gitRuntimeState.confirm.confirmForcePush,
+    confirmForcePull: gitRuntimeState.confirm.confirmForcePull,
+    confirmCancelConflict: gitRuntimeState.confirm.confirmCancelConflict
   },
   repoNotFound: {
-    close: closeGitRepoNotFoundDialog,
-    ignore: ignoreGitRepoNotFoundDialog
+    close: gitRuntimeState.repoNotFound.close,
+    ignore: gitRuntimeState.repoNotFound.ignore
   },
   logger
 });
