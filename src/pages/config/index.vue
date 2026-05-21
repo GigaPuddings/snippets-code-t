@@ -124,8 +124,6 @@ const isGitSyncRuntimeReady = ref(false);
 let unlisten: (() => void) | null = null;
 let unlistenFragment: (() => void) | null = null;
 let unlistenCheckNav: (() => void) | null = null;
-let unlistenShow: (() => void) | null = null;
-let unlistenHide: (() => void) | null = null;
 let unlistenOpenFromSystem: (() => void) | null = null;
 
 // Git 事件监听器
@@ -326,20 +324,6 @@ const checkPendingSnippetOpen = () => {
   }
 };
 
-const startAutoSyncIfEnabled = async () => {
-  const { startAutoSyncForVisibleWindow } = await loadGitAutoSyncLifecycle();
-  await startAutoSyncForVisibleWindow({
-    isPluginEnabled: () => pluginStore.isEnabled('git-sync')
-  });
-};
-
-const stopAutoSyncOnHide = async () => {
-  const { stopAutoSyncForHiddenWindow } = await loadGitAutoSyncLifecycle();
-  await stopAutoSyncForHiddenWindow({
-    isPluginEnabled: () => pluginStore.isEnabled('git-sync')
-  });
-};
-
 // 通知后端前端已准备完成
 onMounted(async () => {
   const initStart = performance.now();
@@ -375,6 +359,10 @@ onMounted(async () => {
     const {
       setupGitSyncRuntimeListeners
     } = await loadGitSyncRuntime();
+    const {
+      startAutoSyncForVisibleWindow,
+      stopAutoSyncForHiddenWindow
+    } = await loadGitAutoSyncLifecycle();
 
     gitRuntimeHost = await setupGitSyncRuntimeHost({
       t,
@@ -396,6 +384,10 @@ onMounted(async () => {
           operation
         });
       },
+      autoSyncWindow: getCurrentWindow(),
+      startAutoSyncForVisibleWindow,
+      stopAutoSyncForHiddenWindow,
+      isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
       logger
     });
     logger.info('[Config] ✅ Git runtime host 已设置');
@@ -452,24 +444,6 @@ onMounted(async () => {
     checkPendingSnippetOpen();
   });
   
-  // 监听窗口显示事件（启动自动同步）
-  unlistenShow = await currentWindow.listen('tauri://show', async () => {
-    logger.info('[Config] 窗口显示事件触发');
-    await startAutoSyncIfEnabled();
-  });
-  
-  // 监听窗口隐藏事件（停止自动同步）
-  unlistenHide = await currentWindow.listen('tauri://hide', async () => {
-    logger.info('[Config] 窗口隐藏事件触发');
-    await stopAutoSyncOnHide();
-  });
-  
-  // 窗口首次加载时，如果窗口可见，启动自动同步
-  const isVisible = await currentWindow.isVisible();
-  if (isVisible) {
-    await startAutoSyncIfEnabled();
-  }
-  
   // 恢复冲突状态（如果页面重载）
   restoreConflictDialogState();
 });
@@ -481,10 +455,13 @@ onUnmounted(async () => {
   if (gitRuntimeHost) {
     const { cleanupGitEventListeners } = await loadGitLifecycle();
     const { cleanupGitSyncRuntimeListeners } = await loadGitSyncRuntime();
-    cleanupGitSyncRuntimeHost({
+    const { stopAutoSyncForHiddenWindow } = await loadGitAutoSyncLifecycle();
+    await cleanupGitSyncRuntimeHost({
       host: gitRuntimeHost,
       cleanupGitEventListeners,
       cleanupGitSyncRuntimeListeners,
+      stopAutoSyncForHiddenWindow,
+      isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
       logger
     });
     gitRuntimeHost = null;
@@ -500,18 +477,9 @@ onUnmounted(async () => {
   if (unlistenCheckNav) {
     unlistenCheckNav();
   }
-  if (unlistenShow) {
-    unlistenShow();
-  }
-  if (unlistenHide) {
-    unlistenHide();
-  }
   if (unlistenOpenFromSystem) {
     unlistenOpenFromSystem();
   }
-
-  // 窗口卸载时停止自动同步
-  await stopAutoSyncOnHide();
 
   logger.info('[Config] ✅ Config 页面资源清理完成');
 });
