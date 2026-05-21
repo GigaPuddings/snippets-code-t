@@ -1,0 +1,103 @@
+import { describe, expect, it } from 'vitest';
+import { jsonToMarkdown } from './markdown';
+
+describe('jsonToMarkdown', () => {
+  it('serializes headings, paragraphs, and marks', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: 'Vue Pattern' }]
+        },
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: 'useModal',
+              marks: [{ type: 'code' }]
+            },
+            { type: 'text', text: ' with ' },
+            {
+              type: 'text',
+              text: 'docs',
+              marks: [{ type: 'link', attrs: { href: 'https://vuejs.org' } }]
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(markdown).toBe('## Vue Pattern\n\n`useModal` with [docs](https://vuejs.org)\n');
+  });
+
+  it('serializes task lists and checked state', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'taskList',
+          content: [
+            {
+              type: 'taskItem',
+              attrs: { checked: true },
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'Done' }]
+                }
+              ]
+            },
+            {
+              type: 'taskItem',
+              attrs: { checked: false },
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'Todo' }]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(markdown).toBe('- [x] Done\n- [ ] Todo\n');
+  });
+
+  it('serializes code blocks with language and trims trailing line breaks', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'codeBlock',
+          attrs: { language: 'ts' },
+          content: [{ type: 'text', text: 'const value = 1;\n' }]
+        }
+      ]
+    });
+
+    expect(markdown).toBe('```ts\nconst value = 1;\n```\n');
+  });
+
+  it('uses original image path when available', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'localImage',
+          attrs: {
+            src: 'https://asset.localhost/image.png',
+            alt: 'Preview',
+            'data-original-path': '../assets/image.png'
+          }
+        }
+      ]
+    });
+
+    expect(markdown).toBe('![Preview](../assets/image.png)');
+  });
+});
