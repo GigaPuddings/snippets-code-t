@@ -6,54 +6,28 @@
       </keep-alive>
     </router-view>
     
-    <!-- 全局冲突对话框 -->
-    <GitConflictDialog
-      v-if="isGitSyncRuntimeReady"
-      v-model="showConflictDialog"
+    <GitSyncRuntimePortal
+      ref="gitSyncRuntimePortalRef"
+      :runtime-ready="isGitSyncRuntimeReady"
+      v-model:conflict-dialog-visible="showConflictDialog"
+      v-model:manual-merge-dialog-visible="showManualMergeDialog"
+      v-model:repo-not-found-dialog-visible="gitRepoNotFoundDialogVisible"
+      v-model:conflict-confirm-visible="gitConflictConfirmVisible"
       :conflict-files="conflictFiles"
       :untracked-files="untrackedFiles"
-      @confirm="handleConflictResolution"
-      @cancel="handleConflictCancel"
-      @escape="handleConflictEscape"
-      ref="conflictDialogRef"
-    />
-    
-    <!-- 手动合并对话框：同时包含冲突文件与未跟踪文件，以便都能展示远程/本地对比 -->
-    <GitManualMerge
-      v-if="isGitSyncRuntimeReady"
-      v-model="showManualMergeDialog"
-      :conflict-files="mergeFileList"
-      @complete="handleManualMergeComplete"
-      @cancel="handleManualMergeCancel"
-      @back="handleManualMergeBack"
-      @escape="handleManualMergeEscape"
-      ref="manualMergeRef"
-    />
-
-    <!-- 仓库不存在对话框 -->
-    <ConfirmChoiceDialog
-      v-model="gitRepoNotFoundDialogVisible"
-      :title="t('settings.gitSync.repoNotFoundTitle')"
-      :message="gitRepoNotFoundMessage"
-      :primary-text="t('settings.gitSync.repoNotFoundReconfig')"
-      :secondary-text="t('settings.gitSync.repoNotFoundIgnore')"
-      type="warning"
-      @primary="handleRepoNotFoundReconfig"
-      @secondary="handleRepoNotFoundIgnore"
-      @close="handleRepoNotFoundIgnore"
-    />
-
-    <!-- 自定义确认框 -->
-    <ConfirmChoiceDialog
-      v-model="gitConflictConfirmVisible"
-      :title="gitConflictConfirmOptions.title"
-      :message="gitConflictConfirmOptions.message"
-      :primary-text="gitConflictConfirmOptions.primaryText"
-      :secondary-text="gitConflictConfirmOptions.secondaryText"
-      :type="gitConflictConfirmOptions.type"
-      @primary="handleGitConflictConfirmResult('primary')"
-      @secondary="handleGitConflictConfirmResult('secondary')"
-      @close="handleGitConflictConfirmResult('close')"
+      :merge-file-list="mergeFileList"
+      :repo-not-found-message="gitRepoNotFoundMessage"
+      :conflict-confirm-options="gitConflictConfirmOptions"
+      @conflict-confirm="handleConflictResolution"
+      @conflict-cancel="handleConflictCancel"
+      @conflict-escape="handleConflictEscape"
+      @merge-complete="handleManualMergeComplete"
+      @merge-cancel="handleManualMergeCancel"
+      @merge-back="handleManualMergeBack"
+      @merge-escape="handleManualMergeEscape"
+      @repo-not-found-reconfig="handleRepoNotFoundReconfig"
+      @repo-not-found-ignore="handleRepoNotFoundIgnore"
+      @conflict-confirm-result="handleGitConflictConfirmResult"
     />
   </div>
 </template>
@@ -65,9 +39,9 @@ import { useI18n } from 'vue-i18n';
 import { readMarkdownFile } from '@/api/markdown';
 import { logger } from '@/utils/logger';
 import { initCleanupCache, checkShouldInitialize } from '@/utils/app-init';
-import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
+import GitSyncRuntimePortal from '@/plugins/git-sync/components/GitSyncRuntimePortal.vue';
 import { useGitConflictDialogs } from '@/plugins/git-sync/useGitConflictDialogs';
 import { useGitConflictConfirm } from '@/plugins/git-sync/useGitConflictConfirm';
 import { useGitRepoNotFoundDialog } from '@/plugins/git-sync/useGitRepoNotFoundDialog';
@@ -85,6 +59,11 @@ type GitSyncRuntime = typeof import('@/plugins/git-sync/gitSyncRuntime');
 
 interface LoadingDialogExpose {
   setLoading: (loading: boolean) => void;
+}
+
+interface GitSyncRuntimePortalExpose {
+  setConflictDialogLoading: (loading: boolean) => void;
+  setManualMergeLoading: (loading: boolean) => void;
 }
 
 let gitLifecyclePromise: Promise<GitLifecycle> | null = null;
@@ -105,9 +84,6 @@ const loadGitSyncRuntime = async (): Promise<GitSyncRuntime> => {
   gitSyncRuntimePromise ??= import('@/plugins/git-sync/gitSyncRuntime');
   return gitSyncRuntimePromise;
 };
-
-const GitConflictDialog = defineAsyncComponent(() => import('@/plugins/git-sync/components/GitConflictDialog/index.vue'));
-const GitManualMerge = defineAsyncComponent(() => import('@/plugins/git-sync/components/GitManualMerge/index.vue'));
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -167,8 +143,19 @@ const {
   t,
   modalMsg: modal.msg
 });
-const conflictDialogRef = ref<LoadingDialogExpose | null>(null);
-const manualMergeRef = ref<LoadingDialogExpose | null>(null);
+const gitSyncRuntimePortalRef = ref<GitSyncRuntimePortalExpose | null>(null);
+const conflictDialogRef = computed<LoadingDialogExpose | null>(() => {
+  if (!gitSyncRuntimePortalRef.value) return null;
+  return {
+    setLoading: gitSyncRuntimePortalRef.value.setConflictDialogLoading
+  };
+});
+const manualMergeRef = computed<LoadingDialogExpose | null>(() => {
+  if (!gitSyncRuntimePortalRef.value) return null;
+  return {
+    setLoading: gitSyncRuntimePortalRef.value.setManualMergeLoading
+  };
+});
 
 const resetGitConflictHandled = () => {
   gitRuntimeHost?.runtimeListeners?.resetConflictHandled();
