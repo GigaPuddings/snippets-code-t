@@ -63,7 +63,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { getGitSettings } from '@/api/appConfig';
 import { readMarkdownFile } from '@/api/markdown';
 import { logger } from '@/utils/logger';
 import { initCleanupCache, checkShouldInitialize } from '@/utils/app-init';
@@ -80,6 +79,7 @@ import {
 type ConfirmResult = 'primary' | 'secondary' | 'close';
 type GitApi = typeof import('@/plugins/git-sync/api');
 type GitLifecycle = typeof import('@/plugins/git-sync/lifecycle');
+type GitAutoSyncLifecycle = typeof import('@/plugins/git-sync/autoSyncLifecycle');
 
 interface LoadingDialogExpose {
   setLoading: (loading: boolean) => void;
@@ -87,6 +87,7 @@ interface LoadingDialogExpose {
 
 let gitApiPromise: Promise<GitApi> | null = null;
 let gitLifecyclePromise: Promise<GitLifecycle> | null = null;
+let gitAutoSyncLifecyclePromise: Promise<GitAutoSyncLifecycle> | null = null;
 
 const loadGitApi = async (): Promise<GitApi> => {
   gitApiPromise ??= import('@/plugins/git-sync/api');
@@ -96,6 +97,11 @@ const loadGitApi = async (): Promise<GitApi> => {
 const loadGitLifecycle = async (): Promise<GitLifecycle> => {
   gitLifecyclePromise ??= import('@/plugins/git-sync/lifecycle');
   return gitLifecyclePromise;
+};
+
+const loadGitAutoSyncLifecycle = async (): Promise<GitAutoSyncLifecycle> => {
+  gitAutoSyncLifecyclePromise ??= import('@/plugins/git-sync/autoSyncLifecycle');
+  return gitAutoSyncLifecyclePromise;
 };
 
 const GitConflictDialog = defineAsyncComponent(() => import('@/plugins/git-sync/components/GitConflictDialog/index.vue'));
@@ -514,49 +520,18 @@ const checkPendingSnippetOpen = () => {
   }
 };
 
-// 启动自动同步（如果启用）
 const startAutoSyncIfEnabled = async () => {
-  if (!pluginStore.isEnabled('git-sync')) {
-    return;
-  }
-
-  try {
-    const gitSettings = await getGitSettings();
-    
-    if (gitSettings.enabled && gitSettings.auto_sync) {
-      const { getAutoSyncStatus, startAutoSync } = await loadGitApi();
-      // 检查是否已经在运行
-      const isRunning = await getAutoSyncStatus();
-      
-      if (!isRunning) {
-        await startAutoSync();
-        logger.info('[Config] 窗口显示，已启动自动同步');
-      } else {
-        logger.info('[Config] 窗口显示，自动同步已在运行');
-      }
-    }
-  } catch (error) {
-    logger.error('[Config] 启动自动同步失败:', error);
-  }
+  const { startAutoSyncForVisibleWindow } = await loadGitAutoSyncLifecycle();
+  await startAutoSyncForVisibleWindow({
+    isPluginEnabled: () => pluginStore.isEnabled('git-sync')
+  });
 };
 
-// 停止自动同步
 const stopAutoSyncOnHide = async () => {
-  if (!pluginStore.isEnabled('git-sync')) {
-    return;
-  }
-
-  try {
-    const { getAutoSyncStatus, stopAutoSync } = await loadGitApi();
-    const isRunning = await getAutoSyncStatus();
-    
-    if (isRunning) {
-      await stopAutoSync();
-      logger.info('[Config] 窗口隐藏，已停止自动同步');
-    }
-  } catch (error) {
-    logger.error('[Config] 停止自动同步失败:', error);
-  }
+  const { stopAutoSyncForHiddenWindow } = await loadGitAutoSyncLifecycle();
+  await stopAutoSyncForHiddenWindow({
+    isPluginEnabled: () => pluginStore.isEnabled('git-sync')
+  });
 };
 
 // 通知后端前端已准备完成
