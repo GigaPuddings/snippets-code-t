@@ -136,8 +136,8 @@ Tauri 配置里 `csp` 为 `null`，asset scope 为 `"**"`。插件系统已有 c
 进度任务：
 
 - [x] 盘点当前图片、本地资源、插件资源实际依赖的 asset protocol 路径：编辑器附件主要来自工作区 `assets/` 或 `.assets/` 并经 `convertFileSrc` 预览；本地插件资源位于插件安装目录 `plugins/<id>/resources/*`；OCR 仍有插件资源、内置资源和开发目录多级查找路径。
-- [ ] 收窄 `assetProtocol.scope`，避免继续使用 `"**"` 作为默认策略。
-- [ ] 制定 CSP 初版，并验证编辑器、插件视图、图片预览、CodeMirror/TipTap 样式不回退。
+- [x] 收窄 `assetProtocol.scope`，避免继续使用 `"**"` 作为默认策略：默认允许应用数据、应用本地数据、资源目录和常见用户目录，并显式拒绝 `.ssh`、`.gnupg`、`.git` 等敏感目录；任意外部工作区后续可接入 persisted scope 做运行时授权。
+- [x] 制定 CSP 初版，并验证编辑器、插件视图、图片预览、CodeMirror/TipTap 样式不回退：策略已覆盖 Tauri IPC、asset protocol、插件 Blob 动态模块、内联样式、图片预览和离线翻译 runtime 依赖的连接来源，`pnpm build` 已通过。
 - [x] 插件市场和安装流程增加权限说明与风险提示：插件设置页已展示安装风险说明，并为 marketplace 条目、已安装插件和资源包展示能力/权限摘要。
 
 ## 工程优先级
@@ -145,5 +145,5 @@ Tauri 配置里 `csp` 为 `null`，asset scope 为 `"**"`。插件系统已有 c
 1. `[~]` 先收敛架构边界：产品叙事和架构文档已推进，Git runtime mount/facade、Git 冲突状态工具、runtime state、runtime state controller 接线、runtime host controller、runtime state 回调装配、冲突弹窗状态、确认流程、结果反馈、仓库异常弹窗、冲突流程编排、runtime host 默认装配、runtime portal 对象接口、runtime controller、自动同步窗口生命周期、runtime 事件监听和冲突解决动作已迁入插件目录；截图/翻译逻辑仍需继续迁出核心页面。
 2. `[x]` 给搜索和 Markdown 转换补测试：搜索排序、搜索语法解析、语义过滤、搜索结果复制动作、Markdown JSON 转换、wikilink、前端插件权限、Git 自动同步生命周期、Git runtime host/事件监听/窗口自动同步、Git runtime controller、Git 冲突解决动作、Git 冲突弹窗状态/确认流程/结果反馈/流程编排、Git 仓库异常弹窗、Rust frontmatter、Rust 插件校验和插件 zip 解析测试已落地。
 3. `[x]` 拆 TipTapEditor：`useEditorViewMode`、`useEditorPersistenceBridge`、`useEditorBacklinks`、`useEditorImageUpload`、`useEditorSearch`、`useEditorOutline`、`useEditorLinks`、`useEditorSessionScroll`、`useEditorContextMenu` 和 `useContextMenuCommands` 已落地并覆盖测试，主编辑器拆分风险已基本收敛。
-4. `[ ]` 收紧 Tauri 权限：先盘点资源路径，再调整 CSP 和 asset scope。
+4. `[x]` 收紧 Tauri 权限：已盘点资源路径，移除 asset protocol 的全局 `"**"` 默认策略，并加入 CSP 初版。
 5. `[~]` 更新文档一致性：README 版本已同步，架构文档已开始收敛，插件化结构说明仍需继续细化。

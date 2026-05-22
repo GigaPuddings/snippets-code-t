@@ -483,6 +483,7 @@ Frontend Workspace
 - Tauri asset protocol 依赖已完成首轮盘点：当前主要覆盖编辑器附件预览、插件安装目录资源和 OCR 资源查找路径，下一步可按这些边界收窄 `assetProtocol.scope`。
 - 插件设置页已增加安装风险提示，并在 marketplace 条目、已安装插件和资源包中展示能力/权限摘要，先把插件安装前的可见安全信息补齐。
 - 欢迎页、加载页、用户中心和 README 的入口叙事已继续收敛到“前端代码片段与知识资产工作台”，截图、翻译、Todo、启动器等能力在 README 中降为官方插件增强。
+- Tauri 安全配置已加入 CSP 初版并移除 asset protocol 的全局 `"**"` scope；默认范围收敛到应用数据、资源目录和常见用户目录，同时拒绝 `.ssh`、`.gnupg`、`.git` 等敏感目录。任意外部工作区的更细粒度授权仍建议后续接入 persisted scope。
 
 下一批建议优先推进：
 
