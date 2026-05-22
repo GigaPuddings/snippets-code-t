@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { canCopySearchResultSnippet, useSearchResultActions } from './useSearchResultActions';
+import { resolveTemplateInputs } from '@/utils/templateInputResolver';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
 }));
 
-vi.mock('@/utils/templateParser', () => ({
-  processTemplate: vi.fn(async (content: string) => ({ content: `processed:${content}` }))
+vi.mock('@/utils/templateInputResolver', () => ({
+  resolveTemplateInputs: vi.fn(async (content: string) => ({ content: `processed:${content}` }))
 }));
 
 vi.mock('@/utils/logger', () => ({
@@ -79,6 +80,25 @@ describe('useSearchResultActions', () => {
       content: 'https://example.com',
       type: 'code',
       summarize: 'bookmark'
+    });
+
+    expect(copied).toBe(false);
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('does not copy when template input is cancelled', async () => {
+    vi.mocked(resolveTemplateInputs).mockResolvedValueOnce(null);
+    const writeText = vi.fn(async () => undefined);
+    const actions = useSearchResultActions({
+      onClearSearch: vi.fn(),
+      clipboard: { writeText }
+    });
+
+    const copied = await actions.copySnippetToClipboard({
+      id: 1,
+      title: 'snippet',
+      content: 'const {{input:name}} = 1',
+      type: 'code'
     });
 
     expect(copied).toBe(false);

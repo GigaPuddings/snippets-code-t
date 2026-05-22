@@ -151,6 +151,7 @@ import {
 } from '../composables/useSearchResultPaths';
 import { logger } from '@/utils/logger';
 import { formatSnippetForCopy, type SnippetCopyFormat } from '@/utils/snippetCopyFormats';
+import { resolveTemplateInputs } from '@/utils/templateInputResolver';
 
 const props = defineProps<{
   item: ContentType | null;
@@ -413,9 +414,12 @@ async function copySnippetAs(format: SnippetCopyFormat) {
   if (!canCopyCodeSnippet.value || !props.item) return;
 
   try {
+    const resolved = await resolveTemplateInputs(normalizedContent.value);
+    if (!resolved) return;
+
     const text = formatSnippetForCopy(format, {
       title: displayTitle.value,
-      content: normalizedContent.value,
+      content: resolved.content,
       language: displaySnippetLanguage.value
     });
     await navigator.clipboard.writeText(text);
