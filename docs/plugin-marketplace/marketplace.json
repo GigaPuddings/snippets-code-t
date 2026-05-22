@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-05-20",
+  "updatedAt": "2026-05-22",
   "source": "snippets-code official GitHub marketplace",
   "plugins": [
     {
@@ -254,10 +254,9 @@
       },
       "category": "search",
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.2.zip",
-      "packageSubdir": "docs/plugin-packages/quick-tools",
       "builtinPluginId": "quick-tools",
       "status": "included",
-      "sizeBytes": 2400,
+      "sizeBytes": 5917,
       "tags": [
         "calculator",
         "currency",

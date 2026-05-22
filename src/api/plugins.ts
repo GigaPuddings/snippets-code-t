@@ -53,7 +53,7 @@ export interface PluginInstallProgress {
 }
 
 export const DEFAULT_PLUGIN_MARKETPLACE_URL =
-  'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/codex/plugin-system-refactor/docs/plugin-marketplace/marketplace.json';
+  'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json';
 
 export async function getPluginStates(): Promise<Partial<PluginStateMap>> {
   return await invoke<Partial<PluginStateMap>>('get_plugin_states');

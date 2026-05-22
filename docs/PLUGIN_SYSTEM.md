@@ -360,6 +360,7 @@ Published official packages live in one GitHub repository per plugin, such as:
 ```text
 https://github.com/GigaPuddings/snippets-code-plugin-screenshot
 https://github.com/GigaPuddings/snippets-code-plugin-translation
+https://github.com/GigaPuddings/snippets-code-plugin-quick-tools
 https://github.com/GigaPuddings/snippets-code-plugin-git-sync
 https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr
 https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime

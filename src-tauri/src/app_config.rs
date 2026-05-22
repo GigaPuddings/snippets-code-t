@@ -114,6 +114,7 @@ const BUILTIN_PLUGIN_IDS: &[&str] = &[
     "system-theme",
     "local-launcher",
     "desktop-files",
+    "quick-tools",
     "search-engines",
     "git-sync",
     "attachments",

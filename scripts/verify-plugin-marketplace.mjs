@@ -53,7 +53,9 @@ async function readPackageManifest(item) {
   if (!item.packageSubdir) {
     const remotePluginJsonUrl = githubArchivePluginJsonUrl(item.packageUrl);
     assert(remotePluginJsonUrl, `${item.id}: 缺少 packageSubdir 时 packageUrl 必须指向 GitHub 分支或标签归档`);
-    return readRemoteJson(remotePluginJsonUrl);
+    return {
+      manifest: await readRemoteJson(remotePluginJsonUrl)
+    };
   }
 
   assert(typeof item.packageSubdir === 'string' && item.packageSubdir.length > 0, `${item.id}: packageSubdir 无效`);
@@ -62,7 +64,37 @@ async function readPackageManifest(item) {
   const packageDir = resolve(ROOT, item.packageSubdir);
   const manifestPath = join(packageDir, 'plugin.json');
   assert(existsSync(manifestPath), `${item.id}: packageSubdir 缺少 plugin.json (${item.packageSubdir})`);
-  return readJson(manifestPath);
+  return {
+    manifest: await readJson(manifestPath),
+    packageDir
+  };
+}
+
+function assertSafePackagePath(item, relativePath, field) {
+  assert(typeof relativePath === 'string' && relativePath.length > 0, `${item.id}: ${field} 无效`);
+  assert(!relativePath.includes('://'), `${item.id}: ${field} 不允许使用 URL (${relativePath})`);
+  assert(!relativePath.startsWith('/') && !/^[a-zA-Z]:[\\/]/.test(relativePath), `${item.id}: ${field} 必须是相对路径 (${relativePath})`);
+  assert(!relativePath.split(/[\\/]+/).includes('..'), `${item.id}: ${field} 不允许包含 .. (${relativePath})`);
+}
+
+function verifyLocalPackageEntryFiles(item, manifest, packageDir) {
+  if (!packageDir || !isObject(manifest.entry)) return;
+
+  const entryPaths = [];
+  if (manifest.entry.frontend) {
+    entryPaths.push(['entry.frontend', manifest.entry.frontend]);
+  }
+  if (Array.isArray(manifest.entry.styles)) {
+    entryPaths.push(...manifest.entry.styles.map((stylePath, index) => [`entry.styles[${index}]`, stylePath]));
+  }
+
+  for (const [field, relativePath] of entryPaths) {
+    assertSafePackagePath(item, relativePath, field);
+    assert(
+      existsSync(join(packageDir, relativePath)),
+      `${item.id}: ${field} 指向的文件不存在 (${relativePath})`
+    );
+  }
 }
 
 async function verifyInstallablePackage(item) {
@@ -72,12 +104,13 @@ async function verifyInstallablePackage(item) {
     `${item.id}: 可安装插件必须声明 sizeBytes`
   );
 
-  const manifest = await readPackageManifest(item);
+  const { manifest, packageDir } = await readPackageManifest(item);
   assert(manifest.schemaVersion === 1, `${item.id}: plugin.json schemaVersion 必须为 1`);
   assert(manifest.kind === 'local', `${item.id}: plugin.json kind 必须为 local`);
   assert(manifest.id === item.id, `${item.id}: marketplace id 与 plugin.json id 不一致 (${manifest.id})`);
   assert(isObject(manifest.name) && typeof manifest.name.i18nKey === 'string', `${item.id}: name.i18nKey 无效`);
   assert(isObject(manifest.description) && typeof manifest.description.i18nKey === 'string', `${item.id}: description.i18nKey 无效`);
+  verifyLocalPackageEntryFiles(item, manifest, packageDir);
 }
 
 async function main() {
