@@ -44,6 +44,15 @@ fn get_app_handle_or_log(context: &str) -> Option<&'static AppHandle> {
     }
 }
 
+fn require_translation_plugin(app_handle: &AppHandle, context: &str) -> bool {
+    if let Err(error) = crate::app_config::require_plugin_enabled(app_handle, "translation") {
+        log::warn!("[Plugin:translation] {} blocked: {}", context, error);
+        return false;
+    }
+
+    true
+}
+
 use selection::get_text;
 use tauri::image::Image;
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -909,6 +918,9 @@ pub fn hotkey_selection_translate() {
     let Some(app_handle) = get_app_handle_or_log("hotkey_selection_translate").cloned() else {
         return;
     };
+    if !require_translation_plugin(&app_handle, "hotkey_selection_translate") {
+        return;
+    }
 
     // 给系统一点时间完成焦点转移
     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -1011,6 +1023,9 @@ pub fn hotkey_translate() {
     let Some(app) = get_app_handle_or_log("hotkey_translate") else {
         return;
     };
+    if !require_translation_plugin(app, "hotkey_translate") {
+        return;
+    }
 
     // 检查窗口是否已存在
     if let Some(window) = app.get_webview_window("translate") {
@@ -1219,6 +1234,10 @@ pub async fn show_hide_window_command(label: &str, context: Option<String>) -> R
             open_config_settings();
         }
         "translate" => {
+            let Some(app) = get_app_handle_or_log("show_hide_window_command:translate") else {
+                return Err("应用未初始化".to_string());
+            };
+            crate::app_config::require_plugin_enabled(app, "translation")?;
             hotkey_translate();
         }
         "update" => {
