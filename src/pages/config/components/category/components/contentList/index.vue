@@ -43,6 +43,18 @@
       @confirm="handleTypeConfirm"
       @cancel="handleTypeCancel"
     />
+
+    <PromptDialog
+      v-model="showCreateTitleDialog"
+      :title="$t('category.createContentTitle')"
+      :placeholder="$t('category.createContentPlaceholder')"
+      :confirm-text="$t('common.create')"
+      :cancel-text="$t('common.cancel')"
+      :required="true"
+      :max-length="120"
+      @confirm="handleCreateContentConfirm"
+      @cancel="handleTypeCancel"
+    />
     
     <!-- Filter Panel (Floating) -->
     <FilterPanel
@@ -99,7 +111,7 @@ import { useI18n } from 'vue-i18n';
 import Splitter from '@/components/Splitter/index.vue';
 import FragmentTypeSelector from '@/components/FragmentTypeSelector/index.vue';
 import FilterPanel from './FilterPanel.vue';
-import { ConfirmDialog, SelectConfirmDialog, BacklinkUpdateDialog } from '@/components/UI';
+import { ConfirmDialog, SelectConfirmDialog, BacklinkUpdateDialog, PromptDialog } from '@/components/UI';
 import ContentSearchBar from './components/ContentSearchBar.vue';
 import ContentListView from './components/ContentListView.vue';
 import { useContentList } from './composables/useContentList';
@@ -147,6 +159,7 @@ const {
 // 使用对话框 Composable
 const {
   showTypeSelector,
+  showCreateTitleDialog,
   showDeleteDialog,
   showCategoryDialog,
   showBacklinkUpdateDialog,
@@ -156,6 +169,7 @@ const {
   handleAddContent,
   handleTypeConfirm,
   handleTypeCancel,
+  handleCreateContentConfirm,
   handleDelete,
   confirmDelete,
   confirmDeleteWithBacklinks,

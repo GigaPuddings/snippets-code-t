@@ -182,7 +182,12 @@ pub async fn create_markdown_file(
         .get("title")
         .and_then(|v| v.as_str())
         .ok_or("缺少 title 字段")?
+        .trim()
         .to_string();
+
+    if title.is_empty() {
+        return Err("标题不能为空".to_string());
+    }
 
     let content = metadata
         .get("content")

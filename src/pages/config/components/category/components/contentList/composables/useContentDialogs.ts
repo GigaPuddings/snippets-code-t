@@ -47,6 +47,8 @@ function addCategoryNames(contents: ContentType[], categories: Array<{ id: numbe
 export interface UseContentDialogsReturn {
   /** 显示类型选择器 */
   showTypeSelector: Ref<boolean>;
+  /** 显示创建标题输入框 */
+  showCreateTitleDialog: Ref<boolean>;
   /** 显示删除对话框 */
   showDeleteDialog: Ref<boolean>;
   /** 显示分类更改对话框 */
@@ -104,6 +106,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const { t } = useI18n();
 
   const showTypeSelector = ref<boolean>(false);
+  const showCreateTitleDialog = ref<boolean>(false);
   const pendingFragmentType = ref<'code' | 'note'>('code');
   const showDeleteDialog = ref<boolean>(false);
   const showCategoryDialog = ref<boolean>(false);
@@ -128,11 +131,12 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const handleTypeConfirm = async (type: 'code' | 'note'): Promise<void> => {
       showTypeSelector.value = false;
       pendingFragmentType.value = type;
-      await handleCreateContentConfirm('');
+      showCreateTitleDialog.value = true;
     };
 
   const handleCreateContentConfirm = async (title: string): Promise<void> => {
       const normalizedTitle = title.trim();
+      if (!normalizedTitle) return;
 
       const cid = route.params.cid as string;
 
@@ -180,6 +184,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
             ...inferredMetadata
           }
         });
+        showCreateTitleDialog.value = false;
 
         // 再次刷新分类列表（以防创建文件时创建了新分类）
         store.categories = await getCategories(store.categorySort);
@@ -215,6 +220,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
    */
   const handleTypeCancel = (): void => {
     showTypeSelector.value = false;
+    showCreateTitleDialog.value = false;
   };
 
   /**
@@ -450,6 +456,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
 
   return {
     showTypeSelector,
+    showCreateTitleDialog,
     showDeleteDialog,
     showCategoryDialog,
     showBacklinkUpdateDialog,

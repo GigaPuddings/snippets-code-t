@@ -670,6 +670,8 @@ export default {
     unsavedChanges: 'You have unsaved changes. Do you want to save them?',
     discardChanges: 'Discard Changes',
     createNoteConfirm: 'Note "{name}" not found. Create a new note?',
+    createContentTitle: 'New Fragment',
+    createContentPlaceholder: 'Enter fragment title',
     emptyName: 'Category name cannot be empty',
     invalidNameChars: 'Category name cannot contain \\ / : * ? " < > |',
     duplicateName: 'Category name already exists',

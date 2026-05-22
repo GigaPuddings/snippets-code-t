@@ -346,8 +346,13 @@ export async function addFragment(params?: AddFragmentParams): Promise<string> {
     }
     
     // 构建元数据
+    const title = (params?.metadata?.title as string | undefined)?.trim();
+    if (!title) {
+      throw new Error('标题不能为空');
+    }
+
     const metadata: Partial<MarkdownFile> = {
-      title: (params?.metadata?.title as string) || 'New Fragment',
+      title,
       content: '',
       type: params?.fragmentType === 'note' ? 'note' : 'code', // 使用 'code' 而不是 'snippet'
       tags: params?.tags || [],

@@ -1029,30 +1029,20 @@ const confirmCreateNote = async () => {
 
     const newFragmentId = await addFragment({
       categoryId: currentCategoryId,
-      fragmentType: 'note'
+      fragmentType: 'note',
+      metadata: {
+        title: noteName
+      }
     });
 
     // 刷新内容列表
     const result = await getFragmentList(currentCategoryId);
     store.contents = result;
 
-    // 跳转到新笔记并设置标题（保持当前的 cid 上下文）
+    // 跳转到新笔记（保持当前的 cid 上下文）
     const currentCid = route.params.cid || currentCategoryId;
     router.push({
       path: `/config/category/contentList/${currentCid}/content/${encodeURIComponent(newFragmentId)}`
-    });
-
-    // 等待路由跳转完成后设置标题
-    await nextTick();
-    await nextTick();
-
-    // 通过 API 更新标题
-    await editFragment({
-      id: newFragmentId,
-      title: noteName,
-      content: '',
-      category_id: currentCategoryId,
-      fragmentType: 'note'
     });
 
     showCreateNoteDialog.value = false;

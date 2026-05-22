@@ -685,6 +685,8 @@ export default {
     unsavedChanges: '当前内容有未保存的更改，是否保存？',
     discardChanges: '放弃更改',
     createNoteConfirm: '未找到名为"{name}"的笔记，是否创建新笔记？',
+    createContentTitle: '新建片段',
+    createContentPlaceholder: '输入片段标题',
     emptyName: '分类名称不能为空',
     invalidNameChars: '分类名称不能包含 \\ / : * ? " < > |',
     duplicateName: '分类名称已存在',
