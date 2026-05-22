@@ -4,6 +4,7 @@ import type { SearchSourceProvider } from '../search';
 type CurrencyCode = 'USD' | 'CNY' | 'EUR' | 'JPY' | 'HKD' | 'GBP';
 
 const DEFAULT_CURRENCY_TARGET: CurrencyCode = 'CNY';
+const NUMBER_PATTERN = '[\\d.]+|[零〇一二两三四五六七八九十百千万]+';
 
 const CURRENCY_ALIASES: Record<string, CurrencyCode> = {
   usd: 'USD',
@@ -29,38 +30,144 @@ const CURRENCY_ALIASES: Record<string, CurrencyCode> = {
   英镑: 'GBP'
 };
 
-const UNIT_ALIASES: Record<string, { base: string; factor: number }> = {
-  kg: { base: 'g', factor: 1000 },
-  千克: { base: 'g', factor: 1000 },
-  公斤: { base: 'g', factor: 1000 },
-  g: { base: 'g', factor: 1 },
-  克: { base: 'g', factor: 1 },
-  斤: { base: 'g', factor: 500 },
-  兩: { base: 'g', factor: 50 },
-  两: { base: 'g', factor: 50 },
-  lb: { base: 'g', factor: 453.59237 },
-  lbs: { base: 'g', factor: 453.59237 },
-  磅: { base: 'g', factor: 453.59237 },
-  km: { base: 'm', factor: 1000 },
-  千米: { base: 'm', factor: 1000 },
-  公里: { base: 'm', factor: 1000 },
-  m: { base: 'm', factor: 1 },
-  米: { base: 'm', factor: 1 },
-  cm: { base: 'm', factor: 0.01 },
-  厘米: { base: 'm', factor: 0.01 },
-  mm: { base: 'm', factor: 0.001 },
-  毫米: { base: 'm', factor: 0.001 },
-  l: { base: 'ml', factor: 1000 },
-  L: { base: 'ml', factor: 1000 },
-  升: { base: 'ml', factor: 1000 },
-  ml: { base: 'ml', factor: 1 },
-  毫升: { base: 'ml', factor: 1 }
+type UnitDefinition = {
+  base: string;
+  factor: number;
+  label: string;
+  defaultTarget?: string;
+};
+
+const UNIT_ALIASES: Record<string, UnitDefinition> = {
+  t: { base: 'g', factor: 1000000, label: '吨', defaultTarget: 'kg' },
+  ton: { base: 'g', factor: 1000000, label: '吨', defaultTarget: 'kg' },
+  tonne: { base: 'g', factor: 1000000, label: '吨', defaultTarget: 'kg' },
+  吨: { base: 'g', factor: 1000000, label: '吨', defaultTarget: 'kg' },
+  公吨: { base: 'g', factor: 1000000, label: '吨', defaultTarget: 'kg' },
+  kg: { base: 'g', factor: 1000, label: '千克', defaultTarget: 'g' },
+  千克: { base: 'g', factor: 1000, label: '千克', defaultTarget: 'g' },
+  公斤: { base: 'g', factor: 1000, label: '千克', defaultTarget: 'g' },
+  g: { base: 'g', factor: 1, label: '克', defaultTarget: 'kg' },
+  克: { base: 'g', factor: 1, label: '克', defaultTarget: 'kg' },
+  mg: { base: 'g', factor: 0.001, label: '毫克', defaultTarget: 'g' },
+  毫克: { base: 'g', factor: 0.001, label: '毫克', defaultTarget: 'g' },
+  斤: { base: 'g', factor: 500, label: '斤', defaultTarget: 'kg' },
+  兩: { base: 'g', factor: 50, label: '两', defaultTarget: 'g' },
+  两: { base: 'g', factor: 50, label: '两', defaultTarget: 'g' },
+  lb: { base: 'g', factor: 453.59237, label: '磅', defaultTarget: 'kg' },
+  lbs: { base: 'g', factor: 453.59237, label: '磅', defaultTarget: 'kg' },
+  磅: { base: 'g', factor: 453.59237, label: '磅', defaultTarget: 'kg' },
+  km: { base: 'm', factor: 1000, label: '千米', defaultTarget: 'm' },
+  千米: { base: 'm', factor: 1000, label: '千米', defaultTarget: 'm' },
+  公里: { base: 'm', factor: 1000, label: '千米', defaultTarget: 'm' },
+  m: { base: 'm', factor: 1, label: '米', defaultTarget: 'cm' },
+  米: { base: 'm', factor: 1, label: '米', defaultTarget: 'cm' },
+  dm: { base: 'm', factor: 0.1, label: '分米', defaultTarget: 'm' },
+  分米: { base: 'm', factor: 0.1, label: '分米', defaultTarget: 'm' },
+  cm: { base: 'm', factor: 0.01, label: '厘米', defaultTarget: 'm' },
+  厘米: { base: 'm', factor: 0.01, label: '厘米', defaultTarget: 'm' },
+  mm: { base: 'm', factor: 0.001, label: '毫米', defaultTarget: 'm' },
+  毫米: { base: 'm', factor: 0.001, label: '毫米', defaultTarget: 'm' },
+  um: { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
+  'μm': { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
+  'µm': { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
+  微米: { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
+  nm: { base: 'm', factor: 0.000000001, label: '纳米', defaultTarget: 'm' },
+  纳米: { base: 'm', factor: 0.000000001, label: '纳米', defaultTarget: 'm' },
+  l: { base: 'ml', factor: 1000, label: '升', defaultTarget: 'ml' },
+  L: { base: 'ml', factor: 1000, label: '升', defaultTarget: 'ml' },
+  升: { base: 'ml', factor: 1000, label: '升', defaultTarget: 'ml' },
+  ml: { base: 'ml', factor: 1, label: '毫升', defaultTarget: 'L' },
+  毫升: { base: 'ml', factor: 1, label: '毫升', defaultTarget: 'L' },
+  km2: { base: 'm2', factor: 1000000, label: '平方千米', defaultTarget: '平方米' },
+  'km²': { base: 'm2', factor: 1000000, label: '平方千米', defaultTarget: '平方米' },
+  平方千米: { base: 'm2', factor: 1000000, label: '平方千米', defaultTarget: '平方米' },
+  平方公里: { base: 'm2', factor: 1000000, label: '平方千米', defaultTarget: '平方米' },
+  m2: { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
+  'm²': { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
+  '㎡': { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
+  平方: { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
+  平方米: { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
+  平米: { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
+  cm2: { base: 'm2', factor: 0.0001, label: '平方厘米', defaultTarget: '平方米' },
+  'cm²': { base: 'm2', factor: 0.0001, label: '平方厘米', defaultTarget: '平方米' },
+  平方厘米: { base: 'm2', factor: 0.0001, label: '平方厘米', defaultTarget: '平方米' },
+  mm2: { base: 'm2', factor: 0.000001, label: '平方毫米', defaultTarget: '平方米' },
+  'mm²': { base: 'm2', factor: 0.000001, label: '平方毫米', defaultTarget: '平方米' },
+  平方毫米: { base: 'm2', factor: 0.000001, label: '平方毫米', defaultTarget: '平方米' },
+  亩: { base: 'm2', factor: 666.6666666667, label: '亩', defaultTarget: '平方米' },
+  公顷: { base: 'm2', factor: 10000, label: '公顷', defaultTarget: '平方米' },
+  ha: { base: 'm2', factor: 10000, label: '公顷', defaultTarget: '平方米' }
+};
+
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const UNIT_ALIAS_PATTERN = Object.keys(UNIT_ALIASES)
+  .sort((a, b) => b.length - a.length)
+  .map(escapeRegExp)
+  .join('|');
+
+const CHINESE_DIGITS: Record<string, number> = {
+  零: 0,
+  '〇': 0,
+  一: 1,
+  二: 2,
+  两: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9
+};
+
+const CHINESE_UNITS: Record<string, number> = {
+  十: 10,
+  百: 100,
+  千: 1000,
+  万: 10000
 };
 
 const formatNumber = (value: number): string =>
   Number.isInteger(value)
     ? String(value)
-    : value.toLocaleString('zh-CN', { maximumFractionDigits: 6 });
+    : value.toLocaleString('zh-CN', { maximumFractionDigits: 12 });
+
+const parseChineseInteger = (value: string): number | null => {
+  let total = 0;
+  let section = 0;
+  let number = 0;
+
+  for (const char of value) {
+    if (char in CHINESE_DIGITS) {
+      number = CHINESE_DIGITS[char];
+      continue;
+    }
+
+    const unit = CHINESE_UNITS[char];
+    if (!unit) return null;
+    if (unit === 10000) {
+      section = (section + number) * unit;
+      total += section;
+      section = 0;
+      number = 0;
+      continue;
+    }
+    section += (number || 1) * unit;
+    number = 0;
+  }
+
+  return total + section + number;
+};
+
+const parseAmount = (value: string): number => {
+  if (/^[\d.]+$/.test(value)) return Number(value);
+  return parseChineseInteger(value) ?? Number.NaN;
+};
+
+const resolveUnit = (value: string): UnitDefinition | undefined =>
+  UNIT_ALIASES[value.trim()] ?? UNIT_ALIASES[value.trim().toLowerCase()];
 
 const createResult = (
   id: string,
@@ -117,19 +224,37 @@ const evaluateMath = (query: string): ContentType | null => {
 };
 
 const parseUnitConversion = (query: string) => {
-  const match = query.trim().match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
-  if (!match) return null;
+  const normalized = query.trim();
+  const match = normalized.match(new RegExp(`^(${NUMBER_PATTERN})\\s*(${UNIT_ALIAS_PATTERN})\\s*(?:=|to|转|换算(?:成)?|是多少|等于多少|等于)\\s*(${UNIT_ALIAS_PATTERN})$`, 'i'));
+  const shortMatch = normalized.match(new RegExp(`^(${NUMBER_PATTERN})\\s*(${UNIT_ALIAS_PATTERN})$`, 'i'));
 
-  const amount = Number(match[1]);
-  const from = UNIT_ALIASES[match[2]];
-  const to = UNIT_ALIASES[match[3]];
+  if (match) {
+    const amount = parseAmount(match[1]);
+    const from = resolveUnit(match[2]);
+    const to = resolveUnit(match[3]);
+    if (Number.isFinite(amount) && from && to && from.base === to.base) {
+      const value = amount * from.factor / to.factor;
+      return {
+        amount,
+        fromLabel: from.label,
+        toLabel: to.label,
+        value
+      };
+    }
+  }
+
+  if (!shortMatch) return null;
+
+  const amount = parseAmount(shortMatch[1]);
+  const from = resolveUnit(shortMatch[2]);
+  const to = from?.defaultTarget ? resolveUnit(from.defaultTarget) : undefined;
   if (!Number.isFinite(amount) || !from || !to || from.base !== to.base) return null;
 
   const value = amount * from.factor / to.factor;
   return {
     amount,
-    fromLabel: match[2],
-    toLabel: match[3],
+    fromLabel: from.label,
+    toLabel: to.label,
     value
   };
 };

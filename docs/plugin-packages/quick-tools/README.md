@@ -18,10 +18,20 @@ Calculator:
 Unit conversion:
 
 ```text
+一吨等于多少千克
+1吨
+1平方
+1纳米
+1厘米
 2kg g
 10公里 米
 500ml L
+1平方米 平方厘米
+1亩 平方米
 ```
+
+When only one unit is provided, Quick Tools uses a common default target unit,
+for example `1吨` to `千克`, `1厘米` to `米`, and `1平方` to `平方厘米`.
 
 Currency conversion:
 
@@ -50,7 +60,7 @@ https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/he
 Versioned package:
 
 ```text
-https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.3.zip
+https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.4.zip
 ```
 
 This repository is synchronized from the main application repository by

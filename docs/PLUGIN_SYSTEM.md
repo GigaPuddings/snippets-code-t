@@ -415,6 +415,9 @@ dist-tag update in this workflow. The synchronized release tag is GitHub-based:
 the app repository keeps the `v<version>` tag convention, while plugin
 repositories use `<version>` so the tag matches `plugin.json.version`.
 
+For the step-by-step checklist used when adding or releasing an official
+external plugin, see `docs/OFFICIAL_PLUGIN_DEVELOPMENT.md`.
+
 The previously built-in feature modules are listed in the marketplace as
 `included`, with independent GitHub package repositories prepared for external
 mode installation:

@@ -1,4 +1,4 @@
-const I = "CNY", m = {
+const T = "CNY", p = "[\\d.]+|[零〇一二两三四五六七八九十百千万]+", S = {
   usd: "USD",
   dollar: "USD",
   dollars: "USD",
@@ -20,141 +20,221 @@ const I = "CNY", m = {
   gbp: "GBP",
   pound: "GBP",
   英镑: "GBP"
-}, f = {
-  kg: { base: "g", factor: 1e3 },
-  千克: { base: "g", factor: 1e3 },
-  公斤: { base: "g", factor: 1e3 },
-  g: { base: "g", factor: 1 },
-  克: { base: "g", factor: 1 },
-  斤: { base: "g", factor: 500 },
-  兩: { base: "g", factor: 50 },
-  两: { base: "g", factor: 50 },
-  lb: { base: "g", factor: 453.59237 },
-  lbs: { base: "g", factor: 453.59237 },
-  磅: { base: "g", factor: 453.59237 },
-  km: { base: "m", factor: 1e3 },
-  千米: { base: "m", factor: 1e3 },
-  公里: { base: "m", factor: 1e3 },
-  m: { base: "m", factor: 1 },
-  米: { base: "m", factor: 1 },
-  cm: { base: "m", factor: 0.01 },
-  厘米: { base: "m", factor: 0.01 },
-  mm: { base: "m", factor: 1e-3 },
-  毫米: { base: "m", factor: 1e-3 },
-  l: { base: "ml", factor: 1e3 },
-  L: { base: "ml", factor: 1e3 },
-  升: { base: "ml", factor: 1e3 },
-  ml: { base: "ml", factor: 1 },
-  毫升: { base: "ml", factor: 1 }
-}, n = (e) => Number.isInteger(e) ? String(e) : e.toLocaleString("zh-CN", { maximumFractionDigits: 6 }), u = (e, t, r, o, a = {}) => ({
-  id: e,
-  title: t,
-  content: r,
+}, d = {
+  t: { base: "g", factor: 1e6, label: "吨", defaultTarget: "kg" },
+  ton: { base: "g", factor: 1e6, label: "吨", defaultTarget: "kg" },
+  tonne: { base: "g", factor: 1e6, label: "吨", defaultTarget: "kg" },
+  吨: { base: "g", factor: 1e6, label: "吨", defaultTarget: "kg" },
+  公吨: { base: "g", factor: 1e6, label: "吨", defaultTarget: "kg" },
+  kg: { base: "g", factor: 1e3, label: "千克", defaultTarget: "g" },
+  千克: { base: "g", factor: 1e3, label: "千克", defaultTarget: "g" },
+  公斤: { base: "g", factor: 1e3, label: "千克", defaultTarget: "g" },
+  g: { base: "g", factor: 1, label: "克", defaultTarget: "kg" },
+  克: { base: "g", factor: 1, label: "克", defaultTarget: "kg" },
+  mg: { base: "g", factor: 1e-3, label: "毫克", defaultTarget: "g" },
+  毫克: { base: "g", factor: 1e-3, label: "毫克", defaultTarget: "g" },
+  斤: { base: "g", factor: 500, label: "斤", defaultTarget: "kg" },
+  兩: { base: "g", factor: 50, label: "两", defaultTarget: "g" },
+  两: { base: "g", factor: 50, label: "两", defaultTarget: "g" },
+  lb: { base: "g", factor: 453.59237, label: "磅", defaultTarget: "kg" },
+  lbs: { base: "g", factor: 453.59237, label: "磅", defaultTarget: "kg" },
+  磅: { base: "g", factor: 453.59237, label: "磅", defaultTarget: "kg" },
+  km: { base: "m", factor: 1e3, label: "千米", defaultTarget: "m" },
+  千米: { base: "m", factor: 1e3, label: "千米", defaultTarget: "m" },
+  公里: { base: "m", factor: 1e3, label: "千米", defaultTarget: "m" },
+  m: { base: "m", factor: 1, label: "米", defaultTarget: "cm" },
+  米: { base: "m", factor: 1, label: "米", defaultTarget: "cm" },
+  dm: { base: "m", factor: 0.1, label: "分米", defaultTarget: "m" },
+  分米: { base: "m", factor: 0.1, label: "分米", defaultTarget: "m" },
+  cm: { base: "m", factor: 0.01, label: "厘米", defaultTarget: "m" },
+  厘米: { base: "m", factor: 0.01, label: "厘米", defaultTarget: "m" },
+  mm: { base: "m", factor: 1e-3, label: "毫米", defaultTarget: "m" },
+  毫米: { base: "m", factor: 1e-3, label: "毫米", defaultTarget: "m" },
+  um: { base: "m", factor: 1e-6, label: "微米", defaultTarget: "m" },
+  μm: { base: "m", factor: 1e-6, label: "微米", defaultTarget: "m" },
+  µm: { base: "m", factor: 1e-6, label: "微米", defaultTarget: "m" },
+  微米: { base: "m", factor: 1e-6, label: "微米", defaultTarget: "m" },
+  nm: { base: "m", factor: 1e-9, label: "纳米", defaultTarget: "m" },
+  纳米: { base: "m", factor: 1e-9, label: "纳米", defaultTarget: "m" },
+  l: { base: "ml", factor: 1e3, label: "升", defaultTarget: "ml" },
+  L: { base: "ml", factor: 1e3, label: "升", defaultTarget: "ml" },
+  升: { base: "ml", factor: 1e3, label: "升", defaultTarget: "ml" },
+  ml: { base: "ml", factor: 1, label: "毫升", defaultTarget: "L" },
+  毫升: { base: "ml", factor: 1, label: "毫升", defaultTarget: "L" },
+  km2: { base: "m2", factor: 1e6, label: "平方千米", defaultTarget: "平方米" },
+  "km²": { base: "m2", factor: 1e6, label: "平方千米", defaultTarget: "平方米" },
+  平方千米: { base: "m2", factor: 1e6, label: "平方千米", defaultTarget: "平方米" },
+  平方公里: { base: "m2", factor: 1e6, label: "平方千米", defaultTarget: "平方米" },
+  m2: { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
+  "m²": { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
+  "㎡": { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
+  平方: { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
+  平方米: { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
+  平米: { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
+  cm2: { base: "m2", factor: 1e-4, label: "平方厘米", defaultTarget: "平方米" },
+  "cm²": { base: "m2", factor: 1e-4, label: "平方厘米", defaultTarget: "平方米" },
+  平方厘米: { base: "m2", factor: 1e-4, label: "平方厘米", defaultTarget: "平方米" },
+  mm2: { base: "m2", factor: 1e-6, label: "平方毫米", defaultTarget: "平方米" },
+  "mm²": { base: "m2", factor: 1e-6, label: "平方毫米", defaultTarget: "平方米" },
+  平方毫米: { base: "m2", factor: 1e-6, label: "平方毫米", defaultTarget: "平方米" },
+  亩: { base: "m2", factor: 666.6666666667, label: "亩", defaultTarget: "平方米" },
+  公顷: { base: "m2", factor: 1e4, label: "公顷", defaultTarget: "平方米" },
+  ha: { base: "m2", factor: 1e4, label: "公顷", defaultTarget: "平方米" }
+}, h = (a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), i = Object.keys(d).sort((a, e) => e.length - a.length).map(h).join("|"), k = {
+  零: 0,
+  "〇": 0,
+  一: 1,
+  二: 2,
+  两: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9
+}, v = {
+  十: 10,
+  百: 100,
+  千: 1e3,
+  万: 1e4
+}, s = (a) => Number.isInteger(a) ? String(a) : a.toLocaleString("zh-CN", { maximumFractionDigits: 12 }), C = (a) => {
+  let e = 0, t = 0, r = 0;
+  for (const l of a) {
+    if (l in k) {
+      r = k[l];
+      continue;
+    }
+    const o = v[l];
+    if (!o) return null;
+    if (o === 1e4) {
+      t = (t + r) * o, e += t, t = 0, r = 0;
+      continue;
+    }
+    t += (r || 1) * o, r = 0;
+  }
+  return e + t + r;
+}, M = (a) => /^[\d.]+$/.test(a) ? Number(a) : C(a) ?? Number.NaN, b = (a) => d[a.trim()] ?? d[a.trim().toLowerCase()], I = (a, e, t, r, l = {}) => ({
+  id: a,
+  title: e,
+  content: t,
   summarize: "tool",
   icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM0ZjQ2ZTUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cmVjdCB4PSI0IiB5PSIyIiB3aWR0aD0iMTYiIGhlaWdodD0iMjAiIHJ4PSIyIi8+PGxpbmUgeDE9IjgiIHkxPSI2IiB4Mj0iMTYiIHkyPSI2Ii8+PGxpbmUgeDE9IjgiIHkxPSIxMCIgeDI9IjgiIHkyPSIxMCIvPjxsaW5lIHgxPSIxMiIgeTE9IjEwIiB4Mj0iMTIiIHkyPSIxMCIvPjxsaW5lIHgxPSIxNiIgeTE9IjEwIiB4Mj0iMTYiIHkyPSIxMCIvPjxsaW5lIHgxPSI4IiB5MT0iMTQiIHgyPSI4IiB5Mj0iMTQiLz48bGluZSB4MT0iMTIiIHkxPSIxNCIgeDI9IjEyIiB5Mj0iMTQiLz48bGluZSB4MT0iMTYiIHkxPSIxNCIgeDI9IjE2IiB5Mj0iMTQiLz48bGluZSB4MT0iOCIgeTE9IjE4IiB4Mj0iMTYiIHkyPSIxOCIvPjwvc3ZnPg==",
   metadata: {
     source: "quick-tools",
-    query: o,
-    ...a
+    query: r,
+    ...l
   }
-}), g = (e) => {
-  const t = e.trim().replace(/（/g, "(").replace(/）/g, ")").replace(/×/g, "*").replace(/÷/g, "/").replace(/＝/g, "=").replace(/^calc(?:ulate)?\s*/i, "").replace(/^计算\s*/, "").replace(/=$/, "").trim();
-  return !/[0-9]/.test(t) || !/^[\d+\-*/%().\s]+$/.test(t) || !/[+\-*/%]/.test(t) ? null : t;
-}, d = (e) => {
-  const t = g(e);
-  if (!t) return null;
+}), x = (a) => {
+  const e = a.trim().replace(/（/g, "(").replace(/）/g, ")").replace(/×/g, "*").replace(/÷/g, "/").replace(/＝/g, "=").replace(/^calc(?:ulate)?\s*/i, "").replace(/^计算\s*/, "").replace(/=$/, "").trim();
+  return !/[0-9]/.test(e) || !/^[\d+\-*/%().\s]+$/.test(e) || !/[+\-*/%]/.test(e) ? null : e;
+}, $ = (a) => {
+  const e = x(a);
+  if (!e) return null;
   try {
-    const r = Function(`"use strict"; return (${t})`)();
-    if (typeof r != "number" || !Number.isFinite(r)) return null;
-    const o = n(r);
-    return u("quick-tools-calc", `${t} = ${o}`, o, e, {
+    const t = Function(`"use strict"; return (${e})`)();
+    if (typeof t != "number" || !Number.isFinite(t)) return null;
+    const r = s(t);
+    return I("quick-tools-calc", `${e} = ${r}`, r, a, {
       tool: "calculator"
     });
   } catch {
     return null;
   }
-}, M = (e) => {
-  const t = e.trim().match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
-  if (!t) return null;
-  const r = Number(t[1]), o = f[t[2]], a = f[t[3]];
-  if (!Number.isFinite(r) || !o || !a || o.base !== a.base) return null;
-  const c = r * o.factor / a.factor;
+}, E = (a) => {
+  const e = a.trim(), t = e.match(new RegExp(`^(${p})\\s*(${i})\\s*(?:=|to|转|换算(?:成)?|是多少|等于多少|等于)\\s*(${i})$`, "i")), r = e.match(new RegExp(`^(${p})\\s*(${i})$`, "i"));
+  if (t) {
+    const m = M(t[1]), u = b(t[2]), f = b(t[3]);
+    if (Number.isFinite(m) && u && f && u.base === f.base) {
+      const P = m * u.factor / f.factor;
+      return {
+        amount: m,
+        fromLabel: u.label,
+        toLabel: f.label,
+        value: P
+      };
+    }
+  }
+  if (!r) return null;
+  const l = M(r[1]), o = b(r[2]), c = o?.defaultTarget ? b(o.defaultTarget) : void 0;
+  if (!Number.isFinite(l) || !o || !c || o.base !== c.base) return null;
+  const n = l * o.factor / c.factor;
   return {
-    amount: r,
-    fromLabel: t[2],
-    toLabel: t[3],
-    value: c
+    amount: l,
+    fromLabel: o.label,
+    toLabel: c.label,
+    value: n
   };
-}, S = (e) => {
-  const t = M(e);
-  if (!t) return null;
-  const r = n(t.value);
-  return u(
+}, j = (a) => {
+  const e = E(a);
+  if (!e) return null;
+  const t = s(e.value);
+  return I(
     "quick-tools-unit",
-    `${n(t.amount)} ${t.fromLabel} = ${r} ${t.toLabel}`,
-    `${r} ${t.toLabel}`,
-    e,
+    `${s(e.amount)} ${e.fromLabel} = ${t} ${e.toLabel}`,
+    `${t} ${e.toLabel}`,
+    a,
     { tool: "unit-converter" }
   );
-}, i = (e) => m[e.trim().toLowerCase()] ?? m[e.trim()] ?? null, P = (e) => {
-  const t = e.trim(), r = t.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i), o = t.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
-  if (r) {
-    const a = Number(r[1]), c = i(r[2]), s = i(r[3]);
-    if (Number.isFinite(a) && c && s && c !== s)
-      return { amount: a, from: c, to: s };
+}, g = (a) => S[a.trim().toLowerCase()] ?? S[a.trim()] ?? null, y = (a) => {
+  const e = a.trim(), t = e.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i), r = e.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
+  if (t) {
+    const l = Number(t[1]), o = g(t[2]), c = g(t[3]);
+    if (Number.isFinite(l) && o && c && o !== c)
+      return { amount: l, from: o, to: c };
   }
-  if (o) {
-    const a = Number(o[1]), c = i(o[2]);
-    return !Number.isFinite(a) || !c || c === I ? null : { amount: a, from: c, to: I };
+  if (r) {
+    const l = Number(r[1]), o = g(r[2]);
+    return !Number.isFinite(l) || !o || o === T ? null : { amount: l, from: o, to: T };
   }
   return null;
-}, p = async (e) => {
-  const t = P(e);
-  if (!t) return null;
+}, H = async (a) => {
+  const e = y(a);
+  if (!e) return null;
   try {
-    const r = `https://api.frankfurter.dev/v2/rate/${t.from}/${t.to}`, o = await fetch(r);
-    if (!o.ok) return null;
-    const a = await o.json(), c = typeof a.rate == "number" ? a.rate * t.amount : void 0;
-    if (typeof c != "number") return null;
-    const s = a.date, l = n(c);
-    return u(
+    const t = `https://api.frankfurter.dev/v2/rate/${e.from}/${e.to}`, r = await fetch(t);
+    if (!r.ok) return null;
+    const l = await r.json(), o = typeof l.rate == "number" ? l.rate * e.amount : void 0;
+    if (typeof o != "number") return null;
+    const c = l.date, n = s(o);
+    return I(
       "quick-tools-currency",
-      `${n(t.amount)} ${t.from} = ${l} ${t.to}`,
-      `${l} ${t.to}，汇率日期 ${s ?? "latest"}`,
-      e,
+      `${s(e.amount)} ${e.from} = ${n} ${e.to}`,
+      `${n} ${e.to}，汇率日期 ${c ?? "latest"}`,
+      a,
       {
         tool: "currency-converter",
-        date: s,
+        date: c,
         provider: "Frankfurter"
       }
     );
   } catch {
     return null;
   }
-}, b = {
+}, N = {
   pluginId: "quick-tools",
   source: "quick-tools",
-  async search(e) {
-    const t = [], r = S(e);
-    r && t.push(r);
-    const o = d(e);
-    o && t.push(o);
-    const a = await p(e);
-    return a && t.push(a), [
+  async search(a) {
+    const e = [], t = j(a);
+    t && e.push(t);
+    const r = $(a);
+    r && e.push(r);
+    const l = await H(a);
+    return l && e.push(l), [
       {
         source: "quick-tools",
-        items: t
+        items: e
       }
     ];
   }
 };
-function v(e) {
-  e.registerSearchProvider({
-    source: b.source,
-    search: (t) => b.search(t)
+function D(a) {
+  a.registerSearchProvider({
+    source: N.source,
+    search: (e) => N.search(e)
   });
 }
 export {
-  v as activate,
-  v as default
+  D as activate,
+  D as default
 };

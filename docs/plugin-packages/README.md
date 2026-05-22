@@ -16,3 +16,8 @@ generation, and marketplace verification as one release chain.
 
 The main app package is `private`, so plugin package publication is GitHub
 repository/tag based rather than npm registry based.
+
+Before adding or releasing a new official plugin, follow the checklist in
+`docs/OFFICIAL_PLUGIN_DEVELOPMENT.md`. It covers the common display and runtime
+failures caused by missing package repositories, stale marketplace entries, or
+unbuilt runtime files.
