@@ -922,6 +922,8 @@ pub fn run() {
             migrate_to_markdown_from_file_command,  // 从选择的数据库文件迁移
             finalize_migration,               // 完成迁移：移除数据库表
             commands::select_workspace,       // 选择工作区文件夹
+            commands::get_default_workspace_dir, // 获取默认工作区目录
+            commands::set_workspace_root_from_setup, // 设置向导保存工作区
             commands::validate_workspace_dir, // 验证工作区目录
             commands::get_workspace_root_path,// 获取工作区根目录
             commands::set_workspace_root_path,// 设置工作区根目录

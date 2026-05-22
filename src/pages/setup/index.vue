@@ -188,6 +188,7 @@ const step = ref(0);
 const pathOption = ref<'default' | 'custom'>('default');
 const defaultPath = ref('');
 const customPath = ref('');
+const dataPath = ref('');
 const completing = ref(false);
 
 /** 引导模式：新建 / 打开 */
@@ -197,12 +198,13 @@ const setupMode = ref<SetupMode>('create');
 const chooseSetupMode = (mode: 'create' | 'open') => {
   setupMode.value = mode;
   pathOption.value = mode === 'create' ? 'default' : 'custom';
+  customPath.value = mode === 'create' ? defaultPath.value : '';
   step.value = 1;
 };
 
 // 检查路径是否需要添加 snippets-code
 const needsAppFolder = (path: string) => {
-  if (!path || path === defaultPath.value) return false;
+  if (setupMode.value !== 'create' || !path || path === defaultPath.value) return false;
   const lowerPath = path.toLowerCase();
   const endsWithAppFolder = lowerPath.endsWith('snippets-code') || lowerPath.endsWith('snippets code');
   return !endsWithAppFolder && !lowerPath.includes('com.snippets-code.app');
@@ -223,10 +225,11 @@ const finalPath = computed(() => {
 onMounted(async () => {
   try {
     version.value = await getVersion();
-    // 获取数据目录信息
+    // 应用数据目录保存数据库和全局配置，工作区目录保存 Markdown 知识资产。
     const info = await invoke<{ path: string; source: string }>('get_data_dir_info');
-    defaultPath.value = info.path;
-    customPath.value = info.path;
+    dataPath.value = info.path;
+    defaultPath.value = await invoke<string>('get_default_workspace_dir');
+    customPath.value = defaultPath.value;
   } catch (error) {
     console.error('获取初始化信息失败:', error);
   }
@@ -268,7 +271,8 @@ const selectCustomPath = async () => {
     });
     if (selected) {
       let path = selected as string;
-      // 如果选择的不是应用目录，自动追加 snippets-code
+      // 新建工作区时，如果选择的是父目录，自动追加 snippets-code。
+      // 打开工作区时必须保留用户选择的已有目录。
       if (needsAppFolder(path)) {
         path = path.replace(/[\\/]+$/, '') + '\\snippets-code';
       }
@@ -282,27 +286,24 @@ const selectCustomPath = async () => {
 const completeSetup = async () => {
   completing.value = true;
   try {
-    // 1. 保存数据目录（如果选择了自定义路径）
-    if (pathOption.value === 'custom' && customPath.value && customPath.value !== defaultPath.value) {
-      try {
-        // 保存路径并创建数据库和 app.json
-        const actualPath = await invoke<string>('set_data_dir_from_setup', { path: customPath.value });
-        customPath.value = actualPath;
-      } catch (error: any) {
-        // 显示详细的错误信息
-        modal.msg(`${t('setup.pathError') || '路径设置失败'}: ${error}`, 'error');
-        completing.value = false;
-        return;
-      }
-    } else {
-      // 使用默认路径，也需要调用后端初始化数据库和创建 app.json
-      try {
-        await invoke<string>('set_data_dir_from_setup', { path: defaultPath.value });
-      } catch (error: any) {
-        modal.msg(`${t('setup.pathError') || '初始化失败'}: ${error}`, 'error');
-        completing.value = false;
-        return;
-      }
+    const workspacePath = finalPath.value;
+    if (!workspacePath) {
+      modal.msg(t('setup.selectDir'), 'warning');
+      completing.value = false;
+      return;
+    }
+
+    // 1. 初始化应用数据目录，并保存 Markdown 工作区根目录。
+    try {
+      await invoke<string>('set_data_dir_from_setup', { path: dataPath.value });
+      await invoke('set_workspace_root_from_setup', {
+        path: workspacePath,
+        create: setupMode.value === 'create'
+      });
+    } catch (error: any) {
+      modal.msg(`${t('setup.pathError') || '路径设置失败'}: ${error}`, 'error');
+      completing.value = false;
+      return;
     }
 
     // 2. 保存语言设置到后端（更新 app.json）

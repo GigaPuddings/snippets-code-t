@@ -144,6 +144,47 @@ pub async fn select_workspace(app_handle: tauri::AppHandle) -> Result<Option<Str
     }
 }
 
+#[tauri::command]
+pub fn get_default_workspace_dir(app_handle: tauri::AppHandle) -> Result<String, String> {
+    let base_dir = app_handle
+        .path()
+        .document_dir()
+        .or_else(|_| app_handle.path().home_dir())
+        .map_err(|e| format!("获取默认工作区目录失败: {}", e))?;
+
+    Ok(base_dir
+        .join("Snippets Code Workspace")
+        .to_string_lossy()
+        .to_string())
+}
+
+#[tauri::command]
+pub fn set_workspace_root_from_setup(
+    app_handle: tauri::AppHandle,
+    path: String,
+    create: bool,
+) -> Result<(), String> {
+    let path_buf = PathBuf::from(path.trim());
+    if path_buf.as_os_str().is_empty() {
+        return Err("工作区路径不能为空".to_string());
+    }
+
+    if create && !path_buf.exists() {
+        std::fs::create_dir_all(&path_buf).map_err(|e| {
+            format!(
+                "创建工作区目录失败: {}。请检查是否有权限或选择其他位置",
+                e
+            )
+        })?;
+    }
+
+    validate_workspace(&path_buf)?;
+    ensure_workspace_not_app_data(&app_handle, &path_buf)?;
+    set_workspace_root(&app_handle, path_buf.clone())?;
+    sync_workspace_root_to_app_config(&app_handle, &path_buf)?;
+    initialize_workspace_runtime(&app_handle, path_buf)
+}
+
 // 检查目录权限
 #[tauri::command]
 pub fn validate_workspace_dir(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
