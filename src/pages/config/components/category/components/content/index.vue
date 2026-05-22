@@ -1296,9 +1296,10 @@ const handleRefreshData = async (event: Event) => {
 
   if (source === 'files-changed-batch') {
     const { modified, created, deleted } = customEvent.detail || {};
-    const changedFiles = [...(modified || []), ...(created || [])];
+    const modifiedFiles = modified || [];
+    const createdFiles = created || [];
     const deletedFiles = deleted || [];
-    console.log('[Content] 📦 files-changed-batch, 当前文件:', currentFileId, '变更文件:', changedFiles, '删除文件:', deletedFiles);
+    console.log('[Content] 📦 files-changed-batch, 当前文件:', currentFileId, '创建文件:', createdFiles, '修改文件:', modifiedFiles, '删除文件:', deletedFiles);
 
     const normalizedId = currentFileId.replace(/\\/g, '/');
     const isCurrentDeleted = deletedFiles.some((f: string) => {
@@ -1315,7 +1316,7 @@ const handleRefreshData = async (event: Event) => {
       return;
     }
 
-    shouldReload = changedFiles.some((f: string) => {
+    shouldReload = modifiedFiles.some((f: string) => {
       const normalizedF = f.replace(/\\/g, '/');
       return normalizedId === normalizedF || normalizedId.endsWith(normalizedF) || normalizedF.endsWith(normalizedId);
     });
