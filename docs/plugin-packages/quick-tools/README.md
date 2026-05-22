@@ -60,7 +60,7 @@ https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/he
 Versioned package:
 
 ```text
-https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.4.zip
+https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.5.zip
 ```
 
 This repository is synchronized from the main application repository by

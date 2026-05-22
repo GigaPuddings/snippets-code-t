@@ -142,7 +142,12 @@ const T = "CNY", p = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     return null;
   }
 }, E = (a) => {
-  const e = a.trim(), t = e.match(new RegExp(`^(${p})\\s*(${i})\\s*(?:=|to|转|换算(?:成)?|是多少|等于多少|等于)\\s*(${i})$`, "i")), r = e.match(new RegExp(`^(${p})\\s*(${i})$`, "i"));
+  const e = a.trim(), t = e.match(
+    new RegExp(
+      `^(${p})\\s*(${i})\\s*(?:=|to|转|换算(?:成)?|是多少|等于多少|等于)?\\s*(${i})$`,
+      "i"
+    )
+  ), r = e.match(new RegExp(`^(${p})\\s*(${i})$`, "i"));
   if (t) {
     const m = M(t[1]), u = b(t[2]), f = b(t[3]);
     if (Number.isFinite(m) && u && f && u.base === f.base) {

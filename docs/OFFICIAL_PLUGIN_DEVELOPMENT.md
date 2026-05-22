@@ -48,7 +48,7 @@ Published official marketplace packages should point directly at the plugin
 repository tag archive, for example:
 
 ```text
-https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.4.zip
+https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.5.zip
 ```
 
 Do not use `packageSubdir` for a published official plugin repository. That is

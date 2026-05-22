@@ -225,7 +225,12 @@ const evaluateMath = (query: string): ContentType | null => {
 
 const parseUnitConversion = (query: string) => {
   const normalized = query.trim();
-  const match = normalized.match(new RegExp(`^(${NUMBER_PATTERN})\\s*(${UNIT_ALIAS_PATTERN})\\s*(?:=|to|转|换算(?:成)?|是多少|等于多少|等于)\\s*(${UNIT_ALIAS_PATTERN})$`, 'i'));
+  const match = normalized.match(
+    new RegExp(
+      `^(${NUMBER_PATTERN})\\s*(${UNIT_ALIAS_PATTERN})\\s*(?:=|to|转|换算(?:成)?|是多少|等于多少|等于)?\\s*(${UNIT_ALIAS_PATTERN})$`,
+      'i'
+    )
+  );
   const shortMatch = normalized.match(new RegExp(`^(${NUMBER_PATTERN})\\s*(${UNIT_ALIAS_PATTERN})$`, 'i'));
 
   if (match) {
