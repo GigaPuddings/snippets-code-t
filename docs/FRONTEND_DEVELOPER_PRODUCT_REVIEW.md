@@ -438,7 +438,7 @@ Frontend Workspace
 - 插件前端 command/backend 权限判断已抽为可测试纯模块，并覆盖精确权限、通配权限和拒绝路径。
 - 搜索语法解析和语义过滤测试已补齐，`getFragmentList` 已复用统一过滤引擎，避免 `lang/framework/kind` 在不同入口表现不一致。
 - Rust 侧 Markdown frontmatter 已新增单元测试，覆盖 `language/framework/kind` 序列化、旧文件兼容和解析失败场景。
-- Rust 侧插件校验已新增单元测试，覆盖插件 ID、资源路径逃逸、manifest schema/kind/backendKind、backend 权限和 semver 比较。
+- Rust 侧插件校验已新增单元测试，覆盖插件 ID、资源路径逃逸、manifest schema/kind/backendKind、backend 权限和 semver 比较；插件 zip 解析也已覆盖安全解压、单层根目录识别、多根目录拒绝和路径逃逸拒绝。
 - Git 冲突文件路径解码和冲突状态持久化已迁入 `src/plugins/git-sync/conflictState.ts`，配置页减少了一段插件专属实现。
 - Git 自动同步窗口生命周期已迁入 `src/plugins/git-sync/autoSyncLifecycle.ts`，配置页不再直接读取 Git 设置或判断自动同步运行状态。
 - Git 冲突与仓库不存在运行时事件监听已迁入 `src/plugins/git-sync/gitSyncRuntime.ts`，配置页只通过回调更新弹窗状态。
@@ -480,9 +480,11 @@ Frontend Workspace
 - 新增片段入口已接入默认元数据推断：根据标题、分类名和代码块语言推断 `language/framework/kind`，并补齐 `addFragment` 创建时写入 `framework/kind` 的链路。
 - 搜索预览已增加片段复制格式动作，支持复制原始代码、Markdown fenced code 和 VS Code snippet JSON，并补充格式化测试。
 - 片段复制和插入链路已接入模板变量处理，遇到 `{{input:Name}}` 会轻量收集输入，遇到 `{{clipboard}}` 会读取剪贴板内容后再复制。
+- Tauri asset protocol 依赖已完成首轮盘点：当前主要覆盖编辑器附件预览、插件安装目录资源和 OCR 资源查找路径，下一步可按这些边界收窄 `assetProtocol.scope`。
+- 插件设置页已增加安装风险提示，并在 marketplace 条目、已安装插件和资源包中展示能力/权限摘要，先把插件安装前的可见安全信息补齐。
 
 下一批建议优先推进：
 
-- 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
+- 测试体系下一步建议转向 Tauri 权限收紧后的回归用例，以及插件安装权限说明/风险提示的前端交互测试。
 - 配置页下一步建议转向拆分内容编辑区或插件安装流程，配置页主入口已基本降为装配层。
 - 继续完善模板变量体验，例如提供更精致的多字段输入弹窗和变量预览。

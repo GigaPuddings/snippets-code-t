@@ -1791,6 +1791,11 @@ fn extract_plugin_zip_package(zip_path: &Path, target_dir: &Path) -> Result<(), 
         .map_err(|e| format!("打开插件压缩包失败: {} ({})", zip_path.display(), e))?;
     let mut archive = ZipArchive::new(file)
         .map_err(|e| format!("读取插件压缩包失败: {} ({})", zip_path.display(), e))?;
+    fs::create_dir_all(target_dir)
+        .map_err(|e| format!("创建插件解压目录失败: {} ({})", target_dir.display(), e))?;
+    let canonical_target_dir = target_dir
+        .canonicalize()
+        .map_err(|e| format!("解析插件解压目录失败: {} ({})", target_dir.display(), e))?;
 
     for index in 0..archive.len() {
         let mut file = archive
@@ -1800,6 +1805,13 @@ fn extract_plugin_zip_package(zip_path: &Path, target_dir: &Path) -> Result<(), 
             .enclosed_name()
             .ok_or_else(|| format!("插件压缩包包含不安全路径: {}", file.name()))?;
         let output_path = target_dir.join(enclosed_name);
+        let canonical_output_path = output_path
+            .parent()
+            .and_then(|parent| parent.canonicalize().ok())
+            .unwrap_or_else(|| canonical_target_dir.clone());
+        if !canonical_output_path.starts_with(&canonical_target_dir) {
+            return Err(format!("插件压缩包包含不安全路径: {}", file.name()));
+        }
 
         if file.is_dir() {
             fs::create_dir_all(&output_path)
@@ -1971,6 +1983,8 @@ fn plugin_package_download_urls(package_url: &str) -> Vec<String> {
 mod plugin_validation_tests {
     use super::*;
     use serde_json::json;
+    use zip::write::{ExtendedFileOptions, FileOptions};
+    use zip::ZipWriter;
 
     fn valid_manifest() -> serde_json::Value {
         json!({
@@ -1999,6 +2013,24 @@ mod plugin_validation_tests {
         })
     }
 
+    fn create_plugin_zip(entries: &[(&str, &str)]) -> tempfile::NamedTempFile {
+        let file = tempfile::NamedTempFile::new().expect("temp zip file");
+        let mut writer = ZipWriter::new(file.reopen().expect("reopen temp zip"));
+        let options = FileOptions::<ExtendedFileOptions>::default();
+
+        for (name, content) in entries {
+            writer
+                .start_file(name, options.clone())
+                .expect("start zip file");
+            writer
+                .write_all(content.as_bytes())
+                .expect("write zip file");
+        }
+
+        writer.finish().expect("finish zip");
+        file
+    }
+
     #[test]
     fn validate_plugin_package_id_accepts_safe_ids() {
         for plugin_id in ["git-sync", "translation.offline_runtime", "plugin_1"] {
@@ -2012,7 +2044,15 @@ mod plugin_validation_tests {
 
     #[test]
     fn validate_plugin_package_id_rejects_path_like_or_empty_ids() {
-        for plugin_id in ["", ".", "..", "../plugin", "bad/plugin", "bad\\plugin", "插件"] {
+        for plugin_id in [
+            "",
+            ".",
+            "..",
+            "../plugin",
+            "bad/plugin",
+            "bad\\plugin",
+            "插件",
+        ] {
             assert!(
                 validate_plugin_package_id(plugin_id).is_err(),
                 "expected plugin id to be invalid: {}",
@@ -2083,11 +2123,9 @@ mod plugin_validation_tests {
         let mut manifest = valid_manifest();
         manifest["entry"]["frontend"] = json!("../dist/index.js");
 
-        assert!(
-            validate_local_plugin_manifest(&manifest)
-                .expect_err("unsafe frontend")
-                .contains("插件资源路径无效")
-        );
+        assert!(validate_local_plugin_manifest(&manifest)
+            .expect_err("unsafe frontend")
+            .contains("插件资源路径无效"));
     }
 
     #[test]
@@ -2109,7 +2147,10 @@ mod plugin_validation_tests {
 
         let mut wildcard_manifest = valid_manifest();
         wildcard_manifest["permissions"] = json!(["backend:*"]);
-        assert!(manifest_allows_backend_command(&wildcard_manifest, "delete_all"));
+        assert!(manifest_allows_backend_command(
+            &wildcard_manifest,
+            "delete_all"
+        ));
     }
 
     #[test]
@@ -2122,9 +2163,69 @@ mod plugin_validation_tests {
 
     #[test]
     fn compare_semver_handles_prefixes_and_missing_parts() {
-        assert_eq!(compare_semver("v2.0.2", "2.0.1"), std::cmp::Ordering::Greater);
+        assert_eq!(
+            compare_semver("v2.0.2", "2.0.1"),
+            std::cmp::Ordering::Greater
+        );
         assert_eq!(compare_semver("2.0", "2.0.0"), std::cmp::Ordering::Equal);
         assert_eq!(compare_semver("2.0.1", "2.1.0"), std::cmp::Ordering::Less);
+    }
+
+    #[test]
+    fn extract_plugin_zip_package_extracts_safe_entries() {
+        let zip = create_plugin_zip(&[
+            ("plugin.json", r#"{"id":"test-plugin"}"#),
+            ("dist/index.js", "console.log('plugin')"),
+        ]);
+        let target = tempfile::tempdir().expect("target dir");
+
+        extract_plugin_zip_package(zip.path(), target.path()).expect("extract plugin zip");
+
+        assert!(target.path().join("plugin.json").is_file());
+        assert_eq!(
+            fs::read_to_string(target.path().join("dist/index.js")).expect("read extracted file"),
+            "console.log('plugin')"
+        );
+    }
+
+    #[test]
+    fn extract_plugin_zip_package_rejects_path_traversal_entries() {
+        let zip = create_plugin_zip(&[("../escape.txt", "nope")]);
+        let target = tempfile::tempdir().expect("target dir");
+
+        let error = extract_plugin_zip_package(zip.path(), target.path())
+            .expect_err("path traversal should be rejected");
+
+        assert!(error.contains("不安全路径"));
+        assert!(!target.path().join("..").join("escape.txt").is_file());
+    }
+
+    #[test]
+    fn find_plugin_source_root_accepts_single_nested_root() {
+        let target = tempfile::tempdir().expect("target dir");
+        let nested = target.path().join("plugin-root");
+        fs::create_dir_all(&nested).expect("create nested root");
+        fs::write(nested.join("plugin.json"), "{}").expect("write manifest");
+
+        assert_eq!(
+            find_plugin_source_root(target.path()).expect("find nested root"),
+            nested
+        );
+    }
+
+    #[test]
+    fn find_plugin_source_root_rejects_multiple_nested_roots() {
+        let target = tempfile::tempdir().expect("target dir");
+        for name in ["plugin-a", "plugin-b"] {
+            let nested = target.path().join(name);
+            fs::create_dir_all(&nested).expect("create nested root");
+            fs::write(nested.join("plugin.json"), "{}").expect("write manifest");
+        }
+
+        assert_eq!(
+            find_plugin_source_root(target.path()).expect_err("multiple roots should fail"),
+            "插件包中包含多个 plugin.json 根目录"
+        );
     }
 }
 

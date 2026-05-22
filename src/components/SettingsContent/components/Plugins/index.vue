@@ -22,6 +22,10 @@
       <section class="plugins-intro">
         <div class="plugins-intro-title">{{ t('plugins.builtinTitle') }}</div>
         <div class="plugins-intro-desc">{{ t('plugins.builtinDesc') }}</div>
+        <div class="plugins-security-note">
+          <Info theme="outline" size="14" />
+          <span>{{ t('plugins.securityNotice') }}</span>
+        </div>
       </section>
 
       <section class="plugin-install-dir-panel">
@@ -90,6 +94,16 @@
               <div v-if="getMarketplaceDependencyNames(item).length" class="plugin-meta">
                 <span>{{ t('plugins.dependenciesLabel', { dependencies: getMarketplaceDependencyNames(item).join(', ') }) }}</span>
               </div>
+              <div class="plugin-permission-summary">
+                <span
+                  v-for="label in marketplacePermissionLabels(item)"
+                  :key="label"
+                  class="plugin-permission-chip"
+                  :class="{ 'plugin-permission-chip--risk': isRiskPermissionLabel(label) }"
+                >
+                  {{ label }}
+                </span>
+              </div>
               <div v-if="item.tags?.length" class="marketplace-tags">
                 <span v-for="tag in item.tags" :key="tag" class="marketplace-tag">{{ tag }}</span>
               </div>
@@ -150,6 +164,16 @@
                   <div class="plugin-meta">
                     <span>{{ t('plugins.versionLabel', { version: resource.version }) }}</span>
                     <span>{{ t('plugins.sizeLabel', { size: formatBytes(resource.sizeBytes) }) }}</span>
+                  </div>
+                  <div class="plugin-permission-summary">
+                    <span
+                      v-for="label in marketplacePermissionLabels(resource)"
+                      :key="label"
+                      class="plugin-permission-chip"
+                      :class="{ 'plugin-permission-chip--risk': isRiskPermissionLabel(label) }"
+                    >
+                      {{ label }}
+                    </span>
                   </div>
                 </div>
                 <div class="plugin-controls">
@@ -227,6 +251,16 @@
               {{ pluginStore.resourceStatusByPluginId[plugin.id]?.source }}
             </span>
           </div>
+          <div class="plugin-permission-summary">
+            <span
+              v-for="label in installedPluginPermissionLabels(plugin)"
+              :key="label"
+              class="plugin-permission-chip"
+              :class="{ 'plugin-permission-chip--risk': isRiskPermissionLabel(label) }"
+            >
+              {{ label }}
+            </span>
+          </div>
           <div v-if="plugin.packagePath" class="plugin-path">{{ plugin.packagePath }}</div>
         </div>
         <div class="plugin-controls">
@@ -268,6 +302,16 @@
               <div class="plugin-meta">
                 <span>{{ t('plugins.versionLabel', { version: resource.manifest.version }) }}</span>
               </div>
+              <div class="plugin-permission-summary">
+                <span
+                  v-for="label in installedPluginPermissionLabels(resource)"
+                  :key="label"
+                  class="plugin-permission-chip"
+                  :class="{ 'plugin-permission-chip--risk': isRiskPermissionLabel(label) }"
+                >
+                  {{ label }}
+                </span>
+              </div>
               <div v-if="resource.packagePath" class="plugin-path">{{ resource.packagePath }}</div>
             </div>
             <div class="plugin-controls">
@@ -301,7 +345,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
-import { Delete, Download, FileZip, FolderOpen, Refresh, Search } from '@icon-park/vue-next';
+import { Delete, Download, FileZip, FolderOpen, Info, Refresh, Search } from '@icon-park/vue-next';
 import {
   DEFAULT_PLUGIN_MARKETPLACE_URL,
   fetchPluginMarketplace,
@@ -312,7 +356,7 @@ import {
 } from '@/api/plugins';
 import { getPluginById } from '@/plugins/registry';
 import { OFFICIAL_PLUGINS_MODE } from '@/plugins/official-mode';
-import type { PluginI18nText, RegisteredPlugin } from '@/plugins/protocol';
+import type { PluginCapabilities, PluginI18nText, RegisteredPlugin } from '@/plugins/protocol';
 import { getHotkeyValue } from '@/plugins/hotkeys';
 import type { PluginId } from '@/plugins/types';
 import { useConfigurationStore, usePluginStore } from '@/store';
@@ -425,6 +469,67 @@ const getMarketplaceResources = (item: PluginMarketplaceItem): PluginMarketplace
 
 const getInstalledResources = (plugin: RegisteredPlugin): RegisteredPlugin[] => (
   pluginStore.resourcesForPlugin(plugin.id)
+);
+
+const capabilityLabelMap: Record<keyof PluginCapabilities, string> = {
+  routeNames: 'plugins.permissionCapabilities.routes',
+  settingsTabs: 'plugins.permissionCapabilities.settings',
+  hotkeys: 'plugins.permissionCapabilities.hotkeys',
+  searchSources: 'plugins.permissionCapabilities.search',
+  titlebarActions: 'plugins.permissionCapabilities.titlebar',
+  trayItems: 'plugins.permissionCapabilities.tray',
+  windows: 'plugins.permissionCapabilities.windows'
+};
+const capabilityKeys = Object.keys(capabilityLabelMap) as Array<keyof PluginCapabilities>;
+
+const permissionLabel = (permission: string): string => {
+  if (permission.startsWith('backend:')) return t('plugins.permissionBackend', { permission });
+  if (permission.startsWith('command:')) return t('plugins.permissionCommand', { permission });
+  return permission;
+};
+
+const capabilityLabels = (capabilities?: PluginCapabilities): string[] => {
+  if (!capabilities) return [];
+
+  return capabilityKeys
+    .filter((key) => {
+      const value = capabilities[key];
+      return Array.isArray(value) ? value.length > 0 : Boolean(value);
+    })
+    .map((key) => t(capabilityLabelMap[key]));
+};
+
+const marketplacePermissionLabels = (item: PluginMarketplaceItem): string[] => {
+  const manifest = item.manifest;
+  const labels = [
+    ...capabilityLabels(manifest?.capabilities),
+    ...(manifest?.permissions ?? []).map(permissionLabel)
+  ];
+
+  if (item.resourceFor || manifest?.resourceFor || manifest?.resources) {
+    labels.push(t('plugins.permissionResource'));
+  }
+
+  return labels.length ? labels : [t('plugins.permissionNone')];
+};
+
+const installedPluginPermissionLabels = (plugin: RegisteredPlugin): string[] => {
+  const labels = [
+    ...capabilityLabels(plugin.manifest.capabilities),
+    ...(plugin.manifest.permissions ?? []).map(permissionLabel)
+  ];
+
+  if (plugin.resourceFor || plugin.manifest.resourceFor || plugin.manifest.resources) {
+    labels.push(t('plugins.permissionResource'));
+  }
+
+  return labels.length ? labels : [t('plugins.permissionNone')];
+};
+
+const isRiskPermissionLabel = (label: string): boolean => (
+  label.includes('backend:')
+  || label.includes('command:')
+  || label === t('plugins.permissionCapabilities.windows')
 );
 
 const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] => (
@@ -829,6 +934,10 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
   @apply text-panel-text-secondary text-xs leading-5;
 }
 
+.plugins-security-note {
+  @apply mt-2 flex items-start gap-1.5 rounded border border-yellow-200 bg-yellow-50 px-2 py-1.5 text-xs leading-5 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200;
+}
+
 .plugin-row {
   @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-3 border-b border-panel last:border-b-0;
 }
@@ -905,6 +1014,18 @@ const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<voi
 
 .plugin-meta {
   @apply mt-1 flex flex-wrap items-center gap-2 text-xs text-panel-text-secondary;
+}
+
+.plugin-permission-summary {
+  @apply mt-1 flex flex-wrap gap-1;
+}
+
+.plugin-permission-chip {
+  @apply rounded border border-panel bg-hover px-1.5 py-0.5 text-xs text-panel-text-secondary;
+
+  &--risk {
+    @apply border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200;
+  }
 }
 
 .marketplace-tag {
