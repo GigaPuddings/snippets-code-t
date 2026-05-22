@@ -1309,6 +1309,35 @@ pub async fn move_markdown_file(
 }
 // 搜索 Markdown 文件（包装器，调用优化版本的索引管理器）
 #[command]
+pub async fn rebuild_search_index(
+    app_handle: AppHandle,
+    index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
+    cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
+) -> Result<(), String> {
+    let Some(workspace_root) = get_workspace_root(&app_handle)? else {
+        debug!("🔎 [搜索索引] 工作区未配置，跳过重建");
+        return Ok(());
+    };
+
+    let cache = {
+        let cache_lock = cache_manager
+            .read()
+            .map_err(|e| format!("获取缓存管理器锁失败: {}", e))?;
+        cache_lock.clone()
+    };
+
+    let rebuilt_index = IndexManager::build_index(&workspace_root, &cache).await?;
+
+    let mut index_lock = index_manager
+        .write()
+        .map_err(|e| format!("获取索引管理器写锁失败: {}", e))?;
+    *index_lock = Some(rebuilt_index);
+
+    info!("✅ [搜索索引] 已重建: {}", workspace_root.display());
+    Ok(())
+}
+
+#[command]
 pub async fn search_markdown_files_optimized(
     app_handle: AppHandle,
     index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,

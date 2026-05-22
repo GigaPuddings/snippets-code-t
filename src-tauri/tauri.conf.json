@@ -48,6 +48,7 @@
             "$APPDATA/**/*",
             "$APPLOCALDATA/**/*",
             "$RESOURCE/**/*",
+            "**/plugins/*/dist/**/*",
             "$HOME/**/*",
             "$DESKTOP/**/*",
             "$DOCUMENT/**/*",

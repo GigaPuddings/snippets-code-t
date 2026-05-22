@@ -928,6 +928,7 @@ pub fn run() {
             commands::get_workspace_root_path,// 获取工作区根目录
             commands::set_workspace_root_path,// 设置工作区根目录
             commands::change_workspace,       // 更改工作区
+            markdown::rebuild_search_index,   // 重建 Markdown 搜索索引
             markdown::search_markdown_files_optimized,  // 搜索 Markdown 文件
             plugins::desktop_files::search_desktop_files,             // 搜索桌面文件
             plugins::desktop_files::refresh_desktop_files_cache_cmd,   // 刷新桌面文件缓存
