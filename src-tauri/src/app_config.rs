@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use log::{info, warn};
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error as StdError;
@@ -2249,7 +2249,7 @@ fn emit_plugin_install_progress(
         progress,
     };
 
-    info!(
+    debug!(
         "[Plugin] install progress phase={} url={} downloaded={} total={:?} progress={:?}",
         phase, package_url, downloaded_bytes, total_bytes, progress
     );
@@ -2259,7 +2259,7 @@ fn emit_plugin_install_progress(
 async fn download_plugin_url_to_temp(
     app_handle: &AppHandle,
     package_url: &str,
-    expected_size_bytes: Option<u64>,
+    _expected_size_bytes: Option<u64>,
 ) -> Result<PathBuf, String> {
     validate_plugin_remote_url(package_url)?;
     let download_urls = plugin_package_download_urls(package_url);
@@ -2270,7 +2270,7 @@ async fn download_plugin_url_to_temp(
     let temp_dir = create_plugin_install_temp_dir(app_handle)?;
     let temp_file = temp_dir.join("package.zip");
     let result = async {
-        info!("[Plugin] downloading remote package {}", package_url);
+        debug!("[Plugin] downloading remote package {}", package_url);
         emit_plugin_install_progress(app_handle, package_url, "downloading", 0, None);
 
         let client = reqwest::Client::builder()
@@ -2286,7 +2286,7 @@ async fn download_plugin_url_to_temp(
         for download_url in &download_urls {
             for attempt in 1..=MAX_DOWNLOAD_ATTEMPTS {
                 if download_url != package_url || attempt > 1 {
-                    info!(
+                    debug!(
                         "[Plugin] retrying remote package download url={} attempt={}/{}",
                         download_url, attempt, MAX_DOWNLOAD_ATTEMPTS
                     );
@@ -2295,7 +2295,7 @@ async fn download_plugin_url_to_temp(
                         package_url,
                         "downloading",
                         0,
-                        expected_size_bytes,
+                        None,
                     );
                 }
 
@@ -2335,7 +2335,7 @@ async fn download_plugin_url_to_temp(
                     continue;
                 }
 
-                let total_bytes = response.content_length().or(expected_size_bytes);
+                let total_bytes = response.content_length();
                 emit_plugin_install_progress(
                     app_handle,
                     package_url,

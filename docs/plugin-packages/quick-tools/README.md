@@ -1,0 +1,54 @@
+# Quick Tools
+
+Official installable plugin package for Snippets Code.
+
+Quick Tools adds lightweight utility results to the global quick search box.
+After installing and enabling the plugin, open quick search and type the
+expression directly. No command prefix is required.
+
+## Examples
+
+Calculator:
+
+```text
+12 * (3 + 4)
+计算 128 / 8
+```
+
+Unit conversion:
+
+```text
+2kg g
+10公里 米
+500ml L
+```
+
+Currency conversion:
+
+```text
+100 USD CNY
+25欧元 美元
+1000日元 人民币
+```
+
+Currency conversion uses the Frankfurter API and needs network access to
+`https://api.frankfurter.dev`.
+
+## Install
+
+Use the official plugin marketplace in Snippets Code, or install this repository
+archive directly:
+
+```text
+https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/heads/main.zip
+```
+
+Versioned package:
+
+```text
+https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.2.zip
+```
+
+This repository is synchronized from the main application repository by
+`pnpm plugins:sync-repos`. Manual edits should be made in the main source
+package, then synchronized again.

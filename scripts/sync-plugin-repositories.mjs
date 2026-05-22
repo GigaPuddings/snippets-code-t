@@ -309,6 +309,15 @@ async function writeVersionsIndex(repoDir, version, manifest) {
   );
 }
 
+async function writeRepositoryReadme(plugin, repoDir, manifest, version, sourceDir) {
+  const sourceReadmePath = join(sourceDir, 'README.md');
+  if (existsSync(sourceReadmePath)) {
+    return;
+  }
+
+  await writeFile(join(repoDir, 'README.md'), renderReadme(plugin, manifest, version, sourceDir), 'utf8');
+}
+
 function gitOutput(cwd, args) {
   return execFileSync('git', args, {
     cwd,
@@ -386,7 +395,7 @@ async function syncRepository(plugin, version, options) {
 
     const manifest = await readJson(join(sourceDir, 'plugin.json'));
     await writeVersionsIndex(repoDir, version, manifest);
-    await writeFile(join(repoDir, 'README.md'), renderReadme(plugin, manifest, version, sourceDir), 'utf8');
+    await writeRepositoryReadme(plugin, repoDir, manifest, version, sourceDir);
   }
 
   commitAndPush(plugin, repoDir, version, options);

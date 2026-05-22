@@ -2,7 +2,7 @@ use crate::apps::{is_shell_apps_folder_path, resolve_shell_apps_folder_display_p
 use crate::bookmarks::BookmarkInfo;
 use crate::db;
 use crate::search::{fuzzy_search, SearchResult};
-use log::info;
+use log::debug;
 use std::sync::{LazyLock, Mutex};
 
 static APPS_CACHE: LazyLock<Mutex<Option<Vec<AppInfo>>>> = LazyLock::new(|| Mutex::new(None));
@@ -16,15 +16,17 @@ fn require_local_launcher_plugin(app_handle: &tauri::AppHandle) -> Result<(), St
 
 pub fn invalidate_apps_cache() {
     if let Ok(mut cache) = APPS_CACHE.lock() {
-        *cache = None;
-        info!("应用搜索缓存已清除");
+        if cache.take().is_some() {
+            debug!("应用搜索缓存已清除");
+        }
     }
 }
 
 pub fn invalidate_bookmarks_cache() {
     if let Ok(mut cache) = BOOKMARKS_CACHE.lock() {
-        *cache = None;
-        info!("书签搜索缓存已清除");
+        if cache.take().is_some() {
+            debug!("书签搜索缓存已清除");
+        }
     }
 }
 
