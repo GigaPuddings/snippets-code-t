@@ -466,6 +466,7 @@ Frontend Workspace
 - 配置页导航事件、待处理跳转和系统打开 Markdown 已迁入 `src/pages/config/composables/useConfigNavigationEvents.ts`，并补充单元测试。
 - 配置页全局启动、`config_ready`、插件初始化和初始化清理已迁入 `src/pages/config/composables/useConfigStartup.ts`，并补充单元测试。
 - 配置页生命周期启动/清理编排已迁入 `src/pages/config/composables/useConfigLifecycle.ts`，主文件只绑定 lifecycle start/cleanup。
+- Git runtime mount 的启动决策、只初始化一次和卸载清理已抽到 `src/plugins/git-sync/useGitSyncRuntimeMount.ts` 并补充回归测试，配置页与 Git 同步插件之间的装配边界更稳定。
 - `TipTapEditor` 已新增 `useEditorViewMode`，阅读、编辑预览、源码模式的状态机和切换命令已从主组件迁出，并补充源码回写、大纲刷新和重复切换测试。
 - `TipTapEditor` 已新增 `useEditorPersistenceBridge`，TipTap JSON 到 Markdown 发射、源码模式回写、外部内容同步和防循环状态已从主组件迁出，并补充单元测试。
 - `TipTapEditor` 已新增 `useEditorBacklinks`，反链面板开关、计数刷新和导航转发已从主组件迁出，并补充单元测试。

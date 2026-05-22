@@ -11,6 +11,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import GitSyncRuntimePortal from './GitSyncRuntimePortal.vue';
 import type { GitSyncRuntimeFacade } from '@/plugins/git-sync/useGitSyncRuntimeFacade';
+import { useGitSyncRuntimeMount } from '@/plugins/git-sync/useGitSyncRuntimeMount';
 
 const props = defineProps<{
   runtime: GitSyncRuntimeFacade;
@@ -18,22 +19,9 @@ const props = defineProps<{
 }>();
 
 const { portalRef } = props.runtime;
-let didSetup = false;
-
-watch(
-  () => props.shouldInit,
-  async (shouldInit) => {
-    if (shouldInit === null || didSetup) return;
-    didSetup = true;
-    await props.runtime.setupAndRestore({
-      shouldInit,
-      autoSyncWindow: getCurrentWindow()
-    });
-  },
-  { immediate: true }
-);
-
-onUnmounted(() => {
-  void props.runtime.cleanup();
+useGitSyncRuntimeMount({
+  runtime: props.runtime,
+  shouldInit: computed(() => props.shouldInit),
+  getAutoSyncWindow: getCurrentWindow
 });
 </script>

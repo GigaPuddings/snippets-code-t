@@ -20,7 +20,7 @@ type ModalMsg = (
   duration?: number
 ) => void;
 
-type GitRuntimeWindow = {
+export type GitRuntimeWindow = {
   listen: (
     event: 'tauri://show' | 'tauri://hide',
     handler: () => void | Promise<void>
