@@ -316,6 +316,10 @@ export default {
       tray: 'Tray item',
       windows: 'Window access'
     },
+    quickTools: {
+      name: 'Quick Tools',
+      description: 'Calculator, unit conversion, and live currency conversion in quick search.'
+    },
     versionLabel: 'Version {version}',
     sizeLabel: 'Size {size}',
     sizeUnknown: 'Unknown',
@@ -999,6 +1003,7 @@ export default {
     apps: 'Apps',
     bookmarks: 'Bookmarks',
     files: 'Files',
+    tools: 'Tools',
     code: 'Snippets',
     notes: 'Notes',
     search: 'Search',

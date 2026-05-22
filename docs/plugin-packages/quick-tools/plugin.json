@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "quick-tools",
+  "version": "2.0.2",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.quickTools.name",
+    "fallback": "Quick Tools"
+  },
+  "description": {
+    "i18nKey": "plugins.quickTools.description",
+    "fallback": "Calculator, unit conversion, and live currency conversion in quick search."
+  },
+  "category": "search",
+  "enabledByDefault": true,
+  "capabilities": {
+    "searchSources": [
+      "quick-tools"
+    ]
+  },
+  "permissions": [
+    "network:https://api.frankfurter.dev"
+  ],
+  "compatibleAppVersion": ">=2.0.2",
+  "entry": {
+    "frontend": "dist/frontend.js"
+  },
+  "minAppVersion": "2.0.2",
+  "repository": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/releases/tag/2.0.2"
+}

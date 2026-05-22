@@ -330,6 +330,10 @@ export default {
       tray: '托盘入口',
       windows: '窗口能力'
     },
+    quickTools: {
+      name: '快速工具',
+      description: '在快速搜索中提供计算器、单位换算和实时汇率换算。'
+    },
     versionLabel: '版本 {version}',
     sizeLabel: '大小 {size}',
     sizeUnknown: '未知',
@@ -1014,6 +1018,7 @@ export default {
     apps: '应用',
     bookmarks: '书签',
     files: '文件',
+    tools: '工具',
     code: '片段',
     notes: '笔记',
     search: '搜索',

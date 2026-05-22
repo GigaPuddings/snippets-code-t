@@ -264,7 +264,7 @@ const highlightWikilink = (text: string, title: string): string => {
 
 const highlightMention = (text: string, title: string): string => {
   const escapedTitle = escapeRegExp(title);
-  const wikilinkRegex = getCachedRegex(`\\[\\[${escapedTitle}\\]\\]`, 'gi');
+  const wikilinkRegex = getCachedRegex(`\\[\\[\\s*${escapedTitle}\\s*\\]\\]`, 'gi');
   const titleRegex = getCachedRegex(escapedTitle, 'gi');
   
   const wikilinks: Array<{ placeholder: string; original: string }> = [];
@@ -290,7 +290,7 @@ const extractPreview = (content: string, title: string, isWikilink: boolean): st
   const lines = plainText.split('\n');
   const escapedTitle = escapeRegExp(title);
   
-  const wikilinkPattern = getCachedRegex(`\\[\\[${escapedTitle}\\]\\]`, 'i');
+  const wikilinkPattern = getCachedRegex(`\\[\\[\\s*${escapedTitle}\\s*\\]\\]`, 'i');
   const titlePattern = isWikilink ? wikilinkPattern : getCachedRegex(escapedTitle, 'i');
   
   for (let i = 0; i < lines.length; i++) {
@@ -323,7 +323,7 @@ const extractPreview = (content: string, title: string, isWikilink: boolean): st
 const formatPreview = (text: string, title: string, isWikilink: boolean, escapedTitle?: string): string => {
   const escaped = escapedTitle || escapeRegExp(title);
   const pattern = isWikilink 
-    ? getCachedRegex(`\\[\\[${escaped}\\]\\]`, 'i')
+    ? getCachedRegex(`\\[\\[\\s*${escaped}\\s*\\]\\]`, 'i')
     : getCachedRegex(escaped, 'i');
   
   const match = text.match(pattern);
@@ -349,7 +349,7 @@ const loadBacklinks = async () => {
   loading.value = true;
   try {
     const escapedTitle = escapeRegExp(props.currentTitle);
-    const wikilinkRegex = getCachedRegex(`\\[\\[${escapedTitle}\\]\\]`, 'gi');
+    const wikilinkRegex = getCachedRegex(`\\[\\[\\s*${escapedTitle}\\s*\\]\\]`, 'gi');
     const titleRegex = getCachedRegex(escapedTitle, 'gi');
     
     const [backlinks, mentions] = await Promise.all([
@@ -373,9 +373,9 @@ const loadBacklinks = async () => {
       .filter(item => item.id !== props.currentFragmentId)
       .map(item => {
         const content = item.content || '';
-        const allMatches = content.match(titleRegex);
-        const wikilinkMatches = content.match(wikilinkRegex);
-        const mentionOccurrences = (allMatches?.length || 0) - (wikilinkMatches?.length || 0);
+        const textWithoutWikilinks = content.replace(wikilinkRegex, '');
+        const allMatches = textWithoutWikilinks.match(titleRegex);
+        const mentionOccurrences = allMatches?.length || 0;
         
         return {
           id: item.id, // 保持原始 ID（文件路径）

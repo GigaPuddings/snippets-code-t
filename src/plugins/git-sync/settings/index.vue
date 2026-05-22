@@ -217,6 +217,53 @@
             </CustomButton>
           </div>
         </section>
+
+        <section class="git-records-section">
+          <div class="git-records-head">
+            <div>
+              <div class="summarize-label-title">Git 记录</div>
+              <div class="summarize-label-desc">最近 10 条提交，可查看同步状态并恢复单个文件</div>
+            </div>
+            <CustomButton size="small" :loading="isLoadingRecords" @click="loadGitRecords">
+              刷新
+            </CustomButton>
+          </div>
+
+          <div v-if="gitRecords.length" class="git-records-list">
+            <div v-for="record in gitRecords" :key="record.commit_hash" class="git-record-item">
+              <div class="git-record-main">
+                <span class="git-record-state" :class="{ synced: record.synced }">
+                  {{ record.synced ? '已同步' : '待推送' }}
+                </span>
+                <span class="git-record-message" :title="record.message">{{ record.message }}</span>
+                <span class="git-record-time">{{ record.time }}</span>
+              </div>
+              <div class="git-record-meta">
+                <span>{{ record.short_hash }}</span>
+                <span>{{ record.author }}</span>
+              </div>
+              <div v-if="record.files.length" class="git-record-files">
+                <button
+                  v-for="file in record.files.slice(0, 6)"
+                  :key="`${record.commit_hash}-${file.file_path}`"
+                  class="git-record-file"
+                  type="button"
+                  :title="`${file.status} ${file.file_path}`"
+                  @click="requestRestoreGitRecordFile(record, file)"
+                >
+                  <span class="git-record-file-status">{{ file.status }}</span>
+                  <span class="git-record-file-name">{{ file.file_name }}</span>
+                </button>
+                <span v-if="record.files.length > 6" class="git-record-more">
+                  +{{ record.files.length - 6 }}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div v-else class="git-records-empty">
+            {{ isLoadingRecords ? '正在加载记录...' : '暂无 Git 记录' }}
+          </div>
+        </section>
       </template>
     </main>
     
@@ -257,6 +304,18 @@
       @secondary="branchOverwriteVisible = false"
       @close="branchOverwriteVisible = false"
     />
+
+    <ConfirmChoiceDialog
+      v-model="restoreConfirmVisible"
+      title="恢复文件"
+      :message="restoreConfirmMessage"
+      primary-text="确认恢复"
+      secondary-text="取消"
+      type="warning"
+      @primary="handleRestoreConfirm"
+      @secondary="restoreConfirmVisible = false"
+      @close="restoreConfirmVisible = false"
+    />
   </div>
 </template>
 
@@ -267,8 +326,8 @@ import { CustomButton, CustomSwitch, SelectConfirmDialog } from '@/components/UI
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import { getGitSettings, updateGitSettings } from '@/api/appConfig';
 import { useGitStatus } from '@/plugins/git-sync/useGitStatus';
-import { gitPull, gitPush, removeUntrackedFile, startAutoSync, stopAutoSync, switchGitBranch } from '@/plugins/git-sync/api';
-import type { BranchSelection, PullResult } from '@/plugins/git-sync/api';
+import { gitPull, gitPush, getGitRecords, removeUntrackedFile, restoreGitRecordFile, startAutoSync, stopAutoSync, switchGitBranch } from '@/plugins/git-sync/api';
+import type { BranchSelection, GitRecord, GitRecordFile, PullResult } from '@/plugins/git-sync/api';
 import type { GitSettings } from '@/types/models';
 import modal from '@/utils/modal';
 import { analyzeGitError, getErrorTypeIcon } from '@/utils/git-error';
@@ -345,6 +404,10 @@ const selectedBranch = ref('main');
 const branchOverwriteVisible = ref(false);
 const pendingBranchSwitch = ref('');
 const pendingUntrackedFiles = ref<string[]>([]);
+const gitRecords = ref<GitRecord[]>([]);
+const isLoadingRecords = ref(false);
+const restoreConfirmVisible = ref(false);
+const pendingRestore = ref<{ record: GitRecord; file: GitRecordFile } | null>(null);
 
 const branchSelectOptions = computed(() => {
   const branches = branchSelection.value?.available_branches?.length
@@ -364,6 +427,12 @@ const branchSelectMessage = computed(() => {
 const branchOverwriteMessage = computed(() => {
   const files = pendingUntrackedFiles.value.map((file) => `- ${file}`).join('\n');
   return `目标分支会覆盖以下未跟踪文件。选择“使用目标分支文件”会先删除这些本地未跟踪文件，再切换到 ${pendingBranchSwitch.value || '目标'} 分支。\n\n${files}`;
+});
+
+const restoreConfirmMessage = computed(() => {
+  const target = pendingRestore.value;
+  if (!target) return '';
+  return `确认将文件恢复到这条记录之前的版本？\n\n- 文件：${target.file.file_path}\n- 记录：${target.record.short_hash} ${target.record.message}\n\n当前文件内容会被覆盖，恢复后会出现在待同步列表中。`;
 });
 
 // 显示友好的错误消息
@@ -511,6 +580,38 @@ const processPullResult = (result: PullResult) => {
     modal.msg(t('settings.gitSync.pullFailed'), 'error', 'top-right');
   }
 };
+
+const loadGitRecords = async () => {
+  isLoadingRecords.value = true;
+  try {
+    gitRecords.value = await getGitRecords(10);
+  } catch (error) {
+    logger.error('[GitSync] 加载 Git 记录失败', error);
+    showFriendlyError(error);
+  } finally {
+    isLoadingRecords.value = false;
+  }
+};
+
+const requestRestoreGitRecordFile = (record: GitRecord, file: GitRecordFile) => {
+  pendingRestore.value = { record, file };
+  restoreConfirmVisible.value = true;
+};
+
+const handleRestoreConfirm = async () => {
+  const target = pendingRestore.value;
+  if (!target) return;
+
+  try {
+    await restoreGitRecordFile(target.record.commit_hash, target.file.file_path);
+    modal.msg('文件已恢复，请检查待同步记录后再推送', 'success', 'bottom-right');
+    pendingRestore.value = null;
+    await refreshStatus();
+  } catch (error) {
+    logger.error('[GitSync] 恢复 Git 文件失败', error);
+    showFriendlyError(error);
+  }
+};
 // 加载 Git 设置
 const loadGitSettings = async () => {
   try {
@@ -607,6 +708,7 @@ const handlePull = async () => {
   try {
     const result = await gitPull();
     processPullResult(result);
+    await loadGitRecords();
   } catch (error) {
     logger.error('[GitSync] 手动 Pull 失败', error);
     showFriendlyError(error);
@@ -643,6 +745,7 @@ const handlePush = async () => {
     } else {
       modal.msg(t('settings.gitSync.pushFailed'), 'error', 'top-right');
     }
+    await loadGitRecords();
   } catch (error) {
     logger.error('[GitSync] 手动 Push 失败', error);
     showFriendlyError(error);
@@ -656,5 +759,91 @@ onMounted(async () => {
   // 与标题栏共用同一状态：进入页面时刷新，保证「最后同步」时间与指示器一致
   await refreshSettings();
   await refreshStatus();
+  await loadGitRecords();
 });
 </script>
+
+<style scoped lang="scss">
+.git-records-section {
+  @apply my-3 rounded border border-panel p-3;
+  background: var(--categories-content-bg);
+}
+
+.git-records-head,
+.git-record-main,
+.git-record-meta,
+.git-record-files {
+  @apply flex items-center;
+}
+
+.git-records-head {
+  @apply justify-between gap-3 mb-3;
+}
+
+.git-records-list {
+  @apply flex flex-col gap-2;
+}
+
+.git-record-item {
+  @apply rounded border border-panel px-3 py-2;
+  background: var(--categories-panel-bg);
+}
+
+.git-record-main {
+  @apply gap-2 min-w-0;
+}
+
+.git-record-state {
+  @apply shrink-0 rounded px-2 py-0.5 text-[11px];
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.14);
+
+  &.synced {
+    color: #047857;
+    background: rgba(16, 185, 129, 0.14);
+  }
+}
+
+.git-record-message {
+  @apply min-w-0 flex-1 truncate text-sm text-panel;
+}
+
+.git-record-time,
+.git-record-meta {
+  @apply text-xs;
+  color: var(--categories-info-text-color);
+}
+
+.git-record-meta {
+  @apply gap-3 mt-1;
+}
+
+.git-record-files {
+  @apply flex-wrap gap-1 mt-2;
+}
+
+.git-record-file {
+  @apply inline-flex max-w-[180px] items-center gap-1 rounded border border-panel px-2 py-1 text-xs cursor-pointer;
+  background: transparent;
+  color: var(--categories-text-color);
+
+  &:hover {
+    background: var(--categories-panel-bg-hover);
+  }
+}
+
+.git-record-file-status {
+  @apply font-medium;
+  color: var(--el-color-primary);
+}
+
+.git-record-file-name {
+  @apply truncate;
+}
+
+.git-record-more,
+.git-records-empty {
+  @apply text-xs;
+  color: var(--categories-info-text-color);
+}
+</style>

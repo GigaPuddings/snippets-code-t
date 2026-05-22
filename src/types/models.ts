@@ -16,7 +16,7 @@ export interface ContentType {
   /** 文件路径（桌面文件等） */
   file_path?: string;
   /** 摘要类型（可选） */
-  summarize?: 'text' | 'app' | 'bookmark' | 'search' | 'code' | 'note' | 'file';
+  summarize?: 'text' | 'app' | 'bookmark' | 'search' | 'code' | 'note' | 'file' | 'tool';
   /** 图标 */
   icon?: string;
   /** 评分 */

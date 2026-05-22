@@ -52,6 +52,12 @@ const SEARCH_RESULT_TAB_DEFINITIONS: SearchResultTabDefinition[] = [
     pluginId: 'desktop-files'
   },
   {
+    labelKey: 'searchResult.tools',
+    value: 'tool',
+    matcher: (item) => getResultSource(item) === 'quick-tools' || item.summarize === 'tool',
+    pluginId: 'quick-tools'
+  },
+  {
     labelKey: 'searchResult.code',
     value: 'code',
     matcher: (item) => item.type === 'code',

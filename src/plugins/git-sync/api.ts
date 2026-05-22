@@ -55,6 +55,22 @@ export interface GitStatus {
   has_other_branches: boolean;
 }
 
+export interface GitRecordFile {
+  status: string;
+  file_name: string;
+  file_path: string;
+}
+
+export interface GitRecord {
+  commit_hash: string;
+  short_hash: string;
+  message: string;
+  author: string;
+  time: string;
+  synced: boolean;
+  files: GitRecordFile[];
+}
+
 /**
  * 系统 Git 配置
  */
@@ -114,6 +130,22 @@ export async function getGitStatus(): Promise<GitStatus> {
     return await invoke<GitStatus>('get_git_status_command');
   } catch (error) {
     throw new Error(`获取 Git 状态失败: ${error}`);
+  }
+}
+
+export async function getGitRecords(limit = 10): Promise<GitRecord[]> {
+  try {
+    return await invoke<GitRecord[]>('get_git_records_command', { limit });
+  } catch (error) {
+    throw new Error(`获取 Git 记录失败: ${error}`);
+  }
+}
+
+export async function restoreGitRecordFile(commitHash: string, filePath: string): Promise<void> {
+  try {
+    await invoke('restore_git_record_file_command', { commitHash, filePath });
+  } catch (error) {
+    throw new Error(`恢复 Git 记录文件失败: ${error}`);
   }
 }
 

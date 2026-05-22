@@ -18,7 +18,6 @@ import {
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import modal from '@/utils/modal';
 import { findBacklinks, updateBacklinks } from '@/utils/wikilink-updater';
-import { inferSnippetMetadata } from '@/utils/snippetMetadataInference';
 
 /**
  * 为内容列表添加分类名称
@@ -47,8 +46,6 @@ function addCategoryNames(contents: ContentType[], categories: Array<{ id: numbe
 export interface UseContentDialogsReturn {
   /** 显示类型选择器 */
   showTypeSelector: Ref<boolean>;
-  /** 显示创建标题输入框 */
-  showCreateTitleDialog: Ref<boolean>;
   /** 显示删除对话框 */
   showDeleteDialog: Ref<boolean>;
   /** 显示分类更改对话框 */
@@ -71,8 +68,6 @@ export interface UseContentDialogsReturn {
   handleTypeConfirm: (type: 'code' | 'note') => Promise<void>;
   /** 处理类型取消 */
   handleTypeCancel: () => void;
-  /** 确认创建内容 */
-  handleCreateContentConfirm: (title: string) => Promise<void>;
   /** 处理删除 */
   handleDelete: (content: ContentType) => Promise<void>;
   /** 确认删除 */
@@ -106,7 +101,6 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const { t } = useI18n();
 
   const showTypeSelector = ref<boolean>(false);
-  const showCreateTitleDialog = ref<boolean>(false);
   const pendingFragmentType = ref<'code' | 'note'>('code');
   const showDeleteDialog = ref<boolean>(false);
   const showCategoryDialog = ref<boolean>(false);
@@ -131,12 +125,11 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const handleTypeConfirm = async (type: 'code' | 'note'): Promise<void> => {
       showTypeSelector.value = false;
       pendingFragmentType.value = type;
-      showCreateTitleDialog.value = true;
+      await handleCreateContentConfirm();
     };
 
-  const handleCreateContentConfirm = async (title: string): Promise<void> => {
-      const normalizedTitle = title.trim();
-      if (!normalizedTitle) return;
+  const handleCreateContentConfirm = async (title?: string): Promise<void> => {
+      const normalizedTitle = title?.trim() || 'New Fragment';
 
       const cid = route.params.cid as string;
 
@@ -145,16 +138,12 @@ export function useContentDialogs(): UseContentDialogsReturn {
         store.categories = await getCategories(store.categorySort);
 
         let categoryId: number | string | undefined;
-        let categoryName: string | undefined;
-
         if (!cid) {
           // 在"所有片段"视图中创建，默认放入"未分类"
           categoryId = '未分类';
-          categoryName = '未分类';
         } else if (cid === '0') {
           // 在"未分类"视图中创建
           categoryId = '未分类';
-          categoryName = '未分类';
         } else {
           // 从最新的分类列表中查找对应的分类
           const numCid = Number(cid);
@@ -162,30 +151,18 @@ export function useContentDialogs(): UseContentDialogsReturn {
 
           if (category) {
             categoryId = category.id;
-            categoryName = category.name;
           } else {
             categoryId = '未分类';
-            categoryName = '未分类';
           }
         }
-
-        const inferredMetadata = pendingFragmentType.value === 'code'
-          ? inferSnippetMetadata({
-            title: normalizedTitle,
-            categoryName
-          })
-          : {};
 
         const filePath = await addFragment({ 
           categoryId,
           fragmentType: pendingFragmentType.value,
           metadata: {
-            title: normalizedTitle,
-            ...inferredMetadata
+            title: normalizedTitle
           }
         });
-        showCreateTitleDialog.value = false;
-
         // 再次刷新分类列表（以防创建文件时创建了新分类）
         store.categories = await getCategories(store.categorySort);
 
@@ -220,7 +197,6 @@ export function useContentDialogs(): UseContentDialogsReturn {
    */
   const handleTypeCancel = (): void => {
     showTypeSelector.value = false;
-    showCreateTitleDialog.value = false;
   };
 
   /**
@@ -456,7 +432,6 @@ export function useContentDialogs(): UseContentDialogsReturn {
 
   return {
     showTypeSelector,
-    showCreateTitleDialog,
     showDeleteDialog,
     showCategoryDialog,
     showBacklinkUpdateDialog,
@@ -468,7 +443,6 @@ export function useContentDialogs(): UseContentDialogsReturn {
     handleAddContent,
     handleTypeConfirm,
     handleTypeCancel,
-    handleCreateContentConfirm,
     handleDelete,
     confirmDelete,
     confirmDeleteWithBacklinks,

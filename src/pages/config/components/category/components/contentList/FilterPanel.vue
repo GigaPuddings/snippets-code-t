@@ -220,7 +220,7 @@ function handleReset(): void {
 
 // 面板内容
 .panel-content {
-  @apply h-[calc(100vh-300px)] px-4 py-3;
+  @apply h-[calc(100vh-300px)];
   overflow-y: visible;
   flex-shrink: 1;
   min-height: 0;
@@ -277,7 +277,7 @@ function handleReset(): void {
       @apply bg-transparent hover:bg-hover border border-transparent;
       
       &.active {
-        @apply bg-active border-blue-500;
+        @apply bg-active border-active;
         
         .sort-option-content {
           @apply text-white;
@@ -319,7 +319,7 @@ function handleReset(): void {
     }
 
     &.active {
-      @apply bg-blue-500 border-blue-500;
+      @apply bg-active border-active;
 
       .tag-text {
         @apply text-white font-medium;

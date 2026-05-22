@@ -53,6 +53,12 @@ const pluginRepositories = [
     kind: 'feature'
   },
   {
+    id: 'quick-tools',
+    repo: 'snippets-code-plugin-quick-tools',
+    sourceDir: 'docs/plugin-packages/quick-tools',
+    kind: 'feature'
+  },
+  {
     id: 'git-sync',
     repo: 'snippets-code-plugin-git-sync',
     sourceDir: 'docs/plugin-packages/git-sync',

@@ -35,6 +35,12 @@ function findWikilinks(content: string): string[] {
   return Array.from(wikilinks);
 }
 
+function stripAllWikilinks(content: string): string {
+  return content
+    .replace(/\[\[([^\]]+)\]\]/g, '')
+    .replace(/<[^>]*data-note-name="[^"]+"[^>]*>[^<]*<\/[^>]+>/g, '');
+}
+
 /**
  * 将 Markdown 源文本转换为可用于提及检测的纯文本：
  * 1. 移除围栏式代码块（``` ... ```）
@@ -64,7 +70,10 @@ function markdownToSearchableText(content: string, titleToExclude?: string): str
   // 4. 移除行内代码（`` `...` ``）
   text = text.replace(/`[^`\n]+`/g, '');
 
-  // 5. 移除 Markdown 语法标记，只保留可读文本
+  // 5. 移除所有 wikilink。未链接提及只统计普通文本，不把链接目标文字再算一次。
+  text = stripAllWikilinks(text);
+
+  // 6. 移除 Markdown 语法标记，只保留可读文本
   text = text
     .replace(/^#{1,6}\s+/gm, '')          // 标题 ## 前缀
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')  // 加粗

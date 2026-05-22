@@ -104,6 +104,7 @@ export function useSearchResultDisplay(searchQuery: () => string | undefined, t:
     if (item.summarize === 'app') return t('searchResult.apps');
     if (item.summarize === 'bookmark') return t('searchResult.bookmarks');
     if (item.summarize === 'file') return t('searchResult.files');
+    if (item.summarize === 'tool') return t('searchResult.tools');
     if (item.summarize === 'search') return t('searchResult.search');
     if (item.type === 'note') return t('searchResult.notes');
     if (item.type === 'code') return t('searchResult.code');

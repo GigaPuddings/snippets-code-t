@@ -5,6 +5,7 @@ export type BuiltinPluginId =
   | 'system-theme'
   | 'local-launcher'
   | 'desktop-files'
+  | 'quick-tools'
   | 'search-engines'
   | 'git-sync'
   | 'attachments';

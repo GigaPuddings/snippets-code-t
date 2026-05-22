@@ -126,6 +126,24 @@ pub struct GitStatus {
     pub has_other_branches: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitRecordFile {
+    pub status: String,
+    pub file_name: String,
+    pub file_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitRecord {
+    pub commit_hash: String,
+    pub short_hash: String,
+    pub message: String,
+    pub author: String,
+    pub time: String,
+    pub synced: bool,
+    pub files: Vec<GitRecordFile>,
+}
+
 /// 将 `git status --porcelain` 的原始行转换为适合前端展示的格式
 /// 主要负责解码其中的中文路径（处理 core.quotepath 导致的 \ooo 八进制转义）
 fn format_git_status_line_for_display(line: &str) -> String {
@@ -1337,7 +1355,10 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
     }
 
     let commit_stdout = get_git_stdout(&commit_output);
-    let files_pushed = parse_commit_output(&commit_stdout);
+    let mut files_pushed = parse_commit_output(&commit_stdout);
+    if files_pushed == 0 {
+        files_pushed = status.changed_files.len();
+    }
 
     // 4. git push
     // 获取当前分支名
@@ -1774,6 +1795,145 @@ fn parse_commit_output(output: &str) -> usize {
     parse_git_file_count_output(output)
 }
 
+fn git_output_string(workspace_root: &Path, args: &[&str]) -> Result<String, String> {
+    let output = run_git_command(workspace_root, args)?;
+    if !is_git_success(&output) {
+        return Err(get_git_stderr(&output));
+    }
+    Ok(get_git_stdout(&output).trim().to_string())
+}
+
+fn split_git_record_fields(line: &str) -> Vec<&str> {
+    line.split('\x1f').collect()
+}
+
+fn parse_git_record_file(line: &str) -> Option<GitRecordFile> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let mut parts = trimmed.splitn(2, char::is_whitespace);
+    let status = parts.next()?.trim().to_string();
+    let raw_path = parts.next().unwrap_or("").trim();
+    if raw_path.is_empty() {
+        return None;
+    }
+
+    let file_path = if let Some(idx) = raw_path.find("->") {
+        decode_git_quoted_path(raw_path[idx + 2..].trim())
+    } else {
+        decode_git_quoted_path(raw_path)
+    };
+
+    let file_name = Path::new(&file_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(&file_path)
+        .to_string();
+
+    Some(GitRecordFile {
+        status,
+        file_name,
+        file_path,
+    })
+}
+
+pub fn get_git_records(workspace_root: &Path, limit: usize) -> Result<Vec<GitRecord>, String> {
+    if !check_git_repo(workspace_root)? || !git_has_head(workspace_root) {
+        return Ok(vec![]);
+    }
+
+    let limit_arg = format!("-n{}", limit.clamp(1, 50));
+    let log_output = git_output_string(
+        workspace_root,
+        &[
+            "log",
+            &limit_arg,
+            "--date=format:%Y-%m-%d %H:%M:%S",
+            "--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%ad",
+        ],
+    )?;
+
+    if log_output.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let remote_head = git_output_string(workspace_root, &["rev-parse", "--verify", "@{u}"]).ok();
+    let mut records = Vec::new();
+
+    for line in log_output.lines() {
+        let fields = split_git_record_fields(line);
+        if fields.len() < 5 {
+            continue;
+        }
+
+        let commit_hash = fields[0].to_string();
+        let files_output = git_output_string(
+            workspace_root,
+            &["show", "--name-status", "--format=", "--no-renames", &commit_hash],
+        )
+        .unwrap_or_default();
+        let files = files_output
+            .lines()
+            .filter_map(parse_git_record_file)
+            .take(20)
+            .collect::<Vec<_>>();
+
+        let synced = remote_head
+            .as_ref()
+            .map(|head| {
+                let merge_base = git_output_string(
+                    workspace_root,
+                    &["merge-base", &commit_hash, head],
+                )
+                .unwrap_or_default();
+                merge_base == commit_hash
+            })
+            .unwrap_or(false);
+
+        records.push(GitRecord {
+            commit_hash,
+            short_hash: fields[1].to_string(),
+            message: fields[2].to_string(),
+            author: fields[3].to_string(),
+            time: fields[4].to_string(),
+            synced,
+            files,
+        });
+    }
+
+    Ok(records)
+}
+
+pub fn restore_git_record_file(
+    workspace_root: &Path,
+    commit_hash: &str,
+    file_path: &str,
+) -> Result<(), String> {
+    if commit_hash.trim().is_empty() || file_path.trim().is_empty() {
+        return Err("恢复参数不能为空".to_string());
+    }
+
+    let normalized_path = file_path.replace('\\', "/");
+    if normalized_path.starts_with('/')
+        || normalized_path.contains("../")
+        || normalized_path == ".."
+        || normalized_path.contains('\0')
+    {
+        return Err("文件路径不安全，已取消恢复".to_string());
+    }
+
+    let rev = format!("{}^", commit_hash);
+    let output = run_git_command(workspace_root, &["checkout", &rev, "--", &normalized_path])?;
+    if !is_git_success(&output) {
+        return Err(format!("恢复文件失败: {}", get_git_stderr(&output)));
+    }
+
+    clear_git_status_cache();
+    Ok(())
+}
+
 // ============= Tauri 命令 =============
 
 use tauri::{command, AppHandle};
@@ -1829,6 +1989,32 @@ pub fn get_git_status_command(app_handle: AppHandle) -> Result<GitStatus, String
     update_git_status_cache(status.clone());
 
     Ok(status)
+}
+
+#[command]
+pub fn get_git_records_command(
+    app_handle: AppHandle,
+    limit: Option<usize>,
+) -> Result<Vec<GitRecord>, String> {
+    require_git_sync_plugin(&app_handle)?;
+    let Some(workspace_root) = crate::json_config::get_workspace_root(&app_handle)? else {
+        return Ok(vec![]);
+    };
+
+    get_git_records(&workspace_root, limit.unwrap_or(10))
+}
+
+#[command]
+pub fn restore_git_record_file_command(
+    app_handle: AppHandle,
+    commit_hash: String,
+    file_path: String,
+) -> Result<(), String> {
+    require_git_sync_plugin(&app_handle)?;
+    let workspace_root =
+        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+
+    restore_git_record_file(&workspace_root, &commit_hash, &file_path)
 }
 
 /// 获取系统 Git 配置
@@ -2833,7 +3019,13 @@ impl AutoSyncManager {
                         let delay_duration = Duration::from_secs(delay_minutes * 60);
                         elapsed >= delay_duration
                     } else {
-                        false
+                        match get_git_status(&workspace_root) {
+                            Ok(status) => status.has_changes,
+                            Err(e) => {
+                                warn!("⚠️ [AutoSync] 检查本地待推送变更失败: {}", e);
+                                false
+                            }
+                        }
                     }
                 };
 
@@ -2923,6 +3115,21 @@ impl AutoSyncManager {
                         Ok(result) => {
                             if result.success && result.files_pushed > 0 {
                                 info!("✅ [AutoSync] 自动 Push 成功: {}", result.message);
+                                let last_sync_time =
+                                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                                let payload = serde_json::json!({
+                                    "success": true,
+                                    "last_sync_time": last_sync_time
+                                });
+                                if let Err(e) =
+                                    app_handle.emit_to("config", "git-sync-complete", payload.clone())
+                                {
+                                    warn!("⚠️ [AutoSync] 发送 Push 完成事件失败: {}", e);
+                                }
+                                if let Err(e) = app_handle.emit_to("main", "git-sync-complete", payload)
+                                {
+                                    warn!("⚠️ [AutoSync] 发送 Push 完成事件到 main 失败: {}", e);
+                                }
                                 let notification_message =
                                     format!("已推送 {} 个文件到远程", result.files_pushed);
                                 if let Err(e) = app_handle.emit_to(

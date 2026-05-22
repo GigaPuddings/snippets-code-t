@@ -2,6 +2,7 @@ import { attachmentsPlugin } from './attachments/manifest';
 import { desktopFilesPlugin } from './desktop-files/manifest';
 import { gitSyncPlugin } from './git-sync/manifest';
 import { localLauncherPlugin } from './local-launcher/manifest';
+import { quickToolsPlugin } from './quick-tools/manifest';
 import { screenshotPlugin } from './screenshot/manifest';
 import { searchEnginesPlugin } from './search-engines/manifest';
 import { systemThemePlugin } from './system-theme/manifest';
@@ -18,6 +19,7 @@ export const BUILTIN_PLUGIN_PACKAGES: BuiltinPlugin[] = [
   systemThemePlugin,
   localLauncherPlugin,
   desktopFilesPlugin,
+  quickToolsPlugin,
   searchEnginesPlugin,
   gitSyncPlugin,
   attachmentsPlugin

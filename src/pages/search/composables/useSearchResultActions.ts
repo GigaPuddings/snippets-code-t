@@ -3,24 +3,20 @@ import { logger } from '@/utils/logger';
 import { getRawSearchResultId } from './useSearchResultDisplay';
 import { getSearchResultLaunchPath } from './useSearchResultPaths';
 import { modal } from '@/utils/modal';
-import { resolveTemplateInputs, type TemplatePrompt } from '@/utils/templateInputResolver';
 
 interface UseSearchResultActionsOptions {
   onClearSearch: () => void;
   clipboard?: Pick<Clipboard, 'writeText'>;
-  clipboardReader?: Pick<Clipboard, 'readText'>;
-  promptTemplateInput?: TemplatePrompt;
   copySuccessMessage?: string;
   copyFailedMessage?: string;
 }
 
 export function canCopySearchResultSnippet(item: ContentType): boolean {
-  return item.type === 'code' && !['app', 'bookmark', 'search', 'file'].includes(item.summarize ?? '');
+  return item.type === 'code' && !['app', 'bookmark', 'search', 'file', 'tool'].includes(item.summarize ?? '');
 }
 
 export function useSearchResultActions(options: UseSearchResultActionsOptions) {
   const clipboard = options.clipboard ?? navigator.clipboard;
-  const clipboardReader = options.clipboardReader ?? navigator.clipboard;
 
   async function showHideWindow(): Promise<void> {
     await invoke('show_hide_window_command', {
@@ -80,15 +76,8 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
   }
 
   async function copyAndInsertSnippet(item: ContentType) {
-    let content = item.content;
     try {
-      const result = await resolveTemplateInputs(item.content, {
-        clipboard: clipboardReader,
-        prompt: options.promptTemplateInput
-      });
-      if (!result) return;
-      content = result.content;
-      await clipboard.writeText(content);
+      await clipboard.writeText(item.content);
     } catch (err) {
       logger.error('[代码片段] 复制失败:', err);
       return;
@@ -98,7 +87,7 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
 
     setTimeout(async () => {
       try {
-        await invoke('insert_text_to_last_window', { text: content });
+        await invoke('insert_text_to_last_window', { text: item.content });
       } catch (error) {
         logger.error('[代码片段] 插入文本失败:', error);
         alert('文本已复制到剪贴板，请手动粘贴 (Ctrl+V)');
@@ -112,14 +101,7 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
     }
 
     try {
-      const result = await resolveTemplateInputs(item.content, {
-        clipboard: clipboardReader,
-        prompt: options.promptTemplateInput
-      });
-      if (!result) {
-        return false;
-      }
-      await clipboard.writeText(result.content);
+      await clipboard.writeText(item.content);
       if (options.copySuccessMessage) {
         modal.success(options.copySuccessMessage);
       }
@@ -141,8 +123,17 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
       item.summarize === 'file'
     )
       return () => openExternalItem(item);
+    if (item.summarize === 'tool') return () => copyToolResult(item);
     if (item.type === 'note') return () => openNoteItem(item);
     return () => copyAndInsertSnippet(item);
+  }
+
+  async function copyToolResult(item: ContentType) {
+    await clipboard.writeText(item.content);
+    if (options.copySuccessMessage) {
+      modal.success(options.copySuccessMessage);
+    }
+    await closeSearchWindow();
   }
 
   async function runPrimaryAction(item: ContentType) {

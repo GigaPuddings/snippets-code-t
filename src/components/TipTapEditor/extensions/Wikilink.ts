@@ -94,6 +94,8 @@ export const Wikilink = Mark.create<WikilinkOptions>({
     // 缓存装饰器，只在文档内容变化时重新计算
     let cachedDecorations: DecorationSet | null = null;
     let lastDocVersion = -1;
+    let lastSelectionFrom = -1;
+    let lastSelectionTo = -1;
 
     // 预编译正则表达式，提升性能
     const wikilinkRegex = /\[\[([^\]]+)\]\]/g;
@@ -113,17 +115,22 @@ export const Wikilink = Mark.create<WikilinkOptions>({
         props: {
           decorations: (state): DecorationSet => {
             const currentVersion = state.doc.content.size;
+            const selection = state.selection;
 
             // 如果选区变化但文档未变，可以复用缓存（仅调整光标位置相关的部分）
             // 但为了简化逻辑，这里仍然重新计算，因为现代浏览器性能足够
             // 只有在大文档场景下才考虑更复杂的缓存策略
-            if (cachedDecorations && lastDocVersion === currentVersion) {
+            if (
+              cachedDecorations &&
+              lastDocVersion === currentVersion &&
+              lastSelectionFrom === selection.from &&
+              lastSelectionTo === selection.to
+            ) {
               return cachedDecorations;
             }
 
             const decorations: ReturnType<typeof Decoration.inline>[] = [];
             const doc = state.doc;
-            const selection = state.selection;
             const isFocused = state.selection.from !== state.selection.to ||
                             document.activeElement?.classList.contains('ProseMirror');
 
@@ -182,6 +189,8 @@ export const Wikilink = Mark.create<WikilinkOptions>({
 
             cachedDecorations = DecorationSet.create(doc, decorations);
             lastDocVersion = currentVersion;
+            lastSelectionFrom = selection.from;
+            lastSelectionTo = selection.to;
 
             return cachedDecorations;
           },
@@ -194,7 +203,7 @@ export const Wikilink = Mark.create<WikilinkOptions>({
 
             if (wikilinkElement) {
               const noteName = (wikilinkElement as HTMLElement).getAttribute('data-note-name');
-              if (noteName && onLinkClick) {
+              if (noteName && onLinkClick && (event.ctrlKey || event.metaKey)) {
                 event.preventDefault();
                 event.stopPropagation();
                 onLinkClick(noteName);
@@ -214,7 +223,9 @@ export const Wikilink = Mark.create<WikilinkOptions>({
 
               if (wikilinkElement) {
                 const noteName = (wikilinkElement as HTMLElement).getAttribute('data-note-name');
-                if (noteName && onLinkClick) {
+                const editorElement = (event.currentTarget as HTMLElement | null);
+                const isReadonly = editorElement?.getAttribute('contenteditable') === 'false';
+                if (noteName && onLinkClick && (isReadonly || event.ctrlKey || event.metaKey)) {
                   event.preventDefault();
                   event.stopPropagation();
                   onLinkClick(noteName);

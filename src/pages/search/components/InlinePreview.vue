@@ -151,7 +151,6 @@ import {
 } from '../composables/useSearchResultPaths';
 import { logger } from '@/utils/logger';
 import { formatSnippetForCopy, type SnippetCopyFormat } from '@/utils/snippetCopyFormats';
-import { resolveTemplateInputs } from '@/utils/templateInputResolver';
 
 const props = defineProps<{
   item: ContentType | null;
@@ -189,12 +188,6 @@ const canOpenInConfig = computed(() => Boolean(displayPath.value));
 const canCopyCodeSnippet = computed(() => props.item?.type === 'code' && Boolean(normalizedContent.value));
 const hasSpecialActions = computed(() => specialActions.value.length > 0);
 const displayTagsText = computed(() => displayTags.value.join(', '));
-const displaySnippetLanguage = computed(() => {
-  const metadata = props.item?.metadata as Record<string, unknown> | null | undefined;
-  const language = metadata?.language;
-  return typeof language === 'string' ? language : '';
-});
-
 const fileName = computed(() => {
   const content = props.item?.content ?? '';
   const segments = content.split(/[\\/]/).filter(Boolean);
@@ -414,13 +407,9 @@ async function copySnippetAs(format: SnippetCopyFormat) {
   if (!canCopyCodeSnippet.value || !props.item) return;
 
   try {
-    const resolved = await resolveTemplateInputs(normalizedContent.value);
-    if (!resolved) return;
-
     const text = formatSnippetForCopy(format, {
       title: displayTitle.value,
-      content: resolved.content,
-      language: displaySnippetLanguage.value
+      content: normalizedContent.value
     });
     await navigator.clipboard.writeText(text);
   } catch (error) {

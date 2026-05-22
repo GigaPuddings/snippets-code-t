@@ -992,6 +992,8 @@ pub fn run() {
             git_sync::check_git_installed_command,      // 检查 Git 是否安装
             git_sync::check_git_repo_command,           // 检查是否是 Git 仓库
             git_sync::get_git_status_command,           // 获取 Git 状态
+            git_sync::get_git_records_command,          // 获取 Git 同步记录
+            git_sync::restore_git_record_file_command,  // 从 Git 记录恢复文件
             git_sync::get_system_git_config_command,    // 获取系统 Git 配置（保留兼容）
             git_sync::get_workspace_git_config_command, // 仅工作区检测 Git 配置（不调系统，防闪退）
             git_sync::configure_git_command,            // 配置 Git

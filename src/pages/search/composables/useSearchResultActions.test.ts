@@ -1,13 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { canCopySearchResultSnippet, useSearchResultActions } from './useSearchResultActions';
-import { resolveTemplateInputs } from '@/utils/templateInputResolver';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
-}));
-
-vi.mock('@/utils/templateInputResolver', () => ({
-  resolveTemplateInputs: vi.fn(async (content: string) => ({ content: `processed:${content}` }))
 }));
 
 vi.mock('@/utils/logger', () => ({
@@ -48,7 +43,7 @@ describe('useSearchResultActions', () => {
     })).toBe(false);
   });
 
-  it('copies processed snippet content to clipboard', async () => {
+  it('copies raw snippet content to clipboard', async () => {
     const writeText = vi.fn(async () => undefined);
     const actions = useSearchResultActions({
       onClearSearch: vi.fn(),
@@ -64,7 +59,7 @@ describe('useSearchResultActions', () => {
     });
 
     expect(copied).toBe(true);
-    expect(writeText).toHaveBeenCalledWith('processed:const a = 1');
+    expect(writeText).toHaveBeenCalledWith('const a = 1');
   });
 
   it('does not copy unsupported search result types', async () => {
@@ -86,8 +81,7 @@ describe('useSearchResultActions', () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 
-  it('does not copy when template input is cancelled', async () => {
-    vi.mocked(resolveTemplateInputs).mockResolvedValueOnce(null);
+  it('copies template-looking text without prompting or processing it', async () => {
     const writeText = vi.fn(async () => undefined);
     const actions = useSearchResultActions({
       onClearSearch: vi.fn(),
@@ -101,8 +95,8 @@ describe('useSearchResultActions', () => {
       type: 'code'
     });
 
-    expect(copied).toBe(false);
-    expect(writeText).not.toHaveBeenCalled();
+    expect(copied).toBe(true);
+    expect(writeText).toHaveBeenCalledWith('const {{input:name}} = 1');
   });
 
   it('returns false when clipboard writing fails', async () => {

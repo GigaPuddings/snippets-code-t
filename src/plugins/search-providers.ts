@@ -18,6 +18,14 @@ export const searchSourceProviders: SearchSourceProvider[] = isBundledOfficialPl
           const { desktopFilesSearchProvider } = await import('./desktop-files/searchProvider');
           return desktopFilesSearchProvider.search(query);
         }
+      },
+      {
+        pluginId: 'quick-tools',
+        source: 'quick-tools',
+        async search(query) {
+          const { quickToolsSearchProvider } = await import('./quick-tools/searchProvider');
+          return quickToolsSearchProvider.search(query);
+        }
       }
     ]
   : [];
