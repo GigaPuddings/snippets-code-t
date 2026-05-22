@@ -20,9 +20,8 @@ mod update;
 mod window;
 
 use crate::config::{
-    exit_application, get_auto_update_check, get_language, get_ocr_language,
-    get_offline_model_activated, get_translation_engine, reset_software, set_auto_update_check,
-    set_language, set_ocr_language, set_offline_model_activated, set_translation_engine,
+    exit_application, get_auto_update_check, get_language, get_offline_model_activated,
+    reset_software, set_auto_update_check, set_language, set_offline_model_activated,
 };
 use crate::db::{
     add_search_history,
@@ -886,9 +885,9 @@ pub fn run() {
             plugins::screenshot::close_and_destroy_screenshot_window, // 关闭并销毁截图窗口
             plugins::screenshot::create_pin_window,                // 创建贴图窗口
             plugins::screenshot::get_pin_window_data,              // 获取贴图窗口缓存数据
-            ocr::recognize_text_from_image,   // 后端 OCR 识别（不可用时前端回退）
-            ocr::get_rapidocr_resource_status, // 获取 RapidOCR 插件资源状态
-            ocr::append_ocr_diagnostic_log,   // 写入 OCR 诊断日志
+            plugins::screenshot::recognize_text_from_image,   // 后端 OCR 识别（不可用时前端回退）
+            plugins::screenshot::get_rapidocr_resource_status, // 获取 RapidOCR 插件资源状态
+            plugins::screenshot::append_ocr_diagnostic_log,   // 写入 OCR 诊断日志
             plugins::screenshot::copy_image_to_clipboard,          // 复制图片到剪贴板
             plugins::screenshot::save_pin_image,                   // 保存贴图图片
             frontend_log,                     // 前端日志转发
@@ -913,10 +912,10 @@ pub fn run() {
             set_auto_start_setting,           // 设置自启动偏好
             get_auto_hide_on_blur,            // 获取自动失焦隐藏设置
             set_auto_hide_on_blur,            // 设置自动失焦隐藏
-            set_translation_engine,           // 设置默认翻译引擎
-            get_translation_engine,           // 获取默认翻译引擎
-            set_ocr_language,                 // 设置默认 OCR 语言
-            get_ocr_language,                 // 获取默认 OCR 语言
+            plugins::translation::set_translation_engine,     // 设置默认翻译引擎
+            plugins::translation::get_translation_engine,     // 获取默认翻译引擎
+            plugins::screenshot::set_ocr_language,            // 设置默认 OCR 语言
+            plugins::screenshot::get_ocr_language,            // 获取默认 OCR 语言
             set_offline_model_activated,      // 设置离线模型激活状态
             get_offline_model_activated,      // 获取离线模型激活状态
             migrate_to_markdown_command,      // 迁移数据到 Markdown

@@ -222,6 +222,18 @@ pub async fn translate_text(
     }
 }
 
+#[tauri::command]
+pub fn set_translation_engine(app_handle: AppHandle, engine: String) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "translation")?;
+    crate::config::set_translation_engine(app_handle, engine)
+}
+
+#[tauri::command]
+pub fn get_translation_engine(app_handle: AppHandle) -> Result<String, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "translation")?;
+    Ok(crate::config::get_translation_engine(app_handle))
+}
+
 // 使用Bing翻译
 async fn translate_with_bing(text: String, from: String, to: String) -> Result<String, String> {
     let client = Client::new();

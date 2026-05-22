@@ -265,3 +265,44 @@ pub fn get_all_windows(app_handle: AppHandle) -> Result<Vec<WindowInfo>, String>
     }
     crate::window::get_all_windows()
 }
+
+#[tauri::command]
+pub async fn recognize_text_from_image(
+    app_handle: AppHandle,
+    image_data: String,
+    engine: Option<String>,
+    language: Option<String>,
+) -> Result<crate::ocr::OcrRecognizeResult, String> {
+    require_screenshot_plugin(&app_handle)?;
+    crate::ocr::recognize_text_from_image(app_handle, image_data, engine, language).await
+}
+
+#[tauri::command]
+pub fn get_rapidocr_resource_status(
+    app_handle: AppHandle,
+) -> Result<crate::ocr::RapidOcrResourceStatus, String> {
+    require_screenshot_plugin(&app_handle)?;
+    crate::ocr::get_rapidocr_resource_status(app_handle)
+}
+
+#[tauri::command]
+pub fn append_ocr_diagnostic_log(
+    app_handle: AppHandle,
+    message: String,
+    data: Option<String>,
+) -> Result<(), String> {
+    require_screenshot_plugin(&app_handle)?;
+    crate::ocr::append_ocr_diagnostic_log(app_handle, message, data)
+}
+
+#[tauri::command]
+pub fn set_ocr_language(app_handle: AppHandle, language: String) -> Result<(), String> {
+    require_screenshot_plugin(&app_handle)?;
+    crate::config::set_ocr_language(app_handle, language)
+}
+
+#[tauri::command]
+pub fn get_ocr_language(app_handle: AppHandle) -> Result<String, String> {
+    require_screenshot_plugin(&app_handle)?;
+    Ok(crate::config::get_ocr_language(app_handle))
+}

@@ -354,21 +354,18 @@ pub fn get_language_internal(app_handle: &tauri::AppHandle) -> String {
 // ============= 翻译设置（存储在 app.json）=============
 
 // 设置默认翻译引擎
-#[tauri::command]
 pub fn set_translation_engine(app_handle: tauri::AppHandle, engine: String) -> Result<(), String> {
     info!("🔄 设置翻译引擎: {} (保存到 app.json)", engine);
     json_config::set_app_config_value(&app_handle, "translation_engine", engine)
 }
 
 // 获取默认翻译引擎
-#[tauri::command]
 pub fn get_translation_engine(app_handle: tauri::AppHandle) -> String {
     json_config::get_app_config_value(&app_handle, "translation_engine")
         .unwrap_or_else(|| "bing".to_string())
 }
 
 // 设置默认 OCR 语言
-#[tauri::command]
 pub fn set_ocr_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
     let normalized = language.trim().to_ascii_lowercase();
     let language = match normalized.as_str() {
@@ -381,7 +378,6 @@ pub fn set_ocr_language(app_handle: tauri::AppHandle, language: String) -> Resul
 }
 
 // 获取默认 OCR 语言
-#[tauri::command]
 pub fn get_ocr_language(app_handle: tauri::AppHandle) -> String {
     let language = json_config::get_app_config_value::<String>(&app_handle, "ocr_language")
         .unwrap_or_else(|| "auto".to_string());

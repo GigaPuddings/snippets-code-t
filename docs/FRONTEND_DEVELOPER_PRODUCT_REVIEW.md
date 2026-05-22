@@ -488,6 +488,7 @@ Frontend Workspace
 - README 与 `docs/PLUGIN_SYSTEM.md` 已补齐当前插件化边界说明：核心工作台负责工作区、Markdown、编辑器、基础搜索和插件桥接，官方插件负责 Git、截图/OCR、翻译、Todo、主题和搜索源扩展，资源包负责 RapidOCR/离线翻译等大体积资产。
 - 翻译窗口热键、划词翻译热键和通用窗口唤起入口已在 Rust 窗口层补齐 translation 插件启用守卫，避免禁用插件后仍可通过旧入口打开翻译窗口。
 - 翻译窗口热键、划词翻译、选中文本重试和窗口 ready 后文本投递逻辑已迁入 `src-tauri/src/plugins/translation.rs`，核心 `window.rs` 只保留通用窗口管理和兼容转发入口。
+- 截图/OCR、翻译引擎和 OCR 语言设置的 Tauri 命令注册已全部改由 `src-tauri/src/plugins/screenshot.rs` 与 `src-tauri/src/plugins/translation.rs` 承接，核心 `ocr.rs` / `config.rs` 只保留插件门面调用的兼容实现。
 
 下一批建议优先推进：
 

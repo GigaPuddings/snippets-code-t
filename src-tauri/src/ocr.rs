@@ -190,7 +190,6 @@ impl Drop for TempGeneratedImageGuard {
     }
 }
 
-#[tauri::command]
 pub fn append_ocr_diagnostic_log(
     app_handle: tauri::AppHandle,
     message: String,
@@ -209,7 +208,6 @@ impl Drop for TempImageGuard {
     }
 }
 
-#[tauri::command]
 pub async fn recognize_text_from_image(
     app_handle: tauri::AppHandle,
     image_data: String,
@@ -336,7 +334,6 @@ fn decode_image_data(image_data: &str) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("OCR 图片 base64 解码失败: {}", e))
 }
 
-#[tauri::command]
 pub fn get_rapidocr_resource_status(
     app_handle: tauri::AppHandle,
 ) -> Result<RapidOcrResourceStatus, String> {
