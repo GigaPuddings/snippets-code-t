@@ -3,6 +3,8 @@ import type { SearchSourceProvider } from '../search';
 
 type CurrencyCode = 'USD' | 'CNY' | 'EUR' | 'JPY' | 'HKD' | 'GBP';
 
+const DEFAULT_CURRENCY_TARGET: CurrencyCode = 'CNY';
+
 const CURRENCY_ALIASES: Record<string, CurrencyCode> = {
   usd: 'USD',
   dollar: 'USD',
@@ -150,15 +152,27 @@ const resolveCurrency = (value: string): CurrencyCode | null =>
   CURRENCY_ALIASES[value.trim().toLowerCase()] ?? CURRENCY_ALIASES[value.trim()] ?? null;
 
 const parseCurrencyConversion = (query: string) => {
-  const match = query.trim().match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
-  if (!match) return null;
+  const normalized = query.trim();
+  const match = normalized.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
+  const shortMatch = normalized.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
 
-  const amount = Number(match[1]);
-  const from = resolveCurrency(match[2]);
-  const to = resolveCurrency(match[3]);
-  if (!Number.isFinite(amount) || !from || !to || from === to) return null;
+  if (match) {
+    const amount = Number(match[1]);
+    const from = resolveCurrency(match[2]);
+    const to = resolveCurrency(match[3]);
+    if (Number.isFinite(amount) && from && to && from !== to) {
+      return { amount, from, to };
+    }
+  }
 
-  return { amount, from, to };
+  if (shortMatch) {
+    const amount = Number(shortMatch[1]);
+    const from = resolveCurrency(shortMatch[2]);
+    if (!Number.isFinite(amount) || !from || from === DEFAULT_CURRENCY_TARGET) return null;
+    return { amount, from, to: DEFAULT_CURRENCY_TARGET };
+  }
+
+  return null;
 };
 
 const convertCurrency = async (query: string): Promise<ContentType | null> => {

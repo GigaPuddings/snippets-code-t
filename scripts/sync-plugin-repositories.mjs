@@ -185,12 +185,13 @@ async function copyDirectoryContents(sourceDir, targetDir) {
 async function updateManifestVersion(plugin, version, sourceDir, options) {
   const manifestPath = join(sourceDir, 'plugin.json');
   const manifest = await readJson(manifestPath);
+  const minAppVersion = manifest.minAppVersion ?? version;
   manifest.version = version;
-  manifest.minAppVersion = manifest.minAppVersion ?? version;
+  manifest.minAppVersion = minAppVersion;
   manifest.repository = `https://github.com/${OWNER}/${plugin.repo}`;
   manifest.releaseUrl = releaseUrl(plugin.repo, version);
   if (plugin.kind === 'feature') {
-    manifest.compatibleAppVersion = `>=${version}`;
+    manifest.compatibleAppVersion = `>=${minAppVersion}`;
   }
   if (!options.dryRun) {
     await writeJson(manifestPath, manifest);
@@ -206,10 +207,12 @@ async function updateMarketplace(selectedPlugins, version, options) {
   for (const item of marketplace.plugins ?? []) {
     const plugin = byId.get(item.id);
     if (!plugin) continue;
+    const sourceManifest = await readJson(resolve(ROOT, plugin.sourceDir, 'plugin.json'));
+    const minAppVersion = sourceManifest.minAppVersion ?? item.minAppVersion ?? version;
 
     item.version = version;
-    item.minAppVersion = version;
-    item.compatibleAppVersion = `>=${version}`;
+    item.minAppVersion = minAppVersion;
+    item.compatibleAppVersion = `>=${minAppVersion}`;
     item.repository = `https://github.com/${OWNER}/${plugin.repo}`;
     item.releaseUrl = releaseUrl(plugin.repo, version);
     item.packageUrl = options.pinMarketplaceTags

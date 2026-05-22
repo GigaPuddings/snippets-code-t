@@ -26,10 +26,14 @@ Unit conversion:
 Currency conversion:
 
 ```text
+25欧元
+25 EUR
 100 USD CNY
 25欧元 美元
 1000日元 人民币
 ```
+
+When only one currency is provided, Quick Tools converts it to CNY by default.
 
 Currency conversion uses the Frankfurter API and needs network access to
 `https://api.frankfurter.dev`.
