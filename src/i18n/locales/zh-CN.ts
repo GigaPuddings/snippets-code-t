@@ -35,7 +35,7 @@ export default {
     dataLocation: '数据位置',
     complete: '完成',
     welcomeTitle: '欢迎使用 Snippets Code',
-    welcomeDesc: '高效的代码片段管理工具，助您快速存储和检索代码。',
+    welcomeDesc: '面向前端开发的本地代码片段与知识资产工作台，帮助你沉淀、检索并复用代码。',
     versionLabel: '版本',
     quickStart: '快速开始',
     createWorkspace: '新建工作区',
@@ -298,7 +298,7 @@ export default {
   plugins: {
     title: '插件管理',
     builtinTitle: '官方插件仓库',
-    builtinDesc: '截图、OCR、翻译、提醒、主题、搜索和同步等功能需要安装对应插件后才会启用。主应用只保留 Markdown、编辑器和工作区核心能力。',
+    builtinDesc: '围绕片段工作流扩展截图、OCR、翻译、提醒、主题、搜索源和同步能力；主应用聚焦 Markdown、编辑器、搜索和工作区核心体验。',
     securityNotice: '安装前请确认插件来源、权限和资源范围；本地插件可运行声明的后端命令或加载本地资源。',
     installLocal: '安装本地插件',
     installZip: '安装插件包',
@@ -833,7 +833,7 @@ export default {
 
   // 加载页面
   loading: {
-    title: '应用程序正在加载中'
+    title: '正在打开片段工作台'
   },
 
   // 通知提醒
@@ -1088,7 +1088,7 @@ export default {
   // 个人中心
   userCenter: {
     title: '个人中心',
-    subtitle: '查看应用信息和快捷操作',
+    subtitle: '查看工作区、同步状态和片段工作台信息',
     appVersion: '应用版本',
     workspaceRoot: '工作区目录',
     notSet: '未设置',
@@ -1119,7 +1119,7 @@ export default {
     openDataDir: '打开数据目录',
     openSettings: '打开设置',
     about: '关于',
-    appDescription: 'Snippets Code - 高效的代码片段和笔记管理工具',
+    appDescription: 'Snippets Code - 本地优先的前端代码片段与知识资产工作台',
     viewOnGitHub: '在 GitHub 上查看',
     checkUpdate: '检查更新',
     workspaceNotSet: '工作区未设置',

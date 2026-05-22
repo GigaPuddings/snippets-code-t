@@ -35,7 +35,7 @@ export default {
     dataLocation: 'Data Location',
     complete: 'Complete',
     welcomeTitle: 'Welcome to Snippets Code',
-    welcomeDesc: 'An efficient code snippet manager to help you store and retrieve code quickly.',
+    welcomeDesc: 'A local-first workspace for frontend snippets and knowledge assets, built to capture, search, and reuse code.',
     versionLabel: 'Version',
     quickStart: 'Quick Start',
     createWorkspace: 'Create new workspace',
@@ -284,7 +284,7 @@ export default {
   plugins: {
     title: 'Plugins',
     builtinTitle: 'Official Plugin Repository',
-    builtinDesc: 'Screenshot, OCR, translation, reminders, theme, search, and sync features are enabled only after their plugins are installed. The main app keeps only Markdown, editor, and workspace core behavior.',
+    builtinDesc: 'Screenshot, OCR, translation, reminders, theme, search-source, and sync features extend the snippet workflow as plugins. The main app focuses on Markdown, editing, search, and workspace basics.',
     securityNotice: 'Before installing, review the plugin source, permissions, and resource scope. Local plugins can run declared backend commands or load local resources.',
     installLocal: 'Install Local Plugin',
     installZip: 'Install Package',
@@ -818,7 +818,7 @@ export default {
 
   // Loading Page
   loading: {
-    title: 'Application is loading'
+    title: 'Opening snippet workspace'
   },
 
   // Notification
@@ -1073,7 +1073,7 @@ export default {
   // User Center
   userCenter: {
     title: 'User Center',
-    subtitle: 'View app information and quick actions',
+    subtitle: 'View workspace, sync status, and snippet workspace details',
     appVersion: 'App Version',
     workspaceRoot: 'Workspace Root',
     notSet: 'Not Set',
@@ -1104,7 +1104,7 @@ export default {
     openDataDir: 'Open Data Directory',
     openSettings: 'Open Settings',
     about: 'About',
-    appDescription: 'Snippets Code - Efficient code snippet and note management tool',
+    appDescription: 'Snippets Code - A local-first frontend snippet and knowledge asset workspace',
     viewOnGitHub: 'View on GitHub',
     checkUpdate: 'Check Update',
     workspaceNotSet: 'Workspace not set',
