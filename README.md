@@ -166,7 +166,7 @@ snippets-code/
 │   ├── api/                      # API 调用层
 │   │   ├── fragment.ts           # 片段 API
 │   │   ├── markdown.ts           # Markdown API
-│   │   ├── git.ts                # Git 同步 API
+│   │   ├── plugins.ts            # 插件包与资源 API
 │   │   ├── appConfig.ts          # 应用配置 API
 │   │   └── github.ts             # GitHub API
 │   ├── components/               # 可复用组件
@@ -176,16 +176,17 @@ snippets-code/
 │   │   │   │   └── CustomEnterBehavior.ts  # 自定义回车行为
 │   │   │   ├── BacklinkPanel.vue # 反向链接面板
 │   │   │   └── ...
-│   │   ├── GitConflictDialog/    # Git 冲突对话框
-│   │   ├── GitManualMerge/       # Git 手动合并
-│   │   ├── GitConfigDialog/     # Git 配置对话框
 │   │   ├── SettingsContent/     # 设置内容组件
-│   │   │   └── components/GitSync/  # Git 同步设置
 │   │   └── ...
 │   ├── pages/                    # 页面组件
 │   │   ├── search/               # 搜索页面
-│   │   ├── config/               # 配置页面
-│   │   ├── screenshot/           # 截图页面
+│   │   ├── config/               # 配置页面与插件挂载入口
+│   │   └── ...
+│   ├── plugins/                  # 插件系统与官方插件运行时
+│   │   ├── git-sync/             # Git 同步插件
+│   │   ├── screenshot/           # 截图/OCR 插件
+│   │   ├── translation/          # 翻译插件
+│   │   ├── todo/                 # Todo 插件
 │   │   └── ...
 │   ├── hooks/                    # Composables
 │   │   ├── useFileWatcher.ts     # 文件监听 Hook
@@ -216,11 +217,10 @@ snippets-code/
 │   │   │   ├── migration.rs      # 数据迁移
 │   │   │   ├── index_optimized.rs  # 优化的搜索索引
 │   │   │   └── cache_manager.rs  # 缓存管理
-│   │   ├── alarm.rs              # 提醒功能
-│   │   ├── apps.rs               # 应用管理
-│   │   ├── bookmarks.rs          # 书签管理
-│   │   ├── git_sync.rs           # Git 同步（基于系统 Git）
-│   │   ├── translation.rs        # 翻译功能
+│   │   ├── plugins/              # 官方插件后端适配层
+│   │   ├── app_config.rs         # 应用与插件配置
+│   │   ├── git_sync.rs           # Git 同步兼容实现
+│   │   ├── translation.rs        # 翻译兼容实现
 │   │   ├── hotkey.rs             # 快捷键管理
 │   │   ├── window.rs             # 窗口管理
 │   │   ├── json_config.rs        # JSON 配置管理
@@ -240,7 +240,7 @@ snippets-code/
 
 ## 核心功能详解
 
-### 代码片段管理
+### 前端片段管理
 
 支持两种类型的内容：
 
@@ -252,7 +252,9 @@ snippets-code/
 - 全文搜索和高级搜索语法
 - 反向链接和 Wikilink 支持
 - 导入/导出功能
-- Git 同步（支持任意 Git 仓库）
+- 复制原始代码、Markdown fenced code、VS Code snippet JSON
+- 模板变量 `{{input:Name}}`、`{{clipboard}}` 复制前解析
+- `language/framework/kind` 前端语义元数据
 - 多工作区支持
 
 ### 搜索功能
@@ -262,39 +264,20 @@ snippets-code/
 - **列表模式**：按类型浏览内容
 - **标签模式**：按标签筛选
 
-**智能识别**：
-- 自动识别网址并提供直接打开选项
-- 识别应用名称并优先显示
-- 根据使用频率排序结果
+**片段工作流**：
+- 按语言、框架、类型、标签和分类筛选
+- 代码片段搜索结果可直接复制为多种格式
+- 应用、书签、桌面文件和搜索引擎作为插件搜索源接入
 
-### 翻译功能
+### 官方插件能力
 
-**支持的翻译引擎**：
+官方插件围绕片段工作流扩展能力，不属于核心编辑/工作区边界：
 
-1. **Google 翻译**：在线翻译，支持多种语言
-2. **Bing 翻译**：在线翻译，支持多种语言
-3. **离线翻译**：基于 Transformers.js，英译中，无需网络
-
-**使用方式**：
-- 选中文本后使用快捷键翻译
-- 在翻译窗口输入文本翻译
-- 截图后 OCR 识别并翻译
-
-### 截图标注
-
-**标注工具**：
-- 矩形标注
-- 箭头标注
-- 画笔涂鸦
-- 马赛克遮挡
-- 文字标注
-
-**功能**：
-- OCR 文字识别（基于 RapidOCR 自动识别）
-- 颜色吸取器
-- 贴图到桌面
-- 复制到剪贴板
-- 保存到本地
+- **Git 同步**：同步片段工作区到任意 Git 仓库，并处理冲突、自动同步和状态展示
+- **截图与 OCR**：截图标注、取色、贴图、RapidOCR 资源包和截图翻译入口
+- **翻译**：Google、Bing、离线翻译和选中文本翻译
+- **Todo 与主题**：提醒通知、Auto Dark Mode、系统主题切换
+- **搜索源扩展**：应用、书签、桌面文件和 Web 搜索引擎
 
 ---
 

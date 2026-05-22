@@ -146,4 +146,4 @@ Tauri 配置里 `csp` 为 `null`，asset scope 为 `"**"`。插件系统已有 c
 2. `[x]` 给搜索和 Markdown 转换补测试：搜索排序、搜索语法解析、语义过滤、搜索结果复制动作、Markdown JSON 转换、wikilink、前端插件权限、Git 自动同步生命周期、Git runtime host/事件监听/窗口自动同步、Git runtime controller、Git 冲突解决动作、Git 冲突弹窗状态/确认流程/结果反馈/流程编排、Git 仓库异常弹窗、Rust frontmatter、Rust 插件校验和插件 zip 解析测试已落地。
 3. `[x]` 拆 TipTapEditor：`useEditorViewMode`、`useEditorPersistenceBridge`、`useEditorBacklinks`、`useEditorImageUpload`、`useEditorSearch`、`useEditorOutline`、`useEditorLinks`、`useEditorSessionScroll`、`useEditorContextMenu` 和 `useContextMenuCommands` 已落地并覆盖测试，主编辑器拆分风险已基本收敛。
 4. `[x]` 收紧 Tauri 权限：已盘点资源路径，移除 asset protocol 的全局 `"**"` 默认策略，并加入 CSP 初版。
-5. `[~]` 更新文档一致性：README 版本已同步，架构文档已开始收敛，插件化结构说明仍需继续细化。
+5. `[x]` 更新文档一致性：README、架构文档和插件系统文档已同步核心工作台/官方插件增强边界，README 的项目结构与功能详述已移除旧核心模块口径，`docs/PLUGIN_SYSTEM.md` 已补充 core shell、官方插件、资源包和兼容后端边界契约。

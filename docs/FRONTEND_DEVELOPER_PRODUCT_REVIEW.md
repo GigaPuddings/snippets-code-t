@@ -485,6 +485,7 @@ Frontend Workspace
 - 插件设置页已增加安装风险提示，并在 marketplace 条目、已安装插件和资源包中展示能力/权限摘要，先把插件安装前的可见安全信息补齐。
 - 欢迎页、加载页、用户中心和 README 的入口叙事已继续收敛到“前端代码片段与知识资产工作台”，截图、翻译、Todo、启动器等能力在 README 中降为官方插件增强。
 - Tauri 安全配置已加入 CSP 初版并移除 asset protocol 的全局 `"**"` scope；默认范围收敛到应用数据、资源目录和常见用户目录，同时拒绝 `.ssh`、`.gnupg`、`.git` 等敏感目录。任意外部工作区的更细粒度授权仍建议后续接入 persisted scope。
+- README 与 `docs/PLUGIN_SYSTEM.md` 已补齐当前插件化边界说明：核心工作台负责工作区、Markdown、编辑器、基础搜索和插件桥接，官方插件负责 Git、截图/OCR、翻译、Todo、主题和搜索源扩展，资源包负责 RapidOCR/离线翻译等大体积资产。
 
 下一批建议优先推进：
 

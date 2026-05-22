@@ -26,6 +26,45 @@ keeps the registry, marketplace, loader, permissions, and bridge protocol.
 | `git-sync` | Git settings, status, auto sync, conflict handling |
 | `attachments` | Note attachment settings and cleanup tools |
 
+## Boundary Contract
+
+The product boundary is intentionally split into a small core shell and optional
+official feature plugins.
+
+Core shell owns:
+
+- workspace selection, Markdown storage, file watching, attachment persistence,
+  and frontmatter metadata
+- the snippet and note editors, including Markdown conversion, wikilinks,
+  backlinks, outline, search inside editor, and snippet copy formats
+- base search over snippets and notes, plus the plugin search-provider registry
+- settings navigation, plugin marketplace UI, plugin state persistence, hotkey
+  registration, window lifecycle, and Tauri permission/CSP defaults
+- the plugin bridge: manifest validation, install/update/uninstall, frontend
+  runtime loading, permission-gated `invoke`, native-host backend dispatch, and
+  resource path lookup
+
+Official feature plugins own:
+
+- feature pages, settings tabs, route records, titlebar actions, optional
+  hotkeys, search sources, and runtime cleanup for their own feature
+- feature-specific state machines such as Git conflict dialogs, auto sync
+  lifecycle, screenshot capture flow, translation runtime state, reminder
+  services, and theme scheduling
+- user-facing copy and resource hints for installable feature packages
+
+Resource-only plugins own large optional assets:
+
+- `screenshot-rapidocr` provides RapidOCR runtime/model files for screenshot OCR
+- `translation-offline-runtime` provides the Transformers.js runtime used by
+  offline translation
+
+Compatibility Rust modules can remain in the main binary while a feature is
+being externalized, but new feature behavior should enter through the plugin
+adapter modules under `src-tauri/src/plugins/*`. Once an official native-host
+package reaches parity, the corresponding fallback implementation can be
+removed from the main binary without changing the frontend plugin contract.
+
 ## Frontend
 
 - Registry: `src/plugins/registry.ts`
