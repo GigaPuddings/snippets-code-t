@@ -63,12 +63,12 @@ export function useGitConflictFlow(deps: GitConflictFlowDeps) {
     if (!deps.conflictDialogRef.value) return;
 
     deps.resetConflictHandled();
-    deps.conflictDialogRef.value.setLoading(true);
 
     try {
       if (strategy === 'force-push') {
         if (!(await deps.confirmForcePush())) throw 'cancel';
 
+        deps.conflictDialogRef.value.setLoading(true);
         await resolveForcePush();
         deps.feedback.notifyForcePushResolved();
         deps.closeConflictDialog();
@@ -76,6 +76,7 @@ export function useGitConflictFlow(deps: GitConflictFlowDeps) {
       } else if (strategy === 'force-pull') {
         if (!(await deps.confirmForcePull())) throw 'cancel';
 
+        deps.conflictDialogRef.value.setLoading(true);
         await resolveForcePull(deps.getUntrackedFiles());
         deps.feedback.notifyForcePullResolved();
         deps.closeConflictDialog();

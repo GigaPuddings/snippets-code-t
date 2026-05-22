@@ -60,10 +60,27 @@ describe('useGitRuntimeController', () => {
     await controller.handleConflictResolution('manual-merge');
 
     expect(deps.resetConflictHandled).toHaveBeenCalled();
-    expect(setConflictDialogLoading).toHaveBeenCalledWith(true);
     expect(setConflictDialogLoading).toHaveBeenLastCalledWith(false);
     expect(deps.state.dialogs.showConflictDialog.value).toBe(false);
     expect(deps.state.dialogs.showManualMergeDialog.value).toBe(true);
+  });
+
+  it('does not lock the conflict dialog when force pull confirmation is cancelled', async () => {
+    const deps = createDeps();
+    const setConflictDialogLoading = vi.fn();
+    deps.state.confirm.confirmForcePull = vi.fn(async () => false);
+    const controller = useGitRuntimeController(deps);
+
+    controller.gitSyncRuntimePortalRef.value = {
+      setConflictDialogLoading,
+      setManualMergeLoading: vi.fn()
+    };
+
+    await nextTick();
+    await controller.handleConflictResolution('force-pull');
+
+    expect(setConflictDialogLoading).not.toHaveBeenCalledWith(true);
+    expect(setConflictDialogLoading).toHaveBeenLastCalledWith(false);
   });
 
   it('routes to git settings for repo not found reconfiguration', async () => {

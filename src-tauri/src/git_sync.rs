@@ -16,6 +16,8 @@ use std::sync::{Arc, LazyLock, Mutex};
 use tauri::{Emitter, Manager};
 
 const MAIN_BRANCH: &str = "main";
+const AUTO_GENERATED_UNTRACKED_PULL_PATHS: &[&str] =
+    &[".gitignore", ".snippets-code/workspace.json"];
 
 // ============= Git 状态缓存 =============
 
@@ -661,6 +663,96 @@ fn git_has_head(workspace_root: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn is_untracked_git_path(workspace_root: &Path, relative_path: &str) -> Result<bool, String> {
+    let output = crate::git_common::git_command()
+        .args(["status", "--porcelain", "--", relative_path])
+        .current_dir(workspace_root)
+        .output()
+        .map_err(|e| format!("检测 Git 文件状态失败: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "检测 Git 文件状态失败: {}",
+            get_git_stderr(&output)
+        ));
+    }
+
+    let stdout = get_git_stdout(&output);
+    Ok(stdout
+        .lines()
+        .any(|line| line.trim_start().starts_with("??")))
+}
+
+fn remote_path_exists(
+    workspace_root: &Path,
+    remote_ref: &str,
+    relative_path: &str,
+) -> Result<bool, String> {
+    let spec = format!("{}:{}", remote_ref, relative_path);
+    let output = crate::git_common::git_command()
+        .args(["cat-file", "-e", &spec])
+        .current_dir(workspace_root)
+        .output()
+        .map_err(|e| format!("检查远端文件失败: {}", e))?;
+
+    Ok(output.status.success())
+}
+
+fn remove_untracked_workspace_path(
+    workspace_root: &Path,
+    remote_ref: &str,
+    relative_path: &str,
+) -> Result<bool, String> {
+    if !remote_path_exists(workspace_root, remote_ref, relative_path)? {
+        return Ok(false);
+    }
+
+    if !is_untracked_git_path(workspace_root, relative_path)? {
+        return Ok(false);
+    }
+
+    let path = workspace_root.join(relative_path);
+    if !path.exists() {
+        return Ok(false);
+    }
+
+    if path.is_dir() {
+        std::fs::remove_dir_all(&path)
+            .map_err(|e| format!("删除未跟踪目录失败 {}: {}", relative_path, e))?;
+    } else {
+        std::fs::remove_file(&path)
+            .map_err(|e| format!("删除未跟踪文件失败 {}: {}", relative_path, e))?;
+    }
+
+    info!(
+        "🧹 [Git] 已移除可由远端覆盖的本地未跟踪文件: {}",
+        relative_path
+    );
+    Ok(true)
+}
+
+fn prepare_auto_generated_untracked_files_for_pull(
+    workspace_root: &Path,
+    remote_ref: &str,
+) -> Result<Vec<String>, String> {
+    let mut removed = Vec::new();
+
+    for relative_path in AUTO_GENERATED_UNTRACKED_PULL_PATHS {
+        if remove_untracked_workspace_path(workspace_root, remote_ref, relative_path)? {
+            removed.push((*relative_path).to_string());
+        }
+    }
+
+    if !removed.is_empty() {
+        info!(
+            "🧹 [Git] Pull 前已清理本地默认元文件，等待远端版本写入: {:?}",
+            removed
+        );
+    }
+
+    Ok(removed)
+}
+
 fn normalize_branch_name(branch: &str) -> String {
     branch
         .trim()
@@ -981,6 +1073,16 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
     let fetch_output = run_git_command(workspace_root, &["fetch", "origin", &branch]);
     if let Ok(output) = &fetch_output {
         if output.status.success() {
+            let remote_ref = format!("origin/{}", branch);
+            let removed_default_untracked =
+                prepare_auto_generated_untracked_files_for_pull(workspace_root, &remote_ref)?;
+            if !removed_default_untracked.is_empty() {
+                info!(
+                    "🧹 [Git] 已为 pull 清理 {} 个本地默认元文件",
+                    removed_default_untracked.len()
+                );
+            }
+
             let remote_deleted_files =
                 get_remote_deleted_local_markdown_files(workspace_root, &branch)?;
             if !remote_deleted_files.is_empty() {
@@ -3298,6 +3400,12 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
     info!("🔄 [Git] 开始强制拉取");
+    if let Err(e) = app_handle.emit_to("config", "git-pull-start", ()) {
+        warn!("⚠️ [Git] 发送 git-pull-start 事件失败: {}", e);
+    }
+    if let Err(e) = app_handle.emit_to("main", "git-pull-start", ()) {
+        warn!("⚠️ [Git] 发送 git-pull-start 到 main 失败: {}", e);
+    }
 
     // 1. 获取远程更新
     let fetch_output = crate::git_common::git_command()
@@ -3311,20 +3419,35 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
         return Err(format!("git fetch 失败: {}", error));
     }
 
-    // 2. 获取当前分支
-    let branch_output = crate::git_common::git_command()
-        .args(["branch", "--show-current"])
+    // 2. 获取当前分支。detached 或空仓库场景下回退远端默认分支。
+    let mut branch = get_current_branch(&workspace_root)?;
+    if branch.is_empty() {
+        branch =
+            get_remote_default_branch(&workspace_root).unwrap_or_else(|_| MAIN_BRANCH.to_string());
+    }
+    if branch.is_empty() {
+        branch = MAIN_BRANCH.to_string();
+    }
+
+    let remote_ref = format!("origin/{}", branch);
+    let remote_ref_output = crate::git_common::git_command()
+        .args(["rev-parse", "--verify", &remote_ref])
         .current_dir(&workspace_root)
         .output()
-        .map_err(|e| format!("获取当前分支失败: {}", e))?;
+        .map_err(|e| format!("检查远程分支失败: {}", e))?;
+    if !remote_ref_output.status.success() {
+        let error = get_git_stderr(&remote_ref_output);
+        return Err(format!(
+            "强制拉取失败: 远程分支 {} 不存在或不可访问: {}",
+            remote_ref, error
+        ));
+    }
 
-    let branch = String::from_utf8_lossy(&branch_output.stdout)
-        .trim()
-        .to_string();
+    prepare_auto_generated_untracked_files_for_pull(&workspace_root, &remote_ref)?;
 
     // 3. 重置到远程分支
     let output = crate::git_common::git_command()
-        .args(["reset", "--hard", &format!("origin/{}", branch)])
+        .args(["reset", "--hard", &remote_ref])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("git reset 失败: {}", e))?;
@@ -3376,7 +3499,7 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
         }
     }
 
-    Ok(PullResult {
+    let result = PullResult {
         success: true,
         files_updated: changed_files.len(),
         has_conflicts: false,
@@ -3386,7 +3509,32 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
         untracked_files: vec![],
         last_sync_time: Some(chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()),
         branch_selection: None,
-    })
+    };
+
+    if let Err(e) = app_handle.emit_to(
+        "config",
+        "git-sync-complete",
+        serde_json::json!({
+            "success": result.success,
+            "last_sync_time": result.last_sync_time
+        }),
+    ) {
+        warn!("⚠️ [Git] 发送 git-sync-complete 事件失败: {}", e);
+    }
+    if let Err(e) = app_handle.emit_to(
+        "main",
+        "git-sync-complete",
+        serde_json::json!({
+            "success": result.success,
+            "last_sync_time": result.last_sync_time
+        }),
+    ) {
+        warn!("⚠️ [Git] 发送 git-sync-complete 到 main 失败: {}", e);
+    }
+
+    clear_git_status_cache();
+
+    Ok(result)
 }
 
 /// 批量解决冲突的返回结果
@@ -3774,18 +3922,37 @@ pub fn remove_untracked_file_command(
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
-    let full_path = workspace_root.join(&file_path);
+    let relative_path = file_path.replace('\\', "/");
+    let relative_path = relative_path.trim_start_matches('/');
+    if relative_path.is_empty() || relative_path.contains("..") {
+        return Err("拒绝删除非法路径".to_string());
+    }
 
-    info!("🗑️ [Git] 删除未跟踪文件: {}", file_path);
-
+    let full_path = workspace_root.join(relative_path);
     if !full_path.exists() {
-        info!("ℹ️ [Git] 文件不存在，无需删除: {}", file_path);
+        info!("ℹ️ [Git] 文件不存在，无需删除: {}", relative_path);
         return Ok(());
     }
 
-    std::fs::remove_file(&full_path).map_err(|e| format!("删除文件失败: {}", e))?;
+    let canonical_workspace = workspace_root
+        .canonicalize()
+        .map_err(|e| format!("解析工作区路径失败: {}", e))?;
+    let canonical_target = full_path
+        .canonicalize()
+        .map_err(|e| format!("解析目标路径失败: {}", e))?;
+    if !canonical_target.starts_with(&canonical_workspace) {
+        return Err("拒绝删除工作区外的文件".to_string());
+    }
 
-    info!("✅ [Git] 已删除未跟踪文件: {}", file_path);
+    info!("🗑️ [Git] 删除未跟踪文件: {}", relative_path);
+
+    if full_path.is_dir() {
+        std::fs::remove_dir_all(&full_path).map_err(|e| format!("删除目录失败: {}", e))?;
+    } else {
+        std::fs::remove_file(&full_path).map_err(|e| format!("删除文件失败: {}", e))?;
+    }
+
+    info!("✅ [Git] 已删除未跟踪文件: {}", relative_path);
 
     Ok(())
 }

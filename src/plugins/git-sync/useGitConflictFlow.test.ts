@@ -73,8 +73,22 @@ describe('useGitConflictFlow', () => {
 
     await flow.handleConflictResolution('force-pull');
 
+    expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenCalledWith(true);
     expect(deps.resolveForcePull).toHaveBeenCalledWith(['untracked.md']);
     expect(deps.feedback.notifyForcePullResolved).toHaveBeenCalled();
+    expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenLastCalledWith(false);
+  });
+
+  it('does not show conflict dialog loading when force pull is cancelled', async () => {
+    const deps = createDeps({
+      confirmForcePull: vi.fn(async () => false)
+    });
+    const flow = useGitConflictFlow(deps);
+
+    await expect(flow.handleConflictResolution('force-pull')).rejects.toBe('cancel');
+
+    expect(deps.conflictDialogRef.value?.setLoading).not.toHaveBeenCalledWith(true);
+    expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenLastCalledWith(false);
   });
 
   it('opens manual merge dialog for manual merge strategy', async () => {
