@@ -487,6 +487,7 @@ Frontend Workspace
 - Tauri 安全配置已加入 CSP 初版并移除 asset protocol 的全局 `"**"` scope；默认范围收敛到应用数据、资源目录和常见用户目录，同时拒绝 `.ssh`、`.gnupg`、`.git` 等敏感目录。任意外部工作区的更细粒度授权仍建议后续接入 persisted scope。
 - README 与 `docs/PLUGIN_SYSTEM.md` 已补齐当前插件化边界说明：核心工作台负责工作区、Markdown、编辑器、基础搜索和插件桥接，官方插件负责 Git、截图/OCR、翻译、Todo、主题和搜索源扩展，资源包负责 RapidOCR/离线翻译等大体积资产。
 - 翻译窗口热键、划词翻译热键和通用窗口唤起入口已在 Rust 窗口层补齐 translation 插件启用守卫，避免禁用插件后仍可通过旧入口打开翻译窗口。
+- 翻译窗口热键、划词翻译、选中文本重试和窗口 ready 后文本投递逻辑已迁入 `src-tauri/src/plugins/translation.rs`，核心 `window.rs` 只保留通用窗口管理和兼容转发入口。
 
 下一批建议优先推进：
 

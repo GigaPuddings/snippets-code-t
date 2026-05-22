@@ -1,7 +1,9 @@
 use log::info;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
+
+use crate::window::{WindowManager, WindowReadyCallback, WindowShowBehavior, WindowSpec};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct BingTranslation {
@@ -11,6 +13,190 @@ struct BingTranslation {
 #[derive(Debug, Serialize, Deserialize)]
 struct BingTranslationText {
     text: String,
+}
+
+fn require_translation_plugin(app_handle: &AppHandle, context: &str) -> bool {
+    if let Err(error) = crate::app_config::require_plugin_enabled(app_handle, "translation") {
+        log::warn!("[Plugin:translation] {} blocked: {}", context, error);
+        return false;
+    }
+
+    true
+}
+
+fn get_app_handle_or_log(context: &str) -> Option<&'static AppHandle> {
+    match crate::APP.get() {
+        Some(app) => Some(app),
+        None => {
+            log::error!("{}: 无法获取应用句柄", context);
+            None
+        }
+    }
+}
+
+pub fn hotkey_selection_translate() {
+    let Some(app_handle) = get_app_handle_or_log("hotkey_selection_translate").cloned() else {
+        return;
+    };
+    if !require_translation_plugin(&app_handle, "hotkey_selection_translate") {
+        return;
+    }
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let selected_text = get_selected_text_with_retry();
+    let preview: String = selected_text.chars().take(50).collect();
+    log::info!(
+        "[划词翻译] 最终获取的文本长度: {}, 内容预览: {}",
+        selected_text.len(),
+        if selected_text.len() > 50 {
+            format!("{}...", preview)
+        } else {
+            selected_text.clone()
+        }
+    );
+
+    if let Some(window) = app_handle.get_webview_window("translate") {
+        if window.is_visible().unwrap_or(false) {
+            if !selected_text.trim().is_empty() {
+                let _ = window.emit(
+                    "selection-text",
+                    serde_json::json!({
+                        "text": selected_text
+                    }),
+                );
+                let _ = window.set_focus();
+            } else {
+                let _ = window.emit("reset-state", ());
+                let _ = window.hide();
+            }
+            return;
+        }
+
+        if !selected_text.trim().is_empty() {
+            let _ = window.emit(
+                "selection-text",
+                serde_json::json!({
+                    "text": selected_text
+                }),
+            );
+            let _ = window.show();
+            let _ = window.set_focus();
+            return;
+        }
+    }
+
+    if !selected_text.trim().is_empty() {
+        open_translate_window(&app_handle, Some(selected_text));
+    } else if let Some(window) = app_handle.get_webview_window("main") {
+        let _ = window.emit(
+            "notification",
+            serde_json::json!({
+                "type": "warning",
+                "message": "请先选择要翻译的文本"
+            }),
+        );
+    }
+}
+
+fn get_selected_text_with_retry() -> String {
+    let text = selection::get_text();
+    log::info!("[划词翻译] 第1次尝试获取选中文本，长度: {}", text.len());
+    if !text.trim().is_empty() {
+        return text;
+    }
+
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    let text = selection::get_text();
+    log::info!("[划词翻译] 第2次尝试获取选中文本，长度: {}", text.len());
+    if !text.trim().is_empty() {
+        return text;
+    }
+
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    let text = selection::get_text();
+    log::info!("[划词翻译] 第3次尝试获取选中文本，长度: {}", text.len());
+    text
+}
+
+pub fn hotkey_translate() {
+    let Some(app) = get_app_handle_or_log("hotkey_translate") else {
+        return;
+    };
+    if !require_translation_plugin(app, "hotkey_translate") {
+        return;
+    }
+
+    if let Some(window) = app.get_webview_window("translate") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.emit("reset-state", ());
+            let _ = window.hide();
+            return;
+        }
+
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+
+    let spec = translate_window_spec();
+    let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
+}
+
+fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
+    if let Some(window) = app_handle.get_webview_window("translate") {
+        let _ = window.show();
+        let _ = window.set_focus();
+
+        if let Some(text) = text {
+            let _ = window.emit("selection-text", serde_json::json!({ "text": text }));
+        }
+        return;
+    }
+
+    let spec = translate_window_spec();
+    let on_ready: Option<WindowReadyCallback> = text.map(|txt| {
+        Box::new(move |window: &WebviewWindow| {
+            info!("翻译窗口准备完成，发送选中的文本: {}", txt);
+
+            let window_clone = window.clone();
+            let text_clone = txt.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                info!("[延迟发送] 翻译窗口延迟发送选中的文本: {}", text_clone);
+                let emit_result =
+                    window_clone.emit("selection-text", serde_json::json!({ "text": text_clone }));
+                info!("发送 selection-text 事件结果: {:?}", emit_result);
+            });
+
+            let window_clone2 = window.clone();
+            let text_clone2 = txt.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+                info!("翻译窗口超时保护：尝试发送选中的文本");
+                let _ =
+                    window_clone2.emit("selection-text", serde_json::json!({ "text": text_clone2 }));
+            });
+        }) as WindowReadyCallback
+    });
+
+    let _ =
+        WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, on_ready);
+    info!("创建翻译窗口并立即显示");
+}
+
+fn translate_window_spec() -> WindowSpec {
+    WindowSpec {
+        label: "translate",
+        url: "/#/translate",
+        title: "翻译",
+        width: 400.0,
+        height: 500.0,
+        resizable: true,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: Some("translate_ready"),
+    }
 }
 
 // 翻译文本

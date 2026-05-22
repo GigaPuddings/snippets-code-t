@@ -8,7 +8,7 @@ use tauri::{
 };
 
 // 窗口准备回调类型别名，用于简化复杂类型
-type WindowReadyCallback = Box<dyn FnOnce(&WebviewWindow) + Send + 'static>;
+pub type WindowReadyCallback = Box<dyn FnOnce(&WebviewWindow) + Send + 'static>;
 // use crate::config::get_adjusted_position;
 use base64::{engine::general_purpose, Engine as _};
 use image::GenericImageView;
@@ -44,16 +44,6 @@ fn get_app_handle_or_log(context: &str) -> Option<&'static AppHandle> {
     }
 }
 
-fn require_translation_plugin(app_handle: &AppHandle, context: &str) -> bool {
-    if let Err(error) = crate::app_config::require_plugin_enabled(app_handle, "translation") {
-        log::warn!("[Plugin:translation] {} blocked: {}", context, error);
-        return false;
-    }
-
-    true
-}
-
-use selection::get_text;
 use tauri::image::Image;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 #[cfg(target_os = "windows")]
@@ -915,213 +905,12 @@ pub fn hotkey_config() {
 
 // 划词翻译快捷键处理
 pub fn hotkey_selection_translate() {
-    let Some(app_handle) = get_app_handle_or_log("hotkey_selection_translate").cloned() else {
-        return;
-    };
-    if !require_translation_plugin(&app_handle, "hotkey_selection_translate") {
-        return;
-    }
-
-    // 给系统一点时间完成焦点转移
-    std::thread::sleep(std::time::Duration::from_millis(50));
-
-    // 尝试获取选中文本，支持重试
-    let selected_text = get_selected_text_with_retry();
-
-    let preview: String = selected_text.chars().take(50).collect();
-    log::info!(
-        "[划词翻译] 最终获取的文本长度: {}, 内容预览: {}",
-        selected_text.len(),
-        if selected_text.len() > 50 {
-            format!("{}...", preview)
-        } else {
-            selected_text.clone()
-        }
-    );
-
-    // 检查窗口是否已经存在
-    if let Some(window) = app_handle.get_webview_window("translate") {
-        // 如果窗口已经存在并且可见
-        if window.is_visible().unwrap_or(false) {
-            // 如果有选中文本且不为空，则更新翻译窗口的内容
-            if !selected_text.trim().is_empty() {
-                let _ = window.emit(
-                    "selection-text",
-                    serde_json::json!({
-                        "text": selected_text
-                    }),
-                );
-                let _ = window.set_focus();
-            } else {
-                // 无选中文本且窗口可见，则关闭窗口
-                let _ = window.emit("reset-state", ());
-                let _ = window.hide();
-            }
-            return;
-        } else {
-            // 窗口存在但不可见，且有选中文本，则显示窗口并发送文本
-            if !selected_text.trim().is_empty() {
-                let _ = window.emit(
-                    "selection-text",
-                    serde_json::json!({
-                        "text": selected_text
-                    }),
-                );
-                let _ = window.show();
-                let _ = window.set_focus();
-                return;
-            }
-        }
-    }
-
-    // 检查是否有选中文本
-    if !selected_text.trim().is_empty() {
-        // 窗口不存在，创建新窗口
-        open_translate_window(&app_handle, Some(selected_text));
-    } else {
-        // 无选中文本，提示用户
-        if let Some(window) = app_handle.get_webview_window("main") {
-            let _ = window.emit(
-                "notification",
-                serde_json::json!({
-                    "type": "warning",
-                    "message": "请先选择要翻译的文本"
-                }),
-            );
-        }
-    }
-}
-
-// 带重试机制的获取选中文本
-fn get_selected_text_with_retry() -> String {
-    // 首先尝试直接获取
-    let text = get_text();
-    log::info!("[划词翻译] 第1次尝试获取选中文本，长度: {}", text.len());
-    if !text.trim().is_empty() {
-        return text;
-    }
-
-    // 如果第一次失败，等待更长时间后重试
-    std::thread::sleep(std::time::Duration::from_millis(150));
-
-    let text = get_text();
-    log::info!("[划词翻译] 第2次尝试获取选中文本，长度: {}", text.len());
-    if !text.trim().is_empty() {
-        return text;
-    }
-
-    // 第二次重试
-    std::thread::sleep(std::time::Duration::from_millis(150));
-
-    let text = get_text();
-    log::info!("[划词翻译] 第3次尝试获取选中文本，长度: {}", text.len());
-    text
+    crate::plugins::translation::hotkey_selection_translate();
 }
 
 // 翻译窗口快捷键处理
 pub fn hotkey_translate() {
-    let Some(app) = get_app_handle_or_log("hotkey_translate") else {
-        return;
-    };
-    if !require_translation_plugin(app, "hotkey_translate") {
-        return;
-    }
-
-    // 检查窗口是否已存在
-    if let Some(window) = app.get_webview_window("translate") {
-        // 如果窗口已经存在并且可见，则复位状态并隐藏
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.emit("reset-state", ());
-            let _ = window.hide();
-            return;
-        } else {
-            // 窗口存在但不可见，则显示
-            let _ = window.show();
-            let _ = window.set_focus();
-            return;
-        }
-    }
-
-    // 窗口不存在，创建新窗口
-    let spec = WindowSpec {
-        label: "translate",
-        url: "/#/translate",
-        title: "翻译",
-        width: 400.0,
-        height: 500.0,
-        resizable: true,
-        transparent: true,
-        shadow: false,
-        always_on_top: false,
-        ready_event: Some("translate_ready"),
-    };
-
-    let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
-}
-
-// 打开翻译窗口（带选中文本）
-fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
-    if let Some(window) = app_handle.get_webview_window("translate") {
-        // 窗口已存在，立即显示并聚焦
-        let _ = window.show();
-        let _ = window.set_focus();
-
-        // 如果有文本，直接发送（窗口已存在说明前端已经准备好）
-        if let Some(text) = text {
-            let _ = window.emit("selection-text", serde_json::json!({ "text": text }));
-        }
-    } else {
-        // 创建新窗口
-        let spec = WindowSpec {
-            label: "translate",
-            url: "/#/translate",
-            title: "翻译",
-            width: 400.0,
-            height: 500.0,
-            resizable: true,
-            transparent: true,
-            shadow: false,
-            always_on_top: false,
-            ready_event: Some("translate_ready"),
-        };
-
-        // 如果有选中文本，在窗口准备完成后发送
-        let on_ready: Option<WindowReadyCallback> = text.map(|txt| {
-            Box::new(move |window: &WebviewWindow| {
-                info!("翻译窗口准备完成，发送选中的文本: {}", txt);
-
-                // 延迟发送事件，确保前端已经准备好监听
-                let window_clone = window.clone();
-                let text_clone = txt.clone();
-                tauri::async_runtime::spawn(async move {
-                    // 等待前端组件挂载
-                    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                    info!("[延迟发送] 翻译窗口延迟发送选中的文本: {}", text_clone);
-                    let emit_result = window_clone
-                        .emit("selection-text", serde_json::json!({ "text": text_clone }));
-                    info!("发送 selection-text 事件结果: {:?}", emit_result);
-                });
-
-                // 添加超时保护机制
-                let window_clone2 = window.clone();
-                let text_clone2 = txt.clone();
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-                    info!("翻译窗口超时保护：尝试发送选中的文本");
-                    let _ = window_clone2
-                        .emit("selection-text", serde_json::json!({ "text": text_clone2 }));
-                });
-            }) as Box<dyn FnOnce(&WebviewWindow) + Send + 'static>
-        });
-
-        let _ = WindowManager::get_or_create_with_behavior(
-            &spec,
-            WindowShowBehavior::AlwaysShow,
-            on_ready,
-        );
-
-        info!("创建翻译窗口并立即显示");
-    }
+    crate::plugins::translation::hotkey_translate();
 }
 
 // 创建update窗口
