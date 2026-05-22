@@ -199,7 +199,24 @@ pub fn is_setup_completed_internal(app_handle: &tauri::AppHandle) -> bool {
     }
 
     // 读取 setup_completed 配置
-    json_config::get_app_config_value(app_handle, "setup_completed").unwrap_or(false)
+    let setup_completed =
+        json_config::get_app_config_value(app_handle, "setup_completed").unwrap_or(false);
+    if !setup_completed {
+        return false;
+    }
+
+    has_valid_workspace_root(app_handle)
+}
+
+fn has_valid_workspace_root(app_handle: &tauri::AppHandle) -> bool {
+    match json_config::get_workspace_root(app_handle) {
+        Ok(Some(workspace_root)) => workspace_root.exists() && workspace_root.is_dir(),
+        Ok(None) => false,
+        Err(error) => {
+            log::warn!("首次设置状态检查失败: {}", error);
+            false
+        }
+    }
 }
 
 // 检查是否已完成首次设置
