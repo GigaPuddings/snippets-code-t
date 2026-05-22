@@ -3,12 +3,22 @@ import { processTemplate } from '@/utils/templateParser';
 import { logger } from '@/utils/logger';
 import { getRawSearchResultId } from './useSearchResultDisplay';
 import { getSearchResultLaunchPath } from './useSearchResultPaths';
+import { modal } from '@/utils/modal';
 
 interface UseSearchResultActionsOptions {
   onClearSearch: () => void;
+  clipboard?: Pick<Clipboard, 'writeText'>;
+  copySuccessMessage?: string;
+  copyFailedMessage?: string;
+}
+
+export function canCopySearchResultSnippet(item: ContentType): boolean {
+  return item.type === 'code' && !['app', 'bookmark', 'search', 'file'].includes(item.summarize ?? '');
 }
 
 export function useSearchResultActions(options: UseSearchResultActionsOptions) {
+  const clipboard = options.clipboard ?? navigator.clipboard;
+
   async function showHideWindow(): Promise<void> {
     await invoke('show_hide_window_command', {
       label: 'search',
@@ -87,6 +97,27 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
     }, 300);
   }
 
+  async function copySnippetToClipboard(item: ContentType): Promise<boolean> {
+    if (!canCopySearchResultSnippet(item)) {
+      return false;
+    }
+
+    try {
+      const result = await processTemplate(item.content);
+      await clipboard.writeText(result.content);
+      if (options.copySuccessMessage) {
+        modal.success(options.copySuccessMessage);
+      }
+      return true;
+    } catch (err) {
+      logger.error('[代码片段] 复制失败:', err);
+      if (options.copyFailedMessage) {
+        modal.error(options.copyFailedMessage);
+      }
+      return false;
+    }
+  }
+
   function getItemPrimaryAction(item: ContentType) {
     if (item.summarize === 'app') return () => openAppItem(item);
     if (
@@ -112,6 +143,8 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
 
   return {
     showHideWindow,
-    runPrimaryAction
+    runPrimaryAction,
+    canCopySnippet: canCopySearchResultSnippet,
+    copySnippetToClipboard
   };
 }

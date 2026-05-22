@@ -18,6 +18,7 @@ import {
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import modal from '@/utils/modal';
 import { findBacklinks, updateBacklinks } from '@/utils/wikilink-updater';
+import { inferSnippetMetadata } from '@/utils/snippetMetadataInference';
 
 /**
  * 为内容列表添加分类名称
@@ -140,13 +141,16 @@ export function useContentDialogs(): UseContentDialogsReturn {
         store.categories = await getCategories(store.categorySort);
 
         let categoryId: number | string | undefined;
+        let categoryName: string | undefined;
 
         if (!cid) {
           // 在"所有片段"视图中创建，默认放入"未分类"
           categoryId = '未分类';
+          categoryName = '未分类';
         } else if (cid === '0') {
           // 在"未分类"视图中创建
           categoryId = '未分类';
+          categoryName = '未分类';
         } else {
           // 从最新的分类列表中查找对应的分类
           const numCid = Number(cid);
@@ -154,16 +158,26 @@ export function useContentDialogs(): UseContentDialogsReturn {
 
           if (category) {
             categoryId = category.id;
+            categoryName = category.name;
           } else {
             categoryId = '未分类';
+            categoryName = '未分类';
           }
         }
+
+        const inferredMetadata = pendingFragmentType.value === 'code'
+          ? inferSnippetMetadata({
+            title: normalizedTitle,
+            categoryName
+          })
+          : {};
 
         const filePath = await addFragment({ 
           categoryId,
           fragmentType: pendingFragmentType.value,
           metadata: {
             title: normalizedTitle,
+            ...inferredMetadata
           }
         });
 

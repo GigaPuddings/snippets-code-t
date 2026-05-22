@@ -222,13 +222,14 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3';
 import { useI18n } from 'vue-i18n';
-import { toggleCodeBlockForSelection, toggleListForSelection } from './utils/markdownCommands';
+import { useContextMenuCommands } from './composables/useContextMenuCommands';
+import type { SourceEditorExpose } from './types';
 
 interface Props {
   editor: Editor | null;
   dark?: boolean;
   viewMode?: 'reading' | 'preview' | 'source';
-  sourceEditorRef?: any; // 源码编辑器的引用
+  sourceEditorRef?: SourceEditorExpose | null; // 源码编辑器的引用
 }
 
 defineOptions({
@@ -419,264 +420,34 @@ const keepSubmenuOpen = () => {
   }
 };
 
-// 文本格式操作
-const toggleBold = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.wrapSelection('**', '**');
-  } else {
-    props.editor?.chain().focus().toggleBold().run();
-  }
-  hide();
-};
-
-const toggleItalic = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.wrapSelection('*', '*');
-  } else {
-    props.editor?.chain().focus().toggleItalic().run();
-  }
-  hide();
-};
-
-const toggleStrike = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.wrapSelection('~~', '~~');
-  } else {
-    props.editor?.chain().focus().toggleStrike().run();
-  }
-  hide();
-};
-
-const toggleCode = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.wrapSelection('`', '`');
-  } else {
-    props.editor?.chain().focus().toggleCode().run();
-  }
-  hide();
-};
-
-const clearFormat = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (!isSourceMode.value && props.editor) {
-    props.editor.chain().focus().clearNodes().unsetAllMarks().run();
-  }
-  hide();
-};
-
-// 段落格式操作
-const toggleBulletList = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.insertLinePrefix('- ');
-  } else {
-    props.editor && toggleListForSelection(props.editor, 'bulletList');
-  }
-  hide();
-};
-
-const toggleOrderedList = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.insertLinePrefix('1. ');
-  } else {
-    props.editor && toggleListForSelection(props.editor, 'orderedList');
-  }
-  hide();
-};
-
-const toggleTaskList = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.insertLinePrefix('- [ ] ');
-  } else {
-    props.editor && toggleListForSelection(props.editor, 'taskList');
-  }
-  hide();
-};
-
-const setHeading = (level: 1 | 2 | 3 | 4 | 5 | 6) => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    const prefix = '#'.repeat(level) + ' ';
-    props.sourceEditorRef.insertLinePrefix(prefix);
-  } else {
-    props.editor?.chain().focus().setHeading({ level }).run();
-  }
-  hide();
-};
-
-const setParagraph = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (!isSourceMode.value && props.editor) {
-    props.editor.chain().focus().setParagraph().run();
-  }
-  hide();
-};
-
-const toggleBlockquote = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.insertLinePrefix('> ');
-  } else {
-    props.editor?.chain().focus().toggleBlockquote().run();
-  }
-  hide();
-};
-
-// 插入操作
-const insertTable = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    const tableMarkdown = `| Header 1 | Header 2 | Header 3 |\n| -------- | -------- | -------- |\n| Cell 1   | Cell 2   | Cell 3   |\n| Cell 4   | Cell 5   | Cell 6   |\n`;
-    props.sourceEditorRef.insertText(tableMarkdown);
-  } else {
-    props.editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-  }
-  hide();
-};
-
-// 代码块名称映射
-const insertCodeBlock = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.insertText('```\n\n```');
-    const textarea = props.sourceEditorRef.getTextarea();
-    if (textarea) {
-      const pos = textarea.selectionStart;
-      textarea.setSelectionRange(pos - 4, pos - 4);
-      textarea.focus();
-    }
-  } else {
-    props.editor && toggleCodeBlockForSelection(props.editor);
-  }
-  hide();
-};
-
-const insertHorizontalRule = () => {
-  if (isMarkdownSyntaxDisabled.value) return;
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.insertText('\n---\n');
-  } else {
-    props.editor?.chain().focus().setHorizontalRule().run();
-  }
-  hide();
-};
-
-// 链接操作
-const handleAddLink = () => {
-  if (isSourceMode.value && props.sourceEditorRef) {
-    // 源码模式：插入 [[]] 格式
-    props.sourceEditorRef.insertText('[[]]');
-    // 将光标移动到 [[ 和 ]] 之间
-    const textarea = props.sourceEditorRef.getTextarea();
-    if (textarea) {
-      const pos = textarea.selectionStart;
-      textarea.setSelectionRange(pos - 2, pos - 2);
-      textarea.focus();
-    }
-  } else if (props.editor) {
-    // 预览/阅读模式：使用 TipTap 命令
-    const { from, to } = props.editor.state.selection;
-    const selectedText = props.editor.state.doc.textBetween(from, to, ' ');
-    
-    if (selectedText && selectedText.trim()) {
-      const url = window.prompt($t('contextMenu.enterUrl'), '');
-      if (url && url.trim()) {
-        props.editor.chain().focus().setLink({ href: url.trim() }).run();
-      }
-    } else {
-      props.editor.chain().focus().insertContent('[[]]').setTextSelection(from + 2).run();
-    }
-  }
-  hide();
-};
-
-const handleAddExternalLink = () => {
-  if (isSourceMode.value && props.sourceEditorRef) {
-    // 源码模式：插入 []() 格式
-    const textarea = props.sourceEditorRef.getTextarea();
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selectedText = textarea.value.substring(start, end);
-      
-      if (selectedText) {
-        // 有选中文本，包裹为链接
-        props.sourceEditorRef.insertText(`[${selectedText}]()`);
-        // 光标移动到 () 中间
-        textarea.setSelectionRange(start + selectedText.length + 3, start + selectedText.length + 3);
-      } else {
-        // 无选中文本，插入空链接
-        props.sourceEditorRef.insertText('[]()');
-        // 光标移动到 [] 中间
-        textarea.setSelectionRange(start + 1, start + 1);
-      }
-      textarea.focus();
-    }
-  } else if (props.editor) {
-    // 预览/阅读模式：使用 TipTap 命令
-    const { from, to } = props.editor.state.selection;
-    const selectedText = props.editor.state.doc.textBetween(from, to, ' ');
-    
-    if (selectedText && selectedText.trim()) {
-      props.editor.chain().focus()
-        .insertContent(`[${selectedText}]()`)
-        .setTextSelection(from + selectedText.length + 3)
-        .run();
-    } else {
-      props.editor.chain().focus()
-        .insertContent('[]()')
-        .setTextSelection(from + 1)
-        .run();
-    }
-  }
-  hide();
-};
-
-// 剪贴板操作
-const handlePaste = () => {
-  if (isSourceMode.value && props.sourceEditorRef) {
-    // 源码模式：先聚焦编辑器，然后使用粘贴命令
-    props.sourceEditorRef.focus();
-    document.execCommand('paste');
-  } else {
-    // 预览模式：聚焦编辑器，然后使用粘贴命令
-    props.editor?.chain().focus().run();
-    document.execCommand('paste');
-  }
-  hide();
-};
-
-const handlePasteAsPlainText = () => {
-  if (isSourceMode.value && props.sourceEditorRef) {
-    // 源码模式：先聚焦编辑器，然后插入纯文本
-    props.sourceEditorRef.focus();
-    navigator.clipboard.readText().then(text => {
-      props.sourceEditorRef?.insertText(text);
-    });
-  } else {
-    // 预览模式：聚焦编辑器，然后插入纯文本
-    props.editor?.chain().focus().run();
-    navigator.clipboard.readText().then(text => {
-      props.editor?.chain().focus().insertContent(text).run();
-    });
-  }
-  hide();
-};
-
-const handleSelectAll = () => {
-  if (isSourceMode.value && props.sourceEditorRef) {
-    props.sourceEditorRef.selectAll();
-  } else {
-    props.editor?.chain().focus().selectAll().run();
-  }
-  hide();
-};
+const {
+  toggleBold,
+  toggleItalic,
+  toggleStrike,
+  toggleCode,
+  clearFormat,
+  toggleBulletList,
+  toggleOrderedList,
+  toggleTaskList,
+  setHeading,
+  setParagraph,
+  toggleBlockquote,
+  insertTable,
+  insertCodeBlock,
+  insertHorizontalRule,
+  handleAddLink,
+  handleAddExternalLink,
+  handlePaste,
+  handlePasteAsPlainText,
+  handleSelectAll
+} = useContextMenuCommands({
+  getEditor: () => props.editor,
+  getSourceEditor: () => props.sourceEditorRef,
+  getViewMode: () => props.viewMode,
+  isMarkdownSyntaxDisabled: () => isMarkdownSyntaxDisabled.value,
+  hide,
+  translate: $t
+});
 
 // 键盘事件
 const handleKeydown = (event: KeyboardEvent) => {

@@ -352,6 +352,8 @@ export async function addFragment(params?: AddFragmentParams): Promise<string> {
       type: params?.fragmentType === 'note' ? 'note' : 'code', // 使用 'code' 而不是 'snippet'
       tags: params?.tags || [],
       language: params?.metadata?.language as string | undefined,
+      framework: params?.metadata?.framework as string | undefined,
+      kind: params?.metadata?.kind as string | undefined,
       favorite: false,
     };
     

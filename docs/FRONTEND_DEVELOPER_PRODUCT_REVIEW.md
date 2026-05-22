@@ -474,11 +474,14 @@ Frontend Workspace
 - `TipTapEditor` 已接入并完善 `useEditorOutline`，大纲面板开关、TipTap/源码标题提取、可视标题计算、滚动监听、标题跳转和清理已从主组件迁出，并补充单元测试。
 - `TipTapEditor` 已新增 `useEditorLinks`，锚点点击拦截、文档内标题跳转、外链协议补全和 Tauri shell 打开逻辑已从主组件迁出，并补充单元测试。
 - `TipTapEditor` 已新增 `useEditorSessionScroll`，会话滚动位置读取/恢复、wikilink 定位滚动和高亮提示已从主组件迁出，并补充单元测试。
+- `TipTapEditor` 已新增 `useEditorContextMenu`，右键菜单启用判断、默认菜单拦截和菜单实例打开已从主组件迁出，并补充单元测试。
+- `TipTapContextMenu` 已新增 `useContextMenuCommands`，源码/富文本命令分发、链接插入、粘贴和全选动作已从菜单组件迁出，并补充单元测试。
+- 搜索结果列表已增加代码片段“复制代码”快速动作，复用 `processTemplate` 后写入剪贴板，并补充复制资格、成功和失败兜底测试。
+- 新增片段入口已接入默认元数据推断：根据标题、分类名和代码块语言推断 `language/framework/kind`，并补齐 `addFragment` 创建时写入 `framework/kind` 的链路。
+- 搜索预览已增加片段复制格式动作，支持复制原始代码、Markdown fenced code 和 VS Code snippet JSON，并补充格式化测试。
 
 下一批建议优先推进：
 
-- 搜索结果增加“复制代码”快速动作，让全局搜索更像开发工作流入口。
 - 测试体系下一步建议转向 Git 同步冲突处理、插件安装压缩包解析，以及 Tauri 权限收紧后的回归用例。
 - 配置页下一步建议转向拆分内容编辑区或插件安装流程，配置页主入口已基本降为装配层。
-- 继续收敛 `TipTapEditor` 的右键菜单逻辑，为后续模板变量做准备。
-- 梳理新增片段入口的默认元数据策略，例如根据文件名、代码块语言或当前分类自动推断 `language/framework/kind`。
+- 继续推进片段模板变量，让代码片段从“可收藏”进一步走向“可生成、可复用”。

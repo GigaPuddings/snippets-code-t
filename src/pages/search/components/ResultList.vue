@@ -38,6 +38,17 @@
         </div>
         <!-- 操作按钮，用于显示结果的操作按钮 -->
         <div class="item-actions">
+          <button
+            v-if="canCopySnippet(item)"
+            class="copy-action"
+            type="button"
+            :title="t('searchResult.copyCode')"
+            :aria-label="t('searchResult.copyCode')"
+            @click.stop="handleCopySnippet(item)"
+            @dblclick.stop
+          >
+            <Copy class="copy-action-icon" theme="outline" size="14" />
+          </button>
           <div v-if="index >= visibleShortcutStart && index < visibleShortcutStart + visibleShortcutCount" class="shortcut-key">
             <Command class="shortcut-key-icon" theme="outline" size="12" />
             <span class="shortcut-key-text">{{ index - visibleShortcutStart + 1 }}</span>
@@ -50,7 +61,7 @@
 
 <script lang="ts" setup>
 import { useConfigurationStore } from '@/store';
-import { Command } from '@icon-park/vue-next';
+import { Command, Copy } from '@icon-park/vue-next';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import { useFocusMode } from '@/hooks/useFocusMode';
@@ -109,8 +120,15 @@ const {
   getFileIconClass
 } = useSearchResultDisplay(() => props.searchQuery, t);
 
-const { showHideWindow, runPrimaryAction } = useSearchResultActions({
-  onClearSearch: props.onClearSearch
+const {
+  showHideWindow,
+  runPrimaryAction,
+  canCopySnippet,
+  copySnippetToClipboard
+} = useSearchResultActions({
+  onClearSearch: props.onClearSearch,
+  copySuccessMessage: t('searchResult.copySuccess'),
+  copyFailedMessage: t('searchResult.copyFailed')
 });
 
 const emitSelectionChangeById = (id: string | number) => {
@@ -220,6 +238,10 @@ function handleItemDoubleClick(item: ContentType) {
   }
 }
 
+async function handleCopySnippet(item: ContentType) {
+  await copySnippetToClipboard(item);
+}
+
 const handleIconError = (item: ContentType) => {
   item.icon = undefined;
 };
@@ -250,17 +272,6 @@ const backToSearchMode = () => {
 };
 
 const hasVisibleResults = computed(() => filteredResults.value.length > 0);
-
-// const copyKeepWindow = async (item: ContentType) => {
-//   if (item.summarize === 'app' || item.summarize === 'bookmark' || item.summarize === 'search' || item.summarize === 'file') return;
-
-//   const result = await processTemplate(item.content);
-//   try {
-//     await navigator.clipboard.writeText(result.content);
-//   } catch (err) {
-//     logger.error('[代码片段] 复制失败:', err);
-//   }
-// };
 
 defineExpose({
   switchTab,
@@ -363,6 +374,27 @@ defineExpose({
 
       .item-actions {
         @apply flex items-center gap-2 pt-1;
+      }
+
+      .copy-action {
+        @apply flex items-center justify-center w-7 h-7 rounded-md border border-transparent bg-transparent text-search-secondary cursor-pointer opacity-0;
+        transition:
+          opacity 0.15s ease,
+          color 0.15s ease,
+          background-color 0.15s ease,
+          border-color 0.15s ease;
+
+        &:hover,
+        &:focus-visible {
+          @apply opacity-100 text-search bg-search border-search outline-none;
+        }
+      }
+
+      &:hover,
+      &.active {
+        .copy-action {
+          @apply opacity-100;
+        }
       }
 
       .shortcut-key {

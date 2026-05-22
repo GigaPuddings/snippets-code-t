@@ -150,6 +150,7 @@ import {
   toDisplayText
 } from '../composables/useSearchResultPaths';
 import { logger } from '@/utils/logger';
+import { formatSnippetForCopy, type SnippetCopyFormat } from '@/utils/snippetCopyFormats';
 
 const props = defineProps<{
   item: ContentType | null;
@@ -183,10 +184,15 @@ const canSearchBookmark = computed(() => Boolean(displayTitle.value || displayBo
 const canOpenFile = computed(() => Boolean(displayPath.value));
 const canRevealFile = computed(() => Boolean(displayPath.value));
 const canOpenFileWithOtherWays = computed(() => Boolean(displayPath.value));
-const canPasteContent = computed(() => Boolean(displayPath.value));
 const canOpenInConfig = computed(() => Boolean(displayPath.value));
+const canCopyCodeSnippet = computed(() => props.item?.type === 'code' && Boolean(normalizedContent.value));
 const hasSpecialActions = computed(() => specialActions.value.length > 0);
 const displayTagsText = computed(() => displayTags.value.join(', '));
+const displaySnippetLanguage = computed(() => {
+  const metadata = props.item?.metadata as Record<string, unknown> | null | undefined;
+  const language = metadata?.language;
+  return typeof language === 'string' ? language : '';
+});
 
 const fileName = computed(() => {
   const content = props.item?.content ?? '';
@@ -255,8 +261,10 @@ const specialActions = computed(() => {
       { key: 'other', label: t('searchPreview.openWithOtherWays'), shortcut: 'F2', icon: More, disabled: !canOpenFileWithOtherWays.value, run: openFileWithOtherWaysAction }
     ],
     code: [
-      { key: 'paste', label: t('searchPreview.pasteContent'), shortcut: 'Enter', icon: ArrowRight, disabled: !canPasteContent.value, run: pasteContent },
-      { key: 'openInConfig', label: t('searchPreview.openInConfig'), shortcut: 'F1', icon: Home, disabled: !canOpenInConfig.value, run: openInConfig }
+      { key: 'copyRaw', label: t('searchPreview.copyRawCode'), shortcut: 'Enter', icon: Copy, disabled: !canCopyCodeSnippet.value, primary: true, run: () => copySnippetAs('raw') },
+      { key: 'copyMarkdown', label: t('searchPreview.copyMarkdownCode'), shortcut: 'F1', icon: Copy, disabled: !canCopyCodeSnippet.value, run: () => copySnippetAs('markdown') },
+      { key: 'copyVsCode', label: t('searchPreview.copyVsCodeSnippet'), shortcut: 'F2', icon: Copy, disabled: !canCopyCodeSnippet.value, run: () => copySnippetAs('vscode') },
+      { key: 'openInConfig', label: t('searchPreview.openInConfig'), shortcut: 'F3', icon: Home, disabled: !canOpenInConfig.value, run: openInConfig }
     ],
     note: [
       { key: 'openInConfig', label: t('searchPreview.openInConfig'), shortcut: 'Enter', icon: Home, disabled: !canOpenInConfig.value, primary: true, run: openInConfig }
@@ -401,11 +409,19 @@ async function openFileWithOtherWaysAction() {
   await closeAndRun(() => openFileWithOtherWays(displayPath.value));
 }
 
-async function pasteContent() {
-  // 这里并没有走到这里，因为ResultList.vue有监听的键盘事件，会调用pasteContent方法
-  logger.info('[搜索预览] 粘贴内容:', displayPath.value);
-  if (!canPasteContent.value || !displayPath.value) return;
-  // await navigator.clipboard.writeText(displayPath.value);
+async function copySnippetAs(format: SnippetCopyFormat) {
+  if (!canCopyCodeSnippet.value || !props.item) return;
+
+  try {
+    const text = formatSnippetForCopy(format, {
+      title: displayTitle.value,
+      content: normalizedContent.value,
+      language: displaySnippetLanguage.value
+    });
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+    logger.error('[搜索预览] 复制代码片段失败:', error);
+  }
 }
 
 async function copyBookmarkUrl() {
@@ -487,6 +503,13 @@ function handleActionShortcut(event: KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
     specialActions.value[2]?.run();
+    return;
+  }
+
+  if (event.key === 'F3') {
+    event.preventDefault();
+    event.stopPropagation();
+    specialActions.value[3]?.run();
     return;
   }
 }

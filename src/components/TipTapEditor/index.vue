@@ -93,6 +93,7 @@ import EditorActions from './components/EditorActions.vue';
 import SourceEditor from './components/SourceEditor.vue';
 import BacklinkPanel from './components/BacklinkPanel.vue';
 import { useEditorBacklinks } from './composables/useEditorBacklinks';
+import { useEditorContextMenu } from './composables/useEditorContextMenu';
 import {
   useEditorImageUpload,
   type ImageUploadEditor
@@ -279,6 +280,14 @@ const {
   scrollToWikilink
 } = useEditorSessionScroll({
   getEditor: () => editor.value
+});
+
+const {
+  handleContextMenu,
+  handleSourceContextMenu
+} = useEditorContextMenu({
+  isEnabled: () => props.showContextMenu,
+  getContextMenu: () => contextMenuRef.value
 });
 
 // 初始化编辑器
@@ -490,23 +499,6 @@ const {
 // 源码内容变更
 const handleSourceContentChange = (value: string) => {
   editorPersistenceBridge.emitSourceContentChange(value);
-};
-
-// 处理右键菜单
-const handleContextMenu = (event: MouseEvent) => {
-  if (!props.showContextMenu) {
-    return;
-  }
-  event.preventDefault();
-  contextMenuRef.value?.show(event);
-};
-
-const handleSourceContextMenu = (event: MouseEvent) => {
-  if (!props.showContextMenu) {
-    return;
-  }
-  event.preventDefault();
-  contextMenuRef.value?.show(event);
 };
 
 // 监听内容变化
