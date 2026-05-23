@@ -57,7 +57,6 @@
             <Command class="shortcut-key-icon" theme="outline" size="12" />
             <span class="shortcut-key-text">{{ index - visibleShortcutStart + 1 }}</span>
           </div>
-          <span v-if="activeTab === 'text'" class="source-label">{{ getTypeLabel(item) }}</span>
         </div>
       </div>
     </RecycleScroller>
@@ -99,7 +98,7 @@ const emit = defineEmits<{
 const scrollerRef = ref<any>(null);
 const visibleShortcutStart = ref(0);
 const visibleShortcutCount = 6;
-const itemSize = computed(() => props.itemSize ?? 58);
+const itemSize = computed(() => props.itemSize ?? 52);
 const {
   tabs,
   activeTab,
@@ -295,11 +294,11 @@ defineExpose({
 
 <style lang="scss" scoped>
 .result-list {
-  // --result-row-height: 51.33px;
+  // --result-row-height: 52px;
   // --result-visible-rows: 6;
 
   @apply bg-search rounded-bl-lg relative h-full min-h-0 flex flex-col overflow-hidden;
-  padding: 10px 8px 12px 10px;
+  padding: 8px 8px 8px 10px;
 
   .empty-state {
     @apply flex-1 min-h-0 flex items-center justify-center overflow-y-auto p-4;
@@ -323,9 +322,9 @@ defineExpose({
 
   .result-section-header {
     @apply flex items-center justify-between flex-shrink-0;
-    padding: 0 8px 8px 2px;
+    padding: 0 8px 6px 2px;
     color: var(--search-info-text-color);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -384,11 +383,11 @@ defineExpose({
     }
 
     .item {
-      @apply grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 text-search box-border rounded-lg cursor-pointer relative min-w-0 border border-transparent;
+      @apply grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2.5 text-search box-border rounded-lg cursor-pointer relative min-w-0 border border-transparent;
       width: calc(100% - 4px);
-      height: 58px;
-      margin: 3px 4px 3px 0;
-      padding: 6px 9px 6px 10px;
+      height: 48px;
+      margin: 2px 4px 2px 0;
+      padding: 5px 8px 5px 9px;
       background-color: transparent;
       transition:
         background-color 0.15s ease,
@@ -408,8 +407,8 @@ defineExpose({
         content: '';
         position: absolute;
         left: 0;
-        top: 8px;
-        bottom: 8px;
+        top: 7px;
+        bottom: 7px;
         width: 3px;
         border-radius: 0 999px 999px 0;
         background: var(--search-result-accent);
@@ -417,8 +416,8 @@ defineExpose({
       }
 
       .item-actions {
-        @apply flex flex-col items-end justify-center gap-1 text-right;
-        min-width: 34px;
+        @apply flex items-center justify-end text-right;
+        min-width: 30px;
       }
 
       .copy-action {
@@ -446,20 +445,16 @@ defineExpose({
         @apply flex items-center justify-center gap-1 text-search-secondary text-xs font-medium opacity-85;
       }
 
-      .source-label {
-        @apply text-xs leading-4 text-search-secondary;
-      }
-
       &:focus-visible {
         @apply outline-none ring-2 ring-blue-400/60;
       }
 
       .icon-wrapper {
         // 统一配置图标大小和默认类型图标的缩放比例
-        --result-icon-size: 24px;
-        --default-type-icon-scale: 1.18;
+        --result-icon-size: 22px;
+        --default-type-icon-scale: 1.14;
 
-        @apply flex items-center justify-center w-9 h-9 flex-shrink-0 rounded-lg;
+        @apply flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-lg;
         background-color: var(--search-card-bg);
         box-shadow: 0 4px 14px rgb(15 23 42 / 8%);
 
@@ -488,7 +483,7 @@ defineExpose({
         }
 
         .text-fallback-icon {
-          @apply flex items-center justify-center w-7 h-7 rounded-md text-xs font-semibold text-blue-700 bg-blue-100 dark:text-blue-100 dark:bg-blue-500/30;
+          @apply flex items-center justify-center w-6 h-6 rounded-md text-xs font-semibold text-blue-700 bg-blue-100 dark:text-blue-100 dark:bg-blue-500/30;
         }
       }
 
