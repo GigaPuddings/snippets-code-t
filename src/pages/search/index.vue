@@ -111,7 +111,6 @@ onUnmounted(() => {
 <template>
   <main ref="searchRef" data-tauri-drag-region class="main">
     <section class="search transparent-input">
-      <Search class="search-leading-icon" theme="outline" size="22" />
       <el-input
         ref="searchInputRef"
         class="input"
@@ -161,12 +160,11 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 :deep(.el-input__wrapper) {
-  background-color: transparent;
+  background-color: var(--search-input-bg);
   box-shadow: none;
-  padding: 0;
 
   &.is-focus {
-    box-shadow: none;
+    box-shadow: 0 0 0 1px var(--categories-text-color-active);
   }
 }
 
@@ -180,26 +178,17 @@ onUnmounted(() => {
 
 .main {
   /* 拖拽手势 */
-  @apply relative bg-search rounded-lg p-0 border-[0.1rem] border-zinc-300 dark:border-black box-border overflow-hidden;
+  @apply relative bg-search rounded-md p-2 border-[0.1rem] border-zinc-300 dark:border-black box-border;
 
   .search {
     @apply flex items-center border-b border-search;
-    height: 64px;
-    padding: 0 16px 0 22px;
 
     .input {
-      @apply rounded-sm mr-2 py-[2px] text-search;
-      font-size: 24px;
-      font-weight: 650;
-      letter-spacing: 0;
-    }
-
-    .search-leading-icon {
-      @apply flex-shrink-0 mr-3 text-search-secondary;
+      @apply rounded-sm mr-2 py-[2px] text-base text-search;
     }
 
     .deep-search-toggle {
-      @apply flex items-center justify-center w-9 h-9 mr-2 rounded-lg text-search-secondary bg-transparent border border-transparent cursor-pointer;
+      @apply flex items-center justify-center w-8 h-8 mr-2 rounded-md text-search-secondary bg-transparent border border-transparent cursor-pointer;
       transition:
         color 0.18s ease,
         background-color 0.18s ease,
@@ -212,7 +201,7 @@ onUnmounted(() => {
     }
 
     .home {
-      @apply p-1 w-9 h-9 rounded-lg opacity-90 hover:opacity-100 cursor-pointer;
+      @apply p-1 w-9 h-9 rounded-md opacity-90 hover:opacity-100 cursor-pointer;
     }
   }
 

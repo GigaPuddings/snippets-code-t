@@ -702,7 +702,7 @@ function formatDateText(value: unknown): string {
 
 <style lang="scss" scoped>
 .preview-panel {
-  @apply bg-search px-4 py-3 h-full min-h-0 flex flex-col border-l border-search overflow-hidden;
+  @apply bg-search rounded-br-lg rounded-bl-lg px-3 py-3 h-full min-h-0 flex flex-col border-l border-search overflow-hidden;
 
   .preview-body {
     @apply relative flex-1 min-h-0 flex flex-col overflow-hidden;
@@ -713,15 +713,15 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-header {
-    @apply flex items-start justify-between gap-3 flex-shrink-0;
+    @apply flex items-start justify-between gap-2 flex-shrink-0;
   }
 
   .quick-tool-title-wrap {
-    @apply flex items-center gap-3 min-w-0;
+    @apply flex items-center gap-2 min-w-0;
   }
 
   .quick-tool-icon {
-    @apply flex items-center justify-center w-10 h-10 flex-shrink-0 rounded-xl border border-search bg-search-hover text-sm font-semibold text-search-secondary overflow-hidden shadow-sm;
+    @apply flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-lg bg-search-hover text-xs font-semibold text-search-secondary overflow-hidden;
 
     img {
       @apply w-full h-full object-contain p-2;
@@ -733,7 +733,7 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-title {
-    @apply text-xl leading-tight font-bold text-search truncate;
+    @apply text-[17px] leading-snug font-semibold text-search truncate;
   }
 
   .quick-tool-subtitle {
@@ -745,12 +745,12 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-icon-button {
-    @apply flex items-center justify-center w-8 h-8 rounded-lg bg-search-hover text-search-secondary border border-search hover:text-search transition-colors;
+    @apply flex items-center justify-center w-8 h-8 rounded-md bg-search-hover text-search-secondary hover:text-search transition-colors;
   }
 
   .quick-tool-answer {
-    @apply mt-3 rounded-xl border border-search bg-search-hover;
-    padding: 14px 16px;
+    @apply mt-3 rounded-lg border border-search bg-search-hover;
+    padding: 12px;
   }
 
   .quick-tool-answer-label {
@@ -762,13 +762,13 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-number {
-    @apply text-search font-bold leading-none;
-    font-size: clamp(28px, 3.5vw, 36px);
+    @apply text-search font-semibold leading-none truncate;
+    font-size: 28px;
     letter-spacing: 0;
   }
 
   .quick-tool-unit {
-    @apply text-base font-bold text-search-secondary;
+    @apply text-sm font-semibold text-search-secondary;
   }
 
   .quick-tool-source {
@@ -780,9 +780,9 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-row {
-    @apply grid grid-cols-[92px_minmax(0,1fr)] items-center bg-search border-b border-search text-xs;
-    min-height: 34px;
-    padding: 0 12px;
+    @apply grid grid-cols-[72px_minmax(0,1fr)] items-center bg-search border-b border-search text-xs;
+    min-height: 30px;
+    padding: 0 10px;
 
     &:last-child {
       @apply border-b-0;
@@ -798,11 +798,11 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-command-strip {
-    @apply mt-3 flex flex-wrap gap-2 flex-shrink-0;
+    @apply mt-2 flex flex-wrap gap-2 flex-shrink-0;
   }
 
   .quick-tool-command {
-    @apply inline-flex items-center gap-2 h-7 px-2.5 rounded-lg border border-search bg-search text-xs font-semibold text-search-secondary hover:text-search hover:bg-search-hover transition-colors;
+    @apply inline-flex items-center gap-2 h-7 px-2.5 rounded-md border border-search bg-search text-xs text-search-secondary hover:text-search hover:bg-search-hover transition-colors;
   }
 
   .quick-tool-key {
@@ -815,11 +815,11 @@ function formatDateText(value: unknown): string {
   }
 
   .preview-header-actions {
-    @apply absolute right-0 top-0 z-10 flex items-center gap-2;
+    @apply absolute right-0 top-0 z-10 flex flex-col items-end gap-2;
   }
 
   .preview-config-button {
-    @apply flex items-center justify-center w-8 h-8 rounded-lg bg-search-hover text-search-secondary border border-search flex-shrink-0 hover:text-search transition-colors;
+    @apply flex items-center justify-center w-8 h-8 rounded-md bg-search-hover text-search-secondary flex-shrink-0 hover:text-search transition-colors;
   }
 
   .special-action-button,
@@ -835,31 +835,33 @@ function formatDateText(value: unknown): string {
   }
 
   .info-header {
-    @apply relative flex items-center gap-3 flex-shrink-0 min-w-0;
-    min-height: 44px;
-    padding-right: 46px;
+    @apply relative flex items-center justify-center flex-col flex-shrink-0 h-40;
 
     .info-icon {
-      @apply w-10 h-10 rounded-xl bg-search-hover border border-search flex items-center justify-center text-sm font-semibold text-search-secondary overflow-hidden shadow-sm flex-shrink-0;
+      @apply w-24 h-24 rounded-xl bg-search-hover flex items-center justify-center text-base font-semibold text-search-secondary overflow-hidden shadow-sm;
 
       img {
         @apply w-full h-full object-contain p-2;
       }
 
       &.file-preview-icon {
-        @apply bg-search-hover border-search shadow-sm text-search-secondary rounded-xl;
+        @apply bg-transparent border border-search shadow-none text-search-secondary rounded-2xl;
       }
     }
 
     .header-meta {
-      @apply flex flex-col gap-1 min-w-0;
+      @apply mt-2 flex flex-col items-center gap-1 min-w-0 w-full px-4;
 
       .title {
-        @apply w-full text-xl leading-tight font-bold text-search overflow-hidden whitespace-nowrap text-ellipsis;
+        @apply w-full text-[17px] leading-snug font-semibold text-search text-center overflow-hidden whitespace-nowrap text-ellipsis;
+        direction: rtl;
+        unicode-bidi: plaintext;
       }
 
       .subtitle {
-        @apply w-full text-xs leading-5 text-search-secondary overflow-hidden whitespace-nowrap text-ellipsis;
+        @apply w-full text-xs leading-5 text-search-secondary text-center overflow-hidden whitespace-nowrap text-ellipsis;
+        direction: rtl;
+        unicode-bidi: plaintext;
       }
     }
   }
@@ -870,26 +872,20 @@ function formatDateText(value: unknown): string {
 
   .special-actions,
   .special-action-list {
-    @apply flex flex-wrap gap-2;
+    @apply grid gap-2 mb-2;
   }
 
   .special-action-button {
-    @apply inline-flex items-center justify-between gap-3 h-8 rounded-lg bg-search text-sm font-semibold text-search-secondary transition-colors hover:bg-search-hover hover:text-search border border-search px-3;
-    max-width: 100%;
-
-    .file-action-text {
-      @apply truncate;
-    }
+    @apply w-full inline-flex items-center justify-between py-2 rounded-xl bg-search-hover text-sm text-search transition-colors hover:bg-search border border-search px-4;
 
     .file-action-shortcut,
     .shortcut {
-      @apply inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded border border-search bg-search-hover;
       @apply text-search-secondary text-xs;
     }
   }
 
   .special-action-button-primary {
-    @apply bg-search text-search border-search hover:bg-search-hover;
+    @apply bg-search-hover text-search border-search hover:bg-search;
 
     .shortcut {
       @apply text-search-secondary;
@@ -912,47 +908,31 @@ function formatDateText(value: unknown): string {
     @apply flex items-start gap-3 min-w-0 pr-9;
   }
 
-  .preview-expanded-header {
-    @apply relative flex items-center justify-between gap-3 flex-shrink-0 mb-4;
-    min-height: 36px;
-  }
-
-  .expanded-title {
-    @apply text-lg font-bold text-search truncate;
-  }
-
   .preview-toggle {
-    @apply absolute right-0 top-0 z-10 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-search-hover text-search-secondary border border-search flex-shrink-0 hover:text-search transition-colors;
+    @apply absolute right-0 top-0 z-10 inline-flex items-center justify-center w-8 h-8 rounded-md bg-search-hover text-search-secondary flex-shrink-0 hover:text-search transition-colors;
   }
 
   .action-panel {
-    @apply flex flex-col gap-3 flex-shrink-0;
-    margin-top: 12px;
+    @apply flex flex-col gap-3;
 
     .info {
-      @apply flex flex-col gap-0;
+      @apply flex flex-col gap-2 mx-4;
     }
 
     .meta-grid {
-      @apply grid gap-0 overflow-hidden rounded-xl border border-search bg-search;
+      @apply flex gap-14;
     }
 
     .meta-row {
-      @apply grid grid-cols-[92px_minmax(0,1fr)] items-center gap-0 min-w-0 border-b border-search;
-      min-height: 34px;
-      padding: 0 12px;
-
-      &:last-child {
-        @apply border-b-0;
-      }
+      @apply flex items-center gap-2 rounded-xl min-w-0;
     }
 
     .meta-label {
-      @apply text-xs text-search-secondary whitespace-nowrap;
+      @apply flex-shrink-0 text-[11px] leading-4 text-search-secondary whitespace-nowrap;
     }
 
     .meta-value {
-      @apply min-w-0 text-xs leading-5 text-search font-semibold truncate;
+      @apply flex-1 min-w-0 text-sm leading-5 text-search truncate;
     }
 
     .meta-row-created {
@@ -964,16 +944,14 @@ function formatDateText(value: unknown): string {
     }
 
     .detail-row {
-      @apply grid grid-cols-[92px_minmax(0,1fr)] items-center min-w-0 border border-search border-t-0 bg-search;
-      min-height: 34px;
-      padding: 0 12px;
+      @apply flex items-center gap-2 rounded-xl min-w-0;
 
       .detail-key {
-        @apply text-xs text-search-secondary whitespace-nowrap;
+        @apply flex-shrink-0 text-[11px] leading-4 text-search-secondary whitespace-nowrap;
       }
 
       .detail-text {
-        @apply min-w-0 text-xs leading-5 text-search font-semibold truncate;
+        @apply flex-1 min-w-0 text-sm leading-5 text-search truncate;
       }
     }
 
@@ -1007,8 +985,7 @@ function formatDateText(value: unknown): string {
   }
 
   .preview-content-area {
-    @apply flex-1 min-h-0 rounded-xl border border-search bg-search-hover p-2 overflow-hidden flex flex-col;
-    margin-top: 2px;
+    @apply flex-1 min-h-0 rounded-lg border border-search bg-search-hover p-2 overflow-hidden flex flex-col;
   }
 
   .preview-shell,
