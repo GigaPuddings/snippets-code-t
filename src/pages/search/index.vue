@@ -178,7 +178,7 @@ onUnmounted(() => {
 
 .main {
   /* 拖拽手势 */
-  @apply relative bg-search rounded-md p-2 border-[0.1rem] border-zinc-300 dark:border-black box-border;
+  @apply relative bg-search rounded-md p-2 border-[0.1rem] border-search box-border;
 
   .search {
     @apply flex items-center border-b border-search;

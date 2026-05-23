@@ -3,57 +3,62 @@
 
 :root {
   // ==================== 基础面板主题变量 ====================
-  --categories-panel-bg: #fff;
-  --categories-panel-bg-rgb: 255, 255, 255;
-  --categories-content-bg: #f8f8f8;
-  --categories-bg-active: #5d6dfd;
-  --categories-bg-tab-active: #409eff1a;
-  --categories-panel-bg-hover: #efefef;
-  --categories-panel-bg-hover-rgb: 239, 239, 239;
-  --categories-text-color: #333;
-  --categories-text-color-rgb: 51, 51, 51;
-  --categories-info-text-color: #666;
+  --categories-panel-bg: #fbfcff;
+  --categories-panel-bg-rgb: 251, 252, 255;
+  --categories-content-bg: #f3f6fb;
+  --categories-bg-active: #5f74f3;
+  --categories-bg-tab-active: #eaf2ff;
+  --categories-panel-bg-hover: #edf4ff;
+  --categories-panel-bg-hover-rgb: 237, 244, 255;
+  --categories-text-color: #111827;
+  --categories-text-color-rgb: 17, 24, 39;
+  --categories-info-text-color: #6b7280;
   --categories-text-color-active: #fff;
-  --categories-border-color: #d8d8d8;
-  --categories-border-color-rgb: 228, 231, 237;
+  --categories-border-color: #d9e2ef;
+  --categories-border-color-rgb: 217, 226, 239;
 
   // ==================== 主色调 ====================
-  --el-color-primary: #5d6dfd !important;
-  --el-color-primary-light-3: #7b88fd;
-  --el-color-primary-dark-2: #4a5cfd;
-  --el-button-hover-bg-color: #4a5bef;
-  --el-button-hover-border-color: #5d6dfd;
+  --el-color-primary: #5f74f3 !important;
+  --el-color-primary-light-3: #7d91f6;
+  --el-color-primary-dark-2: #4d63dd;
+  --el-button-hover-bg-color: #4d63dd;
+  --el-button-hover-border-color: #5f74f3;
 
   // ==================== 搜索窗口主题变量 ====================
-  --search-bg-color: #faf8f8;
-  --search-text-color: #1e1e1e;
-  --search-info-text-color: #8a8a89;
-  --search-border-color: #e1e0e0;
-  --search-input-bg: #f5f7fa;
-  --search-placeholder: #999;
-  --search-result-hover: #f0eeee;
-  --search-border: #e4e7ed;
+  --search-bg-color: #fbfcff;
+  --search-text-color: #111827;
+  --search-info-text-color: #7b8494;
+  --search-border-color: #d9e2ef;
+  --search-input-bg: #fbfcff;
+  --search-placeholder: #7b8494;
+  --search-result-hover: #f3f7ff;
+  --search-result-active: #edf4ff;
+  --search-result-active-border: #c9d8ff;
+  --search-result-accent: #5f74f3;
+  --search-card-bg: #ffffff;
+  --search-soft-bg: #f6f9fe;
+  --search-border: #d9e2ef;
 
   // ==================== 编辑器主题变量 ====================
-  --editor-bg: #ffffff;
-  --editor-border: #e4e7ed;
-  --editor-text: #333333;
-  --editor-text-secondary: #666666;
-  --editor-hover-bg: #f5f7fa;
+  --editor-bg: #fbfcff;
+  --editor-border: #d9e2ef;
+  --editor-text: #111827;
+  --editor-text-secondary: #6b7280;
+  --editor-hover-bg: #f3f7ff;
   --editor-scrollbar-thumb: #c0c4cc;
   --editor-scrollbar-track: #f5f7fa;
 
   // ==================== 状态栏主题变量 ====================
-  --statusbar-bg: #f8f8f8;
-  --statusbar-border: #e4e7ed;
-  --statusbar-text: #666666;
+  --statusbar-bg: #f3f6fb;
+  --statusbar-border: #d9e2ef;
+  --statusbar-text: #6b7280;
 
   // ==================== 弹出层/面板主题变量 ====================
-  --panel-bg: #ffffff;
-  --panel-border: #e4e7ed;
-  --panel-text: #333333;
-  --panel-text-secondary: #666666;
-  --panel-hover-bg: #f5f7fa;
+  --panel-bg: #fbfcff;
+  --panel-border: #d9e2ef;
+  --panel-text: #111827;
+  --panel-text-secondary: #6b7280;
+  --panel-hover-bg: #f3f7ff;
 
   // ==================== OCR 窗口主题变量 ====================
   --ocr-shell-bg: rgb(255 255 255 / 94%);
@@ -97,6 +102,11 @@ html.dark {
   --search-input-bg: #2c2c2c;
   --search-placeholder: #666;
   --search-result-hover: #363636;
+  --search-result-active: #24304a;
+  --search-result-active-border: #5266d9;
+  --search-result-accent: #7d91f6;
+  --search-card-bg: #242424;
+  --search-soft-bg: #292929;
   --search-border: #363636;
 
   // ==================== 编辑器深色主题变量 ====================
