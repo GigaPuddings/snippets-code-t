@@ -6,28 +6,33 @@ type CurrencyCode = 'USD' | 'CNY' | 'EUR' | 'JPY' | 'HKD' | 'GBP';
 const DEFAULT_CURRENCY_TARGET: CurrencyCode = 'CNY';
 const NUMBER_PATTERN = '[\\d.]+|[零〇一二两三四五六七八九十百千万]+';
 
-const CURRENCY_ALIASES: Record<string, CurrencyCode> = {
-  usd: 'USD',
-  dollar: 'USD',
-  dollars: 'USD',
-  美元: 'USD',
-  美金: 'USD',
-  cny: 'CNY',
-  rmb: 'CNY',
-  yuan: 'CNY',
-  人民币: 'CNY',
-  元: 'CNY',
-  eur: 'EUR',
-  euro: 'EUR',
-  欧元: 'EUR',
-  jpy: 'JPY',
-  yen: 'JPY',
-  日元: 'JPY',
-  hkd: 'HKD',
-  港币: 'HKD',
-  gbp: 'GBP',
-  pound: 'GBP',
-  英镑: 'GBP'
+type CurrencyDefinition = {
+  code: CurrencyCode;
+  label: string;
+};
+
+const CURRENCY_ALIASES: Record<string, CurrencyDefinition> = {
+  usd: { code: 'USD', label: '美元' },
+  dollar: { code: 'USD', label: '美元' },
+  dollars: { code: 'USD', label: '美元' },
+  美元: { code: 'USD', label: '美元' },
+  美金: { code: 'USD', label: '美元' },
+  cny: { code: 'CNY', label: '人民币' },
+  rmb: { code: 'CNY', label: '人民币' },
+  yuan: { code: 'CNY', label: '元' },
+  人民币: { code: 'CNY', label: '人民币' },
+  元: { code: 'CNY', label: '元' },
+  eur: { code: 'EUR', label: '欧元' },
+  euro: { code: 'EUR', label: '欧元' },
+  欧元: { code: 'EUR', label: '欧元' },
+  jpy: { code: 'JPY', label: '日元' },
+  yen: { code: 'JPY', label: '日元' },
+  日元: { code: 'JPY', label: '日元' },
+  hkd: { code: 'HKD', label: '港币' },
+  港币: { code: 'HKD', label: '港币' },
+  gbp: { code: 'GBP', label: '英镑' },
+  pound: { code: 'GBP', label: '英镑' },
+  英镑: { code: 'GBP', label: '英镑' }
 };
 
 type UnitDefinition = {
@@ -278,7 +283,7 @@ const convertUnit = (query: string): ContentType | null => {
   );
 };
 
-const resolveCurrency = (value: string): CurrencyCode | null =>
+const resolveCurrency = (value: string): CurrencyDefinition | null =>
   CURRENCY_ALIASES[value.trim().toLowerCase()] ?? CURRENCY_ALIASES[value.trim()] ?? null;
 
 const parseCurrencyConversion = (query: string) => {
@@ -290,7 +295,7 @@ const parseCurrencyConversion = (query: string) => {
     const amount = Number(match[1]);
     const from = resolveCurrency(match[2]);
     const to = resolveCurrency(match[3]);
-    if (Number.isFinite(amount) && from && to && from !== to) {
+    if (Number.isFinite(amount) && from && to && from.code !== to.code) {
       return { amount, from, to };
     }
   }
@@ -298,8 +303,9 @@ const parseCurrencyConversion = (query: string) => {
   if (shortMatch) {
     const amount = Number(shortMatch[1]);
     const from = resolveCurrency(shortMatch[2]);
-    if (!Number.isFinite(amount) || !from || from === DEFAULT_CURRENCY_TARGET) return null;
-    return { amount, from, to: DEFAULT_CURRENCY_TARGET };
+    const to = resolveCurrency(DEFAULT_CURRENCY_TARGET);
+    if (!Number.isFinite(amount) || !from || !to || from.code === to.code) return null;
+    return { amount, from, to };
   }
 
   return null;
@@ -310,7 +316,7 @@ const convertCurrency = async (query: string): Promise<ContentType | null> => {
   if (!conversion) return null;
 
   try {
-    const url = `https://api.frankfurter.dev/v2/rate/${conversion.from}/${conversion.to}`;
+    const url = `https://api.frankfurter.dev/v2/rate/${conversion.from.code}/${conversion.to.code}`;
     const response = await fetch(url);
     if (!response.ok) return null;
     const data = await response.json() as { date?: string; base?: string; quote?: string; rate?: number };
@@ -321,8 +327,8 @@ const convertCurrency = async (query: string): Promise<ContentType | null> => {
     const result = formatNumber(value);
     return createResult(
       'quick-tools-currency',
-      `${formatNumber(conversion.amount)} ${conversion.from} = ${result} ${conversion.to}`,
-      `${result} ${conversion.to}，汇率日期 ${rateDate ?? 'latest'}`,
+      `${formatNumber(conversion.amount)} ${conversion.from.label} = ${result} ${conversion.to.label}`,
+      `${result} ${conversion.to.label}，汇率日期 ${rateDate ?? 'latest'}`,
       query,
       {
         tool: 'currency-converter',
