@@ -17,6 +17,7 @@ interface RankedSearchItem {
 }
 
 const SOURCE_TIE_BREAKER: Record<string, number> = {
+  'quick-tools': 6,
   app: 4,
   file: 3,
   bookmark: 2,
@@ -152,6 +153,8 @@ export const calculateSearchRelevance = (
   const backendScore = getBackendScore(item);
 
   let score = Math.min(backendScore, options.deepSearch ? 200 : 80);
+
+  if (source === 'quick-tools' || item.summarize === 'tool') score += 12000;
 
   if (title === normalizedQuery) score += 10000;
   if (

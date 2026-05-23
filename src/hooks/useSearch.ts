@@ -304,7 +304,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         if (!pluginStore.isEnabled(provider.pluginId)) continue;
 
         try {
-          const sourceResults = await provider.search(query);
+          const sourceResults = await provider.search(text);
           if (!isLatestSearchRequest(requestVersion)) return;
 
           for (const sourceResult of sourceResults) {
@@ -325,7 +325,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
               details: {
                 pluginId: provider.pluginId,
                 source: provider.source,
-                query
+                query: text
               },
               timestamp: new Date()
             },

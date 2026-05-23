@@ -1,7 +1,62 @@
 <template>
   <aside class="preview-panel glass-content">
     <div v-if="item" class="preview-body">
-      <template v-if="!isPreviewVisible">
+      <template v-if="isQuickToolResult">
+        <div class="quick-tool-preview">
+          <div class="quick-tool-header">
+            <div class="quick-tool-title-wrap">
+              <div class="quick-tool-icon">
+                <img v-if="heroIconSrc" :src="heroIconSrc" :alt="quickToolTitle" />
+                <span v-else>{{ heroFallbackText }}</span>
+              </div>
+              <div class="quick-tool-heading">
+                <div class="quick-tool-title">{{ quickToolTitle }}</div>
+                <div class="quick-tool-subtitle">quick-tools 根据当前查询直接生成答案</div>
+              </div>
+            </div>
+            <div class="quick-tool-actions">
+              <button class="quick-tool-icon-button" type="button" title="复制结果" aria-label="复制结果"
+                @click="copyQuickToolResult">
+                <Copy theme="outline" size="15" />
+              </button>
+            </div>
+          </div>
+
+          <div class="quick-tool-answer">
+            <div class="quick-tool-answer-label">转换结果</div>
+            <div class="quick-tool-answer-value">
+              <span class="quick-tool-number">{{ quickToolOutputValue }}</span>
+              <span v-if="quickToolOutputUnit" class="quick-tool-unit">{{ quickToolOutputUnit }}</span>
+            </div>
+            <div class="quick-tool-source">{{ quickToolSourceText }}</div>
+          </div>
+
+          <div class="quick-tool-rows">
+            <div v-for="row in quickToolRows" :key="`${row.label}-${row.value}`" class="quick-tool-row">
+              <span class="quick-tool-row-label">{{ row.label }}</span>
+              <span class="quick-tool-row-value">{{ row.value }}</span>
+            </div>
+          </div>
+
+          <div class="quick-tool-command-strip">
+            <button class="quick-tool-command" type="button" @click="copyQuickToolResult">
+              <span class="quick-tool-key">↵</span>
+              <span>复制结果</span>
+            </button>
+            <button class="quick-tool-command" type="button" @click="copyQuickToolDetails">
+              <span class="quick-tool-key">⌘C</span>
+              <span>复制明细</span>
+            </button>
+          </div>
+
+          <footer class="quick-tool-status">
+            <span>{{ quickToolFooterLeft }}</span>
+            <span>{{ quickToolFooterRight }}</span>
+          </footer>
+        </div>
+      </template>
+
+      <template v-else-if="!isPreviewVisible">
         <!-- 是否预览 -->
         <div v-if="canPreview" class="preview-header-actions">
           <!-- <button v-if="canOpenInConfig" class="preview-config-button" type="button" @click="openInConfig"
@@ -160,7 +215,13 @@ const { t } = useI18n();
 const store = useConfigurationStore();
 const isPreviewVisible = ref(false);
 
+type QuickToolRow = {
+  label: string;
+  value: string;
+};
+
 const isDark = computed(() => store.effectiveDark);
+const itemMetadata = computed<Record<string, unknown>>(() => props.item?.metadata ?? {});
 const displayTitle = computed(() => props.item?.title?.trim() || getFallbackTitle(props.item));
 const displayBookmarkUrl = computed(() => props.item?.content?.trim() || '');
 const displayTypeText = computed(() => {
@@ -296,6 +357,70 @@ const displayContent = computed(() => {
   if (props.item?.summarize === 'file') return desktopPreviewMessage.value || t('searchPreview.noPreviewContent');
   return t('searchPreview.noContent');
 });
+
+const isQuickToolResult = computed(() => {
+  const source = itemMetadata.value.source;
+  return props.item?.summarize === 'tool' && source === 'quick-tools';
+});
+
+const quickToolTitle = computed(() => toDisplayText(itemMetadata.value.toolName) || displayTypeText.value || 'Quick Tool');
+const quickToolOutputValue = computed(() => toDisplayText(itemMetadata.value.outputValue) || normalizedContent.value || displayTitle.value);
+const quickToolOutputUnit = computed(() => toDisplayText(itemMetadata.value.outputUnit));
+const quickToolInput = computed(() => toDisplayText(itemMetadata.value.input) || toDisplayText(itemMetadata.value.query));
+const quickToolProvider = computed(() => toDisplayText(itemMetadata.value.provider));
+const quickToolDate = computed(() => toDisplayText(itemMetadata.value.date));
+const quickToolRows = computed<QuickToolRow[]>(() => {
+  const rows = itemMetadata.value.rows;
+  if (Array.isArray(rows)) {
+    return rows
+      .map((row) => {
+        if (!row || typeof row !== 'object') return null;
+        const sourceRow = row as Record<string, unknown>;
+        const label = toDisplayText(sourceRow.label);
+        const value = toDisplayText(sourceRow.value);
+        return label && value ? { label, value } : null;
+      })
+      .filter((row): row is QuickToolRow => Boolean(row));
+  }
+
+  return [
+    { label: '原始输入', value: quickToolInput.value || displayTitle.value },
+    { label: '工具类型', value: quickToolTitle.value },
+    { label: '展示策略', value: '结果列表显示摘要，右侧展示结构化答案' }
+  ];
+});
+const quickToolSourceText = computed(() => {
+  const parts = [
+    quickToolInput.value,
+    quickToolDate.value ? `日期 ${quickToolDate.value}` : '',
+    quickToolProvider.value ? `数据由 ${quickToolProvider.value} 提供` : '数据由 quick-tools 提供'
+  ].filter(Boolean);
+
+  return parts.join(' · ');
+});
+const quickToolFooterLeft = computed(() => '结果 1 / 1');
+const quickToolFooterRight = computed(() => '已缓存');
+
+const getQuickToolResultText = (): string => {
+  const value = [quickToolOutputValue.value, quickToolOutputUnit.value].filter(Boolean).join(' ');
+  return value || props.item?.content || '';
+};
+
+async function copyQuickToolResult() {
+  const text = getQuickToolResultText();
+  if (!text) return;
+  await navigator.clipboard.writeText(text);
+}
+
+async function copyQuickToolDetails() {
+  const lines = [
+    `${quickToolTitle.value}: ${getQuickToolResultText()}`,
+    quickToolSourceText.value,
+    ...quickToolRows.value.map((row) => `${row.label}: ${row.value}`)
+  ].filter(Boolean);
+
+  await navigator.clipboard.writeText(lines.join('\n'));
+}
 
 const noteHtml = computed(() => {
   if (!props.item || props.item.type !== 'note' || !props.item.content) return '';
@@ -577,18 +702,124 @@ function formatDateText(value: unknown): string {
 
 <style lang="scss" scoped>
 .preview-panel {
-  @apply bg-search rounded-br-lg rounded-bl-lg px-3 py-3 h-full min-h-0 flex flex-col border-l border-search overflow-hidden;
+  @apply bg-search px-5 py-4 h-full min-h-0 flex flex-col border-l border-search overflow-hidden;
 
   .preview-body {
     @apply relative flex-1 min-h-0 flex flex-col overflow-hidden;
   }
 
+  .quick-tool-preview {
+    @apply flex flex-col h-full min-h-0 overflow-hidden;
+  }
+
+  .quick-tool-header {
+    @apply flex items-start justify-between gap-4 flex-shrink-0;
+  }
+
+  .quick-tool-title-wrap {
+    @apply flex items-center gap-3 min-w-0;
+  }
+
+  .quick-tool-icon {
+    @apply flex items-center justify-center w-11 h-11 flex-shrink-0 rounded-xl border border-search bg-search-hover text-sm font-semibold text-search-secondary overflow-hidden shadow-sm;
+
+    img {
+      @apply w-full h-full object-contain p-2;
+    }
+  }
+
+  .quick-tool-heading {
+    @apply min-w-0;
+  }
+
+  .quick-tool-title {
+    @apply text-2xl leading-tight font-bold text-search truncate;
+  }
+
+  .quick-tool-subtitle {
+    @apply mt-1 text-sm leading-5 text-search-secondary truncate;
+  }
+
+  .quick-tool-actions {
+    @apply flex items-center gap-2 flex-shrink-0;
+  }
+
+  .quick-tool-icon-button {
+    @apply flex items-center justify-center w-9 h-9 rounded-lg bg-search-hover text-search-secondary border border-search hover:text-search transition-colors;
+  }
+
+  .quick-tool-answer {
+    @apply mt-4 rounded-xl border border-search bg-search-hover;
+    padding: 18px 20px;
+  }
+
+  .quick-tool-answer-label {
+    @apply text-sm font-semibold text-search-secondary;
+  }
+
+  .quick-tool-answer-value {
+    @apply mt-2 flex items-baseline gap-3 min-w-0;
+  }
+
+  .quick-tool-number {
+    @apply text-search font-bold leading-none;
+    font-size: 40px;
+    letter-spacing: 0;
+  }
+
+  .quick-tool-unit {
+    @apply text-xl font-bold text-search-secondary;
+  }
+
+  .quick-tool-source {
+    @apply mt-3 text-sm text-search-secondary truncate;
+  }
+
+  .quick-tool-rows {
+    @apply mt-4 overflow-hidden rounded-xl border border-search flex-shrink-0;
+  }
+
+  .quick-tool-row {
+    @apply grid grid-cols-[122px_minmax(0,1fr)] items-center bg-search border-b border-search text-sm;
+    min-height: 40px;
+    padding: 0 14px;
+
+    &:last-child {
+      @apply border-b-0;
+    }
+  }
+
+  .quick-tool-row-label {
+    @apply text-search-secondary;
+  }
+
+  .quick-tool-row-value {
+    @apply text-search font-semibold truncate;
+  }
+
+  .quick-tool-command-strip {
+    @apply mt-4 flex flex-wrap gap-2 flex-shrink-0;
+  }
+
+  .quick-tool-command {
+    @apply inline-flex items-center gap-2 h-8 px-3 rounded-lg border border-search bg-search text-sm font-semibold text-search-secondary hover:text-search hover:bg-search-hover transition-colors;
+  }
+
+  .quick-tool-key {
+    @apply inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded border border-search bg-search-hover text-xs text-search-secondary;
+  }
+
+  .quick-tool-status {
+    @apply mt-auto flex items-center justify-between border-t border-search text-sm text-search-secondary flex-shrink-0;
+    padding-top: 9px;
+  }
+
   .preview-header-actions {
-    @apply absolute right-0 top-0 z-10 flex flex-col items-end gap-2;
+    @apply absolute right-0 top-0 z-10 flex items-center gap-2;
   }
 
   .preview-config-button {
-    @apply flex items-center justify-center w-8 h-8 rounded-md bg-search-hover text-search-secondary flex-shrink-0 hover:text-search transition-colors;
+    @apply flex items-center justify-center w-9 h-9 rounded-lg bg-search-hover text-search-secondary border border-search flex-shrink-0 hover:text-search transition-colors;
   }
 
   .special-action-button,
@@ -604,33 +835,31 @@ function formatDateText(value: unknown): string {
   }
 
   .info-header {
-    @apply relative flex items-center justify-center flex-col flex-shrink-0 h-40;
+    @apply relative flex items-center gap-3 flex-shrink-0 min-w-0;
+    min-height: 44px;
+    padding-right: 46px;
 
     .info-icon {
-      @apply w-24 h-24 rounded-xl bg-search-hover flex items-center justify-center text-base font-semibold text-search-secondary overflow-hidden shadow-sm;
+      @apply w-11 h-11 rounded-xl bg-search-hover border border-search flex items-center justify-center text-sm font-semibold text-search-secondary overflow-hidden shadow-sm flex-shrink-0;
 
       img {
         @apply w-full h-full object-contain p-2;
       }
 
       &.file-preview-icon {
-        @apply bg-transparent border border-search shadow-none text-search-secondary rounded-2xl;
+        @apply bg-search-hover border-search shadow-sm text-search-secondary rounded-xl;
       }
     }
 
     .header-meta {
-      @apply mt-2 flex flex-col items-center gap-1 min-w-0 w-full px-4;
+      @apply flex flex-col gap-1 min-w-0;
 
       .title {
-        @apply w-full text-[17px] leading-snug font-semibold text-search text-center overflow-hidden whitespace-nowrap text-ellipsis;
-        direction: rtl;
-        unicode-bidi: plaintext;
+        @apply w-full text-2xl leading-tight font-bold text-search overflow-hidden whitespace-nowrap text-ellipsis;
       }
 
       .subtitle {
-        @apply w-full text-xs leading-5 text-search-secondary text-center overflow-hidden whitespace-nowrap text-ellipsis;
-        direction: rtl;
-        unicode-bidi: plaintext;
+        @apply w-full text-sm leading-5 text-search-secondary overflow-hidden whitespace-nowrap text-ellipsis;
       }
     }
   }
@@ -641,19 +870,26 @@ function formatDateText(value: unknown): string {
 
   .special-actions,
   .special-action-list {
-    @apply grid gap-2 mb-2;
+    @apply flex flex-wrap gap-2;
   }
 
   .special-action-button {
-    @apply w-full inline-flex items-center justify-between py-2 rounded-xl bg-search-hover text-sm text-search transition-colors hover:bg-search border border-search px-4;
+    @apply inline-flex items-center justify-between gap-3 h-8 rounded-lg bg-search text-sm font-semibold text-search-secondary transition-colors hover:bg-search-hover hover:text-search border border-search px-3;
+    max-width: 100%;
 
+    .file-action-text {
+      @apply truncate;
+    }
+
+    .file-action-shortcut,
     .shortcut {
+      @apply inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded border border-search bg-search-hover;
       @apply text-search-secondary text-xs;
     }
   }
 
   .special-action-button-primary {
-    @apply bg-search-hover text-search border-search hover:bg-search;
+    @apply bg-search text-search border-search hover:bg-search-hover;
 
     .shortcut {
       @apply text-search-secondary;
@@ -676,31 +912,47 @@ function formatDateText(value: unknown): string {
     @apply flex items-start gap-3 min-w-0 pr-9;
   }
 
+  .preview-expanded-header {
+    @apply relative flex items-center justify-between gap-3 flex-shrink-0 mb-4;
+    min-height: 36px;
+  }
+
+  .expanded-title {
+    @apply text-lg font-bold text-search truncate;
+  }
+
   .preview-toggle {
-    @apply absolute right-0 top-0 z-10 inline-flex items-center justify-center w-8 h-8 rounded-md bg-search-hover text-search-secondary flex-shrink-0 hover:text-search transition-colors;
+    @apply absolute right-0 top-0 z-10 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-search-hover text-search-secondary border border-search flex-shrink-0 hover:text-search transition-colors;
   }
 
   .action-panel {
-    @apply flex flex-col gap-3;
+    @apply flex flex-col gap-3 flex-shrink-0;
+    margin-top: 16px;
 
     .info {
-      @apply flex flex-col gap-2 mx-4;
+      @apply flex flex-col gap-0;
     }
 
     .meta-grid {
-      @apply flex gap-14;
+      @apply grid gap-0 overflow-hidden rounded-xl border border-search bg-search;
     }
 
     .meta-row {
-      @apply flex items-center gap-2 rounded-xl min-w-0;
+      @apply grid grid-cols-[122px_minmax(0,1fr)] items-center gap-0 min-w-0 border-b border-search;
+      min-height: 40px;
+      padding: 0 14px;
+
+      &:last-child {
+        @apply border-b-0;
+      }
     }
 
     .meta-label {
-      @apply flex-shrink-0 text-[11px] leading-4 text-search-secondary whitespace-nowrap;
+      @apply text-sm text-search-secondary whitespace-nowrap;
     }
 
     .meta-value {
-      @apply flex-1 min-w-0 text-sm leading-5 text-search truncate;
+      @apply min-w-0 text-sm leading-5 text-search font-semibold truncate;
     }
 
     .meta-row-created {
@@ -712,14 +964,16 @@ function formatDateText(value: unknown): string {
     }
 
     .detail-row {
-      @apply flex items-center gap-2 rounded-xl min-w-0;
+      @apply grid grid-cols-[122px_minmax(0,1fr)] items-center min-w-0 border border-search border-t-0 bg-search;
+      min-height: 40px;
+      padding: 0 14px;
 
       .detail-key {
-        @apply flex-shrink-0 text-[11px] leading-4 text-search-secondary whitespace-nowrap;
+        @apply text-sm text-search-secondary whitespace-nowrap;
       }
 
       .detail-text {
-        @apply flex-1 min-w-0 text-sm leading-5 text-search truncate;
+        @apply min-w-0 text-sm leading-5 text-search font-semibold truncate;
       }
     }
 
@@ -753,7 +1007,7 @@ function formatDateText(value: unknown): string {
   }
 
   .preview-content-area {
-    @apply flex-1 min-h-0 rounded-lg border border-search bg-search-hover p-2 overflow-hidden flex flex-col;
+    @apply flex-1 min-h-0 rounded-xl border border-search bg-search-hover p-2 overflow-hidden flex flex-col;
   }
 
   .preview-shell,

@@ -189,6 +189,7 @@ const createResult = (
   metadata: {
     source: 'quick-tools',
     query,
+    action: 'copy-result',
     ...extra
   }
 });
@@ -221,7 +222,16 @@ const evaluateMath = (query: string): ContentType | null => {
     if (typeof value !== 'number' || !Number.isFinite(value)) return null;
     const formatted = formatNumber(value);
     return createResult('quick-tools-calc', `${expression} = ${formatted}`, formatted, query, {
-      tool: 'calculator'
+      tool: 'calculator',
+      toolName: '计算器',
+      input: expression,
+      outputValue: formatted,
+      outputUnit: '',
+      rows: [
+        { label: '原始输入', value: query },
+        { label: '表达式', value: expression },
+        { label: '展示策略', value: '结果列表显示摘要，右侧展示结构化答案' }
+      ]
     });
   } catch {
     return null;
@@ -279,7 +289,18 @@ const convertUnit = (query: string): ContentType | null => {
     `${formatNumber(conversion.amount)} ${conversion.fromLabel} = ${result} ${conversion.toLabel}`,
     `${result} ${conversion.toLabel}`,
     query,
-    { tool: 'unit-converter' }
+    {
+      tool: 'unit-converter',
+      toolName: '单位转换',
+      input: `${formatNumber(conversion.amount)} ${conversion.fromLabel}`,
+      outputValue: result,
+      outputUnit: conversion.toLabel,
+      rows: [
+        { label: '原始输入', value: query },
+        { label: '识别单位', value: `${conversion.fromLabel} → ${conversion.toLabel}` },
+        { label: '展示策略', value: '结果列表显示摘要，右侧展示结构化答案' }
+      ]
+    }
   );
 };
 
@@ -327,13 +348,24 @@ const convertCurrency = async (query: string): Promise<ContentType | null> => {
     const result = formatNumber(value);
     return createResult(
       'quick-tools-currency',
-      `${formatNumber(conversion.amount)} ${conversion.from.label} = ${result} ${conversion.to.label}`,
-      `${result} ${conversion.to.label}，汇率日期 ${rateDate ?? 'latest'}`,
+      `${formatNumber(conversion.amount)} ${conversion.from.code} = ${result} ${conversion.to.code}`,
+      `${result} ${conversion.to.code}，汇率日期 ${rateDate ?? 'latest'}`,
       query,
       {
         tool: 'currency-converter',
+        toolName: '汇率转换',
+        input: `${formatNumber(conversion.amount)} ${conversion.from.label}`,
+        outputValue: result,
+        outputUnit: conversion.to.code,
+        fromCode: conversion.from.code,
+        toCode: conversion.to.code,
         date: rateDate,
-        provider: 'Frankfurter'
+        provider: 'Frankfurter',
+        rows: [
+          { label: '原始输入', value: query },
+          { label: '识别币种', value: `${conversion.from.code} → ${conversion.to.code}` },
+          { label: '展示策略', value: '结果列表显示摘要，右侧展示结构化答案' }
+        ]
       }
     );
   } catch {

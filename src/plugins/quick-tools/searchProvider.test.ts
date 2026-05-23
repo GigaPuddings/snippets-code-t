@@ -2,9 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { quickToolsSearchProvider } from './searchProvider';
 
-const searchTitle = async (query: string) => {
+const searchFirstItem = async (query: string) => {
   const [source] = await quickToolsSearchProvider.search(query);
-  return source.items[0]?.title;
+  return source.items[0];
+};
+
+const searchTitle = async (query: string) => {
+  return (await searchFirstItem(query))?.title;
 };
 
 afterEach(() => {
@@ -30,6 +34,14 @@ describe('quickToolsSearchProvider', () => {
       }
     })));
 
-    await expect(searchTitle('1元=欧元')).resolves.toBe('1 元 = 1.23 欧元');
+    const item = await searchFirstItem('1元=欧元');
+    expect(item?.title).toBe('1 CNY = 1.23 EUR');
+    expect(item?.metadata).toMatchObject({
+      source: 'quick-tools',
+      tool: 'currency-converter',
+      toolName: '汇率转换',
+      outputValue: '1.23',
+      outputUnit: 'EUR'
+    });
   });
 });

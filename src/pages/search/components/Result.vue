@@ -22,7 +22,7 @@
       <div v-if="results.length" class="result-container">
         <section class="result-pane">
           <ResultList ref="resultListRef" :results="results" :search-query="searchQuery"
-            :on-clear-search="onClearSearch" :item-size="58" @back-to-search="emit('backToSearch')"
+            :on-clear-search="onClearSearch" :item-size="76" @back-to-search="emit('backToSearch')"
             @selection-change="handleSelectionChange" @tab-change="handleTabChange"
             @primary-action="handlePrimaryAction" />
         </section>
@@ -108,7 +108,7 @@ defineExpose({
 <style lang="scss" scoped>
 .result-layout {
   @apply flex flex-col min-h-0;
-  height: 404px;
+  height: 536px;
   transition: height 0.18s ease, min-height 0.18s ease, opacity 0.18s ease;
 
   &.empty {
@@ -134,10 +134,11 @@ defineExpose({
 
 // 7px
 .top-bar {
-  @apply flex items-center justify-between px-3 py-[0.4375rem] rounded-tl-lg rounded-tr-lg border-b border-search flex-shrink-0;
+  @apply flex items-center justify-between px-5 py-3 rounded-none border-b border-search flex-shrink-0;
+  min-height: 56px;
 
   .tabs-group {
-    @apply flex items-center gap-2 min-w-0 overflow-x-auto overflow-y-hidden flex-nowrap;
+    @apply flex items-center gap-1.5 min-w-0 overflow-x-auto overflow-y-hidden flex-nowrap;
     scrollbar-width: none;
 
     &::-webkit-scrollbar {
@@ -150,11 +151,11 @@ defineExpose({
   }
 
   .result-count {
-    @apply text-xs text-search-secondary whitespace-nowrap;
+    @apply text-sm text-search-secondary whitespace-nowrap;
   }
 
   .tab {
-    @apply inline-flex items-center gap-2 px-3 py-1.5 text-sm text-search-secondary cursor-pointer rounded-md bg-transparent border border-transparent whitespace-nowrap flex-none;
+    @apply inline-flex items-center gap-2 px-4 py-1.5 text-base text-search-secondary cursor-pointer rounded-lg bg-transparent border border-transparent whitespace-nowrap flex-none;
 
     .tab-count {
       @apply text-[11px] px-1.5 py-0.5 rounded bg-search text-search-secondary;
@@ -162,7 +163,7 @@ defineExpose({
     }
 
     &.active {
-      @apply bg-search-hover text-search border-search;
+      @apply bg-search text-search border-search shadow-sm;
 
       .tab-count {
         @apply bg-search text-search;
@@ -176,10 +177,10 @@ defineExpose({
   }
 
   .return-hint {
-    @apply flex items-center gap-1 text-xs cursor-pointer bg-transparent border-0 p-0;
+    @apply flex items-center gap-2 text-sm cursor-pointer bg-transparent border-0 p-0 text-search-secondary;
 
     .hint-key {
-      @apply px-1.5 py-0.5 rounded font-medium border;
+      @apply px-2.5 py-1 rounded-md font-semibold border bg-search text-search shadow-sm;
     }
 
     .hint-text {
@@ -191,13 +192,17 @@ defineExpose({
 .result-container {
   @apply flex gap-0 min-h-0 flex-1 overflow-hidden;
 
-  .result-pane,
-  .preview-pane {
-    @apply w-1/2 min-h-0;
-  }
-
   .result-pane {
     @apply overflow-hidden;
+    width: 50%;
+    min-width: 510px;
+    max-width: 520px;
+  }
+
+  .preview-pane {
+    @apply min-h-0;
+    flex: 1;
+    min-width: 0;
   }
 }
 </style>

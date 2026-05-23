@@ -1,4 +1,4 @@
-const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]+", p = {
+const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]+", p = {
   usd: { code: "USD", label: "美元" },
   dollar: { code: "USD", label: "美元" },
   dollars: { code: "USD", label: "美元" },
@@ -80,7 +80,7 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   亩: { base: "m2", factor: 666.6666666667, label: "亩", defaultTarget: "平方米" },
   公顷: { base: "m2", factor: 1e4, label: "公顷", defaultTarget: "平方米" },
   ha: { base: "m2", factor: 1e4, label: "公顷", defaultTarget: "平方米" }
-}, h = (a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), g = Object.keys(d).sort((a, e) => e.length - a.length).map(h).join("|"), S = {
+}, M = (a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), g = Object.keys(d).sort((a, e) => e.length - a.length).map(M).join("|"), v = {
   零: 0,
   "〇": 0,
   一: 1,
@@ -93,7 +93,7 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   七: 7,
   八: 8,
   九: 9
-}, v = {
+}, P = {
   十: 10,
   百: 100,
   千: 1e3,
@@ -101,11 +101,11 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
 }, s = (a) => Number.isInteger(a) ? String(a) : a.toLocaleString("zh-CN", { maximumFractionDigits: 12 }), C = (a) => {
   let e = 0, t = 0, l = 0;
   for (const r of a) {
-    if (r in S) {
-      l = S[r];
+    if (r in v) {
+      l = v[r];
       continue;
     }
-    const o = v[r];
+    const o = P[r];
     if (!o) return null;
     if (o === 1e4) {
       t = (t + l) * o, e += t, t = 0, l = 0;
@@ -114,7 +114,7 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     t += (l || 1) * o, l = 0;
   }
   return e + t + l;
-}, k = (a) => /^[\d.]+$/.test(a) ? Number(a) : C(a) ?? Number.NaN, f = (a) => d[a.trim()] ?? d[a.trim().toLowerCase()], I = (a, e, t, l, r = {}) => ({
+}, S = (a) => /^[\d.]+$/.test(a) ? Number(a) : C(a) ?? Number.NaN, f = (a) => d[a.trim()] ?? d[a.trim().toLowerCase()], I = (a, e, t, l, r = {}) => ({
   id: a,
   title: e,
   content: t,
@@ -123,20 +123,30 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   metadata: {
     source: "quick-tools",
     query: l,
+    action: "copy-result",
     ...r
   }
-}), x = (a) => {
+}), h = (a) => {
   const e = a.trim().replace(/（/g, "(").replace(/）/g, ")").replace(/×/g, "*").replace(/÷/g, "/").replace(/＝/g, "=").replace(/^calc(?:ulate)?\s*/i, "").replace(/^计算\s*/, "").replace(/=$/, "").trim();
   return !/[0-9]/.test(e) || !/^[\d+\-*/%().\s]+$/.test(e) || !/[+\-*/%]/.test(e) ? null : e;
-}, $ = (a) => {
-  const e = x(a);
+}, x = (a) => {
+  const e = h(a);
   if (!e) return null;
   try {
     const t = Function(`"use strict"; return (${e})`)();
     if (typeof t != "number" || !Number.isFinite(t)) return null;
     const l = s(t);
     return I("quick-tools-calc", `${e} = ${l}`, l, a, {
-      tool: "calculator"
+      tool: "calculator",
+      toolName: "计算器",
+      input: e,
+      outputValue: l,
+      outputUnit: "",
+      rows: [
+        { label: "原始输入", value: a },
+        { label: "表达式", value: e },
+        { label: "展示策略", value: "结果列表显示摘要，右侧展示结构化答案" }
+      ]
     });
   } catch {
     return null;
@@ -149,26 +159,26 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     )
   ), l = e.match(new RegExp(`^(${T})\\s*(${g})$`, "i"));
   if (t) {
-    const i = k(t[1]), u = f(t[2]), b = f(t[3]);
-    if (Number.isFinite(i) && u && b && u.base === b.base) {
-      const N = i * u.factor / b.factor;
+    const i = S(t[1]), n = f(t[2]), b = f(t[3]);
+    if (Number.isFinite(i) && n && b && n.base === b.base) {
+      const $ = i * n.factor / b.factor;
       return {
         amount: i,
-        fromLabel: u.label,
+        fromLabel: n.label,
         toLabel: b.label,
-        value: N
+        value: $
       };
     }
   }
   if (!l) return null;
-  const r = k(l[1]), o = f(l[2]), c = o?.defaultTarget ? f(o.defaultTarget) : void 0;
+  const r = S(l[1]), o = f(l[2]), c = o?.defaultTarget ? f(o.defaultTarget) : void 0;
   if (!Number.isFinite(r) || !o || !c || o.base !== c.base) return null;
-  const n = r * o.factor / c.factor;
+  const u = r * o.factor / c.factor;
   return {
     amount: r,
     fromLabel: o.label,
     toLabel: c.label,
-    value: n
+    value: u
   };
 }, j = (a) => {
   const e = E(a);
@@ -179,7 +189,18 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     `${s(e.amount)} ${e.fromLabel} = ${t} ${e.toLabel}`,
     `${t} ${e.toLabel}`,
     a,
-    { tool: "unit-converter" }
+    {
+      tool: "unit-converter",
+      toolName: "单位转换",
+      input: `${s(e.amount)} ${e.fromLabel}`,
+      outputValue: t,
+      outputUnit: e.toLabel,
+      rows: [
+        { label: "原始输入", value: a },
+        { label: "识别单位", value: `${e.fromLabel} → ${e.toLabel}` },
+        { label: "展示策略", value: "结果列表显示摘要，右侧展示结构化答案" }
+      ]
+    }
   );
 }, m = (a) => p[a.trim().toLowerCase()] ?? p[a.trim()] ?? null, y = (a) => {
   const e = a.trim(), t = e.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i), l = e.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
@@ -189,11 +210,11 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
       return { amount: r, from: o, to: c };
   }
   if (l) {
-    const r = Number(l[1]), o = m(l[2]), c = m(P);
+    const r = Number(l[1]), o = m(l[2]), c = m(k);
     return !Number.isFinite(r) || !o || !c || o.code === c.code ? null : { amount: r, from: o, to: c };
   }
   return null;
-}, H = async (a) => {
+}, L = async (a) => {
   const e = y(a);
   if (!e) return null;
   try {
@@ -201,30 +222,41 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     if (!l.ok) return null;
     const r = await l.json(), o = typeof r.rate == "number" ? r.rate * e.amount : void 0;
     if (typeof o != "number") return null;
-    const c = r.date, n = s(o);
+    const c = r.date, u = s(o);
     return I(
       "quick-tools-currency",
-      `${s(e.amount)} ${e.from.label} = ${n} ${e.to.label}`,
-      `${n} ${e.to.label}，汇率日期 ${c ?? "latest"}`,
+      `${s(e.amount)} ${e.from.code} = ${u} ${e.to.code}`,
+      `${u} ${e.to.code}，汇率日期 ${c ?? "latest"}`,
       a,
       {
         tool: "currency-converter",
+        toolName: "汇率转换",
+        input: `${s(e.amount)} ${e.from.label}`,
+        outputValue: u,
+        outputUnit: e.to.code,
+        fromCode: e.from.code,
+        toCode: e.to.code,
         date: c,
-        provider: "Frankfurter"
+        provider: "Frankfurter",
+        rows: [
+          { label: "原始输入", value: a },
+          { label: "识别币种", value: `${e.from.code} → ${e.to.code}` },
+          { label: "展示策略", value: "结果列表显示摘要，右侧展示结构化答案" }
+        ]
       }
     );
   } catch {
     return null;
   }
-}, M = {
+}, N = {
   pluginId: "quick-tools",
   source: "quick-tools",
   async search(a) {
     const e = [], t = j(a);
     t && e.push(t);
-    const l = $(a);
+    const l = x(a);
     l && e.push(l);
-    const r = await H(a);
+    const r = await L(a);
     return r && e.push(r), [
       {
         source: "quick-tools",
@@ -233,13 +265,13 @@ const P = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     ];
   }
 };
-function D(a) {
+function U(a) {
   a.registerSearchProvider({
-    source: M.source,
-    search: (e) => M.search(e)
+    source: N.source,
+    search: (e) => N.search(e)
   });
 }
 export {
-  D as activate,
-  D as default
+  U as activate,
+  U as default
 };

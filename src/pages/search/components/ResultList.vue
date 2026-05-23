@@ -6,7 +6,11 @@
         <p class="empty-text">{{ t('search.suggestRelax') }}</p>
       </div>
     </div>
-    <RecycleScroller v-else ref="scrollerRef" class="result" :key="activeTab" :items="filteredResults" :item-size="itemSize"
+    <div v-if="hasVisibleResults" class="result-section-header">
+      <span>Best Match</span>
+      <span>Enter 执行</span>
+    </div>
+    <RecycleScroller v-if="hasVisibleResults" ref="scrollerRef" class="result" :key="activeTab" :items="filteredResults" :item-size="itemSize"
       :buffer="itemSize" key-field="__rowKey" @update="handleScrollerUpdate" v-slot="{ item, index }">
       <div class="item" :class="{ active: item.id === store.id }" @click="handleItemClick(item)"
         @dblclick="handleItemDoubleClick(item)">
@@ -290,7 +294,8 @@ defineExpose({
   // --result-row-height: 51.33px;
   // --result-visible-rows: 6;
 
-  @apply bg-search px-1 rounded-bl-lg relative h-full min-h-0 flex flex-col overflow-hidden;
+  @apply bg-search relative h-full min-h-0 flex flex-col overflow-hidden;
+  padding: 12px 9px 14px 18px;
 
   .empty-state {
     @apply flex-1 min-h-0 flex items-center justify-center overflow-y-auto p-4;
@@ -310,6 +315,16 @@ defineExpose({
 
   &.has-results {
     @apply overflow-hidden;
+  }
+
+  .result-section-header {
+    @apply flex items-center justify-between flex-shrink-0;
+    padding: 0 9px 8px 1px;
+    color: var(--search-info-text-color);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   .tabs {
@@ -356,7 +371,7 @@ defineExpose({
   }
 
   .result {
-    @apply min-h-0 mt-2 overflow-y-auto;
+    @apply min-h-0 overflow-y-auto;
     height: 100%;
     max-height: 100%;
 
@@ -365,15 +380,25 @@ defineExpose({
     }
 
     .item {
-      @apply grid grid-cols-[32px_minmax(0,1fr)_auto] items-start gap-3 text-search px-2 py-[6px] box-border rounded-lg cursor-pointer relative min-w-0;
+      @apply grid grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-3 text-search box-border rounded-xl cursor-pointer relative min-w-0 border border-transparent;
+      height: 70px;
+      margin: 3px 0;
+      padding: 9px 12px 9px 11px;
+      transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
 
       &:hover,
       &.active {
         @apply bg-search-hover;
+        border-color: color-mix(in srgb, var(--categories-bg-active) 20%, var(--search-border-color));
+        box-shadow: inset 3px 0 0 color-mix(in srgb, var(--categories-bg-active) 72%, transparent);
       }
 
       .item-actions {
-        @apply flex items-center gap-2 pt-1;
+        @apply flex flex-col items-end justify-center gap-2;
+        min-width: 40px;
       }
 
       .copy-action {
@@ -410,7 +435,7 @@ defineExpose({
         --result-icon-size: 24px;
         --default-type-icon-scale: 1.18;
 
-        @apply flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-lg bg-search-hover;
+        @apply flex items-center justify-center w-10 h-10 flex-shrink-0 rounded-xl bg-search border border-search shadow-sm;
 
         .icon {
           width: var(--result-icon-size);
@@ -437,7 +462,7 @@ defineExpose({
         }
 
         .text-fallback-icon {
-          @apply flex items-center justify-center w-6 h-6 rounded-md text-xs font-semibold text-blue-700 bg-blue-100 dark:text-blue-100 dark:bg-blue-500/30;
+          @apply flex items-center justify-center w-7 h-7 rounded-md text-xs font-semibold text-blue-700 bg-blue-100 dark:text-blue-100 dark:bg-blue-500/30;
         }
       }
 
@@ -448,7 +473,7 @@ defineExpose({
           @apply flex items-center gap-2 min-w-0;
 
           .title {
-            @apply min-w-0 text-sm truncate font-sans text-search flex-1;
+            @apply min-w-0 text-base truncate font-sans text-search flex-1 font-semibold;
 
             :deep(.highlight) {
               @apply text-blue-600 dark:text-blue-300 font-semibold bg-blue-100 dark:bg-blue-500/20 rounded-sm px-0.5;
@@ -461,7 +486,7 @@ defineExpose({
         }
 
         .text {
-          @apply mt-0.5 text-xs truncate text-search-secondary;
+          @apply mt-1 text-sm truncate text-search-secondary;
 
           :deep(.highlight) {
             @apply text-blue-600 dark:text-blue-300 font-semibold bg-blue-100 dark:bg-blue-500/20 rounded-sm px-0.5;
