@@ -184,12 +184,12 @@ onUnmounted(() => {
 
   .search {
     @apply flex items-center border-b border-search;
-    min-height: 68px;
-    padding: 0 18px 0 24px;
+    height: 64px;
+    padding: 0 16px 0 22px;
 
     .input {
       @apply rounded-sm mr-2 py-[2px] text-search;
-      font-size: 26px;
+      font-size: 24px;
       font-weight: 650;
       letter-spacing: 0;
     }
