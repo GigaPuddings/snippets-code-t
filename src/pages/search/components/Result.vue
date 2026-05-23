@@ -60,9 +60,11 @@ const activeTab = ref<SummarizeType>('text');
 const selectedItem = ref<ContentType | null>(null);
 const {
   tabs: resultTabs,
-  getTabCount
+  getTabCount,
+  getTabResults
 } = useSearchResultTabs(() => props.results, t);
 const activeTabCount = computed(() => getTabCount(activeTab.value));
+const activeTabResults = computed(() => getTabResults(activeTab.value));
 
 watch(resultTabs, (tabs) => {
   if (!tabs.some((tab) => tab.value === activeTab.value)) {
@@ -86,12 +88,25 @@ function handleSelectionChange(item: ContentType | null) {
   selectedItem.value = item;
 }
 
-watch(() => props.results, (results) => {
+const ensurePreviewSelection = () => {
+  const results = props.results;
   if (results.length === 0) {
     selectedItem.value = null;
     activeTab.value = 'text';
+    return;
   }
-});
+
+  const tabResults = activeTabResults.value;
+  const selectedId = selectedItem.value?.id;
+  if (selectedId != null && tabResults.some((item) => item.id === selectedId)) {
+    return;
+  }
+
+  selectedItem.value = tabResults[0] ?? results[0] ?? null;
+};
+
+watch(() => props.results, ensurePreviewSelection, { immediate: true });
+watch(activeTab, ensurePreviewSelection);
 
 async function handlePrimaryAction(item: ContentType) {
   await resultListRef.value?.runPrimaryAction(item);

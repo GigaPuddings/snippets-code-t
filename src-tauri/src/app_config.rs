@@ -773,6 +773,9 @@ fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String
                 4,
                 &format!("共 {} 个应用", apps.len()),
             );
+            if let Err(e) = crate::db::clear_apps() {
+                warn!("[Plugin] 清理旧本地应用索引失败: {}", e);
+            }
             if let Err(e) = crate::db::insert_apps(&apps) {
                 warn!("[Plugin] 保存本地应用索引失败: {}", e);
             }
@@ -786,6 +789,9 @@ fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String
                 4,
                 &format!("共 {} 个书签", bookmarks.len()),
             );
+            if let Err(e) = crate::db::clear_bookmarks() {
+                warn!("[Plugin] 清理旧浏览器书签索引失败: {}", e);
+            }
             if let Err(e) = crate::db::insert_bookmarks(&bookmarks) {
                 warn!("[Plugin] 保存浏览器书签索引失败: {}", e);
             }

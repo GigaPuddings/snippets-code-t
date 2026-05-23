@@ -8,7 +8,7 @@
     </div>
     <RecycleScroller v-else ref="scrollerRef" class="result" :key="activeTab" :items="filteredResults" :item-size="itemSize"
       :buffer="itemSize" key-field="__rowKey" @update="handleScrollerUpdate" v-slot="{ item, index }">
-      <div class="item" :class="{ active: item.id === store.id }" @click="handleItemClick(item)"
+      <div class="item" :class="{ active: item.id === activeItemId }" @click="handleItemClick(item)"
         @dblclick="handleItemDoubleClick(item)">
         <!-- 图标，用于显示结果的图标 -->
         <div class="icon-wrapper">
@@ -100,6 +100,7 @@ const {
   activeTab,
   currentTabIndex,
   filteredResults,
+  selectedItemId,
   switchTab: setActiveTab,
   selectItemById,
   ensureValidTab,
@@ -130,6 +131,8 @@ const {
   copySuccessMessage: t('searchResult.copySuccess'),
   copyFailedMessage: t('searchResult.copyFailed')
 });
+
+const activeItemId = computed(() => selectedItemId.value ?? store.id);
 
 const emitSelectionChangeById = (id: string | number) => {
   emit('selectionChange', selectItemById(id));

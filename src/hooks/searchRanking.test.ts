@@ -100,6 +100,57 @@ describe('searchRanking', () => {
     expect(ranked[0].metadata?.history_usage_count).toBe(20);
   });
 
+  it('deduplicates repeated local launcher rows by path and URL', () => {
+    const duplicatedApp = createItem({
+      id: 'old-app-row',
+      title: 'Windows App Cert Kit',
+      content: 'C:\\Program Files (x86)\\Windows Kits\\10\\AppCertKit.exe',
+      summarize: 'app',
+      metadata: { source: 'app', raw_id: 'old-app-row' }
+    });
+    const usedDuplicatedApp = createItem({
+      id: 'new-app-row',
+      title: 'Windows App Cert Kit',
+      content: 'c:/program files (x86)/windows kits/10/AppCertKit.exe',
+      summarize: 'app',
+      metadata: { source: 'app', raw_id: 'new-app-row' }
+    });
+    const duplicatedBookmark = createItem({
+      id: 'bookmark-1',
+      title: 'App Store 价格查询',
+      content: 'https://app.vbr.me/',
+      summarize: 'bookmark',
+      metadata: { source: 'bookmark', raw_id: 'bookmark-1' }
+    });
+    const sameBookmark = createItem({
+      id: 'bookmark-2',
+      title: 'App Store 价格查询',
+      content: 'https://APP.vbr.me',
+      summarize: 'bookmark',
+      metadata: { source: 'bookmark', raw_id: 'bookmark-2' }
+    });
+
+    const ranked = rankSearchResults(
+      [duplicatedApp, usedDuplicatedApp, duplicatedBookmark, sameBookmark],
+      'app',
+      new Map([
+        [
+          'new-app-row',
+          {
+            usage_count: 1,
+            last_used_at: '2026-05-21T00:00:00.000Z'
+          }
+        ]
+      ]),
+      { deepSearch: true }
+    );
+
+    expect(ranked.map((item) => item.id)).toEqual([
+      'new-app-row',
+      'bookmark-1'
+    ]);
+  });
+
   it('does not let history swamp an exact title match', () => {
     const recentlyUsed = createItem({
       id: 'recent',

@@ -119,6 +119,47 @@ const getBackendScore = (item: ContentType): number =>
     ? item.score
     : 0;
 
+const normalizeDedupeValue = (value: unknown): string =>
+  normalizeSearchValue(value)
+    .replace(/\\/g, '/')
+    .replace(/\/+$/, '');
+
+const getDedupeKey = (item: ContentType): string => {
+  const source = getSource(item);
+  const contentKey = normalizeDedupeValue(
+    item.metadata?.display_path ??
+      item.metadata?.launch_path ??
+      item.file_path ??
+      item.content
+  );
+  const titleKey = normalizeDedupeValue(item.title);
+
+  if (source === 'bookmark') {
+    return `${source}:${contentKey || titleKey}`;
+  }
+
+  if (source === 'app' || source === 'file') {
+    return `${source}:${contentKey || titleKey}`;
+  }
+
+  return `${source}:${getRawId(item)}`;
+};
+
+const dedupeRankedItems = (items: RankedSearchItem[]): RankedSearchItem[] => {
+  const seen = new Set<string>();
+  const uniqueItems: RankedSearchItem[] = [];
+
+  for (const item of items) {
+    const key = getDedupeKey(item.item);
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    uniqueItems.push(item);
+  }
+
+  return uniqueItems;
+};
+
 const searchTextMatchesQuery = (text: string, query: string): boolean => {
   if (!text || !query) return false;
   if (text.includes(query)) return true;
@@ -249,7 +290,7 @@ export const rankSearchResults = (
   historyMap: Map<string, SearchHistoryMeta>,
   options: SearchMatchOptions
 ): ContentType[] =>
-  items
+  dedupeRankedItems(items
     .filter((item) => isRelevantSearchResult(item, query, options))
     .map<RankedSearchItem>((item, index) => {
       const history = historyMap.get(getRawId(item));
@@ -290,5 +331,5 @@ export const rankSearchResults = (
       if (sourceDelta !== 0) return sourceDelta;
 
       return a.sourceIndex - b.sourceIndex;
-    })
+    }))
     .map(({ item }) => item);
