@@ -22,7 +22,7 @@
       <div v-if="results.length" class="result-container">
         <section class="result-pane">
           <ResultList ref="resultListRef" :results="results" :search-query="searchQuery"
-            :on-clear-search="onClearSearch" :item-size="76" @back-to-search="emit('backToSearch')"
+            :on-clear-search="onClearSearch" :item-size="64" @back-to-search="emit('backToSearch')"
             @selection-change="handleSelectionChange" @tab-change="handleTabChange"
             @primary-action="handlePrimaryAction" />
         </section>

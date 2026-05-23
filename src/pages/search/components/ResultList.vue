@@ -384,10 +384,11 @@ defineExpose({
     }
 
     .item {
-      @apply grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 text-search box-border rounded-lg cursor-pointer relative min-w-0 border border-transparent;
-      height: 70px;
-      margin: 3px 0;
-      padding: 8px 10px;
+      @apply grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 text-search box-border rounded-lg cursor-pointer relative min-w-0 border border-transparent;
+      width: calc(100% - 16px);
+      height: 58px;
+      margin: 3px 16px 3px 0;
+      padding: 6px 9px;
       background-color: transparent;
       transition:
         background-color 0.15s ease,
@@ -406,7 +407,7 @@ defineExpose({
 
       .item-actions {
         @apply flex flex-col items-end justify-center gap-1 text-right;
-        min-width: 42px;
+        min-width: 34px;
       }
 
       .copy-action {
@@ -447,7 +448,7 @@ defineExpose({
         --result-icon-size: 24px;
         --default-type-icon-scale: 1.18;
 
-        @apply flex items-center justify-center w-10 h-10 flex-shrink-0 rounded-lg;
+        @apply flex items-center justify-center w-9 h-9 flex-shrink-0 rounded-lg;
         background-color: var(--search-card-bg);
         box-shadow: 0 4px 14px rgb(15 23 42 / 8%);
 
@@ -487,7 +488,7 @@ defineExpose({
           @apply flex items-center gap-2 min-w-0;
 
           .title {
-            @apply min-w-0 text-[15px] truncate font-sans text-search flex-1 font-semibold;
+            @apply min-w-0 text-sm truncate font-sans text-search flex-1 font-semibold;
 
             :deep(.highlight) {
               @apply text-blue-600 dark:text-blue-300 font-semibold bg-blue-100 dark:bg-blue-500/20 rounded-sm px-0.5;
