@@ -299,7 +299,7 @@ defineExpose({
   // --result-visible-rows: 6;
 
   @apply bg-search rounded-bl-lg relative h-full min-h-0 flex flex-col overflow-hidden;
-  padding: 10px 8px 12px 16px;
+  padding: 10px 8px 12px 10px;
 
   .empty-state {
     @apply flex-1 min-h-0 flex items-center justify-center overflow-y-auto p-4;
@@ -323,7 +323,7 @@ defineExpose({
 
   .result-section-header {
     @apply flex items-center justify-between flex-shrink-0;
-    padding: 0 9px 8px 1px;
+    padding: 0 8px 8px 2px;
     color: var(--search-info-text-color);
     font-size: 12px;
     font-weight: 700;
@@ -385,10 +385,10 @@ defineExpose({
 
     .item {
       @apply grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 text-search box-border rounded-lg cursor-pointer relative min-w-0 border border-transparent;
-      width: calc(100% - 16px);
+      width: calc(100% - 4px);
       height: 58px;
-      margin: 3px 16px 3px 0;
-      padding: 6px 9px;
+      margin: 3px 4px 3px 0;
+      padding: 6px 9px 6px 10px;
       background-color: transparent;
       transition:
         background-color 0.15s ease,
@@ -402,7 +402,18 @@ defineExpose({
       &.active {
         background-color: var(--search-result-active);
         border-color: var(--search-result-active-border);
-        box-shadow: inset 3px 0 0 var(--search-result-accent);
+      }
+
+      &.active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 8px;
+        bottom: 8px;
+        width: 3px;
+        border-radius: 0 999px 999px 0;
+        background: var(--search-result-accent);
+        pointer-events: none;
       }
 
       .item-actions {
