@@ -1,4 +1,4 @@
-const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]+", p = {
+const M = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]+", p = {
   usd: { code: "USD", label: "美元" },
   dollar: { code: "USD", label: "美元" },
   dollars: { code: "USD", label: "美元" },
@@ -80,7 +80,7 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   亩: { base: "m2", factor: 666.6666666667, label: "亩", defaultTarget: "平方米" },
   公顷: { base: "m2", factor: 1e4, label: "公顷", defaultTarget: "平方米" },
   ha: { base: "m2", factor: 1e4, label: "公顷", defaultTarget: "平方米" }
-}, M = (a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), g = Object.keys(d).sort((a, e) => e.length - a.length).map(M).join("|"), v = {
+}, P = (a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), g = Object.keys(d).sort((a, e) => e.length - a.length).map(P).join("|"), v = {
   零: 0,
   "〇": 0,
   一: 1,
@@ -93,19 +93,19 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   七: 7,
   八: 8,
   九: 9
-}, P = {
+}, C = {
   十: 10,
   百: 100,
   千: 1e3,
   万: 1e4
-}, s = (a) => Number.isInteger(a) ? String(a) : a.toLocaleString("zh-CN", { maximumFractionDigits: 12 }), C = (a) => {
+}, s = (a) => Number.isInteger(a) ? String(a) : a.toLocaleString("zh-CN", { maximumFractionDigits: 12 }), h = (a) => {
   let e = 0, t = 0, l = 0;
   for (const r of a) {
     if (r in v) {
       l = v[r];
       continue;
     }
-    const o = P[r];
+    const o = C[r];
     if (!o) return null;
     if (o === 1e4) {
       t = (t + l) * o, e += t, t = 0, l = 0;
@@ -114,7 +114,10 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     t += (l || 1) * o, l = 0;
   }
   return e + t + l;
-}, S = (a) => /^[\d.]+$/.test(a) ? Number(a) : C(a) ?? Number.NaN, f = (a) => d[a.trim()] ?? d[a.trim().toLowerCase()], I = (a, e, t, l, r = {}) => ({
+}, S = (a) => /^[\d.]+$/.test(a) ? Number(a) : h(a) ?? Number.NaN, f = (a) => d[a.trim()] ?? d[a.trim().toLowerCase()], $ = (a, e) => {
+  const t = a.trim();
+  return /^[a-zA-Z0-9µμ²]+$/.test(t) ? t : e.label;
+}, I = (a, e, t, l, r = {}) => ({
   id: a,
   title: e,
   content: t,
@@ -126,11 +129,11 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     action: "copy-result",
     ...r
   }
-}), h = (a) => {
+}), x = (a) => {
   const e = a.trim().replace(/（/g, "(").replace(/）/g, ")").replace(/×/g, "*").replace(/÷/g, "/").replace(/＝/g, "=").replace(/^calc(?:ulate)?\s*/i, "").replace(/^计算\s*/, "").replace(/=$/, "").trim();
   return !/[0-9]/.test(e) || !/^[\d+\-*/%().\s]+$/.test(e) || !/[+\-*/%]/.test(e) ? null : e;
-}, x = (a) => {
-  const e = h(a);
+}, E = (a) => {
+  const e = x(a);
   if (!e) return null;
   try {
     const t = Function(`"use strict"; return (${e})`)();
@@ -151,7 +154,7 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   } catch {
     return null;
   }
-}, E = (a) => {
+}, j = (a) => {
   const e = a.trim(), t = e.match(
     new RegExp(
       `^(${T})\\s*(${g})\\s*(?:=|to|转|换算(?:成)?|是多少|等于多少|等于)?\\s*(${g})$`,
@@ -161,12 +164,12 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   if (t) {
     const i = S(t[1]), n = f(t[2]), b = f(t[3]);
     if (Number.isFinite(i) && n && b && n.base === b.base) {
-      const $ = i * n.factor / b.factor;
+      const k = i * n.factor / b.factor;
       return {
         amount: i,
-        fromLabel: n.label,
-        toLabel: b.label,
-        value: $
+        fromLabel: $(t[2], n),
+        toLabel: $(t[3], b),
+        value: k
       };
     }
   }
@@ -180,8 +183,8 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     toLabel: c.label,
     value: u
   };
-}, j = (a) => {
-  const e = E(a);
+}, L = (a) => {
+  const e = j(a);
   if (!e) return null;
   const t = s(e.value);
   return I(
@@ -202,7 +205,7 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
       ]
     }
   );
-}, m = (a) => p[a.trim().toLowerCase()] ?? p[a.trim()] ?? null, y = (a) => {
+}, m = (a) => p[a.trim().toLowerCase()] ?? p[a.trim()] ?? null, U = (a) => {
   const e = a.trim(), t = e.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i), l = e.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
   if (t) {
     const r = Number(t[1]), o = m(t[2]), c = m(t[3]);
@@ -210,12 +213,12 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
       return { amount: r, from: o, to: c };
   }
   if (l) {
-    const r = Number(l[1]), o = m(l[2]), c = m(k);
+    const r = Number(l[1]), o = m(l[2]), c = m(M);
     return !Number.isFinite(r) || !o || !c || o.code === c.code ? null : { amount: r, from: o, to: c };
   }
   return null;
-}, L = async (a) => {
-  const e = y(a);
+}, y = async (a) => {
+  const e = U(a);
   if (!e) return null;
   try {
     const t = `https://api.frankfurter.dev/v2/rate/${e.from.code}/${e.to.code}`, l = await fetch(t);
@@ -252,11 +255,11 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   pluginId: "quick-tools",
   source: "quick-tools",
   async search(a) {
-    const e = [], t = j(a);
+    const e = [], t = L(a);
     t && e.push(t);
-    const l = x(a);
+    const l = E(a);
     l && e.push(l);
-    const r = await L(a);
+    const r = await y(a);
     return r && e.push(r), [
       {
         source: "quick-tools",
@@ -265,13 +268,13 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     ];
   }
 };
-function U(a) {
+function H(a) {
   a.registerSearchProvider({
     source: N.source,
     search: (e) => N.search(e)
   });
 }
 export {
-  U as activate,
-  U as default
+  H as activate,
+  H as default
 };

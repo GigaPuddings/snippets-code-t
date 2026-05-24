@@ -29,6 +29,12 @@ describe('quickToolsSearchProvider', () => {
     await expect(searchTitle('1公斤 斤')).resolves.toBe('1 公斤 = 2 斤');
   });
 
+  it('supports mixed Chinese and symbol unit conversions', async () => {
+    await expect(searchTitle('1公斤=kg')).resolves.toBe('1 公斤 = 1 kg');
+    await expect(searchTitle('1公斤 kg')).resolves.toBe('1 公斤 = 1 kg');
+    await expect(searchTitle('1kg=斤')).resolves.toBe('1 kg = 2 斤');
+  });
+
   it('supports Chinese currency names and explicit RMB conversions', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       date: '2026-05-23',

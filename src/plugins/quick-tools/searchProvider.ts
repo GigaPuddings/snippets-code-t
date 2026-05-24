@@ -174,6 +174,14 @@ const parseAmount = (value: string): number => {
 const resolveUnit = (value: string): UnitDefinition | undefined =>
   UNIT_ALIASES[value.trim()] ?? UNIT_ALIASES[value.trim().toLowerCase()];
 
+const getExplicitUnitLabel = (value: string, unit: UnitDefinition): string => {
+  const normalized = value.trim();
+  if (/^[a-zA-Z0-9µμ²]+$/.test(normalized)) {
+    return normalized;
+  }
+  return unit.label;
+};
+
 const createResult = (
   id: string,
   title: string,
@@ -256,8 +264,8 @@ const parseUnitConversion = (query: string) => {
       const value = amount * from.factor / to.factor;
       return {
         amount,
-        fromLabel: from.label,
-        toLabel: to.label,
+        fromLabel: getExplicitUnitLabel(match[2], from),
+        toLabel: getExplicitUnitLabel(match[3], to),
         value
       };
     }
