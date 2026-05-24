@@ -28,7 +28,7 @@ const k = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   公吨: { base: "g", factor: 1e6, label: "吨", defaultTarget: "kg" },
   kg: { base: "g", factor: 1e3, label: "千克", defaultTarget: "g" },
   千克: { base: "g", factor: 1e3, label: "千克", defaultTarget: "g" },
-  公斤: { base: "g", factor: 1e3, label: "千克", defaultTarget: "g" },
+  公斤: { base: "g", factor: 1e3, label: "公斤", defaultTarget: "g" },
   g: { base: "g", factor: 1, label: "克", defaultTarget: "kg" },
   克: { base: "g", factor: 1, label: "克", defaultTarget: "kg" },
   mg: { base: "g", factor: 1e-3, label: "毫克", defaultTarget: "g" },

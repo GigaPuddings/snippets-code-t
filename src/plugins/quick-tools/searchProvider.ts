@@ -50,7 +50,7 @@ const UNIT_ALIASES: Record<string, UnitDefinition> = {
   公吨: { base: 'g', factor: 1000000, label: '吨', defaultTarget: 'kg' },
   kg: { base: 'g', factor: 1000, label: '千克', defaultTarget: 'g' },
   千克: { base: 'g', factor: 1000, label: '千克', defaultTarget: 'g' },
-  公斤: { base: 'g', factor: 1000, label: '千克', defaultTarget: 'g' },
+  公斤: { base: 'g', factor: 1000, label: '公斤', defaultTarget: 'g' },
   g: { base: 'g', factor: 1, label: '克', defaultTarget: 'kg' },
   克: { base: 'g', factor: 1, label: '克', defaultTarget: 'kg' },
   mg: { base: 'g', factor: 0.001, label: '毫克', defaultTarget: 'g' },

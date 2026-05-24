@@ -23,6 +23,12 @@ describe('quickToolsSearchProvider', () => {
     await expect(searchTitle('1平方')).resolves.toBe('1 平方米 = 10000 平方厘米');
   });
 
+  it('keeps jin and gongjin aliases in explicit weight conversions', async () => {
+    await expect(searchTitle('1公斤=斤')).resolves.toBe('1 公斤 = 2 斤');
+    await expect(searchTitle('1公斤= 斤')).resolves.toBe('1 公斤 = 2 斤');
+    await expect(searchTitle('1公斤 斤')).resolves.toBe('1 公斤 = 2 斤');
+  });
+
   it('supports Chinese currency names and explicit RMB conversions', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       date: '2026-05-23',
