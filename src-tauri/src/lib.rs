@@ -381,10 +381,11 @@ pub fn run() {
                     Target::new(TargetKind::Webview),
                 ])
                 .level(LevelFilter::Info)
-                .level_for("tauri_app_lib", LevelFilter::Debug)
+                .level_for("tauri_app_lib", LevelFilter::Info)
                 .level_for("reqwest", LevelFilter::Warn)
                 .level_for("hyper_util", LevelFilter::Warn)
                 .level_for("notify", LevelFilter::Warn)
+                .level_for("tao", LevelFilter::Error)
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -569,7 +570,7 @@ pub fn run() {
                     if let Ok(Some(workspace_root)) = crate::json_config::get_workspace_root(&app_handle_markdown) {
                         // 初始化 CacheManager
                         let config_dir = workspace_root.join(".snippets-code");
-                        log::info!("🔧 [初始化] 配置目录: {}", config_dir.display());
+                        log::info!("🔧 [初始化] 配置目录已就绪");
 
                         if !config_dir.exists() {
                             log::info!("📁 [初始化] 创建配置目录");
@@ -583,7 +584,7 @@ pub fn run() {
                         match markdown::WorkspaceManager::new(config_dir.clone()) {
                             Ok(workspace_manager) => {
                                 log::info!("✅ [初始化] WorkspaceManager 初始化成功");
-                                log::info!("📊 [初始化] workspace.json 路径: {}", config_dir.join("workspace.json").display());
+                                log::info!("📊 [初始化] workspace.json 已就绪");
 
                                 // 保存初始配置（如果是首次创建）
                                 if let Err(e) = workspace_manager.save() {
@@ -601,7 +602,7 @@ pub fn run() {
                         match markdown::CacheManager::new(config_dir.clone()) {
                             Ok(mut cache_manager) => {
                                 log::info!("✅ [初始化] CacheManager 初始化成功");
-                                log::info!("📊 [初始化] cache.json 路径: {}", config_dir.join("cache.json").display());
+                                log::info!("📊 [初始化] cache.json 已就绪");
 
                                 // 清理已删除文件的元数据
                                 let removed_count = cache_manager.cleanup_missing_files(&workspace_root);

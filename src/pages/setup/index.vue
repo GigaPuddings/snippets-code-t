@@ -64,43 +64,86 @@
           </div>
         </div>
 
-        <!-- 数据目录设置 -->
-        <div v-if="step === 1" class="step-page">
-          <h2 class="step-title">{{ $t('setup.dataLocationTitle') }}</h2>
-          <p class="step-desc">{{ $t('setup.dataLocationDesc') }}</p>
+        <!-- 应用数据目录 -->
+        <div v-if="step === 1" class="step-page path-step-page">
+          <h2 class="step-title">{{ $t('setup.appDataDir') }}</h2>
+          <p class="step-desc compact">{{ $t('setup.appDataDirDesc') }}</p>
 
-          <div class="path-options">
-            <div :class="['path-option', { selected: pathOption === 'default' }]" @click="pathOption = 'default'">
-              <div class="option-info">
-                <div class="option-title">{{ $t('setup.defaultLocation') }}</div>
-                <div class="option-desc">{{ defaultPath }}</div>
+          <section class="path-section">
+            <div class="path-options">
+              <div :class="['path-option', { selected: dataPathOption === 'default' }]" @click="dataPathOption = 'default'">
+                <div class="option-info">
+                  <div class="option-title">{{ $t('setup.defaultAppDataDir') }}</div>
+                  <div class="option-desc">{{ defaultDataPath }}</div>
+                </div>
+                <div class="option-action">
+                  <div class="radio-circle">
+                    <div v-if="dataPathOption === 'default'" class="radio-dot"></div>
+                  </div>
+                </div>
               </div>
-              <div class="option-action">
-                <div class="radio-circle">
-                  <div v-if="pathOption === 'default'" class="radio-dot"></div>
+
+              <div :class="['path-option', { selected: dataPathOption === 'custom' }]" @click="dataPathOption = 'custom'">
+                <div class="option-info">
+                  <div class="option-title">{{ $t('setup.customAppDataDir') }}</div>
+                  <div v-if="dataPathOption === 'custom'" class="custom-path-input">
+                    <el-input v-model="customDataPath" :placeholder="$t('common.browse')" class="path-input dark-input"
+                      clearable @blur="onAppDataPathBlur" />
+                    <CustomButton type="primary" size="small" @click.stop="selectAppDataPath" class="browse-btn">
+                      {{ $t('common.browse') }}
+                    </CustomButton>
+                  </div>
+                  <div v-else class="option-desc">{{ $t('setup.customAppDataDirDesc') }}</div>
+                </div>
+                <div class="option-action">
+                  <div class="radio-circle">
+                    <div v-if="dataPathOption === 'custom'" class="radio-dot"></div>
+                  </div>
                 </div>
               </div>
             </div>
+          </section>
+        </div>
 
-            <div :class="['path-option', { selected: pathOption === 'custom' }]" @click="pathOption = 'custom'">
-              <div class="option-info">
-                <div class="option-title">{{ $t('setup.customLocation') }}</div>
-                <div v-if="pathOption === 'custom'" class="custom-path-input">
-                  <el-input v-model="customPath" :placeholder="$t('common.browse')" class="path-input dark-input"
-                    clearable @blur="onPathBlur" />
-                  <CustomButton type="primary" size="small" @click.stop="selectCustomPath" class="browse-btn">
-                    {{ $t('common.browse') }}
-                  </CustomButton>
+        <!-- Markdown 工作区 -->
+        <div v-if="step === 2" class="step-page path-step-page">
+          <h2 class="step-title">{{ $t('setup.workspaceDir') }}</h2>
+          <p class="step-desc compact">{{ $t('setup.workspaceDirDesc') }}</p>
+
+          <section class="path-section">
+            <div class="path-options">
+              <div :class="['path-option', { selected: workspacePathOption === 'default' }]" @click="workspacePathOption = 'default'">
+                <div class="option-info">
+                  <div class="option-title">{{ $t('setup.defaultLocation') }}</div>
+                  <div class="option-desc">{{ defaultWorkspacePath }}</div>
                 </div>
-                <div v-else class="option-desc">{{ $t('setup.customLocationDesc') || 'Choose a custom folder' }}</div>
+                <div class="option-action">
+                  <div class="radio-circle">
+                    <div v-if="workspacePathOption === 'default'" class="radio-dot"></div>
+                  </div>
+                </div>
               </div>
-              <div class="option-action">
-                <div class="radio-circle">
-                  <div v-if="pathOption === 'custom'" class="radio-dot"></div>
+
+              <div :class="['path-option', { selected: workspacePathOption === 'custom' }]" @click="workspacePathOption = 'custom'">
+                <div class="option-info">
+                  <div class="option-title">{{ $t('setup.customLocation') }}</div>
+                  <div v-if="workspacePathOption === 'custom'" class="custom-path-input">
+                    <el-input v-model="customWorkspacePath" :placeholder="$t('common.browse')" class="path-input dark-input"
+                      clearable @blur="onWorkspacePathBlur" />
+                    <CustomButton type="primary" size="small" @click.stop="selectWorkspacePath" class="browse-btn">
+                      {{ $t('common.browse') }}
+                    </CustomButton>
+                  </div>
+                  <div v-else class="option-desc">{{ $t('setup.customLocationDesc') }}</div>
+                </div>
+                <div class="option-action">
+                  <div class="radio-circle">
+                    <div v-if="workspacePathOption === 'custom'" class="radio-dot"></div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
           <div class="path-tip">
             <Info theme="outline" size="16" />
@@ -108,58 +151,66 @@
           </div>
         </div>
 
-        <!-- 索引设置 -->
-        <div v-if="step === 2" class="step-page">
-          <h2 class="step-title">{{ $t('setup.indexTitle') }}</h2>
-          <p class="step-desc">{{ $t('setup.indexDesc') }}</p>
+        <!-- 插件安装位置 -->
+        <div v-if="step === 3" class="step-page path-step-page">
+          <h2 class="step-title">{{ $t('setup.pluginInstallDir') }}</h2>
+          <p class="step-desc compact">{{ $t('setup.pluginInstallDirDesc') }}</p>
 
-          <div class="index-options">
-            <div class="path-option index-option">
-              <div class="option-info">
-                <div class="option-title">{{ $t('setup.localLauncherIndex') }}</div>
-                <div class="option-desc">{{ $t('setup.localLauncherIndexDesc') }}</div>
+          <section class="path-section">
+            <div class="path-options">
+              <div :class="['path-option', { selected: pluginPathOption === 'default' }]" @click="pluginPathOption = 'default'">
+                <div class="option-info">
+                  <div class="option-title">{{ $t('setup.defaultPluginInstallDir') }}</div>
+                  <div class="option-desc">{{ defaultPluginPackagesPath }}</div>
+                </div>
+                <div class="option-action">
+                  <div class="radio-circle">
+                    <div v-if="pluginPathOption === 'default'" class="radio-dot"></div>
+                  </div>
+                </div>
               </div>
-              <CustomSwitch v-model="setupLocalLauncher" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
-            </div>
 
-            <div class="path-option index-option">
-              <div class="option-info">
-                <div class="option-title">{{ $t('setup.desktopFilesIndex') }}</div>
-                <div class="option-desc">{{ $t('setup.desktopFilesIndexDesc') }}</div>
+              <div :class="['path-option', { selected: pluginPathOption === 'custom' }]" @click="pluginPathOption = 'custom'">
+                <div class="option-info">
+                  <div class="option-title">{{ $t('setup.customPluginInstallDir') }}</div>
+                  <div v-if="pluginPathOption === 'custom'" class="custom-path-input">
+                    <el-input v-model="customPluginInstallPath" :placeholder="$t('common.browse')" class="path-input dark-input"
+                      clearable />
+                    <CustomButton type="primary" size="small" @click.stop="selectPluginInstallPath" class="browse-btn">
+                      {{ $t('common.browse') }}
+                    </CustomButton>
+                  </div>
+                  <div v-else class="option-desc">{{ $t('setup.customPluginInstallDirDesc') }}</div>
+                </div>
+                <div class="option-action">
+                  <div class="radio-circle">
+                    <div v-if="pluginPathOption === 'custom'" class="radio-dot"></div>
+                  </div>
+                </div>
               </div>
-              <CustomSwitch v-model="setupDesktopFiles" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
             </div>
-
-            <div class="path-option index-option">
-              <div class="option-info">
-                <div class="option-title">{{ $t('setup.cacheIcons') }}</div>
-                <div class="option-desc">{{ $t('setup.cacheIconsDesc') }}</div>
-              </div>
-              <CustomSwitch v-model="setupCacheIcons" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
-            </div>
-          </div>
-
-          <div class="path-tip">
-            <Info theme="outline" size="16" />
-            <span>{{ $t('setup.indexTip') }}</span>
-          </div>
+          </section>
         </div>
 
         <!-- 完成 -->
-        <div v-if="step === 3" class="step-page">
+        <div v-if="step === 4" class="step-page complete-page">
           <div class="complete-icon">
-            <CheckOne theme="filled" size="64" fill="#10b981" />
+            <CheckOne theme="filled" size="48" fill="#10b981" />
           </div>
           <h2 class="step-title">{{ $t('setup.completeTitle') }}</h2>
-          <p class="step-desc">{{ $t('setup.completeDesc') }}</p>
+          <p class="step-desc compact">{{ $t('setup.completeDesc') }}</p>
           <div class="summary">
             <div class="summary-item">
-              <span class="summary-label">{{ $t('setup.dataPath') }}:</span>
-              <span class="summary-value">{{ finalPath }}</span>
+              <span class="summary-label">{{ $t('setup.appDataPath') }}:</span>
+              <span class="summary-value" :title="finalDataPath">{{ finalDataPath }}</span>
             </div>
             <div class="summary-item">
-              <span class="summary-label">{{ $t('setup.indexSummary') }}:</span>
-              <span class="summary-value">{{ indexSummary }}</span>
+              <span class="summary-label">{{ $t('setup.workspacePath') }}:</span>
+              <span class="summary-value" :title="finalWorkspacePath">{{ finalWorkspacePath }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">{{ $t('setup.pluginInstallPath') }}:</span>
+              <span class="summary-value" :title="finalPluginPackagesPath">{{ finalPluginPackagesPath }}</span>
             </div>
           </div>
         </div>
@@ -185,9 +236,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
+import { emit } from '@tauri-apps/api/event';
 import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
-import { CustomButton, CustomSwitch } from '@/components/UI';
+import { CustomButton } from '@/components/UI';
 import { Info, CheckOne } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
 import { setLocale, type LocaleType } from '@/i18n';
@@ -221,20 +273,22 @@ const onLanguageChange = async (value: LocaleType) => {
 
 const steps = computed(() => [
   { title: t('setup.welcome') },
-  { title: t('setup.dataLocation') },
-  { title: t('setup.indexing') },
+  { title: t('setup.appDataStep') },
+  { title: t('setup.workspaceStep') },
+  { title: t('setup.pluginStep') },
   { title: t('setup.complete') }
 ]);
 
 const step = ref(0);
-const pathOption = ref<'default' | 'custom'>('default');
-const defaultPath = ref('');
-const customPath = ref('');
-const dataPath = ref('');
+const dataPathOption = ref<'default' | 'custom'>('default');
+const defaultDataPath = ref('');
+const customDataPath = ref('');
+const workspacePathOption = ref<'default' | 'custom'>('default');
+const defaultWorkspacePath = ref('');
+const customWorkspacePath = ref('');
+const pluginPathOption = ref<'default' | 'custom'>('default');
+const customPluginInstallPath = ref('');
 const completing = ref(false);
-const setupLocalLauncher = ref(true);
-const setupDesktopFiles = ref(true);
-const setupCacheIcons = ref(true);
 
 /** 引导模式：新建 / 打开 */
 type SetupMode = 'create' | 'open';
@@ -242,38 +296,69 @@ const setupMode = ref<SetupMode>('create');
 
 const chooseSetupMode = (mode: 'create' | 'open') => {
   setupMode.value = mode;
-  pathOption.value = mode === 'create' ? 'default' : 'custom';
-  customPath.value = mode === 'create' ? defaultPath.value : '';
+  workspacePathOption.value = mode === 'create' ? 'default' : 'custom';
+  customWorkspacePath.value = mode === 'create' ? defaultWorkspacePath.value : '';
   step.value = 1;
 };
 
 // 检查路径是否需要添加 snippets-code
 const needsAppFolder = (path: string) => {
-  if (setupMode.value !== 'create' || !path || path === defaultPath.value) return false;
+  if (setupMode.value !== 'create' || !path || path === defaultWorkspacePath.value) return false;
   const lowerPath = path.toLowerCase();
   const endsWithAppFolder = lowerPath.endsWith('snippets-code') || lowerPath.endsWith('snippets code');
   return !endsWithAppFolder && !lowerPath.includes('com.snippets-code.app');
 };
 
-// 失焦时自动追加 snippets-code
-const onPathBlur = () => {
-  if (needsAppFolder(customPath.value)) {
-    customPath.value = customPath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
+const needsAppDataFolder = (path: string) => {
+  if (dataPathOption.value !== 'custom' || !path || path === defaultDataPath.value) return false;
+  const lowerPath = path.toLowerCase();
+  const endsWithAppFolder = lowerPath.endsWith('snippets-code') || lowerPath.endsWith('snippets code');
+  return !endsWithAppFolder && !lowerPath.includes('com.snippets-code.app');
+};
+
+const normalizeAppDataPath = () => {
+  if (needsAppDataFolder(customDataPath.value)) {
+    customDataPath.value = customDataPath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
   }
 };
 
-const finalPath = computed(() => {
-  return pathOption.value === 'default' ? defaultPath.value : customPath.value;
+const onAppDataPathBlur = () => {
+  normalizeAppDataPath();
+};
+
+// 失焦时自动追加 snippets-code
+const onWorkspacePathBlur = () => {
+  if (needsAppFolder(customWorkspacePath.value)) {
+    customWorkspacePath.value = customWorkspacePath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
+  }
+};
+
+const joinPath = (base: string, child: string) => {
+  if (!base) return child;
+  const separator = base.includes('\\') ? '\\' : '/';
+  return `${base.replace(/[\\/]+$/, '')}${separator}${child}`;
+};
+
+const finalDataPath = computed(() => {
+  return dataPathOption.value === 'default' ? defaultDataPath.value : customDataPath.value;
 });
 
-const indexSummary = computed(() => {
-  const enabledItems = [
-    setupLocalLauncher.value ? t('setup.localLauncherIndex') : '',
-    setupDesktopFiles.value ? t('setup.desktopFilesIndex') : '',
-    setupCacheIcons.value ? t('setup.cacheIcons') : ''
-  ].filter(Boolean);
+const finalWorkspacePath = computed(() => {
+  return workspacePathOption.value === 'default' ? defaultWorkspacePath.value : customWorkspacePath.value;
+});
 
-  return enabledItems.length > 0 ? enabledItems.join(' / ') : t('setup.indexDisabled');
+const defaultPluginPackagesPath = computed(() => {
+  return joinPath(finalDataPath.value, 'plugins');
+});
+
+const finalPluginRootPath = computed(() => {
+  return pluginPathOption.value === 'default' ? finalDataPath.value : customPluginInstallPath.value;
+});
+
+const finalPluginPackagesPath = computed(() => {
+  const root = finalPluginRootPath.value;
+  if (!root) return '';
+  return /[\\/]plugins$/i.test(root) ? root : joinPath(root, 'plugins');
 });
 
 
@@ -282,11 +367,23 @@ onMounted(async () => {
     version.value = await getVersion();
     // 应用数据目录保存数据库和全局配置，工作区目录保存 Markdown 知识资产。
     const info = await invoke<{ path: string; source: string }>('get_data_dir_info');
-    dataPath.value = info.path;
-    defaultPath.value = await invoke<string>('get_default_workspace_dir');
-    customPath.value = defaultPath.value;
+    defaultDataPath.value = info.path;
+    customDataPath.value = info.path;
+    defaultWorkspacePath.value = await invoke<string>('get_default_workspace_dir');
+    customWorkspacePath.value = defaultWorkspacePath.value;
+    customPluginInstallPath.value = defaultPluginPackagesPath.value;
   } catch (error) {
     console.error('获取初始化信息失败:', error);
+  }
+
+  nextTick(() => {
+    emit('setup_ready');
+  });
+});
+
+watch(defaultPluginPackagesPath, (path) => {
+  if (pluginPathOption.value === 'default') {
+    customPluginInstallPath.value = path;
   }
 });
 
@@ -297,19 +394,36 @@ const prevStep = () => {
 };
 
 const nextStep = async () => {
-  // 在数据目录设置步骤，只验证路径（不保存）
+  // 每个路径步骤只验证当前项，保存统一放到最后完成步骤。
   if (step.value === 1) {
-    if (pathOption.value === 'custom' && !customPath.value) {
+    if (dataPathOption.value === 'custom') {
+      normalizeAppDataPath();
+      if (!customDataPath.value) {
+        modal.msg(t('setup.selectAppDataDir'), 'warning');
+        return;
+      }
+    }
+  }
+
+  if (step.value === 2) {
+    if (workspacePathOption.value === 'custom' && !customWorkspacePath.value) {
       modal.msg(t('setup.selectDir'), 'warning');
       return;
     }
 
     // 验证自定义路径格式（不调用后端）
-    if (pathOption.value === 'custom' && customPath.value) {
+    if (workspacePathOption.value === 'custom' && customWorkspacePath.value) {
       // 确保路径格式正确
-      if (needsAppFolder(customPath.value)) {
-        customPath.value = customPath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
+      if (needsAppFolder(customWorkspacePath.value)) {
+        customWorkspacePath.value = customWorkspacePath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
       }
+    }
+  }
+
+  if (step.value === 3) {
+    if (pluginPathOption.value === 'custom' && !customPluginInstallPath.value) {
+      modal.msg(t('setup.selectPluginInstallDir'), 'warning');
+      return;
     }
   }
 
@@ -318,7 +432,29 @@ const nextStep = async () => {
   }
 };
 
-const selectCustomPath = async () => {
+const selectAppDataPath = async () => {
+  try {
+    const selected = await open({
+      directory: true,
+      title: t('setup.selectAppDataDirTitle')
+    });
+    if (selected) {
+      let path = selected as string;
+      if (needsAppDataFolder(path)) {
+        path = path.replace(/[\\/]+$/, '') + '\\snippets-code';
+      }
+      customDataPath.value = path;
+      dataPathOption.value = 'custom';
+      if (pluginPathOption.value === 'default') {
+        customPluginInstallPath.value = defaultPluginPackagesPath.value;
+      }
+    }
+  } catch (error) {
+    console.error('选择应用数据目录失败:', error);
+  }
+};
+
+const selectWorkspacePath = async () => {
   try {
     const selected = await open({
       directory: true,
@@ -331,17 +467,39 @@ const selectCustomPath = async () => {
       if (needsAppFolder(path)) {
         path = path.replace(/[\\/]+$/, '') + '\\snippets-code';
       }
-      customPath.value = path;
+      customWorkspacePath.value = path;
+      workspacePathOption.value = 'custom';
     }
   } catch (error) {
     console.error('选择目录失败:', error);
   }
 };
 
+const selectPluginInstallPath = async () => {
+  try {
+    const selected = await open({
+      directory: true,
+      title: t('setup.selectPluginInstallDirTitle')
+    });
+    if (selected) {
+      customPluginInstallPath.value = selected as string;
+      pluginPathOption.value = 'custom';
+    }
+  } catch (error) {
+    console.error('选择插件安装目录失败:', error);
+  }
+};
+
 const completeSetup = async () => {
   completing.value = true;
   try {
-    const workspacePath = finalPath.value;
+    const appDataPath = finalDataPath.value;
+    const workspacePath = finalWorkspacePath.value;
+    if (!appDataPath) {
+      modal.msg(t('setup.selectAppDataDir'), 'warning');
+      completing.value = false;
+      return;
+    }
     if (!workspacePath) {
       modal.msg(t('setup.selectDir'), 'warning');
       completing.value = false;
@@ -350,10 +508,17 @@ const completeSetup = async () => {
 
     // 1. 初始化应用数据目录，并保存 Markdown 工作区根目录。
     try {
-      await invoke<string>('set_data_dir_from_setup', { path: dataPath.value });
+      const actualDataPath = await invoke<string>('set_data_dir_from_setup', { path: appDataPath });
+      defaultDataPath.value = actualDataPath;
+      if (dataPathOption.value === 'custom') {
+        customDataPath.value = actualDataPath;
+      }
       await invoke('set_workspace_root_from_setup', {
         path: workspacePath,
         create: setupMode.value === 'create'
+      });
+      await invoke('set_plugin_install_dir', {
+        path: pluginPathOption.value === 'custom' ? customPluginInstallPath.value : null
       });
     } catch (error: any) {
       modal.msg(`${t('setup.pathError') || '路径设置失败'}: ${error}`, 'error');
@@ -365,19 +530,12 @@ const completeSetup = async () => {
     store.language = language.value;
     await invoke('set_language', { language: language.value });
 
-    // 3. 保存首次索引偏好
-    await invoke('set_setup_index_preferences', {
-      localLauncher: setupLocalLauncher.value,
-      desktopFiles: setupDesktopFiles.value,
-      cacheIcons: setupCacheIcons.value
-    });
-
-    // 4. 标记设置已完成
+    // 3. 标记设置已完成
     await invoke('set_setup_completed');
 
     modal.msg(t('setup.setupComplete'));
 
-    // 5. 关闭设置向导窗口并重启应用
+    // 4. 关闭设置向导窗口并重启应用
     await invoke('close_setup_window');
   } catch (error: any) {
     modal.msg(`${t('setup.setupFailed')}: ${error}`, 'error');
@@ -389,10 +547,10 @@ const completeSetup = async () => {
 
 <style scoped lang="scss">
 .setup-container {
-  @apply w-full h-full rounded-xl overflow-hidden;
-  background: linear-gradient(180deg, #1a1b26 0%, #16171f 100%);
-  color: #e2e4e8;
-  border: 1px solid rgba(93, 109, 253, 0.12);
+  @apply w-full h-full rounded-xl overflow-hidden bg-panel;
+  color: var(--panel-text-color, #0f172a);
+  border: 1px solid rgb(148 163 184 / 18%);
+  box-shadow: 0 18px 48px rgb(15 23 42 / 12%);
 }
 
 .setup-card {
@@ -401,13 +559,16 @@ const completeSetup = async () => {
 
 .welcome-drag-region {
   @apply h-8 w-full shrink-0;
+  background: linear-gradient(180deg, rgb(255 255 255 / 92%), rgb(248 250 252 / 70%));
   -webkit-app-region: drag;
 }
 
 .setup-steps {
-  @apply flex items-center justify-center gap-6 py-6 px-8;
+  @apply flex items-center justify-center gap-4 py-4 px-6;
   @apply cursor-move select-none;
   -webkit-app-region: drag;
+  background: linear-gradient(180deg, rgb(255 255 255 / 94%), rgb(248 250 252 / 82%));
+  border-bottom: 1px solid rgb(148 163 184 / 14%);
 
   /* Minimalist step indicator */
   .step {
@@ -417,7 +578,7 @@ const completeSetup = async () => {
 
     &.active {
       opacity: 1;
-      color: #dcddde;
+      color: #0f172a;
 
       .step-dot {
         background-color: var(--el-color-primary);
@@ -441,26 +602,35 @@ const completeSetup = async () => {
 
 .step-dot {
   @apply w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium;
-  border: 1px solid rgba(93, 109, 253, 0.3);
+  border: 1px solid rgb(59 130 246 / 28%);
   background-color: transparent;
   transition: all 0.3s ease;
 }
 
 .step-label {
-  @apply text-sm font-medium hidden sm:block;
+  @apply text-xs font-medium hidden sm:block;
 }
 
 .setup-content {
-  @apply flex-1 min-h-0 px-8 pt-2 pb-2 flex flex-col items-center justify-start;
-  overflow-y: auto;
+  @apply flex-1 min-h-0 px-8 pt-3 pb-2 flex flex-col items-center justify-start;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgb(255 255 255 / 100%), rgb(248 250 252 / 92%));
 }
 
 .step-page {
-  @apply flex flex-col items-center text-center w-full max-w-md flex-1 min-h-0;
+  @apply flex flex-col items-center text-center w-full max-w-lg flex-1 min-h-0;
   animation: fadeIn 0.3s ease-out;
 
   &.welcome-page {
     @apply justify-start gap-3 pb-2;
+  }
+
+  &.path-step-page {
+    @apply justify-start;
+  }
+
+  &.complete-page {
+    @apply justify-start;
   }
 }
 
@@ -481,23 +651,25 @@ const completeSetup = async () => {
 }
 
 .welcome-icon {
-  @apply mb-3;
+  @apply mb-2 rounded-2xl p-3;
+  background: rgb(59 130 246 / 8%);
+  border: 1px solid rgb(59 130 246 / 12%);
 }
 
 .app-logo {
-  @apply w-16 h-16 object-contain;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.2));
+  @apply w-14 h-14 object-contain;
+  filter: drop-shadow(0 8px 16px rgb(15 23 42 / 14%));
 }
 
 .welcome-title {
   @apply text-xl font-semibold mb-0.5;
-  color: #f0f1f4;
-  letter-spacing: -0.02em;
+  color: #0f172a;
+  letter-spacing: 0;
 }
 
 .app-version {
   @apply text-xs font-mono mb-1;
-  color: rgba(148, 163, 184, 0.9);
+  color: #64748b;
 }
 
 .welcome-actions {
@@ -505,10 +677,10 @@ const completeSetup = async () => {
 }
 
 .welcome-actions.options-card {
-  @apply w-full px-4 gap-0 rounded-xl overflow-hidden;
-  background: rgba(37, 40, 54, 0.85);
-  border: 1px solid rgba(93, 109, 253, 0.18);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  @apply w-full px-3 gap-0 rounded-lg overflow-hidden;
+  background: #fff;
+  border: 1px solid rgb(148 163 184 / 18%);
+  box-shadow: 0 10px 28px rgb(15 23 42 / 8%);
 }
 
 .option-row {
@@ -522,7 +694,7 @@ const completeSetup = async () => {
   }
 
   &:hover {
-    background: rgba(93, 109, 253, 0.08);
+    background: rgb(59 130 246 / 6%);
   }
 }
 
@@ -532,13 +704,13 @@ const completeSetup = async () => {
 
 .option-row .option-title {
   @apply font-medium text-sm leading-tight;
-  color: #f0f1f4;
+  color: #0f172a;
   margin-bottom: 0.125rem;
 }
 
 .option-row .option-desc {
   @apply text-xs leading-snug;
-  color: rgba(148, 163, 184, 0.85);
+  color: #64748b;
 }
 
 .option-btn {
@@ -601,8 +773,8 @@ const completeSetup = async () => {
 }
 
 .welcome-desc-text {
-  @apply text-xs text-center px-4 leading-relaxed mt-4 flex-shrink-0 max-w-md;
-  color: rgba(148, 163, 184, 0.75);
+  @apply text-xs text-center px-4 leading-relaxed mt-3 flex-shrink-0 max-w-md;
+  color: #64748b;
 }
 
 .language-footer {
@@ -613,13 +785,13 @@ const completeSetup = async () => {
   width: 140px;
 
   :deep(.el-input__wrapper) {
-    background: rgba(37, 40, 54, 0.6) !important;
-    box-shadow: 0 0 0 1px rgba(93, 109, 253, 0.2) !important;
+    background: #fff !important;
+    box-shadow: 0 0 0 1px rgb(148 163 184 / 26%) !important;
     border-radius: 8px;
     padding: 0 8px;
 
     &:hover {
-      box-shadow: 0 0 0 1px rgba(93, 109, 253, 0.35) !important;
+      box-shadow: 0 0 0 1px rgb(59 130 246 / 38%) !important;
     }
 
     &.is-focus {
@@ -627,7 +799,7 @@ const completeSetup = async () => {
     }
 
     .el-input__inner {
-      color: rgba(148, 163, 184, 0.95);
+      color: #475569;
       font-size: 12px;
       text-align: center;
     }
@@ -637,35 +809,55 @@ const completeSetup = async () => {
 
 .step-title {
   @apply text-lg font-semibold mb-2;
-  color: #f0f1f4;
+  color: #0f172a;
 }
 
 .step-desc {
   @apply mb-8 text-sm;
-  color: rgba(148, 163, 184, 0.9);
+  color: #64748b;
+
+  &.compact {
+    @apply mb-5;
+  }
 }
 
 .path-options {
   @apply w-full space-y-3;
 }
 
-.index-options {
-  @apply w-full space-y-3;
+.path-section {
+  @apply w-full;
+}
+
+.section-header {
+  @apply text-left mb-2;
+}
+
+.section-title {
+  @apply text-sm font-medium;
+  color: #0f172a;
+}
+
+.section-desc {
+  @apply text-xs leading-relaxed mt-1;
+  color: #64748b;
 }
 
 .path-option {
-  @apply flex items-center justify-between gap-4 p-4 rounded-xl cursor-pointer transition-all;
-  background: rgba(37, 40, 54, 0.85);
-  border: 1px solid rgba(93, 109, 253, 0.18);
+  @apply flex items-center justify-between gap-4 p-3 rounded-lg cursor-pointer transition-all;
+  background: #fff;
+  border: 1px solid rgb(148 163 184 / 18%);
+  min-height: 4.75rem;
+  box-shadow: 0 8px 22px rgb(15 23 42 / 5%);
 
   &:hover {
-    border-color: rgba(93, 109, 253, 0.35);
-    background: rgba(93, 109, 253, 0.06);
+    border-color: rgb(59 130 246 / 32%);
+    background: rgb(59 130 246 / 4%);
   }
 
   &.selected {
-    border-color: rgba(93, 109, 253, 0.5);
-    background: rgba(93, 109, 253, 0.1);
+    border-color: rgb(59 130 246 / 48%);
+    background: rgb(59 130 246 / 7%);
 
     .radio-dot {
       background-color: var(--el-color-primary);
@@ -677,12 +869,8 @@ const completeSetup = async () => {
   }
 }
 
-.index-option {
-  cursor: default;
-}
-
 .option-info {
-  @apply flex-1 text-left;
+  @apply flex-1 min-w-0 text-left;
 }
 
 .option-action {
@@ -691,7 +879,7 @@ const completeSetup = async () => {
 
 .radio-circle {
   @apply w-4 h-4 rounded-full flex items-center justify-center;
-  border: 1px solid rgba(93, 109, 253, 0.4);
+  border: 1px solid rgb(59 130 246 / 40%);
   transition: all 0.2s;
 }
 
@@ -702,12 +890,15 @@ const completeSetup = async () => {
 
 .option-title {
   @apply font-medium text-sm mb-0.5;
-  color: #f0f1f4;
+  color: #0f172a;
 }
 
 .option-desc {
-  @apply text-xs break-all;
-  color: rgba(148, 163, 184, 0.85);
+  @apply text-xs;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .custom-path-input {
@@ -717,12 +908,12 @@ const completeSetup = async () => {
     @apply flex-1;
 
   :deep(.el-input__wrapper) {
-    background: rgba(26, 27, 38, 0.8);
-    box-shadow: 0 0 0 1px rgba(93, 109, 253, 0.2) inset;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgb(148 163 184 / 28%) inset;
     border-radius: 8px;
 
       &:hover {
-        box-shadow: 0 0 0 1px rgba(93, 109, 253, 0.35) inset;
+        box-shadow: 0 0 0 1px rgb(59 130 246 / 36%) inset;
       }
 
       &.is-focus {
@@ -737,22 +928,23 @@ const completeSetup = async () => {
 }
 
 .path-tip {
-  @apply flex items-start gap-2 mt-6 text-xs p-3 rounded-lg;
-  background: rgba(93, 109, 253, 0.06);
-  border: 1px solid rgba(93, 109, 253, 0.15);
-  color: rgba(148, 163, 184, 0.9);
+  @apply flex items-start gap-2 mt-4 text-xs p-3 rounded-lg;
+  background: rgb(14 165 233 / 7%);
+  border: 1px solid rgb(14 165 233 / 14%);
+  color: #475569;
   text-align: left;
 }
 
 .complete-icon {
-  @apply mb-6;
+  @apply mb-4;
   filter: drop-shadow(0 0 15px rgba(16, 185, 129, 0.3));
 }
 
 .summary {
-  @apply w-full mt-6 p-4 rounded-xl text-left flex flex-col gap-3;
-  background: rgba(37, 40, 54, 0.85);
-  border: 1px solid rgba(93, 109, 253, 0.18);
+  @apply w-full mt-3 p-3 rounded-lg text-left flex flex-col gap-2;
+  background: #fff;
+  border: 1px solid rgb(148 163 184 / 18%);
+  box-shadow: 0 10px 28px rgb(15 23 42 / 7%);
 }
 
 .summary-item {
@@ -761,18 +953,21 @@ const completeSetup = async () => {
 
 .summary-label {
   @apply text-xs uppercase tracking-wider;
-  color: rgba(148, 163, 184, 0.8);
+  color: #64748b;
 }
 
 .summary-value {
-  @apply text-sm font-mono break-all p-2 rounded;
-  color: #e2e4e8;
-  background: rgba(0, 0, 0, 0.25);
+  @apply text-xs font-mono p-2 rounded;
+  color: #0f172a;
+  background: rgb(241 245 249 / 90%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .setup-footer {
-  @apply flex items-center gap-3 px-8 py-5;
-  border-top: 1px solid rgba(93, 109, 253, 0.12);
-  background: rgba(22, 23, 31, 0.95);
+  @apply flex items-center gap-3 px-8 py-4;
+  border-top: 1px solid rgb(148 163 184 / 14%);
+  background: rgb(248 250 252 / 92%);
 }
 </style>

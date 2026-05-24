@@ -8,7 +8,12 @@ import bingIcon from '@/assets/svg/bing.svg';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import { processTextForTranslation, detectLanguage } from '@/utils/text';
-import { translateOffline } from '@/plugins/translation/utils/offlineTranslator';
+import {
+  translateOffline,
+  canUseOfflineTranslation,
+  isModelCached,
+  warmupOfflineTranslator
+} from '@/plugins/translation/utils/offlineTranslator';
 import {
   Pushpin,
   CloseSmall,
@@ -321,8 +326,6 @@ const translateWithEngine = async (engine: string) => {
 
     if (engine === 'offline') {
       // 离线翻译 - 懒加载模型
-      const { canUseOfflineTranslation, isModelCached, warmupOfflineTranslator } = await import('@/plugins/translation/utils/offlineTranslator');
-
       // 检查内存中是否已加载
       if (!canUseOfflineTranslation()) {
         // 检查缓存是否存在

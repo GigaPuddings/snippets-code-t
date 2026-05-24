@@ -2,6 +2,8 @@
  * 懒加载模块管理器
  * 延迟加载非关键功能模块
  */
+import * as offlineTranslator from '@/plugins/translation/utils/offlineTranslator'
+
 export class LazyLoader {
   private static loadedModules = new Map<string, any>()
   private static loadingPromises = new Map<string, Promise<any>>()
@@ -44,7 +46,7 @@ export class LazyLoader {
       return this.loadingPromises.get(moduleKey)
     }
 
-    const loadPromise = import('@/plugins/translation/utils/offlineTranslator').then(module => {
+    const loadPromise = Promise.resolve(offlineTranslator).then(module => {
       this.loadedModules.set(moduleKey, module)
       this.loadingPromises.delete(moduleKey)
       return module

@@ -177,7 +177,7 @@ pub fn write_path_config(app_handle: &tauri::AppHandle, config: &PathConfig) -> 
 
     fs::write(&config_path, json).map_err(|e| format!("写入 path.json 失败: {}", e))?;
 
-    info!("✅ path.json 已保存: {:?}", config.data_dir);
+    info!("✅ path.json 已保存");
     Ok(())
 }
 
@@ -367,7 +367,7 @@ pub fn get_workspace_root(app_handle: &tauri::AppHandle) -> Result<Option<PathBu
     if let Some(workspace_root) = config.workspace_root {
         let path = PathBuf::from(workspace_root);
         if workspace_overlaps_app_data(app_handle, &path) {
-            warn!("⚠️ 工作区配置指向应用数据目录，已忽略: {}", path.display());
+            warn!("⚠️ 工作区配置指向应用数据目录，已忽略");
             return Ok(None);
         }
 
@@ -409,7 +409,7 @@ pub fn set_workspace_root(app_handle: &tauri::AppHandle, path: PathBuf) -> Resul
     config.workspace_root = Some(path.to_string_lossy().to_string());
     write_app_config(app_handle, &config)?;
 
-    info!("✅ 工作区根目录已设置: {}", path.display());
+    info!("✅ 工作区根目录已设置");
     Ok(())
 }
 

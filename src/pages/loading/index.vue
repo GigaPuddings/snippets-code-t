@@ -18,53 +18,44 @@
 
 <style scoped lang="scss">
 .loading-container {
-  @apply flex justify-center items-center h-screen w-full rounded-2xl;
+  @apply flex justify-center items-center h-screen w-full rounded-xl bg-panel;
 
   overflow: hidden;
-  background: linear-gradient(
-    135deg,
-    rgb(23 23 37 / 95%) 0%,
-    rgb(33 33 55 / 95%) 100%
-  );
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgb(0 0 0 / 15%);
+  border: 1px solid rgb(148 163 184 / 18%);
+  box-shadow: 0 18px 48px rgb(15 23 42 / 12%);
 }
 
 .loading-content {
-  @apply flex flex-col items-center justify-center -mt-4 text-center max-w-xs;
+  @apply flex flex-col items-center justify-center text-center max-w-xs;
+  width: 248px;
 }
 
 .logo-container {
-  @apply mb-3 relative;
+  @apply mb-3 relative rounded-2xl p-3;
+  background: rgb(59 130 246 / 8%);
+  border: 1px solid rgb(59 130 246 / 12%);
 
   &::after {
     content: '';
 
-    @apply absolute w-full h-full top-0 left-0 rounded-full -z-10;
+    @apply absolute w-full h-full top-0 left-0 rounded-2xl -z-10;
 
-    background: radial-gradient(
-      circle,
-      rgb(59 130 246 / 15%) 0%,
-      rgb(59 130 246 / 0%) 70%
-    );
+    background: rgb(59 130 246 / 8%);
   }
 }
 
 .app-logo {
-  @apply w-[70px] h-[70px] object-contain;
+  @apply w-14 h-14 object-contain;
 
-  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 20%));
-  animation: pulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 8px 16px rgb(15 23 42 / 14%));
+  animation: pulse 2.2s ease-in-out infinite;
 }
 
 .app-title {
-  @apply text-2xl font-semibold mb-5 tracking-wide;
+  @apply text-xl font-semibold mb-2;
 
-  text-shadow: 0 2px 10px rgb(255 255 255 / 10%);
-  background: linear-gradient(to right, #fff, #e2e8f0);
-  background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #0f172a;
+  letter-spacing: 0;
 }
 
 @keyframes pulse {
@@ -82,7 +73,7 @@
 }
 
 .loading-text {
-  @apply text-sm text-panel-text-secondary mt-6 font-normal tracking-wide relative pb-1;
+  @apply text-xs text-panel-text-secondary mt-1 font-normal relative pb-1;
 
   animation: fadeIn 1.5s ease-in-out;
 
@@ -91,7 +82,7 @@
     background: linear-gradient(
       to right,
       rgb(59 130 246 / 0%),
-      rgb(59 130 246 / 60%),
+      rgb(59 130 246 / 50%),
       rgb(59 130 246 / 0%)
     );
     transform: translateX(-50%);
@@ -107,7 +98,8 @@
 }
 
 .loading-progress {
-  @apply w-full mt-6 h-1 bg-panel rounded-full overflow-hidden;
+  @apply w-full mt-5 h-1 rounded-full overflow-hidden;
+  background: rgb(59 130 246 / 10%);
 }
 
 .progress-bar {

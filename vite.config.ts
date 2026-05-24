@@ -81,6 +81,11 @@ export default defineConfig(async ({ command }) => {
         // 3. tell vite to ignore watching `src-tauri`
         ignored: ['**/src-tauri/**']
       }
+    },
+    build: {
+      // Tauri bundles local assets; current largest raw chunk is about 2.8 MB
+      // and under 500 KB gzip. Keep warning only for unusual growth.
+      chunkSizeWarningLimit: 3500
     }
   };
 });

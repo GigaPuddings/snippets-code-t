@@ -390,31 +390,35 @@ const handleCancel = () => {
 
   min-height: 0;
   animation: fadeIn 0.24s ease-out;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 12%);
 
   .update-header {
-    @apply w-full flex items-center justify-between px-4 py-2 flex-shrink-0;
+    @apply w-full flex items-center justify-between px-5 py-2 flex-shrink-0;
+    height: 54px;
     border-bottom: 1px solid rgb(148 163 184 / 16%);
+    background: linear-gradient(180deg, rgb(255 255 255 / 92%), rgb(248 250 252 / 88%));
 
     .header-title {
-      @apply flex items-center gap-1;
+      @apply flex items-center gap-2;
     }
 
     .logo-mark {
-      @apply relative w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0;
+      @apply relative w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0;
+      background: rgb(59 130 246 / 8%);
 
       .app-logo {
-        @apply relative z-10 w-8 h-8 object-contain;
+        @apply relative z-10 w-6 h-6 object-contain;
       }
     }
 
     .title {
-      @apply text-xl font-bold text-panel m-0;
+      @apply text-base font-semibold text-panel m-0;
 
       letter-spacing: 0;
     }
 
     .close-button {
-      @apply w-10 h-10 rounded-lg flex items-center justify-center text-panel-text-secondary transition-all duration-200;
+      @apply w-8 h-8 rounded-md flex items-center justify-center text-panel-text-secondary transition-all duration-200;
 
       &:hover {
         @apply bg-panel-hover-bg text-panel;
@@ -423,7 +427,7 @@ const handleCancel = () => {
   }
 
   .update-content {
-    @apply w-full flex-1 flex flex-col overflow-hidden px-8 py-4;
+    @apply w-full flex-1 flex flex-col overflow-hidden px-6 py-4;
 
     min-height: 0;
 
@@ -435,25 +439,25 @@ const handleCancel = () => {
     }
 
     .version-summary {
-      @apply flex-shrink-0;
+      @apply flex-shrink-0 grid gap-1;
 
       .new-version {
-        @apply text-xl font-bold mb-4;
+        @apply text-2xl font-bold;
 
         color: var(--el-color-primary);
       }
 
       .version-copy {
-        @apply text-base text-panel-text-secondary leading-relaxed m-0;
+        @apply text-sm text-panel-text-secondary leading-snug m-0;
       }
 
       .release-date {
-        @apply text-xs text-panel-text-secondary mt-2 mb-0;
+        @apply text-xs text-panel-text-secondary mt-0 mb-0;
       }
     }
 
     .status-banner {
-      @apply flex items-center gap-3 mt-4 px-5 py-4 rounded-lg text-base font-semibold;
+      @apply flex items-center gap-2 mt-3 px-3 py-2 rounded-lg text-sm font-medium;
 
       color: #19c463;
       background: rgb(22 163 74 / 10%);
@@ -468,7 +472,7 @@ const handleCancel = () => {
     }
 
     .notes-divider {
-      @apply w-full flex-shrink-0 my-7;
+      @apply w-full flex-shrink-0 my-3;
 
       height: 1px;
       background: rgb(148 163 184 / 18%);
@@ -480,11 +484,11 @@ const handleCancel = () => {
       min-height: 0;
 
       .notes-heading {
-        @apply flex items-center justify-between gap-4 mb-5 flex-shrink-0;
+        @apply flex items-center justify-between gap-4 mb-2 flex-shrink-0;
       }
 
       .notes-title {
-        @apply text-lg font-bold text-panel;
+        @apply text-sm font-semibold text-panel;
       }
 
       .notes-date {
@@ -492,10 +496,12 @@ const handleCancel = () => {
       }
 
       .notes-scrollbar {
-        @apply flex-1 pr-1;
+        @apply flex-1 pr-1 rounded-lg;
 
         height: 0;
         min-height: 0;
+        border: 1px solid rgb(148 163 184 / 14%);
+        background: rgb(248 250 252 / 64%);
 
         :deep(.el-scrollbar__wrap) {
           max-height: 100%;
@@ -511,39 +517,39 @@ const handleCancel = () => {
       }
 
       .notes-content {
-        @apply pr-4 text-panel-text-secondary text-base leading-relaxed;
+        @apply px-4 py-3 text-panel-text-secondary text-sm leading-relaxed;
 
         :deep(h1),
         :deep(h2),
         :deep(h3),
         :deep(h4) {
-          @apply font-semibold text-panel mt-4 mb-3;
+          @apply font-semibold text-panel mt-3 mb-2;
         }
 
         :deep(h1) {
-          @apply text-xl;
+          @apply text-lg;
         }
 
         :deep(h2) {
-          @apply text-lg;
+          @apply text-base;
         }
 
         :deep(h3),
         :deep(h4) {
-          @apply text-base;
+          @apply text-sm;
         }
 
         :deep(p) {
-          @apply mb-3;
+          @apply mb-2;
         }
 
         :deep(ul),
         :deep(ol) {
-          @apply pl-6 mb-3;
+          @apply pl-5 mb-2;
         }
 
         :deep(li) {
-          @apply mb-3 pl-1;
+          @apply mb-1.5 pl-1;
         }
 
         :deep(li::marker) {
@@ -563,7 +569,7 @@ const handleCancel = () => {
         }
 
         :deep(pre) {
-          @apply bg-content p-4 rounded-lg mb-3 overflow-x-auto;
+          @apply bg-content p-3 rounded-lg mb-2 overflow-x-auto;
 
           code {
             @apply bg-transparent p-0;
@@ -571,7 +577,7 @@ const handleCancel = () => {
         }
 
         :deep(blockquote) {
-          @apply border-l-4 pl-4 py-1 my-3 text-panel-text-secondary italic;
+          @apply border-l-4 pl-3 py-1 my-2 text-panel-text-secondary italic;
 
           border-color: var(--el-color-primary);
         }
@@ -583,22 +589,23 @@ const handleCancel = () => {
         }
 
         :deep(hr) {
-          @apply my-4 border-panel;
+          @apply my-3 border-panel;
         }
       }
     }
 
     .download-progress {
-      @apply flex flex-col gap-4 mt-6 px-5 py-4 rounded-lg flex-shrink-0;
+      @apply flex flex-col gap-3 mt-3 px-4 py-3 rounded-lg flex-shrink-0;
 
       background: rgb(59 130 246 / 8%);
+      border: 1px solid rgb(59 130 246 / 12%);
       animation: fadeIn 0.24s ease-out;
 
       .progress-status {
         @apply flex items-center justify-start gap-3 w-full;
 
         .status-icon {
-          @apply w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0;
+          @apply w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0;
 
           &.completed {
             @apply bg-green-50;
@@ -629,7 +636,7 @@ const handleCancel = () => {
           @apply flex-1 min-w-0;
 
           .status-text {
-            @apply text-panel font-semibold text-sm break-words;
+            @apply text-panel font-medium text-xs break-words;
 
             &.error {
               @apply text-red-600;
@@ -642,7 +649,7 @@ const handleCancel = () => {
         @apply w-full;
 
         .progress-bar {
-          @apply mb-2;
+          @apply mb-1;
 
           :deep(.el-progress-bar__outer) {
             background-color: rgb(59 130 246 / 12%);
@@ -658,7 +665,7 @@ const handleCancel = () => {
         }
 
         .progress-info {
-          @apply flex items-center justify-end text-sm;
+          @apply flex items-center justify-end text-xs;
 
           .percentage {
             @apply font-bold;
@@ -669,22 +676,22 @@ const handleCancel = () => {
       }
 
       .error-message {
-        @apply w-full mt-1 p-4 bg-red-50 border border-red-200 rounded-lg;
+        @apply w-full mt-1 p-3 bg-red-50 border border-red-200 rounded-lg;
 
         .error-title {
-          @apply flex items-center gap-2 mb-3 pb-3 border-b border-red-200;
+          @apply flex items-center gap-2 mb-2 pb-2 border-b border-red-200;
 
           svg {
             @apply text-red-500;
           }
 
           span {
-            @apply font-semibold text-red-700 text-base;
+            @apply font-semibold text-red-700 text-sm;
           }
         }
 
         .error-content {
-          @apply text-sm text-red-600 leading-relaxed m-0 font-normal whitespace-pre-wrap;
+          @apply text-xs text-red-600 leading-relaxed m-0 font-normal whitespace-pre-wrap;
 
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
         }
@@ -693,13 +700,13 @@ const handleCancel = () => {
   }
 
   .footer {
-    @apply w-full flex items-center justify-end gap-4 px-8 py-4 flex-shrink-0;
+    @apply w-full flex items-center justify-end gap-3 px-6 py-3 flex-shrink-0;
 
     background: rgb(241 245 249 / 82%);
     border-top: 1px solid rgb(148 163 184 / 18%);
 
     .action-button {
-      @apply min-w-[130px] h-10 transition-all duration-200 rounded-lg;
+      @apply min-w-[112px] h-9 transition-all duration-200 rounded-lg;
 
       &:hover {
         transform: translateY(-1px);

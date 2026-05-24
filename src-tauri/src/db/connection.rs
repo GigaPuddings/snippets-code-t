@@ -335,7 +335,7 @@ pub fn set_data_dir_from_setup(
 ) -> Result<String, String> {
     let mut data_dir = PathBuf::from(&path);
 
-    log::info!("📁 设置向导：设置数据目录 = {}", path);
+    log::info!("📁 设置向导：设置数据目录");
 
     // 获取应用默认数据目录
     let default_data_dir = app_handle
@@ -376,7 +376,7 @@ pub fn set_data_dir_from_setup(
 
     // 如果不是默认路径，删除旧的默认目录
     if !is_default_path && default_data_dir.exists() {
-        log::info!("删除旧的默认数据目录: {:?}", default_data_dir);
+        log::info!("删除旧的默认数据目录");
         let _ = std::fs::remove_dir_all(&default_data_dir);
     }
 
@@ -397,13 +397,35 @@ pub fn set_data_dir_from_setup(
     use crate::db::init_db;
     init_db().map_err(|e| format!("初始化数据库失败: {}", e))?;
 
-    // 在新的数据目录创建默认的 app.json
+    // 在新的数据目录创建默认的 app.json，并同步刷新内存中的 AppConfigManager。
+    // setup 期间 path.json 会先切换目录；如果继续使用旧 manager，后续
+    // setup_completed / workspace_root / index preferences 可能被写入旧 app.json，
+    // 生产环境重启后就会读不到完成状态，表现为 setup 关闭后无法正常启动。
     log::info!("📝 在新数据目录创建 .snippets-code/app.json");
-    let default_app_config = json_config::AppConfig::default();
-    json_config::write_app_config(&app_handle, &default_app_config)?;
+    let mut app_config_manager = crate::app_config::AppConfigManager::new(&data_dir)?;
+    let mut app_config = app_config_manager.get_config().clone();
+    app_config.setup_completed = false;
+    app_config.workspace_root = None;
+    app_config.show_progress_on_restart = Some(false);
+    app_config.show_progress_reset_kind = Some(String::new());
+    app_config.setup_restart_pending = Some(false);
+    app_config_manager.update_config(app_config);
+    app_config_manager.save()?;
+
+    if let Some(config_state) =
+        app_handle.try_state::<std::sync::Arc<std::sync::RwLock<crate::app_config::AppConfigManager>>>()
+    {
+        let mut manager = config_state
+            .write()
+            .map_err(|e| format!("刷新应用配置状态失败: {}", e))?;
+        *manager = app_config_manager;
+    } else {
+        app_handle.manage(std::sync::Arc::new(std::sync::RwLock::new(app_config_manager)));
+    }
+
     crate::app_config::ensure_enabled_plugin_storage(&app_handle);
 
-    log::info!("✅ 数据目录设置完成: {}", final_path);
+    log::info!("✅ 数据目录设置完成");
     // 返回实际使用的路径
     Ok(final_path)
 }

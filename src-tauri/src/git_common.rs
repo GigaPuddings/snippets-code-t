@@ -2,7 +2,7 @@
 // 提供加密、进度事件等通用功能
 
 use aes_gcm::{
-    aead::{Aead, KeyInit},
+    aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose, Engine as _};
@@ -14,12 +14,15 @@ pub fn encrypt_data(data: &[u8], token: &str) -> Result<Vec<u8>, String> {
     let cipher =
         Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| format!("创建加密器失败: {}", e))?;
 
-    let nonce = Nonce::from_slice(&FIXED_NONCE);
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ciphertext = cipher
-        .encrypt(nonce, data)
+        .encrypt(&nonce, data)
         .map_err(|e| format!("加密失败: {}", e))?;
 
-    Ok(ciphertext)
+    let mut encrypted = Vec::with_capacity(nonce.len() + ciphertext.len());
+    encrypted.extend_from_slice(&nonce);
+    encrypted.extend_from_slice(&ciphertext);
+    Ok(encrypted)
 }
 
 /// 使用 AES-256-GCM 解密数据
@@ -28,12 +31,18 @@ pub fn decrypt_data(encrypted_data: &[u8], token: &str) -> Result<Vec<u8>, Strin
     let cipher =
         Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| format!("创建解密器失败: {}", e))?;
 
-    let nonce = Nonce::from_slice(&FIXED_NONCE);
-    let plaintext = cipher
-        .decrypt(nonce, encrypted_data)
-        .map_err(|e| format!("解密失败: {}", e))?;
+    if encrypted_data.len() > NONCE_LEN {
+        let (nonce_bytes, ciphertext) = encrypted_data.split_at(NONCE_LEN);
+        let nonce = Nonce::from_slice(nonce_bytes);
+        if let Ok(plaintext) = cipher.decrypt(nonce, ciphertext) {
+            return Ok(plaintext);
+        }
+    }
 
-    Ok(plaintext)
+    let legacy_nonce = Nonce::from_slice(&LEGACY_FIXED_NONCE);
+    cipher
+        .decrypt(legacy_nonce, encrypted_data)
+        .map_err(|e| format!("解密失败: {}", e))
 }
 
 /// 从 Token 派生加密密钥
@@ -58,8 +67,10 @@ pub fn decode_base64(encoded: &str) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("Base64 解码失败: {}", e))
 }
 
-/// 固定的 12 字节 nonce
-const FIXED_NONCE: [u8; 12] = [
+const NONCE_LEN: usize = 12;
+
+/// 旧版本固定 nonce，仅用于兼容读取历史数据。
+const LEGACY_FIXED_NONCE: [u8; NONCE_LEN] = [
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
 ];
 

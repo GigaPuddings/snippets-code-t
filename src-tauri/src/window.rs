@@ -13,6 +13,9 @@ pub type WindowReadyCallback = Box<dyn FnOnce(&WebviewWindow) + Send + 'static>;
 use base64::{engine::general_purpose, Engine as _};
 use image::GenericImageView;
 use mouse_position::mouse_position::Mouse;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+use std::process::Command;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::thread;
@@ -717,10 +720,7 @@ fn ensure_config_cleanup_listener(window: &WebviewWindow) {
                                 if let Err(e) = std::fs::remove_dir_all(&trash_dir) {
                                     log::warn!("[Config] 清理软删除目录失败: {}", e);
                                 } else {
-                                    log::info!(
-                                        "[Config] 已清理软删除目录: {}",
-                                        trash_dir.display()
-                                    );
+                                    log::info!("[Config] 已清理软删除目录");
                                 }
                             }
                         }
@@ -917,7 +917,7 @@ pub fn hotkey_translate() {
 pub fn create_update_window() {
     let spec = WindowSpec {
         label: "update",
-        url: "/#update",
+        url: "/#/update",
         title: "系统更新",
         width: 560.0,
         height: 550.0,
@@ -2765,6 +2765,55 @@ pub fn create_setup_window() {
     let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
 }
 
+fn spawn_delayed_relaunch() -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+
+    #[cfg(target_os = "windows")]
+    {
+        let exe_path = windows_shell_path(&exe);
+        Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                "Start-Sleep -Milliseconds 900; Start-Process -FilePath $env:SNIPPETS_CODE_RELAUNCH_EXE -ArgumentList '--setup-restart'",
+            ])
+            .env("SNIPPETS_CODE_RELAUNCH_EXE", exe_path)
+            .creation_flags(0x08000000)
+            .spawn()
+            .map_err(|error| error.to_string())?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Command::new("sh")
+            .arg("-c")
+            .arg("sleep 1; exec \"$1\" --setup-restart")
+            .arg("snippets-code-relaunch")
+            .arg(exe)
+            .spawn()
+            .map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn windows_shell_path(path: &std::path::Path) -> String {
+    let value = path.to_string_lossy().to_string();
+    if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{}", rest);
+    }
+    if let Some(rest) = value.strip_prefix(r"\\?\") {
+        return rest.to_string();
+    }
+    value
+}
+
 // 关闭设置向导窗口并重启应用
 #[tauri::command]
 pub fn close_setup_window() {
@@ -2776,6 +2825,14 @@ pub fn close_setup_window() {
     info!("设置完成，正在重启应用...");
     let _ = crate::json_config::set_app_config_value(app, "setup_restart_pending", true);
 
-    // 重启应用以使用新的数据库路径
-    app.restart();
+    match spawn_delayed_relaunch() {
+        Ok(_) => {
+            app.cleanup_before_exit();
+            std::process::exit(0);
+        }
+        Err(error) => {
+            error!("延迟重启启动失败，回退到内置重启: {}", error);
+            app.restart();
+        }
+    }
 }

@@ -82,6 +82,21 @@ const isWorkspaceNotSetError = (error: unknown): boolean => {
   ].some((keyword) => normalized.includes(keyword.toLowerCase()));
 };
 
+const isGitPluginDisabledError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("插件 'git-sync' 未启用") ||
+    normalized.includes('插件 "git-sync" 未启用') ||
+    (normalized.includes("plugin 'git-sync'") && (
+      normalized.includes('disabled') ||
+      normalized.includes('not enabled') ||
+      normalized.includes('未启用')
+    ))
+  );
+};
+
 /**
  * Git 状态管理组合式函数
  * 管理标题栏 Git 同步状态显示
@@ -148,6 +163,12 @@ export function useGitStatus(): UseGitStatusReturn {
 
   // 刷新 Git 状态
   const refreshStatus = async (): Promise<void> => {
+    if (gitSettings.value && !gitSettings.value.enabled) {
+      gitStatus.value = null;
+      syncState.value = 'disabled';
+      return;
+    }
+
     // 如果正在加载或正在同步，先标记待刷新，等当前操作完成
     if (isLoading.value || syncState.value === 'syncing') {
       pendingRefresh.value = true;
@@ -169,7 +190,7 @@ export function useGitStatus(): UseGitStatusReturn {
         syncState.value = 'synced';
       }
     } catch (error) {
-      if (isWorkspaceNotSetError(error)) {
+      if (isWorkspaceNotSetError(error) || isGitPluginDisabledError(error)) {
         gitStatus.value = null;
         syncState.value = 'disabled';
         return;
@@ -301,6 +322,11 @@ export function setupGitStatusListener(): void {
           syncState.value = 'synced';
         }
       }).catch(error => {
+        if (isWorkspaceNotSetError(error) || isGitPluginDisabledError(error)) {
+          gitStatus.value = null;
+          syncState.value = 'disabled';
+          return;
+        }
         logger.error('[GitStatus] git-sync-complete 后刷新状态失败', error);
         syncState.value = 'error';
       });

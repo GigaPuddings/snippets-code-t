@@ -448,13 +448,10 @@ pub fn validate_token_url(workspace_root: &Path, authenticated_url: &str) -> Res
             || stderr.contains("missing or invalid credentials")
             || (stderr.contains("repository not found") && stderr.contains("remote:"))
         {
-            error!("❌ [Git] Token 校验失败: {}", stderr);
+            error!("❌ [Git] Token 校验失败，已隐藏远程响应详情");
             return Err("GitHub Token 无效或已过期，请检查并更新 Token 后重试".to_string());
         }
-        warn!(
-            "⚠️ [Git] ls-remote 失败（可能为网络或仓库不存在）: {}",
-            stderr
-        );
+        warn!("⚠️ [Git] ls-remote 失败（可能为网络或仓库不存在），已隐藏远程响应详情");
     } else {
         info!("✅ [Git] Token 校验通过");
     }

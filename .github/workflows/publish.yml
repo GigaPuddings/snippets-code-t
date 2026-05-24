@@ -53,7 +53,6 @@ jobs:
           draft: false
           prerelease: false
           files: ''
-          allow_duplicates: false
 
       - name: Build Tauri (without upload)
         run: pnpm tauri build
@@ -74,4 +73,3 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: node scripts/updater.mjs 
-

@@ -44,16 +44,7 @@ pub fn hotkey_selection_translate() {
 
     std::thread::sleep(std::time::Duration::from_millis(50));
     let selected_text = get_selected_text_with_retry();
-    let preview: String = selected_text.chars().take(50).collect();
-    log::info!(
-        "[划词翻译] 最终获取的文本长度: {}, 内容预览: {}",
-        selected_text.len(),
-        if selected_text.len() > 50 {
-            format!("{}...", preview)
-        } else {
-            selected_text.clone()
-        }
-    );
+    log::info!("[划词翻译] 最终获取的文本长度: {}", selected_text.len());
 
     if let Some(window) = app_handle.get_webview_window("translate") {
         if window.is_visible().unwrap_or(false) {
@@ -156,13 +147,13 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
     let spec = translate_window_spec();
     let on_ready: Option<WindowReadyCallback> = text.map(|txt| {
         Box::new(move |window: &WebviewWindow| {
-            info!("翻译窗口准备完成，发送选中的文本: {}", txt);
+            info!("翻译窗口准备完成，发送选中文本，长度: {}", txt.len());
 
             let window_clone = window.clone();
             let text_clone = txt.clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                info!("[延迟发送] 翻译窗口延迟发送选中的文本: {}", text_clone);
+                info!("[延迟发送] 翻译窗口延迟发送选中文本，长度: {}", text_clone.len());
                 let emit_result =
                     window_clone.emit("selection-text", serde_json::json!({ "text": text_clone }));
                 info!("发送 selection-text 事件结果: {:?}", emit_result);

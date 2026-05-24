@@ -1,4 +1,4 @@
-import { X as e } from "./assets/runtime-entry-CDZDZSB7.js";
+import { X as e } from "./assets/runtime-entry-PIXKtBfD.js";
 export {
   e as activate
 };

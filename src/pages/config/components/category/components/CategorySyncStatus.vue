@@ -22,6 +22,7 @@ import {
   setupGitStatusListener,
   useGitStatus
 } from '@/plugins/git-sync/useGitStatus';
+import { usePluginStore } from '@/store';
 import { useRouter } from 'vue-router';
 
 defineOptions({
@@ -39,13 +40,17 @@ const {
 } = useGitStatus();
 
 const router = useRouter();
+const pluginStore = usePluginStore();
+const isGitPluginEnabled = computed(() => pluginStore.isEnabled('git-sync'));
 
 const canOpenGitSettings = computed(() => (
+  isGitPluginEnabled.value &&
   gitSettings.value?.enabled === true &&
   ['has_changes', 'error', 'syncing'].includes(syncState.value)
 ));
 
 const statusLabel = computed(() => {
+  if (!isGitPluginEnabled.value) return '本地库';
   if (!gitSettings.value?.enabled) return '本地库';
   if (syncState.value === 'syncing') return '正在同步';
   if (syncState.value === 'has_changes') return '有待同步';
@@ -54,6 +59,7 @@ const statusLabel = computed(() => {
 });
 
 const statusBadge = computed(() => {
+  if (!isGitPluginEnabled.value) return 'LOCAL';
   if (!gitSettings.value?.enabled) return 'LOCAL';
   if (syncState.value === 'syncing') return 'SYNC';
   if (syncState.value === 'has_changes') return String(pendingFilesCount.value);
@@ -62,6 +68,7 @@ const statusBadge = computed(() => {
 });
 
 const statusTitle = computed(() => {
+  if (!isGitPluginEnabled.value) return 'Git 插件未启用';
   if (!gitSettings.value?.enabled) return 'Git 同步未启用';
   if (canOpenGitSettings.value) return `${stateDescription.value}，点击查看 Git 配置`;
   if (formattedLastSyncTime.value && syncState.value !== 'has_changes') {
@@ -76,9 +83,13 @@ function handleStatusClick(): void {
 }
 
 onMounted(async () => {
+  await pluginStore.initialize();
+  await refreshSettings();
+  if (!isGitPluginEnabled.value) {
+    return;
+  }
   setupGitStatusListener();
   initWorkspaceChangeListener(refreshStatus);
-  await refreshSettings();
   await refreshStatus();
 });
 
