@@ -275,6 +275,8 @@ const confirmDelete = async () => {
 <style scoped lang="scss">
 @mixin commonLink {
   @apply rounded-md text-sm block my-1 last:mb-0 px-3 py-[6px] truncate cursor-pointer hover:bg-hover dark:hover:bg-hover dark:text-panel;
+  position: relative;
+  border: 1px solid transparent;
 }
 
 .link {
@@ -287,7 +289,26 @@ const confirmDelete = async () => {
 .active {
   @include commonLink();
 
-  @apply bg-active text-active hover:bg-active dark:bg-active dark:hover:bg-active;
+  background-color: var(--search-result-active);
+  border-color: var(--search-result-active-border);
+  color: var(--categories-text-color);
+
+  :deep(.i-icon),
+  svg {
+    color: var(--search-result-accent);
+  }
+
+  &::before {
+    position: absolute;
+    top: 7px;
+    bottom: 7px;
+    left: 0;
+    width: 3px;
+    pointer-events: none;
+    content: '';
+    background: var(--search-result-accent);
+    border-radius: 0 999px 999px 0;
+  }
 }
 
 .category-item-input {

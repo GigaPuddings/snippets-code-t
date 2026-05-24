@@ -199,9 +199,25 @@ onMounted(async () => {
 
 .settings-menu-item {
   @apply flex items-center py-1.5 px-2 my-1.5 last:mb-0 text-panel rounded-md hover:bg-hover dark:hover:bg-hover dark:text-panel cursor-pointer transition-colors;
+  position: relative;
+  border: 1px solid transparent;
 
   &.active {
-    @apply bg-active text-active hover:bg-active dark:bg-active dark:hover:bg-active;
+    background-color: var(--search-result-active);
+    border-color: var(--search-result-active-border);
+    color: var(--categories-text-color);
+
+    &::before {
+      position: absolute;
+      top: 7px;
+      bottom: 7px;
+      left: 0;
+      width: 3px;
+      pointer-events: none;
+      content: '';
+      background: var(--search-result-accent);
+      border-radius: 0 999px 999px 0;
+    }
   }
 }
 

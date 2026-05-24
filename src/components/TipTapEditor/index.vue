@@ -3,7 +3,12 @@
     <!-- 主编辑区域（左侧） -->
     <div class="editor-main">
       <!-- 富文本编辑器视图 -->
-      <div v-show="viewMode === 'preview' || viewMode === 'reading'" class="editor-content" @contextmenu="handleContextMenu">
+      <div
+        v-show="viewMode === 'preview' || viewMode === 'reading'"
+        class="editor-content"
+        :style="props.codeStyle"
+        @contextmenu="handleContextMenu"
+      >
         <editor-content :editor="editor" />
       </div>
       
@@ -290,6 +295,41 @@ const {
   getContextMenu: () => contextMenuRef.value
 });
 
+function getEditorScrollContainer(view: EditorView): HTMLElement {
+  const editorElement = view.dom as HTMLElement;
+  const contentElement = editorElement.closest('.editor-content') as HTMLElement | null;
+
+  if (contentElement && contentElement.scrollHeight > contentElement.clientHeight) {
+    return contentElement;
+  }
+
+  if (editorElement.scrollHeight > editorElement.clientHeight) {
+    return editorElement;
+  }
+
+  return contentElement || editorElement;
+}
+
+function scrollEditorSelectionIntoView(view: EditorView): void {
+  requestAnimationFrame(() => {
+    try {
+      const position = view.state.selection.head;
+      const coords = view.coordsAtPos(position);
+      const container = getEditorScrollContainer(view);
+      const containerRect = container.getBoundingClientRect();
+      const padding = 42;
+
+      if (coords.bottom > containerRect.bottom - padding) {
+        container.scrollTop += coords.bottom - containerRect.bottom + padding;
+      } else if (coords.top < containerRect.top + padding) {
+        container.scrollTop -= containerRect.top + padding - coords.top;
+      }
+    } catch (error) {
+      console.debug('[TipTapEditor] scroll selection into view skipped:', error);
+    }
+  });
+}
+
 // 初始化编辑器
 const editor = useEditor({
   content: props.content,
@@ -303,12 +343,14 @@ const editor = useEditor({
     try {
       editorPersistenceBridge.handleEditorUpdate(editor);
       setCurrentCursorPos(editor.state.selection.from);
+      scrollEditorSelectionIntoView(editor.view);
     } catch (error) {
       handleEditorError(error, 'TipTap onUpdate');
     }
   },
   onSelectionUpdate: ({ editor }) => {
     setCurrentCursorPos(editor.state.selection.from);
+    scrollEditorSelectionIntoView(editor.view);
   },
   onFocus: () => emits('focus'),
   onBlur: () => emits('blur'),
@@ -660,13 +702,14 @@ defineExpose({
 }
 
 .editor-content > div {
- @apply h-[calc(100vh-150px)];
+  min-height: 100%;
 }
 
 :deep(.tiptap-editor) {
-  @apply outline-none overflow-y-auto;
+  @apply outline-none;
+  overflow-y: visible;
   min-height: 100%;
-  height: 100%;
+  height: auto;
   padding: 0 1rem 1.5rem 1.5rem;
   max-width: 900px;
   margin: 0 auto;

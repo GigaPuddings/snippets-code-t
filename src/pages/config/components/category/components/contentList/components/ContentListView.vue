@@ -16,8 +16,9 @@
       <RecycleScroller
         v-if="contents.length > 0"
         ref="scrollerRef"
+        class="content-scroller"
         :items="contents"
-        :item-size="69"
+        :item-size="ITEM_SIZE"
         :buffer="200"
         key-field="id"
         v-slot="{ item }"
@@ -70,6 +71,7 @@ defineEmits<ContentListViewEmits>();
 
 const route = useRoute();
 const scrollerRef = ref<InstanceType<typeof RecycleScroller> | null>(null);
+const ITEM_SIZE = 69;
 
 /**
  * 检查标签是否在筛选条件中
@@ -79,14 +81,19 @@ const isTagInFilter = computed<boolean>(() => {
   return props.combinedFilter.tags?.includes(props.tagFilter) ?? false;
 });
 
-const activeContentIndex = computed(() => {
-  const routeId = route.params.id as string | undefined;
+const activeContentId = computed(() => {
+  const id = route.params.id;
+  const routeId = Array.isArray(id) ? id[0] : id;
   if (!routeId) return -1;
   const normalizedRouteId = decodeURIComponent(routeId).replace(/\\/g, '/');
-  return props.contents.findIndex((content) => String(content.id).replace(/\\/g, '/') === normalizedRouteId);
+  return normalizedRouteId;
 });
 
-const ITEM_SIZE = 70;
+const activeContentIndex = computed(() => {
+  const normalizedRouteId = activeContentId.value;
+  if (normalizedRouteId === -1) return -1;
+  return props.contents.findIndex((content) => String(content.id).replace(/\\/g, '/') === normalizedRouteId);
+});
 
 const isIndexVisibleInScroller = (index: number, container: HTMLElement) => {
   const scrollTop = container.scrollTop;
@@ -97,14 +104,15 @@ const isIndexVisibleInScroller = (index: number, container: HTMLElement) => {
   return itemTop >= viewportTop && itemBottom <= viewportBottom;
 };
 
-watch(
-  () => [activeContentIndex.value, props.contents.length],
-  async ([index]) => {
-    if (index < 0) return;
-    await nextTick();
+function getScrollerElement(): HTMLElement | null {
+  const scroller = scrollerRef.value as any;
+  return scroller?.$el ?? null;
+}
 
+function scrollActiveContentIntoView(index: number): void {
+  requestAnimationFrame(() => {
     const scroller = scrollerRef.value as any;
-    const container = document.querySelector('.content-list-view .content-scroller') as HTMLElement | null;
+    const container = getScrollerElement();
 
     if (container && isIndexVisibleInScroller(index, container)) {
       return;
@@ -118,8 +126,18 @@ watch(
     if (container) {
       container.scrollTop = Math.max(0, index * ITEM_SIZE - Math.floor(container.clientHeight / 2) + Math.floor(ITEM_SIZE / 2));
     }
+  });
+}
+
+watch(
+  () => [activeContentIndex.value, activeContentId.value, props.contents.length],
+  async ([index]) => {
+    const resolvedIndex = Number(index);
+    if (!Number.isFinite(resolvedIndex) || resolvedIndex < 0) return;
+    await nextTick();
+    scrollActiveContentIntoView(resolvedIndex);
   },
-  { immediate: true }
+  { immediate: true, flush: 'post' }
 );
 </script>
 
@@ -141,8 +159,12 @@ watch(
 }
 
 .content-list {
-  @apply overflow-auto;
+  @apply overflow-hidden;
   height: calc(100vh - 82px);
+
+  .content-scroller {
+    height: 100%;
+  }
 
   .content-empty {
     @apply flex justify-center h-full pt-6;

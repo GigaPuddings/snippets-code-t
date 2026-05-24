@@ -70,6 +70,31 @@ pnpm build
 After build and sync, update the marketplace `sizeBytes` value from the package
 directory size if the plugin package contents changed.
 
+## Update Publishing Checklist
+
+Use this checklist when publishing an official plugin update without releasing a
+new main app build:
+
+- Change the source under `src/plugins/<plugin-id>` and rebuild the matching
+  `docs/plugin-packages/<plugin-id>/dist/frontend.js`.
+- Bump `docs/plugin-packages/<plugin-id>/plugin.json` `version`. Keep
+  `minAppVersion` unchanged unless the runtime depends on a new app command,
+  permission, route bridge, or storage behavior.
+- Run `pnpm plugins:sync-repos --only <plugin-id> --version <plugin-version> --pin-marketplace-tags`
+  after the independent `GigaPuddings/snippets-code-plugin-<plugin-id>` repo
+  exists. The sync step creates or updates the plugin repository tag and pins
+  the marketplace package URL to that tag archive.
+- Run `pnpm plugins:package` and `pnpm plugins:verify-marketplace`; update
+  `docs/plugin-marketplace/marketplace.json` `sizeBytes` if the generated
+  package size changed.
+- Install the marketplace package in a clean app data directory and verify
+  install, enable, disable, update, uninstall, and re-install. Search providers
+  should disappear while disabled, return after re-enable, and avoid duplicate
+  local index rows after update.
+- Push the plugin repository tag and the marketplace manifest update together.
+  The app offers an update only when the marketplace version is newer than the
+  installed package version.
+
 ## Quick Search Plugin Checklist
 
 - The manifest declares `capabilities.searchSources`.

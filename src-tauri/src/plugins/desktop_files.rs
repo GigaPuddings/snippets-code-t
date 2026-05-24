@@ -281,6 +281,9 @@ pub fn refresh_desktop_files_cache_with_count() -> usize {
 
     let files = scan_desktop_files();
     let count = files.len();
+    if let Err(e) = db::clear_desktop_file_cache() {
+        warn!("清理旧桌面文件缓存失败: {}", e);
+    }
     persist_desktop_files_cache(&files);
     if let Ok(mut cache) = DESKTOP_FILES_CACHE.lock() {
         *cache = Some(files);

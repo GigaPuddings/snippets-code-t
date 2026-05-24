@@ -648,6 +648,9 @@ watch(
   () => {
     activeActionIndex.value = -1;
     actionButtonRefs.value = [];
+    if (!canPreview.value) {
+      isPreviewVisible.value = false;
+    }
   }
 );
 

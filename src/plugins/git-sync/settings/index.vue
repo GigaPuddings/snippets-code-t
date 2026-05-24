@@ -261,7 +261,7 @@
             </div>
           </div>
           <div v-else class="git-records-empty">
-            {{ isLoadingRecords ? '正在加载记录...' : '暂无 Git 记录' }}
+            {{ isLoadingRecords ? '正在加载记录...' : (gitRecordsLoaded ? '暂无 Git 记录' : '点击刷新查看最近 10 条提交') }}
           </div>
         </section>
       </template>
@@ -406,6 +406,7 @@ const pendingBranchSwitch = ref('');
 const pendingUntrackedFiles = ref<string[]>([]);
 const gitRecords = ref<GitRecord[]>([]);
 const isLoadingRecords = ref(false);
+const gitRecordsLoaded = ref(false);
 const restoreConfirmVisible = ref(false);
 const pendingRestore = ref<{ record: GitRecord; file: GitRecordFile } | null>(null);
 
@@ -585,6 +586,7 @@ const loadGitRecords = async () => {
   isLoadingRecords.value = true;
   try {
     gitRecords.value = await getGitRecords(10);
+    gitRecordsLoaded.value = true;
   } catch (error) {
     logger.error('[GitSync] 加载 Git 记录失败', error);
     showFriendlyError(error);
@@ -708,7 +710,6 @@ const handlePull = async () => {
   try {
     const result = await gitPull();
     processPullResult(result);
-    await loadGitRecords();
   } catch (error) {
     logger.error('[GitSync] 手动 Pull 失败', error);
     showFriendlyError(error);
@@ -745,7 +746,6 @@ const handlePush = async () => {
     } else {
       modal.msg(t('settings.gitSync.pushFailed'), 'error', 'top-right');
     }
-    await loadGitRecords();
   } catch (error) {
     logger.error('[GitSync] 手动 Push 失败', error);
     showFriendlyError(error);
@@ -759,7 +759,6 @@ onMounted(async () => {
   // 与标题栏共用同一状态：进入页面时刷新，保证「最后同步」时间与指示器一致
   await refreshSettings();
   await refreshStatus();
-  await loadGitRecords();
 });
 </script>
 

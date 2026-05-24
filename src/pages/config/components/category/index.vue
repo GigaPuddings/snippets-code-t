@@ -12,10 +12,13 @@
           @sort="handleSort"
           @add="openAddCategoryDialog"
         />
-        <CategoryListView
-          :categories="categories"
-          :edit-category-id="store.editCategoryId"
-        />
+        <div class="category-page__list">
+          <CategoryListView
+            :categories="categories"
+            :edit-category-id="store.editCategoryId"
+          />
+        </div>
+        <CategorySyncStatus />
       </div>
     </section>
 
@@ -47,6 +50,7 @@ import { useConfigurationStore, useLayoutStore } from '@/store';
 import { useCategoryManagement } from './composables/useCategoryManagement';
 import CategoryHeader from './components/CategoryHeader.vue';
 import CategoryListView from './components/CategoryListView.vue';
+import CategorySyncStatus from './components/CategorySyncStatus.vue';
 import { PromptDialog } from '@/components/UI';
 import { addCategory, getCategories } from '@/api/fragment';
 import modal from '@/utils/modal';
@@ -181,6 +185,10 @@ watch(
 
   .category-page__content {
     @apply flex-1 flex flex-col overflow-hidden px-2 min-w-0;
+  }
+
+  .category-page__list {
+    @apply flex-1 min-h-0 overflow-hidden;
   }
 
   .content-page {

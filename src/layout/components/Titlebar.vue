@@ -27,23 +27,39 @@
       </div>
     </div>
 
-    <!-- 中间：仅宽屏显示面包屑；窄屏/最小宽度(≤720) 不显示中间导航（与左侧导航二选一已取消，窄屏仅保留拖拽区） -->
+    <!-- 中间：快捷搜索入口 -->
     <div class="titlebar-center" data-tauri-drag-region>
-      <div v-show="!isNarrow" class="titlebar-center-inner">
-        <slot></slot>
-      </div>
+      <button
+        v-show="!isNarrow"
+        class="titlebar-quick-search"
+        type="button"
+        :title="$t('titlebar.quickSearch')"
+        :aria-label="$t('titlebar.quickSearch')"
+        @mousedown.stop
+        @click.stop="openConfigQuickSearch"
+      >
+        <search class="quick-search-icon" theme="outline" size="15" :strokeWidth="3" />
+        <span class="quick-search-placeholder">{{ $t('titlebar.quickSearchPlaceholder') }}</span>
+        <span class="quick-search-shortcut">Ctrl K</span>
+      </button>
     </div>
 
     <!-- 右侧：插件动作、置顶窗口 + 更多；其余进更多面板 -->
     <div class="titlebar-right">
       <!-- 非窄屏时：显示插件动作、置顶 -->
       <template v-if="!isNarrow">
-        <component
-          :is="action.component"
-          v-for="action in visibleTitlebarActions"
-          :key="action.id"
-          variant="inline"
-        />
+        <button
+          class="workspace-entry"
+          type="button"
+          :title="$t('titlebar.openWorkspace')"
+          :aria-label="$t('titlebar.openWorkspace')"
+          @mousedown.stop
+          @click.stop="openWorkspace"
+        >
+          <span class="workspace-entry-label">{{ $t('titlebar.workspace') }}</span>
+          <span class="workspace-entry-name">{{ workspaceName }}</span>
+          <right class="workspace-entry-icon" theme="outline" size="13" :strokeWidth="3" />
+        </button>
         <div
           class="titlebar-button"
           @click="handleTitlebar('isAlwaysOnTop')"
@@ -120,12 +136,10 @@
               <span class="ml-2">{{ $t('titlebar.userCenter') }}</span>
             </el-dropdown-item>
             <!-- 窄屏时更多里才显示插件动作 / 置顶 -->
-            <component
-              :is="action.component"
-              v-for="action in isNarrow ? visibleTitlebarActions : []"
-              :key="action.id"
-              variant="dropdown"
-            />
+            <el-dropdown-item v-if="isNarrow" command="workspace">
+              <folder-open theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+              <span class="ml-2">{{ $t('titlebar.openWorkspace') }}</span>
+            </el-dropdown-item>
             <el-dropdown-item command="checkUpdate">
               <update-rotation theme="outline" size="16" :strokeWidth="3" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.checkUpdate') }}</span>
@@ -189,6 +203,7 @@
       </div>
     </div>
   </main>
+  <ConfigQuickSearch v-model="quickSearchVisible" />
 </template>
 
 <script setup lang="ts">
@@ -202,6 +217,9 @@ import {
   SettingTwo,
   Me,
   MoreOne,
+  Search,
+  FolderOpen,
+  Right,
   // ViewList,
   // MenuFoldOne,
   // MenuUnfoldOne
@@ -212,9 +230,10 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
+import ConfigQuickSearch from '@/components/ConfigQuickSearch/index.vue';
 import { useLayoutStore, usePluginStore } from '@/store';
 import { configNavigationTabs } from '@/plugins/navigation';
-import { titlebarPluginActions } from '@/plugins/titlebar';
+import modal from '@/utils/modal';
 
 const { t } = useI18n();
 const layoutStore = useLayoutStore();
@@ -259,6 +278,8 @@ const state = reactive({
 });
 
 const hasUpdate = ref(false);
+const workspaceName = ref('config');
+const quickSearchVisible = ref(false);
 
 // 当前激活的tab索引
 const activeTabIndex = ref(0);
@@ -266,11 +287,6 @@ const activeTabIndex = ref(0);
 const visibleTabs = computed(() => (
   configNavigationTabs.filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
 ));
-
-const visibleTitlebarActions = computed(() => {
-  pluginStore.runtimeRevision;
-  return titlebarPluginActions.filter((action) => !action.pluginId || pluginStore.isEnabled(action.pluginId));
-});
 
 // 根据当前路由设置激活的tab
 const setActiveTabFromRoute = () => {
@@ -299,6 +315,49 @@ const handleUpdateClick = async () => {
     await invoke('hotkey_update_command');
   } else {
     await invoke('check_update_manually');
+  }
+};
+
+const openConfigQuickSearch = () => {
+  quickSearchVisible.value = true;
+};
+
+const handleGlobalKeydown = (event: KeyboardEvent) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    openConfigQuickSearch();
+  }
+};
+
+const openWorkspace = async () => {
+  try {
+    const workspaceRoot = await invoke<string | null>('get_workspace_root_path');
+    if (workspaceRoot) {
+      workspaceName.value = getWorkspaceName(workspaceRoot);
+      await invoke('open_folder', { folderPath: workspaceRoot });
+      return;
+    }
+
+    goToUserCenter();
+  } catch (error) {
+    console.error('[Titlebar] open workspace failed:', error);
+    modal.warning(t('userCenter.workspaceNotSet'));
+    goToUserCenter();
+  }
+};
+
+const getWorkspaceName = (workspaceRoot: string) => {
+  const normalized = workspaceRoot.replace(/[\\/]+$/, '');
+  const parts = normalized.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || 'config';
+};
+
+const refreshWorkspaceName = async () => {
+  try {
+    const workspaceRoot = await invoke<string | null>('get_workspace_root_path');
+    workspaceName.value = workspaceRoot ? getWorkspaceName(workspaceRoot) : 'config';
+  } catch {
+    workspaceName.value = 'config';
   }
 };
 
@@ -351,6 +410,9 @@ const handleMoreMenuCommand = (command: string) => {
     case 'checkUpdate':
       handleUpdateClick();
       break;
+    case 'workspace':
+      openWorkspace();
+      break;
     case 'pinWindow':
       handleTitlebar('isAlwaysOnTop');
       break;
@@ -370,6 +432,8 @@ onMounted(async () => {
 
   // 检查是否有更新
   hasUpdate.value = await invoke('get_update_status');
+  await refreshWorkspaceName();
+  window.addEventListener('keydown', handleGlobalKeydown);
 
   // 监听更新状态变化
   unListen = await listen('update-available', (event: any) => {
@@ -394,6 +458,7 @@ onUnmounted(() => {
   if (unListen) {
     unListen();
   }
+  window.removeEventListener('keydown', handleGlobalKeydown);
 });
 </script>
 
@@ -403,13 +468,18 @@ onUnmounted(() => {
 }
 
 .titlebar {
-  @apply relative flex items-center rounded-t-md w-full h-10 leading-10 select-none pr-1 gap-1;
+  @apply relative flex items-center justify-between rounded-t-md w-full h-10 leading-10 select-none pr-1 gap-1;
 
   z-index: 50;
   min-width: 0; /* 允许 flex 子项收缩 */
+  cursor: grab;
   background-color: rgba(var(--categories-panel-bg-rgb), 0.9);
   border-bottom: 1px solid rgba(var(--categories-border-color-rgb), 0.3);
   box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
+
+  &:active {
+    cursor: grabbing;
+  }
 }
 
 .gradient {
@@ -429,9 +499,11 @@ onUnmounted(() => {
   }
 }
 
-/* 左侧：品牌 + 导航，不收缩 */
+/* 左侧：品牌 + 导航，可在小窗口内让应用名收缩 */
 .titlebar-left {
-  @apply flex items-center gap-2 text-slate-800 dark:text-panel pl-1 flex-shrink-0;
+  @apply flex items-center gap-2 text-slate-800 dark:text-panel pl-1;
+  flex: 0 1 auto;
+  min-width: 0;
   text-shadow: 0 1px 1px rgb(0 0 0 / 5%);
 }
 
@@ -440,7 +512,11 @@ onUnmounted(() => {
 }
 
 .titlebar-app-name {
-  @apply text-lg flex-shrink-0;
+  @apply text-lg;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .titlebar-app-version {
@@ -449,33 +525,116 @@ onUnmounted(() => {
 
 .titlebar-nav {
   @apply flex items-center flex-shrink-0 ml-2;
+  cursor: default;
 }
 
-/* 中间：当前页标签/面包屑，占据剩余空间并可收缩省略 */
+/* 中间：快捷搜索入口，占据剩余空间并可收缩 */
 .titlebar-center {
-  flex: 1 1 0;
+  flex: 0 1 360px;
+  max-width: 34vw;
   min-width: 0;
   @apply flex items-center justify-center overflow-hidden;
 }
 
-.titlebar-center-inner {
-  @apply overflow-hidden text-ellipsis whitespace-nowrap max-w-full;
+.titlebar-quick-search {
+  @apply inline-flex items-center rounded-md border bg-panel px-3;
+  width: 100%;
+  max-width: 360px;
+  height: 30px;
   min-width: 0;
-  color: rgba(var(--categories-text-color-rgb), 0.85);
-  font-size: 13px;
+  cursor: text;
+  border-color: rgba(var(--categories-border-color-rgb), 0.72);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+  color: rgba(var(--categories-text-color-rgb), 0.7);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+
+  &:hover {
+    border-color: var(--search-result-active-border);
+    background-color: var(--search-soft-bg);
+    box-shadow: 0 0 0 2px rgb(95 116 243 / 8%);
+  }
+}
+
+.quick-search-icon {
+  flex-shrink: 0;
+  color: rgba(var(--categories-text-color-rgb), 0.5);
+}
+
+.quick-search-placeholder {
+  @apply truncate text-left;
+  flex: 1;
+  min-width: 0;
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--categories-info-text-color);
+}
+
+.quick-search-shortcut {
+  @apply flex-shrink-0 rounded;
+  margin-left: 10px;
+  padding: 1px 5px;
+  color: var(--categories-info-text-color);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  background-color: rgba(var(--categories-border-color-rgb), 0.28);
 }
 
 /* 右侧：操作按钮 + 窗口控制，不收缩 */
 .titlebar-right {
-  @apply flex h-full items-center flex-shrink-0;
+  @apply flex h-full items-center;
+  flex: 0 0 auto;
   gap: 4px;
   padding-right: 4px;
+}
+
+.workspace-entry {
+  @apply inline-flex items-center rounded-md border bg-panel;
+  min-width: 0;
+  height: 30px;
+  gap: 6px;
+  padding: 0 9px 0 10px;
+  cursor: pointer;
+  border-color: rgba(var(--categories-border-color-rgb), 0.72);
+  color: rgba(var(--categories-text-color-rgb), 0.88);
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease;
+
+  &:hover {
+    color: var(--search-result-accent);
+    border-color: var(--search-result-active-border);
+    background-color: var(--search-result-active);
+  }
+}
+
+.workspace-entry-label {
+  color: var(--categories-info-text-color);
+  font-size: 12px;
+}
+
+.workspace-entry-name {
+  max-width: 84px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-entry-icon {
+  flex-shrink: 0;
 }
 
 .titlebar-button {
   @apply leading-4 relative flex items-center justify-center rounded-md overflow-hidden;
   min-width: 32px;
   min-height: 32px;
+  cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s ease;
   
@@ -620,6 +779,22 @@ onUnmounted(() => {
     gap: 2px;
   }
 
+  .titlebar-center {
+    flex-basis: 280px;
+    max-width: 30vw;
+  }
+
+  .quick-search-shortcut {
+    display: none;
+  }
+
+  .workspace-entry-label {
+    display: none;
+  }
+
+  .workspace-entry-name {
+    max-width: 64px;
+  }
 }
 
 /* 极窄屏（≤640px）：应用名可截断；窄屏布局由 isNarrow 控制，此处仅保留版本号 */

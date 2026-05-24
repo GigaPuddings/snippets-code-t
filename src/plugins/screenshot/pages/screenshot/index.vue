@@ -88,8 +88,9 @@ const state = ref({
   isDrawing: false // 将绘制状态也放到响应式状态中
 })
 
-const unlisten = ref<() => void>()
+const unlistenBlur = ref<() => void>()
 const unlistenBgReady = ref<() => void>()
+const unlistenCloseRequested = ref<() => void>()
 
 // 计算属性 - 从状态获取绘制状态
 const isDrawing = computed(() => state.value.isDrawing)
@@ -616,12 +617,12 @@ onMounted(async () => {
   })
 
   // 监听后端主动请求关闭截图窗口
-  unlistenBgReady.value = await listen('screenshot-close-requested', () => {
+  unlistenCloseRequested.value = await listen('screenshot-close-requested', () => {
     closeWindow()
   })
 
   // 监听窗口失焦（用户切换到其他窗口）
-  unlisten.value = await listen('tauri://blur', () => {
+  unlistenBlur.value = await listen('tauri://blur', () => {
     // 如果文字输入框正在使用，不关闭窗口（可能是调出输入法）
     if (isTextInputVisible.value && document.activeElement === textInputRef.value) {
       return
@@ -661,12 +662,14 @@ onUnmounted(() => {
   window.removeEventListener('screenshot-toolbar-resize', handleToolbarResize)
   
   // 清理Tauri事件监听器
-  unlisten.value?.()
+  unlistenBlur.value?.()
   unlistenBgReady.value?.()
+  unlistenCloseRequested.value?.()
 
   // 清理引用
-  unlisten.value = undefined
+  unlistenBlur.value = undefined
   unlistenBgReady.value = undefined
+  unlistenCloseRequested.value = undefined
   appWindow.value = null
   
   // 清理DOM引用

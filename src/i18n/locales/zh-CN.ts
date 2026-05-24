@@ -15,6 +15,7 @@ export default {
     edit: '编辑',
     add: '添加',
     search: '搜索',
+    clear: '清除',
     reset: '重置',
     close: '关闭',
     prev: '上一步',
@@ -26,7 +27,8 @@ export default {
     inputTitle: '输入',
     requiredField: '该项不能为空',
     maxLengthExceeded: '长度不能超过 {max} 个字符',
-    invalidInput: '输入不合法'
+    invalidInput: '输入不合法',
+    operationFailed: '操作失败'
   },
 
   // 设置向导
@@ -1030,6 +1032,14 @@ export default {
     backToResults: '返回结果'
   },
 
+  configSearch: {
+    emptyTitle: '搜索当前工作区',
+    emptyText: '输入关键词检索片段、笔记、文件、标签和命令，结果会在当前配置窗口内打开。',
+    folderResultContent: '定位到文件夹',
+    navigate: '选择',
+    open: '打开'
+  },
+
   searchPreview: {
     expandPreview: '展开预览',
     collapsePreview: '收起预览',
@@ -1089,7 +1099,11 @@ export default {
     gitError: '同步出错',
     gitDisabled: 'Git 同步已禁用',
     gitLastSync: '上次同步: {time}',
-    goToGitSettings: '点击查看 Git 同步设置'
+    goToGitSettings: '点击查看 Git 同步设置',
+    quickSearch: '快速搜索',
+    quickSearchPlaceholder: '搜索片段、笔记、文件、标签和命令...',
+    workspace: '工作区',
+    openWorkspace: '打开工作区'
   },
 
   // 个人中心

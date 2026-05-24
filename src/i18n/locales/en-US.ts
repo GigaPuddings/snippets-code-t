@@ -15,6 +15,7 @@ export default {
     edit: 'Edit',
     add: 'Add',
     search: 'Search',
+    clear: 'Clear',
     reset: 'Reset',
     close: 'Close',
     prev: 'Previous',
@@ -26,7 +27,8 @@ export default {
     inputTitle: 'Input',
     requiredField: 'This field is required',
     maxLengthExceeded: 'Length cannot exceed {max} characters',
-    invalidInput: 'Invalid input'
+    invalidInput: 'Invalid input',
+    operationFailed: 'Operation failed'
   },
 
   // Setup Wizard
@@ -1015,6 +1017,14 @@ export default {
     backToResults: 'Back to Results'
   },
 
+  configSearch: {
+    emptyTitle: 'Search Current Workspace',
+    emptyText: 'Type to search snippets, notes, files, tags, and commands. Results open inside this config window.',
+    folderResultContent: 'Go to folder',
+    navigate: 'Navigate',
+    open: 'Open'
+  },
+
   searchPreview: {
     expandPreview: 'Expand Preview',
     collapsePreview: 'Collapse Preview',
@@ -1074,7 +1084,11 @@ export default {
     gitError: 'Sync error',
     gitDisabled: 'Git sync disabled',
     gitLastSync: 'Last sync: {time}',
-    goToGitSettings: 'Click to view Git sync settings'
+    goToGitSettings: 'Click to view Git sync settings',
+    quickSearch: 'Quick Search',
+    quickSearchPlaceholder: 'Search snippets, notes, files, tags and commands...',
+    workspace: 'Workspace',
+    openWorkspace: 'Open Workspace'
   },
 
   // User Center

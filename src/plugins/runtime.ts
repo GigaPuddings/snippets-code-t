@@ -8,7 +8,7 @@ import {
   markRaw,
   type Component
 } from 'vue';
-import type { RouteRecordRaw, Router } from 'vue-router';
+import type { RouteComponent, RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
 import type { SearchSourceProvider, SearchSourceResult } from './search';
 import { searchSourceProviders } from './search-providers';
@@ -26,12 +26,13 @@ import {
 } from './permissions';
 
 type RuntimeRouteTarget = 'config' | 'layout' | 'window';
+type RuntimeRouteComponent = RouteComponent | (() => Promise<unknown>);
 
 interface RuntimeRouteRegistration {
   target?: RuntimeRouteTarget;
   path: string;
   name: string;
-  component?: Component;
+  component?: RuntimeRouteComponent;
   componentUrl?: string;
   meta?: Record<string, unknown>;
 }
@@ -372,6 +373,21 @@ const pluginComponent = (
   );
 };
 
+const pluginRouteComponent = (
+  plugin: RegisteredPlugin,
+  component?: RuntimeRouteComponent,
+  componentUrl?: string
+): RouteRecordRaw['component'] => {
+  if (component) return component as RouteRecordRaw['component'];
+  if (!componentUrl) {
+    throw new Error(
+      `插件 ${plugin.id} 注册路由组件时缺少 component 或 componentUrl`
+    );
+  }
+
+  return () => import(/* @vite-ignore */ resolvePluginAssetUrl(plugin, componentUrl));
+};
+
 const pushRoute = (target: RuntimeRouteTarget, route: RouteRecordRaw): void => {
   if (target === 'config') {
     runtimeConfigPluginRoutes.push(route);
@@ -457,15 +473,16 @@ const createRuntimeContext = (
   registerRoute(route) {
     const target = route.target ?? 'layout';
     appendCapability(plugin, 'routeNames', route.name);
-    pushRoute(target, {
+    const routeRecord: RouteRecordRaw = {
       path: route.path,
       name: route.name,
-      component: pluginComponent(plugin, route.component, route.componentUrl),
+      component: pluginRouteComponent(plugin, route.component, route.componentUrl),
       meta: {
         ...route.meta,
         pluginId: plugin.id
       }
-    });
+    } as RouteRecordRaw;
+    pushRoute(target, routeRecord);
   },
   registerSettingsTab(tab) {
     const labelKey = tab.labelKey ?? `plugins.${plugin.id}.${tab.id}`;

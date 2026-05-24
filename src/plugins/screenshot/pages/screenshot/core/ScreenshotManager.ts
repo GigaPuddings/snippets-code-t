@@ -1327,7 +1327,7 @@ export class ScreenshotManager {
   // 更新鼠标样式
   private updateCursorForPosition(mousePos: Point): void {
     if (this.currentTool !== ToolType.Select) {
-      this.updateCursor('crosshair')
+      this.updateToolCursor()
       return
     }
 
@@ -1375,8 +1375,7 @@ export class ScreenshotManager {
   private updateToolCursor(): void {
     switch (this.currentTool) {
       case ToolType.Pen:
-        // 画笔：圆形光标，显示画笔粗细（类似Snipaste等专业工具）
-        this.updateCursor(this.createCircleCursor(this.currentStyle.lineWidth, this.currentStyle.color))
+        this.updateCursor(this.createPenCursor(this.currentStyle.color))
         break
       
       case ToolType.Mosaic:
@@ -1385,8 +1384,7 @@ export class ScreenshotManager {
         break
       
       case ToolType.ColorPicker:
-        // 取色器：使用十字光标
-        this.updateCursor('crosshair')
+        this.updateCursor(this.createColorPickerCursor())
         break
       
       case ToolType.Rectangle:
@@ -1420,6 +1418,32 @@ export class ScreenshotManager {
     
     const encodedSvg = encodeURIComponent(svg)
     return `url('data:image/svg+xml;utf8,${encodedSvg}') ${center} ${center}, crosshair`
+  }
+
+  private createPenCursor(color: string = '#ff4444'): string {
+    const svg = `
+      <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 20l4.8-1.1L20.2 7.5a2.2 2.2 0 0 0 0-3.1l-.6-.6a2.2 2.2 0 0 0-3.1 0L5.1 15.2 4 20z"
+              fill="white" stroke="#111827" stroke-width="1.7" stroke-linejoin="round"/>
+        <path d="M14.8 5.5l3.7 3.7" stroke="#111827" stroke-width="1.7" stroke-linecap="round"/>
+        <path d="M5.1 15.2L8.8 18.9" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    `
+    const encodedSvg = encodeURIComponent(svg)
+    return `url('data:image/svg+xml;utf8,${encodedSvg}') 4 20, crosshair`
+  }
+
+  private createColorPickerCursor(): string {
+    const svg = `
+      <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15.5 3.8a2.4 2.4 0 0 1 3.4 0l1.3 1.3a2.4 2.4 0 0 1 0 3.4l-9.4 9.4H7.4v-3.4l9.4-9.4z"
+              fill="white" stroke="#111827" stroke-width="1.7" stroke-linejoin="round"/>
+        <path d="M13.7 6.3l4 4" stroke="#111827" stroke-width="1.7" stroke-linecap="round"/>
+        <path d="M4 20h6" stroke="#4f46e5" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    `
+    const encodedSvg = encodeURIComponent(svg)
+    return `url('data:image/svg+xml;utf8,${encodedSvg}') 4 20, crosshair`
   }
 
   // 绘制所有内容

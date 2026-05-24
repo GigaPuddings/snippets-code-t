@@ -94,7 +94,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const resolvedBackground = computed(() => {
   if (props.background?.trim()) return props.background.trim();
-  return props.dark ? '#1a1a1a' : '#ffffff';
+  return props.dark ? '#1a1a1a' : '#fbfcff';
 });
 
 const resolvedStatusBackground = computed(() => {
@@ -118,7 +118,7 @@ const customTheme = computed(() => {
         foreground: '#3D3D3D',
         caret: '#000000',
         selection: '#BBDFFF',
-        gutterBackground: '#ffffff',
+        gutterBackground: '#fbfcff',
         gutterForeground: '#707F8D'
       };
 

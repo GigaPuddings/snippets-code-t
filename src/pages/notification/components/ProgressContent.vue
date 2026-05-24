@@ -135,14 +135,17 @@ onMounted(async () => {
 const handleComplete = (appsCount: number, bookmarksCount: number, desktopFilesCount: number) => {
     if (state.completed) return;
     
+    const wasDesktopFileScan = state.stage.includes('桌面文件');
     state.completed = true;
     state.percent = 100;
     state.total = 0; // 隐藏进度详情
-    state.stage = t('progress.scanComplete', {
-      apps: appsCount,
-      bookmarks: bookmarksCount,
-      desktopFiles: desktopFilesCount
-    });
+    state.stage = wasDesktopFileScan
+      ? `扫描完成：${desktopFilesCount} 个桌面文件`
+      : t('progress.scanComplete', {
+        apps: appsCount,
+        bookmarks: bookmarksCount,
+        desktopFiles: desktopFilesCount
+      });
     state.currentItem = '';
     
     // 停止轮询
@@ -227,9 +230,8 @@ onUnmounted(() => {
 }
 
 .progress-stage {
-  @apply text-xs truncate;
+  @apply min-w-0 flex-1 text-xs truncate;
   color: var(--el-text-color-secondary);
-  max-width: 180px;
 }
 
 .progress-percent {

@@ -61,6 +61,8 @@ const isUncategorizedActive = computed(() => {
 <style lang="scss" scoped>
 @mixin commonLink {
   @apply rounded-md block my-1 text-xs px-3 py-1 truncate cursor-pointer hover:bg-panel dark:hover:bg-hover dark:text-panel;
+  position: relative;
+  border: 1px solid transparent;
 }
 
 .quick-nav-container {
@@ -92,14 +94,30 @@ const isUncategorizedActive = computed(() => {
 .active {
   @include commonLink();
 
-  @apply bg-active dark:bg-active dark:hover:bg-hover hover:bg-active;
+  background-color: var(--search-result-active);
+  border-color: var(--search-result-active-border);
 
   .quick-nav-item-icon {
-    @apply select-none !text-active;
+    @apply select-none;
+    color: var(--search-result-accent);
   }
 
   .quick-nav-item-title {
-    @apply select-none !text-active;
+    @apply select-none;
+    color: var(--categories-text-color);
+    font-weight: 600;
+  }
+
+  &::before {
+    position: absolute;
+    top: 7px;
+    bottom: 7px;
+    left: 0;
+    width: 3px;
+    pointer-events: none;
+    content: '';
+    background: var(--search-result-accent);
+    border-radius: 0 999px 999px 0;
   }
 }
 </style>

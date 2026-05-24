@@ -91,7 +91,7 @@ watch(
 
 <style scoped lang="scss">
 .category-list {
-  @apply h-[calc(100vh-174px)] overflow-y-auto;
+  @apply h-full overflow-y-auto;
 }
 
 .category-empty {

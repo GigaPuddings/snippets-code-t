@@ -273,6 +273,8 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 <style scoped lang="scss">
 @mixin commonLink {
   @apply block py-1 rounded-lg cursor-pointer transition-colors duration-200 ease-out border-b-transparent;
+  position: relative;
+  border: 1px solid transparent;
 }
 
 .link {
@@ -296,20 +298,34 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 }
 
 .active {
-  @apply bg-active dark:bg-active hover:bg-active dark:hover:bg-active;
+  background-color: var(--search-result-active);
+  border-color: var(--search-result-active-border);
+
+  &::before {
+    position: absolute;
+    top: 9px;
+    bottom: 9px;
+    left: 0;
+    width: 3px;
+    pointer-events: none;
+    content: '';
+    background: var(--search-result-accent);
+    border-radius: 0 999px 999px 0;
+  }
 
   .content-item-wrapper {
     .content-item-header {
       .content-item-title {
         @apply truncate;
-        color: #fff;
+        color: var(--categories-text-color);
+        font-weight: 600;
       }
 
       .fragment-type-icon {
         &.type-code,
         &.type-note {
-          background-color: rgba(255, 255, 255, 0.2);
-          color: #fff;
+          color: var(--search-result-accent);
+          background-color: var(--search-card-bg);
         }
 
         :deep(svg) {
@@ -320,30 +336,30 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
     .content-item-info,
     .content-item-category {
-      color: #fff;
+      color: var(--categories-info-text-color);
       transition: color 0.2s ease;
     }
 
     .content-item-info-time {
-      color: rgba(255, 255, 255, 0.7);
+      color: var(--categories-info-text-color);
       transition: color 0.2s ease;
     }
 
     .content-item-tags {
       .tag-item {
-        background-color: rgba(255, 255, 255, 0.2);
-        color: #fff;
-        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: var(--search-result-accent);
+        background-color: var(--search-card-bg);
+        border: 1px solid var(--search-result-active-border);
 
         &:hover {
-          background-color: rgba(255, 255, 255, 0.3);
-          border-color: rgba(255, 255, 255, 0.5);
-          color: #fff;
+          color: var(--search-result-accent);
+          background-color: var(--search-result-active);
+          border-color: var(--search-result-active-border);
         }
       }
 
       .more-tags {
-        color: rgba(255, 255, 255, 0.7);
+        color: var(--categories-info-text-color);
         opacity: 1;
       }
     }
@@ -444,19 +460,19 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   .active {
     .content-item-tags {
       .tag-item {
-        background-color: rgba(74, 158, 255, 0.2);
-        color: #4a9eff;
-        border-color: rgba(74, 158, 255, 0.4);
+        color: var(--search-result-accent);
+        background-color: var(--search-card-bg);
+        border-color: var(--search-result-active-border);
         
         &:hover {
-          background-color: rgba(74, 158, 255, 0.3);
-          border-color: rgba(74, 158, 255, 0.6);
+          background-color: var(--search-result-active);
+          border-color: var(--search-result-active-border);
         }
       }
     }
     
     .content-item-category {
-      color: rgba(255, 255, 255, 0.7);
+      color: var(--categories-info-text-color);
     }
   }
 }

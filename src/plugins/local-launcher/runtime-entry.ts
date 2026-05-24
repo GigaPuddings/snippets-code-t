@@ -1,4 +1,3 @@
-import { defineAsyncComponent } from 'vue';
 import type { ContentType } from '@/types';
 import { isContentType } from '@/utils/type-guards';
 import type { PluginFrontendRuntimeContext } from '../runtime';
@@ -8,7 +7,7 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     target: 'config',
     path: 'local',
     name: 'Local',
-    component: defineAsyncComponent(() => import('./pages/config/index.vue'))
+    component: () => import('./pages/config/index.vue')
   });
   context.registerSearchProvider({
     source: 'local-launcher',
