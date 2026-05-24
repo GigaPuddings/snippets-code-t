@@ -76,8 +76,25 @@ static APP_INITIALIZED: Mutex<bool> = Mutex::new(false);
 
 const AUTO_START_BACKGROUND_DELAY_SECS: u64 = 15;
 
-fn is_auto_start_launch() -> bool {
-    std::env::args().any(|arg| arg == "--flag1" || arg == "--flag2")
+fn is_auto_start_launch(app_handle: &AppHandle) -> bool {
+    let has_auto_start_flag = std::env::args().any(|arg| arg == "--flag1" || arg == "--flag2");
+    let setup_restart_pending: bool =
+        json_config::get_app_config_value(app_handle, "setup_restart_pending").unwrap_or(false);
+
+    if !has_auto_start_flag {
+        if setup_restart_pending {
+            let _ = json_config::set_app_config_value(app_handle, "setup_restart_pending", false);
+        }
+        return false;
+    }
+
+    if setup_restart_pending {
+        info!("[Startup] setup restart marker detected; forcing foreground startup");
+        let _ = json_config::set_app_config_value(app_handle, "setup_restart_pending", false);
+        return false;
+    }
+
+    true
 }
 
 // 注册 App 初始化请求（防抖）
@@ -375,8 +392,6 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
-            let is_auto_start = is_auto_start_launch();
-
             // 在应用启动时初始化 APP
             let _ = APP.set(app.handle().clone());
 
@@ -400,6 +415,8 @@ pub fn run() {
                     log::warn!("⚠️ [初始化] AppConfigManager 初始化失败: {}", e);
                 }
             }
+
+            let is_auto_start = is_auto_start_launch(app.handle());
 
             // 初始化 Markdown 运行时状态。即使暂未配置工作区，命令状态也必须存在，
             // 否则前端请求分类/文件列表时会触发 Tauri 的 state not managed 错误。
@@ -988,6 +1005,7 @@ pub fn run() {
             app_config::install_translation_offline_runtime_resources, // 补全离线翻译运行时资源
             app_config::invoke_plugin_backend,          // 调用本地插件 native host 后端
             app_config::set_plugin_enabled,             // 设置插件状态
+            app_config::set_setup_index_preferences,    // 设置向导索引偏好
             // Git 同步命令
             git_sync::check_git_installed_command,      // 检查 Git 是否安装
             git_sync::check_git_repo_command,           // 检查是否是 Git 仓库

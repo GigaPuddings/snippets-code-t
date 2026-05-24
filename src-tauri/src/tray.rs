@@ -83,6 +83,15 @@ fn handle_plugin_tray_menu_click(app: &AppHandle, menu_id: &str) -> bool {
     true
 }
 
+pub fn exit_app_now(app: &AppHandle) -> ! {
+    info!("[托盘菜单] 用户选择退出程序");
+    stop_scheduler();
+    let _ = app.global_shortcut().unregister_all();
+    let _ = app.remove_tray_by_id("tray");
+    app.cleanup_before_exit();
+    std::process::exit(0);
+}
+
 // 获取当前语言的翻译
 fn get_translations(lang: &str) -> TrayTranslations {
     match lang {
@@ -320,6 +329,7 @@ pub fn handle_theme_menu_click(app: &AppHandle, menu_id: &str) {
 }
 
 pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let _ = app.remove_tray_by_id("tray");
     let lang = get_language_internal(app);
     let menu = build_tray_menu(app, &lang)?;
 
@@ -368,10 +378,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     }
                 }
                 "quit" => {
-                    info!("[托盘菜单] 用户选择退出程序");
-                    stop_scheduler();
-                    let _ = app.global_shortcut().unregister_all();
-                    app.exit(0);
+                    exit_app_now(app);
                 }
                 _ => {}
             }
@@ -428,6 +435,7 @@ fn recreate_minimal_tray_menu(app: &AppHandle) -> tauri::Result<()> {
 
 // 创建最小化托盘（首次运行时使用）
 pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let _ = app.remove_tray_by_id("tray");
     let lang = get_language_internal(app);
     let trans = get_translations(&lang);
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
@@ -441,14 +449,16 @@ pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| {
             if event.id.as_ref() == "quit" {
-                stop_scheduler();
-                let _ = app.global_shortcut().unregister_all();
-                app.exit(0);
+                exit_app_now(app);
             }
         })
         .build(app)?;
 
     Ok(())
+}
+
+pub fn recreate_tray_as_full(app: &AppHandle) -> tauri::Result<()> {
+    create_tray(app)
 }
 
 // 重新创建托盘菜单（公开给其他模块调用）

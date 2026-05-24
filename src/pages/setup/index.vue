@@ -108,8 +108,45 @@
           </div>
         </div>
 
-        <!-- 完成 -->
+        <!-- 索引设置 -->
         <div v-if="step === 2" class="step-page">
+          <h2 class="step-title">{{ $t('setup.indexTitle') }}</h2>
+          <p class="step-desc">{{ $t('setup.indexDesc') }}</p>
+
+          <div class="index-options">
+            <div class="path-option index-option">
+              <div class="option-info">
+                <div class="option-title">{{ $t('setup.localLauncherIndex') }}</div>
+                <div class="option-desc">{{ $t('setup.localLauncherIndexDesc') }}</div>
+              </div>
+              <CustomSwitch v-model="setupLocalLauncher" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
+            </div>
+
+            <div class="path-option index-option">
+              <div class="option-info">
+                <div class="option-title">{{ $t('setup.desktopFilesIndex') }}</div>
+                <div class="option-desc">{{ $t('setup.desktopFilesIndexDesc') }}</div>
+              </div>
+              <CustomSwitch v-model="setupDesktopFiles" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
+            </div>
+
+            <div class="path-option index-option">
+              <div class="option-info">
+                <div class="option-title">{{ $t('setup.cacheIcons') }}</div>
+                <div class="option-desc">{{ $t('setup.cacheIconsDesc') }}</div>
+              </div>
+              <CustomSwitch v-model="setupCacheIcons" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
+            </div>
+          </div>
+
+          <div class="path-tip">
+            <Info theme="outline" size="16" />
+            <span>{{ $t('setup.indexTip') }}</span>
+          </div>
+        </div>
+
+        <!-- 完成 -->
+        <div v-if="step === 3" class="step-page">
           <div class="complete-icon">
             <CheckOne theme="filled" size="64" fill="#10b981" />
           </div>
@@ -119,6 +156,10 @@
             <div class="summary-item">
               <span class="summary-label">{{ $t('setup.dataPath') }}:</span>
               <span class="summary-value">{{ finalPath }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">{{ $t('setup.indexSummary') }}:</span>
+              <span class="summary-value">{{ indexSummary }}</span>
             </div>
           </div>
         </div>
@@ -146,7 +187,7 @@ import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
-import { CustomButton } from '@/components/UI';
+import { CustomButton, CustomSwitch } from '@/components/UI';
 import { Info, CheckOne } from '@icon-park/vue-next';
 import { useConfigurationStore } from '@/store';
 import { setLocale, type LocaleType } from '@/i18n';
@@ -181,6 +222,7 @@ const onLanguageChange = async (value: LocaleType) => {
 const steps = computed(() => [
   { title: t('setup.welcome') },
   { title: t('setup.dataLocation') },
+  { title: t('setup.indexing') },
   { title: t('setup.complete') }
 ]);
 
@@ -190,6 +232,9 @@ const defaultPath = ref('');
 const customPath = ref('');
 const dataPath = ref('');
 const completing = ref(false);
+const setupLocalLauncher = ref(true);
+const setupDesktopFiles = ref(true);
+const setupCacheIcons = ref(true);
 
 /** 引导模式：新建 / 打开 */
 type SetupMode = 'create' | 'open';
@@ -219,6 +264,16 @@ const onPathBlur = () => {
 
 const finalPath = computed(() => {
   return pathOption.value === 'default' ? defaultPath.value : customPath.value;
+});
+
+const indexSummary = computed(() => {
+  const enabledItems = [
+    setupLocalLauncher.value ? t('setup.localLauncherIndex') : '',
+    setupDesktopFiles.value ? t('setup.desktopFilesIndex') : '',
+    setupCacheIcons.value ? t('setup.cacheIcons') : ''
+  ].filter(Boolean);
+
+  return enabledItems.length > 0 ? enabledItems.join(' / ') : t('setup.indexDisabled');
 });
 
 
@@ -310,12 +365,19 @@ const completeSetup = async () => {
     store.language = language.value;
     await invoke('set_language', { language: language.value });
 
-    // 3. 标记设置已完成
+    // 3. 保存首次索引偏好
+    await invoke('set_setup_index_preferences', {
+      localLauncher: setupLocalLauncher.value,
+      desktopFiles: setupDesktopFiles.value,
+      cacheIcons: setupCacheIcons.value
+    });
+
+    // 4. 标记设置已完成
     await invoke('set_setup_completed');
 
     modal.msg(t('setup.setupComplete'));
 
-    // 4. 关闭设置向导窗口并重启应用
+    // 5. 关闭设置向导窗口并重启应用
     await invoke('close_setup_window');
   } catch (error: any) {
     modal.msg(`${t('setup.setupFailed')}: ${error}`, 'error');
@@ -587,6 +649,10 @@ const completeSetup = async () => {
   @apply w-full space-y-3;
 }
 
+.index-options {
+  @apply w-full space-y-3;
+}
+
 .path-option {
   @apply flex items-center justify-between gap-4 p-4 rounded-xl cursor-pointer transition-all;
   background: rgba(37, 40, 54, 0.85);
@@ -609,6 +675,10 @@ const completeSetup = async () => {
       border-color: var(--el-color-primary);
     }
   }
+}
+
+.index-option {
+  cursor: default;
 }
 
 .option-info {
@@ -680,7 +750,7 @@ const completeSetup = async () => {
 }
 
 .summary {
-  @apply w-full mt-6 p-4 rounded-xl text-left;
+  @apply w-full mt-6 p-4 rounded-xl text-left flex flex-col gap-3;
   background: rgba(37, 40, 54, 0.85);
   border: 1px solid rgba(93, 109, 253, 0.18);
 }

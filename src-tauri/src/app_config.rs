@@ -33,6 +33,8 @@ pub struct AppConfig {
     pub auto_hide_on_blur: bool,
     #[serde(default = "default_setup_completed")]
     pub setup_completed: bool,
+    #[serde(default = "default_cache_icons")]
+    pub cache_icons: bool,
 
     // Git 同步配置
     #[serde(default)]
@@ -60,6 +62,10 @@ pub struct AppConfig {
     pub offline_model_activated: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub show_progress_on_restart: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_progress_reset_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub setup_restart_pending: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_hotkey: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -97,6 +103,10 @@ fn default_auto_update_check() -> bool {
 
 fn default_setup_completed() -> bool {
     true // 默认为 true，避免重复进入 setup
+}
+
+fn default_cache_icons() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,6 +216,7 @@ impl Default for AppConfig {
             auto_update_check: true,
             auto_hide_on_blur: false,
             setup_completed: true, // 默认为 true
+            cache_icons: true,
             git: GitSettings::default(),
             plugins: default_plugin_states(),
             plugin_install_dir: None,
@@ -217,6 +228,8 @@ impl Default for AppConfig {
             ocr_language: None,
             offline_model_activated: None,
             show_progress_on_restart: None,
+            show_progress_reset_kind: None,
+            setup_restart_pending: None,
             search_hotkey: None,
             config_hotkey: None,
             translate_hotkey: None,
@@ -501,6 +514,14 @@ fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> 
         &mut target.show_progress_on_restart,
         &legacy.show_progress_on_restart,
     );
+    changed |= copy_option_if_empty(
+        &mut target.show_progress_reset_kind,
+        &legacy.show_progress_reset_kind,
+    );
+    changed |= copy_option_if_empty(
+        &mut target.setup_restart_pending,
+        &legacy.setup_restart_pending,
+    );
     changed |= copy_option_if_empty(&mut target.search_hotkey, &legacy.search_hotkey);
     changed |= copy_option_if_empty(&mut target.config_hotkey, &legacy.config_hotkey);
     changed |= copy_option_if_empty(&mut target.translate_hotkey, &legacy.translate_hotkey);
@@ -514,6 +535,11 @@ fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> 
 
     if is_default_git_settings(&target.git) && !is_default_git_settings(&legacy.git) {
         target.git = legacy.git.clone();
+        changed = true;
+    }
+
+    if target.cache_icons != legacy.cache_icons {
+        target.cache_icons = legacy.cache_icons;
         changed = true;
     }
 
@@ -737,7 +763,17 @@ fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
             warn!("[Plugin] 初始化桌面文件插件存储失败: {}", e);
             return;
         }
-        crate::plugins::desktop_files::refresh_desktop_files_cache();
+        let progress_reset_kind = crate::db::peek_show_progress_kind(app_handle);
+        if matches!(progress_reset_kind.as_deref(), Some("desktopFiles" | "all")) {
+            let _ = crate::db::consume_show_progress_kind(app_handle);
+            crate::window::create_progress_notification_window();
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            crate::window::emit_scan_progress("正在扫描桌面文件...", 0, 1, "");
+            let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
+            crate::window::emit_scan_complete(0, 0, count);
+        } else {
+            crate::plugins::desktop_files::refresh_desktop_files_cache();
+        }
     } else {
         crate::plugins::desktop_files::invalidate_desktop_files_cache();
     }
@@ -796,18 +832,20 @@ fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String
                 warn!("[Plugin] 保存浏览器书签索引失败: {}", e);
             }
             crate::plugins::local_launcher::invalidate_bookmarks_cache();
-            let updated_count = std::sync::Arc::new(std::sync::Mutex::new(0usize));
-            let completion_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
-            crate::apps::load_app_icons_async_silent(
-                apps.clone(),
-                updated_count.clone(),
-                completion_counter.clone(),
-            );
-            crate::bookmarks::load_bookmark_icons_async_silent(
-                bookmarks.clone(),
-                updated_count,
-                completion_counter,
-            );
+            if crate::icon::is_icon_cache_enabled() {
+                let updated_count = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+                let completion_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+                crate::apps::load_app_icons_async_silent(
+                    apps.clone(),
+                    updated_count.clone(),
+                    completion_counter.clone(),
+                );
+                crate::bookmarks::load_bookmark_icons_async_silent(
+                    bookmarks.clone(),
+                    updated_count,
+                    completion_counter,
+                );
+            }
             crate::window::emit_scan_complete(apps.len(), bookmarks.len(), 0);
         }
         "desktop-files" => {
@@ -1055,6 +1093,66 @@ pub fn update_language_config(app_handle: AppHandle, language: String) -> Result
     } else {
         Err("AppConfigManager 未初始化".to_string())
     }
+}
+
+#[command]
+pub fn set_setup_index_preferences(
+    app_handle: AppHandle,
+    local_launcher: bool,
+    desktop_files: bool,
+    cache_icons: bool,
+) -> Result<(), String> {
+    let update_config = |manager: &mut AppConfigManager| -> Result<(), String> {
+        let mut config = manager.get_config().clone();
+        config.cache_icons = cache_icons;
+        config
+            .plugins
+            .entry("local-launcher".to_string())
+            .and_modify(|state| state.enabled = local_launcher)
+            .or_insert(PluginRuntimeState {
+                enabled: local_launcher,
+            });
+        config
+            .plugins
+            .entry("desktop-files".to_string())
+            .and_modify(|state| state.enabled = desktop_files)
+            .or_insert(PluginRuntimeState {
+                enabled: desktop_files,
+            });
+
+        manager.update_config(config);
+        manager.save()
+    };
+
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let mut manager = config_state
+            .write()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        update_config(&mut manager)?;
+    } else {
+        let data_dir = crate::json_config::get_data_dir(&app_handle);
+        let mut manager = AppConfigManager::new(&data_dir)?;
+        update_config(&mut manager)?;
+    }
+
+    if let Some(reset_kind) = match (local_launcher, desktop_files) {
+        (true, true) => Some("all"),
+        (true, false) => Some("launcher"),
+        (false, true) => Some("desktopFiles"),
+        (false, false) => None,
+    } {
+        crate::db::set_show_progress_on_restart_with_kind(&app_handle, reset_kind);
+    } else {
+        crate::json_config::set_app_config_value(&app_handle, "show_progress_on_restart", false)?;
+        crate::json_config::set_app_config_value(&app_handle, "show_progress_reset_kind", "")?;
+    }
+
+    info!(
+        "✅ [Setup] index preferences saved local_launcher={} desktop_files={} cache_icons={}",
+        local_launcher, desktop_files, cache_icons
+    );
+
+    Ok(())
 }
 
 #[command]

@@ -32,6 +32,8 @@ pub struct AppConfig {
     pub auto_hide_on_blur: Option<bool>,
     #[serde(default)]
     pub setup_completed: Option<bool>,
+    #[serde(default)]
+    pub cache_icons: Option<bool>,
 
     // Git 配置（作为 JSON 值存储）
     #[serde(default)]
@@ -64,6 +66,10 @@ pub struct AppConfig {
     // 进度状态
     #[serde(default)]
     pub show_progress_on_restart: Option<bool>,
+    #[serde(default)]
+    pub show_progress_reset_kind: Option<String>,
+    #[serde(default)]
+    pub setup_restart_pending: Option<bool>,
 
     // 快捷键配置
     #[serde(default)]
@@ -98,6 +104,7 @@ impl Default for AppConfig {
             auto_update_check: Some(true),
             auto_hide_on_blur: Some(true),
             setup_completed: Some(false),
+            cache_icons: Some(true),
             git: None,
             plugins: None,
             update_available: Some(false),
@@ -107,6 +114,8 @@ impl Default for AppConfig {
             ocr_language: Some("zh".to_string()),
             offline_model_activated: Some(false),
             show_progress_on_restart: Some(false),
+            show_progress_reset_kind: Some(String::new()),
+            setup_restart_pending: Some(false),
             search_hotkey: None,
             config_hotkey: None,
             translate_hotkey: None,

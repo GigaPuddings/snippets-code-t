@@ -49,6 +49,13 @@ static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> = Lazy::new(||
 // 并发管理 - 限制同时进行的图标加载任务数量以优化性能
 static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(10))); // 并发10个任务，平衡性能和资源占用
 
+pub fn is_icon_cache_enabled() -> bool {
+    crate::APP
+        .get()
+        .and_then(|app| crate::json_config::get_app_config_value::<bool>(app, "cache_icons"))
+        .unwrap_or(true)
+}
+
 // Tauri command: 提取应用图标
 #[tauri::command]
 pub fn extract_icon_from_app(app_path: String) -> Result<Option<String>, String> {
@@ -58,8 +65,10 @@ pub fn extract_icon_from_app(app_path: String) -> Result<Option<String>, String>
 // 从可执行文件中提取图标的功能
 pub fn extract_app_icon(app_path: &str) -> Option<String> {
     // 首先检查缓存
-    if let Some(cached_icon) = get_cached_icon(app_path) {
-        return Some(cached_icon);
+    if is_icon_cache_enabled() {
+        if let Some(cached_icon) = get_cached_icon(app_path) {
+            return Some(cached_icon);
+        }
     }
 
     // 验证路径是否存在且为有效文件
@@ -304,6 +313,10 @@ pub fn remove_icon_cache_for_path(path: &str) {
 
 // 将图标存储在缓存中
 fn cache_icon(key: &str, icon: CachedIcon) {
+    if !is_icon_cache_enabled() {
+        return;
+    }
+
     let mut cache = ICON_CACHE.lock().unwrap();
     cache.put(key.to_string(), icon.clone());
     let _ = db::insert_icon_to_cache(key, &icon);
@@ -311,6 +324,13 @@ fn cache_icon(key: &str, icon: CachedIcon) {
 
 // 从商店加载图标缓存
 pub fn load_icon_cache(_app_handle: &AppHandle) {
+    if !is_icon_cache_enabled() {
+        if let Ok(mut cache) = ICON_CACHE.lock() {
+            cache.clear();
+        }
+        return;
+    }
+
     if let Ok(cache_data) = db::load_all_icon_cache() {
         let mut cache = ICON_CACHE.lock().unwrap();
 
@@ -675,7 +695,13 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     let apps_count = db::count_apps().unwrap_or(0);
     let bookmarks_count = db::count_bookmarks().unwrap_or(0);
 
-    if apps_count > 0 && bookmarks_count > 0 {
+    let pending_reset_kind = db::peek_show_progress_kind(app_handle);
+    let launcher_reset_pending = matches!(
+        pending_reset_kind.as_deref(),
+        Some("all" | "apps" | "bookmarks" | "launcher")
+    );
+
+    if apps_count > 0 && bookmarks_count > 0 && !launcher_reset_pending {
         load_missing_icons(app_handle.clone());
         return;
     }
@@ -685,7 +711,11 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         return;
     }
 
-    let progress_reset_kind = db::consume_show_progress_kind(app_handle);
+    let progress_reset_kind = if launcher_reset_pending {
+        db::consume_show_progress_kind(app_handle)
+    } else {
+        None
+    };
     let show_progress = progress_reset_kind.is_some();
 
     if show_progress {
@@ -697,8 +727,9 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     let mut bookmarks_to_load = Vec::new();
 
     let reset_kind = progress_reset_kind.as_deref();
-    let scan_apps = apps_count == 0 || matches!(reset_kind, Some("all" | "apps"));
-    let scan_bookmarks = bookmarks_count == 0 || matches!(reset_kind, Some("all" | "bookmarks"));
+    let scan_apps = apps_count == 0 || matches!(reset_kind, Some("all" | "apps" | "launcher"));
+    let scan_bookmarks =
+        bookmarks_count == 0 || matches!(reset_kind, Some("all" | "bookmarks" | "launcher"));
     let scan_desktop_files = matches!(reset_kind, Some("all" | "desktopFiles"));
     let base_steps =
         (scan_apps as usize + scan_bookmarks as usize) * 2 + scan_desktop_files as usize;
@@ -772,11 +803,20 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     }
 
     // 统计图标任务数，用于细粒度进度
-    let app_icon_tasks = apps_to_load.iter().filter(|app| app.icon.is_none()).count();
-    let bookmark_icon_tasks = bookmarks_to_load
-        .iter()
-        .filter(|b| b.icon.is_none())
-        .count();
+    let should_cache_icons = is_icon_cache_enabled();
+    let app_icon_tasks = if should_cache_icons {
+        apps_to_load.iter().filter(|app| app.icon.is_none()).count()
+    } else {
+        0
+    };
+    let bookmark_icon_tasks = if should_cache_icons {
+        bookmarks_to_load
+            .iter()
+            .filter(|b| b.icon.is_none())
+            .count()
+    } else {
+        0
+    };
     let icon_tasks = app_icon_tasks + bookmark_icon_tasks;
 
     // 发送扫描完成事件
@@ -786,7 +826,7 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
 
     if show_progress {
         // 手动重置后：图标也纳入进度窗口（真实逐项推进）
-        if total_loaded > 0 && icon_tasks > 0 {
+        if should_cache_icons && total_loaded > 0 && icon_tasks > 0 {
             let total_steps = base_steps + icon_tasks;
             load_icons_with_realtime_progress(
                 apps_to_load,
@@ -815,7 +855,7 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         }
 
         // 只为需要加载的数据异步加载图标（静默加载，不发送通知）
-        if !apps_to_load.is_empty() || !bookmarks_to_load.is_empty() {
+        if should_cache_icons && (!apps_to_load.is_empty() || !bookmarks_to_load.is_empty()) {
             load_icons_with_combined_notification(
                 app_handle.clone(),
                 apps_to_load,
@@ -862,6 +902,10 @@ where
 
 // 检查并加载缺失图标的应用和书签
 fn load_missing_icons(app_handle: AppHandle) {
+    if !is_icon_cache_enabled() {
+        return;
+    }
+
     // 在后台线程中异步加载缺失的图标
     std::thread::spawn(move || {
         // 获取所有应用，过滤出缺失图标的

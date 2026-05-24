@@ -94,6 +94,10 @@ fn persist_desktop_file_icon(path: &Path, icon: &str) {
 }
 
 fn resolve_desktop_file_icon(path: &Path) -> Option<String> {
+    if !crate::icon::is_icon_cache_enabled() {
+        return get_file_icon(path);
+    }
+
     if let Some(icon) = load_cached_desktop_file_icon(path) {
         return Some(icon);
     }

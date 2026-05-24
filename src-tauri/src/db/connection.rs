@@ -229,8 +229,8 @@ pub fn is_setup_completed(app_handle: tauri::AppHandle) -> bool {
 #[tauri::command]
 pub fn set_setup_completed(app_handle: tauri::AppHandle) {
     let _ = json_config::set_app_config_value(&app_handle, "setup_completed", true);
-    // 重建托盘菜单（完整菜单）
-    let _ = crate::tray::recreate_tray_menu(&app_handle);
+    // 从首次启动的最小托盘切换到完整托盘时，必须连事件处理器一起重建。
+    let _ = crate::tray::recreate_tray_as_full(&app_handle);
 }
 
 // ============= 进度窗口显示标记 =============
@@ -241,8 +241,8 @@ pub fn set_show_progress_on_restart_with_kind(app_handle: &tauri::AppHandle, res
     let _ = json_config::set_app_config_value(app_handle, "show_progress_reset_kind", reset_kind);
 }
 
-// 消费进度窗口标记与重置类型（读取后清除）
-pub fn consume_show_progress_kind(app_handle: &tauri::AppHandle) -> Option<String> {
+// 读取进度窗口标记与重置类型，但不清除，便于各插件按需消费自己的重置任务。
+pub fn peek_show_progress_kind(app_handle: &tauri::AppHandle) -> Option<String> {
     let should_show: bool =
         json_config::get_app_config_value(app_handle, "show_progress_on_restart").unwrap_or(false);
 
@@ -253,6 +253,13 @@ pub fn consume_show_progress_kind(app_handle: &tauri::AppHandle) -> Option<Strin
     let reset_kind: String =
         json_config::get_app_config_value(app_handle, "show_progress_reset_kind")
             .unwrap_or_else(|| "all".to_string());
+
+    Some(reset_kind)
+}
+
+// 消费进度窗口标记与重置类型（读取后清除）
+pub fn consume_show_progress_kind(app_handle: &tauri::AppHandle) -> Option<String> {
+    let reset_kind = peek_show_progress_kind(app_handle)?;
 
     // 清除标记
     let _ = json_config::set_app_config_value(app_handle, "show_progress_on_restart", false);

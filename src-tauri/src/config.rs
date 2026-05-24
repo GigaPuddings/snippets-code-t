@@ -323,10 +323,7 @@ pub fn get_auto_update_check(app_handle: tauri::AppHandle) -> bool {
 // 退出应用
 #[tauri::command]
 pub fn exit_application(app_handle: tauri::AppHandle) {
-    // 取消注册全局快捷键
-    let _ = app_handle.global_shortcut().unregister_all();
-    // 退出应用
-    app_handle.exit(0);
+    crate::tray::exit_app_now(&app_handle);
 }
 
 // 设置界面语言（使用 app.json 存储）

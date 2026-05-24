@@ -2774,6 +2774,7 @@ pub fn close_setup_window() {
     };
 
     info!("设置完成，正在重启应用...");
+    let _ = crate::json_config::set_app_config_value(app, "setup_restart_pending", true);
 
     // 重启应用以使用新的数据库路径
     app.restart();
