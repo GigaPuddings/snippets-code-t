@@ -1,4 +1,4 @@
-import { computed, onUnmounted, ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
 import type {
   FfmpegStatus,
   RecordingExportResult,
@@ -20,7 +20,8 @@ const defaultSettings = (): RecordingSettings => ({
   format: 'mp4',
   fps: 30,
   quality: 'standard',
-  savePath: ''
+  savePath: '',
+  audio: true
 });
 
 export function useRecordingSession() {
@@ -31,14 +32,14 @@ export function useRecordingSession() {
   const errorMessage = ref('');
   const startedAt = ref<number | null>(null);
   const accumulatedMs = ref(0);
+  const elapsedMs = ref(0);
   const ticker = ref<number | null>(null);
 
-  const elapsedMs = computed(() => {
-    if (status.value !== 'recording' || startedAt.value === null) {
-      return accumulatedMs.value;
-    }
-    return accumulatedMs.value + Date.now() - startedAt.value;
-  });
+  const refreshElapsedMs = () => {
+    elapsedMs.value = status.value === 'recording' && startedAt.value !== null
+      ? accumulatedMs.value + Date.now() - startedAt.value
+      : accumulatedMs.value;
+  };
 
   const clearTicker = () => {
     if (ticker.value !== null) {
@@ -49,10 +50,10 @@ export function useRecordingSession() {
 
   const beginTicker = () => {
     clearTicker();
+    refreshElapsedMs();
     ticker.value = window.setInterval(() => {
-      accumulatedMs.value = elapsedMs.value;
-      startedAt.value = Date.now();
-    }, 500);
+      refreshElapsedMs();
+    }, 250);
   };
 
   const refreshFfmpegStatus = async () => {
@@ -70,12 +71,14 @@ export function useRecordingSession() {
     await startRecording(region, settings.value);
     status.value = 'recording';
     accumulatedMs.value = 0;
+    elapsedMs.value = 0;
     startedAt.value = Date.now();
     beginTicker();
   };
 
   const pause = async () => {
     if (status.value !== 'recording') return;
+    refreshElapsedMs();
     accumulatedMs.value = elapsedMs.value;
     startedAt.value = null;
     clearTicker();
@@ -93,6 +96,7 @@ export function useRecordingSession() {
 
   const stop = async () => {
     if (status.value !== 'recording' && status.value !== 'paused') return;
+    refreshElapsedMs();
     accumulatedMs.value = elapsedMs.value;
     startedAt.value = null;
     clearTicker();
@@ -113,6 +117,7 @@ export function useRecordingSession() {
     status.value = 'selecting';
     startedAt.value = null;
     accumulatedMs.value = 0;
+    elapsedMs.value = 0;
     result.value = null;
   };
 
@@ -120,6 +125,7 @@ export function useRecordingSession() {
     status.value = 'selecting';
     startedAt.value = null;
     accumulatedMs.value = 0;
+    elapsedMs.value = 0;
     result.value = null;
     errorMessage.value = '';
     settings.value = defaultSettings();

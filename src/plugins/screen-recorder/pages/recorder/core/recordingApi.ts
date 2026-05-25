@@ -3,7 +3,9 @@ import type {
   FfmpegStatus,
   RecordingExportResult,
   RecordingRegion,
-  RecordingSettings
+  RecordingSettings,
+  RecorderPassthroughRegion,
+  RecorderSnapRegion
 } from './types';
 
 export const getFfmpegStatus = (): Promise<FfmpegStatus> =>
@@ -24,6 +26,14 @@ export const pickRecordingRegion = (): Promise<RecordingRegion> =>
 export const setRecorderCaptureExcluded = (excluded: boolean): Promise<void> =>
   invoke('screen_recorder_set_capture_excluded', { excluded });
 
+export const setRecorderPassthroughRegion = (
+  region: RecorderPassthroughRegion | null
+): Promise<void> =>
+  invoke('screen_recorder_set_passthrough_region', { region });
+
+export const pickTargetWindow = (): Promise<RecorderSnapRegion> =>
+  invoke('screen_recorder_pick_target_window');
+
 export const closeRecorderWindow = (): Promise<void> =>
   invoke('screen_recorder_close_window');
 
@@ -34,7 +44,8 @@ export const startRecording = (
   invoke('screen_recorder_start_recording', {
     region,
     fps: settings.fps,
-    quality: settings.quality
+    quality: settings.quality,
+    audio: settings.audio
   });
 
 export const pauseRecording = (): Promise<void> =>
@@ -47,7 +58,8 @@ export const resumeRecording = (
   invoke('screen_recorder_resume_recording', {
     region,
     fps: settings.fps,
-    quality: settings.quality
+    quality: settings.quality,
+    audio: settings.audio
   });
 
 export const stopRecording = (): Promise<void> =>

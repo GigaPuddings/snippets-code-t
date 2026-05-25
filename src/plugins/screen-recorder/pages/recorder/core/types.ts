@@ -19,6 +19,7 @@ export interface RecordingSettings {
   fps: 15 | 24 | 30 | 60;
   quality: RecordingQuality;
   savePath: string;
+  audio: boolean;
 }
 
 export interface FfmpegStatus {
@@ -35,4 +36,21 @@ export interface RecordingExportResult {
   width: number;
   height: number;
   format: RecordingFormat;
+  hasAudio?: boolean;
+  audioDevice?: string;
+}
+
+export interface RecorderPassthroughRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface RecorderSnapRegion {
+  screenX: number;
+  screenY: number;
+  physicalWidth: number;
+  physicalHeight: number;
+  title: string;
 }
