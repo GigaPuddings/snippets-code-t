@@ -95,7 +95,9 @@ async function buildRuntime(pluginId, entryPath) {
         fileName: () => 'frontend.js'
       },
       rollupOptions: {
+        external: ['vue'],
         output: {
+          inlineDynamicImports: true,
           assetFileNames: 'assets/[name]-[hash][extname]',
           chunkFileNames: 'assets/[name]-[hash].js'
         }

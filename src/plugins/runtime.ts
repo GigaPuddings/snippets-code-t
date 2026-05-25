@@ -8,6 +8,7 @@ import {
   markRaw,
   type Component
 } from 'vue';
+import * as VueRuntime from 'vue';
 import type { RouteComponent, RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
 import type { SearchSourceProvider, SearchSourceResult } from './search';
@@ -119,6 +120,7 @@ const runtimeWindowPluginRoutes: RouteRecordRaw[] = [];
 const loadedFrontendEntries = new Set<string>();
 const loadedPluginStyleLinks = new Map<string, HTMLLinkElement[]>();
 const loadedPluginModuleUrls = new Map<string, string[]>();
+const sharedModuleUrls = new Map<string, string>();
 const installedRuntimeRouteNames = new Set<string>();
 const installedRuntimeRouteRemovers = new Map<string, () => void>();
 const runtimeCleanupHandlers = new Map<string, Set<RuntimeCleanup>>();
@@ -213,12 +215,216 @@ const resolveRelativePluginAssetUrl = (
   return `${resolvePluginAssetUrl(plugin, normalizedPath)}${suffix}`;
 };
 
+const vueRuntimeExportNames = [
+  'BaseTransition',
+  'BaseTransitionPropsValidators',
+  'Comment',
+  'DeprecationTypes',
+  'EffectScope',
+  'ErrorCodes',
+  'ErrorTypeStrings',
+  'Fragment',
+  'KeepAlive',
+  'ReactiveEffect',
+  'Static',
+  'Suspense',
+  'Teleport',
+  'Text',
+  'TrackOpTypes',
+  'Transition',
+  'TransitionGroup',
+  'TriggerOpTypes',
+  'VueElement',
+  'assertNumber',
+  'callWithAsyncErrorHandling',
+  'callWithErrorHandling',
+  'camelize',
+  'capitalize',
+  'cloneVNode',
+  'compatUtils',
+  'compile',
+  'computed',
+  'createApp',
+  'createBlock',
+  'createCommentVNode',
+  'createElementBlock',
+  'createElementVNode',
+  'createHydrationRenderer',
+  'createPropsRestProxy',
+  'createRenderer',
+  'createSSRApp',
+  'createSlots',
+  'createStaticVNode',
+  'createTextVNode',
+  'createVNode',
+  'customRef',
+  'defineAsyncComponent',
+  'defineComponent',
+  'defineCustomElement',
+  'defineEmits',
+  'defineExpose',
+  'defineModel',
+  'defineOptions',
+  'defineProps',
+  'defineSSRCustomElement',
+  'defineSlots',
+  'devtools',
+  'effect',
+  'effectScope',
+  'getCurrentInstance',
+  'getCurrentScope',
+  'getCurrentWatcher',
+  'getTransitionRawChildren',
+  'guardReactiveProps',
+  'h',
+  'handleError',
+  'hasInjectionContext',
+  'hydrate',
+  'hydrateOnIdle',
+  'hydrateOnInteraction',
+  'hydrateOnMediaQuery',
+  'hydrateOnVisible',
+  'initCustomFormatter',
+  'initDirectivesForSSR',
+  'inject',
+  'isMemoSame',
+  'isProxy',
+  'isReactive',
+  'isReadonly',
+  'isRef',
+  'isRuntimeOnly',
+  'isShallow',
+  'isVNode',
+  'markRaw',
+  'mergeDefaults',
+  'mergeModels',
+  'mergeProps',
+  'nextTick',
+  'normalizeClass',
+  'normalizeProps',
+  'normalizeStyle',
+  'onActivated',
+  'onBeforeMount',
+  'onBeforeUnmount',
+  'onBeforeUpdate',
+  'onDeactivated',
+  'onErrorCaptured',
+  'onMounted',
+  'onRenderTracked',
+  'onRenderTriggered',
+  'onScopeDispose',
+  'onServerPrefetch',
+  'onUnmounted',
+  'onUpdated',
+  'onWatcherCleanup',
+  'openBlock',
+  'popScopeId',
+  'provide',
+  'proxyRefs',
+  'pushScopeId',
+  'queuePostFlushCb',
+  'reactive',
+  'readonly',
+  'ref',
+  'registerRuntimeCompiler',
+  'render',
+  'renderList',
+  'renderSlot',
+  'resolveComponent',
+  'resolveDirective',
+  'resolveDynamicComponent',
+  'resolveFilter',
+  'resolveTransitionHooks',
+  'setBlockTracking',
+  'setDevtoolsHook',
+  'setTransitionHooks',
+  'shallowReactive',
+  'shallowReadonly',
+  'shallowRef',
+  'ssrContextKey',
+  'ssrUtils',
+  'stop',
+  'toDisplayString',
+  'toHandlerKey',
+  'toHandlers',
+  'toRaw',
+  'toRef',
+  'toRefs',
+  'toValue',
+  'transformVNodeArgs',
+  'triggerRef',
+  'unref',
+  'useAttrs',
+  'useCssModule',
+  'useCssVars',
+  'useHost',
+  'useId',
+  'useModel',
+  'useSSRContext',
+  'useShadowRoot',
+  'useSlots',
+  'useTemplateRef',
+  'useTransitionState',
+  'vModelCheckbox',
+  'vModelDynamic',
+  'vModelRadio',
+  'vModelSelect',
+  'vModelText',
+  'vShow',
+  'version',
+  'warn',
+  'watch',
+  'watchEffect',
+  'watchPostEffect',
+  'watchSyncEffect',
+  'withAsyncContext',
+  'withCtx',
+  'withDefaults',
+  'withDirectives',
+  'withKeys',
+  'withMemo',
+  'withModifiers',
+  'withScopeId'
+];
+
+const ensureSharedModuleUrl = (specifier: string): string | null => {
+  if (specifier !== 'vue') return null;
+
+  const existingUrl = sharedModuleUrls.get(specifier);
+  if (existingUrl) return existingUrl;
+
+  const globalKey = '__SNIPPETS_CODE_PLUGIN_SHARED__';
+  const sharedGlobal = globalThis as typeof globalThis & {
+    [globalKey]?: Record<string, unknown>;
+  };
+  sharedGlobal[globalKey] = {
+    ...(sharedGlobal[globalKey] ?? {}),
+    vue: VueRuntime
+  };
+
+  const exports = vueRuntimeExportNames
+    .map((name) => `export const ${name} = Vue.${name};`)
+    .join('\n');
+  const source = [
+    `const Vue = globalThis.${globalKey}.vue;`,
+    'export default Vue;',
+    exports
+  ].join('\n');
+  const moduleUrl = URL.createObjectURL(
+    new Blob([source], { type: 'text/javascript' })
+  );
+  sharedModuleUrls.set(specifier, moduleUrl);
+  return moduleUrl;
+};
+
 const rewritePluginModuleSource = (
   plugin: RegisteredPlugin,
   entryRelativePath: string,
   source: string
 ): string => {
   const rewriteSpecifier = (specifier: string): string => {
+    const sharedModuleUrl = ensureSharedModuleUrl(specifier);
+    if (sharedModuleUrl) return sharedModuleUrl;
     if (!specifier.startsWith('./') && !specifier.startsWith('../')) {
       return specifier;
     }
@@ -227,12 +433,12 @@ const rewritePluginModuleSource = (
 
   return source
     .replace(
-      /((?:import|export)\s+(?:[^'"]*?\s+from\s*)?)(['"])(\.{1,2}\/[^'"]+)\2/g,
+      /((?:import|export)\s+(?:[^'"]*?\s+from\s*)?)(['"])([^'"]+)\2/g,
       (_match, prefix: string, quote: string, specifier: string) =>
         `${prefix}${quote}${rewriteSpecifier(specifier)}${quote}`
     )
     .replace(
-      /(import\s*\(\s*)(['"])(\.{1,2}\/[^'"]+)\2(\s*\))/g,
+      /(import\s*\(\s*)(['"])([^'"]+)\2(\s*\))/g,
       (
         _match,
         prefix: string,
