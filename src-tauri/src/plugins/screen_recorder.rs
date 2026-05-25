@@ -761,7 +761,7 @@ pub fn open_screen_recorder_window() {
     .position(x, y)
     .resizable(true)
     .always_on_top(true)
-    .skip_taskbar(true)
+    .skip_taskbar(false)
     .transparent(true)
     .shadow(true)
     .decorations(false)
@@ -783,7 +783,7 @@ pub fn open_screen_recorder_window() {
 
     let window_timeout = window.clone();
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(2500)).await;
         if !window_timeout.is_visible().unwrap_or(false) {
             let _ = window_timeout.show();
             let _ = window_timeout.set_focus();

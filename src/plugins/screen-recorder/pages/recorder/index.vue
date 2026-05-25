@@ -45,12 +45,17 @@
               aria-label="对齐目标窗口"
               @mousedown.prevent="handleSnapToWindow"
             >
-              <span class="snap-ring"></span>
+              <Radar
+                theme="outline"
+                size="18"
+                :strokeWidth="3"
+                strokeLinecap="butt"
+              />
             </button>
 
             <button
               class="audio-meter"
-              :class="{ active: audioEnabled && audioLevel > 0.03, metering: audioEnabled && !audioMeterUnavailable, muted: !audioEnabled || audioMeterUnavailable }"
+              :class="{ active: isMeterActive && audioLevel > 0.03, metering: isMeterActive && !audioMeterUnavailable, muted: !isMeterActive || audioMeterUnavailable }"
               :title="audioTitle"
               aria-label="系统声音录制状态"
               :disabled="status === 'exporting' || settings.format === 'gif'"
@@ -144,11 +149,12 @@ import {
   getCurrentWindow,
   LogicalSize,
   monitorFromPoint,
-  PhysicalPosition
+  PhysicalPosition,
+  PhysicalSize
 } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { CloseSmall, Minus } from '@icon-park/vue-next';
+import { CloseSmall, Minus, Radar } from '@icon-park/vue-next';
 import modal from '@/utils/modal';
 import {
   closeRecorderWindow,
@@ -211,8 +217,9 @@ const {
 
 const isBusy = computed(() => status.value === 'recording' || status.value === 'paused' || status.value === 'exporting');
 const audioEnabled = computed(() => settings.value.audio && settings.value.format === 'mp4');
+const isMeterActive = computed(() => audioEnabled.value && status.value === 'recording');
 const audioBarsStyle = computed<Record<string, string>>(() => {
-  const level = audioEnabled.value && !audioMeterUnavailable.value ? audioLevel.value : 0;
+  const level = isMeterActive.value && !audioMeterUnavailable.value ? audioLevel.value : 0;
   const scale = (base: number, weight: number) =>
     Math.max(0.18, Math.min(1, base + level * weight)).toFixed(3);
 
@@ -338,6 +345,10 @@ const startAudioMeter = async () => {
   try {
     console.info(`${LOG_PREFIX} backend audio meter listening`);
     unlistenAudioLevel = await listen<AudioLevelEvent>('screen_recorder_audio_level', (event) => {
+      if (!isMeterActive.value) {
+        audioLevel.value = 0;
+        return;
+      }
       const next = Math.max(0, Math.min(1, Number(event.payload?.level ?? 0)));
       audioLevel.value = audioLevel.value * 0.38 + next * 0.62;
     });
@@ -387,8 +398,9 @@ const handleResume = () => runAction(async () => {
 const handleStop = () => runAction(async () => {
   console.info(`${LOG_PREFIX} handle stop/export`);
   await stop();
+  audioLevel.value = 0;
   await exportFile();
-  await clearPassthrough();
+  await refreshCaptureMetrics();
   await setRecorderCaptureExcluded(false).catch(() => undefined);
 });
 
@@ -406,20 +418,49 @@ const handleRecordAgain = () => {
 const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
   const monitor = await monitorFromPoint(target.screenX, target.screenY);
   const scale = monitor?.scaleFactor || await appWindow.scaleFactor();
-  const width = Math.max(
-    MIN_WINDOW_WIDTH,
-    target.physicalWidth / scale + FRAME_INSET * 2 + BORDER_INSET * 2
-  );
-  const height = Math.max(
-    MIN_WINDOW_HEIGHT,
-    target.physicalHeight / scale + TITLE_BAR_HEIGHT + CONTROL_STRIP_HEIGHT + FRAME_INSET * 2 + BORDER_INSET * 2
-  );
+  const leftOffset = Math.round((FRAME_INSET + BORDER_INSET) * scale);
+  const rightOffset = leftOffset;
+  const topOffset = Math.round((TITLE_BAR_HEIGHT + FRAME_INSET + BORDER_INSET) * scale);
+  const bottomOffset = Math.round((CONTROL_STRIP_HEIGHT + FRAME_INSET + BORDER_INSET) * scale);
+  const minPhysicalWidth = Math.round(MIN_WINDOW_WIDTH * scale);
+  const minPhysicalHeight = Math.round(MIN_WINDOW_HEIGHT * scale);
+  const desired = {
+    x: target.screenX - leftOffset,
+    y: target.screenY - topOffset,
+    width: Math.max(minPhysicalWidth, target.physicalWidth + leftOffset + rightOffset),
+    height: Math.max(minPhysicalHeight, target.physicalHeight + topOffset + bottomOffset)
+  };
+  const monitorRect = monitor
+    ? {
+        x: monitor.position.x,
+        y: monitor.position.y,
+        width: monitor.size.width,
+        height: monitor.size.height
+      }
+    : null;
+  const finalFrame = (() => {
+    if (!monitorRect) return desired;
+    const monitorRight = monitorRect.x + monitorRect.width;
+    const monitorBottom = monitorRect.y + monitorRect.height;
+    const fits =
+      desired.x >= monitorRect.x &&
+      desired.y >= monitorRect.y &&
+      desired.x + desired.width <= monitorRight &&
+      desired.y + desired.height <= monitorBottom;
+    if (fits) return desired;
 
-  await appWindow.setPosition(new PhysicalPosition(
-    Math.round(target.screenX - (FRAME_INSET + BORDER_INSET) * scale),
-    Math.round(target.screenY - (TITLE_BAR_HEIGHT + FRAME_INSET + BORDER_INSET) * scale)
-  ));
-  await appWindow.setSize(new LogicalSize(Math.round(width), Math.round(height)));
+    const width = Math.min(desired.width, monitorRect.width);
+    const height = Math.min(desired.height, monitorRect.height);
+    return {
+      x: Math.min(Math.max(desired.x, monitorRect.x), monitorRight - width),
+      y: Math.min(Math.max(desired.y, monitorRect.y), monitorBottom - height),
+      width,
+      height
+    };
+  })();
+
+  await appWindow.setPosition(new PhysicalPosition(finalFrame.x, finalFrame.y));
+  await appWindow.setSize(new PhysicalSize(finalFrame.width, finalFrame.height));
   await nextTick();
   await refreshCaptureMetrics();
 };
@@ -447,11 +488,13 @@ const handleClose = async () => {
 
 const handleOpenFile = async () => {
   if (!result.value) return;
+  await refreshCaptureMetrics();
   await invoke('open_file_with_default_app', { filePath: result.value.path });
 };
 
 const handleRevealFile = async () => {
   if (!result.value) return;
+  await refreshCaptureMetrics();
   await invoke('show_file_in_folder', { filePath: result.value.path });
 };
 
@@ -466,11 +509,12 @@ onMounted(async () => {
   status.value = 'ready';
   await appWindow.setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)).catch(() => undefined);
   await setRecorderCaptureExcluded(true).catch(() => undefined);
-  await appWindow.emit('screen_recorder_ready');
   await refreshFfmpegStatus().catch(() => undefined);
   await nextTick();
   await refreshCaptureMetrics();
   await startAudioMeter();
+  await nextTick();
+  await appWindow.emit('screen_recorder_ready');
 
   if (captureHoleRef.value) {
     resizeObserver = new ResizeObserver(() => {
@@ -491,6 +535,12 @@ watch(audioEnabled, (enabled) => {
     void startAudioMeter();
   } else {
     void stopAudioMeter();
+  }
+});
+
+watch(status, (nextStatus) => {
+  if (nextStatus !== 'recording') {
+    audioLevel.value = 0;
   }
 });
 
@@ -841,23 +891,6 @@ select {
 
 .snap-control {
   border-right: 1px solid rgba(214, 220, 229, 0.86);
-}
-
-.snap-ring {
-  position: relative;
-  width: 14px;
-  height: 14px;
-  border: 2px solid currentcolor;
-  border-radius: 50%;
-
-  &::after {
-    position: absolute;
-    inset: 3px;
-    content: '';
-    border: 1px solid currentcolor;
-    border-radius: 50%;
-    opacity: 0.62;
-  }
 }
 
 .audio-meter {
