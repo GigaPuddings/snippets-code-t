@@ -255,7 +255,7 @@ const audioTitle = computed(() => {
   if (ffmpegStatus.value?.available && !ffmpegStatus.value.systemAudioAvailable) {
     const devices = ffmpegStatus.value.audioDevices?.join('、') || '无';
     return settings.value.audio
-      ? `未发现系统声音/立体声混音设备；当前可用音频设备：${devices}`
+      ? `未发现系统声音/立体声混音设备；不会自动录制麦克风。当前可用音频设备：${devices}`
       : '录制音频已关闭';
   }
   return settings.value.audio

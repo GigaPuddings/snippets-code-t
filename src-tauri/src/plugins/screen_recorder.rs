@@ -340,15 +340,31 @@ fn default_audio_device(app_handle: &AppHandle) -> Option<String> {
     let selected = devices
         .iter()
         .find(|device| is_system_audio_device(device))
-        .cloned()
-        .or_else(|| devices.first().cloned());
+        .cloned();
     info!(
-        "[Plugin:screen-recorder] selected dshow audio device: {:?}, system_audio_available={}, all_devices={:?}",
+        "[Plugin:screen-recorder] selected system dshow audio device: {:?}, system_audio_available={}, all_devices={:?}",
         selected,
         devices.iter().any(|device| is_system_audio_device(device)),
         devices
     );
     selected
+}
+
+fn ffmpeg_supports_filter(ffmpeg_path: &Path, filter: &str) -> bool {
+    let Ok(output) = Command::new(ffmpeg_path)
+        .args(["-hide_banner", "-filters"])
+        .output()
+    else {
+        return false;
+    };
+    let combined = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    combined
+        .lines()
+        .any(|line| line.split_whitespace().any(|part| part == filter))
 }
 
 fn default_output_path(format: &str) -> PathBuf {
@@ -924,6 +940,8 @@ fn spawn_segment(
         let video_size = format!("{}x{}", region.physical_width, region.physical_height);
         let fps_text = fps.to_string();
         let keyframe_interval = (fps.max(1) * 2).to_string();
+        let use_ddagrab = ffmpeg_supports_filter(&ffmpeg.path, "ddagrab");
+        let capture_backend = if use_ddagrab { "ddagrab" } else { "gdigrab" };
         let audio_device = if audio {
             default_audio_device(app_handle)
         } else {
@@ -940,23 +958,42 @@ fn spawn_segment(
             "+genpts".to_string(),
             "-thread_queue_size".to_string(),
             "1024".to_string(),
-            "-f".to_string(),
-            "gdigrab".to_string(),
-            "-rtbufsize".to_string(),
-            "512M".to_string(),
-            "-framerate".to_string(),
-            fps_text.clone(),
-            "-offset_x".to_string(),
-            region.screen_x.to_string(),
-            "-offset_y".to_string(),
-            region.screen_y.to_string(),
-            "-video_size".to_string(),
-            video_size.clone(),
-            "-draw_mouse".to_string(),
-            "1".to_string(),
-            "-i".to_string(),
-            "desktop".to_string(),
         ];
+        let mut video_filters: Vec<String> = Vec::new();
+        if use_ddagrab {
+            args.extend([
+                "-f".to_string(),
+                "lavfi".to_string(),
+                "-i".to_string(),
+                format!(
+                    "ddagrab=framerate={}:offset_x={}:offset_y={}:video_size={}:draw_mouse=1:output_fmt=bgra:dup_frames=0",
+                    fps_text,
+                    region.screen_x,
+                    region.screen_y,
+                    video_size
+                ),
+            ]);
+            video_filters.extend(["-vf".to_string(), "hwdownload,format=bgra".to_string()]);
+        } else {
+            args.extend([
+                "-f".to_string(),
+                "gdigrab".to_string(),
+                "-rtbufsize".to_string(),
+                "512M".to_string(),
+                "-framerate".to_string(),
+                fps_text.clone(),
+                "-offset_x".to_string(),
+                region.screen_x.to_string(),
+                "-offset_y".to_string(),
+                region.screen_y.to_string(),
+                "-video_size".to_string(),
+                video_size.clone(),
+                "-draw_mouse".to_string(),
+                "1".to_string(),
+                "-i".to_string(),
+                "desktop".to_string(),
+            ]);
+        }
 
         if let Some(device) = &audio_device {
             args.extend([
@@ -977,9 +1014,8 @@ fn spawn_segment(
             args.push("-an".to_string());
         }
 
+        args.extend(video_filters);
         args.extend([
-            "-r".to_string(),
-            fps_text.clone(),
             "-c:v".to_string(),
             "libx264".to_string(),
             "-preset".to_string(),
@@ -1013,7 +1049,8 @@ fn spawn_segment(
         append_debug_log(
             temp_dir,
             format!(
-                "spawn segment #{index}: region=({}, {}) {}x{} scale={} fps={} quality={} audio_requested={} audio_device={:?} output={} ffmpeg_log={}",
+                "spawn segment #{index}: backend={} region=({}, {}) {}x{} scale={} fps={} quality={} audio_requested={} audio_device={:?} output={} ffmpeg_log={}",
+                capture_backend,
                 region.screen_x,
                 region.screen_y,
                 region.physical_width,

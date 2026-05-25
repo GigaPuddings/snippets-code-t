@@ -3763,7 +3763,7 @@ const Oi = { class: "screen-recorder" }, ki = ["onMousedown"], xi = { class: "wi
         return "未检测到可用音频设备，导出视频无声音";
       if (m.value?.available && !m.value.systemAudioAvailable) {
         const f = m.value.audioDevices?.join("、") || "无";
-        return p.value.audio ? `未发现系统声音/立体声混音设备；当前可用音频设备：${f}` : "录制音频已关闭";
+        return p.value.audio ? `未发现系统声音/立体声混音设备；不会自动录制麦克风。当前可用音频设备：${f}` : "录制音频已关闭";
       }
       return p.value.audio ? "录制音频已开启。系统声音需要启用“立体声混音/Loopback”等设备" : "录制音频已关闭";
     }), jn = _(() => {
@@ -4382,7 +4382,7 @@ const Oi = { class: "screen-recorder" }, ki = ["onMousedown"], xi = { class: "wi
   for (const [o, s] of t)
     n[o] = s;
   return n;
-}, sr = /* @__PURE__ */ or(nr, [["__scopeId", "data-v-d4879030"]]), ar = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, sr = /* @__PURE__ */ or(nr, [["__scopeId", "data-v-024e1ccb"]]), ar = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: sr
 }, Symbol.toStringTag, { value: "Module" }));
