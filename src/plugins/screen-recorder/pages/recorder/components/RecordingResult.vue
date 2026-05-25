@@ -2,6 +2,7 @@
   <div class="recording-result">
     <h3>{{ $t('screenRecorder.exportDone') }}</h3>
     <p>{{ result.width }} × {{ result.height }} · {{ sizeText }}</p>
+    <p v-if="result.debugLogPath" class="debug-log">调试日志：{{ result.debugLogPath }}</p>
     <div class="actions">
       <el-button type="primary" @click="$emit('open')">{{ $t('screenRecorder.openFile') }}</el-button>
       <el-button @click="$emit('reveal')">{{ $t('screenRecorder.openFolder') }}</el-button>
@@ -54,6 +55,12 @@ const sizeText = computed(() => {
   p {
     margin: 0 0 18px;
     color: #5a6678;
+  }
+
+  .debug-log {
+    overflow-wrap: anywhere;
+    margin-top: -8px;
+    font-size: 12px;
   }
 }
 

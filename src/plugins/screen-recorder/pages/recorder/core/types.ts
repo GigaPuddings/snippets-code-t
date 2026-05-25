@@ -40,6 +40,7 @@ export interface RecordingExportResult {
   format: RecordingFormat;
   hasAudio?: boolean;
   audioDevice?: string;
+  debugLogPath?: string;
 }
 
 export interface RecorderPassthroughRegion {

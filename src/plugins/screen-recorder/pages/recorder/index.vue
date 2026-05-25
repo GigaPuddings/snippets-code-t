@@ -168,6 +168,7 @@ import type { RecordingRegion, RecorderSnapRegion } from './core/types';
 
 type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
 
+const LOG_PREFIX = '[screen-recorder]';
 const appWindow = getCurrentWindow();
 const captureHoleRef = ref<HTMLElement | null>(null);
 const captureSize = ref({ width: 0, height: 0 });
@@ -273,6 +274,7 @@ const runAction = async (action: () => Promise<void>) => {
   try {
     await action();
   } catch (error: any) {
+    console.error(`${LOG_PREFIX} action failed`, error);
     modal.msg(error?.message || String(error), 'error');
   }
 };
@@ -296,7 +298,7 @@ const getCaptureRegion = async (): Promise<RecordingRegion> => {
     throw new Error('录制区域太小，请放大录制窗口');
   }
 
-  return {
+  const region = {
     x: rect.left,
     y: rect.top,
     width: physicalWidth / scale,
@@ -307,6 +309,8 @@ const getCaptureRegion = async (): Promise<RecordingRegion> => {
     physicalHeight,
     scale
   };
+  console.info(`${LOG_PREFIX} capture region`, region);
+  return region;
 };
 
 const refreshCaptureMetrics = async () => {
@@ -376,10 +380,12 @@ const startAudioMeter = async () => {
   if (!audioEnabled.value || audioStream || audioFrame) return;
   if (!navigator.mediaDevices?.getUserMedia) {
     audioMeterUnavailable.value = true;
+    console.warn(`${LOG_PREFIX} audio meter unavailable: getUserMedia missing`);
     return;
   }
 
   try {
+    console.info(`${LOG_PREFIX} audio meter starting`);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: false,
@@ -389,6 +395,14 @@ const startAudioMeter = async () => {
       video: false
     });
     audioStream = stream;
+    console.info(`${LOG_PREFIX} audio meter stream`, {
+      tracks: stream.getAudioTracks().map((track) => ({
+        label: track.label,
+        enabled: track.enabled,
+        muted: track.muted,
+        readyState: track.readyState
+      }))
+    });
     audioContext = new AudioContext();
     audioAnalyser = audioContext.createAnalyser();
     audioAnalyser.fftSize = 512;
@@ -398,7 +412,8 @@ const startAudioMeter = async () => {
     await audioContext.resume().catch(() => undefined);
     audioMeterUnavailable.value = false;
     sampleAudioMeter();
-  } catch {
+  } catch (error) {
+    console.error(`${LOG_PREFIX} audio meter failed`, error);
     audioMeterUnavailable.value = true;
     await stopAudioMeter();
   }
@@ -423,19 +438,25 @@ const startResize = async (direction: ResizeDirection) => {
 };
 
 const handleStart = () => runAction(async () => {
+  console.info(`${LOG_PREFIX} handle start`);
   await startAudioMeter();
   await setRecorderCaptureExcluded(true).catch(() => undefined);
   await refreshCaptureMetrics();
   await begin(await getCaptureRegion());
 });
 
-const handlePause = () => runAction(pause);
+const handlePause = () => runAction(async () => {
+  console.info(`${LOG_PREFIX} handle pause`);
+  await pause();
+});
 
 const handleResume = () => runAction(async () => {
+  console.info(`${LOG_PREFIX} handle resume`);
   await resume(await getCaptureRegion());
 });
 
 const handleStop = () => runAction(async () => {
+  console.info(`${LOG_PREFIX} handle stop/export`);
   await stop();
   await exportFile();
   await clearPassthrough();
@@ -456,6 +477,7 @@ const handleRecordAgain = () => {
 const toggleAudio = () => {
   if (isBusy.value || settings.value.format === 'gif') return;
   settings.value.audio = !settings.value.audio;
+  console.info(`${LOG_PREFIX} audio toggled`, { audio: settings.value.audio });
   if (settings.value.audio) {
     void startAudioMeter();
   } else {

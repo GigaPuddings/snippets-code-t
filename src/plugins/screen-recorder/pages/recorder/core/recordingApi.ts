@@ -8,40 +8,70 @@ import type {
   RecorderSnapRegion
 } from './types';
 
+const LOG_PREFIX = '[screen-recorder]';
+
+const summarizePayload = (payload?: Record<string, unknown>) => {
+  if (!payload) return undefined;
+  return JSON.parse(JSON.stringify(payload));
+};
+
+const invokeWithLog = async <T>(
+  command: string,
+  payload?: Record<string, unknown>
+): Promise<T> => {
+  const started = performance.now();
+  const summary = summarizePayload(payload);
+  console.info(`${LOG_PREFIX} invoke:start ${command}`, summary ?? '');
+  try {
+    const result = await invoke<T>(command, payload);
+    console.info(`${LOG_PREFIX} invoke:success ${command}`, {
+      elapsedMs: Math.round(performance.now() - started),
+      result
+    });
+    return result;
+  } catch (error) {
+    console.error(`${LOG_PREFIX} invoke:error ${command}`, {
+      elapsedMs: Math.round(performance.now() - started),
+      error
+    });
+    throw error;
+  }
+};
+
 export const getFfmpegStatus = (): Promise<FfmpegStatus> =>
-  invoke('screen_recorder_get_ffmpeg_status');
+  invokeWithLog('screen_recorder_get_ffmpeg_status');
 
 export const getRecorderBackground = (): Promise<string> =>
-  invoke('screen_recorder_get_background');
+  invokeWithLog('screen_recorder_get_background');
 
 export const getRecorderPreview = (): Promise<string> =>
-  invoke('screen_recorder_get_preview');
+  invokeWithLog('screen_recorder_get_preview');
 
 export const clearRecorderBackground = (): Promise<void> =>
-  invoke('screen_recorder_clear_background');
+  invokeWithLog('screen_recorder_clear_background');
 
 export const pickRecordingRegion = (): Promise<RecordingRegion> =>
-  invoke('screen_recorder_pick_region');
+  invokeWithLog('screen_recorder_pick_region');
 
 export const setRecorderCaptureExcluded = (excluded: boolean): Promise<void> =>
-  invoke('screen_recorder_set_capture_excluded', { excluded });
+  invokeWithLog('screen_recorder_set_capture_excluded', { excluded });
 
 export const setRecorderPassthroughRegion = (
   region: RecorderPassthroughRegion | null
 ): Promise<void> =>
-  invoke('screen_recorder_set_passthrough_region', { region });
+  invokeWithLog('screen_recorder_set_passthrough_region', { region });
 
 export const pickTargetWindow = (): Promise<RecorderSnapRegion> =>
-  invoke('screen_recorder_pick_target_window');
+  invokeWithLog('screen_recorder_pick_target_window');
 
 export const closeRecorderWindow = (): Promise<void> =>
-  invoke('screen_recorder_close_window');
+  invokeWithLog('screen_recorder_close_window');
 
 export const startRecording = (
   region: RecordingRegion,
   settings: RecordingSettings
 ): Promise<void> =>
-  invoke('screen_recorder_start_recording', {
+  invokeWithLog('screen_recorder_start_recording', {
     region,
     fps: settings.fps,
     quality: settings.quality,
@@ -49,13 +79,13 @@ export const startRecording = (
   });
 
 export const pauseRecording = (): Promise<void> =>
-  invoke('screen_recorder_pause_recording');
+  invokeWithLog('screen_recorder_pause_recording');
 
 export const resumeRecording = (
   region: RecordingRegion,
   settings: RecordingSettings
 ): Promise<void> =>
-  invoke('screen_recorder_resume_recording', {
+  invokeWithLog('screen_recorder_resume_recording', {
     region,
     fps: settings.fps,
     quality: settings.quality,
@@ -63,15 +93,15 @@ export const resumeRecording = (
   });
 
 export const stopRecording = (): Promise<void> =>
-  invoke('screen_recorder_stop_recording');
+  invokeWithLog('screen_recorder_stop_recording');
 
 export const cancelRecording = (): Promise<void> =>
-  invoke('screen_recorder_cancel_recording');
+  invokeWithLog('screen_recorder_cancel_recording');
 
 export const exportRecording = (
   settings: RecordingSettings
 ): Promise<RecordingExportResult> =>
-  invoke('screen_recorder_export_recording', {
+  invokeWithLog('screen_recorder_export_recording', {
     format: settings.format,
     fps: settings.fps,
     quality: settings.quality,

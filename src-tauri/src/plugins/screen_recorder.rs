@@ -1,6 +1,6 @@
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -74,6 +74,7 @@ pub struct RecordingExportResult {
     format: String,
     has_audio: bool,
     audio_device: Option<String>,
+    debug_log_path: Option<String>,
 }
 
 struct FfmpegLocation {
@@ -91,8 +92,10 @@ struct RecordingSession {
     audio_device: Option<String>,
     next_segment_index: usize,
     segments: Vec<PathBuf>,
+    segment_logs: Vec<PathBuf>,
     child: Option<Child>,
     stopped: bool,
+    started_at: Instant,
 }
 
 #[derive(Default)]
@@ -108,6 +111,58 @@ fn require_plugin(app_handle: &AppHandle) -> Result<(), String> {
 
 fn display_path(path: &Path) -> String {
     path.to_string_lossy().to_string()
+}
+
+fn debug_log_path(temp_dir: &Path) -> PathBuf {
+    temp_dir.join("debug.log")
+}
+
+fn timestamp_text() -> String {
+    chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string()
+}
+
+fn append_debug_log(temp_dir: &Path, message: impl AsRef<str>) {
+    let path = debug_log_path(temp_dir);
+    let line = format!("[{}] {}\n", timestamp_text(), message.as_ref());
+    if let Err(error) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .and_then(|mut file| file.write_all(line.as_bytes()))
+    {
+        warn!(
+            "[Plugin:screen-recorder] write debug log failed {}: {}",
+            display_path(&path),
+            error
+        );
+    }
+}
+
+fn append_debug_block(temp_dir: &Path, title: &str, content: &[u8]) {
+    let text = String::from_utf8_lossy(content);
+    if text.trim().is_empty() {
+        return;
+    }
+    append_debug_log(temp_dir, format!("{}:\n{}", title, text.trim_end()));
+}
+
+fn quote_command_part(value: &str) -> String {
+    if value.is_empty()
+        || value
+            .chars()
+            .any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\'' | '&' | '|' | '<' | '>'))
+    {
+        format!("\"{}\"", value.replace('"', "\\\""))
+    } else {
+        value.to_string()
+    }
+}
+
+fn format_command_line(program: &Path, args: &[String]) -> String {
+    std::iter::once(quote_command_part(&display_path(program)))
+        .chain(args.iter().map(|arg| quote_command_part(arg)))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn candidate_paths(app_handle: &AppHandle) -> Vec<(PathBuf, String)> {
@@ -227,9 +282,11 @@ fn is_system_audio_device(device: &str) -> bool {
 fn list_audio_devices(app_handle: &AppHandle) -> Vec<String> {
     let (ffmpeg, _) = find_ffmpeg(app_handle);
     let Some(ffmpeg) = ffmpeg else {
+        warn!("[Plugin:screen-recorder] list audio devices skipped: ffmpeg unavailable");
         return Vec::new();
     };
-    let Ok(output) = Command::new(ffmpeg.path)
+    let started = Instant::now();
+    let Ok(output) = Command::new(&ffmpeg.path)
         .args([
             "-hide_banner",
             "-f",
@@ -241,6 +298,7 @@ fn list_audio_devices(app_handle: &AppHandle) -> Vec<String> {
         ])
         .output()
     else {
+        warn!("[Plugin:screen-recorder] list audio devices failed to run");
         return Vec::new();
     };
 
@@ -268,16 +326,29 @@ fn list_audio_devices(app_handle: &AppHandle) -> Vec<String> {
         }
     }
 
+    info!(
+        "[Plugin:screen-recorder] dshow audio devices listed in {}ms: status={}, devices={:?}",
+        started.elapsed().as_millis(),
+        output.status,
+        devices
+    );
     devices
 }
 
 fn default_audio_device(app_handle: &AppHandle) -> Option<String> {
     let devices = list_audio_devices(app_handle);
-    devices
+    let selected = devices
         .iter()
         .find(|device| is_system_audio_device(device))
         .cloned()
-        .or_else(|| devices.into_iter().next())
+        .or_else(|| devices.first().cloned());
+    info!(
+        "[Plugin:screen-recorder] selected dshow audio device: {:?}, system_audio_available={}, all_devices={:?}",
+        selected,
+        devices.iter().any(|device| is_system_audio_device(device)),
+        devices
+    );
+    selected
 }
 
 fn default_output_path(format: &str) -> PathBuf {
@@ -302,6 +373,13 @@ pub fn screen_recorder_get_ffmpeg_status(app_handle: AppHandle) -> Result<Ffmpeg
     let system_audio_available = audio_devices
         .iter()
         .any(|device| is_system_audio_device(device));
+    info!(
+        "[Plugin:screen-recorder] ffmpeg status requested: available={}, searched={}, audio_devices={:?}, system_audio_available={}",
+        ffmpeg.is_some(),
+        searched_paths.len(),
+        audio_devices,
+        system_audio_available
+    );
     Ok(match ffmpeg {
         Some(location) => FfmpegStatus {
             available: true,
@@ -830,7 +908,7 @@ fn spawn_segment(
     quality: &str,
     audio: bool,
     index: usize,
-) -> Result<(Child, PathBuf, Option<String>), String> {
+) -> Result<(Child, PathBuf, Option<String>, PathBuf), String> {
     #[cfg(not(target_os = "windows"))]
     {
         let _ = (app_handle, temp_dir, region, fps, quality, audio, index);
@@ -842,6 +920,7 @@ fn spawn_segment(
         let (ffmpeg, _) = find_ffmpeg(app_handle);
         let ffmpeg = ffmpeg.ok_or_else(|| "未找到 FFmpeg，无法开始录屏".to_string())?;
         let output = temp_dir.join(format!("segment_{:03}.mp4", index));
+        let segment_log = temp_dir.join(format!("segment_{:03}.ffmpeg.log", index));
         let video_size = format!("{}x{}", region.physical_width, region.physical_height);
         let fps_text = fps.to_string();
         let keyframe_interval = (fps.max(1) * 2).to_string();
@@ -851,109 +930,196 @@ fn spawn_segment(
             None
         };
 
-        let mut command = Command::new(ffmpeg.path);
-        command.args([
-            "-hide_banner",
-            "-loglevel",
-            "warning",
-            "-y",
-            "-fflags",
-            "+genpts",
-            "-thread_queue_size",
-            "1024",
-            "-f",
-            "gdigrab",
-            "-rtbufsize",
-            "512M",
-            "-framerate",
-            &fps_text,
-            "-offset_x",
-            &region.screen_x.to_string(),
-            "-offset_y",
-            &region.screen_y.to_string(),
-            "-video_size",
-            &video_size,
-            "-draw_mouse",
-            "1",
-            "-i",
-            "desktop",
-        ]);
+        let mut args = vec![
+            "-hide_banner".to_string(),
+            "-loglevel".to_string(),
+            "info".to_string(),
+            "-stats".to_string(),
+            "-y".to_string(),
+            "-fflags".to_string(),
+            "+genpts".to_string(),
+            "-thread_queue_size".to_string(),
+            "1024".to_string(),
+            "-f".to_string(),
+            "gdigrab".to_string(),
+            "-rtbufsize".to_string(),
+            "512M".to_string(),
+            "-framerate".to_string(),
+            fps_text.clone(),
+            "-offset_x".to_string(),
+            region.screen_x.to_string(),
+            "-offset_y".to_string(),
+            region.screen_y.to_string(),
+            "-video_size".to_string(),
+            video_size.clone(),
+            "-draw_mouse".to_string(),
+            "1".to_string(),
+            "-i".to_string(),
+            "desktop".to_string(),
+        ];
 
         if let Some(device) = &audio_device {
-            command
-                .args([
-                    "-thread_queue_size",
-                    "1024",
-                    "-f",
-                    "dshow",
-                    "-audio_buffer_size",
-                    "120",
-                ])
-                .arg("-i")
-                .arg(format!("audio={}", device))
-                .args(["-map", "0:v:0", "-map", "1:a:0"]);
+            args.extend([
+                "-thread_queue_size".to_string(),
+                "1024".to_string(),
+                "-f".to_string(),
+                "dshow".to_string(),
+                "-audio_buffer_size".to_string(),
+                "120".to_string(),
+                "-i".to_string(),
+                format!("audio={}", device),
+                "-map".to_string(),
+                "0:v:0".to_string(),
+                "-map".to_string(),
+                "1:a:0".to_string(),
+            ]);
         } else {
-            command.arg("-an");
+            args.push("-an".to_string());
         }
 
-        command.args([
-            "-r",
-            &fps_text,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "ultrafast",
-            "-tune",
-            "zerolatency",
-            "-crf",
-            quality_crf(quality),
-            "-g",
-            &keyframe_interval,
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
+        args.extend([
+            "-r".to_string(),
+            fps_text.clone(),
+            "-c:v".to_string(),
+            "libx264".to_string(),
+            "-preset".to_string(),
+            "ultrafast".to_string(),
+            "-tune".to_string(),
+            "zerolatency".to_string(),
+            "-crf".to_string(),
+            quality_crf(quality).to_string(),
+            "-g".to_string(),
+            keyframe_interval.clone(),
+            "-pix_fmt".to_string(),
+            "yuv420p".to_string(),
+            "-movflags".to_string(),
+            "+faststart".to_string(),
         ]);
 
         if audio_device.is_some() {
-            command.args(["-af", "volume=2.0", "-c:a", "aac", "-b:a", "192k"]);
+            args.extend([
+                "-af".to_string(),
+                "volume=2.0".to_string(),
+                "-c:a".to_string(),
+                "aac".to_string(),
+                "-b:a".to_string(),
+                "192k".to_string(),
+            ]);
         }
 
+        args.push(display_path(&output));
+
+        let command_line = format_command_line(&ffmpeg.path, &args);
+        append_debug_log(
+            temp_dir,
+            format!(
+                "spawn segment #{index}: region=({}, {}) {}x{} scale={} fps={} quality={} audio_requested={} audio_device={:?} output={} ffmpeg_log={}",
+                region.screen_x,
+                region.screen_y,
+                region.physical_width,
+                region.physical_height,
+                region.scale,
+                fps,
+                quality,
+                audio,
+                audio_device,
+                display_path(&output),
+                display_path(&segment_log)
+            ),
+        );
+        append_debug_log(temp_dir, format!("spawn segment #{index} command: {command_line}"));
+        info!(
+            "[Plugin:screen-recorder] spawning segment #{index}: {}",
+            command_line
+        );
+
+        let mut log_file = File::create(&segment_log)
+            .map_err(|e| format!("创建 FFmpeg 录制日志失败 {}: {}", segment_log.display(), e))?;
+        writeln!(
+            log_file,
+            "[{}] FFmpeg segment #{index}\ncommand: {}\n",
+            timestamp_text(),
+            command_line
+        )
+        .map_err(|e| format!("写入 FFmpeg 录制日志失败: {}", e))?;
+
+        let mut command = Command::new(&ffmpeg.path);
+        command.args(&args);
         command
-            .arg(&output)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::from(log_file))
             .creation_flags(0x08000000);
 
+        let started = Instant::now();
         let child = command
             .spawn()
             .map_err(|e| format!("启动 FFmpeg 录屏失败: {}", e))?;
+        append_debug_log(
+            temp_dir,
+            format!(
+                "segment #{index} spawned: pid={} elapsed_ms={}",
+                child.id(),
+                started.elapsed().as_millis()
+            ),
+        );
 
-        Ok((child, output, audio_device))
+        Ok((child, output, audio_device, segment_log))
     }
 }
 
-fn stop_child(child: &mut Child) {
+fn stop_child(child: &mut Child) -> Option<i32> {
     if let Some(stdin) = child.stdin.as_mut() {
         let _ = stdin.write_all(b"q\n");
         let _ = stdin.flush();
     }
 
     for _ in 0..20 {
-        if child.try_wait().ok().flatten().is_some() {
-            return;
+        if let Some(status) = child.try_wait().ok().flatten() {
+            return status.code();
         }
         thread::sleep(Duration::from_millis(50));
     }
 
     let _ = child.kill();
-    let _ = child.wait();
+    child.wait().ok().and_then(|status| status.code())
 }
 
 fn stop_active_segment(session: &mut RecordingSession) {
     if let Some(mut child) = session.child.take() {
-        stop_child(&mut child);
+        let child_id = child.id();
+        let segment = session.segments.last().cloned();
+        append_debug_log(
+            &session.temp_dir,
+            format!(
+                "stopping active segment: pid={} segment={:?}",
+                child_id,
+                segment.as_ref().map(|path| display_path(path))
+            ),
+        );
+        let started = Instant::now();
+        let exit_code = stop_child(&mut child);
+        let segment_size = segment
+            .as_ref()
+            .and_then(|path| fs::metadata(path).ok())
+            .map(|metadata| metadata.len());
+        append_debug_log(
+            &session.temp_dir,
+            format!(
+                "active segment stopped: pid={} exit_code={:?} elapsed_ms={} segment_size_bytes={:?}",
+                child_id,
+                exit_code,
+                started.elapsed().as_millis(),
+                segment_size
+            ),
+        );
+        info!(
+            "[Plugin:screen-recorder] active segment stopped: session={}, pid={}, exit_code={:?}, segment_size_bytes={:?}",
+            session.id,
+            child_id,
+            exit_code,
+            segment_size
+        );
     }
 }
 
@@ -969,7 +1135,24 @@ pub fn screen_recorder_start_recording(
 
     let id = uuid::Uuid::new_v4().to_string();
     let temp_dir = session_temp_dir(&app_handle, &id)?;
-    let (child, output, audio_device) =
+    append_debug_log(
+        &temp_dir,
+        format!(
+            "start recording request: session={} region=({}, {}) {}x{} logical={}x{} scale={} fps={} quality={} audio={}",
+            id,
+            region.screen_x,
+            region.screen_y,
+            region.physical_width,
+            region.physical_height,
+            region.width,
+            region.height,
+            region.scale,
+            fps,
+            quality,
+            audio
+        ),
+    );
+    let (child, output, audio_device, segment_log) =
         spawn_segment(&app_handle, &temp_dir, &region, fps, &quality, audio, 0)?;
 
     let mut state = RECORDING_SESSION
@@ -981,7 +1164,7 @@ pub fn screen_recorder_start_recording(
     }
 
     *state = Some(RecordingSession {
-        id,
+        id: id.clone(),
         temp_dir,
         region,
         fps,
@@ -990,11 +1173,13 @@ pub fn screen_recorder_start_recording(
         audio_device,
         next_segment_index: 1,
         segments: vec![output],
+        segment_logs: vec![segment_log],
         child: Some(child),
         stopped: false,
+        started_at: Instant::now(),
     });
 
-    info!("[Plugin:screen-recorder] recording started");
+    info!("[Plugin:screen-recorder] recording started: session={}", id);
     Ok(())
 }
 
@@ -1007,6 +1192,14 @@ pub fn screen_recorder_pause_recording(app_handle: AppHandle) -> Result<(), Stri
     let session = state
         .as_mut()
         .ok_or_else(|| "当前没有录屏任务".to_string())?;
+    append_debug_log(
+        &session.temp_dir,
+        format!(
+            "pause recording request: session={} elapsed_ms={}",
+            session.id,
+            session.started_at.elapsed().as_millis()
+        ),
+    );
     stop_active_segment(session);
     Ok(())
 }
@@ -1034,7 +1227,22 @@ pub fn screen_recorder_resume_recording(
     session.fps = fps;
     session.quality = quality;
     session.audio = audio;
-    let (child, output, audio_device) = spawn_segment(
+    append_debug_log(
+        &session.temp_dir,
+        format!(
+            "resume recording request: session={} next_segment={} region=({}, {}) {}x{} fps={} quality={} audio={}",
+            session.id,
+            session.next_segment_index,
+            session.region.screen_x,
+            session.region.screen_y,
+            session.region.physical_width,
+            session.region.physical_height,
+            session.fps,
+            session.quality,
+            session.audio
+        ),
+    );
+    let (child, output, audio_device, segment_log) = spawn_segment(
         &app_handle,
         &session.temp_dir,
         &session.region,
@@ -1048,6 +1256,7 @@ pub fn screen_recorder_resume_recording(
     }
     session.next_segment_index += 1;
     session.segments.push(output);
+    session.segment_logs.push(segment_log);
     session.child = Some(child);
     Ok(())
 }
@@ -1061,6 +1270,15 @@ pub fn screen_recorder_stop_recording(app_handle: AppHandle) -> Result<(), Strin
     let session = state
         .as_mut()
         .ok_or_else(|| "当前没有录屏任务".to_string())?;
+    append_debug_log(
+        &session.temp_dir,
+        format!(
+            "stop recording request: session={} elapsed_ms={} segments={}",
+            session.id,
+            session.started_at.elapsed().as_millis(),
+            session.segments.len()
+        ),
+    );
     stop_active_segment(session);
     session.stopped = true;
     Ok(())
@@ -1073,6 +1291,15 @@ pub fn screen_recorder_cancel_recording(app_handle: AppHandle) -> Result<(), Str
         .lock()
         .map_err(|e| format!("录屏状态锁定失败: {}", e))?;
     if let Some(mut session) = state.take() {
+        append_debug_log(
+            &session.temp_dir,
+            format!(
+                "cancel recording request: session={} elapsed_ms={} segments={}",
+                session.id,
+                session.started_at.elapsed().as_millis(),
+                session.segments.len()
+            ),
+        );
         stop_active_segment(&mut session);
         let _ = fs::remove_dir_all(session.temp_dir);
     }
@@ -1093,6 +1320,20 @@ fn write_concat_file(session: &RecordingSession) -> Result<PathBuf, String> {
     for segment in &session.segments {
         if segment.is_file() {
             content.push_str(&concat_file_line(segment));
+            let size = fs::metadata(segment).ok().map(|metadata| metadata.len());
+            append_debug_log(
+                &session.temp_dir,
+                format!(
+                    "concat include segment: path={} size_bytes={:?}",
+                    display_path(segment),
+                    size
+                ),
+            );
+        } else {
+            append_debug_log(
+                &session.temp_dir,
+                format!("concat skip missing segment: path={}", display_path(segment)),
+            );
         }
     }
     if content.is_empty() {
@@ -1102,19 +1343,84 @@ fn write_concat_file(session: &RecordingSession) -> Result<PathBuf, String> {
     Ok(concat_path)
 }
 
-fn run_ffmpeg(mut command: Command, label: &str) -> Result<(), String> {
+fn run_ffmpeg(mut command: Command, label: &str, debug_dir: Option<&Path>) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         command.creation_flags(0x08000000);
     }
+    let started = Instant::now();
     let output = command
         .output()
         .map_err(|e| format!("执行 FFmpeg {} 失败: {}", label, e))?;
+    if let Some(debug_dir) = debug_dir {
+        append_debug_log(
+            debug_dir,
+            format!(
+                "ffmpeg {} finished: status={} elapsed_ms={} stdout_bytes={} stderr_bytes={}",
+                label,
+                output.status,
+                started.elapsed().as_millis(),
+                output.stdout.len(),
+                output.stderr.len()
+            ),
+        );
+        append_debug_block(debug_dir, &format!("ffmpeg {} stdout", label), &output.stdout);
+        append_debug_block(debug_dir, &format!("ffmpeg {} stderr", label), &output.stderr);
+    }
     if output.status.success() {
         return Ok(());
     }
     let stderr = String::from_utf8_lossy(&output.stderr);
     Err(format!("FFmpeg {} 失败: {}", label, stderr.trim()))
+}
+
+fn exported_debug_log_path(output_path: &Path) -> PathBuf {
+    let file_name = output_path
+        .file_name()
+        .map(|name| format!("{}.debug.log", name.to_string_lossy()))
+        .unwrap_or_else(|| "screen-recording.debug.log".to_string());
+    output_path
+        .parent()
+        .map(|parent| parent.join(&file_name))
+        .unwrap_or_else(|| PathBuf::from(file_name))
+}
+
+fn write_export_debug_log(session: &RecordingSession, target: &Path) -> Result<(), String> {
+    let mut file = File::create(target)
+        .map_err(|e| format!("写入调试日志失败 {}: {}", target.display(), e))?;
+    writeln!(
+        file,
+        "Screen recorder debug log\nsession={}\nexported_at={}\n\n== session events ==\n",
+        session.id,
+        timestamp_text()
+    )
+    .map_err(|e| format!("写入调试日志失败: {}", e))?;
+
+    let session_log = debug_log_path(&session.temp_dir);
+    if session_log.is_file() {
+        let content = fs::read(&session_log).map_err(|e| format!("读取调试日志失败: {}", e))?;
+        file.write_all(String::from_utf8_lossy(&content).as_bytes())
+            .map_err(|e| format!("写入调试日志失败: {}", e))?;
+    }
+
+    for segment_log in &session.segment_logs {
+        writeln!(
+            file,
+            "\n== ffmpeg segment log: {} ==\n",
+            display_path(segment_log)
+        )
+        .map_err(|e| format!("写入调试日志失败: {}", e))?;
+        if segment_log.is_file() {
+            let content =
+                fs::read(segment_log).map_err(|e| format!("读取 FFmpeg 日志失败: {}", e))?;
+            file.write_all(String::from_utf8_lossy(&content).as_bytes())
+                .map_err(|e| format!("写入 FFmpeg 日志失败: {}", e))?;
+        } else {
+            writeln!(file, "missing").map_err(|e| format!("写入调试日志失败: {}", e))?;
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -1145,22 +1451,52 @@ pub fn screen_recorder_export_recording(
         ensure_parent_dir(&output_path)?;
         let (ffmpeg, _) = find_ffmpeg(&app_handle);
         let ffmpeg = ffmpeg.ok_or_else(|| "未找到 FFmpeg，无法导出录屏".to_string())?;
+        append_debug_log(
+            &session.temp_dir,
+            format!(
+                "export request: session={} format={} fps={} quality={} save_path={} segments={} has_audio={} audio_device={:?}",
+                session.id,
+                format,
+                fps,
+                quality,
+                display_path(&output_path),
+                session.segments.len(),
+                session.audio_device.is_some(),
+                &session.audio_device
+            ),
+        );
         let concat_path = write_concat_file(&session)?;
+        append_debug_log(
+            &session.temp_dir,
+            format!("concat file written: {}", display_path(&concat_path)),
+        );
 
         match format.as_str() {
             "gif" => {
                 let palette_path = session.temp_dir.join("palette.png");
                 let palette_filter =
                     format!("fps={},palettegen=max_colors={}", fps, gif_colors(&quality));
+                append_debug_log(
+                    &session.temp_dir,
+                    format!(
+                        "export GIF palette: filter={} palette={}",
+                        palette_filter,
+                        display_path(&palette_path)
+                    ),
+                );
                 let mut palette_command = Command::new(&ffmpeg.path);
                 palette_command
                     .args(["-y", "-f", "concat", "-safe", "0", "-i"])
                     .arg(&concat_path)
                     .args(["-an", "-vf", &palette_filter])
                     .arg(&palette_path);
-                run_ffmpeg(palette_command, "生成 GIF 调色板")?;
+                run_ffmpeg(palette_command, "生成 GIF 调色板", Some(&session.temp_dir))?;
 
                 let gif_filter = format!("fps={}[x];[x][1:v]paletteuse=dither=bayer", fps);
+                append_debug_log(
+                    &session.temp_dir,
+                    format!("export GIF: filter={} output={}", gif_filter, display_path(&output_path)),
+                );
                 let mut gif_command = Command::new(&ffmpeg.path);
                 gif_command
                     .args(["-y", "-f", "concat", "-safe", "0", "-i"])
@@ -1169,10 +1505,22 @@ pub fn screen_recorder_export_recording(
                     .arg(&palette_path)
                     .args(["-an", "-lavfi", &gif_filter])
                     .arg(&output_path);
-                run_ffmpeg(gif_command, "导出 GIF")?;
+                run_ffmpeg(gif_command, "导出 GIF", Some(&session.temp_dir))?;
             }
             _ => {
                 let should_copy_video = session.quality == quality && session.fps == fps;
+                append_debug_log(
+                    &session.temp_dir,
+                    format!(
+                        "export MP4: should_copy_video={} source_fps={} target_fps={} source_quality={} target_quality={} output={}",
+                        should_copy_video,
+                        session.fps,
+                        fps,
+                        session.quality,
+                        quality,
+                        display_path(&output_path)
+                    ),
+                );
                 let mut mp4_command = Command::new(&ffmpeg.path);
                 mp4_command
                     .args(["-y", "-f", "concat", "-safe", "0", "-i"])
@@ -1200,13 +1548,40 @@ pub fn screen_recorder_export_recording(
                 }
                 mp4_command.args(["-movflags", "+faststart"]);
                 mp4_command.arg(&output_path);
-                run_ffmpeg(mp4_command, "导出 MP4")?;
+                run_ffmpeg(mp4_command, "导出 MP4", Some(&session.temp_dir))?;
             }
         }
 
         let size = fs::metadata(&output_path)
             .map_err(|e| format!("读取导出文件信息失败: {}", e))?
             .len();
+        append_debug_log(
+            &session.temp_dir,
+            format!(
+                "export output ready: path={} size_bytes={}",
+                display_path(&output_path),
+                size
+            ),
+        );
+        let debug_log_path = exported_debug_log_path(&output_path);
+        let debug_log_path = match write_export_debug_log(&session, &debug_log_path) {
+            Ok(()) => {
+                info!(
+                    "[Plugin:screen-recorder] debug log exported: session={}, path={}",
+                    session.id,
+                    display_path(&debug_log_path)
+                );
+                Some(display_path(&debug_log_path))
+            }
+            Err(error) => {
+                warn!(
+                    "[Plugin:screen-recorder] export debug log failed: session={}, error={}",
+                    session.id,
+                    error
+                );
+                None
+            }
+        };
         Ok(RecordingExportResult {
             path: display_path(&output_path),
             size_bytes: size,
@@ -1215,6 +1590,7 @@ pub fn screen_recorder_export_recording(
             format: format.clone(),
             has_audio: session.audio_device.is_some(),
             audio_device: session.audio_device.clone(),
+            debug_log_path,
         })
     })();
 
