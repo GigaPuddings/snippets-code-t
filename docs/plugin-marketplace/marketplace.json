@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-05-24",
+  "updatedAt": "2026-05-25",
   "source": "snippets-code official GitHub marketplace",
   "plugins": [
     {
@@ -58,6 +58,62 @@
       "compatibleAppVersion": ">=2.0.0",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr",
       "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/releases/tag/2.0.0"
+    },
+    {
+      "id": "screen-recorder",
+      "version": "2.0.3",
+      "name": {
+        "i18nKey": "plugins.screenRecorder.name",
+        "fallback": "Screen Recorder"
+      },
+      "description": {
+        "i18nKey": "plugins.screenRecorder.description",
+        "fallback": "Record a custom area and export MP4 or GIF without a watermark."
+      },
+      "category": "capture",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/archive/refs/tags/2.0.3.zip",
+      "builtinPluginId": "screen-recorder",
+      "status": "included",
+      "sizeBytes": 576731,
+      "dependencies": [
+        "screen-recorder-ffmpeg"
+      ],
+      "tags": [
+        "screen-recording",
+        "mp4",
+        "gif",
+        "ffmpeg"
+      ],
+      "minAppVersion": "2.0.3",
+      "compatibleAppVersion": ">=2.0.3",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/releases/tag/2.0.3"
+    },
+    {
+      "id": "screen-recorder-ffmpeg",
+      "version": "2.0.3",
+      "name": {
+        "i18nKey": "plugins.screenRecorderFfmpeg.name",
+        "fallback": "Screen Recorder FFmpeg Resource"
+      },
+      "description": {
+        "i18nKey": "plugins.screenRecorderFfmpeg.description",
+        "fallback": "FFmpeg executable required by custom screen recording export."
+      },
+      "category": "capture",
+      "resourceFor": "screen-recorder",
+      "status": "available",
+      "sizeBytes": 236918515,
+      "tags": [
+        "screen-recording",
+        "resource",
+        "ffmpeg"
+      ],
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/archive/refs/tags/2.0.3.zip",
+      "minAppVersion": "2.0.3",
+      "compatibleAppVersion": ">=2.0.3",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/releases/tag/2.0.3"
     },
     {
       "id": "translation",
