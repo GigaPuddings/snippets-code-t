@@ -259,7 +259,7 @@ const audioTitle = computed(() => {
       : '录制音频已关闭';
   }
   return settings.value.audio
-    ? '录制音频已开启。系统声音需要启用“立体声混音/Loopback”等设备'
+    ? '录制音频已开启。系统声音将通过 WASAPI Loopback 捕获'
     : '录制音频已关闭';
 });
 

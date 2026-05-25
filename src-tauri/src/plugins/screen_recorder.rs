@@ -4,7 +4,10 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, LazyLock, Mutex,
+};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -82,6 +85,20 @@ struct FfmpegLocation {
     source: String,
 }
 
+#[derive(Debug, Clone)]
+struct AudioSegment {
+    path: PathBuf,
+    sample_rate: u32,
+    channels: u16,
+    sample_format: String,
+    bytes_written: u64,
+}
+
+struct AudioCaptureSession {
+    stop: Arc<AtomicBool>,
+    handle: thread::JoinHandle<Result<AudioSegment, String>>,
+}
+
 struct RecordingSession {
     id: String,
     temp_dir: PathBuf,
@@ -93,6 +110,8 @@ struct RecordingSession {
     next_segment_index: usize,
     segments: Vec<PathBuf>,
     segment_logs: Vec<PathBuf>,
+    audio_segments: Vec<AudioSegment>,
+    audio_capture: Option<AudioCaptureSession>,
     child: Option<Child>,
     stopped: bool,
     started_at: Instant,
@@ -274,9 +293,18 @@ fn is_system_audio_device(device: &str) -> bool {
     lower.contains("stereo mix")
         || lower.contains("what u hear")
         || lower.contains("loopback")
+        || lower.contains("wasapi")
         || lower.contains("monitor")
         || device.contains("立体声混音")
         || device.contains("系统声音")
+}
+
+fn native_system_audio_device() -> Option<String> {
+    if cfg!(target_os = "windows") {
+        Some("WASAPI loopback (default render device)".to_string())
+    } else {
+        None
+    }
 }
 
 fn list_audio_devices(app_handle: &AppHandle) -> Vec<String> {
@@ -367,6 +395,194 @@ fn ffmpeg_supports_filter(ffmpeg_path: &Path, filter: &str) -> bool {
         .any(|line| line.split_whitespace().any(|part| part == filter))
 }
 
+#[cfg(target_os = "windows")]
+fn start_wasapi_loopback_capture(
+    temp_dir: &Path,
+    index: usize,
+) -> Result<AudioCaptureSession, String> {
+    let path = temp_dir.join(format!("audio_{:03}.raw", index));
+    let stop = Arc::new(AtomicBool::new(false));
+    let thread_stop = Arc::clone(&stop);
+    let thread_path = path.clone();
+    let handle = thread::spawn(move || capture_wasapi_loopback(thread_path, thread_stop));
+    Ok(AudioCaptureSession { stop, handle })
+}
+
+#[cfg(not(target_os = "windows"))]
+fn start_wasapi_loopback_capture(
+    _temp_dir: &Path,
+    _index: usize,
+) -> Result<AudioCaptureSession, String> {
+    Err("系统声音录制当前仅支持 Windows WASAPI loopback".to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn capture_wasapi_loopback(path: PathBuf, stop: Arc<AtomicBool>) -> Result<AudioSegment, String> {
+    use std::ffi::c_void;
+    use std::ptr;
+    use windows::Win32::Media::Audio::{
+        eConsole, eRender, IAudioCaptureClient, IAudioClient, IMMDeviceEnumerator,
+        MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
+        AUDCLNT_STREAMFLAGS_LOOPBACK,
+    };
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_ALL,
+        COINIT_MULTITHREADED,
+    };
+
+    const WAVE_FORMAT_IEEE_FLOAT: u16 = 0x0003;
+    const WAVE_FORMAT_EXTENSIBLE: u16 = 0xfffe;
+
+    unsafe {
+        let hr = CoInitializeEx(None, COINIT_MULTITHREADED);
+        if hr.is_err() {
+            return Err(format!("初始化 WASAPI COM 失败: {:?}", hr));
+        }
+
+        let result = (|| -> Result<AudioSegment, String> {
+            let enumerator: IMMDeviceEnumerator =
+                CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+                    .map_err(|e| format!("创建 WASAPI 设备枚举器失败: {}", e))?;
+            let device = enumerator
+                .GetDefaultAudioEndpoint(eRender, eConsole)
+                .map_err(|e| format!("获取默认播放设备失败: {}", e))?;
+            let audio_client: IAudioClient = device
+                .Activate(CLSCTX_ALL, None)
+                .map_err(|e| format!("激活 WASAPI 音频客户端失败: {}", e))?;
+            let mix_format = audio_client
+                .GetMixFormat()
+                .map_err(|e| format!("读取 WASAPI mix format 失败: {}", e))?;
+            if mix_format.is_null() {
+                return Err("WASAPI mix format 为空".to_string());
+            }
+
+            let format = *mix_format;
+            let channels = format.nChannels;
+            let sample_rate = format.nSamplesPerSec;
+            let bits_per_sample = format.wBitsPerSample;
+            let block_align = format.nBlockAlign as usize;
+            let format_tag = format.wFormatTag;
+            let sample_format = match (format_tag, bits_per_sample) {
+                (WAVE_FORMAT_IEEE_FLOAT, 32) => "f32le",
+                (WAVE_FORMAT_EXTENSIBLE, 32) => "f32le",
+                (_, 16) => "s16le",
+                (_, 32) => "s32le",
+                _ => {
+                    CoTaskMemFree(Some(mix_format as *const c_void));
+                    return Err(format!(
+                        "不支持的 WASAPI 音频格式: tag={} bits={} channels={} sample_rate={}",
+                        format_tag, bits_per_sample, channels, sample_rate
+                    ));
+                }
+            }
+            .to_string();
+
+            audio_client
+                .Initialize(
+                    AUDCLNT_SHAREMODE_SHARED,
+                    AUDCLNT_STREAMFLAGS_LOOPBACK,
+                    10_000_000,
+                    0,
+                    mix_format,
+                    None,
+                )
+                .map_err(|e| format!("初始化 WASAPI loopback 失败: {}", e))?;
+            CoTaskMemFree(Some(mix_format as *const c_void));
+
+            let capture_client: IAudioCaptureClient = audio_client
+                .GetService()
+                .map_err(|e| format!("获取 WASAPI capture client 失败: {}", e))?;
+            let mut file =
+                File::create(&path).map_err(|e| format!("创建系统声音缓存失败: {}", e))?;
+            let mut bytes_written = 0_u64;
+
+            audio_client
+                .Start()
+                .map_err(|e| format!("启动 WASAPI loopback 失败: {}", e))?;
+
+            while !stop.load(Ordering::Relaxed) {
+                let mut packet_size = capture_client
+                    .GetNextPacketSize()
+                    .map_err(|e| format!("读取 WASAPI packet size 失败: {}", e))?;
+                while packet_size > 0 {
+                    let mut data: *mut u8 = ptr::null_mut();
+                    let mut frames = 0_u32;
+                    let mut flags = 0_u32;
+                    capture_client
+                        .GetBuffer(&mut data, &mut frames, &mut flags, None, None)
+                        .map_err(|e| format!("读取 WASAPI buffer 失败: {}", e))?;
+                    let byte_len = frames as usize * block_align;
+                    if flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 != 0 || data.is_null() {
+                        let zeros = vec![0_u8; byte_len];
+                        file.write_all(&zeros)
+                            .map_err(|e| format!("写入静音 WASAPI buffer 失败: {}", e))?;
+                    } else {
+                        let buffer = std::slice::from_raw_parts(data, byte_len);
+                        file.write_all(buffer)
+                            .map_err(|e| format!("写入 WASAPI buffer 失败: {}", e))?;
+                    }
+                    bytes_written += byte_len as u64;
+                    capture_client
+                        .ReleaseBuffer(frames)
+                        .map_err(|e| format!("释放 WASAPI buffer 失败: {}", e))?;
+                    packet_size = capture_client
+                        .GetNextPacketSize()
+                        .map_err(|e| format!("读取 WASAPI packet size 失败: {}", e))?;
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+
+            let _ = audio_client.Stop();
+            file.flush()
+                .map_err(|e| format!("刷新系统声音缓存失败: {}", e))?;
+
+            Ok(AudioSegment {
+                path,
+                sample_rate,
+                channels,
+                sample_format,
+                bytes_written,
+            })
+        })();
+
+        CoUninitialize();
+        result
+    }
+}
+
+fn finish_audio_capture(session: &mut RecordingSession, capture: AudioCaptureSession) {
+    capture.stop.store(true, Ordering::Relaxed);
+    match capture.handle.join() {
+        Ok(Ok(segment)) => {
+            append_debug_log(
+                &session.temp_dir,
+                format!(
+                    "wasapi loopback stopped: path={} bytes={} sample_format={} sample_rate={} channels={}",
+                    display_path(&segment.path),
+                    segment.bytes_written,
+                    segment.sample_format,
+                    segment.sample_rate,
+                    segment.channels
+                ),
+            );
+            if segment.bytes_written > 0 {
+                session.audio_segments.push(segment);
+            }
+        }
+        Ok(Err(error)) => {
+            append_debug_log(
+                &session.temp_dir,
+                format!("wasapi loopback failed: {}", error),
+            );
+            warn!("[Plugin:screen-recorder] wasapi loopback failed: {}", error);
+        }
+        Err(_) => {
+            append_debug_log(&session.temp_dir, "wasapi loopback thread panicked");
+            warn!("[Plugin:screen-recorder] wasapi loopback thread panicked");
+        }
+    }
+}
+
 fn default_output_path(format: &str) -> PathBuf {
     let dir = dirs::video_dir()
         .or_else(dirs::download_dir)
@@ -381,11 +597,16 @@ fn default_output_path(format: &str) -> PathBuf {
 pub fn screen_recorder_get_ffmpeg_status(app_handle: AppHandle) -> Result<FfmpegStatus, String> {
     require_plugin(&app_handle)?;
     let (ffmpeg, searched_paths) = find_ffmpeg(&app_handle);
-    let audio_devices = if ffmpeg.is_some() {
+    let mut audio_devices = if ffmpeg.is_some() {
         list_audio_devices(&app_handle)
     } else {
         Vec::new()
     };
+    if let Some(device) = native_system_audio_device() {
+        if !audio_devices.iter().any(|existing| existing == &device) {
+            audio_devices.push(device);
+        }
+    }
     let system_audio_available = audio_devices
         .iter()
         .any(|device| is_system_audio_device(device));
@@ -924,7 +1145,7 @@ fn spawn_segment(
     quality: &str,
     audio: bool,
     index: usize,
-) -> Result<(Child, PathBuf, Option<String>, PathBuf), String> {
+) -> Result<(Child, PathBuf, Option<String>, PathBuf, Option<AudioCaptureSession>), String> {
     #[cfg(not(target_os = "windows"))]
     {
         let _ = (app_handle, temp_dir, region, fps, quality, audio, index);
@@ -942,11 +1163,34 @@ fn spawn_segment(
         let keyframe_interval = (fps.max(1) * 2).to_string();
         let use_ddagrab = ffmpeg_supports_filter(&ffmpeg.path, "ddagrab");
         let capture_backend = if use_ddagrab { "ddagrab" } else { "gdigrab" };
-        let audio_device = if audio {
-            default_audio_device(app_handle)
+        let mut audio_capture = if audio {
+            match start_wasapi_loopback_capture(temp_dir, index) {
+                Ok(capture) => {
+                    append_debug_log(
+                        temp_dir,
+                        format!("wasapi loopback started: segment=#{index}"),
+                    );
+                    Some(capture)
+                }
+                Err(error) => {
+                    append_debug_log(
+                        temp_dir,
+                        format!("wasapi loopback start failed: {}", error),
+                    );
+                    warn!(
+                        "[Plugin:screen-recorder] wasapi loopback start failed: {}",
+                        error
+                    );
+                    None
+                }
+            }
         } else {
             None
         };
+        let audio_device = audio_capture
+            .as_ref()
+            .map(|_| "WASAPI loopback (default render device)".to_string())
+            .or_else(|| if audio { default_audio_device(app_handle) } else { None });
 
         let mut args = vec![
             "-hide_banner".to_string(),
@@ -995,7 +1239,8 @@ fn spawn_segment(
             ]);
         }
 
-        if let Some(device) = &audio_device {
+        if audio_capture.is_none() {
+            if let Some(device) = &audio_device {
             args.extend([
                 "-thread_queue_size".to_string(),
                 "1024".to_string(),
@@ -1010,6 +1255,9 @@ fn spawn_segment(
                 "-map".to_string(),
                 "1:a:0".to_string(),
             ]);
+            } else {
+                args.push("-an".to_string());
+            }
         } else {
             args.push("-an".to_string());
         }
@@ -1032,7 +1280,7 @@ fn spawn_segment(
             "+faststart".to_string(),
         ]);
 
-        if audio_device.is_some() {
+        if audio_capture.is_none() && audio_device.is_some() {
             args.extend([
                 "-af".to_string(),
                 "volume=2.0".to_string(),
@@ -1089,9 +1337,16 @@ fn spawn_segment(
             .creation_flags(0x08000000);
 
         let started = Instant::now();
-        let child = command
-            .spawn()
-            .map_err(|e| format!("启动 FFmpeg 录屏失败: {}", e))?;
+        let child = match command.spawn() {
+            Ok(child) => child,
+            Err(error) => {
+                if let Some(capture) = audio_capture.take() {
+                    capture.stop.store(true, Ordering::Relaxed);
+                    let _ = capture.handle.join();
+                }
+                return Err(format!("启动 FFmpeg 录屏失败: {}", error));
+            }
+        };
         append_debug_log(
             temp_dir,
             format!(
@@ -1101,7 +1356,7 @@ fn spawn_segment(
             ),
         );
 
-        Ok((child, output, audio_device, segment_log))
+        Ok((child, output, audio_device, segment_log, audio_capture))
     }
 }
 
@@ -1123,6 +1378,10 @@ fn stop_child(child: &mut Child) -> Option<i32> {
 }
 
 fn stop_active_segment(session: &mut RecordingSession) {
+    let audio_capture = session.audio_capture.take();
+    if let Some(capture) = &audio_capture {
+        capture.stop.store(true, Ordering::Relaxed);
+    }
     if let Some(mut child) = session.child.take() {
         let child_id = child.id();
         let segment = session.segments.last().cloned();
@@ -1158,6 +1417,9 @@ fn stop_active_segment(session: &mut RecordingSession) {
             segment_size
         );
     }
+    if let Some(capture) = audio_capture {
+        finish_audio_capture(session, capture);
+    }
 }
 
 #[tauri::command]
@@ -1189,7 +1451,7 @@ pub fn screen_recorder_start_recording(
             audio
         ),
     );
-    let (child, output, audio_device, segment_log) =
+    let (child, output, audio_device, segment_log, audio_capture) =
         spawn_segment(&app_handle, &temp_dir, &region, fps, &quality, audio, 0)?;
 
     let mut state = RECORDING_SESSION
@@ -1211,6 +1473,8 @@ pub fn screen_recorder_start_recording(
         next_segment_index: 1,
         segments: vec![output],
         segment_logs: vec![segment_log],
+        audio_segments: Vec::new(),
+        audio_capture,
         child: Some(child),
         stopped: false,
         started_at: Instant::now(),
@@ -1279,7 +1543,7 @@ pub fn screen_recorder_resume_recording(
             session.audio
         ),
     );
-    let (child, output, audio_device, segment_log) = spawn_segment(
+    let (child, output, audio_device, segment_log, audio_capture) = spawn_segment(
         &app_handle,
         &session.temp_dir,
         &session.region,
@@ -1294,6 +1558,7 @@ pub fn screen_recorder_resume_recording(
     session.next_segment_index += 1;
     session.segments.push(output);
     session.segment_logs.push(segment_log);
+    session.audio_capture = audio_capture;
     session.child = Some(child);
     Ok(())
 }
@@ -1378,6 +1643,56 @@ fn write_concat_file(session: &RecordingSession) -> Result<PathBuf, String> {
     }
     fs::write(&concat_path, content).map_err(|e| format!("写入片段列表失败: {}", e))?;
     Ok(concat_path)
+}
+
+fn write_combined_audio(session: &RecordingSession) -> Result<Option<AudioSegment>, String> {
+    if session.audio_segments.is_empty() {
+        return Ok(None);
+    }
+
+    let first = &session.audio_segments[0];
+    if session.audio_segments.iter().any(|segment| {
+        segment.sample_rate != first.sample_rate
+            || segment.channels != first.channels
+            || segment.sample_format != first.sample_format
+    }) {
+        return Err("系统声音片段格式不一致，无法合并".to_string());
+    }
+
+    let output = session.temp_dir.join("system_audio.raw");
+    let mut writer =
+        File::create(&output).map_err(|e| format!("创建系统声音合并文件失败: {}", e))?;
+    let mut bytes_written = 0_u64;
+    for segment in &session.audio_segments {
+        append_debug_log(
+            &session.temp_dir,
+            format!(
+                "audio concat include segment: path={} size_bytes={} sample_format={} sample_rate={} channels={}",
+                display_path(&segment.path),
+                segment.bytes_written,
+                segment.sample_format,
+                segment.sample_rate,
+                segment.channels
+            ),
+        );
+        let data = fs::read(&segment.path)
+            .map_err(|e| format!("读取系统声音片段失败 {}: {}", segment.path.display(), e))?;
+        writer
+            .write_all(&data)
+            .map_err(|e| format!("写入系统声音合并文件失败: {}", e))?;
+        bytes_written += data.len() as u64;
+    }
+    writer
+        .flush()
+        .map_err(|e| format!("刷新系统声音合并文件失败: {}", e))?;
+
+    Ok(Some(AudioSegment {
+        path: output,
+        sample_rate: first.sample_rate,
+        channels: first.channels,
+        sample_format: first.sample_format.clone(),
+        bytes_written,
+    }))
 }
 
 fn run_ffmpeg(mut command: Command, label: &str, debug_dir: Option<&Path>) -> Result<(), String> {
@@ -1562,6 +1877,29 @@ pub fn screen_recorder_export_recording(
                 mp4_command
                     .args(["-y", "-f", "concat", "-safe", "0", "-i"])
                     .arg(&concat_path);
+                let combined_audio = write_combined_audio(&session)?;
+                if let Some(audio) = &combined_audio {
+                    append_debug_log(
+                        &session.temp_dir,
+                        format!(
+                            "export MP4 system audio input: path={} size_bytes={} sample_format={} sample_rate={} channels={}",
+                            display_path(&audio.path),
+                            audio.bytes_written,
+                            audio.sample_format,
+                            audio.sample_rate,
+                            audio.channels
+                        ),
+                    );
+                    mp4_command
+                        .args(["-f", &audio.sample_format])
+                        .arg("-ar")
+                        .arg(audio.sample_rate.to_string())
+                        .arg("-ac")
+                        .arg(audio.channels.to_string())
+                        .arg("-i")
+                        .arg(&audio.path)
+                        .args(["-map", "0:v:0", "-map", "1:a:0"]);
+                }
                 if should_copy_video {
                     mp4_command.args(["-c:v", "copy"]);
                 } else {
@@ -1578,8 +1916,8 @@ pub fn screen_recorder_export_recording(
                         "yuv420p",
                     ]);
                 }
-                if session.audio_device.is_some() {
-                    mp4_command.args(["-c:a", "aac", "-b:a", "192k"]);
+                if combined_audio.is_some() {
+                    mp4_command.args(["-c:a", "aac", "-b:a", "192k", "-shortest"]);
                 } else {
                     mp4_command.arg("-an");
                 }
@@ -1625,7 +1963,7 @@ pub fn screen_recorder_export_recording(
             width: session.region.physical_width,
             height: session.region.physical_height,
             format: format.clone(),
-            has_audio: session.audio_device.is_some(),
+            has_audio: !session.audio_segments.is_empty(),
             audio_device: session.audio_device.clone(),
             debug_log_path,
         })
