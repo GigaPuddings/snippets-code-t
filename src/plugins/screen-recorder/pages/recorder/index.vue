@@ -132,7 +132,7 @@ let unlistenMoved: UnlistenFn | null = null;
 const MIN_CAPTURE_SIZE = 80;
 const DEFAULT_WINDOW_WIDTH = 468;
 const DEFAULT_WINDOW_HEIGHT = 300;
-const MIN_WINDOW_WIDTH = 360;
+const MIN_WINDOW_WIDTH = 468;
 const MIN_WINDOW_HEIGHT = 260;
 const TITLE_BAR_HEIGHT = 38;
 const CONTROL_STRIP_HEIGHT = 56;
@@ -236,12 +236,16 @@ const refreshCaptureMetrics = async () => {
 
 const startDrag = async (event: MouseEvent) => {
   if (event.button !== 0 || isBusy.value) return;
-  await appWindow.startDragging();
+  await appWindow.startDragging().catch((error: any) => {
+    modal.msg(error?.message || String(error), 'error');
+  });
 };
 
 const startResize = async (direction: ResizeDirection) => {
   if (isBusy.value) return;
-  await appWindow.startResizeDragging(direction);
+  await appWindow.startResizeDragging(direction).catch((error: any) => {
+    modal.msg(error?.message || String(error), 'error');
+  });
 };
 
 const handleStart = () => runAction(async () => {
@@ -530,12 +534,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 5px;
   min-width: 0;
-  padding: 8px 10px;
+  overflow: hidden;
+  padding: 8px;
   background: rgba(255, 255, 255, 0.98);
   border-top: 1px solid rgba(210, 216, 224, 0.92);
   box-sizing: border-box;
+
+  > * {
+    flex: 0 0 auto;
+  }
 }
 
 .status-dot {
@@ -574,13 +583,13 @@ input {
 }
 
 select {
-  width: 58px;
+  width: 54px;
   padding: 0 4px;
 }
 
 .dimension input {
-  width: 64px;
-  padding: 0 8px;
+  width: 58px;
+  padding: 0 6px;
   text-align: center;
 }
 
@@ -614,13 +623,14 @@ select {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-width: 56px;
-  padding: 0 9px;
+  min-width: 0;
+  padding: 0 7px;
   color: #20242c;
   background: transparent;
   border: 0;
   border-radius: 4px;
   cursor: pointer;
+  white-space: nowrap;
 
   &:hover {
     background: rgba(30, 37, 48, 0.08);
@@ -638,6 +648,14 @@ select {
   padding: 0;
   font-size: 20px;
   line-height: 1;
+}
+
+.record-button {
+  min-width: 72px;
+}
+
+.control-button {
+  min-width: 42px;
 }
 
 .record-button span {

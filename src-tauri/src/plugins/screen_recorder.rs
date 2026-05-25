@@ -318,7 +318,7 @@ pub fn open_screen_recorder_window() {
     )
     .title("自定义录屏")
     .inner_size(width, height)
-    .min_inner_size(360.0, 260.0)
+        .min_inner_size(468.0, 260.0)
     .position(x, y)
     .resizable(true)
     .always_on_top(true)

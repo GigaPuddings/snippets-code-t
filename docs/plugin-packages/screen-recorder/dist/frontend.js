@@ -1,4 +1,11 @@
-import { a8 as e } from "./assets/runtime-entry-C3iqwe3n.js";
+const r = (e) => {
+  e.registerRoute({
+    target: "window",
+    path: "/screen-recorder",
+    name: "ScreenRecorder",
+    component: () => import("./assets/index-DAhAnrjY.js")
+  });
+};
 export {
-  e as activate
+  r as activate
 };

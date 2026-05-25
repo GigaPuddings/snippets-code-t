@@ -1,4 +1,3 @@
-import { defineAsyncComponent } from 'vue';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
@@ -6,6 +5,6 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     target: 'window',
     path: '/screen-recorder',
     name: 'ScreenRecorder',
-    component: defineAsyncComponent(() => import('./pages/recorder/index.vue'))
+    component: () => import('./pages/recorder/index.vue')
   });
 };
