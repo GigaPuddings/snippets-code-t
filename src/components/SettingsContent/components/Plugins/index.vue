@@ -357,7 +357,7 @@ import {
 import { getPluginById } from '@/plugins/registry';
 import { OFFICIAL_PLUGINS_MODE } from '@/plugins/official-mode';
 import type { PluginCapabilities, PluginI18nText, RegisteredPlugin } from '@/plugins/protocol';
-import { getHotkeyValue } from '@/plugins/hotkeys';
+import { getHotkeyValue, setHotkeyValue } from '@/plugins/hotkeys';
 import type { PluginId } from '@/plugins/types';
 import { useConfigurationStore, usePluginStore } from '@/store';
 import { CustomButton, CustomSwitch } from '@/components/UI';
@@ -795,6 +795,7 @@ const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = fa
       pluginId: item.id,
       update
     });
+    await configurationStore.initialize();
     modal.msg(update ? t('plugins.updateSuccess') : t('plugins.installSuccess'));
   } catch (error) {
     logger.error('[PluginSettings] marketplace install failed', { pluginId: item.id, update, error });
@@ -828,6 +829,7 @@ const handleInstall = async () => {
   try {
     logger.info('[PluginSettings] install local directory start', { selected });
     await pluginStore.installFromPath(selected);
+    await configurationStore.initialize();
     logger.info('[PluginSettings] install local directory complete', { selected });
     modal.msg(t('plugins.installSuccess'));
   } catch (error) {
@@ -855,6 +857,7 @@ const handleInstallZip = async () => {
   try {
     logger.info('[PluginSettings] install zip start', { selected });
     await pluginStore.installFromPath(selected);
+    await configurationStore.initialize();
     logger.info('[PluginSettings] install zip complete', { selected });
     modal.msg(t('plugins.installSuccess'));
   } catch (error) {
@@ -869,7 +872,11 @@ const handleUninstall = async (pluginId: PluginId | string) => {
   removingPluginId.value = String(pluginId);
   try {
     logger.info('[PluginSettings] uninstall start', { pluginId });
+    const hotkeyNames = getPluginHotkeyNames(pluginId);
+    await unregisterPluginHotkeys(pluginId, hotkeyNames);
     await pluginStore.uninstall(pluginId);
+    clearPluginHotkeyValues(hotkeyNames);
+    await configurationStore.initialize();
     logger.info('[PluginSettings] uninstall complete', { pluginId });
     modal.msg(t('plugins.uninstallSuccess'));
   } catch (error) {
@@ -895,13 +902,24 @@ const handleToggle = async (pluginId: PluginId | string, enabled: boolean) => {
   }
 };
 
-const unregisterPluginHotkeys = async (pluginId: PluginId | string): Promise<void> => {
+const getPluginHotkeyNames = (pluginId: PluginId | string): string[] => {
   const plugin = getPluginById(pluginId as PluginId)
     ?? pluginStore.plugins.find((item: RegisteredPlugin) => item.id === pluginId);
-  if (!plugin?.hotkeys?.length) return;
+  return plugin?.hotkeys ?? [];
+};
+
+const clearPluginHotkeyValues = (hotkeyNames: string[]): void => {
+  hotkeyNames.forEach((hotkeyName) => setHotkeyValue(configurationStore, hotkeyName, ''));
+};
+
+const unregisterPluginHotkeys = async (
+  pluginId: PluginId | string,
+  hotkeyNames = getPluginHotkeyNames(pluginId)
+): Promise<void> => {
+  if (!hotkeyNames.length) return;
 
   await Promise.all(
-    plugin.hotkeys
+    hotkeyNames
       .map((hotkeyName) => getHotkeyValue(configurationStore, hotkeyName))
       .filter(Boolean)
       .map((shortcut) => unregister(shortcut).catch(() => undefined))

@@ -28,6 +28,16 @@
         <span class="viewport-mask left"></span>
         <div class="capture-frame">
           <div ref="captureHoleRef" class="capture-hole"></div>
+          <div v-if="previewUrl" class="result-preview">
+            <video
+              v-if="result?.format === 'mp4'"
+              :src="previewUrl"
+              controls
+              playsinline
+              preload="metadata"
+            ></video>
+            <img v-else :src="previewUrl" alt="">
+          </div>
           <span class="viewport-border top"></span>
           <span class="viewport-border right"></span>
           <span class="viewport-border bottom"></span>
@@ -48,12 +58,13 @@
 
           <button
             class="audio-meter"
-            :class="{ active: audioEnabled && status === 'recording', muted: !audioEnabled }"
+            :class="{ active: audioEnabled && audioLevel > 0.03, metering: audioEnabled && !audioMeterUnavailable, muted: !audioEnabled || audioMeterUnavailable }"
             :title="audioTitle"
             :disabled="status === 'exporting' || settings.format === 'gif'"
             @click="toggleAudio"
           >
-            <span class="audio-bars">
+            <span class="audio-bars" :style="audioBarsStyle">
+              <i></i>
               <i></i>
               <i></i>
               <i></i>
@@ -73,6 +84,12 @@
           <select v-model="settings.format" class="format-select optional-format" :disabled="isBusy">
             <option value="mp4">MP4</option>
             <option value="gif">GIF</option>
+          </select>
+
+          <select v-model="settings.quality" class="quality-select optional-quality" :disabled="isBusy">
+            <option value="high">{{ $t('screenRecorder.qualityHigh') }}</option>
+            <option value="standard">{{ $t('screenRecorder.qualityStandard') }}</option>
+            <option value="small">{{ $t('screenRecorder.qualitySmall') }}</option>
           </select>
 
           <div class="dimension-group optional-size">
@@ -129,14 +146,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   getCurrentWindow,
   LogicalSize,
   monitorFromPoint,
   PhysicalPosition
 } from '@tauri-apps/api/window';
-import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { CloseSmall, Minus } from '@icon-park/vue-next';
 import modal from '@/utils/modal';
@@ -154,8 +171,15 @@ type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 
 const appWindow = getCurrentWindow();
 const captureHoleRef = ref<HTMLElement | null>(null);
 const captureSize = ref({ width: 0, height: 0 });
+const audioLevel = ref(0);
+const audioMeterUnavailable = ref(false);
 let resizeObserver: ResizeObserver | null = null;
 let unlistenMoved: UnlistenFn | null = null;
+let audioStream: MediaStream | null = null;
+let audioContext: AudioContext | null = null;
+let audioAnalyser: AnalyserNode | null = null;
+let audioData: Uint8Array | null = null;
+let audioFrame = 0;
 
 const MIN_CAPTURE_SIZE = 80;
 const DEFAULT_WINDOW_WIDTH = 468;
@@ -196,10 +220,30 @@ const {
 
 const isBusy = computed(() => status.value === 'recording' || status.value === 'paused' || status.value === 'exporting');
 const audioEnabled = computed(() => settings.value.audio && settings.value.format === 'mp4');
+const previewUrl = computed(() => (
+  status.value === 'completed' && result.value?.path
+    ? convertFileSrc(result.value.path)
+    : ''
+));
+const audioBarsStyle = computed<Record<string, string>>(() => {
+  const level = audioEnabled.value && !audioMeterUnavailable.value ? audioLevel.value : 0;
+  const scale = (base: number, weight: number) =>
+    Math.max(0.18, Math.min(1, base + level * weight)).toFixed(3);
+
+  return {
+    '--bar-1': scale(0.28, 0.64),
+    '--bar-2': scale(0.42, 0.78),
+    '--bar-3': scale(0.34, 0.94),
+    '--bar-4': scale(0.22, 0.72)
+  };
+});
 
 const audioTitle = computed(() => {
   if (settings.value.format === 'gif') {
     return 'GIF 不支持音频';
+  }
+  if (audioMeterUnavailable.value && settings.value.audio) {
+    return '音频已开启，但无法读取实时音量；请检查系统录音权限或输入设备';
   }
   if (result.value?.audioDevice) {
     return `已录制音频：${result.value.audioDevice}`;
@@ -294,6 +338,72 @@ const scheduleMetricsRefresh = () => {
   }, 120);
 };
 
+const stopAudioMeter = async () => {
+  if (audioFrame) {
+    cancelAnimationFrame(audioFrame);
+    audioFrame = 0;
+  }
+  audioAnalyser = null;
+  audioData = null;
+  audioStream?.getTracks().forEach((track) => track.stop());
+  audioStream = null;
+  if (audioContext) {
+    await audioContext.close().catch(() => undefined);
+    audioContext = null;
+  }
+  audioLevel.value = 0;
+};
+
+const sampleAudioMeter = () => {
+  if (!audioAnalyser || !audioData) {
+    audioFrame = 0;
+    return;
+  }
+
+  audioAnalyser.getByteTimeDomainData(audioData);
+  let sum = 0;
+  for (const sample of audioData) {
+    const value = (sample - 128) / 128;
+    sum += value * value;
+  }
+  const rms = Math.sqrt(sum / audioData.length);
+  const normalized = Math.min(1, rms * 8);
+  audioLevel.value = audioLevel.value * 0.68 + normalized * 0.32;
+  audioFrame = requestAnimationFrame(sampleAudioMeter);
+};
+
+const startAudioMeter = async () => {
+  if (!audioEnabled.value || audioStream || audioFrame) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    audioMeterUnavailable.value = true;
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      },
+      video: false
+    });
+    audioStream = stream;
+    audioContext = new AudioContext();
+    audioAnalyser = audioContext.createAnalyser();
+    audioAnalyser.fftSize = 512;
+    audioAnalyser.smoothingTimeConstant = 0.75;
+    audioData = new Uint8Array(audioAnalyser.fftSize);
+    audioContext.createMediaStreamSource(stream).connect(audioAnalyser);
+    await audioContext.resume().catch(() => undefined);
+    audioMeterUnavailable.value = false;
+    sampleAudioMeter();
+  } catch {
+    audioMeterUnavailable.value = true;
+    await stopAudioMeter();
+  }
+};
+
 const startDrag = async (event: MouseEvent) => {
   if (event.button !== 0 || isBusy.value) return;
   await clearPassthrough();
@@ -313,6 +423,7 @@ const startResize = async (direction: ResizeDirection) => {
 };
 
 const handleStart = () => runAction(async () => {
+  await startAudioMeter();
   await setRecorderCaptureExcluded(true).catch(() => undefined);
   await refreshCaptureMetrics();
   await begin(await getCaptureRegion());
@@ -327,6 +438,8 @@ const handleResume = () => runAction(async () => {
 const handleStop = () => runAction(async () => {
   await stop();
   await exportFile();
+  await clearPassthrough();
+  await setRecorderCaptureExcluded(false).catch(() => undefined);
 });
 
 const handleRecordAgain = () => {
@@ -334,13 +447,20 @@ const handleRecordAgain = () => {
   reset();
   status.value = 'ready';
   result.value = null;
+  void setRecorderCaptureExcluded(true).catch(() => undefined);
   void appWindow.setSize(new LogicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
   void nextTick(refreshCaptureMetrics);
+  void startAudioMeter();
 };
 
 const toggleAudio = () => {
   if (isBusy.value || settings.value.format === 'gif') return;
   settings.value.audio = !settings.value.audio;
+  if (settings.value.audio) {
+    void startAudioMeter();
+  } else {
+    void stopAudioMeter();
+  }
 };
 
 const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
@@ -410,6 +530,7 @@ onMounted(async () => {
   await refreshFfmpegStatus().catch(() => undefined);
   await nextTick();
   await refreshCaptureMetrics();
+  await startAudioMeter();
 
   if (captureHoleRef.value) {
     resizeObserver = new ResizeObserver(() => {
@@ -425,6 +546,14 @@ onMounted(async () => {
   window.addEventListener('keydown', handleKeydown);
 });
 
+watch(audioEnabled, (enabled) => {
+  if (enabled) {
+    void startAudioMeter();
+  } else {
+    void stopAudioMeter();
+  }
+});
+
 onUnmounted(() => {
   resizeObserver?.disconnect();
   unlistenMoved?.();
@@ -432,6 +561,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
   void setRecorderPassthroughRegion(null).catch(() => undefined);
   void setRecorderCaptureExcluded(false).catch(() => undefined);
+  void stopAudioMeter();
 });
 </script>
 
@@ -454,7 +584,7 @@ onUnmounted(() => {
 .recorder-shell {
   position: relative;
   display: grid;
-  grid-template-rows: 40px minmax(120px, 1fr) 58px;
+  grid-template-rows: 40px minmax(120px, 1fr) minmax(58px, auto);
   width: 100vw;
   height: 100vh;
   border: 1px solid rgba(198, 205, 214, 0.95);
@@ -467,7 +597,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   height: 40px;
-  padding: 0 4px 0 14px;
+  padding: 0 8px 0 14px;
   background: rgba(255, 255, 255, 0.98);
   border-bottom: 1px solid rgba(210, 216, 224, 0.92);
   border-radius: 6px 6px 0 0;
@@ -475,6 +605,8 @@ onUnmounted(() => {
 }
 
 .window-title {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   font-size: 15px;
   font-weight: 600;
@@ -486,11 +618,12 @@ onUnmounted(() => {
   display: flex;
   height: 100%;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  margin-left: 10px;
 }
 
 .title-button {
-  width: 32px;
+  width: 34px;
   height: 32px;
   color: rgba(32, 36, 44, 0.86);
   background: transparent;
@@ -577,6 +710,26 @@ onUnmounted(() => {
   background: transparent;
 }
 
+.result-preview {
+  position: absolute;
+  inset: 1px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #0f172a;
+  pointer-events: auto;
+
+  video,
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #0f172a;
+  }
+}
+
 .viewport-border {
   position: absolute;
   z-index: 3;
@@ -616,13 +769,14 @@ onUnmounted(() => {
 
 .control-strip {
   container-type: inline-size;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(72px, auto);
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   min-width: 0;
+  min-height: 58px;
   overflow: hidden;
-  padding: 9px 10px;
+  padding: 8px clamp(10px, 2cqw, 16px);
   background: rgba(255, 255, 255, 0.98);
   border-top: 1px solid rgba(210, 216, 224, 0.92);
   box-sizing: border-box;
@@ -632,16 +786,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 6px;
+  gap: clamp(5px, 1.3cqw, 12px);
 }
 
 .control-group--tools {
   flex: 1 1 auto;
-  overflow: hidden;
+  width: 100%;
+  overflow: visible;
 }
 
 .control-group--actions {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   justify-content: flex-end;
 }
 
@@ -667,10 +822,14 @@ select {
   padding: 0 4px;
 }
 
+.quality-select {
+  width: 76px;
+}
+
 .select-field,
 .dimension-group {
   display: inline-flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -745,8 +904,8 @@ select {
 }
 
 .audio-meter {
-  width: 34px;
-  min-width: 34px;
+  width: 38px;
+  min-width: 38px;
   padding: 0;
   color: #64748b;
   border: 1px solid rgba(191, 199, 210, 0.78);
@@ -756,6 +915,10 @@ select {
     color: #16a34a;
     border-color: rgba(22, 163, 74, 0.36);
     background: rgba(240, 253, 244, 0.92);
+  }
+
+  &.metering:not(.active) {
+    color: #475569;
   }
 
   &.muted {
@@ -772,34 +935,31 @@ select {
   i {
     display: block;
     width: 4px;
-    height: 7px;
+    height: 16px;
     background: currentcolor;
     border-radius: 999px;
+    transform: scaleY(var(--bar-1, 0.25));
+    transform-origin: bottom;
+    transition: transform 80ms linear;
   }
 
   i:nth-child(2) {
-    height: 12px;
+    transform: scaleY(var(--bar-2, 0.4));
   }
 
   i:nth-child(3) {
-    height: 9px;
+    transform: scaleY(var(--bar-3, 0.35));
+  }
+
+  i:nth-child(4) {
+    transform: scaleY(var(--bar-4, 0.22));
   }
 }
 
-.audio-meter.active .audio-bars i {
-  animation: audio-level 0.72s ease-in-out infinite;
-}
-
-.audio-meter.active .audio-bars i:nth-child(2) {
-  animation-delay: 0.12s;
-}
-
-.audio-meter.active .audio-bars i:nth-child(3) {
-  animation-delay: 0.24s;
-}
-
 .record-button {
+  flex: 1 1 82px;
   min-width: 72px;
+  max-width: 150px;
 }
 
 .control-button {
@@ -817,16 +977,6 @@ select {
   color: #b42318;
 }
 
-@keyframes audio-level {
-  0%, 100% {
-    transform: scaleY(0.55);
-  }
-
-  50% {
-    transform: scaleY(1.18);
-  }
-}
-
 @container (max-width: 560px) {
   .optional-size {
     display: none;
@@ -838,12 +988,23 @@ select {
 }
 
 @container (max-width: 460px) {
+  .optional-quality,
   .optional-format {
     display: none;
   }
 
   .record-button {
     min-width: 64px;
+  }
+}
+
+@container (max-width: 390px) {
+  .unit {
+    display: none;
+  }
+
+  .control-group {
+    gap: 4px;
   }
 }
 

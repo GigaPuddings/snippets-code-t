@@ -779,17 +779,17 @@ pub fn screen_recorder_pick_target_window(
 
 fn quality_crf(quality: &str) -> &'static str {
     match quality {
-        "high" => "18",
-        "small" => "30",
-        _ => "24",
+        "high" => "16",
+        "small" => "26",
+        _ => "20",
     }
 }
 
 fn export_crf(quality: &str) -> &'static str {
     match quality {
-        "high" => "20",
-        "small" => "34",
-        _ => "27",
+        "high" => "18",
+        "small" => "28",
+        _ => "21",
     }
 }
 
@@ -843,6 +843,8 @@ fn spawn_segment(
         let ffmpeg = ffmpeg.ok_or_else(|| "未找到 FFmpeg，无法开始录屏".to_string())?;
         let output = temp_dir.join(format!("segment_{:03}.mp4", index));
         let video_size = format!("{}x{}", region.physical_width, region.physical_height);
+        let fps_text = fps.to_string();
+        let keyframe_interval = (fps.max(1) * 2).to_string();
         let audio_device = if audio {
             default_audio_device(app_handle)
         } else {
@@ -851,11 +853,20 @@ fn spawn_segment(
 
         let mut command = Command::new(ffmpeg.path);
         command.args([
+            "-hide_banner",
+            "-loglevel",
+            "warning",
             "-y",
+            "-fflags",
+            "+genpts",
+            "-thread_queue_size",
+            "1024",
             "-f",
             "gdigrab",
+            "-rtbufsize",
+            "512M",
             "-framerate",
-            &fps.to_string(),
+            &fps_text,
             "-offset_x",
             &region.screen_x.to_string(),
             "-offset_y",
@@ -870,7 +881,14 @@ fn spawn_segment(
 
         if let Some(device) = &audio_device {
             command
-                .args(["-f", "dshow"])
+                .args([
+                    "-thread_queue_size",
+                    "1024",
+                    "-f",
+                    "dshow",
+                    "-audio_buffer_size",
+                    "120",
+                ])
                 .arg("-i")
                 .arg(format!("audio={}", device))
                 .args(["-map", "0:v:0", "-map", "1:a:0"]);
@@ -879,18 +897,26 @@ fn spawn_segment(
         }
 
         command.args([
+            "-r",
+            &fps_text,
             "-c:v",
             "libx264",
             "-preset",
             "ultrafast",
+            "-tune",
+            "zerolatency",
             "-crf",
             quality_crf(quality),
+            "-g",
+            &keyframe_interval,
             "-pix_fmt",
             "yuv420p",
+            "-movflags",
+            "+faststart",
         ]);
 
         if audio_device.is_some() {
-            command.args(["-c:a", "aac", "-b:a", "128k"]);
+            command.args(["-af", "volume=2.0", "-c:a", "aac", "-b:a", "192k"]);
         }
 
         command
@@ -1146,29 +1172,33 @@ pub fn screen_recorder_export_recording(
                 run_ffmpeg(gif_command, "导出 GIF")?;
             }
             _ => {
+                let should_copy_video = session.quality == quality && session.fps == fps;
                 let mut mp4_command = Command::new(&ffmpeg.path);
                 mp4_command
                     .args(["-y", "-f", "concat", "-safe", "0", "-i"])
-                    .arg(&concat_path)
-                    .args([
+                    .arg(&concat_path);
+                if should_copy_video {
+                    mp4_command.args(["-c:v", "copy"]);
+                } else {
+                    mp4_command.args([
                         "-r",
                         &fps.to_string(),
                         "-c:v",
                         "libx264",
                         "-preset",
-                        "medium",
+                        "veryfast",
                         "-crf",
                         export_crf(&quality),
                         "-pix_fmt",
                         "yuv420p",
-                        "-movflags",
-                        "+faststart",
                     ]);
+                }
                 if session.audio_device.is_some() {
-                    mp4_command.args(["-c:a", "aac", "-b:a", "128k"]);
+                    mp4_command.args(["-c:a", "aac", "-b:a", "192k"]);
                 } else {
                     mp4_command.arg("-an");
                 }
+                mp4_command.args(["-movflags", "+faststart"]);
                 mp4_command.arg(&output_path);
                 run_ffmpeg(mp4_command, "导出 MP4")?;
             }
