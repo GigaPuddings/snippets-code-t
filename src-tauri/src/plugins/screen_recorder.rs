@@ -60,6 +60,8 @@ pub struct FfmpegStatus {
     source: Option<String>,
     searched_paths: Vec<String>,
     message: Option<String>,
+    audio_devices: Vec<String>,
+    system_audio_available: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -131,14 +133,20 @@ fn candidate_paths(app_handle: &AppHandle) -> Vec<(PathBuf, String)> {
             PLUGIN_ID.to_string(),
             relative.to_string(),
         ) {
-            paths.push((PathBuf::from(path), format!("plugin:{}:{}", PLUGIN_ID, relative)));
+            paths.push((
+                PathBuf::from(path),
+                format!("plugin:{}:{}", PLUGIN_ID, relative),
+            ));
         }
         if let Ok(Some(path)) = crate::app_config::get_local_plugin_resource_path(
             app_handle.clone(),
             "screen-recorder-ffmpeg".to_string(),
             relative.to_string(),
         ) {
-            paths.push((PathBuf::from(path), format!("plugin:screen-recorder-ffmpeg:{}", relative)));
+            paths.push((
+                PathBuf::from(path),
+                format!("plugin:screen-recorder-ffmpeg:{}", relative),
+            ));
         }
     }
 
@@ -149,7 +157,10 @@ fn candidate_paths(app_handle: &AppHandle) -> Vec<(PathBuf, String)> {
             "ffmpeg/ffmpeg.exe",
             "ffmpeg/bin/ffmpeg.exe",
         ] {
-            paths.push((resource_dir.join(relative), format!("resource:{}", relative)));
+            paths.push((
+                resource_dir.join(relative),
+                format!("resource:{}", relative),
+            ));
         }
     }
 
@@ -203,13 +214,35 @@ fn find_ffmpeg(app_handle: &AppHandle) -> (Option<FfmpegLocation>, Vec<String>) 
     (None, searched_paths)
 }
 
-fn default_audio_device(app_handle: &AppHandle) -> Option<String> {
+fn is_system_audio_device(device: &str) -> bool {
+    let lower = device.to_lowercase();
+    lower.contains("stereo mix")
+        || lower.contains("what u hear")
+        || lower.contains("loopback")
+        || lower.contains("monitor")
+        || device.contains("立体声混音")
+        || device.contains("系统声音")
+}
+
+fn list_audio_devices(app_handle: &AppHandle) -> Vec<String> {
     let (ffmpeg, _) = find_ffmpeg(app_handle);
-    let ffmpeg = ffmpeg?;
-    let output = Command::new(ffmpeg.path)
-        .args(["-hide_banner", "-f", "dshow", "-list_devices", "true", "-i", "dummy"])
+    let Some(ffmpeg) = ffmpeg else {
+        return Vec::new();
+    };
+    let Ok(output) = Command::new(ffmpeg.path)
+        .args([
+            "-hide_banner",
+            "-f",
+            "dshow",
+            "-list_devices",
+            "true",
+            "-i",
+            "dummy",
+        ])
         .output()
-        .ok()?;
+    else {
+        return Vec::new();
+    };
 
     let combined = format!(
         "{}\n{}",
@@ -236,15 +269,13 @@ fn default_audio_device(app_handle: &AppHandle) -> Option<String> {
     }
 
     devices
+}
+
+fn default_audio_device(app_handle: &AppHandle) -> Option<String> {
+    let devices = list_audio_devices(app_handle);
+    devices
         .iter()
-        .find(|device| {
-            let lower = device.to_lowercase();
-            lower.contains("stereo mix")
-                || lower.contains("what u hear")
-                || lower.contains("loopback")
-                || device.contains("立体声混音")
-                || device.contains("系统声音")
-        })
+        .find(|device| is_system_audio_device(device))
         .cloned()
         .or_else(|| devices.into_iter().next())
 }
@@ -263,6 +294,14 @@ fn default_output_path(format: &str) -> PathBuf {
 pub fn screen_recorder_get_ffmpeg_status(app_handle: AppHandle) -> Result<FfmpegStatus, String> {
     require_plugin(&app_handle)?;
     let (ffmpeg, searched_paths) = find_ffmpeg(&app_handle);
+    let audio_devices = if ffmpeg.is_some() {
+        list_audio_devices(&app_handle)
+    } else {
+        Vec::new()
+    };
+    let system_audio_available = audio_devices
+        .iter()
+        .any(|device| is_system_audio_device(device));
     Ok(match ffmpeg {
         Some(location) => FfmpegStatus {
             available: true,
@@ -270,13 +309,19 @@ pub fn screen_recorder_get_ffmpeg_status(app_handle: AppHandle) -> Result<Ffmpeg
             source: Some(location.source),
             searched_paths,
             message: None,
+            audio_devices,
+            system_audio_available,
         },
         None => FfmpegStatus {
             available: false,
             path: None,
             source: None,
             searched_paths,
-            message: Some("未找到 FFmpeg。请安装 FFmpeg，或将 ffmpeg.exe 放入录屏插件资源目录。".to_string()),
+            message: Some(
+                "未找到 FFmpeg。请安装 FFmpeg，或将 ffmpeg.exe 放入录屏插件资源目录。".to_string(),
+            ),
+            audio_devices,
+            system_audio_available,
         },
     })
 }
@@ -306,10 +351,15 @@ pub fn open_screen_recorder_window() {
     };
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
+    let scale = monitor.scale_factor();
     let width = 468.0;
     let height = 300.0;
-    let x = monitor_pos.x as f64 + (monitor_size.width as f64 - width) / 2.0;
-    let y = monitor_pos.y as f64 + (monitor_size.height as f64 - height) / 2.0;
+    let monitor_width = monitor_size.width as f64 / scale;
+    let monitor_height = monitor_size.height as f64 / scale;
+    let monitor_x = monitor_pos.x as f64 / scale;
+    let monitor_y = monitor_pos.y as f64 / scale;
+    let x = monitor_x + (monitor_width - width) / 2.0;
+    let y = monitor_y + (monitor_height - height) / 2.0;
 
     let builder = WebviewWindowBuilder::new(
         app_handle,
@@ -318,7 +368,7 @@ pub fn open_screen_recorder_window() {
     )
     .title("自定义录屏")
     .inner_size(width, height)
-        .min_inner_size(468.0, 260.0)
+    .min_inner_size(420.0, 260.0)
     .position(x, y)
     .resizable(true)
     .always_on_top(true)
@@ -366,10 +416,8 @@ pub fn screen_recorder_close_window(app_handle: AppHandle) -> Result<(), String>
 fn clear_passthrough_region(app_handle: &AppHandle) {
     if let Ok(mut state) = PASSTHROUGH_STATE.lock() {
         state.region = None;
-        if state.last_ignored {
-            if let Some(window) = app_handle.get_webview_window("screen_recorder") {
-                let _ = window.set_ignore_cursor_events(false);
-            }
+        if let Some(window) = app_handle.get_webview_window("screen_recorder") {
+            let _ = window.set_ignore_cursor_events(false);
         }
         state.last_ignored = false;
     }
@@ -392,68 +440,66 @@ fn ensure_passthrough_tracker(app_handle: AppHandle) {
         return;
     }
 
-    thread::spawn(move || {
-        loop {
-            let region = match PASSTHROUGH_STATE.lock() {
-                Ok(state) => state.region.clone(),
-                Err(_) => None,
-            };
-            let Some(region) = region else {
-                if let Ok(mut state) = PASSTHROUGH_STATE.lock() {
-                    state.running = false;
-                    state.last_ignored = false;
-                }
-                if let Some(window) = app_handle.get_webview_window("screen_recorder") {
-                    let _ = window.set_ignore_cursor_events(false);
-                }
-                break;
-            };
-
-            let Some(window) = app_handle.get_webview_window("screen_recorder") else {
-                if let Ok(mut state) = PASSTHROUGH_STATE.lock() {
-                    state.running = false;
-                    state.region = None;
-                    state.last_ignored = false;
-                }
-                break;
-            };
-
-            #[cfg(target_os = "windows")]
-            let should_ignore = {
-                use windows::Win32::Foundation::POINT;
-                use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
-
-                let mut point = POINT::default();
-                if unsafe { GetCursorPos(&mut point) }.is_err() {
-                    false
-                } else if let Ok(inner_position) = window.inner_position() {
-                    let x = point.x - inner_position.x;
-                    let y = point.y - inner_position.y;
-                    x >= region.x
-                        && y >= region.y
-                        && x < region.x + region.width
-                        && y < region.y + region.height
-                } else {
-                    false
-                }
-            };
-
-            #[cfg(not(target_os = "windows"))]
-            let should_ignore = false;
-
-            let mut changed = false;
+    thread::spawn(move || loop {
+        let region = match PASSTHROUGH_STATE.lock() {
+            Ok(state) => state.region.clone(),
+            Err(_) => None,
+        };
+        let Some(region) = region else {
             if let Ok(mut state) = PASSTHROUGH_STATE.lock() {
-                if state.last_ignored != should_ignore {
-                    state.last_ignored = should_ignore;
-                    changed = true;
-                }
+                state.running = false;
+                state.last_ignored = false;
             }
-            if changed {
-                let _ = window.set_ignore_cursor_events(should_ignore);
+            if let Some(window) = app_handle.get_webview_window("screen_recorder") {
+                let _ = window.set_ignore_cursor_events(false);
             }
+            break;
+        };
 
-            thread::sleep(Duration::from_millis(24));
+        let Some(window) = app_handle.get_webview_window("screen_recorder") else {
+            if let Ok(mut state) = PASSTHROUGH_STATE.lock() {
+                state.running = false;
+                state.region = None;
+                state.last_ignored = false;
+            }
+            break;
+        };
+
+        #[cfg(target_os = "windows")]
+        let should_ignore = {
+            use windows::Win32::Foundation::POINT;
+            use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+            let mut point = POINT::default();
+            if unsafe { GetCursorPos(&mut point) }.is_err() {
+                false
+            } else if let Ok(inner_position) = window.inner_position() {
+                let x = point.x - inner_position.x;
+                let y = point.y - inner_position.y;
+                x >= region.x
+                    && y >= region.y
+                    && x < region.x + region.width
+                    && y < region.y + region.height
+            } else {
+                false
+            }
+        };
+
+        #[cfg(not(target_os = "windows"))]
+        let should_ignore = false;
+
+        let mut changed = false;
+        if let Ok(mut state) = PASSTHROUGH_STATE.lock() {
+            if state.last_ignored != should_ignore {
+                state.last_ignored = should_ignore;
+                changed = true;
+            }
         }
+        if changed {
+            let _ = window.set_ignore_cursor_events(should_ignore);
+        }
+
+        thread::sleep(Duration::from_millis(24));
     });
 }
 
@@ -501,7 +547,11 @@ pub fn screen_recorder_set_capture_excluded(
 
         let raw_hwnd = window.hwnd().map_err(|e| e.to_string())?;
         let hwnd = windows::Win32::Foundation::HWND(raw_hwnd.0 as _);
-        let affinity = if excluded { WDA_EXCLUDEFROMCAPTURE } else { WDA_NONE };
+        let affinity = if excluded {
+            WDA_EXCLUDEFROMCAPTURE
+        } else {
+            WDA_NONE
+        };
         unsafe { SetWindowDisplayAffinity(hwnd, affinity) }.map_err(|e| e.to_string())?;
     }
     #[cfg(not(target_os = "windows"))]
@@ -693,7 +743,11 @@ pub fn screen_recorder_pick_target_window(
         }
 
         let ancestor = unsafe { GetAncestor(raw_hwnd, GA_ROOT) };
-        let hwnd = if ancestor.0.is_null() { raw_hwnd } else { ancestor };
+        let hwnd = if ancestor.0.is_null() {
+            raw_hwnd
+        } else {
+            ancestor
+        };
         if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
             let _ = window.show();
             let _ = window.set_focus();
@@ -789,27 +843,30 @@ fn spawn_segment(
         let ffmpeg = ffmpeg.ok_or_else(|| "未找到 FFmpeg，无法开始录屏".to_string())?;
         let output = temp_dir.join(format!("segment_{:03}.mp4", index));
         let video_size = format!("{}x{}", region.physical_width, region.physical_height);
-        let audio_device = if audio { default_audio_device(app_handle) } else { None };
+        let audio_device = if audio {
+            default_audio_device(app_handle)
+        } else {
+            None
+        };
 
         let mut command = Command::new(ffmpeg.path);
-        command
-            .args([
-                "-y",
-                "-f",
-                "gdigrab",
-                "-framerate",
-                &fps.to_string(),
-                "-offset_x",
-                &region.screen_x.to_string(),
-                "-offset_y",
-                &region.screen_y.to_string(),
-                "-video_size",
-                &video_size,
-                "-draw_mouse",
-                "1",
-                "-i",
-                "desktop",
-            ]);
+        command.args([
+            "-y",
+            "-f",
+            "gdigrab",
+            "-framerate",
+            &fps.to_string(),
+            "-offset_x",
+            &region.screen_x.to_string(),
+            "-offset_y",
+            &region.screen_y.to_string(),
+            "-video_size",
+            &video_size,
+            "-draw_mouse",
+            "1",
+            "-i",
+            "desktop",
+        ]);
 
         if let Some(device) = &audio_device {
             command
@@ -821,17 +878,16 @@ fn spawn_segment(
             command.arg("-an");
         }
 
-        command
-            .args([
-                "-c:v",
-                "libx264",
-                "-preset",
-                "ultrafast",
-                "-crf",
-                quality_crf(quality),
-                "-pix_fmt",
-                "yuv420p",
-            ]);
+        command.args([
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            quality_crf(quality),
+            "-pix_fmt",
+            "yuv420p",
+        ]);
 
         if audio_device.is_some() {
             command.args(["-c:a", "aac", "-b:a", "128k"]);
@@ -922,7 +978,9 @@ pub fn screen_recorder_pause_recording(app_handle: AppHandle) -> Result<(), Stri
     let mut state = RECORDING_SESSION
         .lock()
         .map_err(|e| format!("录屏状态锁定失败: {}", e))?;
-    let session = state.as_mut().ok_or_else(|| "当前没有录屏任务".to_string())?;
+    let session = state
+        .as_mut()
+        .ok_or_else(|| "当前没有录屏任务".to_string())?;
     stop_active_segment(session);
     Ok(())
 }
@@ -939,7 +997,9 @@ pub fn screen_recorder_resume_recording(
     let mut state = RECORDING_SESSION
         .lock()
         .map_err(|e| format!("录屏状态锁定失败: {}", e))?;
-    let session = state.as_mut().ok_or_else(|| "当前没有录屏任务".to_string())?;
+    let session = state
+        .as_mut()
+        .ok_or_else(|| "当前没有录屏任务".to_string())?;
     if session.child.is_some() {
         return Ok(());
     }
@@ -972,7 +1032,9 @@ pub fn screen_recorder_stop_recording(app_handle: AppHandle) -> Result<(), Strin
     let mut state = RECORDING_SESSION
         .lock()
         .map_err(|e| format!("录屏状态锁定失败: {}", e))?;
-    let session = state.as_mut().ok_or_else(|| "当前没有录屏任务".to_string())?;
+    let session = state
+        .as_mut()
+        .ok_or_else(|| "当前没有录屏任务".to_string())?;
     stop_active_segment(session);
     session.stopped = true;
     Ok(())
@@ -992,7 +1054,10 @@ pub fn screen_recorder_cancel_recording(app_handle: AppHandle) -> Result<(), Str
 }
 
 fn concat_file_line(path: &Path) -> String {
-    let value = path.to_string_lossy().replace('\\', "/").replace('\'', "'\\''");
+    let value = path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .replace('\'', "'\\''");
     format!("file '{}'\n", value)
 }
 
@@ -1128,8 +1193,7 @@ pub fn screen_recorder_export_recording(
             let _ = fs::remove_dir_all(&session.temp_dir);
             info!(
                 "[Plugin:screen-recorder] exported session {} to {}",
-                session.id,
-                result.path
+                session.id, result.path
             );
             Ok(result)
         }

@@ -12,8 +12,12 @@
       <header class="title-bar" @mousedown="startDrag">
         <span class="window-title">{{ $t('screenRecorder.title') || '自定义录屏' }}</span>
         <div class="window-actions" @mousedown.stop>
-          <button class="title-button" title="最小化" @click="handleMinimize">_</button>
-          <button class="title-button close" title="关闭" @click="handleClose">×</button>
+          <button class="title-button title-button--window" title="最小化" @click="handleMinimize">
+            <Minus class="title-icon" theme="outline" size="20" :strokeWidth="3" strokeLinecap="butt" />
+          </button>
+          <button class="title-button title-button--close" title="关闭" @click="handleClose">
+            <CloseSmall class="title-icon" theme="outline" size="18" :strokeWidth="3" strokeLinecap="butt" />
+          </button>
         </div>
       </header>
 
@@ -32,66 +36,89 @@
       </main>
 
       <footer class="control-strip">
-        <span class="status-dot" :class="{ active: status === 'recording', paused: status === 'paused' }"></span>
-        <select v-model="settings.fps" :disabled="isBusy">
-          <option :value="15">15</option>
-          <option :value="24">24</option>
-          <option :value="30">30</option>
-          <option :value="60">60</option>
-        </select>
-        <span class="unit">fps</span>
-
-        <select v-model="settings.format" :disabled="isBusy">
-          <option value="mp4">MP4</option>
-          <option value="gif">GIF</option>
-        </select>
-
-        <label class="dimension">
-          <input :value="captureSize.width" readonly />
-        </label>
-        <span class="multiply">×</span>
-        <label class="dimension">
-          <input :value="captureSize.height" readonly />
-        </label>
-        <span class="unit">px</span>
-
-        <button
-          v-if="status === 'ready' || status === 'completed'"
-          class="icon-control"
-          title="拖到目标窗口并松开以对齐"
-          @mousedown.prevent="handleSnapToWindow"
-        >
-          ◎
-        </button>
-
-        <template v-if="status === 'recording' || status === 'paused'">
-          <span class="time">{{ timeText }}</span>
-          <button class="control-button" @click="status === 'paused' ? handleResume() : handlePause()">
-            {{ status === 'paused' ? $t('screenRecorder.resume') : $t('screenRecorder.pause') }}
+        <div class="control-group control-group--tools">
+          <button
+            v-if="status === 'ready' || status === 'completed'"
+            class="icon-control snap-control"
+            title="拖到目标窗口并松开以对齐"
+            @mousedown.prevent="handleSnapToWindow"
+          >
+            ◎
           </button>
-          <button class="control-button danger" @click="handleStop">{{ $t('screenRecorder.stop') }}</button>
-        </template>
 
-        <template v-else-if="status === 'exporting'">
-          <span class="save-status">{{ $t('screenRecorder.exporting') || '正在导出...' }}</span>
-        </template>
+          <button
+            class="audio-meter"
+            :class="{ active: audioEnabled && status === 'recording', muted: !audioEnabled }"
+            :title="audioTitle"
+            :disabled="status === 'exporting' || settings.format === 'gif'"
+            @click="toggleAudio"
+          >
+            <span class="audio-bars">
+              <i></i>
+              <i></i>
+              <i></i>
+            </span>
+          </button>
 
-        <template v-else-if="status === 'completed' && result">
-          <span class="save-status" :title="result.path">{{ $t('screenRecorder.exportDone') || '已保存' }}</span>
-          <button class="control-button" @click="handleOpenFile">{{ $t('screenRecorder.openFile') || '打开' }}</button>
-          <button class="control-button" @click="handleRevealFile">{{ $t('screenRecorder.openFolder') || '定位' }}</button>
-          <button class="control-button" @click="handleRecordAgain">{{ $t('screenRecorder.recordAgain') || '重录' }}</button>
-        </template>
+          <label class="select-field">
+            <select v-model="settings.fps" :disabled="isBusy">
+              <option :value="15">15</option>
+              <option :value="24">24</option>
+              <option :value="30">30</option>
+              <option :value="60">60</option>
+            </select>
+            <span class="unit">fps</span>
+          </label>
 
-        <button
-          v-else
-          class="record-button"
-          :disabled="ffmpegStatus?.available === false || captureSize.width < MIN_CAPTURE_SIZE || captureSize.height < MIN_CAPTURE_SIZE"
-          @click="handleStart"
-        >
-          <span></span>
-          {{ $t('screenRecorder.start') }}
-        </button>
+          <select v-model="settings.format" class="format-select optional-format" :disabled="isBusy">
+            <option value="mp4">MP4</option>
+            <option value="gif">GIF</option>
+          </select>
+
+          <div class="dimension-group optional-size">
+            <label class="dimension">
+              <input :value="captureSize.width" readonly />
+            </label>
+            <span class="multiply">×</span>
+            <label class="dimension">
+              <input :value="captureSize.height" readonly />
+            </label>
+            <span class="unit">px</span>
+          </div>
+        </div>
+
+        <div class="control-group control-group--actions">
+          <template v-if="status === 'recording' || status === 'paused'">
+            <span class="time">{{ timeText }}</span>
+            <button class="control-button" @click="status === 'paused' ? handleResume() : handlePause()">
+              {{ status === 'paused' ? $t('screenRecorder.resume') : $t('screenRecorder.pause') }}
+            </button>
+            <button class="control-button danger" @click="handleStop">{{ $t('screenRecorder.stop') }}</button>
+          </template>
+
+          <template v-else-if="status === 'exporting'">
+            <span class="save-status">{{ $t('screenRecorder.exporting') || '正在导出...' }}</span>
+          </template>
+
+          <template v-else-if="status === 'completed' && result">
+            <span class="save-status optional-save-status" :title="result.path">
+              {{ result.hasAudio ? '已保存·有声' : '已保存·无声' }}
+            </span>
+            <button class="control-button" title="打开文件" @click="handleOpenFile">打开</button>
+            <button class="control-button" title="打开所在文件夹" @click="handleRevealFile">文件夹</button>
+            <button class="control-button" title="重新录制" @click="handleRecordAgain">重录</button>
+          </template>
+
+          <button
+            v-else
+            class="record-button"
+            :disabled="ffmpegStatus?.available === false || captureSize.width < MIN_CAPTURE_SIZE || captureSize.height < MIN_CAPTURE_SIZE"
+            @click="handleStart"
+          >
+            <span></span>
+            {{ $t('screenRecorder.start') }}
+          </button>
+        </div>
       </footer>
     </div>
 
@@ -111,6 +138,7 @@ import {
 } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
+import { CloseSmall, Minus } from '@icon-park/vue-next';
 import modal from '@/utils/modal';
 import {
   closeRecorderWindow,
@@ -132,10 +160,10 @@ let unlistenMoved: UnlistenFn | null = null;
 const MIN_CAPTURE_SIZE = 80;
 const DEFAULT_WINDOW_WIDTH = 468;
 const DEFAULT_WINDOW_HEIGHT = 300;
-const MIN_WINDOW_WIDTH = 468;
+const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
-const TITLE_BAR_HEIGHT = 38;
-const CONTROL_STRIP_HEIGHT = 56;
+const TITLE_BAR_HEIGHT = 40;
+const CONTROL_STRIP_HEIGHT = 58;
 const FRAME_INSET = 8;
 const BORDER_INSET = 1;
 
@@ -167,6 +195,28 @@ const {
 } = useRecordingSession();
 
 const isBusy = computed(() => status.value === 'recording' || status.value === 'paused' || status.value === 'exporting');
+const audioEnabled = computed(() => settings.value.audio && settings.value.format === 'mp4');
+
+const audioTitle = computed(() => {
+  if (settings.value.format === 'gif') {
+    return 'GIF 不支持音频';
+  }
+  if (result.value?.audioDevice) {
+    return `已录制音频：${result.value.audioDevice}`;
+  }
+  if (result.value && !result.value.hasAudio) {
+    return '未检测到可用音频设备，导出视频无声音';
+  }
+  if (ffmpegStatus.value?.available && !ffmpegStatus.value.systemAudioAvailable) {
+    const devices = ffmpegStatus.value.audioDevices?.join('、') || '无';
+    return settings.value.audio
+      ? `未发现系统声音/立体声混音设备；当前可用音频设备：${devices}`
+      : '录制音频已关闭';
+  }
+  return settings.value.audio
+    ? '录制音频已开启。系统声音需要启用“立体声混音/Loopback”等设备'
+    : '录制音频已关闭';
+});
 
 const timeText = computed(() => {
   const totalSeconds = Math.floor(elapsedMs.value / 1000);
@@ -234,18 +284,32 @@ const refreshCaptureMetrics = async () => {
   }
 };
 
+const clearPassthrough = async () => {
+  await setRecorderPassthroughRegion(null).catch(() => undefined);
+};
+
+const scheduleMetricsRefresh = () => {
+  window.setTimeout(() => {
+    void refreshCaptureMetrics();
+  }, 120);
+};
+
 const startDrag = async (event: MouseEvent) => {
   if (event.button !== 0 || isBusy.value) return;
+  await clearPassthrough();
   await appWindow.startDragging().catch((error: any) => {
     modal.msg(error?.message || String(error), 'error');
   });
+  scheduleMetricsRefresh();
 };
 
 const startResize = async (direction: ResizeDirection) => {
   if (isBusy.value) return;
+  await clearPassthrough();
   await appWindow.startResizeDragging(direction).catch((error: any) => {
     modal.msg(error?.message || String(error), 'error');
   });
+  scheduleMetricsRefresh();
 };
 
 const handleStart = () => runAction(async () => {
@@ -266,11 +330,17 @@ const handleStop = () => runAction(async () => {
 });
 
 const handleRecordAgain = () => {
+  void clearPassthrough();
   reset();
   status.value = 'ready';
   result.value = null;
   void appWindow.setSize(new LogicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
   void nextTick(refreshCaptureMetrics);
+};
+
+const toggleAudio = () => {
+  if (isBusy.value || settings.value.format === 'gif') return;
+  settings.value.audio = !settings.value.audio;
 };
 
 const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
@@ -295,6 +365,7 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
 };
 
 const handleSnapToWindow = () => runAction(async () => {
+  await clearPassthrough();
   const target = await pickTargetWindow();
   await fitRecorderToWindow(target);
 });
@@ -383,7 +454,7 @@ onUnmounted(() => {
 .recorder-shell {
   position: relative;
   display: grid;
-  grid-template-rows: 38px minmax(120px, 1fr) 56px;
+  grid-template-rows: 40px minmax(120px, 1fr) 58px;
   width: 100vw;
   height: 100vh;
   border: 1px solid rgba(198, 205, 214, 0.95);
@@ -395,9 +466,11 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px 0 14px;
+  height: 40px;
+  padding: 0 4px 0 14px;
   background: rgba(255, 255, 255, 0.98);
   border-bottom: 1px solid rgba(210, 216, 224, 0.92);
+  border-radius: 6px 6px 0 0;
   cursor: move;
 }
 
@@ -411,29 +484,40 @@ onUnmounted(() => {
 
 .window-actions {
   display: flex;
+  height: 100%;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .title-button {
   width: 32px;
-  height: 28px;
-  color: #2c333d;
+  height: 32px;
+  color: rgba(32, 36, 44, 0.86);
   background: transparent;
   border: 0;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
 
   &:hover {
-    background: rgba(30, 37, 48, 0.08);
+    color: #5d6dfd;
+    background: rgba(93, 109, 253, 0.08);
   }
 
-  &.close:hover {
-    color: #fff;
-    background: #d92d20;
+  &--close:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
   }
+}
+
+.title-icon {
+  display: block;
 }
 
 .capture-viewport {
@@ -531,38 +615,34 @@ onUnmounted(() => {
 }
 
 .control-strip {
+  container-type: inline-size;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
+  justify-content: space-between;
+  gap: 8px;
   min-width: 0;
   overflow: hidden;
-  padding: 8px;
+  padding: 9px 10px;
   background: rgba(255, 255, 255, 0.98);
   border-top: 1px solid rgba(210, 216, 224, 0.92);
   box-sizing: border-box;
-
-  > * {
-    flex: 0 0 auto;
-  }
 }
 
-.status-dot {
+.control-group {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.control-group--tools {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.control-group--actions {
   flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  border: 1px solid #8d96a3;
-  border-radius: 50%;
-
-  &.active {
-    background: #b52b27;
-    border-color: #b52b27;
-  }
-
-  &.paused {
-    background: #d89113;
-    border-color: #d89113;
-  }
+  justify-content: flex-end;
 }
 
 select,
@@ -585,6 +665,15 @@ input {
 select {
   width: 54px;
   padding: 0 4px;
+}
+
+.select-field,
+.dimension-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
 }
 
 .dimension input {
@@ -611,14 +700,15 @@ select {
 
 .save-status {
   overflow: hidden;
-  max-width: 120px;
+  max-width: 96px;
   color: #334155;
   text-overflow: ellipsis;
 }
 
 .record-button,
 .control-button,
-.icon-control {
+.icon-control,
+.audio-meter {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -650,6 +740,64 @@ select {
   line-height: 1;
 }
 
+.snap-control {
+  font-size: 18px;
+}
+
+.audio-meter {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  color: #64748b;
+  border: 1px solid rgba(191, 199, 210, 0.78);
+  background: rgba(248, 250, 252, 0.85);
+
+  &.active {
+    color: #16a34a;
+    border-color: rgba(22, 163, 74, 0.36);
+    background: rgba(240, 253, 244, 0.92);
+  }
+
+  &.muted {
+    opacity: 0.55;
+  }
+}
+
+.audio-bars {
+  display: inline-flex;
+  align-items: end;
+  gap: 3px;
+  height: 16px;
+
+  i {
+    display: block;
+    width: 4px;
+    height: 7px;
+    background: currentcolor;
+    border-radius: 999px;
+  }
+
+  i:nth-child(2) {
+    height: 12px;
+  }
+
+  i:nth-child(3) {
+    height: 9px;
+  }
+}
+
+.audio-meter.active .audio-bars i {
+  animation: audio-level 0.72s ease-in-out infinite;
+}
+
+.audio-meter.active .audio-bars i:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.audio-meter.active .audio-bars i:nth-child(3) {
+  animation-delay: 0.24s;
+}
+
 .record-button {
   min-width: 72px;
 }
@@ -667,6 +815,36 @@ select {
 
 .control-button.danger {
   color: #b42318;
+}
+
+@keyframes audio-level {
+  0%, 100% {
+    transform: scaleY(0.55);
+  }
+
+  50% {
+    transform: scaleY(1.18);
+  }
+}
+
+@container (max-width: 560px) {
+  .optional-size {
+    display: none;
+  }
+
+  .optional-save-status {
+    display: none;
+  }
+}
+
+@container (max-width: 460px) {
+  .optional-format {
+    display: none;
+  }
+
+  .record-button {
+    min-width: 64px;
+  }
 }
 
 .warning {

@@ -28,6 +28,8 @@ export interface FfmpegStatus {
   source?: string;
   searchedPaths: string[];
   message?: string;
+  audioDevices?: string[];
+  systemAudioAvailable?: boolean;
 }
 
 export interface RecordingExportResult {
