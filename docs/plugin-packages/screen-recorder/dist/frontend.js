@@ -1,10 +1,10 @@
 import { inject as X, createVNode as D, getCurrentInstance as ce, ref as x, computed as m, unref as l, readonly as Kn, getCurrentScope as Zn, onScopeDispose as Jn, onMounted as qe, nextTick as De, watch as ze, isRef as Yn, warn as Qn, provide as Xn, defineComponent as E, createElementBlock as T, openBlock as S, mergeProps as eo, renderSlot as de, createElementVNode as c, normalizeClass as N, Transition as ct, withCtx as ee, withDirectives as te, normalizeStyle as xe, createTextVNode as Yt, toDisplayString as $, vShow as Ae, shallowReactive as to, createBlock as V, createCommentVNode as q, resolveDynamicComponent as Qt, Fragment as Ce, withModifiers as Se, isVNode as Ie, render as je, onUnmounted as Xt, renderList as no, vModelSelect as et } from "vue";
-const Ji = (e) => {
+const Yi = (e) => {
   e.registerRoute({
     target: "window",
     path: "/screen-recorder",
     name: "ScreenRecorder",
-    component: () => Promise.resolve().then(() => Ki)
+    component: () => Promise.resolve().then(() => Zi)
   });
 };
 function oo(e, t, n, o) {
@@ -3704,13 +3704,13 @@ function gi() {
     reset: _
   };
 }
-const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "window-title" }, wi = { class: "capture-viewport" }, _i = { class: "capture-frame" }, bi = { class: "control-strip" }, Ci = { class: "control-group control-group--tools" }, Si = ["title", "disabled"], Oi = { class: "select-field" }, ki = ["disabled"], xi = ["disabled"], Ii = ["disabled"], Ti = { value: "high" }, Ni = { value: "standard" }, zi = { value: "small" }, Pi = { class: "dimension-group optional-size" }, $i = { class: "dimension" }, Ei = ["value"], Mi = { class: "dimension" }, Li = ["value"], Di = { class: "control-group control-group--actions" }, Ri = { class: "time" }, Fi = {
+const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "window-title" }, wi = { class: "capture-viewport" }, _i = { class: "capture-frame" }, bi = { class: "control-strip" }, Ci = { class: "control-group control-group--tools" }, Si = { class: "tool-pill" }, Oi = ["title", "disabled"], ki = { class: "select-field" }, xi = ["disabled"], Ii = ["disabled"], Ti = ["disabled"], Ni = { value: "high" }, zi = { value: "standard" }, Pi = { value: "small" }, $i = { class: "dimension-group optional-size" }, Ei = { class: "dimension" }, Mi = ["value"], Li = { class: "dimension" }, Di = ["value"], Ri = { class: "control-group control-group--actions" }, Fi = { class: "time" }, Wi = {
   key: 1,
   class: "save-status"
-}, Wi = ["title"], Ai = ["disabled"], ji = {
+}, Ai = ["title"], ji = ["disabled"], Bi = {
   key: 0,
   class: "warning"
-}, K = "[screen-recorder]", Ee = 80, Bi = 468, Hi = 300, Kt = 420, Zt = 260, Jt = 40, Gi = 58, Me = 8, Le = 1, Ui = /* @__PURE__ */ E({
+}, K = "[screen-recorder]", Ee = 80, Hi = 468, Gi = 300, Kt = 420, Zt = 260, Jt = 38, Ui = 60, Me = 8, Le = 1, Vi = /* @__PURE__ */ E({
   __name: "index",
   setup(e) {
     const t = nn(), n = x(null), o = x({ width: 0, height: 0 }), s = x(0), i = x(!1);
@@ -3844,14 +3844,14 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
       });
     }), Bn = () => {
       me(), Ye(), p.value = "ready", b.value = null, le(!0).catch(() => {
-      }), t.setSize(new Oe(Bi, Hi)), De(U), Pe();
+      }), t.setSize(new Oe(Hi, Gi)), De(U), Pe();
     }, Hn = async (f) => {
       const O = (await fo(f.screenX, f.screenY))?.scaleFactor || await t.scaleFactor(), Y = Math.max(
         Kt,
         f.physicalWidth / O + Me * 2 + Le * 2
       ), we = Math.max(
         Zt,
-        f.physicalHeight / O + Jt + Gi + Me * 2 + Le * 2
+        f.physicalHeight / O + Jt + Ui + Me * 2 + Le * 2
       );
       await t.setPosition(new G(
         Math.round(f.screenX - (Me + Le) * O),
@@ -3921,7 +3921,7 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
               c(
                 "span",
                 mi,
-                $(f.$t("screenRecorder.title") || "自定义录屏"),
+                $(f.$t("screenRecorder.title") || "区域录制"),
                 1
                 /* TEXT */
               ),
@@ -4040,69 +4040,80 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
           ]),
           c("footer", bi, [
             c("div", Ci, [
-              l(p) === "ready" || l(p) === "completed" ? (S(), T(
-                "button",
-                {
-                  key: 0,
-                  class: "icon-control snap-control",
-                  title: "拖到目标窗口并松开以对齐",
-                  onMousedown: Se(Gn, ["prevent"])
-                },
-                " ◎ ",
-                32
-                /* NEED_HYDRATION */
-              )) : q("v-if", !0),
-              c("button", {
-                class: N(["audio-meter", { active: J.value && s.value > 0.03, metering: J.value && !i.value, muted: !J.value || i.value }]),
-                title: Mn.value,
-                "aria-label": "系统声音录制状态",
-                disabled: l(p) === "exporting" || l(y).format === "gif"
-              }, [
-                c(
-                  "span",
+              c("div", Si, [
+                l(p) === "ready" || l(p) === "completed" ? (S(), T(
+                  "button",
                   {
-                    class: "audio-bars",
-                    style: xe(wt.value)
+                    key: 0,
+                    class: "icon-control snap-control",
+                    title: "拖到目标窗口并松开以对齐",
+                    "aria-label": "对齐目标窗口",
+                    onMousedown: Se(Gn, ["prevent"])
                   },
                   d[13] || (d[13] = [
                     c(
-                      "i",
-                      null,
-                      null,
-                      -1
-                      /* HOISTED */
-                    ),
-                    c(
-                      "i",
-                      null,
-                      null,
-                      -1
-                      /* HOISTED */
-                    ),
-                    c(
-                      "i",
-                      null,
-                      null,
-                      -1
-                      /* HOISTED */
-                    ),
-                    c(
-                      "i",
-                      null,
+                      "span",
+                      { class: "snap-ring" },
                       null,
                       -1
                       /* HOISTED */
                     )
                   ]),
-                  4
-                  /* STYLE */
-                )
-              ], 10, Si),
-              c("label", Oi, [
+                  32
+                  /* NEED_HYDRATION */
+                )) : q("v-if", !0),
+                c("button", {
+                  class: N(["audio-meter", { active: J.value && s.value > 0.03, metering: J.value && !i.value, muted: !J.value || i.value }]),
+                  title: Mn.value,
+                  "aria-label": "系统声音录制状态",
+                  disabled: l(p) === "exporting" || l(y).format === "gif"
+                }, [
+                  c(
+                    "span",
+                    {
+                      class: "audio-bars",
+                      style: xe(wt.value)
+                    },
+                    d[14] || (d[14] = [
+                      c(
+                        "i",
+                        null,
+                        null,
+                        -1
+                        /* HOISTED */
+                      ),
+                      c(
+                        "i",
+                        null,
+                        null,
+                        -1
+                        /* HOISTED */
+                      ),
+                      c(
+                        "i",
+                        null,
+                        null,
+                        -1
+                        /* HOISTED */
+                      ),
+                      c(
+                        "i",
+                        null,
+                        null,
+                        -1
+                        /* HOISTED */
+                      )
+                    ]),
+                    4
+                    /* STYLE */
+                  )
+                ], 10, Oi)
+              ]),
+              c("label", ki, [
                 te(c("select", {
                   "onUpdate:modelValue": d[1] || (d[1] = (O) => l(y).fps = O),
                   disabled: C.value
-                }, d[14] || (d[14] = [
+                }, d[15] || (d[15] = [
                   c(
                     "option",
                     { value: 15 },
@@ -4131,10 +4142,10 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
                     -1
                     /* HOISTED */
                   )
-                ]), 8, ki), [
+                ]), 8, xi), [
                   [et, l(y).fps]
                 ]),
-                d[15] || (d[15] = c(
+                d[16] || (d[16] = c(
                   "span",
                   { class: "unit" },
                   "fps",
@@ -4146,7 +4157,7 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
                 "onUpdate:modelValue": d[2] || (d[2] = (O) => l(y).format = O),
                 class: "format-select optional-format",
                 disabled: C.value
-              }, d[16] || (d[16] = [
+              }, d[17] || (d[17] = [
                 c(
                   "option",
                   { value: "mp4" },
@@ -4161,7 +4172,7 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
                   -1
                   /* HOISTED */
                 )
-              ]), 8, xi), [
+              ]), 8, Ii), [
                 [et, l(y).format]
               ]),
               te(c("select", {
@@ -4171,49 +4182,49 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
               }, [
                 c(
                   "option",
-                  Ti,
+                  Ni,
                   $(f.$t("screenRecorder.qualityHigh")),
                   1
                   /* TEXT */
                 ),
                 c(
                   "option",
-                  Ni,
+                  zi,
                   $(f.$t("screenRecorder.qualityStandard")),
                   1
                   /* TEXT */
                 ),
                 c(
                   "option",
-                  zi,
+                  Pi,
                   $(f.$t("screenRecorder.qualitySmall")),
                   1
                   /* TEXT */
                 )
-              ], 8, Ii), [
+              ], 8, Ti), [
                 [et, l(y).quality]
               ]),
-              c("div", Pi, [
-                c("label", $i, [
+              c("div", $i, [
+                c("label", Ei, [
                   c("input", {
                     value: o.value.width,
                     readonly: ""
-                  }, null, 8, Ei)
+                  }, null, 8, Mi)
                 ]),
-                d[17] || (d[17] = c(
+                d[18] || (d[18] = c(
                   "span",
                   { class: "multiply" },
                   "×",
                   -1
                   /* HOISTED */
                 )),
-                c("label", Mi, [
+                c("label", Li, [
                   c("input", {
                     value: o.value.height,
                     readonly: ""
-                  }, null, 8, Li)
+                  }, null, 8, Di)
                 ]),
-                d[18] || (d[18] = c(
+                d[19] || (d[19] = c(
                   "span",
                   { class: "unit" },
                   "px",
@@ -4222,14 +4233,14 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
                 ))
               ])
             ]),
-            c("div", Di, [
+            c("div", Ri, [
               l(p) === "recording" || l(p) === "paused" ? (S(), T(
                 Ce,
                 { key: 0 },
                 [
                   c(
                     "span",
-                    Ri,
+                    Fi,
                     $(Ln.value),
                     1
                     /* TEXT */
@@ -4259,7 +4270,7 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
                 /* STABLE_FRAGMENT */
               )) : l(p) === "exporting" ? (S(), T(
                 "span",
-                Fi,
+                Wi,
                 $(f.$t("screenRecorder.exporting") || "正在导出..."),
                 1
                 /* TEXT */
@@ -4270,7 +4281,7 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
                   c("span", {
                     class: "save-status optional-save-status",
                     title: l(b).path
-                  }, $(l(b).hasAudio ? "已保存·有声" : "已保存·无声"), 9, Wi),
+                  }, $(l(b).hasAudio ? "已保存·有声" : "已保存·无声"), 9, Ai),
                   c("button", {
                     class: "control-button",
                     title: "打开文件",
@@ -4295,7 +4306,7 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
                 disabled: l(k)?.available === !1 || o.value.width < Ee || o.value.height < Ee,
                 onClick: Fn
               }, [
-                d[19] || (d[19] = c(
+                d[20] || (d[20] = c(
                   "span",
                   null,
                   null,
@@ -4307,7 +4318,7 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
                   1
                   /* TEXT */
                 )
-              ], 8, Ai))
+              ], 8, ji))
             ])
           ])
         ],
@@ -4316,22 +4327,22 @@ const vi = { class: "screen-recorder" }, yi = ["onMousedown"], mi = { class: "wi
       ),
       l(k) && !l(k).available ? (S(), T(
         "p",
-        ji,
+        Bi,
         $(l(k).message || f.$t("screenRecorder.ffmpegMissing")),
         1
         /* TEXT */
       )) : q("v-if", !0)
     ]));
   }
-}), Vi = (e, t) => {
+}), qi = (e, t) => {
   const n = e.__vccOpts || e;
   for (const [o, s] of t)
     n[o] = s;
   return n;
-}, qi = /* @__PURE__ */ Vi(Ui, [["__scopeId", "data-v-a10a5944"]]), Ki = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, Ki = /* @__PURE__ */ qi(Vi, [["__scopeId", "data-v-9949d1fd"]]), Zi = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: qi
+  default: Ki
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  Ji as activate
+  Yi as activate
 };

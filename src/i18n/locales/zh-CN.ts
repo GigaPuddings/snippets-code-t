@@ -444,13 +444,13 @@ export default {
       description: '截图 OCR 与截图翻译所需的 RapidOCR 运行时、模型与本地识别资源。'
     },
     screenRecorder: {
-      name: '自定义录屏',
+      name: '区域录制',
       description: '自定义区域录制，支持 MP4 与 GIF 导出，无水印。',
       resourceHint: '录屏导出依赖 FFmpeg，可作为插件资源提供或使用系统已安装的 FFmpeg。'
     },
     screenRecorderFfmpeg: {
       name: '录屏 FFmpeg 资源',
-      description: '自定义录屏导出 MP4 与 GIF 所需的 FFmpeg 可执行文件资源。'
+      description: '区域录制导出 MP4 与 GIF 所需的 FFmpeg 可执行文件资源。'
     },
     todo: {
       name: '待办提醒',
@@ -515,7 +515,7 @@ export default {
     screenshotHotkey: '截图快捷键：',
     screenshotHotkeyDesc: '设置截图功能快捷键',
     screenRecorderHotkey: '录屏快捷键：',
-    screenRecorderHotkeyDesc: '设置自定义录屏快捷键',
+    screenRecorderHotkeyDesc: '设置区域录制快捷键',
     darkModeHotkey: '系统主题快捷键：',
     darkModeHotkeyDesc: '设置系统主题窗口快捷键',
     register: '注册',
@@ -1335,7 +1335,7 @@ export default {
   },
 
   screenRecorder: {
-    title: '自定义录屏',
+    title: '区域录制',
     dragToSelect: '拖拽鼠标选择录制区域',
     pickRegionHint: '点击选择区域后，在屏幕上按住鼠标拖出录制范围。',
     pickRegion: '选择区域',

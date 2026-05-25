@@ -10,7 +10,7 @@
       ></span>
 
       <header class="title-bar" @mousedown="startDrag">
-        <span class="window-title">{{ $t('screenRecorder.title') || '自定义录屏' }}</span>
+        <span class="window-title">{{ $t('screenRecorder.title') || '区域录制' }}</span>
         <div class="window-actions" @mousedown.stop>
           <button class="title-button title-button--window" title="最小化" @click="handleMinimize">
             <Minus class="title-icon" theme="outline" size="20" :strokeWidth="3" strokeLinecap="butt" />
@@ -37,29 +37,32 @@
 
       <footer class="control-strip">
         <div class="control-group control-group--tools">
-          <button
-            v-if="status === 'ready' || status === 'completed'"
-            class="icon-control snap-control"
-            title="拖到目标窗口并松开以对齐"
-            @mousedown.prevent="handleSnapToWindow"
-          >
-            ◎
-          </button>
+          <div class="tool-pill">
+            <button
+              v-if="status === 'ready' || status === 'completed'"
+              class="icon-control snap-control"
+              title="拖到目标窗口并松开以对齐"
+              aria-label="对齐目标窗口"
+              @mousedown.prevent="handleSnapToWindow"
+            >
+              <span class="snap-ring"></span>
+            </button>
 
-          <button
-            class="audio-meter"
-            :class="{ active: audioEnabled && audioLevel > 0.03, metering: audioEnabled && !audioMeterUnavailable, muted: !audioEnabled || audioMeterUnavailable }"
-            :title="audioTitle"
-            aria-label="系统声音录制状态"
-            :disabled="status === 'exporting' || settings.format === 'gif'"
-          >
-            <span class="audio-bars" :style="audioBarsStyle">
-              <i></i>
-              <i></i>
-              <i></i>
-              <i></i>
-            </span>
-          </button>
+            <button
+              class="audio-meter"
+              :class="{ active: audioEnabled && audioLevel > 0.03, metering: audioEnabled && !audioMeterUnavailable, muted: !audioEnabled || audioMeterUnavailable }"
+              :title="audioTitle"
+              aria-label="系统声音录制状态"
+              :disabled="status === 'exporting' || settings.format === 'gif'"
+            >
+              <span class="audio-bars" :style="audioBarsStyle">
+                <i></i>
+                <i></i>
+                <i></i>
+                <i></i>
+              </span>
+            </button>
+          </div>
 
           <label class="select-field">
             <select v-model="settings.fps" :disabled="isBusy">
@@ -174,8 +177,8 @@ const DEFAULT_WINDOW_WIDTH = 468;
 const DEFAULT_WINDOW_HEIGHT = 300;
 const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
-const TITLE_BAR_HEIGHT = 40;
-const CONTROL_STRIP_HEIGHT = 58;
+const TITLE_BAR_HEIGHT = 38;
+const CONTROL_STRIP_HEIGHT = 60;
 const FRAME_INSET = 8;
 const BORDER_INSET = 1;
 
@@ -521,7 +524,7 @@ onUnmounted(() => {
 .recorder-shell {
   position: relative;
   display: grid;
-  grid-template-rows: 40px minmax(120px, 1fr) minmax(58px, auto);
+  grid-template-rows: 38px minmax(120px, 1fr) minmax(60px, auto);
   width: 100vw;
   height: 100vh;
   border: 1px solid rgba(198, 205, 214, 0.95);
@@ -533,7 +536,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 40px;
+  height: 38px;
   padding: 0 8px 0 14px;
   background: rgba(255, 255, 255, 0.98);
   border-bottom: 1px solid rgba(210, 216, 224, 0.92);
@@ -545,8 +548,8 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -687,13 +690,13 @@ onUnmounted(() => {
 .control-strip {
   container-type: inline-size;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(72px, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(86px, auto);
   align-items: center;
-  gap: 8px;
+  gap: clamp(8px, 2cqw, 18px);
   min-width: 0;
-  min-height: 58px;
+  min-height: 60px;
   overflow: hidden;
-  padding: 8px clamp(10px, 2cqw, 16px);
+  padding: 10px clamp(12px, 2.2cqw, 18px);
   background: rgba(255, 255, 255, 0.98);
   border-top: 1px solid rgba(210, 216, 224, 0.92);
   box-sizing: border-box;
@@ -703,7 +706,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: clamp(5px, 1.3cqw, 12px);
+  gap: clamp(7px, 1.4cqw, 14px);
 }
 
 .control-group--tools {
@@ -720,7 +723,7 @@ onUnmounted(() => {
 select,
 input,
 button {
-  height: 30px;
+  height: 32px;
   box-sizing: border-box;
   font: inherit;
 }
@@ -728,19 +731,19 @@ button {
 select,
 input {
   color: #1f2733;
-  background: #fff;
-  border: 1px solid #bfc7d2;
-  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(188, 198, 211, 0.82);
+  border-radius: 6px;
   outline: none;
 }
 
 select {
-  width: 54px;
-  padding: 0 4px;
+  width: 62px;
+  padding: 0 8px;
 }
 
 .quality-select {
-  width: 76px;
+  width: 88px;
 }
 
 .select-field,
@@ -748,12 +751,19 @@ select {
   display: inline-flex;
   flex: 0 1 auto;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
 }
 
+.select-field {
+  padding: 3px 8px 3px 3px;
+  background: rgba(246, 248, 251, 0.92);
+  border: 1px solid rgba(214, 220, 229, 0.86);
+  border-radius: 8px;
+}
+
 .dimension input {
-  width: 58px;
+  width: 62px;
   padding: 0 6px;
   text-align: center;
 }
@@ -788,18 +798,19 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
-  padding: 0 7px;
+  padding: 0 10px;
   color: #20242c;
-  background: transparent;
-  border: 0;
-  border-radius: 4px;
+  background: rgba(246, 248, 251, 0.92);
+  border: 1px solid rgba(214, 220, 229, 0.86);
+  border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
 
   &:hover {
-    background: rgba(30, 37, 48, 0.08);
+    background: rgba(239, 243, 248, 0.98);
+    border-color: rgba(171, 183, 199, 0.92);
   }
 
   &:disabled {
@@ -808,30 +819,59 @@ select {
   }
 }
 
+.tool-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  overflow: hidden;
+  background: rgba(246, 248, 251, 0.92);
+  border: 1px solid rgba(214, 220, 229, 0.86);
+  border-radius: 9px;
+}
+
 .icon-control {
-  min-width: 30px;
-  width: 30px;
+  min-width: 34px;
+  width: 34px;
   padding: 0;
-  font-size: 20px;
   line-height: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .snap-control {
-  font-size: 18px;
+  border-right: 1px solid rgba(214, 220, 229, 0.86);
+}
+
+.snap-ring {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentcolor;
+  border-radius: 50%;
+
+  &::after {
+    position: absolute;
+    inset: 3px;
+    content: '';
+    border: 1px solid currentcolor;
+    border-radius: 50%;
+    opacity: 0.62;
+  }
 }
 
 .audio-meter {
-  width: 38px;
-  min-width: 38px;
+  width: 42px;
+  min-width: 42px;
   padding: 0;
   color: #64748b;
-  border: 1px solid rgba(191, 199, 210, 0.78);
-  background: rgba(248, 250, 252, 0.85);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 
   &.active {
     color: #16a34a;
-    border-color: rgba(22, 163, 74, 0.36);
-    background: rgba(240, 253, 244, 0.92);
+    background: rgba(236, 253, 245, 0.86);
   }
 
   &.metering:not(.active) {
@@ -874,19 +914,29 @@ select {
 }
 
 .record-button {
-  flex: 1 1 82px;
-  min-width: 72px;
-  max-width: 150px;
+  flex: 1 1 112px;
+  min-width: 104px;
+  max-width: 168px;
+  height: 36px;
+  padding: 0 14px;
+  color: #fff;
+  background: #b42318;
+  border-color: rgba(180, 35, 24, 0.85);
+
+  &:hover {
+    background: #a11f16;
+    border-color: #a11f16;
+  }
 }
 
 .control-button {
-  min-width: 42px;
+  min-width: 48px;
 }
 
 .record-button span {
-  width: 16px;
-  height: 16px;
-  background: #b52b27;
+  width: 11px;
+  height: 11px;
+  background: currentcolor;
   border-radius: 50%;
 }
 

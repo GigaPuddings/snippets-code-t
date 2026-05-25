@@ -67,7 +67,7 @@ const TRAY_PLUGIN_MENU_SPECS: &[TrayPluginMenuSpec] = &[
         plugin_id: "screen-recorder",
         label: |trans| trans.screen_recorder,
         handler: |_| crate::plugins::screen_recorder::open_screen_recorder_window(),
-        log_message: "[托盘菜单] 执行：自定义录屏",
+        log_message: "[托盘菜单] 执行：区域录制",
     },
 ];
 
@@ -126,7 +126,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             config: "配置管理",
             translate: "输入翻译",
             screenshot: "快速截图",
-            screen_recorder: "自定义录屏",
+            screen_recorder: "区域录制",
             theme_menu: "主题模式",
             theme_system: "跟随系统",
             theme_light: "浅色模式",

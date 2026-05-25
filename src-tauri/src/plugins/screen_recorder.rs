@@ -691,13 +691,6 @@ pub fn screen_recorder_get_ffmpeg_status(app_handle: AppHandle) -> Result<Ffmpeg
     let system_audio_available = audio_devices
         .iter()
         .any(|device| is_system_audio_device(device));
-    info!(
-        "[Plugin:screen-recorder] ffmpeg status requested: available={}, searched={}, audio_devices={:?}, system_audio_available={}",
-        ffmpeg.is_some(),
-        searched_paths.len(),
-        audio_devices,
-        system_audio_available
-    );
     Ok(match ffmpeg {
         Some(location) => FfmpegStatus {
             available: true,
@@ -762,7 +755,7 @@ pub fn open_screen_recorder_window() {
         "screen_recorder",
         WebviewUrl::App("/#/screen-recorder".into()),
     )
-    .title("自定义录屏")
+    .title("区域录制")
     .inner_size(width, height)
     .min_inner_size(420.0, 260.0)
     .position(x, y)
@@ -1239,7 +1232,7 @@ fn spawn_segment(
     #[cfg(not(target_os = "windows"))]
     {
         let _ = (app_handle, temp_dir, region, fps, quality, audio, index);
-        return Err("自定义录屏当前仅支持 Windows + FFmpeg。".to_string());
+        return Err("区域录制当前仅支持 Windows + FFmpeg。".to_string());
     }
 
     #[cfg(target_os = "windows")]
