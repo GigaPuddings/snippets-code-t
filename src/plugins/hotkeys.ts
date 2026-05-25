@@ -8,6 +8,7 @@ export type HotkeyName =
   | 'translate'
   | 'selection_translate'
   | 'screenshot'
+  | 'screen_recorder'
   | 'dark_mode';
 
 export interface HotkeySettingDefinition {
@@ -59,6 +60,14 @@ const hotkeyDefinitions: Record<HotkeyName, HotkeySettingDefinition & {
     get: (store) => store.screenshotHotkey,
     set: (store, value) => { store.screenshotHotkey = value; }
   },
+  screen_recorder: {
+    name: 'screen_recorder',
+    pluginId: 'screen-recorder',
+    labelKey: 'shortcut.screenRecorderHotkey',
+    descriptionKey: 'shortcut.screenRecorderHotkeyDesc',
+    get: (store) => store.screenRecorderHotkey,
+    set: (store, value) => { store.screenRecorderHotkey = value; }
+  },
   dark_mode: {
     name: 'dark_mode',
     pluginId: 'system-theme',
@@ -75,6 +84,7 @@ export const hotkeySettingDefinitions: HotkeySettingDefinition[] = [
   hotkeyDefinitions.translate,
   hotkeyDefinitions.selection_translate,
   hotkeyDefinitions.screenshot,
+  hotkeyDefinitions.screen_recorder,
   hotkeyDefinitions.dark_mode
 ].map(({ name, labelKey, descriptionKey, pluginId }) => ({ name, labelKey, descriptionKey, pluginId }));
 

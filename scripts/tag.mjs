@@ -135,8 +135,8 @@ async function updateVersion() {
     tauriConfig.version = version;
     await fs.writeFile(tauriConfigPath, JSON.stringify(tauriConfig, null, 2) + '\n');
 
-    // 同步官方插件包、插件仓库和插件标签。RapidOCR 二进制资源较大，
-    // 需要单独运行 pnpm rapidocr:release 才会上传完整资源包。
+    // 同步官方插件包、插件仓库和插件标签。RapidOCR/FFmpeg 二进制资源较大，
+    // 需要单独运行对应 release 脚本才会上传完整资源包。
     console.log('\n正在构建官方插件运行时...');
     execCommand('pnpm plugins:build-official');
 
@@ -157,6 +157,18 @@ async function updateVersion() {
         execCommand('pnpm rapidocr:release');
       } else {
         console.log('已跳过 RapidOCR 大资源包上传，可稍后运行 pnpm rapidocr:release。');
+      }
+    }
+
+    const ffmpegExePath = path.resolve(__dirname, '../src-tauri/resources/ffmpeg/ffmpeg.exe');
+    if (existsSync(ffmpegExePath)) {
+      const publishFfmpeg = await question(
+        '\n检测到本地 FFmpeg 资源，是否同步完整录屏 FFmpeg 资源包到插件仓库并更新同版本标签？(y/N): '
+      );
+      if (publishFfmpeg.toLowerCase() === 'y') {
+        execCommand('pnpm ffmpeg:release');
+      } else {
+        console.log('已跳过 FFmpeg 大资源包上传，可稍后运行 pnpm ffmpeg:release。');
       }
     }
 

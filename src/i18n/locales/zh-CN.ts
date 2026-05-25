@@ -443,6 +443,15 @@ export default {
       name: 'RapidOCR 资源',
       description: '截图 OCR 与截图翻译所需的 RapidOCR 运行时、模型与本地识别资源。'
     },
+    screenRecorder: {
+      name: '自定义录屏',
+      description: '自定义区域录制，支持 MP4 与 GIF 导出，无水印。',
+      resourceHint: '录屏导出依赖 FFmpeg，可作为插件资源提供或使用系统已安装的 FFmpeg。'
+    },
+    screenRecorderFfmpeg: {
+      name: '录屏 FFmpeg 资源',
+      description: '自定义录屏导出 MP4 与 GIF 所需的 FFmpeg 可执行文件资源。'
+    },
     todo: {
       name: '待办提醒',
       description: '待办事项、定时提醒和系统通知窗口。'
@@ -505,6 +514,8 @@ export default {
     selectionTranslateHotkeyDesc: '设置划词翻译功能快捷键',
     screenshotHotkey: '截图快捷键：',
     screenshotHotkeyDesc: '设置截图功能快捷键',
+    screenRecorderHotkey: '录屏快捷键：',
+    screenRecorderHotkeyDesc: '设置自定义录屏快捷键',
     darkModeHotkey: '系统主题快捷键：',
     darkModeHotkeyDesc: '设置系统主题窗口快捷键',
     register: '注册',
@@ -1321,6 +1332,36 @@ export default {
     dragToSelect: '拖拽鼠标选择截图区域',
     pressEscToClose: '按ESC键关闭',
     colorPicker: '取色器'
+  },
+
+  screenRecorder: {
+    title: '自定义录屏',
+    dragToSelect: '拖拽鼠标选择录制区域',
+    pickRegionHint: '点击选择区域后，在屏幕上按住鼠标拖出录制范围。',
+    pickRegion: '选择区域',
+    picking: '拖选中...',
+    width: '宽',
+    height: '高',
+    start: '开始录制',
+    pause: '暂停',
+    resume: '继续',
+    stop: '停止',
+    cancel: '取消',
+    export: '导出',
+    exportSettings: '导出设置',
+    exporting: '正在压缩并导出...',
+    exportDone: '导出完成',
+    format: '格式',
+    fps: '帧率',
+    quality: '质量',
+    qualityHigh: '高清',
+    qualityStandard: '标准',
+    qualitySmall: '体积优先',
+    savePath: '保存路径',
+    openFile: '打开文件',
+    openFolder: '打开所在文件夹',
+    recordAgain: '重新录制',
+    ffmpegMissing: '未找到 FFmpeg，请安装或配置 FFmpeg 后再录制。'
   },
 
   // 搜索语法提示

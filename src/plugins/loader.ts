@@ -3,6 +3,7 @@ import { desktopFilesPlugin } from './desktop-files/manifest';
 import { gitSyncPlugin } from './git-sync/manifest';
 import { localLauncherPlugin } from './local-launcher/manifest';
 import { quickToolsPlugin } from './quick-tools/manifest';
+import { screenRecorderPlugin } from './screen-recorder/manifest';
 import { screenshotPlugin } from './screenshot/manifest';
 import { searchEnginesPlugin } from './search-engines/manifest';
 import { systemThemePlugin } from './system-theme/manifest';
@@ -20,6 +21,7 @@ export const BUILTIN_PLUGIN_PACKAGES: BuiltinPlugin[] = [
   localLauncherPlugin,
   desktopFilesPlugin,
   quickToolsPlugin,
+  screenRecorderPlugin,
   searchEnginesPlugin,
   gitSyncPlugin,
   attachmentsPlugin

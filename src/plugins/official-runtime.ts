@@ -12,6 +12,7 @@ const officialRuntimeLoaders: Record<string, () => Promise<OfficialRuntimeModule
   'local-launcher': () => import('./local-launcher/runtime-entry'),
   'desktop-files': () => import('./desktop-files/runtime-entry'),
   'quick-tools': () => import('./quick-tools/runtime-entry'),
+  'screen-recorder': () => import('./screen-recorder/runtime-entry'),
   'search-engines': () => import('./search-engines/runtime-entry'),
   'git-sync': () => import('./git-sync/runtime-entry')
 };

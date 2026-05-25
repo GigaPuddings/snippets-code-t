@@ -15,6 +15,7 @@ export const useConfigurationStore = defineStore('configuration', {
     translateHotkey: '', // 翻译快捷键
     selectionTranslateHotkey: '', // 划词翻译快捷键
     screenshotHotkey: '', // 截图快捷键
+    screenRecorderHotkey: '', // 录屏快捷键
     darkModeHotkey: '', // Auto Dark Mode快捷键
     dbPath: null, // 数据库路径
     dbBackup: 'A', // 数据库备份
@@ -49,13 +50,15 @@ export const useConfigurationStore = defineStore('configuration', {
           translateHotkey,
           selectionTranslateHotkey,
           screenshotHotkey,
+          screenRecorderHotkey,
           darkModeHotkey
-        ]: [string, string, string, string, string, string] = await invoke('get_shortcuts');
+        ]: [string, string, string, string, string, string, string] = await invoke('get_shortcuts');
         this.searchHotkey = searchHotkey;
         this.configHotkey = configHotkey;
         this.translateHotkey = translateHotkey;
         this.selectionTranslateHotkey = selectionTranslateHotkey || '';
         this.screenshotHotkey = screenshotHotkey || '';
+        this.screenRecorderHotkey = screenRecorderHotkey || '';
         this.darkModeHotkey = darkModeHotkey || '';
       } catch (error) {
         logger.error('获取快捷键配置失败:', error);

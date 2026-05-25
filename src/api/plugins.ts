@@ -15,6 +15,14 @@ export interface PluginResourceStatus {
   searchedPaths: string[];
 }
 
+export interface FfmpegResourceStatus {
+  available: boolean;
+  source?: string;
+  path?: string;
+  searchedPaths: string[];
+  message?: string;
+}
+
 export interface PluginMarketplaceItem {
   id: string;
   version: string;
@@ -120,6 +128,10 @@ export async function setPluginEnabled(
 
 export async function getRapidOcrResourceStatus(): Promise<PluginResourceStatus> {
   return await invoke<PluginResourceStatus>('get_rapidocr_resource_status');
+}
+
+export async function getScreenRecorderFfmpegStatus(): Promise<FfmpegResourceStatus> {
+  return await invoke<FfmpegResourceStatus>('screen_recorder_get_ffmpeg_status');
 }
 
 export async function getLocalPluginResourcePath(

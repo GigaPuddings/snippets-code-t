@@ -49,3 +49,7 @@ RELEASE_NOTES_TEMP.md
 # RapidOCR 本地二进制和模型较大，由 pnpm rapidocr:install 下载
 src-tauri/resources/rapidocr/*
 !src-tauri/resources/rapidocr/README.md
+
+# FFmpeg 本地二进制较大，由 pnpm ffmpeg:install 下载
+src-tauri/resources/ffmpeg/*
+!src-tauri/resources/ffmpeg/README.md

@@ -24,6 +24,7 @@ struct TrayTranslations {
     config: &'static str,
     translate: &'static str,
     screenshot: &'static str,
+    screen_recorder: &'static str,
     // 主题子菜单
     theme_menu: &'static str,
     theme_system: &'static str,
@@ -60,6 +61,13 @@ const TRAY_PLUGIN_MENU_SPECS: &[TrayPluginMenuSpec] = &[
         label: |trans| trans.screenshot,
         handler: |_| hotkey_screenshot(),
         log_message: "[托盘菜单] 执行：快速截图",
+    },
+    TrayPluginMenuSpec {
+        id: "screen_recorder",
+        plugin_id: "screen-recorder",
+        label: |trans| trans.screen_recorder,
+        handler: |_| crate::plugins::screen_recorder::open_screen_recorder_window(),
+        log_message: "[托盘菜单] 执行：自定义录屏",
     },
 ];
 
@@ -100,6 +108,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             config: "Settings",
             translate: "Translate",
             screenshot: "Screenshot",
+            screen_recorder: "Screen Recorder",
             theme_menu: "Theme Mode",
             theme_system: "Follow System",
             theme_light: "Light Mode",
@@ -117,6 +126,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             config: "配置管理",
             translate: "输入翻译",
             screenshot: "快速截图",
+            screen_recorder: "自定义录屏",
             theme_menu: "主题模式",
             theme_system: "跟随系统",
             theme_light: "浅色模式",

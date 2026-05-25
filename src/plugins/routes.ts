@@ -54,6 +54,12 @@ export const windowPluginRoutes: RouteRecordRaw[] = isBundledOfficialPluginsMode
         name: 'Pin',
         component: () => import('./screenshot/pages/pin/index.vue'),
         meta: { pluginId: 'screenshot' }
+      },
+      {
+        path: '/screen-recorder',
+        name: 'ScreenRecorder',
+        component: () => import('./screen-recorder/pages/recorder/index.vue'),
+        meta: { pluginId: 'screen-recorder' }
       }
     ]
   : [];

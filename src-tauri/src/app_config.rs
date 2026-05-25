@@ -77,6 +77,8 @@ pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub screenshot_hotkey: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub screen_recorder_hotkey: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub dark_mode_hotkey: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dark_mode_config: Option<String>,
@@ -120,6 +122,7 @@ pub type PluginStates = HashMap<String, PluginRuntimeState>;
 const BUILTIN_PLUGIN_IDS: &[&str] = &[
     "translation",
     "screenshot",
+    "screen-recorder",
     "todo",
     "system-theme",
     "local-launcher",
@@ -235,6 +238,7 @@ impl Default for AppConfig {
             translate_hotkey: None,
             selection_translate_hotkey: None,
             screenshot_hotkey: None,
+            screen_recorder_hotkey: None,
             dark_mode_hotkey: None,
             dark_mode_config: None,
             workspace_root: None,
@@ -460,6 +464,9 @@ impl AppConfigManager {
                 self.config.ocr_language = None;
                 self.config.screenshot_hotkey = None;
             }
+            "screen-recorder" => {
+                self.config.screen_recorder_hotkey = None;
+            }
             _ => {}
         }
     }
@@ -530,6 +537,10 @@ fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> 
         &legacy.selection_translate_hotkey,
     );
     changed |= copy_option_if_empty(&mut target.screenshot_hotkey, &legacy.screenshot_hotkey);
+    changed |= copy_option_if_empty(
+        &mut target.screen_recorder_hotkey,
+        &legacy.screen_recorder_hotkey,
+    );
     changed |= copy_option_if_empty(&mut target.dark_mode_hotkey, &legacy.dark_mode_hotkey);
     changed |= copy_option_if_empty(&mut target.dark_mode_config, &legacy.dark_mode_config);
 
@@ -1602,7 +1613,7 @@ fn plugin_package_record(
 fn plugin_has_owned_config(plugin_id: &str) -> bool {
     matches!(
         plugin_id,
-        "attachments" | "git-sync" | "screenshot" | "system-theme" | "translation"
+        "attachments" | "git-sync" | "screen-recorder" | "screenshot" | "system-theme" | "translation"
     )
 }
 

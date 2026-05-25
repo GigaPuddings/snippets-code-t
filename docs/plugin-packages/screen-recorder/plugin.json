@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "screen-recorder",
+  "version": "2.0.4",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.screenRecorder.name",
+    "fallback": "Screen Recorder"
+  },
+  "description": {
+    "i18nKey": "plugins.screenRecorder.description",
+    "fallback": "Record a custom area and export MP4 or GIF without a watermark."
+  },
+  "category": "capture",
+  "enabledByDefault": true,
+  "capabilities": {
+    "routeNames": [
+      "ScreenRecorder"
+    ],
+    "hotkeys": [
+      "screen_recorder"
+    ],
+    "trayItems": [
+      "screen_recorder"
+    ],
+    "windows": [
+      "screen_recorder"
+    ]
+  },
+  "resources": {
+    "hintKey": "plugins.screenRecorder.resourceHint",
+    "bundled": false
+  },
+  "permissions": [
+    "command:*"
+  ],
+  "dependencies": [
+    "screen-recorder-ffmpeg"
+  ],
+  "compatibleAppVersion": ">=2.0.3",
+  "entry": {
+    "frontend": "dist/frontend.js",
+    "styles": [
+      "dist/assets/index-B-DanfYb.css"
+    ]
+  },
+  "minAppVersion": "2.0.3",
+  "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/releases/tag/2.0.4"
+}

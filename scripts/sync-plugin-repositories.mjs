@@ -59,6 +59,22 @@ const pluginRepositories = [
     kind: 'feature'
   },
   {
+    id: 'screen-recorder',
+    repo: 'snippets-code-plugin-screen-recorder',
+    sourceDir: 'docs/plugin-packages/screen-recorder',
+    kind: 'feature'
+  },
+  {
+    id: 'screen-recorder-ffmpeg',
+    repo: 'snippets-code-plugin-screen-recorder-ffmpeg',
+    sourceDir: 'docs/examples/screen-recorder-ffmpeg-resource',
+    resourceSourceDir: 'dist-plugin-packages/screen-recorder-ffmpeg',
+    kind: 'resource',
+    requiresExplicitResource: true,
+    includeFlag: 'includeFfmpegResource',
+    includeFlagName: '--include-ffmpeg-resource'
+  },
+  {
     id: 'git-sync',
     repo: 'snippets-code-plugin-git-sync',
     sourceDir: 'docs/plugin-packages/git-sync',
@@ -70,7 +86,9 @@ const pluginRepositories = [
     sourceDir: 'docs/examples/screenshot-rapidocr-resource',
     resourceSourceDir: 'dist-plugin-packages/screenshot-rapidocr',
     kind: 'resource',
-    requiresExplicitResource: true
+    requiresExplicitResource: true,
+    includeFlag: 'includeRapidOcrResource',
+    includeFlagName: '--include-rapidocr-resource'
   },
   {
     id: 'translation-offline-runtime',
@@ -85,6 +103,7 @@ function parseArgs() {
   const options = {
     dryRun: false,
     forceTag: false,
+    includeFfmpegResource: false,
     includeRapidOcrResource: false,
     pinMarketplaceTags: false,
     only: null,
@@ -97,6 +116,8 @@ function parseArgs() {
       options.dryRun = true;
     } else if (arg === '--force-tag') {
       options.forceTag = true;
+    } else if (arg === '--include-ffmpeg-resource') {
+      options.includeFfmpegResource = true;
     } else if (arg === '--include-rapidocr-resource') {
       options.includeRapidOcrResource = true;
     } else if (arg === '--pin-marketplace-tags') {
@@ -164,6 +185,20 @@ async function directoryExists(path) {
   }
 }
 
+async function directorySize(path) {
+  let total = 0;
+  const entries = await readdir(path, { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = join(path, entry.name);
+    if (entry.isDirectory()) {
+      total += await directorySize(entryPath);
+    } else if (entry.isFile()) {
+      total += (await stat(entryPath)).size;
+    }
+  }
+  return total;
+}
+
 async function clearDirectoryExceptGit(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   for (const entry of entries) {
@@ -219,6 +254,12 @@ async function updateMarketplace(selectedPlugins, version, options) {
       ? tagArchiveUrl(plugin.repo, version)
       : mainArchiveUrl(plugin.repo);
     delete item.packageSubdir;
+    if (plugin.resourceSourceDir && options[plugin.includeFlag]) {
+      const resourceDir = resolve(ROOT, plugin.resourceSourceDir);
+      if (await directoryExists(resourceDir)) {
+        item.sizeBytes = await directorySize(resourceDir);
+      }
+    }
 
     if (plugin.kind === 'resource' && item.status === 'planned') {
       item.status = 'available';
@@ -266,16 +307,12 @@ package, then synchronized again.
 }
 
 async function resolveSourceDir(plugin, options) {
-  if (
-    plugin.id === 'screenshot-rapidocr' &&
-    options.includeRapidOcrResource &&
-    plugin.resourceSourceDir
-  ) {
+  if (plugin.requiresExplicitResource && plugin.resourceSourceDir && options[plugin.includeFlag]) {
     const resourceDir = resolve(ROOT, plugin.resourceSourceDir);
     if (await directoryExists(resourceDir)) {
       return resourceDir;
     }
-    throw new Error('未找到 dist-plugin-packages/screenshot-rapidocr，请先运行 pnpm rapidocr:package');
+    throw new Error(`未找到 ${plugin.resourceSourceDir}，请先运行对应的资源打包脚本`);
   }
 
   return resolve(ROOT, plugin.sourceDir);
@@ -413,7 +450,7 @@ async function main() {
   const selectedPlugins = options.only
     ? pluginRepositories.filter((plugin) => options.only.includes(plugin.id))
     : pluginRepositories.filter(
-      (plugin) => !plugin.requiresExplicitResource || options.includeRapidOcrResource
+      (plugin) => !plugin.requiresExplicitResource || options[plugin.includeFlag]
     );
 
   const missing = options.only?.filter(
@@ -424,11 +461,11 @@ async function main() {
   }
 
   const unsafeResourceSync = selectedPlugins.find(
-    (plugin) => plugin.requiresExplicitResource && !options.includeRapidOcrResource
+    (plugin) => plugin.requiresExplicitResource && !options[plugin.includeFlag]
   );
   if (unsafeResourceSync) {
     throw new Error(
-      `${unsafeResourceSync.id}: 需要 --include-rapidocr-resource，避免用空模板覆盖完整资源仓库`
+      `${unsafeResourceSync.id}: 需要 ${unsafeResourceSync.includeFlagName}，避免用空模板覆盖完整资源仓库`
     );
   }
 

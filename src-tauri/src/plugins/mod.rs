@@ -1,5 +1,6 @@
 pub mod desktop_files;
 pub mod local_launcher;
+pub mod screen_recorder;
 pub mod screenshot;
 pub mod search_engines;
 pub mod shared;

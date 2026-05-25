@@ -54,6 +54,27 @@ https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/ta
 Do not use `packageSubdir` for a published official plugin repository. That is
 only for development archives or multi-package examples.
 
+The app fetches the marketplace list from the main app repository:
+
+```text
+https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json
+```
+
+Publishing an independent plugin repository does not make the plugin appear in
+the app by itself. Commit and push the updated marketplace manifest in the main
+repository after the plugin package tag is available.
+
+Resource-only packages should be linked from their parent feature plugin in both
+directions:
+
+- The parent marketplace item declares `dependencies`, for example
+  `screen-recorder` depends on `screen-recorder-ffmpeg`.
+- The resource marketplace item declares `resourceFor`, for example
+  `screen-recorder-ffmpeg` has `resourceFor: "screen-recorder"`.
+
+The settings page shows resource-only packages under their parent feature, so a
+resource plugin may not appear as a separate top-level marketplace row.
+
 ## Build And Release
 
 For a plugin-only fix, bump only the plugin package version and keep
@@ -69,6 +90,19 @@ pnpm build
 
 After build and sync, update the marketplace `sizeBytes` value from the package
 directory size if the plugin package contents changed.
+
+Resource-only packages with generated assets require the explicit resource
+flag, otherwise the sync script refuses to overwrite a full resource repository
+with its empty template:
+
+```powershell
+pnpm rapidocr:release
+pnpm ffmpeg:release
+```
+
+These release scripts generate the resource package, sync the independent
+resource plugin repository, pin the marketplace package URL to the tag archive,
+and update generated resource package sizes.
 
 ## Update Publishing Checklist
 

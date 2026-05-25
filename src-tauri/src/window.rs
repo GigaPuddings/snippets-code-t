@@ -1614,6 +1614,67 @@ fn capture_full_screen_to_base64() -> Result<(String, String), String> {
     capture_screen_and_encode()
 }
 
+pub fn preload_screen_background_for_window(window_label: &'static str) {
+    let Some(app_handle) = APP.get() else {
+        info!("preload_screen_background_for_window: 无法获取应用句柄");
+        return;
+    };
+
+    {
+        let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+        *bg = None;
+    }
+    {
+        let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
+        *preview = None;
+    }
+
+    let app_handle_capture = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        {
+            let mut is_capturing = IS_CAPTURING.lock().unwrap();
+            if *is_capturing {
+                *is_capturing = false;
+            }
+            *is_capturing = true;
+        }
+
+        let capture_result = tokio::task::spawn_blocking(capture_full_screen_to_base64).await;
+
+        let screen_image = match capture_result {
+            Ok(Ok(img)) => img,
+            Ok(Err(e)) => {
+                log::error!("屏幕背景预捕获失败: {}", e);
+                let mut is_capturing = IS_CAPTURING.lock().unwrap();
+                *is_capturing = false;
+                return;
+            }
+            Err(e) => {
+                log::error!("屏幕背景预捕获线程错误: {}", e);
+                let mut is_capturing = IS_CAPTURING.lock().unwrap();
+                *is_capturing = false;
+                return;
+            }
+        };
+
+        {
+            let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+            let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
+            *bg = Some(screen_image.1);
+            *preview = Some(screen_image.0);
+        }
+
+        {
+            let mut is_capturing = IS_CAPTURING.lock().unwrap();
+            *is_capturing = false;
+        }
+
+        if let Some(window) = app_handle_capture.get_webview_window(window_label) {
+            let _ = window.emit("background-ready", ());
+        }
+    });
+}
+
 // 创建截图窗口
 pub fn hotkey_screenshot() {
     let app_handle = match APP.get() {
@@ -1690,64 +1751,7 @@ pub fn hotkey_screenshot() {
         );
     }
 
-    // 清除旧的背景图像，确保重新捕获
-    {
-        let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
-        *bg = None;
-    }
-
-    // 【立即开始新的捕获任务】不等待旧任务，直接开始新捕获
-    let app_handle_capture = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        // 尝试获取捕获锁
-        let can_capture = {
-            let mut is_capturing = IS_CAPTURING.lock().unwrap();
-            if *is_capturing {
-                // 已经有任务在捕获，强制重置
-                *is_capturing = false;
-            }
-            *is_capturing = true;
-            true
-        };
-
-        if !can_capture {
-            return;
-        }
-
-        // 在后台线程捕获屏幕
-        let capture_result = tokio::task::spawn_blocking(capture_full_screen_to_base64).await;
-
-        let screen_image = match capture_result {
-            Ok(Ok(img)) => img,
-            Ok(Err(e)) => {
-                log::error!("截图屏幕捕获失败: {}", e);
-                return;
-            }
-            Err(e) => {
-                log::error!("截图捕获线程错误: {}", e);
-                return;
-            }
-        };
-
-        // 存储捕获的屏幕图像
-        {
-            let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
-            let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
-            *bg = Some(screen_image.1);
-            *preview = Some(screen_image.0);
-        }
-
-        // 标记捕获完成
-        {
-            let mut is_capturing = IS_CAPTURING.lock().unwrap();
-            *is_capturing = false;
-        }
-
-        // 通知前端背景已准备好
-        if let Some(window) = app_handle_capture.get_webview_window("screenshot") {
-            let _ = window.emit("background-ready", ());
-        }
-    });
+    preload_screen_background_for_window("screenshot");
 
     // 【优化2】创建窗口（与屏幕捕获并行）
     let builder = WebviewWindowBuilder::new(

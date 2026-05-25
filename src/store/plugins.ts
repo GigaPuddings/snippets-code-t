@@ -5,6 +5,7 @@ import {
   getLocalPluginResourcePath,
   getPluginStates,
   getRapidOcrResourceStatus,
+  getScreenRecorderFfmpegStatus,
   installLocalPluginPackage,
   installPluginPackageFromUrl,
   type PluginMarketplaceItem,
@@ -498,6 +499,25 @@ export const usePluginStore = defineStore('plugins', {
             (packageId) => `plugins/${packageId}/${runtimeEntry}`
           )
         };
+      }
+
+      if (
+        hasPluginOrResourceFor('screen-recorder') &&
+        this.isEnabled('screen-recorder')
+      ) {
+        try {
+          const status = await getScreenRecorderFfmpegStatus();
+          nextStatus['screen-recorder'] = {
+            pluginId: 'screen-recorder',
+            resourceId: 'ffmpeg',
+            available: status.available,
+            source: status.source,
+            path: status.path,
+            searchedPaths: status.searchedPaths
+          };
+        } catch (error) {
+          logger.warn('[PluginStore] 获取录屏 FFmpeg 资源状态失败', error);
+        }
       }
 
       this.resourceStatusByPluginId = nextStatus;

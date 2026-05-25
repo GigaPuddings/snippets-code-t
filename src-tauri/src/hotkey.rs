@@ -43,6 +43,11 @@ const HOTKEY_SPECS: &[HotkeySpec] = &[
         handler: hotkey_screenshot,
     },
     HotkeySpec {
+        name: "screen_recorder",
+        plugin_id: Some("screen-recorder"),
+        handler: crate::plugins::screen_recorder::open_screen_recorder_window,
+    },
+    HotkeySpec {
         name: "dark_mode",
         plugin_id: Some("system-theme"),
         handler: hotkey_dark_mode,
@@ -98,8 +103,13 @@ where
         let manager = app.global_shortcut();
 
         if manager.is_registered(shortcut) {
-            info!("[Hotkey] {} shortcut {} already registered", name, hotkey);
-            return Ok(());
+            info!(
+                "[Hotkey] {} shortcut {} already registered, rebind to current handler",
+                name, hotkey
+            );
+            manager
+                .unregister(shortcut)
+                .map_err(|e| format!("快捷键 '{}' 重新注册前取消失败: {}", hotkey, e))?;
         }
 
         // 注册新的快捷键
@@ -216,7 +226,7 @@ pub fn register_shortcut_by_frontend(
 #[tauri::command]
 pub fn get_shortcuts(
     app_handle: AppHandle,
-) -> Result<(String, String, String, String, String, String), String> {
+) -> Result<(String, String, String, String, String, String, String), String> {
     // 从 app.json 读取所有快捷键配置（静默读取，不输出日志）
     let search_hotkey = json_config::get_app_config_value::<String>(&app_handle, "search_hotkey")
         .unwrap_or_default();
@@ -231,6 +241,9 @@ pub fn get_shortcuts(
     let screenshot_hotkey =
         json_config::get_app_config_value::<String>(&app_handle, "screenshot_hotkey")
             .unwrap_or_default();
+    let screen_recorder_hotkey =
+        json_config::get_app_config_value::<String>(&app_handle, "screen_recorder_hotkey")
+            .unwrap_or_default();
     let dark_mode_hotkey =
         json_config::get_app_config_value::<String>(&app_handle, "dark_mode_hotkey")
             .unwrap_or_default();
@@ -241,6 +254,7 @@ pub fn get_shortcuts(
         translate_hotkey,
         selection_translate_hotkey,
         screenshot_hotkey,
+        screen_recorder_hotkey,
         dark_mode_hotkey,
     ))
 }

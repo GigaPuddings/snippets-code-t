@@ -72,6 +72,7 @@ declare global {
     translateHotkey: string;
     selectionTranslateHotkey: string;
     screenshotHotkey: string;
+    screenRecorderHotkey: string;
     darkModeHotkey: string;
     dbPath: string | null;
     dbBackup: string;

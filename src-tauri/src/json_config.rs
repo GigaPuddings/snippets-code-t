@@ -83,6 +83,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub screenshot_hotkey: Option<String>,
     #[serde(default)]
+    pub screen_recorder_hotkey: Option<String>,
+    #[serde(default)]
     pub dark_mode_hotkey: Option<String>,
 
     // 深色模式配置
@@ -121,6 +123,7 @@ impl Default for AppConfig {
             translate_hotkey: None,
             selection_translate_hotkey: None,
             screenshot_hotkey: None,
+            screen_recorder_hotkey: None,
             dark_mode_hotkey: None,
             dark_mode_config: None,
             workspace_root: None,

@@ -429,6 +429,15 @@ export default {
       name: 'RapidOCR Resource',
       description: 'RapidOCR runtime, models, and local recognition files required by screenshot OCR and screenshot translation.'
     },
+    screenRecorder: {
+      name: 'Screen Recorder',
+      description: 'Record a custom area and export MP4 or GIF without a watermark.',
+      resourceHint: 'Screen recording export depends on FFmpeg, provided as a plugin resource or from the system installation.'
+    },
+    screenRecorderFfmpeg: {
+      name: 'Screen Recorder FFmpeg Resource',
+      description: 'FFmpeg executable resource required by custom screen recording MP4 and GIF export.'
+    },
     todo: {
       name: 'Reminders',
       description: 'Todo cards, timed reminders, and system notification windows.'
@@ -491,6 +500,8 @@ export default {
     selectionTranslateHotkeyDesc: 'Set hotkey for selection translation',
     screenshotHotkey: 'Screenshot Hotkey:',
     screenshotHotkeyDesc: 'Set hotkey for screenshot',
+    screenRecorderHotkey: 'Screen Recorder Hotkey:',
+    screenRecorderHotkeyDesc: 'Set hotkey for custom area recording',
     darkModeHotkey: 'Theme Toggle Hotkey:',
     darkModeHotkeyDesc: 'Set hotkey to toggle system theme',
     register: 'Register',
@@ -1306,6 +1317,36 @@ export default {
     dragToSelect: 'Drag to select area',
     pressEscToClose: 'Press ESC to close',
     colorPicker: 'Color Picker'
+  },
+
+  screenRecorder: {
+    title: 'Screen Recorder',
+    dragToSelect: 'Drag to select recording area',
+    pickRegionHint: 'Click Pick Region, then hold and drag on the screen to choose the recording area.',
+    pickRegion: 'Pick Region',
+    picking: 'Picking...',
+    width: 'W',
+    height: 'H',
+    start: 'Start Recording',
+    pause: 'Pause',
+    resume: 'Resume',
+    stop: 'Stop',
+    cancel: 'Cancel',
+    export: 'Export',
+    exportSettings: 'Export Settings',
+    exporting: 'Compressing and exporting...',
+    exportDone: 'Export Complete',
+    format: 'Format',
+    fps: 'Frame Rate',
+    quality: 'Quality',
+    qualityHigh: 'High',
+    qualityStandard: 'Standard',
+    qualitySmall: 'Small File',
+    savePath: 'Save Path',
+    openFile: 'Open File',
+    openFolder: 'Open Folder',
+    recordAgain: 'Record Again',
+    ffmpegMissing: 'FFmpeg was not found. Install or configure FFmpeg before recording.'
   },
 
   // Search Syntax Helper

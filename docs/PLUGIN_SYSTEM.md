@@ -23,6 +23,7 @@ keeps the registry, marketplace, loader, permissions, and bridge protocol.
 | `local-launcher` | Local apps and bookmarks management/search |
 | `desktop-files` | Desktop file index, watcher, and search results |
 | `search-engines` | Custom search engines and web search shortcuts |
+| `screen-recorder` | Custom area screen recording and MP4/GIF export |
 | `git-sync` | Git settings, status, auto sync, conflict handling |
 | `attachments` | Note attachment settings and cleanup tools |
 
@@ -56,6 +57,7 @@ Official feature plugins own:
 Resource-only plugins own large optional assets:
 
 - `screenshot-rapidocr` provides RapidOCR runtime/model files for screenshot OCR
+- `screen-recorder-ffmpeg` provides FFmpeg for MP4/GIF screen recording export
 - `translation-offline-runtime` provides the Transformers.js runtime used by
   offline translation
 
@@ -237,8 +239,10 @@ See `docs/examples/hello-local-plugin` for a minimal installable package.
 
 Resource-only local plugins are supported by omitting `entry`. The first
 resource-only packages cover the RapidOCR runtime required by screenshot OCR
-and screenshot translation, plus the offline translation runtime; see
-`docs/examples/screenshot-rapidocr-resource` and
+and screenshot translation, the FFmpeg executable required by custom screen
+recording export, plus the offline translation runtime; see
+`docs/examples/screenshot-rapidocr-resource`,
+`docs/examples/screen-recorder-ffmpeg-resource`, and
 `docs/examples/translation-offline-runtime`.
 
 ## Hotkeys
@@ -328,6 +332,25 @@ the local RapidOCR runtime, then `pnpm rapidocr:package` to generate an
 installable `dist-plugin-packages/screenshot-rapidocr` resource package. To
 publish that generated resource package to the RapidOCR plugin repository and
 create the matching Git tag, run `pnpm rapidocr:release`.
+
+Custom screen recording keeps FFmpeg outside the core installer as
+`screen-recorder-ffmpeg`. The recorder backend searches plugin resources,
+bundled resource roots, development resource folders, and finally `PATH`:
+
+```text
+<app-data>/plugins/screen-recorder/resources/ffmpeg/ffmpeg.exe
+<app-data>/plugins/screen-recorder-ffmpeg/resources/ffmpeg/ffmpeg.exe
+src-tauri/resources/ffmpeg/ffmpeg.exe
+PATH:ffmpeg
+```
+
+For development and release packaging, run `pnpm ffmpeg:install` to download
+the local Windows FFmpeg runtime, then run `pnpm ffmpeg:package` to generate
+`dist-plugin-packages/screen-recorder-ffmpeg`. To publish that generated
+resource package and create the matching Git tag, run `pnpm ffmpeg:release`.
+The installer uses the shared BtbN GPL Windows build and packages its required
+DLLs with `ffmpeg.exe`; the packaging step rejects oversized static binaries
+that would exceed GitHub's 100 MB per-file limit.
 
 Offline translation no longer statically imports `@huggingface/transformers`.
 Instead, it loads the ESM runtime from an installed local plugin resource:

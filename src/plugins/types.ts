@@ -6,6 +6,7 @@ export type BuiltinPluginId =
   | 'local-launcher'
   | 'desktop-files'
   | 'quick-tools'
+  | 'screen-recorder'
   | 'search-engines'
   | 'git-sync'
   | 'attachments';

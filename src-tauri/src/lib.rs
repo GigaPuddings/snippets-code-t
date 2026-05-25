@@ -908,6 +908,20 @@ pub fn run() {
             plugins::screenshot::append_ocr_diagnostic_log,   // 写入 OCR 诊断日志
             plugins::screenshot::copy_image_to_clipboard,          // 复制图片到剪贴板
             plugins::screenshot::save_pin_image,                   // 保存贴图图片
+            plugins::screen_recorder::screen_recorder_get_ffmpeg_status, // 获取录屏 FFmpeg 状态
+            plugins::screen_recorder::screen_recorder_get_background, // 获取录屏预捕获背景
+            plugins::screen_recorder::screen_recorder_get_preview, // 获取录屏预览背景
+            plugins::screen_recorder::screen_recorder_clear_background, // 清理录屏背景缓存
+            plugins::screen_recorder::screen_recorder_pick_region, // 全局拖选录屏区域
+            plugins::screen_recorder::screen_recorder_set_capture_excluded, // 从系统录制中排除控制层窗口
+            plugins::screen_recorder::screen_recorder_close_window, // 关闭录屏窗口
+            plugins::screen_recorder::screen_recorder_start_recording, // 开始录屏
+            plugins::screen_recorder::screen_recorder_pause_recording, // 暂停录屏
+            plugins::screen_recorder::screen_recorder_resume_recording, // 继续录屏
+            plugins::screen_recorder::screen_recorder_stop_recording, // 停止录屏
+            plugins::screen_recorder::screen_recorder_cancel_recording, // 取消录屏
+            plugins::screen_recorder::screen_recorder_export_recording, // 导出录屏
+            plugins::screen_recorder::screen_recorder_compress_recording, // 压缩录屏
             frontend_log,                     // 前端日志转发
             close_setup_window,               // 关闭设置向导窗口
             plugins::system_theme::get_dark_mode_config,             // 获取Auto Dark Mode配置
