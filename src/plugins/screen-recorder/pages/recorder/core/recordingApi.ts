@@ -75,7 +75,7 @@ export const startRecording = (
     region,
     fps: settings.fps,
     quality: settings.quality,
-    audio: settings.format === 'mp4' && settings.audio
+    audio: settings.format === 'mp4'
   });
 
 export const pauseRecording = (): Promise<void> =>
@@ -89,7 +89,7 @@ export const resumeRecording = (
     region,
     fps: settings.fps,
     quality: settings.quality,
-    audio: settings.format === 'mp4' && settings.audio
+    audio: settings.format === 'mp4'
   });
 
 export const stopRecording = (): Promise<void> =>

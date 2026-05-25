@@ -60,8 +60,8 @@
             class="audio-meter"
             :class="{ active: audioEnabled && audioLevel > 0.03, metering: audioEnabled && !audioMeterUnavailable, muted: !audioEnabled || audioMeterUnavailable }"
             :title="audioTitle"
+            aria-label="系统声音录制状态"
             :disabled="status === 'exporting' || settings.format === 'gif'"
-            @click="toggleAudio"
           >
             <span class="audio-bars" :style="audioBarsStyle">
               <i></i>
@@ -244,7 +244,7 @@ const audioTitle = computed(() => {
     return 'GIF 不支持音频';
   }
   if (audioMeterUnavailable.value && settings.value.audio) {
-    return '音频已开启，但无法读取实时音量；请检查系统录音权限或输入设备';
+    return '音频已开启；实时音量动画不可用不影响导出系统声音';
   }
   if (result.value?.audioDevice) {
     return `已录制音频：${result.value.audioDevice}`;
@@ -472,17 +472,6 @@ const handleRecordAgain = () => {
   void appWindow.setSize(new LogicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
   void nextTick(refreshCaptureMetrics);
   void startAudioMeter();
-};
-
-const toggleAudio = () => {
-  if (isBusy.value || settings.value.format === 'gif') return;
-  settings.value.audio = !settings.value.audio;
-  console.info(`${LOG_PREFIX} audio toggled`, { audio: settings.value.audio });
-  if (settings.value.audio) {
-    void startAudioMeter();
-  } else {
-    void stopAudioMeter();
-  }
 };
 
 const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
