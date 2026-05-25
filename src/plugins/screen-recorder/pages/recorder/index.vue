@@ -28,16 +28,6 @@
         <span class="viewport-mask left"></span>
         <div class="capture-frame">
           <div ref="captureHoleRef" class="capture-hole"></div>
-          <div v-if="previewUrl" class="result-preview">
-            <video
-              v-if="result?.format === 'mp4'"
-              :src="previewUrl"
-              controls
-              playsinline
-              preload="metadata"
-            ></video>
-            <img v-else :src="previewUrl" alt="">
-          </div>
           <span class="viewport-border top"></span>
           <span class="viewport-border right"></span>
           <span class="viewport-border bottom"></span>
@@ -153,8 +143,8 @@ import {
   monitorFromPoint,
   PhysicalPosition
 } from '@tauri-apps/api/window';
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
-import type { UnlistenFn } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { CloseSmall, Minus } from '@icon-park/vue-next';
 import modal from '@/utils/modal';
 import {
@@ -167,6 +157,7 @@ import { useRecordingSession } from './core/useRecordingSession';
 import type { RecordingRegion, RecorderSnapRegion } from './core/types';
 
 type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
+type AudioLevelEvent = { level?: number };
 
 const LOG_PREFIX = '[screen-recorder]';
 const appWindow = getCurrentWindow();
@@ -176,11 +167,7 @@ const audioLevel = ref(0);
 const audioMeterUnavailable = ref(false);
 let resizeObserver: ResizeObserver | null = null;
 let unlistenMoved: UnlistenFn | null = null;
-let audioStream: MediaStream | null = null;
-let audioContext: AudioContext | null = null;
-let audioAnalyser: AnalyserNode | null = null;
-let audioData: Uint8Array | null = null;
-let audioFrame = 0;
+let unlistenAudioLevel: UnlistenFn | null = null;
 
 const MIN_CAPTURE_SIZE = 80;
 const DEFAULT_WINDOW_WIDTH = 468;
@@ -221,11 +208,6 @@ const {
 
 const isBusy = computed(() => status.value === 'recording' || status.value === 'paused' || status.value === 'exporting');
 const audioEnabled = computed(() => settings.value.audio && settings.value.format === 'mp4');
-const previewUrl = computed(() => (
-  status.value === 'completed' && result.value?.path
-    ? convertFileSrc(result.value.path)
-    : ''
-));
 const audioBarsStyle = computed<Record<string, string>>(() => {
   const level = audioEnabled.value && !audioMeterUnavailable.value ? audioLevel.value : 0;
   const scale = (base: number, weight: number) =>
@@ -343,79 +325,23 @@ const scheduleMetricsRefresh = () => {
 };
 
 const stopAudioMeter = async () => {
-  if (audioFrame) {
-    cancelAnimationFrame(audioFrame);
-    audioFrame = 0;
-  }
-  audioAnalyser = null;
-  audioData = null;
-  audioStream?.getTracks().forEach((track) => track.stop());
-  audioStream = null;
-  if (audioContext) {
-    await audioContext.close().catch(() => undefined);
-    audioContext = null;
-  }
+  unlistenAudioLevel?.();
+  unlistenAudioLevel = null;
   audioLevel.value = 0;
 };
 
-const sampleAudioMeter = () => {
-  if (!audioAnalyser || !audioData) {
-    audioFrame = 0;
-    return;
-  }
-
-  audioAnalyser.getByteTimeDomainData(audioData);
-  let sum = 0;
-  for (const sample of audioData) {
-    const value = (sample - 128) / 128;
-    sum += value * value;
-  }
-  const rms = Math.sqrt(sum / audioData.length);
-  const normalized = Math.min(1, rms * 8);
-  audioLevel.value = audioLevel.value * 0.68 + normalized * 0.32;
-  audioFrame = requestAnimationFrame(sampleAudioMeter);
-};
-
 const startAudioMeter = async () => {
-  if (!audioEnabled.value || audioStream || audioFrame) return;
-  if (!navigator.mediaDevices?.getUserMedia) {
-    audioMeterUnavailable.value = true;
-    console.warn(`${LOG_PREFIX} audio meter unavailable: getUserMedia missing`);
-    return;
-  }
-
+  if (!audioEnabled.value || unlistenAudioLevel) return;
   try {
-    console.info(`${LOG_PREFIX} audio meter starting`);
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false
-      },
-      video: false
+    console.info(`${LOG_PREFIX} backend audio meter listening`);
+    unlistenAudioLevel = await listen<AudioLevelEvent>('screen_recorder_audio_level', (event) => {
+      const next = Math.max(0, Math.min(1, Number(event.payload?.level ?? 0)));
+      audioLevel.value = audioLevel.value * 0.38 + next * 0.62;
     });
-    audioStream = stream;
-    console.info(`${LOG_PREFIX} audio meter stream`, {
-      tracks: stream.getAudioTracks().map((track) => ({
-        label: track.label,
-        enabled: track.enabled,
-        muted: track.muted,
-        readyState: track.readyState
-      }))
-    });
-    audioContext = new AudioContext();
-    audioAnalyser = audioContext.createAnalyser();
-    audioAnalyser.fftSize = 512;
-    audioAnalyser.smoothingTimeConstant = 0.75;
-    audioData = new Uint8Array(audioAnalyser.fftSize);
-    audioContext.createMediaStreamSource(stream).connect(audioAnalyser);
-    await audioContext.resume().catch(() => undefined);
     audioMeterUnavailable.value = false;
-    sampleAudioMeter();
   } catch (error) {
     console.error(`${LOG_PREFIX} audio meter failed`, error);
     audioMeterUnavailable.value = true;
-    await stopAudioMeter();
   }
 };
 
@@ -719,26 +645,6 @@ onUnmounted(() => {
   position: absolute;
   inset: 1px;
   background: transparent;
-}
-
-.result-preview {
-  position: absolute;
-  inset: 1px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: #0f172a;
-  pointer-events: auto;
-
-  video,
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    background: #0f172a;
-  }
 }
 
 .viewport-border {

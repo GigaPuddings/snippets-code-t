@@ -10,7 +10,7 @@ use std::sync::{
 };
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -99,6 +99,12 @@ struct AudioCaptureSession {
     handle: thread::JoinHandle<Result<AudioSegment, String>>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AudioLevelEvent {
+    level: f32,
+}
+
 struct RecordingSession {
     id: String,
     temp_dir: PathBuf,
@@ -137,7 +143,9 @@ fn debug_log_path(temp_dir: &Path) -> PathBuf {
 }
 
 fn timestamp_text() -> String {
-    chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string()
+    chrono::Local::now()
+        .format("%Y-%m-%d %H:%M:%S%.3f")
+        .to_string()
 }
 
 fn append_debug_log(temp_dir: &Path, message: impl AsRef<str>) {
@@ -397,6 +405,7 @@ fn ffmpeg_supports_filter(ffmpeg_path: &Path, filter: &str) -> bool {
 
 #[cfg(target_os = "windows")]
 fn start_wasapi_loopback_capture(
+    app_handle: AppHandle,
     temp_dir: &Path,
     index: usize,
 ) -> Result<AudioCaptureSession, String> {
@@ -404,20 +413,80 @@ fn start_wasapi_loopback_capture(
     let stop = Arc::new(AtomicBool::new(false));
     let thread_stop = Arc::clone(&stop);
     let thread_path = path.clone();
-    let handle = thread::spawn(move || capture_wasapi_loopback(thread_path, thread_stop));
+    let handle =
+        thread::spawn(move || capture_wasapi_loopback(app_handle, thread_path, thread_stop));
     Ok(AudioCaptureSession { stop, handle })
 }
 
 #[cfg(not(target_os = "windows"))]
 fn start_wasapi_loopback_capture(
+    _app_handle: AppHandle,
     _temp_dir: &Path,
     _index: usize,
 ) -> Result<AudioCaptureSession, String> {
     Err("系统声音录制当前仅支持 Windows WASAPI loopback".to_string())
 }
 
+fn emit_audio_level(app_handle: &AppHandle, level: f32) {
+    let _ = app_handle.emit(
+        "screen_recorder_audio_level",
+        AudioLevelEvent {
+            level: level.clamp(0.0, 1.0),
+        },
+    );
+}
+
+fn normalize_audio_rms(rms: f32) -> f32 {
+    if rms <= 0.0001 {
+        return 0.0;
+    }
+    ((20.0 * rms.log10() + 60.0) / 60.0).clamp(0.0, 1.0)
+}
+
+fn audio_level_from_samples(buffer: &[u8], sample_format: &str) -> f32 {
+    let mut sum = 0.0_f64;
+    let mut count = 0_u64;
+
+    match sample_format {
+        "f32le" => {
+            for chunk in buffer.chunks_exact(4) {
+                let sample =
+                    f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]).clamp(-1.0, 1.0);
+                sum += (sample as f64) * (sample as f64);
+                count += 1;
+            }
+        }
+        "s16le" => {
+            for chunk in buffer.chunks_exact(2) {
+                let sample = i16::from_le_bytes([chunk[0], chunk[1]]) as f32 / i16::MAX as f32;
+                sum += (sample as f64) * (sample as f64);
+                count += 1;
+            }
+        }
+        "s32le" => {
+            for chunk in buffer.chunks_exact(4) {
+                let sample = i32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32
+                    / i32::MAX as f32;
+                sum += (sample as f64) * (sample as f64);
+                count += 1;
+            }
+        }
+        _ => {}
+    }
+
+    if count == 0 {
+        0.0
+    } else {
+        normalize_audio_rms((sum / count as f64).sqrt() as f32)
+    }
+}
+
 #[cfg(target_os = "windows")]
-fn capture_wasapi_loopback(path: PathBuf, stop: Arc<AtomicBool>) -> Result<AudioSegment, String> {
+fn capture_wasapi_loopback(
+    app_handle: AppHandle,
+    path: PathBuf,
+    stop: Arc<AtomicBool>,
+) -> Result<AudioSegment, String> {
     use std::ffi::c_void;
     use std::ptr;
     use windows::Win32::Media::Audio::{
@@ -495,6 +564,8 @@ fn capture_wasapi_loopback(path: PathBuf, stop: Arc<AtomicBool>) -> Result<Audio
             let mut file =
                 File::create(&path).map_err(|e| format!("创建系统声音缓存失败: {}", e))?;
             let mut bytes_written = 0_u64;
+            let mut peak_level = 0.0_f32;
+            let mut last_level_emit = Instant::now() - Duration::from_millis(100);
 
             audio_client
                 .Start()
@@ -516,23 +587,37 @@ fn capture_wasapi_loopback(path: PathBuf, stop: Arc<AtomicBool>) -> Result<Audio
                         let zeros = vec![0_u8; byte_len];
                         file.write_all(&zeros)
                             .map_err(|e| format!("写入静音 WASAPI buffer 失败: {}", e))?;
+                        peak_level = peak_level.max(0.0);
                     } else {
                         let buffer = std::slice::from_raw_parts(data, byte_len);
                         file.write_all(buffer)
                             .map_err(|e| format!("写入 WASAPI buffer 失败: {}", e))?;
+                        peak_level =
+                            peak_level.max(audio_level_from_samples(buffer, &sample_format));
                     }
                     bytes_written += byte_len as u64;
                     capture_client
                         .ReleaseBuffer(frames)
                         .map_err(|e| format!("释放 WASAPI buffer 失败: {}", e))?;
+                    if last_level_emit.elapsed() >= Duration::from_millis(80) {
+                        emit_audio_level(&app_handle, peak_level);
+                        peak_level = 0.0;
+                        last_level_emit = Instant::now();
+                    }
                     packet_size = capture_client
                         .GetNextPacketSize()
                         .map_err(|e| format!("读取 WASAPI packet size 失败: {}", e))?;
+                }
+                if last_level_emit.elapsed() >= Duration::from_millis(120) {
+                    emit_audio_level(&app_handle, peak_level);
+                    peak_level = 0.0;
+                    last_level_emit = Instant::now();
                 }
                 thread::sleep(Duration::from_millis(10));
             }
 
             let _ = audio_client.Stop();
+            emit_audio_level(&app_handle, 0.0);
             file.flush()
                 .map_err(|e| format!("刷新系统声音缓存失败: {}", e))?;
 
@@ -597,11 +682,7 @@ fn default_output_path(format: &str) -> PathBuf {
 pub fn screen_recorder_get_ffmpeg_status(app_handle: AppHandle) -> Result<FfmpegStatus, String> {
     require_plugin(&app_handle)?;
     let (ffmpeg, searched_paths) = find_ffmpeg(&app_handle);
-    let mut audio_devices = if ffmpeg.is_some() {
-        list_audio_devices(&app_handle)
-    } else {
-        Vec::new()
-    };
+    let mut audio_devices = Vec::new();
     if let Some(device) = native_system_audio_device() {
         if !audio_devices.iter().any(|existing| existing == &device) {
             audio_devices.push(device);
@@ -1145,7 +1226,16 @@ fn spawn_segment(
     quality: &str,
     audio: bool,
     index: usize,
-) -> Result<(Child, PathBuf, Option<String>, PathBuf, Option<AudioCaptureSession>), String> {
+) -> Result<
+    (
+        Child,
+        PathBuf,
+        Option<String>,
+        PathBuf,
+        Option<AudioCaptureSession>,
+    ),
+    String,
+> {
     #[cfg(not(target_os = "windows"))]
     {
         let _ = (app_handle, temp_dir, region, fps, quality, audio, index);
@@ -1164,7 +1254,7 @@ fn spawn_segment(
         let use_ddagrab = ffmpeg_supports_filter(&ffmpeg.path, "ddagrab");
         let capture_backend = if use_ddagrab { "ddagrab" } else { "gdigrab" };
         let mut audio_capture = if audio {
-            match start_wasapi_loopback_capture(temp_dir, index) {
+            match start_wasapi_loopback_capture(app_handle.clone(), temp_dir, index) {
                 Ok(capture) => {
                     append_debug_log(
                         temp_dir,
@@ -1173,10 +1263,7 @@ fn spawn_segment(
                     Some(capture)
                 }
                 Err(error) => {
-                    append_debug_log(
-                        temp_dir,
-                        format!("wasapi loopback start failed: {}", error),
-                    );
+                    append_debug_log(temp_dir, format!("wasapi loopback start failed: {}", error));
                     warn!(
                         "[Plugin:screen-recorder] wasapi loopback start failed: {}",
                         error
@@ -1190,7 +1277,13 @@ fn spawn_segment(
         let audio_device = audio_capture
             .as_ref()
             .map(|_| "WASAPI loopback (default render device)".to_string())
-            .or_else(|| if audio { default_audio_device(app_handle) } else { None });
+            .or_else(|| {
+                if audio {
+                    default_audio_device(app_handle)
+                } else {
+                    None
+                }
+            });
 
         let mut args = vec![
             "-hide_banner".to_string(),
@@ -1241,20 +1334,20 @@ fn spawn_segment(
 
         if audio_capture.is_none() {
             if let Some(device) = &audio_device {
-            args.extend([
-                "-thread_queue_size".to_string(),
-                "1024".to_string(),
-                "-f".to_string(),
-                "dshow".to_string(),
-                "-audio_buffer_size".to_string(),
-                "120".to_string(),
-                "-i".to_string(),
-                format!("audio={}", device),
-                "-map".to_string(),
-                "0:v:0".to_string(),
-                "-map".to_string(),
-                "1:a:0".to_string(),
-            ]);
+                args.extend([
+                    "-thread_queue_size".to_string(),
+                    "1024".to_string(),
+                    "-f".to_string(),
+                    "dshow".to_string(),
+                    "-audio_buffer_size".to_string(),
+                    "120".to_string(),
+                    "-i".to_string(),
+                    format!("audio={}", device),
+                    "-map".to_string(),
+                    "0:v:0".to_string(),
+                    "-map".to_string(),
+                    "1:a:0".to_string(),
+                ]);
             } else {
                 args.push("-an".to_string());
             }
@@ -1312,7 +1405,10 @@ fn spawn_segment(
                 display_path(&segment_log)
             ),
         );
-        append_debug_log(temp_dir, format!("spawn segment #{index} command: {command_line}"));
+        append_debug_log(
+            temp_dir,
+            format!("spawn segment #{index} command: {command_line}"),
+        );
         info!(
             "[Plugin:screen-recorder] spawning segment #{index}: {}",
             command_line
@@ -1634,7 +1730,10 @@ fn write_concat_file(session: &RecordingSession) -> Result<PathBuf, String> {
         } else {
             append_debug_log(
                 &session.temp_dir,
-                format!("concat skip missing segment: path={}", display_path(segment)),
+                format!(
+                    "concat skip missing segment: path={}",
+                    display_path(segment)
+                ),
             );
         }
     }
@@ -1716,8 +1815,16 @@ fn run_ffmpeg(mut command: Command, label: &str, debug_dir: Option<&Path>) -> Re
                 output.stderr.len()
             ),
         );
-        append_debug_block(debug_dir, &format!("ffmpeg {} stdout", label), &output.stdout);
-        append_debug_block(debug_dir, &format!("ffmpeg {} stderr", label), &output.stderr);
+        append_debug_block(
+            debug_dir,
+            &format!("ffmpeg {} stdout", label),
+            &output.stdout,
+        );
+        append_debug_block(
+            debug_dir,
+            &format!("ffmpeg {} stderr", label),
+            &output.stderr,
+        );
     }
     if output.status.success() {
         return Ok(());
@@ -1847,7 +1954,11 @@ pub fn screen_recorder_export_recording(
                 let gif_filter = format!("fps={}[x];[x][1:v]paletteuse=dither=bayer", fps);
                 append_debug_log(
                     &session.temp_dir,
-                    format!("export GIF: filter={} output={}", gif_filter, display_path(&output_path)),
+                    format!(
+                        "export GIF: filter={} output={}",
+                        gif_filter,
+                        display_path(&output_path)
+                    ),
                 );
                 let mut gif_command = Command::new(&ffmpeg.path);
                 gif_command
@@ -1951,8 +2062,7 @@ pub fn screen_recorder_export_recording(
             Err(error) => {
                 warn!(
                     "[Plugin:screen-recorder] export debug log failed: session={}, error={}",
-                    session.id,
-                    error
+                    session.id, error
                 );
                 None
             }
