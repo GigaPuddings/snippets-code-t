@@ -3,7 +3,7 @@ const r = (e) => {
     target: "window",
     path: "/screen-recorder",
     name: "ScreenRecorder",
-    component: () => import("./assets/index-DAhAnrjY.js")
+    component: () => import("./assets/index-XQcaZYUR.js")
   });
 };
 export {

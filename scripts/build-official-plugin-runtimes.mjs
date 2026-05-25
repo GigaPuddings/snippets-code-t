@@ -78,6 +78,12 @@ async function buildRuntime(pluginId, entryPath) {
         '@tauri': resolve(ROOT, 'src-tauri')
       }
     },
+    define: {
+      'process.env.NODE_ENV': JSON.stringify('production'),
+      __VUE_OPTIONS_API__: 'true',
+      __VUE_PROD_DEVTOOLS__: 'false',
+      __INTLIFY_PROD_DEVTOOLS__: 'false'
+    },
     build: {
       outDir: distDir,
       emptyOutDir: true,
