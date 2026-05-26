@@ -212,6 +212,8 @@ const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
 const SNAP_MAX_CORRECTION_PASSES = 8;
 const SNAP_RESIDUAL_TOLERANCE = 1;
+const SNAP_TARGET_RIGHT_TRIM = 20;
+const SNAP_TARGET_BOTTOM_TRIM = 10;
 
 const resizeHandles: Array<{ className: string; direction: ResizeDirection }> = [
   { className: 'n', direction: 'North' },
@@ -443,6 +445,40 @@ const clampFrameToMonitor = (frame: PhysicalFrame, monitorFrame: PhysicalFrame):
   };
 };
 
+const isTargetCoveringMonitor = (
+  target: RecorderSnapRegion,
+  monitorFrame: PhysicalFrame | null,
+  scale: number
+): boolean => {
+  if (!monitorFrame) return false;
+  const tolerance = Math.max(8, Math.round(8 * scale));
+  const monitorRight = monitorFrame.x + monitorFrame.width;
+  const monitorBottom = monitorFrame.y + monitorFrame.height;
+  const targetRight = target.screenX + target.physicalWidth;
+  const targetBottom = target.screenY + target.physicalHeight;
+  return (
+    target.screenX <= monitorFrame.x + tolerance &&
+    target.screenY <= monitorFrame.y + tolerance &&
+    targetRight >= monitorRight - tolerance &&
+    targetBottom >= monitorBottom - tolerance
+  );
+};
+
+const trimSnappedTarget = (
+  target: RecorderSnapRegion,
+  scale: number,
+  shouldTrim: boolean
+): RecorderSnapRegion => {
+  if (!shouldTrim) return target;
+  const widthTrim = Math.round(SNAP_TARGET_RIGHT_TRIM * scale);
+  const heightTrim = Math.round(SNAP_TARGET_BOTTOM_TRIM * scale);
+  return {
+    ...target,
+    physicalWidth: Math.max(MIN_CAPTURE_SIZE, target.physicalWidth - widthTrim),
+    physicalHeight: Math.max(MIN_CAPTURE_SIZE, target.physicalHeight - heightTrim)
+  };
+};
+
 const setOuterFrame = async (frame: PhysicalFrame) => {
   await appWindow.setSize(new PhysicalSize(Math.round(frame.width), Math.round(frame.height)));
   await appWindow.setPosition(new PhysicalPosition(Math.round(frame.x), Math.round(frame.y)));
@@ -591,24 +627,11 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
         height: monitor.size.height
       }
     : null;
-
-  const isMonitorCoveringTarget = (() => {
-    if (!monitorRect) return false;
-    const tolerance = Math.max(8, Math.round(8 * scale));
-    const monitorRight = monitorRect.x + monitorRect.width;
-    const monitorBottom = monitorRect.y + monitorRect.height;
-    const targetRight = target.screenX + target.physicalWidth;
-    const targetBottom = target.screenY + target.physicalHeight;
-    return (
-      target.screenX <= monitorRect.x + tolerance &&
-      target.screenY <= monitorRect.y + tolerance &&
-      targetRight >= monitorRight - tolerance &&
-      targetBottom >= monitorBottom - tolerance
-    );
-  })();
+  const isMonitorCoveringTarget = isTargetCoveringMonitor(target, monitorRect, scale);
+  const snapTarget = trimSnappedTarget(target, scale, !isMonitorCoveringTarget);
 
   const initialFrame = await getSnappedWrapFrameForTarget(
-    target,
+    snapTarget,
     minPhysicalWidth,
     minPhysicalHeight
   );
@@ -632,10 +655,10 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     const correctCaptureToTarget = async (): Promise<boolean> => {
       const { actualRegion, currentFrame } = await getSnapLayout();
       const residual = {
-        x: target.screenX - actualRegion.screenX,
-        y: target.screenY - actualRegion.screenY,
-        width: target.physicalWidth - actualRegion.physicalWidth,
-        height: target.physicalHeight - actualRegion.physicalHeight
+        x: snapTarget.screenX - actualRegion.screenX,
+        y: snapTarget.screenY - actualRegion.screenY,
+        width: snapTarget.physicalWidth - actualRegion.physicalWidth,
+        height: snapTarget.physicalHeight - actualRegion.physicalHeight
       };
       if (
         Math.abs(residual.x) <= SNAP_RESIDUAL_TOLERANCE &&
@@ -670,18 +693,19 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     const { actualRegion } = await getSnapLayout();
     console.info(`${LOG_PREFIX} snap result`, {
       target,
+      snapTarget,
       actualRegion,
       residual: {
-        left: actualRegion.screenX - target.screenX,
-        top: actualRegion.screenY - target.screenY,
+        left: actualRegion.screenX - snapTarget.screenX,
+        top: actualRegion.screenY - snapTarget.screenY,
         right:
           actualRegion.screenX +
           actualRegion.physicalWidth -
-          (target.screenX + target.physicalWidth),
+          (snapTarget.screenX + snapTarget.physicalWidth),
         bottom:
           actualRegion.screenY +
           actualRegion.physicalHeight -
-          (target.screenY + target.physicalHeight)
+          (snapTarget.screenY + snapTarget.physicalHeight)
       },
       monitorCovering: isMonitorCoveringTarget
     });
