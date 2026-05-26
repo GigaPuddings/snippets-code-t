@@ -212,6 +212,7 @@ const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
 const SNAP_MAX_CORRECTION_PASSES = 8;
 const SNAP_RESIDUAL_TOLERANCE = 1;
+const SNAP_EDGE_RESIDUAL_TOLERANCE = 0;
 const SNAP_TARGET_RIGHT_TRIM = 15;
 const SNAP_TARGET_BOTTOM_TRIM = 10;
 
@@ -418,6 +419,13 @@ const waitForWindowLayout = () =>
   new Promise<void>((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
+
+const forceTransparentRepaint = async () => {
+  document.documentElement.classList.add('screen-recorder-repaint');
+  await waitForWindowLayout();
+  document.documentElement.classList.remove('screen-recorder-repaint');
+  await waitForWindowLayout();
+};
 
 const getOuterFrame = async (): Promise<PhysicalFrame> => {
   const [position, size] = await Promise.all([
@@ -661,8 +669,8 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
         height: snapTarget.physicalHeight - actualRegion.physicalHeight
       };
       if (
-        Math.abs(residual.x) <= SNAP_RESIDUAL_TOLERANCE &&
-        Math.abs(residual.y) <= SNAP_RESIDUAL_TOLERANCE &&
+        Math.abs(residual.x) <= SNAP_EDGE_RESIDUAL_TOLERANCE &&
+        Math.abs(residual.y) <= SNAP_EDGE_RESIDUAL_TOLERANCE &&
         Math.abs(residual.width) <= SNAP_RESIDUAL_TOLERANCE &&
         Math.abs(residual.height) <= SNAP_RESIDUAL_TOLERANCE
       ) {
@@ -713,9 +721,12 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     console.warn(`${LOG_PREFIX} snap correction skipped`, error);
   } finally {
     await refreshCaptureMetrics();
+    await forceTransparentRepaint();
     if (hiddenDuringSnap) {
       await appWindow.show().catch(() => undefined);
       await appWindow.setFocus().catch(() => undefined);
+      await forceTransparentRepaint();
+      await refreshCaptureMetrics();
     }
   }
 };
@@ -827,6 +838,10 @@ onUnmounted(() => {
 :global(body),
 :global(#app) {
   background: transparent !important;
+}
+
+:global(html.screen-recorder-repaint) {
+  opacity: 0.9999;
 }
 
 .screen-recorder {
