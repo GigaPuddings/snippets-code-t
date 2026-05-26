@@ -16,6 +16,8 @@ use tauri::{AppHandle, Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuil
 use std::os::windows::process::CommandExt;
 
 const PLUGIN_ID: &str = "screen-recorder";
+const FFMPEG_STOP_WAIT_ATTEMPTS: usize = 120;
+const FFMPEG_STOP_WAIT_INTERVAL_MS: u64 = 100;
 
 static RECORDING_SESSION: LazyLock<Mutex<Option<RecordingSession>>> =
     LazyLock::new(|| Mutex::new(None));
@@ -1508,16 +1510,16 @@ fn spawn_segment(
 }
 
 fn stop_child(child: &mut Child) -> Option<i32> {
-    if let Some(stdin) = child.stdin.as_mut() {
+    if let Some(mut stdin) = child.stdin.take() {
         let _ = stdin.write_all(b"q\n");
         let _ = stdin.flush();
     }
 
-    for _ in 0..20 {
+    for _ in 0..FFMPEG_STOP_WAIT_ATTEMPTS {
         if let Some(status) = child.try_wait().ok().flatten() {
             return status.code();
         }
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(FFMPEG_STOP_WAIT_INTERVAL_MS));
     }
 
     let _ = child.kill();
@@ -1791,22 +1793,78 @@ fn concat_file_line(path: &Path) -> String {
     format!("file '{}'\n", value)
 }
 
-fn write_concat_file(session: &RecordingSession) -> Result<PathBuf, String> {
+fn validate_video_segment(
+    ffmpeg_path: &Path,
+    temp_dir: &Path,
+    segment: &Path,
+) -> Result<u64, String> {
+    let size = fs::metadata(segment)
+        .map_err(|e| format!("读取片段文件信息失败 {}: {}", segment.display(), e))?
+        .len();
+    if size == 0 {
+        return Err("片段文件为空".to_string());
+    }
+
+    let mut command = Command::new(ffmpeg_path);
+    command
+        .args(["-hide_banner", "-nostdin", "-v", "error", "-i"])
+        .arg(segment)
+        .args(["-map", "0:v:0", "-frames:v", "1", "-f", "null", "-"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    {
+        command.creation_flags(0x08000000);
+    }
+    let output = command
+        .output()
+        .map_err(|e| format!("校验录屏片段失败 {}: {}", segment.display(), e))?;
+    if output.status.success() {
+        return Ok(size);
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    append_debug_log(
+        temp_dir,
+        format!(
+            "segment validation failed: path={} size_bytes={} error={}",
+            display_path(segment),
+            size,
+            stderr
+        ),
+    );
+    Err(if stderr.is_empty() {
+        "FFmpeg 无法读取片段".to_string()
+    } else {
+        stderr
+    })
+}
+
+fn write_concat_file(session: &RecordingSession, ffmpeg_path: &Path) -> Result<PathBuf, String> {
     let concat_path = session.temp_dir.join("segments.txt");
     let mut content = String::new();
+    let mut segment_errors = Vec::new();
     for segment in &session.segments {
         if segment.is_file() {
-            content.push_str(&concat_file_line(segment));
-            let size = fs::metadata(segment).ok().map(|metadata| metadata.len());
-            append_debug_log(
-                &session.temp_dir,
-                format!(
-                    "concat include segment: path={} size_bytes={:?}",
-                    display_path(segment),
-                    size
-                ),
-            );
+            match validate_video_segment(ffmpeg_path, &session.temp_dir, segment) {
+                Ok(size) => {
+                    content.push_str(&concat_file_line(segment));
+                    append_debug_log(
+                        &session.temp_dir,
+                        format!(
+                            "concat include segment: path={} size_bytes={} validation=ok",
+                            display_path(segment),
+                            size
+                        ),
+                    );
+                }
+                Err(error) => {
+                    segment_errors.push(format!("{}: {}", display_path(segment), error));
+                }
+            }
         } else {
+            let message = format!("片段文件不存在: {}", display_path(segment));
+            segment_errors.push(message.clone());
             append_debug_log(
                 &session.temp_dir,
                 format!(
@@ -1815,6 +1873,19 @@ fn write_concat_file(session: &RecordingSession) -> Result<PathBuf, String> {
                 ),
             );
         }
+    }
+    if !segment_errors.is_empty() {
+        append_debug_log(
+            &session.temp_dir,
+            format!("concat aborted: invalid_segments={:?}", segment_errors),
+        );
+        return Err(format!(
+            "录屏片段未完整写入，无法导出。请重新录制；首个异常片段：{}",
+            segment_errors
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "未知错误".to_string())
+        ));
     }
     if content.is_empty() {
         return Err("没有可导出的录屏片段".to_string());
@@ -2072,7 +2143,7 @@ pub fn screen_recorder_export_recording(
                 &session.audio_device
             ),
         );
-        let concat_path = write_concat_file(&session)?;
+        let concat_path = write_concat_file(&session, &ffmpeg.path)?;
         append_debug_log(
             &session.temp_dir,
             format!("concat file written: {}", display_path(&concat_path)),
