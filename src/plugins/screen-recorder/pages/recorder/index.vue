@@ -213,8 +213,7 @@ const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
 const SNAP_MAX_CORRECTION_PASSES = 8;
 const SNAP_RESIDUAL_TOLERANCE = 1;
-const SNAP_FRAME_MARGIN = 8;
-const SNAP_HOLE_INSET = 1;
+const SNAP_FRAME_MARGIN = 0;
 
 const resizeHandles: Array<{ className: string; direction: ResizeDirection }> = [
   { className: 'n', direction: 'North' },
@@ -251,8 +250,8 @@ const audioEnabled = computed(() => settings.value.audio && settings.value.forma
 const isMeterActive = computed(() => audioEnabled.value && status.value === 'recording');
 const captureFrameStyle = computed<Record<string, string> | undefined>(() => {
   if (!snapTargetSize.value) return undefined;
-  const frameWidth = snapTargetSize.value.width / snapTargetSize.value.scale + SNAP_HOLE_INSET * 2;
-  const frameHeight = snapTargetSize.value.height / snapTargetSize.value.scale + SNAP_HOLE_INSET * 2;
+  const frameWidth = snapTargetSize.value.width / snapTargetSize.value.scale;
+  const frameHeight = snapTargetSize.value.height / snapTargetSize.value.scale;
   return {
     width: `${frameWidth}px`,
     height: `${frameHeight}px`,
@@ -265,8 +264,8 @@ const captureFrameStyle = computed<Record<string, string> | undefined>(() => {
 });
 const captureViewportStyle = computed<Record<string, string> | undefined>(() => {
   if (!snapTargetSize.value) return undefined;
-  const frameWidth = snapTargetSize.value.width / snapTargetSize.value.scale + SNAP_HOLE_INSET * 2;
-  const frameHeight = snapTargetSize.value.height / snapTargetSize.value.scale + SNAP_HOLE_INSET * 2;
+  const frameWidth = snapTargetSize.value.width / snapTargetSize.value.scale;
+  const frameHeight = snapTargetSize.value.height / snapTargetSize.value.scale;
   return {
     '--snap-frame-width': `${frameWidth}px`,
     '--snap-frame-height': `${frameHeight}px`
@@ -493,8 +492,8 @@ const getSnappedWrapFrameForTarget = async (
   const scale = actualRegion.scale;
   const titleHeight = titleBarRef.value?.getBoundingClientRect().height || 38;
   const controlHeight = controlStripRef.value?.getBoundingClientRect().height || 46;
-  const frameWidth = target.physicalWidth / scale + SNAP_HOLE_INSET * 2;
-  const frameHeight = target.physicalHeight / scale + SNAP_HOLE_INSET * 2;
+  const frameWidth = target.physicalWidth / scale;
+  const frameHeight = target.physicalHeight / scale;
   const desiredWidth = Math.max(
     minPhysicalWidth / scale,
     frameWidth + SNAP_FRAME_MARGIN * 2
@@ -507,11 +506,10 @@ const getSnappedWrapFrameForTarget = async (
     frameHeight + SNAP_FRAME_MARGIN * 2,
     desiredHeight - titleHeight - controlHeight
   );
-  const holeLeftInset = ((desiredWidth - frameWidth) / 2 + SNAP_HOLE_INSET) * scale;
+  const holeLeftInset = ((desiredWidth - frameWidth) / 2) * scale;
   const holeTopInset = (
     titleHeight +
-    (viewportHeight - frameHeight) / 2 +
-    SNAP_HOLE_INSET
+    (viewportHeight - frameHeight) / 2
   ) * scale;
 
   return {
@@ -1039,6 +1037,10 @@ onUnmounted(() => {
 
   .capture-frame {
     inset: auto;
+  }
+
+  .capture-hole {
+    inset: 0;
   }
 
   .viewport-mask {
