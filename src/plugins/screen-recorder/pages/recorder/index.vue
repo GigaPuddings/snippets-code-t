@@ -1,6 +1,9 @@
 <template>
   <div class="screen-recorder">
-    <div class="recorder-shell" :class="{ recording: status === 'recording', paused: status === 'paused' }">
+    <div
+      class="recorder-shell"
+      :class="{ recording: status === 'recording', paused: status === 'paused', 'snap-aligned': isSnapAligned }"
+    >
       <span
         v-for="handle in resizeHandles"
         :key="handle.className"
@@ -26,7 +29,7 @@
         <span class="viewport-mask right"></span>
         <span class="viewport-mask bottom"></span>
         <span class="viewport-mask left"></span>
-        <div class="capture-frame">
+        <div class="capture-frame" :style="captureFrameStyle">
           <div ref="captureHoleRef" class="capture-hole"></div>
           <span class="viewport-border top"></span>
           <span class="viewport-border right"></span>
@@ -193,6 +196,8 @@ const LOG_PREFIX = '[screen-recorder]';
 const appWindow = getCurrentWindow();
 const captureHoleRef = ref<HTMLElement | null>(null);
 const captureSize = ref({ width: 0, height: 0 });
+const snapTargetSize = ref<{ width: number; height: number; scale: number } | null>(null);
+const isSnapAligned = ref(false);
 const audioLevel = ref(0);
 const audioMeterUnavailable = ref(false);
 const exportProgress = ref<ExportProgressEvent | null>(null);
@@ -240,6 +245,13 @@ const isClosing = ref(false);
 const isBusy = computed(() => status.value === 'recording' || status.value === 'paused' || status.value === 'exporting');
 const audioEnabled = computed(() => settings.value.audio && settings.value.format === 'mp4');
 const isMeterActive = computed(() => audioEnabled.value && status.value === 'recording');
+const captureFrameStyle = computed<Record<string, string> | undefined>(() => {
+  if (!snapTargetSize.value) return undefined;
+  return {
+    width: `${snapTargetSize.value.width / snapTargetSize.value.scale + 2}px`,
+    height: `${snapTargetSize.value.height / snapTargetSize.value.scale + 2}px`
+  };
+});
 const audioBarsStyle = computed<Record<string, string>>(() => {
   const level = isMeterActive.value && !audioMeterUnavailable.value ? audioLevel.value : 0;
   const scale = (base: number, weight: number) =>
@@ -376,6 +388,11 @@ const clearPassthrough = async () => {
   await setRecorderPassthroughRegion(null).catch(() => undefined);
 };
 
+const resetSnapAlignment = () => {
+  isSnapAligned.value = false;
+  snapTargetSize.value = null;
+};
+
 const scheduleMetricsRefresh = () => {
   window.setTimeout(() => {
     void refreshCaptureMetrics();
@@ -475,6 +492,7 @@ const startAudioMeter = async () => {
 
 const startDrag = async (event: MouseEvent) => {
   if (event.button !== 0 || isBusy.value) return;
+  resetSnapAlignment();
   await clearPassthrough();
   await appWindow.startDragging().catch((error: any) => {
     modal.msg(error?.message || String(error), 'error');
@@ -484,6 +502,7 @@ const startDrag = async (event: MouseEvent) => {
 
 const startResize = async (direction: ResizeDirection) => {
   if (isBusy.value) return;
+  resetSnapAlignment();
   await clearPassthrough();
   await appWindow.startResizeDragging(direction).catch((error: any) => {
     modal.msg(error?.message || String(error), 'error');
@@ -548,6 +567,15 @@ const handleRecordAgain = () => {
 const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
   const monitor = await monitorFromPoint(target.screenX, target.screenY);
   const scale = monitor?.scaleFactor || await appWindow.scaleFactor();
+  isSnapAligned.value = true;
+  snapTargetSize.value = {
+    width: target.physicalWidth,
+    height: target.physicalHeight,
+    scale
+  };
+  await nextTick();
+  await waitForWindowLayout();
+
   const minPhysicalWidth = Math.round(MIN_WINDOW_WIDTH * scale);
   const minPhysicalHeight = Math.round(MIN_WINDOW_HEIGHT * scale);
   const monitorRect = monitor
@@ -947,6 +975,51 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.98);
   border-top: 1px solid rgba(210, 216, 224, 0.92);
   box-sizing: border-box;
+}
+
+.recorder-shell.snap-aligned {
+  grid-template-rows: 38px minmax(80px, 1fr) minmax(46px, auto);
+
+  .control-strip {
+    min-height: 46px;
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .control-group {
+    gap: 6px;
+  }
+
+  .optional-size,
+  .optional-quality,
+  .optional-format,
+  .optional-save-status,
+  .unit {
+    display: none;
+  }
+
+  select,
+  input,
+  button {
+    height: 30px;
+  }
+
+  select {
+    width: 56px;
+    padding: 0 6px;
+  }
+
+  .record-button {
+    min-width: 88px;
+    height: 32px;
+    padding: 0 10px;
+  }
+
+  .control-button {
+    min-width: 42px;
+    max-width: 56px;
+    padding: 0 8px;
+  }
 }
 
 .control-group {
