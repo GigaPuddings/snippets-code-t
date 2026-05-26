@@ -24,7 +24,7 @@
         </div>
       </header>
 
-      <main class="capture-viewport">
+      <main class="capture-viewport" :style="captureViewportStyle">
         <span class="viewport-mask top"></span>
         <span class="viewport-mask right"></span>
         <span class="viewport-mask bottom"></span>
@@ -213,6 +213,8 @@ const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
 const SNAP_MAX_CORRECTION_PASSES = 8;
 const SNAP_RESIDUAL_TOLERANCE = 1;
+const SNAP_FRAME_MARGIN = 8;
+const SNAP_HOLE_INSET = 1;
 
 const resizeHandles: Array<{ className: string; direction: ResizeDirection }> = [
   { className: 'n', direction: 'North' },
@@ -249,9 +251,25 @@ const audioEnabled = computed(() => settings.value.audio && settings.value.forma
 const isMeterActive = computed(() => audioEnabled.value && status.value === 'recording');
 const captureFrameStyle = computed<Record<string, string> | undefined>(() => {
   if (!snapTargetSize.value) return undefined;
+  const frameWidth = snapTargetSize.value.width / snapTargetSize.value.scale + SNAP_HOLE_INSET * 2;
+  const frameHeight = snapTargetSize.value.height / snapTargetSize.value.scale + SNAP_HOLE_INSET * 2;
   return {
-    width: `${snapTargetSize.value.width / snapTargetSize.value.scale + 2}px`,
-    height: `${snapTargetSize.value.height / snapTargetSize.value.scale + 2}px`
+    width: `${frameWidth}px`,
+    height: `${frameHeight}px`,
+    left: '50%',
+    top: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    transform: 'translate(-50%, -50%)'
+  };
+});
+const captureViewportStyle = computed<Record<string, string> | undefined>(() => {
+  if (!snapTargetSize.value) return undefined;
+  const frameWidth = snapTargetSize.value.width / snapTargetSize.value.scale + SNAP_HOLE_INSET * 2;
+  const frameHeight = snapTargetSize.value.height / snapTargetSize.value.scale + SNAP_HOLE_INSET * 2;
+  return {
+    '--snap-frame-width': `${frameWidth}px`,
+    '--snap-frame-height': `${frameHeight}px`
   };
 });
 const audioBarsStyle = computed<Record<string, string>>(() => {
@@ -473,18 +491,34 @@ const getSnappedWrapFrameForTarget = async (
 ): Promise<PhysicalFrame> => {
   const { actualRegion } = await getSnapLayout();
   const scale = actualRegion.scale;
-  const leftInset = Math.round(actualRegion.x * scale);
-  const topInset = Math.round(actualRegion.y * scale);
-  const titleHeight = titleBarRef.value?.getBoundingClientRect().height ?? 38;
-  const controlHeight = controlStripRef.value?.getBoundingClientRect().height ?? 46;
-  const bottomViewportInset = Math.max(0, Math.round(topInset - titleHeight * scale));
-  const bottomInset = Math.round(controlHeight * scale) + bottomViewportInset;
+  const titleHeight = titleBarRef.value?.getBoundingClientRect().height || 38;
+  const controlHeight = controlStripRef.value?.getBoundingClientRect().height || 46;
+  const frameWidth = target.physicalWidth / scale + SNAP_HOLE_INSET * 2;
+  const frameHeight = target.physicalHeight / scale + SNAP_HOLE_INSET * 2;
+  const desiredWidth = Math.max(
+    minPhysicalWidth / scale,
+    frameWidth + SNAP_FRAME_MARGIN * 2
+  );
+  const desiredHeight = Math.max(
+    minPhysicalHeight / scale,
+    titleHeight + controlHeight + frameHeight + SNAP_FRAME_MARGIN * 2
+  );
+  const viewportHeight = Math.max(
+    frameHeight + SNAP_FRAME_MARGIN * 2,
+    desiredHeight - titleHeight - controlHeight
+  );
+  const holeLeftInset = ((desiredWidth - frameWidth) / 2 + SNAP_HOLE_INSET) * scale;
+  const holeTopInset = (
+    titleHeight +
+    (viewportHeight - frameHeight) / 2 +
+    SNAP_HOLE_INSET
+  ) * scale;
 
   return {
-    x: target.screenX - leftInset,
-    y: target.screenY - topInset,
-    width: Math.max(minPhysicalWidth, target.physicalWidth + leftInset * 2),
-    height: Math.max(minPhysicalHeight, target.physicalHeight + topInset + bottomInset)
+    x: target.screenX - holeLeftInset,
+    y: target.screenY - holeTopInset,
+    width: Math.max(minPhysicalWidth, Math.round(desiredWidth * scale)),
+    height: Math.max(minPhysicalHeight, Math.round(desiredHeight * scale))
   };
 };
 
@@ -1002,6 +1036,41 @@ onUnmounted(() => {
 
 .recorder-shell.snap-aligned {
   grid-template-rows: 38px minmax(80px, 1fr) minmax(46px, auto);
+
+  .capture-frame {
+    inset: auto;
+  }
+
+  .viewport-mask {
+    display: block;
+  }
+
+  .viewport-mask.top {
+    inset: 0 0 auto 0;
+    height: max(0px, calc(50% - var(--snap-frame-height) / 2));
+  }
+
+  .viewport-mask.bottom {
+    inset: auto 0 0 0;
+    height: max(0px, calc(50% - var(--snap-frame-height) / 2));
+  }
+
+  .viewport-mask.left,
+  .viewport-mask.right {
+    top: max(0px, calc(50% - var(--snap-frame-height) / 2));
+    bottom: max(0px, calc(50% - var(--snap-frame-height) / 2));
+    width: max(0px, calc(50% - var(--snap-frame-width) / 2));
+  }
+
+  .viewport-mask.left {
+    left: 0;
+    right: auto;
+  }
+
+  .viewport-mask.right {
+    left: auto;
+    right: 0;
+  }
 
   .control-strip {
     min-height: 46px;
