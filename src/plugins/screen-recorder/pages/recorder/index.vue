@@ -204,10 +204,8 @@ let unlistenExportProgress: UnlistenFn | null = null;
 const MIN_CAPTURE_SIZE = 80;
 const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
-const TITLE_BAR_HEIGHT = 38;
-const CONTROL_STRIP_HEIGHT = 60;
-const FRAME_INSET = 8;
-const BORDER_INSET = 1;
+const SNAP_MAX_CORRECTION_PASSES = 8;
+const SNAP_RESIDUAL_TOLERANCE = 1;
 
 const resizeHandles: Array<{ className: string; direction: ResizeDirection }> = [
   { className: 'n', direction: 'North' },
@@ -421,6 +419,35 @@ const setOuterFrame = async (frame: PhysicalFrame) => {
   await waitForWindowLayout();
 };
 
+const getSnapLayout = async () => {
+  const [actualRegion, currentFrame] = await Promise.all([
+    getCaptureRegion(),
+    getOuterFrame()
+  ]);
+  return { actualRegion, currentFrame };
+};
+
+const getMeasuredFrameForTarget = async (
+  target: RecorderSnapRegion,
+  minPhysicalWidth: number,
+  minPhysicalHeight: number
+): Promise<PhysicalFrame> => {
+  const { actualRegion, currentFrame } = await getSnapLayout();
+  const leftInset = actualRegion.screenX - currentFrame.x;
+  const topInset = actualRegion.screenY - currentFrame.y;
+  const rightInset =
+    currentFrame.x + currentFrame.width - (actualRegion.screenX + actualRegion.physicalWidth);
+  const bottomInset =
+    currentFrame.y + currentFrame.height - (actualRegion.screenY + actualRegion.physicalHeight);
+
+  return {
+    x: target.screenX - leftInset,
+    y: target.screenY - topInset,
+    width: Math.max(minPhysicalWidth, target.physicalWidth + leftInset + rightInset),
+    height: Math.max(minPhysicalHeight, target.physicalHeight + topInset + bottomInset)
+  };
+};
+
 const stopAudioMeter = async () => {
   unlistenAudioLevel?.();
   unlistenAudioLevel = null;
@@ -521,18 +548,8 @@ const handleRecordAgain = () => {
 const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
   const monitor = await monitorFromPoint(target.screenX, target.screenY);
   const scale = monitor?.scaleFactor || await appWindow.scaleFactor();
-  const leftOffset = Math.round((FRAME_INSET + BORDER_INSET) * scale);
-  const rightOffset = leftOffset;
-  const topOffset = Math.round((TITLE_BAR_HEIGHT + FRAME_INSET + BORDER_INSET) * scale);
-  const bottomOffset = Math.round((CONTROL_STRIP_HEIGHT + FRAME_INSET + BORDER_INSET) * scale);
   const minPhysicalWidth = Math.round(MIN_WINDOW_WIDTH * scale);
   const minPhysicalHeight = Math.round(MIN_WINDOW_HEIGHT * scale);
-  const desired = {
-    x: target.screenX - leftOffset,
-    y: target.screenY - topOffset,
-    width: Math.max(minPhysicalWidth, target.physicalWidth + leftOffset + rightOffset),
-    height: Math.max(minPhysicalHeight, target.physicalHeight + topOffset + bottomOffset)
-  };
   const monitorRect = monitor
     ? {
         x: monitor.position.x,
@@ -541,6 +558,7 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
         height: monitor.size.height
       }
     : null;
+
   const isMonitorCoveringTarget = (() => {
     if (!monitorRect) return false;
     const tolerance = Math.max(8, Math.round(8 * scale));
@@ -555,61 +573,76 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
       targetBottom >= monitorBottom - tolerance
     );
   })();
-  const finalFrame = (() => {
-    if (!monitorRect) return desired;
-    if (!isMonitorCoveringTarget) return desired;
 
-    const monitorRight = monitorRect.x + monitorRect.width;
-    const monitorBottom = monitorRect.y + monitorRect.height;
-    const fits =
-      desired.x >= monitorRect.x &&
-      desired.y >= monitorRect.y &&
-      desired.x + desired.width <= monitorRight &&
-      desired.y + desired.height <= monitorBottom;
-    if (fits) return desired;
-
-    const width = Math.min(desired.width, monitorRect.width);
-    const height = Math.min(desired.height, monitorRect.height);
-    return {
-      x: Math.min(Math.max(desired.x, monitorRect.x), monitorRight - width),
-      y: Math.min(Math.max(desired.y, monitorRect.y), monitorBottom - height),
-      width,
-      height
-    };
-  })();
-
-  await setOuterFrame(finalFrame);
+  const initialFrame = await getMeasuredFrameForTarget(
+    target,
+    minPhysicalWidth,
+    minPhysicalHeight
+  );
+  await setOuterFrame(
+    monitorRect && isMonitorCoveringTarget
+      ? clampFrameToMonitor(initialFrame, monitorRect)
+      : initialFrame
+  );
   await nextTick();
 
-  const correctCaptureToTarget = async () => {
-    const [actualRegion, currentFrame] = await Promise.all([
-      getCaptureRegion(),
-      getOuterFrame()
-    ]);
-    const correction = {
+  const correctCaptureToTarget = async (): Promise<boolean> => {
+    const { actualRegion, currentFrame } = await getSnapLayout();
+    const residual = {
       x: target.screenX - actualRegion.screenX,
       y: target.screenY - actualRegion.screenY,
       width: target.physicalWidth - actualRegion.physicalWidth,
       height: target.physicalHeight - actualRegion.physicalHeight
     };
+    if (
+      Math.abs(residual.x) <= SNAP_RESIDUAL_TOLERANCE &&
+      Math.abs(residual.y) <= SNAP_RESIDUAL_TOLERANCE &&
+      Math.abs(residual.width) <= SNAP_RESIDUAL_TOLERANCE &&
+      Math.abs(residual.height) <= SNAP_RESIDUAL_TOLERANCE
+    ) {
+      return true;
+    }
+
     const correctedFrame = {
-      x: currentFrame.x + correction.x,
-      y: currentFrame.y + correction.y,
-      width: Math.max(minPhysicalWidth, currentFrame.width + correction.width),
-      height: Math.max(minPhysicalHeight, currentFrame.height + correction.height)
+      x: currentFrame.x + residual.x,
+      y: currentFrame.y + residual.y,
+      width: Math.max(minPhysicalWidth, currentFrame.width + residual.width),
+      height: Math.max(minPhysicalHeight, currentFrame.height + residual.height)
     };
     await setOuterFrame(
       monitorRect && isMonitorCoveringTarget
         ? clampFrameToMonitor(correctedFrame, monitorRect)
         : correctedFrame
     );
+    return false;
   };
 
   try {
-    await correctCaptureToTarget();
-    if (!isMonitorCoveringTarget) {
-      await correctCaptureToTarget();
+    for (let pass = 0; pass < SNAP_MAX_CORRECTION_PASSES; pass += 1) {
+      const settled = await correctCaptureToTarget();
+      if (settled) {
+        break;
+      }
     }
+
+    const { actualRegion } = await getSnapLayout();
+    console.info(`${LOG_PREFIX} snap result`, {
+      target,
+      actualRegion,
+      residual: {
+        left: actualRegion.screenX - target.screenX,
+        top: actualRegion.screenY - target.screenY,
+        right:
+          actualRegion.screenX +
+          actualRegion.physicalWidth -
+          (target.screenX + target.physicalWidth),
+        bottom:
+          actualRegion.screenY +
+          actualRegion.physicalHeight -
+          (target.screenY + target.physicalHeight)
+      },
+      monitorCovering: isMonitorCoveringTarget
+    });
   } catch (error) {
     console.warn(`${LOG_PREFIX} snap correction skipped`, error);
   }
