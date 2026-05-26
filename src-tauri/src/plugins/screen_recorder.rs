@@ -82,6 +82,16 @@ pub struct RecordingExportResult {
     debug_log_path: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExportProgressEvent {
+    stage: String,
+    message: String,
+    progress: f32,
+    current_frame: u32,
+    total_frames: Option<u32>,
+}
+
 struct FfmpegLocation {
     path: PathBuf,
     source: String,
@@ -434,6 +444,26 @@ fn emit_audio_level(app_handle: &AppHandle, level: f32) {
         "screen_recorder_audio_level",
         AudioLevelEvent {
             level: level.clamp(0.0, 1.0),
+        },
+    );
+}
+
+fn emit_export_progress(
+    app_handle: &AppHandle,
+    stage: &str,
+    message: impl Into<String>,
+    progress: f32,
+    current_frame: u32,
+    total_frames: Option<u32>,
+) {
+    let _ = app_handle.emit(
+        "screen_recorder_export_progress",
+        ExportProgressEvent {
+            stage: stage.to_string(),
+            message: message.into(),
+            progress: progress.clamp(0.0, 1.0),
+            current_frame,
+            total_frames,
         },
     );
 }
@@ -1843,7 +1873,15 @@ fn write_combined_audio(session: &RecordingSession) -> Result<Option<AudioSegmen
     }))
 }
 
-fn run_ffmpeg(mut command: Command, label: &str, debug_dir: Option<&Path>) -> Result<(), String> {
+fn run_ffmpeg_with_tick<F>(
+    mut command: Command,
+    label: &str,
+    debug_dir: Option<&Path>,
+    mut on_tick: F,
+) -> Result<(), String>
+where
+    F: FnMut(),
+{
     #[cfg(target_os = "windows")]
     {
         command.creation_flags(0x08000000);
@@ -1895,7 +1933,10 @@ fn run_ffmpeg(mut command: Command, label: &str, debug_dir: Option<&Path>) -> Re
                 ACTIVE_EXPORT_PID.store(0, Ordering::SeqCst);
                 break output;
             }
-            Ok(None) => thread::sleep(Duration::from_millis(100)),
+            Ok(None) => {
+                on_tick();
+                thread::sleep(Duration::from_millis(100));
+            }
             Err(error) => {
                 ACTIVE_EXPORT_PID.store(0, Ordering::SeqCst);
                 return Err(format!("等待 FFmpeg {} 失败: {}", label, error));
@@ -1930,6 +1971,10 @@ fn run_ffmpeg(mut command: Command, label: &str, debug_dir: Option<&Path>) -> Re
     }
     let stderr = String::from_utf8_lossy(&output.stderr);
     Err(format!("FFmpeg {} 失败: {}", label, stderr.trim()))
+}
+
+fn run_ffmpeg(command: Command, label: &str, debug_dir: Option<&Path>) -> Result<(), String> {
+    run_ffmpeg_with_tick(command, label, debug_dir, || {})
 }
 
 fn exported_debug_log_path(output_path: &Path) -> PathBuf {
@@ -1988,6 +2033,7 @@ pub fn screen_recorder_export_recording(
     fps: u32,
     quality: String,
     save_path: String,
+    duration_ms: Option<u64>,
 ) -> Result<RecordingExportResult, String> {
     require_plugin(&app_handle)?;
     let mut state = RECORDING_SESSION
@@ -2014,12 +2060,13 @@ pub fn screen_recorder_export_recording(
         append_debug_log(
             &session.temp_dir,
             format!(
-                "export request: session={} format={} fps={} quality={} save_path={} segments={} has_audio={} audio_device={:?}",
+                "export request: session={} format={} fps={} quality={} save_path={} duration_ms={:?} segments={} has_audio={} audio_device={:?}",
                 session.id,
                 format,
                 fps,
                 quality,
                 display_path(&output_path),
+                duration_ms,
                 session.segments.len(),
                 session.audio_device.is_some(),
                 &session.audio_device
@@ -2034,6 +2081,9 @@ pub fn screen_recorder_export_recording(
         match format.as_str() {
             "gif" => {
                 let fps_text = fps.to_string();
+                let estimated_total_frames = duration_ms
+                    .map(|duration| ((duration as f64 / 1000.0) * fps as f64).ceil() as u32)
+                    .filter(|frames| *frames > 0);
                 let frames_dir = session.temp_dir.join("gif_frames");
                 let _ = fs::remove_dir_all(&frames_dir);
                 fs::create_dir_all(&frames_dir)
@@ -2047,6 +2097,14 @@ pub fn screen_recorder_export_recording(
                         frame_filter,
                         display_path(&frame_pattern)
                     ),
+                );
+                emit_export_progress(
+                    &app_handle,
+                    "frames",
+                    "正在生成 GIF 帧",
+                    0.03,
+                    0,
+                    estimated_total_frames,
                 );
                 let mut frames_command = Command::new(&ffmpeg.path);
                 frames_command
@@ -2063,11 +2121,44 @@ pub fn screen_recorder_export_recording(
                     .arg(&concat_path)
                     .args(["-an", "-vf", &frame_filter])
                     .arg(&frame_pattern);
-                run_ffmpeg(frames_command, "生成 GIF 临时帧", Some(&session.temp_dir))?;
+                let mut last_frame_progress = Instant::now() - Duration::from_millis(300);
+                run_ffmpeg_with_tick(
+                    frames_command,
+                    "生成 GIF 临时帧",
+                    Some(&session.temp_dir),
+                    || {
+                        if last_frame_progress.elapsed() < Duration::from_millis(250) {
+                            return;
+                        }
+                        last_frame_progress = Instant::now();
+                        let current = count_png_frames(&frames_dir).unwrap_or(0) as u32;
+                        let stage_progress = estimated_total_frames
+                            .map(|total| (current as f32 / total.max(1) as f32).clamp(0.0, 1.0))
+                            .unwrap_or(0.0);
+                        let progress = if estimated_total_frames.is_some() {
+                            0.03 + stage_progress * 0.62
+                        } else {
+                            (0.08 + (current as f32 / 1200.0)).min(0.62)
+                        };
+                        let message = match estimated_total_frames {
+                            Some(total) => format!("正在生成 GIF 帧 {}/{}", current, total),
+                            None => format!("正在生成 GIF 帧 {}", current),
+                        };
+                        emit_export_progress(
+                            &app_handle,
+                            "frames",
+                            message,
+                            progress,
+                            current,
+                            estimated_total_frames,
+                        );
+                    },
+                )?;
                 let frame_count = count_png_frames(&frames_dir)?;
                 if frame_count == 0 {
                     return Err("GIF 导出失败：没有生成任何临时帧".to_string());
                 }
+                let frame_count_u32 = frame_count.min(u32::MAX as usize) as u32;
                 append_debug_log(
                     &session.temp_dir,
                     format!(
@@ -2075,6 +2166,14 @@ pub fn screen_recorder_export_recording(
                         display_path(&frames_dir),
                         frame_count
                     ),
+                );
+                emit_export_progress(
+                    &app_handle,
+                    "frames",
+                    format!("GIF 帧生成完成 {}/{}", frame_count, frame_count),
+                    0.65,
+                    frame_count_u32,
+                    Some(frame_count_u32),
                 );
 
                 let palette_path = session.temp_dir.join("palette.png");
@@ -2086,6 +2185,14 @@ pub fn screen_recorder_export_recording(
                         palette_filter,
                         display_path(&palette_path)
                     ),
+                );
+                emit_export_progress(
+                    &app_handle,
+                    "palette",
+                    "正在生成 GIF 调色板",
+                    0.68,
+                    frame_count_u32,
+                    Some(frame_count_u32),
                 );
                 let mut palette_command = Command::new(&ffmpeg.path);
                 palette_command
@@ -2101,6 +2208,14 @@ pub fn screen_recorder_export_recording(
                     .args(["-an", "-vf", &palette_filter])
                     .arg(&palette_path);
                 run_ffmpeg(palette_command, "生成 GIF 调色板", Some(&session.temp_dir))?;
+                emit_export_progress(
+                    &app_handle,
+                    "palette",
+                    "GIF 调色板生成完成",
+                    0.76,
+                    frame_count_u32,
+                    Some(frame_count_u32),
+                );
 
                 let gif_filter = "[0:v][1:v]paletteuse=dither=bayer[v]";
                 append_debug_log(
@@ -2110,6 +2225,14 @@ pub fn screen_recorder_export_recording(
                         gif_filter,
                         display_path(&output_path)
                     ),
+                );
+                emit_export_progress(
+                    &app_handle,
+                    "encode",
+                    format!("正在合成 GIF，共 {} 帧", frame_count),
+                    0.8,
+                    0,
+                    Some(frame_count_u32),
                 );
                 let mut gif_command = Command::new(&ffmpeg.path);
                 gif_command
@@ -2134,9 +2257,39 @@ pub fn screen_recorder_export_recording(
                         "0",
                     ])
                     .arg(&output_path);
-                run_ffmpeg(gif_command, "导出 GIF", Some(&session.temp_dir))?;
+                let mut encode_progress = 0.8_f32;
+                let mut last_encode_progress = Instant::now() - Duration::from_millis(500);
+                run_ffmpeg_with_tick(
+                    gif_command,
+                    "导出 GIF",
+                    Some(&session.temp_dir),
+                    || {
+                        if last_encode_progress.elapsed() < Duration::from_millis(500) {
+                            return;
+                        }
+                        last_encode_progress = Instant::now();
+                        encode_progress = (encode_progress + 0.015).min(0.96);
+                        emit_export_progress(
+                            &app_handle,
+                            "encode",
+                            format!("正在合成 GIF，共 {} 帧", frame_count),
+                            encode_progress,
+                            frame_count_u32,
+                            Some(frame_count_u32),
+                        );
+                    },
+                )?;
+                emit_export_progress(
+                    &app_handle,
+                    "done",
+                    "GIF 导出完成",
+                    1.0,
+                    frame_count_u32,
+                    Some(frame_count_u32),
+                );
             }
             _ => {
+                emit_export_progress(&app_handle, "encode", "正在导出 MP4", 0.15, 0, None);
                 let should_copy_video = session.quality == quality && session.fps == fps;
                 append_debug_log(
                     &session.temp_dir,
@@ -2210,6 +2363,7 @@ pub fn screen_recorder_export_recording(
                 mp4_command.args(["-movflags", "+faststart"]);
                 mp4_command.arg(&output_path);
                 run_ffmpeg(mp4_command, "导出 MP4", Some(&session.temp_dir))?;
+                emit_export_progress(&app_handle, "done", "MP4 导出完成", 1.0, 0, None);
             }
         }
 

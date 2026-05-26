@@ -102,11 +102,13 @@ export const cancelExportRecording = (): Promise<void> =>
   invokeWithLog('screen_recorder_cancel_export');
 
 export const exportRecording = (
-  settings: RecordingSettings
+  settings: RecordingSettings,
+  durationMs?: number
 ): Promise<RecordingExportResult> =>
   invokeWithLog('screen_recorder_export_recording', {
     format: settings.format,
     fps: settings.fps,
     quality: settings.quality,
-    savePath: settings.savePath
+    savePath: settings.savePath,
+    durationMs
   });

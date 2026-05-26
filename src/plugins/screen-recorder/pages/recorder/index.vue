@@ -114,7 +114,15 @@
           </template>
 
           <template v-else-if="status === 'exporting'">
-            <span class="save-status">{{ $t('screenRecorder.exporting') || '正在导出...' }}</span>
+            <div class="export-progress" :title="exportProgressTitle">
+              <div class="export-progress__meta">
+                <span>{{ exportProgressText }}</span>
+                <strong>{{ exportProgressPercent }}%</strong>
+              </div>
+              <div class="export-progress__track">
+                <span :style="{ width: `${exportProgressPercent}%` }"></span>
+              </div>
+            </div>
             <button class="control-button danger" title="取消导出" @click="handleCancelExport">
               <span class="button-label">取消</span>
             </button>
@@ -174,11 +182,12 @@ import {
   setRecorderPassthroughRegion
 } from './core/recordingApi';
 import { useRecordingSession } from './core/useRecordingSession';
-import type { RecordingRegion, RecorderSnapRegion } from './core/types';
+import type { RecordingExportProgress, RecordingRegion, RecorderSnapRegion } from './core/types';
 
 type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
 type AudioLevelEvent = { level?: number };
 type PhysicalFrame = { x: number; y: number; width: number; height: number };
+type ExportProgressEvent = RecordingExportProgress;
 
 const LOG_PREFIX = '[screen-recorder]';
 const appWindow = getCurrentWindow();
@@ -186,9 +195,11 @@ const captureHoleRef = ref<HTMLElement | null>(null);
 const captureSize = ref({ width: 0, height: 0 });
 const audioLevel = ref(0);
 const audioMeterUnavailable = ref(false);
+const exportProgress = ref<ExportProgressEvent | null>(null);
 let resizeObserver: ResizeObserver | null = null;
 let unlistenMoved: UnlistenFn | null = null;
 let unlistenAudioLevel: UnlistenFn | null = null;
+let unlistenExportProgress: UnlistenFn | null = null;
 
 const MIN_CAPTURE_SIZE = 80;
 const DEFAULT_WINDOW_WIDTH = 468;
@@ -268,6 +279,30 @@ const audioTitle = computed(() => {
   return settings.value.audio
     ? '录制音频已开启。系统声音将通过 WASAPI Loopback 捕获'
     : '录制音频已关闭';
+});
+
+const exportProgressPercent = computed(() => {
+  const progress = exportProgress.value?.progress ?? 0.03;
+  return Math.max(1, Math.min(100, Math.round(progress * 100)));
+});
+
+const exportProgressText = computed(() => {
+  const progress = exportProgress.value;
+  if (!progress) {
+    return '正在导出...';
+  }
+  if (progress.totalFrames && progress.stage === 'frames') {
+    return `${progress.message}`;
+  }
+  return progress.message || '正在导出...';
+});
+
+const exportProgressTitle = computed(() => {
+  const progress = exportProgress.value;
+  if (!progress?.totalFrames) {
+    return exportProgressText.value;
+  }
+  return `${exportProgressText.value} (${progress.currentFrame}/${progress.totalFrames})`;
 });
 
 const timeText = computed(() => {
@@ -433,6 +468,7 @@ const startResize = async (direction: ResizeDirection) => {
 
 const handleStart = () => runAction(async () => {
   console.info(`${LOG_PREFIX} handle start`);
+  exportProgress.value = null;
   await startAudioMeter();
   await setRecorderCaptureExcluded(true).catch(() => undefined);
   await refreshCaptureMetrics();
@@ -451,6 +487,12 @@ const handleResume = () => runAction(async () => {
 
 const handleStop = () => runAction(async () => {
   console.info(`${LOG_PREFIX} handle stop/export`);
+  exportProgress.value = {
+    stage: 'encode',
+    message: settings.value.format === 'gif' ? '准备生成 GIF 帧' : '准备导出 MP4',
+    progress: 0.01,
+    currentFrame: 0
+  };
   await stop();
   audioLevel.value = 0;
   await exportFile();
@@ -461,6 +503,7 @@ const handleStop = () => runAction(async () => {
 const handleCancelExport = () => runAction(async () => {
   console.info(`${LOG_PREFIX} handle cancel export`);
   await cancelExport();
+  exportProgress.value = null;
   await refreshCaptureMetrics();
 });
 
@@ -469,6 +512,7 @@ const handleRecordAgain = () => {
   reset();
   status.value = 'ready';
   result.value = null;
+  exportProgress.value = null;
   void setRecorderCaptureExcluded(true).catch(() => undefined);
   void appWindow.setSize(new LogicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
   void nextTick(refreshCaptureMetrics);
@@ -628,6 +672,9 @@ onMounted(async () => {
   await startAudioMeter();
   await nextTick();
   await appWindow.emit('screen_recorder_ready');
+  unlistenExportProgress = await listen<ExportProgressEvent>('screen_recorder_export_progress', (event) => {
+    exportProgress.value = event.payload;
+  }).catch(() => null);
 
   if (captureHoleRef.value) {
     resizeObserver = new ResizeObserver(() => {
@@ -655,11 +702,15 @@ watch(status, (nextStatus) => {
   if (nextStatus !== 'recording') {
     audioLevel.value = 0;
   }
+  if (nextStatus !== 'exporting') {
+    exportProgress.value = null;
+  }
 });
 
 onUnmounted(() => {
   resizeObserver?.disconnect();
   unlistenMoved?.();
+  unlistenExportProgress?.();
   window.removeEventListener('resize', refreshCaptureMetrics);
   window.removeEventListener('keydown', handleKeydown);
   void setRecorderPassthroughRegion(null).catch(() => undefined);
@@ -955,6 +1006,56 @@ select {
   text-overflow: ellipsis;
 }
 
+.export-progress {
+  display: grid;
+  flex: 0 1 180px;
+  width: min(34cqw, 220px);
+  min-width: 126px;
+  gap: 5px;
+}
+
+.export-progress__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    flex: 0 0 auto;
+    color: #b42318;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.export-progress__track {
+  position: relative;
+  height: 5px;
+  overflow: hidden;
+  background: rgba(226, 232, 240, 0.92);
+  border-radius: 999px;
+
+  span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    min-width: 5px;
+    background: linear-gradient(90deg, #ef4444, #b42318);
+    border-radius: inherit;
+    transition: width 160ms ease;
+  }
+}
+
 .record-button,
 .control-button,
 .icon-control,
@@ -1139,6 +1240,11 @@ select {
     min-width: 88px;
     padding: 0 10px;
   }
+
+  .export-progress {
+    width: min(42cqw, 160px);
+    min-width: 104px;
+  }
 }
 
 @container (max-width: 450px) {
@@ -1158,6 +1264,10 @@ select {
     min-width: 42px;
     max-width: 56px;
     padding: 0 8px;
+  }
+
+  .export-progress__meta span {
+    max-width: 82px;
   }
 }
 

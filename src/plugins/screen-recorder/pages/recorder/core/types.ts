@@ -43,6 +43,14 @@ export interface RecordingExportResult {
   debugLogPath?: string;
 }
 
+export interface RecordingExportProgress {
+  stage: 'frames' | 'palette' | 'encode' | 'done' | string;
+  message: string;
+  progress: number;
+  currentFrame: number;
+  totalFrames?: number;
+}
+
 export interface RecorderPassthroughRegion {
   x: number;
   y: number;

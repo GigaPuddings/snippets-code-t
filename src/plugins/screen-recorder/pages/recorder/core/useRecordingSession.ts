@@ -121,7 +121,7 @@ export function useRecordingSession() {
     console.info(`${LOG_PREFIX} export requested`, { settings: settings.value });
     status.value = 'exporting';
     try {
-      result.value = await exportRecording(settings.value);
+      result.value = await exportRecording(settings.value, Math.round(elapsedMs.value));
       status.value = 'completed';
       console.info(`${LOG_PREFIX} export completed`, result.value);
       return result.value;
