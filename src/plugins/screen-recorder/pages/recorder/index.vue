@@ -29,12 +29,14 @@
         <span class="viewport-mask right"></span>
         <span class="viewport-mask bottom"></span>
         <span class="viewport-mask left"></span>
-        <div class="capture-frame" :style="captureFrameStyle">
-          <div ref="captureHoleRef" class="capture-hole"></div>
-          <span class="viewport-border top"></span>
-          <span class="viewport-border right"></span>
-          <span class="viewport-border bottom"></span>
-          <span class="viewport-border left"></span>
+        <div class="capture-frame">
+          <div class="capture-selection" :style="captureSelectionStyle">
+            <div ref="captureHoleRef" class="capture-hole"></div>
+            <span class="viewport-border top"></span>
+            <span class="viewport-border right"></span>
+            <span class="viewport-border bottom"></span>
+            <span class="viewport-border left"></span>
+          </div>
         </div>
       </main>
 
@@ -247,7 +249,7 @@ const isClosing = ref(false);
 const isBusy = computed(() => status.value === 'recording' || status.value === 'paused' || status.value === 'exporting');
 const audioEnabled = computed(() => settings.value.audio && settings.value.format === 'mp4');
 const isMeterActive = computed(() => audioEnabled.value && status.value === 'recording');
-const captureFrameStyle = computed<Record<string, string> | undefined>(() => {
+const captureSelectionStyle = computed<Record<string, string> | undefined>(() => {
   if (!snapTargetSize.value) return undefined;
   return {
     width: `${snapTargetSize.value.width / snapTargetSize.value.scale + 2}px`,
@@ -939,6 +941,13 @@ onUnmounted(() => {
   position: absolute;
   inset: 8px;
   z-index: 2;
+  overflow: hidden;
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.capture-selection {
+  position: absolute;
+  inset: 0;
   background: transparent;
 }
 
