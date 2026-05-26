@@ -212,7 +212,7 @@ const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
 const SNAP_MAX_CORRECTION_PASSES = 8;
 const SNAP_RESIDUAL_TOLERANCE = 1;
-const SNAP_TARGET_RIGHT_TRIM = 10;
+const SNAP_TARGET_RIGHT_TRIM = 15;
 const SNAP_TARGET_BOTTOM_TRIM = 10;
 
 const resizeHandles: Array<{ className: string; direction: ResizeDirection }> = [
