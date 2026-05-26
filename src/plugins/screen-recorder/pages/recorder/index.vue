@@ -427,6 +427,14 @@ const forceTransparentRepaint = async () => {
   await waitForWindowLayout();
 };
 
+const pulseWindowPassthrough = async () => {
+  await setRecorderPassthroughRegion(null).catch(() => undefined);
+  await appWindow.setIgnoreCursorEvents(true).catch(() => undefined);
+  await waitForWindowLayout();
+  await appWindow.setIgnoreCursorEvents(false).catch(() => undefined);
+  await refreshCaptureMetrics();
+};
+
 const getOuterFrame = async (): Promise<PhysicalFrame> => {
   const [position, size] = await Promise.all([
     appWindow.outerPosition(),
@@ -643,15 +651,6 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     minPhysicalWidth,
     minPhysicalHeight
   );
-  let hiddenDuringSnap = false;
-
-  try {
-    await appWindow.hide();
-    hiddenDuringSnap = true;
-  } catch {
-    hiddenDuringSnap = false;
-  }
-
   try {
     await setOuterFrame(
       monitorRect && isMonitorCoveringTarget
@@ -720,14 +719,10 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
   } catch (error) {
     console.warn(`${LOG_PREFIX} snap correction skipped`, error);
   } finally {
+    await pulseWindowPassthrough();
     await refreshCaptureMetrics();
     await forceTransparentRepaint();
-    if (hiddenDuringSnap) {
-      await appWindow.show().catch(() => undefined);
-      await appWindow.setFocus().catch(() => undefined);
-      await forceTransparentRepaint();
-      await refreshCaptureMetrics();
-    }
+    await appWindow.setFocus().catch(() => undefined);
   }
 };
 

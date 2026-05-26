@@ -1143,13 +1143,11 @@ pub fn screen_recorder_pick_target_window(
 
         clear_passthrough_region(&app_handle);
         let _ = window.set_ignore_cursor_events(true);
-        let _ = window.hide();
         thread::sleep(Duration::from_millis(80));
 
         let deadline = Instant::now() + Duration::from_secs(20);
         while left_button_down() {
             if Instant::now() > deadline {
-                let _ = window.show();
                 let _ = window.set_focus();
                 let _ = window.set_ignore_cursor_events(false);
                 return Err("窗口捕捉超时".to_string());
@@ -1160,7 +1158,6 @@ pub fn screen_recorder_pick_target_window(
         let point = cursor_pos()?;
         let raw_hwnd = unsafe { WindowFromPoint(point) };
         if raw_hwnd.0.is_null() {
-            let _ = window.show();
             let _ = window.set_focus();
             let _ = window.set_ignore_cursor_events(false);
             return Err("未找到目标窗口".to_string());
@@ -1173,7 +1170,6 @@ pub fn screen_recorder_pick_target_window(
             ancestor
         };
         if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
-            let _ = window.show();
             let _ = window.set_focus();
             let _ = window.set_ignore_cursor_events(false);
             return Err("目标窗口不可见".to_string());
@@ -1197,7 +1193,6 @@ pub fn screen_recorder_pick_target_window(
         let height = (rect.bottom - rect.top).max(1) as u32;
         let title = window_title(hwnd);
 
-        let _ = window.show();
         let _ = window.set_focus();
         let _ = window.set_ignore_cursor_events(false);
 
