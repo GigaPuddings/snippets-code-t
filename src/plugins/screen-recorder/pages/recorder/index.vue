@@ -12,7 +12,7 @@
         @mousedown.prevent="startResize(handle.direction)"
       ></span>
 
-      <header class="title-bar" @mousedown="startDrag">
+      <header ref="titleBarRef" class="title-bar" @mousedown="startDrag">
         <span class="window-title">{{ $t('screenRecorder.title') || '区域录制' }}</span>
         <div class="window-actions" @mousedown.stop>
           <button class="title-button title-button--window" title="最小化" @click="handleMinimize">
@@ -38,7 +38,7 @@
         </div>
       </main>
 
-      <footer class="control-strip">
+      <footer ref="controlStripRef" class="control-strip">
         <div class="control-group control-group--tools">
           <div class="tool-pill">
             <button
@@ -195,6 +195,8 @@ type ExportProgressEvent = RecordingExportProgress;
 const LOG_PREFIX = '[screen-recorder]';
 const appWindow = getCurrentWindow();
 const captureHoleRef = ref<HTMLElement | null>(null);
+const titleBarRef = ref<HTMLElement | null>(null);
+const controlStripRef = ref<HTMLElement | null>(null);
 const captureSize = ref({ width: 0, height: 0 });
 const snapTargetSize = ref<{ width: number; height: number; scale: number } | null>(null);
 const isSnapAligned = ref(false);
@@ -444,24 +446,27 @@ const getSnapLayout = async () => {
   return { actualRegion, currentFrame };
 };
 
-const getMeasuredFrameForTarget = async (
+const getSnappedWrapFrameForTarget = async (
   target: RecorderSnapRegion,
   minPhysicalWidth: number,
   minPhysicalHeight: number
 ): Promise<PhysicalFrame> => {
-  const { actualRegion, currentFrame } = await getSnapLayout();
-  const leftInset = actualRegion.screenX - currentFrame.x;
-  const topInset = actualRegion.screenY - currentFrame.y;
-  const rightInset =
-    currentFrame.x + currentFrame.width - (actualRegion.screenX + actualRegion.physicalWidth);
-  const bottomInset =
-    currentFrame.y + currentFrame.height - (actualRegion.screenY + actualRegion.physicalHeight);
+  const { actualRegion } = await getSnapLayout();
+  const scale = actualRegion.scale;
+  const leftInset = Math.round(actualRegion.x * scale);
+  const topInset = Math.round(actualRegion.y * scale);
+  const titleHeight = titleBarRef.value?.getBoundingClientRect().height ?? 38;
+  const controlHeight = controlStripRef.value?.getBoundingClientRect().height ?? 46;
+  const bottomViewportInset = Math.max(0, Math.round(topInset - titleHeight * scale));
+  const bottomInset = Math.round(controlHeight * scale) + bottomViewportInset;
+  const targetWidth = toEvenPhysicalSize(target.physicalWidth);
+  const targetHeight = toEvenPhysicalSize(target.physicalHeight);
 
   return {
     x: target.screenX - leftInset,
     y: target.screenY - topInset,
-    width: Math.max(minPhysicalWidth, target.physicalWidth + leftInset + rightInset),
-    height: Math.max(minPhysicalHeight, target.physicalHeight + topInset + bottomInset)
+    width: Math.max(minPhysicalWidth, targetWidth + leftInset * 2),
+    height: Math.max(minPhysicalHeight, targetHeight + topInset + bottomInset)
   };
 };
 
@@ -602,7 +607,7 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     );
   })();
 
-  const initialFrame = await getMeasuredFrameForTarget(
+  const initialFrame = await getSnappedWrapFrameForTarget(
     target,
     minPhysicalWidth,
     minPhysicalHeight
