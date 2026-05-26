@@ -19,6 +19,7 @@ async function readRemoteJson(url) {
     try {
       const response = await fetch(url, {
         headers: {
+          accept: 'application/vnd.github.raw+json',
           'user-agent': 'snippets-code-plugin-marketplace-verifier'
         },
         signal: AbortSignal.timeout(15000)
@@ -35,26 +36,54 @@ async function readRemoteJson(url) {
   throw new Error(`远程 plugin.json 获取失败: ${url} (${lastError?.message ?? lastError})`);
 }
 
+async function readRemoteJsonCandidates(urls) {
+  const errors = [];
+
+  for (const url of urls) {
+    try {
+      return await readRemoteJson(url);
+    } catch (error) {
+      errors.push(`${url} (${error.message})`);
+    }
+  }
+
+  throw new Error(`远程 plugin.json 获取失败: ${errors.join('; ')}`);
+}
+
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
 }
 
-function githubArchivePluginJsonUrl(packageUrl) {
+function parseGithubArchivePackageUrl(packageUrl) {
   const match = packageUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/archive\/refs\/(heads|tags)\/(.+)\.zip$/);
   if (!match) return null;
 
   const [, owner, repo, , ref] = match;
-  return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/plugin.json`;
+  return { owner, repo, ref };
+}
+
+function githubArchivePluginJsonUrls(packageUrl) {
+  const archive = parseGithubArchivePackageUrl(packageUrl);
+  if (!archive) return null;
+
+  const { owner, repo, ref } = archive;
+  const encodedOwner = encodeURIComponent(owner);
+  const encodedRepo = encodeURIComponent(repo);
+  const encodedRef = encodeURIComponent(ref);
+  return [
+    `https://api.github.com/repos/${encodedOwner}/${encodedRepo}/contents/plugin.json?ref=${encodedRef}`,
+    `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/plugin.json`
+  ];
 }
 
 async function readPackageManifest(item) {
   if (!item.packageSubdir) {
-    const remotePluginJsonUrl = githubArchivePluginJsonUrl(item.packageUrl);
-    assert(remotePluginJsonUrl, `${item.id}: 缺少 packageSubdir 时 packageUrl 必须指向 GitHub 分支或标签归档`);
+    const remotePluginJsonUrls = githubArchivePluginJsonUrls(item.packageUrl);
+    assert(remotePluginJsonUrls, `${item.id}: 缺少 packageSubdir 时 packageUrl 必须指向 GitHub 分支或标签归档`);
     return {
-      manifest: await readRemoteJson(remotePluginJsonUrl)
+      manifest: await readRemoteJsonCandidates(remotePluginJsonUrls)
     };
   }
 

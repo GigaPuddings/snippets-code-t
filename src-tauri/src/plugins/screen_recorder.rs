@@ -1117,7 +1117,7 @@ pub fn screen_recorder_pick_target_window(
         use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
         use windows::Win32::UI::WindowsAndMessaging::{
             GetAncestor, GetCursorPos, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
-            IsWindowVisible, WindowFromPoint, GA_ROOT,
+            IsWindowVisible, LoadCursorW, SetCursor, WindowFromPoint, GA_ROOT, IDC_HAND,
         };
 
         fn left_button_down() -> bool {
@@ -1129,6 +1129,14 @@ pub fn screen_recorder_pick_target_window(
             unsafe { GetCursorPos(&mut point) }
                 .map(|_| point)
                 .map_err(|e| format!("读取鼠标位置失败: {}", e))
+        }
+
+        fn set_hand_cursor() {
+            if let Ok(cursor) = unsafe { LoadCursorW(None, IDC_HAND) } {
+                unsafe {
+                    SetCursor(Some(cursor));
+                }
+            }
         }
 
         fn window_title(hwnd: HWND) -> String {
@@ -1147,6 +1155,7 @@ pub fn screen_recorder_pick_target_window(
 
         let deadline = Instant::now() + Duration::from_secs(20);
         while left_button_down() {
+            set_hand_cursor();
             if Instant::now() > deadline {
                 let _ = window.set_focus();
                 let _ = window.set_ignore_cursor_events(false);

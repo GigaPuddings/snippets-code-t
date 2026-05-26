@@ -1033,7 +1033,7 @@ onUnmounted(() => {
   grid-template-rows: 38px minmax(80px, 1fr) minmax(46px, auto);
 
   .viewport-mask {
-    display: none;
+    pointer-events: none;
   }
 
   .capture-frame,
