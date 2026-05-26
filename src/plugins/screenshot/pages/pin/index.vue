@@ -366,7 +366,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { Window, LogicalSize } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
@@ -584,16 +584,26 @@ const updateImageData = (base64Data: string) => {
   }
 };
 
-const applyPinWindowData = (payload: PinWindowDataPayload) => {
+const notifyPinWindowReady = async () => {
+  await nextTick();
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  try {
+    await appWindow.value?.emit('pin-window-ready');
+  } catch (error) {
+    logger.error('[PIN窗口] 发送 ready 事件失败', error);
+  }
+};
+
+const applyPinWindowData = (payload: PinWindowDataPayload): boolean => {
   if (!payload?.imageData) {
     logger.error('[PIN窗口] 收到的事件数据格式不正确', payload);
-    return;
+    return false;
   }
 
   const nextMode = payload.mode === 'ocr' ? 'ocr' : 'pin';
   const payloadKey = `${nextMode}:${payload.imageData.length}`;
   if (payloadKey === lastAppliedPayloadKey.value) {
-    return;
+    return false;
   }
 
   lastAppliedPayloadKey.value = payloadKey;
@@ -613,6 +623,8 @@ const applyPinWindowData = (payload: PinWindowDataPayload) => {
     ocrError.value = '';
     ocrText.value = '';
   }
+
+  return true;
 };
 
 const recognizeCurrentImage = async () => {
@@ -1203,7 +1215,10 @@ const hydratePinWindowData = async () => {
       { label: appWindow.value.label }
     );
     if (payload) {
-      applyPinWindowData(payload);
+      const applied = applyPinWindowData(payload);
+      if (applied) {
+        await notifyPinWindowReady();
+      }
     }
   } catch (error) {
     logger.error('[PIN窗口] 主动获取窗口数据失败', error);
@@ -1240,7 +1255,10 @@ onMounted(async () => {
       unlistenImageData = await appWindow.value.listen(
         'pin-window-data',
         (event: any) => {
-          applyPinWindowData(event.payload);
+          const applied = applyPinWindowData(event.payload);
+          if (applied) {
+            void notifyPinWindowReady();
+          }
         }
       );
       await hydratePinWindowData();

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "screenshot",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.screenshot.name",
@@ -37,11 +37,10 @@
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/index-B5VPCYum.css",
-      "dist/assets/index-DTSvV-pO.css"
+      "dist/assets/runtime-entry-BDzUh2zP.css"
     ]
   },
   "minAppVersion": "1.5.6",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.3"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.4"
 }

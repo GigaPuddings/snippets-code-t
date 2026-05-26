@@ -1409,7 +1409,7 @@ export class ScreenshotManager {
     const svg = `
       <svg width="${diameter}" height="${diameter}" xmlns="http://www.w3.org/2000/svg">
         <!-- 外圈：显示工具大小 -->
-        <circle cx="${center}" cy="${center}" r="${radius}" 
+        <circle cx="${center}" cy="${center}" r="${radius}"
                 fill="none" stroke="${color}" stroke-width="1.5" opacity="0.8"/>
         <!-- 中心点：精确定位 -->
         <circle cx="${center}" cy="${center}" r="1" fill="${color}" opacity="0.9"/>

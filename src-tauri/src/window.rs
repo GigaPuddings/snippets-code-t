@@ -2325,7 +2325,7 @@ pub async fn create_pin_window(
         .transparent(true)
         .shadow(is_ocr)
         .focused(true)
-        .visible(true);
+        .visible(false);
         builder.build()
     })
     .await;
@@ -2361,6 +2361,22 @@ pub async fn create_pin_window(
     };
 
     info!("贴图窗口创建成功: {}", window_label);
+
+    let window_for_ready = window.clone();
+    window.once("pin-window-ready", move |_| {
+        let _ = window_for_ready.show();
+        let _ = window_for_ready.set_focus();
+    });
+
+    let window_for_timeout = window.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_millis(1800)).await;
+        if !window_for_timeout.is_visible().unwrap_or(false) {
+            info!("贴图窗口前端 ready 超时，执行显示兜底");
+            let _ = window_for_timeout.show();
+            let _ = window_for_timeout.set_focus();
+        }
+    });
 
     // 立即发送图片数据到窗口（不等待前端请求）
     let image_data = match PIN_IMAGE_DATA.lock() {

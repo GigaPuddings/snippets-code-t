@@ -202,8 +202,6 @@ let unlistenAudioLevel: UnlistenFn | null = null;
 let unlistenExportProgress: UnlistenFn | null = null;
 
 const MIN_CAPTURE_SIZE = 80;
-const DEFAULT_WINDOW_WIDTH = 468;
-const DEFAULT_WINDOW_HEIGHT = 300;
 const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
 const TITLE_BAR_HEIGHT = 38;
@@ -508,13 +506,14 @@ const handleCancelExport = () => runAction(async () => {
 });
 
 const handleRecordAgain = () => {
+  const previousSettings = { ...settings.value };
   void clearPassthrough();
   reset();
+  settings.value = previousSettings;
   status.value = 'ready';
   result.value = null;
   exportProgress.value = null;
   void setRecorderCaptureExcluded(true).catch(() => undefined);
-  void appWindow.setSize(new LogicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
   void nextTick(refreshCaptureMetrics);
   void startAudioMeter();
 };
@@ -542,8 +541,24 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
         height: monitor.size.height
       }
     : null;
+  const isMonitorCoveringTarget = (() => {
+    if (!monitorRect) return false;
+    const tolerance = Math.max(8, Math.round(8 * scale));
+    const monitorRight = monitorRect.x + monitorRect.width;
+    const monitorBottom = monitorRect.y + monitorRect.height;
+    const targetRight = target.screenX + target.physicalWidth;
+    const targetBottom = target.screenY + target.physicalHeight;
+    return (
+      target.screenX <= monitorRect.x + tolerance &&
+      target.screenY <= monitorRect.y + tolerance &&
+      targetRight >= monitorRight - tolerance &&
+      targetBottom >= monitorBottom - tolerance
+    );
+  })();
   const finalFrame = (() => {
     if (!monitorRect) return desired;
+    if (!isMonitorCoveringTarget) return desired;
+
     const monitorRight = monitorRect.x + monitorRect.width;
     const monitorBottom = monitorRect.y + monitorRect.height;
     const fits =
@@ -562,33 +577,11 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
       height
     };
   })();
-  const desiredFitsMonitor = monitorRect
-    ? desired.x >= monitorRect.x &&
-      desired.y >= monitorRect.y &&
-      desired.x + desired.width <= monitorRect.x + monitorRect.width &&
-      desired.y + desired.height <= monitorRect.y + monitorRect.height
-    : true;
 
   await setOuterFrame(finalFrame);
   await nextTick();
 
-  const shouldKeepInsideMonitor = (() => {
-    if (!monitorRect) return false;
-    const tolerance = Math.max(4, Math.round(4 * scale));
-    const monitorRight = monitorRect.x + monitorRect.width;
-    const monitorBottom = monitorRect.y + monitorRect.height;
-    const targetRight = target.screenX + target.physicalWidth;
-    const targetBottom = target.screenY + target.physicalHeight;
-    return (
-      !desiredFitsMonitor ||
-      target.screenX <= monitorRect.x + tolerance ||
-      target.screenY <= monitorRect.y + tolerance ||
-      targetRight >= monitorRight - tolerance ||
-      targetBottom >= monitorBottom - tolerance
-    );
-  })();
-
-  try {
+  const correctCaptureToTarget = async () => {
     const [actualRegion, currentFrame] = await Promise.all([
       getCaptureRegion(),
       getOuterFrame()
@@ -606,10 +599,17 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
       height: Math.max(minPhysicalHeight, currentFrame.height + correction.height)
     };
     await setOuterFrame(
-      monitorRect && shouldKeepInsideMonitor
+      monitorRect && isMonitorCoveringTarget
         ? clampFrameToMonitor(correctedFrame, monitorRect)
         : correctedFrame
     );
+  };
+
+  try {
+    await correctCaptureToTarget();
+    if (!isMonitorCoveringTarget) {
+      await correctCaptureToTarget();
+    }
   } catch (error) {
     console.warn(`${LOG_PREFIX} snap correction skipped`, error);
   }

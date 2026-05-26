@@ -2205,7 +2205,7 @@ pub fn screen_recorder_export_recording(
                         "-i",
                     ])
                     .arg(&frame_pattern)
-                    .args(["-an", "-vf", &palette_filter])
+                    .args(["-an", "-vf", &palette_filter, "-frames:v", "1", "-update", "1"])
                     .arg(&palette_path);
                 run_ffmpeg(palette_command, "生成 GIF 调色板", Some(&session.temp_dir))?;
                 emit_export_progress(
