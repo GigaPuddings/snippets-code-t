@@ -1079,6 +1079,7 @@ pub fn screen_recorder_pick_target_window(
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::Foundation::{HWND, POINT, RECT};
+        use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWINDOWATTRIBUTE};
         use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
         use windows::Win32::UI::WindowsAndMessaging::{
             GetAncestor, GetCursorPos, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
@@ -1145,8 +1146,18 @@ pub fn screen_recorder_pick_target_window(
         }
 
         let mut rect = RECT::default();
-        unsafe { GetWindowRect(hwnd, &mut rect) }
-            .map_err(|e| format!("读取目标窗口边界失败: {}", e))?;
+        let dwm_result = unsafe {
+            DwmGetWindowAttribute(
+                hwnd,
+                DWMWINDOWATTRIBUTE(9), // DWMWA_EXTENDED_FRAME_BOUNDS
+                &mut rect as *mut _ as *mut _,
+                std::mem::size_of::<RECT>() as u32,
+            )
+        };
+        if dwm_result.is_err() {
+            unsafe { GetWindowRect(hwnd, &mut rect) }
+                .map_err(|e| format!("读取目标窗口边界失败: {}", e))?;
+        }
 
         let width = (rect.right - rect.left).max(1) as u32;
         let height = (rect.bottom - rect.top).max(1) as u32;

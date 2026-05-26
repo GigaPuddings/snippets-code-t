@@ -106,9 +106,11 @@
           <template v-if="status === 'recording' || status === 'paused'">
             <span class="time">{{ timeText }}</span>
             <button class="control-button" @click="status === 'paused' ? handleResume() : handlePause()">
-              {{ status === 'paused' ? $t('screenRecorder.resume') : $t('screenRecorder.pause') }}
+              <span class="button-label">{{ status === 'paused' ? $t('screenRecorder.resume') : $t('screenRecorder.pause') }}</span>
             </button>
-            <button class="control-button danger" @click="handleStop">{{ $t('screenRecorder.stop') }}</button>
+            <button class="control-button danger" @click="handleStop">
+              <span class="button-label">{{ $t('screenRecorder.stop') }}</span>
+            </button>
           </template>
 
           <template v-else-if="status === 'exporting'">
@@ -119,9 +121,15 @@
             <span class="save-status optional-save-status" :title="result.path">
               {{ result.hasAudio ? '已保存·有声' : '已保存·无声' }}
             </span>
-            <button class="control-button" title="打开文件" @click="handleOpenFile">打开</button>
-            <button class="control-button" title="打开所在文件夹" @click="handleRevealFile">文件夹</button>
-            <button class="control-button" title="重新录制" @click="handleRecordAgain">重录</button>
+            <button class="control-button" title="打开文件" @click="handleOpenFile">
+              <span class="button-label">打开</span>
+            </button>
+            <button class="control-button" title="打开所在文件夹" @click="handleRevealFile">
+              <span class="button-label">文件夹</span>
+            </button>
+            <button class="control-button" title="重新录制" @click="handleRecordAgain">
+              <span class="button-label">重录</span>
+            </button>
           </template>
 
           <button
@@ -130,8 +138,8 @@
             :disabled="ffmpegStatus?.available === false || captureSize.width < MIN_CAPTURE_SIZE || captureSize.height < MIN_CAPTURE_SIZE"
             @click="handleStart"
           >
-            <span></span>
-            {{ $t('screenRecorder.start') }}
+            <span class="record-dot"></span>
+            <span class="record-label">{{ $t('screenRecorder.start') }}</span>
           </button>
         </div>
       </footer>
@@ -167,6 +175,7 @@ import type { RecordingRegion, RecorderSnapRegion } from './core/types';
 
 type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
 type AudioLevelEvent = { level?: number };
+type PhysicalFrame = { x: number; y: number; width: number; height: number };
 
 const LOG_PREFIX = '[screen-recorder]';
 const appWindow = getCurrentWindow();
@@ -334,6 +343,43 @@ const scheduleMetricsRefresh = () => {
   }, 120);
 };
 
+const waitForWindowLayout = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+
+const getOuterFrame = async (): Promise<PhysicalFrame> => {
+  const [position, size] = await Promise.all([
+    appWindow.outerPosition(),
+    appWindow.outerSize()
+  ]);
+  return {
+    x: position.x,
+    y: position.y,
+    width: size.width,
+    height: size.height
+  };
+};
+
+const clampFrameToMonitor = (frame: PhysicalFrame, monitorFrame: PhysicalFrame): PhysicalFrame => {
+  const width = Math.min(frame.width, monitorFrame.width);
+  const height = Math.min(frame.height, monitorFrame.height);
+  const maxX = monitorFrame.x + monitorFrame.width - width;
+  const maxY = monitorFrame.y + monitorFrame.height - height;
+  return {
+    x: Math.min(Math.max(frame.x, monitorFrame.x), maxX),
+    y: Math.min(Math.max(frame.y, monitorFrame.y), maxY),
+    width,
+    height
+  };
+};
+
+const setOuterFrame = async (frame: PhysicalFrame) => {
+  await appWindow.setSize(new PhysicalSize(Math.round(frame.width), Math.round(frame.height)));
+  await appWindow.setPosition(new PhysicalPosition(Math.round(frame.x), Math.round(frame.y)));
+  await waitForWindowLayout();
+};
+
 const stopAudioMeter = async () => {
   unlistenAudioLevel?.();
   unlistenAudioLevel = null;
@@ -458,10 +504,58 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
       height
     };
   })();
+  const desiredFitsMonitor = monitorRect
+    ? desired.x >= monitorRect.x &&
+      desired.y >= monitorRect.y &&
+      desired.x + desired.width <= monitorRect.x + monitorRect.width &&
+      desired.y + desired.height <= monitorRect.y + monitorRect.height
+    : true;
 
-  await appWindow.setPosition(new PhysicalPosition(finalFrame.x, finalFrame.y));
-  await appWindow.setSize(new PhysicalSize(finalFrame.width, finalFrame.height));
+  await setOuterFrame(finalFrame);
   await nextTick();
+
+  const shouldKeepInsideMonitor = (() => {
+    if (!monitorRect) return false;
+    const tolerance = Math.max(4, Math.round(4 * scale));
+    const monitorRight = monitorRect.x + monitorRect.width;
+    const monitorBottom = monitorRect.y + monitorRect.height;
+    const targetRight = target.screenX + target.physicalWidth;
+    const targetBottom = target.screenY + target.physicalHeight;
+    return (
+      !desiredFitsMonitor ||
+      target.screenX <= monitorRect.x + tolerance ||
+      target.screenY <= monitorRect.y + tolerance ||
+      targetRight >= monitorRight - tolerance ||
+      targetBottom >= monitorBottom - tolerance
+    );
+  })();
+
+  try {
+    const [actualRegion, currentFrame] = await Promise.all([
+      getCaptureRegion(),
+      getOuterFrame()
+    ]);
+    const correction = {
+      x: target.screenX - actualRegion.screenX,
+      y: target.screenY - actualRegion.screenY,
+      width: target.physicalWidth - actualRegion.physicalWidth,
+      height: target.physicalHeight - actualRegion.physicalHeight
+    };
+    const correctedFrame = {
+      x: currentFrame.x + correction.x,
+      y: currentFrame.y + correction.y,
+      width: Math.max(minPhysicalWidth, currentFrame.width + correction.width),
+      height: Math.max(minPhysicalHeight, currentFrame.height + correction.height)
+    };
+    await setOuterFrame(
+      monitorRect && shouldKeepInsideMonitor
+        ? clampFrameToMonitor(correctedFrame, monitorRect)
+        : correctedFrame
+    );
+  } catch (error) {
+    console.warn(`${LOG_PREFIX} snap correction skipped`, error);
+  }
+
   await refreshCaptureMetrics();
 };
 
@@ -740,13 +834,13 @@ onUnmounted(() => {
 .control-strip {
   container-type: inline-size;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(86px, auto);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: clamp(8px, 2cqw, 18px);
+  gap: clamp(6px, 1.8cqw, 16px);
   min-width: 0;
   min-height: 60px;
   overflow: hidden;
-  padding: 10px clamp(12px, 2.2cqw, 18px);
+  padding: 10px clamp(8px, 2cqw, 16px);
   background: rgba(255, 255, 255, 0.98);
   border-top: 1px solid rgba(210, 216, 224, 0.92);
   box-sizing: border-box;
@@ -762,12 +856,13 @@ onUnmounted(() => {
 .control-group--tools {
   flex: 1 1 auto;
   width: 100%;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .control-group--actions {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   justify-content: flex-end;
+  overflow: hidden;
 }
 
 select,
@@ -799,7 +894,7 @@ select {
 .select-field,
 .dimension-group {
   display: inline-flex;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -856,6 +951,7 @@ select {
   border: 1px solid rgba(214, 220, 229, 0.86);
   border-radius: 8px;
   cursor: pointer;
+  overflow: hidden;
   white-space: nowrap;
 
   &:hover {
@@ -947,7 +1043,7 @@ select {
 }
 
 .record-button {
-  flex: 1 1 112px;
+  flex: 0 0 auto;
   min-width: 104px;
   max-width: 168px;
   height: 36px;
@@ -963,10 +1059,19 @@ select {
 }
 
 .control-button {
+  flex: 0 0 auto;
   min-width: 48px;
+  max-width: 76px;
 }
 
-.record-button span {
+.button-label,
+.record-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-dot {
+  flex: 0 0 auto;
   width: 11px;
   height: 11px;
   background: currentcolor;
@@ -977,34 +1082,81 @@ select {
   color: #b42318;
 }
 
-@container (max-width: 560px) {
+@container (max-width: 720px) {
   .optional-size {
-    display: none;
-  }
-
-  .optional-save-status {
     display: none;
   }
 }
 
-@container (max-width: 460px) {
-  .optional-quality,
+@container (max-width: 620px) {
+  .optional-save-status {
+    display: none;
+  }
+
+  .optional-quality {
+    display: none;
+  }
+}
+
+@container (max-width: 520px) {
   .optional-format {
     display: none;
   }
 
+  .control-group {
+    gap: 6px;
+  }
+
+  .select-field {
+    padding-right: 6px;
+  }
+
+  select {
+    width: 56px;
+    padding: 0 6px;
+  }
+
   .record-button {
-    min-width: 64px;
+    min-width: 88px;
+    padding: 0 10px;
   }
 }
 
-@container (max-width: 390px) {
+@container (max-width: 450px) {
   .unit {
     display: none;
   }
 
   .control-group {
     gap: 4px;
+  }
+
+  .tool-pill {
+    max-width: 72px;
+  }
+
+  .control-button {
+    min-width: 42px;
+    max-width: 56px;
+    padding: 0 8px;
+  }
+}
+
+@container (max-width: 410px) {
+  .record-label {
+    display: none;
+  }
+
+  .record-button {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .control-button {
+    min-width: 38px;
+    max-width: 48px;
+    padding: 0 6px;
   }
 }
 
