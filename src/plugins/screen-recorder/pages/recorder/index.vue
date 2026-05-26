@@ -115,6 +115,9 @@
 
           <template v-else-if="status === 'exporting'">
             <span class="save-status">{{ $t('screenRecorder.exporting') || '正在导出...' }}</span>
+            <button class="control-button danger" title="取消导出" @click="handleCancelExport">
+              <span class="button-label">取消</span>
+            </button>
           </template>
 
           <template v-else-if="status === 'completed' && result">
@@ -220,9 +223,12 @@ const {
   resume,
   stop,
   exportFile,
+  cancelExport,
   cancel,
   reset
 } = useRecordingSession();
+
+const isClosing = ref(false);
 
 const isBusy = computed(() => status.value === 'recording' || status.value === 'paused' || status.value === 'exporting');
 const audioEnabled = computed(() => settings.value.audio && settings.value.format === 'mp4');
@@ -276,7 +282,9 @@ const runAction = async (action: () => Promise<void>) => {
     await action();
   } catch (error: any) {
     console.error(`${LOG_PREFIX} action failed`, error);
-    modal.msg(error?.message || String(error), 'error');
+    if (!isClosing.value) {
+      modal.msg(error?.message || String(error), 'error');
+    }
   }
 };
 
@@ -450,6 +458,12 @@ const handleStop = () => runAction(async () => {
   await setRecorderCaptureExcluded(false).catch(() => undefined);
 });
 
+const handleCancelExport = () => runAction(async () => {
+  console.info(`${LOG_PREFIX} handle cancel export`);
+  await cancelExport();
+  await refreshCaptureMetrics();
+});
+
 const handleRecordAgain = () => {
   void clearPassthrough();
   reset();
@@ -570,8 +584,13 @@ const handleMinimize = async () => {
 };
 
 const handleClose = async () => {
+  isClosing.value = true;
   try {
-    await cancel();
+    if (status.value === 'exporting') {
+      await cancelExport().catch(() => undefined);
+    } else {
+      await cancel();
+    }
     await setRecorderPassthroughRegion(null).catch(() => undefined);
     await setRecorderCaptureExcluded(false).catch(() => undefined);
   } catch {

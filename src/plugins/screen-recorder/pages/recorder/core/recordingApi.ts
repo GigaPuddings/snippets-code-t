@@ -98,6 +98,9 @@ export const stopRecording = (): Promise<void> =>
 export const cancelRecording = (): Promise<void> =>
   invokeWithLog('screen_recorder_cancel_recording');
 
+export const cancelExportRecording = (): Promise<void> =>
+  invokeWithLog('screen_recorder_cancel_export');
+
 export const exportRecording = (
   settings: RecordingSettings
 ): Promise<RecordingExportResult> =>

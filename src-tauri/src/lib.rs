@@ -922,6 +922,7 @@ pub fn run() {
             plugins::screen_recorder::screen_recorder_resume_recording, // 继续录屏
             plugins::screen_recorder::screen_recorder_stop_recording, // 停止录屏
             plugins::screen_recorder::screen_recorder_cancel_recording, // 取消录屏
+            plugins::screen_recorder::screen_recorder_cancel_export, // 取消录屏导出
             plugins::screen_recorder::screen_recorder_export_recording, // 导出录屏
             plugins::screen_recorder::screen_recorder_compress_recording, // 压缩录屏
             frontend_log,                     // 前端日志转发

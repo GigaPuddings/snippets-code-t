@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU32, Ordering},
     Arc, LazyLock, Mutex,
 };
 use std::thread;
@@ -21,6 +21,8 @@ static RECORDING_SESSION: LazyLock<Mutex<Option<RecordingSession>>> =
     LazyLock::new(|| Mutex::new(None));
 static PASSTHROUGH_STATE: LazyLock<Mutex<PassthroughState>> =
     LazyLock::new(|| Mutex::new(PassthroughState::default()));
+static EXPORT_CANCEL_REQUESTED: AtomicBool = AtomicBool::new(false);
+static ACTIVE_EXPORT_PID: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1477,6 +1479,25 @@ fn stop_child(child: &mut Child) -> Option<i32> {
     child.wait().ok().and_then(|status| status.code())
 }
 
+fn terminate_process_by_pid(pid: u32) {
+    if pid == 0 {
+        return;
+    }
+
+    #[cfg(target_os = "windows")]
+    unsafe {
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+
+        if let Ok(handle) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+            if !handle.is_invalid() {
+                let _ = TerminateProcess(handle, 1);
+                let _ = CloseHandle(handle);
+            }
+        }
+    }
+}
+
 fn stop_active_segment(session: &mut RecordingSession) {
     let audio_capture = session.audio_capture.take();
     if let Some(capture) = &audio_capture {
@@ -1708,6 +1729,15 @@ pub fn screen_recorder_cancel_recording(app_handle: AppHandle) -> Result<(), Str
     Ok(())
 }
 
+#[tauri::command]
+pub fn screen_recorder_cancel_export(app_handle: AppHandle) -> Result<(), String> {
+    require_plugin(&app_handle)?;
+    EXPORT_CANCEL_REQUESTED.store(true, Ordering::SeqCst);
+    let pid = ACTIVE_EXPORT_PID.load(Ordering::SeqCst);
+    terminate_process_by_pid(pid);
+    Ok(())
+}
+
 fn concat_file_line(path: &Path) -> String {
     let value = path
         .to_string_lossy()
@@ -1804,9 +1834,59 @@ fn run_ffmpeg(mut command: Command, label: &str, debug_dir: Option<&Path>) -> Re
         command.creation_flags(0x08000000);
     }
     let started = Instant::now();
-    let output = command
-        .output()
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
         .map_err(|e| format!("执行 FFmpeg {} 失败: {}", label, e))?;
+    ACTIVE_EXPORT_PID.store(child.id(), Ordering::SeqCst);
+
+    let output = loop {
+        if EXPORT_CANCEL_REQUESTED.load(Ordering::SeqCst) {
+            let _ = child.kill();
+            let output = child
+                .wait_with_output()
+                .map_err(|e| format!("取消 FFmpeg {} 失败: {}", label, e))?;
+            ACTIVE_EXPORT_PID.store(0, Ordering::SeqCst);
+            if let Some(debug_dir) = debug_dir {
+                append_debug_log(
+                    debug_dir,
+                    format!(
+                        "ffmpeg {} canceled: elapsed_ms={} stdout_bytes={} stderr_bytes={}",
+                        label,
+                        started.elapsed().as_millis(),
+                        output.stdout.len(),
+                        output.stderr.len()
+                    ),
+                );
+                append_debug_block(
+                    debug_dir,
+                    &format!("ffmpeg {} canceled stdout", label),
+                    &output.stdout,
+                );
+                append_debug_block(
+                    debug_dir,
+                    &format!("ffmpeg {} canceled stderr", label),
+                    &output.stderr,
+                );
+            }
+            return Err("导出已取消".to_string());
+        }
+
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                let output = child
+                    .wait_with_output()
+                    .map_err(|e| format!("读取 FFmpeg {} 输出失败: {}", label, e))?;
+                ACTIVE_EXPORT_PID.store(0, Ordering::SeqCst);
+                break output;
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(100)),
+            Err(error) => {
+                ACTIVE_EXPORT_PID.store(0, Ordering::SeqCst);
+                return Err(format!("等待 FFmpeg {} 失败: {}", label, error));
+            }
+        }
+    };
     if let Some(debug_dir) = debug_dir {
         append_debug_log(
             debug_dir,
@@ -1904,6 +1984,8 @@ pub fn screen_recorder_export_recording(
     drop(state);
     stop_active_segment(&mut session);
     session.stopped = true;
+    EXPORT_CANCEL_REQUESTED.store(false, Ordering::SeqCst);
+    ACTIVE_EXPORT_PID.store(0, Ordering::SeqCst);
 
     let output_path = if save_path.trim().is_empty() {
         default_output_path(&format)
@@ -1949,13 +2031,22 @@ pub fn screen_recorder_export_recording(
                 );
                 let mut palette_command = Command::new(&ffmpeg.path);
                 palette_command
-                    .args(["-y", "-f", "concat", "-safe", "0", "-i"])
+                    .args([
+                        "-hide_banner",
+                        "-nostdin",
+                        "-y",
+                        "-f",
+                        "concat",
+                        "-safe",
+                        "0",
+                        "-i",
+                    ])
                     .arg(&concat_path)
                     .args(["-an", "-vf", &palette_filter])
                     .arg(&palette_path);
                 run_ffmpeg(palette_command, "生成 GIF 调色板", Some(&session.temp_dir))?;
 
-                let gif_filter = format!("fps={}[x];[x][1:v]paletteuse=dither=bayer", fps);
+                let gif_filter = format!("[0:v]fps={}[x];[x][1:v]paletteuse=dither=bayer[v]", fps);
                 append_debug_log(
                     &session.temp_dir,
                     format!(
@@ -1966,11 +2057,20 @@ pub fn screen_recorder_export_recording(
                 );
                 let mut gif_command = Command::new(&ffmpeg.path);
                 gif_command
-                    .args(["-y", "-f", "concat", "-safe", "0", "-i"])
+                    .args([
+                        "-hide_banner",
+                        "-nostdin",
+                        "-y",
+                        "-f",
+                        "concat",
+                        "-safe",
+                        "0",
+                        "-i",
+                    ])
                     .arg(&concat_path)
                     .arg("-i")
                     .arg(&palette_path)
-                    .args(["-an", "-lavfi", &gif_filter])
+                    .args(["-an", "-filter_complex", &gif_filter, "-map", "[v]"])
                     .arg(&output_path);
                 run_ffmpeg(gif_command, "导出 GIF", Some(&session.temp_dir))?;
             }
@@ -1990,7 +2090,16 @@ pub fn screen_recorder_export_recording(
                 );
                 let mut mp4_command = Command::new(&ffmpeg.path);
                 mp4_command
-                    .args(["-y", "-f", "concat", "-safe", "0", "-i"])
+                    .args([
+                        "-hide_banner",
+                        "-nostdin",
+                        "-y",
+                        "-f",
+                        "concat",
+                        "-safe",
+                        "0",
+                        "-i",
+                    ])
                     .arg(&concat_path);
                 let combined_audio = write_combined_audio(&session)?;
                 if let Some(audio) = &combined_audio {
@@ -2085,6 +2194,8 @@ pub fn screen_recorder_export_recording(
 
     match export_result {
         Ok(result) => {
+            EXPORT_CANCEL_REQUESTED.store(false, Ordering::SeqCst);
+            ACTIVE_EXPORT_PID.store(0, Ordering::SeqCst);
             let _ = fs::remove_dir_all(&session.temp_dir);
             info!(
                 "[Plugin:screen-recorder] exported session {} to {}",
@@ -2093,10 +2204,16 @@ pub fn screen_recorder_export_recording(
             Ok(result)
         }
         Err(error) => {
-            let mut state = RECORDING_SESSION
-                .lock()
-                .map_err(|e| format!("录屏状态锁定失败: {}", e))?;
-            *state = Some(session);
+            ACTIVE_EXPORT_PID.store(0, Ordering::SeqCst);
+            if EXPORT_CANCEL_REQUESTED.swap(false, Ordering::SeqCst) || error == "导出已取消" {
+                let _ = fs::remove_file(&output_path);
+                let _ = fs::remove_dir_all(&session.temp_dir);
+            } else {
+                let mut state = RECORDING_SESSION
+                    .lock()
+                    .map_err(|e| format!("录屏状态锁定失败: {}", e))?;
+                *state = Some(session);
+            }
             Err(error)
         }
     }

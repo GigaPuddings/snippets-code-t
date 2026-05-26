@@ -7,6 +7,7 @@ import type {
   RecordingStatus
 } from './types';
 import {
+  cancelExportRecording,
   cancelRecording,
   exportRecording,
   getFfmpegStatus,
@@ -119,10 +120,23 @@ export function useRecordingSession() {
   const exportFile = async () => {
     console.info(`${LOG_PREFIX} export requested`, { settings: settings.value });
     status.value = 'exporting';
-    result.value = await exportRecording(settings.value);
-    status.value = 'completed';
-    console.info(`${LOG_PREFIX} export completed`, result.value);
-    return result.value;
+    try {
+      result.value = await exportRecording(settings.value);
+      status.value = 'completed';
+      console.info(`${LOG_PREFIX} export completed`, result.value);
+      return result.value;
+    } catch (error) {
+      status.value = 'ready';
+      result.value = null;
+      throw error;
+    }
+  };
+
+  const cancelExport = async () => {
+    console.info(`${LOG_PREFIX} cancel export requested`, { status: status.value });
+    await cancelExportRecording();
+    status.value = 'ready';
+    result.value = null;
   };
 
   const cancel = async () => {
@@ -165,6 +179,7 @@ export function useRecordingSession() {
     resume,
     stop,
     exportFile,
+    cancelExport,
     cancel,
     reset
   };
