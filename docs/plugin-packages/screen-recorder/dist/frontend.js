@@ -4618,7 +4618,7 @@ const Yi = { class: "screen-recorder" }, Xi = ["onMousedown"], Ji = { class: "wi
   for (const [s, o] of t)
     n[s] = o;
   return n;
-}, zr = /* @__PURE__ */ Nr(Pr, [["__scopeId", "data-v-e63fce2a"]]), $r = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, zr = /* @__PURE__ */ Nr(Pr, [["__scopeId", "data-v-57ecfc4c"]]), $r = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: zr
 }, Symbol.toStringTag, { value: "Module" }));

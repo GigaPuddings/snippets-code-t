@@ -1036,11 +1036,6 @@ onUnmounted(() => {
     pointer-events: none;
   }
 
-  .capture-frame,
-  .capture-hole {
-    inset: 0;
-  }
-
   .control-strip {
     min-height: 46px;
     gap: 6px;

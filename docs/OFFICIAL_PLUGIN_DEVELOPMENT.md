@@ -1,13 +1,10 @@
-# Official Plugin Development
+# 官方插件开发
 
-Official feature plugins are external installable packages by default. A new
-official plugin is not complete until the app source, package source,
-marketplace entry, and independent GitHub plugin repository are all wired
-together.
+官方功能插件默认以外部可安装包的形式发布。一个新的官方插件只有在应用源码、插件包源码、插件市场条目和独立 GitHub 插件仓库都接好之后，才算完整。
 
-## Required Files
+## 必需文件
 
-Use `quick-tools` as the smallest working search plugin example.
+可以把 `quick-tools` 当作最小可运行的搜索插件示例。
 
 ```text
 src/plugins/<plugin-id>/
@@ -22,143 +19,85 @@ docs/plugin-packages/<plugin-id>/
   dist/frontend.js
 ```
 
-The runtime entry must call the plugin bridge registration method that matches
-the manifest capabilities. For quick search tools, `plugin.json` must include
-the search source in `capabilities.searchSources`, and `runtime-entry.ts` must
-call `context.registerSearchProvider(...)`.
+运行时入口必须调用与 manifest 能力匹配的插件桥注册方法。以快速搜索工具为例，`plugin.json` 需要在 `capabilities.searchSources` 中声明搜索来源，`runtime-entry.ts` 需要调用 `context.registerSearchProvider(...)`。
 
-## App Integration Checklist
+## 应用接入清单
 
-- Add the source plugin under `src/plugins/<plugin-id>`.
-- Add the plugin manifest to `src/plugins/loader.ts` only if the plugin also
-  needs bundled development compatibility.
-- Add the plugin id to `src/plugins/types.ts` when the core app has typed
-  references to it.
-- Add backend whitelist or state gates in `src-tauri/src/app_config.rs` only for
-  official plugins that need core-side commands, hotkeys, or startup services.
-- Add an entry in `scripts/build-official-plugin-runtimes.mjs` so
-  `dist/frontend.js` is generated.
-- Add an entry in `scripts/sync-plugin-repositories.mjs` with the matching
-  `GigaPuddings/snippets-code-plugin-<plugin-id>` repository name.
-- Create the independent GitHub repository before running the sync script.
-- Add a marketplace item in `docs/plugin-marketplace/marketplace.json`.
-- Add package documentation in `docs/plugin-packages/<plugin-id>/README.md`.
+- 在 `src/plugins/<plugin-id>` 下添加插件源码。
+- 只有插件需要保持内置开发兼容时，才把插件 manifest 加到 `src/plugins/loader.ts`。
+- 当核心应用有类型化引用时，把插件 ID 加到 `src/plugins/types.ts`。
+- 只有官方插件需要核心侧命令、热键或启动服务时，才在 `src-tauri/src/app_config.rs` 添加后端白名单或状态门禁。
+- 在 `scripts/build-official-plugin-runtimes.mjs` 添加条目，确保能生成 `dist/frontend.js`。
+- 在 `scripts/plugin-release-config.mjs` 添加条目，并填写对应的 `GigaPuddings/snippets-code-plugin-<plugin-id>` 仓库名。
+- 运行同步脚本前，先创建独立 GitHub 插件仓库。
+- 在 `docs/plugin-marketplace/marketplace.json` 添加插件市场条目。
+- 在 `docs/plugin-packages/<plugin-id>/README.md` 添加插件包文档。
 
-Published official marketplace packages should point directly at the plugin
-repository tag archive, for example:
+已发布的官方 marketplace 包应该直接指向插件仓库的 tag 归档，例如：
 
 ```text
 https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.6.zip
 ```
 
-Do not use `packageSubdir` for a published official plugin repository. That is
-only for development archives or multi-package examples.
+正式发布到独立官方插件仓库时，不要使用 `packageSubdir`。它只适合开发归档或多包示例。
 
-The app fetches the marketplace list from the main app repository:
+应用会从主仓库读取插件市场列表：
 
 ```text
 https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json
 ```
 
-Publishing an independent plugin repository does not make the plugin appear in
-the app by itself. Commit and push the updated marketplace manifest in the main
-repository after the plugin package tag is available.
+只发布独立插件仓库并不会让插件自动出现在应用里。插件包 tag 可用后，还需要提交并推送主仓库中更新后的 marketplace manifest。
 
-Resource-only packages should be linked from their parent feature plugin in both
-directions:
+纯资源包需要和它的父功能插件双向关联：
 
-- The parent marketplace item declares `dependencies`, for example
-  `screen-recorder` depends on `screen-recorder-ffmpeg`.
-- The resource marketplace item declares `resourceFor`, for example
-  `screen-recorder-ffmpeg` has `resourceFor: "screen-recorder"`.
+- 父级 marketplace 条目声明 `dependencies`，例如 `screen-recorder` 依赖 `screen-recorder-ffmpeg`。
+- 资源 marketplace 条目声明 `resourceFor`，例如 `screen-recorder-ffmpeg` 设置 `resourceFor: "screen-recorder"`。
 
-The settings page shows resource-only packages under their parent feature, so a
-resource plugin may not appear as a separate top-level marketplace row.
+设置页会把纯资源包展示在父功能插件下面，所以资源插件不一定会作为单独的顶层 marketplace 行出现。
 
-## Build And Release
+## 构建与发布
 
-For a plugin-only fix, bump only the plugin package version and keep
-`minAppVersion` unchanged unless the plugin needs a new app bridge API.
+如果只是修复插件本身，只升级插件包版本；除非插件依赖新的应用桥 API，否则保持 `minAppVersion` 不变。
 
 ```powershell
-pnpm plugins:build-official <plugin-id>
-pnpm plugins:sync-repos --only <plugin-id> --version <plugin-version> --pin-marketplace-tags
-pnpm plugins:package
-pnpm plugins:verify-marketplace
-pnpm build
+pnpm plugins:tag
 ```
 
-After build and sync, update the marketplace `sizeBytes` value from the package
-directory size if the plugin package contents changed.
+这个交互工具会列出所有官方插件，展示当前 marketplace 版本，让你选择插件并输入新的插件版本号。之后它会自动执行匹配的构建或打包步骤，同步独立插件仓库，创建或更新插件 tag，把 marketplace 的 `packageUrl` 固定到该 tag 归档，重新生成本地插件包元数据，校验 marketplace，然后执行 `git add -A`、提交主仓库变更并 `git push origin main`。只有在插件仓库的同名 tag 已存在时，工具才会额外询问是否覆盖。
 
-Resource-only packages with generated assets require the explicit resource
-flag, otherwise the sync script refuses to overwrite a full resource repository
-with its empty template:
+只有在插件仓库已经同步完成、但你需要把主仓库变更留在本地交接时，才使用：
 
 ```powershell
-pnpm rapidocr:release
-pnpm ffmpeg:release
+pnpm plugins:tag -- --no-push-main
 ```
 
-These release scripts generate the resource package, sync the independent
-resource plugin repository, pin the marketplace package URL to the tag archive,
-and update generated resource package sizes.
+带生成资源的纯资源包也走同一个流程。发布 `screenshot-rapidocr` 或 `screen-recorder-ffmpeg` 时，工具会先运行对应的资源打包步骤，并把必要的资源标志传给同步脚本，避免用空模板覆盖完整资源仓库。
 
-## Update Publishing Checklist
+## 更新发布清单
 
-Use this checklist when publishing an official plugin update without releasing a
-new main app build:
+发布官方插件更新、但不发布新的主应用版本时，按这个清单检查：
 
-- Change the source under `src/plugins/<plugin-id>` and rebuild the matching
-  `docs/plugin-packages/<plugin-id>/dist/frontend.js`.
-- Bump `docs/plugin-packages/<plugin-id>/plugin.json` `version`. Keep
-  `minAppVersion` unchanged unless the runtime depends on a new app command,
-  permission, route bridge, or storage behavior.
-- Run `pnpm plugins:sync-repos --only <plugin-id> --version <plugin-version> --pin-marketplace-tags`
-  after the independent `GigaPuddings/snippets-code-plugin-<plugin-id>` repo
-  exists. The sync step creates or updates the plugin repository tag and pins
-  the marketplace package URL to that tag archive.
-- Run `pnpm plugins:package` and `pnpm plugins:verify-marketplace`; update
-  `docs/plugin-marketplace/marketplace.json` `sizeBytes` if the generated
-  package size changed.
-- Install the marketplace package in a clean app data directory and verify
-  install, enable, disable, update, uninstall, and re-install. Search providers
-  should disappear while disabled, return after re-enable, and avoid duplicate
-  local index rows after update.
-- Push the plugin repository tag and the marketplace manifest update together.
-  The app offers an update only when the marketplace version is newer than the
-  installed package version.
+- 修改 `src/plugins/<plugin-id>` 下的源码，并让流程重建对应的 `docs/plugin-packages/<plugin-id>/dist/frontend.js`。
+- 运行 `pnpm plugins:tag`，选择插件并输入新的插件版本号。除非运行时依赖新的应用命令、权限、路由桥或存储行为，否则保持 `minAppVersion` 不变。
+- 在干净的应用数据目录里安装 marketplace 包，验证安装、启用、禁用、更新、卸载和重新安装。搜索提供器应在禁用时消失，重新启用后恢复，并且更新后不能产生重复的本地索引行。
+- 插件仓库 tag 和主仓库 marketplace manifest 更新需要一起推送到远程。只有远程 marketplace 版本高于用户已安装包版本时，应用刷新后才会提示可更新。
 
-## Quick Search Plugin Checklist
+## 快速搜索插件清单
 
-- The manifest declares `capabilities.searchSources`.
-- The runtime entry imports the search provider and registers it through
-  `context.registerSearchProvider`.
-- The marketplace version is newer than the user-installed package version, so
-  the plugin settings page offers an update.
-- The installed plugin is enabled.
-- The search tab filter is not hiding the source. Quick search shows tool
-  results under `全部` and `工具`.
-- Query examples are documented in the plugin README. Users should not have to
-  guess the syntax.
+- manifest 声明 `capabilities.searchSources`。
+- 运行时入口导入搜索提供器，并通过 `context.registerSearchProvider` 注册。
+- marketplace 版本高于用户已安装插件版本，这样插件设置页才会显示可更新。
+- 已安装插件处于启用状态。
+- 搜索页签过滤器没有隐藏该来源。Quick search 的工具结果应该出现在 `全部` 和 `工具` 下。
+- 查询示例写在插件 README 中，用户不应该靠猜语法使用。
 
-## Common Failure Modes
+## 常见失败模式
 
-- Plugin does not show in marketplace: missing or stale marketplace item, wrong
-  branch/tag URL, or the marketplace branch was not pushed.
-- Plugin install fails: package URL returns 404, repository was not created, tag
-  was not pushed, archive root does not contain `plugin.json`, or package size
-  metadata is stale.
-- Plugin shows but does not work: `dist/frontend.js` was not rebuilt, the
-  runtime entry does not register the capability, manifest capabilities do not
-  match the runtime registration, or the installed local package is still an old
-  version.
-- Official plugin works only in development: source files were changed but
-  `pnpm plugins:build-official` and `pnpm plugins:sync-repos` were not run.
-- Backend command is blocked: the plugin is disabled, the command permission is
-  missing, or the app-side official plugin whitelist/state gate does not include
-  the plugin id.
+- 插件没有出现在 marketplace 中：marketplace 条目缺失或过期、分支/tag URL 错误，或 marketplace 所在分支没有推送。
+- 插件安装失败：package URL 返回 404、仓库未创建、tag 未推送、归档根目录不包含 `plugin.json`，或包大小元数据过期。
+- 插件显示了但不能工作：没有重建 `dist/frontend.js`，运行时入口没有注册能力，manifest 能力和运行时注册不匹配，或已安装的本地包仍是旧版本。
+- 官方插件只在开发环境工作：源码改了，但没有运行 `pnpm plugins:build-official` 和 `pnpm plugins:sync-repos`，或没有通过 `pnpm plugins:tag` 完整发布。
+- 后端命令被拦截：插件被禁用，命令权限缺失，或应用侧官方插件白名单/状态门禁没有包含该插件 ID。
 
-When debugging, start from the installed package in the app data plugin
-directory and verify `plugin.json`, `dist/frontend.js`, version, enabled state,
-and app logs in that order.
+调试时，优先从应用数据目录里的已安装插件包开始，按顺序检查 `plugin.json`、`dist/frontend.js`、版本号、启用状态和应用日志。
