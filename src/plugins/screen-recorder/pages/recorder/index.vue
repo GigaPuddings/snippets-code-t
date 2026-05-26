@@ -24,12 +24,12 @@
         </div>
       </header>
 
-      <main class="capture-viewport" :style="captureViewportStyle">
+      <main class="capture-viewport">
         <span class="viewport-mask top"></span>
         <span class="viewport-mask right"></span>
         <span class="viewport-mask bottom"></span>
         <span class="viewport-mask left"></span>
-        <div class="capture-frame" :style="captureFrameStyle">
+        <div class="capture-frame">
           <div ref="captureHoleRef" class="capture-hole"></div>
           <span class="viewport-border top"></span>
           <span class="viewport-border right"></span>
@@ -198,7 +198,6 @@ const captureHoleRef = ref<HTMLElement | null>(null);
 const titleBarRef = ref<HTMLElement | null>(null);
 const controlStripRef = ref<HTMLElement | null>(null);
 const captureSize = ref({ width: 0, height: 0 });
-const snapTargetSize = ref<{ width: number; height: number; scale: number } | null>(null);
 const isSnapAligned = ref(false);
 const audioLevel = ref(0);
 const audioMeterUnavailable = ref(false);
@@ -213,7 +212,6 @@ const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
 const SNAP_MAX_CORRECTION_PASSES = 8;
 const SNAP_RESIDUAL_TOLERANCE = 1;
-const SNAP_FRAME_MARGIN = 0;
 
 const resizeHandles: Array<{ className: string; direction: ResizeDirection }> = [
   { className: 'n', direction: 'North' },
@@ -248,29 +246,6 @@ const isClosing = ref(false);
 const isBusy = computed(() => status.value === 'recording' || status.value === 'paused' || status.value === 'exporting');
 const audioEnabled = computed(() => settings.value.audio && settings.value.format === 'mp4');
 const isMeterActive = computed(() => audioEnabled.value && status.value === 'recording');
-const captureFrameStyle = computed<Record<string, string> | undefined>(() => {
-  if (!snapTargetSize.value) return undefined;
-  const frameWidth = snapTargetSize.value.width / snapTargetSize.value.scale;
-  const frameHeight = snapTargetSize.value.height / snapTargetSize.value.scale;
-  return {
-    width: `${frameWidth}px`,
-    height: `${frameHeight}px`,
-    left: '50%',
-    top: '50%',
-    right: 'auto',
-    bottom: 'auto',
-    transform: 'translate(-50%, -50%)'
-  };
-});
-const captureViewportStyle = computed<Record<string, string> | undefined>(() => {
-  if (!snapTargetSize.value) return undefined;
-  const frameWidth = snapTargetSize.value.width / snapTargetSize.value.scale;
-  const frameHeight = snapTargetSize.value.height / snapTargetSize.value.scale;
-  return {
-    '--snap-frame-width': `${frameWidth}px`,
-    '--snap-frame-height': `${frameHeight}px`
-  };
-});
 const audioBarsStyle = computed<Record<string, string>>(() => {
   const level = isMeterActive.value && !audioMeterUnavailable.value ? audioLevel.value : 0;
   const scale = (base: number, weight: number) =>
@@ -429,7 +404,6 @@ const clearPassthrough = async () => {
 
 const resetSnapAlignment = () => {
   isSnapAligned.value = false;
-  snapTargetSize.value = null;
 };
 
 const scheduleMetricsRefresh = () => {
@@ -488,35 +462,17 @@ const getSnappedWrapFrameForTarget = async (
   minPhysicalWidth: number,
   minPhysicalHeight: number
 ): Promise<PhysicalFrame> => {
-  const { actualRegion } = await getSnapLayout();
-  const scale = actualRegion.scale;
-  const titleHeight = titleBarRef.value?.getBoundingClientRect().height || 38;
-  const controlHeight = controlStripRef.value?.getBoundingClientRect().height || 46;
-  const frameWidth = target.physicalWidth / scale;
-  const frameHeight = target.physicalHeight / scale;
-  const desiredWidth = Math.max(
-    minPhysicalWidth / scale,
-    frameWidth + SNAP_FRAME_MARGIN * 2
-  );
-  const desiredHeight = Math.max(
-    minPhysicalHeight / scale,
-    titleHeight + controlHeight + frameHeight + SNAP_FRAME_MARGIN * 2
-  );
-  const viewportHeight = Math.max(
-    frameHeight + SNAP_FRAME_MARGIN * 2,
-    desiredHeight - titleHeight - controlHeight
-  );
-  const holeLeftInset = ((desiredWidth - frameWidth) / 2) * scale;
-  const holeTopInset = (
-    titleHeight +
-    (viewportHeight - frameHeight) / 2
-  ) * scale;
+  const { actualRegion, currentFrame } = await getSnapLayout();
+  const leftInset = actualRegion.screenX - currentFrame.x;
+  const topInset = actualRegion.screenY - currentFrame.y;
+  const horizontalChrome = Math.max(0, currentFrame.width - actualRegion.physicalWidth);
+  const verticalChrome = Math.max(0, currentFrame.height - actualRegion.physicalHeight);
 
   return {
-    x: target.screenX - holeLeftInset,
-    y: target.screenY - holeTopInset,
-    width: Math.max(minPhysicalWidth, Math.round(desiredWidth * scale)),
-    height: Math.max(minPhysicalHeight, Math.round(desiredHeight * scale))
+    x: target.screenX - leftInset,
+    y: target.screenY - topInset,
+    width: Math.max(minPhysicalWidth, target.physicalWidth + horizontalChrome),
+    height: Math.max(minPhysicalHeight, target.physicalHeight + verticalChrome)
   };
 };
 
@@ -547,7 +503,6 @@ const startAudioMeter = async () => {
 
 const startDrag = async (event: MouseEvent) => {
   if (event.button !== 0 || isBusy.value) return;
-  resetSnapAlignment();
   await clearPassthrough();
   await appWindow.startDragging().catch((error: any) => {
     modal.msg(error?.message || String(error), 'error');
@@ -623,11 +578,6 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
   const monitor = await monitorFromPoint(target.screenX, target.screenY);
   const scale = monitor?.scaleFactor || await appWindow.scaleFactor();
   isSnapAligned.value = true;
-  snapTargetSize.value = {
-    width: target.physicalWidth,
-    height: target.physicalHeight,
-    scale
-  };
   await nextTick();
   await waitForWindowLayout();
 
@@ -662,45 +612,54 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     minPhysicalWidth,
     minPhysicalHeight
   );
-  await setOuterFrame(
-    monitorRect && isMonitorCoveringTarget
-      ? clampFrameToMonitor(initialFrame, monitorRect)
-      : initialFrame
-  );
-  await nextTick();
-
-  const correctCaptureToTarget = async (): Promise<boolean> => {
-    const { actualRegion, currentFrame } = await getSnapLayout();
-    const residual = {
-      x: target.screenX - actualRegion.screenX,
-      y: target.screenY - actualRegion.screenY,
-      width: target.physicalWidth - actualRegion.physicalWidth,
-      height: target.physicalHeight - actualRegion.physicalHeight
-    };
-    if (
-      Math.abs(residual.x) <= SNAP_RESIDUAL_TOLERANCE &&
-      Math.abs(residual.y) <= SNAP_RESIDUAL_TOLERANCE &&
-      Math.abs(residual.width) <= SNAP_RESIDUAL_TOLERANCE &&
-      Math.abs(residual.height) <= SNAP_RESIDUAL_TOLERANCE
-    ) {
-      return true;
-    }
-
-    const correctedFrame = {
-      x: currentFrame.x + residual.x,
-      y: currentFrame.y + residual.y,
-      width: Math.max(minPhysicalWidth, currentFrame.width + residual.width),
-      height: Math.max(minPhysicalHeight, currentFrame.height + residual.height)
-    };
-    await setOuterFrame(
-      monitorRect && isMonitorCoveringTarget
-        ? clampFrameToMonitor(correctedFrame, monitorRect)
-        : correctedFrame
-    );
-    return false;
-  };
+  let hiddenDuringSnap = false;
 
   try {
+    await appWindow.hide();
+    hiddenDuringSnap = true;
+  } catch {
+    hiddenDuringSnap = false;
+  }
+
+  try {
+    await setOuterFrame(
+      monitorRect && isMonitorCoveringTarget
+        ? clampFrameToMonitor(initialFrame, monitorRect)
+        : initialFrame
+    );
+    await nextTick();
+
+    const correctCaptureToTarget = async (): Promise<boolean> => {
+      const { actualRegion, currentFrame } = await getSnapLayout();
+      const residual = {
+        x: target.screenX - actualRegion.screenX,
+        y: target.screenY - actualRegion.screenY,
+        width: target.physicalWidth - actualRegion.physicalWidth,
+        height: target.physicalHeight - actualRegion.physicalHeight
+      };
+      if (
+        Math.abs(residual.x) <= SNAP_RESIDUAL_TOLERANCE &&
+        Math.abs(residual.y) <= SNAP_RESIDUAL_TOLERANCE &&
+        Math.abs(residual.width) <= SNAP_RESIDUAL_TOLERANCE &&
+        Math.abs(residual.height) <= SNAP_RESIDUAL_TOLERANCE
+      ) {
+        return true;
+      }
+
+      const correctedFrame = {
+        x: currentFrame.x + residual.x,
+        y: currentFrame.y + residual.y,
+        width: Math.max(minPhysicalWidth, currentFrame.width + residual.width),
+        height: Math.max(minPhysicalHeight, currentFrame.height + residual.height)
+      };
+      await setOuterFrame(
+        monitorRect && isMonitorCoveringTarget
+          ? clampFrameToMonitor(correctedFrame, monitorRect)
+          : correctedFrame
+      );
+      return false;
+    };
+
     for (let pass = 0; pass < SNAP_MAX_CORRECTION_PASSES; pass += 1) {
       const settled = await correctCaptureToTarget();
       if (settled) {
@@ -728,9 +687,13 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     });
   } catch (error) {
     console.warn(`${LOG_PREFIX} snap correction skipped`, error);
+  } finally {
+    await refreshCaptureMetrics();
+    if (hiddenDuringSnap) {
+      await appWindow.show().catch(() => undefined);
+      await appWindow.setFocus().catch(() => undefined);
+    }
   }
-
-  await refreshCaptureMetrics();
 };
 
 const handleSnapToWindow = () => runAction(async () => {
@@ -1034,45 +997,6 @@ onUnmounted(() => {
 
 .recorder-shell.snap-aligned {
   grid-template-rows: 38px minmax(80px, 1fr) minmax(46px, auto);
-
-  .capture-frame {
-    inset: auto;
-  }
-
-  .capture-hole {
-    inset: 0;
-  }
-
-  .viewport-mask {
-    display: block;
-  }
-
-  .viewport-mask.top {
-    inset: 0 0 auto 0;
-    height: max(0px, calc(50% - var(--snap-frame-height) / 2));
-  }
-
-  .viewport-mask.bottom {
-    inset: auto 0 0 0;
-    height: max(0px, calc(50% - var(--snap-frame-height) / 2));
-  }
-
-  .viewport-mask.left,
-  .viewport-mask.right {
-    top: max(0px, calc(50% - var(--snap-frame-height) / 2));
-    bottom: max(0px, calc(50% - var(--snap-frame-height) / 2));
-    width: max(0px, calc(50% - var(--snap-frame-width) / 2));
-  }
-
-  .viewport-mask.left {
-    left: 0;
-    right: auto;
-  }
-
-  .viewport-mask.right {
-    left: auto;
-    right: 0;
-  }
 
   .control-strip {
     min-height: 46px;
