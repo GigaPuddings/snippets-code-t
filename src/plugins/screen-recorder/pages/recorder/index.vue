@@ -336,6 +336,9 @@ const runAction = async (action: () => Promise<void>) => {
 const toEvenPhysicalSize = (value: number): number =>
   Math.max(2, Math.floor(Math.round(value) / 2) * 2);
 
+const toPhysicalSize = (value: number): number =>
+  Math.max(1, Math.round(value));
+
 const getCaptureRegion = async (): Promise<RecordingRegion> => {
   const hole = captureHoleRef.value;
   if (!hole) {
@@ -345,8 +348,8 @@ const getCaptureRegion = async (): Promise<RecordingRegion> => {
   const rect = hole.getBoundingClientRect();
   const scale = await appWindow.scaleFactor();
   const innerPosition = await appWindow.innerPosition();
-  const physicalWidth = toEvenPhysicalSize(rect.width * scale);
-  const physicalHeight = toEvenPhysicalSize(rect.height * scale);
+  const physicalWidth = toPhysicalSize(rect.width * scale);
+  const physicalHeight = toPhysicalSize(rect.height * scale);
 
   if (physicalWidth < MIN_CAPTURE_SIZE || physicalHeight < MIN_CAPTURE_SIZE) {
     throw new Error('录制区域太小，请放大录制窗口');
@@ -363,8 +366,25 @@ const getCaptureRegion = async (): Promise<RecordingRegion> => {
     physicalHeight,
     scale
   };
-  console.info(`${LOG_PREFIX} capture region`, region);
+  console.info(`${LOG_PREFIX} capture region`, {
+    ...region,
+    logicalSize: `${region.width}x${region.height}`,
+    physicalSize: `${region.physicalWidth}x${region.physicalHeight}`
+  });
   return region;
+};
+
+const getRecordingRegion = async (): Promise<RecordingRegion> => {
+  const region = await getCaptureRegion();
+  const physicalWidth = toEvenPhysicalSize(region.physicalWidth);
+  const physicalHeight = toEvenPhysicalSize(region.physicalHeight);
+  return {
+    ...region,
+    width: physicalWidth / region.scale,
+    height: physicalHeight / region.scale,
+    physicalWidth,
+    physicalHeight
+  };
 };
 
 const refreshCaptureMetrics = async () => {
@@ -459,14 +479,12 @@ const getSnappedWrapFrameForTarget = async (
   const controlHeight = controlStripRef.value?.getBoundingClientRect().height ?? 46;
   const bottomViewportInset = Math.max(0, Math.round(topInset - titleHeight * scale));
   const bottomInset = Math.round(controlHeight * scale) + bottomViewportInset;
-  const targetWidth = toEvenPhysicalSize(target.physicalWidth);
-  const targetHeight = toEvenPhysicalSize(target.physicalHeight);
 
   return {
     x: target.screenX - leftInset,
     y: target.screenY - topInset,
-    width: Math.max(minPhysicalWidth, targetWidth + leftInset * 2),
-    height: Math.max(minPhysicalHeight, targetHeight + topInset + bottomInset)
+    width: Math.max(minPhysicalWidth, target.physicalWidth + leftInset * 2),
+    height: Math.max(minPhysicalHeight, target.physicalHeight + topInset + bottomInset)
   };
 };
 
@@ -521,7 +539,7 @@ const handleStart = () => runAction(async () => {
   await startAudioMeter();
   await setRecorderCaptureExcluded(true).catch(() => undefined);
   await refreshCaptureMetrics();
-  await begin(await getCaptureRegion());
+  await begin(await getRecordingRegion());
 });
 
 const handlePause = () => runAction(async () => {
@@ -531,7 +549,7 @@ const handlePause = () => runAction(async () => {
 
 const handleResume = () => runAction(async () => {
   console.info(`${LOG_PREFIX} handle resume`);
-  await resume(await getCaptureRegion());
+  await resume(await getRecordingRegion());
 });
 
 const handleStop = () => runAction(async () => {
