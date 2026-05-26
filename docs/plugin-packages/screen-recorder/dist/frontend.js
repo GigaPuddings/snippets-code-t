@@ -3758,7 +3758,7 @@ function qi() {
 const Ki = { class: "screen-recorder" }, Zi = ["onMousedown"], Yi = { class: "window-title" }, Xi = { class: "capture-viewport" }, Ji = { class: "capture-frame" }, Qi = { class: "control-group control-group--tools" }, er = { class: "tool-pill" }, tr = ["title", "disabled"], nr = { class: "select-field" }, sr = ["disabled"], or = ["disabled"], ar = ["disabled"], ir = { value: "high" }, rr = { value: "standard" }, lr = { value: "small" }, ur = { class: "dimension-group optional-size" }, cr = { class: "dimension" }, dr = ["value"], pr = { class: "dimension" }, hr = ["value"], fr = { class: "control-group control-group--actions" }, gr = { class: "time" }, vr = { class: "button-label" }, yr = { class: "button-label" }, mr = ["title"], wr = { class: "export-progress__meta" }, _r = { class: "export-progress__track" }, br = ["title"], Cr = ["disabled"], xr = { class: "record-label" }, Sr = {
   key: 0,
   class: "warning"
-}, K = "[screen-recorder]", me = 80, yn = 420, mn = 260, kr = 8, Ge = 1, Or = 20, Mr = 10, Tr = /* @__PURE__ */ j({
+}, K = "[screen-recorder]", me = 80, yn = 420, mn = 260, kr = 8, Ge = 1, Or = 10, Mr = 10, Tr = /* @__PURE__ */ j({
   __name: "index",
   setup(e) {
     const t = xn(), n = C(null), s = C(null), o = C(null), l = C({ width: 0, height: 0 }), r = C(!1), p = C(0), g = C(!1), f = C(null);
@@ -4618,7 +4618,7 @@ const Ki = { class: "screen-recorder" }, Zi = ["onMousedown"], Yi = { class: "wi
   for (const [s, o] of t)
     n[s] = o;
   return n;
-}, Pr = /* @__PURE__ */ Ir(Tr, [["__scopeId", "data-v-c070c6df"]]), zr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, Pr = /* @__PURE__ */ Ir(Tr, [["__scopeId", "data-v-36a01143"]]), zr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: Pr
 }, Symbol.toStringTag, { value: "Module" }));
