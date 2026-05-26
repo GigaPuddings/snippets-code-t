@@ -1203,6 +1203,21 @@ fn gif_colors(quality: &str) -> &'static str {
     }
 }
 
+fn count_png_frames(dir: &Path) -> Result<usize, String> {
+    let entries = fs::read_dir(dir)
+        .map_err(|e| format!("读取 GIF 帧目录失败 {}: {}", dir.display(), e))?;
+    Ok(entries
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("png"))
+        })
+        .count())
+}
+
 fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
@@ -2018,9 +2033,52 @@ pub fn screen_recorder_export_recording(
 
         match format.as_str() {
             "gif" => {
+                let fps_text = fps.to_string();
+                let frames_dir = session.temp_dir.join("gif_frames");
+                let _ = fs::remove_dir_all(&frames_dir);
+                fs::create_dir_all(&frames_dir)
+                    .map_err(|e| format!("创建 GIF 临时帧目录失败: {}", e))?;
+                let frame_pattern = frames_dir.join("frame_%06d.png");
+                let frame_filter = format!("fps={},format=rgba", fps);
+                append_debug_log(
+                    &session.temp_dir,
+                    format!(
+                        "export GIF frames: filter={} pattern={}",
+                        frame_filter,
+                        display_path(&frame_pattern)
+                    ),
+                );
+                let mut frames_command = Command::new(&ffmpeg.path);
+                frames_command
+                    .args([
+                        "-hide_banner",
+                        "-nostdin",
+                        "-y",
+                        "-f",
+                        "concat",
+                        "-safe",
+                        "0",
+                        "-i",
+                    ])
+                    .arg(&concat_path)
+                    .args(["-an", "-vf", &frame_filter])
+                    .arg(&frame_pattern);
+                run_ffmpeg(frames_command, "生成 GIF 临时帧", Some(&session.temp_dir))?;
+                let frame_count = count_png_frames(&frames_dir)?;
+                if frame_count == 0 {
+                    return Err("GIF 导出失败：没有生成任何临时帧".to_string());
+                }
+                append_debug_log(
+                    &session.temp_dir,
+                    format!(
+                        "export GIF frames ready: dir={} count={}",
+                        display_path(&frames_dir),
+                        frame_count
+                    ),
+                );
+
                 let palette_path = session.temp_dir.join("palette.png");
-                let palette_filter =
-                    format!("fps={},palettegen=max_colors={}", fps, gif_colors(&quality));
+                let palette_filter = format!("palettegen=max_colors={}", gif_colors(&quality));
                 append_debug_log(
                     &session.temp_dir,
                     format!(
@@ -2035,18 +2093,16 @@ pub fn screen_recorder_export_recording(
                         "-hide_banner",
                         "-nostdin",
                         "-y",
-                        "-f",
-                        "concat",
-                        "-safe",
-                        "0",
+                        "-framerate",
+                        &fps_text,
                         "-i",
                     ])
-                    .arg(&concat_path)
+                    .arg(&frame_pattern)
                     .args(["-an", "-vf", &palette_filter])
                     .arg(&palette_path);
                 run_ffmpeg(palette_command, "生成 GIF 调色板", Some(&session.temp_dir))?;
 
-                let gif_filter = format!("[0:v]fps={}[x];[x][1:v]paletteuse=dither=bayer[v]", fps);
+                let gif_filter = "[0:v][1:v]paletteuse=dither=bayer[v]";
                 append_debug_log(
                     &session.temp_dir,
                     format!(
@@ -2061,16 +2117,22 @@ pub fn screen_recorder_export_recording(
                         "-hide_banner",
                         "-nostdin",
                         "-y",
-                        "-f",
-                        "concat",
-                        "-safe",
-                        "0",
+                        "-framerate",
+                        &fps_text,
                         "-i",
                     ])
-                    .arg(&concat_path)
+                    .arg(&frame_pattern)
                     .arg("-i")
                     .arg(&palette_path)
-                    .args(["-an", "-filter_complex", &gif_filter, "-map", "[v]"])
+                    .args([
+                        "-an",
+                        "-filter_complex",
+                        gif_filter,
+                        "-map",
+                        "[v]",
+                        "-loop",
+                        "0",
+                    ])
                     .arg(&output_path);
                 run_ffmpeg(gif_command, "导出 GIF", Some(&session.temp_dir))?;
             }

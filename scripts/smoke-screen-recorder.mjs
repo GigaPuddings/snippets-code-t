@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -19,6 +19,8 @@ function main() {
 
   const defaultMp4 = join(OUTPUT_DIR, 'default.mp4')
   const compressedMp4 = join(OUTPUT_DIR, 'compressed.mp4')
+  const framesDir = join(OUTPUT_DIR, 'gif_frames')
+  const framePattern = join(framesDir, 'frame_%06d.png')
   const palette = join(OUTPUT_DIR, 'palette.png')
   const compressedGif = join(OUTPUT_DIR, 'compressed.gif')
   const desktopCapture = join(OUTPUT_DIR, 'desktop-capture.mp4')
@@ -65,25 +67,46 @@ function main() {
     compressedMp4
   ])
 
+  mkdirSync(framesDir, { recursive: true })
   run(FFMPEG_PATH, [
     '-y',
     '-hide_banner',
     '-i',
     defaultMp4,
     '-vf',
-    'fps=15,palettegen=max_colors=96',
+    'fps=15,format=rgba',
+    framePattern
+  ])
+  const gifFrameCount = readdirSync(framesDir).filter((name) => name.endsWith('.png')).length
+  assert(gifFrameCount > 0, 'GIF 临时帧没有生成')
+
+  run(FFMPEG_PATH, [
+    '-y',
+    '-hide_banner',
+    '-framerate',
+    '15',
+    '-i',
+    framePattern,
+    '-vf',
+    'palettegen=max_colors=96',
     palette
   ])
 
   run(FFMPEG_PATH, [
     '-y',
     '-hide_banner',
+    '-framerate',
+    '15',
     '-i',
-    defaultMp4,
+    framePattern,
     '-i',
     palette,
-    '-lavfi',
-    'fps=15[x];[x][1:v]paletteuse=dither=bayer',
+    '-filter_complex',
+    '[0:v][1:v]paletteuse=dither=bayer[v]',
+    '-map',
+    '[v]',
+    '-loop',
+    '0',
     compressedGif
   ])
 
@@ -104,6 +127,7 @@ function main() {
     defaultMp4Bytes: defaultBytes,
     compressedMp4Bytes: compressedBytes,
     gifBytes,
+    gifFrameCount,
     mp4Size,
     gifSize
   }
