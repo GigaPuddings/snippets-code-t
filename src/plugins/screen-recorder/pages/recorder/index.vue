@@ -998,6 +998,15 @@ onUnmounted(() => {
 .recorder-shell.snap-aligned {
   grid-template-rows: 38px minmax(80px, 1fr) minmax(46px, auto);
 
+  .viewport-mask {
+    display: none;
+  }
+
+  .capture-frame,
+  .capture-hole {
+    inset: 0;
+  }
+
   .control-strip {
     min-height: 46px;
     gap: 6px;

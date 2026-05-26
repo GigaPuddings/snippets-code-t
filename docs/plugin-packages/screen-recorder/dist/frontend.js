@@ -4609,7 +4609,7 @@ const Ui = { class: "screen-recorder" }, Gi = ["onMousedown"], qi = { class: "wi
   for (const [s, o] of t)
     n[s] = o;
   return n;
-}, kr = /* @__PURE__ */ Sr(xr, [["__scopeId", "data-v-3be34828"]]), Or = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, kr = /* @__PURE__ */ Sr(xr, [["__scopeId", "data-v-5fa134dd"]]), Or = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: kr
 }, Symbol.toStringTag, { value: "Module" }));
