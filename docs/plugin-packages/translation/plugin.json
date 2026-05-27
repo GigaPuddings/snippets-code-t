@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "translation",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.translation.name",
@@ -40,25 +40,10 @@
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/CommonDialog-TNyMUBVE.css",
-      "dist/assets/ConfirmDialog-CZedtFAu.css",
-      "dist/assets/empty-iVBaPuAw.css",
-      "dist/assets/index-76SVii_J.css",
-      "dist/assets/index-B2NTPGN-.css",
-      "dist/assets/index-B5VPCYum.css",
-      "dist/assets/index-BEHhHzb4.css",
-      "dist/assets/index-BIRqQKX6.css",
-      "dist/assets/index-BqIwKgA3.css",
-      "dist/assets/index-CWfSo5Zw.css",
-      "dist/assets/index-DbQXFkow.css",
-      "dist/assets/index-DQvhJ7Ik.css",
-      "dist/assets/index-HGna4TUS.css",
-      "dist/assets/switch-BVq8NMY0.css",
-      "dist/assets/TitlebarGitStatus-DB8ZU_mk.css",
-      "dist/assets/_plugin-vue_export-helper-CHXRjTYS.css"
+      "dist/assets/runtime-entry-WWBA_6h7.css"
     ]
   },
   "minAppVersion": "1.5.6",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.3"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.4"
 }
