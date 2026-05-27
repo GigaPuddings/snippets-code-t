@@ -4679,7 +4679,7 @@ const sr = { class: "screen-recorder" }, or = ["onMousedown"], ar = { class: "wi
   for (const [s, o] of t)
     n[s] = o;
   return n;
-}, Ar = /* @__PURE__ */ Dr(Wr, [["__scopeId", "data-v-823d3efa"]]), Fr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, Ar = /* @__PURE__ */ Dr(Wr, [["__scopeId", "data-v-5631918f"]]), Fr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: Ar
 }, Symbol.toStringTag, { value: "Module" }));

@@ -1133,16 +1133,15 @@ onUnmounted(() => {
     min-height: 46px;
     gap: 6px;
     padding: 6px 8px;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .control-group {
-    flex-wrap: wrap;
     gap: 6px;
   }
 
   .control-group--actions {
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
   .optional-save-status {
@@ -1211,6 +1210,22 @@ onUnmounted(() => {
     inset: auto 0 0;
     z-index: 6;
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@container (max-width: 360px) {
+  .recorder-shell.snap-aligned {
+    .control-strip {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .control-group {
+      flex-wrap: wrap;
+    }
+
+    .control-group--actions {
+      justify-content: flex-start;
+    }
   }
 }
 
