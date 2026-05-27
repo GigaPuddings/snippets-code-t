@@ -10,35 +10,14 @@ import type {
 } from './types';
 
 const LOG_PREFIX = '[screen-recorder]';
-const QUIET_COMMANDS = new Set([
-  'screen_recorder_set_passthrough_region',
-  'screen_recorder_set_overlay_window_region'
-]);
-
-const summarizePayload = (payload?: Record<string, unknown>) => {
-  if (!payload) return undefined;
-  return JSON.parse(JSON.stringify(payload));
-};
 
 const invokeWithLog = async <T>(
   command: string,
   payload?: Record<string, unknown>
 ): Promise<T> => {
   const started = performance.now();
-  const summary = summarizePayload(payload);
-  const quiet = QUIET_COMMANDS.has(command);
-  if (!quiet) {
-    console.info(`${LOG_PREFIX} invoke:start ${command}`, summary ?? '');
-  }
   try {
-    const result = await invoke<T>(command, payload);
-    if (!quiet) {
-      console.info(`${LOG_PREFIX} invoke:success ${command}`, {
-        elapsedMs: Math.round(performance.now() - started),
-        result
-      });
-    }
-    return result;
+    return await invoke<T>(command, payload);
   } catch (error) {
     console.error(`${LOG_PREFIX} invoke:error ${command}`, {
       elapsedMs: Math.round(performance.now() - started),

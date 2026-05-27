@@ -399,11 +399,6 @@ const getCaptureRegion = async (): Promise<RecordingRegion> => {
     physicalHeight,
     scale
   };
-  console.debug(`${LOG_PREFIX} capture region`, {
-    ...region,
-    logicalSize: `${region.width}x${region.height}`,
-    physicalSize: `${region.physicalWidth}x${region.physicalHeight}`
-  });
   return region;
 };
 
@@ -664,7 +659,6 @@ const stopAudioMeter = async () => {
 const startAudioMeter = async () => {
   if (!audioEnabled.value || unlistenAudioLevel) return;
   try {
-    console.info(`${LOG_PREFIX} backend audio meter listening`);
     unlistenAudioLevel = await listen<AudioLevelEvent>('screen_recorder_audio_level', (event) => {
       if (!isMeterActive.value) {
         audioLevel.value = 0;
@@ -703,7 +697,6 @@ const startResize = async (direction: ResizeDirection) => {
 };
 
 const handleStart = () => runAction(async () => {
-  console.info(`${LOG_PREFIX} handle start`);
   exportProgress.value = null;
   await startAudioMeter();
   await setRecorderCaptureExcluded(true).catch(() => undefined);
@@ -712,17 +705,14 @@ const handleStart = () => runAction(async () => {
 });
 
 const handlePause = () => runAction(async () => {
-  console.info(`${LOG_PREFIX} handle pause`);
   await pause();
 });
 
 const handleResume = () => runAction(async () => {
-  console.info(`${LOG_PREFIX} handle resume`);
   await resume(await getRecordingRegion());
 });
 
 const handleStop = () => runAction(async () => {
-  console.info(`${LOG_PREFIX} handle stop/export`);
   exportProgress.value = {
     stage: 'encode',
     message: settings.value.format === 'gif' ? '准备生成 GIF 帧' : '准备导出 MP4',
@@ -737,7 +727,6 @@ const handleStop = () => runAction(async () => {
 });
 
 const handleCancelExport = () => runAction(async () => {
-  console.info(`${LOG_PREFIX} handle cancel export`);
   await cancelExport();
   exportProgress.value = null;
   await refreshCaptureMetrics();
@@ -808,14 +797,6 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     await refreshOverlayWindowRegion();
 
     if (isMonitorEdgeTarget) {
-      const { actualRegion } = await getSnapLayout();
-      console.info(`${LOG_PREFIX} snap edge result`, {
-        target,
-        snapTarget,
-        actualRegion,
-        monitorCovering: isMonitorCoveringTarget,
-        monitorEdge: isMonitorEdgeTarget
-      });
       return;
     }
 
@@ -857,27 +838,8 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
       }
     }
 
-    const { actualRegion } = await getSnapLayout();
-    console.info(`${LOG_PREFIX} snap result`, {
-      target,
-      snapTarget,
-      actualRegion,
-      residual: {
-        left: actualRegion.screenX - snapTarget.screenX,
-        top: actualRegion.screenY - snapTarget.screenY,
-        right:
-          actualRegion.screenX +
-          actualRegion.physicalWidth -
-          (snapTarget.screenX + snapTarget.physicalWidth),
-        bottom:
-          actualRegion.screenY +
-          actualRegion.physicalHeight -
-          (snapTarget.screenY + snapTarget.physicalHeight)
-      },
-      monitorCovering: isMonitorCoveringTarget
-    });
   } catch (error) {
-    console.warn(`${LOG_PREFIX} snap correction skipped`, error);
+    console.error(`${LOG_PREFIX} snap correction failed`, error);
   } finally {
     await pulseWindowPassthrough();
     await refreshCaptureMetrics();

@@ -1,5 +1,6 @@
 use crate::db;
 use crate::icon;
+#[cfg(not(target_os = "windows"))]
 use crate::APP;
 use glob::glob;
 use regex::Regex;
@@ -9,6 +10,8 @@ use std::fs;
 use std::mem::size_of;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+#[cfg(not(target_os = "windows"))]
 use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
@@ -1462,9 +1465,12 @@ fn find_existing_window(target_path: &str) -> Option<HWND> {
 
 #[cfg(target_os = "windows")]
 fn open_shell_apps_folder_path(app_path: &str) -> Result<(), String> {
-    std::process::Command::new("explorer.exe")
+    Command::new("explorer.exe")
         .arg(app_path)
         .creation_flags(0x08000000)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("启动 Windows Store 应用失败 '{}': {}", app_path, e))?;
 
@@ -1473,9 +1479,12 @@ fn open_shell_apps_folder_path(app_path: &str) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn open_shell_apps_folder() -> Result<(), String> {
-    std::process::Command::new("explorer.exe")
+    Command::new("explorer.exe")
         .arg("shell:AppsFolder")
         .creation_flags(0x08000000)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("打开 Windows Applications 文件夹失败: {}", e))?;
 
@@ -1520,7 +1529,7 @@ $verb.DoIt()
 "#
     );
 
-    let output = std::process::Command::new("powershell")
+    let output = Command::new("powershell")
         .args([
             "-NoProfile",
             "-NonInteractive",
@@ -1542,6 +1551,28 @@ $verb.DoIt()
     }
 
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn open_app_path_detached(app_path: &str, launch_path: &str) -> Result<(), String> {
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    const DETACHED_PROCESS: u32 = 0x00000008;
+
+    let mut command = Command::new(launch_path);
+    command
+        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    if let Some(parent) = Path::new(launch_path).parent().filter(|path| path.exists()) {
+        command.current_dir(parent);
+    }
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("启动应用程序失败 '{}': {}", app_path, e))
 }
 
 pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Result<(), String> {
@@ -1576,19 +1607,26 @@ pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Resul
         return Ok(());
     }
 
-    match APP.get() {
-        Some(app) => {
-            let actual_path = if app_path.ends_with(".lnk") {
-                resolve_shortcut(Path::new(&app_path)).unwrap_or(app_path.clone())
-            } else {
-                app_path.clone()
-            };
+    let actual_path = if app_path.ends_with(".lnk") {
+        resolve_shortcut(Path::new(&app_path)).unwrap_or(app_path.clone())
+    } else {
+        app_path.clone()
+    };
 
-            app.opener()
+    #[cfg(target_os = "windows")]
+    {
+        return open_app_path_detached(&app_path, &actual_path);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        match APP.get() {
+            Some(app) => app
+                .opener()
                 .open_path(actual_path.clone(), None::<&str>)
-                .map_err(|e| format!("启动应用程序失败 '{}': {}", app_path, e))
+                .map_err(|e| format!("启动应用程序失败 '{}': {}", app_path, e)),
+            None => Err("无法获取应用程序实例".to_string()),
         }
-        None => Err("无法获取应用程序实例".to_string()),
     }
 }
 
