@@ -283,8 +283,17 @@ fn candidate_paths(app_handle: &AppHandle) -> Vec<(PathBuf, String)> {
     paths
 }
 
+fn ffmpeg_command(program: impl AsRef<Path>) -> Command {
+    let mut command = Command::new(program.as_ref());
+    #[cfg(target_os = "windows")]
+    {
+        command.creation_flags(0x08000000);
+    }
+    command
+}
+
 fn command_exists(command: &Path) -> bool {
-    Command::new(command)
+    ffmpeg_command(command)
         .arg("-version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -345,7 +354,7 @@ fn list_audio_devices(app_handle: &AppHandle) -> Vec<String> {
         return Vec::new();
     };
     let started = Instant::now();
-    let Ok(output) = Command::new(&ffmpeg.path)
+    let Ok(output) = ffmpeg_command(&ffmpeg.path)
         .args([
             "-hide_banner",
             "-f",
@@ -410,7 +419,7 @@ fn default_audio_device(app_handle: &AppHandle) -> Option<String> {
 }
 
 fn ffmpeg_supports_filter(ffmpeg_path: &Path, filter: &str) -> bool {
-    let Ok(output) = Command::new(ffmpeg_path)
+    let Ok(output) = ffmpeg_command(ffmpeg_path)
         .args(["-hide_banner", "-filters"])
         .output()
     else {
@@ -1547,13 +1556,12 @@ fn spawn_segment(
         )
         .map_err(|e| format!("写入 FFmpeg 录制日志失败: {}", e))?;
 
-        let mut command = Command::new(&ffmpeg.path);
+        let mut command = ffmpeg_command(&ffmpeg.path);
         command.args(&args);
         command
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
-            .stderr(Stdio::from(log_file))
-            .creation_flags(0x08000000);
+            .stderr(Stdio::from(log_file));
 
         let started = Instant::now();
         let child = match command.spawn() {
@@ -1875,17 +1883,13 @@ fn validate_video_segment(
         return Err("片段文件为空".to_string());
     }
 
-    let mut command = Command::new(ffmpeg_path);
+    let mut command = ffmpeg_command(ffmpeg_path);
     command
         .args(["-hide_banner", "-nostdin", "-v", "error", "-i"])
         .arg(segment)
         .args(["-map", "0:v:0", "-frames:v", "1", "-f", "null", "-"])
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
-    #[cfg(target_os = "windows")]
-    {
-        command.creation_flags(0x08000000);
-    }
     let output = command
         .output()
         .map_err(|e| format!("校验录屏片段失败 {}: {}", segment.display(), e))?;
@@ -2023,10 +2027,6 @@ fn run_ffmpeg_with_tick<F>(
 where
     F: FnMut(),
 {
-    #[cfg(target_os = "windows")]
-    {
-        command.creation_flags(0x08000000);
-    }
     let started = Instant::now();
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command
@@ -2247,7 +2247,7 @@ pub fn screen_recorder_export_recording(
                     0,
                     estimated_total_frames,
                 );
-                let mut frames_command = Command::new(&ffmpeg.path);
+                let mut frames_command = ffmpeg_command(&ffmpeg.path);
                 frames_command
                     .args([
                         "-hide_banner",
@@ -2335,7 +2335,7 @@ pub fn screen_recorder_export_recording(
                     frame_count_u32,
                     Some(frame_count_u32),
                 );
-                let mut palette_command = Command::new(&ffmpeg.path);
+                let mut palette_command = ffmpeg_command(&ffmpeg.path);
                 palette_command
                     .args([
                         "-hide_banner",
@@ -2375,7 +2375,7 @@ pub fn screen_recorder_export_recording(
                     0,
                     Some(frame_count_u32),
                 );
-                let mut gif_command = Command::new(&ffmpeg.path);
+                let mut gif_command = ffmpeg_command(&ffmpeg.path);
                 gif_command
                     .args([
                         "-hide_banner",
@@ -2444,7 +2444,7 @@ pub fn screen_recorder_export_recording(
                         display_path(&output_path)
                     ),
                 );
-                let mut mp4_command = Command::new(&ffmpeg.path);
+                let mut mp4_command = ffmpeg_command(&ffmpeg.path);
                 mp4_command
                     .args([
                         "-hide_banner",

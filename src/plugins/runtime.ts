@@ -812,6 +812,26 @@ const activateBundledOfficialLocalPlugin = async (
   return activateOfficialPluginRuntime(context);
 };
 
+const tryActivateOfficialRuntime = async (
+  plugin: RegisteredPlugin
+): Promise<boolean> => {
+  try {
+    const activated = await activateOfficialPluginRuntime(
+      createRuntimeContext(plugin)
+    );
+    if (activated) {
+      loadedFrontendEntries.add(String(plugin.id));
+    }
+    return activated;
+  } catch (error) {
+    logger.warn(
+      `[PluginRuntime] 加载内置官方插件运行时失败: ${plugin.id}`,
+      error
+    );
+    return false;
+  }
+};
+
 const ensurePluginStyles = (plugin: RegisteredPlugin): void => {
   if (loadedPluginStyleLinks.has(String(plugin.id))) return;
 
@@ -845,6 +865,10 @@ export const ensureLocalPluginFrontendEntries = async (
     if (!isEnabled(String(plugin.id))) continue;
     if (loadedFrontendEntries.has(String(plugin.id))) continue;
 
+    if (await tryActivateOfficialRuntime(plugin)) {
+      continue;
+    }
+
     if (plugin.manifest.entry?.frontend) {
       try {
         ensurePluginStyles(plugin);
@@ -857,23 +881,6 @@ export const ensureLocalPluginFrontendEntries = async (
       } catch (error) {
         clearRuntimePluginRegistrations(String(plugin.id));
         logger.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
-        try {
-          const activated = await activateOfficialPluginRuntime(
-            createRuntimeContext(plugin)
-          );
-          if (activated) {
-            loadedFrontendEntries.add(String(plugin.id));
-            logger.warn(
-              `[PluginRuntime] 已回退到内置官方插件运行时: ${plugin.id}`
-            );
-          }
-        } catch (fallbackError) {
-          clearRuntimePluginRegistrations(String(plugin.id));
-          logger.warn(
-            `[PluginRuntime] 回退内置官方插件运行时失败: ${plugin.id}`,
-            fallbackError
-          );
-        }
       }
       continue;
     }

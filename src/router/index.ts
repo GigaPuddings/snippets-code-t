@@ -122,13 +122,24 @@ router.beforeEach(async (to) => {
   const pluginStore = usePluginStore();
   await pluginStore.initialize();
 
-  const addedRuntimeRoutes = installRuntimePluginRoutes(router);
+  let addedRuntimeRoutes = installRuntimePluginRoutes(router);
   if (
     addedRuntimeRoutes > 0
     && to.name === undefined
     && to.matched.some((record) => record.path === '/:pathMatch(.*)*')
   ) {
     return to.fullPath;
+  }
+
+  if (
+    to.name === undefined
+    && to.matched.some((record) => record.path === '/:pathMatch(.*)*')
+  ) {
+    await pluginStore.loadEnabledPluginEntries();
+    addedRuntimeRoutes = installRuntimePluginRoutes(router);
+    if (addedRuntimeRoutes > 0) {
+      return to.fullPath;
+    }
   }
 
   const pluginId = to.matched

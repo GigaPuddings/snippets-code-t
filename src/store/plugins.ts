@@ -32,6 +32,22 @@ interface PluginStateChangedPayload {
   enabled: boolean;
 }
 
+interface ReconcileInstalledPluginsOptions {
+  refreshResourceStatus?: boolean;
+  loadRuntimeEntries?: boolean;
+}
+
+let pluginInitializePromise: Promise<void> | null = null;
+let pluginRuntimeEntriesPromise: Promise<void> | null = null;
+let pluginResourceStatusPromise: Promise<void> | null = null;
+
+const schedulePluginBackgroundWork = (
+  task: () => void,
+  delayMs: number
+): void => {
+  globalThis.setTimeout(task, delayMs);
+};
+
 const versionParts = (version: string): number[] =>
   version
     .replace(/^v/i, '')
@@ -142,35 +158,56 @@ export const usePluginStore = defineStore('plugins', {
   actions: {
     async initialize(): Promise<void> {
       if (this.initialized) {
-        logger.info(
-          '[PluginStore] initialize skipped; refreshing installed plugins'
-        );
-        await this.reconcileInstalledPlugins('initialize-refresh');
         await this.ensureStateListener();
         return;
       }
 
-      try {
-        logger.info('[PluginStore] initialize start');
-        await this.reconcileInstalledPlugins('initialize');
-        logger.info('[PluginStore] initialize complete', {
-          plugins: this.installedPlugins.map((plugin) => ({
-            id: plugin.id,
-            source: plugin.source,
-            enabled: this.isEnabled(plugin.id),
-            packagePath: plugin.packagePath
-          }))
-        });
-      } catch (error) {
-        logger.warn('[PluginStore] 加载插件状态失败，使用默认状态', error);
-        this.installedPlugins = INSTALLED_PLUGINS;
-        this.enabled = normalizePluginStates(
-          this.installedPlugins,
-          this.enabled
+      if (pluginInitializePromise) {
+        await pluginInitializePromise;
+        return;
+      }
+
+      pluginInitializePromise = (async () => {
+        try {
+          logger.info('[PluginStore] initialize start');
+          await this.reconcileInstalledPlugins('initialize', [], {
+            loadRuntimeEntries: false,
+            refreshResourceStatus: false
+          });
+          logger.info('[PluginStore] initialize complete', {
+            plugins: this.installedPlugins.map((plugin) => ({
+              id: plugin.id,
+              source: plugin.source,
+              enabled: this.isEnabled(plugin.id),
+              packagePath: plugin.packagePath
+            }))
+          });
+        } catch (error) {
+          logger.warn('[PluginStore] 加载插件状态失败，使用默认状态', error);
+          this.installedPlugins = INSTALLED_PLUGINS;
+          this.enabled = normalizePluginStates(
+            this.installedPlugins,
+            this.enabled
+          );
+        } finally {
+          this.initialized = true;
+          await this.ensureStateListener();
+        }
+
+        schedulePluginBackgroundWork(
+          () => this.loadEnabledPluginEntriesInBackground(),
+          600
         );
+        schedulePluginBackgroundWork(
+          () => this.refreshPluginResourceStatusInBackground(),
+          1200
+        );
+      })();
+
+      try {
+        await pluginInitializePromise;
       } finally {
-        this.initialized = true;
-        await this.ensureStateListener();
+        pluginInitializePromise = null;
       }
     },
 
@@ -180,8 +217,13 @@ export const usePluginStore = defineStore('plugins', {
 
     async reconcileInstalledPlugins(
       reason: string,
-      resetPluginIds: Iterable<string> = []
+      resetPluginIds: Iterable<string> = [],
+      options: ReconcileInstalledPluginsOptions = {}
     ): Promise<void> {
+      const {
+        refreshResourceStatus = true,
+        loadRuntimeEntries = true
+      } = options;
       logger.info('[PluginStore] reconcile installed plugins start', {
         reason
       });
@@ -227,8 +269,12 @@ export const usePluginStore = defineStore('plugins', {
       runtimeResetPluginIds.forEach((pluginId) =>
         clearRuntimePluginRegistrations(pluginId)
       );
-      await this.refreshPluginResourceStatus();
-      await this.loadEnabledPluginEntries();
+      if (refreshResourceStatus) {
+        await this.refreshPluginResourceStatus();
+      }
+      if (loadRuntimeEntries) {
+        await this.loadEnabledPluginEntries();
+      }
       logger.info('[PluginStore] reconcile installed plugins complete', {
         reason,
         resetPluginIds: Array.from(runtimeResetPluginIds),
@@ -364,11 +410,30 @@ export const usePluginStore = defineStore('plugins', {
     },
 
     async loadEnabledPluginEntries(): Promise<void> {
+      if (pluginRuntimeEntriesPromise) {
+        await pluginRuntimeEntriesPromise;
+        return;
+      }
+
+      pluginRuntimeEntriesPromise = (async () => {
       await ensureLocalPluginFrontendEntries(
         this.installedPlugins,
         (pluginId) => this.isEnabled(pluginId)
       );
       this.runtimeRevision += 1;
+      })();
+
+      try {
+        await pluginRuntimeEntriesPromise;
+      } finally {
+        pluginRuntimeEntriesPromise = null;
+      }
+    },
+
+    loadEnabledPluginEntriesInBackground(): void {
+      void this.loadEnabledPluginEntries().catch((error) => {
+        logger.warn('[PluginStore] 后台加载插件前端入口失败', error);
+      });
     },
 
     shouldInstallMarketplaceItem(item: PluginMarketplaceItem): boolean {
@@ -456,6 +521,12 @@ export const usePluginStore = defineStore('plugins', {
     },
 
     async refreshPluginResourceStatus(): Promise<void> {
+      if (pluginResourceStatusPromise) {
+        await pluginResourceStatusPromise;
+        return;
+      }
+
+      pluginResourceStatusPromise = (async () => {
       const nextStatus: Record<string, PluginResourceStatus | undefined> = {};
 
       const hasPluginOrResourceFor = (pluginId: string): boolean =>
@@ -521,6 +592,19 @@ export const usePluginStore = defineStore('plugins', {
       }
 
       this.resourceStatusByPluginId = nextStatus;
+      })();
+
+      try {
+        await pluginResourceStatusPromise;
+      } finally {
+        pluginResourceStatusPromise = null;
+      }
+    },
+
+    refreshPluginResourceStatusInBackground(): void {
+      void this.refreshPluginResourceStatus().catch((error) => {
+        logger.warn('[PluginStore] 后台刷新插件资源状态失败', error);
+      });
     }
   },
   persist: {
