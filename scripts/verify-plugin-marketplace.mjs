@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { MARKETPLACE_PATH, pluginRepositories, ROOT } from './plugin-release-config.mjs';
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
-const VERIFY_REMOTE = args.includes('--remote') || process.env.PLUGIN_MARKETPLACE_VERIFY_REMOTE === '1';
+const VERIFY_REMOTE = !args.includes('--local') && process.env.PLUGIN_MARKETPLACE_VERIFY_REMOTE !== '0';
 const VERIFY_CONCURRENCY = Number(process.env.PLUGIN_MARKETPLACE_VERIFY_CONCURRENCY ?? 6);
 const ENABLE_RAW_FALLBACK = process.env.PLUGIN_MARKETPLACE_VERIFY_RAW_FALLBACK === '1';
 const pluginRepositoryById = new Map(pluginRepositories.map((plugin) => [plugin.id, plugin]));

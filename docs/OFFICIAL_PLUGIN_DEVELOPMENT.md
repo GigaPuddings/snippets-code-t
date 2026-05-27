@@ -74,13 +74,15 @@ pnpm plugins:tag -- --no-push-main
 
 带生成资源的纯资源包也走同一个流程。发布 `screenshot-rapidocr` 或 `screen-recorder-ffmpeg` 时，工具会先运行对应的资源打包步骤，并把必要的资源标志传给同步脚本，避免用空模板覆盖完整资源仓库。
 
-`pnpm plugins:verify-marketplace` 默认执行快速本地校验，会读取本仓库中的官方插件包或已生成资源包，检查 marketplace 结构、版本一致性、依赖关系和本地入口文件，通常不需要访问 GitHub。需要发布前强制拉取远程 tag 中的 `plugin.json` 时，可以运行：
+`pnpm plugins:verify-marketplace` 默认执行远程严格校验，会拉取 marketplace 中每个 tag 对应的远程 `plugin.json`，确保应用实际下载到的插件包 manifest 可用。远程校验会访问 GitHub API，因此速度取决于网络和 GitHub 限额。
+
+只想做本地快速检查时，可以运行：
 
 ```powershell
-pnpm plugins:verify-marketplace -- --remote
+pnpm plugins:verify-marketplace -- --local
 ```
 
-远程严格校验会访问 GitHub API，因此速度取决于网络和 GitHub 限额；只有排查远程 tag 内容或发布事故时才建议使用。
+本地快速校验会读取本仓库中的官方插件包或已生成资源包，检查 marketplace 结构、版本一致性、依赖关系和本地入口文件，但不会确认远程 tag 已经可下载。
 
 ## 更新发布清单
 

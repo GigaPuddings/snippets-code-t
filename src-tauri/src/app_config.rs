@@ -2607,6 +2607,8 @@ pub async fn fetch_plugin_marketplace(
         .map_err(|e| format!("创建插件市场客户端失败: {}", e))?;
     let response = client
         .get(&marketplace_url)
+        .header(reqwest::header::CACHE_CONTROL, "no-cache")
+        .header(reqwest::header::PRAGMA, "no-cache")
         .send()
         .await
         .map_err(|e| format!("获取插件市场失败: {}", e))?;
