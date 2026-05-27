@@ -224,7 +224,7 @@ const MIN_WINDOW_WIDTH = 420;
 const MIN_WINDOW_HEIGHT = 260;
 const MIN_SNAPPED_WINDOW_WIDTH = 260;
 const MIN_SNAPPED_WINDOW_HEIGHT = 140;
-const SNAP_MAX_CORRECTION_PASSES = 8;
+const SNAP_MAX_CORRECTION_PASSES = 3;
 const SNAP_RESIDUAL_TOLERANCE = 2;
 const SNAP_EDGE_RESIDUAL_TOLERANCE = 0;
 const SNAP_TARGET_RIGHT_TRIM = 15;
@@ -483,6 +483,11 @@ const scheduleCaptureMetricsRefresh = () => {
   });
 };
 
+const scheduleCaptureMetricsRefreshForWindowEvent = () => {
+  if (isSnapAligned.value) return;
+  scheduleCaptureMetricsRefresh();
+};
+
 const resetPassthroughCache = () => {
   pendingPassthroughRegion = null;
   lastPassthroughRegion = null;
@@ -518,7 +523,6 @@ const forceTransparentRepaint = async () => {
 };
 
 const pulseWindowPassthrough = async () => {
-  await setRecorderPassthroughRegion(null).catch(() => undefined);
   await appWindow.setIgnoreCursorEvents(true).catch(() => undefined);
   await waitForWindowLayout();
   await appWindow.setIgnoreCursorEvents(false).catch(() => undefined);
@@ -944,17 +948,15 @@ onMounted(async () => {
 
   if (captureHoleRef.value) {
     resizeObserver = new ResizeObserver(() => {
-      if (!isSnapAligned.value) {
-        scheduleCaptureMetricsRefresh();
-      }
+      scheduleCaptureMetricsRefreshForWindowEvent();
     });
     resizeObserver.observe(captureHoleRef.value);
   }
   unlistenMoved = await appWindow.onMoved(() => {
-    scheduleCaptureMetricsRefresh();
+    scheduleCaptureMetricsRefreshForWindowEvent();
   }).catch(() => null);
 
-  window.addEventListener('resize', scheduleCaptureMetricsRefresh);
+  window.addEventListener('resize', scheduleCaptureMetricsRefreshForWindowEvent);
   window.addEventListener('keydown', handleKeydown);
 });
 
@@ -979,7 +981,7 @@ onUnmounted(() => {
   resizeObserver?.disconnect();
   unlistenMoved?.();
   unlistenExportProgress?.();
-  window.removeEventListener('resize', scheduleCaptureMetricsRefresh);
+  window.removeEventListener('resize', scheduleCaptureMetricsRefreshForWindowEvent);
   window.removeEventListener('keydown', handleKeydown);
   resetPassthroughCache();
   void setRecorderPassthroughRegion(null).catch(() => undefined);
@@ -1191,13 +1193,14 @@ onUnmounted(() => {
 }
 
 .recorder-shell.snap-aligned {
-  grid-template-rows: 38px minmax(80px, 1fr) minmax(46px, auto);
+  grid-template-rows: 38px minmax(80px, 1fr) 46px;
 
   .viewport-mask {
     pointer-events: none;
   }
 
   .control-strip {
+    height: 46px;
     min-height: 46px;
     gap: 6px;
     padding: 6px 8px;
@@ -1277,6 +1280,7 @@ onUnmounted(() => {
     position: absolute;
     inset: auto 0 0;
     z-index: 6;
+    height: 46px;
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
