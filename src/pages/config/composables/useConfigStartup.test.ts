@@ -1,13 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useConfigStartup } from './useConfigStartup';
 
-const createStartup = (overrides: {
-  shouldInit?: boolean;
-  measureValues?: number[];
-} = {}) => {
+const createStartup = (
+  overrides: {
+    emitError?: Error;
+    shouldInit?: boolean;
+    measureValues?: number[];
+  } = {}
+) => {
   const measureValues = [...(overrides.measureValues ?? [100, 125, 160])];
   const window = {
-    emit: vi.fn(async () => undefined)
+    emit: vi.fn(async () => {
+      if (overrides.emitError) {
+        throw overrides.emitError;
+      }
+    })
   };
   const getWindow = vi.fn(() => window);
   const deps = {
@@ -15,7 +22,8 @@ const createStartup = (overrides: {
     onReadyNavigationCheck: vi.fn(),
     onShouldInit: vi.fn(),
     logger: {
-      info: vi.fn()
+      info: vi.fn(),
+      warn: vi.fn()
     },
     getWindow,
     now: vi.fn(() => 1234),
@@ -71,5 +79,24 @@ describe('useConfigStartup', () => {
 
     expect(deps.initCleanupCache).not.toHaveBeenCalled();
     expect(deps.onShouldInit).toHaveBeenCalledWith(false);
+  });
+
+  it('logs config ready emit failures without blocking startup', async () => {
+    const { startup, deps } = createStartup({
+      emitError: new Error('emit failed'),
+      shouldInit: false
+    });
+
+    await expect(startup.start()).resolves.toEqual({
+      shouldInit: false
+    });
+
+    expect(deps.logger.warn).toHaveBeenCalledWith(
+      '[Config] config_ready emit failed',
+      expect.objectContaining({
+        error: 'emit failed'
+      })
+    );
+    expect(deps.onReadyNavigationCheck).toHaveBeenCalled();
   });
 });

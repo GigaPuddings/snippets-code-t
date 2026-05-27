@@ -1,6 +1,6 @@
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::APP;
-use log::{error, info};
+use log::{error, info, warn};
 use tauri::utils::config::WindowConfig;
 use tauri::{
     Emitter, Listener, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
@@ -791,6 +791,7 @@ pub fn open_config_with_loading_transition() {
             }
         }) else {
             // 超时兜底已完成切换，忽略迟到的 ready 事件
+            info!("[StartupTransition] late config_ready ignored");
             return;
         };
         let elapsed_ms = started_at.elapsed().as_millis();
@@ -813,12 +814,15 @@ pub fn open_config_with_loading_transition() {
     // 显示重试：某些平台首次 show 可能失败，导致前端不挂载
     let window_for_retry = window.clone();
     tauri::async_runtime::spawn(async move {
+        let mut shown = false;
         for attempt in 1..=20 {
             if window_for_retry.is_visible().unwrap_or(false) {
+                shown = true;
                 break;
             }
             let _ = window_for_retry.show();
             if window_for_retry.is_visible().unwrap_or(false) {
+                shown = true;
                 info!(
                     "[StartupTransition] config show success on attempt {}",
                     attempt
@@ -828,6 +832,10 @@ pub fn open_config_with_loading_transition() {
                 break;
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+        }
+
+        if !shown {
+            warn!("[StartupTransition] config show retry exhausted before config_ready");
         }
     });
 
@@ -852,7 +860,13 @@ pub fn open_config_with_loading_transition() {
 
         if let Some(app) = APP.get() {
             if let Some(config_window) = app.get_webview_window("config") {
-                if !config_window.is_visible().unwrap_or(false) {
+                let config_visible = config_window.is_visible().unwrap_or(false);
+                warn!(
+                    "[StartupTransition] config_ready timeout (elapsed={}ms, config_exists=true, config_visible={})",
+                    elapsed_ms,
+                    config_visible
+                );
+                if !config_visible {
                     info!(
                         "[StartupTransition] timeout fallback -> show config (elapsed={}ms)",
                         elapsed_ms
@@ -860,7 +874,17 @@ pub fn open_config_with_loading_transition() {
                     let _ = config_window.show();
                     let _ = config_window.set_focus();
                 }
+            } else {
+                warn!(
+                    "[StartupTransition] config_ready timeout (elapsed={}ms, config_exists=false)",
+                    elapsed_ms
+                );
             }
+        } else {
+            warn!(
+                "[StartupTransition] config_ready timeout (elapsed={}ms, app_handle=false)",
+                elapsed_ms
+            );
         }
         close_and_destroy_loading_window();
 
