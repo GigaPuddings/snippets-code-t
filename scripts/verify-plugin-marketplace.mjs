@@ -1,10 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { MARKETPLACE_PATH, pluginRepositories, ROOT } from './plugin-release-config.mjs';
 
-const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const MARKETPLACE_PATH = resolve(ROOT, 'docs/plugin-marketplace/marketplace.json');
+const args = process.argv.slice(2).filter((arg) => arg !== '--');
+const VERIFY_REMOTE = args.includes('--remote') || process.env.PLUGIN_MARKETPLACE_VERIFY_REMOTE === '1';
+const VERIFY_CONCURRENCY = Number(process.env.PLUGIN_MARKETPLACE_VERIFY_CONCURRENCY ?? 6);
+const ENABLE_RAW_FALLBACK = process.env.PLUGIN_MARKETPLACE_VERIFY_RAW_FALLBACK === '1';
+const pluginRepositoryById = new Map(pluginRepositories.map((plugin) => [plugin.id, plugin]));
 
 const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -72,14 +75,32 @@ function githubArchivePluginJsonUrls(packageUrl) {
   const encodedOwner = encodeURIComponent(owner);
   const encodedRepo = encodeURIComponent(repo);
   const encodedRef = encodeURIComponent(ref);
-  return [
-    `https://api.github.com/repos/${encodedOwner}/${encodedRepo}/contents/plugin.json?ref=${encodedRef}`,
-    `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/plugin.json`
-  ];
+  const urls = [`https://api.github.com/repos/${encodedOwner}/${encodedRepo}/contents/plugin.json?ref=${encodedRef}`];
+  if (ENABLE_RAW_FALLBACK) {
+    urls.push(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/plugin.json`);
+  }
+  return urls;
 }
 
 async function readPackageManifest(item) {
   if (!item.packageSubdir) {
+    if (!VERIFY_REMOTE) {
+      const plugin = pluginRepositoryById.get(item.id);
+      assert(plugin, `${item.id}: 未找到官方插件发布配置`);
+      const generatedResourceDir = plugin.resourceSourceDir
+        ? resolve(ROOT, plugin.resourceSourceDir)
+        : null;
+      const packageDir = generatedResourceDir && existsSync(join(generatedResourceDir, 'plugin.json'))
+        ? generatedResourceDir
+        : resolve(ROOT, plugin.sourceDir);
+      const manifestPath = join(packageDir, 'plugin.json');
+      assert(existsSync(manifestPath), `${item.id}: 官方插件包缺少 plugin.json (${packageDir})`);
+      return {
+        manifest: await readJson(manifestPath),
+        packageDir
+      };
+    }
+
     const remotePluginJsonUrls = githubArchivePluginJsonUrls(item.packageUrl);
     assert(remotePluginJsonUrls, `${item.id}: 缺少 packageSubdir 时 packageUrl 必须指向 GitHub 分支或标签归档`);
     return {
@@ -137,9 +158,27 @@ async function verifyInstallablePackage(item) {
   assert(manifest.schemaVersion === 1, `${item.id}: plugin.json schemaVersion 必须为 1`);
   assert(manifest.kind === 'local', `${item.id}: plugin.json kind 必须为 local`);
   assert(manifest.id === item.id, `${item.id}: marketplace id 与 plugin.json id 不一致 (${manifest.id})`);
+  assert(manifest.version === item.version, `${item.id}: marketplace version 与 plugin.json version 不一致 (${item.version} != ${manifest.version})`);
   assert(isObject(manifest.name) && typeof manifest.name.i18nKey === 'string', `${item.id}: name.i18nKey 无效`);
   assert(isObject(manifest.description) && typeof manifest.description.i18nKey === 'string', `${item.id}: description.i18nKey 无效`);
   verifyLocalPackageEntryFiles(item, manifest, packageDir);
+}
+
+async function runLimited(items, limit, task) {
+  const results = [];
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await task(items[index]);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(1, limit), items.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
 }
 
 async function main() {
@@ -148,7 +187,7 @@ async function main() {
   assert(Array.isArray(marketplace.plugins), 'marketplace.plugins 必须是数组');
 
   const ids = new Set();
-  let installableCount = 0;
+  const installableItems = [];
   for (const item of marketplace.plugins) {
     assert(isObject(item), 'marketplace plugin item 必须是对象');
     assert(typeof item.id === 'string' && item.id.length > 0, 'marketplace plugin item 缺少 id');
@@ -156,10 +195,11 @@ async function main() {
     ids.add(item.id);
 
     if (item.packageUrl || item.packageSubdir) {
-      installableCount += 1;
-      await verifyInstallablePackage(item);
+      installableItems.push(item);
     }
   }
+
+  await runLimited(installableItems, VERIFY_CONCURRENCY, verifyInstallablePackage);
 
   for (const item of marketplace.plugins) {
     if (!Array.isArray(item.dependencies)) continue;
@@ -170,7 +210,7 @@ async function main() {
     }
   }
 
-  console.log(`[Plugins] 插件市场校验通过: ${marketplace.plugins.length} entries, ${installableCount} installable packages`);
+  console.log(`[Plugins] 插件市场校验通过: ${marketplace.plugins.length} entries, ${installableItems.length} installable packages`);
 }
 
 main().catch((error) => {

@@ -2,7 +2,12 @@
   <div class="screen-recorder">
     <div
       class="recorder-shell"
-      :class="{ recording: status === 'recording', paused: status === 'paused', 'snap-aligned': isSnapAligned }"
+      :class="{
+        recording: status === 'recording',
+        paused: status === 'paused',
+        'snap-aligned': isSnapAligned,
+        'snap-fullscreen': isSnapFullscreen
+      }"
     >
       <span
         v-for="handle in resizeHandles"
@@ -199,6 +204,7 @@ const titleBarRef = ref<HTMLElement | null>(null);
 const controlStripRef = ref<HTMLElement | null>(null);
 const captureSize = ref({ width: 0, height: 0 });
 const isSnapAligned = ref(false);
+const isSnapFullscreen = ref(false);
 const audioLevel = ref(0);
 const audioMeterUnavailable = ref(false);
 const exportProgress = ref<ExportProgressEvent | null>(null);
@@ -389,6 +395,20 @@ const refreshCaptureMetrics = async () => {
       width: region.physicalWidth,
       height: region.physicalHeight
     };
+    if (isSnapFullscreen.value) {
+      const titleHeight = titleBarRef.value?.getBoundingClientRect().height ?? 0;
+      const controlsHeight = controlStripRef.value?.getBoundingClientRect().height ?? 0;
+      await setRecorderPassthroughRegion({
+        x: Math.round(region.x * region.scale),
+        y: Math.round((region.y + titleHeight) * region.scale),
+        width: region.physicalWidth,
+        height: Math.max(
+          1,
+          region.physicalHeight - Math.round((titleHeight + controlsHeight) * region.scale)
+        )
+      }).catch(() => undefined);
+      return;
+    }
     await setRecorderPassthroughRegion({
       x: Math.round(region.x * region.scale),
       y: Math.round(region.y * region.scale),
@@ -407,6 +427,7 @@ const clearPassthrough = async () => {
 
 const resetSnapAlignment = () => {
   isSnapAligned.value = false;
+  isSnapFullscreen.value = false;
 };
 
 const scheduleMetricsRefresh = () => {
@@ -629,12 +650,6 @@ const handleRecordAgain = () => {
 const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
   const monitor = await monitorFromPoint(target.screenX, target.screenY);
   const scale = monitor?.scaleFactor || await appWindow.scaleFactor();
-  isSnapAligned.value = true;
-  await nextTick();
-  await waitForWindowLayout();
-
-  const minPhysicalWidth = Math.round(MIN_WINDOW_WIDTH * scale);
-  const minPhysicalHeight = Math.round(MIN_WINDOW_HEIGHT * scale);
   const monitorRect = monitor
     ? {
         x: monitor.position.x,
@@ -644,6 +659,13 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
       }
     : null;
   const isMonitorCoveringTarget = isTargetCoveringMonitor(target, monitorRect, scale);
+  isSnapAligned.value = true;
+  isSnapFullscreen.value = isMonitorCoveringTarget;
+  await nextTick();
+  await waitForWindowLayout();
+
+  const minPhysicalWidth = Math.round(MIN_WINDOW_WIDTH * scale);
+  const minPhysicalHeight = Math.round(MIN_WINDOW_HEIGHT * scale);
   const snapTarget = trimSnappedTarget(target, scale, !isMonitorCoveringTarget);
 
   const initialFrame = await getSnappedWrapFrameForTarget(
@@ -1075,6 +1097,38 @@ onUnmounted(() => {
     min-width: 42px;
     max-width: 56px;
     padding: 0 8px;
+  }
+}
+
+.recorder-shell.snap-fullscreen {
+  display: block;
+
+  .title-bar {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 6;
+    border-radius: 0;
+  }
+
+  .capture-viewport {
+    position: absolute;
+    inset: 0;
+  }
+
+  .capture-frame,
+  .capture-hole {
+    inset: 0;
+  }
+
+  .viewport-mask,
+  .viewport-border {
+    display: none;
+  }
+
+  .control-strip {
+    position: absolute;
+    inset: auto 0 0;
+    z-index: 6;
   }
 }
 

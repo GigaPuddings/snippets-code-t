@@ -368,6 +368,11 @@ defineOptions({
   name: 'PluginsSettings'
 });
 
+type NormalizedPluginInstallProgress = PluginInstallProgress & {
+  downloadedBytes: number;
+  totalBytes?: number;
+};
+
 const { t } = useI18n();
 const pluginStore = usePluginStore();
 const configurationStore = useConfigurationStore();
@@ -379,8 +384,11 @@ const marketplaceItems = ref<PluginMarketplaceItem[]>([]);
 const marketplaceQuery = ref('');
 const installingMarketplaceId = ref<string | null>(null);
 const installingPackageId = ref<string | null>(null);
-const installProgress = ref<PluginInstallProgress | null>(null);
+const installProgress = ref<NormalizedPluginInstallProgress | null>(null);
 const installProgressUnlisten = ref<UnlistenFn | null>(null);
+const installProgressBytesByPackageUrl = ref<
+  Record<string, { downloadedBytes: number; totalBytes?: number; progress?: number }>
+>({});
 const appVersion = ref('');
 const pluginInstallDir = ref('');
 const pluginInstallDirLoading = ref(false);
@@ -396,8 +404,8 @@ onMounted(async () => {
     installProgressUnlisten.value = await listen<PluginInstallProgress>(
       'plugin-install-progress',
       (event) => {
-        installProgress.value = event.payload;
-        logger.info('[PluginSettings] install progress', event.payload);
+        installProgress.value = normalizeInstallProgress(event.payload);
+        logger.info('[PluginSettings] install progress', installProgress.value);
       }
     );
   } catch (error) {
@@ -562,6 +570,43 @@ const formatBytes = (value?: number | null): string => {
   return `${size.toFixed(precision)} ${units[unitIndex]}`;
 };
 
+const normalizeInstallProgress = (
+  progress: PluginInstallProgress
+): NormalizedPluginInstallProgress => {
+  const rawProgress = progress as PluginInstallProgress & {
+    downloaded_bytes?: number;
+    total_bytes?: number;
+  };
+  const packageUrl = progress.packageUrl;
+  const cached = installProgressBytesByPackageUrl.value[packageUrl];
+  const downloadedBytes = progress.downloadedBytes ?? rawProgress.downloaded_bytes ?? 0;
+  const totalBytes = progress.totalBytes ?? rawProgress.total_bytes;
+  const computedProgress = typeof progress.progress === 'number'
+    ? progress.progress
+    : totalBytes
+      ? Math.min(100, Math.max(0, (downloadedBytes / totalBytes) * 100))
+      : undefined;
+
+  if (downloadedBytes > 0 || totalBytes || typeof computedProgress === 'number') {
+    installProgressBytesByPackageUrl.value = {
+      ...installProgressBytesByPackageUrl.value,
+      [packageUrl]: {
+        downloadedBytes: Math.max(downloadedBytes, cached?.downloadedBytes ?? 0),
+        totalBytes: totalBytes ?? cached?.totalBytes,
+        progress: computedProgress ?? cached?.progress
+      }
+    };
+  }
+
+  const latest = installProgressBytesByPackageUrl.value[packageUrl] ?? cached;
+  return {
+    ...progress,
+    downloadedBytes: downloadedBytes || latest?.downloadedBytes || 0,
+    totalBytes: totalBytes ?? latest?.totalBytes,
+    progress: computedProgress ?? latest?.progress
+  };
+};
+
 const marketplaceItemByPackageUrl = computed(() => {
   const byUrl = new Map<string, PluginMarketplaceItem>();
   for (const item of marketplaceItems.value) {
@@ -606,6 +651,15 @@ const currentInstallProgressSizeText = computed(() => {
 const isMarketplaceItemInstalling = (item: PluginMarketplaceItem): boolean => (
   installingMarketplaceId.value === item.id
   || installingPackageId.value === item.id
+  || Boolean(
+    installProgress.value?.packageUrl
+    && (
+      item.packageUrl === installProgress.value.packageUrl
+      || getMarketplaceResources(item).some(
+        (resource) => resource.packageUrl === installProgress.value?.packageUrl
+      )
+    )
+  )
 );
 
 const versionParts = (version: string): number[] => (
@@ -760,6 +814,7 @@ const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = fa
   installingMarketplaceId.value = item.id;
   installingPackageId.value = item.id;
   installProgress.value = null;
+  installProgressBytesByPackageUrl.value = {};
   try {
     logger.info('[PluginSettings] marketplace install start', {
       pluginId: item.id,

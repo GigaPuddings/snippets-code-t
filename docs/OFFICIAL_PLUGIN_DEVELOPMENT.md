@@ -64,7 +64,7 @@ https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-
 pnpm plugins:tag
 ```
 
-这个交互工具会列出所有官方插件，展示当前 marketplace 版本，让你选择插件并输入新的插件版本号。之后它会自动执行匹配的构建或打包步骤，同步独立插件仓库，创建或更新插件 tag，把 marketplace 的 `packageUrl` 固定到该 tag 归档，重新生成本地插件包元数据，校验 marketplace，然后执行 `git add -A`、提交主仓库变更并 `git push origin main`。只有在插件仓库的同名 tag 已存在时，工具才会额外询问是否覆盖。
+这个交互工具会列出所有官方插件，展示当前 marketplace 版本。终端支持交互时，可以用 `↑/↓` 选择插件并按 `Enter` 确认；随后输入新的插件版本号，工具会再次展示发布摘要并要求确认。确认后它会自动执行匹配的构建或打包步骤，同步独立插件仓库，创建或更新插件 tag，把 marketplace 的 `packageUrl` 固定到该 tag 归档，重新生成本地插件包元数据，校验 marketplace，然后执行 `git add -A`、提交主仓库变更并 `git push origin main`。只有在插件仓库的同名 tag 已存在时，工具才会额外询问是否覆盖。
 
 只有在插件仓库已经同步完成、但你需要把主仓库变更留在本地交接时，才使用：
 
@@ -73,6 +73,14 @@ pnpm plugins:tag -- --no-push-main
 ```
 
 带生成资源的纯资源包也走同一个流程。发布 `screenshot-rapidocr` 或 `screen-recorder-ffmpeg` 时，工具会先运行对应的资源打包步骤，并把必要的资源标志传给同步脚本，避免用空模板覆盖完整资源仓库。
+
+`pnpm plugins:verify-marketplace` 默认执行快速本地校验，会读取本仓库中的官方插件包或已生成资源包，检查 marketplace 结构、版本一致性、依赖关系和本地入口文件，通常不需要访问 GitHub。需要发布前强制拉取远程 tag 中的 `plugin.json` 时，可以运行：
+
+```powershell
+pnpm plugins:verify-marketplace -- --remote
+```
+
+远程严格校验会访问 GitHub API，因此速度取决于网络和 GitHub 限额；只有排查远程 tag 内容或发布事故时才建议使用。
 
 ## 更新发布清单
 

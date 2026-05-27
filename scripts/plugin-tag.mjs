@@ -34,6 +34,65 @@ const question = (query) => new Promise((resolveQuestion, rejectQuestion) => {
   }
 });
 
+function formatPluginOption(row) {
+  const kind = row.plugin.kind === 'resource' ? 'resource' : 'feature';
+  return `${row.plugin.id.padEnd(28)} ${row.version.padEnd(10)} ${kind.padEnd(8)} ${row.name}`;
+}
+
+function clearSelect(lines) {
+  readline.moveCursor(process.stdout, 0, -lines);
+  readline.clearScreenDown(process.stdout);
+}
+
+async function selectPlugin(rows) {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    return choosePluginByText(rows);
+  }
+
+  readline.emitKeypressEvents(process.stdin);
+  if (process.stdin.isTTY) process.stdin.setRawMode(true);
+
+  let index = 0;
+  let renderedLines = 0;
+
+  const render = () => {
+    if (renderedLines > 0) clearSelect(renderedLines);
+    console.log('\n请选择要更新的插件，使用 ↑/↓ 切换，Enter 确认，Esc 取消:\n');
+    for (const [optionIndex, row] of rows.entries()) {
+      const marker = optionIndex === index ? '>' : ' ';
+      console.log(`${marker} ${formatPluginOption(row)}`);
+    }
+    renderedLines = rows.length + 3;
+  };
+
+  render();
+
+  return await new Promise((resolveSelect, rejectSelect) => {
+    const cleanup = () => {
+      process.stdin.off('keypress', onKeypress);
+      if (process.stdin.isTTY) process.stdin.setRawMode(false);
+    };
+    const onKeypress = (_value, key) => {
+      if (key.name === 'up') {
+        index = (index - 1 + rows.length) % rows.length;
+        render();
+      } else if (key.name === 'down') {
+        index = (index + 1) % rows.length;
+        render();
+      } else if (key.name === 'return') {
+        cleanup();
+        console.log(`\n已选择: ${rows[index].plugin.id}`);
+        resolveSelect(rows[index]);
+      } else if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
+        cleanup();
+        rejectSelect(new Error('操作已取消'));
+      }
+    };
+
+    process.stdin.on('keypress', onKeypress);
+  });
+}
+
 function run(command, args, options = {}) {
   try {
     return execFileSync(command, args, {
@@ -94,14 +153,11 @@ async function listPlugins() {
 function printPluginList(rows) {
   console.log('\n可发布插件列表:');
   for (const [index, row] of rows.entries()) {
-    const kind = row.plugin.kind === 'resource' ? 'resource' : 'feature';
-    console.log(
-      `${String(index + 1).padStart(2, ' ')}. ${row.plugin.id.padEnd(28)} ${row.version.padEnd(10)} ${kind.padEnd(8)} ${row.name}`
-    );
+    console.log(`${String(index + 1).padStart(2, ' ')}. ${formatPluginOption(row)}`);
   }
 }
 
-async function choosePlugin(rows) {
+async function choosePluginByText(rows) {
   printPluginList(rows);
   const answer = (await question('\n请选择要更新的插件序号或 ID: ')).trim();
   const index = Number(answer);
@@ -114,6 +170,21 @@ async function choosePlugin(rows) {
   }
 
   return row;
+}
+
+async function confirmRelease(row, version) {
+  console.log('\n即将发布插件:');
+  console.log(`插件 ID: ${row.plugin.id}`);
+  console.log(`当前版本: ${row.version}`);
+  console.log(`新版本: ${version}`);
+  console.log(`仓库: GigaPuddings/${row.plugin.repo}`);
+  console.log(`主仓库同步: ${options.pushMain ? 'git add -A && git commit && git push origin main' : '已禁用'}`);
+
+  const confirm = (await question('\n确认继续发布？(Y/n): ')).trim().toLowerCase();
+  if (confirm === 'n') {
+    console.log('操作已取消');
+    process.exit(0);
+  }
 }
 
 async function askVersion(row) {
@@ -208,8 +279,9 @@ async function main() {
   try {
     console.log('🚀 snippets-code 插件发布工具');
     const rows = await listPlugins();
-    const row = await choosePlugin(rows);
+    const row = await selectPlugin(rows);
     const version = await askVersion(row);
+    await confirmRelease(row, version);
     const forceTag = await confirmOverwritePluginTag(row.plugin, version);
 
     runBuildSteps(row.plugin);
