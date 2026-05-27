@@ -197,6 +197,7 @@ type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 
 type AudioLevelEvent = { level?: number };
 type PhysicalFrame = { x: number; y: number; width: number; height: number };
 type ExportProgressEvent = RecordingExportProgress;
+type PassthroughFrame = { x: number; y: number; width: number; height: number };
 
 const LOG_PREFIX = '[screen-recorder]';
 const appWindow = getCurrentWindow();
@@ -213,6 +214,10 @@ let resizeObserver: ResizeObserver | null = null;
 let unlistenMoved: UnlistenFn | null = null;
 let unlistenAudioLevel: UnlistenFn | null = null;
 let unlistenExportProgress: UnlistenFn | null = null;
+let metricsRefreshFrame: number | null = null;
+let metricsRefreshInFlight: Promise<void> | null = null;
+let pendingPassthroughRegion: PassthroughFrame | null = null;
+let lastPassthroughRegion: PassthroughFrame | null = null;
 
 const MIN_CAPTURE_SIZE = 80;
 const MIN_WINDOW_WIDTH = 420;
@@ -343,6 +348,22 @@ const toEvenPhysicalSize = (value: number): number =>
 const toPhysicalSize = (value: number): number =>
   Math.max(1, Math.round(value));
 
+const samePassthroughRegion = (
+  left: PassthroughFrame | null,
+  right: PassthroughFrame | null
+): boolean => (
+  left?.x === right?.x &&
+  left?.y === right?.y &&
+  left?.width === right?.width &&
+  left?.height === right?.height
+);
+
+const setPassthroughRegionIfChanged = async (region: PassthroughFrame | null) => {
+  if (samePassthroughRegion(lastPassthroughRegion, region)) return;
+  lastPassthroughRegion = region ? { ...region } : null;
+  await setRecorderPassthroughRegion(region).catch(() => undefined);
+};
+
 const getCaptureRegion = async (): Promise<RecordingRegion> => {
   const hole = captureHoleRef.value;
   if (!hole) {
@@ -391,17 +412,22 @@ const getRecordingRegion = async (): Promise<RecordingRegion> => {
   };
 };
 
-const refreshCaptureMetrics = async () => {
+const refreshCaptureMetricsNow = async () => {
   try {
     const region = await getCaptureRegion();
-    captureSize.value = {
-      width: region.physicalWidth,
-      height: region.physicalHeight
-    };
+    if (
+      captureSize.value.width !== region.physicalWidth ||
+      captureSize.value.height !== region.physicalHeight
+    ) {
+      captureSize.value = {
+        width: region.physicalWidth,
+        height: region.physicalHeight
+      };
+    }
     if (isSnapFullscreen.value) {
       const titleHeight = titleBarRef.value?.getBoundingClientRect().height ?? 0;
       const controlsHeight = controlStripRef.value?.getBoundingClientRect().height ?? 0;
-      await setRecorderPassthroughRegion({
+      await setPassthroughRegionIfChanged({
         x: Math.round(region.x * region.scale),
         y: Math.round((region.y + titleHeight) * region.scale),
         width: region.physicalWidth,
@@ -409,22 +435,53 @@ const refreshCaptureMetrics = async () => {
           1,
           region.physicalHeight - Math.round((titleHeight + controlsHeight) * region.scale)
         )
-      }).catch(() => undefined);
+      });
       return;
     }
-    await setRecorderPassthroughRegion({
+    await setPassthroughRegionIfChanged({
       x: Math.round(region.x * region.scale),
       y: Math.round(region.y * region.scale),
       width: region.physicalWidth,
       height: region.physicalHeight
-    }).catch(() => undefined);
+    });
   } catch {
-    captureSize.value = { width: 0, height: 0 };
-    await setRecorderPassthroughRegion(null).catch(() => undefined);
+    if (captureSize.value.width !== 0 || captureSize.value.height !== 0) {
+      captureSize.value = { width: 0, height: 0 };
+    }
+    await setPassthroughRegionIfChanged(null);
   }
 };
 
+const refreshCaptureMetrics = async () => {
+  if (metricsRefreshInFlight) {
+    return metricsRefreshInFlight;
+  }
+  metricsRefreshInFlight = refreshCaptureMetricsNow().finally(() => {
+    metricsRefreshInFlight = null;
+    if (pendingPassthroughRegion) {
+      const pending = pendingPassthroughRegion;
+      pendingPassthroughRegion = null;
+      void setPassthroughRegionIfChanged(pending);
+    }
+  });
+  return metricsRefreshInFlight;
+};
+
+const scheduleCaptureMetricsRefresh = () => {
+  if (metricsRefreshFrame !== null) return;
+  metricsRefreshFrame = requestAnimationFrame(() => {
+    metricsRefreshFrame = null;
+    void refreshCaptureMetrics();
+  });
+};
+
+const resetPassthroughCache = () => {
+  pendingPassthroughRegion = null;
+  lastPassthroughRegion = null;
+};
+
 const clearPassthrough = async () => {
+  resetPassthroughCache();
   await setRecorderPassthroughRegion(null).catch(() => undefined);
   await setRecorderOverlayWindowRegion(null).catch(() => undefined);
 };
@@ -879,15 +936,15 @@ onMounted(async () => {
 
   if (captureHoleRef.value) {
     resizeObserver = new ResizeObserver(() => {
-      void refreshCaptureMetrics();
+      scheduleCaptureMetricsRefresh();
     });
     resizeObserver.observe(captureHoleRef.value);
   }
   unlistenMoved = await appWindow.onMoved(() => {
-    void refreshCaptureMetrics();
+    scheduleCaptureMetricsRefresh();
   }).catch(() => null);
 
-  window.addEventListener('resize', refreshCaptureMetrics);
+  window.addEventListener('resize', scheduleCaptureMetricsRefresh);
   window.addEventListener('keydown', handleKeydown);
 });
 
@@ -912,8 +969,9 @@ onUnmounted(() => {
   resizeObserver?.disconnect();
   unlistenMoved?.();
   unlistenExportProgress?.();
-  window.removeEventListener('resize', refreshCaptureMetrics);
+  window.removeEventListener('resize', scheduleCaptureMetricsRefresh);
   window.removeEventListener('keydown', handleKeydown);
+  resetPassthroughCache();
   void setRecorderPassthroughRegion(null).catch(() => undefined);
   void setRecorderOverlayWindowRegion(null).catch(() => undefined);
   void setRecorderCaptureExcluded(false).catch(() => undefined);

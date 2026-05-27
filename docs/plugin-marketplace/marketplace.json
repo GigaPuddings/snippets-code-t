@@ -61,7 +61,7 @@
     },
     {
       "id": "screen-recorder",
-      "version": "2.0.43",
+      "version": "2.0.44",
       "name": {
         "i18nKey": "plugins.screenRecorder.name",
         "fallback": "Screen Recorder"
@@ -71,7 +71,7 @@
         "fallback": "Record a custom area and export MP4 or GIF without a watermark."
       },
       "category": "capture",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/archive/refs/tags/2.0.43.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/archive/refs/tags/2.0.44.zip",
       "builtinPluginId": "screen-recorder",
       "status": "included",
       "sizeBytes": 156182,
@@ -87,7 +87,7 @@
       "minAppVersion": "2.0.3",
       "compatibleAppVersion": ">=2.0.3",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/releases/tag/2.0.43"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/releases/tag/2.0.44"
     },
     {
       "id": "screen-recorder-ffmpeg",
