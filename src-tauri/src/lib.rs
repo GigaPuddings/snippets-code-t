@@ -915,6 +915,7 @@ pub fn run() {
             plugins::screen_recorder::screen_recorder_pick_region, // 全局拖选录屏区域
             plugins::screen_recorder::screen_recorder_set_capture_excluded, // 从系统录制中排除控制层窗口
             plugins::screen_recorder::screen_recorder_set_passthrough_region, // 录屏透明视口鼠标穿透
+            plugins::screen_recorder::screen_recorder_set_overlay_window_region, // 裁剪录屏窗口覆盖区域
             plugins::screen_recorder::screen_recorder_pick_target_window, // 拖拽捕捉目标窗口
             plugins::screen_recorder::screen_recorder_close_window, // 关闭录屏窗口
             plugins::screen_recorder::screen_recorder_start_recording, // 开始录屏

@@ -49,6 +49,15 @@ pub struct PassthroughRegion {
     height: i32,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverlayWindowRegion {
+    width: i32,
+    height: i32,
+    top_height: i32,
+    bottom_height: i32,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapWindowRegion {
@@ -952,6 +961,63 @@ pub fn screen_recorder_set_passthrough_region(
         let _ = window.set_ignore_cursor_events(false);
     }
 
+    Ok(())
+}
+
+#[tauri::command]
+pub fn screen_recorder_set_overlay_window_region(
+    app_handle: AppHandle,
+    window: tauri::Window,
+    region: Option<OverlayWindowRegion>,
+) -> Result<(), String> {
+    require_plugin(&app_handle)?;
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::Graphics::Gdi::{
+            CombineRgn, CreateRectRgn, DeleteObject, SetWindowRgn, RGN_OR,
+        };
+
+        let raw_hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        let hwnd = HWND(raw_hwnd.0 as _);
+        let Some(region) = region else {
+            unsafe {
+                SetWindowRgn(hwnd, None, true);
+            }
+            return Ok(());
+        };
+
+        let width = region.width.max(1);
+        let height = region.height.max(1);
+        let top_height = region.top_height.clamp(0, height);
+        let bottom_height = region.bottom_height.clamp(0, height.saturating_sub(top_height));
+
+        if top_height <= 0 && bottom_height <= 0 {
+            unsafe {
+                SetWindowRgn(hwnd, None, true);
+            }
+            return Ok(());
+        }
+
+        unsafe {
+            let combined = CreateRectRgn(0, 0, width, top_height.max(1));
+            if bottom_height > 0 {
+                let bottom = CreateRectRgn(0, height - bottom_height, width, height);
+                CombineRgn(Some(combined), Some(combined), Some(bottom), RGN_OR);
+                let _ = DeleteObject(bottom.into());
+            }
+
+            let result = SetWindowRgn(hwnd, Some(combined), true);
+            if result == 0 {
+                let _ = DeleteObject(combined.into());
+                return Err("设置录屏窗口区域失败".to_string());
+            }
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (window, region);
+    }
     Ok(())
 }
 

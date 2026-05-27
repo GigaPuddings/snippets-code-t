@@ -58,6 +58,13 @@ export interface RecorderPassthroughRegion {
   height: number;
 }
 
+export interface RecorderOverlayWindowRegion {
+  width: number;
+  height: number;
+  topHeight: number;
+  bottomHeight: number;
+}
+
 export interface RecorderSnapRegion {
   screenX: number;
   screenY: number;

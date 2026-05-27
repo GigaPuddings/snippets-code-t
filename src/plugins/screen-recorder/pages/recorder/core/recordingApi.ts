@@ -4,6 +4,7 @@ import type {
   RecordingExportResult,
   RecordingRegion,
   RecordingSettings,
+  RecorderOverlayWindowRegion,
   RecorderPassthroughRegion,
   RecorderSnapRegion
 } from './types';
@@ -60,6 +61,11 @@ export const setRecorderPassthroughRegion = (
   region: RecorderPassthroughRegion | null
 ): Promise<void> =>
   invokeWithLog('screen_recorder_set_passthrough_region', { region });
+
+export const setRecorderOverlayWindowRegion = (
+  region: RecorderOverlayWindowRegion | null
+): Promise<void> =>
+  invokeWithLog('screen_recorder_set_overlay_window_region', { region });
 
 export const pickTargetWindow = (): Promise<RecorderSnapRegion> =>
   invokeWithLog('screen_recorder_pick_target_window');
