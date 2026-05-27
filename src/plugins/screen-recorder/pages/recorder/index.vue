@@ -225,10 +225,11 @@ const MIN_WINDOW_HEIGHT = 260;
 const MIN_SNAPPED_WINDOW_WIDTH = 260;
 const MIN_SNAPPED_WINDOW_HEIGHT = 140;
 const SNAP_MAX_CORRECTION_PASSES = 8;
-const SNAP_RESIDUAL_TOLERANCE = 1;
+const SNAP_RESIDUAL_TOLERANCE = 2;
 const SNAP_EDGE_RESIDUAL_TOLERANCE = 0;
 const SNAP_TARGET_RIGHT_TRIM = 15;
 const SNAP_TARGET_BOTTOM_TRIM = 10;
+const CAPTURE_METRIC_TOLERANCE = 2;
 
 const resizeHandles: Array<{ className: string; direction: ResizeDirection }> = [
   { className: 'n', direction: 'North' },
@@ -348,15 +349,22 @@ const toEvenPhysicalSize = (value: number): number =>
 const toPhysicalSize = (value: number): number =>
   Math.max(1, Math.round(value));
 
+const isNearlySamePhysicalValue = (left: number, right: number): boolean =>
+  Math.abs(left - right) <= CAPTURE_METRIC_TOLERANCE;
+
 const samePassthroughRegion = (
   left: PassthroughFrame | null,
   right: PassthroughFrame | null
-): boolean => (
-  left?.x === right?.x &&
-  left?.y === right?.y &&
-  left?.width === right?.width &&
-  left?.height === right?.height
-);
+): boolean => {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return (
+    isNearlySamePhysicalValue(left.x, right.x) &&
+    isNearlySamePhysicalValue(left.y, right.y) &&
+    isNearlySamePhysicalValue(left.width, right.width) &&
+    isNearlySamePhysicalValue(left.height, right.height)
+  );
+};
 
 const setPassthroughRegionIfChanged = async (region: PassthroughFrame | null) => {
   if (samePassthroughRegion(lastPassthroughRegion, region)) return;
@@ -391,7 +399,7 @@ const getCaptureRegion = async (): Promise<RecordingRegion> => {
     physicalHeight,
     scale
   };
-  console.info(`${LOG_PREFIX} capture region`, {
+  console.debug(`${LOG_PREFIX} capture region`, {
     ...region,
     logicalSize: `${region.width}x${region.height}`,
     physicalSize: `${region.physicalWidth}x${region.physicalHeight}`
@@ -416,8 +424,8 @@ const refreshCaptureMetricsNow = async () => {
   try {
     const region = await getCaptureRegion();
     if (
-      captureSize.value.width !== region.physicalWidth ||
-      captureSize.value.height !== region.physicalHeight
+      !isNearlySamePhysicalValue(captureSize.value.width, region.physicalWidth) ||
+      !isNearlySamePhysicalValue(captureSize.value.height, region.physicalHeight)
     ) {
       captureSize.value = {
         width: region.physicalWidth,
@@ -936,7 +944,9 @@ onMounted(async () => {
 
   if (captureHoleRef.value) {
     resizeObserver = new ResizeObserver(() => {
-      scheduleCaptureMetricsRefresh();
+      if (!isSnapAligned.value) {
+        scheduleCaptureMetricsRefresh();
+      }
     });
     resizeObserver.observe(captureHoleRef.value);
   }
