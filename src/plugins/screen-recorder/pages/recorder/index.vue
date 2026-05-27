@@ -1145,11 +1145,7 @@ onUnmounted(() => {
     justify-content: flex-start;
   }
 
-  .optional-size,
-  .optional-quality,
-  .optional-format,
-  .optional-save-status,
-  .unit {
+  .optional-save-status {
     display: none;
   }
 
@@ -1174,6 +1170,14 @@ onUnmounted(() => {
     min-width: 42px;
     max-width: 56px;
     padding: 0 8px;
+  }
+
+  .dimension input {
+    width: 54px;
+  }
+
+  .quality-select {
+    width: 76px;
   }
 }
 
@@ -1502,6 +1506,14 @@ select {
   }
 }
 
+@container (max-width: 680px) {
+  .recorder-shell.snap-aligned {
+    .optional-size {
+      display: none;
+    }
+  }
+}
+
 @container (max-width: 620px) {
   .optional-save-status {
     display: none;
@@ -1509,6 +1521,14 @@ select {
 
   .optional-quality {
     display: none;
+  }
+}
+
+@container (max-width: 560px) {
+  .recorder-shell.snap-aligned {
+    .optional-quality {
+      display: none;
+    }
   }
 }
 
@@ -1538,6 +1558,15 @@ select {
   .export-progress {
     width: min(42cqw, 160px);
     min-width: 104px;
+  }
+}
+
+@container (max-width: 420px) {
+  .recorder-shell.snap-aligned {
+    .optional-format,
+    .unit {
+      display: none;
+    }
   }
 }
 
