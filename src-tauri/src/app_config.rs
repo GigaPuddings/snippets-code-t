@@ -2343,6 +2343,27 @@ mod plugin_validation_tests {
             "插件包中包含多个 plugin.json 根目录"
         );
     }
+
+    #[test]
+    fn sync_translation_runtime_wasm_fallbacks_skips_unusable_target_dirs() {
+        let runtime_dir = tempfile::tempdir().expect("runtime dir");
+        let writable_target = tempfile::tempdir().expect("writable target dir");
+        let missing_target = runtime_dir.path().join("missing-target");
+        let wasm_file = "ort-wasm-simd-threaded.wasm";
+
+        fs::write(runtime_dir.path().join(wasm_file), "wasm").expect("write wasm fallback");
+
+        sync_translation_runtime_wasm_fallbacks_to_dirs(
+            runtime_dir.path(),
+            vec![missing_target, writable_target.path().to_path_buf()],
+        );
+
+        assert_eq!(
+            fs::read_to_string(writable_target.path().join(wasm_file))
+                .expect("read copied wasm fallback"),
+            "wasm"
+        );
+    }
 }
 
 fn emit_plugin_install_progress(
@@ -2958,7 +2979,7 @@ async fn download_translation_runtime_file(
     Err(last_error.unwrap_or_else(|| format!("下载运行时资源失败: {}", file_name)))
 }
 
-fn sync_translation_runtime_wasm_fallbacks(runtime_dir: &Path) -> Result<(), String> {
+fn translation_runtime_wasm_fallback_target_dirs() -> Vec<PathBuf> {
     let mut target_dirs = Vec::new();
 
     if let Ok(exe_path) = std::env::current_exe() {
@@ -2973,8 +2994,29 @@ fn sync_translation_runtime_wasm_fallbacks(runtime_dir: &Path) -> Result<(), Str
 
     target_dirs.sort();
     target_dirs.dedup();
+    target_dirs
+}
 
+fn sync_translation_runtime_wasm_fallbacks(runtime_dir: &Path) {
+    sync_translation_runtime_wasm_fallbacks_to_dirs(
+        runtime_dir,
+        translation_runtime_wasm_fallback_target_dirs(),
+    );
+}
+
+fn sync_translation_runtime_wasm_fallbacks_to_dirs<I>(runtime_dir: &Path, target_dirs: I)
+where
+    I: IntoIterator<Item = PathBuf>,
+{
     for target_dir in target_dirs {
+        if !target_dir.is_dir() {
+            warn!(
+                "[Plugin] skip translation offline wasm fallback target because it is not a directory: {}",
+                target_dir.display()
+            );
+            continue;
+        }
+
         for file_name in TRANSLATION_OFFLINE_RUNTIME_FILES {
             if !file_name.ends_with(".wasm") {
                 continue;
@@ -2998,14 +3040,15 @@ fn sync_translation_runtime_wasm_fallbacks(runtime_dir: &Path) -> Result<(), Str
                 .unwrap_or(true);
 
             if needs_copy {
-                fs::copy(&source_path, &target_path).map_err(|e| {
-                    format!(
-                        "同步离线翻译 wasm 兜底文件失败: {} -> {} ({})",
+                if let Err(error) = fs::copy(&source_path, &target_path) {
+                    warn!(
+                        "[Plugin] skip translation offline wasm fallback copy {} -> {}: {}",
                         source_path.display(),
                         target_path.display(),
-                        e
-                    )
-                })?;
+                        error
+                    );
+                    continue;
+                }
                 info!(
                     "[Plugin] synced translation offline wasm fallback {} -> {}",
                     file_name,
@@ -3014,8 +3057,6 @@ fn sync_translation_runtime_wasm_fallbacks(runtime_dir: &Path) -> Result<(), Str
             }
         }
     }
-
-    Ok(())
 }
 
 #[command]
@@ -3066,7 +3107,7 @@ pub async fn install_translation_offline_runtime_resources(
         ));
     }
 
-    sync_translation_runtime_wasm_fallbacks(&runtime_dir)?;
+    sync_translation_runtime_wasm_fallbacks(&runtime_dir);
 
     Ok(())
 }
