@@ -242,7 +242,7 @@ impl CacheManager {
         let mut removed_count = 0;
         let mut to_remove = Vec::new();
 
-        for (file_path, _) in &self.cache.files {
+        for file_path in self.cache.files.keys() {
             let full_path = workspace_root.join(file_path);
             if !full_path.exists() {
                 to_remove.push(file_path.clone());

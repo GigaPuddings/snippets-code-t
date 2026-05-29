@@ -514,8 +514,8 @@ pub fn configure_remote(
 
     // 获取当前分支名。新初始化但尚未提交的仓库没有 HEAD，此时直接对齐唯一主分支 main。
     let mut branch = get_current_branch(workspace_root)?;
-    if !git_has_head(workspace_root) {
-        if branch != MAIN_BRANCH {
+    if !git_has_head(workspace_root)
+        && branch != MAIN_BRANCH {
             let target_ref = format!("refs/heads/{}", MAIN_BRANCH);
             let switch_output = crate::git_common::git_command()
                 .args(["symbolic-ref", "HEAD", &target_ref])
@@ -538,7 +538,6 @@ pub fn configure_remote(
                 }
             }
         }
-    }
 
     if !branch.is_empty() {
         // 设置上游分支

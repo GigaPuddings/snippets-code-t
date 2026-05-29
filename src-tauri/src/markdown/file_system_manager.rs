@@ -146,12 +146,10 @@ impl FileSystemManager {
         // 确定目标文件夹
         // 如果没有指定分类，默认使用"未分类"文件夹
         let folder_path = if let Some(cat) = category {
-            let cat_path = self.create_category_folder(cat)?;
-            cat_path
+            self.create_category_folder(cat)?
         } else {
             // 没有指定分类时，使用"未分类"文件夹
-            let uncategorized_path = self.create_category_folder("未分类")?;
-            uncategorized_path
+            self.create_category_folder("未分类")?
         };
 
         // 生成文件名

@@ -1615,7 +1615,7 @@ pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Resul
 
     #[cfg(target_os = "windows")]
     {
-        return open_app_path_detached(&app_path, &actual_path);
+        open_app_path_detached(&app_path, &actual_path)
     }
 
     #[cfg(not(target_os = "windows"))]

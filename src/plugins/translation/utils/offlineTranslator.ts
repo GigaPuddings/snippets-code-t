@@ -41,13 +41,33 @@ const TRANSFORMERS_WASM_FILES = [
 ]
 let transformersModulePromise: Promise<TransformersModule> | null = null
 
-const getRuntimeBaseUrl = (runtimeUrl: string): string => {
-  const queryIndex = runtimeUrl.search(/[?#]/)
-  const cleanUrl = queryIndex >= 0 ? runtimeUrl.slice(0, queryIndex) : runtimeUrl
-  return cleanUrl.slice(0, cleanUrl.lastIndexOf('/') + 1)
+const getLastPathSeparator = (
+  value: string
+): { index: number; length: number } => {
+  const lowerValue = value.toLowerCase()
+  const separators = [
+    { index: value.lastIndexOf('/'), length: 1 },
+    { index: value.lastIndexOf('\\'), length: 1 },
+    { index: lowerValue.lastIndexOf('%5c'), length: 3 },
+    { index: lowerValue.lastIndexOf('%2f'), length: 3 }
+  ]
+
+  return separators.reduce(
+    (latest, current) => current.index > latest.index ? current : latest,
+    { index: -1, length: 0 }
+  )
 }
 
-const getRuntimeWasmPaths = (runtimeUrl: string): Record<string, string> => {
+export const getRuntimeBaseUrl = (runtimeUrl: string): string => {
+  const queryIndex = runtimeUrl.search(/[?#]/)
+  const cleanUrl = queryIndex >= 0 ? runtimeUrl.slice(0, queryIndex) : runtimeUrl
+  const separator = getLastPathSeparator(cleanUrl)
+  return separator.index >= 0
+    ? cleanUrl.slice(0, separator.index + separator.length)
+    : cleanUrl
+}
+
+export const getRuntimeWasmPaths = (runtimeUrl: string): Record<string, string> => {
   const runtimeBaseUrl = getRuntimeBaseUrl(runtimeUrl)
   return Object.fromEntries(
     TRANSFORMERS_WASM_FILES.map((fileName) => [fileName, `${runtimeBaseUrl}${fileName}`])

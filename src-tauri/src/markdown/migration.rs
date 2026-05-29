@@ -178,7 +178,7 @@ fn migrate_to_markdown_with_db_path(
     if cat_count == 0 && frag_count == 0 {
         let db_path_str = db_path_override
             .map(|p| p.display().to_string())
-            .unwrap_or_else(|| crate::db::get_db_path());
+            .unwrap_or_else(crate::db::get_db_path);
         return Err(format!(
             "数据库中没有可迁移的数据。\n\n\
             当前数据库: {}\n\n\
@@ -248,7 +248,7 @@ fn migrate_to_markdown_with_db_path(
 
     for fragment in &fragments {
         info!("📝 [迁移] 处理片段: {}", fragment.title);
-        match export_fragment(&data_dir, &fragment, &categories, &mut cache) {
+        match export_fragment(&data_dir, fragment, &categories, &mut cache) {
             Ok(relative_path) => {
                 created_files += 1;
                 all_file_paths.push(relative_path);

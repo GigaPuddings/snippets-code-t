@@ -287,7 +287,7 @@ pub async fn create_markdown_file(
             let cache = cache_manager
                 .read()
                 .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-            let _ = manager.update_entry(&file_path, &workspace_root, &*cache);
+            let _ = manager.update_entry(&file_path, &workspace_root, &cache);
         }
     }
 
@@ -645,7 +645,7 @@ pub async fn update_markdown_file(
                 let _ = manager.remove_entry(&PathBuf::from(&file_path));
             }
 
-            let _ = manager.update_entry(&path, &workspace_root, &*cache);
+            let _ = manager.update_entry(&path, &workspace_root, &cache);
         }
     }
 
@@ -1031,7 +1031,7 @@ pub async fn toggle_favorite(
             let cache = cache_manager
                 .read()
                 .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-            let _ = manager.update_entry(&path, &workspace_root, &*cache);
+            let _ = manager.update_entry(&path, &workspace_root, &cache);
         }
     }
 
@@ -1171,7 +1171,7 @@ pub async fn update_wikilinks(
                         let cache = cache_manager
                             .read()
                             .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-                        let _ = manager.update_entry(path, &workspace_root, &*cache);
+                        let _ = manager.update_entry(path, &workspace_root, &cache);
                     }
                 }
 

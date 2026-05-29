@@ -356,7 +356,7 @@ impl AppConfigManager {
     /// 从字符串加载配置
     fn load_from_str(content: &str) -> Result<AppConfig, String> {
         let config: AppConfig =
-            serde_json::from_str(&content).map_err(|e| format!("解析配置文件失败: {}", e))?;
+            serde_json::from_str(content).map_err(|e| format!("解析配置文件失败: {}", e))?;
 
         Ok(config)
     }

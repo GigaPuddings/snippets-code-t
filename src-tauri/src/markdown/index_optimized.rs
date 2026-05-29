@@ -256,7 +256,7 @@ impl OptimizedIndexManager {
             let tokens = manager.tokenize(&text_to_index);
 
             for token in tokens {
-                let entry_list = inverted_index.entry(token.clone()).or_insert_with(Vec::new);
+                let entry_list = inverted_index.entry(token.clone()).or_default();
 
                 // 计算词频
                 let count = text_to_index.matches(&token).count();
@@ -269,7 +269,7 @@ impl OptimizedIndexManager {
             for tag in &index_entry.tags {
                 tag_index
                     .entry(tag.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(entry_index);
             }
 

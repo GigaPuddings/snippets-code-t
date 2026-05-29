@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-05-28",
+  "updatedAt": "2026-05-29",
   "source": "snippets-code official GitHub marketplace",
   "plugins": [
     {
       "id": "screenshot",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.screenshot.name",
         "fallback": "Screenshot, OCR, and Pins"
@@ -15,7 +15,7 @@
         "fallback": "Screenshot annotation, color picker, pin windows, OCR, and screenshot translation."
       },
       "category": "capture",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "screenshot",
       "status": "included",
       "sizeBytes": 694267,
@@ -31,11 +31,11 @@
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.5"
     },
     {
       "id": "screenshot-rapidocr",
-      "version": "2.0.0",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.screenshotRapidocr.name",
         "fallback": "RapidOCR Resource"
@@ -47,21 +47,21 @@
       "category": "capture",
       "resourceFor": "screenshot",
       "status": "available",
-      "sizeBytes": 168905779,
+      "sizeBytes": 168905850,
       "tags": [
         "ocr",
         "resource",
         "rapidocr"
       ],
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/archive/refs/tags/2.0.0.zip",
-      "minAppVersion": "2.0.0",
-      "compatibleAppVersion": ">=2.0.0",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/archive/refs/tags/2.0.5.zip",
+      "minAppVersion": "1.5.6",
+      "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/releases/tag/2.0.0"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/releases/tag/2.0.5"
     },
     {
       "id": "screen-recorder",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.screenRecorder.name",
         "fallback": "Screen Recorder"
@@ -71,7 +71,7 @@
         "fallback": "Record a custom area and export MP4 or GIF without a watermark."
       },
       "category": "capture",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "screen-recorder",
       "status": "included",
       "sizeBytes": 156182,
@@ -87,11 +87,11 @@
       "minAppVersion": "2.0.3",
       "compatibleAppVersion": ">=2.0.3",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/releases/tag/2.0.5"
     },
     {
       "id": "screen-recorder-ffmpeg",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.screenRecorderFfmpeg.name",
         "fallback": "Screen Recorder FFmpeg Resource"
@@ -109,15 +109,15 @@
         "resource",
         "ffmpeg"
       ],
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/archive/refs/tags/2.0.5.zip",
       "minAppVersion": "2.0.3",
       "compatibleAppVersion": ">=2.0.3",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/releases/tag/2.0.5"
     },
     {
       "id": "translation",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.translation.name",
         "fallback": "Translation"
@@ -127,7 +127,7 @@
         "fallback": "Translate window, selection translation, screenshot translation, and offline model management."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "translation",
       "status": "included",
       "sizeBytes": 730929,
@@ -141,7 +141,7 @@
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.5"
     },
     {
       "id": "translation-offline-runtime",
@@ -171,7 +171,7 @@
     },
     {
       "id": "todo",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.todo.name",
         "fallback": "Reminders"
@@ -181,7 +181,7 @@
         "fallback": "Todo cards, timed reminders, and system notification windows."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "todo",
       "status": "included",
       "sizeBytes": 874246,
@@ -192,11 +192,11 @@
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-todo",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/2.0.5"
     },
     {
       "id": "system-theme",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.systemTheme.name",
         "fallback": "Auto Dark Mode"
@@ -206,7 +206,7 @@
         "fallback": "Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling."
       },
       "category": "appearance",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "system-theme",
       "status": "included",
       "sizeBytes": 651092,
@@ -217,11 +217,11 @@
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.5"
     },
     {
       "id": "local-launcher",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.localLauncher.name",
         "fallback": "Apps and Bookmarks Launcher"
@@ -231,7 +231,7 @@
         "fallback": "Local app and browser bookmark management, plus quick-launch search results."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "local-launcher",
       "status": "included",
       "sizeBytes": 773233,
@@ -243,11 +243,11 @@
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/releases/tag/2.0.5"
     },
     {
       "id": "desktop-files",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.desktopFiles.name",
         "fallback": "Desktop File Search"
@@ -257,7 +257,7 @@
         "fallback": "Index desktop files and show file results in global search."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "desktop-files",
       "status": "included",
       "sizeBytes": 1425,
@@ -269,11 +269,11 @@
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/releases/tag/2.0.5"
     },
     {
       "id": "search-engines",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.searchEngines.name",
         "fallback": "Search Engines"
@@ -283,7 +283,7 @@
         "fallback": "Custom search engines, keyword search, and default web search entries."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "search-engines",
       "status": "included",
       "sizeBytes": 694234,
@@ -295,11 +295,11 @@
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.5"
     },
     {
       "id": "quick-tools",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.quickTools.name",
         "fallback": "Quick Tools"
@@ -309,7 +309,7 @@
         "fallback": "Calculator, unit conversion, and live currency conversion in quick search."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "quick-tools",
       "status": "included",
       "sizeBytes": 14324,
@@ -322,11 +322,11 @@
       "minAppVersion": "2.0.2",
       "compatibleAppVersion": ">=2.0.2",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/releases/tag/2.0.5"
     },
     {
       "id": "git-sync",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "name": {
         "i18nKey": "plugins.gitSync.name",
         "fallback": "Git Sync"
@@ -336,7 +336,7 @@
         "fallback": "Workspace Git initialization, pull, push, auto sync, and conflict handling."
       },
       "category": "sync",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/archive/refs/tags/2.0.4.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/archive/refs/tags/2.0.5.zip",
       "builtinPluginId": "git-sync",
       "status": "included",
       "sizeBytes": 660082,
@@ -347,7 +347,7 @@
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/releases/tag/2.0.4"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/releases/tag/2.0.5"
     },
     {
       "id": "hello-local-plugin",

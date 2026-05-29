@@ -5,19 +5,12 @@ use std::collections::HashMap;
 
 // workspace.json 的根结构（UI 状态和工作区配置）
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct WorkspaceConfig {
     pub main: WorkspaceMain,
     pub settings: WorkspaceSettings,
 }
 
-impl Default for WorkspaceConfig {
-    fn default() -> Self {
-        Self {
-            main: WorkspaceMain::default(),
-            settings: WorkspaceSettings::default(),
-        }
-    }
-}
 
 // 主工作区布局
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,20 +84,13 @@ pub struct CategoryMetadata {
 
 // 工作区设置
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct WorkspaceSettings {
     pub sync_enabled: bool,
     // 附件配置
     pub attachment: AttachmentSettings,
 }
 
-impl Default for WorkspaceSettings {
-    fn default() -> Self {
-        Self {
-            sync_enabled: false,
-            attachment: AttachmentSettings::default(),
-        }
-    }
-}
 
 // 附件设置
 #[derive(Debug, Clone, Serialize, Deserialize)]
