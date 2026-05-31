@@ -141,7 +141,7 @@ async function updateManifestVersion(plugin, version, sourceDir, options) {
   }
 }
 
-async function updateMarketplace(selectedPlugins, version, options) {
+async function updateMarketplace(selectedPlugins, pluginVersions, options) {
   const marketplace = await readJson(MARKETPLACE_PATH);
   const byId = new Map(selectedPlugins.map((plugin) => [plugin.id, plugin]));
   let changed = false;
@@ -150,6 +150,7 @@ async function updateMarketplace(selectedPlugins, version, options) {
   for (const item of marketplace.plugins ?? []) {
     const plugin = byId.get(item.id);
     if (!plugin) continue;
+    const version = pluginVersions.get(plugin.id);
     const sourceManifest = await readJson(resolve(ROOT, plugin.sourceDir, 'plugin.json'));
     const minAppVersion = sourceManifest.minAppVersion ?? item.minAppVersion ?? version;
 
@@ -351,10 +352,6 @@ async function syncRepository(plugin, version, options) {
 
 async function main() {
   const options = parseArgs();
-  const packageJson = await readJson(resolve(ROOT, 'package.json'));
-  const version = options.version ?? packageJson.version;
-  assertVersion(version);
-
   const selectedPlugins = options.only
     ? pluginRepositories.filter((plugin) => options.only.includes(plugin.id))
     : pluginRepositories.filter(
@@ -377,13 +374,23 @@ async function main() {
     );
   }
 
-  await updateMarketplace(selectedPlugins, version, options);
+  const pluginVersions = new Map();
+  for (const plugin of selectedPlugins) {
+    const sourceDir = await resolveSourceDir(plugin, options);
+    const manifest = await readJson(resolve(sourceDir, 'plugin.json'));
+    const version = options.version ?? manifest.version;
+    assertVersion(version);
+    pluginVersions.set(plugin.id, version);
+  }
+
+  await updateMarketplace(selectedPlugins, pluginVersions, options);
 
   for (const plugin of selectedPlugins) {
+    const version = pluginVersions.get(plugin.id);
     await syncRepository(plugin, version, options);
   }
 
-  console.log(`[Plugins] 插件仓库同步完成: ${selectedPlugins.length} packages, version=${version}`);
+  console.log(`[Plugins] 插件仓库同步完成: ${selectedPlugins.length} packages`);
 }
 
 main().catch((error) => {

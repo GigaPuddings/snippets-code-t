@@ -9,10 +9,9 @@ resources. Markdown, editor, and workspace behavior stay in the app core.
 
 Run `pnpm plugins:build-official` to compile official frontend runtime entries
 into each package's `dist/` directory and add `entry.frontend` metadata.
-Run `pnpm plugins:sync-repos --pin-marketplace-tags` to publish the resulting
-package root to the matching `snippets-code-plugin-*` repository and create the
-matching Git tag. `pnpm plugins:release` runs build, sync, local package
-generation, and marketplace verification as one release chain.
+Run `pnpm plugins:tag` to build and publish one selected plugin with its
+independent matching Git tag. `pnpm plugins:release` remains available for
+bulk synchronization while preserving each plugin manifest's own version.
 
 The main app package is `private`, so plugin package publication is GitHub
 repository/tag based rather than npm registry based.

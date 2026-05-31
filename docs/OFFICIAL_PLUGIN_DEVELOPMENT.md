@@ -64,6 +64,8 @@ https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-
 pnpm plugins:tag
 ```
 
+桌面应用版本与插件版本相互独立。发布桌面应用时使用 `pnpm tag`，该命令不会重建、同步或重置插件版本。只有需要发布插件更新时才运行 `pnpm plugins:tag`。
+
 这个交互工具会列出所有官方插件，展示当前 marketplace 版本。终端支持交互时，可以用 `↑/↓` 选择插件并按 `Enter` 确认；随后输入新的插件版本号，工具会再次展示发布摘要并要求确认。确认后它会自动执行匹配的构建或打包步骤，同步独立插件仓库，创建或更新插件 tag，把 marketplace 的 `packageUrl` 固定到该 tag 归档，重新生成本地插件包元数据，校验 marketplace，然后执行 `git add -A`、提交主仓库变更并 `git push origin main`。只有在插件仓库的同名 tag 已存在时，工具才会额外询问是否覆盖。
 
 只有在插件仓库已经同步完成、但你需要把主仓库变更留在本地交接时，才使用：

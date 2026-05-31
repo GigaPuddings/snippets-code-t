@@ -420,18 +420,21 @@ The plugin settings page fetches this manifest through
 `fetch_plugin_marketplace`, supports keyword search across plugin metadata, and
 installs available entries through `install_plugin_package_from_url`.
 
-Release synchronization is part of the app tag flow:
+Application and plugin releases are separate:
 
 ```bash
-pnpm plugins:release
 pnpm tag
+pnpm plugins:tag
 ```
 
-`pnpm plugins:release` builds official plugin runtimes, updates plugin manifest
-versions, synchronizes each `snippets-code-plugin-*` repository, writes an
-Obsidian-style `versions.json`, creates the matching `<version>` tag in those repositories, generates local package
-outputs, and verifies the marketplace. `pnpm tag` runs the same plugin release
-chain before committing and tagging the main app release.
+`pnpm tag` updates and tags only the desktop application. It does not change
+plugin manifests, plugin repositories, or marketplace versions.
+
+`pnpm plugins:tag` publishes one selected plugin independently: it builds the
+matching runtime, updates its manifest and marketplace entry, synchronizes the
+matching `snippets-code-plugin-*` repository, writes its Obsidian-style
+`versions.json`, creates the matching `<version>` tag, and verifies the
+marketplace.
 
 The app package is marked `private`, so there is no npm registry publish or npm
 dist-tag update in this workflow. The synchronized release tag is GitHub-based:
