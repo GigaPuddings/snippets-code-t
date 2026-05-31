@@ -219,6 +219,31 @@ async function confirmOverwritePluginTag(plugin, version) {
   return true;
 }
 
+async function assertDependencyTagsAvailable(row) {
+  const dependencies = row.marketplaceItem?.dependencies ?? [];
+  if (dependencies.length === 0) return;
+
+  const marketplaceItemsById = await getMarketplaceItemsById();
+  for (const dependencyId of dependencies) {
+    const dependency = marketplaceItemsById.get(dependencyId);
+    const dependencyPlugin = pluginRepositories.find((plugin) => plugin.id === dependencyId);
+    if (!dependencyPlugin || !dependency?.version) continue;
+
+    const output = run('git', [
+      'ls-remote',
+      '--tags',
+      `git@github.com:GigaPuddings/${dependencyPlugin.repo}.git`,
+      `refs/tags/${dependency.version}`
+    ]);
+    if (!output) {
+      throw new Error(
+        `${row.plugin.id}: 依赖 ${dependencyId} 的远程标签 ${dependency.version} 不存在，`
+        + `请先运行 pnpm plugins:tag 发布 ${dependencyId} ${dependency.version}`
+      );
+    }
+  }
+}
+
 function syncArgsFor(plugin, version, forceTag) {
   const args = [
     'scripts/sync-plugin-repositories.mjs',
@@ -234,11 +259,14 @@ function syncArgsFor(plugin, version, forceTag) {
   return args;
 }
 
-function runBuildSteps(plugin) {
+function runBuildSteps(plugin, version) {
   if (plugin.packageCommand) {
     const [command, ...args] = plugin.packageCommand.split(' ');
     console.log(`\n正在生成 ${plugin.id} 资源包...`);
-    run(command, args, { inherit: true });
+    const versionArgs = command === 'pnpm'
+      ? ['--', '--version', version]
+      : ['--version', version];
+    run(command, [...args, ...versionArgs], { inherit: true });
     return;
   }
 
@@ -282,9 +310,10 @@ async function main() {
     const row = await selectPlugin(rows);
     const version = await askVersion(row);
     await confirmRelease(row, version);
+    await assertDependencyTagsAvailable(row);
     const forceTag = await confirmOverwritePluginTag(row.plugin, version);
 
-    runBuildSteps(row.plugin);
+    runBuildSteps(row.plugin, version);
 
     console.log('\n正在同步插件仓库、标签和 marketplace...');
     run('node', syncArgsFor(row.plugin, version, forceTag), { inherit: true });

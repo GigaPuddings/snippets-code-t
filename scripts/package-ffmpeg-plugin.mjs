@@ -9,8 +9,23 @@ const MANIFEST_PATH = resolve(ROOT, 'docs/examples/screen-recorder-ffmpeg-resour
 const TARGET_DIR = resolve(ROOT, 'dist-plugin-packages/screen-recorder-ffmpeg')
 const MAX_GITHUB_FILE_BYTES = 100 * 1024 * 1024
 
+function readOption(name) {
+  const args = process.argv.slice(2)
+  const index = args.indexOf(name)
+  if (index >= 0) return args[index + 1]
+  return args.find((arg) => arg.startsWith(`${name}=`))?.slice(name.length + 1)
+}
+
+function assertVersion(version) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error('版本号格式错误，请使用 x.y.z 格式')
+  }
+}
+
 async function main() {
   const packageJson = JSON.parse(await readFile(resolve(ROOT, 'package.json'), 'utf8'))
+  const version = readOption('--version') ?? packageJson.version
+  assertVersion(version)
   const exePath = join(SOURCE_DIR, 'ffmpeg.exe')
   if (!existsSync(exePath)) {
     throw new Error('未找到 ffmpeg.exe，请将 FFmpeg 放到 src-tauri/resources/ffmpeg/ffmpeg.exe')
@@ -31,11 +46,11 @@ async function main() {
   await mkdir(join(TARGET_DIR, 'resources/ffmpeg'), { recursive: true })
 
   const manifest = JSON.parse(await readFile(MANIFEST_PATH, 'utf8'))
-  manifest.version = packageJson.version
+  manifest.version = version
   manifest.minAppVersion = manifest.minAppVersion ?? packageJson.version
-  manifest.compatibleAppVersion = `>=${packageJson.version}`
+  manifest.compatibleAppVersion = `>=${manifest.minAppVersion}`
   manifest.repository = 'https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg'
-  manifest.releaseUrl = `https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/releases/tag/${packageJson.version}`
+  manifest.releaseUrl = `https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/releases/tag/${version}`
   await writeFile(join(TARGET_DIR, 'plugin.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 
   const ffmpegTargetDir = join(TARGET_DIR, 'resources/ffmpeg')
@@ -52,7 +67,7 @@ async function main() {
 Local FFmpeg resource package for Snippets Code.
 
 - Plugin ID: \`screen-recorder-ffmpeg\`
-- Version: \`${packageJson.version}\`
+- Version: \`${version}\`
 - Resource path: \`resources/ffmpeg/ffmpeg.exe\`
 - Runtime: BtbN FFmpeg GPL shared build with required DLLs
 

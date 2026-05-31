@@ -6,7 +6,7 @@ import { MARKETPLACE_PATH, pluginRepositories, ROOT } from './plugin-release-con
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
 const VERIFY_REMOTE = !args.includes('--local') && process.env.PLUGIN_MARKETPLACE_VERIFY_REMOTE !== '0';
 const VERIFY_CONCURRENCY = Number(process.env.PLUGIN_MARKETPLACE_VERIFY_CONCURRENCY ?? 6);
-const ENABLE_RAW_FALLBACK = process.env.PLUGIN_MARKETPLACE_VERIFY_RAW_FALLBACK === '1';
+const ENABLE_API_FALLBACK = process.env.PLUGIN_MARKETPLACE_VERIFY_API_FALLBACK !== '0';
 const pluginRepositoryById = new Map(pluginRepositories.map((plugin) => [plugin.id, plugin]));
 
 const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -75,9 +75,9 @@ function githubArchivePluginJsonUrls(packageUrl) {
   const encodedOwner = encodeURIComponent(owner);
   const encodedRepo = encodeURIComponent(repo);
   const encodedRef = encodeURIComponent(ref);
-  const urls = [`https://api.github.com/repos/${encodedOwner}/${encodedRepo}/contents/plugin.json?ref=${encodedRef}`];
-  if (ENABLE_RAW_FALLBACK) {
-    urls.push(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/plugin.json`);
+  const urls = [`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/plugin.json`];
+  if (ENABLE_API_FALLBACK) {
+    urls.push(`https://api.github.com/repos/${encodedOwner}/${encodedRepo}/contents/plugin.json?ref=${encodedRef}`);
   }
   return urls;
 }

@@ -5671,20 +5671,20 @@ function kt(e, t, n) {
   };
   return i;
 }
-const cl = kt("arrow-left-up", !0, function(e) {
+const cl = kt("arrow-right-up", !0, function(e) {
   return v("svg", {
     width: e.size,
     height: e.size,
     viewBox: "0 0 48 48",
     fill: "none"
   }, [v("path", {
-    d: "M11 11L36.4559 36.4558",
+    d: "M19 11H37V29",
     stroke: e.colors[0],
     "stroke-width": e.strokeWidth,
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null), v("path", {
-    d: "M29 11H11V29",
+    d: "M11.5439 36.4559L36.9997 11",
     stroke: e.colors[0],
     "stroke-width": e.strokeWidth,
     "stroke-linecap": e.strokeLinecap,
@@ -9141,7 +9141,7 @@ const uu = { class: "toolbar-panel first-panel" }, hu = { class: "tool-section" 
   for (const [i, s] of t)
     n[i] = s;
   return n;
-}, eh = /* @__PURE__ */ Qn(th, [["__scopeId", "data-v-ff4668e9"]]), nh = {
+}, eh = /* @__PURE__ */ Qn(th, [["__scopeId", "data-v-dc3e37ec"]]), nh = {
   class: "screenshot-container",
   ref: "containerRef"
 }, ih = {
