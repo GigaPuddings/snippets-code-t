@@ -24,6 +24,28 @@ const execCommand = (command) => {
   }
 };
 
+function gitLines(command) {
+  return execSync(command, { encoding: 'utf8' })
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function assertReleaseWorkspaceClean() {
+  const allowedChanges = new Set(['RELEASE_NOTES.md']);
+  const changedFiles = new Set([
+    ...gitLines('git diff --name-only'),
+    ...gitLines('git diff --cached --name-only'),
+    ...gitLines('git ls-files --others --exclude-standard')
+  ]);
+  const unexpectedChanges = [...changedFiles].filter((file) => !allowedChanges.has(file));
+  if (unexpectedChanges.length > 0) {
+    throw new Error(
+      `主应用发布前工作区必须干净，请先提交或处理以下文件:\n${unexpectedChanges.join('\n')}`
+    );
+  }
+}
+
 async function checkTagExists(version) {
   try {
     execSync(`git rev-parse v${version}`, { stdio: 'ignore' });
@@ -89,6 +111,7 @@ async function checkReleaseNotes() {
 async function updateVersion() {
   try {
     console.log('🚀 snippets-code 发布工具\n');
+    assertReleaseWorkspaceClean();
     
     // 1. 检查更新说明
     await checkReleaseNotes();
@@ -137,8 +160,8 @@ async function updateVersion() {
     // Git 操作
     console.log('\n正在提交更改...');
     
-    // 添加所有更改的文件（包括其他修改）
-    execCommand('git add -A');
+    // 主应用发布只提交版本与发布说明文件，避免捎带插件或开发中的改动。
+    execCommand(`git add -- ${filesToUpdate.join(' ')}`);
     
     // 检查是否有待提交的更改
     try {

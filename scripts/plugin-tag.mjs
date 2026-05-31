@@ -12,7 +12,8 @@ const rl = readline.createInterface({
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
 const options = {
-  pushMain: !args.includes('--no-push-main')
+  pushMain: !args.includes('--no-push-main'),
+  allowDirty: args.includes('--allow-dirty')
 };
 
 const question = (query) => new Promise((resolveQuestion, rejectQuestion) => {
@@ -207,6 +208,33 @@ function hasMainRepoChanges() {
   return gitOutput(['status', '--short']).length > 0;
 }
 
+function gitLines(args) {
+  const output = gitOutput(args);
+  return output ? output.split(/\r?\n/).filter(Boolean) : [];
+}
+
+function listMainRepoChanges() {
+  return [...new Set([
+    ...gitLines(['diff', '--name-only']),
+    ...gitLines(['diff', '--cached', '--name-only']),
+    ...gitLines(['ls-files', '--others', '--exclude-standard'])
+  ])];
+}
+
+function assertMainRepoClean() {
+  const changes = listMainRepoChanges();
+  if (changes.length > 0) {
+    if (options.allowDirty) {
+      console.log(`\n已按 --allow-dirty 继续处理现有改动:\n${changes.join('\n')}`);
+      return;
+    }
+    throw new Error(
+      `插件发布前工作区必须干净，请先提交或处理以下文件:\n${changes.join('\n')}\n`
+      + '如果这是上一次发布中断后留下的文件，请使用 pnpm plugins:tag -- --allow-dirty 恢复发布。'
+    );
+  }
+}
+
 async function confirmOverwritePluginTag(plugin, version) {
   const output = run('git', ['ls-remote', '--tags', `git@github.com:GigaPuddings/${plugin.repo}.git`, `refs/tags/${version}`]);
   if (!output) return false;
@@ -291,7 +319,16 @@ function commitAndPushMainRepo(plugin, version) {
   console.log(gitOutput(['status', '--short']));
 
   console.log('\n正在提交主仓库变更...');
-  run('git', ['add', '-A'], { inherit: true });
+  run('git', ['add', '-A', '--', 'docs/plugin-marketplace/marketplace.json', plugin.sourceDir], { inherit: true });
+  const unstagedChanges = [
+    ...gitLines(['diff', '--name-only']),
+    ...gitLines(['ls-files', '--others', '--exclude-standard'])
+  ];
+  if (unstagedChanges.length > 0) {
+    throw new Error(
+      `插件发布产生了未纳入当前插件包的文件，请检查后重试:\n${unstagedChanges.join('\n')}`
+    );
+  }
   try {
     execSync('git diff --cached --quiet', { cwd: ROOT, stdio: 'ignore' });
     console.log('没有待提交的变更');
@@ -306,6 +343,7 @@ function commitAndPushMainRepo(plugin, version) {
 async function main() {
   try {
     console.log('🚀 snippets-code 插件发布工具');
+    assertMainRepoClean();
     const rows = await listPlugins();
     const row = await selectPlugin(rows);
     const version = await askVersion(row);
