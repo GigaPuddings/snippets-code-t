@@ -48,6 +48,12 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
     );
   }
 
+  async function openFileItem(item: ContentType) {
+    await runAfterClosingSearchWindow(() =>
+      invoke('open_file_with_default_app', { filePath: getSearchResultLaunchPath(item) })
+    );
+  }
+
   async function openNoteItem(item: ContentType) {
     try {
       const navigationData = {
@@ -117,12 +123,9 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
 
   function getItemPrimaryAction(item: ContentType) {
     if (item.summarize === 'app') return () => openAppItem(item);
-    if (
-      item.summarize === 'bookmark' ||
-      item.summarize === 'search' ||
-      item.summarize === 'file'
-    )
+    if (item.summarize === 'bookmark' || item.summarize === 'search')
       return () => openExternalItem(item);
+    if (item.summarize === 'file') return () => openFileItem(item);
     if (item.summarize === 'tool') return () => copyToolResult(item);
     if (item.type === 'note') return () => openNoteItem(item);
     return () => copyAndInsertSnippet(item);

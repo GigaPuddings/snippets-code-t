@@ -75,6 +75,7 @@ static APP_INIT_STATE: Mutex<Option<Instant>> = Mutex::new(None);
 static APP_INITIALIZED: Mutex<bool> = Mutex::new(false);
 
 const AUTO_START_BACKGROUND_DELAY_SECS: u64 = 15;
+const POST_UPDATE_STARTUP_DELAY_MILLIS: u64 = 1800;
 
 fn is_auto_start_launch(app_handle: &AppHandle) -> bool {
     let has_auto_start_flag = std::env::args().any(|arg| arg == "--flag1" || arg == "--flag2");
@@ -418,6 +419,7 @@ pub fn run() {
             }
 
             let is_auto_start = is_auto_start_launch(app.handle());
+            let is_update_restart = update::consume_update_restart_pending(app.handle());
 
             // 初始化 Markdown 运行时状态。即使暂未配置工作区，命令状态也必须存在，
             // 否则前端请求分类/文件列表时会触发 Tauri 的 state not managed 错误。
@@ -822,14 +824,23 @@ pub fn run() {
             if !is_auto_start {
                 let app_handle_startup = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    let startup_delay = if is_update_restart {
+                        info!(
+                            "[Startup] post-update restart detected; delaying foreground windows by {}ms",
+                            POST_UPDATE_STARTUP_DELAY_MILLIS
+                        );
+                        POST_UPDATE_STARTUP_DELAY_MILLIS
+                    } else {
+                        100
+                    };
+                    tokio::time::sleep(tokio::time::Duration::from_millis(startup_delay)).await;
 
                     if !db::is_setup_completed_internal(&app_handle_startup) {
                         // 首次启动：只显示 setup 窗口
                         create_setup_window();
                     } else {
                         // 正常启动：loading 过渡 + config 静默加载，ready 后再展示
-                        crate::window::open_config_with_loading_transition();
+                        crate::window::open_config_with_loading_transition().await;
                     }
                 });
             }

@@ -13,29 +13,8 @@ pub fn open_file_with_default_app(file_path: String) -> Result<(), String> {
         return Err(format!("文件不存在: {}", file_path));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &file_path])
-            .spawn()
-            .map_err(|e| format!("打开文件失败: {}", e))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&file_path)
-            .spawn()
-            .map_err(|e| format!("打开文件失败: {}", e))?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&filePath)
-            .spawn()
-            .map_err(|e| format!("打开文件失败: {}", e))?;
-    }
+    tauri_plugin_opener::open_path(path, None::<&str>)
+        .map_err(|e| format!("打开文件失败: {}", e))?;
 
     Ok(())
 }

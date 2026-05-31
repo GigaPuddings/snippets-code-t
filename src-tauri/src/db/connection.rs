@@ -409,6 +409,7 @@ pub fn set_data_dir_from_setup(
     app_config.show_progress_on_restart = Some(false);
     app_config.show_progress_reset_kind = Some(String::new());
     app_config.setup_restart_pending = Some(false);
+    app_config.update_restart_pending = Some(false);
     app_config_manager.update_config(app_config);
     app_config_manager.save()?;
 

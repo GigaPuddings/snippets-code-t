@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
 import { canCopySearchResultSnippet, useSearchResultActions } from './useSearchResultActions';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -19,6 +20,11 @@ vi.mock('@/utils/modal', () => ({
 }));
 
 describe('useSearchResultActions', () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    vi.mocked(invoke).mockResolvedValue(undefined);
+  });
+
   it('allows quick copy for code snippets only', () => {
     expect(canCopySearchResultSnippet({
       id: 1,
@@ -117,5 +123,26 @@ describe('useSearchResultActions', () => {
     });
 
     expect(copied).toBe(false);
+  });
+
+  it('opens desktop files with the default app instead of the URL opener', async () => {
+    const actions = useSearchResultActions({
+      onClearSearch: vi.fn(),
+      clipboard: { writeText: vi.fn(async () => undefined) }
+    });
+
+    await actions.runPrimaryAction({
+      id: 'desktop-file:C:/Users/test/Desktop/example.text',
+      title: 'example.text',
+      content: 'C:/Users/test/Desktop/example.text',
+      metadata: { file_path: 'C:/Users/test/Desktop/example.text' },
+      type: 'code',
+      summarize: 'file'
+    });
+
+    expect(invoke).toHaveBeenCalledWith('open_file_with_default_app', {
+      filePath: 'C:/Users/test/Desktop/example.text'
+    });
+    expect(invoke).not.toHaveBeenCalledWith('open_url', expect.anything());
   });
 });

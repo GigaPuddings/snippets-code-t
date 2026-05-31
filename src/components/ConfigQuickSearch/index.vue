@@ -291,8 +291,14 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
       return;
     }
 
-    if (item.summarize === 'bookmark' || item.summarize === 'search' || item.summarize === 'file') {
+    if (item.summarize === 'bookmark' || item.summarize === 'search') {
       await invoke('open_url', { url: item.content });
+      close();
+      return;
+    }
+
+    if (item.summarize === 'file') {
+      await invoke('open_file_with_default_app', { filePath: item.metadata?.file_path || item.content });
       close();
       return;
     }

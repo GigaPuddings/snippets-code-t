@@ -732,7 +732,7 @@ fn ensure_config_cleanup_listener(window: &WebviewWindow) {
 }
 
 // 启动阶段：先显示 loading，静默加载 config，待 config_ready 再切换
-pub fn open_config_with_loading_transition() {
+pub async fn open_config_with_loading_transition() {
     WindowManager::close_search_window_if_visible();
     {
         let mut started = match STARTUP_TRANSITION_STARTED_AT.lock() {
@@ -749,6 +749,9 @@ pub fn open_config_with_loading_transition() {
     }
     show_loading_window();
     info!("[StartupTransition] loading shown");
+    // 更新安装器自动拉起时 WebView2 仍可能处于上一进程的收尾阶段。
+    // 先让 loading WebView 完成创建和首帧渲染，再预加载 config WebView。
+    tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
 
     let spec = WindowSpec {
         label: "config",

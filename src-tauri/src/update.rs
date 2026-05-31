@@ -27,6 +27,15 @@ struct ProgressData {
     total_downloaded: u64,
 }
 
+pub fn consume_update_restart_pending(app: &AppHandle) -> bool {
+    let pending = json_config::get_app_config_value(app, "update_restart_pending").unwrap_or(false);
+    if pending {
+        log::info!("[Updater] consuming post-update restart marker");
+        let _ = json_config::set_app_config_value(app, "update_restart_pending", false);
+    }
+    pending
+}
+
 // 检查更新
 pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bool, String> {
     // info!("Checking for updates...");
@@ -157,6 +166,13 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                         if let Err(e) = app_clone.emit("download-finished", ()) {
                             log::warn!("发送下载完成事件失败: {}", e);
                         }
+                        // Windows 更新器会在启动 NSIS 后直接退出当前进程，并由安装器自动拉起应用。
+                        // 新进程需要知道这是安装后的首次启动，为 WebView2 和安装器收尾留出缓冲。
+                        let _ = json_config::set_app_config_value(
+                            app_clone,
+                            "update_restart_pending",
+                            true,
+                        );
                         // 更新完成后重置更新状态
                         let _ =
                             json_config::set_app_config_value(app_clone, "update_available", false);

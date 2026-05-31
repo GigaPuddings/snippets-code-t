@@ -67,6 +67,8 @@ pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub setup_restart_pending: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_restart_pending: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub search_hotkey: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config_hotkey: Option<String>,
@@ -233,6 +235,7 @@ impl Default for AppConfig {
             show_progress_on_restart: None,
             show_progress_reset_kind: None,
             setup_restart_pending: None,
+            update_restart_pending: None,
             search_hotkey: None,
             config_hotkey: None,
             translate_hotkey: None,
@@ -528,6 +531,10 @@ fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> 
     changed |= copy_option_if_empty(
         &mut target.setup_restart_pending,
         &legacy.setup_restart_pending,
+    );
+    changed |= copy_option_if_empty(
+        &mut target.update_restart_pending,
+        &legacy.update_restart_pending,
     );
     changed |= copy_option_if_empty(&mut target.search_hotkey, &legacy.search_hotkey);
     changed |= copy_option_if_empty(&mut target.config_hotkey, &legacy.config_hotkey);
