@@ -73,17 +73,17 @@ export class DrawingEngine {
 
     this.ctx.save()
 
-    // Windows 11 截图工具风格：细白色虚线，带轻微暗色底线保证明暗背景都可见。
+    // 使用明暗双层虚线，让选区在深色和浅色背景上都清晰可见。
     const strokeX = Math.round(x) + 0.5
     const strokeY = Math.round(y) + 0.5
     const strokeWidth = Math.max(0, Math.round(width) - 1)
     const strokeHeight = Math.max(0, Math.round(height) - 1)
 
     this.ctx.lineWidth = 1
-    this.ctx.setLineDash([4, 3])
-    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)'
+    this.ctx.setLineDash([5, 4])
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.62)'
     this.ctx.strokeRect(strokeX + 1, strokeY + 1, strokeWidth, strokeHeight)
-    this.ctx.strokeStyle = '#ffffff'
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)'
     this.ctx.strokeRect(strokeX, strokeY, strokeWidth, strokeHeight)
 
     if (showHandles) {
@@ -102,25 +102,31 @@ export class DrawingEngine {
     
     this.ctx.setLineDash([])
 
-    const handleSize = 5
     const handles = [
-      { x: x, y: y },                    // 左上
-      { x: x + width, y: y },            // 右上
-      { x: x, y: y + height },           // 左下
-      { x: x + width, y: y + height },   // 右下
-      { x: center.x, y: y },             // 上中
-      { x: center.x, y: y + height },    // 下中
-      { x: x, y: center.y },             // 左中
-      { x: x + width, y: center.y }      // 右中
+      { x: x, y: y, width: 10, height: 10 },                  // 左上
+      { x: x + width, y: y, width: 10, height: 10 },          // 右上
+      { x: x, y: y + height, width: 10, height: 10 },         // 左下
+      { x: x + width, y: y + height, width: 10, height: 10 }, // 右下
+      { x: center.x, y: y, width: 16, height: 6 },            // 上中
+      { x: center.x, y: y + height, width: 16, height: 6 },   // 下中
+      { x: x, y: center.y, width: 6, height: 16 },            // 左中
+      { x: x + width, y: center.y, width: 6, height: 16 }     // 右中
     ]
 
     handles.forEach(handle => {
-      const handleX = Math.round(handle.x) - handleSize / 2
-      const handleY = Math.round(handle.y) - handleSize / 2
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.42)'
-      this.ctx.fillRect(handleX + 1, handleY + 1, handleSize, handleSize)
+      const handleX = Math.round(handle.x) - handle.width / 2
+      const handleY = Math.round(handle.y) - handle.height / 2
+      const radius = Math.min(handle.width, handle.height) / 2
+
+      this.ctx.beginPath()
+      this.ctx.roundRect(handleX + 1, handleY + 1, handle.width, handle.height, radius)
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.36)'
+      this.ctx.fill()
+
+      this.ctx.beginPath()
+      this.ctx.roundRect(handleX, handleY, handle.width, handle.height, radius)
       this.ctx.fillStyle = '#ffffff'
-      this.ctx.fillRect(handleX, handleY, handleSize, handleSize)
+      this.ctx.fill()
     })
   }
 
@@ -143,8 +149,8 @@ export class DrawingEngine {
       if (data.selected) {
         annotation.drawSelection(context)
         
-        // 为矩形和箭头标注绘制控制点
-        if (data.type === 'rectangle' || data.type === 'arrow') {
+        // 为两点图形标注绘制控制点
+        if (['rectangle', 'ellipse', 'line', 'arrow'].includes(data.type)) {
           this.drawAnnotationHandles(annotation)
         }
       }
@@ -206,8 +212,8 @@ export class DrawingEngine {
       return
     }
 
-    // 矩形和箭头标注只显示起点和终点控制点
-    if (data.type === 'rectangle' || data.type === 'arrow') {
+    // 两点图形标注只显示起点和终点控制点
+    if (['rectangle', 'ellipse', 'line', 'arrow'].includes(data.type)) {
       if (data.points.length >= 2) {
         const start = data.points[0]
         const end = data.points[data.points.length - 1]

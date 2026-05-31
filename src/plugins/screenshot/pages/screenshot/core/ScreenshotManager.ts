@@ -78,9 +78,9 @@ export class ScreenshotManager {
   
   // 工具设置
   private currentTool: ToolType = ToolType.Select
-  private currentStyle: AnnotationStyle = { color: '#ff4444', lineWidth: 3 }
+  private currentStyle: AnnotationStyle = { color: '#ff4444', lineWidth: 3, opacity: 1 }
   private textSize = 16
-  private mosaicSize = 5
+  private mosaicSize = 8
   private showGuides = true
 
   // 取色器状态
@@ -775,6 +775,8 @@ export class ScreenshotManager {
           break
 
         case OperationType.DrawingRect:
+        case OperationType.DrawingEllipse:
+        case OperationType.DrawingLine:
         case OperationType.DrawingArrow:
         case OperationType.DrawingPen:
         case OperationType.DrawingMosaic:
@@ -1379,8 +1381,8 @@ export class ScreenshotManager {
         break
       
       case ToolType.Mosaic:
-        // 马赛克：圆形光标，显示实际笔刷大小（块大小 * 3）
-        this.updateCursor(this.createCircleCursor(this.mosaicSize * 3, '#666'))
+        // 马赛克：圆形光标，显示实际笔刷覆盖范围。
+        this.updateCursor(this.createCircleCursor(Math.max(this.mosaicSize * 3, 24), '#666'))
         break
       
       case ToolType.ColorPicker:
@@ -1388,6 +1390,8 @@ export class ScreenshotManager {
         break
       
       case ToolType.Rectangle:
+      case ToolType.Ellipse:
+      case ToolType.Line:
       case ToolType.Arrow:
       case ToolType.Text:
         // 其他绘图工具：使用十字光标
@@ -2374,8 +2378,11 @@ export class ScreenshotManager {
     
     switch (data.type) {
       case ToolType.Rectangle:
+      case ToolType.Ellipse:
+      case ToolType.Line:
       case ToolType.Arrow:
-        // 矩形和箭头只需要起点和终点
+        // 两点图形只需要起点和终点
+        point = this.getConstrainedShapeEndPoint(data.type, data.points[0], point)
         if (data.points.length === 1) {
           // 如果只有起点，添加终点
           this.currentAnnotation.addPoint(point)
@@ -2395,6 +2402,33 @@ export class ScreenshotManager {
         this.currentAnnotation.addPoint(point)
         break
     }
+  }
+
+  private getConstrainedShapeEndPoint(type: ToolType, start: Point, end: Point): Point {
+    if (!this.isShiftPressed) return end
+
+    const deltaX = end.x - start.x
+    const deltaY = end.y - start.y
+
+    if (type === ToolType.Ellipse || type === ToolType.Rectangle) {
+      const size = Math.max(Math.abs(deltaX), Math.abs(deltaY))
+      return {
+        x: start.x + Math.sign(deltaX || 1) * size,
+        y: start.y + Math.sign(deltaY || 1) * size
+      }
+    }
+
+    if (type === ToolType.Line || type === ToolType.Arrow) {
+      const distanceToEnd = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+      const angleStep = Math.PI / 4
+      const snappedAngle = Math.round(Math.atan2(deltaY, deltaX) / angleStep) * angleStep
+      return {
+        x: start.x + Math.cos(snappedAngle) * distanceToEnd,
+        y: start.y + Math.sin(snappedAngle) * distanceToEnd
+      }
+    }
+
+    return end
   }
 
   // 完成标注创建
@@ -2807,12 +2841,16 @@ export class ScreenshotManager {
       selectionRect: this.selectionRect,
       annotations: this.annotations.map(a => a.getData()),
       currentTool: this.currentTool,
-      currentStyle: this.currentStyle,
+      currentStyle: {
+        ...this.currentStyle,
+        opacity: this.currentStyle.opacity ?? 1
+      },
       textSize: this.textSize,
       mosaicSize: this.mosaicSize,
       hasSelection: !!this.selectionRect,
       // 有标注或有翻译覆盖层时都可以撤销
       hasAnnotations: this.annotations.length > 0 || (this.translationOverlay.isVisible && this.translationOverlay.blocks.length > 0),
+      canRedo: this.annotationRedoStack.length > 0,
       selectedAnnotation: this.selectedAnnotation?.getData() || null,
       isDrawing: this.eventHandler.getDrawingState().isDrawing
     }

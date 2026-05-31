@@ -24,6 +24,8 @@ export enum OperationType {
   ResizingW = 'resizing-w',
   ResizingE = 'resizing-e',
   DrawingRect = 'drawing-rect',
+  DrawingEllipse = 'drawing-ellipse',
+  DrawingLine = 'drawing-line',
   DrawingArrow = 'drawing-arrow',
   DrawingPen = 'drawing-pen',
   EditingAnnotation = 'editing-annotation',
@@ -39,6 +41,8 @@ export enum OperationType {
 export enum ToolType {
   Select = 'select',
   Rectangle = 'rectangle',
+  Ellipse = 'ellipse',
+  Line = 'line',
   Arrow = 'arrow',
   Pen = 'pen',
   Mosaic = 'mosaic',
@@ -84,6 +88,7 @@ export interface TranslationOverlay {
 export interface AnnotationStyle {
   color: string
   lineWidth: number
+  opacity?: number
 }
 
 export interface AnnotationData {

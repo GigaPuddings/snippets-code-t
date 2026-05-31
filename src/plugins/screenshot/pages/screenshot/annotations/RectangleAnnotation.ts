@@ -1,9 +1,9 @@
 import { BaseAnnotation } from '../core/BaseAnnotation'
-import { DrawingContext, Point, ToolType } from '../core/types'
+import { AnnotationStyle, DrawingContext, Point, ToolType } from '../core/types'
 import { distance } from '../utils/geometry'
 
 export class RectangleAnnotation extends BaseAnnotation {
-  constructor(startPoint: Point, style: { color: string, lineWidth: number }) {
+  constructor(startPoint: Point, style: AnnotationStyle) {
     super({
       id: Math.random().toString(36).substr(2, 9),
       type: ToolType.Rectangle,
@@ -26,6 +26,7 @@ export class RectangleAnnotation extends BaseAnnotation {
     const height = end.y - start.y
 
     ctx.save()
+    this.applyOpacity(ctx)
     ctx.strokeStyle = this.data.style.color
     ctx.lineWidth = this.data.style.lineWidth
     ctx.lineCap = 'round'
@@ -52,6 +53,7 @@ export class RectangleAnnotation extends BaseAnnotation {
     const height = (end.y - start.y) * scale
 
     ctx.save()
+    this.applyOpacity(ctx)
     ctx.strokeStyle = this.data.style.color
     ctx.lineWidth = this.data.style.lineWidth * scale
     ctx.lineCap = 'round'

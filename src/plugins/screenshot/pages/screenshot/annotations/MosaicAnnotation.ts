@@ -1,5 +1,5 @@
 import { BaseAnnotation } from '../core/BaseAnnotation'
-import { DrawingContext, Point, ToolType } from '../core/types'
+import { AnnotationStyle, DrawingContext, Point, ToolType } from '../core/types'
 import { distance } from '../utils/geometry'
 
 export class MosaicAnnotation extends BaseAnnotation {
@@ -9,8 +9,8 @@ export class MosaicAnnotation extends BaseAnnotation {
 
   constructor(
     startPoint: Point, 
-    style: { color: string, lineWidth: number },
-    mosaicSize: number = 5 // 马赛克块的大小（参考专业工具，4-6px效果最佳）
+    style: AnnotationStyle,
+    mosaicSize: number = 8 // 马赛克块大小，默认保持清晰的像素块效果
   ) {
     super({
       id: Math.random().toString(36).substr(2, 9),
@@ -77,11 +77,11 @@ export class MosaicAnnotation extends BaseAnnotation {
 
     // 2. 获取 DPI 和计算参数
     const renderScale = scale || 1
-    const mosaicSize = this.data.mosaicSize || 5
+    const mosaicSize = this.data.mosaicSize || 8
     // 物理像素的马赛克块大小
-    const physicalBlockSize = Math.max(Math.round(mosaicSize * renderScale), 2)
+    const physicalBlockSize = Math.max(Math.round(mosaicSize * renderScale), 4)
     // 笔刷大小（逻辑像素）
-    const brushSize = mosaicSize * 3
+    const brushSize = Math.max(mosaicSize * 3, 24)
 
     // 3. 计算包围盒（逻辑坐标）
     const rawBounds = this.getBounds()
@@ -155,9 +155,10 @@ export class MosaicAnnotation extends BaseAnnotation {
         }
 
         if (count > 0) {
-          r = Math.round(r / count)
-          g = Math.round(g / count)
-          b = Math.round(b / count)
+          const colorStep = 8
+          r = Math.round((r / count) / colorStep) * colorStep
+          g = Math.round((g / count) / colorStep) * colorStep
+          b = Math.round((b / count) / colorStep) * colorStep
 
           // 将块内所有像素设置为平均色
           for (let y = startY; y < endY; y++) {
@@ -191,6 +192,7 @@ export class MosaicAnnotation extends BaseAnnotation {
 
     // 12. 绘制回主画布
     ctx.save()
+    this.applyOpacity(ctx)
     ctx.setTransform(1, 0, 0, 1, 0, 0)  // 重置变换，直接操作物理像素
     
     if (clipBounds) {
@@ -249,12 +251,12 @@ export class MosaicAnnotation extends BaseAnnotation {
   hitTest(point: Point, tolerance: number = 8): boolean {
     if (this.data.points.length === 0) return false
     if (this.data.points.length === 1) {
-      return distance(point, this.data.points[0]) <= (this.data.mosaicSize || 5) / 2 + tolerance
+      return distance(point, this.data.points[0]) <= (this.data.mosaicSize || 8) * 1.5 + tolerance
     }
     for (let i = 0; i < this.data.points.length - 1; i++) {
       const start = this.data.points[i]
       const end = this.data.points[i + 1]
-      if (this.isPointNearLine(point, start, end, (this.data.mosaicSize || 5) / 2 + tolerance)) {
+      if (this.isPointNearLine(point, start, end, (this.data.mosaicSize || 8) * 1.5 + tolerance)) {
         return true
       }
     }
@@ -309,5 +311,5 @@ export class MosaicAnnotation extends BaseAnnotation {
   drawSelection(_context: DrawingContext): void {}
   drawHover(_context: DrawingContext): void {}
   updateMosaicSize(size: number): void { this.data.mosaicSize = size }
-  getMosaicSize(): number { return this.data.mosaicSize || 5 }
+  getMosaicSize(): number { return this.data.mosaicSize || 8 }
 }

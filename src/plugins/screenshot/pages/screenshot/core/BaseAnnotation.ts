@@ -64,6 +64,10 @@ export abstract class BaseAnnotation {
   // 获取最小点数
   protected abstract getMinPoints(): number
 
+  protected applyOpacity(ctx: CanvasRenderingContext2D): void {
+    ctx.globalAlpha *= this.data.style.opacity ?? 1
+  }
+
   // 生成唯一ID
   protected generateId(): string {
     return Math.random().toString(36).substr(2, 9)

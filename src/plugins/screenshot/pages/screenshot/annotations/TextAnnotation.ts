@@ -1,11 +1,17 @@
 import { BaseAnnotation } from '../core/BaseAnnotation'
-import { DrawingContext, Point, ToolType } from '../core/types'
+import { AnnotationStyle, DrawingContext, Point, ToolType } from '../core/types'
+
+export const TEXT_FONT_FAMILY = 'sans-serif'
+export const getTextOrigin = (position: Point): Point => ({
+  x: position.x + 4,
+  y: position.y - 8
+})
 
 export class TextAnnotation extends BaseAnnotation {
   constructor(
     position: Point,
     text: string,
-    style: { color: string, lineWidth: number },
+    style: AnnotationStyle,
     fontSize: number = 16
   ) {
     super({
@@ -56,14 +62,16 @@ export class TextAnnotation extends BaseAnnotation {
     const position = this.data.points[0]
 
     ctx.save()
-    ctx.font = `${fontSize}px sans-serif`
+    this.applyOpacity(ctx)
+    ctx.font = `${fontSize}px ${TEXT_FONT_FAMILY}`
     ctx.fillStyle = this.data.style.color
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
 
     // 计算文本位置
-    const textX = (position.x + 4) * scale - offset.x
-    const textY = (position.y - 8) * scale - offset.y
+    const origin = getTextOrigin(position)
+    const textX = origin.x * scale - offset.x
+    const textY = origin.y * scale - offset.y
 
 
     ctx.fillText(this.data.text!, textX, textY)
@@ -80,12 +88,11 @@ export class TextAnnotation extends BaseAnnotation {
     const tempCtx = tempCanvas.getContext('2d')
     if (!tempCtx) return false
 
-    tempCtx.font = `${fontSize}px sans-serif`
+    tempCtx.font = `${fontSize}px ${TEXT_FONT_FAMILY}`
     const textMetrics = tempCtx.measureText(this.data.text)
     const textWidth = textMetrics.width
 
-    const textX = position.x + 4
-    const textY = position.y - 8
+    const { x: textX, y: textY } = getTextOrigin(position)
 
     return point.x >= textX - tolerance &&
       point.x <= textX + textWidth + tolerance &&
@@ -104,12 +111,11 @@ export class TextAnnotation extends BaseAnnotation {
     const tempCtx = tempCanvas.getContext('2d')
     if (!tempCtx) return null
 
-    tempCtx.font = `${fontSize}px sans-serif`
+    tempCtx.font = `${fontSize}px ${TEXT_FONT_FAMILY}`
     const textMetrics = tempCtx.measureText(this.data.text)
     const textWidth = textMetrics.width
 
-    const textX = position.x + 4
-    const textY = position.y - 8
+    const { x: textX, y: textY } = getTextOrigin(position)
 
     return {
       x: textX,
@@ -126,12 +132,13 @@ export class TextAnnotation extends BaseAnnotation {
     const position = this.data.points[0]
     const fontSize = (this.data.fontSize || 16) * scale
 
-    const textX = (position.x + 4) * scale - offset.x
-    const textY = (position.y - 8) * scale - offset.y
+    const origin = getTextOrigin(position)
+    const textX = origin.x * scale - offset.x
+    const textY = origin.y * scale - offset.y
 
     // 计算文字宽度
     ctx.save()
-    ctx.font = `${fontSize}px sans-serif`
+    ctx.font = `${fontSize}px ${TEXT_FONT_FAMILY}`
     const textMetrics = ctx.measureText(this.data.text)
     const textWidth = textMetrics.width
 
@@ -150,12 +157,13 @@ export class TextAnnotation extends BaseAnnotation {
     const position = this.data.points[0]
     const fontSize = (this.data.fontSize || 16) * scale
 
-    const textX = (position.x + 4) * scale - offset.x
-    const textY = (position.y - 8) * scale - offset.y
+    const origin = getTextOrigin(position)
+    const textX = origin.x * scale - offset.x
+    const textY = origin.y * scale - offset.y
 
     // 计算文字宽度
     ctx.save()
-    ctx.font = `${fontSize}px sans-serif`
+    ctx.font = `${fontSize}px ${TEXT_FONT_FAMILY}`
     const textMetrics = ctx.measureText(this.data.text)
     const textWidth = textMetrics.width
 

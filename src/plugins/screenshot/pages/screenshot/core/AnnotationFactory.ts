@@ -1,6 +1,8 @@
 import { BaseAnnotation } from './BaseAnnotation'
-import { Point, ToolType } from './types'
+import { AnnotationStyle, Point, ToolType } from './types'
 import { RectangleAnnotation } from '../annotations/RectangleAnnotation'
+import { EllipseAnnotation } from '../annotations/EllipseAnnotation'
+import { LineAnnotation } from '../annotations/LineAnnotation'
 import { ArrowAnnotation } from '../annotations/ArrowAnnotation'
 import { PenAnnotation } from '../annotations/PenAnnotation'
 import { TextAnnotation } from '../annotations/TextAnnotation'
@@ -11,7 +13,7 @@ export class AnnotationFactory {
   static createAnnotation(
     type: ToolType,
     startPoint: Point,
-    style: { color: string, lineWidth: number },
+    style: AnnotationStyle,
     options: {
       text?: string
       fontSize?: number
@@ -21,6 +23,12 @@ export class AnnotationFactory {
     switch (type) {
       case ToolType.Rectangle:
         return new RectangleAnnotation(startPoint, style)
+
+      case ToolType.Ellipse:
+        return new EllipseAnnotation(startPoint, style)
+
+      case ToolType.Line:
+        return new LineAnnotation(startPoint, style)
       
       case ToolType.Arrow:
         return new ArrowAnnotation(startPoint, style)
@@ -40,7 +48,7 @@ export class AnnotationFactory {
         return new MosaicAnnotation(
           startPoint,
           style,
-          options.mosaicSize || 5
+          options.mosaicSize || 8
         )
       
       default:
@@ -82,6 +90,8 @@ export class AnnotationFactory {
   static getOperationType(toolType: ToolType): string {
     const operationMap = {
       [ToolType.Rectangle]: 'drawing-rect',
+      [ToolType.Ellipse]: 'drawing-ellipse',
+      [ToolType.Line]: 'drawing-line',
       [ToolType.Arrow]: 'drawing-arrow',
       [ToolType.Pen]: 'drawing-pen',
       [ToolType.Text]: 'drawing-text',
@@ -106,6 +116,8 @@ export class AnnotationFactory {
   static supportsColorSettings(toolType: ToolType): boolean {
     return [
       ToolType.Rectangle,
+      ToolType.Ellipse,
+      ToolType.Line,
       ToolType.Arrow,
       ToolType.Pen,
       ToolType.Text
@@ -116,6 +128,8 @@ export class AnnotationFactory {
   static supportsLineWidthSettings(toolType: ToolType): boolean {
     return [
       ToolType.Rectangle,
+      ToolType.Ellipse,
+      ToolType.Line,
       ToolType.Arrow,
       ToolType.Pen
     ].includes(toolType)

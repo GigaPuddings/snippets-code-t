@@ -90,6 +90,8 @@ export class EventHandler {
   private getDrawingOperationType(toolType: ToolType): OperationType {
     const operationMap: Record<ToolType, OperationType> = {
       [ToolType.Rectangle]: OperationType.DrawingRect,
+      [ToolType.Ellipse]: OperationType.DrawingEllipse,
+      [ToolType.Line]: OperationType.DrawingLine,
       [ToolType.Arrow]: OperationType.DrawingArrow,
       [ToolType.Pen]: OperationType.DrawingPen,
       [ToolType.Text]: OperationType.DrawingText,
@@ -194,8 +196,13 @@ export class EventHandler {
       return OperationType.None
     }
 
-    // 矩形和箭头标注支持控制点缩放
-    if (data.type === ToolType.Rectangle || data.type === ToolType.Arrow) {
+    // 两点图形标注支持控制点缩放
+    if ([
+      ToolType.Rectangle,
+      ToolType.Ellipse,
+      ToolType.Line,
+      ToolType.Arrow
+    ].includes(data.type)) {
       if (data.points.length >= 2) {
         const start = data.points[0]
         const end = data.points[data.points.length - 1]

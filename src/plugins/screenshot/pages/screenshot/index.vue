@@ -20,13 +20,16 @@
     <!-- 工具栏 -->
     <ToolbarSection ref="toolbarRef" v-if="state.selectionRect && !isDrawing" :style="toolbarStyle" class="toolbar"
       :current-tool="state.currentTool" :current-color="state.currentStyle.color"
-      :current-line-width="state.currentStyle.lineWidth" :current-text-size="state.textSize"
-      :current-mosaic-size="state.mosaicSize" :can-undo="state.hasAnnotations" :can-delete="!!state.selectedAnnotation"
+      :current-line-width="state.currentStyle.lineWidth" :current-opacity="state.currentStyle.opacity"
+      :current-text-size="state.textSize"
+      :current-mosaic-size="state.mosaicSize" :can-undo="state.hasAnnotations" :can-redo="state.canRedo"
+      :can-delete="!!state.selectedAnnotation"
       :current-translate-engine="translateEngine"
       @tool-select="handleToolSelect" @color-change="handleColorChange" @line-width-change="handleLineWidthChange"
+      @opacity-change="handleOpacityChange"
       @text-size-change="handleTextSizeChange" @mosaic-size-change="handleMosaicSizeChange"
       @translate-engine-change="handleTranslateEngineChange"
-      @undo="handleUndo" @delete="handleDelete" @save="handleSave" @confirm="handleConfirm" @cancel="handleCancel" />
+      @undo="handleUndo" @redo="handleRedo" @delete="handleDelete" @save="handleSave" @confirm="handleConfirm" @cancel="handleCancel" />
 
     <!-- 加载提示 - 仅在初始化时显示 -->
     <div v-if="isLoading" class="loading-overlay">
@@ -38,8 +41,10 @@
     <div v-if="isTextInputVisible" class="text-input-container" :style="textInputStyle">
       <input ref="textInputRef" v-model="textInput" type="text" class="text-input" :style="{
         color: state.currentStyle.color,
-        fontSize: state.textSize + 'px',
-        borderColor: state.currentStyle.color
+        fontFamily: TEXT_FONT_FAMILY,
+        fontSize: textInputFontSize + 'px',
+        height: textInputFontSize + 'px',
+        lineHeight: textInputFontSize + 'px'
       }" @keydown.enter="confirmTextInput" @keydown.escape="cancelTextInput" @blur="confirmTextInput" autofocus />
     </div>
   </div>
@@ -52,6 +57,7 @@ import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { ScreenshotManager } from './core/ScreenshotManager'
 import { ToolType, ColorInfo } from './core/types'
+import { getTextOrigin, TEXT_FONT_FAMILY } from './annotations/TextAnnotation'
 import ToolbarSection from './components/ToolbarSection.vue'
 import { logger } from '@/utils/logger'
 
@@ -69,9 +75,10 @@ const showSizeInfo = ref(true)
 const isTextInputVisible = ref(false)
 const textInput = ref('')
 const textInputPosition = ref({ x: 0, y: 0 })
+const textInputFontSize = ref(16)
 const isLoading = ref(false) // 不显示加载状态，让用户可以立即开始截图
 const translateEngine = ref<'google' | 'bing' | 'offline'>('bing') // 翻译引擎
-const toolbarSize = ref({ width: 510, height: 48 })
+const toolbarSize = ref({ width: 590, height: 50 })
 let isClosing = false
 
 // 响应式状态
@@ -79,11 +86,12 @@ const state = ref({
   selectionRect: null as any,
   annotations: [] as any[],
   currentTool: ToolType.Select,
-  currentStyle: { color: '#ff4444', lineWidth: 3 },
+  currentStyle: { color: '#ff4444', lineWidth: 3, opacity: 1 },
   textSize: 16,
-  mosaicSize: 5,
+  mosaicSize: 8,
   hasSelection: false,
   hasAnnotations: false,
+  canRedo: false,
   selectedAnnotation: null as any,
   isDrawing: false // 将绘制状态也放到响应式状态中
 })
@@ -144,31 +152,32 @@ const rightMaskStyle = computed(() => {
 const toolbarStyle = computed(() => {
   if (!state.value.selectionRect) return {}
 
-  const { x, y, height } = state.value.selectionRect
-  const margin = 8
-  const toolbarWidth = Math.min(toolbarSize.value.width, Math.max(0, window.innerWidth - margin * 2))
-  const toolbarHeight = Math.min(toolbarSize.value.height, Math.max(0, window.innerHeight - margin * 2))
-  const maxTop = Math.max(margin, window.innerHeight - toolbarHeight - margin)
-  const maxLeft = Math.max(margin, window.innerWidth - toolbarWidth - margin)
+  const { x, y, width, height } = state.value.selectionRect
+  const edgeMargin = 10
+  const toolbarGap = 12
+  const toolbarWidth = Math.min(toolbarSize.value.width, Math.max(0, window.innerWidth - edgeMargin * 2))
+  const toolbarHeight = Math.min(toolbarSize.value.height, Math.max(0, window.innerHeight - edgeMargin * 2))
+  const maxTop = Math.max(edgeMargin, window.innerHeight - toolbarHeight - edgeMargin)
+  const maxLeft = Math.max(edgeMargin, window.innerWidth - toolbarWidth - edgeMargin)
 
   // 决定工具栏位置
   let top: number
   // 1. 优先尝试放在选区下方
-  if (y + height + toolbarHeight + margin <= window.innerHeight) {
-    top = y + height + margin
+  if (y + height + toolbarHeight + toolbarGap <= window.innerHeight - edgeMargin) {
+    top = y + height + toolbarGap
   } 
   // 2. 否则，尝试放在选区上方
-  else if (y - toolbarHeight - margin >= margin) {
-    top = y - toolbarHeight - margin
+  else if (y - toolbarHeight - toolbarGap >= edgeMargin) {
+    top = y - toolbarHeight - toolbarGap
   }
   // 3. 如果上下都没空间，则放在选区内部的底部
   else {
-    top = y + height - toolbarHeight - margin
+    top = y + height - toolbarHeight - edgeMargin
   }
-  top = Math.min(Math.max(top, margin), maxTop)
+  top = Math.min(Math.max(top, edgeMargin), maxTop)
 
-  // 计算左侧位置
-  const left = Math.min(Math.max(x, margin), maxLeft)
+  // 与选区水平居中，空间不足时贴近屏幕安全边距。
+  const left = Math.min(Math.max(x + (width - toolbarWidth) / 2, edgeMargin), maxLeft)
 
   return {
     left: `${left}px`,
@@ -213,10 +222,11 @@ const sizeInfoText = computed(() => {
 
 // 文字输入框样式
 const textInputStyle = computed(() => {
-  const estimatedHeight = state.value.textSize + 20
+  const origin = getTextOrigin(textInputPosition.value)
   return {
-    left: `${textInputPosition.value.x}px`,
-    top: `${textInputPosition.value.y - estimatedHeight / 2}px`
+    '--text-accent-color': state.value.currentStyle.color,
+    left: `${origin.x}px`,
+    top: `${origin.y}px`
   }
 })
 
@@ -259,6 +269,10 @@ const handleColorChange = (color: string) => {
 
 const handleLineWidthChange = (lineWidth: number) => {
   screenshotManager?.updateStyle({ lineWidth })
+}
+
+const handleOpacityChange = (opacity: number) => {
+  screenshotManager?.updateStyle({ opacity })
 }
 
 const handleTextSizeChange = (size: number) => {
@@ -334,9 +348,11 @@ const startTextInput = (position: { x: number, y: number }, existingAnnotation?:
       x: annotationData.points[0].x,
       y: annotationData.points[0].y
     }
+    textInputFontSize.value = annotationData.fontSize || state.value.textSize
   } else {
     // 新增时使用用户点击的位置
     textInputPosition.value = position
+    textInputFontSize.value = state.value.textSize
   }
 
   isTextInputVisible.value = true
@@ -523,11 +539,12 @@ const closeWindow = async () => {
     selectionRect: null,
     annotations: [],
     currentTool: ToolType.Select,
-    currentStyle: { color: '#ff4444', lineWidth: 3 },
+    currentStyle: { color: '#ff4444', lineWidth: 3, opacity: 1 },
     textSize: 16,
-    mosaicSize: 5,
+    mosaicSize: 8,
     hasSelection: false,
     hasAnnotations: false,
+    canRedo: false,
     selectedAnnotation: null,
     isDrawing: false
   }
@@ -712,14 +729,14 @@ onUnmounted(() => {
 
   .size-text {
     @apply text-sm font-medium whitespace-nowrap;
-    color: var(--el-text-color-primary);
-    background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color);
-    border-radius: 10px;
-    padding: 6px 10px;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-    backdrop-filter: blur(12px);
     min-width: 60px;
+    padding: 4px 7px;
+    color: #fff;
+    background: rgb(16 24 40 / 82%);
+    border: 1px solid rgb(255 255 255 / 16%);
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
   }
 }
 
@@ -730,24 +747,33 @@ onUnmounted(() => {
 .text-input-container {
   @apply absolute z-20;
 
+  &::after {
+    position: absolute;
+    inset: -4px;
+    pointer-events: none;
+    content: '';
+    border: 1px dashed color-mix(in srgb, var(--text-accent-color) 78%, transparent);
+    border-radius: 4px;
+  }
+
   .text-input {
-    min-width: 100px;
-    color: var(--el-text-color-primary);
-    background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color);
-    border-radius: 10px;
-    padding: 8px 12px;
+    display: block;
+    min-width: 136px;
+    padding: 0;
+    margin: 0;
+    color: var(--text-accent-color);
+    caret-color: var(--text-accent-color);
+    background: transparent;
+    border: 0;
     outline: none;
-    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
-    backdrop-filter: blur(12px);
+    box-shadow: none;
 
     &::placeholder {
-      color: var(--el-text-color-placeholder);
+      color: rgb(102 112 133 / 72%);
     }
 
     &:focus {
-      border-color: var(--el-color-primary);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-color-primary) 18%, transparent);
+      box-shadow: none;
     }
   }
 }
