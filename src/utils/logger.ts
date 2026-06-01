@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import {
   appendFrontendDiagnostic,
-  isDeveloperModeEnabled
+  isDeveloperModeEnabled,
+  stringifyDiagnosticValue
 } from '@/utils/developer-diagnostics'
 
 const shouldWriteDebugLog = (): boolean =>
@@ -18,7 +19,7 @@ const writeLog = (
   invoke('frontend_log', {
     level,
     message,
-    data: data === undefined ? null : stringifyLogData(data)
+    data: data === undefined ? null : stringifyDiagnosticValue(data)
   }).catch(() => {})
 }
 
@@ -43,23 +44,7 @@ export const ocrDiagnosticLogger = {
   log: (message: string, data?: unknown) => {
     invoke('append_ocr_diagnostic_log', {
       message,
-      data: data === undefined ? null : stringifyLogData(data)
+      data: data === undefined ? null : stringifyDiagnosticValue(data)
     }).catch(() => {})
-  }
-}
-
-function stringifyLogData(data: unknown): string {
-  if (data instanceof Error) {
-    return `${data.name}: ${data.message}\n${data.stack || ''}`.trim()
-  }
-
-  if (typeof data === 'string') {
-    return data
-  }
-
-  try {
-    return JSON.stringify(data, null, 2)
-  } catch {
-    return String(data)
   }
 }

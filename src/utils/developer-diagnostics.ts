@@ -14,14 +14,33 @@ export interface FrontendDiagnosticEntry {
 
 let listenersInstalled = false;
 
-const stringifyValue = (value: unknown): string | undefined => {
+export const stringifyDiagnosticValue = (
+  value: unknown
+): string | undefined => {
   if (value === undefined) return undefined;
-  if (value instanceof Error) {
-    return `${value.name}: ${value.message}\n${value.stack || ''}`.trim();
-  }
   if (typeof value === 'string') return value;
+  const seen = new WeakSet<object>();
   try {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(
+      value,
+      (_key, nestedValue: unknown) => {
+        if (nestedValue instanceof Error) {
+          return {
+            name: nestedValue.name,
+            message: nestedValue.message,
+            stack: nestedValue.stack,
+            cause: nestedValue.cause
+          };
+        }
+        if (typeof nestedValue === 'bigint') return nestedValue.toString();
+        if (typeof nestedValue === 'object' && nestedValue !== null) {
+          if (seen.has(nestedValue)) return '[Circular]';
+          seen.add(nestedValue);
+        }
+        return nestedValue;
+      },
+      2
+    );
   } catch {
     return String(value);
   }
@@ -79,7 +98,7 @@ export const appendFrontendDiagnostic = (
     level,
     windowLabel: currentWindowLabel(),
     message,
-    data: stringifyValue(data)
+    data: stringifyDiagnosticValue(data)
   });
   try {
     localStorage.setItem(
@@ -123,7 +142,7 @@ export const setupGlobalDeveloperDiagnostics = (): void => {
       filename: event.filename,
       line: event.lineno,
       column: event.colno,
-      error: stringifyValue(event.error)
+      error: stringifyDiagnosticValue(event.error)
     });
   });
 

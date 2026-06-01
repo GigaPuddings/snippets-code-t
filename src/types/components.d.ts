@@ -31,6 +31,7 @@ declare module 'vue' {
     ContextMenu: typeof import('./../components/ContextMenu/index.vue')['default']
     CustomButton: typeof import('./../components/UI/CustomButton.vue')['default']
     CustomSwitch: typeof import('./../components/UI/CustomSwitch.vue')['default']
+    Developer: typeof import('./../components/SettingsContent/components/Developer/index.vue')['default']
     EditDialog: typeof import('./../plugins/local-launcher/pages/config/components/EditDialog.vue')['default']
     EditorActions: typeof import('./../components/TipTapEditor/components/EditorActions.vue')['default']
     EditorControls: typeof import('./../pages/config/components/category/components/content/components/EditorControls.vue')['default']

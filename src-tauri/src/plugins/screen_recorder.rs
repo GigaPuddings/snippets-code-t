@@ -829,19 +829,23 @@ pub fn open_screen_recorder_window() {
     };
     info!("[Plugin:screen-recorder] window created; waiting for frontend ready");
 
+    let frontend_ready = Arc::new(AtomicBool::new(false));
     let window_ready = window.clone();
+    let frontend_ready_signal = Arc::clone(&frontend_ready);
     window.once("screen_recorder_ready", move |_| {
+        frontend_ready_signal.store(true, Ordering::Release);
         info!("[Plugin:screen-recorder] frontend ready; showing window");
         let _ = window_ready.show();
         let _ = window_ready.set_focus();
     });
 
     let window_timeout = window.clone();
+    let frontend_ready_timeout = Arc::clone(&frontend_ready);
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_secs(WINDOW_READY_TIMEOUT_SECS)).await;
-        if !window_timeout.is_visible().unwrap_or(false) {
+        if !frontend_ready_timeout.load(Ordering::Acquire) {
             warn!(
-                "[Plugin:screen-recorder] frontend ready timeout after {}s; destroying hidden window",
+                "[Plugin:screen-recorder] frontend ready timeout after {}s; destroying window",
                 WINDOW_READY_TIMEOUT_SECS
             );
             let _ = window_timeout.destroy();
