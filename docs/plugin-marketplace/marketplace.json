@@ -171,7 +171,7 @@
     },
     {
       "id": "todo",
-      "version": "2.0.6",
+      "version": "2.0.7",
       "name": {
         "i18nKey": "plugins.todo.name",
         "fallback": "Reminders"
@@ -181,7 +181,7 @@
         "fallback": "Todo cards, timed reminders, and system notification windows."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/tags/2.0.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/tags/2.0.7.zip",
       "builtinPluginId": "todo",
       "status": "included",
       "sizeBytes": 874246,
@@ -192,7 +192,7 @@
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-todo",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/2.0.6"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/2.0.7"
     },
     {
       "id": "system-theme",
