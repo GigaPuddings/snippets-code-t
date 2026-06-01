@@ -12,8 +12,7 @@
     </div>
     <RecycleScroller v-if="hasVisibleResults" ref="scrollerRef" class="result" :key="activeTab" :items="filteredResults" :item-size="itemSize"
       :buffer="itemSize" key-field="__rowKey" @update="handleScrollerUpdate" v-slot="{ item, index }">
-      <div class="item" :class="{ active: item.id === activeItemId }" @click="handleItemClick(item)"
-        @dblclick="handleItemDoubleClick(item)">
+      <div class="item" :class="{ active: item.id === activeItemId }" @click="handleItemClick(item)">
         <!-- 图标，用于显示结果的图标 -->
         <div class="icon-wrapper">
           <div v-if="item.summarize === 'file' && !item.icon" class="file-type-icon" :class="getFileIconClass(item)">
@@ -233,16 +232,14 @@ function handleItemClick(item: ContentType) {
   if (!isListMode.value) {
     setMode('LIST');
   }
-  store.id = item.id;
+  syncSelectedItem(item);
   emit('selectionChange', item);
   ensureItemVisible(filteredResults.value.findIndex((result) => result.id === item.id));
 }
 
-function handleItemDoubleClick(item: ContentType) {
-  if (item.summarize === 'app' || item.summarize === 'bookmark' || item.summarize === 'search') {
-    store.id = item.id;
-    emit('primaryAction', item);
-  }
+function syncSelectedItem(item: ContentType) {
+  store.id = item.id;
+  selectItemById(item.id);
 }
 
 async function handleCopySnippet(item: ContentType) {

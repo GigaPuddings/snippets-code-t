@@ -46,7 +46,7 @@ use crate::update::{
 };
 use crate::window::{
     close_setup_window, create_setup_window, frontend_log, get_scan_progress_state,
-    get_window_info, hotkey_config, insert_text_to_last_window, start_mouse_tracking,
+    get_window_info, hotkey_config, insert_text_to_last_window,
 };
 use serde::Serialize;
 
@@ -64,9 +64,6 @@ use window::{create_update_window, show_hide_window_command};
 
 // 定义一个全局静态变量来存储 AppHandle
 pub static APP: OnceLock<AppHandle> = OnceLock::new();
-
-// 存储上一次的搜索框位置
-static OLD_RECT: Mutex<Option<(f64, f64, f64, f64)>> = Mutex::new(None);
 
 // App 初始化防抖机制（防止多窗口重复初始化）
 use std::time::{Duration, Instant};
@@ -192,34 +189,6 @@ fn cleanup_old_logs() {
             cleaned_count,
             cleaned_size / 1024
         );
-    }
-}
-
-// 鼠标事件穿透
-#[tauri::command]
-fn ignore_cursor_events(window: tauri::Window, ignore: bool, rect: Option<(f64, f64, f64, f64)>) {
-    if let Some(new_rect) = rect {
-        let mut old_rect = OLD_RECT.lock().unwrap();
-
-        // 只有当新旧值不同时才更新
-        if old_rect.is_none() || old_rect.unwrap() != new_rect {
-            info!("搜索框位置已更新: {:?}", new_rect);
-            *old_rect = Some(new_rect);
-
-            let (left, right, top, bottom) = new_rect;
-            // 更新搜索框位置
-            window::update_search_area(left, right, top, bottom);
-        }
-        // 如果需要穿透，则设置穿透
-        if ignore {
-            // info!("设置鼠标穿透: {}", ignore);
-            window.set_ignore_cursor_events(true).unwrap();
-            // 启动鼠标位置跟踪
-            start_mouse_tracking();
-        } else {
-            // info!("取消鼠标穿透");
-            window.set_ignore_cursor_events(false).unwrap();
-        }
     }
 }
 
@@ -855,7 +824,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             register_shortcut_by_frontend,    // 注册快捷键
             get_shortcuts,                    // 获取快捷键
-            ignore_cursor_events,             // 忽略鼠标事件
             hotkey_config_command,            // 快捷键配置
             hotkey_update_command,            // 快捷键更新
             plugins::local_launcher::open_app_command,                 // 打开应用

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { invoke } from '@tauri-apps/api/core';
-import { useSetIgnoreCursorEvents } from '@/hooks/useSetIgnoreCursorEvents';
+import { useFitWindowToElement } from '@/hooks/useFitWindowToElement';
 import { useSearch } from '@/hooks/useSearch';
 import { useFocusMode } from '@/hooks/useFocusMode';
 import { useSearchKeyboard } from './composables/useSearchKeyboard';
@@ -27,6 +27,8 @@ const searchInputRef = ref<HTMLInputElement | null>(null);
 const resultRef = ref<InstanceType<typeof Result> | null>(null);
 let unlistenWindowFocused: UnlistenFn | null = null;
 let unlistenResetSearchState: UnlistenFn | null = null;
+
+useFitWindowToElement(searchRef);
 
 // 使用键盘导航 composable
 const { handleKeyDown } = useSearchKeyboard({
@@ -75,10 +77,6 @@ const handleGoConfig = async (): Promise<void> => {
 };
 
 onMounted(async () => {
-  if (searchRef.value) {
-    useSetIgnoreCursorEvents(searchRef.value);
-  }
-
   unlistenWindowFocused = await listen('windowFocused', () => {
     // 窗口聚焦时，重置到搜索框模式
     setMode('SEARCH');
@@ -119,27 +117,22 @@ onUnmounted(() => {
         @keydown="handleKeyDown"
         @focus="handleInputFocus"
       />
-      <el-tooltip
-        effect="dark"
-        :content="
+      <button
+        type="button"
+        class="deep-search-toggle"
+        :class="{ active: deepSearchEnabled }"
+        :title="
           deepSearchEnabled
             ? t('search.deepSearchOn')
             : t('search.deepSearchOff')
         "
-        placement="bottom"
+        :aria-label="t('search.deepSearch')"
+        :aria-pressed="deepSearchEnabled"
+        @mousedown.prevent
+        @click="toggleDeepSearch"
       >
-        <button
-          type="button"
-          class="deep-search-toggle"
-          :class="{ active: deepSearchEnabled }"
-          :aria-label="t('search.deepSearch')"
-          :aria-pressed="deepSearchEnabled"
-          @mousedown.prevent
-          @click="toggleDeepSearch"
-        >
-          <Search theme="outline" size="16" />
-        </button>
-      </el-tooltip>
+        <Search theme="outline" size="16" />
+      </button>
       <img
         src="@tauri/icons/icon.png"
         class="home"

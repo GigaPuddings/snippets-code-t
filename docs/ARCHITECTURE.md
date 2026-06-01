@@ -323,6 +323,9 @@ search/
 - 所有隐藏搜索窗口的后端路径必须先向前端发送 `reset-search-state`，再调用 `hide()`。
 - 前端 `src/pages/search/index.vue` 负责监听 `reset-search-state`，调用 `clearSearch()` 并恢复 `SEARCH` 焦点模式。
 - 搜索相关 composable 不能依赖 `onUnmounted` 清理隐藏窗口状态；`onUnmounted` 只用于 HMR、页面 reload 或窗口真正销毁时的兜底清理。
+- 快速搜索原生窗口高度由 `useFitWindowToElement` 跟随可见内容更新：默认态只保留输入框，结果出现后再展开列表区域。
+- 不要为快速搜索恢复整窗 `set_ignore_cursor_events`、前端 `mousemove` IPC、固定坐标偏移或后端鼠标轮询。透明占位区应通过收缩原生窗口消除。
+- 快速搜索内容贴合与区域录制窗口穿透的选型、原理和排查方法见 `docs/WINDOW_CONTENT_FIT_AND_PASSTHROUGH.md`。
 
 ### 2. 片段管理模块 (Fragment Module)
 

@@ -2,7 +2,6 @@ use crate::db;
 use crate::json_config;
 use log::{info, LevelFilter};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
-// use mouse_position::mouse_position::{Mouse, Position};
 
 // 注：所有配置已迁移到 JSON 文件系统：
 // - path.json: 数据目录路径
@@ -165,44 +164,6 @@ pub fn control_logging(enable: bool) {
 //     };
 
 //     shortcut_name
-// }
-
-// 获取鼠标位置设置窗口位置，并确保窗口不会超出边界
-// fn get_adjusted_position(app_handle: &tauri::AppHandle, width: f64, height: f64) -> (f64, f64) {
-//   // 获取鼠标位置
-//   let mouse_position = match Mouse::get_mouse_position() {
-//       Mouse::Position { x, y } => Position { x, y },
-//       Mouse::Error => {
-//           warn!("未找到鼠标位置,使用(0,0)作为默认值");
-//           Position { x: 0, y: 0 }
-//       }
-//   };
-
-//   // 获取鼠标所在的显示器
-//   let monitor = app_handle
-//       .monitor_from_point(mouse_position.x as f64, mouse_position.y as f64)
-//       .map_err(|e| format!("无法获取显示器: {}", e))
-//       .unwrap()
-//       .ok_or("未找到显示器")
-//       .unwrap();
-
-//   // 获取显示器的边界
-//   let monitor_size = monitor.size();
-
-//   // 确保窗口不会超出边界
-//   let adjusted_x = if mouse_position.x + width as i32 > monitor_size.width as i32 {
-//       monitor_size.width as i32 - width as i32
-//   } else {
-//       mouse_position.x
-//   };
-
-//   let adjusted_y = if mouse_position.y + height as i32 > monitor_size.height as i32 {
-//       monitor_size.height as i32 - height as i32
-//   } else {
-//       mouse_position.y
-//   };
-
-//   (adjusted_x as f64, adjusted_y as f64)
 // }
 
 fn log_reset_step(reset_type: &str, step: &str, status: &str, detail: &str) {

@@ -28,7 +28,7 @@
         "title": "搜索",
         "url": "/",
         "width": 700,
-        "height": 460,
+        "height": 58,
         "resizable": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,

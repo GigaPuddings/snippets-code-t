@@ -9,10 +9,8 @@ use tauri::{
 
 // 窗口准备回调类型别名，用于简化复杂类型
 pub type WindowReadyCallback = Box<dyn FnOnce(&WebviewWindow) + Send + 'static>;
-// use crate::config::get_adjusted_position;
 use base64::{engine::general_purpose, Engine as _};
 use image::GenericImageView;
-use mouse_position::mouse_position::Mouse;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::process::Command;
@@ -59,15 +57,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WS_EX_TOOLWINDOW,
 };
 
-// 定义搜索框区域结构体
-#[derive(Debug, Clone)]
-struct SearchArea {
-    left: f64,
-    right: f64,
-    top: f64,
-    bottom: f64,
-}
-
 // 定义窗口信息结构体
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WindowInfo {
@@ -80,14 +69,6 @@ pub struct WindowInfo {
     is_fullscreen: bool, // 是否为全屏窗口
     display_order: i32,  // 实际显示层级（考虑全屏优先后），值越小层级越高
 }
-
-// 使用静态变量存储搜索框位置和窗口引用
-// 搜索框位置
-static SEARCH_AREA: Mutex<Option<SearchArea>> = Mutex::new(None);
-// 是否正在追踪
-static IS_TRACKING: Mutex<bool> = Mutex::new(false);
-// 临时存储是否在窗口外
-// pub static IS_OUT_OF_WINDOW: Mutex<bool> = Mutex::new(false);
 
 // 窗口拖拽状态跟踪
 static WINDOW_DRAGGING: Mutex<bool> = Mutex::new(false);
@@ -138,114 +119,6 @@ pub struct MonitorInfo {
 
 // 标记是否正在捕获屏幕（防止并发捕获）
 static IS_CAPTURING: Mutex<bool> = Mutex::new(false);
-
-// 更新搜索框位置的命令
-#[tauri::command]
-pub fn update_search_area(left: f64, right: f64, top: f64, bottom: f64) {
-    let mut area = SEARCH_AREA.lock().unwrap();
-    *area = Some(SearchArea {
-        left,
-        right,
-        top,
-        bottom,
-    });
-}
-
-// 检查点是否在搜索框内
-fn is_point_in_search_area(x: f64, y: f64) -> bool {
-    if let Some(area) = SEARCH_AREA.lock().unwrap().as_ref() {
-        x >= area.left && x <= area.right && y >= area.top && y <= area.bottom
-    } else {
-        false
-    }
-}
-
-// 监听鼠标位置并控制穿透
-pub fn start_mouse_tracking() {
-    let Some(app_handle) = get_app_handle_or_log("start_mouse_tracking") else {
-        return;
-    };
-    let window_option = app_handle.get_webview_window("main");
-
-    if let Some(window) = window_option {
-        // info!("开始鼠标追踪");
-        let mut is_tracking = IS_TRACKING.lock().unwrap();
-        if *is_tracking {
-            return;
-        }
-        *is_tracking = true;
-
-        // 获取窗口位置和大小
-        if let (Ok(position), Ok(size)) = (window.outer_position(), window.outer_size()) {
-            let win_x = position.x as f64;
-            let win_y = position.y as f64;
-            let win_width = size.width as f64;
-            let win_height = size.height as f64;
-            thread::spawn(move || {
-                let mut last_pos = Mouse::get_mouse_position();
-
-                while *IS_TRACKING.lock().unwrap() {
-                    if let Mouse::Position { x, y } = Mouse::get_mouse_position() {
-                        // 检查鼠标是否移动
-                        if let Mouse::Position {
-                            x: last_x,
-                            y: last_y,
-                        } = last_pos
-                        {
-                            if x == last_x && y == last_y {
-                                thread::sleep(Duration::from_millis(200));
-                                continue;
-                            }
-                        }
-
-                        // 更新上次位置
-                        last_pos = Mouse::Position { x, y };
-
-                        // 转换为相对窗口的坐标
-                        let rel_x = x as f64 - win_x - 245.0;
-                        let rel_y = y as f64 - win_y - 42.0;
-
-                        // 检查鼠标是否在搜索框范围内
-                        if is_point_in_search_area(rel_x, rel_y) {
-                            let _ = window.set_ignore_cursor_events(false);
-                            stop_mouse_tracking();
-                            // // 设置为在搜索框内设置为false，如果已经在搜索框内，则不重复设置
-                            // if *IS_OUT_OF_WINDOW.lock().unwrap() {
-                            //     *IS_OUT_OF_WINDOW.lock().unwrap() = false;
-                            // }
-
-                            // println!("在搜索框内 {}", *IS_OUT_OF_WINDOW.lock().unwrap());
-                            break;
-                        }
-
-                        // 修正窗口边界检查逻辑
-                        if rel_x < 0.0 || rel_y < 0.0 || rel_x > win_width || rel_y > win_height {
-                            let _ = window.set_ignore_cursor_events(false);
-                            stop_mouse_tracking();
-                            // // 设置为在窗口外，如果已经是true，则不重复设置
-                            // if !*IS_OUT_OF_WINDOW.lock().unwrap() {
-                            //     *IS_OUT_OF_WINDOW.lock().unwrap() = true;
-                            // }
-                            // println!("在窗口外 {}", *IS_OUT_OF_WINDOW.lock().unwrap());
-                            break;
-                        }
-                    }
-                    // 降低刷新频率
-                    thread::sleep(Duration::from_millis(200)); // 降至 10fps
-                }
-            });
-        }
-    } else {
-        info!("窗口不存在");
-    }
-}
-
-// 停止鼠标追踪
-pub fn stop_mouse_tracking() {
-    let mut is_tracking = IS_TRACKING.lock().unwrap();
-    // 停止鼠标追踪
-    *is_tracking = false;
-}
 
 // ==================== 窗口管理器框架 ====================
 
@@ -440,30 +313,21 @@ impl WindowManager {
                     // 发送事件到前端，让前端清除搜索状态
                     let _ = search_window.emit("reset-search-state", ());
 
-                    let _ = search_window.set_ignore_cursor_events(false);
-
                     // 隐藏搜索窗口
                     hide_search_window_after_ipc_response(search_window);
-
-                    stop_mouse_tracking();
                 }
             }
         }
     }
 }
 
-//相对于前端body元素，宽误差16、 高误差39
 pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<WebviewWindow, String> {
     let Some(app_handle) = get_app_handle_or_log("build_window") else {
         return Err("无法获取应用句柄".to_string());
     };
-    // let (adjusted_x, adjusted_y) = get_adjusted_position(app_handle, width, height);
-
     match app_handle.get_webview_window(label) {
         Some(window) => {
             info!("Window exists: {}", label);
-            // 更新窗口位置到鼠标位置
-            // let _ = v.set_position(tauri::PhysicalPosition::new(adjusted_x, adjusted_y));
             Ok(window)
         }
         None => {
@@ -609,10 +473,6 @@ pub fn hotkey_search(context: Option<String>) {
     };
     if is_visible {
         let _ = window.emit("reset-search-state", ());
-        // 停止鼠标追踪
-        stop_mouse_tracking();
-        // 取消忽略光标
-        let _ = window.set_ignore_cursor_events(false);
 
         // 只有当不是从 selectItem 上下文调用，或者 context 为 None 时才清除
         let should_clear_last_active_id = match context.as_deref() {
@@ -648,8 +508,6 @@ pub fn hotkey_search(context: Option<String>) {
 
         let _ = window.show();
         let _ = window.set_focus();
-        // 启动鼠标追踪
-        start_mouse_tracking();
     }
 }
 
@@ -1307,10 +1165,6 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                         if let Ok(has_focus) = window_clone.is_focused() {
                             if !has_focus {
                                 // println!("延迟判断后确认窗口失焦，隐藏窗口");
-                                // 停止鼠标追踪
-                                stop_mouse_tracking();
-                                // 取消忽略光标
-                                let _ = window_clone.set_ignore_cursor_events(false);
                                 let _ = window_clone.emit("reset-search-state", ());
                                 let _ = window_clone.hide();
                                 // 同时关闭预览窗口（直接调用而不是通过 command）
@@ -1360,10 +1214,6 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                                 if focus_lost_time.elapsed() < std::time::Duration::from_millis(500)
                                 {
                                     // println!("拖拽结束后检测窗口无焦点，隐藏窗口");
-                                    // 停止鼠标追踪
-                                    stop_mouse_tracking();
-                                    // 取消忽略光标
-                                    let _ = window_clone.set_ignore_cursor_events(false);
                                     let _ = window_clone.emit("reset-search-state", ());
                                     let _ = window_clone.hide();
                                 }
