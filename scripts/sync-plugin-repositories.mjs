@@ -1,10 +1,11 @@
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { basename, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import { MARKETPLACE_PATH, OWNER, pluginRepositories, ROOT } from './plugin-release-config.mjs';
 
 const TMP_ROOT = resolve(ROOT, '_tmp/plugin-repo-sync');
+const CLONE_RETRY_DELAYS_MS = [0, 1000, 2500];
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -91,6 +92,63 @@ async function directoryExists(path) {
   } catch {
     return false;
   }
+}
+
+function wait(milliseconds) {
+  if (milliseconds <= 0) return;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function assertTemporaryRepositoryPath(path) {
+  const resolvedPath = resolve(path);
+  const relativePath = relative(TMP_ROOT, resolvedPath);
+  if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) {
+    throw new Error(`拒绝操作临时仓库目录之外的路径: ${resolvedPath}`);
+  }
+  return resolvedPath;
+}
+
+async function removeTemporaryRepository(path) {
+  await rm(assertTemporaryRepositoryPath(path), { recursive: true, force: true });
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function runCloneStrategy(label, command, args, targetDir) {
+  for (const [index, delay] of CLONE_RETRY_DELAYS_MS.entries()) {
+    if (delay > 0) {
+      console.log(`[Plugins] ${label} 克隆重试前等待 ${delay}ms`);
+      wait(delay);
+    }
+
+    await removeTemporaryRepository(targetDir);
+    try {
+      run(command, args, { inherit: true });
+      return true;
+    } catch (error) {
+      console.warn(
+        `[Plugins] ${label} 克隆失败 (${index + 1}/${CLONE_RETRY_DELAYS_MS.length}): ${errorMessage(error)}`
+      );
+    }
+  }
+  return false;
+}
+
+function isCleanGitRepository(path) {
+  if (!existsSync(join(path, '.git'))) return false;
+  try {
+    return gitOutput(path, ['status', '--porcelain']).length === 0;
+  } catch {
+    return false;
+  }
+}
+
+function updateCachedRepository(repoDir) {
+  run('git', ['fetch', '--depth', '1', 'origin', 'main'], { cwd: repoDir, inherit: true });
+  run('git', ['checkout', 'main'], { cwd: repoDir, inherit: true });
+  run('git', ['merge', '--ff-only', 'origin/main'], { cwd: repoDir, inherit: true });
 }
 
 async function directorySize(path) {
@@ -228,12 +286,38 @@ async function resolveSourceDir(plugin, options) {
 }
 
 async function cloneRepository(plugin, targetDir, options) {
-  await rm(targetDir, { recursive: true, force: true });
+  if (options.dryRun) {
+    console.log(`[Plugins] dry-run: reuse or clone ${OWNER}/${plugin.repo} -> ${targetDir}`);
+    return;
+  }
+
   await mkdir(TMP_ROOT, { recursive: true });
-  run('gh', ['repo', 'clone', `${OWNER}/${plugin.repo}`, targetDir, '--', '--depth', '1'], {
-    inherit: true,
-    dryRun: options.dryRun
-  });
+
+  if (isCleanGitRepository(targetDir)) {
+    try {
+      console.log(`[Plugins] 复用本地临时仓库: ${targetDir}`);
+      updateCachedRepository(targetDir);
+      return;
+    } catch (error) {
+      console.warn(`[Plugins] 临时仓库更新失败，将重新克隆: ${errorMessage(error)}`);
+    }
+  }
+
+  const sshUrl = `git@github.com:${OWNER}/${plugin.repo}.git`;
+  if (await runCloneStrategy('SSH', 'git', ['clone', '--depth', '1', sshUrl, targetDir], targetDir)) {
+    return;
+  }
+
+  if (await runCloneStrategy(
+    'GitHub CLI',
+    'gh',
+    ['repo', 'clone', `${OWNER}/${plugin.repo}`, targetDir, '--', '--depth', '1'],
+    targetDir
+  )) {
+    return;
+  }
+
+  throw new Error(`${plugin.id}: SSH 与 GitHub CLI 克隆均失败，请检查网络连接后重试`);
 }
 
 async function writeVersionsIndex(repoDir, version, manifest) {
@@ -332,11 +416,10 @@ async function syncRepository(plugin, version, options) {
     throw new Error(`${plugin.id}: 插件包目录不存在: ${sourceDir}`);
   }
 
-  await updateManifestVersion(plugin, version, sourceDir, options);
-
   const repoDir = join(TMP_ROOT, plugin.repo);
   console.log(`[Plugins] 同步 ${plugin.id} -> ${OWNER}/${plugin.repo}`);
   await cloneRepository(plugin, repoDir, options);
+  await updateManifestVersion(plugin, version, sourceDir, options);
 
   if (!options.dryRun) {
     await clearDirectoryExceptGit(repoDir);
@@ -383,12 +466,12 @@ async function main() {
     pluginVersions.set(plugin.id, version);
   }
 
-  await updateMarketplace(selectedPlugins, pluginVersions, options);
-
   for (const plugin of selectedPlugins) {
     const version = pluginVersions.get(plugin.id);
     await syncRepository(plugin, version, options);
   }
+
+  await updateMarketplace(selectedPlugins, pluginVersions, options);
 
   console.log(`[Plugins] 插件仓库同步完成: ${selectedPlugins.length} packages`);
 }
