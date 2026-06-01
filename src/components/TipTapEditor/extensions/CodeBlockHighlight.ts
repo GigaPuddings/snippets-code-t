@@ -17,8 +17,10 @@ import jsxLang from 'shiki/langs/jsx.mjs';
 import jsonLang from 'shiki/langs/json.mjs';
 import htmlLang from 'shiki/langs/html.mjs';
 import cssLang from 'shiki/langs/css.mjs';
+import scssLang from 'shiki/langs/scss.mjs';
 import vueLang from 'shiki/langs/vue.mjs';
 import markdownLang from 'shiki/langs/markdown.mjs';
+import mermaidLang from 'shiki/langs/mermaid.mjs';
 import bashLang from 'shiki/langs/bash.mjs';
 import shellscriptLang from 'shiki/langs/shellscript.mjs';
 import pythonLang from 'shiki/langs/python.mjs';
@@ -51,8 +53,10 @@ const SHIKI_LANGS = [
   jsonLang,
   htmlLang,
   cssLang,
+  scssLang,
   vueLang,
   markdownLang,
+  mermaidLang,
   bashLang,
   shellscriptLang,
   pythonLang,
@@ -129,6 +133,10 @@ function toShikiLang(language: string): string {
   return normalized;
 }
 
+function isShikiLanguageLoaded(highlighter: HighlighterCore, language: string): boolean {
+  return ['text', 'txt', 'plain', 'plaintext'].includes(language) || highlighter.getLoadedLanguages().includes(language);
+}
+
 /** 解析用于高亮的语言 key（含别名与空语言时的自动检测） */
 export function resolveCodeBlockLang(languageAttr: string | null | undefined, code: string): string {
   const raw = (languageAttr ?? '').trim().toLowerCase();
@@ -189,9 +197,9 @@ function buildCodeBlockSyntaxDecorations(
     const start = pos + 1;
     const occupied = new Array(text.length).fill(false);
 
-    if (highlighter) {
+    const shikiLang = highlighter ? toShikiLang(lang) : '';
+    if (highlighter && isShikiLanguageLoaded(highlighter, shikiLang)) {
       try {
-        const shikiLang = toShikiLang(lang);
         const tokens = highlighter.codeToTokens(text, {
           lang: shikiLang,
           theme: isDarkMode ? SHIKI_THEME_DARK : SHIKI_THEME_LIGHT,

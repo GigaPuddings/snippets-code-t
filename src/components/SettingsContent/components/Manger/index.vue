@@ -175,7 +175,7 @@
   </ConfirmDialog>
 
   <!-- 迁移进度对话框 -->
-  <el-dialog
+  <CommonDialog
     v-model="showProgressDialog"
     :title="$t('dataManager.migrating')"
     width="500px"
@@ -193,10 +193,10 @@
         {{ progressCurrent }} / {{ progressTotal }}
       </div>
     </div>
-  </el-dialog>
+  </CommonDialog>
 
   <!-- 迁移结果对话框 -->
-  <el-dialog
+  <CommonDialog
     v-model="showResultDialog"
     :title="$t('dataManager.migrationComplete')"
     width="600px"
@@ -257,7 +257,7 @@
         {{ $t('common.close') }}
       </CustomButton>
     </template>
-  </el-dialog>
+  </CommonDialog>
   </div>
 </template>
 
@@ -266,7 +266,7 @@ import { useConfigurationStore } from '@/store';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import modal from '@/utils/modal';
-import { CustomButton, ConfirmDialog } from '@/components/UI';
+import { CommonDialog, CustomButton, ConfirmDialog } from '@/components/UI';
 import { getWorkspaceRoot, selectWorkspace, setWorkspaceRoot } from '@/api/markdown';
 
 defineOptions({

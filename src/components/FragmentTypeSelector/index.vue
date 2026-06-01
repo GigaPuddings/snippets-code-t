@@ -1,9 +1,12 @@
 <template>
-  <div class="fragment-type-selector-overlay" @click="handleCancel">
-    <div class="fragment-type-selector" @click.stop>
-      <h3 class="selector-title">{{ t('fragmentType.selectType') }}</h3>
-
-      <div class="type-options">
+  <CommonDialog
+    :model-value="true"
+    :title="t('fragmentType.selectType')"
+    width="600px"
+    :close-on-click-modal="true"
+    @close="handleCancel"
+  >
+    <div class="type-options">
         <div
           class="type-option"
           :class="{ 'selected': selectedType === 'code' }"
@@ -57,21 +60,23 @@
             </svg>
           </div>
         </div>
-      </div>
-
-      <div class="selector-actions">
-        <button class="btn-cancel" @click="handleCancel">
-          {{ t('common.cancel') }}
-        </button>
-        <button class="btn-confirm" @click="handleConfirm">
-          {{ t('common.confirm') }}
-        </button>
-      </div>
     </div>
-  </div>
+
+    <template #footer>
+      <div class="selector-actions">
+        <CustomButton @click="handleCancel">
+          {{ t('common.cancel') }}
+        </CustomButton>
+        <CustomButton type="primary" @click="handleConfirm">
+          {{ t('common.confirm') }}
+        </CustomButton>
+      </div>
+    </template>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
+import { CommonDialog, CustomButton } from '@/components/UI';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -120,46 +125,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.fragment-type-selector-overlay {
-  @apply fixed inset-0 flex items-center justify-center z-50;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.fragment-type-selector {
-  @apply bg-panel rounded-xl shadow-2xl p-8 mx-4;
-  max-width: 600px;
-  width: 100%;
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.selector-title {
-  @apply text-2xl font-semibold text-panel mb-8 text-center;
-}
-
 .type-options {
-  @apply grid grid-cols-2 gap-4 mb-8;
+  @apply grid grid-cols-2 gap-4;
 }
 
 .type-option {
@@ -169,8 +136,7 @@ onBeforeUnmount(() => {
 
   &:hover {
     border-color: var(--el-color-primary);
-    box-shadow: 0 4px 12px rgba(var(--el-color-primary), 0.15);
-    transform: translateY(-2px);
+    background: var(--panel-hover-bg);
   }
 
   &:focus {
@@ -181,8 +147,7 @@ onBeforeUnmount(() => {
 
   &.selected {
     border-color: var(--el-color-primary);
-    background: linear-gradient(135deg, rgba(var(--el-color-primary), 0.05) 0%, rgba(var(--el-color-primary), 0.02) 100%);
-    box-shadow: 0 4px 16px rgba(var(--el-color-primary), 0.2);
+    background: var(--panel-hover-bg);
   }
 }
 
@@ -230,30 +195,4 @@ onBeforeUnmount(() => {
   @apply flex justify-end gap-3;
 }
 
-.btn-cancel,
-.btn-confirm {
-  @apply px-6 py-2.5 rounded-lg font-medium transition-all duration-200;
-
-  &:active {
-    transform: scale(0.98);
-  }
-}
-
-.btn-cancel {
-  @apply bg-panel-hover-bg text-panel;
-
-  &:hover {
-    @apply bg-panel-hover-bg;
-  }
-}
-
-.btn-confirm {
-  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
-  @apply text-white shadow-md;
-
-  &:hover {
-    box-shadow: 0 4px 12px rgba(var(--el-color-primary), 0.4);
-    transform: translateY(-1px);
-  }
-}
 </style>

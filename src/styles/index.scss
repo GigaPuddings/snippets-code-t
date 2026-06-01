@@ -138,20 +138,45 @@
   @apply border rounded-md dark:border-panel !w-[300px];
 }
 
-// 自定义message
-.el-message {
-  --el-message-padding: 10px 15px !important;
+// 应用提示条：保留 Element Plus 的可访问性与队列管理，只使用应用主题视觉。
+.app-toast.el-message,
+.app-toast.el-notification {
+  border: 1px solid var(--toast-border) !important;
+  border-radius: 10px !important;
+  background: var(--toast-bg) !important;
+  box-shadow: var(--toast-shadow) !important;
+  backdrop-filter: blur(14px);
+}
 
-  border-radius: 6px !important;
+.app-toast.el-message {
+  --el-message-padding: 10px 13px !important;
+
+  min-width: 0;
+  max-width: min(520px, calc(100vw - 32px));
 
   .el-message__content {
-    @apply text-xs !text-panel;
+    color: var(--toast-text) !important;
+    font-size: 13px;
+    line-height: 1.45;
   }
 }
 
-// 分类修改
-.category-edit .el-message-box__container {
-  @apply w-full !inline-block px-4;
+.app-toast {
+  &--success {
+    border-left: 3px solid var(--el-color-success) !important;
+  }
+
+  &--warning {
+    border-left: 3px solid var(--el-color-warning) !important;
+  }
+
+  &--error {
+    border-left: 3px solid var(--el-color-danger) !important;
+  }
+
+  &--info {
+    border-left: 3px solid var(--el-color-primary) !important;
+  }
 }
 
 .category-management {
@@ -287,127 +312,92 @@
   }
 }
 
-// ============================================
-// 优化的对话框样式
-// ============================================
-.el-dialog {
-  border-radius: 8px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-  
+// 应用对话框：所有业务弹层共用面板层级、间距和主题反馈。
+.el-overlay-dialog {
+  background: var(--dialog-overlay);
+  backdrop-filter: blur(3px);
+}
+
+.el-dialog,
+.app-dialog.el-dialog {
+  overflow: hidden;
+  border: 1px solid var(--dialog-border) !important;
+  border-radius: 12px !important;
+  background: var(--dialog-bg) !important;
+  box-shadow: var(--dialog-shadow) !important;
+
   .el-dialog__header {
-    padding: 16px 20px 10px !important;
-    border-bottom: 1px solid var(--el-border-color-lighter);
-    margin-right: 0 !important;
-    
+    min-height: 48px;
+    margin: 0 !important;
+    padding: 14px 18px !important;
+    border-bottom: 1px solid var(--dialog-border);
+    background: var(--dialog-header-bg);
+
     .el-dialog__title {
-      font-size: 15px !important;
+      color: var(--dialog-text) !important;
+      font-size: 14px !important;
       font-weight: 600 !important;
-      color: var(--el-text-color-primary) !important;
+      letter-spacing: 0.01em;
     }
-    
+
     .el-dialog__headerbtn {
-      top: 14px !important;
-      right: 16px !important;
-      width: 28px !important;
-      height: 28px !important;
-      
+      top: 10px !important;
+      right: 12px !important;
+      width: 30px !important;
+      height: 30px !important;
+      border-radius: 7px;
+
+      &:hover {
+        background: var(--panel-hover-bg);
+      }
+
       .el-dialog__close {
+        color: var(--dialog-text-secondary) !important;
         font-size: 16px !important;
-        color: var(--el-text-color-secondary) !important;
-        
-        &:hover {
-          color: var(--el-text-color-primary) !important;
-        }
       }
     }
   }
-  
+
   .el-dialog__body {
-    padding: 14px 20px 10px !important;
-    color: var(--el-text-color-regular) !important;
+    padding: 16px 18px !important;
+    color: var(--dialog-text) !important;
     font-size: 14px !important;
-    line-height: 1.5 !important;
+    line-height: 1.55 !important;
   }
-  
+
   .el-dialog__footer {
-    padding: 10px 20px 16px !important;
-    border-top: 1px solid var(--el-border-color-lighter);
+    padding: 12px 18px !important;
+    border-top: 1px solid var(--dialog-border);
+    background: var(--dialog-footer-bg);
   }
 }
 
-// 暗色模式优化
-.dark .el-dialog {
-  background: var(--el-bg-color) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 4px 12px rgba(0, 0, 0, 0.24) !important;
-  
-  .el-dialog__header {
-    border-bottom-color: rgba(255, 255, 255, 0.08);
-  }
-  
-  .el-dialog__footer {
-    border-top-color: rgba(255, 255, 255, 0.08);
-  }
-}
-
-// 警告类型对话框样式
 .el-dialog.warning-dialog {
-  .el-dialog__header {
-    .el-dialog__title {
-      color: var(--el-color-warning) !important;
-      
-      &::before {
-        content: '⚠️ ';
-        margin-right: 4px;
-      }
-    }
-  }
+  border-top: 3px solid var(--el-color-warning) !important;
 }
 
-// 删除确认对话框样式
 .el-dialog.delete-dialog {
-  .el-dialog__header {
-    .el-dialog__title {
-      color: var(--el-color-danger) !important;
-    }
-  }
+  border-top: 3px solid var(--el-color-danger) !important;
 }
 
-// ============================================
-// 自定义通知样式（深色简洁）
-// ============================================
-.el-notification.custom-notification {
-  padding: 10px 14px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  
+.el-notification.app-toast {
+  width: min(360px, calc(100vw - 32px));
+  padding: 11px 13px;
+
   .el-notification__group {
-    display: flex;
-    align-items: center;
     margin: 0;
   }
-  
-  .el-notification__content {
-    margin: 0;
-    padding: 0;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #303133 !important;
-    display: flex;
-    align-items: center;
-  }
-  
-  .el-notification__icon {
-    font-size: 16px;
-    margin-right: 8px;
-    margin-top: 0;
-  }
-}
 
-// 暗色模式优化
-.dark .el-notification.custom-notification {
   .el-notification__content {
-    color: #e0e0e0 !important;
+    margin: 0;
+    color: var(--toast-text) !important;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .el-notification__icon {
+    margin-top: 0;
+    font-size: 16px;
   }
 }
 

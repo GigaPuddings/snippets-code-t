@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <CommonDialog
     v-model="visible"
     :title="$t('settings.gitSync.detectConfigTitle')"
     width="600px"
@@ -89,11 +89,11 @@
         </CustomButton>
       </div>
     </template>
-  </el-dialog>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
-import { CustomButton } from '@/components/UI';
+import { CommonDialog, CustomButton } from '@/components/UI';
 import type { SystemGitConfig } from '@/plugins/git-sync/api';
 
 defineOptions({

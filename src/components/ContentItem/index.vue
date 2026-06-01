@@ -65,6 +65,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import { invoke } from '@tauri-apps/api/core';
 import { getWorkspaceRoot } from '@/api/markdown';
+import modal from '@/utils/modal';
 
 /**
  * 组件 Props 接口
@@ -228,7 +229,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
       // 在文件资源管理器中显示
       const workspaceRoot = await getWorkspaceRoot();
       if (!workspaceRoot) {
-        ElMessage.warning(t('settings.workspaceNotSet'));
+        modal.warning(t('settings.workspaceNotSet'));
         return;
       }
       const rawPath = content.value.id as string;

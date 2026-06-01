@@ -11,6 +11,7 @@ use crate::git_common::run_git_command;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock as StdRwLock;
 use std::sync::{Arc, LazyLock, Mutex};
 use tauri::{Emitter, Manager};
@@ -30,6 +31,9 @@ struct GitStatusCacheEntry {
 /// Git 状态缓存（短时缓存，减少频繁调用）
 static GIT_STATUS_CACHE: LazyLock<Mutex<Option<GitStatusCacheEntry>>> =
     LazyLock::new(|| Mutex::new(None));
+
+/// 串行化会修改 Git 工作区的操作，避免自动同步、手动同步和快速重启任务互相争抢 index.lock。
+static GIT_OPERATION_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 /// 缓存有效期（毫秒）
 const GIT_STATUS_CACHE_TTL_MS: u64 = 2000;
@@ -1028,6 +1032,9 @@ fn get_remote_deleted_local_markdown_files(
 
 /// 执行 git pull
 pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
+    let _git_operation_guard = GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
     info!("🔄 [Git] 开始 pull 操作");
 
     // 记录 pull 前的 HEAD commit hash
@@ -1300,6 +1307,9 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
 
 /// 执行 git push
 pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult, String> {
+    let _git_operation_guard = GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
     info!("🔄 [Git] 开始 push 操作");
 
     // 1. git add .
@@ -1402,6 +1412,40 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
         commit_hash: String::new(),
         message: format!("Pushed {} files to remote", files_pushed),
     })
+}
+
+fn push_current_branch(workspace_root: &Path) -> Result<(), String> {
+    let _git_operation_guard = GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
+    let branch_output = crate::git_common::git_command()
+        .args(["branch", "--show-current"])
+        .current_dir(workspace_root)
+        .output()
+        .map_err(|e| format!("获取分支失败: {}", e))?;
+
+    if !branch_output.status.success() {
+        return Err(format!("获取分支失败: {}", get_git_stderr(&branch_output)));
+    }
+
+    let branch = String::from_utf8_lossy(&branch_output.stdout)
+        .trim()
+        .to_string();
+    if branch.is_empty() {
+        return Err("获取分支失败: 当前分支为空".to_string());
+    }
+
+    let push_output = crate::git_common::git_command()
+        .args(["push", "origin", &branch])
+        .current_dir(workspace_root)
+        .output()
+        .map_err(|e| format!("重试 Push 失败: {}", e))?;
+
+    if !push_output.status.success() {
+        return Err(format!("重试 Push 失败: {}", get_git_stderr(&push_output)));
+    }
+
+    Ok(())
 }
 
 /// 从 Git 错误信息中提取文件名
@@ -2595,6 +2639,7 @@ pub struct AutoSyncManager {
     last_edit_time: Arc<Mutex<Option<Instant>>>,
     is_running: Arc<Mutex<bool>>,
     is_paused: Arc<Mutex<bool>>, // 新增：暂停状态（用于冲突处理）
+    worker_generation: Arc<AtomicU64>,
     app_handle: tauri::AppHandle,
 }
 
@@ -2607,8 +2652,13 @@ impl AutoSyncManager {
             last_edit_time: Arc::new(Mutex::new(None)),
             is_running: Arc::new(Mutex::new(false)),
             is_paused: Arc::new(Mutex::new(false)),
+            worker_generation: Arc::new(AtomicU64::new(0)),
             app_handle,
         }
+    }
+
+    fn matches_config(&self, workspace_root: &Path, delay_minutes: u64) -> bool {
+        self.workspace_root == workspace_root && self.delay_minutes == delay_minutes
     }
 
     /// 启动自动同步
@@ -2623,12 +2673,14 @@ impl AutoSyncManager {
         }
 
         *is_running = true;
+        let generation = self.worker_generation.fetch_add(1, Ordering::SeqCst) + 1;
 
         let workspace_root = self.workspace_root.clone();
         let delay_minutes = self.delay_minutes;
         let last_edit_time = Arc::clone(&self.last_edit_time);
         let is_running_clone = Arc::clone(&self.is_running);
         let is_paused_clone = Arc::clone(&self.is_paused);
+        let worker_generation = Arc::clone(&self.worker_generation);
         let app_handle = self.app_handle.clone();
 
         // 启动后台任务
@@ -2641,18 +2693,24 @@ impl AutoSyncManager {
             let pull_interval = Duration::from_secs(delay_minutes * 60); // Pull 间隔
             let mut last_pull_time = Instant::now();
 
-            loop {
+            let is_current_worker = || {
+                let running = is_running_clone.lock().unwrap();
+                *running && worker_generation.load(Ordering::SeqCst) == generation
+            };
+
+            'sync_loop: loop {
                 // 检查是否应该停止
-                {
-                    let running = is_running_clone.lock().unwrap();
-                    if !*running {
-                        info!("⏹️ [AutoSync] 自动同步管理器已停止");
-                        break;
-                    }
+                if !is_current_worker() {
+                    info!("⏹️ [AutoSync] 自动同步管理器已停止");
+                    break;
                 }
 
                 // 每 1 秒检查一次（提高精度）
                 sleep(Duration::from_secs(1)).await;
+                if !is_current_worker() {
+                    info!("⏹️ [AutoSync] 自动同步管理器已停止");
+                    break;
+                }
 
                 // 检查是否暂停（冲突处理中）
                 let is_paused = {
@@ -2675,7 +2733,16 @@ impl AutoSyncManager {
                     let mut pull_result = None;
 
                     while retry_count < max_retries {
-                        match git_pull(&workspace_root).await {
+                        if !is_current_worker() {
+                            break 'sync_loop;
+                        }
+
+                        let current_pull_result = git_pull(&workspace_root).await;
+                        if !is_current_worker() {
+                            break 'sync_loop;
+                        }
+
+                        match current_pull_result {
                             Ok(result) => {
                                 pull_result = Some(Ok(result));
                                 break;
@@ -3008,6 +3075,10 @@ impl AutoSyncManager {
                 }
 
                 // 2. 检查是否需要 Push（文件编辑后）
+                if !is_current_worker() {
+                    break;
+                }
+
                 let should_push = {
                     let last_edit = last_edit_time.lock().unwrap();
                     if let Some(last_time) = *last_edit {
@@ -3026,7 +3097,14 @@ impl AutoSyncManager {
                 };
 
                 if should_push {
+                    if !is_current_worker() {
+                        break;
+                    }
+
                     let mut push_result = git_push(&workspace_root, "Auto sync").await;
+                    if !is_current_worker() {
+                        break;
+                    }
 
                     // Push 被 non-fast-forward 拒绝时：先 pull 再重试
                     if let Err(ref e) = push_result {
@@ -3036,7 +3114,16 @@ impl AutoSyncManager {
                             || err_lower.contains("behind")
                         {
                             info!("ℹ️ [AutoSync] Push 被拒绝（本地落后于远程），先 Pull 再重试");
-                            match git_pull(&workspace_root).await {
+                            if !is_current_worker() {
+                                break;
+                            }
+
+                            let current_pull_result = git_pull(&workspace_root).await;
+                            if !is_current_worker() {
+                                break;
+                            }
+
+                            match current_pull_result {
                                 Ok(pull_result) => {
                                     if pull_result.has_conflicts {
                                         warn!("⚠️ [AutoSync] Pull 产生冲突，转入冲突流程");
@@ -3067,34 +3154,20 @@ impl AutoSyncManager {
                                         );
                                     } else {
                                         info!("✅ [AutoSync] Pull 成功，重试 Push");
-                                        let branch_output = crate::git_common::git_command()
-                                            .args(["branch", "--show-current"])
-                                            .current_dir(&workspace_root)
-                                            .output()
-                                            .map_err(|e| format!("获取分支失败: {}", e));
-                                        if let Ok(out) = branch_output {
-                                            let branch = String::from_utf8_lossy(&out.stdout)
-                                                .trim()
-                                                .to_string();
-                                            let push_out = crate::git_common::git_command()
-                                                .args(["push", "origin", &branch])
-                                                .current_dir(&workspace_root)
-                                                .output();
-                                            if let Ok(po) = push_out {
-                                                if po.status.success() {
-                                                    info!("✅ [AutoSync] 重试 Push 成功");
-                                                    push_result = Ok(PushResult {
-                                                        success: true,
-                                                        files_pushed: 1,
-                                                        commit_hash: String::new(),
-                                                        message: "Push 成功".to_string(),
-                                                    });
-                                                } else {
-                                                    let err = String::from_utf8_lossy(&po.stderr);
-                                                    push_result =
-                                                        Err(format!("重试 Push 失败: {}", err));
-                                                }
+                                        if !is_current_worker() {
+                                            break;
+                                        }
+                                        match push_current_branch(&workspace_root) {
+                                            Ok(()) => {
+                                                info!("✅ [AutoSync] 重试 Push 成功");
+                                                push_result = Ok(PushResult {
+                                                    success: true,
+                                                    files_pushed: 1,
+                                                    commit_hash: String::new(),
+                                                    message: "Push 成功".to_string(),
+                                                });
                                             }
+                                            Err(error) => push_result = Err(error),
                                         }
                                     }
                                 }
@@ -3191,6 +3264,9 @@ impl AutoSyncManager {
                     }
 
                     // 重置最后编辑时间
+                    if !is_current_worker() {
+                        break;
+                    }
                     let mut last_edit = last_edit_time.lock().unwrap();
                     *last_edit = None;
                 }
@@ -3207,6 +3283,7 @@ impl AutoSyncManager {
             .lock()
             .map_err(|e| format!("获取运行状态锁失败: {}", e))?;
         *is_running = false;
+        self.worker_generation.fetch_add(1, Ordering::SeqCst);
 
         info!("🛑 [AutoSync] 停止自动同步管理器");
         Ok(())
@@ -3287,6 +3364,17 @@ pub fn start_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
         let mut sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
             .lock()
             .map_err(|e| format!("获取同步管理器锁失败: {}", e))?;
+
+        let should_replace = sync_manager
+            .as_ref()
+            .is_some_and(|manager| !manager.matches_config(&workspace_root, delay_minutes));
+
+        if should_replace {
+            if let Some(manager) = sync_manager.as_ref() {
+                manager.stop()?;
+            }
+            *sync_manager = None;
+        }
 
         if sync_manager.is_none() {
             *sync_manager = Some(AutoSyncManager::new(
@@ -3508,6 +3596,9 @@ pub async fn force_push_command(
     require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let _git_operation_guard = GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
 
     info!("🔄 [Git] 开始强制推送");
 
@@ -3601,6 +3692,9 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
     require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let _git_operation_guard = GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
 
     info!("🔄 [Git] 开始强制拉取");
     if let Err(e) = app_handle.emit_to("config", "git-pull-start", ()) {

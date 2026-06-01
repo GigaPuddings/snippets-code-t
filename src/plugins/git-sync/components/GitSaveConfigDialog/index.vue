@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <CommonDialog
     v-model="visible"
     :title="$t('settings.gitSync.saveConfigTitle')"
     width="500px"
@@ -47,23 +47,24 @@
     
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleCancel" :disabled="loading">
+        <CustomButton @click="handleCancel" :disabled="loading">
           {{ $t('common.cancel') }}
-        </el-button>
-        <el-button 
+        </CustomButton>
+        <CustomButton
           type="primary" 
           @click="handleConfirm"
           :loading="loading"
           :disabled="!confirmUnderstand"
         >
           {{ $t('common.confirm') }}
-        </el-button>
+        </CustomButton>
       </div>
     </template>
-  </el-dialog>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
+import { CommonDialog, CustomButton } from '@/components/UI';
 import { Info, Attention } from '@icon-park/vue-next';
 import type { GitSettings } from '@/types/models';
 

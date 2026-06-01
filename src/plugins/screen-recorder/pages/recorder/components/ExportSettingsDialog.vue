@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <CommonDialog
     :model-value="modelValue"
     :title="$t('screenRecorder.exportSettings')"
     width="420px"
@@ -44,15 +44,16 @@
       </label>
     </div>
     <template #footer>
-      <el-button @click="$emit('cancel')">{{ $t('common.cancel') }}</el-button>
-      <el-button type="primary" :disabled="!settings.savePath" @click="$emit('export')">
+      <CustomButton @click="$emit('cancel')">{{ $t('common.cancel') }}</CustomButton>
+      <CustomButton type="primary" :disabled="!settings.savePath" @click="$emit('export')">
         {{ $t('screenRecorder.export') }}
-      </el-button>
+      </CustomButton>
     </template>
-  </el-dialog>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
+import { CommonDialog, CustomButton } from '@/components/UI';
 import { save } from '@tauri-apps/plugin-dialog';
 import type { RecordingSettings } from '../core/types';
 

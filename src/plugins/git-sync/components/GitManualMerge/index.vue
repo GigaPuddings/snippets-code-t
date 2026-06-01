@@ -678,8 +678,8 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
+  background: var(--dialog-overlay);
+  backdrop-filter: blur(3px);
 }
 
 .merge-dialog {
@@ -688,11 +688,11 @@ defineExpose({
   width: 94vw;
   height: 92vh;
   max-width: 1400px;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  background: var(--categories-panel-bg);
-  border: 1px solid var(--categories-border-color);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  background: var(--dialog-bg);
+  border: 1px solid var(--dialog-border);
+  box-shadow: var(--dialog-shadow);
 }
 
 // 顶栏
@@ -701,8 +701,8 @@ defineExpose({
   align-items: center;
   height: 40px;
   padding: 0 12px;
-  background: var(--categories-content-bg);
-  border-bottom: 1px solid var(--categories-border-color);
+  background: var(--dialog-header-bg);
+  border-bottom: 1px solid var(--dialog-border);
   flex-shrink: 0;
   gap: 12px;
   -webkit-app-region: no-drag;
@@ -1079,8 +1079,8 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: var(--categories-content-bg);
-  border-top: 1px solid var(--categories-border-color);
+  background: var(--dialog-footer-bg);
+  border-top: 1px solid var(--dialog-border);
   flex-shrink: 0;
   gap: 12px;
 }

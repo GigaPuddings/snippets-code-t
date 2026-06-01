@@ -7,7 +7,10 @@
     :draggable="draggable"
     :center="center"
     :show-close="showClose"
-    :custom-class="customClass"
+    :close-on-press-escape="closeOnPressEscape"
+    :append-to-body="appendToBody"
+    :align-center="alignCenter"
+    :custom-class="dialogClass"
     @close="handleClose"
   >
     <template v-if="$slots.header" #header>
@@ -23,10 +26,10 @@
             <slot name="footer-left"></slot>
           </div>
           <div class="footer-right">
-            <el-button @click="handleCancel">{{ cancelText }}</el-button>
-            <el-button type="primary" :loading="loading" @click="handleConfirm">
+            <CustomButton @click="handleCancel">{{ cancelText }}</CustomButton>
+            <CustomButton type="primary" :loading="loading" @click="handleConfirm">
               {{ confirmText }}
-            </el-button>
+            </CustomButton>
           </div>
         </div>
       </slot>
@@ -35,6 +38,7 @@
 </template>
 
 <script setup lang="ts">
+import CustomButton from './CustomButton.vue';
 
 interface Props {
   modelValue?: boolean;
@@ -44,6 +48,9 @@ interface Props {
   draggable?: boolean;
   center?: boolean;
   showClose?: boolean;
+  closeOnPressEscape?: boolean;
+  appendToBody?: boolean;
+  alignCenter?: boolean;
   showDefaultFooter?: boolean;
   confirmText?: string;
   cancelText?: string;
@@ -59,6 +66,9 @@ const props = withDefaults(defineProps<Props>(), {
   draggable: true,
   center: false,
   showClose: true,
+  closeOnPressEscape: true,
+  appendToBody: true,
+  alignCenter: true,
   showDefaultFooter: false,
   confirmText: '确定',
   cancelText: '取消',
@@ -74,6 +84,7 @@ const emit = defineEmits<{
 }>();
 
 const visible = ref(props.modelValue);
+const dialogClass = computed(() => ['app-dialog', props.customClass].filter(Boolean).join(' '));
 
 watch(
   () => props.modelValue,
@@ -111,35 +122,7 @@ defineExpose({
 
 <style scoped lang="scss">
 :deep(.el-dialog) {
-  border-radius: 10px;
-  border: 1px solid var(--categories-border-color);
-  background: var(--categories-panel-bg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-}
-
-:deep(.el-dialog__header) {
-  margin: 0;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--categories-border-color);
-  background: var(--categories-content-bg);
-}
-
-:deep(.el-dialog__title) {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--categories-text-color);
-}
-
-:deep(.el-dialog__body) {
-  padding: 16px;
-  color: var(--categories-text-color);
-}
-
-:deep(.el-dialog__footer) {
-  padding: 12px 16px;
-  border-top: 1px solid var(--categories-border-color);
-  background: var(--categories-content-bg);
+  color: var(--dialog-text);
 }
 
 .dialog-footer-default {

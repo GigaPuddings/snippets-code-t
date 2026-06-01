@@ -137,7 +137,7 @@ defineExpose({
 <style scoped lang="scss">
 .select-confirm-content {
   @apply py-0 text-sm;
-  color: var(--el-text-color-regular);
+  color: var(--dialog-text);
   
   .mb-4 {
     @apply mb-2;
@@ -148,10 +148,4 @@ defineExpose({
   @apply flex justify-end gap-2;
 }
 
-// 优化暗色模式
-:global(.dark) {
-  .select-confirm-content {
-    color: var(--el-text-color-regular);
-  }
-}
 </style>

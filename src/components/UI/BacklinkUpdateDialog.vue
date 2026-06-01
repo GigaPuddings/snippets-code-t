@@ -1,15 +1,16 @@
 <template>
-  <teleport to="body">
-    <div v-if="modelValue" class="dialog-overlay" @click="handleCancel">
-      <div class="dialog-container" @click.stop>
-        <div class="dialog-header">
-          <h3 class="dialog-title">{{ title || $t('dialog.updateBacklinks.title') }}</h3>
-          <button class="close-btn" @click="handleCancel">
-            <span>×</span>
-          </button>
-        </div>
-        
-        <div class="dialog-content">
+  <CommonDialog
+    :model-value="modelValue"
+    :title="title || $t('dialog.updateBacklinks.title')"
+    width="448px"
+    custom-class="backlink-update-dialog"
+    :show-close="!updating"
+    :close-on-click-modal="!updating"
+    :close-on-press-escape="!updating"
+    @update:model-value="handleVisibleChange"
+    @close="handleDialogClose"
+  >
+    <div class="dialog-content">
           <!-- 重命名场景 -->
           <p v-if="!isDeleteMode" class="message">
             {{ $t('dialog.updateBacklinks.message', { oldTitle: fragmentTitle, newTitle: newFragmentTitle, count: backlinkCount }) }}
@@ -58,38 +59,39 @@
               ✗ {{ $t('dialog.updateBacklinks.failureCount', { count: result.failureCount }) }}
             </p>
           </div>
-        </div>
-        
-        <div class="dialog-footer">
-          <button 
-            v-if="!updating && !result" 
-            class="btn btn-secondary" 
-            @click="handleCancel"
-          >
-            {{ cancelText || $t('common.cancel') }}
-          </button>
-          <button 
-            v-if="!updating && !result" 
-            class="btn btn-primary" 
-            @click="handleConfirm"
-          >
-            {{ confirmText || $t('dialog.updateBacklinks.confirm') }}
-          </button>
-          <button 
-            v-if="result" 
-            class="btn btn-primary" 
-            @click="handleClose"
-          >
-            {{ $t('common.close') }}
-          </button>
-        </div>
-      </div>
     </div>
-  </teleport>
+
+    <template #footer>
+      <div class="dialog-footer">
+        <CustomButton
+          v-if="!updating && !result"
+          @click="handleCancel"
+        >
+          {{ cancelText || $t('common.cancel') }}
+        </CustomButton>
+        <CustomButton
+          v-if="!updating && !result"
+          type="primary"
+          @click="handleConfirm"
+        >
+          {{ confirmText || $t('dialog.updateBacklinks.confirm') }}
+        </CustomButton>
+        <CustomButton
+          v-if="result"
+          type="primary"
+          @click="handleClose"
+        >
+          {{ $t('common.close') }}
+        </CustomButton>
+      </div>
+    </template>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
 import { updateBacklinks, type UpdateBacklinksResult } from '@/utils/wikilink-updater';
+import CommonDialog from './CommonDialog.vue';
+import CustomButton from './CustomButton.vue';
 
 interface Props {
   modelValue: boolean;
@@ -119,6 +121,7 @@ const updating = ref(false);
 const progress = ref(0);
 const result = ref<UpdateBacklinksResult | null>(null);
 const deleteOption = ref<'deleteOnly' | 'deleteAndRemoveLinks'>('deleteOnly');
+const skipCancelOnClose = ref(false);
 
 // 判断是否为删除模式（没有 newFragmentTitle 表示删除）
 const isDeleteMode = computed(() => !props.newFragmentTitle);
@@ -137,7 +140,7 @@ const handleConfirm = async () => {
     // 删除模式：根据用户选择决定是否更新反向链接
     const shouldUpdate = deleteOption.value === 'deleteAndRemoveLinks';
     emit('confirm', shouldUpdate);
-    emit('update:modelValue', false);
+    closeDialog();
   } else {
     // 重命名模式：执行反向链接更新
     updating.value = true;
@@ -162,7 +165,7 @@ const handleConfirm = async () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       emit('confirm', true);
-      emit('update:modelValue', false);
+      closeDialog();
     } catch (error) {
       console.error('Failed to update backlinks:', error);
       result.value = {
@@ -184,12 +187,31 @@ const handleConfirm = async () => {
 const handleCancel = () => {
   if (!updating.value) {
     emit('cancel');
-    emit('update:modelValue', false);
+    closeDialog();
   }
 };
 
 const handleClose = () => {
+  closeDialog();
+};
+
+const closeDialog = () => {
+  skipCancelOnClose.value = true;
   emit('update:modelValue', false);
+};
+
+const handleVisibleChange = (visible: boolean) => {
+  if (visible || !updating.value) {
+    emit('update:modelValue', visible);
+  }
+};
+
+const handleDialogClose = () => {
+  if (skipCancelOnClose.value) {
+    skipCancelOnClose.value = false;
+    return;
+  }
+  handleCancel();
 };
 </script>
 
@@ -200,36 +222,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.dialog-overlay {
-  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50;
-}
-
-.dialog-container {
-  @apply bg-panel rounded-lg shadow-xl max-w-md w-full mx-4;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.dialog-header {
-  @apply flex items-center justify-between p-4 border-b border-panel;
-  flex-shrink: 0;
-}
-
-.dialog-title {
-  @apply text-lg font-semibold;
-}
-
-.close-btn {
-  @apply text-panel-text-secondary hover:text-panel text-2xl leading-none;
-  
-  span {
-    @apply block;
-  }
-}
-
 .dialog-content {
-  @apply p-4 flex-1 max-h-96;;
+  @apply flex-1 max-h-96 overflow-y-auto;
 }
 
 .message {
@@ -309,78 +303,6 @@ export default {
 }
 
 .dialog-footer {
-  @apply flex items-center justify-end gap-2 p-4 border-t border-panel;
-  flex-shrink: 0;
-}
-
-.btn {
-  @apply px-4 py-2 rounded transition-colors;
-}
-
-.btn-secondary {
-  @apply bg-panel-hover-bg hover:bg-panel text-panel;
-}
-
-.btn-primary {
-  @apply bg-blue-600 hover:bg-blue-700 text-white;
-}
-
-/* 暗色主题 */
-.dark {
-  .dialog-container {
-    @apply bg-panel;
-  }
-
-  .dialog-title {
-    @apply text-panel;
-  }
-
-  .close-btn {
-    @apply text-panel-text-secondary hover:text-panel;
-  }
-
-  .message {
-    @apply text-panel;
-  }
-
-  .delete-options {
-    @apply bg-panel-hover-bg;
-  }
-
-  .options-title {
-    @apply text-panel-text-secondary;
-  }
-
-  .option-item span {
-    @apply text-panel;
-  }
-
-  .list-title {
-    @apply text-panel-text-secondary;
-  }
-
-  .backlink-item {
-    @apply bg-panel-hover-bg;
-  }
-
-  .fragment-title {
-    @apply text-panel;
-  }
-
-  .occurrence-count {
-    @apply text-panel-text-secondary;
-  }
-
-  .progress-bar {
-    @apply bg-panel-hover-bg;
-  }
-
-  .progress-text {
-    @apply text-panel-text-secondary;
-  }
-
-  .btn-secondary {
-    @apply bg-panel-hover-bg hover:bg-panel text-panel;
-  }
+  @apply flex items-center justify-end gap-2;
 }
 </style>

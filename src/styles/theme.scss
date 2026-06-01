@@ -60,6 +60,20 @@
   --panel-text-secondary: #6b7280;
   --panel-hover-bg: #f3f7ff;
 
+  // ==================== 提示与弹层主题变量 ====================
+  --dialog-bg: #ffffff;
+  --dialog-header-bg: #f8faff;
+  --dialog-footer-bg: #fbfcff;
+  --dialog-border: #d9e2ef;
+  --dialog-text: #111827;
+  --dialog-text-secondary: #6b7280;
+  --dialog-shadow: 0 18px 48px rgb(39 76 119 / 16%), 0 4px 14px rgb(26 43 63 / 8%);
+  --dialog-overlay: rgb(15 23 42 / 28%);
+  --toast-bg: rgb(255 255 255 / 96%);
+  --toast-border: #d9e2ef;
+  --toast-text: #1f2937;
+  --toast-shadow: 0 10px 28px rgb(39 76 119 / 14%), 0 2px 8px rgb(26 43 63 / 8%);
+
   // ==================== OCR 窗口主题变量 ====================
   --ocr-shell-bg: rgb(255 255 255 / 94%);
   --ocr-panel-bg: rgb(255 255 255 / 90%);
@@ -129,6 +143,20 @@ html.dark {
   --panel-text: #e5e7eb;
   --panel-text-secondary: #9ca3af;
   --panel-hover-bg: #2a2a2a;
+
+  // ==================== 提示与弹层深色主题变量 ====================
+  --dialog-bg: #242424;
+  --dialog-header-bg: #292929;
+  --dialog-footer-bg: #202020;
+  --dialog-border: #3a3a3a;
+  --dialog-text: #e5e7eb;
+  --dialog-text-secondary: #a0a0a0;
+  --dialog-shadow: 0 20px 54px rgb(0 0 0 / 42%), 0 4px 16px rgb(0 0 0 / 24%);
+  --dialog-overlay: rgb(0 0 0 / 48%);
+  --toast-bg: rgb(42 42 42 / 96%);
+  --toast-border: #414141;
+  --toast-text: #e5e7eb;
+  --toast-shadow: 0 12px 32px rgb(0 0 0 / 36%), 0 2px 8px rgb(0 0 0 / 22%);
 
   // ==================== OCR 窗口深色主题变量 ====================
   --ocr-shell-bg: rgb(30 30 30 / 94%);

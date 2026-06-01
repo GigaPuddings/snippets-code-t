@@ -123,7 +123,7 @@ defineExpose({
 <style scoped lang="scss">
 .confirm-content {
   @apply py-0 px-0 text-sm leading-relaxed;
-  color: var(--el-text-color-regular);
+  color: var(--dialog-text);
   
   :deep(div) {
     @apply text-sm;
@@ -134,10 +134,4 @@ defineExpose({
   @apply flex justify-end gap-2;
 }
 
-// 优化暗色模式
-:global(.dark) {
-  .confirm-content {
-    color: var(--el-text-color-regular);
-  }
-}
 </style>

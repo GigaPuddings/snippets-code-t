@@ -20,8 +20,8 @@
 
     <template #footer>
       <div class="prompt-footer">
-        <el-button @click="handleCancel">{{ computedCancelText }}</el-button>
-        <el-button type="primary" @click="handleConfirm">{{ computedConfirmText }}</el-button>
+        <CustomButton @click="handleCancel">{{ computedCancelText }}</CustomButton>
+        <CustomButton type="primary" @click="handleConfirm">{{ computedConfirmText }}</CustomButton>
       </div>
     </template>
   </CommonDialog>
@@ -30,6 +30,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import CommonDialog from './CommonDialog.vue';
+import CustomButton from './CustomButton.vue';
 
 interface PromptValidationResult {
   valid: boolean;

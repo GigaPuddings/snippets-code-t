@@ -93,7 +93,8 @@ const modal = {
         type,
         duration,
         showClose,
-        grouping: true
+        grouping: true,
+        customClass: `app-toast app-toast--${type}`
       });
     } else {
       // 其他位置使用 ElNotification（角落显示）
@@ -106,7 +107,7 @@ const modal = {
         showClose: false, // 角落通知统一不显示关闭按钮，更简洁
         title: '',
         offset: 50, // 距离顶部/底部 50px，避免遮挡窗口控制按钮
-        customClass: 'custom-notification' // 自定义样式类
+        customClass: `app-toast app-toast--corner app-toast--${type}` // 自定义样式类
       });
     }
   },

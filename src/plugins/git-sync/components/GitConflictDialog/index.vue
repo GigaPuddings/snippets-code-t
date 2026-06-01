@@ -1,21 +1,13 @@
 <template>
-  <teleport to="body">
-    <transition name="conflict-fade">
-      <div v-if="visible" class="conflict-overlay" @click.self="handleClose">
-        <div class="conflict-dialog">
-          <!-- 顶栏 -->
-          <div class="conflict-header">
-            <div class="header-title">
-              <span class="header-icon">⚠️</span>
-              <span>{{ $t('settings.gitSync.conflictDetected') }}</span>
-            </div>
-            <button class="header-close" @click="handleClose">
-              <span>×</span>
-            </button>
-          </div>
-
-          <!-- 内容区 -->
-          <div class="conflict-body">
+  <CommonDialog
+    v-model="visible"
+    :title="$t('settings.gitSync.conflictDetected')"
+    width="520px"
+    custom-class="git-conflict-dialog warning-dialog"
+    :close-on-click-modal="true"
+    @close="handleClose"
+  >
+    <div class="conflict-body">
             <!-- 冲突文件列表 -->
             <div v-if="conflictFiles.length > 0" class="section">
               <div class="section-label">{{ $t('settings.gitSync.conflictFiles') }}</div>
@@ -93,30 +85,28 @@
                 </span>
               </div>
             </transition>
-          </div>
+    </div>
 
-          <!-- 底栏 -->
-          <div class="conflict-footer">
-            <button class="footer-btn" @click="handleCancel" :disabled="loading">
-              {{ $t('common.cancel') }}
-            </button>
-            <button
-              class="footer-btn primary"
-              @click="handleConfirm"
-              :disabled="!selectedStrategy || loading"
-              :class="{ loading }"
-            >
-              <span v-if="loading" class="btn-spinner"></span>
-              {{ $t('common.confirm') }}
-            </button>
-          </div>
-        </div>
+    <template #footer>
+      <div class="conflict-footer">
+        <CustomButton @click="handleCancel" :disabled="loading">
+          {{ $t('common.cancel') }}
+        </CustomButton>
+        <CustomButton
+          type="primary"
+          @click="handleConfirm"
+          :disabled="!selectedStrategy"
+          :loading="loading"
+        >
+          {{ $t('common.confirm') }}
+        </CustomButton>
       </div>
-    </transition>
-  </teleport>
+    </template>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
+import { CommonDialog, CustomButton } from '@/components/UI';
 
 interface Props {
   modelValue: boolean;
@@ -145,30 +135,13 @@ const untrackedFiles = computed(() => props.untrackedFiles || []);
 
 const selectedStrategy = ref<string>('');
 const loading = ref(false);
-
-function onEsc(e: KeyboardEvent) {
-  if (e.key === 'Escape' && visible.value) {
-    e.preventDefault();
-    visible.value = false;
-    emit('escape');
-  }
-}
+const skipCloseEmit = ref(false);
 
 watch(visible, (val) => {
   if (val) {
     selectedStrategy.value = '';
     loading.value = false;
-    document.addEventListener('keydown', onEsc);
-  } else {
-    document.removeEventListener('keydown', onEsc);
   }
-});
-
-onMounted(() => {
-  if (visible.value) document.addEventListener('keydown', onEsc);
-});
-onUnmounted(() => {
-  document.removeEventListener('keydown', onEsc);
 });
 
 function handleConfirm() {
@@ -177,13 +150,22 @@ function handleConfirm() {
 }
 
 function handleCancel() {
-  visible.value = false;
+  closeAfterAction();
   emit('cancel');
 }
 
 function handleClose() {
   visible.value = false;
+  if (skipCloseEmit.value) {
+    skipCloseEmit.value = false;
+    return;
+  }
   emit('escape');
+}
+
+function closeAfterAction() {
+  skipCloseEmit.value = true;
+  visible.value = false;
 }
 
 defineExpose({
@@ -194,72 +176,8 @@ defineExpose({
 </script>
 
 <style scoped lang="scss">
-.conflict-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-}
-
-.conflict-dialog {
-  width: 520px;
-  max-width: 90vw;
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--categories-panel-bg);
-  border: 1px solid var(--categories-border-color);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-// 顶栏
-.conflict-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--categories-border-color);
-  background: var(--categories-content-bg);
-
-  .header-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--categories-text-color);
-
-    .header-icon {
-      font-size: 16px;
-    }
-  }
-
-  .header-close {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    border-radius: 4px;
-    cursor: pointer;
-    color: var(--categories-info-text-color);
-    font-size: 18px;
-
-    &:hover {
-      background: rgba(255, 65, 54, 0.15);
-      color: #ff4136;
-    }
-  }
-}
-
 // 内容区
 .conflict-body {
-  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -450,43 +368,6 @@ defineExpose({
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--categories-border-color);
-  background: var(--categories-content-bg);
-}
-
-.footer-btn {
-  padding: 6px 18px;
-  border-radius: 6px;
-  border: 1px solid var(--categories-border-color);
-  background: var(--categories-panel-bg);
-  color: var(--categories-text-color);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.12s;
-
-  &:hover {
-    background: var(--categories-panel-bg-hover);
-  }
-
-  &:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-
-  &.primary {
-    background: var(--el-color-primary, #5d6dfd);
-    border-color: var(--el-color-primary, #5d6dfd);
-    color: #fff;
-
-    &:hover:not(:disabled) {
-      background: var(--el-button-hover-bg-color, #4a5bef);
-    }
-
-    &.loading {
-      pointer-events: none;
-    }
-  }
 }
 
 .btn-spinner {
