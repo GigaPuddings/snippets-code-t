@@ -40,6 +40,7 @@ import General from './components/General/index.vue';
 import Shortcut from './components/Shortcut/index.vue';
 import Manger from './components/Manger/index.vue';
 import Plugins from './components/Plugins/index.vue';
+import Developer from './components/Developer/index.vue';
 import { getGitSettings } from '@/api/appConfig';
 import { pluginSettingsComponents, pluginSettingsMenuItems, type PluginSettingsMenuItem } from '@/plugins/settings';
 import { usePluginStore } from '@/store';
@@ -59,7 +60,8 @@ const coreMenuItems: PluginSettingsMenuItem[] = [
   { id: 'general', labelKey: 'settings.general', icon: SettingTwo },
   { id: 'plugins', labelKey: 'plugins.title', icon: Data },
   { id: 'shortcut', labelKey: 'shortcut.title', icon: EnterTheKeyboard },
-  { id: 'data', labelKey: 'dataManager.title', icon: Data }
+  { id: 'data', labelKey: 'dataManager.title', icon: Data },
+  { id: 'developer', labelKey: 'settings.developer.menu', icon: SettingTwo }
 ];
 
 const menuItems = computed(() => {
@@ -106,6 +108,7 @@ const componentMap = computed<Record<string, any>>(() => {
   shortcut: Shortcut,
   data: Manger,
   plugins: Plugins,
+  developer: Developer,
   ...pluginSettingsComponents
   };
 });

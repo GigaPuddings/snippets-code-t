@@ -183,6 +183,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { CloseSmall, Minus, Radar } from '@icon-park/vue-next';
 import modal from '@/utils/modal';
+import { logger } from '@/utils/logger';
 import {
   closeRecorderWindow,
   pickTargetWindow,
@@ -337,6 +338,7 @@ const runAction = async (action: () => Promise<void>) => {
     await action();
   } catch (error: any) {
     console.error(`${LOG_PREFIX} action failed`, error);
+    logger.error(`${LOG_PREFIX} action failed`, error);
     if (!isClosing.value) {
       modal.msg(error?.message || String(error), 'error');
     }
@@ -670,6 +672,7 @@ const startAudioMeter = async () => {
     audioMeterUnavailable.value = false;
   } catch (error) {
     console.error(`${LOG_PREFIX} audio meter failed`, error);
+    logger.warn(`${LOG_PREFIX} audio meter failed`, error);
     audioMeterUnavailable.value = true;
   }
 };
@@ -840,6 +843,7 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
 
   } catch (error) {
     console.error(`${LOG_PREFIX} snap correction failed`, error);
+    logger.warn(`${LOG_PREFIX} snap correction failed`, error);
   } finally {
     await pulseWindowPassthrough();
     await refreshCaptureMetrics();
@@ -895,6 +899,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 };
 
 onMounted(async () => {
+  logger.info(`${LOG_PREFIX} frontend mounted`);
   status.value = 'ready';
   await appWindow.setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)).catch(() => undefined);
   await setRecorderCaptureExcluded(true).catch(() => undefined);
@@ -904,6 +909,7 @@ onMounted(async () => {
   await startAudioMeter();
   await nextTick();
   await appWindow.emit('screen_recorder_ready');
+  logger.info(`${LOG_PREFIX} frontend ready emitted`);
   unlistenExportProgress = await listen<ExportProgressEvent>('screen_recorder_export_progress', (event) => {
     exportProgress.value = event.payload;
   }).catch(() => null);

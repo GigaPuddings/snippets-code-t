@@ -1,38 +1,40 @@
 import { invoke } from '@tauri-apps/api/core'
+import {
+  appendFrontendDiagnostic,
+  isDeveloperModeEnabled
+} from '@/utils/developer-diagnostics'
 
-// 调试模式控制（开发环境默认开启；生产环境默认关闭，可通过 VITE_ENABLE_DEBUG_LOG=true 打开）
-const DEBUG_MODE = import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEBUG_LOG === 'true'
+const shouldWriteDebugLog = (): boolean =>
+  import.meta.env.DEV ||
+  import.meta.env.VITE_ENABLE_DEBUG_LOG === 'true' ||
+  isDeveloperModeEnabled()
+
+const writeLog = (
+  level: 'debug' | 'info' | 'warn' | 'error',
+  message: string,
+  data?: unknown
+) => {
+  appendFrontendDiagnostic(level, message, data)
+  invoke('frontend_log', {
+    level,
+    message,
+    data: data === undefined ? null : stringifyLogData(data)
+  }).catch(() => {})
+}
 
 export const logger = {
   info: (msg: string, data?: unknown, ..._args: unknown[]) => {
-    invoke('frontend_log', { 
-      level: 'info', 
-      message: msg, 
-      data: data === undefined ? null : stringifyLogData(data)
-    }).catch(() => {})
+    writeLog('info', msg, data)
   },
   error: (msg: string, data?: unknown) => {
-    invoke('frontend_log', { 
-      level: 'error', 
-      message: msg, 
-      data: data === undefined ? null : stringifyLogData(data)
-    }).catch(() => {})
+    writeLog('error', msg, data)
   },
   warn: (msg: string, data?: unknown) => {
-    invoke('frontend_log', { 
-      level: 'warn', 
-      message: msg, 
-      data: data === undefined ? null : stringifyLogData(data)
-    }).catch(() => {})
+    writeLog('warn', msg, data)
   },
-  // 调试日志 - 只在开发模式或调试模式下输出
   debug: (msg: string, data?: unknown) => {
-    if (DEBUG_MODE) {
-      invoke('frontend_log', { 
-        level: 'info', 
-        message: `[DEBUG] ${msg}`, 
-        data: data === undefined ? null : stringifyLogData(data)
-      }).catch(() => {})
+    if (shouldWriteDebugLog()) {
+      writeLog('debug', msg, data)
     }
   }
 }

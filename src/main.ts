@@ -4,6 +4,9 @@ import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import router from './router';
 import i18n from './i18n';
+import { setupGlobalDeveloperDiagnostics } from '@/utils/developer-diagnostics';
+
+setupGlobalDeveloperDiagnostics();
 
 // 异步初始化应用
 async function initApp() {

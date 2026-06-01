@@ -2493,17 +2493,18 @@ pub async fn save_pin_image(app_handle: AppHandle, image_data: String) -> Result
 // 前端日志转发到后台
 #[tauri::command]
 pub fn frontend_log(level: String, message: String, data: Option<String>) {
-    if level.as_str() != "error" {
-        return;
-    }
-
     let log_msg = if let Some(d) = data {
         format!("[Frontend] {} - {}", message, d)
     } else {
         format!("[Frontend] {}", message)
     };
 
-    log::error!("{}", log_msg);
+    match level.as_str() {
+        "error" => log::error!("{}", log_msg),
+        "warn" => log::warn!("{}", log_msg),
+        "debug" => log::debug!("{}", log_msg),
+        _ => log::info!("{}", log_msg),
+    }
 }
 
 // 获取所有窗口信息

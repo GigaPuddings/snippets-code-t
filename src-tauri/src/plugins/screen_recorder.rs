@@ -18,6 +18,7 @@ use std::os::windows::process::CommandExt;
 const PLUGIN_ID: &str = "screen-recorder";
 const FFMPEG_STOP_WAIT_ATTEMPTS: usize = 120;
 const FFMPEG_STOP_WAIT_INTERVAL_MS: u64 = 100;
+const WINDOW_READY_TIMEOUT_SECS: u64 = 12;
 
 static RECORDING_SESSION: LazyLock<Mutex<Option<RecordingSession>>> =
     LazyLock::new(|| Mutex::new(None));
@@ -826,19 +827,24 @@ pub fn open_screen_recorder_window() {
             return;
         }
     };
+    info!("[Plugin:screen-recorder] window created; waiting for frontend ready");
 
     let window_ready = window.clone();
     window.once("screen_recorder_ready", move |_| {
+        info!("[Plugin:screen-recorder] frontend ready; showing window");
         let _ = window_ready.show();
         let _ = window_ready.set_focus();
     });
 
     let window_timeout = window.clone();
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(2500)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(WINDOW_READY_TIMEOUT_SECS)).await;
         if !window_timeout.is_visible().unwrap_or(false) {
-            let _ = window_timeout.show();
-            let _ = window_timeout.set_focus();
+            warn!(
+                "[Plugin:screen-recorder] frontend ready timeout after {}s; destroying hidden window",
+                WINDOW_READY_TIMEOUT_SECS
+            );
+            let _ = window_timeout.destroy();
         }
     });
 }
