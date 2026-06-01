@@ -1,3 +1,5 @@
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -6,6 +8,28 @@ use tauri::{AppHandle, Manager};
 
 const MAX_LOG_FILES: usize = 4;
 const MAX_LOG_BYTES_PER_FILE: usize = 48 * 1024;
+const REDACTED_VALUE: &str = "[REDACTED]";
+
+static SENSITIVE_JSON_FIELD_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?i)("(?:[^"]*(?:token|password|secret|authorization)[^"]*)"\s*:\s*)("(?:\\.|[^"])*"|[^,\r\n}\]]+)"#,
+    )
+    .expect("sensitive JSON field regex must be valid")
+});
+static BEARER_TOKEN_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+").expect("bearer token regex must be valid")
+});
+static GITHUB_TOKEN_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\b(?:gh[pousr]_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{12,})\b")
+        .expect("GitHub token regex must be valid")
+});
+static URL_CREDENTIALS_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)(https?://)[^/\s@]+@").expect("URL credentials regex must be valid")
+});
+static QUERY_SECRET_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)([?&][^=&\s]*(?:token|password|secret|authorization)[^=&\s]*=)[^&\s]+")
+        .expect("query secret regex must be valid")
+});
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,7 +82,17 @@ fn read_log_tail(path: &Path) -> String {
         return String::new();
     };
     let start = bytes.len().saturating_sub(MAX_LOG_BYTES_PER_FILE);
-    String::from_utf8_lossy(&bytes[start..]).to_string()
+    redact_diagnostic_text(&String::from_utf8_lossy(&bytes[start..]))
+}
+
+fn redact_diagnostic_text(value: &str) -> String {
+    let value = SENSITIVE_JSON_FIELD_RE.replace_all(value, format!("$1\"{}\"", REDACTED_VALUE));
+    let value = BEARER_TOKEN_RE.replace_all(&value, format!("Bearer {}", REDACTED_VALUE));
+    let value = GITHUB_TOKEN_RE.replace_all(&value, REDACTED_VALUE);
+    let value = URL_CREDENTIALS_RE.replace_all(&value, format!("$1{}@", REDACTED_VALUE));
+    QUERY_SECRET_RE
+        .replace_all(&value, format!("$1{}", REDACTED_VALUE))
+        .to_string()
 }
 
 fn list_log_paths(log_dir: &Path) -> Vec<PathBuf> {
@@ -153,4 +187,27 @@ pub fn open_developer_log_dir(app_handle: AppHandle) -> Result<(), String> {
     fs::create_dir_all(&log_dir)
         .map_err(|error| format!("创建日志目录失败: {} ({})", display_path(&log_dir), error))?;
     crate::commands::open_folder(display_path(&log_dir))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_diagnostic_text;
+
+    #[test]
+    fn redacts_credentials_from_log_text() {
+        let text = r#"{
+  "token": "github_pat_12345678901234567890",
+  "authorization": "Bearer abc.def-123",
+  "remoteUrl": "https://secret-value@github.com/example/repo",
+  "callback": "https://example.com?access_token=query-secret&mode=test"
+}"#;
+
+        let redacted = redact_diagnostic_text(text);
+
+        assert!(!redacted.contains("github_pat_12345678901234567890"));
+        assert!(!redacted.contains("abc.def-123"));
+        assert!(!redacted.contains("secret-value"));
+        assert!(!redacted.contains("query-secret"));
+        assert!(redacted.contains("[REDACTED]"));
+    }
 }

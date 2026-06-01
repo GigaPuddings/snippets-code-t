@@ -1,6 +1,12 @@
 const DEVELOPER_MODE_KEY = 'snippets-code:developer-mode';
 const FRONTEND_LOG_KEY = 'snippets-code:frontend-diagnostics';
 const MAX_FRONTEND_ENTRIES = 240;
+const REDACTED_VALUE = '[REDACTED]';
+
+const BENIGN_WARNING_PATTERNS = [
+  /检测到重复挂载或非最后窗口，跳过初始化/,
+  /duplicate mount or non-last window.+skip initialization/i
+];
 
 export type FrontendDiagnosticLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -12,38 +18,121 @@ export interface FrontendDiagnosticEntry {
   data?: string;
 }
 
+export interface DiagnosticIssueSummary {
+  errors: number;
+  warnings: number;
+  ignoredWarnings: number;
+  total: number;
+}
+
 let listenersInstalled = false;
+
+export const redactDiagnosticText = (value: string): string =>
+  value
+    .replace(
+      /("(?:[^"]*(?:token|password|secret|authorization)[^"]*)"\s*:\s*)("(?:\\.|[^"])*"|[^,\r\n}\]]+)/gi,
+      `$1"${REDACTED_VALUE}"`
+    )
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${REDACTED_VALUE}`)
+    .replace(
+      /\b(?:gh[pousr]_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{12,})\b/g,
+      REDACTED_VALUE
+    )
+    .replace(/(https?:\/\/)[^/\s@]+@/gi, `$1${REDACTED_VALUE}@`)
+    .replace(
+      /([?&][^=&\s]*(?:token|password|secret|authorization)[^=&\s]*=)[^&\s]+/gi,
+      `$1${REDACTED_VALUE}`
+    );
 
 export const stringifyDiagnosticValue = (
   value: unknown
 ): string | undefined => {
   if (value === undefined) return undefined;
-  if (typeof value === 'string') return value;
+  if (typeof value === 'string') return redactDiagnosticText(value);
   const seen = new WeakSet<object>();
   try {
-    return JSON.stringify(
-      value,
-      (_key, nestedValue: unknown) => {
-        if (nestedValue instanceof Error) {
-          return {
-            name: nestedValue.name,
-            message: nestedValue.message,
-            stack: nestedValue.stack,
-            cause: nestedValue.cause
-          };
-        }
-        if (typeof nestedValue === 'bigint') return nestedValue.toString();
-        if (typeof nestedValue === 'object' && nestedValue !== null) {
-          if (seen.has(nestedValue)) return '[Circular]';
-          seen.add(nestedValue);
-        }
-        return nestedValue;
-      },
-      2
+    return redactDiagnosticText(
+      JSON.stringify(
+        value,
+        (_key, nestedValue: unknown) => {
+          if (nestedValue instanceof Error) {
+            return {
+              name: nestedValue.name,
+              message: nestedValue.message,
+              stack: nestedValue.stack,
+              cause: nestedValue.cause
+            };
+          }
+          if (typeof nestedValue === 'bigint') return nestedValue.toString();
+          if (typeof nestedValue === 'object' && nestedValue !== null) {
+            if (seen.has(nestedValue)) return '[Circular]';
+            seen.add(nestedValue);
+          }
+          return nestedValue;
+        },
+        2
+      )
     );
   } catch {
-    return String(value);
+    return redactDiagnosticText(String(value));
   }
+};
+
+export const isBenignDiagnosticWarning = (message: string): boolean =>
+  BENIGN_WARNING_PATTERNS.some((pattern) => pattern.test(message));
+
+export const summarizeFrontendDiagnostics = (
+  entries: FrontendDiagnosticEntry[]
+): DiagnosticIssueSummary => {
+  let errors = 0;
+  let warnings = 0;
+  let ignoredWarnings = 0;
+
+  entries.forEach((entry) => {
+    if (entry.level === 'error') {
+      errors += 1;
+    } else if (entry.level === 'warn') {
+      if (isBenignDiagnosticWarning(entry.message)) {
+        ignoredWarnings += 1;
+      } else {
+        warnings += 1;
+      }
+    }
+  });
+
+  return {
+    errors,
+    warnings,
+    ignoredWarnings,
+    total: errors + warnings
+  };
+};
+
+export const summarizeBackendDiagnostics = (
+  logText = ''
+): DiagnosticIssueSummary => {
+  let errors = 0;
+  let warnings = 0;
+  let ignoredWarnings = 0;
+
+  logText.split('\n').forEach((line) => {
+    const match = line.match(/\[(ERROR|WARN)\]/);
+    if (!match) return;
+    if (match[1] === 'ERROR') {
+      errors += 1;
+    } else if (isBenignDiagnosticWarning(line)) {
+      ignoredWarnings += 1;
+    } else {
+      warnings += 1;
+    }
+  });
+
+  return {
+    errors,
+    warnings,
+    ignoredWarnings,
+    total: errors + warnings
+  };
 };
 
 const currentWindowLabel = (): string => {
@@ -97,7 +186,7 @@ export const appendFrontendDiagnostic = (
     timestamp: new Date().toISOString(),
     level,
     windowLabel: currentWindowLabel(),
-    message,
+    message: redactDiagnosticText(message),
     data: stringifyDiagnosticValue(data)
   });
   try {
@@ -128,7 +217,9 @@ export const formatFrontendDiagnostics = (
   entries
     .map((entry) => {
       const suffix = entry.data ? `\n${entry.data}` : '';
-      return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.windowLabel}] ${entry.message}${suffix}`;
+      return redactDiagnosticText(
+        `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.windowLabel}] ${entry.message}${suffix}`
+      );
     })
     .join('\n\n');
 

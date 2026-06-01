@@ -32,7 +32,7 @@ export async function checkShouldInitialize(): Promise<boolean> {
     const shouldInitialize = await invoke<boolean>('should_execute_app_init');
 
     if (!shouldInitialize) {
-      logger.warn('[AppInit] ⚠️ 检测到重复挂载或非最后窗口，跳过初始化');
+      logger.info('[AppInit] 检测到重复挂载或非最后窗口，按预期跳过初始化');
       return false;
     }
 

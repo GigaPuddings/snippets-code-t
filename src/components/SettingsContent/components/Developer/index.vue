@@ -41,9 +41,12 @@
       </div>
 
       <p class="developer-hint">{{ t('settings.developer.hint') }}</p>
+      <p v-if="ignoredWarningCount > 0" class="ignored-warning-hint">
+        {{ t('settings.developer.ignoredWarnings', { count: ignoredWarningCount }) }}
+      </p>
 
       <section class="diagnostic-summary">
-        <article class="summary-card" :class="{ 'summary-card--danger': totalIssueCount > 0 }">
+        <article class="summary-card" :class="issueCardClass(totalErrorCount, totalIssueCount)">
           <span class="summary-label">{{ t('settings.developer.status') }}</span>
           <strong>{{ totalIssueCount > 0 ? t('settings.developer.attention') : t('settings.developer.normal') }}</strong>
           <small>{{ t('settings.developer.issueCount', { count: totalIssueCount }) }}</small>
@@ -58,12 +61,12 @@
           <strong>{{ visibleWindowCount }} / {{ diagnostics?.windows.length || 0 }}</strong>
           <small>{{ t('settings.developer.visibleWindows') }}</small>
         </article>
-        <article class="summary-card" :class="{ 'summary-card--danger': frontendIssueCount > 0 }">
+        <article class="summary-card" :class="issueCardClass(frontendErrorCount, frontendIssueCount)">
           <span class="summary-label">{{ t('settings.developer.frontendIssues') }}</span>
           <strong>{{ frontendIssueCount }}</strong>
           <small>{{ t('settings.developer.errorWarnCount', { errors: frontendErrorCount, warnings: frontendWarningCount }) }}</small>
         </article>
-        <article class="summary-card" :class="{ 'summary-card--danger': backendIssueCount > 0 }">
+        <article class="summary-card" :class="issueCardClass(backendErrorCount, backendIssueCount)">
           <span class="summary-label">{{ t('settings.developer.backendIssues') }}</span>
           <strong>{{ backendIssueCount }}</strong>
           <small>{{ t('settings.developer.errorWarnCount', { errors: backendErrorCount, warnings: backendWarningCount }) }}</small>
@@ -164,7 +167,10 @@ import {
   formatFrontendDiagnostics,
   getFrontendDiagnostics,
   isDeveloperModeEnabled,
+  redactDiagnosticText,
   setDeveloperModeEnabled,
+  summarizeBackendDiagnostics,
+  summarizeFrontendDiagnostics,
   type FrontendDiagnosticEntry
 } from '@/utils/developer-diagnostics';
 import modal from '@/utils/modal';
@@ -183,17 +189,21 @@ const loading = ref(false);
 const activeTab = ref<DiagnosticTab>('overview');
 const logSearch = ref('');
 
-const frontendErrorCount = computed(() =>
-  frontendLogs.value.filter((entry) => entry.level === 'error').length
+const frontendSummary = computed(() => summarizeFrontendDiagnostics(frontendLogs.value));
+const backendSummary = computed(() =>
+  summarizeBackendDiagnostics(diagnostics.value?.recentBackendLogs)
 );
-const frontendWarningCount = computed(() =>
-  frontendLogs.value.filter((entry) => entry.level === 'warn').length
-);
-const frontendIssueCount = computed(() => frontendErrorCount.value + frontendWarningCount.value);
-const backendErrorCount = computed(() => countMatches(diagnostics.value?.recentBackendLogs, '[ERROR]'));
-const backendWarningCount = computed(() => countMatches(diagnostics.value?.recentBackendLogs, '[WARN]'));
-const backendIssueCount = computed(() => backendErrorCount.value + backendWarningCount.value);
+const frontendErrorCount = computed(() => frontendSummary.value.errors);
+const frontendWarningCount = computed(() => frontendSummary.value.warnings);
+const frontendIssueCount = computed(() => frontendSummary.value.total);
+const backendErrorCount = computed(() => backendSummary.value.errors);
+const backendWarningCount = computed(() => backendSummary.value.warnings);
+const backendIssueCount = computed(() => backendSummary.value.total);
+const totalErrorCount = computed(() => frontendErrorCount.value + backendErrorCount.value);
 const totalIssueCount = computed(() => frontendIssueCount.value + backendIssueCount.value);
+const ignoredWarningCount = computed(
+  () => frontendSummary.value.ignoredWarnings + backendSummary.value.ignoredWarnings
+);
 const visibleWindowCount = computed(() =>
   diagnostics.value?.windows.filter((window) => window.visible).length || 0
 );
@@ -202,23 +212,25 @@ const frontendLogText = computed(() =>
   formatFrontendDiagnostics(frontendLogs.value) || t('settings.developer.empty')
 );
 const backendLogText = computed(() =>
-  diagnostics.value?.recentBackendLogs || t('settings.developer.empty')
+  redactDiagnosticText(diagnostics.value?.recentBackendLogs || '') || t('settings.developer.empty')
 );
 
 const reportText = computed(() => {
-  const { recentBackendLogs, ...summary } = diagnostics.value || {
+  const { recentBackendLogs: _recentBackendLogs, ...summary } = diagnostics.value || {
     recentBackendLogs: ''
   };
-  return [
-    '===== Environment =====',
-    JSON.stringify(summary, null, 2),
-    '',
-    '===== Frontend diagnostics =====',
-    frontendLogText.value,
-    '',
-    '===== Backend logs =====',
-    recentBackendLogs || t('settings.developer.empty')
-  ].join('\n');
+  return redactDiagnosticText(
+    [
+      '===== Environment =====',
+      JSON.stringify(summary, null, 2),
+      '',
+      '===== Frontend diagnostics =====',
+      frontendLogText.value,
+      '',
+      '===== Backend logs =====',
+      backendLogText.value
+    ].join('\n')
+  );
 });
 
 const tabs = computed(() => [
@@ -249,8 +261,10 @@ const matchedLineCount = computed(() => {
   return visibleLogText.value.split('\n').length;
 });
 
-const countMatches = (value: string | undefined, keyword: string): number =>
-  value?.split(keyword).length ? value.split(keyword).length - 1 : 0;
+const issueCardClass = (errorCount: number, issueCount: number): Record<string, boolean> => ({
+  'summary-card--danger': errorCount > 0,
+  'summary-card--warning': errorCount === 0 && issueCount > 0
+});
 
 const fileName = (path: string): string =>
   path.split(/[\\/]/).pop() || path;
@@ -348,9 +362,19 @@ onMounted(() => {
 }
 
 .developer-hint,
+.ignored-warning-hint,
 .empty-text {
   margin: 0;
   line-height: 1.6;
+}
+
+.ignored-warning-hint {
+  padding: 6px 9px;
+  color: #a16207;
+  background: rgb(245 158 11 / 8%);
+  border: 1px solid rgb(245 158 11 / 22%);
+  border-radius: 6px;
+  font-size: 12px;
 }
 
 .diagnostic-summary {
@@ -381,6 +405,10 @@ onMounted(() => {
 
   &--danger {
     border-left-color: #ef4444;
+  }
+
+  &--warning {
+    border-left-color: #f59e0b;
   }
 }
 
