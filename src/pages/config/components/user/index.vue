@@ -91,16 +91,6 @@
             />
           </div>
           <div class="form-row">
-            <span class="form-label">{{ $t('userCenter.gitToken') }}</span>
-            <el-input
-              v-model="gitForm.token"
-              type="password"
-              show-password
-              :placeholder="$t('settings.gitSync.tokenPlaceholder')"
-              class="form-input"
-            />
-          </div>
-          <div class="form-row">
             <span class="form-label">{{ $t('userCenter.gitRemote') }}</span>
             <el-input
               v-model="gitForm.remote_url"
@@ -179,14 +169,12 @@ import { getVersion } from '@tauri-apps/api/app';
 import { getGitSettings, updateGitSettings } from '@/api/appConfig';
 import { usePluginStore } from '@/store';
 import modal from '@/utils/modal';
-import type { GitSettings } from '@/types/models';
-
-type GitSyncApi = typeof import('@/plugins/git-sync/api');
+type GitSyncApi = typeof import('@/api/gitSync');
 
 let gitSyncApiPromise: Promise<GitSyncApi> | null = null;
 
 const loadGitSyncApi = async (): Promise<GitSyncApi> => {
-  gitSyncApiPromise ??= import('@/plugins/git-sync/api');
+  gitSyncApiPromise ??= import('@/api/gitSync');
   return gitSyncApiPromise;
 };
 
@@ -204,11 +192,10 @@ const gitConfigured = ref(false);
 const gitAccountInfo = ref<{ user_name: string; user_email: string; remote_url?: string } | null>(null);
 const hasWorkspace = computed(() => !!workspaceRoot.value?.trim());
 
-/** 个人中心 Git 配置表单（用户名、邮箱、Token、远程 URL） */
-const gitForm = ref<Pick<GitSettings, 'user_name' | 'user_email' | 'token' | 'remote_url'>>({
+/** 个人中心 Git 必要配置表单（用户名、邮箱、远程 URL） */
+const gitForm = ref({
   user_name: '',
   user_email: '',
-  token: '',
   remote_url: ''
 });
 const isSavingGit = ref(false);
@@ -252,7 +239,6 @@ const loadAppInfo = async () => {
       gitForm.value = {
         user_name: gitSettings.user_name || '',
         user_email: gitSettings.user_email || '',
-        token: gitSettings.token || '',
         remote_url: gitSettings.remote_url || ''
       };
       // 只要必要字段填了就标记为已配置（不再依赖 enabled）
@@ -302,23 +288,12 @@ const saveGitConfig = async () => {
   try {
     const gitSyncApi = await loadGitSyncApi();
 
-    // 先测试连接（Token + 远程仓库）
-    if (gitForm.value.token?.trim() && gitForm.value.remote_url?.trim()) {
-      try {
-        await gitSyncApi.testGitConnection(gitForm.value.remote_url, gitForm.value.token);
-      } catch (error) {
-        modal.error(String(error), 'bottom-right');
-        isSavingGit.value = false;
-        return;
-      }
-    }
-
     const current = await getGitSettings();
     await updateGitSettings({
       ...current,
       user_name: gitForm.value.user_name,
       user_email: gitForm.value.user_email,
-      token: gitForm.value.token,
+      token: '',
       remote_url: gitForm.value.remote_url
     });
     // 保存成功后，初始化本地 Git 仓库（配置用户、远程）
@@ -328,7 +303,7 @@ const saveGitConfig = async () => {
           gitForm.value.user_name,
           gitForm.value.user_email,
           gitForm.value.remote_url,
-          gitForm.value.token
+          ''
         );
       } catch (error) {
         console.warn('[UserCenter] 初始化 Git 仓库失败:', error);

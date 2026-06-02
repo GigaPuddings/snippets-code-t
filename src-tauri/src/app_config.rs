@@ -121,7 +121,7 @@ pub struct PluginRuntimeState {
 
 pub type PluginStates = HashMap<String, PluginRuntimeState>;
 
-const BUILTIN_PLUGIN_IDS: &[&str] = &[
+const HOST_PLUGIN_IDS: &[&str] = &[
     "translation",
     "screenshot",
     "screen-recorder",
@@ -132,52 +132,22 @@ const BUILTIN_PLUGIN_IDS: &[&str] = &[
     "quick-tools",
     "search-engines",
     "git-sync",
-    "attachments",
 ];
-
-const CORE_BUILTIN_PLUGIN_IDS: &[&str] = &["attachments"];
 
 fn default_plugin_enabled() -> bool {
     true
 }
 
-fn official_plugins_external_mode() -> bool {
-    let mode = std::env::var("SNIPPETS_OFFICIAL_PLUGINS_MODE")
-        .or_else(|_| std::env::var("VITE_OFFICIAL_PLUGINS_MODE"))
-        .ok()
-        .or_else(|| option_env!("SNIPPETS_OFFICIAL_PLUGINS_MODE").map(str::to_string));
-
-    mode.as_deref() != Some("bundled")
-}
-
-fn is_external_install_gated_builtin(plugin_id: &str) -> bool {
-    official_plugins_external_mode()
-        && BUILTIN_PLUGIN_IDS.contains(&plugin_id)
-        && !CORE_BUILTIN_PLUGIN_IDS.contains(&plugin_id)
+fn is_uninstalled_host_plugin(app_handle: &AppHandle, plugin_id: &str) -> bool {
+    HOST_PLUGIN_IDS.contains(&plugin_id) && !is_local_plugin_package_installed(app_handle, plugin_id)
 }
 
 fn default_plugin_states() -> PluginStates {
-    BUILTIN_PLUGIN_IDS
-        .iter()
-        .map(|id| {
-            (
-                (*id).to_string(),
-                PluginRuntimeState {
-                    enabled: default_plugin_enabled(),
-                },
-            )
-        })
-        .collect()
+    HashMap::new()
 }
 
-fn normalize_plugin_states(plugins: &mut PluginStates) {
-    for id in BUILTIN_PLUGIN_IDS {
-        plugins
-            .entry((*id).to_string())
-            .or_insert(PluginRuntimeState {
-                enabled: default_plugin_enabled(),
-            });
-    }
+fn normalize_plugin_states(_plugins: &mut PluginStates) {
+    // Official plugins are external packages. Do not synthesize default states here.
 }
 
 // Git 同步设置
@@ -666,9 +636,7 @@ struct PluginInstallProgressPayload {
 }
 
 pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
-    if is_external_install_gated_builtin(plugin_id)
-        && !is_local_plugin_package_installed(app_handle, plugin_id)
-    {
+    if is_uninstalled_host_plugin(app_handle, plugin_id) {
         return false;
     }
 
@@ -688,10 +656,8 @@ pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
 }
 
 fn apply_effective_plugin_state_gates(app_handle: &AppHandle, states: &mut HashMap<String, bool>) {
-    for plugin_id in BUILTIN_PLUGIN_IDS {
-        if is_external_install_gated_builtin(plugin_id)
-            && !is_local_plugin_package_installed(app_handle, plugin_id)
-        {
+    for plugin_id in HOST_PLUGIN_IDS {
+        if is_uninstalled_host_plugin(app_handle, plugin_id) {
             states.insert((*plugin_id).to_string(), false);
         }
     }

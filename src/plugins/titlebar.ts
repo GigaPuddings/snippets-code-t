@@ -1,5 +1,4 @@
-import { defineAsyncComponent, markRaw, type Component } from 'vue';
-import { isBundledOfficialPluginsMode } from './official-mode';
+import type { Component } from 'vue';
 import type { PluginId } from './types';
 
 export interface TitlebarPluginAction {
@@ -8,12 +7,4 @@ export interface TitlebarPluginAction {
   component: Component;
 }
 
-export const titlebarPluginActions: TitlebarPluginAction[] = isBundledOfficialPluginsMode
-  ? [
-      {
-        id: 'git-sync-status',
-        pluginId: 'git-sync',
-        component: markRaw(defineAsyncComponent(() => import('./git-sync/components/TitlebarGitStatus.vue')))
-      }
-    ]
-  : [];
+export const titlebarPluginActions: TitlebarPluginAction[] = [];

@@ -4,8 +4,6 @@ import type { PluginId, PluginStateMap } from './types';
 
 export const REGISTERED_PLUGINS: RegisteredPlugin[] = loadPluginRegistry();
 
-export const BUILTIN_PLUGINS: RegisteredPlugin[] = REGISTERED_PLUGINS.filter((plugin) => plugin.source === 'builtin');
-
 export const INSTALLED_PLUGINS: RegisteredPlugin[] = REGISTERED_PLUGINS;
 
 export const PLUGIN_IDS = INSTALLED_PLUGINS.map((plugin) => plugin.id);

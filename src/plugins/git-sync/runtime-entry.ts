@@ -13,5 +13,10 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     id: 'git-sync-status',
     component: defineAsyncComponent(() => import('./components/TitlebarGitStatus.vue'))
   });
+  context.registerHostComponent({
+    id: 'git-sync-runtime',
+    target: 'config',
+    component: defineAsyncComponent(() => import('./components/GitSyncRuntimeHost.vue'))
+  });
 };
 

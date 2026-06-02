@@ -13,7 +13,8 @@ const rl = readline.createInterface({
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
 const options = {
   pushMain: !args.includes('--no-push-main'),
-  allowDirty: args.includes('--allow-dirty')
+  allowDirty: args.includes('--allow-dirty'),
+  checkUpdates: args.includes('--check-updates')
 };
 
 const question = (query) => new Promise((resolveQuestion, rejectQuestion) => {
@@ -37,7 +38,9 @@ const question = (query) => new Promise((resolveQuestion, rejectQuestion) => {
 
 function formatPluginOption(row) {
   const kind = row.plugin.kind === 'resource' ? 'resource' : 'feature';
-  return `${row.plugin.id.padEnd(28)} ${row.version.padEnd(10)} ${kind.padEnd(8)} ${row.name}`;
+  const marker = row.needsUpdate ? '*' : ' ';
+  const reason = row.updateReasons.length ? ` ${row.updateReasons.join(', ')}` : '';
+  return `${marker} ${row.plugin.id.padEnd(28)} ${row.version.padEnd(10)} ${kind.padEnd(8)} ${row.name}${reason}`;
 }
 
 function clearSelect(lines) {
@@ -45,25 +48,28 @@ function clearSelect(lines) {
   readline.clearScreenDown(process.stdout);
 }
 
-async function selectPlugin(rows) {
+async function selectPlugins(rows) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    return choosePluginByText(rows);
+    return choosePluginsByText(rows);
   }
 
   readline.emitKeypressEvents(process.stdin);
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
 
   let index = 0;
+  const selected = new Set();
   let renderedLines = 0;
 
   const render = () => {
     if (renderedLines > 0) clearSelect(renderedLines);
-    console.log('\n请选择要更新的插件，使用 ↑/↓ 切换，Enter 确认，Esc 取消:\n');
+    console.log('\n请选择要更新的插件，使用 ↑/↓ 切换，Space 多选，a 全选/取消，Enter 确认，Esc 取消:');
+    console.log('* 表示检测到相关本地文件有改动\n');
     for (const [optionIndex, row] of rows.entries()) {
       const marker = optionIndex === index ? '>' : ' ';
-      console.log(`${marker} ${formatPluginOption(row)}`);
+      const checked = selected.has(optionIndex) ? '[x]' : '[ ]';
+      console.log(`${marker} ${checked} ${formatPluginOption(row)}`);
     }
-    renderedLines = rows.length + 3;
+    renderedLines = rows.length + 4;
   };
 
   render();
@@ -80,10 +86,28 @@ async function selectPlugin(rows) {
       } else if (key.name === 'down') {
         index = (index + 1) % rows.length;
         render();
+      } else if (key.name === 'space') {
+        if (selected.has(index)) {
+          selected.delete(index);
+        } else {
+          selected.add(index);
+        }
+        render();
+      } else if (key.name === 'a') {
+        if (selected.size === rows.length) {
+          selected.clear();
+        } else {
+          rows.forEach((_row, optionIndex) => selected.add(optionIndex));
+        }
+        render();
       } else if (key.name === 'return') {
         cleanup();
-        console.log(`\n已选择: ${rows[index].plugin.id}`);
-        resolveSelect(rows[index]);
+        const selectedIndexes = selected.size ? Array.from(selected) : [index];
+        const selectedRows = selectedIndexes
+          .sort((left, right) => left - right)
+          .map((selectedIndex) => rows[selectedIndex]);
+        console.log(`\n已选择: ${selectedRows.map((row) => row.plugin.id).join(', ')}`);
+        resolveSelect(selectedRows);
       } else if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
         cleanup();
         rejectSelect(new Error('操作已取消'));
@@ -121,30 +145,71 @@ function getPluginDisplayName(item) {
   return item?.name?.fallback ?? item?.name?.i18nKey ?? null;
 }
 
+const normalizeRepoPath = (path) => path.replaceAll('\\', '/');
+
+const pathStartsWith = (path, dir) => {
+  const normalizedPath = normalizeRepoPath(path);
+  const normalizedDir = normalizeRepoPath(dir).replace(/\/+$/g, '');
+  return normalizedPath === normalizedDir || normalizedPath.startsWith(`${normalizedDir}/`);
+};
+
+function pluginRelevantDirs(plugin) {
+  return [
+    plugin.sourceDir,
+    plugin.resourceSourceDir,
+    plugin.kind === 'feature' ? `src/plugins/${plugin.id}` : null
+  ].filter(Boolean);
+}
+
+function pluginChangedPaths(plugin, changedPaths) {
+  const dirs = pluginRelevantDirs(plugin);
+  return changedPaths.filter((path) => dirs.some((dir) => pathStartsWith(path, dir)));
+}
+
+function versionNeedsSync(marketplaceItem, manifest) {
+  return Boolean(
+    marketplaceItem?.version &&
+    manifest?.version &&
+    marketplaceItem.version !== manifest.version
+  );
+}
+
 async function getMarketplaceItemsById() {
   const marketplace = await readJson(MARKETPLACE_PATH);
   return new Map((marketplace.plugins ?? []).map((item) => [item.id, item]));
 }
 
 async function getSourceManifest(plugin) {
-  const manifestPath = resolve(ROOT, plugin.sourceDir, 'plugin.json');
+  const manifestPath = plugin.resourceSourceDir && existsSync(resolve(ROOT, plugin.resourceSourceDir, 'plugin.json'))
+    ? resolve(ROOT, plugin.resourceSourceDir, 'plugin.json')
+    : resolve(ROOT, plugin.sourceDir, 'plugin.json');
   if (!existsSync(manifestPath)) return null;
   return await readJson(manifestPath);
 }
 
-async function listPlugins() {
+async function listPlugins(changedPaths = []) {
   const marketplaceItemsById = await getMarketplaceItemsById();
   const rows = [];
 
   for (const plugin of pluginRepositories) {
     const marketplaceItem = marketplaceItemsById.get(plugin.id);
     const manifest = await getSourceManifest(plugin);
+    const changed = pluginChangedPaths(plugin, changedPaths);
+    const updateReasons = [
+      ...(changed.length ? [`changed:${changed.length}`] : []),
+      ...(versionNeedsSync(marketplaceItem, manifest)
+        ? [`version:${marketplaceItem.version}->${manifest.version}`]
+        : [])
+    ];
     rows.push({
       plugin,
       marketplaceItem,
       manifest,
       name: getPluginDisplayName(marketplaceItem) ?? getPluginDisplayName(manifest) ?? plugin.id,
-      version: marketplaceItem?.version ?? manifest?.version ?? 'unknown'
+      version: marketplaceItem?.version ?? manifest?.version ?? 'unknown',
+      changedPaths: changed,
+      updateReasons,
+      needsUpdate: updateReasons.length > 0
     });
   }
 
@@ -158,27 +223,38 @@ function printPluginList(rows) {
   }
 }
 
-async function choosePluginByText(rows) {
+async function choosePluginsByText(rows) {
   printPluginList(rows);
-  const answer = (await question('\n请选择要更新的插件序号或 ID: ')).trim();
-  const index = Number(answer);
-  const row = Number.isInteger(index) && index >= 1 && index <= rows.length
-    ? rows[index - 1]
-    : rows.find((item) => item.plugin.id === answer);
+  const answer = (await question('\n请选择要更新的插件序号或 ID（多个用空格或逗号分隔，changed 选择有改动项）: ')).trim();
+  const values = answer === 'changed'
+    ? rows.filter((row) => row.needsUpdate).map((row) => row.plugin.id)
+    : answer.split(/[,\s]+/).filter(Boolean);
 
-  if (!row) {
+  const selectedRows = values.map((value) => {
+    const index = Number(value);
+    return Number.isInteger(index) && index >= 1 && index <= rows.length
+      ? rows[index - 1]
+      : rows.find((item) => item.plugin.id === value);
+  });
+
+  if (selectedRows.some((row) => !row)) {
     throw new Error(`未知插件选择: ${answer}`);
   }
+  if (!selectedRows.length) {
+    throw new Error('未选择插件');
+  }
 
-  return row;
+  return [...new Map(selectedRows.map((row) => [row.plugin.id, row])).values()];
 }
 
-async function confirmRelease(row, version) {
+async function confirmRelease(rows, versionsByPluginId) {
   console.log('\n即将发布插件:');
-  console.log(`插件 ID: ${row.plugin.id}`);
-  console.log(`当前版本: ${row.version}`);
-  console.log(`新版本: ${version}`);
-  console.log(`仓库: GigaPuddings/${row.plugin.repo}`);
+  for (const row of rows) {
+    console.log(
+      `- ${row.plugin.id}: ${row.version} -> ${versionsByPluginId.get(row.plugin.id)} `
+      + `(GigaPuddings/${row.plugin.repo})`
+    );
+  }
   console.log(`主仓库同步: ${options.pushMain ? 'git add -A && git commit && git push origin main' : '已禁用'}`);
 
   const confirm = (await question('\n确认继续发布？(Y/n): ')).trim().toLowerCase();
@@ -194,6 +270,14 @@ async function askVersion(row) {
   const version = (await question('请输入新的插件版本号 (例如: 2.0.4): ')).trim();
   assertVersion(version);
   return version;
+}
+
+async function askVersions(rows) {
+  const versionsByPluginId = new Map();
+  for (const row of rows) {
+    versionsByPluginId.set(row.plugin.id, await askVersion(row));
+  }
+  return versionsByPluginId;
 }
 
 function gitOutput(args) {
@@ -247,12 +331,25 @@ async function confirmOverwritePluginTag(plugin, version) {
   return true;
 }
 
-async function assertDependencyTagsAvailable(row) {
+async function confirmOverwritePluginTags(rows, versionsByPluginId) {
+  const forceTagsByPluginId = new Map();
+  for (const row of rows) {
+    forceTagsByPluginId.set(
+      row.plugin.id,
+      await confirmOverwritePluginTag(row.plugin, versionsByPluginId.get(row.plugin.id))
+    );
+  }
+  return forceTagsByPluginId;
+}
+
+async function assertDependencyTagsAvailable(row, selectedPluginIds = new Set()) {
   const dependencies = row.marketplaceItem?.dependencies ?? [];
   if (dependencies.length === 0) return;
 
   const marketplaceItemsById = await getMarketplaceItemsById();
   for (const dependencyId of dependencies) {
+    if (selectedPluginIds.has(dependencyId)) continue;
+
     const dependency = marketplaceItemsById.get(dependencyId);
     const dependencyPlugin = pluginRepositories.find((plugin) => plugin.id === dependencyId);
     if (!dependencyPlugin || !dependency?.version) continue;
@@ -269,6 +366,13 @@ async function assertDependencyTagsAvailable(row) {
         + `请先运行 pnpm plugins:tag 发布 ${dependencyId} ${dependency.version}`
       );
     }
+  }
+}
+
+async function assertSelectedDependencyTagsAvailable(rows) {
+  const selectedPluginIds = new Set(rows.map((row) => row.plugin.id));
+  for (const row of rows) {
+    await assertDependencyTagsAvailable(row, selectedPluginIds);
   }
 }
 
@@ -304,7 +408,7 @@ function runBuildSteps(plugin, version) {
   }
 }
 
-function commitAndPushMainRepo(plugin, version) {
+function commitAndPushMainRepo(rows, versionsByPluginId) {
   if (!options.pushMain) {
     console.log('\n已按 --no-push-main 跳过主仓库提交和推送');
     return;
@@ -319,7 +423,11 @@ function commitAndPushMainRepo(plugin, version) {
   console.log(gitOutput(['status', '--short']));
 
   console.log('\n正在提交主仓库变更...');
-  run('git', ['add', '-A', '--', 'docs/plugin-marketplace/marketplace.json', plugin.sourceDir], { inherit: true });
+  const pluginPaths = rows.flatMap((row) => [
+    row.plugin.sourceDir,
+    row.plugin.resourceSourceDir
+  ]).filter(Boolean);
+  run('git', ['add', '-A', '--', 'docs/plugin-marketplace/marketplace.json', ...pluginPaths], { inherit: true });
   const unstagedChanges = [
     ...gitLines(['diff', '--name-only']),
     ...gitLines(['ls-files', '--others', '--exclude-standard'])
@@ -333,7 +441,10 @@ function commitAndPushMainRepo(plugin, version) {
     execSync('git diff --cached --quiet', { cwd: ROOT, stdio: 'ignore' });
     console.log('没有待提交的变更');
   } catch {
-    run('git', ['commit', '-m', `release(plugin): ${plugin.id} ${version}`, '--no-verify'], { inherit: true });
+    const releaseLabel = rows
+      .map((row) => `${row.plugin.id} ${versionsByPluginId.get(row.plugin.id)}`)
+      .join(', ');
+    run('git', ['commit', '-m', `release(plugin): ${releaseLabel}`, '--no-verify'], { inherit: true });
   }
 
   console.log('正在推送到 origin main...');
@@ -343,18 +454,47 @@ function commitAndPushMainRepo(plugin, version) {
 async function main() {
   try {
     console.log('🚀 snippets-code 插件发布工具');
+    const changedPaths = listMainRepoChanges();
+    const rows = await listPlugins(changedPaths);
+
+    if (options.checkUpdates) {
+      printPluginList(rows);
+      const changedRows = rows.filter((row) => row.needsUpdate);
+      if (!changedRows.length) {
+        console.log('\n未检测到需要更新的插件');
+        return;
+      }
+      console.log('\n检测到需要更新的插件:');
+      for (const row of changedRows) {
+        console.log(`- ${row.plugin.id}: ${row.updateReasons.join(', ')}`);
+        for (const path of row.changedPaths.slice(0, 8)) {
+          console.log(`  ${path}`);
+        }
+        if (row.changedPaths.length > 8) {
+          console.log(`  ... 还有 ${row.changedPaths.length - 8} 个文件`);
+        }
+      }
+      return;
+    }
+
     assertMainRepoClean();
-    const rows = await listPlugins();
-    const row = await selectPlugin(rows);
-    const version = await askVersion(row);
-    await confirmRelease(row, version);
-    await assertDependencyTagsAvailable(row);
-    const forceTag = await confirmOverwritePluginTag(row.plugin, version);
+    const selectedRows = await selectPlugins(rows);
+    const versionsByPluginId = await askVersions(selectedRows);
+    await confirmRelease(selectedRows, versionsByPluginId);
+    await assertSelectedDependencyTagsAvailable(selectedRows);
+    const forceTagsByPluginId = await confirmOverwritePluginTags(selectedRows, versionsByPluginId);
 
-    runBuildSteps(row.plugin, version);
+    for (const row of selectedRows) {
+      const version = versionsByPluginId.get(row.plugin.id);
+      runBuildSteps(row.plugin, version);
 
-    console.log('\n正在同步插件仓库、标签和 marketplace...');
-    run('node', syncArgsFor(row.plugin, version, forceTag), { inherit: true });
+      console.log(`\n正在同步 ${row.plugin.id} 插件仓库、标签和 marketplace...`);
+      run(
+        'node',
+        syncArgsFor(row.plugin, version, forceTagsByPluginId.get(row.plugin.id)),
+        { inherit: true }
+      );
+    }
 
     console.log('\n正在生成本地插件包索引...');
     run('pnpm', ['plugins:package'], { inherit: true });
@@ -362,9 +502,15 @@ async function main() {
     console.log('\n正在校验插件市场...');
     run('pnpm', ['plugins:verify-marketplace'], { inherit: true });
 
-    commitAndPushMainRepo(row.plugin, version);
+    commitAndPushMainRepo(selectedRows, versionsByPluginId);
 
-    console.log(`\n✨ 插件发布完成: ${row.plugin.id} ${version}`);
+    console.log(
+      `\n✨ 插件发布完成: ${
+        selectedRows
+          .map((row) => `${row.plugin.id} ${versionsByPluginId.get(row.plugin.id)}`)
+          .join(', ')
+      }`
+    );
   } catch (error) {
     console.error('❌ 错误:', error.message);
     process.exit(1);

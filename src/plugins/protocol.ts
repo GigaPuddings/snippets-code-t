@@ -1,8 +1,8 @@
 import type { PluginCategory, PluginId } from './types';
 
 export type PluginManifestSchemaVersion = 1;
-export type PluginPackageKind = 'builtin' | 'local';
-export type PluginSourceKind = 'builtin' | 'local';
+export type PluginPackageKind = 'local';
+export type PluginSourceKind = 'local';
 export type PluginBackendKind = 'native-host' | 'wasm' | 'script';
 
 export interface PluginI18nText {

@@ -125,7 +125,7 @@ async function refreshCanShowGitSyncTab() {
       canShowGitSyncTab.value = false;
       return;
     }
-    const { getGitStatus } = await import('@/plugins/git-sync/api');
+    const { getGitStatus } = await import('@/api/gitSync');
     const [status, settings] = await Promise.all([getGitStatus(), getGitSettings()]);
     const hasRequiredFields =
       !!settings.user_name?.trim() &&

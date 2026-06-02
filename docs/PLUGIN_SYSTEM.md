@@ -430,11 +430,12 @@ pnpm plugins:tag
 `pnpm tag` updates and tags only the desktop application. It does not change
 plugin manifests, plugin repositories, or marketplace versions.
 
-`pnpm plugins:tag` publishes one selected plugin independently: it builds the
-matching runtime, updates its manifest and marketplace entry, synchronizes the
-matching `snippets-code-plugin-*` repository, writes its Obsidian-style
-`versions.json`, creates the matching `<version>` tag, and verifies the
-marketplace.
+`pnpm plugins:tag` publishes one or more selected plugins independently: it
+builds each matching runtime, updates each manifest and marketplace entry,
+synchronizes the matching `snippets-code-plugin-*` repositories, writes their
+Obsidian-style `versions.json` files, creates the matching `<version>` tags, and
+verifies the marketplace. Use `pnpm plugins:tag -- --check-updates` to list
+plugins with related local changes before publishing.
 
 The app package is marked `private`, so there is no npm registry publish or npm
 dist-tag update in this workflow. The synchronized release tag is GitHub-based:
@@ -460,26 +461,18 @@ marketplace candidates.
 
 ### Official Plugin Mode
 
-Official feature plugins now default to the Obsidian-style external mode:
+Official feature plugins use the Obsidian-style external mode only:
 screenshots, OCR, translation, reminders, theme automation, search extensions,
 and Git sync must be installed from the marketplace before their entries,
 hotkeys, windows, and backend commands are available. Markdown, editor, and
 workspace behavior remain app core.
 
-For development only, the old bundled compatibility mode can be enabled with:
-
-```powershell
-$env:VITE_OFFICIAL_PLUGINS_MODE = "bundled"
-pnpm build
-```
-
-In default external mode, the bundled registry starts empty for official feature
-plugins. The settings marketplace treats `included` official entries that have
+The settings marketplace treats `included` official entries that have
 `packageUrl` as installable packages, then installs their manifest and compiled
 frontend runtime into `<app-data>/plugins/<plugin-id>`.
 
-Official plugin routes, settings tabs, titlebar actions, window shortcuts, and
-search providers are not statically registered in external mode. After a
+Official plugin routes, settings tabs, titlebar actions, host components, window
+shortcuts, and search providers are not statically registered. After a
 matching official manifest package is installed, the runtime bridge loads the
 official plugin entry and registers those capabilities for that installed
 plugin id.

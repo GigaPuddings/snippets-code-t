@@ -1,65 +1,5 @@
-import { attachmentsPlugin } from './attachments/manifest';
-import { desktopFilesPlugin } from './desktop-files/manifest';
-import { gitSyncPlugin } from './git-sync/manifest';
-import { localLauncherPlugin } from './local-launcher/manifest';
-import { quickToolsPlugin } from './quick-tools/manifest';
-import { screenRecorderPlugin } from './screen-recorder/manifest';
-import { screenshotPlugin } from './screenshot/manifest';
-import { searchEnginesPlugin } from './search-engines/manifest';
-import { systemThemePlugin } from './system-theme/manifest';
-import { todoPlugin } from './todo/manifest';
-import { translationPlugin } from './translation/manifest';
-import { isBundledOfficialPluginsMode } from './official-mode';
-import type { PluginCategory, PluginId, BuiltinPlugin } from './types';
+import type { PluginCategory, PluginId } from './types';
 import type { LocalPluginPackage, PluginPackageManifest, RegisteredPlugin } from './protocol';
-
-export const BUILTIN_PLUGIN_PACKAGES: BuiltinPlugin[] = [
-  translationPlugin,
-  screenshotPlugin,
-  todoPlugin,
-  systemThemePlugin,
-  localLauncherPlugin,
-  desktopFilesPlugin,
-  quickToolsPlugin,
-  screenRecorderPlugin,
-  searchEnginesPlugin,
-  gitSyncPlugin,
-  attachmentsPlugin
-];
-
-const DEFAULT_PLUGIN_VERSION = '1.0.0';
-
-const fallbackName = (id: PluginId): string => String(id);
-
-export const createBuiltinPackageManifest = (plugin: BuiltinPlugin): PluginPackageManifest => ({
-  schemaVersion: 1,
-  id: plugin.id,
-  version: plugin.version ?? DEFAULT_PLUGIN_VERSION,
-  kind: 'builtin',
-  name: {
-    i18nKey: plugin.nameKey,
-    fallback: plugin.fallbackName ?? fallbackName(plugin.id)
-  },
-  description: {
-    i18nKey: plugin.descriptionKey,
-    fallback: plugin.fallbackDescription ?? ''
-  },
-  category: plugin.category,
-  enabledByDefault: plugin.enabledByDefault,
-  capabilities: {
-    routeNames: plugin.routeNames,
-    settingsTabs: plugin.settingsTabs,
-    hotkeys: plugin.hotkeys,
-    searchSources: plugin.searchSources
-  },
-  dependencies: plugin.dependencies,
-  resources: plugin.resourceHintKey
-    ? {
-        hintKey: plugin.resourceHintKey,
-        bundled: false
-      }
-    : undefined
-});
 
 export const createRegisteredPlugin = (
   manifest: PluginPackageManifest,
@@ -118,7 +58,7 @@ export const normalizePluginPackageManifest = (
   if (value.schemaVersion !== 1) return null;
   if (typeof value.id !== 'string' || !value.id.trim()) return null;
   if (typeof value.version !== 'string' || !value.version.trim()) return null;
-  if (value.kind !== 'builtin' && value.kind !== 'local') return null;
+  if (value.kind !== 'local') return null;
   if (!isObject(value.name) || typeof value.name.i18nKey !== 'string' || typeof value.name.fallback !== 'string') return null;
   if (!isObject(value.description) || typeof value.description.i18nKey !== 'string' || typeof value.description.fallback !== 'string') return null;
   if (!isPluginCategory(value.category)) return null;
@@ -155,10 +95,6 @@ export const normalizePluginPackageManifest = (
   };
 };
 
-export const loadBuiltinPluginManifests = (): PluginPackageManifest[] => (
-  BUILTIN_PLUGIN_PACKAGES.map(createBuiltinPackageManifest)
-);
-
 export const loadLocalPluginPackages = (
   manifests: unknown[]
 ): LocalPluginPackage[] => (
@@ -189,10 +125,6 @@ export const loadLocalPluginManifests = (
 export const loadPluginRegistry = (
   localManifests: unknown[] = []
 ): RegisteredPlugin[] => {
-  const builtinPlugins = isBundledOfficialPluginsMode
-    ? loadBuiltinPluginManifests().map((manifest) => createRegisteredPlugin(manifest, 'builtin'))
-    : [];
-
   const localPlugins = loadLocalPluginPackages(localManifests)
     .map((pluginPackage) => (
       createRegisteredPlugin(
@@ -205,7 +137,6 @@ export const loadPluginRegistry = (
     .sort(compareLocalPluginsByInstallTime);
 
   const registered = [
-    ...builtinPlugins,
     ...localPlugins
   ];
 

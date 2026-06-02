@@ -20,6 +20,10 @@ import {
 } from './settings';
 import { titlebarPluginActions, type TitlebarPluginAction } from './titlebar';
 import { pluginWindowShortcuts, type PluginWindowShortcut } from './windows';
+import {
+  pluginHostComponents,
+  type PluginHostComponentTarget
+} from './host-components';
 import { logger } from '@/utils/logger';
 import {
   assertCanInvokeBackendCommand,
@@ -63,6 +67,13 @@ interface RuntimeWindowShortcutRegistration {
   closeCommandLabel?: string;
 }
 
+interface RuntimeHostComponentRegistration {
+  id: string;
+  target?: PluginHostComponentTarget;
+  component?: Component;
+  componentUrl?: string;
+}
+
 type RuntimeCleanup = () => void | Promise<void>;
 type RuntimeActivationResult =
   | void
@@ -97,6 +108,7 @@ export interface PluginFrontendRuntimeContext {
   registerSearchProvider(provider: RuntimeSearchProviderRegistration): void;
   registerTitlebarAction(action: RuntimeTitlebarActionRegistration): void;
   registerWindowShortcut(shortcut: RuntimeWindowShortcutRegistration): void;
+  registerHostComponent(component: RuntimeHostComponentRegistration): void;
 }
 
 interface PluginFrontendModule {
@@ -762,6 +774,31 @@ const createRuntimeContext = (
       pluginId: plugin.id,
       closeCommandLabel: shortcut.closeCommandLabel
     } satisfies PluginWindowShortcut);
+  },
+  registerHostComponent(hostComponent) {
+    const target = hostComponent.target ?? 'config';
+    const nextComponent = {
+      id: hostComponent.id,
+      pluginId: plugin.id,
+      target,
+      component: pluginComponent(
+        plugin,
+        hostComponent.component,
+        hostComponent.componentUrl
+      )
+    };
+    const existingIndex = pluginHostComponents.findIndex(
+      (candidate) =>
+        candidate.pluginId === plugin.id &&
+        candidate.id === hostComponent.id &&
+        candidate.target === target
+    );
+
+    if (existingIndex === -1) {
+      pluginHostComponents.push(nextComponent);
+    } else {
+      pluginHostComponents[existingIndex] = nextComponent;
+    }
   }
 });
 
@@ -793,23 +830,6 @@ const activateFrontendModule = async (
   if (typeof result?.dispose === 'function') {
     addRuntimeCleanup(pluginId, result.dispose);
   }
-};
-
-const activateOfficialPluginRuntime = async (
-  context: PluginFrontendRuntimeContext
-): Promise<boolean> => {
-  const { activateOfficialLocalPlugin } = await import('./official-runtime');
-  return activateOfficialLocalPlugin(context);
-};
-
-const activateBundledOfficialLocalPlugin = async (
-  context: PluginFrontendRuntimeContext
-): Promise<boolean> => {
-  if (import.meta.env.VITE_OFFICIAL_PLUGINS_MODE !== 'bundled') {
-    return false;
-  }
-
-  return activateOfficialPluginRuntime(context);
 };
 
 const ensurePluginStyles = (plugin: RegisteredPlugin): void => {
@@ -861,20 +881,7 @@ export const ensureLocalPluginFrontendEntries = async (
       continue;
     }
 
-    try {
-      const activated = await activateBundledOfficialLocalPlugin(
-        createRuntimeContext(plugin)
-      );
-      if (activated) {
-        loadedFrontendEntries.add(String(plugin.id));
-      }
-    } catch (error) {
-      clearRuntimePluginRegistrations(String(plugin.id));
-      logger.warn(
-        `[PluginRuntime] 加载官方插件运行时失败: ${plugin.id}`,
-        error
-      );
-    }
+    logger.warn(`[PluginRuntime] 本地插件缺少前端入口: ${plugin.id}`);
   }
 };
 
@@ -964,6 +971,12 @@ export function clearRuntimePluginRegistrations(pluginId: string): void {
   for (let index = pluginWindowShortcuts.length - 1; index >= 0; index -= 1) {
     if (pluginWindowShortcuts[index].pluginId === pluginId) {
       pluginWindowShortcuts.splice(index, 1);
+    }
+  }
+
+  for (let index = pluginHostComponents.length - 1; index >= 0; index -= 1) {
+    if (pluginHostComponents[index].pluginId === pluginId) {
+      pluginHostComponents.splice(index, 1);
     }
   }
 }

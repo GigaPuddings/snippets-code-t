@@ -112,12 +112,12 @@ import { htmlToMarkdown, createTurndownService, markdownToHtml, jsonToMarkdown }
 import { getWorkspaceRoot } from '@/api/markdown';
 import { syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/plugins/attachments/api';
 
-type GitSyncApi = typeof import('@/plugins/git-sync/api');
+type GitSyncApi = typeof import('@/api/gitSync');
 
 let gitSyncApiPromise: Promise<GitSyncApi> | null = null;
 
 const loadGitSyncApi = async (): Promise<GitSyncApi> => {
-  gitSyncApiPromise ??= import('@/plugins/git-sync/api');
+  gitSyncApiPromise ??= import('@/api/gitSync');
   return gitSyncApiPromise;
 };
 

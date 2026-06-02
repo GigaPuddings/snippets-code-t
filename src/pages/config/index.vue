@@ -5,10 +5,12 @@
         <component :is="Component" />
       </keep-alive>
     </router-view>
-    
-    <GitSyncRuntimeMount
-      :runtime="gitSyncRuntime"
-      :should-init="gitSyncRuntimeShouldInit"
+
+    <component
+      v-for="hostComponent in configHostComponents"
+      :key="`${hostComponent.pluginId}:${hostComponent.id}`"
+      :is="hostComponent.component"
+      :config-host-context="configHostContext"
     />
   </div>
 </template>
@@ -19,8 +21,7 @@ import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
-import GitSyncRuntimeMount from '@/plugins/git-sync/components/GitSyncRuntimeMount.vue';
-import { useGitSyncRuntimeFacade } from '@/plugins/git-sync/useGitSyncRuntimeFacade';
+import { pluginHostComponents } from '@/plugins/host-components';
 import { useConfigNavigationEvents } from './composables/useConfigNavigationEvents';
 import { useConfigStartup } from './composables/useConfigStartup';
 import { useConfigLifecycle } from './composables/useConfigLifecycle';
@@ -33,15 +34,13 @@ defineOptions({
 });
 
 const router = useRouter();
-
-const gitSyncRuntime = useGitSyncRuntimeFacade({
-  t,
-  modalMsg: modal.msg.bind(modal),
-  routeToGitSettings: () => router.push('/config/category/settings?tab=gitSync'),
-  isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
-  logger
+const configHostComponents = computed(() => {
+  pluginStore.runtimeRevision;
+  return pluginHostComponents.filter((component) => component.target === 'config');
 });
-const gitSyncRuntimeShouldInit = ref<boolean | null>(null);
+const configHostContext = reactive<{ shouldInit: boolean | null }>({
+  shouldInit: null
+});
 const configNavigationEvents = useConfigNavigationEvents({
   router,
   t,
@@ -51,7 +50,7 @@ const configStartup = useConfigStartup({
   initializePlugins: () => pluginStore.initialize(),
   onReadyNavigationCheck: configNavigationEvents.checkPendingNavigationRequests,
   onShouldInit: (shouldInit) => {
-    gitSyncRuntimeShouldInit.value = shouldInit;
+    configHostContext.shouldInit = shouldInit;
   },
   logger
 });

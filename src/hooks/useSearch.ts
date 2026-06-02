@@ -10,7 +10,7 @@ import {
   type ComputedRef,
   computed
 } from 'vue';
-import type { UnlistenFn } from '@tauri-apps/api/event';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   ContentType,
   SearchEngine,
@@ -24,18 +24,6 @@ import {
   rankSearchResults,
   type SearchHistoryMeta
 } from './searchRanking';
-
-type SearchEngineRuntime =
-  typeof import('@/plugins/search-engines/searchRuntime');
-
-let searchEngineRuntimePromise: Promise<SearchEngineRuntime> | null = null;
-
-const loadSearchEngineRuntime = async (): Promise<SearchEngineRuntime> => {
-  searchEngineRuntimePromise ??= import(
-    '@/plugins/search-engines/searchRuntime'
-  );
-  return searchEngineRuntimePromise;
-};
 
 const isWorkspaceSearchUnavailableError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error);
@@ -143,6 +131,83 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     }
   });
 
+  const loadSearchEngines = async (): Promise<SearchEngine[]> => {
+    if (!pluginStore.isEnabled('search-engines')) {
+      return [];
+    }
+
+    const engines = await invoke<SearchEngine[]>('get_search_engines');
+    return Array.isArray(engines) ? engines : [];
+  };
+
+  const listenSearchEngineUpdates = async (
+    onUpdate: (engines: SearchEngine[]) => void
+  ): Promise<UnlistenFn> => (
+    listen('search-engines-updated', (event: { payload: unknown }) => {
+      if (Array.isArray(event.payload)) {
+        onUpdate(event.payload as SearchEngine[]);
+      }
+    })
+  );
+
+  const findSearchEngine = (
+    engines: SearchEngine[],
+    text: string,
+    forceSearch = false
+  ): { engine: SearchEngine; query: string } | null => {
+    const parts = text.trim().split(/\s+/);
+    if (!((parts.length >= 2 || forceSearch) && parts.length > 0)) {
+      return null;
+    }
+
+    const keyword = parts[0];
+    const query = parts.slice(1).join(' ');
+    const engine =
+      engines.find((item) => item.name === keyword) ??
+      engines.find((item) => item.keyword === keyword);
+
+    return engine ? { engine, query } : null;
+  };
+
+  const createEngineShortcutResult = (
+    engine: SearchEngine,
+    query: string
+  ): ContentType => ({
+    id: `search-${engine.id}`,
+    title: `使用 ${engine.name} 搜索: ${query}`,
+    content: engine.url.replace('%s', encodeURIComponent(query || '')),
+    summarize: 'search',
+    icon: engine.icon
+  });
+
+  const openSearchEngine = async (
+    engine: SearchEngine,
+    query: string
+  ): Promise<void> => {
+    const searchUrl = engine.url.replace('%s', encodeURIComponent(query || ''));
+    await invoke('open_url', { url: searchUrl });
+    await invoke('show_hide_window_command', { label: 'search' });
+  };
+
+  const getDefaultSearchEngine = (
+    engines: SearchEngine[]
+  ): SearchEngine | undefined => (
+    pluginStore.isEnabled('search-engines')
+      ? engines.find((engine) => engine.enabled)
+      : undefined
+  );
+
+  const createDefaultSearchResult = (
+    engine: SearchEngine,
+    query: string
+  ): ContentType => ({
+    id: 'default-search',
+    title: `使用 ${engine.name} 搜索: ${query}`,
+    content: engine.url.replace('%s', encodeURIComponent(query)),
+    summarize: 'search',
+    icon: engine.icon
+  });
+
   /**
    * 处理搜索引擎快捷方式
    * @param text - 搜索文本
@@ -159,8 +224,6 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     }
 
     try {
-      const { createEngineShortcutResult, findSearchEngine, openSearchEngine } =
-        await loadSearchEngineRuntime();
       const match = findSearchEngine(searchEngines.value, text, forceSearch);
       if (!match) {
         return false;
@@ -226,11 +289,9 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       return;
     }
 
-    const { listenSearchEngineUpdates, loadSearchEngines } =
-      await loadSearchEngineRuntime();
     if (!isSearchActive) return;
 
-    const engines = await loadSearchEngines(pluginStore);
+    const engines = await loadSearchEngines();
     if (!isSearchActive) return;
 
     searchEngines.value = engines;
@@ -353,14 +414,9 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       // 4. 默认搜索引擎选项（仅在非 URL 时显示）
       let defaultSearchResult: ContentType | null = null;
       if (pluginStore.isEnabled('search-engines')) {
-        const { createDefaultSearchResult, getDefaultSearchEngine } =
-          await loadSearchEngineRuntime();
         if (!isLatestSearchRequest(requestVersion)) return;
 
-        const defaultEngine = getDefaultSearchEngine(
-          pluginStore,
-          searchEngines.value
-        );
+        const defaultEngine = getDefaultSearchEngine(searchEngines.value);
         if (defaultEngine) {
           defaultSearchResult = withSourceId(
             createDefaultSearchResult(defaultEngine, query),
@@ -432,12 +488,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
 
       // 3. 使用默认搜索引擎
       if (pluginStore.isEnabled('search-engines')) {
-        const { getDefaultSearchEngine, openSearchEngine } =
-          await loadSearchEngineRuntime();
-        const defaultEngine = getDefaultSearchEngine(
-          pluginStore,
-          searchEngines.value
-        );
+        const defaultEngine = getDefaultSearchEngine(searchEngines.value);
         if (defaultEngine) {
           // add history
           await addSearchHistory('default-search');
