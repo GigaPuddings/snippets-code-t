@@ -101,7 +101,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            version: Some("1.0.0".to_string()),
+            version: Some(env!("CARGO_PKG_VERSION").to_string()),
             theme: Some("auto".to_string()),
             language: Some("zh-CN".to_string()),
             auto_start: Some(false),

@@ -21,6 +21,7 @@
     "tag": "node scripts/tag.mjs",
     "release-notes": "node scripts/format-release-notes.mjs",
     "release-notes:copy": "node scripts/format-release-notes.mjs --copy",
+    "release:check": "node scripts/verify-release-versions.mjs && pnpm plugins:verify-marketplace -- --local",
     "rapidocr:install": "node scripts/install-rapidocr.mjs",
     "rapidocr:package": "node scripts/package-rapidocr-plugin.mjs",
     "rapidocr:release": "pnpm rapidocr:package && node scripts/sync-plugin-repositories.mjs --only screenshot-rapidocr --include-rapidocr-resource --pin-marketplace-tags --force-tag",

@@ -64,6 +64,20 @@ async function hasChanges(files) {
   }
 }
 
+function updateCargoPackageVersion(content, version) {
+  return content.replace(
+    /(\[package\][\s\S]*?\nversion\s*=\s*")[^"]+(")/,
+    `$1${version}$2`
+  );
+}
+
+function updateCargoLockPackageVersion(content, version) {
+  return content.replace(
+    /(\[\[package\]\]\s*\nname\s*=\s*"snippets-code"\s*\nversion\s*=\s*")[^"]+(")/,
+    `$1${version}$2`
+  );
+}
+
 async function getReleaseNotes() {
   try {
     const content = await fs.readFile(RELEASE_NOTES_PATH, 'utf-8');
@@ -140,6 +154,8 @@ async function updateVersion() {
     const filesToUpdate = [
       'package.json',
       'src-tauri/tauri.conf.json',
+      'src-tauri/Cargo.toml',
+      'src-tauri/Cargo.lock',
       'RELEASE_NOTES.md'
     ];
 
@@ -156,6 +172,21 @@ async function updateVersion() {
     const tauriConfig = require(tauriConfigPath);
     tauriConfig.version = version;
     await fs.writeFile(tauriConfigPath, JSON.stringify(tauriConfig, null, 2) + '\n');
+
+    // 更新 Cargo.toml
+    console.log('正在更新 Cargo.toml...');
+    const cargoTomlPath = path.resolve(__dirname, '../src-tauri/Cargo.toml');
+    const cargoToml = await fs.readFile(cargoTomlPath, 'utf8');
+    await fs.writeFile(cargoTomlPath, updateCargoPackageVersion(cargoToml, version));
+
+    // 更新 Cargo.lock 中主应用包版本，保持 Windows 文件版本和发布版本一致。
+    console.log('正在更新 Cargo.lock...');
+    const cargoLockPath = path.resolve(__dirname, '../src-tauri/Cargo.lock');
+    const cargoLock = await fs.readFile(cargoLockPath, 'utf8');
+    await fs.writeFile(cargoLockPath, updateCargoLockPackageVersion(cargoLock, version));
+
+    console.log('正在校验发布版本一致性...');
+    execCommand('node scripts/verify-release-versions.mjs');
 
     // Git 操作
     console.log('\n正在提交更改...');

@@ -64,6 +64,11 @@ pub async fn check_update(app: &AppHandle, show_notification: bool) -> Result<bo
                         Ok(true)
                     } else {
                         let _ = json_config::set_app_config_value(app, "update_available", false);
+                        let _ = json_config::set_app_config_value::<Option<UpdateInfo>>(
+                            app,
+                            "update_info",
+                            None,
+                        );
                         if show_notification {
                             if let Err(e) = app
                                 .notification()
@@ -126,6 +131,10 @@ pub fn get_update_status(app: AppHandle) -> bool {
 // 获取更新信息
 #[tauri::command]
 pub fn get_update_info(app: AppHandle) -> Option<UpdateInfo> {
+    if !get_update_status(app.clone()) {
+        return None;
+    }
+
     json_config::get_app_config_value(&app, "update_info")
 }
 
@@ -176,6 +185,11 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
                         // 更新完成后重置更新状态
                         let _ =
                             json_config::set_app_config_value(app_clone, "update_available", false);
+                        let _ = json_config::set_app_config_value::<Option<UpdateInfo>>(
+                            app_clone,
+                            "update_info",
+                            None,
+                        );
                     },
                 )
                 .await
@@ -183,6 +197,8 @@ pub async fn perform_update(app: AppHandle) -> Result<(), String> {
 
             // 再次确保更新状态被重置
             let _ = json_config::set_app_config_value(&app, "update_available", false);
+            let _ =
+                json_config::set_app_config_value::<Option<UpdateInfo>>(&app, "update_info", None);
 
             Ok(())
         } else {

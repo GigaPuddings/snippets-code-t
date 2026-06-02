@@ -256,6 +256,17 @@ fn copy_option_if_empty<T: Clone>(target: &mut Option<T>, source: &Option<T>) ->
     false
 }
 
+fn current_app_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+fn update_info_version(update_info: &Option<serde_json::Value>) -> Option<&str> {
+    update_info
+        .as_ref()
+        .and_then(|value| value.get("version"))
+        .and_then(|value| value.as_str())
+}
+
 // 应用配置管理器
 pub struct AppConfigManager {
     config_path: PathBuf,
@@ -266,6 +277,25 @@ impl AppConfigManager {
     fn sanitize_git_settings(settings: &mut GitSettings) {
         settings.remote_url = crate::git_common::remove_token_from_url(&settings.remote_url);
         settings.token.clear();
+    }
+
+    fn normalize_runtime_metadata(config: &mut AppConfig) {
+        let current_version = current_app_version();
+        if config.version != current_version {
+            config.version = current_version.to_string();
+        }
+
+        let cached_update_is_current_or_older = update_info_version(&config.update_info)
+            .is_some_and(|version| {
+                compare_semver(version, current_version) != std::cmp::Ordering::Greater
+            });
+
+        if config.update_available != Some(true) || cached_update_is_current_or_older {
+            if cached_update_is_current_or_older {
+                config.update_available = Some(false);
+            }
+            config.update_info = None;
+        }
     }
 
     /// 创建新的配置管理器
@@ -318,6 +348,7 @@ impl AppConfigManager {
 
         normalize_plugin_states(&mut config.plugins);
         Self::sanitize_git_settings(&mut config.git);
+        Self::normalize_runtime_metadata(&mut config);
 
         let manager = Self {
             config_path,
@@ -374,6 +405,7 @@ impl AppConfigManager {
     pub fn update_config(&mut self, config: AppConfig) {
         let mut config = config;
         Self::sanitize_git_settings(&mut config.git);
+        Self::normalize_runtime_metadata(&mut config);
         self.config = config;
     }
 
@@ -2278,6 +2310,38 @@ mod plugin_validation_tests {
         );
         assert_eq!(compare_semver("2.0", "2.0.0"), std::cmp::Ordering::Equal);
         assert_eq!(compare_semver("2.0.1", "2.1.0"), std::cmp::Ordering::Less);
+    }
+
+    #[test]
+    fn normalize_runtime_metadata_updates_app_version_and_clears_stale_update_info() {
+        let mut config = AppConfig::default();
+        config.version = "0.2.0".to_string();
+        config.update_available = Some(true);
+        config.update_info = Some(json!({
+            "version": current_app_version(),
+            "notes": "already installed"
+        }));
+
+        AppConfigManager::normalize_runtime_metadata(&mut config);
+
+        assert_eq!(config.version, current_app_version());
+        assert_eq!(config.update_available, Some(false));
+        assert!(config.update_info.is_none());
+    }
+
+    #[test]
+    fn normalize_runtime_metadata_preserves_future_update_info() {
+        let mut config = AppConfig::default();
+        config.update_available = Some(true);
+        config.update_info = Some(json!({
+            "version": "9999.0.0",
+            "notes": "future update"
+        }));
+
+        AppConfigManager::normalize_runtime_metadata(&mut config);
+
+        assert_eq!(config.update_available, Some(true));
+        assert!(config.update_info.is_some());
     }
 
     #[test]
