@@ -37,6 +37,7 @@ const formatNowMs = ref(Date.now());
 let formatTickTimer: ReturnType<typeof setInterval> | null = null;
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 let unlistenHandlers: UnlistenFn[] = [];
+let lifecycleRunId = 0;
 
 const router = useRouter();
 const pluginStore = usePluginStore();
@@ -126,27 +127,39 @@ function scheduleRefresh(): void {
 }
 
 async function setupGitStatusListener(): Promise<void> {
-  formatTickTimer = setInterval(() => {
-    formatNowMs.value = Date.now();
-  }, 60000);
+  if (unlistenHandlers.length > 0) return;
 
-  unlistenHandlers = await Promise.all([
-    listen('git-pull-start', () => {
-      syncState.value = 'syncing';
-    }),
-    listen('git-push-start', () => {
-      syncState.value = 'syncing';
-    }),
-    listen<{ success: boolean; last_sync_time?: string }>('git-sync-complete', (event) => {
-      if (event.payload.success) {
-        lastSyncTime.value = event.payload.last_sync_time ?? lastSyncTime.value;
-        scheduleRefresh();
-      } else {
-        syncState.value = 'error';
-      }
-    }),
-    listen('git-workspace-changed', scheduleRefresh)
-  ]);
+  if (!formatTickTimer) {
+    formatTickTimer = setInterval(() => {
+      formatNowMs.value = Date.now();
+    }, 60000);
+  }
+
+  try {
+    unlistenHandlers = await Promise.all([
+      listen('git-pull-start', () => {
+        syncState.value = 'syncing';
+      }),
+      listen('git-push-start', () => {
+        syncState.value = 'syncing';
+      }),
+      listen<{ success: boolean; last_sync_time?: string }>('git-sync-complete', (event) => {
+        if (event.payload.success) {
+          lastSyncTime.value = event.payload.last_sync_time ?? lastSyncTime.value;
+          scheduleRefresh();
+        } else {
+          syncState.value = 'error';
+        }
+      }),
+      listen('git-workspace-changed', scheduleRefresh),
+      listen('git-settings-changed', () => {
+        void refreshGitStatusLifecycle();
+      })
+    ]);
+  } catch (error) {
+    cleanupGitStatusListener();
+    throw error;
+  }
 }
 
 function cleanupGitStatusListener(): void {
@@ -158,8 +171,33 @@ function cleanupGitStatusListener(): void {
     clearTimeout(refreshTimer);
     refreshTimer = null;
   }
-  unlistenHandlers.forEach((unlisten) => unlisten());
+  unlistenHandlers.forEach((unlisten) => {
+    try {
+      unlisten();
+    } catch {
+      // ignore stale listener cleanup
+    }
+  });
   unlistenHandlers = [];
+}
+
+async function refreshGitStatusLifecycle(): Promise<void> {
+  const runId = ++lifecycleRunId;
+
+  await refreshSettings();
+  if (runId !== lifecycleRunId) return;
+
+  if (!isGitPluginEnabled.value) {
+    cleanupGitStatusListener();
+    gitStatus.value = null;
+    syncState.value = 'disabled';
+    return;
+  }
+
+  await setupGitStatusListener();
+  if (runId !== lifecycleRunId) return;
+
+  await refreshStatus();
 }
 
 const canOpenGitSettings = computed(() => (
@@ -203,15 +241,18 @@ function handleStatusClick(): void {
 
 onMounted(async () => {
   await pluginStore.initialize();
-  await refreshSettings();
-  if (!isGitPluginEnabled.value) {
-    return;
-  }
-  await setupGitStatusListener();
-  await refreshStatus();
+  await refreshGitStatusLifecycle();
 });
 
+watch(
+  () => [pluginStore.runtimeRevision, isGitPluginEnabled.value],
+  () => {
+    void refreshGitStatusLifecycle();
+  }
+);
+
 onUnmounted(() => {
+  lifecycleRunId += 1;
   cleanupGitStatusListener();
 });
 </script>

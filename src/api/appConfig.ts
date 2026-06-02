@@ -4,6 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { emit } from '@tauri-apps/api/event';
 import type { AppConfig, GitSettings } from '@/types/models';
 
 /**
@@ -49,6 +50,7 @@ export async function getGitSettings(): Promise<GitSettings> {
 export async function updateGitSettings(settings: GitSettings): Promise<void> {
   try {
     await invoke('update_git_settings_command', { settings });
+    void emit('git-settings-changed').catch(() => undefined);
   } catch (error) {
     throw new Error(`更新 Git 设置失败: ${error}`);
   }
