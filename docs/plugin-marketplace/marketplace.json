@@ -299,7 +299,7 @@
     },
     {
       "id": "quick-tools",
-      "version": "2.0.6",
+      "version": "2.0.7",
       "name": {
         "i18nKey": "plugins.quickTools.name",
         "fallback": "Quick Tools"
@@ -309,7 +309,7 @@
         "fallback": "Calculator, unit conversion, and live currency conversion in quick search."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.6.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/tags/2.0.7.zip",
       "builtinPluginId": "quick-tools",
       "status": "included",
       "sizeBytes": 14324,
@@ -322,7 +322,7 @@
       "minAppVersion": "2.0.2",
       "compatibleAppVersion": ">=2.0.2",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/releases/tag/2.0.6"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/releases/tag/2.0.7"
     },
     {
       "id": "git-sync",
