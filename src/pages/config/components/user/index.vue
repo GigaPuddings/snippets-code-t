@@ -55,6 +55,20 @@
         </template>
       </div>
 
+      <!-- Git 插件不可用时给出明确引导，避免必要配置静默消失 -->
+      <div v-if="!isGitSyncEnabled" class="git-plugin-guide-card">
+        <div class="git-plugin-guide-icon">
+          <Github theme="outline" size="24" :strokeWidth="3" />
+        </div>
+        <div class="git-plugin-guide-content">
+          <h4 class="git-plugin-guide-title">{{ $t('userCenter.gitPluginUnavailableTitle') }}</h4>
+          <p class="git-plugin-guide-desc">{{ $t('userCenter.gitPluginUnavailableDesc') }}</p>
+          <CustomButton type="primary" size="small" @click="goToPluginSettings">
+            {{ $t('userCenter.goToPluginSettings') }}
+          </CustomButton>
+        </div>
+      </div>
+
       <!-- 工作区引导：没有工作区时不展示 Git 必要配置 -->
       <div v-if="isGitSyncEnabled && !hasWorkspace" class="workspace-guide-card">
         <div class="workspace-guide-icon">
@@ -345,6 +359,16 @@ const goToWorkspaceSettings = () => {
   }
 };
 
+// 跳转到插件设置
+const goToPluginSettings = () => {
+  try {
+    router.push({ path: '/config/category/settings', query: { tab: 'plugins' } });
+  } catch (error) {
+    console.error('[UserCenter] 路由跳转失败:', error);
+    modal.error('跳转失败: ' + error);
+  }
+};
+
 // 打开数据目录
 const openDataDir = async () => {
   try {
@@ -451,11 +475,23 @@ onActivated(() => {
   @apply flex gap-4 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-lg;
 }
 
+.git-plugin-guide-card {
+  @apply flex gap-4 p-4 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg;
+}
+
 .workspace-guide-icon {
   @apply flex-shrink-0 w-12 h-12 flex items-center justify-center bg-yellow-100 dark:bg-yellow-900/20 rounded-lg text-yellow-700 dark:text-yellow-400;
 }
 
+.git-plugin-guide-icon {
+  @apply flex-shrink-0 w-12 h-12 flex items-center justify-center bg-purple-100 dark:bg-purple-900/20 rounded-lg text-purple-700 dark:text-purple-400;
+}
+
 .workspace-guide-content {
+  @apply flex-1;
+}
+
+.git-plugin-guide-content {
   @apply flex-1;
 }
 
@@ -463,7 +499,15 @@ onActivated(() => {
   @apply text-sm font-semibold text-panel mb-1;
 }
 
+.git-plugin-guide-title {
+  @apply text-sm font-semibold text-panel mb-1;
+}
+
 .workspace-guide-desc {
+  @apply text-sm text-panel-text-secondary mb-3;
+}
+
+.git-plugin-guide-desc {
   @apply text-sm text-panel-text-secondary mb-3;
 }
 
