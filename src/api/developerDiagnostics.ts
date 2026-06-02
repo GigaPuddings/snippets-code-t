@@ -18,6 +18,7 @@ export interface DeveloperDiagnostics {
   buildMode: string;
   os: string;
   arch: string;
+  diagnosticLogsEnabled: boolean;
   logDir: string;
   dataDir: string;
   pluginDir?: string;
@@ -26,8 +27,10 @@ export interface DeveloperDiagnostics {
   recentBackendLogs: string;
 }
 
-export const getDeveloperDiagnostics = (): Promise<DeveloperDiagnostics> =>
-  invoke('get_developer_diagnostics');
+export const getDeveloperDiagnostics = (
+  includeLogs = false
+): Promise<DeveloperDiagnostics> =>
+  invoke('get_developer_diagnostics', { includeLogs });
 
 export const openDeveloperLogDir = (): Promise<void> =>
   invoke('open_developer_log_dir');

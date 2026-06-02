@@ -856,6 +856,26 @@ const removePluginStyles = (pluginId: string): void => {
   loadedPluginStyleLinks.delete(pluginId);
 };
 
+const frontendCapabilityKeys = [
+  'routeNames',
+  'settingsTabs',
+  'searchSources',
+  'titlebarActions',
+  'windows'
+] as const;
+
+const pluginNeedsFrontendEntry = (plugin: RegisteredPlugin): boolean => {
+  if (plugin.resourceFor || plugin.manifest.resourceFor || plugin.manifest.resources) {
+    return false;
+  }
+
+  const capabilities = plugin.manifest.capabilities;
+  return frontendCapabilityKeys.some((key) => {
+    const value = capabilities?.[key];
+    return Array.isArray(value) && value.length > 0;
+  });
+};
+
 export const ensureLocalPluginFrontendEntries = async (
   plugins: RegisteredPlugin[],
   isEnabled: (pluginId: string) => boolean
@@ -881,7 +901,10 @@ export const ensureLocalPluginFrontendEntries = async (
       continue;
     }
 
-    logger.warn(`[PluginRuntime] 本地插件缺少前端入口: ${plugin.id}`);
+    loadedFrontendEntries.add(String(plugin.id));
+    if (pluginNeedsFrontendEntry(plugin)) {
+      logger.warn(`[PluginRuntime] 本地插件缺少前端入口: ${plugin.id}`);
+    }
   }
 };
 

@@ -278,8 +278,9 @@ const formatBytes = (bytes: number): string => {
 const refresh = async () => {
   loading.value = true;
   try {
-    frontendLogs.value = getFrontendDiagnostics();
-    diagnostics.value = await getDeveloperDiagnostics();
+    const includeLogs = developerMode.value;
+    frontendLogs.value = includeLogs ? getFrontendDiagnostics() : [];
+    diagnostics.value = await getDeveloperDiagnostics(includeLogs);
   } catch (error) {
     modal.msg(`${t('settings.developer.refreshFailed')}: ${error}`, 'error');
   } finally {

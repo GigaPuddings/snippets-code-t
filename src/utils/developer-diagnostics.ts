@@ -168,6 +168,9 @@ export const setDeveloperModeEnabled = (enabled: boolean): void => {
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(DEVELOPER_MODE_KEY, String(enabled));
+    if (!enabled) {
+      localStorage.removeItem(FRONTEND_LOG_KEY);
+    }
   } catch {
     // Diagnostics must not affect the application when storage is unavailable.
   }
@@ -178,7 +181,7 @@ export const appendFrontendDiagnostic = (
   message: string,
   data?: unknown
 ): void => {
-  if (!isDeveloperModeEnabled() && level !== 'warn' && level !== 'error') return;
+  if (!isDeveloperModeEnabled()) return;
   if (typeof localStorage === 'undefined') return;
 
   const entries = readEntries();

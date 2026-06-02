@@ -105,11 +105,21 @@ export async function installPluginPackageFromUrl(
   });
 }
 
+const withMarketplaceRefreshParam = (marketplaceUrl: string): string => {
+  try {
+    const url = new URL(marketplaceUrl);
+    url.searchParams.set('_sc_refresh', `${Date.now()}`);
+    return url.toString();
+  } catch {
+    return marketplaceUrl;
+  }
+};
+
 export async function fetchPluginMarketplace(
   marketplaceUrl: string
 ): Promise<PluginMarketplaceIndex> {
   return await invoke<PluginMarketplaceIndex>('fetch_plugin_marketplace', {
-    marketplaceUrl
+    marketplaceUrl: withMarketplaceRefreshParam(marketplaceUrl)
   });
 }
 

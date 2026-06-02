@@ -397,9 +397,9 @@ const savingPluginInstallDir = ref(false);
 const isExternalOfficialPluginMode = OFFICIAL_PLUGINS_MODE === 'external';
 
 onMounted(async () => {
-  pluginStore.initialize();
+  await pluginStore.initialize();
   loadPluginInstallDir();
-  refreshMarketplace(false);
+  refreshMarketplace(false, { refreshInstalled: false });
   try {
     installProgressUnlisten.value = await listen<PluginInstallProgress>(
       'plugin-install-progress',
@@ -742,9 +742,15 @@ const hasMissingMarketplaceDependencies = (item: PluginMarketplaceItem): boolean
   })
 );
 
-const refreshMarketplace = async (notify = true) => {
+const refreshMarketplace = async (
+  notify = true,
+  options: { refreshInstalled?: boolean } = {}
+) => {
   marketplaceLoading.value = true;
   try {
+    if (options.refreshInstalled !== false) {
+      await pluginStore.refreshInstalledPlugins();
+    }
     const marketplace = await fetchPluginMarketplace(DEFAULT_PLUGIN_MARKETPLACE_URL);
     marketplaceItems.value = Array.isArray(marketplace.plugins) ? marketplace.plugins : [];
     if (notify) modal.msg(t('plugins.marketplaceRefreshed'));
@@ -865,7 +871,7 @@ const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = fa
 const handleRefresh = async () => {
   try {
     await pluginStore.refreshInstalledPlugins();
-    await refreshMarketplace(false);
+    await refreshMarketplace(false, { refreshInstalled: false });
     modal.msg(t('plugins.refreshed'));
   } catch (error) {
     modal.msg(`${t('plugins.refreshFailed')}: ${error}`, 'error');

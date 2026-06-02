@@ -55,6 +55,7 @@ pub struct DeveloperDiagnostics {
     build_mode: &'static str,
     os: String,
     arch: String,
+    diagnostic_logs_enabled: bool,
     log_dir: String,
     data_dir: String,
     plugin_dir: Option<String>,
@@ -110,7 +111,11 @@ fn list_log_paths(log_dir: &Path) -> Vec<PathBuf> {
 }
 
 #[tauri::command]
-pub fn get_developer_diagnostics(app_handle: AppHandle) -> Result<DeveloperDiagnostics, String> {
+pub fn get_developer_diagnostics(
+    app_handle: AppHandle,
+    include_logs: Option<bool>,
+) -> Result<DeveloperDiagnostics, String> {
+    let include_logs = include_logs.unwrap_or(false);
     let log_dir = app_handle
         .path()
         .app_log_dir()
@@ -118,7 +123,11 @@ pub fn get_developer_diagnostics(app_handle: AppHandle) -> Result<DeveloperDiagn
     fs::create_dir_all(&log_dir)
         .map_err(|error| format!("创建日志目录失败: {} ({})", display_path(&log_dir), error))?;
 
-    let log_paths = list_log_paths(&log_dir);
+    let log_paths = if include_logs {
+        list_log_paths(&log_dir)
+    } else {
+        Vec::new()
+    };
     let log_files = log_paths
         .iter()
         .filter_map(|path| {
@@ -167,6 +176,7 @@ pub fn get_developer_diagnostics(app_handle: AppHandle) -> Result<DeveloperDiagn
         },
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
+        diagnostic_logs_enabled: include_logs,
         log_dir: display_path(&log_dir),
         data_dir: display_path(&crate::json_config::get_data_dir(&app_handle)),
         plugin_dir: crate::app_config::resolve_plugin_packages_dir(&app_handle)

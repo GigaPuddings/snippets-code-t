@@ -10,12 +10,23 @@ const shouldWriteDebugLog = (): boolean =>
   import.meta.env.VITE_ENABLE_DEBUG_LOG === 'true' ||
   isDeveloperModeEnabled()
 
+const shouldForwardFrontendLog = (
+  level: 'debug' | 'info' | 'warn' | 'error'
+): boolean => (
+  level === 'warn' ||
+  level === 'error' ||
+  import.meta.env.DEV ||
+  import.meta.env.VITE_ENABLE_DEBUG_LOG === 'true' ||
+  isDeveloperModeEnabled()
+)
+
 const writeLog = (
   level: 'debug' | 'info' | 'warn' | 'error',
   message: string,
   data?: unknown
 ) => {
   appendFrontendDiagnostic(level, message, data)
+  if (!shouldForwardFrontendLog(level)) return
   invoke('frontend_log', {
     level,
     message,
