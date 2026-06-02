@@ -763,6 +763,188 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  color: var(--categories-text-color);
+}
+
+.panel-header {
+  flex-shrink: 0;
+  padding: 4px 0 12px;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--categories-text-color);
+}
+
+.panel-content {
+  flex: 1;
+  min-height: 0;
+  padding-right: 8px;
+  overflow-y: auto;
+}
+
+.settings-section-title {
+  margin: 18px 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--categories-text-color);
+}
+
+.summarize-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  min-height: 72px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--categories-border-color);
+}
+
+.summarize-label {
+  min-width: 0;
+}
+
+.summarize-label-title {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--categories-text-color);
+}
+
+.summarize-label-desc {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--categories-info-text-color);
+}
+
+.summarize-input-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 120px;
+  max-width: 360px;
+  gap: 8px;
+  color: var(--categories-text-color);
+}
+
+.summarize-input-wrapper :deep(.el-input-number) {
+  width: 128px;
+}
+
+.summarize-input-wrapper :deep(.el-input-number__decrease),
+.summarize-input-wrapper :deep(.el-input-number__increase) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.summarize-input-wrapper :deep(.custom-switch) {
+  flex-shrink: 0;
+}
+
+.summarize-input-wrapper :deep(.custom-button),
+.summarize-input-wrapper :deep(button) {
+  flex-shrink: 0;
+}
+
+.sync-status-panel {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  min-height: 78px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--categories-border-color);
+  border-radius: 8px;
+  background: var(--categories-content-bg);
+}
+
+.sync-status-panel__left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 12px;
+}
+
+.sync-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--el-color-primary);
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+}
+
+.sync-status-info {
+  min-width: 0;
+}
+
+.sync-status-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--categories-text-color);
+}
+
+.sync-status-detail {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--categories-info-text-color);
+}
+
+.sync-status-panel__divider {
+  width: 1px;
+  background: var(--categories-border-color);
+}
+
+.sync-status-panel__right {
+  flex: 1;
+  min-width: 0;
+}
+
+.sync-pending-files-header {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--categories-text-color);
+}
+
+.sync-pending-files-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sync-pending-file-item {
+  max-width: 180px;
+  padding: 3px 8px;
+  border: 1px solid var(--categories-border-color);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--categories-text-color);
+  background: var(--categories-panel-bg);
+}
+
+.file-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .git-records-section {
   @apply my-3 rounded border border-panel p-3;
   background: var(--categories-content-bg);
@@ -844,5 +1026,18 @@ onMounted(async () => {
 .git-records-empty {
   @apply text-xs;
   color: var(--categories-info-text-color);
+}
+
+@media (max-width: 720px) {
+  .summarize-section {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .summarize-input-wrapper {
+    justify-content: flex-start;
+    max-width: 100%;
+  }
 }
 </style>
