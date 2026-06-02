@@ -208,7 +208,6 @@
 </template>
 
 <script setup lang="ts">
-import { useConfigurationStore } from '@/store';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -266,17 +265,6 @@ interface SunCalcDebug {
   error?: string;
 }
 
-const store = useConfigurationStore();
-
-const isDark = computed(() => {
-  if (store.theme === 'auto') {
-    // 在 auto 模式下，使用后端报告的当前系统主题状态
-    // currentTheme 会在 loadStatus 和 dark-mode-changed 事件中更新
-    return currentTheme.value;
-  }
-  return store.theme === 'dark';
-});
-
 // 响应式数据
 const config = ref<DarkModeConfig>({
   theme_mode: 'Light',
@@ -298,6 +286,9 @@ const locationLoading = ref<boolean>(false);
 const saving = ref<boolean>(false);
 const syncingFromBackend = ref<boolean>(false);
 const unlisten = ref<any>(null);
+
+// 使用后端报告的当前系统主题状态，避免插件运行时依赖主应用 Pinia 上下文。
+const isDark = computed(() => currentTheme.value);
 
 const sunCalcSourceLabel = computed(() => {
   const source = sunCalcDebug.value?.source || '';
@@ -472,10 +463,6 @@ onMounted(async () => {
       syncingFromBackend.value = false;
     }
 
-    // 这里使用后端回传的权威状态，避免 matchMedia 延迟导致界面闪烁
-    if (store.theme === 'auto') {
-      store.syncSystemThemeStyle(event.payload.isDark);
-    }
   });
 
   // 通知后端前端已准备完成
