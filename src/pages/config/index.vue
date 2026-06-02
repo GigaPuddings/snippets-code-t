@@ -21,7 +21,7 @@ import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
-import { pluginHostComponents } from '@/plugins/host-components';
+import { pluginHostComponents, type ConfigHostContext } from '@/plugins/host-components';
 import { useConfigNavigationEvents } from './composables/useConfigNavigationEvents';
 import { useConfigStartup } from './composables/useConfigStartup';
 import { useConfigLifecycle } from './composables/useConfigLifecycle';
@@ -38,8 +38,10 @@ const configHostComponents = computed(() => {
   pluginStore.runtimeRevision;
   return pluginHostComponents.filter((component) => component.target === 'config');
 });
-const configHostContext = reactive<{ shouldInit: boolean | null }>({
-  shouldInit: null
+const configHostContext = reactive<ConfigHostContext>({
+  shouldInit: null,
+  isPluginEnabled: (pluginId) => pluginStore.isEnabled(pluginId),
+  navigateTo: (path) => router.push(path)
 });
 const configNavigationEvents = useConfigNavigationEvents({
   router,

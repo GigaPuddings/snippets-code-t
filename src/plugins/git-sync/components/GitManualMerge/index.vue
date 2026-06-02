@@ -208,7 +208,6 @@ import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { tags as lezerTags } from '@lezer/highlight';
 import { createTheme } from '@uiw/codemirror-themes';
-import { useConfigurationStore } from '@/store';
 
 interface Props {
   modelValue: boolean;
@@ -227,7 +226,6 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const { t } = useI18n();
-const configStore = useConfigurationStore();
 
 const visible = computed({
   get: () => props.modelValue,
@@ -313,12 +311,16 @@ const isLocalEdited = computed(() => {
   return original && current !== original;
 });
 
+const readCurrentDarkMode = () => (
+  document.documentElement.classList.contains('dark') ||
+  document.documentElement.classList.contains('dark-theme') ||
+  document.body.classList.contains('dark') ||
+  document.body.classList.contains('dark-theme')
+);
+
 // 跟随全局主题（与内容编辑页保持一致）
-const isDarkMode = computed(() => {
-  return configStore.theme === 'auto'
-    ? document.documentElement.classList.contains('dark')
-    : configStore.theme === 'dark';
-});
+const isDarkMode = ref(readCurrentDarkMode());
+let themeObserver: MutationObserver | null = null;
 
 function getFileName(filePath: string) {
   return filePath.split('/').pop() || filePath;
@@ -657,10 +659,23 @@ onUnmounted(() => {
 // 生命周期
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown);
+  themeObserver = new MutationObserver(() => {
+    isDarkMode.value = readCurrentDarkMode();
+  });
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class']
+  });
+  themeObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['class']
+  });
 });
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown);
+  themeObserver?.disconnect();
+  themeObserver = null;
 });
 
 defineExpose({

@@ -6,11 +6,10 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
-import { usePluginStore } from '@/store';
+import type { ConfigHostContext } from '@/plugins/host-components';
 import GitSyncRuntimeMount from './GitSyncRuntimeMount.vue';
 import { useGitSyncRuntimeFacade } from '../useGitSyncRuntimeFacade';
 
@@ -18,21 +17,17 @@ defineOptions({
   name: 'GitSyncRuntimeHost'
 });
 
-defineProps<{
-  configHostContext: {
-    shouldInit: boolean | null;
-  };
+const props = defineProps<{
+  configHostContext: ConfigHostContext;
 }>();
 
 const { t } = useI18n();
-const router = useRouter();
-const pluginStore = usePluginStore();
 
 const gitSyncRuntime = useGitSyncRuntimeFacade({
   t,
   modalMsg: modal.msg.bind(modal),
-  routeToGitSettings: () => router.push('/config/category/settings?tab=gitSync'),
-  isPluginEnabled: () => pluginStore.isEnabled('git-sync'),
+  routeToGitSettings: () => props.configHostContext.navigateTo('/config/category/settings?tab=gitSync'),
+  isPluginEnabled: () => props.configHostContext.isPluginEnabled('git-sync'),
   logger
 });
 </script>

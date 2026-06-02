@@ -29,7 +29,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { Branch, Loading } from '@icon-park/vue-next';
 import {
   cleanupGitStatusListener,
@@ -44,8 +43,6 @@ withDefaults(defineProps<{
   variant: 'inline'
 });
 
-const router = useRouter();
-
 const {
   syncState,
   pendingFilesCount,
@@ -59,7 +56,7 @@ const {
 const visible = computed(() => !!gitSettings.value?.enabled && syncState.value !== 'error');
 
 const goToGitSettings = () => {
-  router.push('/config/category/settings?tab=gitSync');
+  window.location.hash = '#/config/category/settings?tab=gitSync';
 };
 
 onMounted(async () => {
