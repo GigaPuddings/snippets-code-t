@@ -178,10 +178,10 @@ import {
   DEFAULT_PLUGIN_MARKETPLACE_URL,
   fetchPluginMarketplace,
   getLocalPluginResourcePath,
+  installPluginPackageFromUrl,
   installTranslationOfflineRuntimeResources,
   type PluginMarketplaceItem
 } from '@/api/plugins'
-import { usePluginStore } from '@/store'
 import modal from '@/utils/modal'
 import {
   isOfflineTranslatorReady,
@@ -202,7 +202,6 @@ defineOptions({
 })
 
 const { t } = useI18n()
-const pluginStore = usePluginStore()
 
 const TRANSFORMERS_RUNTIME_ENTRY = 'resources/transformers/transformers.min.js'
 const TRANSFORMERS_RUNTIME_PACKAGES = ['translation-offline-runtime', 'translation']
@@ -298,20 +297,7 @@ const installOfflineRuntime = async () => {
       throw new Error(t('translation.runtimeMarketplaceMissing'))
     }
 
-    await pluginStore.installMarketplaceItemWithDependencies(
-      runtimeItem,
-      marketplaceItems,
-      {
-        formatMissingDependencyError: (dependencyId) =>
-          t('plugins.dependencyMissing', { id: dependencyId }),
-        onInstallingPackage: (packageItem: PluginMarketplaceItem) => {
-          logger.info('[翻译设置] 开始安装离线翻译运行时资源包', {
-            pluginId: packageItem.id,
-            packageUrl: packageItem.packageUrl
-          })
-        }
-      }
-    )
+    await installMarketplaceItemWithDependencies(runtimeItem, marketplaceItems)
     if (!await refreshRuntimeAvailability()) {
       logger.info('[翻译设置] 运行时资源包缺少 runtime 文件，开始补全资源')
       await installTranslationOfflineRuntimeResources()
@@ -330,6 +316,48 @@ const installOfflineRuntime = async () => {
     )
   } finally {
     isInstallingRuntime.value = false
+  }
+}
+
+const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] =>
+  Array.isArray(item.dependencies)
+    ? item.dependencies.filter((dependencyId) => typeof dependencyId === 'string' && Boolean(dependencyId.trim()))
+    : []
+
+const shouldInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean =>
+  Boolean(item.packageUrl && item.status !== 'included')
+
+const installMarketplaceItemWithDependencies = async (
+  item: PluginMarketplaceItem,
+  marketplaceItems: PluginMarketplaceItem[],
+  visited = new Set<string>()
+): Promise<void> => {
+  if (visited.has(item.id)) return
+
+  visited.add(item.id)
+  try {
+    for (const dependencyId of getMarketplaceDependencies(item)) {
+      const dependency = marketplaceItems.find((candidate) => candidate.id === dependencyId)
+      if (!dependency) {
+        throw new Error(t('plugins.dependencyMissing', { id: dependencyId }))
+      }
+      await installMarketplaceItemWithDependencies(dependency, marketplaceItems, visited)
+    }
+
+    if (item.packageUrl && shouldInstallMarketplaceItem(item)) {
+      logger.info('[翻译设置] 开始安装离线翻译运行时资源包', {
+        pluginId: item.id,
+        packageUrl: item.packageUrl
+      })
+      await installPluginPackageFromUrl(
+        item.packageUrl,
+        true,
+        item.packageSubdir,
+        item.sizeBytes
+      )
+    }
+  } finally {
+    visited.delete(item.id)
   }
 }
 

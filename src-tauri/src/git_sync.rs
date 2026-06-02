@@ -10,7 +10,9 @@ use crate::git_common::remove_token_from_url;
 use crate::git_common::run_git_command;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock as StdRwLock;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -462,32 +464,99 @@ pub fn validate_token_url(workspace_root: &Path, authenticated_url: &str) -> Res
     Ok(())
 }
 
-/// 配置远程仓库（使用 token 认证）
+fn build_authenticated_url(remote_url: &str, token: &str) -> String {
+    if remote_url.starts_with("git@") || token.is_empty() {
+        return remote_url.to_string();
+    }
+
+    if let Some(idx) = remote_url.find("://") {
+        let protocol = &remote_url[..idx + 3];
+        let rest = &remote_url[idx + 3..];
+        format!("{}{}@{}", protocol, token, rest)
+    } else {
+        remote_url.to_string()
+    }
+}
+
+fn set_credential_use_http_path(workspace_root: &Path) {
+    let output = crate::git_common::git_command()
+        .args(["config", "credential.useHttpPath", "true"])
+        .current_dir(workspace_root)
+        .output();
+
+    if let Err(e) = output {
+        warn!("⚠️ [Git] 设置 credential.useHttpPath 失败: {}", e);
+    }
+}
+
+/// 将 HTTPS token 交给系统 Git credential helper，避免写入 app.json 或 .git/config。
+pub fn store_git_credentials(
+    workspace_root: &Path,
+    remote_url: &str,
+    token: &str,
+) -> Result<(), String> {
+    if !remote_url.starts_with("http://") && !remote_url.starts_with("https://") {
+        return Ok(());
+    }
+
+    if token.is_empty() {
+        return Ok(());
+    }
+
+    let url = url::Url::parse(remote_url).map_err(|e| format!("解析远程仓库 URL 失败: {}", e))?;
+    let Some(host) = url.host_str() else {
+        return Err("远程仓库 URL 缺少主机名".to_string());
+    };
+
+    let path = url.path().trim_start_matches('/');
+    let input = format!(
+        "protocol={}\nhost={}\npath={}\nusername=x-access-token\npassword={}\n\n",
+        url.scheme(),
+        host,
+        path,
+        token
+    );
+
+    let mut child = crate::git_common::git_command()
+        .args(["credential", "approve"])
+        .current_dir(workspace_root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("保存 Git 凭据失败: {}", e))?;
+
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin
+            .write_all(input.as_bytes())
+            .map_err(|e| format!("写入 Git 凭据失败: {}", e))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("保存 Git 凭据失败: {}", e))?;
+
+    if !output.status.success() {
+        return Err("保存 Git 凭据失败，请检查系统 Git credential helper 配置".to_string());
+    }
+
+    Ok(())
+}
+
+/// 配置远程仓库（remote 仅保存干净 URL，token 交给 credential helper）
 pub fn configure_remote(
     workspace_root: &Path,
     remote_url: &str,
     token: &str,
 ) -> Result<(), String> {
-    // 构建带 token 的 URL（仅对 HTTPS URL）
-    let authenticated_url = if remote_url.starts_with("git@") {
-        // SSH 格式，不需要 token
-        remote_url.to_string()
-    } else if !token.is_empty() {
-        // HTTPS 格式，插入 token
-        if let Some(idx) = remote_url.find("://") {
-            let protocol = &remote_url[..idx + 3];
-            let rest = &remote_url[idx + 3..];
-            format!("{}{}@{}", protocol, token, rest)
-        } else {
-            remote_url.to_string()
-        }
-    } else {
-        remote_url.to_string()
-    };
+    let clean_remote_url = remove_token_from_url(remote_url);
+    let authenticated_url = build_authenticated_url(&clean_remote_url, token);
 
     // 先校验 Token（不修改仓库），失败则直接返回，避免将无效 URL 写入 .git/config
-    if remote_url.starts_with("https://") && !token.is_empty() {
+    if clean_remote_url.starts_with("https://") && !token.is_empty() {
         validate_token_url(workspace_root, &authenticated_url)?;
+        set_credential_use_http_path(workspace_root);
+        store_git_credentials(workspace_root, &clean_remote_url, token)?;
     }
 
     // 检查是否已有 origin
@@ -498,9 +567,9 @@ pub fn configure_remote(
         .map_err(|e| format!("检查远程仓库失败: {}", e))?;
 
     let command = if check_output.status.success() {
-        vec!["remote", "set-url", "origin", &authenticated_url]
+        vec!["remote", "set-url", "origin", &clean_remote_url]
     } else {
-        vec!["remote", "add", "origin", &authenticated_url]
+        vec!["remote", "add", "origin", &clean_remote_url]
     };
 
     let output = crate::git_common::git_command()
@@ -2223,28 +2292,16 @@ pub fn test_git_connection_command(
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
 
-    // 构建带 token 的 URL
-    let authenticated_url = if remote_url.starts_with("git@") {
-        remote_url.clone()
-    } else if !token.is_empty() {
-        if let Some(idx) = remote_url.find("://") {
-            let protocol = &remote_url[..idx + 3];
-            let rest = &remote_url[idx + 3..];
-            format!("{}{}@{}", protocol, token, rest)
-        } else {
-            remote_url.clone()
-        }
-    } else {
-        remote_url.clone()
-    };
+    let clean_remote_url = remove_token_from_url(&remote_url);
+    let authenticated_url = build_authenticated_url(&clean_remote_url, &token);
 
     // 仅 HTTPS + token 需要验证
-    if remote_url.starts_with("https://") && !token.is_empty() {
+    if clean_remote_url.starts_with("https://") && !token.is_empty() {
         validate_token_url(&workspace_root, &authenticated_url)?;
-    } else if remote_url.starts_with("git@") || token.is_empty() {
+    } else if clean_remote_url.starts_with("git@") || token.is_empty() {
         // SSH 或无 token，简单检查 remote 是否可访问
         let output = crate::git_common::git_command()
-            .args(["ls-remote", "--heads", &remote_url])
+            .args(["ls-remote", "--heads", &clean_remote_url])
             .current_dir(&workspace_root)
             .output()
             .map_err(|e| format!("验证远程连接失败: {}", e))?;
@@ -3190,12 +3247,15 @@ impl AutoSyncManager {
                                     "success": true,
                                     "last_sync_time": last_sync_time
                                 });
-                                if let Err(e) =
-                                    app_handle.emit_to("config", "git-sync-complete", payload.clone())
-                                {
+                                if let Err(e) = app_handle.emit_to(
+                                    "config",
+                                    "git-sync-complete",
+                                    payload.clone(),
+                                ) {
                                     warn!("⚠️ [AutoSync] 发送 Push 完成事件失败: {}", e);
                                 }
-                                if let Err(e) = app_handle.emit_to("main", "git-sync-complete", payload)
+                                if let Err(e) =
+                                    app_handle.emit_to("main", "git-sync-complete", payload)
                                 {
                                     warn!("⚠️ [AutoSync] 发送 Push 完成事件到 main 失败: {}", e);
                                 }

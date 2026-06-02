@@ -276,6 +276,10 @@ export const isRelevantSearchResult = (
   const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedQuery) return false;
 
+  if (getSource(item) === 'quick-tools' || item.summarize === 'tool') {
+    return true;
+  }
+
   const searchableText = normalizeSearchValue(
     getScopedSearchableText(item, options)
   );

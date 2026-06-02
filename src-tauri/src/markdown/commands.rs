@@ -714,6 +714,41 @@ pub async fn delete_markdown_file(
 
 // ============= 分类操作命令 =============
 
+fn validate_category_folder_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("分类名称不能为空".to_string());
+    }
+
+    if trimmed == "." || trimmed == ".." {
+        return Err("分类名称不能为 . 或 ..".to_string());
+    }
+
+    if Path::new(trimmed).is_absolute()
+        || trimmed.contains('/')
+        || trimmed.contains('\\')
+        || trimmed
+            .chars()
+            .any(|ch| ch.is_control() || matches!(ch, ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+        || trimmed
+            .split(['/', '\\'])
+            .any(|part| part == "." || part == "..")
+    {
+        return Err("分类名称包含非法字符".to_string());
+    }
+
+    if matches!(trimmed, "未分类" | "assets" | ".snippets-code" | ".git") {
+        return Err("系统分类不能执行此操作".to_string());
+    }
+
+    Ok(trimmed.to_string())
+}
+
+fn resolve_category_folder_path(workspace_root: &Path, name: &str) -> Result<PathBuf, String> {
+    let safe_name = validate_category_folder_name(name)?;
+    Ok(workspace_root.join(safe_name))
+}
+
 // 创建分类文件夹
 #[command]
 pub fn create_category_folder(app_handle: AppHandle, name: String) -> Result<String, String> {
@@ -733,7 +768,8 @@ pub fn delete_category_folder(
 ) -> Result<(), String> {
     let workspace_root = get_workspace_root(&app_handle)?.ok_or("工作区未配置")?;
 
-    let folder_path = workspace_root.join(&name);
+    let name = validate_category_folder_name(&name)?;
+    let folder_path = resolve_category_folder_path(&workspace_root, &name)?;
 
     if !folder_path.exists() {
         return Err(format!("分类不存在: {}", name));
@@ -769,8 +805,8 @@ pub fn delete_category_folder(
     // 删除分类元数据
     cache.remove_category_metadata(&name);
 
+    cache.save()?;
     if !files_to_remove.is_empty() {
-        cache.save()?;
         info!("✅ 已清理 {} 个文件的元数据", files_to_remove.len());
     }
 
@@ -787,8 +823,10 @@ pub fn rename_category_folder(
 ) -> Result<(), String> {
     let workspace_root = get_workspace_root(&app_handle)?.ok_or("工作区未配置")?;
 
-    let old_path = workspace_root.join(&old_name);
-    let new_path = workspace_root.join(&new_name);
+    let old_name = validate_category_folder_name(&old_name)?;
+    let new_name = validate_category_folder_name(&new_name)?;
+    let old_path = resolve_category_folder_path(&workspace_root, &old_name)?;
+    let new_path = resolve_category_folder_path(&workspace_root, &new_name)?;
 
     if !old_path.exists() {
         return Err(format!("分类不存在: {}", old_name));
@@ -1507,5 +1545,47 @@ pub fn set_sync_enabled(app_handle: AppHandle, enabled: bool) -> Result<(), Stri
         Ok(())
     } else {
         Err("WorkspaceManager 未初始化".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_category_folder_name;
+
+    #[test]
+    fn category_folder_name_rejects_path_traversal_and_separators() {
+        for name in [
+            "",
+            "   ",
+            ".",
+            "..",
+            "../evil",
+            "..\\evil",
+            "/absolute",
+            "C:\\temp",
+            "nested/name",
+            "nested\\name",
+            "bad:name",
+            "bad*name",
+            ".git",
+            ".snippets-code",
+        ] {
+            assert!(
+                validate_category_folder_name(name).is_err(),
+                "expected {name:?} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn category_folder_name_allows_normal_names() {
+        assert_eq!(
+            validate_category_folder_name("  Vue Hooks  ").unwrap(),
+            "Vue Hooks"
+        );
+        assert_eq!(
+            validate_category_folder_name("代码片段").unwrap(),
+            "代码片段"
+        );
     }
 }

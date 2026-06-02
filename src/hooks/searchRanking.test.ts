@@ -181,6 +181,22 @@ describe('searchRanking', () => {
     expect(ranked[0].id).toBe('exact-title');
   });
 
+  it('keeps generated quick tools results even when labels use aliases', () => {
+    const unitConversion = createItem({
+      id: 'quick-tools-unit',
+      title: '1 千克 = 2 斤',
+      content: '单位换算结果',
+      summarize: 'tool',
+      metadata: { source: 'quick-tools' }
+    });
+
+    expect(
+      rankSearchResults([unitConversion], '1公斤=斤', new Map(), {
+        deepSearch: false
+      }).map((item) => item.id)
+    ).toEqual(['quick-tools-unit']);
+  });
+
   it('caps backend score so indexed results cannot swamp title relevance', () => {
     const highBackendScore = createItem({
       title: 'Other',

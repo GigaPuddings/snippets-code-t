@@ -69,6 +69,33 @@ defineOptions({
   name: 'CategoryItem'
 });
 
+const invalidCategoryChars = /[\\/:*?"<>|]/;
+
+const formatCategoryName = (value: string) =>
+  value.trim().toLowerCase().replace(/( |^)[a-z]/g, (L) => L.toUpperCase());
+
+const validateCategoryName = (value: string) => {
+  const name = value.trim();
+
+  if (!name) {
+    return { valid: false, message: t('category.emptyName') };
+  }
+
+  if (invalidCategoryChars.test(name)) {
+    return { valid: false, message: t('category.invalidNameChars') };
+  }
+
+  const currentId = String(props.category.id);
+  if (store.categories.some(c =>
+    String(c.id) !== currentId &&
+    c.name.toLowerCase() === name.toLowerCase()
+  )) {
+    return { valid: false, message: t('category.duplicateName') };
+  }
+
+  return { valid: true, message: '' };
+};
+
 const menu = computed(() => [
   { label: t('common.edit'), icon: EditTwo, type: 'edit' },
   { label: t('common.delete'), icon: DeleteFour, type: 'delete' }
@@ -150,9 +177,15 @@ const handleCancelEdit = () => {
 const handleEditCategory = async () => {
   
   // 格式化新名称
-  const newName = editingName.value
-    .toLowerCase()
-    .replace(/( |^)[a-z]/g, (L) => L.toUpperCase()) || '未命名';
+  const newName = formatCategoryName(editingName.value);
+  const validation = validateCategoryName(newName);
+
+  if (!validation.valid) {
+    modal.error(validation.message);
+    await nextTick();
+    inputRef.value?.focus?.();
+    return;
+  }
   
   // 清空编辑状态
   store.editCategoryId = '';

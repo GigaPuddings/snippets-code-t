@@ -226,6 +226,7 @@
 
 <script setup lang="ts">
 import { appVersion, initEnv, getAppWindow } from '@/utils/env';
+import { sanitizeHtml } from '@/utils/html-sanitize';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
 import { relaunch } from '@tauri-apps/plugin-process';
@@ -295,7 +296,7 @@ onMounted(async () => {
   const updateInfo: UpdateInfo = await invoke('get_update_info');
   if (updateInfo) {
     update.newVersion = updateInfo.version;
-    update.releaseNotes = marked(updateInfo.notes) as string;
+    update.releaseNotes = sanitizeHtml(marked(updateInfo.notes) as string);
     update.releaseDate = updateInfo.pub_date
       ? dayjs(updateInfo.pub_date.replace(' +00:00:00', 'Z').replace('.0', ''))
           .tz()

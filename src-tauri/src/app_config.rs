@@ -197,7 +197,7 @@ pub struct GitSettings {
     pub user_email: String, // Git 邮箱
     #[serde(default)]
     pub remote_url: String, // 远程仓库 URL
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub token: String, // GitHub Token
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_sync_time: Option<String>,
@@ -293,6 +293,11 @@ pub struct AppConfigManager {
 }
 
 impl AppConfigManager {
+    fn sanitize_git_settings(settings: &mut GitSettings) {
+        settings.remote_url = crate::git_common::remove_token_from_url(&settings.remote_url);
+        settings.token.clear();
+    }
+
     /// 创建新的配置管理器
     ///
     /// # Arguments
@@ -342,6 +347,7 @@ impl AppConfigManager {
         };
 
         normalize_plugin_states(&mut config.plugins);
+        Self::sanitize_git_settings(&mut config.git);
 
         let manager = Self {
             config_path,
@@ -396,6 +402,8 @@ impl AppConfigManager {
 
     /// 更新完整配置
     pub fn update_config(&mut self, config: AppConfig) {
+        let mut config = config;
+        Self::sanitize_git_settings(&mut config.git);
         self.config = config;
     }
 
@@ -406,6 +414,8 @@ impl AppConfigManager {
 
     /// 更新 Git 设置
     pub fn update_git_settings(&mut self, settings: GitSettings) {
+        let mut settings = settings;
+        Self::sanitize_git_settings(&mut settings);
         self.config.git = settings;
     }
 
@@ -1051,16 +1061,22 @@ pub fn update_app_config(app_handle: AppHandle, config: AppConfig) -> Result<(),
 /// 获取 Git 设置
 #[command]
 pub fn get_git_settings_command(app_handle: AppHandle) -> Result<GitSettings, String> {
+    let mask_token = |mut settings: GitSettings| {
+        settings.remote_url = crate::git_common::remove_token_from_url(&settings.remote_url);
+        settings.token.clear();
+        settings
+    };
+
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
         let manager = config_state
             .read()
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
-        Ok(manager.get_git_settings().clone())
+        Ok(mask_token(manager.get_git_settings().clone()))
     } else {
         let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
             .ok_or("工作区未设置".to_string())?;
         let manager = AppConfigManager::new(&workspace_root)?;
-        Ok(manager.get_git_settings().clone())
+        Ok(mask_token(manager.get_git_settings().clone()))
     }
 }
 
@@ -1070,6 +1086,10 @@ pub fn update_git_settings_command(
     app_handle: AppHandle,
     settings: GitSettings,
 ) -> Result<(), String> {
+    let mut settings = settings;
+    settings.remote_url = crate::git_common::remove_token_from_url(&settings.remote_url);
+    settings.token.clear();
+
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
         let mut manager = config_state
             .write()

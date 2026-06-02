@@ -1,6 +1,20 @@
 import TurndownService from 'turndown';
 import { marked } from 'marked';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { sanitizeHtml } from '@/utils/html-sanitize';
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeAttribute(value: string): string {
+  return escapeHtml(value).replace(/`/g, '&#96;');
+}
 
 /**
  * 将文本转换为锚点 ID 格式
@@ -119,7 +133,7 @@ const wikilinkExtension = {
   },
   renderer(token: any) {
     // 保持原始的 [[笔记名称]] 格式，让 TipTap 的装饰器插件来处理
-    return `[[${token.text}]]`;
+    return `[[${escapeHtml(token.text)}]]`;
   }
 };
 
@@ -169,10 +183,10 @@ const markdownLinkExtension = {
     
     if (isAnchorLink) {
       // 锚点链接：转换为 <a> 标签，支持文档内跳转
-      return `<a href="${url}">${text}</a>`;
+      return `<a href="${escapeAttribute(url)}">${escapeHtml(text)}</a>`;
     } else if (isValidExternalLink) {
       // 有效外部链接：保持 Markdown 格式，让装饰器处理
-      return `[${text}](${url})`;
+      return `[${escapeHtml(text)}](${escapeAttribute(url)})`;
     } else {
       // 无效链接（空URL、中文、相对路径等）：显示为纯文本
       // 对方括号和圆括号进行 HTML 实体转义，防止被 TipTap 重新解析为链接
@@ -222,7 +236,7 @@ const imageWithAttributesExtension = {
       attrString = ` width="${width}"`;
     }
     
-    return `<img src="${url}" alt="${alt}"${attrString}>`;
+    return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(alt)}"${attrString}>`;
   }
 };
 
@@ -417,7 +431,7 @@ export function createTurndownService(): TurndownService {
  */
 export function markdownToHtml(markdown: string, workspaceRoot?: string): string {
   // 先用 marked 解析 Markdown
-  const html = marked.parse(markdown) as string;
+  const html = sanitizeHtml(marked.parse(markdown) as string);
   
   let processedHtml = html;
   
@@ -437,8 +451,8 @@ export function markdownToHtml(markdown: string, workspaceRoot?: string): string
         const tauriUrl = convertFileSrc(absolutePath);
         // 保存原始相对路径到 data 属性（如果还没有）
         const hasOriginalPath = (before + after).includes('data-original-path');
-        const originalPathAttr = hasOriginalPath ? '' : ` data-original-path="${decodedSrc}"`;
-        return `<img${before}src="${tauriUrl}"${originalPathAttr}${after}>`;
+        const originalPathAttr = hasOriginalPath ? '' : ` data-original-path="${escapeAttribute(decodedSrc)}"`;
+        return `<img${before}src="${escapeAttribute(tauriUrl)}"${originalPathAttr}${after}>`;
       }
     );
   }
@@ -454,7 +468,7 @@ export function markdownToHtml(markdown: string, workspaceRoot?: string): string
     }
   );
   
-  return processedHtml;
+  return sanitizeHtml(processedHtml);
 }
 
 /**

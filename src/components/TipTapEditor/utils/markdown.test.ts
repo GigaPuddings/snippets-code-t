@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { jsonToMarkdown } from './markdown';
+import { jsonToMarkdown, markdownToHtml } from './markdown';
 
 describe('jsonToMarkdown', () => {
   it('serializes headings, paragraphs, and marks', () => {
@@ -99,5 +99,21 @@ describe('jsonToMarkdown', () => {
     });
 
     expect(markdown).toBe('![Preview](../assets/image.png)');
+  });
+});
+
+describe('markdownToHtml', () => {
+  it('removes unsafe raw HTML and event handlers', () => {
+    const html = markdownToHtml('<script>alert(1)</script><img src="x" onerror="alert(1)">');
+
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('onerror');
+  });
+
+  it('removes javascript URLs from links', () => {
+    const html = markdownToHtml('[bad](javascript:alert(1))');
+
+    expect(html).not.toContain('<a');
+    expect(html).not.toContain('href=');
   });
 });

@@ -217,12 +217,11 @@ const isGitSyncEnabled = computed(() => {
   return pluginStore.isEnabled('git-sync');
 });
 
-/** 所有 Git 字段（用户名、邮箱、Token、远程 URL）是否已填写，用于控制引导卡片显示 */
+/** 必要 Git 字段（用户名、邮箱、远程 URL）是否已填写，用于控制引导卡片显示 */
 const hasRequiredGitFieldsFilled = computed(
   () =>
     !!gitForm.value.user_name?.trim() &&
     !!gitForm.value.user_email?.trim() &&
-    !!gitForm.value.token?.trim() &&
     !!gitForm.value.remote_url?.trim()
 );
 
@@ -323,7 +322,7 @@ const saveGitConfig = async () => {
       remote_url: gitForm.value.remote_url
     });
     // 保存成功后，初始化本地 Git 仓库（配置用户、远程）
-    if (gitForm.value.token?.trim() && gitForm.value.remote_url?.trim()) {
+    if (gitForm.value.remote_url?.trim()) {
       try {
         await gitSyncApi.initGitRepository(
           gitForm.value.user_name,
@@ -342,8 +341,7 @@ const saveGitConfig = async () => {
       user_email: gitForm.value.user_email,
       remote_url: gitForm.value.remote_url || undefined
     };
-    // 只有 Token 也填了才算完整配置，显示 Git 同步面板
-    gitConfigured.value = !!gitForm.value.token?.trim();
+    gitConfigured.value = hasRequiredGitFieldsFilled.value;
   } catch (error) {
     console.error('[UserCenter] 保存 Git 配置失败:', error);
     modal.error(t('userCenter.gitConfigSaveFailed') + ': ' + error);

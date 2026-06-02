@@ -130,8 +130,7 @@ async function refreshCanShowGitSyncTab() {
     const hasRequiredFields =
       !!settings.user_name?.trim() &&
       !!settings.user_email?.trim() &&
-      !!settings.remote_url?.trim() &&
-      !!settings.token?.trim();
+      !!settings.remote_url?.trim();
     canShowGitSyncTab.value =
       status.is_repo && status.has_remote && hasRequiredFields;
   } catch {
