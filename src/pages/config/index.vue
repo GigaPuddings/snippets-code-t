@@ -1,18 +1,20 @@
 <template>
   <div class="config">
-    <router-view v-slot="{ Component }">
-      <keep-alive>
+    <router-view v-slot="{ Component, route: slotRoute }">
+      <template v-if="Component">
+        <keep-alive>
+          <component
+            v-if="shouldKeepAliveConfigChild(slotRoute)"
+            :is="Component"
+            :key="getConfigChildKey(slotRoute)"
+          />
+        </keep-alive>
         <component
-          v-if="shouldKeepAliveRoute"
+          v-if="!shouldKeepAliveConfigChild(slotRoute)"
           :is="Component"
-          :key="routeComponentKey"
+          :key="getConfigChildKey(slotRoute)"
         />
-      </keep-alive>
-      <component
-        v-if="!shouldKeepAliveRoute"
-        :is="Component"
-        :key="routeComponentKey"
-      />
+      </template>
     </router-view>
 
     <component
@@ -25,7 +27,8 @@
 </template>
 
 <script setup lang="ts">
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
+import type { RouteLocationNormalizedLoaded, RouteRecordNormalized } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import modal from '@/utils/modal';
@@ -43,25 +46,41 @@ defineOptions({
 });
 
 const router = useRouter();
-const route = useRoute();
 const configHostComponents = computed(() => {
   pluginStore.runtimeRevision;
   return pluginHostComponents.filter((component) => component.target === 'config');
 });
-const activePluginRouteId = computed(() =>
-  route.matched
+const getPluginRouteId = (currentRoute: RouteLocationNormalizedLoaded) =>
+  currentRoute.matched
     .map((record) => record.meta.pluginId)
-    .find((pluginId): pluginId is string => typeof pluginId === 'string')
-);
-const shouldKeepAliveRoute = computed(() =>
-  Boolean(route.meta.keepAlive) && !activePluginRouteId.value
-);
-const routeComponentKey = computed(() => {
-  const pluginId = activePluginRouteId.value;
-  return pluginId
-    ? `${route.fullPath}:${pluginId}:${pluginStore.runtimeRevision}`
-    : route.fullPath;
-});
+    .find((pluginId): pluginId is string => typeof pluginId === 'string');
+
+const getConfigChildRecord = (
+  currentRoute: RouteLocationNormalizedLoaded
+): RouteRecordNormalized | null => {
+  const configRecordIndex = currentRoute.matched.findIndex(
+    (record) => record.name === 'Config'
+  );
+  if (configRecordIndex < 0) {
+    return currentRoute.matched[0] ?? null;
+  }
+
+  return currentRoute.matched[configRecordIndex + 1] ?? null;
+};
+
+const shouldKeepAliveConfigChild = (currentRoute: RouteLocationNormalizedLoaded) =>
+  Boolean(getConfigChildRecord(currentRoute)?.meta.keepAlive)
+  && !getPluginRouteId(currentRoute);
+
+const getConfigChildKey = (currentRoute: RouteLocationNormalizedLoaded) => {
+  const pluginId = getPluginRouteId(currentRoute);
+  if (pluginId) {
+    return `${currentRoute.fullPath}:${pluginId}:${pluginStore.runtimeRevision}`;
+  }
+
+  const record = getConfigChildRecord(currentRoute);
+  return String(record?.name ?? record?.path ?? currentRoute.fullPath);
+};
 const configHostContext = reactive<ConfigHostContext>({
   shouldInit: null,
   isPluginEnabled: (pluginId) => pluginStore.isEnabled(pluginId),

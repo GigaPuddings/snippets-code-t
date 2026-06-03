@@ -142,7 +142,23 @@ function handleSyntaxInsert(syntax: string): void {
     @apply relative cursor-pointer;
     
     .content-search-filter {
-      @apply rounded-md p-1 text-panel hover:text-white dark:text-panel hover:bg-active dark:hover:bg-hover transition-colors;
+      display: inline-flex;
+      width: 32px;
+      height: 30px;
+      align-items: center;
+      justify-content: center;
+      color: var(--categories-text-color);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      outline: none;
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+
+      &:hover,
+      &:focus-visible {
+        background: var(--categories-panel-bg-hover);
+        border-color: rgba(var(--categories-border-color-rgb), 0.65);
+      }
 
       &.filter-active {
         @apply text-blue-500 dark:text-blue-400;
@@ -165,7 +181,25 @@ function handleSyntaxInsert(syntax: string): void {
   }
 
   .content-search-add {
-    @apply cursor-pointer rounded-md p-1 mr-2 text-panel hover:text-white dark:text-panel hover:bg-active dark:hover:bg-hover;
+    display: inline-flex;
+    width: 32px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.5rem;
+    color: var(--categories-text-color);
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    outline: none;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+
+    &:hover,
+    &:focus-visible {
+      background: var(--categories-panel-bg-hover);
+      border-color: rgba(var(--categories-border-color-rgb), 0.65);
+    }
   }
 }
 </style>

@@ -6,12 +6,16 @@
   ]">
     <Titlebar v-if="!hasTabbar" />
     <div :class="[`relative w-full overflow-hidden ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-42px)] bg-panel p-[1px] rounded-b-lg pb-0.5'}`]">
-      <router-view>
-        <template #default="{ Component, route }">
-          <keep-alive v-if="route.meta.keepAlive">
-            <component :is="Component" />
+      <router-view v-slot="{ Component, route: slotRoute }">
+        <template v-if="Component">
+          <keep-alive v-if="shouldKeepAliveLayoutChild(slotRoute)">
+            <component :is="Component" :key="getLayoutChildKey(slotRoute)" />
           </keep-alive>
-          <component v-else :is="Component" />
+          <component
+            v-else
+            :is="Component"
+            :key="getLayoutChildKey(slotRoute)"
+          />
         </template>
       </router-view>
     </div>
@@ -19,6 +23,7 @@
 </template>
 <script setup lang="ts">
 import { useLayoutStore } from '@/store';
+import type { RouteLocationNormalizedLoaded } from 'vue-router';
 
 defineOptions({
   name: 'AppMain'
@@ -33,6 +38,17 @@ const hasTabbar = computed(() =>
     route.name as string
   )
 );
+
+const getLayoutChildRecord = (currentRoute: RouteLocationNormalizedLoaded) =>
+  currentRoute.matched[1] ?? currentRoute.matched[0] ?? null;
+
+const shouldKeepAliveLayoutChild = (currentRoute: RouteLocationNormalizedLoaded) =>
+  Boolean(getLayoutChildRecord(currentRoute)?.meta.keepAlive);
+
+const getLayoutChildKey = (currentRoute: RouteLocationNormalizedLoaded) => {
+  const record = getLayoutChildRecord(currentRoute);
+  return String(record?.name ?? record?.path ?? currentRoute.fullPath);
+};
 
 // 窗口尺寸变化时更新 layoutStore，用于左侧面板自动折叠
 const updateWindowWidth = () => layoutStore.setWindowWidth(window.innerWidth);
