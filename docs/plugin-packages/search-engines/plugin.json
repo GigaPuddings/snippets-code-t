@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "search-engines",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.searchEngines.name",
@@ -27,14 +27,14 @@
   "permissions": [
     "command:*"
   ],
-  "compatibleAppVersion": ">=1.5.6",
+  "compatibleAppVersion": ">=2.1.4",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
       "dist/assets/runtime-entry-Dvrovfc_.css"
     ]
   },
-  "minAppVersion": "1.5.6",
+  "minAppVersion": "2.1.4",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.7"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.8"
 }
