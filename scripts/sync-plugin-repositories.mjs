@@ -15,6 +15,7 @@ function parseArgs() {
     includeFfmpegResource: false,
     includeRapidOcrResource: false,
     pinMarketplaceTags: false,
+    minAppVersion: null,
     only: null,
     version: null
   };
@@ -39,6 +40,10 @@ function parseArgs() {
       options.version = args[++index];
     } else if (arg.startsWith('--version=')) {
       options.version = arg.slice('--version='.length);
+    } else if (arg === '--min-app-version') {
+      options.minAppVersion = args[++index];
+    } else if (arg.startsWith('--min-app-version=')) {
+      options.minAppVersion = arg.slice('--min-app-version='.length);
     } else {
       throw new Error(`未知参数: ${arg}`);
     }
@@ -186,14 +191,13 @@ async function copyDirectoryContents(sourceDir, targetDir) {
 async function updateManifestVersion(plugin, version, sourceDir, options) {
   const manifestPath = join(sourceDir, 'plugin.json');
   const manifest = await readJson(manifestPath);
-  const minAppVersion = manifest.minAppVersion ?? version;
+  const minAppVersion = options.minAppVersion ?? manifest.minAppVersion ?? version;
+  assertVersion(minAppVersion);
   manifest.version = version;
   manifest.minAppVersion = minAppVersion;
   manifest.repository = `https://github.com/${OWNER}/${plugin.repo}`;
   manifest.releaseUrl = releaseUrl(plugin.repo, version);
-  if (plugin.kind === 'feature') {
-    manifest.compatibleAppVersion = `>=${minAppVersion}`;
-  }
+  manifest.compatibleAppVersion = `>=${minAppVersion}`;
   if (!options.dryRun) {
     await writeJson(manifestPath, manifest);
   }

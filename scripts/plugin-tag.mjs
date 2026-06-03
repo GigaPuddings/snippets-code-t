@@ -5,16 +5,48 @@ import { resolve } from 'node:path';
 import readline from 'node:readline';
 import { MARKETPLACE_PATH, pluginRepositories, ROOT } from './plugin-release-config.mjs';
 
+const packageJson = JSON.parse(await readFile(resolve(ROOT, 'package.json'), 'utf8'));
+const REMOTE_MARKETPLACE_URL =
+  'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json';
+
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
+
+function readOption(name) {
+  const prefix = `${name}=`;
+  const inlineValue = args.find((arg) => arg.startsWith(prefix));
+  if (inlineValue) return inlineValue.slice(prefix.length);
+
+  const index = args.indexOf(name);
+  if (index === -1) return null;
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${name} 需要提供参数值`);
+  }
+  return value;
+}
+
+function readListOption(name) {
+  const value = readOption(name);
+  return value
+    ? value.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean)
+    : [];
+}
+
 const options = {
   pushMain: !args.includes('--no-push-main'),
   allowDirty: args.includes('--allow-dirty'),
-  checkUpdates: args.includes('--check-updates')
+  checkUpdates: args.includes('--check-updates'),
+  yes: args.includes('--yes') || args.includes('-y'),
+  forceTag: args.includes('--force-tag'),
+  commitCurrent: args.includes('--commit-current'),
+  only: readListOption('--only'),
+  version: readOption('--version'),
+  minAppVersion: readOption('--min-app-version')
 };
 
 const question = (query) => new Promise((resolveQuestion, rejectQuestion) => {
@@ -49,6 +81,15 @@ function clearSelect(lines) {
 }
 
 async function selectPlugins(rows) {
+  if (options.only.length > 0) {
+    const selectedRows = options.only.map((id) => rows.find((row) => row.plugin.id === id));
+    const missingIds = options.only.filter((_id, index) => !selectedRows[index]);
+    if (missingIds.length > 0) {
+      throw new Error(`未知插件 ID: ${missingIds.join(', ')}`);
+    }
+    return [...new Map(selectedRows.map((row) => [row.plugin.id, row])).values()];
+  }
+
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     return choosePluginsByText(rows);
   }
@@ -130,6 +171,8 @@ function run(command, args, options = {}) {
     throw new Error(`执行命令失败: ${command} ${args.join(' ')}\n${error.message}`);
   }
 }
+
+const wait = (ms) => new Promise((resolveWait) => setTimeout(resolveWait, ms));
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
@@ -252,10 +295,16 @@ async function confirmRelease(rows, versionsByPluginId) {
   for (const row of rows) {
     console.log(
       `- ${row.plugin.id}: ${row.version} -> ${versionsByPluginId.get(row.plugin.id)} `
-      + `(GigaPuddings/${row.plugin.repo})`
+      + `(min app ${versionsByPluginId.get(`${row.plugin.id}:minAppVersion`)}, `
+      + `GigaPuddings/${row.plugin.repo})`
     );
   }
-  console.log(`主仓库同步: ${options.pushMain ? 'git add -A && git commit && git push origin main' : '已禁用'}`);
+  console.log(`主仓库同步: ${options.pushMain ? `${options.commitCurrent ? 'git add -A' : 'git add 插件相关文件'} && git commit && git push origin main` : '已禁用'}`);
+
+  if (options.yes) {
+    console.log('\n已按 --yes 跳过确认');
+    return;
+  }
 
   const confirm = (await question('\n确认继续发布？(Y/n): ')).trim().toLowerCase();
   if (confirm === 'n') {
@@ -267,15 +316,46 @@ async function confirmRelease(rows, versionsByPluginId) {
 async function askVersion(row) {
   console.log(`\n当前插件: ${row.plugin.id}`);
   console.log(`当前版本: ${row.version}`);
+  if (options.version) {
+    assertVersion(options.version);
+    console.log(`新的插件版本号: ${options.version}`);
+    return options.version;
+  }
   const version = (await question('请输入新的插件版本号 (例如: 2.0.4): ')).trim();
   assertVersion(version);
   return version;
+}
+
+async function askMinAppVersion(row) {
+  const currentMinAppVersion =
+    row.manifest?.minAppVersion ??
+    row.marketplaceItem?.minAppVersion ??
+    packageJson.version;
+  console.log(`当前最低应用版本: ${currentMinAppVersion}`);
+  console.log(`当前主应用版本: ${packageJson.version}`);
+  if (options.minAppVersion) {
+    assertVersion(options.minAppVersion);
+    console.log(`插件最低应用版本: ${options.minAppVersion}`);
+    return options.minAppVersion;
+  }
+  const answer = (
+    await question(
+      '请输入插件最低应用版本 (直接回车保持当前；依赖本次主应用改动时通常填当前主应用版本): '
+    )
+  ).trim();
+  const minAppVersion = answer || currentMinAppVersion;
+  assertVersion(minAppVersion);
+  return minAppVersion;
 }
 
 async function askVersions(rows) {
   const versionsByPluginId = new Map();
   for (const row of rows) {
     versionsByPluginId.set(row.plugin.id, await askVersion(row));
+    versionsByPluginId.set(
+      `${row.plugin.id}:minAppVersion`,
+      await askMinAppVersion(row)
+    );
   }
   return versionsByPluginId;
 }
@@ -308,8 +388,9 @@ function listMainRepoChanges() {
 function assertMainRepoClean() {
   const changes = listMainRepoChanges();
   if (changes.length > 0) {
-    if (options.allowDirty) {
-      console.log(`\n已按 --allow-dirty 继续处理现有改动:\n${changes.join('\n')}`);
+    if (options.allowDirty || options.commitCurrent) {
+      const mode = options.commitCurrent ? '--commit-current' : '--allow-dirty';
+      console.log(`\n已按 ${mode} 继续处理现有改动:\n${changes.join('\n')}`);
       return;
     }
     throw new Error(
@@ -322,6 +403,18 @@ function assertMainRepoClean() {
 async function confirmOverwritePluginTag(plugin, version) {
   const output = run('git', ['ls-remote', '--tags', `git@github.com:GigaPuddings/${plugin.repo}.git`, `refs/tags/${version}`]);
   if (!output) return false;
+
+  if (options.forceTag) {
+    console.log(`\n插件仓库标签 ${version} 已存在，已按 --force-tag 覆盖`);
+    return true;
+  }
+
+  if (options.yes) {
+    throw new Error(
+      `插件仓库标签 ${plugin.id} ${version} 已存在。请递增插件版本重新发布，`
+      + '或显式添加 --force-tag 覆盖标签。'
+    );
+  }
 
   const overwrite = (await question(`\n插件仓库标签 ${version} 已存在，是否覆盖？(y/N): `)).trim().toLowerCase();
   if (overwrite !== 'y') {
@@ -423,20 +516,23 @@ function commitAndPushMainRepo(rows, versionsByPluginId) {
   console.log(gitOutput(['status', '--short']));
 
   console.log('\n正在提交主仓库变更...');
-  const pluginPaths = rows.flatMap((row) => [
-    row.plugin.sourceDir,
-    row.plugin.resourceSourceDir
-  ]).filter(Boolean);
-  run('git', ['add', '-A', '--', 'docs/plugin-marketplace/marketplace.json', ...pluginPaths], { inherit: true });
-  const unstagedChanges = [
-    ...gitLines(['diff', '--name-only']),
-    ...gitLines(['ls-files', '--others', '--exclude-standard'])
-  ];
-  if (unstagedChanges.length > 0) {
-    throw new Error(
-      `插件发布产生了未纳入当前插件包的文件，请检查后重试:\n${unstagedChanges.join('\n')}`
-    );
+  if (options.commitCurrent) {
+    run('git', ['add', '-A'], { inherit: true });
+  } else {
+    const pluginPaths = rows.flatMap((row) => pluginRelevantDirs(row.plugin));
+    run('git', ['add', '-A', '--', 'docs/plugin-marketplace/marketplace.json', ...pluginPaths], { inherit: true });
+    const unstagedChanges = [
+      ...gitLines(['diff', '--name-only']),
+      ...gitLines(['ls-files', '--others', '--exclude-standard'])
+    ];
+    if (unstagedChanges.length > 0) {
+      throw new Error(
+        `插件发布产生了未纳入当前插件包的文件，请检查后重试:\n${unstagedChanges.join('\n')}\n`
+        + '如果这些文件也属于本次发布，请使用 --commit-current 让发布命令统一提交。'
+      );
+    }
   }
+
   try {
     execSync('git diff --cached --quiet', { cwd: ROOT, stdio: 'ignore' });
     console.log('没有待提交的变更');
@@ -449,6 +545,68 @@ function commitAndPushMainRepo(rows, versionsByPluginId) {
 
   console.log('正在推送到 origin main...');
   run('git', ['push', 'origin', 'main'], { inherit: true });
+}
+
+async function readRemoteMarketplaceJson() {
+  let lastError;
+
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    try {
+      const url = `${REMOTE_MARKETPLACE_URL}?release_check=${Date.now()}-${attempt}`;
+      const response = await fetch(url, {
+        headers: {
+          accept: 'application/vnd.github.raw+json',
+          'cache-control': 'no-cache',
+          'user-agent': 'snippets-code-plugin-release'
+        },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+      await wait(attempt * 1500);
+    }
+  }
+
+  throw new Error(`远程 marketplace 刷新校验失败: ${lastError?.message ?? lastError}`);
+}
+
+async function verifyRemoteMarketplacePublished(rows, versionsByPluginId) {
+  if (!options.pushMain) return;
+
+  console.log('\n正在校验远程 marketplace 已刷新到最新版本...');
+  const marketplace = await readRemoteMarketplaceJson();
+  const itemsById = new Map((marketplace.plugins ?? []).map((item) => [item.id, item]));
+
+  for (const row of rows) {
+    const item = itemsById.get(row.plugin.id);
+    const version = versionsByPluginId.get(row.plugin.id);
+    const minAppVersion = versionsByPluginId.get(`${row.plugin.id}:minAppVersion`);
+    if (!item) {
+      throw new Error(`远程 marketplace 缺少插件 ${row.plugin.id}`);
+    }
+    if (item.version !== version) {
+      throw new Error(
+        `远程 marketplace 仍是旧版本: ${row.plugin.id} ${item.version}，期望 ${version}`
+      );
+    }
+    if (item.minAppVersion !== minAppVersion) {
+      throw new Error(
+        `远程 marketplace 最低应用版本不一致: ${row.plugin.id} ${item.minAppVersion}，期望 ${minAppVersion}`
+      );
+    }
+    if (item.compatibleAppVersion !== `>=${minAppVersion}`) {
+      throw new Error(
+        `远程 marketplace 兼容版本不一致: ${row.plugin.id} ${item.compatibleAppVersion}，期望 >=${minAppVersion}`
+      );
+    }
+    if (!item.packageUrl?.includes(`/archive/refs/tags/${version}.zip`)) {
+      throw new Error(`${row.plugin.id}: 远程 packageUrl 未固定到标签 ${version}`);
+    }
+  }
 }
 
 async function main() {
@@ -491,7 +649,11 @@ async function main() {
       console.log(`\n正在同步 ${row.plugin.id} 插件仓库、标签和 marketplace...`);
       run(
         'node',
-        syncArgsFor(row.plugin, version, forceTagsByPluginId.get(row.plugin.id)),
+        [
+          ...syncArgsFor(row.plugin, version, forceTagsByPluginId.get(row.plugin.id)),
+          '--min-app-version',
+          versionsByPluginId.get(`${row.plugin.id}:minAppVersion`)
+        ],
         { inherit: true }
       );
     }
@@ -500,9 +662,20 @@ async function main() {
     run('pnpm', ['plugins:package'], { inherit: true });
 
     console.log('\n正在校验插件市场...');
-    run('pnpm', ['plugins:verify-marketplace'], { inherit: true });
+    run(
+      'pnpm',
+      [
+        'plugins:verify-marketplace',
+        '--',
+        '--strict-compatibility',
+        '--only',
+        selectedRows.map((row) => row.plugin.id).join(',')
+      ],
+      { inherit: true }
+    );
 
     commitAndPushMainRepo(selectedRows, versionsByPluginId);
+    await verifyRemoteMarketplacePublished(selectedRows, versionsByPluginId);
 
     console.log(
       `\n✨ 插件发布完成: ${

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-06-02",
+  "updatedAt": "2026-06-03",
   "source": "snippets-code official GitHub marketplace",
   "plugins": [
     {
@@ -196,7 +196,7 @@
     },
     {
       "id": "system-theme",
-      "version": "2.0.8",
+      "version": "2.0.9",
       "name": {
         "i18nKey": "plugins.systemTheme.name",
         "fallback": "Auto Dark Mode"
@@ -206,7 +206,7 @@
         "fallback": "Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling."
       },
       "category": "appearance",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/2.0.8.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/2.0.9.zip",
       "builtinPluginId": "system-theme",
       "status": "included",
       "sizeBytes": 651092,
@@ -214,10 +214,10 @@
         "theme",
         "dark-mode"
       ],
-      "minAppVersion": "1.5.6",
-      "compatibleAppVersion": ">=1.5.6",
+      "minAppVersion": "2.1.3",
+      "compatibleAppVersion": ">=2.1.3",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.8"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.9"
     },
     {
       "id": "local-launcher",

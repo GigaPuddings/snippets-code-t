@@ -4,9 +4,32 @@ import { join, resolve } from 'node:path';
 import { MARKETPLACE_PATH, pluginRepositories, ROOT } from './plugin-release-config.mjs';
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
+function readOption(name) {
+  const prefix = `${name}=`;
+  const inlineValue = args.find((arg) => arg.startsWith(prefix));
+  if (inlineValue) return inlineValue.slice(prefix.length);
+
+  const index = args.indexOf(name);
+  if (index === -1) return null;
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${name} 需要提供参数值`);
+  }
+  return value;
+}
+
+function readListOption(name) {
+  const value = readOption(name);
+  return value
+    ? value.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean)
+    : [];
+}
+
 const VERIFY_REMOTE = !args.includes('--local') && process.env.PLUGIN_MARKETPLACE_VERIFY_REMOTE !== '0';
 const VERIFY_CONCURRENCY = Number(process.env.PLUGIN_MARKETPLACE_VERIFY_CONCURRENCY ?? 6);
 const ENABLE_API_FALLBACK = process.env.PLUGIN_MARKETPLACE_VERIFY_API_FALLBACK !== '0';
+const STRICT_COMPATIBILITY = args.includes('--strict-compatibility');
+const ONLY_IDS = readListOption('--only');
 const pluginRepositoryById = new Map(pluginRepositories.map((plugin) => [plugin.id, plugin]));
 
 const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -57,6 +80,19 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function assertOptionalSemver(item, value, field) {
+  if (value === undefined) return;
+  assert(typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value), `${item.id}: ${field} 必须使用 x.y.z 格式`);
+}
+
+function assertOptionalCompatibility(item, value, field) {
+  if (value === undefined) return;
+  assert(
+    typeof value === 'string' && /^>=\d+\.\d+\.\d+$/.test(value),
+    `${item.id}: ${field} 必须使用 >=x.y.z 格式`
+  );
 }
 
 function parseGithubArchivePackageUrl(packageUrl) {
@@ -159,6 +195,35 @@ async function verifyInstallablePackage(item) {
   assert(manifest.kind === 'local', `${item.id}: plugin.json kind 必须为 local`);
   assert(manifest.id === item.id, `${item.id}: marketplace id 与 plugin.json id 不一致 (${manifest.id})`);
   assert(manifest.version === item.version, `${item.id}: marketplace version 与 plugin.json version 不一致 (${item.version} != ${manifest.version})`);
+  assertOptionalSemver(item, item.minAppVersion, 'marketplace minAppVersion');
+  assertOptionalSemver(item, manifest.minAppVersion, 'plugin.json minAppVersion');
+  assertOptionalCompatibility(item, item.compatibleAppVersion, 'marketplace compatibleAppVersion');
+  assertOptionalCompatibility(item, manifest.compatibleAppVersion, 'plugin.json compatibleAppVersion');
+  if (STRICT_COMPATIBILITY && (item.minAppVersion !== undefined || manifest.minAppVersion !== undefined)) {
+    assert(
+      item.minAppVersion === manifest.minAppVersion,
+      `${item.id}: marketplace minAppVersion 与 plugin.json minAppVersion 不一致 (${item.minAppVersion} != ${manifest.minAppVersion})`
+    );
+  }
+  if (STRICT_COMPATIBILITY) {
+    const itemCompatibility = item.compatibleAppVersion ?? (
+      item.minAppVersion ? `>=${item.minAppVersion}` : undefined
+    );
+    const manifestCompatibility = manifest.compatibleAppVersion ?? (
+      manifest.minAppVersion ? `>=${manifest.minAppVersion}` : undefined
+    );
+    assert(
+      itemCompatibility === manifestCompatibility,
+      `${item.id}: marketplace compatibleAppVersion 与 plugin.json compatibleAppVersion 不一致 (${itemCompatibility} != ${manifestCompatibility})`
+    );
+  }
+  const archive = parseGithubArchivePackageUrl(item.packageUrl);
+  if (archive && item.packageSubdir === undefined) {
+    assert(
+      archive.ref === item.version,
+      `${item.id}: packageUrl 必须固定到当前版本标签 (${archive.ref} != ${item.version})`
+    );
+  }
   assert(isObject(manifest.name) && typeof manifest.name.i18nKey === 'string', `${item.id}: name.i18nKey 无效`);
   assert(isObject(manifest.description) && typeof manifest.description.i18nKey === 'string', `${item.id}: description.i18nKey 无效`);
   verifyLocalPackageEntryFiles(item, manifest, packageDir);
@@ -188,13 +253,14 @@ async function main() {
 
   const ids = new Set();
   const installableItems = [];
+  const onlyIds = new Set(ONLY_IDS);
   for (const item of marketplace.plugins) {
     assert(isObject(item), 'marketplace plugin item 必须是对象');
     assert(typeof item.id === 'string' && item.id.length > 0, 'marketplace plugin item 缺少 id');
     assert(!ids.has(item.id), `插件 ID 重复: ${item.id}`);
     ids.add(item.id);
 
-    if (item.packageUrl || item.packageSubdir) {
+    if ((item.packageUrl || item.packageSubdir) && (onlyIds.size === 0 || onlyIds.has(item.id))) {
       installableItems.push(item);
     }
   }
