@@ -15755,7 +15755,7 @@ const zk = { class: "title-container" }, Uk = { class: "alarm-edit-form" }, Kk =
     return it(() => {
       p(), f();
     }), Zr(() => {
-      d && clearInterval(d);
+      d && (clearInterval(d), d = null), a.value = !1, r.value = null, u.value = null, c.value?.close?.();
     }), (g, C) => {
       const w = vo, D = p2;
       return T(), H("div", mC, [
@@ -16013,7 +16013,7 @@ const zk = { class: "title-container" }, Uk = { class: "alarm-edit-form" }, Kk =
       ]);
     };
   }
-}), WC = /* @__PURE__ */ nr(VC, [["__scopeId", "data-v-134a1243"]]), jC = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), WC = /* @__PURE__ */ nr(VC, [["__scopeId", "data-v-b28db196"]]), jC = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: WC
 }, Symbol.toStringTag, { value: "Module" }));

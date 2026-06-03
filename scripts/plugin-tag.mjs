@@ -8,6 +8,8 @@ import { MARKETPLACE_PATH, pluginRepositories, ROOT } from './plugin-release-con
 const packageJson = JSON.parse(await readFile(resolve(ROOT, 'package.json'), 'utf8'));
 const REMOTE_MARKETPLACE_URL =
   'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json';
+const REMOTE_MARKETPLACE_API_URL =
+  'https://api.github.com/repos/GigaPuddings/snippets-code-t/contents/docs/plugin-marketplace/marketplace.json?ref=main';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -547,38 +549,66 @@ function commitAndPushMainRepo(rows, versionsByPluginId) {
   run('git', ['push', 'origin', 'main'], { inherit: true });
 }
 
-async function readRemoteMarketplaceJson() {
-  let lastError;
+async function readRemoteMarketplaceRawJson(attempt) {
+  const url = `${REMOTE_MARKETPLACE_URL}?release_check=${Date.now()}-${attempt}`;
+  const response = await fetch(url, {
+    headers: {
+      accept: 'application/vnd.github.raw+json',
+      'cache-control': 'no-cache',
+      'user-agent': 'snippets-code-plugin-release'
+    },
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!response.ok) {
+    throw new Error(`raw HTTP ${response.status}`);
+  }
+  return await response.json();
+}
 
-  for (let attempt = 1; attempt <= 8; attempt += 1) {
+async function readRemoteMarketplaceApiJson(attempt) {
+  const response = await fetch(`${REMOTE_MARKETPLACE_API_URL}&release_check=${Date.now()}-${attempt}`, {
+    headers: {
+      accept: 'application/vnd.github+json',
+      'cache-control': 'no-cache',
+      'user-agent': 'snippets-code-plugin-release',
+      'x-github-api-version': '2022-11-28'
+    },
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!response.ok) {
+    throw new Error(`api HTTP ${response.status}`);
+  }
+  const payload = await response.json();
+  if (typeof payload.content !== 'string') {
+    throw new Error('api response missing content');
+  }
+  const jsonText = Buffer.from(payload.content.replace(/\s/g, ''), 'base64').toString('utf8');
+  return JSON.parse(jsonText);
+}
+
+async function readRemoteMarketplaceCandidates(attempt) {
+  const readers = [
+    ['api', readRemoteMarketplaceApiJson],
+    ['raw', readRemoteMarketplaceRawJson]
+  ];
+  const candidates = [];
+  const errors = [];
+
+  for (const [source, reader] of readers) {
     try {
-      const url = `${REMOTE_MARKETPLACE_URL}?release_check=${Date.now()}-${attempt}`;
-      const response = await fetch(url, {
-        headers: {
-          accept: 'application/vnd.github.raw+json',
-          'cache-control': 'no-cache',
-          'user-agent': 'snippets-code-plugin-release'
-        },
-        signal: AbortSignal.timeout(15000)
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      return await response.json();
+      candidates.push({ source, marketplace: await reader(attempt) });
     } catch (error) {
-      lastError = error;
-      await wait(attempt * 1500);
+      errors.push(`${source}: ${error?.message ?? error}`);
     }
   }
 
-  throw new Error(`远程 marketplace 刷新校验失败: ${lastError?.message ?? lastError}`);
+  if (!candidates.length) {
+    throw new Error(errors.join('; '));
+  }
+  return candidates;
 }
 
-async function verifyRemoteMarketplacePublished(rows, versionsByPluginId) {
-  if (!options.pushMain) return;
-
-  console.log('\n正在校验远程 marketplace 已刷新到最新版本...');
-  const marketplace = await readRemoteMarketplaceJson();
+function remoteMarketplaceMismatch(marketplace, rows, versionsByPluginId) {
   const itemsById = new Map((marketplace.plugins ?? []).map((item) => [item.id, item]));
 
   for (const row of rows) {
@@ -586,27 +616,59 @@ async function verifyRemoteMarketplacePublished(rows, versionsByPluginId) {
     const version = versionsByPluginId.get(row.plugin.id);
     const minAppVersion = versionsByPluginId.get(`${row.plugin.id}:minAppVersion`);
     if (!item) {
-      throw new Error(`远程 marketplace 缺少插件 ${row.plugin.id}`);
+      return `远程 marketplace 缺少插件 ${row.plugin.id}`;
     }
     if (item.version !== version) {
-      throw new Error(
-        `远程 marketplace 仍是旧版本: ${row.plugin.id} ${item.version}，期望 ${version}`
-      );
+      return `远程 marketplace 仍是旧版本: ${row.plugin.id} ${item.version}，期望 ${version}`;
     }
     if (item.minAppVersion !== minAppVersion) {
-      throw new Error(
-        `远程 marketplace 最低应用版本不一致: ${row.plugin.id} ${item.minAppVersion}，期望 ${minAppVersion}`
-      );
+      return `远程 marketplace 最低应用版本不一致: ${row.plugin.id} ${item.minAppVersion}，期望 ${minAppVersion}`;
     }
     if (item.compatibleAppVersion !== `>=${minAppVersion}`) {
-      throw new Error(
-        `远程 marketplace 兼容版本不一致: ${row.plugin.id} ${item.compatibleAppVersion}，期望 >=${minAppVersion}`
-      );
+      return `远程 marketplace 兼容版本不一致: ${row.plugin.id} ${item.compatibleAppVersion}，期望 >=${minAppVersion}`;
     }
     if (!item.packageUrl?.includes(`/archive/refs/tags/${version}.zip`)) {
-      throw new Error(`${row.plugin.id}: 远程 packageUrl 未固定到标签 ${version}`);
+      return `${row.plugin.id}: 远程 packageUrl 未固定到标签 ${version}`;
     }
   }
+
+  return null;
+}
+
+async function verifyRemoteMarketplacePublished(rows, versionsByPluginId) {
+  if (!options.pushMain) return;
+
+  console.log('\n正在校验远程 marketplace 已刷新到最新版本...');
+
+  let lastError = null;
+  let lastMismatch = null;
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    try {
+      const candidates = await readRemoteMarketplaceCandidates(attempt);
+      for (const candidate of candidates) {
+        const mismatch = remoteMarketplaceMismatch(
+          candidate.marketplace,
+          rows,
+          versionsByPluginId
+        );
+        if (!mismatch) {
+          if (attempt > 1 || candidate.source !== 'raw') {
+            console.log(`[Plugins] 远程 marketplace 校验通过: ${candidate.source}`);
+          }
+          return;
+        }
+        lastMismatch = mismatch;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await wait(Math.min(attempt * 1500, 6000));
+  }
+
+  throw new Error(
+    `远程 marketplace 刷新校验失败: ${lastMismatch ?? lastError?.message ?? lastError}`
+  );
 }
 
 async function main() {

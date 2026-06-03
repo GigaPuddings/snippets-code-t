@@ -23,7 +23,7 @@
     <div class="settings-content">
       <component 
         v-for="tab in loadedTabs" 
-        :key="tab"
+        :key="componentKey(tab)"
         :is="componentMap[tab]" 
         v-show="activeTab === tab"
       />
@@ -99,6 +99,22 @@ const menuItems = computed(() => {
 const activeTab = ref('general');
 const loadedTabs = ref<string[]>(['general']); // 已加载的 tab
 
+const getSettingsTabPluginId = (tabId: string): string | null => {
+  const item = pluginSettingsMenuItems.find((candidate) => candidate.id === tabId);
+  if (item?.pluginId) return item.pluginId;
+  const plugin = pluginStore.plugins.find((candidate) =>
+    candidate.settingsTabs?.includes(tabId)
+  );
+  return plugin ? String(plugin.id) : null;
+};
+
+const componentKey = (tabId: string): string => {
+  const pluginId = getSettingsTabPluginId(tabId);
+  return pluginId
+    ? `${tabId}:${pluginId}:${pluginStore.runtimeRevision}`
+    : tabId;
+};
+
 // 组件映射
 const componentMap = computed<Record<string, any>>(() => {
   pluginStore.runtimeRevision;
@@ -164,6 +180,23 @@ const switchTab = (tabId: string) => {
     loadedTabs.value.push(tabId);
   }
 };
+
+watch(
+  () => [pluginStore.runtimeRevision, menuItems.value.map((item) => item.id).join('|')],
+  () => {
+    const availableTabs = new Set(menuItems.value.map((item) => item.id));
+    loadedTabs.value = loadedTabs.value.filter((tab) => availableTabs.has(tab));
+    if (!loadedTabs.value.includes('general')) {
+      loadedTabs.value.unshift('general');
+    }
+    if (!availableTabs.has(activeTab.value)) {
+      activeTab.value = availableTabs.has('plugins') ? 'plugins' : 'general';
+      if (!loadedTabs.value.includes(activeTab.value)) {
+        loadedTabs.value.push(activeTab.value);
+      }
+    }
+  }
+);
 
 // 监听路由 query 参数变化（进入设置页或切到 gitSync 时先刷新 Tab 显示条件，避免从个人中心保存后不显示）
 watch(() => route.query.tab, (newTab) => {

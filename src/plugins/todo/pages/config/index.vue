@@ -303,7 +303,12 @@ onMounted(() => {
 onUnmounted(() => {
   if (timer) {
     clearInterval(timer);
+    timer = null;
   }
+  showDeleteDialog.value = false;
+  deleteTarget.value = null;
+  currentEditCard.value = null;
+  alarmEditDialogRef.value?.close?.();
 });
 </script>
 

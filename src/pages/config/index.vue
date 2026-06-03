@@ -2,8 +2,17 @@
   <div class="config">
     <router-view v-slot="{ Component }">
       <keep-alive>
-        <component :is="Component" />
+        <component
+          v-if="shouldKeepAliveRoute"
+          :is="Component"
+          :key="routeComponentKey"
+        />
       </keep-alive>
+      <component
+        v-if="!shouldKeepAliveRoute"
+        :is="Component"
+        :key="routeComponentKey"
+      />
     </router-view>
 
     <component
@@ -16,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import modal from '@/utils/modal';
@@ -34,9 +43,24 @@ defineOptions({
 });
 
 const router = useRouter();
+const route = useRoute();
 const configHostComponents = computed(() => {
   pluginStore.runtimeRevision;
   return pluginHostComponents.filter((component) => component.target === 'config');
+});
+const activePluginRouteId = computed(() =>
+  route.matched
+    .map((record) => record.meta.pluginId)
+    .find((pluginId): pluginId is string => typeof pluginId === 'string')
+);
+const shouldKeepAliveRoute = computed(() =>
+  Boolean(route.meta.keepAlive) && !activePluginRouteId.value
+);
+const routeComponentKey = computed(() => {
+  const pluginId = activePluginRouteId.value;
+  return pluginId
+    ? `${route.fullPath}:${pluginId}:${pluginStore.runtimeRevision}`
+    : route.fullPath;
 });
 const configHostContext = reactive<ConfigHostContext>({
   shouldInit: null,
