@@ -9,7 +9,7 @@
         <div class="content-item-header">
           <div class="content-item-title">{{ content.title }}</div>
           <el-tooltip
-            effect="dark"
+            effect="light"
             :content="fragmentTypeLabel"
             placement="top"
           >

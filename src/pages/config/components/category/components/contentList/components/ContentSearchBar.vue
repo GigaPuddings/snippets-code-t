@@ -17,7 +17,7 @@
         </template>
       </el-input>
       
-      <el-tooltip effect="dark" :content="$t('search.filterPanel')" placement="bottom">
+      <el-tooltip effect="light" :content="$t('search.filterPanel')" placement="bottom">
         <div class="filter-button-wrapper" @click="$emit('toggle-filter')">
           <Filter
             class="content-search-filter"
@@ -29,8 +29,10 @@
           <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
         </div>
       </el-tooltip>
+
+      <GitContributionMiniEntry />
       
-      <el-tooltip effect="dark" :content="$t('category.newSnippet')" placement="bottom">
+      <el-tooltip effect="light" :content="$t('category.newSnippet')" placement="bottom">
         <Plus
           class="content-search-add"
           theme="outline"
@@ -52,6 +54,7 @@
 <script setup lang="ts">
 import { Search, Plus, Filter } from '@icon-park/vue-next';
 import SearchSyntaxHelper from '@/components/SearchSyntaxHelper/index.vue';
+import GitContributionMiniEntry from '@/plugins/git-sync/components/GitContributionMiniEntry.vue';
 
 /**
  * 组件 Props 接口
@@ -129,6 +132,11 @@ function handleSyntaxInsert(syntax: string): void {
 
 .content-search {
   @apply border-b border-panel flex justify-between items-center h-[40px] gap-2;
+
+  :deep(.el-input) {
+    flex: 1;
+    min-width: 0;
+  }
 
   .filter-button-wrapper {
     @apply relative cursor-pointer;

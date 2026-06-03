@@ -484,12 +484,12 @@ const handleIconError = async (engine: SearchEngineConfig) => {
   }
   
   .scanning-content {
-    @apply flex flex-col items-center gap-4 p-8 rounded-2xl;
-    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    @apply flex flex-col items-center gap-3 p-6 rounded-lg border border-panel;
+    background: var(--search-bg);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
     
     .dark & {
-      background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+      background: var(--search-bg);
     }
     
     .scanning-icon {
@@ -507,42 +507,52 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 }
 
 .retrieve-container {
-  @apply relative w-full h-full overflow-hidden rounded-md border dark:border-panel;
+  @apply relative w-full h-full overflow-hidden p-4 pt-2;
+  color: var(--categories-text-color);
 
   .search-config {
-    @apply h-full bg-panel py-2 px-4 flex flex-col;
+    @apply h-full flex flex-col;
 
     .config-title {
-      @apply flex items-center justify-between mt-1 mb-2 px-2;
+      @apply flex items-center justify-between mb-2 px-3 py-2 rounded-md bg-panel border border-panel;
 
       .title-text {
-        @apply text-xl font-medium text-primary;
+        @apply text-base font-semibold text-panel;
       }
 
       .add-btn {
-        @apply cursor-pointer text-primary transition-colors;
+        @apply cursor-pointer rounded-md p-1 text-panel-text-secondary transition-colors;
+
+        &:hover {
+          color: var(--search-result-accent);
+          background: var(--search-result-active);
+        }
       }
     }
 
     .search-list {
-      @apply flex-grow overflow-y-auto rounded-md;
+      @apply flex-grow overflow-y-auto pr-1;
 
       .search-item {
-        @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 px-4 sm:px-6 py-4 mb-2 last:mb-0 bg-content rounded-lg shadow-sm hover:shadow transition-all;
+        @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-3 py-3 mb-3 last:mb-0 bg-panel rounded-md border border-panel transition-colors;
 
         &.default-engine {
-          @apply border-l-4 border-panel;
+          border-color: var(--search-result-active-border);
+          background: var(--search-result-active);
         }
 
         :deep(.el-input__wrapper) {
-          @apply border border-panel !bg-panel dark:!bg-content rounded-md shadow-none;
+          @apply border border-panel rounded-md shadow-none;
+          min-height: 36px;
+          background: var(--search-input-bg);
 
           &:hover {
-            @apply border-panel;
+            border-color: var(--search-result-active-border);
           }
 
           &.is-focus {
-            @apply border-panel shadow-sm;
+            border-color: var(--search-result-active-border);
+            box-shadow: 0 0 0 1px var(--search-result-active-border);
           }
         }
 
@@ -551,13 +561,13 @@ const handleIconError = async (engine: SearchEngineConfig) => {
         }
 
         .item-left {
-          @apply flex items-center gap-2 flex-wrap sm:flex-nowrap;
+          @apply flex items-center gap-3 flex-wrap sm:flex-nowrap min-w-0;
 
           .icon-wrapper {
-            @apply flex items-center justify-center w-10 h-10 mx-1 sm:mx-3 bg-panel rounded-full overflow-hidden flex-shrink-0;
+            @apply flex items-center justify-center w-10 h-10 mx-1 bg-content border border-panel rounded-md overflow-hidden flex-shrink-0;
 
             .engine-icon {
-              @apply w-6 h-6 object-contain rounded-md;
+              @apply w-6 h-6 object-contain rounded;
             }
           }
 
@@ -579,22 +589,29 @@ const handleIconError = async (engine: SearchEngineConfig) => {
         }
 
         .item-right {
-          @apply flex items-center gap-2 sm:gap-4 flex-wrap sm:flex-nowrap justify-end;
+          @apply flex items-center gap-3 flex-wrap sm:flex-nowrap justify-end;
 
           .engine-select {
             @apply w-full sm:w-[140px] min-w-[120px];
 
             :deep(.el-select__wrapper) {
-              @apply border border-panel rounded-md !bg-panel dark:!bg-content;
+              @apply border border-panel rounded-md shadow-none;
+              min-height: 36px;
+              background: var(--search-input-bg);
 
               &:hover {
-                @apply border-panel;
+                border-color: var(--search-result-active-border);
               }
             }
           }
 
           .delete-icon {
-            @apply cursor-pointer text-red-500 hover:text-red-600 transition-colors flex-shrink-0;
+            @apply cursor-pointer text-red-500 transition-colors flex-shrink-0 rounded-md p-1;
+
+            &:hover {
+              color: #dc2626;
+              background: rgba(239, 68, 68, 0.1);
+            }
           }
         }
       }

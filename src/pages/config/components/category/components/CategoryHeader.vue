@@ -2,7 +2,7 @@
   <div class="category-header-list">
     <div class="category-header-title">{{ $t('category.folders') }}</div>
     <div class="category-header-action">
-      <el-tooltip :content="$t('category.newFolder')" placement="bottom">
+      <el-tooltip effect="light" :content="$t('category.newFolder')" placement="bottom">
         <FolderPlus
           class="category-header-action-item-icon"
           theme="outline"
@@ -12,6 +12,7 @@
         />
       </el-tooltip>
       <el-tooltip
+        effect="light"
         :content="sortOrder === 'asc' ? $t('category.ascending') : $t('category.descending')"
         placement="bottom"
       >

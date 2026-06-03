@@ -8,8 +8,10 @@ use crate::git_common::is_git_success;
 use crate::git_common::parse_git_file_count_output;
 use crate::git_common::remove_token_from_url;
 use crate::git_common::run_git_command;
+use chrono::{Datelike, Duration as ChronoDuration, Local, NaiveDate};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeSet, HashMap};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -148,6 +150,24 @@ pub struct GitRecord {
     pub time: String,
     pub synced: bool,
     pub files: Vec<GitRecordFile>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitContributionDay {
+    pub date: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitContributionActivity {
+    pub year: i32,
+    pub current_year: i32,
+    pub start_date: String,
+    pub end_date: String,
+    pub total: usize,
+    pub max_count: usize,
+    pub years: Vec<i32>,
+    pub days: Vec<GitContributionDay>,
 }
 
 /// 将 `git status --porcelain` 的原始行转换为适合前端展示的格式
@@ -2015,6 +2035,103 @@ pub fn get_git_records(workspace_root: &Path, limit: usize) -> Result<Vec<GitRec
     Ok(records)
 }
 
+fn contribution_range_for_year(
+    year: i32,
+    current_year: i32,
+    today: NaiveDate,
+) -> (NaiveDate, NaiveDate) {
+    if year == current_year {
+        return (today - ChronoDuration::days(364), today);
+    }
+
+    let start = NaiveDate::from_ymd_opt(year, 1, 1).unwrap_or(today);
+    let end = NaiveDate::from_ymd_opt(year, 12, 31).unwrap_or(today);
+    (start, end)
+}
+
+fn collect_git_contribution_years(workspace_root: Option<&Path>, current_year: i32) -> Vec<i32> {
+    let mut years = BTreeSet::new();
+    for offset in 0..5 {
+        years.insert(current_year - offset);
+    }
+
+    if let Some(workspace_root) = workspace_root {
+        if check_git_repo(workspace_root).unwrap_or(false) && git_has_head(workspace_root) {
+            if let Ok(log_output) = git_output_string(
+                workspace_root,
+                &["log", "--date=format:%Y", "--pretty=format:%ad"],
+            ) {
+                for line in log_output.lines() {
+                    if let Ok(year) = line.trim().parse::<i32>() {
+                        if (1970..=current_year).contains(&year) {
+                            years.insert(year);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut years = years.into_iter().collect::<Vec<_>>();
+    years.sort_by(|a, b| b.cmp(a));
+    years
+}
+
+pub fn get_git_contribution_activity(
+    workspace_root: Option<&Path>,
+    year: Option<i32>,
+) -> Result<GitContributionActivity, String> {
+    let today = Local::now().date_naive();
+    let current_year = today.year();
+    let selected_year = year.unwrap_or(current_year);
+    let (start_date, end_date) = contribution_range_for_year(selected_year, current_year, today);
+    let years = collect_git_contribution_years(workspace_root, current_year);
+    let mut counts: HashMap<NaiveDate, usize> = HashMap::new();
+
+    if let Some(workspace_root) = workspace_root {
+        if check_git_repo(workspace_root)? && git_has_head(workspace_root) {
+            let since = format!("--since={} 00:00:00", start_date.format("%Y-%m-%d"));
+            let until = format!("--until={} 23:59:59", end_date.format("%Y-%m-%d"));
+            let log_output = git_output_string(
+                workspace_root,
+                &["log", &since, &until, "--date=short", "--pretty=format:%ad"],
+            )?;
+
+            for line in log_output.lines() {
+                if let Ok(date) = NaiveDate::parse_from_str(line.trim(), "%Y-%m-%d") {
+                    if date >= start_date && date <= end_date {
+                        *counts.entry(date).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut days = Vec::new();
+    let mut cursor = start_date;
+    while cursor <= end_date {
+        days.push(GitContributionDay {
+            date: cursor.format("%Y-%m-%d").to_string(),
+            count: counts.get(&cursor).copied().unwrap_or(0),
+        });
+        cursor += ChronoDuration::days(1);
+    }
+
+    let total = days.iter().map(|day| day.count).sum();
+    let max_count = days.iter().map(|day| day.count).max().unwrap_or(0);
+
+    Ok(GitContributionActivity {
+        year: selected_year,
+        current_year,
+        start_date: start_date.format("%Y-%m-%d").to_string(),
+        end_date: end_date.format("%Y-%m-%d").to_string(),
+        total,
+        max_count,
+        years,
+        days,
+    })
+}
+
 pub fn restore_git_record_file(
     workspace_root: &Path,
     commit_hash: &str,
@@ -2111,6 +2228,16 @@ pub fn get_git_records_command(
     };
 
     get_git_records(&workspace_root, limit.unwrap_or(10))
+}
+
+#[command]
+pub fn get_git_contribution_activity_command(
+    app_handle: AppHandle,
+    year: Option<i32>,
+) -> Result<GitContributionActivity, String> {
+    require_git_sync_plugin(&app_handle)?;
+    let workspace_root = crate::json_config::get_workspace_root(&app_handle)?;
+    get_git_contribution_activity(workspace_root.as_deref(), year)
 }
 
 #[command]

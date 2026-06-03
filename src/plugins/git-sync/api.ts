@@ -71,6 +71,22 @@ export interface GitRecord {
   files: GitRecordFile[];
 }
 
+export interface GitContributionDay {
+  date: string;
+  count: number;
+}
+
+export interface GitContributionActivity {
+  year: number;
+  current_year: number;
+  start_date: string;
+  end_date: string;
+  total: number;
+  max_count: number;
+  years: number[];
+  days: GitContributionDay[];
+}
+
 /**
  * 系统 Git 配置
  */
@@ -138,6 +154,14 @@ export async function getGitRecords(limit = 10): Promise<GitRecord[]> {
     return await invoke<GitRecord[]>('get_git_records_command', { limit });
   } catch (error) {
     throw new Error(`获取 Git 记录失败: ${error}`);
+  }
+}
+
+export async function getGitContributionActivity(year?: number): Promise<GitContributionActivity> {
+  try {
+    return await invoke<GitContributionActivity>('get_git_contribution_activity_command', { year });
+  } catch (error) {
+    throw new Error(`获取 Git 提交活跃度失败: ${error}`);
   }
 }
 

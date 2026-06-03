@@ -37,11 +37,11 @@ function handleGlobalEscape(event: KeyboardEvent) {
 
 onMounted(async () => {
   eventListeners.value = await setupBaseEventListeners();
-  window.addEventListener('keydown', handleGlobalEscape, true);
+  window.addEventListener('keydown', handleGlobalEscape);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleGlobalEscape, true);
+  window.removeEventListener('keydown', handleGlobalEscape);
   if (eventListeners.value) {
     cleanupBaseEventListeners(eventListeners.value);
   }

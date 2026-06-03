@@ -1,6 +1,38 @@
 <template>
   <div class="todo-container">
-    <div v-if="alarmCards.length > 0" class="grid grid-cols-3 gap-4">
+    <div class="todo-toolbar">
+      <div class="todo-toolbar__summary">
+        <Remind theme="outline" size="18" :strokeWidth="3" />
+        <span>{{ $t('plugins.todo.name') }}</span>
+        <strong>{{ alarmCards.length }}</strong>
+      </div>
+      <div class="todo-toolbar__actions">
+        <el-tooltip effect="light" :content="isEdit ? $t('local.done') : $t('local.edit')" placement="bottom">
+          <button
+            class="todo-icon-button"
+            type="button"
+            :class="{ active: isEdit }"
+            :disabled="alarmCards.length === 0"
+            @click="handleEdit"
+          >
+            <write v-if="!isEdit" theme="outline" size="18" :strokeWidth="3" />
+            <check-small v-else theme="outline" size="18" :strokeWidth="3" />
+          </button>
+        </el-tooltip>
+        <el-tooltip effect="light" :content="$t('local.add')" placement="bottom">
+          <button
+            class="todo-icon-button todo-icon-button--primary"
+            type="button"
+            :disabled="isEdit"
+            @click="addAlarmCard"
+          >
+            <plus theme="outline" size="20" :strokeWidth="3" />
+          </button>
+        </el-tooltip>
+      </div>
+    </div>
+
+    <div v-if="alarmCards.length > 0" class="alarm-grid">
       <div
         class="alarm-card"
         v-for="item in alarmCards"
@@ -81,28 +113,6 @@
       <remind theme="outline" size="28" :strokeWidth="3" />
       <div class="alarm-no-title">{{ $t('alarm.noAlarms') }}</div>
       <div class="alarm-no-description">{{ $t('alarm.noAlarmsDesc') }}</div>
-    </div>
-
-    <div
-      class="fixed bottom-6 right-6 rounded-md shadow-md border bg-panel p-1"
-    >
-      <div class="flex items-center justify-center gap-4">
-        <div
-          class="cursor-pointer hover:bg-panel-hover-bg rounded-md p-[4px] leading-3"
-          :class="{ 'opacity-50': alarmCards.length === 0 }"
-          @click="handleEdit"
-        >
-          <write v-if="!isEdit" theme="outline" size="20" :strokeWidth="3" />
-          <check-small v-else theme="outline" size="20" :strokeWidth="3" />
-        </div>
-        <div
-          :class="[isEdit ? 'bg-panel-hover-bg' : '']"
-          class="cursor-pointer hover:bg-panel-hover-bg rounded-md p-[2px] leading-3"
-          @click="addAlarmCard"
-        >
-          <plus theme="outline" size="24" :strokeWidth="3" />
-        </div>
-      </div>
     </div>
 
     <alarm-edit-dialog
@@ -299,17 +309,68 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .todo-container {
-  @apply w-full p-6 pt-1 rounded-md overflow-hidden;
+  @apply w-full h-full flex flex-col overflow-hidden p-4 pt-2;
+  color: var(--categories-text-color);
+
+  .todo-toolbar {
+    @apply flex items-center justify-between gap-3 px-3 py-2 mb-3 rounded-md bg-panel border border-panel;
+
+    .todo-toolbar__summary {
+      @apply flex items-center gap-2 min-w-0 text-sm font-semibold text-panel;
+
+      strong {
+        @apply inline-flex items-center justify-center min-w-6 h-6 px-1 rounded-md text-xs;
+        color: var(--search-result-accent);
+        background: var(--search-card-bg);
+      }
+    }
+
+    .todo-toolbar__actions {
+      @apply flex items-center gap-2;
+    }
+
+    .todo-icon-button {
+      @apply inline-flex w-8 h-8 items-center justify-center rounded-md border border-transparent text-panel-text-secondary cursor-pointer transition-colors;
+      background: transparent;
+
+      &:hover:not(:disabled),
+      &.active {
+        color: var(--search-result-accent);
+        background: var(--search-result-active);
+        border-color: var(--search-result-active-border);
+      }
+
+      &:disabled {
+        @apply cursor-not-allowed opacity-45;
+      }
+    }
+
+    .todo-icon-button--primary {
+      color: var(--search-result-accent);
+      background: var(--search-card-bg);
+      border-color: var(--search-result-active-border);
+    }
+  }
+
+  .alarm-grid {
+    @apply grid grid-cols-3 gap-3 overflow-y-auto pr-1;
+  }
 
   .alarm-card {
-    @apply min-h-[180px] border border-panel bg-panel rounded-lg p-4 relative shadow-sm cursor-pointer select-none transition-all;
+    @apply min-h-[150px] border border-panel bg-panel rounded-md p-3 relative cursor-pointer select-none transition-colors;
+
+    &:hover {
+      background: var(--search-result-active);
+      border-color: var(--search-result-active-border);
+    }
 
     &.disabled {
-      @apply opacity-50 bg-content;
+      @apply opacity-60 bg-content;
     }
 
     &.expired {
-      @apply border-red-300 bg-red-50 dark:bg-red-900/20;
+      border-color: rgba(239, 68, 68, 0.35);
+      background: rgba(239, 68, 68, 0.08);
 
       .time {
         @apply text-red-600 dark:text-red-400;
@@ -317,7 +378,8 @@ onUnmounted(() => {
     }
 
     &.urgent {
-      @apply border-orange-300 bg-orange-50 dark:bg-orange-900/20;
+      border-color: rgba(245, 158, 11, 0.4);
+      background: rgba(245, 158, 11, 0.1);
 
       .time {
         @apply text-orange-600 dark:text-orange-400;
@@ -325,64 +387,75 @@ onUnmounted(() => {
     }
 
     .time {
-      @apply text-6xl font-bold mb-2;
+      @apply text-4xl font-bold mb-2;
+      color: var(--categories-text-color);
     }
 
     .info {
-      @apply mb-4;
+      @apply mb-3;
 
       .title {
-        @apply text-lg font-medium mb-1;
+        @apply text-sm font-semibold mb-1 truncate;
+        color: var(--categories-text-color);
       }
 
       .time-left {
-        @apply flex items-center gap-2 text-sm text-panel-text-secondary mb-2;
+        @apply flex items-center gap-2 text-xs text-panel-text-secondary mb-2;
       }
 
       .alarm-type {
         @apply mt-2;
 
         .type-badge {
-          @apply text-xs px-2 py-1 rounded-full;
+          @apply text-xs px-2 py-1 rounded-md border;
 
           &.daily {
-            @apply bg-blue-100 text-blue-600;
+            color: #2563eb;
+            background: rgba(59, 130, 246, 0.1);
+            border-color: rgba(59, 130, 246, 0.18);
           }
 
           &.weekly {
-            @apply bg-green-100 text-green-600;
+            color: #16a34a;
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.18);
           }
 
           &.specific {
-            @apply bg-purple-100 text-purple-600;
+            color: #7c3aed;
+            background: rgba(124, 58, 237, 0.1);
+            border-color: rgba(124, 58, 237, 0.18);
           }
         }
       }
     }
 
     .weekdays {
-      @apply flex gap-2 mb-4;
+      @apply flex flex-wrap gap-1.5 mb-3;
 
       .weekday {
-        @apply text-sm text-panel px-[8px] py-[4px] rounded-full shadow-sm;
-
-        border: 1px solid #e5e7eb;
+        @apply text-xs text-panel px-2 py-1 rounded-md border border-panel;
+        background: var(--search-card-bg);
       }
 
       .active-weekday {
-        @apply bg-active text-white hover:bg-[--el-button-hover-bg-color];
+        color: var(--search-result-accent);
+        background: var(--search-result-active);
+        border-color: var(--search-result-active-border);
       }
     }
 
     .toggle {
-      @apply absolute top-4 right-4;
+      @apply absolute top-3 right-3;
     }
 
     .daily-indicator {
       @apply flex gap-2 mb-4;
 
       .daily-text {
-        @apply text-sm text-blue-600 dark:text-blue-400 px-[8px] py-[4px] rounded-full shadow-sm bg-blue-50 dark:bg-blue-900;
+        @apply text-xs text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md border;
+        background: rgba(59, 130, 246, 0.1);
+        border-color: rgba(59, 130, 246, 0.18);
       }
     }
 
@@ -390,7 +463,9 @@ onUnmounted(() => {
       @apply flex gap-2 mb-4;
 
       .date-info {
-        @apply text-sm text-purple-600 dark:text-purple-400 px-[8px] py-[4px] rounded-full shadow-sm bg-purple-50 dark:bg-purple-900;
+        @apply text-xs text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md border;
+        background: rgba(124, 58, 237, 0.1);
+        border-color: rgba(124, 58, 237, 0.18);
       }
     }
   }
@@ -400,7 +475,7 @@ onUnmounted(() => {
   }
 
   .alarm-no-data {
-    @apply flex flex-col items-center justify-center h-full select-none;
+    @apply flex flex-col items-center justify-center flex-1 select-none rounded-md border border-panel bg-panel;
 
     .alarm-no-title {
       @apply text-lg font-medium mb-2;

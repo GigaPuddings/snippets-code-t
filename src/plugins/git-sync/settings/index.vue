@@ -86,6 +86,77 @@
         </template>
       </div>
 
+      <section v-if="gitSettings.enabled" class="contribution-section">
+        <div class="contribution-head">
+          <div class="contribution-summary">
+            <div class="summarize-label-title">{{ contributionTotalText }}</div>
+            <div class="summarize-label-desc">{{ $t('settings.gitSync.contribution.desc') }}</div>
+          </div>
+          <div class="contribution-actions">
+            <button
+              v-for="year in contributionYears"
+              :key="year"
+              class="contribution-year"
+              :class="{ active: year === selectedContributionYear }"
+              type="button"
+              :disabled="isLoadingContribution"
+              @click="handleContributionYearChange(year)"
+            >
+              {{ year }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="isLoadingContribution && !contributionActivity" class="contribution-empty">
+          {{ $t('settings.gitSync.contribution.loading') }}
+        </div>
+        <div v-else-if="!contributionActivity" class="contribution-empty">
+          {{ $t('settings.gitSync.contribution.empty') }}
+        </div>
+        <div v-else class="contribution-board" :aria-label="$t('settings.gitSync.contribution.title')">
+          <div
+            class="contribution-months"
+            :style="{ gridTemplateColumns: `repeat(${contributionWeeks.length}, minmax(0, 1fr))` }"
+          >
+            <span v-for="(label, index) in contributionMonthLabels" :key="`${label}-${index}`">
+              {{ label }}
+            </span>
+          </div>
+          <div class="contribution-body">
+            <div class="contribution-weekdays" aria-hidden="true">
+              <span v-for="(label, index) in contributionWeekdayLabels" :key="index">{{ label }}</span>
+            </div>
+            <div
+              class="contribution-weeks"
+              :style="{ gridTemplateColumns: `repeat(${contributionWeeks.length}, minmax(0, 1fr))` }"
+            >
+              <div v-for="(week, weekIndex) in contributionWeeks" :key="weekIndex" class="contribution-week">
+                <span
+                  v-for="(day, dayIndex) in week"
+                  :key="day?.date || `empty-${weekIndex}-${dayIndex}`"
+                  class="contribution-day"
+                  :class="getContributionDayClass(day)"
+                  :title="day ? getContributionDayTitle(day) : ''"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="contribution-footer">
+            <span>{{ contributionDateRangeText }}</span>
+            <span class="contribution-legend">
+              {{ $t('settings.gitSync.contribution.less') }}
+              <i
+                v-for="level in [0, 1, 2, 3, 4]"
+                :key="level"
+                class="contribution-day contribution-day--legend"
+                :class="`contribution-day--level-${level}`"
+              />
+              {{ $t('settings.gitSync.contribution.more') }}
+            </span>
+          </div>
+        </div>
+      </section>
+
       <!-- 第一部分：Git 配置 -->
       <div class="settings-section-title">
         {{ $t('settings.gitSync.status.section.config') }}
@@ -326,8 +397,8 @@ import { CustomButton, CustomSwitch, SelectConfirmDialog } from '@/components/UI
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import { getGitSettings, updateGitSettings } from '@/api/appConfig';
 import { useGitStatus } from '@/plugins/git-sync/useGitStatus';
-import { gitPull, gitPush, getGitRecords, removeUntrackedFile, restoreGitRecordFile, startAutoSync, stopAutoSync, switchGitBranch } from '@/plugins/git-sync/api';
-import type { BranchSelection, GitRecord, GitRecordFile, PullResult } from '@/plugins/git-sync/api';
+import { gitPull, gitPush, getGitContributionActivity, getGitRecords, removeUntrackedFile, restoreGitRecordFile, startAutoSync, stopAutoSync, switchGitBranch } from '@/plugins/git-sync/api';
+import type { BranchSelection, GitContributionActivity, GitContributionDay, GitRecord, GitRecordFile, PullResult } from '@/plugins/git-sync/api';
 import type { GitSettings } from '@/types/models';
 import modal from '@/utils/modal';
 import { analyzeGitError, getErrorTypeIcon } from '@/utils/git-error';
@@ -337,7 +408,7 @@ defineOptions({
   name: 'GitSync'
 });
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 // Git 同步状态（与标题栏指示器共用同一数据源，时间会一致）
 const {
@@ -409,6 +480,11 @@ const isLoadingRecords = ref(false);
 const gitRecordsLoaded = ref(false);
 const restoreConfirmVisible = ref(false);
 const pendingRestore = ref<{ record: GitRecord; file: GitRecordFile } | null>(null);
+const contributionActivity = ref<GitContributionActivity | null>(null);
+const selectedContributionYear = ref(new Date().getFullYear());
+const isLoadingContribution = ref(false);
+
+type ContributionCell = GitContributionDay | null;
 
 const branchSelectOptions = computed(() => {
   const branches = branchSelection.value?.available_branches?.length
@@ -434,6 +510,81 @@ const restoreConfirmMessage = computed(() => {
   const target = pendingRestore.value;
   if (!target) return '';
   return `确认将文件恢复到这条记录之前的版本？\n\n- 文件：${target.file.file_path}\n- 记录：${target.record.short_hash} ${target.record.message}\n\n当前文件内容会被覆盖，恢复后会出现在待同步列表中。`;
+});
+
+const contributionYears = computed(() => {
+  if (contributionActivity.value?.years.length) {
+    return contributionActivity.value.years;
+  }
+
+  const currentYear = new Date().getFullYear();
+  return Array.from({ length: 5 }, (_, index) => currentYear - index);
+});
+
+const contributionTotalText = computed(() => {
+  const activity = contributionActivity.value;
+  if (!activity) return t('settings.gitSync.contribution.title');
+
+  if (activity.year === activity.current_year) {
+    return t('settings.gitSync.contribution.totalLastYear', { count: activity.total });
+  }
+
+  return t('settings.gitSync.contribution.totalYear', {
+    year: activity.year,
+    count: activity.total
+  });
+});
+
+const contributionDateRangeText = computed(() => {
+  const activity = contributionActivity.value;
+  if (!activity) return '';
+  return `${activity.start_date} - ${activity.end_date}`;
+});
+
+const contributionWeekdayLabels = computed(() => (
+  locale.value.startsWith('zh')
+    ? ['', '一', '', '三', '', '五', '']
+    : ['', 'Mon', '', 'Wed', '', 'Fri', '']
+));
+
+const contributionWeeks = computed<ContributionCell[][]>(() => {
+  const activity = contributionActivity.value;
+  if (!activity) return [];
+
+  const start = parseContributionDate(activity.start_date);
+  const cells: ContributionCell[] = [
+    ...Array.from({ length: start.getDay() }, () => null),
+    ...activity.days
+  ];
+  const trailingCount = cells.length % 7 === 0 ? 0 : 7 - (cells.length % 7);
+  cells.push(...Array.from({ length: trailingCount }, () => null));
+
+  const weeks: ContributionCell[][] = [];
+  for (let index = 0; index < cells.length; index += 7) {
+    weeks.push(cells.slice(index, index + 7));
+  }
+  return weeks;
+});
+
+const contributionMonthLabels = computed(() => {
+  let previousMonthKey = '';
+  return contributionWeeks.value.map((week, index) => {
+    const monthStart = week.find((cell) => {
+      if (!cell) return false;
+      return parseContributionDate(cell.date).getDate() === 1;
+    });
+    const firstDay = week.find((cell) => Boolean(cell));
+    const labelDay = monthStart ?? (index === 0 ? firstDay : null);
+
+    if (!labelDay) return '';
+
+    const date = parseContributionDate(labelDay.date);
+    const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+    if (monthKey === previousMonthKey) return '';
+
+    previousMonthKey = monthKey;
+    return formatContributionMonth(labelDay.date);
+  });
 });
 
 // 显示友好的错误消息
@@ -595,6 +746,62 @@ const loadGitRecords = async () => {
   }
 };
 
+const loadContributionActivity = async (year = selectedContributionYear.value) => {
+  isLoadingContribution.value = true;
+  try {
+    const activity = await getGitContributionActivity(year);
+    contributionActivity.value = activity;
+    selectedContributionYear.value = activity.year;
+  } catch (error) {
+    logger.error('[GitSync] 加载 Git 提交活跃度失败', error);
+    showFriendlyError(error);
+  } finally {
+    isLoadingContribution.value = false;
+  }
+};
+
+const refreshContributionIfEnabled = async () => {
+  if (!gitSettings.value.enabled) return;
+  await loadContributionActivity(selectedContributionYear.value);
+};
+
+const handleContributionYearChange = (year: number) => {
+  if (year === selectedContributionYear.value || isLoadingContribution.value) return;
+  selectedContributionYear.value = year;
+  void loadContributionActivity(year);
+};
+
+function parseContributionDate(date: string): Date {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatContributionMonth(date: string): string {
+  const formatter = new Intl.DateTimeFormat(locale.value.startsWith('zh') ? 'zh-CN' : 'en-US', {
+    month: 'short'
+  });
+  return formatter.format(parseContributionDate(date));
+}
+
+function getContributionLevel(count: number): number {
+  if (count <= 0) return 0;
+  const maxCount = contributionActivity.value?.max_count || 0;
+  if (maxCount <= 1) return 1;
+  return Math.min(4, Math.max(1, Math.ceil((count / maxCount) * 4)));
+}
+
+function getContributionDayClass(day: ContributionCell): string {
+  if (!day) return 'contribution-day--empty';
+  return `contribution-day--level-${getContributionLevel(day.count)}`;
+}
+
+function getContributionDayTitle(day: GitContributionDay): string {
+  return t('settings.gitSync.contribution.dayTitle', {
+    date: day.date,
+    count: day.count
+  });
+}
+
 const requestRestoreGitRecordFile = (record: GitRecord, file: GitRecordFile) => {
   pendingRestore.value = { record, file };
   restoreConfirmVisible.value = true;
@@ -609,6 +816,7 @@ const handleRestoreConfirm = async () => {
     modal.msg('文件已恢复，请检查待同步记录后再推送', 'success', 'bottom-right');
     pendingRestore.value = null;
     await refreshStatus();
+    await refreshContributionIfEnabled();
   } catch (error) {
     logger.error('[GitSync] 恢复 Git 文件失败', error);
     showFriendlyError(error);
@@ -643,6 +851,9 @@ const handleEnabledChange = async (value: boolean) => {
   try {
     await saveSettings();
     modal.msg(value ? t('settings.gitSync.enabledSuccess') : t('settings.gitSync.disabledSuccess'), 'success', 'bottom-right');
+    if (value) {
+      await refreshContributionIfEnabled();
+    }
   } catch (error) {
     modal.msg(t('settings.gitSync.saveFailed'), 'error', 'top-right');
     gitSettings.value.enabled = !value;
@@ -710,6 +921,7 @@ const handlePull = async () => {
   try {
     const result = await gitPull();
     processPullResult(result);
+    await refreshContributionIfEnabled();
   } catch (error) {
     logger.error('[GitSync] 手动 Pull 失败', error);
     showFriendlyError(error);
@@ -743,6 +955,7 @@ const handlePush = async () => {
     const result = await gitPush('Manual sync');
     if (result.success) {
       modal.msg(t('settings.gitSync.pushSuccess', { count: result.files_pushed }), 'success', 'bottom-right');
+      await refreshContributionIfEnabled();
     } else {
       modal.msg(t('settings.gitSync.pushFailed'), 'error', 'top-right');
     }
@@ -759,6 +972,7 @@ onMounted(async () => {
   // 与标题栏共用同一状态：进入页面时刷新，保证「最后同步」时间与指示器一致
   await refreshSettings();
   await refreshStatus();
+  await refreshContributionIfEnabled();
 });
 </script>
 
@@ -793,8 +1007,8 @@ onMounted(async () => {
 }
 
 .settings-section-title {
-  margin: 18px 0 8px;
-  font-size: 15px;
+  margin: 18px 0 6px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.35;
   color: var(--categories-text-color);
@@ -805,7 +1019,6 @@ onMounted(async () => {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
   align-items: center;
-  min-height: 72px;
   padding: 12px 0;
   border-bottom: 1px solid var(--categories-border-color);
 }
@@ -815,7 +1028,7 @@ onMounted(async () => {
 }
 
 .summarize-label-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 1.35;
   color: var(--categories-text-color);
@@ -823,7 +1036,7 @@ onMounted(async () => {
 
 .summarize-label-desc {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--categories-info-text-color);
 }
@@ -834,7 +1047,7 @@ onMounted(async () => {
   justify-content: flex-end;
   min-width: 120px;
   max-width: 360px;
-  gap: 8px;
+  gap: 12px;
   color: var(--categories-text-color);
 }
 
@@ -945,6 +1158,189 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+.contribution-section {
+  --contribution-cell-size: 9px;
+  --contribution-cell-gap: 2px;
+
+  padding: 14px;
+  margin-bottom: 16px;
+  background: var(--categories-content-bg);
+  border: 1px solid var(--categories-border-color);
+  border-radius: 8px;
+}
+
+.contribution-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.contribution-summary {
+  min-width: 0;
+}
+
+.contribution-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.contribution-year {
+  min-width: 54px;
+  height: 28px;
+  padding: 0 10px;
+  color: var(--categories-info-text-color);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--categories-panel-bg);
+  border: 1px solid var(--categories-border-color);
+  border-radius: 6px;
+
+  &:hover:not(:disabled),
+  &.active {
+    color: var(--el-color-primary);
+    background: rgba(var(--el-color-primary-rgb), 0.1);
+    border-color: rgba(var(--el-color-primary-rgb), 0.42);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+}
+
+.contribution-empty {
+  display: flex;
+  min-height: 118px;
+  align-items: center;
+  justify-content: center;
+  color: var(--categories-info-text-color);
+  font-size: 13px;
+}
+
+.contribution-board {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding-bottom: 2px;
+}
+
+.contribution-months {
+  display: grid;
+  width: 100%;
+  box-sizing: border-box;
+  gap: var(--contribution-cell-gap);
+  padding-left: 30px;
+  margin-bottom: 6px;
+  color: var(--categories-info-text-color);
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.contribution-months span {
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.contribution-body {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.contribution-weekdays {
+  display: grid;
+  width: 24px;
+  flex-shrink: 0;
+  grid-template-rows: repeat(7, var(--contribution-cell-size));
+  gap: var(--contribution-cell-gap);
+  color: var(--categories-info-text-color);
+  font-size: 10px;
+  line-height: var(--contribution-cell-size);
+  text-align: right;
+}
+
+.contribution-weeks {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: var(--contribution-cell-gap);
+}
+
+.contribution-week {
+  display: grid;
+  grid-template-rows: repeat(7, var(--contribution-cell-size));
+  gap: var(--contribution-cell-gap);
+}
+
+.contribution-day {
+  display: inline-block;
+  box-sizing: border-box;
+  width: var(--contribution-cell-size);
+  height: var(--contribution-cell-size);
+  background: rgba(var(--categories-border-color-rgb), 0.3);
+  border: 1px solid rgba(var(--categories-border-color-rgb), 0.58);
+  border-radius: 2px;
+}
+
+.contribution-day--empty {
+  visibility: hidden;
+}
+
+.contribution-day--level-0 {
+  background: rgba(var(--categories-border-color-rgb), 0.3);
+  border-color: rgba(var(--categories-border-color-rgb), 0.58);
+}
+
+.contribution-day--level-1 {
+  background: #9be9a8;
+  border-color: #7bd68a;
+}
+
+.contribution-day--level-2 {
+  background: #40c463;
+  border-color: #35a954;
+}
+
+.contribution-day--level-3 {
+  background: #30a14e;
+  border-color: #268441;
+}
+
+.contribution-day--level-4 {
+  background: #216e39;
+  border-color: #1d5f32;
+}
+
+.contribution-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0 0 30px;
+  color: var(--categories-info-text-color);
+  font-size: 11px;
+}
+
+.contribution-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.contribution-day--legend {
+  --contribution-cell-size: 10px;
+
+  flex-shrink: 0;
+}
+
 .git-records-section {
   @apply my-3 rounded border border-panel p-3;
   background: var(--categories-content-bg);
@@ -1029,6 +1425,14 @@ onMounted(async () => {
 }
 
 @media (max-width: 720px) {
+  .contribution-head {
+    flex-direction: column;
+  }
+
+  .contribution-actions {
+    justify-content: flex-start;
+  }
+
   .summarize-section {
     grid-template-columns: 1fr;
     gap: 10px;

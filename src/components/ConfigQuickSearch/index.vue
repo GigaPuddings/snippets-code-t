@@ -6,7 +6,7 @@
         class="config-search-overlay"
         @mousedown.self="close"
       >
-        <section class="config-search-panel" @mousedown.stop>
+        <section class="config-search-panel" @mousedown.stop @keydown="handleKeydown">
           <div class="config-search-input-row">
             <Search class="config-search-icon" theme="outline" size="18" :strokeWidth="3" />
             <input
@@ -14,7 +14,6 @@
               v-model="searchText"
               class="config-search-input"
               :placeholder="$t('titlebar.quickSearchPlaceholder')"
-              @keydown="handleKeydown"
             />
             <button
               v-if="searchText"
@@ -196,6 +195,8 @@ function scrollActiveIntoView(): void {
 }
 
 function handleKeydown(event: KeyboardEvent): void {
+  event.stopPropagation();
+
   if (event.key === 'Escape') {
     event.preventDefault();
     close();

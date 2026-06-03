@@ -45,6 +45,54 @@ fn get_app_handle_or_log(context: &str) -> Option<&'static AppHandle> {
     }
 }
 
+fn position_search_window_near_top(window: &WebviewWindow) {
+    let monitor = window.current_monitor().ok().flatten().or_else(|| {
+        APP.get()
+            .and_then(|app| app.primary_monitor().ok().flatten())
+    });
+
+    let Some(monitor) = monitor else {
+        warn!("position_search_window_near_top: 无法获取显示器信息");
+        return;
+    };
+
+    let scale_factor = monitor.scale_factor();
+    let monitor_size = monitor.size();
+    let monitor_position = monitor.position();
+    let logical_monitor_width = monitor_size.width as f64 / scale_factor;
+    let logical_monitor_height = monitor_size.height as f64 / scale_factor;
+    let logical_monitor_x = monitor_position.x as f64 / scale_factor;
+    let logical_monitor_y = monitor_position.y as f64 / scale_factor;
+
+    let (window_width, window_height) = window
+        .outer_size()
+        .map(|size| {
+            (
+                size.width as f64 / scale_factor,
+                size.height as f64 / scale_factor,
+            )
+        })
+        .unwrap_or((700.0, 58.0));
+
+    let margin = 16.0;
+    let max_x = (logical_monitor_width - window_width - margin).max(margin);
+    let target_x = ((logical_monitor_width - window_width) / 2.0).clamp(margin, max_x);
+
+    let preferred_y = (logical_monitor_height * 0.18).clamp(96.0, 220.0);
+    let max_y = (logical_monitor_height - window_height - margin).max(margin);
+    let target_y = preferred_y.clamp(margin, max_y);
+
+    if let Err(e) = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+        x: logical_monitor_x + target_x,
+        y: logical_monitor_y + target_y,
+    })) {
+        warn!(
+            "position_search_window_near_top: 设置搜索窗口位置失败: {}",
+            e
+        );
+    }
+}
+
 use tauri::image::Image;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 #[cfg(target_os = "windows")]
@@ -506,6 +554,7 @@ pub fn hotkey_search(context: Option<String>) {
             *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some("last_active".to_string());
         }
 
+        position_search_window_near_top(&window);
         let _ = window.show();
         let _ = window.set_focus();
     }

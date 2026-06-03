@@ -280,6 +280,17 @@ export default {
       unresolvedConflict: '同步失败：存在未解决的冲突文件，请先解决冲突或重置仓库',
       pushSuccess: '推送成功，同步了 {count} 个文件',
       pushFailed: '推送失败',
+      contribution: {
+        title: '提交活跃度',
+        desc: '基于当前工作区本地 Git 提交历史统计',
+        totalLastYear: '最近一年 {count} 次提交',
+        totalYear: '{year} 年 {count} 次提交',
+        loading: '正在加载提交活跃度...',
+        empty: '暂无提交记录',
+        less: '少',
+        more: '多',
+        dayTitle: '{date}: {count} 次提交'
+      },
       // 保存配置确认对话框
       saveConfigTitle: '确认保存 Git 配置',
       saveConfigWarning: '保存配置将会初始化 Git 仓库并连接到远程仓库。请确保配置信息正确，避免数据丢失。',

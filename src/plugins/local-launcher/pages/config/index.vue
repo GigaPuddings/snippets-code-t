@@ -34,6 +34,7 @@
             />
           </div>
           <el-tooltip
+            effect="light"
             :content="isEditMode ? $t('local.done') : $t('local.edit')"
             placement="bottom"
           >
@@ -45,7 +46,7 @@
               :disabled="currentList.length === 0"
             />
           </el-tooltip>
-          <el-tooltip :content="$t('local.add')" placement="bottom">
+          <el-tooltip effect="light" :content="$t('local.add')" placement="bottom">
             <el-button
               type="primary"
               :icon="Plus"
@@ -58,7 +59,7 @@
     </div>
 
     <!-- 内容区域 -->
-    <div class="local-content">
+    <div ref="localContentRef" class="local-content">
       <el-empty
         v-if="filteredList.length === 0"
         :description="searchQuery ? $t('local.noMatch') : $t('local.noData', { type: activeTab === 'app' ? $t('local.apps') : $t('local.bookmarks') })"
@@ -72,12 +73,12 @@
         v-else
         class="local-list"
         :items="filteredList"
-        :item-size="96"
+        :item-size="listItemSize"
         :buffer="200"
         key-field="id"
         v-slot="{ item, index }"
       >
-        <div class="item-wrapper">
+        <div class="item-wrapper" :style="{ height: `${listItemSize}px` }">
           <div
             class="local-item"
             :class="{ 'is-editing': isEditMode }"
@@ -108,8 +109,15 @@
                     v-if="item.usage_count > 0"
                     class="usage-indicator"
                     :class="`usage-level-${getUsageLevel(item.usage_count)}`"
-                    :title="$t('local.usedTimes', { count: item.usage_count })"
-                  ></div>
+                  >
+                    <el-tooltip
+                      effect="light"
+                      :content="$t('local.usedTimes', { count: item.usage_count })"
+                      placement="top"
+                    >
+                      <span class="usage-indicator__dot"></span>
+                    </el-tooltip>
+                  </div>
                 </div>
               <div class="item-path">
                 <component
@@ -230,6 +238,9 @@ const currentEditData = ref<AppInfo | BookmarkInfo | null>(null);
 const showDeleteDialog = ref(false);
 const deleteTarget = ref<AppInfo | BookmarkInfo | null>(null);
 const deleteFromDialog = ref(false);
+const localContentRef = ref<HTMLElement | null>(null);
+const listItemSize = ref(88);
+const visibleListItemCount = 8;
 
 // 扫描状态
 const isScanning = ref(false);
@@ -238,6 +249,7 @@ const scanCurrent = ref(0);
 const scanTotal = ref(0);
 let unlistenProgress: (() => void) | null = null;
 let unlistenComplete: (() => void) | null = null;
+let listResizeObserver: ResizeObserver | null = null;
 
 const currentList = computed(() => {
   return activeTab.value === 'app' ? apps.value : bookmarks.value;
@@ -453,7 +465,25 @@ const setupScanListeners = async () => {
   });
 };
 
+const updateListItemSize = () => {
+  const contentHeight = localContentRef.value?.clientHeight ?? 0;
+  if (contentHeight <= 0) return;
+
+  listItemSize.value = Math.max(64, contentHeight / visibleListItemCount);
+};
+
+const setupListResizeObserver = async () => {
+  await nextTick();
+  updateListItemSize();
+
+  if (!localContentRef.value || typeof ResizeObserver === 'undefined') return;
+
+  listResizeObserver = new ResizeObserver(updateListItemSize);
+  listResizeObserver.observe(localContentRef.value);
+};
+
 onMounted(async () => {
+  await setupListResizeObserver();
   // 先检查扫描状态
   await checkScanStatus();
   // 设置事件监听
@@ -465,12 +495,15 @@ onMounted(async () => {
 onUnmounted(() => {
   if (unlistenProgress) unlistenProgress();
   if (unlistenComplete) unlistenComplete();
+  listResizeObserver?.disconnect();
+  listResizeObserver = null;
 });
 </script>
 
 <style scoped lang="scss">
 .local-container {
-  @apply w-full h-full flex flex-col overflow-hidden p-6 pt-2 relative;
+  @apply w-full h-full flex flex-col overflow-hidden p-4 pt-2 relative;
+  color: var(--categories-text-color);
 
   .scanning-overlay {
     @apply absolute inset-0 z-50 flex items-center justify-center;
@@ -482,12 +515,12 @@ onUnmounted(() => {
     }
     
     .scanning-content {
-      @apply flex flex-col items-center gap-4 p-8 rounded-2xl;
-      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      @apply flex flex-col items-center gap-3 p-6 rounded-lg border border-panel;
+      background: var(--search-bg);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
       
       .dark & {
-        background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+        background: var(--search-bg);
       }
       
       .scanning-icon {
@@ -505,21 +538,23 @@ onUnmounted(() => {
   }
 
   .local-header {
-    @apply mb-3;
+    @apply mb-2;
 
     .header-main {
-      @apply flex items-center justify-between gap-4 p-3 rounded-lg bg-content border border-panel;
+      @apply flex items-center justify-between gap-3 px-3 py-2 rounded-md bg-panel border border-panel;
 
       .header-left {
-        @apply flex items-center gap-4;
+        @apply flex items-center gap-3 min-w-0;
 
         .el-segmented {
-          --el-segmented-item-selected-bg-color: var(--el-color-primary);
-          --el-border-radius-base: 8px;
+          --el-segmented-item-selected-bg-color: var(--search-result-active);
+          --el-segmented-item-selected-color: var(--categories-text-color);
+          --el-segmented-bg-color: var(--search-card-bg);
+          --el-border-radius-base: 6px;
         }
 
         .header-stats {
-          @apply flex items-center gap-2 text-sm text-panel-text-secondary;
+          @apply flex items-center gap-2 text-xs text-panel-text-secondary whitespace-nowrap;
 
           .stat-text {
             @apply flex items-center gap-1;
@@ -532,11 +567,11 @@ onUnmounted(() => {
       }
 
       .header-right {
-        @apply flex items-center gap-2;
+        @apply flex items-center gap-2 min-w-0;
 
         .search-wrapper {
           @apply relative;
-          width: 240px;
+          width: 260px;
 
           .search-icon {
             @apply absolute left-2.5 top-1/2 transform -translate-y-1/2 text-panel-text-secondary pointer-events-none z-10;
@@ -546,7 +581,14 @@ onUnmounted(() => {
             @apply w-full;
 
             :deep(.el-input__wrapper) {
+              @apply rounded-md border border-panel shadow-none;
               padding-left: 32px;
+              background: var(--search-input-bg);
+
+              &:hover,
+              &.is-focus {
+                border-color: var(--search-result-active-border);
+              }
             }
           }
         }
@@ -565,32 +607,38 @@ onUnmounted(() => {
       }
 
       .item-wrapper {
-        @apply pb-3;
+        @apply pb-1;
+        box-sizing: border-box;
       }
 
       .local-item {
-        @apply flex items-center gap-3 p-4 rounded-xl border border-panel bg-panel hover:shadow-lg hover:border-blue-300 cursor-pointer transition-all duration-200;
+        @apply flex items-center gap-3 px-3 py-2 rounded-md border border-panel bg-panel cursor-pointer transition-colors duration-150;
+        height: 100%;
+        min-height: 0;
 
         &.is-editing {
-          @apply cursor-default hover:shadow-none hover:border-panel;
+          @apply cursor-default;
         }
 
         &:hover:not(.is-editing) {
-          transform: translateY(-2px);
+          background: var(--search-result-active);
+          border-color: var(--search-result-active-border);
         }
 
         .item-number {
-          @apply flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-active text-white text-xs font-bold;
+          @apply flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-xs font-bold;
+          color: var(--search-result-accent);
+          background: var(--search-card-bg);
         }
 
         .item-content {
-          @apply flex items-center gap-4 flex-1 overflow-hidden;
+          @apply flex items-center gap-3 flex-1 overflow-hidden;
 
           .item-icon {
-            @apply flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-xl bg-content shadow-sm;
+            @apply flex-shrink-0 w-[38px] h-[38px] flex items-center justify-center rounded-md bg-content border border-panel;
 
             .icon-image {
-              @apply w-11 h-11 object-contain;
+              @apply w-[30px] h-[30px] object-contain;
             }
 
             .icon-placeholder {
@@ -602,40 +650,48 @@ onUnmounted(() => {
             @apply flex-1 overflow-hidden;
 
             .item-title-row {
-              @apply flex items-center gap-2 mb-1;
+              @apply flex items-center gap-2 mb-0.5;
 
               .item-title {
-                @apply text-base font-semibold text-panel truncate;
+                @apply text-sm font-semibold text-panel truncate;
               }
 
               .usage-indicator {
-                @apply flex-shrink-0 w-2 h-2 rounded-full;
+                @apply inline-flex flex-shrink-0 w-4 h-4 items-center justify-center rounded;
+
+                .usage-indicator__dot {
+                  @apply block w-2 h-2 rounded-full;
+                }
 
                 &.usage-level-1 {
-                  @apply bg-blue-500;
-                  box-shadow: 0 0 4px rgba(59, 130, 246, 0.5);
+                  .usage-indicator__dot {
+                    @apply bg-blue-500;
+                  }
                 }
 
                 &.usage-level-2 {
-                  @apply bg-green-500;
-                  box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+                  .usage-indicator__dot {
+                    @apply bg-green-500;
+                  }
                 }
 
                 &.usage-level-3 {
-                  @apply bg-orange-500;
-                  box-shadow: 0 0 4px rgba(249, 115, 22, 0.5);
+                  .usage-indicator__dot {
+                    @apply bg-orange-500;
+                  }
                 }
 
                 &.usage-level-4 {
-                  @apply bg-red-500;
-                  box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
-                  animation: pulse-dot 2s ease-in-out infinite;
+                  .usage-indicator__dot {
+                    @apply bg-red-500;
+                    animation: pulse-dot 2s ease-in-out infinite;
+                  }
                 }
               }
             }
 
             .item-path {
-              @apply flex items-center gap-1 text-sm text-panel-text-secondary truncate;
+              @apply flex items-center gap-1 text-xs text-panel-text-secondary truncate;
 
               span {
                 @apply truncate;
@@ -645,7 +701,7 @@ onUnmounted(() => {
         }
 
         .item-actions {
-          @apply flex-shrink-0;
+          @apply flex-shrink-0 flex items-center;
         }
       }
     }

@@ -64,6 +64,7 @@ declare module 'vue' {
     General: typeof import('./../components/SettingsContent/components/General/index.vue')['default']
     GitConfigDialog: typeof import('./../plugins/git-sync/components/GitConfigDialog/index.vue')['default']
     GitConflictDialog: typeof import('./../plugins/git-sync/components/GitConflictDialog/index.vue')['default']
+    GitContributionMiniEntry: typeof import('./../plugins/git-sync/components/GitContributionMiniEntry.vue')['default']
     GitManualMerge: typeof import('./../plugins/git-sync/components/GitManualMerge/index.vue')['default']
     GitSaveConfigDialog: typeof import('./../plugins/git-sync/components/GitSaveConfigDialog/index.vue')['default']
     GitSyncRuntimeHost: typeof import('./../plugins/git-sync/components/GitSyncRuntimeHost.vue')['default']

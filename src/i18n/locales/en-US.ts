@@ -280,6 +280,17 @@ export default {
       unresolvedConflict: 'Sync failed: Unresolved conflict files exist, please resolve conflicts or reset repository first',
       pushSuccess: 'Push successful, synced {count} files',
       pushFailed: 'Push failed',
+      contribution: {
+        title: 'Contribution Activity',
+        desc: 'Calculated from local Git commit history in the current workspace',
+        totalLastYear: '{count} commits in the last year',
+        totalYear: '{count} commits in {year}',
+        loading: 'Loading contribution activity...',
+        empty: 'No commit activity',
+        less: 'Less',
+        more: 'More',
+        dayTitle: '{date}: {count} commits'
+      },
       conflictDetected: 'Git Conflict Detected',
       conflictFiles: 'Conflicting files:',
       untrackedFiles: 'Untracked files that will be overwritten by remote:',
