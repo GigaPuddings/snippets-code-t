@@ -567,6 +567,10 @@ const currentOcrLanguageLabel = computed(() => {
   );
 });
 
+const backendOcrLanguage = computed<OcrLanguageValue>(() => {
+  return currentOcrLanguage.value === 'auto' ? 'zh' : currentOcrLanguage.value;
+});
+
 const scale = ref(1);
 const showZoomInfo = ref(false);
 const isResizing = ref(false);
@@ -790,18 +794,20 @@ const recognizeCurrentImage = async () => {
     imageDataLength: imageData.value.length,
     imageWidth: imageWidth.value,
     imageHeight: imageHeight.value,
-    language: currentOcrLanguage.value
+    language: currentOcrLanguage.value,
+    backendLanguage: backendOcrLanguage.value
   });
 
   try {
     ocrDiagnosticLogger.log('[Pin OCR] invoking RapidOCR backend', {
       requestId,
-      language: currentOcrLanguage.value
+      language: currentOcrLanguage.value,
+      backendLanguage: backendOcrLanguage.value
     });
     const result = await invoke<any>('recognize_text_from_image', {
       imageData: imageData.value,
       engine: 'rapidocr',
-      language: currentOcrLanguage.value
+      language: backendOcrLanguage.value
     });
     const records = createOcrRecordsFromResult(result);
     const text = records.length > 0

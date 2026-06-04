@@ -71,7 +71,8 @@ export async function recognizeFromCanvas(canvas: HTMLCanvasElement): Promise<Oc
   try {
     const rawResult = await invoke<Record<string, unknown>>('recognize_text_from_image', {
       imageData,
-      engine: 'rapidocr'
+      engine: 'rapidocr',
+      language: 'zh'
     })
 
     const blocks = normalizeBlocks(rawResult.blocks)
