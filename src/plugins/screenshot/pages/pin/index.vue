@@ -166,10 +166,9 @@
                     v-for="record in ocrRecordsWithGeometry"
                     :key="record.id"
                     class="ocr-overlay-block"
-                    :class="{ translated: !!record.translatedText }"
                     :style="getOcrOverlayStyle(record)"
                   >
-                    {{ getRecordDisplayText(record) }}
+                    {{ record.text.trim() }}
                   </span>
                 </div>
               </div>
@@ -1840,11 +1839,11 @@ onUnmounted(() => {
       }
 
       .ocr-result-layout {
-        display: grid;
-        grid-template-columns: minmax(180px, 0.86fr) minmax(260px, 1.14fr);
-        gap: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
         min-height: 100%;
-        padding: 10px;
+        padding: 0;
         color: var(--ocr-text);
         letter-spacing: 0;
         user-select: text;
@@ -1852,9 +1851,15 @@ onUnmounted(() => {
       }
 
       .ocr-preview-pane {
-        @apply flex min-h-0 justify-center overflow-auto border border-ocr bg-ocr-shell;
-        padding: 10px;
-        border-radius: 6px;
+        @apply flex min-h-0 flex-shrink-0 justify-center overflow-auto;
+        height: clamp(174px, 42%, 292px);
+        padding: 14px 18px;
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--ocr-shell-bg, #f8fafc) 72%, transparent),
+          transparent
+        );
+        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 68%, transparent);
         user-select: text;
         -webkit-user-select: text;
       }
@@ -1869,7 +1874,7 @@ onUnmounted(() => {
           display: block;
           max-width: 100%;
           max-height: 100%;
-          border-radius: 4px;
+          border-radius: 3px;
           user-select: none;
           -webkit-user-drag: none;
         }
@@ -1885,55 +1890,58 @@ onUnmounted(() => {
         position: absolute;
         display: block;
         min-width: 22px;
-        padding: 1px 3px;
-        overflow: hidden;
-        color: #102033;
-        text-overflow: ellipsis;
+        padding: 0 2px;
+        overflow: visible;
+        color: rgb(15 23 42 / 88%);
         white-space: pre-wrap;
         cursor: text;
         user-select: text;
         pointer-events: auto;
-        background: rgb(255 255 255 / 82%);
-        border: 1px solid rgb(34 91 168 / 32%);
-        border-radius: 3px;
-        box-shadow: 0 1px 4px rgb(16 24 40 / 16%);
-        font-size: 12px;
-        line-height: 1.35;
+        background: rgb(255 255 255 / 46%);
+        border-radius: 2px;
+        font-size: clamp(10px, 1.05vw, 12px);
+        line-height: 1.24;
+        text-shadow: 0 0 2px rgb(255 255 255 / 90%);
         -webkit-user-select: text;
 
-        &.translated {
-          color: #082f49;
-          background: rgb(219 245 255 / 88%);
-          border-color: rgb(14 116 144 / 42%);
+        &:hover {
+          background: rgb(219 234 254 / 72%);
         }
       }
 
       .ocr-record-pane {
         @apply flex min-h-0 flex-col overflow-auto;
-        gap: 8px;
-        padding-right: 2px;
+        flex: 1 1 auto;
+        gap: 0;
+        padding: 8px 20px 16px;
         user-select: text;
         -webkit-user-select: text;
       }
 
       .ocr-record-item {
-        @apply border border-ocr bg-ocr-shell;
-        border-radius: 6px;
-        transition: border-color 0.15s ease, background-color 0.15s ease;
+        position: relative;
+        padding: 12px 0 14px 28px;
+        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 58%, transparent);
+        transition: background-color 0.15s ease;
 
         &.selected {
-          border-color: color-mix(in srgb, var(--primary-color, #2563eb) 72%, var(--ocr-border));
-          background: color-mix(in srgb, var(--ocr-panel-hover-bg) 80%, transparent);
+          background: color-mix(in srgb, var(--ocr-panel-hover-bg) 56%, transparent);
+        }
+
+        &:last-child {
+          border-bottom: 0;
         }
       }
 
       .ocr-record-header {
         @apply flex items-center text-ocr-muted;
-        gap: 8px;
-        height: 30px;
-        padding: 0 10px;
+        position: absolute;
+        top: 14px;
+        left: 0;
+        width: 22px;
+        flex-direction: column;
+        gap: 6px;
         cursor: pointer;
-        border-bottom: 1px solid var(--ocr-border);
         user-select: none;
         -webkit-user-select: none;
       }
@@ -1945,42 +1953,52 @@ onUnmounted(() => {
       }
 
       .ocr-record-index {
+        writing-mode: vertical-rl;
         font-size: 12px;
         font-weight: 600;
+        line-height: 1;
       }
 
       .ocr-record-score {
-        margin-left: auto;
+        display: none;
         font-size: 12px;
         font-variant-numeric: tabular-nums;
       }
 
       .ocr-record-editor {
-        min-height: 42px;
-        padding: 10px;
+        min-height: 24px;
+        padding: 0;
         color: var(--ocr-text);
         white-space: pre-wrap;
         word-break: break-word;
         outline: none;
-        font-size: 14px;
-        line-height: 1.68;
+        font-size: 15px;
+        line-height: 1.72;
         user-select: text;
         -webkit-user-select: text;
 
         &:focus {
-          background: var(--ocr-panel-hover-bg);
+          background: color-mix(in srgb, var(--ocr-panel-hover-bg) 52%, transparent);
         }
 
         &.translated {
+          margin-top: 7px;
           color: var(--ocr-text-secondary);
-          border-top: 1px dashed var(--ocr-border);
         }
       }
 
       @media (max-width: 720px) {
         .ocr-result-layout {
-          grid-template-columns: 1fr;
-          grid-template-rows: minmax(140px, 0.85fr) minmax(220px, 1.15fr);
+          min-height: 100%;
+        }
+
+        .ocr-preview-pane {
+          height: clamp(150px, 36%, 240px);
+          padding: 12px;
+        }
+
+        .ocr-record-pane {
+          padding: 8px 14px 14px;
         }
       }
     }

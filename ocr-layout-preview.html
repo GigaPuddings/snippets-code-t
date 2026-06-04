@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCR Layout Preview</title>
+    <style>
+      :root {
+        --ocr-text: #162033;
+        --ocr-text-secondary: #3f5268;
+        --ocr-text-muted: #748094;
+        --ocr-border: #d8e0ea;
+        --ocr-panel-hover-bg: #e9f2ff;
+        --primary-color: #2563eb;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #edf1f5;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      .window {
+        width: min(1040px, calc(100vw - 48px));
+        height: min(640px, calc(100vh - 48px));
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: rgb(255 255 255 / 94%);
+        border: 1px solid #dce3ec;
+        border-radius: 8px;
+        box-shadow: 0 16px 36px rgb(16 24 40 / 18%);
+      }
+
+      .titlebar {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        min-height: 108px;
+        padding: 14px 22px;
+        border-bottom: 1px solid #dce3ec;
+      }
+
+      .thumb {
+        width: 180px;
+        height: 72px;
+        border: 1px solid #dce3ec;
+        border-radius: 6px;
+        background: #fff;
+      }
+
+      .meta strong {
+        display: block;
+        margin-bottom: 7px;
+        font-size: 21px;
+      }
+
+      .meta span {
+        color: #718096;
+      }
+
+      .body {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .ocr-result-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        min-height: 100%;
+        padding: 0;
+        color: var(--ocr-text);
+        letter-spacing: 0;
+        user-select: text;
+      }
+
+      .ocr-preview-pane {
+        display: flex;
+        min-height: 0;
+        flex-shrink: 0;
+        justify-content: center;
+        overflow: auto;
+        height: clamp(174px, 42%, 292px);
+        padding: 14px 18px;
+        background: linear-gradient(180deg, rgb(248 250 252 / 72%), transparent);
+        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 68%, transparent);
+      }
+
+      .ocr-preview-stage {
+        position: relative;
+        width: min(100%, 920px);
+        height: 138px;
+        margin: auto;
+        background: #fff;
+      }
+
+      .mock-line {
+        position: absolute;
+        left: 8%;
+        height: 20px;
+        color: #101828;
+        font-size: 18px;
+        line-height: 20px;
+        white-space: nowrap;
+      }
+
+      .ocr-text-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .ocr-overlay-block {
+        position: absolute;
+        display: block;
+        min-width: 22px;
+        padding: 0 2px;
+        overflow: visible;
+        color: rgb(15 23 42 / 88%);
+        white-space: pre-wrap;
+        cursor: text;
+        user-select: text;
+        pointer-events: auto;
+        background: rgb(255 255 255 / 46%);
+        border-radius: 2px;
+        font-size: clamp(10px, 1.05vw, 12px);
+        line-height: 1.24;
+        text-shadow: 0 0 2px rgb(255 255 255 / 90%);
+      }
+
+      .ocr-record-pane {
+        display: flex;
+        min-height: 0;
+        flex: 1 1 auto;
+        flex-direction: column;
+        gap: 0;
+        overflow: auto;
+        padding: 8px 20px 16px;
+      }
+
+      .ocr-record-item {
+        position: relative;
+        padding: 12px 0 14px 28px;
+        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 58%, transparent);
+        transition: background-color 0.15s ease;
+      }
+
+      .ocr-record-item.selected {
+        background: color-mix(in srgb, var(--ocr-panel-hover-bg) 56%, transparent);
+      }
+
+      .ocr-record-header {
+        position: absolute;
+        top: 14px;
+        left: 0;
+        display: flex;
+        width: 22px;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        color: var(--ocr-text-muted);
+        user-select: none;
+      }
+
+      .ocr-record-checkbox {
+        width: 14px;
+        height: 14px;
+        accent-color: var(--primary-color);
+      }
+
+      .ocr-record-index {
+        writing-mode: vertical-rl;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1;
+      }
+
+      .ocr-record-editor {
+        min-height: 24px;
+        padding: 0;
+        color: var(--ocr-text);
+        white-space: pre-wrap;
+        word-break: break-word;
+        outline: none;
+        font-size: 15px;
+        line-height: 1.72;
+      }
+
+      .ocr-record-editor.translated {
+        margin-top: 7px;
+        color: var(--ocr-text-secondary);
+      }
+
+      .actions {
+        height: 54px;
+        flex-shrink: 0;
+        border-top: 1px solid #dce3ec;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="window">
+      <header class="titlebar">
+        <div class="thumb"></div>
+        <div class="meta">
+          <strong>截图 2026-06-04 19.08.20.png</strong>
+          <span>1572 x 237 | 识别完成</span>
+        </div>
+      </header>
+      <section class="body">
+        <div class="ocr-result-layout">
+          <section class="ocr-preview-pane">
+            <div class="ocr-preview-stage">
+              <div class="mock-line" style="top: 28px">- Free: All the code of this project is open-source and completely free.</div>
+              <div class="mock-line" style="top: 54px">Convenient: Unzip and use, run offline, no need for network.</div>
+              <div class="mock-line" style="top: 80px">Efficient: Comes with a highly efficient offline OCR engine.</div>
+              <div class="mock-line" style="top: 106px">Flexible: Supports customizable interface and HTTP API.</div>
+              <div class="ocr-text-overlay">
+                <span class="ocr-overlay-block" style="left: 8%; top: 22%; width: 58%">- Free: All the code of this project is open-source and</span>
+                <span class="ocr-overlay-block" style="left: 8%; top: 40%; width: 42%">Convenient: Unzip and use, run offline</span>
+                <span class="ocr-overlay-block" style="left: 8%; top: 58%; width: 78%">Efficient: Comes with a highly efficient offline OCR engine.</span>
+                <span class="ocr-overlay-block" style="left: 8%; top: 76%; width: 64%">Flexible: Supports customizable interface and HTTP API.</span>
+              </div>
+            </div>
+          </section>
+          <section class="ocr-record-pane">
+            <article class="ocr-record-item selected">
+              <header class="ocr-record-header"><input class="ocr-record-checkbox" type="checkbox" checked /><span class="ocr-record-index">#1</span></header>
+              <div class="ocr-record-editor" contenteditable="plaintext-only">- Free: All the code of this project is open-source and completely free.</div>
+              <div class="ocr-record-editor translated" contenteditable="plaintext-only">免费：这个项目的全部代码都是开源的，并且完全免费。</div>
+            </article>
+            <article class="ocr-record-item">
+              <header class="ocr-record-header"><input class="ocr-record-checkbox" type="checkbox" /><span class="ocr-record-index">#2</span></header>
+              <div class="ocr-record-editor" contenteditable="plaintext-only">Convenient: Unzip and use, run offline, no need for network.</div>
+              <div class="ocr-record-editor translated" contenteditable="plaintext-only">便捷：解压即可使用，可离线运行，不需要网络。</div>
+            </article>
+            <article class="ocr-record-item">
+              <header class="ocr-record-header"><input class="ocr-record-checkbox" type="checkbox" /><span class="ocr-record-index">#3</span></header>
+              <div class="ocr-record-editor" contenteditable="plaintext-only">Efficient: Comes with a highly efficient offline OCR engine. As long as the computer performance is sufficient, it can be faster than online OCR services.</div>
+              <div class="ocr-record-editor translated" contenteditable="plaintext-only">高效：内置高效的离线 OCR 引擎。只要电脑性能足够，速度可以超过在线 OCR 服务。</div>
+            </article>
+          </section>
+        </div>
+      </section>
+      <footer class="actions"></footer>
+    </main>
+  </body>
+</html>
