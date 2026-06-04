@@ -166,7 +166,9 @@
                     v-for="record in ocrRecordsWithGeometry"
                     :key="record.id"
                     class="ocr-overlay-block"
+                    :class="{ selected: record.selected }"
                     :style="getOcrOverlayStyle(record)"
+                    @click.stop="toggleOcrRecordSelection(record.id)"
                   >
                     {{ record.text.trim() }}
                   </span>
@@ -1804,7 +1806,7 @@ onUnmounted(() => {
     }
 
     .ocr-reading-surface {
-      @apply relative flex-1 min-h-0 overflow-auto bg-ocr-panel border border-ocr shadow-ocr-panel;
+      @apply relative flex-1 min-h-0 overflow-hidden bg-ocr-panel border border-ocr shadow-ocr-panel;
       margin-top: 6px;
       border-radius: 8px;
 
@@ -1842,7 +1844,8 @@ onUnmounted(() => {
         display: grid;
         grid-template-rows: minmax(150px, 34%) minmax(0, 1fr);
         gap: 0;
-        min-height: 100%;
+        height: 100%;
+        min-height: 0;
         padding: 0;
         color: var(--ocr-text);
         letter-spacing: 0;
@@ -1851,7 +1854,7 @@ onUnmounted(() => {
       }
 
       .ocr-preview-pane {
-        @apply flex min-h-0 justify-center overflow-auto;
+        @apply flex min-h-0 justify-center overflow-hidden;
         padding: 14px 18px;
         background: linear-gradient(
           180deg,
@@ -1893,29 +1896,31 @@ onUnmounted(() => {
         overflow: hidden;
         color: transparent;
         white-space: pre-wrap;
-        cursor: text;
-        user-select: text;
+        cursor: pointer;
+        user-select: none;
         pointer-events: auto;
         background: transparent;
         border-radius: 1px;
         font-size: clamp(10px, 1.05vw, 12px);
         line-height: 1.24;
-        -webkit-user-select: text;
+        -webkit-user-select: none;
 
         &:hover {
           background: rgb(37 99 235 / 10%);
         }
 
-        &::selection {
-          color: transparent;
-          background: rgb(37 99 235 / 32%);
+        &.selected {
+          background: rgb(37 99 235 / 16%);
+          outline: 1px solid rgb(37 99 235 / 52%);
         }
       }
 
       .ocr-record-pane {
-        @apply flex min-h-0 flex-col overflow-auto;
+        @apply flex min-h-0 flex-col;
         flex: 1 1 auto;
         gap: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
         padding: 8px 20px 16px;
         user-select: text;
         -webkit-user-select: text;

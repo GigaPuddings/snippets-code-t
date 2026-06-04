@@ -823,6 +823,7 @@ fn run_rapidocr_candidate_set(
 ) -> Result<(OcrRecognizeResult, f64), String> {
     let candidate_set_started_at = Instant::now();
     let mut candidate_errors = Vec::new();
+    let mut successful_candidates: Vec<(OcrLanguage, OcrRecognizeResult, f64)> = Vec::new();
     let mut best_result: Option<OcrRecognizeResult> = None;
     let mut best_score = f64::MIN;
 
@@ -847,6 +848,7 @@ fn run_rapidocr_candidate_set(
             match run_rapidocr_language_candidate(sidecar, image_path, language, log_path)? {
                 LanguageCandidateOutcome::Success { result, score } => {
                     best_score = score;
+                    successful_candidates.push((language, result.clone(), score));
                     best_result = Some(result);
                 }
                 LanguageCandidateOutcome::Failed { language, errors } => {
@@ -880,6 +882,11 @@ fn run_rapidocr_candidate_set(
         for outcome in receiver.iter().take(worker_count) {
             match outcome? {
                 LanguageCandidateOutcome::Success { result, score } => {
+                    successful_candidates.push((
+                        OcrLanguage::from_label(&result.language)?,
+                        result.clone(),
+                        score,
+                    ));
                     if score > best_score {
                         best_score = score;
                         best_result = Some(result);
@@ -900,7 +907,11 @@ fn run_rapidocr_candidate_set(
         }
     }
 
-    if let Some(result) = best_result {
+    if let Some(mut result) = best_result {
+        if language_hint.is_none() {
+            merge_mixed_script_blocks(&mut result, &successful_candidates, log_path);
+        }
+
         append_ocr_log(
             log_path,
             "backend",
@@ -928,6 +939,122 @@ fn run_rapidocr_candidate_set(
     );
     append_ocr_log(log_path, "backend", "RapidOCR sidecar failed", Some(&error));
     Err(error)
+}
+
+fn merge_mixed_script_blocks(
+    result: &mut OcrRecognizeResult,
+    candidates: &[(OcrLanguage, OcrRecognizeResult, f64)],
+    log_path: &Path,
+) {
+    let Ok(base_language) = OcrLanguage::from_label(&result.language) else {
+        return;
+    };
+    if base_language != OcrLanguage::English {
+        return;
+    }
+
+    let mut replacements = Vec::new();
+    for block in &mut result.blocks {
+        let Some((candidate_language, candidate_block, overlap)) =
+            find_mixed_script_replacement(block, candidates, base_language)
+        else {
+            continue;
+        };
+
+        let previous_text = block.text.clone();
+        block.text = candidate_block.text.clone();
+        block.confidence = candidate_block.confidence.max(block.confidence);
+        replacements.push(format!(
+            "{} overlap={:.2}: {} => {}",
+            candidate_language.label(),
+            overlap,
+            preview_for_log(&previous_text, 80),
+            preview_for_log(&block.text, 80)
+        ));
+    }
+
+    if replacements.is_empty() {
+        return;
+    }
+
+    normalize_result_reading_order(result);
+    if !result.language.contains("+mixed") {
+        result.language = format!("{}+mixed", result.language);
+    }
+    append_ocr_log(
+        log_path,
+        "backend",
+        "RapidOCR mixed-script block replacements applied",
+        Some(&format!(
+            "count={}, replacements={}",
+            replacements.len(),
+            replacements.join(" | ")
+        )),
+    );
+}
+
+fn find_mixed_script_replacement<'a>(
+    block: &OcrTextBlock,
+    candidates: &'a [(OcrLanguage, OcrRecognizeResult, f64)],
+    base_language: OcrLanguage,
+) -> Option<(OcrLanguage, &'a OcrTextBlock, f64)> {
+    let base_stats = script_stats(&block.text);
+    if base_stats.cjk_count > 0 {
+        return None;
+    }
+
+    let mut best: Option<(OcrLanguage, &OcrTextBlock, f64)> = None;
+    for (language, result, _) in candidates {
+        if *language == base_language {
+            continue;
+        }
+        if !matches!(
+            language,
+            OcrLanguage::ChineseSimplified
+                | OcrLanguage::ChineseTraditional
+                | OcrLanguage::Japanese
+        ) {
+            continue;
+        }
+
+        for candidate_block in &result.blocks {
+            let candidate_stats = script_stats(&candidate_block.text);
+            if candidate_stats.cjk_count < 2 {
+                continue;
+            }
+            if candidate_block.text.trim().chars().count() + 8 < block.text.trim().chars().count() {
+                continue;
+            }
+
+            let overlap = block_overlap_ratio(block, candidate_block);
+            if overlap < 0.58 {
+                continue;
+            }
+
+            if best
+                .as_ref()
+                .map(|(_, _, best_overlap)| overlap > *best_overlap)
+                .unwrap_or(true)
+            {
+                best = Some((*language, candidate_block, overlap));
+            }
+        }
+    }
+
+    best
+}
+
+fn block_overlap_ratio(left: &OcrTextBlock, right: &OcrTextBlock) -> f64 {
+    let left_area = (left.width.max(0.0) * left.height.max(0.0)).max(1.0);
+    let right_area = (right.width.max(0.0) * right.height.max(0.0)).max(1.0);
+    let intersection_left = left.x.max(right.x);
+    let intersection_top = left.y.max(right.y);
+    let intersection_right = (left.x + left.width).min(right.x + right.width);
+    let intersection_bottom = (left.y + left.height).min(right.y + right.height);
+    let intersection_width = (intersection_right - intersection_left).max(0.0);
+    let intersection_height = (intersection_bottom - intersection_top).max(0.0);
+    let intersection_area = intersection_width * intersection_height;
+    intersection_area / left_area.min(right_area)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -2431,4 +2558,98 @@ fn average_confidence(blocks: &[OcrTextBlock]) -> f64 {
     }
 
     blocks.iter().map(|block| block.confidence).sum::<f64>() / blocks.len() as f64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_block(text: &str, x: f64, y: f64, width: f64, height: f64) -> OcrTextBlock {
+        OcrTextBlock {
+            text: text.to_string(),
+            x,
+            y,
+            width,
+            height,
+            font_size: height,
+            line_height: height,
+            angle: 0.0,
+            confidence: 96.0,
+        }
+    }
+
+    #[test]
+    fn mixed_script_merge_replaces_english_garbage_with_cjk_candidate() {
+        let mut result = OcrRecognizeResult {
+            full_text: "If you need to manually switch languages, iii -- i#/Language .".to_string(),
+            text: "If you need to manually switch languages, iii -- i#/Language .".to_string(),
+            confidence: 98.0,
+            blocks: vec![test_block(
+                "If you need to manually switch languages, iii -- i#/Language .",
+                40.0,
+                500.0,
+                1180.0,
+                36.0,
+            )],
+            engine: "rapidocr:en".to_string(),
+            language: "en".to_string(),
+        };
+        let zh_result = OcrRecognizeResult {
+            full_text: "If you need to manually switch languages, 全局设置 → 语言/Language ."
+                .to_string(),
+            text: "If you need to manually switch languages, 全局设置 → 语言/Language ."
+                .to_string(),
+            confidence: 98.0,
+            blocks: vec![test_block(
+                "If you need to manually switch languages, 全局设置 → 语言/Language .",
+                42.0,
+                501.0,
+                1174.0,
+                36.0,
+            )],
+            engine: "rapidocr:zh".to_string(),
+            language: "zh".to_string(),
+        };
+        let log_path = std::env::temp_dir().join("snippets_ocr_mixed_script_test.log");
+
+        merge_mixed_script_blocks(
+            &mut result,
+            &[(OcrLanguage::ChineseSimplified, zh_result, 900.0)],
+            &log_path,
+        );
+
+        assert!(result.language.contains("+mixed"));
+        assert!(result.full_text.contains("全局设置"));
+        assert!(!result.full_text.contains("i#/Language"));
+    }
+
+    #[test]
+    fn mixed_script_merge_keeps_plain_english_blocks() {
+        let mut result = OcrRecognizeResult {
+            full_text: "Getting Started".to_string(),
+            text: "Getting Started".to_string(),
+            confidence: 99.0,
+            blocks: vec![test_block("Getting Started", 20.0, 20.0, 260.0, 40.0)],
+            engine: "rapidocr:en".to_string(),
+            language: "en".to_string(),
+        };
+        let zh_result = OcrRecognizeResult {
+            full_text: "Getting Started".to_string(),
+            text: "Getting Started".to_string(),
+            confidence: 96.0,
+            blocks: vec![test_block("Getting Started", 20.0, 20.0, 260.0, 40.0)],
+            engine: "rapidocr:zh".to_string(),
+            language: "zh".to_string(),
+        };
+        let log_path = std::env::temp_dir().join("snippets_ocr_mixed_script_test.log");
+
+        merge_mixed_script_blocks(
+            &mut result,
+            &[(OcrLanguage::ChineseSimplified, zh_result, 900.0)],
+            &log_path,
+        );
+
+        assert_eq!(result.language, "en");
+        assert_eq!(result.full_text, "Getting Started");
+    }
 }
