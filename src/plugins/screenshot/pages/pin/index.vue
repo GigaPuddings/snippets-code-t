@@ -135,7 +135,7 @@
         </div>
       </header>
 
-      <main class="ocr-reading-surface">
+      <main class="ocr-reading-surface" @mousedown.stop>
         <div v-if="showOriginalImage" class="ocr-original-image">
           <img :src="imageBlobUrl || imageData" alt="original" />
         </div>
@@ -154,7 +154,11 @@
             {{ $t('pin.noTextRecognized') }}
           </div>
 
-          <div v-else class="ocr-result-layout">
+          <div
+            v-else
+            class="ocr-result-layout"
+            :class="{ 'records-open': showOcrRecordPane }"
+          >
             <section class="ocr-preview-pane">
               <div class="ocr-preview-stage">
                 <img :src="imageBlobUrl || imageData" alt="OCR source" />
@@ -168,7 +172,6 @@
                     class="ocr-overlay-block"
                     :class="{ selected: record.selected }"
                     :style="getOcrOverlayStyle(record)"
-                    @click.stop="toggleOcrRecordSelection(record.id)"
                   >
                     {{ record.text.trim() }}
                   </span>
@@ -176,7 +179,7 @@
               </div>
             </section>
 
-            <section class="ocr-record-pane">
+            <section v-if="showOcrRecordPane" class="ocr-record-pane">
               <article
                 v-for="(record, index) in ocrRecords"
                 :key="record.id"
@@ -238,6 +241,24 @@
               selectedOcrRecordCount > 0
                 ? `${$t('pin.copyText')} (${selectedOcrRecordCount})`
                 : $t('pin.copyText')
+            }}
+          </span>
+        </CustomButton>
+        <CustomButton
+          class="ocr-action-btn"
+          type="text"
+          :title="
+            showOcrRecordPane ? $t('pin.hideRecords') : $t('pin.showRecords')
+          "
+          :disabled="ocrRecords.length === 0"
+          @click.stop="toggleOcrRecordPane"
+        >
+          <TextRecognition size="22" theme="outline" :strokeWidth="2.7" />
+          <span>
+            {{
+              showOcrRecordPane
+                ? $t('pin.hideRecords')
+                : $t('pin.showRecords')
             }}
           </span>
         </CustomButton>
@@ -502,6 +523,7 @@ const imageHeight = ref(0);
 const initialWindowSize = ref({ width: 0, height: 0 });
 
 const showOriginalImage = ref(false);
+const showOcrRecordPane = ref(false);
 
 const isTranslating = ref(false);
 const showTranslateMenu = ref(false);
@@ -664,7 +686,7 @@ const getOcrOverlayStyle = (record: OcrRecord): CSSProperties => {
     left: `${left}%`,
     top: `${top}%`,
     width: `${width}%`,
-    minHeight: `${height}%`
+    height: `${height}%`
   };
 };
 
@@ -711,6 +733,7 @@ const updateImageData = (base64Data: string) => {
   initialWindowSize.value = { width: 0, height: 0 };
   if (mode.value === 'ocr') {
     ocrFileName.value = formatOcrFileName();
+    showOcrRecordPane.value = false;
   }
 
   if (imageBlobUrl.value) {
@@ -1192,6 +1215,10 @@ const translateOcrText = async (
 
 const handleViewOriginal = () => {
   showOriginalImage.value = !showOriginalImage.value;
+};
+
+const toggleOcrRecordPane = () => {
+  showOcrRecordPane.value = !showOcrRecordPane.value;
 };
 
 const handleMoreActions = (event: MouseEvent) => {
@@ -1850,7 +1877,7 @@ onUnmounted(() => {
 
       .ocr-result-layout {
         display: grid;
-        grid-template-rows: minmax(150px, 34%) minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
         gap: 0;
         height: 100%;
         min-height: 0;
@@ -1859,19 +1886,26 @@ onUnmounted(() => {
         letter-spacing: 0;
         user-select: text;
         -webkit-user-select: text;
+
+        &.records-open {
+          grid-template-rows: minmax(150px, 34%) minmax(0, 1fr);
+        }
       }
 
       .ocr-preview-pane {
-        @apply flex min-h-0 justify-center overflow-hidden;
+        @apply flex min-h-0 justify-center overflow-auto;
         padding: 14px 18px;
         background: linear-gradient(
           180deg,
           color-mix(in srgb, var(--ocr-shell-bg, #f8fafc) 72%, transparent),
           transparent
         );
-        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 68%, transparent);
         user-select: text;
         -webkit-user-select: text;
+      }
+
+      .ocr-result-layout.records-open .ocr-preview-pane {
+        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 68%, transparent);
       }
 
       .ocr-preview-stage {
@@ -1894,6 +1928,8 @@ onUnmounted(() => {
         position: absolute;
         inset: 0;
         pointer-events: none;
+        user-select: text;
+        -webkit-user-select: text;
       }
 
       .ocr-overlay-block {
@@ -1904,22 +1940,27 @@ onUnmounted(() => {
         overflow: hidden;
         color: transparent;
         white-space: pre-wrap;
-        cursor: pointer;
-        user-select: none;
+        cursor: text;
+        user-select: text;
         pointer-events: auto;
         background: transparent;
         border-radius: 1px;
         font-size: clamp(10px, 1.05vw, 12px);
         line-height: 1.24;
-        -webkit-user-select: none;
+        -webkit-user-select: text;
 
         &:hover {
-          background: rgb(37 99 235 / 10%);
+          background: rgb(37 99 235 / 5%);
         }
 
         &.selected {
-          background: rgb(37 99 235 / 16%);
-          outline: 1px solid rgb(37 99 235 / 52%);
+          background: transparent;
+          outline: 0;
+        }
+
+        &::selection {
+          color: transparent;
+          background: rgb(37 99 235 / 28%);
         }
       }
 
@@ -2008,12 +2049,12 @@ onUnmounted(() => {
       }
 
       @media (min-width: 920px) {
-        .ocr-result-layout {
+        .ocr-result-layout.records-open {
           grid-template-columns: minmax(300px, 0.92fr) minmax(360px, 1.08fr);
           grid-template-rows: minmax(0, 1fr);
         }
 
-        .ocr-preview-pane {
+        .ocr-result-layout.records-open .ocr-preview-pane {
           align-items: flex-start;
           border-right: 1px solid color-mix(in srgb, var(--ocr-border) 68%, transparent);
           border-bottom: 0;
@@ -2025,7 +2066,7 @@ onUnmounted(() => {
       }
 
       @media (max-width: 720px) {
-        .ocr-result-layout {
+        .ocr-result-layout.records-open {
           grid-template-rows: minmax(132px, 30%) minmax(0, 1fr);
         }
 

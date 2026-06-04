@@ -994,6 +994,8 @@ export default {
     unsupportedTranslateLanguage: '当前翻译暂仅支持中文/英语，暂不支持该识别语言',
     recognizeAgain: '重新识别',
     saveAsText: '保存为文本',
+    showRecords: '显示记录',
+    hideRecords: '隐藏记录',
     more: '更多',
     minimize: '最小化',
     maximize: '最大化',

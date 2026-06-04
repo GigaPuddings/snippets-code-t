@@ -979,6 +979,8 @@ export default {
     unsupportedTranslateLanguage: 'Translation currently supports Chinese and English only.',
     recognizeAgain: 'Recognize Again',
     saveAsText: 'Save as Text',
+    showRecords: 'Show Records',
+    hideRecords: 'Hide Records',
     more: 'More',
     minimize: 'Minimize',
     maximize: 'Maximize',
