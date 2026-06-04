@@ -161,7 +161,12 @@
           >
             <section class="ocr-preview-pane">
               <div class="ocr-preview-stage">
-                <img :src="imageBlobUrl || imageData" alt="OCR source" />
+                <img
+                  ref="ocrPreviewImageRef"
+                  :src="imageBlobUrl || imageData"
+                  alt="OCR source"
+                  @load="updateOcrPreviewImageMetrics"
+                />
                 <div
                   v-if="ocrRecordsWithGeometry.length > 0"
                   class="ocr-text-overlay"
@@ -170,7 +175,11 @@
                     v-for="record in ocrRecordsWithGeometry"
                     :key="record.id"
                     class="ocr-overlay-block"
-                    :class="{ selected: record.selected }"
+                    :class="{
+                      selected: record.selected,
+                      'range-selected': selectedOverlayRecordIds.has(record.id)
+                    }"
+                    :data-record-id="record.id"
                     :style="getOcrOverlayStyle(record)"
                   >
                     {{ record.text.trim() }}
@@ -461,6 +470,7 @@ import {
   onUnmounted,
   computed,
   nextTick,
+  watch,
   type CSSProperties
 } from 'vue';
 import { Window, LogicalSize } from '@tauri-apps/api/window';
@@ -508,6 +518,7 @@ import type {
 const { t } = useI18n();
 
 const containerRef = ref<HTMLDivElement>();
+const ocrPreviewImageRef = ref<HTMLImageElement>();
 const appWindow = ref<Window | null>(null);
 
 const imageData = ref<string>('');
@@ -520,10 +531,12 @@ const ocrError = ref('');
 const ocrFileName = ref('');
 const imageWidth = ref(0);
 const imageHeight = ref(0);
+const ocrPreviewImageSize = ref({ width: 0, height: 0 });
 const initialWindowSize = ref({ width: 0, height: 0 });
 
 const showOriginalImage = ref(false);
 const showOcrRecordPane = ref(false);
+const selectedOverlayRecordIds = ref(new Set<string>());
 
 const isTranslating = ref(false);
 const showTranslateMenu = ref(false);
@@ -597,6 +610,7 @@ const scale = ref(1);
 const showZoomInfo = ref(false);
 const isResizing = ref(false);
 let zoomInfoTimer: ReturnType<typeof setTimeout> | null = null;
+let ocrPreviewResizeObserver: ResizeObserver | null = null;
 
 const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
@@ -681,18 +695,83 @@ const getOcrOverlayStyle = (record: OcrRecord): CSSProperties => {
   const top = clampPercent((record.bbox.y / imageHeight.value) * 100);
   const width = clampPercent((record.bbox.width / imageWidth.value) * 100, 6);
   const height = clampPercent((record.bbox.height / imageHeight.value) * 100, 4);
+  const fontSize = getOverlayFontSize(record);
+  const lineHeight = getOverlayLineHeight(record, fontSize);
 
   return {
     left: `${left}%`,
     top: `${top}%`,
     width: `${width}%`,
-    height: `${height}%`
+    height: `${height}%`,
+    fontSize: `${fontSize}px`,
+    lineHeight: `${lineHeight}px`
   };
+};
+
+const getOverlayFontSize = (record: OcrRecord): number => {
+  const scale = getOcrPreviewImageScale();
+  const sourceFontSize = averageBlockMetric(
+    record.blocks.map((block) => block.fontSize),
+    record.bbox.height
+  );
+  return clampNumber(sourceFontSize * scale, 7, 28);
+};
+
+const getOverlayLineHeight = (record: OcrRecord, fontSize: number): number => {
+  const scale = getOcrPreviewImageScale();
+  const sourceLineHeight = averageBlockMetric(
+    record.blocks.map((block) => block.lineHeight || block.height),
+    record.bbox.height
+  );
+  return Math.max(fontSize, sourceLineHeight * scale);
+};
+
+const getOcrPreviewImageScale = (): number => {
+  if (
+    imageWidth.value <= 0 ||
+    imageHeight.value <= 0 ||
+    ocrPreviewImageSize.value.width <= 0 ||
+    ocrPreviewImageSize.value.height <= 0
+  ) {
+    return 1;
+  }
+  return Math.min(
+    ocrPreviewImageSize.value.width / imageWidth.value,
+    ocrPreviewImageSize.value.height / imageHeight.value
+  );
+};
+
+const updateOcrPreviewImageMetrics = () => {
+  const imageElement = ocrPreviewImageRef.value;
+  if (!imageElement) {
+    ocrPreviewImageSize.value = { width: 0, height: 0 };
+    return;
+  }
+
+  ocrPreviewImageSize.value = {
+    width: imageElement.clientWidth,
+    height: imageElement.clientHeight
+  };
+};
+
+const averageBlockMetric = (values: Array<number | undefined>, fallback: number): number => {
+  const validValues = values.filter(
+    (value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0
+  );
+  if (validValues.length === 0) {
+    return fallback;
+  }
+  return validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
 };
 
 const clampPercent = (value: number, min = 0): number => {
   if (!Number.isFinite(value)) return min;
   return Math.min(100, Math.max(min, value));
+};
+
+const clampNumber = (value: number, min: number, max: number): number => {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
 };
 
 const formatOcrFileName = () => {
@@ -730,6 +809,8 @@ const updateImageData = (base64Data: string) => {
   imageData.value = base64Data;
   imageWidth.value = 0;
   imageHeight.value = 0;
+  ocrPreviewImageSize.value = { width: 0, height: 0 };
+  selectedOverlayRecordIds.value = new Set();
   initialWindowSize.value = { width: 0, height: 0 };
   if (mode.value === 'ocr') {
     ocrFileName.value = formatOcrFileName();
@@ -1558,6 +1639,37 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 };
 
+const handleOcrSelectionChange = () => {
+  if (mode.value !== 'ocr') {
+    selectedOverlayRecordIds.value = new Set();
+    return;
+  }
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    selectedOverlayRecordIds.value = new Set();
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+  const surface = containerRef.value?.querySelector('.ocr-reading-surface');
+  if (!surface || !surface.contains(range.commonAncestorContainer)) {
+    selectedOverlayRecordIds.value = new Set();
+    return;
+  }
+
+  const selectedIds = new Set<string>();
+  surface.querySelectorAll<HTMLElement>('.ocr-overlay-block[data-record-id]').forEach((element) => {
+    if (range.intersectsNode(element)) {
+      const recordId = element.dataset.recordId;
+      if (recordId) {
+        selectedIds.add(recordId);
+      }
+    }
+  });
+  selectedOverlayRecordIds.value = selectedIds;
+};
+
 const handleKeydown = (event: KeyboardEvent): void => {
   if (event.altKey && event.code === 'Space') {
     event.preventDefault();
@@ -1606,6 +1718,24 @@ const hydratePinWindowData = async () => {
     logger.error('[PIN窗口] 主动获取窗口数据失败', error);
   }
 };
+
+watch(
+  ocrPreviewImageRef,
+  (imageElement) => {
+    ocrPreviewResizeObserver?.disconnect();
+    ocrPreviewResizeObserver = null;
+
+    if (!imageElement) {
+      ocrPreviewImageSize.value = { width: 0, height: 0 };
+      return;
+    }
+
+    updateOcrPreviewImageMetrics();
+    ocrPreviewResizeObserver = new ResizeObserver(updateOcrPreviewImageMetrics);
+    ocrPreviewResizeObserver.observe(imageElement);
+  },
+  { flush: 'post' }
+);
 
 onMounted(async () => {
   if (!containerRef.value) {
@@ -1661,6 +1791,7 @@ onMounted(async () => {
   document.addEventListener('click', handleClickOutside);
   document.addEventListener('keydown', handleKeydown, true);
   document.addEventListener('contextmenu', globalContextMenuHandler, true);
+  document.addEventListener('selectionchange', handleOcrSelectionChange);
   window.addEventListener('blur', closeContextMenu);
 
   if (document.body) {
@@ -1683,7 +1814,10 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeydown, true);
   document.removeEventListener('contextmenu', globalContextMenuHandler, true);
+  document.removeEventListener('selectionchange', handleOcrSelectionChange);
   window.removeEventListener('blur', closeContextMenu);
+  ocrPreviewResizeObserver?.disconnect();
+  ocrPreviewResizeObserver = null;
 
   if (document.body) {
     document.body.oncontextmenu = null;
@@ -1937,7 +2071,7 @@ onUnmounted(() => {
         display: block;
         min-width: 22px;
         padding: 0 2px;
-        overflow: hidden;
+        overflow: visible;
         color: transparent;
         white-space: pre-wrap;
         cursor: text;
@@ -1945,8 +2079,6 @@ onUnmounted(() => {
         pointer-events: auto;
         background: transparent;
         border-radius: 1px;
-        font-size: clamp(10px, 1.05vw, 12px);
-        line-height: 1.24;
         -webkit-user-select: text;
 
         &:hover {
@@ -1956,6 +2088,10 @@ onUnmounted(() => {
         &.selected {
           background: transparent;
           outline: 0;
+        }
+
+        &.range-selected {
+          background: rgb(37 99 235 / 12%);
         }
 
         &::selection {
@@ -2085,10 +2221,15 @@ onUnmounted(() => {
       gap: 6px;
       height: 54px;
       padding: 8px 8px 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      white-space: nowrap;
 
       .translate-btn-group,
       .ocr-engine-btn-group {
         @apply flex items-center bg-transparent;
+        flex: 0 0 auto;
         border-radius: 6px;
         box-shadow: var(--ocr-panel-shadow);
 
@@ -2099,7 +2240,7 @@ onUnmounted(() => {
         .translate-main,
         .ocr-engine-main {
           @apply pr-1 hover:bg-transparent;
-          min-width: 86px;
+          min-width: 74px;
           border-right: 0;
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
@@ -2141,14 +2282,20 @@ onUnmounted(() => {
 
       .ocr-action-btn {
         @apply flex items-center justify-center text-ocr-secondary bg-ocr-panel border border-ocr shadow-ocr-panel;
+        flex: 0 0 auto;
         gap: 6px;
-        min-width: 92px;
+        min-width: 0;
         height: 38px;
         padding: 0 10px;
         border-radius: 6px;
         font-size: 13px;
         font-weight: 500;
         line-height: 1;
+
+        span {
+          white-space: nowrap;
+          word-break: keep-all;
+        }
 
         &:hover:not(:disabled) {
           @apply bg-ocr-panel-hover text-ocr;
@@ -2170,10 +2317,48 @@ onUnmounted(() => {
       }
 
       .ocr-action-divider {
+        flex: 0 0 auto;
         width: 1px;
         height: 24px;
         margin-left: 1px;
         background: var(--ocr-border);
+      }
+
+      @media (max-width: 760px) {
+        gap: 4px;
+        padding-inline: 6px;
+
+        .ocr-action-btn {
+          gap: 4px;
+          height: 36px;
+          padding: 0 8px;
+          font-size: 12px;
+        }
+
+        .translate-btn-group .translate-main,
+        .ocr-engine-btn-group .ocr-engine-main {
+          min-width: 0;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .ocr-action-btn:not(.more) span {
+          display: none;
+        }
+
+        .translate-btn-group .translate-main,
+        .ocr-engine-btn-group .ocr-engine-main,
+        .ocr-action-btn {
+          width: 38px;
+          min-width: 38px;
+          padding: 0;
+        }
+
+        .translate-btn-group .translate-arrow,
+        .ocr-engine-btn-group .ocr-engine-arrow {
+          width: 28px;
+          min-width: 28px;
+        }
       }
     }
   }
