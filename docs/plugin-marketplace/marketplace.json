@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-06-03",
+  "updatedAt": "2026-06-04",
   "source": "snippets-code official GitHub marketplace",
   "plugins": [
     {
       "id": "screenshot",
-      "version": "2.0.9",
+      "version": "2.0.10",
       "name": {
         "i18nKey": "plugins.screenshot.name",
         "fallback": "Screenshot, OCR, and Pins"
@@ -15,7 +15,7 @@
         "fallback": "Screenshot annotation, color picker, pin windows, OCR, and screenshot translation."
       },
       "category": "capture",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/2.0.9.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/2.0.10.zip",
       "builtinPluginId": "screenshot",
       "status": "included",
       "sizeBytes": 694267,
@@ -28,10 +28,10 @@
         "ocr",
         "pin"
       ],
-      "minAppVersion": "1.5.6",
-      "compatibleAppVersion": ">=1.5.6",
+      "minAppVersion": "2.1.8",
+      "compatibleAppVersion": ">=2.1.8",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.9"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.10"
     },
     {
       "id": "screenshot-rapidocr",
@@ -117,7 +117,7 @@
     },
     {
       "id": "translation",
-      "version": "2.0.8",
+      "version": "2.0.9",
       "name": {
         "i18nKey": "plugins.translation.name",
         "fallback": "Translation"
@@ -127,7 +127,7 @@
         "fallback": "Translate window, selection translation, screenshot translation, and offline model management."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/tags/2.0.8.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/tags/2.0.9.zip",
       "builtinPluginId": "translation",
       "status": "included",
       "sizeBytes": 730929,
@@ -138,10 +138,10 @@
         "translate",
         "offline"
       ],
-      "minAppVersion": "1.5.6",
-      "compatibleAppVersion": ">=1.5.6",
+      "minAppVersion": "2.1.8",
+      "compatibleAppVersion": ">=2.1.8",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.8"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.9"
     },
     {
       "id": "translation-offline-runtime",
@@ -171,7 +171,7 @@
     },
     {
       "id": "todo",
-      "version": "2.0.11",
+      "version": "2.0.12",
       "name": {
         "i18nKey": "plugins.todo.name",
         "fallback": "Reminders"
@@ -181,7 +181,7 @@
         "fallback": "Todo cards, timed reminders, and system notification windows."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/tags/2.0.11.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/archive/refs/tags/2.0.12.zip",
       "builtinPluginId": "todo",
       "status": "included",
       "sizeBytes": 874246,
@@ -189,14 +189,14 @@
         "todo",
         "reminder"
       ],
-      "minAppVersion": "2.1.6",
-      "compatibleAppVersion": ">=2.1.6",
+      "minAppVersion": "2.1.8",
+      "compatibleAppVersion": ">=2.1.8",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-todo",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/2.0.11"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/2.0.12"
     },
     {
       "id": "system-theme",
-      "version": "2.0.9",
+      "version": "2.0.10",
       "name": {
         "i18nKey": "plugins.systemTheme.name",
         "fallback": "Auto Dark Mode"
@@ -206,7 +206,7 @@
         "fallback": "Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling."
       },
       "category": "appearance",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/2.0.9.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/2.0.10.zip",
       "builtinPluginId": "system-theme",
       "status": "included",
       "sizeBytes": 651092,
@@ -214,10 +214,10 @@
         "theme",
         "dark-mode"
       ],
-      "minAppVersion": "2.1.3",
-      "compatibleAppVersion": ">=2.1.3",
+      "minAppVersion": "2.1.8",
+      "compatibleAppVersion": ">=2.1.8",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.9"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.10"
     },
     {
       "id": "local-launcher",
@@ -273,7 +273,7 @@
     },
     {
       "id": "search-engines",
-      "version": "2.0.9",
+      "version": "2.0.10",
       "name": {
         "i18nKey": "plugins.searchEngines.name",
         "fallback": "Search Engines"
@@ -283,7 +283,7 @@
         "fallback": "Custom search engines, keyword search, and default web search entries."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/tags/2.0.9.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/tags/2.0.10.zip",
       "builtinPluginId": "search-engines",
       "status": "included",
       "sizeBytes": 694234,
@@ -292,10 +292,10 @@
         "web",
         "keyword"
       ],
-      "minAppVersion": "2.1.4",
-      "compatibleAppVersion": ">=2.1.4",
+      "minAppVersion": "2.1.8",
+      "compatibleAppVersion": ">=2.1.8",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.9"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.10"
     },
     {
       "id": "quick-tools",
