@@ -955,15 +955,14 @@ fn merge_mixed_script_blocks(
 
     let mut replacements = Vec::new();
     for block in &mut result.blocks {
-        let Some((candidate_language, candidate_block, overlap)) =
+        let Some((candidate_language, replacement_text, overlap)) =
             find_mixed_script_replacement(block, candidates, base_language)
         else {
             continue;
         };
 
         let previous_text = block.text.clone();
-        block.text = candidate_block.text.clone();
-        block.confidence = candidate_block.confidence.max(block.confidence);
+        block.text = replacement_text;
         replacements.push(format!(
             "{} overlap={:.2}: {} => {}",
             candidate_language.label(),
@@ -997,13 +996,13 @@ fn find_mixed_script_replacement<'a>(
     block: &OcrTextBlock,
     candidates: &'a [(OcrLanguage, OcrRecognizeResult, f64)],
     base_language: OcrLanguage,
-) -> Option<(OcrLanguage, &'a OcrTextBlock, f64)> {
+) -> Option<(OcrLanguage, String, f64)> {
     let base_stats = script_stats(&block.text);
     if base_stats.cjk_count > 0 {
         return None;
     }
 
-    let mut best: Option<(OcrLanguage, &OcrTextBlock, f64)> = None;
+    let mut best: Option<(OcrLanguage, String, f64)> = None;
     for (language, result, _) in candidates {
         if *language == base_language {
             continue;
@@ -1022,26 +1021,170 @@ fn find_mixed_script_replacement<'a>(
             if candidate_stats.cjk_count < 2 {
                 continue;
             }
-            if candidate_block.text.trim().chars().count() + 8 < block.text.trim().chars().count() {
-                continue;
-            }
 
             let overlap = block_overlap_ratio(block, candidate_block);
             if overlap < 0.58 {
                 continue;
             }
+            let replacement_text = if candidate_block.text.trim().chars().count() + 8
+                < block.text.trim().chars().count()
+            {
+                merge_inline_mixed_script_text(block, candidate_block)
+            } else {
+                candidate_block.text.trim().to_string()
+            };
 
             if best
                 .as_ref()
                 .map(|(_, _, best_overlap)| overlap > *best_overlap)
                 .unwrap_or(true)
             {
-                best = Some((*language, candidate_block, overlap));
+                best = Some((*language, replacement_text, overlap));
             }
         }
     }
 
     best
+}
+
+fn merge_inline_mixed_script_text(base: &OcrTextBlock, candidate: &OcrTextBlock) -> String {
+    let base_text = base.text.trim();
+    let candidate_text = candidate.text.trim();
+    if base_text.is_empty() {
+        return candidate_text.to_string();
+    }
+    if candidate_text.is_empty() {
+        return base_text.to_string();
+    }
+
+    let relative_x = ((candidate.x + candidate.width * 0.5) - base.x) / base.width.max(1.0);
+    if relative_x > 0.55 {
+        return merge_inline_candidate_into_suffix(base_text, candidate_text, true);
+    }
+    if relative_x < 0.25 {
+        return merge_inline_candidate_into_prefix(base_text, candidate_text);
+    }
+
+    merge_inline_candidate_by_position(base_text, candidate_text, relative_x)
+}
+
+fn merge_inline_candidate_into_suffix(
+    base_text: &str,
+    candidate_text: &str,
+    prefer_punctuation_boundary: bool,
+) -> String {
+    if prefer_punctuation_boundary {
+        if let Some(index) = find_last_inline_boundary(base_text) {
+            let prefix = base_text[..index].trim_end();
+            return format!(
+                "{} {}{}",
+                prefix,
+                candidate_text,
+                trailing_sentence_punctuation(base_text, candidate_text)
+            )
+            .trim()
+            .to_string();
+        }
+    }
+
+    let split_index = previous_char_boundary(
+        base_text,
+        base_text.len().saturating_sub(candidate_text.len()),
+    );
+    format!(
+        "{} {}{}",
+        base_text[..split_index].trim_end(),
+        candidate_text,
+        trailing_sentence_punctuation(base_text, candidate_text)
+    )
+    .trim()
+    .to_string()
+}
+
+fn merge_inline_candidate_into_prefix(base_text: &str, candidate_text: &str) -> String {
+    let suffix_start = next_word_boundary(base_text, candidate_text.len().min(base_text.len()));
+    format!(
+        "{} {}",
+        candidate_text,
+        base_text[suffix_start..].trim_start()
+    )
+    .trim()
+    .to_string()
+}
+
+fn merge_inline_candidate_by_position(
+    base_text: &str,
+    candidate_text: &str,
+    relative_x: f64,
+) -> String {
+    let char_count = base_text.chars().count().max(1);
+    let approximate_char = ((char_count as f64) * relative_x.clamp(0.0, 1.0)).round() as usize;
+    let byte_index = byte_index_for_char(base_text, approximate_char);
+    let split_index = previous_word_boundary(base_text, byte_index);
+    merge_inline_candidate_into_suffix(&base_text[..split_index], candidate_text, false)
+}
+
+fn find_last_inline_boundary(text: &str) -> Option<usize> {
+    [",", "，", ":", "：", ";", "；"]
+        .iter()
+        .filter_map(|marker| text.rfind(marker).map(|index| index + marker.len()))
+        .max()
+}
+
+fn trailing_sentence_punctuation(base_text: &str, candidate_text: &str) -> &'static str {
+    let candidate_last = candidate_text.chars().rev().find(|ch| !ch.is_whitespace());
+    if matches!(candidate_last, Some('.' | '。' | '!' | '！' | '?' | '？')) {
+        return "";
+    }
+
+    match base_text.chars().rev().find(|ch| !ch.is_whitespace()) {
+        Some('.') => ".",
+        Some('。') => "。",
+        Some('!') => "!",
+        Some('！') => "！",
+        Some('?') => "?",
+        Some('？') => "？",
+        _ => "",
+    }
+}
+
+fn previous_word_boundary(text: &str, index: usize) -> usize {
+    let mut boundary = previous_char_boundary(text, index);
+    while boundary > 0 {
+        let previous = text[..boundary].chars().last();
+        if matches!(previous, Some(ch) if ch.is_whitespace() || ch.is_ascii_punctuation()) {
+            break;
+        }
+        boundary = previous_char_boundary(text, boundary.saturating_sub(1));
+    }
+    boundary
+}
+
+fn next_word_boundary(text: &str, index: usize) -> usize {
+    let mut boundary = previous_char_boundary(text, index);
+    while boundary < text.len() {
+        let current = text[boundary..].chars().next();
+        if matches!(current, Some(ch) if ch.is_whitespace() || ch.is_ascii_punctuation()) {
+            break;
+        }
+        boundary += current.map(char::len_utf8).unwrap_or(1);
+    }
+    boundary
+}
+
+fn previous_char_boundary(text: &str, index: usize) -> usize {
+    let mut boundary = index.min(text.len());
+    while boundary > 0 && !text.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    boundary
+}
+
+fn byte_index_for_char(text: &str, char_index: usize) -> usize {
+    text.char_indices()
+        .nth(char_index)
+        .map(|(index, _)| index)
+        .unwrap_or(text.len())
 }
 
 fn block_overlap_ratio(left: &OcrTextBlock, right: &OcrTextBlock) -> f64 {
@@ -2620,6 +2763,50 @@ mod tests {
 
         assert!(result.language.contains("+mixed"));
         assert!(result.full_text.contains("全局设置"));
+        assert!(!result.full_text.contains("i#/Language"));
+    }
+
+    #[test]
+    fn mixed_script_merge_replaces_inline_tail_garbage() {
+        let mut result = OcrRecognizeResult {
+            full_text: "If you need to manually switch languages, please refer to the following figure, iii -- i#/Language .".to_string(),
+            text: "If you need to manually switch languages, please refer to the following figure, iii -- i#/Language .".to_string(),
+            confidence: 98.0,
+            blocks: vec![test_block(
+                "If you need to manually switch languages, please refer to the following figure, iii -- i#/Language .",
+                40.0,
+                500.0,
+                1180.0,
+                36.0,
+            )],
+            engine: "rapidocr:en".to_string(),
+            language: "en".to_string(),
+        };
+        let zh_result = OcrRecognizeResult {
+            full_text: "全局设置 → 语言/Language".to_string(),
+            text: "全局设置 → 语言/Language".to_string(),
+            confidence: 98.0,
+            blocks: vec![test_block(
+                "全局设置 → 语言/Language",
+                900.0,
+                501.0,
+                250.0,
+                34.0,
+            )],
+            engine: "rapidocr:zh".to_string(),
+            language: "zh".to_string(),
+        };
+        let log_path = std::env::temp_dir().join("snippets_ocr_mixed_script_test.log");
+
+        merge_mixed_script_blocks(
+            &mut result,
+            &[(OcrLanguage::ChineseSimplified, zh_result, 900.0)],
+            &log_path,
+        );
+
+        assert!(result.full_text.contains("following figure, 全局设置"));
+        assert!(result.full_text.ends_with("Language."));
+        assert!(!result.full_text.contains("iii"));
         assert!(!result.full_text.contains("i#/Language"));
     }
 

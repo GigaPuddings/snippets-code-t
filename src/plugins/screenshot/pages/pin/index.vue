@@ -183,29 +183,31 @@
                 class="ocr-record-item"
                 :class="{ selected: record.selected }"
               >
-                <header
-                  class="ocr-record-header"
-                  @click.stop="toggleOcrRecordSelection(record.id)"
-                >
-                  <input
-                    class="ocr-record-checkbox"
-                    type="checkbox"
-                    :checked="record.selected"
-                    @change.stop="toggleOcrRecordSelection(record.id)"
-                    @click.stop
-                  />
-                  <span class="ocr-record-index">#{{ index + 1 }}</span>
+                <div class="ocr-record-main-row">
+                  <header
+                    class="ocr-record-header"
+                    @click.stop="toggleOcrRecordSelection(record.id)"
+                  >
+                    <input
+                      class="ocr-record-checkbox"
+                      type="checkbox"
+                      :checked="record.selected"
+                      @change.stop="toggleOcrRecordSelection(record.id)"
+                      @click.stop
+                    />
+                    <span class="ocr-record-index">#{{ index + 1 }}</span>
+                  </header>
+                  <div
+                    class="ocr-record-editor"
+                    contenteditable="plaintext-only"
+                    spellcheck="false"
+                    v-text="record.text"
+                    @blur="handleOcrRecordInput(record.id, 'text', $event)"
+                  ></div>
                   <span v-if="record.confidence > 0" class="ocr-record-score">
                     {{ Math.round(record.confidence) }}%
                   </span>
-                </header>
-                <div
-                  class="ocr-record-editor"
-                  contenteditable="plaintext-only"
-                  spellcheck="false"
-                  v-text="record.text"
-                  @blur="handleOcrRecordInput(record.id, 'text', $event)"
-                ></div>
+                </div>
                 <div
                   v-if="record.translatedText"
                   class="ocr-record-editor translated"
@@ -1941,11 +1943,18 @@ onUnmounted(() => {
         }
       }
 
+      .ocr-record-main-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 10px;
+      }
+
       .ocr-record-header {
         @apply flex items-center text-ocr-muted;
-        gap: 8px;
-        min-height: 24px;
-        margin-bottom: 4px;
+        gap: 7px;
+        min-width: 46px;
+        padding-top: 5px;
         cursor: pointer;
         user-select: none;
         -webkit-user-select: none;
@@ -1964,7 +1973,7 @@ onUnmounted(() => {
       }
 
       .ocr-record-score {
-        margin-left: auto;
+        padding-top: 5px;
         font-size: 12px;
         font-variant-numeric: tabular-nums;
       }
@@ -1987,6 +1996,7 @@ onUnmounted(() => {
 
         &.translated {
           margin-top: 7px;
+          margin-left: 56px;
           color: var(--ocr-text-secondary);
         }
       }

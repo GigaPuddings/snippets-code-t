@@ -3,7 +3,7 @@ var nr = (e, t, n) => t in e ? er(e, t, { enumerable: !0, configurable: !0, writ
 var U = (e, t, n) => nr(e, typeof t != "symbol" ? t + "" : t, n);
 import * as fi from "vue";
 import { inject as Te, createVNode as k, ref as J, shallowRef as ir, computed as Y, watch as De, onMounted as an, onUnmounted as Fi, defineComponent as Dt, h as So, Text as sr, Fragment as Xt, nextTick as vn, createElementBlock as G, openBlock as B, createCommentVNode as nt, createElementVNode as A, renderList as ge, normalizeClass as _t, createBlock as Ft, resolveDynamicComponent as Ce, unref as z, toDisplayString as at, normalizeStyle as It, withDirectives as xn, withKeys as vs, vModelText as or, getCurrentInstance as Qe, readonly as ar, getCurrentScope as rr, onScopeDispose as lr, isRef as cr, warn as ur, provide as hr, mergeProps as dr, renderSlot as Ne, Transition as Bi, withCtx as Gt, createTextVNode as fr, vShow as Gn, shallowReactive as gr, withModifiers as Et, isVNode as bn, render as Xn } from "vue";
-const Zm = (e) => {
+const qm = (e) => {
   e.registerRoute({
     target: "window",
     path: "/screenshot",
@@ -13,7 +13,7 @@ const Zm = (e) => {
     target: "window",
     path: "/pin",
     name: "Pin",
-    component: () => Promise.resolve().then(() => Bm)
+    component: () => Promise.resolve().then(() => Hm)
   });
 };
 function mr(e, t, n, i) {
@@ -3516,7 +3516,7 @@ class Ae {
       return this.loadedModules.get(t);
     if (this.loadingPromises.has(t))
       return this.loadingPromises.get(t);
-    const n = Promise.resolve().then(() => Gm).then((i) => (this.loadedModules.set(t, i), this.loadingPromises.delete(t), i));
+    const n = Promise.resolve().then(() => Xm).then((i) => (this.loadedModules.set(t, i), this.loadingPromises.delete(t), i));
     return this.loadingPromises.set(t, n), n;
   }
   /**
@@ -11572,19 +11572,19 @@ const Bg = Da(on, "$notify"), qt = {
 }, pm = { class: "ocr-preview-pane" }, ym = { class: "ocr-preview-stage" }, wm = ["src"], vm = {
   key: 0,
   class: "ocr-text-overlay"
-}, xm = ["onClick"], bm = { class: "ocr-record-pane" }, km = ["onClick"], _m = ["checked", "onChange"], Sm = { class: "ocr-record-index" }, Cm = {
+}, xm = ["onClick"], bm = { class: "ocr-record-pane" }, km = { class: "ocr-record-main-row" }, _m = ["onClick"], Sm = ["checked", "onChange"], Cm = { class: "ocr-record-index" }, Tm = ["textContent", "onBlur"], Mm = {
   key: 0,
   class: "ocr-record-score"
-}, Tm = ["textContent", "onBlur"], Mm = ["textContent", "onBlur"], Lm = { class: "ocr-action-bar" }, Rm = { class: "translate-btn-group relative" }, Pm = {
+}, Lm = ["textContent", "onBlur"], Rm = { class: "ocr-action-bar" }, Pm = { class: "translate-btn-group relative" }, Em = {
   key: 0,
   class: "translate-menu"
-}, Em = ["onClick"], Am = { class: "engine-label" }, Im = { class: "ocr-engine-btn-group relative" }, Om = {
+}, Am = ["onClick"], Im = { class: "engine-label" }, Om = { class: "ocr-engine-btn-group relative" }, zm = {
   key: 0,
   class: "ocr-engine-menu"
-}, zm = ["onClick"], Dm = { class: "engine-label" }, Nm = { class: "ocr-engine-btn-group relative" }, Wm = {
+}, Dm = ["onClick"], Nm = { class: "engine-label" }, Wm = { class: "ocr-engine-btn-group relative" }, $m = {
   key: 2,
   class: "zoom-info"
-}, $m = /* @__PURE__ */ Dt({
+}, Fm = /* @__PURE__ */ Dt({
   __name: "index",
   setup(e) {
     const { t } = Ln(), n = J(), i = J(null), s = J(""), o = J(""), a = J("pin"), r = J(""), l = J([]), c = J(!1), d = J(""), m = J(""), y = J(0), w = J(0), C = J({ width: 0, height: 0 }), f = J(!1), x = J(!1), p = J(!1), _ = J("bing"), v = J(!1), b = J("auto"), O = Y(() => [
@@ -12319,40 +12319,42 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                             class: _t(["ocr-record-item", { selected: I.selected }])
                           },
                           [
-                            A("header", {
-                              class: "ocr-record-header",
-                              onClick: Et((rt) => cn(I.id), ["stop"])
-                            }, [
-                              A("input", {
-                                class: "ocr-record-checkbox",
-                                type: "checkbox",
-                                checked: I.selected,
-                                onChange: Et((rt) => cn(I.id), ["stop"]),
-                                onClick: L[0] || (L[0] = Et(() => {
-                                }, ["stop"]))
-                              }, null, 40, _m),
-                              A(
-                                "span",
-                                Sm,
-                                "#" + at(q + 1),
-                                1
-                                /* TEXT */
-                              ),
+                            A("div", km, [
+                              A("header", {
+                                class: "ocr-record-header",
+                                onClick: Et((rt) => cn(I.id), ["stop"])
+                              }, [
+                                A("input", {
+                                  class: "ocr-record-checkbox",
+                                  type: "checkbox",
+                                  checked: I.selected,
+                                  onChange: Et((rt) => cn(I.id), ["stop"]),
+                                  onClick: L[0] || (L[0] = Et(() => {
+                                  }, ["stop"]))
+                                }, null, 40, Sm),
+                                A(
+                                  "span",
+                                  Cm,
+                                  "#" + at(q + 1),
+                                  1
+                                  /* TEXT */
+                                )
+                              ], 8, _m),
+                              A("div", {
+                                class: "ocr-record-editor",
+                                contenteditable: "plaintext-only",
+                                spellcheck: "false",
+                                textContent: at(I.text),
+                                onBlur: (rt) => ci(I.id, "text", rt)
+                              }, null, 40, Tm),
                               I.confidence > 0 ? (B(), G(
                                 "span",
-                                Cm,
+                                Mm,
                                 at(Math.round(I.confidence)) + "% ",
                                 1
                                 /* TEXT */
                               )) : nt("v-if", !0)
-                            ], 8, km),
-                            A("div", {
-                              class: "ocr-record-editor",
-                              contenteditable: "plaintext-only",
-                              spellcheck: "false",
-                              textContent: at(I.text),
-                              onBlur: (rt) => ci(I.id, "text", rt)
-                            }, null, 40, Tm),
+                            ]),
                             I.translatedText ? (B(), G("div", {
                               key: 0,
                               class: "ocr-record-editor translated",
@@ -12360,7 +12362,7 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                               spellcheck: "false",
                               textContent: at(I.translatedText),
                               onBlur: (rt) => ci(I.id, "translatedText", rt)
-                            }, null, 40, Mm)) : nt("v-if", !0)
+                            }, null, 40, Lm)) : nt("v-if", !0)
                           ],
                           2
                           /* CLASS */
@@ -12381,7 +12383,7 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                 /* STABLE_FRAGMENT */
               ))
             ]),
-            A("footer", Lm, [
+            A("footer", Rm, [
               k(_e, {
                 class: "ocr-action-btn",
                 type: "text",
@@ -12406,7 +12408,7 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                 _: 1
                 /* STABLE */
               }, 8, ["title", "disabled"]),
-              A("div", Rm, [
+              A("div", Pm, [
                 k(_e, {
                   class: "ocr-action-btn translate-main",
                   type: "text",
@@ -12455,7 +12457,7 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                   /* STABLE */
                 }, 8, ["disabled"]),
                 nt(" 翻译引擎菜单 "),
-                p.value ? (B(), G("div", Pm, [
+                p.value ? (B(), G("div", Em, [
                   (B(!0), G(
                     Xt,
                     null,
@@ -12466,7 +12468,7 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                     }, [
                       A(
                         "span",
-                        Am,
+                        Im,
                         at(I.label),
                         1
                         /* TEXT */
@@ -12476,13 +12478,13 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                         class: "menu-item-icon",
                         size: "16"
                       })) : nt("v-if", !0)
-                    ], 10, Em))),
+                    ], 10, Am))),
                     128
                     /* KEYED_FRAGMENT */
                   ))
                 ])) : nt("v-if", !0)
               ]),
-              A("div", Im, [
+              A("div", Om, [
                 k(_e, {
                   class: "ocr-action-btn ocr-engine-main",
                   type: "text",
@@ -12523,7 +12525,7 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                   _: 1
                   /* STABLE */
                 }, 8, ["disabled"]),
-                v.value ? (B(), G("div", Om, [
+                v.value ? (B(), G("div", zm, [
                   (B(!0), G(
                     Xt,
                     null,
@@ -12534,7 +12536,7 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                     }, [
                       A(
                         "span",
-                        Dm,
+                        Nm,
                         at(I.label),
                         1
                         /* TEXT */
@@ -12544,13 +12546,13 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
                         class: "menu-item-icon",
                         size: "16"
                       })) : nt("v-if", !0)
-                    ], 10, zm))),
+                    ], 10, Dm))),
                     128
                     /* KEYED_FRAGMENT */
                   ))
                 ])) : nt("v-if", !0)
               ]),
-              A("div", Nm, [
+              A("div", Wm, [
                 k(_e, {
                   class: "ocr-action-btn ocr-engine-main",
                   type: "text",
@@ -12630,7 +12632,7 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
         )) : nt("v-if", !0),
         tt.value ? (B(), G(
           "div",
-          Wm,
+          $m,
           at(Math.round(K.value * 100)) + "% ",
           1
           /* TEXT */
@@ -12768,14 +12770,14 @@ ${h.stack || ""}`.trim() : typeof h == "string" ? h : JSON.stringify(h) || Strin
       /* CLASS, NEED_HYDRATION */
     ));
   }
-}), Fm = /* @__PURE__ */ oi($m, [["__scopeId", "data-v-16a87091"]]), Bm = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), Bm = /* @__PURE__ */ oi(Fm, [["__scopeId", "data-v-a031fef6"]]), Hm = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: Fm
+  default: Bm
 }, Symbol.toStringTag, { value: "Module" }));
-async function Hm(e) {
+async function jm(e) {
   return e.toDataURL("image/png");
 }
-function jm(e) {
+function Um(e) {
   return Array.isArray(e) ? e.map((t) => {
     if (!t || typeof t != "object")
       return null;
@@ -12793,8 +12795,8 @@ function jm(e) {
     } : null;
   }).filter((t) => !!t) : [];
 }
-async function Um(e) {
-  const t = Date.now(), n = await Hm(e);
+async function Vm(e) {
+  const t = Date.now(), n = await jm(e);
   $t.log("[RapidOCR] recognizeFromCanvas start", {
     width: e.width,
     height: e.height
@@ -12803,7 +12805,7 @@ async function Um(e) {
     const i = await E("recognize_text_from_image", {
       imageData: n,
       engine: "rapidocr"
-    }), s = jm(i.blocks), o = typeof i.full_text == "string" && i.full_text || typeof i.text == "string" && i.text || s.map((r) => r.text).join(`
+    }), s = Um(i.blocks), o = typeof i.full_text == "string" && i.full_text || typeof i.text == "string" && i.text || s.map((r) => r.text).join(`
 `), a = {
       blocks: s,
       full_text: o,
@@ -12826,18 +12828,18 @@ async function Um(e) {
     }), i;
   }
 }
-async function Vm() {
-  return Promise.resolve();
-}
 async function Ym() {
   return Promise.resolve();
 }
-const Gm = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+async function Gm() {
+  return Promise.resolve();
+}
+const Xm = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  recognizeFromCanvas: Um,
-  terminateOcr: Ym,
-  warmupOcr: Vm
+  recognizeFromCanvas: Vm,
+  terminateOcr: Gm,
+  warmupOcr: Ym
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  Zm as activate
+  qm as activate
 };
