@@ -168,6 +168,18 @@
                   @load="updateOcrPreviewImageMetrics"
                 />
                 <div
+                  v-if="selectedOverlayRecordsWithGeometry.length > 0"
+                  class="ocr-selection-highlight-layer"
+                  aria-hidden="true"
+                >
+                  <span
+                    v-for="record in selectedOverlayRecordsWithGeometry"
+                    :key="`selected-${record.id}`"
+                    class="ocr-selection-highlight"
+                    :style="getOcrSelectionHighlightStyle(record)"
+                  ></span>
+                </div>
+                <div
                   v-if="ocrRecordsWithGeometry.length > 0"
                   class="ocr-text-overlay"
                 >
@@ -256,19 +268,13 @@
         <CustomButton
           class="ocr-action-btn"
           type="text"
-          :title="
-            showOcrRecordPane ? $t('pin.hideRecords') : $t('pin.showRecords')
-          "
+          :title="showOcrRecordPane ? hideRecordsLabel : showRecordsLabel"
           :disabled="ocrRecords.length === 0"
           @click.stop="toggleOcrRecordPane"
         >
           <TextRecognition size="22" theme="outline" :strokeWidth="2.7" />
           <span>
-            {{
-              showOcrRecordPane
-                ? $t('pin.hideRecords')
-                : $t('pin.showRecords')
-            }}
+            {{ showOcrRecordPane ? hideRecordsLabel : showRecordsLabel }}
           </span>
         </CustomButton>
         <div class="translate-btn-group relative">
@@ -515,7 +521,7 @@ import type {
   Rect
 } from '@/plugins/screenshot/pages/screenshot/core/types';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const containerRef = ref<HTMLDivElement>();
 const ocrPreviewImageRef = ref<HTMLImageElement>();
@@ -602,6 +608,22 @@ const currentOcrLanguageLabel = computed(() => {
   );
 });
 
+const showRecordsLabel = computed(() =>
+  translateWithFallback('pin.showRecords', '显示记录', 'Show Records')
+);
+
+const hideRecordsLabel = computed(() =>
+  translateWithFallback('pin.hideRecords', '隐藏记录', 'Hide Records')
+);
+
+const translateWithFallback = (key: string, zhText: string, enText: string): string => {
+  const translated = t(key);
+  if (translated && translated !== key) {
+    return translated;
+  }
+  return String(locale.value).toLowerCase().startsWith('zh') ? zhText : enText;
+};
+
 const backendOcrLanguage = computed<OcrLanguageValue>(() => {
   return currentOcrLanguage.value === 'auto' ? 'zh' : currentOcrLanguage.value;
 });
@@ -660,6 +682,12 @@ const ocrRecordsWithGeometry = computed(() =>
   ocrRecords.value.filter((record) => hasRecordGeometry(record))
 );
 
+const selectedOverlayRecordsWithGeometry = computed(() =>
+  ocrRecordsWithGeometry.value.filter((record) =>
+    selectedOverlayRecordIds.value.has(record.id)
+  )
+);
+
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
 
 const getRecordDisplayText = (record: OcrRecord): string => {
@@ -705,6 +733,30 @@ const getOcrOverlayStyle = (record: OcrRecord): CSSProperties => {
     height: `${height}%`,
     fontSize: `${fontSize}px`,
     lineHeight: `${lineHeight}px`
+  };
+};
+
+const getOcrSelectionHighlightStyle = (record: OcrRecord): CSSProperties => {
+  if (!hasRecordGeometry(record)) {
+    return {};
+  }
+
+  const paddingX = Math.max(record.bbox.height * 0.18, 2);
+  const paddingY = Math.max(record.bbox.height * 0.12, 1);
+  const left = clampPercent(((record.bbox.x - paddingX) / imageWidth.value) * 100);
+  const top = clampPercent(((record.bbox.y - paddingY) / imageHeight.value) * 100);
+  const right = clampPercent(
+    ((record.bbox.x + record.bbox.width + paddingX * 2) / imageWidth.value) * 100
+  );
+  const bottom = clampPercent(
+    ((record.bbox.y + record.bbox.height + paddingY * 2) / imageHeight.value) * 100
+  );
+
+  return {
+    left: `${left}%`,
+    top: `${top}%`,
+    width: `${Math.max(0, right - left)}%`,
+    height: `${Math.max(0, bottom - top)}%`
   };
 };
 
@@ -2064,6 +2116,19 @@ onUnmounted(() => {
         pointer-events: none;
         user-select: text;
         -webkit-user-select: text;
+      }
+
+      .ocr-selection-highlight-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .ocr-selection-highlight {
+        position: absolute;
+        display: block;
+        border-radius: 2px;
+        background: rgb(37 99 235 / 20%);
       }
 
       .ocr-overlay-block {
