@@ -64,6 +64,58 @@ describe('OcrLayoutReflow', () => {
     expect(result).toEqual(['const value = 1', 'return value'])
   })
 
+  it('keeps adjacent list items as separate records', () => {
+    const result = texts([
+      block('• GitHub https://github.com/hiroi-sora/Umi-OCR/releases/latest', 0, 0, 420),
+      block('• Source Forge https://sourceforge.net/projects/umi-ocr', 0, 26, 360),
+      block('• Lanzou https://hiroi-sora.lanzoul.com/s/umi-ocr', 0, 52, 350)
+    ])
+
+    expect(result).toEqual([
+      '• GitHub https://github.com/hiroi-sora/Umi-OCR/releases/latest',
+      '• Source Forge https://sourceforge.net/projects/umi-ocr',
+      '• Lanzou https://hiroi-sora.lanzoul.com/s/umi-ocr'
+    ])
+  })
+
+  it('keeps a list item separate from the following title', () => {
+    const result = texts([
+      block('· Scoop Installer (Click to expand)', 0, 0, 260),
+      block('Getting Started', 0, 26, 140)
+    ])
+
+    expect(result).toEqual(['· Scoop Installer (Click to expand)', 'Getting Started'])
+  })
+
+  it('keeps wrapped continuation text inside the same list item', () => {
+    const result = texts([
+      block('• The software release package is available in .7z compressed', 0, 0, 420),
+      block('format or as a self-extracting .7z.exe package.', 28, 26, 320)
+    ])
+
+    expect(result).toEqual([
+      '• The software release package is available in .7z compressed format or as a self-extracting .7z.exe package.'
+    ])
+  })
+
+  it('splits OCR-collapsed inline list markers into records', () => {
+    const result = texts([
+      block(
+        '• GitHub https://github.com/hiroi-sora/Umi-OCR/releases/latest • Source Forge https://sourceforge.net/projects/umi-ocr • Lanzou https://hiroi-sora.lanzoul.com/s/umi-ocr',
+        0,
+        0,
+        720,
+        72
+      )
+    ])
+
+    expect(result).toEqual([
+      '• GitHub https://github.com/hiroi-sora/Umi-OCR/releases/latest',
+      '• Source Forge https://sourceforge.net/projects/umi-ocr',
+      '• Lanzou https://hiroi-sora.lanzoul.com/s/umi-ocr'
+    ])
+  })
+
   it('orders vertical layout from right column to left column', () => {
     const result = texts([
       block('右一', 120, 0, 22, 70),

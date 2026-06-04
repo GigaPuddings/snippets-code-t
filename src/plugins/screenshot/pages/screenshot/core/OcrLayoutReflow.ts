@@ -64,6 +64,7 @@ const END_PUNCTUATION = /[.!?。！？；;：:][)"'”’】）\]]*$/
 const CJK_CHAR = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/
 const ASCII_WORD_EDGE = /[A-Za-z0-9]/
 const LIST_ITEM_START = /^\s*(?:[-*+•·]\s+|\d+[.)、）]\s*|[a-zA-Z][.)]\s+)/
+const INLINE_LIST_ITEM_START = /(?:^|\s)(?:[-*+•·]\s+|\d+[.)、）]\s*|[a-zA-Z][.)]\s+)/g
 
 export function reflowOcrBlocks(blocks: OcrTextBlock[], options: ReflowOptions = {}): ParagraphBlock[] {
   const averageLineHeight = getAverageLineHeight(blocks)
@@ -116,7 +117,7 @@ function reflowBlockGroup(blocks: OcrTextBlock[], averageLineHeight: number): Pa
     previous.isStructuredBlock = Boolean(previous.isStructuredBlock || line.hasTableColumns)
   }
 
-  return paragraphs
+  return splitStructuredParagraphs(paragraphs, averageLineHeight)
 }
 
 function getLayoutBlockGroups(blocks: OcrTextBlock[], averageLineHeight: number): OcrTextBlock[][] {
@@ -136,6 +137,10 @@ function getLayoutBlockGroups(blocks: OcrTextBlock[], averageLineHeight: number)
     return [sortBlocksForSingleColumn(blocks, averageLineHeight)]
   }
 
+  if (isLikelySingleColumnFlow(units, averageLineHeight)) {
+    return [sortBlocksForSingleColumn(blocks, averageLineHeight)]
+  }
+
   const { cuts, rows } = getLayoutCutsAndRows(units)
   if (cuts.length < 2 || rows.length <= 1) {
     return [sortBlocksForSingleColumn(blocks, averageLineHeight)]
@@ -148,6 +153,38 @@ function getLayoutBlockGroups(blocks: OcrTextBlock[], averageLineHeight: number)
     .filter((group) => group.length > 0)
 
   return groups.length > 0 ? groups : [sortBlocksForSingleColumn(blocks, averageLineHeight)]
+}
+
+function isLikelySingleColumnFlow(units: LayoutUnit[], averageLineHeight: number): boolean {
+  if (units.length < 2) {
+    return true
+  }
+
+  const sortedUnits = [...units].sort(compareUnitsByTop)
+  let comparablePairs = 0
+  let alignedPairs = 0
+
+  for (let index = 1; index < sortedUnits.length; index += 1) {
+    const previous = sortedUnits[index - 1].bbox
+    const current = sortedUnits[index].bbox
+    const verticalGap = current.top - previous.bottom
+
+    if (verticalGap > averageLineHeight * 2.5) {
+      continue
+    }
+
+    comparablePairs += 1
+    const overlapWidth = Math.min(previous.right, current.right) - Math.max(previous.left, current.left)
+    const minWidth = Math.max(Math.min(previous.right - previous.left, current.right - current.left), 1)
+    const hasStrongHorizontalOverlap = overlapWidth / minWidth >= 0.45
+    const hasNearLeftEdge = Math.abs(previous.left - current.left) <= averageLineHeight * 1.5
+
+    if (hasStrongHorizontalOverlap || hasNearLeftEdge) {
+      alignedPairs += 1
+    }
+  }
+
+  return comparablePairs > 0 && alignedPairs / comparablePairs >= 0.72
 }
 
 function getLayoutCutsAndRows(units: LayoutUnit[]): { cuts: LayoutCut[], rows: LayoutUnit[][] } {
@@ -588,8 +625,12 @@ function shouldMergeLineIntoParagraph(
   const previousLine = paragraphLines[paragraphLines.length - 1]
   if (!previousLine) return false
 
+  const previousIsListItem = isListItem(previousLine.text)
   if (hasEndingPunctuation(previousLine.text)) return false
   if (isListItem(nextLine.text)) return false
+  if (previousIsListItem && !isLikelyListItemContinuation(previousLine, nextLine, averageLineHeight)) {
+    return false
+  }
   if (nextLine.isCodeLike || previousLine.isCodeLike) return false
   if (nextLine.hasTableColumns || previousLine.hasTableColumns) return false
   const lineGap = nextLine.bbox.y - (previousLine.bbox.y + previousLine.bbox.height)
@@ -617,8 +658,26 @@ function shouldMergeLineIntoParagraph(
     return false
   }
 
+  if (previousIsListItem) {
+    return true
+  }
+
   const leftTolerance = Math.max(averageLineHeight * 1.2, previousLine.lineHeight * 0.9)
   return Math.abs(nextLine.bbox.x - previousLine.bbox.x) <= leftTolerance
+}
+
+function isLikelyListItemContinuation(
+  previousLine: ReflowLine,
+  nextLine: ReflowLine,
+  averageLineHeight: number
+): boolean {
+  if (isLikelyShortHeadingText(nextLine.text)) {
+    return false
+  }
+
+  const continuationIndent = nextLine.bbox.x - previousLine.bbox.x
+  const minContinuationIndent = Math.max(averageLineHeight * 0.8, previousLine.lineHeight * 0.65)
+  return continuationIndent >= minContinuationIndent
 }
 
 function createParagraphFromLine(line: ReflowLine): ParagraphBlock {
@@ -677,6 +736,142 @@ function hasEndingPunctuation(text: string): boolean {
 
 function isListItem(text: string): boolean {
   return LIST_ITEM_START.test(text)
+}
+
+function splitStructuredParagraphs(
+  paragraphs: ParagraphBlock[],
+  averageLineHeight: number
+): ParagraphBlock[] {
+  return paragraphs.flatMap((paragraph) => splitStructuredParagraph(paragraph, averageLineHeight))
+}
+
+function splitStructuredParagraph(
+  paragraph: ParagraphBlock,
+  averageLineHeight: number
+): ParagraphBlock[] {
+  const segments = getStructuredTextSegments(paragraph.text)
+  if (segments.length <= 1) {
+    return [paragraph]
+  }
+
+  const sourceLines = buildLines(paragraph.blocks, averageLineHeight)
+  const canUseSourceLineGeometry = sourceLines.length === segments.length
+
+  return segments.map((text, index) => {
+    const sourceLine = canUseSourceLineGeometry ? sourceLines[index] : null
+    const bbox = sourceLine?.bbox || splitRectVertically(paragraph.bbox, index, segments.length)
+    const blocks = sourceLine?.blocks || [createSyntheticBlockFromParagraph(paragraph, text, bbox, index)]
+
+    return {
+      ...paragraph,
+      text,
+      blocks,
+      bbox,
+      isCodeBlock: Boolean(blocks.some((block) => isLikelyCodeLine(block.text))),
+      isStructuredBlock: paragraph.isStructuredBlock,
+      fontSize: average(blocks.map((block) => positiveNumber(block.fontSize, paragraph.fontSize || averageLineHeight))),
+      lineHeight: average(blocks.map((block) => getBlockLineHeight(block))),
+      angle: average(blocks.map((block) => block.angle || 0))
+    }
+  })
+}
+
+function getStructuredTextSegments(text: string): string[] {
+  const hardLines = text
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (hardLines.length > 1) {
+    return hardLines.flatMap(getStructuredTextSegments)
+  }
+
+  const inlineListItems = splitInlineListItems(text)
+  if (inlineListItems.length > 1) {
+    return inlineListItems.flatMap(splitListItemHeadingTail)
+  }
+
+  return splitListItemHeadingTail(text)
+}
+
+function splitInlineListItems(text: string): string[] {
+  const trimmed = text.trim()
+  const starts: number[] = []
+  INLINE_LIST_ITEM_START.lastIndex = 0
+
+  for (const match of trimmed.matchAll(INLINE_LIST_ITEM_START)) {
+    const marker = match[0]
+    const index = match.index ?? 0
+    starts.push(index + (marker.startsWith(' ') ? 1 : 0))
+  }
+
+  if (starts.length <= 1) {
+    return [trimmed]
+  }
+
+  return starts
+    .map((start, index) => {
+      const end = starts[index + 1] ?? trimmed.length
+      return trimmed.slice(start, end).trim()
+    })
+    .filter(Boolean)
+}
+
+function splitListItemHeadingTail(text: string): string[] {
+  const trimmed = text.trim()
+  if (!isListItem(trimmed)) {
+    return [trimmed]
+  }
+
+  const match = trimmed.match(/^(.+?\([^)]{1,80}\))\s+([A-Z][A-Za-z0-9][A-Za-z0-9\s:,'&()[\]/-]{2,40})$/)
+  if (!match || !isLikelyShortHeadingText(match[2])) {
+    return [trimmed]
+  }
+
+  return [match[1].trim(), match[2].trim()]
+}
+
+function splitRectVertically(rect: Rect, index: number, total: number): Rect {
+  const height = rect.height / Math.max(total, 1)
+  return {
+    x: rect.x,
+    y: rect.y + height * index,
+    width: rect.width,
+    height
+  }
+}
+
+function createSyntheticBlockFromParagraph(
+  paragraph: ParagraphBlock,
+  text: string,
+  bbox: Rect,
+  index: number
+): OcrTextBlock {
+  const source = paragraph.blocks[Math.min(index, Math.max(paragraph.blocks.length - 1, 0))]
+  return {
+    ...(source || {
+      fontSize: paragraph.fontSize || bbox.height,
+      lineHeight: paragraph.lineHeight || bbox.height,
+      angle: paragraph.angle || 0
+    }),
+    text,
+    x: bbox.x,
+    y: bbox.y,
+    width: bbox.width,
+    height: bbox.height,
+    fontSize: source?.fontSize || paragraph.fontSize || bbox.height,
+    lineHeight: source?.lineHeight || paragraph.lineHeight || bbox.height,
+    angle: source?.angle || paragraph.angle || 0
+  }
+}
+
+function isLikelyShortHeadingText(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed || hasEndingPunctuation(trimmed) || isListItem(trimmed)) {
+    return false
+  }
+
+  const words = trimmed.split(/\s+/).filter(Boolean)
+  return words.length <= 5 && /^[A-Z][A-Za-z0-9\s:,'&()[\]/-]+$/.test(trimmed)
 }
 
 function hasBlankParagraphGap(lines: ReflowLine[], nextLineGap: number, averageLineHeight: number): boolean {
