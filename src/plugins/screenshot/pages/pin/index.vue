@@ -1839,8 +1839,8 @@ onUnmounted(() => {
       }
 
       .ocr-result-layout {
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-rows: minmax(150px, 34%) minmax(0, 1fr);
         gap: 0;
         min-height: 100%;
         padding: 0;
@@ -1851,8 +1851,7 @@ onUnmounted(() => {
       }
 
       .ocr-preview-pane {
-        @apply flex min-h-0 flex-shrink-0 justify-center overflow-auto;
-        height: clamp(174px, 42%, 292px);
+        @apply flex min-h-0 justify-center overflow-auto;
         padding: 14px 18px;
         background: linear-gradient(
           180deg,
@@ -1891,21 +1890,25 @@ onUnmounted(() => {
         display: block;
         min-width: 22px;
         padding: 0 2px;
-        overflow: visible;
-        color: rgb(15 23 42 / 88%);
+        overflow: hidden;
+        color: transparent;
         white-space: pre-wrap;
         cursor: text;
         user-select: text;
         pointer-events: auto;
-        background: rgb(255 255 255 / 46%);
-        border-radius: 2px;
+        background: transparent;
+        border-radius: 1px;
         font-size: clamp(10px, 1.05vw, 12px);
         line-height: 1.24;
-        text-shadow: 0 0 2px rgb(255 255 255 / 90%);
         -webkit-user-select: text;
 
         &:hover {
-          background: rgb(219 234 254 / 72%);
+          background: rgb(37 99 235 / 10%);
+        }
+
+        &::selection {
+          color: transparent;
+          background: rgb(37 99 235 / 32%);
         }
       }
 
@@ -1920,7 +1923,7 @@ onUnmounted(() => {
 
       .ocr-record-item {
         position: relative;
-        padding: 12px 0 14px 28px;
+        padding: 13px 0 16px;
         border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 58%, transparent);
         transition: background-color 0.15s ease;
 
@@ -1935,12 +1938,9 @@ onUnmounted(() => {
 
       .ocr-record-header {
         @apply flex items-center text-ocr-muted;
-        position: absolute;
-        top: 14px;
-        left: 0;
-        width: 22px;
-        flex-direction: column;
-        gap: 6px;
+        gap: 8px;
+        min-height: 24px;
+        margin-bottom: 4px;
         cursor: pointer;
         user-select: none;
         -webkit-user-select: none;
@@ -1953,14 +1953,13 @@ onUnmounted(() => {
       }
 
       .ocr-record-index {
-        writing-mode: vertical-rl;
         font-size: 12px;
         font-weight: 600;
         line-height: 1;
       }
 
       .ocr-record-score {
-        display: none;
+        margin-left: auto;
         font-size: 12px;
         font-variant-numeric: tabular-nums;
       }
@@ -1987,13 +1986,29 @@ onUnmounted(() => {
         }
       }
 
-      @media (max-width: 720px) {
+      @media (min-width: 920px) {
         .ocr-result-layout {
-          min-height: 100%;
+          grid-template-columns: minmax(300px, 0.92fr) minmax(360px, 1.08fr);
+          grid-template-rows: minmax(0, 1fr);
         }
 
         .ocr-preview-pane {
-          height: clamp(150px, 36%, 240px);
+          align-items: flex-start;
+          border-right: 1px solid color-mix(in srgb, var(--ocr-border) 68%, transparent);
+          border-bottom: 0;
+        }
+
+        .ocr-record-pane {
+          padding: 10px 22px 16px;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .ocr-result-layout {
+          grid-template-rows: minmax(132px, 30%) minmax(0, 1fr);
+        }
+
+        .ocr-preview-pane {
           padding: 12px;
         }
 
