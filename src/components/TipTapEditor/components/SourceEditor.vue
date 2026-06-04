@@ -255,15 +255,21 @@ const handleScroll = () => {
 <style lang="scss" scoped>
 .source-editor {
   @apply flex flex-1 overflow-hidden;
+  min-height: 0;
+  background-color: var(--editor-bg);
 }
 
 .line-numbers {
-  @apply h-full flex flex-col flex-none overflow-hidden select-none border-r px-2 py-4 text-right font-mono text-sm;
-  min-width: 48px;
+  @apply h-full flex flex-col flex-none overflow-hidden select-none border-r px-2 py-3 text-right font-mono text-sm;
+  width: var(--editor-line-number-width, 46px);
+  min-width: var(--editor-line-number-width, 46px);
+  padding-left: var(--editor-line-number-padding-x, 8px);
+  padding-right: var(--editor-line-number-padding-x, 8px);
   line-height: 1.5;
-  color: var(--text-color-secondary);
-  background-color: var(--editor-bg);
-  border-color: var(--border-color);
+  color: var(--editor-text-secondary);
+  background-color: var(--statusbar-bg);
+  border-color: var(--editor-border);
+  opacity: 0.78;
 
   span {
     @apply block;
@@ -272,7 +278,7 @@ const handleScroll = () => {
 }
 
 .source-textarea {
-  @apply h-full flex-1 p-4 outline-none resize-none font-mono text-sm;
+  @apply h-full flex-1 px-3 py-3 outline-none resize-none font-mono text-sm;
   min-width: 0;
   background-color: var(--editor-bg);
   color: var(--editor-text);

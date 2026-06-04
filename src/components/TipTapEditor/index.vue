@@ -4,12 +4,21 @@
     <div class="editor-main">
       <!-- 富文本编辑器视图 -->
       <div
+        ref="editorContentRef"
         v-show="viewMode === 'preview' || viewMode === 'reading'"
         class="editor-content"
         :style="props.codeStyle"
         @contextmenu="handleContextMenu"
       >
-        <editor-content :editor="editor" />
+        <div
+          ref="previewLineNumbersRef"
+          class="preview-line-numbers"
+          :style="{ minHeight: previewLineNumbersMinHeight }"
+          aria-hidden="true"
+        >
+          <span v-for="line in previewLineCount" :key="line">{{ line }}</span>
+        </div>
+        <editor-content class="editor-content-body" :editor="editor" />
       </div>
       
       <!-- 源码编辑器视图 -->
@@ -165,10 +174,15 @@ const emits = defineEmits<{
 const contextMenuRef = ref<InstanceType<typeof TipTapContextMenu> | null>(null);
 const sourceEditorRef = ref<InstanceType<typeof SourceEditor> | null>(null);
 const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
+const editorContentRef = ref<HTMLDivElement | null>(null);
+const previewLineNumbersRef = ref<HTMLDivElement | null>(null);
 const wordCount = ref(0);
 const charCount = ref(0);
 const sourceContent = ref('');
 const workspaceRoot = ref<string>('');
+const previewLineCount = ref(1);
+const previewLineNumbersMinHeight = ref('100%');
+let previewResizeObserver: ResizeObserver | null = null;
 
 // Wikilink 点击处理
 const handleWikilinkClick = (noteName: string) => {
@@ -330,6 +344,54 @@ function scrollEditorSelectionIntoView(view: EditorView): void {
   });
 }
 
+function updatePreviewLineNumbers(): void {
+  nextTick(() => {
+    const editorContentElement = editorContentRef.value;
+    if (!editorContentElement || editorContentElement.offsetParent === null) return;
+
+    const editorElement = editor.value?.view.dom as HTMLElement | undefined;
+    if (!editorElement) {
+      previewLineCount.value = 1;
+      previewLineNumbersMinHeight.value = '100%';
+      return;
+    }
+
+    const computedStyle = window.getComputedStyle(editorElement);
+    const fontSize = parseFloat(computedStyle.fontSize) || 14;
+    const lineHeight = parseFloat(computedStyle.lineHeight) || fontSize * 1.6;
+    const renderedHeight = Math.max(
+      editorElement.scrollHeight,
+      editorElement.offsetHeight,
+      editorContentElement.clientHeight
+    );
+    const nextLineCount = Math.max(1, Math.ceil(renderedHeight / lineHeight));
+    previewLineCount.value = nextLineCount;
+
+    previewLineNumbersMinHeight.value = `${Math.ceil(Math.max(
+      editorContentElement.clientHeight,
+      renderedHeight
+    ))}px`;
+  });
+}
+
+function refreshPreviewResizeObserver(): void {
+  previewResizeObserver?.disconnect();
+  previewResizeObserver = null;
+
+  if (typeof ResizeObserver === 'undefined') return;
+
+  previewResizeObserver = new ResizeObserver(updatePreviewLineNumbers);
+
+  if (editorContentRef.value) {
+    previewResizeObserver.observe(editorContentRef.value);
+  }
+
+  const editorElement = editor.value?.view.dom as HTMLElement | undefined;
+  if (editorElement) {
+    previewResizeObserver.observe(editorElement);
+  }
+}
+
 // 初始化编辑器
 const editor = useEditor({
   content: props.content,
@@ -344,6 +406,7 @@ const editor = useEditor({
       editorPersistenceBridge.handleEditorUpdate(editor);
       setCurrentCursorPos(editor.state.selection.from);
       scrollEditorSelectionIntoView(editor.view);
+      updatePreviewLineNumbers();
     } catch (error) {
       handleEditorError(error, 'TipTap onUpdate');
     }
@@ -360,9 +423,11 @@ const editor = useEditor({
       updateStats(text);
       emits('ready', editor);
       setCurrentCursorPos(editor.state.selection.from);
+      updatePreviewLineNumbers();
       
       const editorElement = editor.view.dom;
       setupAnchorClickInterceptor(editorElement);
+      nextTick(refreshPreviewResizeObserver);
       
       // 添加编辑器级别的键盘事件监听器
       const handleEditorKeyDown = (event: KeyboardEvent) => {
@@ -546,6 +611,7 @@ const handleSourceContentChange = (value: string) => {
 // 监听内容变化
 watch(() => props.content, (newContent) => {
   editorPersistenceBridge.syncIncomingContent(newContent, editor.value);
+  updatePreviewLineNumbers();
 });
 
 // 监听禁用状态变化
@@ -565,6 +631,10 @@ watch(() => props.dark, (isDark) => {
       editorElement.classList.remove('dark');
     }
   }
+});
+
+watch(viewMode, () => {
+  updatePreviewLineNumbers();
 });
 
 // 键盘快捷键
@@ -614,12 +684,21 @@ onMounted(async () => {
   
   // 使用捕获阶段监听，优先级更高
   document.addEventListener('keydown', handleKeyDown, true);
+  window.addEventListener('resize', updatePreviewLineNumbers);
+
+  nextTick(() => {
+    refreshPreviewResizeObserver();
+    updatePreviewLineNumbers();
+  });
 });
 
 // 清理
 onBeforeUnmount(() => {
   try {
     document.removeEventListener('keydown', handleKeyDown, true);
+    window.removeEventListener('resize', updatePreviewLineNumbers);
+    previewResizeObserver?.disconnect();
+    previewResizeObserver = null;
     cleanupScrollListener();
     cleanupAnchorClickInterceptor();
     if (editor.value) {
@@ -653,6 +732,9 @@ defineExpose({
 <style lang="scss" scoped>
 .editor-container {
   @apply relative overflow-hidden flex h-full;
+  --editor-line-number-width: 44px;
+  --editor-line-number-padding-x: 8px;
+  background-color: var(--editor-bg);
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
@@ -663,6 +745,9 @@ defineExpose({
 
 .editor-content {
   @apply flex-1 overflow-auto cursor-text;
+  display: flex;
+  min-height: 0;
+  background-color: var(--editor-bg);
   transition: background-color 0.3s ease;
   padding-bottom: 0;
   
@@ -695,13 +780,35 @@ defineExpose({
   }
 
   :deep(.code-block-wrapper) {
-    border-color: rgba(255, 255, 255, 0.12) !important;
-    background: rgba(255, 255, 255, 0.05) !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    border-color: var(--editor-border) !important;
+    background: var(--editor-bg) !important;
+    box-shadow: none;
   }
 }
 
-.editor-content > div {
+.preview-line-numbers {
+  @apply flex-none select-none border-r py-3 text-right font-mono text-sm;
+  align-self: flex-start;
+  box-sizing: border-box;
+  width: var(--editor-line-number-width);
+  min-width: var(--editor-line-number-width);
+  padding-left: var(--editor-line-number-padding-x);
+  padding-right: var(--editor-line-number-padding-x);
+  line-height: 1.6;
+  color: var(--editor-text-secondary);
+  background-color: var(--statusbar-bg);
+  border-color: var(--editor-border);
+  opacity: 0.78;
+
+  span {
+    @apply block;
+    height: 1.6em;
+  }
+}
+
+.editor-content-body {
+  @apply flex-1;
+  min-width: 0;
   min-height: 100%;
 }
 
@@ -710,12 +817,15 @@ defineExpose({
   overflow-y: visible;
   min-height: 100%;
   height: auto;
-  padding: 0 1rem 1.5rem 1.5rem;
-  max-width: 900px;
-  margin: 0 auto;
-  font-size: 16px;
+  padding: 10px 14px 40px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  font-size: 14px;
   line-height: 1.6;
   white-space: pre-wrap;
+  color: var(--editor-text);
+  background-color: var(--editor-bg);
   transition: background-color 0.3s ease, color 0.3s ease;
 
   &.dark {
@@ -884,49 +994,49 @@ defineExpose({
   }
 
   h1 {
-    @apply font-bold mb-4 mt-8;
-    font-size: 2em;
+    @apply font-bold mb-3 mt-5;
+    font-size: 1.55em;
     line-height: 1.3;
     transition: color 0.3s ease;
   }
 
   h2 {
-    @apply font-bold mb-3 mt-7;
-    font-size: 1.6em;
+    @apply font-bold mb-2.5 mt-5;
+    font-size: 1.35em;
     line-height: 1.3;
     transition: color 0.3s ease;
   }
 
   h3 {
-    @apply font-bold mb-3 mt-6;
-    font-size: 1.4em;
-    line-height: 1.4;
-    transition: color 0.3s ease;
-  }
-
-  h4 {
-    @apply font-bold mb-2 mt-5;
+    @apply font-bold mb-2 mt-4;
     font-size: 1.2em;
     line-height: 1.4;
     transition: color 0.3s ease;
   }
 
-  h5 {
+  h4 {
     @apply font-bold mb-2 mt-4;
-    font-size: 1.1em;
+    font-size: 1.08em;
     line-height: 1.4;
     transition: color 0.3s ease;
   }
 
-  h6 {
+  h5 {
     @apply font-bold mb-2 mt-3;
     font-size: 1em;
     line-height: 1.4;
     transition: color 0.3s ease;
   }
 
+  h6 {
+    @apply font-bold mb-2 mt-3;
+    font-size: 0.95em;
+    line-height: 1.4;
+    transition: color 0.3s ease;
+  }
+
   p {
-    line-height: 1.7;
+    line-height: 1.65;
     transition: color 0.3s ease;
   }
 

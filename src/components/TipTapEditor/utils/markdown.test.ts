@@ -83,6 +83,72 @@ describe('jsonToMarkdown', () => {
     expect(markdown).toBe('```ts\nconst value = 1;\n```\n');
   });
 
+  it('uses a longer code fence when code contains backticks', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'codeBlock',
+          attrs: { language: 'md' },
+          content: [{ type: 'text', text: '```js\nconst value = 1;\n```' }]
+        }
+      ]
+    });
+
+    expect(markdown).toBe('````md\n```js\nconst value = 1;\n```\n````\n');
+  });
+
+  it('escapes table cell pipes and line breaks', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'table',
+          content: [
+            {
+              type: 'tableRow',
+              content: [
+                {
+                  type: 'tableHeader',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'A|B' }] }]
+                },
+                {
+                  type: 'tableHeader',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'C' }] }]
+                }
+              ]
+            },
+            {
+              type: 'tableRow',
+              content: [
+                {
+                  type: 'tableCell',
+                  content: [
+                    {
+                      type: 'paragraph',
+                      content: [
+                        { type: 'text', text: 'one' },
+                        { type: 'hardBreak' },
+                        { type: 'text', text: 'two|three' }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  type: 'tableCell',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'ok' }] }]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(markdown).toContain('| A\\|B | C |');
+    expect(markdown).toContain('| one<br>two\\|three | ok |');
+  });
+
   it('uses original image path when available', () => {
     const markdown = jsonToMarkdown({
       type: 'doc',
@@ -116,4 +182,13 @@ describe('markdownToHtml', () => {
     expect(html).not.toContain('<a');
     expect(html).not.toContain('href=');
   });
+
+  it('parses alternate GFM task list markers', () => {
+    const html = markdownToHtml('* [X] Done\n+ [ ] Todo');
+
+    expect(html).toContain('data-type="taskList"');
+    expect(html).toContain('data-checked="true"');
+    expect(html).toContain('data-checked="false"');
+  });
+
 });

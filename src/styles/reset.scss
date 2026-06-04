@@ -80,7 +80,9 @@ div:focus {
 .category-list,
 .content-list,
 .search-list,
+.editor-content,
 .tiptap-editor,
+.source-textarea,
 .result-container,
 .tags-container,
 .dark-mode-container,
@@ -103,6 +105,8 @@ div:focus {
 
   &::-webkit-scrollbar-thumb {
     background: transparent;
+    background-clip: padding-box;
+    border: 2px solid transparent;
     border-radius: 4px;
     transition: background 0.3s;
   }
@@ -113,10 +117,12 @@ div:focus {
 
     &::-webkit-scrollbar-thumb {
       background: rgba(0, 0, 0, 0.2);
+      background-clip: padding-box;
     }
 
     &::-webkit-scrollbar-thumb:hover {
-      background: rgba(0, 0, 0, 0.1);
+      background: rgba(0, 0, 0, 0.34);
+      background-clip: padding-box;
     }
   }
 }
@@ -128,18 +134,27 @@ html.dark .settings-sidebar,
 html.dark .category-list,
 html.dark .content-list,
 html.dark .search-list,
+html.dark .editor-content,
+html.dark .tiptap-editor,
+html.dark .source-textarea,
 html.dark .dark-mode-container,
 html.dark .translate-container,
+html.dark .user-center-container,
+html.dark .backlink-items,
+html.dark .panel-content,
+html.dark .user-center-content,
 html.dark .result-container.result {
   &:hover {
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 
     &::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.2);
+      background-clip: padding-box;
     }
 
     &::-webkit-scrollbar-thumb:hover {
       background: rgba(255, 255, 255, 0.4);
+      background-clip: padding-box;
     }
   }
 }

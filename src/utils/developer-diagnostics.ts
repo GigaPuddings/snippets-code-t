@@ -4,6 +4,8 @@ const MAX_FRONTEND_ENTRIES = 240;
 const REDACTED_VALUE = '[REDACTED]';
 
 const BENIGN_WARNING_PATTERNS = [
+  /IPC custom protocol failed, Tauri will now use the postMessage interface instead/i,
+  /defined using \\?"defineAsyncComponent\(\)\\?"/i,
   /检测到重复挂载或非最后窗口，跳过初始化/,
   /duplicate mount or non-last window.+skip initialization/i
 ];
@@ -81,6 +83,9 @@ export const stringifyDiagnosticValue = (
 export const isBenignDiagnosticWarning = (message: string): boolean =>
   BENIGN_WARNING_PATTERNS.some((pattern) => pattern.test(message));
 
+const frontendDiagnosticSearchText = (entry: FrontendDiagnosticEntry): string =>
+  `${entry.message}\n${entry.data ?? ''}`;
+
 export const summarizeFrontendDiagnostics = (
   entries: FrontendDiagnosticEntry[]
 ): DiagnosticIssueSummary => {
@@ -92,7 +97,7 @@ export const summarizeFrontendDiagnostics = (
     if (entry.level === 'error') {
       errors += 1;
     } else if (entry.level === 'warn') {
-      if (isBenignDiagnosticWarning(entry.message)) {
+      if (isBenignDiagnosticWarning(frontendDiagnosticSearchText(entry))) {
         ignoredWarnings += 1;
       } else {
         warnings += 1;
@@ -255,7 +260,16 @@ export const setupGlobalDeveloperDiagnostics = (): void => {
     originalError(...args);
   };
   console.warn = (...args: unknown[]) => {
-    appendFrontendDiagnostic('warn', '[Console] warn', args);
+    const warningText = args
+      .map((arg) =>
+        typeof arg === 'string'
+          ? arg
+          : stringifyDiagnosticValue(arg) ?? String(arg)
+      )
+      .join(' ');
+    if (!isBenignDiagnosticWarning(warningText)) {
+      appendFrontendDiagnostic('warn', '[Console] warn', args);
+    }
     originalWarn(...args);
   };
 };

@@ -16,6 +16,18 @@ function escapeAttribute(value: string): string {
   return escapeHtml(value).replace(/`/g, '&#96;');
 }
 
+function getCodeFence(code: string): string {
+  const longestFence = Math.max(2, ...Array.from(code.matchAll(/`{3,}/g), match => match[0].length));
+  return '`'.repeat(longestFence + 1);
+}
+
+function escapeMarkdownTableCell(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n/g, '<br>');
+}
+
 /**
  * 将文本转换为锚点 ID 格式
  * @param text - 标题文本
@@ -43,30 +55,24 @@ const taskListExtension = {
   name: 'taskList',
   level: 'block' as const,
   start(src: string) {
-    const match = src.match(/^- \[([ x])\]/);
+    const match = src.match(/^ {0,3}[-*+]\s+\[[ xX]\]\s+/);
     return match ? match.index : undefined;
   },
   tokenizer(src: string) {
-    // 匹配连续的任务列表项（支持换行或不换行）
-    const rule = /^(- \[([ x])\] [^\n]*(?:\n- \[([ x])\] [^\n]*)*)/;
+    // 匹配连续的 GFM 任务列表项：- [ ]、* [x]、+ [X]
+    const rule = /^((?: {0,3}[-*+]\s+\[[ xX]\]\s+[^\n]*(?:\n|$))+)/;
     const match = rule.exec(src);
     
     if (match) {
       const items: Array<{ checked: boolean; text: string }> = [];
       const raw = match[0];
-      
-      // 使用更灵活的分割方式：按 "- [" 分割，然后重新组合
-      const parts = raw.split(/(?=- \[)/);
-      
-      for (const part of parts) {
-        const trimmedPart = part.trim();
-        if (!trimmedPart) continue;
-        
-        const itemMatch = /^- \[([ x])\] (.+?)(?=- \[|$)/s.exec(trimmedPart);
+
+      for (const line of raw.split('\n')) {
+        const itemMatch = /^ {0,3}[-*+]\s+\[([ xX])\]\s+(.*)$/.exec(line);
         if (itemMatch) {
           const text = itemMatch[2].trim();
           items.push({
-            checked: itemMatch[1] === 'x',
+            checked: itemMatch[1].toLowerCase() === 'x',
             text: text
           });
         }
@@ -344,7 +350,8 @@ export function createTurndownService(): TurndownService {
       code = code.replace(/\n+$/, '');
       
       // 返回 Markdown 格式的代码块
-      return '\n```' + language + '\n' + code + '\n```\n';
+      const fence = getCodeFence(code);
+      return '\n' + fence + language + '\n' + code + '\n' + fence + '\n';
     }
   });
 
@@ -365,7 +372,7 @@ export function createTurndownService(): TurndownService {
           
           headerRow.querySelectorAll('th, td').forEach((cell) => {
             const cellContent = turndownService.turndown((cell as HTMLElement).innerHTML).trim();
-            headers.push(cellContent);
+            headers.push(escapeMarkdownTableCell(cellContent));
             separators.push('---');
           });
           
@@ -387,7 +394,7 @@ export function createTurndownService(): TurndownService {
         const cells: string[] = [];
         row.querySelectorAll('th, td').forEach((cell) => {
           const cellContent = turndownService.turndown((cell as HTMLElement).innerHTML).trim();
-          cells.push(cellContent);
+          cells.push(escapeMarkdownTableCell(cellContent));
         });
         
         if (cells.length > 0) {
@@ -590,6 +597,11 @@ export function jsonToMarkdown(json: any): string {
   if (!json || !json.content) {
     return '';
   }
+
+  const getPlainTextContent = (node: any): string => {
+    if (node.type === 'text') return node.text || '';
+    return node.content ? node.content.map(getPlainTextContent).join('') : '';
+  };
   
   const processNode = (node: any): string => {
     const type = node.type;
@@ -690,10 +702,11 @@ export function jsonToMarkdown(json: any): string {
     // 处理代码块
     if (type === 'codeBlock') {
       const language = node.attrs?.language || '';
-      const content = node.content ? node.content.map(processNode).join('') : '';
+      const content = getPlainTextContent(node);
       // 移除内容末尾的所有换行符，避免多余空行
       const trimmedContent = content.replace(/\n+$/, '');
-      return '```' + language + '\n' + trimmedContent + '\n```\n\n';
+      const fence = getCodeFence(trimmedContent);
+      return fence + language + '\n' + trimmedContent + '\n' + fence + '\n\n';
     }
     
     // 处理引用
@@ -726,7 +739,7 @@ export function jsonToMarkdown(json: any): string {
       // 处理单元格内容
       const cellContents = cells.map((cell: any) => {
         const content = cell.content ? cell.content.map(processNode).join('').trim() : '';
-        return content;
+        return escapeMarkdownTableCell(content);
       });
       
       // 生成表格行

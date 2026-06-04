@@ -36,6 +36,11 @@ interface UseEditorOutlineOptions {
 
 const HEADING_SCROLL_OFFSET = 120;
 
+function getEditorScrollContainer(editor: OutlineEditor): HTMLElement {
+  const container = editor.view.dom.closest?.('.editor-content') as HTMLElement | null | undefined;
+  return container || editor.view.dom;
+}
+
 function debounce<T extends (...args: Parameters<T>) => void>(fn: T, wait: number) {
   let timeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -146,29 +151,17 @@ export function useEditorOutline(options: UseEditorOutlineOptions) {
       return;
     }
 
-    const scrollContainer = editor.view.dom;
+    const scrollContainer = getEditorScrollContainer(editor);
     const scrollTop = scrollContainer.scrollTop;
     const viewportCenter = scrollTop + scrollContainer.clientHeight * 0.2;
-    const allHeadingElements = scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
-    const headingElementMap = new Map<number, HTMLElement>();
-
-    allHeadingElements.forEach((el: Element) => {
-      const headingEl = el as HTMLElement;
-      const text = headingEl.textContent?.trim() || '';
-      const matchIndex = headings.value.findIndex((h, idx) => {
-        if (headingElementMap.has(idx)) return false;
-        return h.text === text;
-      });
-
-      if (matchIndex >= 0) {
-        headingElementMap.set(matchIndex, headingEl);
-      }
-    });
+    const allHeadingElements = Array.from(
+      editor.view.dom.querySelectorAll('h1, h2, h3, h4, h5, h6')
+    ) as HTMLElement[];
 
     let closestIndex = -1;
     let closestDistance = Infinity;
     headings.value.forEach((_heading, index) => {
-      const element = headingElementMap.get(index);
+      const element = allHeadingElements[index];
       if (!element) return;
 
       const elementRect = element.getBoundingClientRect();
@@ -222,7 +215,7 @@ export function useEditorOutline(options: UseEditorOutlineOptions) {
       scrollCleanup();
     }
 
-    const scrollContainer = editor.view.dom;
+    const scrollContainer = getEditorScrollContainer(editor);
     const debouncedUpdate = debounce(updateVisibleHeading, 100);
     const debouncedEmitScroll = debounce(() => {
       options.emitScrollPosition(scrollContainer.scrollTop);
@@ -294,33 +287,25 @@ export function useEditorOutline(options: UseEditorOutlineOptions) {
     if (!editor) return;
 
     try {
-      const scrollContainer = editor.view.dom;
+      const scrollContainer = getEditorScrollContainer(editor);
       const targetHeading = headings.value.find(h => h.pos === pos);
       if (!targetHeading) {
         console.warn('Target heading not found for pos:', pos);
         return;
       }
 
-      let targetElement: HTMLElement | null = null;
-      scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((el: Element) => {
-        const headingEl = el as HTMLElement;
-        const text = headingEl.textContent?.trim() || '';
-        if (text === targetHeading.text && !targetElement) {
-          targetElement = headingEl;
-        }
-      });
+      const targetIndex = headings.value.findIndex(h => h.pos === targetHeading.pos);
+      const headingElements = Array.from(
+        editor.view.dom.querySelectorAll('h1, h2, h3, h4, h5, h6')
+      ) as HTMLElement[];
+      const targetElement = headingElements[targetIndex];
 
       if (targetElement) {
-        let elementTop = 0;
-        let currentElement: HTMLElement | null = targetElement;
-
-        while (currentElement && currentElement !== scrollContainer) {
-          elementTop += currentElement.offsetTop;
-          currentElement = currentElement.offsetParent as HTMLElement | null;
-          if (currentElement === scrollContainer) break;
-        }
-
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const targetRect = targetElement.getBoundingClientRect();
+        const elementTop = targetRect.top - containerRect.top + scrollContainer.scrollTop;
         scrollContainer.scrollTop = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
+        updateVisibleHeading();
       } else {
         console.warn('Target element not found in DOM');
       }

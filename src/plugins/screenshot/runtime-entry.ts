@@ -1,4 +1,3 @@
-import { defineAsyncComponent } from 'vue';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
@@ -6,13 +5,13 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     target: 'window',
     path: '/screenshot',
     name: 'Screenshot',
-    component: defineAsyncComponent(() => import('./pages/screenshot/index.vue'))
+    component: () => import('./pages/screenshot/index.vue')
   });
   context.registerRoute({
     target: 'window',
     path: '/pin',
     name: 'Pin',
-    component: defineAsyncComponent(() => import('./pages/pin/index.vue'))
+    component: () => import('./pages/pin/index.vue')
   });
 };
 

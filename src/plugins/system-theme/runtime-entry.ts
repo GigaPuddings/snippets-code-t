@@ -1,4 +1,3 @@
-import { defineAsyncComponent } from 'vue';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
@@ -6,7 +5,7 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     target: 'layout',
     path: '/dark-mode',
     name: 'DarkMode',
-    component: defineAsyncComponent(() => import('./pages/dark-mode/index.vue'))
+    component: () => import('./pages/dark-mode/index.vue')
   });
   context.registerWindowShortcut({
     label: 'dark_mode'

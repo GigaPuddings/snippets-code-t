@@ -165,28 +165,27 @@ const copyCode = async () => {
 
 <style lang="scss" scoped>
 .code-block-wrapper {
-  @apply relative my-3 rounded-lg overflow-hidden;
-  border: 1px solid var(--panel-border, rgba(0, 0, 0, 0.12));
-  background: var(--code-block-bg, #f6f8fa);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  @apply relative my-3 rounded-md overflow-hidden;
+  border: 1px solid var(--editor-border, var(--panel-border));
+  background: var(--editor-bg);
+  box-shadow: none;
 
   .dark & {
-    border-color: rgba(255, 255, 255, 0.1);
-    background: var(--code-block-bg-dark, #161b22);
+    border-color: var(--editor-border, rgba(255, 255, 255, 0.1));
+    background: var(--editor-bg);
   }
 }
 
 .code-toolbar {
-  @apply absolute top-2 right-2 flex items-center gap-1.5 z-10;
+  @apply absolute top-1.5 right-1.5 flex items-center gap-1 z-10;
 }
 
 .language-button,
 .copy-language-button {
-  @apply flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-panel-text-secondary rounded cursor-pointer outline-none transition-all duration-150;
+  @apply flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-panel-text-secondary rounded cursor-pointer outline-none transition-all duration-150;
   border: none;
-  background: var(--code-block-toolbar-bg, rgba(255, 255, 255, 0.85));
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(6px);
+  background: var(--panel-bg);
+  box-shadow: none;
 
   &:hover {
     @apply bg-panel-hover-bg;
@@ -197,9 +196,8 @@ const copyCode = async () => {
   }
 
   .dark & {
-    background: var(--code-block-toolbar-bg, rgba(255, 255, 255, 0.08));
+    background: var(--panel-bg);
     color: var(--panel-text-secondary, #9ca3af);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 
     &:hover {
       background: var(--panel-hover-bg, rgba(255, 255, 255, 0.12));
@@ -213,7 +211,6 @@ const copyCode = async () => {
 
 .language-button .language-text {
   font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
-  letter-spacing: 0.3px;
 }
 
 .copy-language-button {
@@ -226,11 +223,12 @@ const copyCode = async () => {
 }
 
 .code-block-pre {
-  @apply m-0 pt-4 px-4 pb-4 overflow-x-auto;
+  @apply m-0 overflow-x-auto;
   margin: 0 !important;
+  padding: 34px 14px 14px;
   font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
-  font-size: 13.5px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.6;
   background: transparent;
 
   &::-webkit-scrollbar {

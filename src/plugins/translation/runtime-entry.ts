@@ -7,7 +7,7 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     target: 'layout',
     path: '/translate',
     name: 'Translate',
-    component: defineAsyncComponent(() => import('./pages/translate/index.vue'))
+    component: () => import('./pages/translate/index.vue')
   });
   context.registerSettingsTab({
     id: 'translation',

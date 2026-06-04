@@ -327,22 +327,34 @@ watch(() => props.show, (newShow) => {
 
 <style lang="scss" scoped>
 .outline-sidebar {
-  @apply bg-panel flex-shrink-0;
-  width: 0;
+  @apply bg-panel;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  width: 280px;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  transition: width 0.25s ease;
+  height: auto;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(100%);
+  transition: transform 0.22s ease, opacity 0.18s ease;
   overflow: hidden;
   border-left: 0 solid transparent;
+  box-shadow: -12px 0 24px rgba(15, 23, 42, 0.08);
 
   &.is-visible {
-    width: 280px;
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateX(0);
     border-left: 1px solid var(--panel-border);
   }
 
   &.dark {
     background-color: var(--panel-bg);
+    box-shadow: -12px 0 24px rgba(0, 0, 0, 0.24);
 
     &.is-visible {
       border-color: var(--panel-border);

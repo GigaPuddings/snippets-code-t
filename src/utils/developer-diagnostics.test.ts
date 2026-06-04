@@ -82,6 +82,37 @@ describe('diagnostic summaries', () => {
     });
   });
 
+  it('ignores expected console warnings stored in diagnostic data', () => {
+    const summary = summarizeFrontendDiagnostics([
+      {
+        timestamp: '2026-06-01T00:00:00.000Z',
+        level: 'warn',
+        windowLabel: 'config',
+        message: '[Console] warn',
+        data: JSON.stringify([
+          'IPC custom protocol failed, Tauri will now use the postMessage interface instead',
+          { message: 'Failed to fetch' }
+        ])
+      },
+      {
+        timestamp: '2026-06-01T00:00:01.000Z',
+        level: 'warn',
+        windowLabel: 'screenshot',
+        message: '[Console] warn',
+        data: JSON.stringify([
+          '[Vue Router warn]: Component "default" in record with path "/screenshot" is defined using "defineAsyncComponent()".'
+        ])
+      }
+    ]);
+
+    expect(summary).toEqual({
+      errors: 0,
+      warnings: 0,
+      ignoredWarnings: 2,
+      total: 0
+    });
+  });
+
   it('counts backend log levels while ignoring expected warnings', () => {
     const summary = summarizeBackendDiagnostics(`
 [2026-06-01][08:02:30][tauri_app_lib::window][WARN] [Frontend] [AppInit] ⚠️ 检测到重复挂载或非最后窗口，跳过初始化

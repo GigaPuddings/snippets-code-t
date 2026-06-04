@@ -32,6 +32,9 @@ import {
 
 type RuntimeRouteTarget = 'config' | 'layout' | 'window';
 type RuntimeRouteComponent = RouteComponent | (() => Promise<unknown>);
+type VueAsyncRouteComponent = RouteComponent & {
+  __asyncLoader?: () => Promise<unknown>;
+};
 
 interface RuntimeRouteRegistration {
   target?: RuntimeRouteTarget;
@@ -596,7 +599,14 @@ const pluginRouteComponent = (
   component?: RuntimeRouteComponent,
   componentUrl?: string
 ): RouteRecordRaw['component'] => {
-  if (component) return component as RouteRecordRaw['component'];
+  if (component) {
+    const asyncLoader = (component as VueAsyncRouteComponent).__asyncLoader;
+    if (typeof asyncLoader === 'function') {
+      return () => asyncLoader();
+    }
+
+    return component as RouteRecordRaw['component'];
+  }
   if (!componentUrl) {
     throw new Error(
       `插件 ${plugin.id} 注册路由组件时缺少 component 或 componentUrl`

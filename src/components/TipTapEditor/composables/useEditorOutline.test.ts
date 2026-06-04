@@ -8,10 +8,10 @@ const createScrollContainer = () => {
     textContent: 'Intro',
     offsetTop: 240,
     offsetParent: null,
-    getBoundingClientRect: vi.fn(() => ({ top: 120 }))
+    getBoundingClientRect: vi.fn(() => ({ top: 260 }))
   } as unknown as HTMLElement;
 
-  const container = {
+  const outerContainer = {
     scrollTop: 0,
     clientHeight: 500,
     addEventListener: vi.fn((event: string, listener: EventListener) => {
@@ -20,15 +20,24 @@ const createScrollContainer = () => {
     removeEventListener: vi.fn((event: string) => {
       listeners.delete(event);
     }),
-    querySelectorAll: vi.fn(() => [heading]),
     getBoundingClientRect: vi.fn(() => ({ top: 100 }))
   } as unknown as HTMLElement;
 
-  return { container, heading, listeners };
+  const editorDom = {
+    scrollTop: 0,
+    clientHeight: 500,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    querySelectorAll: vi.fn(() => [heading]),
+    getBoundingClientRect: vi.fn(() => ({ top: 100 })),
+    closest: vi.fn((selector: string) => (selector === '.editor-content' ? outerContainer : null))
+  } as unknown as HTMLElement;
+
+  return { container: outerContainer, editorDom, heading, listeners };
 };
 
 const createEditor = () => {
-  const { container } = createScrollContainer();
+  const { container, editorDom } = createScrollContainer();
   return {
     editor: {
       state: {
@@ -38,7 +47,7 @@ const createEditor = () => {
           })
         }
       },
-      view: { dom: container }
+      view: { dom: editorDom }
     },
     container
   };
@@ -120,6 +129,16 @@ describe('useEditorOutline', () => {
     outline.jumpToHeading(2);
 
     expect(outline.sourceEditor.scrollToLine).toHaveBeenCalledWith(2);
+  });
+
+  it('jumps headings by scrolling the editor content container', () => {
+    const outline = createOutline();
+
+    outline.extractHeadings();
+    outline.jumpToHeading(4);
+
+    expect(outline.container.scrollTop).toBe(40);
+    expect(outline.editor.view.dom.scrollTop).toBe(0);
   });
 
   it('closes outline and cleans scroll listeners', async () => {

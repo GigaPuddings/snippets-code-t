@@ -1,4 +1,3 @@
-import { defineAsyncComponent } from 'vue';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
@@ -6,7 +5,7 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     target: 'config',
     path: 'retrieve',
     name: 'Retrieve',
-    component: defineAsyncComponent(() => import('./pages/config/index.vue'))
+    component: () => import('./pages/config/index.vue')
   });
 };
 
