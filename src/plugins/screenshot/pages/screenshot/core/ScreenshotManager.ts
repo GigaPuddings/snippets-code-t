@@ -2958,12 +2958,22 @@ export class ScreenshotManager {
       const screenWidth = Math.round(width * scale)
       const screenHeight = Math.round(height * scale)
       const screenRight = Math.round(windowInfo.x + window.innerWidth * scale)
+      const screenBottom = Math.round(windowInfo.y + window.innerHeight * scale)
+      const pinWindowWidth = mode === 'ocr'
+        ? Math.min(Math.max(screenWidth, 760), Math.max(360, screenRight - windowInfo.x))
+        : screenWidth
+      const pinWindowHeight = mode === 'ocr'
+        ? Math.min(Math.max(screenHeight, 520), Math.max(260, screenBottom - windowInfo.y))
+        : screenHeight
       const expandedX = mode === 'ocr'
-        ? Math.round(screenX - Math.max(0, screenWidth - screenWidth) / 2)
+        ? Math.round(screenX - Math.max(0, pinWindowWidth - screenWidth) / 2)
         : screenX
       const pinWindowX = mode === 'ocr'
-        ? Math.max(windowInfo.x, Math.min(expandedX, screenRight - screenWidth))
+        ? Math.max(windowInfo.x, Math.min(expandedX, screenRight - pinWindowWidth))
         : screenX
+      const pinWindowY = mode === 'ocr'
+        ? Math.max(windowInfo.y, Math.min(screenY, screenBottom - pinWindowHeight))
+        : screenY
       
       // 2. 从背景图像裁剪选区，而不是重新截屏
       const cropOptions: CropOptions = {}
@@ -2982,9 +2992,9 @@ export class ScreenshotManager {
         mode,
         imageData: finalImage,
         x: pinWindowX,
-        y: screenY,
-        width: screenWidth,
-        height: screenHeight
+        y: pinWindowY,
+        width: pinWindowWidth,
+        height: pinWindowHeight
       })
       
       // 5. 关闭截图窗口

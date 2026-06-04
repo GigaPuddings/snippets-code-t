@@ -28,19 +28,62 @@ interface ReflowLineGroup {
   blocks: OcrTextBlock[]
 }
 
+interface ReflowOptions {
+  mode?: 'multi_para' | 'single_para'
+}
+
+interface NormalizedBbox {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+interface LayoutUnit {
+  bbox: NormalizedBbox
+  block: OcrTextBlock
+}
+
+interface LayoutCut {
+  left: number
+  right: number
+  startRow: number
+  endRow: number
+}
+
+interface LayoutNode {
+  xLeft: number
+  xRight: number
+  rowTop: number
+  rowBottom: number
+  units: LayoutUnit[]
+  children: LayoutNode[]
+}
+
 const END_PUNCTUATION = /[.!?。！？；;：:][)"'”’】）\]]*$/
 const CJK_CHAR = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/
 const ASCII_WORD_EDGE = /[A-Za-z0-9]/
 const LIST_ITEM_START = /^\s*(?:[-*+•·]\s+|\d+[.)、）]\s*|[a-zA-Z][.)]\s+)/
 
-export function reflowOcrBlocks(blocks: OcrTextBlock[]): ParagraphBlock[] {
+export function reflowOcrBlocks(blocks: OcrTextBlock[], options: ReflowOptions = {}): ParagraphBlock[] {
   const averageLineHeight = getAverageLineHeight(blocks)
   const cleanBlocks = removeIconNoiseBlocks(blocks, averageLineHeight)
   if (cleanBlocks.length === 0) {
     return []
   }
 
-  const lines = buildLines(cleanBlocks, averageLineHeight)
+  if (isLikelyVerticalLayout(cleanBlocks, averageLineHeight)) {
+    return buildVerticalParagraphs(cleanBlocks, averageLineHeight)
+  }
+
+  const blockGroups = options.mode === 'single_para'
+    ? [sortBlocksForSingleColumn(cleanBlocks, averageLineHeight)]
+    : getLayoutBlockGroups(cleanBlocks, averageLineHeight)
+  return blockGroups.flatMap((group) => reflowBlockGroup(group, averageLineHeight))
+}
+
+function reflowBlockGroup(blocks: OcrTextBlock[], averageLineHeight: number): ParagraphBlock[] {
+  const lines = buildLines(blocks, averageLineHeight)
   const paragraphs: ParagraphBlock[] = []
 
   for (const line of lines) {
@@ -74,6 +117,376 @@ export function reflowOcrBlocks(blocks: OcrTextBlock[]): ParagraphBlock[] {
   }
 
   return paragraphs
+}
+
+function getLayoutBlockGroups(blocks: OcrTextBlock[], averageLineHeight: number): OcrTextBlock[][] {
+  if (blocks.length <= 1) {
+    return [blocks]
+  }
+
+  const units = blocks
+    .map((block) => ({
+      bbox: getBlockBbox(block),
+      block
+    }))
+    .filter((unit) => isValidBbox(unit.bbox))
+    .sort(compareUnitsByTop)
+
+  if (units.length <= 1) {
+    return [sortBlocksForSingleColumn(blocks, averageLineHeight)]
+  }
+
+  const { cuts, rows } = getLayoutCutsAndRows(units)
+  if (cuts.length < 2 || rows.length <= 1) {
+    return [sortBlocksForSingleColumn(blocks, averageLineHeight)]
+  }
+
+  const root = buildLayoutTree(cuts, rows)
+  const nodes = preorderLayoutNodes(root).filter((node) => node.units.length > 0)
+  const groups = nodes
+    .map((node) => node.units.map((unit) => unit.block))
+    .filter((group) => group.length > 0)
+
+  return groups.length > 0 ? groups : [sortBlocksForSingleColumn(blocks, averageLineHeight)]
+}
+
+function getLayoutCutsAndRows(units: LayoutUnit[]): { cuts: LayoutCut[], rows: LayoutUnit[][] } {
+  const pageLeft = Math.min(...units.map((unit) => unit.bbox.left)) - 1
+  const pageRight = Math.max(...units.map((unit) => unit.bbox.right)) + 1
+  const rows: LayoutUnit[][] = []
+  const completedCuts: LayoutCut[] = []
+  let activeGaps: Array<{ left: number, right: number, startRow: number }> = []
+  let unitIndex = 0
+
+  while (unitIndex < units.length) {
+    const firstUnit = units[unitIndex]
+    const rowBottom = firstUnit.bbox.bottom
+    const row: LayoutUnit[] = []
+
+    while (unitIndex < units.length && units[unitIndex].bbox.top <= rowBottom) {
+      row.push(units[unitIndex])
+      unitIndex += 1
+    }
+
+    row.sort((a, b) => a.bbox.left - b.bbox.left || a.bbox.right - b.bbox.right)
+    const rowGaps = getRowGaps(row, pageLeft, pageRight, rows.length)
+    const { gaps, removedGaps } = updateLayoutGaps(activeGaps, rowGaps)
+    const previousRowIndex = rows.length - 1
+    for (const gap of removedGaps) {
+      completedCuts.push({
+        left: gap.left,
+        right: gap.right,
+        startRow: gap.startRow,
+        endRow: previousRowIndex
+      })
+    }
+
+    activeGaps = gaps
+    rows.push(row)
+  }
+
+  const lastRowIndex = rows.length - 1
+  for (const gap of activeGaps) {
+    completedCuts.push({
+      left: gap.left,
+      right: gap.right,
+      startRow: gap.startRow,
+      endRow: lastRowIndex
+    })
+  }
+
+  completedCuts.sort((a, b) => a.left - b.left || a.right - b.right)
+  return { cuts: completedCuts, rows }
+}
+
+function getRowGaps(
+  row: LayoutUnit[],
+  pageLeft: number,
+  pageRight: number,
+  rowIndex: number
+): Array<{ left: number, right: number, startRow: number }> {
+  const gaps: Array<{ left: number, right: number, startRow: number }> = []
+  let searchStart = pageLeft
+
+  for (const unit of row) {
+    if (unit.bbox.left > searchStart) {
+      gaps.push({ left: searchStart, right: unit.bbox.left, startRow: rowIndex })
+    }
+    if (unit.bbox.right > searchStart) {
+      searchStart = unit.bbox.right
+    }
+  }
+
+  gaps.push({ left: searchStart, right: pageRight, startRow: rowIndex })
+  return gaps
+}
+
+function updateLayoutGaps(
+  activeGaps: Array<{ left: number, right: number, startRow: number }>,
+  rowGaps: Array<{ left: number, right: number, startRow: number }>
+): {
+  gaps: Array<{ left: number, right: number, startRow: number }>
+  removedGaps: Array<{ left: number, right: number, startRow: number }>
+} {
+  const keepActive = activeGaps.map(() => false)
+  const keepRow = rowGaps.map(() => false)
+  const nextGaps: Array<{ left: number, right: number, startRow: number }> = []
+
+  for (let activeIndex = 0; activeIndex < activeGaps.length; activeIndex += 1) {
+    const active = activeGaps[activeIndex]
+    for (let rowIndex = 0; rowIndex < rowGaps.length; rowIndex += 1) {
+      const row = rowGaps[rowIndex]
+      const left = Math.max(active.left, row.left)
+      const right = Math.min(active.right, row.right)
+      if (left <= right) {
+        nextGaps.push({ left, right, startRow: active.startRow })
+        keepActive[activeIndex] = true
+        keepRow[rowIndex] = true
+      }
+    }
+  }
+
+  for (let rowIndex = 0; rowIndex < rowGaps.length; rowIndex += 1) {
+    if (!keepRow[rowIndex]) {
+      nextGaps.push(rowGaps[rowIndex])
+    }
+  }
+
+  return {
+    gaps: nextGaps,
+    removedGaps: activeGaps.filter((_, index) => !keepActive[index])
+  }
+}
+
+function buildLayoutTree(cuts: LayoutCut[], rows: LayoutUnit[][]): LayoutNode {
+  const rowGaps = rows.map((): Array<{ left: number, right: number }> => [])
+  for (const cut of cuts) {
+    for (let rowIndex = cut.startRow; rowIndex <= cut.endRow; rowIndex += 1) {
+      rowGaps[rowIndex]?.push({ left: cut.left, right: cut.right })
+    }
+  }
+
+  for (const gaps of rowGaps) {
+    gaps.sort((a, b) => a.left - b.left || a.right - b.right)
+  }
+
+  const root: LayoutNode = {
+    xLeft: cuts[0].left - 1,
+    xRight: cuts[cuts.length - 1].right + 1,
+    rowTop: -1,
+    rowBottom: -1,
+    units: [],
+    children: []
+  }
+  const completedNodes: LayoutNode[] = [root]
+  let activeNodes: LayoutNode[] = []
+
+  const completeNode = (node: LayoutNode) => {
+    const nodeRight = node.xRight - 2
+    const candidates = completedNodes.filter((candidate) => {
+      return (
+        nodeRight >= candidate.xLeft &&
+        nodeRight <= candidate.xRight + 0.0001 &&
+        candidate.rowBottom < node.rowTop
+      )
+    })
+    const maxRowBottom = Math.max(...candidates.map((candidate) => candidate.rowBottom), root.rowBottom)
+    const lowestCandidates = candidates.filter((candidate) => candidate.rowBottom === maxRowBottom)
+    const parent = lowestCandidates.length > 0
+      ? lowestCandidates.reduce((best, candidate) => (candidate.xRight > best.xRight ? candidate : best))
+      : root
+
+    parent.children.push(node)
+    completedNodes.push(node)
+  }
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const gaps = rowGaps[rowIndex]
+    const nextActiveNodes: LayoutNode[] = []
+
+    for (const node of activeNodes) {
+      let leftContinues = false
+      let rightContinues = false
+      let interrupted = false
+
+      for (const gap of gaps) {
+        if (almostEqual(gap.right, node.xLeft)) {
+          leftContinues = true
+        }
+        if (almostEqual(gap.left, node.xRight)) {
+          rightContinues = true
+        }
+        if (
+          (node.xLeft < gap.left && gap.left < node.xRight) ||
+          (node.xLeft < gap.right && gap.right < node.xRight)
+        ) {
+          interrupted = true
+          break
+        }
+      }
+
+      if (!leftContinues || !rightContinues || interrupted) {
+        completeNode(node)
+      } else {
+        node.rowBottom = rowIndex
+        nextActiveNodes.push(node)
+      }
+    }
+
+    activeNodes = nextActiveNodes
+    let unitIndex = 0
+    let gapIndex = 0
+    const row = rows[rowIndex]
+
+    while (unitIndex < row.length && gaps.length >= 2) {
+      const unit = row[unitIndex]
+      if (gapIndex + 1 >= gaps.length) {
+        gapIndex = Math.max(0, gaps.length - 2)
+      }
+
+      const xLeft = gaps[gapIndex].right
+      const xRight = gaps[gapIndex + 1].left
+      if (unit.bbox.left + 0.0001 > xRight && gapIndex < gaps.length - 2) {
+        gapIndex += 1
+        continue
+      }
+
+      let node = activeNodes.find((item) => almostEqual(item.xLeft, xLeft) && almostEqual(item.xRight, xRight))
+      if (!node) {
+        node = {
+          xLeft,
+          xRight,
+          rowTop: rowIndex,
+          rowBottom: rowIndex,
+          units: [],
+          children: []
+        }
+        activeNodes.push(node)
+      }
+
+      node.units.push(unit)
+      unitIndex += 1
+    }
+  }
+
+  for (const node of activeNodes) {
+    completeNode(node)
+  }
+
+  for (const node of completedNodes) {
+    node.children.sort((a, b) => a.xLeft - b.xLeft || a.rowTop - b.rowTop)
+    node.units.sort(compareUnitsByTop)
+  }
+
+  return root
+}
+
+function preorderLayoutNodes(root: LayoutNode): LayoutNode[] {
+  const stack = [root]
+  const result: LayoutNode[] = []
+
+  while (stack.length > 0) {
+    const node = stack.pop()
+    if (!node) continue
+    result.push(node)
+    stack.push(...[...node.children].reverse())
+  }
+
+  return result
+}
+
+function sortBlocksForSingleColumn(blocks: OcrTextBlock[], averageLineHeight: number): OcrTextBlock[] {
+  return [...blocks].sort((a, b) => {
+    const topDiff = a.y - b.y
+    return Math.abs(topDiff) > averageLineHeight * 0.45 ? topDiff : a.x - b.x
+  })
+}
+
+function buildVerticalParagraphs(blocks: OcrTextBlock[], averageLineHeight: number): ParagraphBlock[] {
+  const averageBlockWidth = positiveNumber(average(blocks.map((block) => block.width)), averageLineHeight * 0.5)
+  const sameColumnThreshold = Math.max(averageBlockWidth * 1.4, averageLineHeight * 0.28)
+  const sortedBlocks = [...blocks].sort((a, b) => {
+    const xDiff = (b.x + b.width / 2) - (a.x + a.width / 2)
+    return Math.abs(xDiff) > averageLineHeight * 0.65 ? xDiff : a.y - b.y
+  })
+  const columns: OcrTextBlock[][] = []
+
+  for (const block of sortedBlocks) {
+    const centerX = block.x + block.width / 2
+    const currentColumn = columns[columns.length - 1]
+    const columnCenterX = currentColumn
+      ? average(currentColumn.map((item) => item.x + item.width / 2))
+      : 0
+
+    if (currentColumn && Math.abs(centerX - columnCenterX) <= sameColumnThreshold) {
+      currentColumn.push(block)
+    } else {
+      columns.push([block])
+    }
+  }
+
+  return columns.map((column) => {
+    const columnBlocks = [...column].sort((a, b) => a.y - b.y)
+    const text = columnBlocks.reduce((result, block, index) => {
+      const blockText = block.text.trim()
+      return index === 0 ? blockText : joinText(result, blockText)
+    }, '')
+    const bbox = unionBlockRects(columnBlocks)
+    const fontSize = average(columnBlocks.map((block) => positiveNumber(block.fontSize, averageLineHeight)))
+    const lineHeight = average(columnBlocks.map((block) => getBlockLineHeight(block)))
+
+    return {
+      text,
+      blocks: columnBlocks,
+      bbox,
+      isCodeBlock: false,
+      isStructuredBlock: false,
+      fontSize,
+      lineHeight,
+      angle: average(columnBlocks.map((block) => block.angle || 0))
+    }
+  })
+}
+
+function isLikelyVerticalLayout(blocks: OcrTextBlock[], averageLineHeight: number): boolean {
+  if (blocks.length < 2) {
+    return false
+  }
+
+  const verticalBlocks = blocks.filter((block) => {
+    const width = Math.max(block.width, 1)
+    return block.height > width * 1.35 && block.height > Math.max(18, averageLineHeight * 0.35)
+  })
+
+  return verticalBlocks.length >= Math.max(2, Math.ceil(blocks.length * 0.56))
+}
+
+function getBlockBbox(block: OcrTextBlock): NormalizedBbox {
+  return {
+    left: block.x,
+    top: block.y,
+    right: block.x + block.width,
+    bottom: block.y + block.height
+  }
+}
+
+function isValidBbox(bbox: NormalizedBbox): boolean {
+  return (
+    Number.isFinite(bbox.left) &&
+    Number.isFinite(bbox.top) &&
+    Number.isFinite(bbox.right) &&
+    Number.isFinite(bbox.bottom) &&
+    bbox.right >= bbox.left &&
+    bbox.bottom >= bbox.top
+  )
+}
+
+function compareUnitsByTop(a: LayoutUnit, b: LayoutUnit): number {
+  return a.bbox.top - b.bbox.top || a.bbox.left - b.bbox.left
+}
+
+function almostEqual(a: number, b: number): boolean {
+  return Math.abs(a - b) <= 0.0001
 }
 
 function removeIconNoiseBlocks(blocks: OcrTextBlock[], averageLineHeight: number): OcrTextBlock[] {
