@@ -168,34 +168,30 @@
                   @load="updateOcrPreviewImageMetrics"
                 />
                 <div
-                  v-if="selectedOverlayRecordsWithGeometry.length > 0"
+                  v-if="selectedOverlayBlocks.length > 0"
                   class="ocr-selection-highlight-layer"
                   aria-hidden="true"
                 >
                   <span
-                    v-for="record in selectedOverlayRecordsWithGeometry"
-                    :key="`selected-${record.id}`"
+                    v-for="block in selectedOverlayBlocks"
+                    :key="`selected-${block.id}`"
                     class="ocr-selection-highlight"
-                    :style="getOcrSelectionHighlightStyle(record)"
+                    :style="getOcrSelectionHighlightStyle(block)"
                   ></span>
                 </div>
                 <div
-                  v-if="ocrRecordsWithGeometry.length > 0"
+                  v-if="ocrSelectableBlocks.length > 0"
                   class="ocr-text-overlay"
                 >
                   <span
-                    v-for="record in ocrRecordsWithGeometry"
-                    :key="record.id"
+                    v-for="block in ocrSelectableBlocks"
+                    :key="block.id"
                     class="ocr-overlay-block"
-                    :class="{
-                      selected: record.selected,
-                      'range-selected': selectedOverlayRecordIds.has(record.id)
-                    }"
-                    :data-record-id="record.id"
-                    :style="getOcrOverlayStyle(record)"
-                  >
-                    {{ record.text.trim() }}
-                  </span>
+                    :class="{ 'range-selected': selectedOverlayBlockIds.has(block.id) }"
+                    :data-overlay-id="block.id"
+                    :style="getOcrOverlayStyle(block)"
+                    v-text="block.text.trim()"
+                  ></span>
                 </div>
               </div>
             </section>
@@ -542,7 +538,7 @@ const initialWindowSize = ref({ width: 0, height: 0 });
 
 const showOriginalImage = ref(false);
 const showOcrRecordPane = ref(false);
-const selectedOverlayRecordIds = ref(new Set<string>());
+const selectedOverlayBlockIds = ref(new Set<string>());
 
 const isTranslating = ref(false);
 const showTranslateMenu = ref(false);
@@ -564,6 +560,11 @@ interface OcrRecord {
   blocks: PinOcrTextBlock[]
   confidence: number
   selected: boolean
+}
+
+type OcrSelectableBlock = PinOcrTextBlock & {
+  id: string
+  recordId: string
 }
 
 const translateEngines = computed(() => [
@@ -678,14 +679,20 @@ const selectedOcrRecords = computed(() =>
   ocrRecords.value.filter((record) => record.selected)
 );
 
-const ocrRecordsWithGeometry = computed(() =>
-  ocrRecords.value.filter((record) => hasRecordGeometry(record))
+const ocrSelectableBlocks = computed<OcrSelectableBlock[]>(() =>
+  ocrRecords.value.flatMap((record) =>
+    record.blocks
+      .filter(hasBlockGeometry)
+      .map((block, index) => ({
+        ...block,
+        id: `${record.id}-block-${index}`,
+        recordId: record.id
+      }))
+  )
 );
 
-const selectedOverlayRecordsWithGeometry = computed(() =>
-  ocrRecordsWithGeometry.value.filter((record) =>
-    selectedOverlayRecordIds.value.has(record.id)
-  )
+const selectedOverlayBlocks = computed(() =>
+  ocrSelectableBlocks.value.filter((block) => selectedOverlayBlockIds.value.has(block.id))
 );
 
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
@@ -705,26 +712,26 @@ const syncOcrTextFromRecords = () => {
   ocrText.value = buildDisplayTextFromRecords(ocrRecords.value);
 };
 
-const hasRecordGeometry = (record: OcrRecord): boolean => {
+const hasBlockGeometry = (block: PinOcrTextBlock): boolean => {
   return (
     imageWidth.value > 0 &&
     imageHeight.value > 0 &&
-    record.bbox.width > 0 &&
-    record.bbox.height > 0
+    block.width > 0 &&
+    block.height > 0
   );
 };
 
-const getOcrOverlayStyle = (record: OcrRecord): CSSProperties => {
-  if (!hasRecordGeometry(record)) {
+const getOcrOverlayStyle = (block: OcrSelectableBlock): CSSProperties => {
+  if (!hasBlockGeometry(block)) {
     return {};
   }
 
-  const left = clampPercent((record.bbox.x / imageWidth.value) * 100);
-  const top = clampPercent((record.bbox.y / imageHeight.value) * 100);
-  const width = clampPercent((record.bbox.width / imageWidth.value) * 100, 6);
-  const height = clampPercent((record.bbox.height / imageHeight.value) * 100, 4);
-  const fontSize = getOverlayFontSize(record);
-  const lineHeight = getOverlayLineHeight(record, fontSize);
+  const left = clampPercent((block.x / imageWidth.value) * 100);
+  const top = clampPercent((block.y / imageHeight.value) * 100);
+  const width = clampPercent((block.width / imageWidth.value) * 100, 1);
+  const height = clampPercent((block.height / imageHeight.value) * 100, 1);
+  const fontSize = getOverlayFontSize(block);
+  const lineHeight = getOverlayLineHeight(block, fontSize);
 
   return {
     left: `${left}%`,
@@ -736,20 +743,20 @@ const getOcrOverlayStyle = (record: OcrRecord): CSSProperties => {
   };
 };
 
-const getOcrSelectionHighlightStyle = (record: OcrRecord): CSSProperties => {
-  if (!hasRecordGeometry(record)) {
+const getOcrSelectionHighlightStyle = (block: OcrSelectableBlock): CSSProperties => {
+  if (!hasBlockGeometry(block)) {
     return {};
   }
 
-  const paddingX = Math.max(record.bbox.height * 0.18, 2);
-  const paddingY = Math.max(record.bbox.height * 0.12, 1);
-  const left = clampPercent(((record.bbox.x - paddingX) / imageWidth.value) * 100);
-  const top = clampPercent(((record.bbox.y - paddingY) / imageHeight.value) * 100);
+  const paddingX = Math.max(block.height * 0.12, 1);
+  const paddingY = Math.max(block.height * 0.08, 1);
+  const left = clampPercent(((block.x - paddingX) / imageWidth.value) * 100);
+  const top = clampPercent(((block.y - paddingY) / imageHeight.value) * 100);
   const right = clampPercent(
-    ((record.bbox.x + record.bbox.width + paddingX * 2) / imageWidth.value) * 100
+    ((block.x + block.width + paddingX) / imageWidth.value) * 100
   );
   const bottom = clampPercent(
-    ((record.bbox.y + record.bbox.height + paddingY * 2) / imageHeight.value) * 100
+    ((block.y + block.height + paddingY) / imageHeight.value) * 100
   );
 
   return {
@@ -760,21 +767,15 @@ const getOcrSelectionHighlightStyle = (record: OcrRecord): CSSProperties => {
   };
 };
 
-const getOverlayFontSize = (record: OcrRecord): number => {
+const getOverlayFontSize = (block: OcrSelectableBlock): number => {
   const scale = getOcrPreviewImageScale();
-  const sourceFontSize = averageBlockMetric(
-    record.blocks.map((block) => block.fontSize),
-    record.bbox.height
-  );
+  const sourceFontSize = block.fontSize || block.height;
   return clampNumber(sourceFontSize * scale, 7, 28);
 };
 
-const getOverlayLineHeight = (record: OcrRecord, fontSize: number): number => {
+const getOverlayLineHeight = (block: OcrSelectableBlock, fontSize: number): number => {
   const scale = getOcrPreviewImageScale();
-  const sourceLineHeight = averageBlockMetric(
-    record.blocks.map((block) => block.lineHeight || block.height),
-    record.bbox.height
-  );
+  const sourceLineHeight = block.lineHeight || block.height;
   return Math.max(fontSize, sourceLineHeight * scale);
 };
 
@@ -804,16 +805,6 @@ const updateOcrPreviewImageMetrics = () => {
     width: imageElement.clientWidth,
     height: imageElement.clientHeight
   };
-};
-
-const averageBlockMetric = (values: Array<number | undefined>, fallback: number): number => {
-  const validValues = values.filter(
-    (value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0
-  );
-  if (validValues.length === 0) {
-    return fallback;
-  }
-  return validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
 };
 
 const clampPercent = (value: number, min = 0): number => {
@@ -862,7 +853,7 @@ const updateImageData = (base64Data: string) => {
   imageWidth.value = 0;
   imageHeight.value = 0;
   ocrPreviewImageSize.value = { width: 0, height: 0 };
-  selectedOverlayRecordIds.value = new Set();
+  selectedOverlayBlockIds.value = new Set();
   initialWindowSize.value = { width: 0, height: 0 };
   if (mode.value === 'ocr') {
     ocrFileName.value = formatOcrFileName();
@@ -1693,33 +1684,33 @@ const handleClickOutside = (event: MouseEvent) => {
 
 const handleOcrSelectionChange = () => {
   if (mode.value !== 'ocr') {
-    selectedOverlayRecordIds.value = new Set();
+    selectedOverlayBlockIds.value = new Set();
     return;
   }
 
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-    selectedOverlayRecordIds.value = new Set();
+    selectedOverlayBlockIds.value = new Set();
     return;
   }
 
   const range = selection.getRangeAt(0);
   const surface = containerRef.value?.querySelector('.ocr-reading-surface');
   if (!surface || !surface.contains(range.commonAncestorContainer)) {
-    selectedOverlayRecordIds.value = new Set();
+    selectedOverlayBlockIds.value = new Set();
     return;
   }
 
   const selectedIds = new Set<string>();
-  surface.querySelectorAll<HTMLElement>('.ocr-overlay-block[data-record-id]').forEach((element) => {
+  surface.querySelectorAll<HTMLElement>('.ocr-overlay-block[data-overlay-id]').forEach((element) => {
     if (range.intersectsNode(element)) {
-      const recordId = element.dataset.recordId;
-      if (recordId) {
-        selectedIds.add(recordId);
+      const overlayId = element.dataset.overlayId;
+      if (overlayId) {
+        selectedIds.add(overlayId);
       }
     }
   });
-  selectedOverlayRecordIds.value = selectedIds;
+  selectedOverlayBlockIds.value = selectedIds;
 };
 
 const handleKeydown = (event: KeyboardEvent): void => {
@@ -2128,7 +2119,7 @@ onUnmounted(() => {
         position: absolute;
         display: block;
         border-radius: 2px;
-        background: rgb(37 99 235 / 20%);
+        background: rgb(37 99 235 / 28%);
       }
 
       .ocr-overlay-block {
@@ -2138,7 +2129,7 @@ onUnmounted(() => {
         padding: 0 2px;
         overflow: visible;
         color: transparent;
-        white-space: pre-wrap;
+        white-space: nowrap;
         cursor: text;
         user-select: text;
         pointer-events: auto;
@@ -2156,12 +2147,12 @@ onUnmounted(() => {
         }
 
         &.range-selected {
-          background: rgb(37 99 235 / 12%);
+          background: transparent;
         }
 
         &::selection {
           color: transparent;
-          background: rgb(37 99 235 / 28%);
+          background: transparent;
         }
       }
 
