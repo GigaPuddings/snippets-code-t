@@ -1483,20 +1483,9 @@ fn build_primary_language_candidates(
         return vec![language_hint];
     }
 
-    let mut candidates = Vec::new();
-    let preferred = match engine {
-        OcrEngine::Auto | OcrEngine::RapidOcr => {
-            [OcrLanguage::ChineseSimplified, OcrLanguage::English]
-        }
-    };
-
-    for language in preferred {
-        if !candidates.contains(&language) {
-            candidates.push(language);
-        }
+    match engine {
+        OcrEngine::Auto | OcrEngine::RapidOcr => vec![OcrLanguage::ChineseSimplified],
     }
-
-    candidates
 }
 
 fn build_fallback_language_candidates(
@@ -2058,6 +2047,10 @@ fn should_retry_transformed_image(result: &OcrRecognizeResult, score: f64) -> bo
         return false;
     }
 
+    if is_high_confidence_mixed_readable_result(result) {
+        return false;
+    }
+
     let language = OcrLanguage::from_label(&result.language).unwrap_or(OcrLanguage::English);
     let breakdown = score_ocr_result_breakdown(result, language);
     score < 260.0
@@ -2068,6 +2061,10 @@ fn should_retry_transformed_image(result: &OcrRecognizeResult, score: f64) -> bo
 
 fn should_try_fallback_language_candidates(result: &OcrRecognizeResult, score: f64) -> bool {
     if result.full_text.trim().chars().count() < 20 {
+        return false;
+    }
+
+    if is_high_confidence_mixed_readable_result(result) {
         return false;
     }
 
@@ -2104,7 +2101,34 @@ fn is_final_ocr_result_low_quality(result: &OcrRecognizeResult, score: f64) -> b
             || (result.confidence < 45.0 && score < 140.0 && !readable_english);
     }
 
+    if is_high_confidence_mixed_readable_result(result) {
+        return false;
+    }
+
     score < 90.0 || (score < 180.0 && quality_penalty > 180.0)
+}
+
+fn is_high_confidence_mixed_readable_result(result: &OcrRecognizeResult) -> bool {
+    let language = OcrLanguage::from_label(&result.language).unwrap_or(OcrLanguage::English);
+    if !matches!(
+        language,
+        OcrLanguage::ChineseSimplified | OcrLanguage::ChineseTraditional
+    ) {
+        return false;
+    }
+    if result.confidence < 86.0 {
+        return false;
+    }
+
+    let stats = script_stats(&result.full_text);
+    let has_cjk = stats.cjk_count >= 2;
+    let readable_english = looks_like_readable_english(&result.full_text);
+    if !has_cjk && !readable_english {
+        return false;
+    }
+
+    let breakdown = score_ocr_result_breakdown(result, language);
+    breakdown.garbage_penalty + breakdown.latin_gibberish_penalty < 90.0
 }
 
 fn build_rapidocr_attempts(image_path: &Path, language: OcrLanguage) -> Vec<SidecarAttempt> {
@@ -2838,5 +2862,35 @@ mod tests {
 
         assert_eq!(result.language, "en");
         assert_eq!(result.full_text, "Getting Started");
+    }
+
+    #[test]
+    fn auto_primary_language_prefers_chinese_model_for_mixed_text() {
+        assert_eq!(
+            build_primary_language_candidates(None, OcrEngine::Auto),
+            vec![OcrLanguage::ChineseSimplified]
+        );
+    }
+
+    #[test]
+    fn high_confidence_chinese_mixed_result_does_not_retry_or_fallback() {
+        let result = OcrRecognizeResult {
+            full_text: "If you need to manually switch languages, please refer to the following figure, 全局设置 → 语言/Language".to_string(),
+            text: "If you need to manually switch languages, please refer to the following figure, 全局设置 → 语言/Language".to_string(),
+            confidence: 98.0,
+            blocks: vec![test_block(
+                "If you need to manually switch languages, please refer to the following figure, 全局设置 → 语言/Language",
+                40.0,
+                500.0,
+                1180.0,
+                36.0,
+            )],
+            engine: "rapidocr:zh".to_string(),
+            language: "zh".to_string(),
+        };
+
+        assert!(!should_retry_transformed_image(&result, 520.0));
+        assert!(!should_try_fallback_language_candidates(&result, 520.0));
+        assert!(!is_final_ocr_result_low_quality(&result, 520.0));
     }
 }
