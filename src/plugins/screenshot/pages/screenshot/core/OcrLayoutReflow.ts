@@ -63,8 +63,8 @@ interface LayoutNode {
 const END_PUNCTUATION = /[.!?。！？；;：:][)"'”’】）\]]*$/
 const CJK_CHAR = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/
 const ASCII_WORD_EDGE = /[A-Za-z0-9]/
-const LIST_ITEM_START = /^\s*(?:[-*+•·]\s+|\d+[.)、）]\s*|[a-zA-Z][.)]\s+)/
-const INLINE_LIST_ITEM_START = /(?:^|\s)(?:[-*+•·]\s+|\d+[.)、）]\s*|[a-zA-Z][.)]\s+)/g
+const LIST_ITEM_START = /^\s*(?:(?:[-*+•·●○■□▪▫◆◇]|[▶▷►▸▹→]\s*(?:[·•]\s*)?)\s+|\d+[.)、）]\s*|[a-zA-Z][.)]\s+)/
+const INLINE_LIST_ITEM_START = /(?:^|\s)(?:(?:[-*+•·●○■□▪▫◆◇]|[▶▷►▸▹→]\s*[·•])\s+|\d+[.)、）]\s*|[a-zA-Z][.)]\s+)/g
 
 export function reflowOcrBlocks(blocks: OcrTextBlock[], options: ReflowOptions = {}): ParagraphBlock[] {
   const averageLineHeight = getAverageLineHeight(blocks)

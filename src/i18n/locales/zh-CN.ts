@@ -1008,6 +1008,9 @@ export default {
     saveFailed: '保存失败',
     translateSuccess: '翻译成功',
     translateFailed: '翻译失败',
+    sourceText: '原文',
+    selectedText: '已选文字',
+    translationResult: '译文',
     viewResult: '查看结果'
   },
 

@@ -204,6 +204,32 @@
               class="ocr-record-pane"
               @pointerdown="clearOcrOverlaySelection"
             >
+              <section
+                v-if="ocrSelectionTranslation"
+                class="ocr-selection-translation"
+              >
+                <div class="ocr-translation-section">
+                  <span class="ocr-translation-label">
+                    {{ $t('pin.selectedText') }}
+                  </span>
+                  <div class="ocr-translation-source">
+                    {{ ocrSelectionTranslation.sourceText }}
+                  </div>
+                </div>
+                <div class="ocr-translation-section result">
+                  <span class="ocr-translation-label">
+                    {{ $t('pin.translationResult') }}
+                  </span>
+                  <div
+                    class="ocr-selection-translation-editor"
+                    contenteditable="plaintext-only"
+                    spellcheck="false"
+                    v-text="ocrSelectionTranslation.translatedText"
+                    @blur="handleSelectionTranslationInput"
+                  ></div>
+                </div>
+              </section>
+
               <article
                 v-for="(record, index) in ocrRecords"
                 :key="record.id"
@@ -235,16 +261,20 @@
                     {{ Math.round(record.confidence) }}%
                   </span>
                 </div>
-                <div
-                  v-if="record.translatedText"
-                  class="ocr-record-editor translated"
-                  contenteditable="plaintext-only"
-                  spellcheck="false"
-                  v-text="record.translatedText"
-                  @blur="
-                    handleOcrRecordInput(record.id, 'translatedText', $event)
-                  "
-                ></div>
+                <div v-if="record.translatedText" class="ocr-record-translation">
+                  <span class="ocr-translation-label">
+                    {{ $t('pin.translationResult') }}
+                  </span>
+                  <div
+                    class="ocr-record-editor translated"
+                    contenteditable="plaintext-only"
+                    spellcheck="false"
+                    v-text="record.translatedText"
+                    @blur="
+                      handleOcrRecordInput(record.id, 'translatedText', $event)
+                    "
+                  ></div>
+                </div>
               </article>
             </section>
           </div>
@@ -551,6 +581,10 @@ const initialWindowSize = ref({ width: 0, height: 0 });
 
 const showOriginalImage = ref(false);
 const showOcrRecordPane = ref(false);
+const ocrSelectionTranslation = ref<{
+  sourceText: string
+  translatedText: string
+} | null>(null);
 // Umi-OCR-style selection: track block and character endpoints instead of DOM Selection.
 const ocrOverlaySelection = ref<OcrTextSelectionRange | null>(null);
 const isSelectingOcrOverlay = ref(false);
@@ -659,7 +693,7 @@ const translateWithFallback = (key: string, zhText: string, enText: string): str
 };
 
 const backendOcrLanguage = computed<OcrLanguageValue>(() => {
-  return currentOcrLanguage.value === 'auto' ? 'zh' : currentOcrLanguage.value;
+  return currentOcrLanguage.value;
 });
 
 const scale = ref(1);
@@ -1041,6 +1075,7 @@ const recognizeCurrentImage = async () => {
 
   const requestId = ++ocrRequestId;
   clearOcrOverlaySelection();
+  ocrSelectionTranslation.value = null;
   ocrOverlayMetricsCache.clear();
   ocrLoading.value = true;
   ocrError.value = '';
@@ -1332,6 +1367,15 @@ const handleOcrRecordInput = (
   syncOcrTextFromRecords();
 };
 
+const handleSelectionTranslationInput = (event: Event) => {
+  const target = event.target as HTMLElement | null;
+  if (!target || !ocrSelectionTranslation.value) {
+    return;
+  }
+
+  ocrSelectionTranslation.value.translatedText = target.innerText.trim();
+};
+
 const toggleTranslateMenu = () => {
   showTranslateMenu.value = !showTranslateMenu.value;
   showOcrLanguageMenu.value = false;
@@ -1369,12 +1413,15 @@ const handleTranslateOcr = async () => {
 
   if (!ocrText.value.trim() || isTranslating.value) return;
 
-  const recordsToTranslate = selectedOcrRecords.value.length > 0
+  const selectedSourceText = selectedOcrOverlayText.value.trim();
+  const recordsToTranslate = selectedSourceText
+    ? []
+    : selectedOcrRecords.value.length > 0
     ? selectedOcrRecords.value
     : ocrRecords.value;
-  const sourceText = recordsToTranslate.length > 0
+  const sourceText = selectedSourceText || (recordsToTranslate.length > 0
     ? recordsToTranslate.map((record) => record.text).join('\n\n')
-    : ocrText.value;
+    : ocrText.value);
   const sourceLanguage = detectTranslationLanguage(sourceText);
   if (!canTranslateDetectedLanguage(sourceLanguage)) {
     modal.warning(t('pin.unsupportedTranslateLanguage'));
@@ -1386,7 +1433,17 @@ const handleTranslateOcr = async () => {
   try {
     await ensureOfflineTranslatorReadyIfNeeded();
 
-    if (recordsToTranslate.length > 0) {
+    if (selectedSourceText) {
+      const translatedText = await translateOcrText(selectedSourceText, sourceLanguage);
+      if (translatedText) {
+        ocrSelectionTranslation.value = {
+          sourceText: selectedSourceText,
+          translatedText: translatedText.trim()
+        };
+        showOcrRecordPane.value = true;
+      }
+      modal.success(t('pin.translateSuccess'));
+    } else if (recordsToTranslate.length > 0) {
       for (const record of recordsToTranslate) {
         const translatedText = await translateOcrText(record.text, sourceLanguage);
         if (translatedText) {
@@ -1394,6 +1451,7 @@ const handleTranslateOcr = async () => {
         }
       }
       syncOcrTextFromRecords();
+      showOcrRecordPane.value = true;
       modal.success(t('pin.translateSuccess'));
     } else {
       const translatedText = await translateOcrText(ocrText.value, sourceLanguage);
@@ -2375,6 +2433,53 @@ onUnmounted(() => {
         -webkit-user-select: text;
       }
 
+      .ocr-selection-translation {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        margin: 0 -20px 6px;
+        background: color-mix(in srgb, var(--ocr-panel-hover-bg) 48%, transparent);
+        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 62%, transparent);
+
+        .ocr-translation-section {
+          min-width: 0;
+          padding: 12px 20px 14px;
+
+          &.result {
+            border-left: 1px solid color-mix(in srgb, var(--ocr-border) 62%, transparent);
+          }
+        }
+      }
+
+      .ocr-translation-label {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--ocr-text-muted);
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.2;
+      }
+
+      .ocr-translation-source,
+      .ocr-selection-translation-editor {
+        color: var(--ocr-text);
+        font-size: 14px;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        word-break: break-word;
+        user-select: text;
+        -webkit-user-select: text;
+      }
+
+      .ocr-selection-translation-editor {
+        min-height: 24px;
+        color: var(--ocr-text-secondary);
+        outline: none;
+
+        &:focus {
+          background: color-mix(in srgb, var(--ocr-panel-hover-bg) 70%, transparent);
+        }
+      }
+
       .ocr-record-item {
         position: relative;
         padding: 13px 0 16px;
@@ -2442,9 +2547,21 @@ onUnmounted(() => {
         }
 
         &.translated {
-          margin-top: 7px;
-          margin-left: 56px;
           color: var(--ocr-text-secondary);
+        }
+      }
+
+      .ocr-record-translation {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr);
+        gap: 10px;
+        margin-top: 8px;
+        padding: 8px 10px 8px 0;
+        background: color-mix(in srgb, var(--ocr-panel-hover-bg) 48%, transparent);
+
+        .ocr-translation-label {
+          padding-top: 4px;
+          text-align: right;
         }
       }
 
@@ -2476,6 +2593,25 @@ onUnmounted(() => {
 
         .ocr-record-pane {
           padding: 8px 14px 14px;
+        }
+
+        .ocr-selection-translation {
+          grid-template-columns: minmax(0, 1fr);
+          margin-inline: -14px;
+
+          .ocr-translation-section.result {
+            border-top: 1px solid color-mix(in srgb, var(--ocr-border) 62%, transparent);
+            border-left: 0;
+          }
+        }
+
+        .ocr-record-translation {
+          grid-template-columns: minmax(0, 1fr);
+
+          .ocr-translation-label {
+            padding-top: 0;
+            text-align: left;
+          }
         }
       }
     }

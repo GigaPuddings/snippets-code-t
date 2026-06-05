@@ -1484,7 +1484,9 @@ fn build_primary_language_candidates(
     }
 
     match engine {
-        OcrEngine::Auto | OcrEngine::RapidOcr => vec![OcrLanguage::ChineseSimplified],
+        OcrEngine::Auto | OcrEngine::RapidOcr => {
+            vec![OcrLanguage::ChineseSimplified, OcrLanguage::English]
+        }
     }
 }
 
@@ -2865,10 +2867,10 @@ mod tests {
     }
 
     #[test]
-    fn auto_primary_language_prefers_chinese_model_for_mixed_text() {
+    fn auto_primary_languages_compare_chinese_and_english_models() {
         assert_eq!(
             build_primary_language_candidates(None, OcrEngine::Auto),
-            vec![OcrLanguage::ChineseSimplified]
+            vec![OcrLanguage::ChineseSimplified, OcrLanguage::English]
         );
     }
 
@@ -2884,6 +2886,28 @@ mod tests {
                 500.0,
                 1180.0,
                 36.0,
+            )],
+            engine: "rapidocr:zh".to_string(),
+            language: "zh".to_string(),
+        };
+
+        assert!(!should_retry_transformed_image(&result, 520.0));
+        assert!(!should_try_fallback_language_candidates(&result, 520.0));
+        assert!(!is_final_ocr_result_low_quality(&result, 520.0));
+    }
+
+    #[test]
+    fn high_confidence_readable_english_from_chinese_model_is_not_rejected() {
+        let result = OcrRecognizeResult {
+            full_text: "Screenshot OCR: After opening this page, you can use a keyboard shortcut to capture a screenshot and recognize the text in the image.".to_string(),
+            text: "Screenshot OCR: After opening this page, you can use a keyboard shortcut to capture a screenshot and recognize the text in the image.".to_string(),
+            confidence: 98.0,
+            blocks: vec![test_block(
+                "Screenshot OCR: After opening this page, you can use a keyboard shortcut to capture a screenshot and recognize the text in the image.",
+                20.0,
+                20.0,
+                1200.0,
+                40.0,
             )],
             engine: "rapidocr:zh".to_string(),
             language: "zh".to_string(),

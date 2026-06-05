@@ -245,6 +245,13 @@ const copyResult = async (text: string) => {
   }
 };
 
+const updateResultText = (result: TranslationResult, event: Event) => {
+  const target = event.target as HTMLElement | null;
+  if (target) {
+    result.text = target.innerText.trim();
+  }
+};
+
 // 朗读文本
 const speakText = (text: string, lang: string) => {
   if (!text) return;
@@ -569,28 +576,44 @@ onUnmounted(() => {
   <main class="translate-window">
     <div class="header" data-tauri-drag-region>
       <div class="left-buttons">
-        <div @click="togglePin" :class="['pin-button', isPinned ? 'pinned' : '']">
+        <button
+          type="button"
+          :title="$t('pin.pinWindow')"
+          @click="togglePin"
+          :class="['window-action', 'pin-button', isPinned ? 'pinned' : '']"
+        >
           <Pushpin :size="18" />
-        </div>
+        </button>
       </div>
-      <div class="bg-penal text-base" data-tauri-drag-region>{{ $t('translate.title') }}</div>
+      <div class="window-title" data-tauri-drag-region>{{ $t('translate.title') }}</div>
       <div class="right-buttons">
-        <div @click="closeWindow" class="material-close">
+        <button
+          type="button"
+          :title="$t('pin.close')"
+          @click="closeWindow"
+          class="window-action material-close"
+        >
           <CloseSmall :size="22" />
-        </div>
+        </button>
       </div>
     </div>
 
-    <div class="translate-container transparent-input">
+    <div class="translate-container">
       <!-- 语言选择区域 -->
       <div class="language-selector">
         <el-select v-model="sourceLanguage" size="small" @change="onSourceLanguageChange" class="lang-select">
           <el-option v-for="item in languageOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
 
-        <div size="small" @click="swapLanguages" class="swap-button">
+        <button
+          type="button"
+          :title="$t('translate.translateBack')"
+          :disabled="sourceLanguage === 'auto'"
+          @click="swapLanguages"
+          class="swap-button"
+        >
           <SwitchIcon :size="22" />
-        </div>
+        </button>
 
         <el-select v-model="targetLanguage" size="small" @change="onTargetLanguageChange" class="lang-select">
           <el-option v-for="item in languageOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -604,15 +627,15 @@ onUnmounted(() => {
         <div class="source-actions">
           <div class="source-material">
             <el-tooltip :content="$t('translate.speakText')" placement="top" :hide-after="1000">
-              <div @click="speakText(sourceText, sourceLanguage)" class="action-btn">
+              <button type="button" @click="speakText(sourceText, sourceLanguage)" class="action-btn">
                 <VolumeUp :size="18" />
-              </div>
+              </button>
             </el-tooltip>
             <el-tooltip v-if="showDeleteButton" :content="$t('translate.deleteText')" placement="top"
               :hide-after="1000">
-              <div @click="clearInput" class="action-btn">
+              <button type="button" @click="clearInput" class="action-btn">
                 <Delete :size="18" />
-              </div>
+              </button>
             </el-tooltip>
           </div>
         </div>
@@ -622,7 +645,7 @@ onUnmounted(() => {
       <div class="translation-results">
         <div v-for="result in availableResults" :key="result.engine" class="result-card"
           :class="{ 'result-expanded': result.expanded }">
-          <div class="result-header" @click="toggleExpand(result)">
+          <button type="button" class="result-header" @click="toggleExpand(result)">
             <div class="result-title">
               <img v-if="result.engine === 'google'" :src="googleIcon" class="engine-icon" alt="Google" />
               <img v-else-if="result.engine === 'bing'" :src="bingIcon" class="engine-icon" alt="Bing" />
@@ -632,32 +655,37 @@ onUnmounted(() => {
             <div class="result-controls">
               <component :is="result.expanded ? Up : Down" :size="18" class="expand-icon" />
             </div>
-          </div>
+          </button>
 
           <div v-if="result.expanded" class="result-body">
             <el-skeleton v-if="result.loading" :rows="3" animated />
-            <div v-else-if="result.text" class="result-text">
-              {{ result.text }}
-            </div>
+            <div
+              v-else-if="result.text"
+              class="result-text"
+              contenteditable="plaintext-only"
+              spellcheck="false"
+              v-text="result.text"
+              @blur="updateResultText(result, $event)"
+            ></div>
             <div v-else class="result-empty">{{ $t('translate.resultPlaceholder') }}</div>
 
             <div class="result-actions">
               <el-tooltip :content="$t('translate.speakText')" placement="top" :hide-after="1000">
-                <div @click="speakText(result.text, targetLanguage)" class="action-btn">
+                <button type="button" @click="speakText(result.text, targetLanguage)" class="action-btn">
                   <VolumeUp :size="18" />
-                </div>
+                </button>
               </el-tooltip>
 
               <el-tooltip :content="$t('translate.copyResult')" placement="top" :hide-after="1000">
-                <div @click="copyResult(result.text)" class="action-btn">
+                <button type="button" @click="copyResult(result.text)" class="action-btn">
                   <Copy :size="18" />
-                </div>
+                </button>
               </el-tooltip>
 
               <el-tooltip :content="$t('translate.translateBack')" placement="top" :hide-after="1000">
-                <div @click="translateBack(result)" class="action-btn rotate-icon">
+                <button type="button" @click="translateBack(result)" class="action-btn rotate-icon">
                   <SwitchIcon :size="18" />
-                </div>
+                </button>
               </el-tooltip>
             </div>
           </div>
@@ -669,25 +697,56 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .translate-window {
-  @apply w-full h-screen flex flex-col rounded-lg overflow-hidden;
+  @apply w-full h-screen flex flex-col overflow-hidden;
+
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
 }
 
 .header {
-  @apply relative select-none w-full flex justify-between items-center h-9 px-4 z-50;
+  @apply relative select-none w-full grid items-center z-50;
 
-  background-color: rgba(var(--categories-panel-bg-rgb), 0.9);
-  border-bottom: 1px solid rgba(var(--categories-border-color-rgb), 0.8);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
+  grid-template-columns: 1fr auto 1fr;
+  height: 40px;
+  padding: 0 8px;
+  background: color-mix(in srgb, var(--el-bg-color) 94%, transparent);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .left-buttons,
 .right-buttons {
-  @apply flex items-center gap-2 pt-1 z-10;
+  @apply flex items-center z-10;
+}
+
+.right-buttons {
+  justify-content: flex-end;
+}
+
+.window-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.window-action {
+  @apply flex items-center justify-center cursor-pointer;
+
+  width: 28px;
+  height: 28px;
+  color: var(--el-text-color-secondary);
+  border-radius: 4px;
+
+  &:hover {
+    color: var(--el-text-color-primary);
+    background: var(--el-fill-color-light);
+  }
 }
 
 .pin-button,
 .material-close {
-  @apply cursor-pointer text-content;
+  color: var(--el-text-color-secondary);
 }
 
 .pinned {
@@ -699,70 +758,118 @@ onUnmounted(() => {
 }
 
 .translate-container {
-  @apply flex flex-col flex-1 px-2 py-3 gap-3 overflow-y-auto bg-panel;
+  @apply flex flex-col flex-1 min-h-0 overflow-hidden;
+
+  background: var(--el-bg-color);
 }
 
 .language-selector {
-  @apply flex gap-3 items-center justify-between pt-1 bg-content rounded-md;
+  @apply flex flex-shrink-0 items-center justify-between;
+
+  gap: 8px;
+  min-height: 48px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .lang-select {
-  @apply h-full w-28;
+  flex: 1 1 0;
+  min-width: 0;
+
+  :deep(.el-select__wrapper) {
+    min-height: 32px;
+    background: var(--el-fill-color-lighter);
+    border-radius: 4px;
+    box-shadow: none;
+  }
 }
 
 .swap-button {
-  @apply flex items-center justify-center text-[var(--el-color-primary)] cursor-pointer;
+  @apply flex flex-shrink-0 items-center justify-center cursor-pointer;
+
+  width: 30px;
+  height: 30px;
+  color: var(--el-color-primary);
+  border-radius: 4px;
+
+  &:hover:not(:disabled) {
+    background: var(--el-fill-color-light);
+  }
+
+  &:disabled {
+    color: var(--el-text-color-placeholder);
+    cursor: not-allowed;
+  }
 }
 
 .source-area {
-  @apply relative rounded-md bg-[rgb(240,239,239)] dark:bg-content;
+  @apply relative flex-shrink-0;
 
-  box-shadow: 0 2px 10px rgb(0 0 0 / 5%);
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
 }
 
 .source-textarea {
   :deep(.el-textarea__inner) {
-    @apply p-3 rounded-md transition-all bg-transparent duration-300 ease-in-out resize-none border border-search;
+    min-height: 90px !important;
+    max-height: 150px;
+    padding: 10px;
+    color: var(--el-text-color-primary);
+    background: var(--el-fill-color-lighter);
+    border: 0;
+    border-radius: 4px;
+    box-shadow: none;
+    resize: none;
+
+    &:focus {
+      background: var(--el-fill-color-light);
+      box-shadow: inset 0 0 0 1px var(--el-color-primary-light-5);
+    }
   }
 }
 
 .source-actions {
-  @apply flex items-center justify-between px-2 py-1;
+  @apply flex items-center justify-end;
 
-  /* position: absolute;
-  bottom: 8px;
-  left: 8px; */
+  min-height: 30px;
+  padding-top: 4px;
 }
 
 .source-material {
-  @apply flex items-center gap-2 rounded-md;
+  @apply flex items-center gap-1;
 }
 
 .translation-results {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-1 min-h-0 flex-col overflow-y-auto;
 }
 
 .result-card {
   overflow: hidden;
-  background-color: var(--el-bg-color-overlay);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 5%);
-  transition: all 0.3s ease;
-}
-
-.result-expanded {
-  box-shadow: 0 4px 16px rgb(0 0 0 / 10%);
+  flex: 0 0 auto;
+  background: transparent;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .result-header {
-  @apply flex items-center justify-between cursor-pointer px-3 py-1 bg-content transition-colors duration-200 hover:bg-[var(--el-fill-color)];
+  @apply flex w-full items-center justify-between cursor-pointer;
+
+  min-height: 42px;
+  padding: 8px 12px;
+  color: var(--el-text-color-primary);
+  background: transparent;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: var(--el-fill-color-lighter);
+  }
 }
 
 .result-title {
-  @apply flex items-center gap-2 py-[2px] text-[15px] text-xs text-[var(--el-text-color-primary)];
+  @apply flex min-w-0 items-center gap-2;
+
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .engine-icon {
@@ -770,7 +877,10 @@ onUnmounted(() => {
 }
 
 .offline-icon {
-  @apply w-4 h-4 flex items-center justify-center text-xs bg-green-500 text-white rounded;
+  @apply w-4 h-4 flex items-center justify-center text-xs text-white;
+
+  background: #21834a;
+  border-radius: 3px;
 }
 
 .result-controls {
@@ -782,26 +892,70 @@ onUnmounted(() => {
 }
 
 .result-body {
-  @apply border-t border-[var(--el-border-color-lighter)] p-[6px];
+  padding: 0 12px 10px;
 }
 
 .result-text {
-  @apply max-h-32 overflow-y-auto whitespace-pre-wrap break-words text-[15px] text-[var(--el-text-color-primary)] py-[2px];
+  min-height: 66px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  color: var(--el-text-color-primary);
+  background: var(--el-fill-color-lighter);
+  border-radius: 4px;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+
+  &:focus {
+    background: var(--el-fill-color-light);
+    box-shadow: inset 0 0 0 1px var(--el-color-primary-light-5);
+  }
 }
 
 .result-empty {
-  @apply text-[var(--el-text-color-secondary)] min-h-16 flex items-center justify-center italic;
+  @apply min-h-16 flex items-center justify-center;
+
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
 }
 
 .result-actions {
-  @apply flex justify-end gap-2 mt-1;
+  @apply flex justify-end gap-1;
+
+  padding-top: 5px;
 }
 
 .action-btn {
-  @apply flex items-center justify-center text-[var(--el-color-primary)] hover:bg-content dark:hover:bg-zinc-800 px-1 rounded-md cursor-pointer;
+  @apply flex items-center justify-center cursor-pointer;
+
+  width: 28px;
+  height: 28px;
+  color: var(--el-text-color-secondary);
+  border-radius: 4px;
+
+  &:hover {
+    color: var(--el-color-primary);
+    background: var(--el-fill-color-light);
+  }
 }
 
 .rotate-icon {
   transform: rotate(90deg);
+}
+
+@media (max-height: 560px) {
+  .source-textarea :deep(.el-textarea__inner) {
+    min-height: 70px !important;
+    max-height: 100px;
+  }
+
+  .result-text {
+    min-height: 52px;
+    max-height: 120px;
+  }
 }
 </style>

@@ -116,6 +116,49 @@ describe('OcrLayoutReflow', () => {
     ])
   })
 
+  it('keeps solid-circle list markers as separate records', () => {
+    const result = texts([
+      block('● GitHub https://github.com/hiroi-sora/Umi-OCR/releases/latest', 0, 0, 420),
+      block('● Source Forge https://sourceforge.net/projects/umi-ocr', 0, 26, 360),
+      block('● Lanzou https://hiroi-sora.lanzoul.com/s/umi-ocr', 0, 52, 350)
+    ])
+
+    expect(result).toEqual([
+      '● GitHub https://github.com/hiroi-sora/Umi-OCR/releases/latest',
+      '● Source Forge https://sourceforge.net/projects/umi-ocr',
+      '● Lanzou https://hiroi-sora.lanzoul.com/s/umi-ocr'
+    ])
+  })
+
+  it('keeps an arrow-dot list item separate from the following title', () => {
+    const result = texts([
+      block('→· Scoop Installer (Click to expand)', 0, 0, 280),
+      block('Getting Started', 0, 26, 140)
+    ])
+
+    expect(result).toEqual(['→· Scoop Installer (Click to expand)', 'Getting Started'])
+  })
+
+  it('splits the collapsed download-list reproduction into distinct records', () => {
+    const result = texts([
+      block(
+        '● GitHub https://github.com/hiroi-sora/Umi-OCR/releases/latest ● Source Forge https://sourceforge.net/projects/umi-ocr ● Lanzou https://hiroi-sora.lanzoul.com/s/umi-ocr →· Scoop Installer (Click to expand) Getting Started',
+        0,
+        0,
+        920,
+        90
+      )
+    ])
+
+    expect(result).toEqual([
+      '● GitHub https://github.com/hiroi-sora/Umi-OCR/releases/latest',
+      '● Source Forge https://sourceforge.net/projects/umi-ocr',
+      '● Lanzou https://hiroi-sora.lanzoul.com/s/umi-ocr',
+      '→· Scoop Installer (Click to expand)',
+      'Getting Started'
+    ])
+  })
+
   it('orders vertical layout from right column to left column', () => {
     const result = texts([
       block('右一', 120, 0, 22, 70),

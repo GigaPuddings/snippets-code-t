@@ -993,6 +993,9 @@ export default {
     saveFailed: 'Failed to save',
     translateSuccess: 'Translated successfully',
     translateFailed: 'Failed to translate',
+    sourceText: 'Source',
+    selectedText: 'Selected Text',
+    translationResult: 'Translation',
     viewResult: 'View Result'
   },
 
