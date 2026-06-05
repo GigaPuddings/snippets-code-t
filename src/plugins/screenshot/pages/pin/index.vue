@@ -168,15 +168,15 @@
                   @load="updateOcrPreviewImageMetrics"
                 />
                 <div
-                  v-if="selectedOverlayBlocks.length > 0"
+                  v-if="ocrSelectionRects.length > 0"
                   class="ocr-selection-highlight-layer"
                   aria-hidden="true"
                 >
                   <span
-                    v-for="block in selectedOverlayBlocks"
-                    :key="`selected-${block.id}`"
+                    v-for="rect in ocrSelectionRects"
+                    :key="rect.id"
                     class="ocr-selection-highlight"
-                    :style="getOcrSelectionHighlightStyle(block)"
+                    :style="getOcrSelectionHighlightStyle(rect)"
                   ></span>
                 </div>
                 <div
@@ -187,8 +187,6 @@
                     v-for="block in ocrSelectableBlocks"
                     :key="block.id"
                     class="ocr-overlay-block"
-                    :class="{ 'range-selected': selectedOverlayBlockIds.has(block.id) }"
-                    :data-overlay-id="block.id"
                     :style="getOcrOverlayStyle(block)"
                     v-text="block.text.trim()"
                   ></span>
@@ -538,7 +536,7 @@ const initialWindowSize = ref({ width: 0, height: 0 });
 
 const showOriginalImage = ref(false);
 const showOcrRecordPane = ref(false);
-const selectedOverlayBlockIds = ref(new Set<string>());
+const ocrSelectionRects = ref<OcrSelectionRect[]>([]);
 
 const isTranslating = ref(false);
 const showTranslateMenu = ref(false);
@@ -565,6 +563,14 @@ interface OcrRecord {
 type OcrSelectableBlock = PinOcrTextBlock & {
   id: string
   recordId: string
+}
+
+interface OcrSelectionRect {
+  id: string
+  left: number
+  top: number
+  width: number
+  height: number
 }
 
 const translateEngines = computed(() => [
@@ -691,10 +697,6 @@ const ocrSelectableBlocks = computed<OcrSelectableBlock[]>(() =>
   )
 );
 
-const selectedOverlayBlocks = computed(() =>
-  ocrSelectableBlocks.value.filter((block) => selectedOverlayBlockIds.value.has(block.id))
-);
-
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
 
 const getRecordDisplayText = (record: OcrRecord): string => {
@@ -743,27 +745,12 @@ const getOcrOverlayStyle = (block: OcrSelectableBlock): CSSProperties => {
   };
 };
 
-const getOcrSelectionHighlightStyle = (block: OcrSelectableBlock): CSSProperties => {
-  if (!hasBlockGeometry(block)) {
-    return {};
-  }
-
-  const paddingX = Math.max(block.height * 0.12, 1);
-  const paddingY = Math.max(block.height * 0.08, 1);
-  const left = clampPercent(((block.x - paddingX) / imageWidth.value) * 100);
-  const top = clampPercent(((block.y - paddingY) / imageHeight.value) * 100);
-  const right = clampPercent(
-    ((block.x + block.width + paddingX) / imageWidth.value) * 100
-  );
-  const bottom = clampPercent(
-    ((block.y + block.height + paddingY) / imageHeight.value) * 100
-  );
-
+const getOcrSelectionHighlightStyle = (rect: OcrSelectionRect): CSSProperties => {
   return {
-    left: `${left}%`,
-    top: `${top}%`,
-    width: `${Math.max(0, right - left)}%`,
-    height: `${Math.max(0, bottom - top)}%`
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`
   };
 };
 
@@ -853,7 +840,7 @@ const updateImageData = (base64Data: string) => {
   imageWidth.value = 0;
   imageHeight.value = 0;
   ocrPreviewImageSize.value = { width: 0, height: 0 };
-  selectedOverlayBlockIds.value = new Set();
+  ocrSelectionRects.value = [];
   initialWindowSize.value = { width: 0, height: 0 };
   if (mode.value === 'ocr') {
     ocrFileName.value = formatOcrFileName();
@@ -1684,33 +1671,45 @@ const handleClickOutside = (event: MouseEvent) => {
 
 const handleOcrSelectionChange = () => {
   if (mode.value !== 'ocr') {
-    selectedOverlayBlockIds.value = new Set();
+    ocrSelectionRects.value = [];
     return;
   }
 
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-    selectedOverlayBlockIds.value = new Set();
+    ocrSelectionRects.value = [];
     return;
   }
 
   const range = selection.getRangeAt(0);
   const surface = containerRef.value?.querySelector('.ocr-reading-surface');
   if (!surface || !surface.contains(range.commonAncestorContainer)) {
-    selectedOverlayBlockIds.value = new Set();
+    ocrSelectionRects.value = [];
     return;
   }
 
-  const selectedIds = new Set<string>();
-  surface.querySelectorAll<HTMLElement>('.ocr-overlay-block[data-overlay-id]').forEach((element) => {
-    if (range.intersectsNode(element)) {
-      const overlayId = element.dataset.overlayId;
-      if (overlayId) {
-        selectedIds.add(overlayId);
-      }
-    }
-  });
-  selectedOverlayBlockIds.value = selectedIds;
+  const previewStage = surface.querySelector<HTMLElement>('.ocr-preview-stage');
+  if (!previewStage) {
+    ocrSelectionRects.value = [];
+    return;
+  }
+
+  const stageRect = previewStage.getBoundingClientRect();
+  ocrSelectionRects.value = Array.from(range.getClientRects())
+    .map((rect, index) => {
+      const left = Math.max(rect.left, stageRect.left);
+      const top = Math.max(rect.top, stageRect.top);
+      const right = Math.min(rect.right, stageRect.right);
+      const bottom = Math.min(rect.bottom, stageRect.bottom);
+      return {
+        id: `${index}-${left}-${top}-${right}-${bottom}`,
+        left: left - stageRect.left,
+        top: top - stageRect.top,
+        width: right - left,
+        height: bottom - top
+      };
+    })
+    .filter((rect) => rect.width > 0.5 && rect.height > 0.5);
 };
 
 const handleKeydown = (event: KeyboardEvent): void => {
@@ -2144,10 +2143,6 @@ onUnmounted(() => {
         &.selected {
           background: transparent;
           outline: 0;
-        }
-
-        &.range-selected {
-          background: transparent;
         }
 
         &::selection {
