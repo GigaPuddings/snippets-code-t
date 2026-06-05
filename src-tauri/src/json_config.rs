@@ -115,7 +115,7 @@ impl Default for AppConfig {
             update_info: None,
             translation_engine: Some("bing".to_string()),
             ocr_engine: Some("auto".to_string()),
-            ocr_language: Some("zh".to_string()),
+            ocr_language: Some("auto".to_string()),
             offline_model_activated: Some(false),
             show_progress_on_restart: Some(false),
             show_progress_reset_kind: Some(String::new()),
@@ -131,6 +131,16 @@ impl Default for AppConfig {
             dark_mode_config: None,
             workspace_root: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_config_defaults_to_auto_ocr_language() {
+        assert_eq!(AppConfig::default().ocr_language.as_deref(), Some("auto"));
     }
 }
 

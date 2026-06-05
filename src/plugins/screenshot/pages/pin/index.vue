@@ -310,7 +310,7 @@
             {{ showOcrRecordPane ? hideRecordsLabel : showRecordsLabel }}
           </span>
         </CustomButton>
-        <div class="translate-btn-group relative">
+        <div ref="translateMenuAnchorRef" class="translate-btn-group relative">
           <CustomButton
             class="ocr-action-btn translate-main"
             type="text"
@@ -342,7 +342,11 @@
             <Down size="17" theme="outline" :strokeWidth="2.8" />
           </CustomButton>
           <!-- 翻译引擎菜单 -->
-          <div v-if="showTranslateMenu" class="translate-menu">
+          <div
+            v-if="showTranslateMenu"
+            class="translate-menu ocr-floating-menu"
+            :style="translateMenuStyle"
+          >
             <div
               v-for="engine in translateEngines"
               :key="engine.value"
@@ -360,7 +364,7 @@
             </div>
           </div>
         </div>
-        <div class="ocr-engine-btn-group relative">
+        <div ref="ocrLanguageMenuAnchorRef" class="ocr-engine-btn-group relative">
           <CustomButton
             class="ocr-action-btn ocr-engine-main"
             type="text"
@@ -379,7 +383,11 @@
           >
             <Down size="14" theme="outline" :strokeWidth="3" />
           </CustomButton>
-          <div v-if="showOcrLanguageMenu" class="ocr-engine-menu">
+          <div
+            v-if="showOcrLanguageMenu"
+            class="ocr-engine-menu ocr-floating-menu"
+            :style="ocrLanguageMenuStyle"
+          >
             <div
               v-for="language in ocrLanguages"
               :key="language.value"
@@ -592,8 +600,12 @@ let ocrOverlayPointerId: number | null = null;
 
 const isTranslating = ref(false);
 const showTranslateMenu = ref(false);
+const translateMenuAnchorRef = ref<HTMLElement>();
+const translateMenuStyle = ref<CSSProperties>({});
 const currentTranslateEngine = ref<'google' | 'bing' | 'offline'>('bing');
 const showOcrLanguageMenu = ref(false);
+const ocrLanguageMenuAnchorRef = ref<HTMLElement>();
+const ocrLanguageMenuStyle = ref<CSSProperties>({});
 type OcrLanguageValue = 'auto' | 'zh' | 'zh-tw' | 'en' | 'ja' | 'ko';
 const currentOcrLanguage = ref<OcrLanguageValue>('auto');
 
@@ -690,6 +702,38 @@ const translateWithFallback = (key: string, zhText: string, enText: string): str
     return translated;
   }
   return String(locale.value).toLowerCase().startsWith('zh') ? zhText : enText;
+};
+
+const updateFloatingMenuStyle = (
+  anchor: HTMLElement | undefined,
+  target: typeof translateMenuStyle
+) => {
+  if (!anchor) {
+    target.value = {};
+    return;
+  }
+
+  const rect = anchor.getBoundingClientRect();
+  const estimatedMenuWidth = 180;
+  const viewportPadding = 8;
+  const left = Math.min(
+    Math.max(rect.left + rect.width / 2, viewportPadding + estimatedMenuWidth / 2),
+    window.innerWidth - viewportPadding - estimatedMenuWidth / 2
+  );
+
+  target.value = {
+    left: `${left}px`,
+    bottom: `${Math.max(8, window.innerHeight - rect.top + 8)}px`
+  };
+};
+
+const updateFloatingMenuStyles = () => {
+  if (showTranslateMenu.value) {
+    updateFloatingMenuStyle(translateMenuAnchorRef.value, translateMenuStyle);
+  }
+  if (showOcrLanguageMenu.value) {
+    updateFloatingMenuStyle(ocrLanguageMenuAnchorRef.value, ocrLanguageMenuStyle);
+  }
 };
 
 const backendOcrLanguage = computed<OcrLanguageValue>(() => {
@@ -1376,9 +1420,13 @@ const handleSelectionTranslationInput = (event: Event) => {
   ocrSelectionTranslation.value.translatedText = target.innerText.trim();
 };
 
-const toggleTranslateMenu = () => {
+const toggleTranslateMenu = async () => {
   showTranslateMenu.value = !showTranslateMenu.value;
   showOcrLanguageMenu.value = false;
+  if (showTranslateMenu.value) {
+    await nextTick();
+    updateFloatingMenuStyles();
+  }
 };
 
 const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline') => {
@@ -1390,9 +1438,13 @@ const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline') => {
   });
 };
 
-const toggleOcrLanguageMenu = () => {
+const toggleOcrLanguageMenu = async () => {
   showOcrLanguageMenu.value = !showOcrLanguageMenu.value;
   showTranslateMenu.value = false;
+  if (showOcrLanguageMenu.value) {
+    await nextTick();
+    updateFloatingMenuStyles();
+  }
 };
 
 const selectOcrLanguage = (language: OcrLanguageValue) => {
@@ -1850,7 +1902,12 @@ const handleMouseDown = async (event: MouseEvent) => {
 
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
-  if (!target.closest('.context-menu') && !target.closest('.ocr-engine-btn-group')) {
+  if (
+    !target.closest('.context-menu') &&
+    !target.closest('.ocr-engine-btn-group') &&
+    !target.closest('.translate-btn-group') &&
+    !target.closest('.ocr-floating-menu')
+  ) {
     closeContextMenu();
   }
 };
@@ -2118,6 +2175,8 @@ onMounted(async () => {
   document.addEventListener('click', handleClickOutside);
   document.addEventListener('keydown', handleKeydown, true);
   document.addEventListener('contextmenu', globalContextMenuHandler, true);
+  window.addEventListener('resize', updateFloatingMenuStyles);
+  window.addEventListener('scroll', updateFloatingMenuStyles, true);
   window.addEventListener('blur', closeContextMenu);
 
   if (document.body) {
@@ -2140,6 +2199,8 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeydown, true);
   document.removeEventListener('contextmenu', globalContextMenuHandler, true);
+  window.removeEventListener('resize', updateFloatingMenuStyles);
+  window.removeEventListener('scroll', updateFloatingMenuStyles, true);
   window.removeEventListener('blur', closeContextMenu);
   ocrPreviewResizeObserver?.disconnect();
   ocrPreviewResizeObserver = null;
@@ -2664,6 +2725,14 @@ onUnmounted(() => {
           min-width: 130px;
           border-color: var(--panel-border);
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+          &.ocr-floating-menu {
+            position: fixed;
+            top: auto;
+            right: auto;
+            transform: translateX(-50%);
+            z-index: 9999;
+          }
 
           .menu-item {
             @apply px-3 py-1.5 mx-1.5 my-0.5 rounded-md hover:bg-panel-hover-bg cursor-pointer text-sm flex items-center justify-between whitespace-nowrap transition-colors;

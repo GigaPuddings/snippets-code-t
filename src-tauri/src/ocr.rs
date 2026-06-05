@@ -2913,8 +2913,19 @@ mod tests {
             language: "zh".to_string(),
         };
 
-        assert!(!should_retry_transformed_image(&result, 520.0));
-        assert!(!should_try_fallback_language_candidates(&result, 520.0));
-        assert!(!is_final_ocr_result_low_quality(&result, 520.0));
+        let script_penalized_score = 47.83;
+
+        assert!(!should_retry_transformed_image(
+            &result,
+            script_penalized_score
+        ));
+        assert!(!should_try_fallback_language_candidates(
+            &result,
+            script_penalized_score
+        ));
+        assert!(!is_final_ocr_result_low_quality(
+            &result,
+            script_penalized_score
+        ));
     }
 }
