@@ -907,6 +907,31 @@ fn run_rapidocr_candidate_set(
         }
     }
 
+    if language_hint.is_none() {
+        if let Some((preserved_language, preserved_result, preserved_score, reason)) =
+            select_cjk_preserving_auto_result(&successful_candidates, best_result.as_ref())
+        {
+            append_ocr_log(
+                log_path,
+                "backend",
+                "RapidOCR CJK-preserving auto result selected",
+                Some(&format!(
+                    "language={}, previous_language={}, previous_score={:.2}, preserved_score={:.2}, reason={}",
+                    preserved_language.label(),
+                    best_result
+                        .as_ref()
+                        .map(|result| result.language.as_str())
+                        .unwrap_or("unknown"),
+                    best_score,
+                    preserved_score,
+                    reason
+                )),
+            );
+            best_result = Some(preserved_result);
+            best_score = preserved_score;
+        }
+    }
+
     if let Some(mut result) = best_result {
         if language_hint.is_none() {
             merge_mixed_script_blocks(&mut result, &successful_candidates, log_path);
@@ -939,6 +964,106 @@ fn run_rapidocr_candidate_set(
     );
     append_ocr_log(log_path, "backend", "RapidOCR sidecar failed", Some(&error));
     Err(error)
+}
+
+fn select_cjk_preserving_auto_result(
+    candidates: &[(OcrLanguage, OcrRecognizeResult, f64)],
+    best_result: Option<&OcrRecognizeResult>,
+) -> Option<(OcrLanguage, OcrRecognizeResult, f64, String)> {
+    let best_result = best_result?;
+    let best_language = OcrLanguage::from_label(&best_result.language).ok()?;
+    if best_language != OcrLanguage::English || reliable_cjk_char_count(best_result) > 0 {
+        return None;
+    }
+
+    candidates
+        .iter()
+        .filter(|(language, result, score)| {
+            matches!(
+                language,
+                OcrLanguage::ChineseSimplified
+                    | OcrLanguage::ChineseTraditional
+                    | OcrLanguage::Japanese
+            ) && is_cjk_preserving_auto_candidate(result, *score, best_result)
+        })
+        .max_by(
+            |(_, left_result, left_score), (_, right_result, right_score)| {
+                cjk_preserving_candidate_rank(left_result, *left_score)
+                    .partial_cmp(&cjk_preserving_candidate_rank(right_result, *right_score))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            },
+        )
+        .map(|(language, result, score)| {
+            (
+                *language,
+                result.clone(),
+                *score,
+                format!(
+                    "reliable_cjk={}, confidence={:.2}, score={:.2}",
+                    reliable_cjk_char_count(result),
+                    result.confidence,
+                    score
+                ),
+            )
+        })
+}
+
+fn is_cjk_preserving_auto_candidate(
+    result: &OcrRecognizeResult,
+    score: f64,
+    best_result: &OcrRecognizeResult,
+) -> bool {
+    if reliable_cjk_char_count(result) < 2 {
+        return false;
+    }
+    if !has_comparable_text_coverage(result, best_result) {
+        return false;
+    }
+    let best_confidence = best_result.confidence.clamp(0.0, 100.0);
+    if result.confidence < 82.0 || result.confidence + 10.0 < best_confidence {
+        return false;
+    }
+    if score < 140.0 {
+        return false;
+    }
+
+    let language = OcrLanguage::from_label(&result.language).unwrap_or(OcrLanguage::English);
+    let breakdown = score_ocr_result_breakdown(result, language);
+    breakdown.garbage_penalty + breakdown.latin_gibberish_penalty < 120.0
+}
+
+fn has_comparable_text_coverage(
+    result: &OcrRecognizeResult,
+    best_result: &OcrRecognizeResult,
+) -> bool {
+    let best_chars = non_whitespace_char_count(&best_result.full_text);
+    if best_chars < 24 {
+        return true;
+    }
+
+    let candidate_chars = non_whitespace_char_count(&result.full_text);
+    let comparable_chars = candidate_chars as f64 >= best_chars as f64 * 0.55;
+    let comparable_blocks = result.blocks.len() * 100 >= best_result.blocks.len().max(1) * 55;
+    comparable_chars || comparable_blocks
+}
+
+fn non_whitespace_char_count(text: &str) -> usize {
+    text.chars().filter(|ch| !ch.is_whitespace()).count()
+}
+
+fn cjk_preserving_candidate_rank(result: &OcrRecognizeResult, score: f64) -> f64 {
+    reliable_cjk_char_count(result) as f64 * 100.0
+        + result.confidence.clamp(0.0, 100.0) * 2.0
+        + score
+}
+
+fn reliable_cjk_char_count(result: &OcrRecognizeResult) -> usize {
+    result
+        .blocks
+        .iter()
+        .filter(|block| block.confidence >= 72.0)
+        .map(|block| script_stats(&block.text).cjk_count)
+        .sum()
 }
 
 fn merge_mixed_script_blocks(
@@ -2966,6 +3091,130 @@ mod tests {
             build_primary_language_candidates(None, OcrEngine::Auto),
             vec![OcrLanguage::ChineseSimplified, OcrLanguage::English]
         );
+    }
+
+    #[test]
+    fn auto_result_preserves_cjk_candidate_over_higher_scoring_english() {
+        let en_result = OcrRecognizeResult {
+            full_text: "If you need to manually switch languages, please refer to the following figure, itit - i##/Language".to_string(),
+            text: "If you need to manually switch languages, please refer to the following figure, itit - i##/Language".to_string(),
+            confidence: 98.4,
+            blocks: vec![test_block(
+                "If you need to manually switch languages, please refer to the following figure, itit - i##/Language",
+                40.0,
+                500.0,
+                1180.0,
+                36.0,
+            )],
+            engine: "rapidocr:en".to_string(),
+            language: "en".to_string(),
+        };
+        let zh_result = OcrRecognizeResult {
+            full_text: "If you need to manually switch languages, please refer to the following figure, 全局设置 → 语言/Language".to_string(),
+            text: "If you need to manually switch languages, please refer to the following figure, 全局设置 → 语言/Language".to_string(),
+            confidence: 98.2,
+            blocks: vec![test_block(
+                "If you need to manually switch languages, please refer to the following figure, 全局设置 → 语言/Language",
+                40.0,
+                500.0,
+                1180.0,
+                36.0,
+            )],
+            engine: "rapidocr:zh".to_string(),
+            language: "zh".to_string(),
+        };
+
+        let selected = select_cjk_preserving_auto_result(
+            &[
+                (OcrLanguage::English, en_result.clone(), 965.79),
+                (OcrLanguage::ChineseSimplified, zh_result, 524.77),
+            ],
+            Some(&en_result),
+        )
+        .expect("trusted CJK candidate should be preserved");
+
+        assert_eq!(selected.0, OcrLanguage::ChineseSimplified);
+        assert!(selected.1.full_text.contains("全局设置"));
+    }
+
+    #[test]
+    fn auto_result_keeps_english_when_cjk_candidate_has_no_cjk() {
+        let en_result = OcrRecognizeResult {
+            full_text: "Getting Started".to_string(),
+            text: "Getting Started".to_string(),
+            confidence: 99.0,
+            blocks: vec![test_block("Getting Started", 20.0, 20.0, 260.0, 40.0)],
+            engine: "rapidocr:en".to_string(),
+            language: "en".to_string(),
+        };
+        let zh_result = OcrRecognizeResult {
+            full_text: "Getting Started".to_string(),
+            text: "Getting Started".to_string(),
+            confidence: 96.0,
+            blocks: vec![test_block("Getting Started", 20.0, 20.0, 260.0, 40.0)],
+            engine: "rapidocr:zh".to_string(),
+            language: "zh".to_string(),
+        };
+
+        assert!(select_cjk_preserving_auto_result(
+            &[
+                (OcrLanguage::English, en_result.clone(), 400.0),
+                (OcrLanguage::ChineseSimplified, zh_result, 220.0),
+            ],
+            Some(&en_result),
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn auto_result_does_not_replace_page_with_tiny_cjk_fragment() {
+        let en_result = OcrRecognizeResult {
+            full_text: "Getting Started\nThe software release package is available in .7z compressed format.\nIf you need to manually switch languages, please refer to the following figure, itit - i##/Language".to_string(),
+            text: "Getting Started\nThe software release package is available in .7z compressed format.\nIf you need to manually switch languages, please refer to the following figure, itit - i##/Language".to_string(),
+            confidence: 98.0,
+            blocks: vec![
+                test_block("Getting Started", 20.0, 20.0, 260.0, 40.0),
+                test_block(
+                    "The software release package is available in .7z compressed format.",
+                    20.0,
+                    90.0,
+                    800.0,
+                    36.0,
+                ),
+                test_block(
+                    "If you need to manually switch languages, please refer to the following figure, itit - i##/Language",
+                    20.0,
+                    160.0,
+                    1200.0,
+                    36.0,
+                ),
+            ],
+            engine: "rapidocr:en".to_string(),
+            language: "en".to_string(),
+        };
+        let zh_fragment = OcrRecognizeResult {
+            full_text: "全局设置 → 语言/Language".to_string(),
+            text: "全局设置 → 语言/Language".to_string(),
+            confidence: 98.0,
+            blocks: vec![test_block(
+                "全局设置 → 语言/Language",
+                920.0,
+                160.0,
+                250.0,
+                36.0,
+            )],
+            engine: "rapidocr:zh".to_string(),
+            language: "zh".to_string(),
+        };
+
+        assert!(select_cjk_preserving_auto_result(
+            &[
+                (OcrLanguage::English, en_result.clone(), 880.0),
+                (OcrLanguage::ChineseSimplified, zh_fragment, 240.0),
+            ],
+            Some(&en_result),
+        )
+        .is_none());
     }
 
     #[test]
