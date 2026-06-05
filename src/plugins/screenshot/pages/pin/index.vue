@@ -218,7 +218,7 @@
                 </div>
                 <div class="ocr-translation-section result">
                   <span class="ocr-translation-label">
-                    {{ $t('pin.translationResult') }}
+                    {{ translationResultLabel }}
                   </span>
                   <div
                     class="ocr-selection-translation-editor"
@@ -263,7 +263,7 @@
                 </div>
                 <div v-if="record.translatedText" class="ocr-record-translation">
                   <span class="ocr-translation-label">
-                    {{ $t('pin.translationResult') }}
+                    {{ translationResultLabel }}
                   </span>
                   <div
                     class="ocr-record-editor translated"
@@ -694,6 +694,10 @@ const showRecordsLabel = computed(() =>
 
 const hideRecordsLabel = computed(() =>
   translateWithFallback('pin.hideRecords', '隐藏记录', 'Hide Records')
+);
+
+const translationResultLabel = computed(() =>
+  translateWithFallback('pin.translationResult', '译文', 'Translation')
 );
 
 const translateWithFallback = (key: string, zhText: string, enText: string): string => {
@@ -2613,16 +2617,18 @@ onUnmounted(() => {
       }
 
       .ocr-record-translation {
-        display: grid;
-        grid-template-columns: 46px minmax(0, 1fr);
-        gap: 10px;
+        display: block;
         margin-top: 8px;
-        padding: 8px 10px 8px 0;
+        padding: 8px 10px 10px;
         background: color-mix(in srgb, var(--ocr-panel-hover-bg) 48%, transparent);
 
         .ocr-translation-label {
-          padding-top: 4px;
-          text-align: right;
+          margin-bottom: 4px;
+          text-align: left;
+        }
+
+        .ocr-record-editor {
+          min-width: 0;
         }
       }
 
@@ -2667,12 +2673,7 @@ onUnmounted(() => {
         }
 
         .ocr-record-translation {
-          grid-template-columns: minmax(0, 1fr);
-
-          .ocr-translation-label {
-            padding-top: 0;
-            text-align: left;
-          }
+          padding-inline: 8px;
         }
       }
     }

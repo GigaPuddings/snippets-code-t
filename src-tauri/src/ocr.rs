@@ -1023,7 +1023,9 @@ fn find_mixed_script_replacement<'a>(
             }
 
             let overlap = block_overlap_ratio(block, candidate_block);
-            if overlap < 0.58 {
+            let same_line_tail =
+                is_same_line_tail_mixed_script_candidate(block, candidate_block, overlap);
+            if overlap < 0.58 && !same_line_tail {
                 continue;
             }
             let replacement_text = if candidate_block.text.trim().chars().count() + 8
@@ -1033,18 +1035,57 @@ fn find_mixed_script_replacement<'a>(
             } else {
                 candidate_block.text.trim().to_string()
             };
+            let match_score = if same_line_tail {
+                overlap.max(0.57 + vertical_overlap_ratio(block, candidate_block) * 0.2)
+            } else {
+                overlap
+            };
 
             if best
                 .as_ref()
-                .map(|(_, _, best_overlap)| overlap > *best_overlap)
+                .map(|(_, _, best_overlap)| match_score > *best_overlap)
                 .unwrap_or(true)
             {
-                best = Some((*language, replacement_text, overlap));
+                best = Some((*language, replacement_text, match_score));
             }
         }
     }
 
     best
+}
+
+fn is_same_line_tail_mixed_script_candidate(
+    base: &OcrTextBlock,
+    candidate: &OcrTextBlock,
+    overlap: f64,
+) -> bool {
+    if overlap >= 0.58 {
+        return true;
+    }
+    if !looks_like_inline_cjk_ocr_garbage(&base.text) {
+        return false;
+    }
+    if vertical_overlap_ratio(base, candidate) < 0.46 {
+        return false;
+    }
+
+    let base_right = base.x + base.width;
+    let candidate_center_x = candidate.x + candidate.width * 0.5;
+    candidate_center_x > base.x + base.width * 0.45
+        && candidate.x <= base_right + base.line_height.max(base.height).max(16.0) * 8.0
+}
+
+fn looks_like_inline_cjk_ocr_garbage(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    if !(lower.contains("language") || lower.contains("setting")) {
+        return false;
+    }
+
+    lower.contains("##")
+        || lower.contains("#/")
+        || lower.contains("/#")
+        || lower.contains("i#")
+        || lower.contains("itit")
 }
 
 fn merge_inline_mixed_script_text(base: &OcrTextBlock, candidate: &OcrTextBlock) -> String {
@@ -1198,6 +1239,15 @@ fn block_overlap_ratio(left: &OcrTextBlock, right: &OcrTextBlock) -> f64 {
     let intersection_height = (intersection_bottom - intersection_top).max(0.0);
     let intersection_area = intersection_width * intersection_height;
     intersection_area / left_area.min(right_area)
+}
+
+fn vertical_overlap_ratio(left: &OcrTextBlock, right: &OcrTextBlock) -> f64 {
+    let left_height = left.height.max(left.line_height).max(1.0);
+    let right_height = right.height.max(right.line_height).max(1.0);
+    let intersection_top = left.y.max(right.y);
+    let intersection_bottom = (left.y + left_height).min(right.y + right_height);
+    let intersection_height = (intersection_bottom - intersection_top).max(0.0);
+    intersection_height / left_height.min(right_height)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -2834,6 +2884,50 @@ mod tests {
         assert!(result.full_text.ends_with("Language."));
         assert!(!result.full_text.contains("iii"));
         assert!(!result.full_text.contains("i#/Language"));
+    }
+
+    #[test]
+    fn mixed_script_merge_uses_same_line_tail_cjk_candidate() {
+        let mut result = OcrRecognizeResult {
+            full_text: "If you need to manually switch languages, please refer to the following figure, itit - i##/Language".to_string(),
+            text: "If you need to manually switch languages, please refer to the following figure, itit - i##/Language".to_string(),
+            confidence: 95.0,
+            blocks: vec![test_block(
+                "If you need to manually switch languages, please refer to the following figure, itit - i##/Language",
+                40.0,
+                500.0,
+                860.0,
+                36.0,
+            )],
+            engine: "rapidocr:en".to_string(),
+            language: "en".to_string(),
+        };
+        let zh_result = OcrRecognizeResult {
+            full_text: "全局设置 → 语言/Language".to_string(),
+            text: "全局设置 → 语言/Language".to_string(),
+            confidence: 98.0,
+            blocks: vec![test_block(
+                "全局设置 → 语言/Language",
+                930.0,
+                501.0,
+                250.0,
+                34.0,
+            )],
+            engine: "rapidocr:zh".to_string(),
+            language: "zh".to_string(),
+        };
+        let log_path = std::env::temp_dir().join("snippets_ocr_mixed_script_test.log");
+
+        merge_mixed_script_blocks(
+            &mut result,
+            &[(OcrLanguage::ChineseSimplified, zh_result, 900.0)],
+            &log_path,
+        );
+
+        assert!(result.full_text.contains("following figure, 全局设置"));
+        assert!(result.full_text.ends_with("Language"));
+        assert!(!result.full_text.contains("itit"));
+        assert!(!result.full_text.contains("i##/Language"));
     }
 
     #[test]
