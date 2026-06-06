@@ -892,28 +892,7 @@ pub fn open_wallpaper_switcher_window() {
 }
 
 pub fn open_wallpaper_wallhaven_window() {
-    let Some(app) = get_app_handle_or_log("open_wallpaper_wallhaven_window") else {
-        return;
-    };
-    if let Err(error) = crate::app_config::require_plugin_enabled(app, "wallpaper-switcher") {
-        warn!("open_wallpaper_wallhaven_window: {}", error);
-        return;
-    }
-
-    let spec = WindowSpec {
-        label: "wallpaper_wallhaven",
-        url: "/#/wallpaper-wallhaven",
-        title: "Wallhaven 壁纸",
-        width: 860.0,
-        height: 640.0,
-        resizable: false,
-        transparent: true,
-        shadow: false,
-        always_on_top: false,
-        ready_event: None,
-    };
-
-    let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
+    open_wallpaper_switcher_window();
 }
 
 fn open_dynamic_plugin_window(label: &str) -> Result<(), String> {

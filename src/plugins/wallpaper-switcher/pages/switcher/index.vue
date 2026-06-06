@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -7,23 +6,32 @@ import modal from '@/utils/modal';
 import {
   clearWallpaperCache,
   defaultWallpaperConfig,
+  downloadWallhavenWallpaper,
+  fetchWallhaven,
   getWallpaperConfig,
   getWallpaperStatus,
   saveWallpaperConfig,
   scanWallpaperFolder,
   setFixedWallpaper,
+  setWallhavenWallpaper,
   switchWallpaperNow,
   wallpaperImageSrc,
   type FolderScanResult,
+  type WallhavenSource,
+  type WallhavenWallpaper,
   type WallpaperConfig,
   type WallpaperStatus
 } from '../../api';
 import {
+  Back,
   CloseSmall,
+  Computer,
+  Download,
   FolderOpen,
   GridFour,
   Lightning,
   Picture,
+  PreviewOpen,
   Refresh,
   Save,
   Search,
@@ -38,6 +46,20 @@ const folderScan = ref<FolderScanResult | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 const switching = ref(false);
+const activeView = ref<'switcher' | 'wallhaven'>('switcher');
+const wallpapers = ref<WallhavenWallpaper[]>([]);
+const wallhavenPage = ref(1);
+const wallhavenLastPage = ref(1);
+const wallhavenLoading = ref(false);
+const wallhavenLoaded = ref(false);
+const wallhavenKeyword = ref('');
+const wallhavenCategory = ref('general');
+const wallhavenSource = ref<WallhavenSource>('hot');
+const previewWallpaper = ref<WallhavenWallpaper | null>(null);
+const workingIds = ref(new Set<string>());
+const loadedThumbIds = ref(new Set<string>());
+const thumbElements = new Map<string, HTMLImageElement>();
+let thumbObserver: IntersectionObserver | null = null;
 let unlistenChanged: UnlistenFn | null = null;
 let unlistenError: UnlistenFn | null = null;
 
@@ -67,6 +89,9 @@ const folderCountLabel = computed(() => {
   if (!folderScan.value) return '检测到 128 张可用图片';
   return `检测到 ${folderScan.value.count} 张可用图片`;
 });
+const wallhavenScreenLabel = computed(() => '2560×1440');
+const wallhavenSourceLabel = computed(() => (wallhavenSource.value === 'hot' ? 'Hot' : 'Toplist'));
+const visibleWallpapers = computed(() => wallpapers.value.slice(0, 8));
 
 const loadAll = async () => {
   loading.value = true;
@@ -180,11 +205,140 @@ const setCurrentAsFixed = async () => {
 };
 
 const openWallhavenGrid = async () => {
+  wallhavenKeyword.value = config.value.wallhavenQuery ?? '';
+  wallhavenCategory.value = config.value.wallhavenCategory || 'general';
+  wallhavenSource.value = config.value.wallhavenSource;
+  activeView.value = 'wallhaven';
+  if (!wallhavenLoaded.value) {
+    await fetchWallhavenData(1);
+  }
+};
+
+const backToSwitcher = async () => {
+  activeView.value = 'switcher';
+  previewWallpaper.value = null;
+  await refreshStatus();
+};
+
+const setWorking = (id: string, working: boolean) => {
+  const next = new Set(workingIds.value);
+  if (working) {
+    next.add(id);
+  } else {
+    next.delete(id);
+  }
+  workingIds.value = next;
+};
+
+const markThumbLoaded = (id: string) => {
+  const next = new Set(loadedThumbIds.value);
+  next.add(id);
+  loadedThumbIds.value = next;
+};
+
+const setThumbRef = (wallpaper: WallhavenWallpaper, element: unknown) => {
+  if (!(element instanceof HTMLImageElement)) {
+    thumbElements.delete(wallpaper.id);
+    return;
+  }
+  thumbElements.set(wallpaper.id, element);
+  if (!thumbObserver) {
+    element.src = wallpaper.thumbs.large;
+    return;
+  }
+  element.dataset.src = wallpaper.thumbs.large;
+  thumbObserver.observe(element);
+};
+
+const resetThumbLoading = () => {
+  loadedThumbIds.value = new Set();
+  thumbElements.clear();
+};
+
+const persistWallhavenPrefs = async () => {
+  config.value.wallhavenQuery = wallhavenKeyword.value.trim() || null;
+  config.value.wallhavenCategory = wallhavenCategory.value;
+  config.value.wallhavenSource = wallhavenSource.value;
+  config.value.mode = 'wallhaven';
   await saveWallpaperConfig(config.value);
-  await invoke('show_hide_window_command', {
-    label: 'wallpaper_wallhaven',
-    context: null
-  });
+};
+
+const fetchWallhavenData = async (targetPage = wallhavenPage.value) => {
+  wallhavenLoading.value = true;
+  try {
+    await persistWallhavenPrefs();
+    const result = await fetchWallhaven({
+      source: wallhavenSource.value,
+      page: targetPage,
+      query: wallhavenKeyword.value.trim() || null,
+      category: wallhavenCategory.value
+    });
+    resetThumbLoading();
+    wallpapers.value = result.data;
+    wallhavenPage.value = result.page;
+    wallhavenLastPage.value = Math.max(1, result.lastPage);
+    wallhavenLoaded.value = true;
+    await nextTick();
+    for (const image of thumbElements.values()) {
+      if (thumbObserver) {
+        thumbObserver.observe(image);
+      }
+    }
+  } catch (error) {
+    modal.msg(String(error), 'error');
+  } finally {
+    wallhavenLoading.value = false;
+  }
+};
+
+const refreshWallhaven = () => fetchWallhavenData(1);
+
+const setWallhavenSource = async (next: WallhavenSource) => {
+  wallhavenSource.value = next;
+  await fetchWallhavenData(1);
+};
+
+const setWallhavenCategory = async (next: string) => {
+  wallhavenCategory.value = next;
+  await fetchWallhavenData(1);
+};
+
+const setWallpaperFromWallhaven = async (wallpaper: WallhavenWallpaper) => {
+  setWorking(wallpaper.id, true);
+  try {
+    modal.msg('正在设置壁纸...', 'info');
+    await setWallhavenWallpaper(wallpaper);
+    await refreshStatus();
+    modal.msg('壁纸已设置', 'success');
+  } catch (error) {
+    modal.msg(String(error), 'error');
+  } finally {
+    setWorking(wallpaper.id, false);
+  }
+};
+
+const downloadWallpaperFromWallhaven = async (wallpaper: WallhavenWallpaper) => {
+  setWorking(wallpaper.id, true);
+  try {
+    modal.msg('正在下载壁纸...', 'info');
+    await downloadWallhavenWallpaper(wallpaper);
+    await refreshStatus();
+    modal.msg('壁纸已下载到缓存', 'success');
+  } catch (error) {
+    modal.msg(String(error), 'error');
+  } finally {
+    setWorking(wallpaper.id, false);
+  }
+};
+
+const prevWallhavenPage = async () => {
+  if (wallhavenPage.value <= 1) return;
+  await fetchWallhavenData(wallhavenPage.value - 1);
+};
+
+const nextWallhavenPage = async () => {
+  if (wallhavenPage.value >= wallhavenLastPage.value) return;
+  await fetchWallhavenData(wallhavenPage.value + 1);
 };
 
 const clearCache = async () => {
@@ -209,6 +363,20 @@ const formatBytes = (value: number): string => {
 };
 
 onMounted(async () => {
+  thumbObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const image = entry.target as HTMLImageElement;
+        const src = image.dataset.src;
+        if (src && image.src !== src) {
+          image.src = src;
+        }
+        thumbObserver?.unobserve(image);
+      }
+    },
+    { root: null, rootMargin: '120px' }
+  );
   await loadAll();
   unlistenChanged = await listen('wallpaper-switcher-changed', refreshStatus);
   unlistenError = await listen<{ message?: string }>('wallpaper-switcher-error', (event) => {
@@ -217,6 +385,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  thumbObserver?.disconnect();
+  thumbObserver = null;
   unlistenChanged?.();
   unlistenError?.();
 });
@@ -225,14 +395,29 @@ onUnmounted(() => {
 <template>
   <main class="wallpaper-window">
     <header class="titlebar" data-tauri-drag-region>
-      <div class="title">
+      <div v-if="activeView === 'switcher'" class="title">
         <Picture :size="20" />
         <span>壁纸切换</span>
       </div>
-      <div class="window-actions">
+      <div v-else class="title">
+        <button type="button" class="flat-icon" title="返回" @click="backToSwitcher">
+          <Back :size="22" />
+        </button>
+        <span>Wallhaven 壁纸</span>
+      </div>
+      <div v-if="activeView === 'switcher'" class="window-actions">
         <button type="button" class="icon-btn" title="打开在线网格" @click="openWallhavenGrid">
           <GridFour :size="19" />
         </button>
+        <button type="button" class="icon-btn" title="关闭" @click="closeWindow">
+          <CloseSmall :size="22" />
+        </button>
+      </div>
+      <div v-else class="window-actions">
+        <div class="source-toggle">
+          <button type="button" :class="{ active: wallhavenSource === 'hot' }" @click="setWallhavenSource('hot')">热门</button>
+          <button type="button" :class="{ active: wallhavenSource === 'toplist' }" @click="setWallhavenSource('toplist')">排行榜</button>
+        </div>
         <button type="button" class="icon-btn" title="关闭" @click="closeWindow">
           <CloseSmall :size="22" />
         </button>
@@ -243,7 +428,7 @@ onUnmounted(() => {
       当前系统暂不支持桌面壁纸切换。此插件当前仅支持 Windows。
     </section>
 
-    <div class="content" :class="{ dimmed: loading }">
+    <div v-if="activeView === 'switcher'" class="content" :class="{ dimmed: loading }">
       <section class="top-panel">
         <div class="preview">
           <img v-if="previewSrc" :src="previewSrc" alt="当前壁纸预览" />
@@ -410,6 +595,103 @@ onUnmounted(() => {
         </div>
       </footer>
     </div>
+
+    <div v-else class="wallhaven-view">
+      <section class="filters">
+        <div class="search-box">
+          <input v-model="wallhavenKeyword" type="search" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
+          <button type="button" title="搜索" @click="refreshWallhaven">
+            <Search :size="18" />
+          </button>
+        </div>
+        <label class="resolution">
+          <span>分辨率</span>
+          <strong>自动匹配 {{ wallhavenScreenLabel }}</strong>
+        </label>
+        <div class="chips">
+          <button type="button" :class="{ active: wallhavenCategory === 'general' }" @click="setWallhavenCategory('general')">通用</button>
+          <button type="button" :class="{ active: wallhavenCategory === 'anime' }" @click="setWallhavenCategory('anime')">动漫</button>
+          <button type="button" :class="{ active: wallhavenCategory === 'people' }" @click="setWallhavenCategory('people')">人物</button>
+        </div>
+        <label class="source-select">
+          <span>源</span>
+          <select v-model="wallhavenSource" @change="refreshWallhaven">
+            <option value="hot">Hot</option>
+            <option value="toplist">Toplist</option>
+          </select>
+        </label>
+        <button type="button" class="refresh-btn" title="刷新" @click="refreshWallhaven">
+          <Refresh :size="18" :class="{ spinning: wallhavenLoading }" />
+        </button>
+      </section>
+
+      <section class="grid-wrap">
+        <div v-if="wallhavenLoading && visibleWallpapers.length === 0" class="empty-state">正在加载 Wallhaven 壁纸...</div>
+        <div v-else-if="visibleWallpapers.length === 0" class="empty-state">暂无可用壁纸</div>
+        <div v-else class="wallpaper-grid">
+          <article
+            v-for="wallpaper in visibleWallpapers"
+            :key="wallpaper.id"
+            class="wallpaper-card"
+            @click="previewWallpaper = wallpaper"
+          >
+            <div class="thumb">
+              <div v-if="!loadedThumbIds.has(wallpaper.id)" class="thumb-skeleton"></div>
+              <img
+                :ref="(element) => setThumbRef(wallpaper, element)"
+                :alt="wallpaper.resolution"
+                loading="lazy"
+                @load="markThumbLoaded(wallpaper.id)"
+              />
+              <span>{{ wallpaper.resolution }}</span>
+            </div>
+            <div class="card-actions" @click.stop>
+              <button type="button" title="预览" @click="previewWallpaper = wallpaper">
+                <PreviewOpen :size="16" />
+                预览
+              </button>
+              <button type="button" title="设为壁纸" :disabled="workingIds.has(wallpaper.id)" @click="setWallpaperFromWallhaven(wallpaper)">
+                <Computer :size="16" />
+                {{ workingIds.has(wallpaper.id) ? '设置中' : '设为' }}
+              </button>
+              <button type="button" title="下载" :disabled="workingIds.has(wallpaper.id)" @click="downloadWallpaperFromWallhaven(wallpaper)">
+                <Download :size="16" />
+                下载
+              </button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <footer class="pager">
+        <span>第 {{ wallhavenPage }} 页</span>
+        <span class="source-note">来源：{{ wallhavenSourceLabel }} · SFW</span>
+        <div class="pager-actions">
+          <button type="button" :disabled="wallhavenPage <= 1 || wallhavenLoading" @click="prevWallhavenPage">上一页</button>
+          <button type="button" :disabled="wallhavenPage >= wallhavenLastPage || wallhavenLoading" @click="nextWallhavenPage">下一页</button>
+        </div>
+      </footer>
+    </div>
+
+    <div v-if="previewWallpaper" class="preview-modal" @click.self="previewWallpaper = null">
+      <div class="preview-dialog">
+        <header>
+          <strong>{{ previewWallpaper.resolution }}</strong>
+          <button type="button" class="flat-icon" @click="previewWallpaper = null">
+            <CloseSmall :size="23" />
+          </button>
+        </header>
+        <img :src="previewWallpaper.path" alt="壁纸预览" />
+        <footer>
+          <button type="button" class="secondary-btn" :disabled="workingIds.has(previewWallpaper.id)" @click="downloadWallpaperFromWallhaven(previewWallpaper)">
+            下载缓存
+          </button>
+          <button type="button" class="primary-btn" :disabled="workingIds.has(previewWallpaper.id)" @click="setWallpaperFromWallhaven(previewWallpaper)">
+            {{ workingIds.has(previewWallpaper.id) ? '设置中' : '设为壁纸' }}
+          </button>
+        </footer>
+      </div>
+    </div>
   </main>
 </template>
 
@@ -443,7 +725,8 @@ onUnmounted(() => {
   }
 
   button,
-  input {
+  input,
+  select {
     font: inherit;
   }
 }
@@ -466,6 +749,14 @@ onUnmounted(() => {
 .rules-line,
 .switch-label,
 .checkbox-label,
+.filters,
+.chips,
+.source-toggle,
+.card-actions,
+.pager,
+.pager-actions,
+.preview-dialog header,
+.preview-dialog footer,
 .tool-btn,
 .primary-btn,
 .secondary-btn {
@@ -489,6 +780,7 @@ onUnmounted(() => {
 }
 
 .icon-btn,
+.flat-icon,
 .tool-btn,
 .primary-btn,
 .secondary-btn {
@@ -509,9 +801,21 @@ onUnmounted(() => {
   }
 }
 
+.flat-icon {
+  width: 34px;
+  height: 34px;
+  color: var(--wallpaper-text);
+  background: transparent;
+  border: 0;
+
+  &:hover {
+    background: #f3f7fd;
+  }
+}
+
 .content {
   display: grid;
-  grid-template-rows: 150px 180px 92px 56px;
+  grid-template-rows: 150px 190px 104px 54px;
   gap: 8px;
   height: calc(100vh - 48px);
   min-height: 0;
@@ -640,7 +944,8 @@ button:disabled {
 
 .settings-card {
   min-height: 0;
-  padding: 9px 12px 8px;
+  padding: 8px 12px;
+  overflow: hidden;
 }
 
 .form-row {
@@ -648,7 +953,7 @@ button:disabled {
   grid-template-columns: 106px minmax(0, 1fr) 86px 86px;
   gap: 7px;
   align-items: center;
-  min-height: 36px;
+  min-height: 34px;
 }
 
 .mode-row {
@@ -657,8 +962,8 @@ button:disabled {
 
 .wallhaven-row {
   grid-template-columns: 106px 54px 348px minmax(154px, 1fr);
-  padding-top: 6px;
-  margin-top: 6px;
+  padding-top: 5px;
+  margin-top: 5px;
   border-top: 1px solid var(--wallpaper-border);
 }
 
@@ -702,7 +1007,7 @@ button:disabled {
   gap: 16px;
   padding-left: 113px;
   font-size: 13px;
-  min-height: 17px;
+  min-height: 16px;
 }
 
 .segmented {
@@ -757,10 +1062,11 @@ button:disabled {
 
 .rules-card {
   min-height: 0;
-  padding: 10px 12px;
+  padding: 9px 12px;
+  overflow: hidden;
 
   h2 {
-    margin: 0 0 7px;
+    margin: 0 0 8px;
     font-size: 15px;
     font-weight: 700;
   }
@@ -768,7 +1074,7 @@ button:disabled {
 
 .rules-line {
   gap: 9px;
-  min-height: 34px;
+  min-height: 32px;
 }
 
 .switch-label,
@@ -779,7 +1085,7 @@ button:disabled {
 
 .switch-label input,
 .checkbox-label input {
-  accent-color: var(--search-result-accent);
+  accent-color: var(--wallpaper-primary);
 }
 
 .switch-label input {
@@ -840,6 +1146,7 @@ button:disabled {
   justify-content: space-between;
   min-height: 0;
   padding: 8px 12px;
+  overflow: hidden;
 }
 
 .cache-info {
@@ -849,5 +1156,357 @@ button:disabled {
 
 .footer-actions {
   gap: 12px;
+}
+
+.source-toggle {
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
+
+  button {
+    width: 82px;
+    height: 32px;
+    color: var(--wallpaper-text);
+    background: transparent;
+    border: 0;
+    border-right: 1px solid var(--wallpaper-border);
+    cursor: pointer;
+
+    &:last-child {
+      border-right: 0;
+    }
+
+    &.active {
+      color: var(--wallpaper-primary);
+      background: var(--wallpaper-primary-soft);
+      box-shadow: inset 0 0 0 1px var(--wallpaper-primary);
+    }
+  }
+}
+
+.wallhaven-view {
+  display: grid;
+  grid-template-rows: 58px minmax(0, 1fr) 58px;
+  height: calc(100vh - 48px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.filters {
+  gap: 8px;
+  height: 58px;
+  padding: 10px 14px;
+  overflow: hidden;
+}
+
+.search-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  width: 214px;
+  height: 34px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
+
+  input {
+    min-width: 0;
+    padding: 0 12px;
+    color: var(--wallpaper-text);
+    background: transparent;
+    border: 0;
+    outline: none;
+  }
+
+  button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--wallpaper-text);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+
+    &:hover {
+      background: #f3f7fd;
+    }
+  }
+}
+
+.resolution,
+.source-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+
+  span {
+    color: var(--wallpaper-muted);
+  }
+}
+
+.resolution strong,
+.source-select select {
+  height: 34px;
+  padding: 0 12px;
+  font-weight: 500;
+  color: var(--wallpaper-text);
+  background: #fff;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
+}
+
+.resolution strong {
+  display: inline-flex;
+  align-items: center;
+  width: 154px;
+}
+
+.chips {
+  overflow: hidden;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
+
+  button {
+    width: 60px;
+    height: 34px;
+    color: var(--wallpaper-text);
+    background: transparent;
+    border: 0;
+    border-right: 1px solid var(--wallpaper-border);
+    cursor: pointer;
+
+    &:last-child {
+      border-right: 0;
+    }
+
+    &.active {
+      color: var(--wallpaper-primary);
+      background: var(--wallpaper-primary-soft);
+      box-shadow: inset 0 0 0 1px var(--wallpaper-primary);
+    }
+  }
+}
+
+.source-select select {
+  width: 132px;
+}
+
+.refresh-btn {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--wallpaper-text);
+  background: transparent;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
+  cursor: pointer;
+
+  &:hover {
+    background: #f3f7fd;
+  }
+}
+
+.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+.grid-wrap {
+  min-height: 0;
+  padding: 0 14px;
+  overflow: hidden;
+}
+
+.wallpaper-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.wallpaper-card {
+  overflow: hidden;
+  background: var(--wallpaper-panel);
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1.36;
+  overflow: hidden;
+  background: var(--wallpaper-soft);
+  border: 0;
+
+  img {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+  }
+
+  img[src] {
+    opacity: 1;
+  }
+
+  span {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    z-index: 2;
+    padding: 3px 7px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    background: rgb(0 0 0 / 62%);
+    border-radius: 4px;
+  }
+}
+
+.thumb-skeleton {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent, rgb(255 255 255 / 54%), transparent),
+    #edf3fb;
+  background-size: 180% 100%;
+  animation: shimmer 1.1s linear infinite;
+}
+
+.card-actions {
+  height: 34px;
+
+  button {
+    display: flex;
+    flex: 1;
+    gap: 5px;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--wallpaper-text);
+    background: transparent;
+    border: 0;
+    border-right: 1px solid var(--wallpaper-border);
+    cursor: pointer;
+
+    &:last-child {
+      border-right: 0;
+    }
+
+    &:hover:not(:disabled) {
+      color: var(--wallpaper-primary);
+      background: #f3f7fd;
+    }
+
+    &:disabled {
+      cursor: wait;
+      opacity: 0.72;
+    }
+  }
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--wallpaper-muted);
+}
+
+.pager {
+  justify-content: space-between;
+  height: 58px;
+  padding: 0 20px;
+}
+
+.source-note {
+  color: var(--wallpaper-muted);
+}
+
+.pager-actions {
+  gap: 12px;
+
+  button {
+    width: 88px;
+    height: 34px;
+    color: var(--wallpaper-text);
+    background: transparent;
+    border: 1px solid var(--wallpaper-border);
+    border-radius: 8px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      color: var(--wallpaper-primary);
+      background: #f3f7fd;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+  }
+}
+
+.preview-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(15 23 42 / 34%);
+}
+
+.preview-dialog {
+  width: min(720px, calc(100vw - 56px));
+  overflow: hidden;
+  background: var(--wallpaper-panel);
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
+  box-shadow: 0 18px 42px rgb(15 23 42 / 18%);
+
+  header,
+  footer {
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 12px 0 16px;
+  }
+
+  img {
+    display: block;
+    width: 100%;
+    max-height: min(430px, calc(100vh - 160px));
+    object-fit: contain;
+    background: #111827;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -180% 0;
+  }
 }
 </style>

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "wallpaper-switcher",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.wallpaperSwitcher.name",
@@ -15,12 +15,10 @@
   "enabledByDefault": true,
   "capabilities": {
     "routeNames": [
-      "WallpaperSwitcher",
-      "WallpaperWallhaven"
+      "WallpaperSwitcher"
     ],
     "windows": [
-      "wallpaper_switcher",
-      "wallpaper_wallhaven"
+      "wallpaper_switcher"
     ],
     "hotkeys": [
       "wallpaper_switcher"
@@ -35,11 +33,11 @@
   "compatibleAppVersion": ">=2.1.9",
   "minAppVersion": "2.1.9",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher/releases/tag/2.0.4",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher/releases/tag/2.0.5",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-YuVQSbFf.css"
+      "dist/assets/runtime-entry-Bp49uNfg.css"
     ]
   }
 }

@@ -6,7 +6,7 @@ export const wallpaperSwitcherPlugin: BuiltinPlugin = {
   descriptionKey: 'plugins.wallpaperSwitcher.description',
   category: 'appearance',
   enabledByDefault: true,
-  routeNames: ['WallpaperSwitcher', 'WallpaperWallhaven'],
+  routeNames: ['WallpaperSwitcher'],
   hotkeys: ['wallpaper_switcher'],
   trayItems: ['wallpaper_switcher']
 };
