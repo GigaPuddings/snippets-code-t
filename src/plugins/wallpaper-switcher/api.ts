@@ -1,4 +1,6 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { appCacheDir, join } from '@tauri-apps/api/path';
+import { openPath } from '@tauri-apps/plugin-opener';
 
 export type WallpaperMode = 'fixed' | 'folder' | 'wallhaven';
 export type WallpaperOrder = 'random' | 'sequential';
@@ -125,5 +127,24 @@ export const downloadWallhavenWallpaper = (
 export const clearWallpaperCache = (): Promise<void> =>
   invoke('wallpaper_clear_cache');
 
-export const openWallpaperCacheDir = (): Promise<void> =>
-  invoke('wallpaper_open_cache_dir');
+const isCommandNotFound = (error: unknown, command: string): boolean =>
+  new RegExp(`Command\\s+${command}\\s+not\\s+found`, 'i').test(String(error));
+
+export const openWallpaperCacheDir = async (): Promise<void> => {
+  try {
+    await invoke('wallpaper_open_cache_dir');
+    return;
+  } catch (error) {
+    if (!isCommandNotFound(error, 'wallpaper_open_cache_dir')) {
+      throw error;
+    }
+  }
+
+  const appCache = await appCacheDir();
+  const wallpaperCache = await join(appCache, 'wallpaper-switcher');
+  try {
+    await openPath(wallpaperCache);
+  } catch {
+    await openPath(appCache);
+  }
+};
