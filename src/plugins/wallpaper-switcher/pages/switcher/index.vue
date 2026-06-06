@@ -98,6 +98,27 @@ const wallhavenScreenLabel = computed(() => '2560×1440');
 const wallhavenSourceLabel = computed(() => (wallhavenSource.value === 'hot' ? 'Hot' : 'Toplist'));
 const visibleWallpapers = computed(() => wallpapers.value.slice(0, 8));
 
+const normalizeWallhavenKeyword = (keyword: string): string => {
+  const value = keyword.trim();
+  const lower = value.toLocaleLowerCase();
+  if (['natural', 'naturally', 'nature', '自然', '风景'].includes(lower)) return 'nature';
+  if (['landscape', 'scenery'].includes(lower)) return 'nature landscape';
+  return value;
+};
+
+const wallhavenRequestQuery = computed(() => {
+  const keyword = normalizeWallhavenKeyword(wallhavenKeyword.value);
+  if (wallhavenCategory.value === 'nature') {
+    return keyword ? `${keyword} nature` : 'nature';
+  }
+  return keyword || null;
+});
+
+const wallhavenRequestCategory = computed(() => {
+  if (wallhavenCategory.value === 'nature') return 'general';
+  return wallhavenCategory.value;
+});
+
 const loadAll = async () => {
   loading.value = true;
   try {
@@ -296,8 +317,8 @@ const fetchWallhavenData = async (targetPage = wallhavenPage.value) => {
     const result = await fetchWallhaven({
       source: wallhavenSource.value,
       page: targetPage,
-      query: wallhavenKeyword.value.trim() || null,
-      category: wallhavenCategory.value
+      query: wallhavenRequestQuery.value,
+      category: wallhavenRequestCategory.value
     });
     resetThumbLoading();
     wallpapers.value = result.data;
@@ -656,6 +677,7 @@ onUnmounted(() => {
           <button type="button" :class="{ active: wallhavenCategory === 'general' }" @click="setWallhavenCategory('general')">通用</button>
           <button type="button" :class="{ active: wallhavenCategory === 'anime' }" @click="setWallhavenCategory('anime')">动漫</button>
           <button type="button" :class="{ active: wallhavenCategory === 'people' }" @click="setWallhavenCategory('people')">人物</button>
+          <button type="button" :class="{ active: wallhavenCategory === 'nature' }" @click="setWallhavenCategory('nature')">自然</button>
         </div>
         <label class="source-select">
           <span>源</span>
@@ -1119,7 +1141,6 @@ button:disabled {
     &.active {
       color: var(--wallpaper-primary);
       background: var(--wallpaper-active);
-      box-shadow: inset 0 0 0 1px var(--wallpaper-border-strong);
     }
   }
 }
@@ -1278,7 +1299,6 @@ button:disabled {
     &.active {
       color: var(--wallpaper-primary);
       background: var(--wallpaper-active);
-      box-shadow: inset 0 0 0 1px var(--wallpaper-border-strong);
     }
   }
 }
@@ -1301,7 +1321,7 @@ button:disabled {
 .search-box {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 36px;
-  width: 214px;
+  width: 188px;
   height: 34px;
   overflow: hidden;
   background: var(--wallpaper-input);
@@ -1358,7 +1378,7 @@ button:disabled {
 .resolution strong {
   display: inline-flex;
   align-items: center;
-  width: 154px;
+  width: 132px;
 }
 
 .chips {
@@ -1367,7 +1387,7 @@ button:disabled {
   border-radius: 8px;
 
   button {
-    width: 60px;
+    width: 54px;
     height: 34px;
     color: var(--wallpaper-text);
     background: transparent;
@@ -1382,13 +1402,12 @@ button:disabled {
     &.active {
       color: var(--wallpaper-primary);
       background: var(--wallpaper-active);
-      box-shadow: inset 0 0 0 1px var(--wallpaper-border-strong);
     }
   }
 }
 
 .source-select select {
-  width: 132px;
+  width: 108px;
 }
 
 .refresh-btn {

@@ -625,6 +625,30 @@ fn category_bits(category: Option<&str>) -> &'static str {
     }
 }
 
+fn normalize_wallhaven_query(query: Option<String>, category: Option<&str>) -> Option<String> {
+    let keyword = query
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| {
+            let lower = value.to_ascii_lowercase();
+            match lower.as_str() {
+                "natural" | "naturally" | "nature" => "nature".to_string(),
+                "landscape" | "scenery" => "nature landscape".to_string(),
+                _ => value.to_string(),
+            }
+        });
+
+    if category == Some("nature") {
+        return Some(match keyword {
+            Some(value) if !value.eq_ignore_ascii_case("nature") => format!("{} nature", value),
+            _ => "nature".to_string(),
+        });
+    }
+
+    keyword
+}
+
 fn wallhaven_sorting(source: &WallhavenSource) -> &'static str {
     match source {
         WallhavenSource::Hot => "hot",
@@ -800,6 +824,8 @@ async fn fetch_wallhaven_page(
     require_enabled(app_handle)?;
     let (screen_width, screen_height) = screen_size(app_handle);
     let page = params.page.unwrap_or(1).clamp(1, MAX_WALLHAVEN_PAGES);
+    let category = params.category.as_deref();
+    let request_query = normalize_wallhaven_query(params.query.clone(), category);
     let mut query = vec![
         (
             "sorting".to_string(),
@@ -808,7 +834,7 @@ async fn fetch_wallhaven_page(
         ("purity".to_string(), "100".to_string()),
         (
             "categories".to_string(),
-            category_bits(params.category.as_deref()).to_string(),
+            category_bits(category).to_string(),
         ),
         (
             "atleast".to_string(),
@@ -816,12 +842,7 @@ async fn fetch_wallhaven_page(
         ),
         ("page".to_string(), page.to_string()),
     ];
-    if let Some(keyword) = params
-        .query
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
+    if let Some(keyword) = request_query.as_deref() {
         query.push(("q".to_string(), keyword.to_string()));
     }
     info!(
@@ -829,10 +850,8 @@ async fn fetch_wallhaven_page(
         params.source,
         page,
         params.category,
-        params.query
+        request_query
             .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
             .unwrap_or("<empty>"),
         screen_width,
         screen_height
