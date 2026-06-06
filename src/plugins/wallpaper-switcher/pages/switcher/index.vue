@@ -753,15 +753,17 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .wallpaper-window {
-  --wallpaper-bg: #fbfcff;
-  --wallpaper-panel: #ffffff;
-  --wallpaper-soft: #f3f7fd;
-  --wallpaper-border: #d9e2ef;
-  --wallpaper-border-strong: #c9d5e5;
-  --wallpaper-text: #111827;
-  --wallpaper-muted: #7b8798;
-  --wallpaper-primary: #5f74f3;
-  --wallpaper-primary-soft: #eef3ff;
+  --wallpaper-bg: var(--search-bg-color, #fbfcff);
+  --wallpaper-panel: var(--search-card-bg, #ffffff);
+  --wallpaper-soft: var(--search-soft-bg, #f6f9fe);
+  --wallpaper-border: var(--search-border-color, #d9e2ef);
+  --wallpaper-border-strong: var(--search-result-active-border, #c9d8ff);
+  --wallpaper-hover: var(--search-result-hover, #f3f7ff);
+  --wallpaper-active: var(--search-result-active, #edf4ff);
+  --wallpaper-text: var(--search-text-color, #111827);
+  --wallpaper-muted: var(--search-info-text-color, #7b8494);
+  --wallpaper-primary: var(--search-result-accent, #5f74f3);
+  --wallpaper-input: var(--search-input-bg, #fbfcff);
 
   width: 100vw;
   height: 100vh;
@@ -772,7 +774,7 @@ onUnmounted(() => {
   background: var(--wallpaper-bg);
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
-  box-shadow: 0 10px 24px rgb(15 23 42 / 8%);
+  box-shadow: 0 8px 20px rgb(15 23 42 / 6%);
 
   *,
   *::before,
@@ -793,7 +795,7 @@ onUnmounted(() => {
   justify-content: space-between;
   height: 48px;
   padding: 0 14px 0 20px;
-  background: rgb(255 255 255 / 78%);
+  background: var(--wallpaper-bg);
   border-bottom: 1px solid var(--wallpaper-border);
 }
 
@@ -822,7 +824,7 @@ onUnmounted(() => {
 
 .title {
   gap: 10px;
-  color: #0f172a;
+  color: var(--wallpaper-text);
   font-size: 15px;
   font-weight: 700;
 
@@ -849,23 +851,23 @@ onUnmounted(() => {
 .icon-btn {
   width: 36px;
   height: 36px;
-  color: #111827;
+  color: var(--wallpaper-text);
   background: transparent;
 
   &:hover {
-    background: #f3f7fd;
+    background: var(--wallpaper-hover);
   }
 }
 
 .online-entry-btn {
   color: var(--wallpaper-primary);
-  background: var(--wallpaper-primary-soft);
-  border-color: #cdd8ff;
+  background: var(--wallpaper-active);
+  border-color: var(--wallpaper-border-strong);
 
   &:hover {
-    color: #5368e8;
-    background: #e8efff;
-    border-color: #aebcff;
+    color: var(--wallpaper-primary);
+    background: var(--wallpaper-hover);
+    border-color: var(--wallpaper-border-strong);
   }
 }
 
@@ -877,14 +879,14 @@ onUnmounted(() => {
   border: 0;
 
   &:hover {
-    background: #f3f7fd;
+    background: var(--wallpaper-hover);
   }
 }
 
 .content {
   display: grid;
-  grid-template-rows: 154px 224px 114px 52px;
-  gap: 8px;
+  grid-template-rows: 138px 238px 120px 42px;
+  gap: 10px;
   height: calc(100vh - 48px);
   min-height: 0;
   padding: 12px 20px 12px;
@@ -915,7 +917,7 @@ onUnmounted(() => {
 .preview {
   height: 100%;
   overflow: hidden;
-  background: #f3f7fd;
+  background: var(--wallpaper-soft);
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
 
@@ -947,10 +949,10 @@ onUnmounted(() => {
 
 .status-panel {
   min-height: 0;
-  padding: 10px 12px;
+  padding: 8px 12px;
 
   h2 {
-    margin: 0 0 8px;
+    margin: 0 0 5px;
     font-size: 15px;
     font-weight: 700;
   }
@@ -960,7 +962,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 78px minmax(0, 1fr);
   gap: 8px;
-  margin-bottom: 5px;
+  margin-bottom: 3px;
 
   span {
     color: var(--wallpaper-muted);
@@ -973,7 +975,12 @@ onUnmounted(() => {
 
 .status-actions {
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 5px;
+
+  .primary-btn,
+  .secondary-btn {
+    height: 32px;
+  }
 }
 
 .primary-btn,
@@ -992,7 +999,8 @@ onUnmounted(() => {
   border-color: var(--wallpaper-primary);
 
   &:hover:not(:disabled) {
-    background: #5368e8;
+    background: var(--wallpaper-primary);
+    filter: brightness(0.96);
   }
 }
 
@@ -1002,7 +1010,7 @@ onUnmounted(() => {
   background: transparent;
 
   &:hover {
-    background: #f3f7fd;
+    background: var(--wallpaper-hover);
   }
 }
 
@@ -1013,7 +1021,7 @@ button:disabled {
 
 .settings-card {
   min-height: 0;
-  padding: 10px 12px;
+  padding: 12px;
   overflow: hidden;
 }
 
@@ -1022,7 +1030,7 @@ button:disabled {
   grid-template-columns: 106px minmax(0, 1fr) 94px 94px;
   gap: 8px;
   align-items: center;
-  min-height: 34px;
+  min-height: 36px;
 }
 
 .mode-row {
@@ -1039,8 +1047,8 @@ button:disabled {
 
 .wallhaven-row {
   grid-template-columns: 106px 54px minmax(260px, 1fr) 260px;
-  padding-top: 8px;
-  margin-top: 8px;
+  padding-top: 10px;
+  margin-top: 10px;
   border-top: 1px solid var(--wallpaper-border);
 }
 
@@ -1064,13 +1072,13 @@ button:disabled {
   min-width: 0;
   padding: 0 11px;
   color: var(--wallpaper-text);
-  background: #fff;
+  background: var(--wallpaper-input);
   border: 1px solid var(--wallpaper-border);
   border-radius: 6px;
   outline: none;
 
   &::placeholder {
-    color: #111827;
+    color: var(--wallpaper-muted);
     opacity: 1;
   }
 
@@ -1110,8 +1118,8 @@ button:disabled {
 
     &.active {
       color: var(--wallpaper-primary);
-      background: var(--wallpaper-primary-soft);
-      box-shadow: inset 0 0 0 1px var(--wallpaper-primary);
+      background: var(--wallpaper-active);
+      box-shadow: inset 0 0 0 1px var(--wallpaper-border-strong);
     }
   }
 }
@@ -1144,7 +1152,7 @@ button:disabled {
   overflow: hidden;
 
   h2 {
-    margin: 0 0 10px;
+    margin: 0 0 8px;
     font-size: 15px;
     font-weight: 700;
   }
@@ -1152,7 +1160,7 @@ button:disabled {
 
 .rules-line {
   gap: 12px;
-  min-height: 34px;
+  min-height: 36px;
 }
 
 .switch-label,
@@ -1174,14 +1182,15 @@ button:disabled {
   position: relative;
   width: 44px;
   height: 22px;
-  background: #dbe6f3;
+  background: var(--wallpaper-active);
+  border: 1px solid var(--wallpaper-border);
   border-radius: 999px;
 
   &::after {
     content: '';
     position: absolute;
-    top: 3px;
-    left: 3px;
+    top: 2px;
+    left: 2px;
     width: 16px;
     height: 16px;
     background: #fff;
@@ -1208,7 +1217,7 @@ button:disabled {
     height: 30px;
     padding: 0 10px;
     color: var(--wallpaper-text);
-    background: #fff;
+    background: var(--wallpaper-input);
     border: 1px solid var(--wallpaper-border);
     border-radius: 6px;
   }
@@ -1223,7 +1232,7 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   min-height: 0;
-  padding: 8px 12px;
+  padding: 4px 12px;
   overflow: hidden;
 }
 
@@ -1268,8 +1277,8 @@ button:disabled {
 
     &.active {
       color: var(--wallpaper-primary);
-      background: var(--wallpaper-primary-soft);
-      box-shadow: inset 0 0 0 1px var(--wallpaper-primary);
+      background: var(--wallpaper-active);
+      box-shadow: inset 0 0 0 1px var(--wallpaper-border-strong);
     }
   }
 }
@@ -1295,7 +1304,7 @@ button:disabled {
   width: 214px;
   height: 34px;
   overflow: hidden;
-  background: #fff;
+  background: var(--wallpaper-input);
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
 
@@ -1318,7 +1327,7 @@ button:disabled {
     cursor: pointer;
 
     &:hover {
-      background: #f3f7fd;
+      background: var(--wallpaper-hover);
     }
   }
 }
@@ -1341,7 +1350,7 @@ button:disabled {
   padding: 0 12px;
   font-weight: 500;
   color: var(--wallpaper-text);
-  background: #fff;
+  background: var(--wallpaper-input);
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
 }
@@ -1372,8 +1381,8 @@ button:disabled {
 
     &.active {
       color: var(--wallpaper-primary);
-      background: var(--wallpaper-primary-soft);
-      box-shadow: inset 0 0 0 1px var(--wallpaper-primary);
+      background: var(--wallpaper-active);
+      box-shadow: inset 0 0 0 1px var(--wallpaper-border-strong);
     }
   }
 }
@@ -1396,7 +1405,7 @@ button:disabled {
   cursor: pointer;
 
   &:hover {
-    background: #f3f7fd;
+    background: var(--wallpaper-hover);
   }
 }
 
@@ -1495,7 +1504,7 @@ button:disabled {
 
     &:hover:not(:disabled) {
       color: var(--wallpaper-primary);
-      background: #f3f7fd;
+      background: var(--wallpaper-hover);
     }
 
     &:disabled {
@@ -1537,7 +1546,7 @@ button:disabled {
 
     &:hover:not(:disabled) {
       color: var(--wallpaper-primary);
-      background: #f3f7fd;
+      background: var(--wallpaper-hover);
     }
 
     &:disabled {
