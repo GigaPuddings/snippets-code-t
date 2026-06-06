@@ -101,6 +101,10 @@
                 <dd>{{ diagnostics?.pluginDir || '-' }}</dd>
               </div>
               <div>
+                <dt>Wallpaper</dt>
+                <dd>{{ diagnostics?.wallpaperPluginProbe || '-' }}</dd>
+              </div>
+              <div>
                 <dt>{{ t('settings.developer.logDir') }}</dt>
                 <dd>{{ diagnostics?.logDir || '-' }}</dd>
               </div>

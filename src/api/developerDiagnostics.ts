@@ -22,6 +22,7 @@ export interface DeveloperDiagnostics {
   logDir: string;
   dataDir: string;
   pluginDir?: string;
+  wallpaperPluginProbe?: string;
   windows: DiagnosticWindow[];
   logFiles: DiagnosticLogFile[];
   recentBackendLogs: string;

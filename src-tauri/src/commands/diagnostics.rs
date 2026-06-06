@@ -59,6 +59,7 @@ pub struct DeveloperDiagnostics {
     log_dir: String,
     data_dir: String,
     plugin_dir: Option<String>,
+    wallpaper_plugin_probe: Option<String>,
     windows: Vec<DiagnosticWindow>,
     log_files: Vec<DiagnosticLogFile>,
     recent_backend_logs: String,
@@ -108,6 +109,37 @@ fn list_log_paths(log_dir: &Path) -> Vec<PathBuf> {
     paths.sort_by_key(|path| std::cmp::Reverse(modified_timestamp(path)));
     paths.truncate(MAX_LOG_FILES);
     paths
+}
+
+fn probe_wallpaper_plugin_runtime(app_handle: &AppHandle) -> Option<String> {
+    let plugin_dir = crate::app_config::resolve_plugin_packages_dir(app_handle).ok()?;
+    let wallpaper_dir = plugin_dir.join("wallpaper-switcher");
+    let manifest_path = wallpaper_dir.join("plugin.json");
+    let manifest_text = fs::read_to_string(&manifest_path).ok()?;
+    let manifest_json: serde_json::Value = serde_json::from_str(&manifest_text).ok()?;
+    let version = manifest_json
+        .get("version")
+        .and_then(|value| value.as_str())
+        .unwrap_or("<unknown>");
+    let frontend = manifest_json
+        .get("entry")
+        .and_then(|entry| entry.get("frontend"))
+        .and_then(|value| value.as_str())
+        .unwrap_or("dist/frontend.js");
+    let frontend_path = wallpaper_dir.join(frontend);
+    let frontend_text = fs::read_to_string(&frontend_path).unwrap_or_default();
+    let has_legacy_decode_text = frontend_text.contains("Wallhaven 数据失败")
+        || frontend_text.contains("解析 Wallhaven")
+        || frontend_text.contains("error decoding response body")
+        || frontend_text.contains("wallpaper_wallhaven")
+        || frontend_text.contains("WallpaperWallhaven");
+    Some(format!(
+        "path={}; version={}; frontend={}; legacyWallhavenMarkers={}",
+        display_path(&manifest_path),
+        version,
+        display_path(&frontend_path),
+        has_legacy_decode_text
+    ))
 }
 
 #[tauri::command]
@@ -182,6 +214,7 @@ pub fn get_developer_diagnostics(
         plugin_dir: crate::app_config::resolve_plugin_packages_dir(&app_handle)
             .ok()
             .map(|path| display_path(&path)),
+        wallpaper_plugin_probe: probe_wallpaper_plugin_runtime(&app_handle),
         windows,
         log_files,
         recent_backend_logs,

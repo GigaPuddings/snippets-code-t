@@ -1,6 +1,7 @@
 use image::{imageops::FilterType, DynamicImage, ImageBuffer, Rgba};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
+use std::error::Error as StdError;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -429,6 +430,10 @@ async fn download_wallhaven_image(
 
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
+        .no_gzip()
+        .no_brotli()
+        .no_deflate()
+        .no_zstd()
         .connect_timeout(Duration::from_secs(15))
         .timeout(Duration::from_secs(90))
         .redirect(reqwest::redirect::Policy::limited(8))
@@ -436,14 +441,16 @@ async fn download_wallhaven_image(
         .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
     let bytes = client
         .get(&wallpaper.path)
+        .header(reqwest::header::ACCEPT_ENCODING, "identity")
+        .header(reqwest::header::REFERER, "https://wallhaven.cc/")
         .send()
         .await
-        .map_err(|e| format!("下载壁纸失败: {}", e))?
+        .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?
         .error_for_status()
-        .map_err(|e| format!("下载壁纸失败: {}", e))?
+        .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?
         .bytes()
         .await
-        .map_err(|e| format!("读取壁纸数据失败: {}", e))?;
+        .map_err(|e| format!("读取壁纸数据失败: {}", reqwest_error_details(&e)))?;
 
     if bytes.is_empty() {
         return Err("下载的壁纸数据为空".to_string());
@@ -622,11 +629,34 @@ fn wallhaven_response_snippet(body: &str) -> String {
         .replace(['\r', '\n', '\t'], " ")
 }
 
+fn reqwest_error_details(error: &reqwest::Error) -> String {
+    let mut details = error.to_string();
+    let mut source = error.source();
+    while let Some(next) = source {
+        details.push_str("；caused by: ");
+        details.push_str(&next.to_string());
+        source = next.source();
+    }
+    details
+}
+
+fn wallhaven_header_value(
+    headers: &reqwest::header::HeaderMap,
+    name: reqwest::header::HeaderName,
+) -> String {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("-")
+        .to_string()
+}
+
 async fn read_wallhaven_response_body(response: reqwest::Response) -> Result<String, String> {
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("读取 Wallhaven 响应失败: {}", e))?;
+    let bytes = response.bytes().await.map_err(|e| {
+        let details = reqwest_error_details(&e);
+        error!("[WallpaperSwitcher] 读取 Wallhaven 响应失败: {}", details);
+        format!("读取 Wallhaven 响应失败: {}", details)
+    })?;
     if bytes.is_empty() {
         return Err("Wallhaven 返回内容为空".to_string());
     }
@@ -784,6 +814,19 @@ async fn fetch_wallhaven_page(
     {
         query.push(("q".to_string(), keyword.to_string()));
     }
+    info!(
+        "[WallpaperSwitcher] Wallhaven search request source={:?} page={} category={:?} query={} atleast={}x{}",
+        params.source,
+        page,
+        params.category,
+        params.query
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("<empty>"),
+        screen_width,
+        screen_height
+    );
 
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
@@ -803,12 +846,27 @@ async fn fetch_wallhaven_page(
         .query(&query)
         .send()
         .await
-        .map_err(|e| format!("请求 Wallhaven 失败: {}", e))?;
+        .map_err(|e| {
+            let details = reqwest_error_details(&e);
+            error!(
+                "[WallpaperSwitcher] Wallhaven search request failed: {}",
+                details
+            );
+            format!("请求 Wallhaven 失败: {}", details)
+        })?;
     if response.status().as_u16() == 429 {
         return Err("Wallhaven 请求过于频繁，请稍后再试".to_string());
     }
     let status = response.status();
+    let headers = response.headers().clone();
     let body = read_wallhaven_response_body(response).await?;
+    info!(
+        "[WallpaperSwitcher] Wallhaven search response status={} content_type={} content_encoding={} bytes={}",
+        status.as_u16(),
+        wallhaven_header_value(&headers, reqwest::header::CONTENT_TYPE),
+        wallhaven_header_value(&headers, reqwest::header::CONTENT_ENCODING),
+        body.len()
+    );
     if !status.is_success() {
         return Err(format!(
             "请求 Wallhaven 失败: HTTP {}；响应片段: {}",
@@ -817,7 +875,14 @@ async fn fetch_wallhaven_page(
         ));
     }
 
-    parse_wallhaven_response(&body)
+    let parsed = parse_wallhaven_response(&body)?;
+    info!(
+        "[WallpaperSwitcher] Wallhaven parsed data={} page={} last_page={}",
+        parsed.data.len(),
+        parsed.page,
+        parsed.last_page
+    );
+    Ok(parsed)
 }
 
 #[tauri::command]

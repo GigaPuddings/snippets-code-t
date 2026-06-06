@@ -815,7 +815,7 @@ onUnmounted(() => {
 
 .content {
   display: grid;
-  grid-template-rows: 150px 190px 104px 54px;
+  grid-template-rows: 138px 180px 94px 52px;
   gap: 8px;
   height: calc(100vh - 48px);
   min-height: 0;
@@ -953,7 +953,7 @@ button:disabled {
   grid-template-columns: 106px minmax(0, 1fr) 86px 86px;
   gap: 7px;
   align-items: center;
-  min-height: 34px;
+  min-height: 32px;
 }
 
 .mode-row {
@@ -983,7 +983,7 @@ button:disabled {
 
 .path-input {
   width: 100%;
-  height: 32px;
+  height: 30px;
   min-width: 0;
   padding: 0 11px;
   color: var(--wallpaper-text);
@@ -1012,13 +1012,13 @@ button:disabled {
 
 .segmented {
   display: grid;
-  height: 32px;
+  height: 30px;
   overflow: hidden;
   border: 1px solid var(--wallpaper-border);
   border-radius: 6px;
 
   button {
-    height: 30px;
+    height: 28px;
     padding: 0 12px;
     color: var(--wallpaper-text);
     background: transparent;
@@ -1062,7 +1062,7 @@ button:disabled {
 
 .rules-card {
   min-height: 0;
-  padding: 9px 12px;
+  padding: 8px 12px;
   overflow: hidden;
 
   h2 {
@@ -1074,7 +1074,7 @@ button:disabled {
 
 .rules-line {
   gap: 9px;
-  min-height: 32px;
+  min-height: 29px;
 }
 
 .switch-label,
@@ -1127,7 +1127,7 @@ button:disabled {
 
   input {
     width: 78px;
-    height: 32px;
+    height: 30px;
     padding: 0 10px;
     color: var(--wallpaper-text);
     background: #fff;

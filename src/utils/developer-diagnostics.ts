@@ -1,3 +1,5 @@
+import { invoke } from '@tauri-apps/api/core';
+
 const DEVELOPER_MODE_KEY = 'snippets-code:developer-mode';
 const FRONTEND_LOG_KEY = 'snippets-code:frontend-diagnostics';
 const MAX_FRONTEND_ENTRIES = 240;
@@ -28,6 +30,19 @@ export interface DiagnosticIssueSummary {
 }
 
 let listenersInstalled = false;
+
+const forwardDiagnosticToBackend = (
+  level: FrontendDiagnosticLevel,
+  message: string,
+  data?: unknown
+): void => {
+  if (level !== 'error' && level !== 'warn') return;
+  invoke('frontend_log', {
+    level,
+    message: `[${currentWindowLabel()}] ${message}`,
+    data: data === undefined ? null : stringifyDiagnosticValue(data)
+  }).catch(() => {});
+};
 
 export const redactDiagnosticText = (value: string): string =>
   value
@@ -236,17 +251,24 @@ export const setupGlobalDeveloperDiagnostics = (): void => {
   listenersInstalled = true;
 
   window.addEventListener('error', (event) => {
-    appendFrontendDiagnostic('error', '[Window] uncaught error', {
+    const payload = {
       message: event.message,
       filename: event.filename,
       line: event.lineno,
       column: event.colno,
       error: stringifyDiagnosticValue(event.error)
-    });
+    };
+    appendFrontendDiagnostic('error', '[Window] uncaught error', payload);
+    forwardDiagnosticToBackend('error', '[Window] uncaught error', payload);
   });
 
   window.addEventListener('unhandledrejection', (event) => {
     appendFrontendDiagnostic(
+      'error',
+      '[Window] unhandled promise rejection',
+      event.reason
+    );
+    forwardDiagnosticToBackend(
       'error',
       '[Window] unhandled promise rejection',
       event.reason
@@ -257,6 +279,7 @@ export const setupGlobalDeveloperDiagnostics = (): void => {
   const originalWarn = console.warn.bind(console);
   console.error = (...args: unknown[]) => {
     appendFrontendDiagnostic('error', '[Console] error', args);
+    forwardDiagnosticToBackend('error', '[Console] error', args);
     originalError(...args);
   };
   console.warn = (...args: unknown[]) => {
@@ -269,6 +292,7 @@ export const setupGlobalDeveloperDiagnostics = (): void => {
       .join(' ');
     if (!isBenignDiagnosticWarning(warningText)) {
       appendFrontendDiagnostic('warn', '[Console] warn', args);
+      forwardDiagnosticToBackend('warn', '[Console] warn', args);
     }
     originalWarn(...args);
   };
