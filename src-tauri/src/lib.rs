@@ -24,21 +24,10 @@ use crate::config::{
     reset_software, set_auto_update_check, set_language, set_offline_model_activated,
 };
 use crate::db::{
-    add_search_history,
-    backup_database,
-    get_auto_hide_on_blur,
-    get_data_dir_info,
-    get_db_path,
-    get_search_history,
-    is_setup_completed,
-    optimize_database,
-    optimize_database_cmd,
-    restore_database,
-    set_auto_hide_on_blur,
-    set_auto_start_setting,
-    set_custom_db_path,
-    set_data_dir_from_setup,
-    set_setup_completed,
+    add_search_history, backup_database, get_auto_hide_on_blur, get_data_dir_info, get_db_path,
+    get_search_history, is_setup_completed, optimize_database, optimize_database_cmd,
+    restore_database, set_auto_hide_on_blur, set_auto_start_setting, set_custom_db_path,
+    set_data_dir_from_setup, set_setup_completed,
 };
 use crate::plugins::system_theme as dark_mode;
 use crate::update::{
@@ -732,6 +721,10 @@ pub fn run() {
 
                 // 第三步：后台服务（根据插件启用状态启动）
                 app_config::apply_enabled_plugin_runtime_change(&app_handle_init, "todo");
+                app_config::apply_enabled_plugin_runtime_change(
+                    &app_handle_init,
+                    "wallpaper-switcher",
+                );
 
                 if is_auto_start {
                     tokio::time::sleep(tokio::time::Duration::from_secs(
@@ -913,6 +906,16 @@ pub fn run() {
             plugins::system_theme::calculate_sun_times_command,      // 计算日出日落时间
             plugins::system_theme::toggle_system_theme,              // 手动切换系统主题
             plugins::system_theme::get_dark_mode_status_command,     // 获取Auto Dark Mode状态
+            plugins::wallpaper_switcher::wallpaper_get_config,       // 获取壁纸切换配置
+            plugins::wallpaper_switcher::wallpaper_save_config,      // 保存壁纸切换配置
+            plugins::wallpaper_switcher::wallpaper_get_status,       // 获取壁纸切换状态
+            plugins::wallpaper_switcher::wallpaper_scan_folder,      // 扫描壁纸文件夹
+            plugins::wallpaper_switcher::wallpaper_set_fixed_image,  // 设置固定壁纸
+            plugins::wallpaper_switcher::wallpaper_switch_now,       // 立即切换壁纸
+            plugins::wallpaper_switcher::wallpaper_fetch_wallhaven,  // 获取 Wallhaven 壁纸
+            plugins::wallpaper_switcher::wallpaper_set_wallhaven_image, // 设置 Wallhaven 壁纸
+            plugins::wallpaper_switcher::wallpaper_download_wallhaven_image, // 下载 Wallhaven 壁纸
+            plugins::wallpaper_switcher::wallpaper_clear_cache,      // 清理壁纸缓存
             plugins::local_launcher::add_app,                          // 添加应用
             plugins::local_launcher::update_app,                       // 更新应用
             plugins::local_launcher::delete_app,                       // 删除应用

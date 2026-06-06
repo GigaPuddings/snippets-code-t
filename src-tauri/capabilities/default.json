@@ -9,6 +9,8 @@
     "update",
     "loading",
     "translate",
+    "wallpaper_switcher",
+    "wallpaper_wallhaven",
     "screenshot",
     "screen_recorder",
     "dark_mode",
@@ -49,6 +51,17 @@
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://wallhaven.cc/*"
+        },
+        {
+          "url": "https://*.wallhaven.cc/*"
+        }
+      ]
+    },
     "shell:allow-open",
     "shell:default",
     "process:default",

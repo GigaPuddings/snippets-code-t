@@ -865,6 +865,57 @@ pub fn create_update_window() {
     let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
 }
 
+pub fn open_wallpaper_switcher_window() {
+    let Some(app) = get_app_handle_or_log("open_wallpaper_switcher_window") else {
+        return;
+    };
+    if let Err(error) = crate::app_config::require_plugin_enabled(app, "wallpaper-switcher") {
+        warn!("open_wallpaper_switcher_window: {}", error);
+        return;
+    }
+
+    let spec = WindowSpec {
+        label: "wallpaper_switcher",
+        url: "/#/wallpaper-switcher",
+        title: "壁纸切换",
+        width: 860.0,
+        height: 640.0,
+        resizable: false,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: None,
+    };
+
+    let _ =
+        WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::SmartToggle, None);
+}
+
+pub fn open_wallpaper_wallhaven_window() {
+    let Some(app) = get_app_handle_or_log("open_wallpaper_wallhaven_window") else {
+        return;
+    };
+    if let Err(error) = crate::app_config::require_plugin_enabled(app, "wallpaper-switcher") {
+        warn!("open_wallpaper_wallhaven_window: {}", error);
+        return;
+    }
+
+    let spec = WindowSpec {
+        label: "wallpaper_wallhaven",
+        url: "/#/wallpaper-wallhaven",
+        title: "Wallhaven 壁纸",
+        width: 860.0,
+        height: 640.0,
+        resizable: false,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: None,
+    };
+
+    let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
+}
+
 // 按需创建启动 loading 窗口
 pub fn show_loading_window() {
     let spec = WindowSpec {
@@ -968,6 +1019,12 @@ pub async fn show_hide_window_command(label: &str, context: Option<String>) -> R
         }
         "dark_mode" => {
             hotkey_dark_mode();
+        }
+        "wallpaper_switcher" => {
+            open_wallpaper_switcher_window();
+        }
+        "wallpaper_wallhaven" => {
+            open_wallpaper_wallhaven_window();
         }
         _ => {
             return Err("Invalid label".to_string());

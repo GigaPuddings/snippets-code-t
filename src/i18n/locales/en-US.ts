@@ -502,6 +502,10 @@ export default {
       name: 'System Theme',
       description: 'Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling.'
     },
+    wallpaperSwitcher: {
+      name: 'Wallpaper Switcher',
+      description: 'Windows desktop wallpaper switching, local folder rotation, and Wallhaven online wallpapers.'
+    },
     localLauncher: {
       name: 'Apps and Bookmarks Launcher',
       description: 'Local app and browser bookmark management, plus quick-launch search results.'

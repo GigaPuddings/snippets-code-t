@@ -9,7 +9,8 @@ export type BuiltinPluginId =
   | 'screen-recorder'
   | 'search-engines'
   | 'git-sync'
-  | 'attachments';
+  | 'attachments'
+  | 'wallpaper-switcher';
 
 export type PluginId = BuiltinPluginId | (string & {});
 

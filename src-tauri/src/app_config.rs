@@ -85,6 +85,8 @@ pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dark_mode_config: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub wallpaper_switcher_config: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub workspace_root: Option<String>,
 }
 
@@ -132,6 +134,7 @@ const HOST_PLUGIN_IDS: &[&str] = &[
     "quick-tools",
     "search-engines",
     "git-sync",
+    "wallpaper-switcher",
 ];
 
 fn default_plugin_enabled() -> bool {
@@ -139,7 +142,8 @@ fn default_plugin_enabled() -> bool {
 }
 
 fn is_uninstalled_host_plugin(app_handle: &AppHandle, plugin_id: &str) -> bool {
-    HOST_PLUGIN_IDS.contains(&plugin_id) && !is_local_plugin_package_installed(app_handle, plugin_id)
+    HOST_PLUGIN_IDS.contains(&plugin_id)
+        && !is_local_plugin_package_installed(app_handle, plugin_id)
 }
 
 fn default_plugin_states() -> PluginStates {
@@ -214,6 +218,7 @@ impl Default for AppConfig {
             screen_recorder_hotkey: None,
             dark_mode_hotkey: None,
             dark_mode_config: None,
+            wallpaper_switcher_config: None,
             workspace_root: None,
         }
     }
@@ -482,6 +487,9 @@ impl AppConfigManager {
             "screen-recorder" => {
                 self.config.screen_recorder_hotkey = None;
             }
+            "wallpaper-switcher" => {
+                self.config.wallpaper_switcher_config = None;
+            }
             _ => {}
         }
     }
@@ -562,6 +570,10 @@ fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> 
     );
     changed |= copy_option_if_empty(&mut target.dark_mode_hotkey, &legacy.dark_mode_hotkey);
     changed |= copy_option_if_empty(&mut target.dark_mode_config, &legacy.dark_mode_config);
+    changed |= copy_option_if_empty(
+        &mut target.wallpaper_switcher_config,
+        &legacy.wallpaper_switcher_config,
+    );
 
     if is_default_git_settings(&target.git) && !is_default_git_settings(&legacy.git) {
         target.git = legacy.git.clone();
@@ -729,6 +741,10 @@ const PLUGIN_RUNTIME_SPECS: &[PluginRuntimeSpec] = &[
         id: "git-sync",
         apply_runtime_change: apply_git_sync_runtime_change,
     },
+    PluginRuntimeSpec {
+        id: "wallpaper-switcher",
+        apply_runtime_change: apply_wallpaper_switcher_runtime_change,
+    },
 ];
 
 fn plugin_runtime_spec(plugin_id: &str) -> Option<&'static PluginRuntimeSpec> {
@@ -893,6 +909,10 @@ fn apply_git_sync_runtime_change(app_handle: &AppHandle, enabled: bool) {
     } else {
         let _ = crate::git_sync::stop_auto_sync_command(app_handle.clone());
     }
+}
+
+fn apply_wallpaper_switcher_runtime_change(app_handle: &AppHandle, enabled: bool) {
+    crate::plugins::wallpaper_switcher::apply_runtime_change(app_handle, enabled);
 }
 
 fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
@@ -1638,7 +1658,12 @@ fn plugin_package_record(
 fn plugin_has_owned_config(plugin_id: &str) -> bool {
     matches!(
         plugin_id,
-        "attachments" | "git-sync" | "screen-recorder" | "screenshot" | "system-theme" | "translation"
+        "attachments"
+            | "git-sync"
+            | "screen-recorder"
+            | "screenshot"
+            | "system-theme"
+            | "translation"
     )
 }
 
@@ -2483,13 +2508,7 @@ async fn download_plugin_url_to_temp(
                         "[Plugin] retrying remote package download url={} attempt={}/{}",
                         download_url, attempt, MAX_DOWNLOAD_ATTEMPTS
                     );
-                    emit_plugin_install_progress(
-                        app_handle,
-                        package_url,
-                        "downloading",
-                        0,
-                        None,
-                    );
+                    emit_plugin_install_progress(app_handle, package_url, "downloading", 0, None);
                 }
 
                 let response = match client.get(download_url).send().await {

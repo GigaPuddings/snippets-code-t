@@ -1,0 +1,1 @@
+export { wallpaperSwitcherPlugin } from './manifest';

@@ -21,7 +21,8 @@ const officialRuntimeEntries = {
   'quick-tools': 'src/plugins/quick-tools/runtime-entry.ts',
   'screen-recorder': 'src/plugins/screen-recorder/runtime-entry.ts',
   'search-engines': 'src/plugins/search-engines/runtime-entry.ts',
-  'git-sync': 'src/plugins/git-sync/runtime-entry.ts'
+  'git-sync': 'src/plugins/git-sync/runtime-entry.ts',
+  'wallpaper-switcher': 'src/plugins/wallpaper-switcher/runtime-entry.ts'
 };
 
 async function readJson(path) {

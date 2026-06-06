@@ -7,3 +7,4 @@ pub mod shared;
 pub mod system_theme;
 pub mod todo;
 pub mod translation;
+pub mod wallpaper_switcher;

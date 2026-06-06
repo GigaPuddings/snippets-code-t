@@ -516,6 +516,10 @@ export default {
       name: '系统主题',
       description: '自动深色模式、日出日落调度和系统主题快捷切换。'
     },
+    wallpaperSwitcher: {
+      name: '壁纸切换',
+      description: 'Windows 桌面壁纸切换、本地文件夹定时轮换和 Wallhaven 在线壁纸。'
+    },
     localLauncher: {
       name: '应用与书签启动器',
       description: '本地应用、浏览器书签管理，以及搜索框中的快速启动结果。'

@@ -78,6 +78,12 @@ export const pluginRepositories = [
     kind: 'feature'
   },
   {
+    id: 'wallpaper-switcher',
+    repo: 'snippets-code-plugin-wallpaper-switcher',
+    sourceDir: 'docs/plugin-packages/wallpaper-switcher',
+    kind: 'feature'
+  },
+  {
     id: 'screenshot-rapidocr',
     repo: 'snippets-code-plugin-screenshot-rapidocr',
     sourceDir: 'docs/examples/screenshot-rapidocr-resource',
