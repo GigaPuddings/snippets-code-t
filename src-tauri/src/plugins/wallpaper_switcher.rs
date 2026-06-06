@@ -420,6 +420,7 @@ async fn download_wallhaven_image(
     wallpaper: &WallhavenWallpaper,
 ) -> Result<PathBuf, String> {
     let client = reqwest::Client::builder()
+        .use_rustls_tls()
         .user_agent(USER_AGENT)
         .no_gzip()
         .no_brotli()
@@ -639,10 +640,11 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
 
 fn category_bits(category: Option<&str>) -> &'static str {
     match category.unwrap_or("general") {
+        "general" => "100",
         "anime" => "010",
         "people" => "001",
         "nature" => "110",
-        _ => "110",
+        _ => "100",
     }
 }
 
@@ -1188,6 +1190,7 @@ async fn fetch_wallhaven_page(
     );
 
     let client = reqwest::Client::builder()
+        .use_rustls_tls()
         .user_agent(USER_AGENT)
         .no_gzip()
         .no_brotli()
@@ -1201,32 +1204,16 @@ async fn fetch_wallhaven_page(
 
     let mut last_error = String::new();
     for (width, height) in wallhaven_resolution_attempts(screen_width, screen_height) {
-        let preferred = match params.source {
-            WallhavenSource::Hot => {
-                fetch_wallhaven_web_search(
-                    &client,
-                    &params.source,
-                    page,
-                    category,
-                    request_query.as_deref(),
-                    width,
-                    height,
-                )
-                .await
-            }
-            WallhavenSource::Toplist => {
-                fetch_wallhaven_api_search(
-                    &client,
-                    &params.source,
-                    page,
-                    category,
-                    request_query.as_deref(),
-                    width,
-                    height,
-                )
-                .await
-            }
-        };
+        let preferred = fetch_wallhaven_web_search(
+            &client,
+            &params.source,
+            page,
+            category,
+            request_query.as_deref(),
+            width,
+            height,
+        )
+        .await;
 
         match preferred {
             Ok(parsed) if !parsed.data.is_empty() => {
@@ -1256,32 +1243,16 @@ async fn fetch_wallhaven_page(
             }
         }
 
-        let fallback = match params.source {
-            WallhavenSource::Hot => {
-                fetch_wallhaven_api_search(
-                    &client,
-                    &params.source,
-                    page,
-                    category,
-                    request_query.as_deref(),
-                    width,
-                    height,
-                )
-                .await
-            }
-            WallhavenSource::Toplist => {
-                fetch_wallhaven_web_search(
-                    &client,
-                    &params.source,
-                    page,
-                    category,
-                    request_query.as_deref(),
-                    width,
-                    height,
-                )
-                .await
-            }
-        };
+        let fallback = fetch_wallhaven_api_search(
+            &client,
+            &params.source,
+            page,
+            category,
+            request_query.as_deref(),
+            width,
+            height,
+        )
+        .await;
 
         match fallback {
             Ok(parsed) if !parsed.data.is_empty() => {

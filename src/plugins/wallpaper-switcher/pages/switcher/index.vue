@@ -140,6 +140,14 @@ const appendKeywordOnce = (keyword: string, required: string) => {
   return terms.includes(required) ? keyword : `${keyword} ${required}`;
 };
 
+const formatWallhavenError = (error: unknown): string => {
+  const message = String(error).replace(/^Error:\s*/, '');
+  if (/unexpected EOF|handshake|timed out|error sending request|client error|Connect/i.test(message)) {
+    return 'Wallhaven 网络连接失败，请稍后重试或检查代理/网络。';
+  }
+  return message.length > 120 ? `${message.slice(0, 120)}...` : message;
+};
+
 const wallhavenRequestQuery = computed(() => {
   const keyword = normalizeWallhavenKeyword(wallhavenKeyword.value);
   if (wallhavenCategory.value === 'nature') {
@@ -264,13 +272,15 @@ const setCurrentAsFixed = async () => {
 };
 
 const openWallhavenGrid = async () => {
-  wallhavenKeyword.value = config.value.wallhavenQuery ?? '';
+  wallhavenKeyword.value = '';
   wallhavenCategory.value = config.value.wallhavenCategory || 'general';
   wallhavenSource.value = config.value.wallhavenSource;
+  wallhavenPage.value = 1;
+  wallhavenError.value = '';
+  wallpapers.value = [];
+  wallhavenLoaded.value = false;
   activeView.value = 'wallhaven';
-  if (!wallhavenLoaded.value) {
-    await fetchWallhavenData(1);
-  }
+  await fetchWallhavenData(1);
 };
 
 const backToSwitcher = async () => {
@@ -371,8 +381,8 @@ const fetchWallhavenData = async (targetPage = wallhavenPage.value) => {
   } catch (error) {
     if (fetchSeq !== wallhavenFetchSeq) return;
     wallpapers.value = [];
-    wallhavenError.value = String(error).replace(/^Error:\s*/, '');
-    modal.msg(String(error), 'error');
+    wallhavenError.value = formatWallhavenError(error);
+    modal.msg(wallhavenError.value, 'error');
   } finally {
     if (fetchSeq === wallhavenFetchSeq) {
       wallhavenLoading.value = false;
@@ -518,8 +528,8 @@ onUnmounted(() => {
       </div>
       <div v-else class="window-actions">
         <div class="source-toggle">
-          <button type="button" :class="{ active: wallhavenSource === 'hot' }" @click="setWallhavenSource('hot')">热门</button>
-          <button type="button" :class="{ active: wallhavenSource === 'toplist' }" @click="setWallhavenSource('toplist')">排行榜</button>
+          <button type="button" :class="{ active: wallhavenSource === 'hot' }" :disabled="wallhavenLoading" @click="setWallhavenSource('hot')">热门</button>
+          <button type="button" :class="{ active: wallhavenSource === 'toplist' }" :disabled="wallhavenLoading" @click="setWallhavenSource('toplist')">排行榜</button>
         </div>
         <button type="button" class="icon-btn" title="关闭" @click="closeWindow">
           <CloseSmall :size="22" />
@@ -727,13 +737,6 @@ onUnmounted(() => {
             <button type="button" :class="{ active: wallhavenCategory === 'people' }" @click="setWallhavenCategory('people')">人物</button>
             <button type="button" :class="{ active: wallhavenCategory === 'nature' }" @click="setWallhavenCategory('nature')">自然</button>
           </div>
-          <label class="source-select">
-            <span>源</span>
-            <select v-model="wallhavenSource" @change="refreshWallhaven">
-              <option value="hot">Hot</option>
-              <option value="toplist">Toplist</option>
-            </select>
-          </label>
         </div>
       </section>
 
@@ -1328,13 +1331,15 @@ button:disabled {
 }
 
 .source-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, 82px);
   height: 34px;
   overflow: hidden;
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
+  background: var(--wallpaper-panel);
 
   button {
-    width: 82px;
     height: 32px;
     color: var(--wallpaper-text);
     background: transparent;
@@ -1350,12 +1355,17 @@ button:disabled {
       color: var(--wallpaper-primary);
       background: var(--wallpaper-active);
     }
+
+    &:disabled {
+      cursor: wait;
+      opacity: 0.72;
+    }
   }
 }
 
 .wallhaven-view {
   display: grid;
-  grid-template-rows: 92px minmax(0, 1fr) 58px;
+  grid-template-rows: 94px minmax(0, 1fr) 58px;
   height: calc(100vh - 48px);
   min-height: 0;
   overflow: hidden;
@@ -1363,9 +1373,9 @@ button:disabled {
 
 .filters {
   display: grid;
-  grid-template-rows: 36px 36px;
+  grid-template-rows: 36px 38px;
   gap: 8px;
-  height: 92px;
+  height: 94px;
   padding: 10px 14px 8px;
   overflow: hidden;
 }
@@ -1378,11 +1388,12 @@ button:disabled {
 }
 
 .filter-main {
-  grid-template-columns: minmax(220px, 1fr) 236px 38px;
+  grid-template-columns: minmax(260px, 1fr) 280px 38px;
 }
 
 .filter-meta {
-  grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-columns: minmax(0, 560px);
+  justify-content: start;
 }
 
 .search-box {
@@ -1419,8 +1430,7 @@ button:disabled {
   }
 }
 
-.resolution,
-.source-select {
+.resolution {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1431,8 +1441,7 @@ button:disabled {
   }
 }
 
-.resolution strong,
-.source-select select {
+.resolution strong {
   height: 34px;
   padding: 0 12px;
   font-weight: 500;
@@ -1445,20 +1454,21 @@ button:disabled {
 .resolution strong {
   display: inline-flex;
   align-items: center;
-  width: 176px;
+  width: 216px;
 }
 
 .chips {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  width: min(100%, 360px);
+  width: min(100%, 560px);
   overflow: hidden;
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
+  background: var(--wallpaper-panel);
 
   button {
     width: 100%;
-    height: 34px;
+    height: 36px;
     color: var(--wallpaper-text);
     background: transparent;
     border: 0;
@@ -1474,10 +1484,6 @@ button:disabled {
       background: var(--wallpaper-active);
     }
   }
-}
-
-.source-select select {
-  width: 132px;
 }
 
 .refresh-btn {
