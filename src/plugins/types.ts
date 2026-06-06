@@ -28,6 +28,7 @@ export interface BuiltinPlugin {
   routeNames?: string[];
   settingsTabs?: string[];
   hotkeys?: string[];
+  trayItems?: string[];
   searchSources?: string[];
   dependencies?: string[];
   resourceHintKey?: string;

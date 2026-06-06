@@ -20,6 +20,9 @@
     ],
     "hotkeys": [
       "screenshot"
+    ],
+    "trayItems": [
+      "screenshot"
     ]
   },
   "resources": {

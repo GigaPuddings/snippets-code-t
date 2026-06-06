@@ -21,6 +21,12 @@
     "windows": [
       "wallpaper_switcher",
       "wallpaper_wallhaven"
+    ],
+    "hotkeys": [
+      "wallpaper_switcher"
+    ],
+    "trayItems": [
+      "wallpaper_switcher"
     ]
   },
   "permissions": [

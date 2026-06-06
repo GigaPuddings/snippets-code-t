@@ -11,8 +11,8 @@
         class="summarize-section transparent-input"
       >
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t(hotkey.labelKey) }}</div>
-          <div class="summarize-label-desc">{{ $t(hotkey.descriptionKey) }}</div>
+          <div class="summarize-label-title">{{ hotkeyLabel(hotkey) }}</div>
+          <div class="summarize-label-desc">{{ hotkeyDescription(hotkey) }}</div>
         </div>
         <div class="summarize-input-wrapper">
           <el-input
@@ -68,7 +68,12 @@ import { useConfigurationStore, usePluginStore } from '@/store';
 import { osType } from '@/utils/env';
 import modal from '@/utils/modal';
 
-const { t } = useI18n();
+type RuntimeHotkeySetting = (typeof hotkeySettingDefinitions)[number] & {
+  fallbackLabel?: string;
+  fallbackDescription?: string;
+};
+
+const { t, te } = useI18n();
 const store = useConfigurationStore();
 const pluginStore = usePluginStore();
 
@@ -78,15 +83,45 @@ defineOptions({
 
 const labelText = computed(() => t('shortcut.pressToSet').split(''));
 
-const isHotkeyVisible = (hotkey: (typeof hotkeySettingDefinitions)[number]) => {
-  if (!hotkey.pluginId) return true;
-  return pluginStore.plugins.some((plugin) => plugin.id === hotkey.pluginId)
-    && pluginStore.isEnabled(hotkey.pluginId);
-};
+const knownHotkeySettings = new Map(
+  hotkeySettingDefinitions.map((hotkey) => [hotkey.name, hotkey])
+);
 
 const visibleHotkeySettings = computed(() => (
-  hotkeySettingDefinitions.filter((hotkey) => isHotkeyVisible(hotkey))
+  [
+    ...hotkeySettingDefinitions.filter((hotkey) => !hotkey.pluginId),
+    ...pluginStore.plugins.flatMap((plugin) => {
+      if (!plugin.hotkeys?.length || !pluginStore.isEnabled(plugin.id)) return [];
+      return plugin.hotkeys.map((hotkeyName) => {
+        const known = knownHotkeySettings.get(hotkeyName as HotkeyName);
+        if (known) return known;
+        const pluginName = te(plugin.nameKey)
+          ? t(plugin.nameKey)
+          : plugin.manifest.name.fallback;
+        return {
+          name: hotkeyName as HotkeyName,
+          pluginId: String(plugin.id),
+          labelKey: `shortcut.${hotkeyName}Hotkey`,
+          descriptionKey: `shortcut.${hotkeyName}HotkeyDesc`,
+          fallbackLabel: `${pluginName}：${hotkeyName}`,
+          fallbackDescription: t('shortcut.pluginHotkeyDesc', { plugin: pluginName })
+        } satisfies RuntimeHotkeySetting;
+      });
+    })
+  ].filter((hotkey, index, list) => (
+    list.findIndex((candidate) => candidate.name === hotkey.name) === index
+  ))
 ));
+
+function hotkeyLabel(hotkey: RuntimeHotkeySetting): string {
+  return te(hotkey.labelKey) ? t(hotkey.labelKey) : hotkey.fallbackLabel ?? hotkey.name;
+}
+
+function hotkeyDescription(hotkey: RuntimeHotkeySetting): string {
+  return te(hotkey.descriptionKey)
+    ? t(hotkey.descriptionKey)
+    : hotkey.fallbackDescription ?? '';
+}
 
 onMounted(() => {
   void pluginStore.initialize();

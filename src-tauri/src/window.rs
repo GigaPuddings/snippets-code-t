@@ -916,6 +916,34 @@ pub fn open_wallpaper_wallhaven_window() {
     let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
 }
 
+fn open_dynamic_plugin_window(label: &str) -> Result<(), String> {
+    if !label
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'))
+    {
+        return Err(format!("插件窗口 label 无效: {}", label));
+    }
+
+    let Some(app) = get_app_handle_or_log("open_dynamic_plugin_window") else {
+        return Err("应用未初始化".to_string());
+    };
+    let (_plugin_id, route_path) = crate::app_config::plugin_window_route_path(app, label)?;
+    let url = format!("/#{}", route_path);
+    let option = WindowConfig {
+        title: "Plugin".to_string(),
+        width: 980.0,
+        height: 680.0,
+        resizable: true,
+        transparent: false,
+        shadow: true,
+        always_on_top: false,
+        ..Default::default()
+    };
+
+    let window = build_window(label, &url, option)?;
+    WindowManager::handle_smart_toggle(&window, None, None)
+}
+
 // 按需创建启动 loading 窗口
 pub fn show_loading_window() {
     let spec = WindowSpec {
@@ -1014,6 +1042,20 @@ pub async fn show_hide_window_command(label: &str, context: Option<String>) -> R
             crate::app_config::require_plugin_enabled(app, "translation")?;
             hotkey_translate();
         }
+        "selection_translate" => {
+            let Some(app) = get_app_handle_or_log("show_hide_window_command:selection_translate")
+            else {
+                return Err("应用未初始化".to_string());
+            };
+            crate::app_config::require_plugin_enabled(app, "translation")?;
+            hotkey_selection_translate();
+        }
+        "screenshot" => {
+            hotkey_screenshot();
+        }
+        "screen_recorder" => {
+            crate::plugins::screen_recorder::open_screen_recorder_window();
+        }
         "update" => {
             create_update_window();
         }
@@ -1027,7 +1069,7 @@ pub async fn show_hide_window_command(label: &str, context: Option<String>) -> R
             open_wallpaper_wallhaven_window();
         }
         _ => {
-            return Err("Invalid label".to_string());
+            open_dynamic_plugin_window(label)?;
         }
     }
 

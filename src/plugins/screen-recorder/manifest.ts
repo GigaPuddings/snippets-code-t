@@ -8,5 +8,6 @@ export const screenRecorderPlugin: BuiltinPlugin = {
   enabledByDefault: true,
   routeNames: ['ScreenRecorder'],
   hotkeys: ['screen_recorder'],
+  trayItems: ['screen_recorder'],
   resourceHintKey: 'plugins.screenRecorder.resourceHint'
 };

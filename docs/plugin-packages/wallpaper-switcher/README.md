@@ -10,6 +10,7 @@ Windows desktop wallpaper switching plugin for Snippets Code.
 - Browse online wallpapers in a grid window.
 - Match online wallpapers to the current primary screen size.
 - Cache downloaded and fitted wallpapers locally.
+- Open from the tray menu and bind an optional global hotkey.
 - Choose fill-crop, fit, or center display modes.
 
 ## Notes

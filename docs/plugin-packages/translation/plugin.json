@@ -24,6 +24,9 @@
       "translate",
       "selection_translate"
     ],
+    "trayItems": [
+      "translate"
+    ],
     "searchSources": []
   },
   "resources": {

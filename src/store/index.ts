@@ -17,6 +17,8 @@ export const useConfigurationStore = defineStore('configuration', {
     screenshotHotkey: '', // 截图快捷键
     screenRecorderHotkey: '', // 录屏快捷键
     darkModeHotkey: '', // Auto Dark Mode快捷键
+    wallpaperSwitcherHotkey: '', // 壁纸切换快捷键
+    pluginHotkeys: {}, // 插件动态快捷键
     dbPath: null, // 数据库路径
     dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
@@ -44,6 +46,8 @@ export const useConfigurationStore = defineStore('configuration', {
 
       // 获取快捷键配置
       try {
+        const hotkeyMap = await invoke<Record<string, string>>('get_hotkey_config_map');
+        this.pluginHotkeys = hotkeyMap;
         const [
           searchHotkey,
           configHotkey,
@@ -51,8 +55,18 @@ export const useConfigurationStore = defineStore('configuration', {
           selectionTranslateHotkey,
           screenshotHotkey,
           screenRecorderHotkey,
-          darkModeHotkey
-        ]: [string, string, string, string, string, string, string] = await invoke('get_shortcuts');
+          darkModeHotkey,
+          wallpaperSwitcherHotkey
+        ]: [string, string, string, string, string, string, string, string] = [
+          hotkeyMap.search || '',
+          hotkeyMap.config || '',
+          hotkeyMap.translate || '',
+          hotkeyMap.selection_translate || '',
+          hotkeyMap.screenshot || '',
+          hotkeyMap.screen_recorder || '',
+          hotkeyMap.dark_mode || '',
+          hotkeyMap.wallpaper_switcher || ''
+        ];
         this.searchHotkey = searchHotkey;
         this.configHotkey = configHotkey;
         this.translateHotkey = translateHotkey;
@@ -60,6 +74,7 @@ export const useConfigurationStore = defineStore('configuration', {
         this.screenshotHotkey = screenshotHotkey || '';
         this.screenRecorderHotkey = screenRecorderHotkey || '';
         this.darkModeHotkey = darkModeHotkey || '';
+        this.wallpaperSwitcherHotkey = wallpaperSwitcherHotkey || '';
       } catch (error) {
         logger.error('获取快捷键配置失败:', error);
       }

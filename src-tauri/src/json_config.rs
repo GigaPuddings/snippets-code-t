@@ -1,5 +1,6 @@
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
@@ -88,6 +89,8 @@ pub struct AppConfig {
     pub screen_recorder_hotkey: Option<String>,
     #[serde(default)]
     pub dark_mode_hotkey: Option<String>,
+    #[serde(default)]
+    pub wallpaper_switcher_hotkey: Option<String>,
 
     // 深色模式配置
     #[serde(default)]
@@ -96,6 +99,8 @@ pub struct AppConfig {
     // Markdown 工作区根目录
     #[serde(default)]
     pub workspace_root: Option<String>,
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl Default for AppConfig {
@@ -128,8 +133,10 @@ impl Default for AppConfig {
             screenshot_hotkey: None,
             screen_recorder_hotkey: None,
             dark_mode_hotkey: None,
+            wallpaper_switcher_hotkey: None,
             dark_mode_config: None,
             workspace_root: None,
+            extra: HashMap::new(),
         }
     }
 }

@@ -1,56 +1,26 @@
 use crate::app_config;
 use crate::config::parse_hotkey;
 use crate::json_config;
-use crate::window::{
-    hotkey_config, hotkey_dark_mode, hotkey_screenshot, hotkey_search_wrapper,
-    hotkey_selection_translate, hotkey_translate,
-};
+use crate::window::{hotkey_config, hotkey_search_wrapper};
 use crate::APP;
 use log::{info, warn};
+use std::collections::HashMap;
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 struct HotkeySpec {
     name: &'static str,
-    plugin_id: Option<&'static str>,
     handler: fn(),
 }
 
 const HOTKEY_SPECS: &[HotkeySpec] = &[
     HotkeySpec {
         name: "search",
-        plugin_id: None,
         handler: hotkey_search_wrapper,
     },
     HotkeySpec {
         name: "config",
-        plugin_id: None,
         handler: hotkey_config,
-    },
-    HotkeySpec {
-        name: "translate",
-        plugin_id: Some("translation"),
-        handler: hotkey_translate,
-    },
-    HotkeySpec {
-        name: "selection_translate",
-        plugin_id: Some("translation"),
-        handler: hotkey_selection_translate,
-    },
-    HotkeySpec {
-        name: "screenshot",
-        plugin_id: Some("screenshot"),
-        handler: hotkey_screenshot,
-    },
-    HotkeySpec {
-        name: "screen_recorder",
-        plugin_id: Some("screen-recorder"),
-        handler: crate::plugins::screen_recorder::open_screen_recorder_window,
-    },
-    HotkeySpec {
-        name: "dark_mode",
-        plugin_id: Some("system-theme"),
-        handler: hotkey_dark_mode,
     },
 ];
 
@@ -72,16 +42,6 @@ fn register<F>(_app_handle: &AppHandle, name: &str, handler: F, key: &str) -> Re
 where
     F: Fn() + Send + Sync + 'static,
 {
-    if let Some(plugin_id) = hotkey_spec(name).and_then(|spec| spec.plugin_id) {
-        if !app_config::is_plugin_enabled(_app_handle, plugin_id) {
-            info!(
-                "[Hotkey] skip register {} because plugin '{}' is disabled or not installed",
-                name, plugin_id
-            );
-            return Ok(());
-        }
-    }
-
     let hotkey = configured_hotkey(_app_handle, name, key);
 
     // 获取应用句柄
@@ -136,8 +96,37 @@ where
     Ok(())
 }
 
-fn unregister_configured_shortcut(app_handle: &AppHandle, spec: &HotkeySpec) -> Result<(), String> {
-    let hotkey = configured_hotkey(app_handle, spec.name, "");
+fn register_plugin_hotkey(app_handle: &AppHandle, name: &str, key: &str) -> Result<(), String> {
+    let Some(plugin_id) =
+        app_config::enabled_plugin_for_capability_item(app_handle, "hotkeys", name)
+    else {
+        info!(
+            "[Hotkey] skip register {} because no enabled plugin declares it",
+            name
+        );
+        return Ok(());
+    };
+
+    let action_label = name.to_string();
+    register(
+        app_handle,
+        name,
+        move || {
+            let label = action_label.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = crate::window::show_hide_window_command(&label, None).await {
+                    warn!("[Hotkey] plugin action {} failed: {}", label, error);
+                }
+            });
+        },
+        key,
+    )?;
+    info!("[Hotkey] {} registered for plugin '{}'", name, plugin_id);
+    Ok(())
+}
+
+fn unregister_configured_shortcut(app_handle: &AppHandle, name: &str) -> Result<(), String> {
+    let hotkey = configured_hotkey(app_handle, name, "");
     if hotkey.is_empty() {
         return Ok(());
     }
@@ -146,17 +135,14 @@ fn unregister_configured_shortcut(app_handle: &AppHandle, spec: &HotkeySpec) -> 
     let shortcut = Shortcut::new(modifiers, code);
     let manager = app_handle.global_shortcut();
     if !manager.is_registered(shortcut) {
-        info!(
-            "[Hotkey] {} shortcut {} already unregistered",
-            spec.name, hotkey
-        );
+        info!("[Hotkey] {} shortcut {} already unregistered", name, hotkey);
         return Ok(());
     }
 
     manager
         .unregister(shortcut)
         .map_err(|e| format!("快捷键 '{}' 取消注册失败: {}", hotkey, e))?;
-    info!("[Hotkey] {} shortcut {} unregistered", spec.name, hotkey);
+    info!("[Hotkey] {} shortcut {} unregistered", name, hotkey);
     Ok(())
 }
 
@@ -165,14 +151,14 @@ pub fn refresh_plugin_shortcuts(
     plugin_id: &str,
     enabled: bool,
 ) -> Result<(), String> {
-    for spec in HOTKEY_SPECS
-        .iter()
-        .filter(|spec| spec.plugin_id == Some(plugin_id))
+    for action in app_config::installed_plugin_capability_actions(app_handle, "hotkeys", false)
+        .into_iter()
+        .filter(|action| action.plugin_id == plugin_id)
     {
         if enabled {
-            register(app_handle, spec.name, spec.handler, "")?;
+            register_plugin_hotkey(app_handle, &action.item_id, "")?;
         } else {
-            unregister_configured_shortcut(app_handle, spec)?;
+            unregister_configured_shortcut(app_handle, &action.item_id)?;
         }
     }
     Ok(())
@@ -188,8 +174,13 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
         for spec in HOTKEY_SPECS {
             register(app_handle, spec.name, spec.handler, "")?;
         }
+        for action in app_config::installed_plugin_capability_actions(app_handle, "hotkeys", true) {
+            register_plugin_hotkey(app_handle, &action.item_id, "")?;
+        }
     } else if let Some(spec) = hotkey_spec(shortcut) {
         register(app_handle, spec.name, spec.handler, "")?;
+    } else {
+        register_plugin_hotkey(app_handle, shortcut, "")?;
     }
 
     Ok(())
@@ -202,10 +193,11 @@ pub fn register_shortcut_by_frontend(
     shortcut: &str,
 ) -> Result<(), String> {
     if !shortcut.is_empty() {
-        if let Some(plugin_id) = hotkey_spec(name).and_then(|spec| spec.plugin_id) {
-            if !app_config::is_plugin_enabled(&app_handle, plugin_id) {
-                return Err(format!("插件 '{}' 未启用，无法注册快捷键", plugin_id));
-            }
+        if hotkey_spec(name).is_none()
+            && app_config::enabled_plugin_for_capability_item(&app_handle, "hotkeys", name)
+                .is_none()
+        {
+            return Err(format!("没有已启用插件声明快捷键 '{}'", name));
         }
     }
 
@@ -217,7 +209,7 @@ pub fn register_shortcut_by_frontend(
     if let Some(spec) = hotkey_spec(name) {
         register(&app_handle, spec.name, spec.handler, shortcut)?;
     } else {
-        return Err("未知的快捷键名称".to_string());
+        register_plugin_hotkey(&app_handle, name, shortcut)?;
     }
 
     Ok(())
@@ -226,7 +218,19 @@ pub fn register_shortcut_by_frontend(
 #[tauri::command]
 pub fn get_shortcuts(
     app_handle: AppHandle,
-) -> Result<(String, String, String, String, String, String, String), String> {
+) -> Result<
+    (
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+    ),
+    String,
+> {
     // 从 app.json 读取所有快捷键配置（静默读取，不输出日志）
     let search_hotkey = json_config::get_app_config_value::<String>(&app_handle, "search_hotkey")
         .unwrap_or_default();
@@ -247,6 +251,9 @@ pub fn get_shortcuts(
     let dark_mode_hotkey =
         json_config::get_app_config_value::<String>(&app_handle, "dark_mode_hotkey")
             .unwrap_or_default();
+    let wallpaper_switcher_hotkey =
+        json_config::get_app_config_value::<String>(&app_handle, "wallpaper_switcher_hotkey")
+            .unwrap_or_default();
 
     Ok((
         search_hotkey,
@@ -256,5 +263,33 @@ pub fn get_shortcuts(
         screenshot_hotkey,
         screen_recorder_hotkey,
         dark_mode_hotkey,
+        wallpaper_switcher_hotkey,
     ))
+}
+
+#[tauri::command]
+pub fn get_hotkey_config_map(app_handle: AppHandle) -> Result<HashMap<String, String>, String> {
+    let mut values = HashMap::new();
+    for spec in HOTKEY_SPECS {
+        values.insert(
+            spec.name.to_string(),
+            json_config::get_app_config_value::<String>(
+                &app_handle,
+                &format!("{}_hotkey", spec.name),
+            )
+            .unwrap_or_default(),
+        );
+    }
+
+    for action in app_config::installed_plugin_capability_actions(&app_handle, "hotkeys", false) {
+        values.entry(action.item_id.clone()).or_insert_with(|| {
+            json_config::get_app_config_value::<String>(
+                &app_handle,
+                &format!("{}_hotkey", action.item_id),
+            )
+            .unwrap_or_default()
+        });
+    }
+
+    Ok(values)
 }

@@ -14,6 +14,7 @@
     "screenshot",
     "screen_recorder",
     "dark_mode",
+    "plugin_*",
     "pin_*",
     "setup",
     "preview"

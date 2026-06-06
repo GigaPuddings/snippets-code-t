@@ -83,11 +83,15 @@ pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dark_mode_hotkey: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub wallpaper_switcher_hotkey: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub dark_mode_config: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wallpaper_switcher_config: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workspace_root: Option<String>,
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 fn default_version() -> String {
@@ -217,9 +221,11 @@ impl Default for AppConfig {
             screenshot_hotkey: None,
             screen_recorder_hotkey: None,
             dark_mode_hotkey: None,
+            wallpaper_switcher_hotkey: None,
             dark_mode_config: None,
             wallpaper_switcher_config: None,
             workspace_root: None,
+            extra: HashMap::new(),
         }
     }
 }
@@ -489,6 +495,7 @@ impl AppConfigManager {
             }
             "wallpaper-switcher" => {
                 self.config.wallpaper_switcher_config = None;
+                self.config.wallpaper_switcher_hotkey = None;
             }
             _ => {}
         }
@@ -569,6 +576,10 @@ fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> 
         &legacy.screen_recorder_hotkey,
     );
     changed |= copy_option_if_empty(&mut target.dark_mode_hotkey, &legacy.dark_mode_hotkey);
+    changed |= copy_option_if_empty(
+        &mut target.wallpaper_switcher_hotkey,
+        &legacy.wallpaper_switcher_hotkey,
+    );
     changed |= copy_option_if_empty(&mut target.dark_mode_config, &legacy.dark_mode_config);
     changed |= copy_option_if_empty(
         &mut target.wallpaper_switcher_config,
@@ -595,6 +606,13 @@ fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> 
             target
                 .plugins
                 .insert(plugin_id.clone(), legacy_state.clone());
+            changed = true;
+        }
+    }
+
+    for (key, value) in &legacy.extra {
+        if !target.extra.contains_key(key) {
+            target.extra.insert(key.clone(), value.clone());
             changed = true;
         }
     }
@@ -661,6 +679,14 @@ pub struct LocalPluginPackage {
     package_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     installed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginCapabilityAction {
+    pub plugin_id: String,
+    pub item_id: String,
+    pub plugin_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1653,6 +1679,171 @@ fn plugin_package_record(
         package_path: path_to_display_string(&normalized_existing_path(package_path)),
         installed_at: plugin_installed_at(package_path),
     })
+}
+
+fn manifest_i18n_fallback(manifest: &serde_json::Value, key: &str) -> Option<String> {
+    manifest
+        .get(key)
+        .and_then(|value| value.get("fallback"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn manifest_plugin_name(manifest: &serde_json::Value) -> String {
+    manifest_i18n_fallback(manifest, "name").unwrap_or_else(|| {
+        manifest
+            .get("id")
+            .and_then(|value| value.as_str())
+            .unwrap_or("Plugin")
+            .to_string()
+    })
+}
+
+fn manifest_string_array(manifest: &serde_json::Value, key: &str) -> Vec<String> {
+    manifest
+        .get("capabilities")
+        .and_then(|value| value.get(key))
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|value| value.as_str())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn installed_plugin_packages_internal(
+    app_handle: &AppHandle,
+) -> Result<Vec<LocalPluginPackage>, String> {
+    let plugins_dir = plugin_packages_dir(app_handle)?;
+
+    if !plugins_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let entries = fs::read_dir(&plugins_dir)
+        .map_err(|e| format!("读取插件目录失败: {} ({})", plugins_dir.display(), e))?;
+
+    let mut manifests = Vec::new();
+    for entry in entries.flatten() {
+        let package_path = entry.path();
+        let manifest_path = package_path.join("plugin.json");
+        if !manifest_path.is_file() {
+            continue;
+        }
+
+        match read_plugin_package_manifest(&manifest_path).and_then(|manifest| {
+            validate_local_plugin_manifest(&manifest)?;
+            plugin_package_record(manifest, &package_path)
+        }) {
+            Ok(plugin_package) => manifests.push(plugin_package),
+            Err(error) => warn!("[Plugin] {}", error),
+        }
+    }
+
+    manifests.sort_by(compare_plugin_package_install_time);
+
+    Ok(manifests)
+}
+
+pub fn installed_plugin_capability_actions(
+    app_handle: &AppHandle,
+    capability_key: &str,
+    enabled_only: bool,
+) -> Vec<PluginCapabilityAction> {
+    installed_plugin_packages_internal(app_handle)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|plugin_package| {
+            let plugin_id = plugin_package_manifest_id(&plugin_package).to_string();
+            if plugin_id.is_empty() || (enabled_only && !is_plugin_enabled(app_handle, &plugin_id))
+            {
+                return None;
+            }
+
+            let plugin_name = manifest_plugin_name(&plugin_package.manifest);
+            let actions = manifest_string_array(&plugin_package.manifest, capability_key)
+                .into_iter()
+                .map(|item_id| PluginCapabilityAction {
+                    plugin_id: plugin_id.clone(),
+                    item_id,
+                    plugin_name: plugin_name.clone(),
+                })
+                .collect::<Vec<_>>();
+            Some(actions)
+        })
+        .flatten()
+        .collect()
+}
+
+pub fn enabled_plugin_for_capability_item(
+    app_handle: &AppHandle,
+    capability_key: &str,
+    item_id: &str,
+) -> Option<String> {
+    installed_plugin_capability_actions(app_handle, capability_key, true)
+        .into_iter()
+        .find(|action| action.item_id == item_id)
+        .map(|action| action.plugin_id)
+}
+
+pub fn plugin_window_route_path(
+    app_handle: &AppHandle,
+    window_label: &str,
+) -> Result<(String, String), String> {
+    let packages = installed_plugin_packages_internal(app_handle)?;
+    for plugin_package in packages {
+        let plugin_id = plugin_package_manifest_id(&plugin_package).to_string();
+        if plugin_id.is_empty() || !is_plugin_enabled(app_handle, &plugin_id) {
+            continue;
+        }
+
+        let windows = manifest_string_array(&plugin_package.manifest, "windows");
+        let Some(index) = windows.iter().position(|label| label == window_label) else {
+            continue;
+        };
+
+        let route_names = manifest_string_array(&plugin_package.manifest, "routeNames");
+        let route_name = route_names.get(index).cloned();
+        let route_path = route_name
+            .map(|value| format!("/{}", pascal_or_snake_to_kebab(&value)))
+            .unwrap_or_else(|| format!("/{}", window_label.replace('_', "-")));
+        return Ok((plugin_id, route_path));
+    }
+
+    Err(format!("插件窗口 '{}' 未安装或未启用", window_label))
+}
+
+fn pascal_or_snake_to_kebab(value: &str) -> String {
+    let mut output = String::new();
+    let mut previous_is_separator = true;
+    for (index, ch) in value.chars().enumerate() {
+        if matches!(ch, '_' | '-' | ' ' | '.') {
+            if !previous_is_separator {
+                output.push('-');
+            }
+            previous_is_separator = true;
+            continue;
+        }
+
+        if ch.is_ascii_uppercase() {
+            if index > 0 && !previous_is_separator {
+                output.push('-');
+            }
+            output.push(ch.to_ascii_lowercase());
+        } else {
+            output.push(ch);
+        }
+        previous_is_separator = false;
+    }
+
+    output.trim_matches('-').to_string()
 }
 
 fn plugin_has_owned_config(plugin_id: &str) -> bool {
@@ -2662,35 +2853,7 @@ async fn download_plugin_url_to_temp(
 pub fn get_installed_plugin_manifests(
     app_handle: AppHandle,
 ) -> Result<Vec<LocalPluginPackage>, String> {
-    let plugins_dir = plugin_packages_dir(&app_handle)?;
-
-    if !plugins_dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    let entries = fs::read_dir(&plugins_dir)
-        .map_err(|e| format!("读取插件目录失败: {} ({})", plugins_dir.display(), e))?;
-
-    let mut manifests = Vec::new();
-    for entry in entries.flatten() {
-        let package_path = entry.path();
-        let manifest_path = package_path.join("plugin.json");
-        if !manifest_path.is_file() {
-            continue;
-        }
-
-        match read_plugin_package_manifest(&manifest_path).and_then(|manifest| {
-            validate_local_plugin_manifest(&manifest)?;
-            plugin_package_record(manifest, &package_path)
-        }) {
-            Ok(plugin_package) => manifests.push(plugin_package),
-            Err(error) => warn!("[Plugin] {}", error),
-        }
-    }
-
-    manifests.sort_by(compare_plugin_package_install_time);
-
-    Ok(manifests)
+    installed_plugin_packages_internal(&app_handle)
 }
 
 #[command]

@@ -19,6 +19,9 @@
     ],
     "hotkeys": [
       "dark_mode"
+    ],
+    "trayItems": [
+      "dark_mode"
     ]
   },
   "permissions": [

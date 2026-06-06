@@ -74,6 +74,8 @@ declare global {
     screenshotHotkey: string;
     screenRecorderHotkey: string;
     darkModeHotkey: string;
+    wallpaperSwitcherHotkey: string;
+    pluginHotkeys: Record<string, string>;
     dbPath: string | null;
     dbBackup: string;
     theme: 'light' | 'dark' | 'auto';

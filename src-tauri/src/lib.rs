@@ -817,6 +817,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             register_shortcut_by_frontend,    // 注册快捷键
             get_shortcuts,                    // 获取快捷键
+            get_hotkey_config_map,            // 获取动态快捷键配置
             hotkey_config_command,            // 快捷键配置
             hotkey_update_command,            // 快捷键更新
             plugins::local_launcher::open_app_command,                 // 打开应用

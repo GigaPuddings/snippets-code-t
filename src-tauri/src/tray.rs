@@ -5,9 +5,7 @@ use crate::plugins::system_theme::{
     stop_scheduler, ScheduleType, ThemeMode,
 };
 use crate::update::check_update_and_open_window;
-use crate::window::{
-    hotkey_config, hotkey_dark_mode, hotkey_screenshot, hotkey_translate, open_config_settings,
-};
+use crate::window::{hotkey_config, hotkey_dark_mode, open_config_settings};
 use log::{debug, info};
 use tauri::Emitter;
 use tauri::{
@@ -25,6 +23,8 @@ struct TrayTranslations {
     translate: &'static str,
     screenshot: &'static str,
     screen_recorder: &'static str,
+    wallpaper_switcher: &'static str,
+    dark_mode: &'static str,
     // 主题子菜单
     theme_menu: &'static str,
     theme_system: &'static str,
@@ -39,55 +39,59 @@ struct TrayTranslations {
     quit: &'static str,
 }
 
-struct TrayPluginMenuSpec {
-    id: &'static str,
-    plugin_id: &'static str,
-    label: fn(&TrayTranslations) -> &'static str,
-    handler: fn(&AppHandle),
-    log_message: &'static str,
+fn tray_plugin_menu_id(plugin_id: &str, item_id: &str) -> String {
+    format!("plugin:{}:{}", plugin_id, item_id)
 }
 
-const TRAY_PLUGIN_MENU_SPECS: &[TrayPluginMenuSpec] = &[
-    TrayPluginMenuSpec {
-        id: "translate",
-        plugin_id: "translation",
-        label: |trans| trans.translate,
-        handler: |_| hotkey_translate(),
-        log_message: "[托盘菜单] 执行：输入翻译",
-    },
-    TrayPluginMenuSpec {
-        id: "screenshot",
-        plugin_id: "screenshot",
-        label: |trans| trans.screenshot,
-        handler: |_| hotkey_screenshot(),
-        log_message: "[托盘菜单] 执行：快速截图",
-    },
-    TrayPluginMenuSpec {
-        id: "screen_recorder",
-        plugin_id: "screen-recorder",
-        label: |trans| trans.screen_recorder,
-        handler: |_| crate::plugins::screen_recorder::open_screen_recorder_window(),
-        log_message: "[托盘菜单] 执行：区域录制",
-    },
-];
+fn parse_tray_plugin_menu_id(menu_id: &str) -> Option<(&str, &str)> {
+    let rest = menu_id.strip_prefix("plugin:")?;
+    let (plugin_id, item_id) = rest.split_once(':')?;
+    Some((plugin_id, item_id))
+}
 
-fn tray_plugin_menu_spec(menu_id: &str) -> Option<&'static TrayPluginMenuSpec> {
-    TRAY_PLUGIN_MENU_SPECS
-        .iter()
-        .find(|spec| spec.id == menu_id)
+fn known_plugin_action_label<'a>(trans: &'a TrayTranslations, item_id: &str) -> Option<&'a str> {
+    match item_id {
+        "translate" => Some(trans.translate),
+        "screenshot" => Some(trans.screenshot),
+        "screen_recorder" => Some(trans.screen_recorder),
+        "wallpaper_switcher" => Some(trans.wallpaper_switcher),
+        "dark_mode" => Some(trans.dark_mode),
+        _ => None,
+    }
+}
+
+fn plugin_action_label(
+    trans: &TrayTranslations,
+    action: &app_config::PluginCapabilityAction,
+    single_plugin_action: bool,
+) -> String {
+    if let Some(label) = known_plugin_action_label(trans, &action.item_id) {
+        return label.to_string();
+    }
+
+    if single_plugin_action {
+        action.plugin_name.clone()
+    } else {
+        format!("{}: {}", action.plugin_name, action.item_id)
+    }
 }
 
 fn handle_plugin_tray_menu_click(app: &AppHandle, menu_id: &str) -> bool {
-    let Some(spec) = tray_plugin_menu_spec(menu_id) else {
+    let Some((plugin_id, item_id)) = parse_tray_plugin_menu_id(menu_id) else {
         return false;
     };
 
-    if !app_config::is_plugin_enabled(app, spec.plugin_id) {
+    if !app_config::is_plugin_enabled(app, plugin_id) {
         return true;
     }
 
-    debug!("{}", spec.log_message);
-    (spec.handler)(app);
+    debug!("[托盘菜单] 执行插件动作: {} / {}", plugin_id, item_id);
+    let label = item_id.to_string();
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = crate::window::show_hide_window_command(&label, None).await {
+            log::warn!("[托盘菜单] 插件动作执行失败 {}: {}", label, error);
+        }
+    });
     true
 }
 
@@ -109,6 +113,8 @@ fn get_translations(lang: &str) -> TrayTranslations {
             translate: "Translate",
             screenshot: "Screenshot",
             screen_recorder: "Screen Recorder",
+            wallpaper_switcher: "Wallpaper Switcher",
+            dark_mode: "System Theme",
             theme_menu: "Theme Mode",
             theme_system: "Follow System",
             theme_light: "Light Mode",
@@ -127,6 +133,8 @@ fn get_translations(lang: &str) -> TrayTranslations {
             translate: "输入翻译",
             screenshot: "快速截图",
             screen_recorder: "区域录制",
+            wallpaper_switcher: "壁纸切换",
+            dark_mode: "系统主题",
             theme_menu: "主题模式",
             theme_system: "跟随系统",
             theme_light: "浅色模式",
@@ -234,10 +242,22 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
 
     let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
-    let plugin_items = TRAY_PLUGIN_MENU_SPECS
+    let plugin_actions = app_config::installed_plugin_capability_actions(app, "trayItems", true);
+    let plugin_items = plugin_actions
         .iter()
-        .filter(|spec| app_config::is_plugin_enabled(app, spec.plugin_id))
-        .map(|spec| MenuItem::with_id(app, spec.id, (spec.label)(&trans), true, None::<&str>))
+        .map(|action| {
+            let action_count = plugin_actions
+                .iter()
+                .filter(|candidate| candidate.plugin_id == action.plugin_id)
+                .count();
+            MenuItem::with_id(
+                app,
+                tray_plugin_menu_id(&action.plugin_id, &action.item_id),
+                plugin_action_label(&trans, action, action_count == 1),
+                true,
+                None::<&str>,
+            )
+        })
         .collect::<tauri::Result<Vec<_>>>()?;
     let theme_submenu = if system_theme_enabled {
         Some(create_theme_submenu(app, lang)?)
@@ -359,6 +379,10 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 return;
             }
 
+            if handle_plugin_tray_menu_click(app, menu_id) {
+                return;
+            }
+
             match menu_id {
                 "search" => {
                     debug!("[托盘菜单] 执行：快速搜索");
@@ -391,10 +415,6 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     exit_app_now(app);
                 }
                 _ => {}
-            }
-
-            if handle_plugin_tray_menu_click(app, menu_id) {
-                return;
             }
         })
         .on_tray_icon_event(move |_tray, event| {

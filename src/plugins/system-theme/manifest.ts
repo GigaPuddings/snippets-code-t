@@ -7,5 +7,6 @@ export const systemThemePlugin: BuiltinPlugin = {
   category: 'appearance',
   enabledByDefault: true,
   routeNames: ['DarkMode'],
-  hotkeys: ['dark_mode']
+  hotkeys: ['dark_mode'],
+  trayItems: ['dark_mode']
 };

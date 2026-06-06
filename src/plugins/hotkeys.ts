@@ -9,7 +9,19 @@ export type HotkeyName =
   | 'selection_translate'
   | 'screenshot'
   | 'screen_recorder'
-  | 'dark_mode';
+  | 'dark_mode'
+  | 'wallpaper_switcher'
+  | (string & {});
+
+type KnownHotkeyName =
+  | 'search'
+  | 'config'
+  | 'translate'
+  | 'selection_translate'
+  | 'screenshot'
+  | 'screen_recorder'
+  | 'dark_mode'
+  | 'wallpaper_switcher';
 
 export interface HotkeySettingDefinition {
   name: HotkeyName;
@@ -18,7 +30,7 @@ export interface HotkeySettingDefinition {
   pluginId?: string;
 }
 
-const hotkeyDefinitions: Record<HotkeyName, HotkeySettingDefinition & {
+const hotkeyDefinitions: Record<KnownHotkeyName, HotkeySettingDefinition & {
   get: (store: ConfigurationStore) => string;
   set: (store: ConfigurationStore, value: string) => void;
 }> = {
@@ -75,6 +87,14 @@ const hotkeyDefinitions: Record<HotkeyName, HotkeySettingDefinition & {
     descriptionKey: 'shortcut.darkModeHotkeyDesc',
     get: (store) => store.darkModeHotkey,
     set: (store, value) => { store.darkModeHotkey = value; }
+  },
+  wallpaper_switcher: {
+    name: 'wallpaper_switcher',
+    pluginId: 'wallpaper-switcher',
+    labelKey: 'shortcut.wallpaperSwitcherHotkey',
+    descriptionKey: 'shortcut.wallpaperSwitcherHotkeyDesc',
+    get: (store) => store.wallpaperSwitcherHotkey,
+    set: (store, value) => { store.wallpaperSwitcherHotkey = value; }
   }
 };
 
@@ -85,15 +105,24 @@ export const hotkeySettingDefinitions: HotkeySettingDefinition[] = [
   hotkeyDefinitions.selection_translate,
   hotkeyDefinitions.screenshot,
   hotkeyDefinitions.screen_recorder,
-  hotkeyDefinitions.dark_mode
+  hotkeyDefinitions.dark_mode,
+  hotkeyDefinitions.wallpaper_switcher
 ].map(({ name, labelKey, descriptionKey, pluginId }) => ({ name, labelKey, descriptionKey, pluginId }));
 
 export const isHotkeyName = (value: string): value is HotkeyName => (
+  Boolean(value)
+);
+
+export const isKnownHotkeyName = (
+  value: string
+): value is KnownHotkeyName => (
   value in hotkeyDefinitions
 );
 
 export const getHotkeyValue = (store: ConfigurationStore, hotkeyName: string): string => (
-  isHotkeyName(hotkeyName) ? hotkeyDefinitions[hotkeyName].get(store) : ''
+  isKnownHotkeyName(hotkeyName)
+    ? hotkeyDefinitions[hotkeyName].get(store)
+    : store.pluginHotkeys[hotkeyName] ?? ''
 );
 
 export const setHotkeyValue = (
@@ -101,7 +130,12 @@ export const setHotkeyValue = (
   hotkeyName: string,
   value: string
 ): void => {
-  if (isHotkeyName(hotkeyName)) {
+  if (isKnownHotkeyName(hotkeyName)) {
     hotkeyDefinitions[hotkeyName].set(store, value);
+  } else if (hotkeyName) {
+    store.pluginHotkeys = {
+      ...store.pluginHotkeys,
+      [hotkeyName]: value
+    };
   }
 };

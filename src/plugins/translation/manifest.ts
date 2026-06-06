@@ -9,6 +9,7 @@ export const translationPlugin: BuiltinPlugin = {
   routeNames: ['Translate'],
   settingsTabs: ['translation'],
   hotkeys: ['translate', 'selection_translate'],
+  trayItems: ['translate'],
   searchSources: [],
   dependencies: ['translation-offline-runtime'],
   resourceHintKey: 'plugins.translation.resourceHint'
