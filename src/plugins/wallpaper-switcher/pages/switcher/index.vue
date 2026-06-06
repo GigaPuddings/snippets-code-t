@@ -29,9 +29,9 @@ import {
   Computer,
   Download,
   FolderOpen,
-  GridFour,
   Lightning,
   Picture,
+  PictureAlbum,
   PreviewOpen,
   Refresh,
   Save,
@@ -57,8 +57,12 @@ const wallhavenKeyword = ref('');
 const wallhavenCategory = ref('general');
 const wallhavenSource = ref<WallhavenSource>('hot');
 const previewWallpaper = ref<WallhavenWallpaper | null>(null);
+const previewLoading = ref(false);
+const previewLoadFailed = ref(false);
 const workingIds = ref(new Set<string>());
 const loadedThumbIds = ref(new Set<string>());
+const clearingCache = ref(false);
+const openingCache = ref(false);
 const thumbElements = new Map<string, HTMLImageElement>();
 let thumbObserver: IntersectionObserver | null = null;
 let unlistenChanged: UnlistenFn | null = null;
@@ -217,8 +221,29 @@ const openWallhavenGrid = async () => {
 
 const backToSwitcher = async () => {
   activeView.value = 'switcher';
-  previewWallpaper.value = null;
+  closePreview();
   await refreshStatus();
+};
+
+const openPreview = (wallpaper: WallhavenWallpaper) => {
+  previewWallpaper.value = wallpaper;
+  previewLoading.value = true;
+  previewLoadFailed.value = false;
+};
+
+const closePreview = () => {
+  previewWallpaper.value = null;
+  previewLoading.value = false;
+  previewLoadFailed.value = false;
+};
+
+const markPreviewLoaded = () => {
+  previewLoading.value = false;
+};
+
+const markPreviewFailed = () => {
+  previewLoading.value = false;
+  previewLoadFailed.value = true;
 };
 
 const setWorking = (id: string, working: boolean) => {
@@ -343,20 +368,26 @@ const nextWallhavenPage = async () => {
 };
 
 const clearCache = async () => {
+  clearingCache.value = true;
   try {
     await clearWallpaperCache();
     await refreshStatus();
     modal.msg('缓存已清理', 'success');
   } catch (error) {
     modal.msg(String(error), 'error');
+  } finally {
+    clearingCache.value = false;
   }
 };
 
 const openCacheDir = async () => {
+  openingCache.value = true;
   try {
     await openWallpaperCacheDir();
   } catch (error) {
     modal.msg(String(error), 'error');
+  } finally {
+    openingCache.value = false;
   }
 };
 
@@ -415,8 +446,8 @@ onUnmounted(() => {
         <span>Wallhaven 壁纸</span>
       </div>
       <div v-if="activeView === 'switcher'" class="window-actions">
-        <button type="button" class="icon-btn" title="打开在线网格" @click="openWallhavenGrid">
-          <GridFour :size="19" />
+        <button type="button" class="icon-btn online-entry-btn" title="打开 Wallhaven 壁纸" @click="openWallhavenGrid">
+          <PictureAlbum :size="20" />
         </button>
         <button type="button" class="icon-btn" title="关闭" @click="closeWindow">
           <CloseSmall :size="22" />
@@ -488,7 +519,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="form-row">
+        <div class="form-row fixed-row">
           <span class="row-label">固定图片</span>
           <input
             v-model="config.fixedImagePath"
@@ -502,7 +533,7 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div class="form-row">
+        <div class="form-row folder-row">
           <span class="row-label">本地文件夹</span>
           <input
             v-model="config.folderPath"
@@ -593,13 +624,13 @@ onUnmounted(() => {
           <span>{{ cacheSizeLabel }}</span>
         </div>
         <div class="footer-actions">
-          <button type="button" class="secondary-btn" @click="clearCache">
+          <button type="button" class="secondary-btn" :disabled="clearingCache" @click="clearCache">
             <Delete :size="16" />
-            清理缓存
+            {{ clearingCache ? '清理中' : '清理缓存' }}
           </button>
-          <button type="button" class="secondary-btn" @click="openCacheDir">
+          <button type="button" class="secondary-btn" :disabled="openingCache" @click="openCacheDir">
             <FolderOpen :size="16" />
-            打开缓存
+            {{ openingCache ? '打开中' : '打开缓存' }}
           </button>
           <button type="button" class="primary-btn" :disabled="saving" @click="persistConfig">
             <Save :size="17" />
@@ -646,7 +677,7 @@ onUnmounted(() => {
             v-for="wallpaper in visibleWallpapers"
             :key="wallpaper.id"
             class="wallpaper-card"
-            @click="previewWallpaper = wallpaper"
+            @click="openPreview(wallpaper)"
           >
             <div class="thumb">
               <div v-if="!loadedThumbIds.has(wallpaper.id)" class="thumb-skeleton"></div>
@@ -659,7 +690,7 @@ onUnmounted(() => {
               <span>{{ wallpaper.resolution }}</span>
             </div>
             <div class="card-actions" @click.stop>
-              <button type="button" title="预览" @click="previewWallpaper = wallpaper">
+              <button type="button" title="预览" @click="openPreview(wallpaper)">
                 <PreviewOpen :size="16" />
                 预览
               </button>
@@ -686,16 +717,26 @@ onUnmounted(() => {
       </footer>
     </div>
 
-    <div v-if="previewWallpaper" class="preview-modal" @click.self="previewWallpaper = null">
+    <div v-if="previewWallpaper" class="preview-modal" @click.self="closePreview">
       <div class="preview-dialog">
         <header>
           <strong>{{ previewWallpaper.resolution }}</strong>
-          <button type="button" class="flat-icon" @click="previewWallpaper = null">
+          <button type="button" class="flat-icon" @click="closePreview">
             <CloseSmall :size="23" />
           </button>
         </header>
         <div class="preview-image-wrap">
-          <img :src="previewWallpaper.path" alt="壁纸预览" />
+          <div v-if="previewLoading" class="preview-skeleton">
+            <span>加载预览...</span>
+          </div>
+          <div v-if="previewLoadFailed" class="preview-error">预览加载失败</div>
+          <img
+            :class="{ ready: !previewLoading && !previewLoadFailed }"
+            :src="previewWallpaper.path"
+            alt="壁纸预览"
+            @load="markPreviewLoaded"
+            @error="markPreviewFailed"
+          />
         </div>
         <footer>
           <button type="button" class="secondary-btn" :disabled="workingIds.has(previewWallpaper.id)" @click="downloadWallpaperFromWallhaven(previewWallpaper)">
@@ -816,6 +857,18 @@ onUnmounted(() => {
   }
 }
 
+.online-entry-btn {
+  color: var(--wallpaper-primary);
+  background: var(--wallpaper-primary-soft);
+  border-color: #cdd8ff;
+
+  &:hover {
+    color: #5368e8;
+    background: #e8efff;
+    border-color: #aebcff;
+  }
+}
+
 .flat-icon {
   width: 34px;
   height: 34px;
@@ -830,11 +883,12 @@ onUnmounted(() => {
 
 .content {
   display: grid;
-  grid-template-rows: 138px 220px 112px 52px;
+  grid-template-rows: 154px 202px 108px 52px;
   gap: 8px;
   height: calc(100vh - 48px);
   min-height: 0;
   padding: 12px 20px 12px;
+  align-content: start;
   overflow: hidden;
 }
 
@@ -906,7 +960,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 78px minmax(0, 1fr);
   gap: 8px;
-  margin-bottom: 7px;
+  margin-bottom: 5px;
 
   span {
     color: var(--wallpaper-muted);
@@ -919,7 +973,7 @@ onUnmounted(() => {
 
 .status-actions {
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .primary-btn,
@@ -965,8 +1019,8 @@ button:disabled {
 
 .form-row {
   display: grid;
-  grid-template-columns: 106px minmax(0, 1fr) 86px 86px;
-  gap: 7px;
+  grid-template-columns: 106px minmax(0, 1fr) 94px 94px;
+  gap: 8px;
   align-items: center;
   min-height: 32px;
 }
@@ -975,10 +1029,18 @@ button:disabled {
   grid-template-columns: 106px minmax(0, 1fr);
 }
 
+.fixed-row {
+  grid-template-columns: 106px minmax(0, 1fr) 128px;
+}
+
+.folder-row {
+  grid-template-columns: 106px minmax(0, 1fr) 94px 94px;
+}
+
 .wallhaven-row {
-  grid-template-columns: 106px 54px 348px minmax(154px, 1fr);
-  padding-top: 5px;
-  margin-top: 5px;
+  grid-template-columns: 106px 54px minmax(260px, 1fr) 260px;
+  padding-top: 4px;
+  margin-top: 4px;
   border-top: 1px solid var(--wallpaper-border);
 }
 
@@ -1165,12 +1227,23 @@ button:disabled {
 }
 
 .cache-info {
-  gap: 24px;
+  flex: 1;
+  gap: 18px;
+  min-width: 0;
   font-size: 14px;
 }
 
 .footer-actions {
-  gap: 12px;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.footer-actions .secondary-btn {
+  min-width: 108px;
+}
+
+.footer-actions .primary-btn {
+  min-width: 112px;
 }
 
 .source-toggle {
@@ -1500,12 +1573,14 @@ button:disabled {
 }
 
 .preview-image-wrap {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   aspect-ratio: 16 / 9;
   min-height: 360px;
   max-height: min(430px, calc(100vh - 160px));
+  overflow: hidden;
   background: #111827;
 
   img {
@@ -1513,7 +1588,45 @@ button:disabled {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    opacity: 0;
+    transition: opacity 0.18s ease;
   }
+
+  img.ready {
+    opacity: 1;
+  }
+}
+
+.preview-skeleton,
+.preview-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-skeleton {
+  z-index: 1;
+  color: #cbd5e1;
+  background:
+    linear-gradient(90deg, transparent, rgb(255 255 255 / 8%), transparent),
+    #111827;
+  background-size: 180% 100%;
+  animation: shimmer 1.1s linear infinite;
+
+  span {
+    padding: 6px 10px;
+    background: rgb(15 23 42 / 62%);
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 6px;
+  }
+}
+
+.preview-error {
+  z-index: 2;
+  color: #dbe3ee;
+  background: #111827;
 }
 
 @keyframes spin {
