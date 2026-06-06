@@ -53,6 +53,7 @@ const wallhavenPage = ref(1);
 const wallhavenLastPage = ref(1);
 const wallhavenLoading = ref(false);
 const wallhavenLoaded = ref(false);
+const wallhavenError = ref('');
 const wallhavenKeyword = ref('');
 const wallhavenCategory = ref('general');
 const wallhavenSource = ref<WallhavenSource>('hot');
@@ -67,6 +68,7 @@ const thumbElements = new Map<string, HTMLImageElement>();
 let thumbObserver: IntersectionObserver | null = null;
 let unlistenChanged: UnlistenFn | null = null;
 let unlistenError: UnlistenFn | null = null;
+let wallhavenFetchSeq = 0;
 
 const previewSrc = computed(() => wallpaperImageSrc(status.value?.currentPath));
 const screenLabel = computed(() => '2560 × 1440');
@@ -101,21 +103,52 @@ const visibleWallpapers = computed(() => wallpapers.value.slice(0, 8));
 const normalizeWallhavenKeyword = (keyword: string): string => {
   const value = keyword.trim();
   const lower = value.toLocaleLowerCase();
-  if (['natural', 'naturally', 'nature', '自然', '风景'].includes(lower)) return 'nature';
-  if (['landscape', 'scenery'].includes(lower)) return 'nature landscape';
+  const aliases: Record<string, string> = {
+    natural: 'nature',
+    naturally: 'nature',
+    nature: 'nature',
+    landscape: 'nature landscape',
+    scenery: 'nature landscape',
+    自然: 'nature',
+    风景: 'nature landscape',
+    山: 'mountain',
+    山脉: 'mountain',
+    雪山: 'snow mountain',
+    湖: 'lake',
+    森林: 'forest',
+    树林: 'forest',
+    海: 'ocean',
+    海边: 'beach',
+    天空: 'sky',
+    云: 'clouds',
+    日落: 'sunset',
+    日出: 'sunrise',
+    城市: 'city',
+    建筑: 'architecture',
+    星空: 'stars',
+    宇宙: 'space',
+    动漫: 'anime',
+    人物: 'portrait',
+    女孩: 'girl'
+  };
+  if (aliases[lower]) return aliases[lower];
   return value;
+};
+
+const appendKeywordOnce = (keyword: string, required: string) => {
+  const terms = keyword.toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  return terms.includes(required) ? keyword : `${keyword} ${required}`;
 };
 
 const wallhavenRequestQuery = computed(() => {
   const keyword = normalizeWallhavenKeyword(wallhavenKeyword.value);
   if (wallhavenCategory.value === 'nature') {
-    return keyword ? `${keyword} nature` : 'nature';
+    return keyword ? appendKeywordOnce(keyword, 'nature') : 'nature';
   }
   return keyword || null;
 });
 
 const wallhavenRequestCategory = computed(() => {
-  if (wallhavenCategory.value === 'nature') return 'general';
   return wallhavenCategory.value;
 });
 
@@ -311,7 +344,11 @@ const persistWallhavenPrefs = async () => {
 };
 
 const fetchWallhavenData = async (targetPage = wallhavenPage.value) => {
+  const fetchSeq = ++wallhavenFetchSeq;
   wallhavenLoading.value = true;
+  wallhavenError.value = '';
+  wallpapers.value = [];
+  resetThumbLoading();
   try {
     await persistWallhavenPrefs();
     const result = await fetchWallhaven({
@@ -320,7 +357,7 @@ const fetchWallhavenData = async (targetPage = wallhavenPage.value) => {
       query: wallhavenRequestQuery.value,
       category: wallhavenRequestCategory.value
     });
-    resetThumbLoading();
+    if (fetchSeq !== wallhavenFetchSeq) return;
     wallpapers.value = result.data;
     wallhavenPage.value = result.page;
     wallhavenLastPage.value = Math.max(1, result.lastPage);
@@ -332,9 +369,14 @@ const fetchWallhavenData = async (targetPage = wallhavenPage.value) => {
       }
     }
   } catch (error) {
+    if (fetchSeq !== wallhavenFetchSeq) return;
+    wallpapers.value = [];
+    wallhavenError.value = String(error).replace(/^Error:\s*/, '');
     modal.msg(String(error), 'error');
   } finally {
-    wallhavenLoading.value = false;
+    if (fetchSeq === wallhavenFetchSeq) {
+      wallhavenLoading.value = false;
+    }
   }
 };
 
@@ -663,36 +705,44 @@ onUnmounted(() => {
 
     <div v-else class="wallhaven-view">
       <section class="filters">
-        <div class="search-box">
-          <input v-model="wallhavenKeyword" type="search" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
-          <button type="button" title="搜索" @click="refreshWallhaven">
-            <Search :size="18" />
+        <div class="filter-row filter-main">
+          <div class="search-box">
+            <input v-model="wallhavenKeyword" type="search" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
+            <button type="button" title="搜索" @click="refreshWallhaven">
+              <Search :size="18" />
+            </button>
+          </div>
+          <label class="resolution">
+            <span>分辨率</span>
+            <strong>自动匹配 {{ wallhavenScreenLabel }}</strong>
+          </label>
+          <button type="button" class="refresh-btn" title="刷新" @click="refreshWallhaven">
+            <Refresh :size="18" :class="{ spinning: wallhavenLoading }" />
           </button>
         </div>
-        <label class="resolution">
-          <span>分辨率</span>
-          <strong>自动匹配 {{ wallhavenScreenLabel }}</strong>
-        </label>
-        <div class="chips">
-          <button type="button" :class="{ active: wallhavenCategory === 'general' }" @click="setWallhavenCategory('general')">通用</button>
-          <button type="button" :class="{ active: wallhavenCategory === 'anime' }" @click="setWallhavenCategory('anime')">动漫</button>
-          <button type="button" :class="{ active: wallhavenCategory === 'people' }" @click="setWallhavenCategory('people')">人物</button>
-          <button type="button" :class="{ active: wallhavenCategory === 'nature' }" @click="setWallhavenCategory('nature')">自然</button>
+        <div class="filter-row filter-meta">
+          <div class="chips">
+            <button type="button" :class="{ active: wallhavenCategory === 'general' }" @click="setWallhavenCategory('general')">通用</button>
+            <button type="button" :class="{ active: wallhavenCategory === 'anime' }" @click="setWallhavenCategory('anime')">动漫</button>
+            <button type="button" :class="{ active: wallhavenCategory === 'people' }" @click="setWallhavenCategory('people')">人物</button>
+            <button type="button" :class="{ active: wallhavenCategory === 'nature' }" @click="setWallhavenCategory('nature')">自然</button>
+          </div>
+          <label class="source-select">
+            <span>源</span>
+            <select v-model="wallhavenSource" @change="refreshWallhaven">
+              <option value="hot">Hot</option>
+              <option value="toplist">Toplist</option>
+            </select>
+          </label>
         </div>
-        <label class="source-select">
-          <span>源</span>
-          <select v-model="wallhavenSource" @change="refreshWallhaven">
-            <option value="hot">Hot</option>
-            <option value="toplist">Toplist</option>
-          </select>
-        </label>
-        <button type="button" class="refresh-btn" title="刷新" @click="refreshWallhaven">
-          <Refresh :size="18" :class="{ spinning: wallhavenLoading }" />
-        </button>
       </section>
 
       <section class="grid-wrap">
         <div v-if="wallhavenLoading && visibleWallpapers.length === 0" class="empty-state">正在加载 Wallhaven 壁纸...</div>
+        <div v-else-if="wallhavenError" class="empty-state error-state">
+          <span>{{ wallhavenError }}</span>
+          <button type="button" @click="refreshWallhaven">重试</button>
+        </div>
         <div v-else-if="visibleWallpapers.length === 0" class="empty-state">暂无可用壁纸</div>
         <div v-else class="wallpaper-grid">
           <article
@@ -1305,23 +1355,40 @@ button:disabled {
 
 .wallhaven-view {
   display: grid;
-  grid-template-rows: 58px minmax(0, 1fr) 58px;
+  grid-template-rows: 92px minmax(0, 1fr) 58px;
   height: calc(100vh - 48px);
   min-height: 0;
   overflow: hidden;
 }
 
 .filters {
+  display: grid;
+  grid-template-rows: 36px 36px;
   gap: 8px;
-  height: 58px;
-  padding: 10px 14px;
+  height: 92px;
+  padding: 10px 14px 8px;
   overflow: hidden;
+}
+
+.filter-row {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.filter-main {
+  grid-template-columns: minmax(220px, 1fr) 236px 38px;
+}
+
+.filter-meta {
+  grid-template-columns: minmax(0, 1fr) 180px;
 }
 
 .search-box {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 36px;
-  width: 188px;
+  width: 100%;
   height: 34px;
   overflow: hidden;
   background: var(--wallpaper-input);
@@ -1378,16 +1445,19 @@ button:disabled {
 .resolution strong {
   display: inline-flex;
   align-items: center;
-  width: 132px;
+  width: 176px;
 }
 
 .chips {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  width: min(100%, 360px);
   overflow: hidden;
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
 
   button {
-    width: 54px;
+    width: 100%;
     height: 34px;
     color: var(--wallpaper-text);
     background: transparent;
@@ -1407,7 +1477,7 @@ button:disabled {
 }
 
 .source-select select {
-  width: 108px;
+  width: 132px;
 }
 
 .refresh-btn {
@@ -1441,7 +1511,7 @@ button:disabled {
 .wallpaper-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   align-content: start;
 }
 
@@ -1457,7 +1527,7 @@ button:disabled {
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 1.1;
+  aspect-ratio: 1.18;
   overflow: hidden;
   background: var(--wallpaper-soft);
   border: 0;
@@ -1535,10 +1605,33 @@ button:disabled {
 
 .empty-state {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
   align-items: center;
   justify-content: center;
   height: 100%;
+  padding: 24px;
+  text-align: center;
   color: var(--wallpaper-muted);
+}
+
+.error-state {
+  color: #b45309;
+
+  button {
+    height: 32px;
+    padding: 0 18px;
+    color: var(--wallpaper-text);
+    background: var(--wallpaper-panel);
+    border: 1px solid var(--wallpaper-border);
+    border-radius: 8px;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--wallpaper-primary);
+      background: var(--wallpaper-hover);
+    }
+  }
 }
 
 .pager {

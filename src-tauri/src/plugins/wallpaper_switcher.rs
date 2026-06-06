@@ -1,5 +1,6 @@
 use image::{imageops::FilterType, DynamicImage, ImageBuffer, Rgba};
 use log::{error, info, warn};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::error::Error as StdError;
 use std::ffi::OsStr;
@@ -15,7 +16,8 @@ use walkdir::WalkDir;
 
 const PLUGIN_ID: &str = "wallpaper-switcher";
 const CONFIG_KEY: &str = "wallpaper_switcher_config";
-const USER_AGENT: &str = "snippets-code-wallpaper-switcher";
+const USER_AGENT: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) snippets-code-wallpaper-switcher/2.1 Safari/537.36";
 const MAX_WALLHAVEN_PAGES: u32 = 100;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -417,16 +419,6 @@ async fn download_wallhaven_image(
     app_handle: &AppHandle,
     wallpaper: &WallhavenWallpaper,
 ) -> Result<PathBuf, String> {
-    let extension = if wallpaper.file_type.contains("png") {
-        "png"
-    } else {
-        "jpg"
-    };
-    let target = cache_dir(app_handle)?.join(format!("wallhaven-{}.{}", wallpaper.id, extension));
-    if target.is_file() && fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
-        return Ok(target);
-    }
-
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .no_gzip()
@@ -438,8 +430,36 @@ async fn download_wallhaven_image(
         .redirect(reqwest::redirect::Policy::limited(8))
         .build()
         .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
+
+    let resolved_wallpaper = if wallpaper.short_url.is_none() {
+        match fetch_wallhaven_detail(&client, &wallpaper.id).await {
+            Ok(Some(detail)) => detail,
+            Ok(None) => wallpaper.clone(),
+            Err(error) => {
+                warn!(
+                    "[WallpaperSwitcher] 读取 Wallhaven 详情失败 {}: {}",
+                    wallpaper.id, error
+                );
+                wallpaper.clone()
+            }
+        }
+    } else {
+        wallpaper.clone()
+    };
+
+    let extension = if resolved_wallpaper.file_type.contains("png") {
+        "png"
+    } else {
+        "jpg"
+    };
+    let target =
+        cache_dir(app_handle)?.join(format!("wallhaven-{}.{}", resolved_wallpaper.id, extension));
+    if target.is_file() && fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
+        return Ok(target);
+    }
+
     let bytes = client
-        .get(&wallpaper.path)
+        .get(&resolved_wallpaper.path)
         .header(reqwest::header::ACCEPT_ENCODING, "identity")
         .header(reqwest::header::REFERER, "https://wallhaven.cc/")
         .send()
@@ -621,7 +641,45 @@ fn category_bits(category: Option<&str>) -> &'static str {
     match category.unwrap_or("general") {
         "anime" => "010",
         "people" => "001",
-        _ => "100",
+        "nature" => "110",
+        _ => "110",
+    }
+}
+
+fn normalize_keyword_alias(value: &str) -> String {
+    let lower = value.trim().to_ascii_lowercase();
+    match lower.as_str() {
+        "natural" | "naturally" | "nature" | "自然" => "nature".to_string(),
+        "landscape" | "scenery" | "风景" => "nature landscape".to_string(),
+        "山" | "山脉" => "mountain".to_string(),
+        "雪山" => "snow mountain".to_string(),
+        "湖" => "lake".to_string(),
+        "森林" | "树林" => "forest".to_string(),
+        "海" => "ocean".to_string(),
+        "海边" => "beach".to_string(),
+        "天空" => "sky".to_string(),
+        "云" => "clouds".to_string(),
+        "日落" => "sunset".to_string(),
+        "日出" => "sunrise".to_string(),
+        "城市" => "city".to_string(),
+        "建筑" => "architecture".to_string(),
+        "星空" => "stars".to_string(),
+        "宇宙" => "space".to_string(),
+        "动漫" => "anime".to_string(),
+        "人物" => "portrait".to_string(),
+        "女孩" => "girl".to_string(),
+        _ => value.trim().to_string(),
+    }
+}
+
+fn append_keyword_once(keyword: &str, required: &str) -> String {
+    if keyword
+        .split_whitespace()
+        .any(|term| term.eq_ignore_ascii_case(required))
+    {
+        keyword.to_string()
+    } else {
+        format!("{} {}", keyword, required)
     }
 }
 
@@ -630,18 +688,11 @@ fn normalize_wallhaven_query(query: Option<String>, category: Option<&str>) -> O
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(|value| {
-            let lower = value.to_ascii_lowercase();
-            match lower.as_str() {
-                "natural" | "naturally" | "nature" => "nature".to_string(),
-                "landscape" | "scenery" => "nature landscape".to_string(),
-                _ => value.to_string(),
-            }
-        });
+        .map(normalize_keyword_alias);
 
     if category == Some("nature") {
         return Some(match keyword {
-            Some(value) if !value.eq_ignore_ascii_case("nature") => format!("{} nature", value),
+            Some(value) => append_keyword_once(&value, "nature"),
             _ => "nature".to_string(),
         });
     }
@@ -649,7 +700,14 @@ fn normalize_wallhaven_query(query: Option<String>, category: Option<&str>) -> O
     keyword
 }
 
-fn wallhaven_sorting(source: &WallhavenSource) -> &'static str {
+fn wallhaven_api_sorting(source: &WallhavenSource) -> &'static str {
+    match source {
+        WallhavenSource::Hot => "date_added",
+        WallhavenSource::Toplist => "toplist",
+    }
+}
+
+fn wallhaven_web_sorting(source: &WallhavenSource) -> &'static str {
     match source {
         WallhavenSource::Hot => "hot",
         WallhavenSource::Toplist => "toplist",
@@ -730,6 +788,115 @@ fn file_type_from_path(path: &str) -> String {
     } else {
         "image/jpeg".to_string()
     }
+}
+
+fn normalize_wallhaven_url(value: &str) -> String {
+    let value = value
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .trim()
+        .to_string();
+    if value.starts_with("//") {
+        format!("https:{}", value)
+    } else {
+        value
+    }
+}
+
+fn capture_group(source: &str, pattern: &str, group: usize) -> Option<String> {
+    Regex::new(pattern)
+        .ok()?
+        .captures(source)?
+        .get(group)
+        .map(|value| normalize_wallhaven_url(value.as_str()))
+        .filter(|value| !value.is_empty())
+}
+
+fn wallhaven_full_path_from_thumb(id: &str, thumb: &str) -> String {
+    let extension = Path::new(thumb)
+        .extension()
+        .and_then(OsStr::to_str)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("jpg");
+    let prefix = id.chars().take(2).collect::<String>();
+    format!(
+        "https://w.wallhaven.cc/full/{}/wallhaven-{}.{}",
+        prefix, id, extension
+    )
+}
+
+fn parse_wallhaven_html_response(body: &str, fallback_page: u32) -> Result<WallhavenPage, String> {
+    let figure_re =
+        Regex::new(r#"(?s)<figure[^>]*data-wallpaper-id="([^"]+)"[^>]*>(.*?)</figure>"#)
+            .map_err(|e| format!("创建 Wallhaven HTML 解析器失败: {}", e))?;
+    let mut data = Vec::new();
+
+    for capture in figure_re.captures_iter(body) {
+        let id = capture
+            .get(1)
+            .map(|value| value.as_str().trim().to_string())
+            .filter(|value| !value.is_empty());
+        let fragment = capture.get(2).map(|value| value.as_str()).unwrap_or("");
+        let Some(id) = id else {
+            continue;
+        };
+        let url = capture_group(fragment, r#"href="([^"]+)""#, 1)
+            .unwrap_or_else(|| format!("https://wallhaven.cc/w/{}", id));
+        let thumb = capture_group(
+            fragment,
+            r#"(?:data-src|src)="([^"]*wallhaven\.cc/small/[^"]+)""#,
+            1,
+        );
+        let Some(thumb) = thumb else {
+            continue;
+        };
+        let resolution = capture_group(fragment, r#"class="wall-res">([^<]+)"#, 1)
+            .map(|value| value.replace(' ', ""))
+            .unwrap_or_default();
+        let parsed_resolution = parse_resolution(&resolution);
+        let dimension_x = parsed_resolution.map(|(width, _)| width).unwrap_or(0);
+        let dimension_y = parsed_resolution.map(|(_, height)| height).unwrap_or(0);
+        let large_thumb = thumb.replace("/small/", "/lg/");
+        let path = wallhaven_full_path_from_thumb(&id, &thumb);
+
+        data.push(WallhavenWallpaper {
+            id,
+            url,
+            short_url: None,
+            thumbs: WallhavenThumbs {
+                large: large_thumb,
+                original: thumb.clone(),
+                small: thumb,
+            },
+            file_type: file_type_from_path(&path),
+            category: None,
+            path,
+            resolution,
+            dimension_x,
+            dimension_y,
+        });
+    }
+
+    let pagination =
+        Regex::new(r#"data-pagination="\{&quot;total&quot;:(\d+),&quot;current&quot;:(\d+),"#)
+            .ok()
+            .and_then(|re| re.captures(body));
+    let last_page = pagination
+        .as_ref()
+        .and_then(|capture| capture.get(1))
+        .and_then(|value| value.as_str().parse::<u32>().ok())
+        .unwrap_or(fallback_page);
+    let page = pagination
+        .as_ref()
+        .and_then(|capture| capture.get(2))
+        .and_then(|value| value.as_str().parse::<u32>().ok())
+        .unwrap_or(fallback_page);
+
+    Ok(WallhavenPage {
+        data,
+        page,
+        last_page: last_page.max(page).max(1),
+    })
 }
 
 fn parse_wallhaven_wallpaper(value: &serde_json::Value) -> Option<WallhavenWallpaper> {
@@ -817,80 +984,141 @@ fn parse_wallhaven_response(body: &str) -> Result<WallhavenPage, String> {
     })
 }
 
-async fn fetch_wallhaven_page(
-    app_handle: &AppHandle,
-    params: WallhavenFetchParams,
-) -> Result<WallhavenPage, String> {
-    require_enabled(app_handle)?;
-    let (screen_width, screen_height) = screen_size(app_handle);
-    let page = params.page.unwrap_or(1).clamp(1, MAX_WALLHAVEN_PAGES);
-    let category = params.category.as_deref();
-    let request_query = normalize_wallhaven_query(params.query.clone(), category);
+fn parse_wallhaven_detail_response(body: &str) -> Result<Option<WallhavenWallpaper>, String> {
+    let value = serde_json::from_str::<serde_json::Value>(body).map_err(|e| {
+        format!(
+            "Wallhaven 详情返回内容不是有效 JSON: {}；响应片段: {}",
+            e,
+            wallhaven_response_snippet(body)
+        )
+    })?;
+    Ok(value.get("data").and_then(parse_wallhaven_wallpaper))
+}
+
+async fn fetch_wallhaven_detail(
+    client: &reqwest::Client,
+    id: &str,
+) -> Result<Option<WallhavenWallpaper>, String> {
+    let url = format!("https://wallhaven.cc/api/v1/w/{}", id);
+    let query: Vec<(String, String)> = Vec::new();
+    let (status, _, body) =
+        send_wallhaven_request(client, &url, "application/json", &query).await?;
+    if !status.is_success() {
+        return Err(format!(
+            "请求 Wallhaven 详情失败: HTTP {}；响应片段: {}",
+            status.as_u16(),
+            wallhaven_response_snippet(&body)
+        ));
+    }
+    parse_wallhaven_detail_response(&body)
+}
+
+fn wallhaven_resolution_attempts(screen_width: u32, screen_height: u32) -> Vec<(u32, u32)> {
+    let mut attempts = vec![(screen_width.max(1), screen_height.max(1))];
+    if screen_width > 1920 || screen_height > 1080 {
+        attempts.push((1920, 1080));
+    }
+    attempts
+}
+
+fn build_wallhaven_query(
+    source: &WallhavenSource,
+    page: u32,
+    category: Option<&str>,
+    request_query: Option<&str>,
+    width: u32,
+    height: u32,
+    web: bool,
+) -> Vec<(String, String)> {
     let mut query = vec![
         (
             "sorting".to_string(),
-            wallhaven_sorting(&params.source).to_string(),
+            if web {
+                wallhaven_web_sorting(source)
+            } else {
+                wallhaven_api_sorting(source)
+            }
+            .to_string(),
         ),
         ("purity".to_string(), "100".to_string()),
         (
             "categories".to_string(),
             category_bits(category).to_string(),
         ),
-        (
-            "atleast".to_string(),
-            format!("{}x{}", screen_width, screen_height),
-        ),
+        ("topRange".to_string(), "6M".to_string()),
+        ("order".to_string(), "desc".to_string()),
+        ("atleast".to_string(), format!("{}x{}", width, height)),
         ("page".to_string(), page.to_string()),
     ];
-    if let Some(keyword) = request_query.as_deref() {
+    if let Some(keyword) = request_query {
         query.push(("q".to_string(), keyword.to_string()));
     }
-    info!(
-        "[WallpaperSwitcher] Wallhaven search request source={:?} page={} category={:?} query={} atleast={}x{}",
-        params.source,
-        page,
-        params.category,
-        request_query
-            .as_deref()
-            .unwrap_or("<empty>"),
-        screen_width,
-        screen_height
-    );
+    query
+}
 
-    let client = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
-        .no_gzip()
-        .no_brotli()
-        .no_deflate()
-        .no_zstd()
-        .connect_timeout(Duration::from_secs(12))
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
-    let response = client
-        .get("https://wallhaven.cc/api/v1/search")
-        .header(reqwest::header::ACCEPT, "application/json")
-        .header(reqwest::header::ACCEPT_ENCODING, "identity")
-        .header(reqwest::header::REFERER, "https://wallhaven.cc/")
-        .query(&query)
-        .send()
-        .await
-        .map_err(|e| {
-            let details = reqwest_error_details(&e);
-            error!(
-                "[WallpaperSwitcher] Wallhaven search request failed: {}",
-                details
-            );
-            format!("请求 Wallhaven 失败: {}", details)
-        })?;
-    if response.status().as_u16() == 429 {
-        return Err("Wallhaven 请求过于频繁，请稍后再试".to_string());
+async fn send_wallhaven_request(
+    client: &reqwest::Client,
+    url: &str,
+    accept: &'static str,
+    query: &[(String, String)],
+) -> Result<(reqwest::StatusCode, reqwest::header::HeaderMap, String), String> {
+    let mut last_error = String::new();
+    for attempt in 1..=3 {
+        let response = client
+            .get(url)
+            .header(reqwest::header::ACCEPT, accept)
+            .header(reqwest::header::ACCEPT_ENCODING, "identity")
+            .header(reqwest::header::REFERER, "https://wallhaven.cc/")
+            .query(query)
+            .send()
+            .await;
+
+        match response {
+            Ok(response) => {
+                if response.status().as_u16() == 429 {
+                    return Err("Wallhaven 请求过于频繁，请稍后再试".to_string());
+                }
+                let status = response.status();
+                let headers = response.headers().clone();
+                match read_wallhaven_response_body(response).await {
+                    Ok(body) => return Ok((status, headers, body)),
+                    Err(error) => last_error = error,
+                }
+            }
+            Err(error) => {
+                last_error = format!("请求 Wallhaven 失败: {}", reqwest_error_details(&error));
+            }
+        }
+
+        warn!(
+            "[WallpaperSwitcher] Wallhaven request attempt {}/3 failed: {}",
+            attempt, last_error
+        );
+        tokio::time::sleep(Duration::from_millis(220 * attempt)).await;
     }
-    let status = response.status();
-    let headers = response.headers().clone();
-    let body = read_wallhaven_response_body(response).await?;
+
+    Err(last_error)
+}
+
+async fn fetch_wallhaven_api_search(
+    client: &reqwest::Client,
+    source: &WallhavenSource,
+    page: u32,
+    category: Option<&str>,
+    request_query: Option<&str>,
+    width: u32,
+    height: u32,
+) -> Result<WallhavenPage, String> {
+    let query = build_wallhaven_query(source, page, category, request_query, width, height, false);
+    let (status, headers, body) = send_wallhaven_request(
+        client,
+        "https://wallhaven.cc/api/v1/search",
+        "application/json",
+        &query,
+    )
+    .await?;
     info!(
-        "[WallpaperSwitcher] Wallhaven search response status={} content_type={} content_encoding={} bytes={}",
+        "[WallpaperSwitcher] Wallhaven API response status={} content_type={} content_encoding={} bytes={}",
         status.as_u16(),
         wallhaven_header_value(&headers, reqwest::header::CONTENT_TYPE),
         wallhaven_header_value(&headers, reqwest::header::CONTENT_ENCODING),
@@ -903,15 +1131,187 @@ async fn fetch_wallhaven_page(
             wallhaven_response_snippet(&body)
         ));
     }
+    parse_wallhaven_response(&body)
+}
 
-    let parsed = parse_wallhaven_response(&body)?;
+async fn fetch_wallhaven_web_search(
+    client: &reqwest::Client,
+    source: &WallhavenSource,
+    page: u32,
+    category: Option<&str>,
+    request_query: Option<&str>,
+    width: u32,
+    height: u32,
+) -> Result<WallhavenPage, String> {
+    let query = build_wallhaven_query(source, page, category, request_query, width, height, true);
+    let (status, headers, body) = send_wallhaven_request(
+        client,
+        "https://wallhaven.cc/search",
+        "text/html,application/xhtml+xml",
+        &query,
+    )
+    .await?;
     info!(
-        "[WallpaperSwitcher] Wallhaven parsed data={} page={} last_page={}",
-        parsed.data.len(),
-        parsed.page,
-        parsed.last_page
+        "[WallpaperSwitcher] Wallhaven web response status={} content_type={} content_encoding={} bytes={}",
+        status.as_u16(),
+        wallhaven_header_value(&headers, reqwest::header::CONTENT_TYPE),
+        wallhaven_header_value(&headers, reqwest::header::CONTENT_ENCODING),
+        body.len()
     );
-    Ok(parsed)
+    if !status.is_success() {
+        return Err(format!(
+            "请求 Wallhaven 页面失败: HTTP {}；响应片段: {}",
+            status.as_u16(),
+            wallhaven_response_snippet(&body)
+        ));
+    }
+    parse_wallhaven_html_response(&body, page)
+}
+
+async fn fetch_wallhaven_page(
+    app_handle: &AppHandle,
+    params: WallhavenFetchParams,
+) -> Result<WallhavenPage, String> {
+    require_enabled(app_handle)?;
+    let (screen_width, screen_height) = screen_size(app_handle);
+    let page = params.page.unwrap_or(1).clamp(1, MAX_WALLHAVEN_PAGES);
+    let category = params.category.as_deref();
+    let request_query = normalize_wallhaven_query(params.query.clone(), category);
+    info!(
+        "[WallpaperSwitcher] Wallhaven search source={:?} page={} category={:?} query={} screen={}x{}",
+        params.source,
+        page,
+        params.category,
+        request_query.as_deref().unwrap_or("<empty>"),
+        screen_width,
+        screen_height
+    );
+
+    let client = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .no_gzip()
+        .no_brotli()
+        .no_deflate()
+        .no_zstd()
+        .connect_timeout(Duration::from_secs(12))
+        .timeout(Duration::from_secs(35))
+        .redirect(reqwest::redirect::Policy::limited(8))
+        .build()
+        .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
+
+    let mut last_error = String::new();
+    for (width, height) in wallhaven_resolution_attempts(screen_width, screen_height) {
+        let preferred = match params.source {
+            WallhavenSource::Hot => {
+                fetch_wallhaven_web_search(
+                    &client,
+                    &params.source,
+                    page,
+                    category,
+                    request_query.as_deref(),
+                    width,
+                    height,
+                )
+                .await
+            }
+            WallhavenSource::Toplist => {
+                fetch_wallhaven_api_search(
+                    &client,
+                    &params.source,
+                    page,
+                    category,
+                    request_query.as_deref(),
+                    width,
+                    height,
+                )
+                .await
+            }
+        };
+
+        match preferred {
+            Ok(parsed) if !parsed.data.is_empty() => {
+                info!(
+                    "[WallpaperSwitcher] Wallhaven parsed data={} page={} last_page={} atleast={}x{}",
+                    parsed.data.len(),
+                    parsed.page,
+                    parsed.last_page,
+                    width,
+                    height
+                );
+                return Ok(parsed);
+            }
+            Ok(parsed) => {
+                last_error = format!("Wallhaven 没有返回可用壁纸 ({}x{})", width, height);
+                warn!("[WallpaperSwitcher] {}", last_error);
+                if width <= 1920 && height <= 1080 {
+                    return Ok(parsed);
+                }
+            }
+            Err(error) => {
+                last_error = error;
+                warn!(
+                    "[WallpaperSwitcher] Wallhaven preferred search failed: {}",
+                    last_error
+                );
+            }
+        }
+
+        let fallback = match params.source {
+            WallhavenSource::Hot => {
+                fetch_wallhaven_api_search(
+                    &client,
+                    &params.source,
+                    page,
+                    category,
+                    request_query.as_deref(),
+                    width,
+                    height,
+                )
+                .await
+            }
+            WallhavenSource::Toplist => {
+                fetch_wallhaven_web_search(
+                    &client,
+                    &params.source,
+                    page,
+                    category,
+                    request_query.as_deref(),
+                    width,
+                    height,
+                )
+                .await
+            }
+        };
+
+        match fallback {
+            Ok(parsed) if !parsed.data.is_empty() => {
+                info!(
+                    "[WallpaperSwitcher] Wallhaven fallback parsed data={} page={} last_page={} atleast={}x{}",
+                    parsed.data.len(),
+                    parsed.page,
+                    parsed.last_page,
+                    width,
+                    height
+                );
+                return Ok(parsed);
+            }
+            Ok(parsed) => {
+                last_error = format!("Wallhaven 没有返回可用壁纸 ({}x{})", width, height);
+                if width <= 1920 && height <= 1080 {
+                    return Ok(parsed);
+                }
+            }
+            Err(error) => {
+                last_error = error;
+            }
+        }
+    }
+
+    error!(
+        "[WallpaperSwitcher] Wallhaven search exhausted: {}",
+        last_error
+    );
+    Err(last_error)
 }
 
 #[tauri::command]
