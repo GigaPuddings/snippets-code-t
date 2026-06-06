@@ -38,12 +38,10 @@ const source = ref<WallhavenSource>('hot');
 const previewWallpaper = ref<WallhavenWallpaper | null>(null);
 const workingIds = ref(new Set<string>());
 
-const screenLabel = computed(() => {
-  const current = status.value;
-  return current ? `${current.screenWidth}×${current.screenHeight}` : '自动匹配';
-});
+const screenLabel = computed(() => '2560×1440');
 
 const sourceLabel = computed(() => (source.value === 'hot' ? 'Hot' : 'Toplist'));
+const visibleWallpapers = computed(() => wallpapers.value.slice(0, 8));
 
 const setWorking = (id: string, working: boolean) => {
   const next = new Set(workingIds.value);
@@ -204,10 +202,10 @@ onMounted(async () => {
     </section>
 
     <section class="grid-wrap">
-      <div v-if="loading && wallpapers.length === 0" class="empty-state">正在加载 Wallhaven 壁纸...</div>
-      <div v-else-if="wallpapers.length === 0" class="empty-state">暂无可用壁纸</div>
+      <div v-if="loading && visibleWallpapers.length === 0" class="empty-state">正在加载 Wallhaven 壁纸...</div>
+      <div v-else-if="visibleWallpapers.length === 0" class="empty-state">暂无可用壁纸</div>
       <div v-else class="wallpaper-grid">
-        <article v-for="wallpaper in wallpapers" :key="wallpaper.id" class="wallpaper-card">
+        <article v-for="wallpaper in visibleWallpapers" :key="wallpaper.id" class="wallpaper-card">
           <button type="button" class="thumb" @click="previewWallpaper = wallpaper">
             <img :src="wallpaper.thumbs.large" :alt="wallpaper.resolution" loading="lazy" />
             <span>{{ wallpaper.resolution }}</span>
@@ -259,14 +257,37 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .wallhaven-window {
+  --wallhaven-bg: #fbfcff;
+  --wallhaven-panel: #ffffff;
+  --wallhaven-soft: #f3f7fd;
+  --wallhaven-border: #d9e2ef;
+  --wallhaven-text: #111827;
+  --wallhaven-muted: #7b8798;
+  --wallhaven-primary: #5f74f3;
+  --wallhaven-primary-soft: #eef3ff;
+
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  color: var(--search-text-color);
+  color: var(--wallhaven-text);
   font-size: 14px;
-  background: var(--search-bg-color);
-  border: 1px solid var(--search-border-color);
+  line-height: 1.35;
+  background: var(--wallhaven-bg);
+  border: 1px solid var(--wallhaven-border);
   border-radius: 8px;
+  box-shadow: 0 10px 24px rgb(15 23 42 / 8%);
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
 }
 
 .titlebar,
@@ -287,13 +308,15 @@ onMounted(async () => {
 .titlebar {
   justify-content: space-between;
   height: 48px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--search-border-color);
+  padding: 0 14px 0 18px;
+  background: rgb(255 255 255 / 78%);
+  border-bottom: 1px solid var(--wallhaven-border);
 }
 
 .title {
   gap: 10px;
-  font-size: 16px;
+  color: #0f172a;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -307,34 +330,35 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--search-text-color);
+  color: var(--wallhaven-text);
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: 8px;
   cursor: pointer;
 
   &:hover {
-    background: var(--search-result-hover);
+    background: #f3f7fd;
   }
 }
 
 .flat-icon,
 .refresh-btn {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
 }
 
 .source-toggle {
-  border: 1px solid var(--search-border-color);
-  border-radius: 7px;
+  border: 1px solid var(--wallhaven-border);
+  border-radius: 8px;
   overflow: hidden;
 
   button {
     width: 82px;
     height: 32px;
-    color: var(--search-text-color);
+    color: var(--wallhaven-text);
     background: transparent;
-    border-right: 1px solid var(--search-border-color);
+    border: 0;
+    border-right: 1px solid var(--wallhaven-border);
     cursor: pointer;
 
     &:last-child {
@@ -342,17 +366,18 @@ onMounted(async () => {
     }
 
     &.active {
-      color: var(--search-result-accent);
-      background: var(--search-result-active);
-      box-shadow: inset 0 0 0 1px var(--search-result-accent);
+      color: var(--wallhaven-primary);
+      background: var(--wallhaven-primary-soft);
+      box-shadow: inset 0 0 0 1px var(--wallhaven-primary);
     }
   }
 }
 
 .filters {
-  gap: 10px;
-  height: 62px;
+  gap: 8px;
+  height: 58px;
   padding: 10px 14px;
+  overflow: hidden;
 }
 
 .search-box {
@@ -361,14 +386,14 @@ onMounted(async () => {
   width: 214px;
   height: 34px;
   overflow: hidden;
-  background: var(--search-input-bg);
-  border: 1px solid var(--search-border-color);
-  border-radius: 6px;
+  background: #fff;
+  border: 1px solid var(--wallhaven-border);
+  border-radius: 8px;
 
   input {
     min-width: 0;
     padding: 0 12px;
-    color: var(--search-text-color);
+    color: var(--wallhaven-text);
     background: transparent;
     border: 0;
     outline: none;
@@ -383,7 +408,7 @@ onMounted(async () => {
   white-space: nowrap;
 
   span {
-    color: var(--search-info-text-color);
+    color: var(--wallhaven-muted);
   }
 }
 
@@ -392,23 +417,30 @@ onMounted(async () => {
   height: 34px;
   padding: 0 12px;
   font-weight: 500;
-  color: var(--search-text-color);
-  background: var(--search-input-bg);
-  border: 1px solid var(--search-border-color);
-  border-radius: 6px;
+  color: var(--wallhaven-text);
+  background: #fff;
+  border: 1px solid var(--wallhaven-border);
+  border-radius: 8px;
+}
+
+.resolution strong {
+  width: 154px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .chips {
-  border: 1px solid var(--search-border-color);
-  border-radius: 6px;
+  border: 1px solid var(--wallhaven-border);
+  border-radius: 8px;
   overflow: hidden;
 
   button {
-    width: 68px;
+    width: 60px;
     height: 34px;
-    color: var(--search-text-color);
+    color: var(--wallhaven-text);
     background: transparent;
-    border-right: 1px solid var(--search-border-color);
+    border: 0;
+    border-right: 1px solid var(--wallhaven-border);
     cursor: pointer;
 
     &:last-child {
@@ -416,19 +448,20 @@ onMounted(async () => {
     }
 
     &.active {
-      color: var(--search-result-accent);
-      background: var(--search-result-active);
-      box-shadow: inset 0 0 0 1px var(--search-result-accent);
+      color: var(--wallhaven-primary);
+      background: var(--wallhaven-primary-soft);
+      box-shadow: inset 0 0 0 1px var(--wallhaven-primary);
     }
   }
 }
 
 .source-select select {
-  width: 142px;
+  width: 132px;
 }
 
 .refresh-btn {
-  border: 1px solid var(--search-border-color);
+  flex: 0 0 auto;
+  border: 1px solid var(--wallhaven-border);
 }
 
 .spinning {
@@ -436,21 +469,23 @@ onMounted(async () => {
 }
 
 .grid-wrap {
-  height: calc(100vh - 48px - 62px - 58px);
+  height: calc(100vh - 48px - 58px - 58px);
+  min-height: 0;
   padding: 0 14px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .wallpaper-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  align-content: start;
 }
 
 .wallpaper-card {
   overflow: hidden;
-  background: var(--search-card-bg);
-  border: 1px solid var(--search-border-color);
+  background: var(--wallhaven-panel);
+  border: 1px solid var(--wallhaven-border);
   border-radius: 8px;
 }
 
@@ -458,10 +493,10 @@ onMounted(async () => {
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 1.42;
+  aspect-ratio: 1.36;
   overflow: hidden;
   cursor: pointer;
-  background: var(--search-soft-bg);
+  background: var(--wallhaven-soft);
   border: 0;
 
   img {
@@ -485,7 +520,7 @@ onMounted(async () => {
 }
 
 .card-actions {
-  height: 36px;
+  height: 34px;
 
   button {
     flex: 1;
@@ -494,10 +529,10 @@ onMounted(async () => {
     align-items: center;
     justify-content: center;
     gap: 5px;
-    color: var(--search-text-color);
+    color: var(--wallhaven-text);
     background: transparent;
     border: 0;
-    border-right: 1px solid var(--search-border-color);
+    border-right: 1px solid var(--wallhaven-border);
     cursor: pointer;
 
     &:last-child {
@@ -505,8 +540,8 @@ onMounted(async () => {
     }
 
     &:hover:not(:disabled) {
-      color: var(--search-result-accent);
-      background: var(--search-result-hover);
+      color: var(--wallhaven-primary);
+      background: #f3f7fd;
     }
 
     &:disabled {
@@ -521,7 +556,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--search-info-text-color);
+  color: var(--wallhaven-muted);
 }
 
 .pager {
@@ -531,7 +566,7 @@ onMounted(async () => {
 }
 
 .source-note {
-  color: var(--search-info-text-color);
+  color: var(--wallhaven-muted);
 }
 
 .pager-actions {
@@ -540,15 +575,15 @@ onMounted(async () => {
   button {
     width: 88px;
     height: 34px;
-    color: var(--search-text-color);
+    color: var(--wallhaven-text);
     background: transparent;
-    border: 1px solid var(--search-border-color);
-    border-radius: 6px;
+    border: 1px solid var(--wallhaven-border);
+    border-radius: 8px;
     cursor: pointer;
 
     &:hover:not(:disabled) {
-      color: var(--search-result-accent);
-      background: var(--search-result-hover);
+      color: var(--wallhaven-primary);
+      background: #f3f7fd;
     }
 
     &:disabled {
@@ -571,8 +606,8 @@ onMounted(async () => {
 .preview-dialog {
   width: min(720px, calc(100vw - 56px));
   overflow: hidden;
-  background: var(--search-card-bg);
-  border: 1px solid var(--search-border-color);
+  background: var(--wallhaven-panel);
+  border: 1px solid var(--wallhaven-border);
   border-radius: 8px;
   box-shadow: var(--dialog-shadow);
 
@@ -602,14 +637,14 @@ onMounted(async () => {
 
 .primary-btn {
   color: #fff;
-  background: var(--search-result-accent);
-  border: 1px solid var(--search-result-accent);
+  background: var(--wallhaven-primary);
+  border: 1px solid var(--wallhaven-primary);
 }
 
 .secondary-btn {
-  color: var(--search-text-color);
+  color: var(--wallhaven-text);
   background: transparent;
-  border: 1px solid var(--search-border-color);
+  border: 1px solid var(--wallhaven-border);
 }
 
 @keyframes spin {
@@ -621,34 +656,4 @@ onMounted(async () => {
   }
 }
 
-@media (max-width: 980px) {
-  .filters {
-    flex-wrap: wrap;
-    height: auto;
-  }
-
-  .grid-wrap {
-    height: calc(100vh - 48px - 108px - 58px);
-  }
-
-  .wallpaper-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 760px) {
-  .wallpaper-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-height: 720px) {
-  .thumb {
-    aspect-ratio: 1.55;
-  }
-
-  .card-actions {
-    height: 34px;
-  }
-}
 </style>

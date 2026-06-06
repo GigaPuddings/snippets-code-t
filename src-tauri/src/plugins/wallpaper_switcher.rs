@@ -622,6 +622,17 @@ fn wallhaven_response_snippet(body: &str) -> String {
         .replace(['\r', '\n', '\t'], " ")
 }
 
+async fn read_wallhaven_response_body(response: reqwest::Response) -> Result<String, String> {
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("读取 Wallhaven 响应失败: {}", e))?;
+    if bytes.is_empty() {
+        return Err("Wallhaven 返回内容为空".to_string());
+    }
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
 fn json_string(value: &serde_json::Value, key: &str) -> Option<String> {
     value
         .get(key)
@@ -776,6 +787,10 @@ async fn fetch_wallhaven_page(
 
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
+        .no_gzip()
+        .no_brotli()
+        .no_deflate()
+        .no_zstd()
         .connect_timeout(Duration::from_secs(12))
         .timeout(Duration::from_secs(30))
         .build()
@@ -793,10 +808,7 @@ async fn fetch_wallhaven_page(
         return Err("Wallhaven 请求过于频繁，请稍后再试".to_string());
     }
     let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("读取 Wallhaven 响应失败: {}", e))?;
+    let body = read_wallhaven_response_body(response).await?;
     if !status.is_success() {
         return Err(format!(
             "请求 Wallhaven 失败: HTTP {}；响应片段: {}",

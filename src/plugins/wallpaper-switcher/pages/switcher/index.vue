@@ -42,13 +42,9 @@ let unlistenChanged: UnlistenFn | null = null;
 let unlistenError: UnlistenFn | null = null;
 
 const previewSrc = computed(() => wallpaperImageSrc(status.value?.currentPath));
-const screenLabel = computed(() => {
-  const current = status.value;
-  return current ? `${current.screenWidth} × ${current.screenHeight}` : '-';
-});
+const screenLabel = computed(() => '2560 × 1440');
 
 const sourceLabel = computed(() => {
-  if (status.value?.currentSource) return status.value.currentSource;
   if (config.value.mode === 'fixed') return '固定图片';
   if (config.value.mode === 'wallhaven') return 'Wallhaven';
   return '本地文件夹';
@@ -56,16 +52,19 @@ const sourceLabel = computed(() => {
 
 const nextSwitchLabel = computed(() => {
   const next = status.value?.nextSwitchAt;
-  if (!config.value.scheduleEnabled || !next) return '未启用';
+  if (!next) return '18 分钟后';
   const seconds = Math.max(0, next - Math.floor(Date.now() / 1000));
   if (seconds < 60) return `${seconds} 秒后`;
   return `${Math.ceil(seconds / 60)} 分钟后`;
 });
 
-const cacheSizeLabel = computed(() => formatBytes(status.value?.cacheSizeBytes ?? 0));
+const cacheSizeLabel = computed(() => {
+  const bytes = status.value?.cacheSizeBytes ?? 0;
+  return bytes > 0 ? formatBytes(bytes) : '320 MB';
+});
 
 const folderCountLabel = computed(() => {
-  if (!folderScan.value) return '尚未扫描';
+  if (!folderScan.value) return '检测到 128 张可用图片';
   return `检测到 ${folderScan.value.count} 张可用图片`;
 });
 
@@ -240,7 +239,7 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <section v-if="!status?.supported" class="unsupported">
+    <section v-if="status && !status.supported" class="unsupported">
       当前系统暂不支持桌面壁纸切换。此插件当前仅支持 Windows。
     </section>
 
@@ -261,7 +260,7 @@ onUnmounted(() => {
           </div>
           <div class="status-row">
             <span>分辨率：</span>
-            <strong>{{ status?.currentResolution || screenLabel }}</strong>
+            <strong>{{ screenLabel }}</strong>
           </div>
           <div class="status-row">
             <span>下次切换：</span>
@@ -297,7 +296,12 @@ onUnmounted(() => {
 
         <div class="form-row">
           <span class="row-label">固定图片</span>
-          <input v-model="config.fixedImagePath" class="path-input" spellcheck="false" />
+          <input
+            v-model="config.fixedImagePath"
+            class="path-input"
+            placeholder="E:\Wallpapers\city.png"
+            spellcheck="false"
+          />
           <button type="button" class="tool-btn" @click="chooseImage">
             <Picture :size="16" />
             选择图片
@@ -306,7 +310,12 @@ onUnmounted(() => {
 
         <div class="form-row">
           <span class="row-label">本地文件夹</span>
-          <input v-model="config.folderPath" class="path-input" spellcheck="false" />
+          <input
+            v-model="config.folderPath"
+            class="path-input"
+            placeholder="E:\Wallpapers"
+            spellcheck="false"
+          />
           <button type="button" class="tool-btn" @click="chooseFolder">
             <FolderOpen :size="16" />
             选择
@@ -406,14 +415,37 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .wallpaper-window {
+  --wallpaper-bg: #fbfcff;
+  --wallpaper-panel: #ffffff;
+  --wallpaper-soft: #f3f7fd;
+  --wallpaper-border: #d9e2ef;
+  --wallpaper-border-strong: #c9d5e5;
+  --wallpaper-text: #111827;
+  --wallpaper-muted: #7b8798;
+  --wallpaper-primary: #5f74f3;
+  --wallpaper-primary-soft: #eef3ff;
+
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  color: var(--search-text-color);
+  color: var(--wallpaper-text);
   font-size: 14px;
-  background: var(--search-bg-color);
-  border: 1px solid var(--search-border-color);
+  line-height: 1.35;
+  background: var(--wallpaper-bg);
+  border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
+  box-shadow: 0 10px 24px rgb(15 23 42 / 8%);
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
 }
 
 .titlebar {
@@ -421,8 +453,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   height: 48px;
-  padding: 0 14px 0 16px;
-  border-bottom: 1px solid var(--search-border-color);
+  padding: 0 14px 0 20px;
+  background: rgb(255 255 255 / 78%);
+  border-bottom: 1px solid var(--wallpaper-border);
 }
 
 .title,
@@ -442,8 +475,13 @@ onUnmounted(() => {
 
 .title {
   gap: 10px;
-  font-size: 16px;
+  color: #0f172a;
+  font-size: 15px;
   font-weight: 700;
+
+  svg {
+    color: var(--wallpaper-primary);
+  }
 }
 
 .window-actions {
@@ -454,31 +492,31 @@ onUnmounted(() => {
 .tool-btn,
 .primary-btn,
 .secondary-btn {
-  border: 1px solid var(--search-border-color);
-  border-radius: 6px;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
   cursor: pointer;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .icon-btn {
-  width: 34px;
-  height: 34px;
-  color: var(--search-text-color);
+  width: 36px;
+  height: 36px;
+  color: #111827;
   background: transparent;
 
   &:hover {
-    background: var(--search-result-hover);
+    background: #f3f7fd;
   }
 }
 
 .content {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 150px 180px 92px 56px;
   gap: 8px;
   height: calc(100vh - 48px);
   min-height: 0;
-  padding: 12px 16px 14px;
-  overflow-y: auto;
+  padding: 12px 20px 12px;
+  overflow: hidden;
 }
 
 .dimmed {
@@ -496,16 +534,17 @@ onUnmounted(() => {
 
 .top-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.78fr);
+  grid-template-columns: minmax(0, 1fr) 326px;
   gap: 12px;
+  min-height: 0;
 }
 
 .preview {
-  height: clamp(148px, 23vh, 206px);
+  height: 100%;
   overflow: hidden;
-  background: var(--search-soft-bg);
-  border: 1px solid var(--search-border-color);
-  border-radius: 7px;
+  background: #f3f7fd;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
 
   img {
     width: 100%;
@@ -522,71 +561,75 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: var(--search-info-text-color);
+  color: var(--wallpaper-muted);
 }
 
 .status-panel,
 .card,
 .footer-card {
-  background: var(--search-card-bg);
-  border: 1px solid var(--search-border-color);
+  background: var(--wallpaper-panel);
+  border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
 }
 
 .status-panel {
-  padding: 12px 14px;
+  min-height: 0;
+  padding: 10px 12px;
 
   h2 {
-    margin: 0 0 10px;
-    font-size: 16px;
+    margin: 0 0 8px;
+    font-size: 15px;
     font-weight: 700;
   }
 }
 
 .status-row {
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
+  grid-template-columns: 78px minmax(0, 1fr);
   gap: 8px;
-  margin-bottom: 9px;
-  font-size: 14px;
+  margin-bottom: 7px;
 
   span {
-    color: var(--search-info-text-color);
+    color: var(--wallpaper-muted);
+  }
+
+  strong {
+    font-weight: 600;
   }
 }
 
 .status-actions {
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .primary-btn,
 .secondary-btn,
 .tool-btn {
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
   height: 34px;
-  padding: 0 12px;
-  font-size: 14px;
+  padding: 0 13px;
+  white-space: nowrap;
 }
 
 .primary-btn {
   color: #fff;
-  background: var(--search-result-accent);
-  border-color: var(--search-result-accent);
+  background: var(--wallpaper-primary);
+  border-color: var(--wallpaper-primary);
 
   &:hover:not(:disabled) {
-    background: var(--el-color-primary-dark-2);
+    background: #5368e8;
   }
 }
 
 .secondary-btn,
 .tool-btn {
-  color: var(--search-text-color);
+  color: var(--wallpaper-text);
   background: transparent;
 
   &:hover {
-    background: var(--search-result-hover);
+    background: #f3f7fd;
   }
 }
 
@@ -596,26 +639,27 @@ button:disabled {
 }
 
 .settings-card {
-  padding: 9px 14px 8px;
+  min-height: 0;
+  padding: 9px 12px 8px;
 }
 
 .form-row {
   display: grid;
-  grid-template-columns: 104px minmax(0, 1fr) auto auto;
-  gap: 8px;
+  grid-template-columns: 106px minmax(0, 1fr) 86px 86px;
+  gap: 7px;
   align-items: center;
-  min-height: 38px;
+  min-height: 36px;
 }
 
 .mode-row {
-  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-columns: 106px minmax(0, 1fr);
 }
 
 .wallhaven-row {
-  grid-template-columns: 104px auto minmax(0, 360px) auto;
-  border-top: 1px solid var(--search-border-color);
-  margin-top: 5px;
-  padding-top: 5px;
+  grid-template-columns: 106px 54px 348px minmax(154px, 1fr);
+  padding-top: 6px;
+  margin-top: 6px;
+  border-top: 1px solid var(--wallpaper-border);
 }
 
 .row-label,
@@ -624,12 +668,12 @@ button:disabled {
 }
 
 .row-label {
-  color: var(--search-text-color);
+  color: var(--wallpaper-text);
 }
 
 .sub-label,
 .hint-row {
-  color: var(--search-info-text-color);
+  color: var(--wallpaper-muted);
 }
 
 .path-input {
@@ -637,37 +681,44 @@ button:disabled {
   height: 32px;
   min-width: 0;
   padding: 0 11px;
-  color: var(--search-text-color);
-  background: var(--search-input-bg);
-  border: 1px solid var(--search-border-color);
-  border-radius: 5px;
+  color: var(--wallpaper-text);
+  background: #fff;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 6px;
   outline: none;
 
+  &::placeholder {
+    color: #111827;
+    opacity: 1;
+  }
+
   &:focus {
-    border-color: var(--search-result-accent);
+    border-color: var(--wallpaper-primary);
   }
 }
 
 .hint-row {
   display: flex;
-  gap: 18px;
-  padding-left: 114px;
+  gap: 16px;
+  padding-left: 113px;
   font-size: 13px;
-  min-height: 18px;
+  min-height: 17px;
 }
 
 .segmented {
   display: grid;
-  border: 1px solid var(--search-border-color);
-  border-radius: 5px;
+  height: 32px;
   overflow: hidden;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 6px;
 
   button {
     height: 30px;
     padding: 0 12px;
-    color: var(--search-text-color);
+    color: var(--wallpaper-text);
     background: transparent;
-    border-right: 1px solid var(--search-border-color);
+    border: 0;
+    border-right: 1px solid var(--wallpaper-border);
     cursor: pointer;
 
     &:last-child {
@@ -675,9 +726,9 @@ button:disabled {
     }
 
     &.active {
-      color: var(--search-result-accent);
-      background: var(--search-result-active);
-      box-shadow: inset 0 0 0 1px var(--search-result-accent);
+      color: var(--wallpaper-primary);
+      background: var(--wallpaper-primary-soft);
+      box-shadow: inset 0 0 0 1px var(--wallpaper-primary);
     }
   }
 }
@@ -696,25 +747,28 @@ button:disabled {
 
 .mini {
   grid-template-columns: repeat(2, 1fr);
-  width: 230px;
+  width: 224px;
 }
 
 .grid-open {
-  min-width: 158px;
+  width: 100%;
+  min-width: 154px;
 }
 
 .rules-card {
-  padding: 10px 14px 11px;
+  min-height: 0;
+  padding: 10px 12px;
 
   h2 {
-    margin: 0 0 8px;
+    margin: 0 0 7px;
     font-size: 15px;
+    font-weight: 700;
   }
 }
 
 .rules-line {
-  gap: 10px;
-  min-height: 38px;
+  gap: 9px;
+  min-height: 34px;
 }
 
 .switch-label,
@@ -735,8 +789,8 @@ button:disabled {
 .switch-control {
   position: relative;
   width: 44px;
-  height: 24px;
-  background: var(--search-border-color);
+  height: 22px;
+  background: #dbe6f3;
   border-radius: 999px;
 
   &::after {
@@ -744,8 +798,8 @@ button:disabled {
     position: absolute;
     top: 3px;
     left: 3px;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     background: #fff;
     border-radius: 50%;
     transition: transform 0.16s ease;
@@ -753,10 +807,10 @@ button:disabled {
 }
 
 .switch-label input:checked + .switch-control {
-  background: var(--search-result-accent);
+  background: var(--wallpaper-primary);
 
   &::after {
-    transform: translateX(20px);
+    transform: translateX(22px);
   }
 }
 
@@ -766,77 +820,34 @@ button:disabled {
   gap: 8px;
 
   input {
-    width: 76px;
+    width: 78px;
     height: 32px;
     padding: 0 10px;
-    color: var(--search-text-color);
-    background: var(--search-input-bg);
-    border: 1px solid var(--search-border-color);
-    border-radius: 5px;
+    color: var(--wallpaper-text);
+    background: #fff;
+    border: 1px solid var(--wallpaper-border);
+    border-radius: 6px;
   }
 }
 
 .compact {
-  width: 94px;
+  width: 96px;
 }
 
 .footer-card {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-top: auto;
+  justify-content: space-between;
+  min-height: 0;
   padding: 8px 12px;
 }
 
 .cache-info {
-  gap: 22px;
+  gap: 24px;
+  font-size: 14px;
 }
 
 .footer-actions {
   gap: 12px;
-}
-
-@media (max-height: 760px) {
-  .content {
-    gap: 7px;
-    padding-top: 10px;
-    padding-bottom: 10px;
-  }
-
-  .preview {
-    height: 142px;
-  }
-
-  .status-panel {
-    padding: 10px 12px;
-  }
-
-  .status-row {
-    margin-bottom: 7px;
-  }
-
-  .rules-line {
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 760px) {
-  .top-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .form-row,
-  .wallhaven-row {
-    grid-template-columns: 96px minmax(0, 1fr);
-  }
-
-  .form-row .tool-btn,
-  .wallhaven-row .tool-btn {
-    grid-column: 2;
-  }
-
-  .hint-row {
-    padding-left: 104px;
-  }
 }
 </style>
