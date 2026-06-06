@@ -124,3 +124,6 @@ export const downloadWallhavenWallpaper = (
 
 export const clearWallpaperCache = (): Promise<void> =>
   invoke('wallpaper_clear_cache');
+
+export const openWallpaperCacheDir = (): Promise<void> =>
+  invoke('wallpaper_open_cache_dir');

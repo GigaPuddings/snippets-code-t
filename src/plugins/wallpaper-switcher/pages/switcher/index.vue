@@ -10,6 +10,7 @@ import {
   fetchWallhaven,
   getWallpaperConfig,
   getWallpaperStatus,
+  openWallpaperCacheDir,
   saveWallpaperConfig,
   scanWallpaperFolder,
   setFixedWallpaper,
@@ -351,6 +352,14 @@ const clearCache = async () => {
   }
 };
 
+const openCacheDir = async () => {
+  try {
+    await openWallpaperCacheDir();
+  } catch (error) {
+    modal.msg(String(error), 'error');
+  }
+};
+
 const closeWindow = async () => {
   await appWindow.close();
 };
@@ -588,6 +597,10 @@ onUnmounted(() => {
             <Delete :size="16" />
             清理缓存
           </button>
+          <button type="button" class="secondary-btn" @click="openCacheDir">
+            <FolderOpen :size="16" />
+            打开缓存
+          </button>
           <button type="button" class="primary-btn" :disabled="saving" @click="persistConfig">
             <Save :size="17" />
             {{ saving ? '保存中' : '保存设置' }}
@@ -681,7 +694,9 @@ onUnmounted(() => {
             <CloseSmall :size="23" />
           </button>
         </header>
-        <img :src="previewWallpaper.path" alt="壁纸预览" />
+        <div class="preview-image-wrap">
+          <img :src="previewWallpaper.path" alt="壁纸预览" />
+        </div>
         <footer>
           <button type="button" class="secondary-btn" :disabled="workingIds.has(previewWallpaper.id)" @click="downloadWallpaperFromWallhaven(previewWallpaper)">
             下载缓存
@@ -815,7 +830,7 @@ onUnmounted(() => {
 
 .content {
   display: grid;
-  grid-template-rows: 138px 180px 94px 52px;
+  grid-template-rows: 138px 220px 112px 52px;
   gap: 8px;
   height: calc(100vh - 48px);
   min-height: 0;
@@ -1410,7 +1425,7 @@ button:disabled {
     }
 
     &:disabled {
-      cursor: wait;
+      cursor: not-allowed;
       opacity: 0.72;
     }
   }
@@ -1482,13 +1497,22 @@ button:disabled {
     height: 48px;
     padding: 0 12px 0 16px;
   }
+}
+
+.preview-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  min-height: 360px;
+  max-height: min(430px, calc(100vh - 160px));
+  background: #111827;
 
   img {
     display: block;
     width: 100%;
-    max-height: min(430px, calc(100vh - 160px));
+    height: 100%;
     object-fit: contain;
-    background: #111827;
   }
 }
 

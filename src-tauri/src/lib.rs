@@ -917,6 +917,7 @@ pub fn run() {
             plugins::wallpaper_switcher::wallpaper_set_wallhaven_image, // 设置 Wallhaven 壁纸
             plugins::wallpaper_switcher::wallpaper_download_wallhaven_image, // 下载 Wallhaven 壁纸
             plugins::wallpaper_switcher::wallpaper_clear_cache,      // 清理壁纸缓存
+            plugins::wallpaper_switcher::wallpaper_open_cache_dir,   // 打开壁纸缓存目录
             plugins::local_launcher::add_app,                          // 添加应用
             plugins::local_launcher::update_app,                       // 更新应用
             plugins::local_launcher::delete_app,                       // 删除应用

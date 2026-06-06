@@ -306,20 +306,19 @@ fn fit_image(
 }
 
 fn prepare_wallpaper_image(
-    app_handle: &AppHandle,
+    target: &Path,
     source_path: &Path,
     fit_mode: &WallpaperFitMode,
-    cache_name: &str,
+    width: u32,
+    height: u32,
 ) -> Result<PathBuf, String> {
-    let (width, height) = screen_size(app_handle);
     let image = image::open(source_path)
         .map_err(|e| format!("读取图片失败: {} ({})", source_path.display(), e))?;
     let prepared = fit_image(image, width, height, fit_mode);
-    let target = cache_dir(app_handle)?.join(format!("{}.jpg", cache_name));
     prepared
-        .save_with_format(&target, image::ImageFormat::Jpeg)
+        .save_with_format(target, image::ImageFormat::Jpeg)
         .map_err(|e| format!("保存适配后的壁纸失败: {} ({})", target.display(), e))?;
-    Ok(target)
+    Ok(target.to_path_buf())
 }
 
 #[cfg(target_os = "windows")]
@@ -470,8 +469,19 @@ async fn apply_wallpaper_path(
         source.replace(['/', '\\', ':'], "_"),
         now_unix_ts()
     );
-    let prepared = prepare_wallpaper_image(app_handle, source_path, fit_mode, &cache_name)?;
-    set_windows_wallpaper(&prepared)?;
+    let (width, height) = screen_size(app_handle);
+    let target = cache_dir(app_handle)?.join(format!("{}.jpg", cache_name));
+    let source_path = source_path.to_path_buf();
+    let fit_mode = fit_mode.clone();
+    let prepared = tauri::async_runtime::spawn_blocking(move || {
+        prepare_wallpaper_image(&target, &source_path, &fit_mode, width, height)
+    })
+    .await
+    .map_err(|e| format!("适配壁纸任务失败: {}", e))??;
+    let wallpaper_path = prepared.clone();
+    tauri::async_runtime::spawn_blocking(move || set_windows_wallpaper(&wallpaper_path))
+        .await
+        .map_err(|e| format!("设置壁纸任务失败: {}", e))??;
     update_status_after_switch(&prepared, source, next_switch_timestamp());
     let _ = app_handle.emit("wallpaper-switcher-changed", ());
     Ok(path_to_string(&prepared))
@@ -1039,6 +1049,13 @@ pub async fn wallpaper_clear_cache(app_handle: AppHandle) -> Result<(), String> 
         }
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn wallpaper_open_cache_dir(app_handle: AppHandle) -> Result<(), String> {
+    require_enabled(&app_handle)?;
+    let dir = cache_dir(&app_handle)?;
+    crate::commands::open_folder(path_to_string(&dir))
 }
 
 pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
