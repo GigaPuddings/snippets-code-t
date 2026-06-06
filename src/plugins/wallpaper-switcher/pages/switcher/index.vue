@@ -883,7 +883,7 @@ onUnmounted(() => {
 
 .content {
   display: grid;
-  grid-template-rows: 154px 202px 108px 52px;
+  grid-template-rows: 154px 224px 114px 52px;
   gap: 8px;
   height: calc(100vh - 48px);
   min-height: 0;
@@ -1013,7 +1013,7 @@ button:disabled {
 
 .settings-card {
   min-height: 0;
-  padding: 8px 12px;
+  padding: 10px 12px;
   overflow: hidden;
 }
 
@@ -1022,7 +1022,7 @@ button:disabled {
   grid-template-columns: 106px minmax(0, 1fr) 94px 94px;
   gap: 8px;
   align-items: center;
-  min-height: 32px;
+  min-height: 34px;
 }
 
 .mode-row {
@@ -1039,8 +1039,8 @@ button:disabled {
 
 .wallhaven-row {
   grid-template-columns: 106px 54px minmax(260px, 1fr) 260px;
-  padding-top: 4px;
-  margin-top: 4px;
+  padding-top: 8px;
+  margin-top: 8px;
   border-top: 1px solid var(--wallpaper-border);
 }
 
@@ -1081,10 +1081,11 @@ button:disabled {
 
 .hint-row {
   display: flex;
+  align-items: center;
   gap: 16px;
   padding-left: 113px;
   font-size: 13px;
-  min-height: 16px;
+  min-height: 20px;
 }
 
 .segmented {
@@ -1139,19 +1140,19 @@ button:disabled {
 
 .rules-card {
   min-height: 0;
-  padding: 8px 12px;
+  padding: 10px 12px;
   overflow: hidden;
 
   h2 {
-    margin: 0 0 8px;
+    margin: 0 0 10px;
     font-size: 15px;
     font-weight: 700;
   }
 }
 
 .rules-line {
-  gap: 9px;
-  min-height: 29px;
+  gap: 12px;
+  min-height: 34px;
 }
 
 .switch-label,
@@ -1412,7 +1413,7 @@ button:disabled {
 .wallpaper-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
   align-content: start;
 }
 
@@ -1428,7 +1429,7 @@ button:disabled {
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 1.36;
+  aspect-ratio: 1.1;
   overflow: hidden;
   background: var(--wallpaper-soft);
   border: 0;
