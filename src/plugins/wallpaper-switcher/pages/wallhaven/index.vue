@@ -263,6 +263,7 @@ onMounted(async () => {
   height: 100vh;
   overflow: hidden;
   color: var(--search-text-color);
+  font-size: 14px;
   background: var(--search-bg-color);
   border: 1px solid var(--search-border-color);
   border-radius: 8px;
@@ -285,19 +286,19 @@ onMounted(async () => {
 
 .titlebar {
   justify-content: space-between;
-  height: 52px;
-  padding: 0 16px;
+  height: 48px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--search-border-color);
 }
 
 .title {
-  gap: 12px;
-  font-size: 18px;
+  gap: 10px;
+  font-size: 16px;
   font-weight: 700;
 }
 
 .top-actions {
-  gap: 16px;
+  gap: 12px;
 }
 
 .flat-icon,
@@ -330,7 +331,7 @@ onMounted(async () => {
 
   button {
     width: 82px;
-    height: 34px;
+    height: 32px;
     color: var(--search-text-color);
     background: transparent;
     border-right: 1px solid var(--search-border-color);
@@ -349,16 +350,16 @@ onMounted(async () => {
 }
 
 .filters {
-  gap: 12px;
-  height: 72px;
-  padding: 12px 16px;
+  gap: 10px;
+  height: 62px;
+  padding: 10px 14px;
 }
 
 .search-box {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 36px;
   width: 214px;
-  height: 38px;
+  height: 34px;
   overflow: hidden;
   background: var(--search-input-bg);
   border: 1px solid var(--search-border-color);
@@ -388,8 +389,8 @@ onMounted(async () => {
 
 .resolution strong,
 .source-select select {
-  height: 38px;
-  padding: 0 14px;
+  height: 34px;
+  padding: 0 12px;
   font-weight: 500;
   color: var(--search-text-color);
   background: var(--search-input-bg);
@@ -404,7 +405,7 @@ onMounted(async () => {
 
   button {
     width: 68px;
-    height: 38px;
+    height: 34px;
     color: var(--search-text-color);
     background: transparent;
     border-right: 1px solid var(--search-border-color);
@@ -423,7 +424,7 @@ onMounted(async () => {
 }
 
 .source-select select {
-  width: 150px;
+  width: 142px;
 }
 
 .refresh-btn {
@@ -435,15 +436,15 @@ onMounted(async () => {
 }
 
 .grid-wrap {
-  height: calc(100vh - 52px - 72px - 68px);
-  padding: 0 16px;
+  height: calc(100vh - 48px - 62px - 58px);
+  padding: 0 14px;
   overflow-y: auto;
 }
 
 .wallpaper-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .wallpaper-card {
@@ -484,7 +485,7 @@ onMounted(async () => {
 }
 
 .card-actions {
-  height: 40px;
+  height: 36px;
 
   button {
     flex: 1;
@@ -525,8 +526,8 @@ onMounted(async () => {
 
 .pager {
   justify-content: space-between;
-  height: 68px;
-  padding: 0 22px;
+  height: 58px;
+  padding: 0 20px;
 }
 
 .source-note {
@@ -537,8 +538,8 @@ onMounted(async () => {
   gap: 12px;
 
   button {
-    width: 92px;
-    height: 38px;
+    width: 88px;
+    height: 34px;
     color: var(--search-text-color);
     background: transparent;
     border: 1px solid var(--search-border-color);
@@ -585,7 +586,7 @@ onMounted(async () => {
   img {
     display: block;
     width: 100%;
-    max-height: 430px;
+    max-height: min(430px, calc(100vh - 160px));
     object-fit: contain;
     background: #111827;
   }
@@ -617,6 +618,37 @@ onMounted(async () => {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 980px) {
+  .filters {
+    flex-wrap: wrap;
+    height: auto;
+  }
+
+  .grid-wrap {
+    height: calc(100vh - 48px - 108px - 58px);
+  }
+
+  .wallpaper-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .wallpaper-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-height: 720px) {
+  .thumb {
+    aspect-ratio: 1.55;
+  }
+
+  .card-actions {
+    height: 34px;
   }
 }
 </style>

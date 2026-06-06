@@ -4572,7 +4572,7 @@ const Di = A("back", !0, function(e) {
   for (const [o, s] of t)
     n[o] = s;
   return n;
-}, Il = /* @__PURE__ */ mn($l, [["__scopeId", "data-v-1da08d21"]]), Wl = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, Il = /* @__PURE__ */ mn($l, [["__scopeId", "data-v-fc2a5cec"]]), Wl = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: Il
 }, Symbol.toStringTag, { value: "Module" })), jl = { class: "wallhaven-window" }, Pl = {
@@ -4963,7 +4963,7 @@ const Di = A("back", !0, function(e) {
       ])) : K("v-if", !0)
     ]));
   }
-}), lr = /* @__PURE__ */ mn(ir, [["__scopeId", "data-v-04560b44"]]), rr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), lr = /* @__PURE__ */ mn(ir, [["__scopeId", "data-v-a18b89be"]]), rr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: lr
 }, Symbol.toStringTag, { value: "Module" }));

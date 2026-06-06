@@ -410,6 +410,7 @@ onUnmounted(() => {
   height: 100vh;
   overflow: hidden;
   color: var(--search-text-color);
+  font-size: 14px;
   background: var(--search-bg-color);
   border: 1px solid var(--search-border-color);
   border-radius: 8px;
@@ -419,8 +420,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
-  padding: 0 16px 0 18px;
+  height: 48px;
+  padding: 0 14px 0 16px;
   border-bottom: 1px solid var(--search-border-color);
 }
 
@@ -441,7 +442,7 @@ onUnmounted(() => {
 
 .title {
   gap: 10px;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -473,9 +474,11 @@ onUnmounted(() => {
 .content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  height: calc(100vh - 52px);
-  padding: 14px 18px 16px;
+  gap: 8px;
+  height: calc(100vh - 48px);
+  min-height: 0;
+  padding: 12px 16px 14px;
+  overflow-y: auto;
 }
 
 .dimmed {
@@ -493,12 +496,12 @@ onUnmounted(() => {
 
 .top-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 326px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.78fr);
   gap: 12px;
 }
 
 .preview {
-  height: 206px;
+  height: clamp(148px, 23vh, 206px);
   overflow: hidden;
   background: var(--search-soft-bg);
   border: 1px solid var(--search-border-color);
@@ -531,11 +534,11 @@ onUnmounted(() => {
 }
 
 .status-panel {
-  padding: 14px 16px;
+  padding: 12px 14px;
 
   h2 {
-    margin: 0 0 12px;
-    font-size: 17px;
+    margin: 0 0 10px;
+    font-size: 16px;
     font-weight: 700;
   }
 }
@@ -544,8 +547,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 86px minmax(0, 1fr);
   gap: 8px;
-  margin-bottom: 12px;
-  font-size: 15px;
+  margin-bottom: 9px;
+  font-size: 14px;
 
   span {
     color: var(--search-info-text-color);
@@ -553,8 +556,8 @@ onUnmounted(() => {
 }
 
 .status-actions {
-  gap: 14px;
-  margin-top: 18px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .primary-btn,
@@ -562,8 +565,8 @@ onUnmounted(() => {
 .tool-btn {
   justify-content: center;
   gap: 7px;
-  height: 38px;
-  padding: 0 14px;
+  height: 34px;
+  padding: 0 12px;
   font-size: 14px;
 }
 
@@ -593,15 +596,15 @@ button:disabled {
 }
 
 .settings-card {
-  padding: 11px 16px 10px;
+  padding: 9px 14px 8px;
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr) auto auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  min-height: 45px;
+  min-height: 38px;
 }
 
 .mode-row {
@@ -611,8 +614,8 @@ button:disabled {
 .wallhaven-row {
   grid-template-columns: 104px auto minmax(0, 360px) auto;
   border-top: 1px solid var(--search-border-color);
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 5px;
+  padding-top: 5px;
 }
 
 .row-label,
@@ -631,7 +634,7 @@ button:disabled {
 
 .path-input {
   width: 100%;
-  height: 36px;
+  height: 32px;
   min-width: 0;
   padding: 0 11px;
   color: var(--search-text-color);
@@ -650,7 +653,7 @@ button:disabled {
   gap: 18px;
   padding-left: 114px;
   font-size: 13px;
-  min-height: 20px;
+  min-height: 18px;
 }
 
 .segmented {
@@ -660,8 +663,8 @@ button:disabled {
   overflow: hidden;
 
   button {
-    height: 34px;
-    padding: 0 14px;
+    height: 30px;
+    padding: 0 12px;
     color: var(--search-text-color);
     background: transparent;
     border-right: 1px solid var(--search-border-color);
@@ -701,17 +704,17 @@ button:disabled {
 }
 
 .rules-card {
-  padding: 12px 16px 14px;
+  padding: 10px 14px 11px;
 
   h2 {
-    margin: 0 0 10px;
-    font-size: 16px;
+    margin: 0 0 8px;
+    font-size: 15px;
   }
 }
 
 .rules-line {
-  gap: 12px;
-  min-height: 44px;
+  gap: 10px;
+  min-height: 38px;
 }
 
 .switch-label,
@@ -764,7 +767,7 @@ button:disabled {
 
   input {
     width: 76px;
-    height: 36px;
+    height: 32px;
     padding: 0 10px;
     color: var(--search-text-color);
     background: var(--search-input-bg);
@@ -782,7 +785,7 @@ button:disabled {
   justify-content: space-between;
   align-items: center;
   margin-top: auto;
-  padding: 10px 14px;
+  padding: 8px 12px;
 }
 
 .cache-info {
@@ -791,5 +794,49 @@ button:disabled {
 
 .footer-actions {
   gap: 12px;
+}
+
+@media (max-height: 760px) {
+  .content {
+    gap: 7px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .preview {
+    height: 142px;
+  }
+
+  .status-panel {
+    padding: 10px 12px;
+  }
+
+  .status-row {
+    margin-bottom: 7px;
+  }
+
+  .rules-line {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 760px) {
+  .top-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row,
+  .wallhaven-row {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .form-row .tool-btn,
+  .wallhaven-row .tool-btn {
+    grid-column: 2;
+  }
+
+  .hint-row {
+    padding-left: 104px;
+  }
 }
 </style>

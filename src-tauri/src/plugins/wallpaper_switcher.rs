@@ -146,20 +146,6 @@ pub struct WallhavenThumbs {
     pub small: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct WallhavenApiResponse {
-    data: Vec<WallhavenWallpaper>,
-    meta: WallhavenMeta,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct WallhavenMeta {
-    current_page: u32,
-    last_page: u32,
-}
-
 #[derive(Debug, Clone)]
 struct RuntimeStatus {
     current_path: Option<String>,
@@ -629,6 +615,133 @@ fn wallhaven_sorting(source: &WallhavenSource) -> &'static str {
     }
 }
 
+fn wallhaven_response_snippet(body: &str) -> String {
+    body.chars()
+        .take(180)
+        .collect::<String>()
+        .replace(['\r', '\n', '\t'], " ")
+}
+
+fn json_string(value: &serde_json::Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn json_u32(value: &serde_json::Value, key: &str) -> Option<u32> {
+    value
+        .get(key)
+        .and_then(|value| value.as_u64())
+        .and_then(|value| u32::try_from(value).ok())
+}
+
+fn parse_resolution(value: &str) -> Option<(u32, u32)> {
+    let (width, height) = value.split_once('x').or_else(|| value.split_once('×'))?;
+    Some((
+        width.trim().parse::<u32>().ok()?,
+        height.trim().parse::<u32>().ok()?,
+    ))
+}
+
+fn file_type_from_path(path: &str) -> String {
+    let lower = path.to_ascii_lowercase();
+    if lower.ends_with(".png") {
+        "image/png".to_string()
+    } else if lower.ends_with(".webp") {
+        "image/webp".to_string()
+    } else {
+        "image/jpeg".to_string()
+    }
+}
+
+fn parse_wallhaven_wallpaper(value: &serde_json::Value) -> Option<WallhavenWallpaper> {
+    let id = json_string(value, "id")?;
+    let path = json_string(value, "path")?;
+    let thumbs = value.get("thumbs").and_then(|value| value.as_object());
+    let thumb_string = |key: &str| {
+        thumbs
+            .and_then(|items| items.get(key))
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+    };
+
+    let resolution = json_string(value, "resolution").unwrap_or_default();
+    let parsed_resolution = parse_resolution(&resolution);
+    let dimension_x = json_u32(value, "dimension_x")
+        .or_else(|| parsed_resolution.map(|(width, _)| width))
+        .unwrap_or(0);
+    let dimension_y = json_u32(value, "dimension_y")
+        .or_else(|| parsed_resolution.map(|(_, height)| height))
+        .unwrap_or(0);
+    let resolution = if resolution.is_empty() && dimension_x > 0 && dimension_y > 0 {
+        format!("{}x{}", dimension_x, dimension_y)
+    } else {
+        resolution
+    };
+
+    Some(WallhavenWallpaper {
+        id,
+        url: json_string(value, "url").unwrap_or_else(|| path.clone()),
+        short_url: json_string(value, "short_url"),
+        thumbs: WallhavenThumbs {
+            large: thumb_string("large").unwrap_or_else(|| path.clone()),
+            original: thumb_string("original").unwrap_or_else(|| path.clone()),
+            small: thumb_string("small").unwrap_or_else(|| path.clone()),
+        },
+        file_type: json_string(value, "file_type").unwrap_or_else(|| file_type_from_path(&path)),
+        category: json_string(value, "category"),
+        path,
+        resolution,
+        dimension_x,
+        dimension_y,
+    })
+}
+
+fn parse_wallhaven_response(body: &str) -> Result<WallhavenPage, String> {
+    let value = serde_json::from_str::<serde_json::Value>(body).map_err(|e| {
+        format!(
+            "Wallhaven 返回内容不是有效 JSON: {}；响应片段: {}",
+            e,
+            wallhaven_response_snippet(body)
+        )
+    })?;
+
+    if let Some(error) = json_string(&value, "error").or_else(|| {
+        value
+            .get("error")
+            .and_then(|error| json_string(error, "message"))
+    }) {
+        return Err(format!("Wallhaven 返回错误: {}", error));
+    }
+
+    let data = value
+        .get("data")
+        .and_then(|value| value.as_array())
+        .ok_or_else(|| {
+            format!(
+                "Wallhaven 响应缺少 data 数组；响应片段: {}",
+                wallhaven_response_snippet(body)
+            )
+        })?
+        .iter()
+        .filter_map(parse_wallhaven_wallpaper)
+        .collect::<Vec<_>>();
+    let meta = value.get("meta").unwrap_or(&serde_json::Value::Null);
+    let page = json_u32(meta, "current_page").unwrap_or(1);
+    let last_page = json_u32(meta, "last_page").unwrap_or(page);
+
+    Ok(WallhavenPage {
+        data,
+        page,
+        last_page,
+    })
+}
+
 async fn fetch_wallhaven_page(
     app_handle: &AppHandle,
     params: WallhavenFetchParams,
@@ -669,6 +782,9 @@ async fn fetch_wallhaven_page(
         .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
     let response = client
         .get("https://wallhaven.cc/api/v1/search")
+        .header(reqwest::header::ACCEPT, "application/json")
+        .header(reqwest::header::ACCEPT_ENCODING, "identity")
+        .header(reqwest::header::REFERER, "https://wallhaven.cc/")
         .query(&query)
         .send()
         .await
@@ -676,18 +792,20 @@ async fn fetch_wallhaven_page(
     if response.status().as_u16() == 429 {
         return Err("Wallhaven 请求过于频繁，请稍后再试".to_string());
     }
-    let api = response
-        .error_for_status()
-        .map_err(|e| format!("请求 Wallhaven 失败: {}", e))?
-        .json::<WallhavenApiResponse>()
+    let status = response.status();
+    let body = response
+        .text()
         .await
-        .map_err(|e| format!("解析 Wallhaven 数据失败: {}", e))?;
+        .map_err(|e| format!("读取 Wallhaven 响应失败: {}", e))?;
+    if !status.is_success() {
+        return Err(format!(
+            "请求 Wallhaven 失败: HTTP {}；响应片段: {}",
+            status.as_u16(),
+            wallhaven_response_snippet(&body)
+        ));
+    }
 
-    Ok(WallhavenPage {
-        data: api.data,
-        page: api.meta.current_page,
-        last_page: api.meta.last_page,
-    })
+    parse_wallhaven_response(&body)
 }
 
 #[tauri::command]
