@@ -1,4 +1,3 @@
-use image::{imageops::FilterType, DynamicImage, ImageBuffer, Rgba};
 use log::{error, info, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -19,6 +18,7 @@ const CONFIG_KEY: &str = "wallpaper_switcher_config";
 const USER_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) snippets-code-wallpaper-switcher/2.1 Safari/537.36";
 const MAX_WALLHAVEN_PAGES: u32 = 100;
+const MAX_WALLHAVEN_CACHE_BYTES: u64 = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -252,6 +252,84 @@ fn cache_size(path: &Path) -> u64 {
         .sum()
 }
 
+fn is_prepared_wallpaper_cache(path: &Path) -> bool {
+    path.file_name()
+        .and_then(OsStr::to_str)
+        .is_some_and(|name| name.starts_with("prepared-"))
+}
+
+fn is_wallhaven_original_cache(path: &Path) -> bool {
+    path.file_name()
+        .and_then(OsStr::to_str)
+        .is_some_and(|name| name.starts_with("wallhaven-"))
+}
+
+fn cleanup_prepared_wallpaper_cache(cache: &Path, current_path: &Path) {
+    let Ok(entries) = fs::read_dir(cache) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path == current_path || !path.is_file() || !is_prepared_wallpaper_cache(&path) {
+            continue;
+        }
+        if let Err(error) = fs::remove_file(&path) {
+            warn!(
+                "[WallpaperSwitcher] 删除旧版预处理缓存失败 {}: {}",
+                path.display(),
+                error
+            );
+        }
+    }
+}
+
+fn cleanup_wallhaven_cache_limit(cache: &Path, current_path: &Path) {
+    let Ok(entries) = fs::read_dir(cache) else {
+        return;
+    };
+    let mut files = entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path == current_path || !path.is_file() || !is_wallhaven_original_cache(&path) {
+                return None;
+            }
+            let metadata = entry.metadata().ok()?;
+            let modified = metadata.modified().ok();
+            Some((path, metadata.len(), modified))
+        })
+        .collect::<Vec<_>>();
+    let mut total = cache_size(cache);
+    if total <= MAX_WALLHAVEN_CACHE_BYTES {
+        return;
+    }
+
+    files.sort_by_key(|(_, _, modified)| *modified);
+    for (path, len, _) in files {
+        if total <= MAX_WALLHAVEN_CACHE_BYTES {
+            break;
+        }
+        match fs::remove_file(&path) {
+            Ok(_) => total = total.saturating_sub(len),
+            Err(error) => warn!(
+                "[WallpaperSwitcher] 删除过期 Wallhaven 缓存失败 {}: {}",
+                path.display(),
+                error
+            ),
+        }
+    }
+}
+
+fn cleanup_wallpaper_cache_after_apply(app_handle: &AppHandle, current_path: &Path) {
+    match cache_dir(app_handle) {
+        Ok(cache) => {
+            cleanup_prepared_wallpaper_cache(&cache, current_path);
+            cleanup_wallhaven_cache_limit(&cache, current_path);
+        }
+        Err(error) => warn!("[WallpaperSwitcher] 清理壁纸缓存失败: {}", error),
+    }
+}
+
 fn screen_size(app_handle: &AppHandle) -> (u32, u32) {
     app_handle
         .primary_monitor()
@@ -270,61 +348,8 @@ fn image_resolution(path: &Path) -> Option<String> {
         .map(|(width, height)| format!("{} × {}", width, height))
 }
 
-fn fit_image(
-    image: DynamicImage,
-    width: u32,
-    height: u32,
-    fit_mode: &WallpaperFitMode,
-) -> DynamicImage {
-    match fit_mode {
-        WallpaperFitMode::FillCrop => {
-            let resized = image.resize_to_fill(width, height, FilterType::Lanczos3);
-            DynamicImage::ImageRgba8(resized.to_rgba8())
-        }
-        WallpaperFitMode::Fit => {
-            let resized = image.resize(width, height, FilterType::Lanczos3).to_rgba8();
-            let mut canvas = ImageBuffer::from_pixel(width, height, Rgba([0, 0, 0, 255]));
-            let x = width.saturating_sub(resized.width()) / 2;
-            let y = height.saturating_sub(resized.height()) / 2;
-            image::imageops::overlay(&mut canvas, &resized, x.into(), y.into());
-            DynamicImage::ImageRgba8(canvas)
-        }
-        WallpaperFitMode::Center => {
-            let source = image.to_rgba8();
-            let mut canvas = ImageBuffer::from_pixel(width, height, Rgba([0, 0, 0, 255]));
-            let crop_width = source.width().min(width);
-            let crop_height = source.height().min(height);
-            let source_x = source.width().saturating_sub(crop_width) / 2;
-            let source_y = source.height().saturating_sub(crop_height) / 2;
-            let target_x = width.saturating_sub(crop_width) / 2;
-            let target_y = height.saturating_sub(crop_height) / 2;
-            let cropped =
-                image::imageops::crop_imm(&source, source_x, source_y, crop_width, crop_height)
-                    .to_image();
-            image::imageops::overlay(&mut canvas, &cropped, target_x.into(), target_y.into());
-            DynamicImage::ImageRgba8(canvas)
-        }
-    }
-}
-
-fn prepare_wallpaper_image(
-    target: &Path,
-    source_path: &Path,
-    fit_mode: &WallpaperFitMode,
-    width: u32,
-    height: u32,
-) -> Result<PathBuf, String> {
-    let image = image::open(source_path)
-        .map_err(|e| format!("读取图片失败: {} ({})", source_path.display(), e))?;
-    let prepared = fit_image(image, width, height, fit_mode);
-    prepared
-        .save_with_format(target, image::ImageFormat::Jpeg)
-        .map_err(|e| format!("保存适配后的壁纸失败: {} ({})", target.display(), e))?;
-    Ok(target.to_path_buf())
-}
-
 #[cfg(target_os = "windows")]
-fn set_windows_wallpaper(path: &Path) -> Result<(), String> {
+fn set_windows_wallpaper(path: &Path, fit_mode: &WallpaperFitMode) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows::Win32::UI::WindowsAndMessaging::{
         SystemParametersInfoW, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
@@ -336,8 +361,13 @@ fn set_windows_wallpaper(path: &Path) -> Result<(), String> {
     let desktop = hkcu
         .open_subkey_with_flags("Control Panel\\Desktop", KEY_SET_VALUE)
         .map_err(|e| format!("无法打开桌面注册表项: {}", e))?;
+    let wallpaper_style = match fit_mode {
+        WallpaperFitMode::FillCrop => "10",
+        WallpaperFitMode::Fit => "6",
+        WallpaperFitMode::Center => "0",
+    };
     desktop
-        .set_value("WallpaperStyle", &"10")
+        .set_value("WallpaperStyle", &wallpaper_style)
         .map_err(|e| format!("设置壁纸样式失败: {}", e))?;
     desktop
         .set_value("TileWallpaper", &"0")
@@ -360,7 +390,7 @@ fn set_windows_wallpaper(path: &Path) -> Result<(), String> {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn set_windows_wallpaper(_path: &Path) -> Result<(), String> {
+fn set_windows_wallpaper(_path: &Path, _fit_mode: &WallpaperFitMode) -> Result<(), String> {
     Err("当前系统暂不支持设置桌面壁纸".to_string())
 }
 
@@ -485,27 +515,16 @@ async fn apply_wallpaper_path(
     source: &str,
     fit_mode: &WallpaperFitMode,
 ) -> Result<String, String> {
-    let cache_name = format!(
-        "prepared-{}-{}",
-        source.replace(['/', '\\', ':'], "_"),
-        now_unix_ts()
-    );
-    let (width, height) = screen_size(app_handle);
-    let target = cache_dir(app_handle)?.join(format!("{}.jpg", cache_name));
     let source_path = source_path.to_path_buf();
     let fit_mode = fit_mode.clone();
-    let prepared = tauri::async_runtime::spawn_blocking(move || {
-        prepare_wallpaper_image(&target, &source_path, &fit_mode, width, height)
-    })
-    .await
-    .map_err(|e| format!("适配壁纸任务失败: {}", e))??;
-    let wallpaper_path = prepared.clone();
-    tauri::async_runtime::spawn_blocking(move || set_windows_wallpaper(&wallpaper_path))
+    let wallpaper_path = source_path.clone();
+    tauri::async_runtime::spawn_blocking(move || set_windows_wallpaper(&wallpaper_path, &fit_mode))
         .await
         .map_err(|e| format!("设置壁纸任务失败: {}", e))??;
-    update_status_after_switch(&prepared, source, next_switch_timestamp());
+    update_status_after_switch(&source_path, source, next_switch_timestamp());
+    cleanup_wallpaper_cache_after_apply(app_handle, &source_path);
     let _ = app_handle.emit("wallpaper-switcher-changed", ());
-    Ok(path_to_string(&prepared))
+    Ok(path_to_string(&source_path))
 }
 
 fn next_switch_timestamp() -> Option<i64> {
