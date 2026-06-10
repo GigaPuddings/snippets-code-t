@@ -494,35 +494,26 @@ onUnmounted(() => {
     </div>
 
     <div v-else class="wallhaven-view">
-      <section class="filters filters--preview-style grid gap-3 px-4 pt-3 pb-2">
-        <div class="rounded-2xl border border-[var(--wallhaven-border)] bg-white/95 px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-          <div class="flex items-center gap-3 rounded-xl border border-[var(--wallhaven-border)] bg-[var(--wallhaven-panel)] px-3 py-2">
-            <Search :size="20" class="shrink-0 text-[var(--wallhaven-muted)]" />
+      <section class="filters filters--preview-style">
+        <div class="filter-card wallhaven-search-card">
+          <div class="wallhaven-search">
+            <Search :size="20" class="search-icon" />
             <input
               v-model="wallhavenKeyword"
               type="text"
-              class="min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--wallhaven-text)] outline-none"
               placeholder="搜索关键词"
               @keydown.enter="refreshWallhaven"
             />
-            <button
-              v-if="wallhavenKeyword"
-              type="button"
-              class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--wallhaven-muted)] transition-colors hover:bg-slate-100 hover:text-[var(--wallhaven-primary)]"
-              title="清空"
-              @click="wallhavenKeyword = ''"
-            >
+            <button v-if="wallhavenKeyword" type="button" class="clear-btn" title="清空" @click="wallhavenKeyword = ''">
               <CloseSmall :size="18" />
             </button>
           </div>
         </div>
 
-        <div class="rounded-2xl border border-[var(--wallhaven-border)] bg-white/95 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-          <div class="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <div class="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--wallhaven-muted)]">分类标签</div>
-              <div class="mt-1 text-[12px] text-[var(--wallhaven-muted)]">按内容风格快速筛选</div>
-            </div>
+        <div class="filter-card wallhaven-category-card">
+          <div class="filter-card-title">
+            <strong>分类标签</strong>
+            <span>按内容风格快速筛选</span>
           </div>
           <div class="wallhaven-tabs" role="tablist" aria-label="壁纸分类切换">
             <button type="button" :class="{ active: wallhavenCategory === 'general' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('general')">
@@ -540,16 +531,14 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="rounded-2xl border border-[var(--wallhaven-border)] bg-white/95 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <div class="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--wallhaven-muted)]">状态</div>
-              <div class="mt-1 text-sm font-medium text-[var(--wallhaven-text)]">自动匹配 {{ screenLabel }}</div>
-            </div>
-            <button type="button" class="refresh-btn wallhaven-refresh" title="刷新" @click="refreshWallhaven">
-              <Refresh :size="20" :class="{ spinning: wallhavenLoading }" />
-            </button>
+        <div class="filter-card wallhaven-status-card">
+          <div class="wallhaven-status-meta">
+            <strong>状态</strong>
+            <span>自动匹配 {{ screenLabel }}</span>
           </div>
+          <button type="button" class="refresh-btn wallhaven-refresh" title="刷新" @click="refreshWallhaven">
+            <Refresh :size="20" :class="{ spinning: wallhavenLoading }" />
+          </button>
         </div>
       </section>
 
@@ -1301,11 +1290,25 @@ button:disabled {
 
 .filters--preview-style {
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) 320px 46px;
-  align-items: center;
+  grid-template-columns: minmax(260px, 1.1fr) minmax(300px, 1fr) minmax(190px, 0.72fr);
+  align-items: stretch;
   gap: 12px;
   padding: 10px 14px 8px;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.filter-card {
+  display: flex;
+  min-width: 0;
+  padding: 12px;
+  background: var(--wallpaper-panel);
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 18px rgb(15 23 42 / 4%);
+}
+
+.wallhaven-search-card {
+  align-items: center;
 }
 
 .wallhaven-search {
@@ -1313,37 +1316,37 @@ button:disabled {
   align-items: center;
   width: 100%;
   min-width: 0;
-  height: 46px;
+  height: 42px;
   gap: 10px;
-  padding: 0 10px 0 16px;
-  background: #fff;
-  border: 0;
-  border-radius: 13px;
-  box-shadow: none;
+  padding: 0 10px 0 14px;
+  background: var(--wallpaper-input);
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 11px;
 }
 
 .wallhaven-search .search-icon {
   flex: 0 0 auto;
-  color: #111827;
+  width: 20px;
+  height: 20px;
+  color: var(--wallpaper-muted);
 }
 
 .wallhaven-search input {
   flex: 1;
-  align-self: center;
   min-width: 0;
   height: 100%;
   padding: 0;
-  color: #111827;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 46px;
+  color: var(--wallpaper-text);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 42px;
   background: transparent;
   border: 0;
   outline: 0;
 }
 
 .wallhaven-search input::placeholder {
-  color: #8b95a5;
+  color: var(--wallpaper-muted);
   font-weight: 500;
 }
 
@@ -1352,24 +1355,47 @@ button:disabled {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  color: #94a3b8;
-  background: #f1f5f9;
-  border: 0;
-  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  color: var(--wallpaper-muted);
+  background: var(--wallpaper-soft);
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 8px;
   cursor: pointer;
   transition: color 0.16s ease, background 0.16s ease;
 
   &:hover {
-    color: #475569;
-    background: #e2e8f0;
+    color: var(--wallpaper-primary);
+    background: var(--wallpaper-hover);
   }
 }
 
-.clear-btn :deep(svg) {
-  width: 12px;
-  height: 12px;
+.wallhaven-category-card {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filter-card-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+
+  strong {
+    color: var(--wallpaper-text);
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  span {
+    overflow: hidden;
+    color: var(--wallpaper-muted);
+    font-size: 12px;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .wallhaven-tabs {
@@ -1377,24 +1403,29 @@ button:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   width: 100%;
   min-width: 0;
-  height: 46px;
+  height: 38px;
+  padding: 3px;
   overflow: hidden;
-  background: #eef2f7;
-  border: 1px solid #e3e9f1;
-  border-radius: 13px;
-  box-shadow: none;
+  background: var(--wallpaper-soft);
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 11px;
 }
 
 .wallhaven-tabs button {
   position: relative;
   min-width: 0;
-  height: 46px;
-  color: #111827;
-  font-size: 15px;
+  height: 30px;
+  color: var(--wallpaper-text);
+  font-size: 14px;
   font-weight: 500;
   background: transparent;
   border: 0;
+  border-radius: 8px;
   cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--wallpaper-hover);
+  }
 
   &:disabled {
     cursor: wait;
@@ -1404,27 +1435,47 @@ button:disabled {
 
 .wallhaven-tabs button.active {
   color: var(--wallpaper-primary);
-  font-weight: 800;
+  font-weight: 700;
+  background: var(--wallpaper-panel);
+  box-shadow: 0 4px 10px rgb(15 23 42 / 6%);
 }
 
-.wallhaven-tabs button.active::after {
-  position: absolute;
-  right: 20px;
-  bottom: 5px;
-  left: 20px;
-  height: 3px;
-  content: '';
-  background: var(--wallpaper-primary);
-  border-radius: 999px;
+.wallhaven-status-card {
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.wallhaven-status-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  strong {
+    color: var(--wallpaper-muted);
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  span {
+    overflow: hidden;
+    color: var(--wallpaper-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .wallhaven-refresh {
-  width: 46px;
-  height: 46px;
-  color: #111827;
-  background: #fff;
-  border: 1px solid #e8e8ef;
-  border-radius: 13px;
+  width: 42px;
+  height: 42px;
+  color: var(--wallpaper-primary);
+  background: var(--wallpaper-input);
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 11px;
   box-shadow: none;
 }
 
