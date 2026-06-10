@@ -96,7 +96,6 @@ const folderCountLabel = computed(() => {
   if (!folderScan.value) return '检测到 128 张可用图片';
   return `检测到 ${folderScan.value.count} 张可用图片`;
 });
-const wallhavenScreenLabel = computed(() => '2560×1440');
 const wallhavenSourceLabel = computed(() => (wallhavenSource.value === 'hot' ? 'Hot' : 'Toplist'));
 const visibleWallpapers = computed(() => wallpapers.value.slice(0, 8));
 
