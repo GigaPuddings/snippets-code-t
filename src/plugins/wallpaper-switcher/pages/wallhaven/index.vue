@@ -173,32 +173,48 @@ onMounted(async () => {
       </div>
     </header>
 
-    <section class="filters">
-      <div class="search-box">
-        <input v-model="keyword" type="search" placeholder="搜索关键词" @keydown.enter="refresh" />
-        <button type="button" title="搜索" @click="refresh">
+    <section class="filters-panel">
+      <div class="filter-card filter-card--search">
+        <div class="filter-label">搜索</div>
+        <div class="search-box">
           <Search :size="18" />
-        </button>
+          <input v-model="keyword" type="search" placeholder="搜索关键词" @keydown.enter="refresh" />
+          <button type="button" title="搜索" @click="refresh">搜索</button>
+        </div>
       </div>
-      <label class="resolution">
-        <span>分辨率</span>
-        <strong>自动匹配 {{ screenLabel }}</strong>
-      </label>
-      <div class="chips">
-        <button type="button" :class="{ active: category === 'general' }" @click="setCategory('general')">通用</button>
-        <button type="button" :class="{ active: category === 'anime' }" @click="setCategory('anime')">动漫</button>
-        <button type="button" :class="{ active: category === 'people' }" @click="setCategory('people')">人物</button>
+
+      <div class="filter-card filter-card--category">
+        <div class="filter-header">
+          <div>
+            <div class="filter-label">类型导航</div>
+            <div class="filter-hint">切换壁纸分类</div>
+          </div>
+          <label class="source-select">
+            <span>源</span>
+            <select v-model="source" @change="refresh">
+              <option value="hot">Hot</option>
+              <option value="toplist">Toplist</option>
+            </select>
+          </label>
+        </div>
+        <div class="chips">
+          <button type="button" :class="{ active: category === 'general' }" @click="setCategory('general')">通用</button>
+          <button type="button" :class="{ active: category === 'anime' }" @click="setCategory('anime')">动漫</button>
+          <button type="button" :class="{ active: category === 'people' }" @click="setCategory('people')">人物</button>
+        </div>
       </div>
-      <label class="source-select">
-        <span>源</span>
-        <select v-model="source" @change="refresh">
-          <option value="hot">Hot</option>
-          <option value="toplist">Toplist</option>
-        </select>
-      </label>
-      <button type="button" class="refresh-btn" title="刷新" @click="refresh">
-        <Refresh :size="18" :class="{ spinning: loading }" />
-      </button>
+
+      <div class="filter-card filter-card--meta">
+        <div class="meta-row">
+          <label class="resolution">
+            <span>分辨率</span>
+            <strong>自动匹配 {{ screenLabel }}</strong>
+          </label>
+          <button type="button" class="refresh-btn" title="刷新" @click="refresh">
+            <Refresh :size="18" :class="{ spinning: loading }" />
+          </button>
+        </div>
+      </div>
     </section>
 
     <section class="grid-wrap">
@@ -297,7 +313,6 @@ onMounted(async () => {
 .titlebar,
 .title,
 .top-actions,
-.filters,
 .chips,
 .source-toggle,
 .card-actions,
@@ -330,9 +345,7 @@ onMounted(async () => {
   gap: 12px;
 }
 
-.flat-icon,
-.refresh-btn,
-.search-box button {
+.flat-icon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -347,10 +360,24 @@ onMounted(async () => {
   }
 }
 
-.flat-icon,
-.refresh-btn {
+.flat-icon {
   width: 36px;
   height: 36px;
+}
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--wallhaven-primary);
+  background: #eef3ff;
+  border: 1px solid #dbe4ff;
+  border-radius: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: #e3ebff;
+  }
 }
 
 .source-toggle {
@@ -382,34 +409,94 @@ onMounted(async () => {
   }
 }
 
-.filters {
+.filters-panel {
   display: grid;
-  grid-template-columns: 214px 1fr 1fr 132px 36px;
-  gap: 8px;
-  padding: 8px 14px 6px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.55fr) minmax(220px, 0.85fr);
+  gap: 12px;
+  padding: 10px 14px 6px;
   flex: 0 0 auto;
-  overflow: hidden;
+}
+
+.filter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 98%), rgb(248 251 255 / 98%));
+  border: 1px solid var(--wallhaven-border);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgb(15 23 42 / 4%);
+}
+
+.filter-card--search {
+  justify-content: center;
+}
+
+.filter-card--meta {
+  justify-content: center;
+}
+
+.filter-label {
+  color: var(--wallhaven-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.filter-hint {
+  margin-top: 2px;
+  color: var(--wallhaven-muted);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.filter-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .search-box {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  width: 214px;
-  height: 34px;
-  overflow: hidden;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 10px 0 12px;
   background: #fff;
   border: 1px solid var(--wallhaven-border);
-  border-radius: 8px;
+  border-radius: 12px;
+
+  svg {
+    color: var(--wallhaven-muted);
+    flex: 0 0 auto;
+  }
 
   input {
     min-width: 0;
-    padding: 0 12px;
+    padding: 0;
     color: var(--wallhaven-text);
     background: transparent;
     border: 0;
     outline: none;
     line-height: 1;
+  }
+
+  button {
+    height: 28px;
+    padding: 0 12px;
+    color: #fff;
+    background: var(--wallhaven-primary);
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer;
+
+    &:hover {
+      filter: brightness(1.02);
+    }
   }
 }
 
@@ -428,45 +515,51 @@ onMounted(async () => {
 
 .resolution strong,
 .source-select select {
-  height: 34px;
+  height: 36px;
   padding: 0 12px;
   font-weight: 500;
   color: var(--wallhaven-text);
   background: #fff;
   border: 1px solid var(--wallhaven-border);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .resolution strong {
-  width: 154px;
   display: inline-flex;
   align-items: center;
   line-height: 1;
 }
 
+.meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .chips {
-  border: 1px solid var(--wallhaven-border);
-  border-radius: 8px;
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 4px;
+  background: #eef3ff;
+  border-radius: 999px;
   overflow: hidden;
 
   button {
-    width: 60px;
+    min-width: 70px;
     height: 34px;
+    padding: 0 14px;
     color: var(--wallhaven-text);
     background: transparent;
     border: 0;
-    border-right: 1px solid var(--wallhaven-border);
+    border-radius: 999px;
     cursor: pointer;
     line-height: 1;
 
-    &:last-child {
-      border-right: 0;
-    }
-
     &.active {
       color: var(--wallhaven-primary);
-      background: var(--wallhaven-primary-soft);
-      box-shadow: inset 0 0 0 1px var(--wallhaven-primary);
+      background: #fff;
+      box-shadow: 0 6px 14px rgb(95 116 243 / 16%);
     }
   }
 }
@@ -477,7 +570,12 @@ onMounted(async () => {
 
 .refresh-btn {
   flex: 0 0 auto;
-  border: 1px solid var(--wallhaven-border);
+  width: 40px;
+  height: 40px;
+  color: var(--wallhaven-primary);
+  background: #eef3ff;
+  border: 1px solid #dbe4ff;
+  border-radius: 12px;
 }
 
 .spinning {
