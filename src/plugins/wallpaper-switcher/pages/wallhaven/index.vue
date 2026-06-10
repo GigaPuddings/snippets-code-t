@@ -173,41 +173,24 @@ onMounted(async () => {
       </div>
     </header>
 
-    <section class="filters-panel">
-      <div class="filter-card filter-card--search">
-        <div class="filter-label">搜索</div>
-        <div class="search-box">
-          <Search :size="18" class="search-icon" />
-          <input v-model="keyword" type="search" placeholder="搜索关键词" @keydown.enter="refresh" />
-          <button type="button" title="搜索" @click="refresh">搜索</button>
-        </div>
+    <section class="filters-panel filters-panel--compact">
+      <div class="search-box search-box--hero">
+        <Search :size="22" class="search-icon" />
+        <input v-model="keyword" type="search" placeholder="搜索关键词" @keydown.enter="refresh" />
+        <button v-if="keyword" type="button" class="clear-btn" title="清空" @click="keyword = ''">
+          <CloseSmall :size="18" />
+        </button>
       </div>
 
-      <div class="filter-card filter-card--category">
-        <div class="filter-header">
-          <div>
-            <div class="filter-label">分类标签</div>
-            <div class="filter-hint">选择你想看的壁纸类型</div>
-          </div>
-        </div>
-        <div class="chips chips--tabs">
-          <button type="button" :class="{ active: category === 'general' }" @click="setCategory('general')">通用</button>
-          <button type="button" :class="{ active: category === 'anime' }" @click="setCategory('anime')">动漫</button>
-          <button type="button" :class="{ active: category === 'people' }" @click="setCategory('people')">人物</button>
-        </div>
+      <div class="chips chips--tabs chips--hero">
+        <button type="button" :class="{ active: category === 'general' }" @click="setCategory('general')">通用</button>
+        <button type="button" :class="{ active: category === 'anime' }" @click="setCategory('anime')">动漫</button>
+        <button type="button" :class="{ active: category === 'people' }" @click="setCategory('people')">人物</button>
       </div>
 
-      <div class="filter-card filter-card--meta">
-        <div class="meta-row">
-          <label class="resolution">
-            <span>分辨率</span>
-            <strong>自动匹配 {{ screenLabel }}</strong>
-          </label>
-          <button type="button" class="refresh-btn" title="刷新" @click="refresh">
-            <Refresh :size="18" :class="{ spinning: loading }" />
-          </button>
-        </div>
-      </div>
+      <button type="button" class="refresh-btn refresh-btn--hero" title="刷新" @click="refresh">
+        <Refresh :size="20" :class="{ spinning: loading }" />
+      </button>
     </section>
 
     <section class="grid-wrap">
@@ -400,45 +383,15 @@ onMounted(async () => {
 }
 
 .filters-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(220px, 0.72fr);
-  gap: 12px;
-  padding: 10px 14px 6px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px 8px;
   flex: 0 0 auto;
 }
 
-.filter-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  padding: 14px;
-  background: linear-gradient(180deg, rgb(255 255 255 / 98%), rgb(247 250 255 / 98%));
-  border: 1px solid var(--wallhaven-border);
-  border-radius: 16px;
-  box-shadow: 0 8px 20px rgb(15 23 42 / 4%);
-}
-
-.filter-label {
-  color: var(--wallhaven-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.filter-hint {
-  margin-top: 4px;
-  color: var(--wallhaven-muted);
-  font-size: 12px;
-  line-height: 1.2;
-}
-
-.filter-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+.filters-panel--compact {
+  align-items: stretch;
 }
 
 .search-box {
@@ -446,17 +399,20 @@ onMounted(async () => {
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  min-height: 42px;
-  padding: 0 12px;
+  min-width: 430px;
+  max-width: 430px;
+  min-height: 52px;
+  padding: 0 16px;
   background: #fff;
-  border: 1px solid var(--wallhaven-border);
-  border-radius: 12px;
+  border: 1px solid #cfd6e6;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgb(95 116 243 / 8%);
 
   .search-icon {
     flex: 0 0 auto;
     width: 18px;
     height: 18px;
-    color: var(--wallhaven-muted);
+    color: #1f2937;
   }
 
   input {
@@ -467,84 +423,63 @@ onMounted(async () => {
     border: 0;
     outline: none;
     line-height: 1;
+
+    &::placeholder {
+      color: #9ca3af;
+    }
   }
 
-  button {
-    height: 30px;
-    padding: 0 14px;
-    color: #fff;
-    background: var(--wallhaven-primary);
+  .clear-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    color: #9ca3af;
+    background: transparent;
     border: 0;
-    border-radius: 10px;
-    cursor: pointer;
-    line-height: 1;
+    border-radius: 999px;
 
     &:hover {
-      filter: brightness(1.02);
+      color: var(--wallhaven-text);
+      background: #f3f4f6;
     }
   }
 }
 
-.resolution {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
-  line-height: 1;
-
-  span {
-    color: var(--wallhaven-muted);
-  }
-
-  strong {
-    display: inline-flex;
-    align-items: center;
-    min-height: 38px;
-    padding: 0 12px;
-    color: var(--wallhaven-text);
-    background: #fff;
-    border: 1px solid var(--wallhaven-border);
-    border-radius: 10px;
-  }
-}
-
-.meta-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.search-box--hero {
+  min-width: 430px;
 }
 
 .chips {
   display: flex;
   width: 100%;
-  padding: 4px;
-  background: #f1f5ff;
-  border: 1px solid #dbe4ff;
-  border-radius: 14px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #d7dcea;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 5%);
   overflow: hidden;
 
   button {
     flex: 1;
     min-width: 0;
-    height: 38px;
+    height: 40px;
     padding: 0 10px;
-    color: var(--wallhaven-text);
+    color: #334155;
     background: transparent;
     border: 0;
-    border-radius: 10px;
+    border-radius: 12px;
     cursor: pointer;
     line-height: 1;
     transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 
     &:hover {
-      background: rgb(255 255 255 / 72%);
+      background: #f8fafc;
     }
 
     &.active {
-      color: var(--wallhaven-primary);
-      background: #fff;
-      box-shadow: 0 8px 18px rgb(95 116 243 / 16%);
+      color: #4f46e5;
+      background: linear-gradient(180deg, #f7f8ff, #eef2ff);
+      box-shadow: inset 0 -2px 0 #4f46e5;
     }
   }
 }
@@ -554,27 +489,8 @@ onMounted(async () => {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.source-select {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-  line-height: 1;
-
-  span {
-    color: var(--wallhaven-muted);
-  }
-
-  select {
-    width: 132px;
-    height: 36px;
-    padding: 0 12px;
-    font-weight: 500;
-    color: var(--wallhaven-text);
-    background: #fff;
-    border: 1px solid var(--wallhaven-border);
-    border-radius: 10px;
-  }
+.chips--hero {
+  min-width: 410px;
 }
 
 .refresh-btn {
@@ -585,6 +501,13 @@ onMounted(async () => {
   background: #eef3ff;
   border: 1px solid #dbe4ff;
   border-radius: 12px;
+}
+
+.refresh-btn--hero {
+  align-self: stretch;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
 }
 
 .spinning {
@@ -784,3 +707,11 @@ onMounted(async () => {
 }
 
 </style>
+
+</style>
+
+
+
+
+
+
