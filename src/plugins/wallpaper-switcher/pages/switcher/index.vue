@@ -652,7 +652,8 @@ onUnmounted(() => {
   }
 }
 
-:global(html.dark) .wallpaper-window {
+:global(html.dark) .wallpaper-window,
+:global(.dark) .wallpaper-window {
   --wallpaper-bg: var(--search-bg-color, #202020);
   --wallpaper-panel: var(--search-card-bg, #242424);
   --wallpaper-soft: var(--search-soft-bg, #292929);
