@@ -1434,13 +1434,10 @@ button:disabled {
   height: calc(100vh - 48px);
   min-height: 0;
   overflow: hidden;
+  background: var(--wallpaper-bg);
 }
 
 .filters {
-  display: grid;
-  grid-template-rows: 40px;
-  gap: 0;
-  height: auto;
   padding: 10px 12px 8px;
   overflow: hidden;
 }
@@ -1453,28 +1450,35 @@ button:disabled {
 }
 
 .filter-main {
-  grid-template-columns: 172px minmax(0, 1fr) 34px;
-  padding: 8px;
+  grid-template-columns: 170px minmax(0, 1fr) 34px;
+  min-height: 54px;
+  padding: 8px 10px;
   background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgb(15 23 42 / 4%);
+  border-radius: 10px;
 }
 
 .compact-search {
-  width: 172px;
+  width: 170px;
+  height: 34px;
+}
+
+.compact-search input {
+  color: var(--wallpaper-text);
 }
 
 .compact-chips {
   width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .chip-tab {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 30px;
-  padding: 0 10px;
+  min-height: 34px;
+  padding: 0 8px;
   color: var(--wallpaper-text);
   background: transparent;
   border-right: 1px solid var(--wallpaper-border);
@@ -1523,14 +1527,14 @@ button:disabled {
 
 .grid-wrap {
   min-height: 0;
-  padding: 10px 12px 12px;
+  padding: 0 12px 12px;
   overflow: hidden;
 }
 
 .wallpaper-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   align-content: start;
 }
 
