@@ -620,7 +620,13 @@ onUnmounted(() => {
   --wallpaper-muted: var(--search-info-text-color, #7b8494);
   --wallpaper-primary: var(--search-result-accent, #5f74f3);
   --wallpaper-input: var(--search-input-bg, #fbfcff);
+  --wallpaper-card-actions-bg: rgb(255 255 255 / 92%);
+  --wallpaper-card-actions-border: rgb(217 226 239 / 92%);
+  --wallpaper-card-actions-hover: rgb(243 247 255 / 100%);
+  --wallpaper-card-actions-text: #1f2937;
+}
 
+.wallpaper-window {
   color-scheme: light dark;
   width: 100vw;
   height: 100vh;
@@ -658,6 +664,10 @@ onUnmounted(() => {
   --wallpaper-muted: var(--search-info-text-color, #949494);
   --wallpaper-primary: var(--search-result-accent, #7d91f6);
   --wallpaper-input: var(--search-input-bg, #2c2c2c);
+  --wallpaper-card-actions-bg: rgb(17 24 39 / 88%);
+  --wallpaper-card-actions-border: rgb(255 255 255 / 8%);
+  --wallpaper-card-actions-hover: rgb(255 255 255 / 10%);
+  --wallpaper-card-actions-text: rgb(255 255 255 / 92%);
 }
 
 .titlebar {
@@ -789,7 +799,7 @@ onUnmounted(() => {
 
 .top-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 388px;
+  grid-template-columns: minmax(0, 0.86fr) 360px;
   gap: 12px;
   min-height: 0;
 }
@@ -1512,8 +1522,8 @@ button:disabled {
 
 .card-actions {
   height: 34px;
-  background: rgb(17 24 39 / 88%);
-  border-top: 1px solid rgb(255 255 255 / 8%);
+  background: var(--wallpaper-card-actions-bg);
+  border-top: 1px solid var(--wallpaper-card-actions-border);
 
   button {
     display: flex;
@@ -1522,10 +1532,10 @@ button:disabled {
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: rgb(255 255 255 / 92%);
+    color: var(--wallpaper-card-actions-text);
     background: transparent;
     border: 0;
-    border-right: 1px solid rgb(255 255 255 / 10%);
+    border-right: 1px solid var(--wallpaper-card-actions-border);
     cursor: pointer;
 
     &:last-child {
@@ -1533,8 +1543,8 @@ button:disabled {
     }
 
     &:hover:not(:disabled) {
-      color: #fff;
-      background: rgb(255 255 255 / 10%);
+      color: var(--wallpaper-card-actions-text);
+      background: var(--wallpaper-card-actions-hover);
     }
 
     &:disabled {
