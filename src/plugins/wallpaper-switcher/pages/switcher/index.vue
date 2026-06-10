@@ -1,28 +1,23 @@
 <script setup lang="ts">
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import modal from '@/utils/modal';
 import {
   clearWallpaperCache,
   defaultWallpaperConfig,
-  downloadWallhavenWallpaper,
-  fetchWallhaven,
   getWallpaperConfig,
   getWallpaperStatus,
   openWallpaperCacheDir,
   saveWallpaperConfig,
   scanWallpaperFolder,
   setFixedWallpaper,
-  setWallhavenWallpaper,
   switchWallpaperNow,
   wallpaperImageSrc,
   type FolderScanResult,
-  type WallhavenSource,
-  type WallhavenWallpaper,
   type WallpaperConfig,
   type WallpaperStatus
 } from '../../api';
+import { useWallhaven } from '../../composables/useWallhaven';
 import {
   Back,
   CloseSmall,
@@ -47,28 +42,48 @@ const folderScan = ref<FolderScanResult | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 const switching = ref(false);
-const activeView = ref<'switcher' | 'wallhaven'>('switcher');
-const wallpapers = ref<WallhavenWallpaper[]>([]);
-const wallhavenPage = ref(1);
-const wallhavenLastPage = ref(1);
-const wallhavenLoading = ref(false);
-const wallhavenLoaded = ref(false);
-const wallhavenError = ref('');
-const wallhavenKeyword = ref('');
-const wallhavenCategory = ref('general');
-const wallhavenSource = ref<WallhavenSource>('hot');
-const previewWallpaper = ref<WallhavenWallpaper | null>(null);
-const previewLoading = ref(false);
-const previewLoadFailed = ref(false);
-const workingIds = ref(new Set<string>());
-const loadedThumbIds = ref(new Set<string>());
 const clearingCache = ref(false);
 const openingCache = ref(false);
-const thumbElements = new Map<string, HTMLImageElement>();
-let thumbObserver: IntersectionObserver | null = null;
-let unlistenChanged: UnlistenFn | null = null;
-let unlistenError: UnlistenFn | null = null;
-let wallhavenFetchSeq = 0;
+const wallhaven = useWallhaven({
+  config,
+  refreshStatus: async () => {
+    await refreshStatus();
+  }
+});
+
+const {
+  activeView,
+  wallhavenPage,
+  wallhavenLastPage,
+  wallhavenLoading,
+  wallhavenError,
+  wallhavenKeyword,
+  wallhavenCategory,
+  wallhavenSource,
+  previewWallpaper,
+  previewLoading,
+  previewLoadFailed,
+  workingIds,
+  loadedThumbIds,
+  wallhavenSourceLabel,
+  visibleWallpapers,
+  openWallhavenGrid,
+  backToSwitcher,
+  openPreview,
+  closePreview,
+  markPreviewLoaded,
+  markPreviewFailed,
+  markThumbLoaded,
+  setThumbRef,
+  refreshWallhaven,
+  setWallhavenSource,
+  setWallhavenCategory,
+  setWallpaperFromWallhaven,
+  downloadWallpaperFromWallhaven,
+  prevWallhavenPage,
+  nextWallhavenPage,
+  setupListeners
+} = wallhaven;
 
 const previewSrc = computed(() => wallpaperImageSrc(status.value?.currentPath || config.value.lastAppliedPath));
 const screenLabel = computed(() => '2560 × 1440');
@@ -96,69 +111,6 @@ const folderCountLabel = computed(() => {
   if (!folderScan.value) return '检测到 128 张可用图片';
   return `检测到 ${folderScan.value.count} 张可用图片`;
 });
-const wallhavenSourceLabel = computed(() => (wallhavenSource.value === 'hot' ? 'Hot' : 'Toplist'));
-const visibleWallpapers = computed(() => wallpapers.value.slice(0, 8));
-
-const normalizeWallhavenKeyword = (keyword: string): string => {
-  const value = keyword.trim();
-  const lower = value.toLocaleLowerCase();
-  const aliases: Record<string, string> = {
-    natural: 'nature',
-    naturally: 'nature',
-    nature: 'nature',
-    landscape: 'nature landscape',
-    scenery: 'nature landscape',
-    自然: 'nature',
-    风景: 'nature landscape',
-    山: 'mountain',
-    山脉: 'mountain',
-    雪山: 'snow mountain',
-    湖: 'lake',
-    森林: 'forest',
-    树林: 'forest',
-    海: 'ocean',
-    海边: 'beach',
-    天空: 'sky',
-    云: 'clouds',
-    日落: 'sunset',
-    日出: 'sunrise',
-    城市: 'city',
-    建筑: 'architecture',
-    星空: 'stars',
-    宇宙: 'space',
-    动漫: 'anime',
-    人物: 'portrait',
-    女孩: 'girl'
-  };
-  if (aliases[lower]) return aliases[lower];
-  return value;
-};
-
-const appendKeywordOnce = (keyword: string, required: string) => {
-  const terms = keyword.toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  return terms.includes(required) ? keyword : `${keyword} ${required}`;
-};
-
-const formatWallhavenError = (error: unknown): string => {
-  const message = String(error).replace(/^Error:\s*/, '');
-  if (/unexpected EOF|handshake|timed out|error sending request|client error|Connect/i.test(message)) {
-    return 'Wallhaven 网络连接失败，请稍后重试或检查代理/网络。';
-  }
-  return message.length > 120 ? `${message.slice(0, 120)}...` : message;
-};
-
-const wallhavenRequestQuery = computed(() => {
-  const keyword = normalizeWallhavenKeyword(wallhavenKeyword.value);
-  if (wallhavenCategory.value === 'nature') {
-    return keyword ? appendKeywordOnce(keyword, 'nature') : 'nature';
-  }
-  return keyword || null;
-});
-
-const wallhavenRequestCategory = computed(() => {
-  return wallhavenCategory.value;
-});
-
 const loadAll = async () => {
   loading.value = true;
   try {
@@ -270,175 +222,6 @@ const setCurrentAsFixed = async () => {
   await persistConfig();
 };
 
-const openWallhavenGrid = async () => {
-  wallhavenKeyword.value = '';
-  wallhavenCategory.value = config.value.wallhavenCategory || 'general';
-  wallhavenSource.value = config.value.wallhavenSource;
-  wallhavenPage.value = 1;
-  wallhavenError.value = '';
-  wallpapers.value = [];
-  wallhavenLoaded.value = false;
-  activeView.value = 'wallhaven';
-  await fetchWallhavenData(1);
-};
-
-const backToSwitcher = async () => {
-  activeView.value = 'switcher';
-  closePreview();
-  await refreshStatus();
-};
-
-const openPreview = (wallpaper: WallhavenWallpaper) => {
-  previewWallpaper.value = wallpaper;
-  previewLoading.value = true;
-  previewLoadFailed.value = false;
-};
-
-const closePreview = () => {
-  previewWallpaper.value = null;
-  previewLoading.value = false;
-  previewLoadFailed.value = false;
-};
-
-const markPreviewLoaded = () => {
-  previewLoading.value = false;
-};
-
-const markPreviewFailed = () => {
-  previewLoading.value = false;
-  previewLoadFailed.value = true;
-};
-
-const setWorking = (id: string, working: boolean) => {
-  const next = new Set(workingIds.value);
-  if (working) {
-    next.add(id);
-  } else {
-    next.delete(id);
-  }
-  workingIds.value = next;
-};
-
-const markThumbLoaded = (id: string) => {
-  const next = new Set(loadedThumbIds.value);
-  next.add(id);
-  loadedThumbIds.value = next;
-};
-
-const setThumbRef = (wallpaper: WallhavenWallpaper, element: unknown) => {
-  if (!(element instanceof HTMLImageElement)) {
-    thumbElements.delete(wallpaper.id);
-    return;
-  }
-  thumbElements.set(wallpaper.id, element);
-  if (!thumbObserver) {
-    element.src = wallpaper.thumbs.large;
-    return;
-  }
-  element.dataset.src = wallpaper.thumbs.large;
-  thumbObserver.observe(element);
-};
-
-const resetThumbLoading = () => {
-  loadedThumbIds.value = new Set();
-  thumbElements.clear();
-};
-
-const persistWallhavenPrefs = async () => {
-  config.value.wallhavenQuery = wallhavenKeyword.value.trim() || null;
-  config.value.wallhavenCategory = wallhavenCategory.value;
-  config.value.wallhavenSource = wallhavenSource.value;
-  config.value.mode = 'wallhaven';
-  await saveWallpaperConfig(config.value);
-};
-
-const fetchWallhavenData = async (targetPage = wallhavenPage.value) => {
-  const fetchSeq = ++wallhavenFetchSeq;
-  wallhavenLoading.value = true;
-  wallhavenError.value = '';
-  wallpapers.value = [];
-  resetThumbLoading();
-  try {
-    await persistWallhavenPrefs();
-    const result = await fetchWallhaven({
-      source: wallhavenSource.value,
-      page: targetPage,
-      query: wallhavenRequestQuery.value,
-      category: wallhavenRequestCategory.value
-    });
-    if (fetchSeq !== wallhavenFetchSeq) return;
-    wallpapers.value = result.data;
-    wallhavenPage.value = result.page;
-    wallhavenLastPage.value = Math.max(1, result.lastPage);
-    wallhavenLoaded.value = true;
-    await nextTick();
-    for (const image of thumbElements.values()) {
-      if (thumbObserver) {
-        thumbObserver.observe(image);
-      }
-    }
-  } catch (error) {
-    if (fetchSeq !== wallhavenFetchSeq) return;
-    wallpapers.value = [];
-    wallhavenError.value = formatWallhavenError(error);
-    modal.msg(wallhavenError.value, 'error');
-  } finally {
-    if (fetchSeq === wallhavenFetchSeq) {
-      wallhavenLoading.value = false;
-    }
-  }
-};
-
-const refreshWallhaven = () => fetchWallhavenData(1);
-
-const setWallhavenSource = async (next: WallhavenSource) => {
-  wallhavenSource.value = next;
-  await fetchWallhavenData(1);
-};
-
-const setWallhavenCategory = async (next: string) => {
-  wallhavenCategory.value = next;
-  await fetchWallhavenData(1);
-};
-
-const setWallpaperFromWallhaven = async (wallpaper: WallhavenWallpaper) => {
-  setWorking(wallpaper.id, true);
-  try {
-    modal.msg('正在设置壁纸...', 'info');
-    await setWallhavenWallpaper(wallpaper);
-    await refreshStatus();
-    modal.msg('壁纸已设置', 'success');
-  } catch (error) {
-    modal.msg(String(error), 'error');
-  } finally {
-    setWorking(wallpaper.id, false);
-  }
-};
-
-const downloadWallpaperFromWallhaven = async (wallpaper: WallhavenWallpaper) => {
-  setWorking(wallpaper.id, true);
-  try {
-    modal.msg('正在下载壁纸...', 'info');
-    await downloadWallhavenWallpaper(wallpaper);
-    await refreshStatus();
-    modal.msg('壁纸已下载到缓存', 'success');
-  } catch (error) {
-    modal.msg(String(error), 'error');
-  } finally {
-    setWorking(wallpaper.id, false);
-  }
-};
-
-const prevWallhavenPage = async () => {
-  if (wallhavenPage.value <= 1) return;
-  await fetchWallhavenData(wallhavenPage.value - 1);
-};
-
-const nextWallhavenPage = async () => {
-  if (wallhavenPage.value >= wallhavenLastPage.value) return;
-  await fetchWallhavenData(wallhavenPage.value + 1);
-};
-
 const clearCache = async () => {
   clearingCache.value = true;
   try {
@@ -475,32 +258,12 @@ const formatBytes = (value: number): string => {
 };
 
 onMounted(async () => {
-  thumbObserver = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const image = entry.target as HTMLImageElement;
-        const src = image.dataset.src;
-        if (src && image.src !== src) {
-          image.src = src;
-        }
-        thumbObserver?.unobserve(image);
-      }
-    },
-    { root: null, rootMargin: '120px' }
-  );
   await loadAll();
-  unlistenChanged = await listen('wallpaper-switcher-changed', refreshStatus);
-  unlistenError = await listen<{ message?: string }>('wallpaper-switcher-error', (event) => {
-    modal.msg(event.payload?.message || '定时切换失败', 'error');
-  });
+  await setupListeners();
 });
 
 onUnmounted(() => {
-  thumbObserver?.disconnect();
-  thumbObserver = null;
-  unlistenChanged?.();
-  unlistenError?.();
+  // cleanup handled in composable
 });
 </script>
 
@@ -731,33 +494,63 @@ onUnmounted(() => {
     </div>
 
     <div v-else class="wallhaven-view">
-      <section class="filters filters--preview-style">
-        <div class="search-box wallhaven-search">
-          <Search :size="22" class="search-icon" />
-          <input v-model="wallhavenKeyword" type="text" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
-          <button v-if="wallhavenKeyword" type="button" class="clear-btn" title="清空" @click="wallhavenKeyword = ''">
-            <CloseSmall :size="18" />
-          </button>
+      <section class="filters filters--preview-style grid gap-3 px-4 pt-3 pb-2">
+        <div class="rounded-2xl border border-[var(--wallhaven-border)] bg-white/95 px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+          <div class="flex items-center gap-3 rounded-xl border border-[var(--wallhaven-border)] bg-[var(--wallhaven-panel)] px-3 py-2">
+            <Search :size="20" class="shrink-0 text-[var(--wallhaven-muted)]" />
+            <input
+              v-model="wallhavenKeyword"
+              type="text"
+              class="min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--wallhaven-text)] outline-none"
+              placeholder="搜索关键词"
+              @keydown.enter="refreshWallhaven"
+            />
+            <button
+              v-if="wallhavenKeyword"
+              type="button"
+              class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--wallhaven-muted)] transition-colors hover:bg-slate-100 hover:text-[var(--wallhaven-primary)]"
+              title="清空"
+              @click="wallhavenKeyword = ''"
+            >
+              <CloseSmall :size="18" />
+            </button>
+          </div>
         </div>
 
-        <div class="wallhaven-tabs" role="tablist" aria-label="壁纸分类切换">
-          <button type="button" :class="{ active: wallhavenCategory === 'general' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('general')">
-            通用
-          </button>
-          <button type="button" :class="{ active: wallhavenCategory === 'anime' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('anime')">
-            动漫
-          </button>
-          <button type="button" :class="{ active: wallhavenCategory === 'people' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('people')">
-            人物
-          </button>
-          <button type="button" :class="{ active: wallhavenCategory === 'nature' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('nature')">
-            自然
-          </button>
+        <div class="rounded-2xl border border-[var(--wallhaven-border)] bg-white/95 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div class="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--wallhaven-muted)]">分类标签</div>
+              <div class="mt-1 text-[12px] text-[var(--wallhaven-muted)]">按内容风格快速筛选</div>
+            </div>
+          </div>
+          <div class="wallhaven-tabs" role="tablist" aria-label="壁纸分类切换">
+            <button type="button" :class="{ active: wallhavenCategory === 'general' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('general')">
+              通用
+            </button>
+            <button type="button" :class="{ active: wallhavenCategory === 'anime' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('anime')">
+              动漫
+            </button>
+            <button type="button" :class="{ active: wallhavenCategory === 'people' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('people')">
+              人物
+            </button>
+            <button type="button" :class="{ active: wallhavenCategory === 'nature' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('nature')">
+              自然
+            </button>
+          </div>
         </div>
 
-        <button type="button" class="refresh-btn wallhaven-refresh" title="刷新" @click="refreshWallhaven">
-          <Refresh :size="20" :class="{ spinning: wallhavenLoading }" />
-        </button>
+        <div class="rounded-2xl border border-[var(--wallhaven-border)] bg-white/95 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--wallhaven-muted)]">状态</div>
+              <div class="mt-1 text-sm font-medium text-[var(--wallhaven-text)]">自动匹配 {{ screenLabel }}</div>
+            </div>
+            <button type="button" class="refresh-btn wallhaven-refresh" title="刷新" @click="refreshWallhaven">
+              <Refresh :size="20" :class="{ spinning: wallhavenLoading }" />
+            </button>
+          </div>
+        </div>
       </section>
 
       <section class="grid-wrap">
