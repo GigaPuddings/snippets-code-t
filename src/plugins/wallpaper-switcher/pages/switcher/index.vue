@@ -876,10 +876,10 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .wallpaper-window {
-  --wallpaper-bg: var(--search-bg-color, #fbfcff);
+  --wallpaper-bg: var(--search-bg, #fafbfd);
   --wallpaper-panel: var(--search-card-bg, #ffffff);
   --wallpaper-soft: var(--search-soft-bg, #f6f9fe);
-  --wallpaper-border: var(--search-border-color, #d9e2ef);
+  --wallpaper-border: var(--panel-border, var(--search-border-color, #d9e2ef));
   --wallpaper-border-strong: var(--search-result-active-border, #c9d8ff);
   --wallpaper-hover: var(--search-result-hover, #f3f7ff);
   --wallpaper-active: var(--search-result-active, #edf4ff);
@@ -1438,10 +1438,10 @@ button:disabled {
 
 .filters {
   display: grid;
-  grid-template-rows: 34px;
+  grid-template-rows: 40px;
   gap: 0;
   height: auto;
-  padding: 8px 12px 6px;
+  padding: 10px 12px 8px;
   overflow: hidden;
 }
 
@@ -1449,15 +1449,20 @@ button:disabled {
   display: grid;
   align-items: center;
   min-width: 0;
-  gap: 8px;
+  gap: 10px;
 }
 
 .filter-main {
-  grid-template-columns: 170px minmax(0, 1fr) 34px;
+  grid-template-columns: 172px minmax(0, 1fr) 34px;
+  padding: 8px;
+  background: var(--wallpaper-panel);
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 4%);
 }
 
 .compact-search {
-  width: 170px;
+  width: 172px;
 }
 
 .compact-chips {
@@ -1468,13 +1473,15 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  padding: 0 6px;
+  min-height: 30px;
+  padding: 0 10px;
   color: var(--wallpaper-text);
   background: transparent;
   border-right: 1px solid var(--wallpaper-border);
   cursor: pointer;
   user-select: none;
+  font-size: 13px;
+  line-height: 1;
 
   &:last-child {
     border-right: 0;
@@ -1499,10 +1506,11 @@ button:disabled {
   width: 34px;
   height: 34px;
   color: var(--wallpaper-text);
-  background: transparent;
+  background: #fff;
   border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
+  box-shadow: 0 2px 6px rgb(15 23 42 / 4%);
 
   &:hover {
     background: var(--wallpaper-hover);
