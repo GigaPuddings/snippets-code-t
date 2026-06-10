@@ -734,22 +734,13 @@ onUnmounted(() => {
     <div v-else class="wallhaven-view">
       <section class="filters">
         <div class="filter-row filter-main">
-          <div class="search-box">
+          <div class="search-box compact-search">
             <input v-model="wallhavenKeyword" type="search" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
             <button type="button" title="搜索" @click="refreshWallhaven">
               <Search :size="18" />
             </button>
           </div>
-          <label class="resolution">
-            <span>分辨率</span>
-            <strong>自动匹配 {{ wallhavenScreenLabel }}</strong>
-          </label>
-          <button type="button" class="refresh-btn" title="刷新" @click="refreshWallhaven">
-            <Refresh :size="18" :class="{ spinning: wallhavenLoading }" />
-          </button>
-        </div>
-        <div class="filter-row filter-meta">
-          <div class="chips" role="tablist" aria-label="壁纸分类切换">
+          <div class="chips compact-chips" role="tablist" aria-label="壁纸分类切换">
             <div
               class="chip-tab"
               :class="{ active: wallhavenCategory === 'general', disabled: wallhavenLoading }"
@@ -791,6 +782,9 @@ onUnmounted(() => {
               自然
             </div>
           </div>
+          <button type="button" class="refresh-btn" title="刷新" @click="refreshWallhaven">
+            <Refresh :size="18" :class="{ spinning: wallhavenLoading }" />
+          </button>
         </div>
       </section>
 
@@ -1459,83 +1453,15 @@ button:disabled {
 }
 
 .filter-main {
-  grid-template-columns: minmax(260px, 1fr) 280px 38px;
+  grid-template-columns: minmax(210px, 280px) minmax(0, 1fr) 36px;
 }
 
-.filter-meta {
-  grid-template-columns: minmax(0, 560px);
-  justify-content: start;
+.compact-search {
+  width: min(100%, 280px);
 }
 
-.search-box {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+.compact-chips {
   width: 100%;
-  height: 34px;
-  overflow: hidden;
-  background: var(--wallpaper-input);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
-
-  input {
-    min-width: 0;
-    padding: 0 12px;
-    color: var(--wallpaper-text);
-    background: transparent;
-    border: 0;
-    outline: none;
-  }
-
-  button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--wallpaper-text);
-    background: transparent;
-    border: 0;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--wallpaper-hover);
-    }
-  }
-}
-
-.resolution {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-
-  span {
-    color: var(--wallpaper-muted);
-  }
-}
-
-.resolution strong {
-  height: 34px;
-  padding: 0 12px;
-  font-weight: 500;
-  color: var(--wallpaper-text);
-  background: var(--wallpaper-input);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
-}
-
-.resolution strong {
-  display: inline-flex;
-  align-items: center;
-  width: 216px;
-}
-
-.chips {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  width: 100%;
-  overflow: hidden;
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
-  background: var(--wallpaper-panel);
 }
 
 .chip-tab {
@@ -1543,7 +1469,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  padding: 0 12px;
+  padding: 0 8px;
   color: var(--wallpaper-text);
   background: transparent;
   border-right: 1px solid var(--wallpaper-border);
