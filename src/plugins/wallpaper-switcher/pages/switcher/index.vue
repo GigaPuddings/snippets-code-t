@@ -732,60 +732,57 @@ onUnmounted(() => {
     </div>
 
     <div v-else class="wallhaven-view">
-      <section class="filters">
-        <div class="filter-row filter-main">
-          <div class="search-box compact-search">
-            <input v-model="wallhavenKeyword" type="search" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
-            <button type="button" title="搜索" @click="refreshWallhaven">
-              <Search :size="18" />
-            </button>
-          </div>
-          <div class="chips compact-chips" role="tablist" aria-label="壁纸分类切换">
-            <div
-              class="chip-tab"
-              :class="{ active: wallhavenCategory === 'general', disabled: wallhavenLoading }"
-              role="tab"
-              tabindex="0"
-              @click="!wallhavenLoading && setWallhavenCategory('general')"
-              @keydown.enter.prevent="!wallhavenLoading && setWallhavenCategory('general')"
-            >
-              通用
-            </div>
-            <div
-              class="chip-tab"
-              :class="{ active: wallhavenCategory === 'anime', disabled: wallhavenLoading }"
-              role="tab"
-              tabindex="0"
-              @click="!wallhavenLoading && setWallhavenCategory('anime')"
-              @keydown.enter.prevent="!wallhavenLoading && setWallhavenCategory('anime')"
-            >
-              动漫
-            </div>
-            <div
-              class="chip-tab"
-              :class="{ active: wallhavenCategory === 'people', disabled: wallhavenLoading }"
-              role="tab"
-              tabindex="0"
-              @click="!wallhavenLoading && setWallhavenCategory('people')"
-              @keydown.enter.prevent="!wallhavenLoading && setWallhavenCategory('people')"
-            >
-              人物
-            </div>
-            <div
-              class="chip-tab"
-              :class="{ active: wallhavenCategory === 'nature', disabled: wallhavenLoading }"
-              role="tab"
-              tabindex="0"
-              @click="!wallhavenLoading && setWallhavenCategory('nature')"
-              @keydown.enter.prevent="!wallhavenLoading && setWallhavenCategory('nature')"
-            >
-              自然
-            </div>
-          </div>
-          <button type="button" class="refresh-btn" title="刷新" @click="refreshWallhaven">
-            <Refresh :size="18" :class="{ spinning: wallhavenLoading }" />
+      <section class="filters filters--compact">
+        <div class="search-box search-box--hero">
+          <Search :size="22" class="search-icon" />
+          <input v-model="wallhavenKeyword" type="search" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
+          <button v-if="wallhavenKeyword" type="button" class="clear-btn" title="清空" @click="wallhavenKeyword = ''">
+            <CloseSmall :size="18" />
           </button>
         </div>
+
+        <div class="chips chips--hero" role="tablist" aria-label="壁纸分类切换">
+          <button
+            type="button"
+            :class="{ active: wallhavenCategory === 'general', disabled: wallhavenLoading }"
+            role="tab"
+            :disabled="wallhavenLoading"
+            @click="setWallhavenCategory('general')"
+          >
+            通用
+          </button>
+          <button
+            type="button"
+            :class="{ active: wallhavenCategory === 'anime', disabled: wallhavenLoading }"
+            role="tab"
+            :disabled="wallhavenLoading"
+            @click="setWallhavenCategory('anime')"
+          >
+            动漫
+          </button>
+          <button
+            type="button"
+            :class="{ active: wallhavenCategory === 'people', disabled: wallhavenLoading }"
+            role="tab"
+            :disabled="wallhavenLoading"
+            @click="setWallhavenCategory('people')"
+          >
+            人物
+          </button>
+          <button
+            type="button"
+            :class="{ active: wallhavenCategory === 'nature', disabled: wallhavenLoading }"
+            role="tab"
+            :disabled="wallhavenLoading"
+            @click="setWallhavenCategory('nature')"
+          >
+            自然
+          </button>
+        </div>
+
+        <button type="button" class="refresh-btn refresh-btn--hero" title="刷新" @click="refreshWallhaven">
+          <Refresh :size="20" :class="{ spinning: wallhavenLoading }" />
+        </button>
       </section>
 
       <section class="grid-wrap">
@@ -796,13 +793,8 @@ onUnmounted(() => {
         </div>
         <div v-else-if="visibleWallpapers.length === 0" class="empty-state">暂无可用壁纸</div>
         <div v-else class="wallpaper-grid">
-          <article
-            v-for="wallpaper in visibleWallpapers"
-            :key="wallpaper.id"
-            class="wallpaper-card"
-            @click="openPreview(wallpaper)"
-          >
-            <div class="thumb">
+          <article v-for="wallpaper in visibleWallpapers" :key="wallpaper.id" class="wallpaper-card">
+            <button type="button" class="thumb" @click="openPreview(wallpaper)">
               <div v-if="!loadedThumbIds.has(wallpaper.id)" class="thumb-skeleton"></div>
               <img
                 :ref="(element) => setThumbRef(wallpaper, element)"
@@ -811,7 +803,7 @@ onUnmounted(() => {
                 @load="markThumbLoaded(wallpaper.id)"
               />
               <span>{{ wallpaper.resolution }}</span>
-            </div>
+            </button>
             <div class="card-actions" @click.stop>
               <button type="button" title="预览" @click="openPreview(wallpaper)">
                 <PreviewOpen :size="16" />
@@ -1438,68 +1430,65 @@ button:disabled {
 }
 
 .filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 10px 12px 8px;
   overflow: hidden;
 }
 
-.filter-row {
-  display: grid;
-  align-items: center;
+.filters--compact {
+  grid-template-columns: none;
+}
+
+.search-box--hero {
+  flex: 1 1 auto;
   min-width: 0;
-  gap: 10px;
+  height: 40px;
+  padding-inline: 14px;
+  border-radius: 12px;
 }
 
-.filter-main {
-  grid-template-columns: 170px minmax(0, 1fr) 34px;
-  min-height: 54px;
-  padding: 8px 10px;
-  background: var(--wallpaper-panel);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 10px;
+.search-box--hero .search-icon {
+  color: var(--wallpaper-muted);
 }
 
-.compact-search {
-  width: 170px;
-  height: 34px;
-}
-
-.compact-search input {
+.search-box--hero input {
   color: var(--wallpaper-text);
 }
 
-.compact-chips {
-  width: 100%;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.chip-tab {
+.clear-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  padding: 0 8px;
-  color: var(--wallpaper-text);
+  width: 28px;
+  height: 28px;
+  color: var(--wallpaper-muted);
   background: transparent;
-  border-right: 1px solid var(--wallpaper-border);
-  cursor: pointer;
-  user-select: none;
-  font-size: 13px;
-  line-height: 1;
+  border: 0;
+  border-radius: 50%;
 
-  &:last-child {
-    border-right: 0;
+  &:hover {
+    color: var(--wallpaper-text);
+    background: rgb(15 23 42 / 6%);
   }
+}
 
-  &.active {
-    color: var(--wallpaper-primary);
-    background: var(--wallpaper-active);
-  }
+.chips--hero {
+  flex: 0 0 auto;
+  width: min(430px, 100%);
+  border-radius: 12px;
+}
 
-  &.disabled {
-    cursor: wait;
-    opacity: 0.72;
-  }
+.chips--hero button {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.chips--hero button.active {
+  color: var(--wallpaper-primary);
+  background: #fff;
+  box-shadow: 0 8px 18px rgb(95 116 243 / 16%);
 }
 
 .refresh-btn {
@@ -1519,6 +1508,12 @@ button:disabled {
   &:hover {
     background: var(--wallpaper-hover);
   }
+}
+
+.refresh-btn--hero {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
 }
 
 .spinning {
