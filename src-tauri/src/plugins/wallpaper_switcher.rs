@@ -65,6 +65,7 @@ pub struct WallpaperConfig {
     pub wallhaven_category: String,
     pub wallhaven_query: Option<String>,
     pub last_folder_index: usize,
+    pub last_applied_path: Option<String>,
 }
 
 impl Default for WallpaperConfig {
@@ -82,6 +83,7 @@ impl Default for WallpaperConfig {
             wallhaven_category: "general".to_string(),
             wallhaven_query: None,
             last_folder_index: 0,
+            last_applied_path: None,
         }
     }
 }
@@ -396,12 +398,18 @@ fn set_windows_wallpaper(_path: &Path, _fit_mode: &WallpaperFitMode) -> Result<(
 
 fn update_status_after_switch(path: &Path, source: &str, next_switch_at: Option<i64>) {
     let resolution = image_resolution(path);
+    let applied_path = path_to_string(path);
     if let Ok(mut status) = WALLPAPER_STATUS.lock() {
-        status.current_path = Some(path_to_string(path));
+        status.current_path = Some(applied_path.clone());
         status.current_source = Some(source.to_string());
         status.current_resolution = resolution;
         status.last_switched_at = Some(now_unix_ts());
         status.next_switch_at = next_switch_at;
+    }
+    if let Ok(mut config) = WALLPAPER_CONFIG.lock() {
+        if let Some(existing) = config.as_mut() {
+            existing.last_applied_path = Some(applied_path);
+        }
     }
 }
 
@@ -433,6 +441,16 @@ pub fn load_config(app_handle: &AppHandle) -> WallpaperConfig {
             if let Ok(config) = serde_json::from_str::<WallpaperConfig>(&config_json) {
                 if let Ok(mut current) = WALLPAPER_CONFIG.lock() {
                     *current = Some(config.clone());
+                }
+                if let Ok(mut status) = WALLPAPER_STATUS.lock() {
+                    if status.current_path.is_none() {
+                        status.current_path = config.last_applied_path.clone();
+                        status.current_source.get_or_insert_with(|| match config.mode {
+                            WallpaperMode::Fixed => "固定图片".to_string(),
+                            WallpaperMode::Folder => "本地文件夹".to_string(),
+                            WallpaperMode::Wallhaven => "Wallhaven".to_string(),
+                        });
+                    }
                 }
                 return config;
             }
@@ -1307,6 +1325,7 @@ async fn fetch_wallhaven_page(
 #[tauri::command]
 pub async fn wallpaper_get_config(app_handle: AppHandle) -> Result<WallpaperConfig, String> {
     require_enabled(&app_handle)?;
+    ensure_scheduler_runtime(&app_handle);
     Ok(load_config(&app_handle))
 }
 
@@ -1467,16 +1486,25 @@ pub async fn wallpaper_open_cache_dir(app_handle: AppHandle) -> Result<(), Strin
     crate::commands::open_folder(path_to_string(&dir))
 }
 
+fn ensure_scheduler_runtime(app_handle: &AppHandle) {
+    let config = load_config(app_handle);
+    let should_run = config.schedule_enabled && config.auto_restore;
+    let running = SCHEDULER_RUNNING.lock().map(|running| *running).unwrap_or(false);
+
+    if should_run && !running {
+        if let Err(error) = start_scheduler(app_handle.clone()) {
+            error!("[WallpaperSwitcher] 恢复定时器失败: {}", error);
+        } else {
+            info!("[WallpaperSwitcher] 定时器已恢复");
+        }
+    } else if !should_run && running {
+        stop_scheduler();
+    }
+}
+
 pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
     if enabled {
-        let config = load_config(app_handle);
-        if config.schedule_enabled && config.auto_restore {
-            if let Err(error) = start_scheduler(app_handle.clone()) {
-                error!("[WallpaperSwitcher] 启动定时器失败: {}", error);
-            } else {
-                info!("[WallpaperSwitcher] 定时器已启动");
-            }
-        }
+        ensure_scheduler_runtime(app_handle);
     } else {
         stop_scheduler();
     }

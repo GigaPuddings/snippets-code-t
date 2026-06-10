@@ -266,15 +266,19 @@ onMounted(async () => {
   --wallhaven-primary: #5f74f3;
   --wallhaven-primary-soft: #eef3ff;
 
+  display: flex;
+  flex-direction: column;
   width: 100vw;
   height: 100vh;
+  min-height: 0;
   overflow: hidden;
   color: var(--wallhaven-text);
   font-size: 14px;
-  line-height: 1.35;
+  line-height: 1.3;
   background: var(--wallhaven-bg);
   border: 1px solid var(--wallhaven-border);
   border-radius: 8px;
+  box-sizing: border-box;
   box-shadow: 0 10px 24px rgb(15 23 42 / 8%);
 
   *,
@@ -311,6 +315,7 @@ onMounted(async () => {
   padding: 0 14px 0 18px;
   background: rgb(255 255 255 / 78%);
   border-bottom: 1px solid var(--wallhaven-border);
+  flex: 0 0 auto;
 }
 
 .title {
@@ -318,6 +323,7 @@ onMounted(async () => {
   color: #0f172a;
   font-size: 15px;
   font-weight: 700;
+  line-height: 1;
 }
 
 .top-actions {
@@ -348,6 +354,8 @@ onMounted(async () => {
 }
 
 .source-toggle {
+  display: flex;
+  align-items: center;
   border: 1px solid var(--wallhaven-border);
   border-radius: 8px;
   overflow: hidden;
@@ -360,6 +368,7 @@ onMounted(async () => {
     border: 0;
     border-right: 1px solid var(--wallhaven-border);
     cursor: pointer;
+    line-height: 1;
 
     &:last-child {
       border-right: 0;
@@ -374,9 +383,12 @@ onMounted(async () => {
 }
 
 .filters {
+  display: grid;
+  grid-template-columns: 214px 1fr 1fr 132px 36px;
   gap: 8px;
-  height: 58px;
-  padding: 10px 14px;
+  padding: 8px 14px 6px;
+  align-items: center;
+  flex: 0 0 auto;
   overflow: hidden;
 }
 
@@ -397,6 +409,7 @@ onMounted(async () => {
     background: transparent;
     border: 0;
     outline: none;
+    line-height: 1;
   }
 }
 
@@ -406,6 +419,7 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   white-space: nowrap;
+  line-height: 1;
 
   span {
     color: var(--wallhaven-muted);
@@ -427,6 +441,7 @@ onMounted(async () => {
   width: 154px;
   display: inline-flex;
   align-items: center;
+  line-height: 1;
 }
 
 .chips {
@@ -442,6 +457,7 @@ onMounted(async () => {
     border: 0;
     border-right: 1px solid var(--wallhaven-border);
     cursor: pointer;
+    line-height: 1;
 
     &:last-child {
       border-right: 0;
@@ -469,7 +485,7 @@ onMounted(async () => {
 }
 
 .grid-wrap {
-  height: calc(100vh - 48px - 58px - 58px);
+  flex: 1;
   min-height: 0;
   padding: 0 14px;
   overflow: hidden;
@@ -534,6 +550,7 @@ onMounted(async () => {
     border: 0;
     border-right: 1px solid var(--wallhaven-border);
     cursor: pointer;
+    line-height: 1;
 
     &:last-child {
       border-right: 0;
@@ -561,8 +578,10 @@ onMounted(async () => {
 
 .pager {
   justify-content: space-between;
-  height: 58px;
+  height: 44px;
   padding: 0 20px;
+  flex: 0 0 auto;
+  line-height: 1;
 }
 
 .source-note {
@@ -616,6 +635,7 @@ onMounted(async () => {
     justify-content: space-between;
     height: 48px;
     padding: 0 12px 0 16px;
+    line-height: 1;
   }
 
   img {

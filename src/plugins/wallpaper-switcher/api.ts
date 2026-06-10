@@ -20,6 +20,7 @@ export interface WallpaperConfig {
   wallhavenCategory: string;
   wallhavenQuery: string | null;
   lastFolderIndex: number;
+  lastAppliedPath: string | null;
 }
 
 export interface WallpaperStatus {
@@ -85,7 +86,8 @@ export const defaultWallpaperConfig = (): WallpaperConfig => ({
   wallhavenSource: 'hot',
   wallhavenCategory: 'general',
   wallhavenQuery: null,
-  lastFolderIndex: 0
+  lastFolderIndex: 0,
+  lastAppliedPath: null
 });
 
 export const wallpaperImageSrc = (path: string | null | undefined): string => {

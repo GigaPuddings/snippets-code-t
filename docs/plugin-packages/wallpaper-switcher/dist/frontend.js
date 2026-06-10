@@ -3532,7 +3532,8 @@ const kl = () => ({
   wallhavenSource: "hot",
   wallhavenCategory: "general",
   wallhavenQuery: null,
-  lastFolderIndex: 0
+  lastFolderIndex: 0,
+  lastAppliedPath: null
 }), Cl = (e) => e ? /^https?:\/\//i.test(e) ? e : Wo(e) : "", Ll = () => r("wallpaper_get_config"), et = (e) => r("wallpaper_save_config", { config: e }), tn = () => r("wallpaper_get_status"), nn = (e) => r("wallpaper_scan_folder", { path: e }), Sl = (e) => r("wallpaper_set_fixed_image", { path: e }), xl = () => r("wallpaper_switch_now"), Ol = (e) => r("wallpaper_fetch_wallhaven", { params: e }), zl = (e) => r("wallpaper_set_wallhaven_image", { wallpaper: e }), Wl = (e) => r("wallpaper_download_wallhaven_image", { wallpaper: e }), Pl = () => r("wallpaper_clear_cache"), Il = (e, t) => new RegExp(`Command\\s+${t}\\s+not\\s+found`, "i").test(String(e)), jl = async () => {
   try {
     await r("wallpaper_open_cache_dir");
@@ -5114,7 +5115,7 @@ const El = H("back", !0, function(e) {
   for (const [o, l] of t)
     n[o] = l;
   return n;
-}, fr = /* @__PURE__ */ hr(dr, [["__scopeId", "data-v-cb13560b"]]), pr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, fr = /* @__PURE__ */ hr(dr, [["__scopeId", "data-v-013bb717"]]), pr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: fr
 }, Symbol.toStringTag, { value: "Module" }));

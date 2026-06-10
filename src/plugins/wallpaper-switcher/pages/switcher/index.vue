@@ -917,6 +917,9 @@ onUnmounted(() => {
 .tool-btn,
 .primary-btn,
 .secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
   cursor: pointer;
@@ -926,8 +929,14 @@ onUnmounted(() => {
 .icon-btn {
   width: 36px;
   height: 36px;
+  padding: 0;
   color: var(--wallpaper-text);
   background: transparent;
+  line-height: 1;
+
+  svg {
+    display: block;
+  }
 
   &:hover {
     background: var(--wallpaper-hover);
@@ -964,7 +973,7 @@ onUnmounted(() => {
   gap: 10px;
   height: calc(100vh - 48px);
   min-height: 0;
-  padding: 12px 20px 12px;
+  padding: 12px 20px 10px;
   align-content: start;
   overflow: hidden;
 }
