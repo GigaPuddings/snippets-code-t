@@ -969,11 +969,11 @@ onUnmounted(() => {
 
 .content {
   display: grid;
-  grid-template-rows: 138px 238px 120px 42px;
+  grid-template-rows: 138px 238px 132px 42px;
   gap: 10px;
   height: calc(100vh - 48px);
   min-height: 0;
-  padding: 12px 20px 10px;
+  padding: 14px 20px 12px;
   align-content: start;
   overflow: hidden;
 }
@@ -1105,34 +1105,37 @@ button:disabled {
 
 .settings-card {
   min-height: 0;
-  padding: 12px;
+  padding: 14px 12px 12px;
   overflow: hidden;
 }
 
 .form-row {
   display: grid;
-  grid-template-columns: 106px minmax(0, 1fr) 94px 94px;
-  gap: 8px;
+  grid-template-columns: 96px minmax(0, 1fr) 94px 94px;
+  gap: 10px;
   align-items: center;
-  min-height: 36px;
+  min-height: 40px;
 }
 
 .mode-row {
-  grid-template-columns: 106px minmax(0, 1fr);
+  grid-template-columns: 96px minmax(0, 1fr);
 }
 
 .fixed-row {
-  grid-template-columns: 106px minmax(0, 1fr) 128px;
+  grid-template-columns: 96px minmax(0, 1fr) 128px;
 }
 
 .folder-row {
-  grid-template-columns: 106px minmax(0, 1fr) 94px 94px;
+  grid-template-columns: 96px minmax(0, 1fr) 94px 94px;
 }
 
 .wallhaven-row {
-  grid-template-columns: 106px 54px minmax(260px, 1fr) 260px;
-  padding-top: 10px;
-  margin-top: 10px;
+  grid-template-columns: 96px 74px minmax(0, 1fr) 210px;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding-top: 12px;
+  margin-top: 12px;
   border-top: 1px solid var(--wallpaper-border);
 }
 
@@ -1175,7 +1178,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding-left: 113px;
+  padding-left: 0;
   font-size: 13px;
   min-height: 20px;
 }
@@ -1227,6 +1230,7 @@ button:disabled {
 .grid-open {
   width: 100%;
   min-width: 154px;
+  grid-column: 4;
 }
 
 .rules-card {
