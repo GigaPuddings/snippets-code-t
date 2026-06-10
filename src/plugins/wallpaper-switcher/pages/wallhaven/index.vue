@@ -177,7 +177,7 @@ onMounted(async () => {
       <div class="filter-card filter-card--search">
         <div class="filter-label">搜索</div>
         <div class="search-box">
-          <Search :size="18" />
+          <Search :size="18" class="search-icon" />
           <input v-model="keyword" type="search" placeholder="搜索关键词" @keydown.enter="refresh" />
           <button type="button" title="搜索" @click="refresh">搜索</button>
         </div>
@@ -186,18 +186,11 @@ onMounted(async () => {
       <div class="filter-card filter-card--category">
         <div class="filter-header">
           <div>
-            <div class="filter-label">类型导航</div>
-            <div class="filter-hint">切换壁纸分类</div>
+            <div class="filter-label">分类标签</div>
+            <div class="filter-hint">选择你想看的壁纸类型</div>
           </div>
-          <label class="source-select">
-            <span>源</span>
-            <select v-model="source" @change="refresh">
-              <option value="hot">Hot</option>
-              <option value="toplist">Toplist</option>
-            </select>
-          </label>
         </div>
-        <div class="chips">
+        <div class="chips chips--tabs">
           <button type="button" :class="{ active: category === 'general' }" @click="setCategory('general')">通用</button>
           <button type="button" :class="{ active: category === 'anime' }" @click="setCategory('anime')">动漫</button>
           <button type="button" :class="{ active: category === 'people' }" @click="setCategory('people')">人物</button>
@@ -349,6 +342,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 36px;
+  height: 36px;
   color: var(--wallhaven-text);
   background: transparent;
   border: 0;
@@ -358,11 +353,6 @@ onMounted(async () => {
   &:hover {
     background: #f3f7fd;
   }
-}
-
-.flat-icon {
-  width: 36px;
-  height: 36px;
 }
 
 .refresh-btn {
@@ -411,7 +401,7 @@ onMounted(async () => {
 
 .filters-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.55fr) minmax(220px, 0.85fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(220px, 0.72fr);
   gap: 12px;
   padding: 10px 14px 6px;
   flex: 0 0 auto;
@@ -420,36 +410,28 @@ onMounted(async () => {
 .filter-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
-  padding: 12px 14px;
-  background: linear-gradient(180deg, rgb(255 255 255 / 98%), rgb(248 251 255 / 98%));
+  padding: 14px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 98%), rgb(247 250 255 / 98%));
   border: 1px solid var(--wallhaven-border);
-  border-radius: 14px;
-  box-shadow: 0 10px 24px rgb(15 23 42 / 4%);
-}
-
-.filter-card--search {
-  justify-content: center;
-}
-
-.filter-card--meta {
-  justify-content: center;
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 4%);
 }
 
 .filter-label {
   color: var(--wallhaven-muted);
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .filter-hint {
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--wallhaven-muted);
   font-size: 12px;
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .filter-header {
@@ -464,15 +446,17 @@ onMounted(async () => {
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
-  padding: 0 10px 0 12px;
+  min-height: 42px;
+  padding: 0 12px;
   background: #fff;
   border: 1px solid var(--wallhaven-border);
   border-radius: 12px;
 
-  svg {
-    color: var(--wallhaven-muted);
+  .search-icon {
     flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    color: var(--wallhaven-muted);
   }
 
   input {
@@ -486,13 +470,14 @@ onMounted(async () => {
   }
 
   button {
-    height: 28px;
-    padding: 0 12px;
+    height: 30px;
+    padding: 0 14px;
     color: #fff;
     background: var(--wallhaven-primary);
     border: 0;
     border-radius: 10px;
     cursor: pointer;
+    line-height: 1;
 
     &:hover {
       filter: brightness(1.02);
@@ -500,34 +485,27 @@ onMounted(async () => {
   }
 }
 
-.resolution,
-.source-select {
+.resolution {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
   line-height: 1;
 
   span {
     color: var(--wallhaven-muted);
   }
-}
 
-.resolution strong,
-.source-select select {
-  height: 36px;
-  padding: 0 12px;
-  font-weight: 500;
-  color: var(--wallhaven-text);
-  background: #fff;
-  border: 1px solid var(--wallhaven-border);
-  border-radius: 10px;
-}
-
-.resolution strong {
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
+  strong {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    padding: 0 12px;
+    color: var(--wallhaven-text);
+    background: #fff;
+    border: 1px solid var(--wallhaven-border);
+    border-radius: 10px;
+  }
 }
 
 .meta-row {
@@ -538,40 +516,71 @@ onMounted(async () => {
 }
 
 .chips {
-  display: inline-flex;
-  align-self: flex-start;
+  display: flex;
+  width: 100%;
   padding: 4px;
-  background: #eef3ff;
-  border-radius: 999px;
+  background: #f1f5ff;
+  border: 1px solid #dbe4ff;
+  border-radius: 14px;
   overflow: hidden;
 
   button {
-    min-width: 70px;
-    height: 34px;
-    padding: 0 14px;
+    flex: 1;
+    min-width: 0;
+    height: 38px;
+    padding: 0 10px;
     color: var(--wallhaven-text);
     background: transparent;
     border: 0;
-    border-radius: 999px;
+    border-radius: 10px;
     cursor: pointer;
     line-height: 1;
+    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+
+    &:hover {
+      background: rgb(255 255 255 / 72%);
+    }
 
     &.active {
       color: var(--wallhaven-primary);
       background: #fff;
-      box-shadow: 0 6px 14px rgb(95 116 243 / 16%);
+      box-shadow: 0 8px 18px rgb(95 116 243 / 16%);
     }
   }
 }
 
-.source-select select {
-  width: 132px;
+.chips--tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.source-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  line-height: 1;
+
+  span {
+    color: var(--wallhaven-muted);
+  }
+
+  select {
+    width: 132px;
+    height: 36px;
+    padding: 0 12px;
+    font-weight: 500;
+    color: var(--wallhaven-text);
+    background: #fff;
+    border: 1px solid var(--wallhaven-border);
+    border-radius: 10px;
+  }
 }
 
 .refresh-btn {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   color: var(--wallhaven-primary);
   background: #eef3ff;
   border: 1px solid #dbe4ff;
