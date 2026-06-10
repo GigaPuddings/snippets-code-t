@@ -732,8 +732,8 @@ onUnmounted(() => {
     </div>
 
     <div v-else class="wallhaven-view">
-      <section class="filters filters--compact">
-        <div class="search-box search-box--hero">
+      <section class="filters filters--preview-style">
+        <div class="search-box wallhaven-search">
           <Search :size="22" class="search-icon" />
           <input v-model="wallhavenKeyword" type="search" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
           <button v-if="wallhavenKeyword" type="button" class="clear-btn" title="清空" @click="wallhavenKeyword = ''">
@@ -741,46 +741,22 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div class="chips chips--hero" role="tablist" aria-label="壁纸分类切换">
-          <button
-            type="button"
-            :class="{ active: wallhavenCategory === 'general', disabled: wallhavenLoading }"
-            role="tab"
-            :disabled="wallhavenLoading"
-            @click="setWallhavenCategory('general')"
-          >
+        <div class="wallhaven-tabs" role="tablist" aria-label="壁纸分类切换">
+          <button type="button" :class="{ active: wallhavenCategory === 'general' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('general')">
             通用
           </button>
-          <button
-            type="button"
-            :class="{ active: wallhavenCategory === 'anime', disabled: wallhavenLoading }"
-            role="tab"
-            :disabled="wallhavenLoading"
-            @click="setWallhavenCategory('anime')"
-          >
+          <button type="button" :class="{ active: wallhavenCategory === 'anime' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('anime')">
             动漫
           </button>
-          <button
-            type="button"
-            :class="{ active: wallhavenCategory === 'people', disabled: wallhavenLoading }"
-            role="tab"
-            :disabled="wallhavenLoading"
-            @click="setWallhavenCategory('people')"
-          >
+          <button type="button" :class="{ active: wallhavenCategory === 'people' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('people')">
             人物
           </button>
-          <button
-            type="button"
-            :class="{ active: wallhavenCategory === 'nature', disabled: wallhavenLoading }"
-            role="tab"
-            :disabled="wallhavenLoading"
-            @click="setWallhavenCategory('nature')"
-          >
+          <button type="button" :class="{ active: wallhavenCategory === 'nature' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('nature')">
             自然
           </button>
         </div>
 
-        <button type="button" class="refresh-btn refresh-btn--hero" title="刷新" @click="refreshWallhaven">
+        <button type="button" class="refresh-btn wallhaven-refresh" title="刷新" @click="refreshWallhaven">
           <Refresh :size="20" :class="{ spinning: wallhavenLoading }" />
         </button>
       </section>
@@ -1430,65 +1406,68 @@ button:disabled {
 }
 
 .filters {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   padding: 10px 12px 8px;
   overflow: hidden;
 }
 
-.filters--compact {
-  grid-template-columns: none;
-}
-
-.search-box--hero {
-  flex: 1 1 auto;
+.filter-row {
+  display: grid;
+  align-items: center;
   min-width: 0;
-  height: 40px;
-  padding-inline: 14px;
-  border-radius: 12px;
+  gap: 10px;
 }
 
-.search-box--hero .search-icon {
-  color: var(--wallpaper-muted);
+.filter-main {
+  grid-template-columns: 170px minmax(0, 1fr) 34px;
+  min-height: 54px;
+  padding: 8px 10px;
+  background: var(--wallpaper-panel);
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 10px;
 }
 
-.search-box--hero input {
+.compact-search {
+  width: 170px;
+  height: 34px;
+}
+
+.compact-search input {
   color: var(--wallpaper-text);
 }
 
-.clear-btn {
+.compact-chips {
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chip-tab {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  color: var(--wallpaper-muted);
+  min-height: 34px;
+  padding: 0 8px;
+  color: var(--wallpaper-text);
   background: transparent;
-  border: 0;
-  border-radius: 50%;
+  border-right: 1px solid var(--wallpaper-border);
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  line-height: 1;
 
-  &:hover {
-    color: var(--wallpaper-text);
-    background: rgb(15 23 42 / 6%);
+  &:last-child {
+    border-right: 0;
   }
-}
 
-.chips--hero {
-  flex: 0 0 auto;
-  width: min(430px, 100%);
-  border-radius: 12px;
-}
+  &.active {
+    color: var(--wallpaper-primary);
+    background: var(--wallpaper-active);
+  }
 
-.chips--hero button {
-  min-height: 40px;
-  font-size: 14px;
-}
-
-.chips--hero button.active {
-  color: var(--wallpaper-primary);
-  background: #fff;
-  box-shadow: 0 8px 18px rgb(95 116 243 / 16%);
+  &.disabled {
+    cursor: wait;
+    opacity: 0.72;
+  }
 }
 
 .refresh-btn {
@@ -1510,10 +1489,120 @@ button:disabled {
   }
 }
 
-.refresh-btn--hero {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+.filters--preview-style {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 8px;
+  overflow: hidden;
+}
+
+.wallhaven-search {
+  flex: 0 0 390px;
+  min-width: 0;
+  height: 46px;
+  gap: 12px;
+  padding: 0 10px 0 16px;
+  background: #fff;
+  border: 0;
+  border-radius: 13px;
+  box-shadow: none;
+}
+
+.wallhaven-search .search-icon {
+  flex: 0 0 auto;
+  color: #111827;
+}
+
+.wallhaven-search input {
+  min-width: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.wallhaven-search input::placeholder {
+  color: #8b95a5;
+  font-weight: 500;
+}
+
+.clear-btn {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #94a3b8;
+  background: #f1f5f9;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 0.16s ease, background 0.16s ease;
+
+  &:hover {
+    color: #475569;
+    background: #e2e8f0;
+  }
+}
+
+.clear-btn :deep(svg) {
+  width: 12px;
+  height: 12px;
+}
+
+.wallhaven-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  flex: 0 0 380px;
+  height: 46px;
+  overflow: hidden;
+  background: #f7f7f8;
+  border-radius: 13px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%);
+}
+
+.wallhaven-tabs button {
+  position: relative;
+  min-width: 0;
+  height: 46px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 500;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.7;
+  }
+}
+
+.wallhaven-tabs button.active {
+  color: var(--wallpaper-primary);
+  font-weight: 800;
+}
+
+.wallhaven-tabs button.active::after {
+  position: absolute;
+  right: 20px;
+  bottom: 5px;
+  left: 20px;
+  height: 3px;
+  content: '';
+  background: var(--wallpaper-primary);
+  border-radius: 999px;
+}
+
+.wallhaven-refresh {
+  width: 46px;
+  height: 46px;
+  color: #111827;
+  background: #fff;
+  border: 1px solid #e8e8ef;
+  border-radius: 13px;
+  box-shadow: 0 6px 14px rgb(15 23 42 / 7%);
 }
 
 .spinning {

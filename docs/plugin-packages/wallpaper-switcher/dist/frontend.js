@@ -1,4 +1,4 @@
-import { getCurrentInstance as de, inject as ee, ref as C, computed as m, unref as s, readonly as go, getCurrentScope as wo, onScopeDispose as yo, onMounted as Ue, nextTick as rn, watch as Ge, isRef as un, warn as mo, provide as bo, defineComponent as $, createElementBlock as O, openBlock as _, mergeProps as _o, renderSlot as he, createElementVNode as a, normalizeClass as S, createVNode as d, Transition as ct, withCtx as te, withDirectives as Z, normalizeStyle as $e, createTextVNode as T, toDisplayString as I, vShow as Ee, shallowReactive as ko, createBlock as q, createCommentVNode as R, resolveDynamicComponent as cn, Fragment as dt, withModifiers as ce, isVNode as Ce, render as Ae, onUnmounted as Co, withKeys as Xe, vModelText as Pe, vModelCheckbox as jt, renderList as Lo } from "vue";
+import { getCurrentInstance as de, inject as ee, ref as k, computed as m, unref as s, readonly as go, getCurrentScope as wo, onScopeDispose as yo, onMounted as Ue, nextTick as rn, watch as Ge, isRef as un, warn as mo, provide as bo, defineComponent as $, createElementBlock as O, openBlock as _, mergeProps as _o, renderSlot as he, createElementVNode as a, normalizeClass as L, createVNode as d, Transition as ct, withCtx as te, withDirectives as Z, normalizeStyle as $e, createTextVNode as T, toDisplayString as I, vShow as Ee, shallowReactive as ko, createBlock as q, createCommentVNode as R, resolveDynamicComponent as cn, Fragment as dt, withModifiers as ce, isVNode as Ce, render as Ae, onUnmounted as Co, withKeys as Xe, vModelText as Pe, vModelCheckbox as jt, renderList as Lo } from "vue";
 const fr = (e) => {
   e.registerRoute({
     target: "window",
@@ -1910,7 +1910,7 @@ const gn = Symbol(), Me = "el", Mo = "is-", X = (e, t, n, o, l) => {
   let h = `${e}-${t}`;
   return n && (h += `-${n}`), o && (h += `__${o}`), l && (h += `--${l}`), h;
 }, wn = Symbol("namespaceContextKey"), No = (e) => {
-  const t = e || (de() ? ee(wn, C(Me)) : C(Me));
+  const t = e || (de() ? ee(wn, k(Me)) : k(Me));
   return m(() => s(t) || Me);
 }, ht = (e, t) => {
   const n = No(t);
@@ -2246,7 +2246,7 @@ function ii(e, t = !0) {
 function Sn(e, t, n = {}) {
   const {
     immediate: o = !0
-  } = n, l = C(!1);
+  } = n, l = k(!1);
   let h = null;
   function u() {
     h && (clearTimeout(h), h = null);
@@ -2278,15 +2278,15 @@ function zn(...e) {
   Array.isArray(n) || (n = [n]), Array.isArray(o) || (o = [o]);
   const h = [], u = () => {
     h.forEach((g) => g()), h.length = 0;
-  }, f = (g, x, k, j) => (g.addEventListener(x, k, j), () => g.removeEventListener(x, k, j)), w = Ge(() => [xn(t), wt(l)], ([g, x]) => {
-    u(), g && h.push(...n.flatMap((k) => o.map((j) => f(g, k, j, x))));
+  }, f = (g, S, x, j) => (g.addEventListener(S, x, j), () => g.removeEventListener(S, x, j)), w = Ge(() => [xn(t), wt(l)], ([g, S]) => {
+    u(), g && h.push(...n.flatMap((x) => o.map((j) => f(g, x, j, S))));
   }, { immediate: !0, flush: "post" }), y = () => {
     w(), u();
   };
   return yt(y), y;
 }
 function li(e, t = !1) {
-  const n = C(), o = () => n.value = !!e();
+  const n = k(), o = () => n.value = !!e();
   return o(), ii(o, t), n;
 }
 const Ut = typeof globalThis < "u" ? globalThis : typeof window < "u" ? window : typeof global < "u" ? global : typeof self < "u" ? self : {}, Gt = "__vueuse_ssr_handlers__";
@@ -2305,8 +2305,8 @@ function ci(e, t, n = {}) {
   let u;
   const f = li(() => l && "ResizeObserver" in l), w = () => {
     u && (u.disconnect(), u = void 0);
-  }, y = Ge(() => xn(e), (x) => {
-    w(), f.value && l && x && (u = new ResizeObserver(t), u.observe(x, h));
+  }, y = Ge(() => xn(e), (S) => {
+    w(), f.value && l && S && (u = new ResizeObserver(t), u.observe(S, h));
   }, { immediate: !0, flush: "post" }), g = () => {
     w(), y();
   };
@@ -2358,7 +2358,7 @@ pi({
 }, vi);
 const Qt = {
   current: 0
-}, Yt = C(0), Wn = 2e3, Xt = Symbol("elZIndexContextKey"), Pn = Symbol("zIndexContextKey"), gi = (e) => {
+}, Yt = k(0), Wn = 2e3, Xt = Symbol("elZIndexContextKey"), Pn = Symbol("zIndexContextKey"), gi = (e) => {
   const t = de() ? ee(Xt, Qt) : Qt, n = e || (de() ? ee(Pn, void 0) : void 0), o = m(() => {
     const u = s(n);
     return se(u) ? u : Wn;
@@ -2552,14 +2552,14 @@ const yi = (e) => (t, n) => mi(t, n, s(e)), mi = (e, t, n) => Xs(n, e, e).replac
   var h;
   return `${(h = t?.[l]) != null ? h : `{${l}}`}`;
 }), bi = (e) => {
-  const t = m(() => s(e).name), n = un(e) ? e : C(e);
+  const t = m(() => s(e).name), n = un(e) ? e : k(e);
   return {
     lang: t,
     locale: n,
     t: yi(e)
   };
 }, In = Symbol("localeContextKey"), _i = (e) => {
-  const t = e || ee(In, C());
+  const t = e || ee(In, k());
   return bi(m(() => t.value || wi));
 }, jn = "__epPropKey", H = (e) => e, ki = (e) => yn(e) && !!e[jn], Tn = (e, t) => {
   if (!yn(e) || ki(e))
@@ -2568,10 +2568,10 @@ const yi = (e) => (t, n) => mi(t, n, s(e)), mi = (e, t, n) => Xs(n, e, e).replac
     type: h,
     required: !!o,
     validator: n || u ? (y) => {
-      let g = !1, x = [];
-      if (n && (x = Array.from(n), At(e, "default") && x.push(l), g || (g = x.includes(y))), u && (g || (g = u(y))), !g && x.length > 0) {
-        const k = [...new Set(x)].map((j) => JSON.stringify(j)).join(", ");
-        mo(`Invalid prop: validation failed${t ? ` for prop "${t}"` : ""}. Expected one of [${k}], got value ${JSON.stringify(y)}.`);
+      let g = !1, S = [];
+      if (n && (S = Array.from(n), At(e, "default") && S.push(l), g || (g = S.includes(y))), u && (g || (g = u(y))), !g && S.length > 0) {
+        const x = [...new Set(S)].map((j) => JSON.stringify(j)).join(", ");
+        mo(`Invalid prop: validation failed${t ? ` for prop "${t}"` : ""}. Expected one of [${x}], got value ${JSON.stringify(y)}.`);
       }
       return g;
     } : void 0,
@@ -2592,7 +2592,7 @@ const yi = (e) => (t, n) => mi(t, n, s(e)), mi = (e, t, n) => Xs(n, e, e).replac
     default: void 0,
     validator: (e) => Le(e) ? !e() : !e
   }
-}), en = (e) => Object.keys(e), Re = C();
+}), en = (e) => Object.keys(e), Re = k();
 function Mn(e, t = void 0) {
   return de() ? ee(gn, Re) : Re;
 }
@@ -2828,7 +2828,7 @@ const Dn = H([
     return t({
       content: l
     }), (u, f) => (_(), O("div", {
-      class: S(s(o).b())
+      class: L(s(o).b())
     }, [
       he(u.$slots, "default"),
       d(ct, {
@@ -2837,7 +2837,7 @@ const Dn = H([
       }, {
         default: te(() => [
           Z(a("sup", {
-            class: S([
+            class: L([
               s(o).e("content"),
               s(o).em("content", u.type),
               s(o).is("fixed", !!u.$slots.default),
@@ -2999,22 +2999,22 @@ const Rn = ["success", "info", "warning", "error"], M = Bi({
   props: Qi,
   emits: Yi,
   setup(e, { expose: t }) {
-    const n = e, { Close: o } = Vi, { ns: l, zIndex: h } = Nn("message"), { currentZIndex: u, nextZIndex: f } = h, w = C(), y = C(!1), g = C(0);
-    let x;
-    const k = m(() => n.type ? n.type === "error" ? "danger" : n.type : "info"), j = m(() => {
+    const n = e, { Close: o } = Vi, { ns: l, zIndex: h } = Nn("message"), { currentZIndex: u, nextZIndex: f } = h, w = k(), y = k(!1), g = k(0);
+    let S;
+    const x = m(() => n.type ? n.type === "error" ? "danger" : n.type : "info"), j = m(() => {
       const W = n.type;
       return { [l.bm("icon", W)]: W && Ve[W] };
     }), E = m(() => n.icon || Ve[n.type] || ""), v = m(() => el(n.id)), b = m(() => tl(n.id, n.offset) + v.value), z = m(() => g.value + b.value), A = m(() => ({
       top: `${b.value}px`,
       zIndex: u.value
     }));
-    function L() {
-      n.duration !== 0 && ({ stop: x } = Sn(() => {
+    function C() {
+      n.duration !== 0 && ({ stop: S } = Sn(() => {
         F();
       }, n.duration));
     }
     function K() {
-      x?.();
+      S?.();
     }
     function F() {
       y.value = !1;
@@ -3023,9 +3023,9 @@ const Rn = ["success", "info", "warning", "error"], M = Bi({
       W === Ne.esc && F();
     }
     return Ue(() => {
-      L(), f(), y.value = !0;
+      C(), f(), y.value = !0;
     }), Ge(() => n.repeatNum, () => {
-      K(), L();
+      K(), C();
     }), zn(document, "keydown", ae), ci(w, () => {
       g.value = w.value.getBoundingClientRect().height;
     }), t({
@@ -3043,7 +3043,7 @@ const Rn = ["success", "info", "warning", "error"], M = Bi({
           id: W.id,
           ref_key: "messageRef",
           ref: w,
-          class: S([
+          class: L([
             s(l).b(),
             { [s(l).m(W.type)]: W.type },
             s(l).is("center", W.center),
@@ -3054,17 +3054,17 @@ const Rn = ["success", "info", "warning", "error"], M = Bi({
           style: $e(s(A)),
           role: "alert",
           onMouseenter: K,
-          onMouseleave: L
+          onMouseleave: C
         }, [
           W.repeatNum > 1 ? (_(), q(s(qi), {
             key: 0,
             value: W.repeatNum,
-            type: s(k),
-            class: S(s(l).e("badge"))
+            type: s(x),
+            class: L(s(l).e("badge"))
           }, null, 8, ["value", "type", "class"])) : R("v-if", !0),
           s(E) ? (_(), q(s(He), {
             key: 1,
-            class: S([s(l).e("icon"), s(j)])
+            class: L([s(l).e("icon"), s(j)])
           }, {
             default: te(() => [
               (_(), q(cn(s(E))))
@@ -3075,17 +3075,17 @@ const Rn = ["success", "info", "warning", "error"], M = Bi({
             W.dangerouslyUseHTMLString ? (_(), O(dt, { key: 1 }, [
               R(" Caution here, message could've been compromised, never use user's input as message "),
               a("p", {
-                class: S(s(l).e("content")),
+                class: L(s(l).e("content")),
                 innerHTML: W.message
               }, null, 10, ["innerHTML"])
             ], 2112)) : (_(), O("p", {
               key: 0,
-              class: S(s(l).e("content"))
+              class: L(s(l).e("content"))
             }, I(W.message), 3))
           ]),
           W.showClose ? (_(), q(s(He), {
             key: 2,
-            class: S(s(l).e("closeBtn")),
+            class: L(s(l).e("closeBtn")),
             onClick: ce(F, ["stop"])
           }, {
             default: te(() => [
@@ -3250,16 +3250,16 @@ const ul = An(pe, "$message"), Vn = [
   props: cl,
   emits: dl,
   setup(e, { expose: t }) {
-    const n = e, { ns: o, zIndex: l } = Nn("notification"), { nextZIndex: h, currentZIndex: u } = l, { Close: f } = Hi, w = C(!1);
+    const n = e, { ns: o, zIndex: l } = Nn("notification"), { nextZIndex: h, currentZIndex: u } = l, { Close: f } = Hi, w = k(!1);
     let y;
     const g = m(() => {
-      const L = n.type;
-      return L && Ve[n.type] ? o.m(L) : "";
-    }), x = m(() => n.type && Ve[n.type] || n.icon), k = m(() => n.position.endsWith("right") ? "right" : "left"), j = m(() => n.position.startsWith("top") ? "top" : "bottom"), E = m(() => {
-      var L;
+      const C = n.type;
+      return C && Ve[n.type] ? o.m(C) : "";
+    }), S = m(() => n.type && Ve[n.type] || n.icon), x = m(() => n.position.endsWith("right") ? "right" : "left"), j = m(() => n.position.startsWith("top") ? "top" : "bottom"), E = m(() => {
+      var C;
       return {
         [j.value]: `${n.offset}px`,
-        zIndex: (L = n.zIndex) != null ? L : u.value
+        zIndex: (C = n.zIndex) != null ? C : u.value
       };
     });
     function v() {
@@ -3273,62 +3273,62 @@ const ul = An(pe, "$message"), Vn = [
     function z() {
       w.value = !1;
     }
-    function A({ code: L }) {
-      L === Ne.delete || L === Ne.backspace ? b() : L === Ne.esc ? w.value && z() : v();
+    function A({ code: C }) {
+      C === Ne.delete || C === Ne.backspace ? b() : C === Ne.esc ? w.value && z() : v();
     }
     return Ue(() => {
       v(), h(), w.value = !0;
     }), zn(document, "keydown", A), t({
       visible: w,
       close: z
-    }), (L, K) => (_(), q(ct, {
+    }), (C, K) => (_(), q(ct, {
       name: s(o).b("fade"),
-      onBeforeLeave: L.onClose,
-      onAfterLeave: (F) => L.$emit("destroy"),
+      onBeforeLeave: C.onClose,
+      onAfterLeave: (F) => C.$emit("destroy"),
       persisted: ""
     }, {
       default: te(() => [
         Z(a("div", {
-          id: L.id,
-          class: S([s(o).b(), L.customClass, s(k)]),
+          id: C.id,
+          class: L([s(o).b(), C.customClass, s(x)]),
           style: $e(s(E)),
           role: "alert",
           onMouseenter: b,
           onMouseleave: v,
-          onClick: L.onClick
+          onClick: C.onClick
         }, [
-          s(x) ? (_(), q(s(He), {
+          s(S) ? (_(), q(s(He), {
             key: 0,
-            class: S([s(o).e("icon"), s(g)])
+            class: L([s(o).e("icon"), s(g)])
           }, {
             default: te(() => [
-              (_(), q(cn(s(x))))
+              (_(), q(cn(s(S))))
             ]),
             _: 1
           }, 8, ["class"])) : R("v-if", !0),
           a("div", {
-            class: S(s(o).e("group"))
+            class: L(s(o).e("group"))
           }, [
             a("h2", {
-              class: S(s(o).e("title")),
-              textContent: I(L.title)
+              class: L(s(o).e("title")),
+              textContent: I(C.title)
             }, null, 10, ["textContent"]),
             Z(a("div", {
-              class: S(s(o).e("content")),
-              style: $e(L.title ? void 0 : { margin: 0 })
+              class: L(s(o).e("content")),
+              style: $e(C.title ? void 0 : { margin: 0 })
             }, [
-              he(L.$slots, "default", {}, () => [
-                L.dangerouslyUseHTMLString ? (_(), O(dt, { key: 1 }, [
+              he(C.$slots, "default", {}, () => [
+                C.dangerouslyUseHTMLString ? (_(), O(dt, { key: 1 }, [
                   R(" Caution here, message could've been compromised, never use user's input as message "),
-                  a("p", { innerHTML: L.message }, null, 8, ["innerHTML"])
-                ], 2112)) : (_(), O("p", { key: 0 }, I(L.message), 1))
+                  a("p", { innerHTML: C.message }, null, 8, ["innerHTML"])
+                ], 2112)) : (_(), O("p", { key: 0 }, I(C.message), 1))
               ])
             ], 6), [
-              [Ee, L.message]
+              [Ee, C.message]
             ]),
-            L.showClose ? (_(), q(s(He), {
+            C.showClose ? (_(), q(s(He), {
               key: 0,
-              class: S(s(o).e("closeBtn")),
+              class: L(s(o).e("closeBtn")),
               onClick: ce(z, ["stop"])
             }, {
               default: te(() => [
@@ -3361,8 +3361,8 @@ const ve = function(e = {}, t) {
   const n = e.position || "top-right";
   let o = e.offset || 0;
   Be[n].forEach(({ vm: g }) => {
-    var x;
-    o += (((x = g.el) == null ? void 0 : x.offsetHeight) || 0) + rt;
+    var S;
+    o += (((S = g.el) == null ? void 0 : S.offsetHeight) || 0) + rt;
   }), o += rt;
   const l = `notification_${vl++}`, h = e.onClose, u = {
     ...e,
@@ -3404,8 +3404,8 @@ function gl(e, t, n) {
   const w = o.length;
   if (!(w < 1))
     for (let y = l; y < w; y++) {
-      const { el: g, component: x } = o[y].vm, k = Number.parseInt(g.style[f], 10) - u - rt;
-      x.props.offset = k;
+      const { el: g, component: S } = o[y].vm, x = Number.parseInt(g.style[f], 10) - u - rt;
+      S.props.offset = x;
     }
 }
 function wl() {
@@ -3614,12 +3614,12 @@ function V(e, t, n) {
     setup: function(h) {
       var u = Tl(), f = ee(Nl, jl);
       return function() {
-        var w = h.size, y = h.strokeWidth, g = h.strokeLinecap, x = h.strokeLinejoin, k = h.theme, j = h.fill, E = h.spin, v = Ml(u, {
+        var w = h.size, y = h.strokeWidth, g = h.strokeLinecap, S = h.strokeLinejoin, x = h.theme, j = h.fill, E = h.spin, v = Ml(u, {
           size: w,
           strokeWidth: y,
           strokeLinecap: g,
-          strokeLinejoin: x,
-          theme: k,
+          strokeLinejoin: S,
+          theme: x,
           fill: j
         }, f), b = [f.prefix + "-icon"];
         return b.push(f.prefix + "-icon-" + e), t && f.rtl && b.push(f.prefix + "-icon-rtl"), E && b.push(f.prefix + "-icon-spin"), d("span", {
@@ -4007,8 +4007,8 @@ const $l = V("back", !0, function(e) {
 }, na = { class: "status-panel" }, oa = { class: "status-row" }, sa = { class: "status-row" }, ia = { class: "status-row" }, la = { class: "status-actions" }, aa = ["disabled"], ra = { class: "card settings-card" }, ua = { class: "form-row mode-row" }, ca = { class: "segmented three" }, da = { class: "form-row fixed-row" }, ha = { class: "form-row folder-row" }, fa = { class: "hint-row" }, pa = { class: "form-row wallhaven-row" }, va = { class: "segmented source" }, ga = { class: "hint-row" }, wa = { class: "card rules-card" }, ya = { class: "rules-line" }, ma = { class: "switch-label" }, ba = { class: "number-label" }, _a = { class: "segmented mini" }, ka = { class: "rules-line" }, Ca = { class: "segmented fit" }, La = { class: "checkbox-label" }, Sa = { class: "footer-card" }, xa = { class: "cache-info" }, Oa = { class: "footer-actions" }, za = ["disabled"], Wa = ["disabled"], Pa = ["disabled"], Ia = {
   key: 2,
   class: "wallhaven-view"
-}, ja = { class: "filters filters--compact" }, Ta = { class: "search-box search-box--hero" }, Ma = {
-  class: "chips chips--hero",
+}, ja = { class: "filters filters--preview-style" }, Ta = { class: "search-box wallhaven-search" }, Ma = {
+  class: "wallhaven-tabs",
   role: "tablist",
   "aria-label": "壁纸分类切换"
 }, Na = ["disabled"], $a = ["disabled"], Ea = ["disabled"], Aa = ["disabled"], Fa = { class: "grid-wrap" }, Da = {
@@ -4035,7 +4035,7 @@ const $l = V("back", !0, function(e) {
 }, ir = ["src"], lr = ["disabled"], ar = ["disabled"], rr = /* @__PURE__ */ $({
   __name: "index",
   setup(e) {
-    const t = pn(), n = C(_l()), o = C(null), l = C(null), h = C(!1), u = C(!1), f = C(!1), w = C("switcher"), y = C([]), g = C(1), x = C(1), k = C(!1), j = C(!1), E = C(""), v = C(""), b = C("general"), z = C("hot"), A = C(null), L = C(!1), K = C(!1), F = C(/* @__PURE__ */ new Set()), ae = C(/* @__PURE__ */ new Set()), W = C(!1), ye = C(!1), me = /* @__PURE__ */ new Map();
+    const t = pn(), n = k(_l()), o = k(null), l = k(null), h = k(!1), u = k(!1), f = k(!1), w = k("switcher"), y = k([]), g = k(1), S = k(1), x = k(!1), j = k(!1), E = k(""), v = k(""), b = k("general"), z = k("hot"), A = k(null), C = k(!1), K = k(!1), F = k(/* @__PURE__ */ new Set()), ae = k(/* @__PURE__ */ new Set()), W = k(!1), ye = k(!1), me = /* @__PURE__ */ new Map();
     let J = null, mt = null, bt = null, xe = 0;
     const _t = m(() => kl(o.value?.currentPath)), kt = m(() => "2560 × 1440"), Bn = m(() => n.value.mode === "fixed" ? "固定图片" : n.value.mode === "wallhaven" ? "Wallhaven" : "本地文件夹"), Un = m(() => {
       const c = o.value?.nextSwitchAt;
@@ -4163,13 +4163,13 @@ const $l = V("back", !0, function(e) {
     }, oo = async () => {
       w.value = "switcher", Qe(), await Y();
     }, zt = (c) => {
-      A.value = c, L.value = !0, K.value = !1;
+      A.value = c, C.value = !0, K.value = !1;
     }, Qe = () => {
-      A.value = null, L.value = !1, K.value = !1;
+      A.value = null, C.value = !1, K.value = !1;
     }, so = () => {
-      L.value = !1;
+      C.value = !1;
     }, io = () => {
-      L.value = !1, K.value = !0;
+      C.value = !1, K.value = !0;
     }, Oe = (c, i) => {
       const p = new Set(F.value);
       i ? p.add(c) : p.delete(c), F.value = p;
@@ -4192,7 +4192,7 @@ const $l = V("back", !0, function(e) {
       n.value.wallhavenQuery = v.value.trim() || null, n.value.wallhavenCategory = b.value, n.value.wallhavenSource = z.value, n.value.mode = "wallhaven", await ot(n.value);
     }, re = async (c = g.value) => {
       const i = ++xe;
-      k.value = !0, E.value = "", y.value = [], ro();
+      x.value = !0, E.value = "", y.value = [], ro();
       try {
         await uo();
         const p = await xl({
@@ -4202,14 +4202,14 @@ const $l = V("back", !0, function(e) {
           category: Yn.value
         });
         if (i !== xe) return;
-        y.value = p.data, g.value = p.page, x.value = Math.max(1, p.lastPage), j.value = !0, await rn();
+        y.value = p.data, g.value = p.page, S.value = Math.max(1, p.lastPage), j.value = !0, await rn();
         for (const N of me.values())
           J && J.observe(N);
       } catch (p) {
         if (i !== xe) return;
         y.value = [], E.value = Jn(p), P.msg(E.value, "error");
       } finally {
-        i === xe && (k.value = !1);
+        i === xe && (x.value = !1);
       }
     }, Ye = () => re(1), ze = async (c) => {
       z.value = c, await re(1);
@@ -4236,7 +4236,7 @@ const $l = V("back", !0, function(e) {
     }, co = async () => {
       g.value <= 1 || await re(g.value - 1);
     }, ho = async () => {
-      g.value >= x.value || await re(g.value + 1);
+      g.value >= S.value || await re(g.value + 1);
     }, fo = async () => {
       W.value = !0;
       try {
@@ -4323,11 +4323,11 @@ const $l = V("back", !0, function(e) {
             a(
               "div",
               {
-                class: S(["seg-tab", { active: s(z) === "hot", disabled: s(k) }]),
+                class: L(["seg-tab", { active: s(z) === "hot", disabled: s(x) }]),
                 role: "tab",
                 tabindex: "0",
-                onClick: i[0] || (i[0] = (p) => !s(k) && ze("hot")),
-                onKeydown: i[1] || (i[1] = Xe(ce((p) => !s(k) && ze("hot"), ["prevent"]), ["enter"]))
+                onClick: i[0] || (i[0] = (p) => !s(x) && ze("hot")),
+                onKeydown: i[1] || (i[1] = Xe(ce((p) => !s(x) && ze("hot"), ["prevent"]), ["enter"]))
               },
               " 热门 ",
               34
@@ -4336,11 +4336,11 @@ const $l = V("back", !0, function(e) {
             a(
               "div",
               {
-                class: S(["seg-tab", { active: s(z) === "toplist", disabled: s(k) }]),
+                class: L(["seg-tab", { active: s(z) === "toplist", disabled: s(x) }]),
                 role: "tab",
                 tabindex: "0",
-                onClick: i[2] || (i[2] = (p) => !s(k) && ze("toplist")),
-                onKeydown: i[3] || (i[3] = Xe(ce((p) => !s(k) && ze("toplist"), ["prevent"]), ["enter"]))
+                onClick: i[2] || (i[2] = (p) => !s(x) && ze("toplist")),
+                onKeydown: i[3] || (i[3] = Xe(ce((p) => !s(x) && ze("toplist"), ["prevent"]), ["enter"]))
               },
               " 排行榜 ",
               34
@@ -4362,7 +4362,7 @@ const $l = V("back", !0, function(e) {
         "div",
         {
           key: 1,
-          class: S(["content", { dimmed: s(h) }])
+          class: L(["content", { dimmed: s(h) }])
         },
         [
           a("section", Yl, [
@@ -4474,7 +4474,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).mode === "fixed" }),
+                    class: L({ active: s(n).mode === "fixed" }),
                     onClick: i[4] || (i[4] = (p) => s(n).mode = "fixed")
                   },
                   " 固定图片 ",
@@ -4485,7 +4485,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).mode === "folder" }),
+                    class: L({ active: s(n).mode === "folder" }),
                     onClick: i[5] || (i[5] = (p) => s(n).mode = "folder")
                   },
                   " 本地文件夹 ",
@@ -4496,7 +4496,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).mode === "wallhaven" }),
+                    class: L({ active: s(n).mode === "wallhaven" }),
                     onClick: i[6] || (i[6] = (p) => s(n).mode = "wallhaven")
                   },
                   " Wallhaven 在线 ",
@@ -4602,7 +4602,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).wallhavenSource === "hot" }),
+                    class: L({ active: s(n).wallhavenSource === "hot" }),
                     onClick: i[9] || (i[9] = (p) => s(n).wallhavenSource = "hot")
                   },
                   " 热门 Hot ",
@@ -4613,7 +4613,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).wallhavenSource === "toplist" }),
+                    class: L({ active: s(n).wallhavenSource === "toplist" }),
                     onClick: i[10] || (i[10] = (p) => s(n).wallhavenSource = "toplist")
                   },
                   " 排行榜 Toplist ",
@@ -4713,7 +4713,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).order === "random" }),
+                    class: L({ active: s(n).order === "random" }),
                     onClick: i[13] || (i[13] = (p) => s(n).order = "random")
                   },
                   " 随机 ",
@@ -4724,7 +4724,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).order === "sequential" }),
+                    class: L({ active: s(n).order === "sequential" }),
                     onClick: i[14] || (i[14] = (p) => s(n).order = "sequential")
                   },
                   " 顺序 ",
@@ -4746,7 +4746,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).fitMode === "fillCrop" }),
+                    class: L({ active: s(n).fitMode === "fillCrop" }),
                     onClick: i[15] || (i[15] = (p) => s(n).fitMode = "fillCrop")
                   },
                   " 填充裁切 ",
@@ -4757,7 +4757,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).fitMode === "fit" }),
+                    class: L({ active: s(n).fitMode === "fit" }),
                     onClick: i[16] || (i[16] = (p) => s(n).fitMode = "fit")
                   },
                   " 适应 ",
@@ -4768,7 +4768,7 @@ const $l = V("back", !0, function(e) {
                   "button",
                   {
                     type: "button",
-                    class: S({ active: s(n).fitMode === "center" }),
+                    class: L({ active: s(n).fitMode === "center" }),
                     onClick: i[17] || (i[17] = (p) => s(n).fitMode = "center")
                   },
                   " 居中 ",
@@ -4896,47 +4896,43 @@ const $l = V("back", !0, function(e) {
           a("div", Ma, [
             a("button", {
               type: "button",
-              class: S({ active: s(b) === "general", disabled: s(k) }),
-              role: "tab",
-              disabled: s(k),
+              class: L({ active: s(b) === "general" }),
+              disabled: s(x),
               onClick: i[21] || (i[21] = (p) => We("general"))
             }, " 通用 ", 10, Na),
             a("button", {
               type: "button",
-              class: S({ active: s(b) === "anime", disabled: s(k) }),
-              role: "tab",
-              disabled: s(k),
+              class: L({ active: s(b) === "anime" }),
+              disabled: s(x),
               onClick: i[22] || (i[22] = (p) => We("anime"))
             }, " 动漫 ", 10, $a),
             a("button", {
               type: "button",
-              class: S({ active: s(b) === "people", disabled: s(k) }),
-              role: "tab",
-              disabled: s(k),
+              class: L({ active: s(b) === "people" }),
+              disabled: s(x),
               onClick: i[23] || (i[23] = (p) => We("people"))
             }, " 人物 ", 10, Ea),
             a("button", {
               type: "button",
-              class: S({ active: s(b) === "nature", disabled: s(k) }),
-              role: "tab",
-              disabled: s(k),
+              class: L({ active: s(b) === "nature" }),
+              disabled: s(x),
               onClick: i[24] || (i[24] = (p) => We("nature"))
             }, " 自然 ", 10, Aa)
           ]),
           a("button", {
             type: "button",
-            class: "refresh-btn refresh-btn--hero",
+            class: "refresh-btn wallhaven-refresh",
             title: "刷新",
             onClick: Ye
           }, [
             d(s(ln), {
               size: 20,
-              class: S({ spinning: s(k) })
+              class: L({ spinning: s(x) })
             }, null, 8, ["class"])
           ])
         ]),
         a("section", Fa, [
-          s(k) && s(Je).length === 0 ? (_(), O("div", Da, "正在加载 Wallhaven 壁纸...")) : s(E) ? (_(), O("div", Ra, [
+          s(x) && s(Je).length === 0 ? (_(), O("div", Da, "正在加载 Wallhaven 壁纸...")) : s(E) ? (_(), O("div", Ra, [
             a(
               "span",
               null,
@@ -5037,12 +5033,12 @@ const $l = V("back", !0, function(e) {
           a("div", Ya, [
             a("button", {
               type: "button",
-              disabled: s(g) <= 1 || s(k),
+              disabled: s(g) <= 1 || s(x),
               onClick: co
             }, "上一页", 8, Xa),
             a("button", {
               type: "button",
-              disabled: s(g) >= s(x) || s(k),
+              disabled: s(g) >= s(S) || s(x),
               onClick: ho
             }, "下一页", 8, er)
           ])
@@ -5071,7 +5067,7 @@ const $l = V("back", !0, function(e) {
             ])
           ]),
           a("div", nr, [
-            s(L) ? (_(), O("div", or, i[57] || (i[57] = [
+            s(C) ? (_(), O("div", or, i[57] || (i[57] = [
               a(
                 "span",
                 null,
@@ -5082,7 +5078,7 @@ const $l = V("back", !0, function(e) {
             ]))) : R("v-if", !0),
             s(K) ? (_(), O("div", sr, "预览加载失败")) : R("v-if", !0),
             a("img", {
-              class: S({ ready: !s(L) && !s(K) }),
+              class: L({ ready: !s(C) && !s(K) }),
               src: s(A).path,
               alt: "壁纸预览",
               onLoad: so,
@@ -5112,7 +5108,7 @@ const $l = V("back", !0, function(e) {
   for (const [o, l] of t)
     n[o] = l;
   return n;
-}, cr = /* @__PURE__ */ ur(rr, [["__scopeId", "data-v-dce73c59"]]), dr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, cr = /* @__PURE__ */ ur(rr, [["__scopeId", "data-v-83962847"]]), dr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: cr
 }, Symbol.toStringTag, { value: "Module" }));
