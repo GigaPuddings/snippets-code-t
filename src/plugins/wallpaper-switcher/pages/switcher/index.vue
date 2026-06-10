@@ -527,9 +527,27 @@ onUnmounted(() => {
         </button>
       </div>
       <div v-else class="window-actions">
-        <div class="source-toggle">
-          <button type="button" :class="{ active: wallhavenSource === 'hot' }" :disabled="wallhavenLoading" @click="setWallhavenSource('hot')">热门</button>
-          <button type="button" :class="{ active: wallhavenSource === 'toplist' }" :disabled="wallhavenLoading" @click="setWallhavenSource('toplist')">排行榜</button>
+        <div class="source-toggle" role="tablist" aria-label="壁纸来源切换">
+          <div
+            class="seg-tab"
+            :class="{ active: wallhavenSource === 'hot', disabled: wallhavenLoading }"
+            role="tab"
+            tabindex="0"
+            @click="!wallhavenLoading && setWallhavenSource('hot')"
+            @keydown.enter.prevent="!wallhavenLoading && setWallhavenSource('hot')"
+          >
+            热门
+          </div>
+          <div
+            class="seg-tab"
+            :class="{ active: wallhavenSource === 'toplist', disabled: wallhavenLoading }"
+            role="tab"
+            tabindex="0"
+            @click="!wallhavenLoading && setWallhavenSource('toplist')"
+            @keydown.enter.prevent="!wallhavenLoading && setWallhavenSource('toplist')"
+          >
+            排行榜
+          </div>
         </div>
         <button type="button" class="icon-btn" title="关闭" @click="closeWindow">
           <CloseSmall :size="22" />
@@ -731,11 +749,47 @@ onUnmounted(() => {
           </button>
         </div>
         <div class="filter-row filter-meta">
-          <div class="chips">
-            <button type="button" :class="{ active: wallhavenCategory === 'general' }" @click="setWallhavenCategory('general')">通用</button>
-            <button type="button" :class="{ active: wallhavenCategory === 'anime' }" @click="setWallhavenCategory('anime')">动漫</button>
-            <button type="button" :class="{ active: wallhavenCategory === 'people' }" @click="setWallhavenCategory('people')">人物</button>
-            <button type="button" :class="{ active: wallhavenCategory === 'nature' }" @click="setWallhavenCategory('nature')">自然</button>
+          <div class="chips" role="tablist" aria-label="壁纸分类切换">
+            <div
+              class="chip-tab"
+              :class="{ active: wallhavenCategory === 'general', disabled: wallhavenLoading }"
+              role="tab"
+              tabindex="0"
+              @click="!wallhavenLoading && setWallhavenCategory('general')"
+              @keydown.enter.prevent="!wallhavenLoading && setWallhavenCategory('general')"
+            >
+              通用
+            </div>
+            <div
+              class="chip-tab"
+              :class="{ active: wallhavenCategory === 'anime', disabled: wallhavenLoading }"
+              role="tab"
+              tabindex="0"
+              @click="!wallhavenLoading && setWallhavenCategory('anime')"
+              @keydown.enter.prevent="!wallhavenLoading && setWallhavenCategory('anime')"
+            >
+              动漫
+            </div>
+            <div
+              class="chip-tab"
+              :class="{ active: wallhavenCategory === 'people', disabled: wallhavenLoading }"
+              role="tab"
+              tabindex="0"
+              @click="!wallhavenLoading && setWallhavenCategory('people')"
+              @keydown.enter.prevent="!wallhavenLoading && setWallhavenCategory('people')"
+            >
+              人物
+            </div>
+            <div
+              class="chip-tab"
+              :class="{ active: wallhavenCategory === 'nature', disabled: wallhavenLoading }"
+              role="tab"
+              tabindex="0"
+              @click="!wallhavenLoading && setWallhavenCategory('nature')"
+              @keydown.enter.prevent="!wallhavenLoading && setWallhavenCategory('nature')"
+            >
+              自然
+            </div>
           </div>
         </div>
       </section>
@@ -969,13 +1023,13 @@ onUnmounted(() => {
 
 .content {
   display: grid;
-  grid-template-rows: 138px 238px 132px 42px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   gap: 10px;
   height: calc(100vh - 48px);
   min-height: 0;
-  padding: 14px 20px 12px;
+  padding: 12px 16px 12px;
   align-content: start;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .dimmed {
@@ -1235,7 +1289,7 @@ button:disabled {
 
 .rules-card {
   min-height: 0;
-  padding: 10px 12px;
+  padding: 10px 12px 0 12px;
   overflow: hidden;
 
   h2 {
@@ -1345,34 +1399,38 @@ button:disabled {
 
 .source-toggle {
   display: grid;
-  grid-template-columns: repeat(2, 82px);
+  grid-template-columns: repeat(2, minmax(72px, 1fr));
   height: 34px;
+  min-width: 168px;
   overflow: hidden;
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
   background: var(--wallpaper-panel);
+}
 
-  button {
-    height: 32px;
-    color: var(--wallpaper-text);
-    background: transparent;
-    border: 0;
-    border-right: 1px solid var(--wallpaper-border);
-    cursor: pointer;
+.seg-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  color: var(--wallpaper-text);
+  background: transparent;
+  border-right: 1px solid var(--wallpaper-border);
+  cursor: pointer;
+  user-select: none;
 
-    &:last-child {
-      border-right: 0;
-    }
+  &:last-child {
+    border-right: 0;
+  }
 
-    &.active {
-      color: var(--wallpaper-primary);
-      background: var(--wallpaper-active);
-    }
+  &.active {
+    color: var(--wallpaper-primary);
+    background: var(--wallpaper-active);
+  }
 
-    &:disabled {
-      cursor: wait;
-      opacity: 0.72;
-    }
+  &.disabled {
+    cursor: wait;
+    opacity: 0.72;
   }
 }
 
@@ -1472,30 +1530,38 @@ button:disabled {
 
 .chips {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  width: min(100%, 560px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
   overflow: hidden;
   border: 1px solid var(--wallpaper-border);
   border-radius: 8px;
   background: var(--wallpaper-panel);
+}
 
-  button {
-    width: 100%;
-    height: 36px;
-    color: var(--wallpaper-text);
-    background: transparent;
-    border: 0;
-    border-right: 1px solid var(--wallpaper-border);
-    cursor: pointer;
+.chip-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--wallpaper-text);
+  background: transparent;
+  border-right: 1px solid var(--wallpaper-border);
+  cursor: pointer;
+  user-select: none;
 
-    &:last-child {
-      border-right: 0;
-    }
+  &:last-child {
+    border-right: 0;
+  }
 
-    &.active {
-      color: var(--wallpaper-primary);
-      background: var(--wallpaper-active);
-    }
+  &.active {
+    color: var(--wallpaper-primary);
+    background: var(--wallpaper-active);
+  }
+
+  &.disabled {
+    cursor: wait;
+    opacity: 0.72;
   }
 }
 
@@ -1523,7 +1589,7 @@ button:disabled {
 
 .grid-wrap {
   min-height: 0;
-  padding: 0 14px;
+  padding: 14px;
   overflow: hidden;
 }
 
