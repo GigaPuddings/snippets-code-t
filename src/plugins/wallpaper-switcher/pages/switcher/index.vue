@@ -495,47 +495,31 @@ onUnmounted(() => {
 
     <div v-else class="wallhaven-view">
       <section class="filters filters--preview-style">
-        <div class="filter-card wallhaven-search-card">
-          <div class="wallhaven-search">
-            <Search :size="20" class="search-icon" />
-            <input
-              v-model="wallhavenKeyword"
-              type="text"
-              placeholder="搜索关键词"
-              @keydown.enter="refreshWallhaven"
-            />
-            <button v-if="wallhavenKeyword" type="button" class="clear-btn" title="清空" @click="wallhavenKeyword = ''">
-              <CloseSmall :size="18" />
-            </button>
-          </div>
+        <div class="search-box wallhaven-search">
+          <Search :size="22" class="search-icon" />
+          <input v-model="wallhavenKeyword" type="text" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
+          <button v-if="wallhavenKeyword" type="button" class="clear-btn" title="清空" @click="wallhavenKeyword = ''">
+            <CloseSmall :size="18" />
+          </button>
         </div>
 
-        <div class="filter-card wallhaven-category-card">
-          <div class="filter-card-title">
-            <strong>分类标签</strong>
-            <span>按内容风格快速筛选</span>
-          </div>
-          <div class="wallhaven-tabs" role="tablist" aria-label="壁纸分类切换">
-            <button type="button" :class="{ active: wallhavenCategory === 'general' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('general')">
-              通用
-            </button>
-            <button type="button" :class="{ active: wallhavenCategory === 'anime' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('anime')">
-              动漫
-            </button>
-            <button type="button" :class="{ active: wallhavenCategory === 'people' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('people')">
-              人物
-            </button>
-            <button type="button" :class="{ active: wallhavenCategory === 'nature' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('nature')">
-              自然
-            </button>
-          </div>
+        <div class="wallhaven-tabs" role="tablist" aria-label="壁纸分类切换">
+          <button type="button" :class="{ active: wallhavenCategory === 'general' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('general')">
+            通用
+          </button>
+          <button type="button" :class="{ active: wallhavenCategory === 'anime' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('anime')">
+            动漫
+          </button>
+          <button type="button" :class="{ active: wallhavenCategory === 'people' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('people')">
+            人物
+          </button>
+          <button type="button" :class="{ active: wallhavenCategory === 'nature' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('nature')">
+            自然
+          </button>
         </div>
 
-        <div class="filter-card wallhaven-status-card">
-          <div class="wallhaven-status-meta">
-            <strong>状态</strong>
-            <span>自动匹配 {{ screenLabel }}</span>
-          </div>
+        <div class="wallhaven-meta">
+          <span>自动匹配 {{ screenLabel }}</span>
           <button type="button" class="refresh-btn wallhaven-refresh" title="刷新" @click="refreshWallhaven">
             <Refresh :size="20" :class="{ spinning: wallhavenLoading }" />
           </button>
@@ -1277,7 +1261,7 @@ button:disabled {
   width: 34px;
   height: 34px;
   color: var(--wallpaper-text);
-  background: #fff;
+  background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
   border-radius: 10px;
   cursor: pointer;
@@ -1290,25 +1274,11 @@ button:disabled {
 
 .filters--preview-style {
   display: grid;
-  grid-template-columns: minmax(300px, 1.25fr) minmax(340px, 1.25fr) minmax(240px, 0.9fr);
-  align-items: stretch;
+  grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.1fr) minmax(190px, auto);
+  align-items: center;
   gap: 12px;
   padding: 10px 14px 8px;
-  overflow: visible;
-}
-
-.filter-card {
-  display: flex;
-  min-width: 0;
-  padding: 12px;
-  background: var(--wallpaper-panel);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 14px;
-  box-shadow: 0 8px 18px rgb(15 23 42 / 4%);
-}
-
-.wallhaven-search-card {
-  align-items: center;
+  overflow: hidden;
 }
 
 .wallhaven-search {
@@ -1316,30 +1286,32 @@ button:disabled {
   align-items: center;
   width: 100%;
   min-width: 0;
-  height: 42px;
+  height: 46px;
   gap: 10px;
-  padding: 0 10px 0 14px;
-  background: var(--wallpaper-input);
+  padding: 0 10px 0 16px;
+  background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 11px;
+  border-radius: 13px;
+  box-shadow: none;
 }
 
 .wallhaven-search .search-icon {
   flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   color: var(--wallpaper-muted);
 }
 
 .wallhaven-search input {
   flex: 1;
+  align-self: center;
   min-width: 0;
   height: 100%;
   padding: 0;
   color: var(--wallpaper-text);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 42px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 46px;
   background: transparent;
   border: 0;
   outline: 0;
@@ -1355,12 +1327,12 @@ button:disabled {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   color: var(--wallpaper-muted);
   background: var(--wallpaper-soft);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 50%;
   cursor: pointer;
   transition: color 0.16s ease, background 0.16s ease;
 
@@ -1370,32 +1342,9 @@ button:disabled {
   }
 }
 
-.wallhaven-category-card {
-  flex-direction: column;
-  gap: 10px;
-}
-
-.filter-card-title {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 0;
-
-  strong {
-    color: var(--wallpaper-text);
-    font-size: 13px;
-    line-height: 1;
-  }
-
-  span {
-    overflow: hidden;
-    color: var(--wallpaper-muted);
-    font-size: 12px;
-    line-height: 1;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.clear-btn :deep(svg) {
+  width: 12px;
+  height: 12px;
 }
 
 .wallhaven-tabs {
@@ -1403,24 +1352,24 @@ button:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   width: 100%;
   min-width: 0;
-  height: 38px;
-  padding: 3px;
+  height: 46px;
+  padding: 0;
   overflow: hidden;
   background: var(--wallpaper-soft);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 11px;
+  border-radius: 13px;
+  box-shadow: none;
 }
 
 .wallhaven-tabs button {
   position: relative;
   min-width: 0;
-  height: 30px;
+  height: 46px;
   color: var(--wallpaper-text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   background: transparent;
   border: 0;
-  border-radius: 8px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
@@ -1435,47 +1384,40 @@ button:disabled {
 
 .wallhaven-tabs button.active {
   color: var(--wallpaper-primary);
-  font-weight: 700;
-  background: var(--wallpaper-panel);
-  box-shadow: 0 4px 10px rgb(15 23 42 / 6%);
+  font-weight: 800;
 }
 
-.wallhaven-status-card {
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.wallhaven-tabs button.active::after {
+  position: absolute;
+  right: 20px;
+  bottom: 5px;
+  left: 20px;
+  height: 3px;
+  content: '';
+  background: var(--wallpaper-primary);
+  border-radius: 999px;
 }
 
-.wallhaven-status-meta {
+.wallhaven-meta {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
   min-width: 0;
-
-  strong {
-    color: var(--wallpaper-muted);
-    font-size: 12px;
-    line-height: 1;
-  }
-
-  span {
-    overflow: hidden;
-    color: var(--wallpaper-text);
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.2;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  height: 46px;
+  color: var(--wallpaper-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .wallhaven-refresh {
-  width: 42px;
-  height: 42px;
-  color: var(--wallpaper-primary);
-  background: var(--wallpaper-input);
+  width: 46px;
+  height: 46px;
+  color: var(--wallpaper-text);
+  background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 11px;
+  border-radius: 13px;
   box-shadow: none;
 }
 
@@ -1554,6 +1496,8 @@ button:disabled {
 
 .card-actions {
   height: 34px;
+  background: rgb(17 24 39 / 88%);
+  border-top: 1px solid rgb(255 255 255 / 8%);
 
   button {
     display: flex;
@@ -1562,10 +1506,10 @@ button:disabled {
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: var(--wallpaper-text);
+    color: rgb(255 255 255 / 92%);
     background: transparent;
     border: 0;
-    border-right: 1px solid var(--wallpaper-border);
+    border-right: 1px solid rgb(255 255 255 / 10%);
     cursor: pointer;
 
     &:last-child {
@@ -1573,13 +1517,13 @@ button:disabled {
     }
 
     &:hover:not(:disabled) {
-      color: var(--wallpaper-primary);
-      background: var(--wallpaper-hover);
+      color: #fff;
+      background: rgb(255 255 255 / 10%);
     }
 
     &:disabled {
       cursor: not-allowed;
-      opacity: 0.72;
+      opacity: 0.55;
     }
   }
 }

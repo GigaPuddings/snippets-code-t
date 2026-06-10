@@ -1,10 +1,10 @@
 import { getCurrentInstance as me, inject as ie, ref as S, computed as b, unref as s, readonly as no, getCurrentScope as oo, onScopeDispose as so, onMounted as Me, nextTick as hn, watch as st, isRef as fn, warn as io, provide as lo, defineComponent as A, createElementBlock as W, openBlock as m, mergeProps as ao, renderSlot as be, createElementVNode as a, normalizeClass as O, createVNode as d, Transition as Ct, withCtx as le, withDirectives as Y, normalizeStyle as qe, createTextVNode as E, toDisplayString as M, vShow as Je, shallowReactive as ro, createBlock as te, createCommentVNode as R, resolveDynamicComponent as pn, Fragment as Lt, withModifiers as ye, isVNode as Ie, render as Qe, onUnmounted as vn, withKeys as ht, vModelText as Ve, vModelCheckbox as $t, renderList as uo } from "vue";
-const sr = (e) => {
+const tr = (e) => {
   e.registerRoute({
     target: "window",
     path: "/wallpaper-switcher",
     name: "WallpaperSwitcher",
-    component: () => Promise.resolve().then(() => nr)
+    component: () => Promise.resolve().then(() => Xa)
   }), e.registerWindowShortcut({
     label: "wallpaper_switcher"
   });
@@ -4145,32 +4145,32 @@ const Cl = V("back", !0, function(e) {
 }, Vl = { class: "status-panel" }, Ul = { class: "status-row" }, Bl = { class: "status-row" }, Gl = { class: "status-row" }, Zl = { class: "status-actions" }, Kl = ["disabled"], ql = { class: "card settings-card" }, Jl = { class: "form-row mode-row" }, Ql = { class: "segmented three" }, Yl = { class: "form-row fixed-row" }, Xl = { class: "form-row folder-row" }, ea = { class: "hint-row" }, ta = { class: "form-row wallhaven-row" }, na = { class: "segmented source" }, oa = { class: "hint-row" }, sa = { class: "card rules-card" }, ia = { class: "rules-line" }, la = { class: "switch-label" }, aa = { class: "number-label" }, ra = { class: "segmented mini" }, ua = { class: "rules-line" }, ca = { class: "segmented fit" }, da = { class: "checkbox-label" }, ha = { class: "footer-card" }, fa = { class: "cache-info" }, pa = { class: "footer-actions" }, va = ["disabled"], ga = ["disabled"], wa = ["disabled"], ya = {
   key: 2,
   class: "wallhaven-view"
-}, ma = { class: "filters filters--preview-style" }, ba = { class: "filter-card wallhaven-search-card" }, _a = { class: "wallhaven-search" }, ka = { class: "filter-card wallhaven-category-card" }, Ca = {
+}, ma = { class: "filters filters--preview-style" }, ba = { class: "search-box wallhaven-search" }, _a = {
   class: "wallhaven-tabs",
   role: "tablist",
   "aria-label": "壁纸分类切换"
-}, La = ["disabled"], Sa = ["disabled"], xa = ["disabled"], Oa = ["disabled"], Wa = { class: "filter-card wallhaven-status-card" }, za = { class: "wallhaven-status-meta" }, Pa = { class: "grid-wrap" }, Ia = {
+}, ka = ["disabled"], Ca = ["disabled"], La = ["disabled"], Sa = ["disabled"], xa = { class: "wallhaven-meta" }, Oa = { class: "grid-wrap" }, Wa = {
   key: 0,
   class: "empty-state"
-}, Ta = {
+}, za = {
   key: 1,
   class: "empty-state error-state"
-}, ja = {
+}, Pa = {
   key: 2,
   class: "empty-state"
-}, Ma = {
+}, Ia = {
   key: 3,
   class: "wallpaper-grid"
-}, Na = ["onClick"], $a = {
+}, Ta = ["onClick"], ja = {
   key: 0,
   class: "thumb-skeleton"
-}, Ea = ["alt", "onLoad"], Fa = ["onClick"], Aa = ["disabled", "onClick"], Da = ["disabled", "onClick"], Ra = { class: "pager" }, Ha = { class: "source-note" }, Va = { class: "pager-actions" }, Ua = ["disabled"], Ba = ["disabled"], Ga = { class: "preview-dialog" }, Za = { class: "preview-image-wrap" }, Ka = {
+}, Ma = ["alt", "onLoad"], Na = ["onClick"], $a = ["disabled", "onClick"], Ea = ["disabled", "onClick"], Fa = { class: "pager" }, Aa = { class: "source-note" }, Da = { class: "pager-actions" }, Ra = ["disabled"], Ha = ["disabled"], Va = { class: "preview-dialog" }, Ua = { class: "preview-image-wrap" }, Ba = {
   key: 0,
   class: "preview-skeleton"
-}, qa = {
+}, Ga = {
   key: 1,
   class: "preview-error"
-}, Ja = ["src"], Qa = ["disabled"], Ya = ["disabled"], Xa = /* @__PURE__ */ A({
+}, Za = ["src"], Ka = ["disabled"], qa = ["disabled"], Ja = /* @__PURE__ */ A({
   __name: "index",
   setup(e) {
     const t = mn(), n = S(al()), o = S(null), i = S(null), c = S(!1), u = S(!1), h = S(!1), p = S(!1), v = S(!1), w = yl({
@@ -4912,95 +4912,72 @@ const Cl = V("back", !0, function(e) {
       )) : (m(), W("div", ya, [
         a("section", ma, [
           a("div", ba, [
-            a("div", _a, [
-              d(s(dn), {
-                size: 20,
-                class: "search-icon"
-              }),
-              Y(a(
-                "input",
-                {
-                  "onUpdate:modelValue": l[22] || (l[22] = (f) => fn(y) ? y.value = f : null),
-                  type: "text",
-                  placeholder: "搜索关键词",
-                  onKeydown: l[23] || (l[23] = ht(
-                    //@ts-ignore
-                    (...f) => s(ne) && s(ne)(...f),
-                    ["enter"]
-                  ))
-                },
-                null,
-                544
-                /* NEED_HYDRATION, NEED_PATCH */
-              ), [
-                [Ve, s(y)]
-              ]),
-              s(y) ? (m(), W("button", {
-                key: 0,
-                type: "button",
-                class: "clear-btn",
-                title: "清空",
-                onClick: l[24] || (l[24] = (f) => y.value = "")
-              }, [
-                d(s(Be), { size: 18 })
-              ])) : R("v-if", !0)
-            ])
-          ]),
-          a("div", ka, [
-            l[67] || (l[67] = a(
-              "div",
-              { class: "filter-card-title" },
-              [
-                a("strong", null, "分类标签"),
-                a("span", null, "按内容风格快速筛选")
-              ],
-              -1
-              /* HOISTED */
-            )),
-            a("div", Ca, [
-              a("button", {
-                type: "button",
-                class: O({ active: s(x) === "general" }),
-                disabled: s(P),
-                onClick: l[25] || (l[25] = (f) => s(ve)("general"))
-              }, " 通用 ", 10, La),
-              a("button", {
-                type: "button",
-                class: O({ active: s(x) === "anime" }),
-                disabled: s(P),
-                onClick: l[26] || (l[26] = (f) => s(ve)("anime"))
-              }, " 动漫 ", 10, Sa),
-              a("button", {
-                type: "button",
-                class: O({ active: s(x) === "people" }),
-                disabled: s(P),
-                onClick: l[27] || (l[27] = (f) => s(ve)("people"))
-              }, " 人物 ", 10, xa),
-              a("button", {
-                type: "button",
-                class: O({ active: s(x) === "nature" }),
-                disabled: s(P),
-                onClick: l[28] || (l[28] = (f) => s(ve)("nature"))
-              }, " 自然 ", 10, Oa)
-            ])
-          ]),
-          a("div", Wa, [
-            a("div", za, [
-              l[68] || (l[68] = a(
-                "strong",
-                null,
-                "状态",
-                -1
-                /* HOISTED */
-              )),
-              a(
-                "span",
-                null,
-                "自动匹配 " + M(s(Oe)),
-                1
-                /* TEXT */
-              )
+            d(s(dn), {
+              size: 22,
+              class: "search-icon"
+            }),
+            Y(a(
+              "input",
+              {
+                "onUpdate:modelValue": l[22] || (l[22] = (f) => fn(y) ? y.value = f : null),
+                type: "text",
+                placeholder: "搜索关键词",
+                onKeydown: l[23] || (l[23] = ht(
+                  //@ts-ignore
+                  (...f) => s(ne) && s(ne)(...f),
+                  ["enter"]
+                ))
+              },
+              null,
+              544
+              /* NEED_HYDRATION, NEED_PATCH */
+            ), [
+              [Ve, s(y)]
             ]),
+            s(y) ? (m(), W("button", {
+              key: 0,
+              type: "button",
+              class: "clear-btn",
+              title: "清空",
+              onClick: l[24] || (l[24] = (f) => y.value = "")
+            }, [
+              d(s(Be), { size: 18 })
+            ])) : R("v-if", !0)
+          ]),
+          a("div", _a, [
+            a("button", {
+              type: "button",
+              class: O({ active: s(x) === "general" }),
+              disabled: s(P),
+              onClick: l[25] || (l[25] = (f) => s(ve)("general"))
+            }, " 通用 ", 10, ka),
+            a("button", {
+              type: "button",
+              class: O({ active: s(x) === "anime" }),
+              disabled: s(P),
+              onClick: l[26] || (l[26] = (f) => s(ve)("anime"))
+            }, " 动漫 ", 10, Ca),
+            a("button", {
+              type: "button",
+              class: O({ active: s(x) === "people" }),
+              disabled: s(P),
+              onClick: l[27] || (l[27] = (f) => s(ve)("people"))
+            }, " 人物 ", 10, La),
+            a("button", {
+              type: "button",
+              class: O({ active: s(x) === "nature" }),
+              disabled: s(P),
+              onClick: l[28] || (l[28] = (f) => s(ve)("nature"))
+            }, " 自然 ", 10, Sa)
+          ]),
+          a("div", xa, [
+            a(
+              "span",
+              null,
+              "自动匹配 " + M(s(Oe)),
+              1
+              /* TEXT */
+            ),
             a("button", {
               type: "button",
               class: "refresh-btn wallhaven-refresh",
@@ -5015,8 +4992,8 @@ const Cl = V("back", !0, function(e) {
             ])
           ])
         ]),
-        a("section", Pa, [
-          s(P) && s(he).length === 0 ? (m(), W("div", Ia, "正在加载 Wallhaven 壁纸...")) : s(g) ? (m(), W("div", Ta, [
+        a("section", Oa, [
+          s(P) && s(he).length === 0 ? (m(), W("div", Wa, "正在加载 Wallhaven 壁纸...")) : s(g) ? (m(), W("div", za, [
             a(
               "span",
               null,
@@ -5029,7 +5006,7 @@ const Cl = V("back", !0, function(e) {
               onClick: l[30] || (l[30] = //@ts-ignore
               (...f) => s(ne) && s(ne)(...f))
             }, "重试")
-          ])) : s(he).length === 0 ? (m(), W("div", ja, "暂无可用壁纸")) : (m(), W("div", Ma, [
+          ])) : s(he).length === 0 ? (m(), W("div", Pa, "暂无可用壁纸")) : (m(), W("div", Ia, [
             (m(!0), W(
               Lt,
               null,
@@ -5042,14 +5019,14 @@ const Cl = V("back", !0, function(e) {
                   class: "thumb",
                   onClick: (ge) => s(Ee)(f)
                 }, [
-                  s(I).has(f.id) ? R("v-if", !0) : (m(), W("div", $a)),
+                  s(I).has(f.id) ? R("v-if", !0) : (m(), W("div", ja)),
                   a("img", {
                     ref_for: !0,
                     ref: (ge) => s(ut)(f, ge),
                     alt: f.resolution,
                     loading: "lazy",
                     onLoad: (ge) => s(rt)(f.id)
-                  }, null, 40, Ea),
+                  }, null, 40, Ma),
                   a(
                     "span",
                     null,
@@ -5057,7 +5034,7 @@ const Cl = V("back", !0, function(e) {
                     1
                     /* TEXT */
                   )
-                ], 8, Na),
+                ], 8, Ta),
                 a("div", {
                   class: "card-actions",
                   onClick: l[31] || (l[31] = ye(() => {
@@ -5069,8 +5046,8 @@ const Cl = V("back", !0, function(e) {
                     onClick: (ge) => s(Ee)(f)
                   }, [
                     d(s(zl), { size: 16 }),
-                    l[69] || (l[69] = E(" 预览 "))
-                  ], 8, Fa),
+                    l[67] || (l[67] = E(" 预览 "))
+                  ], 8, Na),
                   a("button", {
                     type: "button",
                     title: "设为壁纸",
@@ -5083,7 +5060,7 @@ const Cl = V("back", !0, function(e) {
                       1
                       /* TEXT */
                     )
-                  ], 8, Aa),
+                  ], 8, $a),
                   a("button", {
                     type: "button",
                     title: "下载",
@@ -5091,8 +5068,8 @@ const Cl = V("back", !0, function(e) {
                     onClick: (ge) => s(xe)(f)
                   }, [
                     d(s(xl), { size: 16 }),
-                    l[70] || (l[70] = E(" 下载 "))
-                  ], 8, Da)
+                    l[68] || (l[68] = E(" 下载 "))
+                  ], 8, Ea)
                 ])
               ]))),
               128
@@ -5100,7 +5077,7 @@ const Cl = V("back", !0, function(e) {
             ))
           ]))
         ]),
-        a("footer", Ra, [
+        a("footer", Fa, [
           a(
             "span",
             null,
@@ -5110,24 +5087,24 @@ const Cl = V("back", !0, function(e) {
           ),
           a(
             "span",
-            Ha,
+            Aa,
             "来源：" + M(s(Ne)) + " · SFW",
             1
             /* TEXT */
           ),
-          a("div", Va, [
+          a("div", Da, [
             a("button", {
               type: "button",
               disabled: s(T) <= 1 || s(P),
               onClick: l[32] || (l[32] = //@ts-ignore
               (...f) => s(De) && s(De)(...f))
-            }, "上一页", 8, Ua),
+            }, "上一页", 8, Ra),
             a("button", {
               type: "button",
               disabled: s(T) >= s(N) || s(P),
               onClick: l[33] || (l[33] = //@ts-ignore
               (...f) => s(Re) && s(Re)(...f))
-            }, "下一页", 8, Ba)
+            }, "下一页", 8, Ha)
           ])
         ])
       ])),
@@ -5140,7 +5117,7 @@ const Cl = V("back", !0, function(e) {
           ["self"]
         ))
       }, [
-        a("div", Ga, [
+        a("div", Va, [
           a("header", null, [
             a(
               "strong",
@@ -5158,8 +5135,8 @@ const Cl = V("back", !0, function(e) {
               d(s(Be), { size: 23 })
             ])
           ]),
-          a("div", Za, [
-            s(B) ? (m(), W("div", Ka, l[71] || (l[71] = [
+          a("div", Ua, [
+            s(B) ? (m(), W("div", Ba, l[69] || (l[69] = [
               a(
                 "span",
                 null,
@@ -5168,7 +5145,7 @@ const Cl = V("back", !0, function(e) {
                 /* HOISTED */
               )
             ]))) : R("v-if", !0),
-            s(q) ? (m(), W("div", qa, "预览加载失败")) : R("v-if", !0),
+            s(q) ? (m(), W("div", Ga, "预览加载失败")) : R("v-if", !0),
             a("img", {
               class: O({ ready: !s(B) && !s(q) }),
               src: s(_).path,
@@ -5177,7 +5154,7 @@ const Cl = V("back", !0, function(e) {
               (...f) => s(Fe) && s(Fe)(...f)),
               onError: l[36] || (l[36] = //@ts-ignore
               (...f) => s(ee) && s(ee)(...f))
-            }, null, 42, Ja)
+            }, null, 42, Za)
           ]),
           a("footer", null, [
             a("button", {
@@ -5185,27 +5162,27 @@ const Cl = V("back", !0, function(e) {
               class: "secondary-btn",
               disabled: s(J).has(s(_).id),
               onClick: l[37] || (l[37] = (f) => s(xe)(s(_)))
-            }, " 下载缓存 ", 8, Qa),
+            }, " 下载缓存 ", 8, Ka),
             a("button", {
               type: "button",
               class: "primary-btn",
               disabled: s(J).has(s(_).id),
               onClick: l[38] || (l[38] = (f) => s(Ae)(s(_)))
-            }, M(s(J).has(s(_).id) ? "设置中" : "设为壁纸"), 9, Ya)
+            }, M(s(J).has(s(_).id) ? "设置中" : "设为壁纸"), 9, qa)
           ])
         ])
       ])) : R("v-if", !0)
     ]));
   }
-}), er = (e, t) => {
+}), Qa = (e, t) => {
   const n = e.__vccOpts || e;
   for (const [o, i] of t)
     n[o] = i;
   return n;
-}, tr = /* @__PURE__ */ er(Xa, [["__scopeId", "data-v-ce137f42"]]), nr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, Ya = /* @__PURE__ */ Qa(Ja, [["__scopeId", "data-v-b22bb632"]]), Xa = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: tr
+  default: Ya
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  sr as activate
+  tr as activate
 };
