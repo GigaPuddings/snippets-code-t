@@ -620,10 +620,10 @@ onUnmounted(() => {
   --wallpaper-muted: var(--search-info-text-color, #7b8494);
   --wallpaper-primary: var(--search-result-accent, #5f74f3);
   --wallpaper-input: var(--search-input-bg, #fbfcff);
-  --wallpaper-card-actions-bg: rgb(255 255 255 / 92%);
-  --wallpaper-card-actions-border: rgb(217 226 239 / 92%);
-  --wallpaper-card-actions-hover: rgb(243 247 255 / 100%);
-  --wallpaper-card-actions-text: #1f2937;
+  --wallpaper-card-actions-bg: var(--search-card-bg, #ffffff);
+  --wallpaper-card-actions-border: var(--wallpaper-border);
+  --wallpaper-card-actions-hover: var(--wallpaper-hover);
+  --wallpaper-card-actions-text: var(--wallpaper-text);
 }
 
 .wallpaper-window {
@@ -666,10 +666,10 @@ onUnmounted(() => {
   --wallpaper-muted: var(--search-info-text-color, #949494);
   --wallpaper-primary: var(--search-result-accent, #7d91f6);
   --wallpaper-input: var(--search-input-bg, #2c2c2c);
-  --wallpaper-card-actions-bg: rgb(17 24 39 / 88%);
-  --wallpaper-card-actions-border: rgb(255 255 255 / 8%);
-  --wallpaper-card-actions-hover: rgb(255 255 255 / 10%);
-  --wallpaper-card-actions-text: rgb(255 255 255 / 92%);
+  --wallpaper-card-actions-bg: var(--search-card-bg, #242424);
+  --wallpaper-card-actions-border: var(--wallpaper-border);
+  --wallpaper-card-actions-hover: var(--wallpaper-hover);
+  --wallpaper-card-actions-text: var(--wallpaper-text);
 }
 
 .titlebar {
@@ -777,7 +777,7 @@ onUnmounted(() => {
 
 .content {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto auto auto;
   gap: 10px;
   height: calc(100vh - 48px);
   min-height: 0;
@@ -801,7 +801,7 @@ onUnmounted(() => {
 
 .top-panel {
   display: grid;
-  grid-template-columns: minmax(0, 0.68fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.62fr) minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
   align-items: start;
@@ -809,7 +809,7 @@ onUnmounted(() => {
 
 .preview {
   aspect-ratio: 16 / 9;
-  max-height: 248px;
+  max-height: 212px;
   overflow: hidden;
   background: var(--wallpaper-soft);
   border: 1px solid var(--wallpaper-border);
@@ -916,7 +916,7 @@ button:disabled {
 
 .settings-card {
   min-height: 0;
-  padding: 14px 12px 12px;
+  padding: 12px 12px 10px;
   overflow: hidden;
 }
 
@@ -1046,7 +1046,7 @@ button:disabled {
 
 .rules-card {
   min-height: 0;
-  padding: 10px 12px 0 12px;
+  padding: 10px 12px 10px;
   overflow: hidden;
 
   h2 {
@@ -1484,7 +1484,7 @@ button:disabled {
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 1.18;
+  aspect-ratio: 1.2;
   overflow: hidden;
   background: var(--wallpaper-soft);
   border: 0;
@@ -1529,7 +1529,7 @@ button:disabled {
 }
 
 .card-actions {
-  height: 34px;
+  height: 30px;
   background: var(--wallpaper-card-actions-bg);
   border-top: 1px solid var(--wallpaper-card-actions-border);
 
