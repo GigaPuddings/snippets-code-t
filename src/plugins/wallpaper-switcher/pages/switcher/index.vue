@@ -653,7 +653,8 @@ onUnmounted(() => {
 }
 
 :global(html.dark) .wallpaper-window,
-:global(.dark) .wallpaper-window {
+:global(.dark) .wallpaper-window,
+.wallpaper-window.dark {
   --wallpaper-bg: var(--search-bg-color, #202020);
   --wallpaper-panel: var(--search-card-bg, #242424);
   --wallpaper-soft: var(--search-soft-bg, #292929);
@@ -800,13 +801,15 @@ onUnmounted(() => {
 
 .top-panel {
   display: grid;
-  grid-template-columns: minmax(0, 0.86fr) 360px;
+  grid-template-columns: minmax(0, 0.68fr) minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
+  align-items: start;
 }
 
 .preview {
-  height: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 248px;
   overflow: hidden;
   background: var(--wallpaper-soft);
   border: 1px solid var(--wallpaper-border);
@@ -836,7 +839,7 @@ onUnmounted(() => {
 .footer-card {
   background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .status-panel {
@@ -1123,22 +1126,26 @@ button:disabled {
 }
 
 .footer-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: center;
-  justify-content: space-between;
   min-height: 0;
-  padding: 4px 12px;
+  padding: 8px 12px;
   overflow: hidden;
 }
 
 .cache-info {
+  display: flex;
+  flex-wrap: wrap;
   flex: 1;
-  gap: 18px;
+  gap: 12px 18px;
   min-width: 0;
   font-size: 14px;
 }
 
 .footer-actions {
+  display: flex;
   flex: 0 0 auto;
   gap: 8px;
 }
