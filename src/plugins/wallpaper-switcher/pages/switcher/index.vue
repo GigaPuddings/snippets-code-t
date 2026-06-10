@@ -1677,46 +1677,6 @@ button:disabled {
   background: #111827;
 }
 
-@media (prefers-color-scheme: dark) {
-  .wallpaper-window {
-    --wallpaper-bg: var(--search-bg, #111827);
-    --wallpaper-panel: var(--search-card-bg, #1f2937);
-    --wallpaper-soft: var(--search-soft-bg, #182233);
-    --wallpaper-border: var(--panel-border, var(--search-border-color, #374151));
-    --wallpaper-border-strong: var(--search-result-active-border, #4f63d9);
-    --wallpaper-hover: var(--search-result-hover, #263244);
-    --wallpaper-active: var(--search-result-active, #252f55);
-    --wallpaper-text: var(--search-text-color, #e5e7eb);
-    --wallpaper-muted: var(--search-info-text-color, #9ca3af);
-    --wallpaper-primary: var(--search-result-accent, #8b9cff);
-    --wallpaper-input: var(--search-input-bg, #181f2d);
-    box-shadow: 0 8px 20px rgb(0 0 0 / 26%);
-  }
-
-  .titlebar {
-    background: var(--wallpaper-bg);
-  }
-
-  .icon-btn {
-    color: var(--wallpaper-text);
-    background: var(--wallpaper-panel);
-  }
-
-  .wallhaven-search,
-  .wallhaven-tabs,
-  .wallhaven-meta,
-  .wallhaven-refresh,
-  .pager-actions button {
-    background: var(--wallpaper-input);
-  }
-
-  .thumb-skeleton {
-    background:
-      linear-gradient(90deg, transparent, rgb(255 255 255 / 8%), transparent),
-      var(--wallpaper-soft);
-  }
-}
-
 @keyframes spin {
   from {
     transform: rotate(0deg);
