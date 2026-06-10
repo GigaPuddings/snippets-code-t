@@ -1,6 +1,7 @@
 use log::{error, info, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::error::Error as StdError;
 use std::ffi::OsStr;
 use std::fs;
@@ -12,6 +13,8 @@ use std::sync::{
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 use walkdir::WalkDir;
+#[cfg(target_os = "windows")]
+use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
 const PLUGIN_ID: &str = "wallpaper-switcher";
 const CONFIG_KEY: &str = "wallpaper_switcher_config";
@@ -467,18 +470,16 @@ async fn download_wallhaven_image(
     app_handle: &AppHandle,
     wallpaper: &WallhavenWallpaper,
 ) -> Result<PathBuf, String> {
-    let client = reqwest::Client::builder()
-        .use_rustls_tls()
-        .user_agent(USER_AGENT)
-        .no_gzip()
-        .no_brotli()
-        .no_deflate()
-        .no_zstd()
-        .connect_timeout(Duration::from_secs(15))
-        .timeout(Duration::from_secs(90))
-        .redirect(reqwest::redirect::Policy::limited(8))
-        .build()
-        .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
+    let client = apply_wallhaven_proxy(
+        reqwest::Client::builder()
+            .use_native_tls()
+            .user_agent(USER_AGENT)
+            .connect_timeout(Duration::from_secs(15))
+            .timeout(Duration::from_secs(90))
+            .redirect(reqwest::redirect::Policy::limited(8)),
+    )
+    .build()
+    .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
 
     let resolved_wallpaper = if wallpaper.short_url.is_none() {
         match fetch_wallhaven_detail(&client, &wallpaper.id).await {
@@ -540,9 +541,13 @@ async fn apply_wallpaper_path(
         .await
         .map_err(|e| format!("设置壁纸任务失败: {}", e))??;
     update_status_after_switch(&source_path, source, next_switch_timestamp());
+    let applied_path = path_to_string(&source_path);
+    let mut config = load_config(app_handle);
+    config.last_applied_path = Some(applied_path.clone());
+    save_config(app_handle, &config)?;
     cleanup_wallpaper_cache_after_apply(app_handle, &source_path);
     let _ = app_handle.emit("wallpaper-switcher-changed", ());
-    Ok(path_to_string(&source_path))
+    Ok(applied_path)
 }
 
 fn next_switch_timestamp() -> Option<i64> {
@@ -769,6 +774,75 @@ fn reqwest_error_details(error: &reqwest::Error) -> String {
         source = next.source();
     }
     details
+}
+
+fn normalize_proxy_url(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let first = value.split(';').find_map(|item| {
+        let item = item.trim();
+        if item.is_empty() {
+            return None;
+        }
+        item.split_once('=')
+            .map(|(_, proxy)| proxy.trim())
+            .or(Some(item))
+            .filter(|proxy| !proxy.is_empty())
+    })?;
+
+    if first.starts_with("http://") || first.starts_with("https://") || first.starts_with("socks5://") {
+        Some(first.to_string())
+    } else {
+        Some(format!("http://{}", first))
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_system_proxy_url() -> Option<String> {
+    let internet_settings = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings")
+        .ok()?;
+    let enabled = internet_settings.get_value::<u32, _>("ProxyEnable").unwrap_or(0);
+    if enabled == 0 {
+        return None;
+    }
+    let proxy_server = internet_settings.get_value::<String, _>("ProxyServer").ok()?;
+    normalize_proxy_url(&proxy_server)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn windows_system_proxy_url() -> Option<String> {
+    None
+}
+
+fn wallhaven_proxy_url() -> Option<String> {
+    ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"]
+        .iter()
+        .find_map(|key| env::var(key).ok().and_then(|value| normalize_proxy_url(&value)))
+        .or_else(windows_system_proxy_url)
+}
+
+fn apply_wallhaven_proxy(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
+    let Some(proxy_url) = wallhaven_proxy_url() else {
+        info!("[WallpaperSwitcher] Wallhaven proxy: direct");
+        return builder;
+    };
+
+    match reqwest::Proxy::all(&proxy_url) {
+        Ok(proxy) => {
+            info!("[WallpaperSwitcher] Wallhaven proxy: {}", proxy_url);
+            builder.proxy(proxy)
+        }
+        Err(error) => {
+            warn!(
+                "[WallpaperSwitcher] 忽略无效 Wallhaven 代理 {}: {}",
+                proxy_url, error
+            );
+            builder
+        }
+    }
 }
 
 fn wallhaven_header_value(
@@ -1226,18 +1300,16 @@ async fn fetch_wallhaven_page(
         screen_height
     );
 
-    let client = reqwest::Client::builder()
-        .use_rustls_tls()
-        .user_agent(USER_AGENT)
-        .no_gzip()
-        .no_brotli()
-        .no_deflate()
-        .no_zstd()
-        .connect_timeout(Duration::from_secs(12))
-        .timeout(Duration::from_secs(35))
-        .redirect(reqwest::redirect::Policy::limited(8))
-        .build()
-        .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
+    let client = apply_wallhaven_proxy(
+        reqwest::Client::builder()
+            .use_native_tls()
+            .user_agent(USER_AGENT)
+            .connect_timeout(Duration::from_secs(12))
+            .timeout(Duration::from_secs(35))
+            .redirect(reqwest::redirect::Policy::limited(8)),
+    )
+    .build()
+    .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
 
     let mut last_error = String::new();
     for (width, height) in wallhaven_resolution_attempts(screen_width, screen_height) {

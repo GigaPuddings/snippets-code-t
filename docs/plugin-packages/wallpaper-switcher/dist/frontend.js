@@ -4037,7 +4037,7 @@ const $l = V("back", !0, function(e) {
   setup(e) {
     const t = pn(), n = k(_l()), o = k(null), l = k(null), h = k(!1), u = k(!1), f = k(!1), w = k("switcher"), y = k([]), g = k(1), S = k(1), x = k(!1), j = k(!1), E = k(""), v = k(""), b = k("general"), z = k("hot"), A = k(null), C = k(!1), K = k(!1), F = k(/* @__PURE__ */ new Set()), ae = k(/* @__PURE__ */ new Set()), W = k(!1), ye = k(!1), me = /* @__PURE__ */ new Map();
     let J = null, mt = null, bt = null, xe = 0;
-    const _t = m(() => kl(o.value?.currentPath)), kt = m(() => "2560 × 1440"), Bn = m(() => n.value.mode === "fixed" ? "固定图片" : n.value.mode === "wallhaven" ? "Wallhaven" : "本地文件夹"), Un = m(() => {
+    const _t = m(() => kl(o.value?.currentPath || n.value.lastAppliedPath)), kt = m(() => "2560 × 1440"), Bn = m(() => n.value.mode === "fixed" ? "固定图片" : n.value.mode === "wallhaven" ? "Wallhaven" : "本地文件夹"), Un = m(() => {
       const c = o.value?.nextSwitchAt;
       if (!c) return "18 分钟后";
       const i = Math.max(0, c - Math.floor(Date.now() / 1e3));
@@ -4873,7 +4873,7 @@ const $l = V("back", !0, function(e) {
               "input",
               {
                 "onUpdate:modelValue": i[19] || (i[19] = (p) => un(v) ? v.value = p : null),
-                type: "search",
+                type: "text",
                 placeholder: "搜索关键词",
                 onKeydown: Xe(Ye, ["enter"])
               },
@@ -5108,7 +5108,7 @@ const $l = V("back", !0, function(e) {
   for (const [o, l] of t)
     n[o] = l;
   return n;
-}, cr = /* @__PURE__ */ ur(rr, [["__scopeId", "data-v-a022fb81"]]), dr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, cr = /* @__PURE__ */ ur(rr, [["__scopeId", "data-v-bec04c77"]]), dr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: cr
 }, Symbol.toStringTag, { value: "Module" }));

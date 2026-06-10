@@ -70,7 +70,7 @@ let unlistenChanged: UnlistenFn | null = null;
 let unlistenError: UnlistenFn | null = null;
 let wallhavenFetchSeq = 0;
 
-const previewSrc = computed(() => wallpaperImageSrc(status.value?.currentPath));
+const previewSrc = computed(() => wallpaperImageSrc(status.value?.currentPath || config.value.lastAppliedPath));
 const screenLabel = computed(() => '2560 × 1440');
 
 const sourceLabel = computed(() => {
@@ -735,7 +735,7 @@ onUnmounted(() => {
       <section class="filters filters--preview-style">
         <div class="search-box wallhaven-search">
           <Search :size="22" class="search-icon" />
-          <input v-model="wallhavenKeyword" type="search" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
+          <input v-model="wallhavenKeyword" type="text" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
           <button v-if="wallhavenKeyword" type="button" class="clear-btn" title="清空" @click="wallhavenKeyword = ''">
             <CloseSmall :size="18" />
           </button>
