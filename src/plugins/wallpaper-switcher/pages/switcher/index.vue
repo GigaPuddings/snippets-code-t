@@ -1430,7 +1430,7 @@ button:disabled {
 
 .wallhaven-view {
   display: grid;
-  grid-template-rows: 94px minmax(0, 1fr) 58px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   height: calc(100vh - 48px);
   min-height: 0;
   overflow: hidden;
@@ -1438,10 +1438,10 @@ button:disabled {
 
 .filters {
   display: grid;
-  grid-template-rows: 36px 38px;
-  gap: 8px;
-  height: 94px;
-  padding: 10px 14px 8px;
+  grid-template-rows: 34px;
+  gap: 0;
+  height: auto;
+  padding: 8px 12px 6px;
   overflow: hidden;
 }
 
@@ -1449,15 +1449,15 @@ button:disabled {
   display: grid;
   align-items: center;
   min-width: 0;
-  gap: 10px;
+  gap: 8px;
 }
 
 .filter-main {
-  grid-template-columns: minmax(210px, 280px) minmax(0, 1fr) 36px;
+  grid-template-columns: 170px minmax(0, 1fr) 34px;
 }
 
 .compact-search {
-  width: min(100%, 280px);
+  width: 170px;
 }
 
 .compact-chips {
@@ -1468,8 +1468,8 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  padding: 0 8px;
+  min-height: 32px;
+  padding: 0 6px;
   color: var(--wallpaper-text);
   background: transparent;
   border-right: 1px solid var(--wallpaper-border);
@@ -1496,8 +1496,8 @@ button:disabled {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   color: var(--wallpaper-text);
   background: transparent;
   border: 1px solid var(--wallpaper-border);
@@ -1515,14 +1515,14 @@ button:disabled {
 
 .grid-wrap {
   min-height: 0;
-  padding: 14px;
+  padding: 10px 12px 12px;
   overflow: hidden;
 }
 
 .wallpaper-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
   align-content: start;
 }
 
