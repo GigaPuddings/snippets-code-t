@@ -609,7 +609,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .wallpaper-window {
-  --wallpaper-bg: var(--search-bg, #fafbfd);
+  --wallpaper-bg: var(--search-bg-color, #fafbfd);
   --wallpaper-panel: var(--search-card-bg, #ffffff);
   --wallpaper-soft: var(--search-soft-bg, #f6f9fe);
   --wallpaper-border: var(--panel-border, var(--search-border-color, #d9e2ef));
@@ -644,6 +644,20 @@ onUnmounted(() => {
   select {
     font: inherit;
   }
+}
+
+:global(html.dark) .wallpaper-window {
+  --wallpaper-bg: var(--search-bg-color, #202020);
+  --wallpaper-panel: var(--search-card-bg, #242424);
+  --wallpaper-soft: var(--search-soft-bg, #292929);
+  --wallpaper-border: var(--panel-border, var(--search-border, #363636));
+  --wallpaper-border-strong: var(--search-result-active-border, #5266d9);
+  --wallpaper-hover: var(--search-result-hover, #363636);
+  --wallpaper-active: var(--search-result-active, #24304a);
+  --wallpaper-text: var(--search-text-color, #fcfcfc);
+  --wallpaper-muted: var(--search-info-text-color, #949494);
+  --wallpaper-primary: var(--search-result-accent, #7d91f6);
+  --wallpaper-input: var(--search-input-bg, #2c2c2c);
 }
 
 .titlebar {
