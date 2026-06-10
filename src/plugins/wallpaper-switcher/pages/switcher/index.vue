@@ -789,7 +789,7 @@ onUnmounted(() => {
 
 .top-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 326px;
+  grid-template-columns: minmax(0, 1fr) 388px;
   gap: 12px;
   min-height: 0;
 }
@@ -799,7 +799,8 @@ onUnmounted(() => {
   overflow: hidden;
   background: var(--wallpaper-soft);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%);
 
   img {
     width: 100%;
