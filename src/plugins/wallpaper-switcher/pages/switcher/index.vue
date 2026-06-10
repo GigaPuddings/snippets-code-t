@@ -1360,34 +1360,52 @@ button:disabled {
 }
 
 .source-toggle {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(72px, 1fr));
-  height: 34px;
-  min-width: 168px;
-  overflow: hidden;
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
-  background: var(--wallpaper-panel);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 30px;
+  min-width: auto;
+  padding: 0 2px;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .seg-tab {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 14px;
-  color: var(--wallpaper-text);
+  min-width: 0;
+  height: 30px;
+  padding: 0 2px;
+  color: #475569;
   background: transparent;
-  border-right: 1px solid var(--wallpaper-border);
+  border: 0;
+  border-radius: 0;
   cursor: pointer;
   user-select: none;
-
-  &:last-child {
-    border-right: 0;
-  }
+  font-weight: 600;
+  line-height: 1;
 
   &.active {
     color: var(--wallpaper-primary);
-    background: var(--wallpaper-active);
+    font-weight: 800;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  &.active::after {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    left: 1px;
+    height: 2px;
+    content: '';
+    background: var(--wallpaper-primary);
+    border-radius: 999px;
   }
 
   &.disabled {
@@ -1490,7 +1508,8 @@ button:disabled {
 }
 
 .filters--preview-style {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) 320px 46px;
   align-items: center;
   gap: 12px;
   padding: 10px 14px 8px;
@@ -1498,10 +1517,10 @@ button:disabled {
 }
 
 .wallhaven-search {
-  flex: 0 0 390px;
+  width: 100%;
   min-width: 0;
   height: 46px;
-  gap: 12px;
+  gap: 10px;
   padding: 0 10px 0 16px;
   background: #fff;
   border: 0;
@@ -1554,12 +1573,14 @@ button:disabled {
 .wallhaven-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  flex: 0 0 380px;
+  width: 100%;
+  min-width: 0;
   height: 46px;
   overflow: hidden;
-  background: #f7f7f8;
+  background: #eef2f7;
+  border: 1px solid #e3e9f1;
   border-radius: 13px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%);
+  box-shadow: none;
 }
 
 .wallhaven-tabs button {
@@ -1602,7 +1623,7 @@ button:disabled {
   background: #fff;
   border: 1px solid #e8e8ef;
   border-radius: 13px;
-  box-shadow: 0 6px 14px rgb(15 23 42 / 7%);
+  box-shadow: none;
 }
 
 .spinning {
