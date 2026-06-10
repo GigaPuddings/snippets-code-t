@@ -1290,7 +1290,7 @@ button:disabled {
 
 .filters--preview-style {
   display: grid;
-  grid-template-columns: minmax(260px, 1.1fr) minmax(300px, 1fr) minmax(190px, 0.72fr);
+  grid-template-columns: minmax(300px, 1.25fr) minmax(340px, 1.25fr) minmax(240px, 0.9fr);
   align-items: stretch;
   gap: 12px;
   padding: 10px 14px 8px;
@@ -1463,7 +1463,7 @@ button:disabled {
     color: var(--wallpaper-text);
     font-size: 13px;
     font-weight: 600;
-    line-height: 1;
+    line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -1632,7 +1632,7 @@ button:disabled {
     width: 88px;
     height: 34px;
     color: var(--wallpaper-text);
-    background: transparent;
+    background: var(--wallpaper-panel);
     border: 1px solid var(--wallpaper-border);
     border-radius: 8px;
     cursor: pointer;
