@@ -1517,6 +1517,8 @@ button:disabled {
 }
 
 .wallhaven-search {
+  display: flex;
+  align-items: center;
   width: 100%;
   min-width: 0;
   height: 46px;
@@ -1534,10 +1536,18 @@ button:disabled {
 }
 
 .wallhaven-search input {
+  flex: 1;
+  align-self: center;
   min-width: 0;
+  height: 100%;
+  padding: 0;
   color: #111827;
   font-size: 15px;
   font-weight: 600;
+  line-height: 46px;
+  background: transparent;
+  border: 0;
+  outline: 0;
 }
 
 .wallhaven-search input::placeholder {
