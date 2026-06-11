@@ -69,6 +69,8 @@ pub struct WallpaperConfig {
     pub wallhaven_query: Option<String>,
     pub last_folder_index: usize,
     pub last_applied_path: Option<String>,
+    #[serde(default)]
+    pub last_switched_at: Option<i64>,
 }
 
 impl Default for WallpaperConfig {
@@ -87,6 +89,7 @@ impl Default for WallpaperConfig {
             wallhaven_query: None,
             last_folder_index: 0,
             last_applied_path: None,
+            last_switched_at: None,
         }
     }
 }
@@ -399,21 +402,24 @@ fn set_windows_wallpaper(_path: &Path, _fit_mode: &WallpaperFitMode) -> Result<(
     Err("当前系统暂不支持设置桌面壁纸".to_string())
 }
 
-fn update_status_after_switch(path: &Path, source: &str, next_switch_at: Option<i64>) {
+fn update_status_after_switch(path: &Path, source: &str, next_switch_at: Option<i64>) -> i64 {
     let resolution = image_resolution(path);
     let applied_path = path_to_string(path);
+    let switched_at = now_unix_ts();
     if let Ok(mut status) = WALLPAPER_STATUS.lock() {
         status.current_path = Some(applied_path.clone());
         status.current_source = Some(source.to_string());
         status.current_resolution = resolution;
-        status.last_switched_at = Some(now_unix_ts());
+        status.last_switched_at = Some(switched_at);
         status.next_switch_at = next_switch_at;
     }
     if let Ok(mut config) = WALLPAPER_CONFIG.lock() {
         if let Some(existing) = config.as_mut() {
             existing.last_applied_path = Some(applied_path);
+            existing.last_switched_at = Some(switched_at);
         }
     }
+    switched_at
 }
 
 fn random_index(len: usize) -> usize {
@@ -453,6 +459,9 @@ pub fn load_config(app_handle: &AppHandle) -> WallpaperConfig {
                             WallpaperMode::Folder => "本地文件夹".to_string(),
                             WallpaperMode::Wallhaven => "Wallhaven".to_string(),
                         });
+                    }
+                    if status.last_switched_at.is_none() {
+                        status.last_switched_at = config.last_switched_at;
                     }
                 }
                 return config;
@@ -540,10 +549,11 @@ async fn apply_wallpaper_path(
     tauri::async_runtime::spawn_blocking(move || set_windows_wallpaper(&wallpaper_path, &fit_mode))
         .await
         .map_err(|e| format!("设置壁纸任务失败: {}", e))??;
-    update_status_after_switch(&source_path, source, next_switch_timestamp());
+    let switched_at = update_status_after_switch(&source_path, source, next_switch_timestamp());
     let applied_path = path_to_string(&source_path);
     let mut config = load_config(app_handle);
     config.last_applied_path = Some(applied_path.clone());
+    config.last_switched_at = Some(switched_at);
     save_config(app_handle, &config)?;
     cleanup_wallpaper_cache_after_apply(app_handle, &source_path);
     let _ = app_handle.emit("wallpaper-switcher-changed", ());
@@ -639,19 +649,28 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let interval_minutes = config.interval_minutes.max(1);
+    let interval_secs = config.interval_minutes.max(1) * 60;
+    let now = now_unix_ts();
+    let next_switch_at = config
+        .last_switched_at
+        .map(|last| last.saturating_add(interval_secs as i64))
+        .unwrap_or(now.saturating_add(interval_secs as i64));
+    let initial_wait_secs = next_switch_at.saturating_sub(now).max(0) as u64;
     let instance_id = SCHEDULER_INSTANCE_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
     ACTIVE_SCHEDULER_INSTANCE_ID.store(instance_id, Ordering::SeqCst);
     if let Ok(mut running) = SCHEDULER_RUNNING.lock() {
         *running = true;
     }
     if let Ok(mut status) = WALLPAPER_STATUS.lock() {
-        status.next_switch_at = Some(now_unix_ts() + (interval_minutes * 60) as i64);
+        status.next_switch_at = Some(next_switch_at.max(now));
     }
 
     tauri::async_runtime::spawn(async move {
+        let mut wait_secs = initial_wait_secs;
         loop {
-            tokio::time::sleep(Duration::from_secs(interval_minutes * 60)).await;
+            if wait_secs > 0 {
+                tokio::time::sleep(Duration::from_secs(wait_secs)).await;
+            }
             if ACTIVE_SCHEDULER_INSTANCE_ID.load(Ordering::SeqCst) != instance_id {
                 break;
             }
@@ -660,9 +679,9 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
             if !config.schedule_enabled || !config.auto_restore {
                 break;
             }
+            let interval_secs = config.interval_minutes.max(1) * 60;
             if let Ok(mut status) = WALLPAPER_STATUS.lock() {
-                status.next_switch_at =
-                    Some(now_unix_ts() + (config.interval_minutes.max(1) * 60) as i64);
+                status.next_switch_at = Some(now_unix_ts() + interval_secs as i64);
             }
             if let Err(error) = switch_now_inner(&app_handle).await {
                 warn!("[WallpaperSwitcher] 定时切换失败: {}", error);
@@ -671,6 +690,7 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
                     serde_json::json!({ "message": error }),
                 );
             }
+            wait_secs = interval_secs;
         }
         if ACTIVE_SCHEDULER_INSTANCE_ID.load(Ordering::SeqCst) == instance_id {
             stop_scheduler();
