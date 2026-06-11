@@ -4320,7 +4320,7 @@ const Cl = V("back", !0, function(e) {
     }), (k, l) => (m(), W("main", Il, [
       a("header", Tl, [
         s(L) === "switcher" ? (m(), W("div", jl, [
-          d(s(gt), { size: 20 }),
+          d(s(gt), { size: 18 }),
           l[40] || (l[40] = a(
             "span",
             null,
@@ -4336,7 +4336,7 @@ const Cl = V("back", !0, function(e) {
             onClick: l[0] || (l[0] = //@ts-ignore
             (...f) => s($e) && s($e)(...f))
           }, [
-            d(s(Cl), { size: 22 })
+            d(s(Cl), { size: 20 })
           ]),
           l[41] || (l[41] = a(
             "span",
@@ -4354,7 +4354,7 @@ const Cl = V("back", !0, function(e) {
             onClick: l[1] || (l[1] = //@ts-ignore
             (...f) => s(X) && s(X)(...f))
           }, [
-            d(s(Wl), { size: 20 })
+            d(s(Wl), { size: 18 })
           ]),
           a("button", {
             type: "button",
@@ -4362,7 +4362,7 @@ const Cl = V("back", !0, function(e) {
             title: "关闭",
             onClick: Nt
           }, [
-            d(s(Be), { size: 22 })
+            d(s(Be), { size: 20 })
           ])
         ])) : (m(), W("div", $l, [
           a("div", El, [
@@ -5179,7 +5179,7 @@ const Cl = V("back", !0, function(e) {
   for (const [o, i] of t)
     n[o] = i;
   return n;
-}, Ya = /* @__PURE__ */ Qa(Ja, [["__scopeId", "data-v-4bcb07d8"]]), Xa = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, Ya = /* @__PURE__ */ Qa(Ja, [["__scopeId", "data-v-0899fd6e"]]), Xa = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: Ya
 }, Symbol.toStringTag, { value: "Module" }));

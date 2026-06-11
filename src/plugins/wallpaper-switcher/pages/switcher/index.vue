@@ -271,21 +271,21 @@ onUnmounted(() => {
   <main class="wallpaper-window">
     <header class="titlebar" data-tauri-drag-region>
       <div v-if="activeView === 'switcher'" class="title">
-        <Picture :size="20" />
+        <Picture :size="18" />
         <span>壁纸切换</span>
       </div>
       <div v-else class="title">
         <button type="button" class="flat-icon" title="返回" @click="backToSwitcher">
-          <Back :size="22" />
+          <Back :size="20" />
         </button>
         <span>Wallhaven 壁纸</span>
       </div>
       <div v-if="activeView === 'switcher'" class="window-actions">
         <button type="button" class="icon-btn online-entry-btn" title="打开 Wallhaven 壁纸" @click="openWallhavenGrid">
-          <PictureAlbum :size="20" />
+          <PictureAlbum :size="18" />
         </button>
         <button type="button" class="icon-btn" title="关闭" @click="closeWindow">
-          <CloseSmall :size="22" />
+          <CloseSmall :size="20" />
         </button>
       </div>
       <div v-else class="window-actions">
@@ -735,8 +735,8 @@ onUnmounted(() => {
 }
 
 .icon-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   color: var(--wallpaper-text);
   background: transparent;
@@ -943,7 +943,7 @@ button:disabled {
   gap: 10px;
   align-items: center;
   min-height: 44px;
-  padding-top: 12px;
+  padding-top: 10px;
   margin-top: 8px;
   border-top: 1px solid var(--wallpaper-border);
 }
@@ -1001,6 +1001,7 @@ button:disabled {
 
   button {
     height: 28px;
+    line-height: 30px;
     padding: 0 12px;
     color: var(--wallpaper-text);
     background: transparent;
