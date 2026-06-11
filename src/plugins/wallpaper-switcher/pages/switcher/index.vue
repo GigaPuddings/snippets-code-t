@@ -801,15 +801,14 @@ onUnmounted(() => {
 
 .top-panel {
   display: grid;
-  grid-template-columns: minmax(0, 0.62fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, .62fr) minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
   align-items: start;
 }
 
 .preview {
-  aspect-ratio: 16 / 9;
-  max-height: 212px;
+  aspect-ratio: 20 / 9;
   overflow: hidden;
   background: var(--wallpaper-soft);
   border: 1px solid var(--wallpaper-border);
@@ -922,10 +921,9 @@ button:disabled {
 
 .form-row {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) 94px 94px;
   gap: 10px;
   align-items: center;
-  min-height: 40px;
+  min-height: 36px;
 }
 
 .mode-row {
@@ -946,7 +944,7 @@ button:disabled {
   align-items: center;
   min-height: 44px;
   padding-top: 12px;
-  margin-top: 12px;
+  margin-top: 8px;
   border-top: 1px solid var(--wallpaper-border);
 }
 
@@ -1320,7 +1318,7 @@ button:disabled {
   align-items: center;
   width: 100%;
   min-width: 0;
-  height: 46px;
+  height: 40px;
   gap: 10px;
   padding: 0 10px 0 16px;
   background: var(--wallpaper-panel);
@@ -1345,7 +1343,7 @@ button:disabled {
   color: var(--wallpaper-text);
   font-size: 15px;
   font-weight: 600;
-  line-height: 46px;
+  line-height: 40px;
   background: transparent;
   border: 0;
   outline: 0;
@@ -1386,7 +1384,7 @@ button:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   width: 100%;
   min-width: 0;
-  height: 46px;
+  height: 40px;
   padding: 0;
   overflow: hidden;
   background: var(--wallpaper-soft);
@@ -1398,7 +1396,7 @@ button:disabled {
 .wallhaven-tabs button {
   position: relative;
   min-width: 0;
-  height: 46px;
+  height: 40px;
   color: var(--wallpaper-text);
   font-size: 15px;
   font-weight: 500;
@@ -1438,7 +1436,7 @@ button:disabled {
   justify-content: flex-end;
   gap: 10px;
   min-width: 0;
-  height: 46px;
+  height: 40px;
   color: var(--wallpaper-muted);
   font-size: 13px;
   font-weight: 600;
@@ -1446,8 +1444,8 @@ button:disabled {
 }
 
 .wallhaven-refresh {
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   color: var(--wallpaper-text);
   background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
@@ -1461,7 +1459,7 @@ button:disabled {
 
 .grid-wrap {
   min-height: 0;
-  padding: 0 12px 12px;
+  padding: 12px;
   overflow: hidden;
 }
 
@@ -1529,7 +1527,7 @@ button:disabled {
 }
 
 .card-actions {
-  height: 30px;
+  height: 36px;
   background: var(--wallpaper-card-actions-bg);
   border-top: 1px solid var(--wallpaper-card-actions-border);
 
