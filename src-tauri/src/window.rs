@@ -879,7 +879,7 @@ pub fn open_wallpaper_switcher_window() {
         url: "/#/wallpaper-switcher",
         title: "壁纸切换",
         width: 680.0,
-        height: 540.0,
+        height: 560.0,
         resizable: false,
         transparent: true,
         shadow: false,

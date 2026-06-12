@@ -778,7 +778,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-rows: auto auto auto auto;
   gap: 10px;
-  height: calc(100vh - 120px);
+  // height: calc(100vh - 120px);
   min-height: 0;
   padding: 12px 16px 12px;
   align-content: start;
@@ -1215,7 +1215,7 @@ button:disabled {
 .wallhaven-view {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  height: calc(100vh - 120px);
+  // height: calc(100vh - 120px);
   min-height: 0;
   overflow: hidden;
   background: var(--wallpaper-bg);
