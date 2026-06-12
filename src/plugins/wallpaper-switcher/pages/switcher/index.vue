@@ -25,6 +25,7 @@ import {
   Download,
   FolderOpen,
   Lightning,
+  Pin,
   Picture,
   PictureAlbum,
   PreviewOpen,
@@ -312,7 +313,7 @@ onUnmounted(() => {
           </div>
         </div>
         <button type="button" class="icon-btn" title="关闭" @click="closeWindow">
-          <CloseSmall :size="22" />
+          <CloseSmall :size="20" />
         </button>
       </div>
     </header>
@@ -346,10 +347,11 @@ onUnmounted(() => {
           </div>
           <div class="status-actions">
             <button type="button" class="primary-btn" :disabled="switching" @click="switchNow">
-              <Lightning :size="17" />
+              <Lightning theme="outline" :size="14" />
               {{ switching ? '切换中' : '立即切换' }}
             </button>
             <button type="button" class="secondary-btn" @click="setCurrentAsFixed">
+              <Pin theme="outline" :size="14" />
               设为固定
             </button>
           </div>
@@ -428,12 +430,12 @@ onUnmounted(() => {
       </section>
 
       <section class="card rules-card">
-        <h2>切换规则</h2>
         <div class="rules-line">
+          <span class="row-label">切换规则</span>
           <label class="switch-label">
+            启用定时切换
             <input v-model="config.scheduleEnabled" type="checkbox" />
             <span class="switch-control"></span>
-            启用定时切换
           </label>
           <label class="number-label">
             每
@@ -496,8 +498,8 @@ onUnmounted(() => {
     <div v-else class="wallhaven-view">
       <section class="filters filters--preview-style">
         <div class="search-box wallhaven-search">
-          <Search :size="22" class="search-icon" />
           <input v-model="wallhavenKeyword" type="text" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
+          <Search :size="16" class="search-icon" />
           <button v-if="wallhavenKeyword" type="button" class="clear-btn" title="清空" @click="wallhavenKeyword = ''">
             <CloseSmall :size="18" />
           </button>
@@ -521,7 +523,7 @@ onUnmounted(() => {
         <div class="wallhaven-meta">
           <span>自动匹配 {{ screenLabel }}</span>
           <button type="button" class="refresh-btn wallhaven-refresh" title="刷新" @click="refreshWallhaven">
-            <Refresh :size="20" :class="{ spinning: wallhavenLoading }" />
+            <Refresh :size="14" :class="{ spinning: wallhavenLoading }" />
           </button>
         </div>
       </section>
@@ -632,11 +634,10 @@ onUnmounted(() => {
   height: 100vh;
   overflow: hidden;
   color: var(--wallpaper-text);
-  font-size: 14px;
-  line-height: 1.35;
+  font-size: 12px;
   background: var(--wallpaper-bg);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
+  border-radius: 6px;
   box-shadow: 0 8px 20px rgb(15 23 42 / 6%);
 
   *,
@@ -676,7 +677,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 48px;
+  height: 38px;
   padding: 0 14px 0 20px;
   background: var(--wallpaper-bg);
   border-bottom: 1px solid var(--wallpaper-border);
@@ -708,7 +709,7 @@ onUnmounted(() => {
 .title {
   gap: 10px;
   color: var(--wallpaper-text);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
 
   svg {
@@ -728,15 +729,14 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .icon-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   color: var(--wallpaper-text);
   background: transparent;
@@ -779,7 +779,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-rows: auto auto auto auto;
   gap: 10px;
-  height: calc(100vh - 48px);
+  height: calc(100vh - 120px);
   min-height: 0;
   padding: 12px 16px 12px;
   align-content: start;
@@ -838,7 +838,7 @@ onUnmounted(() => {
 .footer-card {
   background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 .status-panel {
@@ -873,7 +873,8 @@ onUnmounted(() => {
 
   .primary-btn,
   .secondary-btn {
-    height: 32px;
+    height: 28px;
+    line-height: 28px;
   }
 }
 
@@ -882,7 +883,8 @@ onUnmounted(() => {
 .tool-btn {
   justify-content: center;
   gap: 6px;
-  height: 34px;
+  height: 28px;
+  line-height: 28px;
   padding: 0 13px;
   white-space: nowrap;
 }
@@ -988,20 +990,19 @@ button:disabled {
   align-items: center;
   gap: 16px;
   padding-left: 0;
-  font-size: 13px;
-  min-height: 20px;
+  font-size: 11px;
+  min-height: 16px;
 }
 
 .segmented {
   display: grid;
-  height: 30px;
   overflow: hidden;
   border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
+  border-radius: 4px;
 
   button {
-    height: 28px;
-    line-height: 30px;
+    height: 26px;
+    line-height: 26px;
     padding: 0 12px;
     color: var(--wallpaper-text);
     background: transparent;
@@ -1050,7 +1051,7 @@ button:disabled {
 
   h2 {
     margin: 0 0 8px;
-    font-size: 15px;
+    font-size: 12px;
     font-weight: 700;
   }
 }
@@ -1215,7 +1216,7 @@ button:disabled {
 .wallhaven-view {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  height: calc(100vh - 48px);
+  height: calc(100vh - 120px);
   min-height: 0;
   overflow: hidden;
   background: var(--wallpaper-bg);
@@ -1253,7 +1254,7 @@ button:disabled {
 
 .compact-chips {
   width: 100%;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
@@ -1296,7 +1297,7 @@ button:disabled {
   color: var(--wallpaper-text);
   background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 10px;
+  border-radius: 6px;
   cursor: pointer;
   box-shadow: 0 2px 6px rgb(15 23 42 / 4%);
 
@@ -1307,7 +1308,7 @@ button:disabled {
 
 .filters--preview-style {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.1fr) minmax(190px, auto);
+  grid-template-columns: minmax(195px,1fr) minmax(222px,1.1fr) minmax(202px, auto);
   align-items: center;
   gap: 12px;
   padding: 10px 14px 8px;
@@ -1319,12 +1320,12 @@ button:disabled {
   align-items: center;
   width: 100%;
   min-width: 0;
-  height: 40px;
+  height: 32px;
   gap: 10px;
   padding: 0 10px 0 16px;
   background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 13px;
+  border-radius: 6px;
   box-shadow: none;
 }
 
@@ -1342,7 +1343,6 @@ button:disabled {
   height: 100%;
   padding: 0;
   color: var(--wallpaper-text);
-  font-size: 15px;
   font-weight: 600;
   line-height: 40px;
   background: transparent;
@@ -1385,19 +1385,19 @@ button:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   width: 100%;
   min-width: 0;
-  height: 40px;
+  height: 32px;
   padding: 0;
   overflow: hidden;
   background: var(--wallpaper-soft);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 13px;
+  border-radius: 6px;
   box-shadow: none;
 }
 
 .wallhaven-tabs button {
   position: relative;
   min-width: 0;
-  height: 40px;
+  height: 32px;
   color: var(--wallpaper-text);
   font-size: 15px;
   font-weight: 500;
@@ -1422,10 +1422,10 @@ button:disabled {
 
 .wallhaven-tabs button.active::after {
   position: absolute;
-  right: 20px;
+  right: 16px;
   bottom: 5px;
-  left: 20px;
-  height: 3px;
+  left: 16px;
+  height: 2px;
   content: '';
   background: var(--wallpaper-primary);
   border-radius: 999px;
@@ -1435,22 +1435,23 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 40px;
   min-width: 0;
-  height: 40px;
+  height: 32px;
+  line-height: 32px;
   color: var(--wallpaper-muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .wallhaven-refresh {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   color: var(--wallpaper-text);
   background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 13px;
+  border-radius: 6px;
   box-shadow: none;
 }
 
@@ -1475,7 +1476,7 @@ button:disabled {
   overflow: hidden;
   background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
@@ -1483,6 +1484,7 @@ button:disabled {
   position: relative;
   display: block;
   width: 100%;
+  height: 152px;
   aspect-ratio: 1.2;
   overflow: hidden;
   background: var(--wallpaper-soft);
@@ -1582,7 +1584,7 @@ button:disabled {
     color: var(--wallpaper-text);
     background: var(--wallpaper-panel);
     border: 1px solid var(--wallpaper-border);
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
 
     &:hover {
@@ -1611,7 +1613,7 @@ button:disabled {
     color: var(--wallpaper-text);
     background: var(--wallpaper-panel);
     border: 1px solid var(--wallpaper-border);
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
 
     &:hover:not(:disabled) {
@@ -1641,7 +1643,7 @@ button:disabled {
   overflow: hidden;
   background: var(--wallpaper-panel);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 8px;
+  border-radius: 6px;
   box-shadow: 0 18px 42px rgb(15 23 42 / 18%);
 
   header,
