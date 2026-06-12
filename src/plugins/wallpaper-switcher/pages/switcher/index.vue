@@ -674,15 +674,12 @@ onUnmounted(() => {
 }
 
 .wallpaper-window {
+  @apply w-screen h-screen overflow-hidden text-xs rounded-[6px];
+
   color-scheme: light dark;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
   color: var(--wallpaper-text);
-  font-size: 12px;
   background: var(--wallpaper-bg);
   border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
   box-shadow: 0 8px 20px rgb(15 23 42 / 6%);
 
   *,
@@ -719,13 +716,10 @@ onUnmounted(() => {
 }
 
 .titlebar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 38px;
-  padding: 0 14px 0 20px;
+  @apply flex items-center justify-between h-[38px] py-0 pr-[14px] pl-5 border-b;
+
   background: var(--wallpaper-bg);
-  border-bottom: 1px solid var(--wallpaper-border);
+  border-color: var(--wallpaper-border);
 }
 
 .title,
@@ -747,15 +741,13 @@ onUnmounted(() => {
 .tool-btn,
 .primary-btn,
 .secondary-btn {
-  display: flex;
-  align-items: center;
+  @apply flex items-center;
 }
 
 .title {
-  gap: 10px;
+  @apply gap-2.5 text-sm font-bold;
+
   color: var(--wallpaper-text);
-  font-size: 14px;
-  font-weight: 700;
 
   svg {
     color: var(--wallpaper-primary);
@@ -763,7 +755,7 @@ onUnmounted(() => {
 }
 
 .window-actions {
-  gap: 10px;
+  @apply gap-2.5;
 }
 
 .icon-btn,
@@ -771,24 +763,19 @@ onUnmounted(() => {
 .tool-btn,
 .primary-btn,
 .secondary-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  cursor: pointer;
+  @apply inline-flex items-center justify-center rounded-md cursor-pointer;
+
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .icon-btn {
-  width: 28px;
-  height: 28px;
-  padding: 0;
+  @apply w-7 h-7 p-0 leading-none;
+
   color: var(--wallpaper-text);
   background: transparent;
-  line-height: 1;
 
   svg {
-    display: block;
+    @apply block;
   }
 
   &:hover {
@@ -809,11 +796,10 @@ onUnmounted(() => {
 }
 
 .flat-icon {
-  width: 34px;
-  height: 34px;
+  @apply w-[34px] h-[34px] border-0;
+
   color: var(--wallpaper-text);
   background: transparent;
-  border: 0;
 
   &:hover {
     background: var(--wallpaper-hover);
@@ -821,150 +807,109 @@ onUnmounted(() => {
 }
 
 .content {
-  display: grid;
-  grid-template-rows: auto auto auto auto;
-  gap: 10px;
+  @apply grid grid-rows-[auto_auto_auto_auto] gap-2.5 min-h-0 content-start overflow-auto pt-3 px-4 pb-3;
+
   height: calc(100vh - 40px);
-  min-height: 0;
-  padding: 12px 16px 12px;
-  align-content: start;
-  overflow: auto;
 }
 
 .dimmed {
-  opacity: 0.72;
+  @apply opacity-[0.72];
 }
 
 .unsupported {
-  margin: 12px 18px 0;
-  padding: 10px 12px;
+  @apply mt-3 mx-[18px] mb-0 py-2.5 px-3 text-amber-700 bg-amber-100 border border-amber-200 rounded-md;
+
   color: #b45309;
   background: #fef3c7;
-  border: 1px solid #fde68a;
-  border-radius: 6px;
+  border-color: #fde68a;
 }
 
 .top-panel {
-  position: relative;
-  display: flex;
-  min-height: 176px;
-  padding: 22px 28px 20px;
-  overflow: hidden;
+  @apply relative flex min-h-44 pt-[22px] px-7 pb-5 overflow-hidden rounded-md border;
+
   background: #111827;
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
+  border-color: var(--wallpaper-border);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
 
   &::after {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
+    @apply absolute inset-0 z-[1] pointer-events-none;
+
     content: '';
     background:
       linear-gradient(90deg, rgb(4 10 20 / 58%) 0%, rgb(4 10 20 / 38%) 34%, rgb(4 10 20 / 12%) 66%, rgb(4 10 20 / 28%) 100%),
       linear-gradient(180deg, rgb(4 10 20 / 10%) 0%, rgb(4 10 20 / 30%) 100%);
-    pointer-events: none;
   }
 }
 
 .preview {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
+  @apply absolute inset-0 overflow-hidden;
+
   background: #111827;
   border-radius: inherit;
 
   img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
+    @apply block w-full h-full object-cover;
+
     border-radius: inherit;
     filter: saturate(1.04) contrast(0.98);
   }
 }
 
 .preview-empty {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  @apply h-full flex flex-col items-center justify-center gap-2;
+
   color: rgb(255 255 255 / 74%);
 }
 
 .card,
 .footer-card {
+  @apply rounded-md border;
+
   background: var(--wallpaper-panel);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
+  border-color: var(--wallpaper-border);
 }
 
 .status-panel {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  min-width: 0;
+  @apply relative z-[2] flex justify-between w-full min-w-0 border-0;
+
   color: #fff;
   background: transparent;
-  border: 0;
   text-shadow: 0 2px 8px rgb(0 0 0 / 48%);
 
   h2 {
-    margin: 0 0 5px;
-    font-size: 15px;
-    font-weight: 700;
+    @apply mt-0 mx-0 mb-[5px] text-[15px] font-bold;
   }
 }
 
 .status-copy {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-width: 0;
+  @apply flex flex-col justify-between min-w-0;
 }
 
 .wallpaper-name {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  max-width: 620px;
-  margin-bottom: 22px;
+  @apply flex items-baseline gap-2.5 max-w-[620px] mb-[22px] text-sm font-semibold;
+
   color: rgb(255 255 255 / 74%);
-  font-size: 14px;
-  font-weight: 600;
 
   strong {
-    min-width: 0;
-    overflow: hidden;
+    @apply min-w-0 overflow-hidden text-[15px] font-bold text-ellipsis whitespace-nowrap;
+
     color: #fff;
     font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
-    font-size: 15px;
-    font-weight: 700;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 }
 
 .status-list {
-  display: grid;
-  gap: 12px;
+  @apply grid gap-3;
 }
 
 .status-row {
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  min-height: 20px;
+  @apply flex items-center gap-[9px] min-h-5 text-[13px] font-medium;
+
   color: rgb(255 255 255 / 76%);
-  font-size: 13px;
-  font-weight: 500;
 
   svg {
-    flex: 0 0 auto;
+    @apply flex-none;
+
     color: rgb(255 255 255 / 72%);
     filter: drop-shadow(0 2px 7px rgb(0 0 0 / 38%));
   }
@@ -980,21 +925,19 @@ onUnmounted(() => {
 }
 
 .status-actions {
-  align-self: flex-end;
-  gap: 8px;
-  margin-left: 24px;
+  @apply self-end gap-2 ml-6;
 
   .primary-btn {
-    height: 34px;
-    line-height: 34px;
+    @apply h-[34px] leading-[34px];
+
     background: rgb(95 116 243 / 94%);
     border-color: rgb(255 255 255 / 16%);
     box-shadow: 0 14px 26px rgb(0 0 0 / 24%);
   }
 
   .secondary-btn {
-    height: 34px;
-    line-height: 34px;
+    @apply h-[34px] leading-[34px];
+
     color: rgb(255 255 255 / 86%);
     background: rgb(15 23 42 / 24%);
     border-color: rgb(255 255 255 / 10%);
@@ -1010,12 +953,7 @@ onUnmounted(() => {
 .primary-btn,
 .secondary-btn,
 .tool-btn {
-  justify-content: center;
-  gap: 6px;
-  height: 28px;
-  line-height: 28px;
-  padding: 0 13px;
-  white-space: nowrap;
+  @apply justify-center gap-1.5 h-7 leading-7 py-0 px-[13px] whitespace-nowrap;
 }
 
 .primary-btn {
@@ -1040,48 +978,38 @@ onUnmounted(() => {
 }
 
 button:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
+  @apply cursor-not-allowed opacity-[0.65];
 }
 
 .settings-card {
-  min-height: 0;
-  padding: 12px 12px 10px;
-  overflow: hidden;
+  @apply min-h-0 pt-3 px-3 pb-2.5 overflow-hidden;
 }
 
 .form-row {
-  display: grid;
-  gap: 10px;
-  align-items: center;
-  min-height: 36px;
+  @apply grid items-center gap-2.5 min-h-9;
 }
 
 .mode-row {
-  grid-template-columns: 96px minmax(0, 1fr);
+  @apply grid-cols-[96px_minmax(0,1fr)];
 }
 
 .fixed-row {
-  grid-template-columns: 96px minmax(0, 1fr) 128px;
+  @apply grid-cols-[96px_minmax(0,1fr)_128px];
 }
 
 .folder-row {
-  grid-template-columns: 96px minmax(0, 1fr) 94px 94px;
+  @apply grid-cols-[96px_minmax(0,1fr)_94px_94px];
 }
 
 .wallhaven-row {
-  grid-template-columns: 96px 74px minmax(0, 1fr) 210px;
-  gap: 10px;
-  align-items: center;
-  min-height: 44px;
-  padding-top: 10px;
-  margin-top: 8px;
-  border-top: 1px solid var(--wallpaper-border);
+  @apply grid-cols-[96px_74px_minmax(0,1fr)_210px] items-center gap-2.5 min-h-11 pt-2.5 mt-2 border-t;
+
+  border-color: var(--wallpaper-border);
 }
 
 .row-label,
 .sub-label {
-  font-weight: 600;
+  @apply font-semibold;
 }
 
 .row-label {
@@ -1094,15 +1022,11 @@ button:disabled {
 }
 
 .path-input {
-  width: 100%;
-  height: 30px;
-  min-width: 0;
-  padding: 0 11px;
+  @apply w-full h-[30px] min-w-0 py-0 px-[11px] rounded-md outline-none border;
+
   color: var(--wallpaper-text);
   background: var(--wallpaper-input);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
-  outline: none;
+  border-color: var(--wallpaper-border);
 
   &::placeholder {
     color: var(--wallpaper-muted);
@@ -1115,29 +1039,20 @@ button:disabled {
 }
 
 .hint-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-left: 0;
-  font-size: 11px;
-  min-height: 16px;
+  @apply flex items-center gap-4 pl-0 text-[11px] min-h-4;
 }
 
 .segmented {
-  display: grid;
-  overflow: hidden;
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 4px;
+  @apply grid overflow-hidden border rounded;
+
+  border-color: var(--wallpaper-border);
 
   button {
-    height: 26px;
-    line-height: 26px;
-    padding: 0 12px;
+    @apply h-[26px] leading-[26px] py-0 px-3 border-0 border-r cursor-pointer;
+
     color: var(--wallpaper-text);
     background: transparent;
-    border: 0;
-    border-right: 1px solid var(--wallpaper-border);
-    cursor: pointer;
+    border-color: var(--wallpaper-border);
 
     &:last-child {
       border-right: 0;
@@ -1151,49 +1066,40 @@ button:disabled {
 }
 
 .three {
-  grid-template-columns: repeat(3, 1fr);
+  @apply grid-cols-3;
 }
 
 .fit {
-  grid-template-columns: repeat(3, 1fr);
+  @apply grid-cols-3;
 }
 
 .source {
-  grid-template-columns: repeat(2, 1fr);
+  @apply grid-cols-2;
 }
 
 .mini {
-  grid-template-columns: repeat(2, 1fr);
-  width: 224px;
+  @apply grid-cols-2 w-56;
 }
 
 .grid-open {
-  width: 100%;
-  min-width: 154px;
-  grid-column: 4;
+  @apply w-full min-w-[154px] col-start-4;
 }
 
 .rules-card {
-  min-height: 0;
-  padding: 10px 12px 10px;
-  overflow: hidden;
+  @apply min-h-0 py-2.5 px-3 overflow-hidden;
 
   h2 {
-    margin: 0 0 8px;
-    font-size: 12px;
-    font-weight: 700;
+    @apply mt-0 mx-0 mb-2 text-xs font-bold;
   }
 }
 
 .rules-line {
-  gap: 12px;
-  min-height: 36px;
+  @apply gap-3 min-h-9;
 }
 
 .switch-label,
 .checkbox-label {
-  gap: 9px;
-  white-space: nowrap;
+  @apply gap-[9px] whitespace-nowrap;
 }
 
 .switch-label input,
@@ -1206,22 +1112,16 @@ button:disabled {
 }
 
 .switch-control {
-  position: relative;
-  width: 44px;
-  height: 22px;
+  @apply relative w-11 h-[22px] rounded-full border;
+
   background: var(--wallpaper-active);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 999px;
+  border-color: var(--wallpaper-border);
 
   &::after {
+    @apply absolute top-0.5 left-0.5 w-4 h-4 rounded-full;
+
     content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 16px;
-    height: 16px;
     background: #fff;
-    border-radius: 50%;
     transition: transform 0.16s ease;
   }
 }
@@ -1235,146 +1135,96 @@ button:disabled {
 }
 
 .number-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  @apply flex items-center gap-2;
 
   input {
-    width: 78px;
-    height: 30px;
-    padding: 0 10px;
+    @apply w-[78px] h-[30px] py-0 px-2.5 rounded-md border;
+
     color: var(--wallpaper-text);
     background: var(--wallpaper-input);
-    border: 1px solid var(--wallpaper-border);
-    border-radius: 6px;
+    border-color: var(--wallpaper-border);
   }
 }
 
 .compact {
-  width: 96px;
+  @apply w-24;
 }
 
 .footer-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  min-height: 0;
-  padding: 8px 12px;
-  overflow: hidden;
+  @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 min-h-0 py-2 px-3 overflow-hidden;
 }
 
 .cache-info {
-  display: flex;
-  flex-wrap: wrap;
-  flex: 1;
-  gap: 12px 18px;
-  min-width: 0;
-  font-size: 14px;
+  @apply flex flex-wrap flex-1 gap-y-3 gap-x-[18px] min-w-0 text-sm;
 }
 
 .footer-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 8px;
+  @apply flex flex-none gap-2;
 }
 
 .footer-actions .secondary-btn {
-  min-width: 108px;
+  @apply min-w-[108px];
 }
 
 .footer-actions .primary-btn {
-  min-width: 112px;
+  @apply min-w-28;
 }
 
 .source-toggle {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  height: 30px;
-  min-width: auto;
-  padding: 0 2px;
-  overflow: visible;
+  @apply flex items-center gap-[18px] h-[30px] min-w-0 py-0 px-0.5 overflow-visible border-0 rounded-none shadow-none;
+
   background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
 }
 
 .seg-tab {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  height: 30px;
-  padding: 0 2px;
+  @apply relative flex items-center justify-center min-w-0 h-[30px] py-0 px-0.5 border-0 rounded-none cursor-pointer select-none font-semibold leading-none;
+
   color: var(--wallpaper-muted);
   background: transparent;
-  border: 0;
-  border-radius: 0;
-  cursor: pointer;
-  user-select: none;
-  font-weight: 600;
-  line-height: 1;
 
   &.active {
+    @apply font-extrabold shadow-none;
+
     color: var(--wallpaper-primary);
-    font-weight: 800;
     background: transparent;
-    box-shadow: none;
   }
 
   &.active::after {
-    position: absolute;
-    right: 1px;
-    bottom: 1px;
-    left: 1px;
-    height: 2px;
+    @apply absolute right-px bottom-px left-px h-0.5 rounded-full;
+
     content: '';
     background: var(--wallpaper-primary);
-    border-radius: 999px;
   }
 
   &.disabled {
-    cursor: wait;
-    opacity: 0.72;
+    @apply cursor-wait opacity-[0.72];
   }
 }
 
 .wallhaven-view {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  @apply grid grid-rows-[auto_minmax(0,1fr)_auto] min-h-0 overflow-hidden;
+
   height: calc(100vh - 40px);
-  min-height: 0;
-  overflow: hidden;
   background: var(--wallpaper-bg);
 }
 
 .filters {
-  padding: 10px 12px 8px;
-  overflow: hidden;
+  @apply pt-2.5 px-3 pb-2 overflow-hidden;
 }
 
 .filter-row {
-  display: grid;
-  align-items: center;
-  min-width: 0;
-  gap: 10px;
+  @apply grid items-center min-w-0 gap-2.5;
 }
 
 .filter-main {
-  grid-template-columns: 170px minmax(0, 1fr) 34px;
-  min-height: 54px;
-  padding: 8px 10px;
+  @apply grid-cols-[170px_minmax(0,1fr)_34px] min-h-[54px] py-2 px-2.5 rounded-[10px] border;
+
   background: var(--wallpaper-panel);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 10px;
+  border-color: var(--wallpaper-border);
 }
 
 .compact-search {
-  width: 170px;
-  height: 34px;
+  @apply w-[170px] h-[34px];
 }
 
 .compact-search input {
@@ -1382,24 +1232,15 @@ button:disabled {
 }
 
 .compact-chips {
-  width: 100%;
-  border-radius: 6px;
-  overflow: hidden;
+  @apply w-full rounded-md overflow-hidden;
 }
 
 .chip-tab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 8px;
+  @apply flex items-center justify-center min-h-[34px] py-0 px-2 cursor-pointer select-none text-[13px] leading-none;
+
   color: var(--wallpaper-text);
   background: transparent;
   border-right: 1px solid var(--wallpaper-border);
-  cursor: pointer;
-  user-select: none;
-  font-size: 13px;
-  line-height: 1;
 
   &:last-child {
     border-right: 0;
@@ -1411,22 +1252,16 @@ button:disabled {
   }
 
   &.disabled {
-    cursor: wait;
-    opacity: 0.72;
+    @apply cursor-wait opacity-[0.72];
   }
 }
 
 .refresh-btn {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
+  @apply flex flex-none items-center justify-center w-[34px] h-[34px] rounded-md border cursor-pointer;
+
   color: var(--wallpaper-text);
   background: var(--wallpaper-panel);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
+  border-color: var(--wallpaper-border);
   cursor: pointer;
   box-shadow: 0 2px 6px rgb(15 23 42 / 4%);
 
@@ -1436,47 +1271,29 @@ button:disabled {
 }
 
 .filters--preview-style {
-  display: grid;
-  grid-template-columns: minmax(195px,1fr) minmax(222px,1.1fr) minmax(202px, auto);
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px 8px;
-  overflow: hidden;
+  @apply grid items-center gap-3 pt-2.5 px-[14px] pb-2 overflow-hidden;
+
+  grid-template-columns: minmax(195px, 1fr) minmax(222px, 1.1fr) minmax(202px, auto);
 }
 
 .wallhaven-search {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-  height: 32px;
-  gap: 10px;
-  padding: 0 10px 0 16px;
+  @apply flex items-center w-full min-w-0 h-8 gap-2.5 py-0 pr-2.5 pl-4 rounded-md border shadow-none;
+
   background: var(--wallpaper-panel);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
-  box-shadow: none;
+  border-color: var(--wallpaper-border);
 }
 
 .wallhaven-search .search-icon {
-  flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
+  @apply flex-none w-[22px] h-[22px];
+
   color: var(--wallpaper-muted);
 }
 
 .wallhaven-search input {
-  flex: 1;
-  align-self: center;
-  min-width: 0;
-  height: 100%;
-  padding: 0;
+  @apply flex-1 self-center min-w-0 h-full p-0 font-semibold bg-transparent border-0 outline-0;
+
   color: var(--wallpaper-text);
-  font-weight: 600;
   line-height: 40px;
-  background: transparent;
-  border: 0;
-  outline: 0;
 }
 
 .wallhaven-search input::placeholder {
@@ -1485,17 +1302,10 @@ button:disabled {
 }
 
 .clear-btn {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
+  @apply flex flex-none items-center justify-center w-[22px] h-[22px] border-0 rounded-full cursor-pointer;
+
   color: var(--wallpaper-muted);
   background: var(--wallpaper-soft);
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
   transition: color 0.16s ease, background 0.16s ease;
 
   &:hover {
@@ -1505,82 +1315,56 @@ button:disabled {
 }
 
 .clear-btn :deep(svg) {
-  width: 12px;
-  height: 12px;
+  @apply w-3 h-3;
 }
 
 .wallhaven-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  width: 100%;
-  min-width: 0;
-  height: 32px;
-  padding: 0;
-  overflow: hidden;
+  @apply grid grid-cols-4 w-full min-w-0 h-8 p-0 overflow-hidden rounded-md border shadow-none;
+
   background: var(--wallpaper-soft);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
-  box-shadow: none;
+  border-color: var(--wallpaper-border);
 }
 
 .wallhaven-tabs button {
-  position: relative;
-  min-width: 0;
-  height: 32px;
+  @apply relative min-w-0 h-8 border-0 cursor-pointer font-medium;
+
   color: var(--wallpaper-text);
-  font-weight: 500;
   background: transparent;
-  border: 0;
-  cursor: pointer;
 
   &:hover:not(:disabled) {
     background: var(--wallpaper-hover);
   }
 
   &:disabled {
-    cursor: wait;
-    opacity: 0.7;
+    @apply cursor-wait opacity-70;
   }
 }
 
 .wallhaven-tabs button.active {
+  @apply font-extrabold;
+
   color: var(--wallpaper-primary);
-  font-weight: 800;
 }
 
 .wallhaven-tabs button.active::after {
-  position: absolute;
-  right: 16px;
-  bottom: 5px;
-  left: 16px;
-  height: 2px;
+  @apply absolute right-4 bottom-[5px] left-4 h-0.5 rounded-full;
+
   content: '';
   background: var(--wallpaper-primary);
-  border-radius: 999px;
 }
 
 .wallhaven-meta {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 40px;
-  min-width: 0;
-  height: 32px;
-  line-height: 32px;
+  @apply flex items-center justify-end gap-10 min-w-0 h-8 leading-8 text-xs font-semibold whitespace-nowrap;
+
   color: var(--wallpaper-muted);
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 .wallhaven-refresh {
-  width: 30px;
-  height: 30px;
+  @apply w-[30px] h-[30px] rounded-md border shadow-none;
+
   color: var(--wallpaper-text);
   background: var(--wallpaper-panel);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
-  box-shadow: none;
+  border-color: var(--wallpaper-border);
 }
 
 .spinning {
@@ -1588,68 +1372,46 @@ button:disabled {
 }
 
 .grid-wrap {
-  min-height: 0;
-  padding: 12px;
-  overflow: hidden;
+  @apply min-h-0 p-3 overflow-hidden;
 }
 
 .wallpaper-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  align-content: start;
+  @apply grid grid-cols-4 gap-3 content-start;
 }
 
 .wallpaper-card {
-  overflow: hidden;
+  @apply overflow-hidden rounded-md border cursor-pointer;
+
   background: var(--wallpaper-panel);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
-  cursor: pointer;
+  border-color: var(--wallpaper-border);
 }
 
 .thumb {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 152px;
+  @apply relative block w-full h-[152px] overflow-hidden border-0;
+
   aspect-ratio: 1.2;
-  overflow: hidden;
   background: var(--wallpaper-soft);
-  border: 0;
 
   img {
-    position: relative;
-    z-index: 1;
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0;
+    @apply relative z-[1] block w-full h-full object-cover opacity-0;
+
     transition: opacity 0.16s ease;
   }
 
   img[src] {
-    opacity: 1;
+    @apply opacity-100;
   }
 
   span {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    z-index: 2;
-    padding: 3px 7px;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
+    @apply absolute bottom-2.5 left-2.5 z-[2] py-[3px] px-[7px] text-white text-sm font-bold rounded;
+
     background: rgb(0 0 0 / 62%);
-    border-radius: 4px;
   }
 }
 
 .thumb-skeleton {
-  position: absolute;
-  inset: 0;
+  @apply absolute inset-0;
+
   background:
     linear-gradient(90deg, transparent, rgb(255 255 255 / 54%), transparent),
     #edf3fb;
@@ -1658,22 +1420,17 @@ button:disabled {
 }
 
 .card-actions {
-  height: 36px;
+  @apply h-9 border-t;
+
   background: var(--wallpaper-card-actions-bg);
-  border-top: 1px solid var(--wallpaper-card-actions-border);
+  border-color: var(--wallpaper-card-actions-border);
 
   button {
-    display: flex;
-    flex: 1;
-    gap: 5px;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
+    @apply flex flex-1 items-center justify-center gap-[5px] h-full border-0 border-r cursor-pointer;
+
     color: var(--wallpaper-card-actions-text);
     background: transparent;
-    border: 0;
-    border-right: 1px solid var(--wallpaper-card-actions-border);
-    cursor: pointer;
+    border-color: var(--wallpaper-card-actions-border);
 
     &:last-child {
       border-right: 0;
@@ -1685,21 +1442,14 @@ button:disabled {
     }
 
     &:disabled {
-      cursor: not-allowed;
-      opacity: 0.55;
+      @apply cursor-not-allowed opacity-[0.55];
     }
   }
 }
 
 .empty-state {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: 24px;
-  text-align: center;
+  @apply flex flex-col items-center justify-center gap-2.5 h-full p-6 text-center;
+
   color: var(--wallpaper-muted);
 }
 
@@ -1707,13 +1457,11 @@ button:disabled {
   color: #b45309;
 
   button {
-    height: 32px;
-    padding: 0 18px;
+    @apply h-8 py-0 px-[18px] rounded-md border cursor-pointer;
+
     color: var(--wallpaper-text);
     background: var(--wallpaper-panel);
-    border: 1px solid var(--wallpaper-border);
-    border-radius: 6px;
-    cursor: pointer;
+    border-color: var(--wallpaper-border);
 
     &:hover {
       color: var(--wallpaper-primary);
@@ -1723,9 +1471,7 @@ button:disabled {
 }
 
 .pager {
-  justify-content: space-between;
-  height: 58px;
-  padding: 0 20px;
+  @apply justify-between h-[58px] py-0 px-5;
 }
 
 .source-note {
@@ -1733,16 +1479,14 @@ button:disabled {
 }
 
 .pager-actions {
-  gap: 12px;
+  @apply gap-3;
 
   button {
-    width: 88px;
-    height: 34px;
+    @apply w-[88px] h-[34px] rounded-md border cursor-pointer;
+
     color: var(--wallpaper-text);
     background: var(--wallpaper-panel);
-    border: 1px solid var(--wallpaper-border);
-    border-radius: 6px;
-    cursor: pointer;
+    border-color: var(--wallpaper-border);
 
     &:hover:not(:disabled) {
       color: var(--wallpaper-primary);
@@ -1750,70 +1494,53 @@ button:disabled {
     }
 
     &:disabled {
-      cursor: not-allowed;
-      opacity: 0.55;
+      @apply cursor-not-allowed opacity-[0.55];
     }
   }
 }
 
 .preview-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @apply fixed inset-0 z-20 flex items-center justify-center;
+
   background: rgb(15 23 42 / 34%);
 }
 
 .preview-dialog {
+  @apply overflow-hidden rounded-md border;
+
   width: min(720px, calc(100vw - 56px));
-  overflow: hidden;
   background: var(--wallpaper-panel);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 6px;
+  border-color: var(--wallpaper-border);
   box-shadow: 0 18px 42px rgb(15 23 42 / 18%);
 
   header,
   footer {
-    justify-content: space-between;
-    height: 48px;
-    padding: 0 12px 0 16px;
+    @apply justify-between h-12 py-0 pr-3 pl-4;
   }
 }
 
 .preview-image-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @apply relative flex items-center justify-center overflow-hidden;
+
   aspect-ratio: 16 / 9;
   min-height: 360px;
   max-height: min(430px, calc(100vh - 160px));
-  overflow: hidden;
   background: #111827;
 
   img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    opacity: 0;
+    @apply block w-full h-full object-contain opacity-0;
+
     transition: opacity 0.18s ease;
   }
 
   img.ready {
-    opacity: 1;
+    @apply opacity-100;
   }
 }
 
 .preview-skeleton,
 .preview-error {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @apply absolute inset-0 flex items-center justify-center;
 }
 
 .preview-skeleton {
@@ -1826,10 +1553,10 @@ button:disabled {
   animation: shimmer 1.1s linear infinite;
 
   span {
-    padding: 6px 10px;
+    @apply py-1.5 px-2.5 rounded-md border;
+
     background: rgb(15 23 42 / 62%);
-    border: 1px solid rgb(255 255 255 / 10%);
-    border-radius: 6px;
+    border-color: rgb(255 255 255 / 10%);
   }
 }
 
