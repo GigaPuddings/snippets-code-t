@@ -4,13 +4,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // workspace.json 的根结构（UI 状态和工作区配置）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorkspaceConfig {
     pub main: WorkspaceMain,
     pub settings: WorkspaceSettings,
 }
-
 
 // 主工作区布局
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,14 +81,12 @@ pub struct CategoryMetadata {
 }
 
 // 工作区设置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorkspaceSettings {
     pub sync_enabled: bool,
     // 附件配置
     pub attachment: AttachmentSettings,
 }
-
 
 // 附件设置
 #[derive(Debug, Clone, Serialize, Deserialize)]

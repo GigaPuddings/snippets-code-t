@@ -170,12 +170,8 @@ pub fn set_workspace_root_from_setup(
     }
 
     if create && !path_buf.exists() {
-        std::fs::create_dir_all(&path_buf).map_err(|e| {
-            format!(
-                "创建工作区目录失败: {}。请检查是否有权限或选择其他位置",
-                e
-            )
-        })?;
+        std::fs::create_dir_all(&path_buf)
+            .map_err(|e| format!("创建工作区目录失败: {}。请检查是否有权限或选择其他位置", e))?;
     }
 
     validate_workspace(&path_buf)?;

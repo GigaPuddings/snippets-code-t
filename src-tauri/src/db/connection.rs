@@ -413,15 +413,17 @@ pub fn set_data_dir_from_setup(
     app_config_manager.update_config(app_config);
     app_config_manager.save()?;
 
-    if let Some(config_state) =
-        app_handle.try_state::<std::sync::Arc<std::sync::RwLock<crate::app_config::AppConfigManager>>>()
+    if let Some(config_state) = app_handle
+        .try_state::<std::sync::Arc<std::sync::RwLock<crate::app_config::AppConfigManager>>>()
     {
         let mut manager = config_state
             .write()
             .map_err(|e| format!("刷新应用配置状态失败: {}", e))?;
         *manager = app_config_manager;
     } else {
-        app_handle.manage(std::sync::Arc::new(std::sync::RwLock::new(app_config_manager)));
+        app_handle.manage(std::sync::Arc::new(std::sync::RwLock::new(
+            app_config_manager,
+        )));
     }
 
     crate::app_config::ensure_enabled_plugin_storage(&app_handle);

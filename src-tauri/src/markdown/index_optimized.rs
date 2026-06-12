@@ -267,10 +267,7 @@ impl OptimizedIndexManager {
 
             // 更新标签索引
             for tag in &index_entry.tags {
-                tag_index
-                    .entry(tag.clone())
-                    .or_default()
-                    .push(entry_index);
+                tag_index.entry(tag.clone()).or_default().push(entry_index);
             }
 
             // 更新收藏索引

@@ -177,6 +177,7 @@ static WALLPAPER_STATUS: Mutex<RuntimeStatus> = Mutex::new(RuntimeStatus {
 static SCHEDULER_RUNNING: Mutex<bool> = Mutex::new(false);
 static SCHEDULER_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
 static ACTIVE_SCHEDULER_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
+static RANDOM_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn require_enabled(app_handle: &AppHandle) -> Result<(), String> {
     crate::app_config::require_plugin_enabled(app_handle, PLUGIN_ID)
@@ -426,10 +427,48 @@ fn random_index(len: usize) -> usize {
     if len <= 1 {
         return 0;
     }
-    SystemTime::now()
+    let time_seed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos() as usize % len)
-        .unwrap_or(0)
+        .map(|duration| duration.as_nanos() as u64)
+        .unwrap_or(0);
+    let counter = RANDOM_COUNTER
+        .fetch_add(1, Ordering::Relaxed)
+        .wrapping_add(1);
+    let mixed = time_seed ^ counter.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ (time_seed >> 33);
+    (mixed as usize) % len
+}
+
+fn paths_same(left: &Path, right: &Path) -> bool {
+    let left = path_to_string(left);
+    let right = path_to_string(right);
+    if cfg!(target_os = "windows") {
+        left.eq_ignore_ascii_case(&right)
+    } else {
+        left == right
+    }
+}
+
+fn current_applied_path(config: &WallpaperConfig) -> Option<PathBuf> {
+    WALLPAPER_STATUS
+        .lock()
+        .ok()
+        .and_then(|status| status.current_path.clone())
+        .or_else(|| config.last_applied_path.clone())
+        .map(PathBuf::from)
+}
+
+fn wallhaven_id_from_cache_path(path: &Path) -> Option<String> {
+    path.file_stem()
+        .and_then(OsStr::to_str)
+        .and_then(|stem| stem.strip_prefix("wallhaven-"))
+        .filter(|id| !id.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn current_wallhaven_id(config: &WallpaperConfig) -> Option<String> {
+    current_applied_path(config)
+        .as_deref()
+        .and_then(wallhaven_id_from_cache_path)
 }
 
 fn save_config(app_handle: &AppHandle, config: &WallpaperConfig) -> Result<(), String> {
@@ -454,11 +493,13 @@ pub fn load_config(app_handle: &AppHandle) -> WallpaperConfig {
                 if let Ok(mut status) = WALLPAPER_STATUS.lock() {
                     if status.current_path.is_none() {
                         status.current_path = config.last_applied_path.clone();
-                        status.current_source.get_or_insert_with(|| match config.mode {
-                            WallpaperMode::Fixed => "固定图片".to_string(),
-                            WallpaperMode::Folder => "本地文件夹".to_string(),
-                            WallpaperMode::Wallhaven => "Wallhaven".to_string(),
-                        });
+                        status
+                            .current_source
+                            .get_or_insert_with(|| match config.mode {
+                                WallpaperMode::Fixed => "固定图片".to_string(),
+                                WallpaperMode::Folder => "本地文件夹".to_string(),
+                                WallpaperMode::Wallhaven => "Wallhaven".to_string(),
+                            });
                     }
                     if status.last_switched_at.is_none() {
                         status.last_switched_at = config.last_switched_at;
@@ -560,6 +601,26 @@ async fn apply_wallpaper_path(
     Ok(applied_path)
 }
 
+async fn apply_current_wallpaper_fit(app_handle: &AppHandle) -> Result<String, String> {
+    let config = load_config(app_handle);
+    let current_path =
+        current_applied_path(&config).ok_or("当前没有可重新应用的壁纸".to_string())?;
+    let current_path = normalize_existing_file(&path_to_string(&current_path))?;
+    let fit_mode = config.fit_mode.clone();
+    let wallpaper_path = current_path.clone();
+    tauri::async_runtime::spawn_blocking(move || set_windows_wallpaper(&wallpaper_path, &fit_mode))
+        .await
+        .map_err(|e| format!("应用适配模式任务失败: {}", e))??;
+
+    let applied_path = path_to_string(&current_path);
+    if let Ok(mut status) = WALLPAPER_STATUS.lock() {
+        status.current_path = Some(applied_path.clone());
+        status.current_resolution = image_resolution(&current_path);
+    }
+    let _ = app_handle.emit("wallpaper-switcher-changed", ());
+    Ok(applied_path)
+}
+
 fn next_switch_timestamp() -> Option<i64> {
     WALLPAPER_STATUS
         .lock()
@@ -581,10 +642,46 @@ async fn switch_from_folder(
         return Err("文件夹中没有可用图片".to_string());
     }
 
-    let index = match config.order {
+    let current_path = current_applied_path(&config);
+    let mut index = match config.order {
         WallpaperOrder::Random => random_index(images.len()),
         WallpaperOrder::Sequential => config.last_folder_index % images.len(),
     };
+    if images.len() > 1
+        && current_path
+            .as_ref()
+            .is_some_and(|current| paths_same(&images[index], current))
+    {
+        match config.order {
+            WallpaperOrder::Random => {
+                let candidates = images
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, image)| {
+                        !current_path
+                            .as_ref()
+                            .is_some_and(|current| paths_same(image, current))
+                    })
+                    .map(|(candidate_index, _)| candidate_index)
+                    .collect::<Vec<_>>();
+                if !candidates.is_empty() {
+                    index = candidates[random_index(candidates.len())];
+                }
+            }
+            WallpaperOrder::Sequential => {
+                for offset in 1..images.len() {
+                    let candidate_index = (index + offset) % images.len();
+                    if !current_path
+                        .as_ref()
+                        .is_some_and(|current| paths_same(&images[candidate_index], current))
+                    {
+                        index = candidate_index;
+                        break;
+                    }
+                }
+            }
+        }
+    }
     config.last_folder_index = (index + 1) % images.len();
     save_config(app_handle, &config)?;
 
@@ -607,20 +704,37 @@ async fn switch_from_wallhaven(
     app_handle: &AppHandle,
     config: &WallpaperConfig,
 ) -> Result<String, String> {
-    let page = random_index(10) as u32 + 1;
-    let params = WallhavenFetchParams {
-        source: config.wallhaven_source.clone(),
-        page: Some(page),
-        query: config.wallhaven_query.clone(),
-        category: Some(config.wallhaven_category.clone()),
-    };
-    let page = fetch_wallhaven_page(app_handle, params).await?;
-    if page.data.is_empty() {
-        return Err("Wallhaven 没有返回可用壁纸".to_string());
+    let current_id = current_wallhaven_id(config);
+    let mut last_error = "Wallhaven 没有返回可用壁纸".to_string();
+    for _ in 0..6 {
+        let page = random_index(10) as u32 + 1;
+        let params = WallhavenFetchParams {
+            source: config.wallhaven_source.clone(),
+            page: Some(page),
+            query: config.wallhaven_query.clone(),
+            category: Some(config.wallhaven_category.clone()),
+        };
+        let page = fetch_wallhaven_page(app_handle, params).await?;
+        if page.data.is_empty() {
+            last_error = "Wallhaven 没有返回可用壁纸".to_string();
+            continue;
+        }
+
+        let candidates = page
+            .data
+            .into_iter()
+            .filter(|wallpaper| current_id.as_deref() != Some(wallpaper.id.as_str()))
+            .collect::<Vec<_>>();
+        if candidates.is_empty() {
+            last_error = "Wallhaven 本页只有当前壁纸，正在尝试其它页面".to_string();
+            continue;
+        }
+
+        let wallpaper = candidates[random_index(candidates.len())].clone();
+        let downloaded = download_wallhaven_image(app_handle, &wallpaper).await?;
+        return apply_wallpaper_path(app_handle, &downloaded, "Wallhaven", &config.fit_mode).await;
     }
-    let wallpaper = page.data[random_index(page.data.len())].clone();
-    let downloaded = download_wallhaven_image(app_handle, &wallpaper).await?;
-    apply_wallpaper_path(app_handle, &downloaded, "Wallhaven", &config.fit_mode).await
+    Err(last_error)
 }
 
 async fn switch_now_inner(app_handle: &AppHandle) -> Result<String, String> {
@@ -812,7 +926,10 @@ fn normalize_proxy_url(value: &str) -> Option<String> {
             .filter(|proxy| !proxy.is_empty())
     })?;
 
-    if first.starts_with("http://") || first.starts_with("https://") || first.starts_with("socks5://") {
+    if first.starts_with("http://")
+        || first.starts_with("https://")
+        || first.starts_with("socks5://")
+    {
         Some(first.to_string())
     } else {
         Some(format!("http://{}", first))
@@ -824,11 +941,15 @@ fn windows_system_proxy_url() -> Option<String> {
     let internet_settings = RegKey::predef(HKEY_CURRENT_USER)
         .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings")
         .ok()?;
-    let enabled = internet_settings.get_value::<u32, _>("ProxyEnable").unwrap_or(0);
+    let enabled = internet_settings
+        .get_value::<u32, _>("ProxyEnable")
+        .unwrap_or(0);
     if enabled == 0 {
         return None;
     }
-    let proxy_server = internet_settings.get_value::<String, _>("ProxyServer").ok()?;
+    let proxy_server = internet_settings
+        .get_value::<String, _>("ProxyServer")
+        .ok()?;
     normalize_proxy_url(&proxy_server)
 }
 
@@ -838,10 +959,21 @@ fn windows_system_proxy_url() -> Option<String> {
 }
 
 fn wallhaven_proxy_url() -> Option<String> {
-    ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"]
-        .iter()
-        .find_map(|key| env::var(key).ok().and_then(|value| normalize_proxy_url(&value)))
-        .or_else(windows_system_proxy_url)
+    [
+        "HTTPS_PROXY",
+        "https_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+    ]
+    .iter()
+    .find_map(|key| {
+        env::var(key)
+            .ok()
+            .and_then(|value| normalize_proxy_url(&value))
+    })
+    .or_else(windows_system_proxy_url)
 }
 
 fn apply_wallhaven_proxy(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
@@ -1505,6 +1637,12 @@ pub async fn wallpaper_switch_now(app_handle: AppHandle) -> Result<String, Strin
 }
 
 #[tauri::command]
+pub async fn wallpaper_apply_current_fit(app_handle: AppHandle) -> Result<String, String> {
+    require_enabled(&app_handle)?;
+    apply_current_wallpaper_fit(&app_handle).await
+}
+
+#[tauri::command]
 pub async fn wallpaper_fetch_wallhaven(
     app_handle: AppHandle,
     params: WallhavenFetchParams,
@@ -1581,7 +1719,10 @@ pub async fn wallpaper_open_cache_dir(app_handle: AppHandle) -> Result<(), Strin
 fn ensure_scheduler_runtime(app_handle: &AppHandle) {
     let config = load_config(app_handle);
     let should_run = config.schedule_enabled && config.auto_restore;
-    let running = SCHEDULER_RUNNING.lock().map(|running| *running).unwrap_or(false);
+    let running = SCHEDULER_RUNNING
+        .lock()
+        .map(|running| *running)
+        .unwrap_or(false);
 
     if should_run && !running {
         if let Err(error) = start_scheduler(app_handle.clone()) {

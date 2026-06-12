@@ -3,6 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import modal from '@/utils/modal';
 import {
+  applyCurrentWallpaperFit,
   clearWallpaperCache,
   defaultWallpaperConfig,
   getWallpaperConfig,
@@ -15,6 +16,7 @@ import {
   wallpaperImageSrc,
   type FolderScanResult,
   type WallpaperConfig,
+  type WallpaperFitMode,
   type WallpaperStatus
 } from '../../api';
 import { useWallhaven } from '../../composables/useWallhaven';
@@ -43,6 +45,7 @@ const folderScan = ref<FolderScanResult | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 const switching = ref(false);
+const fitting = ref(false);
 const clearingCache = ref(false);
 const openingCache = ref(false);
 const wallhaven = useWallhaven({
@@ -87,7 +90,12 @@ const {
 } = wallhaven;
 
 const previewSrc = computed(() => wallpaperImageSrc(status.value?.currentPath || config.value.lastAppliedPath));
-const screenLabel = computed(() => '2560 × 1440');
+const screenLabel = computed(() => {
+  const width = status.value?.screenWidth || 2560;
+  const height = status.value?.screenHeight || 1440;
+  return `${width} × ${height}`;
+});
+const resolutionLabel = computed(() => status.value?.currentResolution || screenLabel.value);
 
 const sourceLabel = computed(() => {
   if (config.value.mode === 'fixed') return '固定图片';
@@ -105,11 +113,11 @@ const nextSwitchLabel = computed(() => {
 
 const cacheSizeLabel = computed(() => {
   const bytes = status.value?.cacheSizeBytes ?? 0;
-  return bytes > 0 ? formatBytes(bytes) : '320 MB';
+  return formatBytes(bytes);
 });
 
 const folderCountLabel = computed(() => {
-  if (!folderScan.value) return '检测到 128 张可用图片';
+  if (!folderScan.value) return config.value.folderPath ? '尚未扫描文件夹' : '请选择本地壁纸文件夹';
   return `检测到 ${folderScan.value.count} 张可用图片`;
 });
 const loadAll = async () => {
@@ -210,6 +218,21 @@ const switchNow = async () => {
     modal.msg(String(error), 'error');
   } finally {
     switching.value = false;
+  }
+};
+
+const setFitMode = async (fitMode: WallpaperFitMode) => {
+  config.value.fitMode = fitMode;
+  fitting.value = true;
+  try {
+    await saveWallpaperConfig(config.value);
+    await applyCurrentWallpaperFit();
+    await refreshStatus();
+    modal.msg('适配模式已应用', 'success');
+  } catch (error) {
+    modal.msg(String(error), 'error');
+  } finally {
+    fitting.value = false;
   }
 };
 
@@ -338,7 +361,7 @@ onUnmounted(() => {
           </div>
           <div class="status-row">
             <span>分辨率：</span>
-            <strong>{{ screenLabel }}</strong>
+            <strong>{{ resolutionLabel }}</strong>
           </div>
           <div class="status-row">
             <span>下次切换：</span>
@@ -454,13 +477,13 @@ onUnmounted(() => {
         <div class="rules-line">
           <span class="row-label compact">适配模式</span>
           <div class="segmented fit">
-            <button type="button" :class="{ active: config.fitMode === 'fillCrop' }" @click="config.fitMode = 'fillCrop'">
+            <button type="button" :class="{ active: config.fitMode === 'fillCrop' }" :disabled="fitting" @click="setFitMode('fillCrop')">
               填充裁切
             </button>
-            <button type="button" :class="{ active: config.fitMode === 'fit' }" @click="config.fitMode = 'fit'">
+            <button type="button" :class="{ active: config.fitMode === 'fit' }" :disabled="fitting" @click="setFitMode('fit')">
               适应
             </button>
-            <button type="button" :class="{ active: config.fitMode === 'center' }" @click="config.fitMode = 'center'">
+            <button type="button" :class="{ active: config.fitMode === 'center' }" :disabled="fitting" @click="setFitMode('center')">
               居中
             </button>
           </div>
@@ -778,7 +801,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-rows: auto auto auto auto;
   gap: 10px;
-  // height: calc(100vh - 120px);
+  height: calc(100vh - 40px);
   min-height: 0;
   padding: 12px 16px 12px;
   align-content: start;
@@ -799,20 +822,33 @@ onUnmounted(() => {
 }
 
 .top-panel {
-  display: grid;
-  grid-template-columns: minmax(0, .62fr) minmax(0, 1fr);
-  gap: 12px;
-  min-height: 0;
-  align-items: start;
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  min-height: 164px;
+  overflow: hidden;
+  background: #111827;
+  border: 1px solid var(--wallpaper-border);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
+
+  &::after {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    content: '';
+    background:
+      linear-gradient(90deg, rgb(10 16 28 / 10%) 0%, rgb(10 16 28 / 38%) 48%, rgb(10 16 28 / 82%) 100%),
+      linear-gradient(180deg, rgb(10 16 28 / 4%) 0%, rgb(10 16 28 / 26%) 100%);
+    pointer-events: none;
+  }
 }
 
 .preview {
-  aspect-ratio: 20 / 9;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
-  background: var(--wallpaper-soft);
-  border: 1px solid var(--wallpaper-border);
-  border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%);
+  background: #111827;
 
   img {
     width: 100%;
@@ -829,10 +865,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: var(--wallpaper-muted);
+  color: rgb(255 255 255 / 74%);
 }
 
-.status-panel,
 .card,
 .footer-card {
   background: var(--wallpaper-panel);
@@ -841,8 +876,20 @@ onUnmounted(() => {
 }
 
 .status-panel {
-  min-height: 0;
-  padding: 8px 12px;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: min(44%, 420px);
+  min-width: 350px;
+  min-height: 100%;
+  padding: 18px 20px;
+  color: #fff;
+  background: linear-gradient(90deg, rgb(15 23 42 / 30%), rgb(15 23 42 / 54%));
+  border-left: 1px solid rgb(255 255 255 / 16%);
+  box-shadow: -22px 0 44px rgb(15 23 42 / 24%);
+  backdrop-filter: blur(8px);
 
   h2 {
     margin: 0 0 5px;
@@ -858,22 +905,39 @@ onUnmounted(() => {
   margin-bottom: 3px;
 
   span {
-    color: var(--wallpaper-muted);
+    color: rgb(255 255 255 / 68%);
   }
 
   strong {
-    font-weight: 600;
+    color: #fff;
+    font-weight: 700;
   }
 }
 
 .status-actions {
   gap: 10px;
-  margin-top: 5px;
+  margin-top: 9px;
 
   .primary-btn,
   .secondary-btn {
-    height: 28px;
-    line-height: 28px;
+    height: 32px;
+    line-height: 32px;
+  }
+
+  .primary-btn {
+    background: rgb(95 116 243 / 94%);
+    border-color: rgb(255 255 255 / 16%);
+    box-shadow: 0 8px 18px rgb(0 0 0 / 20%);
+  }
+
+  .secondary-btn {
+    color: #fff;
+    background: rgb(255 255 255 / 12%);
+    border-color: rgb(255 255 255 / 16%);
+
+    &:hover {
+      background: rgb(255 255 255 / 18%);
+    }
   }
 }
 
@@ -1215,7 +1279,7 @@ button:disabled {
 .wallhaven-view {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  // height: calc(100vh - 120px);
+  height: calc(100vh - 40px);
   min-height: 0;
   overflow: hidden;
   background: var(--wallpaper-bg);

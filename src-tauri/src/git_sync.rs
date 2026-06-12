@@ -607,30 +607,29 @@ pub fn configure_remote(
 
     // 获取当前分支名。新初始化但尚未提交的仓库没有 HEAD，此时直接对齐唯一主分支 main。
     let mut branch = get_current_branch(workspace_root)?;
-    if !git_has_head(workspace_root)
-        && branch != MAIN_BRANCH {
-            let target_ref = format!("refs/heads/{}", MAIN_BRANCH);
-            let switch_output = crate::git_common::git_command()
-                .args(["symbolic-ref", "HEAD", &target_ref])
-                .current_dir(workspace_root)
-                .output();
+    if !git_has_head(workspace_root) && branch != MAIN_BRANCH {
+        let target_ref = format!("refs/heads/{}", MAIN_BRANCH);
+        let switch_output = crate::git_common::git_command()
+            .args(["symbolic-ref", "HEAD", &target_ref])
+            .current_dir(workspace_root)
+            .output();
 
-            match switch_output {
-                Ok(output) if output.status.success() => {
-                    info!(
-                        "ℹ️ [Git] 本地仓库尚无提交，已将当前分支从 {} 对齐到 {}",
-                        branch, MAIN_BRANCH
-                    );
-                    branch = MAIN_BRANCH.to_string();
-                }
-                Ok(output) => {
-                    warn!("⚠️ [Git] 对齐 main 分支失败: {}", get_git_stderr(&output));
-                }
-                Err(e) => {
-                    warn!("⚠️ [Git] 对齐 main 分支执行失败: {}", e);
-                }
+        match switch_output {
+            Ok(output) if output.status.success() => {
+                info!(
+                    "ℹ️ [Git] 本地仓库尚无提交，已将当前分支从 {} 对齐到 {}",
+                    branch, MAIN_BRANCH
+                );
+                branch = MAIN_BRANCH.to_string();
+            }
+            Ok(output) => {
+                warn!("⚠️ [Git] 对齐 main 分支失败: {}", get_git_stderr(&output));
+            }
+            Err(e) => {
+                warn!("⚠️ [Git] 对齐 main 分支执行失败: {}", e);
             }
         }
+    }
 
     if !branch.is_empty() {
         // 设置上游分支
@@ -2000,7 +1999,13 @@ pub fn get_git_records(workspace_root: &Path, limit: usize) -> Result<Vec<GitRec
         let commit_hash = fields[0].to_string();
         let files_output = git_output_string(
             workspace_root,
-            &["show", "--name-status", "--format=", "--no-renames", &commit_hash],
+            &[
+                "show",
+                "--name-status",
+                "--format=",
+                "--no-renames",
+                &commit_hash,
+            ],
         )
         .unwrap_or_default();
         let files = files_output
@@ -2012,11 +2017,9 @@ pub fn get_git_records(workspace_root: &Path, limit: usize) -> Result<Vec<GitRec
         let synced = remote_head
             .as_ref()
             .map(|head| {
-                let merge_base = git_output_string(
-                    workspace_root,
-                    &["merge-base", &commit_hash, head],
-                )
-                .unwrap_or_default();
+                let merge_base =
+                    git_output_string(workspace_root, &["merge-base", &commit_hash, head])
+                        .unwrap_or_default();
                 merge_base == commit_hash
             })
             .unwrap_or(false);

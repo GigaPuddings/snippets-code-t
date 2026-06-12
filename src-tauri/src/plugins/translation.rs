@@ -153,7 +153,10 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
             let text_clone = txt.clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                info!("[延迟发送] 翻译窗口延迟发送选中文本，长度: {}", text_clone.len());
+                info!(
+                    "[延迟发送] 翻译窗口延迟发送选中文本，长度: {}",
+                    text_clone.len()
+                );
                 let emit_result =
                     window_clone.emit("selection-text", serde_json::json!({ "text": text_clone }));
                 info!("发送 selection-text 事件结果: {:?}", emit_result);
@@ -164,8 +167,8 @@ fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
                 info!("翻译窗口超时保护：尝试发送选中的文本");
-                let _ =
-                    window_clone2.emit("selection-text", serde_json::json!({ "text": text_clone2 }));
+                let _ = window_clone2
+                    .emit("selection-text", serde_json::json!({ "text": text_clone2 }));
             });
         }) as WindowReadyCallback
     });

@@ -1009,7 +1009,9 @@ pub fn screen_recorder_set_overlay_window_region(
         let width = region.width.max(1);
         let height = region.height.max(1);
         let top_height = region.top_height.clamp(0, height);
-        let bottom_height = region.bottom_height.clamp(0, height.saturating_sub(top_height));
+        let bottom_height = region
+            .bottom_height
+            .clamp(0, height.saturating_sub(top_height));
 
         if top_height <= 0 && bottom_height <= 0 {
             unsafe {
@@ -1325,8 +1327,8 @@ fn gif_colors(quality: &str) -> &'static str {
 }
 
 fn count_png_frames(dir: &Path) -> Result<usize, String> {
-    let entries = fs::read_dir(dir)
-        .map_err(|e| format!("读取 GIF 帧目录失败 {}: {}", dir.display(), e))?;
+    let entries =
+        fs::read_dir(dir).map_err(|e| format!("读取 GIF 帧目录失败 {}: {}", dir.display(), e))?;
     Ok(entries
         .filter_map(Result::ok)
         .filter(|entry| {
@@ -2356,7 +2358,15 @@ pub fn screen_recorder_export_recording(
                         "-i",
                     ])
                     .arg(&frame_pattern)
-                    .args(["-an", "-vf", &palette_filter, "-frames:v", "1", "-update", "1"])
+                    .args([
+                        "-an",
+                        "-vf",
+                        &palette_filter,
+                        "-frames:v",
+                        "1",
+                        "-update",
+                        "1",
+                    ])
                     .arg(&palette_path);
                 run_ffmpeg(palette_command, "生成 GIF 调色板", Some(&session.temp_dir))?;
                 emit_export_progress(
@@ -2410,26 +2420,21 @@ pub fn screen_recorder_export_recording(
                     .arg(&output_path);
                 let mut encode_progress = 0.8_f32;
                 let mut last_encode_progress = Instant::now() - Duration::from_millis(500);
-                run_ffmpeg_with_tick(
-                    gif_command,
-                    "导出 GIF",
-                    Some(&session.temp_dir),
-                    || {
-                        if last_encode_progress.elapsed() < Duration::from_millis(500) {
-                            return;
-                        }
-                        last_encode_progress = Instant::now();
-                        encode_progress = (encode_progress + 0.015).min(0.96);
-                        emit_export_progress(
-                            &app_handle,
-                            "encode",
-                            format!("正在合成 GIF，共 {} 帧", frame_count),
-                            encode_progress,
-                            frame_count_u32,
-                            Some(frame_count_u32),
-                        );
-                    },
-                )?;
+                run_ffmpeg_with_tick(gif_command, "导出 GIF", Some(&session.temp_dir), || {
+                    if last_encode_progress.elapsed() < Duration::from_millis(500) {
+                        return;
+                    }
+                    last_encode_progress = Instant::now();
+                    encode_progress = (encode_progress + 0.015).min(0.96);
+                    emit_export_progress(
+                        &app_handle,
+                        "encode",
+                        format!("正在合成 GIF，共 {} 帧", frame_count),
+                        encode_progress,
+                        frame_count_u32,
+                        Some(frame_count_u32),
+                    );
+                })?;
                 emit_export_progress(
                     &app_handle,
                     "done",

@@ -1,10 +1,10 @@
 // 数据库模块 - 统一管理所有数据库相关操作
-mod connection;
-mod entity;
 mod alarm;
 mod apps;
 mod bookmarks;
+mod connection;
 mod desktop_files;
+mod entity;
 mod icon_cache;
 mod init;
 mod search_engines;
