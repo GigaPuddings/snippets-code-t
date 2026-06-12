@@ -90,6 +90,11 @@ const {
 } = wallhaven;
 
 const previewSrc = computed(() => wallpaperImageSrc(status.value?.currentPath || config.value.lastAppliedPath));
+const currentWallpaperName = computed(() => {
+  const path = status.value?.currentPath || config.value.lastAppliedPath;
+  if (!path) return '暂无当前壁纸';
+  return path.split(/[\\/]/).pop() || path;
+});
 const screenLabel = computed(() => {
   const width = status.value?.screenWidth || 2560;
   const height = status.value?.screenHeight || 1440;
@@ -355,17 +360,28 @@ onUnmounted(() => {
           </div>
         </div>
         <div class="status-panel">
-          <div class="status-row">
-            <span>来源：</span>
-            <strong>{{ sourceLabel }}</strong>
-          </div>
-          <div class="status-row">
-            <span>分辨率：</span>
-            <strong>{{ resolutionLabel }}</strong>
-          </div>
-          <div class="status-row">
-            <span>下次切换：</span>
-            <strong>{{ nextSwitchLabel }}</strong>
+          <div class="status-copy">
+            <div class="wallpaper-name">
+              <span>当前壁纸：</span>
+              <strong>{{ currentWallpaperName }}</strong>
+            </div>
+            <div class="status-list">
+              <div class="status-row">
+                <FolderOpen :size="16" />
+                <span>来源：</span>
+                <strong>{{ sourceLabel }}</strong>
+              </div>
+              <div class="status-row">
+                <Computer :size="16" />
+                <span>分辨率：</span>
+                <strong>{{ resolutionLabel }}</strong>
+              </div>
+              <div class="status-row">
+                <Refresh :size="16" />
+                <span>下次切换：</span>
+                <strong>{{ nextSwitchLabel }}</strong>
+              </div>
+            </div>
           </div>
           <div class="status-actions">
             <button type="button" class="primary-btn" :disabled="switching" @click="switchNow">
@@ -824,14 +840,12 @@ onUnmounted(() => {
 .top-panel {
   position: relative;
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 164px;
-  padding: 16px 18px;
+  min-height: 184px;
+  padding: 24px 28px 22px;
   overflow: hidden;
   background: #111827;
   border: 1px solid var(--wallpaper-border);
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
 
   &::after {
@@ -840,9 +854,8 @@ onUnmounted(() => {
     z-index: 1;
     content: '';
     background:
-      radial-gradient(circle at 78% 45%, rgb(11 18 32 / 58%) 0%, transparent 34%),
-      linear-gradient(90deg, rgb(10 16 28 / 4%) 0%, rgb(10 16 28 / 18%) 48%, rgb(10 16 28 / 56%) 100%),
-      linear-gradient(180deg, rgb(10 16 28 / 4%) 0%, rgb(10 16 28 / 26%) 100%);
+      linear-gradient(90deg, rgb(4 10 20 / 72%) 0%, rgb(4 10 20 / 48%) 35%, rgb(4 10 20 / 18%) 66%, rgb(4 10 20 / 44%) 100%),
+      linear-gradient(180deg, rgb(4 10 20 / 22%) 0%, rgb(4 10 20 / 42%) 100%);
     pointer-events: none;
   }
 }
@@ -884,19 +897,13 @@ onUnmounted(() => {
   position: relative;
   z-index: 2;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  width: min(40%, 368px);
-  min-width: 330px;
-  padding: 18px 20px 17px;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
   color: #fff;
-  background:
-    linear-gradient(135deg, rgb(15 23 42 / 36%), rgb(15 23 42 / 52%)),
-    rgb(15 23 42 / 22%);
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 10px;
-  box-shadow: 0 14px 34px rgb(0 0 0 / 22%);
-  backdrop-filter: blur(10px) saturate(1.12);
+  background: transparent;
+  border: 0;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 58%);
 
   h2 {
     margin: 0 0 5px;
@@ -905,14 +912,56 @@ onUnmounted(() => {
   }
 }
 
-.status-row {
+.status-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.wallpaper-name {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  max-width: 620px;
+  margin-bottom: 24px;
+  color: rgb(255 255 255 / 82%);
+  font-size: 15px;
+  font-weight: 700;
+
+  strong {
+    min-width: 0;
+    overflow: hidden;
+    color: #fff;
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+    font-size: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.status-list {
   display: grid;
-  grid-template-columns: 78px minmax(0, 1fr);
-  gap: 8px;
-  margin-bottom: 3px;
+  gap: 15px;
+}
+
+.status-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 20px;
+  color: rgb(255 255 255 / 86%);
+  font-size: 14px;
+  font-weight: 700;
+
+  svg {
+    flex: 0 0 auto;
+    color: rgb(255 255 255 / 82%);
+    filter: drop-shadow(0 2px 8px rgb(0 0 0 / 44%));
+  }
 
   span {
-    color: rgb(255 255 255 / 68%);
+    color: rgb(255 255 255 / 78%);
   }
 
   strong {
@@ -922,25 +971,28 @@ onUnmounted(() => {
 }
 
 .status-actions {
+  align-self: flex-end;
   gap: 10px;
-  margin-top: 9px;
+  margin-left: 24px;
 
   .primary-btn,
   .secondary-btn {
-    height: 32px;
-    line-height: 32px;
+    height: 38px;
+    line-height: 38px;
   }
 
   .primary-btn {
+    min-width: 146px;
     background: rgb(95 116 243 / 94%);
     border-color: rgb(255 255 255 / 16%);
-    box-shadow: 0 8px 18px rgb(0 0 0 / 20%);
+    box-shadow: 0 12px 24px rgb(0 0 0 / 26%);
   }
 
   .secondary-btn {
     color: #fff;
-    background: rgb(255 255 255 / 12%);
-    border-color: rgb(255 255 255 / 16%);
+    background: rgb(15 23 42 / 34%);
+    border-color: rgb(255 255 255 / 14%);
+    backdrop-filter: blur(8px);
 
     &:hover {
       background: rgb(255 255 255 / 18%);
