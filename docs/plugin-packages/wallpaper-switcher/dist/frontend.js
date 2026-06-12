@@ -4450,13 +4450,6 @@ const Cl = D("back", !0, function(e) {
               ]))
             ]),
             a("div", Bl, [
-              l[47] || (l[47] = a(
-                "h2",
-                null,
-                "当前状态",
-                -1
-                /* HOISTED */
-              )),
               a("div", Ul, [
                 l[43] || (l[43] = a(
                   "span",
@@ -4538,7 +4531,7 @@ const Cl = D("back", !0, function(e) {
           ]),
           a("section", Jl, [
             a("div", Ql, [
-              l[48] || (l[48] = a(
+              l[47] || (l[47] = a(
                 "span",
                 { class: "row-label" },
                 "模式",
@@ -4582,7 +4575,7 @@ const Cl = D("back", !0, function(e) {
               ])
             ]),
             a("div", Xl, [
-              l[50] || (l[50] = a(
+              l[49] || (l[49] = a(
                 "span",
                 { class: "row-label" },
                 "固定图片",
@@ -4609,11 +4602,11 @@ const Cl = D("back", !0, function(e) {
                 onClick: qn
               }, [
                 c(s(gt), { size: 16 }),
-                l[49] || (l[49] = E(" 选择图片 "))
+                l[48] || (l[48] = E(" 选择图片 "))
               ])
             ]),
             a("div", ea, [
-              l[53] || (l[53] = a(
+              l[52] || (l[52] = a(
                 "span",
                 { class: "row-label" },
                 "本地文件夹",
@@ -4640,7 +4633,7 @@ const Cl = D("back", !0, function(e) {
                 onClick: Jn
               }, [
                 c(s(un), { size: 16 }),
-                l[51] || (l[51] = E(" 选择 "))
+                l[50] || (l[50] = E(" 选择 "))
               ]),
               a("button", {
                 type: "button",
@@ -4648,7 +4641,7 @@ const Cl = D("back", !0, function(e) {
                 onClick: Mt
               }, [
                 c(s(cn), { size: 16 }),
-                l[52] || (l[52] = E(" 扫描 "))
+                l[51] || (l[51] = E(" 扫描 "))
               ])
             ]),
             a(
@@ -4659,14 +4652,14 @@ const Cl = D("back", !0, function(e) {
               /* TEXT */
             ),
             a("div", na, [
-              l[55] || (l[55] = a(
+              l[54] || (l[54] = a(
                 "span",
                 { class: "row-label" },
                 "Wallhaven",
                 -1
                 /* HOISTED */
               )),
-              l[56] || (l[56] = a(
+              l[55] || (l[55] = a(
                 "span",
                 { class: "sub-label" },
                 "来源",
@@ -4704,11 +4697,11 @@ const Cl = D("back", !0, function(e) {
                 (...f) => s(X) && s(X)(...f))
               }, [
                 c(s(dn), { size: 16 }),
-                l[54] || (l[54] = E(" 打开在线网格 "))
+                l[53] || (l[53] = E(" 打开在线网格 "))
               ])
             ]),
             a("div", sa, [
-              l[57] || (l[57] = a(
+              l[56] || (l[56] = a(
                 "span",
                 null,
                 "屏幕匹配",
@@ -4726,7 +4719,7 @@ const Cl = D("back", !0, function(e) {
           ]),
           a("section", ia, [
             a("div", la, [
-              l[62] || (l[62] = a(
+              l[61] || (l[61] = a(
                 "span",
                 { class: "row-label" },
                 "切换规则",
@@ -4734,7 +4727,7 @@ const Cl = D("back", !0, function(e) {
                 /* HOISTED */
               )),
               a("label", aa, [
-                l[58] || (l[58] = E(" 启用定时切换 ")),
+                l[57] || (l[57] = E(" 启用定时切换 ")),
                 Y(a(
                   "input",
                   {
@@ -4747,7 +4740,7 @@ const Cl = D("back", !0, function(e) {
                 ), [
                   [$t, s(n).scheduleEnabled]
                 ]),
-                l[59] || (l[59] = a(
+                l[58] || (l[58] = a(
                   "span",
                   { class: "switch-control" },
                   null,
@@ -4756,7 +4749,7 @@ const Cl = D("back", !0, function(e) {
                 ))
               ]),
               a("label", ra, [
-                l[60] || (l[60] = E(" 每 ")),
+                l[59] || (l[59] = E(" 每 ")),
                 Y(a(
                   "input",
                   {
@@ -4776,9 +4769,9 @@ const Cl = D("back", !0, function(e) {
                     { number: !0 }
                   ]
                 ]),
-                l[61] || (l[61] = E(" 分钟 "))
+                l[60] || (l[60] = E(" 分钟 "))
               ]),
-              l[63] || (l[63] = a(
+              l[62] || (l[62] = a(
                 "span",
                 { class: "sub-label" },
                 "顺序",
@@ -4811,7 +4804,7 @@ const Cl = D("back", !0, function(e) {
               ])
             ]),
             a("div", ca, [
-              l[65] || (l[65] = a(
+              l[64] || (l[64] = a(
                 "span",
                 { class: "row-label compact" },
                 "适配模式",
@@ -4866,20 +4859,20 @@ const Cl = D("back", !0, function(e) {
                 ), [
                   [$t, s(n).autoRestore]
                 ]),
-                l[64] || (l[64] = E(" 启动后自动恢复定时任务 "))
+                l[63] || (l[63] = E(" 启动后自动恢复定时任务 "))
               ])
             ])
           ]),
           a("footer", fa, [
             a("div", pa, [
-              l[66] || (l[66] = a(
+              l[65] || (l[65] = a(
                 "strong",
                 null,
                 "缓存",
                 -1
                 /* HOISTED */
               )),
-              l[67] || (l[67] = a(
+              l[66] || (l[66] = a(
                 "span",
                 null,
                 "Wallhaven 缓存",
@@ -5076,7 +5069,7 @@ const Cl = D("back", !0, function(e) {
                     onClick: (ge) => s(Ee)(f)
                   }, [
                     c(s(Pl), { size: 16 }),
-                    l[68] || (l[68] = E(" 预览 "))
+                    l[67] || (l[67] = E(" 预览 "))
                   ], 8, $a),
                   a("button", {
                     type: "button",
@@ -5098,7 +5091,7 @@ const Cl = D("back", !0, function(e) {
                     onClick: (ge) => s(xe)(f)
                   }, [
                     c(s(xl), { size: 16 }),
-                    l[69] || (l[69] = E(" 下载 "))
+                    l[68] || (l[68] = E(" 下载 "))
                   ], 8, Fa)
                 ])
               ]))),
@@ -5166,7 +5159,7 @@ const Cl = D("back", !0, function(e) {
             ])
           ]),
           a("div", Ua, [
-            s(U) ? (y(), O("div", Ga, l[70] || (l[70] = [
+            s(U) ? (y(), O("div", Ga, l[69] || (l[69] = [
               a(
                 "span",
                 null,
@@ -5209,7 +5202,7 @@ const Cl = D("back", !0, function(e) {
   for (const [o, i] of t)
     n[o] = i;
   return n;
-}, Xa = /* @__PURE__ */ Ya(Qa, [["__scopeId", "data-v-f4116a24"]]), er = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, Xa = /* @__PURE__ */ Ya(Qa, [["__scopeId", "data-v-1d7a9786"]]), er = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: Xa
 }, Symbol.toStringTag, { value: "Module" }));

@@ -332,7 +332,6 @@ onUnmounted(() => {
           </div>
         </div>
         <div class="status-panel">
-          <h2>当前状态</h2>
           <div class="status-row">
             <span>来源：</span>
             <strong>{{ sourceLabel }}</strong>
@@ -1399,7 +1398,6 @@ button:disabled {
   min-width: 0;
   height: 32px;
   color: var(--wallpaper-text);
-  font-size: 15px;
   font-weight: 500;
   background: transparent;
   border: 0;
