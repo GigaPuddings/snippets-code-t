@@ -62,11 +62,45 @@ static APP_INITIALIZED: Mutex<bool> = Mutex::new(false);
 
 const AUTO_START_BACKGROUND_DELAY_SECS: u64 = 15;
 const POST_UPDATE_STARTUP_DELAY_MILLIS: u64 = 1800;
+const SETUP_RESTART_ARG: &str = "--setup-restart";
+const SETUP_RESTART_DELAY_ARG: &str = "--setup-restart-delay-ms";
+const MAX_SETUP_RESTART_DELAY_MILLIS: u64 = 5_000;
+
+fn is_setup_restart_launch() -> bool {
+    std::env::args().any(|arg| arg == SETUP_RESTART_ARG)
+}
+
+fn apply_setup_restart_delay() {
+    let args: Vec<String> = std::env::args().collect();
+    let delay = args
+        .windows(2)
+        .find_map(|pair| {
+            if pair[0] == SETUP_RESTART_DELAY_ARG {
+                pair[1].parse::<u64>().ok()
+            } else {
+                None
+            }
+        })
+        .map(|millis| millis.min(MAX_SETUP_RESTART_DELAY_MILLIS));
+
+    if let Some(delay) = delay {
+        std::thread::sleep(Duration::from_millis(delay));
+    }
+}
 
 fn is_auto_start_launch(app_handle: &AppHandle) -> bool {
     let has_auto_start_flag = std::env::args().any(|arg| arg == "--flag1" || arg == "--flag2");
+    let has_setup_restart_flag = is_setup_restart_launch();
     let setup_restart_pending: bool =
         json_config::get_app_config_value(app_handle, "setup_restart_pending").unwrap_or(false);
+
+    if has_setup_restart_flag {
+        info!("[Startup] setup restart argument detected; forcing foreground startup");
+        if setup_restart_pending {
+            let _ = json_config::set_app_config_value(app_handle, "setup_restart_pending", false);
+        }
+        return false;
+    }
 
     if !has_auto_start_flag {
         if setup_restart_pending {
@@ -285,6 +319,8 @@ async fn finalize_migration() -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    apply_setup_restart_delay();
+
     // 根据环境选择插件配置：
     // 开发环境(debug)：保留右键菜单、开发者工具和刷新
     // 生产环境(release)：禁用所有默认行为

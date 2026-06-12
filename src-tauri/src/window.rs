@@ -2795,19 +2795,8 @@ fn spawn_delayed_relaunch() -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        let exe_path = windows_shell_path(&exe);
-        Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-WindowStyle",
-                "Hidden",
-                "-Command",
-                "Start-Sleep -Milliseconds 900; Start-Process -FilePath $env:SNIPPETS_CODE_RELAUNCH_EXE -ArgumentList '--setup-restart'",
-            ])
-            .env("SNIPPETS_CODE_RELAUNCH_EXE", exe_path)
+        Command::new(exe)
+            .args(["--setup-restart", "--setup-restart-delay-ms", "1500"])
             .creation_flags(0x08000000)
             .spawn()
             .map_err(|error| error.to_string())?;
@@ -2817,7 +2806,7 @@ fn spawn_delayed_relaunch() -> Result<(), String> {
     {
         Command::new("sh")
             .arg("-c")
-            .arg("sleep 1; exec \"$1\" --setup-restart")
+            .arg("sleep 1.5; exec \"$1\" --setup-restart")
             .arg("snippets-code-relaunch")
             .arg(exe)
             .spawn()
@@ -2825,18 +2814,6 @@ fn spawn_delayed_relaunch() -> Result<(), String> {
     }
 
     Ok(())
-}
-
-#[cfg(target_os = "windows")]
-fn windows_shell_path(path: &std::path::Path) -> String {
-    let value = path.to_string_lossy().to_string();
-    if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
-        return format!(r"\\{}", rest);
-    }
-    if let Some(rest) = value.strip_prefix(r"\\?\") {
-        return rest.to_string();
-    }
-    value
 }
 
 // 关闭设置向导窗口并重启应用
@@ -2852,7 +2829,7 @@ pub fn close_setup_window() {
 
     match spawn_delayed_relaunch() {
         Ok(_) => {
-            app.cleanup_before_exit();
+            info!("设置完成重启进程已启动，退出当前 setup 进程");
             std::process::exit(0);
         }
         Err(error) => {
