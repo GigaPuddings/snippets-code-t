@@ -389,15 +389,30 @@ const handleCancel = () => {
 .update-container {
   @apply w-full h-full bg-panel flex flex-col box-border border rounded-xl border-panel overflow-hidden;
 
+  --update-bg: var(--panel-bg, #fbfcff);
+  --update-header-bg: linear-gradient(180deg, rgb(255 255 255 / 96%), rgb(248 250 252 / 90%));
+  --update-footer-bg: rgb(248 250 252 / 92%);
+  --update-card-bg: rgb(255 255 255 / 72%);
+  --update-soft-bg: rgb(248 250 252 / 72%);
+  --update-border: rgb(148 163 184 / 18%);
+  --update-border-strong: rgb(148 163 184 / 26%);
+  --update-text: var(--panel-text, #111827);
+  --update-text-muted: var(--panel-text-secondary, #6b7280);
+  --update-hover-bg: var(--panel-hover-bg, #f3f7ff);
+  --update-shadow: 0 18px 48px rgb(15 23 42 / 12%);
+
   min-height: 0;
   animation: fadeIn 0.24s ease-out;
-  box-shadow: 0 18px 48px rgb(15 23 42 / 12%);
+  color: var(--update-text);
+  background: var(--update-bg);
+  border-color: var(--update-border-strong);
+  box-shadow: var(--update-shadow);
 
   .update-header {
     @apply w-full flex items-center justify-between px-5 py-2 flex-shrink-0;
     height: 54px;
-    border-bottom: 1px solid rgb(148 163 184 / 16%);
-    background: linear-gradient(180deg, rgb(255 255 255 / 92%), rgb(248 250 252 / 88%));
+    border-bottom: 1px solid var(--update-border);
+    background: var(--update-header-bg);
 
     .header-title {
       @apply flex items-center gap-2;
@@ -405,7 +420,8 @@ const handleCancel = () => {
 
     .logo-mark {
       @apply relative w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0;
-      background: rgb(59 130 246 / 8%);
+      background: rgb(95 116 243 / 12%);
+      border: 1px solid var(--update-border);
 
       .app-logo {
         @apply relative z-10 w-6 h-6 object-contain;
@@ -415,14 +431,18 @@ const handleCancel = () => {
     .title {
       @apply text-base font-semibold text-panel m-0;
 
+      color: var(--update-text);
       letter-spacing: 0;
     }
 
     .close-button {
       @apply w-8 h-8 rounded-md flex items-center justify-center text-panel-text-secondary transition-all duration-200;
 
+      color: var(--update-text-muted);
+
       &:hover {
-        @apply bg-panel-hover-bg text-panel;
+        background: var(--update-hover-bg);
+        color: var(--update-text);
       }
     }
   }
@@ -464,7 +484,8 @@ const handleCancel = () => {
       background: rgb(22 163 74 / 10%);
 
       &.error {
-        @apply text-red-600 bg-red-50;
+        color: #ef4444;
+        background: rgb(239 68 68 / 10%);
       }
 
       svg {
@@ -476,7 +497,7 @@ const handleCancel = () => {
       @apply w-full flex-shrink-0 my-3;
 
       height: 1px;
-      background: rgb(148 163 184 / 18%);
+      background: var(--update-border);
     }
 
     .release-notes {
@@ -490,10 +511,14 @@ const handleCancel = () => {
 
       .notes-title {
         @apply text-sm font-semibold text-panel;
+
+        color: var(--update-text);
       }
 
       .notes-date {
         @apply text-xs text-panel-text-secondary;
+
+        color: var(--update-text-muted);
       }
 
       .notes-scrollbar {
@@ -501,8 +526,8 @@ const handleCancel = () => {
 
         height: 0;
         min-height: 0;
-        border: 1px solid rgb(148 163 184 / 14%);
-        background: rgb(248 250 252 / 64%);
+        border: 1px solid var(--update-border);
+        background: var(--update-card-bg);
 
         :deep(.el-scrollbar__wrap) {
           max-height: 100%;
@@ -513,12 +538,14 @@ const handleCancel = () => {
         }
 
         :deep(.el-scrollbar__thumb) {
-          background: rgb(148 163 184 / 42%);
+          background: rgb(148 163 184 / 46%);
         }
       }
 
       .notes-content {
         @apply px-4 py-3 text-panel-text-secondary text-sm leading-relaxed;
+
+        color: var(--update-text-muted);
 
         :deep(h1),
         :deep(h2),
@@ -559,6 +586,8 @@ const handleCancel = () => {
 
         :deep(strong) {
           @apply font-bold text-panel;
+
+          color: var(--update-text);
         }
 
         :deep(em) {
@@ -567,10 +596,15 @@ const handleCancel = () => {
 
         :deep(code) {
           @apply bg-content px-1.5 py-0.5 rounded text-sm font-mono text-panel;
+
+          color: var(--update-text);
+          background: var(--update-soft-bg);
         }
 
         :deep(pre) {
           @apply bg-content p-3 rounded-lg mb-2 overflow-x-auto;
+
+          background: var(--update-soft-bg);
 
           code {
             @apply bg-transparent p-0;
@@ -599,21 +633,23 @@ const handleCancel = () => {
       @apply flex flex-col gap-3 mt-3 px-4 py-3 rounded-lg flex-shrink-0;
 
       background: rgb(59 130 246 / 8%);
-      border: 1px solid rgb(59 130 246 / 12%);
+      border: 1px solid rgb(59 130 246 / 18%);
       animation: fadeIn 0.24s ease-out;
 
       .progress-status {
         @apply flex items-center justify-start gap-3 w-full;
 
         .status-icon {
-          @apply w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0;
+          @apply w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0;
+
+          background: rgb(59 130 246 / 12%);
 
           &.completed {
-            @apply bg-green-50;
+            background: rgb(34 197 94 / 12%);
           }
 
           &.error {
-            @apply bg-red-50;
+            background: rgb(239 68 68 / 12%);
           }
 
           .download-icon {
@@ -638,6 +674,8 @@ const handleCancel = () => {
 
           .status-text {
             @apply text-panel font-medium text-xs break-words;
+
+            color: var(--update-text);
 
             &.error {
               @apply text-red-600;
@@ -677,10 +715,15 @@ const handleCancel = () => {
       }
 
       .error-message {
-        @apply w-full mt-1 p-3 bg-red-50 border border-red-200 rounded-lg;
+        @apply w-full mt-1 p-3 border rounded-lg;
+
+        background: rgb(239 68 68 / 10%);
+        border-color: rgb(239 68 68 / 28%);
 
         .error-title {
-          @apply flex items-center gap-2 mb-2 pb-2 border-b border-red-200;
+          @apply flex items-center gap-2 mb-2 pb-2 border-b;
+
+          border-color: rgb(239 68 68 / 24%);
 
           svg {
             @apply text-red-500;
@@ -703,8 +746,8 @@ const handleCancel = () => {
   .footer {
     @apply w-full flex items-center justify-end gap-3 px-6 py-3 flex-shrink-0;
 
-    background: rgb(241 245 249 / 82%);
-    border-top: 1px solid rgb(148 163 184 / 18%);
+    background: var(--update-footer-bg);
+    border-top: 1px solid var(--update-border);
 
     .action-button {
       @apply min-w-[112px] h-9 transition-all duration-200 rounded-lg;
@@ -716,8 +759,12 @@ const handleCancel = () => {
       &.cancel-button {
         @apply bg-panel border border-panel text-panel shadow-sm;
 
+        color: var(--update-text);
+        background: var(--update-card-bg);
+        border-color: var(--update-border-strong);
+
         &:hover {
-          @apply bg-panel-hover-bg;
+          background: var(--update-hover-bg);
 
           box-shadow: 0 10px 22px rgb(15 23 42 / 8%);
         }
@@ -730,6 +777,21 @@ const handleCancel = () => {
       }
     }
   }
+}
+
+:global(html.dark .update-container),
+:global(.dark .update-container) {
+  --update-bg: var(--panel-bg, #1e1e1e);
+  --update-header-bg: linear-gradient(180deg, rgb(42 42 42 / 96%), rgb(32 32 32 / 92%));
+  --update-footer-bg: rgb(32 32 32 / 94%);
+  --update-card-bg: rgb(36 36 36 / 96%);
+  --update-soft-bg: rgb(42 42 42 / 92%);
+  --update-border: rgb(255 255 255 / 8%);
+  --update-border-strong: rgb(255 255 255 / 12%);
+  --update-text: var(--panel-text, #e5e7eb);
+  --update-text-muted: var(--panel-text-secondary, #9ca3af);
+  --update-hover-bg: var(--panel-hover-bg, #2a2a2a);
+  --update-shadow: 0 18px 48px rgb(0 0 0 / 34%);
 }
 
 @keyframes fadeIn {

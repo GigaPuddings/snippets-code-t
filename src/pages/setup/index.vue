@@ -548,9 +548,42 @@ const completeSetup = async () => {
 <style scoped lang="scss">
 .setup-container {
   @apply w-full h-full rounded-xl overflow-hidden bg-panel;
-  color: var(--panel-text-color, #0f172a);
-  border: 1px solid rgb(148 163 184 / 18%);
-  box-shadow: 0 18px 48px rgb(15 23 42 / 12%);
+
+  --setup-bg: var(--panel-bg, #fbfcff);
+  --setup-content-bg: linear-gradient(180deg, rgb(255 255 255 / 100%), rgb(248 250 252 / 92%));
+  --setup-header-bg: linear-gradient(180deg, rgb(255 255 255 / 94%), rgb(248 250 252 / 82%));
+  --setup-footer-bg: rgb(248 250 252 / 92%);
+  --setup-card-bg: rgb(255 255 255 / 86%);
+  --setup-soft-bg: rgb(241 245 249 / 90%);
+  --setup-option-hover: rgb(59 130 246 / 6%);
+  --setup-option-selected: rgb(59 130 246 / 8%);
+  --setup-border: rgb(148 163 184 / 18%);
+  --setup-border-strong: rgb(148 163 184 / 28%);
+  --setup-text: var(--panel-text, #0f172a);
+  --setup-muted: var(--panel-text-secondary, #64748b);
+  --setup-shadow: 0 18px 48px rgb(15 23 42 / 12%);
+
+  color: var(--setup-text);
+  background: var(--setup-bg);
+  border: 1px solid var(--setup-border-strong);
+  box-shadow: var(--setup-shadow);
+}
+
+:global(html.dark .setup-container),
+:global(.dark .setup-container) {
+  --setup-bg: var(--panel-bg, #1e1e1e);
+  --setup-content-bg: linear-gradient(180deg, rgb(30 30 30 / 100%), rgb(24 24 24 / 96%));
+  --setup-header-bg: linear-gradient(180deg, rgb(42 42 42 / 96%), rgb(32 32 32 / 92%));
+  --setup-footer-bg: rgb(32 32 32 / 94%);
+  --setup-card-bg: rgb(36 36 36 / 96%);
+  --setup-soft-bg: rgb(42 42 42 / 92%);
+  --setup-option-hover: rgb(95 116 243 / 12%);
+  --setup-option-selected: rgb(95 116 243 / 16%);
+  --setup-border: rgb(255 255 255 / 8%);
+  --setup-border-strong: rgb(255 255 255 / 12%);
+  --setup-text: var(--panel-text, #e5e7eb);
+  --setup-muted: var(--panel-text-secondary, #9ca3af);
+  --setup-shadow: 0 18px 48px rgb(0 0 0 / 34%);
 }
 
 .setup-card {
@@ -559,7 +592,7 @@ const completeSetup = async () => {
 
 .welcome-drag-region {
   @apply h-8 w-full shrink-0;
-  background: linear-gradient(180deg, rgb(255 255 255 / 92%), rgb(248 250 252 / 70%));
+  background: var(--setup-header-bg);
   -webkit-app-region: drag;
 }
 
@@ -567,8 +600,8 @@ const completeSetup = async () => {
   @apply flex items-center justify-center gap-4 py-4 px-6;
   @apply cursor-move select-none;
   -webkit-app-region: drag;
-  background: linear-gradient(180deg, rgb(255 255 255 / 94%), rgb(248 250 252 / 82%));
-  border-bottom: 1px solid rgb(148 163 184 / 14%);
+  background: var(--setup-header-bg);
+  border-bottom: 1px solid var(--setup-border);
 
   /* Minimalist step indicator */
   .step {
@@ -578,7 +611,7 @@ const completeSetup = async () => {
 
     &.active {
       opacity: 1;
-      color: #0f172a;
+      color: var(--setup-text);
 
       .step-dot {
         background-color: var(--el-color-primary);
@@ -602,7 +635,7 @@ const completeSetup = async () => {
 
 .step-dot {
   @apply w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium;
-  border: 1px solid rgb(59 130 246 / 28%);
+  border: 1px solid rgb(95 116 243 / 34%);
   background-color: transparent;
   transition: all 0.3s ease;
 }
@@ -614,7 +647,7 @@ const completeSetup = async () => {
 .setup-content {
   @apply flex-1 min-h-0 px-8 pt-3 pb-2 flex flex-col items-center justify-start;
   overflow: hidden;
-  background: linear-gradient(180deg, rgb(255 255 255 / 100%), rgb(248 250 252 / 92%));
+  background: var(--setup-content-bg);
 }
 
 .step-page {
@@ -652,8 +685,8 @@ const completeSetup = async () => {
 
 .welcome-icon {
   @apply mb-2 rounded-2xl p-3;
-  background: rgb(59 130 246 / 8%);
-  border: 1px solid rgb(59 130 246 / 12%);
+  background: rgb(95 116 243 / 12%);
+  border: 1px solid rgb(95 116 243 / 18%);
 }
 
 .app-logo {
@@ -663,13 +696,13 @@ const completeSetup = async () => {
 
 .welcome-title {
   @apply text-xl font-semibold mb-0.5;
-  color: #0f172a;
+  color: var(--setup-text);
   letter-spacing: 0;
 }
 
 .app-version {
   @apply text-xs font-mono mb-1;
-  color: #64748b;
+  color: var(--setup-muted);
 }
 
 .welcome-actions {
@@ -678,8 +711,8 @@ const completeSetup = async () => {
 
 .welcome-actions.options-card {
   @apply w-full px-3 gap-0 rounded-lg overflow-hidden;
-  background: #fff;
-  border: 1px solid rgb(148 163 184 / 18%);
+  background: var(--setup-card-bg);
+  border: 1px solid var(--setup-border);
   box-shadow: 0 10px 28px rgb(15 23 42 / 8%);
 }
 
@@ -687,14 +720,14 @@ const completeSetup = async () => {
   @apply flex items-center w-full gap-4 cursor-pointer transition-all;
   min-height: 3.5rem;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--setup-border);
 
   &:last-of-type {
     border-bottom: none;
   }
 
   &:hover {
-    background: rgb(59 130 246 / 6%);
+    background: var(--setup-option-hover);
   }
 }
 
@@ -704,13 +737,13 @@ const completeSetup = async () => {
 
 .option-row .option-title {
   @apply font-medium text-sm leading-tight;
-  color: #0f172a;
+  color: var(--setup-text);
   margin-bottom: 0.125rem;
 }
 
 .option-row .option-desc {
   @apply text-xs leading-snug;
-  color: #64748b;
+  color: var(--setup-muted);
 }
 
 .option-btn {
@@ -774,7 +807,7 @@ const completeSetup = async () => {
 
 .welcome-desc-text {
   @apply text-xs text-center px-4 leading-relaxed mt-3 flex-shrink-0 max-w-md;
-  color: #64748b;
+  color: var(--setup-muted);
 }
 
 .language-footer {
@@ -785,8 +818,8 @@ const completeSetup = async () => {
   width: 140px;
 
   :deep(.el-input__wrapper) {
-    background: #fff !important;
-    box-shadow: 0 0 0 1px rgb(148 163 184 / 26%) !important;
+    background: var(--setup-card-bg) !important;
+    box-shadow: 0 0 0 1px var(--setup-border-strong) !important;
     border-radius: 8px;
     padding: 0 8px;
 
@@ -799,7 +832,7 @@ const completeSetup = async () => {
     }
 
     .el-input__inner {
-      color: #475569;
+      color: var(--setup-text);
       font-size: 12px;
       text-align: center;
     }
@@ -809,12 +842,12 @@ const completeSetup = async () => {
 
 .step-title {
   @apply text-lg font-semibold mb-2;
-  color: #0f172a;
+  color: var(--setup-text);
 }
 
 .step-desc {
   @apply mb-8 text-sm;
-  color: #64748b;
+  color: var(--setup-muted);
 
   &.compact {
     @apply mb-5;
@@ -835,29 +868,29 @@ const completeSetup = async () => {
 
 .section-title {
   @apply text-sm font-medium;
-  color: #0f172a;
+  color: var(--setup-text);
 }
 
 .section-desc {
   @apply text-xs leading-relaxed mt-1;
-  color: #64748b;
+  color: var(--setup-muted);
 }
 
 .path-option {
   @apply flex items-center justify-between gap-4 p-3 rounded-lg cursor-pointer transition-all;
-  background: #fff;
-  border: 1px solid rgb(148 163 184 / 18%);
+  background: var(--setup-card-bg);
+  border: 1px solid var(--setup-border);
   min-height: 4.75rem;
   box-shadow: 0 8px 22px rgb(15 23 42 / 5%);
 
   &:hover {
-    border-color: rgb(59 130 246 / 32%);
-    background: rgb(59 130 246 / 4%);
+    border-color: rgb(95 116 243 / 36%);
+    background: var(--setup-option-hover);
   }
 
   &.selected {
-    border-color: rgb(59 130 246 / 48%);
-    background: rgb(59 130 246 / 7%);
+    border-color: rgb(95 116 243 / 52%);
+    background: var(--setup-option-selected);
 
     .radio-dot {
       background-color: var(--el-color-primary);
@@ -890,12 +923,12 @@ const completeSetup = async () => {
 
 .option-title {
   @apply font-medium text-sm mb-0.5;
-  color: #0f172a;
+  color: var(--setup-text);
 }
 
 .option-desc {
   @apply text-xs;
-  color: #64748b;
+  color: var(--setup-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -907,10 +940,10 @@ const completeSetup = async () => {
   .path-input {
     @apply flex-1;
 
-  :deep(.el-input__wrapper) {
-    background: #fff;
-    box-shadow: 0 0 0 1px rgb(148 163 184 / 28%) inset;
-    border-radius: 8px;
+    :deep(.el-input__wrapper) {
+      background: var(--setup-card-bg);
+      box-shadow: 0 0 0 1px var(--setup-border-strong) inset;
+      border-radius: 8px;
 
       &:hover {
         box-shadow: 0 0 0 1px rgb(59 130 246 / 36%) inset;
@@ -931,7 +964,7 @@ const completeSetup = async () => {
   @apply flex items-start gap-2 mt-4 text-xs p-3 rounded-lg;
   background: rgb(14 165 233 / 7%);
   border: 1px solid rgb(14 165 233 / 14%);
-  color: #475569;
+  color: var(--setup-muted);
   text-align: left;
 }
 
@@ -942,8 +975,8 @@ const completeSetup = async () => {
 
 .summary {
   @apply w-full mt-3 p-3 rounded-lg text-left flex flex-col gap-2;
-  background: #fff;
-  border: 1px solid rgb(148 163 184 / 18%);
+  background: var(--setup-card-bg);
+  border: 1px solid var(--setup-border);
   box-shadow: 0 10px 28px rgb(15 23 42 / 7%);
 }
 
@@ -953,13 +986,13 @@ const completeSetup = async () => {
 
 .summary-label {
   @apply text-xs uppercase tracking-wider;
-  color: #64748b;
+  color: var(--setup-muted);
 }
 
 .summary-value {
   @apply text-xs font-mono p-2 rounded;
-  color: #0f172a;
-  background: rgb(241 245 249 / 90%);
+  color: var(--setup-text);
+  background: var(--setup-soft-bg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -967,7 +1000,7 @@ const completeSetup = async () => {
 
 .setup-footer {
   @apply flex items-center gap-3 px-8 py-4;
-  border-top: 1px solid rgb(148 163 184 / 14%);
-  background: rgb(248 250 252 / 92%);
+  border-top: 1px solid var(--setup-border);
+  background: var(--setup-footer-bg);
 }
 </style>
