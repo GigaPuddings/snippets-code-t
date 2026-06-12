@@ -34,7 +34,8 @@ import {
   Refresh,
   Save,
   Search,
-  Delete
+  Delete,
+  Time
 } from '@icon-park/vue-next';
 
 const appWindow = getCurrentWindow();
@@ -377,7 +378,7 @@ onUnmounted(() => {
                 <strong>{{ resolutionLabel }}</strong>
               </div>
               <div class="status-row">
-                <Refresh :size="16" />
+                <Time :size="16" />
                 <span>下次切换：</span>
                 <strong>{{ nextSwitchLabel }}</strong>
               </div>
@@ -840,8 +841,8 @@ onUnmounted(() => {
 .top-panel {
   position: relative;
   display: flex;
-  min-height: 184px;
-  padding: 24px 28px 22px;
+  min-height: 176px;
+  padding: 22px 28px 20px;
   overflow: hidden;
   background: #111827;
   border: 1px solid var(--wallpaper-border);
@@ -854,8 +855,8 @@ onUnmounted(() => {
     z-index: 1;
     content: '';
     background:
-      linear-gradient(90deg, rgb(4 10 20 / 72%) 0%, rgb(4 10 20 / 48%) 35%, rgb(4 10 20 / 18%) 66%, rgb(4 10 20 / 44%) 100%),
-      linear-gradient(180deg, rgb(4 10 20 / 22%) 0%, rgb(4 10 20 / 42%) 100%);
+      linear-gradient(90deg, rgb(4 10 20 / 58%) 0%, rgb(4 10 20 / 38%) 34%, rgb(4 10 20 / 12%) 66%, rgb(4 10 20 / 28%) 100%),
+      linear-gradient(180deg, rgb(4 10 20 / 10%) 0%, rgb(4 10 20 / 30%) 100%);
     pointer-events: none;
   }
 }
@@ -873,6 +874,7 @@ onUnmounted(() => {
     object-fit: cover;
     display: block;
     border-radius: inherit;
+    filter: saturate(1.04) contrast(0.98);
   }
 }
 
@@ -903,7 +905,7 @@ onUnmounted(() => {
   color: #fff;
   background: transparent;
   border: 0;
-  text-shadow: 0 2px 10px rgb(0 0 0 / 58%);
+  text-shadow: 0 2px 8px rgb(0 0 0 / 48%);
 
   h2 {
     margin: 0 0 5px;
@@ -924,17 +926,18 @@ onUnmounted(() => {
   gap: 10px;
   align-items: baseline;
   max-width: 620px;
-  margin-bottom: 24px;
-  color: rgb(255 255 255 / 82%);
-  font-size: 15px;
-  font-weight: 700;
+  margin-bottom: 22px;
+  color: rgb(255 255 255 / 74%);
+  font-size: 14px;
+  font-weight: 600;
 
   strong {
     min-width: 0;
     overflow: hidden;
     color: #fff;
     font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
-    font-size: 16px;
+    font-size: 15px;
+    font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -942,60 +945,59 @@ onUnmounted(() => {
 
 .status-list {
   display: grid;
-  gap: 15px;
+  gap: 12px;
 }
 
 .status-row {
   display: flex;
-  gap: 10px;
+  gap: 9px;
   align-items: center;
   min-height: 20px;
-  color: rgb(255 255 255 / 86%);
-  font-size: 14px;
-  font-weight: 700;
+  color: rgb(255 255 255 / 76%);
+  font-size: 13px;
+  font-weight: 500;
 
   svg {
     flex: 0 0 auto;
-    color: rgb(255 255 255 / 82%);
-    filter: drop-shadow(0 2px 8px rgb(0 0 0 / 44%));
+    color: rgb(255 255 255 / 72%);
+    filter: drop-shadow(0 2px 7px rgb(0 0 0 / 38%));
   }
 
   span {
-    color: rgb(255 255 255 / 78%);
+    color: rgb(255 255 255 / 68%);
   }
 
   strong {
     color: #fff;
-    font-weight: 700;
+    font-weight: 650;
   }
 }
 
 .status-actions {
   align-self: flex-end;
-  gap: 10px;
+  gap: 8px;
   margin-left: 24px;
 
-  .primary-btn,
-  .secondary-btn {
+  .primary-btn {
     height: 38px;
     line-height: 38px;
-  }
-
-  .primary-btn {
     min-width: 146px;
     background: rgb(95 116 243 / 94%);
     border-color: rgb(255 255 255 / 16%);
-    box-shadow: 0 12px 24px rgb(0 0 0 / 26%);
+    box-shadow: 0 14px 26px rgb(0 0 0 / 24%);
   }
 
   .secondary-btn {
-    color: #fff;
-    background: rgb(15 23 42 / 34%);
-    border-color: rgb(255 255 255 / 14%);
+    height: 34px;
+    line-height: 34px;
+    color: rgb(255 255 255 / 86%);
+    background: rgb(15 23 42 / 24%);
+    border-color: rgb(255 255 255 / 10%);
     backdrop-filter: blur(8px);
 
     &:hover {
-      background: rgb(255 255 255 / 18%);
+      color: #fff;
+      background: rgb(255 255 255 / 16%);
     }
   }
 }
