@@ -177,6 +177,8 @@ export interface MarkdownFile {
   favorite: boolean;
   /** 文件路径 */
   filePath: string;
+  /** 搜索相关度分数（后端提供，可选） */
+  score?: number;
 }
 
 /**

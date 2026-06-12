@@ -119,6 +119,21 @@ const getBackendScore = (item: ContentType): number =>
     ? item.score
     : 0;
 
+const isBackendMatchedResult = (
+  item: ContentType,
+  options: SearchMatchOptions
+): boolean => {
+  const backendScore = getBackendScore(item);
+  if (backendScore <= 0) return false;
+
+  const source = getSource(item);
+  if (source === 'markdown') {
+    return options.deepSearch ? backendScore >= 0.5 : backendScore >= 4;
+  }
+
+  return true;
+};
+
 const normalizeDedupeValue = (value: unknown): string =>
   normalizeSearchValue(value)
     .replace(/\\/g, '/')
@@ -285,7 +300,7 @@ export const isRelevantSearchResult = (
   );
   if (searchTextMatchesQuery(searchableText, normalizedQuery)) return true;
 
-  return options.deepSearch && getBackendScore(item) >= 40;
+  return isBackendMatchedResult(item, options);
 };
 
 export const rankSearchResults = (

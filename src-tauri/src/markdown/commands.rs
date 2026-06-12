@@ -39,6 +39,8 @@ pub struct MarkdownFile {
     pub favorite: bool,
     #[serde(rename = "filePath")]
     pub file_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<f32>,
 }
 
 // 分类数据结构（与前端 Category 接口匹配）
@@ -73,6 +75,7 @@ impl MarkdownFile {
             kind: metadata.kind,
             favorite: metadata.favorite,
             file_path: file_path.to_string_lossy().to_string(),
+            score: None,
         }
     }
 }
@@ -428,6 +431,7 @@ pub fn read_markdown_file(
         kind,
         favorite,
         file_path: file_path.clone(),
+        score: None,
     })
 }
 
@@ -978,6 +982,7 @@ pub fn get_files_by_category(
                                 kind: fm.kind,
                                 favorite: fm.favorite,
                                 file_path: path.to_string_lossy().to_string(),
+                                score: None,
                             });
                         } else {
                             // 无 Frontmatter 的文件：使用文件名作为标题，其余使用默认值
@@ -1004,6 +1009,7 @@ pub fn get_files_by_category(
                                 kind: None,
                                 favorite: false,
                                 file_path: path.to_string_lossy().to_string(),
+                                score: None,
                             });
                             debug!(
                                 " [获取文件列表📄] 文件无 Frontmatter，使用默认元数据: {}",
@@ -1413,7 +1419,7 @@ pub async fn search_markdown_files_optimized(
     // 将 IndexEntry 转换为 MarkdownFile
     let markdown_files: Vec<MarkdownFile> = results
         .into_iter()
-        .map(|entry| {
+        .map(|(entry, score)| {
             // 类型字段：直接使用索引中的值（'code' 或 'note'）
             let file_type = entry.file_type;
 
@@ -1452,6 +1458,7 @@ pub async fn search_markdown_files_optimized(
                 kind: entry.kind,
                 favorite: entry.favorite,
                 file_path: file_path_str,
+                score: Some(score),
             }
         })
         .collect();

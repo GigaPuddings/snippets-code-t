@@ -35,9 +35,11 @@
   --search-result-active: #edf4ff;
   --search-result-active-border: #c9d8ff;
   --search-result-accent: #5f74f3;
-  --search-card-bg: #ffffff;
+  --search-card-bg: #fff;
   --search-soft-bg: #f6f9fe;
   --search-border: #d9e2ef;
+  --search-preview-editor-bg: #fff;
+  --search-preview-status-bg: #f6f9fe;
 
   // ==================== 编辑器主题变量 ====================
   --editor-bg: #fbfcff;
@@ -61,7 +63,7 @@
   --panel-hover-bg: #f3f7ff;
 
   // ==================== 提示与弹层主题变量 ====================
-  --dialog-bg: #ffffff;
+  --dialog-bg: #fff;
   --dialog-header-bg: #f8faff;
   --dialog-footer-bg: #fbfcff;
   --dialog-border: #d9e2ef;
@@ -77,7 +79,7 @@
   // ==================== OCR 窗口主题变量 ====================
   --ocr-shell-bg: rgb(255 255 255 / 94%);
   --ocr-panel-bg: rgb(255 255 255 / 90%);
-  --ocr-panel-hover-bg: #ffffff;
+  --ocr-panel-hover-bg: #fff;
   --ocr-border: rgb(222 228 237 / 92%);
   --ocr-text: #1f2937;
   --ocr-text-secondary: #4b5563;
@@ -122,6 +124,8 @@ html.dark {
   --search-card-bg: #242424;
   --search-soft-bg: #292929;
   --search-border: #363636;
+  --search-preview-editor-bg: #242424;
+  --search-preview-status-bg: #292929;
 
   // ==================== 编辑器深色主题变量 ====================
   --editor-bg: #1e1e1e;
@@ -134,7 +138,7 @@ html.dark {
 
   // ==================== 状态栏深色主题变量 ====================
   --statusbar-bg: #1e1e1e;
-  --statusbar-border: #333333;
+  --statusbar-border: #333;
   --statusbar-text: #9ca3af;
 
   // ==================== 弹出层/面板深色主题变量 ====================
@@ -161,7 +165,7 @@ html.dark {
   // ==================== OCR 窗口深色主题变量 ====================
   --ocr-shell-bg: rgb(30 30 30 / 94%);
   --ocr-panel-bg: rgb(42 42 42 / 88%);
-  --ocr-panel-hover-bg: #333333;
+  --ocr-panel-hover-bg: #333;
   --ocr-border: rgb(65 65 65 / 92%);
   --ocr-text: #e5e7eb;
   --ocr-text-secondary: #c2c7d0;

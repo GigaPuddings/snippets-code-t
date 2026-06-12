@@ -44,6 +44,38 @@ describe('searchRanking', () => {
     ).toBe(true);
   });
 
+  it('keeps backend pinyin initial matches in shallow title search', () => {
+    const item = createItem({
+      title: 'iOS自定义滚动条兼容',
+      content: '-webkit-overflow-scrolling: touch;',
+      metadata: { source: 'markdown' },
+      score: 4
+    });
+
+    expect(isRelevantSearchResult(item, 'zdy', { deepSearch: false })).toBe(
+      true
+    );
+    expect(
+      rankSearchResults([item], 'zdy', new Map(), { deepSearch: false }).map(
+        (result) => result.id
+      )
+    ).toEqual(['item']);
+  });
+
+  it('does not treat low backend content-only pinyin scores as shallow title matches', () => {
+    const item = createItem({
+      title: 'Button',
+      content: '自定义滚动条兼容',
+      metadata: { source: 'markdown' },
+      score: 0.5
+    });
+
+    expect(isRelevantSearchResult(item, 'zdy', { deepSearch: false })).toBe(
+      false
+    );
+    expect(isRelevantSearchResult(item, 'zdy', { deepSearch: true })).toBe(true);
+  });
+
   it('ranks exact title matches above content-only matches', () => {
     const exactTitle = createItem({
       id: 'exact-title',

@@ -354,7 +354,7 @@ impl OptimizedIndexManager {
     }
 
     // 并行搜索（支持精确匹配 + 模糊匹配）
-    pub fn search(&self, query: &str) -> Vec<IndexEntry> {
+    pub fn search(&self, query: &str) -> Vec<(IndexEntry, f32)> {
         let entries = match self.entries.read() {
             Ok(e) => e,
             Err(_) => return Vec::new(),
@@ -436,10 +436,10 @@ impl OptimizedIndexManager {
         // 按分数排序
         all_results.par_sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        let result_entries: Vec<IndexEntry> = all_results
+        let result_entries: Vec<(IndexEntry, f32)> = all_results
             .into_iter()
             .take(100)
-            .filter_map(|(idx, _score)| entries.get(idx).cloned())
+            .filter_map(|(idx, score)| entries.get(idx).cloned().map(|entry| (entry, score)))
             .collect();
 
         result_entries

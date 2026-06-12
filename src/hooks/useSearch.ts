@@ -595,6 +595,7 @@ async function searchCode(query: string): Promise<ContentType[]> {
         category_id: file.categoryId,
         category_name: file.categoryName,
         tags: file.tags,
+        score: file.score,
         created_at: file.created,
         updated_at: file.modified
       }));

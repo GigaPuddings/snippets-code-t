@@ -133,6 +133,7 @@
         <div v-if="canPreview" class="preview-expanded-header">
           <div class="expanded-title-wrap">
             <div class="expanded-title">{{ displayTitle }}</div>
+            <div class="expanded-subtitle" :title="previewSubtitle">{{ previewSubtitle }}</div>
           </div>
 
           <button class="preview-toggle preview-toggle-expanded" type="button" @click="togglePreviewVisible"
@@ -148,13 +149,13 @@
 
           <div v-else-if="isTextFile" class="preview-visual preview-text-area preview-shell preview-scroll-area">
             <CodeMirrorEditor :code="displayContent" :dark="isDark" :disabled="true" :autoDestroy="true"
-              :codeStyle="{ height: '100%' }" :background="isDark ? '#363636' : '#f0eeee'"
-              :status-background="isDark ? '#363636' : undefined" />
+              :codeStyle="{ height: '100%' }" background="var(--search-preview-editor-bg)"
+              status-background="var(--search-preview-status-bg)" />
           </div>
           <div v-else-if="isCodePreview" class="preview-visual preview-code-area preview-shell preview-scroll-area">
             <CodeMirrorEditor :code="displayContent" :dark="isDark" :disabled="true" :autoDestroy="true"
-              :codeStyle="{ height: '100%' }" :background="isDark ? '#363636' : '#f0eeee'"
-              :status-background="isDark ? '#363636' : undefined" />
+              :codeStyle="{ height: '100%' }" background="var(--search-preview-editor-bg)"
+              status-background="var(--search-preview-status-bg)" />
           </div>
 
           <div v-else-if="isNotePreview" class="preview-visual preview-note-area preview-shell preview-scroll-area"
@@ -204,8 +205,6 @@ import {
   getSearchResultLaunchPath,
   toDisplayText
 } from '../composables/useSearchResultPaths';
-import { logger } from '@/utils/logger';
-import { formatSnippetForCopy, type SnippetCopyFormat } from '@/utils/snippetCopyFormats';
 
 const props = defineProps<{
   item: ContentType | null;
@@ -316,10 +315,8 @@ const specialActions = computed(() => {
       { key: 'other', label: t('searchPreview.openWithOtherWays'), shortcut: 'F2', icon: More, disabled: !canOpenFileWithOtherWays.value, run: openFileWithOtherWaysAction }
     ],
     code: [
-      { key: 'copyRaw', label: t('searchPreview.copyRawCode'), shortcut: 'Enter', icon: Copy, disabled: !canCopyCodeSnippet.value, primary: true, run: () => copySnippetAs('raw') },
-      { key: 'copyMarkdown', label: t('searchPreview.copyMarkdownCode'), shortcut: 'F1', icon: Copy, disabled: !canCopyCodeSnippet.value, run: () => copySnippetAs('markdown') },
-      { key: 'copyVsCode', label: t('searchPreview.copyVsCodeSnippet'), shortcut: 'F2', icon: Copy, disabled: !canCopyCodeSnippet.value, run: () => copySnippetAs('vscode') },
-      { key: 'openInConfig', label: t('searchPreview.openInConfig'), shortcut: 'F3', icon: Home, disabled: !canOpenInConfig.value, run: openInConfig }
+      { key: 'copyRaw', label: t('searchPreview.copyCode'), shortcut: 'Enter', icon: Copy, disabled: !canCopyCodeSnippet.value, primary: true, run: copySnippet },
+      { key: 'openInConfig', label: t('searchPreview.openInConfig'), shortcut: 'F1', icon: Home, disabled: !canOpenInConfig.value, run: openInConfig }
     ],
     note: [
       { key: 'openInConfig', label: t('searchPreview.openInConfig'), shortcut: 'Enter', icon: Home, disabled: !canOpenInConfig.value, primary: true, run: openInConfig }
@@ -528,18 +525,9 @@ async function openFileWithOtherWaysAction() {
   await closeAndRun(() => openFileWithOtherWays(displayPath.value));
 }
 
-async function copySnippetAs(format: SnippetCopyFormat) {
+async function copySnippet() {
   if (!canCopyCodeSnippet.value || !props.item) return;
-
-  try {
-    const text = formatSnippetForCopy(format, {
-      title: displayTitle.value,
-      content: normalizedContent.value
-    });
-    await navigator.clipboard.writeText(text);
-  } catch (error) {
-    logger.error('[搜索预览] 复制代码片段失败:', error);
-  }
+  await navigator.clipboard.writeText(normalizedContent.value);
 }
 
 async function copyBookmarkUrl() {
@@ -753,6 +741,7 @@ function formatDateText(value: unknown): string {
 
   .quick-tool-answer {
     @apply mt-3 rounded-lg border border-search bg-search-hover;
+
     padding: 12px;
   }
 
@@ -766,6 +755,7 @@ function formatDateText(value: unknown): string {
 
   .quick-tool-number {
     @apply text-search font-semibold leading-none truncate;
+
     font-size: 28px;
     letter-spacing: 0;
   }
@@ -784,6 +774,7 @@ function formatDateText(value: unknown): string {
 
   .quick-tool-row {
     @apply grid grid-cols-[72px_minmax(0,1fr)] items-center bg-search border-b border-search text-xs;
+
     min-height: 30px;
     padding: 0 10px;
 
@@ -814,15 +805,27 @@ function formatDateText(value: unknown): string {
 
   .quick-tool-status {
     @apply mt-auto flex items-center justify-between border-t border-search text-xs text-search-secondary flex-shrink-0;
+
     padding-top: 8px;
   }
 
   .preview-header-actions {
-    @apply absolute right-0 top-0 z-10 flex flex-col items-end gap-2;
+    @apply absolute right-0 top-0 z-10 flex items-center justify-end gap-2;
   }
 
   .preview-config-button {
-    @apply flex items-center justify-center w-8 h-8 rounded-md bg-search-hover text-search-secondary flex-shrink-0 hover:text-search transition-colors;
+    @apply flex items-center justify-center w-8 h-8 rounded-md border border-search bg-search text-search-secondary flex-shrink-0 hover:text-search transition-colors;
+
+    &:hover {
+      background-color: var(--search-result-hover);
+      border-color: var(--search-result-active-border);
+    }
+
+    &:focus-visible {
+      @apply outline-none;
+
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--search-result-accent) 28%, transparent);
+    }
   }
 
   .special-action-button,
@@ -838,31 +841,45 @@ function formatDateText(value: unknown): string {
   }
 
   .info-header {
-    @apply relative flex items-center justify-center flex-col flex-shrink-0 h-40;
+    @apply relative flex items-center justify-center flex-col flex-shrink-0;
+
+    min-height: 118px;
+    padding: 0 0 8px;
 
     .info-icon {
-      @apply w-24 h-24 rounded-xl bg-search-hover flex items-center justify-center text-base font-semibold text-search-secondary overflow-hidden shadow-sm;
+      @apply w-[72px] h-[72px] rounded-xl flex items-center justify-center text-base font-semibold text-search-secondary overflow-hidden;
+
+      background-color: var(--search-card-bg);
+      border: 1px solid var(--search-border-color);
+      box-shadow: 0 10px 24px rgb(15 23 42 / 8%);
 
       img {
-        @apply w-full h-full object-contain p-2;
+        @apply w-full h-full object-contain;
+
+        padding: 10px;
       }
 
       &.file-preview-icon {
-        @apply bg-transparent border border-search shadow-none text-search-secondary rounded-2xl;
+        @apply text-search-secondary rounded-xl;
+
+        background-color: var(--search-card-bg);
+        border-color: var(--search-border-color);
       }
     }
 
     .header-meta {
-      @apply mt-2 flex flex-col items-center gap-1 min-w-0 w-full px-4;
+      @apply mt-2 flex flex-col items-center gap-0.5 min-w-0 w-full px-4;
 
       .title {
         @apply w-full text-[17px] leading-snug font-semibold text-search text-center overflow-hidden whitespace-nowrap text-ellipsis;
+
         direction: rtl;
         unicode-bidi: plaintext;
       }
 
       .subtitle {
         @apply w-full text-xs leading-5 text-search-secondary text-center overflow-hidden whitespace-nowrap text-ellipsis;
+
         direction: rtl;
         unicode-bidi: plaintext;
       }
@@ -876,10 +893,16 @@ function formatDateText(value: unknown): string {
   .special-actions,
   .special-action-list {
     @apply grid gap-2 mb-2;
+
+    min-height: 0;
   }
 
   .special-action-button {
-    @apply w-full inline-flex items-center justify-between py-2 rounded-xl bg-search-hover text-sm text-search transition-colors hover:bg-search border border-search px-4;
+    @apply w-full inline-flex items-center justify-between rounded-xl bg-search-hover text-sm text-search transition-colors hover:bg-search border border-search px-4 flex-shrink-0;
+
+    min-height: 36px;
+    padding-top: 7px;
+    padding-bottom: 7px;
 
     .file-action-shortcut,
     .shortcut {
@@ -908,15 +931,49 @@ function formatDateText(value: unknown): string {
   }
 
   .expanded-title-wrap {
-    @apply flex items-start gap-3 min-w-0 pr-9;
+    @apply flex flex-col min-w-0;
+  }
+
+  .preview-expanded-header {
+    @apply flex items-start justify-between gap-3 flex-shrink-0 rounded-lg border border-search;
+
+    min-height: 48px;
+    padding: 8px 8px 8px 10px;
+    margin-bottom: 8px;
+    background-color: var(--search-soft-bg);
+  }
+
+  .expanded-title {
+    @apply text-sm font-semibold text-search truncate;
+
+    max-width: 100%;
+  }
+
+  .expanded-subtitle {
+    @apply mt-0.5 text-xs leading-4 text-search-secondary truncate;
+
+    max-width: 100%;
   }
 
   .preview-toggle {
-    @apply absolute right-0 top-0 z-10 inline-flex items-center justify-center w-8 h-8 rounded-md bg-search-hover text-search-secondary flex-shrink-0 hover:text-search transition-colors;
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-md border border-search bg-search text-search-secondary flex-shrink-0 hover:text-search transition-colors;
+
+    &:hover {
+      background-color: var(--search-result-hover);
+      border-color: var(--search-result-active-border);
+    }
+
+    &:focus-visible {
+      @apply outline-none;
+
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--search-result-accent) 28%, transparent);
+    }
   }
 
   .action-panel {
     @apply flex flex-col gap-3;
+
+    min-height: 0;
 
     .info {
       @apply flex flex-col gap-2 mx-4;
@@ -988,12 +1045,17 @@ function formatDateText(value: unknown): string {
   }
 
   .preview-content-area {
-    @apply flex-1 min-h-0 rounded-lg border border-search bg-search-hover p-2 overflow-hidden flex flex-col;
+    @apply flex-1 min-h-0 rounded-lg border border-search overflow-hidden flex flex-col;
+
+    padding: 10px;
+    background-color: var(--search-soft-bg);
   }
 
   .preview-shell,
   .preview-visual {
     @apply min-h-0 overflow-auto flex-1;
+
+    border-radius: 8px;
   }
 
   .preview-image-area {
@@ -1002,12 +1064,22 @@ function formatDateText(value: unknown): string {
 
   .preview-image {
     @apply max-w-full max-h-full object-contain rounded-md;
+
+    background-color: var(--search-card-bg);
+    box-shadow: 0 8px 22px rgb(15 23 42 / 8%);
   }
 
   .preview-text-area,
   .preview-note-area,
   .preview-scroll-area {
     @apply text-xs leading-5 text-search whitespace-pre-wrap break-words overflow-auto;
+
+    background-color: var(--search-preview-editor-bg);
+    border: 1px solid var(--search-border-color);
+  }
+
+  .preview-text-area:not(.preview-code-area) {
+    padding: 10px;
   }
 
   .preview-note-area :deep(.note-fallback) {
@@ -1021,9 +1093,27 @@ function formatDateText(value: unknown): string {
   .preview-code-area {
     @apply min-h-0;
 
+    :deep(.editor-container) {
+      background-color: var(--search-preview-editor-bg);
+    }
+
+    :deep(.editor-status) {
+      color: var(--search-info-text-color);
+      border-top-color: var(--search-border-color);
+    }
+
     :deep(.cm-editor),
     :deep(.cm-scroller) {
       @apply h-full;
+    }
+
+    :deep(.cm-editor) {
+      border: 0;
+    }
+
+    :deep(.cm-gutters) {
+      background-color: var(--search-preview-status-bg);
+      border-right-color: var(--search-border-color);
     }
   }
 
