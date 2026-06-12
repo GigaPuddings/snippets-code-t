@@ -601,8 +601,15 @@ async fn apply_wallpaper_path(
     Ok(applied_path)
 }
 
-async fn apply_current_wallpaper_fit(app_handle: &AppHandle) -> Result<String, String> {
-    let config = load_config(app_handle);
+async fn apply_current_wallpaper_fit(
+    app_handle: &AppHandle,
+    fit_mode: Option<WallpaperFitMode>,
+) -> Result<String, String> {
+    let mut config = load_config(app_handle);
+    if let Some(fit_mode) = fit_mode {
+        config.fit_mode = fit_mode;
+        save_config(app_handle, &config)?;
+    }
     let current_path =
         current_applied_path(&config).ok_or("当前没有可重新应用的壁纸".to_string())?;
     let current_path = normalize_existing_file(&path_to_string(&current_path))?;
@@ -626,6 +633,18 @@ fn next_switch_timestamp() -> Option<i64> {
         .lock()
         .ok()
         .and_then(|status| status.next_switch_at)
+}
+
+fn reset_next_switch_timestamp(config: &WallpaperConfig) -> Option<i64> {
+    let next_switch_at = if config.schedule_enabled && config.auto_restore {
+        Some(now_unix_ts().saturating_add((config.interval_minutes.max(1) * 60) as i64))
+    } else {
+        None
+    };
+    if let Ok(mut status) = WALLPAPER_STATUS.lock() {
+        status.next_switch_at = next_switch_at;
+    }
+    next_switch_at
 }
 
 async fn switch_from_folder(
@@ -765,10 +784,15 @@ pub fn start_scheduler(app_handle: AppHandle) -> Result<(), String> {
 
     let interval_secs = config.interval_minutes.max(1) * 60;
     let now = now_unix_ts();
-    let next_switch_at = config
+    let scheduled_next_switch_at = config
         .last_switched_at
         .map(|last| last.saturating_add(interval_secs as i64))
         .unwrap_or(now.saturating_add(interval_secs as i64));
+    let next_switch_at = if scheduled_next_switch_at <= now {
+        now.saturating_add(interval_secs as i64)
+    } else {
+        scheduled_next_switch_at
+    };
     let initial_wait_secs = next_switch_at.saturating_sub(now).max(0) as u64;
     let instance_id = SCHEDULER_INSTANCE_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
     ACTIVE_SCHEDULER_INSTANCE_ID.store(instance_id, Ordering::SeqCst);
@@ -1633,13 +1657,23 @@ pub async fn wallpaper_set_fixed_image(
 #[tauri::command]
 pub async fn wallpaper_switch_now(app_handle: AppHandle) -> Result<String, String> {
     require_enabled(&app_handle)?;
-    switch_now_inner(&app_handle).await
+    let config = load_config(&app_handle);
+    reset_next_switch_timestamp(&config);
+    let applied = switch_now_inner(&app_handle).await?;
+    let next_config = load_config(&app_handle);
+    if next_config.schedule_enabled && next_config.auto_restore {
+        start_scheduler(app_handle)?;
+    }
+    Ok(applied)
 }
 
 #[tauri::command]
-pub async fn wallpaper_apply_current_fit(app_handle: AppHandle) -> Result<String, String> {
+pub async fn wallpaper_apply_current_fit(
+    app_handle: AppHandle,
+    fit_mode: Option<WallpaperFitMode>,
+) -> Result<String, String> {
     require_enabled(&app_handle)?;
-    apply_current_wallpaper_fit(&app_handle).await
+    apply_current_wallpaper_fit(&app_handle, fit_mode).await
 }
 
 #[tauri::command]

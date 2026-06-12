@@ -225,9 +225,9 @@ const setFitMode = async (fitMode: WallpaperFitMode) => {
   config.value.fitMode = fitMode;
   fitting.value = true;
   try {
-    await saveWallpaperConfig(config.value);
-    await applyCurrentWallpaperFit();
+    await applyCurrentWallpaperFit(fitMode);
     await refreshStatus();
+    config.value = await getWallpaperConfig();
     modal.msg('适配模式已应用', 'success');
   } catch (error) {
     modal.msg(String(error), 'error');
@@ -824,8 +824,10 @@ onUnmounted(() => {
 .top-panel {
   position: relative;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   min-height: 164px;
+  padding: 16px 18px;
   overflow: hidden;
   background: #111827;
   border: 1px solid var(--wallpaper-border);
@@ -838,7 +840,8 @@ onUnmounted(() => {
     z-index: 1;
     content: '';
     background:
-      linear-gradient(90deg, rgb(10 16 28 / 10%) 0%, rgb(10 16 28 / 38%) 48%, rgb(10 16 28 / 82%) 100%),
+      radial-gradient(circle at 78% 45%, rgb(11 18 32 / 58%) 0%, transparent 34%),
+      linear-gradient(90deg, rgb(10 16 28 / 4%) 0%, rgb(10 16 28 / 18%) 48%, rgb(10 16 28 / 56%) 100%),
       linear-gradient(180deg, rgb(10 16 28 / 4%) 0%, rgb(10 16 28 / 26%) 100%);
     pointer-events: none;
   }
@@ -849,12 +852,14 @@ onUnmounted(() => {
   inset: 0;
   overflow: hidden;
   background: #111827;
+  border-radius: inherit;
 
   img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+    border-radius: inherit;
   }
 }
 
@@ -881,15 +886,17 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  width: min(44%, 420px);
-  min-width: 350px;
-  min-height: 100%;
-  padding: 18px 20px;
+  width: min(40%, 368px);
+  min-width: 330px;
+  padding: 18px 20px 17px;
   color: #fff;
-  background: linear-gradient(90deg, rgb(15 23 42 / 30%), rgb(15 23 42 / 54%));
-  border-left: 1px solid rgb(255 255 255 / 16%);
-  box-shadow: -22px 0 44px rgb(15 23 42 / 24%);
-  backdrop-filter: blur(8px);
+  background:
+    linear-gradient(135deg, rgb(15 23 42 / 36%), rgb(15 23 42 / 52%)),
+    rgb(15 23 42 / 22%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 10px;
+  box-shadow: 0 14px 34px rgb(0 0 0 / 22%);
+  backdrop-filter: blur(10px) saturate(1.12);
 
   h2 {
     margin: 0 0 5px;

@@ -114,8 +114,8 @@ export const setFixedWallpaper = (path: string): Promise<string> =>
 export const switchWallpaperNow = (): Promise<string> =>
   invoke<string>('wallpaper_switch_now');
 
-export const applyCurrentWallpaperFit = (): Promise<string> =>
-  invoke<string>('wallpaper_apply_current_fit');
+export const applyCurrentWallpaperFit = (fitMode?: WallpaperFitMode): Promise<string> =>
+  invoke<string>('wallpaper_apply_current_fit', { fitMode });
 
 export const fetchWallhaven = (
   params: WallhavenFetchParams
