@@ -6,20 +6,24 @@ use glob::glob;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::fs;
 use std::mem::size_of;
+use std::os::windows::ffi::OsStrExt;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 #[cfg(not(target_os = "windows"))]
 use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
+use windows::core::PCWSTR;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::System::ProcessStatus::{K32EnumProcesses, K32GetModuleFileNameExA};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
+use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, EnumWindows, GetWindow, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
-    SetForegroundWindow, ShowWindow, SwitchToThisWindow, GW_OWNER, SW_RESTORE,
+    SetForegroundWindow, ShowWindow, SwitchToThisWindow, GW_OWNER, SW_RESTORE, SW_SHOWNORMAL,
 };
 use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
 use winreg::RegKey;
@@ -1554,6 +1558,45 @@ $verb.DoIt()
 }
 
 #[cfg(target_os = "windows")]
+fn wide_null(value: &OsStr) -> Vec<u16> {
+    value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(target_os = "windows")]
+fn open_app_path_as_admin(app_path: &str, launch_path: &str) -> Result<(), String> {
+    let operation = wide_null(OsStr::new("runas"));
+    let file = wide_null(OsStr::new(launch_path));
+    let directory = Path::new(launch_path)
+        .parent()
+        .filter(|path| path.exists())
+        .map(|path| wide_null(path.as_os_str()));
+
+    let result = unsafe {
+        ShellExecuteW(
+            None,
+            PCWSTR(operation.as_ptr()),
+            PCWSTR(file.as_ptr()),
+            PCWSTR::null(),
+            directory
+                .as_ref()
+                .map(|value| PCWSTR(value.as_ptr()))
+                .unwrap_or(PCWSTR::null()),
+            SW_SHOWNORMAL,
+        )
+    };
+
+    let code = result.0 as isize;
+    if code <= 32 {
+        return Err(format!(
+            "以管理员身份启动应用程序失败 '{}': ShellExecuteW 错误 {}",
+            app_path, code
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
 fn open_app_path_detached(app_path: &str, launch_path: &str) -> Result<(), String> {
     const CREATE_NO_WINDOW: u32 = 0x08000000;
     const DETACHED_PROCESS: u32 = 0x00000008;
@@ -1569,10 +1612,13 @@ fn open_app_path_detached(app_path: &str, launch_path: &str) -> Result<(), Strin
         command.current_dir(parent);
     }
 
-    command
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| format!("启动应用程序失败 '{}': {}", app_path, e))
+    match command.spawn() {
+        Ok(_) => Ok(()),
+        Err(error) if error.raw_os_error() == Some(740) => {
+            open_app_path_as_admin(app_path, launch_path)
+        }
+        Err(error) => Err(format!("启动应用程序失败 '{}': {}", app_path, error)),
+    }
 }
 
 pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Result<(), String> {

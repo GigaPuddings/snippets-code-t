@@ -26,7 +26,8 @@ export const useConfigurationStore = defineStore('configuration', {
     language: 'zh-CN', // 界面语言
     autoStart: false, // 开机自启
     autoUpdateCheck: false, // 检查更新
-    autoHideOnBlur: true // 搜索窗口失焦时是否自动隐藏
+    autoHideOnBlur: true, // 搜索窗口失焦时是否自动隐藏
+    editorLineNumbers: true // 富文本编辑器是否显示行号
   }),
   getters: {
     /** 当前实际是否为深色模式（供组件 :dark 等使用，会随系统主题变化更新） */
@@ -168,7 +169,7 @@ export const useConfigurationStore = defineStore('configuration', {
     }
   },
   persist: {
-    pick: ['theme', 'dbPath']
+    pick: ['theme', 'dbPath', 'editorLineNumbers']
   }
 });
 

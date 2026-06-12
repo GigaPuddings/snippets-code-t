@@ -136,6 +136,8 @@ export default {
     autoHideOnBlurDesc: '设置搜索窗口在失去焦点时是否自动隐藏',
     autoHideEnabled: '已开启自动失焦隐藏',
     autoHideDisabled: '已关闭自动失焦隐藏',
+    editorLineNumbers: '编辑器行号',
+    editorLineNumbersDesc: '设置富文本编辑器是否显示行号',
     exitApp: '退出应用',
     exitAppDesc: '是否退出应用',
     exitAppConfirm: '确定要退出应用吗？',

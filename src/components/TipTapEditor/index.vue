@@ -11,6 +11,7 @@
         @contextmenu="handleContextMenu"
       >
         <div
+          v-if="props.showLineNumbers"
           ref="previewLineNumbersRef"
           class="preview-line-numbers"
           :style="{ minHeight: previewLineNumbersMinHeight }"
@@ -27,6 +28,7 @@
         v-show="viewMode === 'source'"
         :content="sourceContent"
         :dark="props.dark"
+        :show-line-numbers="props.showLineNumbers"
         @update:content="handleSourceContentChange"
         @contextmenu="handleSourceContextMenu"
         @scroll="handleSourceScroll"
@@ -134,6 +136,7 @@ interface Props {
   showViewToggle?: boolean;
   showEditorActions?: boolean;
   showContextMenu?: boolean;
+  showLineNumbers?: boolean;
   currentTitle?: string;
   currentFragmentId?: number | string;
 }
@@ -153,6 +156,7 @@ const props = withDefaults(defineProps<Props>(), {
   showViewToggle: true,
   showEditorActions: true,
   showContextMenu: true,
+  showLineNumbers: true,
   currentTitle: '',
   currentFragmentId: undefined
 });
@@ -345,6 +349,8 @@ function scrollEditorSelectionIntoView(view: EditorView): void {
 }
 
 function updatePreviewLineNumbers(): void {
+  if (!props.showLineNumbers) return;
+
   nextTick(() => {
     const editorContentElement = editorContentRef.value;
     if (!editorContentElement || editorContentElement.offsetParent === null) return;
@@ -635,6 +641,18 @@ watch(() => props.dark, (isDark) => {
 
 watch(viewMode, () => {
   updatePreviewLineNumbers();
+});
+
+watch(() => props.showLineNumbers, (showLineNumbers) => {
+  if (showLineNumbers) {
+    nextTick(() => {
+      refreshPreviewResizeObserver();
+      updatePreviewLineNumbers();
+    });
+  } else {
+    previewResizeObserver?.disconnect();
+    previewResizeObserver = null;
+  }
 });
 
 // 键盘快捷键

@@ -46,6 +46,8 @@ export interface TipTapEditorProps {
   showEditorActions?: boolean;
   /** 是否显示右键菜单 */
   showContextMenu?: boolean;
+  /** 是否显示行号 */
+  showLineNumbers?: boolean;
 }
 
 /**
@@ -168,6 +170,8 @@ export interface SourceEditorProps {
   content: string;
   /** 是否为暗色模式 */
   dark?: boolean;
+  /** 是否显示行号 */
+  showLineNumbers?: boolean;
 }
 
 /**

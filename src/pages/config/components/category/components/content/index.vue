@@ -86,7 +86,8 @@
     <TipTapEditor v-else-if="currentEditorType === 'note'" ref="tipTapEditorRef" :key="'note-editor'"
       :content="noteEditorDisplayContent" :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }"
       :show-view-toggle="true" :show-editor-actions="false" :current-title="state.title"
-      :current-fragment-id="state.currentContent?.id" @update:content="handleEditorChange"
+      :current-fragment-id="state.currentContent?.id" :show-line-numbers="store.editorLineNumbers"
+      @update:content="handleEditorChange"
       @wikilink-click="handleWikilinkClick" @view-mode-change="handleViewModeChange"
       @outline-toggle="handleOutlineToggle" @backlink-navigate="handleBacklinkNavigate"
       @scroll-position="handleEditorScrollPosition" :dark="isDark" />

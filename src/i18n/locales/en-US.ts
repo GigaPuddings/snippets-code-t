@@ -136,6 +136,8 @@ export default {
     autoHideOnBlurDesc: 'Hide search window when it loses focus',
     autoHideEnabled: 'Auto hide enabled',
     autoHideDisabled: 'Auto hide disabled',
+    editorLineNumbers: 'Editor Line Numbers',
+    editorLineNumbersDesc: 'Show or hide line numbers in the rich text editor',
     exitApp: 'Exit App',
     exitAppDesc: 'Exit the application',
     exitAppConfirm: 'Are you sure you want to exit?',

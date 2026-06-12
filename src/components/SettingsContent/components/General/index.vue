@@ -91,6 +91,16 @@
 
     <section class="summarize-section">
       <div class="summarize-label">
+        <div class="summarize-label-title">{{ $t('settings.editorLineNumbers') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.editorLineNumbersDesc') }}</div>
+      </div>
+      <div class="summarize-input-wrapper">
+        <CustomSwitch v-model="store.editorLineNumbers" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
+      </div>
+    </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
         <div class="summarize-label-title">{{ $t('settings.exitApp') }}</div>
         <div class="summarize-label-desc">{{ $t('settings.exitAppDesc') }}</div>
       </div>

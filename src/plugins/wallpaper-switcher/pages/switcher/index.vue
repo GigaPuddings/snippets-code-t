@@ -112,8 +112,11 @@ const sourceLabel = computed(() => {
 });
 
 const nextSwitchLabel = computed(() => {
+  if (config.value.mode === 'fixed' || !config.value.scheduleEnabled || !status.value?.schedulerRunning) {
+    return '—';
+  }
   const next = status.value?.nextSwitchAt;
-  if (!next) return t('wallpaperSwitcher.time.minutesLater', { count: 18 });
+  if (!next) return '—';
   const seconds = Math.max(0, next - Math.floor(Date.now() / 1000));
   if (seconds < 60) return t('wallpaperSwitcher.time.secondsLater', { count: seconds });
   return t('wallpaperSwitcher.time.minutesLater', { count: Math.ceil(seconds / 60) });
@@ -255,7 +258,14 @@ const setCurrentAsFixed = async () => {
   }
   config.value.mode = 'fixed';
   config.value.fixedImagePath = status.value.currentPath;
-  await persistConfig();
+  config.value.scheduleEnabled = false;
+  try {
+    await setFixedWallpaper(status.value.currentPath);
+    await loadAll();
+    modal.msg(t('wallpaperSwitcher.messages.fixedSet'), 'success');
+  } catch (error) {
+    modal.msg(String(error), 'error');
+  }
 };
 
 const clearCache = async () => {

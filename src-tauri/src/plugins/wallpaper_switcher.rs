@@ -1650,7 +1650,9 @@ pub async fn wallpaper_set_fixed_image(
     let image = normalize_existing_file(&path)?;
     config.fixed_image_path = Some(path_to_string(&image));
     config.mode = WallpaperMode::Fixed;
+    config.schedule_enabled = false;
     save_config(&app_handle, &config)?;
+    stop_scheduler();
     apply_wallpaper_path(&app_handle, &image, "固定图片", &config.fit_mode).await
 }
 
