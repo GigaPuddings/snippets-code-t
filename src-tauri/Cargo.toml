@@ -1,6 +1,6 @@
 [package]
 name = "snippets-code"
-version = "2.1.15"
+version = "2.1.16"
 description = "程序员效率助手，包含翻译、搜索、代码片段管理等功能"
 authors = ["GigaPuddings"]
 edition = "2021"
