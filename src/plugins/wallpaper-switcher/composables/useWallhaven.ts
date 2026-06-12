@@ -1,5 +1,6 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, type Ref } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import {
   downloadWallhavenWallpaper,
@@ -17,6 +18,7 @@ export interface UseWallhavenOptions {
 }
 
 export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
+  const { t } = useI18n();
   const activeView = ref<'switcher' | 'wallhaven'>('switcher');
   const wallpapers = ref<WallhavenWallpaper[]>([]);
   const wallhavenPage = ref(1);
@@ -51,7 +53,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const formatWallhavenError = (error: unknown): string => {
     const message = String(error).replace(/^Error:\s*/, '');
     if (/unexpected EOF|handshake|timed out|error sending request|client error|Connect/i.test(message)) {
-      return 'Wallhaven 网络连接失败，请稍后重试或检查代理/网络。';
+      return t('wallpaperSwitcher.messages.wallhavenNetworkError');
     }
     return message.length > 120 ? `${message.slice(0, 120)}...` : message;
   };
@@ -172,10 +174,10 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const setWallpaperFromWallhaven = async (wallpaper: WallhavenWallpaper) => {
     setWorking(wallpaper.id, true);
     try {
-      modal.msg('正在设置壁纸...', 'info');
+      modal.msg(t('wallpaperSwitcher.messages.settingWallpaper'), 'info');
       await setWallhavenWallpaper(wallpaper);
       await refreshStatus();
-      modal.msg('壁纸已设置', 'success');
+      modal.msg(t('wallpaperSwitcher.messages.wallpaperSet'), 'success');
     } catch (error) {
       modal.msg(String(error), 'error');
     } finally {
@@ -186,10 +188,10 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const downloadWallpaperFromWallhaven = async (wallpaper: WallhavenWallpaper) => {
     setWorking(wallpaper.id, true);
     try {
-      modal.msg('正在下载壁纸...', 'info');
+      modal.msg(t('wallpaperSwitcher.messages.downloadingWallpaper'), 'info');
       await downloadWallhavenWallpaper(wallpaper);
       await refreshStatus();
-      modal.msg('壁纸已下载到缓存', 'success');
+      modal.msg(t('wallpaperSwitcher.messages.wallpaperDownloaded'), 'success');
     } catch (error) {
       modal.msg(String(error), 'error');
     } finally {
@@ -224,7 +226,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const setupListeners = async () => {
     unlistenChanged = await listen('wallpaper-switcher-changed', refreshStatus);
     unlistenError = await listen<{ message?: string }>('wallpaper-switcher-error', (event) => {
-      modal.msg(event.payload?.message || '定时切换失败', 'error');
+      modal.msg(event.payload?.message || t('wallpaperSwitcher.messages.scheduleSwitchFailed'), 'error');
     });
   };
 

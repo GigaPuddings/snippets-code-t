@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
+import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import {
   applyCurrentWallpaperFit,
@@ -39,6 +40,7 @@ import {
 } from '@icon-park/vue-next';
 
 const appWindow = getCurrentWindow();
+const { t } = useI18n();
 
 const config = ref<WallpaperConfig>(defaultWallpaperConfig());
 const status = ref<WallpaperStatus | null>(null);
@@ -93,7 +95,7 @@ const {
 const previewSrc = computed(() => wallpaperImageSrc(status.value?.currentPath || config.value.lastAppliedPath));
 const currentWallpaperName = computed(() => {
   const path = status.value?.currentPath || config.value.lastAppliedPath;
-  if (!path) return '暂无当前壁纸';
+  if (!path) return t('wallpaperSwitcher.noCurrentWallpaper');
   return path.split(/[\\/]/).pop() || path;
 });
 const screenLabel = computed(() => {
@@ -104,17 +106,17 @@ const screenLabel = computed(() => {
 const resolutionLabel = computed(() => status.value?.currentResolution || screenLabel.value);
 
 const sourceLabel = computed(() => {
-  if (config.value.mode === 'fixed') return '固定图片';
+  if (config.value.mode === 'fixed') return t('wallpaperSwitcher.fixedImage');
   if (config.value.mode === 'wallhaven') return 'Wallhaven';
-  return '本地文件夹';
+  return t('wallpaperSwitcher.localFolder');
 });
 
 const nextSwitchLabel = computed(() => {
   const next = status.value?.nextSwitchAt;
-  if (!next) return '18 分钟后';
+  if (!next) return t('wallpaperSwitcher.time.minutesLater', { count: 18 });
   const seconds = Math.max(0, next - Math.floor(Date.now() / 1000));
-  if (seconds < 60) return `${seconds} 秒后`;
-  return `${Math.ceil(seconds / 60)} 分钟后`;
+  if (seconds < 60) return t('wallpaperSwitcher.time.secondsLater', { count: seconds });
+  return t('wallpaperSwitcher.time.minutesLater', { count: Math.ceil(seconds / 60) });
 });
 
 const cacheSizeLabel = computed(() => {
@@ -123,8 +125,12 @@ const cacheSizeLabel = computed(() => {
 });
 
 const folderCountLabel = computed(() => {
-  if (!folderScan.value) return config.value.folderPath ? '尚未扫描文件夹' : '请选择本地壁纸文件夹';
-  return `检测到 ${folderScan.value.count} 张可用图片`;
+  if (!folderScan.value) {
+    return config.value.folderPath
+      ? t('wallpaperSwitcher.folderStatus.notScanned')
+      : t('wallpaperSwitcher.folderStatus.selectFirst');
+  }
+  return t('wallpaperSwitcher.folderStatus.detected', { count: folderScan.value.count });
 });
 const loadAll = async () => {
   loading.value = true;
@@ -162,7 +168,7 @@ const persistConfig = async () => {
   try {
     await saveWallpaperConfig(config.value);
     await refreshStatus();
-    modal.msg('壁纸设置已保存', 'success');
+    modal.msg(t('wallpaperSwitcher.messages.settingsSaved'), 'success');
   } catch (error) {
     modal.msg(String(error), 'error');
   } finally {
@@ -182,7 +188,7 @@ const chooseImage = async () => {
   try {
     await setFixedWallpaper(selected);
     await loadAll();
-    modal.msg('已设置固定壁纸', 'success');
+    modal.msg(t('wallpaperSwitcher.messages.fixedSet'), 'success');
   } catch (error) {
     modal.msg(String(error), 'error');
   }
@@ -198,13 +204,13 @@ const chooseFolder = async () => {
 
 const scanFolder = async () => {
   if (!config.value.folderPath) {
-    modal.msg('请先选择壁纸文件夹', 'warning');
+    modal.msg(t('wallpaperSwitcher.messages.selectFolderFirst'), 'warning');
     return;
   }
   try {
     folderScan.value = await scanWallpaperFolder(config.value.folderPath);
     if (folderScan.value.count === 0) {
-      modal.msg('文件夹中没有可用图片', 'warning');
+      modal.msg(t('wallpaperSwitcher.messages.noImagesInFolder'), 'warning');
     } else {
       modal.msg(folderCountLabel.value, 'success');
     }
@@ -219,7 +225,7 @@ const switchNow = async () => {
     await saveWallpaperConfig(config.value);
     await switchWallpaperNow();
     await refreshStatus();
-    modal.msg('壁纸已切换', 'success');
+    modal.msg(t('wallpaperSwitcher.messages.wallpaperSwitched'), 'success');
   } catch (error) {
     modal.msg(String(error), 'error');
   } finally {
@@ -234,7 +240,7 @@ const setFitMode = async (fitMode: WallpaperFitMode) => {
     await applyCurrentWallpaperFit(fitMode);
     await refreshStatus();
     config.value = await getWallpaperConfig();
-    modal.msg('适配模式已应用', 'success');
+    modal.msg(t('wallpaperSwitcher.messages.fitApplied'), 'success');
   } catch (error) {
     modal.msg(String(error), 'error');
   } finally {
@@ -244,7 +250,7 @@ const setFitMode = async (fitMode: WallpaperFitMode) => {
 
 const setCurrentAsFixed = async () => {
   if (!status.value?.currentPath) {
-    modal.msg('当前没有可固定的壁纸', 'warning');
+    modal.msg(t('wallpaperSwitcher.messages.noCurrentToFix'), 'warning');
     return;
   }
   config.value.mode = 'fixed';
@@ -257,7 +263,7 @@ const clearCache = async () => {
   try {
     await clearWallpaperCache();
     await refreshStatus();
-    modal.msg('缓存已清理', 'success');
+    modal.msg(t('wallpaperSwitcher.messages.cacheCleared'), 'success');
   } catch (error) {
     modal.msg(String(error), 'error');
   } finally {
@@ -302,24 +308,24 @@ onUnmounted(() => {
     <header class="titlebar" data-tauri-drag-region>
       <div v-if="activeView === 'switcher'" class="title">
         <Picture :size="18" />
-        <span>壁纸切换</span>
+        <span>{{ t('wallpaperSwitcher.title') }}</span>
       </div>
       <div v-else class="title">
-        <button type="button" class="flat-icon" title="返回" @click="backToSwitcher">
+        <button type="button" class="flat-icon" :title="t('wallpaperSwitcher.back')" @click="backToSwitcher">
           <Back :size="20" />
         </button>
-        <span>Wallhaven 壁纸</span>
+        <span>{{ t('wallpaperSwitcher.wallhavenTitle') }}</span>
       </div>
       <div v-if="activeView === 'switcher'" class="window-actions">
-        <button type="button" class="icon-btn online-entry-btn" title="打开 Wallhaven 壁纸" @click="openWallhavenGrid">
+        <button type="button" class="icon-btn online-entry-btn" :title="t('wallpaperSwitcher.openWallhaven')" @click="openWallhavenGrid">
           <PictureAlbum :size="18" />
         </button>
-        <button type="button" class="icon-btn" title="关闭" @click="closeWindow">
+        <button type="button" class="icon-btn" :title="t('wallpaperSwitcher.close')" @click="closeWindow">
           <CloseSmall :size="20" />
         </button>
       </div>
       <div v-else class="window-actions">
-        <div class="source-toggle" role="tablist" aria-label="壁纸来源切换">
+        <div class="source-toggle" role="tablist" :aria-label="t('wallpaperSwitcher.sourceToggle')">
           <div
             class="seg-tab"
             :class="{ active: wallhavenSource === 'hot', disabled: wallhavenLoading }"
@@ -328,7 +334,7 @@ onUnmounted(() => {
             @click="!wallhavenLoading && setWallhavenSource('hot')"
             @keydown.enter.prevent="!wallhavenLoading && setWallhavenSource('hot')"
           >
-            热门
+            {{ t('wallpaperSwitcher.hot') }}
           </div>
           <div
             class="seg-tab"
@@ -338,48 +344,48 @@ onUnmounted(() => {
             @click="!wallhavenLoading && setWallhavenSource('toplist')"
             @keydown.enter.prevent="!wallhavenLoading && setWallhavenSource('toplist')"
           >
-            排行榜
+            {{ t('wallpaperSwitcher.toplist') }}
           </div>
         </div>
-        <button type="button" class="icon-btn" title="关闭" @click="closeWindow">
+        <button type="button" class="icon-btn" :title="t('wallpaperSwitcher.close')" @click="closeWindow">
           <CloseSmall :size="20" />
         </button>
       </div>
     </header>
 
     <section v-if="status && !status.supported" class="unsupported">
-      当前系统暂不支持桌面壁纸切换。此插件当前仅支持 Windows。
+      {{ t('wallpaperSwitcher.unsupported') }}
     </section>
 
     <div v-if="activeView === 'switcher'" class="content" :class="{ dimmed: loading }">
       <section class="top-panel">
         <div class="preview">
-          <img v-if="previewSrc" :src="previewSrc" alt="当前壁纸预览" />
+          <img v-if="previewSrc" :src="previewSrc" :alt="t('wallpaperSwitcher.currentPreviewAlt')" />
           <div v-else class="preview-empty">
             <Picture :size="42" />
-            <span>暂无当前壁纸</span>
+            <span>{{ t('wallpaperSwitcher.noCurrentWallpaper') }}</span>
           </div>
         </div>
         <div class="status-panel">
           <div class="status-copy">
             <div class="wallpaper-name">
-              <span>当前壁纸：</span>
+              <span>{{ t('wallpaperSwitcher.currentWallpaper') }}</span>
               <strong>{{ currentWallpaperName }}</strong>
             </div>
             <div class="status-list">
               <div class="status-row">
                 <FolderOpen :size="16" />
-                <span>来源：</span>
+                <span>{{ t('wallpaperSwitcher.source') }}</span>
                 <strong>{{ sourceLabel }}</strong>
               </div>
               <div class="status-row">
                 <Computer :size="16" />
-                <span>分辨率：</span>
+                <span>{{ t('wallpaperSwitcher.resolution') }}</span>
                 <strong>{{ resolutionLabel }}</strong>
               </div>
               <div class="status-row">
                 <Time :size="16" />
-                <span>下次切换：</span>
+                <span>{{ t('wallpaperSwitcher.nextSwitch') }}</span>
                 <strong>{{ nextSwitchLabel }}</strong>
               </div>
             </div>
@@ -387,11 +393,11 @@ onUnmounted(() => {
           <div class="status-actions">
             <button type="button" class="primary-btn" :disabled="switching" @click="switchNow">
               <Lightning theme="outline" :size="14" />
-              {{ switching ? '切换中' : '立即切换' }}
+              {{ switching ? t('wallpaperSwitcher.switching') : t('wallpaperSwitcher.switchNow') }}
             </button>
             <button type="button" class="secondary-btn" @click="setCurrentAsFixed">
               <Pin theme="outline" :size="14" />
-              设为固定
+              {{ t('wallpaperSwitcher.setFixed') }}
             </button>
           </div>
         </div>
@@ -399,136 +405,136 @@ onUnmounted(() => {
 
       <section class="card settings-card">
         <div class="form-row mode-row">
-          <span class="row-label">模式</span>
+          <span class="row-label">{{ t('wallpaperSwitcher.mode') }}</span>
           <div class="segmented three">
             <button type="button" :class="{ active: config.mode === 'fixed' }" @click="config.mode = 'fixed'">
-              固定图片
+              {{ t('wallpaperSwitcher.fixedImage') }}
             </button>
             <button type="button" :class="{ active: config.mode === 'folder' }" @click="config.mode = 'folder'">
-              本地文件夹
+              {{ t('wallpaperSwitcher.localFolder') }}
             </button>
             <button type="button" :class="{ active: config.mode === 'wallhaven' }" @click="config.mode = 'wallhaven'">
-              Wallhaven 在线
+              {{ t('wallpaperSwitcher.wallhavenOnline') }}
             </button>
           </div>
         </div>
 
         <div class="form-row fixed-row">
-          <span class="row-label">固定图片</span>
+          <span class="row-label">{{ t('wallpaperSwitcher.fixedImage') }}</span>
           <input
             v-model="config.fixedImagePath"
             class="path-input"
-            placeholder="E:\Wallpapers\city.png"
+            :placeholder="t('wallpaperSwitcher.placeholders.fixedImage')"
             spellcheck="false"
           />
           <button type="button" class="tool-btn" @click="chooseImage">
             <Picture :size="16" />
-            选择图片
+            {{ t('wallpaperSwitcher.selectImage') }}
           </button>
         </div>
 
         <div class="form-row folder-row">
-          <span class="row-label">本地文件夹</span>
+          <span class="row-label">{{ t('wallpaperSwitcher.localFolder') }}</span>
           <input
             v-model="config.folderPath"
             class="path-input"
-            placeholder="E:\Wallpapers"
+            :placeholder="t('wallpaperSwitcher.placeholders.folder')"
             spellcheck="false"
           />
           <button type="button" class="tool-btn" @click="chooseFolder">
             <FolderOpen :size="16" />
-            选择
+            {{ t('wallpaperSwitcher.select') }}
           </button>
           <button type="button" class="tool-btn" @click="scanFolder">
             <Refresh :size="16" />
-            扫描
+            {{ t('wallpaperSwitcher.scan') }}
           </button>
         </div>
         <div class="hint-row">{{ folderCountLabel }}</div>
 
         <div class="form-row wallhaven-row">
           <span class="row-label">Wallhaven</span>
-          <span class="sub-label">来源</span>
+          <span class="sub-label">{{ t('wallpaperSwitcher.sourceShort') }}</span>
           <div class="segmented source">
             <button type="button" :class="{ active: config.wallhavenSource === 'hot' }" @click="config.wallhavenSource = 'hot'">
-              热门 Hot
+              {{ t('wallpaperSwitcher.hotWithLabel') }}
             </button>
             <button type="button" :class="{ active: config.wallhavenSource === 'toplist' }" @click="config.wallhavenSource = 'toplist'">
-              排行榜 Toplist
+              {{ t('wallpaperSwitcher.toplistWithLabel') }}
             </button>
           </div>
           <button type="button" class="tool-btn grid-open" @click="openWallhavenGrid">
             <Search :size="16" />
-            打开在线网格
+            {{ t('wallpaperSwitcher.openOnlineGrid') }}
           </button>
         </div>
         <div class="hint-row">
-          <span>屏幕匹配</span>
+          <span>{{ t('wallpaperSwitcher.screenMatch') }}</span>
           <strong>{{ screenLabel }}</strong>
         </div>
       </section>
 
       <section class="card rules-card">
         <div class="rules-line">
-          <span class="row-label">切换规则</span>
+          <span class="row-label">{{ t('wallpaperSwitcher.switchRules') }}</span>
           <label class="switch-label">
-            启用定时切换
+            {{ t('wallpaperSwitcher.enableSchedule') }}
             <input v-model="config.scheduleEnabled" type="checkbox" />
             <span class="switch-control"></span>
           </label>
           <label class="number-label">
-            每
+            {{ t('wallpaperSwitcher.every') }}
             <input v-model.number="config.intervalMinutes" type="number" min="1" max="1440" />
-            分钟
+            {{ t('wallpaperSwitcher.minutes') }}
           </label>
-          <span class="sub-label">顺序</span>
+          <span class="sub-label">{{ t('wallpaperSwitcher.type') }}</span>
           <div class="segmented mini">
-            <button type="button" :class="{ active: config.order === 'random' }" @click="config.order = 'random'">
-              随机
+            <button type="button" :class="{ active: config.wallhavenSource === 'hot' }" @click="config.wallhavenSource = 'hot'">
+              {{ t('wallpaperSwitcher.hot') }}
             </button>
-            <button type="button" :class="{ active: config.order === 'sequential' }" @click="config.order = 'sequential'">
-              顺序
+            <button type="button" :class="{ active: config.wallhavenSource === 'toplist' }" @click="config.wallhavenSource = 'toplist'">
+              {{ t('wallpaperSwitcher.toplist') }}
             </button>
           </div>
         </div>
         <div class="rules-line">
-          <span class="row-label compact">适配模式</span>
+          <span class="row-label compact">{{ t('wallpaperSwitcher.fitMode') }}</span>
           <div class="segmented fit">
             <button type="button" :class="{ active: config.fitMode === 'fillCrop' }" :disabled="fitting" @click="setFitMode('fillCrop')">
-              填充裁切
+              {{ t('wallpaperSwitcher.fitFillCrop') }}
             </button>
             <button type="button" :class="{ active: config.fitMode === 'fit' }" :disabled="fitting" @click="setFitMode('fit')">
-              适应
+              {{ t('wallpaperSwitcher.fitContain') }}
             </button>
             <button type="button" :class="{ active: config.fitMode === 'center' }" :disabled="fitting" @click="setFitMode('center')">
-              居中
+              {{ t('wallpaperSwitcher.fitCenter') }}
             </button>
           </div>
           <label class="checkbox-label">
             <input v-model="config.autoRestore" type="checkbox" />
-            启动后自动恢复定时任务
+            {{ t('wallpaperSwitcher.autoRestore') }}
           </label>
         </div>
       </section>
 
       <footer class="footer-card">
         <div class="cache-info">
-          <strong>缓存</strong>
-          <span>Wallhaven 缓存</span>
+          <strong>{{ t('wallpaperSwitcher.cache') }}</strong>
+          <span>{{ t('wallpaperSwitcher.wallhavenCache') }}</span>
           <span>{{ cacheSizeLabel }}</span>
         </div>
         <div class="footer-actions">
           <button type="button" class="secondary-btn" :disabled="clearingCache" @click="clearCache">
             <Delete :size="16" />
-            {{ clearingCache ? '清理中' : '清理缓存' }}
+            {{ clearingCache ? t('wallpaperSwitcher.clearing') : t('wallpaperSwitcher.clearCache') }}
           </button>
           <button type="button" class="secondary-btn" :disabled="openingCache" @click="openCacheDir">
             <FolderOpen :size="16" />
-            {{ openingCache ? '打开中' : '打开缓存' }}
+            {{ openingCache ? t('wallpaperSwitcher.opening') : t('wallpaperSwitcher.openCache') }}
           </button>
           <button type="button" class="primary-btn" :disabled="saving" @click="persistConfig">
             <Save :size="17" />
-            {{ saving ? '保存中' : '保存设置' }}
+            {{ saving ? t('wallpaperSwitcher.saving') : t('wallpaperSwitcher.saveSettings') }}
           </button>
         </div>
       </footer>
@@ -537,43 +543,43 @@ onUnmounted(() => {
     <div v-else class="wallhaven-view">
       <section class="filters filters--preview-style">
         <div class="search-box wallhaven-search">
-          <input v-model="wallhavenKeyword" type="text" placeholder="搜索关键词" @keydown.enter="refreshWallhaven" />
+          <input v-model="wallhavenKeyword" type="text" :placeholder="t('wallpaperSwitcher.searchPlaceholder')" @keydown.enter="refreshWallhaven" />
           <Search :size="16" class="search-icon" />
-          <button v-if="wallhavenKeyword" type="button" class="clear-btn" title="清空" @click="wallhavenKeyword = ''">
+          <button v-if="wallhavenKeyword" type="button" class="clear-btn" :title="t('wallpaperSwitcher.clear')" @click="wallhavenKeyword = ''">
             <CloseSmall :size="18" />
           </button>
         </div>
 
-        <div class="wallhaven-tabs" role="tablist" aria-label="壁纸分类切换">
+        <div class="wallhaven-tabs" role="tablist" :aria-label="t('wallpaperSwitcher.categoryToggle')">
           <button type="button" :class="{ active: wallhavenCategory === 'general' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('general')">
-            通用
+            {{ t('wallpaperSwitcher.categories.general') }}
           </button>
           <button type="button" :class="{ active: wallhavenCategory === 'anime' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('anime')">
-            动漫
+            {{ t('wallpaperSwitcher.categories.anime') }}
           </button>
           <button type="button" :class="{ active: wallhavenCategory === 'people' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('people')">
-            人物
+            {{ t('wallpaperSwitcher.categories.people') }}
           </button>
           <button type="button" :class="{ active: wallhavenCategory === 'nature' }" :disabled="wallhavenLoading" @click="setWallhavenCategory('nature')">
-            自然
+            {{ t('wallpaperSwitcher.categories.nature') }}
           </button>
         </div>
 
         <div class="wallhaven-meta">
-          <span>自动匹配 {{ screenLabel }}</span>
-          <button type="button" class="refresh-btn wallhaven-refresh" title="刷新" @click="refreshWallhaven">
+          <span>{{ t('wallpaperSwitcher.autoMatch', { resolution: screenLabel }) }}</span>
+          <button type="button" class="refresh-btn wallhaven-refresh" :title="t('wallpaperSwitcher.refresh')" @click="refreshWallhaven">
             <Refresh :size="14" :class="{ spinning: wallhavenLoading }" />
           </button>
         </div>
       </section>
 
       <section class="grid-wrap">
-        <div v-if="wallhavenLoading && visibleWallpapers.length === 0" class="empty-state">正在加载 Wallhaven 壁纸...</div>
+        <div v-if="wallhavenLoading && visibleWallpapers.length === 0" class="empty-state">{{ t('wallpaperSwitcher.loadingWallhaven') }}</div>
         <div v-else-if="wallhavenError" class="empty-state error-state">
           <span>{{ wallhavenError }}</span>
-          <button type="button" @click="refreshWallhaven">重试</button>
+          <button type="button" @click="refreshWallhaven">{{ t('wallpaperSwitcher.retry') }}</button>
         </div>
-        <div v-else-if="visibleWallpapers.length === 0" class="empty-state">暂无可用壁纸</div>
+        <div v-else-if="visibleWallpapers.length === 0" class="empty-state">{{ t('wallpaperSwitcher.noWallpapers') }}</div>
         <div v-else class="wallpaper-grid">
           <article v-for="wallpaper in visibleWallpapers" :key="wallpaper.id" class="wallpaper-card">
             <button type="button" class="thumb" @click="openPreview(wallpaper)">
@@ -587,17 +593,17 @@ onUnmounted(() => {
               <span>{{ wallpaper.resolution }}</span>
             </button>
             <div class="card-actions" @click.stop>
-              <button type="button" title="预览" @click="openPreview(wallpaper)">
+              <button type="button" :title="t('wallpaperSwitcher.preview')" @click="openPreview(wallpaper)">
                 <PreviewOpen :size="16" />
-                预览
+                {{ t('wallpaperSwitcher.preview') }}
               </button>
-              <button type="button" title="设为壁纸" :disabled="workingIds.has(wallpaper.id)" @click="setWallpaperFromWallhaven(wallpaper)">
+              <button type="button" :title="t('wallpaperSwitcher.setWallpaper')" :disabled="workingIds.has(wallpaper.id)" @click="setWallpaperFromWallhaven(wallpaper)">
                 <Computer :size="16" />
-                {{ workingIds.has(wallpaper.id) ? '设置中' : '设为' }}
+                {{ workingIds.has(wallpaper.id) ? t('wallpaperSwitcher.setting') : t('wallpaperSwitcher.set') }}
               </button>
-              <button type="button" title="下载" :disabled="workingIds.has(wallpaper.id)" @click="downloadWallpaperFromWallhaven(wallpaper)">
+              <button type="button" :title="t('wallpaperSwitcher.download')" :disabled="workingIds.has(wallpaper.id)" @click="downloadWallpaperFromWallhaven(wallpaper)">
                 <Download :size="16" />
-                下载
+                {{ t('wallpaperSwitcher.download') }}
               </button>
             </div>
           </article>
@@ -605,11 +611,11 @@ onUnmounted(() => {
       </section>
 
       <footer class="pager">
-        <span>第 {{ wallhavenPage }} 页</span>
-        <span class="source-note">来源：{{ wallhavenSourceLabel }} · SFW</span>
+        <span>{{ t('wallpaperSwitcher.page', { page: wallhavenPage }) }}</span>
+        <span class="source-note">{{ t('wallpaperSwitcher.sourceNote', { source: wallhavenSourceLabel }) }}</span>
         <div class="pager-actions">
-          <button type="button" :disabled="wallhavenPage <= 1 || wallhavenLoading" @click="prevWallhavenPage">上一页</button>
-          <button type="button" :disabled="wallhavenPage >= wallhavenLastPage || wallhavenLoading" @click="nextWallhavenPage">下一页</button>
+          <button type="button" :disabled="wallhavenPage <= 1 || wallhavenLoading" @click="prevWallhavenPage">{{ t('wallpaperSwitcher.prevPage') }}</button>
+          <button type="button" :disabled="wallhavenPage >= wallhavenLastPage || wallhavenLoading" @click="nextWallhavenPage">{{ t('wallpaperSwitcher.nextPage') }}</button>
         </div>
       </footer>
     </div>
@@ -624,23 +630,23 @@ onUnmounted(() => {
         </header>
         <div class="preview-image-wrap">
           <div v-if="previewLoading" class="preview-skeleton">
-            <span>加载预览...</span>
+            <span>{{ t('wallpaperSwitcher.loadingPreview') }}</span>
           </div>
-          <div v-if="previewLoadFailed" class="preview-error">预览加载失败</div>
+          <div v-if="previewLoadFailed" class="preview-error">{{ t('wallpaperSwitcher.previewLoadFailed') }}</div>
           <img
             :class="{ ready: !previewLoading && !previewLoadFailed }"
             :src="previewWallpaper.path"
-            alt="壁纸预览"
+            :alt="t('wallpaperSwitcher.wallpaperPreviewAlt')"
             @load="markPreviewLoaded"
             @error="markPreviewFailed"
           />
         </div>
         <footer>
           <button type="button" class="secondary-btn" :disabled="workingIds.has(previewWallpaper.id)" @click="downloadWallpaperFromWallhaven(previewWallpaper)">
-            下载缓存
+            {{ t('wallpaperSwitcher.downloadCache') }}
           </button>
           <button type="button" class="primary-btn" :disabled="workingIds.has(previewWallpaper.id)" @click="setWallpaperFromWallhaven(previewWallpaper)">
-            {{ workingIds.has(previewWallpaper.id) ? '设置中' : '设为壁纸' }}
+            {{ workingIds.has(previewWallpaper.id) ? t('wallpaperSwitcher.setting') : t('wallpaperSwitcher.setWallpaper') }}
           </button>
         </footer>
       </div>
@@ -979,9 +985,8 @@ onUnmounted(() => {
   margin-left: 24px;
 
   .primary-btn {
-    height: 38px;
-    line-height: 38px;
-    min-width: 146px;
+    height: 34px;
+    line-height: 34px;
     background: rgb(95 116 243 / 94%);
     border-color: rgb(255 255 255 / 16%);
     box-shadow: 0 14px 26px rgb(0 0 0 / 24%);
