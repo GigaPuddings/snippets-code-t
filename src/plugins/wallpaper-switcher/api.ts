@@ -5,7 +5,7 @@ import { openPath } from '@tauri-apps/plugin-opener';
 export type WallpaperMode = 'fixed' | 'folder' | 'wallhaven';
 export type WallpaperOrder = 'random' | 'sequential';
 export type WallpaperFitMode = 'fillCrop' | 'fit' | 'center';
-export type WallhavenSource = 'hot' | 'toplist';
+export type WallhavenSource = 'hot' | 'toplist' | 'favorites';
 
 export interface WallpaperConfig {
   mode: WallpaperMode;
@@ -114,20 +114,25 @@ export const setFixedWallpaper = (path: string): Promise<string> =>
 export const switchWallpaperNow = (): Promise<string> =>
   invoke<string>('wallpaper_switch_now');
 
-export const applyCurrentWallpaperFit = (fitMode?: WallpaperFitMode): Promise<string> =>
+export const applyCurrentWallpaperFit = (
+  fitMode?: WallpaperFitMode
+): Promise<string> =>
   invoke<string>('wallpaper_apply_current_fit', { fitMode });
 
 export const fetchWallhaven = (
   params: WallhavenFetchParams
-): Promise<WallhavenPage> => invoke<WallhavenPage>('wallpaper_fetch_wallhaven', { params });
+): Promise<WallhavenPage> =>
+  invoke<WallhavenPage>('wallpaper_fetch_wallhaven', { params });
 
 export const setWallhavenWallpaper = (
   wallpaper: WallhavenWallpaper
-): Promise<string> => invoke<string>('wallpaper_set_wallhaven_image', { wallpaper });
+): Promise<string> =>
+  invoke<string>('wallpaper_set_wallhaven_image', { wallpaper });
 
 export const downloadWallhavenWallpaper = (
   wallpaper: WallhavenWallpaper
-): Promise<string> => invoke<string>('wallpaper_download_wallhaven_image', { wallpaper });
+): Promise<string> =>
+  invoke<string>('wallpaper_download_wallhaven_image', { wallpaper });
 
 export const clearWallpaperCache = (): Promise<void> =>
   invoke('wallpaper_clear_cache');

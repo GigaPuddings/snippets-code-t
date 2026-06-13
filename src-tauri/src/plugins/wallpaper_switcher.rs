@@ -51,6 +51,7 @@ pub enum WallpaperFitMode {
 pub enum WallhavenSource {
     Hot,
     Toplist,
+    Favorites,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -906,6 +907,7 @@ fn wallhaven_api_sorting(source: &WallhavenSource) -> &'static str {
     match source {
         WallhavenSource::Hot => "date_added",
         WallhavenSource::Toplist => "toplist",
+        WallhavenSource::Favorites => "favorites",
     }
 }
 
@@ -913,6 +915,7 @@ fn wallhaven_web_sorting(source: &WallhavenSource) -> &'static str {
     match source {
         WallhavenSource::Hot => "hot",
         WallhavenSource::Toplist => "toplist",
+        WallhavenSource::Favorites => "favorites",
     }
 }
 

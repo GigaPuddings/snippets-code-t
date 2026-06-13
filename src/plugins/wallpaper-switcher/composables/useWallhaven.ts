@@ -9,7 +9,7 @@ import {
   setWallhavenWallpaper,
   type WallhavenSource,
   type WallhavenWallpaper,
-  type WallpaperConfig,
+  type WallpaperConfig
 } from '../api';
 
 export interface UseWallhavenOptions {
@@ -40,11 +40,16 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   let unlistenError: UnlistenFn | null = null;
   let wallhavenFetchSeq = 0;
 
-  const wallhavenSourceLabel = computed(() => (wallhavenSource.value === 'hot' ? 'Hot' : 'Toplist'));
+  const wallhavenSourceLabel = computed(() => {
+    if (wallhavenSource.value === 'hot') return 'Hot';
+    if (wallhavenSource.value === 'favorites') return 'Favorites';
+    return 'Toplist';
+  });
   const visibleWallpapers = computed(() => wallpapers.value.slice(0, 8));
   const wallhavenRequestQuery = computed(() => {
     const keyword = wallhavenKeyword.value.trim();
-    if (wallhavenCategory.value === 'nature') return keyword ? `${keyword} nature` : 'nature';
+    if (wallhavenCategory.value === 'nature')
+      return keyword ? `${keyword} nature` : 'nature';
     return keyword || null;
   });
 
@@ -52,7 +57,11 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
 
   const formatWallhavenError = (error: unknown): string => {
     const message = String(error).replace(/^Error:\s*/, '');
-    if (/unexpected EOF|handshake|timed out|error sending request|client error|Connect/i.test(message)) {
+    if (
+      /unexpected EOF|handshake|timed out|error sending request|client error|Connect/i.test(
+        message
+      )
+    ) {
       return t('wallpaperSwitcher.messages.wallhavenNetworkError');
     }
     return message.length > 120 ? `${message.slice(0, 120)}...` : message;
@@ -60,7 +69,8 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
 
   const setWorking = (id: string, working: boolean) => {
     const next = new Set(workingIds.value);
-    if (working) next.add(id); else next.delete(id);
+    if (working) next.add(id);
+    else next.delete(id);
     workingIds.value = next;
   };
 
@@ -130,8 +140,14 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   };
 
   const refreshWallhaven = () => fetchWallhavenData(1);
-  const setWallhavenSource = async (next: WallhavenSource) => { wallhavenSource.value = next; await fetchWallhavenData(1); };
-  const setWallhavenCategory = async (next: string) => { wallhavenCategory.value = next; await fetchWallhavenData(1); };
+  const setWallhavenSource = async (next: WallhavenSource) => {
+    wallhavenSource.value = next;
+    await fetchWallhavenData(1);
+  };
+  const setWallhavenCategory = async (next: string) => {
+    wallhavenCategory.value = next;
+    await fetchWallhavenData(1);
+  };
 
   const openWallhavenGrid = async () => {
     wallhavenKeyword.value = '';
@@ -144,12 +160,6 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     await fetchWallhavenData(1);
   };
 
-  const backToSwitcher = async () => {
-    activeView.value = 'switcher';
-    closePreview();
-    await refreshStatus();
-  };
-
   const openPreview = (wallpaper: WallhavenWallpaper) => {
     previewWallpaper.value = wallpaper;
     previewLoading.value = true;
@@ -160,6 +170,12 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     previewWallpaper.value = null;
     previewLoading.value = false;
     previewLoadFailed.value = false;
+  };
+
+  const backToSwitcher = async () => {
+    activeView.value = 'switcher';
+    closePreview();
+    await refreshStatus();
   };
 
   const markPreviewLoaded = () => {
@@ -185,7 +201,9 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     }
   };
 
-  const downloadWallpaperFromWallhaven = async (wallpaper: WallhavenWallpaper) => {
+  const downloadWallpaperFromWallhaven = async (
+    wallpaper: WallhavenWallpaper
+  ) => {
     setWorking(wallpaper.id, true);
     try {
       modal.msg(t('wallpaperSwitcher.messages.downloadingWallpaper'), 'info');
@@ -199,19 +217,28 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     }
   };
 
-  const prevWallhavenPage = async () => { if (wallhavenPage.value > 1) await fetchWallhavenData(wallhavenPage.value - 1); };
-  const nextWallhavenPage = async () => { if (wallhavenPage.value < wallhavenLastPage.value) await fetchWallhavenData(wallhavenPage.value + 1); };
+  const prevWallhavenPage = async () => {
+    if (wallhavenPage.value > 1)
+      await fetchWallhavenData(wallhavenPage.value - 1);
+  };
+  const nextWallhavenPage = async () => {
+    if (wallhavenPage.value < wallhavenLastPage.value)
+      await fetchWallhavenData(wallhavenPage.value + 1);
+  };
 
   onMounted(() => {
-    thumbObserver = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const image = entry.target as HTMLImageElement;
-        const src = image.dataset.src;
-        if (src && image.src !== src) image.src = src;
-        thumbObserver?.unobserve(image);
-      }
-    }, { root: null, rootMargin: '120px' });
+    thumbObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const image = entry.target as HTMLImageElement;
+          const src = image.dataset.src;
+          if (src && image.src !== src) image.src = src;
+          thumbObserver?.unobserve(image);
+        }
+      },
+      { root: null, rootMargin: '120px' }
+    );
     unlistenChanged = null;
     unlistenError = null;
   });
@@ -225,9 +252,16 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
 
   const setupListeners = async () => {
     unlistenChanged = await listen('wallpaper-switcher-changed', refreshStatus);
-    unlistenError = await listen<{ message?: string }>('wallpaper-switcher-error', (event) => {
-      modal.msg(event.payload?.message || t('wallpaperSwitcher.messages.scheduleSwitchFailed'), 'error');
-    });
+    unlistenError = await listen<{ message?: string }>(
+      'wallpaper-switcher-error',
+      (event) => {
+        modal.msg(
+          event.payload?.message ||
+            t('wallpaperSwitcher.messages.scheduleSwitchFailed'),
+          'error'
+        );
+      }
+    );
   };
 
   return {
@@ -262,6 +296,6 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     downloadWallpaperFromWallhaven,
     prevWallhavenPage,
     nextWallhavenPage,
-    setupListeners,
+    setupListeners
   };
 }
