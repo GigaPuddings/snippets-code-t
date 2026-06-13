@@ -1,11 +1,11 @@
 import * as pn from "vue";
-import { inject as He, ref as U, shallowRef as hr, computed as D, watch as wt, onMounted as Lt, onUnmounted as xn, defineComponent as ae, h as nl, createVNode as L, Text as pr, Fragment as Ge, getCurrentInstance as vt, unref as o, readonly as mr, getCurrentScope as gr, onScopeDispose as wr, nextTick as al, isRef as ll, warn as vr, provide as _r, createElementBlock as z, openBlock as $, mergeProps as br, renderSlot as _t, createElementVNode as m, normalizeClass as Q, Transition as zn, withCtx as st, withDirectives as Yt, normalizeStyle as Zt, createTextVNode as ue, toDisplayString as F, vShow as Xt, shallowReactive as yr, createBlock as Se, createCommentVNode as _e, resolveDynamicComponent as rl, withModifiers as Dt, isVNode as At, render as Jt, renderList as kn, withKeys as sl } from "vue";
-const Lf = (e) => {
+import { inject as He, ref as U, shallowRef as hr, computed as D, watch as wt, onMounted as Lt, onUnmounted as xn, defineComponent as ae, h as nl, createVNode as L, Text as pr, Fragment as Ge, getCurrentInstance as vt, unref as o, readonly as mr, getCurrentScope as gr, onScopeDispose as wr, nextTick as al, isRef as ll, warn as vr, provide as _r, createElementBlock as z, openBlock as $, mergeProps as br, renderSlot as _t, createElementVNode as m, normalizeClass as Q, Transition as zn, withCtx as st, withDirectives as Yt, normalizeStyle as Zt, createTextVNode as ue, toDisplayString as F, vShow as Xt, shallowReactive as yr, createBlock as Se, createCommentVNode as we, resolveDynamicComponent as rl, withModifiers as Dt, isVNode as At, render as Jt, renderList as kn, withKeys as sl } from "vue";
+const Sf = (e) => {
   e.registerRoute({
     target: "window",
     path: "/wallpaper-switcher",
     name: "WallpaperSwitcher",
-    component: () => Promise.resolve().then(() => Cf)
+    component: () => Promise.resolve().then(() => kf)
   }), e.registerWindowShortcut({
     label: "wallpaper_switcher"
   });
@@ -215,10 +215,10 @@ class jt {
     return this[ke]();
   }
 }
-var ve;
+var _e;
 (function(e) {
   e.WINDOW_RESIZED = "tauri://resize", e.WINDOW_MOVED = "tauri://move", e.WINDOW_CLOSE_REQUESTED = "tauri://close-requested", e.WINDOW_DESTROYED = "tauri://destroyed", e.WINDOW_FOCUS = "tauri://focus", e.WINDOW_BLUR = "tauri://blur", e.WINDOW_SCALE_FACTOR_CHANGED = "tauri://scale-change", e.WINDOW_THEME_CHANGED = "tauri://theme-changed", e.WINDOW_CREATED = "tauri://window-created", e.WEBVIEW_CREATED = "tauri://webview-created", e.DRAG_ENTER = "tauri://drag-enter", e.DRAG_OVER = "tauri://drag-over", e.DRAG_DROP = "tauri://drag-drop", e.DRAG_LEAVE = "tauri://drag-leave";
-})(ve || (ve = {}));
+})(_e || (_e = {}));
 async function cl(e, t) {
   await T("plugin:event|unlisten", {
     event: e,
@@ -1707,7 +1707,7 @@ class dl {
    * Note that removing the listener is required if your listener goes out of scope e.g. the component is unmounted.
    */
   async onResized(t) {
-    return this.listen(ve.WINDOW_RESIZED, (n) => {
+    return this.listen(_e.WINDOW_RESIZED, (n) => {
       n.payload = new Pt(n.payload), t(n);
     });
   }
@@ -1729,7 +1729,7 @@ class dl {
    * Note that removing the listener is required if your listener goes out of scope e.g. the component is unmounted.
    */
   async onMoved(t) {
-    return this.listen(ve.WINDOW_MOVED, (n) => {
+    return this.listen(_e.WINDOW_MOVED, (n) => {
       n.payload = new Ve(n.payload), t(n);
     });
   }
@@ -1756,7 +1756,7 @@ class dl {
    * Note that removing the listener is required if your listener goes out of scope e.g. the component is unmounted.
    */
   async onCloseRequested(t) {
-    return this.listen(ve.WINDOW_CLOSE_REQUESTED, async (n) => {
+    return this.listen(_e.WINDOW_CLOSE_REQUESTED, async (n) => {
       const a = new Pr(n);
       await t(a), a.isPreventDefault() || await this.destroy();
     });
@@ -1787,7 +1787,7 @@ class dl {
    * Note that removing the listener is required if your listener goes out of scope e.g. the component is unmounted.
    */
   async onDragDropEvent(t) {
-    const n = await this.listen(ve.DRAG_ENTER, (s) => {
+    const n = await this.listen(_e.DRAG_ENTER, (s) => {
       t({
         ...s,
         payload: {
@@ -1796,7 +1796,7 @@ class dl {
           position: new Ve(s.payload.position)
         }
       });
-    }), a = await this.listen(ve.DRAG_OVER, (s) => {
+    }), a = await this.listen(_e.DRAG_OVER, (s) => {
       t({
         ...s,
         payload: {
@@ -1804,7 +1804,7 @@ class dl {
           position: new Ve(s.payload.position)
         }
       });
-    }), l = await this.listen(ve.DRAG_DROP, (s) => {
+    }), l = await this.listen(_e.DRAG_DROP, (s) => {
       t({
         ...s,
         payload: {
@@ -1813,7 +1813,7 @@ class dl {
           position: new Ve(s.payload.position)
         }
       });
-    }), r = await this.listen(ve.DRAG_LEAVE, (s) => {
+    }), r = await this.listen(_e.DRAG_LEAVE, (s) => {
       t({ ...s, payload: { type: "leave" } });
     });
     return () => {
@@ -1838,9 +1838,9 @@ class dl {
    * Note that removing the listener is required if your listener goes out of scope e.g. the component is unmounted.
    */
   async onFocusChanged(t) {
-    const n = await this.listen(ve.WINDOW_FOCUS, (l) => {
+    const n = await this.listen(_e.WINDOW_FOCUS, (l) => {
       t({ ...l, payload: !0 });
-    }), a = await this.listen(ve.WINDOW_BLUR, (l) => {
+    }), a = await this.listen(_e.WINDOW_BLUR, (l) => {
       t({ ...l, payload: !1 });
     });
     return () => {
@@ -1869,7 +1869,7 @@ class dl {
    * Note that removing the listener is required if your listener goes out of scope e.g. the component is unmounted.
    */
   async onScaleChanged(t) {
-    return this.listen(ve.WINDOW_SCALE_FACTOR_CHANGED, t);
+    return this.listen(_e.WINDOW_SCALE_FACTOR_CHANGED, t);
   }
   /**
    * Listen to the system theme change.
@@ -1889,7 +1889,7 @@ class dl {
    * Note that removing the listener is required if your listener goes out of scope e.g. the component is unmounted.
    */
   async onThemeChanged(t) {
-    return this.listen(ve.WINDOW_THEME_CHANGED, t);
+    return this.listen(_e.WINDOW_THEME_CHANGED, t);
   }
 }
 var la;
@@ -2195,14 +2195,14 @@ function Zr(e, t = {}) {
   function Je(c) {
     return ee(c, Xe);
   }
-  function we(c) {
+  function ve(c) {
     const d = c.charCodeAt(0);
     return d >= 48 && d <= 57 || // 0-9
     d >= 65 && d <= 70 || // A-F
     d >= 97 && d <= 102;
   }
   function $e(c) {
-    return ee(c, we);
+    return ee(c, ve);
   }
   function De(c) {
     let d = "", S = "";
@@ -3934,7 +3934,7 @@ function so(e = {}) {
   function Je(p) {
     p !== null && (f = Fa(p)), I = p, y.missing = f;
   }
-  const we = (p, P, B, te, Oe, pt) => {
+  const ve = (p, P, B, te, Oe, pt) => {
     X();
     let R;
     try {
@@ -3953,7 +3953,7 @@ function so(e = {}) {
     }
   };
   function $e(...p) {
-    return we((P) => Reflect.apply(Na, null, [P, ...p]), () => In(...p), "translate", (P) => Reflect.apply(P.t, P, [...p]), (P) => P, (P) => M(P));
+    return ve((P) => Reflect.apply(Na, null, [P, ...p]), () => In(...p), "translate", (P) => Reflect.apply(P.t, P, [...p]), (P) => P, (P) => M(P));
   }
   function De(...p) {
     const [P, B, te] = p;
@@ -3962,10 +3962,10 @@ function so(e = {}) {
     return $e(P, B, de({ resolvedMessage: !0 }, te || {}));
   }
   function je(...p) {
-    return we((P) => Reflect.apply(Ca, null, [P, ...p]), () => En(...p), "datetime format", (P) => Reflect.apply(P.d, P, [...p]), () => _a, (P) => M(P) || se(P));
+    return ve((P) => Reflect.apply(Ca, null, [P, ...p]), () => En(...p), "datetime format", (P) => Reflect.apply(P.d, P, [...p]), () => _a, (P) => M(P) || se(P));
   }
   function qe(...p) {
-    return we((P) => Reflect.apply(La, null, [P, ...p]), () => Tn(...p), "number format", (P) => Reflect.apply(P.n, P, [...p]), () => _a, (P) => M(P) || se(P));
+    return ve((P) => Reflect.apply(La, null, [P, ...p]), () => Tn(...p), "number format", (P) => Reflect.apply(P.n, P, [...p]), () => _a, (P) => M(P) || se(P));
   }
   function xe(p) {
     return p.map((P) => M(P) || oe(P) || re(P) ? Pa(String(P)) : P);
@@ -3976,7 +3976,7 @@ function so(e = {}) {
     type: "vnode"
   };
   function tt(...p) {
-    return we((P) => {
+    return ve((P) => {
       let B;
       const te = P;
       try {
@@ -3988,16 +3988,16 @@ function so(e = {}) {
     }, () => In(...p), "translate", (P) => P[Nn](...p), (P) => [Pa(P)], (P) => se(P));
   }
   function ze(...p) {
-    return we((P) => Reflect.apply(La, null, [P, ...p]), () => Tn(...p), "number format", (P) => P[On](...p), Oa, (P) => M(P) || se(P));
+    return ve((P) => Reflect.apply(La, null, [P, ...p]), () => Tn(...p), "number format", (P) => P[On](...p), Oa, (P) => M(P) || se(P));
   }
   function nt(...p) {
-    return we((P) => Reflect.apply(Ca, null, [P, ...p]), () => En(...p), "datetime format", (P) => P[Pn](...p), Oa, (P) => M(P) || se(P));
+    return ve((P) => Reflect.apply(Ca, null, [P, ...p]), () => En(...p), "datetime format", (P) => P[Pn](...p), Oa, (P) => M(P) || se(P));
   }
   function at(p) {
     A = p, y.pluralRules = A;
   }
   function j(p, P) {
-    return we(() => {
+    return ve(() => {
       if (!p)
         return !1;
       const B = M(P) ? P : i.value, te = ge(B), Oe = y.messageResolver(te, p);
@@ -5435,7 +5435,7 @@ const or = ["success", "info", "warning", "error"], he = Tc({
             value: y.repeatNum,
             type: o(E),
             class: Q(o(l).e("badge"))
-          }, null, 8, ["value", "type", "class"])) : _e("v-if", !0),
+          }, null, 8, ["value", "type", "class"])) : we("v-if", !0),
           o(N) ? ($(), Se(o(an), {
             key: 1,
             class: Q([o(l).e("icon"), o(g)])
@@ -5444,10 +5444,10 @@ const or = ["success", "info", "warning", "error"], he = Tc({
               ($(), Se(rl(o(N))))
             ]),
             _: 1
-          }, 8, ["class"])) : _e("v-if", !0),
+          }, 8, ["class"])) : we("v-if", !0),
           _t(y.$slots, "default", {}, () => [
             y.dangerouslyUseHTMLString ? ($(), z(Ge, { key: 1 }, [
-              _e(" Caution here, message could've been compromised, never use user's input as message "),
+              we(" Caution here, message could've been compromised, never use user's input as message "),
               m("p", {
                 class: Q(o(l).e("content")),
                 innerHTML: y.message
@@ -5466,7 +5466,7 @@ const or = ["success", "info", "warning", "error"], he = Tc({
               L(o(a))
             ]),
             _: 1
-          }, 8, ["class", "onClick"])) : _e("v-if", !0)
+          }, 8, ["class", "onClick"])) : we("v-if", !0)
         ], 46, ["id"]), [
           [Xt, h.value]
         ])
@@ -5679,7 +5679,7 @@ const Kc = lr(Ct, "$message"), cr = [
               ($(), Se(rl(o(C))))
             ]),
             _: 1
-          }, 8, ["class"])) : _e("v-if", !0),
+          }, 8, ["class"])) : we("v-if", !0),
           m("div", {
             class: Q(o(a).e("group"))
           }, [
@@ -5693,7 +5693,7 @@ const Kc = lr(Ct, "$message"), cr = [
             }, [
               _t(_.$slots, "default", {}, () => [
                 _.dangerouslyUseHTMLString ? ($(), z(Ge, { key: 1 }, [
-                  _e(" Caution here, message could've been compromised, never use user's input as message "),
+                  we(" Caution here, message could've been compromised, never use user's input as message "),
                   m("p", { innerHTML: _.message }, null, 8, ["innerHTML"])
                 ], 2112)) : ($(), z("p", { key: 0 }, F(_.message), 1))
               ])
@@ -5709,7 +5709,7 @@ const Kc = lr(Ct, "$message"), cr = [
                 L(o(i))
               ]),
               _: 1
-            }, 8, ["class", "onClick"])) : _e("v-if", !0)
+            }, 8, ["class", "onClick"])) : we("v-if", !0)
           ], 2)
         ], 46, ["id", "onClick"]), [
           [Xt, u.value]
@@ -5977,7 +5977,7 @@ function pu({ config: e, refreshStatus: t }) {
     }
   }, Xe = () => ye(1), Je = async (j) => {
     C.value = j, await ye(1);
-  }, we = async (j) => {
+  }, ve = async (j) => {
     v.value = j, await ye(1);
   }, $e = async () => {
     h.value = "", v.value = e.value.wallhavenCategory || "general", C.value = e.value.wallhavenSource, r.value = 1, u.value = "", l.value = [], a.value = "wallhaven", await ye(1);
@@ -6054,7 +6054,7 @@ function pu({ config: e, refreshStatus: t }) {
     setThumbRef: Re,
     refreshWallhaven: Xe,
     setWallhavenSource: Je,
-    setWallhavenCategory: we,
+    setWallhavenCategory: ve,
     setWallpaperFromWallhaven: et,
     downloadWallpaperFromWallhaven: tt,
     prevWallhavenPage: ze,
@@ -6597,7 +6597,7 @@ const _u = me("back", !0, function(e) {
 }), Pu = { class: "top-panel" }, Ou = { class: "preview" }, Au = ["src", "alt"], Fu = {
   key: 1,
   class: "preview-empty"
-}, Wu = { class: "status-panel" }, Mu = { class: "status-copy" }, Ru = { class: "wallpaper-name" }, $u = { class: "status-list" }, Du = { class: "status-row" }, ju = { class: "status-row" }, xu = { class: "status-row" }, zu = { class: "status-actions" }, Uu = ["disabled"], Vu = { class: "card settings-card" }, Hu = { class: "form-row mode-row" }, Gu = { class: "row-label" }, Ku = { class: "segmented three" }, Bu = { class: "form-row fixed-row" }, Yu = { class: "row-label" }, Zu = ["value", "placeholder"], Xu = { class: "form-row folder-row" }, Ju = { class: "row-label" }, qu = ["value", "placeholder"], Qu = { class: "hint-row" }, ed = { class: "form-row wallhaven-row" }, td = { class: "sub-label" }, nd = { class: "segmented source" }, ad = { class: "hint-row" }, ld = { class: "card rules-card" }, rd = { class: "rules-line" }, sd = { class: "row-label" }, od = { class: "switch-label" }, id = ["checked"], cd = { class: "number-label" }, ud = ["value"], dd = { class: "sub-label" }, fd = { class: "segmented mini" }, hd = { class: "rules-line" }, pd = { class: "row-label compact" }, md = { class: "segmented fit" }, gd = ["disabled"], wd = ["disabled"], vd = ["disabled"], _d = { class: "checkbox-label" }, bd = ["checked"], yd = { class: "footer-card" }, kd = { class: "cache-info" }, Cd = { class: "footer-actions" }, Sd = ["disabled"], Ld = ["disabled"], Ed = ["disabled"], Td = /* @__PURE__ */ ae({
+}, Wu = { class: "status-panel" }, Mu = { class: "status-copy" }, Ru = { class: "wallpaper-name" }, $u = { class: "status-list" }, Du = { class: "status-row" }, ju = { class: "status-row" }, xu = { class: "status-row" }, zu = { class: "status-actions" }, Uu = ["disabled"], Vu = { class: "card settings-card" }, Hu = { class: "form-row mode-row" }, Gu = { class: "row-label" }, Ku = { class: "segmented three" }, Bu = { class: "form-row fixed-row" }, Yu = { class: "row-label" }, Zu = ["value", "placeholder"], Xu = { class: "form-row folder-row" }, Ju = { class: "row-label" }, qu = ["value", "placeholder"], Qu = { class: "hint-row" }, ed = { class: "form-row wallhaven-row" }, td = { class: "sub-label" }, nd = { class: "segmented source" }, ad = { class: "hint-row" }, ld = { class: "card rules-card" }, rd = { class: "rules-line" }, sd = { class: "row-label" }, od = { class: "switch-label" }, id = ["checked"], cd = { class: "number-label" }, ud = ["value"], dd = { class: "segmented mini" }, fd = { class: "rules-line" }, hd = { class: "row-label compact" }, pd = { class: "segmented fit" }, md = ["disabled"], gd = ["disabled"], wd = ["disabled"], vd = { class: "checkbox-label" }, _d = ["checked"], bd = { class: "footer-card" }, yd = { class: "cache-info" }, kd = { class: "footer-actions" }, Cd = ["disabled"], Sd = ["disabled"], Ld = ["disabled"], Ed = /* @__PURE__ */ ae({
   __name: "SwitcherHome",
   props: {
     config: {},
@@ -6972,14 +6972,8 @@ const _u = me("back", !0, function(e) {
                 /* TEXT */
               )
             ]),
-            m(
-              "span",
-              dd,
-              F(o(l)("wallpaperSwitcher.type")),
-              1
-              /* TEXT */
-            ),
-            m("div", fd, [
+            we(` <span class="sub-label">{{ t('wallpaperSwitcher.type') }}</span> `),
+            m("div", dd, [
               L(jn, {
                 "tab-class": "button",
                 "model-value": g.config.wallhavenSource,
@@ -6987,40 +6981,40 @@ const _u = me("back", !0, function(e) {
               }, null, 8, ["model-value"])
             ])
           ]),
-          m("div", hd, [
+          m("div", fd, [
             m(
               "span",
-              pd,
+              hd,
               F(o(l)("wallpaperSwitcher.fitMode")),
               1
               /* TEXT */
             ),
-            m("div", md, [
+            m("div", pd, [
               m("button", {
                 type: "button",
                 class: Q({ active: g.config.fitMode === "fillCrop" }),
                 disabled: g.fitting,
                 onClick: N[9] || (N[9] = (w) => a("setFitMode", "fillCrop"))
-              }, F(o(l)("wallpaperSwitcher.fitFillCrop")), 11, gd),
+              }, F(o(l)("wallpaperSwitcher.fitFillCrop")), 11, md),
               m("button", {
                 type: "button",
                 class: Q({ active: g.config.fitMode === "fit" }),
                 disabled: g.fitting,
                 onClick: N[10] || (N[10] = (w) => a("setFitMode", "fit"))
-              }, F(o(l)("wallpaperSwitcher.fitContain")), 11, wd),
+              }, F(o(l)("wallpaperSwitcher.fitContain")), 11, gd),
               m("button", {
                 type: "button",
                 class: Q({ active: g.config.fitMode === "center" }),
                 disabled: g.fitting,
                 onClick: N[11] || (N[11] = (w) => a("setFitMode", "center"))
-              }, F(o(l)("wallpaperSwitcher.fitCenter")), 11, vd)
+              }, F(o(l)("wallpaperSwitcher.fitCenter")), 11, wd)
             ]),
-            m("label", _d, [
+            m("label", vd, [
               m("input", {
                 checked: g.config.autoRestore,
                 type: "checkbox",
                 onChange: E
-              }, null, 40, bd),
+              }, null, 40, _d),
               ue(
                 " " + F(o(l)("wallpaperSwitcher.autoRestore")),
                 1
@@ -7029,8 +7023,8 @@ const _u = me("back", !0, function(e) {
             ])
           ])
         ]),
-        m("footer", yd, [
-          m("div", kd, [
+        m("footer", bd, [
+          m("div", yd, [
             m(
               "strong",
               null,
@@ -7053,7 +7047,7 @@ const _u = me("back", !0, function(e) {
               /* TEXT */
             )
           ]),
-          m("div", Cd, [
+          m("div", kd, [
             m("button", {
               type: "button",
               class: "secondary-btn",
@@ -7066,7 +7060,7 @@ const _u = me("back", !0, function(e) {
                 1
                 /* TEXT */
               )
-            ], 8, Sd),
+            ], 8, Cd),
             m("button", {
               type: "button",
               class: "secondary-btn",
@@ -7079,7 +7073,7 @@ const _u = me("back", !0, function(e) {
                 1
                 /* TEXT */
               )
-            ], 8, Ld),
+            ], 8, Sd),
             m("button", {
               type: "button",
               class: "primary-btn",
@@ -7092,7 +7086,7 @@ const _u = me("back", !0, function(e) {
                 1
                 /* TEXT */
               )
-            ], 8, Ed)
+            ], 8, Ld)
           ])
         ])
       ],
@@ -7100,22 +7094,22 @@ const _u = me("back", !0, function(e) {
       /* CLASS */
     ));
   }
-}), Id = {
+}), Td = {
   class: "titlebar",
   "data-tauri-drag-region": ""
-}, Nd = {
+}, Id = {
   key: 0,
   class: "title"
-}, Pd = {
+}, Nd = {
   key: 1,
   class: "title"
-}, Od = ["title"], Ad = {
+}, Pd = ["title"], Od = {
   key: 2,
   class: "window-actions"
-}, Fd = ["title"], Wd = ["title"], Md = {
+}, Ad = ["title"], Fd = ["title"], Wd = {
   key: 3,
   class: "window-actions"
-}, Rd = ["aria-label"], $d = ["title"], Dd = /* @__PURE__ */ ae({
+}, Md = ["aria-label"], Rd = ["title"], $d = /* @__PURE__ */ ae({
   __name: "SwitcherTitlebar",
   props: {
     activeView: {},
@@ -7125,8 +7119,8 @@ const _u = me("back", !0, function(e) {
   emits: ["back", "close", "openWallhaven", "setWallhavenSource"],
   setup(e, { emit: t }) {
     const n = t, { t: a } = Pe();
-    return (l, r) => ($(), z("header", Id, [
-      l.activeView === "switcher" ? ($(), z("div", Nd, [
+    return (l, r) => ($(), z("header", Td, [
+      l.activeView === "switcher" ? ($(), z("div", Id, [
         L(o(Dn), { size: 18 }),
         m(
           "span",
@@ -7135,7 +7129,7 @@ const _u = me("back", !0, function(e) {
           1
           /* TEXT */
         )
-      ])) : ($(), z("div", Pd, [
+      ])) : ($(), z("div", Nd, [
         m("button", {
           type: "button",
           class: "flat-icon",
@@ -7143,7 +7137,7 @@ const _u = me("back", !0, function(e) {
           onClick: r[0] || (r[0] = (s) => n("back"))
         }, [
           L(o(_u), { size: 20 })
-        ], 8, Od),
+        ], 8, Pd),
         m(
           "span",
           null,
@@ -7152,7 +7146,7 @@ const _u = me("back", !0, function(e) {
           /* TEXT */
         )
       ])),
-      l.activeView === "switcher" ? ($(), z("div", Ad, [
+      l.activeView === "switcher" ? ($(), z("div", Od, [
         m("button", {
           type: "button",
           class: "icon-btn online-entry-btn",
@@ -7160,7 +7154,7 @@ const _u = me("back", !0, function(e) {
           onClick: r[1] || (r[1] = (s) => n("openWallhaven"))
         }, [
           L(o(Cu), { size: 18 })
-        ], 8, Fd),
+        ], 8, Ad),
         m("button", {
           type: "button",
           class: "icon-btn",
@@ -7168,8 +7162,8 @@ const _u = me("back", !0, function(e) {
           onClick: r[2] || (r[2] = (s) => n("close"))
         }, [
           L(o(sn), { size: 20 })
-        ], 8, Wd)
-      ])) : ($(), z("div", Md, [
+        ], 8, Fd)
+      ])) : ($(), z("div", Wd, [
         m("div", {
           class: "source-toggle",
           role: "tablist",
@@ -7180,7 +7174,7 @@ const _u = me("back", !0, function(e) {
             disabled: l.wallhavenLoading,
             "onUpdate:modelValue": r[3] || (r[3] = (s) => n("setWallhavenSource", s))
           }, null, 8, ["model-value", "disabled"])
-        ], 8, Rd),
+        ], 8, Md),
         m("button", {
           type: "button",
           class: "icon-btn",
@@ -7188,26 +7182,26 @@ const _u = me("back", !0, function(e) {
           onClick: r[4] || (r[4] = (s) => n("close"))
         }, [
           L(o(sn), { size: 20 })
-        ], 8, $d)
+        ], 8, Rd)
       ]))
     ]));
   }
-}), jd = { class: "wallhaven-view" }, xd = { class: "filters filters--preview-style" }, zd = { class: "search-box wallhaven-search" }, Ud = ["value", "placeholder"], Vd = ["title"], Hd = ["aria-label"], Gd = ["disabled", "onClick"], Kd = { class: "wallhaven-meta" }, Bd = ["title"], Yd = { class: "grid-wrap" }, Zd = {
+}), Dd = { class: "wallhaven-view" }, jd = { class: "filters filters--preview-style" }, xd = { class: "search-box wallhaven-search" }, zd = ["value", "placeholder"], Ud = ["title"], Vd = ["aria-label"], Hd = ["disabled", "onClick"], Gd = { class: "wallhaven-meta" }, Kd = ["title"], Bd = { class: "grid-wrap" }, Yd = {
   key: 0,
   class: "empty-state"
-}, Xd = {
+}, Zd = {
   key: 1,
   class: "empty-state error-state"
-}, Jd = {
+}, Xd = {
   key: 2,
   class: "empty-state"
-}, qd = {
+}, Jd = {
   key: 3,
   class: "wallpaper-grid"
-}, Qd = ["onClick"], ef = {
+}, qd = ["onClick"], Qd = {
   key: 0,
   class: "thumb-skeleton"
-}, tf = ["alt", "onLoad"], nf = ["title", "onClick"], af = ["title", "disabled", "onClick"], lf = ["title", "disabled", "onClick"], rf = { class: "pager" }, sf = { class: "source-note" }, of = { class: "pager-actions" }, cf = ["disabled"], uf = ["disabled"], df = /* @__PURE__ */ ae({
+}, ef = ["alt", "onLoad"], tf = ["title", "onClick"], nf = ["title", "disabled", "onClick"], af = ["title", "disabled", "onClick"], lf = { class: "pager" }, rf = { class: "source-note" }, sf = { class: "pager-actions" }, of = ["disabled"], cf = ["disabled"], uf = /* @__PURE__ */ ae({
   __name: "WallhavenView",
   props: {
     keyword: {},
@@ -7231,16 +7225,16 @@ const _u = me("back", !0, function(e) {
       { value: "people", labelKey: "wallpaperSwitcher.categories.people" },
       { value: "nature", labelKey: "wallpaperSwitcher.categories.nature" }
     ], r = (s) => n("update:keyword", s.target.value);
-    return (s, i) => ($(), z("div", jd, [
-      m("section", xd, [
-        m("div", zd, [
+    return (s, i) => ($(), z("div", Dd, [
+      m("section", jd, [
+        m("div", xd, [
           m("input", {
             value: s.keyword,
             type: "text",
             placeholder: o(a)("wallpaperSwitcher.searchPlaceholder"),
             onInput: r,
             onKeydown: i[0] || (i[0] = sl((u) => n("refresh"), ["enter"]))
-          }, null, 40, Ud),
+          }, null, 40, zd),
           L(o(fr), {
             size: 16,
             class: "search-icon"
@@ -7253,7 +7247,7 @@ const _u = me("back", !0, function(e) {
             onClick: i[1] || (i[1] = (u) => n("update:keyword", ""))
           }, [
             L(o(sn), { size: 18 })
-          ], 8, Vd)) : _e("v-if", !0)
+          ], 8, Ud)) : we("v-if", !0)
         ]),
         m("div", {
           class: "wallhaven-tabs",
@@ -7269,12 +7263,12 @@ const _u = me("back", !0, function(e) {
               class: Q({ active: s.category === u.value }),
               disabled: s.loading,
               onClick: (h) => n("setCategory", u.value)
-            }, F(o(a)(u.labelKey)), 11, Gd)),
+            }, F(o(a)(u.labelKey)), 11, Hd)),
             64
             /* STABLE_FRAGMENT */
           ))
-        ], 8, Hd),
-        m("div", Kd, [
+        ], 8, Vd),
+        m("div", Gd, [
           m(
             "span",
             null,
@@ -7292,17 +7286,17 @@ const _u = me("back", !0, function(e) {
               size: 14,
               class: Q({ spinning: s.loading })
             }, null, 8, ["class"])
-          ], 8, Bd)
+          ], 8, Kd)
         ])
       ]),
-      m("section", Yd, [
+      m("section", Bd, [
         s.loading && s.wallpapers.length === 0 ? ($(), z(
           "div",
-          Zd,
+          Yd,
           F(o(a)("wallpaperSwitcher.loadingWallhaven")),
           1
           /* TEXT */
-        )) : s.error ? ($(), z("div", Xd, [
+        )) : s.error ? ($(), z("div", Zd, [
           m(
             "span",
             null,
@@ -7322,11 +7316,11 @@ const _u = me("back", !0, function(e) {
           )
         ])) : s.wallpapers.length === 0 ? ($(), z(
           "div",
-          Jd,
+          Xd,
           F(o(a)("wallpaperSwitcher.noWallpapers")),
           1
           /* TEXT */
-        )) : ($(), z("div", qd, [
+        )) : ($(), z("div", Jd, [
           ($(!0), z(
             Ge,
             null,
@@ -7339,14 +7333,14 @@ const _u = me("back", !0, function(e) {
                 class: "thumb",
                 onClick: (h) => n("openPreview", u)
               }, [
-                s.loadedThumbIds.has(u.id) ? _e("v-if", !0) : ($(), z("div", ef)),
+                s.loadedThumbIds.has(u.id) ? we("v-if", !0) : ($(), z("div", Qd)),
                 m("img", {
                   ref_for: !0,
                   ref: (h) => s.setThumbRef(u, h),
                   alt: u.resolution,
                   loading: "lazy",
                   onLoad: (h) => n("markThumbLoaded", u.id)
-                }, null, 40, tf),
+                }, null, 40, ef),
                 m(
                   "span",
                   null,
@@ -7354,7 +7348,7 @@ const _u = me("back", !0, function(e) {
                   1
                   /* TEXT */
                 )
-              ], 8, Qd),
+              ], 8, qd),
               m("div", {
                 class: "card-actions",
                 onClick: i[4] || (i[4] = Dt(() => {
@@ -7371,7 +7365,7 @@ const _u = me("back", !0, function(e) {
                     1
                     /* TEXT */
                   )
-                ], 8, nf),
+                ], 8, tf),
                 m("button", {
                   type: "button",
                   title: o(a)("wallpaperSwitcher.setWallpaper"),
@@ -7384,7 +7378,7 @@ const _u = me("back", !0, function(e) {
                     1
                     /* TEXT */
                   )
-                ], 8, af),
+                ], 8, nf),
                 m("button", {
                   type: "button",
                   title: o(a)("wallpaperSwitcher.download"),
@@ -7397,7 +7391,7 @@ const _u = me("back", !0, function(e) {
                     1
                     /* TEXT */
                   )
-                ], 8, lf)
+                ], 8, af)
               ])
             ]))),
             128
@@ -7405,7 +7399,7 @@ const _u = me("back", !0, function(e) {
           ))
         ]))
       ]),
-      m("footer", rf, [
+      m("footer", lf, [
         m(
           "span",
           null,
@@ -7415,33 +7409,33 @@ const _u = me("back", !0, function(e) {
         ),
         m(
           "span",
-          sf,
+          rf,
           F(o(a)("wallpaperSwitcher.sourceNote", { source: s.sourceLabel })),
           1
           /* TEXT */
         ),
-        m("div", of, [
+        m("div", sf, [
           m("button", {
             type: "button",
             disabled: s.page <= 1 || s.loading,
             onClick: i[5] || (i[5] = (u) => n("prevPage"))
-          }, F(o(a)("wallpaperSwitcher.prevPage")), 9, cf),
+          }, F(o(a)("wallpaperSwitcher.prevPage")), 9, of),
           m("button", {
             type: "button",
             disabled: s.page >= s.lastPage || s.loading,
             onClick: i[6] || (i[6] = (u) => n("nextPage"))
-          }, F(o(a)("wallpaperSwitcher.nextPage")), 9, uf)
+          }, F(o(a)("wallpaperSwitcher.nextPage")), 9, cf)
         ])
       ])
     ]));
   }
-}), ff = { class: "preview-dialog" }, hf = { class: "preview-image-wrap" }, pf = {
+}), df = { class: "preview-dialog" }, ff = { class: "preview-image-wrap" }, hf = {
   key: 0,
   class: "preview-skeleton"
-}, mf = {
+}, pf = {
   key: 1,
   class: "preview-error"
-}, gf = ["src", "alt"], wf = ["disabled"], vf = ["disabled"], _f = /* @__PURE__ */ ae({
+}, mf = ["src", "alt"], gf = ["disabled"], wf = ["disabled"], vf = /* @__PURE__ */ ae({
   __name: "WallpaperPreviewModal",
   props: {
     wallpaper: {},
@@ -7457,7 +7451,7 @@ const _u = me("back", !0, function(e) {
       class: "preview-modal",
       onClick: r[5] || (r[5] = Dt((s) => n("close"), ["self"]))
     }, [
-      m("div", ff, [
+      m("div", df, [
         m("header", null, [
           m(
             "strong",
@@ -7474,8 +7468,8 @@ const _u = me("back", !0, function(e) {
             L(o(sn), { size: 23 })
           ])
         ]),
-        m("div", hf, [
-          l.loading ? ($(), z("div", pf, [
+        m("div", ff, [
+          l.loading ? ($(), z("div", hf, [
             m(
               "span",
               null,
@@ -7483,21 +7477,21 @@ const _u = me("back", !0, function(e) {
               1
               /* TEXT */
             )
-          ])) : _e("v-if", !0),
+          ])) : we("v-if", !0),
           l.loadFailed ? ($(), z(
             "div",
-            mf,
+            pf,
             F(o(a)("wallpaperSwitcher.previewLoadFailed")),
             1
             /* TEXT */
-          )) : _e("v-if", !0),
+          )) : we("v-if", !0),
           m("img", {
             class: Q({ ready: !l.loading && !l.loadFailed }),
             src: l.wallpaper.path,
             alt: o(a)("wallpaperSwitcher.wallpaperPreviewAlt"),
             onLoad: r[1] || (r[1] = (s) => n("loaded")),
             onError: r[2] || (r[2] = (s) => n("failed"))
-          }, null, 42, gf)
+          }, null, 42, mf)
         ]),
         m("footer", null, [
           m("button", {
@@ -7505,21 +7499,21 @@ const _u = me("back", !0, function(e) {
             class: "secondary-btn",
             disabled: l.workingIds.has(l.wallpaper.id),
             onClick: r[3] || (r[3] = (s) => n("download", l.wallpaper))
-          }, F(o(a)("wallpaperSwitcher.downloadCache")), 9, wf),
+          }, F(o(a)("wallpaperSwitcher.downloadCache")), 9, gf),
           m("button", {
             type: "button",
             class: "primary-btn",
             disabled: l.workingIds.has(l.wallpaper.id),
             onClick: r[4] || (r[4] = (s) => n("setWallpaper", l.wallpaper))
-          }, F(l.workingIds.has(l.wallpaper.id) ? o(a)("wallpaperSwitcher.setting") : o(a)("wallpaperSwitcher.setWallpaper")), 9, vf)
+          }, F(l.workingIds.has(l.wallpaper.id) ? o(a)("wallpaperSwitcher.setting") : o(a)("wallpaperSwitcher.setWallpaper")), 9, wf)
         ])
       ])
-    ])) : _e("v-if", !0);
+    ])) : we("v-if", !0);
   }
-}), bf = { class: "wallpaper-window" }, yf = {
+}), _f = { class: "wallpaper-window" }, bf = {
   key: 0,
   class: "unsupported"
-}, kf = /* @__PURE__ */ ae({
+}, yf = /* @__PURE__ */ ae({
   __name: "index",
   setup(e) {
     const t = ul(), { t: n } = Pe(), a = U(lu()), l = U(null), r = U(null), s = U(!1), i = U(!1), u = U(!1), h = U(!1), v = U(!1), C = U(!1), E = async () => {
@@ -7555,7 +7549,7 @@ const _u = me("back", !0, function(e) {
       closePreview: ye,
       markPreviewLoaded: Xe,
       markPreviewFailed: Je,
-      markThumbLoaded: we,
+      markThumbLoaded: ve,
       setThumbRef: $e,
       refreshWallhaven: De,
       setWallhavenSource: je,
@@ -7700,8 +7694,8 @@ const _u = me("back", !0, function(e) {
     return Lt(async () => {
       await c(), await ze();
     }), xn(() => {
-    }), (R, fe) => ($(), z("main", bf, [
-      L(Dd, {
+    }), (R, fe) => ($(), z("main", _f, [
+      L($d, {
         "active-view": o(N),
         "wallhaven-source": o(O),
         "wallhaven-loading": o(f),
@@ -7712,12 +7706,12 @@ const _u = me("back", !0, function(e) {
       }, null, 8, ["active-view", "wallhaven-source", "wallhaven-loading", "onBack", "onOpenWallhaven", "onSetWallhavenSource"]),
       o(l) && !o(l).supported ? ($(), z(
         "section",
-        yf,
+        bf,
         F(o(n)("wallpaperSwitcher.unsupported")),
         1
         /* TEXT */
-      )) : _e("v-if", !0),
-      o(N) === "switcher" ? ($(), Se(Td, {
+      )) : we("v-if", !0),
+      o(N) === "switcher" ? ($(), Se(Ed, {
         key: 1,
         config: o(a),
         loading: o(s),
@@ -7745,7 +7739,7 @@ const _u = me("back", !0, function(e) {
         onClearCache: B,
         onOpenCacheDir: te,
         onPersistConfig: d
-      }, null, 8, ["config", "loading", "preview-src", "current-wallpaper-name", "source-label", "resolution-label", "next-switch-label", "folder-count-label", "screen-label", "cache-size-label", "switching", "fitting", "clearing-cache", "opening-cache", "saving", "onOpenWallhavenGrid"])) : ($(), Se(df, {
+      }, null, 8, ["config", "loading", "preview-src", "current-wallpaper-name", "source-label", "resolution-label", "next-switch-label", "folder-count-label", "screen-label", "cache-size-label", "switching", "fitting", "clearing-cache", "opening-cache", "saving", "onOpenWallhavenGrid"])) : ($(), Se(uf, {
         key: 2,
         keyword: o(_),
         "onUpdate:keyword": fe[0] || (fe[0] = (na) => ll(_) ? _.value = na : null),
@@ -7763,13 +7757,13 @@ const _u = me("back", !0, function(e) {
         onRefresh: o(De),
         onSetCategory: o(qe),
         onOpenPreview: o(Ze),
-        onMarkThumbLoaded: o(we),
+        onMarkThumbLoaded: o(ve),
         onSetWallpaper: o(xe),
         onDownloadWallpaper: o(Qe),
         onPrevPage: o(et),
         onNextPage: o(tt)
       }, null, 8, ["keyword", "category", "loading", "error", "wallpapers", "loaded-thumb-ids", "working-ids", "page", "last-page", "source-label", "screen-label", "set-thumb-ref", "onRefresh", "onSetCategory", "onOpenPreview", "onMarkThumbLoaded", "onSetWallpaper", "onDownloadWallpaper", "onPrevPage", "onNextPage"])),
-      L(_f, {
+      L(vf, {
         wallpaper: o(A),
         loading: o(y),
         "load-failed": o(J),
@@ -7782,10 +7776,10 @@ const _u = me("back", !0, function(e) {
       }, null, 8, ["wallpaper", "loading", "load-failed", "working-ids", "onClose", "onLoaded", "onFailed", "onDownload", "onSetWallpaper"])
     ]));
   }
-}), Cf = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), kf = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: kf
+  default: yf
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  Lf as activate
+  Sf as activate
 };

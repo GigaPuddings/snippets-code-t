@@ -139,7 +139,7 @@
   }
 
   .flat-icon {
-    @apply w-[34px] h-[34px] border-0;
+    @apply h-[34px] border-0;
 
     color: var(--wallpaper-text);
     background: transparent;
@@ -427,7 +427,7 @@
   }
 
   .mini {
-    @apply grid-cols-3 w-[330px];
+    @apply grid-cols-3 w-[280px];
   }
 
   .grid-open {

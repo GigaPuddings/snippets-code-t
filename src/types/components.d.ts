@@ -98,6 +98,8 @@ declare module 'vue' {
     Shortcut: typeof import('./../components/SettingsContent/components/Shortcut/index.vue')['default']
     SourceEditor: typeof import('./../components/TipTapEditor/components/SourceEditor.vue')['default']
     Splitter: typeof import('./../components/Splitter/index.vue')['default']
+    SwitcherHome: typeof import('./../plugins/wallpaper-switcher/pages/switcher/components/SwitcherHome.vue')['default']
+    SwitcherTitlebar: typeof import('./../plugins/wallpaper-switcher/pages/switcher/components/SwitcherTitlebar.vue')['default']
     TagInput: typeof import('./../components/TagInput/index.vue')['default']
     TipTapContextMenu: typeof import('./../components/TipTapEditor/TipTapContextMenu.vue')['default']
     TipTapEditor: typeof import('./../components/TipTapEditor/index.vue')['default']
@@ -106,5 +108,8 @@ declare module 'vue' {
     Toolbar: typeof import('./../components/TipTapEditor/Toolbar.vue')['default']
     ToolbarSection: typeof import('./../plugins/screenshot/pages/screenshot/components/ToolbarSection.vue')['default']
     User: typeof import('./../pages/config/components/user/index.vue')['default']
+    WallhavenSourceTabs: typeof import('./../plugins/wallpaper-switcher/pages/switcher/components/WallhavenSourceTabs.vue')['default']
+    WallhavenView: typeof import('./../plugins/wallpaper-switcher/pages/switcher/components/WallhavenView.vue')['default']
+    WallpaperPreviewModal: typeof import('./../plugins/wallpaper-switcher/pages/switcher/components/WallpaperPreviewModal.vue')['default']
   }
 }

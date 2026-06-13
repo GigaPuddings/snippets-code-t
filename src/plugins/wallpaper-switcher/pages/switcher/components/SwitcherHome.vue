@@ -250,7 +250,7 @@ const updateAutoRestore = (event: Event) =>
           />
           {{ t('wallpaperSwitcher.minutes') }}
         </label>
-        <span class="sub-label">{{ t('wallpaperSwitcher.type') }}</span>
+        <!-- <span class="sub-label">{{ t('wallpaperSwitcher.type') }}</span> -->
         <div class="segmented mini">
           <WallhavenSourceTabs
             tab-class="button"
