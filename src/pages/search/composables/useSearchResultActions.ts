@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@/utils/logger';
-import { getRawSearchResultId } from './useSearchResultDisplay';
+import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
 import { getSearchResultLaunchPath } from './useSearchResultPaths';
 import { modal } from '@/utils/modal';
 
@@ -141,7 +141,7 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
 
   async function runPrimaryAction(item: ContentType) {
     try {
-      await invoke('add_search_history', { id: getRawSearchResultId(item) });
+      await invoke('add_search_history', { id: getPrimarySearchHistoryKey(item) });
     } catch (error) {
       logger.error('[搜索窗口] Failed to add search history:', error);
     }

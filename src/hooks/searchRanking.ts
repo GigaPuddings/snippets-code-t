@@ -114,6 +114,95 @@ const getScopedSearchableText = (
 const getRawId = (item: ContentType): string =>
   String(item.metadata?.raw_id ?? item.id);
 
+const normalizeHistoryKeyValue = (value: unknown): string =>
+  normalizeSearchValue(value).replace(/\\/g, '/').replace(/\/+$/, '');
+
+const createHistoryKey = (
+  source: string,
+  kind: string,
+  value: unknown
+): string | null => {
+  const normalized = normalizeHistoryKeyValue(value);
+  return normalized ? `${source}:${kind}:${normalized}` : null;
+};
+
+const getPrimaryPathValue = (item: ContentType): unknown =>
+  item.metadata?.launch_path ??
+  item.metadata?.display_path ??
+  item.metadata?.file_path ??
+  item.file_path ??
+  item.content;
+
+const pushUniqueKey = (keys: string[], key: unknown): void => {
+  const value = typeof key === 'string' ? key.trim() : String(key ?? '').trim();
+  if (value && !keys.includes(value)) {
+    keys.push(value);
+  }
+};
+
+export const getSearchHistoryKeys = (item: ContentType): string[] => {
+  const source = getSource(item);
+  const keys: string[] = [];
+
+  pushUniqueKey(keys, getRawId(item));
+  pushUniqueKey(keys, item.id);
+
+  if (source === 'app') {
+    pushUniqueKey(
+      keys,
+      createHistoryKey(source, 'path', getPrimaryPathValue(item))
+    );
+    return keys;
+  }
+
+  if (source === 'bookmark') {
+    pushUniqueKey(keys, createHistoryKey(source, 'url', item.content));
+    return keys;
+  }
+
+  if (source === 'file') {
+    pushUniqueKey(
+      keys,
+      createHistoryKey(source, 'path', getPrimaryPathValue(item))
+    );
+    return keys;
+  }
+
+  if (source === 'markdown' || item.type === 'code' || item.type === 'note') {
+    pushUniqueKey(keys, createHistoryKey('markdown', 'path', item.file_path));
+  }
+
+  return keys;
+};
+
+export const getPrimarySearchHistoryKey = (item: ContentType): string => {
+  const source = getSource(item);
+  const keys = getSearchHistoryKeys(item);
+  const hasStableHistoryKey =
+    source === 'app' ||
+    source === 'bookmark' ||
+    source === 'file' ||
+    source === 'markdown' ||
+    item.type === 'code' ||
+    item.type === 'note';
+
+  return hasStableHistoryKey
+    ? (keys[keys.length - 1] ?? getRawId(item))
+    : (keys[0] ?? getRawId(item));
+};
+
+const getSearchHistory = (
+  item: ContentType,
+  historyMap: Map<string, SearchHistoryMeta>
+): SearchHistoryMeta | undefined => {
+  for (const key of getSearchHistoryKeys(item)) {
+    const history = historyMap.get(key);
+    if (history) return history;
+  }
+
+  return undefined;
+};
+
 const getBackendScore = (item: ContentType): number =>
   typeof item.score === 'number' && Number.isFinite(item.score)
     ? item.score
@@ -312,7 +401,7 @@ export const rankSearchResults = (
   dedupeRankedItems(items
     .filter((item) => isRelevantSearchResult(item, query, options))
     .map<RankedSearchItem>((item, index) => {
-      const history = historyMap.get(getRawId(item));
+      const history = getSearchHistory(item, historyMap);
       const historyScore = history
         ? Math.min(history.usage_count, 20) * 1200
         : 0;

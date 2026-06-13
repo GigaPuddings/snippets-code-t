@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ContentType } from '@/types';
 import {
   calculateSearchRelevance,
+  getPrimarySearchHistoryKey,
   getSearchTokens,
   isRelevantSearchResult,
   rankSearchResults
@@ -130,6 +131,142 @@ describe('searchRanking', () => {
 
     expect(ranked[0].id).toBe('recent');
     expect(ranked[0].metadata?.history_usage_count).toBe(20);
+  });
+
+  it('uses stable app path history when launcher IDs change', () => {
+    const frequentApp = createItem({
+      id: 'app:new-random-id',
+      title: 'Visual Studio Code',
+      content:
+        'C:\\Users\\zero\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
+      summarize: 'app',
+      metadata: {
+        source: 'app',
+        raw_id: 'new-random-id'
+      }
+    });
+    const comparableApp = createItem({
+      id: 'app:other-random-id',
+      title: 'Code Runner',
+      content: 'C:\\Tools\\CodeRunner.exe',
+      summarize: 'app',
+      metadata: {
+        source: 'app',
+        raw_id: 'other-random-id'
+      }
+    });
+
+    const historyKey = getPrimarySearchHistoryKey(frequentApp);
+    const ranked = rankSearchResults(
+      [comparableApp, frequentApp],
+      'code',
+      new Map([
+        [
+          historyKey,
+          {
+            usage_count: 8,
+            last_used_at: '2026-05-21T00:00:00.000Z'
+          }
+        ]
+      ]),
+      { deepSearch: true }
+    );
+
+    expect(historyKey).toBe(
+      'app:path:c:/users/zero/appdata/local/programs/microsoft vs code/code.exe'
+    );
+    expect(ranked[0].id).toBe('app:new-random-id');
+    expect(ranked[0].metadata?.history_usage_count).toBe(8);
+  });
+
+  it('uses stable bookmark URL history when bookmark IDs change', () => {
+    const frequentBookmark = createItem({
+      id: 'bookmark:new-random-id',
+      title: 'Vue Guide',
+      content: 'https://vuejs.org/guide/',
+      summarize: 'bookmark',
+      metadata: {
+        source: 'bookmark',
+        raw_id: 'new-random-id'
+      }
+    });
+    const comparableBookmark = createItem({
+      id: 'bookmark:other-random-id',
+      title: 'Vue API',
+      content: 'https://example.com/vue-api',
+      summarize: 'bookmark',
+      metadata: {
+        source: 'bookmark',
+        raw_id: 'other-random-id'
+      }
+    });
+
+    const historyKey = getPrimarySearchHistoryKey(frequentBookmark);
+    const ranked = rankSearchResults(
+      [comparableBookmark, frequentBookmark],
+      'vue',
+      new Map([
+        [
+          historyKey,
+          {
+            usage_count: 6,
+            last_used_at: '2026-05-21T00:00:00.000Z'
+          }
+        ]
+      ]),
+      { deepSearch: true }
+    );
+
+    expect(historyKey).toBe('bookmark:url:https://vuejs.org/guide');
+    expect(ranked[0].id).toBe('bookmark:new-random-id');
+    expect(ranked[0].metadata?.history_usage_count).toBe(6);
+  });
+
+  it('uses stable markdown file path history for snippets and notes', () => {
+    const frequentSnippet = createItem({
+      id: 'markdown:new-id',
+      title: 'Throttle helper',
+      content: 'function throttle() {}',
+      file_path: 'D:\\Snippets\\frontend\\throttle.md',
+      type: 'code',
+      summarize: 'code',
+      metadata: {
+        source: 'markdown',
+        raw_id: 'new-id'
+      }
+    });
+    const comparableSnippet = createItem({
+      id: 'markdown:other-id',
+      title: 'Throttle notes',
+      content: 'throttle usage notes',
+      file_path: 'D:\\Snippets\\frontend\\throttle-notes.md',
+      type: 'note',
+      summarize: 'note',
+      metadata: {
+        source: 'markdown',
+        raw_id: 'other-id'
+      }
+    });
+
+    const historyKey = getPrimarySearchHistoryKey(frequentSnippet);
+    const ranked = rankSearchResults(
+      [comparableSnippet, frequentSnippet],
+      'throttle',
+      new Map([
+        [
+          historyKey,
+          {
+            usage_count: 5,
+            last_used_at: '2026-05-21T00:00:00.000Z'
+          }
+        ]
+      ]),
+      { deepSearch: true }
+    );
+
+    expect(historyKey).toBe('markdown:path:d:/snippets/frontend/throttle.md');
+    expect(ranked[0].id).toBe('markdown:new-id');
+    expect(ranked[0].metadata?.history_usage_count).toBe(5);
   });
 
   it('deduplicates repeated local launcher rows by path and URL', () => {

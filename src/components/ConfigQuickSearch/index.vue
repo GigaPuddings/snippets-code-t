@@ -73,6 +73,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getCategories } from '@/api/fragment';
 import { useSearch } from '@/hooks/useSearch';
+import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
 import { getRawSearchResultId, useSearchResultDisplay } from '@/pages/search/composables/useSearchResultDisplay';
 import { useConfigurationStore } from '@/store';
 import modal from '@/utils/modal';
@@ -278,7 +279,7 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
       return;
     }
 
-    await addSearchHistory(getRawSearchResultId(item));
+    await addSearchHistory(getPrimarySearchHistoryKey(item));
 
     if (item.summarize === 'code' || item.summarize === 'note' || item.type === 'code' || item.type === 'note') {
       await openConfigContent(item);
