@@ -5,7 +5,7 @@ use crate::plugins::system_theme::{
     stop_scheduler, ScheduleType, ThemeMode,
 };
 use crate::update::check_update_and_open_window;
-use crate::window::{hotkey_config, hotkey_dark_mode, open_config_settings};
+use crate::window::{hotkey_config, hotkey_dark_mode, hotkey_search, open_config_settings};
 use log::{debug, info};
 use tauri::Emitter;
 use tauri::{
@@ -386,11 +386,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             match menu_id {
                 "search" => {
                     debug!("[托盘菜单] 执行：快速搜索");
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.center();
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
+                    hotkey_search(None);
                 }
                 "config" => {
                     debug!("[托盘菜单] 执行：打开配置窗口");

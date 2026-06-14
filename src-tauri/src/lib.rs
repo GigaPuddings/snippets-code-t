@@ -344,7 +344,10 @@ pub fn run() {
         // 单实例插件：防止程序多开
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let windows = app.webview_windows();
-            if let Some(window) = windows.values().next() {
+            let visible_window = windows
+                .values()
+                .find(|window| window.is_visible().unwrap_or(false));
+            if let Some(window) = visible_window {
                 let _ = window.set_focus();
             }
 
@@ -365,6 +368,11 @@ pub fn run() {
                         }
                     }
                 }
+            }
+
+            let is_auto_start_attempt = args.iter().any(|arg| arg == "--flag1" || arg == "--flag2");
+            if !is_auto_start_attempt && visible_window.is_none() {
+                crate::window::hotkey_config();
             }
         }))
         .plugin(tauri_plugin_shell::init())

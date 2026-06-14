@@ -28,10 +28,83 @@ static CONFIG_CLEANUP_REGISTERED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex
 static STARTUP_TRANSITION_STARTED_AT: LazyLock<Mutex<Option<Instant>>> =
     LazyLock::new(|| Mutex::new(None));
 
+const SEARCH_WINDOW_IDLE_DESTROY_DELAY_SECS: u64 = 60;
+
+// 搜索窗口隐藏后延迟销毁；每次重新显示都会递增 token，取消旧的销毁任务。
+static SEARCH_WINDOW_DESTROY_TOKEN: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(0));
+
+fn next_search_window_destroy_token() -> u64 {
+    match SEARCH_WINDOW_DESTROY_TOKEN.lock() {
+        Ok(mut token) => {
+            *token = token.saturating_add(1);
+            *token
+        }
+        Err(e) => {
+            error!("next_search_window_destroy_token: 锁定失败: {}", e);
+            0
+        }
+    }
+}
+
+fn cancel_search_window_destroy() {
+    let _ = next_search_window_destroy_token();
+}
+
+fn schedule_search_window_destroy() {
+    let token = next_search_window_destroy_token();
+    if token == 0 {
+        return;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(
+            SEARCH_WINDOW_IDLE_DESTROY_DELAY_SECS,
+        ))
+        .await;
+
+        let is_current = match SEARCH_WINDOW_DESTROY_TOKEN.lock() {
+            Ok(current) => *current == token,
+            Err(e) => {
+                error!("schedule_search_window_destroy: 锁定失败: {}", e);
+                false
+            }
+        };
+        if !is_current {
+            return;
+        }
+
+        let Some(app) = APP.get() else {
+            return;
+        };
+        let Some(window) = app.get_webview_window("main") else {
+            return;
+        };
+
+        let is_visible = window.is_visible().unwrap_or(false);
+        let is_focused = window.is_focused().unwrap_or(false);
+        if is_visible || is_focused {
+            return;
+        }
+
+        if let Some(preview_window) = app.get_webview_window("preview") {
+            let _ = preview_window.close();
+        }
+
+        match window.destroy() {
+            Ok(_) => info!(
+                "[SearchWindow] destroyed after {}s idle",
+                SEARCH_WINDOW_IDLE_DESTROY_DELAY_SECS
+            ),
+            Err(e) => warn!("[SearchWindow] idle destroy failed: {}", e),
+        }
+    });
+}
+
 fn hide_search_window_after_ipc_response(window: WebviewWindow) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         let _ = window.hide();
+        schedule_search_window_destroy();
     });
 }
 
@@ -414,6 +487,10 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<Webv
                 builder = builder.decorations(false);
             }
 
+            if label == "main" {
+                builder = builder.skip_taskbar(true);
+            }
+
             builder.build().map_err(|e| {
                 let msg = format!("build_window: 创建窗口失败 label={}, err={}", label, e);
                 error!("{}", msg);
@@ -503,15 +580,40 @@ pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
     Ok(())
 }
 
+fn search_window_spec() -> WindowSpec {
+    WindowSpec {
+        label: "main",
+        url: "/",
+        title: "搜索",
+        width: 700.0,
+        height: 58.0,
+        resizable: false,
+        transparent: true,
+        shadow: false,
+        always_on_top: true,
+        ready_event: None,
+    }
+}
+
 pub fn hotkey_search(context: Option<String>) {
     // 显示隐藏搜索窗口
     let Some(app_handle) = get_app_handle_or_log("hotkey_search") else {
         return;
     };
-    let Some(window) = app_handle.get_webview_window("main") else {
-        error!("hotkey_search: main 窗口不存在");
-        return;
+    let window = match app_handle.get_webview_window("main") {
+        Some(window) => window,
+        None => {
+            let spec = search_window_spec();
+            match build_window(spec.label, spec.url, spec.to_window_config()) {
+                Ok(window) => window,
+                Err(e) => {
+                    error!("hotkey_search: 创建 main 窗口失败: {}", e);
+                    return;
+                }
+            }
+        }
     };
+    cancel_search_window_destroy();
     let is_visible = match window.is_visible() {
         Ok(v) => v,
         Err(e) => {
@@ -1294,6 +1396,7 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                                 // println!("延迟判断后确认窗口失焦，隐藏窗口");
                                 let _ = window_clone.emit("reset-search-state", ());
                                 let _ = window_clone.hide();
+                                schedule_search_window_destroy();
                                 // 同时关闭预览窗口（直接调用而不是通过 command）
                                 if let Some(app) = APP.get() {
                                     if let Some(preview_window) = app.get_webview_window("preview")
@@ -1343,6 +1446,7 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                                     // println!("拖拽结束后检测窗口无焦点，隐藏窗口");
                                     let _ = window_clone.emit("reset-search-state", ());
                                     let _ = window_clone.hide();
+                                    schedule_search_window_destroy();
                                 }
                             }
                         }
