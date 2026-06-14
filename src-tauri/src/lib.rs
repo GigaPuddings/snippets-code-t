@@ -1096,6 +1096,11 @@ pub fn run() {
             commands::open_developer_log_dir,           // 打开日志目录
             optimize_database_cmd,                     // 优化数据库
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                api.prevent_exit();
+            }
+        });
 }
