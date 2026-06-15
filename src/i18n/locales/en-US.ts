@@ -42,45 +42,57 @@ export default {
     indexing: 'Indexing',
     complete: 'Complete',
     welcomeTitle: 'Welcome to Snippets Code',
-    welcomeDesc: 'A local-first workspace for frontend snippets and knowledge assets, built to capture, search, and reuse code.',
+    welcomeDesc:
+      'A local-first workspace for frontend snippets and knowledge assets, built to capture, search, and reuse code.',
     versionLabel: 'Version',
     quickStart: 'Quick Start',
     createWorkspace: 'Create new workspace',
-    createWorkspaceDesc: 'Choose a location and create a new Markdown workspace.',
+    createWorkspaceDesc:
+      'Choose a location and create a new Markdown workspace.',
     create: 'Create',
     openWorkspace: 'Open workspace',
-    openWorkspaceDesc: 'Open an existing local folder as workspace (local or cloned).',
+    openWorkspaceDesc:
+      'Open an existing local folder as workspace (local or cloned).',
     open: 'Open',
     selectLanguage: 'Select Language',
     pathsTitle: 'Path Setup',
-    pathsDesc: 'Choose app data, Markdown workspace, and plugin install locations',
+    pathsDesc:
+      'Choose app data, Markdown workspace, and plugin install locations',
     appDataDir: 'App Data Directory',
-    appDataDirDesc: 'Stores the database, global settings, caches, and plugin runtime data.',
+    appDataDirDesc:
+      'Stores the database, global settings, caches, and plugin runtime data.',
     defaultAppDataDir: 'Default App Data Directory (Recommended)',
     customAppDataDir: 'Custom App Data Directory',
     customAppDataDirDesc: 'Choose a folder for app data',
     workspaceDir: 'Markdown Workspace',
     workspaceDirDesc: 'Stores Markdown snippets and knowledge assets.',
     pluginInstallDir: 'Plugin Install Location',
-    pluginInstallDirDesc: 'Stores installed plugin packages. Plugin features take effect after install or enable completes.',
+    pluginInstallDirDesc:
+      'Stores installed plugin packages. Plugin features take effect after install or enable completes.',
     defaultPluginInstallDir: 'Default Plugin Directory (Recommended)',
     customPluginInstallDir: 'Custom Plugin Directory',
     customPluginInstallDirDesc: 'Choose a folder for plugin packages',
     dataLocationTitle: 'Workspace Location',
-    dataLocationDesc: 'Choose where to store Markdown snippets and knowledge assets',
+    dataLocationDesc:
+      'Choose where to store Markdown snippets and knowledge assets',
     defaultLocation: 'Default Workspace (Recommended)',
     customLocation: 'Custom Workspace',
     customLocationDesc: 'Choose a folder as your workspace',
-    pathTip: 'Creating a workspace will create the directory automatically. Opening a workspace requires an existing folder. Do not select protected system directories like Program Files.',
+    pathTip:
+      'Creating a workspace will create the directory automatically. Opening a workspace requires an existing folder. Do not select protected system directories like Program Files.',
     indexTitle: 'First Indexing',
     indexDesc: 'Choose which search sources to enable and warm up after setup',
     localLauncherIndex: 'App and Bookmark Launcher',
-    localLauncherIndexDesc: 'Index local apps and browser bookmarks for quick launch and link opening.',
+    localLauncherIndexDesc:
+      'Index local apps and browser bookmarks for quick launch and link opening.',
     desktopFilesIndex: 'Desktop File Search',
-    desktopFilesIndexDesc: 'Index common desktop files for direct search and preview.',
+    desktopFilesIndexDesc:
+      'Index common desktop files for direct search and preview.',
     cacheIcons: 'Cache Icons',
-    cacheIconsDesc: 'Cache app, bookmark, and desktop file icons so results are easier to scan.',
-    indexTip: 'Enabled indexes scan automatically after restart. You can adjust them later in plugin or general settings.',
+    cacheIconsDesc:
+      'Cache app, bookmark, and desktop file icons so results are easier to scan.',
+    indexTip:
+      'Enabled indexes scan automatically after restart. You can adjust them later in plugin or general settings.',
     indexSummary: 'Index Settings',
     indexDisabled: 'All Off',
     selectDir: 'Please select a workspace directory',
@@ -116,7 +128,8 @@ export default {
     autoStartEnabled: 'Auto start enabled',
     autoStartDisabled: 'Auto start disabled',
     resetSoftware: 'Reset Software',
-    resetSoftwareDesc: 'Reset clears plugin indexes such as app/bookmark launcher and desktop file search, plus cached icons, then re-indexes after restart',
+    resetSoftwareDesc:
+      'Reset clears plugin indexes such as app/bookmark launcher and desktop file search, plus cached icons, then re-indexes after restart',
     resetSoftwareTitle: 'Reset Software',
     resetSelectContent: 'Select content to reset:',
     resetAll: 'Reset All',
@@ -148,7 +161,8 @@ export default {
       menu: 'Developer Mode',
       title: 'Developer Diagnostics',
       mode: 'Developer Mode',
-      modeDesc: 'When enabled, collect frontend diagnostics and read backend log tails on refresh; when disabled, old diagnostics are hidden.',
+      modeDesc:
+        'When enabled, collect frontend diagnostics and read backend log tails on refresh; when disabled, old diagnostics are hidden.',
       refresh: 'Refresh Diagnostics',
       copy: 'Copy Report',
       openLogs: 'Open Log Folder',
@@ -159,7 +173,8 @@ export default {
       attention: 'Needs Attention',
       normal: 'No Issues Found',
       issueCount: '{count} warnings or errors',
-      ignoredWarnings: '{count} expected runtime notices were ignored. They remain available in the full report.',
+      ignoredWarnings:
+        '{count} expected runtime notices were ignored. They remain available in the full report.',
       application: 'Application',
       windows: 'Windows',
       visibleWindows: 'visible / total windows',
@@ -192,7 +207,8 @@ export default {
     attachment: {
       menu: 'Attachments',
       title: 'Attachment Settings',
-      description: 'Configure storage location and filename format for note image attachments',
+      description:
+        'Configure storage location and filename format for note image attachments',
       pathTemplate: 'Attachment Path Template',
       pathTemplatePlaceholder: 'assets/${noteFileName}/',
       pathTemplateHint: 'Supported variables: ${noteFileName} (note filename)',
@@ -222,12 +238,15 @@ export default {
       disabledSuccess: 'Git sync disabled',
       autoDetect: 'Auto Detect Config',
       autoDetectDesc: 'Detect Git configuration from system or workspace',
-      autoDetectDescWorkspace: 'Detect Git configuration from workspace .git/config',
+      autoDetectDescWorkspace:
+        'Detect Git configuration from workspace .git/config',
       detectButton: 'Detect Config',
       detectConfigFilled: 'Git config filled from workspace',
-      noConfigDetectedWorkspace: 'No Git config in workspace. Please configure in User Center',
+      noConfigDetectedWorkspace:
+        'No Git config in workspace. Please configure in User Center',
       detectConfigTitle: 'Git Configuration Detected',
-      detectConfigDesc: 'The following Git configurations were detected. Please select which one to use:',
+      detectConfigDesc:
+        'The following Git configurations were detected. Please select which one to use:',
       localConfig: 'Local Config (Workspace)',
       globalConfig: 'Global Config (System)',
       manualConfig: 'Manual Config',
@@ -254,7 +273,8 @@ export default {
       saveConfig: 'Save Git Configuration',
       saveConfigDesc: 'Save Git user info and remote repository config',
       pullOnStart: 'Pull on Start',
-      pullOnStartDesc: 'Automatically pull from remote repository on app launch',
+      pullOnStartDesc:
+        'Automatically pull from remote repository on app launch',
       pullOnStartEnabled: 'Pull on start enabled',
       pullOnStartDisabled: 'Pull on start disabled',
       autoSync: 'Auto Sync',
@@ -278,8 +298,10 @@ export default {
       alreadyUpToDate: 'Already up to date',
       pullFailed: 'Pull failed',
       pullConflicts: 'Pull successful, but conflicts exist',
-      conflictError: 'Sync failed: Local file {files} conflicts with remote version, please commit or discard local changes first',
-      unresolvedConflict: 'Sync failed: Unresolved conflict files exist, please resolve conflicts or reset repository first',
+      conflictError:
+        'Sync failed: Local file {files} conflicts with remote version, please commit or discard local changes first',
+      unresolvedConflict:
+        'Sync failed: Unresolved conflict files exist, please resolve conflicts or reset repository first',
       pushSuccess: 'Push successful, synced {count} files',
       pushFailed: 'Push failed',
       contribution: {
@@ -299,10 +321,12 @@ export default {
       selectResolution: 'Select resolution strategy:',
       forcePush: 'Force Push (Keep Local)',
       forcePushDesc: 'Overwrite remote repository with local changes',
-      forcePushWarning: 'Warning: This will overwrite the remote repository and may cause loss of collaborators\' changes',
+      forcePushWarning:
+        "Warning: This will overwrite the remote repository and may cause loss of collaborators' changes",
       forcePull: 'Force Pull (Keep Remote)',
       forcePullDesc: 'Overwrite local files with remote version',
-      forcePullWarning: 'Warning: This will overwrite local files, your local changes will be lost',
+      forcePullWarning:
+        'Warning: This will overwrite local files, your local changes will be lost',
       manualMerge: 'Manual Merge',
       manualMergeDesc: 'Compare files one by one and choose which to keep',
       mergeTitle: 'Merge Conflicts',
@@ -327,12 +351,15 @@ export default {
       mergeSuccess: 'Conflicts resolved, merge complete',
       mergeFailed: 'Merge failed',
       confirmForcePush: 'Confirm Force Push?',
-      confirmForcePushMessage: 'This will overwrite the remote repository and cannot be undone. Continue?',
+      confirmForcePushMessage:
+        'This will overwrite the remote repository and cannot be undone. Continue?',
       confirmForcePull: 'Confirm Force Pull?',
-      confirmForcePullMessage: 'This will overwrite local changes and cannot be undone. Continue?',
+      confirmForcePullMessage:
+        'This will overwrite local changes and cannot be undone. Continue?',
       conflictResolutionFailed: 'Conflict resolution failed',
       cancelConflictTitle: 'Cancel Conflict Resolution',
-      cancelConflictMessage: 'Handle conflicts later?\n\n• "Handle Later": Keep conflict state, auto sync stays paused\n• "Resume Sync": Clear conflict state, resume auto sync',
+      cancelConflictMessage:
+        'Handle conflicts later?\n\n• "Handle Later": Keep conflict state, auto sync stays paused\n• "Resume Sync": Clear conflict state, resume auto sync',
       handleLater: 'Handle Later',
       resumeSync: 'Resume Sync',
       autoSyncResumed: 'Auto sync resumed',
@@ -359,10 +386,12 @@ export default {
       },
       // Repository not found
       repoNotFoundTitle: 'Remote Repository Not Found',
-      repoNotFoundMessage: 'Cannot connect to remote repository "{url}" ({operation} failed).\n\nThe remote repository may have been deleted or you may not have access. Would you like to reconfigure?',
+      repoNotFoundMessage:
+        'Cannot connect to remote repository "{url}" ({operation} failed).\n\nThe remote repository may have been deleted or you may not have access. Would you like to reconfigure?',
       repoNotFoundReconfig: 'Reconfigure',
       repoNotFoundIgnore: 'Ignore',
-      repoNotFoundIgnored: 'Repository not found error ignored. Please manually resolve and reconfigure.',
+      repoNotFoundIgnored:
+        'Repository not found error ignored. Please manually resolve and reconfigure.',
       // Manual merge enhancements
       acceptAllRemote: 'Accept All Remote',
       acceptAllLocal: 'Accept All Local',
@@ -381,8 +410,10 @@ export default {
   plugins: {
     title: 'Plugins',
     builtinTitle: 'Official Plugin Repository',
-    builtinDesc: 'Screenshot, OCR, translation, reminders, theme, search-source, and sync features extend the snippet workflow as plugins. The main app focuses on Markdown, editing, search, and workspace basics.',
-    securityNotice: 'Before installing, review the plugin source, permissions, and resource scope. Local plugins can run declared backend commands or load local resources.',
+    builtinDesc:
+      'Screenshot, OCR, translation, reminders, theme, search-source, and sync features extend the snippet workflow as plugins. The main app focuses on Markdown, editing, search, and workspace basics.',
+    securityNotice:
+      'Before installing, review the plugin source, permissions, and resource scope. Local plugins can run declared backend commands or load local resources.',
     installLocal: 'Install Local Plugin',
     installZip: 'Install Package',
     marketplaceSearchPlaceholder: 'Search GitHub plugin marketplace',
@@ -415,7 +446,8 @@ export default {
     },
     quickTools: {
       name: 'Quick Tools',
-      description: 'Calculator, unit conversion, and live currency conversion in quick search.'
+      description:
+        'Calculator, unit conversion, and live currency conversion in quick search.'
     },
     versionLabel: 'Version {version}',
     sizeLabel: 'Size {size}',
@@ -432,7 +464,8 @@ export default {
       installed: 'Installed'
     },
     installLocationTitle: 'Plugin Install Location',
-    installLocationDesc: 'Local plugins and large resources are installed here; screenshot OCR looks for RapidOCR in the same location.',
+    installLocationDesc:
+      'Local plugins and large resources are installed here; screenshot OCR looks for RapidOCR in the same location.',
     installLocationDefault: 'Use default plugin directory',
     chooseInstallLocation: 'Choose Folder',
     resetInstallLocation: 'Reset Default',
@@ -456,7 +489,8 @@ export default {
     saveFailed: 'Failed to save plugin state',
     gitSyncUnavailable: 'Git Sync plugin is not installed or enabled',
     resourceReady: 'Resource installed',
-    resourceMissing: 'Resource is not installed and will be requested when used',
+    resourceMissing:
+      'Resource is not installed and will be requested when used',
     sources: {
       builtin: 'Core',
       local: 'Local'
@@ -471,46 +505,59 @@ export default {
     },
     translation: {
       name: 'Translation',
-      description: 'Translate window, selection translation, screenshot translation, and offline model management.',
-      resourceHint: 'Offline translation runtime and models are loaded on demand as plugin resources.'
+      description:
+        'Translate window, selection translation, screenshot translation, and offline model management.',
+      resourceHint:
+        'Offline translation runtime and models are loaded on demand as plugin resources.'
     },
     translationOfflineRuntime: {
       name: 'Offline Translation Runtime',
-      description: 'Local runtime resource loaded on demand by offline translation; text recognition is provided by the RapidOCR resource.'
+      description:
+        'Local runtime resource loaded on demand by offline translation; text recognition is provided by the RapidOCR resource.'
     },
     screenshot: {
       name: 'Screenshot and OCR',
-      description: 'Screenshot annotation, color picker, pin windows, OCR, and screenshot translation.',
-      resourceHint: 'RapidOCR is a large resource and is now kept out of the core installer as an on-demand plugin resource.'
+      description:
+        'Screenshot annotation, color picker, pin windows, OCR, and screenshot translation.',
+      resourceHint:
+        'RapidOCR is a large resource and is now kept out of the core installer as an on-demand plugin resource.'
     },
     screenshotRapidocr: {
       name: 'RapidOCR Resource',
-      description: 'RapidOCR runtime, models, and local recognition files required by screenshot OCR and screenshot translation.'
+      description:
+        'RapidOCR runtime, models, and local recognition files required by screenshot OCR and screenshot translation.'
     },
     screenRecorder: {
       name: 'Screen Recorder',
-      description: 'Record a custom area and export MP4 or GIF without a watermark.',
-      resourceHint: 'Screen recording export depends on FFmpeg, provided as a plugin resource or from the system installation.'
+      description:
+        'Record a custom area and export MP4 or GIF without a watermark.',
+      resourceHint:
+        'Screen recording export depends on FFmpeg, provided as a plugin resource or from the system installation.'
     },
     screenRecorderFfmpeg: {
       name: 'Screen Recorder FFmpeg Resource',
-      description: 'FFmpeg executable resource required by custom screen recording MP4 and GIF export.'
+      description:
+        'FFmpeg executable resource required by custom screen recording MP4 and GIF export.'
     },
     todo: {
       name: 'Reminders',
-      description: 'Todo cards, timed reminders, and system notification windows.'
+      description:
+        'Todo cards, timed reminders, and system notification windows.'
     },
     systemTheme: {
       name: 'System Theme',
-      description: 'Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling.'
+      description:
+        'Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling.'
     },
     wallpaperSwitcher: {
       name: 'Wallpaper Switcher',
-      description: 'Windows desktop wallpaper switching, local folder rotation, and Wallhaven online wallpapers.'
+      description:
+        'Windows desktop wallpaper switching, local folder rotation, and Wallhaven online wallpapers.'
     },
     localLauncher: {
       name: 'Apps and Bookmarks Launcher',
-      description: 'Local app and browser bookmark management, plus quick-launch search results.'
+      description:
+        'Local app and browser bookmark management, plus quick-launch search results.'
     },
     desktopFiles: {
       name: 'Desktop File Search',
@@ -518,19 +565,23 @@ export default {
     },
     searchEngines: {
       name: 'Search Engines',
-      description: 'Custom search engines, keyword search, and default web search entries.'
+      description:
+        'Custom search engines, keyword search, and default web search entries.'
     },
     gitSync: {
       name: 'Git Sync',
-      description: 'Workspace Git initialization, pull, push, auto sync, and conflict handling.'
+      description:
+        'Workspace Git initialization, pull, push, auto sync, and conflict handling.'
     },
     attachments: {
       name: 'Attachments',
-      description: 'Image attachment path templates, naming rules, and cleanup tools.'
+      description:
+        'Image attachment path templates, naming rules, and cleanup tools.'
     },
     helloLocal: {
       name: 'Hello Local Plugin',
-      description: 'Example plugin package used to validate marketplace download and installation.'
+      description:
+        'Example plugin package used to validate marketplace download and installation.'
     }
   },
 
@@ -580,13 +631,15 @@ export default {
   dataManager: {
     title: 'Data Management',
     workspaceDir: 'Markdown Workspace:',
-    workspaceDirDesc: 'Set the Markdown file workspace. Plugins and settings remain available before it is set.',
+    workspaceDirDesc:
+      'Set the Markdown file workspace. Plugins and settings remain available before it is set.',
     workspaceNotSet: 'Workspace not set',
     changeWorkspace: 'Choose Workspace',
     workspaceSuccess: 'Workspace set successfully',
     workspaceFailed: 'Failed to set workspace',
     snippetDir: 'App Data Directory:',
-    snippetDirDesc: 'Stores the database, app config, and default plugins. This is not the Markdown workspace.',
+    snippetDirDesc:
+      'Stores the database, app config, and default plugins. This is not the Markdown workspace.',
     changePath: 'Change Data Dir',
     backup: 'Data Backup:',
     backupDesc: 'Set backup file location',
@@ -602,22 +655,27 @@ export default {
     selectFormat: 'Select backup filename format',
     backupSuccess: 'Backup successful',
     backupFailed: 'Backup failed',
-    restoreWarning: 'Restoring data will replace the current database and requires restarting the app. Continue?',
+    restoreWarning:
+      'Restoring data will replace the current database and requires restarting the app. Continue?',
     restoreSuccess: 'Data restored. App will restart.',
-    pathWarning: 'Changing database location will migrate data and restart the app. Continue?',
+    pathWarning:
+      'Changing database location will migrate data and restart the app. Continue?',
     pathSuccess: 'Path changed. App will restart.',
     warning: 'Warning',
     // Markdown Migration
     migration: 'Data Migration',
-    migrationDesc: 'Migrate data from database to Markdown files, similar to common Markdown note apps file management',
+    migrationDesc:
+      'Migrate data from database to Markdown files, similar to common Markdown note apps file management',
     migrationBtn: 'Migrate to Markdown',
     migrationFromFileBtn: 'Migrate from database file',
     migrationConfirm: 'Confirm Migration',
     migrationInfo: 'This operation will:',
     migrationStep1: 'Read all categories and fragments from database',
-    migrationStep2: 'Create corresponding folders and Markdown files in data directory',
-    migrationStep3: 'Generate workspace.json and cache.json configuration files',
-    migrationStep4: 'Write metadata to each file\'s Front Matter (for Git sync)',
+    migrationStep2:
+      'Create corresponding folders and Markdown files in data directory',
+    migrationStep3:
+      'Generate workspace.json and cache.json configuration files',
+    migrationStep4: "Write metadata to each file's Front Matter (for Git sync)",
     migrationStep5: 'Keep original database file unchanged',
     migrationWarning: 'Recommend backing up database before migration!',
     migrating: 'Migrating',
@@ -637,7 +695,8 @@ export default {
     nextStep3: 'Files can be opened with any Markdown editor',
     nextStep4: 'Original database file is preserved, can rollback anytime',
     migrationCacheToFrontmatter: 'Write Metadata to Front Matter',
-    migrationCacheToFrontmatterDesc: 'Write cache.json metadata to each .md file\'s Front Matter for Git sync',
+    migrationCacheToFrontmatterDesc:
+      "Write cache.json metadata to each .md file's Front Matter for Git sync",
     migrationCacheToFrontmatterBtn: 'Write Front Matter',
     migrationCacheToFrontmatterSuccess: 'Front Matter written to {count} files',
     migrationCacheToFrontmatterFailed: 'Some files failed: {count}'
@@ -711,7 +770,8 @@ export default {
   dialog: {
     updateBacklinks: {
       title: 'Update Backlinks',
-      message: 'Title changed from "{oldTitle}" to "{newTitle}". Found {count} fragment(s) referencing the old title. Update these references?',
+      message:
+        'Title changed from "{oldTitle}" to "{newTitle}". Found {count} fragment(s) referencing the old title. Update these references?',
       affectedFragments: 'Affected fragments:',
       occurrences: 'reference(s)',
       updating: 'Updating',
@@ -775,15 +835,18 @@ export default {
     loadFailed: 'Failed to load content, please retry',
     loadingEditor: 'Loading editor...',
     retry: 'Retry',
-    deleteConfirm: 'Delete folder "{name}"? All snippets inside will also be deleted.',
+    deleteConfirm:
+      'Delete folder "{name}"? All snippets inside will also be deleted.',
     deleteSuccess: 'Folder deleted',
     deleteFailed: 'Delete failed',
     convertType: 'Convert Type',
     convertToNote: 'Convert to Note',
     convertToCode: 'Convert to Code',
     convertConfirmTitle: 'Confirm Type Conversion',
-    convertToNoteConfirm: 'Converting code snippet to note will wrap the code in a code block. Continue?',
-    convertToCodeConfirm: 'Converting note to code snippet will lose all formatting and keep only plain text. Continue?',
+    convertToNoteConfirm:
+      'Converting code snippet to note will wrap the code in a code block. Continue?',
+    convertToCodeConfirm:
+      'Converting note to code snippet will lose all formatting and keep only plain text. Continue?',
     convertSuccess: 'Type conversion successful',
     convertFailed: 'Type conversion failed',
     unsavedChanges: 'You have unsaved changes. Do you want to save them?',
@@ -804,7 +867,8 @@ export default {
 
   codeBlock: {
     editLanguageTitle: 'Edit code language',
-    editLanguageMessage: 'Enter language (e.g. ts, vue, flutter, bash), leave empty for auto detection',
+    editLanguageMessage:
+      'Enter language (e.g. ts, vue, flutter, bash), leave empty for auto detection',
     editLanguagePlaceholder: 'e.g. ts / vue / flutter / bash',
     invalidLanguage: 'Language only allows letters, numbers, #, +, ., _, -'
   },
@@ -831,7 +895,8 @@ export default {
     noResults: 'No Results',
     suggestRelax: 'Try relaxing filter conditions',
     deepSearch: 'Deep Search',
-    deepSearchOn: 'Deep search on: matching titles, content, notes, paths, and tags',
+    deepSearchOn:
+      'Deep search on: matching titles, content, notes, paths, and tags',
     deepSearchOff: 'Deep search off: matching titles only',
     sortBy: 'Sort By',
     defaultSort: 'Default Sort',
@@ -959,7 +1024,8 @@ export default {
     scanningDesktopFiles: 'Scanning desktop files',
     loadingIcons: 'Loading icons',
     savingToDatabase: 'Saving to database',
-    scanComplete: 'Scan complete: {apps} apps, {bookmarks} bookmarks, {desktopFiles} desktop files'
+    scanComplete:
+      'Scan complete: {apps} apps, {bookmarks} bookmarks, {desktopFiles} desktop files'
   },
 
   // Pin Window
@@ -985,7 +1051,8 @@ export default {
     ocrLanguageEn: 'English',
     ocrLanguageJa: 'Japanese',
     ocrLanguageKo: 'Korean',
-    unsupportedTranslateLanguage: 'Translation currently supports Chinese and English only.',
+    unsupportedTranslateLanguage:
+      'Translation currently supports Chinese and English only.',
     recognizeAgain: 'Recognize Again',
     saveAsText: 'Save as Text',
     showRecords: 'Show Records',
@@ -1017,7 +1084,8 @@ export default {
     openWallhaven: 'Open Wallhaven wallpapers',
     sourceToggle: 'Wallpaper source switcher',
     categoryToggle: 'Wallpaper category switcher',
-    unsupported: 'Desktop wallpaper switching is not supported on this system. This plugin currently supports Windows only.',
+    unsupported:
+      'Desktop wallpaper switching is not supported on this system. This plugin currently supports Windows only.',
     currentPreviewAlt: 'Current wallpaper preview',
     wallpaperPreviewAlt: 'Wallpaper preview',
     noCurrentWallpaper: 'No current wallpaper',
@@ -1109,7 +1177,8 @@ export default {
       fitApplied: 'Fit mode applied',
       noCurrentToFix: 'No current wallpaper to set as fixed',
       cacheCleared: 'Cache cleared',
-      wallhavenNetworkError: 'Wallhaven connection failed. Please try again later or check your proxy/network.',
+      wallhavenNetworkError:
+        'Wallhaven connection failed. Please try again later or check your proxy/network.',
       settingWallpaper: 'Setting wallpaper...',
       wallpaperSet: 'Wallpaper set',
       downloadingWallpaper: 'Downloading wallpaper...',
@@ -1254,7 +1323,8 @@ export default {
 
   configSearch: {
     emptyTitle: 'Search Current Workspace',
-    emptyText: 'Type to search snippets, notes, files, tags, and commands. Results open inside this config window.',
+    emptyText:
+      'Type to search snippets, notes, files, tags, and commands. Results open inside this config window.',
     folderResultContent: 'Go to folder',
     navigate: 'Navigate',
     open: 'Open'
@@ -1319,7 +1389,8 @@ export default {
     gitLastSync: 'Last sync: {time}',
     goToGitSettings: 'Click to view Git sync settings',
     quickSearch: 'Quick Search',
-    quickSearchPlaceholder: 'Search snippets, notes, files, tags and commands...',
+    quickSearchPlaceholder:
+      'Search snippets, notes, files, tags and commands...',
     workspace: 'Workspace',
     openWorkspace: 'Open Workspace'
   },
@@ -1339,12 +1410,15 @@ export default {
     gitToken: 'GitHub Token',
     gitRemote: 'Remote Repository',
     gitConfigSection: 'Git Required Config',
-    gitConfigSectionDesc: 'After filling these fields, the Git Sync tab will appear in Settings. Workspace must be a valid Git repo with remote configured.',
+    gitConfigSectionDesc:
+      'After filling these fields, the Git Sync tab will appear in Settings. Workspace must be a valid Git repo with remote configured.',
     gitPluginUnavailableTitle: 'Git Sync Plugin Unavailable',
-    gitPluginUnavailableDesc: 'Install and enable the Git Sync plugin to show the required Git configuration here.',
+    gitPluginUnavailableDesc:
+      'Install and enable the Git Sync plugin to show the required Git configuration here.',
     goToPluginSettings: 'Go to Plugin Settings',
     workspaceSetupTitle: 'Set Workspace First',
-    workspaceSetupDesc: 'Git config depends on the workspace directory. After setting a workspace, Git required config will appear in User Center.',
+    workspaceSetupDesc:
+      'Git config depends on the workspace directory. After setting a workspace, Git required config will appear in User Center.',
     goToWorkspaceSettings: 'Set Workspace',
     saveGitConfig: 'Save Git Config',
     gitConfigSaved: 'Git config saved',
@@ -1353,15 +1427,18 @@ export default {
     gitConfigSaveWarningEmail: 'Please enter Git email',
     gitConfigSaveWarningRemote: 'Please enter remote repository URL',
     gitSyncTitle: 'Git Sync',
-    gitSyncDesc: 'Use Git sync to synchronize notes to GitHub repository, with auto sync and pull on start support',
-    gitSyncConfigured: 'Git sync is configured, you can manage sync options in settings',
+    gitSyncDesc:
+      'Use Git sync to synchronize notes to GitHub repository, with auto sync and pull on start support',
+    gitSyncConfigured:
+      'Git sync is configured, you can manage sync options in settings',
     goToSettings: 'Go to Settings',
     manageSettings: 'Manage Settings',
     quickActions: 'Quick Actions',
     openDataDir: 'Open Data Directory',
     openSettings: 'Open Settings',
     about: 'About',
-    appDescription: 'Snippets Code - A local-first frontend snippet and knowledge asset workspace',
+    appDescription:
+      'Snippets Code - A local-first frontend snippet and knowledge asset workspace',
     viewOnGitHub: 'View on GitHub',
     checkUpdate: 'Check Update',
     workspaceNotSet: 'Workspace not set',
@@ -1414,14 +1491,16 @@ export default {
     occurrences: ' references',
     searchPlaceholder: 'Search backlinks...',
     deleteWithBacklinks: 'Delete Fragment with Backlinks',
-    deleteMessage: 'Fragment "{title}" is referenced by {count} other fragment(s). These references will become invalid after deletion.',
+    deleteMessage:
+      'Fragment "{title}" is referenced by {count} other fragment(s). These references will become invalid after deletion.',
     deleteOptions: 'Delete Options:',
     deleteOnly: 'Delete fragment only',
     deleteAndRemoveLinks: 'Delete fragment and remove reference links',
     updateSuccess: 'Successfully updated {count} fragment(s)',
     updatePartialFailed: 'Updated {success}, failed {failed}',
     deleteWithUpdate: 'Fragment deleted and {count} backlink(s) updated',
-    deleteWithPartialUpdate: 'Fragment deleted, {success} backlink(s) updated, {failed} failed'
+    deleteWithPartialUpdate:
+      'Fragment deleted, {success} backlink(s) updated, {failed} failed'
   },
 
   // Editor Toolbar
@@ -1510,7 +1589,8 @@ export default {
   screenRecorder: {
     title: 'Screen Recorder',
     dragToSelect: 'Drag to select recording area',
-    pickRegionHint: 'Click Pick Region, then hold and drag on the screen to choose the recording area.',
+    pickRegionHint:
+      'Click Pick Region, then hold and drag on the screen to choose the recording area.',
     pickRegion: 'Pick Region',
     picking: 'Picking...',
     width: 'W',
@@ -1530,11 +1610,15 @@ export default {
     qualityHigh: 'High',
     qualityStandard: 'Standard',
     qualitySmall: 'Small File',
+    showCursor: 'Show Cursor',
+    showCursorOn: 'Show cursor while recording',
+    showCursorOff: 'Hide cursor while recording',
     savePath: 'Save Path',
     openFile: 'Open File',
     openFolder: 'Open Folder',
     recordAgain: 'Record Again',
-    ffmpegMissing: 'FFmpeg was not found. Install or configure FFmpeg before recording.'
+    ffmpegMissing:
+      'FFmpeg was not found. Install or configure FFmpeg before recording.'
   },
 
   // Search Syntax Helper
@@ -1596,33 +1680,33 @@ export default {
     apiCallFailed: 'Operation failed: {message}',
     networkError: 'Network error, please check connection',
     unknownError: 'Unknown error, please retry',
-    
+
     // Editor Errors
     editorLoadFailed: 'Editor failed to load',
     editorInitFailed: 'Editor initialization failed, please refresh',
     editorNotReady: 'Editor not ready',
-    
+
     // Save Errors
     saveFailed: 'Save failed',
     saveFailedRetry: 'Save failed, please retry',
     saveFailedDetail: 'Save failed: {message}',
-    
+
     // Load Errors
     loadFailed: 'Load failed',
     loadFailedRetry: 'Load failed, please retry',
     loadFailedDetail: 'Load failed: {message}',
-    
+
     // Conversion Errors
     conversionFailed: 'Type conversion failed',
     conversionFailedDetail: 'Type conversion failed: {message}',
     conversionFailedRetain: 'Type conversion failed, retaining original type',
-    
+
     // Validation Errors
     validationFailed: 'Data validation failed',
     emptyTitle: 'Title cannot be empty',
     emptyContent: 'Content cannot be empty',
     invalidParameter: 'Invalid parameter',
-    
+
     // General Errors
     operationFailed: 'Operation failed',
     operationCancelled: 'Operation cancelled',
@@ -1634,14 +1718,16 @@ export default {
   translation: {
     title: 'Translation',
     defaultEngine: 'Default Engine',
-    defaultEngineDesc: 'Set default engine for screenshot and selection translation',
+    defaultEngineDesc:
+      'Set default engine for screenshot and selection translation',
     google: 'Google Translate',
     bing: 'Bing Translate',
     offline: 'Offline Translate',
     engineSaved: 'Translation engine saved',
     engineSaveFailed: 'Failed to save translation engine',
     offlineModel: 'Offline Model',
-    offlineModelDesc: 'Download offline translation model for use without network',
+    offlineModelDesc:
+      'Download offline translation model for use without network',
     modelLoading: 'Loading model...',
     modelReady: 'Model ready',
     modelActivated: 'Activated (lazy load)',
@@ -1649,11 +1735,14 @@ export default {
     modelNotLoaded: 'Model not loaded',
     runtimeMissing: 'Runtime not installed',
     installRuntime: 'Install Runtime',
-    runtimeMarketplaceMissing: 'translation-offline-runtime resource package was not found in the marketplace',
+    runtimeMarketplaceMissing:
+      'translation-offline-runtime resource package was not found in the marketplace',
     runtimeInstallSuccess: 'Offline translation runtime installed',
     runtimeInstallFailed: 'Failed to install offline translation runtime',
-    runtimeInstallVerifyFailed: 'Runtime files were still missing after installation. Please check the network and retry',
-    runtimeMissingInstallFirst: 'Please install the offline translation runtime first',
+    runtimeInstallVerifyFailed:
+      'Runtime files were still missing after installation. Please check the network and retry',
+    runtimeMissingInstallFirst:
+      'Please install the offline translation runtime first',
     loadModel: 'Download Model',
     activateModel: 'Activate Model',
     deleteModel: 'Delete Model',

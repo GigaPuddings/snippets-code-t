@@ -1,6 +1,12 @@
 export type RecordingFormat = 'mp4' | 'gif';
 export type RecordingQuality = 'high' | 'standard' | 'small';
-export type RecordingStatus = 'selecting' | 'ready' | 'recording' | 'paused' | 'exporting' | 'completed';
+export type RecordingStatus =
+  | 'selecting'
+  | 'ready'
+  | 'recording'
+  | 'paused'
+  | 'exporting'
+  | 'completed';
 
 export interface RecordingRegion {
   x: number;
@@ -20,6 +26,7 @@ export interface RecordingSettings {
   quality: RecordingQuality;
   savePath: string;
   audio: boolean;
+  showCursor: boolean;
 }
 
 export interface FfmpegStatus {

@@ -33,6 +33,15 @@ const SEARCH_WINDOW_IDLE_DESTROY_DELAY_SECS: u64 = 60;
 // 搜索窗口隐藏后延迟销毁；每次重新显示都会递增 token，取消旧的销毁任务。
 static SEARCH_WINDOW_DESTROY_TOKEN: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(0));
 
+#[derive(Default)]
+struct SearchFocusRestoreState {
+    active_token: Option<u64>,
+    next_token: u64,
+}
+
+static SEARCH_FOCUS_RESTORE_STATE: LazyLock<Mutex<SearchFocusRestoreState>> =
+    LazyLock::new(|| Mutex::new(SearchFocusRestoreState::default()));
+
 fn next_search_window_destroy_token() -> u64 {
     match SEARCH_WINDOW_DESTROY_TOKEN.lock() {
         Ok(mut token) => {
@@ -48,6 +57,85 @@ fn next_search_window_destroy_token() -> u64 {
 
 fn cancel_search_window_destroy() {
     let _ = next_search_window_destroy_token();
+}
+
+fn arm_search_focus_restore() -> u64 {
+    match SEARCH_FOCUS_RESTORE_STATE.lock() {
+        Ok(mut state) => {
+            state.next_token = state.next_token.saturating_add(1);
+            state.active_token = Some(state.next_token);
+            state.next_token
+        }
+        Err(e) => {
+            error!("arm_search_focus_restore: 锁定失败: {}", e);
+            0
+        }
+    }
+}
+
+fn disarm_search_focus_restore() {
+    match SEARCH_FOCUS_RESTORE_STATE.lock() {
+        Ok(mut state) => {
+            state.active_token = None;
+        }
+        Err(e) => {
+            error!("disarm_search_focus_restore: 锁定失败: {}", e);
+        }
+    }
+}
+
+fn current_search_focus_restore_token() -> Option<u64> {
+    SEARCH_FOCUS_RESTORE_STATE
+        .lock()
+        .ok()
+        .and_then(|state| state.active_token)
+}
+
+fn is_search_focus_restore_token_current(token: u64) -> bool {
+    SEARCH_FOCUS_RESTORE_STATE
+        .lock()
+        .map(|state| state.active_token == Some(token))
+        .unwrap_or(false)
+}
+
+fn schedule_search_focus_restore(window: Window) {
+    let Some(token) = current_search_focus_restore_token() else {
+        return;
+    };
+
+    tauri::async_runtime::spawn(async move {
+        for attempt in 0..6 {
+            let delay_ms = match attempt {
+                0 => 40,
+                1 => 80,
+                2 => 120,
+                _ => 180,
+            };
+            tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+
+            if !is_search_focus_restore_token_current(token) {
+                return;
+            }
+
+            if !window.is_visible().unwrap_or(false) {
+                return;
+            }
+
+            if window.is_focused().unwrap_or(false) {
+                let _ = window.emit("windowFocused", ());
+                return;
+            }
+
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
+            {
+                let _ = window.unminimize();
+            }
+            let _ = window.show();
+            let _ = window.set_always_on_top(true);
+            let _ = window.set_focus();
+            let _ = window.emit("windowFocused", ());
+        }
+    });
 }
 
 fn schedule_search_window_destroy() {
@@ -101,6 +189,7 @@ fn schedule_search_window_destroy() {
 }
 
 fn hide_search_window_after_ipc_response(window: WebviewWindow) {
+    disarm_search_focus_restore();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         let _ = window.hide();
@@ -658,7 +747,9 @@ pub fn hotkey_search(context: Option<String>) {
 
         position_search_window_near_top(&window);
         let _ = window.show();
+        arm_search_focus_restore();
         let _ = window.set_focus();
+        let _ = window.emit("windowFocused", ());
     }
 }
 
@@ -1360,6 +1451,7 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
             WindowEvent::Focused(false) => {
                 // 记录失焦时间
                 *LAST_FOCUS_LOST_TIME.lock().unwrap() = Some(std::time::Instant::now());
+                schedule_search_focus_restore(window.clone());
 
                 // 创建一个窗口引用的克隆用于后续处理
                 let window_clone = window.clone();
@@ -1395,6 +1487,7 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                             if !has_focus {
                                 // println!("延迟判断后确认窗口失焦，隐藏窗口");
                                 let _ = window_clone.emit("reset-search-state", ());
+                                disarm_search_focus_restore();
                                 let _ = window_clone.hide();
                                 schedule_search_window_destroy();
                                 // 同时关闭预览窗口（直接调用而不是通过 command）
@@ -1445,6 +1538,7 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
                                 {
                                     // println!("拖拽结束后检测窗口无焦点，隐藏窗口");
                                     let _ = window_clone.emit("reset-search-state", ());
+                                    disarm_search_focus_restore();
                                     let _ = window_clone.hide();
                                     schedule_search_window_destroy();
                                 }
@@ -1464,8 +1558,8 @@ pub fn hotkey_dark_mode() {
         label: "dark_mode",
         url: "/#/dark-mode",
         title: "Auto Dark Mode",
-        width: 500.0,
-        height: 650.0,
+        width: 430.0,
+        height: 540.0,
         resizable: false,
         transparent: true,
         shadow: false,

@@ -74,7 +74,7 @@ const translationResults = ref<TranslationResult[]>([
 
 // 过滤可用的翻译结果（离线翻译需要模型已下载）
 const availableResults = computed(() => {
-  return translationResults.value.filter(r => {
+  return translationResults.value.filter((r) => {
     if (r.engine === 'offline') {
       return offlineModelAvailable.value;
     }
@@ -362,13 +362,26 @@ const translateWithEngine = async (engine: string) => {
     logger.error(`[翻译] ${engine}翻译出错`, error);
 
     const errorMessage = String(error);
-    if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
+    if (
+      errorMessage.includes('429') ||
+      errorMessage.includes('Too Many Requests')
+    ) {
       result.text = t('translate.tooManyRequests');
-    } else if (errorMessage.includes('timeout') || errorMessage.includes('超时')) {
+    } else if (
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('超时')
+    ) {
       result.text = t('translate.timeout');
-    } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+    } else if (
+      errorMessage.includes('network') ||
+      errorMessage.includes('网络')
+    ) {
       result.text = t('translate.networkError');
-    } else if (errorMessage.includes('未下载') || errorMessage.includes('未激活') || errorMessage.includes('运行时未安装')) {
+    } else if (
+      errorMessage.includes('未下载') ||
+      errorMessage.includes('未激活') ||
+      errorMessage.includes('运行时未安装')
+    ) {
       result.text = errorMessage;
     } else {
       result.text = t('translate.translateFailed');
@@ -530,14 +543,16 @@ const onSourceLanguageChange = () => {
 onMounted(async () => {
   // 从后端检查离线翻译模型是否已激活（不自动预热，使用懒加载）
   try {
-    const backendActivated = await invoke<boolean>('get_offline_model_activated')
-    logger.info(`[翻译窗口] 离线模型后端激活状态: ${backendActivated}`)
+    const backendActivated = await invoke<boolean>(
+      'get_offline_model_activated'
+    );
+    logger.info(`[翻译窗口] 离线模型后端激活状态: ${backendActivated}`);
     // 只设置后端激活状态，不自动预热模型
     // 模型会在实际使用离线翻译时懒加载
-    offlineModelAvailable.value = backendActivated
+    offlineModelAvailable.value = backendActivated;
   } catch (error) {
-    logger.error('[翻译窗口] 获取离线模型激活状态失败:', error)
-    offlineModelAvailable.value = false
+    logger.error('[翻译窗口] 获取离线模型激活状态失败:', error);
+    offlineModelAvailable.value = false;
   }
 
   // 先设置监听器，等待所有监听器设置完成
@@ -576,63 +591,130 @@ onUnmounted(() => {
   <main class="translate-window">
     <div class="header" data-tauri-drag-region>
       <div class="left-buttons">
-        <button
-          type="button"
-          :title="$t('pin.pinWindow')"
-          @click="togglePin"
-          :class="['window-action', 'pin-button', isPinned ? 'pinned' : '']"
+        <el-tooltip
+          :content="$t('pin.pinWindow')"
+          placement="bottom"
+          :hide-after="1000"
+          popper-class="themed-tooltip-popper"
         >
-          <Pushpin :size="18" />
-        </button>
+          <button
+            type="button"
+            :aria-label="$t('pin.pinWindow')"
+            @mousedown.stop
+            @click="togglePin"
+            :class="['window-action', 'pin-button', isPinned ? 'pinned' : '']"
+          >
+            <Pushpin :size="18" />
+          </button>
+        </el-tooltip>
       </div>
-      <div class="window-title" data-tauri-drag-region>{{ $t('translate.title') }}</div>
+      <div class="window-title" data-tauri-drag-region>
+        {{ $t('translate.title') }}
+      </div>
       <div class="right-buttons">
-        <button
-          type="button"
-          :title="$t('pin.close')"
-          @click="closeWindow"
-          class="window-action material-close"
+        <el-tooltip
+          :content="$t('pin.close')"
+          placement="bottom"
+          :hide-after="1000"
+          popper-class="themed-tooltip-popper"
         >
-          <CloseSmall :size="22" />
-        </button>
+          <button
+            type="button"
+            :aria-label="$t('pin.close')"
+            @mousedown.stop
+            @click="closeWindow"
+            class="window-action material-close"
+          >
+            <CloseSmall :size="22" />
+          </button>
+        </el-tooltip>
       </div>
     </div>
 
     <div class="translate-container">
       <!-- 语言选择区域 -->
       <div class="language-selector">
-        <el-select v-model="sourceLanguage" size="small" @change="onSourceLanguageChange" class="lang-select">
-          <el-option v-for="item in languageOptions" :key="item.value" :label="item.label" :value="item.value" />
+        <el-select
+          v-model="sourceLanguage"
+          size="small"
+          @change="onSourceLanguageChange"
+          class="lang-select"
+        >
+          <el-option
+            v-for="item in languageOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
 
-        <button
-          type="button"
-          :title="$t('translate.translateBack')"
-          :disabled="sourceLanguage === 'auto'"
-          @click="swapLanguages"
-          class="swap-button"
+        <el-tooltip
+          :content="$t('translate.translateBack')"
+          placement="top"
+          :hide-after="1000"
+          popper-class="themed-tooltip-popper"
         >
-          <SwitchIcon :size="22" />
-        </button>
+          <button
+            type="button"
+            :aria-label="$t('translate.translateBack')"
+            :disabled="sourceLanguage === 'auto'"
+            @click="swapLanguages"
+            class="swap-button"
+          >
+            <SwitchIcon :size="22" />
+          </button>
+        </el-tooltip>
 
-        <el-select v-model="targetLanguage" size="small" @change="onTargetLanguageChange" class="lang-select">
-          <el-option v-for="item in languageOptions" :key="item.value" :label="item.label" :value="item.value" />
+        <el-select
+          v-model="targetLanguage"
+          size="small"
+          @change="onTargetLanguageChange"
+          class="lang-select"
+        >
+          <el-option
+            v-for="item in languageOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
       </div>
 
       <!-- 源文本输入区域 -->
       <div class="source-area">
-        <el-input ref="sourceTextArea" v-model="sourceText" type="textarea" :rows="2"
-          :placeholder="$t('translate.inputPlaceholder')" resize="none" @input="handleInput" class="source-textarea" />
+        <el-input
+          ref="sourceTextArea"
+          v-model="sourceText"
+          type="textarea"
+          :rows="2"
+          :placeholder="$t('translate.inputPlaceholder')"
+          resize="none"
+          @input="handleInput"
+          class="source-textarea"
+        />
         <div class="source-actions">
           <div class="source-material">
-            <el-tooltip :content="$t('translate.speakText')" placement="top" :hide-after="1000">
-              <button type="button" @click="speakText(sourceText, sourceLanguage)" class="action-btn">
+            <el-tooltip
+              :content="$t('translate.speakText')"
+              placement="top"
+              :hide-after="1000"
+              popper-class="themed-tooltip-popper"
+            >
+              <button
+                type="button"
+                @click="speakText(sourceText, sourceLanguage)"
+                class="action-btn"
+              >
                 <VolumeUp :size="18" />
               </button>
             </el-tooltip>
-            <el-tooltip v-if="showDeleteButton" :content="$t('translate.deleteText')" placement="top"
-              :hide-after="1000">
+            <el-tooltip
+              v-if="showDeleteButton"
+              :content="$t('translate.deleteText')"
+              placement="top"
+              :hide-after="1000"
+              popper-class="themed-tooltip-popper"
+            >
               <button type="button" @click="clearInput" class="action-btn">
                 <Delete :size="18" />
               </button>
@@ -643,17 +725,39 @@ onUnmounted(() => {
 
       <!-- 多引擎翻译结果区域 -->
       <div class="translation-results">
-        <div v-for="result in availableResults" :key="result.engine" class="result-card"
-          :class="{ 'result-expanded': result.expanded }">
-          <button type="button" class="result-header" @click="toggleExpand(result)">
+        <div
+          v-for="result in availableResults"
+          :key="result.engine"
+          class="result-card"
+          :class="{ 'result-expanded': result.expanded }"
+        >
+          <button
+            type="button"
+            class="result-header"
+            @click="toggleExpand(result)"
+          >
             <div class="result-title">
-              <img v-if="result.engine === 'google'" :src="googleIcon" class="engine-icon" alt="Google" />
-              <img v-else-if="result.engine === 'bing'" :src="bingIcon" class="engine-icon" alt="Bing" />
+              <img
+                v-if="result.engine === 'google'"
+                :src="googleIcon"
+                class="engine-icon"
+                alt="Google"
+              />
+              <img
+                v-else-if="result.engine === 'bing'"
+                :src="bingIcon"
+                class="engine-icon"
+                alt="Bing"
+              />
               <span v-else class="offline-icon">离</span>
               <span>{{ getEngineName(result.engine) }}</span>
             </div>
             <div class="result-controls">
-              <component :is="result.expanded ? Up : Down" :size="18" class="expand-icon" />
+              <component
+                :is="result.expanded ? Up : Down"
+                :size="18"
+                class="expand-icon"
+              />
             </div>
           </button>
 
@@ -667,23 +771,52 @@ onUnmounted(() => {
               v-text="result.text"
               @blur="updateResultText(result, $event)"
             ></div>
-            <div v-else class="result-empty">{{ $t('translate.resultPlaceholder') }}</div>
+            <div v-else class="result-empty">
+              {{ $t('translate.resultPlaceholder') }}
+            </div>
 
             <div class="result-actions">
-              <el-tooltip :content="$t('translate.speakText')" placement="top" :hide-after="1000">
-                <button type="button" @click="speakText(result.text, targetLanguage)" class="action-btn">
+              <el-tooltip
+                :content="$t('translate.speakText')"
+                placement="top"
+                :hide-after="1000"
+                popper-class="themed-tooltip-popper"
+              >
+                <button
+                  type="button"
+                  @click="speakText(result.text, targetLanguage)"
+                  class="action-btn"
+                >
                   <VolumeUp :size="18" />
                 </button>
               </el-tooltip>
 
-              <el-tooltip :content="$t('translate.copyResult')" placement="top" :hide-after="1000">
-                <button type="button" @click="copyResult(result.text)" class="action-btn">
+              <el-tooltip
+                :content="$t('translate.copyResult')"
+                placement="top"
+                :hide-after="1000"
+                popper-class="themed-tooltip-popper"
+              >
+                <button
+                  type="button"
+                  @click="copyResult(result.text)"
+                  class="action-btn"
+                >
                   <Copy :size="18" />
                 </button>
               </el-tooltip>
 
-              <el-tooltip :content="$t('translate.translateBack')" placement="top" :hide-after="1000">
-                <button type="button" @click="translateBack(result)" class="action-btn rotate-icon">
+              <el-tooltip
+                :content="$t('translate.translateBack')"
+                placement="top"
+                :hide-after="1000"
+                popper-class="themed-tooltip-popper"
+              >
+                <button
+                  type="button"
+                  @click="translateBack(result)"
+                  class="action-btn rotate-icon"
+                >
                   <SwitchIcon :size="18" />
                 </button>
               </el-tooltip>
@@ -718,6 +851,8 @@ onUnmounted(() => {
 .left-buttons,
 .right-buttons {
   @apply flex items-center z-10;
+
+  pointer-events: none;
 }
 
 .right-buttons {
@@ -728,6 +863,7 @@ onUnmounted(() => {
   font-size: 14px;
   font-weight: 600;
   line-height: 1;
+  pointer-events: none;
 }
 
 .window-action {
@@ -737,6 +873,7 @@ onUnmounted(() => {
   height: 28px;
   color: var(--el-text-color-secondary);
   border-radius: 4px;
+  pointer-events: auto;
 
   &:hover {
     color: var(--el-text-color-primary);

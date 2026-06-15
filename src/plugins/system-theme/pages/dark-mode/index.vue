@@ -1,48 +1,90 @@
 <template>
-  <div class="dark-mode-container select-none rounded-lg" :class="{ dark: isDark }">
+  <div
+    class="dark-mode-container select-none rounded-lg"
+    :class="{ dark: isDark }"
+  >
     <!-- 标题栏 -->
-    <div class="title-bar fixed top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3" data-tauri-drag-region>
-      <div class="flex items-center gap-3">
+    <div
+      class="title-bar fixed top-0 left-0 right-0 z-10 flex items-center justify-between px-3 py-2"
+      data-tauri-drag-region
+    >
+      <div class="flex items-center gap-2">
         <div class="title-icon-wrap">
-          <Moon class="text-xl" theme="filled" />
+          <Moon class="text-lg" theme="filled" />
         </div>
-        <h1 class="m-0 text-lg font-medium tracking-tight">{{ $t('darkMode.title') }}</h1>
+        <h1 class="m-0 text-base font-medium tracking-tight">
+          {{ $t('darkMode.title') }}
+        </h1>
       </div>
-      <button type="button" @click="closeWindow" class="close-btn" aria-label="Close">
+      <button
+        type="button"
+        @mousedown.stop
+        @click="closeWindow"
+        class="close-btn"
+        aria-label="Close"
+      >
         <Close :size="18" />
       </button>
     </div>
 
     <!-- 主要内容 -->
-    <div class="content mx-auto max-w-2xl px-5 pt-20 pb-8">
+    <div class="content mx-auto max-w-xl px-4 pt-14 pb-4">
       <!-- 主题模式选择（四选一） -->
       <div class="section">
         <h2 class="section-title">{{ $t('darkMode.themeMode') }}</h2>
-        <div class="mode-selector grid grid-cols-2 gap-3">
+        <div class="mode-selector grid grid-cols-2 gap-2.5">
           <label class="mode-option block cursor-pointer h-full">
-            <input type="radio" value="System" v-model="config.theme_mode" @change="handleThemeModeChange" class="sr-only" />
+            <input
+              type="radio"
+              value="System"
+              v-model="config.theme_mode"
+              @change="handleThemeModeChange"
+              class="sr-only"
+            />
             <div class="mode-content mode-system">
-              <span class="mode-icon-wrap"><Computer class="mode-icon" theme="filled" :size="22" /></span>
+              <span class="mode-icon-wrap">
+                <Computer class="mode-icon" theme="filled" :size="22" />
+              </span>
               <div class="mode-body">
                 <span class="mode-title">{{ $t('darkMode.systemMode') }}</span>
-                <span class="mode-desc">{{ $t('darkMode.systemModeDesc') }}</span>
+                <span class="mode-desc">
+                  {{ $t('darkMode.systemModeDesc') }}
+                </span>
               </div>
             </div>
           </label>
           <label class="mode-option block cursor-pointer h-full">
-            <input type="radio" value="Light" v-model="config.theme_mode" @change="handleThemeModeChange" class="sr-only" />
+            <input
+              type="radio"
+              value="Light"
+              v-model="config.theme_mode"
+              @change="handleThemeModeChange"
+              class="sr-only"
+            />
             <div class="mode-content mode-light">
-              <span class="mode-icon-wrap"><SunOne class="mode-icon" theme="filled" :size="22" /></span>
+              <span class="mode-icon-wrap">
+                <SunOne class="mode-icon" theme="filled" :size="22" />
+              </span>
               <div class="mode-body">
                 <span class="mode-title">{{ $t('darkMode.lightMode') }}</span>
-                <span class="mode-desc">{{ $t('darkMode.lightModeDesc') }}</span>
+                <span class="mode-desc">
+                  {{ $t('darkMode.lightModeDesc') }}
+                </span>
               </div>
             </div>
           </label>
           <label class="mode-option block cursor-pointer h-full">
-            <input type="radio" value="Dark" v-model="config.theme_mode" @change="handleThemeModeChange" class="sr-only" />
+            <input
+              type="radio"
+              value="Dark"
+              v-model="config.theme_mode"
+              @change="handleThemeModeChange"
+              class="sr-only"
+            />
             <div class="mode-content mode-dark">
-              <span class="mode-icon-wrap"><Moon class="mode-icon" theme="filled" :size="22" /></span>
+              <span class="mode-icon-wrap">
+                <Moon class="mode-icon" theme="filled" :size="22" />
+              </span>
               <div class="mode-body">
                 <span class="mode-title">{{ $t('darkMode.darkMode') }}</span>
                 <span class="mode-desc">{{ $t('darkMode.darkModeDesc') }}</span>
@@ -50,12 +92,24 @@
             </div>
           </label>
           <label class="mode-option block cursor-pointer h-full">
-            <input type="radio" value="Schedule" v-model="config.theme_mode" @change="handleThemeModeChange" class="sr-only" />
+            <input
+              type="radio"
+              value="Schedule"
+              v-model="config.theme_mode"
+              @change="handleThemeModeChange"
+              class="sr-only"
+            />
             <div class="mode-content mode-schedule">
-              <span class="mode-icon-wrap"><Time class="mode-icon" theme="filled" :size="22" /></span>
+              <span class="mode-icon-wrap">
+                <Time class="mode-icon" theme="filled" :size="22" />
+              </span>
               <div class="mode-body">
-                <span class="mode-title">{{ $t('darkMode.scheduleMode') }}</span>
-                <span class="mode-desc">{{ $t('darkMode.scheduleModeDesc') }}</span>
+                <span class="mode-title">
+                  {{ $t('darkMode.scheduleMode') }}
+                </span>
+                <span class="mode-desc">
+                  {{ $t('darkMode.scheduleModeDesc') }}
+                </span>
               </div>
             </div>
           </label>
@@ -67,44 +121,91 @@
         <div class="status-card">
           <div class="status-row">
             <span class="status-label">{{ $t('darkMode.currentTheme') }}</span>
-            <span class="status-badge" :class="currentTheme ? 'badge-dark' : 'badge-light'">
-              {{ currentTheme ? $t('darkMode.darkTheme') : $t('darkMode.lightTheme') }}
+            <span
+              class="status-badge"
+              :class="currentTheme ? 'badge-dark' : 'badge-light'"
+            >
+              {{
+                currentTheme
+                  ? $t('darkMode.darkTheme')
+                  : $t('darkMode.lightTheme')
+              }}
             </span>
           </div>
           <div v-if="config.theme_mode === 'Schedule'" class="status-row">
-            <span class="status-label">{{ $t('darkMode.schedulerStatus') }}</span>
-            <span class="status-badge" :class="schedulerRunning ? 'badge-success' : 'badge-danger'">
-              {{ schedulerRunning ? $t('darkMode.running') : $t('darkMode.stopped') }}
+            <span class="status-label">
+              {{ $t('darkMode.schedulerStatus') }}
+            </span>
+            <span
+              class="status-badge"
+              :class="schedulerRunning ? 'badge-success' : 'badge-danger'"
+            >
+              {{
+                schedulerRunning
+                  ? $t('darkMode.running')
+                  : $t('darkMode.stopped')
+              }}
             </span>
           </div>
           <p v-if="config.theme_mode !== 'Schedule'" class="status-hint">
-            {{ config.theme_mode === 'System' ? $t('darkMode.systemModeDesc') : 
-               config.theme_mode === 'Light' ? $t('darkMode.lightModeDesc') : $t('darkMode.darkModeDesc') }}
+            {{
+              config.theme_mode === 'System'
+                ? $t('darkMode.systemModeDesc')
+                : config.theme_mode === 'Light'
+                  ? $t('darkMode.lightModeDesc')
+                  : $t('darkMode.darkModeDesc')
+            }}
           </p>
-          <button type="button" @click="toggleThemeManually" class="btn-primary">
+          <button
+            type="button"
+            @click="toggleThemeManually"
+            class="btn-primary"
+          >
             {{ $t('darkMode.manualToggle') }}
           </button>
         </div>
       </div>
-      
+
       <!-- 定时切换详细设置（仅在Schedule模式下显示） -->
       <template v-if="config.theme_mode === 'Schedule'">
         <!-- 定时类型选择 -->
         <div class="section">
           <h2 class="section-title">{{ $t('darkMode.scheduleType') }}</h2>
-          <div class="mode-selector grid grid-cols-2 gap-3">
+          <div class="mode-selector grid grid-cols-2 gap-2.5">
             <label class="mode-option block cursor-pointer h-full">
-              <input type="radio" value="SunBased" v-model="config.schedule_type" @change="handleScheduleTypeChange" class="sr-only" />
+              <input
+                type="radio"
+                value="SunBased"
+                v-model="config.schedule_type"
+                @change="handleScheduleTypeChange"
+                class="sr-only"
+              />
               <div class="schedule-type-card">
-                <span class="schedule-type-title"><Sunrise :size="18" /> {{ $t('darkMode.sunBased') }}</span>
-                <span class="schedule-type-desc">{{ $t('darkMode.sunBasedDesc') }}</span>
+                <span class="schedule-type-title">
+                  <Sunrise :size="18" />
+                  {{ $t('darkMode.sunBased') }}
+                </span>
+                <span class="schedule-type-desc">
+                  {{ $t('darkMode.sunBasedDesc') }}
+                </span>
               </div>
             </label>
             <label class="mode-option block cursor-pointer h-full">
-              <input type="radio" value="Custom" v-model="config.schedule_type" @change="handleScheduleTypeChange" class="sr-only" />
+              <input
+                type="radio"
+                value="Custom"
+                v-model="config.schedule_type"
+                @change="handleScheduleTypeChange"
+                class="sr-only"
+              />
               <div class="schedule-type-card">
-                <span class="schedule-type-title"><Time :size="18" /> {{ $t('darkMode.customSchedule') }}</span>
-                <span class="schedule-type-desc">{{ $t('darkMode.customScheduleDesc') }}</span>
+                <span class="schedule-type-title">
+                  <Time :size="18" />
+                  {{ $t('darkMode.customSchedule') }}
+                </span>
+                <span class="schedule-type-desc">
+                  {{ $t('darkMode.customScheduleDesc') }}
+                </span>
               </div>
             </label>
           </div>
@@ -121,20 +222,47 @@
               {{ $t('darkMode.gettingLocation') }}
             </div>
             <div v-else-if="locationInfo" class="location-info">
-              <div class="info-row"><span class="info-label">{{ $t('darkMode.location') }}</span><span class="info-value">{{ locationInfo.city }}, {{ locationInfo.region }}, {{ locationInfo.country }}</span></div>
-              <div class="info-row"><span class="info-label">{{ $t('darkMode.timezone') }}</span><span class="info-value">{{ locationInfo.timezone }}</span></div>
-              <div class="info-row"><span class="info-label">{{ $t('darkMode.coordinates') }}</span><span class="info-value">{{ locationInfo.latitude.toFixed(4) }}, {{ locationInfo.longitude.toFixed(4) }}</span></div>
+              <div class="info-row">
+                <span class="info-label">{{ $t('darkMode.location') }}</span>
+                <span class="info-value">
+                  {{ locationInfo.city }}, {{ locationInfo.region }},
+                  {{ locationInfo.country }}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">{{ $t('darkMode.timezone') }}</span>
+                <span class="info-value">{{ locationInfo.timezone }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">{{ $t('darkMode.coordinates') }}</span>
+                <span class="info-value">
+                  {{ locationInfo.latitude.toFixed(4) }},
+                  {{ locationInfo.longitude.toFixed(4) }}
+                </span>
+              </div>
             </div>
-            <button type="button" @click="refreshLocation" class="btn-secondary btn-with-icon mt-3" :disabled="locationLoading">
+            <button
+              type="button"
+              @click="refreshLocation"
+              class="btn-secondary btn-with-icon mt-3"
+              :disabled="locationLoading"
+            >
               <Refresh v-if="!locationLoading" :size="16" />
               <Refresh v-else class="animate-spin" :size="16" />
-              {{ locationLoading ? $t('darkMode.refreshing') : $t('darkMode.refreshLocation') }}
+              {{
+                locationLoading
+                  ? $t('darkMode.refreshing')
+                  : $t('darkMode.refreshLocation')
+              }}
             </button>
           </div>
         </div>
 
         <!-- 日出日落时间 -->
-        <div class="section" v-if="config.schedule_type === 'SunBased' && sunTimes">
+        <div
+          class="section"
+          v-if="config.schedule_type === 'SunBased' && sunTimes"
+        >
           <h2 class="section-title">{{ $t('darkMode.sunTimes') }}</h2>
           <div class="inset-card sun-times-card">
             <div class="sun-row">
@@ -154,8 +282,15 @@
             <div class="sun-divider" />
             <div class="sun-row sun-period">
               <span class="sun-label">{{ $t('darkMode.currentPeriod') }}</span>
-              <span class="sun-value" :class="sunTimes.is_day ? 'period-day' : 'period-night'">
-                {{ sunTimes.is_day ? $t('darkMode.daytime') : $t('darkMode.nighttime') }}
+              <span
+                class="sun-value"
+                :class="sunTimes.is_day ? 'period-day' : 'period-night'"
+              >
+                {{
+                  sunTimes.is_day
+                    ? $t('darkMode.daytime')
+                    : $t('darkMode.nighttime')
+                }}
               </span>
             </div>
           </div>
@@ -169,11 +304,23 @@
               <span class="info-label">来源</span>
               <span class="info-value">{{ sunCalcSourceLabel }}</span>
             </div>
-            <div class="info-row" v-if="sunCalcDebug?.latitude !== undefined && sunCalcDebug?.longitude !== undefined">
+            <div
+              class="info-row"
+              v-if="
+                sunCalcDebug?.latitude !== undefined &&
+                sunCalcDebug?.longitude !== undefined
+              "
+            >
               <span class="info-label">计算坐标</span>
-              <span class="info-value">{{ Number(sunCalcDebug?.latitude).toFixed(4) }}, {{ Number(sunCalcDebug?.longitude).toFixed(4) }}</span>
+              <span class="info-value">
+                {{ Number(sunCalcDebug?.latitude).toFixed(4) }},
+                {{ Number(sunCalcDebug?.longitude).toFixed(4) }}
+              </span>
             </div>
-            <div class="info-row" v-if="sunCalcDebug?.timezoneOffset !== undefined">
+            <div
+              class="info-row"
+              v-if="sunCalcDebug?.timezoneOffset !== undefined"
+            >
               <span class="info-label">时区偏移(分钟)</span>
               <span class="info-value">{{ sunCalcDebug?.timezoneOffset }}</span>
             </div>
@@ -193,12 +340,28 @@
           <h2 class="section-title">{{ $t('darkMode.customTime') }}</h2>
           <div class="inset-card time-settings">
             <label class="time-row">
-              <span class="time-label-text"><SunOne theme="filled" :size="18" /> {{ $t('darkMode.lightModeStart') }}</span>
-              <input type="time" v-model="config.custom_light_time" @change="handleTimeChange" class="time-input" />
+              <span class="time-label-text">
+                <SunOne theme="filled" :size="18" />
+                {{ $t('darkMode.lightModeStart') }}
+              </span>
+              <input
+                type="time"
+                v-model="config.custom_light_time"
+                @change="handleTimeChange"
+                class="time-input"
+              />
             </label>
             <label class="time-row">
-              <span class="time-label-text"><Moon theme="filled" :size="18" /> {{ $t('darkMode.darkModeStart') }}</span>
-              <input type="time" v-model="config.custom_dark_time" @change="handleTimeChange" class="time-input" />
+              <span class="time-label-text">
+                <Moon theme="filled" :size="18" />
+                {{ $t('darkMode.darkModeStart') }}
+              </span>
+              <input
+                type="time"
+                v-model="config.custom_dark_time"
+                @change="handleTimeChange"
+                class="time-input"
+              />
             </label>
           </div>
         </div>
@@ -213,7 +376,17 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
-import { Moon, Close, Sunrise, Sunset, SunOne, Computer, Time, Local, Refresh } from '@icon-park/vue-next';
+import {
+  Moon,
+  Close,
+  Sunrise,
+  Sunset,
+  SunOne,
+  Computer,
+  Time,
+  Local,
+  Refresh
+} from '@icon-park/vue-next';
 
 const { t } = useI18n();
 import { logger } from '@/utils/logger';
@@ -292,8 +465,10 @@ const isDark = computed(() => currentTheme.value);
 
 const sunCalcSourceLabel = computed(() => {
   const source = sunCalcDebug.value?.source || '';
-  if (source.startsWith('manual:')) return `手动位置（${source.replace('manual:', '')}）`;
-  if (source.startsWith('ip:')) return `自动定位（${source.replace('ip:', '')}）`;
+  if (source.startsWith('manual:'))
+    return `手动位置（${source.replace('manual:', '')}）`;
+  if (source.startsWith('ip:'))
+    return `自动定位（${source.replace('ip:', '')}）`;
   return source || '-';
 });
 
@@ -372,9 +547,13 @@ const handleThemeModeChange = async () => {
   }
 
   await saveConfig();
-  
+
   // 如果切换到定时模式，且选择了日出日落，则获取位置
-  if (config.value.theme_mode === 'Schedule' && config.value.schedule_type === 'SunBased' && !locationInfo.value) {
+  if (
+    config.value.theme_mode === 'Schedule' &&
+    config.value.schedule_type === 'SunBased' &&
+    !locationInfo.value
+  ) {
     await refreshLocation();
   }
 };
@@ -423,10 +602,12 @@ const toggleThemeManually = async () => {
   try {
     const newState = await invoke<boolean>('toggle_system_theme');
     currentTheme.value = newState;
-    const themeText = newState ? t('darkMode.darkTheme') : t('darkMode.lightTheme');
+    const themeText = newState
+      ? t('darkMode.darkTheme')
+      : t('darkMode.lightTheme');
     let message = t('darkMode.switchedTo', { theme: themeText });
     if (config.value.theme_mode === 'Schedule') {
-      message += t('darkMode.autoRestoreNote')
+      message += t('darkMode.autoRestoreNote');
     }
     modal.msg(message, 'success');
   } catch (error) {
@@ -434,7 +615,6 @@ const toggleThemeManually = async () => {
     modal.msg(t('darkMode.toggleFailed'), 'error');
   }
 };
-
 
 const closeWindow = () => {
   getCurrentWindow().close();
@@ -445,24 +625,30 @@ onMounted(async () => {
   await loadConfig();
 
   // 如果是定时模式且使用日出日落，自动刷新位置信息
-  if (config.value.theme_mode === 'Schedule' && config.value.schedule_type === 'SunBased') {
+  if (
+    config.value.theme_mode === 'Schedule' &&
+    config.value.schedule_type === 'SunBased'
+  ) {
     await refreshLocation();
   }
 
   // 监听后端主题变化（自动模式/手动模式触发）
   unlisten.value = await listen('dark-mode-changed', async (event: any) => {
-    logger.debug(`[主题][窗口:dark_mode] 收到主题变更：${JSON.stringify(event.payload)}`);
+    logger.debug(
+      `[主题][窗口:dark_mode] 收到主题变更：${JSON.stringify(event.payload)}`
+    );
     currentTheme.value = event.payload.isDark;
 
     // 托盘/后端切换后，主动刷新后端配置，确保窗口单选状态与托盘一致
     syncingFromBackend.value = true;
     try {
       await loadConfig();
-      logger.debug(`[主题][窗口:dark_mode] 已从后端刷新配置：theme_mode=${config.value.theme_mode}, schedule_type=${config.value.schedule_type}`);
+      logger.debug(
+        `[主题][窗口:dark_mode] 已从后端刷新配置：theme_mode=${config.value.theme_mode}, schedule_type=${config.value.schedule_type}`
+      );
     } finally {
       syncingFromBackend.value = false;
     }
-
   });
 
   // 通知后端前端已准备完成
@@ -474,11 +660,18 @@ onMounted(async () => {
 });
 
 // 监听定时类型变化
-watch(() => config.value.schedule_type, async (newType) => {
-  if (newType === 'SunBased' && config.value.latitude && config.value.longitude) {
-    await calculateSunTimes();
+watch(
+  () => config.value.schedule_type,
+  async (newType) => {
+    if (
+      newType === 'SunBased' &&
+      config.value.latitude &&
+      config.value.longitude
+    ) {
+      await calculateSunTimes();
+    }
   }
-});
+);
 
 // 页面卸载时取消监听
 onUnmounted(() => {
@@ -489,8 +682,8 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 // 视觉变量
 $radius-sm: 8px;
-$radius-md: 12px;
-$radius-lg: 14px;
+$radius-md: 8px;
+$radius-lg: 10px;
 $accent: #6366f1;
 $accent-dark: #818cf8;
 $light-bg: #fafafa;
@@ -521,7 +714,9 @@ $dark-muted: #a1a1aa;
   overflow-x: hidden;
   background: $light-bg;
   color: #1e293b;
-  transition: background 0.25s ease, color 0.25s ease;
+  transition:
+    background 0.25s ease,
+    color 0.25s ease;
 }
 
 .dark-mode-container.dark {
@@ -542,9 +737,9 @@ $dark-muted: #a1a1aa;
 }
 
 .title-icon-wrap {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -558,14 +753,16 @@ $dark-muted: #a1a1aa;
 }
 
 .close-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: $light-muted;
-  transition: background 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 
 .dark-mode-container:not(.dark) .close-btn:hover {
@@ -584,8 +781,8 @@ $dark-muted: #a1a1aa;
 
 /* 区块 */
 .section {
-  margin-bottom: 20px;
-  padding: 20px;
+  margin-bottom: 12px;
+  padding: 14px;
   border-radius: $radius-lg;
   background: $light-card;
   border: 1px solid $light-border;
@@ -599,8 +796,8 @@ $dark-muted: #a1a1aa;
 }
 
 .section-title {
-  margin: 0 0 14px 0;
-  font-size: 13px;
+  margin: 0 0 10px 0;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: $light-muted;
@@ -623,12 +820,15 @@ $dark-muted: #a1a1aa;
 .mode-content {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
+  gap: 10px;
+  padding: 10px 12px;
   border-radius: $radius-md;
   border: 1px solid $light-border;
   background: $light-bg;
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
 }
 
 .dark-mode-container.dark .mode-content {
@@ -645,24 +845,48 @@ $dark-muted: #a1a1aa;
 }
 
 .mode-icon-wrap {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.mode-system .mode-icon-wrap { background: #f1f5f9; color: #64748b; }
-.mode-light .mode-icon-wrap { background: #fef3c7; color: #b45309; }
-.mode-dark .mode-icon-wrap { background: #e0e7ff; color: #4f46e5; }
-.mode-schedule .mode-icon-wrap { background: #ccfbf1; color: #0d9488; }
+.mode-system .mode-icon-wrap {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.mode-light .mode-icon-wrap {
+  background: #fef3c7;
+  color: #b45309;
+}
+.mode-dark .mode-icon-wrap {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+.mode-schedule .mode-icon-wrap {
+  background: #ccfbf1;
+  color: #0d9488;
+}
 
-.dark-mode-container.dark .mode-system .mode-icon-wrap { background: #27272a; color: #a1a1aa; }
-.dark-mode-container.dark .mode-light .mode-icon-wrap { background: #422006; color: #fbbf24; }
-.dark-mode-container.dark .mode-dark .mode-icon-wrap { background: #312e81; color: #a5b4fc; }
-.dark-mode-container.dark .mode-schedule .mode-icon-wrap { background: #134e4a; color: #5eead4; }
+.dark-mode-container.dark .mode-system .mode-icon-wrap {
+  background: #27272a;
+  color: #a1a1aa;
+}
+.dark-mode-container.dark .mode-light .mode-icon-wrap {
+  background: #422006;
+  color: #fbbf24;
+}
+.dark-mode-container.dark .mode-dark .mode-icon-wrap {
+  background: #312e81;
+  color: #a5b4fc;
+}
+.dark-mode-container.dark .mode-schedule .mode-icon-wrap {
+  background: #134e4a;
+  color: #5eead4;
+}
 
 .mode-body {
   display: flex;
@@ -672,7 +896,7 @@ $dark-muted: #a1a1aa;
 }
 
 .mode-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #1e293b;
 }
@@ -682,7 +906,7 @@ $dark-muted: #a1a1aa;
 }
 
 .mode-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: $light-muted;
 }
 
@@ -705,14 +929,17 @@ $dark-muted: #a1a1aa;
 
 /* 定时方式小卡片 */
 .schedule-type-card {
-  padding: 14px 16px;
+  padding: 11px 12px;
   border-radius: $radius-md;
   border: 1px solid $light-border;
   background: $light-bg;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
 }
 
 .dark-mode-container.dark .schedule-type-card {
@@ -733,7 +960,7 @@ $dark-muted: #a1a1aa;
 }
 
 .schedule-type-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -746,7 +973,7 @@ $dark-muted: #a1a1aa;
 }
 
 .schedule-type-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: $light-muted;
 }
 
@@ -756,7 +983,7 @@ $dark-muted: #a1a1aa;
 
 /* 状态卡片 */
 .status-card {
-  padding: 16px;
+  padding: 12px;
   border-radius: $radius-md;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -771,7 +998,7 @@ $dark-muted: #a1a1aa;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 9px;
 }
 
 .status-row:last-of-type {
@@ -779,7 +1006,7 @@ $dark-muted: #a1a1aa;
 }
 
 .status-label {
-  font-size: 13px;
+  font-size: 12px;
   color: $light-muted;
 }
 
@@ -788,9 +1015,9 @@ $dark-muted: #a1a1aa;
 }
 
 .status-badge {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 20px;
 }
 
@@ -835,9 +1062,9 @@ $dark-muted: #a1a1aa;
 }
 
 .status-hint {
-  font-size: 13px;
+  font-size: 12px;
   color: $light-muted;
-  margin: 12px 0 14px 0;
+  margin: 9px 0 10px 0;
   line-height: 1.45;
 }
 
@@ -848,16 +1075,19 @@ $dark-muted: #a1a1aa;
 /* 按钮 */
 .btn-primary {
   width: 100%;
-  margin-top: 14px;
-  padding: 10px 16px;
-  font-size: 13px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
   font-weight: 600;
   border-radius: $radius-sm;
   border: none;
   background: #6366f1;
   color: #fff;
   cursor: pointer;
-  transition: background 0.2s, opacity 0.2s, transform 0.02s;
+  transition:
+    background 0.2s,
+    opacity 0.2s,
+    transform 0.02s;
 }
 
 .btn-primary:hover {
@@ -878,15 +1108,17 @@ $dark-muted: #a1a1aa;
 
 .btn-secondary {
   width: 100%;
-  padding: 10px 16px;
-  font-size: 13px;
+  padding: 8px 12px;
+  font-size: 12px;
   font-weight: 500;
   border-radius: $radius-sm;
   border: 1px solid $light-border;
   background: $light-card;
   color: #334155;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -917,7 +1149,7 @@ $dark-muted: #a1a1aa;
 
 /* 内嵌卡片 */
 .inset-card {
-  padding: 16px;
+  padding: 12px;
   border-radius: $radius-md;
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
@@ -930,7 +1162,7 @@ $dark-muted: #a1a1aa;
 
 .loading-hint {
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   color: $light-muted;
   font-style: italic;
 }
@@ -943,8 +1175,8 @@ $dark-muted: #a1a1aa;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
-  font-size: 13px;
+  margin-bottom: 8px;
+  font-size: 12px;
 }
 
 .info-label {
@@ -968,8 +1200,8 @@ $dark-muted: #a1a1aa;
 .sun-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .sun-row:last-child {
@@ -992,12 +1224,12 @@ $dark-muted: #a1a1aa;
 }
 
 .sun-label {
-  font-size: 12px;
+  font-size: 11px;
   color: $light-muted;
 }
 
 .sun-value {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: #1e293b;
 }
@@ -1006,16 +1238,24 @@ $dark-muted: #a1a1aa;
   color: #fafafa;
 }
 
-.period-day { color: #d97706 !important; }
-.period-night { color: #7c3aed !important; }
+.period-day {
+  color: #d97706 !important;
+}
+.period-night {
+  color: #7c3aed !important;
+}
 
-.dark-mode-container.dark .period-day { color: #fbbf24 !important; }
-.dark-mode-container.dark .period-night { color: #a78bfa !important; }
+.dark-mode-container.dark .period-day {
+  color: #fbbf24 !important;
+}
+.dark-mode-container.dark .period-night {
+  color: #a78bfa !important;
+}
 
 .sun-divider {
   height: 1px;
   background: #e2e8f0;
-  margin: 14px 0;
+  margin: 10px 0;
 }
 
 .dark-mode-container.dark .sun-divider {
@@ -1033,8 +1273,8 @@ $dark-muted: #a1a1aa;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
-  font-size: 13px;
+  margin-bottom: 10px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -1054,12 +1294,12 @@ $dark-muted: #a1a1aa;
 }
 
 .time-input {
-  width: 100px;
-  padding: 8px 10px;
+  width: 92px;
+  padding: 6px 8px;
   border-radius: $radius-sm;
   border: 1px solid $light-border;
   background: $light-card;
-  font-size: 13px;
+  font-size: 12px;
   color: #1e293b;
 }
 
@@ -1081,8 +1321,12 @@ $dark-muted: #a1a1aa;
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .animate-spin {

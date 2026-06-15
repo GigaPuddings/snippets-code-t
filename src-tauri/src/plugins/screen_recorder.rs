@@ -136,6 +136,7 @@ struct RecordingSession {
     fps: u32,
     quality: String,
     audio: bool,
+    show_cursor: bool,
     audio_device: Option<String>,
     next_segment_index: usize,
     segments: Vec<PathBuf>,
@@ -794,8 +795,8 @@ pub fn open_screen_recorder_window() {
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
     let scale = monitor.scale_factor();
-    let width = 468.0;
-    let height = 300.0;
+    let width = 480.0;
+    let height = 280.0;
     let monitor_width = monitor_size.width as f64 / scale;
     let monitor_height = monitor_size.height as f64 / scale;
     let monitor_x = monitor_pos.x as f64 / scale;
@@ -810,7 +811,7 @@ pub fn open_screen_recorder_window() {
     )
     .title("区域录制")
     .inner_size(width, height)
-    .min_inner_size(420.0, 260.0)
+    .min_inner_size(400.0, 240.0)
     .position(x, y)
     .resizable(true)
     .always_on_top(true)
@@ -1369,6 +1370,7 @@ fn spawn_segment(
     fps: u32,
     quality: &str,
     audio: bool,
+    show_cursor: bool,
     index: usize,
 ) -> Result<
     (
@@ -1382,7 +1384,16 @@ fn spawn_segment(
 > {
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = (app_handle, temp_dir, region, fps, quality, audio, index);
+        let _ = (
+            app_handle,
+            temp_dir,
+            region,
+            fps,
+            quality,
+            audio,
+            show_cursor,
+            index,
+        );
         return Err("区域录制当前仅支持 Windows + FFmpeg。".to_string());
     }
 
@@ -1397,6 +1408,7 @@ fn spawn_segment(
         let keyframe_interval = (fps.max(1) * 2).to_string();
         let use_ddagrab = ffmpeg_supports_filter(&ffmpeg.path, "ddagrab");
         let capture_backend = if use_ddagrab { "ddagrab" } else { "gdigrab" };
+        let draw_mouse = if show_cursor { "1" } else { "0" };
         let mut audio_capture = if audio {
             match start_wasapi_loopback_capture(app_handle.clone(), temp_dir, index) {
                 Ok(capture) => {
@@ -1447,11 +1459,12 @@ fn spawn_segment(
                 "lavfi".to_string(),
                 "-i".to_string(),
                 format!(
-                    "ddagrab=framerate={}:offset_x={}:offset_y={}:video_size={}:draw_mouse=1:output_fmt=bgra:dup_frames=0",
+                    "ddagrab=framerate={}:offset_x={}:offset_y={}:video_size={}:draw_mouse={}:output_fmt=bgra:dup_frames=0",
                     fps_text,
                     region.screen_x,
                     region.screen_y,
-                    video_size
+                    video_size,
+                    draw_mouse
                 ),
             ]);
             video_filters.extend(["-vf".to_string(), "hwdownload,format=bgra".to_string()]);
@@ -1470,7 +1483,7 @@ fn spawn_segment(
                 "-video_size".to_string(),
                 video_size.clone(),
                 "-draw_mouse".to_string(),
-                "1".to_string(),
+                draw_mouse.to_string(),
                 "-i".to_string(),
                 "desktop".to_string(),
             ]);
@@ -1534,7 +1547,7 @@ fn spawn_segment(
         append_debug_log(
             temp_dir,
             format!(
-                "spawn segment #{index}: backend={} region=({}, {}) {}x{} scale={} fps={} quality={} audio_requested={} audio_device={:?} output={} ffmpeg_log={}",
+                "spawn segment #{index}: backend={} region=({}, {}) {}x{} scale={} fps={} quality={} audio_requested={} show_cursor={} audio_device={:?} output={} ffmpeg_log={}",
                 capture_backend,
                 region.screen_x,
                 region.screen_y,
@@ -1544,6 +1557,7 @@ fn spawn_segment(
                 fps,
                 quality,
                 audio,
+                show_cursor,
                 audio_device,
                 display_path(&output),
                 display_path(&segment_log)
@@ -1687,6 +1701,7 @@ pub fn screen_recorder_start_recording(
     fps: u32,
     quality: String,
     audio: bool,
+    show_cursor: bool,
 ) -> Result<(), String> {
     require_plugin(&app_handle)?;
 
@@ -1695,7 +1710,7 @@ pub fn screen_recorder_start_recording(
     append_debug_log(
         &temp_dir,
         format!(
-            "start recording request: session={} region=({}, {}) {}x{} logical={}x{} scale={} fps={} quality={} audio={}",
+            "start recording request: session={} region=({}, {}) {}x{} logical={}x{} scale={} fps={} quality={} audio={} show_cursor={}",
             id,
             region.screen_x,
             region.screen_y,
@@ -1706,11 +1721,20 @@ pub fn screen_recorder_start_recording(
             region.scale,
             fps,
             quality,
-            audio
+            audio,
+            show_cursor
         ),
     );
-    let (child, output, audio_device, segment_log, audio_capture) =
-        spawn_segment(&app_handle, &temp_dir, &region, fps, &quality, audio, 0)?;
+    let (child, output, audio_device, segment_log, audio_capture) = spawn_segment(
+        &app_handle,
+        &temp_dir,
+        &region,
+        fps,
+        &quality,
+        audio,
+        show_cursor,
+        0,
+    )?;
 
     let mut state = RECORDING_SESSION
         .lock()
@@ -1727,6 +1751,7 @@ pub fn screen_recorder_start_recording(
         fps,
         quality,
         audio,
+        show_cursor,
         audio_device,
         next_segment_index: 1,
         segments: vec![output],
@@ -1770,6 +1795,7 @@ pub fn screen_recorder_resume_recording(
     fps: u32,
     quality: String,
     audio: bool,
+    show_cursor: bool,
 ) -> Result<(), String> {
     require_plugin(&app_handle)?;
     let mut state = RECORDING_SESSION
@@ -1786,10 +1812,11 @@ pub fn screen_recorder_resume_recording(
     session.fps = fps;
     session.quality = quality;
     session.audio = audio;
+    session.show_cursor = show_cursor;
     append_debug_log(
         &session.temp_dir,
         format!(
-            "resume recording request: session={} next_segment={} region=({}, {}) {}x{} fps={} quality={} audio={}",
+            "resume recording request: session={} next_segment={} region=({}, {}) {}x{} fps={} quality={} audio={} show_cursor={}",
             session.id,
             session.next_segment_index,
             session.region.screen_x,
@@ -1798,7 +1825,8 @@ pub fn screen_recorder_resume_recording(
             session.region.physical_height,
             session.fps,
             session.quality,
-            session.audio
+            session.audio,
+            session.show_cursor
         ),
     );
     let (child, output, audio_device, segment_log, audio_capture) = spawn_segment(
@@ -1808,6 +1836,7 @@ pub fn screen_recorder_resume_recording(
         session.fps,
         &session.quality,
         session.audio,
+        session.show_cursor,
         session.next_segment_index,
     )?;
     if session.audio_device.is_none() {

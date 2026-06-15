@@ -18,13 +18,35 @@
       ></span>
 
       <header ref="titleBarRef" class="title-bar" @mousedown="startDrag">
-        <span class="window-title">{{ $t('screenRecorder.title') || '区域录制' }}</span>
+        <span class="window-title">
+          {{ $t('screenRecorder.title') || '区域录制' }}
+        </span>
         <div class="window-actions" @mousedown.stop>
-          <button class="title-button title-button--window" title="最小化" @click="handleMinimize">
-            <Minus class="title-icon" theme="outline" size="20" :strokeWidth="3" strokeLinecap="butt" />
+          <button
+            class="title-button title-button--window"
+            title="最小化"
+            @click="handleMinimize"
+          >
+            <Minus
+              class="title-icon"
+              theme="outline"
+              size="20"
+              :strokeWidth="3"
+              strokeLinecap="butt"
+            />
           </button>
-          <button class="title-button title-button--close" title="关闭" @click="handleClose">
-            <CloseSmall class="title-icon" theme="outline" size="18" :strokeWidth="3" strokeLinecap="butt" />
+          <button
+            class="title-button title-button--close"
+            title="关闭"
+            @click="handleClose"
+          >
+            <CloseSmall
+              class="title-icon"
+              theme="outline"
+              size="18"
+              :strokeWidth="3"
+              strokeLinecap="butt"
+            />
           </button>
         </div>
       </header>
@@ -63,10 +85,17 @@
 
             <button
               class="audio-meter"
-              :class="{ active: isMeterActive && audioLevel > 0.03, metering: isMeterActive && !audioMeterUnavailable, muted: !isMeterActive || audioMeterUnavailable }"
+              :class="{
+                active: isMeterActive && audioLevel > 0.03,
+                'audio-on': audioEnabled,
+                metering: isMeterActive && !audioMeterUnavailable,
+                muted: !audioEnabled || audioMeterUnavailable
+              }"
               :title="audioTitle"
               aria-label="系统声音录制状态"
-              :disabled="status === 'exporting' || settings.format === 'gif'"
+              :aria-pressed="settings.audio && settings.format === 'mp4'"
+              :disabled="isBusy || settings.format === 'gif'"
+              @click="toggleAudio"
             >
               <span class="audio-bars" :style="audioBarsStyle">
                 <i></i>
@@ -74,6 +103,23 @@
                 <i></i>
                 <i></i>
               </span>
+            </button>
+
+            <button
+              class="icon-control cursor-control"
+              :class="{ active: settings.showCursor }"
+              :title="cursorTitle"
+              :aria-label="$t('screenRecorder.showCursor')"
+              :aria-pressed="settings.showCursor"
+              :disabled="isBusy"
+              @click="toggleCursor"
+            >
+              <Mouse
+                theme="outline"
+                size="17"
+                :strokeWidth="3"
+                strokeLinecap="butt"
+              />
             </button>
           </div>
 
@@ -87,15 +133,27 @@
             <span class="unit">fps</span>
           </label>
 
-          <select v-model="settings.format" class="format-select optional-format" :disabled="isBusy">
+          <select
+            v-model="settings.format"
+            class="format-select optional-format"
+            :disabled="isBusy"
+          >
             <option value="mp4">MP4</option>
             <option value="gif">GIF</option>
           </select>
 
-          <select v-model="settings.quality" class="quality-select optional-quality" :disabled="isBusy">
+          <select
+            v-model="settings.quality"
+            class="quality-select optional-quality"
+            :disabled="isBusy"
+          >
             <option value="high">{{ $t('screenRecorder.qualityHigh') }}</option>
-            <option value="standard">{{ $t('screenRecorder.qualityStandard') }}</option>
-            <option value="small">{{ $t('screenRecorder.qualitySmall') }}</option>
+            <option value="standard">
+              {{ $t('screenRecorder.qualityStandard') }}
+            </option>
+            <option value="small">
+              {{ $t('screenRecorder.qualitySmall') }}
+            </option>
           </select>
 
           <div class="dimension-group optional-size">
@@ -113,8 +171,17 @@
         <div class="control-group control-group--actions">
           <template v-if="status === 'recording' || status === 'paused'">
             <span class="time">{{ timeText }}</span>
-            <button class="control-button" @click="status === 'paused' ? handleResume() : handlePause()">
-              <span class="button-label">{{ status === 'paused' ? $t('screenRecorder.resume') : $t('screenRecorder.pause') }}</span>
+            <button
+              class="control-button"
+              @click="status === 'paused' ? handleResume() : handlePause()"
+            >
+              <span class="button-label">
+                {{
+                  status === 'paused'
+                    ? $t('screenRecorder.resume')
+                    : $t('screenRecorder.pause')
+                }}
+              </span>
             </button>
             <button class="control-button danger" @click="handleStop">
               <span class="button-label">{{ $t('screenRecorder.stop') }}</span>
@@ -131,7 +198,11 @@
                 <span :style="{ width: `${exportProgressPercent}%` }"></span>
               </div>
             </div>
-            <button class="control-button danger" title="取消导出" @click="handleCancelExport">
+            <button
+              class="control-button danger"
+              title="取消导出"
+              @click="handleCancelExport"
+            >
               <span class="button-label">取消</span>
             </button>
           </template>
@@ -140,13 +211,25 @@
             <span class="save-status optional-save-status" :title="result.path">
               {{ result.hasAudio ? '已保存·有声' : '已保存·无声' }}
             </span>
-            <button class="control-button" title="打开文件" @click="handleOpenFile">
+            <button
+              class="control-button"
+              title="打开文件"
+              @click="handleOpenFile"
+            >
               <span class="button-label">打开</span>
             </button>
-            <button class="control-button" title="打开所在文件夹" @click="handleRevealFile">
+            <button
+              class="control-button"
+              title="打开所在文件夹"
+              @click="handleRevealFile"
+            >
               <span class="button-label">文件夹</span>
             </button>
-            <button class="control-button" title="重新录制" @click="handleRecordAgain">
+            <button
+              class="control-button"
+              title="重新录制"
+              @click="handleRecordAgain"
+            >
               <span class="button-label">重录</span>
             </button>
           </template>
@@ -154,7 +237,11 @@
           <button
             v-else
             class="record-button"
-            :disabled="ffmpegStatus?.available === false || captureSize.width < MIN_CAPTURE_SIZE || captureSize.height < MIN_CAPTURE_SIZE"
+            :disabled="
+              ffmpegStatus?.available === false ||
+              captureSize.width < MIN_CAPTURE_SIZE ||
+              captureSize.height < MIN_CAPTURE_SIZE
+            "
             @click="handleStart"
           >
             <span class="record-dot"></span>
@@ -172,6 +259,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   getCurrentWindow,
   LogicalSize,
@@ -181,7 +269,7 @@ import {
 } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { CloseSmall, Minus, Radar } from '@icon-park/vue-next';
+import { CloseSmall, Minus, Mouse, Radar } from '@icon-park/vue-next';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import {
@@ -192,15 +280,28 @@ import {
   setRecorderPassthroughRegion
 } from './core/recordingApi';
 import { useRecordingSession } from './core/useRecordingSession';
-import type { RecordingExportProgress, RecordingRegion, RecorderSnapRegion } from './core/types';
+import type {
+  RecordingExportProgress,
+  RecordingRegion,
+  RecorderSnapRegion
+} from './core/types';
 
-type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
+type ResizeDirection =
+  | 'East'
+  | 'North'
+  | 'NorthEast'
+  | 'NorthWest'
+  | 'South'
+  | 'SouthEast'
+  | 'SouthWest'
+  | 'West';
 type AudioLevelEvent = { level?: number };
 type PhysicalFrame = { x: number; y: number; width: number; height: number };
 type ExportProgressEvent = RecordingExportProgress;
 type PassthroughFrame = { x: number; y: number; width: number; height: number };
 
 const LOG_PREFIX = '[screen-recorder]';
+const { t } = useI18n();
 const appWindow = getCurrentWindow();
 const captureHoleRef = ref<HTMLElement | null>(null);
 const titleBarRef = ref<HTMLElement | null>(null);
@@ -221,8 +322,8 @@ let pendingPassthroughRegion: PassthroughFrame | null = null;
 let lastPassthroughRegion: PassthroughFrame | null = null;
 
 const MIN_CAPTURE_SIZE = 80;
-const MIN_WINDOW_WIDTH = 420;
-const MIN_WINDOW_HEIGHT = 260;
+const MIN_WINDOW_WIDTH = 400;
+const MIN_WINDOW_HEIGHT = 240;
 const MIN_SNAPPED_WINDOW_WIDTH = 260;
 const MIN_SNAPPED_WINDOW_HEIGHT = 140;
 const SNAP_MAX_CORRECTION_PASSES = 3;
@@ -232,16 +333,17 @@ const SNAP_TARGET_RIGHT_TRIM = 15;
 const SNAP_TARGET_BOTTOM_TRIM = 10;
 const CAPTURE_METRIC_TOLERANCE = 2;
 
-const resizeHandles: Array<{ className: string; direction: ResizeDirection }> = [
-  { className: 'n', direction: 'North' },
-  { className: 'ne', direction: 'NorthEast' },
-  { className: 'e', direction: 'East' },
-  { className: 'se', direction: 'SouthEast' },
-  { className: 's', direction: 'South' },
-  { className: 'sw', direction: 'SouthWest' },
-  { className: 'w', direction: 'West' },
-  { className: 'nw', direction: 'NorthWest' }
-];
+const resizeHandles: Array<{ className: string; direction: ResizeDirection }> =
+  [
+    { className: 'n', direction: 'North' },
+    { className: 'ne', direction: 'NorthEast' },
+    { className: 'e', direction: 'East' },
+    { className: 'se', direction: 'SouthEast' },
+    { className: 's', direction: 'South' },
+    { className: 'sw', direction: 'SouthWest' },
+    { className: 'w', direction: 'West' },
+    { className: 'nw', direction: 'NorthWest' }
+  ];
 
 const {
   status,
@@ -262,11 +364,21 @@ const {
 
 const isClosing = ref(false);
 
-const isBusy = computed(() => status.value === 'recording' || status.value === 'paused' || status.value === 'exporting');
-const audioEnabled = computed(() => settings.value.audio && settings.value.format === 'mp4');
-const isMeterActive = computed(() => audioEnabled.value && status.value === 'recording');
+const isBusy = computed(
+  () =>
+    status.value === 'recording' ||
+    status.value === 'paused' ||
+    status.value === 'exporting'
+);
+const audioEnabled = computed(
+  () => settings.value.audio && settings.value.format === 'mp4'
+);
+const isMeterActive = computed(
+  () => audioEnabled.value && status.value === 'recording'
+);
 const audioBarsStyle = computed<Record<string, string>>(() => {
-  const level = isMeterActive.value && !audioMeterUnavailable.value ? audioLevel.value : 0;
+  const level =
+    isMeterActive.value && !audioMeterUnavailable.value ? audioLevel.value : 0;
   const scale = (base: number, weight: number) =>
     Math.max(0.18, Math.min(1, base + level * weight)).toFixed(3);
 
@@ -291,7 +403,10 @@ const audioTitle = computed(() => {
   if (result.value && !result.value.hasAudio) {
     return '未检测到可用音频设备，导出视频无声音';
   }
-  if (ffmpegStatus.value?.available && !ffmpegStatus.value.systemAudioAvailable) {
+  if (
+    ffmpegStatus.value?.available &&
+    !ffmpegStatus.value.systemAudioAvailable
+  ) {
     const devices = ffmpegStatus.value.audioDevices?.join('、') || '无';
     return settings.value.audio
       ? `未发现系统声音/立体声混音设备；不会自动录制麦克风。当前可用音频设备：${devices}`
@@ -301,6 +416,12 @@ const audioTitle = computed(() => {
     ? '录制音频已开启。系统声音将通过 WASAPI Loopback 捕获'
     : '录制音频已关闭';
 });
+
+const cursorTitle = computed(() =>
+  settings.value.showCursor
+    ? String(t('screenRecorder.showCursorOn'))
+    : String(t('screenRecorder.showCursorOff'))
+);
 
 const exportProgressPercent = computed(() => {
   const progress = exportProgress.value?.progress ?? 0.03;
@@ -328,7 +449,9 @@ const exportProgressTitle = computed(() => {
 
 const timeText = computed(() => {
   const totalSeconds = Math.floor(elapsedMs.value / 1000);
-  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+  const minutes = Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, '0');
   const seconds = (totalSeconds % 60).toString().padStart(2, '0');
   return `${minutes}:${seconds}`;
 });
@@ -368,7 +491,9 @@ const samePassthroughRegion = (
   );
 };
 
-const setPassthroughRegionIfChanged = async (region: PassthroughFrame | null) => {
+const setPassthroughRegionIfChanged = async (
+  region: PassthroughFrame | null
+) => {
   if (samePassthroughRegion(lastPassthroughRegion, region)) return;
   lastPassthroughRegion = region ? { ...region } : null;
   await setRecorderPassthroughRegion(region).catch(() => undefined);
@@ -421,8 +546,14 @@ const refreshCaptureMetricsNow = async () => {
   try {
     const region = await getCaptureRegion();
     if (
-      !isNearlySamePhysicalValue(captureSize.value.width, region.physicalWidth) ||
-      !isNearlySamePhysicalValue(captureSize.value.height, region.physicalHeight)
+      !isNearlySamePhysicalValue(
+        captureSize.value.width,
+        region.physicalWidth
+      ) ||
+      !isNearlySamePhysicalValue(
+        captureSize.value.height,
+        region.physicalHeight
+      )
     ) {
       captureSize.value = {
         width: region.physicalWidth,
@@ -430,15 +561,18 @@ const refreshCaptureMetricsNow = async () => {
       };
     }
     if (isSnapFullscreen.value) {
-      const titleHeight = titleBarRef.value?.getBoundingClientRect().height ?? 0;
-      const controlsHeight = controlStripRef.value?.getBoundingClientRect().height ?? 0;
+      const titleHeight =
+        titleBarRef.value?.getBoundingClientRect().height ?? 0;
+      const controlsHeight =
+        controlStripRef.value?.getBoundingClientRect().height ?? 0;
       await setPassthroughRegionIfChanged({
         x: Math.round(region.x * region.scale),
         y: Math.round((region.y + titleHeight) * region.scale),
         width: region.physicalWidth,
         height: Math.max(
           1,
-          region.physicalHeight - Math.round((titleHeight + controlsHeight) * region.scale)
+          region.physicalHeight -
+            Math.round((titleHeight + controlsHeight) * region.scale)
         )
       });
       return;
@@ -548,7 +682,8 @@ const refreshOverlayWindowRegion = async () => {
   const frame = await getOuterFrame();
   const scale = await appWindow.scaleFactor();
   const titleHeight = titleBarRef.value?.getBoundingClientRect().height ?? 0;
-  const controlsHeight = controlStripRef.value?.getBoundingClientRect().height ?? 0;
+  const controlsHeight =
+    controlStripRef.value?.getBoundingClientRect().height ?? 0;
   await setRecorderOverlayWindowRegion({
     width: frame.width,
     height: frame.height,
@@ -557,7 +692,10 @@ const refreshOverlayWindowRegion = async () => {
   }).catch(() => undefined);
 };
 
-const clampFrameToMonitor = (frame: PhysicalFrame, monitorFrame: PhysicalFrame): PhysicalFrame => {
+const clampFrameToMonitor = (
+  frame: PhysicalFrame,
+  monitorFrame: PhysicalFrame
+): PhysicalFrame => {
   const width = Math.min(frame.width, monitorFrame.width);
   const height = Math.min(frame.height, monitorFrame.height);
   const maxX = monitorFrame.x + monitorFrame.width - width;
@@ -599,8 +737,10 @@ const isTargetTouchingMonitorEdge = (
   return (
     target.screenX <= monitorFrame.x + tolerance ||
     target.screenY <= monitorFrame.y + tolerance ||
-    target.screenX + target.physicalWidth >= monitorFrame.x + monitorFrame.width - tolerance ||
-    target.screenY + target.physicalHeight >= monitorFrame.y + monitorFrame.height - tolerance
+    target.screenX + target.physicalWidth >=
+      monitorFrame.x + monitorFrame.width - tolerance ||
+    target.screenY + target.physicalHeight >=
+      monitorFrame.y + monitorFrame.height - tolerance
   );
 };
 
@@ -615,13 +755,20 @@ const trimSnappedTarget = (
   return {
     ...target,
     physicalWidth: Math.max(MIN_CAPTURE_SIZE, target.physicalWidth - widthTrim),
-    physicalHeight: Math.max(MIN_CAPTURE_SIZE, target.physicalHeight - heightTrim)
+    physicalHeight: Math.max(
+      MIN_CAPTURE_SIZE,
+      target.physicalHeight - heightTrim
+    )
   };
 };
 
 const setOuterFrame = async (frame: PhysicalFrame) => {
-  await appWindow.setSize(new PhysicalSize(Math.round(frame.width), Math.round(frame.height)));
-  await appWindow.setPosition(new PhysicalPosition(Math.round(frame.x), Math.round(frame.y)));
+  await appWindow.setSize(
+    new PhysicalSize(Math.round(frame.width), Math.round(frame.height))
+  );
+  await appWindow.setPosition(
+    new PhysicalPosition(Math.round(frame.x), Math.round(frame.y))
+  );
   await waitForWindowLayout();
 };
 
@@ -641,8 +788,14 @@ const getSnappedWrapFrameForTarget = async (
   const { actualRegion, currentFrame } = await getSnapLayout();
   const leftInset = actualRegion.screenX - currentFrame.x;
   const topInset = actualRegion.screenY - currentFrame.y;
-  const horizontalChrome = Math.max(0, currentFrame.width - actualRegion.physicalWidth);
-  const verticalChrome = Math.max(0, currentFrame.height - actualRegion.physicalHeight);
+  const horizontalChrome = Math.max(
+    0,
+    currentFrame.width - actualRegion.physicalWidth
+  );
+  const verticalChrome = Math.max(
+    0,
+    currentFrame.height - actualRegion.physicalHeight
+  );
 
   return {
     x: target.screenX - leftInset,
@@ -661,14 +814,20 @@ const stopAudioMeter = async () => {
 const startAudioMeter = async () => {
   if (!audioEnabled.value || unlistenAudioLevel) return;
   try {
-    unlistenAudioLevel = await listen<AudioLevelEvent>('screen_recorder_audio_level', (event) => {
-      if (!isMeterActive.value) {
-        audioLevel.value = 0;
-        return;
+    unlistenAudioLevel = await listen<AudioLevelEvent>(
+      'screen_recorder_audio_level',
+      (event) => {
+        if (!isMeterActive.value) {
+          audioLevel.value = 0;
+          return;
+        }
+        const next = Math.max(
+          0,
+          Math.min(1, Number(event.payload?.level ?? 0))
+        );
+        audioLevel.value = audioLevel.value * 0.38 + next * 0.62;
       }
-      const next = Math.max(0, Math.min(1, Number(event.payload?.level ?? 0)));
-      audioLevel.value = audioLevel.value * 0.38 + next * 0.62;
-    });
+    );
     audioMeterUnavailable.value = false;
   } catch (error) {
     console.error(`${LOG_PREFIX} audio meter failed`, error);
@@ -680,7 +839,9 @@ const startAudioMeter = async () => {
 const startDrag = async (event: MouseEvent) => {
   if (event.button !== 0 || isBusy.value) return;
   resetSnapAlignment();
-  await appWindow.setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)).catch(() => undefined);
+  await appWindow
+    .setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT))
+    .catch(() => undefined);
   await clearPassthrough();
   await appWindow.startDragging().catch((error: any) => {
     modal.msg(error?.message || String(error), 'error');
@@ -691,7 +852,9 @@ const startDrag = async (event: MouseEvent) => {
 const startResize = async (direction: ResizeDirection) => {
   if (isBusy.value) return;
   resetSnapAlignment();
-  await appWindow.setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)).catch(() => undefined);
+  await appWindow
+    .setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT))
+    .catch(() => undefined);
   await clearPassthrough();
   await appWindow.startResizeDragging(direction).catch((error: any) => {
     modal.msg(error?.message || String(error), 'error');
@@ -699,41 +862,48 @@ const startResize = async (direction: ResizeDirection) => {
   scheduleMetricsRefresh();
 };
 
-const handleStart = () => runAction(async () => {
-  exportProgress.value = null;
-  await startAudioMeter();
-  await setRecorderCaptureExcluded(true).catch(() => undefined);
-  await refreshCaptureMetrics();
-  await begin(await getRecordingRegion());
-});
+const handleStart = () =>
+  runAction(async () => {
+    exportProgress.value = null;
+    await startAudioMeter();
+    await setRecorderCaptureExcluded(true).catch(() => undefined);
+    await refreshCaptureMetrics();
+    await begin(await getRecordingRegion());
+  });
 
-const handlePause = () => runAction(async () => {
-  await pause();
-});
+const handlePause = () =>
+  runAction(async () => {
+    await pause();
+  });
 
-const handleResume = () => runAction(async () => {
-  await resume(await getRecordingRegion());
-});
+const handleResume = () =>
+  runAction(async () => {
+    await resume(await getRecordingRegion());
+  });
 
-const handleStop = () => runAction(async () => {
-  exportProgress.value = {
-    stage: 'encode',
-    message: settings.value.format === 'gif' ? '准备生成 GIF 帧' : '准备导出 MP4',
-    progress: 0.01,
-    currentFrame: 0
-  };
-  await stop();
-  audioLevel.value = 0;
-  await exportFile();
-  await refreshCaptureMetrics();
-  await setRecorderCaptureExcluded(false).catch(() => undefined);
-});
+const handleStop = () =>
+  runAction(async () => {
+    exportProgress.value = {
+      stage: 'encode',
+      message:
+        settings.value.format === 'gif' ? '准备生成 GIF 帧' : '准备导出 MP4',
+      progress: 0.01,
+      currentFrame: 0
+    };
+    await stop();
+    audioLevel.value = 0;
+    await setRecorderCaptureExcluded(false).catch(() => undefined);
+    await exportFile();
+    await refreshCaptureMetrics();
+  });
 
-const handleCancelExport = () => runAction(async () => {
-  await cancelExport();
-  exportProgress.value = null;
-  await refreshCaptureMetrics();
-});
+const handleCancelExport = () =>
+  runAction(async () => {
+    await cancelExport();
+    exportProgress.value = null;
+    await setRecorderCaptureExcluded(false).catch(() => undefined);
+    await refreshCaptureMetrics();
+  });
 
 const handleRecordAgain = () => {
   const previousSettings = { ...settings.value };
@@ -743,14 +913,14 @@ const handleRecordAgain = () => {
   status.value = 'ready';
   result.value = null;
   exportProgress.value = null;
-  void setRecorderCaptureExcluded(true).catch(() => undefined);
+  void setRecorderCaptureExcluded(false).catch(() => undefined);
   void nextTick(refreshCaptureMetrics);
   void startAudioMeter();
 };
 
 const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
   const monitor = await monitorFromPoint(target.screenX, target.screenY);
-  const scale = monitor?.scaleFactor || await appWindow.scaleFactor();
+  const scale = monitor?.scaleFactor || (await appWindow.scaleFactor());
   const monitorRect = monitor
     ? {
         x: monitor.position.x,
@@ -759,37 +929,55 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
         height: monitor.size.height
       }
     : null;
-  const isMonitorCoveringTarget = isTargetCoveringMonitor(target, monitorRect, scale);
-  const isMonitorEdgeTarget = isTargetTouchingMonitorEdge(target, monitorRect, scale);
+  const isMonitorCoveringTarget = isTargetCoveringMonitor(
+    target,
+    monitorRect,
+    scale
+  );
+  const isMonitorEdgeTarget = isTargetTouchingMonitorEdge(
+    target,
+    monitorRect,
+    scale
+  );
   isSnapAligned.value = true;
   isSnapFullscreen.value = isMonitorEdgeTarget;
   await nextTick();
   await waitForWindowLayout();
 
-  await appWindow.setMinSize(
-    isMonitorEdgeTarget
-      ? new LogicalSize(MIN_SNAPPED_WINDOW_WIDTH, MIN_SNAPPED_WINDOW_HEIGHT)
-      : new LogicalSize(MIN_SNAPPED_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-  ).catch(() => undefined);
+  await appWindow
+    .setMinSize(
+      isMonitorEdgeTarget
+        ? new LogicalSize(MIN_SNAPPED_WINDOW_WIDTH, MIN_SNAPPED_WINDOW_HEIGHT)
+        : new LogicalSize(MIN_SNAPPED_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    )
+    .catch(() => undefined);
 
   const minPhysicalWidth = Math.round(MIN_SNAPPED_WINDOW_WIDTH * scale);
   const minPhysicalHeight = Math.round(
-    (isMonitorEdgeTarget ? MIN_SNAPPED_WINDOW_HEIGHT : MIN_WINDOW_HEIGHT) * scale
+    (isMonitorEdgeTarget ? MIN_SNAPPED_WINDOW_HEIGHT : MIN_WINDOW_HEIGHT) *
+      scale
   );
   const snapTarget = trimSnappedTarget(target, scale, !isMonitorCoveringTarget);
 
-  const initialFrame = isMonitorEdgeTarget && monitorRect
-    ? {
-        x: Math.max(monitorRect.x, snapTarget.screenX),
-        y: Math.max(monitorRect.y, snapTarget.screenY),
-        width: Math.max(minPhysicalWidth, Math.min(snapTarget.physicalWidth, monitorRect.width)),
-        height: Math.max(minPhysicalHeight, Math.min(snapTarget.physicalHeight, monitorRect.height))
-      }
-    : await getSnappedWrapFrameForTarget(
-      snapTarget,
-      minPhysicalWidth,
-      minPhysicalHeight
-    );
+  const initialFrame =
+    isMonitorEdgeTarget && monitorRect
+      ? {
+          x: Math.max(monitorRect.x, snapTarget.screenX),
+          y: Math.max(monitorRect.y, snapTarget.screenY),
+          width: Math.max(
+            minPhysicalWidth,
+            Math.min(snapTarget.physicalWidth, monitorRect.width)
+          ),
+          height: Math.max(
+            minPhysicalHeight,
+            Math.min(snapTarget.physicalHeight, monitorRect.height)
+          )
+        }
+      : await getSnappedWrapFrameForTarget(
+          snapTarget,
+          minPhysicalWidth,
+          minPhysicalHeight
+        );
   try {
     await setOuterFrame(
       monitorRect && isMonitorEdgeTarget
@@ -824,7 +1012,10 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
         x: currentFrame.x + residual.x,
         y: currentFrame.y + residual.y,
         width: Math.max(minPhysicalWidth, currentFrame.width + residual.width),
-        height: Math.max(minPhysicalHeight, currentFrame.height + residual.height)
+        height: Math.max(
+          minPhysicalHeight,
+          currentFrame.height + residual.height
+        )
       };
       await setOuterFrame(
         monitorRect && isMonitorEdgeTarget
@@ -840,7 +1031,6 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
         break;
       }
     }
-
   } catch (error) {
     console.error(`${LOG_PREFIX} snap correction failed`, error);
     logger.warn(`${LOG_PREFIX} snap correction failed`, error);
@@ -853,11 +1043,22 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
   }
 };
 
-const handleSnapToWindow = () => runAction(async () => {
-  await clearPassthrough();
-  const target = await pickTargetWindow();
-  await fitRecorderToWindow(target);
-});
+const handleSnapToWindow = () =>
+  runAction(async () => {
+    await clearPassthrough();
+    const target = await pickTargetWindow();
+    await fitRecorderToWindow(target);
+  });
+
+const toggleAudio = () => {
+  if (isBusy.value || settings.value.format === 'gif') return;
+  settings.value.audio = !settings.value.audio;
+};
+
+const toggleCursor = () => {
+  if (isBusy.value) return;
+  settings.value.showCursor = !settings.value.showCursor;
+};
 
 const handleMinimize = async () => {
   await appWindow.minimize();
@@ -901,8 +1102,10 @@ const handleKeydown = (event: KeyboardEvent) => {
 onMounted(async () => {
   logger.info(`${LOG_PREFIX} frontend mounted`);
   status.value = 'ready';
-  await appWindow.setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)).catch(() => undefined);
-  await setRecorderCaptureExcluded(true).catch(() => undefined);
+  await appWindow
+    .setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT))
+    .catch(() => undefined);
+  await setRecorderCaptureExcluded(false).catch(() => undefined);
   await refreshFfmpegStatus().catch(() => undefined);
   await nextTick();
   await refreshCaptureMetrics();
@@ -910,9 +1113,12 @@ onMounted(async () => {
   await nextTick();
   await appWindow.emit('screen_recorder_ready');
   logger.info(`${LOG_PREFIX} frontend ready emitted`);
-  unlistenExportProgress = await listen<ExportProgressEvent>('screen_recorder_export_progress', (event) => {
-    exportProgress.value = event.payload;
-  }).catch(() => null);
+  unlistenExportProgress = await listen<ExportProgressEvent>(
+    'screen_recorder_export_progress',
+    (event) => {
+      exportProgress.value = event.payload;
+    }
+  ).catch(() => null);
 
   if (captureHoleRef.value) {
     resizeObserver = new ResizeObserver(() => {
@@ -920,11 +1126,16 @@ onMounted(async () => {
     });
     resizeObserver.observe(captureHoleRef.value);
   }
-  unlistenMoved = await appWindow.onMoved(() => {
-    scheduleCaptureMetricsRefreshForWindowEvent();
-  }).catch(() => null);
+  unlistenMoved = await appWindow
+    .onMoved(() => {
+      scheduleCaptureMetricsRefreshForWindowEvent();
+    })
+    .catch(() => null);
 
-  window.addEventListener('resize', scheduleCaptureMetricsRefreshForWindowEvent);
+  window.addEventListener(
+    'resize',
+    scheduleCaptureMetricsRefreshForWindowEvent
+  );
   window.addEventListener('keydown', handleKeydown);
 });
 
@@ -949,7 +1160,10 @@ onUnmounted(() => {
   resizeObserver?.disconnect();
   unlistenMoved?.();
   unlistenExportProgress?.();
-  window.removeEventListener('resize', scheduleCaptureMetricsRefreshForWindowEvent);
+  window.removeEventListener(
+    'resize',
+    scheduleCaptureMetricsRefreshForWindowEvent
+  );
   window.removeEventListener('keydown', handleKeydown);
   resetPassthroughCache();
   void setRecorderPassthroughRegion(null).catch(() => undefined);
@@ -971,10 +1185,26 @@ onUnmounted(() => {
 }
 
 .screen-recorder {
+  --recorder-bg: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+  --recorder-soft-bg: color-mix(
+    in srgb,
+    var(--panel-hover-bg) 72%,
+    transparent
+  );
+  --recorder-input-bg: color-mix(
+    in srgb,
+    var(--search-input-bg) 86%,
+    transparent
+  );
+  --recorder-border: color-mix(in srgb, var(--panel-border) 92%, transparent);
+  --recorder-text: var(--panel-text);
+  --recorder-muted: var(--panel-text-secondary);
+  --recorder-accent: var(--el-color-primary);
+
   position: fixed;
   inset: 0;
   overflow: hidden;
-  color: #20242c;
+  color: var(--recorder-text);
   background: transparent;
   user-select: none;
 }
@@ -982,22 +1212,22 @@ onUnmounted(() => {
 .recorder-shell {
   position: relative;
   display: grid;
-  grid-template-rows: 38px minmax(120px, 1fr) minmax(60px, auto);
+  grid-template-rows: 34px minmax(110px, 1fr) minmax(46px, auto);
   width: 100vw;
   height: 100vh;
-  border: 1px solid rgba(198, 205, 214, 0.95);
+  border: 1px solid var(--recorder-border);
   box-sizing: border-box;
-  box-shadow: 0 18px 38px rgba(20, 28, 39, 0.16);
+  box-shadow: var(--dialog-shadow);
 }
 
 .title-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 38px;
-  padding: 0 8px 0 14px;
-  background: rgba(255, 255, 255, 0.98);
-  border-bottom: 1px solid rgba(210, 216, 224, 0.92);
+  height: 34px;
+  padding: 0 6px 0 12px;
+  background: var(--recorder-bg);
+  border-bottom: 1px solid var(--recorder-border);
   border-radius: 6px 6px 0 0;
   cursor: move;
 }
@@ -1006,7 +1236,7 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1016,14 +1246,14 @@ onUnmounted(() => {
   display: flex;
   height: 100%;
   align-items: center;
-  gap: 6px;
-  margin-left: 10px;
+  gap: 4px;
+  margin-left: 8px;
 }
 
 .title-button {
-  width: 34px;
-  height: 32px;
-  color: rgba(32, 36, 44, 0.86);
+  width: 30px;
+  height: 28px;
+  color: var(--recorder-muted);
   background: transparent;
   border: 0;
   border-radius: 4px;
@@ -1037,8 +1267,8 @@ onUnmounted(() => {
     color 0.16s ease;
 
   &:hover {
-    color: #5d6dfd;
-    background: rgba(93, 109, 253, 0.08);
+    color: var(--recorder-accent);
+    background: color-mix(in srgb, var(--recorder-accent) 12%, transparent);
   }
 
   &--close:hover {
@@ -1061,14 +1291,14 @@ onUnmounted(() => {
 .viewport-mask {
   position: absolute;
   z-index: 1;
-  background: rgba(248, 250, 252, 0.88);
+  background: color-mix(in srgb, var(--panel-bg) 78%, transparent);
   pointer-events: auto;
 
   &.top,
   &.bottom {
     left: 0;
     right: 0;
-    height: 8px;
+    height: 6px;
   }
 
   &.top {
@@ -1081,9 +1311,9 @@ onUnmounted(() => {
 
   &.left,
   &.right {
-    top: 8px;
-    bottom: 8px;
-    width: 8px;
+    top: 6px;
+    bottom: 6px;
+    width: 6px;
   }
 
   &.left {
@@ -1097,7 +1327,7 @@ onUnmounted(() => {
 
 .capture-frame {
   position: absolute;
-  inset: 8px;
+  inset: 6px;
   z-index: 2;
   background: transparent;
 }
@@ -1112,7 +1342,7 @@ onUnmounted(() => {
   position: absolute;
   z-index: 3;
   pointer-events: none;
-  background: rgba(185, 194, 206, 0.98);
+  background: var(--recorder-border);
 
   &.top,
   &.bottom {
@@ -1147,32 +1377,31 @@ onUnmounted(() => {
 
 .control-strip {
   container-type: inline-size;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: clamp(6px, 1.8cqw, 16px);
+  justify-content: space-between;
+  gap: 8px;
   min-width: 0;
-  min-height: 60px;
+  min-height: 46px;
   overflow: hidden;
-  padding: 10px clamp(8px, 2cqw, 16px);
-  background: rgba(255, 255, 255, 0.98);
-  border-top: 1px solid rgba(210, 216, 224, 0.92);
+  padding: 6px 8px;
+  background: var(--recorder-bg);
+  border-top: 1px solid var(--recorder-border);
   box-sizing: border-box;
 }
 
 .recorder-shell.snap-aligned {
-  grid-template-rows: 38px minmax(80px, 1fr) 46px;
+  grid-template-rows: 34px minmax(80px, 1fr) 42px;
 
   .viewport-mask {
     pointer-events: none;
   }
 
   .control-strip {
-    height: 46px;
-    min-height: 46px;
+    height: 42px;
+    min-height: 42px;
     gap: 6px;
-    padding: 6px 8px;
-    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 5px 7px;
   }
 
   .control-group {
@@ -1190,7 +1419,7 @@ onUnmounted(() => {
   select,
   input,
   button {
-    height: 30px;
+    height: 28px;
   }
 
   select {
@@ -1200,7 +1429,7 @@ onUnmounted(() => {
 
   .record-button {
     min-width: 88px;
-    height: 32px;
+    height: 30px;
     padding: 0 10px;
   }
 
@@ -1215,7 +1444,7 @@ onUnmounted(() => {
   }
 
   .quality-select {
-    width: 76px;
+    width: 72px;
   }
 }
 
@@ -1248,17 +1477,13 @@ onUnmounted(() => {
     position: absolute;
     inset: auto 0 0;
     z-index: 6;
-    height: 46px;
-    grid-template-columns: minmax(0, 1fr) auto;
+    height: 42px;
   }
 }
 
 @container (max-width: 360px) {
   .recorder-shell.snap-aligned {
-    .control-strip {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
+    .control-strip,
     .control-group {
       flex-wrap: wrap;
     }
@@ -1273,12 +1498,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: clamp(7px, 1.4cqw, 14px);
+  gap: clamp(5px, 1.1cqw, 8px);
 }
 
 .control-group--tools {
   flex: 1 1 auto;
-  width: 100%;
+  width: auto;
   overflow: hidden;
 }
 
@@ -1291,27 +1516,28 @@ onUnmounted(() => {
 select,
 input,
 button {
-  height: 32px;
+  height: 28px;
   box-sizing: border-box;
   font: inherit;
 }
 
 select,
 input {
-  color: #1f2733;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(188, 198, 211, 0.82);
-  border-radius: 6px;
+  color: var(--recorder-text);
+  background: var(--recorder-input-bg);
+  border: 1px solid var(--recorder-border);
+  border-radius: 5px;
   outline: none;
 }
 
 select {
-  width: 62px;
-  padding: 0 8px;
+  width: 58px;
+  padding: 0 6px;
+  font-size: 12px;
 }
 
 .quality-select {
-  width: 88px;
+  width: 80px;
 }
 
 .select-field,
@@ -1324,15 +1550,16 @@ select {
 }
 
 .select-field {
-  padding: 3px 8px 3px 3px;
-  background: rgba(246, 248, 251, 0.92);
-  border: 1px solid rgba(214, 220, 229, 0.86);
-  border-radius: 8px;
+  gap: 4px;
+  padding: 2px 6px 2px 2px;
+  background: var(--recorder-soft-bg);
+  border: 1px solid var(--recorder-border);
+  border-radius: 6px;
 }
 
 .dimension input {
-  width: 62px;
-  padding: 0 6px;
+  width: 54px;
+  padding: 0 5px;
   text-align: center;
 }
 
@@ -1340,8 +1567,8 @@ select {
 .multiply,
 .time,
 .save-status {
-  color: #252b35;
-  font-size: 13px;
+  color: var(--recorder-text);
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -1355,7 +1582,7 @@ select {
 .save-status {
   overflow: hidden;
   max-width: 96px;
-  color: #334155;
+  color: var(--recorder-muted);
   text-overflow: ellipsis;
 }
 
@@ -1373,7 +1600,7 @@ select {
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  color: #334155;
+  color: var(--recorder-muted);
   font-size: 12px;
   line-height: 1;
 
@@ -1396,7 +1623,7 @@ select {
   position: relative;
   height: 5px;
   overflow: hidden;
-  background: rgba(226, 232, 240, 0.92);
+  background: var(--recorder-soft-bg);
   border-radius: 999px;
 
   span {
@@ -1416,20 +1643,24 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  padding: 0 10px;
-  color: #20242c;
-  background: rgba(246, 248, 251, 0.92);
-  border: 1px solid rgba(214, 220, 229, 0.86);
-  border-radius: 8px;
+  padding: 0 8px;
+  color: var(--recorder-text);
+  background: var(--recorder-soft-bg);
+  border: 1px solid var(--recorder-border);
+  border-radius: 6px;
   cursor: pointer;
   overflow: hidden;
   white-space: nowrap;
 
   &:hover {
-    background: rgba(239, 243, 248, 0.98);
-    border-color: rgba(171, 183, 199, 0.92);
+    background: var(--panel-hover-bg);
+    border-color: color-mix(
+      in srgb,
+      var(--recorder-accent) 38%,
+      var(--recorder-border)
+    );
   }
 
   &:disabled {
@@ -1443,14 +1674,14 @@ select {
   flex: 0 0 auto;
   align-items: center;
   overflow: hidden;
-  background: rgba(246, 248, 251, 0.92);
-  border: 1px solid rgba(214, 220, 229, 0.86);
-  border-radius: 9px;
+  background: var(--recorder-soft-bg);
+  border: 1px solid var(--recorder-border);
+  border-radius: 7px;
 }
 
 .icon-control {
-  min-width: 34px;
-  width: 34px;
+  min-width: 30px;
+  width: 30px;
   padding: 0;
   line-height: 1;
   background: transparent;
@@ -1459,25 +1690,26 @@ select {
 }
 
 .snap-control {
-  border-right: 1px solid rgba(214, 220, 229, 0.86);
+  border-right: 1px solid var(--recorder-border);
 }
 
 .audio-meter {
-  width: 42px;
-  min-width: 42px;
+  width: 34px;
+  min-width: 34px;
   padding: 0;
-  color: #64748b;
+  color: var(--recorder-muted);
   background: transparent;
   border: 0;
   border-radius: 0;
 
+  &.audio-on,
   &.active {
     color: #16a34a;
-    background: rgba(236, 253, 245, 0.86);
+    background: color-mix(in srgb, #16a34a 14%, transparent);
   }
 
   &.metering:not(.active) {
-    color: #475569;
+    color: var(--recorder-text);
   }
 
   &.muted {
@@ -1485,16 +1717,25 @@ select {
   }
 }
 
+.cursor-control {
+  border-left: 1px solid var(--recorder-border);
+
+  &.active {
+    color: var(--recorder-accent);
+    background: color-mix(in srgb, var(--recorder-accent) 13%, transparent);
+  }
+}
+
 .audio-bars {
   display: inline-flex;
   align-items: end;
-  gap: 3px;
-  height: 16px;
+  gap: 2px;
+  height: 14px;
 
   i {
     display: block;
-    width: 4px;
-    height: 16px;
+    width: 3px;
+    height: 14px;
     background: currentcolor;
     border-radius: 999px;
     transform: scaleY(var(--bar-1, 0.25));
@@ -1517,10 +1758,10 @@ select {
 
 .record-button {
   flex: 0 0 auto;
-  min-width: 104px;
-  max-width: 168px;
-  height: 36px;
-  padding: 0 14px;
+  min-width: 96px;
+  max-width: 150px;
+  height: 32px;
+  padding: 0 12px;
   color: #fff;
   background: #b42318;
   border-color: rgba(180, 35, 24, 0.85);
@@ -1533,8 +1774,8 @@ select {
 
 .control-button {
   flex: 0 0 auto;
-  min-width: 48px;
-  max-width: 76px;
+  min-width: 44px;
+  max-width: 70px;
 }
 
 .button-label,
@@ -1545,8 +1786,8 @@ select {
 
 .record-dot {
   flex: 0 0 auto;
-  width: 11px;
-  height: 11px;
+  width: 9px;
+  height: 9px;
   background: currentcolor;
   border-radius: 50%;
 }
@@ -1588,10 +1829,6 @@ select {
 }
 
 @container (max-width: 520px) {
-  .optional-format {
-    display: none;
-  }
-
   .control-group {
     gap: 6px;
   }
@@ -1634,8 +1871,8 @@ select {
     gap: 4px;
   }
 
-  .tool-pill {
-    max-width: 72px;
+  .cursor-control {
+    display: none;
   }
 
   .control-button {
@@ -1650,6 +1887,10 @@ select {
 }
 
 @container (max-width: 410px) {
+  .optional-format {
+    display: none;
+  }
+
   .record-label {
     display: none;
   }
@@ -1671,12 +1912,12 @@ select {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: 62px;
+  bottom: 54px;
   margin: 0;
   padding: 8px 10px;
-  color: #8a2d0b;
-  background: rgba(255, 247, 237, 0.96);
-  border: 1px solid rgba(253, 186, 116, 0.8);
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 13%, var(--panel-bg));
+  border: 1px solid color-mix(in srgb, #f59e0b 38%, var(--panel-border));
   border-radius: 4px;
   font-size: 12px;
 }

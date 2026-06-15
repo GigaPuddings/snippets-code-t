@@ -22,7 +22,8 @@ const defaultSettings = (): RecordingSettings => ({
   fps: 30,
   quality: 'standard',
   savePath: '',
-  audio: true
+  audio: true,
+  showCursor: true
 });
 
 export function useRecordingSession() {
@@ -37,9 +38,10 @@ export function useRecordingSession() {
   const ticker = ref<number | null>(null);
 
   const refreshElapsedMs = () => {
-    elapsedMs.value = status.value === 'recording' && startedAt.value !== null
-      ? accumulatedMs.value + Date.now() - startedAt.value
-      : accumulatedMs.value;
+    elapsedMs.value =
+      status.value === 'recording' && startedAt.value !== null
+        ? accumulatedMs.value + Date.now() - startedAt.value
+        : accumulatedMs.value;
   };
 
   const clearTicker = () => {
@@ -65,7 +67,7 @@ export function useRecordingSession() {
   const begin = async (region: RecordingRegion) => {
     errorMessage.value = '';
     result.value = null;
-    const ffmpeg = ffmpegStatus.value ?? await refreshFfmpegStatus();
+    const ffmpeg = ffmpegStatus.value ?? (await refreshFfmpegStatus());
     if (!ffmpeg.available) {
       throw new Error(ffmpeg.message || 'FFmpeg unavailable');
     }
@@ -108,7 +110,10 @@ export function useRecordingSession() {
   const exportFile = async () => {
     status.value = 'exporting';
     try {
-      result.value = await exportRecording(settings.value, Math.round(elapsedMs.value));
+      result.value = await exportRecording(
+        settings.value,
+        Math.round(elapsedMs.value)
+      );
       status.value = 'completed';
       return result.value;
     } catch (error) {

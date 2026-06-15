@@ -42,7 +42,8 @@ export default {
     indexing: '索引',
     complete: '完成',
     welcomeTitle: '欢迎使用 Snippets Code',
-    welcomeDesc: '面向前端开发的本地代码片段与知识资产工作台，帮助你沉淀、检索并复用代码。',
+    welcomeDesc:
+      '面向前端开发的本地代码片段与知识资产工作台，帮助你沉淀、检索并复用代码。',
     versionLabel: '版本',
     quickStart: '快速开始',
     createWorkspace: '新建工作区',
@@ -62,7 +63,8 @@ export default {
     workspaceDir: 'Markdown 工作区',
     workspaceDirDesc: '保存 Markdown 片段和知识资产。',
     pluginInstallDir: '插件安装位置',
-    pluginInstallDirDesc: '保存已安装插件包。插件功能会在安装或启用完成后生效。',
+    pluginInstallDirDesc:
+      '保存已安装插件包。插件功能会在安装或启用完成后生效。',
     defaultPluginInstallDir: '默认插件目录（推荐）',
     customPluginInstallDir: '自定义插件目录',
     customPluginInstallDirDesc: '选择一个文件夹保存插件包',
@@ -71,16 +73,19 @@ export default {
     defaultLocation: '默认工作区（推荐）',
     customLocation: '自定义工作区',
     customLocationDesc: '选择一个文件夹作为工作区',
-    pathTip: '新建工作区会自动创建目录；打开工作区需要选择已有目录。请勿选择 Program Files 等系统保护目录。',
+    pathTip:
+      '新建工作区会自动创建目录；打开工作区需要选择已有目录。请勿选择 Program Files 等系统保护目录。',
     indexTitle: '首次索引',
     indexDesc: '选择 setup 完成后要启用和预热的搜索来源',
     localLauncherIndex: '应用与书签启动器',
-    localLauncherIndexDesc: '索引本机应用和浏览器书签，用于快速启动与打开链接。',
+    localLauncherIndexDesc:
+      '索引本机应用和浏览器书签，用于快速启动与打开链接。',
     desktopFilesIndex: '桌面文件搜索',
     desktopFilesIndexDesc: '索引桌面常用文件，用于从搜索窗口直接查找和预览。',
     cacheIcons: '缓存图标',
     cacheIconsDesc: '缓存应用、书签和桌面文件图标，让搜索结果更清晰。',
-    indexTip: '开启的索引会在重启后自动扫描；也可以之后在插件设置或通用设置中调整。',
+    indexTip:
+      '开启的索引会在重启后自动扫描；也可以之后在插件设置或通用设置中调整。',
     indexSummary: '索引设置',
     indexDisabled: '全部关闭',
     selectDir: '请选择工作区目录',
@@ -116,7 +121,8 @@ export default {
     autoStartEnabled: '自启动已开启',
     autoStartDisabled: '自启动已关闭',
     resetSoftware: '重置软件',
-    resetSoftwareDesc: '重置会清除应用与书签启动器、桌面文件搜索等插件索引和缓存图标，并在重启后重新检索',
+    resetSoftwareDesc:
+      '重置会清除应用与书签启动器、桌面文件搜索等插件索引和缓存图标，并在重启后重新检索',
     resetSoftwareTitle: '重置软件',
     resetSelectContent: '请选择要重置的内容：',
     resetAll: '重置全部',
@@ -148,7 +154,8 @@ export default {
       menu: '开发者模式',
       title: '开发者诊断',
       mode: '开发者模式',
-      modeDesc: '开启后采集前端诊断并在刷新时读取后端日志；关闭后不会展示旧诊断日志。',
+      modeDesc:
+        '开启后采集前端诊断并在刷新时读取后端日志；关闭后不会展示旧诊断日志。',
       refresh: '刷新诊断',
       copy: '复制报告',
       openLogs: '打开日志目录',
@@ -159,7 +166,8 @@ export default {
       attention: '需要关注',
       normal: '暂未发现异常',
       issueCount: '共 {count} 条警告或错误',
-      ignoredWarnings: '已忽略 {count} 条预期运行提示。这些记录仍保留在完整报告中。',
+      ignoredWarnings:
+        '已忽略 {count} 条预期运行提示。这些记录仍保留在完整报告中。',
       application: '应用环境',
       windows: '窗口状态',
       visibleWindows: '可见窗口 / 全部窗口',
@@ -278,8 +286,10 @@ export default {
       alreadyUpToDate: '已是最新版本',
       pullFailed: '拉取失败',
       pullConflicts: '拉取成功，但存在冲突文件',
-      conflictError: '同步失败：本地文件 {files} 与远程版本冲突，请先提交或放弃本地更改',
-      unresolvedConflict: '同步失败：存在未解决的冲突文件，请先解决冲突或重置仓库',
+      conflictError:
+        '同步失败：本地文件 {files} 与远程版本冲突，请先提交或放弃本地更改',
+      unresolvedConflict:
+        '同步失败：存在未解决的冲突文件，请先解决冲突或重置仓库',
       pushSuccess: '推送成功，同步了 {count} 个文件',
       pushFailed: '推送失败',
       contribution: {
@@ -295,7 +305,8 @@ export default {
       },
       // 保存配置确认对话框
       saveConfigTitle: '确认保存 Git 配置',
-      saveConfigWarning: '保存配置将会初始化 Git 仓库并连接到远程仓库。请确保配置信息正确，避免数据丢失。',
+      saveConfigWarning:
+        '保存配置将会初始化 Git 仓库并连接到远程仓库。请确保配置信息正确，避免数据丢失。',
       configSummary: '配置摘要',
       backupReminder: '建议在保存前备份您的数据',
       confirmUnderstand: '我已理解，确认保存配置',
@@ -309,7 +320,8 @@ export default {
       selectResolution: '请选择处理方式：',
       forcePush: '强制推送（以本地为主）',
       forcePushDesc: '覆盖远程仓库，保留本地所有更改',
-      forcePushWarning: '警告：此操作将覆盖远程仓库的内容，可能导致其他协作者的更改丢失',
+      forcePushWarning:
+        '警告：此操作将覆盖远程仓库的内容，可能导致其他协作者的更改丢失',
       forcePull: '强制拉取（以远程为主）',
       forcePullDesc: '覆盖本地文件，使用远程最新版本',
       forcePullWarning: '警告：此操作将覆盖本地文件，您的本地更改将丢失',
@@ -345,7 +357,8 @@ export default {
       confirmForcePullMessage: '此操作将覆盖本地更改，无法撤销。确定继续吗？',
       conflictResolutionFailed: '冲突处理失败',
       cancelConflictTitle: '取消冲突处理',
-      cancelConflictMessage: '是否稍后处理冲突？\n\n• 选择"稍后处理"：保留冲突状态，自动同步保持暂停\n• 选择"恢复同步"：清除冲突状态，恢复自动同步',
+      cancelConflictMessage:
+        '是否稍后处理冲突？\n\n• 选择"稍后处理"：保留冲突状态，自动同步保持暂停\n• 选择"恢复同步"：清除冲突状态，恢复自动同步',
       handleLater: '稍后处理',
       resumeSync: '恢复同步',
       autoSyncResumed: '自动同步已恢复',
@@ -373,7 +386,8 @@ export default {
       },
       // 仓库不存在
       repoNotFoundTitle: '远程仓库不存在',
-      repoNotFoundMessage: '无法连接到远程仓库 "{url}"（{operation} 操作失败）。\n\n远程仓库可能已被删除或您没有访问权限。是否重新配置仓库？',
+      repoNotFoundMessage:
+        '无法连接到远程仓库 "{url}"（{operation} 操作失败）。\n\n远程仓库可能已被删除或您没有访问权限。是否重新配置仓库？',
       repoNotFoundReconfig: '重新配置',
       repoNotFoundIgnore: '忽略',
       repoNotFoundIgnored: '已忽略仓库不存在错误，请手动处理后重新配置',
@@ -395,8 +409,10 @@ export default {
   plugins: {
     title: '插件管理',
     builtinTitle: '官方插件仓库',
-    builtinDesc: '围绕片段工作流扩展截图、OCR、翻译、提醒、主题、搜索源和同步能力；主应用聚焦 Markdown、编辑器、搜索和工作区核心体验。',
-    securityNotice: '安装前请确认插件来源、权限和资源范围；本地插件可运行声明的后端命令或加载本地资源。',
+    builtinDesc:
+      '围绕片段工作流扩展截图、OCR、翻译、提醒、主题、搜索源和同步能力；主应用聚焦 Markdown、编辑器、搜索和工作区核心体验。',
+    securityNotice:
+      '安装前请确认插件来源、权限和资源范围；本地插件可运行声明的后端命令或加载本地资源。',
     installLocal: '安装本地插件',
     installZip: '安装插件包',
     marketplaceSearchPlaceholder: '搜索 GitHub 插件仓库',
@@ -446,7 +462,8 @@ export default {
       installed: '已安装'
     },
     installLocationTitle: '插件安装位置',
-    installLocationDesc: '本地插件和重资源会安装到这里，截图 OCR 会从同一目录查找 RapidOCR。',
+    installLocationDesc:
+      '本地插件和重资源会安装到这里，截图 OCR 会从同一目录查找 RapidOCR。',
     installLocationDefault: '使用默认插件目录',
     chooseInstallLocation: '选择目录',
     resetInstallLocation: '恢复默认',
@@ -490,21 +507,25 @@ export default {
     },
     translationOfflineRuntime: {
       name: '离线翻译运行时',
-      description: '离线翻译按需加载的本地运行时资源，文本识别由 RapidOCR 资源提供。'
+      description:
+        '离线翻译按需加载的本地运行时资源，文本识别由 RapidOCR 资源提供。'
     },
     screenshot: {
       name: '截图与 OCR',
       description: '截图标注、取色、贴图、OCR 识别和截图翻译入口。',
-      resourceHint: 'RapidOCR 属于重资源，已从主安装包移出，按需作为插件资源安装。'
+      resourceHint:
+        'RapidOCR 属于重资源，已从主安装包移出，按需作为插件资源安装。'
     },
     screenshotRapidocr: {
       name: 'RapidOCR 资源',
-      description: '截图 OCR 与截图翻译所需的 RapidOCR 运行时、模型与本地识别资源。'
+      description:
+        '截图 OCR 与截图翻译所需的 RapidOCR 运行时、模型与本地识别资源。'
     },
     screenRecorder: {
       name: '区域录制',
       description: '自定义区域录制，支持 MP4 与 GIF 导出，无水印。',
-      resourceHint: '录屏导出依赖 FFmpeg，可作为插件资源提供或使用系统已安装的 FFmpeg。'
+      resourceHint:
+        '录屏导出依赖 FFmpeg，可作为插件资源提供或使用系统已安装的 FFmpeg。'
     },
     screenRecorderFfmpeg: {
       name: '录屏 FFmpeg 资源',
@@ -520,7 +541,8 @@ export default {
     },
     wallpaperSwitcher: {
       name: '壁纸切换',
-      description: 'Windows 桌面壁纸切换、本地文件夹定时轮换和 Wallhaven 在线壁纸。'
+      description:
+        'Windows 桌面壁纸切换、本地文件夹定时轮换和 Wallhaven 在线壁纸。'
     },
     localLauncher: {
       name: '应用与书签启动器',
@@ -594,13 +616,15 @@ export default {
   dataManager: {
     title: '数据管理',
     workspaceDir: 'Markdown 工作区：',
-    workspaceDirDesc: '设置 Markdown 文件工作区，插件和设置页可在未设置时继续使用',
+    workspaceDirDesc:
+      '设置 Markdown 文件工作区，插件和设置页可在未设置时继续使用',
     workspaceNotSet: '工作区未设置',
     changeWorkspace: '选择工作区',
     workspaceSuccess: '工作区设置成功',
     workspaceFailed: '工作区设置失败',
     snippetDir: '应用数据目录：',
-    snippetDirDesc: '存放数据库、应用配置和默认插件目录，不等同于 Markdown 工作区',
+    snippetDirDesc:
+      '存放数据库、应用配置和默认插件目录，不等同于 Markdown 工作区',
     changePath: '修改数据目录',
     backup: '片段数据备份：',
     backupDesc: '设置片段数据备份位置',
@@ -623,7 +647,8 @@ export default {
     warning: '警告',
     // Markdown 迁移
     migration: '数据迁移',
-    migrationDesc: '将数据从数据库迁移到 Markdown 文件，类似常见 Markdown 笔记应用的文件管理方式',
+    migrationDesc:
+      '将数据从数据库迁移到 Markdown 文件，类似常见 Markdown 笔记应用的文件管理方式',
     migrationBtn: '迁移到 Markdown',
     migrationFromFileBtn: '选择数据库文件迁移',
     migrationConfirm: '确认迁移',
@@ -652,7 +677,8 @@ export default {
     nextStep4: '原数据库文件已保留，可随时回退',
     // cache → frontmatter（已有 Markdown 工作区的用户）
     migrationCacheToFrontmatter: '元数据写入 Front Matter',
-    migrationCacheToFrontmatterDesc: '将 cache.json 中的元数据写入各 .md 文件的 Front Matter，便于 Git 同步',
+    migrationCacheToFrontmatterDesc:
+      '将 cache.json 中的元数据写入各 .md 文件的 Front Matter，便于 Git 同步',
     migrationCacheToFrontmatterBtn: '写入 Front Matter',
     migrationCacheToFrontmatterSuccess: '已为 {count} 个文件写入 Front Matter',
     migrationCacheToFrontmatterFailed: '部分文件写入失败: {count}'
@@ -726,7 +752,8 @@ export default {
   dialog: {
     updateBacklinks: {
       title: '更新反向链接',
-      message: '标题从 "{oldTitle}" 改为 "{newTitle}"，发现 {count} 个片段引用了旧标题。是否更新这些引用？',
+      message:
+        '标题从 "{oldTitle}" 改为 "{newTitle}"，发现 {count} 个片段引用了旧标题。是否更新这些引用？',
       affectedFragments: '受影响的片段：',
       occurrences: '处引用',
       updating: '正在更新',
@@ -797,8 +824,10 @@ export default {
     convertToNote: '转换为笔记',
     convertToCode: '转换为代码',
     convertConfirmTitle: '确认类型转换',
-    convertToNoteConfirm: '将代码片段转换为笔记后，代码将被包装在代码块中。是否继续？',
-    convertToCodeConfirm: '将笔记转换为代码片段后，所有格式将丢失，只保留纯文本内容。是否继续？',
+    convertToNoteConfirm:
+      '将代码片段转换为笔记后，代码将被包装在代码块中。是否继续？',
+    convertToCodeConfirm:
+      '将笔记转换为代码片段后，所有格式将丢失，只保留纯文本内容。是否继续？',
     convertSuccess: '类型转换成功',
     convertFailed: '类型转换失败',
     unsavedChanges: '当前内容有未保存的更改，是否保存？',
@@ -819,7 +848,8 @@ export default {
 
   codeBlock: {
     editLanguageTitle: '修改代码语言',
-    editLanguageMessage: '输入代码语言（如: ts、vue、flutter、bash），留空表示自动检测',
+    editLanguageMessage:
+      '输入代码语言（如: ts、vue、flutter、bash），留空表示自动检测',
     editLanguagePlaceholder: '例如：ts / vue / flutter / bash',
     invalidLanguage: '语言标识仅支持字母、数字、#、+、.、_、-'
   },
@@ -974,7 +1004,8 @@ export default {
     scanningDesktopFiles: '正在扫描桌面文件',
     loadingIcons: '正在加载图标',
     savingToDatabase: '正在保存到数据库',
-    scanComplete: '扫描完成：{apps} 个应用，{bookmarks} 个书签，{desktopFiles} 个桌面文件'
+    scanComplete:
+      '扫描完成：{apps} 个应用，{bookmarks} 个书签，{desktopFiles} 个桌面文件'
   },
 
   // 贴图窗口
@@ -1000,7 +1031,8 @@ export default {
     ocrLanguageEn: '英文',
     ocrLanguageJa: '日语',
     ocrLanguageKo: '韩语',
-    unsupportedTranslateLanguage: '当前翻译暂仅支持中文/英语，暂不支持该识别语言',
+    unsupportedTranslateLanguage:
+      '当前翻译暂仅支持中文/英语，暂不支持该识别语言',
     recognizeAgain: '重新识别',
     saveAsText: '保存为文本',
     showRecords: '显示记录',
@@ -1124,7 +1156,8 @@ export default {
       fitApplied: '适配模式已应用',
       noCurrentToFix: '当前没有可固定的壁纸',
       cacheCleared: '缓存已清理',
-      wallhavenNetworkError: 'Wallhaven 网络连接失败，请稍后重试或检查代理/网络。',
+      wallhavenNetworkError:
+        'Wallhaven 网络连接失败，请稍后重试或检查代理/网络。',
       settingWallpaper: '正在设置壁纸...',
       wallpaperSet: '壁纸已设置',
       downloadingWallpaper: '正在下载壁纸...',
@@ -1269,7 +1302,8 @@ export default {
 
   configSearch: {
     emptyTitle: '搜索当前工作区',
-    emptyText: '输入关键词检索片段、笔记、文件、标签和命令，结果会在当前配置窗口内打开。',
+    emptyText:
+      '输入关键词检索片段、笔记、文件、标签和命令，结果会在当前配置窗口内打开。',
     folderResultContent: '定位到文件夹',
     navigate: '选择',
     open: '打开'
@@ -1354,12 +1388,15 @@ export default {
     gitToken: 'GitHub Token',
     gitRemote: '远程仓库',
     gitConfigSection: 'Git 必要配置',
-    gitConfigSectionDesc: '填写以下信息后，设置中才会显示「Git 同步」选项；工作区需为有效 Git 仓库并已配置远程。',
+    gitConfigSectionDesc:
+      '填写以下信息后，设置中才会显示「Git 同步」选项；工作区需为有效 Git 仓库并已配置远程。',
     gitPluginUnavailableTitle: 'Git 同步插件不可用',
-    gitPluginUnavailableDesc: '安装并启用 Git Sync 插件后，个人中心会显示 Git 必要配置。',
+    gitPluginUnavailableDesc:
+      '安装并启用 Git Sync 插件后，个人中心会显示 Git 必要配置。',
     goToPluginSettings: '前往插件设置',
     workspaceSetupTitle: '请先设置工作区',
-    workspaceSetupDesc: 'Git 配置需要依赖工作区目录。设置工作区后，个人中心会显示 Git 必要配置。',
+    workspaceSetupDesc:
+      'Git 配置需要依赖工作区目录。设置工作区后，个人中心会显示 Git 必要配置。',
     goToWorkspaceSettings: '去设置工作区',
     saveGitConfig: '保存 Git 配置',
     gitConfigSaved: 'Git 配置已保存',
@@ -1368,7 +1405,8 @@ export default {
     gitConfigSaveWarningEmail: '请填写 Git 邮箱',
     gitConfigSaveWarningRemote: '请填写远程仓库 URL',
     gitSyncTitle: 'Git 同步功能',
-    gitSyncDesc: '使用 Git 同步功能将笔记同步到 GitHub 仓库，支持自动同步和启动时拉取',
+    gitSyncDesc:
+      '使用 Git 同步功能将笔记同步到 GitHub 仓库，支持自动同步和启动时拉取',
     gitSyncConfigured: 'Git 同步已配置，可以在设置中管理同步选项',
     goToSettings: '前往设置',
     manageSettings: '管理设置',
@@ -1429,14 +1467,16 @@ export default {
     occurrences: '处引用',
     searchPlaceholder: '搜索反向链接...',
     deleteWithBacklinks: '删除包含反向链接的片段',
-    deleteMessage: '片段「{title}」被 {count} 个其他片段引用。删除后这些引用将失效。',
+    deleteMessage:
+      '片段「{title}」被 {count} 个其他片段引用。删除后这些引用将失效。',
     deleteOptions: '删除选项：',
     deleteOnly: '仅删除片段',
     deleteAndRemoveLinks: '删除片段并移除引用链接',
     updateSuccess: '成功更新 {count} 个片段',
     updatePartialFailed: '成功更新 {success} 个，失败 {failed} 个',
     deleteWithUpdate: '已删除片段并更新了 {count} 个反向链接',
-    deleteWithPartialUpdate: '已删除片段，成功更新 {success} 个反向链接，失败 {failed} 个'
+    deleteWithPartialUpdate:
+      '已删除片段，成功更新 {success} 个反向链接，失败 {failed} 个'
   },
 
   // 编辑器工具栏
@@ -1545,6 +1585,9 @@ export default {
     qualityHigh: '高清',
     qualityStandard: '标准',
     qualitySmall: '体积优先',
+    showCursor: '显示鼠标指针',
+    showCursorOn: '录制时显示鼠标指针',
+    showCursorOff: '录制时隐藏鼠标指针',
     savePath: '保存路径',
     openFile: '打开文件',
     openFolder: '打开所在文件夹',
@@ -1611,33 +1654,33 @@ export default {
     apiCallFailed: '操作失败：{message}',
     networkError: '网络错误，请检查连接',
     unknownError: '未知错误，请重试',
-    
+
     // 编辑器错误
     editorLoadFailed: '编辑器加载失败',
     editorInitFailed: '编辑器初始化失败，请刷新页面',
     editorNotReady: '编辑器未就绪',
-    
+
     // 保存错误
     saveFailed: '保存失败',
     saveFailedRetry: '保存失败，请重试',
     saveFailedDetail: '保存失败：{message}',
-    
+
     // 加载错误
     loadFailed: '加载失败',
     loadFailedRetry: '加载失败，请重试',
     loadFailedDetail: '加载失败：{message}',
-    
+
     // 类型转换错误
     conversionFailed: '类型转换失败',
     conversionFailedDetail: '类型转换失败：{message}',
     conversionFailedRetain: '类型转换失败，保持原类型',
-    
+
     // 数据验证错误
     validationFailed: '数据验证失败',
     emptyTitle: '标题不能为空',
     emptyContent: '内容不能为空',
     invalidParameter: '参数无效',
-    
+
     // 通用错误
     operationFailed: '操作失败',
     operationCancelled: '操作已取消',
@@ -1664,10 +1707,12 @@ export default {
     modelNotLoaded: '模型未加载',
     runtimeMissing: '运行时未安装',
     installRuntime: '安装运行时',
-    runtimeMarketplaceMissing: '插件市场未找到 translation-offline-runtime 资源包',
+    runtimeMarketplaceMissing:
+      '插件市场未找到 translation-offline-runtime 资源包',
     runtimeInstallSuccess: '离线翻译运行时安装成功',
     runtimeInstallFailed: '离线翻译运行时安装失败',
-    runtimeInstallVerifyFailed: '运行时安装后仍未找到资源文件，请检查网络后重试',
+    runtimeInstallVerifyFailed:
+      '运行时安装后仍未找到资源文件，请检查网络后重试',
     runtimeMissingInstallFirst: '请先安装离线翻译运行时',
     loadModel: '下载模型',
     activateModel: '激活模型',

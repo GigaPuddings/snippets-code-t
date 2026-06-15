@@ -237,6 +237,26 @@
 }
 
 // ============================================
+// 主题化图标提示（用于透明/插件窗口的图标 hover 提示）
+// 使用方式: popper-class="themed-tooltip-popper"
+// ============================================
+.themed-tooltip-popper.el-popper {
+  --el-bg-color-overlay: var(--panel-bg);
+  --el-text-color-primary: var(--panel-text);
+  --el-border-color-light: var(--panel-border);
+
+  color: var(--panel-text) !important;
+  background: var(--panel-bg) !important;
+  border: 1px solid var(--panel-border) !important;
+  box-shadow: var(--toast-shadow);
+
+  .el-popper__arrow::before {
+    background: var(--panel-bg) !important;
+    border-color: var(--panel-border) !important;
+  }
+}
+
+// ============================================
 // 笔记编辑器状态栏「视图切换」下拉深色样式
 // 使用方式: popper-class="editor-statusbar-dropdown-dark"
 // ============================================
@@ -407,7 +427,7 @@
 .dark .image-path {
   color: rgb(209 213 219) !important;
   background-color: rgb(31 41 55) !important;
-  
+
   &:hover {
     color: rgb(243 244 246) !important;
     background-color: rgb(55 65 81) !important;
@@ -495,47 +515,97 @@
   // 同步中 - 蓝色
   &--syncing {
     @apply border-blue-500/30 bg-blue-500/10;
-    .sync-status-icon { @apply text-blue-500; }
-    .sync-status-label { @apply text-blue-600 dark:text-blue-400; }
-    .sync-status-detail .pending-count { @apply text-blue-500; }
-    .sync-status-panel__divider { @apply bg-blue-500/50; }
-    .sync-pending-files-header { @apply text-blue-600 dark:text-blue-400; }
-    .sync-pending-file-item { @apply hover:bg-blue-500/20; }
-    .git-sync-icon { animation: spin 1s linear infinite; }
+    .sync-status-icon {
+      @apply text-blue-500;
+    }
+    .sync-status-label {
+      @apply text-blue-600 dark:text-blue-400;
+    }
+    .sync-status-detail .pending-count {
+      @apply text-blue-500;
+    }
+    .sync-status-panel__divider {
+      @apply bg-blue-500/50;
+    }
+    .sync-pending-files-header {
+      @apply text-blue-600 dark:text-blue-400;
+    }
+    .sync-pending-file-item {
+      @apply hover:bg-blue-500/20;
+    }
+    .git-sync-icon {
+      animation: spin 1s linear infinite;
+    }
   }
 
   // 已同步/空闲 - 绿色
   &--synced,
   &--idle {
     @apply border-green-500/30 bg-green-500/10;
-    .sync-status-icon { @apply text-green-500; }
-    .sync-status-label { @apply text-green-600 dark:text-green-400; }
-    .sync-status-detail .pending-count { @apply text-green-500; }
-    .sync-status-panel__divider { @apply bg-green-500/50; }
-    .sync-pending-files-header { @apply text-green-600 dark:text-green-400; }
-    .sync-pending-file-item { @apply hover:bg-green-500/20; }
+    .sync-status-icon {
+      @apply text-green-500;
+    }
+    .sync-status-label {
+      @apply text-green-600 dark:text-green-400;
+    }
+    .sync-status-detail .pending-count {
+      @apply text-green-500;
+    }
+    .sync-status-panel__divider {
+      @apply bg-green-500/50;
+    }
+    .sync-pending-files-header {
+      @apply text-green-600 dark:text-green-400;
+    }
+    .sync-pending-file-item {
+      @apply hover:bg-green-500/20;
+    }
   }
 
   // 有待同步文件 - 橙色
   &--has_changes {
     @apply border-amber-500/30 bg-amber-500/10;
-    .sync-status-icon { @apply text-amber-500; }
-    .sync-status-label { @apply text-amber-600 dark:text-amber-400; }
-    .sync-status-detail .pending-count { @apply text-amber-500; }
-    .sync-status-panel__divider { @apply bg-amber-500/50; }
-    .sync-pending-files-header { @apply text-amber-600 dark:text-amber-400; }
-    .sync-pending-file-item { @apply hover:bg-amber-500/20; }
+    .sync-status-icon {
+      @apply text-amber-500;
+    }
+    .sync-status-label {
+      @apply text-amber-600 dark:text-amber-400;
+    }
+    .sync-status-detail .pending-count {
+      @apply text-amber-500;
+    }
+    .sync-status-panel__divider {
+      @apply bg-amber-500/50;
+    }
+    .sync-pending-files-header {
+      @apply text-amber-600 dark:text-amber-400;
+    }
+    .sync-pending-file-item {
+      @apply hover:bg-amber-500/20;
+    }
   }
 
   // 错误 - 红色
   &--error {
     @apply border-red-500/30 bg-red-500/10;
-    .sync-status-icon { @apply text-red-500; }
-    .sync-status-label { @apply text-red-600 dark:text-red-400; }
-    .sync-status-detail .pending-count { @apply text-red-500; }
-    .sync-status-panel__divider { @apply bg-red-500/50; }
-    .sync-pending-files-header { @apply text-red-600 dark:text-red-400; }
-    .sync-pending-file-item { @apply hover:bg-red-500/20; }
+    .sync-status-icon {
+      @apply text-red-500;
+    }
+    .sync-status-label {
+      @apply text-red-600 dark:text-red-400;
+    }
+    .sync-status-detail .pending-count {
+      @apply text-red-500;
+    }
+    .sync-status-panel__divider {
+      @apply bg-red-500/50;
+    }
+    .sync-pending-files-header {
+      @apply text-red-600 dark:text-red-400;
+    }
+    .sync-pending-file-item {
+      @apply hover:bg-red-500/20;
+    }
   }
 }
 
