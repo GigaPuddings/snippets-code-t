@@ -16,6 +16,20 @@ function escapeAttribute(value: string): string {
   return escapeHtml(value).replace(/`/g, '&#96;');
 }
 
+function isLocalPathLink(url: string): boolean {
+  const value = url.trim();
+  if (!value) return false;
+
+  return (
+    value.startsWith('file://') ||
+    /^[a-zA-Z]:[\\/]/.test(value) ||
+    value.startsWith('/') ||
+    value.startsWith('./') ||
+    value.startsWith('../') ||
+    /^[\w.-]+[\\/][\w./\\-]+/.test(value)
+  );
+}
+
 function getCodeFence(code: string): string {
   const longestFence = Math.max(2, ...Array.from(code.matchAll(/`{3,}/g), match => match[0].length));
   return '`'.repeat(longestFence + 1);
@@ -26,6 +40,18 @@ function escapeMarkdownTableCell(value: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/\|/g, '\\|')
     .replace(/\r?\n/g, '<br>');
+}
+
+function normalizeLooseInlineMarkdown(value: string): string {
+  return value
+    .replace(/\*\*\s+([^*\n][^*\n]*?)\s*\*\*/g, '**$1**')
+    .replace(/__\s+([^_\n][^_\n]*?)\s*__/g, '__$1__');
+}
+
+function normalizeMarkdownBeforeParse(markdown: string): string {
+  return normalizeLooseInlineMarkdown(
+    markdown.replace(/^(\s{0,3})(\d+)[、．]\s*/gm, '$1$2. ')
+  );
 }
 
 /**
@@ -146,7 +172,7 @@ const wikilinkExtension = {
 // 添加 Markdown 链接扩展
 // 策略：
 // 1. 有效外部链接 → 保持 Markdown 格式 [文本](url)，由装饰器处理
-// 2. 锚点链接 → 转换为 <a href="#anchor">，支持文档内跳转
+// 2. 锚点/项目内路径链接 → 转换为 <a>，支持复制代码片段中的文件路径展示
 // 3. 无效链接（空URL、中文等） → 保持 Markdown 格式 [文本](url)，显示为纯文本
 const markdownLinkExtension = {
   name: 'markdownLink',
@@ -186,10 +212,15 @@ const markdownLinkExtension = {
     
     // 判断是否是锚点链接
     const isAnchorLink = url && url.startsWith('#');
+    const isLocalLink = url && isLocalPathLink(url);
     
     if (isAnchorLink) {
       // 锚点链接：转换为 <a> 标签，支持文档内跳转
       return `<a href="${escapeAttribute(url)}">${escapeHtml(text)}</a>`;
+    } else if (isLocalLink) {
+      // 项目内/本地文件路径：只展示链接文本，避免粘贴后把绝对路径暴露到正文里
+      const href = isLocalPathLink(text) ? text : url;
+      return `<a href="${escapeAttribute(href)}">${escapeHtml(text)}</a>`;
     } else if (isValidExternalLink) {
       // 有效外部链接：保持 Markdown 格式，让装饰器处理
       return `[${escapeHtml(text)}](${escapeAttribute(url)})`;
@@ -437,8 +468,9 @@ export function createTurndownService(): TurndownService {
  * markdownToHtml('# 标题\n内容') // '<h1 id="标题">标题</h1>\n<p>内容</p>'
  */
 export function markdownToHtml(markdown: string, workspaceRoot?: string): string {
+  const normalizedMarkdown = normalizeMarkdownBeforeParse(markdown);
   // 先用 marked 解析 Markdown
-  const html = sanitizeHtml(marked.parse(markdown) as string);
+  const html = sanitizeHtml(marked.parse(normalizedMarkdown) as string);
   
   let processedHtml = html;
   

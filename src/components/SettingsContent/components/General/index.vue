@@ -95,7 +95,30 @@
         <div class="summarize-label-desc">{{ $t('settings.editorLineNumbersDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
-        <CustomSwitch v-model="store.editorLineNumbers" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
+        <CustomSwitch
+          :model-value="store.editorLineNumbers"
+          :active-text="$t('common.on')"
+          :inactive-text="$t('common.off')"
+          @change="toggleEditorLineNumbers"
+        />
+      </div>
+    </section>
+
+    <section class="summarize-section">
+      <div class="summarize-label">
+        <div class="summarize-label-title">{{ $t('settings.editorLineHeight') }}</div>
+        <div class="summarize-label-desc">{{ $t('settings.editorLineHeightDesc') }}</div>
+      </div>
+      <div class="summarize-input-wrapper line-height-control">
+        <el-slider
+          v-model="editorLineHeightDraft"
+          :min="1.2"
+          :max="2"
+          :step="0.05"
+          :show-tooltip="false"
+          @change="changeEditorLineHeight"
+        />
+        <span class="line-height-value">{{ editorLineHeightDraft.toFixed(2) }}</span>
       </div>
     </section>
 
@@ -165,6 +188,7 @@ const exitApplicationLoading = ref(false);
 const showResetDialog = ref(false);
 const showExitDialog = ref(false);
 const selectedResetType = ref('all');
+const editorLineHeightDraft = ref(store.editorLineHeight);
 
 const dictTheme = computed(() => [
   { value: 'light', label: t('settings.themeLight'), icon: SunOne },
@@ -300,6 +324,28 @@ const toggleAutoHideOnBlur = async (value: boolean) => {
   }
 };
 
+const toggleEditorLineNumbers = async (value: boolean) => {
+  try {
+    await store.updateEditorLineNumbers(value);
+  } catch (error) {
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
+  }
+};
+
+const changeEditorLineHeight = async (value: number | number[]) => {
+  const nextValue = Array.isArray(value) ? value[0] : value;
+  try {
+    await store.updateEditorLineHeight(nextValue);
+  } catch (error) {
+    editorLineHeightDraft.value = store.editorLineHeight;
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
+  }
+};
+
+watch(() => store.editorLineHeight, (value) => {
+  editorLineHeightDraft.value = value;
+});
+
 // 退出应用
 const exitApplication = () => {
   showExitDialog.value = true;
@@ -327,5 +373,19 @@ onMounted(async () => {
 <style scoped lang="scss">
 .text-primary {
   color: var(--el-color-primary);
+}
+
+.line-height-control {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 44px;
+  gap: 12px;
+  align-items: center;
+}
+
+.line-height-value {
+  color: var(--panel-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 </style>

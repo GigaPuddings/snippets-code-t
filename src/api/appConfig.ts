@@ -7,6 +7,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import type { AppConfig, GitSettings } from '@/types/models';
 
+export interface EditorSettings {
+  lineNumbers: boolean;
+  lineHeight: number;
+}
+
 /**
  * 获取应用配置
  * @returns 应用配置
@@ -53,6 +58,28 @@ export async function updateGitSettings(settings: GitSettings): Promise<void> {
     void emit('git-settings-changed').catch(() => undefined);
   } catch (error) {
     throw new Error(`更新 Git 设置失败: ${error}`);
+  }
+}
+
+/**
+ * 获取编辑器显示设置
+ */
+export async function getEditorSettings(): Promise<EditorSettings> {
+  try {
+    return await invoke<EditorSettings>('get_editor_settings');
+  } catch (error) {
+    throw new Error(`获取编辑器显示设置失败: ${error}`);
+  }
+}
+
+/**
+ * 更新编辑器显示设置
+ */
+export async function updateEditorSettings(settings: EditorSettings): Promise<void> {
+  try {
+    await invoke('update_editor_settings', { settings });
+  } catch (error) {
+    throw new Error(`更新编辑器显示设置失败: ${error}`);
   }
 }
 

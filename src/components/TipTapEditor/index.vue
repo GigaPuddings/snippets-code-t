@@ -1,5 +1,5 @@
 <template>
-  <main class="editor-container" :class="{ 'dark-theme': props.dark }">
+  <main class="editor-container" :class="{ 'dark-theme': props.dark }" :style="editorContainerStyle">
     <!-- 主编辑区域（左侧） -->
     <div class="editor-main">
       <!-- 富文本编辑器视图 -->
@@ -29,6 +29,7 @@
         :content="sourceContent"
         :dark="props.dark"
         :show-line-numbers="props.showLineNumbers"
+        :line-height="props.lineHeight"
         @update:content="handleSourceContentChange"
         @contextmenu="handleSourceContextMenu"
         @scroll="handleSourceScroll"
@@ -100,6 +101,7 @@ import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { TextSelection } from '@tiptap/pm/state';
 import { handleEditorError } from '@/utils/error-handler';
 import { markdownToHtml, jsonToMarkdown } from './utils/markdown';
+import { sanitizeHtml } from '@/utils/html-sanitize';
 import { createEditorExtensions } from './config/extensions';
 import { getWorkspaceRoot } from '@/api/markdown';
 import TipTapContextMenu from './TipTapContextMenu.vue';
@@ -137,6 +139,7 @@ interface Props {
   showEditorActions?: boolean;
   showContextMenu?: boolean;
   showLineNumbers?: boolean;
+  lineHeight?: number;
   currentTitle?: string;
   currentFragmentId?: number | string;
 }
@@ -157,6 +160,7 @@ const props = withDefaults(defineProps<Props>(), {
   showEditorActions: true,
   showContextMenu: true,
   showLineNumbers: true,
+  lineHeight: 1.6,
   currentTitle: '',
   currentFragmentId: undefined
 });
@@ -187,6 +191,9 @@ const workspaceRoot = ref<string>('');
 const previewLineCount = ref(1);
 const previewLineNumbersMinHeight = ref('100%');
 let previewResizeObserver: ResizeObserver | null = null;
+const editorContainerStyle = computed(() => ({
+  '--editor-line-height-value': String(props.lineHeight)
+}) as CSSProperties);
 
 // Wikilink 点击处理
 const handleWikilinkClick = (noteName: string) => {
@@ -349,7 +356,11 @@ function scrollEditorSelectionIntoView(view: EditorView): void {
 }
 
 const MARKDOWN_SYNTAX_RE =
-  /(^#{1,6}\s+\S|^ {0,3}(?:[-*+]|\d+\.)\s+\S|^ {0,3}[-*+]\s+\[[ xX]\]\s+\S|^ {0,3}>\s+\S|^```|^ {0,3}\|.+\|$|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`\n]+`|!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\))/m;
+  /(^#{1,6}\s+\S|^ {0,3}(?:[-*+]|\d+\.|\d+[\u3001\uff0e]\s*)\s*\S|^ {0,3}[-*+]\s+\[[ xX]\]\s+\S|^ {0,3}>\s+\S|^```|^ {0,3}\|.+\|$|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`\n]+`|!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\))/m;
+const ORDERED_LIST_RE = /^ {0,3}\d+(?:\.|\u3001|\uff0e)\s*\S/gm;
+const MARKDOWN_LINK_TEXT_RE = /((?:[\w.-]+\/)+)?\[([^\]\n]+)\]\(([^)\n]+)\)/g;
+const PROJECT_FILE_PATH_RE =
+  /\b(?:src|src-tauri|docs|scripts|tests?|packages?)\/[^\s()[\]{}<>，。；：、]+?\.[A-Za-z0-9]{1,10}\b/g;
 const RICH_HTML_RE =
   /<\/?(?:h[1-6]|ul|ol|li|blockquote|pre|code|strong|b|em|i|del|s|table|thead|tbody|tr|td|th|a|img)\b/i;
 
@@ -370,6 +381,265 @@ function shouldParseClipboardAsMarkdown(text: string, html: string): boolean {
   if (!text.trim()) return false;
   if (clipboardHasRichHtml(html)) return false;
   return MARKDOWN_SYNTAX_RE.test(text) || text.includes('\n');
+}
+
+function extractClipboardHtmlFragment(html: string): string {
+  const fragmentMatch = html.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
+  return fragmentMatch ? fragmentMatch[1] : html;
+}
+
+function normalizeSlashPath(value: string): string {
+  return value.trim().replace(/\\/g, '/');
+}
+
+function safeDecodeUri(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function looksLikeProjectPath(value: string): boolean {
+  const normalized = normalizeSlashPath(value);
+  return (
+    /^[\w.-]+\/[\w./-]+$/.test(normalized) ||
+    normalized.startsWith('./') ||
+    normalized.startsWith('../')
+  );
+}
+
+function isLocalPathHref(value: string): boolean {
+  const normalized = safeDecodeUri(normalizeSlashPath(value));
+  return (
+    normalized.startsWith('file://') ||
+    /^[a-zA-Z]:\//.test(normalized) ||
+    normalized.startsWith('/') ||
+    normalized.startsWith('./') ||
+    normalized.startsWith('../') ||
+    looksLikeProjectPath(normalized)
+  );
+}
+
+function isExternalHref(value: string): boolean {
+  const normalized = value.trim();
+  return (
+    normalized.startsWith('http://') ||
+    normalized.startsWith('https://') ||
+    normalized.startsWith('www.') ||
+    /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(normalized)
+  );
+}
+
+function normalizeLocalHref(href: string): string {
+  let normalized = safeDecodeUri(normalizeSlashPath(href));
+  normalized = normalized.replace(/^file:\/\/\/?/i, '');
+  return normalized.replace(/^\/([a-zA-Z]:\/)/, '$1');
+}
+
+function normalizePastedLinks(fragment: DocumentFragment): void {
+  fragment.querySelectorAll('a[href]').forEach((anchor) => {
+    const href = anchor.getAttribute('href') || '';
+    const label = normalizeSlashPath(anchor.textContent || '');
+
+    if (!label) return;
+
+    if (looksLikeProjectPath(label) || isLocalPathHref(href)) {
+      anchor.setAttribute('href', looksLikeProjectPath(label) ? label : normalizeLocalHref(href));
+      anchor.removeAttribute('target');
+      anchor.removeAttribute('rel');
+    }
+  });
+}
+
+function shouldRenderMarkdownLink(label: string, href: string): boolean {
+  return looksLikeProjectPath(label) || isLocalPathHref(href) || isExternalHref(href) || href.trim().startsWith('#');
+}
+
+function getRenderableMarkdownHref(label: string, href: string): string {
+  if (looksLikeProjectPath(label)) return label;
+  if (isLocalPathHref(href)) return normalizeLocalHref(href);
+  return href.trim();
+}
+
+function hasMarkdownLinkText(text: string): boolean {
+  MARKDOWN_LINK_TEXT_RE.lastIndex = 0;
+  return MARKDOWN_LINK_TEXT_RE.test(text);
+}
+
+function replaceMarkdownLinksInTextNode(node: Text): void {
+  const text = node.nodeValue || '';
+  if (!hasMarkdownLinkText(text)) return;
+
+  MARKDOWN_LINK_TEXT_RE.lastIndex = 0;
+  const fragment = document.createDocumentFragment();
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = MARKDOWN_LINK_TEXT_RE.exec(text))) {
+    const [raw, pathPrefix = '', linkText, href] = match;
+    const label = normalizeSlashPath(`${pathPrefix}${linkText}`);
+
+    if (!shouldRenderMarkdownLink(label, href)) {
+      continue;
+    }
+
+    if (match.index > lastIndex) {
+      fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+    }
+
+    const anchor = document.createElement('a');
+    anchor.setAttribute('href', getRenderableMarkdownHref(label, href));
+    anchor.textContent = label;
+    fragment.appendChild(anchor);
+    lastIndex = match.index + raw.length;
+  }
+
+  if (lastIndex === 0) return;
+
+  if (lastIndex < text.length) {
+    fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+  }
+
+  node.replaceWith(fragment);
+}
+
+function normalizeMarkdownLinksInTextNodes(fragment: DocumentFragment): void {
+  const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentNode instanceof Element ? node.parentNode : null;
+      if (parent?.closest('a, code, pre')) return NodeFilter.FILTER_REJECT;
+      return hasMarkdownLinkText(node.nodeValue || '')
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
+    }
+  });
+  const nodes: Text[] = [];
+
+  while (walker.nextNode()) {
+    nodes.push(walker.currentNode as Text);
+  }
+
+  nodes.forEach(replaceMarkdownLinksInTextNode);
+}
+
+function replaceElementTag(element: Element, tagName: string): HTMLElement {
+  const replacement = document.createElement(tagName);
+
+  Array.from(element.attributes).forEach((attr) => {
+    replacement.setAttribute(attr.name, attr.value);
+  });
+
+  while (element.firstChild) {
+    replacement.appendChild(element.firstChild);
+  }
+
+  element.replaceWith(replacement);
+  return replacement;
+}
+
+function getDirectListItems(list: Element): Element[] {
+  return Array.from(list.children).filter((child) => child.tagName === 'LI');
+}
+
+function isTaskListElement(list: Element): boolean {
+  return (
+    list.getAttribute('data-type') === 'taskList' ||
+    list.classList.contains('task-list') ||
+    list.querySelector('input[type="checkbox"]') !== null
+  );
+}
+
+function isLikelyCodexOrderedList(list: Element): boolean {
+  if (list.parentElement?.closest('ul, ol')) return false;
+  if (isTaskListElement(list)) return false;
+
+  const items = getDirectListItems(list);
+  if (items.length < 2) return false;
+
+  return items.every((item) => {
+    const firstElement = Array.from(item.children).find((child) => {
+      return (child.textContent || '').trim().length > 0;
+    });
+    const firstInnerElement = firstElement?.firstElementChild;
+    return (
+      firstElement?.tagName === 'STRONG' ||
+      firstElement?.tagName === 'B' ||
+      firstInnerElement?.tagName === 'STRONG' ||
+      firstInnerElement?.tagName === 'B'
+    );
+  });
+}
+
+function normalizeOrderedLists(fragment: DocumentFragment, plainText: string): void {
+  fragment.querySelectorAll('ul').forEach((list) => {
+    const style = list.getAttribute('style') || '';
+    const type = list.getAttribute('type') || '';
+    const dataList = list.getAttribute('data-list') || list.getAttribute('data-list-type') || '';
+    const className = list.className || '';
+    const looksOrdered =
+      /\blist-style(?:-type)?\s*:\s*(?:decimal|lower-alpha|upper-alpha|lower-roman|upper-roman)\b/i.test(style) ||
+      type === '1' ||
+      dataList.toLowerCase() === 'ordered' ||
+      /\bordered\b/i.test(String(className));
+
+    if (looksOrdered || isLikelyCodexOrderedList(list)) {
+      replaceElementTag(list, 'ol');
+    }
+  });
+
+  const orderedItemCount = plainText.match(ORDERED_LIST_RE)?.length || 0;
+  if (orderedItemCount < 2) return;
+
+  const targetList = Array.from(fragment.querySelectorAll('ul')).find((list) => {
+    const itemCount = Array.from(list.children).filter((child) => child.tagName === 'LI').length;
+    return itemCount === orderedItemCount;
+  });
+
+  if (targetList) {
+    replaceElementTag(targetList, 'ol');
+  }
+}
+
+function normalizePastedRichHtml(html: string, plainText: string): string {
+  const template = document.createElement('template');
+  template.innerHTML = extractClipboardHtmlFragment(html);
+
+  normalizePastedLinks(template.content);
+  normalizeMarkdownLinksInTextNodes(template.content);
+  normalizeOrderedLists(template.content, plainText);
+
+  return sanitizeHtml(template.innerHTML);
+}
+
+function linkProjectFilePathsInEditor(): void {
+  const instance = editor.value;
+  if (!instance) return;
+
+  const { state, view } = instance;
+  const linkMark = state.schema.marks.link;
+  if (!linkMark) return;
+
+  let tr = state.tr;
+  let changed = false;
+
+  state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    if (node.marks.some((mark) => mark.type.name === 'code' || mark.type.name === 'link')) return;
+
+    PROJECT_FILE_PATH_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = PROJECT_FILE_PATH_RE.exec(node.text))) {
+      const href = match[0];
+      tr = tr.addMark(pos + match.index, pos + match.index + href.length, linkMark.create({ href }));
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    view.dispatch(tr);
+  }
 }
 
 function updatePreviewLineNumbers(): void {
@@ -534,13 +804,27 @@ const editor = useEditor({
       const text = getMarkdownClipboardText(event.clipboardData ?? null);
       if (!text) return false;
 
-      // 富 HTML（例如从 Codex/网页渲染区复制）交给 TipTap 原生粘贴，避免退化成纯文本。
+      if (clipboardHasRichHtml(html)) {
+        try {
+          const normalizedHtml = normalizePastedRichHtml(html, text);
+          if (normalizedHtml.trim()) {
+            event.preventDefault();
+            editor.value?.commands.insertContent(normalizedHtml);
+            linkProjectFilePathsInEditor();
+            return true;
+          }
+        } catch (error) {
+          console.error('Failed to normalize pasted rich HTML:', error);
+        }
+      }
+
       if (shouldParseClipboardAsMarkdown(text, html)) {
         try {
           const parsedHtml = markdownToHtml(text, workspaceRoot.value);
           event.preventDefault();
           if (editor.value) {
             editor.value.commands.insertContent(parsedHtml);
+            linkProjectFilePathsInEditor();
           }
           return true;
         } catch (error) {
@@ -771,6 +1055,7 @@ defineExpose({
   @apply relative overflow-hidden flex h-full;
   --editor-line-number-width: 44px;
   --editor-line-number-padding-x: 8px;
+  --editor-line-height: var(--editor-line-height-value, 1.6);
   background-color: var(--editor-bg);
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -831,7 +1116,7 @@ defineExpose({
   min-width: var(--editor-line-number-width);
   padding-left: var(--editor-line-number-padding-x);
   padding-right: var(--editor-line-number-padding-x);
-  line-height: 1.6;
+  line-height: var(--editor-line-height);
   color: var(--editor-text-secondary);
   background-color: var(--statusbar-bg);
   border-color: var(--editor-border);
@@ -839,7 +1124,7 @@ defineExpose({
 
   span {
     @apply block;
-    height: 1.6em;
+    height: calc(var(--editor-line-height) * 1em);
   }
 }
 
@@ -859,7 +1144,7 @@ defineExpose({
   max-width: none;
   margin: 0;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: var(--editor-line-height);
   white-space: pre-wrap;
   color: var(--editor-text);
   background-color: var(--editor-bg);
@@ -876,7 +1161,7 @@ defineExpose({
 
     code {
       background-color: var(--editor-hover-bg);
-      color: var(--el-color-primary);
+      color: var(--editor-text);
       transition: background-color 0.3s ease, color 0.3s ease;
     }
 
@@ -1073,7 +1358,7 @@ defineExpose({
   }
 
   p {
-    line-height: 1.65;
+    line-height: var(--editor-line-height);
     transition: color 0.3s ease;
   }
 
@@ -1090,7 +1375,9 @@ defineExpose({
   }
 
   code {
-    @apply bg-content text-red-600 rounded text-sm font-mono;
+    @apply rounded text-sm font-mono;
+    background-color: var(--editor-hover-bg);
+    color: var(--editor-text);
     padding: 0.2em 0.4em;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
@@ -1137,7 +1424,7 @@ defineExpose({
 
     li {
       @apply mb-2;
-      line-height: 1.7;
+      line-height: var(--editor-line-height);
       transition: color 0.3s ease;
       display: list-item !important;
       list-style: inherit !important;
@@ -1152,7 +1439,7 @@ defineExpose({
 
     li {
       @apply mb-2;
-      line-height: 1.7;
+      line-height: var(--editor-line-height);
       transition: color 0.3s ease;
       display: list-item !important;
       list-style: inherit !important;
@@ -1182,7 +1469,7 @@ defineExpose({
 
       > div {
         @apply flex-1;
-        line-height: 1.7;
+        line-height: var(--editor-line-height);
       }
     }
   }
@@ -1229,11 +1516,11 @@ defineExpose({
 
       > div {
         flex: 1;
-        line-height: 1.7;
+        line-height: var(--editor-line-height);
 
         > p {
           margin-bottom: 0;
-          line-height: 1.7;
+          line-height: var(--editor-line-height);
         }
       }
     }
@@ -1241,7 +1528,7 @@ defineExpose({
 
   blockquote {
     @apply border-l-4 border-panel pl-4 italic text-panel-text-secondary mb-5;
-    line-height: 1.7;
+    line-height: var(--editor-line-height);
     transition: border-color 0.3s ease, color 0.3s ease;
   }
 

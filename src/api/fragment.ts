@@ -60,6 +60,20 @@ function isWorkspaceNotSetError(error: unknown): boolean {
   ].some(keyword => message.toLowerCase().includes(keyword.toLowerCase()));
 }
 
+function isMissingFileError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return [
+    'os error 2',
+    'enoent',
+    'no such file',
+    'cannot find the file',
+    '找不到指定的文件',
+    '文件不存在',
+    '路径不存在'
+  ].some(keyword => normalized.includes(keyword.toLowerCase()));
+}
+
 /**
  * 获取所有分类
  * 后端现在直接返回 Category 对象数组，无需前端转换
@@ -580,6 +594,11 @@ export async function getFragmentContent(id: number | string): Promise<ContentTy
       return null;
     }
   } catch (error) {
+    if (isMissingFileError(error)) {
+      logger.debug('[fragment] Markdown 文件不存在，已跳过加载', { id, error });
+      return null;
+    }
+
     ErrorHandler.handle(error, {
       type: ErrorType.API_ERROR,
       operation: 'getFragmentContent',

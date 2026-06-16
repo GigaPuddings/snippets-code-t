@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@/utils/logger';
+import { getEditorSettings, updateEditorSettings } from '@/api/appConfig';
 
 export const useConfigurationStore = defineStore('configuration', {
   state: (): StoreState => ({
@@ -27,7 +28,8 @@ export const useConfigurationStore = defineStore('configuration', {
     autoStart: false, // 开机自启
     autoUpdateCheck: false, // 检查更新
     autoHideOnBlur: true, // 搜索窗口失焦时是否自动隐藏
-    editorLineNumbers: true // 富文本编辑器是否显示行号
+    editorLineNumbers: true, // 富文本编辑器是否显示行号
+    editorLineHeight: 1.6 // 编辑器行距
   }),
   getters: {
     /** 当前实际是否为深色模式（供组件 :dark 等使用，会随系统主题变化更新） */
@@ -103,6 +105,47 @@ export const useConfigurationStore = defineStore('configuration', {
       } catch (error) {
         logger.error('获取语言设置失败:', error);
       }
+
+      try {
+        const editorSettings = await getEditorSettings();
+        this.editorLineNumbers = editorSettings.lineNumbers;
+        this.editorLineHeight = editorSettings.lineHeight || 1.6;
+      } catch (error) {
+        logger.error('获取编辑器显示设置失败:', error);
+      }
+    },
+
+    async updateEditorLineNumbers(value: boolean) {
+      const previous = this.editorLineNumbers;
+      this.editorLineNumbers = value;
+
+      try {
+        await updateEditorSettings({
+          lineNumbers: value,
+          lineHeight: this.editorLineHeight
+        });
+      } catch (error) {
+        this.editorLineNumbers = previous;
+        logger.error('更新编辑器行号设置失败:', error);
+        throw error;
+      }
+    },
+
+    async updateEditorLineHeight(value: number) {
+      const previous = this.editorLineHeight;
+      const nextValue = Math.min(2, Math.max(1.2, Number(value) || 1.6));
+      this.editorLineHeight = nextValue;
+
+      try {
+        await updateEditorSettings({
+          lineNumbers: this.editorLineNumbers,
+          lineHeight: nextValue
+        });
+      } catch (error) {
+        this.editorLineHeight = previous;
+        logger.error('更新编辑器行距设置失败:', error);
+        throw error;
+      }
     },
 
     // 更新主题并立即应用
@@ -169,7 +212,7 @@ export const useConfigurationStore = defineStore('configuration', {
     }
   },
   persist: {
-    pick: ['theme', 'dbPath', 'editorLineNumbers']
+    pick: ['theme', 'dbPath']
   }
 });
 

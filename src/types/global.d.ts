@@ -86,6 +86,7 @@ declare global {
     autoUpdateCheck: boolean;
     autoHideOnBlur: boolean;
     editorLineNumbers: boolean;
+    editorLineHeight: number;
   }
 
   // 添加搜索引擎配置类型

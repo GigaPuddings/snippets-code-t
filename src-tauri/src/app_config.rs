@@ -40,6 +40,10 @@ pub struct AppConfig {
     #[serde(default)]
     pub git: GitSettings,
 
+    // 编辑器显示配置
+    #[serde(default)]
+    pub editor: EditorSettings,
+
     // 插件启用状态。官方功能默认需要安装本地插件包，核心功能除外。
     #[serde(default = "default_plugin_states")]
     pub plugins: PluginStates,
@@ -127,6 +131,32 @@ pub struct PluginRuntimeState {
 
 pub type PluginStates = HashMap<String, PluginRuntimeState>;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorSettings {
+    #[serde(default = "default_editor_line_numbers")]
+    pub line_numbers: bool,
+    #[serde(default = "default_editor_line_height")]
+    pub line_height: f64,
+}
+
+fn default_editor_line_numbers() -> bool {
+    true
+}
+
+fn default_editor_line_height() -> f64 {
+    1.6
+}
+
+impl Default for EditorSettings {
+    fn default() -> Self {
+        Self {
+            line_numbers: default_editor_line_numbers(),
+            line_height: default_editor_line_height(),
+        }
+    }
+}
+
 const HOST_PLUGIN_IDS: &[&str] = &[
     "translation",
     "screenshot",
@@ -201,6 +231,7 @@ impl Default for AppConfig {
             setup_completed: true, // 默认为 true
             cache_icons: true,
             git: GitSettings::default(),
+            editor: EditorSettings::default(),
             plugins: default_plugin_states(),
             plugin_install_dir: None,
             // 兼容字段默认为 None
@@ -256,6 +287,11 @@ fn is_default_git_settings(settings: &GitSettings) -> bool {
         && settings.remote_url.is_empty()
         && settings.token.is_empty()
         && settings.last_sync_time.is_none()
+}
+
+fn is_default_editor_settings(settings: &EditorSettings) -> bool {
+    settings.line_numbers == default_editor_line_numbers()
+        && (settings.line_height - default_editor_line_height()).abs() <= f64::EPSILON
 }
 
 fn copy_option_if_empty<T: Clone>(target: &mut Option<T>, source: &Option<T>) -> bool {
@@ -432,6 +468,19 @@ impl AppConfigManager {
         self.config.git = settings;
     }
 
+    pub fn get_editor_settings(&self) -> &EditorSettings {
+        &self.config.editor
+    }
+
+    pub fn update_editor_settings(&mut self, settings: EditorSettings) {
+        let mut settings = settings;
+        if !settings.line_height.is_finite() {
+            settings.line_height = default_editor_line_height();
+        }
+        settings.line_height = settings.line_height.clamp(1.2, 2.0);
+        self.config.editor = settings;
+    }
+
     /// 更新主题
     pub fn update_theme(&mut self, theme: String) {
         self.config.theme = theme;
@@ -588,6 +637,11 @@ fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> 
 
     if is_default_git_settings(&target.git) && !is_default_git_settings(&legacy.git) {
         target.git = legacy.git.clone();
+        changed = true;
+    }
+
+    if is_default_editor_settings(&target.editor) && !is_default_editor_settings(&legacy.editor) {
+        target.editor = legacy.editor.clone();
         changed = true;
     }
 
@@ -1096,6 +1150,41 @@ pub fn update_app_config(app_handle: AppHandle, config: AppConfig) -> Result<(),
         manager.update_config(config);
         manager.save()?;
         info!("✅ [AppConfig] 应用配置已更新");
+        Ok(())
+    } else {
+        Err("AppConfigManager 未初始化".to_string())
+    }
+}
+
+/// 获取编辑器显示设置
+#[command]
+pub fn get_editor_settings(app_handle: AppHandle) -> Result<EditorSettings, String> {
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let manager = config_state
+            .read()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        Ok(manager.get_editor_settings().clone())
+    } else {
+        let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
+            .ok_or("工作区未设置".to_string())?;
+        let manager = AppConfigManager::new(&workspace_root)?;
+        Ok(manager.get_editor_settings().clone())
+    }
+}
+
+/// 更新编辑器显示设置
+#[command]
+pub fn update_editor_settings(
+    app_handle: AppHandle,
+    settings: EditorSettings,
+) -> Result<(), String> {
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let mut manager = config_state
+            .write()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        manager.update_editor_settings(settings);
+        manager.save()?;
+        info!("✅ [AppConfig] 编辑器显示设置已更新");
         Ok(())
     } else {
         Err("AppConfigManager 未初始化".to_string())
@@ -2558,6 +2647,14 @@ mod plugin_validation_tests {
 
         assert_eq!(config.update_available, Some(true));
         assert!(config.update_info.is_some());
+    }
+
+    #[test]
+    fn editor_settings_default_to_readable_editor_layout() {
+        let settings = EditorSettings::default();
+
+        assert!(settings.line_numbers);
+        assert_eq!(settings.line_height, 1.6);
     }
 
     #[test]

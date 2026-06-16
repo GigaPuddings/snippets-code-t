@@ -1,5 +1,5 @@
 <template>
-  <div class="source-editor" @contextmenu="handleContextMenu">
+  <div class="source-editor" :style="sourceEditorStyle" @contextmenu="handleContextMenu">
     <div v-if="props.showLineNumbers" ref="lineNumbersRef" class="line-numbers" aria-hidden="true">
       <span v-for="line in lineCount" :key="line">{{ line }}</span>
     </div>
@@ -25,13 +25,15 @@ interface Props {
   showLineNumbers?: boolean;
   indentWithTab?: boolean;
   tabSize?: number;
+  lineHeight?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   dark: false,
   showLineNumbers: true,
   indentWithTab: true,
-  tabSize: 2
+  tabSize: 2,
+  lineHeight: 1.6
 });
 
 const emits = defineEmits<{
@@ -45,6 +47,9 @@ const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const lineNumbersRef = ref<HTMLDivElement | null>(null);
 
 const lineCount = computed(() => Math.max(1, localContent.value.split('\n').length));
+const sourceEditorStyle = computed(() => ({
+  '--editor-source-line-height': String(props.lineHeight)
+}));
 
 watch(() => props.content, (newContent) => {
   if (newContent !== localContent.value) {
@@ -158,7 +163,7 @@ const handleScroll = () => {
       // 计算实际行高
       const computedStyle = window.getComputedStyle(textareaRef.value);
       const fontSize = parseFloat(computedStyle.fontSize);
-      const lineHeight = fontSize * 1.5; // line-height: 1.5
+      const lineHeight = fontSize * props.lineHeight;
       
       // 计算滚动位置，添加小偏移让标题更靠近顶部
       const targetScroll = Math.max(0, lineNumber * lineHeight - 10);
@@ -265,7 +270,7 @@ const handleScroll = () => {
   min-width: var(--editor-line-number-width, 46px);
   padding-left: var(--editor-line-number-padding-x, 8px);
   padding-right: var(--editor-line-number-padding-x, 8px);
-  line-height: 1.5;
+  line-height: var(--editor-source-line-height, 1.6);
   color: var(--editor-text-secondary);
   background-color: var(--statusbar-bg);
   border-color: var(--editor-border);
@@ -273,7 +278,7 @@ const handleScroll = () => {
 
   span {
     @apply block;
-    height: 1.5em;
+    height: calc(var(--editor-source-line-height, 1.6) * 1em);
   }
 }
 
@@ -284,7 +289,7 @@ const handleScroll = () => {
   color: var(--editor-text);
   transition: background-color 0.3s ease, color 0.3s ease;
   padding-bottom: 28px;
-  line-height: 1.5;
+  line-height: var(--editor-source-line-height, 1.6);
 
   &::selection {
     @apply bg-blue-200;

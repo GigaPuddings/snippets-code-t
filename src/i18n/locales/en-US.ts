@@ -151,6 +151,8 @@ export default {
     autoHideDisabled: 'Auto hide disabled',
     editorLineNumbers: 'Editor Line Numbers',
     editorLineNumbersDesc: 'Show or hide line numbers in the rich text editor',
+    editorLineHeight: 'Editor Line Spacing',
+    editorLineHeightDesc: 'Adjust line spacing in the note editor',
     exitApp: 'Exit App',
     exitAppDesc: 'Exit the application',
     exitAppConfirm: 'Are you sure you want to exit?',
@@ -833,6 +835,7 @@ export default {
     saveSuccess: 'Saved successfully',
     saveFailed: 'Save failed, please retry',
     loadFailed: 'Failed to load content, please retry',
+    missingFileRemoved: 'Note file no longer exists and was removed from the list',
     loadingEditor: 'Loading editor...',
     retry: 'Retry',
     deleteConfirm:

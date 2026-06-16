@@ -183,12 +183,40 @@ describe('markdownToHtml', () => {
     expect(html).not.toContain('href=');
   });
 
+  it('renders project path links as readable anchors', () => {
+    const html = markdownToHtml(
+      '[src/plugins/translation/pages/translate/index.vue](src/plugins/translation/pages/translate/index.vue)'
+    );
+
+    expect(html).toContain('<a href="src/plugins/translation/pages/translate/index.vue"');
+    expect(html).toContain('>src/plugins/translation/pages/translate/index.vue</a>');
+    expect(html).not.toContain('invalid-link-text');
+  });
+
+  it('renders local absolute path links as readable anchors', () => {
+    const html = markdownToHtml(
+      '[src-tauri/src/plugins/translation.rs](E:/Project/Tauri/snippets-code-t/src-tauri/src/plugins/translation.rs)'
+    );
+
+    expect(html).toContain('<a href="src-tauri/src/plugins/translation.rs"');
+    expect(html).toContain('>src-tauri/src/plugins/translation.rs</a>');
+    expect(html).not.toContain('invalid-link-text');
+  });
+
   it('parses alternate GFM task list markers', () => {
     const html = markdownToHtml('* [X] Done\n+ [ ] Todo');
 
     expect(html).toContain('data-type="taskList"');
     expect(html).toContain('data-checked="true"');
     expect(html).toContain('data-checked="false"');
+  });
+
+  it('parses Chinese ordered markers and loose bold spacing', () => {
+    const html = markdownToHtml('1、** AI 翻译增强**\n2、** AI 聊天 / 问答**');
+
+    expect(html).toContain('<ol>');
+    expect(html).toContain('<strong>AI 翻译增强</strong>');
+    expect(html).toContain('<strong>AI 聊天 / 问答</strong>');
   });
 
 });

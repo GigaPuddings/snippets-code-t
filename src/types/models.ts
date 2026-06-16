@@ -261,6 +261,10 @@ export interface AppConfig {
   autoStart: boolean;
   autoUpdateCheck: boolean;
   autoHideOnBlur: boolean;
+  editor?: {
+    lineNumbers: boolean;
+    lineHeight: number;
+  };
   git: GitSettings;
   plugins?: Record<string, { enabled: boolean }>;
   pluginInstallDir?: string | null;

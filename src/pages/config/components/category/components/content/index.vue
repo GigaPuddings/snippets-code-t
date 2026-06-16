@@ -88,6 +88,7 @@
       :content="noteEditorDisplayContent" :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }"
       :show-view-toggle="true" :show-editor-actions="false" :current-title="state.title"
       :current-fragment-id="state.currentContent?.id" :show-line-numbers="store.editorLineNumbers"
+      :line-height="store.editorLineHeight"
       @update:content="handleEditorChange"
       @wikilink-click="handleWikilinkClick" @view-mode-change="handleViewModeChange"
       @outline-toggle="handleOutlineToggle" @backlink-navigate="handleBacklinkNavigate"
@@ -234,6 +235,37 @@ const allTags = computed(() => {
 });
 
 const normalizeFragmentId = (id: string) => id.replace(/^markdown:/i, '');
+const normalizePathForCompare = (id: string | number) => decodeURIComponent(String(id)).replace(/\\/g, '/');
+
+const removeMissingContentFromList = (id: string | number): void => {
+  const normalizedId = normalizePathForCompare(id);
+  store.contents = store.contents.filter((content: ContentType) => normalizePathForCompare(content.id) !== normalizedId);
+};
+
+const resetMissingContentState = (id: string | number, notify = true): void => {
+  removeMissingContentFromList(id);
+  state.currentContent = null;
+  state.title = '';
+  draftTitle.value = '';
+  titleDirty.value = false;
+  state.tags = [];
+  state.editorContent = '';
+  state.contentChanged = false;
+  state.lastSavedAt = null;
+  state.lastSavedContentHash = '';
+  state.editorError = null;
+
+  if (notify) {
+    modal.warning(t('category.missingFileRemoved'), 'top-right');
+  }
+};
+
+const goBackToContentList = async (): Promise<void> => {
+  const currentCid = route.params.cid as string | undefined;
+  await router.replace({
+    path: currentCid ? `/config/category/contentList/${currentCid}` : '/config/category/contentList'
+  });
+};
 
 const getContentMetadata = (): FragmentMetadata => {
   const metadata = { ...(state.currentContent?.metadata || {}) };
@@ -1017,6 +1049,8 @@ const fetchContentById = async (id: string) => {
           editor.commands.setContent(newContent);
         }
       }
+    } else {
+      resetMissingContentState(id, false);
     }
   } catch (error) {
     console.error('[Content] 内容加载失败:', error);
@@ -1034,7 +1068,8 @@ const fetchContent = async () => {
   state.editorError = null;
 
   try {
-    const result = await getFragmentContent(normalizeFragmentId(route.params.id as string));
+    const fragmentId = normalizeFragmentId(route.params.id as string);
+    const result = await getFragmentContent(fragmentId);
 
     if (result) {
       // 使用 parseFragment 确保所有字段存在
@@ -1084,6 +1119,9 @@ const fetchContent = async () => {
           }
         });
       }
+    } else {
+      resetMissingContentState(fragmentId);
+      await goBackToContentList();
     }
   } catch (error) {
     console.error('[Content] 内容加载失败:', error);

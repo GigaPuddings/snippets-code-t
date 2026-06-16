@@ -2,8 +2,9 @@
   <CommonDialog
     :model-value="visible"
     :title="$t('search.filterPanel')"
-    width="460px"
+    width="420px"
     top="6vh"
+    custom-class="filter-panel-dialog"
     @update:model-value="val => !val && handleClose()"
   >
     <div class="panel-content">
@@ -217,178 +218,184 @@ function handleReset(): void {
 </script>
 
 <style scoped lang="scss">
-
-// 面板内容
 .panel-content {
-  @apply h-[calc(100vh-300px)];
-  overflow-y: visible;
-  flex-shrink: 1;
-  min-height: 0;
+  max-height: min(56vh, 420px);
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .filter-section {
-  @apply mb-3;
-  
+  @apply mb-4;
+
   &:last-of-type {
     @apply mb-0;
   }
-  
+
   .section-title {
-    @apply text-xs font-medium text-content mb-2;
+    @apply text-xs font-medium mb-2;
+    color: var(--dialog-text-secondary);
   }
-  
+
   .type-radio-group {
     @apply w-full;
-    
+
     :deep(.el-radio-button) {
       flex: 1;
-      
+
       .el-radio-button__inner {
         @apply w-full;
-      }
-    }
-  }
-  
-  .date-range-controls {
-    @apply w-full;
-    
-    .date-range-picker {
-      @apply w-full;
-      
-      :deep(.el-range-input) {
+        height: 30px;
+        padding: 0 10px;
+        border-color: var(--dialog-border);
+        background: var(--panel-bg);
+        color: var(--dialog-text-secondary);
         font-size: 12px;
+        line-height: 28px;
+        box-shadow: none;
+        transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+      }
+
+      &.is-active .el-radio-button__inner {
+        border-color: var(--search-result-accent);
+        background: var(--search-result-accent);
+        color: #fff;
+      }
+
+      &:not(.is-active) .el-radio-button__inner:hover {
+        background: var(--panel-hover-bg);
+        color: var(--dialog-text);
       }
     }
   }
-  
-  .sort-controls {
-    @apply w-full;
-    
-    .sort-select-full {
-      @apply w-full;
-    }
-  }
-  
+
   .sort-options {
-    @apply flex flex-col gap-2;
-    
+    @apply flex flex-col gap-1;
+
     .sort-option {
-      @apply flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all;
-      @apply bg-transparent hover:bg-hover border border-transparent;
-      
+      @apply flex items-center justify-between cursor-pointer transition-all;
+      min-height: 34px;
+      padding: 7px 9px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+
+      &:hover {
+        border-color: var(--dialog-border);
+        background: var(--panel-hover-bg);
+      }
+
       &.active {
-        @apply bg-active border-active;
-        
+        border-color: var(--search-result-active-border);
+        background: var(--search-result-active);
+
         .sort-option-content {
-          @apply text-white;
+          color: var(--dialog-text);
         }
-        
+
         .sort-option-check {
-          @apply text-white;
+          color: var(--search-result-accent);
         }
       }
-      
+
       .sort-option-content {
-        @apply flex items-center gap-2 text-content;
-        
+        @apply flex items-center gap-2;
+        color: var(--dialog-text-secondary);
+
         .sort-option-label {
           @apply text-xs;
         }
       }
-      
+
       .sort-check {
-        @apply text-white;
+        color: var(--search-result-accent);
       }
     }
   }
 }
 
 .tags-container {
-  @apply flex flex-col gap-2 max-h-20 overflow-auto;
-  
+  @apply flex flex-col gap-2 overflow-auto;
+  max-height: 104px;
+
   .tags-list {
-    @apply grid grid-cols-2 gap-2;
+    @apply grid grid-cols-2 gap-1.5;
   }
-  
+
   .tag-item {
-    @apply min-h-9 flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all;
-    @apply bg-content border border-panel;
+    @apply flex items-center justify-between cursor-pointer transition-all;
+    min-height: 31px;
+    padding: 6px 9px;
+    border: 1px solid var(--dialog-border);
+    border-radius: 7px;
+    background: var(--search-soft-bg);
 
     &:hover {
-      @apply bg-panel-hover-bg border-panel;
+      border-color: var(--search-result-active-border);
+      background: var(--panel-hover-bg);
     }
 
     &.active {
-      @apply bg-active border-active;
+      border-color: var(--search-result-active-border);
+      background: var(--search-result-active);
 
       .tag-text {
-        @apply text-white font-medium;
+        color: var(--dialog-text);
+        font-weight: 600;
       }
 
       .tag-check {
-        @apply text-white;
+        color: var(--search-result-accent);
       }
     }
 
     .tag-text {
-      @apply text-xs text-panel truncate flex-1;
+      @apply text-xs truncate flex-1;
+      color: var(--dialog-text);
     }
 
     .tag-check {
       @apply flex-shrink-0 ml-2;
     }
   }
-  
-  // 自定义滚动条
+
   &::-webkit-scrollbar {
     width: 6px;
   }
-  
+
   &::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
-  
+
   &::-webkit-scrollbar-thumb {
-    @apply bg-panel rounded-full;
-    
+    @apply rounded-full;
+    background: var(--dialog-border);
+
     &:hover {
-      @apply bg-hover;
+      background: var(--dialog-text-secondary);
     }
   }
 }
 
-// 面板底部
 .panel-footer {
-  @apply flex justify-end gap-2 px-4 py-3 border-t border-panel;
+  @apply flex justify-end gap-2;
+
+  :deep(.el-button) {
+    height: 30px;
+    padding: 0 13px;
+    border-radius: 7px;
+    font-size: 12px;
+  }
 }
 
-// 淡入淡出动画
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+:global(.filter-panel-dialog.el-dialog) {
+  max-width: calc(100vw - 32px);
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+:global(.filter-panel-dialog.el-dialog .el-dialog__body) {
+  padding: 14px 18px !important;
 }
 
-// 滑动淡入动画
-.slide-fade-enter-active {
-  transition: all 0.3s ease;
-}
-
-.slide-fade-leave-active {
-  transition: all 0.2s ease;
-}
-
-.slide-fade-enter-from {
-  transform: translateY(-20px);
-  opacity: 0;
-}
-
-.slide-fade-leave-to {
-  transform: translateY(-10px);
-  opacity: 0;
+:global(.filter-panel-dialog.el-dialog .el-dialog__footer) {
+  padding: 10px 18px !important;
 }
 </style>

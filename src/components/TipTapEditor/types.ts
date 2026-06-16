@@ -48,6 +48,8 @@ export interface TipTapEditorProps {
   showContextMenu?: boolean;
   /** 是否显示行号 */
   showLineNumbers?: boolean;
+  /** 编辑器行距 */
+  lineHeight?: number;
 }
 
 /**
