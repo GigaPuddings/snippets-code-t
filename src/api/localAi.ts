@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 export interface LocalAiConfig {
   modelDir: string;
@@ -86,6 +87,13 @@ export interface LocalAiChatResponse {
   content: string;
 }
 
+export interface LocalAiChatStreamEvent {
+  requestId: string;
+  event: 'delta' | 'done' | 'error';
+  content?: string;
+  error?: string;
+}
+
 export async function getLocalAiConfig(): Promise<LocalAiConfig> {
   return await invoke<LocalAiConfig>('local_ai_get_config');
 }
@@ -132,6 +140,35 @@ export async function chatWithLocalAi(
   request: LocalAiChatRequest
 ): Promise<LocalAiChatResponse> {
   return await invoke<LocalAiChatResponse>('local_ai_chat', { request });
+}
+
+export async function streamChatWithLocalAi(
+  request: LocalAiChatRequest,
+  onDelta: (content: string) => void
+): Promise<LocalAiChatResponse> {
+  const requestId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `local-ai-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const unlisten = await listen<LocalAiChatStreamEvent>(
+    'local-ai-chat-stream',
+    (event) => {
+      const payload = event.payload;
+      if (payload.requestId !== requestId) return;
+      if (payload.event === 'delta' && payload.content) {
+        onDelta(payload.content);
+      }
+    }
+  );
+
+  try {
+    return await invoke<LocalAiChatResponse>('local_ai_chat_stream', {
+      request,
+      requestId
+    });
+  } finally {
+    unlisten();
+  }
 }
 
 export async function getLocalAiChatHistories(): Promise<LocalAiChatHistory[]> {

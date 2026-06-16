@@ -1,3 +1,4 @@
+use futures::StreamExt;
 use log::{info, warn};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -10,7 +11,7 @@ use std::sync::{
     LazyLock, Mutex,
 };
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager, Window};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -161,6 +162,15 @@ pub struct LocalAiChatRequest {
 #[serde(rename_all = "camelCase")]
 pub struct LocalAiChatResponse {
     pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiChatStreamPayload {
+    pub request_id: String,
+    pub event: String,
+    pub content: Option<String>,
+    pub error: Option<String>,
 }
 
 #[derive(Default)]
@@ -782,6 +792,117 @@ async fn chat_completion(
         .ok_or_else(|| "本地 AI 响应中没有可用内容".to_string())
 }
 
+fn emit_chat_stream(
+    window: &Window,
+    request_id: &str,
+    event: &str,
+    content: Option<String>,
+    error: Option<String>,
+) {
+    let _ = window.emit(
+        "local-ai-chat-stream",
+        LocalAiChatStreamPayload {
+            request_id: request_id.to_string(),
+            event: event.to_string(),
+            content,
+            error,
+        },
+    );
+}
+
+fn extract_stream_delta(value: &Value) -> Option<String> {
+    value
+        .get("choices")
+        .and_then(|choices| choices.as_array())
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("delta").or_else(|| choice.get("message")))
+        .and_then(|message| message.get("content"))
+        .and_then(|content| content.as_str())
+        .filter(|content| !content.is_empty())
+        .map(str::to_string)
+}
+
+async fn chat_completion_stream(
+    app_handle: &AppHandle,
+    window: Window,
+    request_id: String,
+    messages: Vec<LocalAiMessage>,
+    temperature: Option<f32>,
+    max_tokens: Option<u32>,
+) -> Result<String, String> {
+    require_plugin(app_handle)?;
+    if messages.is_empty() {
+        return Err("消息不能为空".to_string());
+    }
+
+    let config = read_config(app_handle);
+    ensure_service_running(app_handle, &config).await?;
+    let _guard = mark_request_started();
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(config.request_timeout_secs as u64))
+        .build()
+        .map_err(|error| format!("创建本地 AI 请求客户端失败: {}", error))?;
+    let url = format!("{}/v1/chat/completions", base_url(&config));
+    let body = serde_json::json!({
+        "model": "local-ai",
+        "messages": messages,
+        "temperature": temperature.unwrap_or(config.temperature),
+        "max_tokens": max_tokens.unwrap_or(config.max_tokens),
+        "stream": true
+    });
+
+    let response = client
+        .post(url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|error| format!("请求本地 AI 服务失败: {}", error))?;
+    let status = response.status();
+    if !status.is_success() {
+        let value = response
+            .text()
+            .await
+            .unwrap_or_else(|error| format!("读取错误响应失败: {}", error));
+        return Err(format!("本地 AI 服务返回错误 {}: {}", status, value));
+    }
+
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+    let mut content = String::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|error| format!("读取本地 AI 流失败: {}", error))?;
+        buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+        while let Some(index) = buffer.find('\n') {
+            let line = buffer[..index].trim().to_string();
+            buffer = buffer[index + 1..].to_string();
+            if line.is_empty() || !line.starts_with("data:") {
+                continue;
+            }
+
+            let data = line.trim_start_matches("data:").trim();
+            if data == "[DONE]" {
+                emit_chat_stream(&window, &request_id, "done", None, None);
+                return Ok(content.trim().to_string());
+            }
+
+            let value = serde_json::from_str::<Value>(data)
+                .map_err(|error| format!("解析本地 AI 流响应失败: {}", error))?;
+            if let Some(delta) = extract_stream_delta(&value) {
+                content.push_str(&delta);
+                emit_chat_stream(&window, &request_id, "delta", Some(delta), None);
+            }
+        }
+    }
+
+    if !content.trim().is_empty() {
+        emit_chat_stream(&window, &request_id, "done", None, None);
+        return Ok(content.trim().to_string());
+    }
+    Err("本地 AI 响应中没有可用内容".to_string())
+}
+
 fn language_label(value: &str) -> &str {
     match value {
         "auto" => "auto-detected language",
@@ -967,6 +1088,31 @@ pub async fn local_ai_chat(
     )
     .await?;
     Ok(LocalAiChatResponse { content })
+}
+
+#[tauri::command]
+pub async fn local_ai_chat_stream(
+    app_handle: AppHandle,
+    window: Window,
+    request: LocalAiChatRequest,
+    request_id: String,
+) -> Result<LocalAiChatResponse, String> {
+    match chat_completion_stream(
+        &app_handle,
+        window.clone(),
+        request_id.clone(),
+        request.messages,
+        request.temperature,
+        request.max_tokens,
+    )
+    .await
+    {
+        Ok(content) => Ok(LocalAiChatResponse { content }),
+        Err(error) => {
+            emit_chat_stream(&window, &request_id, "error", None, Some(error.clone()));
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]
