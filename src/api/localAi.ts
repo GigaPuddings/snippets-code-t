@@ -67,6 +67,21 @@ export interface LocalAiChatRequest {
   maxTokens?: number;
 }
 
+export interface LocalAiChatTurn {
+  id: string;
+  role: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface LocalAiChatHistory {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  turns: LocalAiChatTurn[];
+}
+
 export interface LocalAiChatResponse {
   content: string;
 }
@@ -117,6 +132,22 @@ export async function chatWithLocalAi(
   request: LocalAiChatRequest
 ): Promise<LocalAiChatResponse> {
   return await invoke<LocalAiChatResponse>('local_ai_chat', { request });
+}
+
+export async function getLocalAiChatHistories(): Promise<LocalAiChatHistory[]> {
+  return await invoke<LocalAiChatHistory[]>('local_ai_get_chat_histories');
+}
+
+export async function saveLocalAiChatHistory(
+  history: LocalAiChatHistory
+): Promise<LocalAiChatHistory[]> {
+  return await invoke<LocalAiChatHistory[]>('local_ai_save_chat_history', { history });
+}
+
+export async function deleteLocalAiChatHistory(
+  historyId: string
+): Promise<LocalAiChatHistory[]> {
+  return await invoke<LocalAiChatHistory[]>('local_ai_delete_chat_history', { historyId });
 }
 
 export async function translateWithLocalAi(

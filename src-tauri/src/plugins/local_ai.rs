@@ -130,6 +130,25 @@ pub struct LocalAiMessage {
     pub content: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiChatTurn {
+    pub id: String,
+    pub role: String,
+    pub content: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiChatHistory {
+    pub id: String,
+    pub title: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub turns: Vec<LocalAiChatTurn>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAiChatRequest {
@@ -175,6 +194,50 @@ fn config_path(app_handle: &AppHandle) -> PathBuf {
     let config_dir = crate::json_config::get_data_dir(app_handle).join(".snippets-code");
     let _ = fs::create_dir_all(&config_dir);
     config_dir.join("local-ai.json")
+}
+
+fn history_path(app_handle: &AppHandle) -> PathBuf {
+    let config_dir = crate::json_config::get_data_dir(app_handle).join(".snippets-code");
+    let _ = fs::create_dir_all(&config_dir);
+    config_dir.join("local-ai-chat-history.json")
+}
+
+fn app_json_chat_histories(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
+    crate::json_config::get_app_config_value(app_handle, "local_ai_chat_histories").unwrap_or_default()
+}
+
+fn save_app_json_chat_histories(
+    app_handle: &AppHandle,
+    histories: &[LocalAiChatHistory],
+) -> Result<(), String> {
+    crate::json_config::set_app_config_value(app_handle, "local_ai_chat_histories", histories)
+}
+
+fn read_history_file(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
+    let path = history_path(app_handle);
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|content| serde_json::from_str::<Vec<LocalAiChatHistory>>(&content).ok())
+        .unwrap_or_default()
+}
+
+fn write_history_file(app_handle: &AppHandle, histories: &[LocalAiChatHistory]) -> Result<(), String> {
+    let path = history_path(app_handle);
+    let json = serde_json::to_string_pretty(histories)
+        .map_err(|error| format!("序列化聊天历史失败: {}", error))?;
+    fs::write(&path, json).map_err(|error| format!("写入聊天历史失败 {}: {}", path.to_string_lossy(), error))
+}
+
+fn load_chat_histories(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
+    let mut histories = app_json_chat_histories(app_handle);
+    if histories.is_empty() {
+        histories = read_history_file(app_handle);
+    }
+    histories
+}
+
+fn persist_chat_histories(app_handle: &AppHandle, histories: &[LocalAiChatHistory]) -> Result<(), String> {
+    save_app_json_chat_histories(app_handle, histories).or_else(|_| write_history_file(app_handle, histories))
 }
 
 fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
@@ -914,6 +977,40 @@ pub async fn local_ai_translate(
     to: String,
 ) -> Result<String, String> {
     translate_text(app_handle, text, from, to).await
+}
+
+#[tauri::command]
+pub fn local_ai_get_chat_histories(app_handle: AppHandle) -> Result<Vec<LocalAiChatHistory>, String> {
+    require_plugin(&app_handle)?;
+    Ok(load_chat_histories(&app_handle))
+}
+
+#[tauri::command]
+pub fn local_ai_save_chat_history(
+    app_handle: AppHandle,
+    history: LocalAiChatHistory,
+) -> Result<Vec<LocalAiChatHistory>, String> {
+    require_plugin(&app_handle)?;
+    let mut histories = load_chat_histories(&app_handle);
+    if let Some(index) = histories.iter().position(|item| item.id == history.id) {
+        histories[index] = history;
+    } else {
+        histories.insert(0, history);
+    }
+    persist_chat_histories(&app_handle, &histories)?;
+    Ok(histories)
+}
+
+#[tauri::command]
+pub fn local_ai_delete_chat_history(
+    app_handle: AppHandle,
+    history_id: String,
+) -> Result<Vec<LocalAiChatHistory>, String> {
+    require_plugin(&app_handle)?;
+    let mut histories = load_chat_histories(&app_handle);
+    histories.retain(|item| item.id != history_id);
+    persist_chat_histories(&app_handle, &histories)?;
+    Ok(histories)
 }
 
 pub fn apply_runtime_change(_app_handle: &AppHandle, enabled: bool) {

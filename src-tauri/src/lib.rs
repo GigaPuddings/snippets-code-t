@@ -912,6 +912,9 @@ pub fn run() {
             plugins::local_ai::local_ai_restart_service,            // 重启本地 AI 服务
             plugins::local_ai::local_ai_stop_service,               // 停止本地 AI 服务
             plugins::local_ai::local_ai_chat,                       // 本地 AI 聊天
+            plugins::local_ai::local_ai_get_chat_histories,         // 获取聊天历史
+            plugins::local_ai::local_ai_save_chat_history,          // 保存聊天历史
+            plugins::local_ai::local_ai_delete_chat_history,        // 删除聊天历史
             plugins::local_ai::local_ai_translate,                  // 本地 AI 翻译
             add_search_history,               // 添加搜索历史
             get_search_history,               // 获取搜索历史
