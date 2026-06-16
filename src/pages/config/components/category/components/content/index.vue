@@ -7,7 +7,8 @@
           :model-value="draftTitle"
           placeholder=""
           @input="handleTitleInput"
-          @change="handleTitleChange"
+          @blur="commitTitleChange"
+          @keydown.enter.prevent="commitTitleChange"
         />
 
         <!-- 编辑器控制按钮（仅笔记类型显示） -->
@@ -164,6 +165,7 @@ const state = reactive({
 });
 
 const draftTitle = ref('');
+const titleDirty = ref(false);
 
 // 工作区根目录
 const workspaceRoot = ref<string>('');
@@ -280,6 +282,8 @@ const updateStore = (data: Partial<ContentType>) => {
     };
   }
 };
+
+const hasUnsavedChanges = () => state.contentChanged || titleDirty.value;
 
 // TipTap 编辑器引用
 const tipTapEditorRef = ref<any>(null);
@@ -456,7 +460,6 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
 
   // 标题不能为空
   if (!state.title.trim()) {
-    modal.error(t('category.emptyContentTitle'));
     return;
   }
 
@@ -605,6 +608,7 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
 
   // 更新原始标题
   originalTitle.value = state.title;
+  titleDirty.value = false;
 
   // 通知自动同步管理器（如果启用）
   try {
@@ -716,49 +720,68 @@ const handleContentChange = (
   if (state.isInitializing) return;
 
   if (value !== currentValue) {
-    state.contentChanged = true;
     if (field === 'title') {
-      state.title = value;
-      // 标题变更时立即更新 store，提升用户体验
-      updateStore({ title: value });
+      draftTitle.value = value;
+      titleDirty.value = value.trim() !== state.title.trim();
     } else {
       state.editorContent = value;
+      state.contentChanged = true;
+      debouncedSave();
     }
-
-    debouncedSave();
   }
 };
 
 const syncDraftTitleToState = () => {
   if (state.isInitializing) return;
-  if (draftTitle.value !== state.title) {
-    state.title = draftTitle.value;
+  const nextTitle = draftTitle.value.trim();
+  if (!nextTitle) {
+    rollbackTitleDraft();
+    return;
+  }
+  if (nextTitle !== state.title) {
+    state.title = nextTitle;
+    draftTitle.value = nextTitle;
   }
 };
 
 const handleTitleInput = (value: string) => {
   if (state.isInitializing) return;
   draftTitle.value = value;
-  state.contentChanged = value !== state.title || state.contentChanged;
-  debouncedSave();
+  titleDirty.value = value.trim() !== state.title.trim();
 };
 
-// 处理标题变更（失焦时校验并触发保存）
-const handleTitleChange = (value: string) => {
+const rollbackTitleDraft = () => {
+  const fallback = (originalTitle.value || state.currentContent?.title || state.title || 'New Fragment').trim();
+  const restored = fallback || 'New Fragment';
+  draftTitle.value = restored;
+  state.title = restored;
+  titleDirty.value = false;
+};
+
+// 处理标题确认（失焦或回车后才同步列表与保存）
+const commitTitleChange = () => {
   if (state.isInitializing) return;
 
-  if (!value.trim()) {
-    modal.error(t('category.emptyContentTitle'));
-    draftTitle.value = originalTitle.value;
-    state.title = originalTitle.value;
+  const nextTitle = draftTitle.value.trim();
+  if (!nextTitle) {
+    rollbackTitleDraft();
     return;
   }
 
   const original = originalTitle.value ?? state.currentContent?.title;
-  if (value !== original) {
-    state.title = value;
+  draftTitle.value = nextTitle;
+  titleDirty.value = nextTitle !== state.title;
+
+  if (nextTitle !== original) {
+    state.title = nextTitle;
     state.contentChanged = true;
+    titleDirty.value = false;
+    updateStore({ title: nextTitle });
     debouncedSave();
+  } else {
+    state.title = nextTitle;
+    titleDirty.value = false;
+    updateStore({ title: nextTitle });
   }
 };
 
@@ -807,7 +830,7 @@ const handleWikilinkClick = async (noteName: string) => {
       const targetFragment = exactMatch || fragments[0];
 
       // 如果有未保存的更改，先保存（取消防抖，避免 300ms 后重复保存）
-      if (state.contentChanged) {
+      if (hasUnsavedChanges()) {
         debouncedSave.cancel();
         await saveContent();
       }
@@ -837,7 +860,7 @@ const handleWikilinkClick = async (noteName: string) => {
 const handleBacklinkNavigate = async (fragmentId: number | string, searchTitle: string) => {
   try {
     // 如果有未保存的更改，先保存（取消防抖，避免 300ms 后重复保存）
-    if (state.contentChanged) {
+    if (hasUnsavedChanges()) {
       debouncedSave.cancel();
       await saveContent();
     }
@@ -975,6 +998,7 @@ const fetchContentById = async (id: string) => {
       state.currentContent = parsedContent;
       state.title = parsedContent.title;
       draftTitle.value = parsedContent.title;
+      titleDirty.value = false;
       state.tags = parsedContent.tags || [];
       originalTitle.value = parsedContent.title;
       const newContent = deserializeContent(
@@ -1019,6 +1043,7 @@ const fetchContent = async () => {
       state.currentContent = parsedContent;
       state.title = parsedContent.title;
       draftTitle.value = parsedContent.title;
+      titleDirty.value = false;
       state.tags = parsedContent.tags || [];
 
       // 保存原始标题用于检测变化
@@ -1114,7 +1139,7 @@ watch(
     }
 
     // 如果路由参数变化，先自动保存当前内容（如果有更改）
-    if (oldId && state.currentContent && state.contentChanged) {
+    if (oldId && state.currentContent && hasUnsavedChanges()) {
       try {
         // 取消 debounce，立即保存
         debouncedSave.cancel();
@@ -1172,6 +1197,8 @@ const confirmSaveBeforeNavigation = async () => {
 // 放弃更改并导航
 const discardChangesAndNavigate = async () => {
   state.contentChanged = false;
+  titleDirty.value = false;
+  draftTitle.value = state.title;
   showUnsavedDialog.value = false;
 
   // 执行导航
@@ -1220,7 +1247,7 @@ const handleRefreshData = async (event: Event) => {
     if (isCurrentDeleted) {
       // 当前打开的文件已被删除，导航回分类列表（欢迎页）
       console.log('[Content] ⚠️ 当前文件已被删除，导航回分类列表');
-      if (!state.contentChanged) {
+      if (!hasUnsavedChanges()) {
         await router.push('/config/category');
       }
       return;
@@ -1235,7 +1262,7 @@ const handleRefreshData = async (event: Event) => {
   }
 
   if (shouldReload) {
-    if (state.contentChanged) {
+    if (hasUnsavedChanges()) {
       console.log('[Content] ⚠️ 当前文件被外部修改，但存在未保存的本地更改，跳过重载');
     } else {
       console.log('[Content] 🔄 检测到当前文件被外部修改，重新加载内容');
@@ -1276,7 +1303,7 @@ const handleDirsChanged = async (event: Event) => {
 
   if (isInDeletedDir) {
     console.log('[Content] ⚠️ 当前文件所在的目录被删除');
-    if (state.contentChanged) {
+    if (hasUnsavedChanges()) {
       console.log('[Content] ⚠️ 存在未保存的更改，提示用户');
     } else {
       console.log('[Content] 🔄 当前文件所在的目录被删除，导航回分类列表');
@@ -1287,7 +1314,7 @@ const handleDirsChanged = async (event: Event) => {
 
 // 组件卸载前保存
 onBeforeUnmount(async () => {
-  if (state.currentContent && state.contentChanged) {
+  if (state.currentContent && hasUnsavedChanges()) {
     debouncedSave.cancel();
     syncDraftTitleToState();
     await saveContent();
@@ -1298,7 +1325,7 @@ onBeforeUnmount(async () => {
 onMounted(async () => {
   // 注册清理函数（必须在 await 之前）
   const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-    if (state.contentChanged) {
+    if (hasUnsavedChanges()) {
       e.preventDefault();
       e.returnValue = '';
     }

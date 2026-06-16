@@ -333,9 +333,20 @@
 }
 
 // 应用对话框：所有业务弹层共用面板层级、间距和主题反馈。
-.el-overlay-dialog {
-  background: var(--dialog-overlay);
+.el-overlay {
+  background: var(--dialog-overlay) !important;
   backdrop-filter: blur(3px);
+}
+
+.el-overlay,
+.fade-in-linear-enter-active,
+.fade-in-linear-leave-active {
+  transition: opacity 0.14s ease !important;
+}
+
+.el-overlay-dialog {
+  background: transparent !important;
+  backdrop-filter: none;
 }
 
 .el-dialog,

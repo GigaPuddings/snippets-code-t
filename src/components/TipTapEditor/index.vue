@@ -348,6 +348,30 @@ function scrollEditorSelectionIntoView(view: EditorView): void {
   });
 }
 
+const MARKDOWN_SYNTAX_RE =
+  /(^#{1,6}\s+\S|^ {0,3}(?:[-*+]|\d+\.)\s+\S|^ {0,3}[-*+]\s+\[[ xX]\]\s+\S|^ {0,3}>\s+\S|^```|^ {0,3}\|.+\|$|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`\n]+`|!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\))/m;
+const RICH_HTML_RE =
+  /<\/?(?:h[1-6]|ul|ol|li|blockquote|pre|code|strong|b|em|i|del|s|table|thead|tbody|tr|td|th|a|img)\b/i;
+
+function clipboardHasRichHtml(html: string): boolean {
+  return RICH_HTML_RE.test(html);
+}
+
+function getMarkdownClipboardText(data: DataTransfer | null): string {
+  if (!data) return '';
+  const explicitMarkdown = data.getData('text/markdown');
+  if (explicitMarkdown.trim()) {
+    return explicitMarkdown;
+  }
+  return data.getData('text/plain') || '';
+}
+
+function shouldParseClipboardAsMarkdown(text: string, html: string): boolean {
+  if (!text.trim()) return false;
+  if (clipboardHasRichHtml(html)) return false;
+  return MARKDOWN_SYNTAX_RE.test(text) || text.includes('\n');
+}
+
 function updatePreviewLineNumbers(): void {
   if (!props.showLineNumbers) return;
 
@@ -506,22 +530,17 @@ const editor = useEditor({
       }
       
       // 如果没有图片，处理文本粘贴
-      const text = event.clipboardData?.getData('text/plain');
+      const html = event.clipboardData?.getData('text/html') || '';
+      const text = getMarkdownClipboardText(event.clipboardData ?? null);
       if (!text) return false;
-      
-      // 改进的 Markdown 检测策略：
-      // 1. 检查是否包含明显的 Markdown 语法
-      // 2. 或者包含多行文本（可能是从 Markdown 文档复制的）
-      const hasMarkdownSyntax = /^#{1,6}\s|^\*\*|^\*|^-\s|^>\s|^```|^\d+\.\s|^-\s\[[ x]\]|\*\*.*\*\*|__.*__|`.*`|\[.*\]\(.*\)|^---$|^\|.*\|/m.test(text);
-      const isMultiLine = text.includes('\n');
-      
-      // 如果包含 Markdown 语法或者是多行文本，尝试作为 Markdown 解析
-      if (hasMarkdownSyntax || isMultiLine) {
+
+      // 富 HTML（例如从 Codex/网页渲染区复制）交给 TipTap 原生粘贴，避免退化成纯文本。
+      if (shouldParseClipboardAsMarkdown(text, html)) {
         try {
-          const html = markdownToHtml(text, workspaceRoot.value);
-          view.dispatch(view.state.tr.insertText(''));
+          const parsedHtml = markdownToHtml(text, workspaceRoot.value);
+          event.preventDefault();
           if (editor.value) {
-            editor.value.commands.insertContent(html);
+            editor.value.commands.insertContent(parsedHtml);
           }
           return true;
         } catch (error) {

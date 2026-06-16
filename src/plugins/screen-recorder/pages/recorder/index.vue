@@ -173,6 +173,9 @@
             <span class="time">{{ timeText }}</span>
             <button
               class="control-button"
+              :title="
+                status === 'paused' ? shortcutResumeTitle : shortcutPauseTitle
+              "
               @click="status === 'paused' ? handleResume() : handlePause()"
             >
               <span class="button-label">
@@ -183,7 +186,11 @@
                 }}
               </span>
             </button>
-            <button class="control-button danger" @click="handleStop">
+            <button
+              class="control-button danger"
+              :title="shortcutStopTitle"
+              @click="handleStop"
+            >
               <span class="button-label">{{ $t('screenRecorder.stop') }}</span>
             </button>
           </template>
@@ -242,6 +249,7 @@
               captureSize.width < MIN_CAPTURE_SIZE ||
               captureSize.height < MIN_CAPTURE_SIZE
             "
+            :title="shortcutStartTitle"
             @click="handleStart"
           >
             <span class="record-dot"></span>
@@ -299,8 +307,14 @@ type AudioLevelEvent = { level?: number };
 type PhysicalFrame = { x: number; y: number; width: number; height: number };
 type ExportProgressEvent = RecordingExportProgress;
 type PassthroughFrame = { x: number; y: number; width: number; height: number };
+type RecorderShortcutAction = 'start' | 'pause' | 'stop';
 
 const LOG_PREFIX = '[screen-recorder]';
+const CONTROL_SHORTCUTS = {
+  start: 'R',
+  pause: 'P',
+  stop: 'S'
+} as const;
 const { t } = useI18n();
 const appWindow = getCurrentWindow();
 const captureHoleRef = ref<HTMLElement | null>(null);
@@ -421,6 +435,18 @@ const cursorTitle = computed(() =>
   settings.value.showCursor
     ? String(t('screenRecorder.showCursorOn'))
     : String(t('screenRecorder.showCursorOff'))
+);
+const shortcutStartTitle = computed(
+  () => `${t('screenRecorder.start')} (${CONTROL_SHORTCUTS.start})`
+);
+const shortcutPauseTitle = computed(
+  () => `${t('screenRecorder.pause')} (${CONTROL_SHORTCUTS.pause})`
+);
+const shortcutResumeTitle = computed(
+  () => `${t('screenRecorder.resume')} (${CONTROL_SHORTCUTS.pause})`
+);
+const shortcutStopTitle = computed(
+  () => `${t('screenRecorder.stop')} (${CONTROL_SHORTCUTS.stop})`
 );
 
 const exportProgressPercent = computed(() => {
@@ -918,6 +944,32 @@ const handleRecordAgain = () => {
   void startAudioMeter();
 };
 
+const handleRecorderShortcut = (action: RecorderShortcutAction) => {
+  if (status.value === 'exporting') return;
+
+  if (action === 'start') {
+    if (status.value === 'ready') {
+      void handleStart();
+    } else if (status.value === 'completed') {
+      handleRecordAgain();
+    }
+    return;
+  }
+
+  if (action === 'pause') {
+    if (status.value === 'recording') {
+      void handlePause();
+    } else if (status.value === 'paused') {
+      void handleResume();
+    }
+    return;
+  }
+
+  if (action === 'stop' && (status.value === 'recording' || status.value === 'paused')) {
+    void handleStop();
+  }
+};
+
 const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
   const monitor = await monitorFromPoint(target.screenX, target.screenY);
   const scale = monitor?.scaleFactor || (await appWindow.scaleFactor());
@@ -1093,6 +1145,29 @@ const handleRevealFile = async () => {
 };
 
 const handleKeydown = (event: KeyboardEvent) => {
+  if (event.repeat) return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+  const key = event.key.toLowerCase();
+  if (key === 'r') {
+    event.preventDefault();
+    event.stopPropagation();
+    handleRecorderShortcut('start');
+    return;
+  }
+  if (key === 'p') {
+    event.preventDefault();
+    event.stopPropagation();
+    handleRecorderShortcut('pause');
+    return;
+  }
+  if (key === 's') {
+    event.preventDefault();
+    event.stopPropagation();
+    handleRecorderShortcut('stop');
+    return;
+  }
+
   if (event.key === 'Escape') {
     event.preventDefault();
     void handleClose();

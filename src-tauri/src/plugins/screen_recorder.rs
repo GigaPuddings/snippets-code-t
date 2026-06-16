@@ -167,6 +167,21 @@ fn debug_log_path(temp_dir: &Path) -> PathBuf {
     temp_dir.join("debug.log")
 }
 
+fn debug_logs_enabled() -> bool {
+    if cfg!(debug_assertions) {
+        return true;
+    }
+
+    std::env::var("SNIPPETS_SCREEN_RECORDER_DEBUG_LOGS")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on" | "debug"
+            )
+        })
+        .unwrap_or(false)
+}
+
 fn timestamp_text() -> String {
     chrono::Local::now()
         .format("%Y-%m-%d %H:%M:%S%.3f")
@@ -174,6 +189,10 @@ fn timestamp_text() -> String {
 }
 
 fn append_debug_log(temp_dir: &Path, message: impl AsRef<str>) {
+    if !debug_logs_enabled() {
+        return;
+    }
+
     let path = debug_log_path(temp_dir);
     let line = format!("[{}] {}\n", timestamp_text(), message.as_ref());
     if let Err(error) = OpenOptions::new()
@@ -1403,6 +1422,7 @@ fn spawn_segment(
         let ffmpeg = ffmpeg.ok_or_else(|| "未找到 FFmpeg，无法开始录屏".to_string())?;
         let output = temp_dir.join(format!("segment_{:03}.mp4", index));
         let segment_log = temp_dir.join(format!("segment_{:03}.ffmpeg.log", index));
+        let should_write_debug_logs = debug_logs_enabled();
         let video_size = format!("{}x{}", region.physical_width, region.physical_height);
         let fps_text = fps.to_string();
         let keyframe_interval = (fps.max(1) * 2).to_string();
@@ -1572,22 +1592,25 @@ fn spawn_segment(
             command_line
         );
 
-        let mut log_file = File::create(&segment_log)
-            .map_err(|e| format!("创建 FFmpeg 录制日志失败 {}: {}", segment_log.display(), e))?;
-        writeln!(
-            log_file,
-            "[{}] FFmpeg segment #{index}\ncommand: {}\n",
-            timestamp_text(),
-            command_line
-        )
-        .map_err(|e| format!("写入 FFmpeg 录制日志失败: {}", e))?;
-
         let mut command = ffmpeg_command(&ffmpeg.path);
         command.args(&args);
-        command
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::from(log_file));
+        command.stdin(Stdio::piped()).stdout(Stdio::null());
+
+        if should_write_debug_logs {
+            let mut log_file = File::create(&segment_log).map_err(|e| {
+                format!("创建 FFmpeg 录制日志失败 {}: {}", segment_log.display(), e)
+            })?;
+            writeln!(
+                log_file,
+                "[{}] FFmpeg segment #{index}\ncommand: {}\n",
+                timestamp_text(),
+                command_line
+            )
+            .map_err(|e| format!("写入 FFmpeg 录制日志失败: {}", e))?;
+            command.stderr(Stdio::from(log_file));
+        } else {
+            command.stderr(Stdio::null());
+        }
 
         let started = Instant::now();
         let child = match command.spawn() {
@@ -2563,23 +2586,27 @@ pub fn screen_recorder_export_recording(
                 size
             ),
         );
-        let debug_log_path = exported_debug_log_path(&output_path);
-        let debug_log_path = match write_export_debug_log(&session, &debug_log_path) {
-            Ok(()) => {
-                info!(
-                    "[Plugin:screen-recorder] debug log exported: session={}, path={}",
-                    session.id,
-                    display_path(&debug_log_path)
-                );
-                Some(display_path(&debug_log_path))
+        let debug_log_path = if debug_logs_enabled() {
+            let debug_log_path = exported_debug_log_path(&output_path);
+            match write_export_debug_log(&session, &debug_log_path) {
+                Ok(()) => {
+                    info!(
+                        "[Plugin:screen-recorder] debug log exported: session={}, path={}",
+                        session.id,
+                        display_path(&debug_log_path)
+                    );
+                    Some(display_path(&debug_log_path))
+                }
+                Err(error) => {
+                    warn!(
+                        "[Plugin:screen-recorder] export debug log failed: session={}, error={}",
+                        session.id, error
+                    );
+                    None
+                }
             }
-            Err(error) => {
-                warn!(
-                    "[Plugin:screen-recorder] export debug log failed: session={}, error={}",
-                    session.id, error
-                );
-                None
-            }
+        } else {
+            None
         };
         Ok(RecordingExportResult {
             path: display_path(&output_path),
