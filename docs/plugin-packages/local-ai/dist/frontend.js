@@ -100,17 +100,17 @@ const dc = cc("setting-two", !1, function(e) {
     "stroke-width": e.strokeWidth,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Nw = (e) => {
+}), Ww = (e) => {
   e.registerRoute({
     target: "layout",
     path: "/local-ai/chat",
     name: "LocalAiChat",
-    component: () => Promise.resolve().then(() => A1)
+    component: () => Promise.resolve().then(() => x1)
   }), e.registerSettingsTab({
     id: "localAi",
     labelKey: "localAi.title",
     icon: dc,
-    component: Wu(() => Promise.resolve().then(() => Lw))
+    component: Wu(() => Promise.resolve().then(() => Uw))
   });
 };
 /*!
@@ -250,20 +250,20 @@ function Pc(e, t = {}) {
     inLinked: !1,
     text: ""
   }, c = () => u, { onError: f } = t;
-  function p(w, S, M, ...H) {
+  function p(w, S, M, ...K) {
     const fe = c();
     if (S.column += M, S.offset += M, f) {
       const ae = n ? Ir(fe.startLoc, S) : null, _ = er(w, ae, {
         domain: Lc,
-        args: H
+        args: K
       });
       f(_);
     }
   }
   function m(w, S, M) {
     w.endLoc = a(), w.currentType = S;
-    const H = { type: S };
-    return n && (H.loc = Ir(w.startLoc, w.endLoc)), M != null && (H.value = M), H;
+    const K = { type: S };
+    return n && (K.loc = Ir(w.startLoc, w.endLoc)), M != null && (K.value = M), K;
   }
   const h = (w) => m(
     w,
@@ -302,15 +302,15 @@ function Pc(e, t = {}) {
     if (M !== 2)
       return !1;
     g(w);
-    const H = d(w.currentPeek());
-    return w.resetPeek(), H;
+    const K = d(w.currentPeek());
+    return w.resetPeek(), K;
   }
   function T(w, S) {
     const { currentType: M } = S;
     if (M !== 2)
       return !1;
     g(w);
-    const H = w.currentPeek() === "-" ? w.peek() : w.currentPeek(), fe = C(H);
+    const K = w.currentPeek() === "-" ? w.peek() : w.currentPeek(), fe = C(K);
     return w.resetPeek(), fe;
   }
   function y(w, S) {
@@ -318,41 +318,41 @@ function Pc(e, t = {}) {
     if (M !== 2)
       return !1;
     g(w);
-    const H = w.currentPeek() === Ka;
-    return w.resetPeek(), H;
+    const K = w.currentPeek() === Ka;
+    return w.resetPeek(), K;
   }
   function A(w, S) {
     const { currentType: M } = S;
     if (M !== 7)
       return !1;
     g(w);
-    const H = w.currentPeek() === ".";
-    return w.resetPeek(), H;
+    const K = w.currentPeek() === ".";
+    return w.resetPeek(), K;
   }
   function O(w, S) {
     const { currentType: M } = S;
     if (M !== 8)
       return !1;
     g(w);
-    const H = d(w.currentPeek());
-    return w.resetPeek(), H;
+    const K = d(w.currentPeek());
+    return w.resetPeek(), K;
   }
   function z(w, S) {
     const { currentType: M } = S;
     if (!(M === 7 || M === 11))
       return !1;
     g(w);
-    const H = w.currentPeek() === ":";
-    return w.resetPeek(), H;
+    const K = w.currentPeek() === ":";
+    return w.resetPeek(), K;
   }
   function U(w, S) {
     const { currentType: M } = S;
     if (M !== 9)
       return !1;
-    const H = () => {
+    const K = () => {
       const ae = w.currentPeek();
-      return ae === "{" ? d(w.peek()) : ae === "@" || ae === "|" || ae === ":" || ae === "." || ae === Lt || !ae ? !1 : ae === Ye ? (w.peek(), H()) : re(w, !1);
-    }, fe = H();
+      return ae === "{" ? d(w.peek()) : ae === "@" || ae === "|" || ae === ":" || ae === "." || ae === Lt || !ae ? !1 : ae === Ye ? (w.peek(), K()) : re(w, !1);
+    }, fe = K();
     return w.resetPeek(), fe;
   }
   function ee(w) {
@@ -364,14 +364,14 @@ function Pc(e, t = {}) {
     const M = (fe = !1, ae = "") => {
       const _ = w.currentPeek();
       return _ === "{" || _ === "@" || !_ ? fe : _ === "|" ? !(ae === Lt || ae === Ye) : _ === Lt ? (w.peek(), M(!0, Lt)) : _ === Ye ? (w.peek(), M(!0, Ye)) : !0;
-    }, H = M();
-    return S && w.resetPeek(), H;
+    }, K = M();
+    return S && w.resetPeek(), K;
   }
   function V(w, S) {
     const M = w.currentChar();
     return M === jt ? jt : S(M) ? (w.next(), M) : null;
   }
-  function K(w) {
+  function j(w) {
     const S = w.charCodeAt(0);
     return S >= 97 && S <= 122 || // a-z
     S >= 65 && S <= 90 || // A-Z
@@ -380,7 +380,7 @@ function Pc(e, t = {}) {
     S === 36;
   }
   function oe(w) {
-    return V(w, K);
+    return V(w, j);
   }
   function P(w) {
     const S = w.charCodeAt(0);
@@ -440,8 +440,8 @@ function Pc(e, t = {}) {
     let S = "", M = "";
     for (; S = R(w); )
       M += S;
-    const H = w.currentChar();
-    if (H && H !== "}" && H !== jt && H !== Lt && H !== Ye && H !== "　") {
+    const K = w.currentChar();
+    if (K && K !== "}" && K !== jt && K !== Lt && K !== Ye && K !== "　") {
       const fe = pt(w);
       return p(ge.INVALID_TOKEN_IN_PLACEHOLDER, a(), 0, M + fe), M + fe;
     }
@@ -460,8 +460,8 @@ function Pc(e, t = {}) {
     let S = "", M = "";
     for (; S = V(w, Be); )
       S === "\\" ? M += He(w) : M += S;
-    const H = w.currentChar();
-    return H === Ye || H === jt ? (p(ge.UNTERMINATED_SINGLE_QUOTE_IN_PLACEHOLDER, a(), 0), H === Ye && (w.next(), v(w, "'")), M) : (v(w, "'"), M);
+    const K = w.currentChar();
+    return K === Ye || K === jt ? (p(ge.UNTERMINATED_SINGLE_QUOTE_IN_PLACEHOLDER, a(), 0), K === Ye && (w.next(), v(w, "'")), M) : (v(w, "'"), M);
   }
   function He(w) {
     const S = w.currentChar();
@@ -479,16 +479,16 @@ function Pc(e, t = {}) {
   }
   function be(w, S, M) {
     v(w, S);
-    let H = "";
+    let K = "";
     for (let fe = 0; fe < M; fe++) {
       const ae = de(w);
       if (!ae) {
-        p(ge.INVALID_UNICODE_ESCAPE_SEQUENCE, a(), 0, `\\${S}${H}${w.currentChar()}`);
+        p(ge.INVALID_UNICODE_ESCAPE_SEQUENCE, a(), 0, `\\${S}${K}${w.currentChar()}`);
         break;
       }
-      H += ae;
+      K += ae;
     }
-    return `\\${S}${H}`;
+    return `\\${S}${K}`;
   }
   function rt(w) {
     return w !== "{" && w !== "}" && w !== Lt && w !== Ye;
@@ -508,8 +508,8 @@ function Pc(e, t = {}) {
   }
   function bt(w) {
     const S = (M) => {
-      const H = w.currentChar();
-      return H === "{" || H === "@" || H === "|" || H === "(" || H === ")" || !H || H === Lt ? M : (M += H, w.next(), S(M));
+      const K = w.currentChar();
+      return K === "{" || K === "@" || K === "|" || K === "(" || K === ")" || !K || K === Lt ? M : (M += K, w.next(), S(M));
     };
     return S("");
   }
@@ -562,16 +562,16 @@ function Pc(e, t = {}) {
   }
   function it(w, S) {
     const { currentType: M } = S;
-    let H = null;
+    let K = null;
     const fe = w.currentChar();
     switch ((M === 7 || M === 8 || M === 11 || M === 9) && (fe === Ye || fe === Lt) && p(ge.INVALID_LINKED_FORMAT, a(), 0), fe) {
       case "@":
-        return w.next(), H = m(
+        return w.next(), K = m(
           S,
           7,
           "@"
           /* TokenChars.LinkedAlias */
-        ), S.inLinked = !0, H;
+        ), S.inLinked = !0, K;
       case ".":
         return E(w), w.next(), m(
           S,
@@ -587,7 +587,7 @@ function Pc(e, t = {}) {
           /* TokenChars.LinkedDelimiter */
         );
       default:
-        return ee(w) ? (H = m(S, 1, st(w)), S.braceNest = 0, S.inLinked = !1, H) : A(w, S) || z(w, S) ? (E(w), it(w, S)) : O(w, S) ? (E(w), m(S, 11, at(w))) : U(w, S) ? (E(w), fe === "{" ? lt(w, S) || H : m(S, 10, bt(w))) : (M === 7 && p(ge.INVALID_LINKED_FORMAT, a(), 0), S.braceNest = 0, S.inLinked = !1, mt(w, S));
+        return ee(w) ? (K = m(S, 1, st(w)), S.braceNest = 0, S.inLinked = !1, K) : A(w, S) || z(w, S) ? (E(w), it(w, S)) : O(w, S) ? (E(w), m(S, 11, at(w))) : U(w, S) ? (E(w), fe === "{" ? lt(w, S) || K : m(S, 10, bt(w))) : (M === 7 && p(ge.INVALID_LINKED_FORMAT, a(), 0), S.braceNest = 0, S.inLinked = !1, mt(w, S));
     }
   }
   function mt(w, S) {
@@ -622,8 +622,8 @@ function Pc(e, t = {}) {
     return M;
   }
   function It() {
-    const { currentType: w, offset: S, startLoc: M, endLoc: H } = u;
-    return u.lastType = w, u.lastOffset = S, u.lastStartLoc = M, u.lastEndLoc = H, u.offset = r(), u.startLoc = a(), o.currentChar() === jt ? m(
+    const { currentType: w, offset: S, startLoc: M, endLoc: K } = u;
+    return u.lastType = w, u.lastOffset = S, u.lastStartLoc = M, u.lastEndLoc = K, u.offset = r(), u.startLoc = a(), o.currentChar() === jt ? m(
       u,
       13
       /* TokenTypes.EOF */
@@ -2127,7 +2127,7 @@ function Ud(e = {}) {
     set: (_) => {
       O.fallbackLocale = _, u.value = _, Xn(O, l.value, _);
     }
-  }), V = L(() => c.value), K = /* @__PURE__ */ L(() => f.value), oe = /* @__PURE__ */ L(() => p.value);
+  }), V = L(() => c.value), j = /* @__PURE__ */ L(() => f.value), oe = /* @__PURE__ */ L(() => p.value);
   function P() {
     return Te(C) ? C : null;
   }
@@ -2258,7 +2258,7 @@ function Ud(e = {}) {
   function M(_) {
     return p.value[_] || {};
   }
-  function H(_, $) {
+  function K(_, $) {
     p.value[_] = $, O.numberFormats = p.value, ss(O, _, $);
   }
   function fe(_, $) {
@@ -2338,7 +2338,7 @@ function Ud(e = {}) {
     setMissingHandler: ne,
     [Dd]: pt
   };
-  return ae.datetimeFormats = K, ae.numberFormats = oe, ae.rt = G, ae.te = at, ae.tm = st, ae.d = Me, ae.n = we, ae.getDateTimeFormat = It, ae.setDateTimeFormat = w, ae.mergeDateTimeFormat = S, ae.getNumberFormat = M, ae.setNumberFormat = H, ae.mergeNumberFormat = fe, ae[ti] = n, ae[Rr] = He, ae[$r] = rt, ae[Mr] = be, ae;
+  return ae.datetimeFormats = j, ae.numberFormats = oe, ae.rt = G, ae.te = at, ae.tm = st, ae.d = Me, ae.n = we, ae.getDateTimeFormat = It, ae.setDateTimeFormat = w, ae.mergeDateTimeFormat = S, ae.getNumberFormat = M, ae.setNumberFormat = K, ae.mergeNumberFormat = fe, ae[ti] = n, ae[Rr] = He, ae[$r] = rt, ae[Mr] = be, ae;
 }
 const na = {
   tag: {
@@ -4669,7 +4669,7 @@ const Ch = "ElInput", Sh = X({
     }), re = L(() => {
       var _;
       return (_ = c?.statusIcon) != null ? _ : !1;
-    }), V = L(() => f?.validateState || ""), K = L(() => V.value && Ui[V.value]), oe = L(() => I.value ? sh : qg), P = L(() => [
+    }), V = L(() => f?.validateState || ""), j = L(() => V.value && Ui[V.value]), oe = L(() => I.value ? sh : qg), P = L(() => [
       r.style
     ]), R = L(() => [
       o.inputStyle,
@@ -4740,7 +4740,7 @@ const Ch = "ElInput", Sh = X({
       C.value = !1, n("mouseleave", _);
     }, M = (_) => {
       C.value = !0, n("mouseenter", _);
-    }, H = (_) => {
+    }, K = (_) => {
       n("keydown", _);
     }, fe = () => {
       var _;
@@ -4837,7 +4837,7 @@ const Ch = "ElInput", Sh = X({
             onCompositionend: i(it),
             onInput: pt,
             onChange: at,
-            onKeydown: H
+            onKeydown: K
           }), null, 16, ["id", "minlength", "maxlength", "type", "disabled", "readonly", "autocomplete", "tabindex", "aria-label", "placeholder", "form", "autofocus", "role", "onCompositionstart", "onCompositionupdate", "onCompositionend"]),
           Y(" suffix slot "),
           i(we) ? (k(), W("span", {
@@ -4888,7 +4888,7 @@ const Ch = "ElInput", Sh = X({
                   class: B(i(v).e("count-inner"))
                 }, D(i(G)) + " / " + D(_.maxlength), 3)
               ], 2)) : Y("v-if", !0),
-              i(V) && i(K) && i(re) ? (k(), te(i(ke), {
+              i(V) && i(j) && i(re) ? (k(), te(i(ke), {
                 key: 4,
                 class: B([
                   i(v).e("icon"),
@@ -4897,7 +4897,7 @@ const Ch = "ElInput", Sh = X({
                 ])
               }, {
                 default: q(() => [
-                  (k(), te(Ze(i(K))))
+                  (k(), te(Ze(i(j))))
                 ]),
                 _: 1
               }, 8, ["class"])) : Y("v-if", !0)
@@ -4939,7 +4939,7 @@ const Ch = "ElInput", Sh = X({
           onFocus: i(U),
           onBlur: i(ee),
           onChange: at,
-          onKeydown: H
+          onKeydown: K
         }), null, 16, ["id", "minlength", "maxlength", "tabindex", "disabled", "readonly", "autocomplete", "aria-label", "placeholder", "form", "autofocus", "rows", "role", "onCompositionstart", "onCompositionupdate", "onCompositionend", "onFocus", "onBlur"]),
         i(de) ? (k(), W("span", {
           key: 0,
@@ -5921,8 +5921,8 @@ function bl(e) {
   }
   var re = Object.assign({ position: l }, c && V0), V = f === !0 ? x0({ x: h, y: g }, ft(n)) : { x: h, y: g };
   if (h = V.x, g = V.y, u) {
-    var K;
-    return Object.assign({}, re, (K = {}, K[T] = C ? "0" : "", K[I] = d ? "0" : "", K.transform = (y.devicePixelRatio || 1) <= 1 ? "translate(" + h + "px, " + g + "px)" : "translate3d(" + h + "px, " + g + "px, 0)", K));
+    var j;
+    return Object.assign({}, re, (j = {}, j[T] = C ? "0" : "", j[I] = d ? "0" : "", j.transform = (y.devicePixelRatio || 1) <= 1 ? "translate(" + h + "px, " + g + "px)" : "translate3d(" + h + "px, " + g + "px, 0)", j));
   }
   return Object.assign({}, re, (t = {}, t[T] = C ? g + "px" : "", t[I] = d ? h + "px" : "", t.transform = "", t));
 }
@@ -6047,9 +6047,9 @@ function vo(e, t) {
   var n = t, o = n.placement, r = o === void 0 ? e.placement : o, a = n.strategy, s = a === void 0 ? e.strategy : a, l = n.boundary, u = l === void 0 ? h0 : l, c = n.rootBoundary, f = c === void 0 ? tu : c, p = n.elementContext, m = p === void 0 ? Jn : p, h = n.altBoundary, v = h === void 0 ? !1 : h, g = n.padding, E = g === void 0 ? 0 : g, d = su(typeof E != "number" ? E : lu(E, _o)), C = m === Jn ? y0 : Jn, I = e.rects.popper, T = e.elements[v ? C : m], y = Y0(Sn(T) ? T : T.contextElement || hn(e.elements.popper), u, f, s), A = Wn(e.elements.reference), O = du({ reference: A, element: I, placement: r }), z = Hr(Object.assign({}, I, O)), U = m === Jn ? z : A, ee = { top: y.top - U.top + d.top, bottom: U.bottom - y.bottom + d.bottom, left: y.left - U.left + d.left, right: U.right - y.right + d.right }, re = e.modifiersData.offset;
   if (m === Jn && re) {
     var V = re[r];
-    Object.keys(ee).forEach(function(K) {
-      var oe = [yt, ht].indexOf(K) >= 0 ? 1 : -1, P = [tt, ht].indexOf(K) >= 0 ? "y" : "x";
-      ee[K] += V[P] * oe;
+    Object.keys(ee).forEach(function(j) {
+      var oe = [yt, ht].indexOf(j) >= 0 ? 1 : -1, P = [tt, ht].indexOf(j) >= 0 ? "y" : "x";
+      ee[j] += V[P] * oe;
     });
   }
   return ee;
@@ -6080,7 +6080,7 @@ function Z0(e) {
     for (var r = n.mainAxis, a = r === void 0 ? !0 : r, s = n.altAxis, l = s === void 0 ? !0 : s, u = n.fallbackPlacements, c = n.padding, f = n.boundary, p = n.rootBoundary, m = n.altBoundary, h = n.flipVariations, v = h === void 0 ? !0 : h, g = n.allowedAutoPlacements, E = t.options.placement, d = Vt(E), C = d === E, I = u || (C || !v ? [Vo(E)] : X0(E)), T = [E].concat(I).reduce(function(We, Be) {
       return We.concat(Vt(Be) === Sa ? q0(t, { placement: Be, boundary: f, rootBoundary: p, padding: c, flipVariations: v, allowedAutoPlacements: g }) : Be);
     }, []), y = t.rects.reference, A = t.rects.popper, O = /* @__PURE__ */ new Map(), z = !0, U = T[0], ee = 0; ee < T.length; ee++) {
-      var re = T[ee], V = Vt(re), K = jn(re) === Un, oe = [tt, ht].indexOf(V) >= 0, P = oe ? "width" : "height", R = vo(t, { placement: re, boundary: f, rootBoundary: p, altBoundary: m, padding: c }), F = oe ? K ? yt : nt : K ? ht : tt;
+      var re = T[ee], V = Vt(re), j = jn(re) === Un, oe = [tt, ht].indexOf(V) >= 0, P = oe ? "width" : "height", R = vo(t, { placement: re, boundary: f, rootBoundary: p, altBoundary: m, padding: c }), F = oe ? j ? yt : nt : j ? ht : tt;
       y[P] > A[P] && (F = Vo(F));
       var ne = Vo(F), J = [];
       if (a && J.push(R[V] <= 0), l && J.push(R[F] <= 0, R[ne] <= 0), J.every(function(We) {
@@ -6143,11 +6143,11 @@ function sy(e) {
   var t = e.state, n = e.options, o = e.name, r = n.mainAxis, a = r === void 0 ? !0 : r, s = n.altAxis, l = s === void 0 ? !1 : s, u = n.boundary, c = n.rootBoundary, f = n.altBoundary, p = n.padding, m = n.tether, h = m === void 0 ? !0 : m, v = n.tetherOffset, g = v === void 0 ? 0 : v, E = vo(t, { boundary: u, rootBoundary: c, padding: p, altBoundary: f }), d = Vt(t.placement), C = jn(t.placement), I = !C, T = Aa(d), y = ay(T), A = t.modifiersData.popperOffsets, O = t.rects.reference, z = t.rects.popper, U = typeof g == "function" ? g(Object.assign({}, t.rects, { placement: t.placement })) : g, ee = typeof U == "number" ? { mainAxis: U, altAxis: U } : Object.assign({ mainAxis: 0, altAxis: 0 }, U), re = t.modifiersData.offset ? t.modifiersData.offset[t.placement] : null, V = { x: 0, y: 0 };
   if (A) {
     if (a) {
-      var K, oe = T === "y" ? tt : nt, P = T === "y" ? ht : yt, R = T === "y" ? "height" : "width", F = A[T], ne = F + E[oe], J = F - E[P], de = h ? -z[R] / 2 : 0, G = C === Un ? O[R] : z[R], Me = C === Un ? -z[R] : -O[R], we = t.elements.arrow, We = h && we ? Oa(we) : { width: 0, height: 0 }, Be = t.modifiersData["arrow#persistent"] ? t.modifiersData["arrow#persistent"].padding : au(), je = Be[oe], He = Be[P], be = no(0, O[R], We[R]), rt = I ? O[R] / 2 - de - be - je - ee.mainAxis : G - be - je - ee.mainAxis, pt = I ? -O[R] / 2 + de + be + He + ee.mainAxis : Me + be + He + ee.mainAxis, at = t.elements.arrow && wo(t.elements.arrow), bt = at ? T === "y" ? at.clientTop || 0 : at.clientLeft || 0 : 0, st = (K = re?.[T]) != null ? K : 0, lt = F + rt - st - bt, it = F + pt - st, mt = no(h ? Xo(ne, lt) : ne, F, h ? wn(J, it) : J);
+      var j, oe = T === "y" ? tt : nt, P = T === "y" ? ht : yt, R = T === "y" ? "height" : "width", F = A[T], ne = F + E[oe], J = F - E[P], de = h ? -z[R] / 2 : 0, G = C === Un ? O[R] : z[R], Me = C === Un ? -z[R] : -O[R], we = t.elements.arrow, We = h && we ? Oa(we) : { width: 0, height: 0 }, Be = t.modifiersData["arrow#persistent"] ? t.modifiersData["arrow#persistent"].padding : au(), je = Be[oe], He = Be[P], be = no(0, O[R], We[R]), rt = I ? O[R] / 2 - de - be - je - ee.mainAxis : G - be - je - ee.mainAxis, pt = I ? -O[R] / 2 + de + be + He + ee.mainAxis : Me + be + He + ee.mainAxis, at = t.elements.arrow && wo(t.elements.arrow), bt = at ? T === "y" ? at.clientTop || 0 : at.clientLeft || 0 : 0, st = (j = re?.[T]) != null ? j : 0, lt = F + rt - st - bt, it = F + pt - st, mt = no(h ? Xo(ne, lt) : ne, F, h ? wn(J, it) : J);
       A[T] = mt, V[T] = mt - F;
     }
     if (l) {
-      var It, w = T === "x" ? tt : nt, S = T === "x" ? ht : yt, M = A[y], H = y === "y" ? "height" : "width", fe = M + E[w], ae = M - E[S], _ = [tt, nt].indexOf(d) !== -1, $ = (It = re?.[y]) != null ? It : 0, ue = _ ? fe : M - O[H] - z[H] - $ + ee.altAxis, ve = _ ? M + O[H] + z[H] - $ - ee.altAxis : ae, Ke = h && _ ? R0(ue, M, ve) : no(h ? ue : fe, M, h ? ve : ae);
+      var It, w = T === "x" ? tt : nt, S = T === "x" ? ht : yt, M = A[y], K = y === "y" ? "height" : "width", fe = M + E[w], ae = M - E[S], _ = [tt, nt].indexOf(d) !== -1, $ = (It = re?.[y]) != null ? It : 0, ue = _ ? fe : M - O[K] - z[K] - $ + ee.altAxis, ve = _ ? M + O[K] + z[K] - $ - ee.altAxis : ae, Ke = h && _ ? R0(ue, M, ve) : no(h ? ue : fe, M, h ? ve : ae);
       A[y] = Ke, V[y] = Ke - M;
     }
     t.modifiersData[o] = V;
@@ -6615,15 +6615,15 @@ const Ly = 0, Py = (e) => {
       removeInputId: co
     });
     let ee;
-    const re = (K = !0) => {
-      d(), K && O();
+    const re = (j = !0) => {
+      d(), j && O();
     }, V = () => {
       re(!1), o.visible && o.focusOnShow ? a.value = !0 : o.visible === !1 && (a.value = !1);
     };
     return Ne(() => {
-      ie(() => o.triggerTargetEl, (K, oe) => {
+      ie(() => o.triggerTargetEl, (j, oe) => {
         ee?.(), ee = void 0;
-        const P = i(K || h.value), R = i(oe || h.value);
+        const P = i(j || h.value), R = i(oe || h.value);
         St(P) && (ee = ie([E, () => o.ariaLabel, C, () => o.id], (F) => {
           ["role", "aria-label", "aria-modal", "id"].forEach((ne, J) => {
             Qt(F[J]) ? P.removeAttribute(ne) : P.setAttribute(ne, F[J]);
@@ -6639,15 +6639,15 @@ const Ly = 0, Py = (e) => {
       popperInstanceRef: g,
       updatePopper: re,
       contentStyle: A
-    }), (K, oe) => (k(), W("div", Mn({
+    }), (j, oe) => (k(), W("div", Mn({
       ref_key: "contentRef",
       ref: h
     }, i(T), {
       style: i(A),
       class: i(y),
       tabindex: "-1",
-      onMouseenter: (P) => K.$emit("mouseenter", P),
-      onMouseleave: (P) => K.$emit("mouseleave", P)
+      onMouseenter: (P) => j.$emit("mouseenter", P),
+      onMouseleave: (P) => j.$emit("mouseleave", P)
     }), [
       Z(i(g0), {
         trapped: i(a),
@@ -6661,7 +6661,7 @@ const Ly = 0, Py = (e) => {
         onReleaseRequested: i(f)
       }, {
         default: q(() => [
-          le(K.$slots, "default")
+          le(j.$slots, "default")
         ]),
         _: 3
       }, 8, ["trapped", "focus-trap-el", "focus-start-el", "onFocusAfterTrapped", "onFocusAfterReleased", "onFocusin", "onFocusoutPrevented", "onReleaseRequested"])
@@ -6952,7 +6952,7 @@ const Qy = At(Jy), vu = () => {
     }), V = () => {
       var F, ne;
       (ne = (F = a.value) == null ? void 0 : F.updatePopper) == null || ne.call(F), g?.();
-    }, K = () => {
+    }, j = () => {
       E?.();
     }, oe = () => {
       h(), s = cg(L(() => {
@@ -6990,7 +6990,7 @@ const Qy = At(Jy), vu = () => {
           onAfterLeave: z,
           onBeforeEnter: V,
           onAfterEnter: oe,
-          onBeforeLeave: K
+          onBeforeLeave: j
         }, {
           default: q(() => [
             i(I) ? xe((k(), te(i($y), Mn({
@@ -7549,12 +7549,12 @@ const Eb = 100, Cb = 600, Il = {
       if (o.readonly || v.value || f.value)
         return;
       const P = Number(g.value) || 0, R = C(P);
-      A(R), n(en, l.currentValue), K();
+      A(R), n(en, l.currentValue), j();
     }, T = () => {
       if (o.readonly || v.value || c.value)
         return;
       const P = Number(g.value) || 0, R = C(P, -1);
-      A(R), n(en, l.currentValue), K();
+      A(R), n(en, l.currentValue), j();
     }, y = (P, R) => {
       const { max: F, min: ne, step: J, precision: de, stepStrictly: G, valueOnClear: Me } = o;
       F < ne && pa("InputNumber", "min should not be greater than max.");
@@ -7581,7 +7581,7 @@ const Eb = 100, Cb = 600, Il = {
       n(en, R), A(R, !1);
     }, z = (P) => {
       const R = P !== "" ? Number(P) : "";
-      (he(R) && !Number.isNaN(R) || P === "") && A(R), K(), l.userInput = null;
+      (he(R) && !Number.isNaN(R) || P === "") && A(R), j(), l.userInput = null;
     }, U = () => {
       var P, R;
       (R = (P = s.value) == null ? void 0 : P.focus) == null || R.call(P);
@@ -7593,7 +7593,7 @@ const Eb = 100, Cb = 600, Il = {
     }, V = (P) => {
       var R, F;
       l.userInput = null, zi() && l.currentValue === null && ((R = s.value) != null && R.input) && (s.value.input.value = ""), n("blur", P), o.validateEvent && ((F = u?.validate) == null || F.call(u, "blur").catch((ne) => void 0));
-    }, K = () => {
+    }, j = () => {
       l.currentValue !== o.modelValue && (l.currentValue = o.modelValue);
     }, oe = (P) => {
       document.activeElement === P.target && P.preventDefault();
@@ -7909,30 +7909,30 @@ const Db = (e, t) => {
       e.automaticDropdown && !U.value && (U.value = !0, s.menuVisibleOnFocus = !0);
     },
     beforeBlur(N) {
-      var j, ce;
-      return ((j = c.value) == null ? void 0 : j.isFocusInsideContent(N)) || ((ce = f.value) == null ? void 0 : ce.isFocusInsideContent(N));
+      var H, ce;
+      return ((H = c.value) == null ? void 0 : H.isFocusInsideContent(N)) || ((ce = f.value) == null ? void 0 : ce.isFocusInsideContent(N));
     },
     afterBlur() {
       U.value = !1, s.menuVisibleOnFocus = !1;
     }
-  }), U = x(!1), ee = x(), { form: re, formItem: V } = dr(), { inputId: K } = ya(e, {
+  }), U = x(!1), ee = x(), { form: re, formItem: V } = dr(), { inputId: j } = ya(e, {
     formItemContext: V
   }), { valueOnClear: oe, isEmptyValue: P } = kg(e), R = L(() => e.disabled || re?.disabled), F = L(() => Rt(e.modelValue) ? e.modelValue.length > 0 : !P(e.modelValue)), ne = L(() => {
     var N;
     return (N = re?.statusIcon) != null ? N : !1;
   }), J = L(() => e.clearable && !R.value && s.inputHovering && F.value), de = L(() => e.remote && e.filterable && !e.remoteShowSuffix ? "" : e.suffixIcon), G = L(() => r.is("reverse", de.value && U.value)), Me = L(() => V?.validateState || ""), we = L(() => Ui[Me.value]), We = L(() => e.remote ? 300 : 0), Be = L(() => e.remote && !s.inputValue && s.options.size === 0), je = L(() => e.loading ? e.loadingText || n("el.select.loading") : e.filterable && s.inputValue && s.options.size > 0 && He.value === 0 ? e.noMatchText || n("el.select.noMatch") : s.options.size === 0 ? e.noDataText || n("el.select.noData") : null), He = L(() => be.value.filter((N) => N.visible).length), be = L(() => {
-    const N = Array.from(s.options.values()), j = [];
+    const N = Array.from(s.options.values()), H = [];
     return s.optionValues.forEach((ce) => {
       const Fe = N.findIndex((ut) => ut.value === ce);
-      Fe > -1 && j.push(N[Fe]);
-    }), j.length >= N.length ? j : N;
+      Fe > -1 && H.push(N[Fe]);
+    }), H.length >= N.length ? H : N;
   }), rt = L(() => Array.from(s.cachedOptions.values())), pt = L(() => {
-    const N = be.value.filter((j) => !j.created).some((j) => j.currentLabel === s.inputValue);
+    const N = be.value.filter((H) => !H.created).some((H) => H.currentLabel === s.inputValue);
     return e.filterable && e.allowCreate && s.inputValue !== "" && !N;
   }), at = () => {
     e.filterable && Oe(e.filterMethod) || e.filterable && e.remote && Oe(e.remoteMethod) || be.value.forEach((N) => {
-      var j;
-      (j = N.updateOption) == null || j.call(N, s.inputValue);
+      var H;
+      (H = N.updateOption) == null || H.call(N, s.inputValue);
     });
   }, bt = bo(), st = L(() => ["small"].includes(bt.value) ? "small" : "default"), lt = L({
     get() {
@@ -7948,11 +7948,11 @@ const Db = (e, t) => {
     return e.filterable || $t(N) ? !s.inputValue : !0;
   }), mt = L(() => {
     var N;
-    const j = (N = e.placeholder) != null ? N : n("el.select.placeholder");
-    return e.multiple || !F.value ? j : s.selectedLabel;
+    const H = (N = e.placeholder) != null ? N : n("el.select.placeholder");
+    return e.multiple || !F.value ? H : s.selectedLabel;
   }), It = L(() => zr ? null : "mouseenter");
-  ie(() => e.modelValue, (N, j) => {
-    e.multiple && e.filterable && !e.reserveKeyword && (s.inputValue = "", w("")), M(), !to(N, j) && e.validateEvent && V?.validate("change").catch((ce) => void 0);
+  ie(() => e.modelValue, (N, H) => {
+    e.multiple && e.filterable && !e.reserveKeyword && (s.inputValue = "", w("")), M(), !to(N, H) && e.validateEvent && V?.validate("change").catch((ce) => void 0);
   }, {
     flush: "post",
     deep: !0
@@ -7963,8 +7963,8 @@ const Db = (e, t) => {
   }, {
     flush: "post"
   }), ie([() => s.hoveringIndex, be], ([N]) => {
-    he(N) && N > -1 ? ee.value = be.value[N] || {} : ee.value = {}, be.value.forEach((j) => {
-      j.hover = ee.value === j;
+    he(N) && N > -1 ? ee.value = be.value[N] || {} : ee.value = {}, be.value.forEach((H) => {
+      H.hover = ee.value === H;
     });
   }), $l(() => {
     s.isBeforeHide || at();
@@ -7972,27 +7972,27 @@ const Db = (e, t) => {
   const w = (N) => {
     s.previousQuery === N || C.value || (s.previousQuery = N, e.filterable && Oe(e.filterMethod) ? e.filterMethod(N) : e.filterable && e.remote && Oe(e.remoteMethod) && e.remoteMethod(N), e.defaultFirstOption && (e.filterable || e.remote) && He.value ? Ie(S) : Ie(fe));
   }, S = () => {
-    const N = be.value.filter((ut) => ut.visible && !ut.disabled && !ut.states.groupDisabled), j = N.find((ut) => ut.created), ce = N[0], Fe = be.value.map((ut) => ut.value);
-    s.hoveringIndex = xa(Fe, j || ce);
+    const N = be.value.filter((ut) => ut.visible && !ut.disabled && !ut.states.groupDisabled), H = N.find((ut) => ut.created), ce = N[0], Fe = be.value.map((ut) => ut.value);
+    s.hoveringIndex = xa(Fe, H || ce);
   }, M = () => {
     if (e.multiple)
       s.selectedLabel = "";
     else {
-      const j = Rt(e.modelValue) ? e.modelValue[0] : e.modelValue, ce = H(j);
+      const H = Rt(e.modelValue) ? e.modelValue[0] : e.modelValue, ce = K(H);
       s.selectedLabel = ce.currentLabel, s.selected = [ce];
       return;
     }
     const N = [];
-    $t(e.modelValue) || cn(e.modelValue).forEach((j) => {
-      N.push(H(j));
+    $t(e.modelValue) || cn(e.modelValue).forEach((H) => {
+      N.push(K(H));
     }), s.selected = N;
-  }, H = (N) => {
-    let j;
+  }, K = (N) => {
+    let H;
     const ce = sf(N);
     for (let Ln = s.cachedOptions.size - 1; Ln >= 0; Ln--) {
       const sn = rt.value[Ln];
       if (ce ? dn(sn.value, e.valueKey) === dn(N, e.valueKey) : sn.value === N) {
-        j = {
+        H = {
           value: N,
           currentLabel: sn.currentLabel,
           get isDisabled() {
@@ -8002,25 +8002,25 @@ const Db = (e, t) => {
         break;
       }
     }
-    if (j)
-      return j;
+    if (H)
+      return H;
     const Fe = ce ? N.label : N ?? "";
     return {
       value: N,
       currentLabel: Fe
     };
   }, fe = () => {
-    s.hoveringIndex = be.value.findIndex((N) => s.selected.some((j) => So(j) === So(N)));
+    s.hoveringIndex = be.value.findIndex((N) => s.selected.some((H) => So(H) === So(N)));
   }, ae = () => {
     s.selectionWidth = u.value.getBoundingClientRect().width;
   }, _ = () => {
     s.collapseItemWidth = E.value.getBoundingClientRect().width;
   }, $ = () => {
-    var N, j;
-    (j = (N = c.value) == null ? void 0 : N.updatePopper) == null || j.call(N);
+    var N, H;
+    (H = (N = c.value) == null ? void 0 : N.updatePopper) == null || H.call(N);
   }, ue = () => {
-    var N, j;
-    (j = (N = f.value) == null ? void 0 : N.updatePopper) == null || j.call(N);
+    var N, H;
+    (H = (N = f.value) == null ? void 0 : N.updatePopper) == null || H.call(N);
   }, ve = () => {
     s.inputValue.length > 0 && !U.value && (U.value = !0), w(s.inputValue);
   }, Ke = (N) => {
@@ -8032,43 +8032,43 @@ const Db = (e, t) => {
     ve();
   }, We.value), vt = (N) => {
     to(e.modelValue, N) || t(nn, N);
-  }, gr = (N) => Kv(N, (j) => {
-    const ce = s.cachedOptions.get(j);
+  }, gr = (N) => Kv(N, (H) => {
+    const ce = s.cachedOptions.get(H);
     return ce && !ce.disabled && !ce.states.groupDisabled;
   }), Fa = (N) => {
     if (e.multiple && N.code !== Dt.delete && N.target.value.length <= 0) {
-      const j = cn(e.modelValue).slice(), ce = gr(j);
+      const H = cn(e.modelValue).slice(), ce = gr(H);
       if (ce < 0)
         return;
-      const Fe = j[ce];
-      j.splice(ce, 1), t(Ve, j), vt(j), t("remove-tag", Fe);
+      const Fe = H[ce];
+      H.splice(ce, 1), t(Ve, H), vt(H), t("remove-tag", Fe);
     }
-  }, Tu = (N, j) => {
-    const ce = s.selected.indexOf(j);
+  }, Tu = (N, H) => {
+    const ce = s.selected.indexOf(H);
     if (ce > -1 && !R.value) {
       const Fe = cn(e.modelValue).slice();
-      Fe.splice(ce, 1), t(Ve, Fe), vt(Fe), t("remove-tag", j.value);
+      Fe.splice(ce, 1), t(Ve, Fe), vt(Fe), t("remove-tag", H.value);
     }
     N.stopPropagation(), Co();
   }, Da = (N) => {
     N.stopPropagation();
-    const j = e.multiple ? [] : oe.value;
+    const H = e.multiple ? [] : oe.value;
     if (e.multiple)
       for (const ce of s.selected)
-        ce.isDisabled && j.push(ce.value);
-    t(Ve, j), vt(j), s.hoveringIndex = -1, U.value = !1, t("clear"), Co();
+        ce.isDisabled && H.push(ce.value);
+    t(Ve, H), vt(H), s.hoveringIndex = -1, U.value = !1, t("clear"), Co();
   }, Va = (N) => {
-    var j;
+    var H;
     if (e.multiple) {
-      const ce = cn((j = e.modelValue) != null ? j : []).slice(), Fe = xa(ce, N);
+      const ce = cn((H = e.modelValue) != null ? H : []).slice(), Fe = xa(ce, N);
       Fe > -1 ? ce.splice(Fe, 1) : (e.multipleLimit <= 0 || ce.length < e.multipleLimit) && ce.push(N.value), t(Ve, ce), vt(ce), N.created && w(""), e.filterable && !e.reserveKeyword && (s.inputValue = "");
     } else
       t(Ve, N.value), vt(N.value), U.value = !1;
     Co(), !U.value && Ie(() => {
       Eo(N);
     });
-  }, xa = (N = [], j) => $t(j) ? -1 : dt(j.value) ? N.findIndex((ce) => to(dn(ce, e.valueKey), So(j))) : N.indexOf(j.value), Eo = (N) => {
-    var j, ce, Fe, ut, Ln;
+  }, xa = (N = [], H) => $t(H) ? -1 : dt(H.value) ? N.findIndex((ce) => to(dn(ce, e.valueKey), So(H))) : N.indexOf(H.value), Eo = (N) => {
+    var H, ce, Fe, ut, Ln;
     const sn = Rt(N) ? N[0] : N;
     let To = null;
     if (sn?.value) {
@@ -8076,17 +8076,17 @@ const Db = (e, t) => {
       qn.length > 0 && (To = qn[0].$el);
     }
     if (c.value && To) {
-      const qn = (ut = (Fe = (ce = (j = c.value) == null ? void 0 : j.popperRef) == null ? void 0 : ce.contentRef) == null ? void 0 : Fe.querySelector) == null ? void 0 : ut.call(Fe, `.${r.be("dropdown", "wrap")}`);
+      const qn = (ut = (Fe = (ce = (H = c.value) == null ? void 0 : H.popperRef) == null ? void 0 : ce.contentRef) == null ? void 0 : Fe.querySelector) == null ? void 0 : ut.call(Fe, `.${r.be("dropdown", "wrap")}`);
       qn && $g(qn, To);
     }
     (Ln = d.value) == null || Ln.handleScroll();
   }, Ou = (N) => {
     s.options.set(N.value, N), s.cachedOptions.set(N.value, N);
-  }, Au = (N, j) => {
-    s.options.get(N) === j && s.options.delete(N);
+  }, Au = (N, H) => {
+    s.options.get(N) === H && s.options.delete(N);
   }, Iu = L(() => {
-    var N, j;
-    return (j = (N = c.value) == null ? void 0 : N.popperRef) == null ? void 0 : j.contentRef;
+    var N, H;
+    return (H = (N = c.value) == null ? void 0 : N.popperRef) == null ? void 0 : H.contentRef;
   }), Lu = () => {
     s.isBeforeHide = !1, Ie(() => {
       var N;
@@ -8099,8 +8099,8 @@ const Db = (e, t) => {
     var N;
     if (U.value) {
       U.value = !1, Ie(() => {
-        var j;
-        return (j = p.value) == null ? void 0 : j.blur();
+        var H;
+        return (H = p.value) == null ? void 0 : H.blur();
       });
       return;
     }
@@ -8109,8 +8109,8 @@ const Db = (e, t) => {
     Da(N);
   }, ku = (N) => {
     if (U.value = !1, O.value) {
-      const j = new FocusEvent("focus", N);
-      Ie(() => z(j));
+      const H = new FocusEvent("focus", N);
+      Ie(() => z(H));
     }
   }, Ru = () => {
     s.inputValue.length > 0 ? s.inputValue = "" : U.value = !1;
@@ -8130,8 +8130,8 @@ const Db = (e, t) => {
     }
     if (!(s.options.size === 0 || He.value === 0 || C.value) && !Mu.value) {
       N === "next" ? (s.hoveringIndex++, s.hoveringIndex === s.options.size && (s.hoveringIndex = 0)) : N === "prev" && (s.hoveringIndex--, s.hoveringIndex < 0 && (s.hoveringIndex = s.options.size - 1));
-      const j = be.value[s.hoveringIndex];
-      (j.isDisabled || !j.visible) && Ua(N), Ie(() => Eo(ee.value));
+      const H = be.value[s.hoveringIndex];
+      (H.isDisabled || !H.visible) && Ua(N), Ie(() => Eo(ee.value));
     }
   }, Vu = () => {
     if (!u.value)
@@ -8147,7 +8147,7 @@ const Db = (e, t) => {
   return kt(u, ae), kt(v, $), kt(A, $), kt(g, ue), kt(E, _), Ne(() => {
     M();
   }), {
-    inputId: K,
+    inputId: j,
     contentId: o,
     nsSelect: r,
     nsInput: a,
@@ -9775,19 +9775,25 @@ async function D_(e) {
 async function V_(e) {
   return await ot("local_ai_delete_chat_history", { historyId: e });
 }
-const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-card" }, U_ = { class: "sidebar-header" }, z_ = { class: "sidebar-actions" }, W_ = { class: "sidebar-search" }, j_ = ["placeholder"], H_ = { class: "sidebar-section" }, K_ = { class: "section-title" }, G_ = { class: "chat-item-title" }, Y_ = { class: "chat-item-meta" }, q_ = { class: "sidebar-section recent-section" }, X_ = { class: "section-title" }, Z_ = {
+const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-card" }, U_ = { class: "sidebar-header" }, z_ = { class: "sidebar-title-block" }, W_ = { class: "sidebar-actions" }, j_ = { class: "sidebar-search" }, H_ = ["placeholder"], K_ = { class: "sidebar-section" }, G_ = { class: "section-title" }, Y_ = { class: "chat-item-copy" }, q_ = { class: "chat-item-title" }, X_ = { class: "chat-item-meta" }, Z_ = { class: "sidebar-section recent-section" }, J_ = { class: "section-title" }, Q_ = {
   key: 0,
   class: "chat-list"
-}, J_ = ["onClick"], Q_ = { class: "chat-item-title" }, e1 = { class: "chat-item-meta" }, t1 = ["onClick"], n1 = {
+}, e1 = ["onClick"], t1 = { class: "chat-item-copy" }, n1 = { class: "chat-item-title" }, o1 = { class: "chat-item-meta" }, r1 = ["onClick"], a1 = {
   key: 1,
   class: "sidebar-empty"
-}, o1 = { class: "chat-panel panel-card" }, r1 = { class: "chat-topbar" }, a1 = { class: "chat-topbar-main" }, s1 = { class: "chat-title-row" }, l1 = { class: "chat-subtitle" }, i1 = { class: "chat-topbar-actions" }, u1 = { class: "chat-status-row" }, c1 = { class: "chat-status-item" }, d1 = { class: "chat-status-item" }, f1 = { class: "chat-status-item" }, p1 = {
+}, s1 = { class: "chat-panel panel-card" }, l1 = { class: "chat-topbar" }, i1 = { class: "chat-topbar-main" }, u1 = { class: "chat-title-row" }, c1 = { class: "chat-subtitle" }, d1 = { class: "chat-topbar-actions" }, f1 = { class: "chat-chip-row" }, p1 = { class: "info-chip" }, m1 = { class: "info-chip" }, v1 = { class: "info-chip" }, g1 = {
   key: 0,
   class: "empty-state"
-}, m1 = { class: "empty-card" }, v1 = { class: "empty-title" }, g1 = { class: "empty-desc" }, h1 = { class: "message-meta" }, y1 = { class: "message-bubble" }, b1 = {
+}, h1 = { class: "empty-card" }, y1 = { class: "empty-title" }, b1 = { class: "empty-desc" }, _1 = { class: "message-head" }, w1 = { class: "message-role" }, E1 = {
+  key: 0,
+  class: "message-mini-meta"
+}, C1 = { class: "message-bubble" }, S1 = {
+  key: 0,
+  class: "message-footer"
+}, T1 = { class: "message-mini-meta" }, O1 = {
   key: 1,
   class: "message-row message-row--assistant"
-}, _1 = { class: "message-meta" }, w1 = { class: "message-bubble loading-text" }, E1 = ["placeholder", "onKeydown"], C1 = { class: "input-actions" }, S1 = { class: "input-buttons" }, T1 = /* @__PURE__ */ X({
+}, A1 = { class: "message-head" }, I1 = { class: "message-role" }, L1 = { class: "message-mini-meta" }, P1 = { class: "message-bubble loading-text" }, N1 = { class: "chat-input-shell" }, k1 = ["placeholder", "onKeydown"], R1 = { class: "input-toolbar" }, $1 = { class: "input-toolbar-left" }, M1 = ["disabled"], F1 = { class: "input-toolbar-right" }, D1 = /* @__PURE__ */ X({
   name: "LocalAiChat",
   __name: "index",
   setup(e) {
@@ -9795,7 +9801,7 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
     let p = null;
     const m = L(() => c.value?.healthy ? t("localAi.serviceHealthy") : c.value?.running ? t("localAi.serviceStarting") : t("localAi.serviceStopped")), h = L(() => r.value.find((V) => V.id === a.value) ?? null), v = L(() => h.value?.messages ?? []), g = L(() => {
       const V = o.value.trim().toLowerCase();
-      return r.value.filter((K) => !V || K.title.toLowerCase().includes(V) || K.messages.some((oe) => oe.content.toLowerCase().includes(V))).slice().sort((K, oe) => oe.updatedAt.localeCompare(K.updatedAt));
+      return r.value.filter((j) => !V || j.title.toLowerCase().includes(V) || j.messages.some((oe) => oe.content.toLowerCase().includes(V))).slice().sort((j, oe) => oe.updatedAt.localeCompare(j.updatedAt));
     }), E = async () => {
       await Ie();
       const V = f.value;
@@ -9812,7 +9818,7 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
     }, C = async () => {
       try {
         const V = await F_();
-        r.value = V.map((K) => ({ id: K.id, title: K.title, updatedAt: K.updatedAt, updatedAtLabel: new Date(K.updatedAt).toLocaleString(), messages: K.turns.map((oe) => ({ id: oe.id, role: oe.role, content: oe.content })) })), !a.value && r.value[0] && (a.value = r.value[0].id);
+        r.value = V.map((j) => ({ id: j.id, title: j.title, updatedAt: j.updatedAt, updatedAtLabel: new Date(j.updatedAt).toLocaleString(), messages: j.turns.map((oe) => ({ id: oe.id, role: oe.role, content: oe.content })) })), !a.value && r.value[0] && (a.value = r.value[0].id);
       } catch (V) {
         $n.warn("[LocalAI] refresh histories failed", V);
       }
@@ -9820,23 +9826,23 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
       await Promise.all([d(), C()]);
     }, T = async () => {
       const V = h.value;
-      V && await D_({ id: V.id, title: V.title, createdAt: V.updatedAt, updatedAt: V.updatedAt, turns: V.messages.map((K) => ({ id: K.id, role: K.role, content: K.content, createdAt: V.updatedAt })) });
+      V && await D_({ id: V.id, title: V.title, createdAt: V.updatedAt, updatedAt: V.updatedAt, turns: V.messages.map((j) => ({ id: j.id, role: j.role, content: j.content, createdAt: V.updatedAt })) });
     }, y = () => {
       const V = `chat-${Date.now()}`;
       r.value.unshift({ id: V, title: "New Chat", updatedAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAtLabel: "now", messages: [] }), a.value = V;
     }, A = (V) => {
       a.value = V;
     }, O = async (V) => {
-      r.value = r.value.filter((K) => K.id !== V), await V_(V), a.value === V && (a.value = r.value[0]?.id ?? "");
+      r.value = r.value.filter((j) => j.id !== V), await V_(V), a.value === V && (a.value = r.value[0]?.id ?? "");
     }, z = () => v.value.map((V) => ({ role: V.role, content: V.content })), U = async () => {
       const V = s.value.trim();
       if (!(!V || l.value)) {
         h.value || y(), h.value?.messages.push({ id: `${Date.now()}-user`, role: "user", content: V }), s.value = "", l.value = !0, await E();
         try {
-          const K = await M_({ messages: z() });
-          h.value?.messages.push({ id: `${Date.now()}-assistant`, role: "assistant", content: K.content }), h.value && (h.value.title = h.value.title === "New Chat" ? V.slice(0, 24) : h.value.title, h.value.updatedAt = (/* @__PURE__ */ new Date()).toISOString(), h.value.updatedAtLabel = new Date(h.value.updatedAt).toLocaleString(), await T()), await d();
-        } catch (K) {
-          Nt.msg(`${t("localAi.chatFailed")}: ${K}`, "error"), h.value?.messages.push({ id: `${Date.now()}-assistant-error`, role: "assistant", content: String(K) });
+          const j = await M_({ messages: z() });
+          h.value?.messages.push({ id: `${Date.now()}-assistant`, role: "assistant", content: j.content }), h.value && (h.value.title = h.value.title === "New Chat" ? V.slice(0, 24) : h.value.title, h.value.updatedAt = (/* @__PURE__ */ new Date()).toISOString(), h.value.updatedAtLabel = new Date(h.value.updatedAt).toLocaleString(), await T()), await d();
+        } catch (j) {
+          Nt.msg(`${t("localAi.chatFailed")}: ${j}`, "error"), h.value?.messages.push({ id: `${Date.now()}-assistant-error`, role: "assistant", content: String(j) });
         } finally {
           l.value = !1, await E();
         }
@@ -9852,10 +9858,10 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
       }, 8e3);
     }), Jo(() => {
       p && clearInterval(p);
-    }), (V, K) => (k(), W("main", x_, [
+    }), (V, j) => (k(), W("main", x_, [
       b("aside", B_, [
         b("div", U_, [
-          b("div", null, [
+          b("div", z_, [
             b(
               "h2",
               null,
@@ -9871,15 +9877,194 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
               /* TEXT */
             )
           ]),
-          b("div", z_, [
+          b("div", W_, [
             Z(i(ct), {
+              class: "icon-action-btn",
               size: "small",
-              type: "primary",
+              plain: "",
               onClick: y
+            }, {
+              default: q(() => j[2] || (j[2] = [
+                qe(" + ")
+              ])),
+              _: 1
+              /* STABLE */
+            }),
+            Z(i(ct), {
+              class: "icon-action-btn",
+              size: "small",
+              plain: "",
+              onClick: I
+            }, {
+              default: q(() => j[3] || (j[3] = [
+                qe(" ↻ ")
+              ])),
+              _: 1
+              /* STABLE */
+            })
+          ])
+        ]),
+        b("div", j_, [
+          xe(b("input", {
+            "onUpdate:modelValue": j[0] || (j[0] = (oe) => ro(o) ? o.value = oe : null),
+            class: "search-input",
+            placeholder: i(t)("common.search")
+          }, null, 8, H_), [
+            [ao, i(o)]
+          ])
+        ]),
+        b("div", K_, [
+          b(
+            "div",
+            G_,
+            D(i(t)("common.quickStart")),
+            1
+            /* TEXT */
+          ),
+          b("button", {
+            class: "chat-list-item chat-list-item--primary active",
+            type: "button",
+            onClick: y
+          }, [
+            b("div", Y_, [
+              b(
+                "div",
+                q_,
+                D(i(t)("localAi.chatEmpty")),
+                1
+                /* TEXT */
+              ),
+              b(
+                "div",
+                X_,
+                D(i(t)("localAi.chatPlaceholder")),
+                1
+                /* TEXT */
+              )
+            ]),
+            j[4] || (j[4] = b(
+              "span",
+              { class: "chat-item-arrow" },
+              "›",
+              -1
+              /* HOISTED */
+            ))
+          ])
+        ]),
+        b("div", Z_, [
+          b(
+            "div",
+            J_,
+            D(i(t)("localAi.recent")),
+            1
+            /* TEXT */
+          ),
+          i(g).length ? (k(), W("div", Q_, [
+            (k(!0), W(
+              Je,
+              null,
+              Fn(i(g), (oe) => (k(), W("button", {
+                key: oe.id,
+                type: "button",
+                class: B(["chat-list-item", i(a) === oe.id ? "active" : ""]),
+                onClick: (P) => A(oe.id)
+              }, [
+                b("div", t1, [
+                  b(
+                    "div",
+                    n1,
+                    D(oe.title),
+                    1
+                    /* TEXT */
+                  ),
+                  b(
+                    "div",
+                    o1,
+                    D(oe.updatedAtLabel),
+                    1
+                    /* TEXT */
+                  )
+                ]),
+                b("span", {
+                  class: "chat-item-delete",
+                  "aria-hidden": "true",
+                  onClick: Ae((P) => O(oe.id), ["stop"])
+                }, "×", 8, r1)
+              ], 10, e1))),
+              128
+              /* KEYED_FRAGMENT */
+            ))
+          ])) : (k(), W(
+            "div",
+            a1,
+            D(i(t)("common.empty")),
+            1
+            /* TEXT */
+          ))
+        ])
+      ]),
+      b("section", s1, [
+        b("header", l1, [
+          b("div", i1, [
+            b("div", u1, [
+              b(
+                "h3",
+                null,
+                D(i(h)?.title ?? i(t)("localAi.chatEmpty")),
+                1
+                /* TEXT */
+              ),
+              b(
+                "span",
+                {
+                  class: B(["status-pill", i(c)?.healthy ? "ready" : i(c)?.running ? "pending" : "stopped"])
+                },
+                D(i(m)),
+                3
+                /* TEXT, CLASS */
+              )
+            ]),
+            b("div", c1, [
+              j[5] || (j[5] = b(
+                "span",
+                { class: "meta-dot" },
+                null,
+                -1
+                /* HOISTED */
+              )),
+              b(
+                "span",
+                null,
+                D(i(c)?.baseUrl ?? "127.0.0.1"),
+                1
+                /* TEXT */
+              ),
+              j[6] || (j[6] = b(
+                "span",
+                { class: "meta-dot" },
+                null,
+                -1
+                /* HOISTED */
+              )),
+              b(
+                "span",
+                null,
+                D(i(t)("localAi.modelRuntime")),
+                1
+                /* TEXT */
+              )
+            ])
+          ]),
+          b("div", d1, [
+            Z(i(ct), {
+              class: "ghost-action-btn",
+              size: "small",
+              plain: "",
+              onClick: re
             }, {
               default: q(() => [
                 qe(
-                  D(i(t)("common.add")),
+                  D(i(t)("localAi.settings")),
                   1
                   /* TEXT */
                 )
@@ -9888,6 +10073,7 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
               /* STABLE */
             }),
             Z(i(ct), {
+              class: "ghost-action-btn",
               size: "small",
               plain: "",
               onClick: I
@@ -9904,189 +10090,28 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
             })
           ])
         ]),
-        b("div", W_, [
-          xe(b("input", {
-            "onUpdate:modelValue": K[0] || (K[0] = (oe) => ro(o) ? o.value = oe : null),
-            class: "search-input",
-            placeholder: i(t)("common.search")
-          }, null, 8, j_), [
-            [ao, i(o)]
-          ])
-        ]),
-        b("div", H_, [
+        b("div", f1, [
           b(
-            "div",
-            K_,
-            D(i(t)("common.quickStart")),
+            "span",
+            p1,
+            D(i(t)("localAi.serviceControl")) + " · " + D(i(m)),
             1
             /* TEXT */
           ),
-          b("button", {
-            class: "chat-list-item active",
-            type: "button",
-            onClick: y
-          }, [
-            b(
-              "div",
-              G_,
-              D(i(t)("localAi.chatEmpty")),
-              1
-              /* TEXT */
-            ),
-            b(
-              "div",
-              Y_,
-              D(i(t)("localAi.chatPlaceholder")),
-              1
-              /* TEXT */
-            )
-          ])
-        ]),
-        b("div", q_, [
           b(
-            "div",
-            X_,
-            D(i(t)("localAi.recent")),
+            "span",
+            m1,
+            D(i(c)?.baseUrl ?? "127.0.0.1"),
             1
             /* TEXT */
           ),
-          i(g).length ? (k(), W("div", Z_, [
-            (k(!0), W(
-              Je,
-              null,
-              Fn(i(g), (oe) => (k(), W("button", {
-                key: oe.id,
-                type: "button",
-                class: B(["chat-list-item", i(a) === oe.id ? "active" : ""]),
-                onClick: (P) => A(oe.id)
-              }, [
-                b(
-                  "div",
-                  Q_,
-                  D(oe.title),
-                  1
-                  /* TEXT */
-                ),
-                b(
-                  "div",
-                  e1,
-                  D(oe.updatedAtLabel),
-                  1
-                  /* TEXT */
-                ),
-                b("span", {
-                  class: "chat-item-delete",
-                  onClick: Ae((P) => O(oe.id), ["stop"])
-                }, "×", 8, t1)
-              ], 10, J_))),
-              128
-              /* KEYED_FRAGMENT */
-            ))
-          ])) : (k(), W(
-            "div",
-            n1,
-            D(i(t)("common.empty")),
+          b(
+            "span",
+            v1,
+            D(i(t)("localAi.generation")) + " · " + D(i(t)("localAi.generationDesc")),
             1
             /* TEXT */
-          ))
-        ])
-      ]),
-      b("section", o1, [
-        b("header", r1, [
-          b("div", a1, [
-            b("div", s1, [
-              b(
-                "h3",
-                null,
-                D(i(h)?.title ?? i(t)("localAi.chatEmpty")),
-                1
-                /* TEXT */
-              ),
-              b(
-                "span",
-                {
-                  class: B(["status-pill", i(c)?.healthy ? "ready" : ""])
-                },
-                D(i(m)),
-                3
-                /* TEXT, CLASS */
-              )
-            ]),
-            b(
-              "div",
-              l1,
-              D(i(c)?.baseUrl ?? "127.0.0.1"),
-              1
-              /* TEXT */
-            )
-          ]),
-          b("div", i1, [
-            Z(i(ct), {
-              size: "small",
-              plain: "",
-              onClick: re
-            }, {
-              default: q(() => [
-                qe(
-                  D(i(t)("localAi.settings")),
-                  1
-                  /* TEXT */
-                )
-              ]),
-              _: 1
-              /* STABLE */
-            })
-          ])
-        ]),
-        b("div", u1, [
-          b("div", c1, [
-            b(
-              "span",
-              null,
-              D(i(t)("localAi.serviceControl")),
-              1
-              /* TEXT */
-            ),
-            b(
-              "b",
-              null,
-              D(i(m)),
-              1
-              /* TEXT */
-            )
-          ]),
-          b("div", d1, [
-            b(
-              "span",
-              null,
-              D(i(t)("localAi.modelRuntime")),
-              1
-              /* TEXT */
-            ),
-            b(
-              "b",
-              null,
-              D(i(c)?.baseUrl ?? "127.0.0.1"),
-              1
-              /* TEXT */
-            )
-          ]),
-          b("div", f1, [
-            b(
-              "span",
-              null,
-              D(i(t)("localAi.generation")),
-              1
-              /* TEXT */
-            ),
-            b(
-              "b",
-              null,
-              D(i(t)("localAi.generationDesc")),
-              1
-              /* TEXT */
-            )
-          ])
+          )
         ]),
         b(
           "div",
@@ -10096,18 +10121,18 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
             class: "message-list"
           },
           [
-            i(v).length ? Y("v-if", !0) : (k(), W("div", p1, [
-              b("div", m1, [
+            i(v).length ? Y("v-if", !0) : (k(), W("div", g1, [
+              b("div", h1, [
                 b(
                   "div",
-                  v1,
+                  y1,
                   D(i(t)("localAi.chatEmpty")),
                   1
                   /* TEXT */
                 ),
                 b(
                   "div",
-                  g1,
+                  b1,
                   D(i(t)("localAi.chatPlaceholder")),
                   1
                   /* TEXT */
@@ -10124,20 +10149,43 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
                   class: B(["message-row", `message-row--${oe.role}`])
                 },
                 [
+                  b("div", _1, [
+                    b(
+                      "span",
+                      w1,
+                      D(oe.role === "user" ? i(t)("localAi.you") : i(t)("localAi.assistant")),
+                      1
+                      /* TEXT */
+                    ),
+                    oe.role === "assistant" ? (k(), W("span", E1, "qwen / local")) : Y("v-if", !0)
+                  ]),
                   b(
                     "div",
-                    h1,
-                    D(oe.role === "user" ? i(t)("localAi.you") : i(t)("localAi.assistant")),
-                    1
-                    /* TEXT */
-                  ),
-                  b(
-                    "div",
-                    y1,
+                    C1,
                     D(oe.content),
                     1
                     /* TEXT */
-                  )
+                  ),
+                  oe.role === "assistant" ? (k(), W("div", S1, [
+                    b(
+                      "span",
+                      T1,
+                      D(i(t)("localAi.generationDesc")),
+                      1
+                      /* TEXT */
+                    ),
+                    b(
+                      "button",
+                      {
+                        class: "message-action-link",
+                        type: "button",
+                        onClick: d
+                      },
+                      D(i(t)("plugins.refresh")),
+                      1
+                      /* TEXT */
+                    )
+                  ])) : Y("v-if", !0)
                 ],
                 2
                 /* CLASS */
@@ -10145,17 +10193,26 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
               128
               /* KEYED_FRAGMENT */
             )),
-            i(l) ? (k(), W("article", b1, [
+            i(l) ? (k(), W("article", O1, [
+              b("div", A1, [
+                b(
+                  "span",
+                  I1,
+                  D(i(t)("localAi.assistant")),
+                  1
+                  /* TEXT */
+                ),
+                b(
+                  "span",
+                  L1,
+                  D(i(t)("localAi.thinking")),
+                  1
+                  /* TEXT */
+                )
+              ]),
               b(
                 "div",
-                _1,
-                D(i(t)("localAi.assistant")),
-                1
-                /* TEXT */
-              ),
-              b(
-                "div",
-                w1,
+                P1,
                 D(i(t)("localAi.thinking")),
                 1
                 /* TEXT */
@@ -10172,43 +10229,59 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
             onSubmit: Ae(U, ["prevent"])
           },
           [
-            xe(b("textarea", {
-              "onUpdate:modelValue": K[1] || (K[1] = (oe) => ro(s) ? s.value = oe : null),
-              class: "chat-input",
-              rows: "4",
-              placeholder: i(t)("localAi.chatPlaceholder"),
-              onKeydown: wt(Ae(U, ["ctrl", "prevent"]), ["enter"])
-            }, null, 40, E1), [
-              [ao, i(s)]
+            b("div", N1, [
+              xe(b("textarea", {
+                "onUpdate:modelValue": j[1] || (j[1] = (oe) => ro(s) ? s.value = oe : null),
+                class: "chat-input",
+                rows: "4",
+                placeholder: i(t)("localAi.chatPlaceholder"),
+                onKeydown: wt(Ae(U, ["ctrl", "prevent"]), ["enter"])
+              }, null, 40, k1), [
+                [ao, i(s)]
+              ])
             ]),
-            b("div", C1, [
-              K[2] || (K[2] = b(
-                "div",
-                { class: "input-hint" },
-                "Ctrl + Enter",
-                -1
-                /* HOISTED */
-              )),
-              b("div", S1, [
-                Z(i(ct), {
-                  size: "small",
-                  plain: "",
+            b("div", R1, [
+              b("div", $1, [
+                b(
+                  "button",
+                  {
+                    class: "tool-chip",
+                    type: "button",
+                    onClick: re
+                  },
+                  D(i(t)("localAi.settings")),
+                  1
+                  /* TEXT */
+                ),
+                j[7] || (j[7] = b(
+                  "button",
+                  {
+                    class: "tool-chip",
+                    type: "button"
+                  },
+                  "Vision",
+                  -1
+                  /* HOISTED */
+                )),
+                b("button", {
+                  class: "tool-chip",
+                  type: "button",
                   disabled: i(l) || !i(v).length,
                   onClick: ee
-                }, {
-                  default: q(() => [
-                    qe(
-                      D(i(t)("common.clear")),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  _: 1
-                  /* STABLE */
-                }, 8, ["disabled"]),
+                }, D(i(t)("common.clear")), 9, M1)
+              ]),
+              b("div", F1, [
+                j[8] || (j[8] = b(
+                  "span",
+                  { class: "input-hint" },
+                  "Ctrl + Enter",
+                  -1
+                  /* HOISTED */
+                )),
                 Z(i(ct), {
                   type: "primary",
                   size: "small",
+                  class: "send-btn",
                   loading: i(l),
                   disabled: !i(s).trim(),
                   onClick: U
@@ -10232,17 +10305,17 @@ const x_ = { class: "local-ai-chat-shell" }, B_ = { class: "chat-sidebar panel-c
       ])
     ]));
   }
-}), O1 = /* @__PURE__ */ oa(T1, [["__scopeId", "data-v-8cee4de2"]]), A1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), V1 = /* @__PURE__ */ oa(D1, [["__scopeId", "data-v-54c10115"]]), x1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: O1
+  default: V1
 }, Symbol.toStringTag, { value: "Module" }));
 async function Nl(e = {}) {
   return typeof e == "object" && Object.freeze(e), await ot("plugin:dialog|open", { options: e });
 }
-const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "local-ai-hero panel-card" }, P1 = { class: "panel-title" }, N1 = { class: "hero-desc" }, k1 = { class: "header-actions" }, R1 = {
+const B1 = { class: "settings-panel local-ai-settings-shell" }, U1 = { class: "local-ai-hero panel-card" }, z1 = { class: "panel-title" }, W1 = { class: "hero-desc" }, j1 = { class: "header-actions" }, H1 = {
   key: 0,
   class: "settings-grid"
-}, $1 = { class: "summary-panel panel-card" }, M1 = { class: "status-strip" }, F1 = { class: "summary-card" }, D1 = { class: "summary-card__title" }, V1 = { class: "summary-card__desc" }, x1 = { class: "service-controls" }, B1 = { class: "service-url" }, U1 = { class: "summary-card" }, z1 = { class: "summary-card__title" }, W1 = { class: "summary-card__desc" }, j1 = { class: "summary-meta" }, H1 = { class: "form-panel panel-card" }, K1 = { class: "settings-section" }, G1 = { class: "settings-section__header" }, Y1 = { class: "field-stack" }, q1 = { class: "field-row" }, X1 = { class: "path-control" }, Z1 = { class: "field-row" }, J1 = { class: "field-row" }, Q1 = { class: "field-row" }, ew = { class: "path-control" }, tw = ["placeholder"], nw = { class: "settings-section grid-two" }, ow = { class: "settings-section__header" }, rw = { class: "param-grid" }, aw = { class: "number-field" }, sw = { class: "number-field" }, lw = { class: "number-field" }, iw = { class: "number-field" }, uw = { class: "number-field" }, cw = { class: "number-field" }, dw = { class: "settings-section grid-two" }, fw = { class: "settings-section__header" }, pw = { class: "switch-grid" }, mw = { class: "settings-section grid-two" }, vw = { class: "settings-section__header" }, gw = { class: "switch-grid switch-grid--two" }, hw = { class: "number-field" }, yw = { class: "number-field" }, bw = { class: "settings-section grid-two" }, _w = { class: "settings-section__header" }, ww = { class: "param-grid param-grid--three" }, Ew = { class: "number-field" }, Cw = { class: "number-field" }, Sw = { class: "number-field" }, Tw = { class: "settings-footer" }, Ow = ["title"], Aw = /* @__PURE__ */ X({
+}, K1 = { class: "summary-panel panel-card" }, G1 = { class: "status-strip" }, Y1 = { class: "summary-card" }, q1 = { class: "summary-card__title" }, X1 = { class: "summary-card__desc" }, Z1 = { class: "service-controls" }, J1 = { class: "service-url" }, Q1 = { class: "summary-card" }, ew = { class: "summary-card__title" }, tw = { class: "summary-card__desc" }, nw = { class: "summary-meta" }, ow = { class: "form-panel panel-card" }, rw = { class: "settings-section" }, aw = { class: "settings-section__header" }, sw = { class: "field-stack" }, lw = { class: "field-row" }, iw = { class: "path-control" }, uw = { class: "field-row" }, cw = { class: "field-row" }, dw = { class: "field-row" }, fw = { class: "path-control" }, pw = ["placeholder"], mw = { class: "settings-section grid-two" }, vw = { class: "settings-section__header" }, gw = { class: "param-grid" }, hw = { class: "number-field" }, yw = { class: "number-field" }, bw = { class: "number-field" }, _w = { class: "number-field" }, ww = { class: "number-field" }, Ew = { class: "number-field" }, Cw = { class: "settings-section grid-two" }, Sw = { class: "settings-section__header" }, Tw = { class: "switch-grid" }, Ow = { class: "settings-section grid-two" }, Aw = { class: "settings-section__header" }, Iw = { class: "switch-grid switch-grid--two" }, Lw = { class: "number-field" }, Pw = { class: "number-field" }, Nw = { class: "settings-section grid-two" }, kw = { class: "settings-section__header" }, Rw = { class: "param-grid param-grid--three" }, $w = { class: "number-field" }, Mw = { class: "number-field" }, Fw = { class: "number-field" }, Dw = { class: "settings-footer" }, Vw = ["title"], xw = /* @__PURE__ */ X({
   name: "LocalAiSettings",
   __name: "index",
   setup(e) {
@@ -10311,7 +10384,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
       } finally {
         c.value = !1;
       }
-    }, K = async () => {
+    }, j = async () => {
       f.value = !0;
       try {
         await $_(), await y(), Nt.msg(t("localAi.serviceStoppedMsg"));
@@ -10331,25 +10404,25 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
       p && clearInterval(p);
     }), (P, R) => {
       const F = Kb, ne = Hb, J = Lb, de = Qb;
-      return k(), W("div", I1, [
-        b("header", L1, [
+      return k(), W("div", B1, [
+        b("header", U1, [
           b("div", null, [
             b(
               "h3",
-              P1,
+              z1,
               D(i(t)("localAi.title")),
               1
               /* TEXT */
             ),
             b(
               "p",
-              N1,
+              W1,
               D(i(t)("localAi.serviceControlDesc")),
               1
               /* TEXT */
             )
           ]),
-          b("div", k1, [
+          b("div", j1, [
             Z(i(ct), {
               size: "small",
               plain: "",
@@ -10382,9 +10455,9 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
             }, 8, ["loading"])
           ])
         ]),
-        i(n) ? (k(), W("main", R1, [
-          b("aside", $1, [
-            b("div", M1, [
+        i(n) ? (k(), W("main", H1, [
+          b("aside", K1, [
+            b("div", G1, [
               b(
                 "div",
                 {
@@ -10458,22 +10531,22 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                 /* CLASS */
               )
             ]),
-            b("section", F1, [
+            b("section", Y1, [
               b(
                 "div",
-                D1,
+                q1,
                 D(i(t)("localAi.serviceControl")),
                 1
                 /* TEXT */
               ),
               b(
                 "div",
-                V1,
+                X1,
                 D(i(t)("localAi.serviceControlDesc")),
                 1
                 /* TEXT */
               ),
-              b("div", x1, [
+              b("div", Z1, [
                 Z(i(ct), {
                   type: "primary",
                   size: "small",
@@ -10513,7 +10586,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                   plain: "",
                   loading: i(f),
                   disabled: !i(r)?.running,
-                  onClick: K
+                  onClick: j
                 }, {
                   default: q(() => [
                     qe(
@@ -10528,28 +10601,28 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
               ]),
               b(
                 "div",
-                B1,
+                J1,
                 D(i(r)?.baseUrl),
                 1
                 /* TEXT */
               )
             ]),
-            b("section", U1, [
+            b("section", Q1, [
               b(
                 "div",
-                z1,
+                ew,
                 D(i(t)("localAi.modelRuntime")),
                 1
                 /* TEXT */
               ),
               b(
                 "div",
-                W1,
+                tw,
                 D(i(t)("localAi.modelRuntimeDesc")),
                 1
                 /* TEXT */
               ),
-              b("div", j1, [
+              b("div", nw, [
                 b("div", null, [
                   b(
                     "span",
@@ -10601,9 +10674,9 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
               ])
             ])
           ]),
-          b("section", H1, [
-            b("div", K1, [
-              b("div", G1, [
+          b("section", ow, [
+            b("div", rw, [
+              b("div", aw, [
                 b("div", null, [
                   b(
                     "h4",
@@ -10621,8 +10694,8 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                   )
                 ])
               ]),
-              b("div", Y1, [
-                b("label", q1, [
+              b("div", sw, [
+                b("label", lw, [
                   b(
                     "span",
                     null,
@@ -10630,7 +10703,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     1
                     /* TEXT */
                   ),
-                  b("div", X1, [
+                  b("div", iw, [
                     xe(b(
                       "input",
                       {
@@ -10661,7 +10734,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     })
                   ])
                 ]),
-                b("label", Z1, [
+                b("label", uw, [
                   b(
                     "span",
                     null,
@@ -10693,7 +10766,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     /* STABLE */
                   }, 8, ["modelValue"])
                 ]),
-                b("label", J1, [
+                b("label", cw, [
                   b(
                     "span",
                     null,
@@ -10725,7 +10798,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     /* STABLE */
                   }, 8, ["modelValue"])
                 ]),
-                b("label", Q1, [
+                b("label", dw, [
                   b(
                     "span",
                     null,
@@ -10733,12 +10806,12 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     1
                     /* TEXT */
                   ),
-                  b("div", ew, [
+                  b("div", fw, [
                     xe(b("input", {
                       "onUpdate:modelValue": R[3] || (R[3] = (G) => i(n).runtimePath = G),
                       class: "text-input",
                       placeholder: i(t)("localAi.runtimePathPlaceholder")
-                    }, null, 8, tw), [
+                    }, null, 8, pw), [
                       [ao, i(n).runtimePath]
                     ]),
                     Z(i(ct), {
@@ -10760,8 +10833,8 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                 ])
               ])
             ]),
-            b("div", nw, [
-              b("div", ow, [
+            b("div", mw, [
+              b("div", vw, [
                 b("div", null, [
                   b(
                     "h4",
@@ -10779,8 +10852,8 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                   )
                 ])
               ]),
-              b("div", rw, [
-                b("label", aw, [
+              b("div", gw, [
+                b("label", hw, [
                   b(
                     "span",
                     null,
@@ -10797,7 +10870,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     size: "small"
                   }, null, 8, ["modelValue"])
                 ]),
-                b("label", sw, [
+                b("label", yw, [
                   b(
                     "span",
                     null,
@@ -10814,7 +10887,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     size: "small"
                   }, null, 8, ["modelValue"])
                 ]),
-                b("label", lw, [
+                b("label", bw, [
                   b(
                     "span",
                     null,
@@ -10831,7 +10904,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     size: "small"
                   }, null, 8, ["modelValue"])
                 ]),
-                b("label", iw, [
+                b("label", _w, [
                   b(
                     "span",
                     null,
@@ -10848,7 +10921,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     size: "small"
                   }, null, 8, ["modelValue"])
                 ]),
-                b("label", uw, [
+                b("label", ww, [
                   b(
                     "span",
                     null,
@@ -10865,7 +10938,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     size: "small"
                   }, null, 8, ["modelValue"])
                 ]),
-                b("label", cw, [
+                b("label", Ew, [
                   b(
                     "span",
                     null,
@@ -10884,8 +10957,8 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                 ])
               ])
             ]),
-            b("div", dw, [
-              b("div", fw, [
+            b("div", Cw, [
+              b("div", Sw, [
                 b("div", null, [
                   b(
                     "h4",
@@ -10903,7 +10976,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                   )
                 ])
               ]),
-              b("div", pw, [
+              b("div", Tw, [
                 b("label", null, [
                   b(
                     "span",
@@ -10945,8 +11018,8 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                 ])
               ])
             ]),
-            b("div", mw, [
-              b("div", vw, [
+            b("div", Ow, [
+              b("div", Aw, [
                 b("div", null, [
                   b(
                     "h4",
@@ -10964,7 +11037,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                   )
                 ])
               ]),
-              b("div", gw, [
+              b("div", Iw, [
                 b("label", null, [
                   b(
                     "span",
@@ -10991,7 +11064,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     "onUpdate:modelValue": R[14] || (R[14] = (G) => i(n).keepAlive = G)
                   }, null, 8, ["modelValue"])
                 ]),
-                b("label", hw, [
+                b("label", Lw, [
                   b(
                     "span",
                     null,
@@ -11008,7 +11081,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     size: "small"
                   }, null, 8, ["modelValue"])
                 ]),
-                b("label", yw, [
+                b("label", Pw, [
                   b(
                     "span",
                     null,
@@ -11027,8 +11100,8 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                 ])
               ])
             ]),
-            b("div", bw, [
-              b("div", _w, [
+            b("div", Nw, [
+              b("div", kw, [
                 b("div", null, [
                   b(
                     "h4",
@@ -11046,8 +11119,8 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                   )
                 ])
               ]),
-              b("div", ww, [
-                b("label", Ew, [
+              b("div", Rw, [
+                b("label", $w, [
                   b(
                     "span",
                     null,
@@ -11065,7 +11138,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     size: "small"
                   }, null, 8, ["modelValue"])
                 ]),
-                b("label", Cw, [
+                b("label", Mw, [
                   b(
                     "span",
                     null,
@@ -11082,7 +11155,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                     size: "small"
                   }, null, 8, ["modelValue"])
                 ]),
-                b("label", Sw, [
+                b("label", Fw, [
                   b(
                     "span",
                     null,
@@ -11101,7 +11174,7 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                 ])
               ])
             ]),
-            b("div", Tw, [
+            b("div", Dw, [
               Z(i(ct), {
                 type: "primary",
                 loading: i(l),
@@ -11121,18 +11194,18 @@ const I1 = { class: "settings-panel local-ai-settings-shell" }, L1 = { class: "l
                 key: 0,
                 class: "command-line",
                 title: i(r).commandLine
-              }, D(i(r).commandLine), 9, Ow)) : Y("v-if", !0)
+              }, D(i(r).commandLine), 9, Vw)) : Y("v-if", !0)
             ])
           ])
         ])) : Y("v-if", !0)
       ]);
     };
   }
-}), Iw = /* @__PURE__ */ oa(Aw, [["__scopeId", "data-v-1e10918c"]]), Lw = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), Bw = /* @__PURE__ */ oa(xw, [["__scopeId", "data-v-1e10918c"]]), Uw = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: Iw
+  default: Bw
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  Nw as activate,
-  Nw as default
+  Ww as activate,
+  Ww as default
 };

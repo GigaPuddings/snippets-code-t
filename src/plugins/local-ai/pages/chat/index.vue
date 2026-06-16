@@ -2,16 +2,16 @@
   <main class="local-ai-chat-shell">
     <aside class="chat-sidebar panel-card">
       <div class="sidebar-header">
-        <div>
+        <div class="sidebar-title-block">
           <h2>{{ t('localAi.chatTitle') }}</h2>
           <p>{{ t('localAi.chatEmpty') }}</p>
         </div>
         <div class="sidebar-actions">
-          <CustomButton size="small" type="primary" @click="createNewChat">
-            {{ t('common.add') }}
+          <CustomButton class="icon-action-btn" size="small" plain @click="createNewChat">
+            +
           </CustomButton>
-          <CustomButton size="small" plain @click="refreshAll">
-            {{ t('plugins.refresh') }}
+          <CustomButton class="icon-action-btn" size="small" plain @click="refreshAll">
+            ↻
           </CustomButton>
         </div>
       </div>
@@ -22,25 +22,26 @@
 
       <div class="sidebar-section">
         <div class="section-title">{{ t('common.quickStart') }}</div>
-        <button class="chat-list-item active" type="button" @click="createNewChat">
-          <div class="chat-item-title">{{ t('localAi.chatEmpty') }}</div>
-          <div class="chat-item-meta">{{ t('localAi.chatPlaceholder') }}</div>
+        <button class="chat-list-item chat-list-item--primary active" type="button" @click="createNewChat">
+          <div class="chat-item-copy">
+            <div class="chat-item-title">{{ t('localAi.chatEmpty') }}</div>
+            <div class="chat-item-meta">{{ t('localAi.chatPlaceholder') }}</div>
+          </div>
+          <span class="chat-item-arrow">›</span>
         </button>
       </div>
 
       <div class="sidebar-section recent-section">
         <div class="section-title">{{ t('localAi.recent') }}</div>
         <div v-if="filteredHistories.length" class="chat-list">
-          <button
-            v-for="history in filteredHistories"
-            :key="history.id"
-            type="button"
+          <button v-for="history in filteredHistories" :key="history.id" type="button"
             :class="['chat-list-item', activeHistoryId === history.id ? 'active' : '']"
-            @click="openHistory(history.id)"
-          >
-            <div class="chat-item-title">{{ history.title }}</div>
-            <div class="chat-item-meta">{{ history.updatedAtLabel }}</div>
-            <span class="chat-item-delete" @click.stop="deleteHistory(history.id)">×</span>
+            @click="openHistory(history.id)">
+            <div class="chat-item-copy">
+              <div class="chat-item-title">{{ history.title }}</div>
+              <div class="chat-item-meta">{{ history.updatedAtLabel }}</div>
+            </div>
+            <span class="chat-item-delete" aria-hidden="true" @click.stop="deleteHistory(history.id)">×</span>
           </button>
         </div>
         <div v-else class="sidebar-empty">{{ t('common.empty') }}</div>
@@ -52,19 +53,27 @@
         <div class="chat-topbar-main">
           <div class="chat-title-row">
             <h3>{{ activeHistory?.title ?? t('localAi.chatEmpty') }}</h3>
-            <span :class="['status-pill', serviceStatus?.healthy ? 'ready' : '']">{{ serviceStatusText }}</span>
+            <span :class="['status-pill', serviceStatus?.healthy ? 'ready' : serviceStatus?.running ? 'pending' : 'stopped']">
+              {{ serviceStatusText }}
+            </span>
           </div>
-          <div class="chat-subtitle">{{ serviceStatus?.baseUrl ?? '127.0.0.1' }}</div>
+          <div class="chat-subtitle">
+            <span class="meta-dot" />
+            <span>{{ serviceStatus?.baseUrl ?? '127.0.0.1' }}</span>
+            <span class="meta-dot" />
+            <span>{{ t('localAi.modelRuntime') }}</span>
+          </div>
         </div>
         <div class="chat-topbar-actions">
-          <CustomButton size="small" plain @click="goSettings">{{ t('localAi.settings') }}</CustomButton>
+          <CustomButton class="ghost-action-btn" size="small" plain @click="goSettings">{{ t('localAi.settings') }}</CustomButton>
+          <CustomButton class="ghost-action-btn" size="small" plain @click="refreshAll">{{ t('plugins.refresh') }}</CustomButton>
         </div>
       </header>
 
-      <div class="chat-status-row">
-        <div class="chat-status-item"><span>{{ t('localAi.serviceControl') }}</span><b>{{ serviceStatusText }}</b></div>
-        <div class="chat-status-item"><span>{{ t('localAi.modelRuntime') }}</span><b>{{ serviceStatus?.baseUrl ?? '127.0.0.1' }}</b></div>
-        <div class="chat-status-item"><span>{{ t('localAi.generation') }}</span><b>{{ t('localAi.generationDesc') }}</b></div>
+      <div class="chat-chip-row">
+        <span class="info-chip">{{ t('localAi.serviceControl') }} · {{ serviceStatusText }}</span>
+        <span class="info-chip">{{ serviceStatus?.baseUrl ?? '127.0.0.1' }}</span>
+        <span class="info-chip">{{ t('localAi.generation') }} · {{ t('localAi.generationDesc') }}</span>
       </div>
 
       <div ref="messageListRef" class="message-list">
@@ -74,23 +83,44 @@
             <div class="empty-desc">{{ t('localAi.chatPlaceholder') }}</div>
           </div>
         </div>
+
         <article v-for="message in activeMessages" :key="message.id" :class="['message-row', `message-row--${message.role}`]">
-          <div class="message-meta">{{ message.role === 'user' ? t('localAi.you') : t('localAi.assistant') }}</div>
+          <div class="message-head">
+            <span class="message-role">{{ message.role === 'user' ? t('localAi.you') : t('localAi.assistant') }}</span>
+            <span v-if="message.role === 'assistant'" class="message-mini-meta">qwen / local</span>
+          </div>
           <div class="message-bubble">{{ message.content }}</div>
+          <div v-if="message.role === 'assistant'" class="message-footer">
+            <span class="message-mini-meta">{{ t('localAi.generationDesc') }}</span>
+            <button class="message-action-link" type="button" @click="refreshStatus">{{ t('plugins.refresh') }}</button>
+          </div>
         </article>
+
         <article v-if="sending" class="message-row message-row--assistant">
-          <div class="message-meta">{{ t('localAi.assistant') }}</div>
+          <div class="message-head">
+            <span class="message-role">{{ t('localAi.assistant') }}</span>
+            <span class="message-mini-meta">{{ t('localAi.thinking') }}</span>
+          </div>
           <div class="message-bubble loading-text">{{ t('localAi.thinking') }}</div>
         </article>
       </div>
 
       <form class="chat-input-card" @submit.prevent="sendMessage">
-        <textarea v-model="draft" class="chat-input" rows="4" :placeholder="t('localAi.chatPlaceholder')" @keydown.ctrl.enter.prevent="sendMessage" />
-        <div class="input-actions">
-          <div class="input-hint">Ctrl + Enter</div>
-          <div class="input-buttons">
-            <CustomButton size="small" plain :disabled="sending || !activeMessages.length" @click="clearMessages">{{ t('common.clear') }}</CustomButton>
-            <CustomButton type="primary" size="small" :loading="sending" :disabled="!draft.trim()" @click="sendMessage">{{ t('localAi.send') }}</CustomButton>
+        <div class="chat-input-shell">
+          <textarea v-model="draft" class="chat-input" rows="4" :placeholder="t('localAi.chatPlaceholder')"
+            @keydown.ctrl.enter.prevent="sendMessage" />
+        </div>
+        <div class="input-toolbar">
+          <div class="input-toolbar-left">
+            <button class="tool-chip" type="button" @click="goSettings">{{ t('localAi.settings') }}</button>
+            <button class="tool-chip" type="button">Vision</button>
+            <button class="tool-chip" type="button" :disabled="sending || !activeMessages.length" @click="clearMessages">{{ t('common.clear') }}</button>
+          </div>
+          <div class="input-toolbar-right">
+            <span class="input-hint">Ctrl + Enter</span>
+            <CustomButton type="primary" size="small" class="send-btn" :loading="sending" :disabled="!draft.trim()" @click="sendMessage">
+              {{ t('localAi.send') }}
+            </CustomButton>
           </div>
         </div>
       </form>
@@ -149,45 +179,281 @@ onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
 </script>
 
 <style scoped lang="scss">
-.local-ai-chat-shell { @apply flex h-full min-h-0 gap-3 bg-content p-3 text-panel; }
-.panel-card { @apply rounded-xl border border-panel bg-panel shadow-sm; }
-.chat-sidebar { @apply flex w-72 min-w-72 max-w-80 flex-col gap-3 p-3; }
-.sidebar-header { @apply flex items-start justify-between gap-2; }
-.sidebar-header h2 { @apply text-base font-semibold; }
-.sidebar-header p { @apply text-xs text-panel-text-secondary; }
-.sidebar-actions { @apply flex gap-2; }
-.sidebar-search { @apply px-1; }
-.search-input { @apply h-9 w-full rounded-md border border-panel bg-hover px-3 text-sm outline-none; }
-.sidebar-section { @apply flex flex-col gap-2; }
-.section-title { @apply px-1 text-xs font-medium text-panel-text-secondary; }
-.chat-list { @apply flex flex-col gap-1 overflow-y-auto; }
-.chat-list-item { @apply relative rounded-lg border border-transparent bg-hover px-3 py-2 text-left transition hover:border-panel; }
-.chat-list-item.active { @apply border-primary bg-primary; }
-.chat-item-title { @apply truncate text-sm font-medium; }
-.chat-item-meta { @apply truncate text-xs text-panel-text-secondary; }
-.chat-item-delete { @apply absolute right-2 top-1 text-lg text-panel-text-secondary; }
-.sidebar-empty { @apply rounded-lg border border-dashed border-panel bg-hover px-3 py-6 text-center text-xs text-panel-text-secondary; }
-.chat-panel { @apply flex min-w-0 flex-1 flex-col gap-3 p-4; }
-.chat-topbar { @apply flex items-start justify-between gap-3; }
-.chat-title-row { @apply flex items-center gap-3; }
-.chat-title-row h3 { @apply truncate text-lg font-semibold; }
-.chat-subtitle { @apply mt-1 text-xs text-panel-text-secondary; }
-.status-pill { @apply rounded-full border border-panel bg-hover px-2 py-0.5 text-xs text-panel-text-secondary; &.ready { @apply border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300; } }
-.chat-status-row { @apply grid gap-2; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.chat-status-item { @apply rounded-lg border border-panel bg-hover px-3 py-2; span { @apply block text-xs text-panel-text-secondary; } b { @apply mt-1 block text-sm; } }
-.message-list { @apply min-h-0 flex-1 overflow-y-auto pr-1; }
-.empty-state { @apply flex h-full items-center justify-center; }
-.empty-card { @apply rounded-xl border border-dashed border-panel bg-hover px-6 py-8 text-center; }
-.empty-title { @apply text-sm font-medium; }
-.empty-desc { @apply mt-1 text-xs text-panel-text-secondary; }
-.message-row { @apply mb-4 max-w-[78%]; &--user { @apply ml-auto text-right; .message-bubble { @apply bg-primary text-white; } } &--assistant { @apply mr-auto; .message-bubble { @apply border border-panel bg-hover text-panel; } } }
-.message-meta { @apply mb-1 text-xs text-panel-text-secondary; }
-.message-bubble { @apply whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm; word-break: break-word; }
-.loading-text { @apply text-panel-text-secondary; }
-.chat-input-card { @apply rounded-xl border border-panel bg-panel p-3 shadow-sm; }
-.chat-input { @apply block min-h-24 w-full resize-none rounded-md border border-panel bg-hover px-3 py-2 text-sm leading-6 text-panel outline-none; }
-.input-actions { @apply mt-3 flex items-center justify-between gap-3; }
-.input-hint { @apply text-xs text-panel-text-secondary; }
-.input-buttons { @apply flex items-center gap-2; }
-@media (max-width: 1100px) { .local-ai-chat-shell { @apply flex-col; } .chat-sidebar { @apply w-full min-w-0 max-w-none; } .chat-status-row { grid-template-columns: 1fr; } .message-row { @apply max-w-full; } }
+.local-ai-chat-shell {
+  @apply relative flex h-full min-h-0 gap-2 rounded-md border border-search bg-search p-2 box-border text-search;
+}
+
+.panel-card {
+  @apply rounded-md border border-search bg-search shadow-none;
+}
+
+.chat-sidebar {
+  @apply flex w-72 min-w-72 max-w-80 flex-col gap-3 p-3;
+}
+
+.sidebar-header {
+  @apply flex items-start justify-between gap-2 border-b border-search pb-2;
+}
+
+.sidebar-title-block h2 {
+  @apply text-base font-semibold text-search;
+}
+
+.sidebar-title-block p {
+  @apply mt-1 text-xs text-search-secondary;
+}
+
+.sidebar-actions {
+  @apply flex gap-2;
+}
+
+.icon-action-btn {
+  @apply h-8 w-8 rounded-md border border-transparent bg-transparent p-0 text-sm text-search-secondary;
+}
+
+.icon-action-btn:hover {
+  @apply bg-search-hover border-search text-search;
+}
+
+.sidebar-search {
+  @apply px-1;
+}
+
+.search-input {
+  @apply h-9 w-full rounded-sm border border-search bg-search-input px-3 text-sm text-search outline-none;
+}
+
+.search-input:focus {
+  box-shadow: 0 0 0 1px var(--categories-text-color-active);
+}
+
+.sidebar-section {
+  @apply flex flex-col gap-2;
+}
+
+.section-title {
+  @apply px-1 text-xs font-medium text-search-secondary;
+}
+
+.chat-list {
+  @apply flex flex-col gap-1 overflow-y-auto;
+}
+
+.chat-list-item {
+  @apply flex items-start justify-between gap-3 rounded-md border border-transparent bg-search-hover px-3 py-2 text-left transition;
+}
+
+.chat-list-item:hover {
+  border-color: var(--categories-text-color-active);
+}
+
+.chat-list-item.active {
+  background-color: var(--search-input-bg);
+  border-color: var(--categories-text-color-active);
+}
+
+.chat-list-item--primary {
+  background-color: var(--search-input-bg);
+  border-color: var(--categories-text-color-active);
+}
+
+.chat-item-copy {
+  @apply min-w-0 flex-1;
+}
+
+.chat-item-title {
+  @apply truncate text-sm font-medium text-search;
+}
+
+.chat-item-meta {
+  @apply mt-0.5 truncate text-xs text-search-secondary;
+}
+
+.chat-item-arrow {
+  @apply text-lg leading-none text-search-secondary;
+}
+
+.chat-item-delete {
+  @apply mt-0.5 shrink-0 text-sm leading-none text-search-secondary;
+}
+
+.sidebar-empty {
+  @apply rounded-md border border-dashed border-search bg-search-hover px-3 py-6 text-center text-xs text-search-secondary;
+}
+
+.chat-panel {
+  @apply flex min-w-0 flex-1 flex-col gap-3 p-4;
+}
+
+.chat-topbar {
+  @apply flex items-start justify-between gap-3 border-b border-search pb-2;
+}
+
+.chat-title-row {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.chat-title-row h3 {
+  @apply truncate text-lg font-semibold text-search;
+}
+
+.chat-subtitle {
+  @apply flex items-center gap-2 text-xs text-search-secondary;
+}
+
+.meta-dot {
+  @apply h-1 w-1 rounded-full;
+  background-color: rgba(160, 174, 192, 0.55);
+}
+
+.status-pill {
+  @apply rounded-md border border-search bg-search-hover px-2 py-0.5 text-xs text-search-secondary;
+
+  &.ready {
+    box-shadow: 0 0 0 1px var(--categories-text-color-active) inset;
+    color: var(--categories-text-color-active);
+  }
+
+  &.pending {
+    border-color: rgba(180, 83, 9, 0.25);
+    background-color: rgba(180, 83, 9, 0.08);
+    color: #b45309;
+  }
+
+  &.stopped {
+    @apply border-search bg-search-hover text-search-secondary;
+  }
+}
+
+.chat-chip-row {
+  @apply flex flex-wrap gap-2;
+}
+
+.info-chip {
+  @apply rounded-md border border-search bg-search-hover px-3 py-1 text-xs text-search-secondary;
+}
+
+.message-list {
+  @apply min-h-0 flex-1 overflow-y-auto pr-1;
+}
+
+.empty-state {
+  @apply flex h-full items-center justify-center;
+}
+
+.empty-card {
+  @apply max-w-sm rounded-md border border-dashed border-search bg-search-hover px-6 py-8 text-center;
+}
+
+.empty-title {
+  @apply text-sm font-medium text-search;
+}
+
+.empty-desc {
+  @apply mt-1 text-xs text-search-secondary;
+}
+
+.message-row {
+  @apply mb-4 max-w-[78%];
+
+  &--user {
+    @apply ml-auto text-right;
+
+    .message-bubble {
+      background-color: var(--categories-text-color-active);
+      color: #fff;
+    }
+
+    .message-head,
+    .message-footer {
+      @apply justify-end;
+    }
+  }
+
+  &--assistant {
+    @apply mr-auto;
+
+    .message-bubble {
+      @apply border border-search bg-search-hover text-search;
+    }
+  }
+}
+
+.message-head,
+.message-footer {
+  @apply mb-1 flex items-center gap-2;
+}
+
+.message-role {
+  @apply text-xs font-medium text-search-secondary;
+}
+
+.message-mini-meta {
+  @apply text-xs text-search-secondary;
+}
+
+.message-action-link {
+  @apply text-xs text-search-secondary transition hover:text-search;
+}
+
+.message-bubble {
+  @apply whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm;
+  word-break: break-word;
+}
+
+.loading-text {
+  @apply text-search-secondary;
+}
+
+.chat-input-card {
+  @apply rounded-md border border-search bg-search p-3 shadow-none;
+}
+
+.chat-input-shell {
+  @apply rounded-md border border-search bg-search-input p-3;
+}
+
+.chat-input {
+  @apply block min-h-[96px] max-h-[120px] w-full resize-none border-none bg-transparent p-0 text-sm leading-6 text-search outline-none;
+}
+
+.input-toolbar {
+  @apply mt-3 flex items-center justify-between gap-3;
+}
+
+.input-toolbar-left,
+.input-toolbar-right {
+  @apply flex items-center gap-2;
+}
+
+.tool-chip {
+  @apply rounded-md border border-transparent bg-transparent px-3 py-1 text-xs text-search-secondary transition;
+}
+
+.tool-chip:hover {
+  @apply bg-search-hover text-search;
+  border-color: var(--categories-text-color-active);
+}
+
+.input-hint {
+  @apply text-xs text-search-secondary;
+}
+
+.send-btn {
+  @apply h-8 rounded-md px-4;
+}
+
+@media (max-width: 1100px) {
+  .local-ai-chat-shell {
+    @apply flex-col;
+  }
+
+  .chat-sidebar {
+    @apply w-full min-w-0 max-w-none;
+  }
+
+  .message-row {
+    @apply max-w-full;
+  }
+}
 </style>
