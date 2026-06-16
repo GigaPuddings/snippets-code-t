@@ -10088,7 +10088,7 @@ const F_ = { class: "local-ai-chat-shell" }, D_ = { class: "local-ai-hero panel-
       ])
     ]));
   }
-}), d1 = /* @__PURE__ */ ra(f1, [["__scopeId", "data-v-919c5ebe"]]), p1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), d1 = /* @__PURE__ */ ra(f1, [["__scopeId", "data-v-6c2b1167"]]), p1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: d1
 }, Symbol.toStringTag, { value: "Module" }));
@@ -10177,7 +10177,7 @@ const m1 = { class: "settings-panel local-ai-settings-shell" }, v1 = { class: "l
         d.value = !1;
       }
     }, Se = () => {
-      window.location.hash = "#/local-ai/chat";
+      window.location.hash = "#/config/local-ai";
     };
     return Ne(async () => {
       await A(), p = setInterval(() => {
@@ -10984,7 +10984,7 @@ const m1 = { class: "settings-panel local-ai-settings-shell" }, v1 = { class: "l
       ]);
     };
   }
-}), mw = /* @__PURE__ */ ra(pw, [["__scopeId", "data-v-be517e6a"]]), vw = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), mw = /* @__PURE__ */ ra(pw, [["__scopeId", "data-v-1e10918c"]]), vw = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: mw
 }, Symbol.toStringTag, { value: "Module" }));

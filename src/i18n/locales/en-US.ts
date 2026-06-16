@@ -3,6 +3,8 @@ export default {
   common: {
     confirm: 'Confirm',
     cancel: 'Cancel',
+    yes: 'Yes',
+    no: 'No',
     on: 'On',
     off: 'Off',
     tip: 'Tip',

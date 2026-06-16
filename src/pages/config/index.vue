@@ -118,6 +118,6 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .config {
-  @apply relative z-50 flex h-full w-full justify-start bg-content;
+  @apply relative z-50 flex h-full min-h-0 w-full justify-start bg-content;
 }
 </style>

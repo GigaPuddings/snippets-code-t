@@ -3,6 +3,8 @@ export default {
   common: {
     confirm: '确定',
     cancel: '取消',
+    yes: '是',
+    no: '否',
     on: '开启',
     off: '关闭',
     tip: '提示',

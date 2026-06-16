@@ -221,7 +221,7 @@ const chooseRuntime = async () => { const selected = await open({ multiple: fals
 const startService = async () => { if (!config.value) return; starting.value = true; try { await saveLocalAiConfig(config.value); serviceStatus.value = await startLocalAiService(config.value); modal.msg(t('localAi.serviceStarted')); } catch (error) { modal.msg(`${t('localAi.serviceStartFailed')}: ${error}`, 'error'); } finally { starting.value = false; } };
 const restartService = async () => { restarting.value = true; try { await saveConfig(); serviceStatus.value = await restartLocalAiService(); modal.msg(t('localAi.serviceRestarted')); } catch (error) { modal.msg(`${t('localAi.serviceRestartFailed')}: ${error}`, 'error'); } finally { restarting.value = false; } };
 const stopService = async () => { stopping.value = true; try { await stopLocalAiService(); await refreshStatus(); modal.msg(t('localAi.serviceStoppedMsg')); } catch (error) { modal.msg(`${t('localAi.serviceStopFailed')}: ${error}`, 'error'); } finally { stopping.value = false; } };
-const openChat = () => { window.location.hash = '#/local-ai/chat'; };
+const openChat = () => { window.location.hash = '#/config/local-ai'; };
 
 onMounted(async () => { await refreshAll(); statusTimer = setInterval(() => { refreshStatus().catch((error) => logger.warn('[LocalAI] status refresh failed', error)); }, 5000); });
 onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
@@ -331,13 +331,13 @@ onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
 .field-row,
 .number-field,
 .switch-grid label {
-  @apply flex items-center justify-between gap-3 text-sm text-panel;
+  @apply flex items-center gap-3 text-sm text-panel;
 }
 
 .field-row span,
 .number-field span,
 .switch-grid span {
-  @apply min-w-0 truncate text-panel-text-secondary;
+  @apply min-w-14 truncate text-panel-text-secondary;
 }
 
 .path-control {
@@ -349,7 +349,7 @@ onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
 }
 
 .field-select {
-  @apply w-full;
+  @apply w-full mr-[58px];
 }
 
 .param-grid {
@@ -377,7 +377,7 @@ onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
 }
 
 .settings-footer {
-  @apply sticky bottom-0 mt-4 flex items-center gap-3 border-t border-panel bg-panel pt-3;
+  @apply sticky bottom-0 mt-4 flex items-center justify-end gap-3 border-t border-panel bg-panel pt-3;
 }
 
 .command-line {
