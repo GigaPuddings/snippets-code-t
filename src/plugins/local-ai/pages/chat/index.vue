@@ -22,67 +22,65 @@
       </div>
     </header>
 
-    <section class="chat-layout panel-card">
-      <aside class="chat-sidebar">
-        <div class="sidebar-block">
-          <div class="sidebar-label">{{ t('localAi.serviceControl') }}</div>
-          <div class="sidebar-value">{{ serviceStatusText }}</div>
+    <section class="chat-panel panel-card">
+      <div class="chat-status-row">
+        <div class="chat-status-item">
+          <span class="chat-status-label">{{ t('localAi.serviceControl') }}</span>
+          <span class="chat-status-value">{{ serviceStatusText }}</span>
         </div>
-        <div class="sidebar-block">
-          <div class="sidebar-label">{{ t('localAi.modelRuntime') }}</div>
-          <div class="sidebar-value">{{ serviceStatus?.baseUrl ?? '127.0.0.1' }}</div>
+        <div class="chat-status-item">
+          <span class="chat-status-label">{{ t('localAi.modelRuntime') }}</span>
+          <span class="chat-status-value">{{ serviceStatus?.baseUrl ?? '127.0.0.1' }}</span>
         </div>
-        <div class="sidebar-block sidebar-block--muted">
-          <div class="sidebar-label">{{ t('localAi.generation') }}</div>
-          <div class="sidebar-value">{{ t('localAi.generationDesc') }}</div>
+        <div class="chat-status-item">
+          <span class="chat-status-label">{{ t('localAi.generation') }}</span>
+          <span class="chat-status-value">{{ t('localAi.generationDesc') }}</span>
         </div>
-      </aside>
+      </div>
 
-      <section class="chat-panel">
-        <div ref="messageListRef" class="message-list">
-          <div v-if="!messages.length" class="empty-state">
-            <div class="empty-card">
-              <div class="empty-title">{{ t('localAi.chatEmpty') }}</div>
-              <div class="empty-desc">{{ t('localAi.chatPlaceholder') }}</div>
-            </div>
+      <div ref="messageListRef" class="message-list">
+        <div v-if="!messages.length" class="empty-state">
+          <div class="empty-card">
+            <div class="empty-title">{{ t('localAi.chatEmpty') }}</div>
+            <div class="empty-desc">{{ t('localAi.chatPlaceholder') }}</div>
           </div>
-          <article
-            v-for="message in messages"
-            :key="message.id"
-            :class="['message-row', `message-row--${message.role}`]"
-          >
-            <div class="message-meta">
-              {{ message.role === 'user' ? t('localAi.you') : t('localAi.assistant') }}
-            </div>
-            <div class="message-bubble">{{ message.content }}</div>
-          </article>
-          <article v-if="sending" class="message-row message-row--assistant">
-            <div class="message-meta">{{ t('localAi.assistant') }}</div>
-            <div class="message-bubble loading-text">{{ t('localAi.thinking') }}</div>
-          </article>
         </div>
-
-        <form class="chat-input-card" @submit.prevent="sendMessage">
-          <textarea
-            v-model="draft"
-            class="chat-input"
-            rows="4"
-            :placeholder="t('localAi.chatPlaceholder')"
-            @keydown.ctrl.enter.prevent="sendMessage"
-          ></textarea>
-          <div class="input-actions">
-            <div class="input-hint">Ctrl + Enter</div>
-            <div class="input-buttons">
-              <CustomButton size="small" plain :disabled="sending || !messages.length" @click="clearMessages">
-                {{ t('common.clear') }}
-              </CustomButton>
-              <CustomButton type="primary" size="small" :loading="sending" :disabled="!draft.trim()" @click="sendMessage">
-                {{ t('localAi.send') }}
-              </CustomButton>
-            </div>
+        <article
+          v-for="message in messages"
+          :key="message.id"
+          :class="['message-row', `message-row--${message.role}`]"
+        >
+          <div class="message-meta">
+            {{ message.role === 'user' ? t('localAi.you') : t('localAi.assistant') }}
           </div>
-        </form>
-      </section>
+          <div class="message-bubble">{{ message.content }}</div>
+        </article>
+        <article v-if="sending" class="message-row message-row--assistant">
+          <div class="message-meta">{{ t('localAi.assistant') }}</div>
+          <div class="message-bubble loading-text">{{ t('localAi.thinking') }}</div>
+        </article>
+      </div>
+
+      <form class="chat-input-card" @submit.prevent="sendMessage">
+        <textarea
+          v-model="draft"
+          class="chat-input"
+          rows="4"
+          :placeholder="t('localAi.chatPlaceholder')"
+          @keydown.ctrl.enter.prevent="sendMessage"
+        ></textarea>
+        <div class="input-actions">
+          <div class="input-hint">Ctrl + Enter</div>
+          <div class="input-buttons">
+            <CustomButton size="small" plain :disabled="sending || !messages.length" @click="clearMessages">
+              {{ t('common.clear') }}
+            </CustomButton>
+            <CustomButton type="primary" size="small" :loading="sending" :disabled="!draft.trim()" @click="sendMessage">
+              {{ t('localAi.send') }}
+            </CustomButton>
+          </div>
+        </div>
+      </form>
     </section>
   </main>
 </template>
@@ -182,10 +180,7 @@ const clearMessages = () => {
 };
 
 const goSettings = () => {
-  router.push({
-    path: '/config/local-ai',
-    query: { tab: 'localAi' }
-  });
+  router.push('/config/local-ai/settings');
 };
 
 onMounted(async () => {
@@ -241,33 +236,25 @@ onUnmounted(() => {
   }
 }
 
-.chat-layout {
-  @apply grid min-h-0 flex-1 overflow-hidden;
-  grid-template-columns: 240px minmax(0, 1fr);
-}
-
-.chat-sidebar {
-  @apply border-r border-panel p-4;
-}
-
-.sidebar-block {
-  @apply mb-4 rounded-md border border-panel bg-hover p-3;
-}
-
-.sidebar-block--muted {
-  @apply bg-transparent;
-}
-
-.sidebar-label {
-  @apply text-xs text-panel-text-secondary;
-}
-
-.sidebar-value {
-  @apply mt-1 text-sm text-panel;
-}
-
 .chat-panel {
-  @apply flex min-h-0 flex-col p-4;
+  @apply flex min-h-0 flex-1 flex-col gap-3 p-4;
+}
+
+.chat-status-row {
+  @apply grid gap-2;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.chat-status-item {
+  @apply rounded-md border border-panel bg-hover px-3 py-2;
+}
+
+.chat-status-label {
+  @apply block text-xs text-panel-text-secondary;
+}
+
+.chat-status-value {
+  @apply mt-1 block truncate text-sm text-panel;
 }
 
 .message-list {
@@ -324,7 +311,7 @@ onUnmounted(() => {
 }
 
 .chat-input-card {
-  @apply mt-4 rounded-lg border border-panel bg-panel p-3 shadow-sm;
+  @apply rounded-lg border border-panel bg-panel p-3 shadow-sm;
 }
 
 .chat-input {
@@ -348,12 +335,8 @@ onUnmounted(() => {
 }
 
 @media (max-width: 960px) {
-  .chat-layout {
+  .chat-status-row {
     grid-template-columns: 1fr;
-  }
-
-  .chat-sidebar {
-    @apply border-r-0 border-b border-panel;
   }
 
   .message-row {
