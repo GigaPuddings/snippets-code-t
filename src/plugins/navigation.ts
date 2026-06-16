@@ -3,7 +3,7 @@ import {
   BookOpen,
   MessageSearch,
   Notepad,
-  ChatDotRound
+  Robot
 } from '@icon-park/vue-next';
 import type { PluginId } from './types';
 
@@ -19,14 +19,14 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
     path: '/config/category/contentList'
   },
   {
+    icon: Robot,
+    path: '/config/local-ai',
+    pluginId: 'local-ai'
+  },
+  {
     icon: Application,
     path: '/config/local',
     pluginId: 'local-launcher'
-  },
-  {
-    icon: ChatDotRound,
-    path: '/config/local-ai',
-    pluginId: 'local-ai'
   },
   {
     icon: MessageSearch,
