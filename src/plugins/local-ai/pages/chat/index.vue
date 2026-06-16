@@ -131,7 +131,7 @@
             :title="t('common.more')"
             @click="showMoreMenu"
           >
-            <More theme="outline" size="18" />
+            <More theme="outline" size="17" />
           </button>
         </div>
       </header>
@@ -142,7 +142,7 @@
         </div>
 
         <div v-if="!activeMessages.length" class="empty-state">
-          <Robot theme="outline" size="30" />
+          <Robot theme="outline" size="28" />
           <div class="empty-title">{{ t('localAi.chatEmpty') }}</div>
           <div class="empty-desc">{{ t('localAi.chatPlaceholder') }}</div>
         </div>
@@ -190,42 +190,42 @@
                   :title="t('common.copy')"
                   @click="copyMessage(message)"
                 >
-                  <Copy theme="outline" size="15" />
+                  <Copy theme="outline" size="14" />
                 </button>
                 <button
                   type="button"
                   :title="t('localAi.regenerate')"
                   @click="regenerateMessage(message.id)"
                 >
-                  <Refresh theme="outline" size="15" />
+                  <Refresh theme="outline" size="14" />
                 </button>
                 <button
                   type="button"
                   :title="t('localAi.like')"
                   @click="markFeedback"
                 >
-                  <Like theme="outline" size="15" />
+                  <Like theme="outline" size="14" />
                 </button>
                 <button
                   type="button"
                   :title="t('localAi.dislike')"
                   @click="markFeedback"
                 >
-                  <Dislike theme="outline" size="15" />
+                  <Dislike theme="outline" size="14" />
                 </button>
                 <button
                   type="button"
                   :title="t('common.edit')"
                   @click="editMessage(message)"
                 >
-                  <Edit theme="outline" size="15" />
+                  <Edit theme="outline" size="14" />
                 </button>
                 <button
                   type="button"
                   :title="t('common.delete')"
                   @click="deleteMessage(message.id)"
                 >
-                  <Delete theme="outline" size="15" />
+                  <Delete theme="outline" size="14" />
                 </button>
               </div>
               <div class="token-row">
@@ -293,7 +293,7 @@
               type="button"
               :title="t('localAi.attachment')"
             >
-              <Picture theme="outline" size="17" />
+              <Picture theme="outline" size="16" />
             </button>
             <button
               class="composer-tool-btn"
@@ -301,7 +301,7 @@
               :title="t('localAi.settings')"
               @click="goSettings"
             >
-              <SettingTwo theme="outline" size="17" />
+              <SettingTwo theme="outline" size="16" />
             </button>
             <label class="model-select-shell">
               <select v-model="selectedModelName">
@@ -322,7 +322,7 @@
           <div class="input-toolbar-right">
             <span class="input-hint">Ctrl + Enter</span>
             <button class="send-btn" type="submit" :disabled="!canSend">
-              <Send theme="outline" size="17" />
+              <Send theme="outline" size="16" />
               <span>{{ t('localAi.send') }}</span>
             </button>
           </div>
@@ -731,8 +731,8 @@ onUnmounted(() => {
   padding: 4px;
   color: #172033;
   background: var(--chat-bg);
-  grid-template-columns: minmax(340px, 380px) minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 6px;
 }
 
 .chat-sidebar,
@@ -741,14 +741,14 @@ onUnmounted(() => {
   background: var(--chat-panel);
   border: 1px solid var(--chat-border);
   border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(40, 72, 120, 0.06);
+  box-shadow: 0 8px 22px rgba(40, 72, 120, 0.05);
 }
 
 .chat-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 26px 24px;
+  gap: 18px;
+  padding: 20px;
   overflow: hidden;
 }
 
@@ -767,7 +767,7 @@ onUnmounted(() => {
 .chat-topbar,
 .input-toolbar {
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
 }
 
 .sidebar-title-block h2,
@@ -784,14 +784,14 @@ onUnmounted(() => {
 }
 
 .sidebar-title-block p {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: var(--chat-muted);
   font-size: 14px;
 }
 
 .sidebar-actions,
 .chat-topbar-actions {
-  gap: 10px;
+  gap: 8px;
 }
 
 .icon-action-btn,
@@ -812,15 +812,15 @@ onUnmounted(() => {
 }
 
 .icon-action-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
 }
 
 .icon-action-btn--primary {
   color: var(--chat-primary);
-  border-color: rgba(120, 103, 238, 0.42);
-  box-shadow: 0 6px 16px rgba(120, 103, 238, 0.08);
+  background: rgba(120, 103, 238, 0.08);
+  border-color: rgba(120, 103, 238, 0.28);
 }
 
 .icon-action-btn:hover,
@@ -829,36 +829,38 @@ onUnmounted(() => {
 .message-actions button:hover {
   color: var(--chat-primary);
   background: var(--chat-primary-soft);
-  border-color: rgba(120, 103, 238, 0.42);
+  border-color: rgba(120, 103, 238, 0.34);
 }
 
 .sidebar-search {
   display: flex;
   align-items: center;
-  height: 46px;
-  padding: 0 12px;
+  height: 40px;
+  padding: 0 10px;
   color: var(--chat-muted);
   background: #f4f8ff;
   border: 1px solid var(--chat-border);
-  border-radius: 11px;
-  gap: 10px;
+  border-radius: 9px;
+  gap: 8px;
 }
 
 .sidebar-search input {
   min-width: 0;
   flex: 1;
   color: #273449;
-  font-size: 15px;
+  font-size: 14px;
   background: transparent;
   border: 0;
   outline: none;
 }
 
 .sidebar-search kbd {
-  padding: 2px 8px;
+  height: 22px;
+  padding: 0 7px;
   color: #728094;
   font-size: 12px;
   font-family: inherit;
+  line-height: 20px;
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid var(--chat-border);
   border-radius: 7px;
@@ -867,7 +869,7 @@ onUnmounted(() => {
 .sidebar-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .recent-section {
@@ -877,7 +879,7 @@ onUnmounted(() => {
 
 .section-title {
   color: #64748b;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
 }
 
@@ -885,8 +887,8 @@ onUnmounted(() => {
 .chat-list-item {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  border-radius: 9px;
+  min-height: 42px;
+  border-radius: 8px;
   color: #44536a;
   font-size: 14px;
   text-align: left;
@@ -897,10 +899,10 @@ onUnmounted(() => {
 }
 
 .quick-prompt {
-  padding: 0 14px;
+  padding: 0 12px;
   background: #edf5ff;
   border: 1px solid transparent;
-  gap: 12px;
+  gap: 10px;
 }
 
 .quick-prompt:hover {
@@ -917,8 +919,9 @@ onUnmounted(() => {
 
 .chat-list-item {
   position: relative;
-  gap: 10px;
-  padding: 0 12px;
+  min-height: 40px;
+  gap: 8px;
+  padding: 0 10px;
   cursor: pointer;
 }
 
@@ -929,7 +932,7 @@ onUnmounted(() => {
 .chat-list-item.active {
   color: #fff;
   background: linear-gradient(135deg, #7568f0, #8b6cf0);
-  box-shadow: 0 10px 20px rgba(120, 103, 238, 0.16);
+  box-shadow: 0 8px 16px rgba(120, 103, 238, 0.14);
 }
 
 .chat-item-title {
@@ -943,15 +946,15 @@ onUnmounted(() => {
 .chat-item-time {
   color: inherit;
   opacity: 0.76;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .chat-item-delete {
   display: none;
   position: absolute;
-  right: 8px;
-  width: 26px;
-  height: 26px;
+  right: 7px;
+  width: 24px;
+  height: 24px;
   align-items: center;
   justify-content: center;
   border-radius: 7px;
@@ -964,7 +967,7 @@ onUnmounted(() => {
 }
 
 .sidebar-empty {
-  padding: 28px 12px;
+  padding: 22px 10px;
   color: var(--chat-muted);
   font-size: 13px;
   text-align: center;
@@ -977,20 +980,21 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 42px;
-  margin-top: 8px;
+  height: 38px;
+  margin-top: 6px;
   color: #44536a;
   background: #fff;
   border: 1px solid var(--chat-border);
-  border-radius: 9px;
-  box-shadow: 0 6px 16px rgba(40, 72, 120, 0.05);
-  gap: 10px;
+  border-radius: 8px;
+  box-shadow: 0 5px 14px rgba(40, 72, 120, 0.04);
+  font-size: 14px;
+  gap: 8px;
 }
 
 .chat-panel {
   display: flex;
   flex-direction: column;
-  padding: 28px 30px 26px;
+  padding: 24px;
   overflow: hidden;
 }
 
@@ -1001,7 +1005,7 @@ onUnmounted(() => {
 .chat-title-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .chat-title-row h3 {
@@ -1017,18 +1021,18 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   height: 26px;
-  padding: 0 12px;
+  padding: 0 10px;
   color: #7f1d1d;
   font-size: 13px;
   background: #fff1f3;
   border: 1px solid #ffd9df;
   border-radius: 999px;
-  gap: 7px;
+  gap: 6px;
 }
 
 .status-pill i {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   background: #ef5b69;
   border-radius: 999px;
 }
@@ -1044,7 +1048,7 @@ onUnmounted(() => {
 }
 
 .service-url {
-  margin-top: 10px;
+  margin-top: 8px;
   color: #66758d;
   font-size: 14px;
 }
@@ -1052,50 +1056,50 @@ onUnmounted(() => {
 .chat-meta-pills {
   display: flex;
   flex-wrap: wrap;
-  margin-top: 18px;
-  gap: 10px;
+  margin-top: 12px;
+  gap: 8px;
 }
 
 .chat-meta-pills span,
 .token-row span {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  padding: 0 12px;
+  min-height: 26px;
+  padding: 0 10px;
   color: #536175;
   font-size: 13px;
   background: var(--chat-pill-bg);
   border: 1px solid var(--chat-border);
-  border-radius: 9px;
+  border-radius: 8px;
 }
 
 .topbar-btn {
-  height: 42px;
-  padding: 0 16px;
-  border-radius: 10px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 9px;
   font-size: 14px;
-  gap: 8px;
+  gap: 7px;
 }
 
 .topbar-btn--icon {
-  width: 42px;
+  width: 38px;
   padding: 0;
 }
 
 .message-list {
   min-height: 0;
   flex: 1;
-  padding: 22px 2px 24px;
+  padding: 16px 2px 18px;
   overflow-y: auto;
 }
 
 .date-divider {
   display: flex;
   align-items: center;
-  margin: 6px 0 34px;
+  margin: 4px 0 24px;
   color: #94a3b8;
   font-size: 13px;
-  gap: 16px;
+  gap: 12px;
 }
 
 .date-divider::before,
@@ -1108,22 +1112,23 @@ onUnmounted(() => {
 
 .empty-state {
   display: flex;
-  width: 260px;
-  margin: 14vh auto 0;
+  width: 300px;
+  min-height: 118px;
+  margin: 10vh auto 0;
   flex-direction: column;
   align-items: center;
-  padding: 18px 20px;
+  padding: 14px 16px;
   color: var(--chat-muted);
   text-align: center;
   background: rgba(240, 246, 255, 0.72);
   border: 1px dashed var(--chat-border);
-  border-radius: 14px;
-  gap: 8px;
+  border-radius: 12px;
+  gap: 7px;
 }
 
 .empty-title {
   color: #1f2937;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
 }
 
@@ -1134,8 +1139,8 @@ onUnmounted(() => {
 .message-row {
   display: flex;
   align-items: flex-start;
-  margin-bottom: 26px;
-  gap: 14px;
+  margin-bottom: 22px;
+  gap: 12px;
 }
 
 .message-row--user {
@@ -1144,8 +1149,8 @@ onUnmounted(() => {
 
 .message-avatar {
   display: flex;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -1166,7 +1171,7 @@ onUnmounted(() => {
 
 .message-body {
   min-width: 0;
-  max-width: 78%;
+  max-width: min(78%, 980px);
 }
 
 .message-row--user .message-body {
@@ -1174,14 +1179,14 @@ onUnmounted(() => {
 }
 
 .user-bubble {
-  padding: 16px 18px 10px;
+  padding: 14px 16px 9px;
   color: #1f2937;
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 14px;
+  line-height: 1.65;
   background: linear-gradient(180deg, #f7f7ff, #f2f5ff);
   border: 1px solid rgba(120, 103, 238, 0.42);
-  border-radius: 16px;
-  box-shadow: 0 10px 24px rgba(120, 103, 238, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(120, 103, 238, 0.07);
 }
 
 .user-bubble time,
@@ -1198,7 +1203,7 @@ onUnmounted(() => {
   flex-direction: column;
   margin-bottom: 8px;
   color: #64748b;
-  font-size: 14px;
+  font-size: 13px;
   gap: 4px;
 }
 
@@ -1208,14 +1213,14 @@ onUnmounted(() => {
 }
 
 .assistant-card {
-  padding: 18px 20px;
+  padding: 16px 18px;
   color: #172033;
-  font-size: 15px;
-  line-height: 1.8;
+  font-size: 14px;
+  line-height: 1.7;
   background: #fff;
   border: 1px solid var(--chat-border);
-  border-radius: 16px;
-  box-shadow: 0 12px 28px rgba(40, 72, 120, 0.07);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(40, 72, 120, 0.06);
 }
 
 .message-content {
@@ -1225,8 +1230,8 @@ onUnmounted(() => {
 
 .message-actions {
   display: flex;
-  margin-top: 8px;
-  gap: 6px;
+  margin-top: 7px;
+  gap: 5px;
 }
 
 .message-actions button {
@@ -1254,11 +1259,11 @@ onUnmounted(() => {
 
 .chat-input-card {
   flex: 0 0 auto;
-  padding: 16px 18px;
+  padding: 14px 16px;
   background: #fff;
   border: 1px solid rgba(120, 103, 238, 0.38);
-  border-radius: 18px;
-  box-shadow: 0 12px 30px rgba(66, 93, 142, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(66, 93, 142, 0.07);
 }
 
 .chat-input-card:focus-within {
@@ -1269,42 +1274,42 @@ onUnmounted(() => {
 .chat-input {
   display: block;
   width: 100%;
-  min-height: 58px;
-  max-height: 96px;
+  min-height: 48px;
+  max-height: 74px;
   resize: none;
   color: #1f2937;
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.55;
   background: transparent;
   border: 0;
   outline: none;
 }
 
 .input-toolbar {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .input-toolbar-left,
 .input-toolbar-right {
-  gap: 10px;
+  gap: 8px;
 }
 
 .composer-tool-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
 }
 
 .model-select-shell {
   display: inline-flex;
-  height: 36px;
+  height: 34px;
   align-items: center;
   padding: 0 10px;
   color: #344054;
   background: #fff;
   border: 1px solid var(--chat-border);
-  border-radius: 10px;
-  gap: 8px;
+  border-radius: 9px;
+  gap: 7px;
 }
 
 .model-select-shell select {
@@ -1319,7 +1324,7 @@ onUnmounted(() => {
 
 .vision-pill {
   display: inline-flex;
-  height: 30px;
+  height: 32px;
   align-items: center;
   padding: 0 13px;
   color: #946b24;
@@ -1345,17 +1350,18 @@ onUnmounted(() => {
 
 .send-btn {
   display: inline-flex;
-  height: 42px;
+  width: 82px;
+  height: 40px;
   align-items: center;
   justify-content: center;
-  padding: 0 20px;
+  padding: 0 14px;
   color: #fff;
-  font-size: 15px;
+  font-size: 14px;
   background: linear-gradient(135deg, #7b6df1, #8d75f4);
   border: 0;
-  border-radius: 10px;
-  box-shadow: 0 10px 20px rgba(120, 103, 238, 0.2);
-  gap: 8px;
+  border-radius: 9px;
+  box-shadow: 0 8px 18px rgba(120, 103, 238, 0.18);
+  gap: 7px;
 }
 
 .send-btn:disabled {
@@ -1366,12 +1372,12 @@ onUnmounted(() => {
 
 @media (max-width: 1280px) {
   .local-ai-chat-shell {
-    grid-template-columns: 330px minmax(0, 1fr);
+    grid-template-columns: 310px minmax(0, 1fr);
   }
 
   .chat-sidebar,
   .chat-panel {
-    padding: 22px;
+    padding: 20px;
   }
 }
 

@@ -10530,7 +10530,7 @@ const V1 = zi(Yn, "$notify"), at = {
             }, [
               $(l(wc), {
                 theme: "outline",
-                size: "18"
+                size: "17"
               })
             ], 8, __)
           ])
@@ -10555,7 +10555,7 @@ const V1 = zi(Yn, "$notify"), at = {
             l(C).length ? q("v-if", !0) : (I(), W("div", C_, [
               $(l(br), {
                 theme: "outline",
-                size: "30"
+                size: "28"
               }),
               g(
                 "div",
@@ -10657,7 +10657,7 @@ const V1 = zi(Yn, "$notify"), at = {
                           }, [
                             $(l(hc), {
                               theme: "outline",
-                              size: "15"
+                              size: "14"
                             })
                           ], 8, $_),
                           g("button", {
@@ -10667,7 +10667,7 @@ const V1 = zi(Yn, "$notify"), at = {
                           }, [
                             $(l(Ga), {
                               theme: "outline",
-                              size: "15"
+                              size: "14"
                             })
                           ], 8, R_),
                           g("button", {
@@ -10677,7 +10677,7 @@ const V1 = zi(Yn, "$notify"), at = {
                           }, [
                             $(l(_c), {
                               theme: "outline",
-                              size: "15"
+                              size: "14"
                             })
                           ], 8, M_),
                           g("button", {
@@ -10687,7 +10687,7 @@ const V1 = zi(Yn, "$notify"), at = {
                           }, [
                             $(l(gc), {
                               theme: "outline",
-                              size: "15"
+                              size: "14"
                             })
                           ], 8, D_),
                           g("button", {
@@ -10697,7 +10697,7 @@ const V1 = zi(Yn, "$notify"), at = {
                           }, [
                             $(l(bc), {
                               theme: "outline",
-                              size: "15"
+                              size: "14"
                             })
                           ], 8, F_),
                           g("button", {
@@ -10707,7 +10707,7 @@ const V1 = zi(Yn, "$notify"), at = {
                           }, [
                             $(l(Ha), {
                               theme: "outline",
-                              size: "15"
+                              size: "14"
                             })
                           ], 8, x_)
                         ]),
@@ -10823,7 +10823,7 @@ const V1 = zi(Yn, "$notify"), at = {
                 }, [
                   $(l(Cc), {
                     theme: "outline",
-                    size: "17"
+                    size: "16"
                   })
                 ], 8, Y_),
                 g("button", {
@@ -10834,7 +10834,7 @@ const V1 = zi(Yn, "$notify"), at = {
                 }, [
                   $(l(Ir), {
                     theme: "outline",
-                    size: "17"
+                    size: "16"
                   })
                 ], 8, q_),
                 g("label", Z_, [
@@ -10891,7 +10891,7 @@ const V1 = zi(Yn, "$notify"), at = {
                 }, [
                   $(l(Tc), {
                     theme: "outline",
-                    size: "17"
+                    size: "16"
                   }),
                   g(
                     "span",
@@ -10915,7 +10915,7 @@ const V1 = zi(Yn, "$notify"), at = {
   for (const [o, r] of t)
     n[o] = r;
   return n;
-}, n2 = /* @__PURE__ */ xa(t2, [["__scopeId", "data-v-4df15cd6"]]), o2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, n2 = /* @__PURE__ */ xa(t2, [["__scopeId", "data-v-eab39f4b"]]), o2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: n2
 }, Symbol.toStringTag, { value: "Module" }));
