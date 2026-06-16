@@ -94,16 +94,6 @@
           <div class="service-url">
             {{ serviceStatus?.baseUrl ?? 'http://127.0.0.1:39281' }}
           </div>
-          <div class="chat-meta-pills">
-            <span>
-              {{ t('localAi.modelLabel') }}: {{ currentModelDisplay }}
-            </span>
-            <span>
-              {{ t('localAi.contextLabel') }}: {{ currentContextDisplay }}
-            </span>
-            <span>{{ t('localAi.temperature') }}: {{ currentTemperature }}</span>
-            <span>{{ t('localAi.maxTokens') }}: {{ currentMaxTokens }}</span>
-          </div>
         </div>
         <div class="chat-topbar-actions">
           <CustomButton size="small" plain class="topbar-custom-btn" @click="goSettings">
@@ -162,14 +152,39 @@
                 </small>
               </div>
               <div class="assistant-card" :class="{ 'assistant-card--streaming': message.streaming }">
-                <div
-                  v-if="message.content"
-                  class="message-content markdown-body"
-                  v-html="renderMarkdown(message.content)"
-                ></div>
+                <div v-if="message.content" class="assistant-content-stack">
+                  <details
+                    v-if="messageReasoning(message.content)"
+                    class="reasoning-panel"
+                    :open="message.streaming"
+                  >
+                    <summary>
+                      <span>Reasoning</span>
+                      <small v-if="message.streaming">{{ t('localAi.thinking') }}</small>
+                    </summary>
+                    <div
+                      class="message-content markdown-body"
+                      v-html="renderMarkdown(messageReasoning(message.content))"
+                    ></div>
+                  </details>
+                  <div
+                    v-if="messageAnswer(message.content)"
+                    class="message-content markdown-body"
+                    v-html="renderMarkdown(messageAnswer(message.content))"
+                  ></div>
+                </div>
                 <div v-else class="message-content loading-text">
                   {{ t('localAi.thinking') }}
                 </div>
+              </div>
+              <div v-if="message.content" class="message-stats">
+                <span>
+                  Context: {{ messageStats(message).context }}/{{ messageStats(message).contextMax }}
+                  ({{ messageStats(message).contextPercent }}%)
+                </span>
+                <span>Output: {{ messageStats(message).output }}</span>
+                <span>{{ messageStats(message).seconds }}s</span>
+                <span>{{ messageStats(message).speed }} t/s</span>
               </div>
               <div v-if="!message.streaming" class="message-actions">
                 <button
@@ -348,13 +363,6 @@ const currentModelDisplay = computed(
     fileName(config.value?.modelPath) ||
     t('localAi.localModel')
 );
-const currentContextDisplay = computed(() =>
-  config.value?.ctxSize ? String(config.value.ctxSize) : t('localAi.defaultContext')
-);
-const currentTemperature = computed(() =>
-  config.value?.temperature ?? 0.3
-);
-const currentMaxTokens = computed(() => config.value?.maxTokens ?? 1024);
 const filteredHistories = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
   return histories.value
@@ -485,44 +493,109 @@ const renderMarkdown = (value: string): string => {
   }
   return html;
 };
+const splitReasoning = (value: string): { reasoning: string; answer: string } => {
+  const match = value.match(/<think>([\s\S]*?)(?:<\/think>|$)/i);
+  if (!match || match.index === undefined) {
+    return { reasoning: '', answer: value };
+  }
+
+  const before = value.slice(0, match.index).trim();
+  const matchedText = match[0];
+  const after = value.slice(match.index + matchedText.length).trim();
+  return {
+    reasoning: (match[1] ?? '').trim(),
+    answer: [before, after].filter(Boolean).join('\n\n')
+  };
+};
+const messageReasoning = (value: string): string => splitReasoning(value).reasoning;
+const messageAnswer = (value: string): string => splitReasoning(value).answer;
+const estimateTokens = (value: string): number =>
+  value.trim() ? Math.max(1, Math.ceil(value.length / 2.2)) : 0;
+const messageStats = (message: ChatMessage) => {
+  const index = activeMessages.value.findIndex((item) => item.id === message.id);
+  const context = estimateTokens(
+    activeMessages.value
+      .slice(0, Math.max(0, index))
+      .map((item) => item.content)
+      .join('\n')
+  );
+  const output = estimateTokens(message.content);
+  const contextMax = config.value?.ctxSize ?? 4096;
+  const elapsedSeconds =
+    (message.elapsedMs ?? Date.now() - messageTimestamp(message).getTime()) / 1000;
+
+  return {
+    context,
+    contextMax,
+    contextPercent: Math.min(100, Math.round((context / contextMax) * 100)),
+    output,
+    seconds: elapsedSeconds.toFixed(1),
+    speed: elapsedSeconds > 0 ? (output / elapsedSeconds).toFixed(1) : '0.0'
+  };
+};
 const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   const startedAt = performance.now();
-  let pendingContent = '';
-  let flushTimer: number | null = null;
+  let queuedContent = '';
+  let pumpTimer: number | null = null;
+  let drainResolver: (() => void) | null = null;
+  let receivedDelta = false;
 
-  const flush = async () => {
-    if (!pendingContent) {
-      flushTimer = null;
+  const pump = async () => {
+    if (!queuedContent) {
+      pumpTimer = null;
+      drainResolver?.();
+      drainResolver = null;
       return;
     }
-    assistantMessage.content += pendingContent;
-    pendingContent = '';
-    flushTimer = null;
+
+    const take = queuedContent.length > 240 ? 18 : 6;
+    assistantMessage.content += queuedContent.slice(0, take);
+    queuedContent = queuedContent.slice(take);
     await scrollToBottom();
+    pumpTimer = window.setTimeout(() => {
+      pump().catch((error) =>
+        logger.warn('[LocalAI] stream pump failed', error)
+      );
+    }, 24);
   };
 
-  const scheduleFlush = () => {
-    if (flushTimer !== null) return;
-    flushTimer = window.setTimeout(() => {
-      flush().catch((error) =>
-        logger.warn('[LocalAI] stream flush failed', error)
+  const enqueueContent = (value: string) => {
+    if (!value) return;
+    queuedContent += value;
+    if (pumpTimer !== null) return;
+    pumpTimer = window.setTimeout(() => {
+      pump().catch((error) =>
+        logger.warn('[LocalAI] stream pump failed', error)
       );
-    }, 48);
+    }, 12);
   };
 
   const response = await streamChatWithLocalAi(
     { messages: toApiMessages() },
     (delta) => {
-      pendingContent += delta;
-      scheduleFlush();
+      receivedDelta = true;
+      enqueueContent(delta);
     }
   );
-  if (flushTimer !== null) {
-    window.clearTimeout(flushTimer);
-    flushTimer = null;
+
+  if (!receivedDelta) {
+    enqueueContent(response.content);
+  } else {
+    const visibleLength = assistantMessage.content.length + queuedContent.length;
+    if (response.content.length > visibleLength) {
+      enqueueContent(response.content.slice(visibleLength));
+    }
   }
-  if (pendingContent) await flush();
-  assistantMessage.content = response.content || assistantMessage.content;
+
+  if (queuedContent || pumpTimer !== null) {
+    await new Promise<void>((resolve) => {
+      drainResolver = resolve;
+    });
+  }
+
+  if (response.content && assistantMessage.content !== response.content) {
+    assistantMessage.content = response.content;
+  }
   assistantMessage.streaming = false;
   assistantMessage.elapsedMs = performance.now() - startedAt;
 };
@@ -700,7 +773,7 @@ onUnmounted(() => {
   padding: 4px;
   color: var(--categories-text-color, #111827);
   background: var(--chat-bg);
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 6px;
 }
 
@@ -708,16 +781,16 @@ onUnmounted(() => {
 .chat-panel {
   min-height: 0;
   background: var(--chat-panel);
-  border: 1px solid var(--chat-border);
+  border: 0;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(30, 41, 59, 0.06);
+  box-shadow: none;
 }
 
 .chat-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 20px;
+  gap: 14px;
+  padding: 16px;
   overflow: hidden;
 }
 
@@ -748,14 +821,14 @@ onUnmounted(() => {
 }
 
 .sidebar-title-block h2 {
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1.3;
 }
 
 .sidebar-title-block p {
   margin: 4px 0 0;
   color: var(--chat-muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .sidebar-actions,
@@ -781,8 +854,8 @@ onUnmounted(() => {
 }
 
 .icon-action-btn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 6px;
 }
 
@@ -804,7 +877,7 @@ onUnmounted(() => {
 .sidebar-search {
   display: flex;
   align-items: center;
-  height: 40px;
+  height: 36px;
   padding: 0 10px;
   color: var(--chat-muted);
   background: var(--chat-pill-bg);
@@ -817,7 +890,7 @@ onUnmounted(() => {
   min-width: 0;
   flex: 1;
   color: #273449;
-  font-size: 14px;
+  font-size: 13px;
   background: transparent;
   border: 0;
   outline: none;
@@ -843,10 +916,10 @@ onUnmounted(() => {
 .chat-list-item {
   display: flex;
   align-items: center;
-  min-height: 42px;
+  min-height: 36px;
   border-radius: 8px;
   color: #44536a;
-  font-size: 14px;
+  font-size: 13px;
   text-align: left;
   transition:
     background-color 0.16s ease,
@@ -863,7 +936,7 @@ onUnmounted(() => {
 
 .chat-list-item {
   position: relative;
-  min-height: 40px;
+  min-height: 36px;
   gap: 8px;
   padding: 0 10px;
   cursor: pointer;
@@ -876,7 +949,7 @@ onUnmounted(() => {
 .chat-list-item.active {
   color: #fff;
   background: var(--chat-primary);
-  box-shadow: 0 6px 14px rgba(95, 116, 243, 0.16);
+  box-shadow: none;
 }
 
 .chat-item-title {
@@ -933,20 +1006,20 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 38px;
+  height: 34px;
   margin-top: 6px;
   color: #44536a;
   background: #fff;
   border: 1px solid var(--chat-border);
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   gap: 8px;
 }
 
 .chat-panel {
   display: flex;
   flex-direction: column;
-  padding: 24px;
+  padding: 16px 18px;
   overflow: hidden;
 }
 
@@ -961,9 +1034,9 @@ onUnmounted(() => {
 }
 
 .chat-title-row h3 {
-  max-width: 56vw;
+  max-width: 58vw;
   overflow: hidden;
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -972,10 +1045,10 @@ onUnmounted(() => {
 .status-pill {
   display: inline-flex;
   align-items: center;
-  height: 26px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 9px;
   color: #7f1d1d;
-  font-size: 13px;
+  font-size: 12px;
   background: #fff1f3;
   border: 1px solid #ffd9df;
   border-radius: 999px;
@@ -1000,37 +1073,26 @@ onUnmounted(() => {
 }
 
 .service-url {
-  margin-top: 8px;
+  margin-top: 6px;
   color: #66758d;
-  font-size: 14px;
-}
-
-.chat-meta-pills {
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: 12px;
-  gap: 8px;
-}
-
-.chat-meta-pills span,
-.token-row span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 10px;
-  color: #536175;
   font-size: 13px;
-  background: var(--chat-pill-bg);
-  border: 1px solid var(--chat-border);
-  border-radius: 8px;
 }
 
 .topbar-btn,
 .topbar-custom-btn {
   height: 28px;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 12px;
   gap: 7px;
+}
+
+.topbar-custom-btn {
+  min-width: 68px;
+  white-space: nowrap;
+}
+
+.topbar-custom-btn span {
+  white-space: nowrap;
 }
 
 .topbar-btn--icon {
@@ -1041,16 +1103,16 @@ onUnmounted(() => {
 .message-list {
   min-height: 0;
   flex: 1;
-  padding: 16px 2px 18px;
+  padding: 12px 2px 14px;
   overflow-y: auto;
 }
 
 .date-divider {
   display: flex;
   align-items: center;
-  margin: 4px 0 24px;
+  margin: 2px 0 18px;
   color: #94a3b8;
-  font-size: 13px;
+  font-size: 12px;
   gap: 12px;
 }
 
@@ -1080,7 +1142,7 @@ onUnmounted(() => {
 
 .empty-title {
   color: #1f2937;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -1091,8 +1153,8 @@ onUnmounted(() => {
 .message-row {
   display: flex;
   align-items: flex-start;
-  margin-bottom: 22px;
-  gap: 12px;
+  margin-bottom: 18px;
+  gap: 10px;
 }
 
 .message-row--user {
@@ -1101,13 +1163,13 @@ onUnmounted(() => {
 
 .message-avatar {
   display: flex;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   color: #536175;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   background: #f0f6ff;
   border: 1px solid var(--chat-border);
@@ -1118,7 +1180,7 @@ onUnmounted(() => {
   color: #fff;
   background: var(--chat-primary);
   border-color: transparent;
-  box-shadow: 0 8px 18px rgba(95, 116, 243, 0.18);
+  box-shadow: none;
 }
 
 .message-body {
@@ -1131,14 +1193,14 @@ onUnmounted(() => {
 }
 
 .user-bubble {
-  padding: 14px 16px 9px;
+  padding: 11px 13px 8px;
   color: #1f2937;
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.6;
   background: #f7f9ff;
   border: 1px solid rgba(95, 116, 243, 0.32);
   border-radius: 8px;
-  box-shadow: 0 8px 18px rgba(95, 116, 243, 0.06);
+  box-shadow: none;
 }
 
 .user-bubble time,
@@ -1153,9 +1215,9 @@ onUnmounted(() => {
 .assistant-head {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
   gap: 8px;
 }
 
@@ -1165,10 +1227,10 @@ onUnmounted(() => {
 }
 
 .assistant-card {
-  padding: 14px 16px;
+  padding: 12px 14px;
   color: #172033;
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.68;
   background: #fff;
   border: 1px solid var(--chat-border);
   border-radius: 8px;
@@ -1181,6 +1243,40 @@ onUnmounted(() => {
 
 .message-content {
   word-break: break-word;
+}
+
+.assistant-content-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.reasoning-panel {
+  overflow: hidden;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+}
+
+.reasoning-panel summary {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 11px;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid transparent;
+}
+
+.reasoning-panel[open] summary {
+  border-bottom-color: #e5e7eb;
+}
+
+.reasoning-panel .message-content {
+  padding: 10px 12px;
 }
 
 .markdown-body {
@@ -1211,7 +1307,7 @@ onUnmounted(() => {
 .markdown-body :deep(code) {
   padding: 2px 5px;
   color: #334155;
-  font-size: 13px;
+  font-size: 12px;
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   border-radius: 5px;
@@ -1221,15 +1317,16 @@ onUnmounted(() => {
   margin: 12px 0;
   padding: 12px;
   overflow-x: auto;
-  background: #111827;
+  background: #f6f8fa;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
 }
 
 .markdown-body :deep(pre code) {
   display: block;
   padding: 0;
-  color: #e5e7eb;
-  font-size: 13px;
+  color: #1f2937;
+  font-size: 12px;
   line-height: 1.65;
   white-space: pre;
   background: transparent;
@@ -1267,9 +1364,18 @@ onUnmounted(() => {
   gap: 5px;
 }
 
+.message-stats {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  color: #7c8799;
+  font-size: 12px;
+  gap: 14px;
+}
+
 .message-actions button {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 8px;
 }
 
@@ -1279,26 +1385,26 @@ onUnmounted(() => {
 
 .chat-input-card {
   flex: 0 0 auto;
-  padding: 14px 16px;
+  padding: 12px 14px;
   background: #fff;
   border: 1px solid rgba(95, 116, 243, 0.28);
   border-radius: 8px;
-  box-shadow: 0 10px 24px rgba(66, 93, 142, 0.07);
+  box-shadow: none;
 }
 
 .chat-input-card:focus-within {
   border-color: rgba(95, 116, 243, 0.72);
-  box-shadow: 0 0 0 3px rgba(95, 116, 243, 0.08);
+  box-shadow: none;
 }
 
 .chat-input {
   display: block;
   width: 100%;
-  min-height: 48px;
-  max-height: 74px;
+  min-height: 42px;
+  max-height: 66px;
   resize: none;
   color: #1f2937;
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1.55;
   background: transparent;
   border: 0;
@@ -1315,14 +1421,14 @@ onUnmounted(() => {
 }
 
 .composer-tool-btn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 6px;
 }
 
 .model-select-shell {
   display: inline-flex;
-  height: 34px;
+  height: 30px;
   align-items: center;
   padding: 0 10px;
   color: #344054;
@@ -1335,7 +1441,7 @@ onUnmounted(() => {
 .model-select-shell select {
   width: min(240px, 28vw);
   color: inherit;
-  font-size: 14px;
+  font-size: 12px;
   background: transparent;
   border: 0;
   outline: 0;
@@ -1344,22 +1450,22 @@ onUnmounted(() => {
 
 .input-hint {
   color: #7c8799;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .send-btn {
   display: inline-flex;
   width: 82px;
-  height: 36px;
+  height: 32px;
   align-items: center;
   justify-content: center;
   padding: 0 14px;
   color: #fff;
-  font-size: 14px;
+  font-size: 13px;
   background: var(--chat-primary);
   border: 0;
   border-radius: 6px;
-  box-shadow: 0 8px 18px rgba(95, 116, 243, 0.18);
+  box-shadow: none;
   gap: 7px;
 }
 
@@ -1375,12 +1481,12 @@ onUnmounted(() => {
 
 @media (max-width: 1280px) {
   .local-ai-chat-shell {
-    grid-template-columns: 310px minmax(0, 1fr);
+    grid-template-columns: 280px minmax(0, 1fr);
   }
 
   .chat-sidebar,
   .chat-panel {
-    padding: 20px;
+    padding: 16px;
   }
 }
 
