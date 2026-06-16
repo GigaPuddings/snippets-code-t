@@ -18,6 +18,7 @@ import {
   INSTALLED_PLUGINS,
   isPluginId
 } from '@/plugins/registry';
+import { getLocalAiRuntimeStatus } from '@/api/localAi';
 import { loadPluginRegistry } from '@/plugins/loader';
 import {
   clearRuntimePluginRegistrations,
@@ -588,6 +589,22 @@ export const usePluginStore = defineStore('plugins', {
           };
         } catch (error) {
           logger.warn('[PluginStore] 获取录屏 FFmpeg 资源状态失败', error);
+        }
+      }
+
+      if (hasPluginOrResourceFor('local-ai') && this.isEnabled('local-ai')) {
+        try {
+          const status = await getLocalAiRuntimeStatus();
+          nextStatus['local-ai'] = {
+            pluginId: 'local-ai',
+            resourceId: 'llama-runtime',
+            available: status.available,
+            source: status.source,
+            path: status.path,
+            searchedPaths: status.searchedPaths
+          };
+        } catch (error) {
+          logger.warn('[PluginStore] 获取本地 AI llama.cpp 资源状态失败', error);
         }
       }
 

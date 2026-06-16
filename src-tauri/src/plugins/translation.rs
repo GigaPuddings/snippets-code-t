@@ -212,6 +212,7 @@ pub async fn translate_text(
     match engine.as_str() {
         "bing" => translate_with_bing(text, from, to).await,
         "google" => translate_with_google(text, from, to).await,
+        "local-ai" => super::local_ai::translate_text(app_handle, text, from, to).await,
         _ => Err(format!("不支持的翻译引擎: {}", engine)),
     }
 }

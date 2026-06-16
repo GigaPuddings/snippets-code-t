@@ -208,7 +208,7 @@ const TRANSFORMERS_RUNTIME_PACKAGES = ['translation-offline-runtime', 'translati
 const OFFLINE_RUNTIME_PLUGIN_ID = 'translation-offline-runtime'
 
 // 状态
-const defaultEngine = ref<'google' | 'bing' | 'offline'>('bing')
+const defaultEngine = ref<'google' | 'bing' | 'offline' | 'local-ai'>('bing')
 const modelLoaded = ref(false)  // 内存中是否已加载
 const backendActivated = ref(false)  // 后端激活状态（用户是否启用了离线翻译）
 const modelCacheInfo = ref<ModelCacheInfo>({ isCached: false, cacheType: 'none' })
@@ -227,7 +227,8 @@ const modelCached = computed(() => modelCacheInfo.value.isCached)
 const engineOptions = computed(() => [
   { value: 'google', label: t('translation.google') },
   { value: 'bing', label: t('translation.bing') },
-  { value: 'offline', label: t('translation.offline') }
+  { value: 'offline', label: t('translation.offline') },
+  { value: 'local-ai', label: t('translation.localAi') }
 ])
 
 // 模型状态文本
@@ -509,8 +510,8 @@ onMounted(async () => {
   try {
     const saved = await invoke<string>('get_translation_engine')
     logger.info(`[翻译设置] 从后端获取翻译引擎: ${saved}`)
-    if (saved && ['google', 'bing', 'offline'].includes(saved)) {
-      defaultEngine.value = saved as 'google' | 'bing' | 'offline'
+    if (saved && ['google', 'bing', 'offline', 'local-ai'].includes(saved)) {
+      defaultEngine.value = saved as 'google' | 'bing' | 'offline' | 'local-ai'
     }
   } catch (error) {
     logger.error('[翻译设置] 获取翻译引擎失败:', error)

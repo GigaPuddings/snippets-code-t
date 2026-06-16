@@ -903,6 +903,16 @@ pub fn run() {
             set_auto_hide_on_blur,            // 设置自动失焦隐藏
             get_auto_hide_on_blur,            // 获取自动失焦隐藏设置
             plugins::translation::translate_text,                   // 翻译文本
+            plugins::local_ai::local_ai_get_config,                 // 获取本地 AI 配置
+            plugins::local_ai::local_ai_save_config,                // 保存本地 AI 配置
+            plugins::local_ai::local_ai_scan_models,                // 扫描本地 AI 模型
+            plugins::local_ai::local_ai_get_runtime_status,         // 获取本地 AI 运行时状态
+            plugins::local_ai::local_ai_get_status,                 // 获取本地 AI 服务状态
+            plugins::local_ai::local_ai_start_service,              // 启动本地 AI 服务
+            plugins::local_ai::local_ai_restart_service,            // 重启本地 AI 服务
+            plugins::local_ai::local_ai_stop_service,               // 停止本地 AI 服务
+            plugins::local_ai::local_ai_chat,                       // 本地 AI 聊天
+            plugins::local_ai::local_ai_translate,                  // 本地 AI 翻译
             add_search_history,               // 添加搜索历史
             get_search_history,               // 获取搜索历史
             get_window_info,                  // 获取窗口信息

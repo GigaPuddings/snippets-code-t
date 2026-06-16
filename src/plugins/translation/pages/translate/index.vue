@@ -8,6 +8,7 @@ import bingIcon from '@/assets/svg/bing.svg';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import { processTextForTranslation, detectLanguage } from '@/utils/text';
+import { usePluginStore } from '@/store';
 import {
   translateOffline,
   canUseOfflineTranslation,
@@ -26,6 +27,7 @@ import {
 } from '@icon-park/vue-next';
 
 const { t } = useI18n();
+const pluginStore = usePluginStore();
 
 const appWindow = getCurrentWindow();
 
@@ -38,6 +40,7 @@ const isPinned = ref(false);
 const showDeleteButton = ref(false);
 const sourceTextArea = ref();
 const offlineModelAvailable = ref(false);
+const localAiAvailable = ref(false);
 
 // 多引擎翻译结果
 interface TranslationResult {
@@ -69,6 +72,13 @@ const translationResults = ref<TranslationResult[]>([
     text: '',
     loading: false,
     expanded: true
+  },
+  {
+    engine: 'local-ai',
+    name: '',
+    text: '',
+    loading: false,
+    expanded: true
   }
 ]);
 
@@ -77,6 +87,9 @@ const availableResults = computed(() => {
   return translationResults.value.filter((r) => {
     if (r.engine === 'offline') {
       return offlineModelAvailable.value;
+    }
+    if (r.engine === 'local-ai') {
+      return localAiAvailable.value;
     }
     return true;
   });
@@ -87,6 +100,7 @@ const getEngineName = (engine: string) => {
   if (engine === 'bing') return t('translate.bingTranslate');
   if (engine === 'google') return t('translate.googleTranslate');
   if (engine === 'offline') return t('translate.offlineTranslate');
+  if (engine === 'local-ai') return t('translate.localAiTranslate');
   return engine;
 };
 
@@ -311,6 +325,9 @@ const translateWithEngine = async (engine: string) => {
 
   // 离线翻译需要检查模型是否可用
   if (engine === 'offline' && !offlineModelAvailable.value) {
+    return;
+  }
+  if (engine === 'local-ai' && !localAiAvailable.value) {
     return;
   }
 
@@ -541,6 +558,14 @@ const onSourceLanguageChange = () => {
 };
 
 onMounted(async () => {
+  try {
+    await pluginStore.initialize();
+    localAiAvailable.value = pluginStore.isEnabled('local-ai');
+  } catch (error) {
+    logger.warn('[翻译窗口] 获取本地 AI 插件状态失败:', error);
+    localAiAvailable.value = false;
+  }
+
   // 从后端检查离线翻译模型是否已激活（不自动预热，使用懒加载）
   try {
     const backendActivated = await invoke<boolean>(
@@ -749,7 +774,8 @@ onUnmounted(() => {
                 class="engine-icon"
                 alt="Bing"
               />
-              <span v-else class="offline-icon">离</span>
+              <span v-else-if="result.engine === 'offline'" class="offline-icon">离</span>
+              <span v-else class="offline-icon ai-icon">AI</span>
               <span>{{ getEngineName(result.engine) }}</span>
             </div>
             <div class="result-controls">
@@ -1018,6 +1044,11 @@ onUnmounted(() => {
 
   background: #21834a;
   border-radius: 3px;
+}
+
+.ai-icon {
+  font-size: 9px;
+  background: var(--el-color-primary);
 }
 
 .result-controls {

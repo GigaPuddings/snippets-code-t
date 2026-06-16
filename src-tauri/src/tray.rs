@@ -98,6 +98,7 @@ fn handle_plugin_tray_menu_click(app: &AppHandle, menu_id: &str) -> bool {
 pub fn exit_app_now(app: &AppHandle) -> ! {
     info!("[托盘菜单] 用户选择退出程序");
     stop_scheduler();
+    crate::plugins::local_ai::stop_service_now();
     let _ = app.global_shortcut().unregister_all();
     let _ = app.remove_tray_by_id("tray");
     app.cleanup_before_exit();

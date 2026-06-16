@@ -1,0 +1,1 @@
+export { localAiPlugin } from './manifest';

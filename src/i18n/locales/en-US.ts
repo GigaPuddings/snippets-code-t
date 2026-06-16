@@ -517,6 +517,18 @@ export default {
       description:
         'Local runtime resource loaded on demand by offline translation; text recognition is provided by the RapidOCR resource.'
     },
+    localAi: {
+      name: 'Local AI',
+      description:
+        'Run local GGUF models with llama.cpp for AI chat, translation, and assistance.',
+      resourceHint:
+        'Local AI depends on the llama.cpp runtime resource package; model files stay in the local folder selected by the user.'
+    },
+    localAiLlamaRuntime: {
+      name: 'Local AI llama.cpp Runtime',
+      description:
+        'llama-server and CUDA runtime dependencies used by the Local AI plugin.'
+    },
     screenshot: {
       name: 'Screenshot and OCR',
       description:
@@ -1230,6 +1242,7 @@ export default {
     bingTranslate: 'Bing Translate',
     googleTranslate: 'Google Translate',
     offlineTranslate: 'Offline Translate',
+    localAiTranslate: 'Local AI',
     languages: {
       auto: 'Auto Detect',
       zh: 'Chinese (Simplified)',
@@ -1726,6 +1739,7 @@ export default {
     google: 'Google Translate',
     bing: 'Bing Translate',
     offline: 'Offline Translate',
+    localAi: 'Local AI',
     engineSaved: 'Translation engine saved',
     engineSaveFailed: 'Failed to save translation engine',
     offlineModel: 'Offline Model',
@@ -1775,5 +1789,78 @@ export default {
     waiting: 'Waiting',
     downloadProgress: 'Download Progress',
     downloadProgressDesc: 'Model file download status'
+  },
+
+  localAi: {
+    title: 'Local AI',
+    settings: 'Settings',
+    openChat: 'Open Chat',
+    chatTitle: 'Local AI Chat',
+    chatEmpty: 'Start by typing a message',
+    chatPlaceholder: 'Type a message, Ctrl + Enter to send',
+    send: 'Send',
+    you: 'You',
+    assistant: 'AI',
+    thinking: 'Generating...',
+    chatFailed: 'Local AI request failed',
+    modelRuntime: 'Model and Runtime',
+    modelRuntimeDesc:
+      'Choose the main GGUF model, optional mmproj file, and llama-server runtime',
+    modelDir: 'Model Dir',
+    mainModel: 'Main Model',
+    mmprojModel: 'mmproj',
+    runtimePath: 'Runtime',
+    runtimePathPlaceholder:
+      'Leave blank to use the local-ai-llama-runtime resource package',
+    chooseModelDir: 'Choose model directory',
+    chooseRuntime: 'Choose llama-server.exe',
+    serviceControl: 'Service Control',
+    serviceControlDesc:
+      'Local AI starts on demand and stops automatically after idle time',
+    startService: 'Start Service',
+    restartService: 'Restart Service',
+    stopService: 'Stop Service',
+    serviceStarted: 'Local AI service started',
+    serviceRestarted: 'Local AI service restarted',
+    serviceStoppedMsg: 'Local AI service stopped',
+    serviceStartFailed: 'Start failed',
+    serviceRestartFailed: 'Restart failed',
+    serviceStopFailed: 'Stop failed',
+    inferenceParams: 'Inference Parameters',
+    inferenceParamsDesc:
+      'Control context size, GPU layers, threads, and batch sizes',
+    ctxSize: 'Context',
+    gpuLayers: 'GPU Layers',
+    threads: 'Threads',
+    batchSize: 'Batch',
+    ubatchSize: 'Ubatch',
+    mainGpu: 'Main GPU',
+    acceleration: 'Acceleration',
+    accelerationDesc:
+      'Control CUDA offload, KV cache, and memory mapping behavior',
+    flashAttn: 'Flash Attention',
+    kvOffload: 'KV GPU Offload',
+    mmap: 'Memory Map',
+    lifecycle: 'Lifecycle',
+    lifecycleDesc: 'Control startup and idle auto-stop behavior',
+    autoStart: 'Start on first use',
+    keepAlive: 'Keep running',
+    idleTimeout: 'Idle minutes',
+    requestTimeout: 'Request seconds',
+    generation: 'Generation',
+    generationDesc: 'Control default temperature and max tokens per response',
+    temperature: 'Temperature',
+    maxTokens: 'Max tokens',
+    port: 'Port',
+    runtimeReady: 'Runtime ready',
+    runtimeMissing: 'Runtime missing',
+    modelReady: 'Model ready',
+    modelMissing: 'Main model missing',
+    serviceHealthy: 'Service running',
+    serviceStarting: 'Service starting',
+    serviceStopped: 'Service stopped',
+    refreshFailed: 'Refresh failed',
+    configSaved: 'Local AI config saved',
+    configSaveFailed: 'Save failed'
   }
 };

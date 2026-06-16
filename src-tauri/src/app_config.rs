@@ -818,6 +818,10 @@ const PLUGIN_RUNTIME_SPECS: &[PluginRuntimeSpec] = &[
         apply_runtime_change: apply_local_launcher_runtime_change,
     },
     PluginRuntimeSpec {
+        id: "local-ai",
+        apply_runtime_change: apply_local_ai_runtime_change,
+    },
+    PluginRuntimeSpec {
         id: "git-sync",
         apply_runtime_change: apply_git_sync_runtime_change,
     },
@@ -993,6 +997,10 @@ fn apply_git_sync_runtime_change(app_handle: &AppHandle, enabled: bool) {
 
 fn apply_wallpaper_switcher_runtime_change(app_handle: &AppHandle, enabled: bool) {
     crate::plugins::wallpaper_switcher::apply_runtime_change(app_handle, enabled);
+}
+
+fn apply_local_ai_runtime_change(app_handle: &AppHandle, enabled: bool) {
+    crate::plugins::local_ai::apply_runtime_change(app_handle, enabled);
 }
 
 fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {

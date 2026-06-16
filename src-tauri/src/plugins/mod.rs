@@ -1,4 +1,5 @@
 pub mod desktop_files;
+pub mod local_ai;
 pub mod local_launcher;
 pub mod screen_recorder;
 pub mod screenshot;

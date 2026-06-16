@@ -84,6 +84,21 @@ export const pluginRepositories = [
     kind: 'feature'
   },
   {
+    id: 'local-ai',
+    repo: 'snippets-code-plugin-local-ai',
+    sourceDir: 'docs/plugin-packages/local-ai',
+    kind: 'feature'
+  },
+  {
+    id: 'local-ai-llama-runtime',
+    repo: 'snippets-code-plugin-local-ai-llama-runtime',
+    sourceDir: 'docs/plugin-packages/local-ai-llama-runtime',
+    kind: 'resource',
+    requiresExplicitResource: true,
+    includeFlag: 'includeLocalAiLlamaRuntime',
+    includeFlagName: '--include-local-ai-llama-runtime'
+  },
+  {
     id: 'screenshot-rapidocr',
     repo: 'snippets-code-plugin-screenshot-rapidocr',
     sourceDir: 'docs/examples/screenshot-rapidocr-resource',

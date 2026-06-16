@@ -170,6 +170,61 @@
       "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime/releases/tag/2.0.7"
     },
     {
+      "id": "local-ai",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.localAi.name",
+        "fallback": "Local AI"
+      },
+      "description": {
+        "i18nKey": "plugins.localAi.description",
+        "fallback": "Run local GGUF models with llama.cpp for AI chat, translation, and assistance."
+      },
+      "category": "automation",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/archive/refs/tags/1.0.0.zip",
+      "status": "available",
+      "sizeBytes": 403478,
+      "dependencies": [
+        "local-ai-llama-runtime"
+      ],
+      "tags": [
+        "ai",
+        "llama",
+        "local"
+      ],
+      "minAppVersion": "2.1.20",
+      "compatibleAppVersion": ">=2.1.20",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/1.0.0"
+    },
+    {
+      "id": "local-ai-llama-runtime",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.localAiLlamaRuntime.name",
+        "fallback": "Local AI llama.cpp Runtime"
+      },
+      "description": {
+        "i18nKey": "plugins.localAiLlamaRuntime.description",
+        "fallback": "llama-server and CUDA runtime dependencies used by the Local AI plugin."
+      },
+      "category": "automation",
+      "resourceFor": "local-ai",
+      "status": "available",
+      "sizeBytes": 735854186,
+      "tags": [
+        "ai",
+        "llama",
+        "resource",
+        "cuda"
+      ],
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime/releases/download/1.0.0/local-ai-llama-runtime-1.0.0.zip",
+      "minAppVersion": "2.1.20",
+      "compatibleAppVersion": ">=2.1.20",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime/releases/tag/1.0.0"
+    },
+    {
       "id": "todo",
       "version": "2.0.12",
       "name": {

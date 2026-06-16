@@ -53,3 +53,7 @@ src-tauri/resources/rapidocr/*
 # FFmpeg 本地二进制较大，由 pnpm ffmpeg:install 下载
 src-tauri/resources/ffmpeg/*
 !src-tauri/resources/ffmpeg/README.md
+
+# 插件 runtime 本地资源较大，应通过独立仓库 Release asset 分发，不进入主仓库
+/docs/plugin-packages/*/resources/*
+!/docs/plugin-packages/*/resources/README.md

@@ -13,6 +13,7 @@ function parseArgs() {
     dryRun: false,
     forceTag: false,
     includeFfmpegResource: false,
+    includeLocalAiLlamaRuntime: false,
     includeRapidOcrResource: false,
     pinMarketplaceTags: false,
     minAppVersion: null,
@@ -28,6 +29,8 @@ function parseArgs() {
       options.forceTag = true;
     } else if (arg === '--include-ffmpeg-resource') {
       options.includeFfmpegResource = true;
+    } else if (arg === '--include-local-ai-llama-runtime') {
+      options.includeLocalAiLlamaRuntime = true;
     } else if (arg === '--include-rapidocr-resource') {
       options.includeRapidOcrResource = true;
     } else if (arg === '--pin-marketplace-tags') {
