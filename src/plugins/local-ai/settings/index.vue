@@ -231,7 +231,6 @@
 
 <script setup lang="ts">
 import { open } from '@tauri-apps/plugin-dialog';
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
@@ -256,7 +255,6 @@ defineOptions({
 });
 
 const { t } = useI18n();
-const router = useRouter();
 
 const config = ref<LocalAiConfig | null>(null);
 const runtimeStatus = ref<LocalAiRuntimeStatus | null>(null);
@@ -423,7 +421,7 @@ const stopService = async () => {
 };
 
 const openChat = () => {
-  router.push('/local-ai/chat');
+  window.location.hash = '#/local-ai/chat';
 };
 
 onMounted(async () => {
