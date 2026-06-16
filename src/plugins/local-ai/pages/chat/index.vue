@@ -1,124 +1,156 @@
 <template>
   <main class="local-ai-chat-shell">
     <aside class="chat-sidebar panel-card">
-      <div class="sidebar-header">
+      <header class="sidebar-header">
         <div class="sidebar-title-block">
           <h2>{{ t('localAi.chatTitle') }}</h2>
-          <p>{{ t('localAi.chatEmpty') }}</p>
+          <p>{{ t('localAi.chatSubtitle') }}</p>
         </div>
         <div class="sidebar-actions">
-          <CustomButton class="icon-action-btn" size="small" plain @click="createNewChat">
-            +
+          <CustomButton class="icon-action-btn" size="small" plain :title="t('localAi.newChat')" @click="createNewChat">
+            <Add theme="outline" size="16" />
           </CustomButton>
-          <CustomButton class="icon-action-btn" size="small" plain @click="refreshAll">
-            ↻
+          <CustomButton class="icon-action-btn" size="small" plain :loading="refreshing" :title="t('plugins.refresh')" @click="refreshAll">
+            <Refresh theme="outline" size="16" />
           </CustomButton>
         </div>
-      </div>
+      </header>
 
       <div class="sidebar-search">
-        <input v-model="searchQuery" class="search-input" :placeholder="t('common.search')" />
+        <input v-model="searchQuery" class="search-input" :placeholder="t('localAi.searchHistory')" />
       </div>
 
-      <div class="sidebar-section">
+      <section class="sidebar-section">
         <div class="section-title">{{ t('common.quickStart') }}</div>
-        <button class="chat-list-item chat-list-item--primary active" type="button" @click="createNewChat">
-          <div class="chat-item-copy">
-            <div class="chat-item-title">{{ t('localAi.chatEmpty') }}</div>
-            <div class="chat-item-meta">{{ t('localAi.chatPlaceholder') }}</div>
-          </div>
-          <span class="chat-item-arrow">›</span>
+        <button
+          v-for="prompt in quickPrompts"
+          :key="prompt.key"
+          class="quick-prompt"
+          type="button"
+          @click="applyQuickPrompt(prompt.text)"
+        >
+          <Message theme="outline" size="15" />
+          <span>{{ prompt.text }}</span>
         </button>
-      </div>
+      </section>
 
-      <div class="sidebar-section recent-section">
+      <section class="sidebar-section recent-section">
         <div class="section-title">{{ t('localAi.recent') }}</div>
         <div v-if="filteredHistories.length" class="chat-list">
-          <button v-for="history in filteredHistories" :key="history.id" type="button"
+          <button
+            v-for="history in filteredHistories"
+            :key="history.id"
+            type="button"
             :class="['chat-list-item', activeHistoryId === history.id ? 'active' : '']"
-            @click="openHistory(history.id)">
+            @click="openHistory(history.id)"
+          >
             <div class="chat-item-copy">
               <div class="chat-item-title">{{ history.title }}</div>
               <div class="chat-item-meta">{{ history.updatedAtLabel }}</div>
             </div>
-            <span class="chat-item-delete" aria-hidden="true" @click.stop="deleteHistory(history.id)">×</span>
+            <button class="chat-item-delete" type="button" :title="t('common.delete')" @click.stop="deleteHistoryItem(history.id)">
+              <Delete theme="outline" size="14" />
+            </button>
           </button>
         </div>
         <div v-else class="sidebar-empty">{{ t('common.empty') }}</div>
-      </div>
+      </section>
     </aside>
 
     <section class="chat-panel panel-card">
       <header class="chat-topbar">
         <div class="chat-topbar-main">
           <div class="chat-title-row">
-            <h3>{{ activeHistory?.title ?? t('localAi.chatEmpty') }}</h3>
+            <h3>{{ activeHistory?.title ?? t('localAi.newChatTitle') }}</h3>
             <span :class="['status-pill', serviceStatus?.healthy ? 'ready' : serviceStatus?.running ? 'pending' : 'stopped']">
               {{ serviceStatusText }}
             </span>
           </div>
           <div class="chat-subtitle">
-            <span class="meta-dot" />
-            <span>{{ serviceStatus?.baseUrl ?? '127.0.0.1' }}</span>
-            <span class="meta-dot" />
-            <span>{{ t('localAi.modelRuntime') }}</span>
+            <span>{{ serviceStatus?.baseUrl ?? t('localAi.serviceNotStarted') }}</span>
+            <span class="meta-separator">/</span>
+            <span>{{ t('localAi.onDemandHint') }}</span>
           </div>
         </div>
         <div class="chat-topbar-actions">
-          <CustomButton class="ghost-action-btn" size="small" plain @click="goSettings">{{ t('localAi.settings') }}</CustomButton>
-          <CustomButton class="ghost-action-btn" size="small" plain @click="refreshAll">{{ t('plugins.refresh') }}</CustomButton>
+          <CustomButton size="small" plain @click="goSettings">
+            <Back theme="outline" size="15" />
+            {{ t('localAi.backToSettings') }}
+          </CustomButton>
+          <CustomButton size="small" plain @click="refreshAll">
+            <Refresh theme="outline" size="15" />
+            {{ t('plugins.refresh') }}
+          </CustomButton>
         </div>
       </header>
 
-      <div class="chat-chip-row">
-        <span class="info-chip">{{ t('localAi.serviceControl') }} · {{ serviceStatusText }}</span>
-        <span class="info-chip">{{ serviceStatus?.baseUrl ?? '127.0.0.1' }}</span>
-        <span class="info-chip">{{ t('localAi.generation') }} · {{ t('localAi.generationDesc') }}</span>
+      <div class="chat-status-row">
+        <span class="info-chip">{{ t('localAi.serviceControl') }}: {{ serviceStatusText }}</span>
+        <span class="info-chip">{{ t('localAi.modelRuntime') }}</span>
+        <span class="info-chip">{{ t('localAi.generation') }}: {{ t('localAi.temperature') }} / {{ t('localAi.maxTokens') }}</span>
       </div>
 
       <div ref="messageListRef" class="message-list">
         <div v-if="!activeMessages.length" class="empty-state">
           <div class="empty-card">
-            <div class="empty-title">{{ t('localAi.chatEmpty') }}</div>
-            <div class="empty-desc">{{ t('localAi.chatPlaceholder') }}</div>
+            <Robot theme="outline" size="34" />
+            <div>
+              <div class="empty-title">{{ t('localAi.chatEmpty') }}</div>
+              <div class="empty-desc">{{ t('localAi.chatPlaceholder') }}</div>
+            </div>
           </div>
         </div>
 
         <article v-for="message in activeMessages" :key="message.id" :class="['message-row', `message-row--${message.role}`]">
-          <div class="message-head">
-            <span class="message-role">{{ message.role === 'user' ? t('localAi.you') : t('localAi.assistant') }}</span>
-            <span v-if="message.role === 'assistant'" class="message-mini-meta">qwen / local</span>
+          <div class="message-avatar">
+            <Robot v-if="message.role === 'assistant'" theme="outline" size="16" />
+            <span v-else>{{ t('localAi.youShort') }}</span>
           </div>
-          <div class="message-bubble">{{ message.content }}</div>
-          <div v-if="message.role === 'assistant'" class="message-footer">
-            <span class="message-mini-meta">{{ t('localAi.generationDesc') }}</span>
-            <button class="message-action-link" type="button" @click="refreshStatus">{{ t('plugins.refresh') }}</button>
+          <div class="message-body">
+            <div class="message-head">
+              <span class="message-role">{{ message.role === 'user' ? t('localAi.you') : t('localAi.assistant') }}</span>
+              <span v-if="message.role === 'assistant'" class="message-mini-meta">llama.cpp</span>
+            </div>
+            <div class="message-bubble">{{ message.content }}</div>
           </div>
         </article>
 
         <article v-if="sending" class="message-row message-row--assistant">
-          <div class="message-head">
-            <span class="message-role">{{ t('localAi.assistant') }}</span>
-            <span class="message-mini-meta">{{ t('localAi.thinking') }}</span>
+          <div class="message-avatar">
+            <Robot theme="outline" size="16" />
           </div>
-          <div class="message-bubble loading-text">{{ t('localAi.thinking') }}</div>
+          <div class="message-body">
+            <div class="message-head">
+              <span class="message-role">{{ t('localAi.assistant') }}</span>
+              <span class="message-mini-meta">{{ t('localAi.thinking') }}</span>
+            </div>
+            <div class="message-bubble loading-text">{{ t('localAi.thinking') }}</div>
+          </div>
         </article>
       </div>
 
       <form class="chat-input-card" @submit.prevent="sendMessage">
-        <div class="chat-input-shell">
-          <textarea v-model="draft" class="chat-input" rows="4" :placeholder="t('localAi.chatPlaceholder')"
-            @keydown.ctrl.enter.prevent="sendMessage" />
-        </div>
+        <textarea
+          v-model="draft"
+          class="chat-input"
+          rows="4"
+          :placeholder="t('localAi.chatPlaceholder')"
+          @keydown.ctrl.enter.prevent="sendMessage"
+        />
         <div class="input-toolbar">
           <div class="input-toolbar-left">
-            <button class="tool-chip" type="button" @click="goSettings">{{ t('localAi.settings') }}</button>
-            <button class="tool-chip" type="button">Vision</button>
-            <button class="tool-chip" type="button" :disabled="sending || !activeMessages.length" @click="clearMessages">{{ t('common.clear') }}</button>
+            <button class="tool-chip" type="button" @click="goSettings">
+              <SettingTwo theme="outline" size="14" />
+              {{ t('localAi.settings') }}
+            </button>
+            <button class="tool-chip" type="button" :disabled="sending || !activeMessages.length" @click="clearMessages">
+              {{ t('common.clear') }}
+            </button>
           </div>
           <div class="input-toolbar-right">
             <span class="input-hint">Ctrl + Enter</span>
-            <CustomButton type="primary" size="small" class="send-btn" :loading="sending" :disabled="!draft.trim()" @click="sendMessage">
+            <CustomButton type="primary" size="small" class="send-btn" :loading="sending" :disabled="!canSend" @click="sendMessage">
+              <Send theme="outline" size="15" />
               {{ t('localAi.send') }}
             </CustomButton>
           </div>
@@ -131,15 +163,36 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
+import { Add, Back, Delete, Message, Refresh, Robot, Send, SettingTwo } from '@icon-park/vue-next';
 import { CustomButton } from '@/components/UI';
-import { chatWithLocalAi, getLocalAiStatus, getLocalAiChatHistories, saveLocalAiChatHistory, deleteLocalAiChatHistory, type LocalAiMessage, type LocalAiServiceStatus } from '@/api/localAi';
+import {
+  chatWithLocalAi,
+  deleteLocalAiChatHistory,
+  getLocalAiChatHistories,
+  getLocalAiStatus,
+  saveLocalAiChatHistory,
+  type LocalAiMessage,
+  type LocalAiServiceStatus
+} from '@/api/localAi';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 
 defineOptions({ name: 'LocalAiChat' });
 
-interface ChatMessage { id: string; role: 'user' | 'assistant'; content: string; }
-interface ChatHistoryView { id: string; title: string; updatedAt: string; updatedAtLabel: string; messages: ChatMessage[]; }
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface ChatHistoryView {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  updatedAtLabel: string;
+  messages: ChatMessage[];
+}
 
 const { t } = useI18n();
 const router = useRouter();
@@ -153,77 +206,222 @@ const serviceStatus = ref<LocalAiServiceStatus | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
 let statusTimer: ReturnType<typeof setInterval> | null = null;
 
-const serviceStatusText = computed(() => serviceStatus.value?.healthy ? t('localAi.serviceHealthy') : serviceStatus.value?.running ? t('localAi.serviceStarting') : t('localAi.serviceStopped'));
+const quickPrompts = computed(() => [
+  { key: 'summary', text: t('localAi.quickPromptSummary') },
+  { key: 'translate', text: t('localAi.quickPromptTranslate') },
+  { key: 'code', text: t('localAi.quickPromptCode') }
+]);
+const canSend = computed(() => Boolean(draft.value.trim()) && !sending.value);
+const serviceStatusText = computed(() => {
+  if (serviceStatus.value?.healthy) return t('localAi.serviceHealthy');
+  if (serviceStatus.value?.running) return t('localAi.serviceStarting');
+  return t('localAi.serviceStopped');
+});
 const activeHistory = computed(() => histories.value.find((item) => item.id === activeHistoryId.value) ?? null);
 const activeMessages = computed(() => activeHistory.value?.messages ?? []);
 const filteredHistories = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
-  return histories.value.filter((item) => !query || item.title.toLowerCase().includes(query) || item.messages.some((message) => message.content.toLowerCase().includes(query))).slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return histories.value
+    .filter((item) => !query || item.title.toLowerCase().includes(query) || item.messages.some((message) => message.content.toLowerCase().includes(query)))
+    .slice()
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 });
 
-const scrollToBottom = async () => { await nextTick(); const list = messageListRef.value; if (list) list.scrollTop = list.scrollHeight; };
-const refreshStatus = async () => { refreshing.value = true; try { serviceStatus.value = await getLocalAiStatus(); } catch (error) { logger.warn('[LocalAI] refresh chat status failed', error); } finally { refreshing.value = false; } };
-const refreshHistories = async () => { try { const loaded = await getLocalAiChatHistories(); histories.value = loaded.map((history) => ({ id: history.id, title: history.title, updatedAt: history.updatedAt, updatedAtLabel: new Date(history.updatedAt).toLocaleString(), messages: history.turns.map((turn) => ({ id: turn.id, role: turn.role as 'user' | 'assistant', content: turn.content })) })); if (!activeHistoryId.value && histories.value[0]) activeHistoryId.value = histories.value[0].id; } catch (error) { logger.warn('[LocalAI] refresh histories failed', error); } };
-const refreshAll = async () => { await Promise.all([refreshStatus(), refreshHistories()]); };
-const persistActiveHistory = async () => { const current = activeHistory.value; if (!current) return; await saveLocalAiChatHistory({ id: current.id, title: current.title, createdAt: current.updatedAt, updatedAt: current.updatedAt, turns: current.messages.map((message) => ({ id: message.id, role: message.role, content: message.content, createdAt: current.updatedAt })) }); };
-const createNewChat = () => { const id = `chat-${Date.now()}`; histories.value.unshift({ id, title: 'New Chat', updatedAt: new Date().toISOString(), updatedAtLabel: 'now', messages: [] }); activeHistoryId.value = id; };
-const openHistory = (id: string) => { activeHistoryId.value = id; };
-const deleteHistory = async (id: string) => { histories.value = histories.value.filter((item) => item.id !== id); await deleteLocalAiChatHistory(id); if (activeHistoryId.value === id) activeHistoryId.value = histories.value[0]?.id ?? ''; };
-const toApiMessages = (): LocalAiMessage[] => activeMessages.value.map((message) => ({ role: message.role, content: message.content }));
-const sendMessage = async () => { const content = draft.value.trim(); if (!content || sending.value) return; if (!activeHistory.value) createNewChat(); activeHistory.value?.messages.push({ id: `${Date.now()}-user`, role: 'user', content }); draft.value = ''; sending.value = true; await scrollToBottom(); try { const response = await chatWithLocalAi({ messages: toApiMessages() }); activeHistory.value?.messages.push({ id: `${Date.now()}-assistant`, role: 'assistant', content: response.content }); if (activeHistory.value) { activeHistory.value.title = activeHistory.value.title === 'New Chat' ? content.slice(0, 24) : activeHistory.value.title; activeHistory.value.updatedAt = new Date().toISOString(); activeHistory.value.updatedAtLabel = new Date(activeHistory.value.updatedAt).toLocaleString(); await persistActiveHistory(); } await refreshStatus(); } catch (error) { modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error'); activeHistory.value?.messages.push({ id: `${Date.now()}-assistant-error`, role: 'assistant', content: String(error) }); } finally { sending.value = false; await scrollToBottom(); } };
-const clearMessages = async () => { if (activeHistory.value) activeHistory.value.messages = []; await persistActiveHistory(); };
-const goSettings = () => { router.push('/config/local-ai/settings'); };
+const nowLabel = () => t('localAi.now');
+const createHistory = (): ChatHistoryView => {
+  const now = new Date().toISOString();
+  return {
+    id: `chat-${Date.now()}`,
+    title: t('localAi.newChatTitle'),
+    createdAt: now,
+    updatedAt: now,
+    updatedAtLabel: nowLabel(),
+    messages: []
+  };
+};
+const scrollToBottom = async () => {
+  await nextTick();
+  const list = messageListRef.value;
+  if (list) list.scrollTop = list.scrollHeight;
+};
+const refreshStatus = async () => {
+  refreshing.value = true;
+  try {
+    serviceStatus.value = await getLocalAiStatus();
+  } catch (error) {
+    logger.warn('[LocalAI] refresh chat status failed', error);
+  } finally {
+    refreshing.value = false;
+  }
+};
+const refreshHistories = async () => {
+  try {
+    const loaded = await getLocalAiChatHistories();
+    histories.value = loaded.map((history) => ({
+      id: history.id,
+      title: history.title,
+      createdAt: history.createdAt,
+      updatedAt: history.updatedAt,
+      updatedAtLabel: new Date(history.updatedAt).toLocaleString(),
+      messages: history.turns.map((turn) => ({
+        id: turn.id,
+        role: turn.role as 'user' | 'assistant',
+        content: turn.content
+      }))
+    }));
+    if (!activeHistoryId.value && histories.value[0]) {
+      activeHistoryId.value = histories.value[0].id;
+    }
+  } catch (error) {
+    logger.warn('[LocalAI] refresh histories failed', error);
+  }
+};
+const refreshAll = async () => {
+  await Promise.all([refreshStatus(), refreshHistories()]);
+};
+const persistActiveHistory = async () => {
+  const current = activeHistory.value;
+  if (!current) return;
+  await saveLocalAiChatHistory({
+    id: current.id,
+    title: current.title,
+    createdAt: current.createdAt,
+    updatedAt: current.updatedAt,
+    turns: current.messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: current.updatedAt
+    }))
+  });
+};
+const createNewChat = () => {
+  const next = createHistory();
+  histories.value.unshift(next);
+  activeHistoryId.value = next.id;
+  draft.value = '';
+};
+const ensureActiveHistory = () => {
+  if (activeHistory.value) return;
+  createNewChat();
+};
+const applyQuickPrompt = (prompt: string) => {
+  ensureActiveHistory();
+  draft.value = prompt;
+};
+const openHistory = (id: string) => {
+  activeHistoryId.value = id;
+  scrollToBottom();
+};
+const deleteHistoryItem = async (id: string) => {
+  histories.value = histories.value.filter((item) => item.id !== id);
+  await deleteLocalAiChatHistory(id);
+  if (activeHistoryId.value === id) {
+    activeHistoryId.value = histories.value[0]?.id ?? '';
+  }
+};
+const toApiMessages = (): LocalAiMessage[] => activeMessages.value.map((message) => ({
+  role: message.role,
+  content: message.content
+}));
+const sendMessage = async () => {
+  const content = draft.value.trim();
+  if (!content || sending.value) return;
+  ensureActiveHistory();
+  activeHistory.value?.messages.push({ id: `${Date.now()}-user`, role: 'user', content });
+  draft.value = '';
+  sending.value = true;
+  await scrollToBottom();
 
-onMounted(async () => { await refreshAll(); statusTimer = setInterval(() => { refreshStatus().catch((error) => logger.warn('[LocalAI] status timer failed', error)); }, 8000); });
-onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
+  try {
+    const response = await chatWithLocalAi({ messages: toApiMessages() });
+    activeHistory.value?.messages.push({ id: `${Date.now()}-assistant`, role: 'assistant', content: response.content });
+    if (activeHistory.value) {
+      activeHistory.value.title = activeHistory.value.title === t('localAi.newChatTitle') ? content.slice(0, 28) : activeHistory.value.title;
+      activeHistory.value.updatedAt = new Date().toISOString();
+      activeHistory.value.updatedAtLabel = new Date(activeHistory.value.updatedAt).toLocaleString();
+      await persistActiveHistory();
+    }
+    await refreshStatus();
+  } catch (error) {
+    modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error');
+    activeHistory.value?.messages.push({ id: `${Date.now()}-assistant-error`, role: 'assistant', content: String(error) });
+  } finally {
+    sending.value = false;
+    await scrollToBottom();
+  }
+};
+const clearMessages = async () => {
+  if (activeHistory.value) {
+    activeHistory.value.messages = [];
+    activeHistory.value.updatedAt = new Date().toISOString();
+    activeHistory.value.updatedAtLabel = new Date(activeHistory.value.updatedAt).toLocaleString();
+  }
+  await persistActiveHistory();
+};
+const goSettings = () => {
+  router.push({ path: '/config/category/settings', query: { tab: 'localAi' } });
+};
+
+onMounted(async () => {
+  await refreshAll();
+  statusTimer = setInterval(() => {
+    refreshStatus().catch((error) => logger.warn('[LocalAI] status timer failed', error));
+  }, 8000);
+});
+onUnmounted(() => {
+  if (statusTimer) clearInterval(statusTimer);
+});
 </script>
 
 <style scoped lang="scss">
 .local-ai-chat-shell {
-  @apply relative flex h-full min-h-0 gap-2 rounded-md border border-search bg-search p-2 box-border text-search;
+  @apply grid h-full min-h-0 w-full max-w-none gap-3 bg-content p-3 text-search;
+  grid-template-columns: 300px minmax(0, 1fr);
 }
 
 .panel-card {
-  @apply rounded-md border border-search bg-search shadow-none;
+  @apply rounded-md border border-panel bg-panel shadow-sm;
 }
 
 .chat-sidebar {
-  @apply flex w-72 min-w-72 max-w-80 flex-col gap-3 p-3;
+  @apply flex min-h-0 flex-col gap-3 overflow-hidden p-3;
 }
 
-.sidebar-header {
-  @apply flex items-start justify-between gap-2 border-b border-search pb-2;
+.sidebar-header,
+.chat-topbar,
+.input-toolbar {
+  @apply flex items-center justify-between gap-3;
 }
 
 .sidebar-title-block h2 {
-  @apply text-base font-semibold text-search;
+  @apply text-base font-semibold text-panel;
 }
 
-.sidebar-title-block p {
-  @apply mt-1 text-xs text-search-secondary;
+.sidebar-title-block p,
+.chat-subtitle,
+.input-hint,
+.message-mini-meta {
+  @apply text-xs text-panel-text-secondary;
 }
 
-.sidebar-actions {
-  @apply flex gap-2;
+.sidebar-actions,
+.chat-topbar-actions,
+.input-toolbar-left,
+.input-toolbar-right {
+  @apply flex items-center gap-2;
 }
 
 .icon-action-btn {
-  @apply h-8 w-8 rounded-md border border-transparent bg-transparent p-0 text-sm text-search-secondary;
-}
-
-.icon-action-btn:hover {
-  @apply bg-search-hover border-search text-search;
-}
-
-.sidebar-search {
-  @apply px-1;
+  @apply h-8 w-8 p-0;
 }
 
 .search-input {
-  @apply h-9 w-full rounded-sm border border-search bg-search-input px-3 text-sm text-search outline-none;
+  @apply h-9 w-full rounded-md border border-panel bg-hover px-3 text-sm text-panel outline-none;
 }
 
-.search-input:focus {
+.search-input:focus,
+.chat-input:focus {
   box-shadow: 0 0 0 1px var(--categories-text-color-active);
 }
 
@@ -231,30 +429,41 @@ onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
   @apply flex flex-col gap-2;
 }
 
+.recent-section {
+  @apply min-h-0 flex-1;
+}
+
 .section-title {
-  @apply px-1 text-xs font-medium text-search-secondary;
+  @apply px-1 text-xs font-medium text-panel-text-secondary;
+}
+
+.quick-prompt,
+.chat-list-item {
+  @apply flex w-full items-center gap-2 rounded-md border border-transparent px-3 py-2 text-left text-sm transition;
+}
+
+.quick-prompt {
+  @apply bg-hover text-panel-text-secondary;
+}
+
+.quick-prompt:hover,
+.chat-list-item:hover {
+  border-color: var(--search-result-active-border);
+  background-color: var(--search-result-active);
+  color: var(--categories-text-color);
 }
 
 .chat-list {
-  @apply flex flex-col gap-1 overflow-y-auto;
+  @apply min-h-0 flex-1 space-y-1 overflow-y-auto pr-1;
 }
 
 .chat-list-item {
-  @apply flex items-start justify-between gap-3 rounded-md border border-transparent bg-search-hover px-3 py-2 text-left transition;
-}
-
-.chat-list-item:hover {
-  border-color: var(--categories-text-color-active);
+  @apply justify-between bg-transparent text-panel;
 }
 
 .chat-list-item.active {
-  background-color: var(--search-input-bg);
-  border-color: var(--categories-text-color-active);
-}
-
-.chat-list-item--primary {
-  background-color: var(--search-input-bg);
-  border-color: var(--categories-text-color-active);
+  border-color: var(--search-result-active-border);
+  background-color: var(--search-result-active);
 }
 
 .chat-item-copy {
@@ -262,75 +471,64 @@ onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
 }
 
 .chat-item-title {
-  @apply truncate text-sm font-medium text-search;
+  @apply truncate text-sm font-medium;
 }
 
 .chat-item-meta {
-  @apply mt-0.5 truncate text-xs text-search-secondary;
-}
-
-.chat-item-arrow {
-  @apply text-lg leading-none text-search-secondary;
+  @apply mt-0.5 truncate text-xs text-panel-text-secondary;
 }
 
 .chat-item-delete {
-  @apply mt-0.5 shrink-0 text-sm leading-none text-search-secondary;
+  @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-panel-text-secondary transition hover:bg-hover hover:text-panel;
 }
 
 .sidebar-empty {
-  @apply rounded-md border border-dashed border-search bg-search-hover px-3 py-6 text-center text-xs text-search-secondary;
+  @apply rounded-md border border-dashed border-panel bg-hover px-3 py-6 text-center text-xs text-panel-text-secondary;
 }
 
 .chat-panel {
-  @apply flex min-w-0 flex-1 flex-col gap-3 p-4;
+  @apply flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden p-4;
 }
 
 .chat-topbar {
-  @apply flex items-start justify-between gap-3 border-b border-search pb-2;
+  @apply border-b border-panel pb-3;
 }
 
 .chat-title-row {
-  @apply flex flex-wrap items-center gap-2;
+  @apply flex min-w-0 flex-wrap items-center gap-2;
 }
 
 .chat-title-row h3 {
-  @apply truncate text-lg font-semibold text-search;
+  @apply max-w-full truncate text-lg font-semibold text-panel;
 }
 
 .chat-subtitle {
-  @apply flex items-center gap-2 text-xs text-search-secondary;
+  @apply mt-1 flex flex-wrap items-center gap-2;
 }
 
-.meta-dot {
-  @apply h-1 w-1 rounded-full;
-  background-color: rgba(160, 174, 192, 0.55);
+.meta-separator {
+  @apply text-panel-text-secondary;
 }
 
-.status-pill {
-  @apply rounded-md border border-search bg-search-hover px-2 py-0.5 text-xs text-search-secondary;
-
-  &.ready {
-    box-shadow: 0 0 0 1px var(--categories-text-color-active) inset;
-    color: var(--categories-text-color-active);
-  }
-
-  &.pending {
-    border-color: rgba(180, 83, 9, 0.25);
-    background-color: rgba(180, 83, 9, 0.08);
-    color: #b45309;
-  }
-
-  &.stopped {
-    @apply border-search bg-search-hover text-search-secondary;
-  }
-}
-
-.chat-chip-row {
-  @apply flex flex-wrap gap-2;
-}
-
+.status-pill,
 .info-chip {
-  @apply rounded-md border border-search bg-search-hover px-3 py-1 text-xs text-search-secondary;
+  @apply rounded-md border border-panel bg-hover px-2 py-0.5 text-xs text-panel-text-secondary;
+}
+
+.status-pill.ready {
+  border-color: rgba(34, 197, 94, 0.35);
+  background-color: rgba(34, 197, 94, 0.08);
+  color: #16a34a;
+}
+
+.status-pill.pending {
+  border-color: rgba(245, 158, 11, 0.35);
+  background-color: rgba(245, 158, 11, 0.08);
+  color: #b45309;
+}
+
+.chat-status-row {
+  @apply flex flex-wrap gap-2;
 }
 
 .message-list {
@@ -342,101 +540,86 @@ onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
 }
 
 .empty-card {
-  @apply max-w-sm rounded-md border border-dashed border-search bg-search-hover px-6 py-8 text-center;
+  @apply flex max-w-md items-center gap-4 rounded-md border border-dashed border-panel bg-hover px-6 py-5 text-panel;
 }
 
 .empty-title {
-  @apply text-sm font-medium text-search;
+  @apply text-sm font-semibold text-panel;
 }
 
 .empty-desc {
-  @apply mt-1 text-xs text-search-secondary;
+  @apply mt-1 text-xs text-panel-text-secondary;
 }
 
 .message-row {
-  @apply mb-4 max-w-[78%];
-
-  &--user {
-    @apply ml-auto text-right;
-
-    .message-bubble {
-      background-color: var(--categories-text-color-active);
-      color: #fff;
-    }
-
-    .message-head,
-    .message-footer {
-      @apply justify-end;
-    }
-  }
-
-  &--assistant {
-    @apply mr-auto;
-
-    .message-bubble {
-      @apply border border-search bg-search-hover text-search;
-    }
-  }
+  @apply mb-5 flex items-start gap-3;
 }
 
-.message-head,
-.message-footer {
+.message-row--user {
+  @apply flex-row-reverse;
+}
+
+.message-avatar {
+  @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-panel bg-hover text-xs font-semibold text-panel-text-secondary;
+}
+
+.message-body {
+  @apply max-w-[76%] min-w-0;
+}
+
+.message-row--user .message-body {
+  @apply text-right;
+}
+
+.message-head {
   @apply mb-1 flex items-center gap-2;
 }
 
+.message-row--user .message-head {
+  @apply justify-end;
+}
+
 .message-role {
-  @apply text-xs font-medium text-search-secondary;
-}
-
-.message-mini-meta {
-  @apply text-xs text-search-secondary;
-}
-
-.message-action-link {
-  @apply text-xs text-search-secondary transition hover:text-search;
+  @apply text-xs font-medium text-panel-text-secondary;
 }
 
 .message-bubble {
-  @apply whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm;
+  @apply whitespace-pre-wrap rounded-md px-4 py-3 text-sm leading-6 shadow-sm;
   word-break: break-word;
 }
 
+.message-row--assistant .message-bubble {
+  @apply border border-panel bg-hover text-panel;
+}
+
+.message-row--user .message-bubble {
+  background-color: var(--categories-text-color-active);
+  color: #fff;
+}
+
 .loading-text {
-  @apply text-search-secondary;
+  @apply text-panel-text-secondary;
 }
 
 .chat-input-card {
-  @apply rounded-md border border-search bg-search p-3 shadow-none;
-}
-
-.chat-input-shell {
-  @apply rounded-md border border-search bg-search-input p-3;
+  @apply rounded-md border border-panel bg-panel p-3 shadow-sm;
 }
 
 .chat-input {
-  @apply block min-h-[96px] max-h-[120px] w-full resize-none border-none bg-transparent p-0 text-sm leading-6 text-search outline-none;
-}
-
-.input-toolbar {
-  @apply mt-3 flex items-center justify-between gap-3;
-}
-
-.input-toolbar-left,
-.input-toolbar-right {
-  @apply flex items-center gap-2;
+  @apply block min-h-[104px] max-h-[180px] w-full resize-none rounded-md border border-panel bg-hover p-3 text-sm leading-6 text-panel outline-none;
 }
 
 .tool-chip {
-  @apply rounded-md border border-transparent bg-transparent px-3 py-1 text-xs text-search-secondary transition;
+  @apply flex items-center gap-1 rounded-md border border-transparent bg-transparent px-3 py-1 text-xs text-panel-text-secondary transition;
 }
 
-.tool-chip:hover {
-  @apply bg-search-hover text-search;
-  border-color: var(--categories-text-color-active);
+.tool-chip:hover:not(:disabled) {
+  @apply bg-hover text-panel;
+  border-color: var(--search-result-active-border);
 }
 
-.input-hint {
-  @apply text-xs text-search-secondary;
+.tool-chip:disabled {
+  @apply cursor-not-allowed opacity-50;
 }
 
 .send-btn {
@@ -445,14 +628,31 @@ onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
 
 @media (max-width: 1100px) {
   .local-ai-chat-shell {
-    @apply flex-col;
+    grid-template-columns: 1fr;
   }
 
   .chat-sidebar {
-    @apply w-full min-w-0 max-w-none;
+    @apply max-h-72;
   }
 
-  .message-row {
+  .message-body {
+    @apply max-w-[88%];
+  }
+}
+
+@media (max-width: 760px) {
+  .chat-topbar,
+  .input-toolbar {
+    @apply items-stretch;
+    flex-direction: column;
+  }
+
+  .chat-topbar-actions,
+  .input-toolbar-right {
+    @apply justify-end;
+  }
+
+  .message-body {
     @apply max-w-full;
   }
 }

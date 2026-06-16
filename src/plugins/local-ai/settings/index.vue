@@ -170,6 +170,7 @@
 <script setup lang="ts">
 import { open } from '@tauri-apps/plugin-dialog';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
@@ -180,6 +181,7 @@ defineOptions({
 });
 
 const { t } = useI18n();
+const router = useRouter();
 const config = ref<LocalAiConfig | null>(null);
 const runtimeStatus = ref<LocalAiRuntimeStatus | null>(null);
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
@@ -221,7 +223,7 @@ const chooseRuntime = async () => { const selected = await open({ multiple: fals
 const startService = async () => { if (!config.value) return; starting.value = true; try { await saveLocalAiConfig(config.value); serviceStatus.value = await startLocalAiService(config.value); modal.msg(t('localAi.serviceStarted')); } catch (error) { modal.msg(`${t('localAi.serviceStartFailed')}: ${error}`, 'error'); } finally { starting.value = false; } };
 const restartService = async () => { restarting.value = true; try { await saveConfig(); serviceStatus.value = await restartLocalAiService(); modal.msg(t('localAi.serviceRestarted')); } catch (error) { modal.msg(`${t('localAi.serviceRestartFailed')}: ${error}`, 'error'); } finally { restarting.value = false; } };
 const stopService = async () => { stopping.value = true; try { await stopLocalAiService(); await refreshStatus(); modal.msg(t('localAi.serviceStoppedMsg')); } catch (error) { modal.msg(`${t('localAi.serviceStopFailed')}: ${error}`, 'error'); } finally { stopping.value = false; } };
-const openChat = () => { window.location.hash = '#/config/local-ai'; };
+const openChat = () => { router.push('/local-ai/chat'); };
 
 onMounted(async () => { await refreshAll(); statusTimer = setInterval(() => { refreshStatus().catch((error) => logger.warn('[LocalAI] status refresh failed', error)); }, 5000); });
 onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
@@ -229,7 +231,7 @@ onUnmounted(() => { if (statusTimer) clearInterval(statusTimer); });
 
 <style scoped lang="scss">
 .local-ai-settings-shell {
-  @apply flex h-full min-h-0 flex-col gap-3 bg-content p-3;
+  @apply flex h-full min-h-0 w-full max-w-none flex-col gap-3 bg-content p-3;
 }
 
 .panel-card {
