@@ -2,7 +2,8 @@ import {
   Application,
   BookOpen,
   MessageSearch,
-  Notepad
+  Notepad,
+  ChatDotRound
 } from '@icon-park/vue-next';
 import type { PluginId } from './types';
 
@@ -21,6 +22,11 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
     icon: Application,
     path: '/config/local',
     pluginId: 'local-launcher'
+  },
+  {
+    icon: ChatDotRound,
+    path: '/config/local-ai',
+    pluginId: 'local-ai'
   },
   {
     icon: MessageSearch,
