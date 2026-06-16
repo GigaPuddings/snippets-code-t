@@ -37,12 +37,14 @@
       <section class="sidebar-section recent-section">
         <div class="section-title">{{ t('localAi.recent') }}</div>
         <div v-if="filteredHistories.length" class="chat-list">
-          <button
+          <div
             v-for="history in filteredHistories"
             :key="history.id"
-            type="button"
             :class="['chat-list-item', activeHistoryId === history.id ? 'active' : '']"
+            role="button"
+            tabindex="0"
             @click="openHistory(history.id)"
+            @keydown.enter.prevent="openHistory(history.id)"
           >
             <div class="chat-item-copy">
               <div class="chat-item-title">{{ history.title }}</div>
@@ -51,7 +53,7 @@
             <button class="chat-item-delete" type="button" :title="t('common.delete')" @click.stop="deleteHistoryItem(history.id)">
               <Delete theme="outline" size="14" />
             </button>
-          </button>
+          </div>
         </div>
         <div v-else class="sidebar-empty">{{ t('common.empty') }}</div>
       </section>
@@ -162,7 +164,6 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
 import { Add, Back, Delete, Message, Refresh, Robot, Send, SettingTwo } from '@icon-park/vue-next';
 import { CustomButton } from '@/components/UI';
 import {
@@ -195,7 +196,6 @@ interface ChatHistoryView {
 }
 
 const { t } = useI18n();
-const router = useRouter();
 const searchQuery = ref('');
 const histories = ref<ChatHistoryView[]>([]);
 const activeHistoryId = ref<string>('');
@@ -360,7 +360,7 @@ const clearMessages = async () => {
   await persistActiveHistory();
 };
 const goSettings = () => {
-  router.push({ path: '/config/category/settings', query: { tab: 'localAi' } });
+  window.location.hash = '#/config/category/settings?tab=localAi';
 };
 
 onMounted(async () => {
