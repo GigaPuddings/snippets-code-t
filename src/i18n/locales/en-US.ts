@@ -852,7 +852,8 @@ export default {
     saveSuccess: 'Saved successfully',
     saveFailed: 'Save failed, please retry',
     loadFailed: 'Failed to load content, please retry',
-    missingFileRemoved: 'Note file no longer exists and was removed from the list',
+    missingFileRemoved:
+      'Note file no longer exists and was removed from the list',
     loadingEditor: 'Loading editor...',
     retry: 'Retry',
     deleteConfirm:
@@ -1842,6 +1843,13 @@ export default {
     stopGenerating: 'Stop generating',
     outputLimitReached:
       'Reached the per-response output limit. Set max tokens to 0 in Settings to remove the limit.',
+    streamInterrupted:
+      'The generation stream disconnected before completion. The partial response above was kept.',
+    generationStopped: 'Generation stopped.',
+    reasoningTitle: 'Think',
+    thinkingEnabled: 'Thinking is on',
+    thinkingDisabled: 'Thinking is off',
+    jumpToLatest: 'Jump to latest',
     you: 'You',
     youShort: 'You',
     assistant: 'AI',

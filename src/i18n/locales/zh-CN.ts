@@ -519,8 +519,10 @@ export default {
     },
     localAi: {
       name: '本地 AI',
-      description: '使用 llama.cpp 运行本地 GGUF 模型，提供 AI 聊天、翻译和辅助能力。',
-      resourceHint: '本地 AI 依赖 llama.cpp 运行时资源包，模型文件保留在用户选择的本机目录。'
+      description:
+        '使用 llama.cpp 运行本地 GGUF 模型，提供 AI 聊天、翻译和辅助能力。',
+      resourceHint:
+        '本地 AI 依赖 llama.cpp 运行时资源包，模型文件保留在用户选择的本机目录。'
     },
     localAiLlamaRuntime: {
       name: '本地 AI llama.cpp 运行时',
@@ -1808,14 +1810,23 @@ export default {
     moreComingSoon: '更多操作即将支持',
     send: '发送',
     stopGenerating: '停止生成',
-    outputLimitReached: '已达到单次输出上限，可在设置中把最大 token 设为 0 取消限制。',
+    outputLimitReached:
+      '已达到单次输出上限，可在设置中把最大 token 设为 0 取消限制。',
+    streamInterrupted:
+      '生成流在完成前断开，已保留上方已生成内容，可重新生成或继续追问。',
+    generationStopped: '已停止生成。',
+    reasoningTitle: '思考',
+    thinkingEnabled: '思考已开启',
+    thinkingDisabled: '思考已关闭',
+    jumpToLatest: '回到底部',
     you: '你',
     youShort: '你',
     assistant: 'AI',
     thinking: '正在生成...',
     chatFailed: '本地 AI 请求失败',
     modelRuntime: '模型与运行时',
-    modelRuntimeDesc: '选择 GGUF 主模型、可选 mmproj 文件和 llama-server 运行时',
+    modelRuntimeDesc:
+      '选择 GGUF 主模型、可选 mmproj 文件和 llama-server 运行时',
     modelDir: '模型目录',
     mainModel: '主模型',
     mmprojModel: 'mmproj',

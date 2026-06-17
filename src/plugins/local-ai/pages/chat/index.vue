@@ -96,7 +96,12 @@
           </div>
         </div>
         <div class="chat-topbar-actions">
-          <CustomButton size="small" plain class="topbar-custom-btn" @click="goSettings">
+          <CustomButton
+            size="small"
+            plain
+            class="topbar-custom-btn"
+            @click="goSettings"
+          >
             <SettingTwo theme="outline" size="16" />
             <span>{{ t('localAi.settings') }}</span>
           </CustomButton>
@@ -111,7 +116,11 @@
         </div>
       </header>
 
-      <div ref="messageListRef" class="message-list">
+      <div
+        ref="messageListRef"
+        class="message-list"
+        @scroll="handleMessageScroll"
+      >
         <div class="date-divider">
           <span>{{ t('localAi.today') }}</span>
         </div>
@@ -148,10 +157,17 @@
               <div class="assistant-head">
                 <span>{{ currentModelDisplay }}</span>
                 <small>
-                  {{ message.streaming ? t('localAi.thinking') : messageTime(message) }}
+                  {{
+                    message.streaming
+                      ? t('localAi.thinking')
+                      : messageTime(message)
+                  }}
                 </small>
               </div>
-              <div class="assistant-card" :class="{ 'assistant-card--streaming': message.streaming }">
+              <div
+                class="assistant-card"
+                :class="{ 'assistant-card--streaming': message.streaming }"
+              >
                 <div v-if="message.content" class="assistant-content-stack">
                   <details
                     v-if="messageReasoning(message.content)"
@@ -159,8 +175,13 @@
                     :open="message.streaming"
                   >
                     <summary>
-                      <span>Reasoning</span>
-                      <small v-if="message.streaming">{{ t('localAi.thinking') }}</small>
+                      <span class="reasoning-summary-title">
+                        <Brain theme="outline" size="14" />
+                        {{ t('localAi.reasoningTitle') }}
+                      </span>
+                      <small v-if="message.streaming">
+                        {{ t('localAi.thinking') }}
+                      </small>
                     </summary>
                     <div
                       class="message-content markdown-body"
@@ -179,20 +200,21 @@
               </div>
               <div v-if="message.content" class="message-stats">
                 <span>
-                  Context: {{ messageStats(message).context }}/{{ messageStats(message).contextMax }}
+                  Context: {{ messageStats(message).context }}/{{
+                    messageStats(message).contextMax
+                  }}
                   ({{ messageStats(message).contextPercent }}%)
                 </span>
                 <span>
-                  Output: {{ messageStats(message).output }}/{{ messageStats(message).outputMax }}
+                  Output: {{ messageStats(message).output }}/{{
+                    messageStats(message).outputMax
+                  }}
                 </span>
                 <span>{{ messageStats(message).seconds }}s</span>
                 <span>{{ messageStats(message).speed }} t/s</span>
               </div>
-              <div
-                v-if="message.stats?.finishReason === 'length'"
-                class="message-warning"
-              >
-                {{ t('localAi.outputLimitReached') }}
+              <div v-if="messageWarningText(message)" class="message-warning">
+                {{ messageWarningText(message) }}
               </div>
               <div v-if="!message.streaming" class="message-actions">
                 <button
@@ -243,6 +265,17 @@
         </article>
       </div>
 
+      <button
+        v-if="showJumpToBottom"
+        class="scroll-bottom-btn"
+        type="button"
+        :title="t('localAi.jumpToLatest')"
+        @click="forceScrollToBottom"
+      >
+        <Down theme="outline" size="15" />
+        <span>{{ t('localAi.jumpToLatest') }}</span>
+      </button>
+
       <form class="chat-input-card" @submit.prevent="sendMessage">
         <textarea
           v-model="draft"
@@ -261,9 +294,29 @@
             >
               <SettingTwo theme="outline" size="16" />
             </button>
+            <button
+              :class="[
+                'composer-tool-btn',
+                'composer-tool-btn--wide',
+                thinkingEnabled ? 'composer-tool-btn--active' : ''
+              ]"
+              type="button"
+              :title="
+                thinkingEnabled
+                  ? t('localAi.thinkingEnabled')
+                  : t('localAi.thinkingDisabled')
+              "
+              :aria-pressed="thinkingEnabled"
+              @click="thinkingEnabled = !thinkingEnabled"
+            >
+              <Brain theme="outline" size="15" />
+              <span>{{ t('localAi.reasoningTitle') }}</span>
+            </button>
             <label class="model-select-shell">
               <select :value="currentModelDisplay" disabled>
-                <option :value="currentModelDisplay">{{ currentModelDisplay }}</option>
+                <option :value="currentModelDisplay">
+                  {{ currentModelDisplay }}
+                </option>
               </select>
               <Down theme="outline" size="14" />
             </label>
@@ -302,6 +355,7 @@ import { useI18n } from 'vue-i18n';
 import { marked } from 'marked';
 import {
   Add,
+  Brain,
   Copy,
   Square,
   Delete,
@@ -349,6 +403,8 @@ interface ChatMessage {
   promptTokens?: number;
   stats?: LocalAiChatStreamStats;
   stopped?: boolean;
+  interrupted?: boolean;
+  error?: string;
 }
 
 interface ChatHistoryView {
@@ -368,6 +424,9 @@ const draft = ref('');
 const sending = ref(false);
 const refreshing = ref(false);
 const stopRequested = ref(false);
+const thinkingEnabled = ref(true);
+const autoFollowMessages = ref(true);
+const showJumpToBottom = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
 const config = ref<LocalAiConfig | null>(null);
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
@@ -376,6 +435,7 @@ const statsTick = ref(Date.now());
 let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
 const markdownCache = new Map<string, string>();
+const MESSAGE_BOTTOM_THRESHOLD = 96;
 
 const canSend = computed(() => Boolean(draft.value.trim()) && !sending.value);
 const serviceStatusText = computed(() => {
@@ -425,10 +485,32 @@ const createHistory = (): ChatHistoryView => {
     messages: []
   };
 };
-const scrollToBottom = async () => {
+const isMessageListNearBottom = (): boolean => {
+  const list = messageListRef.value;
+  if (!list) return true;
+  return (
+    list.scrollHeight - list.scrollTop - list.clientHeight <=
+    MESSAGE_BOTTOM_THRESHOLD
+  );
+};
+const syncMessageScrollState = () => {
+  const nearBottom = isMessageListNearBottom();
+  autoFollowMessages.value = nearBottom;
+  showJumpToBottom.value = !nearBottom;
+};
+const handleMessageScroll = () => {
+  syncMessageScrollState();
+};
+const scrollToBottom = async (options: { force?: boolean } = {}) => {
   await nextTick();
   const list = messageListRef.value;
-  if (list) list.scrollTop = list.scrollHeight;
+  if (!list || (!options.force && !autoFollowMessages.value)) return;
+  list.scrollTop = list.scrollHeight;
+  syncMessageScrollState();
+};
+const forceScrollToBottom = () => {
+  autoFollowMessages.value = true;
+  void scrollToBottom({ force: true });
 };
 const refreshConfig = async () => {
   try {
@@ -501,7 +583,8 @@ const ensureActiveHistory = () => {
 };
 const openHistory = (id: string) => {
   activeHistoryId.value = id;
-  scrollToBottom();
+  autoFollowMessages.value = true;
+  scrollToBottom({ force: true });
 };
 const deleteHistoryItem = async (id: string) => {
   histories.value = histories.value.filter((item) => item.id !== id);
@@ -510,13 +593,26 @@ const deleteHistoryItem = async (id: string) => {
     activeHistoryId.value = histories.value[0]?.id ?? '';
   }
 };
-const toApiMessages = (): LocalAiMessage[] =>
-  activeMessages.value
-    .filter((message) => !message.streaming)
-    .map((message) => ({
-      role: message.role,
-      content: message.content
-    }));
+const withThinkingDirective = (content: string): string => {
+  const trimmed = content.trimStart();
+  if (/^\/(?:no_)?think\b/i.test(trimmed)) return content;
+  return `${thinkingEnabled.value ? '/think' : '/no_think'}\n${content}`;
+};
+const toApiMessages = (
+  options: { applyThinkingDirective?: boolean } = {}
+): LocalAiMessage[] => {
+  const messages = activeMessages.value.filter((message) => !message.streaming);
+  const lastUserIndex = options.applyThinkingDirective
+    ? messages.map((message) => message.role).lastIndexOf('user')
+    : -1;
+  return messages.map((message, index) => ({
+    role: message.role,
+    content:
+      index === lastUserIndex && message.role === 'user'
+        ? withThinkingDirective(message.content)
+        : message.content
+  }));
+};
 const renderMarkdown = (value: string): string => {
   const cached = markdownCache.get(value);
   if (cached) return cached;
@@ -528,7 +624,9 @@ const renderMarkdown = (value: string): string => {
   }
   return html;
 };
-const splitReasoning = (value: string): { reasoning: string; answer: string } => {
+const splitReasoning = (
+  value: string
+): { reasoning: string; answer: string } => {
   const match = value.match(/<think>([\s\S]*?)(?:<\/think>|$)/i);
   if (!match || match.index === undefined) {
     return { reasoning: '', answer: value };
@@ -542,7 +640,8 @@ const splitReasoning = (value: string): { reasoning: string; answer: string } =>
     answer: [before, after].filter(Boolean).join('\n\n')
   };
 };
-const messageReasoning = (value: string): string => splitReasoning(value).reasoning;
+const messageReasoning = (value: string): string =>
+  splitReasoning(value).reasoning;
 const messageAnswer = (value: string): string => splitReasoning(value).answer;
 const estimateTokens = (value: string): number => {
   const text = value.trim();
@@ -562,9 +661,16 @@ const estimateChatTokens = (messages: LocalAiMessage[]): number =>
   estimateTokens(
     messages.map((message) => `${message.role}: ${message.content}`).join('\n')
   );
+const messageTimestamp = (message: ChatMessage): Date => {
+  return new Date(
+    message.createdAt || activeHistory.value?.updatedAt || Date.now()
+  );
+};
 const messageStats = (message: ChatMessage) => {
   const now = statsTick.value;
-  const index = activeMessages.value.findIndex((item) => item.id === message.id);
+  const index = activeMessages.value.findIndex(
+    (item) => item.id === message.id
+  );
   const promptTokens =
     message.stats?.promptTokens ??
     message.promptTokens ??
@@ -574,11 +680,13 @@ const messageStats = (message: ChatMessage) => {
         .map((item) => item.content)
         .join('\n')
     );
-  const output = message.stats?.completionTokens ?? estimateTokens(message.content);
+  const output =
+    message.stats?.completionTokens ?? estimateTokens(message.content);
   const context = message.stats?.totalTokens ?? promptTokens + output;
   const contextMax = config.value?.ctxSize ?? 4096;
   const elapsedSeconds =
-    ((message.stats?.generationTimeMs ?? message.elapsedMs) ??
+    (message.stats?.generationTimeMs ??
+      message.elapsedMs ??
       now - messageTimestamp(message).getTime()) / 1000;
   const speed =
     message.stats?.tokensPerSecond ??
@@ -590,10 +698,19 @@ const messageStats = (message: ChatMessage) => {
     contextPercent: Math.min(100, Math.round((context / contextMax) * 100)),
     output,
     outputMax:
-      (config.value?.maxTokens ?? 0) > 0 ? String(config.value?.maxTokens) : '∞',
+      (config.value?.maxTokens ?? 0) > 0
+        ? String(config.value?.maxTokens)
+        : '∞',
     seconds: elapsedSeconds.toFixed(1),
     speed: speed.toFixed(1)
   };
+};
+const messageWarningText = (message: ChatMessage): string => {
+  if (message.interrupted) return t('localAi.streamInterrupted');
+  if (message.stopped) return t('localAi.generationStopped');
+  if (message.stats?.finishReason === 'length')
+    return t('localAi.outputLimitReached');
+  return '';
 };
 const startStatsTicker = () => {
   if (statsTimer) return;
@@ -626,7 +743,11 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
       return;
     }
 
-    const take = stopRequested.value ? 240 : queuedContent.length > 240 ? 18 : 6;
+    const take = stopRequested.value
+      ? 240
+      : queuedContent.length > 240
+        ? 18
+        : 6;
     assistantMessage.content += queuedContent.slice(0, take);
     queuedContent = queuedContent.slice(take);
     await scrollToBottom();
@@ -647,9 +768,15 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
       );
     }, 12);
   };
+  const waitForPumpDrain = async () => {
+    if (!queuedContent && pumpTimer === null) return;
+    await new Promise<void>((resolve) => {
+      drainResolver = resolve;
+    });
+  };
 
   const response = await streamChatWithLocalAi(
-    { messages: toApiMessages() },
+    { messages: toApiMessages({ applyThinkingDirective: true }) },
     (delta) => {
       receivedDelta = true;
       enqueueContent(delta);
@@ -661,29 +788,35 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
         statsTick.value = Date.now();
       }
     }
-  );
+  ).catch(async (error) => {
+    await waitForPumpDrain();
+    throw error;
+  });
 
   if (!receivedDelta) {
     enqueueContent(response.content);
   } else if (!stopRequested.value) {
-    const visibleLength = assistantMessage.content.length + queuedContent.length;
+    const visibleLength =
+      assistantMessage.content.length + queuedContent.length;
     if (response.content.length > visibleLength) {
       enqueueContent(response.content.slice(visibleLength));
     }
   }
 
-  if (queuedContent || pumpTimer !== null) {
-    await new Promise<void>((resolve) => {
-      drainResolver = resolve;
-    });
-  }
+  await waitForPumpDrain();
 
-  if (!stopRequested.value && response.content && assistantMessage.content !== response.content) {
+  if (
+    !stopRequested.value &&
+    response.content &&
+    assistantMessage.content !== response.content
+  ) {
     assistantMessage.content = response.content;
   }
   assistantMessage.streaming = false;
   assistantMessage.elapsedMs = performance.now() - startedAt;
   assistantMessage.stopped = stopRequested.value;
+  assistantMessage.interrupted = false;
+  assistantMessage.error = '';
   statsTick.value = Date.now();
   currentStreamRequestId.value = null;
 };
@@ -714,13 +847,15 @@ const sendMessage = async () => {
     content: '',
     createdAt: new Date().toISOString(),
     streaming: true,
-    promptTokens: estimateChatTokens(toApiMessages())
+    promptTokens: estimateChatTokens(
+      toApiMessages({ applyThinkingDirective: true })
+    )
   };
   activeHistory.value?.messages.push(assistantMessage);
   draft.value = '';
   sending.value = true;
   startStatsTicker();
-  await scrollToBottom();
+  await scrollToBottom({ force: true });
 
   try {
     await streamAssistantMessage(assistantMessage);
@@ -739,9 +874,25 @@ const sendMessage = async () => {
   } catch (error) {
     if (!stopRequested.value) {
       modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error');
-      assistantMessage.content = String(error);
+      assistantMessage.error = String(error);
+      assistantMessage.interrupted = Boolean(assistantMessage.content.trim());
+      if (!assistantMessage.interrupted)
+        assistantMessage.content = String(error);
+      if (activeHistory.value) {
+        activeHistory.value.title =
+          activeHistory.value.title === t('localAi.newChatTitle')
+            ? content.slice(0, 28)
+            : activeHistory.value.title;
+        activeHistory.value.updatedAt = new Date().toISOString();
+        activeHistory.value.updatedAtLabel = new Date(
+          activeHistory.value.updatedAt
+        ).toLocaleString();
+        await persistActiveHistory();
+      }
     }
     assistantMessage.streaming = false;
+    assistantMessage.elapsedMs =
+      performance.now() - messageTimestamp(assistantMessage).getTime();
   } finally {
     sending.value = false;
     currentStreamRequestId.value = null;
@@ -757,9 +908,6 @@ const viewAllConversations = () => {
 };
 const showMoreMenu = () => {
   modal.msg(t('localAi.moreComingSoon'));
-};
-const messageTimestamp = (message: ChatMessage): Date => {
-  return new Date(message.createdAt || activeHistory.value?.updatedAt || Date.now());
 };
 const messageTime = (message: ChatMessage): string => {
   return messageTimestamp(message).toLocaleTimeString([], {
@@ -827,12 +975,14 @@ const regenerateMessage = async (messageId: string) => {
     content: '',
     createdAt: new Date().toISOString(),
     streaming: true,
-    promptTokens: estimateChatTokens(toApiMessages())
+    promptTokens: estimateChatTokens(
+      toApiMessages({ applyThinkingDirective: true })
+    )
   };
   current.messages.push(assistantMessage);
   sending.value = true;
   startStatsTicker();
-  await scrollToBottom();
+  await scrollToBottom({ force: true });
   try {
     await streamAssistantMessage(assistantMessage);
     current.updatedAt = new Date().toISOString();
@@ -841,9 +991,17 @@ const regenerateMessage = async (messageId: string) => {
   } catch (error) {
     if (!stopRequested.value) {
       modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error');
-      assistantMessage.content = String(error);
+      assistantMessage.error = String(error);
+      assistantMessage.interrupted = Boolean(assistantMessage.content.trim());
+      if (!assistantMessage.interrupted)
+        assistantMessage.content = String(error);
+      current.updatedAt = new Date().toISOString();
+      current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
+      await persistActiveHistory();
     }
     assistantMessage.streaming = false;
+    assistantMessage.elapsedMs =
+      performance.now() - messageTimestamp(assistantMessage).getTime();
   } finally {
     sending.value = false;
     currentStreamRequestId.value = null;
@@ -1132,6 +1290,7 @@ onUnmounted(() => {
 
 .chat-panel {
   display: flex;
+  position: relative;
   flex-direction: column;
   padding: 16px 18px;
   overflow: hidden;
@@ -1368,8 +1527,8 @@ onUnmounted(() => {
   overflow: hidden;
   color: #475569;
   background: #f8fafc;
-  border: 1px solid #e5e7eb;
-  border-radius: 7px;
+  border: 1px solid #dfe7f1;
+  border-radius: 8px;
 }
 
 .reasoning-panel summary {
@@ -1385,12 +1544,24 @@ onUnmounted(() => {
   border-bottom: 1px solid transparent;
 }
 
+.reasoning-summary-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
 .reasoning-panel[open] summary {
-  border-bottom-color: #e5e7eb;
+  color: #334155;
+  background: #f1f5f9;
+  border-bottom-color: #dfe7f1;
 }
 
 .reasoning-panel .message-content {
   padding: 10px 12px;
+  color: #5b6677;
+  font-size: 12px;
+  line-height: 1.65;
 }
 
 .markdown-body {
@@ -1488,9 +1659,14 @@ onUnmounted(() => {
 }
 
 .message-warning {
-  margin-top: 6px;
-  color: #b45309;
+  display: inline-flex;
+  margin-top: 7px;
+  padding: 5px 8px;
+  color: #9a5b00;
   font-size: 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 7px;
 }
 
 .message-actions button {
@@ -1500,7 +1676,47 @@ onUnmounted(() => {
 }
 
 .loading-text {
+  display: inline-flex;
+  align-items: center;
   color: var(--chat-muted);
+  gap: 8px;
+}
+
+.loading-text::before {
+  width: 7px;
+  height: 7px;
+  background: var(--chat-primary);
+  border-radius: 999px;
+  animation: local-ai-pulse 1.2s ease-in-out infinite;
+  content: '';
+}
+
+.scroll-bottom-btn {
+  position: absolute;
+  right: 28px;
+  bottom: 112px;
+  z-index: 3;
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  padding: 0 10px;
+  color: #42526b;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--chat-border);
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1);
+  gap: 6px;
+  transition:
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.scroll-bottom-btn:hover {
+  color: var(--chat-primary);
+  border-color: rgba(95, 116, 243, 0.34);
+  transform: translateY(-1px);
 }
 
 .chat-input-card {
@@ -1544,6 +1760,20 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   border-radius: 6px;
+}
+
+.composer-tool-btn--wide {
+  width: auto;
+  padding: 0 9px;
+  color: #526071;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.composer-tool-btn--active {
+  color: var(--chat-primary);
+  background: var(--chat-primary-soft);
+  border-color: rgba(95, 116, 243, 0.34);
 }
 
 .model-select-shell {
@@ -1613,6 +1843,19 @@ onUnmounted(() => {
 
 .send-btn--stop:hover {
   background: #020617;
+}
+
+@keyframes local-ai-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.82);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @media (max-width: 1280px) {

@@ -1059,9 +1059,11 @@ async fn chat_completion_stream(
         }
     }
 
+    if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+        cancels.remove(&request_id);
+    }
     if !content.trim().is_empty() {
         if reasoning_open {
-            content.push_str("</think>");
             emit_chat_stream(
                 &window,
                 &request_id,
@@ -1071,14 +1073,7 @@ async fn chat_completion_stream(
                 None,
             );
         }
-        emit_chat_stream(&window, &request_id, "done", None, None, None);
-        if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
-            cancels.remove(&request_id);
-        }
-        return Ok(content.trim().to_string());
-    }
-    if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
-        cancels.remove(&request_id);
+        return Err("本地 AI 流在完成前断开，已保留已生成内容。".to_string());
     }
     Err("本地 AI 响应中没有可用内容".to_string())
 }
