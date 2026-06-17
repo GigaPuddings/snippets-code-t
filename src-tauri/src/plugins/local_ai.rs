@@ -27,6 +27,7 @@ const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
+const CHAT_PARALLEL_SLOTS: u32 = 1;
 
 static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
     LazyLock::new(|| Mutex::new(LocalAiServiceState::default()));
@@ -569,6 +570,8 @@ fn build_server_args(
         display_path(model_path),
         "--ctx-size".to_string(),
         config.ctx_size.to_string(),
+        "--parallel".to_string(),
+        CHAT_PARALLEL_SLOTS.to_string(),
         "--threads".to_string(),
         config.threads.to_string(),
         "--batch-size".to_string(),
@@ -660,6 +663,79 @@ fn stop_child_locked(state: &mut LocalAiServiceState) {
     state.active_requests = 0;
 }
 
+#[cfg(target_os = "windows")]
+fn stop_orphan_llama_server_on_port(port: u16, model_path: &Path) -> bool {
+    let script = r#"
+$port = [int]$env:LOCAL_AI_PORT
+$model = ''
+if ($env:LOCAL_AI_MODEL_PATH) {
+  $model = $env:LOCAL_AI_MODEL_PATH.ToLowerInvariant()
+}
+$listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+foreach ($listener in $listeners) {
+  $process = Get-CimInstance Win32_Process -Filter "ProcessId=$($listener.OwningProcess)" -ErrorAction SilentlyContinue
+  if (-not $process -or -not $process.CommandLine) { continue }
+  $commandLine = $process.CommandLine.ToLowerInvariant()
+  $isLlamaServer = $commandLine.Contains('llama-server')
+  $isLocalAiRuntime = $commandLine.Contains('local-ai-llama-runtime')
+  $isSameModel = $model.Length -gt 0 -and $commandLine.Contains($model)
+  if ($isLlamaServer -and ($isLocalAiRuntime -or $isSameModel)) {
+    Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+    Write-Output $process.ProcessId
+  }
+}
+"#;
+    let mut command = Command::new("powershell");
+    command
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .env("LOCAL_AI_PORT", port.to_string())
+        .env("LOCAL_AI_MODEL_PATH", display_path(model_path));
+    #[cfg(target_os = "windows")]
+    {
+        command.creation_flags(0x08000000);
+    }
+
+    match command.output() {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stopped_pids = stdout
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect::<Vec<_>>();
+            if stopped_pids.is_empty() {
+                false
+            } else {
+                info!(
+                    "[Plugin:local-ai] stopped orphan llama-server pid(s) on port {}: {}",
+                    port,
+                    stopped_pids.join(", ")
+                );
+                true
+            }
+        }
+        Ok(output) => {
+            warn!(
+                "[Plugin:local-ai] orphan llama-server cleanup failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+            false
+        }
+        Err(error) => {
+            warn!(
+                "[Plugin:local-ai] orphan llama-server cleanup could not run: {}",
+                error
+            );
+            false
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn stop_orphan_llama_server_on_port(_port: u16, _model_path: &Path) -> bool {
+    false
+}
+
 fn start_idle_monitor() {
     if IDLE_MONITOR_RUNNING.swap(true, Ordering::SeqCst) {
         return;
@@ -740,6 +816,12 @@ fn service_config_matches(running: &LocalAiConfig, desired: &LocalAiConfig) -> b
         && running.mmap == desired.mmap
 }
 
+fn service_command_matches(command_line: Option<&str>) -> bool {
+    command_line
+        .map(|command_line| command_line.contains("--parallel"))
+        .unwrap_or(false)
+}
+
 async fn ensure_service_running(
     app_handle: &AppHandle,
     config: &LocalAiConfig,
@@ -758,14 +840,15 @@ async fn ensure_service_running(
                 .as_ref()
                 .map(|running_config| service_config_matches(running_config, &desired))
                 .unwrap_or(false);
-            if config_matches {
+            let command_matches = service_command_matches(state.command_line.as_deref());
+            if config_matches && command_matches {
                 return Ok(());
             }
             if state.active_requests > 0 {
                 return Err("本地 AI 运行配置已变更，请等待当前请求结束后再重试".to_string());
             }
             warn!(
-                "[Plugin:local-ai] restarting llama-server because running config differs from saved config"
+                "[Plugin:local-ai] restarting llama-server because running config or startup args differ from saved config"
             );
             stop_child_locked(&mut state);
             true
@@ -814,6 +897,9 @@ async fn start_service_inner(
             .map_err(|error| format!("本地 AI 服务状态锁定失败: {}", error))?;
         stop_child_locked(&mut state);
         state.last_error = None;
+    }
+    if stop_orphan_llama_server_on_port(config.port, &model_path) {
+        tokio::time::sleep(Duration::from_millis(500)).await;
     }
 
     let mut command = server_command(&runtime_path);
@@ -1406,7 +1492,11 @@ pub async fn local_ai_restart_service(
 #[tauri::command]
 pub fn local_ai_stop_service(app_handle: AppHandle) -> Result<(), String> {
     require_plugin(&app_handle)?;
+    let config = read_config(&app_handle);
     stop_service_now();
+    if let Ok((model_path, _)) = resolve_model_paths(&config) {
+        stop_orphan_llama_server_on_port(config.port, &model_path);
+    }
     Ok(())
 }
 
