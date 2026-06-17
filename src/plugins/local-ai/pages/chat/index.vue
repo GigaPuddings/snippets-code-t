@@ -118,13 +118,13 @@
         </div>
 
         <article
-          v-for="message in activeMessages"
-          :key="message.id"
-          :class="['message-row', `message-row--${message.role}`]"
+          v-for="display in displayMessages"
+          :key="display.message.id"
+          :class="['message-row', `message-row--${display.message.role}`]"
         >
           <div class="message-avatar">
             <Robot
-              v-if="message.role === 'assistant'"
+              v-if="display.message.role === 'assistant'"
               theme="outline"
               size="18"
             />
@@ -132,15 +132,15 @@
           </div>
 
           <div class="message-body">
-            <template v-if="message.role === 'user'">
+            <template v-if="display.message.role === 'user'">
               <div class="user-bubble">
-                <div>{{ message.content }}</div>
+                <div>{{ display.message.content }}</div>
                 <div
-                  v-if="message.attachments?.length"
+                  v-if="display.message.attachments?.length"
                   class="message-attachment-list"
                 >
                   <div
-                    v-for="attachment in message.attachments"
+                    v-for="attachment in display.message.attachments"
                     :key="attachment.id"
                     class="message-attachment-chip"
                   >
@@ -155,7 +155,7 @@
                     <span>{{ attachment.name }}</span>
                   </div>
                 </div>
-                <time>{{ messageTime(message) }}</time>
+                <time>{{ messageTime(display.message) }}</time>
               </div>
             </template>
 
@@ -163,29 +163,38 @@
               <div class="assistant-head">
                 <span>{{ currentModelDisplay }}</span>
                 <small>
-                  {{ messageActivityLabel(message) }}
+                  {{ messageActivityLabel(display.message) }}
                 </small>
               </div>
               <div
                 class="assistant-card"
-                :class="{ 'assistant-card--streaming': message.streaming }"
+                :class="{
+                  'assistant-card--streaming': display.message.streaming
+                }"
               >
-                <div v-if="message.content" class="assistant-content-stack">
+                <div
+                  v-if="display.message.content"
+                  class="assistant-content-stack"
+                >
                   <details
                     v-if="
-                      message.allowThinking && messageReasoning(message.content)
+                      display.message.allowThinking &&
+                      messageReasoning(display.message.content)
                     "
                     class="reasoning-panel"
-                    :open="message.streaming && isReasoningActive(message)"
+                    :open="
+                      display.message.streaming &&
+                      isReasoningActive(display.message)
+                    "
                   >
                     <summary>
                       <span class="reasoning-summary-title">
                         <Brain theme="outline" size="14" />
-                        {{ messageReasoningLabel(message) }}
+                        {{ messageReasoningLabel(display.message) }}
                       </span>
-                      <small v-if="message.streaming">
+                      <small v-if="display.message.streaming">
                         {{
-                          isReasoningActive(message)
+                          isReasoningActive(display.message)
                             ? t('localAi.thinking')
                             : t('localAi.generating')
                         }}
@@ -194,50 +203,84 @@
                     <div
                       class="message-content markdown-body"
                       @click="handleMarkdownClick"
-                      v-html="renderMarkdown(messageReasoning(message.content))"
+                      v-html="
+                        renderMarkdown(messageReasoning(display.message.content))
+                      "
                     ></div>
                   </details>
                   <div
-                    v-if="messageAnswer(message.content)"
+                    v-if="messageAnswer(display.message.content)"
                     class="message-content markdown-body"
                     @click="handleMarkdownClick"
-                    v-html="renderMarkdown(messageAnswer(message.content))"
+                    v-html="renderMarkdown(messageAnswer(display.message.content))"
                   ></div>
                 </div>
                 <div v-else class="message-content loading-text">
-                  {{ assistantMessagePendingText(message) }}
+                  {{ assistantMessagePendingText(display.message) }}
                 </div>
               </div>
-              <div v-if="message.content" class="message-stats">
+              <div v-if="display.message.content" class="message-stats">
                 <span>
-                  Context: {{ messageStats(message).context }}/{{
-                    messageStats(message).contextMax
+                  Context: {{ messageStats(display.message).context }}/{{
+                    messageStats(display.message).contextMax
                   }}
-                  ({{ messageStats(message).contextPercent }}%)
+                  ({{ messageStats(display.message).contextPercent }}%)
                 </span>
                 <span>
-                  Output: {{ messageStats(message).output }}/{{
-                    messageStats(message).outputMax
+                  Output: {{ messageStats(display.message).output }}/{{
+                    messageStats(display.message).outputMax
                   }}
                 </span>
-                <span>{{ messageStats(message).seconds }}s</span>
-                <span>{{ messageStats(message).speed }} t/s</span>
+                <span>{{ messageStats(display.message).seconds }}s</span>
+                <span>{{ messageStats(display.message).speed }} t/s</span>
               </div>
-              <div v-if="messageWarningText(message)" class="message-warning">
-                {{ messageWarningText(message) }}
+              <div
+                v-if="messageWarningText(display.message)"
+                class="message-warning"
+              >
+                {{ messageWarningText(display.message) }}
               </div>
-              <div v-if="!message.streaming" class="message-actions">
+              <div v-if="!display.message.streaming" class="message-actions">
+                <div
+                  v-if="display.siblingLeafNodeIds.length > 1"
+                  class="message-version-switcher"
+                >
+                  <button
+                    type="button"
+                    :disabled="display.siblingCurrentIndex <= 0"
+                    :title="t('localAi.previousVersion')"
+                    @click="changeMessageVersion(display, -1)"
+                  >
+                    ‹
+                  </button>
+                  <span>
+                    {{ display.siblingCurrentIndex + 1 }} /
+                    {{ display.siblingLeafNodeIds.length }}
+                  </span>
+                  <button
+                    type="button"
+                    :disabled="
+                      display.siblingCurrentIndex >=
+                      display.siblingLeafNodeIds.length - 1
+                    "
+                    :title="t('localAi.nextVersion')"
+                    @click="changeMessageVersion(display, 1)"
+                  >
+                    ›
+                  </button>
+                </div>
                 <button
                   type="button"
                   :title="t('common.copy')"
-                  @click="copyMessage(message)"
+                  @click="copyMessage(display.message)"
                 >
                   <Copy theme="outline" size="14" />
                 </button>
                 <button
+                  v-if="display.message.role === 'assistant'"
                   type="button"
                   :title="t('localAi.regenerate')"
-                  @click="regenerateMessage(message.id)"
+                  @click="regenerateMessage(display.message.id)"
                 >
                   <Refresh theme="outline" size="14" />
                 </button>
@@ -258,14 +301,14 @@
                 <button
                   type="button"
                   :title="t('common.edit')"
-                  @click="editMessage(message)"
+                  @click="editMessage(display.message)"
                 >
                   <Edit theme="outline" size="14" />
                 </button>
                 <button
                   type="button"
                   :title="t('common.delete')"
-                  @click="deleteMessage(message.id)"
+                  @click="deleteMessage(display.message.id)"
                 >
                   <Delete theme="outline" size="14" />
                 </button>
@@ -287,10 +330,15 @@
       </button>
 
       <form
-        class="chat-input-card"
+        :class="[
+          'chat-input-card',
+          composerFocused ? 'chat-input-card--focused' : ''
+        ]"
         @dragover.prevent
         @drop.prevent="handleAttachmentDrop"
         @submit.prevent="sendMessage"
+        @focusin="composerFocused = true"
+        @focusout="composerFocused = false"
       >
         <input
           ref="fileInputRef"
@@ -338,7 +386,7 @@
           class="chat-input"
           rows="2"
           :placeholder="t('localAi.chatPlaceholder')"
-          @keydown.ctrl.enter.prevent="sendMessage"
+          @keydown="handleComposerKeydown"
         ></textarea>
         <div class="input-toolbar">
           <div class="input-toolbar-left">
@@ -348,15 +396,7 @@
               :title="t('localAi.addAttachment')"
               @click="openAttachmentPicker"
             >
-              <Add theme="outline" size="16" />
-            </button>
-            <button
-              class="composer-tool-btn"
-              type="button"
-              :title="t('localAi.settings')"
-              @click="goSettings"
-            >
-              <SettingTwo theme="outline" size="16" />
+              <Link theme="outline" size="16" />
             </button>
             <button
               v-if="modelSupportsThinking"
@@ -398,7 +438,7 @@
             </label>
           </div>
           <div class="input-toolbar-right">
-            <span class="input-hint">Ctrl + Enter</span>
+            <span class="input-hint">Enter · Shift + Enter</span>
             <button
               v-if="sending"
               class="send-btn send-btn--stop"
@@ -444,7 +484,8 @@ import {
   Robot,
   Search,
   Send,
-  SettingTwo
+  SettingTwo,
+  Link
 } from '@icon-park/vue-next';
 import { CustomButton } from '@/components/UI';
 import {
@@ -460,6 +501,7 @@ import {
   scanLocalAiModels,
   streamChatWithLocalAi,
   type LocalAiConfig,
+  type LocalAiChatHistory,
   type LocalAiChatStreamStats,
   type LocalAiContentPart,
   type LocalAiMessage,
@@ -487,10 +529,13 @@ defineOptions({ name: 'LocalAiChat' });
 
 interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant';
+  type?: 'root' | 'text';
   content: string;
   createdAt: string;
   attachments?: LocalAiAttachment[];
+  parentId?: string | null;
+  childIds?: string[];
   streaming?: boolean;
   elapsedMs?: number;
   promptTokens?: number;
@@ -504,14 +549,26 @@ interface ChatMessage {
   error?: string;
 }
 
+interface ChatDisplayMessage {
+  message: ChatMessage;
+  siblingLeafNodeIds: string[];
+  siblingCurrentIndex: number;
+}
+
 interface ChatHistoryView {
   id: string;
   title: string;
   createdAt: string;
   updatedAt: string;
   updatedAtLabel: string;
+  currentNodeId: string | null;
   messages: ChatMessage[];
 }
+
+type PersistedChatHistory = LocalAiChatHistory & {
+  currentNodeId?: string | null;
+  messages?: ChatMessage[];
+};
 
 const { t } = useI18n();
 const searchQuery = ref('');
@@ -523,6 +580,7 @@ const sending = ref(false);
 const refreshing = ref(false);
 const stopRequested = ref(false);
 const thinkingEnabled = ref(false);
+const composerFocused = ref(false);
 const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
@@ -541,6 +599,138 @@ const MESSAGE_BOTTOM_THRESHOLD = 96;
 const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const MIN_ASSISTANT_TAIL_TOKENS = 160;
 
+const createMessageId = (role: ChatMessage['role'] | 'root'): string =>
+  `${Date.now()}-${role}-${Math.random().toString(16).slice(2, 8)}`;
+const isRootMessage = (message: ChatMessage): boolean =>
+  message.type === 'root';
+const messageNodeMap = (messages: ChatMessage[]): Map<string, ChatMessage> =>
+  new Map(messages.map((message) => [message.id, message]));
+const findRootMessage = (messages: ChatMessage[]): ChatMessage | undefined =>
+  messages.find(isRootMessage);
+const findLeafNodeId = (
+  messages: ChatMessage[],
+  nodeId: string | null | undefined
+): string | null => {
+  if (!nodeId) return null;
+  const nodes = messageNodeMap(messages);
+  let current = nodes.get(nodeId);
+  const visited = new Set<string>();
+  while (current?.childIds?.length) {
+    if (visited.has(current.id)) break;
+    visited.add(current.id);
+    current = nodes.get(current.childIds[current.childIds.length - 1]);
+  }
+  return current?.id ?? null;
+};
+const normalizeMessagesToTree = (
+  messages: ChatMessage[],
+  createdAt: string
+): { messages: ChatMessage[]; currentNodeId: string | null } => {
+  if (messages.some(isRootMessage)) {
+    const normalized = messages.map((message) => ({
+      ...message,
+      type: message.type ?? 'text',
+      parentId: message.parentId ?? null,
+      childIds: message.childIds ?? []
+    }));
+    const root = findRootMessage(normalized);
+    return {
+      messages: normalized,
+      currentNodeId:
+        findLeafNodeId(normalized, normalized.at(-1)?.id) ?? root?.id ?? null
+    };
+  }
+
+  const root: ChatMessage = {
+    id: createMessageId('root'),
+    role: 'system',
+    type: 'root',
+    content: '',
+    createdAt,
+    parentId: null,
+    childIds: []
+  };
+  const normalized: ChatMessage[] = [root];
+  let parentId = root.id;
+  for (const message of messages) {
+    const node: ChatMessage = {
+      ...message,
+      role: message.role === 'system' ? 'assistant' : message.role,
+      type: 'text',
+      parentId,
+      childIds: []
+    };
+    const parent = normalized.find((item) => item.id === parentId);
+    parent?.childIds?.push(node.id);
+    normalized.push(node);
+    parentId = node.id;
+  }
+  return { messages: normalized, currentNodeId: parentId };
+};
+const getPathToNode = (
+  messages: ChatMessage[],
+  nodeId: string | null | undefined
+): ChatMessage[] => {
+  if (!nodeId) return [];
+  const nodes = messageNodeMap(messages);
+  const path: ChatMessage[] = [];
+  const visited = new Set<string>();
+  let current = nodes.get(nodeId);
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    path.unshift(current);
+    current = current.parentId ? nodes.get(current.parentId) : undefined;
+  }
+  return path;
+};
+const getVisibleMessages = (history: ChatHistoryView | null): ChatMessage[] => {
+  if (!history) return [];
+  const leafId =
+    history.currentNodeId ?? findLeafNodeId(history.messages, findRootMessage(history.messages)?.id);
+  return getPathToNode(history.messages, leafId).filter(
+    (message) => !isRootMessage(message)
+  );
+};
+const getDisplayMessages = (
+  history: ChatHistoryView | null
+): ChatDisplayMessage[] => {
+  if (!history) return [];
+  const nodes = messageNodeMap(history.messages);
+  const findLeaf = (nodeId: string): string =>
+    findLeafNodeId(history.messages, nodeId) ?? nodeId;
+  return getVisibleMessages(history).map((message) => {
+    const parent = message.parentId ? nodes.get(message.parentId) : undefined;
+    const siblingIds = parent?.childIds ?? [message.id];
+    return {
+      message,
+      siblingLeafNodeIds: siblingIds.map(findLeaf),
+      siblingCurrentIndex: Math.max(0, siblingIds.indexOf(message.id))
+    };
+  });
+};
+const appendMessageNode = (
+  history: ChatHistoryView,
+  message: Omit<ChatMessage, 'type' | 'parentId' | 'childIds'> & {
+    parentId?: string | null;
+  }
+): ChatMessage => {
+  const root = findRootMessage(history.messages);
+  const parentId = message.parentId ?? history.currentNodeId ?? root?.id ?? null;
+  const node: ChatMessage = {
+    ...message,
+    type: 'text',
+    parentId,
+    childIds: []
+  };
+  history.messages.push(node);
+  if (parentId) {
+    const parent = history.messages.find((item) => item.id === parentId);
+    if (parent) parent.childIds = [...(parent.childIds ?? []), node.id];
+  }
+  history.currentNodeId = node.id;
+  return node;
+};
+
 const canSend = computed(
   () =>
     (Boolean(draft.value.trim()) || attachments.value.length > 0) &&
@@ -555,7 +745,12 @@ const activeHistory = computed(
   () =>
     histories.value.find((item) => item.id === activeHistoryId.value) ?? null
 );
-const activeMessages = computed(() => activeHistory.value?.messages ?? []);
+const activeMessages = computed(() =>
+  getVisibleMessages(activeHistory.value)
+);
+const displayMessages = computed(() =>
+  getDisplayMessages(activeHistory.value)
+);
 const fileName = (path?: string | null): string => {
   if (!path) return '';
   return path.split(/[\\/]+/).pop() ?? path;
@@ -600,8 +795,10 @@ const filteredHistories = computed(() => {
       (item) =>
         !query ||
         item.title.toLowerCase().includes(query) ||
-        item.messages.some((message) =>
-          message.content.toLowerCase().includes(query)
+        item.messages.some(
+          (message) =>
+            !isRootMessage(message) &&
+            message.content.toLowerCase().includes(query)
         )
     )
     .slice()
@@ -611,13 +808,23 @@ const filteredHistories = computed(() => {
 const nowLabel = () => t('localAi.now');
 const createHistory = (): ChatHistoryView => {
   const now = new Date().toISOString();
+  const root: ChatMessage = {
+    id: createMessageId('root'),
+    role: 'system',
+    type: 'root',
+    content: '',
+    createdAt: now,
+    parentId: null,
+    childIds: []
+  };
   return {
     id: `chat-${Date.now()}`,
     title: t('localAi.newChatTitle'),
     createdAt: now,
     updatedAt: now,
     updatedAtLabel: nowLabel(),
-    messages: []
+    currentNodeId: root.id,
+    messages: [root]
   };
 };
 const isMessageListNearBottom = (): boolean => {
@@ -669,20 +876,31 @@ const refreshStatus = async () => {
 };
 const refreshHistories = async () => {
   try {
-    const loaded = await getLocalAiChatHistories();
-    histories.value = loaded.map((history) => ({
-      id: history.id,
-      title: history.title,
-      createdAt: history.createdAt,
-      updatedAt: history.updatedAt,
-      updatedAtLabel: new Date(history.updatedAt).toLocaleString(),
-      messages: history.turns.map((turn) => ({
-        id: turn.id,
-        role: turn.role as 'user' | 'assistant',
-        content: turn.content,
-        createdAt: turn.createdAt
-      }))
-    }));
+    const loaded = (await getLocalAiChatHistories()) as PersistedChatHistory[];
+    histories.value = loaded.map((history) => {
+      const sourceMessages =
+        history.messages?.length
+          ? history.messages
+          : history.turns.map((turn) => ({
+              id: turn.id,
+              role: turn.role as 'user' | 'assistant',
+              content: turn.content,
+              createdAt: turn.createdAt
+            }));
+      const normalized = normalizeMessagesToTree(
+        sourceMessages,
+        history.createdAt
+      );
+      return {
+        id: history.id,
+        title: history.title,
+        createdAt: history.createdAt,
+        updatedAt: history.updatedAt,
+        updatedAtLabel: new Date(history.updatedAt).toLocaleString(),
+        currentNodeId: history.currentNodeId ?? normalized.currentNodeId,
+        messages: normalized.messages
+      };
+    });
     if (!activeHistoryId.value && histories.value[0]) {
       activeHistoryId.value = histories.value[0].id;
     }
@@ -696,18 +914,21 @@ const refreshAll = async () => {
 const persistActiveHistory = async () => {
   const current = activeHistory.value;
   if (!current) return;
+  const visibleTurns = getVisibleMessages(current).map((message) => ({
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    createdAt: message.createdAt
+  }));
   await saveLocalAiChatHistory({
     id: current.id,
     title: current.title,
     createdAt: current.createdAt,
     updatedAt: current.updatedAt,
-    turns: current.messages.map((message) => ({
-      id: message.id,
-      role: message.role,
-      content: message.content,
-      createdAt: message.createdAt
-    }))
-  });
+    turns: visibleTurns,
+    currentNodeId: current.currentNodeId,
+    messages: current.messages
+  } as PersistedChatHistory);
 };
 const createNewChat = () => {
   const next = createHistory();
@@ -721,6 +942,12 @@ const ensureActiveHistory = () => {
 };
 const openHistory = (id: string) => {
   activeHistoryId.value = id;
+  const current = activeHistory.value;
+  if (current && !current.currentNodeId) {
+    current.currentNodeId =
+      findLeafNodeId(current.messages, findRootMessage(current.messages)?.id) ??
+      null;
+  }
   autoFollowMessages.value = true;
   scrollToBottom({ force: true });
 };
@@ -1102,9 +1329,9 @@ const compactMessagesForBudget = (
 const toApiMessages = (): LocalAiMessage[] =>
   compactMessagesForBudget(
     activeMessages.value
-      .filter((message) => !message.streaming)
+      .filter((message) => !message.streaming && message.role !== 'system')
       .map((message) => ({
-        role: message.role,
+        role: message.role as 'user' | 'assistant',
         content:
           message.role === 'user'
             ? apiUserMessageContent(message)
@@ -1350,6 +1577,13 @@ const stopGeneration = async () => {
     logger.warn('[LocalAI] cancel stream failed', error);
   }
 };
+const handleComposerKeydown = (event: KeyboardEvent) => {
+  if (event.isComposing || event.keyCode === 229) return;
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    void sendMessage();
+  }
+};
 const validateBeforeSend = (): boolean => {
   if (!draft.value.trim() && !attachments.value.length) return false;
   const pending = attachments.value.find(
@@ -1388,23 +1622,25 @@ const sendMessage = async () => {
     ...attachment
   }));
   const titleSource = content || submittedAttachments[0]?.name || '';
-  activeHistory.value?.messages.push({
-    id: `${Date.now()}-user`,
+  const current = activeHistory.value;
+  if (!current) return;
+  const userMessage = appendMessageNode(current, {
+    id: createMessageId('user'),
     role: 'user',
     content,
     createdAt,
     attachments: submittedAttachments
   });
-  const assistantMessage: ChatMessage = {
-    id: `${Date.now()}-assistant`,
+  const assistantMessage = appendMessageNode(current, {
+    id: createMessageId('assistant'),
     role: 'assistant',
     content: '',
     createdAt: new Date().toISOString(),
+    parentId: userMessage.id,
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
     promptTokens: estimateChatTokens(toApiMessages())
-  };
-  activeHistory.value?.messages.push(assistantMessage);
+  });
   draft.value = '';
   attachments.value = [];
   sending.value = true;
@@ -1484,19 +1720,59 @@ const copyMessage = async (message: ChatMessage) => {
     modal.msg(`${t('common.operationFailed')}: ${error}`, 'error');
   }
 };
+const collectDescendantIds = (
+  messages: ChatMessage[],
+  messageId: string
+): Set<string> => {
+  const nodes = messageNodeMap(messages);
+  const ids = new Set<string>([messageId]);
+  const visit = (id: string) => {
+    const node = nodes.get(id);
+    for (const childId of node?.childIds ?? []) {
+      ids.add(childId);
+      visit(childId);
+    }
+  };
+  visit(messageId);
+  return ids;
+};
 const deleteMessage = async (messageId: string) => {
-  if (!activeHistory.value) return;
-  activeHistory.value.messages = activeHistory.value.messages.filter(
-    (message) => message.id !== messageId
-  );
-  activeHistory.value.updatedAt = new Date().toISOString();
-  activeHistory.value.updatedAtLabel = new Date(
-    activeHistory.value.updatedAt
-  ).toLocaleString();
+  const current = activeHistory.value;
+  if (!current) return;
+  const target = current.messages.find((message) => message.id === messageId);
+  if (!target || isRootMessage(target)) return;
+  const deletedIds = collectDescendantIds(current.messages, messageId);
+  current.messages = current.messages
+    .filter((message) => !deletedIds.has(message.id))
+    .map((message) => ({
+      ...message,
+      childIds: (message.childIds ?? []).filter((id) => !deletedIds.has(id))
+    }));
+  if (current.currentNodeId && deletedIds.has(current.currentNodeId)) {
+    current.currentNodeId =
+      findLeafNodeId(current.messages, target.parentId) ??
+      findRootMessage(current.messages)?.id ??
+      null;
+  }
+  current.updatedAt = new Date().toISOString();
+  current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
   await persistActiveHistory();
 };
 const editMessage = (message: ChatMessage) => {
   draft.value = message.content;
+  if (activeHistory.value && message.parentId) {
+    activeHistory.value.currentNodeId = message.parentId;
+  }
+};
+const changeMessageVersion = (display: ChatDisplayMessage, delta: number) => {
+  const current = activeHistory.value;
+  if (!current) return;
+  const nextIndex = display.siblingCurrentIndex + delta;
+  const nextLeafId = display.siblingLeafNodeIds[nextIndex];
+  if (!nextLeafId) return;
+  current.currentNodeId = nextLeafId;
+  autoFollowMessages.value = true;
+  void scrollToBottom({ force: true });
 };
 const markFeedback = () => {
   modal.msg(t('localAi.feedbackSaved'));
@@ -1504,25 +1780,19 @@ const markFeedback = () => {
 const regenerateMessage = async (messageId: string) => {
   const current = activeHistory.value;
   if (!current || sending.value) return;
-  const index = current.messages.findIndex(
-    (message) => message.id === messageId
-  );
-  const previousUser = current.messages
-    .slice(0, index)
-    .reverse()
-    .find((message) => message.role === 'user');
-  if (!previousUser) return;
-  current.messages = current.messages.slice(0, index);
-  const assistantMessage: ChatMessage = {
-    id: `${Date.now()}-assistant`,
+  const source = current.messages.find((message) => message.id === messageId);
+  if (!source || source.role !== 'assistant' || !source.parentId) return;
+  current.currentNodeId = source.parentId;
+  const assistantMessage = appendMessageNode(current, {
+    id: createMessageId('assistant'),
     role: 'assistant',
     content: '',
     createdAt: new Date().toISOString(),
+    parentId: source.parentId,
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
     promptTokens: estimateChatTokens(toApiMessages())
-  };
-  current.messages.push(assistantMessage);
+  });
   sending.value = true;
   startStatsTicker();
   await scrollToBottom({ force: true });
@@ -2271,8 +2541,35 @@ onUnmounted(() => {
 
 .message-actions {
   display: flex;
+  align-items: center;
   margin-top: 7px;
   gap: 5px;
+}
+
+.message-version-switcher {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  padding: 0 3px;
+  color: #64748b;
+  font-size: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--chat-border);
+  border-radius: 8px;
+  gap: 4px;
+}
+
+.message-version-switcher button {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.message-version-switcher button:disabled {
+  cursor: not-allowed;
+  color: #cbd5e1;
 }
 
 .message-stats {
@@ -2354,9 +2651,10 @@ onUnmounted(() => {
   box-shadow: none;
 }
 
-.chat-input-card:focus-within {
+.chat-input-card:focus-within,
+.chat-input-card--focused {
   border-color: rgba(95, 116, 243, 0.72);
-  box-shadow: none;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
 .attachment-input {
@@ -2449,6 +2747,10 @@ onUnmounted(() => {
   background: transparent;
   border: 0;
   outline: none;
+}
+
+.chat-input-card--focused .chat-input {
+  max-height: 160px;
 }
 
 .input-toolbar {
