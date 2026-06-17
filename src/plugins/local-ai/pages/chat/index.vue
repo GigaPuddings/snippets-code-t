@@ -444,7 +444,7 @@ let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
 const markdownCache = new Map<string, string>();
 const MESSAGE_BOTTOM_THRESHOLD = 96;
-const RESPONSE_RESERVE_TOKENS = 512;
+const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const MIN_ASSISTANT_TAIL_TOKENS = 160;
 
 const canSend = computed(() => Boolean(draft.value.trim()) && !sending.value);
@@ -473,8 +473,22 @@ const availableChatModels = computed(() => modelScan.value?.mainModels ?? []);
 const effectiveContextLimit = computed(
   () => serviceStatus.value?.ctxSize ?? config.value?.ctxSize ?? 4096
 );
+const responseReserveTokens = computed(() => {
+  const contextLimit = effectiveContextLimit.value;
+  const configuredMaxTokens = config.value?.maxTokens ?? 0;
+  if (configuredMaxTokens > 0) {
+    return Math.min(
+      Math.max(configuredMaxTokens, 512),
+      Math.max(512, contextLimit - 512)
+    );
+  }
+  return Math.min(
+    Math.max(MIN_RESPONSE_RESERVE_TOKENS, Math.floor(contextLimit * 0.5)),
+    Math.max(512, contextLimit - 512)
+  );
+});
 const requestContextBudget = computed(() =>
-  Math.max(512, effectiveContextLimit.value - RESPONSE_RESERVE_TOKENS)
+  Math.max(512, effectiveContextLimit.value - responseReserveTokens.value)
 );
 const modelSupportsThinking = computed(() => {
   const name = currentModelDisplay.value.toLowerCase();
@@ -802,6 +816,12 @@ const toApiMessages = (): LocalAiMessage[] =>
       })),
     requestContextBudget.value
   );
+const requestMaxTokens = (messages: LocalAiMessage[]): number | undefined => {
+  const configuredMaxTokens = config.value?.maxTokens ?? 0;
+  if (configuredMaxTokens > 0) return configuredMaxTokens;
+  const promptTokens = estimateChatTokens(messages);
+  return Math.max(256, effectiveContextLimit.value - promptTokens - 128);
+};
 const messageStats = (message: ChatMessage) => {
   const now = statsTick.value;
   const index = activeMessages.value.findIndex(
@@ -818,8 +838,9 @@ const messageStats = (message: ChatMessage) => {
     );
   const output =
     message.stats?.completionTokens ?? estimateTokens(message.content);
-  const context = message.stats?.totalTokens ?? promptTokens + output;
   const contextMax = effectiveContextLimit.value;
+  const rawContext = message.stats?.totalTokens ?? promptTokens + output;
+  const context = Math.min(rawContext, contextMax);
   const elapsedSeconds = Math.max(
     0,
     (message.stats?.generationTimeMs ??
@@ -847,10 +868,11 @@ const messageWarningText = (message: ChatMessage): string => {
   if (message.repetitionStopped) return t('localAi.repetitionStopped');
   if (message.interrupted) return t('localAi.streamInterrupted');
   if (message.stopped) return t('localAi.generationStopped');
-  if (
-    message.stats?.totalTokens &&
-    message.stats.totalTokens >= effectiveContextLimit.value - 8
-  )
+  const estimatedContext =
+    message.stats?.totalTokens ??
+    (message.promptTokens ?? 0) +
+      (message.stats?.completionTokens ?? estimateTokens(message.content));
+  if (estimatedContext >= effectiveContextLimit.value - 8)
     return t('localAi.contextLimitReached');
   if (message.stats?.finishReason === 'length')
     return t('localAi.outputLimitReached');
@@ -906,6 +928,7 @@ const stopStatsTicker = () => {
 const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   const startedAt = performance.now();
   const requestId = createLocalAiStreamRequestId();
+  const messages = toApiMessages();
   let queuedContent = '';
   let pumpTimer: number | null = null;
   let drainResolver: (() => void) | null = null;
@@ -913,6 +936,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   let repetitionStopRequested = false;
   currentStreamRequestId.value = requestId;
   stopRequested.value = false;
+  assistantMessage.promptTokens = estimateChatTokens(messages);
 
   const pump = async () => {
     if (!queuedContent) {
@@ -969,7 +993,8 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
 
   const response = await streamChatWithLocalAi(
     {
-      messages: toApiMessages(),
+      messages,
+      maxTokens: requestMaxTokens(messages),
       enableThinking: assistantMessage.allowThinking === true
     },
     (delta) => {

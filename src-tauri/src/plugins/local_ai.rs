@@ -624,6 +624,33 @@ async fn health_check_url(base_url: &str) -> bool {
         .unwrap_or(false)
 }
 
+async fn server_context_size(base_url: &str) -> Option<u32> {
+    let url = format!("{}/props", base_url.trim_end_matches('/'));
+    let client = Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+        .ok()?;
+    let value = client
+        .get(url)
+        .send()
+        .await
+        .ok()?
+        .json::<Value>()
+        .await
+        .ok()?;
+    value
+        .get("default_generation_settings")
+        .and_then(|settings| get_u32_field(settings, "n_ctx"))
+        .or_else(|| {
+            value
+                .get("data")
+                .and_then(|data| data.as_array())
+                .and_then(|models| models.first())
+                .and_then(|model| model.get("meta"))
+                .and_then(|meta| get_u32_field(meta, "n_ctx"))
+        })
+}
+
 async fn wait_until_healthy(base_url: &str, timeout: Duration) -> bool {
     let started = Instant::now();
     while started.elapsed() < timeout {
@@ -1446,6 +1473,11 @@ pub async fn local_ai_get_status(app_handle: AppHandle) -> Result<LocalAiService
         health_check_url(&url).await
     } else {
         false
+    };
+    let ctx_size = if healthy {
+        server_context_size(&url).await.unwrap_or(ctx_size)
+    } else {
+        ctx_size
     };
 
     Ok(LocalAiServiceStatus {
