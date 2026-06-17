@@ -36,6 +36,7 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp']);
 const UNSUPPORTED_EXTENSIONS = new Set([
   'pdf',
   'doc',
@@ -61,7 +62,8 @@ export const formatFileSize = (size: number): string => {
 };
 
 export const isImageFile = (file: File): boolean =>
-  IMAGE_MIME_TYPES.has(file.type);
+  IMAGE_MIME_TYPES.has(file.type) ||
+  IMAGE_EXTENSIONS.has(extensionOf(file.name));
 
 export const isTextFile = (file: File): boolean =>
   file.type.startsWith('text/') || TEXT_EXTENSIONS.has(extensionOf(file.name));

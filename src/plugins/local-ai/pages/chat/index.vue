@@ -134,7 +134,9 @@
           <div class="message-body">
             <template v-if="display.message.role === 'user'">
               <div class="user-bubble">
-                <div>{{ display.message.content }}</div>
+                <div v-if="display.message.content" class="user-message-text">
+                  {{ display.message.content }}
+                </div>
                 <div
                   v-if="display.message.attachments?.length"
                   class="message-attachment-list"
@@ -142,20 +144,55 @@
                   <div
                     v-for="attachment in display.message.attachments"
                     :key="attachment.id"
-                    class="message-attachment-chip"
+                    :class="[
+                      'message-attachment-chip',
+                      attachment.type === 'image' && attachment.dataUrl
+                        ? 'message-attachment-chip--image'
+                        : ''
+                    ]"
                   >
-                    <img
+                    <figure
                       v-if="attachment.type === 'image' && attachment.dataUrl"
-                      :src="attachment.dataUrl"
-                      :alt="attachment.name"
-                    />
+                    >
+                      <img :src="attachment.dataUrl" :alt="attachment.name" />
+                      <figcaption>{{ attachment.name }}</figcaption>
+                    </figure>
                     <span v-else class="attachment-file-icon">
                       {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
                     </span>
-                    <span>{{ attachment.name }}</span>
+                    <span
+                      v-if="
+                        !(attachment.type === 'image' && attachment.dataUrl)
+                      "
+                    >
+                      {{ attachment.name }}
+                    </span>
                   </div>
                 </div>
                 <time>{{ messageTime(display.message) }}</time>
+              </div>
+              <div v-if="!display.message.streaming" class="message-actions">
+                <button
+                  type="button"
+                  :title="t('common.copy')"
+                  @click="copyMessage(display.message)"
+                >
+                  <Copy theme="outline" size="14" />
+                </button>
+                <button
+                  type="button"
+                  :title="t('common.edit')"
+                  @click="editMessage(display.message)"
+                >
+                  <Edit theme="outline" size="14" />
+                </button>
+                <button
+                  type="button"
+                  :title="t('common.delete')"
+                  @click="deleteMessage(display.message.id)"
+                >
+                  <Delete theme="outline" size="14" />
+                </button>
               </div>
             </template>
 
@@ -204,7 +241,9 @@
                       class="message-content markdown-body"
                       @click="handleMarkdownClick"
                       v-html="
-                        renderMarkdown(messageReasoning(display.message.content))
+                        renderMarkdown(
+                          messageReasoning(display.message.content)
+                        )
                       "
                     ></div>
                   </details>
@@ -212,7 +251,9 @@
                     v-if="messageAnswer(display.message.content)"
                     class="message-content markdown-body"
                     @click="handleMarkdownClick"
-                    v-html="renderMarkdown(messageAnswer(display.message.content))"
+                    v-html="
+                      renderMarkdown(messageAnswer(display.message.content))
+                    "
                   ></div>
                 </div>
                 <div v-else class="message-content loading-text">
@@ -387,6 +428,7 @@
           rows="2"
           :placeholder="t('localAi.chatPlaceholder')"
           @keydown="handleComposerKeydown"
+          @paste="handleComposerPaste"
         ></textarea>
         <div class="input-toolbar">
           <div class="input-toolbar-left">
@@ -686,7 +728,8 @@ const getPathToNode = (
 const getVisibleMessages = (history: ChatHistoryView | null): ChatMessage[] => {
   if (!history) return [];
   const leafId =
-    history.currentNodeId ?? findLeafNodeId(history.messages, findRootMessage(history.messages)?.id);
+    history.currentNodeId ??
+    findLeafNodeId(history.messages, findRootMessage(history.messages)?.id);
   return getPathToNode(history.messages, leafId).filter(
     (message) => !isRootMessage(message)
   );
@@ -715,7 +758,8 @@ const appendMessageNode = (
   }
 ): ChatMessage => {
   const root = findRootMessage(history.messages);
-  const parentId = message.parentId ?? history.currentNodeId ?? root?.id ?? null;
+  const parentId =
+    message.parentId ?? history.currentNodeId ?? root?.id ?? null;
   const node: ChatMessage = {
     ...message,
     type: 'text',
@@ -745,12 +789,8 @@ const activeHistory = computed(
   () =>
     histories.value.find((item) => item.id === activeHistoryId.value) ?? null
 );
-const activeMessages = computed(() =>
-  getVisibleMessages(activeHistory.value)
-);
-const displayMessages = computed(() =>
-  getDisplayMessages(activeHistory.value)
-);
+const activeMessages = computed(() => getVisibleMessages(activeHistory.value));
+const displayMessages = computed(() => getDisplayMessages(activeHistory.value));
 const fileName = (path?: string | null): string => {
   if (!path) return '';
   return path.split(/[\\/]+/).pop() ?? path;
@@ -878,15 +918,14 @@ const refreshHistories = async () => {
   try {
     const loaded = (await getLocalAiChatHistories()) as PersistedChatHistory[];
     histories.value = loaded.map((history) => {
-      const sourceMessages =
-        history.messages?.length
-          ? history.messages
-          : history.turns.map((turn) => ({
-              id: turn.id,
-              role: turn.role as 'user' | 'assistant',
-              content: turn.content,
-              createdAt: turn.createdAt
-            }));
+      const sourceMessages = history.messages?.length
+        ? history.messages
+        : history.turns.map((turn) => ({
+            id: turn.id,
+            role: turn.role as 'user' | 'assistant',
+            content: turn.content,
+            createdAt: turn.createdAt
+          }));
       const normalized = normalizeMessagesToTree(
         sourceMessages,
         history.createdAt
@@ -1062,6 +1101,14 @@ const handleAttachmentDrop = async (event: DragEvent) => {
   if (event.dataTransfer?.files.length) {
     await addAttachmentFiles(event.dataTransfer.files);
   }
+};
+const handleComposerPaste = async (event: ClipboardEvent) => {
+  const files = Array.from(event.clipboardData?.files ?? []);
+  if (!files.length) return;
+  const imageFiles = files.filter(isImageFile);
+  if (!imageFiles.length) return;
+  event.preventDefault();
+  await addAttachmentFiles(imageFiles);
 };
 const removeAttachment = (id: string) => {
   attachments.value = attachments.value.filter(
@@ -1845,14 +1892,16 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .local-ai-chat-shell {
-  --chat-bg: var(--categories-content-bg, #f3f6fb);
-  --chat-panel: var(--categories-panel-bg, #fbfcff);
-  --chat-border: var(--categories-border-color, #d9e2ef);
+  --chat-bg: #f7f8fb;
+  --chat-panel: #fff;
+  --chat-surface: #f8fafb;
+  --chat-border: #dfe5ee;
   --chat-primary: var(--categories-bg-active, #5f74f3);
   --chat-primary-hover: var(--el-color-primary-dark-2, #4d63dd);
   --chat-primary-soft: rgba(95, 116, 243, 0.12);
-  --chat-muted: var(--categories-info-text-color, #6b7280);
-  --chat-pill-bg: var(--categories-panel-bg-hover, #edf4ff);
+  --chat-muted: #707988;
+  --chat-pill-bg: #f1f5fa;
+  --chat-readable-width: 1120px;
 
   display: grid;
   width: 100%;
@@ -1861,8 +1910,8 @@ onUnmounted(() => {
   padding: 4px;
   color: var(--categories-text-color, #111827);
   background: var(--chat-bg);
-  grid-template-columns: 244px minmax(0, 1fr);
-  gap: 6px;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 8px;
 }
 
 .chat-sidebar,
@@ -1878,7 +1927,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px;
+  padding: 18px 16px;
   overflow: hidden;
 }
 
@@ -2109,12 +2158,14 @@ onUnmounted(() => {
   display: flex;
   position: relative;
   flex-direction: column;
-  padding: 16px 18px;
+  padding: 22px 26px 16px;
   overflow: hidden;
 }
 
 .chat-topbar {
   align-items: flex-start;
+  width: min(100%, var(--chat-readable-width));
+  margin: 0 auto;
 }
 
 .chat-title-row {
@@ -2193,14 +2244,17 @@ onUnmounted(() => {
 .message-list {
   min-height: 0;
   flex: 1;
-  padding: 12px 2px 14px;
+  padding: 22px 0 18px;
+  overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .date-divider {
   display: flex;
+  width: min(100%, var(--chat-readable-width));
   align-items: center;
-  margin: 2px 0 18px;
+  margin: 2px auto 22px;
   color: #94a3b8;
   font-size: 12px;
   gap: 12px;
@@ -2216,17 +2270,17 @@ onUnmounted(() => {
 
 .empty-state {
   display: flex;
-  width: 300px;
-  min-height: 118px;
+  width: min(420px, 92%);
+  min-height: 150px;
   margin: 10vh auto 0;
   flex-direction: column;
   align-items: center;
-  padding: 14px 16px;
+  padding: 22px 20px;
   color: var(--chat-muted);
   text-align: center;
-  background: rgba(240, 246, 255, 0.72);
+  background: var(--chat-surface);
   border: 1px dashed var(--chat-border);
-  border-radius: 12px;
+  border-radius: 18px;
   gap: 7px;
 }
 
@@ -2242,9 +2296,10 @@ onUnmounted(() => {
 
 .message-row {
   display: flex;
+  width: min(100%, var(--chat-readable-width));
   align-items: flex-start;
-  margin-bottom: 18px;
-  gap: 10px;
+  margin: 0 auto 22px;
+  gap: 0;
 }
 
 .message-row--user {
@@ -2252,7 +2307,7 @@ onUnmounted(() => {
 }
 
 .message-avatar {
-  display: flex;
+  display: none;
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
@@ -2275,28 +2330,38 @@ onUnmounted(() => {
 
 .message-body {
   min-width: 0;
-  max-width: min(82%, 980px);
+  max-width: 100%;
 }
 
 .message-row--user .message-body {
-  max-width: min(56%, 720px);
+  display: flex;
+  max-width: min(68%, 720px);
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: auto;
 }
 
 .user-bubble {
-  padding: 11px 13px 8px;
+  padding: 12px 14px 8px;
   color: #1f2937;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
-  background: #f7f9ff;
-  border: 1px solid rgba(95, 116, 243, 0.32);
-  border-radius: 8px;
-  box-shadow: none;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.user-message-text {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .message-attachment-list {
-  display: grid;
-  margin-top: 8px;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  gap: 10px;
 }
 
 .message-attachment-chip {
@@ -2309,16 +2374,39 @@ onUnmounted(() => {
   font-size: 12px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid #dce5f2;
-  border-radius: 7px;
+  border-radius: 10px;
   gap: 7px;
 }
 
+.message-attachment-chip--image {
+  display: block;
+  width: min(280px, 100%);
+  padding: 0;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 14px;
+}
+
+.message-attachment-chip figure {
+  margin: 0;
+}
+
 .message-attachment-chip img {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
+  display: block;
+  width: 100%;
+  max-height: 210px;
   object-fit: cover;
-  border-radius: 6px;
+  background: #eef2f7;
+}
+
+.message-attachment-chip figcaption {
+  padding: 7px 9px;
+  overflow: hidden;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-attachment-chip span:last-child {
@@ -2354,7 +2442,7 @@ onUnmounted(() => {
 .assistant-head {
   display: flex;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   color: #64748b;
   font-size: 12px;
   gap: 8px;
@@ -2366,14 +2454,14 @@ onUnmounted(() => {
 }
 
 .assistant-card {
-  padding: 12px 14px;
+  padding: 18px 20px;
   color: #172033;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.68;
-  background: #fff;
+  background: var(--chat-surface);
   border: 1px solid var(--chat-border);
-  border-radius: 8px;
-  box-shadow: none;
+  border-radius: 18px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
 }
 
 .assistant-card--streaming {
@@ -2392,9 +2480,9 @@ onUnmounted(() => {
 .reasoning-panel {
   overflow: hidden;
   color: #475569;
-  background: #f8fafc;
+  background: #fff;
   border: 1px solid #dfe7f1;
-  border-radius: 8px;
+  border-radius: 14px;
 }
 
 .reasoning-panel summary {
@@ -2476,10 +2564,11 @@ onUnmounted(() => {
   position: relative;
   margin: 12px 0;
   padding: 12px;
+  max-width: 100%;
   overflow-x: auto;
   background: #f6f8fa;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .markdown-body :deep(.code-copy-btn) {
@@ -2542,7 +2631,7 @@ onUnmounted(() => {
 .message-actions {
   display: flex;
   align-items: center;
-  margin-top: 7px;
+  margin-top: 8px;
   gap: 5px;
 }
 
@@ -2593,9 +2682,9 @@ onUnmounted(() => {
 }
 
 .message-actions button {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
 }
 
 .loading-text {
@@ -2616,8 +2705,8 @@ onUnmounted(() => {
 
 .scroll-bottom-btn {
   position: absolute;
-  right: 28px;
-  bottom: 112px;
+  right: max(28px, calc((100% - var(--chat-readable-width)) / 2 + 28px));
+  bottom: 128px;
   z-index: 3;
   display: inline-flex;
   height: 30px;
@@ -2643,18 +2732,20 @@ onUnmounted(() => {
 }
 
 .chat-input-card {
+  width: min(100%, var(--chat-readable-width));
   flex: 0 0 auto;
-  padding: 9px 12px 10px;
+  margin: 0 auto;
+  padding: 18px 18px 16px;
   background: #fff;
-  border: 1px solid rgba(95, 116, 243, 0.28);
-  border-radius: 8px;
-  box-shadow: none;
+  border: 1px solid #dfe5ee;
+  border-radius: 24px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
 }
 
 .chat-input-card:focus-within,
 .chat-input-card--focused {
-  border-color: rgba(95, 116, 243, 0.72);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  border-color: rgba(95, 116, 243, 0.56);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.1);
 }
 
 .attachment-input {
@@ -2664,19 +2755,19 @@ onUnmounted(() => {
 .attachment-preview-list {
   display: flex;
   flex-wrap: wrap;
-  margin-bottom: 8px;
-  gap: 7px;
+  margin-bottom: 12px;
+  gap: 10px;
 }
 
 .attachment-preview-item {
   display: inline-flex;
-  max-width: min(360px, 100%);
+  max-width: min(340px, 100%);
   align-items: center;
-  padding: 5px 6px;
+  padding: 6px;
   color: #334155;
   background: #f8fbff;
   border: 1px solid #dbe5f2;
-  border-radius: 8px;
+  border-radius: 14px;
   gap: 8px;
 }
 
@@ -2686,11 +2777,11 @@ onUnmounted(() => {
 }
 
 .attachment-preview-item img {
-  width: 42px;
-  height: 42px;
+  width: 76px;
+  height: 58px;
   flex: 0 0 auto;
   object-fit: cover;
-  border-radius: 7px;
+  border-radius: 10px;
 }
 
 .attachment-meta {
@@ -2738,11 +2829,11 @@ onUnmounted(() => {
 .chat-input {
   display: block;
   width: 100%;
-  min-height: 30px;
-  max-height: 54px;
+  min-height: 54px;
+  max-height: 116px;
   resize: none;
   color: #1f2937;
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.45;
   background: transparent;
   border: 0;
@@ -2754,7 +2845,7 @@ onUnmounted(() => {
 }
 
 .input-toolbar {
-  margin-top: 7px;
+  margin-top: 12px;
 }
 
 .input-toolbar-left,
