@@ -153,7 +153,7 @@
           </div>
           <div class="param-grid param-grid--three">
             <label class="number-field"><span>{{ t('localAi.temperature') }}</span><el-input-number v-model="config.temperature" :min="0" :max="2" :step="0.1" :precision="1" size="small" /></label>
-            <label class="number-field"><span>{{ t('localAi.maxTokens') }}</span><el-input-number v-model="config.maxTokens" :min="64" :max="8192" :step="64" size="small" /></label>
+            <label class="number-field"><span>{{ t('localAi.maxTokens') }}</span><el-input-number v-model="config.maxTokens" :min="0" :max="8192" :step="64" size="small" /></label>
             <label class="number-field"><span>{{ t('localAi.port') }}</span><el-input-number v-model="config.port" :min="1024" :max="65535" :step="1" size="small" /></label>
           </div>
         </div>

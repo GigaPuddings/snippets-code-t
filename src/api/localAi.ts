@@ -93,6 +93,7 @@ export interface LocalAiChatStreamStats {
   totalTokens?: number;
   generationTimeMs?: number;
   tokensPerSecond?: number;
+  finishReason?: string;
 }
 
 export interface LocalAiChatStreamEvent {

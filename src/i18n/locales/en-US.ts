@@ -1840,6 +1840,8 @@ export default {
     moreComingSoon: 'More actions coming soon',
     send: 'Send',
     stopGenerating: 'Stop generating',
+    outputLimitReached:
+      'Reached the per-response output limit. Set max tokens to 0 in Settings to remove the limit.',
     you: 'You',
     youShort: 'You',
     assistant: 'AI',
@@ -1892,7 +1894,7 @@ export default {
     generation: 'Generation',
     generationDesc: 'Control default temperature and max tokens per response',
     temperature: 'Temperature',
-    maxTokens: 'Max tokens',
+    maxTokens: 'Max tokens (0=unlimited)',
     port: 'Port',
     runtimeReady: 'Runtime ready',
     runtimeMissing: 'Runtime missing',

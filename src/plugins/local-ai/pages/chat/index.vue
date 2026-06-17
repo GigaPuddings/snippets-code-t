@@ -182,9 +182,17 @@
                   Context: {{ messageStats(message).context }}/{{ messageStats(message).contextMax }}
                   ({{ messageStats(message).contextPercent }}%)
                 </span>
-                <span>Output: {{ messageStats(message).output }}</span>
+                <span>
+                  Output: {{ messageStats(message).output }}/{{ messageStats(message).outputMax }}
+                </span>
                 <span>{{ messageStats(message).seconds }}s</span>
                 <span>{{ messageStats(message).speed }} t/s</span>
+              </div>
+              <div
+                v-if="message.stats?.finishReason === 'length'"
+                class="message-warning"
+              >
+                {{ t('localAi.outputLimitReached') }}
               </div>
               <div v-if="!message.streaming" class="message-actions">
                 <button
@@ -581,6 +589,8 @@ const messageStats = (message: ChatMessage) => {
     contextMax,
     contextPercent: Math.min(100, Math.round((context / contextMax) * 100)),
     output,
+    outputMax:
+      (config.value?.maxTokens ?? 0) > 0 ? String(config.value?.maxTokens) : '∞',
     seconds: elapsedSeconds.toFixed(1),
     speed: speed.toFixed(1)
   };
@@ -1475,6 +1485,12 @@ onUnmounted(() => {
   color: #7c8799;
   font-size: 12px;
   gap: 14px;
+}
+
+.message-warning {
+  margin-top: 6px;
+  color: #b45309;
+  font-size: 12px;
 }
 
 .message-actions button {

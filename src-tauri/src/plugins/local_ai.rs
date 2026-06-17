@@ -86,7 +86,7 @@ impl Default for LocalAiConfig {
             idle_timeout_minutes: 10,
             keep_alive: false,
             temperature: 0.3,
-            max_tokens: 1024,
+            max_tokens: 0,
             request_timeout_secs: 600,
         }
     }
@@ -178,6 +178,7 @@ pub struct LocalAiChatStreamStats {
     pub total_tokens: Option<u32>,
     pub generation_time_ms: Option<f64>,
     pub tokens_per_second: Option<f64>,
+    pub finish_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -269,10 +270,14 @@ fn persist_chat_histories(app_handle: &AppHandle, histories: &[LocalAiChatHistor
 
 fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
     let path = config_path(app_handle);
-    fs::read_to_string(path)
+    let mut config = fs::read_to_string(path)
         .ok()
         .and_then(|content| serde_json::from_str::<LocalAiConfig>(&content).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if config.max_tokens == 1024 {
+        config.max_tokens = 0;
+    }
+    config
 }
 
 fn write_config(app_handle: &AppHandle, config: &LocalAiConfig) -> Result<(), String> {
@@ -294,6 +299,15 @@ fn display_path(path: &Path) -> String {
 
 fn base_url(config: &LocalAiConfig) -> String {
     format!("http://{}:{}", config.host, config.port)
+}
+
+fn completion_token_limit(config: &LocalAiConfig, request_max_tokens: Option<u32>) -> i64 {
+    let limit = request_max_tokens.unwrap_or(config.max_tokens);
+    if limit == 0 {
+        -1
+    } else {
+        i64::from(limit)
+    }
 }
 
 fn quote_command_part(value: &str) -> String {
@@ -778,7 +792,7 @@ async fn chat_completion(
         "model": "local-ai",
         "messages": messages,
         "temperature": temperature.unwrap_or(config.temperature),
-        "max_tokens": max_tokens.unwrap_or(config.max_tokens),
+        "max_tokens": completion_token_limit(&config, max_tokens),
         "stream": false
     });
 
@@ -843,6 +857,14 @@ fn get_f64_field(value: &Value, key: &str) -> Option<f64> {
 fn extract_stream_stats(value: &Value) -> Option<LocalAiChatStreamStats> {
     let usage = value.get("usage");
     let timings = value.get("timings");
+    let finish_reason = value
+        .get("choices")
+        .and_then(|choices| choices.as_array())
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("finish_reason"))
+        .and_then(|reason| reason.as_str())
+        .filter(|reason| !reason.is_empty())
+        .map(str::to_string);
     let prompt_tokens = usage
         .and_then(|usage| get_u32_field(usage, "prompt_tokens"))
         .or_else(|| timings.and_then(|timings| get_u32_field(timings, "prompt_n")));
@@ -860,6 +882,7 @@ fn extract_stream_stats(value: &Value) -> Option<LocalAiChatStreamStats> {
         && total_tokens.is_none()
         && generation_time_ms.is_none()
         && tokens_per_second.is_none()
+        && finish_reason.is_none()
     {
         return None;
     }
@@ -870,6 +893,7 @@ fn extract_stream_stats(value: &Value) -> Option<LocalAiChatStreamStats> {
         total_tokens,
         generation_time_ms,
         tokens_per_second,
+        finish_reason,
     })
 }
 
@@ -940,7 +964,7 @@ async fn chat_completion_stream(
         "model": "local-ai",
         "messages": messages,
         "temperature": temperature.unwrap_or(config.temperature),
-        "max_tokens": max_tokens.unwrap_or(config.max_tokens),
+        "max_tokens": completion_token_limit(&config, max_tokens),
         "stream": true,
         "stream_options": {
             "include_usage": true
