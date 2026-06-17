@@ -21,10 +21,10 @@
 
     <!-- 右侧内容区 -->
     <div class="settings-content">
-      <component 
-        v-for="tab in loadedTabs" 
+      <component
+        v-for="tab in loadedTabs"
         :key="componentKey(tab)"
-        :is="componentMap[tab]" 
+        :is="componentMap[tab]"
         v-show="activeTab === tab"
       />
     </div>
@@ -42,7 +42,11 @@ import Manger from './components/Manger/index.vue';
 import Plugins from './components/Plugins/index.vue';
 import Developer from './components/Developer/index.vue';
 import { getGitSettings } from '@/api/appConfig';
-import { pluginSettingsComponents, pluginSettingsMenuItems, type PluginSettingsMenuItem } from '@/plugins/settings';
+import {
+  pluginSettingsComponents,
+  pluginSettingsMenuItems,
+  type PluginSettingsMenuItem
+} from '@/plugins/settings';
 import { usePluginStore } from '@/store';
 
 defineOptions({
@@ -67,10 +71,7 @@ const coreMenuItems: PluginSettingsMenuItem[] = [
 const menuItems = computed(() => {
   pluginStore.runtimeRevision;
 
-  const allMenuItems = [
-    ...coreMenuItems,
-    ...pluginSettingsMenuItems
-  ];
+  const allMenuItems = [...coreMenuItems, ...pluginSettingsMenuItems];
 
   return allMenuItems
     .filter((item) => {
@@ -79,8 +80,12 @@ const menuItems = computed(() => {
       }
 
       const plugin = item.pluginId
-        ? pluginStore.plugins.find((candidate) => candidate.id === item.pluginId)
-        : pluginStore.plugins.find((candidate) => candidate.settingsTabs?.includes(item.id));
+        ? pluginStore.plugins.find(
+            (candidate) => candidate.id === item.pluginId
+          )
+        : pluginStore.plugins.find((candidate) =>
+            candidate.settingsTabs?.includes(item.id)
+          );
       if (item.pluginId) {
         return !!plugin && pluginStore.isEnabled(plugin.id);
       }
@@ -90,7 +95,10 @@ const menuItems = computed(() => {
       const translated = t(item.labelKey);
       return {
         id: item.id,
-        label: translated === item.labelKey ? item.label ?? translated : translated,
+        label:
+          translated === item.labelKey
+            ? (item.label ?? translated)
+            : translated,
         icon: item.icon
       };
     });
@@ -100,7 +108,9 @@ const activeTab = ref('general');
 const loadedTabs = ref<string[]>(['general']); // 已加载的 tab
 
 const getSettingsTabPluginId = (tabId: string): string | null => {
-  const item = pluginSettingsMenuItems.find((candidate) => candidate.id === tabId);
+  const item = pluginSettingsMenuItems.find(
+    (candidate) => candidate.id === tabId
+  );
   if (item?.pluginId) return item.pluginId;
   const plugin = pluginStore.plugins.find((candidate) =>
     candidate.settingsTabs?.includes(tabId)
@@ -120,12 +130,12 @@ const componentMap = computed<Record<string, any>>(() => {
   pluginStore.runtimeRevision;
 
   return {
-  general: General,
-  shortcut: Shortcut,
-  data: Manger,
-  plugins: Plugins,
-  developer: Developer,
-  ...pluginSettingsComponents
+    general: General,
+    shortcut: Shortcut,
+    data: Manger,
+    plugins: Plugins,
+    developer: Developer,
+    ...pluginSettingsComponents
   };
 });
 
@@ -142,7 +152,10 @@ async function refreshCanShowGitSyncTab() {
       return;
     }
     const { getGitStatus } = await import('@/api/gitSync');
-    const [status, settings] = await Promise.all([getGitStatus(), getGitSettings()]);
+    const [status, settings] = await Promise.all([
+      getGitStatus(),
+      getGitSettings()
+    ]);
     const hasRequiredFields =
       !!settings.user_name?.trim() &&
       !!settings.user_email?.trim() &&
@@ -157,10 +170,14 @@ async function refreshCanShowGitSyncTab() {
 // 切换 tab
 const switchTab = (tabId: string) => {
   if (tabId === 'gitSync' && !canShowGitSyncTab.value) return;
-  const item = pluginSettingsMenuItems.find((candidate) => candidate.id === tabId);
+  const item = pluginSettingsMenuItems.find(
+    (candidate) => candidate.id === tabId
+  );
   const plugin = item?.pluginId
     ? pluginStore.plugins.find((candidate) => candidate.id === item.pluginId)
-    : pluginStore.plugins.find((candidate) => candidate.settingsTabs?.includes(tabId));
+    : pluginStore.plugins.find((candidate) =>
+        candidate.settingsTabs?.includes(tabId)
+      );
   if (item?.pluginId && !plugin) {
     activeTab.value = 'plugins';
     if (!loadedTabs.value.includes('plugins')) {
@@ -182,7 +199,10 @@ const switchTab = (tabId: string) => {
 };
 
 watch(
-  () => [pluginStore.runtimeRevision, menuItems.value.map((item) => item.id).join('|')],
+  () => [
+    pluginStore.runtimeRevision,
+    menuItems.value.map((item) => item.id).join('|')
+  ],
   () => {
     const availableTabs = new Set(menuItems.value.map((item) => item.id));
     loadedTabs.value = loadedTabs.value.filter((tab) => availableTabs.has(tab));
@@ -199,18 +219,23 @@ watch(
 );
 
 // 监听路由 query 参数变化（进入设置页或切到 gitSync 时先刷新 Tab 显示条件，避免从个人中心保存后不显示）
-watch(() => route.query.tab, (newTab) => {
-  if (newTab && typeof newTab === 'string') {
-    if (newTab === 'gitSync') {
-      refreshCanShowGitSyncTab().then(() => switchTab(newTab));
-    } else {
-      switchTab(newTab);
+watch(
+  () => route.query.tab,
+  (newTab) => {
+    if (newTab && typeof newTab === 'string') {
+      if (newTab === 'gitSync') {
+        refreshCanShowGitSyncTab().then(() => switchTab(newTab));
+      } else {
+        switchTab(newTab);
+      }
     }
-  }
-}, { immediate: true });
+  },
+  { immediate: true }
+);
 
 onMounted(async () => {
   await pluginStore.initialize();
+  await pluginStore.loadEnabledPluginEntries();
   await refreshCanShowGitSyncTab();
   const tabFromQuery = route.query.tab;
   if (tabFromQuery && typeof tabFromQuery === 'string') {

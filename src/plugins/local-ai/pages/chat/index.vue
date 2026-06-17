@@ -1,17 +1,32 @@
 <template>
-  <main class="local-ai-chat-shell">
-    <aside class="chat-sidebar">
+  <main
+    :class="[
+      'local-ai-chat-shell',
+      sidebarCollapsed ? 'local-ai-chat-shell--sidebar-collapsed' : ''
+    ]"
+  >
+    <aside
+      :class="[
+        'chat-sidebar',
+        sidebarCollapsed ? 'chat-sidebar--collapsed' : ''
+      ]"
+    >
       <header class="sidebar-header">
         <div class="sidebar-title-block">
           <h2>{{ t('localAi.chatTitle') }}</h2>
         </div>
         <button
-          class="icon-action-btn"
+          class="icon-action-btn sidebar-collapse-btn"
           type="button"
-          :title="t('plugins.refresh')"
-          @click="refreshAll"
+          :title="
+            sidebarCollapsed
+              ? t('localAi.expandSidebar')
+              : t('localAi.collapseSidebar')
+          "
+          :aria-pressed="sidebarCollapsed"
+          @click="sidebarCollapsed = !sidebarCollapsed"
         >
-          <Refresh theme="outline" size="15" />
+          <LeftBar theme="outline" size="17" />
         </button>
       </header>
 
@@ -32,6 +47,14 @@
       <section class="sidebar-section recent-section">
         <div class="section-title-row">
           <div class="section-title">{{ t('localAi.recent') }}</div>
+          <button
+            class="icon-action-btn"
+            type="button"
+            :title="t('plugins.refresh')"
+            @click="refreshAll"
+          >
+            <Refresh theme="outline" size="14" />
+          </button>
         </div>
         <div v-if="filteredHistories.length" class="chat-list">
           <div
@@ -64,6 +87,10 @@
       </section>
 
       <footer class="sidebar-service">
+        <button class="sidebar-settings-btn" type="button" @click="goSettings">
+          <SettingTwo theme="outline" size="16" />
+          <span>{{ t('localAi.settings') }}</span>
+        </button>
         <div class="sidebar-service-row">
           <span
             :class="[
@@ -74,283 +101,284 @@
             <i></i>
             {{ serviceStatusText }}
           </span>
-          <button
-            class="icon-action-btn"
-            type="button"
-            :title="t('plugins.refresh')"
-            @click="refreshAll"
-          >
-            <Refresh theme="outline" size="14" />
-          </button>
         </div>
-        <div class="service-url">
-          {{ serviceStatus?.baseUrl ?? 'http://127.0.0.1:39281' }}
-        </div>
-        <button class="sidebar-settings-btn" type="button" @click="goSettings">
-          <SettingTwo theme="outline" size="16" />
-          <span>{{ t('localAi.settings') }}</span>
-        </button>
       </footer>
     </aside>
 
     <section class="chat-panel">
+      <button
+        v-if="sidebarCollapsed"
+        class="panel-sidebar-toggle"
+        type="button"
+        :title="t('localAi.expandSidebar')"
+        @click="sidebarCollapsed = false"
+      >
+        <LeftBar theme="outline" size="17" />
+      </button>
+
       <div
         ref="messageListRef"
         class="message-list"
         @scroll="handleMessageScroll"
       >
-        <div class="date-divider">
-          <span>{{ t('localAi.today') }}</span>
-        </div>
-
         <div v-if="!activeMessages.length" class="empty-state">
           <Robot theme="outline" size="28" />
           <div class="empty-title">{{ t('localAi.chatEmpty') }}</div>
           <div class="empty-desc">{{ t('localAi.chatPlaceholder') }}</div>
         </div>
 
-        <article
-          v-for="display in displayMessages"
+        <template
+          v-for="(display, displayIndex) in displayMessages"
           :key="display.message.id"
-          :class="['message-row', `message-row--${display.message.role}`]"
         >
-          <div class="message-avatar">
-            <Robot
-              v-if="display.message.role === 'assistant'"
-              theme="outline"
-              size="18"
-            />
-            <span v-else>{{ t('localAi.youShort') }}</span>
+          <div v-if="shouldShowDateDivider(displayIndex)" class="date-divider">
+            <span>{{ messageDateDivider(display.message) }}</span>
           </div>
 
-          <div class="message-body">
-            <template v-if="display.message.role === 'user'">
-              <div class="user-bubble">
-                <div v-if="display.message.content" class="user-message-text">
-                  {{ display.message.content }}
-                </div>
-                <div
-                  v-if="display.message.attachments?.length"
-                  class="message-attachment-list"
-                >
+          <article
+            :class="['message-row', `message-row--${display.message.role}`]"
+          >
+            <div class="message-avatar">
+              <Robot
+                v-if="display.message.role === 'assistant'"
+                theme="outline"
+                size="18"
+              />
+              <span v-else>{{ t('localAi.youShort') }}</span>
+            </div>
+
+            <div class="message-body">
+              <template v-if="display.message.role === 'user'">
+                <div class="user-bubble">
+                  <div v-if="display.message.content" class="user-message-text">
+                    {{ display.message.content }}
+                  </div>
                   <div
-                    v-for="attachment in display.message.attachments"
-                    :key="attachment.id"
-                    :class="[
-                      'message-attachment-chip',
-                      attachment.type === 'image' && attachment.dataUrl
-                        ? 'message-attachment-chip--image'
-                        : ''
-                    ]"
+                    v-if="display.message.attachments?.length"
+                    class="message-attachment-list"
                   >
-                    <figure
-                      v-if="attachment.type === 'image' && attachment.dataUrl"
-                      :title="attachment.name"
+                    <div
+                      v-for="attachment in display.message.attachments"
+                      :key="attachment.id"
+                      :class="[
+                        'message-attachment-chip',
+                        attachment.type === 'image' && attachment.dataUrl
+                          ? 'message-attachment-chip--image'
+                          : ''
+                      ]"
                     >
-                      <img :src="attachment.dataUrl" :alt="attachment.name" />
-                    </figure>
-                    <span v-else class="attachment-file-icon">
-                      {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
-                    </span>
-                    <span
-                      v-if="
-                        !(attachment.type === 'image' && attachment.dataUrl)
-                      "
-                    >
-                      {{ attachment.name }}
-                    </span>
+                      <figure
+                        v-if="attachment.type === 'image' && attachment.dataUrl"
+                        :title="attachment.name"
+                      >
+                        <img :src="attachment.dataUrl" :alt="attachment.name" />
+                      </figure>
+                      <span v-else class="attachment-file-icon">
+                        {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
+                      </span>
+                      <span
+                        v-if="
+                          !(attachment.type === 'image' && attachment.dataUrl)
+                        "
+                      >
+                        {{ attachment.name }}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div v-if="!display.message.streaming" class="message-actions">
-                <button
-                  type="button"
-                  :title="t('common.copy')"
-                  @click="copyMessage(display.message)"
-                >
-                  <Copy theme="outline" size="14" />
-                </button>
-                <button
-                  type="button"
-                  :title="t('common.edit')"
-                  @click="editMessage(display.message)"
-                >
-                  <Edit theme="outline" size="14" />
-                </button>
-                <button
-                  type="button"
-                  :title="t('common.delete')"
-                  @click="deleteMessage(display.message.id)"
-                >
-                  <Delete theme="outline" size="14" />
-                </button>
-              </div>
-            </template>
-
-            <template v-else>
-              <div class="assistant-head">
-                <span>{{ currentModelDisplay }}</span>
-                <small v-if="display.message.streaming">
-                  {{ messageActivityLabel(display.message) }}
-                </small>
-              </div>
-              <div
-                class="assistant-card"
-                :class="{
-                  'assistant-card--streaming': display.message.streaming
-                }"
-              >
-                <div
-                  v-if="display.message.content"
-                  class="assistant-content-stack"
-                >
-                  <details
-                    v-if="
-                      display.message.allowThinking &&
-                      messageReasoning(display.message.content)
-                    "
-                    class="reasoning-panel"
-                    :open="
-                      display.message.streaming &&
-                      isReasoningActive(display.message)
-                    "
+                <div v-if="!display.message.streaming" class="message-actions">
+                  <button
+                    type="button"
+                    :title="t('common.copy')"
+                    @click="copyMessage(display.message)"
                   >
-                    <summary>
-                      <span class="reasoning-summary-title">
-                        <Brain theme="outline" size="14" />
-                        {{ messageReasoningLabel(display.message) }}
-                      </span>
-                      <small v-if="display.message.streaming">
-                        {{
-                          isReasoningActive(display.message)
-                            ? t('localAi.thinking')
-                            : t('localAi.generating')
-                        }}
-                      </small>
-                    </summary>
+                    <Copy theme="outline" size="14" />
+                  </button>
+                  <button
+                    type="button"
+                    :title="t('common.edit')"
+                    @click="editMessage(display.message)"
+                  >
+                    <Edit theme="outline" size="14" />
+                  </button>
+                  <button
+                    type="button"
+                    :title="t('common.delete')"
+                    @click="deleteMessage(display.message.id)"
+                  >
+                    <Delete theme="outline" size="14" />
+                  </button>
+                </div>
+              </template>
+
+              <template v-else>
+                <div class="assistant-head">
+                  <span>{{ currentModelDisplay }}</span>
+                  <small v-if="display.message.streaming">
+                    {{ messageActivityLabel(display.message) }}
+                  </small>
+                </div>
+                <div
+                  class="assistant-card"
+                  :class="{
+                    'assistant-card--streaming': display.message.streaming
+                  }"
+                >
+                  <div
+                    v-if="display.message.content"
+                    class="assistant-content-stack"
+                  >
+                    <details
+                      v-if="
+                        display.message.allowThinking &&
+                        messageReasoning(display.message.content)
+                      "
+                      class="reasoning-panel"
+                      :open="
+                        display.message.streaming &&
+                        isReasoningActive(display.message)
+                      "
+                    >
+                      <summary>
+                        <span class="reasoning-summary-title">
+                          <Brain theme="outline" size="14" />
+                          {{ messageReasoningLabel(display.message) }}
+                        </span>
+                        <small v-if="display.message.streaming">
+                          {{
+                            isReasoningActive(display.message)
+                              ? t('localAi.thinking')
+                              : t('localAi.generating')
+                          }}
+                        </small>
+                      </summary>
+                      <div
+                        class="message-content markdown-body"
+                        @click="handleMarkdownClick"
+                        v-html="
+                          renderMarkdown(
+                            messageMarkdownSource(display.message, 'reasoning')
+                          )
+                        "
+                      ></div>
+                    </details>
                     <div
+                      v-if="messageAnswer(display.message.content)"
                       class="message-content markdown-body"
                       @click="handleMarkdownClick"
                       v-html="
                         renderMarkdown(
-                          messageReasoning(display.message.content)
+                          messageMarkdownSource(display.message, 'answer')
                         )
                       "
                     ></div>
-                  </details>
-                  <div
-                    v-if="messageAnswer(display.message.content)"
-                    class="message-content markdown-body"
-                    @click="handleMarkdownClick"
-                    v-html="
-                      renderMarkdown(messageAnswer(display.message.content))
-                    "
-                  ></div>
+                  </div>
+                  <div v-else class="message-content loading-text">
+                    {{ assistantMessagePendingText(display.message) }}
+                  </div>
                 </div>
-                <div v-else class="message-content loading-text">
-                  {{ assistantMessagePendingText(display.message) }}
-                </div>
-              </div>
-              <div v-if="display.message.content" class="message-stats">
-                <span v-if="!display.message.streaming">
-                  {{ messageTime(display.message) }}
-                </span>
-                <span>
-                  Context: {{ messageStats(display.message).context }}/{{
-                    messageStats(display.message).contextMax
-                  }}
-                  ({{ messageStats(display.message).contextPercent }}%)
-                </span>
-                <span>
-                  Output: {{ messageStats(display.message).output }}/{{
-                    messageStats(display.message).outputMax
-                  }}
-                </span>
-                <span>{{ messageStats(display.message).seconds }}s</span>
-                <span>{{ messageStats(display.message).speed }} t/s</span>
-              </div>
-              <div
-                v-if="messageWarningText(display.message)"
-                class="message-warning"
-              >
-                {{ messageWarningText(display.message) }}
-              </div>
-              <div v-if="!display.message.streaming" class="message-actions">
-                <div
-                  v-if="display.siblingLeafNodeIds.length > 1"
-                  class="message-version-switcher"
-                >
-                  <button
-                    type="button"
-                    :disabled="display.siblingCurrentIndex <= 0"
-                    :title="t('localAi.previousVersion')"
-                    @click="changeMessageVersion(display, -1)"
-                  >
-                    ‹
-                  </button>
+                <div v-if="display.message.content" class="message-stats">
                   <span>
-                    {{ display.siblingCurrentIndex + 1 }} /
-                    {{ display.siblingLeafNodeIds.length }}
+                    {{ t('localAi.contextLabel') }}:
+                    {{ messageStats(display.message).context }}/{{
+                      messageStats(display.message).contextMax
+                    }}
+                    ({{ messageStats(display.message).contextPercent }}%)
                   </span>
+                  <span>
+                    {{ t('localAi.outputLabel') }}:
+                    {{ messageStats(display.message).output }}/{{
+                      messageStats(display.message).outputMax
+                    }}
+                  </span>
+                  <span>{{ messageStats(display.message).seconds }}s</span>
+                  <span>{{ messageStats(display.message).speed }} t/s</span>
+                  <span
+                    v-if="!display.message.streaming"
+                    class="message-stats-time"
+                  >
+                    {{ messageTime(display.message) }}
+                  </span>
+                </div>
+                <div
+                  v-if="messageWarningText(display.message)"
+                  class="message-warning"
+                >
+                  {{ messageWarningText(display.message) }}
+                </div>
+                <div v-if="!display.message.streaming" class="message-actions">
+                  <div
+                    v-if="display.siblingLeafNodeIds.length > 1"
+                    class="message-version-switcher"
+                    :title="messageVersionLabel(display)"
+                    :aria-label="messageVersionLabel(display)"
+                  >
+                    <button
+                      type="button"
+                      :disabled="display.siblingCurrentIndex <= 0"
+                      :title="t('localAi.previousVersion')"
+                      @click="changeMessageVersion(display, -1)"
+                    >
+                      ‹
+                    </button>
+                    <span>
+                      {{ display.siblingCurrentIndex + 1 }} /
+                      {{ display.siblingLeafNodeIds.length }}
+                    </span>
+                    <button
+                      type="button"
+                      :disabled="
+                        display.siblingCurrentIndex >=
+                        display.siblingLeafNodeIds.length - 1
+                      "
+                      :title="t('localAi.nextVersion')"
+                      @click="changeMessageVersion(display, 1)"
+                    >
+                      ›
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    :disabled="
-                      display.siblingCurrentIndex >=
-                      display.siblingLeafNodeIds.length - 1
-                    "
-                    :title="t('localAi.nextVersion')"
-                    @click="changeMessageVersion(display, 1)"
+                    :title="t('common.copy')"
+                    @click="copyMessage(display.message)"
                   >
-                    ›
+                    <Copy theme="outline" size="14" />
+                  </button>
+                  <button
+                    v-if="display.message.role === 'assistant'"
+                    type="button"
+                    :title="t('localAi.regenerate')"
+                    @click="regenerateMessage(display.message.id)"
+                  >
+                    <Refresh theme="outline" size="14" />
+                  </button>
+                  <button
+                    v-if="display.message.role === 'assistant'"
+                    type="button"
+                    :title="t('localAi.branchChat')"
+                    @click="forkFromMessage(display.message.id)"
+                  >
+                    <Fork theme="outline" size="14" />
+                  </button>
+                  <button
+                    type="button"
+                    :title="t('common.edit')"
+                    @click="editMessage(display.message)"
+                  >
+                    <Edit theme="outline" size="14" />
+                  </button>
+                  <button
+                    type="button"
+                    :title="t('common.delete')"
+                    @click="deleteMessage(display.message.id)"
+                  >
+                    <Delete theme="outline" size="14" />
                   </button>
                 </div>
-                <button
-                  type="button"
-                  :title="t('common.copy')"
-                  @click="copyMessage(display.message)"
-                >
-                  <Copy theme="outline" size="14" />
-                </button>
-                <button
-                  v-if="display.message.role === 'assistant'"
-                  type="button"
-                  :title="t('localAi.regenerate')"
-                  @click="regenerateMessage(display.message.id)"
-                >
-                  <Refresh theme="outline" size="14" />
-                </button>
-                <button
-                  type="button"
-                  :title="t('localAi.like')"
-                  @click="markFeedback"
-                >
-                  <Like theme="outline" size="14" />
-                </button>
-                <button
-                  type="button"
-                  :title="t('localAi.dislike')"
-                  @click="markFeedback"
-                >
-                  <Dislike theme="outline" size="14" />
-                </button>
-                <button
-                  type="button"
-                  :title="t('common.edit')"
-                  @click="editMessage(display.message)"
-                >
-                  <Edit theme="outline" size="14" />
-                </button>
-                <button
-                  type="button"
-                  :title="t('common.delete')"
-                  @click="deleteMessage(display.message.id)"
-                >
-                  <Delete theme="outline" size="14" />
-                </button>
-              </div>
-            </template>
-          </div>
-        </article>
+              </template>
+            </div>
+          </article>
+        </template>
       </div>
 
       <button
@@ -434,25 +462,6 @@
             >
               <Link theme="outline" size="16" />
             </button>
-            <button
-              v-if="modelSupportsThinking"
-              :class="[
-                'composer-tool-btn',
-                'composer-tool-btn--wide',
-                thinkingEnabled ? 'composer-tool-btn--active' : ''
-              ]"
-              type="button"
-              :title="
-                thinkingEnabled
-                  ? t('localAi.thinkingEnabled')
-                  : t('localAi.thinkingDisabled')
-              "
-              :aria-pressed="thinkingEnabled"
-              @click="thinkingEnabled = !thinkingEnabled"
-            >
-              <Brain theme="outline" size="15" />
-              <span>{{ t('localAi.reasoningTitle') }}</span>
-            </button>
             <label class="model-select-shell">
               <select
                 v-model="selectedChatModelPath"
@@ -472,6 +481,25 @@
               </select>
               <Down theme="outline" size="14" />
             </label>
+            <button
+              v-if="modelSupportsThinking"
+              :class="[
+                'composer-tool-btn',
+                'composer-tool-btn--wide',
+                thinkingEnabled ? 'composer-tool-btn--active' : ''
+              ]"
+              type="button"
+              :title="
+                thinkingEnabled
+                  ? t('localAi.thinkingEnabled')
+                  : t('localAi.thinkingDisabled')
+              "
+              :aria-pressed="thinkingEnabled"
+              @click="thinkingEnabled = !thinkingEnabled"
+            >
+              <Brain theme="outline" size="15" />
+              <span>{{ t('localAi.reasoningTitle') }}</span>
+            </button>
           </div>
           <div class="input-toolbar-right">
             <span class="input-hint">Enter · Shift + Enter</span>
@@ -510,16 +538,16 @@ import {
   Copy,
   Square,
   Delete,
-  Dislike,
   Down,
   Edit,
-  Like,
   Refresh,
   Robot,
   Search,
   Send,
   SettingTwo,
-  Link
+  Link,
+  Fork,
+  LeftBar
 } from '@icon-park/vue-next';
 import {
   cancelLocalAiChatStream,
@@ -572,6 +600,7 @@ interface ChatMessage {
   streaming?: boolean;
   elapsedMs?: number;
   promptTokens?: number;
+  contextSize?: number;
   stats?: LocalAiChatStreamStats;
   stopped?: boolean;
   interrupted?: boolean;
@@ -607,6 +636,7 @@ const { t } = useI18n();
 const searchQuery = ref('');
 const histories = ref<ChatHistoryView[]>([]);
 const activeHistoryId = ref<string>('');
+const sidebarCollapsed = ref(false);
 const draft = ref('');
 const attachments = ref<LocalAiAttachment[]>([]);
 const sending = ref(false);
@@ -628,9 +658,19 @@ let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
 const markdownCache = new Map<string, string>();
 const markdownCodeCache = new Map<string, string>();
+const streamingMarkdownSnapshots = new Map<string, StreamingMarkdownSnapshot>();
 const MESSAGE_BOTTOM_THRESHOLD = 96;
 const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const MIN_ASSISTANT_TAIL_TOKENS = 160;
+const STREAM_MARKDOWN_RENDER_INTERVAL_MS = 120;
+const STREAM_MARKDOWN_RENDER_CHAR_DELTA = 480;
+
+interface StreamingMarkdownSnapshot {
+  source: string;
+  reasoning: string;
+  answer: string;
+  updatedAt: number;
+}
 
 const createMessageId = (role: ChatMessage['role'] | 'root'): string =>
   `${Date.now()}-${role}-${Math.random().toString(16).slice(2, 8)}`;
@@ -796,7 +836,7 @@ const currentModelDisplay = computed(
 const availableChatModels = computed(() => modelScan.value?.mainModels ?? []);
 const visionAvailable = computed(() => Boolean(config.value?.mmprojPath));
 const effectiveContextLimit = computed(
-  () => serviceStatus.value?.ctxSize ?? config.value?.ctxSize ?? 4096
+  () => config.value?.ctxSize ?? serviceStatus.value?.ctxSize ?? 4096
 );
 const responseReserveTokens = computed(() => {
   const contextLimit = effectiveContextLimit.value;
@@ -1193,6 +1233,39 @@ const splitReasoning = (
 const messageReasoning = (value: string): string =>
   splitReasoning(value).reasoning;
 const messageAnswer = (value: string): string => splitReasoning(value).answer;
+const messageMarkdownSource = (
+  message: ChatMessage,
+  section: 'reasoning' | 'answer'
+): string => {
+  const { reasoning, answer } = splitReasoning(message.content);
+  if (!message.streaming) {
+    streamingMarkdownSnapshots.delete(message.id);
+    return section === 'reasoning' ? reasoning : answer;
+  }
+
+  const now = Date.now();
+  const snapshot = streamingMarkdownSnapshots.get(message.id);
+  const shouldRefresh =
+    !snapshot ||
+    now - snapshot.updatedAt >= STREAM_MARKDOWN_RENDER_INTERVAL_MS ||
+    message.content.length - snapshot.source.length >=
+      STREAM_MARKDOWN_RENDER_CHAR_DELTA ||
+    (!snapshot.reasoning && Boolean(reasoning)) ||
+    (!snapshot.answer && Boolean(answer));
+
+  if (shouldRefresh) {
+    const nextSnapshot: StreamingMarkdownSnapshot = {
+      source: message.content,
+      reasoning,
+      answer,
+      updatedAt: now
+    };
+    streamingMarkdownSnapshots.set(message.id, nextSnapshot);
+    return section === 'reasoning' ? reasoning : answer;
+  }
+
+  return section === 'reasoning' ? snapshot.reasoning : snapshot.answer;
+};
 const messageHasAnswer = (message: ChatMessage): boolean =>
   Boolean(messageAnswer(message.content));
 const isReasoningActive = (message: ChatMessage): boolean =>
@@ -1228,6 +1301,37 @@ const messageTime = (message: ChatMessage): string => {
     hour: '2-digit',
     minute: '2-digit'
   });
+};
+const isSameMessageDay = (left: ChatMessage, right: ChatMessage): boolean =>
+  messageTimestamp(left).toDateString() ===
+  messageTimestamp(right).toDateString();
+const isTodayMessage = (message: ChatMessage): boolean =>
+  messageTimestamp(message).toDateString() === new Date().toDateString();
+const shouldShowDateDivider = (index: number): boolean => {
+  const message = displayMessages.value[index]?.message;
+  if (!message) return false;
+  if (index === 0) return !isTodayMessage(message);
+
+  const previous = displayMessages.value[index - 1]?.message;
+  if (!previous) return false;
+  if (!isSameMessageDay(previous, message)) return true;
+  return (
+    messageTimestamp(message).getTime() - messageTimestamp(previous).getTime() >
+    30 * 60 * 1000
+  );
+};
+const messageDateDivider = (message: ChatMessage): string => {
+  const value = messageTimestamp(message);
+  const date = value.toLocaleDateString([], {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const time = value.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  return isTodayMessage(message) ? time : `${date} ${time}`;
 };
 const messageActivityLabel = (message: ChatMessage): string => {
   if (!message.streaming) return messageTime(message);
@@ -1383,6 +1487,15 @@ const requestMaxTokens = (messages: LocalAiMessage[]): number | undefined => {
   const promptTokens = estimateChatTokens(messages);
   return Math.max(256, effectiveContextLimit.value - promptTokens - 128);
 };
+const messageContextLimit = (message: ChatMessage): number =>
+  Math.max(
+    1,
+    message.stats?.ctxSize ??
+      message.contextSize ??
+      serviceStatus.value?.ctxSize ??
+      config.value?.ctxSize ??
+      4096
+  );
 const messageStats = (message: ChatMessage) => {
   const now = statsTick.value;
   const index = activeMessages.value.findIndex(
@@ -1399,7 +1512,7 @@ const messageStats = (message: ChatMessage) => {
     );
   const output =
     message.stats?.completionTokens ?? estimateTokens(message.content);
-  const contextMax = effectiveContextLimit.value;
+  const contextMax = messageContextLimit(message);
   const rawContext = message.stats?.totalTokens ?? promptTokens + output;
   const context = Math.min(rawContext, contextMax);
   const elapsedSeconds = Math.max(
@@ -1433,7 +1546,7 @@ const messageWarningText = (message: ChatMessage): string => {
     message.stats?.totalTokens ??
     (message.promptTokens ?? 0) +
       (message.stats?.completionTokens ?? estimateTokens(message.content));
-  if (estimatedContext >= effectiveContextLimit.value - 8)
+  if (estimatedContext >= messageContextLimit(message) - 8)
     return t('localAi.contextLimitReached');
   if (message.stats?.finishReason === 'length')
     return t('localAi.outputLimitReached');
@@ -1500,6 +1613,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   currentStreamRequestId.value = requestId;
   stopRequested.value = false;
   assistantMessage.promptTokens = estimateChatTokens(messages);
+  assistantMessage.contextSize = effectiveContextLimit.value;
 
   const pump = async () => {
     if (!queuedContent) {
@@ -1569,7 +1683,11 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
     {
       requestId,
       onStats: (stats) => {
-        assistantMessage.stats = stats;
+        assistantMessage.stats = {
+          ...(assistantMessage.stats ?? {}),
+          ...stats
+        };
+        if (stats.ctxSize) assistantMessage.contextSize = stats.ctxSize;
         statsTick.value = Date.now();
       }
     }
@@ -1677,6 +1795,7 @@ const sendMessage = async () => {
     parentId: userMessage.id,
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
+    contextSize: effectiveContextLimit.value,
     promptTokens: estimateChatTokens(toApiMessages())
   });
   draft.value = '';
@@ -1802,6 +1921,11 @@ const editMessage = (message: ChatMessage) => {
     activeHistory.value.currentNodeId = message.parentId;
   }
 };
+const messageVersionLabel = (display: ChatDisplayMessage): string =>
+  t('localAi.messageVersion', {
+    current: display.siblingCurrentIndex + 1,
+    total: display.siblingLeafNodeIds.length
+  });
 const changeMessageVersion = (display: ChatDisplayMessage, delta: number) => {
   const current = activeHistory.value;
   if (!current) return;
@@ -1812,8 +1936,53 @@ const changeMessageVersion = (display: ChatDisplayMessage, delta: number) => {
   autoFollowMessages.value = true;
   void scrollToBottom({ force: true });
 };
-const markFeedback = () => {
-  modal.msg(t('localAi.feedbackSaved'));
+const forkFromMessage = async (messageId: string) => {
+  const current = activeHistory.value;
+  if (!current || sending.value) return;
+  const source = current.messages.find((message) => message.id === messageId);
+  if (!source || source.role !== 'assistant') return;
+
+  const sourcePath = getPathToNode(current.messages, source.id);
+  if (!sourcePath.length) return;
+
+  const now = new Date().toISOString();
+  const idMap = new Map<string, string>();
+  const clonedMessages: ChatMessage[] = sourcePath.map((message, index) => {
+    const nextId =
+      index === 0 ? createMessageId('root') : createMessageId(message.role);
+    idMap.set(message.id, nextId);
+    return {
+      ...message,
+      id: nextId,
+      parentId: message.parentId ? (idMap.get(message.parentId) ?? null) : null,
+      childIds: [] as string[],
+      streaming: false,
+      attachments: message.attachments?.map((attachment) => ({ ...attachment }))
+    } satisfies ChatMessage;
+  });
+
+  for (let index = 0; index < clonedMessages.length - 1; index += 1) {
+    clonedMessages[index].childIds = [clonedMessages[index + 1].id];
+  }
+
+  const forked: ChatHistoryView = {
+    id: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: `${current.title} / ${t('localAi.branchChat')}`.slice(0, 48),
+    createdAt: now,
+    updatedAt: now,
+    updatedAtLabel: nowLabel(),
+    currentNodeId: clonedMessages.at(-1)?.id ?? null,
+    messages: clonedMessages
+  };
+
+  histories.value.unshift(forked);
+  activeHistoryId.value = forked.id;
+  draft.value = '';
+  attachments.value = [];
+  autoFollowMessages.value = true;
+  await persistActiveHistory();
+  await scrollToBottom({ force: true });
+  modal.msg(t('localAi.branchCreated'));
 };
 const regenerateMessage = async (messageId: string) => {
   const current = activeHistory.value;
@@ -1893,6 +2062,7 @@ onUnmounted(() => {
   --chat-muted: #707988;
   --chat-pill-bg: #f1f5fa;
   --chat-readable-width: 980px;
+  --chat-sidebar-width: 260px;
 
   display: grid;
   width: 100%;
@@ -1901,8 +2071,13 @@ onUnmounted(() => {
   padding: 4px;
   color: var(--categories-text-color, #111827);
   background: var(--chat-bg);
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: var(--chat-sidebar-width, 260px) minmax(0, 1fr);
   gap: 6px;
+  transition: grid-template-columns 0.18s ease;
+}
+
+.local-ai-chat-shell--sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .chat-sidebar,
@@ -1916,10 +2091,21 @@ onUnmounted(() => {
 
 .chat-sidebar {
   display: flex;
+  width: var(--chat-sidebar-width, 260px);
+  min-width: 0;
+  max-width: var(--chat-sidebar-width, 260px);
   flex-direction: column;
-  gap: 18px;
-  padding: 24px 16px 14px;
+  gap: 14px;
+  padding: 8px;
   overflow: hidden;
+  transition:
+    width 0.18s ease,
+    max-width 0.18s ease,
+    padding 0.18s ease;
+}
+
+.chat-sidebar--collapsed {
+  display: none;
 }
 
 .sidebar-header,
@@ -1941,12 +2127,12 @@ onUnmounted(() => {
 .sidebar-nav-item {
   margin: 0;
   color: #111827;
-  font-weight: 700;
   letter-spacing: 0;
 }
 
 .sidebar-title-block h2 {
-  font-size: 24px;
+  font-size: 19px;
+  font-weight: 700;
   line-height: 1.3;
 }
 
@@ -1969,6 +2155,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   color: #111827;
+  font-family: inherit;
   background: transparent;
   border: 1px solid transparent;
   transition:
@@ -1995,24 +2182,25 @@ onUnmounted(() => {
 
 .sidebar-nav {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .sidebar-nav-item {
   display: flex;
-  width: 100%;
-  min-height: 38px;
   align-items: center;
-  justify-content: flex-start;
-  padding: 0 10px;
+  padding: 0 4px;
+  width: 100%;
+  min-height: 34px;
   color: #111827;
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
   line-height: 1;
   text-align: left;
   background: transparent;
   border: 0;
-  border-radius: 10px;
-  gap: 12px;
+  border-radius: 9px;
+  gap: 10px;
   cursor: pointer;
 }
 
@@ -2026,9 +2214,15 @@ onUnmounted(() => {
   flex: 1;
   color: #111827;
   font: inherit;
+  font-weight: inherit;
   background: transparent;
   border: 0;
   outline: none;
+}
+
+.sidebar-nav-item--search input::placeholder {
+  color: #111827;
+  opacity: 1;
 }
 
 .sidebar-section {
@@ -2043,9 +2237,9 @@ onUnmounted(() => {
 }
 
 .section-title {
-  color: #565f6d;
-  font-size: 14px;
-  font-weight: 500;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 400;
 }
 
 .section-title-row {
@@ -2056,28 +2250,32 @@ onUnmounted(() => {
 }
 
 .chat-list {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   flex: 1;
   padding-right: 2px;
   overflow-y: auto;
+  gap: 5px;
 }
 
 .chat-list-item {
   position: relative;
   display: flex;
-  min-height: 40px;
+  min-height: 34px;
   align-items: center;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 9px;
   color: #111827;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 500;
   text-align: left;
   transition:
     background-color 0.16s ease,
     color 0.16s ease,
     border-color 0.16s ease;
-  gap: 10px;
-  padding: 0 10px;
+  gap: 8px;
+  padding: 0 12px;
   cursor: pointer;
 }
 
@@ -2099,32 +2297,24 @@ onUnmounted(() => {
 }
 
 .chat-item-time {
-  display: none;
+  display: block;
 }
 
 .chat-item-delete {
-  display: inline-flex;
-  flex: 0 0 auto;
+  display: none;
   width: 24px;
   height: 24px;
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  color: inherit;
-  background: transparent;
-  opacity: 0;
-  transition:
-    opacity 0.16s ease,
-    background-color 0.16s ease;
 }
 
-.chat-list-item:hover .chat-item-delete,
-.chat-item-delete:focus-visible {
-  opacity: 1;
+.chat-list-item:hover .chat-item-delete {
+  display: block;
 }
 
-.chat-item-delete:hover {
-  background: rgba(255, 255, 255, 0.2);
+.chat-list-item:hover .chat-item-time {
+  display: none;
 }
 
 .sidebar-empty {
@@ -2137,14 +2327,7 @@ onUnmounted(() => {
   border-radius: 10px;
 }
 
-.sidebar-service {
-  display: grid;
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid #eceff3;
-  gap: 8px;
-}
-
+.sidebar-service,
 .sidebar-service-row {
   display: flex;
   align-items: center;
@@ -2152,12 +2335,12 @@ onUnmounted(() => {
 }
 
 .sidebar-settings-btn {
-  height: 34px;
+  height: 32px;
   justify-content: flex-start;
   padding: 0 10px;
-  border-radius: 10px;
-  font-size: 14px;
-  gap: 9px;
+  border-radius: 9px;
+  font-size: 13px;
+  gap: 8px;
 }
 
 .chat-panel {
@@ -2166,6 +2349,32 @@ onUnmounted(() => {
   flex-direction: column;
   padding: 0 24px 16px;
   overflow: hidden;
+}
+
+.panel-sidebar-toggle {
+  display: inline-flex;
+  position: absolute;
+  z-index: 8;
+  top: 18px;
+  left: 14px;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  color: #111827;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.panel-sidebar-toggle:hover {
+  background: #eef0f2;
+  border-color: #eef0f2;
 }
 
 .status-pill {
@@ -2407,7 +2616,10 @@ onUnmounted(() => {
 }
 
 .assistant-card {
-  padding: 16px 18px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px;
   color: #172033;
   font-size: 14px;
   line-height: 1.68;
@@ -2422,6 +2634,9 @@ onUnmounted(() => {
 }
 
 .message-content {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
@@ -2472,11 +2687,14 @@ onUnmounted(() => {
 }
 
 .markdown-body {
+  max-width: 100%;
   color: inherit;
+  overflow-wrap: anywhere;
 }
 
 .markdown-body :deep(p) {
   margin: 0 0 10px;
+  overflow-wrap: anywhere;
 }
 
 .markdown-body :deep(p:last-child),
@@ -2496,6 +2714,10 @@ onUnmounted(() => {
   margin-top: 4px;
 }
 
+.markdown-body :deep(li) {
+  overflow-wrap: anywhere;
+}
+
 .markdown-body :deep(code) {
   padding: 2px 5px;
   color: #334155;
@@ -2506,9 +2728,10 @@ onUnmounted(() => {
 }
 
 .markdown-body :deep(pre) {
+  max-width: 100%;
   margin: 0;
   padding: 0;
-  overflow: visible;
+  overflow-x: auto;
   background: transparent;
   border: 0;
 }
@@ -2519,6 +2742,7 @@ onUnmounted(() => {
   padding: 12px;
   max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
   background: #f6f8fa;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -2547,6 +2771,8 @@ onUnmounted(() => {
 
 .markdown-body :deep(pre code) {
   display: block;
+  width: max-content;
+  min-width: 100%;
   padding: 24px 0 0;
   color: #1f2937;
   font-size: 12px;
@@ -2565,6 +2791,7 @@ onUnmounted(() => {
 
 .markdown-body :deep(table) {
   display: block;
+  max-width: 100%;
   width: 100%;
   margin: 12px 0;
   overflow-x: auto;
@@ -2617,10 +2844,16 @@ onUnmounted(() => {
 .message-stats {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   margin-top: 8px;
   color: #7c8799;
   font-size: 12px;
   gap: 14px;
+}
+
+.message-stats-time {
+  margin-left: auto;
+  text-align: right;
 }
 
 .message-warning {
@@ -2688,10 +2921,10 @@ onUnmounted(() => {
   width: min(100%, var(--chat-readable-width));
   flex: 0 0 auto;
   margin: 0 auto;
-  padding: 14px 16px 14px;
+  padding: 10px 14px 10px;
   background: #fff;
   border: 1px solid #dfe5ee;
-  border-radius: 24px;
+  border-radius: 20px;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
 }
 
@@ -2782,8 +3015,8 @@ onUnmounted(() => {
 .chat-input {
   display: block;
   width: 100%;
-  min-height: 42px;
-  max-height: 104px;
+  min-height: 30px;
+  max-height: 88px;
   resize: none;
   color: #1f2937;
   font-size: 16px;
@@ -2794,11 +3027,11 @@ onUnmounted(() => {
 }
 
 .chat-input-card--focused .chat-input {
-  max-height: 160px;
+  max-height: 132px;
 }
 
 .input-toolbar {
-  margin-top: 12px;
+  margin-top: 2px;
 }
 
 .input-toolbar-left,
@@ -2910,15 +3143,7 @@ onUnmounted(() => {
 
 @media (max-width: 1280px) {
   .local-ai-chat-shell {
-    grid-template-columns: 244px minmax(0, 1fr);
-  }
-
-  .chat-sidebar {
-    padding: 18px 14px 14px;
-  }
-
-  .chat-panel {
-    padding: 0 16px 14px;
+    --chat-sidebar-width: 244px;
   }
 }
 

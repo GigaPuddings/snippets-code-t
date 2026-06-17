@@ -20,7 +20,7 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
   },
   {
     icon: Robot,
-    path: '/config/local-ai',
+    path: '/local-ai/chat',
     pluginId: 'local-ai'
   },
   {

@@ -110,6 +110,7 @@ export interface LocalAiChatStreamStats {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  ctxSize?: number;
   generationTimeMs?: number;
   tokensPerSecond?: number;
   finishReason?: string;

@@ -1,14 +1,10 @@
-import { localAiConfigRoutes, localAiLayoutRoutes } from './local-ai/routes';
 import { localLauncherConfigRoutes } from './local-launcher/routes';
 import type { RouteRecordRaw } from 'vue-router';
 
 export const configPluginRoutes: RouteRecordRaw[] = [
-  ...localLauncherConfigRoutes,
-  ...localAiConfigRoutes
+  ...localLauncherConfigRoutes
 ];
 
-export const layoutPluginRoutes: RouteRecordRaw[] = [
-  ...localAiLayoutRoutes
-];
+export const layoutPluginRoutes: RouteRecordRaw[] = [];
 
 export const windowPluginRoutes: RouteRecordRaw[] = [];

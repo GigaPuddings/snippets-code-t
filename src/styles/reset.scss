@@ -93,7 +93,9 @@ div:focus {
 .user-center-content,
 .result-container.result,
 .summary-panel,
-.form-panel {
+.form-panel,
+.code-block-shell,
+.message-list {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 
@@ -147,7 +149,9 @@ html.dark .panel-content,
 html.dark .user-center-content,
 html.dark .result-container.result,
 html.dark .summary-panel,
-html.dark .form-panel {
+html.dark .form-panel,
+html.dark .code-block-shell,
+html.dark .message-list {
   &:hover {
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 

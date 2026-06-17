@@ -190,6 +190,10 @@ pub struct LocalAiChatHistory {
     pub created_at: String,
     pub updated_at: String,
     pub turns: Vec<LocalAiChatTurn>,
+    #[serde(default)]
+    pub current_node_id: Option<String>,
+    #[serde(default)]
+    pub messages: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -213,6 +217,7 @@ pub struct LocalAiChatStreamStats {
     pub prompt_tokens: Option<u32>,
     pub completion_tokens: Option<u32>,
     pub total_tokens: Option<u32>,
+    pub ctx_size: Option<u32>,
     pub generation_time_ms: Option<f64>,
     pub tokens_per_second: Option<f64>,
     pub finish_reason: Option<String>,
@@ -638,9 +643,19 @@ async fn server_context_size(base_url: &str) -> Option<u32> {
         .json::<Value>()
         .await
         .ok()?;
-    value
-        .get("default_generation_settings")
-        .and_then(|settings| get_u32_field(settings, "n_ctx"))
+    get_u32_field(&value, "n_ctx")
+        .or_else(|| {
+            value
+                .get("default_generation_settings")
+                .and_then(|settings| get_u32_field(settings, "n_ctx"))
+        })
+        .or_else(|| {
+            value
+                .get("slots")
+                .and_then(|slots| slots.as_array())
+                .and_then(|slots| slots.first())
+                .and_then(|slot| get_u32_field(slot, "n_ctx"))
+        })
         .or_else(|| {
             value
                 .get("data")
@@ -648,6 +663,13 @@ async fn server_context_size(base_url: &str) -> Option<u32> {
                 .and_then(|models| models.first())
                 .and_then(|model| model.get("meta"))
                 .and_then(|meta| get_u32_field(meta, "n_ctx"))
+        })
+        .or_else(|| {
+            value
+                .get("data")
+                .and_then(|data| data.as_array())
+                .and_then(|models| models.first())
+                .and_then(|model| get_u32_field(model, "n_ctx"))
         })
 }
 
@@ -1080,7 +1102,7 @@ fn get_f64_field(value: &Value, key: &str) -> Option<f64> {
     value.get(key).and_then(|field| field.as_f64())
 }
 
-fn extract_stream_stats(value: &Value) -> Option<LocalAiChatStreamStats> {
+fn extract_stream_stats(value: &Value, ctx_size: u32) -> Option<LocalAiChatStreamStats> {
     let usage = value.get("usage");
     let timings = value.get("timings");
     let finish_reason = value
@@ -1122,6 +1144,7 @@ fn extract_stream_stats(value: &Value) -> Option<LocalAiChatStreamStats> {
         prompt_tokens,
         completion_tokens,
         total_tokens,
+        ctx_size: Some(ctx_size),
         generation_time_ms,
         tokens_per_second,
         finish_reason,
@@ -1193,6 +1216,26 @@ async fn chat_completion_stream(
     if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
         cancels.insert(request_id.clone(), Arc::clone(&cancel_flag));
     }
+
+    let actual_ctx_size = server_context_size(&base_url(&config))
+        .await
+        .unwrap_or(config.ctx_size);
+    emit_chat_stream(
+        &window,
+        &request_id,
+        "stats",
+        None,
+        None,
+        Some(LocalAiChatStreamStats {
+            prompt_tokens: None,
+            completion_tokens: None,
+            total_tokens: None,
+            ctx_size: Some(actual_ctx_size),
+            generation_time_ms: None,
+            tokens_per_second: None,
+            finish_reason: None,
+        }),
+    );
 
     let client = Client::builder()
         .timeout(Duration::from_secs(config.request_timeout_secs as u64))
@@ -1296,7 +1339,7 @@ async fn chat_completion_stream(
 
             let value = serde_json::from_str::<Value>(data)
                 .map_err(|error| format!("解析本地 AI 流响应失败: {}", error))?;
-            if let Some(stats) = extract_stream_stats(&value) {
+            if let Some(stats) = extract_stream_stats(&value, actual_ctx_size) {
                 emit_chat_stream(&window, &request_id, "stats", None, None, Some(stats));
             }
             if let Some(delta) = extract_stream_delta(
@@ -1389,8 +1432,10 @@ pub fn local_ai_save_config(
     require_plugin(&app_handle)?;
     write_config(&app_handle, &config)?;
     if let Ok(mut state) = SERVICE_STATE.lock() {
-        if state.child.is_some() {
-            state.config = Some(config.clone());
+        if let Some(running_config) = state.config.as_mut() {
+            running_config.auto_start_on_request = config.auto_start_on_request;
+            running_config.idle_timeout_minutes = config.idle_timeout_minutes;
+            running_config.keep_alive = config.keep_alive;
         }
     }
     Ok(config)
@@ -1438,6 +1483,7 @@ pub async fn local_ai_get_status(app_handle: AppHandle) -> Result<LocalAiService
         pid,
         model_path,
         runtime_path,
+        status_config,
         ctx_size,
         command_line,
         active_requests,
@@ -1448,27 +1494,25 @@ pub async fn local_ai_get_status(app_handle: AppHandle) -> Result<LocalAiService
             .map_err(|error| format!("本地 AI 服务状态锁定失败: {}", error))?;
         let running = is_child_running_locked(&mut state);
         let pid = state.child.as_ref().map(|child| child.id());
-        let ctx_size = if running {
-            state
-                .config
-                .as_ref()
-                .map(|running_config| running_config.ctx_size)
-                .unwrap_or(config.ctx_size)
+        let status_config = if running {
+            state.config.clone().unwrap_or_else(|| config.clone())
         } else {
-            config.ctx_size
+            config.clone()
         };
+        let ctx_size = status_config.ctx_size;
         (
             running,
             pid,
             state.model_path.clone(),
             state.runtime_path.clone(),
+            status_config,
             ctx_size,
             state.command_line.clone(),
             state.active_requests,
             state.last_error.clone(),
         )
     };
-    let url = base_url(&config);
+    let url = base_url(&status_config);
     let healthy = if running {
         health_check_url(&url).await
     } else {

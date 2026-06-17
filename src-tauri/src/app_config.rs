@@ -167,6 +167,7 @@ const HOST_PLUGIN_IDS: &[&str] = &[
     "desktop-files",
     "quick-tools",
     "search-engines",
+    "local-ai",
     "git-sync",
     "wallpaper-switcher",
 ];
