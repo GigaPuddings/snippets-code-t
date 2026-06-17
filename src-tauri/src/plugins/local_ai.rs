@@ -196,6 +196,7 @@ pub struct LocalAiChatHistory {
 pub struct LocalAiChatRequest {
     pub messages: Vec<LocalAiMessage>,
     pub temperature: Option<f32>,
+    pub enable_thinking: Option<bool>,
     pub max_tokens: Option<u32>,
 }
 
@@ -808,6 +809,7 @@ async fn chat_completion(
     messages: Vec<LocalAiMessage>,
     temperature: Option<f32>,
     max_tokens: Option<u32>,
+    enable_thinking: Option<bool>,
 ) -> Result<String, String> {
     require_plugin(app_handle)?;
     if messages.is_empty() {
@@ -833,6 +835,9 @@ async fn chat_completion(
         "repeat_penalty": config.repeat_penalty,
         "repeat_last_n": config.repeat_last_n,
         "max_tokens": completion_token_limit(&config, max_tokens),
+        "chat_template_kwargs": {
+            "enable_thinking": enable_thinking.unwrap_or(false)
+        },
         "stream": false
     });
 
@@ -981,6 +986,7 @@ async fn chat_completion_stream(
     messages: Vec<LocalAiMessage>,
     temperature: Option<f32>,
     max_tokens: Option<u32>,
+    enable_thinking: Option<bool>,
 ) -> Result<String, String> {
     require_plugin(app_handle)?;
     if messages.is_empty() {
@@ -1010,6 +1016,9 @@ async fn chat_completion_stream(
         "repeat_penalty": config.repeat_penalty,
         "repeat_last_n": config.repeat_last_n,
         "max_tokens": completion_token_limit(&config, max_tokens),
+        "chat_template_kwargs": {
+            "enable_thinking": enable_thinking.unwrap_or(false)
+        },
         "stream": true,
         "stream_options": {
             "include_usage": true
@@ -1166,7 +1175,7 @@ pub async fn translate_text(
             content: text,
         },
     ];
-    chat_completion(&app_handle, messages, Some(0.2), None).await
+    chat_completion(&app_handle, messages, Some(0.2), None, Some(false)).await
 }
 
 #[tauri::command]
@@ -1305,6 +1314,7 @@ pub async fn local_ai_chat(
         request.messages,
         request.temperature,
         request.max_tokens,
+        request.enable_thinking,
     )
     .await?;
     Ok(LocalAiChatResponse { content })
@@ -1324,6 +1334,7 @@ pub async fn local_ai_chat_stream(
         request.messages,
         request.temperature,
         request.max_tokens,
+        request.enable_thinking,
     )
     .await
     {

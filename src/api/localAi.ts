@@ -70,6 +70,7 @@ export interface LocalAiMessage {
 export interface LocalAiChatRequest {
   messages: LocalAiMessage[];
   temperature?: number;
+  enableThinking?: boolean;
   maxTokens?: number;
 }
 

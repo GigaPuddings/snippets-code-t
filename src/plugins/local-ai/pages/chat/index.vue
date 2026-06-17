@@ -6,24 +6,6 @@
           <h2>{{ t('localAi.chatTitle') }}</h2>
           <p>{{ t('localAi.chatPrivacySubtitle') }}</p>
         </div>
-        <div class="sidebar-actions">
-          <button
-            class="icon-action-btn icon-action-btn--primary"
-            type="button"
-            :title="t('localAi.newChat')"
-            @click="createNewChat"
-          >
-            <Add theme="outline" size="16" />
-          </button>
-          <button
-            class="icon-action-btn"
-            type="button"
-            :title="t('plugins.refresh')"
-            @click="refreshAll"
-          >
-            <Refresh theme="outline" size="16" />
-          </button>
-        </div>
       </header>
 
       <div class="sidebar-search">
@@ -35,7 +17,27 @@
       </div>
 
       <section class="sidebar-section recent-section">
-        <div class="section-title">{{ t('localAi.recent') }}</div>
+        <div class="section-title-row">
+          <div class="section-title">{{ t('localAi.recent') }}</div>
+          <div class="sidebar-actions">
+            <button
+              class="icon-action-btn icon-action-btn--primary"
+              type="button"
+              :title="t('localAi.newChat')"
+              @click="createNewChat"
+            >
+              <Add theme="outline" size="13" />
+            </button>
+            <button
+              class="icon-action-btn"
+              type="button"
+              :title="t('plugins.refresh')"
+              @click="refreshAll"
+            >
+              <Refresh theme="outline" size="13" />
+            </button>
+          </div>
+        </div>
         <div v-if="filteredHistories.length" class="chat-list">
           <div
             v-for="history in filteredHistories"
@@ -65,14 +67,6 @@
           </div>
         </div>
         <div v-else class="sidebar-empty">{{ t('common.empty') }}</div>
-        <button
-          class="view-all-btn"
-          type="button"
-          @click="viewAllConversations"
-        >
-          <span>{{ t('localAi.viewAllChats') }}</span>
-          <Right theme="outline" size="15" />
-        </button>
       </section>
     </aside>
 
@@ -105,14 +99,6 @@
             <SettingTwo theme="outline" size="16" />
             <span>{{ t('localAi.settings') }}</span>
           </CustomButton>
-          <button
-            class="topbar-btn topbar-btn--icon"
-            type="button"
-            :title="t('common.more')"
-            @click="showMoreMenu"
-          >
-            <More theme="outline" size="17" />
-          </button>
         </div>
       </header>
 
@@ -170,7 +156,9 @@
               >
                 <div v-if="message.content" class="assistant-content-stack">
                   <details
-                    v-if="messageReasoning(message.content)"
+                    v-if="
+                      message.allowThinking && messageReasoning(message.content)
+                    "
                     class="reasoning-panel"
                     :open="message.streaming"
                   >
@@ -295,6 +283,7 @@
               <SettingTwo theme="outline" size="16" />
             </button>
             <button
+              v-if="modelSupportsThinking"
               :class="[
                 'composer-tool-btn',
                 'composer-tool-btn--wide',
@@ -313,8 +302,19 @@
               <span>{{ t('localAi.reasoningTitle') }}</span>
             </button>
             <label class="model-select-shell">
-              <select :value="currentModelDisplay" disabled>
-                <option :value="currentModelDisplay">
+              <select
+                v-model="selectedChatModelPath"
+                :disabled="sending || !availableChatModels.length"
+                @change="changeChatModel"
+              >
+                <option
+                  v-for="path in availableChatModels"
+                  :key="path"
+                  :value="path"
+                >
+                  {{ fileName(path) }}
+                </option>
+                <option v-if="!availableChatModels.length" value="">
                   {{ currentModelDisplay }}
                 </option>
               </select>
@@ -364,9 +364,7 @@ import {
   Edit,
   Like,
   Message,
-  More,
   Refresh,
-  Right,
   Robot,
   Search,
   Send,
@@ -380,11 +378,15 @@ import {
   getLocalAiConfig,
   getLocalAiChatHistories,
   getLocalAiStatus,
+  restartLocalAiService,
   saveLocalAiChatHistory,
+  saveLocalAiConfig,
+  scanLocalAiModels,
   streamChatWithLocalAi,
   type LocalAiConfig,
   type LocalAiChatStreamStats,
   type LocalAiMessage,
+  type LocalAiModelScan,
   type LocalAiServiceStatus
 } from '@/api/localAi';
 import { sanitizeHtml } from '@/utils/html-sanitize';
@@ -405,6 +407,7 @@ interface ChatMessage {
   stopped?: boolean;
   interrupted?: boolean;
   repetitionStopped?: boolean;
+  allowThinking?: boolean;
   error?: string;
 }
 
@@ -430,6 +433,8 @@ const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
 const config = ref<LocalAiConfig | null>(null);
+const modelScan = ref<LocalAiModelScan | null>(null);
+const selectedChatModelPath = ref('');
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
 const statsTick = ref(Date.now());
@@ -455,10 +460,16 @@ const fileName = (path?: string | null): string => {
 };
 const currentModelDisplay = computed(
   () =>
+    fileName(selectedChatModelPath.value) ||
     fileName(serviceStatus.value?.modelPath) ||
     fileName(config.value?.modelPath) ||
     t('localAi.localModel')
 );
+const availableChatModels = computed(() => modelScan.value?.mainModels ?? []);
+const modelSupportsThinking = computed(() => {
+  const name = currentModelDisplay.value.toLowerCase();
+  return /\b(qwen3|deepseek-r1|r1-|reasoning|thinking|think)\b/i.test(name);
+});
 const filteredHistories = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
   return histories.value
@@ -516,6 +527,9 @@ const forceScrollToBottom = () => {
 const refreshConfig = async () => {
   try {
     config.value = await getLocalAiConfig();
+    selectedChatModelPath.value = config.value.modelPath ?? '';
+    modelScan.value = await scanLocalAiModels(config.value);
+    if (!modelSupportsThinking.value) thinkingEnabled.value = false;
   } catch (error) {
     logger.warn('[LocalAI] refresh chat config failed', error);
   }
@@ -594,10 +608,27 @@ const deleteHistoryItem = async (id: string) => {
     activeHistoryId.value = histories.value[0]?.id ?? '';
   }
 };
+const changeChatModel = async () => {
+  if (!config.value || !selectedChatModelPath.value) return;
+  config.value.modelPath = selectedChatModelPath.value;
+  try {
+    config.value = await saveLocalAiConfig(config.value);
+    if (serviceStatus.value?.running) {
+      serviceStatus.value = await restartLocalAiService();
+    }
+    modal.msg(t('localAi.modelChanged'));
+  } catch (error) {
+    modal.msg(`${t('localAi.configSaveFailed')}: ${error}`, 'error');
+  }
+};
 const withThinkingDirective = (content: string): string => {
   const trimmed = content.trimStart();
   if (/^\/(?:no_)?think\b/i.test(trimmed)) return content;
-  return `${thinkingEnabled.value ? '/think' : '/no_think'}\n${content}`;
+  const directive =
+    thinkingEnabled.value && modelSupportsThinking.value
+      ? '/think'
+      : '/no_think';
+  return `${directive}\n${content}`;
 };
 const toApiMessages = (
   options: { applyThinkingDirective?: boolean } = {}
@@ -716,22 +747,27 @@ const messageWarningText = (message: ChatMessage): string => {
 };
 const hasRepetitionLoop = (value: string): boolean => {
   const text = value.replace(/\s+/g, ' ').trim();
-  if (text.length < 220) return false;
-  const tail = text.slice(-800);
+  if (text.length < 360) return false;
+  const tail = text.slice(-1200);
   const tokens =
     tail
       .match(/[A-Za-z_$][\w$-]*|[\u3400-\u9fff\uf900-\ufaff]{1,4}/g)
       ?.map((token) => token.toLowerCase()) ?? [];
-  if (tokens.length < 36) return false;
+  if (tokens.length < 72) return false;
 
-  for (let size = 1; size <= 8; size += 1) {
+  const recent = tokens.slice(-80);
+  const counts = new Map<string, number>();
+  for (const token of recent) counts.set(token, (counts.get(token) ?? 0) + 1);
+  if ([...counts.values()].some((count) => count >= 28)) return true;
+
+  for (let size = 1; size <= 4; size += 1) {
     const pattern = tokens.slice(-size).join('\u0000');
     let repeats = 1;
     for (let index = tokens.length - size * 2; index >= 0; index -= size) {
       if (tokens.slice(index, index + size).join('\u0000') !== pattern) break;
       repeats += 1;
     }
-    if (repeats >= Math.max(5, Math.ceil(18 / size))) return true;
+    if (repeats >= Math.max(10, Math.ceil(32 / size))) return true;
   }
 
   return false;
@@ -813,7 +849,10 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   };
 
   const response = await streamChatWithLocalAi(
-    { messages: toApiMessages({ applyThinkingDirective: true }) },
+    {
+      messages: toApiMessages({ applyThinkingDirective: true }),
+      enableThinking: assistantMessage.allowThinking === true
+    },
     (delta) => {
       receivedDelta = true;
       enqueueContent(delta);
@@ -884,6 +923,7 @@ const sendMessage = async () => {
     content: '',
     createdAt: new Date().toISOString(),
     streaming: true,
+    allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
     promptTokens: estimateChatTokens(
       toApiMessages({ applyThinkingDirective: true })
     )
@@ -939,12 +979,6 @@ const sendMessage = async () => {
 };
 const goSettings = () => {
   window.location.hash = '#/config/category/settings?tab=localAi';
-};
-const viewAllConversations = () => {
-  searchQuery.value = '';
-};
-const showMoreMenu = () => {
-  modal.msg(t('localAi.moreComingSoon'));
 };
 const messageTime = (message: ChatMessage): string => {
   return messageTimestamp(message).toLocaleTimeString([], {
@@ -1012,6 +1046,7 @@ const regenerateMessage = async (messageId: string) => {
     content: '',
     createdAt: new Date().toISOString(),
     streaming: true,
+    allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
     promptTokens: estimateChatTokens(
       toApiMessages({ applyThinkingDirective: true })
     )
@@ -1055,6 +1090,9 @@ onMounted(async () => {
     );
   }, 8000);
 });
+watch(modelSupportsThinking, (supported) => {
+  if (!supported) thinkingEnabled.value = false;
+});
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer);
   if (currentStreamRequestId.value) {
@@ -1082,7 +1120,7 @@ onUnmounted(() => {
   padding: 4px;
   color: var(--categories-text-color, #111827);
   background: var(--chat-bg);
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 244px minmax(0, 1fr);
   gap: 6px;
 }
 
@@ -1098,8 +1136,8 @@ onUnmounted(() => {
 .chat-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+  gap: 12px;
+  padding: 14px;
   overflow: hidden;
 }
 
@@ -1163,8 +1201,8 @@ onUnmounted(() => {
 }
 
 .icon-action-btn {
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
 }
 
@@ -1222,18 +1260,11 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-.chat-list-item {
+.section-title-row {
   display: flex;
   align-items: center;
-  min-height: 36px;
-  border-radius: 8px;
-  color: #44536a;
-  font-size: 13px;
-  text-align: left;
-  transition:
-    background-color 0.16s ease,
-    color 0.16s ease,
-    transform 0.16s ease;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .chat-list {
@@ -1245,9 +1276,20 @@ onUnmounted(() => {
 
 .chat-list-item {
   position: relative;
-  min-height: 36px;
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #44536a;
+  font-size: 13px;
+  text-align: left;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease;
   gap: 8px;
-  padding: 0 10px;
+  padding: 0 8px 0 10px;
   cursor: pointer;
 }
 
@@ -1256,9 +1298,20 @@ onUnmounted(() => {
 }
 
 .chat-list-item.active {
-  color: #fff;
-  background: var(--chat-primary);
-  box-shadow: none;
+  background-color: var(--search-result-active);
+  border-color: var(--search-result-active-border);
+}
+
+.chat-list-item.active::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 3px;
+  pointer-events: none;
+  content: '';
+  background: var(--search-result-accent);
+  border-radius: 0 999px 999px 0;
 }
 
 .chat-item-title {
@@ -1309,20 +1362,6 @@ onUnmounted(() => {
   background: #f0f6ff;
   border: 1px dashed var(--chat-border);
   border-radius: 9px;
-}
-
-.view-all-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 34px;
-  margin-top: 6px;
-  color: #44536a;
-  background: #fff;
-  border: 1px solid var(--chat-border);
-  border-radius: 8px;
-  font-size: 13px;
-  gap: 8px;
 }
 
 .chat-panel {
@@ -1897,7 +1936,7 @@ onUnmounted(() => {
 
 @media (max-width: 1280px) {
   .local-ai-chat-shell {
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: 244px minmax(0, 1fr);
   }
 
   .chat-sidebar,

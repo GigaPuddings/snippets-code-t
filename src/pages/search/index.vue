@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useFitWindowToElement } from '@/hooks/useFitWindowToElement';
 import { useSearch } from '@/hooks/useSearch';
 import { useFocusMode } from '@/hooks/useFocusMode';
@@ -75,6 +76,13 @@ const handleGoConfig = async (): Promise<void> => {
     );
   }
 };
+const focusSearchWindow = async (): Promise<void> => {
+  await getCurrentWindow()
+    .setFocus()
+    .catch(() => undefined);
+  setMode('SEARCH');
+  searchInputRef.value?.focus();
+};
 
 onMounted(async () => {
   unlistenWindowFocused = await listen('windowFocused', () => {
@@ -107,12 +115,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="searchRef" data-tauri-drag-region class="main">
+  <main
+    ref="searchRef"
+    data-tauri-drag-region
+    class="main"
+    @mouseenter="focusSearchWindow"
+  >
     <section class="search transparent-input">
       <el-input
         ref="searchInputRef"
         class="input"
-        autofocus
         v-model="searchText"
         @keydown="handleKeyDown"
         @focus="handleInputFocus"

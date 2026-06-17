@@ -32,6 +32,27 @@
           </div>
         </div>
 
+        <section class="memory-card">
+          <div class="memory-card__header">
+            <span>{{ t('localAi.estimatedMemory') }}</span>
+            <small>{{ t('localAi.estimateBeta') }}</small>
+          </div>
+          <div class="memory-metrics">
+            <div>
+              <span>GPU</span>
+              <b>{{ performanceEstimate.gpuGb }} GB</b>
+            </div>
+            <div>
+              <span>{{ t('localAi.total') }}</span>
+              <b>{{ performanceEstimate.totalGb }} GB</b>
+            </div>
+          </div>
+          <div class="bottleneck-row">
+            <span>{{ t('localAi.bottleneck') }}</span>
+            <b>{{ performanceEstimate.bottleneck }}</b>
+          </div>
+        </section>
+
         <section class="summary-card">
           <div class="summary-card__title">
             {{ t('localAi.serviceControl') }}
@@ -108,7 +129,7 @@
             </div>
           </div>
           <div class="field-stack">
-            <label class="field-row">
+            <label class="field-row" :title="paramHint('modelDir')">
               <span>{{ t('localAi.modelDir') }}</span>
               <div class="path-control">
                 <input
@@ -121,7 +142,7 @@
                 </CustomButton>
               </div>
             </label>
-            <label class="field-row">
+            <label class="field-row" :title="paramHint('mainModel')">
               <span>{{ t('localAi.mainModel') }}</span>
               <el-select
                 v-model="selectedModelPath"
@@ -137,7 +158,7 @@
                 />
               </el-select>
             </label>
-            <label class="field-row">
+            <label class="field-row" :title="paramHint('mmprojModel')">
               <span>{{ t('localAi.mmprojModel') }}</span>
               <el-select
                 v-model="selectedMmprojPath"
@@ -153,7 +174,7 @@
                 />
               </el-select>
             </label>
-            <label class="field-row">
+            <label class="field-row" :title="paramHint('runtimePath')">
               <span>{{ t('localAi.runtimePath') }}</span>
               <div class="path-control">
                 <input
@@ -177,7 +198,7 @@
             </div>
           </div>
           <div class="param-grid">
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('ctxSize')">
               <span>{{ t('localAi.ctxSize') }}</span>
               <el-input-number
                 v-model="config.ctxSize"
@@ -187,7 +208,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('gpuLayers')">
               <span>{{ t('localAi.gpuLayers') }}</span>
               <el-input-number
                 v-model="config.gpuLayers"
@@ -197,7 +218,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('threads')">
               <span>{{ t('localAi.threads') }}</span>
               <el-input-number
                 v-model="config.threads"
@@ -207,7 +228,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('batchSize')">
               <span>{{ t('localAi.batchSize') }}</span>
               <el-input-number
                 v-model="config.batchSize"
@@ -217,7 +238,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('ubatchSize')">
               <span>{{ t('localAi.ubatchSize') }}</span>
               <el-input-number
                 v-model="config.ubatchSize"
@@ -227,7 +248,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('mainGpu')">
               <span>{{ t('localAi.mainGpu') }}</span>
               <el-input-number
                 v-model="config.mainGpu"
@@ -248,15 +269,15 @@
             </div>
           </div>
           <div class="switch-grid">
-            <label>
+            <label :title="paramHint('flashAttn')">
               <span>{{ t('localAi.flashAttn') }}</span>
               <el-switch v-model="config.flashAttn" />
             </label>
-            <label>
+            <label :title="paramHint('kvOffload')">
               <span>{{ t('localAi.kvOffload') }}</span>
               <el-switch v-model="config.kvOffload" />
             </label>
-            <label>
+            <label :title="paramHint('mmap')">
               <span>{{ t('localAi.mmap') }}</span>
               <el-switch v-model="config.mmap" />
             </label>
@@ -271,15 +292,15 @@
             </div>
           </div>
           <div class="switch-grid switch-grid--two">
-            <label>
+            <label :title="paramHint('autoStart')">
               <span>{{ t('localAi.autoStart') }}</span>
               <el-switch v-model="config.autoStartOnRequest" />
             </label>
-            <label>
+            <label :title="paramHint('keepAlive')">
               <span>{{ t('localAi.keepAlive') }}</span>
               <el-switch v-model="config.keepAlive" />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('idleTimeout')">
               <span>{{ t('localAi.idleTimeout') }}</span>
               <el-input-number
                 v-model="config.idleTimeoutMinutes"
@@ -289,7 +310,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('requestTimeout')">
               <span>{{ t('localAi.requestTimeout') }}</span>
               <el-input-number
                 v-model="config.requestTimeoutSecs"
@@ -310,7 +331,7 @@
             </div>
           </div>
           <div class="param-grid param-grid--three">
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('temperature')">
               <span>{{ t('localAi.temperature') }}</span>
               <el-input-number
                 v-model="config.temperature"
@@ -321,7 +342,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('topP')">
               <span>{{ t('localAi.topP') }}</span>
               <el-input-number
                 v-model="config.topP"
@@ -332,7 +353,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('topK')">
               <span>{{ t('localAi.topK') }}</span>
               <el-input-number
                 v-model="config.topK"
@@ -342,7 +363,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('minP')">
               <span>{{ t('localAi.minP') }}</span>
               <el-input-number
                 v-model="config.minP"
@@ -353,7 +374,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('repeatPenalty')">
               <span>{{ t('localAi.repeatPenalty') }}</span>
               <el-input-number
                 v-model="config.repeatPenalty"
@@ -364,7 +385,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('repeatLastN')">
               <span>{{ t('localAi.repeatLastN') }}</span>
               <el-input-number
                 v-model="config.repeatLastN"
@@ -374,7 +395,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('maxTokens')">
               <span>{{ t('localAi.maxTokens') }}</span>
               <el-input-number
                 v-model="config.maxTokens"
@@ -384,7 +405,7 @@
                 size="small"
               />
             </label>
-            <label class="number-field">
+            <label class="number-field" :title="paramHint('port')">
               <span>{{ t('localAi.port') }}</span>
               <el-input-number
                 v-model="config.port"
@@ -482,6 +503,42 @@ const serviceStatusText = computed(() => {
   return t('localAi.serviceStopped');
 });
 const fileName = (path: string): string => path.split(/[\\/]+/).pop() ?? path;
+const modelParamBillions = computed(() => {
+  const name = fileName(
+    config.value?.modelPath ?? modelScan.value?.selectedModelPath ?? ''
+  );
+  const match = name.match(/(\d+(?:\.\d+)?)\s*b/i);
+  return match ? Number(match[1]) : 4;
+});
+const performanceEstimate = computed(() => {
+  const cfg = config.value;
+  if (!cfg) {
+    return {
+      gpuGb: '0.00',
+      totalGb: '0.00',
+      bottleneck: t('localAi.bottleneckUnknown')
+    };
+  }
+  const modelGb = Math.max(1.4, modelParamBillions.value * 0.92);
+  const gpuRatio = Math.min(1, Math.max(0, cfg.gpuLayers) / 32);
+  const kvGb = (cfg.ctxSize / 8192) * 0.38 * (cfg.kvOffload ? 1 : 0.12);
+  const batchGb = (cfg.batchSize / 512) * 0.18;
+  const gpuGb = modelGb * gpuRatio + kvGb + batchGb;
+  const cpuGb = modelGb * (1 - gpuRatio) + (cfg.ctxSize / 8192) * 0.22;
+  const totalGb = gpuGb + cpuGb;
+  const bottleneck =
+    cfg.gpuLayers <= 4
+      ? t('localAi.bottleneckCpu')
+      : cfg.ctxSize >= 32768 || cfg.batchSize >= 2048
+        ? t('localAi.bottleneckMemory')
+        : t('localAi.bottleneckBalanced');
+  return {
+    gpuGb: gpuGb.toFixed(2),
+    totalGb: totalGb.toFixed(2),
+    bottleneck
+  };
+});
+const paramHint = (key: string): string => t(`localAi.paramHints.${key}`);
 
 const refreshRuntime = async () => {
   runtimeStatus.value = await getLocalAiRuntimeStatus();
@@ -630,7 +687,7 @@ onUnmounted(() => {
 
 .settings-grid {
   @apply grid min-h-0 flex-1 gap-3 overflow-hidden;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
 }
 
 .summary-panel,
@@ -664,6 +721,52 @@ onUnmounted(() => {
 
 .summary-card {
   @apply mt-4 rounded-md border border-panel bg-hover p-3;
+}
+
+.memory-card {
+  @apply mt-4 rounded-md border border-panel bg-hover p-3;
+}
+
+.memory-card__header,
+.memory-metrics,
+.bottleneck-row {
+  @apply flex items-center justify-between gap-2;
+}
+
+.memory-card__header {
+  @apply text-sm font-semibold text-panel;
+
+  small {
+    @apply rounded border border-panel bg-panel px-1.5 py-0.5 text-[10px] font-normal text-panel-text-secondary;
+  }
+}
+
+.memory-metrics {
+  @apply mt-3;
+
+  div {
+    @apply flex min-w-0 flex-1 items-center justify-between rounded border border-panel bg-panel px-2 py-1.5 text-xs;
+  }
+
+  span {
+    @apply text-panel-text-secondary;
+  }
+
+  b {
+    @apply font-semibold text-panel;
+  }
+}
+
+.bottleneck-row {
+  @apply mt-2 rounded border border-panel bg-panel px-2 py-1.5 text-xs;
+
+  span {
+    @apply text-panel-text-secondary;
+  }
+
+  b {
+    @apply text-panel;
+  }
 }
 
 .summary-card__title {
@@ -757,7 +860,21 @@ onUnmounted(() => {
 }
 
 .settings-footer {
-  @apply sticky bottom-0 mt-4 flex items-center justify-end gap-3 border-t border-panel bg-panel pt-3;
+  @apply mt-5 flex items-center justify-end gap-3 border-t border-panel bg-panel pt-3;
+}
+
+:deep(.el-input-number) {
+  width: 100%;
+}
+
+:deep(.el-input-number__decrease),
+:deep(.el-input-number__increase) {
+  display: none;
+}
+
+:deep(.el-input-number .el-input__wrapper) {
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .command-line {

@@ -1852,6 +1852,7 @@ export default {
     thinkingEnabled: 'Thinking is on',
     thinkingDisabled: 'Thinking is off',
     jumpToLatest: 'Jump to latest',
+    modelChanged: 'Model changed and saved',
     you: 'You',
     youShort: 'You',
     assistant: 'AI',
@@ -1912,6 +1913,14 @@ export default {
     repeatLastN: 'Penalty window',
     maxTokens: 'Max tokens (0=unlimited)',
     port: 'Port',
+    estimatedMemory: 'Estimated memory usage',
+    estimateBeta: 'Estimate',
+    total: 'Total',
+    bottleneck: 'Bottleneck',
+    bottleneckUnknown: 'Waiting for config',
+    bottleneckCpu: 'CPU-heavy inference',
+    bottleneckMemory: 'Memory pressure',
+    bottleneckBalanced: 'Balanced',
     runtimeReady: 'Runtime ready',
     runtimeMissing: 'Runtime missing',
     modelReady: 'Model ready',
@@ -1921,6 +1930,41 @@ export default {
     serviceStopped: 'Service stopped',
     refreshFailed: 'Refresh failed',
     configSaved: 'Local AI config saved',
-    configSaveFailed: 'Save failed'
+    configSaveFailed: 'Save failed',
+    paramHints: {
+      modelDir: 'Local directory scanned for GGUF models.',
+      mainModel: 'Main GGUF model to load. Changing it restarts the service.',
+      mmprojModel:
+        'Optional multimodal projection model. Text models can leave it empty.',
+      runtimePath:
+        'Path to llama-server.exe. Leave empty to use the bundled runtime.',
+      ctxSize: 'Context window size. Larger values use more RAM/VRAM.',
+      gpuLayers:
+        'Model layers offloaded to GPU. Higher is faster but uses more VRAM.',
+      threads:
+        'CPU inference threads. Too many can reduce system responsiveness.',
+      batchSize: 'Batch size. Affects throughput and memory usage.',
+      ubatchSize: 'Micro-batch size for controlling peak VRAM use.',
+      mainGpu: 'Primary GPU index in multi-GPU systems.',
+      flashAttn:
+        'Use Flash Attention when supported to reduce memory and improve speed.',
+      kvOffload:
+        'Place KV cache on GPU for faster long-context generation at VRAM cost.',
+      mmap: 'Memory-map model files. Usually recommended.',
+      autoStart:
+        'Start the local AI service automatically when a request is sent.',
+      keepAlive: 'Keep the service running to reduce first-token latency.',
+      idleTimeout: 'How long the service may stay idle before stopping.',
+      requestTimeout: 'Maximum wait time for a single request.',
+      temperature:
+        'Sampling randomness. Higher values are more creative and less stable.',
+      topP: 'Nucleus sampling threshold. Lower values reduce drift.',
+      topK: 'Limit candidate tokens. 0 usually disables this filter.',
+      minP: 'Filter low-probability tokens. Moderate values reduce nonsense.',
+      repeatPenalty: 'Penalty applied to repeated tokens.',
+      repeatLastN: 'Token window used by the repetition penalty.',
+      maxTokens: 'Maximum output tokens per response. 0 means no app-side cap.',
+      port: 'Local llama-server port.'
+    }
   }
 };
