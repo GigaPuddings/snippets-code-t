@@ -813,7 +813,25 @@ fn emit_chat_stream(
     );
 }
 
-fn extract_stream_delta(value: &Value) -> Option<String> {
+fn extract_stream_delta(value: &Value, reasoning_open: &mut bool) -> Option<String> {
+    let message = value
+        .get("choices")
+        .and_then(|choices| choices.as_array())
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("delta").or_else(|| choice.get("message")))?;
+
+    if let Some(reasoning) = message
+        .get("reasoning_content")
+        .and_then(|content| content.as_str())
+        .filter(|content| !content.is_empty())
+    {
+        if *reasoning_open {
+            return Some(reasoning.to_string());
+        }
+        *reasoning_open = true;
+        return Some(format!("<think>{}", reasoning));
+    }
+
     value
         .get("choices")
         .and_then(|choices| choices.as_array())
@@ -822,7 +840,14 @@ fn extract_stream_delta(value: &Value) -> Option<String> {
         .and_then(|message| message.get("content"))
         .and_then(|content| content.as_str())
         .filter(|content| !content.is_empty())
-        .map(str::to_string)
+        .map(|content| {
+            if *reasoning_open {
+                *reasoning_open = false;
+                format!("</think>\n\n{}", content)
+            } else {
+                content.to_string()
+            }
+        })
 }
 
 async fn chat_completion_stream(
@@ -875,6 +900,7 @@ async fn chat_completion_stream(
     let mut stream = response.bytes_stream();
     let mut buffer = String::new();
     let mut content = String::new();
+    let mut reasoning_open = false;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|error| format!("读取本地 AI 流失败: {}", error))?;
         buffer.push_str(&String::from_utf8_lossy(&chunk));
@@ -888,13 +914,18 @@ async fn chat_completion_stream(
 
             let data = line.trim_start_matches("data:").trim();
             if data == "[DONE]" {
+                if reasoning_open {
+                    let delta = "</think>".to_string();
+                    content.push_str(&delta);
+                    emit_chat_stream(&window, &request_id, "delta", Some(delta), None);
+                }
                 emit_chat_stream(&window, &request_id, "done", None, None);
                 return Ok(content.trim().to_string());
             }
 
             let value = serde_json::from_str::<Value>(data)
                 .map_err(|error| format!("解析本地 AI 流响应失败: {}", error))?;
-            if let Some(delta) = extract_stream_delta(&value) {
+            if let Some(delta) = extract_stream_delta(&value, &mut reasoning_open) {
                 content.push_str(&delta);
                 emit_chat_stream(&window, &request_id, "delta", Some(delta), None);
             }
@@ -902,6 +933,16 @@ async fn chat_completion_stream(
     }
 
     if !content.trim().is_empty() {
+        if reasoning_open {
+            content.push_str("</think>");
+            emit_chat_stream(
+                &window,
+                &request_id,
+                "delta",
+                Some("</think>".to_string()),
+                None,
+            );
+        }
         emit_chat_stream(&window, &request_id, "done", None, None);
         return Ok(content.trim().to_string());
     }
