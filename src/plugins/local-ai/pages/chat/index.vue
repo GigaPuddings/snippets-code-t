@@ -239,7 +239,7 @@
         <textarea
           v-model="draft"
           class="chat-input"
-          rows="3"
+          rows="2"
           :placeholder="t('localAi.chatPlaceholder')"
           @keydown.ctrl.enter.prevent="sendMessage"
         ></textarea>
@@ -263,6 +263,17 @@
           <div class="input-toolbar-right">
             <span class="input-hint">Ctrl + Enter</span>
             <button
+              v-if="sending"
+              class="send-btn send-btn--stop"
+              type="button"
+              :title="t('localAi.stopGenerating')"
+              :aria-label="t('localAi.stopGenerating')"
+              @click="stopGeneration"
+            >
+              <Square theme="filled" size="11" />
+            </button>
+            <button
+              v-else
               class="send-btn"
               type="submit"
               :disabled="!canSend"
@@ -284,6 +295,7 @@ import { marked } from 'marked';
 import {
   Add,
   Copy,
+  Square,
   Delete,
   Dislike,
   Down,
@@ -300,6 +312,8 @@ import {
 } from '@icon-park/vue-next';
 import { CustomButton } from '@/components/UI';
 import {
+  cancelLocalAiChatStream,
+  createLocalAiStreamRequestId,
   deleteLocalAiChatHistory,
   getLocalAiConfig,
   getLocalAiChatHistories,
@@ -307,6 +321,7 @@ import {
   saveLocalAiChatHistory,
   streamChatWithLocalAi,
   type LocalAiConfig,
+  type LocalAiChatStreamStats,
   type LocalAiMessage,
   type LocalAiServiceStatus
 } from '@/api/localAi';
@@ -323,6 +338,9 @@ interface ChatMessage {
   createdAt: string;
   streaming?: boolean;
   elapsedMs?: number;
+  promptTokens?: number;
+  stats?: LocalAiChatStreamStats;
+  stopped?: boolean;
 }
 
 interface ChatHistoryView {
@@ -341,6 +359,8 @@ const activeHistoryId = ref<string>('');
 const draft = ref('');
 const sending = ref(false);
 const refreshing = ref(false);
+const stopRequested = ref(false);
+const currentStreamRequestId = ref<string | null>(null);
 const config = ref<LocalAiConfig | null>(null);
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
@@ -516,21 +536,45 @@ const splitReasoning = (value: string): { reasoning: string; answer: string } =>
 };
 const messageReasoning = (value: string): string => splitReasoning(value).reasoning;
 const messageAnswer = (value: string): string => splitReasoning(value).answer;
-const estimateTokens = (value: string): number =>
-  value.trim() ? Math.max(1, Math.ceil(value.length / 2.2)) : 0;
+const estimateTokens = (value: string): number => {
+  const text = value.trim();
+  if (!text) return 0;
+  const cjkCount = (text.match(/[\u3400-\u9fff\uf900-\ufaff]/g) ?? []).length;
+  const rest = text.replace(/[\u3400-\u9fff\uf900-\ufaff]/g, ' ');
+  const pieces = rest.match(/[A-Za-z0-9_]+|[^\sA-Za-z0-9_]/g) ?? [];
+  const latinTokens = pieces.reduce((total, piece) => {
+    if (/^[A-Za-z0-9_]+$/.test(piece)) {
+      return total + Math.max(1, Math.ceil(piece.length / 4));
+    }
+    return total + 1;
+  }, 0);
+  return Math.max(1, Math.ceil(cjkCount + latinTokens));
+};
+const estimateChatTokens = (messages: LocalAiMessage[]): number =>
+  estimateTokens(
+    messages.map((message) => `${message.role}: ${message.content}`).join('\n')
+  );
 const messageStats = (message: ChatMessage) => {
   const now = statsTick.value;
   const index = activeMessages.value.findIndex((item) => item.id === message.id);
-  const context = estimateTokens(
-    activeMessages.value
-      .slice(0, Math.max(0, index))
-      .map((item) => item.content)
-      .join('\n')
-  );
-  const output = estimateTokens(message.content);
+  const promptTokens =
+    message.stats?.promptTokens ??
+    message.promptTokens ??
+    estimateTokens(
+      activeMessages.value
+        .slice(0, Math.max(0, index))
+        .map((item) => item.content)
+        .join('\n')
+    );
+  const output = message.stats?.completionTokens ?? estimateTokens(message.content);
+  const context = message.stats?.totalTokens ?? promptTokens + output;
   const contextMax = config.value?.ctxSize ?? 4096;
   const elapsedSeconds =
-    (message.elapsedMs ?? now - messageTimestamp(message).getTime()) / 1000;
+    ((message.stats?.generationTimeMs ?? message.elapsedMs) ??
+      now - messageTimestamp(message).getTime()) / 1000;
+  const speed =
+    message.stats?.tokensPerSecond ??
+    (elapsedSeconds > 0 ? output / elapsedSeconds : 0);
 
   return {
     context,
@@ -538,7 +582,7 @@ const messageStats = (message: ChatMessage) => {
     contextPercent: Math.min(100, Math.round((context / contextMax) * 100)),
     output,
     seconds: elapsedSeconds.toFixed(1),
-    speed: elapsedSeconds > 0 ? (output / elapsedSeconds).toFixed(1) : '0.0'
+    speed: speed.toFixed(1)
   };
 };
 const startStatsTicker = () => {
@@ -556,10 +600,13 @@ const stopStatsTicker = () => {
 };
 const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   const startedAt = performance.now();
+  const requestId = createLocalAiStreamRequestId();
   let queuedContent = '';
   let pumpTimer: number | null = null;
   let drainResolver: (() => void) | null = null;
   let receivedDelta = false;
+  currentStreamRequestId.value = requestId;
+  stopRequested.value = false;
 
   const pump = async () => {
     if (!queuedContent) {
@@ -569,7 +616,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
       return;
     }
 
-    const take = queuedContent.length > 240 ? 18 : 6;
+    const take = stopRequested.value ? 240 : queuedContent.length > 240 ? 18 : 6;
     assistantMessage.content += queuedContent.slice(0, take);
     queuedContent = queuedContent.slice(take);
     await scrollToBottom();
@@ -596,12 +643,19 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
     (delta) => {
       receivedDelta = true;
       enqueueContent(delta);
+    },
+    {
+      requestId,
+      onStats: (stats) => {
+        assistantMessage.stats = stats;
+        statsTick.value = Date.now();
+      }
     }
   );
 
   if (!receivedDelta) {
     enqueueContent(response.content);
-  } else {
+  } else if (!stopRequested.value) {
     const visibleLength = assistantMessage.content.length + queuedContent.length;
     if (response.content.length > visibleLength) {
       enqueueContent(response.content.slice(visibleLength));
@@ -614,12 +668,24 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
     });
   }
 
-  if (response.content && assistantMessage.content !== response.content) {
+  if (!stopRequested.value && response.content && assistantMessage.content !== response.content) {
     assistantMessage.content = response.content;
   }
   assistantMessage.streaming = false;
   assistantMessage.elapsedMs = performance.now() - startedAt;
+  assistantMessage.stopped = stopRequested.value;
   statsTick.value = Date.now();
+  currentStreamRequestId.value = null;
+};
+const stopGeneration = async () => {
+  const requestId = currentStreamRequestId.value;
+  if (!sending.value || !requestId || stopRequested.value) return;
+  stopRequested.value = true;
+  try {
+    await cancelLocalAiChatStream(requestId);
+  } catch (error) {
+    logger.warn('[LocalAI] cancel stream failed', error);
+  }
 };
 const sendMessage = async () => {
   const content = draft.value.trim();
@@ -637,7 +703,8 @@ const sendMessage = async () => {
     role: 'assistant',
     content: '',
     createdAt: new Date().toISOString(),
-    streaming: true
+    streaming: true,
+    promptTokens: estimateChatTokens(toApiMessages())
   };
   activeHistory.value?.messages.push(assistantMessage);
   draft.value = '';
@@ -660,11 +727,14 @@ const sendMessage = async () => {
     }
     await refreshStatus();
   } catch (error) {
-    modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error');
+    if (!stopRequested.value) {
+      modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error');
+      assistantMessage.content = String(error);
+    }
     assistantMessage.streaming = false;
-    assistantMessage.content = String(error);
   } finally {
     sending.value = false;
+    currentStreamRequestId.value = null;
     stopStatsTicker();
     await scrollToBottom();
   }
@@ -746,7 +816,8 @@ const regenerateMessage = async (messageId: string) => {
     role: 'assistant',
     content: '',
     createdAt: new Date().toISOString(),
-    streaming: true
+    streaming: true,
+    promptTokens: estimateChatTokens(toApiMessages())
   };
   current.messages.push(assistantMessage);
   sending.value = true;
@@ -758,11 +829,14 @@ const regenerateMessage = async (messageId: string) => {
     current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
     await persistActiveHistory();
   } catch (error) {
-    modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error');
+    if (!stopRequested.value) {
+      modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error');
+      assistantMessage.content = String(error);
+    }
     assistantMessage.streaming = false;
-    assistantMessage.content = String(error);
   } finally {
     sending.value = false;
+    currentStreamRequestId.value = null;
     stopStatsTicker();
     await scrollToBottom();
   }
@@ -778,6 +852,9 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer);
+  if (currentStreamRequestId.value) {
+    void cancelLocalAiChatStream(currentStreamRequestId.value);
+  }
   stopStatsTicker();
 });
 </script>
@@ -1412,7 +1489,7 @@ onUnmounted(() => {
 
 .chat-input-card {
   flex: 0 0 auto;
-  padding: 12px 14px;
+  padding: 9px 12px 10px;
   background: #fff;
   border: 1px solid rgba(95, 116, 243, 0.28);
   border-radius: 8px;
@@ -1427,19 +1504,19 @@ onUnmounted(() => {
 .chat-input {
   display: block;
   width: 100%;
-  min-height: 42px;
-  max-height: 66px;
+  min-height: 30px;
+  max-height: 54px;
   resize: none;
   color: #1f2937;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.45;
   background: transparent;
   border: 0;
   outline: none;
 }
 
 .input-toolbar {
-  margin-top: 10px;
+  margin-top: 7px;
 }
 
 .input-toolbar-left,
@@ -1448,14 +1525,14 @@ onUnmounted(() => {
 }
 
 .composer-tool-btn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
 }
 
 .model-select-shell {
   display: inline-flex;
-  height: 30px;
+  height: 28px;
   align-items: center;
   padding: 0 10px;
   color: #344054;
@@ -1482,15 +1559,15 @@ onUnmounted(() => {
 
 .send-btn {
   display: inline-flex;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   align-items: center;
   justify-content: center;
   padding: 0;
   color: #fff;
-  background: var(--chat-primary);
+  background: #111827;
   border: 0;
-  border-radius: 9px;
+  border-radius: 999px;
   box-shadow: none;
   transition:
     background-color 0.16s ease,
@@ -1503,7 +1580,7 @@ onUnmounted(() => {
 }
 
 .send-btn:not(:disabled):hover {
-  background: var(--chat-primary-hover);
+  background: #020617;
 }
 
 .send-btn:disabled {
@@ -1511,6 +1588,15 @@ onUnmounted(() => {
   color: #7c8799;
   background: #eef2f7;
   box-shadow: none;
+}
+
+.send-btn--stop {
+  color: #fff;
+  background: #111827;
+}
+
+.send-btn--stop:hover {
+  background: #020617;
 }
 
 @media (max-width: 1280px) {

@@ -1839,6 +1839,7 @@ export default {
     feedbackSaved: 'Feedback saved',
     moreComingSoon: 'More actions coming soon',
     send: 'Send',
+    stopGenerating: 'Stop generating',
     you: 'You',
     youShort: 'You',
     assistant: 'AI',

@@ -87,11 +87,25 @@ export interface LocalAiChatResponse {
   content: string;
 }
 
+export interface LocalAiChatStreamStats {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  generationTimeMs?: number;
+  tokensPerSecond?: number;
+}
+
 export interface LocalAiChatStreamEvent {
   requestId: string;
-  event: 'delta' | 'done' | 'error';
+  event: 'delta' | 'stats' | 'done' | 'error';
   content?: string;
   error?: string;
+  stats?: LocalAiChatStreamStats;
+}
+
+export interface LocalAiChatStreamOptions {
+  requestId?: string;
+  onStats?: (stats: LocalAiChatStreamStats) => void;
 }
 
 export async function getLocalAiConfig(): Promise<LocalAiConfig> {
@@ -142,14 +156,18 @@ export async function chatWithLocalAi(
   return await invoke<LocalAiChatResponse>('local_ai_chat', { request });
 }
 
+export function createLocalAiStreamRequestId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `local-ai-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export async function streamChatWithLocalAi(
   request: LocalAiChatRequest,
-  onDelta: (content: string) => void
+  onDelta: (content: string) => void,
+  options: LocalAiChatStreamOptions = {}
 ): Promise<LocalAiChatResponse> {
-  const requestId =
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `local-ai-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const requestId = options.requestId ?? createLocalAiStreamRequestId();
   const unlisten = await listen<LocalAiChatStreamEvent>(
     'local-ai-chat-stream',
     (event) => {
@@ -157,6 +175,8 @@ export async function streamChatWithLocalAi(
       if (payload.requestId !== requestId) return;
       if (payload.event === 'delta' && payload.content) {
         onDelta(payload.content);
+      } else if (payload.event === 'stats' && payload.stats) {
+        options.onStats?.(payload.stats);
       }
     }
   );
@@ -169,6 +189,10 @@ export async function streamChatWithLocalAi(
   } finally {
     unlisten();
   }
+}
+
+export async function cancelLocalAiChatStream(requestId: string): Promise<boolean> {
+  return await invoke<boolean>('local_ai_cancel_chat_stream', { requestId });
 }
 
 export async function getLocalAiChatHistories(): Promise<LocalAiChatHistory[]> {

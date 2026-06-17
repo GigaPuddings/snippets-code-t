@@ -1807,6 +1807,7 @@ export default {
     feedbackSaved: '已记录反馈',
     moreComingSoon: '更多操作即将支持',
     send: '发送',
+    stopGenerating: '停止生成',
     you: '你',
     youShort: '你',
     assistant: 'AI',

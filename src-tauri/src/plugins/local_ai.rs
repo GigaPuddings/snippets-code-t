@@ -6,12 +6,13 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    LazyLock, Mutex,
+    Arc, LazyLock, Mutex,
 };
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, Window};
@@ -30,6 +31,8 @@ const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 
 static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
     LazyLock::new(|| Mutex::new(LocalAiServiceState::default()));
+static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,11 +172,22 @@ pub struct LocalAiChatResponse {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LocalAiChatStreamStats {
+    pub prompt_tokens: Option<u32>,
+    pub completion_tokens: Option<u32>,
+    pub total_tokens: Option<u32>,
+    pub generation_time_ms: Option<f64>,
+    pub tokens_per_second: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LocalAiChatStreamPayload {
     pub request_id: String,
     pub event: String,
     pub content: Option<String>,
     pub error: Option<String>,
+    pub stats: Option<LocalAiChatStreamStats>,
 }
 
 #[derive(Default)]
@@ -801,6 +815,7 @@ fn emit_chat_stream(
     event: &str,
     content: Option<String>,
     error: Option<String>,
+    stats: Option<LocalAiChatStreamStats>,
 ) {
     let _ = window.emit(
         "local-ai-chat-stream",
@@ -809,8 +824,53 @@ fn emit_chat_stream(
             event: event.to_string(),
             content,
             error,
+            stats,
         },
     );
+}
+
+fn get_u32_field(value: &Value, key: &str) -> Option<u32> {
+    value
+        .get(key)
+        .and_then(|field| field.as_u64())
+        .and_then(|number| u32::try_from(number).ok())
+}
+
+fn get_f64_field(value: &Value, key: &str) -> Option<f64> {
+    value.get(key).and_then(|field| field.as_f64())
+}
+
+fn extract_stream_stats(value: &Value) -> Option<LocalAiChatStreamStats> {
+    let usage = value.get("usage");
+    let timings = value.get("timings");
+    let prompt_tokens = usage
+        .and_then(|usage| get_u32_field(usage, "prompt_tokens"))
+        .or_else(|| timings.and_then(|timings| get_u32_field(timings, "prompt_n")));
+    let completion_tokens = usage
+        .and_then(|usage| get_u32_field(usage, "completion_tokens"))
+        .or_else(|| timings.and_then(|timings| get_u32_field(timings, "predicted_n")));
+    let total_tokens = usage
+        .and_then(|usage| get_u32_field(usage, "total_tokens"))
+        .or_else(|| prompt_tokens.zip(completion_tokens).map(|(prompt, completion)| prompt + completion));
+    let generation_time_ms = timings.and_then(|timings| get_f64_field(timings, "predicted_ms"));
+    let tokens_per_second = timings.and_then(|timings| get_f64_field(timings, "predicted_per_second"));
+
+    if prompt_tokens.is_none()
+        && completion_tokens.is_none()
+        && total_tokens.is_none()
+        && generation_time_ms.is_none()
+        && tokens_per_second.is_none()
+    {
+        return None;
+    }
+
+    Some(LocalAiChatStreamStats {
+        prompt_tokens,
+        completion_tokens,
+        total_tokens,
+        generation_time_ms,
+        tokens_per_second,
+    })
 }
 
 fn extract_stream_delta(value: &Value, reasoning_open: &mut bool) -> Option<String> {
@@ -866,6 +926,10 @@ async fn chat_completion_stream(
     let config = read_config(app_handle);
     ensure_service_running(app_handle, &config).await?;
     let _guard = mark_request_started();
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+        cancels.insert(request_id.clone(), Arc::clone(&cancel_flag));
+    }
 
     let client = Client::builder()
         .timeout(Duration::from_secs(config.request_timeout_secs as u64))
@@ -877,23 +941,37 @@ async fn chat_completion_stream(
         "messages": messages,
         "temperature": temperature.unwrap_or(config.temperature),
         "max_tokens": max_tokens.unwrap_or(config.max_tokens),
-        "stream": true
+        "stream": true,
+        "stream_options": {
+            "include_usage": true
+        }
     });
 
-    let response = client
+    let response_result = client
         .post(url)
         .header(ACCEPT, "text/event-stream")
         .header(CACHE_CONTROL, "no-cache")
         .json(&body)
         .send()
-        .await
-        .map_err(|error| format!("请求本地 AI 服务失败: {}", error))?;
+        .await;
+    let response = match response_result {
+        Ok(response) => response,
+        Err(error) => {
+            if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+                cancels.remove(&request_id);
+            }
+            return Err(format!("请求本地 AI 服务失败: {}", error));
+        }
+    };
     let status = response.status();
     if !status.is_success() {
         let value = response
             .text()
             .await
             .unwrap_or_else(|error| format!("读取错误响应失败: {}", error));
+        if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+            cancels.remove(&request_id);
+        }
         return Err(format!("本地 AI 服务返回错误 {}: {}", status, value));
     }
 
@@ -902,6 +980,25 @@ async fn chat_completion_stream(
     let mut content = String::new();
     let mut reasoning_open = false;
     while let Some(chunk) = stream.next().await {
+        if cancel_flag.load(Ordering::Relaxed) {
+            if reasoning_open {
+                content.push_str("</think>");
+                emit_chat_stream(
+                    &window,
+                    &request_id,
+                    "delta",
+                    Some("</think>".to_string()),
+                    None,
+                    None,
+                );
+            }
+            emit_chat_stream(&window, &request_id, "done", None, None, None);
+            if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+                cancels.remove(&request_id);
+            }
+            return Ok(content.trim().to_string());
+        }
+
         let chunk = chunk.map_err(|error| format!("读取本地 AI 流失败: {}", error))?;
         buffer.push_str(&String::from_utf8_lossy(&chunk));
 
@@ -917,17 +1014,23 @@ async fn chat_completion_stream(
                 if reasoning_open {
                     let delta = "</think>".to_string();
                     content.push_str(&delta);
-                    emit_chat_stream(&window, &request_id, "delta", Some(delta), None);
+                    emit_chat_stream(&window, &request_id, "delta", Some(delta), None, None);
                 }
-                emit_chat_stream(&window, &request_id, "done", None, None);
+                emit_chat_stream(&window, &request_id, "done", None, None, None);
+                if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+                    cancels.remove(&request_id);
+                }
                 return Ok(content.trim().to_string());
             }
 
             let value = serde_json::from_str::<Value>(data)
                 .map_err(|error| format!("解析本地 AI 流响应失败: {}", error))?;
+            if let Some(stats) = extract_stream_stats(&value) {
+                emit_chat_stream(&window, &request_id, "stats", None, None, Some(stats));
+            }
             if let Some(delta) = extract_stream_delta(&value, &mut reasoning_open) {
                 content.push_str(&delta);
-                emit_chat_stream(&window, &request_id, "delta", Some(delta), None);
+                emit_chat_stream(&window, &request_id, "delta", Some(delta), None, None);
             }
         }
     }
@@ -941,10 +1044,17 @@ async fn chat_completion_stream(
                 "delta",
                 Some("</think>".to_string()),
                 None,
+                None,
             );
         }
-        emit_chat_stream(&window, &request_id, "done", None, None);
+        emit_chat_stream(&window, &request_id, "done", None, None, None);
+        if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+            cancels.remove(&request_id);
+        }
         return Ok(content.trim().to_string());
+    }
+    if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+        cancels.remove(&request_id);
     }
     Err("本地 AI 响应中没有可用内容".to_string())
 }
@@ -1155,10 +1265,29 @@ pub async fn local_ai_chat_stream(
     {
         Ok(content) => Ok(LocalAiChatResponse { content }),
         Err(error) => {
-            emit_chat_stream(&window, &request_id, "error", None, Some(error.clone()));
+            if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+                cancels.remove(&request_id);
+            }
+            emit_chat_stream(&window, &request_id, "error", None, Some(error.clone()), None);
             Err(error)
         }
     }
+}
+
+#[tauri::command]
+pub fn local_ai_cancel_chat_stream(
+    app_handle: AppHandle,
+    request_id: String,
+) -> Result<bool, String> {
+    require_plugin(&app_handle)?;
+    let cancels = ACTIVE_STREAM_CANCELS
+        .lock()
+        .map_err(|error| format!("本地 AI 取消状态锁定失败: {}", error))?;
+    if let Some(flag) = cancels.get(&request_id) {
+        flag.store(true, Ordering::Relaxed);
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 #[tauri::command]
