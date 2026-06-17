@@ -135,6 +135,26 @@
             <template v-if="message.role === 'user'">
               <div class="user-bubble">
                 <div>{{ message.content }}</div>
+                <div
+                  v-if="message.attachments?.length"
+                  class="message-attachment-list"
+                >
+                  <div
+                    v-for="attachment in message.attachments"
+                    :key="attachment.id"
+                    class="message-attachment-chip"
+                  >
+                    <img
+                      v-if="attachment.type === 'image' && attachment.dataUrl"
+                      :src="attachment.dataUrl"
+                      :alt="attachment.name"
+                    />
+                    <span v-else class="attachment-file-icon">
+                      {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
+                    </span>
+                    <span>{{ attachment.name }}</span>
+                  </div>
+                </div>
                 <time>{{ messageTime(message) }}</time>
               </div>
             </template>
@@ -173,12 +193,14 @@
                     </summary>
                     <div
                       class="message-content markdown-body"
+                      @click="handleMarkdownClick"
                       v-html="renderMarkdown(messageReasoning(message.content))"
                     ></div>
                   </details>
                   <div
                     v-if="messageAnswer(message.content)"
                     class="message-content markdown-body"
+                    @click="handleMarkdownClick"
                     v-html="renderMarkdown(messageAnswer(message.content))"
                   ></div>
                 </div>
@@ -264,7 +286,53 @@
         <span>{{ t('localAi.jumpToLatest') }}</span>
       </button>
 
-      <form class="chat-input-card" @submit.prevent="sendMessage">
+      <form
+        class="chat-input-card"
+        @dragover.prevent
+        @drop.prevent="handleAttachmentDrop"
+        @submit.prevent="sendMessage"
+      >
+        <input
+          ref="fileInputRef"
+          class="attachment-input"
+          type="file"
+          multiple
+          accept=".txt,.md,.json,.csv,.html,.css,.js,.ts,.tsx,.vue,.rs,.py,.java,.go,.yaml,.yml,.toml,.xml,.log,image/png,image/jpeg,image/webp,.pdf,.doc,.docx,.xls,.xlsx"
+          @change="handleAttachmentInput"
+        />
+        <div v-if="attachments.length" class="attachment-preview-list">
+          <div
+            v-for="attachment in attachments"
+            :key="attachment.id"
+            :class="[
+              'attachment-preview-item',
+              `attachment-preview-item--${attachment.status}`
+            ]"
+          >
+            <img
+              v-if="attachment.type === 'image' && attachment.dataUrl"
+              :src="attachment.dataUrl"
+              :alt="attachment.name"
+            />
+            <span v-else class="attachment-file-icon">
+              {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
+            </span>
+            <span class="attachment-meta">
+              <strong>{{ attachment.name }}</strong>
+              <small>
+                {{ formatFileSize(attachment.size) }} ·
+                {{ attachmentStatusText(attachment) }}
+              </small>
+            </span>
+            <button
+              type="button"
+              :title="t('common.delete')"
+              @click="removeAttachment(attachment.id)"
+            >
+              <Delete theme="outline" size="12" />
+            </button>
+          </div>
+        </div>
         <textarea
           v-model="draft"
           class="chat-input"
@@ -274,6 +342,14 @@
         ></textarea>
         <div class="input-toolbar">
           <div class="input-toolbar-left">
+            <button
+              class="composer-tool-btn"
+              type="button"
+              :title="t('localAi.addAttachment')"
+              @click="openAttachmentPicker"
+            >
+              <Add theme="outline" size="16" />
+            </button>
             <button
               class="composer-tool-btn"
               type="button"
@@ -385,10 +461,24 @@ import {
   streamChatWithLocalAi,
   type LocalAiConfig,
   type LocalAiChatStreamStats,
+  type LocalAiContentPart,
   type LocalAiMessage,
   type LocalAiModelScan,
   type LocalAiServiceStatus
 } from '@/api/localAi';
+import {
+  buildPromptWithFileAttachments,
+  fileToDataUrl,
+  fileToText,
+  formatFileSize,
+  isImageFile,
+  isTextFile,
+  isUnsupportedKnownFile,
+  LOCAL_AI_MAX_ATTACHMENTS,
+  LOCAL_AI_MAX_IMAGE_BYTES,
+  LOCAL_AI_MAX_TEXT_BYTES,
+  type LocalAiAttachment
+} from '@/utils/localAiAttachments';
 import { sanitizeHtml } from '@/utils/html-sanitize';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
@@ -400,6 +490,7 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
+  attachments?: LocalAiAttachment[];
   streaming?: boolean;
   elapsedMs?: number;
   promptTokens?: number;
@@ -427,6 +518,7 @@ const searchQuery = ref('');
 const histories = ref<ChatHistoryView[]>([]);
 const activeHistoryId = ref<string>('');
 const draft = ref('');
+const attachments = ref<LocalAiAttachment[]>([]);
 const sending = ref(false);
 const refreshing = ref(false);
 const stopRequested = ref(false);
@@ -439,15 +531,21 @@ const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 const statsTick = ref(Date.now());
 let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
 const markdownCache = new Map<string, string>();
+const markdownCodeCache = new Map<string, string>();
 const MESSAGE_BOTTOM_THRESHOLD = 96;
 const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const MIN_ASSISTANT_TAIL_TOKENS = 160;
 
-const canSend = computed(() => Boolean(draft.value.trim()) && !sending.value);
+const canSend = computed(
+  () =>
+    (Boolean(draft.value.trim()) || attachments.value.length > 0) &&
+    !sending.value
+);
 const serviceStatusText = computed(() => {
   if (serviceStatus.value?.healthy) return t('localAi.serviceHealthy');
   if (serviceStatus.value?.running) return t('localAi.serviceStarting');
@@ -470,6 +568,7 @@ const currentModelDisplay = computed(
     t('localAi.localModel')
 );
 const availableChatModels = computed(() => modelScan.value?.mainModels ?? []);
+const visionAvailable = computed(() => Boolean(config.value?.mmprojPath));
 const effectiveContextLimit = computed(
   () => serviceStatus.value?.ctxSize ?? config.value?.ctxSize ?? 4096
 );
@@ -632,6 +731,122 @@ const deleteHistoryItem = async (id: string) => {
     activeHistoryId.value = histories.value[0]?.id ?? '';
   }
 };
+const openAttachmentPicker = () => {
+  fileInputRef.value?.click();
+};
+const createAttachmentShell = (
+  file: File,
+  type: LocalAiAttachment['type']
+): LocalAiAttachment => ({
+  id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  name: file.name,
+  type,
+  mime: file.type || 'application/octet-stream',
+  size: file.size,
+  status: 'pending'
+});
+const parseAttachmentFile = async (file: File): Promise<LocalAiAttachment> => {
+  if (isImageFile(file)) {
+    const attachment = createAttachmentShell(file, 'image');
+    if (file.size > LOCAL_AI_MAX_IMAGE_BYTES) {
+      return {
+        ...attachment,
+        status: 'error',
+        error: t('localAi.imageTooLarge')
+      };
+    }
+    try {
+      return {
+        ...attachment,
+        status: 'parsed',
+        dataUrl: await fileToDataUrl(file)
+      };
+    } catch (error) {
+      return { ...attachment, status: 'error', error: String(error) };
+    }
+  }
+
+  if (isTextFile(file)) {
+    const attachment = createAttachmentShell(file, 'text');
+    if (file.size > LOCAL_AI_MAX_TEXT_BYTES) {
+      return {
+        ...attachment,
+        status: 'error',
+        error: t('localAi.textFileTooLarge')
+      };
+    }
+    try {
+      const parsed = await fileToText(file);
+      return {
+        ...attachment,
+        status: 'parsed',
+        text: parsed.text,
+        error: parsed.truncated ? 'truncated' : undefined
+      };
+    } catch (error) {
+      return { ...attachment, status: 'error', error: String(error) };
+    }
+  }
+
+  const unsupported = createAttachmentShell(file, 'unsupported');
+  return {
+    ...unsupported,
+    status: 'error',
+    error: isUnsupportedKnownFile(file)
+      ? t('localAi.unsupportedDocument')
+      : t('localAi.unsupportedAttachment')
+  };
+};
+const addAttachmentFiles = async (files: FileList | File[]) => {
+  const incoming = Array.from(files);
+  const room = LOCAL_AI_MAX_ATTACHMENTS - attachments.value.length;
+  if (room <= 0) {
+    modal.msg(t('localAi.attachmentLimit'), 'warning');
+    return;
+  }
+  if (incoming.length > room) {
+    modal.msg(t('localAi.attachmentLimit'), 'warning');
+  }
+  const selected = incoming.slice(0, room);
+  const pending = selected.map((file) =>
+    createAttachmentShell(
+      file,
+      isImageFile(file) ? 'image' : isTextFile(file) ? 'text' : 'unsupported'
+    )
+  );
+  attachments.value.push(...pending);
+
+  await Promise.all(
+    selected.map(async (file, index) => {
+      const parsed = await parseAttachmentFile(file);
+      const targetIndex = attachments.value.findIndex(
+        (attachment) => attachment.id === pending[index].id
+      );
+      if (targetIndex >= 0) attachments.value[targetIndex] = parsed;
+    })
+  );
+};
+const handleAttachmentInput = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.files?.length) await addAttachmentFiles(input.files);
+  input.value = '';
+};
+const handleAttachmentDrop = async (event: DragEvent) => {
+  if (event.dataTransfer?.files.length) {
+    await addAttachmentFiles(event.dataTransfer.files);
+  }
+};
+const removeAttachment = (id: string) => {
+  attachments.value = attachments.value.filter(
+    (attachment) => attachment.id !== id
+  );
+};
+const attachmentStatusText = (attachment: LocalAiAttachment): string => {
+  if (attachment.status === 'pending') return t('localAi.attachmentPending');
+  if (attachment.status === 'error') return attachment.error ?? '';
+  if (attachment.error === 'truncated') return t('localAi.attachmentTruncated');
+  return t('localAi.attachmentParsed');
+};
 const changeChatModel = async () => {
   if (!config.value || !selectedChatModelPath.value) return;
   config.value.modelPath = selectedChatModelPath.value;
@@ -645,16 +860,54 @@ const changeChatModel = async () => {
     modal.msg(`${t('localAi.configSaveFailed')}: ${error}`, 'error');
   }
 };
+const codeBlockId = (code: string): string => {
+  let hash = 0;
+  for (let index = 0; index < code.length; index += 1) {
+    hash = (hash * 31 + code.charCodeAt(index)) >>> 0;
+  }
+  return `code-${code.length}-${hash.toString(16)}`;
+};
+const enhanceCodeBlocks = (html: string): string => {
+  if (!html.includes('<pre>')) return html;
+  return html.replace(
+    /<pre><code(?: class="([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g,
+    (_match, className: string | undefined, codeHtml: string) => {
+      const template = document.createElement('textarea');
+      template.innerHTML = codeHtml;
+      const code = template.value;
+      const id = codeBlockId(code);
+      markdownCodeCache.set(id, code);
+      const codeClass = className ? ` class="${className}"` : '';
+      return `<div class="code-block-shell"><button type="button" class="code-copy-btn" data-code-id="${id}" title="${t('common.copy')}">${t('common.copy')}</button><pre><code${codeClass}>${codeHtml}</code></pre></div>`;
+    }
+  );
+};
 const renderMarkdown = (value: string): string => {
   const cached = markdownCache.get(value);
   if (cached) return cached;
-  const html = sanitizeHtml(marked.parse(value, { async: false }) as string);
+  const html = enhanceCodeBlocks(
+    sanitizeHtml(marked.parse(value, { async: false }) as string)
+  );
   markdownCache.set(value, html);
   if (markdownCache.size > 80) {
     const firstKey = markdownCache.keys().next().value;
     if (typeof firstKey === 'string') markdownCache.delete(firstKey);
   }
   return html;
+};
+const handleMarkdownClick = async (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null;
+  const button = target?.closest<HTMLButtonElement>('.code-copy-btn');
+  const id = button?.dataset.codeId;
+  if (!id) return;
+  const code = markdownCodeCache.get(id);
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    modal.msg(t('localAi.codeCopied'));
+  } catch (error) {
+    modal.msg(`${t('common.copy')}: ${error}`, 'error');
+  }
 };
 const splitReasoning = (
   value: string
@@ -744,9 +997,48 @@ const estimateTokens = (value: string): number => {
   }, 0);
   return Math.max(1, Math.ceil(cjkCount + latinTokens));
 };
+const contentText = (content: LocalAiMessage['content']): string =>
+  Array.isArray(content)
+    ? content
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text)
+        .join('\n')
+    : content;
+const apiUserMessageContent = (
+  message: ChatMessage
+): LocalAiMessage['content'] => {
+  const parsedAttachments =
+    message.attachments?.filter(
+      (attachment) => attachment.status === 'parsed'
+    ) ?? [];
+  const text = buildPromptWithFileAttachments(
+    message.content,
+    parsedAttachments
+  );
+  const imageAttachments = parsedAttachments.filter(
+    (attachment) => attachment.type === 'image' && attachment.dataUrl
+  );
+  if (!imageAttachments.length) return text;
+
+  const parts: LocalAiContentPart[] = [{ type: 'text', text }];
+  for (const attachment of imageAttachments) {
+    parts.push({
+      type: 'image_url',
+      image_url: {
+        url: attachment.dataUrl ?? ''
+      }
+    });
+  }
+  return parts;
+};
 const estimateChatTokens = (messages: LocalAiMessage[]): number =>
   estimateTokens(
-    messages.map((message) => `${message.role}: ${message.content}`).join('\n')
+    messages
+      .map((message) => {
+        const content = contentText(message.content);
+        return `${message.role}: ${content}`;
+      })
+      .join('\n')
   );
 const truncateContentForBudget = (content: string, budgetTokens: number) => {
   const maxChars = Math.max(240, budgetTokens * 4);
@@ -773,6 +1065,7 @@ const compactMessagesForBudget = (
     const remainingTokens = tokenBudget - usedTokens;
     if (
       message.role !== 'assistant' ||
+      typeof message.content !== 'string' ||
       remainingTokens < MIN_ASSISTANT_TAIL_TOKENS
     ) {
       continue;
@@ -812,7 +1105,10 @@ const toApiMessages = (): LocalAiMessage[] =>
       .filter((message) => !message.streaming)
       .map((message) => ({
         role: message.role,
-        content: message.content
+        content:
+          message.role === 'user'
+            ? apiUserMessageContent(message)
+            : message.content
       })),
     requestContextBudget.value
   );
@@ -887,18 +1183,20 @@ const formatChatError = (error: unknown): string => {
 };
 const hasRepetitionLoop = (value: string): boolean => {
   const text = value.replace(/\s+/g, ' ').trim();
-  if (text.length < 360) return false;
-  const tail = text.slice(-1200);
+  if (text.length < 900) return false;
+  const tail = text.slice(-1800);
   const tokens =
     tail
       .match(/[A-Za-z_$][\w$-]*|[\u3400-\u9fff\uf900-\ufaff]{1,4}/g)
       ?.map((token) => token.toLowerCase()) ?? [];
-  if (tokens.length < 72) return false;
+  if (tokens.length < 140) return false;
 
-  const recent = tokens.slice(-80);
+  const recent = tokens.slice(-120);
   const counts = new Map<string, number>();
   for (const token of recent) counts.set(token, (counts.get(token) ?? 0) + 1);
-  if ([...counts.values()].some((count) => count >= 28)) return true;
+  const uniqueRatio = counts.size / recent.length;
+  if (uniqueRatio < 0.12 && [...counts.values()].some((count) => count >= 56))
+    return true;
 
   for (let size = 1; size <= 4; size += 1) {
     const pattern = tokens.slice(-size).join('\u0000');
@@ -907,7 +1205,7 @@ const hasRepetitionLoop = (value: string): boolean => {
       if (tokens.slice(index, index + size).join('\u0000') !== pattern) break;
       repeats += 1;
     }
-    if (repeats >= Math.max(10, Math.ceil(32 / size))) return true;
+    if (repeats >= Math.max(24, Math.ceil(72 / size))) return true;
   }
 
   return false;
@@ -947,10 +1245,12 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
     }
 
     const take = stopRequested.value
-      ? 240
-      : queuedContent.length > 240
-        ? 18
-        : 6;
+      ? 480
+      : queuedContent.length > 900
+        ? 180
+        : queuedContent.length > 240
+          ? 96
+          : 32;
     assistantMessage.content += queuedContent.slice(0, take);
     queuedContent = queuedContent.slice(take);
     if (
@@ -970,7 +1270,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
       pump().catch((error) =>
         logger.warn('[LocalAI] stream pump failed', error)
       );
-    }, 24);
+    }, 48);
   };
 
   const enqueueContent = (value: string) => {
@@ -982,7 +1282,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
       pump().catch((error) =>
         logger.warn('[LocalAI] stream pump failed', error)
       );
-    }, 12);
+    }, 32);
   };
   const waitForPumpDrain = async () => {
     if (!queuedContent && pumpTimer === null) return;
@@ -1050,16 +1350,50 @@ const stopGeneration = async () => {
     logger.warn('[LocalAI] cancel stream failed', error);
   }
 };
+const validateBeforeSend = (): boolean => {
+  if (!draft.value.trim() && !attachments.value.length) return false;
+  const pending = attachments.value.find(
+    (attachment) => attachment.status === 'pending'
+  );
+  if (pending) {
+    modal.msg(t('localAi.attachmentPendingBlock'), 'warning');
+    return false;
+  }
+  const failed = attachments.value.find(
+    (attachment) =>
+      attachment.status === 'error' || attachment.type === 'unsupported'
+  );
+  if (failed) {
+    modal.msg(
+      `${t('localAi.attachmentErrorBlock')}: ${failed.name}`,
+      'warning'
+    );
+    return false;
+  }
+  const hasImages = attachments.value.some(
+    (attachment) => attachment.type === 'image'
+  );
+  if (hasImages && !visionAvailable.value) {
+    modal.msg(t('localAi.visionUnavailable'), 'warning');
+    return false;
+  }
+  return true;
+};
 const sendMessage = async () => {
   const content = draft.value.trim();
-  if (!content || sending.value) return;
+  if (sending.value || !validateBeforeSend()) return;
   ensureActiveHistory();
   const createdAt = new Date().toISOString();
+  const submittedAttachments = attachments.value.map((attachment) => ({
+    ...attachment
+  }));
+  const titleSource = content || submittedAttachments[0]?.name || '';
   activeHistory.value?.messages.push({
     id: `${Date.now()}-user`,
     role: 'user',
     content,
-    createdAt
+    createdAt,
+    attachments: submittedAttachments
   });
   const assistantMessage: ChatMessage = {
     id: `${Date.now()}-assistant`,
@@ -1072,6 +1406,7 @@ const sendMessage = async () => {
   };
   activeHistory.value?.messages.push(assistantMessage);
   draft.value = '';
+  attachments.value = [];
   sending.value = true;
   startStatsTicker();
   await scrollToBottom({ force: true });
@@ -1082,7 +1417,7 @@ const sendMessage = async () => {
     if (activeHistory.value) {
       activeHistory.value.title =
         activeHistory.value.title === t('localAi.newChatTitle')
-          ? content.slice(0, 28)
+          ? titleSource.slice(0, 28)
           : activeHistory.value.title;
       activeHistory.value.updatedAt = new Date().toISOString();
       activeHistory.value.updatedAtLabel = new Date(
@@ -1093,6 +1428,8 @@ const sendMessage = async () => {
     await refreshStatus();
   } catch (error) {
     if (!stopRequested.value) {
+      draft.value = content;
+      attachments.value = submittedAttachments;
       const chatError = formatChatError(error);
       modal.msg(`${t('localAi.chatFailed')}: ${chatError}`, 'error');
       assistantMessage.error = chatError;
@@ -1101,7 +1438,7 @@ const sendMessage = async () => {
       if (activeHistory.value) {
         activeHistory.value.title =
           activeHistory.value.title === t('localAi.newChatTitle')
-            ? content.slice(0, 28)
+            ? titleSource.slice(0, 28)
             : activeHistory.value.title;
         activeHistory.value.updatedAt = new Date().toISOString();
         activeHistory.value.updatedAtLabel = new Date(
@@ -1686,6 +2023,55 @@ onUnmounted(() => {
   box-shadow: none;
 }
 
+.message-attachment-list {
+  display: grid;
+  margin-top: 8px;
+  gap: 6px;
+}
+
+.message-attachment-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  padding: 4px 7px;
+  overflow: hidden;
+  color: #475569;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #dce5f2;
+  border-radius: 7px;
+  gap: 7px;
+}
+
+.message-attachment-chip img {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.message-attachment-chip span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-file-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #5f74f3;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(95, 116, 243, 0.12);
+  border: 1px solid rgba(95, 116, 243, 0.24);
+  border-radius: 6px;
+}
+
 .user-bubble time,
 .assistant-card time {
   display: block;
@@ -1809,6 +2195,15 @@ onUnmounted(() => {
 }
 
 .markdown-body :deep(pre) {
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+}
+
+.markdown-body :deep(.code-block-shell) {
+  position: relative;
   margin: 12px 0;
   padding: 12px;
   overflow-x: auto;
@@ -1817,9 +2212,30 @@ onUnmounted(() => {
   border-radius: 8px;
 }
 
+.markdown-body :deep(.code-copy-btn) {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  color: #536174;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #d7e1ee;
+  border-radius: 6px;
+}
+
+.markdown-body :deep(.code-copy-btn:hover) {
+  color: var(--chat-primary);
+  border-color: rgba(95, 116, 243, 0.38);
+}
+
 .markdown-body :deep(pre code) {
   display: block;
-  padding: 0;
+  padding: 24px 0 0;
   color: #1f2937;
   font-size: 12px;
   line-height: 1.65;
@@ -1941,6 +2357,84 @@ onUnmounted(() => {
 .chat-input-card:focus-within {
   border-color: rgba(95, 116, 243, 0.72);
   box-shadow: none;
+}
+
+.attachment-input {
+  display: none;
+}
+
+.attachment-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  gap: 7px;
+}
+
+.attachment-preview-item {
+  display: inline-flex;
+  max-width: min(360px, 100%);
+  align-items: center;
+  padding: 5px 6px;
+  color: #334155;
+  background: #f8fbff;
+  border: 1px solid #dbe5f2;
+  border-radius: 8px;
+  gap: 8px;
+}
+
+.attachment-preview-item--error {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.attachment-preview-item img {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 7px;
+}
+
+.attachment-meta {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.attachment-meta strong,
+.attachment-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-meta strong {
+  color: #263244;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.attachment-meta small {
+  color: #7a879a;
+  font-size: 11px;
+}
+
+.attachment-preview-item button {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: #fff;
+  border: 1px solid #dbe5f2;
+  border-radius: 6px;
+}
+
+.attachment-preview-item button:hover {
+  color: #ef4444;
+  border-color: #fecaca;
 }
 
 .chat-input {

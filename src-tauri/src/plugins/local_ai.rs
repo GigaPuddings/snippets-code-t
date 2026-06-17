@@ -170,7 +170,7 @@ pub struct LocalAiServiceStatus {
 #[serde(rename_all = "camelCase")]
 pub struct LocalAiMessage {
     pub role: String,
-    pub content: String,
+    pub content: Value,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -1365,11 +1365,11 @@ pub async fn translate_text(
     let messages = vec![
         LocalAiMessage {
             role: "system".to_string(),
-            content: system_prompt,
+            content: Value::String(system_prompt),
         },
         LocalAiMessage {
             role: "user".to_string(),
-            content: text,
+            content: Value::String(text),
         },
     ];
     chat_completion(&app_handle, messages, Some(0.2), None, Some(false)).await

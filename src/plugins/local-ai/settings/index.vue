@@ -111,6 +111,22 @@
               <b>{{ modelReady ? t('common.yes') : t('common.no') }}</b>
             </div>
             <div>
+              <span>{{ t('localAi.mainModelConfigured') }}</span>
+              <b>
+                {{ selectedModelPath ? t('common.yes') : t('common.no') }}
+              </b>
+            </div>
+            <div>
+              <span>{{ t('localAi.mmprojConfigured') }}</span>
+              <b>
+                {{ selectedMmprojPath ? t('common.yes') : t('common.no') }}
+              </b>
+            </div>
+            <div>
+              <span>{{ t('localAi.visionAvailable') }}</span>
+              <b>{{ visionReady ? t('common.yes') : t('common.no') }}</b>
+            </div>
+            <div>
               <span>{{ t('localAi.serviceHealthy') }}</span>
               <b>
                 {{ serviceStatus?.healthy ? t('common.yes') : t('common.no') }}
@@ -473,6 +489,7 @@ const stopping = ref(false);
 let statusTimer: ReturnType<typeof setInterval> | null = null;
 
 const modelReady = computed(() => Boolean(modelScan.value?.selectedModelPath));
+const visionReady = computed(() => Boolean(config.value?.mmprojPath));
 const selectedModelPath = computed<string>({
   get: () => config.value?.modelPath ?? '',
   set: (value) => {
