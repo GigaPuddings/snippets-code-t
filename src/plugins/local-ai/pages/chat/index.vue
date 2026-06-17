@@ -4,39 +4,34 @@
       <header class="sidebar-header">
         <div class="sidebar-title-block">
           <h2>{{ t('localAi.chatTitle') }}</h2>
-          <p>{{ t('localAi.chatPrivacySubtitle') }}</p>
         </div>
+        <button
+          class="icon-action-btn"
+          type="button"
+          :title="t('plugins.refresh')"
+          @click="refreshAll"
+        >
+          <Refresh theme="outline" size="15" />
+        </button>
       </header>
 
-      <div class="sidebar-search">
-        <Search theme="outline" size="17" />
-        <input
-          v-model="searchQuery"
-          :placeholder="t('localAi.searchHistory')"
-        />
+      <div class="sidebar-nav">
+        <button class="sidebar-nav-item" type="button" @click="createNewChat">
+          <Edit theme="outline" size="18" />
+          <span>{{ t('localAi.newChat') }}</span>
+        </button>
+        <label class="sidebar-nav-item sidebar-nav-item--search">
+          <Search theme="outline" size="18" />
+          <input
+            v-model="searchQuery"
+            :placeholder="t('localAi.searchHistory')"
+          />
+        </label>
       </div>
 
       <section class="sidebar-section recent-section">
         <div class="section-title-row">
           <div class="section-title">{{ t('localAi.recent') }}</div>
-          <div class="sidebar-actions">
-            <button
-              class="icon-action-btn icon-action-btn--primary"
-              type="button"
-              :title="t('localAi.newChat')"
-              @click="createNewChat"
-            >
-              <Add theme="outline" size="13" />
-            </button>
-            <button
-              class="icon-action-btn"
-              type="button"
-              :title="t('plugins.refresh')"
-              @click="refreshAll"
-            >
-              <Refresh theme="outline" size="13" />
-            </button>
-          </div>
         </div>
         <div v-if="filteredHistories.length" class="chat-list">
           <div
@@ -51,7 +46,6 @@
             @click="openHistory(history.id)"
             @keydown.enter.prevent="openHistory(history.id)"
           >
-            <Message theme="outline" size="16" />
             <span class="chat-item-title">{{ history.title }}</span>
             <span class="chat-item-time">
               {{ formatHistoryTime(history.updatedAt) }}
@@ -68,40 +62,38 @@
         </div>
         <div v-else class="sidebar-empty">{{ t('common.empty') }}</div>
       </section>
+
+      <footer class="sidebar-service">
+        <div class="sidebar-service-row">
+          <span
+            :class="[
+              'status-pill',
+              serviceStatus?.healthy ? 'ready' : 'stopped'
+            ]"
+          >
+            <i></i>
+            {{ serviceStatusText }}
+          </span>
+          <button
+            class="icon-action-btn"
+            type="button"
+            :title="t('plugins.refresh')"
+            @click="refreshAll"
+          >
+            <Refresh theme="outline" size="14" />
+          </button>
+        </div>
+        <div class="service-url">
+          {{ serviceStatus?.baseUrl ?? 'http://127.0.0.1:39281' }}
+        </div>
+        <button class="sidebar-settings-btn" type="button" @click="goSettings">
+          <SettingTwo theme="outline" size="16" />
+          <span>{{ t('localAi.settings') }}</span>
+        </button>
+      </footer>
     </aside>
 
     <section class="chat-panel">
-      <header class="chat-topbar">
-        <div class="chat-topbar-main">
-          <div class="chat-title-row">
-            <h3>{{ activeHistory?.title ?? t('localAi.newChatTitle') }}</h3>
-            <span
-              :class="[
-                'status-pill',
-                serviceStatus?.healthy ? 'ready' : 'stopped'
-              ]"
-            >
-              <i></i>
-              {{ serviceStatusText }}
-            </span>
-          </div>
-          <div class="service-url">
-            {{ serviceStatus?.baseUrl ?? 'http://127.0.0.1:39281' }}
-          </div>
-        </div>
-        <div class="chat-topbar-actions">
-          <CustomButton
-            size="small"
-            plain
-            class="topbar-custom-btn"
-            @click="goSettings"
-          >
-            <SettingTwo theme="outline" size="16" />
-            <span>{{ t('localAi.settings') }}</span>
-          </CustomButton>
-        </div>
-      </header>
-
       <div
         ref="messageListRef"
         class="message-list"
@@ -153,9 +145,9 @@
                   >
                     <figure
                       v-if="attachment.type === 'image' && attachment.dataUrl"
+                      :title="attachment.name"
                     >
                       <img :src="attachment.dataUrl" :alt="attachment.name" />
-                      <figcaption>{{ attachment.name }}</figcaption>
                     </figure>
                     <span v-else class="attachment-file-icon">
                       {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
@@ -169,7 +161,6 @@
                     </span>
                   </div>
                 </div>
-                <time>{{ messageTime(display.message) }}</time>
               </div>
               <div v-if="!display.message.streaming" class="message-actions">
                 <button
@@ -199,7 +190,7 @@
             <template v-else>
               <div class="assistant-head">
                 <span>{{ currentModelDisplay }}</span>
-                <small>
+                <small v-if="display.message.streaming">
                   {{ messageActivityLabel(display.message) }}
                 </small>
               </div>
@@ -261,6 +252,9 @@
                 </div>
               </div>
               <div v-if="display.message.content" class="message-stats">
+                <span v-if="!display.message.streaming">
+                  {{ messageTime(display.message) }}
+                </span>
                 <span>
                   Context: {{ messageStats(display.message).context }}/{{
                     messageStats(display.message).contextMax
@@ -512,7 +506,6 @@
 import { useI18n } from 'vue-i18n';
 import { marked } from 'marked';
 import {
-  Add,
   Brain,
   Copy,
   Square,
@@ -521,7 +514,6 @@ import {
   Down,
   Edit,
   Like,
-  Message,
   Refresh,
   Robot,
   Search,
@@ -529,7 +521,6 @@ import {
   SettingTwo,
   Link
 } from '@icon-park/vue-next';
-import { CustomButton } from '@/components/UI';
 import {
   cancelLocalAiChatStream,
   createLocalAiStreamRequestId,
@@ -1901,7 +1892,7 @@ onUnmounted(() => {
   --chat-primary-soft: rgba(95, 116, 243, 0.12);
   --chat-muted: #707988;
   --chat-pill-bg: #f1f5fa;
-  --chat-readable-width: 1120px;
+  --chat-readable-width: 980px;
 
   display: grid;
   width: 100%;
@@ -1910,8 +1901,8 @@ onUnmounted(() => {
   padding: 4px;
   color: var(--categories-text-color, #111827);
   background: var(--chat-bg);
-  grid-template-columns: 264px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 6px;
 }
 
 .chat-sidebar,
@@ -1926,16 +1917,14 @@ onUnmounted(() => {
 .chat-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px 16px;
+  gap: 18px;
+  padding: 24px 16px 14px;
   overflow: hidden;
 }
 
 .sidebar-header,
-.chat-topbar,
 .input-toolbar,
 .sidebar-actions,
-.chat-topbar-actions,
 .input-toolbar-left,
 .input-toolbar-right {
   display: flex;
@@ -1943,14 +1932,13 @@ onUnmounted(() => {
 }
 
 .sidebar-header,
-.chat-topbar,
 .input-toolbar {
   justify-content: space-between;
   gap: 12px;
 }
 
 .sidebar-title-block h2,
-.chat-title-row h3 {
+.sidebar-nav-item {
   margin: 0;
   color: #111827;
   font-weight: 700;
@@ -1958,7 +1946,7 @@ onUnmounted(() => {
 }
 
 .sidebar-title-block h2 {
-  font-size: 18px;
+  font-size: 24px;
   line-height: 1.3;
 }
 
@@ -1969,20 +1957,20 @@ onUnmounted(() => {
 }
 
 .sidebar-actions,
-.chat-topbar-actions {
+.sidebar-service-row {
   gap: 8px;
 }
 
 .icon-action-btn,
-.topbar-btn,
 .composer-tool-btn,
-.message-actions button {
+.message-actions button,
+.sidebar-settings-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--chat-border);
-  color: #435067;
-  background: var(--chat-panel);
+  color: #111827;
+  background: transparent;
+  border: 1px solid transparent;
   transition:
     border-color 0.16s ease,
     color 0.16s ease,
@@ -1991,43 +1979,53 @@ onUnmounted(() => {
 }
 
 .icon-action-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-}
-
-.icon-action-btn--primary {
-  color: var(--chat-primary);
-  background: var(--chat-primary-soft);
-  border-color: rgba(95, 116, 243, 0.28);
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
 }
 
 .icon-action-btn:hover,
-.topbar-btn:hover,
 .composer-tool-btn:hover,
-.message-actions button:hover {
-  color: var(--chat-primary);
-  background: var(--chat-primary-soft);
-  border-color: rgba(95, 116, 243, 0.34);
+.message-actions button:hover,
+.sidebar-settings-btn:hover {
+  color: #111827;
+  background: #eef0f2;
+  border-color: #eef0f2;
 }
 
-.sidebar-search {
-  display: flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 10px;
-  color: var(--chat-muted);
-  background: var(--chat-pill-bg);
-  border: 1px solid var(--chat-border);
-  border-radius: 9px;
+.sidebar-nav {
+  display: grid;
   gap: 8px;
 }
 
-.sidebar-search input {
+.sidebar-nav-item {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 10px;
+  color: #111827;
+  font-size: 16px;
+  line-height: 1;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.sidebar-nav-item:hover,
+.sidebar-nav-item:focus-within {
+  background: #eef0f2;
+}
+
+.sidebar-nav-item--search input {
   min-width: 0;
   flex: 1;
-  color: #273449;
-  font-size: 13px;
+  color: #111827;
+  font: inherit;
   background: transparent;
   border: 0;
   outline: none;
@@ -2045,8 +2043,8 @@ onUnmounted(() => {
 }
 
 .section-title {
-  color: #64748b;
-  font-size: 13px;
+  color: #565f6d;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -2067,41 +2065,29 @@ onUnmounted(() => {
 .chat-list-item {
   position: relative;
   display: flex;
-  min-height: 34px;
+  min-height: 40px;
   align-items: center;
   border: 1px solid transparent;
-  border-radius: 8px;
-  color: #44536a;
-  font-size: 13px;
+  border-radius: 10px;
+  color: #111827;
+  font-size: 15px;
   text-align: left;
   transition:
     background-color 0.16s ease,
     color 0.16s ease,
     border-color 0.16s ease;
-  gap: 8px;
-  padding: 0 8px 0 10px;
+  gap: 10px;
+  padding: 0 10px;
   cursor: pointer;
 }
 
 .chat-list-item:hover {
-  background: #f0f6ff;
+  background: #f0f1f2;
 }
 
 .chat-list-item.active {
-  background-color: var(--search-result-active);
-  border-color: var(--search-result-active-border);
-}
-
-.chat-list-item.active::before {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 3px;
-  pointer-events: none;
-  content: '';
-  background: var(--search-result-accent);
-  border-radius: 0 999px 999px 0;
+  background: #eef0f2;
+  border-color: transparent;
 }
 
 .chat-item-title {
@@ -2113,10 +2099,7 @@ onUnmounted(() => {
 }
 
 .chat-item-time {
-  flex: 0 0 auto;
-  color: inherit;
-  opacity: 0.76;
-  font-size: 12px;
+  display: none;
 }
 
 .chat-item-delete {
@@ -2149,38 +2132,40 @@ onUnmounted(() => {
   color: var(--chat-muted);
   font-size: 13px;
   text-align: center;
-  background: #f0f6ff;
-  border: 1px dashed var(--chat-border);
-  border-radius: 9px;
+  background: #f4f5f6;
+  border: 0;
+  border-radius: 10px;
+}
+
+.sidebar-service {
+  display: grid;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #eceff3;
+  gap: 8px;
+}
+
+.sidebar-service-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-settings-btn {
+  height: 34px;
+  justify-content: flex-start;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  gap: 9px;
 }
 
 .chat-panel {
   display: flex;
   position: relative;
   flex-direction: column;
-  padding: 22px 26px 16px;
+  padding: 0 24px 16px;
   overflow: hidden;
-}
-
-.chat-topbar {
-  align-items: flex-start;
-  width: min(100%, var(--chat-readable-width));
-  margin: 0 auto;
-}
-
-.chat-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.chat-title-row h3 {
-  max-width: 58vw;
-  overflow: hidden;
-  font-size: 18px;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .status-pill {
@@ -2214,37 +2199,19 @@ onUnmounted(() => {
 }
 
 .service-url {
-  margin-top: 6px;
+  min-width: 0;
+  overflow: hidden;
   color: #66758d;
-  font-size: 13px;
-}
-
-.topbar-btn,
-.topbar-custom-btn {
-  height: 28px;
-  border-radius: 6px;
   font-size: 12px;
-  gap: 7px;
-}
-
-.topbar-custom-btn {
-  min-width: 68px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.topbar-custom-btn span {
-  white-space: nowrap;
-}
-
-.topbar-btn--icon {
-  width: 30px;
-  padding: 0;
 }
 
 .message-list {
   min-height: 0;
   flex: 1;
-  padding: 22px 0 18px;
+  padding: 14px 0 18px;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -2335,14 +2302,14 @@ onUnmounted(() => {
 
 .message-row--user .message-body {
   display: flex;
-  max-width: min(68%, 720px);
+  max-width: min(58%, 620px);
   flex-direction: column;
   align-items: flex-end;
   margin-left: auto;
 }
 
 .user-bubble {
-  padding: 12px 14px 8px;
+  padding: 10px 12px;
   color: #1f2937;
   font-size: 14px;
   line-height: 1.6;
@@ -2360,8 +2327,8 @@ onUnmounted(() => {
 .message-attachment-list {
   display: flex;
   flex-wrap: wrap;
-  margin-top: 10px;
-  gap: 10px;
+  margin-top: 8px;
+  gap: 8px;
 }
 
 .message-attachment-chip {
@@ -2379,34 +2346,29 @@ onUnmounted(() => {
 }
 
 .message-attachment-chip--image {
-  display: block;
-  width: min(280px, 100%);
+  display: inline-flex;
+  width: 64px;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   overflow: hidden;
   background: #fff;
-  border-radius: 14px;
+  border-radius: 10px;
 }
 
 .message-attachment-chip figure {
+  width: 100%;
+  height: 100%;
   margin: 0;
 }
 
 .message-attachment-chip img {
   display: block;
   width: 100%;
-  max-height: 210px;
+  height: 100%;
   object-fit: cover;
   background: #eef2f7;
-}
-
-.message-attachment-chip figcaption {
-  padding: 7px 9px;
-  overflow: hidden;
-  color: #475569;
-  font-size: 12px;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .message-attachment-chip span:last-child {
@@ -2430,15 +2392,6 @@ onUnmounted(() => {
   border-radius: 6px;
 }
 
-.user-bubble time,
-.assistant-card time {
-  display: block;
-  margin-top: 6px;
-  color: #8996aa;
-  font-size: 12px;
-  text-align: right;
-}
-
 .assistant-head {
   display: flex;
   align-items: center;
@@ -2454,7 +2407,7 @@ onUnmounted(() => {
 }
 
 .assistant-card {
-  padding: 18px 20px;
+  padding: 16px 18px;
   color: #172033;
   font-size: 14px;
   line-height: 1.68;
@@ -2735,7 +2688,7 @@ onUnmounted(() => {
   width: min(100%, var(--chat-readable-width));
   flex: 0 0 auto;
   margin: 0 auto;
-  padding: 18px 18px 16px;
+  padding: 14px 16px 14px;
   background: #fff;
   border: 1px solid #dfe5ee;
   border-radius: 24px;
@@ -2755,20 +2708,20 @@ onUnmounted(() => {
 .attachment-preview-list {
   display: flex;
   flex-wrap: wrap;
-  margin-bottom: 12px;
-  gap: 10px;
+  margin-bottom: 8px;
+  gap: 8px;
 }
 
 .attachment-preview-item {
   display: inline-flex;
-  max-width: min(340px, 100%);
+  max-width: min(260px, 100%);
   align-items: center;
-  padding: 6px;
+  padding: 4px 6px 4px 4px;
   color: #334155;
   background: #f8fbff;
   border: 1px solid #dbe5f2;
-  border-radius: 14px;
-  gap: 8px;
+  border-radius: 10px;
+  gap: 7px;
 }
 
 .attachment-preview-item--error {
@@ -2777,11 +2730,11 @@ onUnmounted(() => {
 }
 
 .attachment-preview-item img {
-  width: 76px;
-  height: 58px;
+  width: 56px;
+  height: 56px;
   flex: 0 0 auto;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .attachment-meta {
@@ -2829,8 +2782,8 @@ onUnmounted(() => {
 .chat-input {
   display: block;
   width: 100%;
-  min-height: 54px;
-  max-height: 116px;
+  min-height: 42px;
+  max-height: 104px;
   resize: none;
   color: #1f2937;
   font-size: 16px;
@@ -2960,9 +2913,12 @@ onUnmounted(() => {
     grid-template-columns: 244px minmax(0, 1fr);
   }
 
-  .chat-sidebar,
+  .chat-sidebar {
+    padding: 18px 14px 14px;
+  }
+
   .chat-panel {
-    padding: 16px;
+    padding: 0 16px 14px;
   }
 }
 
