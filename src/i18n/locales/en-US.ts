@@ -1856,7 +1856,8 @@ export default {
     you: 'You',
     youShort: 'You',
     assistant: 'AI',
-    thinking: 'Generating...',
+    thinking: 'Thinking...',
+    generating: 'Generating...',
     chatFailed: 'Local AI request failed',
     modelRuntime: 'Model and Runtime',
     modelRuntimeDesc:

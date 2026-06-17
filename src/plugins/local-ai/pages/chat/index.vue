@@ -143,11 +143,7 @@
               <div class="assistant-head">
                 <span>{{ currentModelDisplay }}</span>
                 <small>
-                  {{
-                    message.streaming
-                      ? t('localAi.thinking')
-                      : messageTime(message)
-                  }}
+                  {{ messageActivityLabel(message) }}
                 </small>
               </div>
               <div
@@ -160,15 +156,19 @@
                       message.allowThinking && messageReasoning(message.content)
                     "
                     class="reasoning-panel"
-                    :open="message.streaming"
+                    :open="message.streaming && isReasoningActive(message)"
                   >
                     <summary>
                       <span class="reasoning-summary-title">
                         <Brain theme="outline" size="14" />
-                        {{ t('localAi.reasoningTitle') }}
+                        {{ messageReasoningLabel(message) }}
                       </span>
                       <small v-if="message.streaming">
-                        {{ t('localAi.thinking') }}
+                        {{
+                          isReasoningActive(message)
+                            ? t('localAi.thinking')
+                            : t('localAi.generating')
+                        }}
                       </small>
                     </summary>
                     <div
@@ -183,7 +183,7 @@
                   ></div>
                 </div>
                 <div v-else class="message-content loading-text">
-                  {{ t('localAi.thinking') }}
+                  {{ assistantMessagePendingText(message) }}
                 </div>
               </div>
               <div v-if="message.content" class="message-stats">
@@ -408,6 +408,8 @@ interface ChatMessage {
   interrupted?: boolean;
   repetitionStopped?: boolean;
   allowThinking?: boolean;
+  reasoningStartedAt?: number;
+  reasoningEndedAt?: number;
   error?: string;
 }
 
@@ -428,7 +430,7 @@ const draft = ref('');
 const sending = ref(false);
 const refreshing = ref(false);
 const stopRequested = ref(false);
-const thinkingEnabled = ref(true);
+const thinkingEnabled = ref(false);
 const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
@@ -621,30 +623,13 @@ const changeChatModel = async () => {
     modal.msg(`${t('localAi.configSaveFailed')}: ${error}`, 'error');
   }
 };
-const withThinkingDirective = (content: string): string => {
-  const trimmed = content.trimStart();
-  if (/^\/(?:no_)?think\b/i.test(trimmed)) return content;
-  const directive =
-    thinkingEnabled.value && modelSupportsThinking.value
-      ? '/think'
-      : '/no_think';
-  return `${directive}\n${content}`;
-};
-const toApiMessages = (
-  options: { applyThinkingDirective?: boolean } = {}
-): LocalAiMessage[] => {
-  const messages = activeMessages.value.filter((message) => !message.streaming);
-  const lastUserIndex = options.applyThinkingDirective
-    ? messages.map((message) => message.role).lastIndexOf('user')
-    : -1;
-  return messages.map((message, index) => ({
-    role: message.role,
-    content:
-      index === lastUserIndex && message.role === 'user'
-        ? withThinkingDirective(message.content)
-        : message.content
-  }));
-};
+const toApiMessages = (): LocalAiMessage[] =>
+  activeMessages.value
+    .filter((message) => !message.streaming)
+    .map((message) => ({
+      role: message.role,
+      content: message.content
+    }));
 const renderMarkdown = (value: string): string => {
   const cached = markdownCache.get(value);
   if (cached) return cached;
@@ -675,6 +660,61 @@ const splitReasoning = (
 const messageReasoning = (value: string): string =>
   splitReasoning(value).reasoning;
 const messageAnswer = (value: string): string => splitReasoning(value).answer;
+const messageHasAnswer = (message: ChatMessage): boolean =>
+  Boolean(messageAnswer(message.content));
+const isReasoningActive = (message: ChatMessage): boolean =>
+  Boolean(
+    message.streaming &&
+      message.allowThinking &&
+      message.reasoningStartedAt &&
+      !message.reasoningEndedAt &&
+      !messageHasAnswer(message)
+  );
+const messageReasoningSeconds = (message: ChatMessage): string => {
+  if (!message.reasoningStartedAt) return '0.00';
+  const end =
+    message.reasoningEndedAt ??
+    (message.streaming ? statsTick.value : Date.now());
+  return Math.max(0, (end - message.reasoningStartedAt) / 1000).toFixed(2);
+};
+const messageReasoningLabel = (message: ChatMessage): string => {
+  if (!message.reasoningStartedAt && message.streaming) {
+    return t('localAi.reasoningTitle');
+  }
+  return t('localAi.thoughtFor', {
+    seconds: messageReasoningSeconds(message)
+  });
+};
+const messageTimestamp = (message: ChatMessage): Date => {
+  return new Date(
+    message.createdAt || activeHistory.value?.updatedAt || Date.now()
+  );
+};
+const messageTime = (message: ChatMessage): string => {
+  return messageTimestamp(message).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+const messageActivityLabel = (message: ChatMessage): string => {
+  if (!message.streaming) return messageTime(message);
+  if (isReasoningActive(message)) return t('localAi.thinking');
+  return t('localAi.generating');
+};
+const assistantMessagePendingText = (message: ChatMessage): string => {
+  if (message.allowThinking && !message.reasoningEndedAt)
+    return t('localAi.thinking');
+  return t('localAi.generating');
+};
+const recordReasoningProgress = (message: ChatMessage, delta: string): void => {
+  if (!message.allowThinking) return;
+  if (delta.includes('<think>') && !message.reasoningStartedAt) {
+    message.reasoningStartedAt = Date.now();
+  }
+  if (delta.includes('</think>') && !message.reasoningEndedAt) {
+    message.reasoningEndedAt = Date.now();
+  }
+};
 const estimateTokens = (value: string): number => {
   const text = value.trim();
   if (!text) return 0;
@@ -693,11 +733,6 @@ const estimateChatTokens = (messages: LocalAiMessage[]): number =>
   estimateTokens(
     messages.map((message) => `${message.role}: ${message.content}`).join('\n')
   );
-const messageTimestamp = (message: ChatMessage): Date => {
-  return new Date(
-    message.createdAt || activeHistory.value?.updatedAt || Date.now()
-  );
-};
 const messageStats = (message: ChatMessage) => {
   const now = statsTick.value;
   const index = activeMessages.value.findIndex(
@@ -833,6 +868,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
 
   const enqueueContent = (value: string) => {
     if (!value) return;
+    recordReasoningProgress(assistantMessage, value);
     queuedContent += value;
     if (pumpTimer !== null) return;
     pumpTimer = window.setTimeout(() => {
@@ -850,7 +886,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
 
   const response = await streamChatWithLocalAi(
     {
-      messages: toApiMessages({ applyThinkingDirective: true }),
+      messages: toApiMessages(),
       enableThinking: assistantMessage.allowThinking === true
     },
     (delta) => {
@@ -924,9 +960,7 @@ const sendMessage = async () => {
     createdAt: new Date().toISOString(),
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
-    promptTokens: estimateChatTokens(
-      toApiMessages({ applyThinkingDirective: true })
-    )
+    promptTokens: estimateChatTokens(toApiMessages())
   };
   activeHistory.value?.messages.push(assistantMessage);
   draft.value = '';
@@ -979,12 +1013,6 @@ const sendMessage = async () => {
 };
 const goSettings = () => {
   window.location.hash = '#/config/category/settings?tab=localAi';
-};
-const messageTime = (message: ChatMessage): string => {
-  return messageTimestamp(message).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
 };
 const formatHistoryTime = (iso: string): string => {
   const value = new Date(iso);
@@ -1047,9 +1075,7 @@ const regenerateMessage = async (messageId: string) => {
     createdAt: new Date().toISOString(),
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
-    promptTokens: estimateChatTokens(
-      toApiMessages({ applyThinkingDirective: true })
-    )
+    promptTokens: estimateChatTokens(toApiMessages())
   };
   current.messages.push(assistantMessage);
   sending.value = true;

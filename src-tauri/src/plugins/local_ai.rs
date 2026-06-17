@@ -942,7 +942,11 @@ fn extract_stream_stats(value: &Value) -> Option<LocalAiChatStreamStats> {
     })
 }
 
-fn extract_stream_delta(value: &Value, reasoning_open: &mut bool) -> Option<String> {
+fn extract_stream_delta(
+    value: &Value,
+    reasoning_open: &mut bool,
+    enable_thinking: bool,
+) -> Option<String> {
     let message = value
         .get("choices")
         .and_then(|choices| choices.as_array())
@@ -954,6 +958,9 @@ fn extract_stream_delta(value: &Value, reasoning_open: &mut bool) -> Option<Stri
         .and_then(|content| content.as_str())
         .filter(|content| !content.is_empty())
     {
+        if !enable_thinking {
+            return None;
+        }
         if *reasoning_open {
             return Some(reasoning.to_string());
         }
@@ -1106,7 +1113,11 @@ async fn chat_completion_stream(
             if let Some(stats) = extract_stream_stats(&value) {
                 emit_chat_stream(&window, &request_id, "stats", None, None, Some(stats));
             }
-            if let Some(delta) = extract_stream_delta(&value, &mut reasoning_open) {
+            if let Some(delta) = extract_stream_delta(
+                &value,
+                &mut reasoning_open,
+                enable_thinking.unwrap_or(false),
+            ) {
                 content.push_str(&delta);
                 emit_chat_stream(&window, &request_id, "delta", Some(delta), None, None);
             }

@@ -1796,7 +1796,7 @@ export default {
     yesterday: '昨天',
     daysAgo: '{count} 天前',
     weeksAgo: '{count} 周前',
-    thoughtFor: 'Thought for {seconds} seconds',
+    thoughtFor: '思考 {seconds} 秒',
     regenerate: '重新生成',
     like: '点赞',
     dislike: '点踩',
@@ -1824,7 +1824,8 @@ export default {
     you: '你',
     youShort: '你',
     assistant: 'AI',
-    thinking: '正在生成...',
+    thinking: '思考中...',
+    generating: '正在回答...',
     chatFailed: '本地 AI 请求失败',
     modelRuntime: '模型与运行时',
     modelRuntimeDesc:
