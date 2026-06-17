@@ -278,21 +278,25 @@
                   </div>
                 </div>
                 <div v-if="display.message.content" class="message-stats">
-                  <span>
+                  <span class="message-stats__context">
                     {{ t('localAi.contextLabel') }}:
                     {{ messageStats(display.message).context }}/{{
                       messageStats(display.message).contextMax
                     }}
                     ({{ messageStats(display.message).contextPercent }}%)
                   </span>
-                  <span>
+                  <span class="message-stats__output">
                     {{ t('localAi.outputLabel') }}:
                     {{ messageStats(display.message).output }}/{{
                       messageStats(display.message).outputMax
                     }}
                   </span>
-                  <span>{{ messageStats(display.message).seconds }}s</span>
-                  <span>{{ messageStats(display.message).speed }} t/s</span>
+                  <span class="message-stats__elapsed">
+                    {{ messageStats(display.message).seconds }}s
+                  </span>
+                  <span class="message-stats__speed">
+                    {{ messageStats(display.message).speed }} t/s
+                  </span>
                   <span
                     v-if="!display.message.streaming"
                     class="message-stats-time"
@@ -656,6 +660,8 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const statsTick = ref(Date.now());
 let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
+let scrollFrameId: number | null = null;
+let scrollFrameForce = false;
 const markdownCache = new Map<string, string>();
 const markdownCodeCache = new Map<string, string>();
 const streamingMarkdownSnapshots = new Map<string, StreamingMarkdownSnapshot>();
@@ -664,6 +670,8 @@ const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const MIN_ASSISTANT_TAIL_TOKENS = 160;
 const STREAM_MARKDOWN_RENDER_INTERVAL_MS = 120;
 const STREAM_MARKDOWN_RENDER_CHAR_DELTA = 480;
+const STREAM_PUMP_INTERVAL_MS = 64;
+const STREAM_STATS_TICK_MS = 1000;
 
 interface StreamingMarkdownSnapshot {
   source: string;
@@ -918,8 +926,21 @@ const scrollToBottom = async (options: { force?: boolean } = {}) => {
   await nextTick();
   const list = messageListRef.value;
   if (!list || (!options.force && !autoFollowMessages.value)) return;
-  list.scrollTop = list.scrollHeight;
-  syncMessageScrollState();
+  scrollFrameForce = scrollFrameForce || options.force === true;
+  if (scrollFrameId !== null) return;
+
+  scrollFrameId = window.requestAnimationFrame(() => {
+    scrollFrameId = null;
+    const target = messageListRef.value;
+    const force = scrollFrameForce;
+    scrollFrameForce = false;
+    if (!target || (!force && !autoFollowMessages.value)) return;
+    const nextTop = Math.max(0, target.scrollHeight - target.clientHeight);
+    if (Math.abs(target.scrollTop - nextTop) > 1) {
+      target.scrollTop = nextTop;
+    }
+    syncMessageScrollState();
+  });
 };
 const forceScrollToBottom = () => {
   autoFollowMessages.value = true;
@@ -1492,8 +1513,8 @@ const messageContextLimit = (message: ChatMessage): number =>
     1,
     message.stats?.ctxSize ??
       message.contextSize ??
-      serviceStatus.value?.ctxSize ??
       config.value?.ctxSize ??
+      serviceStatus.value?.ctxSize ??
       4096
   );
 const messageStats = (message: ChatMessage) => {
@@ -1513,8 +1534,7 @@ const messageStats = (message: ChatMessage) => {
   const output =
     message.stats?.completionTokens ?? estimateTokens(message.content);
   const contextMax = messageContextLimit(message);
-  const rawContext = message.stats?.totalTokens ?? promptTokens + output;
-  const context = Math.min(rawContext, contextMax);
+  const context = Math.min(promptTokens, contextMax);
   const elapsedSeconds = Math.max(
     0,
     (message.stats?.generationTimeMs ??
@@ -1593,7 +1613,7 @@ const startStatsTicker = () => {
   statsTick.value = Date.now();
   statsTimer = setInterval(() => {
     statsTick.value = Date.now();
-  }, 250);
+  }, STREAM_STATS_TICK_MS);
 };
 const stopStatsTicker = () => {
   if (!statsTimer) return;
@@ -1649,7 +1669,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
       pump().catch((error) =>
         logger.warn('[LocalAI] stream pump failed', error)
       );
-    }, 48);
+    }, STREAM_PUMP_INTERVAL_MS);
   };
 
   const enqueueContent = (value: string) => {
@@ -2043,6 +2063,10 @@ watch(modelSupportsThinking, (supported) => {
 });
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer);
+  if (scrollFrameId !== null) {
+    window.cancelAnimationFrame(scrollFrameId);
+    scrollFrameId = null;
+  }
   if (currentStreamRequestId.value) {
     void cancelLocalAiChatStream(currentStreamRequestId.value);
   }
@@ -2845,10 +2869,37 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  min-height: 18px;
   margin-top: 8px;
   color: #7c8799;
   font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
   gap: 14px;
+}
+
+.message-stats span {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.message-stats__context {
+  min-width: 156px;
+}
+
+.message-stats__output {
+  min-width: 86px;
+}
+
+.message-stats__elapsed {
+  min-width: 48px;
+  text-align: right;
+}
+
+.message-stats__speed {
+  min-width: 58px;
+  text-align: right;
 }
 
 .message-stats-time {

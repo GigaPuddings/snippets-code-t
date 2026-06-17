@@ -1217,9 +1217,7 @@ async fn chat_completion_stream(
         cancels.insert(request_id.clone(), Arc::clone(&cancel_flag));
     }
 
-    let actual_ctx_size = server_context_size(&base_url(&config))
-        .await
-        .unwrap_or(config.ctx_size);
+    let request_ctx_size = config.ctx_size;
     emit_chat_stream(
         &window,
         &request_id,
@@ -1230,7 +1228,7 @@ async fn chat_completion_stream(
             prompt_tokens: None,
             completion_tokens: None,
             total_tokens: None,
-            ctx_size: Some(actual_ctx_size),
+            ctx_size: Some(request_ctx_size),
             generation_time_ms: None,
             tokens_per_second: None,
             finish_reason: None,
@@ -1339,7 +1337,7 @@ async fn chat_completion_stream(
 
             let value = serde_json::from_str::<Value>(data)
                 .map_err(|error| format!("解析本地 AI 流响应失败: {}", error))?;
-            if let Some(stats) = extract_stream_stats(&value, actual_ctx_size) {
+            if let Some(stats) = extract_stream_stats(&value, request_ctx_size) {
                 emit_chat_stream(&window, &request_id, "stats", None, None, Some(stats));
             }
             if let Some(delta) = extract_stream_delta(
