@@ -262,9 +262,14 @@
           </div>
           <div class="input-toolbar-right">
             <span class="input-hint">Ctrl + Enter</span>
-            <button class="send-btn" type="submit" :disabled="!canSend">
-              <Send theme="outline" size="16" />
-              <span>{{ t('localAi.send') }}</span>
+            <button
+              class="send-btn"
+              type="submit"
+              :disabled="!canSend"
+              :title="t('localAi.send')"
+              :aria-label="t('localAi.send')"
+            >
+              <Send theme="outline" size="15" />
             </button>
           </div>
         </div>
@@ -339,7 +344,9 @@ const refreshing = ref(false);
 const config = ref<LocalAiConfig | null>(null);
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
+const statsTick = ref(Date.now());
 let statusTimer: ReturnType<typeof setInterval> | null = null;
+let statsTimer: ReturnType<typeof setInterval> | null = null;
 const markdownCache = new Map<string, string>();
 
 const canSend = computed(() => Boolean(draft.value.trim()) && !sending.value);
@@ -512,6 +519,7 @@ const messageAnswer = (value: string): string => splitReasoning(value).answer;
 const estimateTokens = (value: string): number =>
   value.trim() ? Math.max(1, Math.ceil(value.length / 2.2)) : 0;
 const messageStats = (message: ChatMessage) => {
+  const now = statsTick.value;
   const index = activeMessages.value.findIndex((item) => item.id === message.id);
   const context = estimateTokens(
     activeMessages.value
@@ -522,7 +530,7 @@ const messageStats = (message: ChatMessage) => {
   const output = estimateTokens(message.content);
   const contextMax = config.value?.ctxSize ?? 4096;
   const elapsedSeconds =
-    (message.elapsedMs ?? Date.now() - messageTimestamp(message).getTime()) / 1000;
+    (message.elapsedMs ?? now - messageTimestamp(message).getTime()) / 1000;
 
   return {
     context,
@@ -532,6 +540,19 @@ const messageStats = (message: ChatMessage) => {
     seconds: elapsedSeconds.toFixed(1),
     speed: elapsedSeconds > 0 ? (output / elapsedSeconds).toFixed(1) : '0.0'
   };
+};
+const startStatsTicker = () => {
+  if (statsTimer) return;
+  statsTick.value = Date.now();
+  statsTimer = setInterval(() => {
+    statsTick.value = Date.now();
+  }, 250);
+};
+const stopStatsTicker = () => {
+  if (!statsTimer) return;
+  clearInterval(statsTimer);
+  statsTimer = null;
+  statsTick.value = Date.now();
 };
 const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   const startedAt = performance.now();
@@ -598,6 +619,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   }
   assistantMessage.streaming = false;
   assistantMessage.elapsedMs = performance.now() - startedAt;
+  statsTick.value = Date.now();
 };
 const sendMessage = async () => {
   const content = draft.value.trim();
@@ -620,6 +642,7 @@ const sendMessage = async () => {
   activeHistory.value?.messages.push(assistantMessage);
   draft.value = '';
   sending.value = true;
+  startStatsTicker();
   await scrollToBottom();
 
   try {
@@ -642,6 +665,7 @@ const sendMessage = async () => {
     assistantMessage.content = String(error);
   } finally {
     sending.value = false;
+    stopStatsTicker();
     await scrollToBottom();
   }
 };
@@ -726,6 +750,7 @@ const regenerateMessage = async (messageId: string) => {
   };
   current.messages.push(assistantMessage);
   sending.value = true;
+  startStatsTicker();
   await scrollToBottom();
   try {
     await streamAssistantMessage(assistantMessage);
@@ -738,6 +763,7 @@ const regenerateMessage = async (messageId: string) => {
     assistantMessage.content = String(error);
   } finally {
     sending.value = false;
+    stopStatsTicker();
     await scrollToBottom();
   }
 };
@@ -752,6 +778,7 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer);
+  stopStatsTicker();
 });
 </script>
 
@@ -1455,18 +1482,24 @@ onUnmounted(() => {
 
 .send-btn {
   display: inline-flex;
-  width: 82px;
+  width: 32px;
   height: 32px;
   align-items: center;
   justify-content: center;
-  padding: 0 14px;
+  padding: 0;
   color: #fff;
-  font-size: 13px;
   background: var(--chat-primary);
   border: 0;
-  border-radius: 6px;
+  border-radius: 9px;
   box-shadow: none;
-  gap: 7px;
+  transition:
+    background-color 0.16s ease,
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.send-btn:not(:disabled):active {
+  transform: scale(0.96);
 }
 
 .send-btn:not(:disabled):hover {
@@ -1475,7 +1508,8 @@ onUnmounted(() => {
 
 .send-btn:disabled {
   cursor: not-allowed;
-  background: #b7c1fb;
+  color: #7c8799;
+  background: #eef2f7;
   box-shadow: none;
 }
 

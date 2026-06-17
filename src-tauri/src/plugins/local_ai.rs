@@ -1,6 +1,9 @@
 use futures::StreamExt;
 use log::{info, warn};
-use reqwest::Client;
+use reqwest::{
+    header::{ACCEPT, CACHE_CONTROL},
+    Client,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::{self, OpenOptions};
@@ -854,6 +857,8 @@ async fn chat_completion_stream(
 
     let response = client
         .post(url)
+        .header(ACCEPT, "text/event-stream")
+        .header(CACHE_CONTROL, "no-cache")
         .json(&body)
         .send()
         .await
