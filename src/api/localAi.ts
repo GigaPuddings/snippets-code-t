@@ -21,6 +21,11 @@ export interface LocalAiConfig {
   idleTimeoutMinutes: number;
   keepAlive: boolean;
   temperature: number;
+  topP: number;
+  topK: number;
+  minP: number;
+  repeatPenalty: number;
+  repeatLastN: number;
   maxTokens: number;
   requestTimeoutSecs: number;
 }
@@ -192,7 +197,9 @@ export async function streamChatWithLocalAi(
   }
 }
 
-export async function cancelLocalAiChatStream(requestId: string): Promise<boolean> {
+export async function cancelLocalAiChatStream(
+  requestId: string
+): Promise<boolean> {
   return await invoke<boolean>('local_ai_cancel_chat_stream', { requestId });
 }
 
@@ -203,13 +210,17 @@ export async function getLocalAiChatHistories(): Promise<LocalAiChatHistory[]> {
 export async function saveLocalAiChatHistory(
   history: LocalAiChatHistory
 ): Promise<LocalAiChatHistory[]> {
-  return await invoke<LocalAiChatHistory[]>('local_ai_save_chat_history', { history });
+  return await invoke<LocalAiChatHistory[]>('local_ai_save_chat_history', {
+    history
+  });
 }
 
 export async function deleteLocalAiChatHistory(
   historyId: string
 ): Promise<LocalAiChatHistory[]> {
-  return await invoke<LocalAiChatHistory[]>('local_ai_delete_chat_history', { historyId });
+  return await invoke<LocalAiChatHistory[]>('local_ai_delete_chat_history', {
+    historyId
+  });
 }
 
 export async function translateWithLocalAi(

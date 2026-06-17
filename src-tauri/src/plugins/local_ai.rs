@@ -57,8 +57,38 @@ pub struct LocalAiConfig {
     pub idle_timeout_minutes: u32,
     pub keep_alive: bool,
     pub temperature: f32,
+    #[serde(default = "default_top_p")]
+    pub top_p: f32,
+    #[serde(default = "default_top_k")]
+    pub top_k: u32,
+    #[serde(default = "default_min_p")]
+    pub min_p: f32,
+    #[serde(default = "default_repeat_penalty")]
+    pub repeat_penalty: f32,
+    #[serde(default = "default_repeat_last_n")]
+    pub repeat_last_n: u32,
     pub max_tokens: u32,
     pub request_timeout_secs: u32,
+}
+
+fn default_top_p() -> f32 {
+    0.85
+}
+
+fn default_top_k() -> u32 {
+    40
+}
+
+fn default_min_p() -> f32 {
+    0.05
+}
+
+fn default_repeat_penalty() -> f32 {
+    1.12
+}
+
+fn default_repeat_last_n() -> u32 {
+    256
 }
 
 impl Default for LocalAiConfig {
@@ -86,6 +116,11 @@ impl Default for LocalAiConfig {
             idle_timeout_minutes: 10,
             keep_alive: false,
             temperature: 0.3,
+            top_p: default_top_p(),
+            top_k: default_top_k(),
+            min_p: default_min_p(),
+            repeat_penalty: default_repeat_penalty(),
+            repeat_last_n: default_repeat_last_n(),
             max_tokens: 0,
             request_timeout_secs: 600,
         }
@@ -792,6 +827,11 @@ async fn chat_completion(
         "model": "local-ai",
         "messages": messages,
         "temperature": temperature.unwrap_or(config.temperature),
+        "top_p": config.top_p,
+        "top_k": config.top_k,
+        "min_p": config.min_p,
+        "repeat_penalty": config.repeat_penalty,
+        "repeat_last_n": config.repeat_last_n,
         "max_tokens": completion_token_limit(&config, max_tokens),
         "stream": false
     });
@@ -964,6 +1004,11 @@ async fn chat_completion_stream(
         "model": "local-ai",
         "messages": messages,
         "temperature": temperature.unwrap_or(config.temperature),
+        "top_p": config.top_p,
+        "top_k": config.top_k,
+        "min_p": config.min_p,
+        "repeat_penalty": config.repeat_penalty,
+        "repeat_last_n": config.repeat_last_n,
         "max_tokens": completion_token_limit(&config, max_tokens),
         "stream": true,
         "stream_options": {

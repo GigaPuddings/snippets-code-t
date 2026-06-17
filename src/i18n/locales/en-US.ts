@@ -1846,6 +1846,8 @@ export default {
     streamInterrupted:
       'The generation stream disconnected before completion. The partial response above was kept.',
     generationStopped: 'Generation stopped.',
+    repetitionStopped:
+      'A repetitive output loop was detected, so generation was stopped automatically.',
     reasoningTitle: 'Think',
     thinkingEnabled: 'Thinking is on',
     thinkingDisabled: 'Thinking is off',
@@ -1900,8 +1902,14 @@ export default {
     idleTimeout: 'Idle minutes',
     requestTimeout: 'Request seconds',
     generation: 'Generation',
-    generationDesc: 'Control default temperature and max tokens per response',
+    generationDesc:
+      'Control sampling, repetition penalty, and max tokens per response',
     temperature: 'Temperature',
+    topP: 'Top P',
+    topK: 'Top K',
+    minP: 'Min P',
+    repeatPenalty: 'Repeat penalty',
+    repeatLastN: 'Penalty window',
     maxTokens: 'Max tokens (0=unlimited)',
     port: 'Port',
     runtimeReady: 'Runtime ready',

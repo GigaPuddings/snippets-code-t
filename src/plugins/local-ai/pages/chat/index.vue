@@ -404,6 +404,7 @@ interface ChatMessage {
   stats?: LocalAiChatStreamStats;
   stopped?: boolean;
   interrupted?: boolean;
+  repetitionStopped?: boolean;
   error?: string;
 }
 
@@ -706,11 +707,34 @@ const messageStats = (message: ChatMessage) => {
   };
 };
 const messageWarningText = (message: ChatMessage): string => {
+  if (message.repetitionStopped) return t('localAi.repetitionStopped');
   if (message.interrupted) return t('localAi.streamInterrupted');
   if (message.stopped) return t('localAi.generationStopped');
   if (message.stats?.finishReason === 'length')
     return t('localAi.outputLimitReached');
   return '';
+};
+const hasRepetitionLoop = (value: string): boolean => {
+  const text = value.replace(/\s+/g, ' ').trim();
+  if (text.length < 220) return false;
+  const tail = text.slice(-800);
+  const tokens =
+    tail
+      .match(/[A-Za-z_$][\w$-]*|[\u3400-\u9fff\uf900-\ufaff]{1,4}/g)
+      ?.map((token) => token.toLowerCase()) ?? [];
+  if (tokens.length < 36) return false;
+
+  for (let size = 1; size <= 8; size += 1) {
+    const pattern = tokens.slice(-size).join('\u0000');
+    let repeats = 1;
+    for (let index = tokens.length - size * 2; index >= 0; index -= size) {
+      if (tokens.slice(index, index + size).join('\u0000') !== pattern) break;
+      repeats += 1;
+    }
+    if (repeats >= Math.max(5, Math.ceil(18 / size))) return true;
+  }
+
+  return false;
 };
 const startStatsTicker = () => {
   if (statsTimer) return;
@@ -732,6 +756,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   let pumpTimer: number | null = null;
   let drainResolver: (() => void) | null = null;
   let receivedDelta = false;
+  let repetitionStopRequested = false;
   currentStreamRequestId.value = requestId;
   stopRequested.value = false;
 
@@ -750,6 +775,18 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
         : 6;
     assistantMessage.content += queuedContent.slice(0, take);
     queuedContent = queuedContent.slice(take);
+    if (
+      !repetitionStopRequested &&
+      !stopRequested.value &&
+      hasRepetitionLoop(assistantMessage.content)
+    ) {
+      repetitionStopRequested = true;
+      stopRequested.value = true;
+      assistantMessage.repetitionStopped = true;
+      void cancelLocalAiChatStream(requestId).catch((error) =>
+        logger.warn('[LocalAI] repetition stop failed', error)
+      );
+    }
     await scrollToBottom();
     pumpTimer = window.setTimeout(() => {
       pump().catch((error) =>
