@@ -444,6 +444,8 @@ let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
 const markdownCache = new Map<string, string>();
 const MESSAGE_BOTTOM_THRESHOLD = 96;
+const RESPONSE_RESERVE_TOKENS = 512;
+const MIN_ASSISTANT_TAIL_TOKENS = 160;
 
 const canSend = computed(() => Boolean(draft.value.trim()) && !sending.value);
 const serviceStatusText = computed(() => {
@@ -468,6 +470,12 @@ const currentModelDisplay = computed(
     t('localAi.localModel')
 );
 const availableChatModels = computed(() => modelScan.value?.mainModels ?? []);
+const effectiveContextLimit = computed(
+  () => serviceStatus.value?.ctxSize ?? config.value?.ctxSize ?? 4096
+);
+const requestContextBudget = computed(() =>
+  Math.max(512, effectiveContextLimit.value - RESPONSE_RESERVE_TOKENS)
+);
 const modelSupportsThinking = computed(() => {
   const name = currentModelDisplay.value.toLowerCase();
   return /\b(qwen3|deepseek-r1|r1-|reasoning|thinking|think)\b/i.test(name);
@@ -623,13 +631,6 @@ const changeChatModel = async () => {
     modal.msg(`${t('localAi.configSaveFailed')}: ${error}`, 'error');
   }
 };
-const toApiMessages = (): LocalAiMessage[] =>
-  activeMessages.value
-    .filter((message) => !message.streaming)
-    .map((message) => ({
-      role: message.role,
-      content: message.content
-    }));
 const renderMarkdown = (value: string): string => {
   const cached = markdownCache.get(value);
   if (cached) return cached;
@@ -733,6 +734,74 @@ const estimateChatTokens = (messages: LocalAiMessage[]): number =>
   estimateTokens(
     messages.map((message) => `${message.role}: ${message.content}`).join('\n')
   );
+const truncateContentForBudget = (content: string, budgetTokens: number) => {
+  const maxChars = Math.max(240, budgetTokens * 4);
+  if (content.length <= maxChars) return content;
+  return `${t('localAi.previousAnswerTail')}\n\n${content.slice(-maxChars)}`;
+};
+const compactMessagesForBudget = (
+  messages: LocalAiMessage[],
+  tokenBudget: number
+): LocalAiMessage[] => {
+  const compacted: LocalAiMessage[] = [];
+  let usedTokens = 0;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const messageTokens = estimateChatTokens([message]);
+
+    if (usedTokens + messageTokens <= tokenBudget || compacted.length === 0) {
+      compacted.unshift(message);
+      usedTokens += messageTokens;
+      continue;
+    }
+
+    const remainingTokens = tokenBudget - usedTokens;
+    if (
+      message.role !== 'assistant' ||
+      remainingTokens < MIN_ASSISTANT_TAIL_TOKENS
+    ) {
+      continue;
+    }
+
+    let tailBudget = remainingTokens;
+    let truncatedMessage = {
+      ...message,
+      content: truncateContentForBudget(message.content, tailBudget)
+    };
+    let truncatedTokens = estimateChatTokens([truncatedMessage]);
+    while (
+      truncatedTokens > remainingTokens &&
+      tailBudget > MIN_ASSISTANT_TAIL_TOKENS
+    ) {
+      tailBudget = Math.max(
+        MIN_ASSISTANT_TAIL_TOKENS,
+        Math.floor(tailBudget * 0.7)
+      );
+      truncatedMessage = {
+        ...message,
+        content: truncateContentForBudget(message.content, tailBudget)
+      };
+      truncatedTokens = estimateChatTokens([truncatedMessage]);
+    }
+    if (usedTokens + truncatedTokens <= tokenBudget) {
+      compacted.unshift(truncatedMessage);
+      usedTokens += truncatedTokens;
+    }
+  }
+
+  return compacted;
+};
+const toApiMessages = (): LocalAiMessage[] =>
+  compactMessagesForBudget(
+    activeMessages.value
+      .filter((message) => !message.streaming)
+      .map((message) => ({
+        role: message.role,
+        content: message.content
+      })),
+    requestContextBudget.value
+  );
 const messageStats = (message: ChatMessage) => {
   const now = statsTick.value;
   const index = activeMessages.value.findIndex(
@@ -750,11 +819,13 @@ const messageStats = (message: ChatMessage) => {
   const output =
     message.stats?.completionTokens ?? estimateTokens(message.content);
   const context = message.stats?.totalTokens ?? promptTokens + output;
-  const contextMax = config.value?.ctxSize ?? 4096;
-  const elapsedSeconds =
+  const contextMax = effectiveContextLimit.value;
+  const elapsedSeconds = Math.max(
+    0,
     (message.stats?.generationTimeMs ??
       message.elapsedMs ??
-      now - messageTimestamp(message).getTime()) / 1000;
+      now - messageTimestamp(message).getTime()) / 1000
+  );
   const speed =
     message.stats?.tokensPerSecond ??
     (elapsedSeconds > 0 ? output / elapsedSeconds : 0);
@@ -776,9 +847,21 @@ const messageWarningText = (message: ChatMessage): string => {
   if (message.repetitionStopped) return t('localAi.repetitionStopped');
   if (message.interrupted) return t('localAi.streamInterrupted');
   if (message.stopped) return t('localAi.generationStopped');
+  if (
+    message.stats?.totalTokens &&
+    message.stats.totalTokens >= effectiveContextLimit.value - 8
+  )
+    return t('localAi.contextLimitReached');
   if (message.stats?.finishReason === 'length')
     return t('localAi.outputLimitReached');
   return '';
+};
+const formatChatError = (error: unknown): string => {
+  const message = String(error);
+  if (/exceeds the available context size|exceed_context_size/i.test(message)) {
+    return t('localAi.contextExceeded');
+  }
+  return message;
 };
 const hasRepetitionLoop = (value: string): boolean => {
   const text = value.replace(/\s+/g, ' ').trim();
@@ -967,6 +1050,7 @@ const sendMessage = async () => {
   sending.value = true;
   startStatsTicker();
   await scrollToBottom({ force: true });
+  const startedAt = performance.now();
 
   try {
     await streamAssistantMessage(assistantMessage);
@@ -984,11 +1068,11 @@ const sendMessage = async () => {
     await refreshStatus();
   } catch (error) {
     if (!stopRequested.value) {
-      modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error');
-      assistantMessage.error = String(error);
+      const chatError = formatChatError(error);
+      modal.msg(`${t('localAi.chatFailed')}: ${chatError}`, 'error');
+      assistantMessage.error = chatError;
       assistantMessage.interrupted = Boolean(assistantMessage.content.trim());
-      if (!assistantMessage.interrupted)
-        assistantMessage.content = String(error);
+      if (!assistantMessage.interrupted) assistantMessage.content = chatError;
       if (activeHistory.value) {
         activeHistory.value.title =
           activeHistory.value.title === t('localAi.newChatTitle')
@@ -1002,8 +1086,7 @@ const sendMessage = async () => {
       }
     }
     assistantMessage.streaming = false;
-    assistantMessage.elapsedMs =
-      performance.now() - messageTimestamp(assistantMessage).getTime();
+    assistantMessage.elapsedMs = performance.now() - startedAt;
   } finally {
     sending.value = false;
     currentStreamRequestId.value = null;
@@ -1081,6 +1164,7 @@ const regenerateMessage = async (messageId: string) => {
   sending.value = true;
   startStatsTicker();
   await scrollToBottom({ force: true });
+  const startedAt = performance.now();
   try {
     await streamAssistantMessage(assistantMessage);
     current.updatedAt = new Date().toISOString();
@@ -1088,18 +1172,17 @@ const regenerateMessage = async (messageId: string) => {
     await persistActiveHistory();
   } catch (error) {
     if (!stopRequested.value) {
-      modal.msg(`${t('localAi.chatFailed')}: ${error}`, 'error');
-      assistantMessage.error = String(error);
+      const chatError = formatChatError(error);
+      modal.msg(`${t('localAi.chatFailed')}: ${chatError}`, 'error');
+      assistantMessage.error = chatError;
       assistantMessage.interrupted = Boolean(assistantMessage.content.trim());
-      if (!assistantMessage.interrupted)
-        assistantMessage.content = String(error);
+      if (!assistantMessage.interrupted) assistantMessage.content = chatError;
       current.updatedAt = new Date().toISOString();
       current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
       await persistActiveHistory();
     }
     assistantMessage.streaming = false;
-    assistantMessage.elapsedMs =
-      performance.now() - messageTimestamp(assistantMessage).getTime();
+    assistantMessage.elapsedMs = performance.now() - startedAt;
   } finally {
     sending.value = false;
     currentStreamRequestId.value = null;

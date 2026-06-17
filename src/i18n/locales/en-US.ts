@@ -1843,11 +1843,17 @@ export default {
     stopGenerating: 'Stop generating',
     outputLimitReached:
       'Reached the per-response output limit. Set max tokens to 0 in Settings to remove the limit.',
+    contextLimitReached:
+      'Reached the context limit of the running service. Make sure the service restarted with the latest context setting, or increase the context length and continue.',
     streamInterrupted:
       'The generation stream disconnected before completion. The partial response above was kept.',
+    contextExceeded:
+      'The request exceeded the actual context length of the running service. If settings were just changed, the service will restart with the latest settings; resend the message, or increase the context length / start a fresh chat if it continues.',
     generationStopped: 'Generation stopped.',
     repetitionStopped:
       'A repetitive output loop was detected, so generation was stopped automatically.',
+    previousAnswerTail:
+      '[Previous response was too long; only its tail is kept for continuation]',
     reasoningTitle: 'Think',
     thinkingEnabled: 'Thinking is on',
     thinkingDisabled: 'Thinking is off',

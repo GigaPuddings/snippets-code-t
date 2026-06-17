@@ -1812,10 +1812,15 @@ export default {
     stopGenerating: '停止生成',
     outputLimitReached:
       '已达到单次输出上限，可在设置中把最大 token 设为 0 取消限制。',
+    contextLimitReached:
+      '已达到当前运行服务的上下文上限。请确认服务已按最新上下文配置重启，或提高上下文长度后继续。',
     streamInterrupted:
       '生成流在完成前断开，已保留上方已生成内容，可重新生成或继续追问。',
+    contextExceeded:
+      '请求超过了当前运行服务的实际上下文长度。如果刚调整过配置，服务会按最新配置自动重启；请重新发送，仍出现时请提高上下文长度或开启新会话。',
     generationStopped: '已停止生成。',
     repetitionStopped: '检测到模型开始重复输出，已自动停止生成。',
+    previousAnswerTail: '[上一条回复过长，以下仅保留末尾用于续写定位]',
     reasoningTitle: '思考',
     thinkingEnabled: '思考已开启',
     thinkingDisabled: '思考已关闭',

@@ -55,6 +55,7 @@ export interface LocalAiServiceStatus {
   baseUrl: string;
   modelPath?: string;
   runtimePath?: string;
+  ctxSize: number;
   commandLine?: string;
   activeRequests: number;
   idleTimeoutMinutes: number;

@@ -22,8 +22,7 @@ use std::os::windows::process::CommandExt;
 
 const PLUGIN_ID: &str = "local-ai";
 const RUNTIME_PLUGIN_ID: &str = "local-ai-llama-runtime";
-const DEFAULT_MODEL_DIR: &str =
-    r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
+const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
 const HEALTH_TIMEOUT_SECS: u64 = 90;
@@ -158,6 +157,7 @@ pub struct LocalAiServiceStatus {
     pub base_url: String,
     pub model_path: Option<String>,
     pub runtime_path: Option<String>,
+    pub ctx_size: u32,
     pub command_line: Option<String>,
     pub active_requests: usize,
     pub idle_timeout_minutes: u32,
@@ -267,7 +267,8 @@ fn history_path(app_handle: &AppHandle) -> PathBuf {
 }
 
 fn app_json_chat_histories(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
-    crate::json_config::get_app_config_value(app_handle, "local_ai_chat_histories").unwrap_or_default()
+    crate::json_config::get_app_config_value(app_handle, "local_ai_chat_histories")
+        .unwrap_or_default()
 }
 
 fn save_app_json_chat_histories(
@@ -285,11 +286,15 @@ fn read_history_file(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
         .unwrap_or_default()
 }
 
-fn write_history_file(app_handle: &AppHandle, histories: &[LocalAiChatHistory]) -> Result<(), String> {
+fn write_history_file(
+    app_handle: &AppHandle,
+    histories: &[LocalAiChatHistory],
+) -> Result<(), String> {
     let path = history_path(app_handle);
     let json = serde_json::to_string_pretty(histories)
         .map_err(|error| format!("序列化聊天历史失败: {}", error))?;
-    fs::write(&path, json).map_err(|error| format!("写入聊天历史失败 {}: {}", path.to_string_lossy(), error))
+    fs::write(&path, json)
+        .map_err(|error| format!("写入聊天历史失败 {}: {}", path.to_string_lossy(), error))
 }
 
 fn load_chat_histories(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
@@ -300,8 +305,12 @@ fn load_chat_histories(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
     histories
 }
 
-fn persist_chat_histories(app_handle: &AppHandle, histories: &[LocalAiChatHistory]) -> Result<(), String> {
-    save_app_json_chat_histories(app_handle, histories).or_else(|_| write_history_file(app_handle, histories))
+fn persist_chat_histories(
+    app_handle: &AppHandle,
+    histories: &[LocalAiChatHistory],
+) -> Result<(), String> {
+    save_app_json_chat_histories(app_handle, histories)
+        .or_else(|_| write_history_file(app_handle, histories))
 }
 
 fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
@@ -320,13 +329,8 @@ fn write_config(app_handle: &AppHandle, config: &LocalAiConfig) -> Result<(), St
     let path = config_path(app_handle);
     let json = serde_json::to_string_pretty(config)
         .map_err(|error| format!("序列化本地 AI 配置失败: {}", error))?;
-    fs::write(&path, json).map_err(|error| {
-        format!(
-            "写入本地 AI 配置失败 {}: {}",
-            path.to_string_lossy(),
-            error
-        )
-    })
+    fs::write(&path, json)
+        .map_err(|error| format!("写入本地 AI 配置失败 {}: {}", path.to_string_lossy(), error))
 }
 
 fn display_path(path: &Path) -> String {
@@ -371,7 +375,10 @@ fn log_path(app_handle: &AppHandle) -> PathBuf {
     dir.join("local-ai-llama-server.log")
 }
 
-fn candidate_runtime_paths(app_handle: &AppHandle, config: &LocalAiConfig) -> Vec<(PathBuf, String)> {
+fn candidate_runtime_paths(
+    app_handle: &AppHandle,
+    config: &LocalAiConfig,
+) -> Vec<(PathBuf, String)> {
     let mut paths = Vec::new();
 
     if let Some(path) = config
@@ -401,7 +408,10 @@ fn candidate_runtime_paths(app_handle: &AppHandle, config: &LocalAiConfig) -> Ve
                 plugin_id.to_string(),
                 relative.to_string(),
             ) {
-                paths.push((PathBuf::from(path), format!("plugin:{}:{}", plugin_id, relative)));
+                paths.push((
+                    PathBuf::from(path),
+                    format!("plugin:{}:{}", plugin_id, relative),
+                ));
             }
         }
     }
@@ -413,7 +423,10 @@ fn candidate_runtime_paths(app_handle: &AppHandle, config: &LocalAiConfig) -> Ve
             "llama/llama-server.exe",
             "llama/bin/llama-server.exe",
         ] {
-            paths.push((resource_dir.join(relative), format!("resource:{}", relative)));
+            paths.push((
+                resource_dir.join(relative),
+                format!("resource:{}", relative),
+            ));
         }
     }
 
@@ -432,7 +445,10 @@ fn candidate_runtime_paths(app_handle: &AppHandle, config: &LocalAiConfig) -> Ve
     paths
 }
 
-fn find_llama_server(app_handle: &AppHandle, config: &LocalAiConfig) -> (Option<(PathBuf, String)>, Vec<String>) {
+fn find_llama_server(
+    app_handle: &AppHandle,
+    config: &LocalAiConfig,
+) -> (Option<(PathBuf, String)>, Vec<String>) {
     let candidates = candidate_runtime_paths(app_handle, config);
     let mut searched_paths = Vec::new();
 
@@ -523,9 +539,10 @@ fn scan_model_dir(config: &LocalAiConfig) -> LocalAiModelScan {
 
 fn resolve_model_paths(config: &LocalAiConfig) -> Result<(PathBuf, Option<PathBuf>), String> {
     let scan = scan_model_dir(config);
-    let model_path = scan
-        .selected_model_path
-        .ok_or_else(|| scan.message.unwrap_or_else(|| "未找到主模型 GGUF 文件".to_string()))?;
+    let model_path = scan.selected_model_path.ok_or_else(|| {
+        scan.message
+            .unwrap_or_else(|| "未找到主模型 GGUF 文件".to_string())
+    })?;
     let model_path = PathBuf::from(model_path);
     if !model_path.is_file() {
         return Err(format!("主模型文件不存在: {}", display_path(&model_path)));
@@ -538,7 +555,11 @@ fn resolve_model_paths(config: &LocalAiConfig) -> Result<(PathBuf, Option<PathBu
     Ok((model_path, mmproj_path))
 }
 
-fn build_server_args(config: &LocalAiConfig, model_path: &Path, mmproj_path: Option<&Path>) -> Vec<String> {
+fn build_server_args(
+    config: &LocalAiConfig,
+    model_path: &Path,
+    mmproj_path: Option<&Path>,
+) -> Vec<String> {
     let mut args = vec![
         "--host".to_string(),
         config.host.clone(),
@@ -588,10 +609,7 @@ fn server_command(program: &Path) -> Command {
 
 async fn health_check_url(base_url: &str) -> bool {
     let url = format!("{}/health", base_url.trim_end_matches('/'));
-    let Ok(client) = Client::builder()
-        .timeout(Duration::from_secs(3))
-        .build()
-    else {
+    let Ok(client) = Client::builder().timeout(Duration::from_secs(3)).build() else {
         return false;
     };
 
@@ -661,7 +679,9 @@ fn start_idle_monitor() {
                         && state.active_requests == 0
                         && state
                             .last_activity
-                            .map(|last| last.elapsed() >= Duration::from_secs(idle_timeout as u64 * 60))
+                            .map(|last| {
+                                last.elapsed() >= Duration::from_secs(idle_timeout as u64 * 60)
+                            })
                             .unwrap_or(false);
                     if should_stop {
                         info!(
@@ -692,40 +712,88 @@ fn mark_request_started() -> LocalAiRequestGuard {
     LocalAiRequestGuard
 }
 
-async fn ensure_service_running(app_handle: &AppHandle, config: &LocalAiConfig) -> Result<(), String> {
-    let running = {
+fn normalize_service_config(mut config: LocalAiConfig) -> LocalAiConfig {
+    if config.host.trim().is_empty() {
+        config.host = DEFAULT_HOST.to_string();
+    }
+    if config.port == 0 {
+        config.port = DEFAULT_PORT;
+    }
+    config
+}
+
+fn service_config_matches(running: &LocalAiConfig, desired: &LocalAiConfig) -> bool {
+    running.model_dir == desired.model_dir
+        && running.model_path == desired.model_path
+        && running.mmproj_path == desired.mmproj_path
+        && running.runtime_path == desired.runtime_path
+        && running.host == desired.host
+        && running.port == desired.port
+        && running.ctx_size == desired.ctx_size
+        && running.gpu_layers == desired.gpu_layers
+        && running.main_gpu == desired.main_gpu
+        && running.threads == desired.threads
+        && running.batch_size == desired.batch_size
+        && running.ubatch_size == desired.ubatch_size
+        && running.flash_attn == desired.flash_attn
+        && running.kv_offload == desired.kv_offload
+        && running.mmap == desired.mmap
+}
+
+async fn ensure_service_running(
+    app_handle: &AppHandle,
+    config: &LocalAiConfig,
+) -> Result<(), String> {
+    let desired = normalize_service_config(config.clone());
+    let should_start = {
         let mut state = SERVICE_STATE
             .lock()
             .map_err(|error| format!("本地 AI 服务状态锁定失败: {}", error))?;
-        is_child_running_locked(&mut state)
+        let running = is_child_running_locked(&mut state);
+        if !running {
+            true
+        } else {
+            let config_matches = state
+                .config
+                .as_ref()
+                .map(|running_config| service_config_matches(running_config, &desired))
+                .unwrap_or(false);
+            if config_matches {
+                return Ok(());
+            }
+            if state.active_requests > 0 {
+                return Err("本地 AI 运行配置已变更，请等待当前请求结束后再重试".to_string());
+            }
+            warn!(
+                "[Plugin:local-ai] restarting llama-server because running config differs from saved config"
+            );
+            stop_child_locked(&mut state);
+            true
+        }
     };
-    if running {
+    if !should_start {
         return Ok(());
     }
-    if !config.auto_start_on_request {
+    if !desired.auto_start_on_request {
         return Err("本地 AI 服务未启动，请先在本地 AI 设置中启动服务".to_string());
     }
 
-    start_service_inner(app_handle, config.clone()).await.map(|_| ())
+    start_service_inner(app_handle, desired).await.map(|_| ())
 }
 
 async fn start_service_inner(
     app_handle: &AppHandle,
     mut config: LocalAiConfig,
 ) -> Result<LocalAiServiceStatus, String> {
-    if config.host.trim().is_empty() {
-        config.host = DEFAULT_HOST.to_string();
-    }
+    config = normalize_service_config(config);
     if config.host != "127.0.0.1" && config.host != "localhost" {
         return Err("本地 AI 服务仅允许绑定 127.0.0.1 或 localhost".to_string());
     }
-    if config.port == 0 {
-        config.port = DEFAULT_PORT;
-    }
 
     let (runtime, _) = find_llama_server(app_handle, &config);
-    let (runtime_path, runtime_source) =
-        runtime.ok_or_else(|| "未找到 llama-server.exe，请安装 local-ai-llama-runtime 资源包或手动指定路径".to_string())?;
+    let (runtime_path, runtime_source) = runtime.ok_or_else(|| {
+        "未找到 llama-server.exe，请安装 local-ai-llama-runtime 资源包或手动指定路径".to_string()
+    })?;
     let (model_path, mmproj_path) = resolve_model_paths(&config)?;
     let args = build_server_args(&config, &model_path, mmproj_path.as_deref());
     let command_line = format_command_line(&runtime_path, &args);
@@ -918,9 +986,14 @@ fn extract_stream_stats(value: &Value) -> Option<LocalAiChatStreamStats> {
         .or_else(|| timings.and_then(|timings| get_u32_field(timings, "predicted_n")));
     let total_tokens = usage
         .and_then(|usage| get_u32_field(usage, "total_tokens"))
-        .or_else(|| prompt_tokens.zip(completion_tokens).map(|(prompt, completion)| prompt + completion));
+        .or_else(|| {
+            prompt_tokens
+                .zip(completion_tokens)
+                .map(|(prompt, completion)| prompt + completion)
+        });
     let generation_time_ms = timings.and_then(|timings| get_f64_field(timings, "predicted_ms"));
-    let tokens_per_second = timings.and_then(|timings| get_f64_field(timings, "predicted_per_second"));
+    let tokens_per_second =
+        timings.and_then(|timings| get_f64_field(timings, "predicted_per_second"));
 
     if prompt_tokens.is_none()
         && completion_tokens.is_none()
@@ -1247,17 +1320,36 @@ pub fn local_ai_get_runtime_status(app_handle: AppHandle) -> Result<LocalAiRunti
 pub async fn local_ai_get_status(app_handle: AppHandle) -> Result<LocalAiServiceStatus, String> {
     require_plugin(&app_handle)?;
     let config = read_config(&app_handle);
-    let (running, pid, model_path, runtime_path, command_line, active_requests, last_error) = {
+    let (
+        running,
+        pid,
+        model_path,
+        runtime_path,
+        ctx_size,
+        command_line,
+        active_requests,
+        last_error,
+    ) = {
         let mut state = SERVICE_STATE
             .lock()
             .map_err(|error| format!("本地 AI 服务状态锁定失败: {}", error))?;
         let running = is_child_running_locked(&mut state);
         let pid = state.child.as_ref().map(|child| child.id());
+        let ctx_size = if running {
+            state
+                .config
+                .as_ref()
+                .map(|running_config| running_config.ctx_size)
+                .unwrap_or(config.ctx_size)
+        } else {
+            config.ctx_size
+        };
         (
             running,
             pid,
             state.model_path.clone(),
             state.runtime_path.clone(),
+            ctx_size,
             state.command_line.clone(),
             state.active_requests,
             state.last_error.clone(),
@@ -1277,6 +1369,7 @@ pub async fn local_ai_get_status(app_handle: AppHandle) -> Result<LocalAiService
         base_url: url,
         model_path,
         runtime_path,
+        ctx_size,
         command_line,
         active_requests,
         idle_timeout_minutes: config.idle_timeout_minutes,
@@ -1302,7 +1395,9 @@ pub async fn local_ai_start_service(
 }
 
 #[tauri::command]
-pub async fn local_ai_restart_service(app_handle: AppHandle) -> Result<LocalAiServiceStatus, String> {
+pub async fn local_ai_restart_service(
+    app_handle: AppHandle,
+) -> Result<LocalAiServiceStatus, String> {
     require_plugin(&app_handle)?;
     local_ai_stop_service(app_handle.clone())?;
     local_ai_start_service(app_handle, None).await
@@ -1354,7 +1449,14 @@ pub async fn local_ai_chat_stream(
             if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
                 cancels.remove(&request_id);
             }
-            emit_chat_stream(&window, &request_id, "error", None, Some(error.clone()), None);
+            emit_chat_stream(
+                &window,
+                &request_id,
+                "error",
+                None,
+                Some(error.clone()),
+                None,
+            );
             Err(error)
         }
     }
@@ -1387,7 +1489,9 @@ pub async fn local_ai_translate(
 }
 
 #[tauri::command]
-pub fn local_ai_get_chat_histories(app_handle: AppHandle) -> Result<Vec<LocalAiChatHistory>, String> {
+pub fn local_ai_get_chat_histories(
+    app_handle: AppHandle,
+) -> Result<Vec<LocalAiChatHistory>, String> {
     require_plugin(&app_handle)?;
     Ok(load_chat_histories(&app_handle))
 }
