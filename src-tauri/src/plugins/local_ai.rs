@@ -29,15 +29,12 @@ const DEFAULT_PORT: u16 = 39281;
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
-const SEARXNG_CIRCUIT_BREAKER_SECS: u64 = 300;
 
 static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
     LazyLock::new(|| Mutex::new(LocalAiServiceState::default()));
 static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
-static SEARXNG_CIRCUIT_BREAKER: LazyLock<Mutex<Option<SearxngCircuitBreaker>>> =
-    LazyLock::new(|| Mutex::new(None));
 static DDG_TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?s)<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#)
         .expect("valid DuckDuckGo title regex")
@@ -83,16 +80,10 @@ pub struct LocalAiConfig {
     pub repeat_last_n: u32,
     pub max_tokens: u32,
     pub request_timeout_secs: u32,
-    #[serde(default = "default_web_search_base_url")]
-    pub web_search_base_url: String,
     #[serde(default = "default_web_search_max_results")]
     pub web_search_max_results: u32,
     #[serde(default = "default_web_search_timeout_secs")]
     pub web_search_timeout_secs: u32,
-    #[serde(default = "default_web_search_safe_search")]
-    pub web_search_safe_search: u8,
-    #[serde(default)]
-    pub web_search_language: String,
 }
 
 fn default_top_p() -> f32 {
@@ -115,20 +106,12 @@ fn default_repeat_last_n() -> u32 {
     256
 }
 
-fn default_web_search_base_url() -> String {
-    "http://127.0.0.1:8080".to_string()
-}
-
 fn default_web_search_max_results() -> u32 {
     5
 }
 
 fn default_web_search_timeout_secs() -> u32 {
     12
-}
-
-fn default_web_search_safe_search() -> u8 {
-    1
 }
 
 impl Default for LocalAiConfig {
@@ -163,11 +146,8 @@ impl Default for LocalAiConfig {
             repeat_last_n: default_repeat_last_n(),
             max_tokens: 0,
             request_timeout_secs: 600,
-            web_search_base_url: default_web_search_base_url(),
             web_search_max_results: default_web_search_max_results(),
             web_search_timeout_secs: default_web_search_timeout_secs(),
-            web_search_safe_search: default_web_search_safe_search(),
-            web_search_language: String::new(),
         }
     }
 }
@@ -313,13 +293,6 @@ struct LocalAiServiceState {
     last_error: Option<String>,
 }
 
-#[derive(Debug, Clone)]
-struct SearxngCircuitBreaker {
-    url: String,
-    disabled_until: Instant,
-    last_error: String,
-}
-
 struct LocalAiRequestGuard;
 
 impl Drop for LocalAiRequestGuard {
@@ -422,15 +395,6 @@ fn base_url(config: &LocalAiConfig) -> String {
     format!("http://{}:{}", config.host, config.port)
 }
 
-fn web_search_url(config: &LocalAiConfig) -> String {
-    let value = config.web_search_base_url.trim().trim_end_matches('/');
-    if value.ends_with("/search") {
-        value.to_string()
-    } else {
-        format!("{}/search", value)
-    }
-}
-
 fn response_preview(value: &str) -> String {
     value
         .chars()
@@ -443,14 +407,8 @@ fn response_preview(value: &str) -> String {
 
 fn web_search_status_error(status: reqwest::StatusCode, body: &str) -> String {
     let preview = response_preview(body);
-    if status.as_u16() == 502 && preview.is_empty() {
-        return "联网搜索服务返回 502 Bad Gateway，且响应为空。请检查 SearXNG 服务是否正常、反向代理是否能连接上游、搜索引擎出口网络是否可用。".to_string();
-    }
     if preview.is_empty() {
-        return format!(
-            "联网搜索服务返回错误 {}，且响应为空。请检查 SearXNG 服务日志和代理配置。",
-            status
-        );
+        return format!("联网搜索服务返回错误 {}，且响应为空。", status);
     }
     format!("联网搜索服务返回错误 {}: {}", status, preview)
 }
@@ -565,45 +523,6 @@ fn parse_duckduckgo_results(body: &str, max_results: u32) -> Vec<LocalAiWebSearc
         }
     }
     results
-}
-
-fn searxng_circuit_skip(search_url: &str) -> Option<(u64, String)> {
-    let Ok(guard) = SEARXNG_CIRCUIT_BREAKER.lock() else {
-        return None;
-    };
-    let circuit = guard.as_ref()?;
-    if circuit.url != search_url {
-        return None;
-    }
-    let now = Instant::now();
-    if circuit.disabled_until <= now {
-        return None;
-    }
-    Some((
-        circuit.disabled_until.duration_since(now).as_secs(),
-        circuit.last_error.clone(),
-    ))
-}
-
-fn mark_searxng_failure(search_url: &str, error: &str) {
-    if let Ok(mut guard) = SEARXNG_CIRCUIT_BREAKER.lock() {
-        *guard = Some(SearxngCircuitBreaker {
-            url: search_url.to_string(),
-            disabled_until: Instant::now() + Duration::from_secs(SEARXNG_CIRCUIT_BREAKER_SECS),
-            last_error: error.to_string(),
-        });
-    }
-}
-
-fn clear_searxng_failure(search_url: &str) {
-    if let Ok(mut guard) = SEARXNG_CIRCUIT_BREAKER.lock() {
-        if guard
-            .as_ref()
-            .is_some_and(|circuit| circuit.url == search_url)
-        {
-            *guard = None;
-        }
-    }
 }
 
 fn completion_token_limit(config: &LocalAiConfig, request_max_tokens: Option<u32>) -> i64 {
@@ -1901,7 +1820,6 @@ pub async fn local_ai_web_search(
     }
 
     let config = read_config(&app_handle);
-    let base_url = config.web_search_base_url.trim();
     let max_results = request
         .max_results
         .unwrap_or(config.web_search_max_results)
@@ -1913,246 +1831,14 @@ pub async fn local_ai_web_search(
         .build()
         .map_err(|error| format!("创建联网搜索客户端失败: {}", error))?;
 
-    let mut primary_error = None;
-    if !base_url.is_empty() {
-        let search_url = web_search_url(&config);
-        if let Some((remaining_secs, last_error)) = searxng_circuit_skip(&search_url) {
-            primary_error = Some(format!(
-                "SearXNG 暂时跳过，{} 秒后重试。上次错误: {}",
-                remaining_secs, last_error
-            ));
-            warn!(
-                "[Plugin:local-ai] web search searxng skipped url={} remaining={}s last_error=\"{}\", using DuckDuckGo HTML",
-                search_url,
-                remaining_secs,
-                last_error
-            );
-        } else {
-            match search_with_searxng(&client, &config, query, max_results).await {
-                Ok(results) if !results.is_empty() => {
-                    clear_searxng_failure(&search_url);
-                    return Ok(LocalAiWebSearchResponse {
-                        query: query.to_string(),
-                        results,
-                    });
-                }
-                Ok(_) => {
-                    let error = "SearXNG 未返回可用搜索结果".to_string();
-                    mark_searxng_failure(&search_url, &error);
-                    primary_error = Some(error);
-                    warn!(
-                        "[Plugin:local-ai] web search searxng empty query=\"{}\", falling back to DuckDuckGo HTML",
-                        response_preview(query)
-                    );
-                }
-                Err(error) => {
-                    mark_searxng_failure(&search_url, &error);
-                    primary_error = Some(error.clone());
-                    warn!(
-                        "[Plugin:local-ai] web search searxng failed query=\"{}\" error=\"{}\", falling back to DuckDuckGo HTML",
-                        response_preview(query),
-                        error
-                    );
-                }
-            }
-        }
-    } else {
-        warn!(
-            "[Plugin:local-ai] web search SearXNG URL is empty, using DuckDuckGo HTML fallback query=\"{}\"",
-            response_preview(query)
-        );
-    }
-
     match search_with_duckduckgo_html(&client, query, max_results).await {
         Ok(results) if !results.is_empty() => Ok(LocalAiWebSearchResponse {
             query: query.to_string(),
             results,
         }),
-        Ok(_) => Err(primary_error
-            .map(|error| format!("联网搜索没有返回可用结果。SearXNG 错误: {}", error))
-            .unwrap_or_else(|| "联网搜索没有返回可用结果".to_string())),
-        Err(fallback_error) => Err(primary_error
-            .map(|error| {
-                format!(
-                    "联网搜索失败。SearXNG 错误: {}；备用搜索错误: {}",
-                    error, fallback_error
-                )
-            })
-            .unwrap_or(fallback_error)),
+        Ok(_) => Err("联网搜索没有返回可用结果".to_string()),
+        Err(error) => Err(error),
     }
-}
-
-async fn search_with_searxng(
-    client: &Client,
-    config: &LocalAiConfig,
-    query: &str,
-    max_results: u32,
-) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    let search_url = web_search_url(config);
-    let safe_search = config.web_search_safe_search.min(2).to_string();
-    let language = config.web_search_language.trim();
-    info!(
-        "[Plugin:local-ai] web search start provider=searxng url={} query=\"{}\" max_results={} timeout={}s format=json categories=general safesearch={} language={}",
-        search_url,
-        response_preview(query),
-        max_results,
-        config.web_search_timeout_secs.max(3),
-        safe_search,
-        if language.is_empty() { "auto" } else { language }
-    );
-    let mut request_builder = client
-        .get(&search_url)
-        .header(ACCEPT, "application/json")
-        .header(USER_AGENT, "snippets-code-local-ai/1.0")
-        .query(&[("q", query), ("format", "json"), ("categories", "general")]);
-    request_builder = request_builder.query(&[("safesearch", safe_search.as_str())]);
-    if !language.is_empty() {
-        request_builder = request_builder.query(&[("language", language)]);
-    }
-
-    let response = request_builder.send().await.map_err(|error| {
-        let reason = if error.is_timeout() {
-            "timeout"
-        } else if error.is_connect() {
-            "connect"
-        } else if error.is_request() {
-            "request"
-        } else if error.is_body() {
-            "body"
-        } else if error.is_decode() {
-            "decode"
-        } else {
-            "unknown"
-        };
-        warn!(
-            "[Plugin:local-ai] web search request failed url={} query=\"{}\" reason={} error={}",
-            search_url,
-            response_preview(query),
-            reason,
-            error
-        );
-        match reason {
-            "timeout" => format!(
-                "联网搜索请求超时，请检查 SearXNG 服务是否响应过慢或上游搜索引擎不可达: {}",
-                error
-            ),
-            "connect" => format!(
-                "无法连接联网搜索服务，请确认 SearXNG 已启动且地址可访问: {}",
-                error
-            ),
-            _ => format!("联网搜索请求失败: {}", error),
-        }
-    })?;
-    let status = response.status();
-    let content_type = response
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("")
-        .to_string();
-    let body = response
-        .text()
-        .await
-        .map_err(|error| {
-            warn!(
-                "[Plugin:local-ai] web search read response failed url={} status={} content_type={} error={}",
-                search_url, status, content_type, error
-            );
-            format!("读取联网搜索响应失败: {}", error)
-        })?;
-    info!(
-        "[Plugin:local-ai] web search response provider=searxng url={} status={} content_type={} bytes={} preview=\"{}\"",
-        search_url,
-        status,
-        if content_type.is_empty() { "unknown" } else { &content_type },
-        body.len(),
-        response_preview(&body)
-    );
-    if !status.is_success() {
-        let error_message = web_search_status_error(status, &body);
-        warn!(
-            "[Plugin:local-ai] web search non-success status={} diagnosis=\"{}\" preview=\"{}\"",
-            status,
-            error_message,
-            response_preview(&body)
-        );
-        return Err(error_message);
-    }
-    let value = serde_json::from_str::<Value>(&body).map_err(|error| {
-        warn!(
-            "[Plugin:local-ai] web search json parse failed url={} status={} content_type={} error={} preview=\"{}\"",
-            search_url,
-            status,
-            if content_type.is_empty() { "unknown" } else { &content_type },
-            error,
-            response_preview(&body)
-        );
-        format!(
-            "解析联网搜索结果失败: {}。请确认 SearXNG 已启用 JSON 输出，且地址可直接访问 /search?format=json。Content-Type: {}，响应片段: {}",
-            error,
-            if content_type.is_empty() { "unknown" } else { &content_type },
-            response_preview(&body)
-        )
-    })?;
-
-    let results = value
-        .get("results")
-        .and_then(|results| results.as_array())
-        .map(|results| {
-            results
-                .iter()
-                .filter_map(|item| {
-                    let title = item
-                        .get("title")
-                        .and_then(|value| value.as_str())
-                        .unwrap_or("")
-                        .trim();
-                    let url = item
-                        .get("url")
-                        .and_then(|value| value.as_str())
-                        .unwrap_or("")
-                        .trim();
-                    if title.is_empty() || url.is_empty() {
-                        return None;
-                    }
-                    let content = item
-                        .get("content")
-                        .or_else(|| item.get("snippet"))
-                        .and_then(|value| value.as_str())
-                        .unwrap_or("")
-                        .trim()
-                        .chars()
-                        .take(500)
-                        .collect::<String>();
-                    let engine = item
-                        .get("engine")
-                        .and_then(|value| value.as_str())
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .map(str::to_string);
-                    Some(LocalAiWebSearchResult {
-                        title: title.chars().take(160).collect(),
-                        url: url.to_string(),
-                        content,
-                        engine,
-                    })
-                })
-                .take(max_results as usize)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-
-    info!(
-        "[Plugin:local-ai] web search parsed provider=searxng query=\"{}\" raw_results={} usable_results={}",
-        response_preview(query),
-        value
-            .get("results")
-            .and_then(|results| results.as_array())
-            .map(|results| results.len())
-            .unwrap_or(0),
-        results.len()
-    );
-    Ok(results)
 }
 
 async fn search_with_duckduckgo_html(
@@ -2300,9 +1986,9 @@ mod tests {
     #[test]
     fn normalizes_duckduckgo_redirect_url() {
         let url = normalize_duckduckgo_url(
-            "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fsearch%3Fq%3Dsearxng&amp;rut=abc",
+            "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fsearch%3Fq%3Dweb&amp;rut=abc",
         );
-        assert_eq!(url.as_deref(), Some("https://example.com/search?q=searxng"));
+        assert_eq!(url.as_deref(), Some("https://example.com/search?q=web"));
     }
 
     #[test]
@@ -2323,21 +2009,5 @@ mod tests {
         assert_eq!(results[0].url, "https://example.com/article");
         assert_eq!(results[0].content, "A clean snippet & summary.");
         assert_eq!(results[0].engine.as_deref(), Some("DuckDuckGo"));
-    }
-
-    #[test]
-    fn searxng_circuit_breaker_is_url_scoped() {
-        let url = "http://127.0.0.1:8080/search";
-        let other_url = "http://127.0.0.1:8081/search";
-        clear_searxng_failure(url);
-        clear_searxng_failure(other_url);
-
-        mark_searxng_failure(url, "502");
-
-        assert!(searxng_circuit_skip(url).is_some());
-        assert!(searxng_circuit_skip(other_url).is_none());
-
-        clear_searxng_failure(url);
-        assert!(searxng_circuit_skip(url).is_none());
     }
 }

@@ -1913,18 +1913,13 @@ export default {
     maxTokens: '最大 token（0=无限）',
     port: '端口',
     webSearch: '联网搜索',
-    webSearchDesc: '使用 SearXNG 搜索网页，并把结果注入本轮本地模型上下文',
-    webSearchBaseUrl: 'SearXNG 地址',
-    webSearchBaseUrlPlaceholder: 'http://127.0.0.1:8080',
+    webSearchDesc: '搜索网页并把结果注入本轮本地模型上下文',
     webSearchMaxResults: '结果数',
     webSearchTimeoutSecs: '搜索秒数',
-    webSearchSafeSearch: '安全搜索',
-    webSearchLanguage: '语言',
-    webSearchLanguagePlaceholder: '留空自动，例如 zh-CN / en-US',
     webSearchNoResults: '未找到可用网页搜索结果，将直接使用本地模型回答。',
     webSearchFailed: '联网搜索失败，将直接使用本地模型回答',
     webSearchTest: '测试搜索',
-    webSearchTestQuery: 'SearXNG 测试',
+    webSearchTestQuery: '联网搜索测试',
     webSearchTestSuccess: '联网搜索测试成功，返回 {count} 条结果',
     webSearchTestEmpty: '联网搜索可访问，但没有返回可用结果',
     webSearchTestFailed: '联网搜索测试失败',
@@ -1972,12 +1967,8 @@ export default {
       repeatLastN: '重复惩罚回看窗口。',
       maxTokens: '单次回复最大输出 token，0 表示不主动限制。',
       port: '本地 llama-server 监听端口。',
-      webSearchBaseUrl:
-        'SearXNG 服务根地址或 /search 地址，需要启用 JSON 输出。',
       webSearchMaxResults: '每次聊天注入的搜索结果数量，过多会占用上下文。',
-      webSearchTimeoutSecs: '等待 SearXNG 返回结果的最长时间。',
-      webSearchSafeSearch: 'SearXNG 安全搜索等级：0 关闭，1 中等，2 严格。',
-      webSearchLanguage: '传给 SearXNG 的语言代码，留空则由服务自动判断。'
+      webSearchTimeoutSecs: '等待网页搜索返回结果的最长时间。'
     }
   }
 };

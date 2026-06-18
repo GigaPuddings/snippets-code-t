@@ -28,11 +28,8 @@ export interface LocalAiConfig {
   repeatLastN: number;
   maxTokens: number;
   requestTimeoutSecs: number;
-  webSearchBaseUrl: string;
   webSearchMaxResults: number;
   webSearchTimeoutSecs: number;
-  webSearchSafeSearch: number;
-  webSearchLanguage: string;
 }
 
 export interface LocalAiRuntimeStatus {

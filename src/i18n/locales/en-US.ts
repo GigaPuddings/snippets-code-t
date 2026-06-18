@@ -1954,19 +1954,14 @@ export default {
     port: 'Port',
     webSearch: 'Web Search',
     webSearchDesc:
-      'Use SearXNG to search the web and inject results into the local model context',
-    webSearchBaseUrl: 'SearXNG URL',
-    webSearchBaseUrlPlaceholder: 'http://127.0.0.1:8080',
+      'Search the web and inject results into the local model context',
     webSearchMaxResults: 'Results',
     webSearchTimeoutSecs: 'Search seconds',
-    webSearchSafeSearch: 'Safe search',
-    webSearchLanguage: 'Language',
-    webSearchLanguagePlaceholder: 'Leave blank for auto, e.g. zh-CN / en-US',
     webSearchNoResults:
       'No usable web search results were found. Answering with the local model only.',
     webSearchFailed: 'Web search failed. Answering with the local model only',
     webSearchTest: 'Test search',
-    webSearchTestQuery: 'SearXNG test',
+    webSearchTestQuery: 'Web search test',
     webSearchTestSuccess: 'Web search test succeeded with {count} result(s)',
     webSearchTestEmpty:
       'Web search is reachable but returned no usable results',
@@ -2023,15 +2018,9 @@ export default {
       repeatLastN: 'Token window used by the repetition penalty.',
       maxTokens: 'Maximum output tokens per response. 0 means no app-side cap.',
       port: 'Local llama-server port.',
-      webSearchBaseUrl:
-        'SearXNG root URL or /search URL. JSON output must be enabled.',
       webSearchMaxResults:
         'Number of search results injected per chat request. Too many results use context.',
-      webSearchTimeoutSecs: 'Maximum time to wait for SearXNG results.',
-      webSearchSafeSearch:
-        'SearXNG safe-search level: 0 off, 1 moderate, 2 strict.',
-      webSearchLanguage:
-        'Language code passed to SearXNG. Leave blank to let the service decide.'
+      webSearchTimeoutSecs: 'Maximum time to wait for web search results.'
     }
   }
 };

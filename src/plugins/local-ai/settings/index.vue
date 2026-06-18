@@ -449,17 +449,7 @@
               {{ t('localAi.webSearchTest') }}
             </CustomButton>
           </div>
-          <div class="field-stack">
-            <label class="field-row" :title="paramHint('webSearchBaseUrl')">
-              <span>{{ t('localAi.webSearchBaseUrl') }}</span>
-              <input
-                v-model="config.webSearchBaseUrl"
-                class="text-input"
-                :placeholder="t('localAi.webSearchBaseUrlPlaceholder')"
-              />
-            </label>
-          </div>
-          <div class="param-grid param-grid--three">
+          <div class="param-grid">
             <label
               class="number-field"
               :title="paramHint('webSearchMaxResults')"
@@ -484,29 +474,6 @@
                 :max="60"
                 :step="1"
                 size="small"
-              />
-            </label>
-            <label
-              class="number-field"
-              :title="paramHint('webSearchSafeSearch')"
-            >
-              <span>{{ t('localAi.webSearchSafeSearch') }}</span>
-              <el-input-number
-                v-model="config.webSearchSafeSearch"
-                :min="0"
-                :max="2"
-                :step="1"
-                size="small"
-              />
-            </label>
-          </div>
-          <div class="field-stack">
-            <label class="field-row" :title="paramHint('webSearchLanguage')">
-              <span>{{ t('localAi.webSearchLanguage') }}</span>
-              <input
-                v-model="config.webSearchLanguage"
-                class="text-input"
-                :placeholder="t('localAi.webSearchLanguagePlaceholder')"
               />
             </label>
           </div>
