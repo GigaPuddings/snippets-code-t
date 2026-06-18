@@ -287,6 +287,159 @@ pub struct LocalAiWebSearchResponse {
     pub results: Vec<LocalAiWebSearchResult>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiWeatherRequest {
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiWeatherResponse {
+    pub location: String,
+    pub country: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub date: String,
+    pub time: String,
+    pub timezone: String,
+    pub temperature: Option<f64>,
+    pub apparent_temperature: Option<f64>,
+    pub humidity: Option<f64>,
+    pub precipitation: Option<f64>,
+    pub weather_code: Option<i64>,
+    pub weather_text: String,
+    pub wind_speed: Option<f64>,
+    pub temperature_max: Option<f64>,
+    pub temperature_min: Option<f64>,
+    pub precipitation_probability: Option<f64>,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct WeatherLocation {
+    name: &'static str,
+    country: &'static str,
+    latitude: f64,
+    longitude: f64,
+    timezone: &'static str,
+}
+
+const WEATHER_LOCATIONS: &[WeatherLocation] = &[
+    WeatherLocation {
+        name: "北京",
+        country: "中国",
+        latitude: 39.9042,
+        longitude: 116.4074,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "天津",
+        country: "中国",
+        latitude: 39.3434,
+        longitude: 117.3616,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "河北",
+        country: "中国",
+        latitude: 38.0428,
+        longitude: 114.5149,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "石家庄",
+        country: "中国",
+        latitude: 38.0428,
+        longitude: 114.5149,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "上海",
+        country: "中国",
+        latitude: 31.2304,
+        longitude: 121.4737,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "广州",
+        country: "中国",
+        latitude: 23.1291,
+        longitude: 113.2644,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "深圳",
+        country: "中国",
+        latitude: 22.5431,
+        longitude: 114.0579,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "杭州",
+        country: "中国",
+        latitude: 30.2741,
+        longitude: 120.1551,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "南京",
+        country: "中国",
+        latitude: 32.0603,
+        longitude: 118.7969,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "成都",
+        country: "中国",
+        latitude: 30.5728,
+        longitude: 104.0668,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "重庆",
+        country: "中国",
+        latitude: 29.563,
+        longitude: 106.5516,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "武汉",
+        country: "中国",
+        latitude: 30.5928,
+        longitude: 114.3055,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "西安",
+        country: "中国",
+        latitude: 34.3416,
+        longitude: 108.9398,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "郑州",
+        country: "中国",
+        latitude: 34.7466,
+        longitude: 113.6254,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "济南",
+        country: "中国",
+        latitude: 36.6512,
+        longitude: 117.1201,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "青岛",
+        country: "中国",
+        latitude: 36.0671,
+        longitude: 120.3826,
+        timezone: "Asia/Shanghai",
+    },
+];
+
 #[derive(Default)]
 struct LocalAiServiceState {
     child: Option<Child>,
@@ -417,6 +570,72 @@ fn web_search_status_error(status: reqwest::StatusCode, body: &str) -> String {
         return format!("联网搜索服务返回错误 {}，且响应为空。", status);
     }
     format!("联网搜索服务返回错误 {}: {}", status, preview)
+}
+
+fn weather_code_text(code: Option<i64>) -> String {
+    match code {
+        Some(0) => "晴".to_string(),
+        Some(1) => "大部晴朗".to_string(),
+        Some(2) => "局部多云".to_string(),
+        Some(3) => "阴/多云".to_string(),
+        Some(45 | 48) => "雾".to_string(),
+        Some(51 | 53 | 55) => "毛毛雨".to_string(),
+        Some(56 | 57) => "冻毛毛雨".to_string(),
+        Some(61 | 63 | 65) => "雨".to_string(),
+        Some(66 | 67) => "冻雨".to_string(),
+        Some(71 | 73 | 75) => "雪".to_string(),
+        Some(77) => "雪粒".to_string(),
+        Some(80 | 81 | 82) => "阵雨".to_string(),
+        Some(85 | 86) => "阵雪".to_string(),
+        Some(95) => "雷暴".to_string(),
+        Some(96 | 99) => "雷暴伴冰雹".to_string(),
+        Some(value) => format!("天气代码 {}", value),
+        None => "未知".to_string(),
+    }
+}
+
+fn number_at(value: &Value, key: &str) -> Option<f64> {
+    value.get(key).and_then(Value::as_f64)
+}
+
+fn integer_at(value: &Value, key: &str) -> Option<i64> {
+    value.get(key).and_then(Value::as_i64)
+}
+
+fn daily_number_at(value: &Value, key: &str) -> Option<f64> {
+    value
+        .get("daily")
+        .and_then(|daily| daily.get(key))
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(Value::as_f64)
+}
+
+fn daily_integer_at(value: &Value, key: &str) -> Option<i64> {
+    value
+        .get("daily")
+        .and_then(|daily| daily.get(key))
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(Value::as_i64)
+}
+
+fn daily_string_at(value: &Value, key: &str) -> Option<String> {
+    value
+        .get("daily")
+        .and_then(|daily| daily.get(key))
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn extract_weather_location(query: &str) -> Option<WeatherLocation> {
+    WEATHER_LOCATIONS
+        .iter()
+        .copied()
+        .filter(|location| query.contains(location.name))
+        .max_by_key(|location| location.name.chars().count())
 }
 
 fn decode_html_entities(value: &str) -> String {
@@ -1934,6 +2153,128 @@ pub async fn local_ai_web_search(
     }
 }
 
+#[tauri::command]
+pub async fn local_ai_weather(
+    app_handle: AppHandle,
+    request: LocalAiWeatherRequest,
+) -> Result<LocalAiWeatherResponse, String> {
+    require_plugin(&app_handle)?;
+    let query = request.query.trim();
+    if query.is_empty() {
+        return Err("天气查询不能为空".to_string());
+    }
+    let location = extract_weather_location(query).ok_or_else(|| {
+        "未识别到天气地点，请在问题中包含城市或省份，例如“河北天气”。".to_string()
+    })?;
+    let config = read_config(&app_handle);
+    let client = Client::builder()
+        .timeout(Duration::from_secs(u64::from(
+            config.web_search_timeout_secs.max(3),
+        )))
+        .build()
+        .map_err(|error| format!("创建天气查询客户端失败: {}", error))?;
+    let weather_url = "https://api.open-meteo.com/v1/forecast";
+    info!(
+        "[Plugin:local-ai] weather start provider=open_meteo location={} query=\"{}\"",
+        location.name,
+        response_preview(query)
+    );
+    let response = client
+        .get(weather_url)
+        .header(ACCEPT, "application/json")
+        .header(USER_AGENT, "snippets-code-local-ai/1.0")
+        .query(&[
+            ("latitude", location.latitude.to_string()),
+            ("longitude", location.longitude.to_string()),
+            (
+                "current",
+                "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m".to_string(),
+            ),
+            (
+                "daily",
+                "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max".to_string(),
+            ),
+            ("timezone", location.timezone.to_string()),
+            ("forecast_days", "1".to_string()),
+        ])
+        .send()
+        .await
+        .map_err(|error| {
+            warn!(
+                "[Plugin:local-ai] weather request failed provider=open_meteo location={} error={}",
+                location.name, error
+            );
+            format!("天气查询请求失败: {}", error)
+        })?;
+    let status = response.status();
+    let body = response.text().await.map_err(|error| {
+        warn!(
+            "[Plugin:local-ai] weather read response failed provider=open_meteo location={} status={} error={}",
+            location.name, status, error
+        );
+        format!("读取天气响应失败: {}", error)
+    })?;
+    info!(
+        "[Plugin:local-ai] weather response provider=open_meteo location={} status={} bytes={} preview=\"{}\"",
+        location.name,
+        status,
+        body.len(),
+        response_preview(&body)
+    );
+    if !status.is_success() {
+        return Err(web_search_status_error(status, &body));
+    }
+    let value = serde_json::from_str::<Value>(&body)
+        .map_err(|error| format!("解析天气响应失败: {}", error))?;
+    let current = value.get("current").unwrap_or(&Value::Null);
+    let current_code = integer_at(current, "weather_code");
+    let daily_code = daily_integer_at(&value, "weather_code");
+    let weather_code = current_code.or(daily_code);
+    let response = LocalAiWeatherResponse {
+        location: location.name.to_string(),
+        country: location.country.to_string(),
+        latitude: value
+            .get("latitude")
+            .and_then(Value::as_f64)
+            .unwrap_or(location.latitude),
+        longitude: value
+            .get("longitude")
+            .and_then(Value::as_f64)
+            .unwrap_or(location.longitude),
+        date: daily_string_at(&value, "time").unwrap_or_default(),
+        time: current
+            .get("time")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        timezone: value
+            .get("timezone")
+            .and_then(Value::as_str)
+            .unwrap_or(location.timezone)
+            .to_string(),
+        temperature: number_at(current, "temperature_2m"),
+        apparent_temperature: number_at(current, "apparent_temperature"),
+        humidity: number_at(current, "relative_humidity_2m"),
+        precipitation: number_at(current, "precipitation"),
+        weather_code,
+        weather_text: weather_code_text(weather_code),
+        wind_speed: number_at(current, "wind_speed_10m"),
+        temperature_max: daily_number_at(&value, "temperature_2m_max"),
+        temperature_min: daily_number_at(&value, "temperature_2m_min"),
+        precipitation_probability: daily_number_at(&value, "precipitation_probability_max"),
+        source: "Open-Meteo".to_string(),
+    };
+    info!(
+        "[Plugin:local-ai] weather parsed provider=open_meteo location={} date={} temp={:?} max={:?} min={:?}",
+        response.location,
+        response.date,
+        response.temperature,
+        response.temperature_max,
+        response.temperature_min
+    );
+    Ok(response)
+}
+
 async fn search_with_bing_html(
     client: &Client,
     query: &str,
@@ -2163,6 +2504,15 @@ mod tests {
         assert_eq!(results[0].url, "https://example.com/weather");
         assert_eq!(results[0].content, "今天河北天气晴朗，局部有风。");
         assert_eq!(results[0].engine.as_deref(), Some("Bing"));
+    }
+
+    #[test]
+    fn extracts_weather_location_from_recent_context() {
+        let location = extract_weather_location("今天河北天气如何\n温度呢")
+            .expect("河北 should be recognized");
+        assert_eq!(location.name, "河北");
+        assert_eq!(location.timezone, "Asia/Shanghai");
+        assert_eq!(weather_code_text(Some(3)), "阴/多云");
     }
 
     #[test]

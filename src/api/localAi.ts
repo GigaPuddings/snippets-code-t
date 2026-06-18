@@ -148,6 +148,31 @@ export interface LocalAiWebSearchResponse {
   results: LocalAiWebSearchResult[];
 }
 
+export interface LocalAiWeatherRequest {
+  query: string;
+}
+
+export interface LocalAiWeatherResponse {
+  location: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  date: string;
+  time: string;
+  timezone: string;
+  temperature?: number | null;
+  apparentTemperature?: number | null;
+  humidity?: number | null;
+  precipitation?: number | null;
+  weatherCode?: number | null;
+  weatherText: string;
+  windSpeed?: number | null;
+  temperatureMax?: number | null;
+  temperatureMin?: number | null;
+  precipitationProbability?: number | null;
+  source: string;
+}
+
 export async function getLocalAiConfig(): Promise<LocalAiConfig> {
   return await invoke<LocalAiConfig>('local_ai_get_config');
 }
@@ -241,6 +266,14 @@ export async function webSearchWithLocalAi(
   request: LocalAiWebSearchRequest
 ): Promise<LocalAiWebSearchResponse> {
   return await invoke<LocalAiWebSearchResponse>('local_ai_web_search', {
+    request
+  });
+}
+
+export async function getWeatherWithLocalAi(
+  request: LocalAiWeatherRequest
+): Promise<LocalAiWeatherResponse> {
+  return await invoke<LocalAiWeatherResponse>('local_ai_weather', {
     request
   });
 }

@@ -605,6 +605,7 @@ import {
   getLocalAiConfig,
   getLocalAiChatHistories,
   getLocalAiStatus,
+  getWeatherWithLocalAi,
   restartLocalAiService,
   saveLocalAiChatHistory,
   saveLocalAiConfig,
@@ -619,7 +620,8 @@ import {
   type LocalAiModelScan,
   type LocalAiServiceStatus,
   type LocalAiWebSearchResponse,
-  type LocalAiWebSearchResult
+  type LocalAiWebSearchResult,
+  type LocalAiWeatherResponse
 } from '@/api/localAi';
 import {
   buildPromptWithFileAttachments,
@@ -733,6 +735,10 @@ const MARKDOWN_CODE_CACHE_LIMIT = 120;
 const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const MIN_ASSISTANT_TAIL_TOKENS = 160;
 const STREAM_MARKDOWN_RENDER_INTERVAL_MS = 420;
+const TEMPORAL_QUERY_RE =
+  /今天|今日|现在|当前|日期|时间|星期|天气|温度|气温|today|current|date|time|weather|temperature/i;
+const WEATHER_QUERY_RE =
+  /天气|温度|气温|体感|湿度|降雨|下雨|风速|weather|temperature|humidity|rain|wind/i;
 const STREAM_MARKDOWN_LONG_RENDER_INTERVAL_MS = 1200;
 const STREAM_MARKDOWN_LONG_CONTENT_CHARS = 24000;
 const STREAM_MARKDOWN_RENDER_CHAR_DELTA = 1800;
@@ -1574,6 +1580,38 @@ const truncateContentForBudget = (content: string, budgetTokens: number) => {
   if (content.length <= maxChars) return content;
   return `${t('localAi.previousAnswerTail')}\n\n${content.slice(-maxChars)}`;
 };
+const padDatePart = (value: number): string => String(value).padStart(2, '0');
+const localDateParts = (date = new Date()) => {
+  const timeZone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone ||
+    `UTC${-date.getTimezoneOffset() / 60 >= 0 ? '+' : ''}${-date.getTimezoneOffset() / 60}`;
+  const isoDate = [
+    date.getFullYear(),
+    padDatePart(date.getMonth() + 1),
+    padDatePart(date.getDate())
+  ].join('-');
+  const localTime = [
+    padDatePart(date.getHours()),
+    padDatePart(date.getMinutes()),
+    padDatePart(date.getSeconds())
+  ].join(':');
+  const weekday = date.toLocaleDateString('zh-CN', { weekday: 'long' });
+  return { isoDate, localTime, timeZone, weekday };
+};
+const runtimeContextMessage = (): LocalAiMessage => {
+  const { isoDate, localTime, timeZone, weekday } = localDateParts();
+  return {
+    role: 'system',
+    content: [
+      'Current runtime context is authoritative.',
+      `Current local date: ${isoDate}`,
+      `Current local weekday: ${weekday}`,
+      `Current local time: ${localTime}`,
+      `Current timezone: ${timeZone}`,
+      'For questions involving today, current date, current time, weather, temperature, news, schedules, or other time-sensitive facts, use this runtime context as the source of truth. Do not infer the current date from model memory or from older search result snippets.'
+    ].join('\n')
+  };
+};
 const compactMessagesForBudget = (
   messages: LocalAiMessage[],
   tokenBudget: number
@@ -1628,28 +1666,84 @@ const compactMessagesForBudget = (
 
   return compacted;
 };
-const toApiMessages = (): LocalAiMessage[] =>
-  compactMessagesForBudget(
-    activeMessages.value
-      .filter((message) => !message.streaming && message.role !== 'system')
-      .map((message) => ({
-        role: message.role as 'user' | 'assistant',
-        content:
-          message.role === 'user'
-            ? apiUserMessageContent(message)
-            : message.content
-      })),
-    requestContextBudget.value
+const toApiMessages = (): LocalAiMessage[] => {
+  const runtimeContext = runtimeContextMessage();
+  const runtimeTokens = estimateChatTokens([runtimeContext]);
+  const messageBudget = Math.max(
+    512,
+    requestContextBudget.value - runtimeTokens
   );
+  return [
+    runtimeContext,
+    ...compactMessagesForBudget(
+      activeMessages.value
+        .filter((message) => !message.streaming && message.role !== 'system')
+        .map((message) => ({
+          role: message.role as 'user' | 'assistant',
+          content:
+            message.role === 'user'
+              ? apiUserMessageContent(message)
+              : message.content
+        })),
+      messageBudget
+    )
+  ];
+};
 const webSearchQueryFor = (assistantMessage: ChatMessage): string => {
   const parent = activeHistory.value?.messages.find(
     (message) => message.id === assistantMessage.parentId
   );
   return parent?.role === 'user' ? parent.content.trim() : '';
 };
+const weatherQueryFor = (assistantMessage: ChatMessage): string => {
+  const currentQuery = webSearchQueryFor(assistantMessage);
+  const recentUserMessages = activeMessages.value
+    .filter((message) => message.role === 'user' && !message.streaming)
+    .slice(-4)
+    .map((message) => message.content.trim())
+    .filter(Boolean);
+  return [...recentUserMessages, currentQuery].filter(Boolean).join('\n');
+};
+const webSearchQueryWithRuntimeDate = (query: string): string => {
+  if (!TEMPORAL_QUERY_RE.test(query)) return query;
+  const { isoDate, weekday } = localDateParts();
+  return `${query} ${isoDate} ${weekday}`;
+};
+const valueOrUnknown = (
+  value: number | null | undefined,
+  unit: string
+): string => (typeof value === 'number' ? `${value}${unit}` : '未知');
+const weatherContextMessage = (
+  response: LocalAiWeatherResponse
+): LocalAiMessage => {
+  const { isoDate, localTime, timeZone, weekday } = localDateParts();
+  return {
+    role: 'system',
+    content: [
+      'Structured weather context is available for this turn.',
+      `Authoritative current local date: ${isoDate} (${weekday})`,
+      `Authoritative current local time: ${localTime} ${timeZone}`,
+      `Weather source: ${response.source}`,
+      `Weather location: ${response.location}, ${response.country}`,
+      `Weather data date: ${response.date}`,
+      `Weather data updated at: ${response.time} ${response.timezone}`,
+      `Current temperature: ${valueOrUnknown(response.temperature, '°C')}`,
+      `Apparent temperature: ${valueOrUnknown(response.apparentTemperature, '°C')}`,
+      `Condition: ${response.weatherText}`,
+      `Humidity: ${valueOrUnknown(response.humidity, '%')}`,
+      `Precipitation: ${valueOrUnknown(response.precipitation, 'mm')}`,
+      `Wind speed: ${valueOrUnknown(response.windSpeed, 'km/h')}`,
+      `Today high: ${valueOrUnknown(response.temperatureMax, '°C')}`,
+      `Today low: ${valueOrUnknown(response.temperatureMin, '°C')}`,
+      `Precipitation probability: ${valueOrUnknown(response.precipitationProbability, '%')}`,
+      'For weather, temperature, humidity, wind, rain, and today/date questions, this structured weather context and the authoritative current local date override model memory and stale web snippets.'
+    ].join('\n')
+  };
+};
 const webSearchContextMessage = (
   response: LocalAiWebSearchResponse
 ): LocalAiMessage => {
+  const { isoDate, localTime, timeZone, weekday } = localDateParts();
   const results = response.results
     .map((result, index) => {
       const snippet = result.content.trim();
@@ -1666,8 +1760,10 @@ const webSearchContextMessage = (
     role: 'system',
     content: [
       'Web search context is available for this turn.',
+      `Authoritative current local date: ${isoDate} (${weekday})`,
+      `Authoritative current local time: ${localTime} ${timeZone}`,
       `Search query: ${response.query}`,
-      'Use the search results below when they are relevant. Prefer recent factual information from these results, and cite sources with bracket numbers like [1]. If the results are not relevant or insufficient, say so briefly.',
+      'Use the search results below when they are relevant. Prefer recent factual information from these results, and cite sources with bracket numbers like [1]. If the user asks about today/date/time/weather, the authoritative current date above overrides model memory and any stale search result wording.',
       '',
       results
     ].join('\n')
@@ -1680,38 +1776,67 @@ const withWebSearchContext = async (
   if (assistantMessage.webSearchStatus !== 'searching') return messages;
   const query = webSearchQueryFor(assistantMessage);
   if (!query) return messages;
+  const searchQueryText = webSearchQueryWithRuntimeDate(query);
 
   assistantMessage.webSearchStatus = 'searching';
-  assistantMessage.webSearchQuery = query;
+  assistantMessage.webSearchQuery = searchQueryText;
   assistantMessage.webSearchResults = [];
   assistantMessage.webSearchError = '';
-
-  try {
-    const response = await webSearchWithLocalAi({
-      query,
-      maxResults: config.value?.webSearchMaxResults
-    });
-    if (!response.results.length) {
-      assistantMessage.webSearchStatus = 'empty';
-      return messages;
+  const extraContextMessages: LocalAiMessage[] = [];
+  if (WEATHER_QUERY_RE.test(query)) {
+    try {
+      const weather = await getWeatherWithLocalAi({
+        query: weatherQueryFor(assistantMessage)
+      });
+      extraContextMessages.push(weatherContextMessage(weather));
+    } catch (error) {
+      logger.warn('[LocalAI] weather context failed', error);
     }
-    assistantMessage.webSearchStatus = 'done';
-    assistantMessage.webSearchResults = response.results;
-    const contextMessage = webSearchContextMessage(response);
-    const contextTokens = estimateChatTokens([contextMessage]);
+  }
+  const applyContextMessages = (
+    baseMessages: LocalAiMessage[],
+    contexts: LocalAiMessage[]
+  ): LocalAiMessage[] => {
+    if (!contexts.length) return baseMessages;
+    const systemMessages = baseMessages.filter(
+      (message) => message.role === 'system'
+    );
+    const conversationMessages = baseMessages.filter(
+      (message) => message.role !== 'system'
+    );
+    const pinnedMessages = [...systemMessages, ...contexts];
+    const contextTokens = estimateChatTokens(pinnedMessages);
     const messageBudget = Math.max(
       512,
       requestContextBudget.value - contextTokens
     );
     return [
-      contextMessage,
-      ...compactMessagesForBudget(messages, messageBudget)
+      ...pinnedMessages,
+      ...compactMessagesForBudget(conversationMessages, messageBudget)
     ];
+  };
+
+  try {
+    const response = await webSearchWithLocalAi({
+      query: searchQueryText,
+      maxResults: config.value?.webSearchMaxResults
+    });
+    if (!response.results.length) {
+      assistantMessage.webSearchStatus = 'empty';
+      return applyContextMessages(messages, extraContextMessages);
+    }
+    assistantMessage.webSearchStatus = 'done';
+    assistantMessage.webSearchResults = response.results;
+    const contextMessage = webSearchContextMessage(response);
+    return applyContextMessages(messages, [
+      ...extraContextMessages,
+      contextMessage
+    ]);
   } catch (error) {
     assistantMessage.webSearchStatus = 'failed';
     assistantMessage.webSearchError = String(error);
     logger.warn('[LocalAI] web search failed', error);
-    return messages;
+    return applyContextMessages(messages, extraContextMessages);
   }
 };
 const requestMaxTokens = (messages: LocalAiMessage[]): number | undefined => {
