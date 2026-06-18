@@ -1041,6 +1041,8 @@ async fn chat_completion(
         "chat_template_kwargs": {
             "enable_thinking": enable_thinking.unwrap_or(false)
         },
+        "cache_prompt": true,
+        "timings_per_token": true,
         "stream": false
     });
 
@@ -1253,6 +1255,8 @@ async fn chat_completion_stream(
         "chat_template_kwargs": {
             "enable_thinking": enable_thinking.unwrap_or(false)
         },
+        "cache_prompt": true,
+        "timings_per_token": true,
         "stream": true,
         "stream_options": {
             "include_usage": true
