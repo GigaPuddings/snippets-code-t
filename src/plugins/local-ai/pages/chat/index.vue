@@ -252,34 +252,24 @@
                           }}
                         </small>
                       </summary>
-                      <pre
-                        v-if="display.message.streaming"
-                        class="message-content streaming-text"
-                        v-text="messageReasoning(display.message.content)"
-                      ></pre>
                       <div
-                        v-else
                         class="message-content markdown-body"
                         @click="handleMarkdownClick"
                         v-html="
                           renderMarkdown(
-                            messageReasoning(display.message.content)
+                            messageMarkdownSource(display.message, 'reasoning')
                           )
                         "
                       ></div>
                     </details>
                     <template v-if="messageAnswer(display.message.content)">
-                      <pre
-                        v-if="display.message.streaming"
-                        class="message-content streaming-text"
-                        v-text="messageAnswer(display.message.content)"
-                      ></pre>
                       <div
-                        v-else
                         class="message-content markdown-body"
                         @click="handleMarkdownClick"
                         v-html="
-                          renderMarkdown(messageAnswer(display.message.content))
+                          renderMarkdown(
+                            messageMarkdownSource(display.message, 'answer')
+                          )
                         "
                       ></div>
                     </template>
@@ -675,11 +665,21 @@ let scrollFrameId: number | null = null;
 let scrollFrameForce = false;
 const markdownCache = new Map<string, string>();
 const markdownCodeCache = new Map<string, string>();
+const streamingMarkdownSnapshots = new Map<string, StreamingMarkdownSnapshot>();
 const MESSAGE_BOTTOM_THRESHOLD = 96;
 const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const MIN_ASSISTANT_TAIL_TOKENS = 160;
+const STREAM_MARKDOWN_RENDER_INTERVAL_MS = 320;
+const STREAM_MARKDOWN_RENDER_CHAR_DELTA = 1200;
 const STREAM_PUMP_INTERVAL_MS = 64;
 const STREAM_STATS_TICK_MS = 1000;
+
+interface StreamingMarkdownSnapshot {
+  source: string;
+  reasoning: string;
+  answer: string;
+  updatedAt: number;
+}
 
 const createMessageId = (role: ChatMessage['role'] | 'root'): string =>
   `${Date.now()}-${role}-${Math.random().toString(16).slice(2, 8)}`;
@@ -1255,6 +1255,39 @@ const splitReasoning = (
 const messageReasoning = (value: string): string =>
   splitReasoning(value).reasoning;
 const messageAnswer = (value: string): string => splitReasoning(value).answer;
+const messageMarkdownSource = (
+  message: ChatMessage,
+  section: 'reasoning' | 'answer'
+): string => {
+  const { reasoning, answer } = splitReasoning(message.content);
+  if (!message.streaming) {
+    streamingMarkdownSnapshots.delete(message.id);
+    return section === 'reasoning' ? reasoning : answer;
+  }
+
+  const now = Date.now();
+  const snapshot = streamingMarkdownSnapshots.get(message.id);
+  const shouldRefresh =
+    !snapshot ||
+    now - snapshot.updatedAt >= STREAM_MARKDOWN_RENDER_INTERVAL_MS ||
+    message.content.length - snapshot.source.length >=
+      STREAM_MARKDOWN_RENDER_CHAR_DELTA ||
+    (!snapshot.reasoning && Boolean(reasoning)) ||
+    (!snapshot.answer && Boolean(answer));
+
+  if (shouldRefresh) {
+    const nextSnapshot: StreamingMarkdownSnapshot = {
+      source: message.content,
+      reasoning,
+      answer,
+      updatedAt: now
+    };
+    streamingMarkdownSnapshots.set(message.id, nextSnapshot);
+    return section === 'reasoning' ? reasoning : answer;
+  }
+
+  return section === 'reasoning' ? snapshot.reasoning : snapshot.answer;
+};
 const messageHasAnswer = (message: ChatMessage): boolean =>
   Boolean(messageAnswer(message.content));
 const isReasoningActive = (message: ChatMessage): boolean =>
@@ -1491,7 +1524,10 @@ const messageStats = (message: ChatMessage) => {
   const output =
     message.stats?.completionTokens ?? estimateTokens(message.content);
   const contextMax = messageContextLimit(message);
-  const context = Math.min(promptTokens, contextMax);
+  const context = Math.min(
+    message.stats?.totalTokens ?? promptTokens + output,
+    contextMax
+  );
   const elapsedSeconds = Math.max(
     0,
     (message.stats?.generationTimeMs ??
@@ -2620,14 +2656,6 @@ onUnmounted(() => {
   min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-
-.streaming-text {
-  margin: 0;
-  color: inherit;
-  font: inherit;
-  line-height: inherit;
-  white-space: pre-wrap;
 }
 
 .assistant-content-stack {

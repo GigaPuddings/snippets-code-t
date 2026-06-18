@@ -1791,7 +1791,7 @@ export default {
     quickPromptRegex: '生成一段正则表达式',
     viewAllChats: '查看全部对话',
     modelLabel: '模型',
-    contextLabel: '上下文',
+    contextLabel: 'Context',
     localModel: '本地模型',
     defaultContext: '默认',
     today: '今天',
