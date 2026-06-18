@@ -35,6 +35,12 @@ static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
 static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
+static BING_TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)<li class="b_algo"[^>]*>.*?<h2[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#)
+        .expect("valid Bing title regex")
+});
+static BING_SNIPPET_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?s)<p[^>]*>(.*?)</p>"#).expect("valid Bing snippet regex"));
 static DDG_TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?s)<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#)
         .expect("valid DuckDuckGo title regex")
@@ -452,6 +458,60 @@ fn clean_html_text(value: &str) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn normalize_direct_search_url(raw_url: &str) -> Option<String> {
+    let decoded = decode_html_entities(raw_url);
+    if decoded.starts_with("http://") || decoded.starts_with("https://") {
+        Some(decoded)
+    } else {
+        None
+    }
+}
+
+fn parse_bing_results(body: &str, max_results: u32) -> Vec<LocalAiWebSearchResult> {
+    let mut results = Vec::new();
+    let matches = BING_TITLE_RE.captures_iter(body).collect::<Vec<_>>();
+    for (index, captures) in matches.iter().enumerate() {
+        let Some(raw_url) = captures.get(1).map(|item| item.as_str()) else {
+            continue;
+        };
+        let Some(url) = normalize_direct_search_url(raw_url) else {
+            continue;
+        };
+        let title = captures
+            .get(2)
+            .map(|item| clean_html_text(item.as_str()))
+            .unwrap_or_default();
+        if title.is_empty() {
+            continue;
+        }
+        let section_start = captures.get(0).map(|item| item.end()).unwrap_or(0);
+        let section_end = matches
+            .get(index + 1)
+            .and_then(|next| next.get(0))
+            .map(|item| item.start())
+            .unwrap_or(body.len());
+        let section = body.get(section_start..section_end).unwrap_or("");
+        let content = BING_SNIPPET_RE
+            .captures(section)
+            .and_then(|snippet| snippet.get(1))
+            .map(|item| clean_html_text(item.as_str()))
+            .unwrap_or_default()
+            .chars()
+            .take(500)
+            .collect::<String>();
+        results.push(LocalAiWebSearchResult {
+            title: title.chars().take(160).collect(),
+            url,
+            content,
+            engine: Some("Bing".to_string()),
+        });
+        if results.len() >= max_results as usize {
+            break;
+        }
+    }
+    results
 }
 
 fn normalize_duckduckgo_url(raw_url: &str) -> Option<String> {
@@ -1831,14 +1891,110 @@ pub async fn local_ai_web_search(
         .build()
         .map_err(|error| format!("创建联网搜索客户端失败: {}", error))?;
 
-    match search_with_duckduckgo_html(&client, query, max_results).await {
+    match search_with_bing_html(&client, query, max_results).await {
         Ok(results) if !results.is_empty() => Ok(LocalAiWebSearchResponse {
             query: query.to_string(),
             results,
         }),
-        Ok(_) => Err("联网搜索没有返回可用结果".to_string()),
-        Err(error) => Err(error),
+        Ok(_) => {
+            warn!(
+                "[Plugin:local-ai] web search provider=bing_html returned no usable results, falling back to DuckDuckGo HTML query=\"{}\"",
+                response_preview(query)
+            );
+            match search_with_duckduckgo_html(&client, query, max_results).await {
+                Ok(results) if !results.is_empty() => Ok(LocalAiWebSearchResponse {
+                    query: query.to_string(),
+                    results,
+                }),
+                Ok(_) => Err("联网搜索没有返回可用结果".to_string()),
+                Err(error) => Err(error),
+            }
+        }
+        Err(bing_error) => {
+            warn!(
+                "[Plugin:local-ai] web search provider=bing_html failed error=\"{}\", falling back to DuckDuckGo HTML query=\"{}\"",
+                bing_error,
+                response_preview(query)
+            );
+            match search_with_duckduckgo_html(&client, query, max_results).await {
+                Ok(results) if !results.is_empty() => Ok(LocalAiWebSearchResponse {
+                    query: query.to_string(),
+                    results,
+                }),
+                Ok(_) => Err(format!(
+                    "联网搜索没有返回可用结果。Bing 错误: {}",
+                    bing_error
+                )),
+                Err(ddg_error) => Err(format!(
+                    "联网搜索失败。Bing 错误: {}；DuckDuckGo 错误: {}",
+                    bing_error, ddg_error
+                )),
+            }
+        }
     }
+}
+
+async fn search_with_bing_html(
+    client: &Client,
+    query: &str,
+    max_results: u32,
+) -> Result<Vec<LocalAiWebSearchResult>, String> {
+    let search_url = "https://cn.bing.com/search";
+    info!(
+        "[Plugin:local-ai] web search start provider=bing_html url={} query=\"{}\" max_results={}",
+        search_url,
+        response_preview(query),
+        max_results
+    );
+    let response = client
+        .get(search_url)
+        .header(ACCEPT, "text/html,application/xhtml+xml")
+        .header(USER_AGENT, "Mozilla/5.0 snippets-code-local-ai/1.0")
+        .query(&[("q", query), ("setlang", "zh-CN")])
+        .send()
+        .await
+        .map_err(|error| {
+            warn!(
+                "[Plugin:local-ai] web search request failed provider=bing_html url={} query=\"{}\" error={}",
+                search_url,
+                response_preview(query),
+                error
+            );
+            format!("Bing 搜索请求失败: {}", error)
+        })?;
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let body = response.text().await.map_err(|error| {
+        warn!(
+            "[Plugin:local-ai] web search read response failed provider=bing_html url={} status={} content_type={} error={}",
+            search_url, status, content_type, error
+        );
+        format!("读取 Bing 搜索响应失败: {}", error)
+    })?;
+    info!(
+        "[Plugin:local-ai] web search response provider=bing_html url={} status={} content_type={} bytes={} preview=\"{}\"",
+        search_url,
+        status,
+        if content_type.is_empty() { "unknown" } else { &content_type },
+        body.len(),
+        response_preview(&body)
+    );
+    if !status.is_success() {
+        return Err(web_search_status_error(status, &body));
+    }
+
+    let results = parse_bing_results(&body, max_results);
+    info!(
+        "[Plugin:local-ai] web search parsed provider=bing_html query=\"{}\" usable_results={}",
+        response_preview(query),
+        results.len()
+    );
+    Ok(results)
 }
 
 async fn search_with_duckduckgo_html(
@@ -1989,6 +2145,24 @@ mod tests {
             "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fsearch%3Fq%3Dweb&amp;rut=abc",
         );
         assert_eq!(url.as_deref(), Some("https://example.com/search?q=web"));
+    }
+
+    #[test]
+    fn parses_bing_html_results() {
+        let html = r#"
+            <ol id="b_results">
+              <li class="b_algo">
+                <h2><a href="https://example.com/weather">河北天气 - Example</a></h2>
+                <div class="b_caption"><p>今天河北天气晴朗，局部有风。</p></div>
+              </li>
+            </ol>
+        "#;
+        let results = parse_bing_results(html, 5);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].title, "河北天气 - Example");
+        assert_eq!(results[0].url, "https://example.com/weather");
+        assert_eq!(results[0].content, "今天河北天气晴朗，局部有风。");
+        assert_eq!(results[0].engine.as_deref(), Some("Bing"));
     }
 
     #[test]
