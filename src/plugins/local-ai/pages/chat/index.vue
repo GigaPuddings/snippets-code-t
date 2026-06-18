@@ -2436,7 +2436,7 @@ onUnmounted(() => {
   display: flex;
   position: relative;
   flex-direction: column;
-  padding: 0 24px 16px;
+  padding: 0 20px 12px;
   overflow: hidden;
 }
 
