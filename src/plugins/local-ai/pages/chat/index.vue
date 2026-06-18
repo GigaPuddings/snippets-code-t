@@ -1612,6 +1612,23 @@ const runtimeContextMessage = (): LocalAiMessage => {
     ].join('\n')
   };
 };
+const mergeSystemMessages = (messages: LocalAiMessage[]): LocalAiMessage[] => {
+  const systemContents = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => contentText(message.content).trim())
+    .filter(Boolean);
+  const nonSystemMessages = messages.filter(
+    (message) => message.role !== 'system'
+  );
+  if (!systemContents.length) return nonSystemMessages;
+  return [
+    {
+      role: 'system',
+      content: systemContents.join('\n\n---\n\n')
+    },
+    ...nonSystemMessages
+  ];
+};
 const compactMessagesForBudget = (
   messages: LocalAiMessage[],
   tokenBudget: number
@@ -1797,7 +1814,7 @@ const withWebSearchContext = async (
     baseMessages: LocalAiMessage[],
     contexts: LocalAiMessage[]
   ): LocalAiMessage[] => {
-    if (!contexts.length) return baseMessages;
+    if (!contexts.length) return mergeSystemMessages(baseMessages);
     const systemMessages = baseMessages.filter(
       (message) => message.role === 'system'
     );
@@ -1810,10 +1827,10 @@ const withWebSearchContext = async (
       512,
       requestContextBudget.value - contextTokens
     );
-    return [
+    return mergeSystemMessages([
       ...pinnedMessages,
       ...compactMessagesForBudget(conversationMessages, messageBudget)
-    ];
+    ]);
   };
 
   try {
@@ -1977,6 +1994,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
     currentStreamRequestId.value = null;
     return;
   }
+  messages = mergeSystemMessages(messages);
   assistantMessage.promptTokens = estimateChatTokens(messages);
   assistantMessage.contextSize = effectiveContextLimit.value;
 
