@@ -1846,6 +1846,11 @@ export default {
     reasoningTitle: '思考',
     thinkingEnabled: '思考已开启',
     thinkingDisabled: '思考已关闭',
+    webSearchTitle: '联网',
+    webSearchEnabled: '联网已开启',
+    webSearchDisabled: '联网已关闭',
+    webSearchSearching: '正在联网搜索...',
+    webSearchUsed: '已使用 {count} 条联网来源',
     jumpToLatest: '回到底部',
     modelChanged: '模型已切换并保存',
     you: '你',
@@ -1907,6 +1912,17 @@ export default {
     repeatLastN: '惩罚窗口',
     maxTokens: '最大 token（0=无限）',
     port: '端口',
+    webSearch: '联网搜索',
+    webSearchDesc: '使用 SearXNG 搜索网页，并把结果注入本轮本地模型上下文',
+    webSearchBaseUrl: 'SearXNG 地址',
+    webSearchBaseUrlPlaceholder: 'http://127.0.0.1:8080',
+    webSearchMaxResults: '结果数',
+    webSearchTimeoutSecs: '搜索秒数',
+    webSearchSafeSearch: '安全搜索',
+    webSearchLanguage: '语言',
+    webSearchLanguagePlaceholder: '留空自动，例如 zh-CN / en-US',
+    webSearchNoResults: '未找到可用网页搜索结果，将直接使用本地模型回答。',
+    webSearchFailed: '联网搜索失败，将直接使用本地模型回答',
     estimatedMemory: '预估内存占用',
     estimateBeta: '估算',
     total: '总计',
@@ -1950,7 +1966,12 @@ export default {
       repeatPenalty: '重复惩罚，越高越不容易复读。',
       repeatLastN: '重复惩罚回看窗口。',
       maxTokens: '单次回复最大输出 token，0 表示不主动限制。',
-      port: '本地 llama-server 监听端口。'
+      port: '本地 llama-server 监听端口。',
+      webSearchBaseUrl: 'SearXNG 服务地址，需要启用 JSON 输出。',
+      webSearchMaxResults: '每次聊天注入的搜索结果数量，过多会占用上下文。',
+      webSearchTimeoutSecs: '等待 SearXNG 返回结果的最长时间。',
+      webSearchSafeSearch: 'SearXNG 安全搜索等级：0 关闭，1 中等，2 严格。',
+      webSearchLanguage: '传给 SearXNG 的语言代码，留空则由服务自动判断。'
     }
   }
 };

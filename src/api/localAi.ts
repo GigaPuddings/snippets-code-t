@@ -28,6 +28,11 @@ export interface LocalAiConfig {
   repeatLastN: number;
   maxTokens: number;
   requestTimeoutSecs: number;
+  webSearchBaseUrl: string;
+  webSearchMaxResults: number;
+  webSearchTimeoutSecs: number;
+  webSearchSafeSearch: number;
+  webSearchLanguage: string;
 }
 
 export interface LocalAiRuntimeStatus {
@@ -129,6 +134,23 @@ export interface LocalAiChatStreamOptions {
   onStats?: (stats: LocalAiChatStreamStats) => void;
 }
 
+export interface LocalAiWebSearchRequest {
+  query: string;
+  maxResults?: number;
+}
+
+export interface LocalAiWebSearchResult {
+  title: string;
+  url: string;
+  content: string;
+  engine?: string;
+}
+
+export interface LocalAiWebSearchResponse {
+  query: string;
+  results: LocalAiWebSearchResult[];
+}
+
 export async function getLocalAiConfig(): Promise<LocalAiConfig> {
   return await invoke<LocalAiConfig>('local_ai_get_config');
 }
@@ -216,6 +238,14 @@ export async function cancelLocalAiChatStream(
   requestId: string
 ): Promise<boolean> {
   return await invoke<boolean>('local_ai_cancel_chat_stream', { requestId });
+}
+
+export async function webSearchWithLocalAi(
+  request: LocalAiWebSearchRequest
+): Promise<LocalAiWebSearchResponse> {
+  return await invoke<LocalAiWebSearchResponse>('local_ai_web_search', {
+    request
+  });
 }
 
 export async function getLocalAiChatHistories(): Promise<LocalAiChatHistory[]> {

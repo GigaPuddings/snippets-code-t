@@ -274,6 +274,36 @@
                     {{ assistantMessagePendingText(display.message) }}
                   </div>
                 </div>
+                <div
+                  v-if="
+                    webSearchStatusText(display.message) ||
+                    display.message.webSearchResults?.length
+                  "
+                  class="web-search-panel"
+                >
+                  <div class="web-search-panel__header">
+                    <Search theme="outline" size="14" />
+                    <span>{{ webSearchStatusText(display.message) }}</span>
+                  </div>
+                  <div
+                    v-if="display.message.webSearchResults?.length"
+                    class="web-search-source-list"
+                  >
+                    <a
+                      v-for="(result, index) in display.message
+                        .webSearchResults"
+                      :key="`${result.url}-${index}`"
+                      class="web-search-source"
+                      :href="result.url"
+                      target="_blank"
+                      rel="noreferrer"
+                      :title="result.url"
+                    >
+                      <span>{{ index + 1 }}</span>
+                      <strong>{{ result.title }}</strong>
+                    </a>
+                  </div>
+                </div>
                 <div v-if="display.message.content" class="message-stats">
                   <span class="message-stats__context">
                     {{ t('localAi.contextLabel') }}:
@@ -483,6 +513,24 @@
               <Down theme="outline" size="14" />
             </label>
             <button
+              :class="[
+                'composer-tool-btn',
+                'composer-tool-btn--wide',
+                webSearchEnabled ? 'composer-tool-btn--active' : ''
+              ]"
+              type="button"
+              :title="
+                webSearchEnabled
+                  ? t('localAi.webSearchEnabled')
+                  : t('localAi.webSearchDisabled')
+              "
+              :aria-pressed="webSearchEnabled"
+              @click="toggleWebSearch"
+            >
+              <Search theme="outline" size="15" />
+              <span>{{ t('localAi.webSearchTitle') }}</span>
+            </button>
+            <button
               v-if="modelSupportsThinking"
               :class="[
                 'composer-tool-btn',
@@ -562,13 +610,16 @@ import {
   saveLocalAiConfig,
   scanLocalAiModels,
   streamChatWithLocalAi,
+  webSearchWithLocalAi,
   type LocalAiConfig,
   type LocalAiChatHistory,
   type LocalAiChatStreamStats,
   type LocalAiContentPart,
   type LocalAiMessage,
   type LocalAiModelScan,
-  type LocalAiServiceStatus
+  type LocalAiServiceStatus,
+  type LocalAiWebSearchResponse,
+  type LocalAiWebSearchResult
 } from '@/api/localAi';
 import {
   buildPromptWithFileAttachments,
@@ -610,6 +661,10 @@ interface ChatMessage {
   allowThinking?: boolean;
   reasoningStartedAt?: number;
   reasoningEndedAt?: number;
+  webSearchStatus?: 'searching' | 'done' | 'empty' | 'failed';
+  webSearchQuery?: string;
+  webSearchResults?: LocalAiWebSearchResult[];
+  webSearchError?: string;
   error?: string;
 }
 
@@ -645,6 +700,15 @@ const sending = ref(false);
 const refreshing = ref(false);
 const stopRequested = ref(false);
 const thinkingEnabled = ref(false);
+const WEB_SEARCH_ENABLED_STORAGE_KEY = 'snippets.localAi.webSearchEnabled';
+const loadWebSearchEnabled = (): boolean => {
+  try {
+    return localStorage.getItem(WEB_SEARCH_ENABLED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+const webSearchEnabled = ref(loadWebSearchEnabled());
 const composerFocused = ref(false);
 const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
@@ -1406,9 +1470,36 @@ const messageActivityLabel = (message: ChatMessage): string => {
   return t('localAi.generating');
 };
 const assistantMessagePendingText = (message: ChatMessage): string => {
+  if (message.webSearchStatus === 'searching')
+    return t('localAi.webSearchSearching');
   if (message.allowThinking && !message.reasoningEndedAt)
     return t('localAi.thinking');
   return t('localAi.generating');
+};
+const webSearchStatusText = (message: ChatMessage): string => {
+  if (message.webSearchStatus === 'searching')
+    return t('localAi.webSearchSearching');
+  if (message.webSearchStatus === 'done' && message.webSearchResults?.length) {
+    return t('localAi.webSearchUsed', {
+      count: message.webSearchResults.length
+    });
+  }
+  if (message.webSearchStatus === 'empty')
+    return t('localAi.webSearchNoResults');
+  if (message.webSearchStatus === 'failed')
+    return `${t('localAi.webSearchFailed')}: ${message.webSearchError ?? ''}`;
+  return '';
+};
+const toggleWebSearch = (): void => {
+  webSearchEnabled.value = !webSearchEnabled.value;
+  try {
+    localStorage.setItem(
+      WEB_SEARCH_ENABLED_STORAGE_KEY,
+      String(webSearchEnabled.value)
+    );
+  } catch (error) {
+    logger.warn('[LocalAI] save web search state failed', error);
+  }
 };
 const recordReasoningProgress = (message: ChatMessage, delta: string): void => {
   if (!message.allowThinking) return;
@@ -1550,6 +1641,79 @@ const toApiMessages = (): LocalAiMessage[] =>
       })),
     requestContextBudget.value
   );
+const webSearchQueryFor = (assistantMessage: ChatMessage): string => {
+  const parent = activeHistory.value?.messages.find(
+    (message) => message.id === assistantMessage.parentId
+  );
+  return parent?.role === 'user' ? parent.content.trim() : '';
+};
+const webSearchContextMessage = (
+  response: LocalAiWebSearchResponse
+): LocalAiMessage => {
+  const results = response.results
+    .map((result, index) => {
+      const snippet = result.content.trim();
+      return [
+        `[${index + 1}] ${result.title}`,
+        `URL: ${result.url}`,
+        snippet ? `摘要: ${snippet}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n');
+    })
+    .join('\n\n');
+  return {
+    role: 'system',
+    content: [
+      'Web search context is available for this turn.',
+      `Search query: ${response.query}`,
+      'Use the search results below when they are relevant. Prefer recent factual information from these results, and cite sources with bracket numbers like [1]. If the results are not relevant or insufficient, say so briefly.',
+      '',
+      results
+    ].join('\n')
+  };
+};
+const withWebSearchContext = async (
+  messages: LocalAiMessage[],
+  assistantMessage: ChatMessage
+): Promise<LocalAiMessage[]> => {
+  if (assistantMessage.webSearchStatus !== 'searching') return messages;
+  const query = webSearchQueryFor(assistantMessage);
+  if (!query) return messages;
+
+  assistantMessage.webSearchStatus = 'searching';
+  assistantMessage.webSearchQuery = query;
+  assistantMessage.webSearchResults = [];
+  assistantMessage.webSearchError = '';
+
+  try {
+    const response = await webSearchWithLocalAi({
+      query,
+      maxResults: config.value?.webSearchMaxResults
+    });
+    if (!response.results.length) {
+      assistantMessage.webSearchStatus = 'empty';
+      return messages;
+    }
+    assistantMessage.webSearchStatus = 'done';
+    assistantMessage.webSearchResults = response.results;
+    const contextMessage = webSearchContextMessage(response);
+    const contextTokens = estimateChatTokens([contextMessage]);
+    const messageBudget = Math.max(
+      512,
+      requestContextBudget.value - contextTokens
+    );
+    return [
+      contextMessage,
+      ...compactMessagesForBudget(messages, messageBudget)
+    ];
+  } catch (error) {
+    assistantMessage.webSearchStatus = 'failed';
+    assistantMessage.webSearchError = String(error);
+    logger.warn('[LocalAI] web search failed', error);
+    return messages;
+  }
+};
 const requestMaxTokens = (messages: LocalAiMessage[]): number | undefined => {
   const configuredMaxTokens = config.value?.maxTokens ?? 0;
   if (configuredMaxTokens > 0) return configuredMaxTokens;
@@ -1672,7 +1836,7 @@ const stopStatsTicker = () => {
 const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   const startedAt = performance.now();
   const requestId = createLocalAiStreamRequestId();
-  const messages = toApiMessages();
+  let messages = toApiMessages();
   let queuedContent = '';
   let pumpTimer: number | null = null;
   let drainResolver: (() => void) | null = null;
@@ -1680,6 +1844,14 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   let repetitionStopRequested = false;
   currentStreamRequestId.value = requestId;
   stopRequested.value = false;
+  messages = await withWebSearchContext(messages, assistantMessage);
+  if (stopRequested.value) {
+    assistantMessage.streaming = false;
+    assistantMessage.stopped = true;
+    assistantMessage.elapsedMs = performance.now() - startedAt;
+    currentStreamRequestId.value = null;
+    return;
+  }
   assistantMessage.promptTokens = estimateChatTokens(messages);
   assistantMessage.contextSize = effectiveContextLimit.value;
 
@@ -1875,6 +2047,7 @@ const sendMessage = async () => {
     parentId: userMessage.id,
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
+    webSearchStatus: webSearchEnabled.value ? 'searching' : undefined,
     contextSize: effectiveContextLimit.value,
     promptTokens: estimateChatTokens(toApiMessages())
   });
@@ -2079,6 +2252,7 @@ const regenerateMessage = async (messageId: string) => {
     parentId: source.parentId,
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
+    webSearchStatus: webSearchEnabled.value ? 'searching' : undefined,
     promptTokens: estimateChatTokens(toApiMessages())
   });
   sending.value = true;
@@ -2943,6 +3117,66 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
   gap: 14px;
+}
+
+.web-search-panel {
+  display: grid;
+  width: min(100%, var(--chat-readable-width));
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+  gap: 7px;
+}
+
+.web-search-panel__header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.web-search-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.web-search-source {
+  display: inline-flex;
+  max-width: min(320px, 100%);
+  align-items: center;
+  padding: 4px 7px;
+  color: #475569;
+  text-decoration: none;
+  background: #f8fafc;
+  border: 1px solid var(--chat-border);
+  border-radius: 7px;
+  gap: 6px;
+}
+
+.web-search-source:hover {
+  color: var(--chat-primary);
+  border-color: rgba(95, 116, 243, 0.36);
+}
+
+.web-search-source span {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #536174;
+  font-size: 11px;
+  background: #eef2ff;
+  border-radius: 50%;
+}
+
+.web-search-source strong {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-stats span {

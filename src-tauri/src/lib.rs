@@ -913,6 +913,7 @@ pub fn run() {
             plugins::local_ai::local_ai_stop_service,               // 停止本地 AI 服务
             plugins::local_ai::local_ai_chat,                       // 本地 AI 聊天
             plugins::local_ai::local_ai_chat_stream,                // 本地 AI 流式聊天
+            plugins::local_ai::local_ai_web_search,                 // 本地 AI 联网搜索
             plugins::local_ai::local_ai_cancel_chat_stream,         // 取消本地 AI 流式聊天
             plugins::local_ai::local_ai_get_chat_histories,         // 获取聊天历史
             plugins::local_ai::local_ai_save_chat_history,          // 保存聊天历史

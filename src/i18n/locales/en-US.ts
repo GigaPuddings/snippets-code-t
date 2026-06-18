@@ -1881,6 +1881,11 @@ export default {
     reasoningTitle: 'Think',
     thinkingEnabled: 'Thinking is on',
     thinkingDisabled: 'Thinking is off',
+    webSearchTitle: 'Web',
+    webSearchEnabled: 'Web access is on',
+    webSearchDisabled: 'Web access is off',
+    webSearchSearching: 'Searching the web...',
+    webSearchUsed: 'Used {count} web sources',
     jumpToLatest: 'Jump to latest',
     modelChanged: 'Model changed and saved',
     you: 'You',
@@ -1947,6 +1952,19 @@ export default {
     repeatLastN: 'Penalty window',
     maxTokens: 'Max tokens (0=unlimited)',
     port: 'Port',
+    webSearch: 'Web Search',
+    webSearchDesc:
+      'Use SearXNG to search the web and inject results into the local model context',
+    webSearchBaseUrl: 'SearXNG URL',
+    webSearchBaseUrlPlaceholder: 'http://127.0.0.1:8080',
+    webSearchMaxResults: 'Results',
+    webSearchTimeoutSecs: 'Search seconds',
+    webSearchSafeSearch: 'Safe search',
+    webSearchLanguage: 'Language',
+    webSearchLanguagePlaceholder: 'Leave blank for auto, e.g. zh-CN / en-US',
+    webSearchNoResults:
+      'No usable web search results were found. Answering with the local model only.',
+    webSearchFailed: 'Web search failed. Answering with the local model only',
     estimatedMemory: 'Estimated memory usage',
     estimateBeta: 'Estimate',
     total: 'Total',
@@ -1998,7 +2016,15 @@ export default {
       repeatPenalty: 'Penalty applied to repeated tokens.',
       repeatLastN: 'Token window used by the repetition penalty.',
       maxTokens: 'Maximum output tokens per response. 0 means no app-side cap.',
-      port: 'Local llama-server port.'
+      port: 'Local llama-server port.',
+      webSearchBaseUrl: 'SearXNG service URL. JSON output must be enabled.',
+      webSearchMaxResults:
+        'Number of search results injected per chat request. Too many results use context.',
+      webSearchTimeoutSecs: 'Maximum time to wait for SearXNG results.',
+      webSearchSafeSearch:
+        'SearXNG safe-search level: 0 off, 1 moderate, 2 strict.',
+      webSearchLanguage:
+        'Language code passed to SearXNG. Leave blank to let the service decide.'
     }
   }
 };

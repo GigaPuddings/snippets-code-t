@@ -69,6 +69,16 @@ pub struct LocalAiConfig {
     pub repeat_last_n: u32,
     pub max_tokens: u32,
     pub request_timeout_secs: u32,
+    #[serde(default = "default_web_search_base_url")]
+    pub web_search_base_url: String,
+    #[serde(default = "default_web_search_max_results")]
+    pub web_search_max_results: u32,
+    #[serde(default = "default_web_search_timeout_secs")]
+    pub web_search_timeout_secs: u32,
+    #[serde(default = "default_web_search_safe_search")]
+    pub web_search_safe_search: u8,
+    #[serde(default)]
+    pub web_search_language: String,
 }
 
 fn default_top_p() -> f32 {
@@ -89,6 +99,22 @@ fn default_repeat_penalty() -> f32 {
 
 fn default_repeat_last_n() -> u32 {
     256
+}
+
+fn default_web_search_base_url() -> String {
+    "http://127.0.0.1:8080".to_string()
+}
+
+fn default_web_search_max_results() -> u32 {
+    5
+}
+
+fn default_web_search_timeout_secs() -> u32 {
+    12
+}
+
+fn default_web_search_safe_search() -> u8 {
+    1
 }
 
 impl Default for LocalAiConfig {
@@ -123,6 +149,11 @@ impl Default for LocalAiConfig {
             repeat_last_n: default_repeat_last_n(),
             max_tokens: 0,
             request_timeout_secs: 600,
+            web_search_base_url: default_web_search_base_url(),
+            web_search_max_results: default_web_search_max_results(),
+            web_search_timeout_secs: default_web_search_timeout_secs(),
+            web_search_safe_search: default_web_search_safe_search(),
+            web_search_language: String::new(),
         }
     }
 }
@@ -231,6 +262,29 @@ pub struct LocalAiChatStreamPayload {
     pub content: Option<String>,
     pub error: Option<String>,
     pub stats: Option<LocalAiChatStreamStats>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiWebSearchRequest {
+    pub query: String,
+    pub max_results: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiWebSearchResult {
+    pub title: String,
+    pub url: String,
+    pub content: String,
+    pub engine: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiWebSearchResponse {
+    pub query: String,
+    pub results: Vec<LocalAiWebSearchResult>,
 }
 
 #[derive(Default)]
@@ -1628,6 +1682,111 @@ pub async fn local_ai_chat_stream(
             Err(error)
         }
     }
+}
+
+#[tauri::command]
+pub async fn local_ai_web_search(
+    app_handle: AppHandle,
+    request: LocalAiWebSearchRequest,
+) -> Result<LocalAiWebSearchResponse, String> {
+    require_plugin(&app_handle)?;
+    let query = request.query.trim();
+    if query.is_empty() {
+        return Err("搜索关键词不能为空".to_string());
+    }
+
+    let config = read_config(&app_handle);
+    let base_url = config.web_search_base_url.trim().trim_end_matches('/');
+    if base_url.is_empty() {
+        return Err("请先配置 SearXNG 搜索服务地址".to_string());
+    }
+
+    let max_results = request
+        .max_results
+        .unwrap_or(config.web_search_max_results)
+        .clamp(1, 10);
+    let client = Client::builder()
+        .timeout(Duration::from_secs(u64::from(
+            config.web_search_timeout_secs.max(3),
+        )))
+        .build()
+        .map_err(|error| format!("创建联网搜索客户端失败: {}", error))?;
+    let mut request_builder = client.get(format!("{}/search", base_url)).query(&[
+        ("q", query),
+        ("format", "json"),
+        ("categories", "general"),
+    ]);
+    let safe_search = config.web_search_safe_search.min(2).to_string();
+    request_builder = request_builder.query(&[("safesearch", safe_search.as_str())]);
+    let language = config.web_search_language.trim();
+    if !language.is_empty() {
+        request_builder = request_builder.query(&[("language", language)]);
+    }
+
+    let response = request_builder
+        .send()
+        .await
+        .map_err(|error| format!("联网搜索请求失败: {}", error))?;
+    let status = response.status();
+    let value = response
+        .json::<Value>()
+        .await
+        .map_err(|error| format!("解析联网搜索结果失败: {}", error))?;
+    if !status.is_success() {
+        return Err(format!("联网搜索服务返回错误 {}: {}", status, value));
+    }
+
+    let results = value
+        .get("results")
+        .and_then(|results| results.as_array())
+        .map(|results| {
+            results
+                .iter()
+                .filter_map(|item| {
+                    let title = item
+                        .get("title")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or("")
+                        .trim();
+                    let url = item
+                        .get("url")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or("")
+                        .trim();
+                    if title.is_empty() || url.is_empty() {
+                        return None;
+                    }
+                    let content = item
+                        .get("content")
+                        .or_else(|| item.get("snippet"))
+                        .and_then(|value| value.as_str())
+                        .unwrap_or("")
+                        .trim()
+                        .chars()
+                        .take(500)
+                        .collect::<String>();
+                    let engine = item
+                        .get("engine")
+                        .and_then(|value| value.as_str())
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_string);
+                    Some(LocalAiWebSearchResult {
+                        title: title.chars().take(160).collect(),
+                        url: url.to_string(),
+                        content,
+                        engine,
+                    })
+                })
+                .take(max_results as usize)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    Ok(LocalAiWebSearchResponse {
+        query: query.to_string(),
+        results,
+    })
 }
 
 #[tauri::command]

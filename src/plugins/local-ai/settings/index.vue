@@ -434,6 +434,76 @@
           </div>
         </div>
 
+        <div class="settings-section grid-two">
+          <div class="settings-section__header">
+            <div>
+              <h4>{{ t('localAi.webSearch') }}</h4>
+              <p>{{ t('localAi.webSearchDesc') }}</p>
+            </div>
+          </div>
+          <div class="field-stack">
+            <label class="field-row" :title="paramHint('webSearchBaseUrl')">
+              <span>{{ t('localAi.webSearchBaseUrl') }}</span>
+              <input
+                v-model="config.webSearchBaseUrl"
+                class="text-input"
+                :placeholder="t('localAi.webSearchBaseUrlPlaceholder')"
+              />
+            </label>
+          </div>
+          <div class="param-grid param-grid--three">
+            <label
+              class="number-field"
+              :title="paramHint('webSearchMaxResults')"
+            >
+              <span>{{ t('localAi.webSearchMaxResults') }}</span>
+              <el-input-number
+                v-model="config.webSearchMaxResults"
+                :min="1"
+                :max="10"
+                :step="1"
+                size="small"
+              />
+            </label>
+            <label
+              class="number-field"
+              :title="paramHint('webSearchTimeoutSecs')"
+            >
+              <span>{{ t('localAi.webSearchTimeoutSecs') }}</span>
+              <el-input-number
+                v-model="config.webSearchTimeoutSecs"
+                :min="3"
+                :max="60"
+                :step="1"
+                size="small"
+              />
+            </label>
+            <label
+              class="number-field"
+              :title="paramHint('webSearchSafeSearch')"
+            >
+              <span>{{ t('localAi.webSearchSafeSearch') }}</span>
+              <el-input-number
+                v-model="config.webSearchSafeSearch"
+                :min="0"
+                :max="2"
+                :step="1"
+                size="small"
+              />
+            </label>
+          </div>
+          <div class="field-stack">
+            <label class="field-row" :title="paramHint('webSearchLanguage')">
+              <span>{{ t('localAi.webSearchLanguage') }}</span>
+              <input
+                v-model="config.webSearchLanguage"
+                class="text-input"
+                :placeholder="t('localAi.webSearchLanguagePlaceholder')"
+              />
+            </label>
+          </div>
+        </div>
+
         <div class="settings-footer">
           <CustomButton type="primary" :loading="saving" @click="saveConfig">
             {{ t('common.save') }}
