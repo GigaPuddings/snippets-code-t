@@ -256,9 +256,7 @@
                         class="message-content markdown-body"
                         @click="handleMarkdownClick"
                         v-html="
-                          renderMarkdown(
-                            messageMarkdownSource(display.message, 'reasoning')
-                          )
+                          renderMessageMarkdown(display.message, 'reasoning')
                         "
                       ></div>
                     </details>
@@ -267,9 +265,7 @@
                         class="message-content markdown-body"
                         @click="handleMarkdownClick"
                         v-html="
-                          renderMarkdown(
-                            messageMarkdownSource(display.message, 'answer')
-                          )
+                          renderMessageMarkdown(display.message, 'answer')
                         "
                       ></div>
                     </template>
@@ -605,6 +601,7 @@ interface ChatMessage {
   streaming?: boolean;
   elapsedMs?: number;
   promptTokens?: number;
+  estimatedCompletionTokens?: number;
   contextSize?: number;
   stats?: LocalAiChatStreamStats;
   stopped?: boolean;
@@ -667,17 +664,24 @@ const markdownCache = new Map<string, string>();
 const markdownCodeCache = new Map<string, string>();
 const streamingMarkdownSnapshots = new Map<string, StreamingMarkdownSnapshot>();
 const MESSAGE_BOTTOM_THRESHOLD = 96;
+const MARKDOWN_CACHE_LIMIT = 24;
+const MARKDOWN_CODE_CACHE_LIMIT = 120;
 const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const MIN_ASSISTANT_TAIL_TOKENS = 160;
-const STREAM_MARKDOWN_RENDER_INTERVAL_MS = 320;
-const STREAM_MARKDOWN_RENDER_CHAR_DELTA = 1200;
-const STREAM_PUMP_INTERVAL_MS = 64;
+const STREAM_MARKDOWN_RENDER_INTERVAL_MS = 420;
+const STREAM_MARKDOWN_LONG_RENDER_INTERVAL_MS = 1200;
+const STREAM_MARKDOWN_LONG_CONTENT_CHARS = 24000;
+const STREAM_MARKDOWN_RENDER_CHAR_DELTA = 1800;
+const STREAM_MARKDOWN_LONG_CHAR_DELTA = 5200;
+const STREAM_PUMP_INTERVAL_MS = 90;
 const STREAM_STATS_TICK_MS = 1000;
 
 interface StreamingMarkdownSnapshot {
   source: string;
   reasoning: string;
   answer: string;
+  reasoningHtml?: string;
+  answerHtml?: string;
   updatedAt: number;
 }
 
@@ -1204,21 +1208,55 @@ const enhanceCodeBlocks = (html: string): string => {
       const code = template.value;
       const id = codeBlockId(code);
       markdownCodeCache.set(id, code);
+      if (markdownCodeCache.size > MARKDOWN_CODE_CACHE_LIMIT) {
+        const firstKey = markdownCodeCache.keys().next().value;
+        if (typeof firstKey === 'string') markdownCodeCache.delete(firstKey);
+      }
       const codeClass = className ? ` class="${className}"` : '';
       return `<div class="code-block-shell"><button type="button" class="code-copy-btn" data-code-id="${id}" title="${t('common.copy')}">${t('common.copy')}</button><pre><code${codeClass}>${codeHtml}</code></pre></div>`;
     }
   );
 };
-const renderMarkdown = (value: string): string => {
-  const cached = markdownCache.get(value);
-  if (cached) return cached;
-  const html = enhanceCodeBlocks(
-    sanitizeHtml(marked.parse(value, { async: false }) as string)
-  );
+const renderMarkdown = (
+  value: string,
+  options: { cache?: boolean; enhanceCodeBlocks?: boolean } = {}
+): string => {
+  const shouldCache = options.cache !== false;
+  const shouldEnhanceCodeBlocks = options.enhanceCodeBlocks !== false;
+  if (shouldCache) {
+    const cached = markdownCache.get(value);
+    if (cached) return cached;
+  }
+  const parsed = sanitizeHtml(marked.parse(value, { async: false }) as string);
+  const html = shouldEnhanceCodeBlocks ? enhanceCodeBlocks(parsed) : parsed;
+  if (!shouldCache) return html;
   markdownCache.set(value, html);
-  if (markdownCache.size > 80) {
+  if (markdownCache.size > MARKDOWN_CACHE_LIMIT) {
     const firstKey = markdownCache.keys().next().value;
     if (typeof firstKey === 'string') markdownCache.delete(firstKey);
+  }
+  return html;
+};
+const renderMessageMarkdown = (
+  message: ChatMessage,
+  section: 'reasoning' | 'answer'
+): string => {
+  const source = messageMarkdownSource(message, section);
+  if (!message.streaming) return renderMarkdown(source);
+
+  const snapshot = streamingMarkdownSnapshots.get(message.id);
+  const htmlKey = section === 'reasoning' ? 'reasoningHtml' : 'answerHtml';
+  const sourceKey = section === 'reasoning' ? 'reasoning' : 'answer';
+  if (snapshot?.[sourceKey] === source && snapshot[htmlKey]) {
+    return snapshot[htmlKey];
+  }
+
+  const html = renderMarkdown(source, {
+    cache: false,
+    enhanceCodeBlocks: false
+  });
+  if (snapshot?.[sourceKey] === source) {
+    snapshot[htmlKey] = html;
   }
   return html;
 };
@@ -1267,11 +1305,18 @@ const messageMarkdownSource = (
 
   const now = Date.now();
   const snapshot = streamingMarkdownSnapshots.get(message.id);
+  const longContent =
+    message.content.length >= STREAM_MARKDOWN_LONG_CONTENT_CHARS;
+  const renderInterval = longContent
+    ? STREAM_MARKDOWN_LONG_RENDER_INTERVAL_MS
+    : STREAM_MARKDOWN_RENDER_INTERVAL_MS;
+  const charDelta = longContent
+    ? STREAM_MARKDOWN_LONG_CHAR_DELTA
+    : STREAM_MARKDOWN_RENDER_CHAR_DELTA;
   const shouldRefresh =
     !snapshot ||
-    now - snapshot.updatedAt >= STREAM_MARKDOWN_RENDER_INTERVAL_MS ||
-    message.content.length - snapshot.source.length >=
-      STREAM_MARKDOWN_RENDER_CHAR_DELTA ||
+    now - snapshot.updatedAt >= renderInterval ||
+    message.content.length - snapshot.source.length >= charDelta ||
     (!snapshot.reasoning && Boolean(reasoning)) ||
     (!snapshot.answer && Boolean(answer));
 
@@ -1388,6 +1433,8 @@ const estimateTokens = (value: string): number => {
   }, 0);
   return Math.max(1, Math.ceil(cjkCount + latinTokens));
 };
+const estimateStreamingOutputTokens = (value: string): number =>
+  Math.max(0, Math.ceil(value.length / 4));
 const contentText = (content: LocalAiMessage['content']): string =>
   Array.isArray(content)
     ? content
@@ -1522,7 +1569,11 @@ const messageStats = (message: ChatMessage) => {
   const now = statsTick.value;
   const promptTokens = message.stats?.promptTokens ?? message.promptTokens ?? 0;
   const output =
-    message.stats?.completionTokens ?? estimateTokens(message.content);
+    message.stats?.completionTokens ??
+    message.estimatedCompletionTokens ??
+    (message.streaming
+      ? estimateStreamingOutputTokens(message.content)
+      : estimateTokens(message.content));
   const contextMax = messageContextLimit(message);
   const context = Math.min(
     message.stats?.totalTokens ?? promptTokens + output,
@@ -1558,7 +1609,11 @@ const messageWarningText = (message: ChatMessage): string => {
   const estimatedContext =
     message.stats?.totalTokens ??
     (message.promptTokens ?? 0) +
-      (message.stats?.completionTokens ?? estimateTokens(message.content));
+      (message.stats?.completionTokens ??
+        message.estimatedCompletionTokens ??
+        (message.streaming
+          ? estimateStreamingOutputTokens(message.content)
+          : estimateTokens(message.content)));
   if (estimatedContext >= messageContextLimit(message) - 8)
     return t('localAi.contextLimitReached');
   if (message.stats?.finishReason === 'length')
@@ -1637,14 +1692,19 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
     }
 
     const take = stopRequested.value
-      ? 480
-      : queuedContent.length > 900
-        ? 180
-        : queuedContent.length > 240
-          ? 96
-          : 32;
+      ? 1200
+      : queuedContent.length > 4000
+        ? 900
+        : queuedContent.length > 1200
+          ? 520
+          : queuedContent.length > 240
+            ? 180
+            : 64;
     assistantMessage.content += queuedContent.slice(0, take);
     queuedContent = queuedContent.slice(take);
+    assistantMessage.estimatedCompletionTokens = estimateStreamingOutputTokens(
+      assistantMessage.content
+    );
     if (
       !repetitionStopRequested &&
       !stopRequested.value &&
@@ -1701,6 +1761,9 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
           ...stats
         };
         if (stats.ctxSize) assistantMessage.contextSize = stats.ctxSize;
+        if (stats.completionTokens !== undefined) {
+          assistantMessage.estimatedCompletionTokens = stats.completionTokens;
+        }
         statsTick.value = Date.now();
       }
     }
@@ -1728,6 +1791,10 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   ) {
     assistantMessage.content = response.content;
   }
+  assistantMessage.estimatedCompletionTokens =
+    assistantMessage.stats?.completionTokens ??
+    estimateStreamingOutputTokens(assistantMessage.content);
+  streamingMarkdownSnapshots.delete(assistantMessage.id);
   assistantMessage.streaming = false;
   assistantMessage.elapsedMs = performance.now() - startedAt;
   assistantMessage.stopped = stopRequested.value;
@@ -1854,6 +1921,7 @@ const sendMessage = async () => {
       }
     }
     assistantMessage.streaming = false;
+    streamingMarkdownSnapshots.delete(assistantMessage.id);
     assistantMessage.elapsedMs = performance.now() - startedAt;
   } finally {
     sending.value = false;
@@ -2034,6 +2102,7 @@ const regenerateMessage = async (messageId: string) => {
       await persistActiveHistory();
     }
     assistantMessage.streaming = false;
+    streamingMarkdownSnapshots.delete(assistantMessage.id);
     assistantMessage.elapsedMs = performance.now() - startedAt;
   } finally {
     sending.value = false;
@@ -2063,6 +2132,9 @@ onUnmounted(() => {
   if (currentStreamRequestId.value) {
     void cancelLocalAiChatStream(currentStreamRequestId.value);
   }
+  markdownCache.clear();
+  markdownCodeCache.clear();
+  streamingMarkdownSnapshots.clear();
   stopStatsTicker();
 });
 </script>
