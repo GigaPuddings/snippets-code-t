@@ -29,12 +29,15 @@ const DEFAULT_PORT: u16 = 39281;
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
+const SEARXNG_CIRCUIT_BREAKER_SECS: u64 = 300;
 
 static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
     LazyLock::new(|| Mutex::new(LocalAiServiceState::default()));
 static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
+static SEARXNG_CIRCUIT_BREAKER: LazyLock<Mutex<Option<SearxngCircuitBreaker>>> =
+    LazyLock::new(|| Mutex::new(None));
 static DDG_TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?s)<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#)
         .expect("valid DuckDuckGo title regex")
@@ -310,6 +313,13 @@ struct LocalAiServiceState {
     last_error: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+struct SearxngCircuitBreaker {
+    url: String,
+    disabled_until: Instant,
+    last_error: String,
+}
+
 struct LocalAiRequestGuard;
 
 impl Drop for LocalAiRequestGuard {
@@ -555,6 +565,45 @@ fn parse_duckduckgo_results(body: &str, max_results: u32) -> Vec<LocalAiWebSearc
         }
     }
     results
+}
+
+fn searxng_circuit_skip(search_url: &str) -> Option<(u64, String)> {
+    let Ok(guard) = SEARXNG_CIRCUIT_BREAKER.lock() else {
+        return None;
+    };
+    let circuit = guard.as_ref()?;
+    if circuit.url != search_url {
+        return None;
+    }
+    let now = Instant::now();
+    if circuit.disabled_until <= now {
+        return None;
+    }
+    Some((
+        circuit.disabled_until.duration_since(now).as_secs(),
+        circuit.last_error.clone(),
+    ))
+}
+
+fn mark_searxng_failure(search_url: &str, error: &str) {
+    if let Ok(mut guard) = SEARXNG_CIRCUIT_BREAKER.lock() {
+        *guard = Some(SearxngCircuitBreaker {
+            url: search_url.to_string(),
+            disabled_until: Instant::now() + Duration::from_secs(SEARXNG_CIRCUIT_BREAKER_SECS),
+            last_error: error.to_string(),
+        });
+    }
+}
+
+fn clear_searxng_failure(search_url: &str) {
+    if let Ok(mut guard) = SEARXNG_CIRCUIT_BREAKER.lock() {
+        if guard
+            .as_ref()
+            .is_some_and(|circuit| circuit.url == search_url)
+        {
+            *guard = None;
+        }
+    }
 }
 
 fn completion_token_limit(config: &LocalAiConfig, request_max_tokens: Option<u32>) -> i64 {
@@ -1866,27 +1915,45 @@ pub async fn local_ai_web_search(
 
     let mut primary_error = None;
     if !base_url.is_empty() {
-        match search_with_searxng(&client, &config, query, max_results).await {
-            Ok(results) if !results.is_empty() => {
-                return Ok(LocalAiWebSearchResponse {
-                    query: query.to_string(),
-                    results,
-                });
-            }
-            Ok(_) => {
-                primary_error = Some("SearXNG 未返回可用搜索结果".to_string());
-                warn!(
-                    "[Plugin:local-ai] web search searxng empty query=\"{}\", falling back to DuckDuckGo HTML",
-                    response_preview(query)
-                );
-            }
-            Err(error) => {
-                primary_error = Some(error.clone());
-                warn!(
-                    "[Plugin:local-ai] web search searxng failed query=\"{}\" error=\"{}\", falling back to DuckDuckGo HTML",
-                    response_preview(query),
-                    error
-                );
+        let search_url = web_search_url(&config);
+        if let Some((remaining_secs, last_error)) = searxng_circuit_skip(&search_url) {
+            primary_error = Some(format!(
+                "SearXNG 暂时跳过，{} 秒后重试。上次错误: {}",
+                remaining_secs, last_error
+            ));
+            warn!(
+                "[Plugin:local-ai] web search searxng skipped url={} remaining={}s last_error=\"{}\", using DuckDuckGo HTML",
+                search_url,
+                remaining_secs,
+                last_error
+            );
+        } else {
+            match search_with_searxng(&client, &config, query, max_results).await {
+                Ok(results) if !results.is_empty() => {
+                    clear_searxng_failure(&search_url);
+                    return Ok(LocalAiWebSearchResponse {
+                        query: query.to_string(),
+                        results,
+                    });
+                }
+                Ok(_) => {
+                    let error = "SearXNG 未返回可用搜索结果".to_string();
+                    mark_searxng_failure(&search_url, &error);
+                    primary_error = Some(error);
+                    warn!(
+                        "[Plugin:local-ai] web search searxng empty query=\"{}\", falling back to DuckDuckGo HTML",
+                        response_preview(query)
+                    );
+                }
+                Err(error) => {
+                    mark_searxng_failure(&search_url, &error);
+                    primary_error = Some(error.clone());
+                    warn!(
+                        "[Plugin:local-ai] web search searxng failed query=\"{}\" error=\"{}\", falling back to DuckDuckGo HTML",
+                        response_preview(query),
+                        error
+                    );
+                }
             }
         }
     } else {
@@ -2256,5 +2323,21 @@ mod tests {
         assert_eq!(results[0].url, "https://example.com/article");
         assert_eq!(results[0].content, "A clean snippet & summary.");
         assert_eq!(results[0].engine.as_deref(), Some("DuckDuckGo"));
+    }
+
+    #[test]
+    fn searxng_circuit_breaker_is_url_scoped() {
+        let url = "http://127.0.0.1:8080/search";
+        let other_url = "http://127.0.0.1:8081/search";
+        clear_searxng_failure(url);
+        clear_searxng_failure(other_url);
+
+        mark_searxng_failure(url, "502");
+
+        assert!(searxng_circuit_skip(url).is_some());
+        assert!(searxng_circuit_skip(other_url).is_none());
+
+        clear_searxng_failure(url);
+        assert!(searxng_circuit_skip(url).is_none());
     }
 }
