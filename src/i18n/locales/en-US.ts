@@ -1965,6 +1965,12 @@ export default {
     webSearchNoResults:
       'No usable web search results were found. Answering with the local model only.',
     webSearchFailed: 'Web search failed. Answering with the local model only',
+    webSearchTest: 'Test search',
+    webSearchTestQuery: 'SearXNG test',
+    webSearchTestSuccess: 'Web search test succeeded with {count} result(s)',
+    webSearchTestEmpty:
+      'Web search is reachable but returned no usable results',
+    webSearchTestFailed: 'Web search test failed',
     estimatedMemory: 'Estimated memory usage',
     estimateBeta: 'Estimate',
     total: 'Total',
@@ -2017,7 +2023,8 @@ export default {
       repeatLastN: 'Token window used by the repetition penalty.',
       maxTokens: 'Maximum output tokens per response. 0 means no app-side cap.',
       port: 'Local llama-server port.',
-      webSearchBaseUrl: 'SearXNG service URL. JSON output must be enabled.',
+      webSearchBaseUrl:
+        'SearXNG root URL or /search URL. JSON output must be enabled.',
       webSearchMaxResults:
         'Number of search results injected per chat request. Too many results use context.',
       webSearchTimeoutSecs: 'Maximum time to wait for SearXNG results.',

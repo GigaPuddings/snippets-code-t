@@ -440,6 +440,14 @@
               <h4>{{ t('localAi.webSearch') }}</h4>
               <p>{{ t('localAi.webSearchDesc') }}</p>
             </div>
+            <CustomButton
+              size="small"
+              plain
+              :loading="testingWebSearch"
+              @click="testWebSearch"
+            >
+              {{ t('localAi.webSearchTest') }}
+            </CustomButton>
           </div>
           <div class="field-stack">
             <label class="field-row" :title="paramHint('webSearchBaseUrl')">
@@ -536,6 +544,7 @@ import {
   scanLocalAiModels,
   startLocalAiService,
   stopLocalAiService,
+  webSearchWithLocalAi,
   type LocalAiConfig,
   type LocalAiModelScan,
   type LocalAiRuntimeStatus,
@@ -556,6 +565,7 @@ const saving = ref(false);
 const starting = ref(false);
 const restarting = ref(false);
 const stopping = ref(false);
+const testingWebSearch = ref(false);
 let statusTimer: ReturnType<typeof setInterval> | null = null;
 
 const modelReady = computed(() => Boolean(modelScan.value?.selectedModelPath));
@@ -732,6 +742,29 @@ const stopService = async () => {
     modal.msg(`${t('localAi.serviceStopFailed')}: ${error}`, 'error');
   } finally {
     stopping.value = false;
+  }
+};
+const testWebSearch = async () => {
+  if (!config.value) return;
+  testingWebSearch.value = true;
+  try {
+    config.value = await saveLocalAiConfig(config.value);
+    const response = await webSearchWithLocalAi({
+      query: t('localAi.webSearchTestQuery'),
+      maxResults: 1
+    });
+    modal.msg(
+      response.results.length
+        ? t('localAi.webSearchTestSuccess', {
+            count: response.results.length
+          })
+        : t('localAi.webSearchTestEmpty')
+    );
+  } catch (error) {
+    logger.warn('[LocalAI] web search test failed', error);
+    modal.msg(`${t('localAi.webSearchTestFailed')}: ${error}`, 'error');
+  } finally {
+    testingWebSearch.value = false;
   }
 };
 const openChat = () => {

@@ -1,7 +1,7 @@
 use futures::StreamExt;
 use log::{info, warn};
 use reqwest::{
-    header::{ACCEPT, CACHE_CONTROL},
+    header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE, USER_AGENT},
     Client,
 };
 use serde::{Deserialize, Serialize};
@@ -399,6 +399,39 @@ fn display_path(path: &Path) -> String {
 
 fn base_url(config: &LocalAiConfig) -> String {
     format!("http://{}:{}", config.host, config.port)
+}
+
+fn web_search_url(config: &LocalAiConfig) -> String {
+    let value = config.web_search_base_url.trim().trim_end_matches('/');
+    if value.ends_with("/search") {
+        value.to_string()
+    } else {
+        format!("{}/search", value)
+    }
+}
+
+fn response_preview(value: &str) -> String {
+    value
+        .chars()
+        .take(240)
+        .collect::<String>()
+        .replace(['\r', '\n', '\t'], " ")
+        .trim()
+        .to_string()
+}
+
+fn web_search_status_error(status: reqwest::StatusCode, body: &str) -> String {
+    let preview = response_preview(body);
+    if status.as_u16() == 502 && preview.is_empty() {
+        return "联网搜索服务返回 502 Bad Gateway，且响应为空。请检查 SearXNG 服务是否正常、反向代理是否能连接上游、搜索引擎出口网络是否可用。".to_string();
+    }
+    if preview.is_empty() {
+        return format!(
+            "联网搜索服务返回错误 {}，且响应为空。请检查 SearXNG 服务日志和代理配置。",
+            status
+        );
+    }
+    format!("联网搜索服务返回错误 {}: {}", status, preview)
 }
 
 fn completion_token_limit(config: &LocalAiConfig, request_max_tokens: Option<u32>) -> i64 {
@@ -1696,7 +1729,7 @@ pub async fn local_ai_web_search(
     }
 
     let config = read_config(&app_handle);
-    let base_url = config.web_search_base_url.trim().trim_end_matches('/');
+    let base_url = config.web_search_base_url.trim();
     if base_url.is_empty() {
         return Err("请先配置 SearXNG 搜索服务地址".to_string());
     }
@@ -1705,36 +1738,118 @@ pub async fn local_ai_web_search(
         .max_results
         .unwrap_or(config.web_search_max_results)
         .clamp(1, 10);
+    let search_url = web_search_url(&config);
+    let safe_search = config.web_search_safe_search.min(2).to_string();
+    let language = config.web_search_language.trim();
+    info!(
+        "[Plugin:local-ai] web search start url={} query=\"{}\" max_results={} timeout={}s format=json categories=general safesearch={} language={}",
+        search_url,
+        response_preview(query),
+        max_results,
+        config.web_search_timeout_secs.max(3),
+        safe_search,
+        if language.is_empty() { "auto" } else { language }
+    );
     let client = Client::builder()
         .timeout(Duration::from_secs(u64::from(
             config.web_search_timeout_secs.max(3),
         )))
         .build()
         .map_err(|error| format!("创建联网搜索客户端失败: {}", error))?;
-    let mut request_builder = client.get(format!("{}/search", base_url)).query(&[
-        ("q", query),
-        ("format", "json"),
-        ("categories", "general"),
-    ]);
-    let safe_search = config.web_search_safe_search.min(2).to_string();
+    let mut request_builder = client
+        .get(&search_url)
+        .header(ACCEPT, "application/json")
+        .header(USER_AGENT, "snippets-code-local-ai/1.0")
+        .query(&[("q", query), ("format", "json"), ("categories", "general")]);
     request_builder = request_builder.query(&[("safesearch", safe_search.as_str())]);
-    let language = config.web_search_language.trim();
     if !language.is_empty() {
         request_builder = request_builder.query(&[("language", language)]);
     }
 
-    let response = request_builder
-        .send()
-        .await
-        .map_err(|error| format!("联网搜索请求失败: {}", error))?;
+    let response = request_builder.send().await.map_err(|error| {
+        let reason = if error.is_timeout() {
+            "timeout"
+        } else if error.is_connect() {
+            "connect"
+        } else if error.is_request() {
+            "request"
+        } else if error.is_body() {
+            "body"
+        } else if error.is_decode() {
+            "decode"
+        } else {
+            "unknown"
+        };
+        warn!(
+            "[Plugin:local-ai] web search request failed url={} query=\"{}\" reason={} error={}",
+            search_url,
+            response_preview(query),
+            reason,
+            error
+        );
+        match reason {
+            "timeout" => format!(
+                "联网搜索请求超时，请检查 SearXNG 服务是否响应过慢或上游搜索引擎不可达: {}",
+                error
+            ),
+            "connect" => format!(
+                "无法连接联网搜索服务，请确认 SearXNG 已启动且地址可访问: {}",
+                error
+            ),
+            _ => format!("联网搜索请求失败: {}", error),
+        }
+    })?;
     let status = response.status();
-    let value = response
-        .json::<Value>()
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let body = response
+        .text()
         .await
-        .map_err(|error| format!("解析联网搜索结果失败: {}", error))?;
+        .map_err(|error| {
+            warn!(
+                "[Plugin:local-ai] web search read response failed url={} status={} content_type={} error={}",
+                search_url, status, content_type, error
+            );
+            format!("读取联网搜索响应失败: {}", error)
+        })?;
+    info!(
+        "[Plugin:local-ai] web search response url={} status={} content_type={} bytes={} preview=\"{}\"",
+        search_url,
+        status,
+        if content_type.is_empty() { "unknown" } else { &content_type },
+        body.len(),
+        response_preview(&body)
+    );
     if !status.is_success() {
-        return Err(format!("联网搜索服务返回错误 {}: {}", status, value));
+        let error_message = web_search_status_error(status, &body);
+        warn!(
+            "[Plugin:local-ai] web search non-success status={} diagnosis=\"{}\" preview=\"{}\"",
+            status,
+            error_message,
+            response_preview(&body)
+        );
+        return Err(error_message);
     }
+    let value = serde_json::from_str::<Value>(&body).map_err(|error| {
+        warn!(
+            "[Plugin:local-ai] web search json parse failed url={} status={} content_type={} error={} preview=\"{}\"",
+            search_url,
+            status,
+            if content_type.is_empty() { "unknown" } else { &content_type },
+            error,
+            response_preview(&body)
+        );
+        format!(
+            "解析联网搜索结果失败: {}。请确认 SearXNG 已启用 JSON 输出，且地址可直接访问 /search?format=json。Content-Type: {}，响应片段: {}",
+            error,
+            if content_type.is_empty() { "unknown" } else { &content_type },
+            response_preview(&body)
+        )
+    })?;
 
     let results = value
         .get("results")
@@ -1783,6 +1898,16 @@ pub async fn local_ai_web_search(
         })
         .unwrap_or_default();
 
+    info!(
+        "[Plugin:local-ai] web search parsed query=\"{}\" raw_results={} usable_results={}",
+        response_preview(query),
+        value
+            .get("results")
+            .and_then(|results| results.as_array())
+            .map(|results| results.len())
+            .unwrap_or(0),
+        results.len()
+    );
     Ok(LocalAiWebSearchResponse {
         query: query.to_string(),
         results,
