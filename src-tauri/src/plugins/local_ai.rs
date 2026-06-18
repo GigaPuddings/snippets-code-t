@@ -1,5 +1,6 @@
 use futures::StreamExt;
 use log::{info, warn};
+use regex::Regex;
 use reqwest::{
     header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE, USER_AGENT},
     Client,
@@ -34,6 +35,16 @@ static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
 static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
+static DDG_TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#)
+        .expect("valid DuckDuckGo title regex")
+});
+static DDG_SNIPPET_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)<a[^>]*class="result__snippet"[^>]*>(.*?)</a>"#)
+        .expect("valid DuckDuckGo snippet regex")
+});
+static HTML_TAG_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<[^>]*>").expect("valid HTML tag regex"));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -432,6 +443,118 @@ fn web_search_status_error(status: reqwest::StatusCode, body: &str) -> String {
         );
     }
     format!("联网搜索服务返回错误 {}: {}", status, preview)
+}
+
+fn decode_html_entities(value: &str) -> String {
+    let mut decoded = value
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&nbsp;", " ");
+
+    for entity in Regex::new(r"&#x([0-9a-fA-F]+);|&#([0-9]+);")
+        .expect("valid html entity regex")
+        .captures_iter(value)
+    {
+        let Some(raw) = entity.get(0).map(|item| item.as_str()) else {
+            continue;
+        };
+        let codepoint = entity
+            .get(1)
+            .and_then(|item| u32::from_str_radix(item.as_str(), 16).ok())
+            .or_else(|| {
+                entity
+                    .get(2)
+                    .and_then(|item| item.as_str().parse::<u32>().ok())
+            });
+        if let Some(character) = codepoint.and_then(char::from_u32) {
+            decoded = decoded.replace(raw, &character.to_string());
+        }
+    }
+
+    decoded
+}
+
+fn clean_html_text(value: &str) -> String {
+    let without_tags = HTML_TAG_RE.replace_all(value, " ");
+    decode_html_entities(&without_tags)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn normalize_duckduckgo_url(raw_url: &str) -> Option<String> {
+    let decoded = decode_html_entities(raw_url);
+    let absolute = if decoded.starts_with("//") {
+        format!("https:{}", decoded)
+    } else {
+        decoded
+    };
+    let parsed = url::Url::parse(&absolute).ok()?;
+    if parsed
+        .domain()
+        .is_some_and(|domain| domain.ends_with("duckduckgo.com"))
+        && parsed.path().starts_with("/l/")
+    {
+        return parsed
+            .query_pairs()
+            .find(|(key, _)| key == "uddg")
+            .map(|(_, value)| value.into_owned())
+            .filter(|value| value.starts_with("http://") || value.starts_with("https://"));
+    }
+    if absolute.starts_with("http://") || absolute.starts_with("https://") {
+        Some(absolute)
+    } else {
+        None
+    }
+}
+
+fn parse_duckduckgo_results(body: &str, max_results: u32) -> Vec<LocalAiWebSearchResult> {
+    let mut results = Vec::new();
+    let matches = DDG_TITLE_RE.captures_iter(body).collect::<Vec<_>>();
+    for (index, captures) in matches.iter().enumerate() {
+        let Some(raw_url) = captures.get(1).map(|item| item.as_str()) else {
+            continue;
+        };
+        let Some(url) = normalize_duckduckgo_url(raw_url) else {
+            continue;
+        };
+        let title = captures
+            .get(2)
+            .map(|item| clean_html_text(item.as_str()))
+            .unwrap_or_default();
+        if title.is_empty() {
+            continue;
+        }
+        let section_start = captures.get(0).map(|item| item.end()).unwrap_or(0);
+        let section_end = matches
+            .get(index + 1)
+            .and_then(|next| next.get(0))
+            .map(|item| item.start())
+            .unwrap_or(body.len());
+        let section = body.get(section_start..section_end).unwrap_or("");
+        let content = DDG_SNIPPET_RE
+            .captures(section)
+            .and_then(|snippet| snippet.get(1))
+            .map(|item| clean_html_text(item.as_str()))
+            .unwrap_or_default()
+            .chars()
+            .take(500)
+            .collect::<String>();
+        results.push(LocalAiWebSearchResult {
+            title: title.chars().take(160).collect(),
+            url,
+            content,
+            engine: Some("DuckDuckGo".to_string()),
+        });
+        if results.len() >= max_results as usize {
+            break;
+        }
+    }
+    results
 }
 
 fn completion_token_limit(config: &LocalAiConfig, request_max_tokens: Option<u32>) -> i64 {
@@ -1730,19 +1853,79 @@ pub async fn local_ai_web_search(
 
     let config = read_config(&app_handle);
     let base_url = config.web_search_base_url.trim();
-    if base_url.is_empty() {
-        return Err("请先配置 SearXNG 搜索服务地址".to_string());
-    }
-
     let max_results = request
         .max_results
         .unwrap_or(config.web_search_max_results)
         .clamp(1, 10);
-    let search_url = web_search_url(&config);
+    let client = Client::builder()
+        .timeout(Duration::from_secs(u64::from(
+            config.web_search_timeout_secs.max(3),
+        )))
+        .build()
+        .map_err(|error| format!("创建联网搜索客户端失败: {}", error))?;
+
+    let mut primary_error = None;
+    if !base_url.is_empty() {
+        match search_with_searxng(&client, &config, query, max_results).await {
+            Ok(results) if !results.is_empty() => {
+                return Ok(LocalAiWebSearchResponse {
+                    query: query.to_string(),
+                    results,
+                });
+            }
+            Ok(_) => {
+                primary_error = Some("SearXNG 未返回可用搜索结果".to_string());
+                warn!(
+                    "[Plugin:local-ai] web search searxng empty query=\"{}\", falling back to DuckDuckGo HTML",
+                    response_preview(query)
+                );
+            }
+            Err(error) => {
+                primary_error = Some(error.clone());
+                warn!(
+                    "[Plugin:local-ai] web search searxng failed query=\"{}\" error=\"{}\", falling back to DuckDuckGo HTML",
+                    response_preview(query),
+                    error
+                );
+            }
+        }
+    } else {
+        warn!(
+            "[Plugin:local-ai] web search SearXNG URL is empty, using DuckDuckGo HTML fallback query=\"{}\"",
+            response_preview(query)
+        );
+    }
+
+    match search_with_duckduckgo_html(&client, query, max_results).await {
+        Ok(results) if !results.is_empty() => Ok(LocalAiWebSearchResponse {
+            query: query.to_string(),
+            results,
+        }),
+        Ok(_) => Err(primary_error
+            .map(|error| format!("联网搜索没有返回可用结果。SearXNG 错误: {}", error))
+            .unwrap_or_else(|| "联网搜索没有返回可用结果".to_string())),
+        Err(fallback_error) => Err(primary_error
+            .map(|error| {
+                format!(
+                    "联网搜索失败。SearXNG 错误: {}；备用搜索错误: {}",
+                    error, fallback_error
+                )
+            })
+            .unwrap_or(fallback_error)),
+    }
+}
+
+async fn search_with_searxng(
+    client: &Client,
+    config: &LocalAiConfig,
+    query: &str,
+    max_results: u32,
+) -> Result<Vec<LocalAiWebSearchResult>, String> {
+    let search_url = web_search_url(config);
     let safe_search = config.web_search_safe_search.min(2).to_string();
     let language = config.web_search_language.trim();
     info!(
-        "[Plugin:local-ai] web search start url={} query=\"{}\" max_results={} timeout={}s format=json categories=general safesearch={} language={}",
+        "[Plugin:local-ai] web search start provider=searxng url={} query=\"{}\" max_results={} timeout={}s format=json categories=general safesearch={} language={}",
         search_url,
         response_preview(query),
         max_results,
@@ -1750,12 +1933,6 @@ pub async fn local_ai_web_search(
         safe_search,
         if language.is_empty() { "auto" } else { language }
     );
-    let client = Client::builder()
-        .timeout(Duration::from_secs(u64::from(
-            config.web_search_timeout_secs.max(3),
-        )))
-        .build()
-        .map_err(|error| format!("创建联网搜索客户端失败: {}", error))?;
     let mut request_builder = client
         .get(&search_url)
         .header(ACCEPT, "application/json")
@@ -1817,7 +1994,7 @@ pub async fn local_ai_web_search(
             format!("读取联网搜索响应失败: {}", error)
         })?;
     info!(
-        "[Plugin:local-ai] web search response url={} status={} content_type={} bytes={} preview=\"{}\"",
+        "[Plugin:local-ai] web search response provider=searxng url={} status={} content_type={} bytes={} preview=\"{}\"",
         search_url,
         status,
         if content_type.is_empty() { "unknown" } else { &content_type },
@@ -1899,7 +2076,7 @@ pub async fn local_ai_web_search(
         .unwrap_or_default();
 
     info!(
-        "[Plugin:local-ai] web search parsed query=\"{}\" raw_results={} usable_results={}",
+        "[Plugin:local-ai] web search parsed provider=searxng query=\"{}\" raw_results={} usable_results={}",
         response_preview(query),
         value
             .get("results")
@@ -1908,10 +2085,70 @@ pub async fn local_ai_web_search(
             .unwrap_or(0),
         results.len()
     );
-    Ok(LocalAiWebSearchResponse {
-        query: query.to_string(),
-        results,
-    })
+    Ok(results)
+}
+
+async fn search_with_duckduckgo_html(
+    client: &Client,
+    query: &str,
+    max_results: u32,
+) -> Result<Vec<LocalAiWebSearchResult>, String> {
+    let search_url = "https://duckduckgo.com/html/";
+    info!(
+        "[Plugin:local-ai] web search start provider=duckduckgo_html url={} query=\"{}\" max_results={}",
+        search_url,
+        response_preview(query),
+        max_results
+    );
+    let response = client
+        .get(search_url)
+        .header(ACCEPT, "text/html,application/xhtml+xml")
+        .header(USER_AGENT, "Mozilla/5.0 snippets-code-local-ai/1.0")
+        .query(&[("q", query)])
+        .send()
+        .await
+        .map_err(|error| {
+            warn!(
+                "[Plugin:local-ai] web search request failed provider=duckduckgo_html url={} query=\"{}\" error={}",
+                search_url,
+                response_preview(query),
+                error
+            );
+            format!("备用搜索请求失败: {}", error)
+        })?;
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let body = response.text().await.map_err(|error| {
+        warn!(
+            "[Plugin:local-ai] web search read response failed provider=duckduckgo_html url={} status={} content_type={} error={}",
+            search_url, status, content_type, error
+        );
+        format!("读取备用搜索响应失败: {}", error)
+    })?;
+    info!(
+        "[Plugin:local-ai] web search response provider=duckduckgo_html url={} status={} content_type={} bytes={} preview=\"{}\"",
+        search_url,
+        status,
+        if content_type.is_empty() { "unknown" } else { &content_type },
+        body.len(),
+        response_preview(&body)
+    );
+    if !status.is_success() {
+        return Err(web_search_status_error(status, &body));
+    }
+
+    let results = parse_duckduckgo_results(&body, max_results);
+    info!(
+        "[Plugin:local-ai] web search parsed provider=duckduckgo_html query=\"{}\" usable_results={}",
+        response_preview(query),
+        results.len()
+    );
+    Ok(results)
 }
 
 #[tauri::command]
@@ -1986,5 +2223,38 @@ pub fn stop_service_now() {
     match SERVICE_STATE.lock() {
         Ok(mut state) => stop_child_locked(&mut state),
         Err(error) => warn!("[Plugin:local-ai] stop service lock failed: {}", error),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_duckduckgo_redirect_url() {
+        let url = normalize_duckduckgo_url(
+            "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fsearch%3Fq%3Dsearxng&amp;rut=abc",
+        );
+        assert_eq!(url.as_deref(), Some("https://example.com/search?q=searxng"));
+    }
+
+    #[test]
+    fn parses_duckduckgo_html_results() {
+        let html = r#"
+            <div class="result results_links results_links_deep web-result ">
+              <div class="links_main links_deep result__body">
+                <h2 class="result__title">
+                  <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Farticle&amp;rut=abc">Example &amp; Result</a>
+                </h2>
+                <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Farticle&amp;rut=abc">A <b>clean</b> snippet &amp; summary.</a>
+              </div>
+            </div>
+        "#;
+        let results = parse_duckduckgo_results(html, 5);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].title, "Example & Result");
+        assert_eq!(results[0].url, "https://example.com/article");
+        assert_eq!(results[0].content, "A clean snippet & summary.");
+        assert_eq!(results[0].engine.as_deref(), Some("DuckDuckGo"));
     }
 }
