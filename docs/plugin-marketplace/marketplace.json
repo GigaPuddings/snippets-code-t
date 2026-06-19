@@ -227,7 +227,7 @@
     },
     {
       "id": "local-ai-agent-reach-runtime",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "name": {
         "i18nKey": "plugins.localAiAgentReachRuntime.name",
         "fallback": "Local AI Agent-Reach Runtime"
@@ -246,11 +246,11 @@
         "web",
         "resource"
       ],
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime/archive/refs/tags/1.0.0.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime/archive/refs/tags/2.0.0.zip",
       "minAppVersion": "2.1.20",
       "compatibleAppVersion": ">=2.1.20",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime/releases/tag/1.0.0"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime/releases/tag/2.0.0"
     },
     {
       "id": "todo",
