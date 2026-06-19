@@ -32,9 +32,9 @@ const DEFAULT_PORT: u16 = 39281;
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
-const AGENT_REACH_PACKAGE_URL: &str = "https://github.com/Panniantong/agent-reach/archive/main.zip";
 const MCPORTER_EXA_ENDPOINT: &str = "https://mcp.exa.ai/mcp";
-const AGENT_REACH_INSTALL_TIMEOUT_SECS: u64 = 300;
+const AGENT_REACH_READY_RETRY_DELAY_SECS: u64 = 300;
+const AGENT_REACH_RUNTIME_PACKAGE_URL: &str = "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime/archive/refs/tags/2.0.1.zip";
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -44,6 +44,10 @@ static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> 
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
 static AGENT_REACH_BOOTSTRAP_RUNNING: AtomicBool = AtomicBool::new(false);
+static AGENT_REACH_READY_RUNTIME: LazyLock<Mutex<Option<AgentReachRuntime>>> =
+    LazyLock::new(|| Mutex::new(None));
+static AGENT_REACH_LAST_FAILURE: LazyLock<Mutex<Option<(Instant, String)>>> =
+    LazyLock::new(|| Mutex::new(None));
 static HTML_TAG_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)<[^>]*>").expect("valid HTML tag regex"));
 static URL_RE: LazyLock<Regex> =
@@ -1060,20 +1064,6 @@ fn agent_reach_root(app_handle: &AppHandle) -> PathBuf {
         .join("agent-reach")
 }
 
-fn agent_reach_venv_dir(app_handle: &AppHandle) -> PathBuf {
-    agent_reach_root(app_handle).join("venv")
-}
-
-#[cfg(windows)]
-fn agent_reach_venv_bin_dir(venv_dir: &Path) -> PathBuf {
-    venv_dir.join("Scripts")
-}
-
-#[cfg(not(windows))]
-fn agent_reach_venv_bin_dir(venv_dir: &Path) -> PathBuf {
-    venv_dir.join("bin")
-}
-
 #[cfg(windows)]
 fn executable_name(name: &str) -> String {
     format!("{}.exe", name)
@@ -1082,81 +1072,6 @@ fn executable_name(name: &str) -> String {
 #[cfg(not(windows))]
 fn executable_name(name: &str) -> String {
     name.to_string()
-}
-
-fn command_candidates(name: &str) -> Vec<String> {
-    #[cfg(windows)]
-    {
-        if Path::new(name).extension().is_some() {
-            vec![name.to_string()]
-        } else {
-            vec![
-                format!("{}.exe", name),
-                format!("{}.cmd", name),
-                format!("{}.bat", name),
-                name.to_string(),
-            ]
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        vec![name.to_string()]
-    }
-}
-
-fn find_command_in_path(name: &str) -> Option<PathBuf> {
-    let direct_path = Path::new(name);
-    if direct_path.is_absolute() || direct_path.components().count() > 1 {
-        return direct_path.is_file().then(|| direct_path.to_path_buf());
-    }
-    let path = env::var_os("PATH")?;
-    for dir in env::split_paths(&path) {
-        for candidate in command_candidates(name) {
-            let candidate_path = dir.join(candidate);
-            if candidate_path.is_file() {
-                return Some(candidate_path);
-            }
-        }
-    }
-    None
-}
-
-fn display_runtime_command(command: &str) -> Option<String> {
-    let path = Path::new(command);
-    if path.is_file() {
-        Some(display_path(path))
-    } else {
-        find_command_in_path(command).map(|path| display_path(&path))
-    }
-}
-
-fn managed_agent_reach_launcher(app_handle: &AppHandle) -> PathBuf {
-    agent_reach_venv_bin_dir(&agent_reach_venv_dir(app_handle)).join(executable_name("agent-reach"))
-}
-
-fn managed_agent_reach_runtime(app_handle: &AppHandle) -> AgentReachRuntime {
-    let venv_dir = agent_reach_venv_dir(app_handle);
-    let bin_dir = agent_reach_venv_bin_dir(&venv_dir);
-    let mcporter = bin_dir.join(executable_name("mcporter"));
-    AgentReachRuntime {
-        agent_reach: display_path(&bin_dir.join(executable_name("python"))),
-        agent_reach_args_prefix: agent_reach_python_args(),
-        mcporter: if mcporter.exists() {
-            display_path(&mcporter)
-        } else {
-            "mcporter".to_string()
-        },
-        path_prefixes: vec![bin_dir],
-    }
-}
-
-fn system_agent_reach_runtime() -> AgentReachRuntime {
-    AgentReachRuntime {
-        agent_reach: "agent-reach".to_string(),
-        agent_reach_args_prefix: Vec::new(),
-        mcporter: "mcporter".to_string(),
-        path_prefixes: Vec::new(),
-    }
 }
 
 fn agent_reach_python_args() -> Vec<String> {
@@ -1214,17 +1129,21 @@ fn resource_agent_reach_runtimes(app_handle: &AppHandle) -> Vec<AgentReachRuntim
             .unwrap_or_else(|| bin_dir.clone());
         let launcher_dir = agent_reach_dir.join("bin");
         let node_runtime_dir = agent_reach_dir.join("node-runtime");
+        let mcporter = find_mcporter_path(&[
+            launcher_dir.clone(),
+            bin_dir.clone(),
+            agent_reach_dir
+                .join("node")
+                .join("node_modules")
+                .join(".bin"),
+        ]);
+        if !Path::new(&mcporter).is_file() {
+            continue;
+        }
         runtimes.push(AgentReachRuntime {
             agent_reach: display_path(&python_path),
             agent_reach_args_prefix: agent_reach_python_args(),
-            mcporter: find_mcporter_path(&[
-                launcher_dir.clone(),
-                bin_dir.clone(),
-                agent_reach_dir
-                    .join("node")
-                    .join("node_modules")
-                    .join(".bin"),
-            ]),
+            mcporter,
             path_prefixes: vec![launcher_dir, bin_dir, node_runtime_dir],
         });
     }
@@ -1260,10 +1179,14 @@ fn resource_agent_reach_runtimes(app_handle: &AppHandle) -> Vec<AgentReachRuntim
             .join("node_modules")
             .join(".bin");
         let node_runtime_dir = agent_reach_dir.join("node-runtime");
+        let mcporter = find_mcporter_path(&[bin_dir.clone(), node_bin_dir]);
+        if !Path::new(&mcporter).is_file() {
+            continue;
+        }
         runtimes.push(AgentReachRuntime {
             agent_reach: display_path(&agent_reach_path),
             agent_reach_args_prefix: Vec::new(),
-            mcporter: find_mcporter_path(&[bin_dir.clone(), node_bin_dir]),
+            mcporter,
             path_prefixes: vec![bin_dir, node_runtime_dir],
         });
     }
@@ -1359,12 +1282,7 @@ async fn run_command_text(
         .await
         .map_err(|_| format!("{}超时: {}", label, display))?
         .map_err(|error| format!("{}执行失败: {}", label, error))?
-        .map_err(|error| {
-            format!(
-                "{}启动失败: {}。local-ai 会自动安装 Agent-Reach；如果持续失败，请确认系统可用 Python 3.10+ 且网络可访问 {}。",
-                label, error, AGENT_REACH_PACKAGE_URL
-            )
-        })?;
+        .map_err(|error| format!("{}启动失败: {}", label, error))?;
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
     if !output.status.success() {
@@ -1394,108 +1312,6 @@ async fn run_agent_reach_text(
         runtime.path_prefixes.clone(),
     )
     .await
-}
-
-fn python_candidates() -> Vec<(String, Vec<String>)> {
-    #[cfg(windows)]
-    {
-        vec![
-            ("py".to_string(), vec!["-3".to_string()]),
-            ("python".to_string(), Vec::new()),
-            ("python3".to_string(), Vec::new()),
-        ]
-    }
-    #[cfg(not(windows))]
-    {
-        vec![
-            ("python3".to_string(), Vec::new()),
-            ("python".to_string(), Vec::new()),
-        ]
-    }
-}
-
-async fn create_agent_reach_venv(venv_dir: &Path) -> Result<(), String> {
-    let python = agent_reach_venv_bin_dir(venv_dir).join(executable_name("python"));
-    if python.exists() {
-        return Ok(());
-    }
-    let parent = venv_dir
-        .parent()
-        .ok_or_else(|| format!("Agent-Reach venv 路径无效: {}", display_path(venv_dir)))?;
-    fs::create_dir_all(parent).map_err(|error| {
-        format!(
-            "创建 Agent-Reach 目录失败 {}: {}",
-            display_path(parent),
-            error
-        )
-    })?;
-    let mut last_error = None;
-    for (program, mut args) in python_candidates() {
-        args.extend(["-m".to_string(), "venv".to_string(), display_path(venv_dir)]);
-        match run_command_text(
-            program,
-            args,
-            AGENT_REACH_INSTALL_TIMEOUT_SECS,
-            "创建 Agent-Reach Python 环境",
-            Vec::new(),
-        )
-        .await
-        {
-            Ok(_) => return Ok(()),
-            Err(error) => last_error = Some(error),
-        }
-    }
-    Err(last_error.unwrap_or_else(|| "未找到可用 Python，无法创建 Agent-Reach 环境".to_string()))
-}
-
-async fn install_managed_agent_reach(app_handle: &AppHandle) -> Result<AgentReachRuntime, String> {
-    let runtime = managed_agent_reach_runtime(app_handle);
-    let venv_dir = agent_reach_venv_dir(app_handle);
-    emit_agent_reach_progress(
-        app_handle,
-        "creating-venv",
-        "正在创建 Agent-Reach Python 环境...",
-        Some(30.0),
-        Some(display_path(&venv_dir)),
-    );
-    create_agent_reach_venv(&venv_dir).await?;
-    let python = agent_reach_venv_bin_dir(&venv_dir).join(executable_name("python"));
-    emit_agent_reach_progress(
-        app_handle,
-        "installing",
-        "正在安装 Agent-Reach...",
-        Some(45.0),
-        Some(AGENT_REACH_PACKAGE_URL.to_string()),
-    );
-    run_command_text(
-        display_path(&python),
-        vec![
-            "-m".to_string(),
-            "pip".to_string(),
-            "install".to_string(),
-            "--upgrade".to_string(),
-            AGENT_REACH_PACKAGE_URL.to_string(),
-        ],
-        AGENT_REACH_INSTALL_TIMEOUT_SECS,
-        "安装 Agent-Reach",
-        runtime.path_prefixes.clone(),
-    )
-    .await?;
-    emit_agent_reach_progress(
-        app_handle,
-        "configuring",
-        "正在配置 Agent-Reach 上游工具...",
-        Some(70.0),
-        None,
-    );
-    run_agent_reach_text(
-        &runtime,
-        vec!["install".to_string(), "--env=auto".to_string()],
-        AGENT_REACH_INSTALL_TIMEOUT_SECS,
-        "配置 Agent-Reach",
-    )
-    .await?;
-    Ok(runtime)
 }
 
 async fn agent_reach_version(
@@ -1555,6 +1371,25 @@ async fn ensure_agent_reach_ready(
     app_handle: &AppHandle,
     timeout_secs: u64,
 ) -> Result<AgentReachRuntime, String> {
+    if let Ok(runtime) = AGENT_REACH_READY_RUNTIME.lock() {
+        if let Some(runtime) = runtime.as_ref() {
+            return Ok(runtime.clone());
+        }
+    }
+
+    if let Ok(last_failure) = AGENT_REACH_LAST_FAILURE.lock() {
+        if let Some((failed_at, error)) = last_failure.as_ref() {
+            let retry_delay = Duration::from_secs(AGENT_REACH_READY_RETRY_DELAY_SECS);
+            if failed_at.elapsed() < retry_delay {
+                let remaining = retry_delay.saturating_sub(failed_at.elapsed()).as_secs();
+                return Err(format!(
+                    "Agent-Reach 资源包上次检查失败，{} 秒后会再次检查：{}",
+                    remaining, error
+                ));
+            }
+        }
+    }
+
     let quick_timeout = timeout_secs.clamp(5, 15);
     emit_agent_reach_progress(
         app_handle,
@@ -1563,149 +1398,113 @@ async fn ensure_agent_reach_ready(
         Some(8.0),
         None,
     );
-    let resource_runtimes = resource_agent_reach_runtimes(app_handle);
-    let mut last_resource_error = None;
-    for resource_runtime in &resource_runtimes {
-        match prepare_agent_reach_runtime(resource_runtime, quick_timeout).await {
-            Ok(_) => {
-                emit_agent_reach_progress(
-                    app_handle,
-                    "ready",
-                    "Agent-Reach 资源包可用。",
-                    Some(100.0),
-                    Some(resource_runtime.agent_reach.clone()),
-                );
-                return Ok(resource_runtime.clone());
-            }
-            Err(error) => {
-                warn!(
-                    "[Plugin:local-ai] packaged Agent-Reach runtime unavailable: {}",
-                    error
-                );
-                last_resource_error = Some(error);
-            }
-        }
-    }
-    if !resource_runtimes.is_empty() {
-        return Err(format!(
-            "Agent-Reach 资源包不可用: {}",
-            last_resource_error.unwrap_or_else(|| "未通过版本或 Exa 配置检查".to_string())
-        ));
-    }
-
-    if runtime_resource_available(app_handle) {
-        return Err("Agent-Reach 资源包已安装，但未找到可执行运行时文件，请更新 local-ai-agent-reach-runtime 资源包。".to_string());
-    }
-
-    emit_agent_reach_progress(
-        app_handle,
-        "checking-system",
-        "正在检查系统 Agent-Reach...",
-        Some(15.0),
-        None,
-    );
-    let system_runtime = system_agent_reach_runtime();
-    if display_runtime_command(&system_runtime.agent_reach).is_some()
-        && display_runtime_command(&system_runtime.mcporter).is_some()
-        && prepare_agent_reach_runtime(&system_runtime, quick_timeout)
-            .await
-            .is_ok()
-    {
-        emit_agent_reach_progress(
-            app_handle,
-            "ready",
-            "系统 Agent-Reach 可用。",
-            Some(100.0),
-            None,
-        );
-        return Ok(system_runtime);
-    }
-
-    emit_agent_reach_progress(
-        app_handle,
-        "checking-managed",
-        "正在检查应用托管 Agent-Reach...",
-        Some(22.0),
-        None,
-    );
-    let managed_runtime = managed_agent_reach_runtime(app_handle);
-    if managed_agent_reach_launcher(app_handle).is_file()
-        && prepare_agent_reach_runtime(&managed_runtime, quick_timeout)
-            .await
-            .is_ok()
-    {
-        emit_agent_reach_progress(
-            app_handle,
-            "ready",
-            "应用托管 Agent-Reach 可用。",
-            Some(100.0),
-            Some(managed_runtime.agent_reach.clone()),
-        );
-        return Ok(managed_runtime);
-    }
-
-    if AGENT_REACH_BOOTSTRAP_RUNNING
-        .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-        .is_err()
-    {
-        emit_agent_reach_progress(
-            app_handle,
-            "waiting",
-            "Agent-Reach 正在准备中...",
-            None,
-            None,
-        );
-        for _ in 0..30 {
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            let managed_runtime = managed_agent_reach_runtime(app_handle);
-            if managed_agent_reach_launcher(app_handle).is_file()
-                && prepare_agent_reach_runtime(&managed_runtime, quick_timeout)
-                    .await
-                    .is_ok()
+    let runtime_result =
+        if let Some(runtime) = resource_agent_reach_runtimes(app_handle).into_iter().next() {
+            Ok(runtime)
+        } else {
+            if AGENT_REACH_BOOTSTRAP_RUNNING
+                .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+                .is_err()
             {
                 emit_agent_reach_progress(
                     app_handle,
-                    "ready",
-                    "应用托管 Agent-Reach 可用。",
-                    Some(100.0),
-                    Some(managed_runtime.agent_reach.clone()),
+                    "syncing-runtime",
+                    "正在从插件市场同步 Agent-Reach 运行时...",
+                    None,
+                    None,
                 );
-                return Ok(managed_runtime);
+                return Err("Agent-Reach 运行时正在同步，请稍后重试。".to_string());
             }
+            emit_agent_reach_progress(
+                app_handle,
+                "syncing-runtime",
+                "首次联网正在同步 Agent-Reach 运行时...",
+                Some(18.0),
+                Some(AGENT_REACH_RUNTIME_PACKAGE_URL.to_string()),
+            );
+            let sync_result = crate::app_config::install_plugin_package_from_url(
+                app_handle.clone(),
+                AGENT_REACH_RUNTIME_PACKAGE_URL.to_string(),
+                None,
+                None,
+                true,
+            )
+            .await;
+            AGENT_REACH_BOOTSTRAP_RUNNING.store(false, Ordering::Relaxed);
+            match sync_result {
+                Ok(_) => resource_agent_reach_runtimes(app_handle)
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| {
+                        if runtime_resource_available(app_handle) {
+                            "Agent-Reach 资源包不完整，请重新同步 local-ai-agent-reach-runtime。"
+                                .to_string()
+                        } else {
+                            "Agent-Reach 资源包同步完成，但未找到可执行运行时文件。".to_string()
+                        }
+                    }),
+                Err(error) => Err(format!("同步 Agent-Reach 资源包失败: {}", error)),
+            }
+        };
+    let runtime = match runtime_result {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            if let Ok(mut failure) = AGENT_REACH_LAST_FAILURE.lock() {
+                *failure = Some((Instant::now(), error.clone()));
+            }
+            emit_agent_reach_progress(
+                app_handle,
+                "failed",
+                "Agent-Reach 运行时同步失败。",
+                None,
+                Some(error.clone()),
+            );
+            return Err(error);
         }
-        return Err("Agent-Reach 正在准备中，请稍后重试。".to_string());
-    }
+    };
 
-    info!("[Plugin:local-ai] bootstrapping managed Agent-Reach runtime");
-    let result: Result<AgentReachRuntime, String> = async {
-        let installed_runtime = install_managed_agent_reach(app_handle).await?;
-        emit_agent_reach_progress(
-            app_handle,
-            "doctor",
-            "正在检查 Agent-Reach 联网组件...",
-            Some(90.0),
-            Some(installed_runtime.agent_reach.clone()),
-        );
-        prepare_agent_reach_runtime(&installed_runtime, quick_timeout).await?;
-        emit_agent_reach_progress(
-            app_handle,
-            "ready",
-            "Agent-Reach 已准备就绪。",
-            Some(100.0),
-            Some(installed_runtime.agent_reach.clone()),
-        );
-        Ok(installed_runtime)
-    }
-    .await;
-    AGENT_REACH_BOOTSTRAP_RUNNING.store(false, Ordering::Relaxed);
-    if let Err(error) = &result {
-        emit_agent_reach_progress(
-            app_handle,
-            "failed",
-            "Agent-Reach 准备失败。",
-            None,
-            Some(error.clone()),
-        );
+    emit_agent_reach_progress(
+        app_handle,
+        "checking-runtime",
+        "正在检查随插件安装的 Agent-Reach 运行时...",
+        Some(45.0),
+        Some(runtime.agent_reach.clone()),
+    );
+    let result = prepare_agent_reach_runtime(&runtime, quick_timeout)
+        .await
+        .map(|_| runtime.clone());
+    match &result {
+        Ok(ready_runtime) => {
+            if let Ok(mut cached) = AGENT_REACH_READY_RUNTIME.lock() {
+                *cached = Some(ready_runtime.clone());
+            }
+            if let Ok(mut failure) = AGENT_REACH_LAST_FAILURE.lock() {
+                *failure = None;
+            }
+            emit_agent_reach_progress(
+                app_handle,
+                "ready",
+                "Agent-Reach 联网组件已准备就绪。",
+                Some(100.0),
+                Some(ready_runtime.agent_reach.clone()),
+            );
+        }
+        Err(error) => {
+            warn!(
+                "[Plugin:local-ai] packaged Agent-Reach runtime unavailable: {}",
+                error
+            );
+            if let Ok(mut failure) = AGENT_REACH_LAST_FAILURE.lock() {
+                *failure = Some((Instant::now(), error.clone()));
+            }
+            emit_agent_reach_progress(
+                app_handle,
+                "failed",
+                "Agent-Reach 资源包检查失败。",
+                None,
+                Some(error.clone()),
+            );
+        }
     }
     result
 }
@@ -1751,8 +1550,10 @@ async fn agent_reach_status_inner(app_handle: &AppHandle) -> LocalAiAgentReachSt
     let installing = AGENT_REACH_BOOTSTRAP_RUNNING.load(Ordering::Relaxed);
 
     if let Some(runtime) = resource_agent_reach_runtimes(app_handle).into_iter().next() {
-        let mcporter_path = display_runtime_command(&runtime.mcporter);
-        let ready = mcporter_path.is_some();
+        let mcporter_path = Path::new(&runtime.mcporter)
+            .is_file()
+            .then(|| runtime.mcporter.clone());
+        let ready = mcporter_path.is_some() && Path::new(&runtime.agent_reach).is_file();
         return LocalAiAgentReachStatus {
             ready,
             source: "resource".to_string(),
@@ -1762,7 +1563,7 @@ async fn agent_reach_status_inner(app_handle: &AppHandle) -> LocalAiAgentReachSt
             runtime_resource_available,
             installing,
             message: Some(if ready {
-                "Agent-Reach 资源包已安装，联网时会自动检查 Exa 配置".to_string()
+                "Agent-Reach 资源包已安装；首次联网会在应用内完成检查。".to_string()
             } else {
                 "Agent-Reach 资源包已安装，但未找到 mcporter 入口".to_string()
             }),
@@ -1784,62 +1585,15 @@ async fn agent_reach_status_inner(app_handle: &AppHandle) -> LocalAiAgentReachSt
         };
     }
 
-    let system_agent_reach = display_runtime_command("agent-reach");
-    let system_mcporter = display_runtime_command("mcporter");
-    if system_agent_reach.is_some() && system_mcporter.is_some() {
-        return LocalAiAgentReachStatus {
-            ready: true,
-            source: "system".to_string(),
-            agent_reach_path: system_agent_reach,
-            mcporter_path: system_mcporter,
-            managed_root,
-            runtime_resource_available,
-            installing,
-            message: Some("系统 Agent-Reach 命令已发现，联网时会自动检查 Exa 配置".to_string()),
-        };
-    }
-
-    let managed_runtime = managed_agent_reach_runtime(app_handle);
-    let managed_launcher = managed_agent_reach_launcher(app_handle);
-    let managed_installed = managed_launcher.is_file();
-    if managed_installed {
-        let mcporter_path = display_runtime_command(&managed_runtime.mcporter);
-        let ready = mcporter_path.is_some();
-        return LocalAiAgentReachStatus {
-            ready,
-            source: "managed".to_string(),
-            agent_reach_path: Some(managed_runtime.agent_reach),
-            mcporter_path,
-            managed_root,
-            runtime_resource_available,
-            installing,
-            message: Some(if ready {
-                "应用托管 Agent-Reach 已安装，联网时会自动检查 Exa 配置".to_string()
-            } else {
-                "应用托管 Agent-Reach 已安装，但未找到 mcporter 入口".to_string()
-            }),
-        };
-    }
-
     LocalAiAgentReachStatus {
         ready: false,
-        source: if runtime_resource_available {
-            "resource".to_string()
-        } else {
-            "missing".to_string()
-        },
-        agent_reach_path: managed_launcher
-            .is_file()
-            .then(|| display_path(&managed_launcher)),
+        source: "missing".to_string(),
+        agent_reach_path: None,
         mcporter_path: None,
         managed_root,
         runtime_resource_available,
         installing,
-        message: Some(if installing {
-            "Agent-Reach 正在准备中".to_string()
-        } else {
-            "Agent-Reach 尚未准备就绪".to_string()
-        }),
+        message: Some("等待插件市场同步 Agent-Reach 资源包".to_string()),
     }
 }
 
@@ -3354,12 +3108,18 @@ pub fn local_ai_delete_chat_history(
 }
 
 pub fn apply_runtime_change(_app_handle: &AppHandle, enabled: bool) {
+    if let Ok(mut runtime) = AGENT_REACH_READY_RUNTIME.lock() {
+        *runtime = None;
+    }
+    if let Ok(mut failure) = AGENT_REACH_LAST_FAILURE.lock() {
+        *failure = None;
+    }
     if !enabled {
         stop_service_now();
         return;
     }
 
-    info!("[Plugin:local-ai] enabled; Agent-Reach will be prepared on first web search request");
+    info!("[Plugin:local-ai] enabled; Agent-Reach resource will be checked on first web search request");
 }
 
 pub fn stop_service_now() {

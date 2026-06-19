@@ -1720,13 +1720,7 @@ const webSearchQueryFor = (assistantMessage: ChatMessage): string => {
   return parent?.role === 'user' ? parent.content.trim() : '';
 };
 const weatherQueryFor = (assistantMessage: ChatMessage): string => {
-  const currentQuery = webSearchQueryFor(assistantMessage);
-  const recentUserMessages = activeMessages.value
-    .filter((message) => message.role === 'user' && !message.streaming)
-    .slice(-4)
-    .map((message) => message.content.trim())
-    .filter(Boolean);
-  return [...recentUserMessages, currentQuery].filter(Boolean).join('\n');
+  return webSearchQueryFor(assistantMessage);
 };
 const webSearchQueryWithRuntimeDate = (query: string): string => {
   if (!TEMPORAL_QUERY_RE.test(query)) return query;
