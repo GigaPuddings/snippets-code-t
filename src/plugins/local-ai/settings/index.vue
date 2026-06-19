@@ -18,21 +18,41 @@
     <main v-if="config" class="settings-grid">
       <aside class="summary-panel panel-card">
         <div class="status-strip">
-          <div class="status-item" :class="{ ready: runtimeStatus?.available }">
+          <div
+            class="status-item"
+            :class="statusToneClass(runtimeStatus?.available ? 'ok' : 'danger')"
+          >
             <span class="status-dot"></span>
             <span>{{ runtimeStatusText }}</span>
           </div>
-          <div class="status-item" :class="{ ready: modelReady }">
+          <div
+            class="status-item"
+            :class="statusToneClass(modelReady ? 'ok' : 'danger')"
+          >
             <span class="status-dot"></span>
             <span>{{ modelStatusText }}</span>
           </div>
-          <div class="status-item" :class="{ ready: serviceStatus?.healthy }">
+          <div
+            class="status-item"
+            :class="
+              statusToneClass(
+                serviceStatus?.healthy
+                  ? 'ok'
+                  : serviceStatus?.running
+                    ? 'warn'
+                    : 'danger'
+              )
+            "
+          >
             <span class="status-dot"></span>
             <span>{{ serviceStatusText }}</span>
           </div>
         </div>
 
-        <section class="memory-card">
+        <section
+          class="memory-card"
+          :class="statusToneClass(performanceEstimate.level)"
+        >
           <div class="memory-card__header">
             <span>{{ t('localAi.estimatedMemory') }}</span>
             <small>{{ t('localAi.estimateBeta') }}</small>
@@ -40,16 +60,22 @@
           <div class="memory-metrics">
             <div>
               <span>GPU</span>
-              <b>{{ performanceEstimate.gpuGb }} GB</b>
+              <b :class="statusToneClass(performanceEstimate.level)">
+                {{ performanceEstimate.gpuGb }} GB
+              </b>
             </div>
             <div>
               <span>{{ t('localAi.total') }}</span>
-              <b>{{ performanceEstimate.totalGb }} GB</b>
+              <b :class="statusToneClass(performanceEstimate.level)">
+                {{ performanceEstimate.totalGb }} GB
+              </b>
             </div>
           </div>
           <div class="bottleneck-row">
             <span>{{ t('localAi.bottleneck') }}</span>
-            <b>{{ performanceEstimate.bottleneck }}</b>
+            <b :class="statusToneClass(performanceEstimate.level)">
+              {{ performanceEstimate.bottleneck }}
+            </b>
           </div>
         </section>
 
@@ -100,7 +126,7 @@
           <div class="summary-meta">
             <div>
               <span>{{ t('localAi.runtimeReady') }}</span>
-              <b>
+              <b :class="yesNoClass(runtimeStatus?.available)">
                 {{
                   runtimeStatus?.available ? t('common.yes') : t('common.no')
                 }}
@@ -108,27 +134,31 @@
             </div>
             <div>
               <span>{{ t('localAi.modelReady') }}</span>
-              <b>{{ modelReady ? t('common.yes') : t('common.no') }}</b>
+              <b :class="yesNoClass(modelReady)">
+                {{ modelReady ? t('common.yes') : t('common.no') }}
+              </b>
             </div>
             <div>
               <span>{{ t('localAi.mainModelConfigured') }}</span>
-              <b>
+              <b :class="yesNoClass(Boolean(selectedModelPath))">
                 {{ selectedModelPath ? t('common.yes') : t('common.no') }}
               </b>
             </div>
             <div>
               <span>{{ t('localAi.mmprojConfigured') }}</span>
-              <b>
+              <b :class="yesNoClass(Boolean(selectedMmprojPath))">
                 {{ selectedMmprojPath ? t('common.yes') : t('common.no') }}
               </b>
             </div>
             <div>
               <span>{{ t('localAi.visionAvailable') }}</span>
-              <b>{{ visionReady ? t('common.yes') : t('common.no') }}</b>
+              <b :class="yesNoClass(visionReady)">
+                {{ visionReady ? t('common.yes') : t('common.no') }}
+              </b>
             </div>
             <div>
               <span>{{ t('localAi.serviceHealthy') }}</span>
-              <b>
+              <b :class="yesNoClass(Boolean(serviceStatus?.healthy))">
                 {{ serviceStatus?.healthy ? t('common.yes') : t('common.no') }}
               </b>
             </div>
@@ -274,6 +304,66 @@
                 size="small"
               />
             </label>
+          </div>
+          <div
+            class="agent-reach-card"
+            :class="statusToneClass(agentReachTone)"
+          >
+            <div class="agent-reach-card__header">
+              <div class="status-item" :class="statusToneClass(agentReachTone)">
+                <span class="status-dot"></span>
+                <span>{{ agentReachStatusText }}</span>
+              </div>
+              <span v-if="agentReachProgressText" class="agent-reach-phase">
+                {{ agentReachProgressText }}
+              </span>
+            </div>
+            <div
+              v-if="agentReachProgressVisible"
+              class="agent-reach-progress-track"
+              :class="{
+                'agent-reach-progress-track--indeterminate':
+                  agentReachProgressPercent === undefined
+              }"
+            >
+              <div
+                class="agent-reach-progress-bar"
+                :style="{
+                  width:
+                    agentReachProgressPercent === undefined
+                      ? '35%'
+                      : `${agentReachProgressPercent}%`
+                }"
+              />
+            </div>
+            <div class="agent-reach-meta">
+              <div>
+                <span>{{ t('localAi.agentReachSource') }}</span>
+                <b>{{ agentReachSourceText }}</b>
+              </div>
+              <div>
+                <span>{{ t('localAi.agentReachResourcePackage') }}</span>
+                <b :class="yesNoClass(agentReachStatus?.runtimeResourceAvailable)">
+                  {{
+                    agentReachStatus?.runtimeResourceAvailable
+                      ? t('localAi.agentReachResourceAvailable')
+                      : t('localAi.agentReachResourceMissing')
+                  }}
+                </b>
+              </div>
+              <div>
+                <span>{{ t('localAi.agentReachExecutable') }}</span>
+                <b :title="agentReachStatus?.agentReachPath ?? ''">
+                  {{ agentReachCommandText }}
+                </b>
+              </div>
+              <div>
+                <span>{{ t('localAi.agentReachManagedRoot') }}</span>
+                <b :title="agentReachStatus?.managedRoot ?? ''">
+                  {{ agentReachManagedRootText }}
+                </b>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -498,11 +588,13 @@
 
 <script setup lang="ts">
 import { open } from '@tauri-apps/plugin-dialog';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import {
+  getLocalAiAgentReachStatus,
   getLocalAiConfig,
   getLocalAiRuntimeStatus,
   getLocalAiStatus,
@@ -513,6 +605,8 @@ import {
   stopLocalAiService,
   webSearchWithLocalAi,
   type LocalAiConfig,
+  type LocalAiAgentReachProgress,
+  type LocalAiAgentReachStatus,
   type LocalAiModelScan,
   type LocalAiRuntimeStatus,
   type LocalAiServiceStatus
@@ -525,6 +619,8 @@ defineOptions({
 const { t } = useI18n();
 const config = ref<LocalAiConfig | null>(null);
 const runtimeStatus = ref<LocalAiRuntimeStatus | null>(null);
+const agentReachStatus = ref<LocalAiAgentReachStatus | null>(null);
+const agentReachProgress = ref<LocalAiAgentReachProgress | null>(null);
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
 const loading = ref(false);
@@ -534,6 +630,7 @@ const restarting = ref(false);
 const stopping = ref(false);
 const testingWebSearch = ref(false);
 let statusTimer: ReturnType<typeof setInterval> | null = null;
+let agentReachUnlisten: UnlistenFn | null = null;
 
 const modelReady = computed(() => Boolean(modelScan.value?.selectedModelPath));
 const visionReady = computed(() => Boolean(config.value?.mmprojPath));
@@ -580,7 +677,8 @@ const performanceEstimate = computed(() => {
     return {
       gpuGb: '0.00',
       totalGb: '0.00',
-      bottleneck: t('localAi.bottleneckUnknown')
+      bottleneck: t('localAi.bottleneckUnknown'),
+      level: 'warn' as const
     };
   }
   const modelGb = Math.max(1.4, modelParamBillions.value * 0.92);
@@ -596,16 +694,75 @@ const performanceEstimate = computed(() => {
       : cfg.ctxSize >= 32768 || cfg.batchSize >= 2048
         ? t('localAi.bottleneckMemory')
         : t('localAi.bottleneckBalanced');
+  const level =
+    totalGb >= 24 || cfg.ctxSize >= 32768 || cfg.batchSize >= 2048
+      ? 'danger'
+      : totalGb >= 16 || cfg.ctxSize >= 16384 || cfg.batchSize >= 1024
+        ? 'warn'
+        : 'ok';
   return {
     gpuGb: gpuGb.toFixed(2),
     totalGb: totalGb.toFixed(2),
-    bottleneck
+    bottleneck,
+    level
   };
 });
 const paramHint = (key: string): string => t(`localAi.paramHints.${key}`);
+const statusToneClass = (tone: string | undefined) => ({
+  'tone-ok': tone === 'ok',
+  'tone-warn': tone === 'warn',
+  'tone-danger': tone === 'danger'
+});
+const yesNoClass = (value: unknown) =>
+  statusToneClass(value ? 'ok' : 'danger');
+const agentReachTone = computed<'ok' | 'warn' | 'danger'>(() => {
+  if (agentReachStatus.value?.ready) return 'ok';
+  if (agentReachStatus.value?.installing || agentReachProgress.value)
+    return 'warn';
+  return 'danger';
+});
+const agentReachStatusText = computed(() => {
+  if (agentReachStatus.value?.ready) return t('localAi.agentReachReady');
+  if (agentReachStatus.value?.installing || agentReachProgress.value)
+    return t('localAi.agentReachPreparing');
+  return t('localAi.agentReachMissing');
+});
+const agentReachSourceText = computed(() => {
+  const source = agentReachStatus.value?.source ?? 'missing';
+  const key = `localAi.agentReachSources.${source}`;
+  const translated = t(key);
+  return translated === key ? source : translated;
+});
+const agentReachProgressText = computed(
+  () => agentReachProgress.value?.message ?? agentReachStatus.value?.message ?? ''
+);
+const agentReachProgressPercent = computed(() => {
+  const value = agentReachProgress.value?.progress;
+  return typeof value === 'number'
+    ? Math.max(0, Math.min(100, Math.round(value)))
+    : undefined;
+});
+const agentReachProgressVisible = computed(
+  () =>
+    Boolean(agentReachProgress.value) &&
+    agentReachProgress.value?.phase !== 'ready'
+);
+const agentReachCommandText = computed(() =>
+  agentReachStatus.value?.agentReachPath
+    ? fileName(agentReachStatus.value.agentReachPath)
+    : '-'
+);
+const agentReachManagedRootText = computed(() =>
+  agentReachStatus.value?.managedRoot
+    ? fileName(agentReachStatus.value.managedRoot)
+    : '-'
+);
 
 const refreshRuntime = async () => {
   runtimeStatus.value = await getLocalAiRuntimeStatus();
+};
+const refreshAgentReachStatus = async () => {
+  agentReachStatus.value = await getLocalAiAgentReachStatus();
 };
 const refreshStatus = async () => {
   serviceStatus.value = await getLocalAiStatus();
@@ -622,7 +779,12 @@ const refreshAll = async () => {
   loading.value = true;
   try {
     config.value = await getLocalAiConfig();
-    await Promise.all([refreshRuntime(), scanModels(), refreshStatus()]);
+    await Promise.all([
+      refreshRuntime(),
+      scanModels(),
+      refreshStatus(),
+      refreshAgentReachStatus()
+    ]);
   } catch (error) {
     logger.error('[LocalAI] refresh settings failed', error);
     modal.msg(`${t('localAi.refreshFailed')}: ${error}`, 'error');
@@ -643,7 +805,12 @@ const saveConfig = async () => {
   saving.value = true;
   try {
     config.value = await saveLocalAiConfig(config.value);
-    await Promise.all([refreshRuntime(), scanModels(), refreshStatus()]);
+    await Promise.all([
+      refreshRuntime(),
+      scanModels(),
+      refreshStatus(),
+      refreshAgentReachStatus()
+    ]);
     modal.msg(t('localAi.configSaved'));
   } catch (error) {
     modal.msg(`${t('localAi.configSaveFailed')}: ${error}`, 'error');
@@ -727,6 +894,7 @@ const testWebSearch = async () => {
           })
         : t('localAi.webSearchTestEmpty')
     );
+    await refreshAgentReachStatus();
   } catch (error) {
     logger.warn('[LocalAI] web search test failed', error);
     modal.msg(`${t('localAi.webSearchTestFailed')}: ${error}`, 'error');
@@ -740,14 +908,31 @@ const openChat = () => {
 
 onMounted(async () => {
   await refreshAll();
+  try {
+    agentReachUnlisten = await listen<LocalAiAgentReachProgress>(
+      'local-ai-agent-reach-progress',
+      (event) => {
+        agentReachProgress.value = event.payload;
+        if (event.payload.phase === 'ready' || event.payload.phase === 'failed') {
+          refreshAgentReachStatus().catch((error) =>
+            logger.warn('[LocalAI] refresh Agent-Reach status failed', error)
+          );
+        }
+      }
+    );
+  } catch (error) {
+    logger.warn('[LocalAI] listen Agent-Reach progress failed', error);
+  }
   statusTimer = setInterval(() => {
-    refreshStatus().catch((error) =>
-      logger.warn('[LocalAI] status refresh failed', error)
+    Promise.all([refreshStatus(), refreshAgentReachStatus()]).catch((error) =>
+      logger.warn('[LocalAI] status timer failed', error)
     );
   }, 5000);
 });
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer);
+  agentReachUnlisten?.();
+  agentReachUnlisten = null;
 });
 </script>
 
@@ -792,17 +977,36 @@ onUnmounted(() => {
 
 .status-item {
   @apply flex items-center gap-2 rounded-md border border-panel bg-hover px-3 py-2 text-xs text-panel-text-secondary;
-
-  &.ready {
-    @apply text-green-600 dark:text-green-300;
-  }
 }
 
 .status-dot {
   @apply h-2 w-2 rounded-full bg-orange-400;
+}
 
-  .ready & {
+.tone-ok {
+  @apply border-green-500/30 text-green-600 dark:text-green-300;
+
+  .status-dot,
+  &.status-dot {
     @apply bg-green-500;
+  }
+}
+
+.tone-warn {
+  @apply border-orange-500/30 text-orange-600 dark:text-orange-300;
+
+  .status-dot,
+  &.status-dot {
+    @apply bg-orange-400;
+  }
+}
+
+.tone-danger {
+  @apply border-red-500/40 text-red-600 dark:text-red-300;
+
+  .status-dot,
+  &.status-dot {
+    @apply bg-red-500;
   }
 }
 
@@ -876,6 +1080,27 @@ onUnmounted(() => {
   }
 }
 
+.summary-meta b.tone-ok,
+.memory-metrics b.tone-ok,
+.bottleneck-row b.tone-ok,
+.agent-reach-meta b.tone-ok {
+  @apply text-green-600 dark:text-green-300;
+}
+
+.summary-meta b.tone-warn,
+.memory-metrics b.tone-warn,
+.bottleneck-row b.tone-warn,
+.agent-reach-meta b.tone-warn {
+  @apply text-orange-600 dark:text-orange-300;
+}
+
+.summary-meta b.tone-danger,
+.memory-metrics b.tone-danger,
+.bottleneck-row b.tone-danger,
+.agent-reach-meta b.tone-danger {
+  @apply text-red-600 dark:text-red-300;
+}
+
 .form-panel {
   @apply p-4;
 }
@@ -938,6 +1163,56 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.agent-reach-card {
+  @apply mt-3 rounded-md border border-panel bg-hover p-3;
+}
+
+.agent-reach-card__header {
+  @apply flex flex-wrap items-center justify-between gap-2;
+}
+
+.agent-reach-phase {
+  @apply min-w-0 truncate text-xs text-panel-text-secondary;
+}
+
+.agent-reach-progress-track {
+  @apply relative mt-3 h-2 overflow-hidden rounded-full bg-panel;
+}
+
+.agent-reach-progress-track--indeterminate .agent-reach-progress-bar {
+  animation: local-ai-agent-reach-progress 1.1s ease-in-out infinite;
+}
+
+.agent-reach-progress-bar {
+  @apply h-full rounded-full bg-green-500;
+  transition: width 0.18s ease;
+}
+
+.agent-reach-card.tone-warn .agent-reach-progress-bar {
+  @apply bg-orange-400;
+}
+
+.agent-reach-card.tone-danger .agent-reach-progress-bar {
+  @apply bg-red-500;
+}
+
+.agent-reach-meta {
+  @apply mt-3 grid gap-2 text-xs;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  div {
+    @apply flex min-w-0 items-center justify-between gap-2 rounded border border-panel bg-panel px-2 py-1.5;
+  }
+
+  span {
+    @apply shrink-0 text-panel-text-secondary;
+  }
+
+  b {
+    @apply min-w-0 truncate text-right font-semibold text-panel;
+  }
+}
+
 .service-controls {
   @apply mt-3 flex flex-wrap gap-2;
 }
@@ -978,12 +1253,23 @@ onUnmounted(() => {
   .param-grid,
   .param-grid--three,
   .switch-grid,
-  .switch-grid--two {
+  .switch-grid--two,
+  .agent-reach-meta {
     grid-template-columns: 1fr;
   }
 
   .field-row {
     @apply flex-col items-stretch;
+  }
+}
+
+@keyframes local-ai-agent-reach-progress {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(320%);
   }
 }
 </style>

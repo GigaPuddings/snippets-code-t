@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-06-18",
+  "updatedAt": "2026-06-19",
   "source": "snippets-code official GitHub marketplace",
   "plugins": [
     {
@@ -171,7 +171,7 @@
     },
     {
       "id": "local-ai",
-      "version": "2.0.43",
+      "version": "2.0.44",
       "name": {
         "i18nKey": "plugins.localAi.name",
         "fallback": "Local AI"
@@ -181,11 +181,12 @@
         "fallback": "Run local GGUF models with llama.cpp for AI chat, translation, and assistance."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/archive/refs/tags/2.0.43.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/archive/refs/tags/2.0.44.zip",
       "status": "available",
       "sizeBytes": 403478,
       "dependencies": [
-        "local-ai-llama-runtime"
+        "local-ai-llama-runtime",
+        "local-ai-agent-reach-runtime"
       ],
       "tags": [
         "ai",
@@ -195,7 +196,7 @@
       "minAppVersion": "2.1.20",
       "compatibleAppVersion": ">=2.1.20",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/2.0.43"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/2.0.44"
     },
     {
       "id": "local-ai-llama-runtime",
@@ -223,6 +224,33 @@
       "compatibleAppVersion": ">=2.1.20",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime",
       "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime/releases/tag/1.0.0"
+    },
+    {
+      "id": "local-ai-agent-reach-runtime",
+      "version": "1.0.0",
+      "name": {
+        "i18nKey": "plugins.localAiAgentReachRuntime.name",
+        "fallback": "Local AI Agent-Reach Runtime"
+      },
+      "description": {
+        "i18nKey": "plugins.localAiAgentReachRuntime.description",
+        "fallback": "Agent-Reach internet capability runtime used by the Local AI plugin."
+      },
+      "category": "automation",
+      "resourceFor": "local-ai",
+      "status": "available",
+      "sizeBytes": 181798202,
+      "tags": [
+        "ai",
+        "agent-reach",
+        "web",
+        "resource"
+      ],
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime/archive/refs/tags/1.0.0.zip",
+      "minAppVersion": "2.1.20",
+      "compatibleAppVersion": ">=2.1.20",
+      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime",
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime/releases/tag/1.0.0"
     },
     {
       "id": "todo",

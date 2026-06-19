@@ -148,6 +148,24 @@ export interface LocalAiWebSearchResponse {
   results: LocalAiWebSearchResult[];
 }
 
+export interface LocalAiAgentReachStatus {
+  ready: boolean;
+  source: string;
+  agentReachPath?: string | null;
+  mcporterPath?: string | null;
+  managedRoot: string;
+  runtimeResourceAvailable: boolean;
+  installing: boolean;
+  message?: string | null;
+}
+
+export interface LocalAiAgentReachProgress {
+  phase: string;
+  message: string;
+  progress?: number | null;
+  detail?: string | null;
+}
+
 export interface LocalAiWeatherRequest {
   query: string;
 }
@@ -268,6 +286,10 @@ export async function webSearchWithLocalAi(
   return await invoke<LocalAiWebSearchResponse>('local_ai_web_search', {
     request
   });
+}
+
+export async function getLocalAiAgentReachStatus(): Promise<LocalAiAgentReachStatus> {
+  return await invoke<LocalAiAgentReachStatus>('local_ai_agent_reach_status');
 }
 
 export async function getWeatherWithLocalAi(

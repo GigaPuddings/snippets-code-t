@@ -12,4 +12,11 @@ Default model directory:
 E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive
 ```
 
-The runtime is provided by the `local-ai-llama-runtime` resource package.
+Runtime resources:
+
+- `local-ai-llama-runtime` provides llama-server and CUDA runtime files.
+- `local-ai-agent-reach-runtime` provides the Agent-Reach web capability runtime.
+
+If the Agent-Reach runtime resource is unavailable, the app falls back to a
+managed app-data Python virtual environment and installs Agent-Reach
+automatically.

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "local-ai-agent-reach-runtime",
+  "version": "1.0.0",
+  "kind": "local",
+  "name": {
+    "i18nKey": "plugins.localAiAgentReachRuntime.name",
+    "fallback": "Local AI Agent-Reach Runtime"
+  },
+  "description": {
+    "i18nKey": "plugins.localAiAgentReachRuntime.description",
+    "fallback": "Agent-Reach internet capability runtime used by the Local AI plugin."
+  },
+  "category": "automation",
+  "enabledByDefault": true,
+  "resourceFor": "local-ai",
+  "permissions": [],
+  "compatibleAppVersion": ">=2.1.20",
+  "minAppVersion": "2.1.20",
+  "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime",
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime/releases/tag/1.0.0"
+}

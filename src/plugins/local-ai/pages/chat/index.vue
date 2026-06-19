@@ -581,6 +581,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { marked } from 'marked';
 import {
   Brain,
@@ -612,6 +613,7 @@ import {
   scanLocalAiModels,
   streamChatWithLocalAi,
   webSearchWithLocalAi,
+  type LocalAiAgentReachProgress,
   type LocalAiConfig,
   type LocalAiChatHistory,
   type LocalAiChatStreamStats,
@@ -711,6 +713,8 @@ const loadWebSearchEnabled = (): boolean => {
   }
 };
 const webSearchEnabled = ref(loadWebSearchEnabled());
+const agentReachProgress = ref<LocalAiAgentReachProgress | null>(null);
+let agentReachUnlisten: UnlistenFn | null = null;
 const composerFocused = ref(false);
 const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
@@ -1476,15 +1480,18 @@ const messageActivityLabel = (message: ChatMessage): string => {
   return t('localAi.generating');
 };
 const assistantMessagePendingText = (message: ChatMessage): string => {
-  if (message.webSearchStatus === 'searching')
-    return t('localAi.webSearchSearching');
+  if (message.webSearchStatus === 'searching') return currentWebSearchText();
   if (message.allowThinking && !message.reasoningEndedAt)
     return t('localAi.thinking');
   return t('localAi.generating');
 };
+const currentWebSearchText = (): string => {
+  const progress = agentReachProgress.value;
+  if (progress && progress.phase !== 'ready') return progress.message;
+  return t('localAi.webSearchSearching');
+};
 const webSearchStatusText = (message: ChatMessage): string => {
-  if (message.webSearchStatus === 'searching')
-    return t('localAi.webSearchSearching');
+  if (message.webSearchStatus === 'searching') return currentWebSearchText();
   if (message.webSearchStatus === 'done' && message.webSearchResults?.length) {
     return t('localAi.webSearchUsed', {
       count: message.webSearchResults.length
@@ -1838,6 +1845,7 @@ const withWebSearchContext = async (
       query: searchQueryText,
       maxResults: config.value?.webSearchMaxResults
     });
+    agentReachProgress.value = null;
     if (!response.results.length) {
       assistantMessage.webSearchStatus = 'empty';
       return applyContextMessages(messages, extraContextMessages);
@@ -1850,6 +1858,7 @@ const withWebSearchContext = async (
       contextMessage
     ]);
   } catch (error) {
+    agentReachProgress.value = null;
     assistantMessage.webSearchStatus = 'failed';
     assistantMessage.webSearchError = String(error);
     logger.warn('[LocalAI] web search failed', error);
@@ -2431,6 +2440,16 @@ const regenerateMessage = async (messageId: string) => {
 
 onMounted(async () => {
   await refreshAll();
+  try {
+    agentReachUnlisten = await listen<LocalAiAgentReachProgress>(
+      'local-ai-agent-reach-progress',
+      (event) => {
+        agentReachProgress.value = event.payload;
+      }
+    );
+  } catch (error) {
+    logger.warn('[LocalAI] listen Agent-Reach progress failed', error);
+  }
   statusTimer = setInterval(() => {
     refreshStatus().catch((error) =>
       logger.warn('[LocalAI] status timer failed', error)
@@ -2441,6 +2460,8 @@ watch(modelSupportsThinking, (supported) => {
   if (!supported) thinkingEnabled.value = false;
 });
 onUnmounted(() => {
+  agentReachUnlisten?.();
+  agentReachUnlisten = null;
   if (statusTimer) clearInterval(statusTimer);
   if (scrollFrameId !== null) {
     window.cancelAnimationFrame(scrollFrameId);

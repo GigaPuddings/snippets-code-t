@@ -13,6 +13,7 @@ function parseArgs() {
     dryRun: false,
     forceTag: false,
     includeFfmpegResource: false,
+    includeLocalAiAgentReachRuntime: false,
     includeLocalAiLlamaRuntime: false,
     includeRapidOcrResource: false,
     pinMarketplaceTags: false,
@@ -29,6 +30,8 @@ function parseArgs() {
       options.forceTag = true;
     } else if (arg === '--include-ffmpeg-resource') {
       options.includeFfmpegResource = true;
+    } else if (arg === '--include-local-ai-agent-reach-runtime') {
+      options.includeLocalAiAgentReachRuntime = true;
     } else if (arg === '--include-local-ai-llama-runtime') {
       options.includeLocalAiLlamaRuntime = true;
     } else if (arg === '--include-rapidocr-resource') {

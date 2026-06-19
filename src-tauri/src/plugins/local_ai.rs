@@ -2,12 +2,14 @@ use futures::StreamExt;
 use log::{info, warn};
 use regex::Regex;
 use reqwest::{
-    header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE, USER_AGENT},
+    header::{ACCEPT, CACHE_CONTROL, USER_AGENT},
     Client,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::env;
+use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -23,34 +25,26 @@ use std::os::windows::process::CommandExt;
 
 const PLUGIN_ID: &str = "local-ai";
 const RUNTIME_PLUGIN_ID: &str = "local-ai-llama-runtime";
+const AGENT_REACH_RUNTIME_PLUGIN_ID: &str = "local-ai-agent-reach-runtime";
 const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
+const AGENT_REACH_PACKAGE_URL: &str = "https://github.com/Panniantong/agent-reach/archive/main.zip";
+const AGENT_REACH_INSTALL_TIMEOUT_SECS: u64 = 300;
 
 static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
     LazyLock::new(|| Mutex::new(LocalAiServiceState::default()));
 static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
-static BING_TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?s)<li class="b_algo"[^>]*>.*?<h2[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#)
-        .expect("valid Bing title regex")
-});
-static BING_SNIPPET_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)<p[^>]*>(.*?)</p>"#).expect("valid Bing snippet regex"));
-static DDG_TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?s)<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#)
-        .expect("valid DuckDuckGo title regex")
-});
-static DDG_SNIPPET_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?s)<a[^>]*class="result__snippet"[^>]*>(.*?)</a>"#)
-        .expect("valid DuckDuckGo snippet regex")
-});
+static AGENT_REACH_BOOTSTRAP_RUNNING: AtomicBool = AtomicBool::new(false);
 static HTML_TAG_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)<[^>]*>").expect("valid HTML tag regex"));
+static URL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"https?://[^\s<>"']+"#).expect("valid URL regex"));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -316,6 +310,28 @@ pub struct LocalAiWeatherResponse {
     pub source: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiAgentReachStatus {
+    pub ready: bool,
+    pub source: String,
+    pub agent_reach_path: Option<String>,
+    pub mcporter_path: Option<String>,
+    pub managed_root: String,
+    pub runtime_resource_available: bool,
+    pub installing: bool,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiAgentReachProgress {
+    pub phase: String,
+    pub message: String,
+    pub progress: Option<f64>,
+    pub detail: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct WeatherLocation {
     name: &'static str,
@@ -323,6 +339,37 @@ struct WeatherLocation {
     latitude: f64,
     longitude: f64,
     timezone: &'static str,
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedWeatherLocation {
+    name: String,
+    country: String,
+    latitude: f64,
+    longitude: f64,
+    timezone: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenMeteoGeocodingResponse {
+    results: Option<Vec<OpenMeteoGeocodingResult>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenMeteoGeocodingResult {
+    name: String,
+    country: Option<String>,
+    latitude: f64,
+    longitude: f64,
+    timezone: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct AgentReachRuntime {
+    agent_reach: String,
+    agent_reach_args_prefix: Vec<String>,
+    mcporter: String,
+    path_prefixes: Vec<PathBuf>,
 }
 
 const WEATHER_LOCATIONS: &[WeatherLocation] = &[
@@ -387,6 +434,20 @@ const WEATHER_LOCATIONS: &[WeatherLocation] = &[
         country: "中国",
         latitude: 32.0603,
         longitude: 118.7969,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "安徽",
+        country: "中国",
+        latitude: 31.8612,
+        longitude: 117.2857,
+        timezone: "Asia/Shanghai",
+    },
+    WeatherLocation {
+        name: "合肥",
+        country: "中国",
+        latitude: 31.8206,
+        longitude: 117.2272,
         timezone: "Asia/Shanghai",
     },
     WeatherLocation {
@@ -638,6 +699,162 @@ fn extract_weather_location(query: &str) -> Option<WeatherLocation> {
         .max_by_key(|location| location.name.chars().count())
 }
 
+fn resolved_weather_location(location: WeatherLocation) -> ResolvedWeatherLocation {
+    ResolvedWeatherLocation {
+        name: location.name.to_string(),
+        country: location.country.to_string(),
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timezone: location.timezone.to_string(),
+    }
+}
+
+fn compact_weather_location_candidate(value: &str) -> Option<String> {
+    let candidate = value
+        .chars()
+        .filter(|character| {
+            character.is_alphabetic()
+                || matches!(
+                    character,
+                    '·' | '-' | '\'' | '市' | '省' | '州' | '县' | '区' | '旗'
+                )
+        })
+        .collect::<String>()
+        .replace("今天", "")
+        .replace("今日", "")
+        .replace("明天", "")
+        .replace("后天", "")
+        .replace("现在", "")
+        .replace("当前", "")
+        .replace("怎么样", "")
+        .replace("如何", "")
+        .replace("怎样", "")
+        .replace("天气", "")
+        .replace("温度", "")
+        .replace("气温", "")
+        .replace("下雨", "")
+        .replace("降雨", "")
+        .replace("湿度", "")
+        .replace("会", "")
+        .replace("吗", "")
+        .replace("么", "")
+        .replace("呢", "")
+        .trim_matches(['市', '省'])
+        .trim()
+        .to_string();
+
+    if candidate.chars().count() >= 2 {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
+fn weather_location_candidates(query: &str) -> Vec<String> {
+    let keywords = [
+        "天气",
+        "温度",
+        "气温",
+        "体感",
+        "湿度",
+        "降雨",
+        "下雨",
+        "风速",
+        "weather",
+        "temperature",
+        "humidity",
+        "rain",
+        "wind",
+    ];
+    let mut candidates = Vec::new();
+
+    for line in query.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        if let Some(location) = extract_weather_location(line) {
+            candidates.push(location.name.to_string());
+            continue;
+        }
+
+        let mut matched_keyword = false;
+        for keyword in keywords {
+            if let Some(index) = line.find(keyword) {
+                matched_keyword = true;
+                let prefix = &line[..index];
+                if let Some(candidate) = compact_weather_location_candidate(prefix) {
+                    candidates.push(candidate);
+                }
+            }
+        }
+
+        if !matched_keyword {
+            if let Some(candidate) = compact_weather_location_candidate(line) {
+                candidates.push(candidate);
+            }
+        }
+    }
+
+    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.chars().count()));
+    candidates.dedup();
+    candidates
+}
+
+async fn resolve_weather_location(
+    client: &Client,
+    query: &str,
+) -> Result<ResolvedWeatherLocation, String> {
+    if let Some(location) = extract_weather_location(query) {
+        return Ok(resolved_weather_location(location));
+    }
+
+    let geocoding_url = "https://geocoding-api.open-meteo.com/v1/search";
+    for candidate in weather_location_candidates(query) {
+        let response = client
+            .get(geocoding_url)
+            .header(ACCEPT, "application/json")
+            .header(USER_AGENT, "snippets-code-local-ai/1.0")
+            .query(&[
+                ("name", candidate.as_str()),
+                ("count", "1"),
+                ("language", "zh"),
+                ("format", "json"),
+            ])
+            .send()
+            .await
+            .map_err(|error| format!("天气地点解析请求失败: {}", error))?;
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .map_err(|error| format!("读取天气地点解析响应失败: {}", error))?;
+        if !status.is_success() {
+            warn!(
+                "[Plugin:local-ai] weather geocoding failed provider=open_meteo location_candidate={} status={} preview=\"{}\"",
+                candidate,
+                status,
+                response_preview(&body)
+            );
+            continue;
+        }
+        let value = serde_json::from_str::<OpenMeteoGeocodingResponse>(&body)
+            .map_err(|error| format!("解析天气地点响应失败: {}", error))?;
+        if let Some(result) = value
+            .results
+            .and_then(|mut results| results.drain(..).next())
+        {
+            return Ok(ResolvedWeatherLocation {
+                name: result.name,
+                country: result.country.unwrap_or_else(|| "未知".to_string()),
+                latitude: result.latitude,
+                longitude: result.longitude,
+                timezone: result
+                    .timezone
+                    .unwrap_or_else(|| "Asia/Shanghai".to_string()),
+            });
+        }
+    }
+
+    Err("未识别到天气地点，请在问题中包含城市或省份，例如“合肥天气”。".to_string())
+}
+
 fn decode_html_entities(value: &str) -> String {
     let mut decoded = value
         .replace("&amp;", "&")
@@ -679,129 +896,816 @@ fn clean_html_text(value: &str) -> String {
         .join(" ")
 }
 
-fn normalize_direct_search_url(raw_url: &str) -> Option<String> {
-    let decoded = decode_html_entities(raw_url);
-    if decoded.starts_with("http://") || decoded.starts_with("https://") {
-        Some(decoded)
-    } else {
-        None
-    }
+fn json_string_at<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    keys: &[&str],
+) -> Option<&'a str> {
+    keys.iter()
+        .find_map(|key| object.get(*key).and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
-fn parse_bing_results(body: &str, max_results: u32) -> Vec<LocalAiWebSearchResult> {
-    let mut results = Vec::new();
-    let matches = BING_TITLE_RE.captures_iter(body).collect::<Vec<_>>();
-    for (index, captures) in matches.iter().enumerate() {
-        let Some(raw_url) = captures.get(1).map(|item| item.as_str()) else {
-            continue;
-        };
-        let Some(url) = normalize_direct_search_url(raw_url) else {
-            continue;
-        };
-        let title = captures
-            .get(2)
-            .map(|item| clean_html_text(item.as_str()))
-            .unwrap_or_default();
-        if title.is_empty() {
-            continue;
-        }
-        let section_start = captures.get(0).map(|item| item.end()).unwrap_or(0);
-        let section_end = matches
-            .get(index + 1)
-            .and_then(|next| next.get(0))
-            .map(|item| item.start())
-            .unwrap_or(body.len());
-        let section = body.get(section_start..section_end).unwrap_or("");
-        let content = BING_SNIPPET_RE
-            .captures(section)
-            .and_then(|snippet| snippet.get(1))
-            .map(|item| clean_html_text(item.as_str()))
-            .unwrap_or_default()
-            .chars()
-            .take(500)
-            .collect::<String>();
-        results.push(LocalAiWebSearchResult {
-            title: title.chars().take(160).collect(),
-            url,
-            content,
-            engine: Some("Bing".to_string()),
-        });
-        if results.len() >= max_results as usize {
-            break;
-        }
+fn push_agent_reach_result(
+    object: &serde_json::Map<String, Value>,
+    results: &mut Vec<LocalAiWebSearchResult>,
+    seen_urls: &mut Vec<String>,
+    max_results: u32,
+) {
+    if results.len() >= max_results as usize {
+        return;
     }
-    results
-}
-
-fn normalize_duckduckgo_url(raw_url: &str) -> Option<String> {
-    let decoded = decode_html_entities(raw_url);
-    let absolute = if decoded.starts_with("//") {
-        format!("https:{}", decoded)
-    } else {
-        decoded
+    let Some(url) = json_string_at(object, &["url", "link", "href"]) else {
+        return;
     };
-    let parsed = url::Url::parse(&absolute).ok()?;
-    if parsed
-        .domain()
-        .is_some_and(|domain| domain.ends_with("duckduckgo.com"))
-        && parsed.path().starts_with("/l/")
-    {
-        return parsed
-            .query_pairs()
-            .find(|(key, _)| key == "uddg")
-            .map(|(_, value)| value.into_owned())
-            .filter(|value| value.starts_with("http://") || value.starts_with("https://"));
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return;
     }
-    if absolute.starts_with("http://") || absolute.starts_with("https://") {
-        Some(absolute)
-    } else {
-        None
+    if seen_urls.iter().any(|seen| seen == url) {
+        return;
+    }
+
+    let title = json_string_at(object, &["title", "name"])
+        .unwrap_or(url)
+        .chars()
+        .take(160)
+        .collect::<String>();
+    let content = json_string_at(
+        object,
+        &[
+            "text",
+            "content",
+            "snippet",
+            "summary",
+            "description",
+            "markdown",
+        ],
+    )
+    .map(clean_html_text)
+    .unwrap_or_default()
+    .chars()
+    .take(900)
+    .collect::<String>();
+
+    seen_urls.push(url.to_string());
+    results.push(LocalAiWebSearchResult {
+        title,
+        url: url.to_string(),
+        content,
+        engine: Some("Agent-Reach / Exa".to_string()),
+    });
+}
+
+fn collect_agent_reach_results(
+    value: &Value,
+    results: &mut Vec<LocalAiWebSearchResult>,
+    seen_urls: &mut Vec<String>,
+    max_results: u32,
+) {
+    if results.len() >= max_results as usize {
+        return;
+    }
+
+    match value {
+        Value::Object(object) => {
+            push_agent_reach_result(object, results, seen_urls, max_results);
+            for nested in object.values() {
+                collect_agent_reach_results(nested, results, seen_urls, max_results);
+                if results.len() >= max_results as usize {
+                    break;
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_agent_reach_results(item, results, seen_urls, max_results);
+                if results.len() >= max_results as usize {
+                    break;
+                }
+            }
+        }
+        Value::String(text) => {
+            let trimmed = text.trim();
+            if matches!(trimmed.chars().next(), Some('{') | Some('[')) {
+                if let Ok(nested) = serde_json::from_str::<Value>(trimmed) {
+                    collect_agent_reach_results(&nested, results, seen_urls, max_results);
+                }
+            }
+        }
+        _ => {}
     }
 }
 
-fn parse_duckduckgo_results(body: &str, max_results: u32) -> Vec<LocalAiWebSearchResult> {
+fn parse_agent_reach_plain_text(output: &str, max_results: u32) -> Vec<LocalAiWebSearchResult> {
     let mut results = Vec::new();
-    let matches = DDG_TITLE_RE.captures_iter(body).collect::<Vec<_>>();
-    for (index, captures) in matches.iter().enumerate() {
-        let Some(raw_url) = captures.get(1).map(|item| item.as_str()) else {
-            continue;
-        };
-        let Some(url) = normalize_duckduckgo_url(raw_url) else {
-            continue;
-        };
-        let title = captures
-            .get(2)
-            .map(|item| clean_html_text(item.as_str()))
-            .unwrap_or_default();
-        if title.is_empty() {
-            continue;
-        }
-        let section_start = captures.get(0).map(|item| item.end()).unwrap_or(0);
-        let section_end = matches
-            .get(index + 1)
-            .and_then(|next| next.get(0))
-            .map(|item| item.start())
-            .unwrap_or(body.len());
-        let section = body.get(section_start..section_end).unwrap_or("");
-        let content = DDG_SNIPPET_RE
-            .captures(section)
-            .and_then(|snippet| snippet.get(1))
-            .map(|item| clean_html_text(item.as_str()))
-            .unwrap_or_default()
-            .chars()
-            .take(500)
-            .collect::<String>();
-        results.push(LocalAiWebSearchResult {
-            title: title.chars().take(160).collect(),
-            url,
-            content,
-            engine: Some("DuckDuckGo".to_string()),
-        });
+    let mut seen_urls = Vec::new();
+    for line in output
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
         if results.len() >= max_results as usize {
             break;
         }
+        let Some(url_match) = URL_RE.find(line) else {
+            continue;
+        };
+        let url = url_match.as_str();
+        if seen_urls.iter().any(|seen| seen == url) {
+            continue;
+        }
+        let title = line[..url_match.start()]
+            .trim_matches(['-', '*', ' ', '\t', ':'])
+            .trim();
+        let content = line[url_match.end()..]
+            .trim_matches(['-', '*', ' ', '\t', ':'])
+            .trim();
+        seen_urls.push(url.to_string());
+        results.push(LocalAiWebSearchResult {
+            title: if title.is_empty() {
+                url.chars().take(160).collect()
+            } else {
+                title.chars().take(160).collect()
+            },
+            url: url.to_string(),
+            content: content.chars().take(900).collect(),
+            engine: Some("Agent-Reach / Exa".to_string()),
+        });
     }
     results
+}
+
+fn parse_agent_reach_search_results(output: &str, max_results: u32) -> Vec<LocalAiWebSearchResult> {
+    let trimmed = output.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
+        let mut results = Vec::new();
+        let mut seen_urls = Vec::new();
+        collect_agent_reach_results(&value, &mut results, &mut seen_urls, max_results);
+        if !results.is_empty() {
+            return results;
+        }
+    }
+    parse_agent_reach_plain_text(trimmed, max_results)
+}
+
+fn agent_reach_root(app_handle: &AppHandle) -> PathBuf {
+    crate::json_config::get_data_dir(app_handle)
+        .join(".snippets-code")
+        .join("agent-reach")
+}
+
+fn agent_reach_venv_dir(app_handle: &AppHandle) -> PathBuf {
+    agent_reach_root(app_handle).join("venv")
+}
+
+#[cfg(windows)]
+fn agent_reach_venv_bin_dir(venv_dir: &Path) -> PathBuf {
+    venv_dir.join("Scripts")
+}
+
+#[cfg(not(windows))]
+fn agent_reach_venv_bin_dir(venv_dir: &Path) -> PathBuf {
+    venv_dir.join("bin")
+}
+
+#[cfg(windows)]
+fn executable_name(name: &str) -> String {
+    format!("{}.exe", name)
+}
+
+#[cfg(not(windows))]
+fn executable_name(name: &str) -> String {
+    name.to_string()
+}
+
+fn managed_agent_reach_runtime(app_handle: &AppHandle) -> AgentReachRuntime {
+    let venv_dir = agent_reach_venv_dir(app_handle);
+    let bin_dir = agent_reach_venv_bin_dir(&venv_dir);
+    let mcporter = bin_dir.join(executable_name("mcporter"));
+    AgentReachRuntime {
+        agent_reach: display_path(&bin_dir.join(executable_name("python"))),
+        agent_reach_args_prefix: agent_reach_python_args(),
+        mcporter: if mcporter.exists() {
+            display_path(&mcporter)
+        } else {
+            "mcporter".to_string()
+        },
+        path_prefixes: vec![bin_dir],
+    }
+}
+
+fn system_agent_reach_runtime() -> AgentReachRuntime {
+    AgentReachRuntime {
+        agent_reach: "agent-reach".to_string(),
+        agent_reach_args_prefix: Vec::new(),
+        mcporter: "mcporter".to_string(),
+        path_prefixes: Vec::new(),
+    }
+}
+
+fn agent_reach_python_args() -> Vec<String> {
+    vec![
+        "-c".to_string(),
+        "from agent_reach.cli import main; main()".to_string(),
+    ]
+}
+
+fn find_mcporter_path(search_dirs: &[PathBuf]) -> String {
+    let mut candidates = Vec::new();
+    for dir in search_dirs {
+        candidates.extend([
+            dir.join(executable_name("mcporter")),
+            dir.join("mcporter"),
+            dir.join("mcporter.exe"),
+            dir.join("mcporter.cmd"),
+            dir.join("mcporter.ps1"),
+        ]);
+    }
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .map(|path| display_path(&path))
+        .unwrap_or_else(|| "mcporter".to_string())
+}
+
+fn resource_agent_reach_runtimes(app_handle: &AppHandle) -> Vec<AgentReachRuntime> {
+    let mut runtimes = Vec::new();
+    for relative in [
+        "resources/agent-reach/venv/Scripts/python.exe",
+        "resources/agent-reach/venv/bin/python",
+        "resources/agent-reach/python/python.exe",
+        "resources/agent-reach/python/bin/python",
+    ] {
+        let Ok(Some(python_path)) = crate::app_config::get_local_plugin_resource_path(
+            app_handle.clone(),
+            AGENT_REACH_RUNTIME_PLUGIN_ID.to_string(),
+            relative.to_string(),
+        ) else {
+            continue;
+        };
+        let python_path = PathBuf::from(python_path);
+        if !python_path.is_file() {
+            continue;
+        }
+        let bin_dir = python_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| python_path.clone());
+        let agent_reach_dir = bin_dir
+            .parent()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| bin_dir.clone());
+        let launcher_dir = agent_reach_dir.join("bin");
+        let node_runtime_dir = agent_reach_dir.join("node-runtime");
+        runtimes.push(AgentReachRuntime {
+            agent_reach: display_path(&python_path),
+            agent_reach_args_prefix: agent_reach_python_args(),
+            mcporter: find_mcporter_path(&[
+                launcher_dir.clone(),
+                bin_dir.clone(),
+                agent_reach_dir
+                    .join("node")
+                    .join("node_modules")
+                    .join(".bin"),
+            ]),
+            path_prefixes: vec![launcher_dir, bin_dir, node_runtime_dir],
+        });
+    }
+
+    for relative in [
+        "resources/agent-reach/bin/agent-reach.exe",
+        "resources/agent-reach/bin/agent-reach.cmd",
+        "resources/agent-reach/bin/agent-reach",
+        "resources/agent-reach/Scripts/agent-reach.exe",
+        "resources/agent-reach/bin/Scripts/agent-reach.exe",
+    ] {
+        let Ok(Some(agent_reach_path)) = crate::app_config::get_local_plugin_resource_path(
+            app_handle.clone(),
+            AGENT_REACH_RUNTIME_PLUGIN_ID.to_string(),
+            relative.to_string(),
+        ) else {
+            continue;
+        };
+        let agent_reach_path = PathBuf::from(agent_reach_path);
+        if !agent_reach_path.is_file() {
+            continue;
+        }
+        let bin_dir = agent_reach_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| agent_reach_path.clone());
+        let agent_reach_dir = bin_dir
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| bin_dir.clone());
+        let node_bin_dir = agent_reach_dir
+            .join("node")
+            .join("node_modules")
+            .join(".bin");
+        let node_runtime_dir = agent_reach_dir.join("node-runtime");
+        runtimes.push(AgentReachRuntime {
+            agent_reach: display_path(&agent_reach_path),
+            agent_reach_args_prefix: Vec::new(),
+            mcporter: find_mcporter_path(&[bin_dir.clone(), node_bin_dir]),
+            path_prefixes: vec![bin_dir, node_runtime_dir],
+        });
+    }
+    runtimes
+}
+
+fn runtime_resource_available(app_handle: &AppHandle) -> bool {
+    crate::app_config::get_local_plugin_resource_path(
+        app_handle.clone(),
+        AGENT_REACH_RUNTIME_PLUGIN_ID.to_string(),
+        "plugin.json".to_string(),
+    )
+    .ok()
+    .flatten()
+    .map(|path| Path::new(&path).is_file())
+    .unwrap_or(false)
+        || !resource_agent_reach_runtimes(app_handle).is_empty()
+}
+
+fn emit_agent_reach_progress(
+    app_handle: &AppHandle,
+    phase: &str,
+    message: &str,
+    progress: Option<f64>,
+    detail: Option<String>,
+) {
+    let payload = LocalAiAgentReachProgress {
+        phase: phase.to_string(),
+        message: message.to_string(),
+        progress,
+        detail,
+    };
+    let _ = app_handle.emit("local-ai-agent-reach-progress", payload);
+}
+
+fn path_with_prefixes(prefixes: &[PathBuf]) -> Option<OsString> {
+    if prefixes.is_empty() {
+        return None;
+    }
+    let mut paths = prefixes.to_vec();
+    if let Some(current_path) = env::var_os("PATH") {
+        paths.extend(env::split_paths(&current_path));
+    }
+    env::join_paths(paths).ok()
+}
+
+async fn run_command_text(
+    program: String,
+    args: Vec<String>,
+    timeout_secs: u64,
+    label: &'static str,
+    path_prefixes: Vec<PathBuf>,
+) -> Result<String, String> {
+    let display = std::iter::once(program.clone())
+        .chain(args.iter().map(|arg| quote_command_part(arg)))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let path = path_with_prefixes(&path_prefixes);
+    let task = tauri::async_runtime::spawn_blocking(move || {
+        let is_windows_script = cfg!(windows)
+            && matches!(
+                Path::new(&program)
+                    .extension()
+                    .and_then(|extension| extension.to_str())
+                    .map(|extension| extension.to_ascii_lowercase())
+                    .as_deref(),
+                Some("bat" | "cmd")
+            );
+        let mut command = if is_windows_script {
+            let mut shell = Command::new("cmd");
+            shell.args(["/C", &program]).args(args);
+            shell
+        } else {
+            let mut direct = Command::new(&program);
+            direct.args(args);
+            direct
+        };
+        command.stdin(Stdio::null());
+        if let Some(path) = path {
+            command.env("PATH", path);
+        }
+        command.output()
+    });
+    let output = tokio::time::timeout(Duration::from_secs(timeout_secs), task)
+        .await
+        .map_err(|_| format!("{}超时: {}", label, display))?
+        .map_err(|error| format!("{}执行失败: {}", label, error))?
+        .map_err(|error| {
+            format!(
+                "{}启动失败: {}。local-ai 会自动安装 Agent-Reach；如果持续失败，请确认系统可用 Python 3.10+ 且网络可访问 {}。",
+                label, error, AGENT_REACH_PACKAGE_URL
+            )
+        })?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if !output.status.success() {
+        let detail = if stderr.is_empty() { stdout } else { stderr };
+        return Err(format!("{}失败: {}", label, response_preview(&detail)));
+    }
+    if stdout.is_empty() {
+        Ok(stderr)
+    } else {
+        Ok(stdout)
+    }
+}
+
+async fn run_agent_reach_text(
+    runtime: &AgentReachRuntime,
+    args: Vec<String>,
+    timeout_secs: u64,
+    label: &'static str,
+) -> Result<String, String> {
+    let mut command_args = runtime.agent_reach_args_prefix.clone();
+    command_args.extend(args);
+    run_command_text(
+        runtime.agent_reach.clone(),
+        command_args,
+        timeout_secs,
+        label,
+        runtime.path_prefixes.clone(),
+    )
+    .await
+}
+
+fn python_candidates() -> Vec<(String, Vec<String>)> {
+    #[cfg(windows)]
+    {
+        vec![
+            ("py".to_string(), vec!["-3".to_string()]),
+            ("python".to_string(), Vec::new()),
+            ("python3".to_string(), Vec::new()),
+        ]
+    }
+    #[cfg(not(windows))]
+    {
+        vec![
+            ("python3".to_string(), Vec::new()),
+            ("python".to_string(), Vec::new()),
+        ]
+    }
+}
+
+async fn create_agent_reach_venv(venv_dir: &Path) -> Result<(), String> {
+    let python = agent_reach_venv_bin_dir(venv_dir).join(executable_name("python"));
+    if python.exists() {
+        return Ok(());
+    }
+    let parent = venv_dir
+        .parent()
+        .ok_or_else(|| format!("Agent-Reach venv 路径无效: {}", display_path(venv_dir)))?;
+    fs::create_dir_all(parent).map_err(|error| {
+        format!(
+            "创建 Agent-Reach 目录失败 {}: {}",
+            display_path(parent),
+            error
+        )
+    })?;
+    let mut last_error = None;
+    for (program, mut args) in python_candidates() {
+        args.extend(["-m".to_string(), "venv".to_string(), display_path(venv_dir)]);
+        match run_command_text(
+            program,
+            args,
+            AGENT_REACH_INSTALL_TIMEOUT_SECS,
+            "创建 Agent-Reach Python 环境",
+            Vec::new(),
+        )
+        .await
+        {
+            Ok(_) => return Ok(()),
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(last_error.unwrap_or_else(|| "未找到可用 Python，无法创建 Agent-Reach 环境".to_string()))
+}
+
+async fn install_managed_agent_reach(app_handle: &AppHandle) -> Result<AgentReachRuntime, String> {
+    let runtime = managed_agent_reach_runtime(app_handle);
+    let venv_dir = agent_reach_venv_dir(app_handle);
+    emit_agent_reach_progress(
+        app_handle,
+        "creating-venv",
+        "正在创建 Agent-Reach Python 环境...",
+        Some(30.0),
+        Some(display_path(&venv_dir)),
+    );
+    create_agent_reach_venv(&venv_dir).await?;
+    let python = agent_reach_venv_bin_dir(&venv_dir).join(executable_name("python"));
+    emit_agent_reach_progress(
+        app_handle,
+        "installing",
+        "正在安装 Agent-Reach...",
+        Some(45.0),
+        Some(AGENT_REACH_PACKAGE_URL.to_string()),
+    );
+    run_command_text(
+        display_path(&python),
+        vec![
+            "-m".to_string(),
+            "pip".to_string(),
+            "install".to_string(),
+            "--upgrade".to_string(),
+            AGENT_REACH_PACKAGE_URL.to_string(),
+        ],
+        AGENT_REACH_INSTALL_TIMEOUT_SECS,
+        "安装 Agent-Reach",
+        runtime.path_prefixes.clone(),
+    )
+    .await?;
+    emit_agent_reach_progress(
+        app_handle,
+        "configuring",
+        "正在配置 Agent-Reach 上游工具...",
+        Some(70.0),
+        None,
+    );
+    run_agent_reach_text(
+        &runtime,
+        vec!["install".to_string(), "--env=auto".to_string()],
+        AGENT_REACH_INSTALL_TIMEOUT_SECS,
+        "配置 Agent-Reach",
+    )
+    .await?;
+    Ok(runtime)
+}
+
+async fn agent_reach_doctor(
+    runtime: &AgentReachRuntime,
+    timeout_secs: u64,
+) -> Result<String, String> {
+    run_agent_reach_text(
+        runtime,
+        vec!["doctor".to_string(), "--json".to_string()],
+        timeout_secs,
+        "Agent-Reach 体检",
+    )
+    .await
+}
+
+async fn ensure_agent_reach_ready(
+    app_handle: &AppHandle,
+    timeout_secs: u64,
+) -> Result<AgentReachRuntime, String> {
+    let doctor_timeout = timeout_secs.clamp(3, 8);
+    emit_agent_reach_progress(
+        app_handle,
+        "checking-resource",
+        "正在检查 Agent-Reach 资源包...",
+        Some(8.0),
+        None,
+    );
+    for resource_runtime in resource_agent_reach_runtimes(app_handle) {
+        if agent_reach_doctor(&resource_runtime, doctor_timeout)
+            .await
+            .is_ok()
+        {
+            emit_agent_reach_progress(
+                app_handle,
+                "ready",
+                "Agent-Reach 资源包可用。",
+                Some(100.0),
+                Some(resource_runtime.agent_reach.clone()),
+            );
+            return Ok(resource_runtime);
+        }
+    }
+
+    emit_agent_reach_progress(
+        app_handle,
+        "checking-system",
+        "正在检查系统 Agent-Reach...",
+        Some(15.0),
+        None,
+    );
+    let system_runtime = system_agent_reach_runtime();
+    if agent_reach_doctor(&system_runtime, doctor_timeout)
+        .await
+        .is_ok()
+    {
+        emit_agent_reach_progress(
+            app_handle,
+            "ready",
+            "系统 Agent-Reach 可用。",
+            Some(100.0),
+            None,
+        );
+        return Ok(system_runtime);
+    }
+
+    emit_agent_reach_progress(
+        app_handle,
+        "checking-managed",
+        "正在检查应用托管 Agent-Reach...",
+        Some(22.0),
+        None,
+    );
+    let managed_runtime = managed_agent_reach_runtime(app_handle);
+    if Path::new(&managed_runtime.agent_reach).exists()
+        && agent_reach_doctor(&managed_runtime, doctor_timeout)
+            .await
+            .is_ok()
+    {
+        emit_agent_reach_progress(
+            app_handle,
+            "ready",
+            "应用托管 Agent-Reach 可用。",
+            Some(100.0),
+            Some(managed_runtime.agent_reach.clone()),
+        );
+        return Ok(managed_runtime);
+    }
+
+    if AGENT_REACH_BOOTSTRAP_RUNNING
+        .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+        .is_err()
+    {
+        emit_agent_reach_progress(
+            app_handle,
+            "waiting",
+            "Agent-Reach 正在准备中...",
+            None,
+            None,
+        );
+        for _ in 0..30 {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            let managed_runtime = managed_agent_reach_runtime(app_handle);
+            if Path::new(&managed_runtime.agent_reach).exists()
+                && agent_reach_doctor(&managed_runtime, doctor_timeout)
+                    .await
+                    .is_ok()
+            {
+                emit_agent_reach_progress(
+                    app_handle,
+                    "ready",
+                    "应用托管 Agent-Reach 可用。",
+                    Some(100.0),
+                    Some(managed_runtime.agent_reach.clone()),
+                );
+                return Ok(managed_runtime);
+            }
+        }
+        return Err("Agent-Reach 正在准备中，请稍后重试。".to_string());
+    }
+
+    info!("[Plugin:local-ai] bootstrapping managed Agent-Reach runtime");
+    let result: Result<AgentReachRuntime, String> = async {
+        let installed_runtime = install_managed_agent_reach(app_handle).await?;
+        emit_agent_reach_progress(
+            app_handle,
+            "doctor",
+            "正在体检 Agent-Reach...",
+            Some(90.0),
+            Some(installed_runtime.agent_reach.clone()),
+        );
+        agent_reach_doctor(&installed_runtime, doctor_timeout).await?;
+        emit_agent_reach_progress(
+            app_handle,
+            "ready",
+            "Agent-Reach 已准备就绪。",
+            Some(100.0),
+            Some(installed_runtime.agent_reach.clone()),
+        );
+        Ok(installed_runtime)
+    }
+    .await;
+    AGENT_REACH_BOOTSTRAP_RUNNING.store(false, Ordering::Relaxed);
+    if let Err(error) = &result {
+        emit_agent_reach_progress(
+            app_handle,
+            "failed",
+            "Agent-Reach 准备失败。",
+            None,
+            Some(error.clone()),
+        );
+    }
+    result
+}
+
+async fn search_with_agent_reach(
+    app_handle: &AppHandle,
+    query: &str,
+    max_results: u32,
+    timeout_secs: u64,
+) -> Result<Vec<LocalAiWebSearchResult>, String> {
+    let doctor_timeout = timeout_secs.clamp(3, 8);
+    let runtime = ensure_agent_reach_ready(app_handle, timeout_secs).await?;
+    let doctor_output = agent_reach_doctor(&runtime, doctor_timeout).await?;
+    info!(
+        "[Plugin:local-ai] agent-reach doctor ok preview=\"{}\"",
+        response_preview(&doctor_output)
+    );
+
+    let call = format!(
+        "exa.web_search_exa(query: {}, numResults: {})",
+        serde_json::to_string(query).unwrap_or_else(|_| "\"\"".to_string()),
+        max_results
+    );
+    info!(
+        "[Plugin:local-ai] web search start provider=agent_reach_exa query=\"{}\" max_results={}",
+        response_preview(query),
+        max_results
+    );
+    let output = run_command_text(
+        runtime.mcporter.clone(),
+        vec!["call".to_string(), call],
+        timeout_secs,
+        "Agent-Reach Exa 搜索",
+        runtime.path_prefixes.clone(),
+    )
+    .await?;
+    let results = parse_agent_reach_search_results(&output, max_results);
+    info!(
+        "[Plugin:local-ai] web search parsed provider=agent_reach_exa query=\"{}\" usable_results={}",
+        response_preview(query),
+        results.len()
+    );
+    Ok(results)
+}
+
+async fn agent_reach_status_inner(app_handle: &AppHandle) -> LocalAiAgentReachStatus {
+    let managed_root = display_path(&agent_reach_root(app_handle));
+    let runtime_resource_available = runtime_resource_available(app_handle);
+    let installing = AGENT_REACH_BOOTSTRAP_RUNNING.load(Ordering::Relaxed);
+    let timeout_secs = 5;
+
+    for runtime in resource_agent_reach_runtimes(app_handle) {
+        if agent_reach_doctor(&runtime, timeout_secs).await.is_ok() {
+            return LocalAiAgentReachStatus {
+                ready: true,
+                source: "resource".to_string(),
+                agent_reach_path: Some(runtime.agent_reach),
+                mcporter_path: Some(runtime.mcporter),
+                managed_root,
+                runtime_resource_available,
+                installing,
+                message: Some("Agent-Reach 资源包可用".to_string()),
+            };
+        }
+    }
+
+    let system_runtime = system_agent_reach_runtime();
+    if agent_reach_doctor(&system_runtime, timeout_secs)
+        .await
+        .is_ok()
+    {
+        return LocalAiAgentReachStatus {
+            ready: true,
+            source: "system".to_string(),
+            agent_reach_path: Some(system_runtime.agent_reach),
+            mcporter_path: Some(system_runtime.mcporter),
+            managed_root,
+            runtime_resource_available,
+            installing,
+            message: Some("系统 Agent-Reach 可用".to_string()),
+        };
+    }
+
+    let managed_runtime = managed_agent_reach_runtime(app_handle);
+    if Path::new(&managed_runtime.agent_reach).exists()
+        && agent_reach_doctor(&managed_runtime, timeout_secs)
+            .await
+            .is_ok()
+    {
+        return LocalAiAgentReachStatus {
+            ready: true,
+            source: "managed".to_string(),
+            agent_reach_path: Some(managed_runtime.agent_reach),
+            mcporter_path: Some(managed_runtime.mcporter),
+            managed_root,
+            runtime_resource_available,
+            installing,
+            message: Some("应用托管 Agent-Reach 可用".to_string()),
+        };
+    }
+
+    LocalAiAgentReachStatus {
+        ready: false,
+        source: if runtime_resource_available {
+            "resource".to_string()
+        } else {
+            "missing".to_string()
+        },
+        agent_reach_path: Path::new(&managed_runtime.agent_reach)
+            .exists()
+            .then_some(managed_runtime.agent_reach),
+        mcporter_path: None,
+        managed_root,
+        runtime_resource_available,
+        installing,
+        message: Some(if installing {
+            "Agent-Reach 正在准备中".to_string()
+        } else {
+            "Agent-Reach 尚未准备就绪".to_string()
+        }),
+    }
 }
 
 fn completion_token_limit(config: &LocalAiConfig, request_max_tokens: Option<u32>) -> i64 {
@@ -2103,54 +3007,33 @@ pub async fn local_ai_web_search(
         .max_results
         .unwrap_or(config.web_search_max_results)
         .clamp(1, 10);
-    let client = Client::builder()
-        .timeout(Duration::from_secs(u64::from(
-            config.web_search_timeout_secs.max(3),
-        )))
-        .build()
-        .map_err(|error| format!("创建联网搜索客户端失败: {}", error))?;
 
-    match search_with_bing_html(&client, query, max_results).await {
-        Ok(results) if !results.is_empty() => Ok(LocalAiWebSearchResponse {
+    let results = search_with_agent_reach(
+        &app_handle,
+        query,
+        max_results,
+        u64::from(config.web_search_timeout_secs.max(3)),
+    )
+    .await?;
+    if results.is_empty() {
+        Err(
+            "Agent-Reach 搜索没有返回可用结果，请运行 agent-reach doctor 检查 Exa/mcporter 后端。"
+                .to_string(),
+        )
+    } else {
+        Ok(LocalAiWebSearchResponse {
             query: query.to_string(),
             results,
-        }),
-        Ok(_) => {
-            warn!(
-                "[Plugin:local-ai] web search provider=bing_html returned no usable results, falling back to DuckDuckGo HTML query=\"{}\"",
-                response_preview(query)
-            );
-            match search_with_duckduckgo_html(&client, query, max_results).await {
-                Ok(results) if !results.is_empty() => Ok(LocalAiWebSearchResponse {
-                    query: query.to_string(),
-                    results,
-                }),
-                Ok(_) => Err("联网搜索没有返回可用结果".to_string()),
-                Err(error) => Err(error),
-            }
-        }
-        Err(bing_error) => {
-            warn!(
-                "[Plugin:local-ai] web search provider=bing_html failed error=\"{}\", falling back to DuckDuckGo HTML query=\"{}\"",
-                bing_error,
-                response_preview(query)
-            );
-            match search_with_duckduckgo_html(&client, query, max_results).await {
-                Ok(results) if !results.is_empty() => Ok(LocalAiWebSearchResponse {
-                    query: query.to_string(),
-                    results,
-                }),
-                Ok(_) => Err(format!(
-                    "联网搜索没有返回可用结果。Bing 错误: {}",
-                    bing_error
-                )),
-                Err(ddg_error) => Err(format!(
-                    "联网搜索失败。Bing 错误: {}；DuckDuckGo 错误: {}",
-                    bing_error, ddg_error
-                )),
-            }
-        }
+        })
     }
+}
+
+#[tauri::command]
+pub async fn local_ai_agent_reach_status(
+    app_handle: AppHandle,
+) -> Result<LocalAiAgentReachStatus, String> {
+    require_plugin(&app_handle)?;
+    Ok(agent_reach_status_inner(&app_handle).await)
 }
 
 #[tauri::command]
@@ -2163,9 +3046,6 @@ pub async fn local_ai_weather(
     if query.is_empty() {
         return Err("天气查询不能为空".to_string());
     }
-    let location = extract_weather_location(query).ok_or_else(|| {
-        "未识别到天气地点，请在问题中包含城市或省份，例如“河北天气”。".to_string()
-    })?;
     let config = read_config(&app_handle);
     let client = Client::builder()
         .timeout(Duration::from_secs(u64::from(
@@ -2173,6 +3053,7 @@ pub async fn local_ai_weather(
         )))
         .build()
         .map_err(|error| format!("创建天气查询客户端失败: {}", error))?;
+    let location = resolve_weather_location(&client, query).await?;
     let weather_url = "https://api.open-meteo.com/v1/forecast";
     info!(
         "[Plugin:local-ai] weather start provider=open_meteo location={} query=\"{}\"",
@@ -2194,7 +3075,7 @@ pub async fn local_ai_weather(
                 "daily",
                 "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max".to_string(),
             ),
-            ("timezone", location.timezone.to_string()),
+            ("timezone", location.timezone.clone()),
             ("forecast_days", "1".to_string()),
         ])
         .send()
@@ -2250,7 +3131,7 @@ pub async fn local_ai_weather(
         timezone: value
             .get("timezone")
             .and_then(Value::as_str)
-            .unwrap_or(location.timezone)
+            .unwrap_or(location.timezone.as_str())
             .to_string(),
         temperature: number_at(current, "temperature_2m"),
         apparent_temperature: number_at(current, "apparent_temperature"),
@@ -2273,132 +3154,6 @@ pub async fn local_ai_weather(
         response.temperature_min
     );
     Ok(response)
-}
-
-async fn search_with_bing_html(
-    client: &Client,
-    query: &str,
-    max_results: u32,
-) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    let search_url = "https://cn.bing.com/search";
-    info!(
-        "[Plugin:local-ai] web search start provider=bing_html url={} query=\"{}\" max_results={}",
-        search_url,
-        response_preview(query),
-        max_results
-    );
-    let response = client
-        .get(search_url)
-        .header(ACCEPT, "text/html,application/xhtml+xml")
-        .header(USER_AGENT, "Mozilla/5.0 snippets-code-local-ai/1.0")
-        .query(&[("q", query), ("setlang", "zh-CN")])
-        .send()
-        .await
-        .map_err(|error| {
-            warn!(
-                "[Plugin:local-ai] web search request failed provider=bing_html url={} query=\"{}\" error={}",
-                search_url,
-                response_preview(query),
-                error
-            );
-            format!("Bing 搜索请求失败: {}", error)
-        })?;
-    let status = response.status();
-    let content_type = response
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("")
-        .to_string();
-    let body = response.text().await.map_err(|error| {
-        warn!(
-            "[Plugin:local-ai] web search read response failed provider=bing_html url={} status={} content_type={} error={}",
-            search_url, status, content_type, error
-        );
-        format!("读取 Bing 搜索响应失败: {}", error)
-    })?;
-    info!(
-        "[Plugin:local-ai] web search response provider=bing_html url={} status={} content_type={} bytes={} preview=\"{}\"",
-        search_url,
-        status,
-        if content_type.is_empty() { "unknown" } else { &content_type },
-        body.len(),
-        response_preview(&body)
-    );
-    if !status.is_success() {
-        return Err(web_search_status_error(status, &body));
-    }
-
-    let results = parse_bing_results(&body, max_results);
-    info!(
-        "[Plugin:local-ai] web search parsed provider=bing_html query=\"{}\" usable_results={}",
-        response_preview(query),
-        results.len()
-    );
-    Ok(results)
-}
-
-async fn search_with_duckduckgo_html(
-    client: &Client,
-    query: &str,
-    max_results: u32,
-) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    let search_url = "https://duckduckgo.com/html/";
-    info!(
-        "[Plugin:local-ai] web search start provider=duckduckgo_html url={} query=\"{}\" max_results={}",
-        search_url,
-        response_preview(query),
-        max_results
-    );
-    let response = client
-        .get(search_url)
-        .header(ACCEPT, "text/html,application/xhtml+xml")
-        .header(USER_AGENT, "Mozilla/5.0 snippets-code-local-ai/1.0")
-        .query(&[("q", query)])
-        .send()
-        .await
-        .map_err(|error| {
-            warn!(
-                "[Plugin:local-ai] web search request failed provider=duckduckgo_html url={} query=\"{}\" error={}",
-                search_url,
-                response_preview(query),
-                error
-            );
-            format!("备用搜索请求失败: {}", error)
-        })?;
-    let status = response.status();
-    let content_type = response
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("")
-        .to_string();
-    let body = response.text().await.map_err(|error| {
-        warn!(
-            "[Plugin:local-ai] web search read response failed provider=duckduckgo_html url={} status={} content_type={} error={}",
-            search_url, status, content_type, error
-        );
-        format!("读取备用搜索响应失败: {}", error)
-    })?;
-    info!(
-        "[Plugin:local-ai] web search response provider=duckduckgo_html url={} status={} content_type={} bytes={} preview=\"{}\"",
-        search_url,
-        status,
-        if content_type.is_empty() { "unknown" } else { &content_type },
-        body.len(),
-        response_preview(&body)
-    );
-    if !status.is_success() {
-        return Err(web_search_status_error(status, &body));
-    }
-
-    let results = parse_duckduckgo_results(&body, max_results);
-    info!(
-        "[Plugin:local-ai] web search parsed provider=duckduckgo_html query=\"{}\" usable_results={}",
-        response_preview(query),
-        results.len()
-    );
-    Ok(results)
 }
 
 #[tauri::command]
@@ -2463,10 +3218,24 @@ pub fn local_ai_delete_chat_history(
     Ok(histories)
 }
 
-pub fn apply_runtime_change(_app_handle: &AppHandle, enabled: bool) {
+pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
     if !enabled {
         stop_service_now();
+        return;
     }
+
+    let app_handle = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        match ensure_agent_reach_ready(
+            &app_handle,
+            u64::from(default_web_search_timeout_secs().max(3)),
+        )
+        .await
+        {
+            Ok(_) => info!("[Plugin:local-ai] Agent-Reach ready"),
+            Err(error) => warn!("[Plugin:local-ai] Agent-Reach bootstrap failed: {}", error),
+        }
+    });
 }
 
 pub fn stop_service_now() {
@@ -2481,32 +3250,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn normalizes_duckduckgo_redirect_url() {
-        let url = normalize_duckduckgo_url(
-            "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fsearch%3Fq%3Dweb&amp;rut=abc",
-        );
-        assert_eq!(url.as_deref(), Some("https://example.com/search?q=web"));
-    }
-
-    #[test]
-    fn parses_bing_html_results() {
-        let html = r#"
-            <ol id="b_results">
-              <li class="b_algo">
-                <h2><a href="https://example.com/weather">河北天气 - Example</a></h2>
-                <div class="b_caption"><p>今天河北天气晴朗，局部有风。</p></div>
-              </li>
-            </ol>
-        "#;
-        let results = parse_bing_results(html, 5);
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].title, "河北天气 - Example");
-        assert_eq!(results[0].url, "https://example.com/weather");
-        assert_eq!(results[0].content, "今天河北天气晴朗，局部有风。");
-        assert_eq!(results[0].engine.as_deref(), Some("Bing"));
-    }
-
-    #[test]
     fn extracts_weather_location_from_recent_context() {
         let location = extract_weather_location("今天河北天气如何\n温度呢")
             .expect("河北 should be recognized");
@@ -2516,22 +3259,46 @@ mod tests {
     }
 
     #[test]
-    fn parses_duckduckgo_html_results() {
-        let html = r#"
-            <div class="result results_links results_links_deep web-result ">
-              <div class="links_main links_deep result__body">
-                <h2 class="result__title">
-                  <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Farticle&amp;rut=abc">Example &amp; Result</a>
-                </h2>
-                <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Farticle&amp;rut=abc">A <b>clean</b> snippet &amp; summary.</a>
-              </div>
-            </div>
+    fn extracts_hefei_weather_location() {
+        let location =
+            extract_weather_location("合肥今天天气怎么样").expect("合肥 should be recognized");
+        assert_eq!(location.name, "合肥");
+        assert_eq!(location.country, "中国");
+    }
+
+    #[test]
+    fn builds_weather_location_candidates_for_geocoding() {
+        let candidates = weather_location_candidates("苏州今天会下雨吗");
+        assert_eq!(candidates.first().map(String::as_str), Some("苏州"));
+    }
+
+    #[test]
+    fn parses_agent_reach_exa_json_results() {
+        let output = r#"
+        {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"results\":[{\"title\":\"合肥天气预报\",\"url\":\"https://example.com/hefei\",\"text\":\"今天大雨转阴。\"}]}"
+            }
+          ]
+        }
         "#;
-        let results = parse_duckduckgo_results(html, 5);
+        let results = parse_agent_reach_search_results(output, 5);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].title, "Example & Result");
+        assert_eq!(results[0].title, "合肥天气预报");
+        assert_eq!(results[0].url, "https://example.com/hefei");
+        assert_eq!(results[0].content, "今天大雨转阴。");
+        assert_eq!(results[0].engine.as_deref(), Some("Agent-Reach / Exa"));
+    }
+
+    #[test]
+    fn parses_agent_reach_plain_text_results() {
+        let output = "- Example Result https://example.com/article A clean snippet.";
+        let results = parse_agent_reach_search_results(output, 5);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].title, "Example Result");
         assert_eq!(results[0].url, "https://example.com/article");
-        assert_eq!(results[0].content, "A clean snippet & summary.");
-        assert_eq!(results[0].engine.as_deref(), Some("DuckDuckGo"));
+        assert_eq!(results[0].content, "A clean snippet.");
     }
 }

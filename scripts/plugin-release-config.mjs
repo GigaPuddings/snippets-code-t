@@ -99,6 +99,17 @@ export const pluginRepositories = [
     includeFlagName: '--include-local-ai-llama-runtime'
   },
   {
+    id: 'local-ai-agent-reach-runtime',
+    repo: 'snippets-code-plugin-local-ai-agent-reach-runtime',
+    sourceDir: 'docs/plugin-packages/local-ai-agent-reach-runtime',
+    resourceSourceDir: 'dist-plugin-packages/local-ai-agent-reach-runtime',
+    kind: 'resource',
+    requiresExplicitResource: true,
+    includeFlag: 'includeLocalAiAgentReachRuntime',
+    includeFlagName: '--include-local-ai-agent-reach-runtime',
+    packageCommand: 'pnpm agent-reach:package'
+  },
+  {
     id: 'screenshot-rapidocr',
     repo: 'snippets-code-plugin-screenshot-rapidocr',
     sourceDir: 'docs/examples/screenshot-rapidocr-resource',
