@@ -927,7 +927,7 @@ onMounted(async () => {
     Promise.all([refreshStatus(), refreshAgentReachStatus()]).catch((error) =>
       logger.warn('[LocalAI] status timer failed', error)
     );
-  }, 5000);
+  }, 15000);
 });
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer);

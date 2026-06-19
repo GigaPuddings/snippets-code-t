@@ -33,7 +33,10 @@ const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
 const AGENT_REACH_PACKAGE_URL: &str = "https://github.com/Panniantong/agent-reach/archive/main.zip";
+const MCPORTER_EXA_ENDPOINT: &str = "https://mcp.exa.ai/mcp";
 const AGENT_REACH_INSTALL_TIMEOUT_SECS: u64 = 300;
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
     LazyLock::new(|| Mutex::new(LocalAiServiceState::default()));
@@ -1081,6 +1084,56 @@ fn executable_name(name: &str) -> String {
     name.to_string()
 }
 
+fn command_candidates(name: &str) -> Vec<String> {
+    #[cfg(windows)]
+    {
+        if Path::new(name).extension().is_some() {
+            vec![name.to_string()]
+        } else {
+            vec![
+                format!("{}.exe", name),
+                format!("{}.cmd", name),
+                format!("{}.bat", name),
+                name.to_string(),
+            ]
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        vec![name.to_string()]
+    }
+}
+
+fn find_command_in_path(name: &str) -> Option<PathBuf> {
+    let direct_path = Path::new(name);
+    if direct_path.is_absolute() || direct_path.components().count() > 1 {
+        return direct_path.is_file().then(|| direct_path.to_path_buf());
+    }
+    let path = env::var_os("PATH")?;
+    for dir in env::split_paths(&path) {
+        for candidate in command_candidates(name) {
+            let candidate_path = dir.join(candidate);
+            if candidate_path.is_file() {
+                return Some(candidate_path);
+            }
+        }
+    }
+    None
+}
+
+fn display_runtime_command(command: &str) -> Option<String> {
+    let path = Path::new(command);
+    if path.is_file() {
+        Some(display_path(path))
+    } else {
+        find_command_in_path(command).map(|path| display_path(&path))
+    }
+}
+
+fn managed_agent_reach_launcher(app_handle: &AppHandle) -> PathBuf {
+    agent_reach_venv_bin_dir(&agent_reach_venv_dir(app_handle)).join(executable_name("agent-reach"))
+}
+
 fn managed_agent_reach_runtime(app_handle: &AppHandle) -> AgentReachRuntime {
     let venv_dir = agent_reach_venv_dir(app_handle);
     let bin_dir = agent_reach_venv_bin_dir(&venv_dir);
@@ -1257,6 +1310,13 @@ fn path_with_prefixes(prefixes: &[PathBuf]) -> Option<OsString> {
     env::join_paths(paths).ok()
 }
 
+fn hide_command_window(command: &mut Command) {
+    #[cfg(target_os = "windows")]
+    {
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+}
+
 async fn run_command_text(
     program: String,
     args: Vec<String>,
@@ -1288,6 +1348,7 @@ async fn run_command_text(
             direct.args(args);
             direct
         };
+        hide_command_window(&mut command);
         command.stdin(Stdio::null());
         if let Some(path) = path {
             command.env("PATH", path);
@@ -1437,24 +1498,64 @@ async fn install_managed_agent_reach(app_handle: &AppHandle) -> Result<AgentReac
     Ok(runtime)
 }
 
-async fn agent_reach_doctor(
+async fn agent_reach_version(
     runtime: &AgentReachRuntime,
     timeout_secs: u64,
 ) -> Result<String, String> {
     run_agent_reach_text(
         runtime,
-        vec!["doctor".to_string(), "--json".to_string()],
+        vec!["version".to_string()],
         timeout_secs,
-        "Agent-Reach 体检",
+        "Agent-Reach 版本检查",
     )
     .await
+}
+
+async fn ensure_mcporter_exa_configured(
+    runtime: &AgentReachRuntime,
+    timeout_secs: u64,
+) -> Result<(), String> {
+    let list_output = run_command_text(
+        runtime.mcporter.clone(),
+        vec!["config".to_string(), "list".to_string()],
+        timeout_secs,
+        "Agent-Reach Exa 配置检查",
+        runtime.path_prefixes.clone(),
+    )
+    .await
+    .unwrap_or_default();
+    if list_output.to_ascii_lowercase().contains("exa") {
+        return Ok(());
+    }
+    run_command_text(
+        runtime.mcporter.clone(),
+        vec![
+            "config".to_string(),
+            "add".to_string(),
+            "exa".to_string(),
+            MCPORTER_EXA_ENDPOINT.to_string(),
+        ],
+        timeout_secs,
+        "Agent-Reach Exa 配置",
+        runtime.path_prefixes.clone(),
+    )
+    .await
+    .map(|_| ())
+}
+
+async fn prepare_agent_reach_runtime(
+    runtime: &AgentReachRuntime,
+    timeout_secs: u64,
+) -> Result<(), String> {
+    agent_reach_version(runtime, timeout_secs).await?;
+    ensure_mcporter_exa_configured(runtime, timeout_secs).await
 }
 
 async fn ensure_agent_reach_ready(
     app_handle: &AppHandle,
     timeout_secs: u64,
 ) -> Result<AgentReachRuntime, String> {
-    let doctor_timeout = timeout_secs.clamp(3, 8);
+    let quick_timeout = timeout_secs.clamp(5, 15);
     emit_agent_reach_progress(
         app_handle,
         "checking-resource",
@@ -1462,20 +1563,38 @@ async fn ensure_agent_reach_ready(
         Some(8.0),
         None,
     );
-    for resource_runtime in resource_agent_reach_runtimes(app_handle) {
-        if agent_reach_doctor(&resource_runtime, doctor_timeout)
-            .await
-            .is_ok()
-        {
-            emit_agent_reach_progress(
-                app_handle,
-                "ready",
-                "Agent-Reach 资源包可用。",
-                Some(100.0),
-                Some(resource_runtime.agent_reach.clone()),
-            );
-            return Ok(resource_runtime);
+    let resource_runtimes = resource_agent_reach_runtimes(app_handle);
+    let mut last_resource_error = None;
+    for resource_runtime in &resource_runtimes {
+        match prepare_agent_reach_runtime(resource_runtime, quick_timeout).await {
+            Ok(_) => {
+                emit_agent_reach_progress(
+                    app_handle,
+                    "ready",
+                    "Agent-Reach 资源包可用。",
+                    Some(100.0),
+                    Some(resource_runtime.agent_reach.clone()),
+                );
+                return Ok(resource_runtime.clone());
+            }
+            Err(error) => {
+                warn!(
+                    "[Plugin:local-ai] packaged Agent-Reach runtime unavailable: {}",
+                    error
+                );
+                last_resource_error = Some(error);
+            }
         }
+    }
+    if !resource_runtimes.is_empty() {
+        return Err(format!(
+            "Agent-Reach 资源包不可用: {}",
+            last_resource_error.unwrap_or_else(|| "未通过版本或 Exa 配置检查".to_string())
+        ));
+    }
+
+    if runtime_resource_available(app_handle) {
+        return Err("Agent-Reach 资源包已安装，但未找到可执行运行时文件，请更新 local-ai-agent-reach-runtime 资源包。".to_string());
     }
 
     emit_agent_reach_progress(
@@ -1486,9 +1605,11 @@ async fn ensure_agent_reach_ready(
         None,
     );
     let system_runtime = system_agent_reach_runtime();
-    if agent_reach_doctor(&system_runtime, doctor_timeout)
-        .await
-        .is_ok()
+    if display_runtime_command(&system_runtime.agent_reach).is_some()
+        && display_runtime_command(&system_runtime.mcporter).is_some()
+        && prepare_agent_reach_runtime(&system_runtime, quick_timeout)
+            .await
+            .is_ok()
     {
         emit_agent_reach_progress(
             app_handle,
@@ -1508,8 +1629,8 @@ async fn ensure_agent_reach_ready(
         None,
     );
     let managed_runtime = managed_agent_reach_runtime(app_handle);
-    if Path::new(&managed_runtime.agent_reach).exists()
-        && agent_reach_doctor(&managed_runtime, doctor_timeout)
+    if managed_agent_reach_launcher(app_handle).is_file()
+        && prepare_agent_reach_runtime(&managed_runtime, quick_timeout)
             .await
             .is_ok()
     {
@@ -1537,8 +1658,8 @@ async fn ensure_agent_reach_ready(
         for _ in 0..30 {
             tokio::time::sleep(Duration::from_secs(2)).await;
             let managed_runtime = managed_agent_reach_runtime(app_handle);
-            if Path::new(&managed_runtime.agent_reach).exists()
-                && agent_reach_doctor(&managed_runtime, doctor_timeout)
+            if managed_agent_reach_launcher(app_handle).is_file()
+                && prepare_agent_reach_runtime(&managed_runtime, quick_timeout)
                     .await
                     .is_ok()
             {
@@ -1561,11 +1682,11 @@ async fn ensure_agent_reach_ready(
         emit_agent_reach_progress(
             app_handle,
             "doctor",
-            "正在体检 Agent-Reach...",
+            "正在检查 Agent-Reach 联网组件...",
             Some(90.0),
             Some(installed_runtime.agent_reach.clone()),
         );
-        agent_reach_doctor(&installed_runtime, doctor_timeout).await?;
+        prepare_agent_reach_runtime(&installed_runtime, quick_timeout).await?;
         emit_agent_reach_progress(
             app_handle,
             "ready",
@@ -1595,13 +1716,7 @@ async fn search_with_agent_reach(
     max_results: u32,
     timeout_secs: u64,
 ) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    let doctor_timeout = timeout_secs.clamp(3, 8);
     let runtime = ensure_agent_reach_ready(app_handle, timeout_secs).await?;
-    let doctor_output = agent_reach_doctor(&runtime, doctor_timeout).await?;
-    info!(
-        "[Plugin:local-ai] agent-reach doctor ok preview=\"{}\"",
-        response_preview(&doctor_output)
-    );
 
     let call = format!(
         "exa.web_search_exa(query: {}, numResults: {})",
@@ -1634,55 +1749,75 @@ async fn agent_reach_status_inner(app_handle: &AppHandle) -> LocalAiAgentReachSt
     let managed_root = display_path(&agent_reach_root(app_handle));
     let runtime_resource_available = runtime_resource_available(app_handle);
     let installing = AGENT_REACH_BOOTSTRAP_RUNNING.load(Ordering::Relaxed);
-    let timeout_secs = 5;
 
-    for runtime in resource_agent_reach_runtimes(app_handle) {
-        if agent_reach_doctor(&runtime, timeout_secs).await.is_ok() {
-            return LocalAiAgentReachStatus {
-                ready: true,
-                source: "resource".to_string(),
-                agent_reach_path: Some(runtime.agent_reach),
-                mcporter_path: Some(runtime.mcporter),
-                managed_root,
-                runtime_resource_available,
-                installing,
-                message: Some("Agent-Reach 资源包可用".to_string()),
-            };
-        }
-    }
-
-    let system_runtime = system_agent_reach_runtime();
-    if agent_reach_doctor(&system_runtime, timeout_secs)
-        .await
-        .is_ok()
-    {
+    if let Some(runtime) = resource_agent_reach_runtimes(app_handle).into_iter().next() {
+        let mcporter_path = display_runtime_command(&runtime.mcporter);
+        let ready = mcporter_path.is_some();
         return LocalAiAgentReachStatus {
-            ready: true,
-            source: "system".to_string(),
-            agent_reach_path: Some(system_runtime.agent_reach),
-            mcporter_path: Some(system_runtime.mcporter),
+            ready,
+            source: "resource".to_string(),
+            agent_reach_path: Some(runtime.agent_reach),
+            mcporter_path,
             managed_root,
             runtime_resource_available,
             installing,
-            message: Some("系统 Agent-Reach 可用".to_string()),
+            message: Some(if ready {
+                "Agent-Reach 资源包已安装，联网时会自动检查 Exa 配置".to_string()
+            } else {
+                "Agent-Reach 资源包已安装，但未找到 mcporter 入口".to_string()
+            }),
+        };
+    }
+
+    if runtime_resource_available {
+        return LocalAiAgentReachStatus {
+            ready: false,
+            source: "resource".to_string(),
+            agent_reach_path: None,
+            mcporter_path: None,
+            managed_root,
+            runtime_resource_available,
+            installing,
+            message: Some(
+                "Agent-Reach 资源包已安装，但未找到可执行运行时文件，请更新资源包".to_string(),
+            ),
+        };
+    }
+
+    let system_agent_reach = display_runtime_command("agent-reach");
+    let system_mcporter = display_runtime_command("mcporter");
+    if system_agent_reach.is_some() && system_mcporter.is_some() {
+        return LocalAiAgentReachStatus {
+            ready: true,
+            source: "system".to_string(),
+            agent_reach_path: system_agent_reach,
+            mcporter_path: system_mcporter,
+            managed_root,
+            runtime_resource_available,
+            installing,
+            message: Some("系统 Agent-Reach 命令已发现，联网时会自动检查 Exa 配置".to_string()),
         };
     }
 
     let managed_runtime = managed_agent_reach_runtime(app_handle);
-    if Path::new(&managed_runtime.agent_reach).exists()
-        && agent_reach_doctor(&managed_runtime, timeout_secs)
-            .await
-            .is_ok()
-    {
+    let managed_launcher = managed_agent_reach_launcher(app_handle);
+    let managed_installed = managed_launcher.is_file();
+    if managed_installed {
+        let mcporter_path = display_runtime_command(&managed_runtime.mcporter);
+        let ready = mcporter_path.is_some();
         return LocalAiAgentReachStatus {
-            ready: true,
+            ready,
             source: "managed".to_string(),
             agent_reach_path: Some(managed_runtime.agent_reach),
-            mcporter_path: Some(managed_runtime.mcporter),
+            mcporter_path,
             managed_root,
             runtime_resource_available,
             installing,
-            message: Some("应用托管 Agent-Reach 可用".to_string()),
+            message: Some(if ready {
+                "应用托管 Agent-Reach 已安装，联网时会自动检查 Exa 配置".to_string()
+            } else {
+                "应用托管 Agent-Reach 已安装，但未找到 mcporter 入口".to_string()
+            }),
         };
     }
 
@@ -1693,9 +1828,9 @@ async fn agent_reach_status_inner(app_handle: &AppHandle) -> LocalAiAgentReachSt
         } else {
             "missing".to_string()
         },
-        agent_reach_path: Path::new(&managed_runtime.agent_reach)
-            .exists()
-            .then_some(managed_runtime.agent_reach),
+        agent_reach_path: managed_launcher
+            .is_file()
+            .then(|| display_path(&managed_launcher)),
         mcporter_path: None,
         managed_root,
         runtime_resource_available,
@@ -3218,24 +3353,13 @@ pub fn local_ai_delete_chat_history(
     Ok(histories)
 }
 
-pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
+pub fn apply_runtime_change(_app_handle: &AppHandle, enabled: bool) {
     if !enabled {
         stop_service_now();
         return;
     }
 
-    let app_handle = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        match ensure_agent_reach_ready(
-            &app_handle,
-            u64::from(default_web_search_timeout_secs().max(3)),
-        )
-        .await
-        {
-            Ok(_) => info!("[Plugin:local-ai] Agent-Reach ready"),
-            Err(error) => warn!("[Plugin:local-ai] Agent-Reach bootstrap failed: {}", error),
-        }
-    });
+    info!("[Plugin:local-ai] enabled; Agent-Reach will be prepared on first web search request");
 }
 
 pub fn stop_service_now() {

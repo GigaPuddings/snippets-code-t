@@ -14123,7 +14123,7 @@ const _E = ["disabled"], wE = {
         Promise.all([xe(), Fe()]).catch(
           (te) => Rt.warn("[LocalAI] status timer failed", te)
         );
-      }, 5e3);
+      }, 15e3);
     }), Wa(() => {
       v && clearInterval(v), b?.(), b = null;
     }), (te, Z) => {
@@ -15436,7 +15436,7 @@ const _E = ["disabled"], wE = {
       ]);
     };
   }
-}), GA = /* @__PURE__ */ ti(HA, [["__scopeId", "data-v-328f9041"]]), KA = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), GA = /* @__PURE__ */ ti(HA, [["__scopeId", "data-v-f285fe1b"]]), KA = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: GA
 }, Symbol.toStringTag, { value: "Module" }));
