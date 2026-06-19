@@ -219,7 +219,8 @@ async function updateMarketplace(selectedPlugins, pluginVersions, options) {
     const plugin = byId.get(item.id);
     if (!plugin) continue;
     const version = pluginVersions.get(plugin.id);
-    const sourceManifest = await readJson(resolve(ROOT, plugin.sourceDir, 'plugin.json'));
+    const sourceDir = await resolveSourceDir(plugin, options);
+    const sourceManifest = await readJson(join(sourceDir, 'plugin.json'));
     const minAppVersion = sourceManifest.minAppVersion ?? item.minAppVersion ?? version;
 
     item.version = version;
