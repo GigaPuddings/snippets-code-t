@@ -534,11 +534,6 @@ export default {
       description:
         'llama-server and CUDA runtime dependencies used by the Local AI plugin.'
     },
-    localAiAgentReachRuntime: {
-      name: 'Local AI Agent-Reach Runtime',
-      description:
-        'Agent-Reach internet capability runtime used by the Local AI plugin.'
-    },
     screenshot: {
       name: 'Screenshot and OCR',
       description:
@@ -1886,11 +1881,11 @@ export default {
     reasoningTitle: 'Think',
     thinkingEnabled: 'Thinking is on',
     thinkingDisabled: 'Thinking is off',
-    webSearchTitle: 'Agent-Reach',
-    webSearchEnabled: 'Agent-Reach web access is on',
-    webSearchDisabled: 'Agent-Reach web access is off',
-    webSearchSearching: 'Searching with Agent-Reach...',
-    webSearchUsed: 'Used {count} Agent-Reach source(s)',
+    webSearchTitle: 'Web search',
+    webSearchEnabled: 'Web search is on',
+    webSearchDisabled: 'Web search is off',
+    webSearchSearching: 'Searching web sources...',
+    webSearchUsed: 'Used {count} web source(s)',
     jumpToLatest: 'Jump to latest',
     modelChanged: 'Model changed and saved',
     you: 'You',
@@ -1957,37 +1952,19 @@ export default {
     repeatLastN: 'Penalty window',
     maxTokens: 'Max tokens (0=unlimited)',
     port: 'Port',
-    webSearch: 'Agent-Reach Web',
+    webSearch: 'Web search',
     webSearchDesc:
-      'Automatically install and check Agent-Reach, then fetch Exa results into the local model context',
+      'Use in-process Bing RSS with a DuckDuckGo fallback; no search runtime is installed or launched',
     webSearchMaxResults: 'Results',
     webSearchTimeoutSecs: 'Search seconds',
     webSearchNoResults:
-      'Agent-Reach returned no usable results. Answering with the local model only.',
-    webSearchFailed:
-      'Agent-Reach web access failed. Answering with the local model only',
-    webSearchTest: 'Test Agent-Reach',
-    webSearchTestQuery: 'Agent-Reach web test',
-    webSearchTestSuccess: 'Agent-Reach test succeeded with {count} result(s)',
-    webSearchTestEmpty:
-      'Agent-Reach is reachable but returned no usable results',
-    webSearchTestFailed: 'Agent-Reach web test failed',
-    agentReachReady: 'Agent-Reach ready',
-    agentReachPreparing: 'Agent-Reach preparing',
-    agentReachMissing: 'Agent-Reach not ready',
-    agentReachSource: 'Source',
-    agentReachResourcePackage: 'Resource package',
-    agentReachManagedRoot: 'Managed root',
-    agentReachExecutable: 'Command',
-    agentReachProgress: 'Setup progress',
-    agentReachResourceAvailable: 'Installed',
-    agentReachResourceMissing: 'Not installed',
-    agentReachSources: {
-      resource: 'Resource package',
-      system: 'System',
-      managed: 'App-managed',
-      missing: 'Not ready'
-    },
+      'Web search returned no usable results. Answering with the local model only.',
+    webSearchFailed: 'Web search failed. Answering with the local model only',
+    webSearchTest: 'Test web search',
+    webSearchTestQuery: 'Web search test',
+    webSearchTestSuccess: 'Web search test succeeded with {count} result(s)',
+    webSearchTestEmpty: 'Web search is reachable but returned no usable results',
+    webSearchTestFailed: 'Web search test failed',
     estimatedMemory: 'Estimated memory usage',
     estimateBeta: 'Estimate',
     total: 'Total',
@@ -2041,8 +2018,8 @@ export default {
       maxTokens: 'Maximum output tokens per response. 0 means no app-side cap.',
       port: 'Local llama-server port.',
       webSearchMaxResults:
-        'Number of Agent-Reach results injected per chat request. Too many results use context.',
-      webSearchTimeoutSecs: 'Maximum time to wait for Agent-Reach results.'
+        'Number of web results injected per chat request. Too many results use context.',
+      webSearchTimeoutSecs: 'Maximum time to wait for web search results.'
     }
   }
 };

@@ -528,10 +528,6 @@ export default {
       name: '本地 AI llama.cpp 运行时',
       description: '本地 AI 插件使用的 llama-server 与 CUDA 运行依赖。'
     },
-    localAiAgentReachRuntime: {
-      name: '本地 AI Agent-Reach 联网运行时',
-      description: '本地 AI 插件使用的 Agent-Reach 联网能力运行资源。'
-    },
     screenshot: {
       name: '截图与 OCR',
       description: '截图标注、取色、贴图、OCR 识别和截图翻译入口。',
@@ -1850,11 +1846,11 @@ export default {
     reasoningTitle: '思考',
     thinkingEnabled: '思考已开启',
     thinkingDisabled: '思考已关闭',
-    webSearchTitle: 'Agent-Reach',
-    webSearchEnabled: 'Agent-Reach 联网已开启',
-    webSearchDisabled: 'Agent-Reach 联网已关闭',
-    webSearchSearching: '正在通过 Agent-Reach 搜索...',
-    webSearchUsed: '已使用 {count} 条 Agent-Reach 来源',
+    webSearchTitle: '联网搜索',
+    webSearchEnabled: '联网搜索已开启',
+    webSearchDisabled: '联网搜索已关闭',
+    webSearchSearching: '正在搜索联网来源...',
+    webSearchUsed: '已使用 {count} 条联网来源',
     jumpToLatest: '回到底部',
     modelChanged: '模型已切换并保存',
     you: '你',
@@ -1916,34 +1912,18 @@ export default {
     repeatLastN: '惩罚窗口',
     maxTokens: '最大 token（0=无限）',
     port: '端口',
-    webSearch: 'Agent-Reach 联网',
+    webSearch: '联网搜索',
     webSearchDesc:
-      '自动安装并体检 Agent-Reach，通过 Exa 获取联网结果并注入本轮本地模型上下文',
+      '应用内直连 Bing RSS，失败时回退 DuckDuckGo；无需安装或启动额外运行时',
     webSearchMaxResults: '结果数',
     webSearchTimeoutSecs: '搜索秒数',
-    webSearchNoResults: 'Agent-Reach 未返回可用结果，将直接使用本地模型回答。',
-    webSearchFailed: 'Agent-Reach 联网失败，将直接使用本地模型回答',
-    webSearchTest: '测试 Agent-Reach',
-    webSearchTestQuery: 'Agent-Reach 联网测试',
-    webSearchTestSuccess: 'Agent-Reach 联网测试成功，返回 {count} 条结果',
-    webSearchTestEmpty: 'Agent-Reach 可访问，但没有返回可用结果',
-    webSearchTestFailed: 'Agent-Reach 联网测试失败',
-    agentReachReady: 'Agent-Reach 已就绪',
-    agentReachPreparing: 'Agent-Reach 准备中',
-    agentReachMissing: 'Agent-Reach 未就绪',
-    agentReachSource: '来源',
-    agentReachResourcePackage: '资源包',
-    agentReachManagedRoot: '托管目录',
-    agentReachExecutable: '命令',
-    agentReachProgress: '准备进度',
-    agentReachResourceAvailable: '已安装',
-    agentReachResourceMissing: '未安装',
-    agentReachSources: {
-      resource: '资源包',
-      system: '系统',
-      managed: '应用托管',
-      missing: '未就绪'
-    },
+    webSearchNoResults: '联网搜索未返回可用结果，将直接使用本地模型回答。',
+    webSearchFailed: '联网搜索失败，将直接使用本地模型回答',
+    webSearchTest: '测试联网搜索',
+    webSearchTestQuery: '联网搜索测试',
+    webSearchTestSuccess: '联网搜索测试成功，返回 {count} 条结果',
+    webSearchTestEmpty: '联网搜索可访问，但没有返回可用结果',
+    webSearchTestFailed: '联网搜索测试失败',
     estimatedMemory: '预估内存占用',
     estimateBeta: '估算',
     total: '总计',
@@ -1988,8 +1968,8 @@ export default {
       repeatLastN: '重复惩罚回看窗口。',
       maxTokens: '单次回复最大输出 token，0 表示不主动限制。',
       port: '本地 llama-server 监听端口。',
-      webSearchMaxResults: '每次聊天注入的 Agent-Reach 结果数量，过多会占用上下文。',
-      webSearchTimeoutSecs: '等待 Agent-Reach 返回结果的最长时间。'
+      webSearchMaxResults: '每次聊天注入的联网结果数量，过多会占用上下文。',
+      webSearchTimeoutSecs: '等待联网搜索返回结果的最长时间。'
     }
   }
 };

@@ -305,66 +305,6 @@
               />
             </label>
           </div>
-          <div
-            class="agent-reach-card"
-            :class="statusToneClass(agentReachTone)"
-          >
-            <div class="agent-reach-card__header">
-              <div class="status-item" :class="statusToneClass(agentReachTone)">
-                <span class="status-dot"></span>
-                <span>{{ agentReachStatusText }}</span>
-              </div>
-              <span v-if="agentReachProgressText" class="agent-reach-phase">
-                {{ agentReachProgressText }}
-              </span>
-            </div>
-            <div
-              v-if="agentReachProgressVisible"
-              class="agent-reach-progress-track"
-              :class="{
-                'agent-reach-progress-track--indeterminate':
-                  agentReachProgressPercent === undefined
-              }"
-            >
-              <div
-                class="agent-reach-progress-bar"
-                :style="{
-                  width:
-                    agentReachProgressPercent === undefined
-                      ? '35%'
-                      : `${agentReachProgressPercent}%`
-                }"
-              />
-            </div>
-            <div class="agent-reach-meta">
-              <div>
-                <span>{{ t('localAi.agentReachSource') }}</span>
-                <b>{{ agentReachSourceText }}</b>
-              </div>
-              <div>
-                <span>{{ t('localAi.agentReachResourcePackage') }}</span>
-                <b :class="yesNoClass(agentReachStatus?.runtimeResourceAvailable)">
-                  {{
-                    agentReachStatus?.runtimeResourceAvailable
-                      ? t('localAi.agentReachResourceAvailable')
-                      : t('localAi.agentReachResourceMissing')
-                  }}
-                </b>
-              </div>
-              <div>
-                <span>{{ t('localAi.agentReachExecutable') }}</span>
-                <b :title="agentReachStatus?.agentReachPath ?? ''">
-                  {{ agentReachCommandText }}
-                </b>
-              </div>
-              <div>
-                <span>{{ t('localAi.agentReachManagedRoot') }}</span>
-                <b :title="agentReachStatus?.managedRoot ?? ''">
-                  {{ agentReachManagedRootText }}
-                </b>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div class="settings-section grid-two">
@@ -588,13 +528,11 @@
 
 <script setup lang="ts">
 import { open } from '@tauri-apps/plugin-dialog';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import {
-  getLocalAiAgentReachStatus,
   getLocalAiConfig,
   getLocalAiRuntimeStatus,
   getLocalAiStatus,
@@ -605,8 +543,6 @@ import {
   stopLocalAiService,
   webSearchWithLocalAi,
   type LocalAiConfig,
-  type LocalAiAgentReachProgress,
-  type LocalAiAgentReachStatus,
   type LocalAiModelScan,
   type LocalAiRuntimeStatus,
   type LocalAiServiceStatus
@@ -619,8 +555,6 @@ defineOptions({
 const { t } = useI18n();
 const config = ref<LocalAiConfig | null>(null);
 const runtimeStatus = ref<LocalAiRuntimeStatus | null>(null);
-const agentReachStatus = ref<LocalAiAgentReachStatus | null>(null);
-const agentReachProgress = ref<LocalAiAgentReachProgress | null>(null);
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
 const loading = ref(false);
@@ -630,7 +564,6 @@ const restarting = ref(false);
 const stopping = ref(false);
 const testingWebSearch = ref(false);
 let statusTimer: ReturnType<typeof setInterval> | null = null;
-let agentReachUnlisten: UnlistenFn | null = null;
 
 const modelReady = computed(() => Boolean(modelScan.value?.selectedModelPath));
 const visionReady = computed(() => Boolean(config.value?.mmprojPath));
@@ -715,54 +648,8 @@ const statusToneClass = (tone: string | undefined) => ({
 });
 const yesNoClass = (value: unknown) =>
   statusToneClass(value ? 'ok' : 'danger');
-const agentReachTone = computed<'ok' | 'warn' | 'danger'>(() => {
-  if (agentReachStatus.value?.ready) return 'ok';
-  if (agentReachStatus.value?.installing || agentReachProgress.value)
-    return 'warn';
-  return 'danger';
-});
-const agentReachStatusText = computed(() => {
-  if (agentReachStatus.value?.ready) return t('localAi.agentReachReady');
-  if (agentReachStatus.value?.installing || agentReachProgress.value)
-    return t('localAi.agentReachPreparing');
-  return t('localAi.agentReachMissing');
-});
-const agentReachSourceText = computed(() => {
-  const source = agentReachStatus.value?.source ?? 'missing';
-  const key = `localAi.agentReachSources.${source}`;
-  const translated = t(key);
-  return translated === key ? source : translated;
-});
-const agentReachProgressText = computed(
-  () => agentReachProgress.value?.message ?? agentReachStatus.value?.message ?? ''
-);
-const agentReachProgressPercent = computed(() => {
-  const value = agentReachProgress.value?.progress;
-  return typeof value === 'number'
-    ? Math.max(0, Math.min(100, Math.round(value)))
-    : undefined;
-});
-const agentReachProgressVisible = computed(
-  () =>
-    Boolean(agentReachProgress.value) &&
-    agentReachProgress.value?.phase !== 'ready'
-);
-const agentReachCommandText = computed(() =>
-  agentReachStatus.value?.agentReachPath
-    ? fileName(agentReachStatus.value.agentReachPath)
-    : '-'
-);
-const agentReachManagedRootText = computed(() =>
-  agentReachStatus.value?.managedRoot
-    ? fileName(agentReachStatus.value.managedRoot)
-    : '-'
-);
-
 const refreshRuntime = async () => {
   runtimeStatus.value = await getLocalAiRuntimeStatus();
-};
-const refreshAgentReachStatus = async () => {
-  agentReachStatus.value = await getLocalAiAgentReachStatus();
 };
 const refreshStatus = async () => {
   serviceStatus.value = await getLocalAiStatus();
@@ -782,8 +669,7 @@ const refreshAll = async () => {
     await Promise.all([
       refreshRuntime(),
       scanModels(),
-      refreshStatus(),
-      refreshAgentReachStatus()
+      refreshStatus()
     ]);
   } catch (error) {
     logger.error('[LocalAI] refresh settings failed', error);
@@ -808,8 +694,7 @@ const saveConfig = async () => {
     await Promise.all([
       refreshRuntime(),
       scanModels(),
-      refreshStatus(),
-      refreshAgentReachStatus()
+      refreshStatus()
     ]);
     modal.msg(t('localAi.configSaved'));
   } catch (error) {
@@ -894,7 +779,6 @@ const testWebSearch = async () => {
           })
         : t('localAi.webSearchTestEmpty')
     );
-    await refreshAgentReachStatus();
   } catch (error) {
     logger.warn('[LocalAI] web search test failed', error);
     modal.msg(`${t('localAi.webSearchTestFailed')}: ${error}`, 'error');
@@ -908,31 +792,14 @@ const openChat = () => {
 
 onMounted(async () => {
   await refreshAll();
-  try {
-    agentReachUnlisten = await listen<LocalAiAgentReachProgress>(
-      'local-ai-agent-reach-progress',
-      (event) => {
-        agentReachProgress.value = event.payload;
-        if (event.payload.phase === 'ready' || event.payload.phase === 'failed') {
-          refreshAgentReachStatus().catch((error) =>
-            logger.warn('[LocalAI] refresh Agent-Reach status failed', error)
-          );
-        }
-      }
-    );
-  } catch (error) {
-    logger.warn('[LocalAI] listen Agent-Reach progress failed', error);
-  }
   statusTimer = setInterval(() => {
-    Promise.all([refreshStatus(), refreshAgentReachStatus()]).catch((error) =>
+    refreshStatus().catch((error) =>
       logger.warn('[LocalAI] status timer failed', error)
     );
   }, 15000);
 });
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer);
-  agentReachUnlisten?.();
-  agentReachUnlisten = null;
 });
 </script>
 
@@ -1082,22 +949,19 @@ onUnmounted(() => {
 
 .summary-meta b.tone-ok,
 .memory-metrics b.tone-ok,
-.bottleneck-row b.tone-ok,
-.agent-reach-meta b.tone-ok {
+.bottleneck-row b.tone-ok {
   @apply text-green-600 dark:text-green-300;
 }
 
 .summary-meta b.tone-warn,
 .memory-metrics b.tone-warn,
-.bottleneck-row b.tone-warn,
-.agent-reach-meta b.tone-warn {
+.bottleneck-row b.tone-warn {
   @apply text-orange-600 dark:text-orange-300;
 }
 
 .summary-meta b.tone-danger,
 .memory-metrics b.tone-danger,
-.bottleneck-row b.tone-danger,
-.agent-reach-meta b.tone-danger {
+.bottleneck-row b.tone-danger {
   @apply text-red-600 dark:text-red-300;
 }
 
@@ -1163,56 +1027,6 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.agent-reach-card {
-  @apply mt-3 rounded-md border border-panel bg-hover p-3;
-}
-
-.agent-reach-card__header {
-  @apply flex flex-wrap items-center justify-between gap-2;
-}
-
-.agent-reach-phase {
-  @apply min-w-0 truncate text-xs text-panel-text-secondary;
-}
-
-.agent-reach-progress-track {
-  @apply relative mt-3 h-2 overflow-hidden rounded-full bg-panel;
-}
-
-.agent-reach-progress-track--indeterminate .agent-reach-progress-bar {
-  animation: local-ai-agent-reach-progress 1.1s ease-in-out infinite;
-}
-
-.agent-reach-progress-bar {
-  @apply h-full rounded-full bg-green-500;
-  transition: width 0.18s ease;
-}
-
-.agent-reach-card.tone-warn .agent-reach-progress-bar {
-  @apply bg-orange-400;
-}
-
-.agent-reach-card.tone-danger .agent-reach-progress-bar {
-  @apply bg-red-500;
-}
-
-.agent-reach-meta {
-  @apply mt-3 grid gap-2 text-xs;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-
-  div {
-    @apply flex min-w-0 items-center justify-between gap-2 rounded border border-panel bg-panel px-2 py-1.5;
-  }
-
-  span {
-    @apply shrink-0 text-panel-text-secondary;
-  }
-
-  b {
-    @apply min-w-0 truncate text-right font-semibold text-panel;
-  }
-}
-
 .service-controls {
   @apply mt-3 flex flex-wrap gap-2;
 }
@@ -1253,8 +1067,7 @@ onUnmounted(() => {
   .param-grid,
   .param-grid--three,
   .switch-grid,
-  .switch-grid--two,
-  .agent-reach-meta {
+  .switch-grid--two {
     grid-template-columns: 1fr;
   }
 
@@ -1263,13 +1076,4 @@ onUnmounted(() => {
   }
 }
 
-@keyframes local-ai-agent-reach-progress {
-  0% {
-    transform: translateX(-120%);
-  }
-
-  100% {
-    transform: translateX(320%);
-  }
-}
 </style>

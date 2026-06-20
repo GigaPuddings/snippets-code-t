@@ -28,8 +28,6 @@
     "ffmpeg:install": "node scripts/install-ffmpeg.mjs",
     "ffmpeg:package": "node scripts/package-ffmpeg-plugin.mjs",
     "ffmpeg:release": "pnpm ffmpeg:package && node scripts/sync-plugin-repositories.mjs --only screen-recorder-ffmpeg --include-ffmpeg-resource --pin-marketplace-tags --force-tag",
-    "agent-reach:package": "node scripts/package-agent-reach-runtime-plugin.mjs",
-    "agent-reach:release": "pnpm agent-reach:package && node scripts/sync-plugin-repositories.mjs --only local-ai-agent-reach-runtime --include-local-ai-agent-reach-runtime --pin-marketplace-tags --force-tag",
     "screen-recorder:smoke": "node scripts/smoke-screen-recorder.mjs",
     "plugins:package": "node scripts/package-official-plugins.mjs",
     "plugins:build-official": "node scripts/build-official-plugin-runtimes.mjs",

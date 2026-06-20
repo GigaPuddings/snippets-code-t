@@ -8,8 +8,6 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::env;
-use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -25,33 +23,19 @@ use std::os::windows::process::CommandExt;
 
 const PLUGIN_ID: &str = "local-ai";
 const RUNTIME_PLUGIN_ID: &str = "local-ai-llama-runtime";
-const AGENT_REACH_RUNTIME_PLUGIN_ID: &str = "local-ai-agent-reach-runtime";
 const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
-const MCPORTER_EXA_ENDPOINT: &str = "https://mcp.exa.ai/mcp";
-const AGENT_REACH_READY_RETRY_DELAY_SECS: u64 = 300;
-const AGENT_REACH_RUNTIME_PACKAGE_URL: &str = "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-agent-reach-runtime/archive/refs/tags/2.0.1.zip";
-#[cfg(target_os = "windows")]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
-
 static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
     LazyLock::new(|| Mutex::new(LocalAiServiceState::default()));
 static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
-static AGENT_REACH_BOOTSTRAP_RUNNING: AtomicBool = AtomicBool::new(false);
-static AGENT_REACH_READY_RUNTIME: LazyLock<Mutex<Option<AgentReachRuntime>>> =
-    LazyLock::new(|| Mutex::new(None));
-static AGENT_REACH_LAST_FAILURE: LazyLock<Mutex<Option<(Instant, String)>>> =
-    LazyLock::new(|| Mutex::new(None));
 static HTML_TAG_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)<[^>]*>").expect("valid HTML tag regex"));
-static URL_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"https?://[^\s<>"']+"#).expect("valid URL regex"));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -317,28 +301,6 @@ pub struct LocalAiWeatherResponse {
     pub source: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalAiAgentReachStatus {
-    pub ready: bool,
-    pub source: String,
-    pub agent_reach_path: Option<String>,
-    pub mcporter_path: Option<String>,
-    pub managed_root: String,
-    pub runtime_resource_available: bool,
-    pub installing: bool,
-    pub message: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalAiAgentReachProgress {
-    pub phase: String,
-    pub message: String,
-    pub progress: Option<f64>,
-    pub detail: Option<String>,
-}
-
 #[derive(Debug, Clone, Copy)]
 struct WeatherLocation {
     name: &'static str,
@@ -369,14 +331,6 @@ struct OpenMeteoGeocodingResult {
     latitude: f64,
     longitude: f64,
     timezone: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct AgentReachRuntime {
-    agent_reach: String,
-    agent_reach_args_prefix: Vec<String>,
-    mcporter: String,
-    path_prefixes: Vec<PathBuf>,
 }
 
 const WEATHER_LOCATIONS: &[WeatherLocation] = &[
@@ -903,28 +857,27 @@ fn clean_html_text(value: &str) -> String {
         .join(" ")
 }
 
-fn json_string_at<'a>(
-    object: &'a serde_json::Map<String, Value>,
-    keys: &[&str],
-) -> Option<&'a str> {
-    keys.iter()
-        .find_map(|key| object.get(*key).and_then(Value::as_str))
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+#[derive(Default)]
+struct BingRssItem {
+    title: String,
+    link: String,
+    description: String,
 }
 
-fn push_agent_reach_result(
-    object: &serde_json::Map<String, Value>,
+fn push_web_search_result(
     results: &mut Vec<LocalAiWebSearchResult>,
     seen_urls: &mut Vec<String>,
     max_results: u32,
+    title: &str,
+    url: &str,
+    content: &str,
+    engine: &str,
 ) {
     if results.len() >= max_results as usize {
         return;
     }
-    let Some(url) = json_string_at(object, &["url", "link", "href"]) else {
-        return;
-    };
+
+    let url = url.trim();
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return;
     }
@@ -932,38 +885,78 @@ fn push_agent_reach_result(
         return;
     }
 
-    let title = json_string_at(object, &["title", "name"])
-        .unwrap_or(url)
-        .chars()
-        .take(160)
-        .collect::<String>();
-    let content = json_string_at(
-        object,
-        &[
-            "text",
-            "content",
-            "snippet",
-            "summary",
-            "description",
-            "markdown",
-        ],
-    )
-    .map(clean_html_text)
-    .unwrap_or_default()
-    .chars()
-    .take(900)
-    .collect::<String>();
-
+    let title = clean_html_text(title);
+    let content = clean_html_text(content);
     seen_urls.push(url.to_string());
     results.push(LocalAiWebSearchResult {
-        title,
+        title: if title.is_empty() {
+            url.chars().take(160).collect()
+        } else {
+            title.chars().take(160).collect()
+        },
         url: url.to_string(),
-        content,
-        engine: Some("Agent-Reach / Exa".to_string()),
+        content: content.chars().take(900).collect(),
+        engine: Some(engine.to_string()),
     });
 }
 
-fn collect_agent_reach_results(
+fn parse_bing_rss_search_results(
+    body: &str,
+    max_results: u32,
+) -> Result<Vec<LocalAiWebSearchResult>, String> {
+    use xml::reader::{EventReader, XmlEvent};
+
+    let mut results = Vec::new();
+    let mut seen_urls = Vec::new();
+    let mut current_item: Option<BingRssItem> = None;
+    let mut current_field: Option<String> = None;
+
+    for event in EventReader::from_str(body) {
+        match event.map_err(|error| format!("解析 Bing RSS 响应失败: {}", error))? {
+            XmlEvent::StartElement { name, .. } => match name.local_name.as_str() {
+                "item" => current_item = Some(BingRssItem::default()),
+                "title" | "link" | "description" if current_item.is_some() => {
+                    current_field = Some(name.local_name)
+                }
+                _ => {}
+            },
+            XmlEvent::EndElement { name } => {
+                if name.local_name == "item" {
+                    if let Some(item) = current_item.take() {
+                        push_web_search_result(
+                            &mut results,
+                            &mut seen_urls,
+                            max_results,
+                            &item.title,
+                            &item.link,
+                            &item.description,
+                            "Bing RSS",
+                        );
+                    }
+                    current_field = None;
+                } else if current_field.as_deref() == Some(name.local_name.as_str()) {
+                    current_field = None;
+                }
+            }
+            XmlEvent::Characters(text) | XmlEvent::CData(text) => {
+                if let (Some(item), Some(field)) = (current_item.as_mut(), current_field.as_deref())
+                {
+                    match field {
+                        "title" => item.title.push_str(&text),
+                        "link" => item.link.push_str(&text),
+                        "description" => item.description.push_str(&text),
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(results)
+}
+
+fn collect_duckduckgo_topics(
     value: &Value,
     results: &mut Vec<LocalAiWebSearchResult>,
     seen_urls: &mut Vec<String>,
@@ -972,628 +965,202 @@ fn collect_agent_reach_results(
     if results.len() >= max_results as usize {
         return;
     }
+    let Some(object) = value.as_object() else {
+        return;
+    };
 
-    match value {
-        Value::Object(object) => {
-            push_agent_reach_result(object, results, seen_urls, max_results);
-            for nested in object.values() {
-                collect_agent_reach_results(nested, results, seen_urls, max_results);
-                if results.len() >= max_results as usize {
-                    break;
-                }
+    let url = object
+        .get("FirstURL")
+        .and_then(Value::as_str)
+        .or_else(|| object.get("AbstractURL").and_then(Value::as_str));
+    let text = object
+        .get("Text")
+        .and_then(Value::as_str)
+        .or_else(|| object.get("AbstractText").and_then(Value::as_str))
+        .unwrap_or_default();
+    if let Some(url) = url {
+        push_web_search_result(
+            results,
+            seen_urls,
+            max_results,
+            text,
+            url,
+            text,
+            "DuckDuckGo Instant Answer",
+        );
+    }
+
+    if let Some(topics) = object.get("Topics").and_then(Value::as_array) {
+        for topic in topics {
+            collect_duckduckgo_topics(topic, results, seen_urls, max_results);
+            if results.len() >= max_results as usize {
+                break;
             }
         }
-        Value::Array(items) => {
-            for item in items {
-                collect_agent_reach_results(item, results, seen_urls, max_results);
-                if results.len() >= max_results as usize {
-                    break;
-                }
-            }
-        }
-        Value::String(text) => {
-            let trimmed = text.trim();
-            if matches!(trimmed.chars().next(), Some('{') | Some('[')) {
-                if let Ok(nested) = serde_json::from_str::<Value>(trimmed) {
-                    collect_agent_reach_results(&nested, results, seen_urls, max_results);
-                }
-            }
-        }
-        _ => {}
     }
 }
 
-fn parse_agent_reach_plain_text(output: &str, max_results: u32) -> Vec<LocalAiWebSearchResult> {
+fn parse_duckduckgo_search_results(
+    body: &str,
+    max_results: u32,
+) -> Result<Vec<LocalAiWebSearchResult>, String> {
+    let value = serde_json::from_str::<Value>(body)
+        .map_err(|error| format!("解析 DuckDuckGo 搜索响应失败: {}", error))?;
     let mut results = Vec::new();
     let mut seen_urls = Vec::new();
-    for line in output
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-    {
-        if results.len() >= max_results as usize {
-            break;
-        }
-        let Some(url_match) = URL_RE.find(line) else {
-            continue;
-        };
-        let url = url_match.as_str();
-        if seen_urls.iter().any(|seen| seen == url) {
-            continue;
-        }
-        let title = line[..url_match.start()]
-            .trim_matches(['-', '*', ' ', '\t', ':'])
-            .trim();
-        let content = line[url_match.end()..]
-            .trim_matches(['-', '*', ' ', '\t', ':'])
-            .trim();
-        seen_urls.push(url.to_string());
-        results.push(LocalAiWebSearchResult {
-            title: if title.is_empty() {
-                url.chars().take(160).collect()
-            } else {
-                title.chars().take(160).collect()
-            },
-            url: url.to_string(),
-            content: content.chars().take(900).collect(),
-            engine: Some("Agent-Reach / Exa".to_string()),
-        });
+
+    if let (Some(url), Some(text)) = (
+        value.get("AbstractURL").and_then(Value::as_str),
+        value.get("AbstractText").and_then(Value::as_str),
+    ) {
+        push_web_search_result(
+            &mut results,
+            &mut seen_urls,
+            max_results,
+            value
+                .get("Heading")
+                .and_then(Value::as_str)
+                .filter(|heading| !heading.trim().is_empty())
+                .unwrap_or(text),
+            url,
+            text,
+            "DuckDuckGo Instant Answer",
+        );
     }
-    results
-}
-
-fn parse_agent_reach_search_results(output: &str, max_results: u32) -> Vec<LocalAiWebSearchResult> {
-    let trimmed = output.trim();
-    if trimmed.is_empty() {
-        return Vec::new();
-    }
-    if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
-        let mut results = Vec::new();
-        let mut seen_urls = Vec::new();
-        collect_agent_reach_results(&value, &mut results, &mut seen_urls, max_results);
-        if !results.is_empty() {
-            return results;
-        }
-    }
-    parse_agent_reach_plain_text(trimmed, max_results)
-}
-
-fn agent_reach_root(app_handle: &AppHandle) -> PathBuf {
-    crate::json_config::get_data_dir(app_handle)
-        .join(".snippets-code")
-        .join("agent-reach")
-}
-
-#[cfg(windows)]
-fn executable_name(name: &str) -> String {
-    format!("{}.exe", name)
-}
-
-#[cfg(not(windows))]
-fn executable_name(name: &str) -> String {
-    name.to_string()
-}
-
-fn agent_reach_python_args() -> Vec<String> {
-    vec![
-        "-c".to_string(),
-        "from agent_reach.cli import main; main()".to_string(),
-    ]
-}
-
-fn find_mcporter_path(search_dirs: &[PathBuf]) -> String {
-    let mut candidates = Vec::new();
-    for dir in search_dirs {
-        candidates.extend([
-            dir.join(executable_name("mcporter")),
-            dir.join("mcporter"),
-            dir.join("mcporter.exe"),
-            dir.join("mcporter.cmd"),
-            dir.join("mcporter.ps1"),
-        ]);
-    }
-    candidates
-        .into_iter()
-        .find(|path| path.is_file())
-        .map(|path| display_path(&path))
-        .unwrap_or_else(|| "mcporter".to_string())
-}
-
-fn resource_agent_reach_runtimes(app_handle: &AppHandle) -> Vec<AgentReachRuntime> {
-    let mut runtimes = Vec::new();
-    for relative in [
-        "resources/agent-reach/venv/Scripts/python.exe",
-        "resources/agent-reach/venv/bin/python",
-        "resources/agent-reach/python/python.exe",
-        "resources/agent-reach/python/bin/python",
-    ] {
-        let Ok(Some(python_path)) = crate::app_config::get_local_plugin_resource_path(
-            app_handle.clone(),
-            AGENT_REACH_RUNTIME_PLUGIN_ID.to_string(),
-            relative.to_string(),
-        ) else {
-            continue;
-        };
-        let python_path = PathBuf::from(python_path);
-        if !python_path.is_file() {
-            continue;
-        }
-        let bin_dir = python_path
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| python_path.clone());
-        let agent_reach_dir = bin_dir
-            .parent()
-            .and_then(Path::parent)
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| bin_dir.clone());
-        let launcher_dir = agent_reach_dir.join("bin");
-        let node_runtime_dir = agent_reach_dir.join("node-runtime");
-        let mcporter = find_mcporter_path(&[
-            launcher_dir.clone(),
-            bin_dir.clone(),
-            agent_reach_dir
-                .join("node")
-                .join("node_modules")
-                .join(".bin"),
-        ]);
-        if !Path::new(&mcporter).is_file() {
-            continue;
-        }
-        runtimes.push(AgentReachRuntime {
-            agent_reach: display_path(&python_path),
-            agent_reach_args_prefix: agent_reach_python_args(),
-            mcporter,
-            path_prefixes: vec![launcher_dir, bin_dir, node_runtime_dir],
-        });
-    }
-
-    for relative in [
-        "resources/agent-reach/bin/agent-reach.exe",
-        "resources/agent-reach/bin/agent-reach.cmd",
-        "resources/agent-reach/bin/agent-reach",
-        "resources/agent-reach/Scripts/agent-reach.exe",
-        "resources/agent-reach/bin/Scripts/agent-reach.exe",
-    ] {
-        let Ok(Some(agent_reach_path)) = crate::app_config::get_local_plugin_resource_path(
-            app_handle.clone(),
-            AGENT_REACH_RUNTIME_PLUGIN_ID.to_string(),
-            relative.to_string(),
-        ) else {
-            continue;
-        };
-        let agent_reach_path = PathBuf::from(agent_reach_path);
-        if !agent_reach_path.is_file() {
-            continue;
-        }
-        let bin_dir = agent_reach_path
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| agent_reach_path.clone());
-        let agent_reach_dir = bin_dir
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| bin_dir.clone());
-        let node_bin_dir = agent_reach_dir
-            .join("node")
-            .join("node_modules")
-            .join(".bin");
-        let node_runtime_dir = agent_reach_dir.join("node-runtime");
-        let mcporter = find_mcporter_path(&[bin_dir.clone(), node_bin_dir]);
-        if !Path::new(&mcporter).is_file() {
-            continue;
-        }
-        runtimes.push(AgentReachRuntime {
-            agent_reach: display_path(&agent_reach_path),
-            agent_reach_args_prefix: Vec::new(),
-            mcporter,
-            path_prefixes: vec![bin_dir, node_runtime_dir],
-        });
-    }
-    runtimes
-}
-
-fn runtime_resource_available(app_handle: &AppHandle) -> bool {
-    crate::app_config::get_local_plugin_resource_path(
-        app_handle.clone(),
-        AGENT_REACH_RUNTIME_PLUGIN_ID.to_string(),
-        "plugin.json".to_string(),
-    )
-    .ok()
-    .flatten()
-    .map(|path| Path::new(&path).is_file())
-    .unwrap_or(false)
-        || !resource_agent_reach_runtimes(app_handle).is_empty()
-}
-
-fn emit_agent_reach_progress(
-    app_handle: &AppHandle,
-    phase: &str,
-    message: &str,
-    progress: Option<f64>,
-    detail: Option<String>,
-) {
-    let payload = LocalAiAgentReachProgress {
-        phase: phase.to_string(),
-        message: message.to_string(),
-        progress,
-        detail,
-    };
-    let _ = app_handle.emit("local-ai-agent-reach-progress", payload);
-}
-
-fn path_with_prefixes(prefixes: &[PathBuf]) -> Option<OsString> {
-    if prefixes.is_empty() {
-        return None;
-    }
-    let mut paths = prefixes.to_vec();
-    if let Some(current_path) = env::var_os("PATH") {
-        paths.extend(env::split_paths(&current_path));
-    }
-    env::join_paths(paths).ok()
-}
-
-fn hide_command_window(command: &mut Command) {
-    #[cfg(target_os = "windows")]
-    {
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-}
-
-async fn run_command_text(
-    program: String,
-    args: Vec<String>,
-    timeout_secs: u64,
-    label: &'static str,
-    path_prefixes: Vec<PathBuf>,
-) -> Result<String, String> {
-    let display = std::iter::once(program.clone())
-        .chain(args.iter().map(|arg| quote_command_part(arg)))
-        .collect::<Vec<_>>()
-        .join(" ");
-    let path = path_with_prefixes(&path_prefixes);
-    let task = tauri::async_runtime::spawn_blocking(move || {
-        let is_windows_script = cfg!(windows)
-            && matches!(
-                Path::new(&program)
-                    .extension()
-                    .and_then(|extension| extension.to_str())
-                    .map(|extension| extension.to_ascii_lowercase())
-                    .as_deref(),
-                Some("bat" | "cmd")
-            );
-        let mut command = if is_windows_script {
-            let mut shell = Command::new("cmd");
-            shell.args(["/C", &program]).args(args);
-            shell
-        } else {
-            let mut direct = Command::new(&program);
-            direct.args(args);
-            direct
-        };
-        hide_command_window(&mut command);
-        command.stdin(Stdio::null());
-        if let Some(path) = path {
-            command.env("PATH", path);
-        }
-        command.output()
-    });
-    let output = tokio::time::timeout(Duration::from_secs(timeout_secs), task)
-        .await
-        .map_err(|_| format!("{}超时: {}", label, display))?
-        .map_err(|error| format!("{}执行失败: {}", label, error))?
-        .map_err(|error| format!("{}启动失败: {}", label, error))?;
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    if !output.status.success() {
-        let detail = if stderr.is_empty() { stdout } else { stderr };
-        return Err(format!("{}失败: {}", label, response_preview(&detail)));
-    }
-    if stdout.is_empty() {
-        Ok(stderr)
-    } else {
-        Ok(stdout)
-    }
-}
-
-async fn run_agent_reach_text(
-    runtime: &AgentReachRuntime,
-    args: Vec<String>,
-    timeout_secs: u64,
-    label: &'static str,
-) -> Result<String, String> {
-    let mut command_args = runtime.agent_reach_args_prefix.clone();
-    command_args.extend(args);
-    run_command_text(
-        runtime.agent_reach.clone(),
-        command_args,
-        timeout_secs,
-        label,
-        runtime.path_prefixes.clone(),
-    )
-    .await
-}
-
-async fn agent_reach_version(
-    runtime: &AgentReachRuntime,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    run_agent_reach_text(
-        runtime,
-        vec!["version".to_string()],
-        timeout_secs,
-        "Agent-Reach 版本检查",
-    )
-    .await
-}
-
-async fn ensure_mcporter_exa_configured(
-    runtime: &AgentReachRuntime,
-    timeout_secs: u64,
-) -> Result<(), String> {
-    let list_output = run_command_text(
-        runtime.mcporter.clone(),
-        vec!["config".to_string(), "list".to_string()],
-        timeout_secs,
-        "Agent-Reach Exa 配置检查",
-        runtime.path_prefixes.clone(),
-    )
-    .await
-    .unwrap_or_default();
-    if list_output.to_ascii_lowercase().contains("exa") {
-        return Ok(());
-    }
-    run_command_text(
-        runtime.mcporter.clone(),
-        vec![
-            "config".to_string(),
-            "add".to_string(),
-            "exa".to_string(),
-            MCPORTER_EXA_ENDPOINT.to_string(),
-        ],
-        timeout_secs,
-        "Agent-Reach Exa 配置",
-        runtime.path_prefixes.clone(),
-    )
-    .await
-    .map(|_| ())
-}
-
-async fn prepare_agent_reach_runtime(
-    runtime: &AgentReachRuntime,
-    timeout_secs: u64,
-) -> Result<(), String> {
-    agent_reach_version(runtime, timeout_secs).await?;
-    ensure_mcporter_exa_configured(runtime, timeout_secs).await
-}
-
-async fn ensure_agent_reach_ready(
-    app_handle: &AppHandle,
-    timeout_secs: u64,
-) -> Result<AgentReachRuntime, String> {
-    if let Ok(runtime) = AGENT_REACH_READY_RUNTIME.lock() {
-        if let Some(runtime) = runtime.as_ref() {
-            return Ok(runtime.clone());
-        }
-    }
-
-    if let Ok(last_failure) = AGENT_REACH_LAST_FAILURE.lock() {
-        if let Some((failed_at, error)) = last_failure.as_ref() {
-            let retry_delay = Duration::from_secs(AGENT_REACH_READY_RETRY_DELAY_SECS);
-            if failed_at.elapsed() < retry_delay {
-                let remaining = retry_delay.saturating_sub(failed_at.elapsed()).as_secs();
-                return Err(format!(
-                    "Agent-Reach 资源包上次检查失败，{} 秒后会再次检查：{}",
-                    remaining, error
-                ));
+    if let Some(topics) = value.get("RelatedTopics").and_then(Value::as_array) {
+        for topic in topics {
+            collect_duckduckgo_topics(topic, &mut results, &mut seen_urls, max_results);
+            if results.len() >= max_results as usize {
+                break;
             }
         }
     }
-
-    let quick_timeout = timeout_secs.clamp(5, 15);
-    emit_agent_reach_progress(
-        app_handle,
-        "checking-resource",
-        "正在检查 Agent-Reach 资源包...",
-        Some(8.0),
-        None,
-    );
-    let runtime_result =
-        if let Some(runtime) = resource_agent_reach_runtimes(app_handle).into_iter().next() {
-            Ok(runtime)
-        } else {
-            if AGENT_REACH_BOOTSTRAP_RUNNING
-                .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-                .is_err()
-            {
-                emit_agent_reach_progress(
-                    app_handle,
-                    "syncing-runtime",
-                    "正在从插件市场同步 Agent-Reach 运行时...",
-                    None,
-                    None,
-                );
-                return Err("Agent-Reach 运行时正在同步，请稍后重试。".to_string());
-            }
-            emit_agent_reach_progress(
-                app_handle,
-                "syncing-runtime",
-                "首次联网正在同步 Agent-Reach 运行时...",
-                Some(18.0),
-                Some(AGENT_REACH_RUNTIME_PACKAGE_URL.to_string()),
-            );
-            let sync_result = crate::app_config::install_plugin_package_from_url(
-                app_handle.clone(),
-                AGENT_REACH_RUNTIME_PACKAGE_URL.to_string(),
-                None,
-                None,
-                true,
-            )
-            .await;
-            AGENT_REACH_BOOTSTRAP_RUNNING.store(false, Ordering::Relaxed);
-            match sync_result {
-                Ok(_) => resource_agent_reach_runtimes(app_handle)
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| {
-                        if runtime_resource_available(app_handle) {
-                            "Agent-Reach 资源包不完整，请重新同步 local-ai-agent-reach-runtime。"
-                                .to_string()
-                        } else {
-                            "Agent-Reach 资源包同步完成，但未找到可执行运行时文件。".to_string()
-                        }
-                    }),
-                Err(error) => Err(format!("同步 Agent-Reach 资源包失败: {}", error)),
-            }
-        };
-    let runtime = match runtime_result {
-        Ok(runtime) => runtime,
-        Err(error) => {
-            if let Ok(mut failure) = AGENT_REACH_LAST_FAILURE.lock() {
-                *failure = Some((Instant::now(), error.clone()));
-            }
-            emit_agent_reach_progress(
-                app_handle,
-                "failed",
-                "Agent-Reach 运行时同步失败。",
-                None,
-                Some(error.clone()),
-            );
-            return Err(error);
-        }
-    };
-
-    emit_agent_reach_progress(
-        app_handle,
-        "checking-runtime",
-        "正在检查随插件安装的 Agent-Reach 运行时...",
-        Some(45.0),
-        Some(runtime.agent_reach.clone()),
-    );
-    let result = prepare_agent_reach_runtime(&runtime, quick_timeout)
-        .await
-        .map(|_| runtime.clone());
-    match &result {
-        Ok(ready_runtime) => {
-            if let Ok(mut cached) = AGENT_REACH_READY_RUNTIME.lock() {
-                *cached = Some(ready_runtime.clone());
-            }
-            if let Ok(mut failure) = AGENT_REACH_LAST_FAILURE.lock() {
-                *failure = None;
-            }
-            emit_agent_reach_progress(
-                app_handle,
-                "ready",
-                "Agent-Reach 联网组件已准备就绪。",
-                Some(100.0),
-                Some(ready_runtime.agent_reach.clone()),
-            );
-        }
-        Err(error) => {
-            warn!(
-                "[Plugin:local-ai] packaged Agent-Reach runtime unavailable: {}",
-                error
-            );
-            if let Ok(mut failure) = AGENT_REACH_LAST_FAILURE.lock() {
-                *failure = Some((Instant::now(), error.clone()));
-            }
-            emit_agent_reach_progress(
-                app_handle,
-                "failed",
-                "Agent-Reach 资源包检查失败。",
-                None,
-                Some(error.clone()),
-            );
-        }
-    }
-    result
+    Ok(results)
 }
 
-async fn search_with_agent_reach(
-    app_handle: &AppHandle,
+async fn search_with_bing_rss(
     query: &str,
     max_results: u32,
     timeout_secs: u64,
 ) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    let runtime = ensure_agent_reach_ready(app_handle, timeout_secs).await?;
-
-    let call = format!(
-        "exa.web_search_exa(query: {}, numResults: {})",
-        serde_json::to_string(query).unwrap_or_else(|_| "\"\"".to_string()),
-        max_results
-    );
+    let client = Client::builder()
+        .timeout(Duration::from_secs(timeout_secs))
+        .build()
+        .map_err(|error| format!("创建 Bing 搜索客户端失败: {}", error))?;
     info!(
-        "[Plugin:local-ai] web search start provider=agent_reach_exa query=\"{}\" max_results={}",
+        "[Plugin:local-ai] web search start provider=bing_rss query=\"{}\" max_results={}",
         response_preview(query),
         max_results
     );
-    let output = run_command_text(
-        runtime.mcporter.clone(),
-        vec!["call".to_string(), call],
-        timeout_secs,
-        "Agent-Reach Exa 搜索",
-        runtime.path_prefixes.clone(),
-    )
-    .await?;
-    let results = parse_agent_reach_search_results(&output, max_results);
+    let response = client
+        .get("https://cn.bing.com/search")
+        .header(
+            ACCEPT,
+            "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
+        )
+        .header(CACHE_CONTROL, "no-cache")
+        .header(USER_AGENT, "snippets-code-local-ai/1.0")
+        .query(&[
+            ("q", query),
+            ("format", "rss"),
+            ("setlang", "zh-Hans"),
+            ("cc", "CN"),
+        ])
+        .send()
+        .await
+        .map_err(|error| format!("Bing 搜索请求失败: {}", error))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("读取 Bing 搜索响应失败: {}", error))?;
     info!(
-        "[Plugin:local-ai] web search parsed provider=agent_reach_exa query=\"{}\" usable_results={}",
+        "[Plugin:local-ai] web search response provider=bing_rss status={} bytes={} preview=\"{}\"",
+        status,
+        body.len(),
+        response_preview(&body)
+    );
+    if !status.is_success() {
+        return Err(web_search_status_error(status, &body));
+    }
+    let results = parse_bing_rss_search_results(&body, max_results)?;
+    info!(
+        "[Plugin:local-ai] web search parsed provider=bing_rss query=\"{}\" usable_results={}",
         response_preview(query),
         results.len()
     );
     Ok(results)
 }
 
-async fn agent_reach_status_inner(app_handle: &AppHandle) -> LocalAiAgentReachStatus {
-    let managed_root = display_path(&agent_reach_root(app_handle));
-    let runtime_resource_available = runtime_resource_available(app_handle);
-    let installing = AGENT_REACH_BOOTSTRAP_RUNNING.load(Ordering::Relaxed);
+async fn search_with_duckduckgo(
+    query: &str,
+    max_results: u32,
+    timeout_secs: u64,
+) -> Result<Vec<LocalAiWebSearchResult>, String> {
+    let client = Client::builder()
+        .timeout(Duration::from_secs(timeout_secs))
+        .build()
+        .map_err(|error| format!("创建 DuckDuckGo 搜索客户端失败: {}", error))?;
+    info!(
+        "[Plugin:local-ai] web search start provider=duckduckgo_instant_answer query=\"{}\" max_results={}",
+        response_preview(query),
+        max_results
+    );
+    let response = client
+        .get("https://api.duckduckgo.com/")
+        .header(ACCEPT, "application/json")
+        .header(CACHE_CONTROL, "no-cache")
+        .header(USER_AGENT, "snippets-code-local-ai/1.0")
+        .query(&[
+            ("q", query),
+            ("format", "json"),
+            ("no_html", "1"),
+            ("skip_disambig", "1"),
+        ])
+        .send()
+        .await
+        .map_err(|error| format!("DuckDuckGo 搜索请求失败: {}", error))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("读取 DuckDuckGo 搜索响应失败: {}", error))?;
+    info!(
+        "[Plugin:local-ai] web search response provider=duckduckgo_instant_answer status={} bytes={} preview=\"{}\"",
+        status,
+        body.len(),
+        response_preview(&body)
+    );
+    if !status.is_success() {
+        return Err(web_search_status_error(status, &body));
+    }
+    let results = parse_duckduckgo_search_results(&body, max_results)?;
+    info!(
+        "[Plugin:local-ai] web search parsed provider=duckduckgo_instant_answer query=\"{}\" usable_results={}",
+        response_preview(query),
+        results.len()
+    );
+    Ok(results)
+}
 
-    if let Some(runtime) = resource_agent_reach_runtimes(app_handle).into_iter().next() {
-        let mcporter_path = Path::new(&runtime.mcporter)
-            .is_file()
-            .then(|| runtime.mcporter.clone());
-        let ready = mcporter_path.is_some() && Path::new(&runtime.agent_reach).is_file();
-        return LocalAiAgentReachStatus {
-            ready,
-            source: "resource".to_string(),
-            agent_reach_path: Some(runtime.agent_reach),
-            mcporter_path,
-            managed_root,
-            runtime_resource_available,
-            installing,
-            message: Some(if ready {
-                "Agent-Reach 资源包已安装；首次联网会在应用内完成检查。".to_string()
-            } else {
-                "Agent-Reach 资源包已安装，但未找到 mcporter 入口".to_string()
-            }),
-        };
+async fn search_web_direct(
+    query: &str,
+    max_results: u32,
+    timeout_secs: u64,
+) -> Result<Vec<LocalAiWebSearchResult>, String> {
+    match search_with_bing_rss(query, max_results, timeout_secs).await {
+        Ok(results) if !results.is_empty() => return Ok(results),
+        Ok(_) => warn!("[Plugin:local-ai] web search provider=bing_rss returned no usable results"),
+        Err(error) => warn!(
+            "[Plugin:local-ai] web search provider=bing_rss failed: {}",
+            error
+        ),
     }
 
-    if runtime_resource_available {
-        return LocalAiAgentReachStatus {
-            ready: false,
-            source: "resource".to_string(),
-            agent_reach_path: None,
-            mcporter_path: None,
-            managed_root,
-            runtime_resource_available,
-            installing,
-            message: Some(
-                "Agent-Reach 资源包已安装，但未找到可执行运行时文件，请更新资源包".to_string(),
-            ),
-        };
-    }
-
-    LocalAiAgentReachStatus {
-        ready: false,
-        source: "missing".to_string(),
-        agent_reach_path: None,
-        mcporter_path: None,
-        managed_root,
-        runtime_resource_available,
-        installing,
-        message: Some("等待插件市场同步 Agent-Reach 资源包".to_string()),
+    match search_with_duckduckgo(query, max_results, timeout_secs).await {
+        Ok(results) if !results.is_empty() => Ok(results),
+        Ok(_) => Err("联网搜索没有返回可用结果，请修改关键词后重试。".to_string()),
+        Err(error) => Err(format!("联网搜索暂时不可用: {}", error)),
     }
 }
 
@@ -2897,32 +2464,20 @@ pub async fn local_ai_web_search(
         .unwrap_or(config.web_search_max_results)
         .clamp(1, 10);
 
-    let results = search_with_agent_reach(
-        &app_handle,
+    let results = search_web_direct(
         query,
         max_results,
         u64::from(config.web_search_timeout_secs.max(3)),
     )
     .await?;
     if results.is_empty() {
-        Err(
-            "Agent-Reach 搜索没有返回可用结果，请运行 agent-reach doctor 检查 Exa/mcporter 后端。"
-                .to_string(),
-        )
+        Err("联网搜索没有返回可用结果，请修改关键词后重试。".to_string())
     } else {
         Ok(LocalAiWebSearchResponse {
             query: query.to_string(),
             results,
         })
     }
-}
-
-#[tauri::command]
-pub async fn local_ai_agent_reach_status(
-    app_handle: AppHandle,
-) -> Result<LocalAiAgentReachStatus, String> {
-    require_plugin(&app_handle)?;
-    Ok(agent_reach_status_inner(&app_handle).await)
 }
 
 #[tauri::command]
@@ -3108,12 +2663,6 @@ pub fn local_ai_delete_chat_history(
 }
 
 pub fn apply_runtime_change(_app_handle: &AppHandle, enabled: bool) {
-    if let Ok(mut runtime) = AGENT_REACH_READY_RUNTIME.lock() {
-        *runtime = None;
-    }
-    if let Ok(mut failure) = AGENT_REACH_LAST_FAILURE.lock() {
-        *failure = None;
-    }
     if !enabled {
         stop_service_now();
         return;
@@ -3157,32 +2706,40 @@ mod tests {
     }
 
     #[test]
-    fn parses_agent_reach_exa_json_results() {
+    fn parses_bing_rss_results() {
         let output = r#"
-        {
-          "content": [
-            {
-              "type": "text",
-              "text": "{\"results\":[{\"title\":\"合肥天气预报\",\"url\":\"https://example.com/hefei\",\"text\":\"今天大雨转阴。\"}]}"
-            }
-          ]
-        }
+        <rss><channel><item>
+          <title>合肥天气预报</title>
+          <link>https://example.com/hefei</link>
+          <description>今天大雨转阴。</description>
+        </item></channel></rss>
         "#;
-        let results = parse_agent_reach_search_results(output, 5);
+        let results = parse_bing_rss_search_results(output, 5).expect("valid RSS");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "合肥天气预报");
         assert_eq!(results[0].url, "https://example.com/hefei");
         assert_eq!(results[0].content, "今天大雨转阴。");
-        assert_eq!(results[0].engine.as_deref(), Some("Agent-Reach / Exa"));
+        assert_eq!(results[0].engine.as_deref(), Some("Bing RSS"));
     }
 
     #[test]
-    fn parses_agent_reach_plain_text_results() {
-        let output = "- Example Result https://example.com/article A clean snippet.";
-        let results = parse_agent_reach_search_results(output, 5);
+    fn parses_duckduckgo_related_topics() {
+        let output = r#"{
+          "RelatedTopics": [
+            {
+              "Text": "Example Result - A clean snippet.",
+              "FirstURL": "https://example.com/article"
+            }
+          ]
+        }"#;
+        let results = parse_duckduckgo_search_results(output, 5).expect("valid JSON");
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].title, "Example Result");
+        assert_eq!(results[0].title, "Example Result - A clean snippet.");
         assert_eq!(results[0].url, "https://example.com/article");
-        assert_eq!(results[0].content, "A clean snippet.");
+        assert_eq!(results[0].content, "Example Result - A clean snippet.");
+        assert_eq!(
+            results[0].engine.as_deref(),
+            Some("DuckDuckGo Instant Answer")
+        );
     }
 }

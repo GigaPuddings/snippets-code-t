@@ -159,7 +159,7 @@ function isCleanGitRepository(path) {
 function updateCachedRepository(repoDir) {
   run('git', ['fetch', '--depth', '1', 'origin', 'main'], { cwd: repoDir, inherit: true });
   run('git', ['checkout', 'main'], { cwd: repoDir, inherit: true });
-  run('git', ['merge', '--ff-only', 'origin/main'], { cwd: repoDir, inherit: true });
+  run('git', ['reset', '--hard', 'origin/main'], { cwd: repoDir, inherit: true });
 }
 
 async function directorySize(path) {

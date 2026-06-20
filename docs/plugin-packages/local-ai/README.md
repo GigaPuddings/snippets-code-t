@@ -15,8 +15,7 @@ E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive
 Runtime resources:
 
 - `local-ai-llama-runtime` provides llama-server and CUDA runtime files.
-- `local-ai-agent-reach-runtime` provides the Agent-Reach web capability runtime.
 
-If the Agent-Reach runtime resource is unavailable, the app falls back to a
-managed app-data Python virtual environment and installs Agent-Reach
-automatically.
+Web search uses in-process HTTPS requests: Bing RSS is the primary structured
+source and DuckDuckGo Instant Answer is the fallback. It does not install or
+launch a separate search runtime.
