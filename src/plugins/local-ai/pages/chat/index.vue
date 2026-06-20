@@ -1711,7 +1711,8 @@ const verifiedSourceContextMessage = (
       'Cite every factual claim with its source number, such as [1]. If the results are insufficient, conflicting, or unrelated, say so clearly.',
       ...(asksCurrentWeather
         ? [
-            'This is a current-weather question. Give exact temperature, condition, and precipitation only if a source explicitly identifies the target date and place. Never infer today\'s weather from an older forecast, a general climate description, or model memory. If those values are absent, say that current weather data was not retrieved.'
+            'This is a current-weather question. Give exact temperature, condition, and precipitation only if a source explicitly identifies the target date and place. Never infer today\'s weather from an older forecast, a general climate description, or model memory. If those values are absent, say that current weather data was not retrieved.',
+            'Prefer weather.com.cn (China Meteorological Administration) whenever it appears in the sources. Do not use weather-forecast.com or other third-party forecast values when an official weather.com.cn source is available.'
           ]
         : []),
       '',

@@ -446,19 +446,25 @@ fn resolve_search_result_url(search_host: Option<&str>, candidate: Url) -> Optio
     (candidate.host_str() != search_host).then_some(candidate)
 }
 
-fn build_web_search_query(query: &str) -> String {
+fn is_current_weather_query(query: &str) -> bool {
     let lower = query.to_lowercase();
-    let asks_current_weather = ["天气", "气温", "温度", "降雨", "weather", "temperature"]
+    ["天气", "气温", "温度", "降雨", "weather", "temperature"]
         .iter()
         .any(|term| lower.contains(term))
         && ["今天", "今日", "现在", "实时", "today", "current", "now"]
             .iter()
-            .any(|term| lower.contains(term));
-    if !asks_current_weather {
+            .any(|term| lower.contains(term))
+}
+
+fn build_web_search_query(query: &str) -> String {
+    if !is_current_weather_query(query) {
         return query.to_string();
     }
     let today = Local::now().format("%Y-%m-%d");
-    format!("{} {} 当日 实况 温度 降水", query, today)
+    format!(
+        "site:weather.com.cn {} {} 当日 实况 温度 降水",
+        query, today
+    )
 }
 
 async fn search_verified_sources(
@@ -472,6 +478,7 @@ async fn search_verified_sources(
         return Err("搜索页面地址必须包含 {query} 占位符。".to_string());
     }
     let search_query = build_web_search_query(query);
+    let current_weather = is_current_weather_query(query);
     let search_url = template.replace("{query}", &urlencoding::encode(&search_query));
     let endpoint =
         Url::parse(&search_url).map_err(|error| format!("搜索页面地址无效: {}", error))?;
@@ -545,6 +552,14 @@ async fn search_verified_sources(
     };
     if result_links.is_empty() {
         return Err("搜索页面没有解析到可用结果链接；请更换搜索页面地址。".to_string());
+    }
+    let mut result_links = result_links;
+    if current_weather {
+        result_links.sort_by_key(|(_, url)| {
+            !url.host_str().is_some_and(|host| {
+                host.eq_ignore_ascii_case("weather.com.cn") || host.ends_with(".weather.com.cn")
+            })
+        });
     }
     let article_selector = Selector::parse("article, main, [role='main'], p")
         .map_err(|_| "无法初始化正文解析器。".to_string())?;
