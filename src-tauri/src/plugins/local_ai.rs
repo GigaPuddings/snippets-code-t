@@ -2,6 +2,7 @@ use base64::{engine::general_purpose, Engine as _};
 use chrono::Local;
 use futures::StreamExt;
 use log::{info, warn};
+use regex::Regex;
 use reqwest::{
     header::{ACCEPT, CACHE_CONTROL, USER_AGENT},
     Client,
@@ -546,6 +547,36 @@ async fn search_verified_sources(
             links.push((title, url));
             if links.len() >= max_results.clamp(3, 5) as usize {
                 break;
+            }
+        }
+        if links.is_empty() {
+            let fallback = Regex::new(
+                r#"(?is)<a[^>]*class=["'][^"']*result__a[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>"#,
+            )
+            .expect("valid DuckDuckGo result link regex");
+            for captures in fallback.captures_iter(&response) {
+                let href = captures
+                    .get(1)
+                    .map(|value| value.as_str().replace("&amp;", "&"));
+                let title = captures
+                    .get(2)
+                    .map(|value| compact_source_text(value.as_str(), 240))
+                    .unwrap_or_default();
+                let Some(href) = href else { continue };
+                let Ok(candidate) = endpoint.join(&href) else {
+                    continue;
+                };
+                let Some(url) = resolve_search_result_url(endpoint.host_str(), candidate) else {
+                    continue;
+                };
+                if title.len() < 3 || seen_urls.iter().any(|seen| seen == url.as_str()) {
+                    continue;
+                }
+                seen_urls.push(url.as_str().to_string());
+                links.push((title, url));
+                if links.len() >= max_results.clamp(3, 5) as usize {
+                    break;
+                }
             }
         }
         links
