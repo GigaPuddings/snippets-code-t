@@ -1846,11 +1846,13 @@ export default {
     reasoningTitle: '思考',
     thinkingEnabled: '思考已开启',
     thinkingDisabled: '思考已关闭',
-    webSearchTitle: '联网搜索',
-    webSearchEnabled: '联网搜索已开启',
-    webSearchDisabled: '联网搜索已关闭',
-    webSearchSearching: '正在搜索联网来源...',
-    webSearchUsed: '已使用 {count} 条联网来源',
+    verifiedSourcesTitle: '验证来源',
+    verifiedSourcesEnabled: '验证来源已开启',
+    verifiedSourcesDisabled: '验证来源已关闭',
+    verifiedSourcesSearching: '正在查询可验证来源...',
+    verifiedSourcesUsed: '本次回答使用的可验证来源',
+    verifiedSourcesNoQuery: '没有可用于查询验证来源的问题内容。',
+    verifiedSourcesEmpty: '没有找到可验证来源，请调整关键词后重试。',
     jumpToLatest: '回到底部',
     modelChanged: '模型已切换并保存',
     you: '你',
@@ -1912,18 +1914,6 @@ export default {
     repeatLastN: '惩罚窗口',
     maxTokens: '最大 token（0=无限）',
     port: '端口',
-    webSearch: '联网搜索',
-    webSearchDesc:
-      '应用内直连 Bing RSS，失败时回退 DuckDuckGo；无需安装或启动额外运行时',
-    webSearchMaxResults: '结果数',
-    webSearchTimeoutSecs: '搜索秒数',
-    webSearchNoResults: '联网搜索未返回可用结果，将直接使用本地模型回答。',
-    webSearchFailed: '联网搜索失败，将直接使用本地模型回答',
-    webSearchTest: '测试联网搜索',
-    webSearchTestQuery: '联网搜索测试',
-    webSearchTestSuccess: '联网搜索测试成功，返回 {count} 条结果',
-    webSearchTestEmpty: '联网搜索可访问，但没有返回可用结果',
-    webSearchTestFailed: '联网搜索测试失败',
     estimatedMemory: '预估内存占用',
     estimateBeta: '估算',
     total: '总计',
@@ -1967,9 +1957,7 @@ export default {
       repeatPenalty: '重复惩罚，越高越不容易复读。',
       repeatLastN: '重复惩罚回看窗口。',
       maxTokens: '单次回复最大输出 token，0 表示不主动限制。',
-      port: '本地 llama-server 监听端口。',
-      webSearchMaxResults: '每次聊天注入的联网结果数量，过多会占用上下文。',
-      webSearchTimeoutSecs: '等待联网搜索返回结果的最长时间。'
+      port: '本地 llama-server 监听端口。'
     }
   }
 };

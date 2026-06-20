@@ -1881,11 +1881,14 @@ export default {
     reasoningTitle: 'Think',
     thinkingEnabled: 'Thinking is on',
     thinkingDisabled: 'Thinking is off',
-    webSearchTitle: 'Web search',
-    webSearchEnabled: 'Web search is on',
-    webSearchDisabled: 'Web search is off',
-    webSearchSearching: 'Searching web sources...',
-    webSearchUsed: 'Used {count} web source(s)',
+    verifiedSourcesTitle: 'Verified sources',
+    verifiedSourcesEnabled: 'Verified sources are on',
+    verifiedSourcesDisabled: 'Verified sources are off',
+    verifiedSourcesSearching: 'Looking up verifiable sources...',
+    verifiedSourcesUsed: 'Verifiable sources used for this response',
+    verifiedSourcesNoQuery: 'There is no question content to verify.',
+    verifiedSourcesEmpty:
+      'No verifiable sources were found. Please refine the query and try again.',
     jumpToLatest: 'Jump to latest',
     modelChanged: 'Model changed and saved',
     you: 'You',
@@ -1952,19 +1955,6 @@ export default {
     repeatLastN: 'Penalty window',
     maxTokens: 'Max tokens (0=unlimited)',
     port: 'Port',
-    webSearch: 'Web search',
-    webSearchDesc:
-      'Use in-process Bing RSS with a DuckDuckGo fallback; no search runtime is installed or launched',
-    webSearchMaxResults: 'Results',
-    webSearchTimeoutSecs: 'Search seconds',
-    webSearchNoResults:
-      'Web search returned no usable results. Answering with the local model only.',
-    webSearchFailed: 'Web search failed. Answering with the local model only',
-    webSearchTest: 'Test web search',
-    webSearchTestQuery: 'Web search test',
-    webSearchTestSuccess: 'Web search test succeeded with {count} result(s)',
-    webSearchTestEmpty: 'Web search is reachable but returned no usable results',
-    webSearchTestFailed: 'Web search test failed',
     estimatedMemory: 'Estimated memory usage',
     estimateBeta: 'Estimate',
     total: 'Total',
@@ -2016,10 +2006,7 @@ export default {
       repeatPenalty: 'Penalty applied to repeated tokens.',
       repeatLastN: 'Token window used by the repetition penalty.',
       maxTokens: 'Maximum output tokens per response. 0 means no app-side cap.',
-      port: 'Local llama-server port.',
-      webSearchMaxResults:
-        'Number of web results injected per chat request. Too many results use context.',
-      webSearchTimeoutSecs: 'Maximum time to wait for web search results.'
+      port: 'Local llama-server port.'
     }
   }
 };

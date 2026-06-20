@@ -1,6 +1,5 @@
 use futures::StreamExt;
 use log::{info, warn};
-use regex::Regex;
 use reqwest::{
     header::{ACCEPT, CACHE_CONTROL, USER_AGENT},
     Client,
@@ -34,8 +33,9 @@ static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
 static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
-static HTML_TAG_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?s)<[^>]*>").expect("valid HTML tag regex"));
+static VERIFIED_SOURCE_CACHE: LazyLock<
+    Mutex<HashMap<String, (Instant, Vec<LocalAiVerifiedSource>)>>,
+> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,10 +71,6 @@ pub struct LocalAiConfig {
     pub repeat_last_n: u32,
     pub max_tokens: u32,
     pub request_timeout_secs: u32,
-    #[serde(default = "default_web_search_max_results")]
-    pub web_search_max_results: u32,
-    #[serde(default = "default_web_search_timeout_secs")]
-    pub web_search_timeout_secs: u32,
 }
 
 fn default_top_p() -> f32 {
@@ -95,14 +91,6 @@ fn default_repeat_penalty() -> f32 {
 
 fn default_repeat_last_n() -> u32 {
     256
-}
-
-fn default_web_search_max_results() -> u32 {
-    5
-}
-
-fn default_web_search_timeout_secs() -> u32 {
-    12
 }
 
 impl Default for LocalAiConfig {
@@ -137,8 +125,6 @@ impl Default for LocalAiConfig {
             repeat_last_n: default_repeat_last_n(),
             max_tokens: 0,
             request_timeout_secs: 600,
-            web_search_max_results: default_web_search_max_results(),
-            web_search_timeout_secs: default_web_search_timeout_secs(),
         }
     }
 }
@@ -251,216 +237,27 @@ pub struct LocalAiChatStreamPayload {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LocalAiWebSearchRequest {
+pub struct LocalAiVerifiedSourceSearchRequest {
     pub query: String,
     pub max_results: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LocalAiWebSearchResult {
+pub struct LocalAiVerifiedSource {
     pub title: String,
     pub url: String,
-    pub content: String,
-    pub engine: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalAiWebSearchResponse {
-    pub query: String,
-    pub results: Vec<LocalAiWebSearchResult>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalAiWeatherRequest {
-    pub query: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalAiWeatherResponse {
-    pub location: String,
-    pub country: String,
-    pub latitude: f64,
-    pub longitude: f64,
-    pub date: String,
-    pub time: String,
-    pub timezone: String,
-    pub temperature: Option<f64>,
-    pub apparent_temperature: Option<f64>,
-    pub humidity: Option<f64>,
-    pub precipitation: Option<f64>,
-    pub weather_code: Option<i64>,
-    pub weather_text: String,
-    pub wind_speed: Option<f64>,
-    pub temperature_max: Option<f64>,
-    pub temperature_min: Option<f64>,
-    pub precipitation_probability: Option<f64>,
+    pub snippet: String,
     pub source: String,
+    pub published_at: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct WeatherLocation {
-    name: &'static str,
-    country: &'static str,
-    latitude: f64,
-    longitude: f64,
-    timezone: &'static str,
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiVerifiedSourceSearchResponse {
+    pub query: String,
+    pub results: Vec<LocalAiVerifiedSource>,
 }
-
-#[derive(Debug, Clone)]
-struct ResolvedWeatherLocation {
-    name: String,
-    country: String,
-    latitude: f64,
-    longitude: f64,
-    timezone: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenMeteoGeocodingResponse {
-    results: Option<Vec<OpenMeteoGeocodingResult>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenMeteoGeocodingResult {
-    name: String,
-    country: Option<String>,
-    latitude: f64,
-    longitude: f64,
-    timezone: Option<String>,
-}
-
-const WEATHER_LOCATIONS: &[WeatherLocation] = &[
-    WeatherLocation {
-        name: "北京",
-        country: "中国",
-        latitude: 39.9042,
-        longitude: 116.4074,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "天津",
-        country: "中国",
-        latitude: 39.3434,
-        longitude: 117.3616,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "河北",
-        country: "中国",
-        latitude: 38.0428,
-        longitude: 114.5149,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "石家庄",
-        country: "中国",
-        latitude: 38.0428,
-        longitude: 114.5149,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "上海",
-        country: "中国",
-        latitude: 31.2304,
-        longitude: 121.4737,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "广州",
-        country: "中国",
-        latitude: 23.1291,
-        longitude: 113.2644,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "深圳",
-        country: "中国",
-        latitude: 22.5431,
-        longitude: 114.0579,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "杭州",
-        country: "中国",
-        latitude: 30.2741,
-        longitude: 120.1551,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "南京",
-        country: "中国",
-        latitude: 32.0603,
-        longitude: 118.7969,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "安徽",
-        country: "中国",
-        latitude: 31.8612,
-        longitude: 117.2857,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "合肥",
-        country: "中国",
-        latitude: 31.8206,
-        longitude: 117.2272,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "成都",
-        country: "中国",
-        latitude: 30.5728,
-        longitude: 104.0668,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "重庆",
-        country: "中国",
-        latitude: 29.563,
-        longitude: 106.5516,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "武汉",
-        country: "中国",
-        latitude: 30.5928,
-        longitude: 114.3055,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "西安",
-        country: "中国",
-        latitude: 34.3416,
-        longitude: 108.9398,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "郑州",
-        country: "中国",
-        latitude: 34.7466,
-        longitude: 113.6254,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "济南",
-        country: "中国",
-        latitude: 36.6512,
-        longitude: 117.1201,
-        timezone: "Asia/Shanghai",
-    },
-    WeatherLocation {
-        name: "青岛",
-        country: "中国",
-        latitude: 36.0671,
-        longitude: 120.3826,
-        timezone: "Asia/Shanghai",
-    },
-];
 
 #[derive(Default)]
 struct LocalAiServiceState {
@@ -576,594 +373,6 @@ fn base_url(config: &LocalAiConfig) -> String {
     format!("http://{}:{}", config.host, config.port)
 }
 
-fn response_preview(value: &str) -> String {
-    value
-        .chars()
-        .take(240)
-        .collect::<String>()
-        .replace(['\r', '\n', '\t'], " ")
-        .trim()
-        .to_string()
-}
-
-fn web_search_status_error(status: reqwest::StatusCode, body: &str) -> String {
-    let preview = response_preview(body);
-    if preview.is_empty() {
-        return format!("联网搜索服务返回错误 {}，且响应为空。", status);
-    }
-    format!("联网搜索服务返回错误 {}: {}", status, preview)
-}
-
-fn weather_code_text(code: Option<i64>) -> String {
-    match code {
-        Some(0) => "晴".to_string(),
-        Some(1) => "大部晴朗".to_string(),
-        Some(2) => "局部多云".to_string(),
-        Some(3) => "阴/多云".to_string(),
-        Some(45 | 48) => "雾".to_string(),
-        Some(51 | 53 | 55) => "毛毛雨".to_string(),
-        Some(56 | 57) => "冻毛毛雨".to_string(),
-        Some(61 | 63 | 65) => "雨".to_string(),
-        Some(66 | 67) => "冻雨".to_string(),
-        Some(71 | 73 | 75) => "雪".to_string(),
-        Some(77) => "雪粒".to_string(),
-        Some(80 | 81 | 82) => "阵雨".to_string(),
-        Some(85 | 86) => "阵雪".to_string(),
-        Some(95) => "雷暴".to_string(),
-        Some(96 | 99) => "雷暴伴冰雹".to_string(),
-        Some(value) => format!("天气代码 {}", value),
-        None => "未知".to_string(),
-    }
-}
-
-fn number_at(value: &Value, key: &str) -> Option<f64> {
-    value.get(key).and_then(Value::as_f64)
-}
-
-fn integer_at(value: &Value, key: &str) -> Option<i64> {
-    value.get(key).and_then(Value::as_i64)
-}
-
-fn daily_number_at(value: &Value, key: &str) -> Option<f64> {
-    value
-        .get("daily")
-        .and_then(|daily| daily.get(key))
-        .and_then(Value::as_array)
-        .and_then(|items| items.first())
-        .and_then(Value::as_f64)
-}
-
-fn daily_integer_at(value: &Value, key: &str) -> Option<i64> {
-    value
-        .get("daily")
-        .and_then(|daily| daily.get(key))
-        .and_then(Value::as_array)
-        .and_then(|items| items.first())
-        .and_then(Value::as_i64)
-}
-
-fn daily_string_at(value: &Value, key: &str) -> Option<String> {
-    value
-        .get("daily")
-        .and_then(|daily| daily.get(key))
-        .and_then(Value::as_array)
-        .and_then(|items| items.first())
-        .and_then(Value::as_str)
-        .map(str::to_string)
-}
-
-fn extract_weather_location(query: &str) -> Option<WeatherLocation> {
-    WEATHER_LOCATIONS
-        .iter()
-        .copied()
-        .filter(|location| query.contains(location.name))
-        .max_by_key(|location| location.name.chars().count())
-}
-
-fn resolved_weather_location(location: WeatherLocation) -> ResolvedWeatherLocation {
-    ResolvedWeatherLocation {
-        name: location.name.to_string(),
-        country: location.country.to_string(),
-        latitude: location.latitude,
-        longitude: location.longitude,
-        timezone: location.timezone.to_string(),
-    }
-}
-
-fn compact_weather_location_candidate(value: &str) -> Option<String> {
-    let candidate = value
-        .chars()
-        .filter(|character| {
-            character.is_alphabetic()
-                || matches!(
-                    character,
-                    '·' | '-' | '\'' | '市' | '省' | '州' | '县' | '区' | '旗'
-                )
-        })
-        .collect::<String>()
-        .replace("今天", "")
-        .replace("今日", "")
-        .replace("明天", "")
-        .replace("后天", "")
-        .replace("现在", "")
-        .replace("当前", "")
-        .replace("怎么样", "")
-        .replace("如何", "")
-        .replace("怎样", "")
-        .replace("天气", "")
-        .replace("温度", "")
-        .replace("气温", "")
-        .replace("下雨", "")
-        .replace("降雨", "")
-        .replace("湿度", "")
-        .replace("会", "")
-        .replace("吗", "")
-        .replace("么", "")
-        .replace("呢", "")
-        .trim_matches(['市', '省'])
-        .trim()
-        .to_string();
-
-    if candidate.chars().count() >= 2 {
-        Some(candidate)
-    } else {
-        None
-    }
-}
-
-fn weather_location_candidates(query: &str) -> Vec<String> {
-    let keywords = [
-        "天气",
-        "温度",
-        "气温",
-        "体感",
-        "湿度",
-        "降雨",
-        "下雨",
-        "风速",
-        "weather",
-        "temperature",
-        "humidity",
-        "rain",
-        "wind",
-    ];
-    let mut candidates = Vec::new();
-
-    for line in query.lines().map(str::trim).filter(|line| !line.is_empty()) {
-        if let Some(location) = extract_weather_location(line) {
-            candidates.push(location.name.to_string());
-            continue;
-        }
-
-        let mut matched_keyword = false;
-        for keyword in keywords {
-            if let Some(index) = line.find(keyword) {
-                matched_keyword = true;
-                let prefix = &line[..index];
-                if let Some(candidate) = compact_weather_location_candidate(prefix) {
-                    candidates.push(candidate);
-                }
-            }
-        }
-
-        if !matched_keyword {
-            if let Some(candidate) = compact_weather_location_candidate(line) {
-                candidates.push(candidate);
-            }
-        }
-    }
-
-    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.chars().count()));
-    candidates.dedup();
-    candidates
-}
-
-async fn resolve_weather_location(
-    client: &Client,
-    query: &str,
-) -> Result<ResolvedWeatherLocation, String> {
-    if let Some(location) = extract_weather_location(query) {
-        return Ok(resolved_weather_location(location));
-    }
-
-    let geocoding_url = "https://geocoding-api.open-meteo.com/v1/search";
-    for candidate in weather_location_candidates(query) {
-        let response = client
-            .get(geocoding_url)
-            .header(ACCEPT, "application/json")
-            .header(USER_AGENT, "snippets-code-local-ai/1.0")
-            .query(&[
-                ("name", candidate.as_str()),
-                ("count", "1"),
-                ("language", "zh"),
-                ("format", "json"),
-            ])
-            .send()
-            .await
-            .map_err(|error| format!("天气地点解析请求失败: {}", error))?;
-        let status = response.status();
-        let body = response
-            .text()
-            .await
-            .map_err(|error| format!("读取天气地点解析响应失败: {}", error))?;
-        if !status.is_success() {
-            warn!(
-                "[Plugin:local-ai] weather geocoding failed provider=open_meteo location_candidate={} status={} preview=\"{}\"",
-                candidate,
-                status,
-                response_preview(&body)
-            );
-            continue;
-        }
-        let value = serde_json::from_str::<OpenMeteoGeocodingResponse>(&body)
-            .map_err(|error| format!("解析天气地点响应失败: {}", error))?;
-        if let Some(result) = value
-            .results
-            .and_then(|mut results| results.drain(..).next())
-        {
-            return Ok(ResolvedWeatherLocation {
-                name: result.name,
-                country: result.country.unwrap_or_else(|| "未知".to_string()),
-                latitude: result.latitude,
-                longitude: result.longitude,
-                timezone: result
-                    .timezone
-                    .unwrap_or_else(|| "Asia/Shanghai".to_string()),
-            });
-        }
-    }
-
-    Err("未识别到天气地点，请在问题中包含城市或省份，例如“合肥天气”。".to_string())
-}
-
-fn decode_html_entities(value: &str) -> String {
-    let mut decoded = value
-        .replace("&amp;", "&")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&nbsp;", " ");
-
-    for entity in Regex::new(r"&#x([0-9a-fA-F]+);|&#([0-9]+);")
-        .expect("valid html entity regex")
-        .captures_iter(value)
-    {
-        let Some(raw) = entity.get(0).map(|item| item.as_str()) else {
-            continue;
-        };
-        let codepoint = entity
-            .get(1)
-            .and_then(|item| u32::from_str_radix(item.as_str(), 16).ok())
-            .or_else(|| {
-                entity
-                    .get(2)
-                    .and_then(|item| item.as_str().parse::<u32>().ok())
-            });
-        if let Some(character) = codepoint.and_then(char::from_u32) {
-            decoded = decoded.replace(raw, &character.to_string());
-        }
-    }
-
-    decoded
-}
-
-fn clean_html_text(value: &str) -> String {
-    let without_tags = HTML_TAG_RE.replace_all(value, " ");
-    decode_html_entities(&without_tags)
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-#[derive(Default)]
-struct BingRssItem {
-    title: String,
-    link: String,
-    description: String,
-}
-
-fn push_web_search_result(
-    results: &mut Vec<LocalAiWebSearchResult>,
-    seen_urls: &mut Vec<String>,
-    max_results: u32,
-    title: &str,
-    url: &str,
-    content: &str,
-    engine: &str,
-) {
-    if results.len() >= max_results as usize {
-        return;
-    }
-
-    let url = url.trim();
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return;
-    }
-    if seen_urls.iter().any(|seen| seen == url) {
-        return;
-    }
-
-    let title = clean_html_text(title);
-    let content = clean_html_text(content);
-    seen_urls.push(url.to_string());
-    results.push(LocalAiWebSearchResult {
-        title: if title.is_empty() {
-            url.chars().take(160).collect()
-        } else {
-            title.chars().take(160).collect()
-        },
-        url: url.to_string(),
-        content: content.chars().take(900).collect(),
-        engine: Some(engine.to_string()),
-    });
-}
-
-fn parse_bing_rss_search_results(
-    body: &str,
-    max_results: u32,
-) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    use xml::reader::{EventReader, XmlEvent};
-
-    let mut results = Vec::new();
-    let mut seen_urls = Vec::new();
-    let mut current_item: Option<BingRssItem> = None;
-    let mut current_field: Option<String> = None;
-
-    for event in EventReader::from_str(body) {
-        match event.map_err(|error| format!("解析 Bing RSS 响应失败: {}", error))? {
-            XmlEvent::StartElement { name, .. } => match name.local_name.as_str() {
-                "item" => current_item = Some(BingRssItem::default()),
-                "title" | "link" | "description" if current_item.is_some() => {
-                    current_field = Some(name.local_name)
-                }
-                _ => {}
-            },
-            XmlEvent::EndElement { name } => {
-                if name.local_name == "item" {
-                    if let Some(item) = current_item.take() {
-                        push_web_search_result(
-                            &mut results,
-                            &mut seen_urls,
-                            max_results,
-                            &item.title,
-                            &item.link,
-                            &item.description,
-                            "Bing RSS",
-                        );
-                    }
-                    current_field = None;
-                } else if current_field.as_deref() == Some(name.local_name.as_str()) {
-                    current_field = None;
-                }
-            }
-            XmlEvent::Characters(text) | XmlEvent::CData(text) => {
-                if let (Some(item), Some(field)) = (current_item.as_mut(), current_field.as_deref())
-                {
-                    match field {
-                        "title" => item.title.push_str(&text),
-                        "link" => item.link.push_str(&text),
-                        "description" => item.description.push_str(&text),
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    Ok(results)
-}
-
-fn collect_duckduckgo_topics(
-    value: &Value,
-    results: &mut Vec<LocalAiWebSearchResult>,
-    seen_urls: &mut Vec<String>,
-    max_results: u32,
-) {
-    if results.len() >= max_results as usize {
-        return;
-    }
-    let Some(object) = value.as_object() else {
-        return;
-    };
-
-    let url = object
-        .get("FirstURL")
-        .and_then(Value::as_str)
-        .or_else(|| object.get("AbstractURL").and_then(Value::as_str));
-    let text = object
-        .get("Text")
-        .and_then(Value::as_str)
-        .or_else(|| object.get("AbstractText").and_then(Value::as_str))
-        .unwrap_or_default();
-    if let Some(url) = url {
-        push_web_search_result(
-            results,
-            seen_urls,
-            max_results,
-            text,
-            url,
-            text,
-            "DuckDuckGo Instant Answer",
-        );
-    }
-
-    if let Some(topics) = object.get("Topics").and_then(Value::as_array) {
-        for topic in topics {
-            collect_duckduckgo_topics(topic, results, seen_urls, max_results);
-            if results.len() >= max_results as usize {
-                break;
-            }
-        }
-    }
-}
-
-fn parse_duckduckgo_search_results(
-    body: &str,
-    max_results: u32,
-) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    let value = serde_json::from_str::<Value>(body)
-        .map_err(|error| format!("解析 DuckDuckGo 搜索响应失败: {}", error))?;
-    let mut results = Vec::new();
-    let mut seen_urls = Vec::new();
-
-    if let (Some(url), Some(text)) = (
-        value.get("AbstractURL").and_then(Value::as_str),
-        value.get("AbstractText").and_then(Value::as_str),
-    ) {
-        push_web_search_result(
-            &mut results,
-            &mut seen_urls,
-            max_results,
-            value
-                .get("Heading")
-                .and_then(Value::as_str)
-                .filter(|heading| !heading.trim().is_empty())
-                .unwrap_or(text),
-            url,
-            text,
-            "DuckDuckGo Instant Answer",
-        );
-    }
-    if let Some(topics) = value.get("RelatedTopics").and_then(Value::as_array) {
-        for topic in topics {
-            collect_duckduckgo_topics(topic, &mut results, &mut seen_urls, max_results);
-            if results.len() >= max_results as usize {
-                break;
-            }
-        }
-    }
-    Ok(results)
-}
-
-async fn search_with_bing_rss(
-    query: &str,
-    max_results: u32,
-    timeout_secs: u64,
-) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(timeout_secs))
-        .build()
-        .map_err(|error| format!("创建 Bing 搜索客户端失败: {}", error))?;
-    info!(
-        "[Plugin:local-ai] web search start provider=bing_rss query=\"{}\" max_results={}",
-        response_preview(query),
-        max_results
-    );
-    let response = client
-        .get("https://cn.bing.com/search")
-        .header(
-            ACCEPT,
-            "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
-        )
-        .header(CACHE_CONTROL, "no-cache")
-        .header(USER_AGENT, "snippets-code-local-ai/1.0")
-        .query(&[
-            ("q", query),
-            ("format", "rss"),
-            ("setlang", "zh-Hans"),
-            ("cc", "CN"),
-        ])
-        .send()
-        .await
-        .map_err(|error| format!("Bing 搜索请求失败: {}", error))?;
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|error| format!("读取 Bing 搜索响应失败: {}", error))?;
-    info!(
-        "[Plugin:local-ai] web search response provider=bing_rss status={} bytes={} preview=\"{}\"",
-        status,
-        body.len(),
-        response_preview(&body)
-    );
-    if !status.is_success() {
-        return Err(web_search_status_error(status, &body));
-    }
-    let results = parse_bing_rss_search_results(&body, max_results)?;
-    info!(
-        "[Plugin:local-ai] web search parsed provider=bing_rss query=\"{}\" usable_results={}",
-        response_preview(query),
-        results.len()
-    );
-    Ok(results)
-}
-
-async fn search_with_duckduckgo(
-    query: &str,
-    max_results: u32,
-    timeout_secs: u64,
-) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(timeout_secs))
-        .build()
-        .map_err(|error| format!("创建 DuckDuckGo 搜索客户端失败: {}", error))?;
-    info!(
-        "[Plugin:local-ai] web search start provider=duckduckgo_instant_answer query=\"{}\" max_results={}",
-        response_preview(query),
-        max_results
-    );
-    let response = client
-        .get("https://api.duckduckgo.com/")
-        .header(ACCEPT, "application/json")
-        .header(CACHE_CONTROL, "no-cache")
-        .header(USER_AGENT, "snippets-code-local-ai/1.0")
-        .query(&[
-            ("q", query),
-            ("format", "json"),
-            ("no_html", "1"),
-            ("skip_disambig", "1"),
-        ])
-        .send()
-        .await
-        .map_err(|error| format!("DuckDuckGo 搜索请求失败: {}", error))?;
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|error| format!("读取 DuckDuckGo 搜索响应失败: {}", error))?;
-    info!(
-        "[Plugin:local-ai] web search response provider=duckduckgo_instant_answer status={} bytes={} preview=\"{}\"",
-        status,
-        body.len(),
-        response_preview(&body)
-    );
-    if !status.is_success() {
-        return Err(web_search_status_error(status, &body));
-    }
-    let results = parse_duckduckgo_search_results(&body, max_results)?;
-    info!(
-        "[Plugin:local-ai] web search parsed provider=duckduckgo_instant_answer query=\"{}\" usable_results={}",
-        response_preview(query),
-        results.len()
-    );
-    Ok(results)
-}
-
-async fn search_web_direct(
-    query: &str,
-    max_results: u32,
-    timeout_secs: u64,
-) -> Result<Vec<LocalAiWebSearchResult>, String> {
-    match search_with_bing_rss(query, max_results, timeout_secs).await {
-        Ok(results) if !results.is_empty() => return Ok(results),
-        Ok(_) => warn!("[Plugin:local-ai] web search provider=bing_rss returned no usable results"),
-        Err(error) => warn!(
-            "[Plugin:local-ai] web search provider=bing_rss failed: {}",
-            error
-        ),
-    }
-
-    match search_with_duckduckgo(query, max_results, timeout_secs).await {
-        Ok(results) if !results.is_empty() => Ok(results),
-        Ok(_) => Err("联网搜索没有返回可用结果，请修改关键词后重试。".to_string()),
-        Err(error) => Err(format!("联网搜索暂时不可用: {}", error)),
-    }
-}
-
 fn completion_token_limit(config: &LocalAiConfig, request_max_tokens: Option<u32>) -> i64 {
     let limit = request_max_tokens.unwrap_or(config.max_tokens);
     if limit == 0 {
@@ -1171,6 +380,265 @@ fn completion_token_limit(config: &LocalAiConfig, request_max_tokens: Option<u32
     } else {
         i64::from(limit)
     }
+}
+
+fn compact_source_text(value: &str, limit: usize) -> String {
+    let mut text = String::with_capacity(value.len());
+    let mut in_tag = false;
+    for character in value.chars() {
+        match character {
+            '<' => in_tag = true,
+            '>' => {
+                in_tag = false;
+                text.push(' ');
+            }
+            _ if !in_tag => text.push(character),
+            _ => {}
+        }
+    }
+    text.replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(limit)
+        .collect()
+}
+
+fn source_string(value: Option<&Value>) -> Option<String> {
+    value
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(str::to_string)
+}
+
+async fn read_verified_source_json(
+    client: &Client,
+    url: &str,
+    query: &[(&str, &str)],
+) -> Result<Value, String> {
+    let response = client
+        .get(url)
+        .header(ACCEPT, "application/json")
+        .header(USER_AGENT, "Snippets-Code verified-source-search/1.0")
+        .query(query)
+        .send()
+        .await
+        .map_err(|error| format!("request failed: {}", error))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("response read failed: {}", error))?;
+    if !status.is_success() {
+        return Err(format!("HTTP {}", status));
+    }
+    serde_json::from_str(&body).map_err(|error| format!("invalid JSON: {}", error))
+}
+
+async fn search_wikipedia(
+    client: &Client,
+    query: &str,
+    limit: u32,
+) -> Result<Vec<LocalAiVerifiedSource>, String> {
+    let language = if query.is_ascii() { "en" } else { "zh" };
+    let url = format!("https://{}.wikipedia.org/w/api.php", language);
+    let limit_text = limit.to_string();
+    let value = read_verified_source_json(
+        client,
+        &url,
+        &[
+            ("action", "query"),
+            ("list", "search"),
+            ("srsearch", query),
+            ("srlimit", &limit_text),
+            ("srprop", "snippet|timestamp"),
+            ("format", "json"),
+            ("formatversion", "2"),
+        ],
+    )
+    .await?;
+
+    Ok(value["query"]["search"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            let title = source_string(item.get("title"))?;
+            let page_id = item.get("pageid").and_then(Value::as_i64)?;
+            Some(LocalAiVerifiedSource {
+                title,
+                url: format!("https://{}.wikipedia.org/?curid={}", language, page_id),
+                snippet: compact_source_text(
+                    item.get("snippet")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                    700,
+                ),
+                source: "Wikipedia".to_string(),
+                published_at: source_string(item.get("timestamp")),
+            })
+        })
+        .collect())
+}
+
+async fn search_crossref(
+    client: &Client,
+    query: &str,
+    limit: u32,
+) -> Result<Vec<LocalAiVerifiedSource>, String> {
+    let limit_text = limit.to_string();
+    let value = read_verified_source_json(
+        client,
+        "https://api.crossref.org/works",
+        &[("query.bibliographic", query), ("rows", &limit_text)],
+    )
+    .await?;
+
+    Ok(value["message"]["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            let title = item
+                .get("title")
+                .and_then(Value::as_array)
+                .and_then(|items| items.first())
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())?
+                .to_string();
+            let doi = source_string(item.get("DOI"));
+            let url = source_string(item.get("URL")).or_else(|| {
+                doi.as_ref()
+                    .map(|value| format!("https://doi.org/{}", value))
+            })?;
+            let container = item
+                .get("container-title")
+                .and_then(Value::as_array)
+                .and_then(|items| items.first())
+                .and_then(Value::as_str)
+                .unwrap_or("Crossref scholarly record");
+            Some(LocalAiVerifiedSource {
+                title,
+                url,
+                snippet: compact_source_text(
+                    item.get("abstract")
+                        .and_then(Value::as_str)
+                        .unwrap_or(container),
+                    700,
+                ),
+                source: "Crossref".to_string(),
+                published_at: item
+                    .get("published")
+                    .and_then(|published| published.get("date-parts"))
+                    .and_then(Value::as_array)
+                    .and_then(|parts| parts.first())
+                    .and_then(Value::as_array)
+                    .and_then(|date| date.first())
+                    .and_then(Value::as_i64)
+                    .map(|year| year.to_string()),
+            })
+        })
+        .collect())
+}
+
+async fn search_openalex(
+    client: &Client,
+    query: &str,
+    limit: u32,
+) -> Result<Vec<LocalAiVerifiedSource>, String> {
+    let limit_text = limit.to_string();
+    let value = read_verified_source_json(
+        client,
+        "https://api.openalex.org/works",
+        &[("search", query), ("per-page", &limit_text)],
+    )
+    .await?;
+
+    Ok(value["results"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            let title = source_string(item.get("display_name"))?;
+            let url = source_string(item.get("doi")).or_else(|| {
+                item.get("primary_location")
+                    .and_then(|location| location.get("landing_page_url"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })?;
+            let cited_by = item
+                .get("cited_by_count")
+                .and_then(Value::as_u64)
+                .map(|count| format!("Cited by {} works", count))
+                .unwrap_or_else(|| "OpenAlex scholarly record".to_string());
+            Some(LocalAiVerifiedSource {
+                title,
+                url,
+                snippet: cited_by,
+                source: "OpenAlex".to_string(),
+                published_at: source_string(item.get("publication_date")),
+            })
+        })
+        .collect())
+}
+
+async fn search_verified_sources(
+    query: &str,
+    max_results: u32,
+) -> Result<Vec<LocalAiVerifiedSource>, String> {
+    let cache_key = query.trim().to_lowercase();
+    if let Ok(cache) = VERIFIED_SOURCE_CACHE.lock() {
+        if let Some((cached_at, results)) = cache.get(&cache_key) {
+            if cached_at.elapsed() < Duration::from_secs(10 * 60) {
+                return Ok(results.iter().take(max_results as usize).cloned().collect());
+            }
+        }
+    }
+    let client = Client::builder()
+        .timeout(Duration::from_secs(12))
+        .build()
+        .map_err(|error| format!("client initialization failed: {}", error))?;
+    let provider_limit = max_results.clamp(1, 8);
+    let (wikipedia, crossref, openalex) = tokio::join!(
+        search_wikipedia(&client, query, provider_limit),
+        search_crossref(&client, query, provider_limit),
+        search_openalex(&client, query, provider_limit),
+    );
+    let mut results = Vec::new();
+    let mut seen_urls = Vec::new();
+    for provider in [wikipedia, crossref, openalex] {
+        match provider {
+            Ok(items) => {
+                for item in items {
+                    if results.len() >= max_results as usize {
+                        break;
+                    }
+                    if seen_urls.iter().any(|url| url == &item.url) {
+                        continue;
+                    }
+                    seen_urls.push(item.url.clone());
+                    results.push(item);
+                }
+            }
+            Err(error) => warn!(
+                "[Plugin:local-ai] verified source provider failed: {}",
+                error
+            ),
+        }
+    }
+    if results.is_empty() {
+        return Err("没有获得可验证来源；请调整关键词或关闭验证来源模式。".to_string());
+    }
+    if let Ok(mut cache) = VERIFIED_SOURCE_CACHE.lock() {
+        cache.retain(|_, (cached_at, _)| cached_at.elapsed() < Duration::from_secs(10 * 60));
+        cache.insert(cache_key, (Instant::now(), results.clone()));
+    }
+    Ok(results)
 }
 
 fn quote_command_part(value: &str) -> String {
@@ -2448,156 +1916,24 @@ pub async fn local_ai_chat_stream(
 }
 
 #[tauri::command]
-pub async fn local_ai_web_search(
+pub async fn local_ai_search_verified_sources(
     app_handle: AppHandle,
-    request: LocalAiWebSearchRequest,
-) -> Result<LocalAiWebSearchResponse, String> {
+    request: LocalAiVerifiedSourceSearchRequest,
+) -> Result<LocalAiVerifiedSourceSearchResponse, String> {
     require_plugin(&app_handle)?;
     let query = request.query.trim();
     if query.is_empty() {
-        return Err("搜索关键词不能为空".to_string());
+        return Err("查询关键词不能为空。".to_string());
     }
-
-    let config = read_config(&app_handle);
-    let max_results = request
-        .max_results
-        .unwrap_or(config.web_search_max_results)
-        .clamp(1, 10);
-
-    let results = search_web_direct(
-        query,
-        max_results,
-        u64::from(config.web_search_timeout_secs.max(3)),
-    )
-    .await?;
-    if results.is_empty() {
-        Err("联网搜索没有返回可用结果，请修改关键词后重试。".to_string())
-    } else {
-        Ok(LocalAiWebSearchResponse {
-            query: query.to_string(),
-            results,
-        })
+    if query.chars().count() > 300 {
+        return Err("查询关键词过长，请控制在 300 个字符以内。".to_string());
     }
-}
-
-#[tauri::command]
-pub async fn local_ai_weather(
-    app_handle: AppHandle,
-    request: LocalAiWeatherRequest,
-) -> Result<LocalAiWeatherResponse, String> {
-    require_plugin(&app_handle)?;
-    let query = request.query.trim();
-    if query.is_empty() {
-        return Err("天气查询不能为空".to_string());
-    }
-    let config = read_config(&app_handle);
-    let client = Client::builder()
-        .timeout(Duration::from_secs(u64::from(
-            config.web_search_timeout_secs.max(3),
-        )))
-        .build()
-        .map_err(|error| format!("创建天气查询客户端失败: {}", error))?;
-    let location = resolve_weather_location(&client, query).await?;
-    let weather_url = "https://api.open-meteo.com/v1/forecast";
-    info!(
-        "[Plugin:local-ai] weather start provider=open_meteo location={} query=\"{}\"",
-        location.name,
-        response_preview(query)
-    );
-    let response = client
-        .get(weather_url)
-        .header(ACCEPT, "application/json")
-        .header(USER_AGENT, "snippets-code-local-ai/1.0")
-        .query(&[
-            ("latitude", location.latitude.to_string()),
-            ("longitude", location.longitude.to_string()),
-            (
-                "current",
-                "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m".to_string(),
-            ),
-            (
-                "daily",
-                "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max".to_string(),
-            ),
-            ("timezone", location.timezone.clone()),
-            ("forecast_days", "1".to_string()),
-        ])
-        .send()
-        .await
-        .map_err(|error| {
-            warn!(
-                "[Plugin:local-ai] weather request failed provider=open_meteo location={} error={}",
-                location.name, error
-            );
-            format!("天气查询请求失败: {}", error)
-        })?;
-    let status = response.status();
-    let body = response.text().await.map_err(|error| {
-        warn!(
-            "[Plugin:local-ai] weather read response failed provider=open_meteo location={} status={} error={}",
-            location.name, status, error
-        );
-        format!("读取天气响应失败: {}", error)
-    })?;
-    info!(
-        "[Plugin:local-ai] weather response provider=open_meteo location={} status={} bytes={} preview=\"{}\"",
-        location.name,
-        status,
-        body.len(),
-        response_preview(&body)
-    );
-    if !status.is_success() {
-        return Err(web_search_status_error(status, &body));
-    }
-    let value = serde_json::from_str::<Value>(&body)
-        .map_err(|error| format!("解析天气响应失败: {}", error))?;
-    let current = value.get("current").unwrap_or(&Value::Null);
-    let current_code = integer_at(current, "weather_code");
-    let daily_code = daily_integer_at(&value, "weather_code");
-    let weather_code = current_code.or(daily_code);
-    let response = LocalAiWeatherResponse {
-        location: location.name.to_string(),
-        country: location.country.to_string(),
-        latitude: value
-            .get("latitude")
-            .and_then(Value::as_f64)
-            .unwrap_or(location.latitude),
-        longitude: value
-            .get("longitude")
-            .and_then(Value::as_f64)
-            .unwrap_or(location.longitude),
-        date: daily_string_at(&value, "time").unwrap_or_default(),
-        time: current
-            .get("time")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string(),
-        timezone: value
-            .get("timezone")
-            .and_then(Value::as_str)
-            .unwrap_or(location.timezone.as_str())
-            .to_string(),
-        temperature: number_at(current, "temperature_2m"),
-        apparent_temperature: number_at(current, "apparent_temperature"),
-        humidity: number_at(current, "relative_humidity_2m"),
-        precipitation: number_at(current, "precipitation"),
-        weather_code,
-        weather_text: weather_code_text(weather_code),
-        wind_speed: number_at(current, "wind_speed_10m"),
-        temperature_max: daily_number_at(&value, "temperature_2m_max"),
-        temperature_min: daily_number_at(&value, "temperature_2m_min"),
-        precipitation_probability: daily_number_at(&value, "precipitation_probability_max"),
-        source: "Open-Meteo".to_string(),
-    };
-    info!(
-        "[Plugin:local-ai] weather parsed provider=open_meteo location={} date={} temp={:?} max={:?} min={:?}",
-        response.location,
-        response.date,
-        response.temperature,
-        response.temperature_max,
-        response.temperature_min
-    );
-    Ok(response)
+    let results =
+        search_verified_sources(query, request.max_results.unwrap_or(6).clamp(1, 8)).await?;
+    Ok(LocalAiVerifiedSourceSearchResponse {
+        query: query.to_string(),
+        results,
+    })
 }
 
 #[tauri::command]
@@ -2668,78 +2004,12 @@ pub fn apply_runtime_change(_app_handle: &AppHandle, enabled: bool) {
         return;
     }
 
-    info!("[Plugin:local-ai] enabled; Agent-Reach resource will be checked on first web search request");
+    info!("[Plugin:local-ai] enabled");
 }
 
 pub fn stop_service_now() {
     match SERVICE_STATE.lock() {
         Ok(mut state) => stop_child_locked(&mut state),
         Err(error) => warn!("[Plugin:local-ai] stop service lock failed: {}", error),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn extracts_weather_location_from_recent_context() {
-        let location = extract_weather_location("今天河北天气如何\n温度呢")
-            .expect("河北 should be recognized");
-        assert_eq!(location.name, "河北");
-        assert_eq!(location.timezone, "Asia/Shanghai");
-        assert_eq!(weather_code_text(Some(3)), "阴/多云");
-    }
-
-    #[test]
-    fn extracts_hefei_weather_location() {
-        let location =
-            extract_weather_location("合肥今天天气怎么样").expect("合肥 should be recognized");
-        assert_eq!(location.name, "合肥");
-        assert_eq!(location.country, "中国");
-    }
-
-    #[test]
-    fn builds_weather_location_candidates_for_geocoding() {
-        let candidates = weather_location_candidates("苏州今天会下雨吗");
-        assert_eq!(candidates.first().map(String::as_str), Some("苏州"));
-    }
-
-    #[test]
-    fn parses_bing_rss_results() {
-        let output = r#"
-        <rss><channel><item>
-          <title>合肥天气预报</title>
-          <link>https://example.com/hefei</link>
-          <description>今天大雨转阴。</description>
-        </item></channel></rss>
-        "#;
-        let results = parse_bing_rss_search_results(output, 5).expect("valid RSS");
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].title, "合肥天气预报");
-        assert_eq!(results[0].url, "https://example.com/hefei");
-        assert_eq!(results[0].content, "今天大雨转阴。");
-        assert_eq!(results[0].engine.as_deref(), Some("Bing RSS"));
-    }
-
-    #[test]
-    fn parses_duckduckgo_related_topics() {
-        let output = r#"{
-          "RelatedTopics": [
-            {
-              "Text": "Example Result - A clean snippet.",
-              "FirstURL": "https://example.com/article"
-            }
-          ]
-        }"#;
-        let results = parse_duckduckgo_search_results(output, 5).expect("valid JSON");
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].title, "Example Result - A clean snippet.");
-        assert_eq!(results[0].url, "https://example.com/article");
-        assert_eq!(results[0].content, "Example Result - A clean snippet.");
-        assert_eq!(
-            results[0].engine.as_deref(),
-            Some("DuckDuckGo Instant Answer")
-        );
     }
 }

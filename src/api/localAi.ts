@@ -28,8 +28,6 @@ export interface LocalAiConfig {
   repeatLastN: number;
   maxTokens: number;
   requestTimeoutSecs: number;
-  webSearchMaxResults: number;
-  webSearchTimeoutSecs: number;
 }
 
 export interface LocalAiRuntimeStatus {
@@ -131,46 +129,22 @@ export interface LocalAiChatStreamOptions {
   onStats?: (stats: LocalAiChatStreamStats) => void;
 }
 
-export interface LocalAiWebSearchRequest {
+export interface LocalAiVerifiedSourceSearchRequest {
   query: string;
   maxResults?: number;
 }
 
-export interface LocalAiWebSearchResult {
+export interface LocalAiVerifiedSource {
   title: string;
   url: string;
-  content: string;
-  engine?: string;
-}
-
-export interface LocalAiWebSearchResponse {
-  query: string;
-  results: LocalAiWebSearchResult[];
-}
-
-export interface LocalAiWeatherRequest {
-  query: string;
-}
-
-export interface LocalAiWeatherResponse {
-  location: string;
-  country: string;
-  latitude: number;
-  longitude: number;
-  date: string;
-  time: string;
-  timezone: string;
-  temperature?: number | null;
-  apparentTemperature?: number | null;
-  humidity?: number | null;
-  precipitation?: number | null;
-  weatherCode?: number | null;
-  weatherText: string;
-  windSpeed?: number | null;
-  temperatureMax?: number | null;
-  temperatureMin?: number | null;
-  precipitationProbability?: number | null;
+  snippet: string;
   source: string;
+  publishedAt?: string | null;
+}
+
+export interface LocalAiVerifiedSourceSearchResponse {
+  query: string;
+  results: LocalAiVerifiedSource[];
 }
 
 export async function getLocalAiConfig(): Promise<LocalAiConfig> {
@@ -262,20 +236,13 @@ export async function cancelLocalAiChatStream(
   return await invoke<boolean>('local_ai_cancel_chat_stream', { requestId });
 }
 
-export async function webSearchWithLocalAi(
-  request: LocalAiWebSearchRequest
-): Promise<LocalAiWebSearchResponse> {
-  return await invoke<LocalAiWebSearchResponse>('local_ai_web_search', {
-    request
-  });
-}
-
-export async function getWeatherWithLocalAi(
-  request: LocalAiWeatherRequest
-): Promise<LocalAiWeatherResponse> {
-  return await invoke<LocalAiWeatherResponse>('local_ai_weather', {
-    request
-  });
+export async function searchVerifiedSourcesWithLocalAi(
+  request: LocalAiVerifiedSourceSearchRequest
+): Promise<LocalAiVerifiedSourceSearchResponse> {
+  return await invoke<LocalAiVerifiedSourceSearchResponse>(
+    'local_ai_search_verified_sources',
+    { request }
+  );
 }
 
 export async function getLocalAiChatHistories(): Promise<LocalAiChatHistory[]> {
