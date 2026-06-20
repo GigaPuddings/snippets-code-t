@@ -1820,6 +1820,12 @@ const formatChatError = (error: unknown): string => {
   if (/exceeds the available context size|exceed_context_size/i.test(message)) {
     return t('localAi.contextExceeded');
   }
+  if (/SearXNG.*\b502\b|\b502 Bad Gateway\b/i.test(message)) {
+    return t('localAi.searxngBadGateway');
+  }
+  if (/无法连接 SearXNG|connection refused|ECONNREFUSED/i.test(message)) {
+    return t('localAi.searxngUnavailable');
+  }
   return message;
 };
 const hasRepetitionLoop = (value: string): boolean => {

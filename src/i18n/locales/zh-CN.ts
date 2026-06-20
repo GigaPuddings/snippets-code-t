@@ -528,6 +528,10 @@ export default {
       name: '本地 AI llama.cpp 运行时',
       description: '本地 AI 插件使用的 llama-server 与 CUDA 运行依赖。'
     },
+    localAiAgentReachRuntime: {
+      name: '本地 AI 联网搜索运行时',
+      description: '为本地 AI 聊天提供 SearXNG 联网搜索与来源整理能力。'
+    },
     screenshot: {
       name: '截图与 OCR',
       description: '截图标注、取色、贴图、OCR 识别和截图翻译入口。',
@@ -1853,6 +1857,10 @@ export default {
     verifiedSourcesUsed: '本次回答使用的联网来源',
     verifiedSourcesNoQuery: '没有可用于联网搜索的问题内容。',
     verifiedSourcesEmpty: 'SearXNG 没有返回搜索结果，请调整关键词或检查服务配置。',
+    searxngUnavailable:
+      '无法连接 SearXNG。请启动服务，并确认设置中的地址可访问。',
+    searxngBadGateway:
+      'SearXNG 服务返回 502。服务已启动但其搜索上游不可用，请检查 SearXNG 日志、网络和搜索引擎配置。',
     webSearch: '联网搜索',
     webSearchDesc: '开启聊天中的联网搜索后，AI 会先从 SearXNG 获取结果，再基于返回内容总结并附上来源。',
     searxngUrl: 'SearXNG 地址',

@@ -534,6 +534,11 @@ export default {
       description:
         'llama-server and CUDA runtime dependencies used by the Local AI plugin.'
     },
+    localAiAgentReachRuntime: {
+      name: 'Local AI Web Search Runtime',
+      description:
+        'Provides SearXNG web search and source preparation for Local AI chat.'
+    },
     screenshot: {
       name: 'Screenshot and OCR',
       description:
@@ -1889,6 +1894,10 @@ export default {
     verifiedSourcesNoQuery: 'There is no question content to search for.',
     verifiedSourcesEmpty:
       'SearXNG returned no results. Refine the query or check the service configuration.',
+    searxngUnavailable:
+      'Cannot connect to SearXNG. Start the service and verify that its configured URL is reachable.',
+    searxngBadGateway:
+      'SearXNG returned 502. The service is running but its search upstream is unavailable; check the SearXNG logs, network, and engine configuration.',
     webSearch: 'Web search',
     webSearchDesc:
       'When enabled in chat, AI retrieves results from SearXNG, summarizes them, and includes the sources.',
