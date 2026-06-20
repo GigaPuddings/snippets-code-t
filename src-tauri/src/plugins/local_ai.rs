@@ -457,6 +457,102 @@ fn is_current_weather_query(query: &str) -> bool {
             .any(|term| lower.contains(term))
 }
 
+fn is_weather_query(query: &str) -> bool {
+    let lower = query.to_lowercase();
+    ["天气", "气温", "温度", "降雨", "下雨", "weather", "temperature", "rain"]
+        .iter()
+        .any(|term| lower.contains(term))
+}
+
+fn weather_location_candidate(query: &str) -> Option<String> {
+    let mut value = query.to_string();
+    for term in [
+        "今天", "今日", "明天", "后天", "现在", "实时", "当地", "天气", "气温", "温度", "降雨",
+        "下雨", "怎么样", "怎样", "如何", "多少", "帮我", "查询", "预报", "的", "weather", "temperature", "today",
+        "current", "now",
+    ] {
+        value = value.replace(term, " ");
+    }
+    let location = value
+        .split_whitespace()
+        .filter(|part| part.chars().any(char::is_alphabetic))
+        .collect::<Vec<_>>()
+        .join(" ");
+    (!location.is_empty()).then_some(location)
+}
+
+fn weather_code_label(code: i64) -> &'static str {
+    match code {
+        0 => "晴",
+        1..=3 => "多云",
+        45 | 48 => "雾",
+        51 | 53 | 55 | 56 | 57 => "毛毛雨",
+        61 | 63 | 65 | 66 | 67 | 80 | 81 | 82 => "雨",
+        71 | 73 | 75 | 77 | 85 | 86 => "雪",
+        95 | 96 | 99 => "雷暴",
+        _ => "未知",
+    }
+}
+
+async fn fetch_weather_api_sources(
+    client: &Client,
+    query: &str,
+) -> Result<Vec<LocalAiVerifiedSource>, String> {
+    let location = weather_location_candidate(query)
+        .ok_or_else(|| "无法从问题中识别天气地点。".to_string())?;
+    let geocoding: Value = client
+        .get("https://geocoding-api.open-meteo.com/v1/search")
+        .query(&[("name", location.as_str()), ("count", "1"), ("language", "zh"), ("format", "json")])
+        .send()
+        .await
+        .map_err(|error| format!("天气地点查询失败: {}", error))?
+        .error_for_status()
+        .map_err(|error| format!("天气地点查询请求失败: {}", error))?
+        .json()
+        .await
+        .map_err(|error| format!("天气地点查询数据无效: {}", error))?;
+    let place = geocoding["results"].as_array().and_then(|items| items.first())
+        .ok_or_else(|| "未找到对应的天气地点。".to_string())?;
+    let latitude = place["latitude"].as_f64().ok_or_else(|| "天气地点缺少纬度。".to_string())?;
+    let longitude = place["longitude"].as_f64().ok_or_else(|| "天气地点缺少经度。".to_string())?;
+    let weather: Value = client
+        .get("https://api.open-meteo.com/v1/forecast")
+        .query(&[
+            ("latitude", latitude.to_string()),
+            ("longitude", longitude.to_string()),
+            ("current", "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m".to_string()),
+            ("daily", "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max".to_string()),
+            ("forecast_days", "1".to_string()),
+            ("timezone", "auto".to_string()),
+        ])
+        .send()
+        .await
+        .map_err(|error| format!("天气接口请求失败: {}", error))?
+        .error_for_status()
+        .map_err(|error| format!("天气接口返回错误: {}", error))?
+        .json()
+        .await
+        .map_err(|error| format!("天气接口数据无效: {}", error))?;
+    let current = &weather["current"];
+    let daily = &weather["daily"];
+    let name = place["name"].as_str().unwrap_or(location.as_str());
+    let value = |item: &Value, key: &str| item[key].as_f64().map(|number| format!("{number:.1}")).unwrap_or_else(|| "未知".to_string());
+    let daily_value = |key: &str| daily[key].as_array().and_then(|items| items.first()).and_then(Value::as_f64).map(|number| format!("{number:.1}")).unwrap_or_else(|| "未知".to_string());
+    let code = current["weather_code"].as_i64().unwrap_or(-1);
+    let day_code = daily["weather_code"].as_array().and_then(|items| items.first()).and_then(Value::as_i64).unwrap_or(code);
+    let observed_at = current["time"].as_str().unwrap_or("未知时间");
+    Ok(vec![LocalAiVerifiedSource {
+        title: format!("{} 实时天气与当日预报（Open-Meteo）", name),
+        url: format!("https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}"),
+        snippet: format!(
+            "观测时间：{observed_at}。实时：{}，气温 {}°C，体感 {}°C，湿度 {}%，降水 {} mm，风速 {} km/h。当日预报：{}，最高 {}°C，最低 {}°C，最大降水概率 {}%。",
+            weather_code_label(code), value(current, "temperature_2m"), value(current, "apparent_temperature"), value(current, "relative_humidity_2m"), value(current, "precipitation"), value(current, "wind_speed_10m"), weather_code_label(day_code), daily_value("temperature_2m_max"), daily_value("temperature_2m_min"), daily_value("precipitation_probability_max")
+        ),
+        source: "Open-Meteo 免费天气 API".to_string(),
+        published_at: Some(observed_at.to_string()),
+    }])
+}
+
 fn build_web_search_query(query: &str) -> String {
     if !is_current_weather_query(query) {
         return query.to_string();
@@ -474,6 +570,15 @@ async fn search_verified_sources(
     max_results: u32,
 ) -> Result<Vec<LocalAiVerifiedSource>, String> {
     let config = read_config(app_handle);
+    let client = Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("client initialization failed: {}", error))?;
+    if is_weather_query(query) {
+        if let Ok(results) = fetch_weather_api_sources(&client, query).await {
+            return Ok(results);
+        }
+    }
     let template = config.web_search_url.trim();
     if !template.contains("{query}") {
         return Err("搜索页面地址必须包含 {query} 占位符。".to_string());
@@ -494,10 +599,6 @@ async fn search_verified_sources(
             }
         }
     }
-    let client = Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|error| format!("client initialization failed: {}", error))?;
     let response = client
         .get(search_url.clone())
         .header(ACCEPT, "text/html,application/xhtml+xml")
