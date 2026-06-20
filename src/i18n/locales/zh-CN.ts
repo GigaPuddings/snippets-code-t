@@ -528,10 +528,6 @@ export default {
       name: '本地 AI llama.cpp 运行时',
       description: '本地 AI 插件使用的 llama-server 与 CUDA 运行依赖。'
     },
-    localAiAgentReachRuntime: {
-      name: '本地 AI 联网搜索运行时',
-      description: '为本地 AI 聊天提供 SearXNG 联网搜索与来源整理能力。'
-    },
     screenshot: {
       name: '截图与 OCR',
       description: '截图标注、取色、贴图、OCR 识别和截图翻译入口。',
@@ -1851,20 +1847,16 @@ export default {
     thinkingEnabled: '思考已开启',
     thinkingDisabled: '思考已关闭',
     verifiedSourcesTitle: '联网搜索',
-    verifiedSourcesEnabled: 'SearXNG 联网搜索已开启',
-    verifiedSourcesDisabled: 'SearXNG 联网搜索已关闭',
-    verifiedSourcesSearching: '正在通过 SearXNG 联网搜索...',
+    verifiedSourcesEnabled: '联网搜索已开启',
+    verifiedSourcesDisabled: '联网搜索已关闭',
+    verifiedSourcesSearching: '正在搜索网页并提取正文...',
     verifiedSourcesUsed: '本次回答使用的联网来源',
     verifiedSourcesNoQuery: '没有可用于联网搜索的问题内容。',
-    verifiedSourcesEmpty: 'SearXNG 没有返回搜索结果，请调整关键词或检查服务配置。',
-    searxngUnavailable:
-      '无法连接 SearXNG。请启动服务，并确认设置中的地址可访问。',
-    searxngBadGateway:
-      'SearXNG 服务返回 502。服务已启动但其搜索上游不可用，请检查 SearXNG 日志、网络和搜索引擎配置。',
+    verifiedSourcesEmpty: '没有获取到可用网页内容，请调整关键词或搜索页面地址。',
     webSearch: '联网搜索',
-    webSearchDesc: '开启聊天中的联网搜索后，AI 会先从 SearXNG 获取结果，再基于返回内容总结并附上来源。',
-    searxngUrl: 'SearXNG 地址',
-    searxngUrlPlaceholder: 'http://127.0.0.1:8080',
+    webSearchDesc: 'AI 会请求搜索 HTML 页面，打开前 3～5 个结果并提取正文后再总结。',
+    webSearchUrl: '搜索页面地址',
+    webSearchUrlPlaceholder: 'https://www.bing.com/search?q={query}',
     jumpToLatest: '回到底部',
     modelChanged: '模型已切换并保存',
     you: '你',

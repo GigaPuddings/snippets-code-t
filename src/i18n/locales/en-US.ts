@@ -534,11 +534,6 @@ export default {
       description:
         'llama-server and CUDA runtime dependencies used by the Local AI plugin.'
     },
-    localAiAgentReachRuntime: {
-      name: 'Local AI Web Search Runtime',
-      description:
-        'Provides SearXNG web search and source preparation for Local AI chat.'
-    },
     screenshot: {
       name: 'Screenshot and OCR',
       description:
@@ -1887,22 +1882,18 @@ export default {
     thinkingEnabled: 'Thinking is on',
     thinkingDisabled: 'Thinking is off',
     verifiedSourcesTitle: 'Web search',
-    verifiedSourcesEnabled: 'SearXNG web search is on',
-    verifiedSourcesDisabled: 'SearXNG web search is off',
-    verifiedSourcesSearching: 'Searching the web with SearXNG...',
+    verifiedSourcesEnabled: 'Web search is on',
+    verifiedSourcesDisabled: 'Web search is off',
+    verifiedSourcesSearching: 'Searching pages and extracting article text...',
     verifiedSourcesUsed: 'Web sources used for this response',
     verifiedSourcesNoQuery: 'There is no question content to search for.',
     verifiedSourcesEmpty:
-      'SearXNG returned no results. Refine the query or check the service configuration.',
-    searxngUnavailable:
-      'Cannot connect to SearXNG. Start the service and verify that its configured URL is reachable.',
-    searxngBadGateway:
-      'SearXNG returned 502. The service is running but its search upstream is unavailable; check the SearXNG logs, network, and engine configuration.',
+      'No usable web content was retrieved. Refine the query or change the search page URL.',
     webSearch: 'Web search',
     webSearchDesc:
-      'When enabled in chat, AI retrieves results from SearXNG, summarizes them, and includes the sources.',
-    searxngUrl: 'SearXNG URL',
-    searxngUrlPlaceholder: 'http://127.0.0.1:8080',
+      'AI requests a search HTML page, opens the first 3–5 results, extracts article text, then summarizes it with sources.',
+    webSearchUrl: 'Search page URL',
+    webSearchUrlPlaceholder: 'https://www.bing.com/search?q={query}',
     jumpToLatest: 'Jump to latest',
     modelChanged: 'Model changed and saved',
     you: 'You',

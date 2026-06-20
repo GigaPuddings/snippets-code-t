@@ -4,6 +4,7 @@ use reqwest::{
     header::{ACCEPT, CACHE_CONTROL, USER_AGENT},
     Client,
 };
+use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -26,7 +27,7 @@ const RUNTIME_PLUGIN_ID: &str = "local-ai-llama-runtime";
 const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
-const DEFAULT_SEARXNG_URL: &str = "http://127.0.0.1:8080";
+const DEFAULT_WEB_SEARCH_URL: &str = "https://www.bing.com/search?q={query}";
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
@@ -72,12 +73,12 @@ pub struct LocalAiConfig {
     pub repeat_last_n: u32,
     pub max_tokens: u32,
     pub request_timeout_secs: u32,
-    #[serde(default = "default_searxng_url")]
-    pub searxng_url: String,
+    #[serde(default = "default_web_search_url")]
+    pub web_search_url: String,
 }
 
-fn default_searxng_url() -> String {
-    DEFAULT_SEARXNG_URL.to_string()
+fn default_web_search_url() -> String {
+    DEFAULT_WEB_SEARCH_URL.to_string()
 }
 
 fn default_top_p() -> f32 {
@@ -132,7 +133,7 @@ impl Default for LocalAiConfig {
             repeat_last_n: default_repeat_last_n(),
             max_tokens: 0,
             request_timeout_secs: 600,
-            searxng_url: default_searxng_url(),
+            web_search_url: default_web_search_url(),
         }
     }
 }
@@ -267,26 +268,6 @@ pub struct LocalAiVerifiedSourceSearchResponse {
     pub results: Vec<LocalAiVerifiedSource>,
 }
 
-#[derive(Debug, Deserialize)]
-struct SearxngSearchResponse {
-    #[serde(default)]
-    results: Vec<SearxngSearchResult>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SearxngSearchResult {
-    #[serde(default)]
-    title: String,
-    #[serde(default)]
-    url: String,
-    #[serde(default)]
-    content: String,
-    #[serde(default)]
-    published_date: Option<String>,
-    #[serde(default)]
-    engine: Option<String>,
-}
-
 #[derive(Default)]
 struct LocalAiServiceState {
     child: Option<Child>,
@@ -382,8 +363,8 @@ fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
     if config.max_tokens == 1024 {
         config.max_tokens = 0;
     }
-    if config.searxng_url.trim().is_empty() {
-        config.searxng_url = default_searxng_url();
+    if config.web_search_url.trim().is_empty() {
+        config.web_search_url = default_web_search_url();
     }
     config
 }
@@ -444,33 +425,17 @@ async fn search_verified_sources(
     max_results: u32,
 ) -> Result<Vec<LocalAiVerifiedSource>, String> {
     let config = read_config(app_handle);
-    let searxng_url = config.searxng_url.trim();
-    let mut endpoint = Url::parse(searxng_url).map_err(|error| {
-        format!(
-            "SearXNG 地址无效（请填写如 http://127.0.0.1:8080）: {}",
-            error
-        )
-    })?;
-    if !matches!(endpoint.scheme(), "http" | "https") {
-        return Err("SearXNG 地址仅支持 http 或 https。".to_string());
+    let template = config.web_search_url.trim();
+    if !template.contains("{query}") {
+        return Err("搜索页面地址必须包含 {query} 占位符。".to_string());
     }
-    if endpoint.host_str().is_none() {
-        return Err("SearXNG 地址缺少主机名。".to_string());
+    let search_url = template.replace("{query}", &urlencoding::encode(query));
+    let endpoint =
+        Url::parse(&search_url).map_err(|error| format!("搜索页面地址无效: {}", error))?;
+    if !matches!(endpoint.scheme(), "http" | "https") || endpoint.host_str().is_none() {
+        return Err("搜索页面地址仅支持有效的 http 或 https URL。".to_string());
     }
-    let endpoint_path = endpoint.path().trim_end_matches('/');
-    if !endpoint_path.ends_with("/search") {
-        endpoint.set_path(&format!("{}/search", endpoint_path));
-    }
-    endpoint.set_query(None);
-    endpoint.set_fragment(None);
-    endpoint
-        .query_pairs_mut()
-        .append_pair("q", query.trim())
-        .append_pair("format", "json")
-        .append_pair("categories", "general")
-        .append_pair("language", "auto");
-
-    let cache_key = format!("{}:{}", endpoint, query.trim().to_lowercase());
+    let cache_key = format!("{}:{}", template, query.trim().to_lowercase());
     if let Ok(cache) = VERIFIED_SOURCE_CACHE.lock() {
         if let Some((cached_at, results)) = cache.get(&cache_key) {
             if cached_at.elapsed() < Duration::from_secs(10 * 60) {
@@ -479,52 +444,93 @@ async fn search_verified_sources(
         }
     }
     let client = Client::builder()
-        .timeout(Duration::from_secs(12))
+        .timeout(Duration::from_secs(15))
         .build()
         .map_err(|error| format!("client initialization failed: {}", error))?;
     let response = client
-        .get(endpoint.clone())
-        .header(ACCEPT, "application/json")
-        .header(USER_AGENT, "Snippets-Code SearXNG chat search/1.0")
+        .get(search_url.clone())
+        .header(ACCEPT, "text/html,application/xhtml+xml")
+        .header(
+            USER_AGENT,
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
+        )
         .send()
         .await
-        .map_err(|error| format!("无法连接 SearXNG（{}）: {}", endpoint, error))?
+        .map_err(|error| format!("无法请求搜索页面（{}）: {}", endpoint, error))?
         .error_for_status()
-        .map_err(|error| format!("SearXNG 请求失败（{}）: {}", endpoint, error))?
-        .json::<SearxngSearchResponse>()
+        .map_err(|error| format!("搜索页面请求失败（{}）: {}", endpoint, error))?
+        .text()
         .await
-        .map_err(|error| format!("SearXNG 返回的不是有效 JSON 搜索结果: {}", error))?;
-    let mut seen_urls = Vec::new();
-    let results = response
-        .results
-        .into_iter()
-        .filter_map(|item| {
-            let url = Url::parse(&item.url).ok()?;
-            if !matches!(url.scheme(), "http" | "https")
-                || seen_urls.iter().any(|seen| seen == url.as_str())
+        .map_err(|error| format!("无法读取搜索页面: {}", error))?;
+    let result_selector = Selector::parse("li.b_algo h2 a, h2 a, h3 a, a")
+        .map_err(|_| "无法初始化搜索页面解析器。".to_string())?;
+    let result_links = {
+        let document = Html::parse_document(&response);
+        let mut seen_urls = Vec::new();
+        let mut links = Vec::new();
+        for link in document.select(&result_selector) {
+            let Some(href) = link.value().attr("href") else {
+                continue;
+            };
+            let Ok(url) = endpoint.join(href) else {
+                continue;
+            };
+            let title = compact_source_text(&link.text().collect::<String>(), 240);
+            if title.len() < 3
+                || !matches!(url.scheme(), "http" | "https")
+                || url.host_str() == endpoint.host_str()
             {
-                return None;
+                continue;
+            }
+            if seen_urls.iter().any(|seen| seen == url.as_str()) {
+                continue;
             }
             seen_urls.push(url.as_str().to_string());
-            let title = compact_source_text(&item.title, 240);
-            let snippet = compact_source_text(&item.content, 1200);
-            if title.is_empty() || snippet.is_empty() {
-                return None;
+            links.push((title, url));
+            if links.len() >= max_results.clamp(3, 5) as usize {
+                break;
             }
-            Some(LocalAiVerifiedSource {
-                title,
-                url: url.to_string(),
-                snippet,
-                source: item
-                    .engine
-                    .unwrap_or_else(|| url.host_str().unwrap_or("SearXNG").to_string()),
-                published_at: item.published_date,
-            })
-        })
-        .take(max_results.clamp(1, 8) as usize)
-        .collect::<Vec<_>>();
+        }
+        links
+    };
+    if result_links.is_empty() {
+        return Err("搜索页面没有解析到可用结果链接；请更换搜索页面地址。".to_string());
+    }
+    let article_selector = Selector::parse("article, main, [role='main'], p")
+        .map_err(|_| "无法初始化正文解析器。".to_string())?;
+    let mut results = Vec::new();
+    for (title, url) in result_links {
+        let page = match client
+            .get(url.clone())
+            .header(USER_AGENT, "Mozilla/5.0")
+            .send()
+            .await
+        {
+            Ok(response) => response.error_for_status().ok(),
+            Err(_) => None,
+        };
+        let Some(page) = page else { continue };
+        let html = match page.text().await {
+            Ok(html) => html,
+            Err(_) => continue,
+        };
+        // Readability-style extraction: prefer semantic article/main containers, then concatenate paragraphs.
+        let content = Html::parse_document(&html)
+            .select(&article_selector)
+            .map(|node| compact_source_text(&node.text().collect::<String>(), 1800))
+            .filter(|text| text.len() >= 120)
+            .max_by_key(|text| text.len());
+        let Some(snippet) = content else { continue };
+        results.push(LocalAiVerifiedSource {
+            title,
+            url: url.to_string(),
+            snippet,
+            source: url.host_str().unwrap_or("网页").to_string(),
+            published_at: None,
+        });
+    }
     if results.is_empty() {
-        return Err("SearXNG 没有返回可用搜索结果。".to_string());
+        return Err("已找到搜索结果，但未能从结果页面提取正文。".to_string());
     }
     if let Ok(mut cache) = VERIFIED_SOURCE_CACHE.lock() {
         cache.retain(|_, (cached_at, _)| cached_at.elapsed() < Duration::from_secs(10 * 60));

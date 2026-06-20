@@ -472,13 +472,13 @@
             </div>
           </div>
           <div class="field-stack">
-            <label class="field-row" :title="paramHint('searxngUrl')">
-              <span>{{ t('localAi.searxngUrl') }}</span>
+            <label class="field-row" :title="paramHint('webSearchUrl')">
+              <span>{{ t('localAi.webSearchUrl') }}</span>
               <input
-                v-model="config.searxngUrl"
+                v-model="config.webSearchUrl"
                 class="text-input"
                 type="url"
-                :placeholder="t('localAi.searxngUrlPlaceholder')"
+                :placeholder="t('localAi.webSearchUrlPlaceholder')"
               />
             </label>
           </div>

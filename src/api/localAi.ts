@@ -28,7 +28,7 @@ export interface LocalAiConfig {
   repeatLastN: number;
   maxTokens: number;
   requestTimeoutSecs: number;
-  searxngUrl: string;
+  webSearchUrl: string;
 }
 
 export interface LocalAiRuntimeStatus {
