@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine as _};
 use futures::StreamExt;
 use log::{info, warn};
 use reqwest::{
@@ -419,6 +420,33 @@ fn compact_source_text(value: &str, limit: usize) -> String {
         .collect()
 }
 
+fn resolve_search_result_url(search_host: Option<&str>, candidate: Url) -> Option<Url> {
+    if candidate.host_str() != search_host {
+        return Some(candidate);
+    }
+    for key in ["url", "uddg", "q"] {
+        if let Some((_, value)) = candidate.query_pairs().find(|(name, _)| name == key) {
+            if let Ok(url) = Url::parse(&value) {
+                if matches!(url.scheme(), "http" | "https") && url.host_str() != search_host {
+                    return Some(url);
+                }
+            }
+        }
+    }
+    if let Some((_, encoded)) = candidate.query_pairs().find(|(name, _)| name == "u") {
+        let encoded = encoded.strip_prefix("a1").unwrap_or(&encoded);
+        let decoded = general_purpose::URL_SAFE_NO_PAD
+            .decode(encoded.as_bytes())
+            .or_else(|_| general_purpose::STANDARD.decode(encoded.as_bytes()))
+            .ok()?;
+        let url = Url::parse(std::str::from_utf8(&decoded).ok()?).ok()?;
+        if matches!(url.scheme(), "http" | "https") && url.host_str() != search_host {
+            return Some(url);
+        }
+    }
+    None
+}
+
 async fn search_verified_sources(
     app_handle: &AppHandle,
     query: &str,
@@ -472,14 +500,14 @@ async fn search_verified_sources(
             let Some(href) = link.value().attr("href") else {
                 continue;
             };
-            let Ok(url) = endpoint.join(href) else {
+            let Ok(candidate) = endpoint.join(href) else {
+                continue;
+            };
+            let Some(url) = resolve_search_result_url(endpoint.host_str(), candidate) else {
                 continue;
             };
             let title = compact_source_text(&link.text().collect::<String>(), 240);
-            if title.len() < 3
-                || !matches!(url.scheme(), "http" | "https")
-                || url.host_str() == endpoint.host_str()
-            {
+            if title.len() < 3 || !matches!(url.scheme(), "http" | "https") {
                 continue;
             }
             if seen_urls.iter().any(|seen| seen == url.as_str()) {
