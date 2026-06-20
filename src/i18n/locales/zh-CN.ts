@@ -1856,7 +1856,7 @@ export default {
     webSearch: '联网搜索',
     webSearchDesc: 'AI 会请求搜索 HTML 页面，打开前 3～5 个结果并提取正文后再总结。',
     webSearchUrl: '搜索页面地址',
-    webSearchUrlPlaceholder: 'https://www.bing.com/search?q={query}',
+    webSearchUrlPlaceholder: 'https://html.duckduckgo.com/html/?q={query}',
     jumpToLatest: '回到底部',
     modelChanged: '模型已切换并保存',
     you: '你',

@@ -28,7 +28,8 @@ const RUNTIME_PLUGIN_ID: &str = "local-ai-llama-runtime";
 const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
-const DEFAULT_WEB_SEARCH_URL: &str = "https://www.bing.com/search?q={query}";
+const DEFAULT_WEB_SEARCH_URL: &str = "https://html.duckduckgo.com/html/?q={query}";
+const LEGACY_WEB_SEARCH_URL: &str = "https://www.bing.com/search?q={query}";
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
@@ -364,7 +365,7 @@ fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
     if config.max_tokens == 1024 {
         config.max_tokens = 0;
     }
-    if config.web_search_url.trim().is_empty() {
+    if config.web_search_url.trim().is_empty() || config.web_search_url == LEGACY_WEB_SEARCH_URL {
         config.web_search_url = default_web_search_url();
     }
     config
@@ -421,9 +422,6 @@ fn compact_source_text(value: &str, limit: usize) -> String {
 }
 
 fn resolve_search_result_url(search_host: Option<&str>, candidate: Url) -> Option<Url> {
-    if candidate.host_str() != search_host {
-        return Some(candidate);
-    }
     for key in ["url", "uddg", "q"] {
         if let Some((_, value)) = candidate.query_pairs().find(|(name, _)| name == key) {
             if let Ok(url) = Url::parse(&value) {
@@ -444,7 +442,7 @@ fn resolve_search_result_url(search_host: Option<&str>, candidate: Url) -> Optio
             return Some(url);
         }
     }
-    None
+    (candidate.host_str() != search_host).then_some(candidate)
 }
 
 async fn search_verified_sources(
@@ -490,6 +488,13 @@ async fn search_verified_sources(
         .text()
         .await
         .map_err(|error| format!("无法读取搜索页面: {}", error))?;
+    if response.to_ascii_lowercase().contains("turnstile")
+        || response.to_ascii_lowercase().contains("captcha")
+    {
+        return Err(
+            "搜索页面要求人机验证，无法在后台解析；请改用不需要验证的搜索页面地址。".to_string(),
+        );
+    }
     let result_selector = Selector::parse("li.b_algo h2 a, h2 a, h3 a, a")
         .map_err(|_| "无法初始化搜索页面解析器。".to_string())?;
     let result_links = {

@@ -1893,7 +1893,7 @@ export default {
     webSearchDesc:
       'AI requests a search HTML page, opens the first 3–5 results, extracts article text, then summarizes it with sources.',
     webSearchUrl: 'Search page URL',
-    webSearchUrlPlaceholder: 'https://www.bing.com/search?q={query}',
+    webSearchUrlPlaceholder: 'https://html.duckduckgo.com/html/?q={query}',
     jumpToLatest: 'Jump to latest',
     modelChanged: 'Model changed and saved',
     you: 'You',
