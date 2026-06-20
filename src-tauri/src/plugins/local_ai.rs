@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose, Engine as _};
+use chrono::Local;
 use futures::StreamExt;
 use log::{info, warn};
 use reqwest::{
@@ -445,6 +446,21 @@ fn resolve_search_result_url(search_host: Option<&str>, candidate: Url) -> Optio
     (candidate.host_str() != search_host).then_some(candidate)
 }
 
+fn build_web_search_query(query: &str) -> String {
+    let lower = query.to_lowercase();
+    let asks_current_weather = ["天气", "气温", "温度", "降雨", "weather", "temperature"]
+        .iter()
+        .any(|term| lower.contains(term))
+        && ["今天", "今日", "现在", "实时", "today", "current", "now"]
+            .iter()
+            .any(|term| lower.contains(term));
+    if !asks_current_weather {
+        return query.to_string();
+    }
+    let today = Local::now().format("%Y-%m-%d");
+    format!("{} {} 当日 实况 温度 降水", query, today)
+}
+
 async fn search_verified_sources(
     app_handle: &AppHandle,
     query: &str,
@@ -455,13 +471,14 @@ async fn search_verified_sources(
     if !template.contains("{query}") {
         return Err("搜索页面地址必须包含 {query} 占位符。".to_string());
     }
-    let search_url = template.replace("{query}", &urlencoding::encode(query));
+    let search_query = build_web_search_query(query);
+    let search_url = template.replace("{query}", &urlencoding::encode(&search_query));
     let endpoint =
         Url::parse(&search_url).map_err(|error| format!("搜索页面地址无效: {}", error))?;
     if !matches!(endpoint.scheme(), "http" | "https") || endpoint.host_str().is_none() {
         return Err("搜索页面地址仅支持有效的 http 或 https URL。".to_string());
     }
-    let cache_key = format!("{}:{}", template, query.trim().to_lowercase());
+    let cache_key = format!("{}:{}", template, search_query.to_lowercase());
     if let Ok(cache) = VERIFIED_SOURCE_CACHE.lock() {
         if let Some((cached_at, results)) = cache.get(&cache_key) {
             if cached_at.elapsed() < Duration::from_secs(10 * 60) {
