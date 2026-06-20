@@ -464,6 +464,26 @@
           </div>
         </div>
 
+        <div class="settings-section">
+          <div class="settings-section__header">
+            <div>
+              <h4>{{ t('localAi.webSearch') }}</h4>
+              <p>{{ t('localAi.webSearchDesc') }}</p>
+            </div>
+          </div>
+          <div class="field-stack">
+            <label class="field-row" :title="paramHint('searxngUrl')">
+              <span>{{ t('localAi.searxngUrl') }}</span>
+              <input
+                v-model="config.searxngUrl"
+                class="text-input"
+                type="url"
+                :placeholder="t('localAi.searxngUrlPlaceholder')"
+              />
+            </label>
+          </div>
+        </div>
+
         <div class="settings-footer">
           <CustomButton type="primary" :loading="saving" @click="saveConfig">
             {{ t('common.save') }}

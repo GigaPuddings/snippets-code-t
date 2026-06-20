@@ -6,10 +6,11 @@ The plugin manages a local llama.cpp server process through app backend commands
 It starts the model only when requested, keeps the service warm while it is being
 used, and stops it after the configured idle timeout.
 
-Verified-source mode is optional per chat. It queries Wikipedia, Crossref, and
-OpenAlex directly through the Rust backend, shows the returned source links,
-and instructs the local model to cite only evidence returned for that turn.
-It does not bundle or start a separate search runtime.
+SearXNG web-search mode is optional per chat. It queries the configured SearXNG
+JSON endpoint, shows the returned source links, and instructs the local model to
+summarize and cite only evidence returned for that turn. The default endpoint is
+`http://127.0.0.1:8080`; run SearXNG separately, then change its address in the
+Local AI settings if needed.
 
 Default model directory:
 

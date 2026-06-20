@@ -28,6 +28,7 @@ export interface LocalAiConfig {
   repeatLastN: number;
   maxTokens: number;
   requestTimeoutSecs: number;
+  searxngUrl: string;
 }
 
 export interface LocalAiRuntimeStatus {

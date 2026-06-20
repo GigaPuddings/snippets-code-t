@@ -1,6 +1,5 @@
 use futures::StreamExt;
 use log::{info, warn};
-use regex::Regex;
 use reqwest::{
     header::{ACCEPT, CACHE_CONTROL, USER_AGENT},
     Client,
@@ -18,7 +17,6 @@ use std::sync::{
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, Window};
 use url::Url;
-use xml::reader::{EventReader, XmlEvent};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -28,6 +26,7 @@ const RUNTIME_PLUGIN_ID: &str = "local-ai-llama-runtime";
 const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
+const DEFAULT_SEARXNG_URL: &str = "http://127.0.0.1:8080";
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
@@ -39,14 +38,6 @@ static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
 static VERIFIED_SOURCE_CACHE: LazyLock<
     Mutex<HashMap<String, (Instant, Vec<LocalAiVerifiedSource>)>>,
 > = LazyLock::new(|| Mutex::new(HashMap::new()));
-static FLIGHT_NUMBER_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\b([A-Z]{2,3}\s?\d{1,4})\b").expect("valid flight regex"));
-static HTML_SCRIPT_STYLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>").expect("valid HTML block regex")
-});
-static HTML_TAG_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?is)<[^>]+>").expect("valid HTML tag regex"));
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAiConfig {
@@ -81,6 +72,12 @@ pub struct LocalAiConfig {
     pub repeat_last_n: u32,
     pub max_tokens: u32,
     pub request_timeout_secs: u32,
+    #[serde(default = "default_searxng_url")]
+    pub searxng_url: String,
+}
+
+fn default_searxng_url() -> String {
+    DEFAULT_SEARXNG_URL.to_string()
 }
 
 fn default_top_p() -> f32 {
@@ -135,6 +132,7 @@ impl Default for LocalAiConfig {
             repeat_last_n: default_repeat_last_n(),
             max_tokens: 0,
             request_timeout_secs: 600,
+            searxng_url: default_searxng_url(),
         }
     }
 }
@@ -269,6 +267,26 @@ pub struct LocalAiVerifiedSourceSearchResponse {
     pub results: Vec<LocalAiVerifiedSource>,
 }
 
+#[derive(Debug, Deserialize)]
+struct SearxngSearchResponse {
+    #[serde(default)]
+    results: Vec<SearxngSearchResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SearxngSearchResult {
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    url: String,
+    #[serde(default)]
+    content: String,
+    #[serde(default)]
+    published_date: Option<String>,
+    #[serde(default)]
+    engine: Option<String>,
+}
+
 #[derive(Default)]
 struct LocalAiServiceState {
     child: Option<Child>,
@@ -364,6 +382,9 @@ fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
     if config.max_tokens == 1024 {
         config.max_tokens = 0;
     }
+    if config.searxng_url.trim().is_empty() {
+        config.searxng_url = default_searxng_url();
+    }
     config
 }
 
@@ -417,648 +438,39 @@ fn compact_source_text(value: &str, limit: usize) -> String {
         .collect()
 }
 
-fn source_string(value: Option<&Value>) -> Option<String> {
-    value
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(str::to_string)
-}
-
-async fn read_verified_source_json(
-    client: &Client,
-    url: &str,
-    query: &[(&str, &str)],
-) -> Result<Value, String> {
-    let response = client
-        .get(url)
-        .header(ACCEPT, "application/json")
-        .header(USER_AGENT, "Snippets-Code verified-source-search/1.0")
-        .query(query)
-        .send()
-        .await
-        .map_err(|error| format!("request failed: {}", error))?;
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|error| format!("response read failed: {}", error))?;
-    if !status.is_success() {
-        return Err(format!("HTTP {}", status));
-    }
-    serde_json::from_str(&body).map_err(|error| format!("invalid JSON: {}", error))
-}
-
-async fn read_verified_source_text(
-    client: &Client,
-    url: &str,
-    query: &[(&str, &str)],
-) -> Result<String, String> {
-    let response = client
-        .get(url)
-        .header(
-            ACCEPT,
-            "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
-        )
-        .header(USER_AGENT, "Snippets-Code verified-source-search/1.0")
-        .query(query)
-        .send()
-        .await
-        .map_err(|error| format!("request failed: {}", error))?;
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|error| format!("response read failed: {}", error))?;
-    if !status.is_success() {
-        return Err(format!("HTTP {}", status));
-    }
-    Ok(body)
-}
-
-async fn search_wikipedia(
-    client: &Client,
-    query: &str,
-    limit: u32,
-) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let language = if query.is_ascii() { "en" } else { "zh" };
-    let url = format!("https://{}.wikipedia.org/w/api.php", language);
-    let limit_text = limit.to_string();
-    let value = read_verified_source_json(
-        client,
-        &url,
-        &[
-            ("action", "query"),
-            ("list", "search"),
-            ("srsearch", query),
-            ("srlimit", &limit_text),
-            ("srprop", "snippet|timestamp"),
-            ("format", "json"),
-            ("formatversion", "2"),
-        ],
-    )
-    .await?;
-
-    Ok(value["query"]["search"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|item| {
-            let title = source_string(item.get("title"))?;
-            let page_id = item.get("pageid").and_then(Value::as_i64)?;
-            Some(LocalAiVerifiedSource {
-                title,
-                url: format!("https://{}.wikipedia.org/?curid={}", language, page_id),
-                snippet: compact_source_text(
-                    item.get("snippet")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default(),
-                    700,
-                ),
-                source: "Wikipedia".to_string(),
-                published_at: source_string(item.get("timestamp")),
-            })
-        })
-        .collect())
-}
-
-async fn search_crossref(
-    client: &Client,
-    query: &str,
-    limit: u32,
-) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let limit_text = limit.to_string();
-    let value = read_verified_source_json(
-        client,
-        "https://api.crossref.org/works",
-        &[("query.bibliographic", query), ("rows", &limit_text)],
-    )
-    .await?;
-
-    Ok(value["message"]["items"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|item| {
-            let title = item
-                .get("title")
-                .and_then(Value::as_array)
-                .and_then(|items| items.first())
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())?
-                .to_string();
-            let doi = source_string(item.get("DOI"));
-            let url = source_string(item.get("URL")).or_else(|| {
-                doi.as_ref()
-                    .map(|value| format!("https://doi.org/{}", value))
-            })?;
-            let container = item
-                .get("container-title")
-                .and_then(Value::as_array)
-                .and_then(|items| items.first())
-                .and_then(Value::as_str)
-                .unwrap_or("Crossref scholarly record");
-            Some(LocalAiVerifiedSource {
-                title,
-                url,
-                snippet: compact_source_text(
-                    item.get("abstract")
-                        .and_then(Value::as_str)
-                        .unwrap_or(container),
-                    700,
-                ),
-                source: "Crossref".to_string(),
-                published_at: item
-                    .get("published")
-                    .and_then(|published| published.get("date-parts"))
-                    .and_then(Value::as_array)
-                    .and_then(|parts| parts.first())
-                    .and_then(Value::as_array)
-                    .and_then(|date| date.first())
-                    .and_then(Value::as_i64)
-                    .map(|year| year.to_string()),
-            })
-        })
-        .collect())
-}
-
-async fn search_openalex(
-    client: &Client,
-    query: &str,
-    limit: u32,
-) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let limit_text = limit.to_string();
-    let value = read_verified_source_json(
-        client,
-        "https://api.openalex.org/works",
-        &[("search", query), ("per-page", &limit_text)],
-    )
-    .await?;
-
-    Ok(value["results"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|item| {
-            let title = source_string(item.get("display_name"))?;
-            let url = source_string(item.get("doi")).or_else(|| {
-                item.get("primary_location")
-                    .and_then(|location| location.get("landing_page_url"))
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-            })?;
-            let cited_by = item
-                .get("cited_by_count")
-                .and_then(Value::as_u64)
-                .map(|count| format!("Cited by {} works", count))
-                .unwrap_or_else(|| "OpenAlex scholarly record".to_string());
-            Some(LocalAiVerifiedSource {
-                title,
-                url,
-                snippet: cited_by,
-                source: "OpenAlex".to_string(),
-                published_at: source_string(item.get("publication_date")),
-            })
-        })
-        .collect())
-}
-
-fn query_contains(query: &str, terms: &[&str]) -> bool {
-    let lower = query.to_lowercase();
-    terms
-        .iter()
-        .any(|term| query.contains(term) || lower.contains(term))
-}
-
-fn weather_location_candidate(query: &str) -> Option<String> {
-    let keywords = [
-        "今天",
-        "今日",
-        "明天",
-        "后天",
-        "现在",
-        "当前",
-        "天气",
-        "气温",
-        "温度",
-        "湿度",
-        "weather",
-        "temperature",
-    ];
-    let mut candidate = query.trim().to_string();
-    for keyword in keywords {
-        if let Some(index) = candidate.find(keyword) {
-            if index > 0 {
-                candidate = candidate[..index].to_string();
-                break;
-            }
-        }
-    }
-    let cleaned = candidate
-        .replace("请问", "")
-        .replace("一下", "")
-        .replace("帮我", "")
-        .replace("查询", "")
-        .trim_matches(|character: char| {
-            !character.is_alphabetic() && character != '·' && character != '-'
-        })
-        .trim()
-        .to_string();
-    (cleaned.chars().count() >= 2).then_some(cleaned)
-}
-
-async fn search_weather(
-    client: &Client,
-    query: &str,
-) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let location = weather_location_candidate(query)
-        .ok_or_else(|| "请在天气问题中包含城市或地区名称。".to_string())?;
-    let geocoding = read_verified_source_json(
-        client,
-        "https://geocoding-api.open-meteo.com/v1/search",
-        &[
-            ("name", location.as_str()),
-            ("count", "1"),
-            ("language", "zh"),
-            ("format", "json"),
-        ],
-    )
-    .await?;
-    let place = geocoding["results"]
-        .as_array()
-        .and_then(|items| items.first())
-        .ok_or_else(|| "没有找到对应的天气地点。".to_string())?;
-    let latitude = place["latitude"]
-        .as_f64()
-        .ok_or_else(|| "天气地点缺少纬度。".to_string())?;
-    let longitude = place["longitude"]
-        .as_f64()
-        .ok_or_else(|| "天气地点缺少经度。".to_string())?;
-    let latitude_text = latitude.to_string();
-    let longitude_text = longitude.to_string();
-    let forecast = read_verified_source_json(
-        client,
-        "https://api.open-meteo.com/v1/forecast",
-        &[
-            ("latitude", &latitude_text),
-            ("longitude", &longitude_text),
-            ("current", "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m"),
-            ("timezone", "auto"),
-        ],
-    )
-    .await?;
-    let current = &forecast["current"];
-    let location_name = source_string(place.get("name")).unwrap_or(location);
-    let updated_at = source_string(current.get("time"));
-    let snippet = format!(
-        "{}：气温 {}°C，体感 {}°C，湿度 {}%，降水 {} mm，风速 {} km/h，天气代码 {}。",
-        location_name,
-        current["temperature_2m"]
-            .as_f64()
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "未知".to_string()),
-        current["apparent_temperature"]
-            .as_f64()
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "未知".to_string()),
-        current["relative_humidity_2m"]
-            .as_i64()
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "未知".to_string()),
-        current["precipitation"]
-            .as_f64()
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "未知".to_string()),
-        current["wind_speed_10m"]
-            .as_f64()
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "未知".to_string()),
-        current["weather_code"]
-            .as_i64()
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "未知".to_string()),
-    );
-    Ok(vec![LocalAiVerifiedSource {
-        title: format!("{} 当前气象观测", location_name),
-        url: format!("https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&timezone=auto", latitude, longitude),
-        snippet,
-        source: "Open-Meteo".to_string(),
-        published_at: updated_at,
-    }])
-}
-
-async fn search_news(
-    client: &Client,
-    query: &str,
-    limit: u32,
-) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let limit_text = limit.to_string();
-    let value = read_verified_source_json(
-        client,
-        "https://api.gdeltproject.org/api/v2/doc/doc",
-        &[
-            ("query", query),
-            ("mode", "artlist"),
-            ("format", "json"),
-            ("maxrecords", &limit_text),
-            ("timespan", "7d"),
-        ],
-    )
-    .await;
-    let gdelt_results = value.map(|value| {
-        value["articles"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|item| {
-                Some(LocalAiVerifiedSource {
-                    title: source_string(item.get("title"))?,
-                    url: source_string(item.get("url"))?,
-                    snippet: source_string(item.get("domain"))
-                        .map(|domain| {
-                            format!("新闻索引收录自 {}；请打开原文核验完整内容。", domain)
-                        })
-                        .unwrap_or_else(|| "新闻索引结果；请打开原文核验完整内容。".to_string()),
-                    source: "GDELT News Index".to_string(),
-                    published_at: source_string(item.get("seendate")),
-                })
-            })
-            .collect::<Vec<_>>()
-    });
-    if let Ok(results) = gdelt_results {
-        if !results.is_empty() {
-            return Ok(results);
-        }
-    }
-    search_google_news_rss(client, query, limit).await
-}
-
-async fn search_google_news_rss(
-    client: &Client,
-    query: &str,
-    limit: u32,
-) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let body = read_verified_source_text(
-        client,
-        "https://news.google.com/rss/search",
-        &[
-            ("q", query),
-            ("hl", "zh-CN"),
-            ("gl", "CN"),
-            ("ceid", "CN:zh-Hans"),
-        ],
-    )
-    .await?;
-    let mut results = Vec::new();
-    let mut in_item = false;
-    let mut field: Option<String> = None;
-    let mut title = String::new();
-    let mut link = String::new();
-    let mut published_at = String::new();
-    for event in EventReader::from_str(&body) {
-        match event.map_err(|error| format!("RSS parse failed: {}", error))? {
-            XmlEvent::StartElement { name, .. } => match name.local_name.as_str() {
-                "item" => {
-                    in_item = true;
-                    title.clear();
-                    link.clear();
-                    published_at.clear();
-                }
-                "title" | "link" | "pubDate" if in_item => field = Some(name.local_name),
-                _ => {}
-            },
-            XmlEvent::EndElement { name } if name.local_name == "item" => {
-                in_item = false;
-                field = None;
-                if !title.trim().is_empty() && link.starts_with("http") {
-                    results.push(LocalAiVerifiedSource {
-                        title: compact_source_text(&title, 240),
-                        url: link.trim().to_string(),
-                        snippet: "新闻索引结果；请打开原始报道核验完整事实与上下文。".to_string(),
-                        source: "Google News RSS".to_string(),
-                        published_at: (!published_at.trim().is_empty())
-                            .then_some(published_at.trim().to_string()),
-                    });
-                }
-                if results.len() >= limit as usize {
-                    break;
-                }
-            }
-            XmlEvent::EndElement { name } if field.as_deref() == Some(name.local_name.as_str()) => {
-                field = None
-            }
-            XmlEvent::Characters(text) | XmlEvent::CData(text) => match field.as_deref() {
-                Some("title") => title.push_str(&text),
-                Some("link") => link.push_str(&text),
-                Some("pubDate") => published_at.push_str(&text),
-                _ => {}
-            },
-            _ => {}
-        }
-    }
-    if results.is_empty() {
-        Err("新闻来源暂时没有可用结果。".to_string())
-    } else {
-        Ok(results)
-    }
-}
-
-async fn search_crypto_price(
-    client: &Client,
-    query: &str,
-) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let (id, name) = if query_contains(query, &["比特币", "bitcoin", "btc"]) {
-        ("bitcoin", "Bitcoin")
-    } else if query_contains(query, &["以太坊", "ethereum", "eth"]) {
-        ("ethereum", "Ethereum")
-    } else if query_contains(query, &["solana", "sol"]) {
-        ("solana", "Solana")
-    } else {
-        return Err("当前仅支持比特币、以太坊和 Solana 的免密钥实时价格查询。".to_string());
-    };
-    let value = read_verified_source_json(
-        client,
-        "https://api.coingecko.com/api/v3/simple/price",
-        &[
-            ("ids", id),
-            ("vs_currencies", "usd,cny"),
-            ("include_24hr_change", "true"),
-            ("include_last_updated_at", "true"),
-        ],
-    )
-    .await?;
-    let price = &value[id];
-    let updated = price["last_updated_at"]
-        .as_i64()
-        .map(|value| value.to_string());
-    Ok(vec![LocalAiVerifiedSource {
-        title: format!("{} 实时价格", name),
-        url: format!("https://www.coingecko.com/en/coins/{}", id),
-        snippet: format!(
-            "USD ${}，CNY ¥{}，24 小时变化 {}%。",
-            price["usd"]
-                .as_f64()
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "未知".to_string()),
-            price["cny"]
-                .as_f64()
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "未知".to_string()),
-            price["usd_24h_change"]
-                .as_f64()
-                .map(|value| format!("{:.2}", value))
-                .unwrap_or_else(|| "未知".to_string())
-        ),
-        source: "CoinGecko".to_string(),
-        published_at: updated,
-    }])
-}
-
-async fn search_flight_state(
-    client: &Client,
-    query: &str,
-) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let flight = FLIGHT_NUMBER_RE
-        .captures(query)
-        .and_then(|captures| captures.get(1))
-        .map(|value| value.as_str().replace(' ', "").to_uppercase())
-        .ok_or_else(|| {
-            "请提供航班号，例如 CA123；该免费来源不提供航班计划或延误数据。".to_string()
-        })?;
-    let value =
-        read_verified_source_json(client, "https://opensky-network.org/api/states/all", &[])
-            .await?;
-    let state = value["states"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find(|state| {
-            state
-                .as_array()
-                .and_then(|items| items.get(1))
-                .and_then(Value::as_str)
-                .map(|callsign| callsign.trim().eq_ignore_ascii_case(&flight))
-                .unwrap_or(false)
-        })
-        .and_then(Value::as_array)
-        .ok_or_else(|| "未观测到该航班的实时 ADS-B 状态；这不代表航班取消或延误。".to_string())?;
-    Ok(vec![LocalAiVerifiedSource {
-        title: format!("{} ADS-B 实时观测", flight), url: "https://opensky-network.org/data/api".to_string(),
-        snippet: format!("最后观测时间戳 {}；经度 {:?}，纬度 {:?}，气压高度 {:?} 米，地速 {:?} 米/秒。仅代表 ADS-B 观测状态，不代表计划、登机口或延误。", state.get(3).and_then(Value::as_i64).unwrap_or_default(), state.get(5).and_then(Value::as_f64), state.get(6).and_then(Value::as_f64), state.get(7).and_then(Value::as_f64), state.get(9).and_then(Value::as_f64)),
-        source: "OpenSky ADS-B".to_string(), published_at: state.get(3).and_then(Value::as_i64).map(|value| value.to_string()),
-    }])
-}
-
-fn source_page_url_is_safe(value: &str) -> Result<Url, String> {
-    let url = Url::parse(value).map_err(|_| "来源链接格式无效。".to_string())?;
-    if url.scheme() != "https" || url.username() != "" || url.password().is_some() {
-        return Err("来源链接不符合安全抓取要求。".to_string());
-    }
-    let host = url
-        .host_str()
-        .ok_or_else(|| "来源链接缺少主机名。".to_string())?;
-    if host.eq_ignore_ascii_case("localhost") || host.ends_with(".local") {
-        return Err("拒绝抓取本地来源链接。".to_string());
-    }
-    if let Ok(address) = host.parse::<std::net::IpAddr>() {
-        let blocked = match address {
-            std::net::IpAddr::V4(ip) => {
-                ip.is_private() || ip.is_loopback() || ip.is_link_local() || ip.is_unspecified()
-            }
-            std::net::IpAddr::V6(ip) => {
-                ip.is_loopback()
-                    || ip.is_unspecified()
-                    || ip.is_unicast_link_local()
-                    || ip.is_unique_local()
-            }
-        };
-        if blocked {
-            return Err("拒绝抓取私有网络来源链接。".to_string());
-        }
-    }
-    Ok(url)
-}
-
-async fn fetch_source_page_evidence(value: &str) -> Result<String, String> {
-    let url = source_page_url_is_safe(value)?;
-    let client = Client::builder()
-        .timeout(Duration::from_secs(8))
-        .redirect(reqwest::redirect::Policy::custom(|attempt| {
-            if source_page_url_is_safe(attempt.url().as_str()).is_err() {
-                attempt.error("unsafe redirect target")
-            } else if attempt.previous().len() >= 3 {
-                attempt.error("too many redirects")
-            } else {
-                attempt.follow()
-            }
-        }))
-        .build()
-        .map_err(|error| format!("正文客户端初始化失败: {}", error))?;
-    let response = client
-        .get(url)
-        .header(ACCEPT, "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1")
-        .header(USER_AGENT, "Snippets-Code evidence-fetcher/1.0")
-        .send()
-        .await
-        .map_err(|error| format!("正文请求失败: {}", error))?;
-    if !response.status().is_success() {
-        return Err(format!("正文请求返回 HTTP {}", response.status()));
-    }
-    if response
-        .content_length()
-        .is_some_and(|length| length > 1_000_000)
-    {
-        return Err("正文响应超过 1 MB 限制。".to_string());
-    }
-    let mut bytes = Vec::new();
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| format!("正文读取失败: {}", error))?;
-        if bytes.len() + chunk.len() > 1_000_000 {
-            return Err("正文响应超过 1 MB 限制。".to_string());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    let html = String::from_utf8_lossy(&bytes);
-    let without_blocks = HTML_SCRIPT_STYLE_RE.replace_all(&html, " ");
-    let text = compact_source_text(&HTML_TAG_RE.replace_all(&without_blocks, " "), 2400);
-    if text.chars().count() < 160 {
-        return Err("正文可提取文本不足。".to_string());
-    }
-    Ok(text)
-}
-
-async fn enrich_source_pages(
-    mut results: Vec<LocalAiVerifiedSource>,
-) -> Vec<LocalAiVerifiedSource> {
-    for result in results.iter_mut().take(3) {
-        let needs_original_page = matches!(
-            result.source.as_str(),
-            "Wikipedia" | "Crossref" | "OpenAlex"
-        ) || result.source.contains("News");
-        if !needs_original_page {
-            continue;
-        }
-        match fetch_source_page_evidence(&result.url).await {
-            Ok(evidence) => {
-                result.snippet = evidence;
-                result.source = format!("{} · 原文已校验", result.source);
-            }
-            Err(error) => warn!(
-                "[Plugin:local-ai] source page extraction skipped: {}",
-                error
-            ),
-        }
-    }
-    results
-}
-
 async fn search_verified_sources(
+    app_handle: &AppHandle,
     query: &str,
     max_results: u32,
 ) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let cache_key = query.trim().to_lowercase();
+    let config = read_config(app_handle);
+    let searxng_url = config.searxng_url.trim();
+    let mut endpoint = Url::parse(searxng_url).map_err(|error| {
+        format!(
+            "SearXNG 地址无效（请填写如 http://127.0.0.1:8080）: {}",
+            error
+        )
+    })?;
+    if !matches!(endpoint.scheme(), "http" | "https") {
+        return Err("SearXNG 地址仅支持 http 或 https。".to_string());
+    }
+    if endpoint.host_str().is_none() {
+        return Err("SearXNG 地址缺少主机名。".to_string());
+    }
+    let endpoint_path = endpoint.path().trim_end_matches('/');
+    if !endpoint_path.ends_with("/search") {
+        endpoint.set_path(&format!("{}/search", endpoint_path));
+    }
+    endpoint.set_query(None);
+    endpoint.set_fragment(None);
+    endpoint
+        .query_pairs_mut()
+        .append_pair("q", query.trim())
+        .append_pair("format", "json")
+        .append_pair("categories", "general")
+        .append_pair("language", "auto");
+
+    let cache_key = format!("{}:{}", endpoint, query.trim().to_lowercase());
     if let Ok(cache) = VERIFIED_SOURCE_CACHE.lock() {
         if let Some((cached_at, results)) = cache.get(&cache_key) {
             if cached_at.elapsed() < Duration::from_secs(10 * 60) {
@@ -1070,99 +482,49 @@ async fn search_verified_sources(
         .timeout(Duration::from_secs(12))
         .build()
         .map_err(|error| format!("client initialization failed: {}", error))?;
-    let provider_limit = max_results.clamp(1, 8);
-    let realtime_result = if query_contains(
-        query,
-        &[
-            "天气",
-            "气温",
-            "温度",
-            "湿度",
-            "下雨",
-            "降雨",
-            "weather",
-            "temperature",
-        ],
-    ) {
-        Some(search_weather(&client, query).await)
-    } else if query_contains(query, &["新闻", "消息", "报道", "news", "headline"]) {
-        Some(search_news(&client, query, provider_limit).await)
-    } else if query_contains(
-        query,
-        &[
-            "价格",
-            "行情",
-            "币价",
-            "price",
-            "crypto",
-            "比特币",
-            "以太坊",
-            "solana",
-            "btc",
-            "eth",
-            "sol",
-        ],
-    ) {
-        Some(search_crypto_price(&client, query).await)
-    } else if query_contains(query, &["航班", "飞机", "flight"]) {
-        Some(search_flight_state(&client, query).await)
-    } else {
-        None
-    };
-    if let Some(result) = realtime_result {
-        let results = result?;
-        if let Ok(mut cache) = VERIFIED_SOURCE_CACHE.lock() {
-            cache.insert(cache_key, (Instant::now(), results.clone()));
-        }
-        return Ok(results);
-    }
-    let academic_query = query_contains(
-        query,
-        &[
-            "论文", "研究", "学术", "文献", "paper", "research", "study", "doi", "citation",
-        ],
-    );
-    if !academic_query {
-        let results =
-            enrich_source_pages(search_wikipedia(&client, query, provider_limit).await?).await;
-        if results.is_empty() {
-            return Err("没有找到可验证的百科来源。".to_string());
-        }
-        if let Ok(mut cache) = VERIFIED_SOURCE_CACHE.lock() {
-            cache.insert(cache_key, (Instant::now(), results.clone()));
-        }
-        return Ok(results);
-    }
-    let (wikipedia, crossref, openalex) = tokio::join!(
-        search_wikipedia(&client, query, provider_limit),
-        search_crossref(&client, query, provider_limit),
-        search_openalex(&client, query, provider_limit),
-    );
-    let mut results = Vec::new();
+    let response = client
+        .get(endpoint.clone())
+        .header(ACCEPT, "application/json")
+        .header(USER_AGENT, "Snippets-Code SearXNG chat search/1.0")
+        .send()
+        .await
+        .map_err(|error| format!("无法连接 SearXNG（{}）: {}", endpoint, error))?
+        .error_for_status()
+        .map_err(|error| format!("SearXNG 请求失败（{}）: {}", endpoint, error))?
+        .json::<SearxngSearchResponse>()
+        .await
+        .map_err(|error| format!("SearXNG 返回的不是有效 JSON 搜索结果: {}", error))?;
     let mut seen_urls = Vec::new();
-    for provider in [wikipedia, crossref, openalex] {
-        match provider {
-            Ok(items) => {
-                for item in items {
-                    if results.len() >= max_results as usize {
-                        break;
-                    }
-                    if seen_urls.iter().any(|url| url == &item.url) {
-                        continue;
-                    }
-                    seen_urls.push(item.url.clone());
-                    results.push(item);
-                }
+    let results = response
+        .results
+        .into_iter()
+        .filter_map(|item| {
+            let url = Url::parse(&item.url).ok()?;
+            if !matches!(url.scheme(), "http" | "https")
+                || seen_urls.iter().any(|seen| seen == url.as_str())
+            {
+                return None;
             }
-            Err(error) => warn!(
-                "[Plugin:local-ai] verified source provider failed: {}",
-                error
-            ),
-        }
-    }
-    let results = enrich_source_pages(results).await;
+            seen_urls.push(url.as_str().to_string());
+            let title = compact_source_text(&item.title, 240);
+            let snippet = compact_source_text(&item.content, 1200);
+            if title.is_empty() || snippet.is_empty() {
+                return None;
+            }
+            Some(LocalAiVerifiedSource {
+                title,
+                url: url.to_string(),
+                snippet,
+                source: item
+                    .engine
+                    .unwrap_or_else(|| url.host_str().unwrap_or("SearXNG").to_string()),
+                published_at: item.published_date,
+            })
+        })
+        .take(max_results.clamp(1, 8) as usize)
+        .collect::<Vec<_>>();
     if results.is_empty() {
-        return Err("没有获得可验证来源；请调整关键词或关闭验证来源模式。".to_string());
+        return Err("SearXNG 没有返回可用搜索结果。".to_string());
     }
     if let Ok(mut cache) = VERIFIED_SOURCE_CACHE.lock() {
         cache.retain(|_, (cached_at, _)| cached_at.elapsed() < Duration::from_secs(10 * 60));
@@ -2458,8 +1820,12 @@ pub async fn local_ai_search_verified_sources(
     if query.chars().count() > 300 {
         return Err("查询关键词过长，请控制在 300 个字符以内。".to_string());
     }
-    let results =
-        search_verified_sources(query, request.max_results.unwrap_or(6).clamp(1, 8)).await?;
+    let results = search_verified_sources(
+        &app_handle,
+        query,
+        request.max_results.unwrap_or(6).clamp(1, 8),
+    )
+    .await?;
     Ok(LocalAiVerifiedSourceSearchResponse {
         query: query.to_string(),
         results,
