@@ -459,17 +459,48 @@ fn is_current_weather_query(query: &str) -> bool {
 
 fn is_weather_query(query: &str) -> bool {
     let lower = query.to_lowercase();
-    ["天气", "气温", "温度", "降雨", "下雨", "weather", "temperature", "rain"]
-        .iter()
-        .any(|term| lower.contains(term))
+    [
+        "天气",
+        "气温",
+        "温度",
+        "降雨",
+        "下雨",
+        "weather",
+        "temperature",
+        "rain",
+    ]
+    .iter()
+    .any(|term| lower.contains(term))
 }
 
 fn weather_location_candidate(query: &str) -> Option<String> {
     let mut value = query.to_string();
     for term in [
-        "今天", "今日", "明天", "后天", "现在", "实时", "当地", "天气", "气温", "温度", "降雨",
-        "下雨", "怎么样", "怎样", "如何", "多少", "帮我", "查询", "预报", "的", "weather", "temperature", "today",
-        "current", "now",
+        "今天",
+        "今日",
+        "明天",
+        "后天",
+        "现在",
+        "实时",
+        "当地",
+        "天气",
+        "气温",
+        "温度",
+        "降雨",
+        "下雨",
+        "怎么样",
+        "怎样",
+        "如何",
+        "多少",
+        "帮我",
+        "查询",
+        "预报",
+        "的",
+        "weather",
+        "temperature",
+        "today",
+        "current",
+        "now",
     ] {
         value = value.replace(term, " ");
     }
@@ -502,7 +533,12 @@ async fn fetch_weather_api_sources(
         .ok_or_else(|| "无法从问题中识别天气地点。".to_string())?;
     let geocoding: Value = client
         .get("https://geocoding-api.open-meteo.com/v1/search")
-        .query(&[("name", location.as_str()), ("count", "1"), ("language", "zh"), ("format", "json")])
+        .query(&[
+            ("name", location.as_str()),
+            ("count", "1"),
+            ("language", "zh"),
+            ("format", "json"),
+        ])
         .send()
         .await
         .map_err(|error| format!("天气地点查询失败: {}", error))?
@@ -511,10 +547,16 @@ async fn fetch_weather_api_sources(
         .json()
         .await
         .map_err(|error| format!("天气地点查询数据无效: {}", error))?;
-    let place = geocoding["results"].as_array().and_then(|items| items.first())
+    let place = geocoding["results"]
+        .as_array()
+        .and_then(|items| items.first())
         .ok_or_else(|| "未找到对应的天气地点。".to_string())?;
-    let latitude = place["latitude"].as_f64().ok_or_else(|| "天气地点缺少纬度。".to_string())?;
-    let longitude = place["longitude"].as_f64().ok_or_else(|| "天气地点缺少经度。".to_string())?;
+    let latitude = place["latitude"]
+        .as_f64()
+        .ok_or_else(|| "天气地点缺少纬度。".to_string())?;
+    let longitude = place["longitude"]
+        .as_f64()
+        .ok_or_else(|| "天气地点缺少经度。".to_string())?;
     let weather: Value = client
         .get("https://api.open-meteo.com/v1/forecast")
         .query(&[
@@ -536,10 +578,26 @@ async fn fetch_weather_api_sources(
     let current = &weather["current"];
     let daily = &weather["daily"];
     let name = place["name"].as_str().unwrap_or(location.as_str());
-    let value = |item: &Value, key: &str| item[key].as_f64().map(|number| format!("{number:.1}")).unwrap_or_else(|| "未知".to_string());
-    let daily_value = |key: &str| daily[key].as_array().and_then(|items| items.first()).and_then(Value::as_f64).map(|number| format!("{number:.1}")).unwrap_or_else(|| "未知".to_string());
+    let value = |item: &Value, key: &str| {
+        item[key]
+            .as_f64()
+            .map(|number| format!("{number:.1}"))
+            .unwrap_or_else(|| "未知".to_string())
+    };
+    let daily_value = |key: &str| {
+        daily[key]
+            .as_array()
+            .and_then(|items| items.first())
+            .and_then(Value::as_f64)
+            .map(|number| format!("{number:.1}"))
+            .unwrap_or_else(|| "未知".to_string())
+    };
     let code = current["weather_code"].as_i64().unwrap_or(-1);
-    let day_code = daily["weather_code"].as_array().and_then(|items| items.first()).and_then(Value::as_i64).unwrap_or(code);
+    let day_code = daily["weather_code"]
+        .as_array()
+        .and_then(|items| items.first())
+        .and_then(Value::as_i64)
+        .unwrap_or(code);
     let observed_at = current["time"].as_str().unwrap_or("未知时间");
     Ok(vec![LocalAiVerifiedSource {
         title: format!("{} 实时天气与当日预报（Open-Meteo）", name),
@@ -551,6 +609,23 @@ async fn fetch_weather_api_sources(
         source: "Open-Meteo 免费天气 API".to_string(),
         published_at: Some(observed_at.to_string()),
     }])
+}
+
+fn extract_weather_com_cn_observation(html: &str) -> Option<String> {
+    let payload = Regex::new(r"(?s)var\s+observe24h_data\s*=\s*(\{.*?\})\s*;")
+        .ok()?
+        .captures(html)?
+        .get(1)?
+        .as_str();
+    let data: Value = serde_json::from_str(payload).ok()?;
+    let observation = data["od"]["od2"].as_array()?.first()?;
+    let station = data["od"]["od1"].as_str().unwrap_or("当地");
+    let time = data["od"]["od0"].as_str().unwrap_or("未知时间");
+    let field = |key: &str| observation[key].as_str().unwrap_or("未知");
+    Some(format!(
+        "中国天气网观测时间：{time}。{station}：气温 {}°C，湿度 {}%，风向 {}，风力 {} 级，降水 {} mm。",
+        field("od22"), field("od28"), field("od24"), field("od25"), field("od26")
+    ))
 }
 
 fn build_web_search_query(query: &str) -> String {
@@ -711,6 +786,20 @@ async fn search_verified_sources(
             Ok(html) => html,
             Err(_) => continue,
         };
+        if url.host_str().is_some_and(|host| {
+            host.eq_ignore_ascii_case("weather.com.cn") || host.ends_with(".weather.com.cn")
+        }) {
+            if let Some(snippet) = extract_weather_com_cn_observation(&html) {
+                results.push(LocalAiVerifiedSource {
+                    title: format!("{}（中国天气网实时观测）", title),
+                    url: url.to_string(),
+                    snippet,
+                    source: "中国天气网公开观测数据".to_string(),
+                    published_at: None,
+                });
+                continue;
+            }
+        }
         // Readability-style extraction: prefer semantic article/main containers, then concatenate paragraphs.
         let content = Html::parse_document(&html)
             .select(&article_selector)
