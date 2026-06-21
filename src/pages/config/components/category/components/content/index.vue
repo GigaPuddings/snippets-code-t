@@ -37,6 +37,16 @@
             </svg>
           </button>
         </div>
+
+        <button
+          v-if="state.currentContent"
+          class="ai-assist-button"
+          type="button"
+          title="AI 辅助"
+          @click="showAiAssist = true"
+        >
+          <span>✦</span> AI
+        </button>
       </div>
 
       <!-- 标签输入 -->
@@ -64,6 +74,17 @@
       :new-fragment-title="backlinkUpdateData?.newTitle || ''" :backlink-count="backlinkStats?.count || 0"
       :backlink-fragments="backlinkStats?.fragments || []" @confirm="handleBacklinkUpdateConfirm"
       @cancel="handleBacklinkUpdateCancel" />
+
+    <AiAssistDialog
+      v-model="showAiAssist"
+      :content="state.editorContent"
+      :title="draftTitle"
+      :tags="state.tags"
+      :fragment-type="currentEditorType"
+      @apply-content="applyAiContent"
+      @apply-title="applyAiTitle"
+      @apply-tags="applyAiTags"
+    />
 
     <!-- 编辑器加载指示器 -->
     <div v-if="state.isEditorLoading" class="editor-loading">
@@ -111,6 +132,7 @@ import { useRouter } from 'vue-router';
 import { ConfirmDialog } from '@/components/UI';
 import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
+import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
 import { htmlToMarkdown, createTurndownService, markdownToHtml, jsonToMarkdown } from '@/components/TipTapEditor/utils/markdown';
 import { getWorkspaceRoot } from '@/api/markdown';
 import { syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/plugins/attachments/api';
@@ -167,6 +189,7 @@ const state = reactive({
 
 const draftTitle = ref('');
 const titleDirty = ref(false);
+const showAiAssist = ref(false);
 
 // 工作区根目录
 const workspaceRoot = ref<string>('');
@@ -837,6 +860,20 @@ const computeContentHash = (content: string): string => {
   return `${normalized.length}:${hash}`;
 };
 
+const applyAiContent = (content: string) => {
+  handleContentChange(content, 'content', state.editorContent);
+};
+
+const applyAiTitle = (title: string) => {
+  draftTitle.value = title;
+  titleDirty.value = title.trim() !== state.title.trim();
+  commitTitleChange();
+};
+
+const applyAiTags = (tags: string[]) => {
+  handleTagsChange(tags);
+};
+
 // 处理编辑器内容变更
 const handleEditorChange = (value: string) => {
   if (state.isInitializing) return;
@@ -1495,6 +1532,18 @@ onMounted(async () => {
   }
 }
 
+.ai-assist-button {
+  @apply h-7 px-2 flex items-center gap-1 rounded text-xs font-medium cursor-pointer;
+  color: #6941c6;
+  border: 1px solid rgba(122, 90, 248, 0.28);
+  background: rgba(122, 90, 248, 0.08);
+  transition: background-color 0.15s ease, transform 0.15s ease;
+
+  span { font-size: 14px; line-height: 1; }
+  &:hover { background: rgba(122, 90, 248, 0.16); }
+  &:active { transform: scale(0.97); }
+}
+
 :global(.dark) {
   .control-btn {
     &:hover {
@@ -1512,6 +1561,12 @@ onMounted(async () => {
     &:hover svg {
       color: var(--el-color-primary);
     }
+  }
+
+  .ai-assist-button {
+    color: #c7b9ff;
+    border-color: rgba(199, 185, 255, 0.3);
+    background: rgba(122, 90, 248, 0.18);
   }
 }
 </style>

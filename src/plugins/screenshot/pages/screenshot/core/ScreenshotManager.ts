@@ -9,6 +9,7 @@ import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, Color
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
 import { logger, ocrDiagnosticLogger } from '@/utils/logger'
+import { chatWithLocalAi } from '@/api/localAi'
 import { canTranslateDetectedLanguage, detectTranslationLanguage } from '@/utils/text'
 import { distance, getRectCenter } from '../utils/geometry'
 import { reflowOcrBlocks, type ParagraphBlock } from './OcrLayoutReflow'
@@ -1526,7 +1527,13 @@ export class ScreenshotManager {
       ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('正在识别翻译...', centerX, centerY)
+      ctx.fillText(
+        this.translationOverlay.engine === 'local-ai'
+          ? '正在由 AI 识图翻译...'
+          : '正在识别翻译...',
+        centerX,
+        centerY
+      )
       
       ctx.restore()
       return
@@ -3135,6 +3142,13 @@ export class ScreenshotManager {
       return
     }
 
+    // AI 翻译直接把框选图片交给支持视觉的本地模型。它不经过 OCR，
+    // 能利用截图中的布局、上下文和混排文字来获得更自然的翻译结果。
+    if (this.translationOverlay.engine === 'local-ai') {
+      await this.performVisionTranslation()
+      return
+    }
+
     try {
       const pipelineStartedAt = performance.now()
       let cropDurationMs = 0
@@ -3620,6 +3634,98 @@ export class ScreenshotManager {
     }
   }
 
+  private async performVisionTranslation(): Promise<void> {
+    if (!this.selectionRect || !this.backgroundImage) return
+
+    try {
+      const { x, y, width, height } = this.selectionRect
+      const capture = await this.cropFromBackground(x, y, width, height)
+      if (!capture?.image) {
+        throw new Error('无法获取截图选区图像')
+      }
+
+      const response = await chatWithLocalAi({
+        temperature: 0.2,
+        maxTokens: 4096,
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'You are a visual translation engine.',
+              'Read the text in the supplied screenshot directly; do not describe the image.',
+              'Detect the source language. Translate Chinese to English, and translate other languages to Simplified Chinese.',
+              'Preserve headings, paragraphs, lists, tables, code, numbers, URLs, labels, and the reading order as faithfully as possible.',
+              'Return only the translated text. Do not add explanations, confidence notes, or Markdown fences.'
+            ].join(' ')
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Translate all readable text in this screenshot.'
+              },
+              {
+                type: 'image_url' as const,
+                image_url: {
+                  url: `data:image/png;base64,${capture.image}`
+                }
+              }
+            ]
+          }
+        ]
+      })
+
+      const translatedText = response.content.trim()
+      if (!translatedText) {
+        throw new Error('AI 未返回可显示的翻译结果')
+      }
+
+      const block: OcrTextBlock = {
+        text: '',
+        translatedText,
+        x: 0,
+        y: 0,
+        width,
+        height,
+        fontSize: Math.max(14, Math.min(20, Math.round(height / 18))),
+        lineHeight: Math.max(18, Math.min(28, Math.round(height / 12))),
+        angle: 0
+      }
+      this.translationOverlay.blocks = [block]
+      this.translationOverlay.paragraphBlocks = [{
+        text: '',
+        translatedText,
+        blocks: [block],
+        bbox: { x: 0, y: 0, width, height },
+        isCodeBlock: false,
+        isStructuredBlock: false,
+        fontSize: block.fontSize,
+        lineHeight: block.lineHeight,
+        angle: 0
+      }]
+      this.translationOverlay.sourceLanguage = 'auto'
+      this.translationOverlay.targetLanguage = 'auto'
+      this.translationOverlay.isLoading = false
+      this.translationOverlay.isVisible = true
+      this.translationOverlay.errorMessage = undefined
+      this.draw()
+      this.onStateChange?.()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error('[截图] AI 识图翻译失败', error)
+      this.translationOverlay.isLoading = false
+      this.translationOverlay.isVisible = true
+      this.translationOverlay.blocks = []
+      this.translationOverlay.paragraphBlocks = []
+      this.translationOverlay.errorMessage = message.includes('mmproj') || message.includes('vision')
+        ? 'AI 翻译需要在“本地 AI”中配置视觉模型（mmproj）'
+        : `AI 识图翻译失败：${message.slice(0, 80)}`
+      this.draw()
+      this.onStateChange?.()
+    }
+  }
+
   private getOcrTranslationErrorMessage(message: string): string {
     if (message.includes('OCR_RECOGNITION_LOW_QUALITY')) {
       return 'OCR识别质量过低，请重新选择更清晰或方向正确的文本区域'
@@ -3703,7 +3809,7 @@ export class ScreenshotManager {
   }
 
   // 设置翻译引擎
-  setTranslationEngine(engine: 'google' | 'bing' | 'offline'): void {
+  setTranslationEngine(engine: 'google' | 'bing' | 'offline' | 'local-ai'): void {
     this.translationOverlay.engine = engine
     this.onStateChange?.()
   }

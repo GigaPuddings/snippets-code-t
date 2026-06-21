@@ -253,7 +253,7 @@ interface Props {
   canUndo: boolean
   canRedo: boolean
   canDelete: boolean
-  currentTranslateEngine?: 'google' | 'bing' | 'offline'
+  currentTranslateEngine?: 'google' | 'bing' | 'offline' | 'local-ai'
 }
 
 interface Emits {
@@ -263,7 +263,7 @@ interface Emits {
   (e: 'opacity-change', opacity: number): void
   (e: 'text-size-change', size: number): void
   (e: 'mosaic-size-change', size: number): void
-  (e: 'translate-engine-change', engine: 'google' | 'bing' | 'offline'): void
+  (e: 'translate-engine-change', engine: 'google' | 'bing' | 'offline' | 'local-ai'): void
   (e: 'undo'): void
   (e: 'redo'): void
   (e: 'delete'): void
@@ -297,7 +297,8 @@ const tools = computed(() => [
 const translateEngines = computed(() => [
   { value: 'google' as const, label: 'Google', short: 'G' },
   { value: 'bing' as const, label: t('translate.bingTranslate'), short: 'B' },
-  { value: 'offline' as const, label: t('translate.offlineTranslate'), short: '离' }
+  { value: 'offline' as const, label: t('translate.offlineTranslate'), short: '离' },
+  { value: 'local-ai' as const, label: t('translate.localAiTranslate'), short: 'AI' }
 ])
 
 // 样式配置
@@ -362,7 +363,7 @@ const onConfirm = () => emit('confirm')
 const onCancel = () => emit('cancel')
 
 // 翻译引擎选择处理
-const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline') => {
+const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline' | 'local-ai') => {
   emit('translate-engine-change', engine)
 }
 

@@ -77,7 +77,7 @@ const textInput = ref('')
 const textInputPosition = ref({ x: 0, y: 0 })
 const textInputFontSize = ref(16)
 const isLoading = ref(false) // 不显示加载状态，让用户可以立即开始截图
-const translateEngine = ref<'google' | 'bing' | 'offline'>('bing') // 翻译引擎
+const translateEngine = ref<'google' | 'bing' | 'offline' | 'local-ai'>('bing') // 翻译引擎
 const toolbarSize = ref({ width: 590, height: 50 })
 let isClosing = false
 
@@ -283,7 +283,7 @@ const handleMosaicSizeChange = (size: number) => {
   screenshotManager?.updateMosaicSize(size)
 }
 
-const handleTranslateEngineChange = (engine: 'google' | 'bing' | 'offline') => {
+const handleTranslateEngineChange = (engine: 'google' | 'bing' | 'offline' | 'local-ai') => {
   translateEngine.value = engine
   screenshotManager?.setTranslationEngine(engine)
   // 选择引擎后执行翻译
@@ -607,9 +607,9 @@ onMounted(async () => {
   // 从后端获取翻译引擎设置
   try {
     const savedEngine = await invoke<string>('get_translation_engine')
-    if (savedEngine && ['google', 'bing', 'offline'].includes(savedEngine)) {
-      translateEngine.value = savedEngine as 'google' | 'bing' | 'offline'
-      screenshotManager?.setTranslationEngine(savedEngine as 'google' | 'bing' | 'offline')
+    if (savedEngine && ['google', 'bing', 'offline', 'local-ai'].includes(savedEngine)) {
+      translateEngine.value = savedEngine as 'google' | 'bing' | 'offline' | 'local-ai'
+      screenshotManager?.setTranslationEngine(savedEngine as 'google' | 'bing' | 'offline' | 'local-ai')
     }
   } catch (error) {
     logger.error('[截图] 获取翻译引擎设置失败', error)

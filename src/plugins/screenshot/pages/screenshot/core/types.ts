@@ -82,7 +82,7 @@ export interface TranslationOverlay {
   errorMessage?: string
   sourceLanguage: string
   targetLanguage: string
-  engine: 'google' | 'bing' | 'offline'
+  engine: 'google' | 'bing' | 'offline' | 'local-ai'
 }
 
 export interface AnnotationStyle {
