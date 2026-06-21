@@ -120,35 +120,8 @@ fn is_cursor_over_window(window: &Window) -> bool {
     point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
 }
 
-#[cfg(target_os = "windows")]
-fn is_cursor_over_webview_window(window: &WebviewWindow) -> bool {
-    use windows::Win32::Foundation::POINT;
-    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
-
-    let mut point = POINT { x: 0, y: 0 };
-    if unsafe { GetCursorPos(&mut point) }.is_err() {
-        return false;
-    }
-    let Ok(position) = window.outer_position() else {
-        return false;
-    };
-    let Ok(size) = window.outer_size() else {
-        return false;
-    };
-    let left = position.x;
-    let top = position.y;
-    let right = left + size.width as i32;
-    let bottom = top + size.height as i32;
-    point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
-}
-
 #[cfg(not(target_os = "windows"))]
 fn is_cursor_over_window(_window: &Window) -> bool {
-    true
-}
-
-#[cfg(not(target_os = "windows"))]
-fn is_cursor_over_webview_window(_window: &WebviewWindow) -> bool {
     true
 }
 
@@ -806,10 +779,10 @@ pub fn hotkey_search(context: Option<String>) {
         position_search_window_near_top(&window);
         let _ = window.show();
         arm_search_focus_restore();
-        if is_cursor_over_webview_window(&window) {
-            let _ = window.set_focus();
-            let _ = window.emit("windowFocused", ());
-        }
+        // A keyboard shortcut must make the search field ready immediately;
+        // pointer position must not decide whether the window receives focus.
+        let _ = window.set_focus();
+        let _ = window.emit("windowFocused", ());
     }
 }
 

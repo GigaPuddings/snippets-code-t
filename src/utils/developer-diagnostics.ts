@@ -36,7 +36,9 @@ const forwardDiagnosticToBackend = (
   message: string,
   data?: unknown
 ): void => {
-  if (level !== 'error' && level !== 'warn') return;
+  // Release builds stay quiet by default. Detailed console diagnostics are
+  // intentionally available only after the user explicitly enables developer mode.
+  if (level !== 'error' && !isDeveloperModeEnabled()) return;
   invoke('frontend_log', {
     level,
     message: `[${currentWindowLabel()}] ${message}`,

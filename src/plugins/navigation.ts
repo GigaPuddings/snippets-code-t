@@ -19,11 +19,6 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
     path: '/config/category/contentList'
   },
   {
-    icon: Robot,
-    path: '/local-ai/chat',
-    pluginId: 'local-ai'
-  },
-  {
     icon: Application,
     path: '/config/local',
     pluginId: 'local-launcher'
@@ -37,5 +32,10 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
     icon: Notepad,
     path: '/config/todo',
     pluginId: 'todo'
+  },
+    {
+    icon: Robot,
+    path: '/local-ai/chat',
+    pluginId: 'local-ai'
   }
 ];

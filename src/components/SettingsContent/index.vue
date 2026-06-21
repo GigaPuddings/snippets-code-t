@@ -36,11 +36,6 @@ import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { Data, EnterTheKeyboard, SettingTwo } from '@icon-park/vue-next';
 import { invoke } from '@tauri-apps/api/core';
-import General from './components/General/index.vue';
-import Shortcut from './components/Shortcut/index.vue';
-import Manger from './components/Manger/index.vue';
-import Plugins from './components/Plugins/index.vue';
-import Developer from './components/Developer/index.vue';
 import { getGitSettings } from '@/api/appConfig';
 import {
   pluginSettingsComponents,
@@ -48,6 +43,7 @@ import {
   type PluginSettingsMenuItem
 } from '@/plugins/settings';
 import { usePluginStore } from '@/store';
+import { defineAsyncComponent } from 'vue';
 
 defineOptions({
   name: 'SettingsContent'
@@ -106,6 +102,11 @@ const menuItems = computed(() => {
 
 const activeTab = ref('general');
 const loadedTabs = ref<string[]>(['general']); // 已加载的 tab
+const General = defineAsyncComponent(() => import('./components/General/index.vue'));
+const Shortcut = defineAsyncComponent(() => import('./components/Shortcut/index.vue'));
+const Manger = defineAsyncComponent(() => import('./components/Manger/index.vue'));
+const Plugins = defineAsyncComponent(() => import('./components/Plugins/index.vue'));
+const Developer = defineAsyncComponent(() => import('./components/Developer/index.vue'));
 
 const getSettingsTabPluginId = (tabId: string): string | null => {
   const item = pluginSettingsMenuItems.find(

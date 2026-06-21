@@ -119,6 +119,8 @@ export default {
 
   // General Settings
   settings: {
+    loadingRepository: 'Loading repository…',
+    loadingRepositoryHint: 'Preparing plugins, settings, and workspace index',
     general: 'General Settings',
     theme: 'Theme',
     themeDesc: 'Set the color theme for Snippets Code',

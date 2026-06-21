@@ -1,5 +1,19 @@
 <template>
   <div class="config">
+    <Transition name="config-startup">
+      <div v-if="isStarting" class="config-startup" aria-live="polite">
+        <div class="config-startup__card">
+          <div class="config-startup__copy">
+            <strong>{{ t('settings.loadingRepository') }}</strong>
+            <small>{{ t('settings.loadingRepositoryHint') }}</small>
+          </div>
+          <span class="config-startup__percent">{{ startupProgress }}%</span>
+          <div class="config-startup__track">
+            <i :style="{ width: `${startupProgress}%` }"></i>
+          </div>
+        </div>
+      </div>
+    </Transition>
     <router-view v-slot="{ Component, route: slotRoute }">
       <template v-if="Component">
         <keep-alive>
@@ -26,6 +40,13 @@
   </div>
 </template>
 
+<script lang="ts">
+// This module is evaluated once per webview. Config may be unmounted when the
+// titlebar switches to a layout-level plugin route, but that is not a new
+// repository startup for the current window.
+let hasCompletedInitialConfigStartup = false;
+</script>
+
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import type { RouteLocationNormalizedLoaded, RouteRecordNormalized } from 'vue-router';
@@ -40,6 +61,8 @@ import { useConfigLifecycle } from './composables/useConfigLifecycle';
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
+const isStarting = ref(!hasCompletedInitialConfigStartup);
+const startupProgress = ref(12);
 
 defineOptions({
   name: 'Config'
@@ -107,7 +130,27 @@ const configLifecycle = useConfigLifecycle({
 
 // 通知后端前端已准备完成
 onMounted(async () => {
-  await configLifecycle.start();
+  const shouldShowStartupProgress = !hasCompletedInitialConfigStartup;
+  const timer = shouldShowStartupProgress
+    ? window.setInterval(() => {
+      startupProgress.value = Math.min(88, startupProgress.value + 8);
+    }, 110)
+    : null;
+  try {
+    await configLifecycle.start();
+    hasCompletedInitialConfigStartup = true;
+    if (!shouldShowStartupProgress) return;
+
+    startupProgress.value = 100;
+    window.setTimeout(() => {
+      isStarting.value = false;
+    }, 160);
+  } catch (error) {
+    logger.warn('[Config] startup failed', error);
+    isStarting.value = false;
+  } finally {
+    if (timer !== null) window.clearInterval(timer);
+  }
 });
 
 // 清理事件监听器
@@ -120,4 +163,30 @@ onUnmounted(() => {
 .config {
   @apply relative z-50 flex h-full min-h-0 w-full justify-start bg-content;
 }
+
+.config-startup {
+  @apply absolute inset-0 z-[100] flex items-center justify-center;
+  background-color: var(--categories-content-bg);
+
+  &__card {
+    @apply grid w-[min(25rem,76vw)] grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 gap-y-2 text-panel;
+  }
+
+  &__copy { @apply flex min-w-0 flex-col gap-0.5; }
+  &__copy strong { @apply text-sm font-medium; }
+  &__copy small { @apply truncate text-xs; color: var(--categories-info-text-color); }
+  &__percent { @apply text-xs tabular-nums; color: var(--categories-info-text-color); }
+  &__track { @apply col-span-2 h-1 w-full overflow-hidden; background-color: var(--categories-border-color); }
+
+  &__track i {
+    @apply block h-full;
+    background-color: var(--el-color-primary);
+    transition: width 0.18s ease-out;
+  }
+}
+
+.config-startup-enter-active,
+.config-startup-leave-active { transition: opacity 0.18s ease; }
+.config-startup-enter-from,
+.config-startup-leave-to { opacity: 0; }
 </style>

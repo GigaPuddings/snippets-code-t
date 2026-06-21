@@ -81,10 +81,15 @@ const focusSearchWindow = async (): Promise<void> => {
     .setFocus()
     .catch(() => undefined);
   setMode('SEARCH');
-  searchInputRef.value?.focus();
+  await nextTick();
+  requestAnimationFrame(() => searchInputRef.value?.focus());
 };
 
 onMounted(async () => {
+  // The webview can already be mounted while its window is hidden.
+  // Focus explicitly so input works before a pointer-enter event occurs.
+  void focusSearchWindow();
+
   unlistenWindowFocused = await listen('windowFocused', () => {
     // 窗口聚焦时，重置到搜索框模式
     setMode('SEARCH');

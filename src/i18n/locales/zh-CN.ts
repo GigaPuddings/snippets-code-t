@@ -112,6 +112,8 @@ export default {
 
   // 通用设置
   settings: {
+    loadingRepository: '正在加载仓库…',
+    loadingRepositoryHint: '正在准备插件、设置与工作区索引',
     general: '通用设置',
     theme: '基础颜色',
     themeDesc: '设置 Snippets Code 的基本颜色',
