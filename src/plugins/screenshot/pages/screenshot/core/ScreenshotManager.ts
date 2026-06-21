@@ -3653,10 +3653,10 @@ export class ScreenshotManager {
             content: [
               'You are a visual translation engine.',
               'Read the text in the supplied screenshot directly; do not describe the image and do not copy source text.',
-              'If the screenshot contains Chinese, translate all readable text into English. Otherwise translate all readable text into Simplified Chinese.',
+              'The target language is always Simplified Chinese. Translate every readable non-Chinese fragment (including English, Japanese, Korean, and other languages) into Simplified Chinese.',
+              'For mixed-language screenshots, retain existing Simplified Chinese and translate only the non-Chinese fragments, preserving their original reading order.',
               'Preserve headings, paragraphs, lists, tables, code, numbers, URLs, labels, and the reading order as faithfully as possible.',
-              'Returning text in the same language as the source is invalid unless it is code, a URL, a number, or an identifier.',
-              'Return exactly this format, with no Markdown fence: SOURCE_LANGUAGE: zh or non-zh, then a line containing TRANSLATION:, then only the translated text.'
+              'Do not use English as the target language. Return only the final translated text, with no source-language label, explanation, or Markdown fence.'
             ].join(' ')
           },
           {
@@ -3677,8 +3677,7 @@ export class ScreenshotManager {
         ]
       })
 
-      const parsedResult = this.parseVisionTranslation(response.content)
-      const translatedText = await this.correctUntranslatedVisionResult(parsedResult)
+      const translatedText = response.content.trim()
       if (!translatedText) {
         throw new Error('AI 未返回可显示的翻译结果')
       }
@@ -3706,8 +3705,8 @@ export class ScreenshotManager {
         lineHeight: block.lineHeight,
         angle: 0
       }]
-      this.translationOverlay.sourceLanguage = parsedResult.sourceLanguage === 'zh' ? 'zh' : 'auto'
-      this.translationOverlay.targetLanguage = parsedResult.sourceLanguage === 'zh' ? 'en' : 'zh'
+      this.translationOverlay.sourceLanguage = 'auto'
+      this.translationOverlay.targetLanguage = 'zh'
       this.translationOverlay.isLoading = false
       this.translationOverlay.isVisible = true
       this.translationOverlay.errorMessage = undefined
@@ -3726,52 +3725,6 @@ export class ScreenshotManager {
       this.draw()
       this.onStateChange?.()
     }
-  }
-
-  private parseVisionTranslation(content: string): {
-    sourceLanguage: 'zh' | 'non-zh' | 'unknown'
-    translation: string
-  } {
-    const normalized = content.trim()
-    const match = normalized.match(
-      /^SOURCE_LANGUAGE:\s*(zh|non-zh)\s*\r?\nTRANSLATION:\s*\r?\n?([\s\S]*)$/i
-    )
-    if (!match) {
-      return { sourceLanguage: 'unknown', translation: normalized }
-    }
-
-    return {
-      sourceLanguage: match[1].toLowerCase() === 'zh' ? 'zh' : 'non-zh',
-      translation: match[2].trim()
-    }
-  }
-
-  private async correctUntranslatedVisionResult(result: {
-    sourceLanguage: 'zh' | 'non-zh' | 'unknown'
-    translation: string
-  }): Promise<string> {
-    const candidate = result.translation.trim()
-    if (!candidate || result.sourceLanguage === 'unknown') return candidate
-
-    const containsChinese = /[\u3400-\u9fff]/.test(candidate)
-    const needsCorrection = result.sourceLanguage === 'zh'
-      ? containsChinese
-      : !containsChinese
-    if (!needsCorrection) return candidate
-
-    const targetLanguage = result.sourceLanguage === 'zh' ? 'English' : 'Simplified Chinese'
-    const corrected = await chatWithLocalAi({
-      temperature: 0.1,
-      maxTokens: 4096,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a strict translation engine. Translate the supplied text into ${targetLanguage}. Do not repeat the input. Preserve code, URLs, identifiers, numbers, headings, lists, and paragraph structure. Return only the translation.`
-        },
-        { role: 'user', content: candidate }
-      ]
-    })
-    return corrected.content.trim() || candidate
   }
 
   private getOcrTranslationErrorMessage(message: string): string {

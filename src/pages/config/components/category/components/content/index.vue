@@ -80,7 +80,7 @@
       :content="state.editorContent"
       :title="draftTitle"
       :tags="state.tags"
-      :fragment-type="currentEditorType"
+      :fragment-type="currentEditorType ?? 'code'"
       @apply-content="applyAiContent"
       @apply-title="applyAiTitle"
       @apply-tags="applyAiTags"
