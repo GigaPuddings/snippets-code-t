@@ -1,6 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
+    top="48px"
     width="min(720px, calc(100vw - 32px))"
     class="ai-assist-dialog"
     :close-on-click-modal="!isGenerating"
@@ -208,21 +209,23 @@ const applyResult = async () => {
 .dialog-title { display: flex; align-items: center; gap: 8px; font-weight: 650; }
 .dialog-title__mark { color: #7a5af8; font-size: 18px; }
 .dialog-description { margin: -8px 0 16px; color: var(--el-text-color-secondary); font-size: 13px; }
-.action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.action-card { display: flex; gap: 10px; text-align: left; padding: 11px; border: 1px solid var(--el-border-color); border-radius: 9px; color: inherit; background: var(--el-bg-color); cursor: pointer; transition: .15s ease; }
+.action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.action-card { display: flex; align-items: center; min-height: 58px; gap: 9px; text-align: left; padding: 8px 10px; border: 1px solid var(--el-border-color); border-radius: 8px; color: inherit; background: var(--el-bg-color); cursor: pointer; transition: .15s ease; }
 .action-card:hover, .action-card.active { border-color: #7a5af8; background: color-mix(in srgb, #7a5af8 8%, var(--el-bg-color)); }
 .action-card:disabled { cursor: wait; opacity: .65; }
-.action-card__icon { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 7px; color: #6941c6; background: #f4f3ff; font-size: 13px; font-weight: 700; }
+.action-card__icon { display: grid; place-items: center; flex: 0 0 26px; width: 26px; height: 26px; border-radius: 7px; color: #6941c6; background: #f4f3ff; font-size: 12px; font-weight: 700; }
 .action-card strong, .action-card small { display: block; }
 .action-card strong { font-size: 13px; }
 .action-card small { margin-top: 3px; color: var(--el-text-color-secondary); font-size: 12px; }
-.result-section { margin-top: 18px; }
+.result-section { margin-top: 14px; }
 .result-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; font-size: 13px; font-weight: 600; }
 .generating { color: #6941c6; font-weight: 500; }
-.result-box { min-height: 160px; max-height: min(46vh, 440px); overflow: auto; padding: 12px; border-radius: 9px; background: var(--el-fill-color-light); border: 1px solid var(--el-border-color-lighter); }
+.result-box { height: clamp(132px, 22vh, 220px); overflow: auto; padding: 10px 12px; border-radius: 9px; background: var(--el-fill-color-light); border: 1px solid var(--el-border-color-lighter); }
 .result-box.empty { display: grid; place-items: center; color: var(--el-text-color-secondary); font-size: 13px; }
 .result-box pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--el-text-color-primary); }
 .error-message { margin: 8px 0 0; color: var(--el-color-danger); font-size: 12px; line-height: 1.5; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; }
+:global(.ai-assist-dialog.el-dialog) { display: flex; flex-direction: column; max-height: calc(100vh - 72px); margin-bottom: 24px; }
+:deep(.el-dialog__body) { min-height: 0; overflow: hidden; }
 @media (max-width: 520px) { .action-grid { grid-template-columns: 1fr; } }
 </style>

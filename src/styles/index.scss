@@ -362,7 +362,7 @@
     margin: 0 !important;
     padding: 14px 18px !important;
     border-bottom: 1px solid var(--dialog-border);
-    background: var(--dialog-header-bg);
+    background: transparent;
 
     .el-dialog__title {
       color: var(--dialog-text) !important;
@@ -399,7 +399,7 @@
   .el-dialog__footer {
     padding: 12px 18px !important;
     border-top: 1px solid var(--dialog-border);
-    background: var(--dialog-footer-bg);
+    background: transparent;
   }
 }
 
