@@ -43,15 +43,36 @@ function escapeMarkdownTableCell(value: string): string {
 }
 
 function normalizeLooseInlineMarkdown(value: string): string {
-  return value
+  const normalized = value
     .replace(/\*\*\s+([^*\n][^*\n]*?)\s*\*\*/g, '**$1**')
-    .replace(/__\s+([^_\n][^_\n]*?)\s*__/g, '__$1__');
+    .replace(/__\s+([^_\n][^_\n]*?)\s*__/g, '__$1__')
+    // 本地模型常将“**标签:**”写成“**标签: **”。结尾分隔符前的空格会
+    // 让 CommonMark 将整段当作普通文本，因此在进入解析器前收敛该写法。
+    .replace(/\*\*([^\s*\n](?:[^*\n]*?[^\s*\n])?)\s+\*\*/g, '**$1**')
+    .replace(/__([^\s_\n](?:[^_\n]*?[^\s_\n])?)\s+__/g, '__$1__');
+
+  return normalized;
 }
 
 function normalizeMarkdownBeforeParse(markdown: string): string {
   return normalizeLooseInlineMarkdown(
     markdown.replace(/^(\s{0,3})(\d+)[、．]\s*/gm, '$1$2. ')
   );
+}
+
+/**
+ * 修复本地模型常见的简历/说明类排版：标签与正文或下一个标签被压到同一行。
+ * 仅用于 AI 输出；不会改写用户正常编辑或粘贴的 Markdown。
+ */
+export function normalizeAiMarkdown(markdown: string): string {
+  const label = '\\*\\*[^*\\r\\n]*?[：:]\\s*\\*\\*';
+  return markdown
+    .replace(/\r\n/g, '\n')
+    // “**描述:**正文” → 标签与正文分行。
+    .replace(new RegExp(`(${label})(?=[^\\n])`, 'g'), '$1\n')
+    // “……。（技术栈） **关键技术:**” → 下一个结构化标签另起段。
+    .replace(new RegExp(`([。！？；;）)])\\s*(${label})`, 'g'), '$1\n\n$2')
+    .trimEnd();
 }
 
 /**
@@ -171,7 +192,7 @@ const wikilinkExtension = {
 
 // 添加 Markdown 链接扩展
 // 策略：
-// 1. 有效外部链接 → 保持 Markdown 格式 [文本](url)，由装饰器处理
+// 1. 有效外部链接 → 转换为 <a>，让 TipTap 富文本视图可直接预览
 // 2. 锚点/项目内路径链接 → 转换为 <a>，支持复制代码片段中的文件路径展示
 // 3. 无效链接（空URL、中文等） → 保持 Markdown 格式 [文本](url)，显示为纯文本
 const markdownLinkExtension = {
@@ -222,8 +243,10 @@ const markdownLinkExtension = {
       const href = isLocalPathLink(text) ? text : url;
       return `<a href="${escapeAttribute(href)}">${escapeHtml(text)}</a>`;
     } else if (isValidExternalLink) {
-      // 有效外部链接：保持 Markdown 格式，让装饰器处理
-      return `[${escapeHtml(text)}](${escapeAttribute(url)})`;
+      // 扩展的 renderer 返回的 Markdown 不会再经过 marked 的二次解析，
+      // 因此必须在这里输出 HTML，避免富文本视图把链接原样显示为文本。
+      const href = url.startsWith('www.') ? `https://${url}` : url;
+      return `<a href="${escapeAttribute(href)}">${escapeHtml(text)}</a>`;
     } else {
       // 无效链接（空URL、中文、相对路径等）：显示为纯文本
       // 对方括号和圆括号进行 HTML 实体转义，防止被 TipTap 重新解析为链接
@@ -240,6 +263,24 @@ const markdownLinkExtension = {
     }
   }
 };
+
+// marked 对中文紧邻英文冒号的标签（如 **描述:**）的强调解析不稳定。
+// 必须在 Markdown 完成段落/换行解析之后修复，不能用 inline extension：
+// 后者会让 marked 丢掉该 token 后的软换行。
+function renderUnparsedLabelStrong(html: string): string {
+  return html.replace(/<p>([\s\S]*?)<\/p>/g, (paragraph, content: string) => {
+    const fixedContent = content.replace(
+      /\*\*([^*<\r\n]*?[：:])\s*\*\*/g,
+      (_match, label: string) => `<strong>${escapeHtml(label.trim())}</strong>`
+    );
+    // 模型常把“标签 + 正文”或“正文 + 下一个标签”压进同一个段落。
+    // 在已解析的普通段落内恢复结构，避免影响代码块、表格等其它节点。
+    const structuredContent = fixedContent
+      .replace(/([。！？；;）)])(<strong>[^<]*?[：:]<\/strong>)/g, '$1</p><p>$2')
+      .replace(/(<strong>[^<]*?[：:]<\/strong>)(?=[^<\r\n])/g, '$1<br>');
+    return `<p>${structuredContent}</p>`;
+  });
+}
 
 // 添加图片属性扩展到 marked
 const imageWithAttributesExtension = {
@@ -469,8 +510,10 @@ export function createTurndownService(): TurndownService {
  */
 export function markdownToHtml(markdown: string, workspaceRoot?: string): string {
   const normalizedMarkdown = normalizeMarkdownBeforeParse(markdown);
-  // 先用 marked 解析 Markdown
-  const html = sanitizeHtml(marked.parse(normalizedMarkdown) as string);
+  // 先用 marked 解析 Markdown。breaks 必须在每次调用中明确指定：
+  // marked 的全局配置可能被其他扩展覆盖，导致 AI 输出的单换行被折叠。
+  const parsedHtml = marked.parse(normalizedMarkdown, { breaks: true, gfm: true }) as string;
+  const html = sanitizeHtml(renderUnparsedLabelStrong(parsedHtml));
   
   let processedHtml = html;
   

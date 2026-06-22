@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { jsonToMarkdown, markdownToHtml } from './markdown';
+import { jsonToMarkdown, markdownToHtml, normalizeAiMarkdown } from './markdown';
 
 describe('jsonToMarkdown', () => {
   it('serializes headings, paragraphs, and marks', () => {
@@ -169,6 +169,13 @@ describe('jsonToMarkdown', () => {
 });
 
 describe('markdownToHtml', () => {
+  it('keeps ordinary soft and paragraph line breaks', () => {
+    const html = markdownToHtml('第一行\n第二行\n\n第三段');
+
+    expect(html).toContain('第一行<br>第二行');
+    expect(html).toContain('</p>\n<p>第三段</p>');
+  });
+
   it('removes unsafe raw HTML and event handlers', () => {
     const html = markdownToHtml('<script>alert(1)</script><img src="x" onerror="alert(1)">');
 
@@ -217,6 +224,61 @@ describe('markdownToHtml', () => {
     expect(html).toContain('<ol>');
     expect(html).toContain('<strong>AI 翻译增强</strong>');
     expect(html).toContain('<strong>AI 聊天 / 问答</strong>');
+  });
+
+  it('normalizes AI label bold markers with a space before the closing delimiter', () => {
+    const html = markdownToHtml([
+      '## 2025.2-2025.3 | 采购平台小程序开发（微信小程序）',
+      '',
+      '**描述: **面向企业内部采购流程管理的专用系统。',
+      '',
+      '**关键技术: **',
+      '',
+      '1. 严格遵循微信官方 WXML、WXSS、JavaScript 规范进行开发。'
+    ].join('\n'));
+
+    expect(html).toContain('<h2');
+    expect(html).toContain('<strong>描述:</strong><br>面向企业内部采购流程管理的专用系统。');
+    expect(html).toContain('<strong>关键技术:</strong>');
+    expect(html).not.toContain('**描述: **');
+  });
+
+  it('preserves line breaks between consecutive AI labels and their content', () => {
+    const normalized = normalizeAiMarkdown([
+      '**描述: **面向企业内部采购流程管理的专用系统。（Vue2 + TDesign） **关键技术: **',
+      '1. 严格遵循微信官方 WXML、WXSS、JavaScript 规范进行开发。'
+    ].join('\n'));
+    const html = markdownToHtml(normalized);
+
+    expect(normalized).toContain('**描述: **\n面向企业内部采购流程管理的专用系统。（Vue2 + TDesign）\n\n**关键技术: **');
+    expect(html).toContain('<strong>描述:</strong><br>面向企业内部采购流程管理的专用系统。');
+    expect(html).toContain('<strong>关键技术:</strong>');
+  });
+
+  it('keeps an AI-generated Markdown document structurally intact for the rich-text editor', () => {
+    const html = markdownToHtml([
+      '# 项目经历',
+      '',
+      '负责 **前端架构**，并完成 [发布说明](https://example.com/release)。',
+      '',
+      '- [x] 完成需求梳理',
+      '- [ ] 补充验收用例',
+      '',
+      '```ts',
+      'const result = await generate();',
+      '```',
+      '',
+      '| 指标 | 结果 |',
+      '| --- | --- |',
+      '| 性能 | 提升 30% |'
+    ].join('\n'));
+
+    expect(html).toContain('<h1');
+    expect(html).toContain('<strong>前端架构</strong>');
+    expect(html).toContain('<a href="https://example.com/release"');
+    expect(html).toContain('data-type="taskList"');
+    expect(html).toContain('<pre><code class="language-ts">');
+    expect(html).toContain('<table>');
   });
 
 });

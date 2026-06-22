@@ -39,6 +39,8 @@ static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
     LazyLock::new(|| Mutex::new(LocalAiServiceState::default()));
 static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+static ACTIVE_STREAM_WINDOWS: LazyLock<Mutex<HashMap<String, String>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
 static VERIFIED_SOURCE_CACHE: LazyLock<
     Mutex<HashMap<String, (Instant, Vec<LocalAiVerifiedSource>)>>,
@@ -1306,6 +1308,58 @@ fn mark_request_started() -> LocalAiRequestGuard {
     LocalAiRequestGuard
 }
 
+fn register_active_stream(request_id: &str, window_label: &str, cancel_flag: Arc<AtomicBool>) {
+    if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+        cancels.insert(request_id.to_string(), cancel_flag);
+    }
+    if let Ok(mut windows) = ACTIVE_STREAM_WINDOWS.lock() {
+        windows.insert(request_id.to_string(), window_label.to_string());
+    }
+}
+
+fn remove_active_stream(request_id: &str) {
+    if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
+        cancels.remove(request_id);
+    }
+    if let Ok(mut windows) = ACTIVE_STREAM_WINDOWS.lock() {
+        windows.remove(request_id);
+    }
+}
+
+/// 窗口销毁时取消属于该窗口的生成，避免 WebView 已关闭但后端仍持续推理。
+pub fn cancel_streams_for_window(window_label: &str) -> usize {
+    let request_ids = match ACTIVE_STREAM_WINDOWS.lock() {
+        Ok(windows) => windows
+            .iter()
+            .filter_map(|(request_id, owner)| (owner == window_label).then(|| request_id.clone()))
+            .collect::<Vec<_>>(),
+        Err(error) => {
+            warn!(
+                "[Plugin:local-ai] window stream ownership lock failed: {}",
+                error
+            );
+            return 0;
+        }
+    };
+
+    let mut cancelled = 0;
+    if let Ok(cancels) = ACTIVE_STREAM_CANCELS.lock() {
+        for request_id in request_ids {
+            if let Some(flag) = cancels.get(&request_id) {
+                flag.store(true, Ordering::Relaxed);
+                cancelled += 1;
+            }
+        }
+    }
+    if cancelled > 0 {
+        info!(
+            "[Plugin:local-ai] cancelled {} active stream(s) for destroyed window={}",
+            cancelled, window_label
+        );
+    }
+    cancelled
+}
+
 fn normalize_service_config(mut config: LocalAiConfig) -> LocalAiConfig {
     if config.host.trim().is_empty() {
         config.host = DEFAULT_HOST.to_string();
@@ -1684,9 +1738,7 @@ async fn chat_completion_stream(
     ensure_service_running(app_handle, &config).await?;
     let _guard = mark_request_started();
     let cancel_flag = Arc::new(AtomicBool::new(false));
-    if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
-        cancels.insert(request_id.clone(), Arc::clone(&cancel_flag));
-    }
+    register_active_stream(&request_id, window.label(), Arc::clone(&cancel_flag));
 
     let request_ctx_size = config.ctx_size;
     emit_chat_stream(
@@ -1742,9 +1794,7 @@ async fn chat_completion_stream(
     let response = match response_result {
         Ok(response) => response,
         Err(error) => {
-            if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
-                cancels.remove(&request_id);
-            }
+            remove_active_stream(&request_id);
             return Err(format!("请求本地 AI 服务失败: {}", error));
         }
     };
@@ -1754,9 +1804,7 @@ async fn chat_completion_stream(
             .text()
             .await
             .unwrap_or_else(|error| format!("读取错误响应失败: {}", error));
-        if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
-            cancels.remove(&request_id);
-        }
+        remove_active_stream(&request_id);
         return Err(format!("本地 AI 服务返回错误 {}: {}", status, value));
     }
 
@@ -1764,7 +1812,7 @@ async fn chat_completion_stream(
     let mut buffer = String::new();
     let mut content = String::new();
     let mut reasoning_open = false;
-    while let Some(chunk) = stream.next().await {
+    loop {
         if cancel_flag.load(Ordering::Relaxed) {
             if reasoning_open {
                 content.push_str("</think>");
@@ -1778,11 +1826,19 @@ async fn chat_completion_stream(
                 );
             }
             emit_chat_stream(&window, &request_id, "done", None, None, None);
-            if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
-                cancels.remove(&request_id);
-            }
+            remove_active_stream(&request_id);
             return Ok(content.trim().to_string());
         }
+
+        // 不直接无限等待下一个 SSE 分片。窗口销毁后即使模型暂时没有输出，
+        // 也能在短轮询内丢弃 HTTP 流，释放请求计数并允许服务进入空闲回收。
+        let next_chunk = tokio::select! {
+            chunk = stream.next() => chunk,
+            _ = tokio::time::sleep(Duration::from_millis(100)) => continue,
+        };
+        let Some(chunk) = next_chunk else {
+            break;
+        };
 
         let chunk = chunk.map_err(|error| format!("读取本地 AI 流失败: {}", error))?;
         buffer.push_str(&String::from_utf8_lossy(&chunk));
@@ -1802,9 +1858,7 @@ async fn chat_completion_stream(
                     emit_chat_stream(&window, &request_id, "delta", Some(delta), None, None);
                 }
                 emit_chat_stream(&window, &request_id, "done", None, None, None);
-                if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
-                    cancels.remove(&request_id);
-                }
+                remove_active_stream(&request_id);
                 return Ok(content.trim().to_string());
             }
 
@@ -1824,9 +1878,7 @@ async fn chat_completion_stream(
         }
     }
 
-    if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
-        cancels.remove(&request_id);
-    }
+    remove_active_stream(&request_id);
     if !content.trim().is_empty() {
         if reasoning_open {
             emit_chat_stream(
@@ -2083,9 +2135,7 @@ pub async fn local_ai_chat_stream(
     {
         Ok(content) => Ok(LocalAiChatResponse { content }),
         Err(error) => {
-            if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
-                cancels.remove(&request_id);
-            }
+            remove_active_stream(&request_id);
             emit_chat_stream(
                 &window,
                 &request_id,

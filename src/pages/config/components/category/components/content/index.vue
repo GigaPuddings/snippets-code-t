@@ -4,6 +4,7 @@
       <div class="content-title">
         <el-input
           ref="titleInputRef"
+          class="content-title-input"
           :model-value="draftTitle"
           placeholder=""
           @input="handleTitleInput"
@@ -81,9 +82,30 @@
       :title="draftTitle"
       :tags="state.tags"
       :fragment-type="currentEditorType ?? 'code'"
+      :workspace-root="workspaceRoot"
+      :note-file-path="String(state.currentContent?.id ?? '')"
       @apply-content="applyAiContent"
       @apply-title="applyAiTitle"
       @apply-tags="applyAiTags"
+    />
+
+    <AiAssistDialog
+      v-model="showSelectionAiAssist"
+      :content="aiSelection.text"
+      :title="draftTitle"
+      :tags="state.tags"
+      :fragment-type="aiSelection.type"
+      :workspace-root="workspaceRoot"
+      :note-file-path="String(state.currentContent?.id ?? '')"
+      selection-mode
+      auto-run
+      @apply-selection="replaceAiSelection"
+    />
+
+    <AiSelectionToolbar
+      :visible="aiSelection.visible"
+      :position="aiSelection.position"
+      @rewrite="openSelectionRewrite"
     />
 
     <!-- 编辑器加载指示器 -->
@@ -100,20 +122,24 @@
     </div>
 
     <!-- CodeMirror 代码编辑器 (type === 'code') -->
-    <CodeMirrorEditor v-else-if="currentEditorType === 'code'" :key="'code-editor'" :code="state.editorContent"
-      :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }" @update:code="handleEditorChange"
-      :dark="isDark" />
+    <div v-else-if="currentEditorType === 'code'" class="editor-host" @mouseup="captureAiSelection" @keyup="captureAiSelection">
+      <CodeMirrorEditor ref="codeMirrorEditorRef" :key="'code-editor'" :code="state.editorContent"
+        :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }" @update:code="handleEditorChange"
+        :dark="isDark" />
+    </div>
 
     <!-- TipTap 富文本编辑器 (type === 'note') -->
-    <TipTapEditor v-else-if="currentEditorType === 'note'" ref="tipTapEditorRef" :key="'note-editor'"
-      :content="noteEditorDisplayContent" :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }"
-      :show-view-toggle="true" :show-editor-actions="false" :current-title="state.title"
-      :current-fragment-id="state.currentContent?.id" :show-line-numbers="store.editorLineNumbers"
-      :line-height="store.editorLineHeight"
-      @update:content="handleEditorChange"
-      @wikilink-click="handleWikilinkClick" @view-mode-change="handleViewModeChange"
-      @outline-toggle="handleOutlineToggle" @backlink-navigate="handleBacklinkNavigate"
-      @scroll-position="handleEditorScrollPosition" :dark="isDark" />
+    <div v-else-if="currentEditorType === 'note'" class="editor-host" @mouseup="captureAiSelection" @keyup="captureAiSelection">
+      <TipTapEditor ref="tipTapEditorRef" :key="'note-editor'"
+        :content="noteEditorDisplayContent" :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }"
+        :show-view-toggle="true" :show-editor-actions="false" :current-title="state.title"
+        :current-fragment-id="state.currentContent?.id" :show-line-numbers="store.editorLineNumbers"
+        :line-height="store.editorLineHeight"
+        @update:content="handleEditorChange"
+        @wikilink-click="handleWikilinkClick" @view-mode-change="handleViewModeChange"
+        @outline-toggle="handleOutlineToggle" @backlink-navigate="handleBacklinkNavigate"
+        @scroll-position="handleEditorScrollPosition" :dark="isDark" />
+    </div>
   </main>
 </template>
 
@@ -133,7 +159,8 @@ import { ConfirmDialog } from '@/components/UI';
 import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
-import { htmlToMarkdown, createTurndownService, markdownToHtml, jsonToMarkdown } from '@/components/TipTapEditor/utils/markdown';
+import AiSelectionToolbar from '@/components/AiSelectionToolbar/index.vue';
+import { htmlToMarkdown, createTurndownService, markdownToHtml, jsonToMarkdown, normalizeAiMarkdown } from '@/components/TipTapEditor/utils/markdown';
 import { getWorkspaceRoot } from '@/api/markdown';
 import { syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/plugins/attachments/api';
 
@@ -190,12 +217,23 @@ const state = reactive({
 const draftTitle = ref('');
 const titleDirty = ref(false);
 const showAiAssist = ref(false);
+const showSelectionAiAssist = ref(false);
+const codeMirrorEditorRef = ref<any>(null);
+const aiSelection = reactive({
+  text: '',
+  type: 'code' as 'note' | 'code',
+  from: 0,
+  to: 0,
+  visible: false,
+  position: { x: 0, y: 0 }
+});
 
 // 工作区根目录
 const workspaceRoot = ref<string>('');
 
 
-// 笔记编辑器展示用内容：始终传 HTML。若 state.editorContent 已是 HTML（如旧文件）则原样传，否则按 Markdown 转 HTML
+// 笔记内容在状态层一律以 Markdown 保存；TipTap 仅接收由 Markdown 转换得到的 HTML。
+// 旧版本遗留的 HTML 内容仍可正常打开，以便在下一次保存时迁移为 Markdown。
 const noteEditorDisplayContent = computed(() => {
   const c = state.editorContent;
   if (!c || currentEditorType.value !== 'note') return c ?? '';
@@ -552,12 +590,13 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
         // 更新编辑器内容以反映路径变化
         if (editorType === 'note') {
           const updatedHtml = markdownToHtml(updatedContent, workspaceRoot.value);
-          state.editorContent = updatedHtml;
+          // state 层保持 Markdown；HTML 只用于驱动 TipTap 视图。
+          state.editorContent = updatedContent;
 
           if (tipTapEditorRef.value) {
             const editor = tipTapEditorRef.value.getEditor();
             if (editor) {
-              editor.commands.setContent(updatedHtml);
+              editor.commands.setContent(updatedHtml, { emitUpdate: false });
             }
           }
         }
@@ -861,6 +900,20 @@ const computeContentHash = (content: string): string => {
 };
 
 const applyAiContent = (content: string) => {
+  if (currentEditorType.value === 'note') {
+    // AI 约定返回 Markdown。不要把渲染后的 HTML 写入 state：那会让后续
+    // TipTap 的 Markdown 持久化和外部内容同步混用两种数据格式，导致格式错乱。
+    const markdown = normalizeAiMarkdown(content);
+    handleContentChange(markdown, 'content', state.editorContent);
+    nextTick(() => {
+      const editor = tipTapEditorRef.value?.getEditor?.();
+      const html = markdownToHtml(markdown, workspaceRoot.value);
+      if (editor && editor.getHTML() !== html) {
+        editor.commands.setContent(html, { emitUpdate: false });
+      }
+    });
+    return;
+  }
   handleContentChange(content, 'content', state.editorContent);
 };
 
@@ -872,6 +925,83 @@ const applyAiTitle = (title: string) => {
 
 const applyAiTags = (tags: string[]) => {
   handleTagsChange(tags);
+};
+
+const hideAiSelection = () => {
+  aiSelection.visible = false;
+};
+
+const captureAiSelection = () => {
+  requestAnimationFrame(() => {
+    const type = currentEditorType.value;
+    if (type === 'code') {
+      const view = codeMirrorEditorRef.value?.getView?.();
+      const selection = view?.state.selection.main;
+      if (!view || !selection || selection.empty) {
+        hideAiSelection();
+        return;
+      }
+      const coords = view.coordsAtPos(selection.to) ?? view.coordsAtPos(selection.from);
+      aiSelection.text = view.state.sliceDoc(selection.from, selection.to);
+      aiSelection.type = 'code';
+      aiSelection.from = selection.from;
+      aiSelection.to = selection.to;
+      aiSelection.position = {
+        x: coords ? (coords.left + coords.right) / 2 : window.innerWidth / 2,
+        y: Math.max(40, (coords?.top ?? 72) - 8)
+      };
+      aiSelection.visible = Boolean(aiSelection.text.trim());
+      return;
+    }
+
+    const editor = tipTapEditorRef.value?.getEditor?.();
+    const selection = editor?.state.selection;
+    if (!editor || !selection || selection.empty) {
+      hideAiSelection();
+      return;
+    }
+    const domSelection = window.getSelection();
+    const range = domSelection?.rangeCount ? domSelection.getRangeAt(0) : null;
+    const rect = range?.getBoundingClientRect();
+    aiSelection.text = editor.state.doc.textBetween(selection.from, selection.to, '\n');
+    aiSelection.type = 'note';
+    aiSelection.from = selection.from;
+    aiSelection.to = selection.to;
+    aiSelection.position = {
+      x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
+      y: Math.max(40, (rect?.top ?? 72) - 8)
+    };
+    aiSelection.visible = Boolean(aiSelection.text.trim());
+  });
+};
+
+const openSelectionRewrite = () => {
+  if (!aiSelection.text.trim()) return;
+  aiSelection.visible = false;
+  showSelectionAiAssist.value = true;
+};
+
+const replaceAiSelection = (value: string) => {
+  if (!value.trim()) return;
+  if (aiSelection.type === 'code') {
+    const view = codeMirrorEditorRef.value?.getView?.();
+    if (!view) return;
+    const from = aiSelection.from;
+    view.dispatch({
+      changes: { from, to: aiSelection.to, insert: value },
+      selection: { anchor: from + value.length }
+    });
+    view.focus();
+  } else {
+    const editor = tipTapEditorRef.value?.getEditor?.();
+    if (!editor) return;
+    editor.chain()
+      .focus()
+      .setTextSelection({ from: aiSelection.from, to: aiSelection.to })
+      .insertContent(markdownToHtml(value, workspaceRoot.value))
+      .run();
+  }
+  hideAiSelection();
 };
 
 // 处理编辑器内容变更
@@ -1082,8 +1212,9 @@ const fetchContentById = async (id: string) => {
       await nextTick();
       if (currentEditorType.value === 'note' && tipTapEditorRef.value) {
         const editor = tipTapEditorRef.value.getEditor();
-        if (editor && editor.getHTML() !== newContent) {
-          editor.commands.setContent(newContent);
+        const html = markdownToHtml(newContent, workspaceRoot.value);
+        if (editor && editor.getHTML() !== html) {
+          editor.commands.setContent(html, { emitUpdate: false });
         }
       }
     } else {
@@ -1173,27 +1304,24 @@ const fetchContent = async () => {
 };
 
 // 反序列化内容（根据 format 字段）
-const deserializeContent = (content: string, format: ContentFormat): string => {
+const deserializeContent = (content: string, _format: ContentFormat): string => {
   // 兼容性处理：检测内容是否为 HTML
   const isHtmlContent = content.trim().startsWith('<') && content.includes('</');
 
-  if (isHtmlContent) {
-    return content;
-  }
+  // 笔记状态层始终持有 Markdown；HTML 仅在 noteEditorDisplayContent 中转换后传给 TipTap。
+  // 这样可避免加载、AI 替换、附件重命名等入口把两种格式混在同一个状态字段里。
+  if (currentEditorType.value === 'note') {
+    if (!isHtmlContent) return content;
 
-  // 如果编辑器类型是笔记，需要转换为 HTML 供 TipTap 使用
-  // 支持 format 为 'plain' 或 'markdown'
-  if (currentEditorType.value === 'note' && (format === 'plain' || format === 'markdown' || !format)) {
     try {
-      const html = markdownToHtml(content, workspaceRoot.value);
-      return html;
+      return htmlToMarkdown(content, createTurndownService());
     } catch (error) {
-      console.error('[Content] Markdown 转 HTML 失败:', error);
+      console.error('[Content] 旧版 HTML 转 Markdown 失败:', error);
       return content;
     }
   }
 
-  // 其他情况直接返回
+  // 代码片段保持原始纯文本格式
   return content;
 };
 
@@ -1451,6 +1579,12 @@ onMounted(async () => {
 
     .content-title {
       @apply flex items-center gap-2 h-[40px];
+      min-width: 0;
+
+      .content-title-input {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
 
       :deep(input) {
         @apply text-lg text-panel pt-1 box-border;
@@ -1532,15 +1666,21 @@ onMounted(async () => {
   }
 }
 
+.editor-host {
+  min-height: 0;
+  height: 100%;
+}
+
 .ai-assist-button {
-  @apply h-7 px-2 flex items-center gap-1 rounded text-xs font-medium cursor-pointer;
-  color: #6941c6;
-  border: 1px solid rgba(122, 90, 248, 0.28);
-  background: rgba(122, 90, 248, 0.08);
+  @apply h-7 px-2 flex items-center justify-center gap-1 rounded text-xs font-medium cursor-pointer;
+  white-space: nowrap;
+  color: var(--el-color-primary);
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 28%, transparent);
+  background: color-mix(in srgb, var(--el-color-primary) 8%, transparent);
   transition: background-color 0.15s ease, transform 0.15s ease;
 
-  span { font-size: 14px; line-height: 1; }
-  &:hover { background: rgba(122, 90, 248, 0.16); }
+  span { display: inline-grid; flex: 0 0 14px; place-items: center; font-size: 14px; line-height: 1; }
+  &:hover { background: color-mix(in srgb, var(--el-color-primary) 16%, transparent); }
   &:active { transform: scale(0.97); }
 }
 
@@ -1564,9 +1704,9 @@ onMounted(async () => {
   }
 
   .ai-assist-button {
-    color: #c7b9ff;
-    border-color: rgba(199, 185, 255, 0.3);
-    background: rgba(122, 90, 248, 0.18);
+    color: var(--el-color-primary-light-3);
+    border-color: color-mix(in srgb, var(--el-color-primary) 42%, transparent);
+    background: color-mix(in srgb, var(--el-color-primary) 18%, transparent);
   }
 }
 </style>

@@ -1472,6 +1472,11 @@ pub fn create_progress_notification_window() -> Option<WebviewWindow> {
 
 // 处理窗口事件的函数
 pub fn handle_window_event(window: &Window, event: &WindowEvent) {
+    // 前端卸载阶段的 invoke 在窗口被强制销毁时未必来得及送达；后端按窗口归属取消流式 AI 请求兜底。
+    if matches!(event, WindowEvent::Destroyed) {
+        crate::plugins::local_ai::cancel_streams_for_window(window.label());
+    }
+
     if window.label() == "main" {
         match event {
             WindowEvent::Focused(true) => {
