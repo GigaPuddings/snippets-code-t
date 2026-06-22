@@ -1,6 +1,8 @@
 use log::{error, info, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering as CmpOrdering;
+use std::collections::HashSet;
 use std::env;
 use std::error::Error as StdError;
 use std::ffi::OsStr;
@@ -22,6 +24,7 @@ const USER_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) snippets-code-wallpaper-switcher/2.1 Safari/537.36";
 const MAX_WALLHAVEN_PAGES: u32 = 100;
 const MAX_WALLHAVEN_CACHE_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_WALLHAVEN_RECENT_IDS: usize = 500;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +39,21 @@ pub enum WallpaperMode {
 pub enum WallpaperOrder {
     Random,
     Sequential,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum FolderSort {
+    FileNameAscending,
+    FileNameDescending,
+    ModifiedAscending,
+    ModifiedDescending,
+}
+
+impl Default for FolderSort {
+    fn default() -> Self {
+        Self::FileNameAscending
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,11 +81,19 @@ pub struct WallpaperConfig {
     pub schedule_enabled: bool,
     pub interval_minutes: u64,
     pub order: WallpaperOrder,
+    #[serde(default)]
+    pub folder_sort: FolderSort,
     pub fit_mode: WallpaperFitMode,
     pub auto_restore: bool,
     pub wallhaven_source: WallhavenSource,
     pub wallhaven_category: String,
     pub wallhaven_query: Option<String>,
+    #[serde(default)]
+    pub folder_seen_paths: Vec<String>,
+    #[serde(default)]
+    pub wallhaven_seen_ids: Vec<String>,
+    #[serde(default)]
+    pub wallhaven_history_scope: Option<String>,
     pub last_folder_index: usize,
     pub last_applied_path: Option<String>,
     #[serde(default)]
@@ -83,11 +109,15 @@ impl Default for WallpaperConfig {
             schedule_enabled: false,
             interval_minutes: 30,
             order: WallpaperOrder::Random,
+            folder_sort: FolderSort::FileNameAscending,
             fit_mode: WallpaperFitMode::FillCrop,
             auto_restore: true,
             wallhaven_source: WallhavenSource::Hot,
             wallhaven_category: "general".to_string(),
             wallhaven_query: None,
+            folder_seen_paths: Vec::new(),
+            wallhaven_seen_ids: Vec::new(),
+            wallhaven_history_scope: None,
             last_folder_index: 0,
             last_applied_path: None,
             last_switched_at: None,
@@ -226,7 +256,94 @@ fn normalize_existing_dir(path: &str) -> Result<PathBuf, String> {
     fs::canonicalize(&path).map_err(|e| format!("读取文件夹路径失败: {} ({})", path.display(), e))
 }
 
-fn scan_images_in_dir(path: &Path) -> Result<Vec<PathBuf>, String> {
+fn natural_name_cmp(left: &str, right: &str) -> CmpOrdering {
+    let left = left.to_lowercase();
+    let right = right.to_lowercase();
+    let mut left_chars = left.chars().peekable();
+    let mut right_chars = right.chars().peekable();
+
+    loop {
+        match (left_chars.peek(), right_chars.peek()) {
+            (None, None) => return CmpOrdering::Equal,
+            (None, Some(_)) => return CmpOrdering::Less,
+            (Some(_), None) => return CmpOrdering::Greater,
+            (Some(left_char), Some(right_char))
+                if left_char.is_ascii_digit() && right_char.is_ascii_digit() =>
+            {
+                let mut left_digits = String::new();
+                let mut right_digits = String::new();
+                while left_chars
+                    .peek()
+                    .is_some_and(|value| value.is_ascii_digit())
+                {
+                    left_digits.push(left_chars.next().expect("peeked digit exists"));
+                }
+                while right_chars
+                    .peek()
+                    .is_some_and(|value| value.is_ascii_digit())
+                {
+                    right_digits.push(right_chars.next().expect("peeked digit exists"));
+                }
+
+                let left_number = left_digits.trim_start_matches('0');
+                let right_number = right_digits.trim_start_matches('0');
+                match left_number
+                    .len()
+                    .cmp(&right_number.len())
+                    .then_with(|| left_number.cmp(right_number))
+                    .then_with(|| left_digits.len().cmp(&right_digits.len()))
+                {
+                    CmpOrdering::Equal => {}
+                    order => return order,
+                }
+            }
+            _ => {
+                let left_char = left_chars.next().expect("peeked char exists");
+                let right_char = right_chars.next().expect("peeked char exists");
+                match left_char.cmp(&right_char) {
+                    CmpOrdering::Equal => {}
+                    order => return order,
+                }
+            }
+        }
+    }
+}
+
+fn image_name(path: &Path) -> String {
+    path.file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn sort_images(images: &mut [PathBuf], folder_sort: &FolderSort) {
+    images.sort_by(|left, right| {
+        let name_order = natural_name_cmp(&image_name(left), &image_name(right))
+            .then_with(|| natural_name_cmp(&path_to_string(left), &path_to_string(right)));
+        match folder_sort {
+            FolderSort::FileNameAscending => name_order,
+            FolderSort::FileNameDescending => name_order.reverse(),
+            FolderSort::ModifiedAscending | FolderSort::ModifiedDescending => {
+                let modified_order = fs::metadata(left)
+                    .and_then(|metadata| metadata.modified())
+                    .ok()
+                    .cmp(
+                        &fs::metadata(right)
+                            .and_then(|metadata| metadata.modified())
+                            .ok(),
+                    );
+                let order = modified_order.then(name_order);
+                if matches!(folder_sort, FolderSort::ModifiedDescending) {
+                    order.reverse()
+                } else {
+                    order
+                }
+            }
+        }
+    });
+}
+
+fn scan_images_in_dir(path: &Path, folder_sort: &FolderSort) -> Result<Vec<PathBuf>, String> {
     let mut images = Vec::new();
     for entry in WalkDir::new(path)
         .follow_links(false)
@@ -238,7 +355,7 @@ fn scan_images_in_dir(path: &Path) -> Result<Vec<PathBuf>, String> {
             images.push(entry.path().to_path_buf());
         }
     }
-    images.sort_by(|a, b| path_to_string(a).cmp(&path_to_string(b)));
+    sort_images(&mut images, folder_sort);
     Ok(images)
 }
 
@@ -472,6 +589,35 @@ fn current_wallhaven_id(config: &WallpaperConfig) -> Option<String> {
         .and_then(wallhaven_id_from_cache_path)
 }
 
+fn wallhaven_history_scope(config: &WallpaperConfig) -> String {
+    let query = normalize_wallhaven_query(
+        config.wallhaven_query.clone(),
+        Some(config.wallhaven_category.as_str()),
+    )
+    .unwrap_or_default();
+    format!(
+        "{:?}|{}|{}",
+        config.wallhaven_source, config.wallhaven_category, query
+    )
+}
+
+fn prepare_wallhaven_history(config: &mut WallpaperConfig) {
+    let scope = wallhaven_history_scope(config);
+    if config.wallhaven_history_scope.as_deref() != Some(scope.as_str()) {
+        config.wallhaven_seen_ids.clear();
+        config.wallhaven_history_scope = Some(scope);
+    }
+}
+
+fn record_wallhaven_seen(config: &mut WallpaperConfig, wallpaper_id: String) {
+    config.wallhaven_seen_ids.retain(|id| id != &wallpaper_id);
+    config.wallhaven_seen_ids.push(wallpaper_id);
+    if config.wallhaven_seen_ids.len() > MAX_WALLHAVEN_RECENT_IDS {
+        let excess = config.wallhaven_seen_ids.len() - MAX_WALLHAVEN_RECENT_IDS;
+        config.wallhaven_seen_ids.drain(..excess);
+    }
+}
+
 fn save_config(app_handle: &AppHandle, config: &WallpaperConfig) -> Result<(), String> {
     let config_json =
         serde_json::to_string(config).map_err(|e| format!("序列化壁纸配置失败: {}", e))?;
@@ -657,49 +803,66 @@ async fn switch_from_folder(
         .clone()
         .ok_or("请先选择壁纸文件夹".to_string())?;
     let folder = normalize_existing_dir(&folder)?;
-    let images = scan_images_in_dir(&folder)?;
+    let images = scan_images_in_dir(&folder, &config.folder_sort)?;
     if images.is_empty() {
         return Err("文件夹中没有可用图片".to_string());
     }
 
     let current_path = current_applied_path(&config);
-    let mut index = match config.order {
-        WallpaperOrder::Random => random_index(images.len()),
-        WallpaperOrder::Sequential => config.last_folder_index % images.len(),
-    };
-    if images.len() > 1
-        && current_path
+    let index = match config.order {
+        WallpaperOrder::Sequential => current_path
             .as_ref()
-            .is_some_and(|current| paths_same(&images[index], current))
-    {
-        match config.order {
-            WallpaperOrder::Random => {
-                let candidates = images
+            .and_then(|current| images.iter().position(|image| paths_same(image, current)))
+            .map(|current_index| (current_index + 1) % images.len())
+            .unwrap_or(config.last_folder_index % images.len()),
+        WallpaperOrder::Random => {
+            let available_paths = images
+                .iter()
+                .map(|image| path_to_string(image))
+                .collect::<HashSet<_>>();
+            config
+                .folder_seen_paths
+                .retain(|path| available_paths.contains(path));
+            let mut seen_paths = config
+                .folder_seen_paths
+                .iter()
+                .cloned()
+                .collect::<HashSet<_>>();
+            let candidates = |seen: &HashSet<String>| {
+                images
                     .iter()
                     .enumerate()
                     .filter(|(_, image)| {
-                        !current_path
-                            .as_ref()
-                            .is_some_and(|current| paths_same(image, current))
+                        let image_path = path_to_string(image);
+                        !seen.contains(&image_path)
+                            && (images.len() == 1
+                                || !current_path
+                                    .as_ref()
+                                    .is_some_and(|current| paths_same(image, current)))
                     })
                     .map(|(candidate_index, _)| candidate_index)
-                    .collect::<Vec<_>>();
-                if !candidates.is_empty() {
-                    index = candidates[random_index(candidates.len())];
-                }
+                    .collect::<Vec<_>>()
+            };
+            let mut unvisited_candidates = candidates(&seen_paths);
+            if unvisited_candidates.is_empty() {
+                // A random cycle is complete. Start a fresh one while still avoiding
+                // the wallpaper that is currently on screen at the cycle boundary.
+                config.folder_seen_paths.clear();
+                seen_paths.clear();
+                unvisited_candidates = candidates(&seen_paths);
             }
-            WallpaperOrder::Sequential => {
-                for offset in 1..images.len() {
-                    let candidate_index = (index + offset) % images.len();
-                    if !current_path
-                        .as_ref()
-                        .is_some_and(|current| paths_same(&images[candidate_index], current))
-                    {
-                        index = candidate_index;
-                        break;
-                    }
-                }
-            }
+            unvisited_candidates[random_index(unvisited_candidates.len())]
+        }
+    };
+
+    if config.order == WallpaperOrder::Random {
+        let selected_path = path_to_string(&images[index]);
+        if !config
+            .folder_seen_paths
+            .iter()
+            .any(|path| path == &selected_path)
+        {
+            config.folder_seen_paths.push(selected_path);
         }
     }
     config.last_folder_index = (index + 1) % images.len();
@@ -722,37 +885,58 @@ async fn switch_from_fixed(
 
 async fn switch_from_wallhaven(
     app_handle: &AppHandle,
-    config: &WallpaperConfig,
+    mut config: WallpaperConfig,
 ) -> Result<String, String> {
-    let current_id = current_wallhaven_id(config);
+    let current_id = current_wallhaven_id(&config);
+    prepare_wallhaven_history(&mut config);
     let mut last_error = "Wallhaven 没有返回可用壁纸".to_string();
-    for _ in 0..6 {
-        let page = random_index(10) as u32 + 1;
-        let params = WallhavenFetchParams {
-            source: config.wallhaven_source.clone(),
-            page: Some(page),
-            query: config.wallhaven_query.clone(),
-            category: Some(config.wallhaven_category.clone()),
-        };
-        let page = fetch_wallhaven_page(app_handle, params).await?;
-        if page.data.is_empty() {
-            last_error = "Wallhaven 没有返回可用壁纸".to_string();
-            continue;
+    for reset_history in [false, true] {
+        let seen_ids = config
+            .wallhaven_seen_ids
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+        for _ in 0..10 {
+            let page = random_index(10) as u32 + 1;
+            let params = WallhavenFetchParams {
+                source: config.wallhaven_source.clone(),
+                page: Some(page),
+                query: config.wallhaven_query.clone(),
+                category: Some(config.wallhaven_category.clone()),
+            };
+            let page = fetch_wallhaven_page(app_handle, params).await?;
+            if page.data.is_empty() {
+                last_error = "Wallhaven 没有返回可用壁纸".to_string();
+                continue;
+            }
+
+            let candidates = page
+                .data
+                .into_iter()
+                .filter(|wallpaper| {
+                    current_id.as_deref() != Some(wallpaper.id.as_str())
+                        && !seen_ids.contains(&wallpaper.id)
+                })
+                .collect::<Vec<_>>();
+            if candidates.is_empty() {
+                last_error = "Wallhaven 本页的壁纸已在最近轮换中使用，正在尝试其它页面".to_string();
+                continue;
+            }
+
+            let wallpaper = candidates[random_index(candidates.len())].clone();
+            let downloaded = download_wallhaven_image(app_handle, &wallpaper).await?;
+            record_wallhaven_seen(&mut config, wallpaper.id);
+            save_config(app_handle, &config)?;
+            return apply_wallpaper_path(app_handle, &downloaded, "Wallhaven", &config.fit_mode)
+                .await;
         }
 
-        let candidates = page
-            .data
-            .into_iter()
-            .filter(|wallpaper| current_id.as_deref() != Some(wallpaper.id.as_str()))
-            .collect::<Vec<_>>();
-        if candidates.is_empty() {
-            last_error = "Wallhaven 本页只有当前壁纸，正在尝试其它页面".to_string();
-            continue;
+        if reset_history {
+            break;
         }
-
-        let wallpaper = candidates[random_index(candidates.len())].clone();
-        let downloaded = download_wallhaven_image(app_handle, &wallpaper).await?;
-        return apply_wallpaper_path(app_handle, &downloaded, "Wallhaven", &config.fit_mode).await;
+        // If all sampled pages are exhausted, begin a new online cycle. The
+        // current image remains excluded, so two adjacent switches never match.
+        config.wallhaven_seen_ids.clear();
     }
     Err(last_error)
 }
@@ -762,7 +946,7 @@ async fn switch_now_inner(app_handle: &AppHandle) -> Result<String, String> {
     match config.mode {
         WallpaperMode::Fixed => switch_from_fixed(app_handle, &config).await,
         WallpaperMode::Folder => switch_from_folder(app_handle, config).await,
-        WallpaperMode::Wallhaven => switch_from_wallhaven(app_handle, &config).await,
+        WallpaperMode::Wallhaven => switch_from_wallhaven(app_handle, config).await,
     }
 }
 
@@ -1587,6 +1771,21 @@ pub async fn wallpaper_save_config(
 ) -> Result<(), String> {
     require_enabled(&app_handle)?;
     let mut config = config;
+    let current = load_config(&app_handle);
+    if config.folder_path == current.folder_path {
+        config.folder_seen_paths = current.folder_seen_paths.clone();
+        config.last_folder_index = current.last_folder_index;
+    } else {
+        config.folder_seen_paths.clear();
+        config.last_folder_index = 0;
+    }
+    if wallhaven_history_scope(&config) == wallhaven_history_scope(&current) {
+        config.wallhaven_seen_ids = current.wallhaven_seen_ids.clone();
+        config.wallhaven_history_scope = current.wallhaven_history_scope.clone();
+    } else {
+        config.wallhaven_seen_ids.clear();
+        config.wallhaven_history_scope = None;
+    }
     config.interval_minutes = config.interval_minutes.max(1);
     save_config(&app_handle, &config)?;
     if config.schedule_enabled && config.auto_restore {
@@ -1631,7 +1830,8 @@ pub async fn wallpaper_scan_folder(
 ) -> Result<FolderScanResult, String> {
     require_enabled(&app_handle)?;
     let dir = normalize_existing_dir(&path)?;
-    let images = scan_images_in_dir(&dir)?;
+    let config = load_config(&app_handle);
+    let images = scan_images_in_dir(&dir, &config.folder_sort)?;
     Ok(FolderScanResult {
         path: path_to_string(&dir),
         count: images.len(),
@@ -1697,8 +1897,10 @@ pub async fn wallpaper_set_wallhaven_image(
     require_enabled(&app_handle)?;
     let mut config = load_config(&app_handle);
     config.mode = WallpaperMode::Wallhaven;
-    save_config(&app_handle, &config)?;
+    prepare_wallhaven_history(&mut config);
     let downloaded = download_wallhaven_image(&app_handle, &wallpaper).await?;
+    record_wallhaven_seen(&mut config, wallpaper.id.clone());
+    save_config(&app_handle, &config)?;
     apply_wallpaper_path(&app_handle, &downloaded, "Wallhaven", &config.fit_mode).await
 }
 
@@ -1779,5 +1981,40 @@ pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
         ensure_scheduler_runtime(app_handle);
     } else {
         stop_scheduler();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn natural_file_name_sort_keeps_numeric_sequences_in_order() {
+        let mut images = vec![
+            PathBuf::from("wallpaper-10.jpg"),
+            PathBuf::from("wallpaper-2.jpg"),
+            PathBuf::from("wallpaper-1.jpg"),
+        ];
+
+        sort_images(&mut images, &FolderSort::FileNameAscending);
+
+        let names = images
+            .iter()
+            .map(|path| image_name(path))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            ["wallpaper-1.jpg", "wallpaper-2.jpg", "wallpaper-10.jpg"]
+        );
+    }
+
+    #[test]
+    fn wallhaven_history_moves_reselected_item_to_the_end() {
+        let mut config = WallpaperConfig::default();
+        record_wallhaven_seen(&mut config, "abc".to_string());
+        record_wallhaven_seen(&mut config, "def".to_string());
+        record_wallhaven_seen(&mut config, "abc".to_string());
+
+        assert_eq!(config.wallhaven_seen_ids, ["def", "abc"]);
     }
 }

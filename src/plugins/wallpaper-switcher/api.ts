@@ -4,6 +4,11 @@ import { openPath } from '@tauri-apps/plugin-opener';
 
 export type WallpaperMode = 'fixed' | 'folder' | 'wallhaven';
 export type WallpaperOrder = 'random' | 'sequential';
+export type FolderSort =
+  | 'fileNameAscending'
+  | 'fileNameDescending'
+  | 'modifiedAscending'
+  | 'modifiedDescending';
 export type WallpaperFitMode = 'fillCrop' | 'fit' | 'center';
 export type WallhavenSource = 'hot' | 'toplist' | 'favorites';
 
@@ -14,11 +19,15 @@ export interface WallpaperConfig {
   scheduleEnabled: boolean;
   intervalMinutes: number;
   order: WallpaperOrder;
+  folderSort: FolderSort;
   fitMode: WallpaperFitMode;
   autoRestore: boolean;
   wallhavenSource: WallhavenSource;
   wallhavenCategory: string;
   wallhavenQuery: string | null;
+  folderSeenPaths: string[];
+  wallhavenSeenIds: string[];
+  wallhavenHistoryScope: string | null;
   lastFolderIndex: number;
   lastAppliedPath: string | null;
 }
@@ -81,11 +90,15 @@ export const defaultWallpaperConfig = (): WallpaperConfig => ({
   scheduleEnabled: false,
   intervalMinutes: 30,
   order: 'random',
+  folderSort: 'fileNameAscending',
   fitMode: 'fillCrop',
   autoRestore: true,
   wallhavenSource: 'hot',
   wallhavenCategory: 'general',
   wallhavenQuery: null,
+  folderSeenPaths: [],
+  wallhavenSeenIds: [],
+  wallhavenHistoryScope: null,
   lastFolderIndex: 0,
   lastAppliedPath: null
 });

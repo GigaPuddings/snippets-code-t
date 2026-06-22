@@ -350,6 +350,10 @@
     @apply grid-cols-[96px_minmax(0,1fr)_94px_94px];
   }
 
+  .folder-order-row {
+    @apply grid-cols-[96px_280px_minmax(0,1fr)] mt-1;
+  }
+
   .wallhaven-row {
     @apply grid-cols-[96px_74px_minmax(0,1fr)_210px] items-center gap-2.5 min-h-11 pt-2.5 mt-2 border-t;
 
@@ -430,6 +434,10 @@
     @apply grid-cols-3 w-[280px];
   }
 
+  .folder-order {
+    @apply grid-cols-2 w-[280px];
+  }
+
   .grid-open {
     @apply w-full min-w-[154px] col-start-4;
   }
@@ -486,12 +494,17 @@
   .number-label {
     @apply flex items-center gap-2;
 
-    input {
+    input,
+    select {
       @apply w-[78px] h-[30px] py-0 px-2.5 rounded-md border;
 
       color: var(--wallpaper-text);
       background: var(--wallpaper-input);
       border-color: var(--wallpaper-border);
+    }
+
+    select {
+      @apply w-[150px];
     }
   }
 
