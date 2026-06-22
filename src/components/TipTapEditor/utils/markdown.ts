@@ -268,7 +268,7 @@ const markdownLinkExtension = {
 // 必须在 Markdown 完成段落/换行解析之后修复，不能用 inline extension：
 // 后者会让 marked 丢掉该 token 后的软换行。
 function renderUnparsedLabelStrong(html: string): string {
-  return html.replace(/<p>([\s\S]*?)<\/p>/g, (paragraph, content: string) => {
+  return html.replace(/<p>([\s\S]*?)<\/p>/g, (_paragraph, content: string) => {
     const fixedContent = content.replace(
       /\*\*([^*<\r\n]*?[：:])\s*\*\*/g,
       (_match, label: string) => `<strong>${escapeHtml(label.trim())}</strong>`
