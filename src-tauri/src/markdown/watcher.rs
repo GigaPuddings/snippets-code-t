@@ -445,8 +445,12 @@ impl FileWatcher {
                 }
                 for re in &renames {
                     let old = workspace_root.join(&re.from);
-                    let _ = cache.remove_file(&old, workspace_root);
-                    dirty = true;
+                    let new = workspace_root.join(&re.to);
+                    // 重命名不能只删除旧项；否则新文件会从 cache.json 丢失，
+                    // 后续收藏、保存和按时间排序都会读取不到它。
+                    let removed = cache.remove_file(&old, workspace_root).is_ok();
+                    let added = cache.add_file(&new, workspace_root).is_ok();
+                    dirty |= removed || added;
                 }
                 // 删除目录时，清理该目录下所有文件的 cache 元数据及分类元数据
                 for dir_rel in &final_dir_deleted {

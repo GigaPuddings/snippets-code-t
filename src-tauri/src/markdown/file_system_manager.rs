@@ -41,6 +41,20 @@ pub struct FileSystemManager {
 }
 
 impl FileSystemManager {
+    fn normalize_category_name(category_name: &str) -> Result<String, String> {
+        let normalized = FileNameGenerator::sanitize_filename(category_name);
+
+        // 隐藏目录和 assets 是工作区内部目录；将片段写入其中会让 UI 无法列出，
+        // 也可能污染应用配置。分类只能是工作区根目录下的普通一级目录。
+        if normalized.starts_with('.')
+            || matches!(normalized.as_str(), "assets" | ".snippets-code" | ".git")
+        {
+            return Err("分类名称不能使用系统或隐藏目录".to_string());
+        }
+
+        Ok(normalized)
+    }
+
     // 创建新的文件系统管理器
     //
     // # Arguments
@@ -487,15 +501,9 @@ impl FileSystemManager {
 
             uncategorized_path.join(file_name)
         } else {
-            // 移动到指定分类文件夹
-            let category_path = self.workspace_root.join(new_category);
-
-            // 确保目标文件夹存在
-            if !category_path.exists() {
-                fs::create_dir_all(&category_path)
-                    .map_err(|e| format!("创建分类文件夹失败: {}", e))?;
-            }
-
+            // 复用分类创建逻辑，先清理并验证分类名，再创建目录。
+            // 不能直接 join(new_category)：`../foo` 会在校验前产生工作区外的目录。
+            let category_path = self.create_category_folder(new_category)?;
             category_path.join(file_name)
         };
 
@@ -540,7 +548,7 @@ impl FileSystemManager {
     // * `Ok(PathBuf)` - 创建的文件夹路径
     // * `Err(String)` - 创建失败的错误信息
     pub fn create_category_folder(&self, category_name: &str) -> Result<PathBuf, String> {
-        let safe_name = FileNameGenerator::sanitize_filename(category_name);
+        let safe_name = Self::normalize_category_name(category_name)?;
         let folder_path = self.workspace_root.join(&safe_name);
 
         // 验证路径安全性
@@ -666,5 +674,30 @@ impl FileSystemManager {
         // 按文件名排序
         files.sort();
         Ok(files)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FileSystemManager;
+    use std::fs;
+
+    #[test]
+    fn moving_to_a_path_like_category_is_rejected_before_any_directory_is_created() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let outside_dir = workspace
+            .path()
+            .parent()
+            .expect("workspace parent")
+            .join("outside");
+        let note_path = workspace.path().join("note.md");
+        fs::write(&note_path, "# Note").expect("note file");
+
+        let manager = FileSystemManager::new(workspace.path().to_path_buf());
+        let result = manager.move_markdown_file(&note_path, "../outside");
+
+        assert!(result.is_err());
+        assert!(!outside_dir.exists());
+        assert!(note_path.exists());
     }
 }

@@ -49,19 +49,40 @@ fn initialize_workspace_runtime(
         app_handle.manage(Arc::new(Mutex::new(None::<crate::markdown::FileWatcher>)));
     }
 
+    // 切换工作区后，旧索引不能继续服务搜索；新索引构建完成前保留空状态。
+    if let Some(index_state) =
+        app_handle.try_state::<Arc<RwLock<Option<crate::markdown::IndexManager>>>>()
+    {
+        if let Ok(mut index_lock) = index_state.write() {
+            *index_lock = None;
+        }
+    }
+
     let app_handle_index = app_handle.clone();
     let workspace_root_index = workspace_root.clone();
     tauri::async_runtime::spawn(async move {
+        if !is_current_workspace(&app_handle_index, &workspace_root_index) {
+            log::debug!("跳过已过期工作区初始化: {}", workspace_root_index.display());
+            return;
+        }
+
         match crate::markdown::IndexManager::build_index(&workspace_root_index, &cache_manager)
             .await
         {
             Ok(index_manager) => {
-                if let Some(index_state) = app_handle_index
-                    .try_state::<Arc<RwLock<Option<crate::markdown::IndexManager>>>>()
-                {
-                    if let Ok(mut index_lock) = index_state.write() {
-                        *index_lock = Some(index_manager);
+                if is_current_workspace(&app_handle_index, &workspace_root_index) {
+                    if let Some(index_state) = app_handle_index
+                        .try_state::<Arc<RwLock<Option<crate::markdown::IndexManager>>>>()
+                    {
+                        if let Ok(mut index_lock) = index_state.write() {
+                            *index_lock = Some(index_manager);
+                        }
                     }
+                } else {
+                    log::debug!(
+                        "丢弃已过期工作区搜索索引: {}",
+                        workspace_root_index.display()
+                    );
                 }
             }
             Err(e) => {
@@ -69,17 +90,27 @@ fn initialize_workspace_runtime(
             }
         }
 
+        if !is_current_workspace(&app_handle_index, &workspace_root_index) {
+            log::debug!("跳过已过期工作区监听器: {}", workspace_root_index.display());
+            return;
+        }
+
         match crate::markdown::FileWatcher::start(
             workspace_root_index.clone(),
             app_handle_index.clone(),
         ) {
             Ok(watcher) => {
-                if let Some(watcher_state) =
-                    app_handle_index.try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>()
-                {
-                    if let Ok(mut watcher_lock) = watcher_state.lock() {
-                        *watcher_lock = Some(watcher);
+                if is_current_workspace(&app_handle_index, &workspace_root_index) {
+                    if let Some(watcher_state) = app_handle_index
+                        .try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>()
+                    {
+                        if let Ok(mut watcher_lock) = watcher_state.lock() {
+                            *watcher_lock = Some(watcher);
+                        }
                     }
+                } else {
+                    // 不写入状态即会立刻 drop，关闭过期监听器。
+                    log::debug!("丢弃已过期工作区监听器: {}", workspace_root_index.display());
                 }
             }
             Err(e) => {
@@ -115,6 +146,15 @@ fn sync_workspace_root_to_app_config(
     }
 
     Ok(())
+}
+
+/// 异步初始化完成前，工作区可能已经被用户再次切换。
+/// 只允许当前配置对应的任务写入运行时状态，防止旧索引/监听器反向覆盖新工作区。
+fn is_current_workspace(app_handle: &tauri::AppHandle, expected_root: &std::path::Path) -> bool {
+    get_workspace_root(app_handle)
+        .ok()
+        .flatten()
+        .is_some_and(|current_root| current_root == expected_root)
 }
 
 // 打开文件夹选择对话框
@@ -199,7 +239,14 @@ pub fn get_workspace_root_path(app_handle: tauri::AppHandle) -> Result<Option<St
 // 设置 workspace_root 配置
 #[tauri::command]
 pub fn set_workspace_root_path(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
-    let path_buf = PathBuf::from(path);
+    let path_buf = PathBuf::from(path.trim());
+    if path_buf.as_os_str().is_empty() {
+        return Err("工作区路径不能为空".to_string());
+    }
+
+    // 不能只相信前端的文件选择器；该命令同样可能被插件或恢复配置流程调用。
+    validate_workspace(&path_buf)?;
+    ensure_workspace_not_app_data(&app_handle, &path_buf)?;
     set_workspace_root(&app_handle, path_buf.clone())?;
     sync_workspace_root_to_app_config(&app_handle, &path_buf)?;
     initialize_workspace_runtime(&app_handle, path_buf)
