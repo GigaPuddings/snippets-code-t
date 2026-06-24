@@ -22,6 +22,7 @@ pub fn read_workspace(config_dir: &Path) -> Result<WorkspaceConfig, String> {
 
 // 写入 workspace.json
 pub fn write_workspace(config_dir: &Path, workspace: &WorkspaceConfig) -> Result<(), String> {
+    ensure_config_dir_exists(config_dir)?;
     let workspace_path = config_dir.join("workspace.json");
 
     let json = serde_json::to_string_pretty(workspace)
@@ -68,6 +69,7 @@ pub fn read_cache_silent(config_dir: &Path) -> Result<CacheConfig, String> {
 
 // 写入 cache.json
 pub fn write_cache(config_dir: &Path, cache: &CacheConfig) -> Result<(), String> {
+    ensure_config_dir_exists(config_dir)?;
     let cache_path = config_dir.join("cache.json");
 
     let json = serde_json::to_string_pretty(cache)
@@ -75,6 +77,13 @@ pub fn write_cache(config_dir: &Path, cache: &CacheConfig) -> Result<(), String>
 
     fs::write(&cache_path, &json).map_err(|e| format!("写入 cache.json 失败: {}", e))?;
     Ok(())
+}
+
+/// 配置目录可能被用户或外部清理工具删除。每次写入前确保其存在，
+/// 让 cache/workspace 文件能够在下次保存时自动恢复。
+fn ensure_config_dir_exists(config_dir: &Path) -> Result<(), String> {
+    fs::create_dir_all(config_dir)
+        .map_err(|e| format!("创建配置目录失败 '{}': {}", config_dir.display(), e))
 }
 
 // 更新文件元数据
@@ -93,4 +102,34 @@ pub fn update_category_metadata(
     metadata: super::metadata::CategoryMetadata,
 ) {
     cache.categories.insert(category_name.to_string(), metadata);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{write_cache, write_workspace};
+    use crate::markdown::metadata::{CacheConfig, WorkspaceConfig};
+
+    #[test]
+    fn writes_cache_after_config_directory_was_deleted() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_dir = temp_dir.path().join(".snippets-code");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::remove_dir_all(&config_dir).unwrap();
+
+        write_cache(&config_dir, &CacheConfig::default()).unwrap();
+
+        assert!(config_dir.join("cache.json").is_file());
+    }
+
+    #[test]
+    fn writes_workspace_after_config_directory_was_deleted() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_dir = temp_dir.path().join(".snippets-code");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::remove_dir_all(&config_dir).unwrap();
+
+        write_workspace(&config_dir, &WorkspaceConfig::default()).unwrap();
+
+        assert!(config_dir.join("workspace.json").is_file());
+    }
 }

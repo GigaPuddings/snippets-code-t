@@ -970,13 +970,9 @@ fn get_changed_files_with_status(
             if let Ok(ref out) = orig_head {
                 if out.status.success() {
                     String::from_utf8_lossy(&out.stdout).trim().to_string()
-                } else if git_has_head(workspace_root) {
-                    "HEAD@{1}".to_string()
                 } else {
                     String::new()
                 }
-            } else if git_has_head(workspace_root) {
-                "HEAD@{1}".to_string()
             } else {
                 String::new()
             }
@@ -984,8 +980,43 @@ fn get_changed_files_with_status(
     };
 
     if base_ref.is_empty() {
-        info!("ℹ️ [Git] 当前仓库尚无可用于 diff 的基准引用，跳过 pull 后增量变更 diff");
-        return Ok(ChangedFilesByStatus::default());
+        // 首次从远程拉取时，拉取前没有本地 HEAD，也不一定会生成可用的
+        // ORIG_HEAD / reflog 基准。此时将当前 HEAD 中的全部 Markdown 视为新增，
+        // 以便更新 cache 和快速搜索索引。
+        if !git_has_head(workspace_root) {
+            info!("ℹ️ [Git] 当前仓库尚无可用于 diff 的基准引用，跳过 pull 后增量变更 diff");
+            return Ok(ChangedFilesByStatus::default());
+        }
+
+        let output = crate::git_common::git_command()
+            .args(["ls-tree", "-r", "--name-only", "HEAD"])
+            .current_dir(workspace_root)
+            .output()
+            .map_err(|e| format!("获取首次拉取文件列表失败: {}", e))?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "获取首次拉取文件列表失败: {}",
+                get_git_stderr(&output)
+            ));
+        }
+
+        let created = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(decode_git_quoted_path)
+            .map(|path| path.replace('\\', "/"))
+            .filter(|path| path.ends_with(".md"))
+            .collect::<Vec<_>>();
+
+        info!(
+            "📋 [Git] 首次 Pull 无 diff 基准，将 {} 个 Markdown 文件视为新增",
+            created.len()
+        );
+        return Ok(ChangedFilesByStatus {
+            created,
+            modified: vec![],
+            deleted: vec![],
+        });
     }
 
     let output = crate::git_common::git_command()
@@ -1366,7 +1397,25 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
     }
 
     // 解析更新的文件数量
-    let files_updated = parse_pull_output(&stdout);
+    let mut files_updated = parse_pull_output(&stdout);
+
+    // 某些 Git 版本/首次恢复仓库时不会在 stdout 输出可解析的
+    // "N files changed" 汇总。此时基于实际 diff（首次拉取则基于 HEAD 文件清单）
+    // 兜底，确保后续 cache 与快速搜索索引不会被错误地跳过。
+    if files_updated == 0 {
+        match get_changed_files_with_status(workspace_root, pre_pull_head.as_deref()) {
+            Ok(changes) => {
+                files_updated = changes.all().len();
+                if files_updated > 0 {
+                    info!(
+                        "ℹ️ [Git] Pull 输出未提供文件数，已从实际变更中识别出 {} 个 Markdown 文件",
+                        files_updated
+                    );
+                }
+            }
+            Err(e) => warn!("⚠️ [Git] 无法从实际变更补充 Pull 文件数: {}", e),
+        }
+    }
 
     // 只有当有文件更新时才打印日志
     if files_updated > 0 {
@@ -4442,4 +4491,46 @@ pub fn remove_untracked_file_command(
     info!("✅ [Git] 已删除未跟踪文件: {}", relative_path);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_changed_files_with_status;
+    use std::fs;
+    use std::path::Path;
+
+    fn run_git(workspace: &Path, args: &[&str]) {
+        let output = crate::git_common::git_command()
+            .args(args)
+            .current_dir(workspace)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn treats_tracked_markdown_as_created_when_first_pull_has_no_base_ref() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path();
+
+        run_git(workspace, &["init", "-b", "main"]);
+        run_git(workspace, &["config", "user.name", "Codex Test"]);
+        run_git(workspace, &["config", "user.email", "codex@example.com"]);
+        fs::create_dir_all(workspace.join("notes")).unwrap();
+        fs::write(workspace.join("notes/recovered.md"), "# Recovered").unwrap();
+        fs::write(workspace.join("ignored.txt"), "not markdown").unwrap();
+        run_git(workspace, &["add", "."]);
+        run_git(workspace, &["commit", "-m", "initial pull"]);
+
+        let changed = get_changed_files_with_status(workspace, None).unwrap();
+
+        assert_eq!(changed.created, vec!["notes/recovered.md"]);
+        assert!(changed.modified.is_empty());
+        assert!(changed.deleted.is_empty());
+    }
 }

@@ -5,7 +5,14 @@ import { getGitSettings } from '@/api/appConfig';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import type { Composer } from 'vue-i18n';
-import { ensureGitignore, gitPull, startAutoSync, pauseAutoSync } from './api';
+import {
+  checkGitRepo,
+  ensureGitignore,
+  gitPull,
+  initGitRepository,
+  pauseAutoSync,
+  startAutoSync
+} from './api';
 import { useGitStatus } from './useGitStatus';
 
 export interface GitEventListeners {
@@ -169,15 +176,39 @@ export async function ensureWorkspaceGitignore(): Promise<void> {
   }
 }
 
-export async function initGitSync(t: Composer['t']): Promise<boolean> {
+export interface InitGitSyncDeps {
+  getGitSettings: typeof getGitSettings;
+  checkGitRepo: typeof checkGitRepo;
+  initGitRepository: typeof initGitRepository;
+  gitPull: typeof gitPull;
+  startAutoSync: typeof startAutoSync;
+  pauseAutoSync: typeof pauseAutoSync;
+  logger: Pick<typeof logger, 'info' | 'error'>;
+}
+
+const defaultInitGitSyncDeps: InitGitSyncDeps = {
+  getGitSettings,
+  checkGitRepo,
+  initGitRepository,
+  gitPull,
+  startAutoSync,
+  pauseAutoSync,
+  logger
+};
+
+export async function initGitSync(
+  t: Composer['t'],
+  overrides: Partial<InitGitSyncDeps> = {}
+): Promise<boolean> {
+  const deps = { ...defaultInitGitSyncDeps, ...overrides };
+
   try {
-    const gitSettings = await getGitSettings();
+    const gitSettings = await deps.getGitSettings();
 
     const isFullyConfigured = gitSettings.enabled &&
-      gitSettings.user_name &&
-      gitSettings.user_email &&
-      gitSettings.token &&
-      gitSettings.remote_url;
+      gitSettings.user_name.trim() &&
+      gitSettings.user_email.trim() &&
+      gitSettings.remote_url.trim();
 
     if (!isFullyConfigured) {
       return false;
@@ -185,9 +216,25 @@ export async function initGitSync(t: Composer['t']): Promise<boolean> {
 
     let shouldRefresh = false;
     let pullFailed = false;
-    if (gitSettings.pull_on_start) {
+    let shouldPull = gitSettings.pull_on_start;
+
+    // token 不会持久化到 app.json，而是由 Git credential helper 保存。
+    // 工作区的 .git 被误删时，使用持久化的远程地址重建本地仓库，
+    // 并强制拉取一次以恢复工作区内容。
+    if (!(await deps.checkGitRepo())) {
+      deps.logger.info('[GitSync] 本地 Git 仓库缺失，开始根据已保存的远程配置恢复');
+      await deps.initGitRepository(
+        gitSettings.user_name,
+        gitSettings.user_email,
+        gitSettings.remote_url,
+        gitSettings.token
+      );
+      shouldPull = true;
+    }
+
+    if (shouldPull) {
       try {
-        const result = await gitPull();
+        const result = await deps.gitPull();
         if (result.success && !result.has_conflicts && result.files_updated > 0) {
           modal.msg(t('settings.gitSync.pullSuccess', { count: result.files_updated }), 'success', 'bottom-right');
           shouldRefresh = true;
@@ -201,19 +248,19 @@ export async function initGitSync(t: Composer['t']): Promise<boolean> {
     }
 
     if (gitSettings.auto_sync) {
-      await startAutoSync();
+      await deps.startAutoSync();
       if (pullFailed) {
         try {
-          await pauseAutoSync();
+          await deps.pauseAutoSync();
         } catch (error) {
-          logger.error('[GitSync] 暂停自动同步失败', error);
+          deps.logger.error('[GitSync] 暂停自动同步失败', error);
         }
       }
     }
 
     return shouldRefresh;
   } catch (error) {
-    logger.error('[GitSync] Git 同步初始化失败', error);
+    deps.logger.error('[GitSync] Git 同步初始化失败', error);
     return false;
   }
 }
