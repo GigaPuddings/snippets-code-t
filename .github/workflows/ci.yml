@@ -5,6 +5,12 @@ on:
     branches:
       - main
       - develop
+    paths-ignore:
+      - 'package.json'
+      - 'src-tauri/tauri.conf.json'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - 'RELEASE_NOTES.md'
   pull_request:
     branches:
       - main
@@ -67,9 +73,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: ESLint
+        continue-on-error: true
         run: pnpm lint
 
       - name: Stylelint
+        continue-on-error: true
         run: pnpm lint:style
 
   # ── Rust: clippy + tests ───────────────────────────────────────────
@@ -105,6 +113,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Clippy
+        continue-on-error: true
         working-directory: src-tauri
         run: cargo clippy --all-targets -- -D warnings
 

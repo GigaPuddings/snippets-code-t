@@ -14,7 +14,8 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
-const question = (query) => new Promise((resolve) => rl.question(query, resolve));
+const question = (query) =>
+  new Promise((resolve) => rl.question(query, resolve));
 
 const execCommand = (command) => {
   try {
@@ -31,6 +32,16 @@ function gitLines(command) {
     .filter(Boolean);
 }
 
+function getCurrentBranch() {
+  const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+    encoding: 'utf8'
+  }).trim();
+  if (!branch || branch === 'HEAD') {
+    throw new Error('发布前请切换到一个本地分支，当前处于 detached HEAD 状态');
+  }
+  return branch;
+}
+
 function assertReleaseWorkspaceClean() {
   const allowedChanges = new Set(['RELEASE_NOTES.md']);
   const changedFiles = new Set([
@@ -38,7 +49,9 @@ function assertReleaseWorkspaceClean() {
     ...gitLines('git diff --cached --name-only'),
     ...gitLines('git ls-files --others --exclude-standard')
   ]);
-  const unexpectedChanges = [...changedFiles].filter((file) => !allowedChanges.has(file));
+  const unexpectedChanges = [...changedFiles].filter(
+    (file) => !allowedChanges.has(file)
+  );
   if (unexpectedChanges.length > 0) {
     throw new Error(
       `主应用发布前工作区必须干净，请先提交或处理以下文件:\n${unexpectedChanges.join('\n')}`
@@ -107,18 +120,18 @@ async function checkReleaseNotes() {
     }
     return null;
   }
-  
+
   console.log('\n📋 更新说明预览:');
   console.log('─'.repeat(40));
   console.log(notes);
   console.log('─'.repeat(40));
-  
+
   const confirm = await question('\n确认使用以上更新说明？(Y/n): ');
   if (confirm.toLowerCase() === 'n') {
     console.log('请编辑 RELEASE_NOTES.md 后重新运行');
     process.exit(0);
   }
-  
+
   return notes;
 }
 
@@ -126,10 +139,10 @@ async function updateVersion() {
   try {
     console.log('🚀 snippets-code 发布工具\n');
     assertReleaseWorkspaceClean();
-    
+
     // 1. 检查更新说明
     await checkReleaseNotes();
-    
+
     // 2. 获取用户输入的版本号
     const version = await question('\n请输入新的版本号 (例如: 1.2.5): ');
     if (!version.match(/^\d+\.\d+\.\d+$/)) {
@@ -138,14 +151,12 @@ async function updateVersion() {
 
     // 3. 检查标签是否存在
     const tagExists = await checkTagExists(version);
-    let overwriteExistingTag = false;
     if (tagExists) {
       const overwrite = await question('标签已存在，是否覆盖？(y/N): ');
       if (overwrite.toLowerCase() !== 'y') {
         console.log('操作已取消');
         process.exit(0);
       }
-      overwriteExistingTag = true;
       console.log('正在删除已存在的标签...');
       execCommand(`git tag -d v${version}`);
       execCommand(`git push origin :refs/tags/v${version}`);
@@ -164,36 +175,51 @@ async function updateVersion() {
     const packagePath = path.resolve(__dirname, '../package.json');
     const packageJson = require(packagePath);
     packageJson.version = version;
-    await fs.writeFile(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
+    await fs.writeFile(
+      packagePath,
+      JSON.stringify(packageJson, null, 2) + '\n'
+    );
 
     // 更新 tauri.conf.json
     console.log('正在更新 tauri.conf.json...');
-    const tauriConfigPath = path.resolve(__dirname, '../src-tauri/tauri.conf.json');
+    const tauriConfigPath = path.resolve(
+      __dirname,
+      '../src-tauri/tauri.conf.json'
+    );
     const tauriConfig = require(tauriConfigPath);
     tauriConfig.version = version;
-    await fs.writeFile(tauriConfigPath, JSON.stringify(tauriConfig, null, 2) + '\n');
+    await fs.writeFile(
+      tauriConfigPath,
+      JSON.stringify(tauriConfig, null, 2) + '\n'
+    );
 
     // 更新 Cargo.toml
     console.log('正在更新 Cargo.toml...');
     const cargoTomlPath = path.resolve(__dirname, '../src-tauri/Cargo.toml');
     const cargoToml = await fs.readFile(cargoTomlPath, 'utf8');
-    await fs.writeFile(cargoTomlPath, updateCargoPackageVersion(cargoToml, version));
+    await fs.writeFile(
+      cargoTomlPath,
+      updateCargoPackageVersion(cargoToml, version)
+    );
 
     // 更新 Cargo.lock 中主应用包版本，保持 Windows 文件版本和发布版本一致。
     console.log('正在更新 Cargo.lock...');
     const cargoLockPath = path.resolve(__dirname, '../src-tauri/Cargo.lock');
     const cargoLock = await fs.readFile(cargoLockPath, 'utf8');
-    await fs.writeFile(cargoLockPath, updateCargoLockPackageVersion(cargoLock, version));
+    await fs.writeFile(
+      cargoLockPath,
+      updateCargoLockPackageVersion(cargoLock, version)
+    );
 
     console.log('正在校验发布版本一致性...');
     execCommand('node scripts/verify-release-versions.mjs');
 
     // Git 操作
     console.log('\n正在提交更改...');
-    
+
     // 主应用发布只提交版本与发布说明文件，避免捎带插件或开发中的改动。
     execCommand(`git add -- ${filesToUpdate.join(' ')}`);
-    
+
     // 检查是否有待提交的更改
     try {
       execSync('git diff --cached --quiet');
@@ -205,13 +231,19 @@ async function updateVersion() {
     console.log('\n正在创建标签...');
     // 创建简单标签（不带注释）
     execCommand(`git tag v${version}`);
-    
-    console.log('正在推送到远程仓库...');
+
+    const currentBranch = getCurrentBranch();
+    console.log('正在推送发布提交到远程分支...');
+    execCommand(`git push origin ${currentBranch}`);
+
+    console.log('正在推送标签到远程仓库...');
     execCommand(`git push origin v${version}`);
 
     console.log(`\n✨ 发布成功！版本 v${version} 已推送到远程仓库`);
     console.log(`\n📦 GitHub Actions 正在构建中...`);
-    console.log(`🔗 查看进度: https://github.com/GigaPuddings/snippets-code-t/actions`);
+    console.log(
+      `🔗 查看进度: https://github.com/GigaPuddings/snippets-code-t/actions`
+    );
   } catch (error) {
     console.error('❌ 错误:', error.message);
     process.exit(1);
@@ -220,4 +252,4 @@ async function updateVersion() {
   }
 }
 
-updateVersion(); 
+updateVersion();
