@@ -226,6 +226,13 @@ describe('markdownToHtml', () => {
     expect(html).toContain('<strong>AI 聊天 / 问答</strong>');
   });
 
+  it('normalizes a trailing space before an inline bold closing delimiter', () => {
+    const html = markdownToHtml('AI 辅助新增**知识库问答（RAG） **模式');
+
+    expect(html).toContain('AI 辅助新增<strong>知识库问答（RAG）</strong>模式');
+    expect(html).not.toContain('**知识库问答（RAG） **');
+  });
+
   it('normalizes AI label bold markers with a space before the closing delimiter', () => {
     const html = markdownToHtml([
       '## 2025.2-2025.3 | 采购平台小程序开发（微信小程序）',
@@ -279,6 +286,47 @@ describe('markdownToHtml', () => {
     expect(html).toContain('data-type="taskList"');
     expect(html).toContain('<pre><code class="language-ts">');
     expect(html).toContain('<table>');
+  });
+
+  it('renders bold when Chinese full-width parenthesis precedes the closing delimiter', () => {
+    // CommonMark 的右侧重边距判定：）是 Unicode 标点，当 ** 后面紧跟非标点字符时，
+    // ** 不会被识别为结束分隔符。预处理阶段在标点与 ** 之间插入零宽空格来修复。
+    const html = markdownToHtml('AI辅助新增**知识库问答（RAG）**模式');
+
+    expect(html).toContain('<strong>知识库问答（RAG）</strong>');
+    expect(html).not.toContain('**');
+    expect(html).not.toContain('\u200B');
+  });
+
+  it('renders bold in list items when Chinese parenthesis precedes the closing delimiter', () => {
+    const html = markdownToHtml('- 支持**知识库问答（RAG）**功能');
+
+    expect(html).toContain('<strong>知识库问答（RAG）</strong>');
+    expect(html).not.toContain('**');
+  });
+
+  it('renders multiple bold segments on the same line with Chinese parenthesis', () => {
+    const html = markdownToHtml('支持**知识库问答（RAG）**和**AI聊天**功能');
+
+    expect(html).toContain('<strong>知识库问答（RAG）</strong>');
+    expect(html).toContain('<strong>AI聊天</strong>');
+    // 确保“和”不在 <strong> 标签内（marked 不应产生错误嵌套）
+    expect(html).not.toContain('<strong>和</strong>');
+    expect(html).not.toContain('**');
+  });
+
+  it('renders bold in headings when Chinese parenthesis precedes the closing delimiter', () => {
+    const html = markdownToHtml('## 标题中的**知识库问答（RAG）**功能');
+
+    expect(html).toContain('<strong>知识库问答（RAG）</strong>');
+    expect(html).not.toContain('**');
+  });
+
+  it('renders bold with half-width parenthesis followed by Chinese character', () => {
+    const html = markdownToHtml('支持**知识库问答(RAG)**功能');
+
+    expect(html).toContain('<strong>知识库问答(RAG)</strong>');
+    expect(html).not.toContain('**');
   });
 
 });

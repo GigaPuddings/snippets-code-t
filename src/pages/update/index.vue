@@ -226,13 +226,12 @@
 
 <script setup lang="ts">
 import { appVersion, initEnv, getAppWindow } from '@/utils/env';
-import { sanitizeHtml } from '@/utils/html-sanitize';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { useI18n } from 'vue-i18n';
 import { formatBytes, formatPercentage } from '@/utils/format';
-import { marked } from 'marked';
+import { markdownToHtml } from '@/components/TipTapEditor/utils/markdown';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -281,11 +280,6 @@ const progressFormat = (percentage: number) => {
   return update.downloading ? formatPercentage(percentage) : '';
 };
 
-marked.setOptions({
-  breaks: true,
-  gfm: true
-});
-
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.tz.setDefault('Asia/Shanghai');
@@ -296,7 +290,7 @@ onMounted(async () => {
   const updateInfo: UpdateInfo = await invoke('get_update_info');
   if (updateInfo) {
     update.newVersion = updateInfo.version;
-    update.releaseNotes = sanitizeHtml(marked(updateInfo.notes) as string);
+    update.releaseNotes = markdownToHtml(updateInfo.notes);
     update.releaseDate = updateInfo.pub_date
       ? dayjs(updateInfo.pub_date.replace(' +00:00:00', 'Z').replace('.0', ''))
           .tz()

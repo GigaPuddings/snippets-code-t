@@ -54,9 +54,22 @@ function normalizeLooseInlineMarkdown(value: string): string {
   return normalized;
 }
 
+// CommonMark 的右侧重边距（right-flanking）判定：当 `**` 前面是 Unicode 标点
+// （如中文全角右括号“）”、句号“。”等）、后面紧跟非标点非空白字符时，
+// `**` 无法被识别为结束分隔符，导致加粗语法失效。
+// 在标点与 `**` 之间插入零宽空格（\u200B），使 `**` 的前一个字符变为非标点，
+// 从而满足右侧重边距条件。零宽空格在 marked 解析后会被移除。
+function fixPunctuationBeforeStrong(markdown: string): string {
+  return markdown
+    .replace(/([\p{P}])\*\*(?=[^\s\p{P}])/gu, '$1\u200B**')
+    .replace(/([\p{P}])__(?=[^\s\p{P}])/gu, '$1\u200B__');
+}
+
 function normalizeMarkdownBeforeParse(markdown: string): string {
-  return normalizeLooseInlineMarkdown(
-    markdown.replace(/^(\s{0,3})(\d+)[、．]\s*/gm, '$1$2. ')
+  return fixPunctuationBeforeStrong(
+    normalizeLooseInlineMarkdown(
+      markdown.replace(/^(\s{0,3})(\d+)[、．]\s*/gm, '$1$2. ')
+    )
   );
 }
 
@@ -264,22 +277,37 @@ const markdownLinkExtension = {
   }
 };
 
-// marked 对中文紧邻英文冒号的标签（如 **描述:**）的强调解析不稳定。
+// marked 对中文紧邻强调标记（如 新增**知识库问答**模式、**描述:**）解析不稳定。
 // 必须在 Markdown 完成段落/换行解析之后修复，不能用 inline extension：
 // 后者会让 marked 丢掉该 token 后的软换行。
+// 除了 <p> 之外，还需处理 <li>、<h1>–<h6>、<blockquote>、<td>、<th> 等块级元素，
+// 因为 marked 在这些元素中同样可能留下未解析的 **...** 字面量。
 function renderUnparsedLabelStrong(html: string): string {
-  return html.replace(/<p>([\s\S]*?)<\/p>/g, (_paragraph, content: string) => {
-    const fixedContent = content.replace(
-      /\*\*([^*<\r\n]*?[：:])\s*\*\*/g,
-      (_match, label: string) => `<strong>${escapeHtml(label.trim())}</strong>`
-    );
-    // 模型常把“标签 + 正文”或“正文 + 下一个标签”压进同一个段落。
-    // 在已解析的普通段落内恢复结构，避免影响代码块、表格等其它节点。
-    const structuredContent = fixedContent
-      .replace(/([。！？；;）)])(<strong>[^<]*?[：:]<\/strong>)/g, '$1</p><p>$2')
-      .replace(/(<strong>[^<]*?[：:]<\/strong>)(?=[^<\r\n])/g, '$1<br>');
-    return `<p>${structuredContent}</p>`;
-  });
+  return html.replace(
+    /<(p|li|h[1-6]|blockquote|td|th)>([\s\S]*?)<\/\1>/g,
+    (_match, tag: string, content: string) => {
+      const fixedContent = content
+        .replace(
+          /\*\*([^*<\r\n]*?[^\s*<\r\n])\s*\*\*/g,
+          (_m, label: string) => `<strong>${escapeHtml(label.trim())}</strong>`
+        )
+        .replace(
+          /__([^_<\r\n]*?[^\s_<\r\n])\s*__/g,
+          (_m, label: string) => `<strong>${escapeHtml(label.trim())}</strong>`
+        );
+
+      // 结构化处理仅用于段落（AI 输出的标签+正文混合场景），
+      // 避免在列表项、标题等元素中产生意外的标签拆分。
+      if (tag === 'p') {
+        const structuredContent = fixedContent
+          .replace(/([。！？；;）)])(<strong>[^<]*?[：:]<\/strong>)/g, '$1</p><p>$2')
+          .replace(/(<strong>[^<]*?[：:]<\/strong>)(?=[^<\r\n])/g, '$1<br>');
+        return `<p>${structuredContent}</p>`;
+      }
+
+      return `<${tag}>${fixedContent}</${tag}>`;
+    }
+  );
 }
 
 // 添加图片属性扩展到 marked
@@ -513,7 +541,10 @@ export function markdownToHtml(markdown: string, workspaceRoot?: string): string
   // 先用 marked 解析 Markdown。breaks 必须在每次调用中明确指定：
   // marked 的全局配置可能被其他扩展覆盖，导致 AI 输出的单换行被折叠。
   const parsedHtml = marked.parse(normalizedMarkdown, { breaks: true, gfm: true }) as string;
-  const html = sanitizeHtml(renderUnparsedLabelStrong(parsedHtml));
+  // 移除预处理阶段插入的零宽空格（marked 解析完成后不再需要），
+  // 否则会干扰 renderUnparsedLabelStrong 中的正则匹配。
+  const cleanedHtml = parsedHtml.replace(/\u200B/g, '');
+  const html = sanitizeHtml(renderUnparsedLabelStrong(cleanedHtml));
   
   let processedHtml = html;
   

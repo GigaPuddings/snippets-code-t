@@ -147,6 +147,9 @@
             <div v-else class="preview-empty-inline">{{ t('searchPreview.imagePreviewFailed') }}</div>
           </div>
 
+          <div v-else-if="isMarkdownPreview" class="preview-visual preview-note-area preview-shell preview-scroll-area"
+            v-html="markdownPreviewHtml"></div>
+
           <div v-else-if="isTextFile" class="preview-visual preview-text-area preview-shell preview-scroll-area">
             <CodeMirrorEditor :code="displayContent" :dark="isDark" :disabled="true" :autoDestroy="true"
               :codeStyle="{ height: '100%' }" background="var(--search-preview-editor-bg)"
@@ -157,9 +160,6 @@
               :codeStyle="{ height: '100%' }" background="var(--search-preview-editor-bg)"
               status-background="var(--search-preview-status-bg)" />
           </div>
-
-          <div v-else-if="isNotePreview" class="preview-visual preview-note-area preview-shell preview-scroll-area"
-            v-html="noteHtml"></div>
 
           <div v-else class="preview-visual preview-text-area preview-shell preview-scroll-area">
             {{ displayContent }}
@@ -256,10 +256,12 @@ const fileName = computed(() => {
 const fileExtension = computed(() => fileName.value.split('.').pop()?.toLowerCase() || '');
 const isFilePreview = computed(() => props.item?.summarize === 'file');
 const isImageFile = computed(() => ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(fileExtension.value));
-const isTextFile = computed(() => ['txt', 'md', 'markdown', 'json', 'log', 'csv', 'toml', 'yaml', 'yml', 'xml', 'html', 'css', 'scss', 'less', 'js', 'ts', 'tsx', 'jsx', 'vue', 'py', 'rs', 'go', 'java', 'c', 'cc', 'cpp', 'h', 'hpp', 'sql', 'sh', 'bash', 'ini', 'env'].includes(fileExtension.value));
 const isNotePreview = computed(() => props.item?.type === 'note');
+const isMarkdownFile = computed(() => ['md', 'markdown'].includes(fileExtension.value));
+const isMarkdownPreview = computed(() => isNotePreview.value || isMarkdownFile.value);
+const isTextFile = computed(() => ['txt', 'json', 'log', 'csv', 'toml', 'yaml', 'yml', 'xml', 'html', 'css', 'scss', 'less', 'js', 'ts', 'tsx', 'jsx', 'vue', 'py', 'rs', 'go', 'java', 'c', 'cc', 'cpp', 'h', 'hpp', 'sql', 'sh', 'bash', 'ini', 'env'].includes(fileExtension.value));
 const isAppOrBookmark = computed(() => props.item?.summarize === 'app' || props.item?.summarize === 'bookmark');
-const canPreview = computed(() => !isAppOrBookmark.value && !!props.item && (isImageFile.value || isTextFile.value || isNotePreview.value || isCodePreview.value));
+const canPreview = computed(() => !isAppOrBookmark.value && !!props.item && (isImageFile.value || isMarkdownPreview.value || isTextFile.value || isCodePreview.value));
 const isCodePreview = computed(() => props.item?.type === 'code' || (!isFilePreview.value && !isNotePreview.value && props.item?.summarize !== 'app' && props.item?.summarize !== 'bookmark' && props.item?.summarize !== 'search'));
 const displayTags = computed(() => props.item?.tags?.filter(Boolean) ?? []);
 const displayPath = computed(() => getSearchResultDisplayPath(props.item));
@@ -419,8 +421,8 @@ async function copyQuickToolDetails() {
   await navigator.clipboard.writeText(lines.join('\n'));
 }
 
-const noteHtml = computed(() => {
-  if (!props.item || props.item.type !== 'note' || !props.item.content) return '';
+const markdownPreviewHtml = computed(() => {
+  if (!props.item || !isMarkdownPreview.value || !props.item.content) return '';
 
   const notePath = displayPath.value || props.item.file_path || (props.item.metadata as Record<string, unknown> | undefined)?.file_path;
   if (typeof notePath !== 'string' || !notePath.trim()) {
