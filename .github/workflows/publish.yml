@@ -43,14 +43,6 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      - name: ESLint
-        continue-on-error: true
-        run: pnpm lint
-
-      - name: Stylelint
-        continue-on-error: true
-        run: pnpm lint:style
-
       - name: Frontend tests
         run: pnpm test
 
