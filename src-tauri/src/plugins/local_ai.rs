@@ -22,7 +22,6 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, Window};
 use url::Url;
 
-#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 const PLUGIN_ID: &str = "local-ai";
@@ -1079,10 +1078,7 @@ fn build_server_args(
 
 fn server_command(program: &Path) -> Command {
     let mut command = Command::new(program);
-    #[cfg(target_os = "windows")]
-    {
-        command.creation_flags(0x08000000);
-    }
+    command.creation_flags(0x08000000);
     command
 }
 
@@ -1183,7 +1179,6 @@ fn stop_child_locked(state: &mut LocalAiServiceState) {
     state.active_requests = 0;
 }
 
-#[cfg(target_os = "windows")]
 fn stop_orphan_llama_server_on_port(port: u16, model_path: &Path) -> bool {
     let script = r#"
 $port = [int]$env:LOCAL_AI_PORT
@@ -1210,10 +1205,7 @@ foreach ($listener in $listeners) {
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env("LOCAL_AI_PORT", port.to_string())
         .env("LOCAL_AI_MODEL_PATH", display_path(model_path));
-    #[cfg(target_os = "windows")]
-    {
-        command.creation_flags(0x08000000);
-    }
+    command.creation_flags(0x08000000);
 
     match command.output() {
         Ok(output) if output.status.success() => {
@@ -1249,11 +1241,6 @@ foreach ($listener in $listeners) {
             false
         }
     }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn stop_orphan_llama_server_on_port(_port: u16, _model_path: &Path) -> bool {
-    false
 }
 
 fn start_idle_monitor() {

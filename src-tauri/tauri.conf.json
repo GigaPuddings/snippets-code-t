@@ -24,7 +24,7 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-eval' blob: asset: http://asset.localhost https://asset.localhost; style-src 'self' 'unsafe-inline' asset: http://asset.localhost https://asset.localhost; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost https:; font-src 'self' data: asset: http://asset.localhost https://asset.localhost; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420 asset: http://asset.localhost https://asset.localhost https://huggingface.co https://*.huggingface.co https://*.hf.co https://*.xethub.hf.co https://cdn.jsdelivr.net https://unpkg.com https://wallhaven.cc https://*.wallhaven.cc; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "csp": "default-src 'self'; script-src 'self' blob: asset: http://asset.localhost https://asset.localhost; style-src 'self' 'unsafe-inline' asset: http://asset.localhost https://asset.localhost; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost https:; font-src 'self' data: asset: http://asset.localhost https://asset.localhost; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420 asset: http://asset.localhost https://asset.localhost https://huggingface.co https://*.huggingface.co https://*.hf.co https://*.xethub.hf.co https://cdn.jsdelivr.net https://unpkg.com https://wallhaven.cc https://*.wallhaven.cc; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": {
@@ -67,8 +67,8 @@
     ],
     "copyright": "Copyright © 2025 snippets-code",
     "category": "Utility",
-    "shortDescription": "效率工具",
-    "longDescription": "使用 Tauri、Vue 3 和 Rust 构建的一款效率工具",
+    "shortDescription": "代码片段与知识资产工作台",
+    "longDescription": "本地优先的代码片段与知识资产工作台，面向前端程序员设计，支持 Markdown 存储、智能搜索、Git 同步和插件扩展。",
     "publisher": "snippets-code",
     "windows": {
       "certificateThumbprint": null,

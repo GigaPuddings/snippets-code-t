@@ -12,7 +12,6 @@ use std::thread;
 use std::time::Instant;
 use tauri::Manager;
 
-#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[derive(Debug, Clone, Serialize)]
@@ -438,22 +437,13 @@ fn find_rapidocr_candidate(
 }
 
 fn rapidocr_exe_names() -> &'static [&'static str] {
-    if cfg!(target_os = "windows") {
-        &[
-            "RapidOCR-json.exe",
-            "rapidocr.exe",
-            "rapidocr-json.exe",
-            "rapidocr_onnxruntime.exe",
-            "rapidocr_openvino.exe",
-        ]
-    } else {
-        &[
-            "rapidocr",
-            "rapidocr-json",
-            "rapidocr_onnxruntime",
-            "rapidocr_openvino",
-        ]
-    }
+    &[
+        "RapidOCR-json.exe",
+        "rapidocr.exe",
+        "rapidocr-json.exe",
+        "rapidocr_onnxruntime.exe",
+        "rapidocr_openvino.exe",
+    ]
 }
 
 fn rapidocr_search_roots(app_handle: &tauri::AppHandle) -> Vec<(PathBuf, String)> {
@@ -2435,8 +2425,7 @@ fn split_command_args(input: &str) -> Vec<String> {
 fn run_sidecar_attempt(sidecar: &Path, attempt: &SidecarAttempt) -> Result<String, String> {
     let mut command = Command::new(sidecar);
     command.args(&attempt.args);
-    #[cfg(target_os = "windows")]
-    command.creation_flags(0x08000000);
+command.creation_flags(0x08000000);
 
     if let Some(sidecar_dir) = sidecar.parent() {
         command.current_dir(sidecar_dir);

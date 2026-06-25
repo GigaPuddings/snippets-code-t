@@ -382,7 +382,7 @@ snippets-code/
 
 ### 支持哪些操作系统？
 
-目前仅支持 Windows 10/11，未来计划支持 macOS 和 Linux。
+目前仅支持 Windows 10/11。
 
 ---
 

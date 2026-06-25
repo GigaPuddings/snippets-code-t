@@ -15,7 +15,6 @@ use std::sync::{
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 use walkdir::WalkDir;
-#[cfg(target_os = "windows")]
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
 const PLUGIN_ID: &str = "wallpaper-switcher";
@@ -475,7 +474,6 @@ fn image_resolution(path: &Path) -> Option<String> {
         .map(|(width, height)| format!("{} × {}", width, height))
 }
 
-#[cfg(target_os = "windows")]
 fn set_windows_wallpaper(path: &Path, fit_mode: &WallpaperFitMode) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows::Win32::UI::WindowsAndMessaging::{
@@ -516,10 +514,6 @@ fn set_windows_wallpaper(path: &Path, fit_mode: &WallpaperFitMode) -> Result<(),
     Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
-fn set_windows_wallpaper(_path: &Path, _fit_mode: &WallpaperFitMode) -> Result<(), String> {
-    Err("当前系统暂不支持设置桌面壁纸".to_string())
-}
 
 fn update_status_after_switch(path: &Path, source: &str, next_switch_at: Option<i64>) -> i64 {
     let resolution = image_resolution(path);
@@ -559,11 +553,7 @@ fn random_index(len: usize) -> usize {
 fn paths_same(left: &Path, right: &Path) -> bool {
     let left = path_to_string(left);
     let right = path_to_string(right);
-    if cfg!(target_os = "windows") {
-        left.eq_ignore_ascii_case(&right)
-    } else {
-        left == right
-    }
+    left.eq_ignore_ascii_case(&right)
 }
 
 fn current_applied_path(config: &WallpaperConfig) -> Option<PathBuf> {
@@ -1147,7 +1137,6 @@ fn normalize_proxy_url(value: &str) -> Option<String> {
     }
 }
 
-#[cfg(target_os = "windows")]
 fn windows_system_proxy_url() -> Option<String> {
     let internet_settings = RegKey::predef(HKEY_CURRENT_USER)
         .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings")
@@ -1164,10 +1153,6 @@ fn windows_system_proxy_url() -> Option<String> {
     normalize_proxy_url(&proxy_server)
 }
 
-#[cfg(not(target_os = "windows"))]
-fn windows_system_proxy_url() -> Option<String> {
-    None
-}
 
 fn wallhaven_proxy_url() -> Option<String> {
     [
@@ -1810,7 +1795,7 @@ pub async fn wallpaper_get_status(app_handle: AppHandle) -> Result<WallpaperStat
         .map(|running| *running)
         .unwrap_or(false);
     Ok(WallpaperStatus {
-        supported: cfg!(target_os = "windows"),
+        supported: true,
         current_path: runtime.current_path,
         current_source: runtime.current_source,
         current_resolution: runtime.current_resolution,

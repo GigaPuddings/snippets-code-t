@@ -1,7 +1,5 @@
 use crate::db;
 use crate::icon;
-#[cfg(not(target_os = "windows"))]
-use crate::APP;
 use glob::glob;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -13,8 +11,6 @@ use std::os::windows::ffi::OsStrExt;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-#[cfg(not(target_os = "windows"))]
-use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
@@ -1467,7 +1463,6 @@ fn find_existing_window(target_path: &str) -> Option<HWND> {
     }
 }
 
-#[cfg(target_os = "windows")]
 fn open_shell_apps_folder_path(app_path: &str) -> Result<(), String> {
     Command::new("explorer.exe")
         .arg(app_path)
@@ -1481,7 +1476,6 @@ fn open_shell_apps_folder_path(app_path: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
 fn open_shell_apps_folder() -> Result<(), String> {
     Command::new("explorer.exe")
         .arg("shell:AppsFolder")
@@ -1499,7 +1493,6 @@ fn escape_powershell_single_quoted(value: &str) -> String {
     value.replace('\'', "''")
 }
 
-#[cfg(target_os = "windows")]
 fn invoke_shell_apps_folder_verb(app_path: &str, verb_kind: &str) -> Result<(), String> {
     let app_id = shell_apps_folder_app_id(app_path)
         .filter(|id| !id.is_empty())
@@ -1557,12 +1550,10 @@ $verb.DoIt()
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
 fn wide_null(value: &OsStr) -> Vec<u16> {
     value.encode_wide().chain(std::iter::once(0)).collect()
 }
 
-#[cfg(target_os = "windows")]
 fn open_app_path_as_admin(app_path: &str, launch_path: &str) -> Result<(), String> {
     let operation = wide_null(OsStr::new("runas"));
     let file = wide_null(OsStr::new(launch_path));
@@ -1596,7 +1587,6 @@ fn open_app_path_as_admin(app_path: &str, launch_path: &str) -> Result<(), Strin
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
 fn open_app_path_detached(app_path: &str, launch_path: &str) -> Result<(), String> {
     const CREATE_NO_WINDOW: u32 = 0x08000000;
     const DETACHED_PROCESS: u32 = 0x00000008;
@@ -1625,15 +1615,7 @@ pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Resul
     crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
 
     if is_shell_apps_folder_path(&app_path) {
-        #[cfg(target_os = "windows")]
-        {
-            return open_shell_apps_folder_path(&app_path);
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            return Err("Windows Store 应用入口仅支持 Windows".to_string());
-        }
+        return open_shell_apps_folder_path(&app_path);
     }
 
     let path = Path::new(&app_path);
@@ -1659,21 +1641,7 @@ pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Resul
         app_path.clone()
     };
 
-    #[cfg(target_os = "windows")]
-    {
-        open_app_path_detached(&app_path, &actual_path)
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        match APP.get() {
-            Some(app) => app
-                .opener()
-                .open_path(actual_path.clone(), None::<&str>)
-                .map_err(|e| format!("启动应用程序失败 '{}': {}", app_path, e)),
-            None => Err("无法获取应用程序实例".to_string()),
-        }
-    }
+    open_app_path_detached(&app_path, &actual_path)
 }
 
 pub fn open_app_as_admin_command(
@@ -1683,15 +1651,7 @@ pub fn open_app_as_admin_command(
     crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
 
     if is_shell_apps_folder_path(&app_path) {
-        #[cfg(target_os = "windows")]
-        {
-            return invoke_shell_apps_folder_verb(&app_path, "runas");
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            return Err("Windows Applications 入口仅支持 Windows".to_string());
-        }
+        return invoke_shell_apps_folder_verb(&app_path, "runas");
     }
 
     let path = Path::new(&app_path);
@@ -1699,31 +1659,22 @@ pub fn open_app_as_admin_command(
         return Err(format!("应用程序路径不存在: {}", app_path));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        use std::process::Command;
-        let actual_path = if app_path.ends_with(".lnk") {
-            resolve_shortcut(path).unwrap_or(app_path.clone())
-        } else {
-            app_path.clone()
-        };
+    let actual_path = if app_path.ends_with(".lnk") {
+        resolve_shortcut(path).unwrap_or(app_path.clone())
+    } else {
+        app_path.clone()
+    };
 
-        let ps_script = format!(
-            "Start-Process -FilePath '{}' -Verb RunAs",
-            actual_path.replace('\'', "''")
-        );
+    let ps_script = format!(
+        "Start-Process -FilePath '{}' -Verb RunAs",
+        actual_path.replace('\'', "''")
+    );
 
-        Command::new("powershell")
-            .args(["-NoProfile", "-Command", &ps_script])
-            .spawn()
-            .map_err(|e| format!("以管理员身份打开应用失败: {}", e))?;
-        Ok(())
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Err("以管理员身份打开仅支持 Windows".to_string())
-    }
+    Command::new("powershell")
+        .args(["-NoProfile", "-Command", &ps_script])
+        .spawn()
+        .map_err(|e| format!("以管理员身份打开应用失败: {}", e))?;
+    Ok(())
 }
 
 pub fn open_app_file_location_command(
@@ -1733,16 +1684,8 @@ pub fn open_app_file_location_command(
     crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
 
     if is_shell_apps_folder_path(&app_path) {
-        #[cfg(target_os = "windows")]
-        {
-            return invoke_shell_apps_folder_verb(&app_path, "openfilelocation")
-                .or_else(|_| open_shell_apps_folder());
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            return Err("Windows Applications 入口仅支持 Windows".to_string());
-        }
+        return invoke_shell_apps_folder_verb(&app_path, "openfilelocation")
+            .or_else(|_| open_shell_apps_folder());
     }
 
     let actual_path = if app_path.ends_with(".lnk") {
@@ -1756,24 +1699,11 @@ pub fn open_app_file_location_command(
         return Err(format!("应用程序路径不存在: {}", actual_path));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .args(["/select,", &actual_path])
-            .creation_flags(0x08000000)
-            .spawn()
-            .map_err(|e| format!("打开应用文件夹失败 '{}': {}", actual_path, e))?;
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        if let Some(parent) = path.parent() {
-            std::process::Command::new("open")
-                .arg(parent)
-                .spawn()
-                .map_err(|e| format!("打开应用文件夹失败 '{}': {}", actual_path, e))?;
-        }
-    }
+    std::process::Command::new("explorer")
+        .args(["/select,", &actual_path])
+        .creation_flags(0x08000000)
+        .spawn()
+        .map_err(|e| format!("打开应用文件夹失败 '{}': {}", actual_path, e))?;
 
     Ok(())
 }

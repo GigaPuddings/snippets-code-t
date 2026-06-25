@@ -1,8 +1,8 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    top="48px"
-    width="min(720px, calc(100vw - 32px))"
+    top="0"
+    width="auto"
     class="ai-assist-dialog"
     :close-on-click-modal="!isGenerating"
     :close-on-press-escape="!isGenerating"
@@ -16,6 +16,31 @@
     </template>
 
     <p class="dialog-description">使用本地 AI 处理当前{{ fragmentType === 'code' ? '代码片段' : '笔记' }}。结果生成后需由你确认才会写入。</p>
+
+    <!-- 知识库问答输入区 -->
+    <div v-if="activeAction === 'ask' || !activeAction" class="rag-input-area">
+      <el-input
+        v-model="ragQuestion"
+        type="textarea"
+        :rows="2"
+        :autosize="{ minRows: 2, maxRows: 3 }"
+        maxlength="280"
+        show-word-limit
+        resize="none"
+        placeholder="输入问题，AI 将从你的知识库中检索相关片段并回答…"
+        :disabled="isGenerating || isRagSearching"
+        @keydown.shift.enter.prevent="handleSubmitAsk"
+        @keydown.ctrl.enter.prevent="handleSubmitAsk"
+      />
+      <div v-if="ragSources.length > 0" class="rag-sources">
+        <span class="rag-sources__label">引用来源：</span>
+        <span
+          v-for="(src, i) in ragSources"
+          :key="i"
+          class="rag-sources__tag"
+        >{{ src.title }}</span>
+      </div>
+    </div>
 
     <div class="action-grid" role="group" aria-label="AI 辅助操作">
       <CustomButton
@@ -44,7 +69,7 @@
         <span v-if="isGenerating" class="generating">正在生成…</span>
       </div>
       <div class="result-box" :class="{ empty: !result && !isGenerating }">
-        <span v-if="!result && !isGenerating">选择一个操作开始。AI 只会读取当前内容。</span>
+        <span v-if="!result && !isGenerating">{{ activeAction === 'ask' ? '输入问题后点击“知识库问答”开始。' : '选择一个操作开始。AI 只会读取当前内容。' }}</span>
         <div v-else class="markdown-body">
           <div
             v-for="block in stablePreviewBlocks"
@@ -63,7 +88,10 @@
         <CustomButton :disabled="isGenerating || !result.trim()" @click="copyResult">复制结果</CustomButton>
         <CustomButton v-if="canContinue" :disabled="isGenerating" @click="continueGeneration">继续生成</CustomButton>
         <CustomButton :disabled="!activeAction || isGenerating" @click="regenerate">重新回答</CustomButton>
-        <CustomButton :disabled="!canApply || isGenerating" type="primary" @click="applyResult">
+        <CustomButton v-if="activeAction === 'ask'" :disabled="isGenerating || isRagSearching || !ragQuestion.trim()" type="primary" @click="runAction('ask')">
+          {{ isRagSearching ? '检索中…' : '提问' }}
+        </CustomButton>
+        <CustomButton v-else :disabled="!canApply || isGenerating" type="primary" @click="applyResult">
           {{ applyLabel }}
         </CustomButton>
       </div>
@@ -80,10 +108,12 @@ import {
   createLocalAiStreamRequestId,
   cancelLocalAiChatStream,
   getLocalAiConfig,
-  streamChatWithLocalAi
+  streamChatWithLocalAi,
+  type LocalAiMessage
 } from '@/api/localAi';
+import { useFragmentRag } from '@/composables/useFragmentRag';
 
-type AssistAction = 'summarize' | 'rewrite' | 'title' | 'tags' | 'explain-code' | 'search';
+type AssistAction = 'summarize' | 'rewrite' | 'title' | 'tags' | 'explain-code' | 'search' | 'ask';
 
 const props = withDefaults(defineProps<{
   modelValue: boolean;
@@ -121,17 +151,23 @@ let previewBlockId = 0;
 let previewRenderTimer: ReturnType<typeof setTimeout> | null = null;
 const STREAM_PREVIEW_INTERVAL_MS = 80;
 
+// RAG 知识库问答
+const ragQuestion = ref('');
+const ragSources = ref<Array<{ title: string; category: string }>>([]);
+const { retrieveContext, isSearching: isRagSearching } = useFragmentRag();
+
 const actions = computed(() => {
   const shared = [
     { id: 'summarize' as const, icon: '≡', label: '总结内容', description: '提炼重点和结论' },
     { id: 'rewrite' as const, icon: '✎', label: '改写润色', description: '保留 Markdown 结构' },
     { id: 'title' as const, icon: 'T', label: '生成标题', description: '给出准确简洁的标题' },
     { id: 'tags' as const, icon: '#', label: '提取标签', description: '推荐便于检索的标签' },
-    { id: 'search' as const, icon: '⌕', label: '搜索辅助', description: '生成可直接检索的关键词' }
+    { id: 'search' as const, icon: '⌕', label: '搜索辅助', description: '生成可直接检索的关键词' },
+    { id: 'ask' as const, icon: '✦', label: '知识库问答', description: '基于已有片段回答问题' }
   ];
   if (props.selectionMode) return [shared[1]];
   return props.fragmentType === 'code'
-    ? [...shared.slice(0, 4), { id: 'explain-code' as const, icon: '</>', label: '解释代码', description: '说明逻辑、输入和风险' }, shared[4]]
+    ? [...shared.slice(0, 4), { id: 'explain-code' as const, icon: '</>', label: '解释代码', description: '说明逻辑、输入和风险' }, shared[4], shared[5]]
     : shared;
 });
 
@@ -146,6 +182,7 @@ const applyLabel = computed(() => {
   if (activeAction.value === 'title') return '应用标题';
   if (activeAction.value === 'tags') return '应用标签';
   if (activeAction.value === 'search') return '复制关键词';
+  if (activeAction.value === 'ask') return '复制回答';
   return props.selectionMode ? '替换选区' : '替换当前内容';
 });
 
@@ -289,12 +326,26 @@ const getInstruction = (action: AssistAction): string => {
       return '解释这段代码的作用、关键流程、输入输出、边界情况与潜在风险。用简洁 Markdown 分段，不要编造代码中没有的行为。';
     case 'search':
       return '基于内容生成 3 条可直接用于全文检索或网页检索的查询，每条一行。关键词要具体，覆盖主题、技术名词和可能的问题。不要添加解释。';
+    case 'ask':
+      return ''; // ask 模式使用独立的 RAG 提示构建逻辑
   }
 };
 
+/** 处理提问输入框的 Enter 提交 */
+const handleSubmitAsk = () => {
+  if (!ragQuestion.value.trim() || isGenerating.value || isRagSearching.value) return;
+  void runAction('ask');
+};
+
 const runAction = async (action: AssistAction, options: { continue?: boolean } = {}) => {
+  // ask 模式不依赖当前片段内容，但需要用户输入问题
+  if (action === 'ask' && !options.continue && !ragQuestion.value.trim()) {
+    errorMessage.value = '请先输入问题';
+    return;
+  }
+  // 非 ask 模式需要当前片段内容
   const source = props.content.trim();
-  if (!source) {
+  if (action !== 'ask' && !source) {
     errorMessage.value = '当前内容为空，先写一点内容再使用 AI 辅助。';
     return;
   }
@@ -321,28 +372,49 @@ const runAction = async (action: AssistAction, options: { continue?: boolean } =
       ? Math.min(Math.max(config.maxTokens, 512), Math.max(512, contextLimit - 512))
       : Math.min(Math.max(4096, Math.floor(contextLimit * 0.5)), Math.max(512, contextLimit - 512));
     const requestContextBudget = Math.max(512, contextLimit - responseReserve);
-    const instruction = getInstruction(action);
-    const continuationContext = options.continue
-      ? previousResult.slice(-Math.max(1600, Math.floor(requestContextBudget * 3)))
-      : '';
-    const promptOverhead = estimateTokens(`${instruction}\n标题：${props.title}\n已有标签：${props.tags.join(', ')}\n${continuationContext}`);
-    const sourceBudget = Math.max(384, requestContextBudget - promptOverhead - 96);
-    const boundedSource = truncateForContext(source, sourceBudget);
-    if (boundedSource.truncated) {
-      errorMessage.value = '内容较长，已保留开头和结尾后发送，以避免本地模型上下文溢出。';
-    }
-    const messages = [
-      {
-        role: 'system' as const,
-        content: '你是 Snippets Code 的本地写作与代码助手。回答使用与用户内容一致的语言；遵循用户请求的输出格式。'
-      },
-      {
-        role: 'user' as const,
-        content: options.continue
-          ? `${instruction}\n\n上一段回复在下方最后一个字符处停止。只输出紧接在其后的新内容；不要使用“好的”、标题、前言，也绝不能重述已有句子。\n\n--- 回复末尾上下文 ---\n${continuationContext}\n--- 上下文结束 ---`
-          : `${instruction}\n\n标题：${props.title || '未命名'}\n已有标签：${props.tags.join(', ') || '无'}\n内容类型：${props.fragmentType === 'code' ? '代码片段' : 'Markdown 笔记'}\n\n--- 内容开始 ---\n${boundedSource.content}\n--- 内容结束 ---`
+    let messages: LocalAiMessage[];
+
+    if (action === 'ask') {
+      // ask 模式：执行 RAG 检索，将知识库上下文注入 AI
+      const ragResult = await retrieveContext(ragQuestion.value.trim());
+      if (requestEpoch !== generationEpoch) return;
+
+      const systemPrompt = ragResult.context
+        ? `你是 Snippets Code 的知识库问答助手。回答使用与用户内容一致的语言。\n\n${ragResult.context}${ragResult.truncated ? '\n\n（注：部分检索结果因长度限制已被截断）' : ''}`
+        : '你是 Snippets Code 的知识库问答助手。回答使用与用户内容一致的语言。如果知识库中没有相关信息，请基于你的通用知识回答，并说明该回答未来自知识库。';
+
+      // 更新引用来源 UI
+      ragSources.value = ragResult.sources;
+
+      messages = [
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const, content: ragQuestion.value.trim() }
+      ];
+    } else {
+      // 其他模式：基于当前片段内容的原有逻辑
+      const instruction = getInstruction(action);
+      const continuationContext = options.continue
+        ? previousResult.slice(-Math.max(1600, Math.floor(requestContextBudget * 3)))
+        : '';
+      const promptOverhead = estimateTokens(`${instruction}\n标题：${props.title}\n已有标签：${props.tags.join(', ')}\n${continuationContext}`);
+      const sourceBudget = Math.max(384, requestContextBudget - promptOverhead - 96);
+      const boundedSource = truncateForContext(source, sourceBudget);
+      if (boundedSource.truncated) {
+        errorMessage.value = '内容较长，已保留开头和结尾后发送，以避免本地模型上下文溢出。';
       }
-    ];
+      messages = [
+        {
+          role: 'system' as const,
+          content: '你是 Snippets Code 的本地写作与代码助手。回答使用与用户内容一致的语言；遵循用户请求的输出格式。'
+        },
+        {
+          role: 'user' as const,
+          content: options.continue
+            ? `${instruction}\n\n上一段回复在下方最后一个字符处停止。只输出紧接在其后的新内容；不要使用"好的"、标题、前言，也绝不能重述已有句子。\n\n--- 回复末尾上下文 ---\n${continuationContext}\n--- 上下文结束 ---`
+            : `${instruction}\n\n标题：${props.title || '未命名'}\n已有标签：${props.tags.join(', ') || '无'}\n内容类型：${props.fragmentType === 'code' ? '代码片段' : 'Markdown 笔记'}\n\n--- 内容开始 ---\n${boundedSource.content}\n--- 内容结束 ---`
+        }
+      ];
+    }
     const requestMaxTokens = config.maxTokens > 0
       ? config.maxTokens
       : Math.max(256, contextLimit - estimateTokens(messages.map((message) => `${message.role}: ${message.content}`).join('\n')) - 128);
@@ -425,7 +497,7 @@ const applyResult = async () => {
       return;
     }
     emit('apply-tags', tags);
-  } else if (activeAction.value === 'search') {
+  } else if (activeAction.value === 'search' || activeAction.value === 'ask') {
     await copyResult();
     return;
   } else if (props.selectionMode) {
@@ -440,21 +512,21 @@ const applyResult = async () => {
 <style scoped lang="scss">
 .dialog-title { display: flex; align-items: center; gap: 8px; font-weight: 650; }
 .dialog-title__mark { color: var(--el-color-primary); font-size: 18px; }
-.dialog-description { margin: -8px 0 16px; color: var(--el-text-color-secondary); font-size: 13px; }
-.action-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.action-card { --card-accent: var(--el-color-primary); display: flex; align-items: center; justify-content: flex-start !important; width: 100%; height: 68px !important; min-height: 68px; gap: 9px; padding: 8px 10px; line-height: normal !important; text-align: left; border: 1px solid var(--el-border-color) !important; border-left: 3px solid var(--card-accent) !important; border-radius: 9px; color: inherit; background: linear-gradient(110deg, color-mix(in srgb, var(--card-accent) 6%, var(--el-bg-color)), var(--el-bg-color) 55%) !important; cursor: pointer; transition: .15s ease; }
+.dialog-description { margin: 4px 0 12px; color: var(--el-text-color-secondary); font-size: 13px; line-height: 1.5; }
+.action-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.action-card { --card-accent: var(--el-color-primary); display: flex; align-items: center; justify-content: flex-start !important; width: 100%; height: 56px !important; min-height: 56px; gap: 7px; padding: 6px 9px; line-height: normal !important; text-align: left; border: 1px solid var(--el-border-color) !important; border-left: 3px solid var(--card-accent) !important; border-radius: 8px; color: inherit; background: linear-gradient(110deg, color-mix(in srgb, var(--card-accent) 6%, var(--el-bg-color)), var(--el-bg-color) 55%) !important; cursor: pointer; transition: .15s ease; }
 .action-card:hover, .action-card.active { border-color: var(--card-accent) !important; background: linear-gradient(110deg, color-mix(in srgb, var(--card-accent) 14%, var(--el-bg-color)), var(--el-bg-color) 65%) !important; transform: translateY(-1px); }
 .action-card:disabled { cursor: wait; opacity: .65; }
-.action-card__icon { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 8px; color: var(--card-accent); background: color-mix(in srgb, var(--card-accent) 12%, white); font-size: 13px; font-weight: 700; }
+.action-card__icon { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; border-radius: 6px; color: var(--card-accent); background: color-mix(in srgb, var(--card-accent) 12%, white); font-size: 12px; font-weight: 700; }
 .action-card > span:last-child { flex: 1; min-width: 0; text-align: left; }
 .action-card strong, .action-card small { display: block; line-height: 1.3; }
 .action-card strong { font-size: 13px; }
 .action-card small { margin-top: 3px; overflow: hidden; color: var(--el-text-color-secondary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .action-card--summarize, .action-card--rewrite, .action-card--title, .action-card--tags, .action-card--explain-code, .action-card--search { --card-accent: var(--el-color-primary); }
-.result-section { margin-top: 14px; }
+.result-section { margin-top: 10px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .result-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; font-size: 13px; font-weight: 600; }
 .generating { color: #6941c6; font-weight: 500; }
-.result-box { height: clamp(260px, 40vh, 440px); overflow: auto; overflow-anchor: none; padding: 10px 12px; border-radius: 9px; background: var(--el-fill-color-light); border: 1px solid var(--el-border-color-lighter); }
+.result-box { flex: 1; min-height: 120px; overflow: auto; overflow-anchor: none; padding: 10px 12px; border-radius: 9px; background: var(--el-fill-color-light); border: 1px solid var(--el-border-color-lighter); }
 .result-box.empty { display: grid; place-items: center; color: var(--el-text-color-secondary); font-size: 13px; }
 .markdown-body { color: var(--el-text-color-primary); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
 .markdown-body :deep(p) { margin: 0 0 10px; }
@@ -470,10 +542,31 @@ const applyResult = async () => {
 .markdown-body :deep(blockquote) { margin: 10px 0; padding: 4px 0 4px 10px; color: var(--el-text-color-secondary); border-left: 3px solid var(--el-color-primary); }
 .markdown-body :deep(table) { width: 100%; margin: 10px 0; border-collapse: collapse; }.markdown-body :deep(th), .markdown-body :deep(td) { padding: 6px 8px; border: 1px solid var(--el-border-color); }.markdown-body :deep(th) { background: var(--el-fill-color-light); }
 .error-message { margin: 8px 0 0; color: var(--el-color-danger); font-size: 12px; line-height: 1.5; }
+.rag-input-area { margin-bottom: 12px; }
+.rag-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; font-size: 11px; }
+.rag-sources__label { color: var(--el-text-color-secondary); }
+.rag-sources__tag { padding: 1px 6px; border-radius: 4px; background: var(--el-fill-color-light); border: 1px solid var(--el-border-color-lighter); color: var(--el-text-color-regular); }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; }
-:global(.ai-assist-dialog.el-dialog) { display: flex; flex-direction: column; max-height: calc(100vh - 72px); margin-bottom: 24px; }
-:deep(.el-dialog__body) { min-height: 0; overflow: hidden; }
-@media (max-width: 720px) {
-  .action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+:global(.ai-assist-dialog) { --dialog-top: 2vh; --dialog-bottom: 2vh; --dialog-width: 720px; }
+:global(.ai-assist-dialog .el-overlay-dialog) { display: flex; flex-direction: column; }
+:global(.ai-assist-dialog.el-dialog) {
+  display: flex !important;
+  flex-direction: column !important;
+  margin-top: var(--dialog-top) !important;
+  margin-bottom: var(--dialog-bottom) !important;
+  width: min(var(--dialog-width), calc(100vw - 32px)) !important;
+  height: calc(100vh - var(--dialog-top) - var(--dialog-bottom)) !important;
+}
+:global(.ai-assist-dialog .el-dialog__body) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+}
+:global(.ai-assist-dialog .el-dialog__footer) {
+  flex-shrink: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>

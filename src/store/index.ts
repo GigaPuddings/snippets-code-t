@@ -2,6 +2,8 @@ import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@/utils/logger';
 import { getEditorSettings, updateEditorSettings } from '@/api/appConfig';
+import { useHotkeyStore } from './hotkeys';
+import { useThemeStore } from './theme';
 
 export const useConfigurationStore = defineStore('configuration', {
   state: (): StoreState => ({
@@ -11,19 +13,20 @@ export const useConfigurationStore = defineStore('configuration', {
     categories: [], // 分类集合
     editCategoryId: '', // 编辑分类的 id
     categorySort: 'asc', // 分类排序
-    searchHotkey: '', // 搜索快捷键
-    configHotkey: '', // 配置快捷键
-    translateHotkey: '', // 翻译快捷键
-    selectionTranslateHotkey: '', // 划词翻译快捷键
-    screenshotHotkey: '', // 截图快捷键
-    screenRecorderHotkey: '', // 录屏快捷键
-    darkModeHotkey: '', // Auto Dark Mode快捷键
-    wallpaperSwitcherHotkey: '', // 壁纸切换快捷键
-    pluginHotkeys: {}, // 插件动态快捷键
+    // 快捷键 —— 委托给 useHotkeyStore，此处保留以兼容现有组件
+    searchHotkey: '',
+    configHotkey: '',
+    translateHotkey: '',
+    selectionTranslateHotkey: '',
+    screenshotHotkey: '',
+    screenRecorderHotkey: '',
+    darkModeHotkey: '',
+    wallpaperSwitcherHotkey: '',
+    pluginHotkeys: {},
     dbPath: null, // 数据库路径
     dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
-    systemPrefersDark: false, // 系统是否深色（auto 时与 html.dark 同步，供组件响应式使用）
+    systemPrefersDark: false, // 系统是否深色
     language: 'zh-CN', // 界面语言
     autoStart: false, // 开机自启
     autoUpdateCheck: false, // 检查更新
@@ -32,9 +35,9 @@ export const useConfigurationStore = defineStore('configuration', {
     editorLineHeight: 1.6 // 编辑器行距
   }),
   getters: {
-    /** 当前实际是否为深色模式（供组件 :dark 等使用，会随系统主题变化更新） */
+    /** 当前实际是否为深色模式（委托给 useThemeStore） */
     effectiveDark(): boolean {
-      return this.theme === 'dark' || (this.theme === 'auto' && this.systemPrefersDark);
+      return useThemeStore().effectiveDark;
     }
   },
   actions: {
@@ -47,40 +50,24 @@ export const useConfigurationStore = defineStore('configuration', {
         logger.error('获取数据库路径失败:', error);
       }
 
-      // 获取快捷键配置
-      try {
-        const hotkeyMap = await invoke<Record<string, string>>('get_hotkey_config_map');
-        this.pluginHotkeys = hotkeyMap;
-        const [
-          searchHotkey,
-          configHotkey,
-          translateHotkey,
-          selectionTranslateHotkey,
-          screenshotHotkey,
-          screenRecorderHotkey,
-          darkModeHotkey,
-          wallpaperSwitcherHotkey
-        ]: [string, string, string, string, string, string, string, string] = [
-          hotkeyMap.search || '',
-          hotkeyMap.config || '',
-          hotkeyMap.translate || '',
-          hotkeyMap.selection_translate || '',
-          hotkeyMap.screenshot || '',
-          hotkeyMap.screen_recorder || '',
-          hotkeyMap.dark_mode || '',
-          hotkeyMap.wallpaper_switcher || ''
-        ];
-        this.searchHotkey = searchHotkey;
-        this.configHotkey = configHotkey;
-        this.translateHotkey = translateHotkey;
-        this.selectionTranslateHotkey = selectionTranslateHotkey || '';
-        this.screenshotHotkey = screenshotHotkey || '';
-        this.screenRecorderHotkey = screenRecorderHotkey || '';
-        this.darkModeHotkey = darkModeHotkey || '';
-        this.wallpaperSwitcherHotkey = wallpaperSwitcherHotkey || '';
-      } catch (error) {
-        logger.error('获取快捷键配置失败:', error);
-      }
+      // 委托给 useHotkeyStore 初始化快捷键
+      const hotkeyStore = useHotkeyStore();
+      await hotkeyStore.initialize();
+      // 同步到本 state 以兼容直接读取 this.searchHotkey 等的组件
+      this.searchHotkey = hotkeyStore.searchHotkey;
+      this.configHotkey = hotkeyStore.configHotkey;
+      this.translateHotkey = hotkeyStore.translateHotkey;
+      this.selectionTranslateHotkey = hotkeyStore.selectionTranslateHotkey;
+      this.screenshotHotkey = hotkeyStore.screenshotHotkey;
+      this.screenRecorderHotkey = hotkeyStore.screenRecorderHotkey;
+      this.darkModeHotkey = hotkeyStore.darkModeHotkey;
+      this.wallpaperSwitcherHotkey = hotkeyStore.wallpaperSwitcherHotkey;
+      this.pluginHotkeys = hotkeyStore.pluginHotkeys;
+
+      // 委托给 useThemeStore 初始化主题
+      const themeStore = useThemeStore();
+      this.theme = themeStore.theme;
+      this.systemPrefersDark = themeStore.systemPrefersDark;
 
       // 获取自动检查更新设置
       try {
@@ -148,67 +135,29 @@ export const useConfigurationStore = defineStore('configuration', {
       }
     },
 
-    // 更新主题并立即应用
+    // 更新主题并立即应用（委托给 useThemeStore）
     updateTheme(newTheme: 'auto' | 'dark' | 'light') {
-      logger.debug(`[主题][Store] 更新主题并立即应用：newTheme=${newTheme}`);
-      this.theme = newTheme;
-      this.applyTheme();
+      const themeStore = useThemeStore();
+      themeStore.updateTheme(newTheme);
+      this.theme = themeStore.theme;
+      this.systemPrefersDark = themeStore.systemPrefersDark;
     },
 
-    // 应用主题到DOM，并同步 systemPrefersDark 供组件响应式使用
+    // 应用主题到DOM（委托给 useThemeStore）
     applyTheme() {
-      const root = document.documentElement;
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      logger.debug(`[主题][Store] 应用主题到 DOM：theme=${this.theme}, prefersDark=${prefersDark}`);
-      if (this.theme === 'auto') {
-        this.systemPrefersDark = prefersDark;
-      }
-      const isDark =
-        this.theme === 'dark' ||
-        (this.theme === 'auto' && prefersDark);
-
-      if (isDark) {
-        root.classList.add('dark');
-        logger.debug('[主题][Store] applyTheme：添加 dark 类');
-      } else {
-        root.classList.remove('dark');
-        logger.debug('[主题][Store] applyTheme：移除 dark 类');
-      }
+      const themeStore = useThemeStore();
+      // 同步当前 theme 到 themeStore
+      themeStore.theme = this.theme;
+      themeStore.applyTheme();
+      this.systemPrefersDark = themeStore.systemPrefersDark;
     },
 
-    // 同步系统主题样式（仅在 auto 模式下生效，不修改 store.theme）
-    // 用于响应 Windows 系统主题变化
+    // 同步系统主题样式（委托给 useThemeStore）
     syncSystemThemeStyle(isDark: boolean) {
-      logger.debug(`[主题][Store] 同步系统主题样式：isDark=${isDark}, store.theme=${this.theme}`);
-
-      let currentTheme = this.theme;
-      try {
-        const stored = localStorage.getItem('configuration');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed.theme) {
-            currentTheme = parsed.theme;
-            this.theme = currentTheme;
-          }
-        }
-      } catch (e) {
-        logger.error('从 localStorage 同步主题失败:', e);
-      }
-
-      logger.debug(`[主题][Store] syncSystemThemeStyle：currentTheme=${currentTheme}, isDark=${isDark}`);
-      if (currentTheme === 'auto') {
-        this.systemPrefersDark = isDark;
-        const root = document.documentElement;
-        if (isDark) {
-          root.classList.add('dark');
-          logger.debug('[主题][Store] 添加 dark 类到 <html>');
-        } else {
-          root.classList.remove('dark');
-          logger.debug('[主题][Store] 从 <html> 移除 dark 类');
-        }
-      } else {
-        logger.debug(`[主题][Store] currentTheme=${currentTheme} 非 auto，跳过 dark 类切换`);
-      }
+      const themeStore = useThemeStore();
+      themeStore.syncSystemThemeStyle(isDark);
+      this.theme = themeStore.theme;
+      this.systemPrefersDark = themeStore.systemPrefersDark;
     }
   },
   persist: {
@@ -220,3 +169,5 @@ export type StoreType = ReturnType<typeof useConfigurationStore>;
 
 export { useLayoutStore } from './layout';
 export { usePluginStore } from './plugins';
+export { useHotkeyStore } from './hotkeys';
+export { useThemeStore } from './theme';

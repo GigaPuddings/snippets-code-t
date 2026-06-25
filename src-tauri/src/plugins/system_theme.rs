@@ -9,7 +9,6 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::time;
 
-#[cfg(target_os = "windows")]
 use {winreg::enums::*, winreg::RegKey};
 
 // 主题模式枚举
@@ -100,7 +99,6 @@ static ACTIVE_SCHEDULER_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
 // 设置 Windows 10/11 全局深色/浅色模式，包括：
 // - 应用程序主题 (AppsUseLightTheme)
 // - 系统主题 (SystemUsesLightTheme) - 任务栏、开始菜单、通知中心、搜索等
-#[cfg(target_os = "windows")]
 pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
     use winreg::enums::*;
     use winreg::RegKey;
@@ -186,13 +184,7 @@ pub fn set_windows_dark_mode(enabled: bool) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
-pub fn set_windows_dark_mode(_enabled: bool) -> Result<(), String> {
-    Err("此功能仅在Windows系统上可用".to_string())
-}
-
 // 获取当前Windows主题模式
-#[cfg(target_os = "windows")]
 pub fn get_windows_dark_mode() -> Result<bool, String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
 
@@ -206,13 +198,7 @@ pub fn get_windows_dark_mode() -> Result<bool, String> {
     Ok(apps_use_light == 0)
 }
 
-#[cfg(not(target_os = "windows"))]
-pub fn get_windows_dark_mode() -> Result<bool, String> {
-    Err("此功能仅在Windows系统上可用".to_string())
-}
-
 // 获取Windows系统时区信息
-#[cfg(target_os = "windows")]
 pub fn get_windows_timezone_info() -> Result<(String, i32), String> {
     // 使用chrono获取本地时区偏移
     let now = Local::now();
@@ -222,11 +208,6 @@ pub fn get_windows_timezone_info() -> Result<(String, i32), String> {
     let timezone_name = format!("UTC{:+03}", offset / 60);
 
     Ok((timezone_name, offset))
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn get_windows_timezone_info() -> Result<(String, i32), String> {
-    Err("此功能仅在Windows系统上可用".to_string())
 }
 
 // 通过IP获取地理位置信息（带重试和备用源）

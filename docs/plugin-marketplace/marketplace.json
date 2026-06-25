@@ -54,6 +54,9 @@
         "rapidocr"
       ],
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/archive/refs/tags/2.0.6.zip",
+      "mirrorUrls": [
+        "https://ghfast.top/https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/archive/refs/tags/2.0.6.zip"
+      ],
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr",
@@ -110,6 +113,9 @@
         "ffmpeg"
       ],
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/archive/refs/tags/2.0.5.zip",
+      "mirrorUrls": [
+        "https://ghfast.top/https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/archive/refs/tags/2.0.5.zip"
+      ],
       "minAppVersion": "2.0.3",
       "compatibleAppVersion": ">=2.0.3",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg",
@@ -219,6 +225,9 @@
         "cuda"
       ],
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime/releases/download/1.0.0/local-ai-llama-runtime-1.0.0.zip",
+      "mirrorUrls": [
+        "https://ghfast.top/https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime/releases/download/1.0.0/local-ai-llama-runtime-1.0.0.zip"
+      ],
       "minAppVersion": "2.1.20",
       "compatibleAppVersion": ">=2.1.20",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime",

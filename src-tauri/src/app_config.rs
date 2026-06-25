@@ -2775,9 +2775,15 @@ async fn download_plugin_url_to_temp(
     app_handle: &AppHandle,
     package_url: &str,
     _expected_size_bytes: Option<u64>,
+    mirror_urls: &[String],
 ) -> Result<PathBuf, String> {
     validate_plugin_remote_url(package_url)?;
-    let download_urls = plugin_package_download_urls(package_url);
+    let mut download_urls = plugin_package_download_urls(package_url);
+    for mirror_url in mirror_urls {
+        if validate_plugin_remote_url(mirror_url).is_ok() && !download_urls.contains(mirror_url) {
+            download_urls.push(mirror_url.clone());
+        }
+    }
     for download_url in &download_urls {
         validate_plugin_remote_url(download_url)?;
     }
@@ -3086,9 +3092,12 @@ pub async fn install_plugin_package_from_url(
     package_subdir: Option<String>,
     expected_size_bytes: Option<u64>,
     overwrite: bool,
+    mirror_urls: Option<Vec<String>>,
 ) -> Result<LocalPluginPackage, String> {
+    let mirror_urls = mirror_urls.unwrap_or_default();
     let downloaded_package =
-        download_plugin_url_to_temp(&app_handle, &package_url, expected_size_bytes).await?;
+        download_plugin_url_to_temp(&app_handle, &package_url, expected_size_bytes, &mirror_urls)
+            .await?;
     let temp_dir = downloaded_package.parent().map(Path::to_path_buf);
     emit_plugin_install_progress(&app_handle, &package_url, "extracting", 0, None);
     let result =

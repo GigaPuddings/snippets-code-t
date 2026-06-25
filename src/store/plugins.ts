@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
+  buildMirrorUrl,
   getInstalledPluginManifests,
   getLocalPluginResourcePath,
   getPluginStates,
@@ -314,19 +315,22 @@ export const usePluginStore = defineStore('plugins', {
       packageUrl: string,
       overwrite = false,
       packageSubdir?: string,
-      expectedSizeBytes?: number
+      expectedSizeBytes?: number,
+      mirrorUrls?: string[]
     ): Promise<void> {
       logger.info('[PluginStore] install from url start', {
         packageUrl,
         overwrite,
         packageSubdir,
-        expectedSizeBytes
+        expectedSizeBytes,
+        mirrorCount: mirrorUrls?.length ?? 0
       });
       const pluginPackage = await installPluginPackageFromUrl(
         packageUrl,
         overwrite,
         packageSubdir,
-        expectedSizeBytes
+        expectedSizeBytes,
+        mirrorUrls
       );
       logger.info('[PluginStore] install from url complete', {
         pluginId: pluginPackage.manifest.id,
@@ -503,17 +507,24 @@ export const usePluginStore = defineStore('plugins', {
 
         if (item.packageUrl && this.shouldInstallMarketplaceItem(item)) {
           options.onInstallingPackage?.(item);
+          // 使用显式 mirrorUrls，或自动从 packageUrl 生成镜像地址
+          const mirrorUrls =
+            item.mirrorUrls && item.mirrorUrls.length > 0
+              ? item.mirrorUrls
+              : [buildMirrorUrl(item.packageUrl)];
           logger.info('[PluginStore] marketplace lifecycle install package', {
             pluginId: item.id,
             packageUrl: item.packageUrl,
             packageSubdir: item.packageSubdir,
-            dependencies: getMarketplaceDependencies(item)
+            dependencies: getMarketplaceDependencies(item),
+            mirrorCount: mirrorUrls.length
           });
           await this.installFromUrl(
             item.packageUrl,
             true,
             item.packageSubdir,
-            item.sizeBytes
+            item.sizeBytes,
+            mirrorUrls
           );
         }
       } finally {

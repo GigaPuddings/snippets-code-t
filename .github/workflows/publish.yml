@@ -5,10 +5,56 @@ on:
       - 'v*'
 
 jobs:
+  # ── Pre-release quality gate ───────────────────────────────────────
+  quality-gate:
+    name: Quality Gate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Frontend tests
+        run: pnpm test
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
   release:
     permissions:
       contents: write
     runs-on: windows-latest
+    needs: quality-gate
     steps:
       - uses: actions/checkout@v4
         with:

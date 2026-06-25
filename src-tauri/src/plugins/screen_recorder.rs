@@ -12,7 +12,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 
-#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 const PLUGIN_ID: &str = "screen-recorder";
@@ -306,10 +305,7 @@ fn candidate_paths(app_handle: &AppHandle) -> Vec<(PathBuf, String)> {
 
 fn ffmpeg_command(program: impl AsRef<Path>) -> Command {
     let mut command = Command::new(program.as_ref());
-    #[cfg(target_os = "windows")]
-    {
-        command.creation_flags(0x08000000);
-    }
+    command.creation_flags(0x08000000);
     command
 }
 
@@ -361,11 +357,7 @@ fn is_system_audio_device(device: &str) -> bool {
 }
 
 fn native_system_audio_device() -> Option<String> {
-    if cfg!(target_os = "windows") {
-        Some("WASAPI loopback (default render device)".to_string())
-    } else {
-        None
-    }
+    Some("WASAPI loopback (default render device)".to_string())
 }
 
 fn list_audio_devices(app_handle: &AppHandle) -> Vec<String> {
@@ -456,7 +448,6 @@ fn ffmpeg_supports_filter(ffmpeg_path: &Path, filter: &str) -> bool {
         .any(|line| line.split_whitespace().any(|part| part == filter))
 }
 
-#[cfg(target_os = "windows")]
 fn start_wasapi_loopback_capture(
     app_handle: AppHandle,
     temp_dir: &Path,
@@ -469,15 +460,6 @@ fn start_wasapi_loopback_capture(
     let handle =
         thread::spawn(move || capture_wasapi_loopback(app_handle, thread_path, thread_stop));
     Ok(AudioCaptureSession { stop, handle })
-}
-
-#[cfg(not(target_os = "windows"))]
-fn start_wasapi_loopback_capture(
-    _app_handle: AppHandle,
-    _temp_dir: &Path,
-    _index: usize,
-) -> Result<AudioCaptureSession, String> {
-    Err("系统声音录制当前仅支持 Windows WASAPI loopback".to_string())
 }
 
 fn emit_audio_level(app_handle: &AppHandle, level: f32) {
@@ -554,7 +536,6 @@ fn audio_level_from_samples(buffer: &[u8], sample_format: &str) -> f32 {
     }
 }
 
-#[cfg(target_os = "windows")]
 fn capture_wasapi_loopback(
     app_handle: AppHandle,
     path: PathBuf,
@@ -936,7 +917,6 @@ fn ensure_passthrough_tracker(app_handle: AppHandle) {
             break;
         };
 
-        #[cfg(target_os = "windows")]
         let should_ignore = {
             use windows::Win32::Foundation::POINT;
             use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
@@ -955,9 +935,6 @@ fn ensure_passthrough_tracker(app_handle: AppHandle) {
                 false
             }
         };
-
-        #[cfg(not(target_os = "windows"))]
-        let should_ignore = false;
 
         let mut changed = false;
         if let Ok(mut state) = PASSTHROUGH_STATE.lock() {
@@ -1010,7 +987,6 @@ pub fn screen_recorder_set_overlay_window_region(
     region: Option<OverlayWindowRegion>,
 ) -> Result<(), String> {
     require_plugin(&app_handle)?;
-    #[cfg(target_os = "windows")]
     {
         use windows::Win32::Foundation::HWND;
         use windows::Win32::Graphics::Gdi::{
@@ -1055,10 +1031,6 @@ pub fn screen_recorder_set_overlay_window_region(
             }
         }
     }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = (window, region);
-    }
     Ok(())
 }
 
@@ -1069,7 +1041,6 @@ pub fn screen_recorder_set_capture_excluded(
     excluded: bool,
 ) -> Result<(), String> {
     require_plugin(&app_handle)?;
-    #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::{
             SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
@@ -1083,10 +1054,6 @@ pub fn screen_recorder_set_capture_excluded(
             WDA_NONE
         };
         unsafe { SetWindowDisplayAffinity(hwnd, affinity) }.map_err(|e| e.to_string())?;
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = (window, excluded);
     }
     Ok(())
 }
@@ -1117,13 +1084,6 @@ pub fn screen_recorder_pick_region(
 ) -> Result<RecordingRegion, String> {
     require_plugin(&app_handle)?;
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = window;
-        return Err("区域拖选当前仅支持 Windows。".to_string());
-    }
-
-    #[cfg(target_os = "windows")]
     {
         use windows::Win32::Foundation::POINT;
         use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
@@ -1211,13 +1171,6 @@ pub fn screen_recorder_pick_target_window(
 ) -> Result<SnapWindowRegion, String> {
     require_plugin(&app_handle)?;
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = window;
-        return Err("窗口捕捉当前仅支持 Windows。".to_string());
-    }
-
-    #[cfg(target_os = "windows")]
     {
         use windows::Win32::Foundation::{HWND, POINT, RECT};
         use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWINDOWATTRIBUTE};
@@ -1401,22 +1354,6 @@ fn spawn_segment(
     ),
     String,
 > {
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = (
-            app_handle,
-            temp_dir,
-            region,
-            fps,
-            quality,
-            audio,
-            show_cursor,
-            index,
-        );
-        return Err("区域录制当前仅支持 Windows + FFmpeg。".to_string());
-    }
-
-    #[cfg(target_os = "windows")]
     {
         let (ffmpeg, _) = find_ffmpeg(app_handle);
         let ffmpeg = ffmpeg.ok_or_else(|| "未找到 FFmpeg，无法开始录屏".to_string())?;
@@ -1658,7 +1595,6 @@ fn terminate_process_by_pid(pid: u32) {
         return;
     }
 
-    #[cfg(target_os = "windows")]
     unsafe {
         use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};

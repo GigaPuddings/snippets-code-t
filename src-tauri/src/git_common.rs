@@ -77,7 +77,6 @@ const LEGACY_FIXED_NONCE: [u8; NONCE_LEN] = [
 use std::path::Path;
 use std::process::Command;
 
-#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 /// 从 Git remote URL 中移除 token（安全展示用）
@@ -192,7 +191,6 @@ pub fn decode_git_quoted_path(input: &str) -> String {
 /// 创建不弹控制台窗口的 git Command（Windows 下使用 CREATE_NO_WINDOW）
 pub fn git_command() -> Command {
     let mut cmd = Command::new("git");
-    #[cfg(target_os = "windows")]
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW，避免保存/校验时闪终端
     cmd
 }

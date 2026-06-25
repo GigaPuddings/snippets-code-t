@@ -1,4 +1,5 @@
 mod app_config;
+mod app_setup;
 mod apps;
 mod attachment;
 mod bookmarks;
@@ -54,166 +55,10 @@ use window::{create_update_window, show_hide_window_command};
 // 定义一个全局静态变量来存储 AppHandle
 pub static APP: OnceLock<AppHandle> = OnceLock::new();
 
-// App 初始化防抖机制（防止多窗口重复初始化）
-use std::time::{Duration, Instant};
-
-static APP_INIT_STATE: Mutex<Option<Instant>> = Mutex::new(None);
-static APP_INITIALIZED: Mutex<bool> = Mutex::new(false);
-
-const AUTO_START_BACKGROUND_DELAY_SECS: u64 = 15;
-const POST_UPDATE_STARTUP_DELAY_MILLIS: u64 = 1800;
-const SETUP_RESTART_ARG: &str = "--setup-restart";
-const SETUP_RESTART_DELAY_ARG: &str = "--setup-restart-delay-ms";
-const MAX_SETUP_RESTART_DELAY_MILLIS: u64 = 5_000;
-
-fn is_setup_restart_launch() -> bool {
-    std::env::args().any(|arg| arg == SETUP_RESTART_ARG)
-}
-
-fn apply_setup_restart_delay() {
-    let args: Vec<String> = std::env::args().collect();
-    let delay = args
-        .windows(2)
-        .find_map(|pair| {
-            if pair[0] == SETUP_RESTART_DELAY_ARG {
-                pair[1].parse::<u64>().ok()
-            } else {
-                None
-            }
-        })
-        .map(|millis| millis.min(MAX_SETUP_RESTART_DELAY_MILLIS));
-
-    if let Some(delay) = delay {
-        std::thread::sleep(Duration::from_millis(delay));
-    }
-}
-
-fn is_auto_start_launch(app_handle: &AppHandle) -> bool {
-    let has_auto_start_flag = std::env::args().any(|arg| arg == "--flag1" || arg == "--flag2");
-    let has_setup_restart_flag = is_setup_restart_launch();
-    let setup_restart_pending: bool =
-        json_config::get_app_config_value(app_handle, "setup_restart_pending").unwrap_or(false);
-
-    if has_setup_restart_flag {
-        info!("[Startup] setup restart argument detected; forcing foreground startup");
-        if setup_restart_pending {
-            let _ = json_config::set_app_config_value(app_handle, "setup_restart_pending", false);
-        }
-        return false;
-    }
-
-    if !has_auto_start_flag {
-        if setup_restart_pending {
-            let _ = json_config::set_app_config_value(app_handle, "setup_restart_pending", false);
-        }
-        return false;
-    }
-
-    if setup_restart_pending {
-        info!("[Startup] setup restart marker detected; forcing foreground startup");
-        let _ = json_config::set_app_config_value(app_handle, "setup_restart_pending", false);
-        return false;
-    }
-
-    true
-}
-
-// 注册 App 初始化请求（防抖）
-#[tauri::command]
-fn register_app_init_request() {
-    let mut state = APP_INIT_STATE.lock().unwrap();
-    *state = Some(Instant::now());
-}
-
-// 检查是否应该执行 App 初始化（防抖检查）
-// 等待 500ms，如果没有新的请求，则允许执行
-#[tauri::command]
-async fn should_execute_app_init() -> bool {
-    use tokio::time::sleep;
-
-    // 等待 500ms
-    sleep(Duration::from_millis(500)).await;
-
-    let mut initialized = APP_INITIALIZED.lock().unwrap();
-    if *initialized {
-        return false; // 已经初始化过了
-    }
-
-    // 检查是否有更新的请求
-    let state = APP_INIT_STATE.lock().unwrap();
-    if let Some(last_request) = *state {
-        let elapsed = last_request.elapsed();
-        // 如果距离最后一次请求已经超过 450ms，说明这是最后一个窗口
-        if elapsed >= Duration::from_millis(450) {
-            drop(state);
-            *initialized = true;
-            return true;
-        }
-    }
-
-    false
-}
-
-// 清理旧日志文件（保留最近7天的日志）
-fn cleanup_old_logs() {
-    use std::fs;
-    use std::time::{Duration, SystemTime};
-
-    let app = match APP.get() {
-        Some(app) => app,
-        None => return,
-    };
-
-    // 获取日志目录
-    let log_dir = match app.path().app_log_dir() {
-        Ok(dir) => dir,
-        Err(e) => {
-            log::warn!("无法获取日志目录: {}", e);
-            return;
-        }
-    };
-
-    if !log_dir.exists() {
-        return;
-    }
-
-    let now = SystemTime::now();
-    let seven_days_ago = now - Duration::from_secs(7 * 24 * 3600);
-
-    let mut cleaned_count = 0;
-    let mut cleaned_size = 0u64;
-
-    // 遍历日志目录
-    if let Ok(entries) = fs::read_dir(&log_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-
-            // 只处理.log文件
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("log") {
-                // 检查文件修改时间
-                if let Ok(metadata) = fs::metadata(&path) {
-                    if let Ok(modified) = metadata.modified() {
-                        // 删除7天前的日志文件
-                        if modified < seven_days_ago {
-                            cleaned_size += metadata.len();
-                            if fs::remove_file(&path).is_ok() {
-                                cleaned_count += 1;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if cleaned_count > 0 {
-        log::info!(
-            "清理了 {} 个旧日志文件，释放空间 {} KB",
-            cleaned_count,
-            cleaned_size / 1024
-        );
-    }
-}
+use app_setup::{
+    apply_setup_restart_delay, cleanup_old_logs, is_auto_start_launch,
+    AUTO_START_BACKGROUND_DELAY_SECS, POST_UPDATE_STARTUP_DELAY_MILLIS,
+};
 
 // 前端创建config窗口
 #[tauri::command]
@@ -1102,8 +947,8 @@ pub fn run() {
             git_sync::resolve_conflicts_batch,         // 批量解决冲突
             git_sync::write_conflict_file,              // 写入冲突文件内容
             git_sync::remove_untracked_file_command,    // 删除未跟踪文件
-            register_app_init_request,                  // 注册 App 初始化请求（防抖）
-            should_execute_app_init,                    // 检查是否应该执行 App 初始化（防抖）
+            app_setup::register_app_init_request,        // 注册 App 初始化请求（防抖）
+            app_setup::should_execute_app_init,            // 检查是否应该执行 App 初始化（防抖）
             // 文件系统命令
             commands::open_file_with_default_app,       // 使用默认应用打开文件
             commands::show_file_in_folder,              // 在文件管理器中显示文件

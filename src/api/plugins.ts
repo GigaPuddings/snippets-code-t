@@ -30,6 +30,8 @@ export interface PluginMarketplaceItem {
   description: PluginI18nText;
   category: PluginCategory;
   packageUrl?: string;
+  /** 镜像下载地址列表（GitHub 代理），当 packageUrl 下载失败或超时时自动尝试 */
+  mirrorUrls?: string[];
   packageSubdir?: string;
   minAppVersion?: string;
   compatibleAppVersion?: string;
@@ -63,6 +65,20 @@ export interface PluginInstallProgress {
 export const DEFAULT_PLUGIN_MARKETPLACE_URL =
   'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json';
 
+/** GitHub 代理前缀，用于在国内加速大文件下载 */
+export const GITHUB_MIRROR_PREFIX = 'https://ghfast.top/';
+
+/**
+ * 为 GitHub 下载 URL 生成镜像地址
+ * https://github.com/... → https://ghfast.top/https://github.com/...
+ */
+export function buildMirrorUrl(githubUrl: string): string {
+  if (githubUrl.startsWith('https://github.com/')) {
+    return `${GITHUB_MIRROR_PREFIX}${githubUrl}`;
+  }
+  return githubUrl;
+}
+
 export async function getPluginStates(): Promise<Partial<PluginStateMap>> {
   return await invoke<Partial<PluginStateMap>>('get_plugin_states');
 }
@@ -95,13 +111,15 @@ export async function installPluginPackageFromUrl(
   packageUrl: string,
   overwrite = false,
   packageSubdir?: string,
-  expectedSizeBytes?: number
+  expectedSizeBytes?: number,
+  mirrorUrls?: string[]
 ): Promise<LocalPluginPackage> {
   return await invoke<LocalPluginPackage>('install_plugin_package_from_url', {
     expectedSizeBytes,
     packageUrl,
     packageSubdir,
-    overwrite
+    overwrite,
+    mirrorUrls: mirrorUrls ?? []
   });
 }
 

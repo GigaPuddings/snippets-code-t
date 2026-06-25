@@ -1,4 +1,3 @@
-#[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::APP;
 use log::{error, info, warn};
 use tauri::utils::config::WindowConfig;
@@ -11,7 +10,6 @@ use tauri::{
 pub type WindowReadyCallback = Box<dyn FnOnce(&WebviewWindow) + Send + 'static>;
 use base64::{engine::general_purpose, Engine as _};
 use image::GenericImageView;
-#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::process::Command;
 use std::sync::LazyLock;
@@ -98,7 +96,6 @@ fn is_search_focus_restore_token_current(token: u64) -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(target_os = "windows")]
 fn is_cursor_over_window(window: &Window) -> bool {
     use windows::Win32::Foundation::POINT;
     use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
@@ -118,11 +115,6 @@ fn is_cursor_over_window(window: &Window) -> bool {
     let right = left + size.width as i32;
     let bottom = top + size.height as i32;
     point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
-}
-
-#[cfg(not(target_os = "windows"))]
-fn is_cursor_over_window(_window: &Window) -> bool {
-    true
 }
 
 fn schedule_search_focus_restore(window: Window) {
@@ -157,10 +149,7 @@ fn schedule_search_focus_restore(window: Window) {
                 return;
             }
 
-            #[cfg(any(target_os = "windows", target_os = "macos"))]
-            {
-                let _ = window.unminimize();
-            }
+            let _ = window.unminimize();
             let _ = window.show();
             let _ = window.set_always_on_top(true);
             let _ = window.set_focus();
@@ -288,9 +277,7 @@ fn position_search_window_near_top(window: &WebviewWindow) {
 
 use tauri::image::Image;
 use tauri_plugin_clipboard_manager::ClipboardExt;
-#[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
-#[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetClassNameW, GetForegroundWindow, GetParent, GetSystemMetrics, GetTopWindow,
     GetWindow, GetWindowLongW, GetWindowRect, GetWindowTextW, IsIconic, IsWindowVisible,
@@ -469,10 +456,7 @@ impl WindowManager {
                 window.hide().map_err(|e| e.to_string())?;
             } else {
                 // 没有焦点则重新聚焦并临时置顶
-                #[cfg(any(target_os = "windows", target_os = "macos"))]
-                {
-                    let _ = window.unminimize();
-                }
+                let _ = window.unminimize();
 
                 window.show().map_err(|e| e.to_string())?;
                 window.set_focus().map_err(|e| e.to_string())?;
@@ -594,18 +578,7 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<Webv
                     .center()
                     .visible(false);
 
-            // macOS 特定配置
-            #[cfg(target_os = "macos")]
-            {
-                builder = builder
-                    .title_bar_style(tauri::TitleBarStyle::Overlay)
-                    .hidden_title(true);
-            }
-            // 非 macOS 配置
-            #[cfg(not(target_os = "macos"))]
-            {
-                builder = builder.decorations(false);
-            }
+            builder = builder.decorations(false);
 
             if label == "main" {
                 builder = builder.skip_taskbar(true);
@@ -644,7 +617,6 @@ pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
     if LAST_ACTIVE_WINDOW_ID.lock().unwrap().is_some() {
         info!("检测到上次活动窗口，尝试模拟粘贴操作");
 
-        #[cfg(target_os = "windows")]
         {
             use windows::Win32::Foundation::HWND;
             use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -687,11 +659,6 @@ pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
             } else {
                 info!("成功模拟Ctrl+V粘贴操作");
             }
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            info!("当前平台不支持自动粘贴，已复制到剪贴板，请手动按Ctrl+V粘贴");
         }
     } else {
         info!("未检测到上次活动窗口，已复制到剪贴板，请手动按Ctrl+V粘贴");
@@ -758,7 +725,6 @@ pub fn hotkey_search(context: Option<String>) {
         hide_search_window_after_ipc_response(window);
     } else {
         // 记录当前活动窗口
-        #[cfg(target_os = "windows")]
         {
             use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
@@ -768,12 +734,6 @@ pub fn hotkey_search(context: Option<String>) {
 
             // info!("记录当前活动窗口: {}", window_id);
             *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some(window_id);
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            // info!("记录当前活动窗口状态");
-            *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some("last_active".to_string());
         }
 
         position_search_window_near_top(&window);
@@ -1712,7 +1672,6 @@ pub fn emit_scan_complete(apps_count: usize, bookmarks_count: usize, desktop_fil
 }
 
 // 优化后的 GDI 截图函数
-#[cfg(target_os = "windows")]
 fn capture_screen_gdi_optimized() -> Result<(Vec<u8>, i32, i32), String> {
     use windows::Win32::Graphics::Gdi::{
         BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
@@ -1817,7 +1776,6 @@ fn capture_screen_gdi_optimized() -> Result<(Vec<u8>, i32, i32), String> {
 }
 
 // 捕获全屏并返回 base64
-#[cfg(target_os = "windows")]
 fn capture_screen_and_encode() -> Result<(String, String), String> {
     use image::codecs::jpeg::JpegEncoder;
 
@@ -1849,7 +1807,6 @@ fn capture_screen_and_encode() -> Result<(String, String), String> {
 }
 
 // 旧的函数，保留用于兼容
-#[cfg(target_os = "windows")]
 fn capture_full_screen_to_base64() -> Result<(String, String), String> {
     capture_screen_and_encode()
 }
@@ -2185,7 +2142,6 @@ pub fn copy_to_clipboard(app_handle: AppHandle, image: String) -> Result<(), Str
 pub fn get_pixel_color(x: i32, y: i32) -> Result<serde_json::Value, String> {
     info!("get_pixel_color: x: {}, y: {}", x, y);
 
-    #[cfg(target_os = "windows")]
     {
         use windows::Win32::Graphics::Gdi::{
             BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
@@ -2285,11 +2241,6 @@ pub fn get_pixel_color(x: i32, y: i32) -> Result<serde_json::Value, String> {
             }))
         }
     }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Err("Pixel color detection not implemented for this platform".to_string())
-    }
 }
 
 // 获取屏幕预览图像
@@ -2300,7 +2251,6 @@ pub fn get_screen_preview(
     height: i32,
 ) -> Result<serde_json::Value, String> {
     // 此函数逻辑与 capture_screen_area 非常相似，但不隐藏窗口
-    #[cfg(target_os = "windows")]
     {
         use windows::Win32::Graphics::Gdi::{
             BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
@@ -2386,11 +2336,6 @@ pub fn get_screen_preview(
 
             Ok(serde_json::json!({ "image": base64_data }))
         }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Err("Screen preview not implemented for this platform".to_string())
     }
 }
 
@@ -2724,7 +2669,6 @@ pub fn frontend_log(level: String, message: String, data: Option<String>) {
 pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
     let mut windows = Vec::new();
 
-    #[cfg(target_os = "windows")]
     {
         // Windows平台实现
         unsafe {
@@ -2983,16 +2927,10 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        return Err("Window enumeration not implemented for this platform".to_string());
-    }
-
     Ok(windows)
 }
 
 // 计算两个窗口的重叠面积
-#[cfg(target_os = "windows")]
 fn calculate_overlap_area(window1: &WindowInfo, window2: &WindowInfo) -> i32 {
     let left = std::cmp::max(window1.x, window2.x);
     let top = std::cmp::max(window1.y, window2.y);
@@ -3029,25 +2967,11 @@ pub fn create_setup_window() {
 fn spawn_delayed_relaunch() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|error| error.to_string())?;
 
-    #[cfg(target_os = "windows")]
-    {
-        Command::new(exe)
-            .args(["--setup-restart", "--setup-restart-delay-ms", "1500"])
-            .creation_flags(0x08000000)
-            .spawn()
-            .map_err(|error| error.to_string())?;
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Command::new("sh")
-            .arg("-c")
-            .arg("sleep 1.5; exec \"$1\" --setup-restart")
-            .arg("snippets-code-relaunch")
-            .arg(exe)
-            .spawn()
-            .map_err(|error| error.to_string())?;
-    }
+    Command::new(exe)
+        .args(["--setup-restart", "--setup-restart-delay-ms", "1500"])
+        .creation_flags(0x08000000)
+        .spawn()
+        .map_err(|error| error.to_string())?;
 
     Ok(())
 }
