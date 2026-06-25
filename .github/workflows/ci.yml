@@ -153,4 +153,4 @@ jobs:
           workspaces: src-tauri
 
       - name: Build (frontend + Rust)
-        run: pnpm tauri build --debug
+        run: pnpm tauri build --debug --no-bundle
