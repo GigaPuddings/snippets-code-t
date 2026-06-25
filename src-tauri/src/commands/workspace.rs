@@ -3,7 +3,7 @@
 use crate::json_config::{
     ensure_workspace_not_app_data, get_workspace_root, set_workspace_root, validate_workspace,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::{Emitter, Manager};
 
@@ -131,7 +131,7 @@ fn initialize_workspace_runtime(
 
 fn sync_workspace_root_to_app_config(
     app_handle: &tauri::AppHandle,
-    workspace_root: &PathBuf,
+    workspace_root: &Path,
 ) -> Result<(), String> {
     if let Some(config_state) =
         app_handle.try_state::<Arc<RwLock<crate::app_config::AppConfigManager>>>()
@@ -269,11 +269,11 @@ pub fn change_workspace(
     // 获取旧的工作区路径
     let old_path = get_workspace_root(&app_handle)?;
 
-    if migrate_files && old_path.is_some() {
+    if let (true, Some(old_path)) = (migrate_files, old_path.as_ref()) {
         // 返回需要迁移的信息，让前端处理
         Ok(format!(
             "需要迁移文件从 {} 到 {}",
-            old_path.unwrap().display(),
+            old_path.display(),
             new_path_buf.display()
         ))
     } else {

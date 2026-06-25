@@ -168,11 +168,7 @@ pub fn serialize_frontmatter(metadata: &FrontMatter) -> Result<String, String> {
 pub fn format_frontmatter_block(metadata: &FrontMatter) -> Result<String, String> {
     let yaml = serialize_frontmatter(metadata)?;
     // 确保 YAML 内容以换行符结尾，避免与 closing --- 连在一起
-    let yaml_with_newline = if yaml.ends_with('\n') {
-        yaml.trim_end()
-    } else {
-        yaml.trim_end()
-    };
+    let yaml_with_newline = yaml.trim_end();
     Ok(format!("---\n{}\n---\n", yaml_with_newline))
 }
 

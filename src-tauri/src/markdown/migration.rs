@@ -387,7 +387,7 @@ fn read_fragments_from_conn(conn: &Connection) -> Result<Vec<Fragment>, String> 
 // 导出单个片段为 Markdown 文件
 // 返回相对路径
 fn export_fragment(
-    data_dir: &PathBuf,
+    data_dir: &Path,
     fragment: &Fragment,
     categories: &[Category],
     cache: &mut CacheConfig,

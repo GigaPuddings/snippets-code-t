@@ -24,6 +24,17 @@ const HOTKEY_SPECS: &[HotkeySpec] = &[
     },
 ];
 
+type ShortcutList = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+);
+
 fn hotkey_spec(name: &str) -> Option<&'static HotkeySpec> {
     HOTKEY_SPECS.iter().find(|spec| spec.name == name)
 }
@@ -192,13 +203,11 @@ pub fn register_shortcut_by_frontend(
     name: &str,
     shortcut: &str,
 ) -> Result<(), String> {
-    if !shortcut.is_empty() {
-        if hotkey_spec(name).is_none()
-            && app_config::enabled_plugin_for_capability_item(&app_handle, "hotkeys", name)
-                .is_none()
-        {
-            return Err(format!("没有已启用插件声明快捷键 '{}'", name));
-        }
+    if !shortcut.is_empty()
+        && hotkey_spec(name).is_none()
+        && app_config::enabled_plugin_for_capability_item(&app_handle, "hotkeys", name).is_none()
+    {
+        return Err(format!("没有已启用插件声明快捷键 '{}'", name));
     }
 
     // 保存快捷键到 app.json
@@ -216,21 +225,7 @@ pub fn register_shortcut_by_frontend(
 }
 
 #[tauri::command]
-pub fn get_shortcuts(
-    app_handle: AppHandle,
-) -> Result<
-    (
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-    ),
-    String,
-> {
+pub fn get_shortcuts(app_handle: AppHandle) -> Result<ShortcutList, String> {
     // 从 app.json 读取所有快捷键配置（静默读取，不输出日志）
     let search_hotkey = json_config::get_app_config_value::<String>(&app_handle, "search_hotkey")
         .unwrap_or_default();

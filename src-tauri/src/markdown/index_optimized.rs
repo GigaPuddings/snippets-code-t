@@ -16,6 +16,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use walkdir::WalkDir;
 
+type SharedIndex<T> = Arc<RwLock<T>>;
+type InvertedIndex = HashMap<String, Vec<(usize, usize)>>;
+
 // 搜索索引项
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexEntry {
@@ -47,17 +50,17 @@ pub struct IndexEntry {
 // 优化的索引管理器
 pub struct OptimizedIndexManager {
     // 所有索引项
-    entries: Arc<RwLock<Vec<IndexEntry>>>,
+    entries: SharedIndex<Vec<IndexEntry>>,
     // 标签索引：标签 -> 索引项索引列表
-    tag_index: Arc<RwLock<HashMap<String, Vec<usize>>>>,
+    tag_index: SharedIndex<HashMap<String, Vec<usize>>>,
     // 收藏索引：收藏的索引项索引列表
-    favorite_index: Arc<RwLock<Vec<usize>>>,
+    favorite_index: SharedIndex<Vec<usize>>,
     // 中文分词器
     jieba: Arc<Jieba>,
     // 模糊匹配器
     fuzzy_matcher: SkimMatcherV2,
     // 倒排索引：词 -> [(索引项索引, 出现次数)]
-    inverted_index: Arc<RwLock<HashMap<String, Vec<(usize, usize)>>>>,
+    inverted_index: SharedIndex<InvertedIndex>,
 }
 
 impl OptimizedIndexManager {

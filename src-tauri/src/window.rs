@@ -2906,7 +2906,7 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
             );
 
             // 排序：按Z-order排序（z_order值越小表示层级越高，即最顶层的窗口）
-            windows.sort_by(|a: &WindowInfo, b: &WindowInfo| a.z_order.cmp(&b.z_order));
+            windows.sort_by_key(|window: &WindowInfo| window.z_order);
 
             // 过滤被遮挡的窗口
             let mut filtered_windows: Vec<WindowInfo> = Vec::new();

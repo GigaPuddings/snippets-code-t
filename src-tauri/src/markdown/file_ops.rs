@@ -124,41 +124,6 @@ impl FileNameGenerator {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::FileNameGenerator;
-    use std::fs;
-
-    #[test]
-    fn generated_filename_keeps_extension_inside_component_limit_for_unicode_titles() {
-        let filename = FileNameGenerator::generate_filename(&"测".repeat(200));
-
-        assert!(filename.ends_with(".md"));
-        assert!(filename.len() <= 255);
-        assert!(std::str::from_utf8(filename.as_bytes()).is_ok());
-    }
-
-    #[test]
-    fn sanitizer_handles_windows_reserved_and_trailing_names() {
-        assert_eq!(FileNameGenerator::sanitize_filename("CON"), "_CON");
-        assert_eq!(FileNameGenerator::sanitize_filename("notes. "), "notes");
-        assert_eq!(FileNameGenerator::sanitize_filename(".."), "untitled");
-    }
-
-    #[test]
-    fn conflict_resolution_never_reuses_an_existing_timestamped_name() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        fs::write(directory.path().join("note.md"), "first").expect("write base file");
-
-        let first = FileNameGenerator::resolve_conflict(directory.path(), "note.md");
-        fs::write(directory.path().join(&first), "second").expect("write conflicting file");
-        let second = FileNameGenerator::resolve_conflict(directory.path(), "note.md");
-
-        assert_ne!(first, second);
-        assert!(!directory.path().join(second).exists());
-    }
-}
-
 // 创建分类文件夹
 pub fn create_category_folder(base_path: &Path, category_name: &str) -> Result<PathBuf, String> {
     let safe_name = FileNameGenerator::sanitize_filename(category_name);
@@ -223,4 +188,39 @@ pub fn ensure_config_dir(base_path: &Path) -> Result<PathBuf, String> {
     }
 
     Ok(config_dir)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FileNameGenerator;
+    use std::fs;
+
+    #[test]
+    fn generated_filename_keeps_extension_inside_component_limit_for_unicode_titles() {
+        let filename = FileNameGenerator::generate_filename(&"测".repeat(200));
+
+        assert!(filename.ends_with(".md"));
+        assert!(filename.len() <= 255);
+        assert!(std::str::from_utf8(filename.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn sanitizer_handles_windows_reserved_and_trailing_names() {
+        assert_eq!(FileNameGenerator::sanitize_filename("CON"), "_CON");
+        assert_eq!(FileNameGenerator::sanitize_filename("notes. "), "notes");
+        assert_eq!(FileNameGenerator::sanitize_filename(".."), "untitled");
+    }
+
+    #[test]
+    fn conflict_resolution_never_reuses_an_existing_timestamped_name() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        fs::write(directory.path().join("note.md"), "first").expect("write base file");
+
+        let first = FileNameGenerator::resolve_conflict(directory.path(), "note.md");
+        fs::write(directory.path().join(&first), "second").expect("write conflicting file");
+        let second = FileNameGenerator::resolve_conflict(directory.path(), "note.md");
+
+        assert_ne!(first, second);
+        assert!(!directory.path().join(second).exists());
+    }
 }

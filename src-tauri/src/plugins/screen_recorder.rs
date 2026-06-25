@@ -1335,25 +1335,37 @@ fn session_temp_dir(app_handle: &AppHandle, id: &str) -> Result<PathBuf, String>
     Ok(dir)
 }
 
-fn spawn_segment(
-    app_handle: &AppHandle,
-    temp_dir: &Path,
-    region: &RecordingRegion,
+type SegmentSpawnResult = (
+    Child,
+    PathBuf,
+    Option<String>,
+    PathBuf,
+    Option<AudioCaptureSession>,
+);
+
+struct SegmentSpawnOptions<'a> {
+    region: &'a RecordingRegion,
     fps: u32,
-    quality: &str,
+    quality: &'a str,
     audio: bool,
     show_cursor: bool,
     index: usize,
-) -> Result<
-    (
-        Child,
-        PathBuf,
-        Option<String>,
-        PathBuf,
-        Option<AudioCaptureSession>,
-    ),
-    String,
-> {
+}
+
+fn spawn_segment(
+    app_handle: &AppHandle,
+    temp_dir: &Path,
+    options: SegmentSpawnOptions<'_>,
+) -> Result<SegmentSpawnResult, String> {
+    let SegmentSpawnOptions {
+        region,
+        fps,
+        quality,
+        audio,
+        show_cursor,
+        index,
+    } = options;
+
     {
         let (ffmpeg, _) = find_ffmpeg(app_handle);
         let ffmpeg = ffmpeg.ok_or_else(|| "未找到 FFmpeg，无法开始录屏".to_string())?;
@@ -1687,12 +1699,14 @@ pub fn screen_recorder_start_recording(
     let (child, output, audio_device, segment_log, audio_capture) = spawn_segment(
         &app_handle,
         &temp_dir,
-        &region,
-        fps,
-        &quality,
-        audio,
-        show_cursor,
-        0,
+        SegmentSpawnOptions {
+            region: &region,
+            fps,
+            quality: &quality,
+            audio,
+            show_cursor,
+            index: 0,
+        },
     )?;
 
     let mut state = RECORDING_SESSION
@@ -1791,12 +1805,14 @@ pub fn screen_recorder_resume_recording(
     let (child, output, audio_device, segment_log, audio_capture) = spawn_segment(
         &app_handle,
         &session.temp_dir,
-        &session.region,
-        session.fps,
-        &session.quality,
-        session.audio,
-        session.show_cursor,
-        session.next_segment_index,
+        SegmentSpawnOptions {
+            region: &session.region,
+            fps: session.fps,
+            quality: &session.quality,
+            audio: session.audio,
+            show_cursor: session.show_cursor,
+            index: session.next_segment_index,
+        },
     )?;
     if session.audio_device.is_none() {
         session.audio_device = audio_device;

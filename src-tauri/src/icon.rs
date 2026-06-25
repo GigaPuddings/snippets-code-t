@@ -336,7 +336,7 @@ pub fn load_icon_cache(_app_handle: &AppHandle) {
 
         // 由于 LRU 缓存有大小限制，优先加载最新的图标
         let mut sorted_icons: Vec<_> = cache_data.into_iter().collect();
-        sorted_icons.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
+        sorted_icons.sort_by_key(|item| std::cmp::Reverse(item.1.timestamp));
 
         // let mut loaded_count = 0;
         let mut invalid_keys = Vec::new();

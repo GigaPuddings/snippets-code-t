@@ -1107,9 +1107,9 @@ fn merge_mixed_script_blocks(
     );
 }
 
-fn find_mixed_script_replacement<'a>(
+fn find_mixed_script_replacement(
     block: &OcrTextBlock,
-    candidates: &'a [(OcrLanguage, OcrRecognizeResult, f64)],
+    candidates: &[(OcrLanguage, OcrRecognizeResult, f64)],
     base_language: OcrLanguage,
 ) -> Option<(OcrLanguage, String, f64)> {
     let base_stats = script_stats(&block.text);
@@ -2425,7 +2425,7 @@ fn split_command_args(input: &str) -> Vec<String> {
 fn run_sidecar_attempt(sidecar: &Path, attempt: &SidecarAttempt) -> Result<String, String> {
     let mut command = Command::new(sidecar);
     command.args(&attempt.args);
-command.creation_flags(0x08000000);
+    command.creation_flags(0x08000000);
 
     if let Some(sidecar_dir) = sidecar.parent() {
         command.current_dir(sidecar_dir);

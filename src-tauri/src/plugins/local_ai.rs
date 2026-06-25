@@ -41,9 +41,10 @@ static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> 
 static ACTIVE_STREAM_WINDOWS: LazyLock<Mutex<HashMap<String, String>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
-static VERIFIED_SOURCE_CACHE: LazyLock<
-    Mutex<HashMap<String, (Instant, Vec<LocalAiVerifiedSource>)>>,
-> = LazyLock::new(|| Mutex::new(HashMap::new()));
+type VerifiedSourceCache = HashMap<String, (Instant, Vec<LocalAiVerifiedSource>)>;
+type SharedVerifiedSourceCache = LazyLock<Mutex<VerifiedSourceCache>>;
+static VERIFIED_SOURCE_CACHE: SharedVerifiedSourceCache =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAiConfig {
@@ -1318,7 +1319,8 @@ pub fn cancel_streams_for_window(window_label: &str) -> usize {
     let request_ids = match ACTIVE_STREAM_WINDOWS.lock() {
         Ok(windows) => windows
             .iter()
-            .filter_map(|(request_id, owner)| (owner == window_label).then(|| request_id.clone()))
+            .filter(|(_, owner)| owner == &window_label)
+            .map(|(request_id, _)| request_id.clone())
             .collect::<Vec<_>>(),
         Err(error) => {
             warn!(

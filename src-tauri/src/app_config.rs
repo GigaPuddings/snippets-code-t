@@ -2628,13 +2628,15 @@ mod plugin_validation_tests {
 
     #[test]
     fn normalize_runtime_metadata_updates_app_version_and_clears_stale_update_info() {
-        let mut config = AppConfig::default();
-        config.version = "0.2.0".to_string();
-        config.update_available = Some(true);
-        config.update_info = Some(json!({
-            "version": current_app_version(),
-            "notes": "already installed"
-        }));
+        let mut config = AppConfig {
+            version: "0.2.0".to_string(),
+            update_available: Some(true),
+            update_info: Some(json!({
+                "version": current_app_version(),
+                "notes": "already installed"
+            })),
+            ..AppConfig::default()
+        };
 
         AppConfigManager::normalize_runtime_metadata(&mut config);
 
@@ -2645,12 +2647,14 @@ mod plugin_validation_tests {
 
     #[test]
     fn normalize_runtime_metadata_preserves_future_update_info() {
-        let mut config = AppConfig::default();
-        config.update_available = Some(true);
-        config.update_info = Some(json!({
-            "version": "9999.0.0",
-            "notes": "future update"
-        }));
+        let mut config = AppConfig {
+            update_available: Some(true),
+            update_info: Some(json!({
+                "version": "9999.0.0",
+                "notes": "future update"
+            })),
+            ..AppConfig::default()
+        };
 
         AppConfigManager::normalize_runtime_metadata(&mut config);
 

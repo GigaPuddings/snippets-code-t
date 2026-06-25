@@ -40,19 +40,14 @@ pub enum WallpaperOrder {
     Sequential,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum FolderSort {
+    #[default]
     FileNameAscending,
     FileNameDescending,
     ModifiedAscending,
     ModifiedDescending,
-}
-
-impl Default for FolderSort {
-    fn default() -> Self {
-        Self::FileNameAscending
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -513,7 +508,6 @@ fn set_windows_wallpaper(path: &Path, fit_mode: &WallpaperFitMode) -> Result<(),
     }
     Ok(())
 }
-
 
 fn update_status_after_switch(path: &Path, source: &str, next_switch_at: Option<i64>) -> i64 {
     let resolution = image_resolution(path);
@@ -1152,7 +1146,6 @@ fn windows_system_proxy_url() -> Option<String> {
         .ok()?;
     normalize_proxy_url(&proxy_server)
 }
-
 
 fn wallhaven_proxy_url() -> Option<String> {
     [

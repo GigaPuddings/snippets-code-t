@@ -141,16 +141,6 @@ impl Default for AppConfig {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn app_config_defaults_to_auto_ocr_language() {
-        assert_eq!(AppConfig::default().ocr_language.as_deref(), Some("auto"));
-    }
-}
-
 // ============= 路径配置管理 =============
 
 // 获取 path.json 的路径
@@ -437,7 +427,7 @@ pub fn set_workspace_root(app_handle: &tauri::AppHandle, path: PathBuf) -> Resul
 }
 
 // 验证目录具有读写权限
-pub fn validate_workspace(path: &PathBuf) -> Result<(), String> {
+pub fn validate_workspace(path: &Path) -> Result<(), String> {
     // 验证目录存在
     if !path.exists() {
         return Err(format!("目录不存在: {}", path.display()));
@@ -469,4 +459,14 @@ pub fn validate_workspace(path: &PathBuf) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_config_defaults_to_auto_ocr_language() {
+        assert_eq!(AppConfig::default().ocr_language.as_deref(), Some("auto"));
+    }
 }
