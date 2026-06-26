@@ -4,80 +4,8 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import type { MarkdownFile, MigrationConfig, MigrationProgress, MigrationResult } from '@/types/models';
+import type { MarkdownFile } from '@/types/models';
 import type { Category } from '@/types/database';
-
-/**
- * 执行数据库到 Markdown 文件系统的迁移
- * @param config 迁移配置
- * @param onProgress 进度回调函数
- * @returns 迁移结果
- */
-export async function migrateToMarkdown(
-  config: MigrationConfig,
-  onProgress?: (progress: MigrationProgress) => void
-): Promise<MigrationResult> {
-  try {
-    // 如果提供了进度回调，设置事件监听器
-    if (onProgress) {
-      const unlisten = await listen<MigrationProgress>('migration-progress', (event) => {
-        onProgress(event.payload);
-      });
-      
-      try {
-        const result = await invoke<MigrationResult>('migrate_to_markdown', { config });
-        unlisten();
-        return result;
-      } catch (error) {
-        unlisten();
-        throw error;
-      }
-    }
-    
-    return await invoke<MigrationResult>('migrate_to_markdown', { config });
-  } catch (error) {
-    throw new Error(`迁移失败: ${error}`);
-  }
-}
-
-/**
- * 回滚迁移操作
- * @param workspaceRoot 工作区根目录
- */
-export async function rollbackMigration(workspaceRoot: string): Promise<void> {
-  try {
-    await invoke('rollback_migration', { workspaceRoot });
-  } catch (error) {
-    throw new Error(`回滚失败: ${error}`);
-  }
-}
-
-/**
- * 完成迁移：移除数据库中的 fragments 和 categories 表
- * 
- * 此函数应在用户确认迁移成功后调用。
- * 它会永久删除数据库中的 contents 和 categories 表。
- * 
- * ⚠️ 警告：此操作不可逆！确保：
- * 1. 所有数据已成功迁移到 Markdown 文件
- * 2. 用户已验证迁移结果
- * 3. 数据库备份已创建
- * 
- * @throws 如果数据库操作失败
- */
-export async function finalizeMigration(): Promise<void> {
-  try {
-    await invoke('finalize_migration');
-  } catch (error) {
-    throw new Error(`完成迁移失败: ${error}`);
-  }
-}
-
-/**
- * Task 6 迁移：将 cache.json 中的元数据写入各文件的 Front Matter
- * @returns 迁移结果
- */
 
 /**
  * 创建新的 Markdown 文件

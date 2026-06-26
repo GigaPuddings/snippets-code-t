@@ -664,44 +664,7 @@ export default {
     restoreSuccess: '数据恢复成功，应用即将重启',
     pathWarning: '修改数据库存储位置将会迁移现有数据并重启应用，是否继续？',
     pathSuccess: '数据库路径修改成功，应用将重启以应用更改',
-    warning: '警告',
-    // Markdown 迁移
-    migration: '数据迁移',
-    migrationDesc:
-      '将数据从数据库迁移到 Markdown 文件，类似常见 Markdown 笔记应用的文件管理方式',
-    migrationBtn: '迁移到 Markdown',
-    migrationFromFileBtn: '选择数据库文件迁移',
-    migrationConfirm: '确认迁移',
-    migrationInfo: '此操作将：',
-    migrationStep1: '从数据库读取所有分类和片段',
-    migrationStep2: '在数据目录创建对应的文件夹和 Markdown 文件',
-    migrationStep3: '生成 workspace.json 和 cache.json 配置文件',
-    migrationStep4: '将元数据写入各文件的 Front Matter（便于 Git 同步）',
-    migrationStep5: '保留原数据库文件不变',
-    migrationWarning: '建议在迁移前备份数据库！',
-    migrating: '正在迁移',
-    migratingData: '正在迁移数据...',
-    migrationComplete: '迁移完成',
-    migrationFailed: '迁移失败',
-    totalCategories: '总分类数',
-    totalFragments: '总片段数',
-    createdFolders: '创建文件夹',
-    createdFiles: '创建文件',
-    failedFiles: '失败文件',
-    outputPath: '输出路径',
-    failedFilesList: '失败文件列表',
-    nextSteps: '后续步骤',
-    nextStep1: '检查输出目录中的 Markdown 文件（含 Front Matter 元数据）',
-    nextStep2: '验证 .snippets-code/workspace.json 和 cache.json',
-    nextStep3: '可以使用任何 Markdown 编辑器打开文件',
-    nextStep4: '原数据库文件已保留，可随时回退',
-    // cache → frontmatter（已有 Markdown 工作区的用户）
-    migrationCacheToFrontmatter: '元数据写入 Front Matter',
-    migrationCacheToFrontmatterDesc:
-      '将 cache.json 中的元数据写入各 .md 文件的 Front Matter，便于 Git 同步',
-    migrationCacheToFrontmatterBtn: '写入 Front Matter',
-    migrationCacheToFrontmatterSuccess: '已为 {count} 个文件写入 Front Matter',
-    migrationCacheToFrontmatterFailed: '部分文件写入失败: {count}'
+    warning: '警告'
   },
 
   // 本地应用/书签

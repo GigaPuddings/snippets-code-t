@@ -3,10 +3,9 @@ use crate::json_config;
 use log::{info, LevelFilter};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
 
-// 注：所有配置已迁移到 JSON 文件系统：
+// 注：所有配置存储在 JSON 文件系统：
 // - path.json: 数据目录路径
 // - app.json: 所有应用配置（更新、翻译、快捷键、语言等）
-// - 数据库 app_settings 表已废弃，配置统一存储在 app.json
 
 // 解析快捷键
 pub fn parse_hotkey(hotkey: &str) -> Result<(Option<Modifiers>, Code), String> {

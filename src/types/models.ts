@@ -182,48 +182,6 @@ export interface MarkdownFile {
 }
 
 /**
- * 迁移配置
- */
-export interface MigrationConfig {
-  /** 工作区根目录 */
-  workspaceRoot: string;
-  /** 是否备份数据库 */
-  backupDatabase: boolean;
-  /** 备份文件路径 */
-  backupPath?: string;
-}
-
-/**
- * 迁移进度信息
- */
-export interface MigrationProgress {
-  /** 当前步骤 */
-  step: string;
-  /** 已处理数量 */
-  processed: number;
-  /** 总数量 */
-  total: number;
-  /** 当前文件名 */
-  currentFile?: string;
-}
-
-/**
- * 迁移结果
- */
-export interface MigrationResult {
-  /** 是否成功 */
-  success: boolean;
-  /** 成功数量 */
-  successCount: number;
-  /** 失败数量 */
-  failedCount: number;
-  /** 错误信息 */
-  errors: string[];
-  /** 工作区路径 */
-  workspacePath: string;
-}
-
-/**
  * 附件配置
  */
 export interface AttachmentConfig {

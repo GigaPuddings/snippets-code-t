@@ -136,29 +136,6 @@ pub struct FrontMatter {
     pub favorite: bool,
 }
 
-// 迁移进度信息
-// 预留用于未来实现实时进度更新
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MigrationProgress {
-    pub step: String,
-    pub current: usize,
-    pub total: usize,
-    pub percentage: f32,
-}
-
-// 迁移结果
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MigrationResult {
-    pub success: bool,
-    pub total_categories: usize,
-    pub total_fragments: usize,
-    pub created_folders: usize,
-    pub created_files: usize,
-    pub failed_files: Vec<String>,
-    pub output_path: String,
-}
-
 /// 将 FrontMatter 序列化为 YAML 字符串（用于写入文件）
 pub fn serialize_frontmatter(metadata: &FrontMatter) -> Result<String, String> {
     serde_yaml::to_string(metadata).map_err(|e| format!("序列化 frontmatter 失败: {}", e))

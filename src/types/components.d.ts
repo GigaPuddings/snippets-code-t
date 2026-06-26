@@ -77,7 +77,6 @@ declare module 'vue' {
     InlinePreview: typeof import('./../pages/search/components/InlinePreview.vue')['default']
     LoadingIndicator: typeof import('./../components/LoadingIndicator/index.vue')['default']
     Manger: typeof import('./../components/SettingsContent/components/Manger/index.vue')['default']
-    MigrationWizard: typeof import('./../components/MigrationWizard/index.vue')['default']
     OutlinePanel: typeof import('./../components/TipTapEditor/components/OutlinePanel.vue')['default']
     Plugins: typeof import('./../components/SettingsContent/components/Plugins/index.vue')['default']
     ProgressContent: typeof import('./../pages/notification/components/ProgressContent.vue')['default']

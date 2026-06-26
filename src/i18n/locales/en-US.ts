@@ -682,45 +682,7 @@ export default {
     pathWarning:
       'Changing database location will migrate data and restart the app. Continue?',
     pathSuccess: 'Path changed. App will restart.',
-    warning: 'Warning',
-    // Markdown Migration
-    migration: 'Data Migration',
-    migrationDesc:
-      'Migrate data from database to Markdown files, similar to common Markdown note apps file management',
-    migrationBtn: 'Migrate to Markdown',
-    migrationFromFileBtn: 'Migrate from database file',
-    migrationConfirm: 'Confirm Migration',
-    migrationInfo: 'This operation will:',
-    migrationStep1: 'Read all categories and fragments from database',
-    migrationStep2:
-      'Create corresponding folders and Markdown files in data directory',
-    migrationStep3:
-      'Generate workspace.json and cache.json configuration files',
-    migrationStep4: "Write metadata to each file's Front Matter (for Git sync)",
-    migrationStep5: 'Keep original database file unchanged',
-    migrationWarning: 'Recommend backing up database before migration!',
-    migrating: 'Migrating',
-    migratingData: 'Migrating data...',
-    migrationComplete: 'Migration Complete',
-    migrationFailed: 'Migration Failed',
-    totalCategories: 'Total Categories',
-    totalFragments: 'Total Fragments',
-    createdFolders: 'Created Folders',
-    createdFiles: 'Created Files',
-    failedFiles: 'Failed Files',
-    outputPath: 'Output Path',
-    failedFilesList: 'Failed Files List',
-    nextSteps: 'Next Steps',
-    nextStep1: 'Check Markdown files in output directory (with Front Matter)',
-    nextStep2: 'Verify .snippets-code/workspace.json and cache.json',
-    nextStep3: 'Files can be opened with any Markdown editor',
-    nextStep4: 'Original database file is preserved, can rollback anytime',
-    migrationCacheToFrontmatter: 'Write Metadata to Front Matter',
-    migrationCacheToFrontmatterDesc:
-      "Write cache.json metadata to each .md file's Front Matter for Git sync",
-    migrationCacheToFrontmatterBtn: 'Write Front Matter',
-    migrationCacheToFrontmatterSuccess: 'Front Matter written to {count} files',
-    migrationCacheToFrontmatterFailed: 'Some files failed: {count}'
+    warning: 'Warning'
   },
 
   // Local Apps/Bookmarks

@@ -93,75 +93,6 @@ async fn fetch_favicon_with_source(url: String, source: String) -> String {
     }
 }
 
-// ============= Markdown 迁移相关命令 =============
-
-// 迁移数据到 Markdown 文件
-#[tauri::command]
-async fn migrate_to_markdown_command(
-    app_handle: AppHandle,
-    cache_manager: tauri::State<'_, std::sync::Arc<std::sync::RwLock<markdown::CacheManager>>>,
-) -> Result<markdown::MigrationResult, String> {
-    let result = markdown::migrate_to_markdown(&app_handle)?;
-
-    // 迁移完成后重新加载内存中的 CacheManager，确保与磁盘数据同步
-    match cache_manager.write() {
-        Ok(mut cache) => {
-            if let Err(e) = cache.reload_from_disk() {
-                log::warn!("⚠️ [迁移] 重新加载 CacheManager 失败: {}", e);
-            } else {
-                log::info!("✅ [迁移] CacheManager 已从磁盘重新加载，tags 等元数据已同步");
-            }
-        }
-        Err(e) => {
-            log::warn!("⚠️ [迁移] 获取 CacheManager 写锁失败: {}", e);
-        }
-    }
-
-    Ok(result)
-}
-
-// 从用户选择的数据库文件迁移
-#[tauri::command]
-async fn migrate_to_markdown_from_file_command(
-    app_handle: AppHandle,
-    cache_manager: tauri::State<'_, std::sync::Arc<std::sync::RwLock<markdown::CacheManager>>>,
-) -> Result<markdown::MigrationResult, String> {
-    let result = markdown::migrate_to_markdown_from_file(&app_handle)?;
-
-    // 迁移完成后重新加载内存中的 CacheManager，确保与磁盘数据同步
-    match cache_manager.write() {
-        Ok(mut cache) => {
-            if let Err(e) = cache.reload_from_disk() {
-                log::warn!("⚠️ [迁移] 重新加载 CacheManager 失败: {}", e);
-            } else {
-                log::info!("✅ [迁移] CacheManager 已从磁盘重新加载，tags 等元数据已同步");
-            }
-        }
-        Err(e) => {
-            log::warn!("⚠️ [迁移] 获取 CacheManager 写锁失败: {}", e);
-        }
-    }
-
-    Ok(result)
-}
-
-// 完成迁移：移除数据库中的 fragments 和 categories 表
-// 此命令应在用户确认迁移成功后调用
-#[tauri::command]
-async fn finalize_migration() -> Result<(), String> {
-    use crate::db::migrate_remove_fragment_tables;
-    use crate::db::DbConnectionManager;
-
-    log::info!("🔧 [迁移] 用户确认迁移成功，开始清理数据库表...");
-
-    let conn = DbConnectionManager::get().map_err(|e| format!("数据库连接失败: {}", e))?;
-
-    migrate_remove_fragment_tables(&conn).map_err(|e| format!("移除数据库表失败: {}", e))?;
-
-    log::info!("✅ [迁移] 数据库清理完成");
-    Ok(())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     apply_setup_restart_delay();
@@ -844,9 +775,6 @@ pub fn run() {
             plugins::screenshot::get_ocr_language,            // 获取默认 OCR 语言
             set_offline_model_activated,      // 设置离线模型激活状态
             get_offline_model_activated,      // 获取离线模型激活状态
-            migrate_to_markdown_command,      // 迁移数据到 Markdown
-            migrate_to_markdown_from_file_command,  // 从选择的数据库文件迁移
-            finalize_migration,               // 完成迁移：移除数据库表
             commands::select_workspace,       // 选择工作区文件夹
             commands::get_default_workspace_dir, // 获取默认工作区目录
             commands::set_workspace_root_from_setup, // 设置向导保存工作区

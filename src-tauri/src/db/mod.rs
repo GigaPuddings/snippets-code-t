@@ -16,7 +16,7 @@ pub use connection::DbConnectionManager;
 
 // 重新导出初始化函数
 pub use init::init_db;
-pub use init::{clear_plugin_storage, ensure_plugin_storage, migrate_remove_fragment_tables};
+pub use init::{clear_plugin_storage, ensure_plugin_storage};
 
 // 重新导出应用相关函数
 pub use apps::{add_app, delete_app, get_apps, update_app};
