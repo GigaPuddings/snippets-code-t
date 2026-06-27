@@ -1115,6 +1115,10 @@ export default {
     fitContain: 'Fit',
     fitCenter: 'Center',
     autoRestore: 'Restore scheduled task on startup',
+    operationOptions: 'Actions',
+    taskbarTransparent: 'Transparent desktop taskbar',
+    taskbarTransparentHint:
+      'Takes effect after saving; restored when this option or the plugin is disabled',
     cache: 'Cache',
     wallhavenCache: 'Wallhaven cache',
     clearing: 'Clearing',

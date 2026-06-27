@@ -28,6 +28,7 @@ export interface WallpaperConfig {
   folderSeenPaths: string[];
   wallhavenSeenIds: string[];
   wallhavenHistoryScope: string | null;
+  taskbarTransparent: boolean;
   lastFolderIndex: number;
   lastAppliedPath: string | null;
 }
@@ -99,6 +100,7 @@ export const defaultWallpaperConfig = (): WallpaperConfig => ({
   folderSeenPaths: [],
   wallhavenSeenIds: [],
   wallhavenHistoryScope: null,
+  taskbarTransparent: false,
   lastFolderIndex: 0,
   lastAppliedPath: null
 });

@@ -75,6 +75,10 @@ const updateInterval = (event: Event) =>
   });
 const updateAutoRestore = (event: Event) =>
   patchConfig({ autoRestore: (event.target as HTMLInputElement).checked });
+const updateTaskbarTransparent = (event: Event) =>
+  patchConfig({
+    taskbarTransparent: (event.target as HTMLInputElement).checked
+  });
 const updateOrder = (order: WallpaperOrder) => patchConfig({ order });
 const updateFolderSort = (event: Event) =>
   patchConfig({ folderSort: (event.target as HTMLSelectElement).value as FolderSort });
@@ -338,6 +342,22 @@ const updateFolderSort = (event: Event) =>
           />
           {{ t('wallpaperSwitcher.autoRestore') }}
         </label>
+      </div>
+      <div class="rules-line operation-line">
+        <span class="row-label compact">
+          {{ t('wallpaperSwitcher.operationOptions') }}
+        </span>
+        <label class="checkbox-label">
+          <input
+            :checked="config.taskbarTransparent"
+            type="checkbox"
+            @change="updateTaskbarTransparent"
+          />
+          {{ t('wallpaperSwitcher.taskbarTransparent') }}
+        </label>
+        <span class="sub-label">
+          {{ t('wallpaperSwitcher.taskbarTransparentHint') }}
+        </span>
       </div>
     </section>
 

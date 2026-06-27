@@ -88,6 +88,8 @@ pub struct WallpaperConfig {
     pub wallhaven_seen_ids: Vec<String>,
     #[serde(default)]
     pub wallhaven_history_scope: Option<String>,
+    #[serde(default)]
+    pub taskbar_transparent: bool,
     pub last_folder_index: usize,
     pub last_applied_path: Option<String>,
     #[serde(default)]
@@ -112,6 +114,7 @@ impl Default for WallpaperConfig {
             folder_seen_paths: Vec::new(),
             wallhaven_seen_ids: Vec::new(),
             wallhaven_history_scope: None,
+            taskbar_transparent: false,
             last_folder_index: 0,
             last_applied_path: None,
             last_switched_at: None,
@@ -507,6 +510,160 @@ fn set_windows_wallpaper(path: &Path, fit_mode: &WallpaperFitMode) -> Result<(),
         .map_err(|e| format!("设置桌面壁纸失败: {}", e))?;
     }
     Ok(())
+}
+
+fn wide_null(value: &str) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+
+    OsStr::new(value)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
+}
+
+fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::{BOOL, HWND};
+    use windows::Win32::UI::WindowsAndMessaging::{FindWindowExW, FindWindowW};
+
+    #[repr(C)]
+    struct AccentPolicy {
+        accent_state: i32,
+        accent_flags: i32,
+        gradient_color: u32,
+        animation_id: i32,
+    }
+
+    #[repr(C)]
+    struct WindowCompositionAttribData {
+        attribute: i32,
+        data: *mut core::ffi::c_void,
+        size_of_data: usize,
+    }
+
+    const WCA_ACCENT_POLICY: i32 = 19;
+    const ACCENT_DISABLED: i32 = 0;
+    const ACCENT_ENABLE_TRANSPARENTGRADIENT: i32 = 2;
+
+    type SetWindowCompositionAttributeFn =
+        unsafe extern "system" fn(HWND, *mut WindowCompositionAttribData) -> BOOL;
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn LoadLibraryW(module_name: PCWSTR) -> *mut core::ffi::c_void;
+        fn GetProcAddress(
+            module: *mut core::ffi::c_void,
+            proc_name: *const u8,
+        ) -> *mut core::ffi::c_void;
+    }
+
+    unsafe fn load_set_window_composition_attribute() -> Option<SetWindowCompositionAttributeFn> {
+        let user32 = wide_null("user32.dll");
+        let module = LoadLibraryW(PCWSTR(user32.as_ptr()));
+        if module.is_null() {
+            return None;
+        }
+
+        let proc = GetProcAddress(
+            module,
+            c"SetWindowCompositionAttribute".as_ptr() as *const u8,
+        );
+        if proc.is_null() {
+            return None;
+        }
+
+        Some(std::mem::transmute::<
+            *mut core::ffi::c_void,
+            SetWindowCompositionAttributeFn,
+        >(proc))
+    }
+
+    unsafe fn apply_to_hwnd(
+        set_window_composition_attribute: SetWindowCompositionAttributeFn,
+        hwnd: HWND,
+        enabled: bool,
+    ) -> bool {
+        if hwnd.is_invalid() {
+            return false;
+        }
+
+        let mut accent = AccentPolicy {
+            accent_state: if enabled {
+                ACCENT_ENABLE_TRANSPARENTGRADIENT
+            } else {
+                ACCENT_DISABLED
+            },
+            accent_flags: 2,
+            gradient_color: 0,
+            animation_id: 0,
+        };
+        let mut data = WindowCompositionAttribData {
+            attribute: WCA_ACCENT_POLICY,
+            data: &mut accent as *mut AccentPolicy as *mut core::ffi::c_void,
+            size_of_data: std::mem::size_of::<AccentPolicy>(),
+        };
+
+        set_window_composition_attribute(hwnd, &mut data).as_bool()
+    }
+
+    let primary_class = wide_null("Shell_TrayWnd");
+    let secondary_class = wide_null("Shell_SecondaryTrayWnd");
+    let mut taskbars = Vec::new();
+
+    unsafe {
+        if let Ok(primary) = FindWindowW(PCWSTR(primary_class.as_ptr()), PCWSTR::null()) {
+            if !primary.is_invalid() {
+                taskbars.push(primary);
+            }
+        }
+
+        let mut previous_secondary = None;
+        loop {
+            match FindWindowExW(
+                None,
+                previous_secondary,
+                PCWSTR(secondary_class.as_ptr()),
+                PCWSTR::null(),
+            ) {
+                Ok(secondary) if !secondary.is_invalid() => {
+                    taskbars.push(secondary);
+                    previous_secondary = Some(secondary);
+                }
+                _ => break,
+            }
+        }
+    }
+
+    if taskbars.is_empty() {
+        return Err("找不到 Windows 任务栏窗口".to_string());
+    }
+
+    let set_window_composition_attribute = unsafe { load_set_window_composition_attribute() }
+        .ok_or_else(|| "当前系统不支持任务栏透明效果".to_string())?;
+
+    let applied_count = taskbars
+        .into_iter()
+        .filter(|hwnd| unsafe { apply_to_hwnd(set_window_composition_attribute, *hwnd, enabled) })
+        .count();
+
+    if applied_count == 0 {
+        return Err("应用任务栏透明效果失败".to_string());
+    }
+
+    Ok(())
+}
+
+fn apply_taskbar_transparency_preference(config: &WallpaperConfig, should_apply: bool) {
+    if !should_apply {
+        return;
+    }
+
+    if let Err(error) = set_taskbar_transparency(config.taskbar_transparent) {
+        warn!(
+            "[WallpaperSwitcher] 应用任务栏透明设置失败 transparent={}: {}",
+            config.taskbar_transparent, error
+        );
+    }
 }
 
 fn update_status_after_switch(path: &Path, source: &str, next_switch_at: Option<i64>) -> i64 {
@@ -1739,7 +1896,9 @@ async fn fetch_wallhaven_page(
 pub async fn wallpaper_get_config(app_handle: AppHandle) -> Result<WallpaperConfig, String> {
     require_enabled(&app_handle)?;
     ensure_scheduler_runtime(&app_handle);
-    Ok(load_config(&app_handle))
+    let config = load_config(&app_handle);
+    apply_taskbar_transparency_preference(&config, config.taskbar_transparent);
+    Ok(config)
 }
 
 #[tauri::command]
@@ -1765,7 +1924,10 @@ pub async fn wallpaper_save_config(
         config.wallhaven_history_scope = None;
     }
     config.interval_minutes = config.interval_minutes.max(1);
+    let should_apply_taskbar =
+        config.taskbar_transparent || config.taskbar_transparent != current.taskbar_transparent;
     save_config(&app_handle, &config)?;
+    apply_taskbar_transparency_preference(&config, should_apply_taskbar);
     if config.schedule_enabled && config.auto_restore {
         start_scheduler(app_handle)?;
     } else {
@@ -1955,10 +2117,17 @@ fn ensure_scheduler_runtime(app_handle: &AppHandle) {
 }
 
 pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
+    let config = load_config(app_handle);
     if enabled {
         ensure_scheduler_runtime(app_handle);
+        apply_taskbar_transparency_preference(&config, config.taskbar_transparent);
     } else {
         stop_scheduler();
+        if config.taskbar_transparent {
+            if let Err(error) = set_taskbar_transparency(false) {
+                warn!("[WallpaperSwitcher] 恢复任务栏默认效果失败: {}", error);
+            }
+        }
     }
 }
 
