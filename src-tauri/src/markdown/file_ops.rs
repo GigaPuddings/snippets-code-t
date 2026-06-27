@@ -125,6 +125,7 @@ impl FileNameGenerator {
 }
 
 // 创建分类文件夹
+#[allow(dead_code)]
 pub fn create_category_folder(base_path: &Path, category_name: &str) -> Result<PathBuf, String> {
     let safe_name = FileNameGenerator::sanitize_filename(category_name);
     let folder_path = base_path.join(&safe_name);
@@ -139,6 +140,7 @@ pub fn create_category_folder(base_path: &Path, category_name: &str) -> Result<P
 }
 
 // 创建 Markdown 文件
+#[allow(dead_code)]
 pub fn create_markdown_file(
     folder_path: &Path,
     filename: &str,
@@ -180,6 +182,7 @@ pub fn get_relative_path(base_path: &Path, file_path: &Path) -> Result<String, S
 }
 
 // 确保 .snippets-code 目录存在
+#[allow(dead_code)]
 pub fn ensure_config_dir(base_path: &Path) -> Result<PathBuf, String> {
     let config_dir = base_path.join(".snippets-code");
 

@@ -87,6 +87,7 @@ fn ensure_config_dir_exists(config_dir: &Path) -> Result<(), String> {
 }
 
 // 更新文件元数据
+#[allow(dead_code)]
 pub fn update_file_metadata(
     cache: &mut CacheConfig,
     file_path: &str,
@@ -96,6 +97,7 @@ pub fn update_file_metadata(
 }
 
 // 更新分类元数据
+#[allow(dead_code)]
 pub fn update_category_metadata(
     cache: &mut CacheConfig,
     category_name: &str,

@@ -98,6 +98,7 @@ impl CacheManager {
     }
 
     // 从磁盘重新加载 cache.json（用于迁移后刷新内存状态）
+    #[allow(dead_code)]
     pub fn reload_from_disk(&mut self) -> Result<(), String> {
         match read_cache(&self.config_dir) {
             Ok(new_cache) => {
