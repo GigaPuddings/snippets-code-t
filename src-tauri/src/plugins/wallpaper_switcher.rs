@@ -817,6 +817,48 @@ fn taskbar_agent_dll_path() -> Result<PathBuf, String> {
         })
 }
 
+fn prepare_taskbar_agent_runtime_dll(source_path: &Path) -> Result<PathBuf, String> {
+    let dir = taskbar_agent_base_dir().join("taskbar-agent-runtime");
+    fs::create_dir_all(&dir).map_err(|e| format!("创建任务栏透明 agent 运行目录失败: {}", e))?;
+
+    let metadata = fs::metadata(source_path)
+        .map_err(|e| format!("读取任务栏透明 agent DLL 元数据失败: {}", e))?;
+    let modified_ms = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis())
+        .unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_millis())
+                .unwrap_or(0)
+        });
+    let runtime_path = dir.join(format!(
+        "taskbar_transparency_agent-{}-{}.dll",
+        metadata.len(),
+        modified_ms
+    ));
+
+    if !runtime_path.exists() {
+        fs::copy(source_path, &runtime_path).map_err(|e| {
+            format!(
+                "复制任务栏透明 agent DLL 到运行目录失败: {} -> {}: {}",
+                source_path.display(),
+                runtime_path.display(),
+                e
+            )
+        })?;
+        info!(
+            "[WallpaperSwitcher][TaskbarTransparentAgent] runtime DLL copied source={} runtime={}",
+            source_path.display(),
+            runtime_path.display()
+        );
+    }
+
+    Ok(runtime_path)
+}
+
 fn build_taskbar_agent_for_dev() -> Result<(), String> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let Some(workspace_dir) = manifest_dir.parent() else {
@@ -889,7 +931,8 @@ fn inject_taskbar_agent_into_explorer(enabled: bool) -> Result<(), String> {
     };
 
     write_taskbar_agent_state(enabled)?;
-    let dll_path = taskbar_agent_dll_path()?;
+    let source_dll_path = taskbar_agent_dll_path()?;
+    let dll_path = prepare_taskbar_agent_runtime_dll(&source_dll_path)?;
     let process_id = shell_tray_process_id()?;
     let dll_path_wide = wide_null(&dll_path.display().to_string());
     let byte_len = dll_path_wide.len() * std::mem::size_of::<u16>();
@@ -957,9 +1000,10 @@ fn inject_taskbar_agent_into_explorer(enabled: bool) -> Result<(), String> {
 
     std::thread::sleep(Duration::from_millis(400));
     info!(
-        "[WallpaperSwitcher][TaskbarTransparentAgent] injected enabled={} pid={} dll={} log={}",
+        "[WallpaperSwitcher][TaskbarTransparentAgent] injected enabled={} pid={} source_dll={} runtime_dll={} log={}",
         enabled,
         process_id,
+        source_dll_path.display(),
         dll_path.display(),
         taskbar_agent_log_file().display()
     );
