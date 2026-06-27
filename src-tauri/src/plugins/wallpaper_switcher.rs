@@ -714,6 +714,258 @@ fn refresh_explorer_visual_settings() {
     );
 }
 
+fn taskbar_agent_base_dir() -> PathBuf {
+    env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(env::temp_dir)
+        .join("snippets-code")
+}
+
+fn taskbar_agent_state_file() -> PathBuf {
+    taskbar_agent_base_dir().join("taskbar-transparency-agent.state")
+}
+
+fn taskbar_agent_log_file() -> PathBuf {
+    taskbar_agent_base_dir().join("taskbar-transparency-agent.log")
+}
+
+fn write_taskbar_agent_state(enabled: bool) -> Result<(), String> {
+    let dir = taskbar_agent_base_dir();
+    fs::create_dir_all(&dir).map_err(|e| format!("创建任务栏透明 agent 状态目录失败: {}", e))?;
+    fs::write(taskbar_agent_state_file(), if enabled { "1" } else { "0" })
+        .map_err(|e| format!("写入任务栏透明 agent 状态失败: {}", e))
+}
+
+fn taskbar_agent_candidate_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Some(path) = env::var_os("SNIPPETS_TASKBAR_AGENT_DLL") {
+        paths.push(PathBuf::from(path));
+    }
+    if let Ok(exe) = env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            paths.push(dir.join("taskbar_transparency_agent.dll"));
+        }
+    }
+    if let Ok(cwd) = env::current_dir() {
+        paths.push(
+            cwd.join("native")
+                .join("taskbar-transparency-agent")
+                .join("target")
+                .join("debug")
+                .join("taskbar_transparency_agent.dll"),
+        );
+        paths.push(
+            cwd.join("..")
+                .join("native")
+                .join("taskbar-transparency-agent")
+                .join("target")
+                .join("debug")
+                .join("taskbar_transparency_agent.dll"),
+        );
+    }
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    if let Some(workspace_dir) = manifest_dir.parent() {
+        paths.push(
+            workspace_dir
+                .join("native")
+                .join("taskbar-transparency-agent")
+                .join("target")
+                .join("debug")
+                .join("taskbar_transparency_agent.dll"),
+        );
+        paths.push(
+            workspace_dir
+                .join("native")
+                .join("taskbar-transparency-agent")
+                .join("target")
+                .join("release")
+                .join("taskbar_transparency_agent.dll"),
+        );
+    }
+
+    paths
+}
+
+fn taskbar_agent_dll_path() -> Result<PathBuf, String> {
+    let candidates = taskbar_agent_candidate_paths();
+    if let Some(path) = candidates.iter().find(|path| path.exists()).cloned() {
+        return Ok(path);
+    }
+
+    if let Err(error) = build_taskbar_agent_for_dev() {
+        warn!(
+            "[WallpaperSwitcher][TaskbarTransparentAgent] 开发态自动构建 agent DLL 失败: {}",
+            error
+        );
+    }
+
+    let candidates_after_build = taskbar_agent_candidate_paths();
+    candidates_after_build
+        .iter()
+        .find(|path| path.exists())
+        .cloned()
+        .ok_or_else(|| {
+            format!(
+                "找不到内置任务栏透明 agent DLL，已检查: {}",
+                candidates_after_build
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            )
+        })
+}
+
+fn build_taskbar_agent_for_dev() -> Result<(), String> {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let Some(workspace_dir) = manifest_dir.parent() else {
+        return Err("无法定位工作区目录".to_string());
+    };
+    let manifest_path = workspace_dir
+        .join("native")
+        .join("taskbar-transparency-agent")
+        .join("Cargo.toml");
+    if !manifest_path.exists() {
+        return Err(format!(
+            "agent Cargo.toml 不存在: {}",
+            manifest_path.display()
+        ));
+    }
+
+    info!(
+        "[WallpaperSwitcher][TaskbarTransparentAgent] building native agent for development: {}",
+        manifest_path.display()
+    );
+    let output = Command::new("cargo")
+        .args(["build", "--manifest-path"])
+        .arg(&manifest_path)
+        .output()
+        .map_err(|e| format!("启动 cargo build 失败: {}", e))?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(format!(
+        "cargo build 返回 {:?}: {}",
+        output.status.code(),
+        stderr
+    ))
+}
+
+fn shell_tray_process_id() -> Result<u32, String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, GetWindowThreadProcessId};
+
+    let class_name = wide_null("Shell_TrayWnd");
+    unsafe {
+        let hwnd = FindWindowW(PCWSTR(class_name.as_ptr()), PCWSTR::null())
+            .map_err(|e| format!("查找 Shell_TrayWnd 失败: {}", e))?;
+        if hwnd.is_invalid() {
+            return Err("找不到 Shell_TrayWnd，无法定位 Explorer 进程".to_string());
+        }
+
+        let mut process_id = 0u32;
+        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+        if process_id == 0 {
+            return Err("无法读取 Shell_TrayWnd 所属 Explorer 进程 ID".to_string());
+        }
+        Ok(process_id)
+    }
+}
+
+fn inject_taskbar_agent_into_explorer(enabled: bool) -> Result<(), String> {
+    use windows::core::{PCSTR, PCWSTR};
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Diagnostics::Debug::WriteProcessMemory;
+    use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+    use windows::Win32::System::Memory::{
+        VirtualAllocEx, VirtualFreeEx, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE,
+    };
+    use windows::Win32::System::Threading::{
+        CreateRemoteThread, OpenProcess, WaitForSingleObject, PROCESS_CREATE_THREAD,
+        PROCESS_QUERY_INFORMATION, PROCESS_VM_OPERATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
+    };
+
+    write_taskbar_agent_state(enabled)?;
+    let dll_path = taskbar_agent_dll_path()?;
+    let process_id = shell_tray_process_id()?;
+    let dll_path_wide = wide_null(&dll_path.display().to_string());
+    let byte_len = dll_path_wide.len() * std::mem::size_of::<u16>();
+
+    unsafe {
+        let process = OpenProcess(
+            PROCESS_CREATE_THREAD
+                | PROCESS_QUERY_INFORMATION
+                | PROCESS_VM_OPERATION
+                | PROCESS_VM_WRITE
+                | PROCESS_VM_READ,
+            false,
+            process_id,
+        )
+        .map_err(|e| format!("打开 Explorer 进程失败 pid={}: {}", process_id, e))?;
+
+        let remote_buffer = VirtualAllocEx(
+            process,
+            None,
+            byte_len,
+            MEM_COMMIT | MEM_RESERVE,
+            PAGE_READWRITE,
+        );
+        if remote_buffer.is_null() {
+            let _ = CloseHandle(process);
+            return Err("在 Explorer 进程中分配 DLL 路径内存失败".to_string());
+        }
+
+        let write_result = WriteProcessMemory(
+            process,
+            remote_buffer,
+            dll_path_wide.as_ptr() as *const core::ffi::c_void,
+            byte_len,
+            None,
+        );
+        if let Err(error) = write_result {
+            let _ = VirtualFreeEx(process, remote_buffer, 0, MEM_RELEASE);
+            let _ = CloseHandle(process);
+            return Err(format!("写入 Explorer 远程 DLL 路径失败: {}", error));
+        }
+
+        let kernel32_name = wide_null("kernel32.dll");
+        let kernel32 = GetModuleHandleW(PCWSTR(kernel32_name.as_ptr()))
+            .map_err(|e| format!("获取 kernel32.dll 模块失败: {}", e))?;
+        let load_library = GetProcAddress(kernel32, PCSTR(b"LoadLibraryW\0".as_ptr()))
+            .ok_or_else(|| "获取 LoadLibraryW 地址失败".to_string())?;
+        let start_routine = Some(std::mem::transmute(load_library));
+
+        let thread = CreateRemoteThread(
+            process,
+            None,
+            0,
+            start_routine,
+            Some(remote_buffer),
+            0,
+            None,
+        )
+        .map_err(|e| format!("创建 Explorer 远程线程失败: {}", e))?;
+
+        let _ = WaitForSingleObject(thread, 8000);
+        let _ = CloseHandle(thread);
+        let _ = VirtualFreeEx(process, remote_buffer, 0, MEM_RELEASE);
+        let _ = CloseHandle(process);
+    }
+
+    std::thread::sleep(Duration::from_millis(400));
+    info!(
+        "[WallpaperSwitcher][TaskbarTransparentAgent] injected enabled={} pid={} dll={} log={}",
+        enabled,
+        process_id,
+        dll_path.display(),
+        taskbar_agent_log_file().display()
+    );
+    Ok(())
+}
+
 fn restart_explorer_for_taskbar_transparency() -> Result<(), String> {
     info!("[WallpaperSwitcher][TaskbarTransparent] restarting Explorer to reload taskbar surface");
 
@@ -1082,6 +1334,13 @@ fn apply_taskbar_transparency_preference(
 ) -> Result<(), String> {
     if !should_apply {
         return Ok(());
+    }
+
+    if let Err(error) = inject_taskbar_agent_into_explorer(config.taskbar_transparent) {
+        warn!(
+            "[WallpaperSwitcher][TaskbarTransparentAgent] 内置 Explorer agent 注入失败，将继续使用系统/API 兜底: {}",
+            error
+        );
     }
 
     let restore_taskbar_previous = if config.taskbar_transparent {
