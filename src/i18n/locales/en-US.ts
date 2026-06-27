@@ -1118,7 +1118,9 @@ export default {
     operationOptions: 'Actions',
     taskbarTransparent: 'Transparent desktop taskbar',
     taskbarTransparentHint:
-      'System-level setting: updates and refreshes Windows taskbar transparency; restores the previous value when disabled',
+      'System-level setting: updates and refreshes Windows taskbar transparency; restart Explorer if there is no visible change',
+    restartExplorerRefresh: 'Restart Explorer refresh',
+    refreshingExplorer: 'Refreshing',
     cache: 'Cache',
     wallhavenCache: 'Wallhaven cache',
     clearing: 'Clearing',
@@ -1180,6 +1182,9 @@ export default {
       wallpaperSet: 'Wallpaper set',
       downloadingWallpaper: 'Downloading wallpaper...',
       wallpaperDownloaded: 'Wallpaper downloaded to cache',
+      restartExplorerConfirm:
+        'This will restart Windows Explorer to reload the taskbar. The desktop and taskbar may flicker briefly. Continue?',
+      explorerRestarted: 'Explorer restarted. Check the taskbar transparency effect',
       scheduleSwitchFailed: 'Scheduled switch failed'
     }
   },

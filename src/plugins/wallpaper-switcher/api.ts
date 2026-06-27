@@ -125,6 +125,9 @@ export const getWallpaperConfig = (): Promise<WallpaperConfig> =>
 export const saveWallpaperConfig = (config: WallpaperConfig): Promise<void> =>
   invoke('wallpaper_save_config', { config });
 
+export const restartExplorerForTaskbarTransparency = (): Promise<void> =>
+  invoke('wallpaper_restart_explorer_for_taskbar_transparency');
+
 export const getWallpaperStatus = (): Promise<WallpaperStatus> =>
   invoke<WallpaperStatus>('wallpaper_get_status');
 

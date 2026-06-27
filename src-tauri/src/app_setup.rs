@@ -74,7 +74,8 @@ pub fn is_auto_start_launch(app_handle: &tauri::AppHandle) -> bool {
 
     if setup_restart_pending {
         info!("[Startup] setup restart marker detected; forcing foreground startup");
-        let _ = crate::json_config::set_app_config_value(app_handle, "setup_restart_pending", false);
+        let _ =
+            crate::json_config::set_app_config_value(app_handle, "setup_restart_pending", false);
         return false;
     }
 

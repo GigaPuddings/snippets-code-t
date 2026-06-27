@@ -8,6 +8,7 @@ use std::error::Error as StdError;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Mutex,
@@ -678,6 +679,72 @@ fn broadcast_taskbar_transparency_settings_changed() {
     info!("[WallpaperSwitcher][TaskbarTransparent] system setting change broadcast sent");
 }
 
+fn run_best_effort_refresh_command(program: &str, args: &[&str], label: &str) {
+    match Command::new(program).args(args).output() {
+        Ok(output) if output.status.success() => {
+            info!(
+                "[WallpaperSwitcher][TaskbarTransparent] explorer visual refresh command succeeded: {}",
+                label
+            );
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            warn!(
+                "[WallpaperSwitcher][TaskbarTransparent] explorer visual refresh command failed: {} status={:?} stderr={}",
+                label,
+                output.status.code(),
+                stderr
+            );
+        }
+        Err(error) => {
+            warn!(
+                "[WallpaperSwitcher][TaskbarTransparent] explorer visual refresh command unavailable: {} error={}",
+                label, error
+            );
+        }
+    }
+}
+
+fn refresh_explorer_visual_settings() {
+    run_best_effort_refresh_command("ie4uinit.exe", &["-show"], "ie4uinit.exe -show");
+    run_best_effort_refresh_command(
+        "rundll32.exe",
+        &["user32.dll,UpdatePerUserSystemParameters"],
+        "rundll32.exe user32.dll,UpdatePerUserSystemParameters",
+    );
+}
+
+fn restart_explorer_for_taskbar_transparency() -> Result<(), String> {
+    info!("[WallpaperSwitcher][TaskbarTransparent] restarting Explorer to reload taskbar surface");
+
+    let output = Command::new("taskkill")
+        .args(["/F", "/IM", "explorer.exe"])
+        .output()
+        .map_err(|error| format!("重启资源管理器失败，无法结束 explorer.exe: {}", error))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(format!(
+            "重启资源管理器失败，taskkill 返回 {:?}: {}",
+            output.status.code(),
+            stderr
+        ));
+    }
+
+    std::thread::sleep(Duration::from_millis(900));
+
+    Command::new("explorer.exe")
+        .spawn()
+        .map_err(|error| format!("重启资源管理器失败，无法启动 explorer.exe: {}", error))?;
+
+    std::thread::sleep(Duration::from_millis(1200));
+    broadcast_taskbar_transparency_settings_changed();
+    refresh_explorer_visual_settings();
+
+    info!("[WallpaperSwitcher][TaskbarTransparent] Explorer restart requested successfully");
+    Ok(())
+}
+
 fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
@@ -977,7 +1044,7 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
             {
                 composition_surface_failed = true;
             }
-            warn!(
+            info!(
                 "[WallpaperSwitcher][TaskbarTransparent#{}] apply failed hwnd={:p} class={} enabled={}",
                 attempt_id, hwnd.0, class_name, enabled
             );
@@ -1001,7 +1068,7 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
     }
     if enabled && composition_surface_failed {
         return Err(
-            "当前 Windows 任务栏的组合/XAML 绘制层拒绝运行时透明效果；外部 AccentPolicy 方案无法生效，需使用 Explorer 集成方案或系统级方案。"
+            "当前 Windows 任务栏的组合/XAML 绘制层拒绝运行时透明效果；外部 AccentPolicy 无法覆盖此任务栏表面。"
                 .to_string(),
         );
     }
@@ -1044,6 +1111,7 @@ fn apply_taskbar_transparency_preference(
         restore_taskbar_previous,
     )?;
     broadcast_taskbar_transparency_settings_changed();
+    refresh_explorer_visual_settings();
 
     if let Err(error) = set_taskbar_transparency(config.taskbar_transparent) {
         info!(
@@ -2555,6 +2623,20 @@ pub async fn wallpaper_open_cache_dir(app_handle: AppHandle) -> Result<(), Strin
     require_enabled(&app_handle)?;
     let dir = cache_dir(&app_handle)?;
     crate::commands::open_folder(path_to_string(&dir))
+}
+
+#[tauri::command]
+pub async fn wallpaper_restart_explorer_for_taskbar_transparency(
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    require_enabled(&app_handle)?;
+    let config = load_config(&app_handle);
+    if !config.taskbar_transparent {
+        return Err("请先勾选并保存“桌面底部任务栏透明”选项".to_string());
+    }
+
+    apply_taskbar_transparency_preference(&config, true)?;
+    restart_explorer_for_taskbar_transparency()
 }
 
 fn ensure_scheduler_runtime(app_handle: &AppHandle) {

@@ -37,6 +37,7 @@ const props = defineProps<{
   fitting: boolean;
   clearingCache: boolean;
   openingCache: boolean;
+  restartingExplorer: boolean;
   saving: boolean;
 }>();
 
@@ -51,6 +52,7 @@ const emit = defineEmits<{
   (event: 'setFitMode', value: WallpaperFitMode): void;
   (event: 'clearCache'): void;
   (event: 'openCacheDir'): void;
+  (event: 'restart-explorer-for-transparency'): void;
   (event: 'persistConfig'): void;
 }>();
 
@@ -358,6 +360,19 @@ const updateFolderSort = (event: Event) =>
         <span class="sub-label">
           {{ t('wallpaperSwitcher.taskbarTransparentHint') }}
         </span>
+        <button
+          type="button"
+          class="tool-btn"
+          :disabled="!config.taskbarTransparent || restartingExplorer || saving"
+          @click="emit('restart-explorer-for-transparency')"
+        >
+          <Refresh :size="16" />
+          {{
+            restartingExplorer
+              ? t('wallpaperSwitcher.refreshingExplorer')
+              : t('wallpaperSwitcher.restartExplorerRefresh')
+          }}
+        </button>
       </div>
     </section>
 
