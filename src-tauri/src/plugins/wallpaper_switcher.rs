@@ -205,6 +205,8 @@ static WALLPAPER_STATUS: Mutex<RuntimeStatus> = Mutex::new(RuntimeStatus {
 static SCHEDULER_RUNNING: Mutex<bool> = Mutex::new(false);
 static SCHEDULER_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
 static ACTIVE_SCHEDULER_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
+static TASKBAR_TRANSPARENCY_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
+static ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
 static RANDOM_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn require_enabled(app_handle: &AppHandle) -> Result<(), String> {
@@ -545,6 +547,8 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
     const ACCENT_DISABLED: i32 = 0;
     const ACCENT_ENABLE_TRANSPARENTGRADIENT: i32 = 2;
     const ACCENT_ENABLE_ACRYLICBLURBEHIND: i32 = 4;
+    const CLEAR_GRADIENT_COLOR: u32 = 0x00000000;
+    const NEAR_CLEAR_ACRYLIC_COLOR: u32 = 0x01000000;
 
     type SetWindowCompositionAttributeFn =
         unsafe extern "system" fn(HWND, *mut WindowCompositionAttribData) -> BOOL;
@@ -579,23 +583,21 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
         >(proc))
     }
 
-    unsafe fn apply_to_hwnd(
+    unsafe fn apply_accent_policy(
         set_window_composition_attribute: SetWindowCompositionAttributeFn,
         hwnd: HWND,
-        enabled: bool,
+        accent_state: i32,
+        accent_flags: i32,
+        gradient_color: u32,
     ) -> bool {
         if hwnd.is_invalid() {
             return false;
         }
 
         let mut accent = AccentPolicy {
-            accent_state: if enabled {
-                ACCENT_ENABLE_TRANSPARENTGRADIENT
-            } else {
-                ACCENT_DISABLED
-            },
-            accent_flags: 2,
-            gradient_color: 0,
+            accent_state,
+            accent_flags,
+            gradient_color,
             animation_id: 0,
         };
         let mut data = WindowCompositionAttribData {
@@ -607,27 +609,54 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
         set_window_composition_attribute(hwnd, &mut data).as_bool()
     }
 
-    unsafe fn apply_acrylic_fallback_to_hwnd(
+    unsafe fn apply_clear_to_hwnd(
         set_window_composition_attribute: SetWindowCompositionAttributeFn,
         hwnd: HWND,
     ) -> bool {
-        if hwnd.is_invalid() {
-            return false;
-        }
+        // Reset first. Windows 11 sometimes keeps the taskbar material from a
+        // previous composition state unless the accent policy is cleared.
+        let _ = apply_accent_policy(
+            set_window_composition_attribute,
+            hwnd,
+            ACCENT_DISABLED,
+            0,
+            CLEAR_GRADIENT_COLOR,
+        );
 
-        let mut accent = AccentPolicy {
-            accent_state: ACCENT_ENABLE_ACRYLICBLURBEHIND,
-            accent_flags: 2,
-            gradient_color: 0x01000000,
-            animation_id: 0,
-        };
-        let mut data = WindowCompositionAttribData {
-            attribute: WCA_ACCENT_POLICY,
-            data: &mut accent as *mut AccentPolicy as *mut core::ffi::c_void,
-            size_of_data: std::mem::size_of::<AccentPolicy>(),
-        };
+        let transparent_applied = apply_accent_policy(
+            set_window_composition_attribute,
+            hwnd,
+            ACCENT_ENABLE_TRANSPARENTGRADIENT,
+            2,
+            CLEAR_GRADIENT_COLOR,
+        );
 
-        set_window_composition_attribute(hwnd, &mut data).as_bool()
+        // Some Windows 11 taskbar surfaces report success for transparent
+        // gradient but continue drawing their material. A near-zero alpha
+        // acrylic pass gives those surfaces a visible translucent state without
+        // touching registry or broadcasting system theme changes.
+        let acrylic_applied = apply_accent_policy(
+            set_window_composition_attribute,
+            hwnd,
+            ACCENT_ENABLE_ACRYLICBLURBEHIND,
+            2,
+            NEAR_CLEAR_ACRYLIC_COLOR,
+        );
+
+        transparent_applied || acrylic_applied
+    }
+
+    unsafe fn restore_hwnd(
+        set_window_composition_attribute: SetWindowCompositionAttributeFn,
+        hwnd: HWND,
+    ) -> bool {
+        apply_accent_policy(
+            set_window_composition_attribute,
+            hwnd,
+            ACCENT_DISABLED,
+            0,
+            CLEAR_GRADIENT_COLOR,
+        )
     }
 
     unsafe extern "system" fn enum_child_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
@@ -695,13 +724,11 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
 
     let applied_count = taskbars
         .into_iter()
-        .filter(|hwnd| unsafe {
-            let transparent_applied =
-                apply_to_hwnd(set_window_composition_attribute, *hwnd, enabled);
-            if enabled && !transparent_applied {
-                apply_acrylic_fallback_to_hwnd(set_window_composition_attribute, *hwnd)
+        .filter(|hwnd| {
+            if enabled {
+                unsafe { apply_clear_to_hwnd(set_window_composition_attribute, *hwnd) }
             } else {
-                transparent_applied
+                unsafe { restore_hwnd(set_window_composition_attribute, *hwnd) }
             }
         })
         .count();
@@ -722,6 +749,68 @@ fn apply_taskbar_transparency_preference(
     }
 
     set_taskbar_transparency(config.taskbar_transparent)
+}
+
+fn stop_taskbar_transparency_runtime() {
+    ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.store(0, Ordering::SeqCst);
+}
+
+fn restore_taskbar_transparency_default() {
+    stop_taskbar_transparency_runtime();
+    if let Err(error) = set_taskbar_transparency(false) {
+        warn!("[WallpaperSwitcher] 恢复任务栏默认效果失败: {}", error);
+    }
+}
+
+fn start_taskbar_transparency_runtime(app_handle: AppHandle) {
+    let instance_id = TASKBAR_TRANSPARENCY_INSTANCE_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
+    ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.store(instance_id, Ordering::SeqCst);
+
+    tauri::async_runtime::spawn(async move {
+        let retry_delays = [
+            Duration::from_millis(0),
+            Duration::from_millis(120),
+            Duration::from_millis(480),
+            Duration::from_secs(2),
+        ];
+
+        loop {
+            if ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.load(Ordering::SeqCst) != instance_id {
+                break;
+            }
+
+            let config = load_config(&app_handle);
+            if !config.taskbar_transparent {
+                break;
+            }
+
+            for delay in retry_delays {
+                if delay > Duration::from_millis(0) {
+                    tokio::time::sleep(delay).await;
+                }
+                if ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.load(Ordering::SeqCst) != instance_id {
+                    break;
+                }
+                if let Err(error) = set_taskbar_transparency(true) {
+                    warn!("[WallpaperSwitcher] 应用任务栏透明效果失败: {}", error);
+                }
+            }
+
+            tokio::time::sleep(Duration::from_secs(8)).await;
+        }
+
+        if ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.load(Ordering::SeqCst) == instance_id {
+            ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.store(0, Ordering::SeqCst);
+        }
+    });
+}
+
+fn sync_taskbar_transparency_runtime(app_handle: &AppHandle, config: &WallpaperConfig) {
+    if config.taskbar_transparent {
+        start_taskbar_transparency_runtime(app_handle.clone());
+    } else {
+        restore_taskbar_transparency_default();
+    }
 }
 
 fn update_status_after_switch(path: &Path, source: &str, next_switch_at: Option<i64>) -> i64 {
@@ -1958,6 +2047,9 @@ pub async fn wallpaper_get_config(app_handle: AppHandle) -> Result<WallpaperConf
     if let Err(error) = apply_taskbar_transparency_preference(&config, config.taskbar_transparent) {
         warn!("[WallpaperSwitcher] 恢复任务栏透明效果失败: {}", error);
     }
+    if config.taskbar_transparent {
+        start_taskbar_transparency_runtime(app_handle.clone());
+    }
     Ok(config)
 }
 
@@ -1988,6 +2080,9 @@ pub async fn wallpaper_save_config(
         config.taskbar_transparent || config.taskbar_transparent != current.taskbar_transparent;
     save_config(&app_handle, &config)?;
     apply_taskbar_transparency_preference(&config, should_apply_taskbar)?;
+    if should_apply_taskbar {
+        sync_taskbar_transparency_runtime(&app_handle, &config);
+    }
     if config.schedule_enabled && config.auto_restore {
         start_scheduler(app_handle)?;
     } else {
@@ -2185,12 +2280,13 @@ pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
         {
             warn!("[WallpaperSwitcher] 恢复任务栏透明效果失败: {}", error);
         }
+        if config.taskbar_transparent {
+            start_taskbar_transparency_runtime(app_handle.clone());
+        }
     } else {
         stop_scheduler();
         if config.taskbar_transparent {
-            if let Err(error) = set_taskbar_transparency(false) {
-                warn!("[WallpaperSwitcher] 恢复任务栏默认效果失败: {}", error);
-            }
+            restore_taskbar_transparency_default();
         }
     }
 }

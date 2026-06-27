@@ -1118,7 +1118,7 @@ export default {
     operationOptions: 'Actions',
     taskbarTransparent: 'Transparent desktop taskbar',
     taskbarTransparentHint:
-      'Takes effect after saving; restored when this option or the plugin is disabled',
+      'Takes effect after saving and is kept at runtime; restored when this option or the plugin is disabled',
     cache: 'Cache',
     wallhavenCache: 'Wallhaven cache',
     clearing: 'Clearing',
