@@ -1284,6 +1284,28 @@ unsafe extern "system" fn watcher_on_visual_tree_change(
         )),
     }
 
+    // Critical fix: Always record the original value on first sight of a target element,
+    // regardless of current enabled state. This solves the race condition where:
+    // 1. User enables transparency → TAP initializes (async)
+    // 2. User disables transparency before XAML elements are pushed to watcher
+    // 3. Watcher callback fires with enabled=false → original value was never saved
+    // 4. Later restore has nothing to restore from
+    if !enabled {
+        if let Ok(Some(fill_property)) = unsafe { find_property_info(service, element.Handle, "Fill") } {
+            let already_known = ORIGINAL_XAML_VALUES
+                .lock()
+                .map(|v| v.contains_key(&(element.Handle, fill_property.index)))
+                .unwrap_or(false);
+            if !already_known {
+                remember_original_xaml_value(element.Handle, &fill_property);
+                log_line(&format!(
+                    "xaml pre-recorded original value handle={} property_index={} value={} (deferred restore)",
+                    element.Handle, fill_property.index, fill_property.value
+                ));
+            }
+        }
+    }
+
     S_OK
 }
 
@@ -1353,12 +1375,33 @@ unsafe fn apply_xaml_element(
             ))
         }
     } else {
+        // When disabling transparency, always try to save the current value first
+        // in case we haven't seen this element before (race condition safety net).
+        remember_original_xaml_value(element_handle, &fill_property);
+
+        // Strategy 1: Try to restore from previously saved original value
         let Some(original_value) = take_original_xaml_value(element_handle, fill_property.index)
         else {
-            return Ok(format!(
-                "left Fill unchanged property_index={} current_value={} metadata={:#x}",
-                fill_property.index, fill_property.value, fill_property.metadata_bits
-            ));
+            // Strategy 2: No saved original — use ClearProperty to remove any override
+            // and let XAML re-render with its default template value.
+            // This is critical for the race condition case where the element is discovered
+            // after the user has already disabled transparency.
+            let hr = ((*(*service).lpVtbl).ClearProperty)(
+                service,
+                element_handle,
+                fill_property.index,
+            );
+            return if hr == S_OK {
+                Ok(format!(
+                    "cleared Fill property_index={} current_value={} metadata={:#x}",
+                    fill_property.index, fill_property.value, fill_property.metadata_bits
+                ))
+            } else {
+                Err(format!(
+                    "ClearProperty(Fill) failed hr={} current_value={}",
+                    hr_hex(hr), fill_property.value
+                ))
+            };
         };
         let hr = ((*(*service).lpVtbl).SetProperty)(
             service,
@@ -1375,10 +1418,27 @@ unsafe fn apply_xaml_element(
                 fill_property.metadata_bits
             ))
         } else {
-            Err(format!(
-                "SetProperty(original Fill) failed hr={} original_value={original_value}",
-                hr_hex(hr)
-            ))
+            // If SetProperty with original value fails (stale handle?), try ClearProperty
+            log_line(&format!(
+                "xaml restore SetProperty failed handle={} hr={}, trying ClearProperty",
+                element_handle, hr_hex(hr)
+            ));
+            let clear_hr = ((*(*service).lpVtbl).ClearProperty)(
+                service,
+                element_handle,
+                fill_property.index,
+            );
+            if clear_hr == S_OK {
+                Ok(format!(
+                    "restored via ClearProperty property_index={} original_value={} current_value={} metadata={:#x}",
+                    fill_property.index, original_value, fill_property.value, fill_property.metadata_bits
+                ))
+            } else {
+                Err(format!(
+                    "SetProperty(original) failed hr={} ClearProperty failed hr={} original_value={}",
+                    hr_hex(hr), hr_hex(clear_hr), original_value
+                ))
+            }
         }
     }
 }
