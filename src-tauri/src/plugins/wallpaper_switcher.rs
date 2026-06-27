@@ -94,6 +94,10 @@ pub struct WallpaperConfig {
     pub taskbar_transparency_registry_had_value: Option<bool>,
     #[serde(default)]
     pub taskbar_transparency_registry_previous_value: Option<u32>,
+    #[serde(default)]
+    pub system_transparency_registry_had_value: Option<bool>,
+    #[serde(default)]
+    pub system_transparency_registry_previous_value: Option<u32>,
     pub last_folder_index: usize,
     pub last_applied_path: Option<String>,
     #[serde(default)]
@@ -121,6 +125,8 @@ impl Default for WallpaperConfig {
             taskbar_transparent: false,
             taskbar_transparency_registry_had_value: None,
             taskbar_transparency_registry_previous_value: None,
+            system_transparency_registry_had_value: None,
+            system_transparency_registry_previous_value: None,
             last_folder_index: 0,
             last_applied_path: None,
             last_switched_at: None,
@@ -531,40 +537,45 @@ fn wide_null(value: &str) -> Vec<u16> {
 const TASKBAR_TRANSPARENCY_REGISTRY_PATH: &str =
     "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced";
 const TASKBAR_TRANSPARENCY_REGISTRY_VALUE: &str = "UseOLEDTaskbarTransparency";
+const SYSTEM_TRANSPARENCY_REGISTRY_PATH: &str =
+    "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+const SYSTEM_TRANSPARENCY_REGISTRY_VALUE: &str = "EnableTransparency";
 
-fn read_taskbar_transparency_registry_value() -> Result<Option<u32>, String> {
+fn read_hkcu_u32_registry_value(path: &str, value_name: &str) -> Result<Option<u32>, String> {
     use winreg::enums::KEY_READ;
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let advanced = hkcu
-        .open_subkey_with_flags(TASKBAR_TRANSPARENCY_REGISTRY_PATH, KEY_READ)
-        .map_err(|e| format!("无法打开任务栏透明注册表项: {}", e))?;
+    let advanced = match hkcu.open_subkey_with_flags(path, KEY_READ) {
+        Ok(key) => key,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("无法打开注册表项 {}: {}", path, error)),
+    };
 
-    match advanced.get_value::<u32, _>(TASKBAR_TRANSPARENCY_REGISTRY_VALUE) {
+    match advanced.get_value::<u32, _>(value_name) {
         Ok(value) => Ok(Some(value)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(format!("读取任务栏透明注册表值失败: {}", error)),
+        Err(error) => Err(format!("读取注册表值 {} 失败: {}", value_name, error)),
     }
 }
 
-fn write_taskbar_transparency_registry_value(
+fn write_hkcu_u32_registry_value(
+    path: &str,
+    value_name: &str,
     enabled: bool,
     restore_previous: Option<(bool, Option<u32>)>,
 ) -> Result<(), String> {
-    use winreg::enums::KEY_SET_VALUE;
-
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let advanced = hkcu
-        .open_subkey_with_flags(TASKBAR_TRANSPARENCY_REGISTRY_PATH, KEY_SET_VALUE)
-        .map_err(|e| format!("无法打开任务栏透明注册表项: {}", e))?;
+    let (advanced, _) = hkcu
+        .create_subkey(path)
+        .map_err(|e| format!("无法打开注册表项 {}: {}", path, e))?;
 
     if enabled {
         advanced
-            .set_value(TASKBAR_TRANSPARENCY_REGISTRY_VALUE, &1u32)
-            .map_err(|e| format!("写入任务栏透明注册表值失败: {}", e))?;
+            .set_value(value_name, &1u32)
+            .map_err(|e| format!("写入注册表值 {} 失败: {}", value_name, e))?;
         info!(
             "[WallpaperSwitcher][TaskbarTransparent] registry {} set to 1",
-            TASKBAR_TRANSPARENCY_REGISTRY_VALUE
+            value_name
         );
         return Ok(());
     }
@@ -572,33 +583,71 @@ fn write_taskbar_transparency_registry_value(
     match restore_previous {
         Some((true, Some(value))) => {
             advanced
-                .set_value(TASKBAR_TRANSPARENCY_REGISTRY_VALUE, &value)
-                .map_err(|e| format!("恢复任务栏透明注册表值失败: {}", e))?;
+                .set_value(value_name, &value)
+                .map_err(|e| format!("恢复注册表值 {} 失败: {}", value_name, e))?;
             info!(
                 "[WallpaperSwitcher][TaskbarTransparent] registry {} restored to {}",
-                TASKBAR_TRANSPARENCY_REGISTRY_VALUE, value
+                value_name, value
             );
         }
-        Some((false, _)) => match advanced.delete_value(TASKBAR_TRANSPARENCY_REGISTRY_VALUE) {
+        Some((false, _)) => match advanced.delete_value(value_name) {
             Ok(_) => info!(
                 "[WallpaperSwitcher][TaskbarTransparent] registry {} deleted for restore",
-                TASKBAR_TRANSPARENCY_REGISTRY_VALUE
+                value_name
             ),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("删除任务栏透明注册表值失败: {}", error)),
+            Err(error) => return Err(format!("删除注册表值 {} 失败: {}", value_name, error)),
         },
         _ => {
             advanced
-                .set_value(TASKBAR_TRANSPARENCY_REGISTRY_VALUE, &0u32)
-                .map_err(|e| format!("关闭任务栏透明注册表值失败: {}", e))?;
+                .set_value(value_name, &0u32)
+                .map_err(|e| format!("关闭注册表值 {} 失败: {}", value_name, e))?;
             info!(
                 "[WallpaperSwitcher][TaskbarTransparent] registry {} set to 0",
-                TASKBAR_TRANSPARENCY_REGISTRY_VALUE
+                value_name
             );
         }
     }
 
     Ok(())
+}
+
+fn read_taskbar_transparency_registry_value() -> Result<Option<u32>, String> {
+    read_hkcu_u32_registry_value(
+        TASKBAR_TRANSPARENCY_REGISTRY_PATH,
+        TASKBAR_TRANSPARENCY_REGISTRY_VALUE,
+    )
+}
+
+fn read_system_transparency_registry_value() -> Result<Option<u32>, String> {
+    read_hkcu_u32_registry_value(
+        SYSTEM_TRANSPARENCY_REGISTRY_PATH,
+        SYSTEM_TRANSPARENCY_REGISTRY_VALUE,
+    )
+}
+
+fn write_taskbar_transparency_registry_value(
+    enabled: bool,
+    restore_previous: Option<(bool, Option<u32>)>,
+) -> Result<(), String> {
+    write_hkcu_u32_registry_value(
+        TASKBAR_TRANSPARENCY_REGISTRY_PATH,
+        TASKBAR_TRANSPARENCY_REGISTRY_VALUE,
+        enabled,
+        restore_previous,
+    )
+}
+
+fn write_system_transparency_registry_value(
+    enabled: bool,
+    restore_previous: Option<(bool, Option<u32>)>,
+) -> Result<(), String> {
+    write_hkcu_u32_registry_value(
+        SYSTEM_TRANSPARENCY_REGISTRY_PATH,
+        SYSTEM_TRANSPARENCY_REGISTRY_VALUE,
+        enabled,
+        restore_previous,
+    )
 }
 
 fn broadcast_taskbar_transparency_settings_changed() {
@@ -968,7 +1017,7 @@ fn apply_taskbar_transparency_preference(
         return Ok(());
     }
 
-    let restore_previous = if config.taskbar_transparent {
+    let restore_taskbar_previous = if config.taskbar_transparent {
         None
     } else {
         Some((
@@ -978,13 +1027,27 @@ fn apply_taskbar_transparency_preference(
             config.taskbar_transparency_registry_previous_value,
         ))
     };
+    let restore_system_previous = if config.taskbar_transparent {
+        None
+    } else {
+        Some((
+            config
+                .system_transparency_registry_had_value
+                .unwrap_or(true),
+            config.system_transparency_registry_previous_value,
+        ))
+    };
 
-    write_taskbar_transparency_registry_value(config.taskbar_transparent, restore_previous)?;
+    write_system_transparency_registry_value(config.taskbar_transparent, restore_system_previous)?;
+    write_taskbar_transparency_registry_value(
+        config.taskbar_transparent,
+        restore_taskbar_previous,
+    )?;
     broadcast_taskbar_transparency_settings_changed();
 
     if let Err(error) = set_taskbar_transparency(config.taskbar_transparent) {
-        warn!(
-            "[WallpaperSwitcher][TaskbarTransparent] runtime AccentPolicy helper failed after system setting update: {}",
+        info!(
+            "[WallpaperSwitcher][TaskbarTransparent] runtime AccentPolicy helper did not apply to all taskbar surfaces; registry/broadcast path remains active: {}",
             error
         );
     }
@@ -999,6 +1062,9 @@ fn restore_taskbar_transparency_system_default(config: &WallpaperConfig) {
             taskbar_transparency_registry_had_value: config.taskbar_transparency_registry_had_value,
             taskbar_transparency_registry_previous_value: config
                 .taskbar_transparency_registry_previous_value,
+            system_transparency_registry_had_value: config.system_transparency_registry_had_value,
+            system_transparency_registry_previous_value: config
+                .system_transparency_registry_previous_value,
             ..config.clone()
         },
         true,
@@ -2279,12 +2345,23 @@ pub async fn wallpaper_save_config(
                 current.taskbar_transparency_registry_had_value;
             config.taskbar_transparency_registry_previous_value =
                 current.taskbar_transparency_registry_previous_value;
+            config.system_transparency_registry_had_value =
+                current.system_transparency_registry_had_value;
+            config.system_transparency_registry_previous_value =
+                current.system_transparency_registry_previous_value;
         } else {
-            let previous_value = read_taskbar_transparency_registry_value()?;
-            config.taskbar_transparency_registry_had_value = Some(previous_value.is_some());
-            config.taskbar_transparency_registry_previous_value = previous_value;
+            let previous_system_value = read_system_transparency_registry_value()?;
+            config.system_transparency_registry_had_value = Some(previous_system_value.is_some());
+            config.system_transparency_registry_previous_value = previous_system_value;
+            let previous_taskbar_value = read_taskbar_transparency_registry_value()?;
+            config.taskbar_transparency_registry_had_value = Some(previous_taskbar_value.is_some());
+            config.taskbar_transparency_registry_previous_value = previous_taskbar_value;
             info!(
-                "[WallpaperSwitcher][TaskbarTransparent] captured previous registry value exists={} value={:?}",
+                "[WallpaperSwitcher][TaskbarTransparent] captured previous registry values system_exists={} system_value={:?} taskbar_exists={} taskbar_value={:?}",
+                config
+                    .system_transparency_registry_had_value
+                    .unwrap_or(false),
+                config.system_transparency_registry_previous_value,
                 config
                     .taskbar_transparency_registry_had_value
                     .unwrap_or(false),
@@ -2296,6 +2373,10 @@ pub async fn wallpaper_save_config(
             current.taskbar_transparency_registry_had_value;
         config.taskbar_transparency_registry_previous_value =
             current.taskbar_transparency_registry_previous_value;
+        config.system_transparency_registry_had_value =
+            current.system_transparency_registry_had_value;
+        config.system_transparency_registry_previous_value =
+            current.system_transparency_registry_previous_value;
     }
 
     save_config(&app_handle, &config)?;
@@ -2303,6 +2384,8 @@ pub async fn wallpaper_save_config(
     if should_apply_taskbar && !config.taskbar_transparent {
         config.taskbar_transparency_registry_had_value = None;
         config.taskbar_transparency_registry_previous_value = None;
+        config.system_transparency_registry_had_value = None;
+        config.system_transparency_registry_previous_value = None;
         save_config(&app_handle, &config)?;
     }
     if config.schedule_enabled && config.auto_restore {

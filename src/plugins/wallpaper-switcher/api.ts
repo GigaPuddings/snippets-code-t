@@ -31,6 +31,8 @@ export interface WallpaperConfig {
   taskbarTransparent: boolean;
   taskbarTransparencyRegistryHadValue: boolean | null;
   taskbarTransparencyRegistryPreviousValue: number | null;
+  systemTransparencyRegistryHadValue: boolean | null;
+  systemTransparencyRegistryPreviousValue: number | null;
   lastFolderIndex: number;
   lastAppliedPath: string | null;
 }
@@ -105,6 +107,8 @@ export const defaultWallpaperConfig = (): WallpaperConfig => ({
   taskbarTransparent: false,
   taskbarTransparencyRegistryHadValue: null,
   taskbarTransparencyRegistryPreviousValue: null,
+  systemTransparencyRegistryHadValue: null,
+  systemTransparencyRegistryPreviousValue: null,
   lastFolderIndex: 0,
   lastAppliedPath: null
 });
