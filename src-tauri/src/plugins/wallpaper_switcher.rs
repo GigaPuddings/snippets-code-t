@@ -207,6 +207,7 @@ static SCHEDULER_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
 static ACTIVE_SCHEDULER_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
 static TASKBAR_TRANSPARENCY_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
 static ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
+static TASKBAR_TRANSPARENCY_APPLY_SEQ: AtomicU64 = AtomicU64::new(0);
 static RANDOM_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn require_enabled(app_handle: &AppHandle) -> Result<(), String> {
@@ -526,7 +527,15 @@ fn wide_null(value: &str) -> Vec<u16> {
 fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
-    use windows::Win32::UI::WindowsAndMessaging::{EnumChildWindows, FindWindowExW, FindWindowW};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumChildWindows, FindWindowExW, FindWindowW, GetClassNameW,
+    };
+
+    let attempt_id = TASKBAR_TRANSPARENCY_APPLY_SEQ.fetch_add(1, Ordering::Relaxed) + 1;
+    info!(
+        "[WallpaperSwitcher][TaskbarTransparent#{}] start enabled={}",
+        attempt_id, enabled
+    );
 
     #[repr(C)]
     struct AccentPolicy {
@@ -562,10 +571,16 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
         ) -> *mut core::ffi::c_void;
     }
 
-    unsafe fn load_set_window_composition_attribute() -> Option<SetWindowCompositionAttributeFn> {
+    unsafe fn load_set_window_composition_attribute(
+        attempt_id: u64,
+    ) -> Option<SetWindowCompositionAttributeFn> {
         let user32 = wide_null("user32.dll");
         let module = LoadLibraryW(PCWSTR(user32.as_ptr()));
         if module.is_null() {
+            warn!(
+                "[WallpaperSwitcher][TaskbarTransparent#{}] LoadLibraryW(user32.dll) failed",
+                attempt_id
+            );
             return None;
         }
 
@@ -574,9 +589,17 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
             c"SetWindowCompositionAttribute".as_ptr() as *const u8,
         );
         if proc.is_null() {
+            warn!(
+                "[WallpaperSwitcher][TaskbarTransparent#{}] GetProcAddress(SetWindowCompositionAttribute) failed",
+                attempt_id
+            );
             return None;
         }
 
+        info!(
+            "[WallpaperSwitcher][TaskbarTransparent#{}] SetWindowCompositionAttribute loaded",
+            attempt_id
+        );
         Some(std::mem::transmute::<
             *mut core::ffi::c_void,
             SetWindowCompositionAttributeFn,
@@ -609,13 +632,22 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
         set_window_composition_attribute(hwnd, &mut data).as_bool()
     }
 
+    unsafe fn hwnd_class_name(hwnd: HWND) -> String {
+        let mut buffer = [0u16; 256];
+        let len = GetClassNameW(hwnd, &mut buffer);
+        if len <= 0 {
+            return "<unknown>".to_string();
+        }
+        String::from_utf16_lossy(&buffer[..len as usize])
+    }
+
     unsafe fn apply_clear_to_hwnd(
         set_window_composition_attribute: SetWindowCompositionAttributeFn,
         hwnd: HWND,
-    ) -> bool {
+    ) -> (bool, bool, bool) {
         // Reset first. Windows 11 sometimes keeps the taskbar material from a
         // previous composition state unless the accent policy is cleared.
-        let _ = apply_accent_policy(
+        let reset_applied = apply_accent_policy(
             set_window_composition_attribute,
             hwnd,
             ACCENT_DISABLED,
@@ -643,7 +675,7 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
             NEAR_CLEAR_ACRYLIC_COLOR,
         );
 
-        transparent_applied || acrylic_applied
+        (reset_applied, transparent_applied, acrylic_applied)
     }
 
     unsafe fn restore_hwnd(
@@ -679,9 +711,13 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
     let secondary_class = wide_null("Shell_SecondaryTrayWnd");
     let mut taskbars = Vec::new();
     let mut seen = HashSet::new();
+    let mut root_count = 0usize;
 
     unsafe {
         if let Ok(primary) = FindWindowW(PCWSTR(primary_class.as_ptr()), PCWSTR::null()) {
+            if !primary.is_invalid() {
+                root_count += 1;
+            }
             push_unique_window(&mut taskbars, &mut seen, primary);
         }
 
@@ -694,6 +730,7 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
                 PCWSTR::null(),
             ) {
                 Ok(secondary) if !secondary.is_invalid() => {
+                    root_count += 1;
                     push_unique_window(&mut taskbars, &mut seen, secondary);
                     previous_secondary = Some(secondary);
                 }
@@ -716,22 +753,83 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
     }
 
     if taskbars.is_empty() {
+        warn!(
+            "[WallpaperSwitcher][TaskbarTransparent#{}] no Shell_TrayWnd/Shell_SecondaryTrayWnd window found",
+            attempt_id
+        );
         return Err("找不到 Windows 任务栏窗口".to_string());
     }
 
-    let set_window_composition_attribute = unsafe { load_set_window_composition_attribute() }
-        .ok_or_else(|| "当前系统不支持任务栏透明效果".to_string())?;
+    let window_descriptions = taskbars
+        .iter()
+        .map(|hwnd| unsafe { format!("{:p}:{}", hwnd.0, hwnd_class_name(*hwnd)) })
+        .collect::<Vec<_>>();
+    info!(
+        "[WallpaperSwitcher][TaskbarTransparent#{}] discovered windows root_count={} total_with_children={} windows={}",
+        attempt_id,
+        root_count,
+        window_descriptions.len(),
+        window_descriptions.join(", ")
+    );
 
-    let applied_count = taskbars
-        .into_iter()
-        .filter(|hwnd| {
-            if enabled {
-                unsafe { apply_clear_to_hwnd(set_window_composition_attribute, *hwnd) }
-            } else {
-                unsafe { restore_hwnd(set_window_composition_attribute, *hwnd) }
-            }
-        })
-        .count();
+    let set_window_composition_attribute =
+        unsafe { load_set_window_composition_attribute(attempt_id) }
+            .ok_or_else(|| "当前系统不支持任务栏透明效果".to_string())?;
+
+    let mut applied_count = 0usize;
+    let mut failed_count = 0usize;
+    for hwnd in taskbars {
+        let class_name = unsafe { hwnd_class_name(hwnd) };
+        let applied = if enabled {
+            let (reset_applied, transparent_applied, acrylic_applied) =
+                unsafe { apply_clear_to_hwnd(set_window_composition_attribute, hwnd) };
+            let applied = reset_applied || transparent_applied || acrylic_applied;
+            log::debug!(
+                "[WallpaperSwitcher][TaskbarTransparent#{}] hwnd={:p} class={} reset={} transparent={} acrylic={} applied={}",
+                attempt_id,
+                hwnd.0,
+                class_name,
+                reset_applied,
+                transparent_applied,
+                acrylic_applied,
+                applied
+            );
+            applied
+        } else {
+            let restored = unsafe { restore_hwnd(set_window_composition_attribute, hwnd) };
+            log::debug!(
+                "[WallpaperSwitcher][TaskbarTransparent#{}] hwnd={:p} class={} restore={} applied={}",
+                attempt_id,
+                hwnd.0,
+                class_name,
+                restored,
+                restored
+            );
+            restored
+        };
+
+        if applied {
+            applied_count += 1;
+        } else {
+            failed_count += 1;
+            warn!(
+                "[WallpaperSwitcher][TaskbarTransparent#{}] apply failed hwnd={:p} class={} enabled={}",
+                attempt_id, hwnd.0, class_name, enabled
+            );
+        }
+    }
+
+    info!(
+        "[WallpaperSwitcher][TaskbarTransparent#{}] finish enabled={} applied_count={} failed_count={}",
+        attempt_id, enabled, applied_count, failed_count
+    );
+
+    if applied_count > 0 && enabled {
+        info!(
+            "[WallpaperSwitcher][TaskbarTransparent#{}] Windows API accepted the runtime taskbar effect. If there is still no visible change, the current Windows taskbar surface likely ignores external AccentPolicy and may require an Explorer-integrated strategy.",
+            attempt_id
+        );
+    }
 
     if applied_count == 0 {
         return Err("应用任务栏透明效果失败".to_string());
