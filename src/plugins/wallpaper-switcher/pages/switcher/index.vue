@@ -10,7 +10,6 @@ import {
   getWallpaperConfig,
   getWallpaperStatus,
   openWallpaperCacheDir,
-  restartExplorerForTaskbarTransparency,
   saveWallpaperConfig,
   scanWallpaperFolder,
   setFixedWallpaper,
@@ -39,7 +38,6 @@ const switching = ref(false);
 const fitting = ref(false);
 const clearingCache = ref(false);
 const openingCache = ref(false);
-const restartingExplorer = ref(false);
 
 const refreshStatus = async () => {
   try {
@@ -305,21 +303,6 @@ const openCacheDir = async () => {
   }
 };
 
-const restartExplorerForTransparency = async () => {
-  if (!window.confirm(t('wallpaperSwitcher.messages.restartExplorerConfirm'))) {
-    return;
-  }
-  restartingExplorer.value = true;
-  try {
-    await restartExplorerForTaskbarTransparency();
-    modal.msg(t('wallpaperSwitcher.messages.explorerRestarted'), 'success');
-  } catch (error) {
-    modal.msg(String(error), 'error');
-  } finally {
-    restartingExplorer.value = false;
-  }
-};
-
 const updateConfig = (nextConfig: WallpaperConfig) => {
   config.value = nextConfig;
 };
@@ -370,7 +353,6 @@ onUnmounted(() => {
       :fitting="fitting"
       :clearing-cache="clearingCache"
       :opening-cache="openingCache"
-      :restarting-explorer="restartingExplorer"
       :saving="saving"
       @update-config="updateConfig"
       @choose-image="chooseImage"
@@ -382,7 +364,6 @@ onUnmounted(() => {
       @set-fit-mode="setFitMode"
       @clear-cache="clearCache"
       @open-cache-dir="openCacheDir"
-      @restart-explorer-for-transparency="restartExplorerForTransparency"
       @persist-config="persistConfig"
     />
 

@@ -92,6 +92,8 @@ pub struct WallpaperConfig {
     #[serde(default)]
     pub taskbar_transparent: bool,
     #[serde(default)]
+    pub taskbar_acrylic: bool,
+    #[serde(default)]
     pub taskbar_transparency_registry_had_value: Option<bool>,
     #[serde(default)]
     pub taskbar_transparency_registry_previous_value: Option<u32>,
@@ -124,6 +126,7 @@ impl Default for WallpaperConfig {
             wallhaven_seen_ids: Vec::new(),
             wallhaven_history_scope: None,
             taskbar_transparent: false,
+            taskbar_acrylic: false,
             taskbar_transparency_registry_had_value: None,
             taskbar_transparency_registry_previous_value: None,
             system_transparency_registry_had_value: None,
@@ -729,10 +732,17 @@ fn taskbar_agent_log_file() -> PathBuf {
     taskbar_agent_base_dir().join("taskbar-transparency-agent.log")
 }
 
-fn write_taskbar_agent_state(enabled: bool) -> Result<(), String> {
+fn write_taskbar_agent_state(enabled: bool, acrylic: bool) -> Result<(), String> {
     let dir = taskbar_agent_base_dir();
     fs::create_dir_all(&dir).map_err(|e| format!("创建任务栏透明 agent 状态目录失败: {}", e))?;
-    fs::write(taskbar_agent_state_file(), if enabled { "1" } else { "0" })
+    fs::write(
+        taskbar_agent_state_file(),
+        format!(
+            "transparent={}\nacrylic={}\n",
+            if enabled { "1" } else { "0" },
+            if acrylic { "1" } else { "0" }
+        ),
+    )
         .map_err(|e| format!("写入任务栏透明 agent 状态失败: {}", e))
 }
 
@@ -917,7 +927,7 @@ fn shell_tray_process_id() -> Result<u32, String> {
     }
 }
 
-fn inject_taskbar_agent_into_explorer(enabled: bool) -> Result<(), String> {
+fn inject_taskbar_agent_into_explorer(enabled: bool, acrylic: bool) -> Result<(), String> {
     use windows::core::{PCSTR, PCWSTR};
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Diagnostics::Debug::WriteProcessMemory;
@@ -930,7 +940,7 @@ fn inject_taskbar_agent_into_explorer(enabled: bool) -> Result<(), String> {
         PROCESS_QUERY_INFORMATION, PROCESS_VM_OPERATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
     };
 
-    write_taskbar_agent_state(enabled)?;
+    write_taskbar_agent_state(enabled, acrylic)?;
     let source_dll_path = taskbar_agent_dll_path()?;
     let dll_path = prepare_taskbar_agent_runtime_dll(&source_dll_path)?;
     let process_id = shell_tray_process_id()?;
@@ -1000,44 +1010,14 @@ fn inject_taskbar_agent_into_explorer(enabled: bool) -> Result<(), String> {
 
     std::thread::sleep(Duration::from_millis(400));
     info!(
-        "[WallpaperSwitcher][TaskbarTransparentAgent] injected enabled={} pid={} source_dll={} runtime_dll={} log={}",
+        "[WallpaperSwitcher][TaskbarTransparentAgent] injected enabled={} acrylic={} pid={} source_dll={} runtime_dll={} log={}",
         enabled,
+        acrylic,
         process_id,
         source_dll_path.display(),
         dll_path.display(),
         taskbar_agent_log_file().display()
     );
-    Ok(())
-}
-
-fn restart_explorer_for_taskbar_transparency() -> Result<(), String> {
-    info!("[WallpaperSwitcher][TaskbarTransparent] restarting Explorer to reload taskbar surface");
-
-    let output = Command::new("taskkill")
-        .args(["/F", "/IM", "explorer.exe"])
-        .output()
-        .map_err(|error| format!("重启资源管理器失败，无法结束 explorer.exe: {}", error))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(format!(
-            "重启资源管理器失败，taskkill 返回 {:?}: {}",
-            output.status.code(),
-            stderr
-        ));
-    }
-
-    std::thread::sleep(Duration::from_millis(900));
-
-    Command::new("explorer.exe")
-        .spawn()
-        .map_err(|error| format!("重启资源管理器失败，无法启动 explorer.exe: {}", error))?;
-
-    std::thread::sleep(Duration::from_millis(1200));
-    broadcast_taskbar_transparency_settings_changed();
-    refresh_explorer_visual_settings();
-
-    info!("[WallpaperSwitcher][TaskbarTransparent] Explorer restart requested successfully");
     Ok(())
 }
 
@@ -1380,7 +1360,9 @@ fn apply_taskbar_transparency_preference(
         return Ok(());
     }
 
-    let agent_injected = match inject_taskbar_agent_into_explorer(config.taskbar_transparent) {
+    let agent_injected =
+        match inject_taskbar_agent_into_explorer(config.taskbar_transparent, config.taskbar_acrylic)
+        {
         Ok(()) => true,
         Err(error) => {
             warn!(
@@ -1438,6 +1420,7 @@ fn restore_taskbar_transparency_system_default(config: &WallpaperConfig) {
     if let Err(error) = apply_taskbar_transparency_preference(
         &WallpaperConfig {
             taskbar_transparent: false,
+            taskbar_acrylic: false,
             taskbar_transparency_registry_had_value: config.taskbar_transparency_registry_had_value,
             taskbar_transparency_registry_previous_value: config
                 .taskbar_transparency_registry_previous_value,
@@ -2715,8 +2698,12 @@ pub async fn wallpaper_save_config(
         config.wallhaven_history_scope = None;
     }
     config.interval_minutes = config.interval_minutes.max(1);
-    let should_apply_taskbar =
-        config.taskbar_transparent || config.taskbar_transparent != current.taskbar_transparent;
+    if !config.taskbar_transparent {
+        config.taskbar_acrylic = false;
+    }
+    let should_apply_taskbar = config.taskbar_transparent
+        || config.taskbar_transparent != current.taskbar_transparent
+        || config.taskbar_acrylic != current.taskbar_acrylic;
 
     if config.taskbar_transparent {
         if current.taskbar_transparent {
@@ -2934,20 +2921,6 @@ pub async fn wallpaper_open_cache_dir(app_handle: AppHandle) -> Result<(), Strin
     require_enabled(&app_handle)?;
     let dir = cache_dir(&app_handle)?;
     crate::commands::open_folder(path_to_string(&dir))
-}
-
-#[tauri::command]
-pub async fn wallpaper_restart_explorer_for_taskbar_transparency(
-    app_handle: AppHandle,
-) -> Result<(), String> {
-    require_enabled(&app_handle)?;
-    let config = load_config(&app_handle);
-    if !config.taskbar_transparent {
-        return Err("请先勾选并保存“桌面底部任务栏透明”选项".to_string());
-    }
-
-    apply_taskbar_transparency_preference(&config, true)?;
-    restart_explorer_for_taskbar_transparency()
 }
 
 fn ensure_scheduler_runtime(app_handle: &AppHandle) {

@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use std::collections::HashMap;
 use std::ffi::{c_void, CStr, OsStr};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -7,6 +8,7 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::ptr::{null, null_mut};
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
+use std::sync::{LazyLock, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -53,8 +55,11 @@ const IID_IVISUAL_TREE_SERVICE: GUID = GUID::from_u128(0xa593b11a_d17f_48bb_8f66
 const CLSID_SNIPPETS_TASKBAR_TAP: GUID = GUID::from_u128(0xe6b5f8be_2f1d_4d68_a21a_04f25a72a998);
 
 static ENABLED_STATE: AtomicBool = AtomicBool::new(false);
+static ACRYLIC_STATE: AtomicBool = AtomicBool::new(false);
 static XAML_TAP_INITIALIZED: AtomicBool = AtomicBool::new(false);
 static VISUAL_TREE_SERVICE: AtomicPtr<IVisualTreeService> = AtomicPtr::new(null_mut());
+static ORIGINAL_XAML_VALUES: LazyLock<Mutex<HashMap<(InstanceHandle, u32), InstanceHandle>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[repr(C)]
 struct AccentPolicy {
@@ -277,6 +282,12 @@ struct XamlPropertyInfo {
     metadata_bits: i64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AgentState {
+    transparent: bool,
+    acrylic: bool,
+}
+
 type SetWindowCompositionAttributeFn =
     unsafe extern "system" fn(HWND, *mut WindowCompositionAttribData) -> BOOL;
 
@@ -372,35 +383,43 @@ unsafe extern "system" fn agent_thread(module: *mut c_void) -> u32 {
 }
 
 fn run_agent(module: HINSTANCE) {
-    let initial_enabled = read_enabled_state();
-    ENABLED_STATE.store(initial_enabled, Ordering::SeqCst);
-    log_line(&format!("agent monitor loaded enabled={initial_enabled}"));
+    let initial_state = read_agent_state();
+    ENABLED_STATE.store(initial_state.transparent, Ordering::SeqCst);
+    ACRYLIC_STATE.store(initial_state.acrylic, Ordering::SeqCst);
+    log_line(&format!(
+        "agent monitor loaded transparent={} acrylic={}",
+        initial_state.transparent, initial_state.acrylic
+    ));
 
-    apply_runtime_layers(module, initial_enabled, "initial");
+    apply_runtime_layers(module, initial_state, "initial");
 
-    let mut last_enabled = initial_enabled;
+    let mut last_state = initial_state;
     loop {
         thread::sleep(Duration::from_secs(2));
-        let enabled = read_enabled_state();
+        let state = read_agent_state();
 
-        if enabled != last_enabled {
-            ENABLED_STATE.store(enabled, Ordering::SeqCst);
-            log_line(&format!("state changed enabled={enabled}"));
-            apply_runtime_layers(module, enabled, "state-change");
-            last_enabled = enabled;
-        } else if enabled && !XAML_TAP_INITIALIZED.load(Ordering::SeqCst) {
-            apply_runtime_layers(module, enabled, "retry-xaml-init");
+        if state != last_state {
+            ENABLED_STATE.store(state.transparent, Ordering::SeqCst);
+            ACRYLIC_STATE.store(state.acrylic, Ordering::SeqCst);
+            log_line(&format!(
+                "state changed transparent={} acrylic={}",
+                state.transparent, state.acrylic
+            ));
+            apply_runtime_layers(module, state, "state-change");
+            last_state = state;
+        } else if state.transparent && !XAML_TAP_INITIALIZED.load(Ordering::SeqCst) {
+            apply_runtime_layers(module, state, "retry-xaml-init");
         }
     }
 }
 
-fn apply_runtime_layers(module: HINSTANCE, enabled: bool, reason: &str) {
-    match apply_taskbar_transparency(enabled) {
+fn apply_runtime_layers(module: HINSTANCE, state: AgentState, reason: &str) {
+    match apply_taskbar_transparency(state.transparent, state.acrylic) {
         Ok(summary) => log_line(&format!("accent apply finished reason={reason}: {summary}")),
         Err(error) => log_line(&format!("accent apply failed reason={reason}: {error}")),
     }
 
-    if enabled {
+    if state.transparent {
         match initialize_xaml_tap(module) {
             Ok(()) => log_line(&format!("xaml tap active reason={reason}")),
             Err(error) => log_line(&format!("xaml tap init failed reason={reason}: {error}")),
@@ -427,10 +446,37 @@ fn log_file() -> PathBuf {
     base_dir().join("taskbar-transparency-agent.log")
 }
 
-fn read_enabled_state() -> bool {
-    fs::read_to_string(state_file())
-        .map(|content| content.trim() == "1")
-        .unwrap_or(false)
+fn read_agent_state() -> AgentState {
+    let Ok(content) = fs::read_to_string(state_file()) else {
+        return AgentState {
+            transparent: false,
+            acrylic: false,
+        };
+    };
+    let trimmed = content.trim();
+    if trimmed == "1" || trimmed == "0" {
+        return AgentState {
+            transparent: trimmed == "1",
+            acrylic: false,
+        };
+    }
+
+    let mut state = AgentState {
+        transparent: false,
+        acrylic: false,
+    };
+    for line in content.lines() {
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let enabled = matches!(value.trim(), "1" | "true" | "yes");
+        match key.trim() {
+            "transparent" => state.transparent = enabled,
+            "acrylic" => state.acrylic = enabled,
+            _ => {}
+        }
+    }
+    state
 }
 
 fn log_line(message: &str) {
@@ -575,7 +621,7 @@ unsafe fn set_accent(
     set_window_composition_attribute(hwnd, &mut data) != 0
 }
 
-fn apply_taskbar_transparency(enabled: bool) -> Result<String, String> {
+fn apply_taskbar_transparency(enabled: bool, acrylic: bool) -> Result<String, String> {
     unsafe {
         let set_window_composition_attribute = load_set_window_composition_attribute()
             .ok_or_else(|| "SetWindowCompositionAttribute unavailable".to_string())?;
@@ -605,7 +651,11 @@ fn apply_taskbar_transparency(enabled: bool) -> Result<String, String> {
                     2,
                     CLEAR_GRADIENT_COLOR,
                 );
-                reset || transparent
+                if acrylic {
+                    reset
+                } else {
+                    reset || transparent
+                }
             } else {
                 set_accent(
                     set_window_composition_attribute,
@@ -627,7 +677,7 @@ fn apply_taskbar_transparency(enabled: bool) -> Result<String, String> {
 
         log_line(&format!("windows={}", descriptions.join(", ")));
         Ok(format!(
-            "enabled={enabled} applied_count={applied_count} failed_count={failed_count}"
+            "enabled={enabled} acrylic={acrylic} applied_count={applied_count} failed_count={failed_count}"
         ))
     }
 }
@@ -987,14 +1037,15 @@ unsafe extern "system" fn watcher_on_visual_tree_change(
     }
 
     let enabled = ENABLED_STATE.load(Ordering::SeqCst);
+    let acrylic = ACRYLIC_STATE.load(Ordering::SeqCst);
     let service = (*this).service.load(Ordering::SeqCst);
 
     log_line(&format!(
-        "xaml target added handle={} type={} name={} enabled={enabled}",
+        "xaml target added handle={} type={} name={} enabled={enabled} acrylic={acrylic}",
         element.Handle, element_type, element_name
     ));
 
-    match apply_xaml_element(service, element.Handle, enabled) {
+    match apply_xaml_element(service, element.Handle, enabled, acrylic, &element_name) {
         Ok(summary) => log_line(&format!(
             "xaml target apply succeeded handle={} name={} {summary}",
             element.Handle, element_name
@@ -1029,6 +1080,8 @@ unsafe fn apply_xaml_element(
     service: *mut IVisualTreeService,
     element_handle: InstanceHandle,
     enabled: bool,
+    acrylic: bool,
+    element_name: &str,
 ) -> Result<String, String> {
     if service.is_null() {
         return Err("IVisualTreeService is null".to_string());
@@ -1038,7 +1091,17 @@ unsafe fn apply_xaml_element(
         .ok_or_else(|| "Fill property was not found on target Rectangle".to_string())?;
 
     if enabled {
-        let value_handle = create_transparent_fill_value(service, &fill_property)?;
+        remember_original_xaml_value(element_handle, &fill_property);
+        let value_handle = if acrylic && element_name == "BackgroundFill" {
+            create_acrylic_fill_value(service).or_else(|error| {
+                log_line(&format!(
+                    "xaml acrylic value creation failed, fallback to transparent: {error}"
+                ));
+                create_transparent_fill_value(service, &fill_property)
+            })?
+        } else {
+            create_transparent_fill_value(service, &fill_property)?
+        };
         let hr = ((*(*service).lpVtbl).SetProperty)(
             service,
             element_handle,
@@ -1062,16 +1125,61 @@ unsafe fn apply_xaml_element(
             ))
         }
     } else {
-        let hr = ((*(*service).lpVtbl).ClearProperty)(service, element_handle, fill_property.index);
+        let Some(original_value) = take_original_xaml_value(element_handle, fill_property.index)
+        else {
+            return Ok(format!(
+                "left Fill unchanged property_index={} current_value={} metadata={:#x}",
+                fill_property.index, fill_property.value, fill_property.metadata_bits
+            ));
+        };
+        let hr = ((*(*service).lpVtbl).SetProperty)(
+            service,
+            element_handle,
+            original_value,
+            fill_property.index,
+        );
         if hr == S_OK {
             Ok(format!(
-                "cleared Fill property_index={} previous_value={} metadata={:#x}",
-                fill_property.index, fill_property.value, fill_property.metadata_bits
+                "restored Fill property_index={} original_value={} current_value={} metadata={:#x}",
+                fill_property.index,
+                original_value,
+                fill_property.value,
+                fill_property.metadata_bits
             ))
         } else {
-            Err(format!("ClearProperty(Fill) failed hr={}", hr_hex(hr)))
+            Err(format!(
+                "SetProperty(original Fill) failed hr={} original_value={original_value}",
+                hr_hex(hr)
+            ))
         }
     }
+}
+
+fn remember_original_xaml_value(element_handle: InstanceHandle, property: &XamlPropertyInfo) {
+    if property.value.is_empty() {
+        return;
+    }
+    let Ok(original_value) = property.value.parse::<InstanceHandle>() else {
+        return;
+    };
+    if original_value == 0 {
+        return;
+    }
+    if let Ok(mut values) = ORIGINAL_XAML_VALUES.lock() {
+        values
+            .entry((element_handle, property.index))
+            .or_insert(original_value);
+    }
+}
+
+fn take_original_xaml_value(
+    element_handle: InstanceHandle,
+    property_index: u32,
+) -> Option<InstanceHandle> {
+    ORIGINAL_XAML_VALUES
+        .lock()
+        .ok()
+        .and_then(|mut values| values.remove(&(element_handle, property_index)))
 }
 
 unsafe fn find_property_info(
@@ -1174,6 +1282,16 @@ unsafe fn create_transparent_fill_value(
         "CreateInstance transparent value failed for all candidate types: {}",
         errors.join("; ")
     ))
+}
+
+unsafe fn create_acrylic_fill_value(
+    service: *mut IVisualTreeService,
+) -> Result<InstanceHandle, String> {
+    create_xaml_value(
+        service,
+        "Windows.UI.Xaml.Media.Brush",
+        r#"<AcrylicBrush TintColor="Transparent" TintOpacity="0" TintLuminosityOpacity="0.25" Opacity="1" FallbackColor="Transparent" />"#,
+    )
 }
 
 unsafe fn create_xaml_value(

@@ -1118,9 +1118,9 @@ export default {
     operationOptions: 'Actions',
     taskbarTransparent: 'Transparent desktop taskbar',
     taskbarTransparentHint:
-      'System-level setting: updates and refreshes Windows taskbar transparency; restart Explorer if there is no visible change',
-    restartExplorerRefresh: 'Restart Explorer refresh',
-    refreshingExplorer: 'Refreshing',
+      'System-level setting: adjusts the taskbar background through the built-in Explorer/XAML agent; disabling restores the system default effect',
+    taskbarAcrylic: 'Taskbar acrylic effect',
+    taskbarAcrylicHint: 'Use a translucent acrylic texture; turn off for a clear transparent effect',
     cache: 'Cache',
     wallhavenCache: 'Wallhaven cache',
     clearing: 'Clearing',
@@ -1182,9 +1182,6 @@ export default {
       wallpaperSet: 'Wallpaper set',
       downloadingWallpaper: 'Downloading wallpaper...',
       wallpaperDownloaded: 'Wallpaper downloaded to cache',
-      restartExplorerConfirm:
-        'This will restart Windows Explorer to reload the taskbar. The desktop and taskbar may flicker briefly. Continue?',
-      explorerRestarted: 'Explorer restarted. Check the taskbar transparency effect',
       scheduleSwitchFailed: 'Scheduled switch failed'
     }
   },

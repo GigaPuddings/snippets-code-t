@@ -1096,9 +1096,9 @@ export default {
     operationOptions: '操作选项',
     taskbarTransparent: '桌面底部任务栏透明',
     taskbarTransparentHint:
-      '系统级设置：保存后修改 Windows 任务栏透明设置并刷新；若无视觉变化，可重启资源管理器刷新任务栏',
-    restartExplorerRefresh: '重启资源管理器刷新',
-    refreshingExplorer: '刷新中',
+      '系统级设置：保存后通过内置 Explorer/XAML agent 调整任务栏背景；关闭后自动恢复系统默认效果',
+    taskbarAcrylic: '任务栏亚克力效果',
+    taskbarAcrylicHint: '启用后使用半透明亚克力质感；关闭时为纯透明效果',
     cache: '缓存',
     wallhavenCache: 'Wallhaven 缓存',
     clearing: '清理中',
@@ -1160,9 +1160,6 @@ export default {
       wallpaperSet: '壁纸已设置',
       downloadingWallpaper: '正在下载壁纸...',
       wallpaperDownloaded: '壁纸已下载到缓存',
-      restartExplorerConfirm:
-        '将重启 Windows 资源管理器以重新加载任务栏，桌面和任务栏会短暂闪烁。是否继续？',
-      explorerRestarted: '已重启资源管理器，请观察任务栏透明效果',
       scheduleSwitchFailed: '定时切换失败'
     }
   },

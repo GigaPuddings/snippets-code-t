@@ -37,7 +37,6 @@ const props = defineProps<{
   fitting: boolean;
   clearingCache: boolean;
   openingCache: boolean;
-  restartingExplorer: boolean;
   saving: boolean;
 }>();
 
@@ -52,7 +51,6 @@ const emit = defineEmits<{
   (event: 'setFitMode', value: WallpaperFitMode): void;
   (event: 'clearCache'): void;
   (event: 'openCacheDir'): void;
-  (event: 'restart-explorer-for-transparency'): void;
   (event: 'persistConfig'): void;
 }>();
 
@@ -79,7 +77,14 @@ const updateAutoRestore = (event: Event) =>
   patchConfig({ autoRestore: (event.target as HTMLInputElement).checked });
 const updateTaskbarTransparent = (event: Event) =>
   patchConfig({
-    taskbarTransparent: (event.target as HTMLInputElement).checked
+    taskbarTransparent: (event.target as HTMLInputElement).checked,
+    taskbarAcrylic: (event.target as HTMLInputElement).checked
+      ? props.config.taskbarAcrylic
+      : false
+  });
+const updateTaskbarAcrylic = (event: Event) =>
+  patchConfig({
+    taskbarAcrylic: (event.target as HTMLInputElement).checked
   });
 const updateOrder = (order: WallpaperOrder) => patchConfig({ order });
 const updateFolderSort = (event: Event) =>
@@ -360,19 +365,18 @@ const updateFolderSort = (event: Event) =>
         <span class="sub-label">
           {{ t('wallpaperSwitcher.taskbarTransparentHint') }}
         </span>
-        <button
-          type="button"
-          class="tool-btn"
-          :disabled="!config.taskbarTransparent || restartingExplorer || saving"
-          @click="emit('restart-explorer-for-transparency')"
-        >
-          <Refresh :size="16" />
-          {{
-            restartingExplorer
-              ? t('wallpaperSwitcher.refreshingExplorer')
-              : t('wallpaperSwitcher.restartExplorerRefresh')
-          }}
-        </button>
+        <label class="checkbox-label">
+          <input
+            :checked="config.taskbarAcrylic"
+            :disabled="!config.taskbarTransparent"
+            type="checkbox"
+            @change="updateTaskbarAcrylic"
+          />
+          {{ t('wallpaperSwitcher.taskbarAcrylic') }}
+        </label>
+        <span class="sub-label">
+          {{ t('wallpaperSwitcher.taskbarAcrylicHint') }}
+        </span>
       </div>
     </section>
 
