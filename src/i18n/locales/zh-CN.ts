@@ -1095,7 +1095,8 @@ export default {
     autoRestore: '启动后自动恢复定时任务',
     operationOptions: '操作选项',
     taskbarTransparent: '桌面底部任务栏透明',
-    taskbarTransparentHint: '保存后立即生效并运行时保持；关闭此开关或禁用插件时恢复默认效果',
+    taskbarTransparentHint:
+      '系统级设置：保存后修改 Windows 任务栏透明设置并刷新；关闭此开关或禁用插件时恢复原值',
     cache: '缓存',
     wallhavenCache: 'Wallhaven 缓存',
     clearing: '清理中',

@@ -1118,7 +1118,7 @@ export default {
     operationOptions: 'Actions',
     taskbarTransparent: 'Transparent desktop taskbar',
     taskbarTransparentHint:
-      'Takes effect after saving and is kept at runtime; restored when this option or the plugin is disabled',
+      'System-level setting: updates and refreshes Windows taskbar transparency; restores the previous value when disabled',
     cache: 'Cache',
     wallhavenCache: 'Wallhaven cache',
     clearing: 'Clearing',

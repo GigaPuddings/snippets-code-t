@@ -90,6 +90,10 @@ pub struct WallpaperConfig {
     pub wallhaven_history_scope: Option<String>,
     #[serde(default)]
     pub taskbar_transparent: bool,
+    #[serde(default)]
+    pub taskbar_transparency_registry_had_value: Option<bool>,
+    #[serde(default)]
+    pub taskbar_transparency_registry_previous_value: Option<u32>,
     pub last_folder_index: usize,
     pub last_applied_path: Option<String>,
     #[serde(default)]
@@ -115,6 +119,8 @@ impl Default for WallpaperConfig {
             wallhaven_seen_ids: Vec::new(),
             wallhaven_history_scope: None,
             taskbar_transparent: false,
+            taskbar_transparency_registry_had_value: None,
+            taskbar_transparency_registry_previous_value: None,
             last_folder_index: 0,
             last_applied_path: None,
             last_switched_at: None,
@@ -205,8 +211,6 @@ static WALLPAPER_STATUS: Mutex<RuntimeStatus> = Mutex::new(RuntimeStatus {
 static SCHEDULER_RUNNING: Mutex<bool> = Mutex::new(false);
 static SCHEDULER_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
 static ACTIVE_SCHEDULER_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
-static TASKBAR_TRANSPARENCY_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
-static ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
 static TASKBAR_TRANSPARENCY_APPLY_SEQ: AtomicU64 = AtomicU64::new(0);
 static RANDOM_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -524,6 +528,107 @@ fn wide_null(value: &str) -> Vec<u16> {
         .collect()
 }
 
+const TASKBAR_TRANSPARENCY_REGISTRY_PATH: &str =
+    "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced";
+const TASKBAR_TRANSPARENCY_REGISTRY_VALUE: &str = "UseOLEDTaskbarTransparency";
+
+fn read_taskbar_transparency_registry_value() -> Result<Option<u32>, String> {
+    use winreg::enums::KEY_READ;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let advanced = hkcu
+        .open_subkey_with_flags(TASKBAR_TRANSPARENCY_REGISTRY_PATH, KEY_READ)
+        .map_err(|e| format!("无法打开任务栏透明注册表项: {}", e))?;
+
+    match advanced.get_value::<u32, _>(TASKBAR_TRANSPARENCY_REGISTRY_VALUE) {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("读取任务栏透明注册表值失败: {}", error)),
+    }
+}
+
+fn write_taskbar_transparency_registry_value(
+    enabled: bool,
+    restore_previous: Option<(bool, Option<u32>)>,
+) -> Result<(), String> {
+    use winreg::enums::KEY_SET_VALUE;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let advanced = hkcu
+        .open_subkey_with_flags(TASKBAR_TRANSPARENCY_REGISTRY_PATH, KEY_SET_VALUE)
+        .map_err(|e| format!("无法打开任务栏透明注册表项: {}", e))?;
+
+    if enabled {
+        advanced
+            .set_value(TASKBAR_TRANSPARENCY_REGISTRY_VALUE, &1u32)
+            .map_err(|e| format!("写入任务栏透明注册表值失败: {}", e))?;
+        info!(
+            "[WallpaperSwitcher][TaskbarTransparent] registry {} set to 1",
+            TASKBAR_TRANSPARENCY_REGISTRY_VALUE
+        );
+        return Ok(());
+    }
+
+    match restore_previous {
+        Some((true, Some(value))) => {
+            advanced
+                .set_value(TASKBAR_TRANSPARENCY_REGISTRY_VALUE, &value)
+                .map_err(|e| format!("恢复任务栏透明注册表值失败: {}", e))?;
+            info!(
+                "[WallpaperSwitcher][TaskbarTransparent] registry {} restored to {}",
+                TASKBAR_TRANSPARENCY_REGISTRY_VALUE, value
+            );
+        }
+        Some((false, _)) => match advanced.delete_value(TASKBAR_TRANSPARENCY_REGISTRY_VALUE) {
+            Ok(_) => info!(
+                "[WallpaperSwitcher][TaskbarTransparent] registry {} deleted for restore",
+                TASKBAR_TRANSPARENCY_REGISTRY_VALUE
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("删除任务栏透明注册表值失败: {}", error)),
+        },
+        _ => {
+            advanced
+                .set_value(TASKBAR_TRANSPARENCY_REGISTRY_VALUE, &0u32)
+                .map_err(|e| format!("关闭任务栏透明注册表值失败: {}", e))?;
+            info!(
+                "[WallpaperSwitcher][TaskbarTransparent] registry {} set to 0",
+                TASKBAR_TRANSPARENCY_REGISTRY_VALUE
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn broadcast_taskbar_transparency_settings_changed() {
+    use windows::Win32::Foundation::{LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        PostMessageW, SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
+        WM_THEMECHANGED,
+    };
+
+    unsafe {
+        let mut result = 0;
+        for message in ["ImmersiveColorSet", "WindowsThemeElement", "Personalize"] {
+            let wide = wide_null(message);
+            let _ = SendMessageTimeoutW(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                WPARAM(0),
+                LPARAM(wide.as_ptr() as isize),
+                SMTO_ABORTIFHUNG,
+                500,
+                Some(&mut result),
+            );
+        }
+
+        let _ = PostMessageW(Some(HWND_BROADCAST), WM_THEMECHANGED, WPARAM(0), LPARAM(0));
+    }
+
+    info!("[WallpaperSwitcher][TaskbarTransparent] system setting change broadcast sent");
+}
+
 fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
@@ -778,6 +883,7 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
 
     let mut applied_count = 0usize;
     let mut failed_count = 0usize;
+    let mut composition_surface_failed = false;
     for hwnd in taskbars {
         let class_name = unsafe { hwnd_class_name(hwnd) };
         let applied = if enabled {
@@ -812,6 +918,16 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
             applied_count += 1;
         } else {
             failed_count += 1;
+            if enabled
+                && matches!(
+                    class_name.as_str(),
+                    "Windows.UI.Core.CoreWindow"
+                        | "Windows.UI.Composition.DesktopWindowContentBridge"
+                        | "Windows.UI.Input.InputSite.WindowClass"
+                )
+            {
+                composition_surface_failed = true;
+            }
             warn!(
                 "[WallpaperSwitcher][TaskbarTransparent#{}] apply failed hwnd={:p} class={} enabled={}",
                 attempt_id, hwnd.0, class_name, enabled
@@ -834,6 +950,12 @@ fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
     if applied_count == 0 {
         return Err("应用任务栏透明效果失败".to_string());
     }
+    if enabled && composition_surface_failed {
+        return Err(
+            "当前 Windows 任务栏的组合/XAML 绘制层拒绝运行时透明效果；外部 AccentPolicy 方案无法生效，需使用 Explorer 集成方案或系统级方案。"
+                .to_string(),
+        );
+    }
 
     Ok(())
 }
@@ -846,68 +968,45 @@ fn apply_taskbar_transparency_preference(
         return Ok(());
     }
 
-    set_taskbar_transparency(config.taskbar_transparent)
-}
-
-fn stop_taskbar_transparency_runtime() {
-    ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.store(0, Ordering::SeqCst);
-}
-
-fn restore_taskbar_transparency_default() {
-    stop_taskbar_transparency_runtime();
-    if let Err(error) = set_taskbar_transparency(false) {
-        warn!("[WallpaperSwitcher] 恢复任务栏默认效果失败: {}", error);
-    }
-}
-
-fn start_taskbar_transparency_runtime(app_handle: AppHandle) {
-    let instance_id = TASKBAR_TRANSPARENCY_INSTANCE_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
-    ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.store(instance_id, Ordering::SeqCst);
-
-    tauri::async_runtime::spawn(async move {
-        let retry_delays = [
-            Duration::from_millis(0),
-            Duration::from_millis(120),
-            Duration::from_millis(480),
-            Duration::from_secs(2),
-        ];
-
-        loop {
-            if ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.load(Ordering::SeqCst) != instance_id {
-                break;
-            }
-
-            let config = load_config(&app_handle);
-            if !config.taskbar_transparent {
-                break;
-            }
-
-            for delay in retry_delays {
-                if delay > Duration::from_millis(0) {
-                    tokio::time::sleep(delay).await;
-                }
-                if ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.load(Ordering::SeqCst) != instance_id {
-                    break;
-                }
-                if let Err(error) = set_taskbar_transparency(true) {
-                    warn!("[WallpaperSwitcher] 应用任务栏透明效果失败: {}", error);
-                }
-            }
-
-            tokio::time::sleep(Duration::from_secs(8)).await;
-        }
-
-        if ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.load(Ordering::SeqCst) == instance_id {
-            ACTIVE_TASKBAR_TRANSPARENCY_INSTANCE_ID.store(0, Ordering::SeqCst);
-        }
-    });
-}
-
-fn sync_taskbar_transparency_runtime(app_handle: &AppHandle, config: &WallpaperConfig) {
-    if config.taskbar_transparent {
-        start_taskbar_transparency_runtime(app_handle.clone());
+    let restore_previous = if config.taskbar_transparent {
+        None
     } else {
-        restore_taskbar_transparency_default();
+        Some((
+            config
+                .taskbar_transparency_registry_had_value
+                .unwrap_or(true),
+            config.taskbar_transparency_registry_previous_value,
+        ))
+    };
+
+    write_taskbar_transparency_registry_value(config.taskbar_transparent, restore_previous)?;
+    broadcast_taskbar_transparency_settings_changed();
+
+    if let Err(error) = set_taskbar_transparency(config.taskbar_transparent) {
+        warn!(
+            "[WallpaperSwitcher][TaskbarTransparent] runtime AccentPolicy helper failed after system setting update: {}",
+            error
+        );
+    }
+
+    Ok(())
+}
+
+fn restore_taskbar_transparency_system_default(config: &WallpaperConfig) {
+    if let Err(error) = apply_taskbar_transparency_preference(
+        &WallpaperConfig {
+            taskbar_transparent: false,
+            taskbar_transparency_registry_had_value: config.taskbar_transparency_registry_had_value,
+            taskbar_transparency_registry_previous_value: config
+                .taskbar_transparency_registry_previous_value,
+            ..config.clone()
+        },
+        true,
+    ) {
+        warn!(
+            "[WallpaperSwitcher][TaskbarTransparent] 恢复系统级任务栏透明设置失败: {}",
+            error
+        );
     }
 }
 
@@ -2145,9 +2244,6 @@ pub async fn wallpaper_get_config(app_handle: AppHandle) -> Result<WallpaperConf
     if let Err(error) = apply_taskbar_transparency_preference(&config, config.taskbar_transparent) {
         warn!("[WallpaperSwitcher] 恢复任务栏透明效果失败: {}", error);
     }
-    if config.taskbar_transparent {
-        start_taskbar_transparency_runtime(app_handle.clone());
-    }
     Ok(config)
 }
 
@@ -2176,10 +2272,38 @@ pub async fn wallpaper_save_config(
     config.interval_minutes = config.interval_minutes.max(1);
     let should_apply_taskbar =
         config.taskbar_transparent || config.taskbar_transparent != current.taskbar_transparent;
+
+    if config.taskbar_transparent {
+        if current.taskbar_transparent {
+            config.taskbar_transparency_registry_had_value =
+                current.taskbar_transparency_registry_had_value;
+            config.taskbar_transparency_registry_previous_value =
+                current.taskbar_transparency_registry_previous_value;
+        } else {
+            let previous_value = read_taskbar_transparency_registry_value()?;
+            config.taskbar_transparency_registry_had_value = Some(previous_value.is_some());
+            config.taskbar_transparency_registry_previous_value = previous_value;
+            info!(
+                "[WallpaperSwitcher][TaskbarTransparent] captured previous registry value exists={} value={:?}",
+                config
+                    .taskbar_transparency_registry_had_value
+                    .unwrap_or(false),
+                config.taskbar_transparency_registry_previous_value
+            );
+        }
+    } else {
+        config.taskbar_transparency_registry_had_value =
+            current.taskbar_transparency_registry_had_value;
+        config.taskbar_transparency_registry_previous_value =
+            current.taskbar_transparency_registry_previous_value;
+    }
+
     save_config(&app_handle, &config)?;
     apply_taskbar_transparency_preference(&config, should_apply_taskbar)?;
-    if should_apply_taskbar {
-        sync_taskbar_transparency_runtime(&app_handle, &config);
+    if should_apply_taskbar && !config.taskbar_transparent {
+        config.taskbar_transparency_registry_had_value = None;
+        config.taskbar_transparency_registry_previous_value = None;
+        save_config(&app_handle, &config)?;
     }
     if config.schedule_enabled && config.auto_restore {
         start_scheduler(app_handle)?;
@@ -2378,13 +2502,10 @@ pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
         {
             warn!("[WallpaperSwitcher] 恢复任务栏透明效果失败: {}", error);
         }
-        if config.taskbar_transparent {
-            start_taskbar_transparency_runtime(app_handle.clone());
-        }
     } else {
         stop_scheduler();
         if config.taskbar_transparent {
-            restore_taskbar_transparency_default();
+            restore_taskbar_transparency_system_default(&config);
         }
     }
 }

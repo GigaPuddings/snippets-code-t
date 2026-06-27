@@ -29,6 +29,8 @@ export interface WallpaperConfig {
   wallhavenSeenIds: string[];
   wallhavenHistoryScope: string | null;
   taskbarTransparent: boolean;
+  taskbarTransparencyRegistryHadValue: boolean | null;
+  taskbarTransparencyRegistryPreviousValue: number | null;
   lastFolderIndex: number;
   lastAppliedPath: string | null;
 }
@@ -101,6 +103,8 @@ export const defaultWallpaperConfig = (): WallpaperConfig => ({
   wallhavenSeenIds: [],
   wallhavenHistoryScope: null,
   taskbarTransparent: false,
+  taskbarTransparencyRegistryHadValue: null,
+  taskbarTransparencyRegistryPreviousValue: null,
   lastFolderIndex: 0,
   lastAppliedPath: null
 });
