@@ -7,7 +7,6 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::ptr::{null, null_mut};
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
-use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -21,7 +20,8 @@ use windows_sys::Win32::System::LibraryLoader::{
 };
 use windows_sys::Win32::System::Threading::{CreateThread, GetCurrentProcessId};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    EnumChildWindows, FindWindowExW, FindWindowW, GetClassNameW,
+    EnumChildWindows, FindWindowExW, FindWindowW, GetClassNameW, SendMessageTimeoutW,
+    SMTO_ABORTIFHUNG, WM_SETTINGCHANGE, WM_THEMECHANGED,
 };
 
 const DLL_PROCESS_ATTACH: u32 = 1;
@@ -37,10 +37,8 @@ const ERROR_NOT_FOUND: u32 = 1168;
 
 const ACCENT_DISABLED: i32 = 0;
 const ACCENT_ENABLE_TRANSPARENTGRADIENT: i32 = 2;
-const ACCENT_ENABLE_ACRYLICBLURBEHIND: i32 = 4;
 const WCA_ACCENT_POLICY: i32 = 19;
 const CLEAR_GRADIENT_COLOR: u32 = 0x00000000;
-const NEAR_CLEAR_ACRYLIC_COLOR: u32 = 0x01000000;
 
 type InstanceHandle = u64;
 
@@ -57,7 +55,6 @@ const CLSID_SNIPPETS_TASKBAR_TAP: GUID = GUID::from_u128(0xe6b5f8be_2f1d_4d68_a2
 static ENABLED_STATE: AtomicBool = AtomicBool::new(false);
 static XAML_TAP_INITIALIZED: AtomicBool = AtomicBool::new(false);
 static VISUAL_TREE_SERVICE: AtomicPtr<IVisualTreeService> = AtomicPtr::new(null_mut());
-static TARGET_HANDLES: Mutex<Vec<InstanceHandle>> = Mutex::new(Vec::new());
 
 #[repr(C)]
 struct AccentPolicy {
@@ -272,6 +269,14 @@ struct AdviseThreadParam {
     watcher: *mut VisualTreeWatcher,
 }
 
+struct XamlPropertyInfo {
+    index: u32,
+    type_name: String,
+    value_type: String,
+    value: String,
+    metadata_bits: i64,
+}
+
 type SetWindowCompositionAttributeFn =
     unsafe extern "system" fn(HWND, *mut WindowCompositionAttribData) -> BOOL;
 
@@ -402,7 +407,9 @@ fn apply_runtime_layers(module: HINSTANCE, enabled: bool, reason: &str) {
         }
     }
 
-    apply_known_xaml_targets(enabled, reason);
+    if reason == "state-change" {
+        request_taskbar_xaml_refresh(reason);
+    }
 }
 
 fn base_dir() -> PathBuf {
@@ -598,14 +605,7 @@ fn apply_taskbar_transparency(enabled: bool) -> Result<String, String> {
                     2,
                     CLEAR_GRADIENT_COLOR,
                 );
-                let acrylic = set_accent(
-                    set_window_composition_attribute,
-                    hwnd,
-                    ACCENT_ENABLE_ACRYLICBLURBEHIND,
-                    0,
-                    NEAR_CLEAR_ACRYLIC_COLOR,
-                );
-                reset || transparent || acrylic
+                reset || transparent
             } else {
                 set_accent(
                     set_window_composition_attribute,
@@ -629,6 +629,49 @@ fn apply_taskbar_transparency(enabled: bool) -> Result<String, String> {
         Ok(format!(
             "enabled={enabled} applied_count={applied_count} failed_count={failed_count}"
         ))
+    }
+}
+
+fn request_taskbar_xaml_refresh(reason: &str) {
+    unsafe {
+        let windows = find_taskbar_windows();
+        if windows.is_empty() {
+            log_line(&format!(
+                "xaml refresh skipped reason={reason}: no taskbar windows"
+            ));
+            return;
+        }
+
+        let setting = wide_null("ImmersiveColorSet");
+        let mut sent_count = 0usize;
+        for hwnd in windows {
+            let mut result = 0usize;
+            let theme_result = SendMessageTimeoutW(
+                hwnd,
+                WM_THEMECHANGED,
+                0,
+                0,
+                SMTO_ABORTIFHUNG,
+                100,
+                &mut result,
+            );
+            let setting_result = SendMessageTimeoutW(
+                hwnd,
+                WM_SETTINGCHANGE,
+                0,
+                setting.as_ptr() as isize,
+                SMTO_ABORTIFHUNG,
+                100,
+                &mut result,
+            );
+            if theme_result != 0 || setting_result != 0 {
+                sent_count += 1;
+            }
+        }
+
+        log_line(&format!(
+            "xaml refresh messages sent reason={reason} window_count={sent_count}"
+        ));
     }
 }
 
@@ -943,7 +986,6 @@ unsafe extern "system" fn watcher_on_visual_tree_change(
         return S_OK;
     }
 
-    remember_target_handle(element.Handle);
     let enabled = ENABLED_STATE.load(Ordering::SeqCst);
     let service = (*this).service.load(Ordering::SeqCst);
 
@@ -983,48 +1025,6 @@ fn is_target_taskbar_xaml_element(element_type: &str, element_name: &str) -> boo
         && element_type.contains("Rectangle")
 }
 
-fn remember_target_handle(handle: InstanceHandle) {
-    if let Ok(mut handles) = TARGET_HANDLES.lock() {
-        if !handles.contains(&handle) {
-            handles.push(handle);
-        }
-    }
-}
-
-fn apply_known_xaml_targets(enabled: bool, reason: &str) {
-    let service = VISUAL_TREE_SERVICE.load(Ordering::SeqCst);
-    if service.is_null() {
-        return;
-    }
-
-    let handles = TARGET_HANDLES
-        .lock()
-        .map(|handles| handles.clone())
-        .unwrap_or_default();
-    if handles.is_empty() {
-        return;
-    }
-
-    let mut success_count = 0usize;
-    let mut failed_count = 0usize;
-
-    for handle in handles {
-        match unsafe { apply_xaml_element(service, handle, enabled) } {
-            Ok(_) => success_count += 1,
-            Err(error) => {
-                failed_count += 1;
-                log_line(&format!(
-                    "known xaml target apply failed reason={reason} handle={handle} error={error}"
-                ));
-            }
-        }
-    }
-
-    log_line(&format!(
-        "known xaml targets applied reason={reason} enabled={enabled} success_count={success_count} failed_count={failed_count}"
-    ));
-}
-
 unsafe fn apply_xaml_element(
     service: *mut IVisualTreeService,
     element_handle: InstanceHandle,
@@ -1034,20 +1034,26 @@ unsafe fn apply_xaml_element(
         return Err("IVisualTreeService is null".to_string());
     }
 
-    let fill_property_index = find_property_index(service, element_handle, "Fill")?
+    let fill_property = find_property_info(service, element_handle, "Fill")?
         .ok_or_else(|| "Fill property was not found on target Rectangle".to_string())?;
 
     if enabled {
-        let brush_handle = create_transparent_brush(service)?;
+        let value_handle = create_transparent_fill_value(service, &fill_property)?;
         let hr = ((*(*service).lpVtbl).SetProperty)(
             service,
             element_handle,
-            brush_handle,
-            fill_property_index,
+            value_handle,
+            fill_property.index,
         );
         if hr == S_OK {
             Ok(format!(
-                "set Fill=Transparent property_index={fill_property_index} brush_handle={brush_handle}"
+                "set Fill=Transparent property_index={} value_handle={} type={} value_type={} original_value={} metadata={:#x}",
+                fill_property.index,
+                value_handle,
+                fill_property.type_name,
+                fill_property.value_type,
+                fill_property.value,
+                fill_property.metadata_bits
             ))
         } else {
             Err(format!(
@@ -1056,20 +1062,23 @@ unsafe fn apply_xaml_element(
             ))
         }
     } else {
-        let hr = ((*(*service).lpVtbl).ClearProperty)(service, element_handle, fill_property_index);
+        let hr = ((*(*service).lpVtbl).ClearProperty)(service, element_handle, fill_property.index);
         if hr == S_OK {
-            Ok(format!("cleared Fill property_index={fill_property_index}"))
+            Ok(format!(
+                "cleared Fill property_index={} previous_value={} metadata={:#x}",
+                fill_property.index, fill_property.value, fill_property.metadata_bits
+            ))
         } else {
             Err(format!("ClearProperty(Fill) failed hr={}", hr_hex(hr)))
         }
     }
 }
 
-unsafe fn find_property_index(
+unsafe fn find_property_info(
     service: *mut IVisualTreeService,
     element_handle: InstanceHandle,
     property_name: &str,
-) -> Result<Option<u32>, String> {
+) -> Result<Option<XamlPropertyInfo>, String> {
     let mut source_count = 0u32;
     let mut sources: *mut PropertyChainSource = null_mut();
     let mut property_count = 0u32;
@@ -1102,13 +1111,26 @@ unsafe fn find_property_index(
         }
 
         if name == property_name {
+            let type_name = bstr_to_string(property.Type);
+            let value_type = bstr_to_string(property.ValueType);
+            let value = bstr_to_string(property.Value);
             log_line(&format!(
-                "xaml property match handle={element_handle} property={} index={} sample=[{}]",
+                "xaml property match handle={element_handle} property={} index={} type={} value_type={} value={} metadata={:#x} sample=[{}]",
                 property_name,
                 property.Index,
+                type_name,
+                value_type,
+                value,
+                property.MetadataBits,
                 logged_properties.join(", ")
             ));
-            return Ok(Some(property.Index));
+            return Ok(Some(XamlPropertyInfo {
+                index: property.Index,
+                type_name,
+                value_type,
+                value,
+                metadata_bits: property.MetadataBits,
+            }));
         }
     }
 
@@ -1121,11 +1143,46 @@ unsafe fn find_property_index(
     Ok(None)
 }
 
-unsafe fn create_transparent_brush(
+unsafe fn create_transparent_fill_value(
     service: *mut IVisualTreeService,
+    property: &XamlPropertyInfo,
 ) -> Result<InstanceHandle, String> {
-    let type_name = make_bstr("Windows.UI.Xaml.Media.SolidColorBrush");
-    let value = make_bstr("Transparent");
+    let mut candidate_types = Vec::new();
+    if !property.type_name.is_empty() {
+        candidate_types.push(property.type_name.as_str());
+    }
+    if !property.value_type.is_empty() && property.value_type != property.type_name {
+        candidate_types.push(property.value_type.as_str());
+    }
+    candidate_types.push("Windows.UI.Xaml.Media.Brush");
+
+    let mut errors = Vec::new();
+    for candidate_type in candidate_types {
+        match create_xaml_value(service, candidate_type, "Transparent") {
+            Ok(handle) => {
+                log_line(&format!(
+                    "xaml transparent value created type={} handle={handle}",
+                    candidate_type
+                ));
+                return Ok(handle);
+            }
+            Err(error) => errors.push(format!("{candidate_type}: {error}")),
+        }
+    }
+
+    Err(format!(
+        "CreateInstance transparent value failed for all candidate types: {}",
+        errors.join("; ")
+    ))
+}
+
+unsafe fn create_xaml_value(
+    service: *mut IVisualTreeService,
+    type_name_text: &str,
+    value_text: &str,
+) -> Result<InstanceHandle, String> {
+    let type_name = make_bstr(type_name_text);
+    let value = make_bstr(value_text);
     if type_name.is_null() || value.is_null() {
         if !type_name.is_null() {
             SysFreeString(type_name);
@@ -1133,20 +1190,22 @@ unsafe fn create_transparent_brush(
         if !value.is_null() {
             SysFreeString(value);
         }
-        return Err("SysAllocString failed for transparent brush".to_string());
+        return Err("SysAllocString failed".to_string());
     }
 
-    let mut brush_handle = 0u64;
-    let hr = ((*(*service).lpVtbl).CreateInstance)(service, type_name, value, &mut brush_handle);
+    let mut value_handle = 0u64;
+    let hr = ((*(*service).lpVtbl).CreateInstance)(service, type_name, value, &mut value_handle);
     SysFreeString(type_name);
     SysFreeString(value);
 
-    if hr == S_OK && brush_handle != 0 {
-        Ok(brush_handle)
+    if hr == S_OK && value_handle != 0 {
+        Ok(value_handle)
     } else {
         Err(format!(
-            "CreateInstance(SolidColorBrush, Transparent) failed hr={} brush_handle={brush_handle}",
-            hr_hex(hr)
+            "CreateInstance({}, {}) failed hr={} value_handle={value_handle}",
+            type_name_text,
+            value_text,
+            hr_hex(hr),
         ))
     }
 }

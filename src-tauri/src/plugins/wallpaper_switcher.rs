@@ -1380,12 +1380,16 @@ fn apply_taskbar_transparency_preference(
         return Ok(());
     }
 
-    if let Err(error) = inject_taskbar_agent_into_explorer(config.taskbar_transparent) {
-        warn!(
-            "[WallpaperSwitcher][TaskbarTransparentAgent] 内置 Explorer agent 注入失败，将继续使用系统/API 兜底: {}",
-            error
-        );
-    }
+    let agent_injected = match inject_taskbar_agent_into_explorer(config.taskbar_transparent) {
+        Ok(()) => true,
+        Err(error) => {
+            warn!(
+                "[WallpaperSwitcher][TaskbarTransparentAgent] 内置 Explorer agent 注入失败，将继续使用系统/API 兜底: {}",
+                error
+            );
+            false
+        }
+    };
 
     let restore_taskbar_previous = if config.taskbar_transparent {
         None
@@ -1416,7 +1420,11 @@ fn apply_taskbar_transparency_preference(
     broadcast_taskbar_transparency_settings_changed();
     refresh_explorer_visual_settings();
 
-    if let Err(error) = set_taskbar_transparency(config.taskbar_transparent) {
+    if agent_injected {
+        info!(
+            "[WallpaperSwitcher][TaskbarTransparent] Explorer/XAML agent injected; skipping external AccentPolicy fallback to avoid a black acrylic layer under the transparent XAML surface"
+        );
+    } else if let Err(error) = set_taskbar_transparency(config.taskbar_transparent) {
         info!(
             "[WallpaperSwitcher][TaskbarTransparent] runtime AccentPolicy helper did not apply to all taskbar surfaces; registry/broadcast path remains active: {}",
             error
