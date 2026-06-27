@@ -421,13 +421,241 @@ fn apply_runtime_layers(module: HINSTANCE, state: AgentState, reason: &str) {
 
     if state.transparent {
         match initialize_xaml_tap(module) {
-            Ok(()) => log_line(&format!("xaml tap active reason={reason}")),
+            Ok(()) => {
+                log_line(&format!("xaml tap active reason={reason}"));
+                // When state changes (e.g., toggling acrylic), re-apply XAML properties
+                // to already-discovered elements since watcher_on_visual_tree_change only
+                // fires on new element additions, not on state transitions.
+                if reason == "state-change" {
+                    reapply_xaml_to_known_elements(state.transparent, state.acrylic);
+                }
+            }
             Err(error) => log_line(&format!("xaml tap init failed reason={reason}: {error}")),
+        }
+    } else {
+        // When disabling transparency, try to restore original XAML values for
+        // all elements we previously modified. This handles the case where
+        // GetPropertyValuesChain might fail due to stale handles.
+        if reason == "state-change" {
+            restore_xaml_for_all_known_elements();
         }
     }
 
     if reason == "state-change" {
         request_taskbar_xaml_refresh(reason);
+    }
+}
+
+/// Re-apply XAML transparency/acrylic effect to all elements whose original values
+/// we have recorded. This is needed when the user toggles acrylic mode or when
+/// the XAML tree is rebuilt but the watcher callback doesn't refire for existing elements.
+fn reapply_xaml_to_known_elements(_enabled: bool, acrylic: bool) {
+    let service = VISUAL_TREE_SERVICE.load(Ordering::SeqCst);
+    if service.is_null() {
+        return;
+    }
+
+    // Collect known (handle, property_index) pairs that we've previously modified
+    let known_keys: Vec<(InstanceHandle, u32)> = {
+        match ORIGINAL_XAML_VALUES.lock() {
+            Ok(values) => values.keys().copied().collect(),
+            Err(_) => return,
+        }
+    };
+
+    if known_keys.is_empty() {
+        return;
+    }
+
+    let mut success_count = 0usize;
+    let mut fail_count = 0usize;
+
+    for (element_handle, property_index) in &known_keys {
+        // Determine element name from handle pattern — we store both BackgroundFill and BackgroundStroke
+        // For re-application, we need to check if the handle is still valid by attempting to get properties
+        let result = unsafe {
+            // Try to get current property info to verify the handle is still valid
+            // and to determine the element name for acrylic decision
+            match find_property_info(service, *element_handle, "Fill") {
+                Ok(Some(prop)) => {
+                    // Handle is still valid — create new transparent/acrylic value and apply
+                    let value_handle = if acrylic {
+                        // For acrylic, we need to know if this is BackgroundFill
+                        // Since we don't store the name, try acrylic first, fallback to transparent
+                        create_acrylic_fill_value(service).or_else(|e| {
+                            log_line(&format!(
+                                "xaml reapply acrylic failed for handle={}, fallback to transparent: {}",
+                                element_handle, e
+                            ));
+                            create_transparent_fill_value(service, &prop)
+                        })
+                    } else {
+                        create_transparent_fill_value(service, &prop)
+                    };
+
+                    match value_handle {
+                        Ok(vh) => {
+                            let hr = ((*(*service).lpVtbl).SetProperty)(
+                                service,
+                                *element_handle,
+                                vh,
+                                *property_index,
+                            );
+                            if hr == S_OK {
+                                log_line(&format!(
+                                    "xaml reapply succeeded handle={} property_index={} acrylic={}",
+                                    element_handle, property_index, acrylic
+                                ));
+                                success_count += 1;
+                                Ok(())
+                            } else {
+                                log_line(&format!(
+                                    "xaml reapply SetProperty failed handle={} hr={}",
+                                    element_handle, hr_hex(hr)
+                                ));
+                                fail_count += 1;
+                                Err(format!("SetProperty failed hr={}", hr_hex(hr)))
+                            }
+                        }
+                        Err(e) => {
+                            log_line(&format!(
+                                "xaml reapply create value failed handle={} error={}",
+                                element_handle, e
+                            ));
+                            fail_count += 1;
+                            Err(e)
+                        }
+                    }
+                }
+                Ok(None) => {
+                    // Fill property not found — element may have changed
+                    log_line(&format!(
+                        "xaml reapply skip handle={} property_index={} (Fill property not found)",
+                        element_handle, property_index
+                    ));
+                    fail_count += 1;
+                    Err("Fill property not found".to_string())
+                }
+                Err(e) => {
+                    // GetPropertyValuesChain failed — handle is likely stale (RPC_E_WRONG_THREAD_CONTEXT etc.)
+                    log_line(&format!(
+                        "xaml reapply skip handle={} property_index={} error={} (stale handle?)",
+                        element_handle, property_index, e
+                    ));
+                    fail_count += 1;
+                    Err(e)
+                }
+            }
+        };
+
+        if result.is_err() {
+            // Remove stale entries so they don't accumulate
+            let _ = ORIGINAL_XAML_VALUES.lock().map(|mut v| {
+                v.remove(&(*element_handle, *property_index));
+            });
+        }
+    }
+
+    log_line(&format!(
+        "xaml reapply finished acrylic={} success_count={} fail_count={}",
+        acrylic, success_count, fail_count
+    ));
+}
+
+/// Attempt to restore original XAML values for all known elements.
+/// Falls back to clearing the Fill property if the original value cannot be restored
+/// (e.g., due to stale handles or COM threading issues).
+fn restore_xaml_for_all_known_elements() {
+    let service = VISUAL_TREE_SERVICE.load(Ordering::SeqCst);
+    if service.is_null() {
+        log_line("xaml restore skipped: IVisualTreeService is null");
+        return;
+    }
+
+    let known_entries: Vec<((InstanceHandle, u32), InstanceHandle)> = {
+        match ORIGINAL_XAML_VALUES.lock() {
+            Ok(values) => values.iter().map(|(k, &v)| (*k, v)).collect(),
+            Err(_) => return,
+        }
+    };
+
+    if known_entries.is_empty() {
+        log_line("xaml restore skipped: no known elements to restore");
+        return;
+    }
+
+    let mut success_count = 0usize;
+    let mut fail_count = 0usize;
+
+    for ((element_handle, property_index), original_value) in &known_entries {
+        let result = unsafe {
+            // Strategy 1: Try to set the original saved value directly
+            // This works if the handle is still valid and the original brush still exists
+            let hr = ((*(*service).lpVtbl).SetProperty)(
+                service,
+                *element_handle,
+                *original_value,
+                *property_index,
+            );
+
+            if hr == S_OK {
+                log_line(&format!(
+                    "xaml restore succeeded handle={} property_index={} original_value={}",
+                    element_handle, property_index, original_value
+                ));
+                success_count += 1;
+                Ok(())
+            } else {
+                // Strategy 2: If setting original value failed (likely stale handle),
+                // try ClearProperty to remove our override and let XAML re-render with its template value
+                log_line(&format!(
+                    "xaml restore SetProperty failed handle={} hr={}, trying ClearProperty",
+                    element_handle, hr_hex(hr)
+                ));
+                let clear_hr = ((*(*service).lpVtbl).ClearProperty)(
+                    service,
+                    *element_handle,
+                    *property_index,
+                );
+                if clear_hr == S_OK {
+                    log_line(&format!(
+                        "xaml restore via ClearProperty succeeded handle={} property_index={}",
+                        element_handle, property_index
+                    ));
+                    success_count += 1;
+                    Ok(())
+                } else {
+                    log_line(&format!(
+                        "xaml restore failed handle={} SetProperty hr={} ClearProperty hr={}",
+                        element_handle, hr_hex(hr), hr_hex(clear_hr)
+                    ));
+                    fail_count += 1;
+                    Err(format!("SetProperty={} ClearProperty={}", hr_hex(hr), hr_hex(clear_hr)))
+                }
+            }
+        };
+
+        if result.is_ok() {
+            // Successfully restored — clean up the entry
+            let _ = ORIGINAL_XAML_VALUES.lock().map(|mut v| {
+                v.remove(&(*element_handle, *property_index));
+            });
+        }
+    }
+
+    log_line(&format!(
+        "xaml restore finished success_count={} fail_count={}",
+        success_count, fail_count
+    ));
+
+    // If we still have remaining failed entries, force a full XAML refresh
+    // by sending WM_THEMECHANGED to trigger VisualTree rebuild
+    if fail_count > 0 {
+        log_line("xaml restore: some elements failed, forcing visual tree refresh");
+        // The caller will already call request_taskbar_xaml_refresh after this function returns,
+        // which sends WM_SETTINGCHANGE + WM_THEMECHANGED. That should cause the XAML tree
+        // to rebuild with fresh handles, and the watcher will fire for the new elements.
+        // At that point, since enabled=false, new elements will be left unchanged (correct behavior).
     }
 }
 
