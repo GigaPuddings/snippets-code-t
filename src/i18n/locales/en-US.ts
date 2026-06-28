@@ -1861,12 +1861,10 @@ export default {
     verifiedSourcesUsed: 'Web sources used for this response',
     verifiedSourcesNoQuery: 'There is no question content to search for.',
     verifiedSourcesEmpty:
-      'No usable web content was retrieved. Refine the query or change the search page URL.',
+      'No usable web content was retrieved. Refine the query and try again.',
     webSearch: 'Web search',
     webSearchDesc:
-      'AI opens the search page with Playwright MCP, reads the first 3–5 results, extracts article text, then summarizes it with sources.',
-    webSearchUrl: 'Search page URL',
-    webSearchUrlPlaceholder: 'https://www.bing.com/search?q={query}',
+      'AI opens the built-in search entry with Playwright MCP, reads the first 3–5 results, extracts article text, then summarizes it with sources.',
     jumpToLatest: 'Jump to latest',
     modelChanged: 'Model changed and saved',
     you: 'You',

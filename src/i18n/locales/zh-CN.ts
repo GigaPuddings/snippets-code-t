@@ -1825,13 +1825,10 @@ export default {
     verifiedSourcesSearching: '正在通过 Playwright MCP 搜索网页并提取正文...',
     verifiedSourcesUsed: '本次回答使用的联网来源',
     verifiedSourcesNoQuery: '没有可用于联网搜索的问题内容。',
-    verifiedSourcesEmpty:
-      '没有获取到可用网页内容，请调整关键词或搜索页面地址。',
+    verifiedSourcesEmpty: '没有获取到可用网页内容，请调整关键词后重试。',
     webSearch: '联网搜索',
     webSearchDesc:
-      'AI 会通过 Playwright MCP 打开搜索页面，读取前 3～5 个结果并提取正文后再总结。',
-    webSearchUrl: '搜索页面地址',
-    webSearchUrlPlaceholder: 'https://www.bing.com/search?q={query}',
+      'AI 会通过 Playwright MCP 打开内置搜索入口，读取前 3～5 个结果并提取正文后再总结。',
     jumpToLatest: '回到底部',
     modelChanged: '模型已切换并保存',
     you: '你',

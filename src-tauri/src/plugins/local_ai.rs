@@ -78,12 +78,6 @@ pub struct LocalAiConfig {
     pub repeat_last_n: u32,
     pub max_tokens: u32,
     pub request_timeout_secs: u32,
-    #[serde(default = "default_web_search_url")]
-    pub web_search_url: String,
-}
-
-fn default_web_search_url() -> String {
-    DEFAULT_WEB_SEARCH_URL.to_string()
 }
 
 fn default_top_p() -> f32 {
@@ -138,7 +132,6 @@ impl Default for LocalAiConfig {
             repeat_last_n: default_repeat_last_n(),
             max_tokens: 0,
             request_timeout_secs: 600,
-            web_search_url: default_web_search_url(),
         }
     }
 }
@@ -368,9 +361,6 @@ fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
     if config.max_tokens == 1024 {
         config.max_tokens = 0;
     }
-    if config.web_search_url.trim().is_empty() {
-        config.web_search_url = default_web_search_url();
-    }
     config
 }
 
@@ -492,6 +482,7 @@ fn playwright_mcp_command() -> Command {
             "5000",
         ]);
         command.creation_flags(0x08000000);
+        configure_playwright_mcp_environment(&mut command);
         command
     }
 
@@ -508,7 +499,35 @@ fn playwright_mcp_command() -> Command {
             "--timeout-action",
             "5000",
         ]);
+        configure_playwright_mcp_environment(&mut command);
         command
+    }
+}
+
+fn configure_playwright_mcp_environment(command: &mut Command) {
+    command
+        .env("NO_UPDATE_NOTIFIER", "1")
+        .env("NPM_CONFIG_AUDIT", "false")
+        .env("NPM_CONFIG_FUND", "false")
+        .env("NPM_CONFIG_PROGRESS", "false")
+        .env("NPM_CONFIG_LOGLEVEL", "error")
+        .env_remove("npm_config_auto_install_peers")
+        .env_remove("npm_config_electron_builder_binaries_mirror")
+        .env_remove("npm_config_electron_mirror")
+        .env_remove("npm_config_npm_globalconfig")
+        .env_remove("npm_config_verify_deps_before_run")
+        .env_remove("npm_config__jsr_registry");
+}
+
+fn log_playwright_mcp_stderr(line: &str) {
+    let normalized = line.trim();
+    if normalized.is_empty() {
+        return;
+    }
+    if normalized.starts_with("npm warn Unknown ") {
+        info!("[Plugin:local-ai] playwright-mcp: {}", normalized);
+    } else {
+        warn!("[Plugin:local-ai] playwright-mcp: {}", normalized);
     }
 }
 
@@ -529,7 +548,7 @@ impl PlaywrightMcpClient {
             thread::spawn(move || {
                 let reader = BufReader::new(stderr);
                 for line in reader.lines().map_while(Result::ok) {
-                    warn!("[Plugin:local-ai] playwright-mcp: {}", line);
+                    log_playwright_mcp_stderr(&line);
                 }
             });
         }
@@ -789,10 +808,10 @@ fn playwright_mcp_search_sources(
             let snippet = compact_source_text(&search_page.text, 1800);
             if snippet.len() >= 120 {
                 results.push(LocalAiVerifiedSource {
-                    title: "搜索页面摘要".to_string(),
+                    title: "内置搜索入口摘要".to_string(),
                     url: endpoint.to_string(),
                     snippet,
-                    source: endpoint.host_str().unwrap_or("搜索页面").to_string(),
+                    source: endpoint.host_str().unwrap_or("内置搜索入口").to_string(),
                     published_at: None,
                 });
             }
@@ -805,21 +824,20 @@ fn playwright_mcp_search_sources(
 }
 
 async fn search_verified_sources(
-    app_handle: &AppHandle,
+    _app_handle: &AppHandle,
     query: &str,
     max_results: u32,
 ) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let config = read_config(app_handle);
-    let template = config.web_search_url.trim();
+    let template = DEFAULT_WEB_SEARCH_URL;
     if !template.contains("{query}") {
-        return Err("搜索页面地址必须包含 {query} 占位符。".to_string());
+        return Err("内置搜索入口必须包含 {query} 占位符。".to_string());
     }
     let search_query = query.to_string();
     let search_url = template.replace("{query}", &urlencoding::encode(&search_query));
     let endpoint =
-        Url::parse(&search_url).map_err(|error| format!("搜索页面地址无效: {}", error))?;
+        Url::parse(&search_url).map_err(|error| format!("内置搜索入口无效: {}", error))?;
     if !matches!(endpoint.scheme(), "http" | "https") || endpoint.host_str().is_none() {
-        return Err("搜索页面地址仅支持有效的 http 或 https URL。".to_string());
+        return Err("内置搜索入口仅支持有效的 http 或 https URL。".to_string());
     }
     let cache_key = format!("{}:{}", template, search_query.to_lowercase());
     if let Ok(cache) = VERIFIED_SOURCE_CACHE.lock() {

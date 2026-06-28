@@ -471,17 +471,6 @@
               <p>{{ t('localAi.webSearchDesc') }}</p>
             </div>
           </div>
-          <div class="field-stack">
-            <label class="field-row" :title="paramHint('webSearchUrl')">
-              <span>{{ t('localAi.webSearchUrl') }}</span>
-              <input
-                v-model="config.webSearchUrl"
-                class="text-input"
-                type="url"
-                :placeholder="t('localAi.webSearchUrlPlaceholder')"
-              />
-            </label>
-          </div>
         </div>
 
         <div class="settings-footer">
@@ -619,8 +608,7 @@ const statusToneClass = (tone: string | undefined) => ({
   'tone-warn': tone === 'warn',
   'tone-danger': tone === 'danger'
 });
-const yesNoClass = (value: unknown) =>
-  statusToneClass(value ? 'ok' : 'danger');
+const yesNoClass = (value: unknown) => statusToneClass(value ? 'ok' : 'danger');
 const refreshRuntime = async () => {
   runtimeStatus.value = await getLocalAiRuntimeStatus();
 };
@@ -639,11 +627,7 @@ const refreshAll = async () => {
   loading.value = true;
   try {
     config.value = await getLocalAiConfig();
-    await Promise.all([
-      refreshRuntime(),
-      scanModels(),
-      refreshStatus()
-    ]);
+    await Promise.all([refreshRuntime(), scanModels(), refreshStatus()]);
   } catch (error) {
     logger.error('[LocalAI] refresh settings failed', error);
     modal.msg(`${t('localAi.refreshFailed')}: ${error}`, 'error');
@@ -664,11 +648,7 @@ const saveConfig = async () => {
   saving.value = true;
   try {
     config.value = await saveLocalAiConfig(config.value);
-    await Promise.all([
-      refreshRuntime(),
-      scanModels(),
-      refreshStatus()
-    ]);
+    await Promise.all([refreshRuntime(), scanModels(), refreshStatus()]);
     modal.msg(t('localAi.configSaved'));
   } catch (error) {
     modal.msg(`${t('localAi.configSaveFailed')}: ${error}`, 'error');
