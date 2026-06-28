@@ -1095,10 +1095,7 @@ export default {
     autoRestore: '启动后自动恢复定时任务',
     operationOptions: '操作选项',
     taskbarTransparent: '桌面底部任务栏透明',
-    taskbarTransparentHint:
-      '系统级设置：保存后通过内置 Explorer/XAML agent 调整任务栏背景；关闭后自动恢复系统默认效果',
     taskbarAcrylic: '任务栏亚克力效果',
-    taskbarAcrylicHint: '启用后使用半透明亚克力质感；关闭时为纯透明效果',
     cache: '缓存',
     wallhavenCache: 'Wallhaven 缓存',
     clearing: '清理中',

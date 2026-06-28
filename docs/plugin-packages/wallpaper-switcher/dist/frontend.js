@@ -1,11 +1,11 @@
 import * as pn from "vue";
 import { inject as He, ref as U, shallowRef as hr, computed as D, watch as wt, onMounted as Lt, onUnmounted as xn, defineComponent as ae, h as nl, createVNode as S, Text as pr, Fragment as Ge, getCurrentInstance as vt, unref as i, readonly as mr, getCurrentScope as gr, onScopeDispose as wr, nextTick as al, isRef as ll, warn as vr, provide as _r, createElementBlock as z, openBlock as $, mergeProps as br, renderSlot as _t, createElementVNode as m, normalizeClass as Z, Transition as zn, withCtx as st, withDirectives as Yt, normalizeStyle as Zt, createTextVNode as oe, toDisplayString as N, vShow as Xt, shallowReactive as yr, createBlock as Se, createCommentVNode as we, resolveDynamicComponent as rl, withModifiers as Dt, isVNode as At, render as Jt, renderList as kn, withKeys as sl } from "vue";
-const zf = (e) => {
+const jf = (e) => {
   e.registerRoute({
     target: "window",
     path: "/wallpaper-switcher",
     name: "WallpaperSwitcher",
-    component: () => Promise.resolve().then(() => jf)
+    component: () => Promise.resolve().then(() => $f)
   }), e.registerWindowShortcut({
     label: "wallpaper_switcher"
   });
@@ -6607,7 +6607,7 @@ const _u = me("back", !0, function(e) {
 }), Pu = { class: "top-panel" }, Ou = { class: "preview" }, Au = ["src", "alt"], Fu = {
   key: 1,
   class: "preview-empty"
-}, Mu = { class: "status-panel" }, Wu = { class: "status-copy" }, Ru = { class: "wallpaper-name" }, $u = { class: "status-list" }, Du = { class: "status-row" }, ju = { class: "status-row" }, xu = { class: "status-row" }, zu = { class: "status-actions" }, Uu = ["disabled"], Vu = { class: "card settings-card" }, Hu = { class: "form-row mode-row" }, Gu = { class: "row-label" }, Ku = { class: "segmented three" }, Bu = { class: "form-row fixed-row" }, Yu = { class: "row-label" }, Zu = ["value", "placeholder"], Xu = { class: "form-row folder-row" }, Ju = { class: "row-label" }, qu = ["value", "placeholder"], Qu = { class: "hint-row" }, ed = { class: "form-row folder-order-row" }, td = { class: "row-label" }, nd = { class: "segmented folder-order" }, ad = { class: "number-label" }, ld = ["value"], rd = { value: "fileNameAscending" }, sd = { value: "fileNameDescending" }, od = { value: "modifiedAscending" }, id = { value: "modifiedDescending" }, cd = { class: "form-row wallhaven-row" }, ud = { class: "sub-label" }, dd = { class: "segmented source" }, fd = { class: "hint-row" }, hd = { class: "card rules-card" }, pd = { class: "rules-line" }, md = { class: "row-label" }, gd = { class: "switch-label" }, wd = ["checked"], vd = { class: "number-label" }, _d = ["value"], bd = { class: "segmented mini" }, yd = { class: "rules-line" }, kd = { class: "row-label compact" }, Cd = { class: "segmented fit" }, Sd = ["disabled"], Ld = ["disabled"], Ed = ["disabled"], Td = { class: "checkbox-label" }, Id = ["checked"], Nd = { class: "rules-line operation-line" }, Pd = { class: "row-label compact" }, Od = { class: "checkbox-label" }, Ad = ["checked"], Fd = { class: "sub-label" }, Md = { class: "checkbox-label" }, Wd = ["checked", "disabled"], Rd = { class: "sub-label" }, $d = { class: "footer-card" }, Dd = { class: "cache-info" }, jd = { class: "footer-actions" }, xd = ["disabled"], zd = ["disabled"], Ud = ["disabled"], Vd = /* @__PURE__ */ ae({
+}, Mu = { class: "status-panel" }, Wu = { class: "status-copy" }, Ru = { class: "wallpaper-name" }, $u = { class: "status-list" }, Du = { class: "status-row" }, ju = { class: "status-row" }, xu = { class: "status-row" }, zu = { class: "status-actions" }, Uu = ["disabled"], Vu = { class: "card settings-card" }, Hu = { class: "form-row mode-row" }, Gu = { class: "row-label" }, Ku = { class: "segmented three" }, Bu = { class: "form-row fixed-row" }, Yu = { class: "row-label" }, Zu = ["value", "placeholder"], Xu = { class: "form-row folder-row" }, Ju = { class: "row-label" }, qu = ["value", "placeholder"], Qu = { class: "hint-row" }, ed = { class: "form-row folder-order-row" }, td = { class: "row-label" }, nd = { class: "segmented folder-order" }, ad = { class: "number-label" }, ld = ["value"], rd = { value: "fileNameAscending" }, sd = { value: "fileNameDescending" }, od = { value: "modifiedAscending" }, id = { value: "modifiedDescending" }, cd = { class: "form-row wallhaven-row" }, ud = { class: "sub-label" }, dd = { class: "segmented source" }, fd = { class: "hint-row" }, hd = { class: "card rules-card" }, pd = { class: "rules-line" }, md = { class: "row-label" }, gd = { class: "switch-label" }, wd = ["checked"], vd = { class: "number-label" }, _d = ["value"], bd = { class: "segmented mini" }, yd = { class: "rules-line" }, kd = { class: "row-label compact" }, Cd = { class: "segmented fit" }, Sd = ["disabled"], Ld = ["disabled"], Ed = ["disabled"], Td = { class: "checkbox-label" }, Id = ["checked"], Nd = { class: "rules-line operation-line" }, Pd = { class: "row-label compact" }, Od = { class: "checkbox-label" }, Ad = ["checked"], Fd = { class: "checkbox-label" }, Md = ["checked", "disabled"], Wd = { class: "footer-card" }, Rd = { class: "cache-info" }, $d = { class: "footer-actions" }, Dd = ["disabled"], jd = ["disabled"], xd = ["disabled"], zd = /* @__PURE__ */ ae({
   __name: "SwitcherHome",
   props: {
     config: {},
@@ -7130,37 +7130,23 @@ const _u = me("back", !0, function(e) {
                 /* TEXT */
               )
             ]),
-            m(
-              "span",
-              Fd,
-              N(i(l)("wallpaperSwitcher.taskbarTransparentHint")),
-              1
-              /* TEXT */
-            ),
-            m("label", Md, [
+            m("label", Fd, [
               m("input", {
                 checked: o.config.taskbarAcrylic,
                 disabled: !o.config.taskbarTransparent,
                 type: "checkbox",
                 onChange: W
-              }, null, 40, Wd),
+              }, null, 40, Md),
               oe(
                 " " + N(i(l)("wallpaperSwitcher.taskbarAcrylic")),
                 1
                 /* TEXT */
               )
-            ]),
-            m(
-              "span",
-              Rd,
-              N(i(l)("wallpaperSwitcher.taskbarAcrylicHint")),
-              1
-              /* TEXT */
-            )
+            ])
           ])
         ]),
-        m("footer", $d, [
-          m("div", Dd, [
+        m("footer", Wd, [
+          m("div", Rd, [
             m(
               "strong",
               null,
@@ -7183,7 +7169,7 @@ const _u = me("back", !0, function(e) {
               /* TEXT */
             )
           ]),
-          m("div", jd, [
+          m("div", $d, [
             m("button", {
               type: "button",
               class: "secondary-btn",
@@ -7196,7 +7182,7 @@ const _u = me("back", !0, function(e) {
                 1
                 /* TEXT */
               )
-            ], 8, xd),
+            ], 8, Dd),
             m("button", {
               type: "button",
               class: "secondary-btn",
@@ -7209,7 +7195,7 @@ const _u = me("back", !0, function(e) {
                 1
                 /* TEXT */
               )
-            ], 8, zd),
+            ], 8, jd),
             m("button", {
               type: "button",
               class: "primary-btn",
@@ -7222,7 +7208,7 @@ const _u = me("back", !0, function(e) {
                 1
                 /* TEXT */
               )
-            ], 8, Ud)
+            ], 8, xd)
           ])
         ])
       ],
@@ -7230,22 +7216,22 @@ const _u = me("back", !0, function(e) {
       /* CLASS */
     ));
   }
-}), Hd = {
+}), Ud = {
   class: "titlebar",
   "data-tauri-drag-region": ""
-}, Gd = {
+}, Vd = {
   key: 0,
   class: "title"
-}, Kd = {
+}, Hd = {
   key: 1,
   class: "title"
-}, Bd = ["title"], Yd = {
+}, Gd = ["title"], Kd = {
   key: 2,
   class: "window-actions"
-}, Zd = ["title"], Xd = ["title"], Jd = {
+}, Bd = ["title"], Yd = ["title"], Zd = {
   key: 3,
   class: "window-actions"
-}, qd = ["aria-label"], Qd = ["title"], ef = /* @__PURE__ */ ae({
+}, Xd = ["aria-label"], Jd = ["title"], qd = /* @__PURE__ */ ae({
   __name: "SwitcherTitlebar",
   props: {
     activeView: {},
@@ -7255,8 +7241,8 @@ const _u = me("back", !0, function(e) {
   emits: ["back", "close", "openWallhaven", "setWallhavenSource"],
   setup(e, { emit: t }) {
     const n = t, { t: a } = Pe();
-    return (l, r) => ($(), z("header", Hd, [
-      l.activeView === "switcher" ? ($(), z("div", Gd, [
+    return (l, r) => ($(), z("header", Ud, [
+      l.activeView === "switcher" ? ($(), z("div", Vd, [
         S(i(Dn), { size: 18 }),
         m(
           "span",
@@ -7265,7 +7251,7 @@ const _u = me("back", !0, function(e) {
           1
           /* TEXT */
         )
-      ])) : ($(), z("div", Kd, [
+      ])) : ($(), z("div", Hd, [
         m("button", {
           type: "button",
           class: "flat-icon",
@@ -7273,7 +7259,7 @@ const _u = me("back", !0, function(e) {
           onClick: r[0] || (r[0] = (s) => n("back"))
         }, [
           S(i(_u), { size: 20 })
-        ], 8, Bd),
+        ], 8, Gd),
         m(
           "span",
           null,
@@ -7282,7 +7268,7 @@ const _u = me("back", !0, function(e) {
           /* TEXT */
         )
       ])),
-      l.activeView === "switcher" ? ($(), z("div", Yd, [
+      l.activeView === "switcher" ? ($(), z("div", Kd, [
         m("button", {
           type: "button",
           class: "icon-btn online-entry-btn",
@@ -7290,7 +7276,7 @@ const _u = me("back", !0, function(e) {
           onClick: r[1] || (r[1] = (s) => n("openWallhaven"))
         }, [
           S(i(Cu), { size: 18 })
-        ], 8, Zd),
+        ], 8, Bd),
         m("button", {
           type: "button",
           class: "icon-btn",
@@ -7298,8 +7284,8 @@ const _u = me("back", !0, function(e) {
           onClick: r[2] || (r[2] = (s) => n("close"))
         }, [
           S(i(sn), { size: 20 })
-        ], 8, Xd)
-      ])) : ($(), z("div", Jd, [
+        ], 8, Yd)
+      ])) : ($(), z("div", Zd, [
         m("div", {
           class: "source-toggle",
           role: "tablist",
@@ -7310,7 +7296,7 @@ const _u = me("back", !0, function(e) {
             disabled: l.wallhavenLoading,
             "onUpdate:modelValue": r[3] || (r[3] = (s) => n("setWallhavenSource", s))
           }, null, 8, ["model-value", "disabled"])
-        ], 8, qd),
+        ], 8, Xd),
         m("button", {
           type: "button",
           class: "icon-btn",
@@ -7318,26 +7304,26 @@ const _u = me("back", !0, function(e) {
           onClick: r[4] || (r[4] = (s) => n("close"))
         }, [
           S(i(sn), { size: 20 })
-        ], 8, Qd)
+        ], 8, Jd)
       ]))
     ]));
   }
-}), tf = { class: "wallhaven-view" }, nf = { class: "filters filters--preview-style" }, af = { class: "search-box wallhaven-search" }, lf = ["value", "placeholder"], rf = ["title"], sf = ["aria-label"], of = ["disabled", "onClick"], cf = { class: "wallhaven-meta" }, uf = ["title"], df = { class: "grid-wrap" }, ff = {
+}), Qd = { class: "wallhaven-view" }, ef = { class: "filters filters--preview-style" }, tf = { class: "search-box wallhaven-search" }, nf = ["value", "placeholder"], af = ["title"], lf = ["aria-label"], rf = ["disabled", "onClick"], sf = { class: "wallhaven-meta" }, of = ["title"], cf = { class: "grid-wrap" }, uf = {
   key: 0,
   class: "empty-state"
-}, hf = {
+}, df = {
   key: 1,
   class: "empty-state error-state"
-}, pf = {
+}, ff = {
   key: 2,
   class: "empty-state"
-}, mf = {
+}, hf = {
   key: 3,
   class: "wallpaper-grid"
-}, gf = ["onClick"], wf = {
+}, pf = ["onClick"], mf = {
   key: 0,
   class: "thumb-skeleton"
-}, vf = ["alt", "onLoad"], _f = ["title", "onClick"], bf = ["title", "disabled", "onClick"], yf = ["title", "disabled", "onClick"], kf = { class: "pager" }, Cf = { class: "source-note" }, Sf = { class: "pager-actions" }, Lf = ["disabled"], Ef = ["disabled"], Tf = /* @__PURE__ */ ae({
+}, gf = ["alt", "onLoad"], wf = ["title", "onClick"], vf = ["title", "disabled", "onClick"], _f = ["title", "disabled", "onClick"], bf = { class: "pager" }, yf = { class: "source-note" }, kf = { class: "pager-actions" }, Cf = ["disabled"], Sf = ["disabled"], Lf = /* @__PURE__ */ ae({
   __name: "WallhavenView",
   props: {
     keyword: {},
@@ -7361,16 +7347,16 @@ const _u = me("back", !0, function(e) {
       { value: "people", labelKey: "wallpaperSwitcher.categories.people" },
       { value: "nature", labelKey: "wallpaperSwitcher.categories.nature" }
     ], r = (s) => n("update:keyword", s.target.value);
-    return (s, c) => ($(), z("div", tf, [
-      m("section", nf, [
-        m("div", af, [
+    return (s, c) => ($(), z("div", Qd, [
+      m("section", ef, [
+        m("div", tf, [
           m("input", {
             value: s.keyword,
             type: "text",
             placeholder: i(a)("wallpaperSwitcher.searchPlaceholder"),
             onInput: r,
             onKeydown: c[0] || (c[0] = sl((d) => n("refresh"), ["enter"]))
-          }, null, 40, lf),
+          }, null, 40, nf),
           S(i(fr), {
             size: 16,
             class: "search-icon"
@@ -7383,7 +7369,7 @@ const _u = me("back", !0, function(e) {
             onClick: c[1] || (c[1] = (d) => n("update:keyword", ""))
           }, [
             S(i(sn), { size: 18 })
-          ], 8, rf)) : we("v-if", !0)
+          ], 8, af)) : we("v-if", !0)
         ]),
         m("div", {
           class: "wallhaven-tabs",
@@ -7399,12 +7385,12 @@ const _u = me("back", !0, function(e) {
               class: Z({ active: s.category === d.value }),
               disabled: s.loading,
               onClick: (h) => n("setCategory", d.value)
-            }, N(i(a)(d.labelKey)), 11, of)),
+            }, N(i(a)(d.labelKey)), 11, rf)),
             64
             /* STABLE_FRAGMENT */
           ))
-        ], 8, sf),
-        m("div", cf, [
+        ], 8, lf),
+        m("div", sf, [
           m(
             "span",
             null,
@@ -7422,17 +7408,17 @@ const _u = me("back", !0, function(e) {
               size: 14,
               class: Z({ spinning: s.loading })
             }, null, 8, ["class"])
-          ], 8, uf)
+          ], 8, of)
         ])
       ]),
-      m("section", df, [
+      m("section", cf, [
         s.loading && s.wallpapers.length === 0 ? ($(), z(
           "div",
-          ff,
+          uf,
           N(i(a)("wallpaperSwitcher.loadingWallhaven")),
           1
           /* TEXT */
-        )) : s.error ? ($(), z("div", hf, [
+        )) : s.error ? ($(), z("div", df, [
           m(
             "span",
             null,
@@ -7452,11 +7438,11 @@ const _u = me("back", !0, function(e) {
           )
         ])) : s.wallpapers.length === 0 ? ($(), z(
           "div",
-          pf,
+          ff,
           N(i(a)("wallpaperSwitcher.noWallpapers")),
           1
           /* TEXT */
-        )) : ($(), z("div", mf, [
+        )) : ($(), z("div", hf, [
           ($(!0), z(
             Ge,
             null,
@@ -7469,14 +7455,14 @@ const _u = me("back", !0, function(e) {
                 class: "thumb",
                 onClick: (h) => n("openPreview", d)
               }, [
-                s.loadedThumbIds.has(d.id) ? we("v-if", !0) : ($(), z("div", wf)),
+                s.loadedThumbIds.has(d.id) ? we("v-if", !0) : ($(), z("div", mf)),
                 m("img", {
                   ref_for: !0,
                   ref: (h) => s.setThumbRef(d, h),
                   alt: d.resolution,
                   loading: "lazy",
                   onLoad: (h) => n("markThumbLoaded", d.id)
-                }, null, 40, vf),
+                }, null, 40, gf),
                 m(
                   "span",
                   null,
@@ -7484,7 +7470,7 @@ const _u = me("back", !0, function(e) {
                   1
                   /* TEXT */
                 )
-              ], 8, gf),
+              ], 8, pf),
               m("div", {
                 class: "card-actions",
                 onClick: c[4] || (c[4] = Dt(() => {
@@ -7501,7 +7487,7 @@ const _u = me("back", !0, function(e) {
                     1
                     /* TEXT */
                   )
-                ], 8, _f),
+                ], 8, wf),
                 m("button", {
                   type: "button",
                   title: i(a)("wallpaperSwitcher.setWallpaper"),
@@ -7514,7 +7500,7 @@ const _u = me("back", !0, function(e) {
                     1
                     /* TEXT */
                   )
-                ], 8, bf),
+                ], 8, vf),
                 m("button", {
                   type: "button",
                   title: i(a)("wallpaperSwitcher.download"),
@@ -7527,7 +7513,7 @@ const _u = me("back", !0, function(e) {
                     1
                     /* TEXT */
                   )
-                ], 8, yf)
+                ], 8, _f)
               ])
             ]))),
             128
@@ -7535,7 +7521,7 @@ const _u = me("back", !0, function(e) {
           ))
         ]))
       ]),
-      m("footer", kf, [
+      m("footer", bf, [
         m(
           "span",
           null,
@@ -7545,33 +7531,33 @@ const _u = me("back", !0, function(e) {
         ),
         m(
           "span",
-          Cf,
+          yf,
           N(i(a)("wallpaperSwitcher.sourceNote", { source: s.sourceLabel })),
           1
           /* TEXT */
         ),
-        m("div", Sf, [
+        m("div", kf, [
           m("button", {
             type: "button",
             disabled: s.page <= 1 || s.loading,
             onClick: c[5] || (c[5] = (d) => n("prevPage"))
-          }, N(i(a)("wallpaperSwitcher.prevPage")), 9, Lf),
+          }, N(i(a)("wallpaperSwitcher.prevPage")), 9, Cf),
           m("button", {
             type: "button",
             disabled: s.page >= s.lastPage || s.loading,
             onClick: c[6] || (c[6] = (d) => n("nextPage"))
-          }, N(i(a)("wallpaperSwitcher.nextPage")), 9, Ef)
+          }, N(i(a)("wallpaperSwitcher.nextPage")), 9, Sf)
         ])
       ])
     ]));
   }
-}), If = { class: "preview-dialog" }, Nf = { class: "preview-image-wrap" }, Pf = {
+}), Ef = { class: "preview-dialog" }, Tf = { class: "preview-image-wrap" }, If = {
   key: 0,
   class: "preview-skeleton"
-}, Of = {
+}, Nf = {
   key: 1,
   class: "preview-error"
-}, Af = ["src", "alt"], Ff = ["disabled"], Mf = ["disabled"], Wf = /* @__PURE__ */ ae({
+}, Pf = ["src", "alt"], Of = ["disabled"], Af = ["disabled"], Ff = /* @__PURE__ */ ae({
   __name: "WallpaperPreviewModal",
   props: {
     wallpaper: {},
@@ -7587,7 +7573,7 @@ const _u = me("back", !0, function(e) {
       class: "preview-modal",
       onClick: r[5] || (r[5] = Dt((s) => n("close"), ["self"]))
     }, [
-      m("div", If, [
+      m("div", Ef, [
         m("header", null, [
           m(
             "strong",
@@ -7604,8 +7590,8 @@ const _u = me("back", !0, function(e) {
             S(i(sn), { size: 23 })
           ])
         ]),
-        m("div", Nf, [
-          l.loading ? ($(), z("div", Pf, [
+        m("div", Tf, [
+          l.loading ? ($(), z("div", If, [
             m(
               "span",
               null,
@@ -7616,7 +7602,7 @@ const _u = me("back", !0, function(e) {
           ])) : we("v-if", !0),
           l.loadFailed ? ($(), z(
             "div",
-            Of,
+            Nf,
             N(i(a)("wallpaperSwitcher.previewLoadFailed")),
             1
             /* TEXT */
@@ -7627,7 +7613,7 @@ const _u = me("back", !0, function(e) {
             alt: i(a)("wallpaperSwitcher.wallpaperPreviewAlt"),
             onLoad: r[1] || (r[1] = (s) => n("loaded")),
             onError: r[2] || (r[2] = (s) => n("failed"))
-          }, null, 42, Af)
+          }, null, 42, Pf)
         ]),
         m("footer", null, [
           m("button", {
@@ -7635,21 +7621,21 @@ const _u = me("back", !0, function(e) {
             class: "secondary-btn",
             disabled: l.workingIds.has(l.wallpaper.id),
             onClick: r[3] || (r[3] = (s) => n("download", l.wallpaper))
-          }, N(i(a)("wallpaperSwitcher.downloadCache")), 9, Ff),
+          }, N(i(a)("wallpaperSwitcher.downloadCache")), 9, Of),
           m("button", {
             type: "button",
             class: "primary-btn",
             disabled: l.workingIds.has(l.wallpaper.id),
             onClick: r[4] || (r[4] = (s) => n("setWallpaper", l.wallpaper))
-          }, N(l.workingIds.has(l.wallpaper.id) ? i(a)("wallpaperSwitcher.setting") : i(a)("wallpaperSwitcher.setWallpaper")), 9, Mf)
+          }, N(l.workingIds.has(l.wallpaper.id) ? i(a)("wallpaperSwitcher.setting") : i(a)("wallpaperSwitcher.setWallpaper")), 9, Af)
         ])
       ])
     ])) : we("v-if", !0);
   }
-}), Rf = { class: "wallpaper-window" }, $f = {
+}), Mf = { class: "wallpaper-window" }, Wf = {
   key: 0,
   class: "unsupported"
-}, Df = /* @__PURE__ */ ae({
+}, Rf = /* @__PURE__ */ ae({
   __name: "index",
   setup(e) {
     const t = ul(), { t: n } = Pe(), a = U(lu()), l = U(null), r = U(null), s = U(!1), c = U(!1), d = U(!1), h = U(!1), v = U(!1), k = U(!1), L = async () => {
@@ -7830,8 +7816,8 @@ const _u = me("back", !0, function(e) {
     return Lt(async () => {
       await u(), await ze();
     }), xn(() => {
-    }), (R, fe) => ($(), z("main", Rf, [
-      S(ef, {
+    }), (R, fe) => ($(), z("main", Mf, [
+      S(qd, {
         "active-view": i(W),
         "wallhaven-source": i(P),
         "wallhaven-loading": i(o),
@@ -7842,12 +7828,12 @@ const _u = me("back", !0, function(e) {
       }, null, 8, ["active-view", "wallhaven-source", "wallhaven-loading", "onBack", "onOpenWallhaven", "onSetWallhavenSource"]),
       i(l) && !i(l).supported ? ($(), z(
         "section",
-        $f,
+        Wf,
         N(i(n)("wallpaperSwitcher.unsupported")),
         1
         /* TEXT */
       )) : we("v-if", !0),
-      i(W) === "switcher" ? ($(), Se(Vd, {
+      i(W) === "switcher" ? ($(), Se(zd, {
         key: 1,
         config: i(a),
         loading: i(s),
@@ -7875,7 +7861,7 @@ const _u = me("back", !0, function(e) {
         onClearCache: B,
         onOpenCacheDir: te,
         onPersistConfig: f
-      }, null, 8, ["config", "loading", "preview-src", "current-wallpaper-name", "source-label", "resolution-label", "next-switch-label", "folder-count-label", "screen-label", "cache-size-label", "switching", "fitting", "clearing-cache", "opening-cache", "saving", "onOpenWallhavenGrid"])) : ($(), Se(Tf, {
+      }, null, 8, ["config", "loading", "preview-src", "current-wallpaper-name", "source-label", "resolution-label", "next-switch-label", "folder-count-label", "screen-label", "cache-size-label", "switching", "fitting", "clearing-cache", "opening-cache", "saving", "onOpenWallhavenGrid"])) : ($(), Se(Lf, {
         key: 2,
         keyword: i(w),
         "onUpdate:keyword": fe[0] || (fe[0] = (na) => ll(w) ? w.value = na : null),
@@ -7899,7 +7885,7 @@ const _u = me("back", !0, function(e) {
         onPrevPage: i(et),
         onNextPage: i(tt)
       }, null, 8, ["keyword", "category", "loading", "error", "wallpapers", "loaded-thumb-ids", "working-ids", "page", "last-page", "source-label", "screen-label", "set-thumb-ref", "onRefresh", "onSetCategory", "onOpenPreview", "onMarkThumbLoaded", "onSetWallpaper", "onDownloadWallpaper", "onPrevPage", "onNextPage"])),
-      S(Wf, {
+      S(Ff, {
         wallpaper: i(A),
         loading: i(b),
         "load-failed": i(q),
@@ -7912,10 +7898,10 @@ const _u = me("back", !0, function(e) {
       }, null, 8, ["wallpaper", "loading", "load-failed", "working-ids", "onClose", "onLoaded", "onFailed", "onDownload", "onSetWallpaper"])
     ]));
   }
-}), jf = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), $f = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: Df
+  default: Rf
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  zf as activate
+  jf as activate
 };

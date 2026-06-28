@@ -221,7 +221,6 @@ static WALLPAPER_STATUS: Mutex<RuntimeStatus> = Mutex::new(RuntimeStatus {
 static SCHEDULER_RUNNING: Mutex<bool> = Mutex::new(false);
 static SCHEDULER_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
 static ACTIVE_SCHEDULER_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
-static TASKBAR_TRANSPARENCY_APPLY_SEQ: AtomicU64 = AtomicU64::new(0);
 static RANDOM_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn require_enabled(app_handle: &AppHandle) -> Result<(), String> {
@@ -538,185 +537,6 @@ fn wide_null(value: &str) -> Vec<u16> {
         .collect()
 }
 
-const TASKBAR_TRANSPARENCY_REGISTRY_PATH: &str =
-    "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced";
-const TASKBAR_TRANSPARENCY_REGISTRY_VALUE: &str = "UseOLEDTaskbarTransparency";
-const SYSTEM_TRANSPARENCY_REGISTRY_PATH: &str =
-    "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
-const SYSTEM_TRANSPARENCY_REGISTRY_VALUE: &str = "EnableTransparency";
-
-fn read_hkcu_u32_registry_value(path: &str, value_name: &str) -> Result<Option<u32>, String> {
-    use winreg::enums::KEY_READ;
-
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let advanced = match hkcu.open_subkey_with_flags(path, KEY_READ) {
-        Ok(key) => key,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("无法打开注册表项 {}: {}", path, error)),
-    };
-
-    match advanced.get_value::<u32, _>(value_name) {
-        Ok(value) => Ok(Some(value)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(format!("读取注册表值 {} 失败: {}", value_name, error)),
-    }
-}
-
-fn write_hkcu_u32_registry_value(
-    path: &str,
-    value_name: &str,
-    enabled: bool,
-    restore_previous: Option<(bool, Option<u32>)>,
-) -> Result<(), String> {
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let (advanced, _) = hkcu
-        .create_subkey(path)
-        .map_err(|e| format!("无法打开注册表项 {}: {}", path, e))?;
-
-    if enabled {
-        advanced
-            .set_value(value_name, &1u32)
-            .map_err(|e| format!("写入注册表值 {} 失败: {}", value_name, e))?;
-        info!(
-            "[WallpaperSwitcher][TaskbarTransparent] registry {} set to 1",
-            value_name
-        );
-        return Ok(());
-    }
-
-    match restore_previous {
-        Some((true, Some(value))) => {
-            advanced
-                .set_value(value_name, &value)
-                .map_err(|e| format!("恢复注册表值 {} 失败: {}", value_name, e))?;
-            info!(
-                "[WallpaperSwitcher][TaskbarTransparent] registry {} restored to {}",
-                value_name, value
-            );
-        }
-        Some((false, _)) => match advanced.delete_value(value_name) {
-            Ok(_) => info!(
-                "[WallpaperSwitcher][TaskbarTransparent] registry {} deleted for restore",
-                value_name
-            ),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("删除注册表值 {} 失败: {}", value_name, error)),
-        },
-        _ => {
-            advanced
-                .set_value(value_name, &0u32)
-                .map_err(|e| format!("关闭注册表值 {} 失败: {}", value_name, e))?;
-            info!(
-                "[WallpaperSwitcher][TaskbarTransparent] registry {} set to 0",
-                value_name
-            );
-        }
-    }
-
-    Ok(())
-}
-
-fn read_taskbar_transparency_registry_value() -> Result<Option<u32>, String> {
-    read_hkcu_u32_registry_value(
-        TASKBAR_TRANSPARENCY_REGISTRY_PATH,
-        TASKBAR_TRANSPARENCY_REGISTRY_VALUE,
-    )
-}
-
-fn read_system_transparency_registry_value() -> Result<Option<u32>, String> {
-    read_hkcu_u32_registry_value(
-        SYSTEM_TRANSPARENCY_REGISTRY_PATH,
-        SYSTEM_TRANSPARENCY_REGISTRY_VALUE,
-    )
-}
-
-fn write_taskbar_transparency_registry_value(
-    enabled: bool,
-    restore_previous: Option<(bool, Option<u32>)>,
-) -> Result<(), String> {
-    write_hkcu_u32_registry_value(
-        TASKBAR_TRANSPARENCY_REGISTRY_PATH,
-        TASKBAR_TRANSPARENCY_REGISTRY_VALUE,
-        enabled,
-        restore_previous,
-    )
-}
-
-fn write_system_transparency_registry_value(
-    enabled: bool,
-    restore_previous: Option<(bool, Option<u32>)>,
-) -> Result<(), String> {
-    write_hkcu_u32_registry_value(
-        SYSTEM_TRANSPARENCY_REGISTRY_PATH,
-        SYSTEM_TRANSPARENCY_REGISTRY_VALUE,
-        enabled,
-        restore_previous,
-    )
-}
-
-fn broadcast_taskbar_transparency_settings_changed() {
-    use windows::Win32::Foundation::{LPARAM, WPARAM};
-    use windows::Win32::UI::WindowsAndMessaging::{
-        PostMessageW, SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
-        WM_THEMECHANGED,
-    };
-
-    unsafe {
-        let mut result = 0;
-        for message in ["ImmersiveColorSet", "WindowsThemeElement", "Personalize"] {
-            let wide = wide_null(message);
-            let _ = SendMessageTimeoutW(
-                HWND_BROADCAST,
-                WM_SETTINGCHANGE,
-                WPARAM(0),
-                LPARAM(wide.as_ptr() as isize),
-                SMTO_ABORTIFHUNG,
-                500,
-                Some(&mut result),
-            );
-        }
-
-        let _ = PostMessageW(Some(HWND_BROADCAST), WM_THEMECHANGED, WPARAM(0), LPARAM(0));
-    }
-
-    info!("[WallpaperSwitcher][TaskbarTransparent] system setting change broadcast sent");
-}
-
-fn run_best_effort_refresh_command(program: &str, args: &[&str], label: &str) {
-    match Command::new(program).args(args).output() {
-        Ok(output) if output.status.success() => {
-            info!(
-                "[WallpaperSwitcher][TaskbarTransparent] explorer visual refresh command succeeded: {}",
-                label
-            );
-        }
-        Ok(output) => {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            warn!(
-                "[WallpaperSwitcher][TaskbarTransparent] explorer visual refresh command failed: {} status={:?} stderr={}",
-                label,
-                output.status.code(),
-                stderr
-            );
-        }
-        Err(error) => {
-            warn!(
-                "[WallpaperSwitcher][TaskbarTransparent] explorer visual refresh command unavailable: {} error={}",
-                label, error
-            );
-        }
-    }
-}
-
-fn refresh_explorer_visual_settings() {
-    run_best_effort_refresh_command("ie4uinit.exe", &["-show"], "ie4uinit.exe -show");
-    run_best_effort_refresh_command(
-        "rundll32.exe",
-        &["user32.dll,UpdatePerUserSystemParameters"],
-        "rundll32.exe user32.dll,UpdatePerUserSystemParameters",
-    );
-}
-
 fn taskbar_agent_base_dir() -> PathBuf {
     env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
@@ -724,8 +544,22 @@ fn taskbar_agent_base_dir() -> PathBuf {
         .join("snippets-code")
 }
 
+const TASKBAR_AGENT_PROTOCOL_VERSION: u32 = 12;
+
 fn taskbar_agent_state_file() -> PathBuf {
-    taskbar_agent_base_dir().join("taskbar-transparency-agent.state")
+    taskbar_agent_base_dir().join(format!(
+        "taskbar-transparency-agent-v{TASKBAR_AGENT_PROTOCOL_VERSION}.state"
+    ))
+}
+
+fn taskbar_agent_legacy_state_files() -> Vec<PathBuf> {
+    let base = taskbar_agent_base_dir();
+    let mut files = vec![base.join("taskbar-transparency-agent.state")];
+    files.extend(
+        (2..TASKBAR_AGENT_PROTOCOL_VERSION)
+            .map(|version| base.join(format!("taskbar-transparency-agent-v{version}.state"))),
+    );
+    files
 }
 
 fn taskbar_agent_log_file() -> PathBuf {
@@ -735,6 +569,9 @@ fn taskbar_agent_log_file() -> PathBuf {
 fn write_taskbar_agent_state(enabled: bool, acrylic: bool) -> Result<(), String> {
     let dir = taskbar_agent_base_dir();
     fs::create_dir_all(&dir).map_err(|e| format!("创建任务栏透明 agent 状态目录失败: {}", e))?;
+    for legacy_file in taskbar_agent_legacy_state_files() {
+        let _ = fs::write(legacy_file, "transparent=0\nacrylic=0\n");
+    }
     fs::write(
         taskbar_agent_state_file(),
         format!(
@@ -743,7 +580,7 @@ fn write_taskbar_agent_state(enabled: bool, acrylic: bool) -> Result<(), String>
             if acrylic { "1" } else { "0" }
         ),
     )
-        .map_err(|e| format!("写入任务栏透明 agent 状态失败: {}", e))
+    .map_err(|e| format!("写入任务栏透明 agent 状态失败: {}", e))
 }
 
 fn taskbar_agent_candidate_paths() -> Vec<PathBuf> {
@@ -1021,337 +858,6 @@ fn inject_taskbar_agent_into_explorer(enabled: bool, acrylic: bool) -> Result<()
     Ok(())
 }
 
-fn set_taskbar_transparency(enabled: bool) -> Result<(), String> {
-    use windows::core::PCWSTR;
-    use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
-    use windows::Win32::UI::WindowsAndMessaging::{
-        EnumChildWindows, FindWindowExW, FindWindowW, GetClassNameW,
-    };
-
-    let attempt_id = TASKBAR_TRANSPARENCY_APPLY_SEQ.fetch_add(1, Ordering::Relaxed) + 1;
-    info!(
-        "[WallpaperSwitcher][TaskbarTransparent#{}] start enabled={}",
-        attempt_id, enabled
-    );
-
-    #[repr(C)]
-    struct AccentPolicy {
-        accent_state: i32,
-        accent_flags: i32,
-        gradient_color: u32,
-        animation_id: i32,
-    }
-
-    #[repr(C)]
-    struct WindowCompositionAttribData {
-        attribute: i32,
-        data: *mut core::ffi::c_void,
-        size_of_data: usize,
-    }
-
-    const WCA_ACCENT_POLICY: i32 = 19;
-    const ACCENT_DISABLED: i32 = 0;
-    const ACCENT_ENABLE_TRANSPARENTGRADIENT: i32 = 2;
-    const ACCENT_ENABLE_ACRYLICBLURBEHIND: i32 = 4;
-    const CLEAR_GRADIENT_COLOR: u32 = 0x00000000;
-    const NEAR_CLEAR_ACRYLIC_COLOR: u32 = 0x01000000;
-
-    type SetWindowCompositionAttributeFn =
-        unsafe extern "system" fn(HWND, *mut WindowCompositionAttribData) -> BOOL;
-
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn LoadLibraryW(module_name: PCWSTR) -> *mut core::ffi::c_void;
-        fn GetProcAddress(
-            module: *mut core::ffi::c_void,
-            proc_name: *const u8,
-        ) -> *mut core::ffi::c_void;
-    }
-
-    unsafe fn load_set_window_composition_attribute(
-        attempt_id: u64,
-    ) -> Option<SetWindowCompositionAttributeFn> {
-        let user32 = wide_null("user32.dll");
-        let module = LoadLibraryW(PCWSTR(user32.as_ptr()));
-        if module.is_null() {
-            warn!(
-                "[WallpaperSwitcher][TaskbarTransparent#{}] LoadLibraryW(user32.dll) failed",
-                attempt_id
-            );
-            return None;
-        }
-
-        let proc = GetProcAddress(
-            module,
-            c"SetWindowCompositionAttribute".as_ptr() as *const u8,
-        );
-        if proc.is_null() {
-            warn!(
-                "[WallpaperSwitcher][TaskbarTransparent#{}] GetProcAddress(SetWindowCompositionAttribute) failed",
-                attempt_id
-            );
-            return None;
-        }
-
-        info!(
-            "[WallpaperSwitcher][TaskbarTransparent#{}] SetWindowCompositionAttribute loaded",
-            attempt_id
-        );
-        Some(std::mem::transmute::<
-            *mut core::ffi::c_void,
-            SetWindowCompositionAttributeFn,
-        >(proc))
-    }
-
-    unsafe fn apply_accent_policy(
-        set_window_composition_attribute: SetWindowCompositionAttributeFn,
-        hwnd: HWND,
-        accent_state: i32,
-        accent_flags: i32,
-        gradient_color: u32,
-    ) -> bool {
-        if hwnd.is_invalid() {
-            return false;
-        }
-
-        let mut accent = AccentPolicy {
-            accent_state,
-            accent_flags,
-            gradient_color,
-            animation_id: 0,
-        };
-        let mut data = WindowCompositionAttribData {
-            attribute: WCA_ACCENT_POLICY,
-            data: &mut accent as *mut AccentPolicy as *mut core::ffi::c_void,
-            size_of_data: std::mem::size_of::<AccentPolicy>(),
-        };
-
-        set_window_composition_attribute(hwnd, &mut data).as_bool()
-    }
-
-    unsafe fn hwnd_class_name(hwnd: HWND) -> String {
-        let mut buffer = [0u16; 256];
-        let len = GetClassNameW(hwnd, &mut buffer);
-        if len <= 0 {
-            return "<unknown>".to_string();
-        }
-        String::from_utf16_lossy(&buffer[..len as usize])
-    }
-
-    unsafe fn apply_clear_to_hwnd(
-        set_window_composition_attribute: SetWindowCompositionAttributeFn,
-        hwnd: HWND,
-    ) -> (bool, bool, bool) {
-        // Reset first. Windows 11 sometimes keeps the taskbar material from a
-        // previous composition state unless the accent policy is cleared.
-        let reset_applied = apply_accent_policy(
-            set_window_composition_attribute,
-            hwnd,
-            ACCENT_DISABLED,
-            0,
-            CLEAR_GRADIENT_COLOR,
-        );
-
-        let transparent_applied = apply_accent_policy(
-            set_window_composition_attribute,
-            hwnd,
-            ACCENT_ENABLE_TRANSPARENTGRADIENT,
-            2,
-            CLEAR_GRADIENT_COLOR,
-        );
-
-        // Some Windows 11 taskbar surfaces report success for transparent
-        // gradient but continue drawing their material. A near-zero alpha
-        // acrylic pass gives those surfaces a visible translucent state without
-        // touching registry or broadcasting system theme changes.
-        let acrylic_applied = apply_accent_policy(
-            set_window_composition_attribute,
-            hwnd,
-            ACCENT_ENABLE_ACRYLICBLURBEHIND,
-            2,
-            NEAR_CLEAR_ACRYLIC_COLOR,
-        );
-
-        (reset_applied, transparent_applied, acrylic_applied)
-    }
-
-    unsafe fn restore_hwnd(
-        set_window_composition_attribute: SetWindowCompositionAttributeFn,
-        hwnd: HWND,
-    ) -> bool {
-        apply_accent_policy(
-            set_window_composition_attribute,
-            hwnd,
-            ACCENT_DISABLED,
-            0,
-            CLEAR_GRADIENT_COLOR,
-        )
-    }
-
-    unsafe extern "system" fn enum_child_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let taskbars = &mut *(lparam.0 as *mut Vec<HWND>);
-        taskbars.push(hwnd);
-        BOOL(1)
-    }
-
-    fn push_unique_window(taskbars: &mut Vec<HWND>, seen: &mut HashSet<isize>, hwnd: HWND) {
-        if hwnd.is_invalid() {
-            return;
-        }
-        let id = hwnd.0 as isize;
-        if seen.insert(id) {
-            taskbars.push(hwnd);
-        }
-    }
-
-    let primary_class = wide_null("Shell_TrayWnd");
-    let secondary_class = wide_null("Shell_SecondaryTrayWnd");
-    let mut taskbars = Vec::new();
-    let mut seen = HashSet::new();
-    let mut root_count = 0usize;
-
-    unsafe {
-        if let Ok(primary) = FindWindowW(PCWSTR(primary_class.as_ptr()), PCWSTR::null()) {
-            if !primary.is_invalid() {
-                root_count += 1;
-            }
-            push_unique_window(&mut taskbars, &mut seen, primary);
-        }
-
-        let mut previous_secondary = None;
-        loop {
-            match FindWindowExW(
-                None,
-                previous_secondary,
-                PCWSTR(secondary_class.as_ptr()),
-                PCWSTR::null(),
-            ) {
-                Ok(secondary) if !secondary.is_invalid() => {
-                    root_count += 1;
-                    push_unique_window(&mut taskbars, &mut seen, secondary);
-                    previous_secondary = Some(secondary);
-                }
-                _ => break,
-            }
-        }
-
-        let root_taskbars = taskbars.clone();
-        for root in root_taskbars {
-            let mut children = Vec::new();
-            let _ = EnumChildWindows(
-                Some(root),
-                Some(enum_child_windows_callback),
-                LPARAM(&mut children as *mut Vec<HWND> as isize),
-            );
-            for child in children {
-                push_unique_window(&mut taskbars, &mut seen, child);
-            }
-        }
-    }
-
-    if taskbars.is_empty() {
-        warn!(
-            "[WallpaperSwitcher][TaskbarTransparent#{}] no Shell_TrayWnd/Shell_SecondaryTrayWnd window found",
-            attempt_id
-        );
-        return Err("找不到 Windows 任务栏窗口".to_string());
-    }
-
-    let window_descriptions = taskbars
-        .iter()
-        .map(|hwnd| unsafe { format!("{:p}:{}", hwnd.0, hwnd_class_name(*hwnd)) })
-        .collect::<Vec<_>>();
-    info!(
-        "[WallpaperSwitcher][TaskbarTransparent#{}] discovered windows root_count={} total_with_children={} windows={}",
-        attempt_id,
-        root_count,
-        window_descriptions.len(),
-        window_descriptions.join(", ")
-    );
-
-    let set_window_composition_attribute =
-        unsafe { load_set_window_composition_attribute(attempt_id) }
-            .ok_or_else(|| "当前系统不支持任务栏透明效果".to_string())?;
-
-    let mut applied_count = 0usize;
-    let mut failed_count = 0usize;
-    let mut composition_surface_failed = false;
-    for hwnd in taskbars {
-        let class_name = unsafe { hwnd_class_name(hwnd) };
-        let applied = if enabled {
-            let (reset_applied, transparent_applied, acrylic_applied) =
-                unsafe { apply_clear_to_hwnd(set_window_composition_attribute, hwnd) };
-            let applied = reset_applied || transparent_applied || acrylic_applied;
-            log::debug!(
-                "[WallpaperSwitcher][TaskbarTransparent#{}] hwnd={:p} class={} reset={} transparent={} acrylic={} applied={}",
-                attempt_id,
-                hwnd.0,
-                class_name,
-                reset_applied,
-                transparent_applied,
-                acrylic_applied,
-                applied
-            );
-            applied
-        } else {
-            let restored = unsafe { restore_hwnd(set_window_composition_attribute, hwnd) };
-            log::debug!(
-                "[WallpaperSwitcher][TaskbarTransparent#{}] hwnd={:p} class={} restore={} applied={}",
-                attempt_id,
-                hwnd.0,
-                class_name,
-                restored,
-                restored
-            );
-            restored
-        };
-
-        if applied {
-            applied_count += 1;
-        } else {
-            failed_count += 1;
-            if enabled
-                && matches!(
-                    class_name.as_str(),
-                    "Windows.UI.Core.CoreWindow"
-                        | "Windows.UI.Composition.DesktopWindowContentBridge"
-                        | "Windows.UI.Input.InputSite.WindowClass"
-                )
-            {
-                composition_surface_failed = true;
-            }
-            info!(
-                "[WallpaperSwitcher][TaskbarTransparent#{}] apply failed hwnd={:p} class={} enabled={}",
-                attempt_id, hwnd.0, class_name, enabled
-            );
-        }
-    }
-
-    info!(
-        "[WallpaperSwitcher][TaskbarTransparent#{}] finish enabled={} applied_count={} failed_count={}",
-        attempt_id, enabled, applied_count, failed_count
-    );
-
-    if applied_count > 0 && enabled {
-        info!(
-            "[WallpaperSwitcher][TaskbarTransparent#{}] Windows API accepted the runtime taskbar effect. If there is still no visible change, the current Windows taskbar surface likely ignores external AccentPolicy and may require an Explorer-integrated strategy.",
-            attempt_id
-        );
-    }
-
-    if applied_count == 0 {
-        return Err("应用任务栏透明效果失败".to_string());
-    }
-    if enabled && composition_surface_failed {
-        return Err(
-            "当前 Windows 任务栏的组合/XAML 绘制层拒绝运行时透明效果；外部 AccentPolicy 无法覆盖此任务栏表面。"
-                .to_string(),
-        );
-    }
-
-    Ok(())
-}
-
 fn apply_taskbar_transparency_preference(
     config: &WallpaperConfig,
     should_apply: bool,
@@ -1360,58 +866,11 @@ fn apply_taskbar_transparency_preference(
         return Ok(());
     }
 
-    let agent_injected =
-        match inject_taskbar_agent_into_explorer(config.taskbar_transparent, config.taskbar_acrylic)
-        {
-        Ok(()) => true,
-        Err(error) => {
-            warn!(
-                "[WallpaperSwitcher][TaskbarTransparentAgent] 内置 Explorer agent 注入失败，将继续使用系统/API 兜底: {}",
-                error
-            );
-            false
-        }
-    };
-
-    let restore_taskbar_previous = if config.taskbar_transparent {
-        None
-    } else {
-        Some((
-            config
-                .taskbar_transparency_registry_had_value
-                .unwrap_or(true),
-            config.taskbar_transparency_registry_previous_value,
-        ))
-    };
-    let restore_system_previous = if config.taskbar_transparent {
-        None
-    } else {
-        Some((
-            config
-                .system_transparency_registry_had_value
-                .unwrap_or(true),
-            config.system_transparency_registry_previous_value,
-        ))
-    };
-
-    write_system_transparency_registry_value(config.taskbar_transparent, restore_system_previous)?;
-    write_taskbar_transparency_registry_value(
-        config.taskbar_transparent,
-        restore_taskbar_previous,
-    )?;
-    broadcast_taskbar_transparency_settings_changed();
-    refresh_explorer_visual_settings();
-
-    if agent_injected {
-        info!(
-            "[WallpaperSwitcher][TaskbarTransparent] Explorer/XAML agent injected; skipping external AccentPolicy fallback to avoid a black acrylic layer under the transparent XAML surface"
-        );
-    } else if let Err(error) = set_taskbar_transparency(config.taskbar_transparent) {
-        info!(
-            "[WallpaperSwitcher][TaskbarTransparent] runtime AccentPolicy helper did not apply to all taskbar surfaces; registry/broadcast path remains active: {}",
-            error
-        );
-    }
+    inject_taskbar_agent_into_explorer(config.taskbar_transparent, config.taskbar_acrylic)?;
+    info!(
+        "[WallpaperSwitcher][TaskbarTransparent] Explorer/XAML object agent applied enabled={} acrylic={}; legacy registry/broadcast/AccentPolicy fallback removed",
+        config.taskbar_transparent, config.taskbar_acrylic
+    );
 
     Ok(())
 }
@@ -1432,7 +891,7 @@ fn restore_taskbar_transparency_system_default(config: &WallpaperConfig) {
         true,
     ) {
         warn!(
-            "[WallpaperSwitcher][TaskbarTransparent] 恢复系统级任务栏透明设置失败: {}",
+            "[WallpaperSwitcher][TaskbarTransparent] 恢复任务栏透明效果失败: {}",
             error
         );
     }
@@ -2705,55 +2164,13 @@ pub async fn wallpaper_save_config(
         || config.taskbar_transparent != current.taskbar_transparent
         || config.taskbar_acrylic != current.taskbar_acrylic;
 
-    if config.taskbar_transparent {
-        if current.taskbar_transparent {
-            config.taskbar_transparency_registry_had_value =
-                current.taskbar_transparency_registry_had_value;
-            config.taskbar_transparency_registry_previous_value =
-                current.taskbar_transparency_registry_previous_value;
-            config.system_transparency_registry_had_value =
-                current.system_transparency_registry_had_value;
-            config.system_transparency_registry_previous_value =
-                current.system_transparency_registry_previous_value;
-        } else {
-            let previous_system_value = read_system_transparency_registry_value()?;
-            config.system_transparency_registry_had_value = Some(previous_system_value.is_some());
-            config.system_transparency_registry_previous_value = previous_system_value;
-            let previous_taskbar_value = read_taskbar_transparency_registry_value()?;
-            config.taskbar_transparency_registry_had_value = Some(previous_taskbar_value.is_some());
-            config.taskbar_transparency_registry_previous_value = previous_taskbar_value;
-            info!(
-                "[WallpaperSwitcher][TaskbarTransparent] captured previous registry values system_exists={} system_value={:?} taskbar_exists={} taskbar_value={:?}",
-                config
-                    .system_transparency_registry_had_value
-                    .unwrap_or(false),
-                config.system_transparency_registry_previous_value,
-                config
-                    .taskbar_transparency_registry_had_value
-                    .unwrap_or(false),
-                config.taskbar_transparency_registry_previous_value
-            );
-        }
-    } else {
-        config.taskbar_transparency_registry_had_value =
-            current.taskbar_transparency_registry_had_value;
-        config.taskbar_transparency_registry_previous_value =
-            current.taskbar_transparency_registry_previous_value;
-        config.system_transparency_registry_had_value =
-            current.system_transparency_registry_had_value;
-        config.system_transparency_registry_previous_value =
-            current.system_transparency_registry_previous_value;
-    }
+    config.taskbar_transparency_registry_had_value = None;
+    config.taskbar_transparency_registry_previous_value = None;
+    config.system_transparency_registry_had_value = None;
+    config.system_transparency_registry_previous_value = None;
 
     save_config(&app_handle, &config)?;
     apply_taskbar_transparency_preference(&config, should_apply_taskbar)?;
-    if should_apply_taskbar && !config.taskbar_transparent {
-        config.taskbar_transparency_registry_had_value = None;
-        config.taskbar_transparency_registry_previous_value = None;
-        config.system_transparency_registry_had_value = None;
-        config.system_transparency_registry_previous_value = None;
-        save_config(&app_handle, &config)?;
-    }
     if config.schedule_enabled && config.auto_restore {
         start_scheduler(app_handle)?;
     } else {

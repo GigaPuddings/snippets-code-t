@@ -1117,10 +1117,7 @@ export default {
     autoRestore: 'Restore scheduled task on startup',
     operationOptions: 'Actions',
     taskbarTransparent: 'Transparent desktop taskbar',
-    taskbarTransparentHint:
-      'System-level setting: adjusts the taskbar background through the built-in Explorer/XAML agent; disabling restores the system default effect',
     taskbarAcrylic: 'Taskbar acrylic effect',
-    taskbarAcrylicHint: 'Use a translucent acrylic texture; turn off for a clear transparent effect',
     cache: 'Cache',
     wallhavenCache: 'Wallhaven cache',
     clearing: 'Clearing',

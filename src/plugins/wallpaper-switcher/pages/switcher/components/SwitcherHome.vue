@@ -362,9 +362,6 @@ const updateFolderSort = (event: Event) =>
           />
           {{ t('wallpaperSwitcher.taskbarTransparent') }}
         </label>
-        <span class="sub-label">
-          {{ t('wallpaperSwitcher.taskbarTransparentHint') }}
-        </span>
         <label class="checkbox-label">
           <input
             :checked="config.taskbarAcrylic"
@@ -374,9 +371,6 @@ const updateFolderSort = (event: Event) =>
           />
           {{ t('wallpaperSwitcher.taskbarAcrylic') }}
         </label>
-        <span class="sub-label">
-          {{ t('wallpaperSwitcher.taskbarAcrylicHint') }}
-        </span>
       </div>
     </section>
 
