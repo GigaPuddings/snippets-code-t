@@ -4,20 +4,22 @@ use futures::StreamExt;
 use log::{info, warn};
 use regex::Regex;
 use reqwest::{
-    header::{ACCEPT, CACHE_CONTROL, USER_AGENT},
+    header::{ACCEPT, CACHE_CONTROL},
     Client,
 };
-use scraper::{Html, Selector};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, LazyLock, Mutex,
 };
+use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, Window};
 use url::Url;
@@ -29,8 +31,8 @@ const RUNTIME_PLUGIN_ID: &str = "local-ai-llama-runtime";
 const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
-const DEFAULT_WEB_SEARCH_URL: &str = "https://html.duckduckgo.com/html/?q={query}";
-const LEGACY_WEB_SEARCH_URL: &str = "https://www.bing.com/search?q={query}";
+const DEFAULT_WEB_SEARCH_URL: &str = "https://www.bing.com/search?q={query}";
+const LEGACY_DUCKDUCKGO_WEB_SEARCH_URL: &str = "https://html.duckduckgo.com/html/?q={query}";
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
@@ -369,7 +371,9 @@ fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
     if config.max_tokens == 1024 {
         config.max_tokens = 0;
     }
-    if config.web_search_url.trim().is_empty() || config.web_search_url == LEGACY_WEB_SEARCH_URL {
+    if config.web_search_url.trim().is_empty()
+        || config.web_search_url == LEGACY_DUCKDUCKGO_WEB_SEARCH_URL
+    {
         config.web_search_url = default_web_search_url();
     }
     config
@@ -641,6 +645,370 @@ fn build_web_search_query(query: &str) -> String {
     )
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaywrightSearchLink {
+    title: String,
+    url: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaywrightPageExtraction {
+    text: String,
+    html: String,
+}
+
+struct PlaywrightMcpClient {
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+    next_id: u64,
+}
+
+impl Drop for PlaywrightMcpClient {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+fn playwright_mcp_command() -> Command {
+    #[cfg(windows)]
+    {
+        let mut command = Command::new("cmd.exe");
+        command.args([
+            "/C",
+            "npx",
+            "--yes",
+            "@playwright/mcp@latest",
+            "--headless",
+            "--isolated",
+            "--timeout-navigation",
+            "15000",
+            "--timeout-action",
+            "5000",
+        ]);
+        command.creation_flags(0x08000000);
+        command
+    }
+
+    #[cfg(not(windows))]
+    {
+        let mut command = Command::new("npx");
+        command.args([
+            "--yes",
+            "@playwright/mcp@latest",
+            "--headless",
+            "--isolated",
+            "--timeout-navigation",
+            "15000",
+            "--timeout-action",
+            "5000",
+        ]);
+        command
+    }
+}
+
+impl PlaywrightMcpClient {
+    fn start() -> Result<Self, String> {
+        let mut child = playwright_mcp_command()
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|error| {
+                format!(
+                    "启动 Playwright MCP 失败: {}。请确认 Node.js 18+ 与 npx 可用。",
+                    error
+                )
+            })?;
+        if let Some(stderr) = child.stderr.take() {
+            thread::spawn(move || {
+                let reader = BufReader::new(stderr);
+                for line in reader.lines().map_while(Result::ok) {
+                    warn!("[Plugin:local-ai] playwright-mcp: {}", line);
+                }
+            });
+        }
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| "Playwright MCP 标准输入不可用。".to_string())?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| "Playwright MCP 标准输出不可用。".to_string())?;
+        let mut client = Self {
+            child,
+            stdin,
+            stdout: BufReader::new(stdout),
+            next_id: 1,
+        };
+        client.initialize()?;
+        Ok(client)
+    }
+
+    fn initialize(&mut self) -> Result<(), String> {
+        self.send_request(
+            "initialize",
+            serde_json::json!({
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "snippets-code-local-ai",
+                    "version": env!("CARGO_PKG_VERSION")
+                }
+            }),
+        )?;
+        self.send_notification("notifications/initialized", serde_json::json!({}))
+    }
+
+    fn send_notification(&mut self, method: &str, params: Value) -> Result<(), String> {
+        let payload = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params
+        });
+        writeln!(self.stdin, "{payload}")
+            .and_then(|_| self.stdin.flush())
+            .map_err(|error| format!("发送 Playwright MCP 通知失败: {}", error))
+    }
+
+    fn send_request(&mut self, method: &str, params: Value) -> Result<Value, String> {
+        let request_id = self.next_id;
+        self.next_id += 1;
+        let payload = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": method,
+            "params": params
+        });
+        writeln!(self.stdin, "{payload}")
+            .and_then(|_| self.stdin.flush())
+            .map_err(|error| format!("发送 Playwright MCP 请求失败: {}", error))?;
+
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let read = self
+                .stdout
+                .read_line(&mut line)
+                .map_err(|error| format!("读取 Playwright MCP 响应失败: {}", error))?;
+            if read == 0 {
+                return Err("Playwright MCP 已退出，未返回响应。".to_string());
+            }
+            let value: Value = match serde_json::from_str(line.trim()) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            if value.get("id").and_then(Value::as_u64) != Some(request_id) {
+                continue;
+            }
+            if let Some(error) = value.get("error") {
+                let message = error
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("未知错误");
+                return Err(format!("Playwright MCP 调用失败: {}", message));
+            }
+            return Ok(value.get("result").cloned().unwrap_or(Value::Null));
+        }
+    }
+
+    fn call_tool(&mut self, name: &str, arguments: Value) -> Result<Value, String> {
+        self.send_request(
+            "tools/call",
+            serde_json::json!({
+                "name": name,
+                "arguments": arguments
+            }),
+        )
+    }
+}
+
+fn playwright_tool_text(result: &Value) -> Option<String> {
+    result
+        .get("content")
+        .and_then(Value::as_array)?
+        .iter()
+        .find_map(|item| {
+            (item.get("type").and_then(Value::as_str) == Some("text"))
+                .then(|| item.get("text").and_then(Value::as_str).map(str::to_string))
+                .flatten()
+        })
+}
+
+fn parse_playwright_evaluate_json<T: DeserializeOwned>(result: &Value) -> Result<T, String> {
+    let text = playwright_tool_text(result)
+        .ok_or_else(|| "Playwright MCP 未返回可解析的文本结果。".to_string())?;
+    let Some((_, result_text)) = text.split_once("### Result") else {
+        return Err("Playwright MCP evaluate 结果缺少 Result 区块。".to_string());
+    };
+    for line in result_text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with("### ") {
+            break;
+        }
+        if let Ok(serialized) = serde_json::from_str::<String>(line) {
+            return serde_json::from_str::<T>(&serialized)
+                .map_err(|error| format!("解析 Playwright MCP JSON 结果失败: {}", error));
+        }
+        return serde_json::from_str::<T>(line)
+            .map_err(|error| format!("解析 Playwright MCP JSON 结果失败: {}", error));
+    }
+    Err("Playwright MCP evaluate 结果为空。".to_string())
+}
+
+const PLAYWRIGHT_SEARCH_LINKS_SCRIPT: &str = r#"() => {
+  const compact = (value) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+  const anchors = Array.from(document.querySelectorAll('a[href]'));
+  const seen = new Set();
+  const results = [];
+  for (const anchor of anchors) {
+    const title = compact(anchor.innerText || anchor.textContent || anchor.getAttribute('aria-label'));
+    if (title.length < 3) continue;
+    let href = anchor.getAttribute('href') || anchor.href;
+    try {
+      href = new URL(href, location.href).href;
+    } catch {
+      continue;
+    }
+    if (seen.has(href)) continue;
+    seen.add(href);
+    results.push({ title, url: href });
+    if (results.length >= 16) break;
+  }
+  return JSON.stringify(results);
+}"#;
+
+const PLAYWRIGHT_PAGE_EXTRACTION_SCRIPT: &str = r#"() => {
+  const compact = (value, limit) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, limit);
+  const selectors = ['article', 'main', '[role="main"]', '.content', '#content', 'body'];
+  const candidates = selectors
+    .flatMap((selector) => Array.from(document.querySelectorAll(selector)))
+    .map((node) => compact(node.innerText || node.textContent, 1800))
+    .filter((text) => text.length >= 120)
+    .sort((a, b) => b.length - a.length);
+  const weatherHost = /(^|\.)weather\.com\.cn$/i.test(location.hostname);
+  return JSON.stringify({
+    text: candidates[0] || compact(document.body?.innerText || '', 1800),
+    html: weatherHost ? document.documentElement.outerHTML.slice(0, 500000) : ''
+  });
+}"#;
+
+fn playwright_mcp_search_sources(
+    search_url: String,
+    endpoint: Url,
+    max_results: u32,
+    current_weather: bool,
+) -> Result<Vec<LocalAiVerifiedSource>, String> {
+    let mut client = PlaywrightMcpClient::start()?;
+    client.call_tool(
+        "browser_navigate",
+        serde_json::json!({
+            "url": search_url
+        }),
+    )?;
+    let raw_links: Vec<PlaywrightSearchLink> = parse_playwright_evaluate_json(&client.call_tool(
+        "browser_evaluate",
+        serde_json::json!({
+            "function": PLAYWRIGHT_SEARCH_LINKS_SCRIPT
+        }),
+    )?)?;
+    let mut seen_urls = Vec::new();
+    let mut result_links = Vec::new();
+    for raw_link in raw_links {
+        let Ok(candidate) = Url::parse(&raw_link.url) else {
+            continue;
+        };
+        let Some(url) = resolve_search_result_url(endpoint.host_str(), candidate) else {
+            continue;
+        };
+        let title = compact_source_text(&raw_link.title, 240);
+        if title.len() < 3 || !matches!(url.scheme(), "http" | "https") {
+            continue;
+        }
+        if seen_urls.iter().any(|seen| seen == url.as_str()) {
+            continue;
+        }
+        seen_urls.push(url.as_str().to_string());
+        result_links.push((title, url));
+        if result_links.len() >= max_results.clamp(3, 5) as usize {
+            break;
+        }
+    }
+    if result_links.is_empty() {
+        return Err(
+            "Playwright MCP 未从搜索页面提取到可用结果链接；请更换搜索页面地址。".to_string(),
+        );
+    }
+    if current_weather {
+        result_links.sort_by_key(|(_, url)| {
+            !url.host_str().is_some_and(|host| {
+                host.eq_ignore_ascii_case("weather.com.cn") || host.ends_with(".weather.com.cn")
+            })
+        });
+    }
+
+    let mut results = Vec::new();
+    for (title, url) in result_links {
+        if client
+            .call_tool(
+                "browser_navigate",
+                serde_json::json!({
+                    "url": url.to_string()
+                }),
+            )
+            .is_err()
+        {
+            continue;
+        }
+        let extraction: PlaywrightPageExtraction =
+            match parse_playwright_evaluate_json(&client.call_tool(
+                "browser_evaluate",
+                serde_json::json!({
+                    "function": PLAYWRIGHT_PAGE_EXTRACTION_SCRIPT
+                }),
+            )?) {
+                Ok(extraction) => extraction,
+                Err(_) => continue,
+            };
+        if url.host_str().is_some_and(|host| {
+            host.eq_ignore_ascii_case("weather.com.cn") || host.ends_with(".weather.com.cn")
+        }) {
+            if let Some(snippet) = extract_weather_com_cn_observation(&extraction.html) {
+                results.push(LocalAiVerifiedSource {
+                    title: format!("{}（中国天气网实时观测）", title),
+                    url: url.to_string(),
+                    snippet,
+                    source: "中国天气网公开观测数据".to_string(),
+                    published_at: None,
+                });
+                continue;
+            }
+        }
+        let snippet = compact_source_text(&extraction.text, 1800);
+        if snippet.len() < 120 {
+            continue;
+        }
+        results.push(LocalAiVerifiedSource {
+            title,
+            url: url.to_string(),
+            snippet,
+            source: url.host_str().unwrap_or("网页").to_string(),
+            published_at: None,
+        });
+    }
+    if results.is_empty() {
+        return Err("Playwright MCP 已找到搜索结果，但未能从结果页面提取正文。".to_string());
+    }
+    Ok(results)
+}
+
 async fn search_verified_sources(
     app_handle: &AppHandle,
     query: &str,
@@ -676,149 +1044,13 @@ async fn search_verified_sources(
             }
         }
     }
-    let response = client
-        .get(search_url.clone())
-        .header(ACCEPT, "text/html,application/xhtml+xml")
-        .header(
-            USER_AGENT,
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
-        )
-        .send()
-        .await
-        .map_err(|error| format!("无法请求搜索页面（{}）: {}", endpoint, error))?
-        .error_for_status()
-        .map_err(|error| format!("搜索页面请求失败（{}）: {}", endpoint, error))?
-        .text()
-        .await
-        .map_err(|error| format!("无法读取搜索页面: {}", error))?;
-    if response.to_ascii_lowercase().contains("turnstile")
-        || response.to_ascii_lowercase().contains("captcha")
-    {
-        return Err(
-            "搜索页面要求人机验证，无法在后台解析；请改用不需要验证的搜索页面地址。".to_string(),
-        );
-    }
-    let result_selector = Selector::parse("li.b_algo h2 a, h2 a, h3 a, a")
-        .map_err(|_| "无法初始化搜索页面解析器。".to_string())?;
-    let result_links = {
-        let document = Html::parse_document(&response);
-        let mut seen_urls = Vec::new();
-        let mut links = Vec::new();
-        for link in document.select(&result_selector) {
-            let Some(href) = link.value().attr("href") else {
-                continue;
-            };
-            let Ok(candidate) = endpoint.join(href) else {
-                continue;
-            };
-            let Some(url) = resolve_search_result_url(endpoint.host_str(), candidate) else {
-                continue;
-            };
-            let title = compact_source_text(&link.text().collect::<String>(), 240);
-            if title.len() < 3 || !matches!(url.scheme(), "http" | "https") {
-                continue;
-            }
-            if seen_urls.iter().any(|seen| seen == url.as_str()) {
-                continue;
-            }
-            seen_urls.push(url.as_str().to_string());
-            links.push((title, url));
-            if links.len() >= max_results.clamp(3, 5) as usize {
-                break;
-            }
-        }
-        if links.is_empty() {
-            let fallback = Regex::new(
-                r#"(?is)<a[^>]*class=["'][^"']*result__a[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>"#,
-            )
-            .expect("valid DuckDuckGo result link regex");
-            for captures in fallback.captures_iter(&response) {
-                let href = captures
-                    .get(1)
-                    .map(|value| value.as_str().replace("&amp;", "&"));
-                let title = captures
-                    .get(2)
-                    .map(|value| compact_source_text(value.as_str(), 240))
-                    .unwrap_or_default();
-                let Some(href) = href else { continue };
-                let Ok(candidate) = endpoint.join(&href) else {
-                    continue;
-                };
-                let Some(url) = resolve_search_result_url(endpoint.host_str(), candidate) else {
-                    continue;
-                };
-                if title.len() < 3 || seen_urls.iter().any(|seen| seen == url.as_str()) {
-                    continue;
-                }
-                seen_urls.push(url.as_str().to_string());
-                links.push((title, url));
-                if links.len() >= max_results.clamp(3, 5) as usize {
-                    break;
-                }
-            }
-        }
-        links
-    };
-    if result_links.is_empty() {
-        return Err("搜索页面没有解析到可用结果链接；请更换搜索页面地址。".to_string());
-    }
-    let mut result_links = result_links;
-    if current_weather {
-        result_links.sort_by_key(|(_, url)| {
-            !url.host_str().is_some_and(|host| {
-                host.eq_ignore_ascii_case("weather.com.cn") || host.ends_with(".weather.com.cn")
-            })
-        });
-    }
-    let article_selector = Selector::parse("article, main, [role='main'], p")
-        .map_err(|_| "无法初始化正文解析器。".to_string())?;
-    let mut results = Vec::new();
-    for (title, url) in result_links {
-        let page = match client
-            .get(url.clone())
-            .header(USER_AGENT, "Mozilla/5.0")
-            .send()
-            .await
-        {
-            Ok(response) => response.error_for_status().ok(),
-            Err(_) => None,
-        };
-        let Some(page) = page else { continue };
-        let html = match page.text().await {
-            Ok(html) => html,
-            Err(_) => continue,
-        };
-        if url.host_str().is_some_and(|host| {
-            host.eq_ignore_ascii_case("weather.com.cn") || host.ends_with(".weather.com.cn")
-        }) {
-            if let Some(snippet) = extract_weather_com_cn_observation(&html) {
-                results.push(LocalAiVerifiedSource {
-                    title: format!("{}（中国天气网实时观测）", title),
-                    url: url.to_string(),
-                    snippet,
-                    source: "中国天气网公开观测数据".to_string(),
-                    published_at: None,
-                });
-                continue;
-            }
-        }
-        // Readability-style extraction: prefer semantic article/main containers, then concatenate paragraphs.
-        let content = Html::parse_document(&html)
-            .select(&article_selector)
-            .map(|node| compact_source_text(&node.text().collect::<String>(), 1800))
-            .filter(|text| text.len() >= 120)
-            .max_by_key(|text| text.len());
-        let Some(snippet) = content else { continue };
-        results.push(LocalAiVerifiedSource {
-            title,
-            url: url.to_string(),
-            snippet,
-            source: url.host_str().unwrap_or("网页").to_string(),
-            published_at: None,
-        });
-    }
+    let results = tokio::task::spawn_blocking(move || {
+        playwright_mcp_search_sources(search_url, endpoint, max_results, current_weather)
+    })
+    .await
+    .map_err(|error| format!("Playwright MCP 搜索任务执行失败: {}", error))??;
     if results.is_empty() {
-        return Err("已找到搜索结果，但未能从结果页面提取正文。".to_string());
+        return Err("Playwright MCP 未获取到可用网页内容。".to_string());
     }
     if let Ok(mut cache) = VERIFIED_SOURCE_CACHE.lock() {
         cache.retain(|_, (cached_at, _)| cached_at.elapsed() < Duration::from_secs(10 * 60));

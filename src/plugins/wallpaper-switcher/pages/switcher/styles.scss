@@ -454,12 +454,6 @@
     @apply gap-3 min-h-9;
   }
 
-  .operation-line {
-    @apply pt-1 border-t;
-
-    border-color: var(--wallpaper-border);
-  }
-
   .switch-label,
   .checkbox-label {
     @apply gap-[9px] whitespace-nowrap;

@@ -6,11 +6,13 @@ The plugin manages a local llama.cpp server process through app backend commands
 It starts the model only when requested, keeps the service warm while it is being
 used, and stops it after the configured idle timeout.
 
-SearXNG web-search mode is optional per chat. It queries the configured SearXNG
-JSON endpoint, shows the returned source links, and instructs the local model to
-summarize and cite only evidence returned for that turn. The default endpoint is
-`http://127.0.0.1:8080`; run SearXNG separately, then change its address in the
-Local AI settings if needed.
+Web-search mode is optional per chat. It launches Microsoft Playwright MCP
+(`npx --yes @playwright/mcp@latest --headless --isolated`), opens the configured
+search page, reads the first results, extracts page text through the browser,
+and instructs the local model to summarize and cite only evidence returned for
+that turn. The default search page template is
+`https://www.bing.com/search?q={query}`; change it in Local AI settings if you
+prefer another searchable page that includes the `{query}` placeholder.
 
 Default model directory:
 

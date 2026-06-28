@@ -75,20 +75,11 @@ const updateInterval = (event: Event) =>
   });
 const updateAutoRestore = (event: Event) =>
   patchConfig({ autoRestore: (event.target as HTMLInputElement).checked });
-const updateTaskbarTransparent = (event: Event) =>
-  patchConfig({
-    taskbarTransparent: (event.target as HTMLInputElement).checked,
-    taskbarAcrylic: (event.target as HTMLInputElement).checked
-      ? props.config.taskbarAcrylic
-      : false
-  });
-const updateTaskbarAcrylic = (event: Event) =>
-  patchConfig({
-    taskbarAcrylic: (event.target as HTMLInputElement).checked
-  });
 const updateOrder = (order: WallpaperOrder) => patchConfig({ order });
 const updateFolderSort = (event: Event) =>
-  patchConfig({ folderSort: (event.target as HTMLSelectElement).value as FolderSort });
+  patchConfig({
+    folderSort: (event.target as HTMLSelectElement).value as FolderSort
+  });
 </script>
 
 <template>
@@ -348,28 +339,6 @@ const updateFolderSort = (event: Event) =>
             @change="updateAutoRestore"
           />
           {{ t('wallpaperSwitcher.autoRestore') }}
-        </label>
-      </div>
-      <div class="rules-line operation-line">
-        <span class="row-label compact">
-          {{ t('wallpaperSwitcher.operationOptions') }}
-        </span>
-        <label class="checkbox-label">
-          <input
-            :checked="config.taskbarTransparent"
-            type="checkbox"
-            @change="updateTaskbarTransparent"
-          />
-          {{ t('wallpaperSwitcher.taskbarTransparent') }}
-        </label>
-        <label class="checkbox-label">
-          <input
-            :checked="config.taskbarAcrylic"
-            :disabled="!config.taskbarTransparent"
-            type="checkbox"
-            @change="updateTaskbarAcrylic"
-          />
-          {{ t('wallpaperSwitcher.taskbarAcrylic') }}
         </label>
       </div>
     </section>

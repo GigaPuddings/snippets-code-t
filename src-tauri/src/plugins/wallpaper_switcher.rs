@@ -8,7 +8,6 @@ use std::error::Error as StdError;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Mutex,
@@ -89,18 +88,6 @@ pub struct WallpaperConfig {
     pub wallhaven_seen_ids: Vec<String>,
     #[serde(default)]
     pub wallhaven_history_scope: Option<String>,
-    #[serde(default)]
-    pub taskbar_transparent: bool,
-    #[serde(default)]
-    pub taskbar_acrylic: bool,
-    #[serde(default)]
-    pub taskbar_transparency_registry_had_value: Option<bool>,
-    #[serde(default)]
-    pub taskbar_transparency_registry_previous_value: Option<u32>,
-    #[serde(default)]
-    pub system_transparency_registry_had_value: Option<bool>,
-    #[serde(default)]
-    pub system_transparency_registry_previous_value: Option<u32>,
     pub last_folder_index: usize,
     pub last_applied_path: Option<String>,
     #[serde(default)]
@@ -125,12 +112,6 @@ impl Default for WallpaperConfig {
             folder_seen_paths: Vec::new(),
             wallhaven_seen_ids: Vec::new(),
             wallhaven_history_scope: None,
-            taskbar_transparent: false,
-            taskbar_acrylic: false,
-            taskbar_transparency_registry_had_value: None,
-            taskbar_transparency_registry_previous_value: None,
-            system_transparency_registry_had_value: None,
-            system_transparency_registry_previous_value: None,
             last_folder_index: 0,
             last_applied_path: None,
             last_switched_at: None,
@@ -526,375 +507,6 @@ fn set_windows_wallpaper(path: &Path, fit_mode: &WallpaperFitMode) -> Result<(),
         .map_err(|e| format!("设置桌面壁纸失败: {}", e))?;
     }
     Ok(())
-}
-
-fn wide_null(value: &str) -> Vec<u16> {
-    use std::os::windows::ffi::OsStrExt;
-
-    OsStr::new(value)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect()
-}
-
-fn taskbar_agent_base_dir() -> PathBuf {
-    env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(env::temp_dir)
-        .join("snippets-code")
-}
-
-const TASKBAR_AGENT_PROTOCOL_VERSION: u32 = 12;
-
-fn taskbar_agent_state_file() -> PathBuf {
-    taskbar_agent_base_dir().join(format!(
-        "taskbar-transparency-agent-v{TASKBAR_AGENT_PROTOCOL_VERSION}.state"
-    ))
-}
-
-fn taskbar_agent_legacy_state_files() -> Vec<PathBuf> {
-    let base = taskbar_agent_base_dir();
-    let mut files = vec![base.join("taskbar-transparency-agent.state")];
-    files.extend(
-        (2..TASKBAR_AGENT_PROTOCOL_VERSION)
-            .map(|version| base.join(format!("taskbar-transparency-agent-v{version}.state"))),
-    );
-    files
-}
-
-fn taskbar_agent_log_file() -> PathBuf {
-    taskbar_agent_base_dir().join("taskbar-transparency-agent.log")
-}
-
-fn write_taskbar_agent_state(enabled: bool, acrylic: bool) -> Result<(), String> {
-    let dir = taskbar_agent_base_dir();
-    fs::create_dir_all(&dir).map_err(|e| format!("创建任务栏透明 agent 状态目录失败: {}", e))?;
-    for legacy_file in taskbar_agent_legacy_state_files() {
-        let _ = fs::write(legacy_file, "transparent=0\nacrylic=0\n");
-    }
-    fs::write(
-        taskbar_agent_state_file(),
-        format!(
-            "transparent={}\nacrylic={}\n",
-            if enabled { "1" } else { "0" },
-            if acrylic { "1" } else { "0" }
-        ),
-    )
-    .map_err(|e| format!("写入任务栏透明 agent 状态失败: {}", e))
-}
-
-fn taskbar_agent_candidate_paths() -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    if let Some(path) = env::var_os("SNIPPETS_TASKBAR_AGENT_DLL") {
-        paths.push(PathBuf::from(path));
-    }
-    if let Ok(exe) = env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            paths.push(dir.join("taskbar_transparency_agent.dll"));
-        }
-    }
-    if let Ok(cwd) = env::current_dir() {
-        paths.push(
-            cwd.join("native")
-                .join("taskbar-transparency-agent")
-                .join("target")
-                .join("debug")
-                .join("taskbar_transparency_agent.dll"),
-        );
-        paths.push(
-            cwd.join("..")
-                .join("native")
-                .join("taskbar-transparency-agent")
-                .join("target")
-                .join("debug")
-                .join("taskbar_transparency_agent.dll"),
-        );
-    }
-
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    if let Some(workspace_dir) = manifest_dir.parent() {
-        paths.push(
-            workspace_dir
-                .join("native")
-                .join("taskbar-transparency-agent")
-                .join("target")
-                .join("debug")
-                .join("taskbar_transparency_agent.dll"),
-        );
-        paths.push(
-            workspace_dir
-                .join("native")
-                .join("taskbar-transparency-agent")
-                .join("target")
-                .join("release")
-                .join("taskbar_transparency_agent.dll"),
-        );
-    }
-
-    paths
-}
-
-fn taskbar_agent_dll_path() -> Result<PathBuf, String> {
-    let candidates = taskbar_agent_candidate_paths();
-    if let Some(path) = candidates.iter().find(|path| path.exists()).cloned() {
-        return Ok(path);
-    }
-
-    if let Err(error) = build_taskbar_agent_for_dev() {
-        warn!(
-            "[WallpaperSwitcher][TaskbarTransparentAgent] 开发态自动构建 agent DLL 失败: {}",
-            error
-        );
-    }
-
-    let candidates_after_build = taskbar_agent_candidate_paths();
-    candidates_after_build
-        .iter()
-        .find(|path| path.exists())
-        .cloned()
-        .ok_or_else(|| {
-            format!(
-                "找不到内置任务栏透明 agent DLL，已检查: {}",
-                candidates_after_build
-                    .iter()
-                    .map(|path| path.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join("; ")
-            )
-        })
-}
-
-fn prepare_taskbar_agent_runtime_dll(source_path: &Path) -> Result<PathBuf, String> {
-    let dir = taskbar_agent_base_dir().join("taskbar-agent-runtime");
-    fs::create_dir_all(&dir).map_err(|e| format!("创建任务栏透明 agent 运行目录失败: {}", e))?;
-
-    let metadata = fs::metadata(source_path)
-        .map_err(|e| format!("读取任务栏透明 agent DLL 元数据失败: {}", e))?;
-    let modified_ms = metadata
-        .modified()
-        .ok()
-        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-        .map(|duration| duration.as_millis())
-        .unwrap_or_else(|| {
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|duration| duration.as_millis())
-                .unwrap_or(0)
-        });
-    let runtime_path = dir.join(format!(
-        "taskbar_transparency_agent-{}-{}.dll",
-        metadata.len(),
-        modified_ms
-    ));
-
-    if !runtime_path.exists() {
-        fs::copy(source_path, &runtime_path).map_err(|e| {
-            format!(
-                "复制任务栏透明 agent DLL 到运行目录失败: {} -> {}: {}",
-                source_path.display(),
-                runtime_path.display(),
-                e
-            )
-        })?;
-        info!(
-            "[WallpaperSwitcher][TaskbarTransparentAgent] runtime DLL copied source={} runtime={}",
-            source_path.display(),
-            runtime_path.display()
-        );
-    }
-
-    Ok(runtime_path)
-}
-
-fn build_taskbar_agent_for_dev() -> Result<(), String> {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let Some(workspace_dir) = manifest_dir.parent() else {
-        return Err("无法定位工作区目录".to_string());
-    };
-    let manifest_path = workspace_dir
-        .join("native")
-        .join("taskbar-transparency-agent")
-        .join("Cargo.toml");
-    if !manifest_path.exists() {
-        return Err(format!(
-            "agent Cargo.toml 不存在: {}",
-            manifest_path.display()
-        ));
-    }
-
-    info!(
-        "[WallpaperSwitcher][TaskbarTransparentAgent] building native agent for development: {}",
-        manifest_path.display()
-    );
-    let output = Command::new("cargo")
-        .args(["build", "--manifest-path"])
-        .arg(&manifest_path)
-        .output()
-        .map_err(|e| format!("启动 cargo build 失败: {}", e))?;
-    if output.status.success() {
-        return Ok(());
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    Err(format!(
-        "cargo build 返回 {:?}: {}",
-        output.status.code(),
-        stderr
-    ))
-}
-
-fn shell_tray_process_id() -> Result<u32, String> {
-    use windows::core::PCWSTR;
-    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, GetWindowThreadProcessId};
-
-    let class_name = wide_null("Shell_TrayWnd");
-    unsafe {
-        let hwnd = FindWindowW(PCWSTR(class_name.as_ptr()), PCWSTR::null())
-            .map_err(|e| format!("查找 Shell_TrayWnd 失败: {}", e))?;
-        if hwnd.is_invalid() {
-            return Err("找不到 Shell_TrayWnd，无法定位 Explorer 进程".to_string());
-        }
-
-        let mut process_id = 0u32;
-        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
-        if process_id == 0 {
-            return Err("无法读取 Shell_TrayWnd 所属 Explorer 进程 ID".to_string());
-        }
-        Ok(process_id)
-    }
-}
-
-fn inject_taskbar_agent_into_explorer(enabled: bool, acrylic: bool) -> Result<(), String> {
-    use windows::core::{PCSTR, PCWSTR};
-    use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::Diagnostics::Debug::WriteProcessMemory;
-    use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
-    use windows::Win32::System::Memory::{
-        VirtualAllocEx, VirtualFreeEx, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE,
-    };
-    use windows::Win32::System::Threading::{
-        CreateRemoteThread, OpenProcess, WaitForSingleObject, PROCESS_CREATE_THREAD,
-        PROCESS_QUERY_INFORMATION, PROCESS_VM_OPERATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
-    };
-
-    write_taskbar_agent_state(enabled, acrylic)?;
-    let source_dll_path = taskbar_agent_dll_path()?;
-    let dll_path = prepare_taskbar_agent_runtime_dll(&source_dll_path)?;
-    let process_id = shell_tray_process_id()?;
-    let dll_path_wide = wide_null(&dll_path.display().to_string());
-    let byte_len = dll_path_wide.len() * std::mem::size_of::<u16>();
-
-    unsafe {
-        let process = OpenProcess(
-            PROCESS_CREATE_THREAD
-                | PROCESS_QUERY_INFORMATION
-                | PROCESS_VM_OPERATION
-                | PROCESS_VM_WRITE
-                | PROCESS_VM_READ,
-            false,
-            process_id,
-        )
-        .map_err(|e| format!("打开 Explorer 进程失败 pid={}: {}", process_id, e))?;
-
-        let remote_buffer = VirtualAllocEx(
-            process,
-            None,
-            byte_len,
-            MEM_COMMIT | MEM_RESERVE,
-            PAGE_READWRITE,
-        );
-        if remote_buffer.is_null() {
-            let _ = CloseHandle(process);
-            return Err("在 Explorer 进程中分配 DLL 路径内存失败".to_string());
-        }
-
-        let write_result = WriteProcessMemory(
-            process,
-            remote_buffer,
-            dll_path_wide.as_ptr() as *const core::ffi::c_void,
-            byte_len,
-            None,
-        );
-        if let Err(error) = write_result {
-            let _ = VirtualFreeEx(process, remote_buffer, 0, MEM_RELEASE);
-            let _ = CloseHandle(process);
-            return Err(format!("写入 Explorer 远程 DLL 路径失败: {}", error));
-        }
-
-        let kernel32_name = wide_null("kernel32.dll");
-        let kernel32 = GetModuleHandleW(PCWSTR(kernel32_name.as_ptr()))
-            .map_err(|e| format!("获取 kernel32.dll 模块失败: {}", e))?;
-        let load_library = GetProcAddress(kernel32, PCSTR(b"LoadLibraryW\0".as_ptr()))
-            .ok_or_else(|| "获取 LoadLibraryW 地址失败".to_string())?;
-        let start_routine = Some(std::mem::transmute(load_library));
-
-        let thread = CreateRemoteThread(
-            process,
-            None,
-            0,
-            start_routine,
-            Some(remote_buffer),
-            0,
-            None,
-        )
-        .map_err(|e| format!("创建 Explorer 远程线程失败: {}", e))?;
-
-        let _ = WaitForSingleObject(thread, 8000);
-        let _ = CloseHandle(thread);
-        let _ = VirtualFreeEx(process, remote_buffer, 0, MEM_RELEASE);
-        let _ = CloseHandle(process);
-    }
-
-    std::thread::sleep(Duration::from_millis(400));
-    info!(
-        "[WallpaperSwitcher][TaskbarTransparentAgent] injected enabled={} acrylic={} pid={} source_dll={} runtime_dll={} log={}",
-        enabled,
-        acrylic,
-        process_id,
-        source_dll_path.display(),
-        dll_path.display(),
-        taskbar_agent_log_file().display()
-    );
-    Ok(())
-}
-
-fn apply_taskbar_transparency_preference(
-    config: &WallpaperConfig,
-    should_apply: bool,
-) -> Result<(), String> {
-    if !should_apply {
-        return Ok(());
-    }
-
-    inject_taskbar_agent_into_explorer(config.taskbar_transparent, config.taskbar_acrylic)?;
-    info!(
-        "[WallpaperSwitcher][TaskbarTransparent] Explorer/XAML object agent applied enabled={} acrylic={}; legacy registry/broadcast/AccentPolicy fallback removed",
-        config.taskbar_transparent, config.taskbar_acrylic
-    );
-
-    Ok(())
-}
-
-fn restore_taskbar_transparency_system_default(config: &WallpaperConfig) {
-    if let Err(error) = apply_taskbar_transparency_preference(
-        &WallpaperConfig {
-            taskbar_transparent: false,
-            taskbar_acrylic: false,
-            taskbar_transparency_registry_had_value: config.taskbar_transparency_registry_had_value,
-            taskbar_transparency_registry_previous_value: config
-                .taskbar_transparency_registry_previous_value,
-            system_transparency_registry_had_value: config.system_transparency_registry_had_value,
-            system_transparency_registry_previous_value: config
-                .system_transparency_registry_previous_value,
-            ..config.clone()
-        },
-        true,
-    ) {
-        warn!(
-            "[WallpaperSwitcher][TaskbarTransparent] 恢复任务栏透明效果失败: {}",
-            error
-        );
-    }
 }
 
 fn update_status_after_switch(path: &Path, source: &str, next_switch_at: Option<i64>) -> i64 {
@@ -2127,11 +1739,7 @@ async fn fetch_wallhaven_page(
 pub async fn wallpaper_get_config(app_handle: AppHandle) -> Result<WallpaperConfig, String> {
     require_enabled(&app_handle)?;
     ensure_scheduler_runtime(&app_handle);
-    let config = load_config(&app_handle);
-    if let Err(error) = apply_taskbar_transparency_preference(&config, config.taskbar_transparent) {
-        warn!("[WallpaperSwitcher] 恢复任务栏透明效果失败: {}", error);
-    }
-    Ok(config)
+    Ok(load_config(&app_handle))
 }
 
 #[tauri::command]
@@ -2157,20 +1765,8 @@ pub async fn wallpaper_save_config(
         config.wallhaven_history_scope = None;
     }
     config.interval_minutes = config.interval_minutes.max(1);
-    if !config.taskbar_transparent {
-        config.taskbar_acrylic = false;
-    }
-    let should_apply_taskbar = config.taskbar_transparent
-        || config.taskbar_transparent != current.taskbar_transparent
-        || config.taskbar_acrylic != current.taskbar_acrylic;
-
-    config.taskbar_transparency_registry_had_value = None;
-    config.taskbar_transparency_registry_previous_value = None;
-    config.system_transparency_registry_had_value = None;
-    config.system_transparency_registry_previous_value = None;
 
     save_config(&app_handle, &config)?;
-    apply_taskbar_transparency_preference(&config, should_apply_taskbar)?;
     if config.schedule_enabled && config.auto_restore {
         start_scheduler(app_handle)?;
     } else {
@@ -2360,19 +1956,10 @@ fn ensure_scheduler_runtime(app_handle: &AppHandle) {
 }
 
 pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
-    let config = load_config(app_handle);
     if enabled {
         ensure_scheduler_runtime(app_handle);
-        if let Err(error) =
-            apply_taskbar_transparency_preference(&config, config.taskbar_transparent)
-        {
-            warn!("[WallpaperSwitcher] 恢复任务栏透明效果失败: {}", error);
-        }
     } else {
         stop_scheduler();
-        if config.taskbar_transparent {
-            restore_taskbar_transparency_system_default(&config);
-        }
     }
 }
 
