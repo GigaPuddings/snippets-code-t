@@ -451,6 +451,12 @@ struct PlaywrightPageExtraction {
     text: String,
 }
 
+struct PlaywrightSearchTarget {
+    url: String,
+    endpoint: Url,
+    direct_title: Option<String>,
+}
+
 struct PlaywrightMcpClient {
     child: Child,
     stdin: ChildStdin,
@@ -684,13 +690,164 @@ fn parse_playwright_evaluate_json<T: DeserializeOwned>(result: &Value) -> Result
     Err("Playwright MCP evaluate 结果为空。".to_string())
 }
 
+fn build_playwright_search_queries(query: &str) -> Vec<String> {
+    let normalized = query.trim();
+    if normalized.is_empty() {
+        return Vec::new();
+    }
+    let lower = normalized.to_lowercase();
+    let asks_weather = [
+        "天气",
+        "气温",
+        "温度",
+        "降雨",
+        "下雨",
+        "weather",
+        "temperature",
+        "forecast",
+    ]
+    .iter()
+    .any(|term| lower.contains(term));
+    let asks_forecast = [
+        "未来", "五天", "5天", "五日", "5日", "明天", "后天", "预报", "forecast", "tomorrow",
+    ]
+    .iter()
+    .any(|term| lower.contains(term));
+
+    let mut queries = Vec::new();
+    if asks_weather && asks_forecast {
+        queries.push(format!(
+            "{normalized} 天气预报 未来5天 中国天气网 中央气象台"
+        ));
+        queries.push(format!("{normalized} 逐日天气预报 天气网"));
+    } else if asks_weather {
+        queries.push(format!("{normalized} 天气预报 中国天气网"));
+        queries.push(format!("{normalized} 实时天气 中央气象台"));
+    }
+    queries.push(normalized.to_string());
+    queries.dedup();
+    queries
+}
+
+fn is_playwright_weather_query(query: &str) -> bool {
+    let lower = query.to_lowercase();
+    [
+        "天气",
+        "气温",
+        "温度",
+        "降雨",
+        "下雨",
+        "weather",
+        "temperature",
+        "forecast",
+    ]
+    .iter()
+    .any(|term| lower.contains(term))
+}
+
+fn playwright_weather_location(query: &str) -> Option<String> {
+    let mut value = query.to_string();
+    for term in [
+        "未来",
+        "五天",
+        "5天",
+        "五日",
+        "5日",
+        "三天",
+        "3天",
+        "七天",
+        "7天",
+        "今天",
+        "今日",
+        "明天",
+        "后天",
+        "现在",
+        "实时",
+        "当地",
+        "天气",
+        "气温",
+        "温度",
+        "降雨",
+        "下雨",
+        "怎么样",
+        "怎样",
+        "如何",
+        "多少",
+        "帮我",
+        "查询",
+        "预报",
+        "的",
+        "weather",
+        "temperature",
+        "forecast",
+        "today",
+        "tomorrow",
+        "current",
+        "now",
+    ] {
+        value = value.replace(term, " ");
+    }
+    let location = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!location.is_empty()).then_some(location)
+}
+
+fn build_playwright_search_targets(
+    query: &str,
+    template: &str,
+) -> Result<Vec<PlaywrightSearchTarget>, String> {
+    let mut targets = Vec::new();
+    if is_playwright_weather_query(query) {
+        if let Some(location) = playwright_weather_location(query) {
+            for url in [
+                format!("https://wttr.in/{}?lang=zh", urlencoding::encode(&location)),
+                format!(
+                    "https://wttr.in/{}?2F&lang=zh",
+                    urlencoding::encode(&location)
+                ),
+            ] {
+                let endpoint =
+                    Url::parse(&url).map_err(|error| format!("内置天气网页无效: {}", error))?;
+                targets.push(PlaywrightSearchTarget {
+                    url,
+                    endpoint,
+                    direct_title: Some(format!("{location} 天气预报")),
+                });
+            }
+        }
+    }
+
+    for search_query in build_playwright_search_queries(query) {
+        let url = template.replace("{query}", &urlencoding::encode(&search_query));
+        let endpoint = Url::parse(&url).map_err(|error| format!("内置搜索入口无效: {}", error))?;
+        if !matches!(endpoint.scheme(), "http" | "https") || endpoint.host_str().is_none() {
+            return Err("内置搜索入口仅支持有效的 http 或 https URL。".to_string());
+        }
+        targets.push(PlaywrightSearchTarget {
+            url,
+            endpoint,
+            direct_title: None,
+        });
+    }
+
+    Ok(targets)
+}
+
 const PLAYWRIGHT_SEARCH_LINKS_SCRIPT: &str = r#"() => {
   const compact = (value) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, 240);
-  const anchors = Array.from(document.querySelectorAll('a[href]'));
+  const preferredSelectors = [
+    'li.b_algo h2 a[href]',
+    '.b_algo h2 a[href]',
+    'h2 a[href]',
+    'h3 a[href]',
+    'a[data-testid="result-title-a"][href]',
+    'a.result__a[href]'
+  ];
+  const preferred = preferredSelectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
+  const anchors = preferred.length ? preferred : Array.from(document.querySelectorAll('a[href]'));
   const seen = new Set();
   const results = [];
   for (const anchor of anchors) {
-    const title = compact(anchor.innerText || anchor.textContent || anchor.getAttribute('aria-label'));
+    const title = compact(anchor.getAttribute('aria-label') || anchor.innerText || anchor.textContent);
     if (title.length < 3) continue;
     let href = anchor.getAttribute('href') || anchor.href;
     try {
@@ -720,17 +877,54 @@ const PLAYWRIGHT_PAGE_EXTRACTION_SCRIPT: &str = r#"() => {
 }"#;
 
 fn playwright_mcp_search_sources(
-    search_url: String,
-    endpoint: Url,
+    targets: Vec<PlaywrightSearchTarget>,
     max_results: u32,
 ) -> Result<Vec<LocalAiVerifiedSource>, String> {
     let mut client = PlaywrightMcpClient::start()?;
+    let mut last_error: Option<String> = None;
+
+    for target in targets {
+        match playwright_mcp_search_sources_once(&mut client, target, max_results) {
+            Ok(results) if !results.is_empty() => return Ok(results),
+            Ok(_) => last_error = Some("Playwright MCP 未获取到可用网页内容。".to_string()),
+            Err(error) => last_error = Some(error),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| "Playwright MCP 未获取到可用网页内容。".to_string()))
+}
+
+fn playwright_mcp_search_sources_once(
+    client: &mut PlaywrightMcpClient,
+    target: PlaywrightSearchTarget,
+    max_results: u32,
+) -> Result<Vec<LocalAiVerifiedSource>, String> {
     client.call_tool(
         "browser_navigate",
         serde_json::json!({
-            "url": search_url
+            "url": target.url.as_str()
         }),
     )?;
+    if let Some(title) = target.direct_title {
+        let extraction: PlaywrightPageExtraction =
+            parse_playwright_evaluate_json(&client.call_tool(
+                "browser_evaluate",
+                serde_json::json!({
+                    "function": PLAYWRIGHT_PAGE_EXTRACTION_SCRIPT
+                }),
+            )?)?;
+        let snippet = compact_source_text(&extraction.text, 2400);
+        if snippet.len() < 120 {
+            return Err("Playwright MCP 已打开天气网页，但未能提取可用正文。".to_string());
+        }
+        return Ok(vec![LocalAiVerifiedSource {
+            title,
+            url: target.endpoint.to_string(),
+            snippet,
+            source: target.endpoint.host_str().unwrap_or("天气网页").to_string(),
+            published_at: None,
+        }]);
+    }
     let raw_links: Vec<PlaywrightSearchLink> = parse_playwright_evaluate_json(&client.call_tool(
         "browser_evaluate",
         serde_json::json!({
@@ -751,7 +945,7 @@ fn playwright_mcp_search_sources(
         let Ok(candidate) = Url::parse(&raw_link.url) else {
             continue;
         };
-        let Some(url) = resolve_search_result_url(endpoint.host_str(), candidate) else {
+        let Some(url) = resolve_search_result_url(target.endpoint.host_str(), candidate) else {
             continue;
         };
         let title = compact_source_text(&raw_link.title, 240);
@@ -809,9 +1003,13 @@ fn playwright_mcp_search_sources(
             if snippet.len() >= 120 {
                 results.push(LocalAiVerifiedSource {
                     title: "内置搜索入口摘要".to_string(),
-                    url: endpoint.to_string(),
+                    url: target.endpoint.to_string(),
                     snippet,
-                    source: endpoint.host_str().unwrap_or("内置搜索入口").to_string(),
+                    source: target
+                        .endpoint
+                        .host_str()
+                        .unwrap_or("内置搜索入口")
+                        .to_string(),
                     published_at: None,
                 });
             }
@@ -832,14 +1030,11 @@ async fn search_verified_sources(
     if !template.contains("{query}") {
         return Err("内置搜索入口必须包含 {query} 占位符。".to_string());
     }
-    let search_query = query.to_string();
-    let search_url = template.replace("{query}", &urlencoding::encode(&search_query));
-    let endpoint =
-        Url::parse(&search_url).map_err(|error| format!("内置搜索入口无效: {}", error))?;
-    if !matches!(endpoint.scheme(), "http" | "https") || endpoint.host_str().is_none() {
-        return Err("内置搜索入口仅支持有效的 http 或 https URL。".to_string());
+    let targets = build_playwright_search_targets(query, template)?;
+    if targets.is_empty() {
+        return Err("查询关键词不能为空。".to_string());
     }
-    let cache_key = format!("{}:{}", template, search_query.to_lowercase());
+    let cache_key = format!("{}:{}", template, query.to_lowercase());
     if let Ok(cache) = VERIFIED_SOURCE_CACHE.lock() {
         if let Some((cached_at, results)) = cache.get(&cache_key) {
             if cached_at.elapsed() < Duration::from_secs(10 * 60) {
@@ -847,11 +1042,10 @@ async fn search_verified_sources(
             }
         }
     }
-    let results = tokio::task::spawn_blocking(move || {
-        playwright_mcp_search_sources(search_url, endpoint, max_results)
-    })
-    .await
-    .map_err(|error| format!("Playwright MCP 搜索任务执行失败: {}", error))??;
+    let results =
+        tokio::task::spawn_blocking(move || playwright_mcp_search_sources(targets, max_results))
+            .await
+            .map_err(|error| format!("Playwright MCP 搜索任务执行失败: {}", error))??;
     if results.is_empty() {
         return Err("Playwright MCP 未获取到可用网页内容。".to_string());
     }
