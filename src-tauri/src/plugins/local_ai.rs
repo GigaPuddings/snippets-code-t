@@ -1,8 +1,6 @@
 use base64::{engine::general_purpose, Engine as _};
-use chrono::Local;
 use futures::StreamExt;
 use log::{info, warn};
-use regex::Regex;
 use reqwest::{
     header::{ACCEPT, CACHE_CONTROL},
     Client,
@@ -32,7 +30,6 @@ const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-Hauha
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
 const DEFAULT_WEB_SEARCH_URL: &str = "https://www.bing.com/search?q={query}";
-const LEGACY_DUCKDUCKGO_WEB_SEARCH_URL: &str = "https://html.duckduckgo.com/html/?q={query}";
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
@@ -371,9 +368,7 @@ fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
     if config.max_tokens == 1024 {
         config.max_tokens = 0;
     }
-    if config.web_search_url.trim().is_empty()
-        || config.web_search_url == LEGACY_DUCKDUCKGO_WEB_SEARCH_URL
-    {
+    if config.web_search_url.trim().is_empty() {
         config.web_search_url = default_web_search_url();
     }
     config
@@ -453,198 +448,6 @@ fn resolve_search_result_url(search_host: Option<&str>, candidate: Url) -> Optio
     (candidate.host_str() != search_host).then_some(candidate)
 }
 
-fn is_current_weather_query(query: &str) -> bool {
-    let lower = query.to_lowercase();
-    ["天气", "气温", "温度", "降雨", "weather", "temperature"]
-        .iter()
-        .any(|term| lower.contains(term))
-        && ["今天", "今日", "现在", "实时", "today", "current", "now"]
-            .iter()
-            .any(|term| lower.contains(term))
-}
-
-fn is_weather_query(query: &str) -> bool {
-    let lower = query.to_lowercase();
-    [
-        "天气",
-        "气温",
-        "温度",
-        "降雨",
-        "下雨",
-        "weather",
-        "temperature",
-        "rain",
-    ]
-    .iter()
-    .any(|term| lower.contains(term))
-}
-
-fn weather_location_candidate(query: &str) -> Option<String> {
-    let mut value = query.to_string();
-    for term in [
-        "今天",
-        "今日",
-        "明天",
-        "后天",
-        "现在",
-        "实时",
-        "当地",
-        "天气",
-        "气温",
-        "温度",
-        "降雨",
-        "下雨",
-        "怎么样",
-        "怎样",
-        "如何",
-        "多少",
-        "帮我",
-        "查询",
-        "预报",
-        "的",
-        "weather",
-        "temperature",
-        "today",
-        "current",
-        "now",
-    ] {
-        value = value.replace(term, " ");
-    }
-    let location = value
-        .split_whitespace()
-        .filter(|part| part.chars().any(char::is_alphabetic))
-        .collect::<Vec<_>>()
-        .join(" ");
-    (!location.is_empty()).then_some(location)
-}
-
-fn weather_code_label(code: i64) -> &'static str {
-    match code {
-        0 => "晴",
-        1..=3 => "多云",
-        45 | 48 => "雾",
-        51 | 53 | 55 | 56 | 57 => "毛毛雨",
-        61 | 63 | 65 | 66 | 67 | 80 | 81 | 82 => "雨",
-        71 | 73 | 75 | 77 | 85 | 86 => "雪",
-        95 | 96 | 99 => "雷暴",
-        _ => "未知",
-    }
-}
-
-async fn fetch_weather_api_sources(
-    client: &Client,
-    query: &str,
-) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let location = weather_location_candidate(query)
-        .ok_or_else(|| "无法从问题中识别天气地点。".to_string())?;
-    let geocoding: Value = client
-        .get("https://geocoding-api.open-meteo.com/v1/search")
-        .query(&[
-            ("name", location.as_str()),
-            ("count", "1"),
-            ("language", "zh"),
-            ("format", "json"),
-        ])
-        .send()
-        .await
-        .map_err(|error| format!("天气地点查询失败: {}", error))?
-        .error_for_status()
-        .map_err(|error| format!("天气地点查询请求失败: {}", error))?
-        .json()
-        .await
-        .map_err(|error| format!("天气地点查询数据无效: {}", error))?;
-    let place = geocoding["results"]
-        .as_array()
-        .and_then(|items| items.first())
-        .ok_or_else(|| "未找到对应的天气地点。".to_string())?;
-    let latitude = place["latitude"]
-        .as_f64()
-        .ok_or_else(|| "天气地点缺少纬度。".to_string())?;
-    let longitude = place["longitude"]
-        .as_f64()
-        .ok_or_else(|| "天气地点缺少经度。".to_string())?;
-    let weather: Value = client
-        .get("https://api.open-meteo.com/v1/forecast")
-        .query(&[
-            ("latitude", latitude.to_string()),
-            ("longitude", longitude.to_string()),
-            ("current", "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m".to_string()),
-            ("daily", "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max".to_string()),
-            ("forecast_days", "1".to_string()),
-            ("timezone", "auto".to_string()),
-        ])
-        .send()
-        .await
-        .map_err(|error| format!("天气接口请求失败: {}", error))?
-        .error_for_status()
-        .map_err(|error| format!("天气接口返回错误: {}", error))?
-        .json()
-        .await
-        .map_err(|error| format!("天气接口数据无效: {}", error))?;
-    let current = &weather["current"];
-    let daily = &weather["daily"];
-    let name = place["name"].as_str().unwrap_or(location.as_str());
-    let value = |item: &Value, key: &str| {
-        item[key]
-            .as_f64()
-            .map(|number| format!("{number:.1}"))
-            .unwrap_or_else(|| "未知".to_string())
-    };
-    let daily_value = |key: &str| {
-        daily[key]
-            .as_array()
-            .and_then(|items| items.first())
-            .and_then(Value::as_f64)
-            .map(|number| format!("{number:.1}"))
-            .unwrap_or_else(|| "未知".to_string())
-    };
-    let code = current["weather_code"].as_i64().unwrap_or(-1);
-    let day_code = daily["weather_code"]
-        .as_array()
-        .and_then(|items| items.first())
-        .and_then(Value::as_i64)
-        .unwrap_or(code);
-    let observed_at = current["time"].as_str().unwrap_or("未知时间");
-    Ok(vec![LocalAiVerifiedSource {
-        title: format!("{} 实时天气与当日预报（Open-Meteo）", name),
-        url: format!("https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}"),
-        snippet: format!(
-            "观测时间：{observed_at}。实时：{}，气温 {}°C，体感 {}°C，湿度 {}%，降水 {} mm，风速 {} km/h。当日预报：{}，最高 {}°C，最低 {}°C，最大降水概率 {}%。",
-            weather_code_label(code), value(current, "temperature_2m"), value(current, "apparent_temperature"), value(current, "relative_humidity_2m"), value(current, "precipitation"), value(current, "wind_speed_10m"), weather_code_label(day_code), daily_value("temperature_2m_max"), daily_value("temperature_2m_min"), daily_value("precipitation_probability_max")
-        ),
-        source: "Open-Meteo 免费天气 API".to_string(),
-        published_at: Some(observed_at.to_string()),
-    }])
-}
-
-fn extract_weather_com_cn_observation(html: &str) -> Option<String> {
-    let payload = Regex::new(r"(?s)var\s+observe24h_data\s*=\s*(\{.*?\})\s*;")
-        .ok()?
-        .captures(html)?
-        .get(1)?
-        .as_str();
-    let data: Value = serde_json::from_str(payload).ok()?;
-    let observation = data["od"]["od2"].as_array()?.first()?;
-    let station = data["od"]["od1"].as_str().unwrap_or("当地");
-    let time = data["od"]["od0"].as_str().unwrap_or("未知时间");
-    let field = |key: &str| observation[key].as_str().unwrap_or("未知");
-    Some(format!(
-        "中国天气网观测时间：{time}。{station}：气温 {}°C，湿度 {}%，风向 {}，风力 {} 级，降水 {} mm。",
-        field("od22"), field("od28"), field("od24"), field("od25"), field("od26")
-    ))
-}
-
-fn build_web_search_query(query: &str) -> String {
-    if !is_current_weather_query(query) {
-        return query.to_string();
-    }
-    let today = Local::now().format("%Y-%m-%d");
-    format!(
-        "site:weather.com.cn {} {} 当日 实况 温度 降水",
-        query, today
-    )
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PlaywrightSearchLink {
@@ -656,7 +459,6 @@ struct PlaywrightSearchLink {
 #[serde(rename_all = "camelCase")]
 struct PlaywrightPageExtraction {
     text: String,
-    html: String,
 }
 
 struct PlaywrightMcpClient {
@@ -893,10 +695,8 @@ const PLAYWRIGHT_PAGE_EXTRACTION_SCRIPT: &str = r#"() => {
     .map((node) => compact(node.innerText || node.textContent, 1800))
     .filter((text) => text.length >= 120)
     .sort((a, b) => b.length - a.length);
-  const weatherHost = /(^|\.)weather\.com\.cn$/i.test(location.hostname);
   return JSON.stringify({
-    text: candidates[0] || compact(document.body?.innerText || '', 1800),
-    html: weatherHost ? document.documentElement.outerHTML.slice(0, 500000) : ''
+    text: candidates[0] || compact(document.body?.innerText || '', 1800)
   });
 }"#;
 
@@ -904,7 +704,6 @@ fn playwright_mcp_search_sources(
     search_url: String,
     endpoint: Url,
     max_results: u32,
-    current_weather: bool,
 ) -> Result<Vec<LocalAiVerifiedSource>, String> {
     let mut client = PlaywrightMcpClient::start()?;
     client.call_tool(
@@ -919,6 +718,14 @@ fn playwright_mcp_search_sources(
             "function": PLAYWRIGHT_SEARCH_LINKS_SCRIPT
         }),
     )?)?;
+    let search_page: Option<PlaywrightPageExtraction> =
+        parse_playwright_evaluate_json(&client.call_tool(
+            "browser_evaluate",
+            serde_json::json!({
+                "function": PLAYWRIGHT_PAGE_EXTRACTION_SCRIPT
+            }),
+        )?)
+        .ok();
     let mut seen_urls = Vec::new();
     let mut result_links = Vec::new();
     for raw_link in raw_links {
@@ -940,18 +747,6 @@ fn playwright_mcp_search_sources(
         if result_links.len() >= max_results.clamp(3, 5) as usize {
             break;
         }
-    }
-    if result_links.is_empty() {
-        return Err(
-            "Playwright MCP 未从搜索页面提取到可用结果链接；请更换搜索页面地址。".to_string(),
-        );
-    }
-    if current_weather {
-        result_links.sort_by_key(|(_, url)| {
-            !url.host_str().is_some_and(|host| {
-                host.eq_ignore_ascii_case("weather.com.cn") || host.ends_with(".weather.com.cn")
-            })
-        });
     }
 
     let mut results = Vec::new();
@@ -977,20 +772,6 @@ fn playwright_mcp_search_sources(
                 Ok(extraction) => extraction,
                 Err(_) => continue,
             };
-        if url.host_str().is_some_and(|host| {
-            host.eq_ignore_ascii_case("weather.com.cn") || host.ends_with(".weather.com.cn")
-        }) {
-            if let Some(snippet) = extract_weather_com_cn_observation(&extraction.html) {
-                results.push(LocalAiVerifiedSource {
-                    title: format!("{}（中国天气网实时观测）", title),
-                    url: url.to_string(),
-                    snippet,
-                    source: "中国天气网公开观测数据".to_string(),
-                    published_at: None,
-                });
-                continue;
-            }
-        }
         let snippet = compact_source_text(&extraction.text, 1800);
         if snippet.len() < 120 {
             continue;
@@ -1004,6 +785,20 @@ fn playwright_mcp_search_sources(
         });
     }
     if results.is_empty() {
+        if let Some(search_page) = search_page {
+            let snippet = compact_source_text(&search_page.text, 1800);
+            if snippet.len() >= 120 {
+                results.push(LocalAiVerifiedSource {
+                    title: "搜索页面摘要".to_string(),
+                    url: endpoint.to_string(),
+                    snippet,
+                    source: endpoint.host_str().unwrap_or("搜索页面").to_string(),
+                    published_at: None,
+                });
+            }
+        }
+    }
+    if results.is_empty() {
         return Err("Playwright MCP 已找到搜索结果，但未能从结果页面提取正文。".to_string());
     }
     Ok(results)
@@ -1015,21 +810,11 @@ async fn search_verified_sources(
     max_results: u32,
 ) -> Result<Vec<LocalAiVerifiedSource>, String> {
     let config = read_config(app_handle);
-    let client = Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|error| format!("client initialization failed: {}", error))?;
-    if is_weather_query(query) {
-        if let Ok(results) = fetch_weather_api_sources(&client, query).await {
-            return Ok(results);
-        }
-    }
     let template = config.web_search_url.trim();
     if !template.contains("{query}") {
         return Err("搜索页面地址必须包含 {query} 占位符。".to_string());
     }
-    let search_query = build_web_search_query(query);
-    let current_weather = is_current_weather_query(query);
+    let search_query = query.to_string();
     let search_url = template.replace("{query}", &urlencoding::encode(&search_query));
     let endpoint =
         Url::parse(&search_url).map_err(|error| format!("搜索页面地址无效: {}", error))?;
@@ -1045,7 +830,7 @@ async fn search_verified_sources(
         }
     }
     let results = tokio::task::spawn_blocking(move || {
-        playwright_mcp_search_sources(search_url, endpoint, max_results, current_weather)
+        playwright_mcp_search_sources(search_url, endpoint, max_results)
     })
     .await
     .map_err(|error| format!("Playwright MCP 搜索任务执行失败: {}", error))??;
