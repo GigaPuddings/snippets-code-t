@@ -466,16 +466,34 @@ struct PlaywrightMcpClient {
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
     next_id: u64,
+    output_dir: PathBuf,
 }
 
 impl Drop for PlaywrightMcpClient {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+        let _ = fs::remove_dir_all(&self.output_dir);
     }
 }
 
-fn playwright_mcp_command() -> Command {
+fn playwright_mcp_output_dir() -> Result<PathBuf, String> {
+    let output_dir = std::env::temp_dir()
+        .join("snippets-code")
+        .join("playwright-mcp")
+        .join(format!("session-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&output_dir).map_err(|error| {
+        format!(
+            "创建 Playwright MCP 临时输出目录失败 {}: {}",
+            display_path(&output_dir),
+            error
+        )
+    })?;
+    Ok(output_dir)
+}
+
+fn playwright_mcp_command(output_dir: &Path) -> Command {
+    let output_dir_arg = display_path(output_dir);
     #[cfg(windows)]
     {
         let mut command = Command::new("cmd.exe");
@@ -490,7 +508,14 @@ fn playwright_mcp_command() -> Command {
             "15000",
             "--timeout-action",
             "5000",
+            "--snapshot-mode",
+            "none",
+            "--output-mode",
+            "stdout",
+            "--output-dir",
+            &output_dir_arg,
         ]);
+        command.current_dir(output_dir);
         command.creation_flags(0x08000000);
         configure_playwright_mcp_environment(&mut command);
         command
@@ -508,7 +533,14 @@ fn playwright_mcp_command() -> Command {
             "15000",
             "--timeout-action",
             "5000",
+            "--snapshot-mode",
+            "none",
+            "--output-mode",
+            "stdout",
+            "--output-dir",
+            &output_dir_arg,
         ]);
+        command.current_dir(output_dir);
         configure_playwright_mcp_environment(&mut command);
         command
     }
@@ -543,7 +575,8 @@ fn log_playwright_mcp_stderr(line: &str) {
 
 impl PlaywrightMcpClient {
     fn start() -> Result<Self, String> {
-        let mut child = playwright_mcp_command()
+        let output_dir = playwright_mcp_output_dir()?;
+        let mut child = playwright_mcp_command(&output_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -575,6 +608,7 @@ impl PlaywrightMcpClient {
             stdin,
             stdout: BufReader::new(stdout),
             next_id: 1,
+            output_dir,
         };
         client.initialize()?;
         Ok(client)
