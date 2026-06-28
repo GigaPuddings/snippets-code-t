@@ -150,7 +150,7 @@
   }
 
   .content {
-    @apply grid grid-rows-[auto_auto_auto_auto] gap-2.5 min-h-0 content-start overflow-auto pt-3 px-4 pb-3;
+    @apply grid grid-rows-[auto_auto_auto_auto] gap-2.5 min-h-0 content-start overflow-hidden pt-3 px-4 pb-3;
 
     height: calc(100vh - 40px);
   }
@@ -168,7 +168,7 @@
   }
 
   .top-panel {
-    @apply relative flex min-h-44 pt-[22px] px-7 pb-5 overflow-hidden rounded-md border;
+    @apply relative flex min-h-[164px] pt-[22px] px-7 pb-5 overflow-hidden rounded-md border;
 
     background: #111827;
     border-color: var(--wallpaper-border);
@@ -331,11 +331,11 @@
   }
 
   .settings-card {
-    @apply min-h-0 pt-3 px-3 pb-2.5 overflow-hidden;
+    @apply min-h-0 py-2.5 px-3 overflow-hidden;
   }
 
   .form-row {
-    @apply grid items-center gap-2.5 min-h-9;
+    @apply grid items-center gap-2.5 min-h-[34px];
   }
 
   .mode-row {
@@ -350,12 +350,8 @@
     @apply grid-cols-[96px_minmax(0,1fr)_94px_94px];
   }
 
-  .folder-order-row {
-    @apply grid-cols-[96px_280px_minmax(0,1fr)] mt-1;
-  }
-
   .wallhaven-row {
-    @apply grid-cols-[96px_74px_minmax(0,1fr)_210px] items-center gap-2.5 min-h-11 pt-2.5 mt-2 border-t;
+    @apply grid-cols-[96px_74px_minmax(0,1fr)_210px] items-center gap-2.5 min-h-10 pt-2 mt-1.5 border-t;
 
     border-color: var(--wallpaper-border);
   }
@@ -395,6 +391,10 @@
     @apply flex items-center gap-4 pl-0 text-[11px] min-h-4;
   }
 
+  .folder-hint-row {
+    @apply gap-3;
+  }
+
   .segmented {
     @apply grid overflow-hidden border rounded;
 
@@ -422,20 +422,8 @@
     @apply grid-cols-3;
   }
 
-  .fit {
-    @apply grid-cols-3;
-  }
-
   .source {
     @apply grid-cols-3;
-  }
-
-  .mini {
-    @apply grid-cols-3 w-[280px];
-  }
-
-  .folder-order {
-    @apply grid-cols-2 w-[280px];
   }
 
   .grid-open {
@@ -443,7 +431,7 @@
   }
 
   .rules-card {
-    @apply min-h-0 py-2.5 px-3 overflow-hidden;
+    @apply min-h-0 py-2 px-3 overflow-hidden;
 
     h2 {
       @apply mt-0 mx-0 mb-2 text-xs font-bold;

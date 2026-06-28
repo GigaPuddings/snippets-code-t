@@ -14,10 +14,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import type {
   WallpaperConfig,
-  WallpaperFitMode,
-  FolderSort,
   WallpaperMode,
-  WallpaperOrder,
   WallhavenSource
 } from '../../../api';
 import WallhavenSourceTabs from './WallhavenSourceTabs.vue';
@@ -31,10 +28,8 @@ const props = defineProps<{
   resolutionLabel: string;
   nextSwitchLabel: string;
   folderCountLabel: string;
-  screenLabel: string;
   cacheSizeLabel: string;
   switching: boolean;
-  fitting: boolean;
   clearingCache: boolean;
   openingCache: boolean;
   saving: boolean;
@@ -48,7 +43,6 @@ const emit = defineEmits<{
   (event: 'openWallhavenGrid'): void;
   (event: 'switchNow'): void;
   (event: 'setCurrentAsFixed'): void;
-  (event: 'setFitMode', value: WallpaperFitMode): void;
   (event: 'clearCache'): void;
   (event: 'openCacheDir'): void;
   (event: 'persistConfig'): void;
@@ -75,11 +69,6 @@ const updateInterval = (event: Event) =>
   });
 const updateAutoRestore = (event: Event) =>
   patchConfig({ autoRestore: (event.target as HTMLInputElement).checked });
-const updateOrder = (order: WallpaperOrder) => patchConfig({ order });
-const updateFolderSort = (event: Event) =>
-  patchConfig({
-    folderSort: (event.target as HTMLSelectElement).value as FolderSort
-  });
 </script>
 
 <template>
@@ -207,42 +196,9 @@ const updateFolderSort = (event: Event) =>
           {{ t('wallpaperSwitcher.scan') }}
         </button>
       </div>
-      <div class="hint-row">{{ folderCountLabel }}</div>
-      <div class="form-row folder-order-row">
-        <span class="row-label">{{ t('wallpaperSwitcher.folderOrder') }}</span>
-        <div class="segmented folder-order">
-          <button
-            type="button"
-            :class="{ active: config.order === 'sequential' }"
-            @click="updateOrder('sequential')"
-          >
-            {{ t('wallpaperSwitcher.sequential') }}
-          </button>
-          <button
-            type="button"
-            :class="{ active: config.order === 'random' }"
-            @click="updateOrder('random')"
-          >
-            {{ t('wallpaperSwitcher.randomNoRepeat') }}
-          </button>
-        </div>
-        <label class="number-label">
-          {{ t('wallpaperSwitcher.sortBy') }}
-          <select :value="config.folderSort" @change="updateFolderSort">
-            <option value="fileNameAscending">
-              {{ t('wallpaperSwitcher.sortFileNameAscending') }}
-            </option>
-            <option value="fileNameDescending">
-              {{ t('wallpaperSwitcher.sortFileNameDescending') }}
-            </option>
-            <option value="modifiedAscending">
-              {{ t('wallpaperSwitcher.sortModifiedAscending') }}
-            </option>
-            <option value="modifiedDescending">
-              {{ t('wallpaperSwitcher.sortModifiedDescending') }}
-            </option>
-          </select>
-        </label>
+      <div class="hint-row folder-hint-row">
+        <span>{{ folderCountLabel }}</span>
+        <span>{{ t('wallpaperSwitcher.folderCreateTimeHint') }}</span>
       </div>
 
       <div class="form-row wallhaven-row">
@@ -263,10 +219,6 @@ const updateFolderSort = (event: Event) =>
           <Search :size="16" />
           {{ t('wallpaperSwitcher.openOnlineGrid') }}
         </button>
-      </div>
-      <div class="hint-row">
-        <span>{{ t('wallpaperSwitcher.screenMatch') }}</span>
-        <strong>{{ screenLabel }}</strong>
       </div>
     </section>
 
@@ -293,45 +245,6 @@ const updateFolderSort = (event: Event) =>
           />
           {{ t('wallpaperSwitcher.minutes') }}
         </label>
-        <!-- <span class="sub-label">{{ t('wallpaperSwitcher.type') }}</span> -->
-        <div class="segmented mini">
-          <WallhavenSourceTabs
-            tab-class="button"
-            :model-value="config.wallhavenSource"
-            @update:model-value="setSource"
-          />
-        </div>
-      </div>
-      <div class="rules-line">
-        <span class="row-label compact">
-          {{ t('wallpaperSwitcher.fitMode') }}
-        </span>
-        <div class="segmented fit">
-          <button
-            type="button"
-            :class="{ active: config.fitMode === 'fillCrop' }"
-            :disabled="fitting"
-            @click="emit('setFitMode', 'fillCrop')"
-          >
-            {{ t('wallpaperSwitcher.fitFillCrop') }}
-          </button>
-          <button
-            type="button"
-            :class="{ active: config.fitMode === 'fit' }"
-            :disabled="fitting"
-            @click="emit('setFitMode', 'fit')"
-          >
-            {{ t('wallpaperSwitcher.fitContain') }}
-          </button>
-          <button
-            type="button"
-            :class="{ active: config.fitMode === 'center' }"
-            :disabled="fitting"
-            @click="emit('setFitMode', 'center')"
-          >
-            {{ t('wallpaperSwitcher.fitCenter') }}
-          </button>
-        </div>
         <label class="checkbox-label">
           <input
             :checked="config.autoRestore"

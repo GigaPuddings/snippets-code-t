@@ -749,7 +749,6 @@ pub fn run() {
             plugins::wallpaper_switcher::wallpaper_scan_folder,      // 扫描壁纸文件夹
             plugins::wallpaper_switcher::wallpaper_set_fixed_image,  // 设置固定壁纸
             plugins::wallpaper_switcher::wallpaper_switch_now,       // 立即切换壁纸
-            plugins::wallpaper_switcher::wallpaper_apply_current_fit, // 重新应用当前壁纸适配模式
             plugins::wallpaper_switcher::wallpaper_fetch_wallhaven,  // 获取 Wallhaven 壁纸
             plugins::wallpaper_switcher::wallpaper_set_wallhaven_image, // 设置 Wallhaven 壁纸
             plugins::wallpaper_switcher::wallpaper_download_wallhaven_image, // 下载 Wallhaven 壁纸

@@ -4,7 +4,6 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import {
-  applyCurrentWallpaperFit,
   clearWallpaperCache,
   defaultWallpaperConfig,
   getWallpaperConfig,
@@ -17,7 +16,6 @@ import {
   wallpaperImageSrc,
   type FolderScanResult,
   type WallpaperConfig,
-  type WallpaperFitMode,
   type WallpaperStatus
 } from '../../api';
 import { useWallhaven } from '../../composables/useWallhaven';
@@ -35,7 +33,6 @@ const folderScan = ref<FolderScanResult | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 const switching = ref(false);
-const fitting = ref(false);
 const clearingCache = ref(false);
 const openingCache = ref(false);
 
@@ -247,21 +244,6 @@ const switchNow = async () => {
   }
 };
 
-const setFitMode = async (fitMode: WallpaperFitMode) => {
-  config.value.fitMode = fitMode;
-  fitting.value = true;
-  try {
-    await applyCurrentWallpaperFit(fitMode);
-    await refreshStatus();
-    config.value = await getWallpaperConfig();
-    modal.msg(t('wallpaperSwitcher.messages.fitApplied'), 'success');
-  } catch (error) {
-    modal.msg(String(error), 'error');
-  } finally {
-    fitting.value = false;
-  }
-};
-
 const setCurrentAsFixed = async () => {
   if (!status.value?.currentPath) {
     modal.msg(t('wallpaperSwitcher.messages.noCurrentToFix'), 'warning');
@@ -347,10 +329,8 @@ onUnmounted(() => {
       :resolution-label="resolutionLabel"
       :next-switch-label="nextSwitchLabel"
       :folder-count-label="folderCountLabel"
-      :screen-label="screenLabel"
       :cache-size-label="cacheSizeLabel"
       :switching="switching"
-      :fitting="fitting"
       :clearing-cache="clearingCache"
       :opening-cache="openingCache"
       :saving="saving"
@@ -361,7 +341,6 @@ onUnmounted(() => {
       @open-wallhaven-grid="openWallhavenGrid"
       @switch-now="switchNow"
       @set-current-as-fixed="setCurrentAsFixed"
-      @set-fit-mode="setFitMode"
       @clear-cache="clearCache"
       @open-cache-dir="openCacheDir"
       @persist-config="persistConfig"

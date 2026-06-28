@@ -43,19 +43,12 @@ pub enum WallpaperOrder {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum FolderSort {
-    #[default]
     FileNameAscending,
     FileNameDescending,
     ModifiedAscending,
     ModifiedDescending,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum WallpaperFitMode {
-    FillCrop,
-    Fit,
-    Center,
+    #[default]
+    CreatedAscending,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -77,7 +70,6 @@ pub struct WallpaperConfig {
     pub order: WallpaperOrder,
     #[serde(default)]
     pub folder_sort: FolderSort,
-    pub fit_mode: WallpaperFitMode,
     pub auto_restore: bool,
     pub wallhaven_source: WallhavenSource,
     pub wallhaven_category: String,
@@ -102,9 +94,8 @@ impl Default for WallpaperConfig {
             folder_path: None,
             schedule_enabled: false,
             interval_minutes: 30,
-            order: WallpaperOrder::Random,
-            folder_sort: FolderSort::FileNameAscending,
-            fit_mode: WallpaperFitMode::FillCrop,
+            order: WallpaperOrder::Sequential,
+            folder_sort: FolderSort::CreatedAscending,
             auto_restore: true,
             wallhaven_source: WallhavenSource::Hot,
             wallhaven_category: "general".to_string(),
@@ -310,6 +301,17 @@ fn image_name(path: &Path) -> String {
         .to_string()
 }
 
+fn normalize_wallpaper_config_preferences(config: &mut WallpaperConfig) {
+    config.order = WallpaperOrder::Sequential;
+    config.folder_sort = FolderSort::CreatedAscending;
+}
+
+fn image_created_or_modified(path: &Path) -> Option<SystemTime> {
+    fs::metadata(path)
+        .ok()
+        .and_then(|metadata| metadata.created().or_else(|_| metadata.modified()).ok())
+}
+
 fn sort_images(images: &mut [PathBuf], folder_sort: &FolderSort) {
     images.sort_by(|left, right| {
         let name_order = natural_name_cmp(&image_name(left), &image_name(right))
@@ -333,6 +335,9 @@ fn sort_images(images: &mut [PathBuf], folder_sort: &FolderSort) {
                     order
                 }
             }
+            FolderSort::CreatedAscending => image_created_or_modified(left)
+                .cmp(&image_created_or_modified(right))
+                .then(name_order),
         }
     });
 }
@@ -469,7 +474,7 @@ fn image_resolution(path: &Path) -> Option<String> {
         .map(|(width, height)| format!("{} × {}", width, height))
 }
 
-fn set_windows_wallpaper(path: &Path, fit_mode: &WallpaperFitMode) -> Result<(), String> {
+fn set_windows_wallpaper(path: &Path) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows::Win32::UI::WindowsAndMessaging::{
         SystemParametersInfoW, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
@@ -481,11 +486,7 @@ fn set_windows_wallpaper(path: &Path, fit_mode: &WallpaperFitMode) -> Result<(),
     let desktop = hkcu
         .open_subkey_with_flags("Control Panel\\Desktop", KEY_SET_VALUE)
         .map_err(|e| format!("无法打开桌面注册表项: {}", e))?;
-    let wallpaper_style = match fit_mode {
-        WallpaperFitMode::FillCrop => "10",
-        WallpaperFitMode::Fit => "6",
-        WallpaperFitMode::Center => "0",
-    };
+    let wallpaper_style = "10";
     desktop
         .set_value("WallpaperStyle", &wallpaper_style)
         .map_err(|e| format!("设置壁纸样式失败: {}", e))?;
@@ -603,11 +604,13 @@ fn record_wallhaven_seen(config: &mut WallpaperConfig, wallpaper_id: String) {
 }
 
 fn save_config(app_handle: &AppHandle, config: &WallpaperConfig) -> Result<(), String> {
+    let mut config = config.clone();
+    normalize_wallpaper_config_preferences(&mut config);
     let config_json =
-        serde_json::to_string(config).map_err(|e| format!("序列化壁纸配置失败: {}", e))?;
+        serde_json::to_string(&config).map_err(|e| format!("序列化壁纸配置失败: {}", e))?;
     crate::json_config::set_app_config_value(app_handle, CONFIG_KEY, config_json)?;
     if let Ok(mut current) = WALLPAPER_CONFIG.lock() {
-        *current = Some(config.clone());
+        *current = Some(config);
     }
     Ok(())
 }
@@ -617,7 +620,8 @@ pub fn load_config(app_handle: &AppHandle) -> WallpaperConfig {
         crate::json_config::get_app_config_value::<String>(app_handle, CONFIG_KEY)
     {
         if !config_json.is_empty() {
-            if let Ok(config) = serde_json::from_str::<WallpaperConfig>(&config_json) {
+            if let Ok(mut config) = serde_json::from_str::<WallpaperConfig>(&config_json) {
+                normalize_wallpaper_config_preferences(&mut config);
                 if let Ok(mut current) = WALLPAPER_CONFIG.lock() {
                     *current = Some(config.clone());
                 }
@@ -713,12 +717,10 @@ async fn apply_wallpaper_path(
     app_handle: &AppHandle,
     source_path: &Path,
     source: &str,
-    fit_mode: &WallpaperFitMode,
 ) -> Result<String, String> {
     let source_path = source_path.to_path_buf();
-    let fit_mode = fit_mode.clone();
     let wallpaper_path = source_path.clone();
-    tauri::async_runtime::spawn_blocking(move || set_windows_wallpaper(&wallpaper_path, &fit_mode))
+    tauri::async_runtime::spawn_blocking(move || set_windows_wallpaper(&wallpaper_path))
         .await
         .map_err(|e| format!("设置壁纸任务失败: {}", e))??;
     let switched_at = update_status_after_switch(&source_path, source, next_switch_timestamp());
@@ -728,33 +730,6 @@ async fn apply_wallpaper_path(
     config.last_switched_at = Some(switched_at);
     save_config(app_handle, &config)?;
     cleanup_wallpaper_cache_after_apply(app_handle, &source_path);
-    let _ = app_handle.emit("wallpaper-switcher-changed", ());
-    Ok(applied_path)
-}
-
-async fn apply_current_wallpaper_fit(
-    app_handle: &AppHandle,
-    fit_mode: Option<WallpaperFitMode>,
-) -> Result<String, String> {
-    let mut config = load_config(app_handle);
-    if let Some(fit_mode) = fit_mode {
-        config.fit_mode = fit_mode;
-        save_config(app_handle, &config)?;
-    }
-    let current_path =
-        current_applied_path(&config).ok_or("当前没有可重新应用的壁纸".to_string())?;
-    let current_path = normalize_existing_file(&path_to_string(&current_path))?;
-    let fit_mode = config.fit_mode.clone();
-    let wallpaper_path = current_path.clone();
-    tauri::async_runtime::spawn_blocking(move || set_windows_wallpaper(&wallpaper_path, &fit_mode))
-        .await
-        .map_err(|e| format!("应用适配模式任务失败: {}", e))??;
-
-    let applied_path = path_to_string(&current_path);
-    if let Ok(mut status) = WALLPAPER_STATUS.lock() {
-        status.current_path = Some(applied_path.clone());
-        status.current_resolution = image_resolution(&current_path);
-    }
     let _ = app_handle.emit("wallpaper-switcher-changed", ());
     Ok(applied_path)
 }
@@ -782,6 +757,7 @@ async fn switch_from_folder(
     app_handle: &AppHandle,
     mut config: WallpaperConfig,
 ) -> Result<String, String> {
+    normalize_wallpaper_config_preferences(&mut config);
     let folder = config
         .folder_path
         .clone()
@@ -852,7 +828,7 @@ async fn switch_from_folder(
     config.last_folder_index = (index + 1) % images.len();
     save_config(app_handle, &config)?;
 
-    apply_wallpaper_path(app_handle, &images[index], "本地文件夹", &config.fit_mode).await
+    apply_wallpaper_path(app_handle, &images[index], "本地文件夹").await
 }
 
 async fn switch_from_fixed(
@@ -864,7 +840,7 @@ async fn switch_from_fixed(
         .clone()
         .ok_or("请先选择固定图片".to_string())?;
     let file = normalize_existing_file(&file)?;
-    apply_wallpaper_path(app_handle, &file, "固定图片", &config.fit_mode).await
+    apply_wallpaper_path(app_handle, &file, "固定图片").await
 }
 
 async fn switch_from_wallhaven(
@@ -911,8 +887,7 @@ async fn switch_from_wallhaven(
             let downloaded = download_wallhaven_image(app_handle, &wallpaper).await?;
             record_wallhaven_seen(&mut config, wallpaper.id);
             save_config(app_handle, &config)?;
-            return apply_wallpaper_path(app_handle, &downloaded, "Wallhaven", &config.fit_mode)
-                .await;
+            return apply_wallpaper_path(app_handle, &downloaded, "Wallhaven").await;
         }
 
         if reset_history {
@@ -1835,7 +1810,7 @@ pub async fn wallpaper_set_fixed_image(
     config.schedule_enabled = false;
     save_config(&app_handle, &config)?;
     stop_scheduler();
-    apply_wallpaper_path(&app_handle, &image, "固定图片", &config.fit_mode).await
+    apply_wallpaper_path(&app_handle, &image, "固定图片").await
 }
 
 #[tauri::command]
@@ -1849,15 +1824,6 @@ pub async fn wallpaper_switch_now(app_handle: AppHandle) -> Result<String, Strin
         start_scheduler(app_handle)?;
     }
     Ok(applied)
-}
-
-#[tauri::command]
-pub async fn wallpaper_apply_current_fit(
-    app_handle: AppHandle,
-    fit_mode: Option<WallpaperFitMode>,
-) -> Result<String, String> {
-    require_enabled(&app_handle)?;
-    apply_current_wallpaper_fit(&app_handle, fit_mode).await
 }
 
 #[tauri::command]
@@ -1880,7 +1846,7 @@ pub async fn wallpaper_set_wallhaven_image(
     let downloaded = download_wallhaven_image(&app_handle, &wallpaper).await?;
     record_wallhaven_seen(&mut config, wallpaper.id.clone());
     save_config(&app_handle, &config)?;
-    apply_wallpaper_path(&app_handle, &downloaded, "Wallhaven", &config.fit_mode).await
+    apply_wallpaper_path(&app_handle, &downloaded, "Wallhaven").await
 }
 
 #[tauri::command]

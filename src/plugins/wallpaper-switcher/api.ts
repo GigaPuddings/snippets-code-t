@@ -8,8 +8,8 @@ export type FolderSort =
   | 'fileNameAscending'
   | 'fileNameDescending'
   | 'modifiedAscending'
-  | 'modifiedDescending';
-export type WallpaperFitMode = 'fillCrop' | 'fit' | 'center';
+  | 'modifiedDescending'
+  | 'createdAscending';
 export type WallhavenSource = 'hot' | 'toplist' | 'favorites';
 
 export interface WallpaperConfig {
@@ -20,7 +20,6 @@ export interface WallpaperConfig {
   intervalMinutes: number;
   order: WallpaperOrder;
   folderSort: FolderSort;
-  fitMode: WallpaperFitMode;
   autoRestore: boolean;
   wallhavenSource: WallhavenSource;
   wallhavenCategory: string;
@@ -89,9 +88,8 @@ export const defaultWallpaperConfig = (): WallpaperConfig => ({
   folderPath: null,
   scheduleEnabled: false,
   intervalMinutes: 30,
-  order: 'random',
-  folderSort: 'fileNameAscending',
-  fitMode: 'fillCrop',
+  order: 'sequential',
+  folderSort: 'createdAscending',
   autoRestore: true,
   wallhavenSource: 'hot',
   wallhavenCategory: 'general',
@@ -126,11 +124,6 @@ export const setFixedWallpaper = (path: string): Promise<string> =>
 
 export const switchWallpaperNow = (): Promise<string> =>
   invoke<string>('wallpaper_switch_now');
-
-export const applyCurrentWallpaperFit = (
-  fitMode?: WallpaperFitMode
-): Promise<string> =>
-  invoke<string>('wallpaper_apply_current_fit', { fitMode });
 
 export const fetchWallhaven = (
   params: WallhavenFetchParams
