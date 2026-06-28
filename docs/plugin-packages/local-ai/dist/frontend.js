@@ -11887,7 +11887,7 @@ const iS = Yd(To, "$notify"), st = {
     );
   } catch {
   }
-}, mS = () => Zl(), hS = (e) => e === "warn" || e === "error" || !1 || !1 || Zl(), ya = (e, t, n) => {
+}, mS = () => Zl(), hS = (e) => e === "error" || Zl(), ya = (e, t, n) => {
   pS(e, t, n), hS(e) && xt("frontend_log", {
     level: e,
     message: t,
