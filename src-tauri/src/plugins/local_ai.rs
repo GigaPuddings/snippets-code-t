@@ -29,7 +29,7 @@ const RUNTIME_PLUGIN_ID: &str = "local-ai-llama-runtime";
 const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
-const DEFAULT_WEB_SEARCH_URL: &str = "https://www.bing.com/search?q={query}";
+const DEFAULT_PLAYWRIGHT_SEARCH_URL: &str = "https://www.so.com/s?q={query}";
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
@@ -435,6 +435,9 @@ fn resolve_search_result_url(search_host: Option<&str>, candidate: Url) -> Optio
             return Some(url);
         }
     }
+    if candidate.host_str() == search_host && candidate.path().starts_with("/link") {
+        return Some(candidate);
+    }
     (candidate.host_str() != search_host).then_some(candidate)
 }
 
@@ -443,6 +446,7 @@ fn resolve_search_result_url(search_host: Option<&str>, candidate: Url) -> Optio
 struct PlaywrightSearchLink {
     title: String,
     url: String,
+    snippet: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -833,32 +837,37 @@ fn build_playwright_search_targets(
 }
 
 const PLAYWRIGHT_SEARCH_LINKS_SCRIPT: &str = r#"() => {
-  const compact = (value) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, 240);
-  const preferredSelectors = [
-    'li.b_algo h2 a[href]',
-    '.b_algo h2 a[href]',
-    'h2 a[href]',
-    'h3 a[href]',
-    'a[data-testid="result-title-a"][href]',
-    'a.result__a[href]'
-  ];
-  const preferred = preferredSelectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
-  const anchors = preferred.length ? preferred : Array.from(document.querySelectorAll('a[href]'));
+  const compact = (value, limit = 240) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, limit);
+  const containers = Array.from(document.querySelectorAll('li.res-list, .res-list, .so-result, div.c-container, div.result-op, div.result, div[data-click], article, [data-testid="result"], .result, .web-result'));
   const seen = new Set();
   const results = [];
-  for (const anchor of anchors) {
+  const pushResult = (anchor, container) => {
     const title = compact(anchor.getAttribute('aria-label') || anchor.innerText || anchor.textContent);
-    if (title.length < 3) continue;
+    if (title.length < 3) return;
     let href = anchor.getAttribute('href') || anchor.href;
     try {
       href = new URL(href, location.href).href;
     } catch {
-      continue;
+      return;
     }
-    if (seen.has(href)) continue;
+    if (seen.has(href)) return;
     seen.add(href);
-    results.push({ title, url: href });
+    const clone = container?.cloneNode(true);
+    clone?.querySelectorAll?.('script, style, nav, svg, img, cite').forEach((node) => node.remove());
+    let snippet = compact(clone?.innerText || clone?.textContent || '', 900);
+    snippet = compact(snippet.replace(title, ''), 600);
+    results.push({ title, url: href, snippet });
+  };
+  for (const container of containers) {
+    const anchor = container.querySelector('h2 a[href], h3 a[href], a[data-testid="result-title-a"][href], a.result__a[href], a[href]');
+    if (anchor) pushResult(anchor, container);
     if (results.length >= 16) break;
+  }
+  if (!results.length) {
+    for (const anchor of Array.from(document.querySelectorAll('h2 a[href], h3 a[href], a[href]'))) {
+      pushResult(anchor, anchor.closest('li, article, div') || anchor);
+      if (results.length >= 16) break;
+    }
   }
   return JSON.stringify(results);
 }"#;
@@ -940,7 +949,7 @@ fn playwright_mcp_search_sources_once(
         )?)
         .ok();
     let mut seen_urls = Vec::new();
-    let mut result_links = Vec::new();
+    let mut results = Vec::new();
     for raw_link in raw_links {
         let Ok(candidate) = Url::parse(&raw_link.url) else {
             continue;
@@ -956,39 +965,11 @@ fn playwright_mcp_search_sources_once(
             continue;
         }
         seen_urls.push(url.as_str().to_string());
-        result_links.push((title, url));
-        if result_links.len() >= max_results.clamp(3, 5) as usize {
-            break;
-        }
-    }
-
-    let mut results = Vec::new();
-    for (title, url) in result_links {
-        if client
-            .call_tool(
-                "browser_navigate",
-                serde_json::json!({
-                    "url": url.to_string()
-                }),
-            )
-            .is_err()
-        {
-            continue;
-        }
-        let extraction: PlaywrightPageExtraction =
-            match parse_playwright_evaluate_json(&client.call_tool(
-                "browser_evaluate",
-                serde_json::json!({
-                    "function": PLAYWRIGHT_PAGE_EXTRACTION_SCRIPT
-                }),
-            )?) {
-                Ok(extraction) => extraction,
-                Err(_) => continue,
-            };
-        let snippet = compact_source_text(&extraction.text, 1800);
-        if snippet.len() < 120 {
-            continue;
-        }
+        let snippet = if raw_link.snippet.trim().is_empty() {
+            title.clone()
+        } else {
+            compact_source_text(&raw_link.snippet, 900)
+        };
         results.push(LocalAiVerifiedSource {
             title,
             url: url.to_string(),
@@ -996,6 +977,9 @@ fn playwright_mcp_search_sources_once(
             source: url.host_str().unwrap_or("网页").to_string(),
             published_at: None,
         });
+        if results.len() >= max_results.clamp(3, 5) as usize {
+            break;
+        }
     }
     if results.is_empty() {
         if let Some(search_page) = search_page {
@@ -1026,7 +1010,7 @@ async fn search_verified_sources(
     query: &str,
     max_results: u32,
 ) -> Result<Vec<LocalAiVerifiedSource>, String> {
-    let template = DEFAULT_WEB_SEARCH_URL;
+    let template = DEFAULT_PLAYWRIGHT_SEARCH_URL;
     if !template.contains("{query}") {
         return Err("内置搜索入口必须包含 {query} 占位符。".to_string());
     }
