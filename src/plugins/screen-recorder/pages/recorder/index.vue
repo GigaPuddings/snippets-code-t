@@ -17,7 +17,12 @@
         @mousedown.prevent="startResize(handle.direction)"
       ></span>
 
-      <header ref="titleBarRef" class="title-bar" @mousedown="startDrag">
+      <header
+        ref="titleBarRef"
+        class="title-bar"
+        @mouseenter="focusRecorderWindow"
+        @mousedown="startDrag"
+      >
         <span class="window-title">
           {{ $t('screenRecorder.title') || '区域录制' }}
         </span>
@@ -65,7 +70,98 @@
         </div>
       </main>
 
-      <footer ref="controlStripRef" class="control-strip">
+      <div
+        v-if="showTopControlStrip"
+        ref="topControlStripRef"
+        class="top-control-strip"
+        @mouseenter="focusRecorderWindow"
+      >
+        <span v-if="status === 'recording' || status === 'paused'" class="time">
+          {{ timeText }}
+        </span>
+        <span v-else-if="status === 'exporting'" class="save-status">
+          {{ exportProgressPercent }}%
+        </span>
+        <span v-else-if="status === 'completed'" class="save-status">
+          {{ result?.hasAudio ? '已保存·有声' : '已保存·无声' }}
+        </span>
+        <span v-else class="save-status">
+          {{ captureSize.width }}×{{ captureSize.height }}
+        </span>
+
+        <template v-if="status === 'recording' || status === 'paused'">
+          <button
+            class="control-button"
+            :title="
+              status === 'paused' ? shortcutResumeTitle : shortcutPauseTitle
+            "
+            @click="status === 'paused' ? handleResume() : handlePause()"
+          >
+            <span class="button-label">
+              {{
+                status === 'paused'
+                  ? $t('screenRecorder.resume')
+                  : $t('screenRecorder.pause')
+              }}
+            </span>
+          </button>
+          <button
+            class="control-button danger"
+            :title="shortcutStopTitle"
+            @click="handleStop"
+          >
+            <span class="button-label">{{ $t('screenRecorder.stop') }}</span>
+          </button>
+        </template>
+
+        <template v-else-if="status === 'exporting'">
+          <button
+            class="control-button danger"
+            title="取消导出"
+            @click="handleCancelExport"
+          >
+            <span class="button-label">取消</span>
+          </button>
+        </template>
+
+        <template v-else-if="status === 'completed' && result">
+          <button
+            class="control-button"
+            title="打开文件"
+            @click="handleOpenFile"
+          >
+            <span class="button-label">打开</span>
+          </button>
+          <button
+            class="control-button"
+            title="重新录制"
+            @click="handleRecordAgain"
+          >
+            <span class="button-label">重录</span>
+          </button>
+        </template>
+
+        <button
+          v-else
+          class="record-button"
+          :disabled="
+            ffmpegStatus?.available === false ||
+            captureSize.width < MIN_CAPTURE_SIZE ||
+            captureSize.height < MIN_CAPTURE_SIZE
+          "
+          :title="shortcutStartTitle"
+          @click="handleStart"
+        >
+          <span class="record-dot"></span>
+          <span class="record-label">{{ $t('screenRecorder.start') }}</span>
+        </button>
+      </div>
+
+      <footer
+        ref="controlStripRef"
+        class="control-strip"
+        @mouseenter="focusRecorderWindow"
+      >
         <div class="control-group control-group--tools">
           <div class="tool-pill">
             <button
@@ -320,9 +416,11 @@ const appWindow = getCurrentWindow();
 const captureHoleRef = ref<HTMLElement | null>(null);
 const titleBarRef = ref<HTMLElement | null>(null);
 const controlStripRef = ref<HTMLElement | null>(null);
+const topControlStripRef = ref<HTMLElement | null>(null);
 const captureSize = ref({ width: 0, height: 0 });
 const isSnapAligned = ref(false);
 const isSnapFullscreen = ref(false);
+const isBottomEdgeSnapped = ref(false);
 const audioLevel = ref(0);
 const audioMeterUnavailable = ref(false);
 const exportProgress = ref<ExportProgressEvent | null>(null);
@@ -448,6 +546,9 @@ const shortcutResumeTitle = computed(
 const shortcutStopTitle = computed(
   () => `${t('screenRecorder.stop')} (${CONTROL_SHORTCUTS.stop})`
 );
+const showTopControlStrip = computed(
+  () => isSnapFullscreen.value && isBottomEdgeSnapped.value
+);
 
 const exportProgressPercent = computed(() => {
   const progress = exportProgress.value?.progress ?? 0.03;
@@ -482,14 +583,17 @@ const timeText = computed(() => {
   return `${minutes}:${seconds}`;
 });
 
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 const runAction = async (action: () => Promise<void>) => {
   try {
     await action();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`${LOG_PREFIX} action failed`, error);
     logger.error(`${LOG_PREFIX} action failed`, error);
     if (!isClosing.value) {
-      modal.msg(error?.message || String(error), 'error');
+      modal.msg(getErrorMessage(error), 'error');
     }
   }
 };
@@ -589,16 +693,19 @@ const refreshCaptureMetricsNow = async () => {
     if (isSnapFullscreen.value) {
       const titleHeight =
         titleBarRef.value?.getBoundingClientRect().height ?? 0;
+      const topControlsHeight =
+        topControlStripRef.value?.getBoundingClientRect().height ?? 0;
       const controlsHeight =
         controlStripRef.value?.getBoundingClientRect().height ?? 0;
+      const topInteractiveHeight = titleHeight + topControlsHeight;
       await setPassthroughRegionIfChanged({
         x: Math.round(region.x * region.scale),
-        y: Math.round((region.y + titleHeight) * region.scale),
+        y: Math.round((region.y + topInteractiveHeight) * region.scale),
         width: region.physicalWidth,
         height: Math.max(
           1,
           region.physicalHeight -
-            Math.round((titleHeight + controlsHeight) * region.scale)
+            Math.round((topInteractiveHeight + controlsHeight) * region.scale)
         )
       });
       return;
@@ -659,6 +766,7 @@ const clearPassthrough = async () => {
 const resetSnapAlignment = () => {
   isSnapAligned.value = false;
   isSnapFullscreen.value = false;
+  isBottomEdgeSnapped.value = false;
 };
 
 const scheduleMetricsRefresh = () => {
@@ -708,12 +816,14 @@ const refreshOverlayWindowRegion = async () => {
   const frame = await getOuterFrame();
   const scale = await appWindow.scaleFactor();
   const titleHeight = titleBarRef.value?.getBoundingClientRect().height ?? 0;
+  const topControlsHeight =
+    topControlStripRef.value?.getBoundingClientRect().height ?? 0;
   const controlsHeight =
     controlStripRef.value?.getBoundingClientRect().height ?? 0;
   await setRecorderOverlayWindowRegion({
     width: frame.width,
     height: frame.height,
-    topHeight: Math.round(titleHeight * scale),
+    topHeight: Math.round((titleHeight + topControlsHeight) * scale),
     bottomHeight: Math.round(controlsHeight * scale)
   }).catch(() => undefined);
 };
@@ -767,6 +877,19 @@ const isTargetTouchingMonitorEdge = (
       monitorFrame.x + monitorFrame.width - tolerance ||
     target.screenY + target.physicalHeight >=
       monitorFrame.y + monitorFrame.height - tolerance
+  );
+};
+
+const isTargetTouchingMonitorBottom = (
+  target: RecorderSnapRegion,
+  monitorFrame: PhysicalFrame | null,
+  scale: number
+): boolean => {
+  if (!monitorFrame) return false;
+  const tolerance = Math.max(8, Math.round(8 * scale));
+  return (
+    target.screenY + target.physicalHeight >=
+    monitorFrame.y + monitorFrame.height - tolerance
   );
 };
 
@@ -862,6 +985,10 @@ const startAudioMeter = async () => {
   }
 };
 
+const focusRecorderWindow = () => {
+  void appWindow.setFocus().catch(() => undefined);
+};
+
 const startDrag = async (event: MouseEvent) => {
   if (event.button !== 0 || isBusy.value) return;
   resetSnapAlignment();
@@ -869,8 +996,8 @@ const startDrag = async (event: MouseEvent) => {
     .setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT))
     .catch(() => undefined);
   await clearPassthrough();
-  await appWindow.startDragging().catch((error: any) => {
-    modal.msg(error?.message || String(error), 'error');
+  await appWindow.startDragging().catch((error: unknown) => {
+    modal.msg(getErrorMessage(error), 'error');
   });
   scheduleMetricsRefresh();
 };
@@ -882,8 +1009,8 @@ const startResize = async (direction: ResizeDirection) => {
     .setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT))
     .catch(() => undefined);
   await clearPassthrough();
-  await appWindow.startResizeDragging(direction).catch((error: any) => {
-    modal.msg(error?.message || String(error), 'error');
+  await appWindow.startResizeDragging(direction).catch((error: unknown) => {
+    modal.msg(getErrorMessage(error), 'error');
   });
   scheduleMetricsRefresh();
 };
@@ -965,7 +1092,10 @@ const handleRecorderShortcut = (action: RecorderShortcutAction) => {
     return;
   }
 
-  if (action === 'stop' && (status.value === 'recording' || status.value === 'paused')) {
+  if (
+    action === 'stop' &&
+    (status.value === 'recording' || status.value === 'paused')
+  ) {
     void handleStop();
   }
 };
@@ -987,6 +1117,11 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     scale
   );
   const isMonitorEdgeTarget = isTargetTouchingMonitorEdge(
+    target,
+    monitorRect,
+    scale
+  );
+  isBottomEdgeSnapped.value = isTargetTouchingMonitorBottom(
     target,
     monitorRect,
     scale
@@ -1186,14 +1321,14 @@ onMounted(async () => {
   await refreshCaptureMetrics();
   await startAudioMeter();
   await nextTick();
-  await appWindow.emit('screen_recorder_ready');
-  logger.info(`${LOG_PREFIX} frontend ready emitted`);
   unlistenExportProgress = await listen<ExportProgressEvent>(
     'screen_recorder_export_progress',
     (event) => {
       exportProgress.value = event.payload;
     }
   ).catch(() => null);
+  await appWindow.emit('screen_recorder_ready');
+  logger.info(`${LOG_PREFIX} frontend ready emitted`);
 
   if (captureHoleRef.value) {
     resizeObserver = new ResizeObserver(() => {
@@ -1229,6 +1364,12 @@ watch(status, (nextStatus) => {
   if (nextStatus !== 'exporting') {
     exportProgress.value = null;
   }
+});
+
+watch(showTopControlStrip, async () => {
+  await nextTick();
+  await refreshCaptureMetrics();
+  await refreshOverlayWindowRegion();
 });
 
 onUnmounted(() => {
@@ -1465,6 +1606,10 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
+.top-control-strip {
+  display: none;
+}
+
 .recorder-shell.snap-aligned {
   grid-template-rows: 34px minmax(80px, 1fr) 42px;
 
@@ -1553,6 +1698,38 @@ onUnmounted(() => {
     inset: auto 0 0;
     z-index: 6;
     height: 42px;
+  }
+
+  .top-control-strip {
+    position: absolute;
+    inset: 34px 0 auto;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    height: 42px;
+    min-height: 42px;
+    padding: 5px 7px;
+    background: var(--recorder-bg);
+    border-bottom: 1px solid var(--recorder-border);
+    box-sizing: border-box;
+
+    .save-status {
+      max-width: 110px;
+    }
+
+    .record-button {
+      min-width: 88px;
+      height: 30px;
+      padding: 0 10px;
+    }
+
+    .control-button {
+      min-width: 42px;
+      max-width: 56px;
+      padding: 0 8px;
+    }
   }
 }
 
