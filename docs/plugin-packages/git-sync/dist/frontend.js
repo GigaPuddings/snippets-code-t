@@ -11936,44 +11936,7 @@ class pM {
   }
 }
 ul = /* @__PURE__ */ new WeakMap();
-var hn;
-(function(t) {
-  t.WINDOW_RESIZED = "tauri://resize", t.WINDOW_MOVED = "tauri://move", t.WINDOW_CLOSE_REQUESTED = "tauri://close-requested", t.WINDOW_DESTROYED = "tauri://destroyed", t.WINDOW_FOCUS = "tauri://focus", t.WINDOW_BLUR = "tauri://blur", t.WINDOW_SCALE_FACTOR_CHANGED = "tauri://scale-change", t.WINDOW_THEME_CHANGED = "tauri://theme-changed", t.WINDOW_CREATED = "tauri://window-created", t.WEBVIEW_CREATED = "tauri://webview-created", t.DRAG_ENTER = "tauri://drag-enter", t.DRAG_OVER = "tauri://drag-over", t.DRAG_DROP = "tauri://drag-drop", t.DRAG_LEAVE = "tauri://drag-leave";
-})(hn || (hn = {}));
-async function kv(t, e) {
-  await Y("plugin:event|unlisten", {
-    event: t,
-    eventId: e
-  });
-}
-async function Kt(t, e, n) {
-  var i;
-  const r = typeof n?.target == "string" ? { kind: "AnyLabel", label: n.target } : (i = n?.target) !== null && i !== void 0 ? i : { kind: "Any" };
-  return Y("plugin:event|listen", {
-    event: t,
-    target: r,
-    handler: hM(e)
-  }).then((s) => async () => kv(t, s));
-}
-async function gM(t, e, n) {
-  return Kt(t, (i) => {
-    kv(t, i.id), e(i);
-  }, n);
-}
-async function _v(t, e) {
-  await Y("plugin:event|emit", {
-    event: t,
-    payload: e
-  });
-}
-async function mM(t, e, n) {
-  await Y("plugin:event|emit_to", {
-    target: typeof t == "string" ? { kind: "AnyLabel", label: t } : t,
-    event: e,
-    payload: n
-  });
-}
-const vM = "snippets-code:developer-mode", Ev = "snippets-code:frontend-diagnostics", yM = 240, _s = "[REDACTED]", fl = (t) => t.replace(
+const gM = "snippets-code:developer-mode", kv = "snippets-code:frontend-diagnostics", mM = 240, _s = "[REDACTED]", fl = (t) => t.replace(
   /("(?:[^"]*(?:token|password|secret|authorization)[^"]*)"\s*:\s*)("(?:\\.|[^"])*"|[^,\r\n}\]]+)/gi,
   `$1"${_s}"`
 ).replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${_s}`).replace(
@@ -11982,7 +11945,7 @@ const vM = "snippets-code:developer-mode", Ev = "snippets-code:frontend-diagnost
 ).replace(/(https?:\/\/)[^/\s@]+@/gi, `$1${_s}@`).replace(
   /([?&][^=&\s]*(?:token|password|secret|authorization)[^=&\s]*=)[^&\s]+/gi,
   `$1${_s}`
-), Tv = (t) => {
+), _v = (t) => {
   if (t === void 0) return;
   if (typeof t == "string") return fl(t);
   const e = /* @__PURE__ */ new WeakSet();
@@ -12011,16 +11974,16 @@ const vM = "snippets-code:developer-mode", Ev = "snippets-code:frontend-diagnost
   } catch {
     return fl(String(t));
   }
-}, bM = () => {
+}, vM = () => {
   try {
     return globalThis.__TAURI_INTERNALS__?.metadata?.currentWindow?.label ?? "webview";
   } catch {
     return "webview";
   }
-}, wM = () => {
+}, yM = () => {
   if (typeof localStorage > "u") return [];
   try {
-    const t = JSON.parse(localStorage.getItem(Ev) || "[]");
+    const t = JSON.parse(localStorage.getItem(kv) || "[]");
     return Array.isArray(t) ? t : [];
   } catch {
     return [];
@@ -12028,32 +11991,32 @@ const vM = "snippets-code:developer-mode", Ev = "snippets-code:frontend-diagnost
 }, kf = () => {
   if (typeof localStorage > "u") return !1;
   try {
-    return localStorage.getItem(vM) === "true";
+    return localStorage.getItem(gM) === "true";
   } catch {
     return !1;
   }
-}, SM = (t, e, n) => {
+}, bM = (t, e, n) => {
   if (!kf() || typeof localStorage > "u") return;
-  const i = wM();
+  const i = yM();
   i.push({
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
     level: t,
-    windowLabel: bM(),
+    windowLabel: vM(),
     message: fl(e),
-    data: Tv(n)
+    data: _v(n)
   });
   try {
     localStorage.setItem(
-      Ev,
-      JSON.stringify(i.slice(-yM))
+      kv,
+      JSON.stringify(i.slice(-mM))
     );
   } catch {
   }
-}, CM = () => kf(), kM = (t) => t === "error" || kf(), Bo = (t, e, n) => {
-  SM(t, e, n), kM(t) && Y("frontend_log", {
+}, wM = () => kf(), SM = (t) => t === "error" || kf(), Bo = (t, e, n) => {
+  bM(t, e, n), SM(t) && Y("frontend_log", {
     level: t,
     message: e,
-    data: n === void 0 ? null : Tv(n)
+    data: n === void 0 ? null : _v(n)
   }).catch(() => {
   });
 }, Ce = {
@@ -12067,12 +12030,12 @@ const vM = "snippets-code:developer-mode", Ev = "snippets-code:frontend-diagnost
     Bo("warn", t, e);
   },
   debug: (t, e) => {
-    CM() && Bo("debug", t, e);
+    wM() && Bo("debug", t, e);
   }
-}, _M = { class: "confirm-choice-body" }, EM = { class: "message-row" }, TM = { class: "message-text" }, AM = {
+}, CM = { class: "confirm-choice-body" }, kM = { class: "message-row" }, _M = { class: "message-text" }, EM = {
   key: 0,
   class: "hint-list"
-}, OM = { class: "confirm-footer" }, xM = /* @__PURE__ */ Q({
+}, TM = { class: "confirm-footer" }, AM = /* @__PURE__ */ Q({
   __name: "ConfirmChoiceDialog",
   props: {
     modelValue: { type: Boolean, default: !1 },
@@ -12154,7 +12117,7 @@ const vM = "snippets-code:developer-mode", Ev = "snippets-code:frontend-diagnost
       onClose: h
     }, {
       footer: X(() => [
-        T("div", OM, [
+        T("div", TM, [
           v.secondaryText ? (x(), se(Vn, {
             key: 0,
             onClick: d
@@ -12186,8 +12149,8 @@ const vM = "snippets-code:developer-mode", Ev = "snippets-code:frontend-diagnost
         ])
       ]),
       default: X(() => [
-        T("div", _M, [
-          T("div", EM, [
+        T("div", CM, [
+          T("div", kM, [
             T(
               "span",
               {
@@ -12199,13 +12162,13 @@ const vM = "snippets-code:developer-mode", Ev = "snippets-code:frontend-diagnost
             ),
             T(
               "div",
-              TM,
+              _M,
               G(m(c)),
               1
               /* TEXT */
             )
           ]),
-          m(u).length ? (x(), R("div", AM, [
+          m(u).length ? (x(), R("div", EM, [
             (x(!0), R(
               _e,
               null,
@@ -12238,7 +12201,44 @@ const vM = "snippets-code:developer-mode", Ev = "snippets-code:frontend-diagnost
       /* STABLE */
     }, 8, ["modelValue", "title", "custom-class"]));
   }
-}), Hs = /* @__PURE__ */ $i(xM, [["__scopeId", "data-v-42ef6276"]]);
+}), Hs = /* @__PURE__ */ $i(AM, [["__scopeId", "data-v-42ef6276"]]);
+var hn;
+(function(t) {
+  t.WINDOW_RESIZED = "tauri://resize", t.WINDOW_MOVED = "tauri://move", t.WINDOW_CLOSE_REQUESTED = "tauri://close-requested", t.WINDOW_DESTROYED = "tauri://destroyed", t.WINDOW_FOCUS = "tauri://focus", t.WINDOW_BLUR = "tauri://blur", t.WINDOW_SCALE_FACTOR_CHANGED = "tauri://scale-change", t.WINDOW_THEME_CHANGED = "tauri://theme-changed", t.WINDOW_CREATED = "tauri://window-created", t.WEBVIEW_CREATED = "tauri://webview-created", t.DRAG_ENTER = "tauri://drag-enter", t.DRAG_OVER = "tauri://drag-over", t.DRAG_DROP = "tauri://drag-drop", t.DRAG_LEAVE = "tauri://drag-leave";
+})(hn || (hn = {}));
+async function Ev(t, e) {
+  await Y("plugin:event|unlisten", {
+    event: t,
+    eventId: e
+  });
+}
+async function Kt(t, e, n) {
+  var i;
+  const r = typeof n?.target == "string" ? { kind: "AnyLabel", label: n.target } : (i = n?.target) !== null && i !== void 0 ? i : { kind: "Any" };
+  return Y("plugin:event|listen", {
+    event: t,
+    target: r,
+    handler: hM(e)
+  }).then((s) => async () => Ev(t, s));
+}
+async function OM(t, e, n) {
+  return Kt(t, (i) => {
+    Ev(t, i.id), e(i);
+  }, n);
+}
+async function Tv(t, e) {
+  await Y("plugin:event|emit", {
+    event: t,
+    payload: e
+  });
+}
+async function xM(t, e, n) {
+  await Y("plugin:event|emit_to", {
+    target: typeof t == "string" ? { kind: "AnyLabel", label: t } : t,
+    event: e,
+    payload: n
+  });
+}
 async function ba() {
   try {
     return await Y("get_git_settings_command");
@@ -12248,7 +12248,7 @@ async function ba() {
 }
 async function MM(t) {
   try {
-    await Y("update_git_settings_command", { settings: t }), _v("git-settings-changed").catch(() => {
+    await Y("update_git_settings_command", { settings: t }), Tv("git-settings-changed").catch(() => {
     });
   } catch (e) {
     throw new Error(`更新 Git 设置失败: ${e}`);
@@ -13712,7 +13712,7 @@ ${J.message}`;
       ]);
     };
   }
-}), pL = /* @__PURE__ */ $i(hL, [["__scopeId", "data-v-1667a12b"]]), gL = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), pL = /* @__PURE__ */ $i(hL, [["__scopeId", "data-v-eeecf082"]]), gL = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: pL
 }, Symbol.toStringTag, { value: "Module" })), mL = ["title"], vL = {
@@ -14200,7 +14200,7 @@ class Nv {
     return this._handleTauriEvent(e, n) ? () => {
       const i = this.listeners[e];
       i.splice(i.indexOf(n), 1);
-    } : gM(e, n, {
+    } : OM(e, n, {
       target: { kind: "Window", label: this.label }
     });
   }
@@ -14225,7 +14225,7 @@ class Nv {
         });
       return;
     }
-    return _v(e, n);
+    return Tv(e, n);
   }
   /**
    * Emits an event to all {@link EventTarget|targets} matching the given target.
@@ -14249,7 +14249,7 @@ class Nv {
         });
       return;
     }
-    return mM(e, n, i);
+    return xM(e, n, i);
   }
   /** @ignore */
   _handleTauriEvent(e, n) {

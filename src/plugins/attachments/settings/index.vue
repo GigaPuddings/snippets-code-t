@@ -7,6 +7,41 @@
     
     <!-- 可滚动内容 -->
     <main class="panel-content">
+      <!-- 编辑器行号 -->
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t('settings.editorLineNumbers') }}</div>
+          <div class="summarize-label-desc">{{ $t('settings.editorLineNumbersDesc') }}</div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomSwitch
+            :model-value="configurationStore.editorLineNumbers"
+            :active-text="$t('common.on')"
+            :inactive-text="$t('common.off')"
+            @change="toggleEditorLineNumbers"
+          />
+        </div>
+      </section>
+
+      <!-- 编辑器行距 -->
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t('settings.editorLineHeight') }}</div>
+          <div class="summarize-label-desc">{{ $t('settings.editorLineHeightDesc') }}</div>
+        </div>
+        <div class="summarize-input-wrapper line-height-control">
+          <el-slider
+            v-model="editorLineHeightDraft"
+            :min="1.2"
+            :max="2"
+            :step="0.05"
+            :show-tooltip="false"
+            @change="changeEditorLineHeight"
+          />
+          <span class="line-height-value">{{ editorLineHeightDraft.toFixed(2) }}</span>
+        </div>
+      </section>
+
       <!-- 附件路径模板 -->
       <section class="summarize-section transparent-input">
         <div class="summarize-label">
@@ -71,6 +106,8 @@
 
 <script setup lang="ts">
 import { getAttachmentConfig, updateAttachmentConfig } from '@/plugins/attachments/api';
+import { CustomSwitch } from '@/components/UI';
+import { useConfigurationStore } from '@/store';
 import type { AttachmentConfig } from '@/types/models';
 import modal from '@/utils/modal';
 import { useI18n } from 'vue-i18n';
@@ -80,6 +117,7 @@ defineOptions({
 });
 
 const { t } = useI18n();
+const configurationStore = useConfigurationStore();
 
 const config = ref<AttachmentConfig>({
   pathTemplate: 'assets/${noteFileName}/',
@@ -88,6 +126,7 @@ const config = ref<AttachmentConfig>({
 
 const isLoading = ref(false);
 const isSaving = ref(false);
+const editorLineHeightDraft = ref(configurationStore.editorLineHeight);
 
 const previewPath = computed(() => {
   const exampleName = t('settings.attachment.exampleNoteName') || '示例笔记';
@@ -128,6 +167,28 @@ async function handleConfigChange() {
   }
 }
 
+const toggleEditorLineNumbers = async (value: boolean) => {
+  try {
+    await configurationStore.updateEditorLineNumbers(value);
+  } catch (error) {
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
+  }
+};
+
+const changeEditorLineHeight = async (value: number | number[]) => {
+  const nextValue = Array.isArray(value) ? value[0] : value;
+  try {
+    await configurationStore.updateEditorLineHeight(nextValue);
+  } catch (error) {
+    editorLineHeightDraft.value = configurationStore.editorLineHeight;
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
+  }
+};
+
+watch(() => configurationStore.editorLineHeight, (value) => {
+  editorLineHeightDraft.value = value;
+});
+
 onMounted(async () => {
   isLoading.value = true;
   try {
@@ -148,5 +209,19 @@ onMounted(async () => {
   code {
     @apply text-sm text-blue-600 dark:text-blue-400 font-mono;
   }
+}
+
+.line-height-control {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 44px;
+  gap: 12px;
+  align-items: center;
+}
+
+.line-height-value {
+  color: var(--panel-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 </style>

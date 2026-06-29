@@ -85,7 +85,7 @@ impl OptimizedIndexManager {
             .jieba
             .cut(text, false)
             .into_iter()
-            .map(|s| s.to_lowercase())
+            .map(|s| s.word.to_lowercase())
             .filter(|s| s.len() > 1) // 过滤单字
             .collect();
         tokens.extend(chinese_tokens.clone());

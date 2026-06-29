@@ -2,7 +2,7 @@
 // 提供加密、进度事件等通用功能
 
 use aes_gcm::{
-    aead::{Aead, AeadCore, KeyInit, OsRng},
+    aead::{consts::U12, Aead, Generate, KeyInit},
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose, Engine as _};
@@ -14,7 +14,7 @@ pub fn encrypt_data(data: &[u8], token: &str) -> Result<Vec<u8>, String> {
     let cipher =
         Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| format!("创建加密器失败: {}", e))?;
 
-    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let nonce = Nonce::<U12>::generate();
     let ciphertext = cipher
         .encrypt(&nonce, data)
         .map_err(|e| format!("加密失败: {}", e))?;
@@ -33,13 +33,15 @@ pub fn decrypt_data(encrypted_data: &[u8], token: &str) -> Result<Vec<u8>, Strin
 
     if encrypted_data.len() > NONCE_LEN {
         let (nonce_bytes, ciphertext) = encrypted_data.split_at(NONCE_LEN);
-        let nonce = Nonce::from_slice(nonce_bytes);
-        if let Ok(plaintext) = cipher.decrypt(nonce, ciphertext) {
-            return Ok(plaintext);
+        if let Ok(nonce) = <&Nonce<U12>>::try_from(nonce_bytes) {
+            if let Ok(plaintext) = cipher.decrypt(nonce, ciphertext) {
+                return Ok(plaintext);
+            }
         }
     }
 
-    let legacy_nonce = Nonce::from_slice(&LEGACY_FIXED_NONCE);
+    let legacy_nonce = <&Nonce<U12>>::try_from(&LEGACY_FIXED_NONCE[..])
+        .map_err(|e| format!("解析旧版本 nonce 失败: {}", e))?;
     cipher
         .decrypt(legacy_nonce, encrypted_data)
         .map_err(|e| format!("解密失败: {}", e))

@@ -214,10 +214,10 @@ export default {
       frontendCleared: 'Frontend diagnostic logs cleared'
     },
     attachment: {
-      menu: 'Attachments',
-      title: 'Attachment Settings',
+      menu: 'Editor & Attachments',
+      title: 'Editor & Attachment Settings',
       description:
-        'Configure storage location and filename format for note image attachments',
+        'Configure editor display, storage location, and filename format for note image attachments',
       pathTemplate: 'Attachment Path Template',
       pathTemplatePlaceholder: 'assets/${noteFileName}/',
       pathTemplateHint: 'Supported variables: ${noteFileName} (note filename)',

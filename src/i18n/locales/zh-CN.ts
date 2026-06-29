@@ -207,9 +207,9 @@ export default {
       frontendCleared: '前端诊断日志已清除'
     },
     attachment: {
-      menu: '附件管理',
-      title: '附件管理设置',
-      description: '配置笔记图片附件的存储位置和文件名格式',
+      menu: '编辑器与附件',
+      title: '编辑器与附件设置',
+      description: '配置编辑器显示、笔记图片附件的存储位置和文件名格式',
       pathTemplate: '附件路径模板',
       pathTemplatePlaceholder: 'assets/${noteFileName}/',
       pathTemplateHint: '支持变量：${noteFileName}（笔记文件名）',

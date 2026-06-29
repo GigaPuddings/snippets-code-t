@@ -1007,7 +1007,9 @@ onMounted(async () => {
 }
 
 .settings-section-title {
-  margin: 18px 0 6px;
+  margin: 24px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--categories-border-color);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.35;
@@ -1015,11 +1017,11 @@ onMounted(async () => {
 }
 
 .summarize-section {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   gap: 16px;
   align-items: center;
-  padding: 12px 0;
+  justify-content: space-between;
+  padding: 0 0 4px;
   border-bottom: 1px solid var(--categories-border-color);
 }
 
@@ -1434,7 +1436,7 @@ onMounted(async () => {
   }
 
   .summarize-section {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     gap: 10px;
     align-items: start;
   }

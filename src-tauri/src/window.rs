@@ -277,7 +277,8 @@ fn position_search_window_near_top(window: &WebviewWindow) {
 
 use tauri::image::Image;
 use tauri_plugin_clipboard_manager::ClipboardExt;
-use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
+use windows::core::BOOL;
+use windows::Win32::Foundation::{HWND, LPARAM, RECT};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetClassNameW, GetForegroundWindow, GetParent, GetSystemMetrics, GetTopWindow,
     GetWindow, GetWindowLongW, GetWindowRect, GetWindowTextW, IsIconic, IsWindowVisible,
@@ -1791,7 +1792,12 @@ fn capture_screen_and_encode() -> Result<(String, String), String> {
     {
         let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 85);
         encoder
-            .encode(&img, width as u32, height as u32, image::ColorType::Rgba8)
+            .encode(
+                &img,
+                width as u32,
+                height as u32,
+                image::ColorType::Rgba8.into(),
+            )
             .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
     }
 

@@ -48,18 +48,6 @@
     <div class="titlebar-right">
       <!-- 非窄屏时：显示插件动作、置顶 -->
       <template v-if="!isNarrow">
-        <button
-          class="workspace-entry"
-          type="button"
-          :title="$t('titlebar.openWorkspace')"
-          :aria-label="$t('titlebar.openWorkspace')"
-          @mousedown.stop
-          @click.stop="openWorkspace"
-        >
-          <span class="workspace-entry-label">{{ $t('titlebar.workspace') }}</span>
-          <span class="workspace-entry-name">{{ workspaceName }}</span>
-          <right class="workspace-entry-icon" theme="outline" size="13" :strokeWidth="3" />
-        </button>
         <div
           class="titlebar-button"
           @click="handleTitlebar('isAlwaysOnTop')"
@@ -136,10 +124,6 @@
               <span class="ml-2">{{ $t('titlebar.userCenter') }}</span>
             </el-dropdown-item>
             <!-- 窄屏时更多里才显示插件动作 / 置顶 -->
-            <el-dropdown-item v-if="isNarrow" command="workspace">
-              <folder-open theme="outline" size="16" :strokeWidth="3" class="align-middle" />
-              <span class="ml-2">{{ $t('titlebar.openWorkspace') }}</span>
-            </el-dropdown-item>
             <el-dropdown-item command="checkUpdate">
               <update-rotation theme="outline" size="16" :strokeWidth="3" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.checkUpdate') }}</span>
@@ -218,8 +202,6 @@ import {
   Me,
   MoreOne,
   Search,
-  FolderOpen,
-  Right,
   // ViewList,
   // MenuFoldOne,
   // MenuUnfoldOne
@@ -233,7 +215,6 @@ import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
 import ConfigQuickSearch from '@/components/ConfigQuickSearch/index.vue';
 import { useLayoutStore, usePluginStore } from '@/store';
 import { configNavigationTabs } from '@/plugins/navigation';
-import modal from '@/utils/modal';
 
 const { t } = useI18n();
 const layoutStore = useLayoutStore();
@@ -278,7 +259,6 @@ const state = reactive({
 });
 
 const hasUpdate = ref(false);
-const workspaceName = ref('config');
 const quickSearchVisible = ref(false);
 
 // 当前激活的tab索引
@@ -326,38 +306,6 @@ const handleGlobalKeydown = (event: KeyboardEvent) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
     openConfigQuickSearch();
-  }
-};
-
-const openWorkspace = async () => {
-  try {
-    const workspaceRoot = await invoke<string | null>('get_workspace_root_path');
-    if (workspaceRoot) {
-      workspaceName.value = getWorkspaceName(workspaceRoot);
-      await invoke('open_folder', { folderPath: workspaceRoot });
-      return;
-    }
-
-    goToUserCenter();
-  } catch (error) {
-    console.error('[Titlebar] open workspace failed:', error);
-    modal.warning(t('userCenter.workspaceNotSet'));
-    goToUserCenter();
-  }
-};
-
-const getWorkspaceName = (workspaceRoot: string) => {
-  const normalized = workspaceRoot.replace(/[\\/]+$/, '');
-  const parts = normalized.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] || 'config';
-};
-
-const refreshWorkspaceName = async () => {
-  try {
-    const workspaceRoot = await invoke<string | null>('get_workspace_root_path');
-    workspaceName.value = workspaceRoot ? getWorkspaceName(workspaceRoot) : 'config';
-  } catch {
-    workspaceName.value = 'config';
   }
 };
 
@@ -410,9 +358,6 @@ const handleMoreMenuCommand = (command: string) => {
     case 'checkUpdate':
       handleUpdateClick();
       break;
-    case 'workspace':
-      openWorkspace();
-      break;
     case 'pinWindow':
       handleTitlebar('isAlwaysOnTop');
       break;
@@ -432,7 +377,6 @@ onMounted(async () => {
 
   // 检查是否有更新
   hasUpdate.value = await invoke('get_update_status');
-  await refreshWorkspaceName();
   window.addEventListener('keydown', handleGlobalKeydown);
 
   // 监听更新状态变化
@@ -589,45 +533,6 @@ onUnmounted(() => {
   flex: 0 0 auto;
   gap: 4px;
   padding-right: 4px;
-}
-
-.workspace-entry {
-  @apply inline-flex items-center rounded-md border bg-panel;
-  min-width: 0;
-  height: 30px;
-  gap: 6px;
-  padding: 0 9px 0 10px;
-  cursor: pointer;
-  border-color: rgba(var(--categories-border-color-rgb), 0.72);
-  color: rgba(var(--categories-text-color-rgb), 0.88);
-  transition:
-    color 0.16s ease,
-    border-color 0.16s ease,
-    background-color 0.16s ease;
-
-  &:hover {
-    color: var(--search-result-accent);
-    border-color: var(--search-result-active-border);
-    background-color: var(--search-result-active);
-  }
-}
-
-.workspace-entry-label {
-  color: var(--categories-info-text-color);
-  font-size: 12px;
-}
-
-.workspace-entry-name {
-  max-width: 84px;
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspace-entry-icon {
-  flex-shrink: 0;
 }
 
 .titlebar-button {
@@ -788,13 +693,6 @@ onUnmounted(() => {
     display: none;
   }
 
-  .workspace-entry-label {
-    display: none;
-  }
-
-  .workspace-entry-name {
-    max-width: 64px;
-  }
 }
 
 /* 极窄屏（≤640px）：应用名可截断；窄屏布局由 isNarrow 控制，此处仅保留版本号 */
