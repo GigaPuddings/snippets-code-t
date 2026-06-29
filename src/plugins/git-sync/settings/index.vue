@@ -977,102 +977,17 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-// .settings-panel {
-//   display: flex;
-//   flex-direction: column;
-//   width: 100%;
-//   height: 100%;
-//   min-width: 0;
-//   color: var(--categories-text-color);
-// }
+.summarize-label-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--categories-text-color);
+}
 
-// .panel-header {
-//   flex-shrink: 0;
-//   padding: 4px 0 12px;
-// }
-
-// .panel-title {
-//   margin: 0;
-//   font-size: 18px;
-//   font-weight: 700;
-//   line-height: 1.35;
-//   color: var(--categories-text-color);
-// }
-
-// .panel-content {
-//   flex: 1;
-//   min-height: 0;
-//   padding-right: 8px;
-//   overflow-y: auto;
-// }
-
-// .settings-section-title {
-//   margin-top: 24px;
-//   padding-bottom: 8px;
-//   border-bottom: 1px solid var(--categories-border-color);
-//   font-size: 14px;
-//   font-weight: 700;
-//   line-height: 1.35;
-//   color: var(--categories-text-color);
-// }
-
-// .summarize-section {
-//   margin-top: 1.25rem;
-//   display: flex;
-//   gap: 16px;
-//   align-items: center;
-//   justify-content: space-between;
-//   padding: 0 0 4px;
-//   border-bottom: 1px solid var(--categories-border-color);
-// }
-
-// .summarize-label {
-//   min-width: 0;
-// }
-
-// .summarize-label-title {
-//   font-size: 14px;
-//   font-weight: 500;
-//   line-height: 1.35;
-//   color: var(--categories-text-color);
-// }
-
-// .summarize-label-desc {
-//   margin-top: 4px;
-//   font-size: 12px;
-//   line-height: 1.4;
-//   color: var(--categories-info-text-color);
-// }
-
-// .summarize-input-wrapper {
-//   display: inline-flex;
-//   align-items: center;
-//   justify-content: flex-end;
-//   min-width: 120px;
-//   max-width: 360px;
-//   gap: 12px;
-//   color: var(--categories-text-color);
-// }
-
-// .summarize-input-wrapper :deep(.el-input-number) {
-//   width: 128px;
-// }
-
-// .summarize-input-wrapper :deep(.el-input-number__decrease),
-// .summarize-input-wrapper :deep(.el-input-number__increase) {
-//   display: inline-flex;
-//   align-items: center;
-//   justify-content: center;
-// }
-
-// .summarize-input-wrapper :deep(.custom-switch) {
-//   flex-shrink: 0;
-// }
-
-// .summarize-input-wrapper :deep(.custom-button),
-// .summarize-input-wrapper :deep(button) {
-//   flex-shrink: 0;
-// }
+.summarize-label-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--categories-info-text-color);
+}
 
 .sync-status-panel {
   display: flex;
