@@ -63,7 +63,7 @@ export interface PluginInstallProgress {
 }
 
 export const DEFAULT_PLUGIN_MARKETPLACE_URL =
-  'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json';
+  'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/plugin-registry/marketplace/marketplace.json';
 
 /** GitHub 代理前缀，用于在国内加速大文件下载 */
 export const GITHUB_MIRROR_PREFIX = 'https://ghfast.top/';

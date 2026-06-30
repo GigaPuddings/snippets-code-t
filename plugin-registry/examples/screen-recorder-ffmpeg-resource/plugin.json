@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "screen-recorder-ffmpeg",
-  "version": "2.0.3",
+  "version": "2.0.5",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.screenRecorderFfmpeg.name",
@@ -21,5 +21,5 @@
   "compatibleAppVersion": ">=2.0.3",
   "minAppVersion": "2.0.3",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/releases/tag/2.0.3"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/releases/tag/2.0.5"
 }

@@ -15,7 +15,7 @@ runtime files here.
 
 For release builds, package the downloaded runtime as a local plugin resource
 using the layout documented in
-`docs/examples/screenshot-rapidocr-resource/README.md`.
+`plugin-registry/examples/screenshot-rapidocr-resource/README.md`.
 
 The application searches installed plugin resource directories first, then this
 development directory. You can still override the executable path with:

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const SOURCE_DIR = resolve(ROOT, 'src-tauri/resources/rapidocr')
-const MANIFEST_PATH = resolve(ROOT, 'docs/examples/screenshot-rapidocr-resource/plugin.json')
+const MANIFEST_PATH = resolve(ROOT, 'plugin-registry/examples/screenshot-rapidocr-resource/plugin.json')
 const TARGET_DIR = resolve(ROOT, 'dist-plugin-packages/screenshot-rapidocr')
 
 function readOption(name) {

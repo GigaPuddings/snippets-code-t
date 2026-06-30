@@ -4,8 +4,8 @@ import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const OFFICIAL_SOURCE_DIR = resolve(ROOT, 'docs/plugin-packages');
-const EXAMPLE_SOURCE_DIR = resolve(ROOT, 'docs/examples');
+const OFFICIAL_SOURCE_DIR = resolve(ROOT, 'plugin-registry/packages');
+const EXAMPLE_SOURCE_DIR = resolve(ROOT, 'plugin-registry/examples');
 const TARGET_ROOT = resolve(ROOT, 'dist-plugin-packages');
 const TARGET_OFFICIAL_DIR = join(TARGET_ROOT, 'official');
 const TARGET_EXAMPLES_DIR = join(TARGET_ROOT, 'examples');

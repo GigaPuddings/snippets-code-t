@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const SOURCE_DIR = resolve(ROOT, 'src-tauri/resources/ffmpeg')
-const MANIFEST_PATH = resolve(ROOT, 'docs/examples/screen-recorder-ffmpeg-resource/plugin.json')
+const MANIFEST_PATH = resolve(ROOT, 'plugin-registry/examples/screen-recorder-ffmpeg-resource/plugin.json')
 const TARGET_DIR = resolve(ROOT, 'dist-plugin-packages/screen-recorder-ffmpeg')
 const MAX_GITHUB_FILE_BYTES = 100 * 1024 * 1024
 

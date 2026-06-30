@@ -230,6 +230,7 @@ snippets-code/
 ├── docs/                         # 文档
 │   ├── ARCHITECTURE.md           # 架构文档
 │   └── CODING_STANDARDS.md       # 编码规范
+├── plugin-registry/              # 插件市场索引、官方插件包和示例包
 ├── package.json                  # 前端依赖配置
 ├── vite.config.ts                # Vite 配置
 ├── tsconfig.json                 # TypeScript 配置

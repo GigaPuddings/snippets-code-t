@@ -1156,8 +1156,8 @@ fn candidate_runtime_paths(
 
     if let Ok(cwd) = std::env::current_dir() {
         for relative in [
-            "docs/plugin-packages/local-ai-llama-runtime/resources/llama/llama-server.exe",
-            "docs/plugin-packages/local-ai/resources/llama/llama-server.exe",
+            "plugin-registry/packages/local-ai-llama-runtime/resources/llama/llama-server.exe",
+            "plugin-registry/packages/local-ai/resources/llama/llama-server.exe",
             "src-tauri/resources/llama/llama-server.exe",
         ] {
             paths.push((cwd.join(relative), format!("dev:{}", relative)));

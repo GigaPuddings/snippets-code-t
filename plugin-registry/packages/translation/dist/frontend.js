@@ -11733,7 +11733,7 @@ function kw(e, t, n) {
   }
   return s.$id = r, s;
 }
-const Ow = "https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json";
+const Ow = "https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/plugin-registry/marketplace/marketplace.json";
 async function Pw() {
   return await F("get_plugin_states");
 }

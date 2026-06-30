@@ -7,9 +7,9 @@ import { MARKETPLACE_PATH, pluginRepositories, ROOT } from './plugin-release-con
 
 const packageJson = JSON.parse(await readFile(resolve(ROOT, 'package.json'), 'utf8'));
 const REMOTE_MARKETPLACE_URL =
-  'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json';
+  'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/plugin-registry/marketplace/marketplace.json';
 const REMOTE_MARKETPLACE_API_URL =
-  'https://api.github.com/repos/GigaPuddings/snippets-code-t/contents/docs/plugin-marketplace/marketplace.json?ref=main';
+  'https://api.github.com/repos/GigaPuddings/snippets-code-t/contents/plugin-registry/marketplace/marketplace.json?ref=main';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -522,7 +522,7 @@ function commitAndPushMainRepo(rows, versionsByPluginId) {
     run('git', ['add', '-A'], { inherit: true });
   } else {
     const pluginPaths = rows.flatMap((row) => pluginRelevantDirs(row.plugin));
-    run('git', ['add', '-A', '--', 'docs/plugin-marketplace/marketplace.json', ...pluginPaths], { inherit: true });
+    run('git', ['add', '-A', '--', 'plugin-registry/marketplace/marketplace.json', ...pluginPaths], { inherit: true });
     const unstagedChanges = [
       ...gitLines(['diff', '--name-only']),
       ...gitLines(['ls-files', '--others', '--exclude-standard'])

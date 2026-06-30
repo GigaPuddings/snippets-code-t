@@ -11,8 +11,10 @@ node_modules
 dist
 dist-ssr
 dist-plugin-packages
-!docs/plugin-packages/**/dist/
-!docs/plugin-packages/**/dist/**
+!plugin-registry/packages/**/dist/
+!plugin-registry/packages/**/dist/**
+!plugin-registry/examples/**/dist/
+!plugin-registry/examples/**/dist/**
 target
 *.local
 _tmp*
@@ -55,5 +57,5 @@ src-tauri/resources/ffmpeg/*
 !src-tauri/resources/ffmpeg/README.md
 
 # 插件 runtime 本地资源较大，应通过独立仓库 Release asset 分发，不进入主仓库
-/docs/plugin-packages/*/resources/*
-!/docs/plugin-packages/*/resources/README.md
+/plugin-registry/packages/*/resources/*
+!/plugin-registry/packages/*/resources/README.md

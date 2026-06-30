@@ -452,7 +452,7 @@
       },
       "category": "automation",
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/codex/plugin-system-refactor.zip",
-      "packageSubdir": "docs/examples/hello-local-plugin",
+      "packageSubdir": "plugin-registry/examples/hello-local-plugin",
       "status": "available",
       "sizeBytes": 2837,
       "tags": [

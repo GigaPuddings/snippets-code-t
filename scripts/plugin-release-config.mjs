@@ -3,67 +3,67 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 export const OWNER = 'GigaPuddings';
-export const MARKETPLACE_PATH = resolve(ROOT, 'docs/plugin-marketplace/marketplace.json');
+export const MARKETPLACE_PATH = resolve(ROOT, 'plugin-registry/marketplace/marketplace.json');
 
 export const pluginRepositories = [
   {
     id: 'screenshot',
     repo: 'snippets-code-plugin-screenshot',
-    sourceDir: 'docs/plugin-packages/screenshot',
+    sourceDir: 'plugin-registry/packages/screenshot',
     kind: 'feature'
   },
   {
     id: 'translation',
     repo: 'snippets-code-plugin-translation',
-    sourceDir: 'docs/plugin-packages/translation',
+    sourceDir: 'plugin-registry/packages/translation',
     kind: 'feature'
   },
   {
     id: 'todo',
     repo: 'snippets-code-plugin-todo',
-    sourceDir: 'docs/plugin-packages/todo',
+    sourceDir: 'plugin-registry/packages/todo',
     kind: 'feature'
   },
   {
     id: 'system-theme',
     repo: 'snippets-code-plugin-system-theme',
-    sourceDir: 'docs/plugin-packages/system-theme',
+    sourceDir: 'plugin-registry/packages/system-theme',
     kind: 'feature'
   },
   {
     id: 'local-launcher',
     repo: 'snippets-code-plugin-local-launcher',
-    sourceDir: 'docs/plugin-packages/local-launcher',
+    sourceDir: 'plugin-registry/packages/local-launcher',
     kind: 'feature'
   },
   {
     id: 'desktop-files',
     repo: 'snippets-code-plugin-desktop-files',
-    sourceDir: 'docs/plugin-packages/desktop-files',
+    sourceDir: 'plugin-registry/packages/desktop-files',
     kind: 'feature'
   },
   {
     id: 'search-engines',
     repo: 'snippets-code-plugin-search-engines',
-    sourceDir: 'docs/plugin-packages/search-engines',
+    sourceDir: 'plugin-registry/packages/search-engines',
     kind: 'feature'
   },
   {
     id: 'quick-tools',
     repo: 'snippets-code-plugin-quick-tools',
-    sourceDir: 'docs/plugin-packages/quick-tools',
+    sourceDir: 'plugin-registry/packages/quick-tools',
     kind: 'feature'
   },
   {
     id: 'screen-recorder',
     repo: 'snippets-code-plugin-screen-recorder',
-    sourceDir: 'docs/plugin-packages/screen-recorder',
+    sourceDir: 'plugin-registry/packages/screen-recorder',
     kind: 'feature'
   },
   {
     id: 'screen-recorder-ffmpeg',
     repo: 'snippets-code-plugin-screen-recorder-ffmpeg',
-    sourceDir: 'docs/examples/screen-recorder-ffmpeg-resource',
+    sourceDir: 'plugin-registry/examples/screen-recorder-ffmpeg-resource',
     resourceSourceDir: 'dist-plugin-packages/screen-recorder-ffmpeg',
     kind: 'resource',
     requiresExplicitResource: true,
@@ -74,25 +74,25 @@ export const pluginRepositories = [
   {
     id: 'git-sync',
     repo: 'snippets-code-plugin-git-sync',
-    sourceDir: 'docs/plugin-packages/git-sync',
+    sourceDir: 'plugin-registry/packages/git-sync',
     kind: 'feature'
   },
   {
     id: 'wallpaper-switcher',
     repo: 'snippets-code-plugin-wallpaper-switcher',
-    sourceDir: 'docs/plugin-packages/wallpaper-switcher',
+    sourceDir: 'plugin-registry/packages/wallpaper-switcher',
     kind: 'feature'
   },
   {
     id: 'local-ai',
     repo: 'snippets-code-plugin-local-ai',
-    sourceDir: 'docs/plugin-packages/local-ai',
+    sourceDir: 'plugin-registry/packages/local-ai',
     kind: 'feature'
   },
   {
     id: 'local-ai-llama-runtime',
     repo: 'snippets-code-plugin-local-ai-llama-runtime',
-    sourceDir: 'docs/plugin-packages/local-ai-llama-runtime',
+    sourceDir: 'plugin-registry/packages/local-ai-llama-runtime',
     kind: 'resource',
     requiresExplicitResource: true,
     includeFlag: 'includeLocalAiLlamaRuntime',
@@ -101,7 +101,7 @@ export const pluginRepositories = [
   {
     id: 'screenshot-rapidocr',
     repo: 'snippets-code-plugin-screenshot-rapidocr',
-    sourceDir: 'docs/examples/screenshot-rapidocr-resource',
+    sourceDir: 'plugin-registry/examples/screenshot-rapidocr-resource',
     resourceSourceDir: 'dist-plugin-packages/screenshot-rapidocr',
     kind: 'resource',
     requiresExplicitResource: true,
@@ -112,7 +112,7 @@ export const pluginRepositories = [
   {
     id: 'translation-offline-runtime',
     repo: 'snippets-code-plugin-translation-offline-runtime',
-    sourceDir: 'docs/examples/translation-offline-runtime',
+    sourceDir: 'plugin-registry/examples/translation-offline-runtime',
     kind: 'resource'
   }
 ];

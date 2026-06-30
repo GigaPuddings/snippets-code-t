@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "screenshot-rapidocr",
-  "version": "1.5.6",
+  "version": "2.0.6",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.screenshotRapidocr.name",
@@ -21,5 +21,5 @@
   "compatibleAppVersion": ">=1.5.6",
   "minAppVersion": "1.5.6",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/releases/tag/1.5.6"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/releases/tag/2.0.6"
 }

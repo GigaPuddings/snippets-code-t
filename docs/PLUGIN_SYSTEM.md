@@ -235,15 +235,15 @@ leaving room for sandboxed WASM or script workers later.
 
 Runtime-registered routes are added to Vue Router after the plugin registry initializes. Runtime settings tabs, titlebar actions, search providers, and window shortcuts are merged with the built-in registries and still respect the plugin enabled state.
 
-See `docs/examples/hello-local-plugin` for a minimal installable package.
+See `plugin-registry/examples/hello-local-plugin` for a minimal installable package.
 
 Resource-only local plugins are supported by omitting `entry`. The first
 resource-only packages cover the RapidOCR runtime required by screenshot OCR
 and screenshot translation, the FFmpeg executable required by custom screen
 recording export, plus the offline translation runtime; see
-`docs/examples/screenshot-rapidocr-resource`,
-`docs/examples/screen-recorder-ffmpeg-resource`, and
-`docs/examples/translation-offline-runtime`.
+`plugin-registry/examples/screenshot-rapidocr-resource`,
+`plugin-registry/examples/screen-recorder-ffmpeg-resource`, and
+`plugin-registry/examples/translation-offline-runtime`.
 
 ## Hotkeys
 
@@ -369,13 +369,13 @@ The app can now read a remote plugin marketplace manifest and install packages
 directly from GitHub-hosted archives. The current official manifest lives at:
 
 ```text
-docs/plugin-marketplace/marketplace.json
+plugin-registry/marketplace/marketplace.json
 ```
 
 Official package manifests live under:
 
 ```text
-docs/plugin-packages/<plugin-id>/plugin.json
+plugin-registry/packages/<plugin-id>/plugin.json
 ```
 
 Published official packages live in one GitHub repository per plugin, such as:

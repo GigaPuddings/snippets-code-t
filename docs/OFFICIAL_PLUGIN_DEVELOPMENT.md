@@ -13,7 +13,7 @@ src/plugins/<plugin-id>/
   index.ts
   searchProvider.ts
 
-docs/plugin-packages/<plugin-id>/
+plugin-registry/packages/<plugin-id>/
   plugin.json
   README.md
   dist/frontend.js
@@ -30,8 +30,8 @@ docs/plugin-packages/<plugin-id>/
 - 在 `scripts/build-official-plugin-runtimes.mjs` 添加条目，确保能生成 `dist/frontend.js`。
 - 在 `scripts/plugin-release-config.mjs` 添加条目，并填写对应的 `GigaPuddings/snippets-code-plugin-<plugin-id>` 仓库名。
 - 运行同步脚本前，先创建独立 GitHub 插件仓库。
-- 在 `docs/plugin-marketplace/marketplace.json` 添加插件市场条目。
-- 在 `docs/plugin-packages/<plugin-id>/README.md` 添加插件包文档。
+- 在 `plugin-registry/marketplace/marketplace.json` 添加插件市场条目。
+- 在 `plugin-registry/packages/<plugin-id>/README.md` 添加插件包文档。
 
 已发布的官方 marketplace 包应该直接指向插件仓库的 tag 归档，例如：
 
@@ -44,7 +44,7 @@ https://github.com/GigaPuddings/snippets-code-plugin-quick-tools/archive/refs/ta
 应用会从主仓库读取插件市场列表：
 
 ```text
-https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/docs/plugin-marketplace/marketplace.json
+https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/plugin-registry/marketplace/marketplace.json
 ```
 
 只发布独立插件仓库并不会让插件自动出现在应用里。插件包 tag 可用后，还需要提交并推送主仓库中更新后的 marketplace manifest。
@@ -98,7 +98,7 @@ pnpm plugins:verify-marketplace -- --local
 
 发布官方插件更新、但不发布新的主应用版本时，按这个清单检查：
 
-- 修改 `src/plugins/<plugin-id>` 下的源码，并让流程重建对应的 `docs/plugin-packages/<plugin-id>/dist/frontend.js`。
+- 修改 `src/plugins/<plugin-id>` 下的源码，并让流程重建对应的 `plugin-registry/packages/<plugin-id>/dist/frontend.js`。
 - 运行 `pnpm plugins:tag`，选择插件并输入新的插件版本号。除非运行时依赖新的应用命令、权限、路由桥或存储行为，否则保持 `minAppVersion` 不变。
 - 在干净的应用数据目录里安装 marketplace 包，验证安装、启用、禁用、更新、卸载和重新安装。搜索提供器应在禁用时消失，重新启用后恢复，并且更新后不能产生重复的本地索引行。
 - 插件仓库 tag 和主仓库 marketplace manifest 更新需要一起推送到远程。只有远程 marketplace 版本高于用户已安装包版本时，应用刷新后才会提示可更新。

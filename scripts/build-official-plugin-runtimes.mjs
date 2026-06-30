@@ -9,7 +9,7 @@ import Components from 'unplugin-vue-components/vite';
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const PLUGIN_PACKAGE_ROOT = resolve(ROOT, 'docs/plugin-packages');
+const PLUGIN_PACKAGE_ROOT = resolve(ROOT, 'plugin-registry/packages');
 
 const officialRuntimeEntries = {
   screenshot: 'src/plugins/screenshot/runtime-entry.ts',
