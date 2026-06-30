@@ -978,238 +978,254 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .summarize-label-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--categories-text-color);
+  @apply text-sm font-medium text-panel;
 }
 
 .summarize-label-desc {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--categories-info-text-color);
+  @apply mt-1 text-xs text-content;
+}
+
+.settings-section-title {
+  @apply mt-6 mb-3 border-b border-panel pb-2 text-sm font-medium text-panel;
 }
 
 .sync-status-panel {
-  display: flex;
-  align-items: stretch;
-  gap: 14px;
-  min-height: 78px;
-  padding: 14px;
-  margin-bottom: 14px;
-  border: 1px solid var(--categories-border-color);
-  border-radius: 8px;
-  background: var(--categories-content-bg);
+  @apply mb-3.5 flex min-h-[78px] items-stretch gap-3.5 rounded-lg border border-panel bg-content p-3.5;
 }
 
 .sync-status-panel__left {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: 12px;
+  @apply flex min-w-0 items-center gap-3;
 }
 
 .sync-status-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  color: var(--el-color-primary);
+  @apply inline-flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full text-primary;
+
   background: rgba(var(--el-color-primary-rgb), 0.1);
 }
 
 .sync-status-info {
-  min-width: 0;
+  @apply min-w-0;
 }
 
 .sync-status-label {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--categories-text-color);
+  @apply text-[15px] font-bold text-panel;
 }
 
 .sync-status-detail {
-  margin-top: 3px;
-  font-size: 13px;
-  color: var(--categories-info-text-color);
+  @apply mt-[3px] text-[13px] text-content;
+
+  .pending-count {
+    @apply font-medium;
+  }
 }
 
 .sync-status-panel__divider {
-  width: 1px;
-  background: var(--categories-border-color);
+  @apply w-px flex-shrink-0 self-stretch bg-[var(--categories-border-color)];
 }
 
 .sync-status-panel__right {
-  flex: 1;
-  min-width: 0;
+  @apply flex min-w-0 flex-1 flex-col pl-1;
 }
 
 .sync-pending-files-header {
-  margin-bottom: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--categories-text-color);
+  @apply mb-1.5 flex-shrink-0 text-xs font-bold text-panel;
 }
 
 .sync-pending-files-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  @apply flex min-h-0 flex-1 flex-wrap gap-1.5 overflow-y-auto;
 }
 
 .sync-pending-file-item {
-  max-width: 180px;
-  padding: 3px 8px;
-  border: 1px solid var(--categories-border-color);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--categories-text-color);
-  background: var(--categories-panel-bg);
+  @apply flex max-w-[180px] items-center rounded-md border border-panel bg-panel px-2 py-[3px] text-xs text-panel;
+
+  opacity: 0.9;
 }
 
 .file-name {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply block truncate;
+}
+
+.sync-status-panel--syncing {
+  @apply border-blue-500/30 bg-blue-500/10;
+
+  .sync-status-icon,
+  .sync-status-detail .pending-count {
+    @apply text-blue-500;
+  }
+
+  .sync-status-label,
+  .sync-pending-files-header {
+    @apply text-blue-600 dark:text-blue-400;
+  }
+
+  .sync-status-panel__divider {
+    @apply bg-blue-500/50;
+  }
+
+  .sync-pending-file-item {
+    @apply hover:bg-blue-500/20;
+  }
+
+  .git-sync-icon {
+    animation: spin 1s linear infinite;
+  }
+}
+
+.sync-status-panel--synced,
+.sync-status-panel--idle {
+  @apply border-green-500/30 bg-green-500/10;
+
+  .sync-status-icon,
+  .sync-status-detail .pending-count {
+    @apply text-green-500;
+  }
+
+  .sync-status-label,
+  .sync-pending-files-header {
+    @apply text-green-600 dark:text-green-400;
+  }
+
+  .sync-status-panel__divider {
+    @apply bg-green-500/50;
+  }
+
+  .sync-pending-file-item {
+    @apply hover:bg-green-500/20;
+  }
+}
+
+.sync-status-panel--has_changes {
+  @apply border-amber-500/30 bg-amber-500/10;
+
+  .sync-status-icon,
+  .sync-status-detail .pending-count {
+    @apply text-amber-500;
+  }
+
+  .sync-status-label,
+  .sync-pending-files-header {
+    @apply text-amber-600 dark:text-amber-400;
+  }
+
+  .sync-status-panel__divider {
+    @apply bg-amber-500/50;
+  }
+
+  .sync-pending-file-item {
+    @apply hover:bg-amber-500/20;
+  }
+}
+
+.sync-status-panel--error {
+  @apply border-red-500/30 bg-red-500/10;
+
+  .sync-status-icon,
+  .sync-status-detail .pending-count {
+    @apply text-red-500;
+  }
+
+  .sync-status-label,
+  .sync-pending-files-header {
+    @apply text-red-600 dark:text-red-400;
+  }
+
+  .sync-status-panel__divider {
+    @apply bg-red-500/50;
+  }
+
+  .sync-pending-file-item {
+    @apply hover:bg-red-500/20;
+  }
 }
 
 .contribution-section {
   --contribution-cell-size: 9px;
   --contribution-cell-gap: 2px;
 
-  padding: 14px;
-  margin-bottom: 16px;
-  background: var(--categories-content-bg);
-  border: 1px solid var(--categories-border-color);
-  border-radius: 8px;
+  @apply mb-4 rounded-lg border border-panel bg-content p-3.5;
 }
 
 .contribution-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  @apply mb-3.5 flex items-start justify-between gap-3;
 }
 
 .contribution-summary {
-  min-width: 0;
+  @apply min-w-0;
 }
 
 .contribution-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
+  @apply flex flex-wrap justify-end gap-1.5;
 }
 
 .contribution-year {
-  min-width: 54px;
-  height: 28px;
-  padding: 0 10px;
-  color: var(--categories-info-text-color);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  background: var(--categories-panel-bg);
-  border: 1px solid var(--categories-border-color);
-  border-radius: 6px;
+  @apply h-7 min-w-[54px] cursor-pointer rounded-md border border-panel bg-panel px-2.5 text-xs font-bold text-content;
 
   &:hover:not(:disabled),
   &.active {
-    color: var(--el-color-primary);
+    @apply border-[rgba(var(--el-color-primary-rgb),0.42)] text-primary;
+
     background: rgba(var(--el-color-primary-rgb), 0.1);
-    border-color: rgba(var(--el-color-primary-rgb), 0.42);
   }
 
   &:disabled {
-    cursor: default;
-    opacity: 0.7;
+    @apply cursor-default opacity-70;
   }
 }
 
 .contribution-empty {
-  display: flex;
-  min-height: 118px;
-  align-items: center;
-  justify-content: center;
-  color: var(--categories-info-text-color);
-  font-size: 13px;
+  @apply flex min-h-[118px] items-center justify-center text-[13px] text-content;
 }
 
 .contribution-board {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-  padding-bottom: 2px;
+  @apply box-border w-full max-w-full overflow-hidden pb-0.5;
 }
 
 .contribution-months {
-  display: grid;
-  width: 100%;
-  box-sizing: border-box;
+  @apply mb-1.5 grid box-border w-full pl-[30px] text-[10px] leading-3 text-content;
+
   gap: var(--contribution-cell-gap);
-  padding-left: 30px;
-  margin-bottom: 6px;
-  color: var(--categories-info-text-color);
-  font-size: 10px;
-  line-height: 12px;
 }
 
 .contribution-months span {
-  overflow: visible;
-  white-space: nowrap;
+  @apply overflow-visible whitespace-nowrap;
 }
 
 .contribution-body {
-  display: flex;
-  width: 100%;
-  box-sizing: border-box;
-  align-items: flex-start;
-  gap: 6px;
+  @apply flex box-border w-full items-start gap-1.5;
 }
 
 .contribution-weekdays {
-  display: grid;
-  width: 24px;
-  flex-shrink: 0;
+  @apply grid w-6 flex-shrink-0 text-right text-[10px] text-content;
+
   grid-template-rows: repeat(7, var(--contribution-cell-size));
   gap: var(--contribution-cell-gap);
-  color: var(--categories-info-text-color);
-  font-size: 10px;
   line-height: var(--contribution-cell-size);
-  text-align: right;
 }
 
 .contribution-weeks {
-  display: grid;
-  flex: 1;
-  min-width: 0;
+  @apply grid min-w-0 flex-1;
+
   gap: var(--contribution-cell-gap);
 }
 
 .contribution-week {
-  display: grid;
+  @apply grid;
+
   grid-template-rows: repeat(7, var(--contribution-cell-size));
   gap: var(--contribution-cell-gap);
 }
 
 .contribution-day {
-  display: inline-block;
-  box-sizing: border-box;
+  @apply inline-block box-border rounded-sm;
+
   width: var(--contribution-cell-size);
   height: var(--contribution-cell-size);
   background: rgba(var(--categories-border-color-rgb), 0.3);
   border: 1px solid rgba(var(--categories-border-color-rgb), 0.58);
-  border-radius: 2px;
 }
 
 .contribution-day--empty {
-  visibility: hidden;
+  @apply invisible;
 }
 
 .contribution-day--level-0 {
@@ -1238,29 +1254,22 @@ onMounted(async () => {
 }
 
 .contribution-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 0 0 30px;
-  color: var(--categories-info-text-color);
-  font-size: 11px;
+  @apply flex items-center justify-between gap-3 pl-[30px] pt-[9px] text-[11px] text-content;
 }
 
 .contribution-legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  @apply inline-flex items-center gap-1;
 }
 
 .contribution-day--legend {
   --contribution-cell-size: 10px;
 
-  flex-shrink: 0;
+  @apply flex-shrink-0;
 }
 
 .git-records-section {
   @apply my-3 rounded border border-panel p-3;
+
   background: var(--categories-content-bg);
 }
 
@@ -1281,6 +1290,7 @@ onMounted(async () => {
 
 .git-record-item {
   @apply rounded border border-panel px-3 py-2;
+
   background: var(--categories-panel-bg);
 }
 
@@ -1290,12 +1300,13 @@ onMounted(async () => {
 
 .git-record-state {
   @apply shrink-0 rounded px-2 py-0.5 text-[11px];
+
   color: #b45309;
-  background: rgba(245, 158, 11, 0.14);
+  background: rgb(245 158 11 / 14%);
 
   &.synced {
     color: #047857;
-    background: rgba(16, 185, 129, 0.14);
+    background: rgb(16 185 129 / 14%);
   }
 }
 
@@ -1306,6 +1317,7 @@ onMounted(async () => {
 .git-record-time,
 .git-record-meta {
   @apply text-xs;
+
   color: var(--categories-info-text-color);
 }
 
@@ -1319,8 +1331,9 @@ onMounted(async () => {
 
 .git-record-file {
   @apply inline-flex max-w-[180px] items-center gap-1 rounded border border-panel px-2 py-1 text-xs cursor-pointer;
-  background: transparent;
+
   color: var(--categories-text-color);
+  background: transparent;
 
   &:hover {
     background: var(--categories-panel-bg-hover);
@@ -1329,6 +1342,7 @@ onMounted(async () => {
 
 .git-record-file-status {
   @apply font-medium;
+
   color: var(--el-color-primary);
 }
 
@@ -1339,27 +1353,25 @@ onMounted(async () => {
 .git-record-more,
 .git-records-empty {
   @apply text-xs;
+
   color: var(--categories-info-text-color);
 }
 
-@media (max-width: 720px) {
+@media (width <= 720px) {
   .contribution-head {
-    flex-direction: column;
+    @apply flex-col;
   }
 
   .contribution-actions {
-    justify-content: flex-start;
+    @apply justify-start;
   }
 
   .summarize-section {
-    flex-direction: column;
-    gap: 10px;
-    align-items: start;
+    @apply flex-col items-start gap-2.5;
   }
 
   .summarize-input-wrapper {
-    justify-content: flex-start;
-    max-width: 100%;
+    @apply max-w-full justify-start;
   }
 }
 </style>

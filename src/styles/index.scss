@@ -50,11 +50,6 @@
   @apply m-0 !-ml-1;
 }
 
-// 配置css
-.summarize-container {
-  @apply flex-1 w-full h-full overflow-y-auto;
-}
-
 .summarize-section {
   @apply flex justify-between items-center mt-5 first:!mt-1 border-b border-panel;
 }
@@ -85,6 +80,7 @@
 
 .summarize-input {
   @apply bg-content rounded-md;
+
   .el-input__inner {
     @apply pl-[10px];
   }
@@ -134,18 +130,14 @@
   display: block;
 }
 
-.category-management {
-  @apply border rounded-md dark:border-panel !w-[300px];
-}
-
 // 应用提示条：保留 Element Plus 的可访问性与队列管理，只使用应用主题视觉。
 .app-toast.el-message,
 .app-toast.el-notification {
+  background: var(--toast-bg) !important;
+  backdrop-filter: blur(14px);
   border: 1px solid var(--toast-border) !important;
   border-radius: 10px !important;
-  background: var(--toast-bg) !important;
   box-shadow: var(--toast-shadow) !important;
-  backdrop-filter: blur(14px);
 }
 
 .app-toast.el-message {
@@ -155,9 +147,9 @@
   max-width: min(520px, calc(100vw - 32px));
 
   .el-message__content {
-    color: var(--toast-text) !important;
     font-size: 13px;
     line-height: 1.45;
+    color: var(--toast-text) !important;
   }
 }
 
@@ -177,14 +169,6 @@
   &--info {
     border-left: 3px solid var(--el-color-primary) !important;
   }
-}
-
-.category-management {
-  @apply mx-10 mb-2 !w-52;
-}
-
-.message-footer {
-  @apply flex justify-end gap-2 mt-2;
 }
 
 // ============================================
@@ -224,9 +208,9 @@
 
     &.is-selected,
     &.selected {
+      font-weight: 500;
       color: #fff !important;
       background: rgb(93 109 253 / 25%) !important;
-      font-weight: 500;
     }
   }
 
@@ -282,8 +266,8 @@
     }
 
     &.is-active {
-      color: var(--el-color-primary) !important;
       font-weight: 500;
+      color: var(--el-color-primary) !important;
     }
   }
 
@@ -300,26 +284,26 @@
   .el-input__wrapper,
   .el-select__wrapper {
     background: rgb(255 255 255 / 8%) !important;
-    box-shadow: none !important;
     border: 1px solid rgb(75 85 99) !important;
     border-radius: 8px;
+    box-shadow: none !important;
 
     &:hover {
-      border-color: rgb(93 109 253) !important;
       background: rgb(255 255 255 / 12%) !important;
+      border-color: rgb(93 109 253) !important;
     }
 
     &.is-focus,
     &.is-focused {
+      background: rgb(255 255 255 / 12%) !important;
       border-color: rgb(93 109 253) !important;
       box-shadow: 0 0 0 2px rgb(93 109 253 / 25%) !important;
-      background: rgb(255 255 255 / 12%) !important;
     }
   }
 
   .el-input__inner {
-    color: #fff !important;
     font-size: 14px;
+    color: #fff !important;
 
     &::placeholder {
       color: rgb(156 163 175) !important;
@@ -352,9 +336,9 @@
 .el-dialog,
 .app-dialog.el-dialog {
   overflow: hidden;
+  background: var(--dialog-bg) !important;
   border: 1px solid var(--dialog-border) !important;
   border-radius: 12px !important;
-  background: var(--dialog-bg) !important;
   box-shadow: var(--dialog-shadow) !important;
 
   .el-dialog__header {
@@ -362,9 +346,9 @@
     background: transparent;
 
     .el-dialog__title {
-      color: var(--dialog-text) !important;
       font-size: 14px !important;
       font-weight: 600 !important;
+      color: var(--dialog-text) !important;
       letter-spacing: 0.01em;
     }
 
@@ -380,15 +364,15 @@
       }
 
       .el-dialog__close {
-        color: var(--dialog-text-secondary) !important;
         font-size: 16px !important;
+        color: var(--dialog-text-secondary) !important;
       }
     }
   }
 
   .el-dialog__body {
-    color: var(--dialog-text) !important;
     font-size: 14px !important;
+    color: var(--dialog-text) !important;
   }
 
   .el-dialog__footer {
@@ -414,9 +398,9 @@
 
   .el-notification__content {
     margin: 0;
-    color: var(--toast-text) !important;
     font-size: 13px;
     line-height: 1.45;
+    color: var(--toast-text) !important;
   }
 
   .el-notification__icon {
@@ -456,186 +440,7 @@
 
 .panel-content {
   @apply flex-1 overflow-y-auto pt-4;
-  overflow-x: hidden; /* 防止横向滚动 */
+
   max-width: 100%; /* 确保不超出容器宽度 */
-}
-
-// Git 同步状态：同面板内左右分栏（一块卡片）
-.sync-status-panel {
-  @apply flex items-stretch rounded-lg border mb-4 overflow-hidden;
-
-  .sync-status-panel__left {
-    @apply flex items-center gap-3 min-w-0;
-    flex: 1 0 0%;
-    max-width: 320px;
-  }
-
-  .sync-status-icon {
-    @apply flex-shrink-0;
-  }
-
-  .sync-status-info {
-    @apply flex flex-col gap-0.5;
-  }
-
-  .sync-status-label {
-    @apply text-sm font-medium;
-  }
-
-  .sync-status-detail {
-    @apply text-xs opacity-80;
-
-    .pending-count {
-      @apply font-medium;
-    }
-  }
-
-  .sync-status-panel__divider {
-    @apply w-px flex-shrink-0 self-stretch opacity-40;
-  }
-
-  .sync-status-panel__right {
-    @apply flex flex-col p-3 pl-4 min-w-0;
-    flex: 1 1 0%;
-  }
-
-  .sync-pending-files-header {
-    @apply flex-shrink-0 text-sm font-medium mb-2;
-  }
-
-  .sync-pending-files-list {
-    @apply flex-1 min-h-0 overflow-y-auto space-y-0.5;
-  }
-
-  .sync-pending-file-item {
-    @apply flex items-center text-xs py-1.5 px-2 rounded;
-    opacity: 0.9;
-
-    .file-name {
-      @apply truncate;
-    }
-  }
-
-  // 同步中 - 蓝色
-  &--syncing {
-    @apply border-blue-500/30 bg-blue-500/10;
-    .sync-status-icon {
-      @apply text-blue-500;
-    }
-    .sync-status-label {
-      @apply text-blue-600 dark:text-blue-400;
-    }
-    .sync-status-detail .pending-count {
-      @apply text-blue-500;
-    }
-    .sync-status-panel__divider {
-      @apply bg-blue-500/50;
-    }
-    .sync-pending-files-header {
-      @apply text-blue-600 dark:text-blue-400;
-    }
-    .sync-pending-file-item {
-      @apply hover:bg-blue-500/20;
-    }
-    .git-sync-icon {
-      animation: spin 1s linear infinite;
-    }
-  }
-
-  // 已同步/空闲 - 绿色
-  &--synced,
-  &--idle {
-    @apply border-green-500/30 bg-green-500/10;
-    .sync-status-icon {
-      @apply text-green-500;
-    }
-    .sync-status-label {
-      @apply text-green-600 dark:text-green-400;
-    }
-    .sync-status-detail .pending-count {
-      @apply text-green-500;
-    }
-    .sync-status-panel__divider {
-      @apply bg-green-500/50;
-    }
-    .sync-pending-files-header {
-      @apply text-green-600 dark:text-green-400;
-    }
-    .sync-pending-file-item {
-      @apply hover:bg-green-500/20;
-    }
-  }
-
-  // 有待同步文件 - 橙色
-  &--has_changes {
-    @apply border-amber-500/30 bg-amber-500/10;
-    .sync-status-icon {
-      @apply text-amber-500;
-    }
-    .sync-status-label {
-      @apply text-amber-600 dark:text-amber-400;
-    }
-    .sync-status-detail .pending-count {
-      @apply text-amber-500;
-    }
-    .sync-status-panel__divider {
-      @apply bg-amber-500/50;
-    }
-    .sync-pending-files-header {
-      @apply text-amber-600 dark:text-amber-400;
-    }
-    .sync-pending-file-item {
-      @apply hover:bg-amber-500/20;
-    }
-  }
-
-  // 错误 - 红色
-  &--error {
-    @apply border-red-500/30 bg-red-500/10;
-    .sync-status-icon {
-      @apply text-red-500;
-    }
-    .sync-status-label {
-      @apply text-red-600 dark:text-red-400;
-    }
-    .sync-status-detail .pending-count {
-      @apply text-red-500;
-    }
-    .sync-status-panel__divider {
-      @apply bg-red-500/50;
-    }
-    .sync-pending-files-header {
-      @apply text-red-600 dark:text-red-400;
-    }
-    .sync-pending-file-item {
-      @apply hover:bg-red-500/20;
-    }
-  }
-}
-
-// 待同步文件列表
-.pending-files-section {
-  @apply mb-4 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10;
-
-  .pending-files-header {
-    @apply flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400 mb-2;
-  }
-
-  .pending-files-list {
-    @apply max-h-40 overflow-y-auto space-y-1;
-  }
-
-  .pending-file-item {
-    @apply flex items-center gap-2 text-xs text-panel py-1 px-2 rounded hover:bg-amber-500/20;
-    opacity: 0.8;
-
-    .file-name {
-      @apply truncate;
-    }
-  }
-}
-
-// 设置分区标题
-.settings-section-title {
-  @apply text-sm font-medium text-panel mt-6 mb-3 pb-2 border-b border-panel;
+  overflow-x: hidden; /* 防止横向滚动 */
 }
