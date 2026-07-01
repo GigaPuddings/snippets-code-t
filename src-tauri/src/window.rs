@@ -279,11 +279,13 @@ use tauri::image::Image;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use windows::core::BOOL;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT};
+use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetClassNameW, GetForegroundWindow, GetParent, GetSystemMetrics, GetTopWindow,
-    GetWindow, GetWindowLongW, GetWindowRect, GetWindowTextW, IsIconic, IsWindowVisible,
-    GWL_EXSTYLE, GW_HWNDNEXT, GW_OWNER, SM_CXSCREEN, SM_CYSCREEN, WS_EX_APPWINDOW,
-    WS_EX_TOOLWINDOW,
+    BringWindowToTop, EnumWindows, GetClassNameW, GetForegroundWindow, GetParent, GetSystemMetrics,
+    GetTopWindow, GetWindow, GetWindowLongW, GetWindowRect, GetWindowTextW,
+    GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, SetForegroundWindow, ShowWindow,
+    SwitchToThisWindow, GWL_EXSTYLE, GW_HWNDNEXT, GW_OWNER, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE,
+    WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 
 // 定义窗口信息结构体
@@ -307,8 +309,8 @@ static LAST_MOVE_TIME: LazyLock<Mutex<std::time::Instant>> =
 // 跟踪失焦时间
 static LAST_FOCUS_LOST_TIME: LazyLock<Mutex<Option<std::time::Instant>>> =
     LazyLock::new(|| Mutex::new(None));
-// 存储上次活动窗口标识
-static LAST_ACTIVE_WINDOW_ID: Mutex<Option<String>> = Mutex::new(None);
+// 存储上次活动窗口句柄。HWND 内部是裸指针，静态 Mutex 中保存整数值更稳妥。
+static LAST_ACTIVE_WINDOW_HWND: Mutex<Option<isize>> = Mutex::new(None);
 
 // 存储贴图窗口的图片数据 (窗口标签 -> 图片数据)
 use std::collections::HashMap;
@@ -594,75 +596,213 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<Webv
     }
 }
 
+fn hwnd_from_value(value: isize) -> HWND {
+    HWND(value as *mut std::ffi::c_void)
+}
+
+fn hwnd_value(hwnd: HWND) -> isize {
+    hwnd.0 as isize
+}
+
+fn null_hwnd() -> HWND {
+    HWND(std::ptr::null_mut())
+}
+
+fn stored_last_active_hwnd() -> Option<HWND> {
+    let value = match LAST_ACTIVE_WINDOW_HWND.lock() {
+        Ok(hwnd) => *hwnd,
+        Err(e) => {
+            error!("stored_last_active_hwnd: 锁定失败: {}", e);
+            None
+        }
+    }?;
+
+    let hwnd = hwnd_from_value(value);
+    if hwnd == null_hwnd() || !unsafe { IsWindow(Some(hwnd)).as_bool() } {
+        return None;
+    }
+
+    Some(hwnd)
+}
+
+fn search_window_hwnd(app_handle: &AppHandle) -> Option<HWND> {
+    app_handle
+        .get_webview_window("main")
+        .and_then(|window| window.hwnd().ok().map(|hwnd| HWND(hwnd.0 as _)))
+}
+
+fn is_search_window_hwnd(hwnd: HWND) -> bool {
+    APP.get()
+        .and_then(search_window_hwnd)
+        .map(|search_hwnd| search_hwnd == hwnd)
+        .unwrap_or(false)
+}
+
+fn record_last_active_hwnd(excluded_hwnd: Option<HWND>) {
+    let foreground_window = unsafe { GetForegroundWindow() };
+    if foreground_window == null_hwnd() {
+        warn!("record_last_active_hwnd: 无法获取当前前台窗口");
+        return;
+    }
+
+    if excluded_hwnd == Some(foreground_window) || is_search_window_hwnd(foreground_window) {
+        warn!("record_last_active_hwnd: 当前前台窗口是快速搜索窗口，跳过记录");
+        return;
+    }
+
+    match LAST_ACTIVE_WINDOW_HWND.lock() {
+        Ok(mut hwnd) => {
+            *hwnd = Some(hwnd_value(foreground_window));
+        }
+        Err(e) => error!("record_last_active_hwnd: 锁定失败: {}", e),
+    }
+}
+
+fn clear_last_active_hwnd() {
+    match LAST_ACTIVE_WINDOW_HWND.lock() {
+        Ok(mut hwnd) => {
+            *hwnd = None;
+        }
+        Err(e) => error!("clear_last_active_hwnd: 锁定失败: {}", e),
+    }
+}
+
+fn hide_search_window_for_paste(app_handle: &AppHandle, source_window: &Window) {
+    disarm_search_focus_restore();
+    let _ = source_window.emit("reset-search-state", ());
+    let _ = source_window.hide();
+
+    if let Some(search_window) = app_handle.get_webview_window("main") {
+        let _ = search_window.hide();
+        schedule_search_window_destroy();
+    }
+}
+
+fn wait_until_search_window_not_foreground(search_hwnd: Option<HWND>) {
+    let Some(search_hwnd) = search_hwnd else {
+        return;
+    };
+
+    for _ in 0..10 {
+        if unsafe { GetForegroundWindow() } != search_hwnd {
+            return;
+        }
+        thread::sleep(Duration::from_millis(30));
+    }
+}
+
+fn focus_window_for_paste(hwnd: HWND) -> bool {
+    if hwnd == null_hwnd() || !unsafe { IsWindow(Some(hwnd)).as_bool() } {
+        return false;
+    }
+
+    unsafe {
+        if IsIconic(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
+
+        let current_thread = GetCurrentThreadId();
+        let target_thread = GetWindowThreadProcessId(hwnd, None);
+        let foreground_thread = GetWindowThreadProcessId(GetForegroundWindow(), None);
+
+        if target_thread != 0 && current_thread != target_thread {
+            let _ = AttachThreadInput(current_thread, target_thread, true);
+        }
+        if foreground_thread != 0
+            && foreground_thread != current_thread
+            && foreground_thread != target_thread
+        {
+            let _ = AttachThreadInput(current_thread, foreground_thread, true);
+        }
+
+        let _ = BringWindowToTop(hwnd);
+        let _ = SetForegroundWindow(hwnd);
+        SwitchToThisWindow(hwnd, true);
+
+        if foreground_thread != 0
+            && foreground_thread != current_thread
+            && foreground_thread != target_thread
+        {
+            let _ = AttachThreadInput(current_thread, foreground_thread, false);
+        }
+        if target_thread != 0 && current_thread != target_thread {
+            let _ = AttachThreadInput(current_thread, target_thread, false);
+        }
+    }
+
+    for _ in 0..12 {
+        if unsafe { GetForegroundWindow() } == hwnd {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(35));
+    }
+
+    false
+}
+
+fn send_ctrl_v() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_V,
+    };
+
+    let mut inputs: [INPUT; 4] = unsafe { std::mem::zeroed() };
+
+    inputs[0].r#type = INPUT_KEYBOARD;
+    inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
+
+    inputs[1].r#type = INPUT_KEYBOARD;
+    inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
+
+    inputs[2].r#type = INPUT_KEYBOARD;
+    inputs[2].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
+    inputs[2].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+
+    inputs[3].r#type = INPUT_KEYBOARD;
+    inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
+    inputs[3].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+
+    let result = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
+    result == inputs.len() as u32
+}
+
 // 将文本插入到上次活动窗口
 #[tauri::command]
-pub fn insert_text_to_last_window(text: String) -> Result<(), String> {
-    // 保留错误日志，减少正常流程噪音
-
-    // 使用clipboard-manager插件复制文本到剪贴板
+pub fn insert_text_to_last_window(window: Window, text: String) -> Result<(), String> {
     let app_handle = APP.get().ok_or_else(|| {
         let msg = "insert_text_to_last_window: 无法获取应用句柄".to_string();
         error!("{}", msg);
         msg
     })?;
-    match app_handle.clipboard().write_text(text) {
-        Ok(_) => info!("成功使用插件复制文本到剪贴板"),
-        Err(e) => {
-            let msg = format!("复制文本到剪贴板失败: {}", e);
-            error!("insert_text_to_last_window: {}", msg);
-            return Err(msg);
-        }
+
+    app_handle.clipboard().write_text(text).map_err(|e| {
+        let msg = format!("复制文本到剪贴板失败: {}", e);
+        error!("insert_text_to_last_window: {}", msg);
+        msg
+    })?;
+    info!("成功使用插件复制文本到剪贴板");
+
+    let Some(target_hwnd) = stored_last_active_hwnd() else {
+        hide_search_window_for_paste(app_handle, &window);
+        info!("未检测到有效的上次活动窗口，已复制到剪贴板，请手动按Ctrl+V粘贴");
+        return Ok(());
+    };
+
+    info!("检测到上次活动窗口，准备隐藏搜索窗口并恢复焦点后粘贴");
+    let search_hwnd = search_window_hwnd(app_handle);
+    hide_search_window_for_paste(app_handle, &window);
+    wait_until_search_window_not_foreground(search_hwnd);
+    thread::sleep(Duration::from_millis(80));
+
+    if !focus_window_for_paste(target_hwnd) {
+        warn!("恢复上次活动窗口焦点失败，已复制到剪贴板，请手动粘贴");
+        return Ok(());
     }
 
-    // 检查是否有记录的上次活动窗口
-    if LAST_ACTIVE_WINDOW_ID.lock().unwrap().is_some() {
-        info!("检测到上次活动窗口，尝试模拟粘贴操作");
-
-        {
-            use windows::Win32::Foundation::HWND;
-            use windows::Win32::UI::Input::KeyboardAndMouse::{
-                SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_V,
-            };
-
-            // 获取前台窗口
-            let foreground_window = unsafe { GetForegroundWindow() };
-            if foreground_window == HWND(std::ptr::null_mut()) {
-                info!("无法获取前台窗口，回退到剪贴板复制");
-                return Ok(());
-            }
-
-            // 创建输入事件数组
-            let mut inputs: [INPUT; 4] = unsafe { std::mem::zeroed() };
-
-            // 按下Ctrl键
-            inputs[0].r#type = INPUT_KEYBOARD;
-            inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-
-            // 按下V键
-            inputs[1].r#type = INPUT_KEYBOARD;
-            inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
-
-            // 释放V键
-            inputs[2].r#type = INPUT_KEYBOARD;
-            inputs[2].Anonymous.ki.wVk = VIRTUAL_KEY(VK_V.0);
-            inputs[2].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
-
-            // 释放Ctrl键
-            inputs[3].r#type = INPUT_KEYBOARD;
-            inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-            inputs[3].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
-
-            // 发送输入事件
-            let result = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
-
-            if result != inputs.len() as u32 {
-                info!("模拟键盘输入失败，已复制到剪贴板，请手动粘贴");
-            } else {
-                info!("成功模拟Ctrl+V粘贴操作");
-            }
-        }
+    thread::sleep(Duration::from_millis(60));
+    if send_ctrl_v() {
+        info!("成功恢复上次活动窗口焦点并模拟Ctrl+V粘贴操作");
     } else {
-        info!("未检测到上次活动窗口，已复制到剪贴板，请手动按Ctrl+V粘贴");
+        warn!("模拟Ctrl+V键盘输入失败，已复制到剪贴板，请手动粘贴");
     }
 
     Ok(())
@@ -688,7 +828,23 @@ pub fn hotkey_search(context: Option<String>) {
     let Some(app_handle) = get_app_handle_or_log("hotkey_search") else {
         return;
     };
-    let window = match app_handle.get_webview_window("main") {
+
+    let existing_window = app_handle.get_webview_window("main");
+    let existing_search_hwnd = existing_window
+        .as_ref()
+        .and_then(|window| window.hwnd().ok());
+    let existing_search_hwnd = existing_search_hwnd.map(|hwnd| HWND(hwnd.0 as _));
+    let was_visible = existing_window
+        .as_ref()
+        .and_then(|window| window.is_visible().ok())
+        .unwrap_or(false);
+
+    if !was_visible {
+        // 必须在创建/显示快速搜索窗口之前记录，否则生产包里窗口构建可能先抢走焦点。
+        record_last_active_hwnd(existing_search_hwnd);
+    }
+
+    let window = match existing_window {
         Some(window) => window,
         None => {
             let spec = search_window_spec();
@@ -720,23 +876,11 @@ pub fn hotkey_search(context: Option<String>) {
 
         if should_clear_last_active_id {
             // 取消记录当前活动窗口
-            *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = None;
+            clear_last_active_hwnd();
         }
 
         hide_search_window_after_ipc_response(window);
     } else {
-        // 记录当前活动窗口
-        {
-            use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-
-            // 获取当前前台窗口句柄
-            let foreground_window = unsafe { GetForegroundWindow() };
-            let window_id = format!("{:?}", foreground_window);
-
-            // info!("记录当前活动窗口: {}", window_id);
-            *LAST_ACTIVE_WINDOW_ID.lock().unwrap() = Some(window_id);
-        }
-
         position_search_window_near_top(&window);
         let _ = window.show();
         arm_search_focus_restore();

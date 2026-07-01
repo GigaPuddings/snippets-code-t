@@ -125,6 +125,29 @@ describe('useSearchResultActions', () => {
     expect(copied).toBe(false);
   });
 
+  it('uses the native paste command for the primary snippet action', async () => {
+    const writeText = vi.fn(async () => undefined);
+    const onClearSearch = vi.fn();
+    const actions = useSearchResultActions({
+      onClearSearch,
+      clipboard: { writeText }
+    });
+
+    await actions.runPrimaryAction({
+      id: 1,
+      title: 'snippet',
+      content: 'const a = 1',
+      type: 'code'
+    });
+
+    expect(onClearSearch).toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledWith('insert_text_to_last_window', {
+      text: 'const a = 1'
+    });
+    expect(invoke).not.toHaveBeenCalledWith('show_hide_window_command', expect.anything());
+  });
+
   it('opens desktop files with the default app instead of the URL opener', async () => {
     const actions = useSearchResultActions({
       onClearSearch: vi.fn(),

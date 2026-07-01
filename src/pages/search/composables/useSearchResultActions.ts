@@ -83,22 +83,11 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
 
   async function copyAndInsertSnippet(item: ContentType) {
     try {
-      await clipboard.writeText(item.content);
-    } catch (err) {
-      logger.error('[代码片段] 复制失败:', err);
-      return;
+      await invoke('insert_text_to_last_window', { text: item.content });
+    } catch (error) {
+      logger.error('[代码片段] 插入文本失败:', error);
+      alert('文本复制或粘贴失败，请重试');
     }
-
-    await closeSearchWindow();
-
-    setTimeout(async () => {
-      try {
-        await invoke('insert_text_to_last_window', { text: item.content });
-      } catch (error) {
-        logger.error('[代码片段] 插入文本失败:', error);
-        alert('文本已复制到剪贴板，请手动粘贴 (Ctrl+V)');
-      }
-    }, 300);
   }
 
   async function copySnippetToClipboard(item: ContentType): Promise<boolean> {
