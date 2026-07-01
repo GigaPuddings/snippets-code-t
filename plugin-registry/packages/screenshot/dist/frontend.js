@@ -4298,7 +4298,7 @@ class nu {
               clearTimeout(l), this.backgroundImage = o, this.draw(), a();
             }, o.onerror = (c) => {
               clearTimeout(l), r(c);
-            }, o.src = `data:image/png;base64,${s}`;
+            }, o.src = `data:${this.detectImageMime(s)};base64,${s}`;
           });
           return;
         }
@@ -4310,6 +4310,9 @@ class nu {
         throw s;
       }
     this.createFallbackBackground();
+  }
+  detectImageMime(t) {
+    return t.trim().startsWith("/9j/") ? "image/jpeg" : "image/png";
   }
   // 创建后备背景（当背景图加载失败时使用）
   createFallbackBackground() {
@@ -4796,11 +4799,7 @@ class nu {
   }
   // 绘制所有内容
   draw() {
-    if (this.drawingEngine.clear(), !this.backgroundImage) {
-      this.drawPendingState();
-      return;
-    }
-    if (this.drawBackground(), this.selectionRect && this.drawingEngine.drawMask(this.selectionRect), this.showSnapPreview && this.snappedWindow && !this.selectionRect && this.drawSnapPreview(), this.annotations.length > 0) {
+    if (this.drawingEngine.clear(), this.backgroundImage ? this.drawBackground() : this.drawPendingState(), this.selectionRect && this.drawingEngine.drawMask(this.selectionRect), this.showSnapPreview && this.snappedWindow && !this.selectionRect && this.drawSnapPreview(), this.annotations.length > 0) {
       const t = this.editingAnnotation ? this.annotations.filter((n) => n.getData().id !== this.editingAnnotation.getData().id) : this.annotations;
       this.drawingEngine.drawAnnotations(t, this.selectionRect || void 0);
     }

@@ -1777,29 +1777,48 @@ fn capture_screen_gdi_optimized() -> Result<(Vec<u8>, i32, i32), String> {
 }
 
 // 捕获全屏并返回 base64
-fn capture_screen_and_encode() -> Result<(String, String), String> {
+fn encode_rgba_as_jpeg(
+    rgba_data: &[u8],
+    width: u32,
+    height: u32,
+    quality: u8,
+) -> Result<Vec<u8>, String> {
     use image::codecs::jpeg::JpegEncoder;
 
+    let expected_len = width as usize * height as usize * 4;
+    if rgba_data.len() != expected_len {
+        return Err(format!(
+            "Invalid RGBA buffer length: expected {}, got {}",
+            expected_len,
+            rgba_data.len()
+        ));
+    }
+
+    // JPEG 不支持 alpha 通道。image 0.25 起会严格拒绝 Rgba8，
+    // 这里显式转换为 RGB，避免依赖编码器隐式丢弃 alpha。
+    let rgb_data: Vec<u8> = rgba_data
+        .chunks_exact(4)
+        .flat_map(|chunk| [chunk[0], chunk[1], chunk[2]])
+        .collect();
+
+    let mut jpeg_data = Vec::new();
+    {
+        let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, quality);
+        encoder
+            .encode(&rgb_data, width, height, image::ColorType::Rgb8.into())
+            .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
+    }
+
+    Ok(jpeg_data)
+}
+
+// 捕获全屏并返回 base64
+fn capture_screen_and_encode() -> Result<(String, String), String> {
     // 使用优化后的 GDI 方式捕获
     let (rgba_data, width, height) = capture_screen_gdi_optimized()?;
 
-    // 创建图像
-    let img = image::RgbaImage::from_raw(width as u32, height as u32, rgba_data)
-        .ok_or("Failed to create image")?;
-
     // 编码为 JPEG
-    let mut jpeg_data = Vec::new();
-    {
-        let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 85);
-        encoder
-            .encode(
-                &img,
-                width as u32,
-                height as u32,
-                image::ColorType::Rgba8.into(),
-            )
-            .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
-    }
+    let jpeg_data = encode_rgba_as_jpeg(&rgba_data, width as u32, height as u32, 85)?;
 
     let base64_str = general_purpose::STANDARD.encode(&jpeg_data);
 
@@ -1815,6 +1834,28 @@ fn capture_screen_and_encode() -> Result<(String, String), String> {
 // 旧的函数，保留用于兼容
 fn capture_full_screen_to_base64() -> Result<(String, String), String> {
     capture_screen_and_encode()
+}
+
+#[cfg(test)]
+mod screenshot_encoding_tests {
+    use super::encode_rgba_as_jpeg;
+    use image::GenericImageView;
+
+    #[test]
+    fn encodes_rgba_screen_buffer_as_jpeg() {
+        let rgba_data = vec![
+            255, 0, 0, 255, // red
+            0, 255, 0, 128, // green with alpha
+            0, 0, 255, 0, // blue with alpha
+            255, 255, 255, 255, // white
+        ];
+
+        let jpeg = encode_rgba_as_jpeg(&rgba_data, 2, 2, 85).expect("encode jpeg");
+
+        assert!(jpeg.starts_with(&[0xFF, 0xD8]));
+        let decoded = image::load_from_memory(&jpeg).expect("decode jpeg");
+        assert_eq!(decoded.dimensions(), (2, 2));
+    }
 }
 
 pub fn preload_screen_background_for_window(window_label: &'static str) {
@@ -2410,10 +2451,16 @@ pub async fn save_screenshot_to_file(
 
         // 在单独的任务中保存图像，避免阻塞主线程
         let path_clone = path.to_path_buf();
-        task::spawn_blocking(move || img.save_with_format(&path_clone, format))
-            .await
-            .map_err(|e| format!("Save task failed: {}", e))?
-            .map_err(|e| format!("Failed to save image: {}", e))?;
+        task::spawn_blocking(move || {
+            if matches!(format, image::ImageFormat::Jpeg) {
+                img.to_rgb8().save_with_format(&path_clone, format)
+            } else {
+                img.save_with_format(&path_clone, format)
+            }
+        })
+        .await
+        .map_err(|e| format!("Save task failed: {}", e))?
+        .map_err(|e| format!("Failed to save image: {}", e))?;
 
         Ok(format!("截图已保存到: {}", path.display()))
     } else {

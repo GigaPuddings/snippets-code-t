@@ -385,8 +385,7 @@ export class ScreenshotManager {
               reject(error)
             }
 
-            // 后端现在返回PNG格式
-            img.src = `data:image/png;base64,${base64Image}`
+            img.src = `data:${this.detectImageMime(base64Image)};base64,${base64Image}`
           })
 
           return
@@ -403,6 +402,16 @@ export class ScreenshotManager {
     }
 
     this.createFallbackBackground()
+  }
+
+  private detectImageMime(base64Image: string): 'image/png' | 'image/jpeg' {
+    const trimmed = base64Image.trim()
+
+    if (trimmed.startsWith('/9j/')) {
+      return 'image/jpeg'
+    }
+
+    return 'image/png'
   }
 
   // 创建后备背景（当背景图加载失败时使用）
@@ -1458,11 +1467,10 @@ export class ScreenshotManager {
     // 在完整背景图加载前，先绘制等待状态
     if (!this.backgroundImage) {
       this.drawPendingState()
-      return
+    } else {
+      // 绘制背景图像
+      this.drawBackground()
     }
-
-    // 绘制背景图像
-    this.drawBackground()
     
     // 【遮罩层】绘制选择区域外的半透明遮罩
     if (this.selectionRect) {
