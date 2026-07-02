@@ -1174,10 +1174,14 @@ pub fn screen_recorder_pick_target_window(
     {
         use windows::Win32::Foundation::{HWND, POINT, RECT};
         use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWINDOWATTRIBUTE};
+        use windows::Win32::Graphics::Gdi::{
+            GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+        };
         use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
         use windows::Win32::UI::WindowsAndMessaging::{
-            GetAncestor, GetCursorPos, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
-            IsWindowVisible, LoadCursorW, SetCursor, WindowFromPoint, GA_ROOT, IDC_HAND,
+            GetAncestor, GetClassNameW, GetCursorPos, GetWindowRect, GetWindowTextLengthW,
+            GetWindowTextW, IsWindowVisible, LoadCursorW, SetCursor, WindowFromPoint, GA_ROOT,
+            IDC_HAND,
         };
 
         fn left_button_down() -> bool {
@@ -1207,6 +1211,55 @@ pub fn screen_recorder_pick_target_window(
             let mut buffer = vec![0u16; len as usize + 1];
             let copied = unsafe { GetWindowTextW(hwnd, &mut buffer) };
             String::from_utf16_lossy(&buffer[..copied as usize])
+        }
+
+        fn window_class_name(hwnd: HWND) -> String {
+            let mut buffer = [0u16; 256];
+            let len = unsafe { GetClassNameW(hwnd, &mut buffer) };
+            String::from_utf16_lossy(&buffer[..len as usize])
+        }
+
+        fn is_desktop_shell_window(class_name: &str) -> bool {
+            matches!(
+                class_name,
+                "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd"
+            )
+        }
+
+        fn monitor_rect_from_point(point: POINT) -> Option<RECT> {
+            let monitor = unsafe { MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST) };
+            if monitor.0.is_null() {
+                return None;
+            }
+
+            let mut info = MONITORINFO {
+                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                ..Default::default()
+            };
+
+            if unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool() {
+                Some(info.rcMonitor)
+            } else {
+                None
+            }
+        }
+
+        fn target_window_rect(hwnd: HWND) -> Result<RECT, String> {
+            let mut rect = RECT::default();
+            let dwm_result = unsafe {
+                DwmGetWindowAttribute(
+                    hwnd,
+                    DWMWINDOWATTRIBUTE(9), // DWMWA_EXTENDED_FRAME_BOUNDS
+                    &mut rect as *mut _ as *mut _,
+                    std::mem::size_of::<RECT>() as u32,
+                )
+            };
+            if dwm_result.is_err() {
+                unsafe { GetWindowRect(hwnd, &mut rect) }
+                    .map_err(|e| format!("读取目标窗口边界失败: {}", e))?;
+            }
+
+            Ok(rect)
         }
 
         clear_passthrough_region(&app_handle);
@@ -1244,23 +1297,21 @@ pub fn screen_recorder_pick_target_window(
             return Err("目标窗口不可见".to_string());
         }
 
-        let mut rect = RECT::default();
-        let dwm_result = unsafe {
-            DwmGetWindowAttribute(
-                hwnd,
-                DWMWINDOWATTRIBUTE(9), // DWMWA_EXTENDED_FRAME_BOUNDS
-                &mut rect as *mut _ as *mut _,
-                std::mem::size_of::<RECT>() as u32,
-            )
+        let class_name = window_class_name(hwnd);
+        let is_desktop_shell = is_desktop_shell_window(&class_name);
+        let rect = if is_desktop_shell {
+            monitor_rect_from_point(point).unwrap_or(target_window_rect(hwnd)?)
+        } else {
+            target_window_rect(hwnd)?
         };
-        if dwm_result.is_err() {
-            unsafe { GetWindowRect(hwnd, &mut rect) }
-                .map_err(|e| format!("读取目标窗口边界失败: {}", e))?;
-        }
 
         let width = (rect.right - rect.left).max(1) as u32;
         let height = (rect.bottom - rect.top).max(1) as u32;
-        let title = window_title(hwnd);
+        let title = if is_desktop_shell {
+            "桌面".to_string()
+        } else {
+            window_title(hwnd)
+        };
 
         let _ = window.set_focus();
         let _ = window.set_ignore_cursor_events(false);

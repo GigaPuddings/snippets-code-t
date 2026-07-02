@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "screen-recorder",
-  "version": "2.0.53",
+  "version": "2.0.54",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.screenRecorder.name",
@@ -46,5 +46,5 @@
   },
   "minAppVersion": "2.1.28",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/releases/tag/2.0.53"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder/releases/tag/2.0.54"
 }
