@@ -982,6 +982,10 @@ const setOuterFrame = async (frame: PhysicalFrame) => {
   await waitForWindowLayout();
 };
 
+const raiseRecorderWindow = async () => {
+  await appWindow.setAlwaysOnTop(true).catch(() => undefined);
+};
+
 const getSnapLayout = async () => {
   const [actualRegion, currentFrame] = await Promise.all([
     getCaptureRegion(),
@@ -1234,6 +1238,7 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
         ? clampFrameToMonitor(initialFrame, monitorRect)
         : initialFrame
     );
+    await raiseRecorderWindow();
     await nextTick();
     await refreshOverlayWindowRegion();
 
@@ -1285,6 +1290,7 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     console.error(`${LOG_PREFIX} snap correction failed`, error);
     logger.warn(`${LOG_PREFIX} snap correction failed`, error);
   } finally {
+    await raiseRecorderWindow();
     await pulseWindowPassthrough();
     await refreshBottomEdgeState();
     await refreshCaptureMetrics();
@@ -1797,7 +1803,10 @@ onUnmounted(() => {
     position: absolute;
     inset: auto 0 0;
     z-index: 6;
-    height: 42px;
+    height: 56px;
+    min-height: 56px;
+    padding: 10px 12px;
+    box-shadow: 0 -2px 12px color-mix(in srgb, #000 14%, transparent);
   }
 }
 
