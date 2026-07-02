@@ -9,6 +9,9 @@ import {
   type Component
 } from 'vue';
 import * as VueRuntime from 'vue';
+import * as PiniaRuntime from 'pinia';
+import * as VueRouterRuntime from 'vue-router';
+import * as VueI18nRuntime from 'vue-i18n';
 import type { RouteComponent, RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
 import type { SearchSourceProvider, SearchSourceResult } from './search';
@@ -402,8 +405,57 @@ const vueRuntimeExportNames = [
   'withScopeId'
 ];
 
+const sharedModuleRuntimes: Record<
+  string,
+  { moduleKey: string; runtime: Record<string, unknown>; exportNames?: string[] }
+> = {
+  vue: {
+    moduleKey: 'vue',
+    runtime: VueRuntime as Record<string, unknown>,
+    exportNames: vueRuntimeExportNames
+  },
+  pinia: {
+    moduleKey: 'pinia',
+    runtime: PiniaRuntime as Record<string, unknown>
+  },
+  'vue-router': {
+    moduleKey: 'vueRouter',
+    runtime: VueRouterRuntime as Record<string, unknown>
+  },
+  'vue-i18n': {
+    moduleKey: 'vueI18n',
+    runtime: VueI18nRuntime as Record<string, unknown>
+  }
+};
+
+const sharedModuleExportNamePattern = /^[A-Za-z_$][\w$]*$/;
+
+const createSharedModuleSource = (
+  globalKey: string,
+  moduleKey: string,
+  runtime: Record<string, unknown>,
+  explicitExportNames?: string[]
+): string => {
+  const exportNames = (explicitExportNames ?? Object.keys(runtime)).filter(
+    (name) =>
+      name !== 'default' &&
+      name !== '__esModule' &&
+      sharedModuleExportNamePattern.test(name)
+  );
+  const exports = exportNames
+    .map((name) => `export const ${name} = Runtime[${JSON.stringify(name)}];`)
+    .join('\n');
+
+  return [
+    `const Runtime = globalThis.${globalKey}[${JSON.stringify(moduleKey)}];`,
+    'export default Runtime;',
+    exports
+  ].join('\n');
+};
+
 const ensureSharedModuleUrl = (specifier: string): string | null => {
-  if (specifier !== 'vue') return null;
+  const sharedModule = sharedModuleRuntimes[specifier];
+  if (!sharedModule) return null;
 
   const existingUrl = sharedModuleUrls.get(specifier);
   if (existingUrl) return existingUrl;
@@ -414,17 +466,15 @@ const ensureSharedModuleUrl = (specifier: string): string | null => {
   };
   sharedGlobal[globalKey] = {
     ...(sharedGlobal[globalKey] ?? {}),
-    vue: VueRuntime
+    [sharedModule.moduleKey]: sharedModule.runtime
   };
 
-  const exports = vueRuntimeExportNames
-    .map((name) => `export const ${name} = Vue.${name};`)
-    .join('\n');
-  const source = [
-    `const Vue = globalThis.${globalKey}.vue;`,
-    'export default Vue;',
-    exports
-  ].join('\n');
+  const source = createSharedModuleSource(
+    globalKey,
+    sharedModule.moduleKey,
+    sharedModule.runtime,
+    sharedModule.exportNames
+  );
   const moduleUrl = URL.createObjectURL(
     new Blob([source], { type: 'text/javascript' })
   );
