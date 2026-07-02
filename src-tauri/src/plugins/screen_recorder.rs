@@ -18,6 +18,7 @@ const PLUGIN_ID: &str = "screen-recorder";
 const FFMPEG_STOP_WAIT_ATTEMPTS: usize = 120;
 const FFMPEG_STOP_WAIT_INTERVAL_MS: u64 = 100;
 const WINDOW_READY_TIMEOUT_SECS: u64 = 12;
+const MIN_RECORDING_REGION_SIZE: u32 = 2;
 
 static RECORDING_SESSION: LazyLock<Mutex<Option<RecordingSession>>> =
     LazyLock::new(|| Mutex::new(None));
@@ -38,6 +39,30 @@ pub struct RecordingRegion {
     physical_width: u32,
     physical_height: u32,
     scale: f64,
+}
+
+fn validate_recording_region(region: &RecordingRegion) -> Result<(), String> {
+    if !region.x.is_finite()
+        || !region.y.is_finite()
+        || !region.width.is_finite()
+        || !region.height.is_finite()
+        || !region.scale.is_finite()
+        || region.scale <= 0.0
+    {
+        return Err("录制区域参数无效，请重新选择录制区域".to_string());
+    }
+
+    if region.physical_width < MIN_RECORDING_REGION_SIZE
+        || region.physical_height < MIN_RECORDING_REGION_SIZE
+    {
+        return Err("录制区域太小，请重新选择录制区域".to_string());
+    }
+
+    if region.physical_width % 2 != 0 || region.physical_height % 2 != 0 {
+        return Err("录制区域尺寸必须为偶数，请重新选择录制区域".to_string());
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1726,6 +1751,7 @@ pub fn screen_recorder_start_recording(
     show_cursor: bool,
 ) -> Result<(), String> {
     require_plugin(&app_handle)?;
+    validate_recording_region(&region)?;
 
     let id = uuid::Uuid::new_v4().to_string();
     let temp_dir = session_temp_dir(&app_handle, &id)?;
@@ -1822,6 +1848,8 @@ pub fn screen_recorder_resume_recording(
     show_cursor: bool,
 ) -> Result<(), String> {
     require_plugin(&app_handle)?;
+    validate_recording_region(&region)?;
+
     let mut state = RECORDING_SESSION
         .lock()
         .map_err(|e| format!("录屏状态锁定失败: {}", e))?;

@@ -606,6 +606,68 @@ const toEvenPhysicalSize = (value: number): number =>
 const toPhysicalSize = (value: number): number =>
   Math.max(1, Math.round(value));
 
+const normalizeRecordingRegion = (
+  region: RecordingRegion,
+  screenX: number,
+  screenY: number,
+  physicalWidth: number,
+  physicalHeight: number
+): RecordingRegion => ({
+  ...region,
+  x: region.x + (screenX - region.screenX) / region.scale,
+  y: region.y + (screenY - region.screenY) / region.scale,
+  width: physicalWidth / region.scale,
+  height: physicalHeight / region.scale,
+  screenX,
+  screenY,
+  physicalWidth,
+  physicalHeight
+});
+
+const clampRecordingRegionToMonitor = async (
+  region: RecordingRegion
+): Promise<RecordingRegion> => {
+  const centerX = region.screenX + Math.round(region.physicalWidth / 2);
+  const centerY = region.screenY + Math.round(region.physicalHeight / 2);
+  const monitor =
+    (await monitorFromPoint(region.screenX, region.screenY)) ||
+    (await monitorFromPoint(centerX, centerY));
+  if (!monitor) {
+    return normalizeRecordingRegion(
+      region,
+      region.screenX,
+      region.screenY,
+      toEvenPhysicalSize(region.physicalWidth),
+      toEvenPhysicalSize(region.physicalHeight)
+    );
+  }
+
+  const monitorLeft = monitor.position.x;
+  const monitorTop = monitor.position.y;
+  const monitorRight = monitorLeft + monitor.size.width;
+  const monitorBottom = monitorTop + monitor.size.height;
+  const regionRight = region.screenX + region.physicalWidth;
+  const regionBottom = region.screenY + region.physicalHeight;
+  const screenX = Math.max(region.screenX, monitorLeft);
+  const screenY = Math.max(region.screenY, monitorTop);
+  const right = Math.min(regionRight, monitorRight);
+  const bottom = Math.min(regionBottom, monitorBottom);
+  const physicalWidth = toEvenPhysicalSize(right - screenX);
+  const physicalHeight = toEvenPhysicalSize(bottom - screenY);
+
+  if (physicalWidth < MIN_CAPTURE_SIZE || physicalHeight < MIN_CAPTURE_SIZE) {
+    throw new Error('录制区域超出屏幕边界，请重新选择录制区域');
+  }
+
+  return normalizeRecordingRegion(
+    region,
+    screenX,
+    screenY,
+    physicalWidth,
+    physicalHeight
+  );
+};
+
 const isNearlySamePhysicalValue = (left: number, right: number): boolean =>
   Math.abs(left - right) <= CAPTURE_METRIC_TOLERANCE;
 
@@ -663,15 +725,7 @@ const getCaptureRegion = async (): Promise<RecordingRegion> => {
 
 const getRecordingRegion = async (): Promise<RecordingRegion> => {
   const region = await getCaptureRegion();
-  const physicalWidth = toEvenPhysicalSize(region.physicalWidth);
-  const physicalHeight = toEvenPhysicalSize(region.physicalHeight);
-  return {
-    ...region,
-    width: physicalWidth / region.scale,
-    height: physicalHeight / region.scale,
-    physicalWidth,
-    physicalHeight
-  };
+  return clampRecordingRegionToMonitor(region);
 };
 
 const refreshCaptureMetricsNow = async () => {
