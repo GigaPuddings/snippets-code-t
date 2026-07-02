@@ -7505,7 +7505,7 @@ const Hd = { class: "screen-recorder" }, Bd = ["onMousedown"], Vd = { class: "wi
   for (const [r, s] of t)
     n[r] = s;
   return n;
-}, zf = /* @__PURE__ */ Uf(Wf, [["__scopeId", "data-v-cef5c0b7"]]), jf = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, zf = /* @__PURE__ */ Uf(Wf, [["__scopeId", "data-v-508742f3"]]), jf = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: zf
 }, Symbol.toStringTag, { value: "Module" }));

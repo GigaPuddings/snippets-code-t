@@ -1894,6 +1894,12 @@ onUnmounted(() => {
   flex: 0 0 auto;
   justify-content: flex-end;
   overflow: hidden;
+
+  .control-button {
+    min-width: 56px;
+    max-width: none;
+    padding: 0 12px;
+  }
 }
 
 select,
