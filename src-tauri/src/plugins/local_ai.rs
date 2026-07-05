@@ -212,10 +212,6 @@ pub struct LocalAiChatRequest {
     pub temperature: Option<f32>,
     pub enable_thinking: Option<bool>,
     pub max_tokens: Option<u32>,
-    #[serde(default)]
-    pub tools: Option<Vec<Value>>,
-    #[serde(default)]
-    pub tool_choice: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -244,8 +240,6 @@ pub struct LocalAiChatStreamPayload {
     pub content: Option<String>,
     pub error: Option<String>,
     pub stats: Option<LocalAiChatStreamStats>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_calls: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1854,25 +1848,6 @@ fn emit_chat_stream(
             content,
             error,
             stats,
-            tool_calls: None,
-        },
-    );
-}
-
-fn emit_chat_stream_tool_calls(
-    window: &Window,
-    request_id: &str,
-    tool_calls: Value,
-) {
-    let _ = window.emit(
-        "local-ai-chat-stream",
-        LocalAiChatStreamPayload {
-            request_id: request_id.to_string(),
-            event: "tool_call".to_string(),
-            content: None,
-            error: None,
-            stats: None,
-            tool_calls: Some(tool_calls),
         },
     );
 }
@@ -1937,17 +1912,6 @@ fn extract_stream_stats(value: &Value, ctx_size: u32) -> Option<LocalAiChatStrea
     })
 }
 
-fn extract_stream_tool_calls(value: &Value) -> Option<Value> {
-    value
-        .get("choices")
-        .and_then(|c| c.as_array())
-        .and_then(|c| c.first())
-        .and_then(|choice| choice.get("delta"))
-        .and_then(|delta| delta.get("tool_calls"))
-        .filter(|tc| !tc.is_null())
-        .cloned()
-}
-
 fn extract_stream_delta(
     value: &Value,
     reasoning_open: &mut bool,
@@ -1992,7 +1956,6 @@ fn extract_stream_delta(
         })
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn chat_completion_stream(
     app_handle: &AppHandle,
     window: Window,
@@ -2001,8 +1964,6 @@ async fn chat_completion_stream(
     temperature: Option<f32>,
     max_tokens: Option<u32>,
     enable_thinking: Option<bool>,
-    tools: Option<Vec<Value>>,
-    tool_choice: Option<Value>,
 ) -> Result<String, String> {
     require_plugin(app_handle)?;
     if messages.is_empty() {
@@ -2059,16 +2020,6 @@ async fn chat_completion_stream(
         }
     });
 
-    let mut body = body;
-    if let Some(ref tools_val) = tools {
-        if !tools_val.is_empty() {
-            body["tools"] = Value::Array(tools_val.clone());
-            if let Some(ref choice) = tool_choice {
-                body["tool_choice"] = choice.clone();
-            }
-        }
-    }
-
     let response_result = client
         .post(url)
         .header(ACCEPT, "text/event-stream")
@@ -2097,8 +2048,6 @@ async fn chat_completion_stream(
     let mut buffer = String::new();
     let mut content = String::new();
     let mut reasoning_open = false;
-    let mut accumulated_tool_calls: std::collections::HashMap<usize, Value> =
-        std::collections::HashMap::new();
     loop {
         if cancel_flag.load(Ordering::Relaxed) {
             if reasoning_open {
@@ -2162,62 +2111,7 @@ async fn chat_completion_stream(
                 content.push_str(&delta);
                 emit_chat_stream(&window, &request_id, "delta", Some(delta), None, None);
             }
-            // Incrementally accumulate tool_calls from delta chunks.
-            // llama-server sends incremental deltas: each chunk may contain
-            // only part of arguments, so we must merge by index.
-            if let Some(tool_calls) = extract_stream_tool_calls(&value) {
-                if let Some(arr) = tool_calls.as_array() {
-                    for tc in arr {
-                        let index = tc.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                        let entry = accumulated_tool_calls
-                            .entry(index)
-                            .or_insert_with(|| Value::Object(serde_json::Map::new()));
-                        if let Some(obj) = entry.as_object_mut() {
-                            if let Some(id) = tc.get("id") {
-                                obj.insert("id".to_string(), id.clone());
-                            }
-                            if let Some(typ) = tc.get("type") {
-                                obj.insert("type".to_string(), typ.clone());
-                            }
-                            if let Some(func) = tc.get("function") {
-                                let func_obj = obj
-                                    .entry("function")
-                                    .or_insert_with(|| Value::Object(serde_json::Map::new()));
-                                if let Some(f_obj) = func_obj.as_object_mut() {
-                                    if let Some(name) = func.get("name") {
-                                        f_obj.insert("name".to_string(), name.clone());
-                                    }
-                                    if let Some(args_delta) = func.get("arguments") {
-                                        let current_args = f_obj
-                                            .entry("arguments")
-                                            .or_insert_with(|| Value::String(String::new()))
-                                            .as_str()
-                                            .unwrap_or("")
-                                            .to_string();
-                                        f_obj.insert(
-                                            "arguments".to_string(),
-                                            Value::String(format!(
-                                                "{}{}",
-                                                current_args,
-                                                args_delta.as_str().unwrap_or("")
-                                            )),
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
-    }
-
-    // Emit accumulated complete tool_calls after stream ends
-    if !accumulated_tool_calls.is_empty() {
-        let mut sorted: Vec<_> = accumulated_tool_calls.into_iter().collect();
-        sorted.sort_by_key(|(idx, _)| *idx);
-        let final_tool_calls = Value::Array(sorted.into_iter().map(|(_, v)| v).collect());
-        emit_chat_stream_tool_calls(&window, &request_id, final_tool_calls);
     }
 
     remove_active_stream(&request_id);
@@ -2472,8 +2366,6 @@ pub async fn local_ai_chat_stream(
         request.temperature,
         request.max_tokens,
         request.enable_thinking,
-        request.tools,
-        request.tool_choice,
     )
     .await
     {
