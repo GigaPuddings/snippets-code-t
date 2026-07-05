@@ -2097,6 +2097,8 @@ async fn chat_completion_stream(
     let mut buffer = String::new();
     let mut content = String::new();
     let mut reasoning_open = false;
+    let mut accumulated_tool_calls: std::collections::HashMap<usize, Value> =
+        std::collections::HashMap::new();
     loop {
         if cancel_flag.load(Ordering::Relaxed) {
             if reasoning_open {
@@ -2160,10 +2162,62 @@ async fn chat_completion_stream(
                 content.push_str(&delta);
                 emit_chat_stream(&window, &request_id, "delta", Some(delta), None, None);
             }
+            // Incrementally accumulate tool_calls from delta chunks.
+            // llama-server sends incremental deltas: each chunk may contain
+            // only part of arguments, so we must merge by index.
             if let Some(tool_calls) = extract_stream_tool_calls(&value) {
-                emit_chat_stream_tool_calls(&window, &request_id, tool_calls);
+                if let Some(arr) = tool_calls.as_array() {
+                    for tc in arr {
+                        let index = tc.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                        let entry = accumulated_tool_calls
+                            .entry(index)
+                            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+                        if let Some(obj) = entry.as_object_mut() {
+                            if let Some(id) = tc.get("id") {
+                                obj.insert("id".to_string(), id.clone());
+                            }
+                            if let Some(typ) = tc.get("type") {
+                                obj.insert("type".to_string(), typ.clone());
+                            }
+                            if let Some(func) = tc.get("function") {
+                                let func_obj = obj
+                                    .entry("function")
+                                    .or_insert_with(|| Value::Object(serde_json::Map::new()));
+                                if let Some(f_obj) = func_obj.as_object_mut() {
+                                    if let Some(name) = func.get("name") {
+                                        f_obj.insert("name".to_string(), name.clone());
+                                    }
+                                    if let Some(args_delta) = func.get("arguments") {
+                                        let current_args = f_obj
+                                            .entry("arguments")
+                                            .or_insert_with(|| Value::String(String::new()))
+                                            .as_str()
+                                            .unwrap_or("")
+                                            .to_string();
+                                        f_obj.insert(
+                                            "arguments".to_string(),
+                                            Value::String(format!(
+                                                "{}{}",
+                                                current_args,
+                                                args_delta.as_str().unwrap_or("")
+                                            )),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+
+    // Emit accumulated complete tool_calls after stream ends
+    if !accumulated_tool_calls.is_empty() {
+        let mut sorted: Vec<_> = accumulated_tool_calls.into_iter().collect();
+        sorted.sort_by_key(|(idx, _)| *idx);
+        let final_tool_calls = Value::Array(sorted.into_iter().map(|(_, v)| v).collect());
+        emit_chat_stream_tool_calls(&window, &request_id, final_tool_calls);
     }
 
     remove_active_stream(&request_id);
