@@ -264,11 +264,12 @@ const copyCode = async () => {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  white-space: pre !important;
+  white-space: pre-wrap !important;
   word-break: normal;
   tab-size: 2;
   background: transparent !important;
   color: var(--panel-text, inherit);
+  min-height: 1.6em;
 }
 
 /* Shiki token 颜色映射（通过 class + CSS 变量实现，避免 inline style） */

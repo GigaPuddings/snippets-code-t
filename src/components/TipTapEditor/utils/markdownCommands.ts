@@ -42,7 +42,22 @@ export const toggleCodeBlockForSelection = (editor: Editor): boolean => {
   const { state } = editor;
 
   if (state.selection.empty || editor.isActive('codeBlock')) {
-    return editor.chain().focus().toggleNode('codeBlock', 'paragraph').run();
+    const alreadyInCodeBlock = editor.isActive('codeBlock');
+    const result = editor.chain().focus().toggleNode('codeBlock', 'paragraph').run();
+
+    // 创建新代码块后，确保光标聚焦在代码块内容区域内并滚动到光标位置
+    if (!alreadyInCodeBlock && result) {
+      // 使用 double requestAnimationFrame 确保节点视图 DOM 完全渲染后再操作
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (editor.isActive('codeBlock')) {
+            editor.chain().focus().scrollIntoView().run();
+          }
+        });
+      });
+    }
+
+    return result;
   }
 
   const codeBlockType = state.schema.nodes.codeBlock;

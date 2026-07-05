@@ -344,6 +344,12 @@ function scrollEditorSelectionIntoView(view: EditorView): void {
       const containerRect = container.getBoundingClientRect();
       const padding = 42;
 
+      // 当 coords 为 (0,0) 时，说明位置对应的 DOM 节点尚未渲染（如 NodeView 还在挂载中），
+      // 此时坐标无效，跳过滚动避免误判导致页面跳动
+      if (coords.top === 0 && coords.bottom === 0) {
+        return;
+      }
+
       if (coords.bottom > containerRect.bottom - padding) {
         container.scrollTop += coords.bottom - containerRect.bottom + padding;
       } else if (coords.top < containerRect.top + padding) {

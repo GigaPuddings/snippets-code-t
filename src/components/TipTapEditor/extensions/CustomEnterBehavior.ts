@@ -6,6 +6,7 @@ import { Extension } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { Fragment } from '@tiptap/pm/model';
 import type { ResolvedPos } from '@tiptap/pm/model';
+import type { Editor } from '@tiptap/core';
 
 const INDENT = '  ';
 
@@ -85,6 +86,260 @@ function mapOffsetAfterDedent(
   return newLs + newCol;
 }
 
+/** 延迟滚动到光标位置，避免 DOM 未渲染完成时坐标不准确导致跳动 */
+function delayedScrollIntoView(editor: Editor): void {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      editor.chain().scrollIntoView().run();
+    });
+  });
+}
+
+/** 处理缩进的核心逻辑（普通文本 + 代码块） */
+function handleIndent(editor: Editor): boolean {
+  const state = editor.state;
+  const { from, to } = state.selection;
+  const $from = state.doc.resolve(from);
+  const d = findCodeBlockDepth($from);
+
+  if (d < 0) {
+    // 普通文本中的 Tab 缩进
+    if (from === to) {
+      return editor.commands.insertContent(INDENT);
+    }
+    // 多行选区缩进
+    const { doc } = state;
+    const indentActions: Array<{ pos: number; text: string }> = [];
+
+    doc.nodesBetween(from, to, (node, pos) => {
+      if (node.isText) {
+        const beforePos = doc.resolve(pos);
+        const isLineStart =
+          beforePos.parentOffset === 0 ||
+          (pos > 1 && doc.textBetween(pos - 1, pos) === '\n');
+
+        if (isLineStart && pos >= from) {
+          indentActions.push({ pos, text: INDENT });
+        }
+      } else if (node.type.name === 'hardBreak') {
+        const nextPos = pos + node.nodeSize;
+        if (nextPos < to) {
+          indentActions.push({ pos: nextPos, text: INDENT });
+        }
+      }
+      return true;
+    });
+
+    if (!indentActions.some(a => a.pos >= from && a.pos <= from + 1)) {
+      indentActions.unshift({ pos: from, text: INDENT });
+    }
+
+    if (indentActions.length > 0) {
+      const tr = state.tr;
+      for (let i = indentActions.length - 1; i >= 0; i--) {
+        const action = indentActions[i];
+        if (action.pos >= from && action.pos <= to) {
+          tr.insertText(action.text, action.pos);
+        }
+      }
+      const totalInserted = indentActions.length * INDENT.length;
+      tr.setSelection(TextSelection.create(tr.doc, from, to + totalInserted));
+      editor.view.dispatch(tr);
+      delayedScrollIntoView(editor);
+    }
+
+    return true;
+  }
+
+  // 代码块内的缩进逻辑
+  const block = $from.node(d);
+  const blockPos = $from.before(d);
+  const contentStart = blockPos + 1;
+  const contentEnd = blockPos + block.nodeSize - 1;
+  const text = block.textContent;
+  const empty = from === to;
+  const lo = posToOffset(contentStart, Math.min(from, to));
+  const hi = posToOffset(contentStart, Math.max(from, to));
+  const { startLine, endLine } = getIndentLineRange(text, lo, hi, empty);
+
+  if (empty && startLine === endLine) {
+    return editor.commands.insertContent(INDENT);
+  }
+
+  const lines = text.split('\n');
+  const newLines = lines.map((line, i) =>
+    i >= startLine && i <= endLine ? INDENT + line : line
+  );
+  const newText = newLines.join('\n');
+
+  const schema = state.schema;
+  const tr = state.tr.replaceWith(
+    contentStart,
+    contentEnd + 1,
+    Fragment.from(schema.text(newText))
+  );
+
+  const na = mapOffsetAfterIndent(lo, startLine, endLine, text);
+  const nb = mapOffsetAfterIndent(hi, startLine, endLine, text);
+  const newFrom = contentStart + na;
+  const newTo = contentStart + nb;
+  tr.setSelection(TextSelection.create(tr.doc, newFrom, newTo));
+  editor.view.dispatch(tr);
+  delayedScrollIntoView(editor);
+
+  return true;
+}
+
+/** 处理反缩进的核心逻辑（普通文本 + 代码块） */
+function handleDedent(editor: Editor): boolean {
+  const state = editor.state;
+  const { from, to } = state.selection;
+  const $from = state.doc.resolve(from);
+  const d = findCodeBlockDepth($from);
+
+  if (d < 0) {
+    // 普通文本中的 Shift-Tab 反缩进
+    if (from === to) {
+      const doc = state.doc;
+      const textBefore = doc.textBetween(Math.max(0, from - INDENT.length), from);
+      if (textBefore.endsWith(INDENT)) {
+        return editor.chain().focus().deleteRange({ from: from - INDENT.length, to: from }).run();
+      }
+      if (textBefore.endsWith(' ') || textBefore.endsWith('\t')) {
+        return editor.chain().focus().deleteRange({ from: from - 1, to: from }).run();
+      }
+      return true;
+    }
+
+    // 多行选区反缩进
+    const { doc } = state;
+    const dedentActions: Array<{ from: number; to: number }> = [];
+
+    doc.nodesBetween(from, to, (node, pos) => {
+      if (node.isText && pos >= from) {
+        const text = node.textContent;
+        let removeLen = 0;
+        if (text.startsWith(INDENT)) {
+          removeLen = INDENT.length;
+        } else if (text.startsWith('\t')) {
+          removeLen = 1;
+        } else if (text.startsWith(' ')) {
+          removeLen = 1;
+        }
+        if (removeLen > 0) {
+          dedentActions.push({ from: pos, to: pos + removeLen });
+        }
+      } else if (node.type.name === 'hardBreak') {
+        const nextPos = pos + node.nodeSize;
+        if (nextPos < to) {
+          const afterNode = doc.nodeAt(nextPos);
+          if (afterNode?.isText) {
+            const afterText = afterNode.textContent;
+            let removeLen = 0;
+            if (afterText.startsWith(INDENT)) {
+              removeLen = INDENT.length;
+            } else if (afterText.startsWith('\t') || afterText.startsWith(' ')) {
+              removeLen = 1;
+            }
+            if (removeLen > 0) {
+              dedentActions.push({ from: nextPos, to: nextPos + removeLen });
+            }
+          }
+        }
+      }
+      return true;
+    });
+
+    const firstNode = doc.nodeAt(from);
+    if (firstNode?.isText) {
+      const firstText = firstNode.textContent;
+      const offsetInNode = from - ($from.before($from.depth) + 1);
+      const textFromOffset = firstText.slice(offsetInNode);
+      let removeLen = 0;
+      if (textFromOffset.startsWith(INDENT)) {
+        removeLen = INDENT.length;
+      } else if (textFromOffset.startsWith('\t') || textFromOffset.startsWith(' ')) {
+        removeLen = 1;
+      }
+      if (removeLen > 0 && !dedentActions.some(a => a.from === from)) {
+        dedentActions.unshift({ from, to: from + removeLen });
+      }
+    }
+
+    if (dedentActions.length > 0) {
+      const tr = state.tr;
+      for (let i = dedentActions.length - 1; i >= 0; i--) {
+        const action = dedentActions[i];
+        tr.delete(action.from, action.to);
+      }
+      const totalRemoved = dedentActions.reduce((sum, a) => sum + (a.to - a.from), 0);
+      tr.setSelection(TextSelection.create(tr.doc, from, to - totalRemoved));
+      editor.view.dispatch(tr);
+      delayedScrollIntoView(editor);
+    }
+
+    return true;
+  }
+
+  // 代码块内的反缩进逻辑
+  const block = $from.node(d);
+  const blockPos = $from.before(d);
+  const contentStart = blockPos + 1;
+  const contentEnd = blockPos + block.nodeSize - 1;
+  const text = block.textContent;
+  const empty = from === to;
+  const lo = posToOffset(contentStart, Math.min(from, to));
+  const hi = posToOffset(contentStart, Math.max(from, to));
+  const { startLine, endLine } = getIndentLineRange(text, lo, hi, empty);
+
+  const lines = text.split('\n');
+  const removedPerLine: number[] = [];
+  let changed = false;
+  const newLines = lines.map((line, i) => {
+    if (i < startLine || i > endLine) {
+      removedPerLine[i] = 0;
+      return line;
+    }
+    if (line.startsWith(INDENT)) {
+      removedPerLine[i] = INDENT.length;
+      changed = true;
+      return line.slice(INDENT.length);
+    }
+    if (line.startsWith('\t')) {
+      removedPerLine[i] = 1;
+      changed = true;
+      return line.slice(1);
+    }
+    if (line.startsWith(' ')) {
+      removedPerLine[i] = 1;
+      changed = true;
+      return line.slice(1);
+    }
+    removedPerLine[i] = 0;
+    return line;
+  });
+
+  if (!changed) return true;
+
+  const newText = newLines.join('\n');
+  const schema = state.schema;
+  const tr = state.tr.replaceWith(
+    contentStart,
+    contentEnd + 1,
+    Fragment.from(schema.text(newText))
+  );
+
+  const na = mapOffsetAfterDedent(lo, startLine, endLine, lines, removedPerLine, newLines);
+  const nb = mapOffsetAfterDedent(hi, startLine, endLine, lines, removedPerLine, newLines);
+  const newFrom = contentStart + Math.max(0, na);
+  const newTo = contentStart + Math.max(0, nb);
+  tr.setSelection(TextSelection.create(tr.doc, newFrom, newTo));
+  editor.view.dispatch(tr);
+  delayedScrollIntoView(editor);
+
+  return true;
+}
+
 export const CustomEnterBehavior = Extension.create({
   name: 'customEnterBehavior',
 
@@ -110,111 +365,11 @@ export const CustomEnterBehavior = Extension.create({
       },
 
       'Tab': () => {
-        const state = this.editor.state;
-        const { from, to } = state.selection;
-        const $from = state.doc.resolve(from);
-        const d = findCodeBlockDepth($from);
-        if (d < 0) return false;
-
-        const block = $from.node(d);
-        const blockPos = $from.before(d);
-        const contentStart = blockPos + 1;
-        const contentEnd = blockPos + block.nodeSize - 1;
-        const text = block.textContent;
-        const empty = from === to;
-        const lo = posToOffset(contentStart, Math.min(from, to));
-        const hi = posToOffset(contentStart, Math.max(from, to));
-        const { startLine, endLine } = getIndentLineRange(text, lo, hi, empty);
-
-        // 仅光标、单行：在光标处插入两个空格（与常见编辑器一致）
-        if (empty && startLine === endLine) {
-          return this.editor.commands.insertContent(INDENT);
-        }
-
-        // 多行或行内选区：从各行行首增加缩进（VS Code 行为）
-        const lines = text.split('\n');
-        const newLines = lines.map((line, i) =>
-          i >= startLine && i <= endLine ? INDENT + line : line
-        );
-        const newText = newLines.join('\n');
-
-        const schema = state.schema;
-        const tr = state.tr.replaceWith(
-          contentStart,
-          contentEnd + 1,
-          Fragment.from(schema.text(newText))
-        );
-
-        const na = mapOffsetAfterIndent(lo, startLine, endLine, text);
-        const nb = mapOffsetAfterIndent(hi, startLine, endLine, text);
-        const newFrom = contentStart + na;
-        const newTo = contentStart + nb;
-        tr.setSelection(TextSelection.create(tr.doc, newFrom, newTo));
-        this.editor.view.dispatch(tr);
-        return true;
+        return handleIndent(this.editor);
       },
 
       'Shift-Tab': () => {
-        const state = this.editor.state;
-        const { from, to } = state.selection;
-        const $from = state.doc.resolve(from);
-        const d = findCodeBlockDepth($from);
-        if (d < 0) return false;
-
-        const block = $from.node(d);
-        const blockPos = $from.before(d);
-        const contentStart = blockPos + 1;
-        const contentEnd = blockPos + block.nodeSize - 1;
-        const text = block.textContent;
-        const empty = from === to;
-        const lo = posToOffset(contentStart, Math.min(from, to));
-        const hi = posToOffset(contentStart, Math.max(from, to));
-        const { startLine, endLine } = getIndentLineRange(text, lo, hi, empty);
-
-        const lines = text.split('\n');
-        const removedPerLine: number[] = [];
-        let changed = false;
-        const newLines = lines.map((line, i) => {
-          if (i < startLine || i > endLine) {
-            removedPerLine[i] = 0;
-            return line;
-          }
-          if (line.startsWith(INDENT)) {
-            removedPerLine[i] = INDENT.length;
-            changed = true;
-            return line.slice(INDENT.length);
-          }
-          if (line.startsWith('\t')) {
-            removedPerLine[i] = 1;
-            changed = true;
-            return line.slice(1);
-          }
-          if (line.startsWith(' ')) {
-            removedPerLine[i] = 1;
-            changed = true;
-            return line.slice(1);
-          }
-          removedPerLine[i] = 0;
-          return line;
-        });
-
-        if (!changed) return true;
-
-        const newText = newLines.join('\n');
-        const schema = state.schema;
-        const tr = state.tr.replaceWith(
-          contentStart,
-          contentEnd + 1,
-          Fragment.from(schema.text(newText))
-        );
-
-        const na = mapOffsetAfterDedent(lo, startLine, endLine, lines, removedPerLine, newLines);
-        const nb = mapOffsetAfterDedent(hi, startLine, endLine, lines, removedPerLine, newLines);
-        const newFrom = contentStart + Math.max(0, na);
-        const newTo = contentStart + Math.max(0, nb);
-        tr.setSelection(TextSelection.create(tr.doc, newFrom, newTo));
-        this.editor.view.dispatch(tr);
-        return true;
+        return handleDedent(this.editor);
       },
 
       'Mod-a': () => {
@@ -252,7 +407,7 @@ export const CustomEnterBehavior = Extension.create({
         );
         this.editor.view.dispatch(tr);
         return true;
-      }
+      },
     };
-  }
+  },
 });
