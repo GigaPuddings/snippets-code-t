@@ -212,6 +212,10 @@ pub struct LocalAiChatRequest {
     pub temperature: Option<f32>,
     pub enable_thinking: Option<bool>,
     pub max_tokens: Option<u32>,
+    #[serde(default)]
+    pub tools: Option<Vec<Value>>,
+    #[serde(default)]
+    pub tool_choice: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -240,6 +244,8 @@ pub struct LocalAiChatStreamPayload {
     pub content: Option<String>,
     pub error: Option<String>,
     pub stats: Option<LocalAiChatStreamStats>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1848,6 +1854,25 @@ fn emit_chat_stream(
             content,
             error,
             stats,
+            tool_calls: None,
+        },
+    );
+}
+
+fn emit_chat_stream_tool_calls(
+    window: &Window,
+    request_id: &str,
+    tool_calls: Value,
+) {
+    let _ = window.emit(
+        "local-ai-chat-stream",
+        LocalAiChatStreamPayload {
+            request_id: request_id.to_string(),
+            event: "tool_call".to_string(),
+            content: None,
+            error: None,
+            stats: None,
+            tool_calls: Some(tool_calls),
         },
     );
 }
@@ -1912,6 +1937,17 @@ fn extract_stream_stats(value: &Value, ctx_size: u32) -> Option<LocalAiChatStrea
     })
 }
 
+fn extract_stream_tool_calls(value: &Value) -> Option<Value> {
+    value
+        .get("choices")
+        .and_then(|c| c.as_array())
+        .and_then(|c| c.first())
+        .and_then(|choice| choice.get("delta"))
+        .and_then(|delta| delta.get("tool_calls"))
+        .filter(|tc| !tc.is_null())
+        .cloned()
+}
+
 fn extract_stream_delta(
     value: &Value,
     reasoning_open: &mut bool,
@@ -1956,6 +1992,7 @@ fn extract_stream_delta(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn chat_completion_stream(
     app_handle: &AppHandle,
     window: Window,
@@ -1964,6 +2001,8 @@ async fn chat_completion_stream(
     temperature: Option<f32>,
     max_tokens: Option<u32>,
     enable_thinking: Option<bool>,
+    tools: Option<Vec<Value>>,
+    tool_choice: Option<Value>,
 ) -> Result<String, String> {
     require_plugin(app_handle)?;
     if messages.is_empty() {
@@ -2019,6 +2058,16 @@ async fn chat_completion_stream(
             "include_usage": true
         }
     });
+
+    let mut body = body;
+    if let Some(ref tools_val) = tools {
+        if !tools_val.is_empty() {
+            body["tools"] = Value::Array(tools_val.clone());
+            if let Some(ref choice) = tool_choice {
+                body["tool_choice"] = choice.clone();
+            }
+        }
+    }
 
     let response_result = client
         .post(url)
@@ -2110,6 +2159,9 @@ async fn chat_completion_stream(
             ) {
                 content.push_str(&delta);
                 emit_chat_stream(&window, &request_id, "delta", Some(delta), None, None);
+            }
+            if let Some(tool_calls) = extract_stream_tool_calls(&value) {
+                emit_chat_stream_tool_calls(&window, &request_id, tool_calls);
             }
         }
     }
@@ -2366,6 +2418,8 @@ pub async fn local_ai_chat_stream(
         request.temperature,
         request.max_tokens,
         request.enable_thinking,
+        request.tools,
+        request.tool_choice,
     )
     .await
     {

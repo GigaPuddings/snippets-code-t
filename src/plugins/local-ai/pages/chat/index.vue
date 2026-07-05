@@ -295,6 +295,59 @@
                     <em>{{ source.source }}</em>
                   </a>
                 </div>
+                <div
+                  v-if="display.message.ragSources?.length"
+                  class="rag-source-panel"
+                >
+                  <div class="rag-source-panel__header">
+                    <span>{{ t('localAi.ragSourcesUsed') }}</span>
+                  </div>
+                  <div
+                    v-for="(src, index) in display.message.ragSources"
+                    :key="`rag-${index}`"
+                    class="rag-source"
+                  >
+                    <span>[{{ index + 1 }}]</span>
+                    <strong>{{ src.title }}</strong>
+                    <em>{{ src.category }}</em>
+                  </div>
+                </div>
+                <div
+                  v-if="display.message.toolCalls?.length"
+                  class="tool-call-panel"
+                >
+                  <div
+                    v-for="tc in display.message.toolCalls"
+                    :key="tc.id"
+                    class="tool-call-item"
+                  >
+                    <div class="tool-call-item__header">
+                      <span class="tool-call-item__name">{{
+                        toolCallDescription(tc.name)
+                      }}</span>
+                      <span
+                        class="tool-call-item__status"
+                        :class="`tool-call-item__status--${tc.status}`"
+                      >
+                        {{ toolCallStatusText(tc.status) }}
+                      </span>
+                      <button
+                        v-if="tc.result"
+                        class="tool-call-item__toggle"
+                        type="button"
+                        @click="tc.expanded = !tc.expanded"
+                      >
+                        {{ tc.expanded ? '−' : '+' }}
+                      </button>
+                    </div>
+                    <div class="tool-call-item__args">
+                      <code>{{ tc.arguments }}</code>
+                    </div>
+                    <div v-if="tc.expanded && tc.result" class="tool-call-item__result">
+                      <pre>{{ tc.result }}</pre>
+                    </div>
+                  </div>
+                </div>
                 <div v-if="display.message.content" class="message-stats">
                   <span class="message-stats__context">
                     {{ t('localAi.contextLabel') }}:
@@ -507,6 +560,42 @@
               :class="[
                 'composer-tool-btn',
                 'composer-tool-btn--wide',
+                knowledgeBaseEnabled ? 'composer-tool-btn--active' : ''
+              ]"
+              type="button"
+              :title="
+                knowledgeBaseEnabled
+                  ? t('localAi.knowledgeBaseEnabled')
+                  : t('localAi.knowledgeBaseDisabled')
+              "
+              :aria-pressed="knowledgeBaseEnabled"
+              @click="toggleKnowledgeBase"
+            >
+              <BookOpen theme="outline" size="15" />
+              <span>{{ t('localAi.knowledgeBaseTitle') }}</span>
+            </button>
+            <button
+              :class="[
+                'composer-tool-btn',
+                'composer-tool-btn--wide',
+                noteToolsEnabled ? 'composer-tool-btn--active' : ''
+              ]"
+              type="button"
+              :title="
+                noteToolsEnabled
+                  ? t('localAi.noteToolsEnabled')
+                  : t('localAi.noteToolsDisabled')
+              "
+              :aria-pressed="noteToolsEnabled"
+              @click="toggleNoteTools"
+            >
+              <Robot theme="outline" size="15" />
+              <span>{{ t('localAi.noteToolsTitle') }}</span>
+            </button>
+            <button
+              :class="[
+                'composer-tool-btn',
+                'composer-tool-btn--wide',
                 verifiedSourcesEnabled ? 'composer-tool-btn--active' : ''
               ]"
               type="button"
@@ -567,6 +656,23 @@
         </div>
       </form>
     </section>
+
+    <ConfirmDialog
+      v-model="toolConfirmVisible"
+      :title="t('localAi.toolCallConfirmTitle')"
+      type="warning"
+      @confirm="handleToolConfirm"
+      @cancel="handleToolDeny"
+    >
+      <div class="tool-confirm-body">
+        <p class="tool-confirm-desc">
+          {{ pendingToolConfirm ? toolCallDescription(pendingToolConfirm.toolCall.function.name) : '' }}
+        </p>
+        <div class="tool-confirm-args">
+          <code>{{ pendingToolConfirm ? pendingToolConfirm.toolCall.function.arguments : '' }}</code>
+        </div>
+      </div>
+    </ConfirmDialog>
   </main>
 </template>
 
@@ -587,7 +693,8 @@ import {
   SettingTwo,
   Link,
   Fork,
-  LeftBar
+  LeftBar,
+  BookOpen
 } from '@icon-park/vue-next';
 import {
   cancelLocalAiChatStream,
@@ -628,6 +735,11 @@ import {
 import { sanitizeHtml } from '@/utils/html-sanitize';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
+import { useFragmentRag } from '@/composables/useFragmentRag';
+import { NOTE_TOOLS, isWriteTool } from './tools';
+import { executeNoteTool } from './toolExecutor';
+import type { LocalAiToolCall } from '@/api/localAi';
+import { ConfirmDialog } from '@/components/UI';
 
 defineOptions({ name: 'LocalAiChat' });
 
@@ -654,6 +766,16 @@ interface ChatMessage {
   reasoningEndedAt?: number;
   verifiedSourcesStatus?: 'searching' | 'done' | 'failed';
   verifiedSources?: LocalAiVerifiedSource[];
+  ragStatus?: 'searching' | 'done' | 'failed';
+  ragSources?: Array<{ title: string; category: string }>;
+  toolCalls?: Array<{
+    id: string;
+    name: string;
+    arguments: string;
+    status: 'pending' | 'executing' | 'success' | 'error' | 'confirmed' | 'denied';
+    result?: string;
+    expanded?: boolean;
+  }>;
   error?: string;
 }
 
@@ -689,6 +811,8 @@ const sending = ref(false);
 const refreshing = ref(false);
 const stopRequested = ref(false);
 const thinkingEnabled = ref(false);
+const KNOWLEDGE_BASE_ENABLED_STORAGE_KEY =
+  'snippets.localAi.knowledgeBaseEnabled';
 const VERIFIED_SOURCES_ENABLED_STORAGE_KEY =
   'snippets.localAi.verifiedSourcesEnabled';
 const loadVerifiedSourcesEnabled = (): boolean => {
@@ -701,6 +825,41 @@ const loadVerifiedSourcesEnabled = (): boolean => {
   }
 };
 const verifiedSourcesEnabled = ref(loadVerifiedSourcesEnabled());
+const loadKnowledgeBaseEnabled = (): boolean => {
+  try {
+    return (
+      localStorage.getItem(KNOWLEDGE_BASE_ENABLED_STORAGE_KEY) === 'true'
+    );
+  } catch {
+    return false;
+  }
+};
+const knowledgeBaseEnabled = ref(loadKnowledgeBaseEnabled());
+const NOTE_TOOLS_ENABLED_STORAGE_KEY = 'snippets.localAi.noteToolsEnabled';
+const loadNoteToolsEnabled = (): boolean => {
+  try {
+    return (
+      localStorage.getItem(NOTE_TOOLS_ENABLED_STORAGE_KEY) === 'true'
+    );
+  } catch {
+    return false;
+  }
+};
+const noteToolsEnabled = ref(loadNoteToolsEnabled());
+const pendingToolConfirm = ref<{
+  toolCall: LocalAiToolCall;
+  resolve: (confirmed: boolean) => void;
+} | null>(null);
+const toolConfirmVisible = computed({
+  get: () => pendingToolConfirm.value !== null,
+  set: (val: boolean) => {
+    if (!val && pendingToolConfirm.value) {
+      handleToolDeny();
+    }
+  }
+});
+const { retrieveContext: retrieveRagContext } =
+  useFragmentRag();
 const composerFocused = ref(false);
 const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
@@ -1462,6 +1621,8 @@ const messageActivityLabel = (message: ChatMessage): string => {
   return t('localAi.generating');
 };
 const assistantMessagePendingText = (message: ChatMessage): string => {
+  if (message.ragStatus === 'searching')
+    return t('localAi.ragSearching');
   if (message.verifiedSourcesStatus === 'searching')
     return t('localAi.verifiedSourcesSearching');
   if (message.allowThinking && !message.reasoningEndedAt)
@@ -1478,6 +1639,71 @@ const toggleVerifiedSources = (): void => {
   } catch (error) {
     logger.warn('[LocalAI] save verified source state failed', error);
   }
+};
+const toggleKnowledgeBase = (): void => {
+  knowledgeBaseEnabled.value = !knowledgeBaseEnabled.value;
+  try {
+    localStorage.setItem(
+      KNOWLEDGE_BASE_ENABLED_STORAGE_KEY,
+      String(knowledgeBaseEnabled.value)
+    );
+  } catch (error) {
+    logger.warn('[LocalAI] save knowledge base state failed', error);
+  }
+};
+const toggleNoteTools = (): void => {
+  noteToolsEnabled.value = !noteToolsEnabled.value;
+  try {
+    localStorage.setItem(
+      NOTE_TOOLS_ENABLED_STORAGE_KEY,
+      String(noteToolsEnabled.value)
+    );
+  } catch (error) {
+    logger.warn('[LocalAI] save note tools state failed', error);
+  }
+};
+const toolCallStatusText = (status: string): string => {
+  switch (status) {
+    case 'pending':
+      return t('localAi.toolCallStatusPending');
+    case 'executing':
+      return t('localAi.toolCallStatusExecuting');
+    case 'success':
+      return t('localAi.toolCallStatusSuccess');
+    case 'error':
+      return t('localAi.toolCallStatusError');
+    case 'denied':
+      return t('localAi.toolCallStatusDenied');
+    default:
+      return '';
+  }
+};
+const toolCallDescription = (name: string): string => {
+  switch (name) {
+    case 'create_note':
+      return t('localAi.toolCallCreate');
+    case 'edit_note':
+      return t('localAi.toolCallEdit');
+    case 'delete_note':
+      return t('localAi.toolCallDelete');
+    default:
+      return name;
+  }
+};
+const confirmToolCall = (toolCall: LocalAiToolCall): Promise<boolean> => {
+  return new Promise((resolve) => {
+    pendingToolConfirm.value = { toolCall, resolve };
+  });
+};
+const handleToolConfirm = (): void => {
+  if (!pendingToolConfirm.value) return;
+  pendingToolConfirm.value.resolve(true);
+  pendingToolConfirm.value = null;
+};
+const handleToolDeny = (): void => {
+  if (!pendingToolConfirm.value) return;
+  pendingToolConfirm.value.resolve(false);
+  pendingToolConfirm.value = null;
 };
 const recordReasoningProgress = (message: ChatMessage, delta: string): void => {
   if (!message.allowThinking) return;
@@ -1754,6 +1980,59 @@ const withVerifiedSourceContext = async (
     )
   ]);
 };
+const ragContextMessage = (ragResult: {
+  context: string;
+  truncated: boolean;
+}): LocalAiMessage => {
+  return {
+    role: 'system',
+    content: [
+      'Knowledge-base retrieval is enabled for this turn.',
+      'Answer based on the retrieved notes below. Cite sources by their title when referencing specific content.',
+      'If the notes do not contain relevant information, say so clearly and answer from general knowledge, noting that the answer did not come from the knowledge base.',
+      ragResult.truncated
+        ? '(Note: some retrieved results were truncated due to length limits.)'
+        : '',
+      '',
+      ragResult.context
+    ]
+      .filter(Boolean)
+      .join('\n')
+  };
+};
+const withKnowledgeBaseContext = async (
+  messages: LocalAiMessage[],
+  assistantMessage: ChatMessage
+): Promise<LocalAiMessage[]> => {
+  if (!knowledgeBaseEnabled.value) return messages;
+  if (assistantMessage.ragStatus === 'done') return messages;
+  const query = verifiedSourceQueryFor(assistantMessage);
+  if (!query) return messages;
+
+  assistantMessage.ragStatus = 'searching';
+  const ragResult = await retrieveRagContext(query);
+  assistantMessage.ragSources = ragResult.sources;
+  assistantMessage.ragStatus = 'done';
+
+  if (!ragResult.context) return messages;
+
+  const ragMessage = ragContextMessage(ragResult);
+  const systemMessages = messages.filter(
+    (message) => message.role === 'system'
+  );
+  const conversationMessages = messages.filter(
+    (message) => message.role !== 'system'
+  );
+  const pinnedMessages = [...systemMessages, ragMessage];
+  const contextTokens = estimateChatTokens(pinnedMessages);
+  return mergeSystemMessages([
+    ...pinnedMessages,
+    ...compactMessagesForBudget(
+      conversationMessages,
+      Math.max(512, requestContextBudget.value - contextTokens)
+    )
+  ]);
+};
 const requestMaxTokens = (messages: LocalAiMessage[]): number | undefined => {
   const configuredMaxTokens = config.value?.maxTokens ?? 0;
   if (configuredMaxTokens > 0) return configuredMaxTokens;
@@ -1884,6 +2163,14 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   let repetitionStopRequested = false;
   currentStreamRequestId.value = requestId;
   stopRequested.value = false;
+  messages = await withKnowledgeBaseContext(messages, assistantMessage);
+  if (stopRequested.value) {
+    assistantMessage.streaming = false;
+    assistantMessage.stopped = true;
+    assistantMessage.elapsedMs = performance.now() - startedAt;
+    currentStreamRequestId.value = null;
+    return;
+  }
   messages = await withVerifiedSourceContext(messages, assistantMessage);
   if (stopRequested.value) {
     assistantMessage.streaming = false;
@@ -1895,6 +2182,9 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   messages = mergeSystemMessages(messages);
   assistantMessage.promptTokens = estimateChatTokens(messages);
   assistantMessage.contextSize = effectiveContextLimit.value;
+
+  const activeTools = noteToolsEnabled.value ? NOTE_TOOLS : undefined;
+  let collectedToolCalls: LocalAiToolCall[] = [];
 
   const pump = async () => {
     if (!queuedContent) {
@@ -1960,7 +2250,9 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
     {
       messages,
       maxTokens: requestMaxTokens(messages),
-      enableThinking: assistantMessage.allowThinking === true
+      enableThinking: assistantMessage.allowThinking === true,
+      tools: activeTools,
+      toolChoice: activeTools ? 'auto' : undefined
     },
     (delta) => {
       receivedDelta = true;
@@ -1978,6 +2270,20 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
           assistantMessage.estimatedCompletionTokens = stats.completionTokens;
         }
         statsTick.value = Date.now();
+      },
+      onToolCall: (toolCalls: LocalAiToolCall[]) => {
+        for (const tc of toolCalls) {
+          if (tc.id && tc.function?.name) {
+            collectedToolCalls.push({
+              id: tc.id,
+              type: 'function',
+              function: {
+                name: tc.function.name,
+                arguments: tc.function.arguments || ''
+              }
+            });
+          }
+        }
       }
     }
   ).catch(async (error) => {
@@ -2004,6 +2310,108 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   ) {
     assistantMessage.content = response.content;
   }
+
+  if (collectedToolCalls.length > 0 && !stopRequested.value) {
+    assistantMessage.toolCalls = collectedToolCalls.map((tc) => ({
+      id: tc.id,
+      name: tc.function.name,
+      arguments: tc.function.arguments,
+      status: 'pending' as const
+    }));
+
+    const toolResults: LocalAiMessage[] = [];
+    for (const tc of collectedToolCalls) {
+      if (stopRequested.value) break;
+
+      const toolEntry = assistantMessage.toolCalls.find(
+        (t) => t.id === tc.id
+      );
+      if (!toolEntry) continue;
+
+      if (isWriteTool(tc.function.name)) {
+        const confirmed = await confirmToolCall(tc);
+        if (!confirmed) {
+          toolEntry.status = 'denied';
+          toolResults.push({
+            role: 'tool',
+            content: JSON.stringify({ error: 'User denied this operation.' })
+          } as unknown as LocalAiMessage);
+          continue;
+        }
+        toolEntry.status = 'confirmed';
+      }
+
+      toolEntry.status = 'executing';
+      let parsedArgs: Record<string, unknown> = {};
+      try {
+        parsedArgs = JSON.parse(tc.function.arguments || '{}');
+      } catch {
+        parsedArgs = {};
+      }
+      const result = await executeNoteTool(tc.function.name, parsedArgs);
+      const parsed = JSON.parse(result);
+      if (parsed.error) {
+        toolEntry.status = 'error';
+      } else {
+        toolEntry.status = 'success';
+      }
+      toolEntry.result = result;
+      toolResults.push({
+        role: 'tool',
+        content: result
+      } as unknown as LocalAiMessage);
+    }
+
+    if (!stopRequested.value && toolResults.length > 0) {
+      const followUpMessages: LocalAiMessage[] = [
+        ...messages,
+        {
+          role: 'assistant',
+          content: response.content || ''
+        },
+        ...toolResults
+      ];
+
+      const followUpResponse = await streamChatWithLocalAi(
+        {
+          messages: followUpMessages,
+          maxTokens: requestMaxTokens(followUpMessages),
+          enableThinking: false
+        },
+        (delta) => {
+          receivedDelta = true;
+          enqueueContent(delta);
+        },
+        {
+          requestId: createLocalAiStreamRequestId(),
+          onStats: (stats) => {
+            assistantMessage.stats = {
+              ...(assistantMessage.stats ?? {}),
+              ...stats
+            };
+            if (stats.ctxSize) assistantMessage.contextSize = stats.ctxSize;
+            if (stats.completionTokens !== undefined) {
+              assistantMessage.estimatedCompletionTokens =
+                stats.completionTokens;
+            }
+            statsTick.value = Date.now();
+          }
+        }
+      ).catch(async (error) => {
+        await waitForPumpDrain();
+        throw error;
+      });
+
+      if (!receivedDelta) {
+        enqueueContent(followUpResponse.content);
+      }
+      await waitForPumpDrain();
+      if (!stopRequested.value) {
+        assistantMessage.content = followUpResponse.content;
+      }
+    }
+  }
+
   assistantMessage.estimatedCompletionTokens =
     assistantMessage.stats?.completionTokens ??
     estimateStreamingOutputTokens(assistantMessage.content);
@@ -3192,8 +3600,175 @@ onUnmounted(() => {
 }
 
 .verified-source:hover {
-  color: var(--chat-primary);
-  border-color: rgba(95, 116, 243, 0.36);
+color: var(--chat-primary);
+border-color: rgba(95, 116, 243, 0.36);
+}
+
+.rag-source-panel {
+display: grid;
+width: min(100%, var(--chat-readable-width));
+margin-top: 8px;
+color: #64748b;
+font-size: 12px;
+gap: 6px;
+}
+
+.rag-source-panel__header {
+color: #475569;
+font-weight: 600;
+}
+
+.rag-source {
+display: grid;
+grid-template-columns: auto minmax(0, 1fr) auto;
+align-items: center;
+padding: 5px 8px;
+color: #475569;
+background: #f8fafc;
+border: 1px solid var(--chat-border);
+border-radius: 7px;
+column-gap: 7px;
+}
+
+.tool-call-panel {
+display: grid;
+width: min(100%, var(--chat-readable-width));
+margin-top: 8px;
+gap: 6px;
+}
+
+.tool-call-item {
+padding: 6px 10px;
+background: #f8fafc;
+border: 1px solid var(--chat-border);
+border-radius: 7px;
+font-size: 12px;
+}
+
+.tool-call-item__header {
+display: flex;
+align-items: center;
+gap: 8px;
+}
+
+.tool-call-item__name {
+font-weight: 600;
+color: #475569;
+}
+
+.tool-call-item__status {
+margin-left: auto;
+padding: 2px 8px;
+border-radius: 5px;
+font-size: 11px;
+font-weight: 500;
+background: #e2e8f0;
+color: #64748b;
+}
+
+.tool-call-item__status--success {
+background: #dcfce7;
+color: #15803d;
+}
+
+.tool-call-item__status--error {
+background: #fee2e2;
+color: #b91c1c;
+}
+
+.tool-call-item__status--denied {
+background: #fef3c7;
+color: #b45309;
+}
+
+.tool-call-item__status--executing {
+background: #dbeafe;
+color: #1d4ed8;
+}
+
+.tool-call-item__toggle {
+width: 20px;
+height: 20px;
+border: 0;
+border-radius: 5px;
+background: transparent;
+cursor: pointer;
+color: #64748b;
+font-size: 14px;
+line-height: 1;
+}
+
+.tool-call-item__args {
+margin-top: 4px;
+overflow-x: auto;
+}
+
+.tool-call-item__args code {
+font-size: 11px;
+color: #64748b;
+word-break: break-all;
+}
+
+.tool-call-item__result {
+margin-top: 6px;
+max-height: 200px;
+overflow-y: auto;
+}
+
+.tool-call-item__result pre {
+font-size: 11px;
+white-space: pre-wrap;
+word-break: break-all;
+color: #475569;
+}
+
+.tool-confirm-body {
+display: flex;
+flex-direction: column;
+gap: 12px;
+}
+
+.tool-confirm-desc {
+font-weight: 600;
+color: #1e293b;
+}
+
+.tool-confirm-args {
+max-height: 200px;
+overflow-y: auto;
+padding: 8px;
+background: #f1f5f9;
+border-radius: 6px;
+}
+
+.tool-confirm-args code {
+font-size: 12px;
+word-break: break-all;
+}
+
+.tool-confirm-actions {
+display: flex;
+justify-content: flex-end;
+gap: 10px;
+}
+
+.tool-confirm-btn {
+padding: 6px 16px;
+border: 0;
+border-radius: 6px;
+cursor: pointer;
+font-size: 13px;
+font-weight: 500;
+}
+
+.tool-confirm-btn--deny {
+background: #f1f5f9;
+color: #475569;
+}
+
+.tool-confirm-btn--confirm {
+background: var(--chat-primary);
+color: #fff;
 }
 
 .verified-source strong {

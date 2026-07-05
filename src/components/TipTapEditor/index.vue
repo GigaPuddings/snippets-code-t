@@ -183,7 +183,6 @@ const contextMenuRef = ref<InstanceType<typeof TipTapContextMenu> | null>(null);
 const sourceEditorRef = ref<InstanceType<typeof SourceEditor> | null>(null);
 const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 const editorContentRef = ref<HTMLDivElement | null>(null);
-const previewLineNumbersRef = ref<HTMLDivElement | null>(null);
 const wordCount = ref(0);
 const charCount = ref(0);
 const sourceContent = ref('');

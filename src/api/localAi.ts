@@ -80,11 +80,28 @@ export type LocalAiContentPart =
       };
     };
 
+export interface LocalAiTool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface LocalAiToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
 export interface LocalAiChatRequest {
   messages: LocalAiMessage[];
   temperature?: number;
   enableThinking?: boolean;
   maxTokens?: number;
+  tools?: LocalAiTool[];
+  toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
 }
 
 export interface LocalAiChatTurn {
@@ -118,15 +135,17 @@ export interface LocalAiChatStreamStats {
 
 export interface LocalAiChatStreamEvent {
   requestId: string;
-  event: 'delta' | 'stats' | 'done' | 'error';
+  event: 'delta' | 'stats' | 'done' | 'error' | 'tool_call';
   content?: string;
   error?: string;
   stats?: LocalAiChatStreamStats;
+  toolCalls?: unknown;
 }
 
 export interface LocalAiChatStreamOptions {
   requestId?: string;
   onStats?: (stats: LocalAiChatStreamStats) => void;
+  onToolCall?: (toolCalls: LocalAiToolCall[]) => void;
 }
 
 export interface LocalAiVerifiedSourceSearchRequest {
@@ -216,6 +235,8 @@ export async function streamChatWithLocalAi(
         onDelta(payload.content);
       } else if (payload.event === 'stats' && payload.stats) {
         options.onStats?.(payload.stats);
+      } else if (payload.event === 'tool_call' && payload.toolCalls) {
+        options.onToolCall?.(payload.toolCalls as LocalAiToolCall[]);
       }
     }
   );
