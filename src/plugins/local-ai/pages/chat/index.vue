@@ -295,6 +295,24 @@
                     <em>{{ source.source }}</em>
                   </a>
                 </div>
+                <div
+                  v-if="display.message.knowledgeSources?.length"
+                  class="knowledge-source-panel"
+                >
+                  <div class="knowledge-source-panel__header">
+                    <span>{{ t('localAi.knowledgeBaseUsed') }}</span>
+                  </div>
+                  <span
+                    v-for="(source, index) in display.message.knowledgeSources"
+                    :key="`${source.title}-${index}`"
+                    class="knowledge-source"
+                    :title="`${source.title}（${source.category}）`"
+                  >
+                    <span>[{{ index + 1 }}]</span>
+                    <strong>{{ source.title }}</strong>
+                    <em>{{ source.category }}</em>
+                  </span>
+                </div>
                 <div v-if="display.message.content" class="message-stats">
                   <span class="message-stats__context">
                     {{ t('localAi.contextLabel') }}:
@@ -381,6 +399,14 @@
                     @click="forkFromMessage(display.message.id)"
                   >
                     <Fork theme="outline" size="14" />
+                  </button>
+                  <button
+                    v-if="display.message.role === 'assistant' && display.message.content"
+                    type="button"
+                    :title="t('localAi.saveAsFragment')"
+                    @click="openSaveFragmentDialog(display.message)"
+                  >
+                    <Save theme="outline" size="14" />
                   </button>
                   <button
                     type="button"
@@ -507,6 +533,37 @@
               :class="[
                 'composer-tool-btn',
                 'composer-tool-btn--wide',
+                knowledgeBaseEnabled ? 'composer-tool-btn--active' : ''
+              ]"
+              type="button"
+              :title="
+                knowledgeBaseEnabled
+                  ? t('localAi.knowledgeBaseEnabled')
+                  : t('localAi.knowledgeBaseDisabled')
+              "
+              :aria-pressed="knowledgeBaseEnabled"
+              @click="toggleKnowledgeBase"
+            >
+              <BookOpen theme="outline" size="15" />
+              <span>{{ t('localAi.knowledgeBaseTitle') }}</span>
+            </button>
+            <button
+              :class="[
+                'composer-tool-btn',
+                'composer-tool-btn--wide',
+                referencedFragment ? 'composer-tool-btn--active' : ''
+              ]"
+              type="button"
+              :title="t('localAi.referenceFragment')"
+              @click="openFragmentPicker"
+            >
+              <FolderOpen theme="outline" size="15" />
+              <span>{{ t('localAi.referenceFragment') }}</span>
+            </button>
+            <button
+              :class="[
+                'composer-tool-btn',
+                'composer-tool-btn--wide',
                 verifiedSourcesEnabled ? 'composer-tool-btn--active' : ''
               ]"
               type="button"
@@ -567,6 +624,140 @@
         </div>
       </form>
     </section>
+
+    <!-- 保存为片段对话框 -->
+    <CommonDialog
+      v-model="showSaveFragmentDialog"
+      :title="t('localAi.saveFragmentTitle')"
+      width="480px"
+      :show-default-footer="false"
+    >
+      <p class="dialog-desc">{{ t('localAi.saveFragmentDesc') }}</p>
+      <div class="save-fragment-form">
+        <label class="form-field">
+          <span class="form-label">{{ t('localAi.fragmentTitle') }}</span>
+          <input
+            v-model="saveFragmentTitle"
+            class="form-input"
+            type="text"
+            maxlength="120"
+            @keydown.enter.prevent="confirmSaveFragment"
+          />
+        </label>
+        <div class="form-row">
+          <label class="form-field form-field--grow">
+            <span class="form-label">{{ t('localAi.fragmentCategory') }}</span>
+            <select v-model="saveFragmentCategoryId" class="form-select">
+              <option :value="null">{{ t('category.uncategorized') }}</option>
+              <option
+                v-for="cat in saveFragmentCategories"
+                :key="cat.id"
+                :value="cat.id"
+              >
+                {{ cat.name }}
+              </option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span class="form-label">{{ t('localAi.fragmentType') }}</span>
+            <div class="segmented-toggle">
+              <button
+                type="button"
+                :class="['seg-btn', saveFragmentType === 'note' ? 'active' : '']"
+                @click="saveFragmentType = 'note'"
+              >
+                {{ t('localAi.fragmentTypeNote') }}
+              </button>
+              <button
+                type="button"
+                :class="['seg-btn', saveFragmentType === 'code' ? 'active' : '']"
+                @click="saveFragmentType = 'code'"
+              >
+                {{ t('localAi.fragmentTypeCode') }}
+              </button>
+            </div>
+          </label>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer-row">
+          <CustomButton @click="showSaveFragmentDialog = false">
+            {{ t('common.cancel') }}
+          </CustomButton>
+          <CustomButton
+            type="primary"
+            :loading="savingFragment"
+            :disabled="!saveFragmentTitle.trim()"
+            @click="confirmSaveFragment"
+          >
+            {{ t('common.save') }}
+          </CustomButton>
+        </div>
+      </template>
+    </CommonDialog>
+
+    <!-- 引用片段选择器对话框 -->
+    <CommonDialog
+      v-model="showFragmentPicker"
+      :title="t('localAi.referenceFragmentTitle')"
+      width="560px"
+      :show-default-footer="false"
+    >
+      <p class="dialog-desc">{{ t('localAi.referenceFragmentDesc') }}</p>
+      <div v-if="referencedFragment" class="referenced-fragment-chip">
+        <strong>{{ referencedFragment.title }}</strong>
+        <em>{{ referencedFragment.category_name }}</em>
+        <button
+          type="button"
+          class="ref-clear-btn"
+          :title="t('common.delete')"
+          @click="clearReferencedFragment"
+        >
+          <Delete theme="outline" size="13" />
+        </button>
+      </div>
+      <input
+        v-model="fragmentPickerQuery"
+        class="fragment-picker-search"
+        type="text"
+        :placeholder="t('localAi.referenceFragmentSearch')"
+        @input="onFragmentPickerSearch"
+      />
+      <div class="fragment-picker-list">
+        <div v-if="fragmentPickerLoading" class="fragment-picker-empty">
+          {{ t('localAi.referenceFragmentLoading') }}
+        </div>
+        <div v-else-if="!fragmentPickerResults.length" class="fragment-picker-empty">
+          {{ t('localAi.referenceFragmentEmpty') }}
+        </div>
+        <div
+          v-for="frag in fragmentPickerResults"
+          :key="frag.id"
+          :class="[
+            'fragment-picker-item',
+            selectedFragmentId === frag.id ? 'selected' : ''
+          ]"
+          role="button"
+          tabindex="0"
+          @click="selectReferencedFragment(frag)"
+          @keydown.enter.prevent="selectReferencedFragment(frag)"
+        >
+          <div class="fragment-picker-item__title">{{ frag.title }}</div>
+          <div class="fragment-picker-item__meta">
+            <span>{{ frag.category_name }}</span>
+            <span v-if="frag.type === 'note'">{{ t('localAi.fragmentTypeNote') }}</span>
+            <span v-else>{{ t('localAi.fragmentTypeCode') }}</span>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer-row">
+          <CustomButton @click="showFragmentPicker = false">
+            {{ t('common.close') }}
+          </CustomButton>
+        </div>
+      </template>
+    </CommonDialog>
   </main>
 </template>
 
@@ -587,7 +778,10 @@ import {
   SettingTwo,
   Link,
   Fork,
-  LeftBar
+  LeftBar,
+  BookOpen,
+  Save,
+  FolderOpen
 } from '@icon-park/vue-next';
 import {
   cancelLocalAiChatStream,
@@ -628,6 +822,12 @@ import {
 import { sanitizeHtml } from '@/utils/html-sanitize';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
+import { useFragmentRag } from '@/composables/useFragmentRag';
+import { addFragment, editFragment, getCategories, getFragmentList } from '@/api/fragment';
+import { CommonDialog, CustomButton } from '@/components/UI';
+import type { Category } from '@/types/database';
+import type { ContentType } from '@/types/models';
+import { debounce } from '@/utils';
 
 defineOptions({ name: 'LocalAiChat' });
 
@@ -654,6 +854,9 @@ interface ChatMessage {
   reasoningEndedAt?: number;
   verifiedSourcesStatus?: 'searching' | 'done' | 'failed';
   verifiedSources?: LocalAiVerifiedSource[];
+  knowledgeSourcesStatus?: 'searching' | 'done' | 'failed';
+  knowledgeSources?: Array<{ title: string; category: string }>;
+  referencedContext?: string;
   error?: string;
 }
 
@@ -701,6 +904,38 @@ const loadVerifiedSourcesEnabled = (): boolean => {
   }
 };
 const verifiedSourcesEnabled = ref(loadVerifiedSourcesEnabled());
+
+// 知识库 RAG 开关
+const KNOWLEDGE_BASE_ENABLED_STORAGE_KEY =
+  'snippets.localAi.knowledgeBaseEnabled';
+const loadKnowledgeBaseEnabled = (): boolean => {
+  try {
+    return (
+      localStorage.getItem(KNOWLEDGE_BASE_ENABLED_STORAGE_KEY) === 'true'
+    );
+  } catch {
+    return false;
+  }
+};
+const knowledgeBaseEnabled = ref(loadKnowledgeBaseEnabled());
+const { retrieveContext: retrieveKnowledgeContext } = useFragmentRag();
+
+// 保存为片段对话框状态
+const showSaveFragmentDialog = ref(false);
+const saveFragmentTitle = ref('');
+const saveFragmentCategoryId = ref<number | null>(null);
+const saveFragmentType = ref<'code' | 'note'>('note');
+const saveFragmentCategories = ref<Category[]>([]);
+const savingFragment = ref(false);
+const pendingSaveContent = ref('');
+
+// 引用片段对话框状态
+const showFragmentPicker = ref(false);
+const fragmentPickerQuery = ref('');
+const fragmentPickerResults = ref<ContentType[]>([]);
+const fragmentPickerLoading = ref(false);
+const selectedFragmentId = ref<string | number | null>(null);
+const referencedFragment = ref<ContentType | null>(null);
 const composerFocused = ref(false);
 const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
@@ -1462,6 +1697,8 @@ const messageActivityLabel = (message: ChatMessage): string => {
   return t('localAi.generating');
 };
 const assistantMessagePendingText = (message: ChatMessage): string => {
+  if (message.knowledgeSourcesStatus === 'searching')
+    return t('localAi.knowledgeBaseSearching');
   if (message.verifiedSourcesStatus === 'searching')
     return t('localAi.verifiedSourcesSearching');
   if (message.allowThinking && !message.reasoningEndedAt)
@@ -1477,6 +1714,17 @@ const toggleVerifiedSources = (): void => {
     );
   } catch (error) {
     logger.warn('[LocalAI] save verified source state failed', error);
+  }
+};
+const toggleKnowledgeBase = (): void => {
+  knowledgeBaseEnabled.value = !knowledgeBaseEnabled.value;
+  try {
+    localStorage.setItem(
+      KNOWLEDGE_BASE_ENABLED_STORAGE_KEY,
+      String(knowledgeBaseEnabled.value)
+    );
+  } catch (error) {
+    logger.warn('[LocalAI] save knowledge base state failed', error);
   }
 };
 const recordReasoningProgress = (message: ChatMessage, delta: string): void => {
@@ -1518,8 +1766,11 @@ const apiUserMessageContent = (
     message.attachments?.filter(
       (attachment) => attachment.status === 'parsed'
     ) ?? [];
+  const effectiveContent = message.referencedContext
+    ? `${message.referencedContext}\n\n${message.content}`
+    : message.content;
   const text = buildPromptWithFileAttachments(
-    message.content,
+    effectiveContent,
     parsedAttachments
   );
   const imageAttachments = parsedAttachments.filter(
@@ -1754,6 +2005,40 @@ const withVerifiedSourceContext = async (
     )
   ]);
 };
+const withKnowledgeBaseContext = async (
+  messages: LocalAiMessage[],
+  assistantMessage: ChatMessage
+): Promise<LocalAiMessage[]> => {
+  if (assistantMessage.knowledgeSourcesStatus !== 'searching') return messages;
+  const query = verifiedSourceQueryFor(assistantMessage);
+  if (!query) throw new Error(t('localAi.knowledgeBaseNoQuery'));
+
+  const ragResult = await retrieveKnowledgeContext(query);
+  assistantMessage.knowledgeSources = ragResult.sources;
+  assistantMessage.knowledgeSourcesStatus = 'done';
+
+  if (!ragResult.context) return messages;
+
+  const knowledgeMessage: LocalAiMessage = {
+    role: 'system',
+    content: ragResult.context
+  };
+  const systemMessages = messages.filter(
+    (message) => message.role === 'system'
+  );
+  const conversationMessages = messages.filter(
+    (message) => message.role !== 'system'
+  );
+  const pinnedMessages = [...systemMessages, knowledgeMessage];
+  const contextTokens = estimateChatTokens(pinnedMessages);
+  return mergeSystemMessages([
+    ...pinnedMessages,
+    ...compactMessagesForBudget(
+      conversationMessages,
+      Math.max(512, requestContextBudget.value - contextTokens)
+    )
+  ]);
+};
 const requestMaxTokens = (messages: LocalAiMessage[]): number | undefined => {
   const configuredMaxTokens = config.value?.maxTokens ?? 0;
   if (configuredMaxTokens > 0) return configuredMaxTokens;
@@ -1884,6 +2169,14 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   let repetitionStopRequested = false;
   currentStreamRequestId.value = requestId;
   stopRequested.value = false;
+  messages = await withKnowledgeBaseContext(messages, assistantMessage);
+  if (stopRequested.value) {
+    assistantMessage.streaming = false;
+    assistantMessage.stopped = true;
+    assistantMessage.elapsedMs = performance.now() - startedAt;
+    currentStreamRequestId.value = null;
+    return;
+  }
   messages = await withVerifiedSourceContext(messages, assistantMessage);
   if (stopRequested.value) {
     assistantMessage.streaming = false;
@@ -2078,7 +2371,10 @@ const sendMessage = async () => {
     role: 'user',
     content,
     createdAt,
-    attachments: submittedAttachments
+    attachments: submittedAttachments,
+    referencedContext: referencedFragment.value
+      ? `--- 引用片段：${referencedFragment.value.title} ---\n${(referencedFragment.value.content || '').slice(0, 4000)}\n--- 引用结束 ---`
+      : undefined
   });
   const assistantMessage = appendMessageNode(current, {
     id: createMessageId('assistant'),
@@ -2088,6 +2384,9 @@ const sendMessage = async () => {
     parentId: userMessage.id,
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
+    knowledgeSourcesStatus: knowledgeBaseEnabled.value
+      ? 'searching'
+      : undefined,
     verifiedSourcesStatus: verifiedSourcesEnabled.value
       ? 'searching'
       : undefined,
@@ -2096,6 +2395,8 @@ const sendMessage = async () => {
   });
   draft.value = '';
   attachments.value = [];
+  referencedFragment.value = null;
+  selectedFragmentId.value = null;
   sending.value = true;
   startStatsTicker();
   await scrollToBottom({ force: true });
@@ -2295,6 +2596,9 @@ const regenerateMessage = async (messageId: string) => {
     parentId: source.parentId,
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
+    knowledgeSourcesStatus: knowledgeBaseEnabled.value
+      ? 'searching'
+      : undefined,
     verifiedSourcesStatus: verifiedSourcesEnabled.value
       ? 'searching'
       : undefined,
@@ -2329,6 +2633,93 @@ const regenerateMessage = async (messageId: string) => {
     stopStatsTicker();
     await scrollToBottom();
   }
+};
+
+// ============ 方案 B：保存为片段 ============
+const openSaveFragmentDialog = async (message: ChatMessage) => {
+  pendingSaveContent.value = message.content || '';
+  const titleSource =
+    activeHistory.value?.messages.find((m) => m.id === message.parentId)?.content || '';
+  saveFragmentTitle.value = titleSource.slice(0, 60).trim() || 'AI 回答';
+  saveFragmentType.value = 'note';
+  saveFragmentCategoryId.value = null;
+  try {
+    saveFragmentCategories.value = await getCategories('asc');
+  } catch (error) {
+    logger.warn('[LocalAI] load categories for save failed', error);
+    saveFragmentCategories.value = [];
+  }
+  showSaveFragmentDialog.value = true;
+};
+const confirmSaveFragment = async () => {
+  const title = saveFragmentTitle.value.trim();
+  if (!title || !pendingSaveContent.value.trim()) return;
+  savingFragment.value = true;
+  try {
+    const newId = await addFragment({
+      categoryId: saveFragmentCategoryId.value ?? undefined,
+      fragmentType: saveFragmentType.value,
+      metadata: { title },
+      tags: []
+    });
+    await editFragment({
+      id: newId,
+      title,
+      content: pendingSaveContent.value,
+      category_id: saveFragmentCategoryId.value ?? null,
+      fragmentType: saveFragmentType.value,
+      format: 'markdown',
+      tags: []
+    });
+    modal.success(t('localAi.saveFragmentSuccess'));
+    showSaveFragmentDialog.value = false;
+  } catch (error) {
+    logger.error('[LocalAI] save as fragment failed:', error);
+    modal.error(t('localAi.saveFragmentFailed'));
+  } finally {
+    savingFragment.value = false;
+  }
+};
+
+// ============ 方案 C：引用片段 ============
+const debouncedFragmentSearch = debounce(async (query: string) => {
+  fragmentPickerLoading.value = true;
+  try {
+    fragmentPickerResults.value = await getFragmentList(undefined, query);
+  } catch (error) {
+    logger.warn('[LocalAI] fragment picker search failed', error);
+    fragmentPickerResults.value = [];
+  } finally {
+    fragmentPickerLoading.value = false;
+  }
+}, 300);
+const onFragmentPickerSearch = () => {
+  debouncedFragmentSearch(fragmentPickerQuery.value);
+};
+const openFragmentPicker = async () => {
+  showFragmentPicker.value = true;
+  fragmentPickerQuery.value = '';
+  selectedFragmentId.value = referencedFragment.value?.id ?? null;
+  if (!fragmentPickerResults.value.length) {
+    fragmentPickerLoading.value = true;
+    try {
+      fragmentPickerResults.value = await getFragmentList();
+    } catch (error) {
+      logger.warn('[LocalAI] fragment picker load failed', error);
+      fragmentPickerResults.value = [];
+    } finally {
+      fragmentPickerLoading.value = false;
+    }
+  }
+};
+const selectReferencedFragment = (frag: ContentType) => {
+  referencedFragment.value = frag;
+  selectedFragmentId.value = frag.id;
+  showFragmentPicker.value = false;
+};
+const clearReferencedFragment = () => {
+  referencedFragment.value = null;
+  selectedFragmentId.value = null;
 };
 
 onMounted(async () => {
@@ -3542,5 +3933,256 @@ onUnmounted(() => {
   .message-body {
     max-width: 92%;
   }
+}
+
+/* 知识库来源面板 */
+.knowledge-source-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  width: min(100%, var(--chat-readable-width));
+  margin-top: 8px;
+  padding: 6px 10px;
+  color: #64748b;
+  font-size: 12px;
+  background: #f0f5ff;
+  border: 1px solid #d6e0ff;
+  border-radius: 8px;
+}
+
+.knowledge-source-panel__header {
+  width: 100%;
+  color: #475569;
+  font-weight: 600;
+}
+
+.knowledge-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  color: #475569;
+  background: #e8efff;
+  border: 1px solid #d6e0ff;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
+.knowledge-source strong {
+  max-width: 200px;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-source em {
+  color: #8b95a8;
+  font-size: 10px;
+  font-style: normal;
+}
+
+/* 保存片段 / 引用片段对话框 */
+.dialog-desc {
+  margin: 0 0 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.save-fragment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-field--grow {
+  flex: 1;
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
+
+.form-input,
+.form-select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 7px;
+  background: var(--el-bg-color);
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    border-color: var(--el-color-primary);
+  }
+}
+
+.form-select {
+  cursor: pointer;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.segmented-toggle {
+  display: flex;
+  border: 1px solid var(--el-border-color);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.seg-btn {
+  height: 34px;
+  padding: 0 14px;
+  border: none;
+  background: var(--el-bg-color);
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--el-fill-color-light);
+  }
+
+  &.active {
+    background: var(--el-color-primary);
+    color: #fff;
+  }
+}
+
+.dialog-footer-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 引用片段选择器 */
+.referenced-fragment-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-7);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.referenced-fragment-chip strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.referenced-fragment-chip em {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.ref-clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--el-fill-color);
+    color: var(--el-color-danger);
+  }
+}
+
+.fragment-picker-search {
+  width: 100%;
+  height: 36px;
+  margin-bottom: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  outline: none;
+
+  &:focus {
+    border-color: var(--el-color-primary);
+  }
+}
+
+.fragment-picker-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fragment-picker-empty {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.fragment-picker-item {
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--el-fill-color-light);
+    border-color: var(--el-color-primary-light-5);
+  }
+
+  &.selected {
+    background: var(--el-color-primary-light-9);
+    border-color: var(--el-color-primary);
+  }
+}
+
+.fragment-picker-item__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fragment-picker-item__meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
 }
 </style>
