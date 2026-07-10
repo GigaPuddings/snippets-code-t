@@ -13,7 +13,8 @@ import {
   translateOffline,
   canUseOfflineTranslation,
   isModelCached,
-  warmupOfflineTranslator
+  warmupOfflineTranslator,
+  cancelOfflineTranslation
 } from '@/plugins/translation/utils/offlineTranslator';
 import {
   Pushpin,
@@ -41,6 +42,11 @@ const showDeleteButton = ref(false);
 const sourceTextArea = ref();
 const offlineModelAvailable = ref(false);
 const localAiAvailable = ref(false);
+
+// IME 输入法组合状态（中文输入时为 true）
+const isComposing = ref(false);
+// 翻译请求代际标记，用于丢弃过期的翻译结果
+let translateGeneration = 0;
 
 // 多引擎翻译结果
 interface TranslationResult {
@@ -247,6 +253,7 @@ const clearInput = () => {
   sourceText.value = '';
   translationResults.value.forEach((result) => {
     result.text = '';
+    result.loading = false;
   });
   showDeleteButton.value = false;
 };
@@ -319,7 +326,7 @@ const onTargetLanguageChange = () => {
 };
 
 // 执行单个引擎翻译
-const translateWithEngine = async (engine: string) => {
+const translateWithEngine = async (engine: string, generation: number) => {
   const result = translationResults.value.find((r) => r.engine === engine);
   if (!result) return;
 
@@ -374,48 +381,73 @@ const translateWithEngine = async (engine: string) => {
       });
     }
 
+    // 检查是否是最新的翻译请求，丢弃过期结果
+    if (generation !== translateGeneration) return;
     result.text = translatedText;
   } catch (error) {
+    // 过期的翻译请求出错时不处理
+    if (generation !== translateGeneration) return;
+
+    // 离线翻译被取消时不显示错误
+    const errorMsg = String(error);
+    if (errorMsg.includes('翻译已取消')) return;
+
     logger.error(`[翻译] ${engine}翻译出错`, error);
 
-    const errorMessage = String(error);
     if (
-      errorMessage.includes('429') ||
-      errorMessage.includes('Too Many Requests')
+      errorMsg.includes('429') ||
+      errorMsg.includes('Too Many Requests')
     ) {
       result.text = t('translate.tooManyRequests');
     } else if (
-      errorMessage.includes('timeout') ||
-      errorMessage.includes('超时')
+      errorMsg.includes('timeout') ||
+      errorMsg.includes('超时')
     ) {
       result.text = t('translate.timeout');
     } else if (
-      errorMessage.includes('network') ||
-      errorMessage.includes('网络')
+      errorMsg.includes('network') ||
+      errorMsg.includes('网络')
     ) {
       result.text = t('translate.networkError');
     } else if (
-      errorMessage.includes('未下载') ||
-      errorMessage.includes('未激活') ||
-      errorMessage.includes('运行时未安装')
+      errorMsg.includes('未下载') ||
+      errorMsg.includes('未激活') ||
+      errorMsg.includes('运行时未安装')
     ) {
-      result.text = errorMessage;
+      result.text = errorMsg;
     } else {
       result.text = t('translate.translateFailed');
     }
   } finally {
-    result.loading = false;
+    // 只有最新的翻译才能清除 loading 状态
+    if (generation === translateGeneration) {
+      result.loading = false;
+    }
   }
 };
 
 // 执行所有翻译引擎
 const translateAll = async () => {
+  // 清除可能存在的防抖定时器
+  if (translateTimeout) {
+    clearTimeout(translateTimeout);
+    translateTimeout = null;
+  }
+
   if (!sourceText.value.trim()) {
     translationResults.value.forEach((result) => {
       result.text = '';
+      result.loading = false;
     });
+    translating.value = false;
     return;
   }
+
+  // 取消之前正在进行的离线翻译，避免 ONNX 模型推理并发导致内存暴涨
+  cancelOfflineTranslation();
+
+  // 增加代际标记，使之前发起的翻译结果失效
+  const currentGeneration = ++translateGeneration;
 
   // 翻译前自动设置目标语言
   autoSetTargetLanguage();
@@ -424,11 +456,15 @@ const translateAll = async () => {
 
   // 并行翻译所有可用引擎
   const promises = availableResults.value.map((result) =>
-    translateWithEngine(result.engine)
+    translateWithEngine(result.engine, currentGeneration)
   );
 
   await Promise.all(promises);
-  translating.value = false;
+
+  // 只有最新的翻译才能清除翻译状态
+  if (currentGeneration === translateGeneration) {
+    translating.value = false;
+  }
 };
 
 // 折叠/展开翻译结果
@@ -438,6 +474,9 @@ const toggleExpand = (result: TranslationResult) => {
 
 // 监听输入变化，自动翻译
 const handleInput = () => {
+  // IME 输入法组合中不处理，避免中文输入过程中触发翻译
+  if (isComposing.value) return;
+
   showDeleteButton.value = !!sourceText.value;
 
   // 防抖处理
@@ -454,8 +493,20 @@ const handleInput = () => {
     // 文本为空时清空翻译结果
     translationResults.value.forEach((result) => {
       result.text = '';
+      result.loading = false;
     });
   }
+};
+
+// IME 输入法组合事件处理
+const onCompositionStart = () => {
+  isComposing.value = true;
+};
+
+const onCompositionEnd = () => {
+  isComposing.value = false;
+  // Element Plus 在 compositionend 后会自动触发 input 事件，
+  // handleInput 会在此时被调用
 };
 
 // 防止重复翻译的标记
@@ -608,6 +659,8 @@ onUnmounted(() => {
   if (translateTimeout) {
     clearTimeout(translateTimeout);
   }
+  // 取消正在进行的离线翻译，释放资源
+  cancelOfflineTranslation();
   resetState();
 });
 </script>
@@ -715,6 +768,8 @@ onUnmounted(() => {
           :placeholder="$t('translate.inputPlaceholder')"
           resize="none"
           @input="handleInput"
+          @compositionstart="onCompositionStart"
+          @compositionend="onCompositionEnd"
           class="source-textarea"
         />
         <div class="source-actions">

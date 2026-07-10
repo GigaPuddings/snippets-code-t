@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "translation",
-  "version": "2.0.13",
+  "version": "2.0.14",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.translation.name",
@@ -39,14 +39,14 @@
   "permissions": [
     "command:*"
   ],
-  "compatibleAppVersion": ">=2.1.28",
+  "compatibleAppVersion": ">=2.1.36",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-CqvhoaSl.css"
+      "dist/assets/runtime-entry-FqLDckzk.css"
     ]
   },
-  "minAppVersion": "2.1.28",
+  "minAppVersion": "2.1.36",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.13"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.14"
 }
