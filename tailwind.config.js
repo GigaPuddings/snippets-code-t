@@ -48,7 +48,25 @@ export default {
         'chat-send': 'var(--chat-send-bg)',
         'chat-send-hover': 'var(--chat-send-hover)',
         'chat-send-disabled': 'var(--chat-send-disabled-bg)',
-        'chat-primary-soft': 'var(--chat-primary-soft)'
+        'chat-primary-soft': 'var(--chat-primary-soft)',
+        // 主题切换窗口
+        'dm-bg': 'var(--dm-bg)',
+        'dm-card': 'var(--dm-card)',
+        'dm-inset': 'var(--dm-inset)',
+        'dm-status': 'var(--dm-status)',
+        'dm-hover': 'var(--dm-hover)',
+        'dm-accent': 'var(--dm-accent)',
+        'dm-accent-soft': 'var(--dm-accent-soft)',
+        'dm-slate': 'var(--dm-slate-bg)',
+        'dm-amber': 'var(--dm-amber-bg)',
+        'dm-indigo': 'var(--dm-indigo-bg)',
+        'dm-indigo-title': 'var(--dm-indigo-title-bg)',
+        'dm-teal': 'var(--dm-teal-bg)',
+        'dm-emerald': 'var(--dm-emerald-bg)',
+        'dm-red': 'var(--dm-red-bg)',
+        'dm-btn': 'var(--dm-btn-bg)',
+        'dm-btn-hover': 'var(--dm-btn-hover-bg)',
+        'dm-soft': 'var(--dm-border-soft)'
       },
       textColor: {
         // 基础面板
@@ -83,7 +101,25 @@ export default {
         'chat-success': 'var(--chat-success-text)',
         'chat-warning': 'var(--chat-warning-text)',
         'chat-send': 'var(--chat-send-text)',
-        'chat-send-disabled': 'var(--chat-send-disabled-text)'
+        'chat-send-disabled': 'var(--chat-send-disabled-text)',
+        // 主题切换窗口
+        dm: 'var(--dm-text)',
+        'dm-secondary': 'var(--dm-text-secondary)',
+        'dm-value': 'var(--dm-text-value)',
+        'dm-accent': 'var(--dm-accent)',
+        'dm-accent-hover': 'var(--dm-accent-hover)',
+        'dm-slate': 'var(--dm-slate-fg)',
+        'dm-amber': 'var(--dm-amber-fg)',
+        'dm-indigo': 'var(--dm-indigo-fg)',
+        'dm-indigo-title': 'var(--dm-indigo-title-fg)',
+        'dm-teal': 'var(--dm-teal-fg)',
+        'dm-emerald': 'var(--dm-emerald-fg)',
+        'dm-red': 'var(--dm-red-fg)',
+        'dm-sun': 'var(--dm-sun)',
+        'dm-period-day': 'var(--dm-period-day)',
+        'dm-period-night': 'var(--dm-period-night)',
+        'dm-close-hover': 'var(--dm-close-hover-fg)',
+        'dm-btn': 'var(--dm-btn-fg)'
       },
       borderColor: {
         // 基础面板
@@ -106,7 +142,12 @@ export default {
         'chat-error': 'var(--chat-error-border)',
         'chat-success': 'var(--chat-success-border)',
         'chat-warning': 'var(--chat-warning-border)',
-        'chat-primary-soft': 'var(--chat-primary-soft)'
+        'chat-primary-soft': 'var(--chat-primary-soft)',
+        // 主题切换窗口
+        dm: 'var(--dm-border)',
+        'dm-soft': 'var(--dm-border-soft)',
+        'dm-accent': 'var(--dm-accent)',
+        'dm-hover': 'var(--dm-border-hover)'
       },
       colors: {
         // 主色调
@@ -124,7 +165,11 @@ export default {
         'chat-lg': 'var(--chat-shadow-lg)',
         'chat-focus': 'var(--chat-shadow-focus)',
         'chat-overlay': 'var(--chat-shadow-overlay)',
-        'chat-scroll': 'var(--chat-shadow-scroll)'
+        'chat-scroll': 'var(--chat-shadow-scroll)',
+        // 主题切换窗口
+        dm: 'var(--dm-shadow)',
+        'dm-ring': '0 0 0 1px var(--dm-accent)',
+        'dm-focus': '0 0 0 2px var(--dm-accent-ring)'
       }
     }
   },
