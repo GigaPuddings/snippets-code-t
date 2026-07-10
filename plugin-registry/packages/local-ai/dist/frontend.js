@@ -11395,7 +11395,7 @@ ${u.slice(-b)}`;
   for (const [o, r] of t)
     n[o] = r;
   return n;
-}, b2 = /* @__PURE__ */ Wa(v2, [["__scopeId", "data-v-6a8ef9ee"]]), y2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, b2 = /* @__PURE__ */ Wa(v2, [["__scopeId", "data-v-05b360c9"]]), y2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: b2
 }, Symbol.toStringTag, { value: "Module" }));
