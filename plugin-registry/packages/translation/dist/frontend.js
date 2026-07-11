@@ -12249,7 +12249,7 @@ const Dw = { class: "translate-window" }, Hw = {
   for (const [o, a] of t)
     n[o] = a;
   return n;
-}, h1 = /* @__PURE__ */ yo(v1, [["__scopeId", "data-v-2b3f136a"]]), g1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, h1 = /* @__PURE__ */ yo(v1, [["__scopeId", "data-v-f2d5bbfa"]]), g1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: h1
 }, Symbol.toStringTag, { value: "Module" })), y1 = ["disabled"], b1 = {
