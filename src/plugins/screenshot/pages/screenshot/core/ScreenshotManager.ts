@@ -9,7 +9,7 @@ import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, Color
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
 import { logger, ocrDiagnosticLogger } from '@/utils/logger'
-import { chatWithLocalAi } from '@/api/localAi'
+import { chatWithLocalAi, startLocalAiService, getLocalAiStatus } from '@/api/localAi'
 import { canTranslateDetectedLanguage, detectTranslationLanguage } from '@/utils/text'
 import { distance, getRectCenter } from '../utils/geometry'
 import { reflowOcrBlocks, type ParagraphBlock } from './OcrLayoutReflow'
@@ -3653,10 +3653,18 @@ export class ScreenshotManager {
     try {
       const { x, y, width, height } = this.selectionRect
 
-      // 阶段1：启动 AI 模型服务
+      // 阶段1：检查并启动 AI 模型服务（如果服务未运行，启动可能需要几秒）
       this.translationOverlay.loadingStage = 'starting-service'
       this.draw()
       this.onStateChange?.()
+
+      // 先检查服务状态，如果未运行则主动启动
+      const status = await getLocalAiStatus()
+      if (!status.running) {
+        logger.info('[截图] AI 服务未运行，正在启动...')
+        await startLocalAiService()
+        logger.info('[截图] AI 服务启动完成')
+      }
 
       const capture = await this.cropFromBackground(x, y, width, height)
       if (!capture?.image) {

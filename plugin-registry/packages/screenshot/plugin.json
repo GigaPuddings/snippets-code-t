@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "screenshot",
-  "version": "2.0.35",
+  "version": "2.0.36",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.screenshot.name",
@@ -45,5 +45,5 @@
   },
   "minAppVersion": "2.1.36",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.35"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.36"
 }
