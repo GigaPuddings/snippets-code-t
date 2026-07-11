@@ -5132,7 +5132,7 @@ const el = { class: "screen-recorder" }, tl = ["onMousedown"], nl = { class: "wi
   for (const [s, i] of t)
     n[s] = i;
   return n;
-}, Xl = /* @__PURE__ */ Zl(ql, [["__scopeId", "data-v-e7d94b5f"]]), Jl = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, Xl = /* @__PURE__ */ Zl(ql, [["__scopeId", "data-v-dc42ed81"]]), Jl = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: Xl
 }, Symbol.toStringTag, { value: "Module" }));

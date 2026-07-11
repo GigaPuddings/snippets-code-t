@@ -1539,7 +1539,7 @@ onUnmounted(() => {
 }
 
 .recorder-shell {
-  @apply relative w-screen h-screen border border-recorder box-border;
+  @apply relative grid w-screen h-screen border border-recorder box-border;
   grid-template-rows: 34px minmax(110px, 1fr) minmax(46px, auto);
   box-shadow: var(--dialog-shadow);
 }
