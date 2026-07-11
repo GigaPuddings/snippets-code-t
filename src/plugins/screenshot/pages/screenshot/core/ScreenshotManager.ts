@@ -3676,6 +3676,9 @@ export class ScreenshotManager {
       this.draw()
       this.onStateChange?.()
 
+      // 短暂延迟让浏览器有机会重绘 Canvas，显示"正在由 AI 识图翻译..."
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
       const response = await chatWithLocalAi({
         temperature: 0.2,
         maxTokens: 4096,
