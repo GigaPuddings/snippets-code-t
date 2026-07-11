@@ -34,39 +34,27 @@ const sizeText = computed(() => {
 
 <style scoped lang="scss">
 .recording-result {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  z-index: 14;
+  @apply fixed left-1/2 top-1/2 z-[14] p-[22px] rounded-lg shadow-recorder-overlay -translate-x-1/2 -translate-y-1/2;
   width: min(420px, calc(100vw - 32px));
-  padding: 22px;
-  color: #1f2937;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(210, 217, 226, 0.9);
-  border-radius: 8px;
-  box-shadow: 0 18px 42px rgba(20, 35, 61, 0.22);
-  transform: translate(-50%, -50%);
+  background: var(--recorder-overlay-bg);
+  border: 1px solid var(--recorder-overlay-border);
+  color: var(--recorder-text);
 
   h3 {
-    margin: 0 0 8px;
-    font-size: 18px;
+    @apply m-0 mb-2 text-lg;
   }
 
   p {
-    margin: 0 0 18px;
-    color: #5a6678;
+    @apply m-0 mb-[18px] text-recorder-muted;
   }
 
   .debug-log {
+    @apply mt-[-8px] text-xs;
     overflow-wrap: anywhere;
-    margin-top: -8px;
-    font-size: 12px;
   }
 }
 
 .actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  @apply flex flex-wrap gap-2;
 }
 </style>

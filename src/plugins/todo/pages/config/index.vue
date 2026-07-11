@@ -314,8 +314,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .todo-container {
-  @apply w-full h-full flex flex-col overflow-hidden p-4 pt-2;
-  color: var(--categories-text-color);
+  @apply w-full h-full flex flex-col overflow-hidden p-4 pt-2 text-panel;
 
   .todo-toolbar {
     @apply flex items-center justify-between gap-3 px-3 py-2 mb-3 rounded-md bg-panel border border-panel;
@@ -374,8 +373,7 @@ onUnmounted(() => {
     }
 
     &.expired {
-      border-color: rgba(239, 68, 68, 0.35);
-      background: rgba(239, 68, 68, 0.08);
+      @apply border-red-500/35 bg-red-500/[0.08];
 
       .time {
         @apply text-red-600 dark:text-red-400;
@@ -383,8 +381,7 @@ onUnmounted(() => {
     }
 
     &.urgent {
-      border-color: rgba(245, 158, 11, 0.4);
-      background: rgba(245, 158, 11, 0.1);
+      @apply border-amber-500/40 bg-amber-500/10;
 
       .time {
         @apply text-orange-600 dark:text-orange-400;
@@ -392,16 +389,14 @@ onUnmounted(() => {
     }
 
     .time {
-      @apply text-4xl font-bold mb-2;
-      color: var(--categories-text-color);
+      @apply text-4xl font-bold mb-2 text-panel;
     }
 
     .info {
       @apply mb-3;
 
       .title {
-        @apply text-sm font-semibold mb-1 truncate;
-        color: var(--categories-text-color);
+        @apply text-sm font-semibold mb-1 truncate text-panel;
       }
 
       .time-left {
@@ -415,21 +410,15 @@ onUnmounted(() => {
           @apply text-xs px-2 py-1 rounded-md border;
 
           &.daily {
-            color: #2563eb;
-            background: rgba(59, 130, 246, 0.1);
-            border-color: rgba(59, 130, 246, 0.18);
+            @apply text-blue-600 bg-blue-500/10 border-blue-500/[0.18];
           }
 
           &.weekly {
-            color: #16a34a;
-            background: rgba(34, 197, 94, 0.1);
-            border-color: rgba(34, 197, 94, 0.18);
+            @apply text-green-600 bg-green-500/10 border-green-500/[0.18];
           }
 
           &.specific {
-            color: #7c3aed;
-            background: rgba(124, 58, 237, 0.1);
-            border-color: rgba(124, 58, 237, 0.18);
+            @apply text-purple-600 bg-purple-600/10 border-purple-600/[0.18];
           }
         }
       }
@@ -458,9 +447,7 @@ onUnmounted(() => {
       @apply flex gap-2 mb-4;
 
       .daily-text {
-        @apply text-xs text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md border;
-        background: rgba(59, 130, 246, 0.1);
-        border-color: rgba(59, 130, 246, 0.18);
+        @apply text-xs text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md border bg-blue-500/10 border-blue-500/[0.18];
       }
     }
 
@@ -468,9 +455,7 @@ onUnmounted(() => {
       @apply flex gap-2 mb-4;
 
       .date-info {
-        @apply text-xs text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md border;
-        background: rgba(124, 58, 237, 0.1);
-        border-color: rgba(124, 58, 237, 0.18);
+        @apply text-xs text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md border bg-purple-600/10 border-purple-600/[0.18];
       }
     }
   }

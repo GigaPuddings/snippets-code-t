@@ -64,74 +64,45 @@ const style = computed(() => ({
 
 <style scoped lang="scss">
 .recording-entry {
-  position: fixed;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  height: 38px;
-  padding: 5px 8px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(210, 217, 226, 0.9);
-  border-radius: 6px;
-  box-shadow: 0 10px 24px rgba(20, 35, 61, 0.16);
+  @apply fixed z-[5] flex items-center gap-[9px] h-[38px] py-[5px] px-2 rounded-md shadow-recorder-overlay;
+  background: var(--recorder-overlay-bg);
+  border: 1px solid var(--recorder-overlay-border);
   backdrop-filter: blur(12px);
 }
 
 .dimension {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #2b3545;
-  font-size: 12px;
+  @apply flex items-center gap-[5px] text-xs text-recorder;
 
   input {
-    width: 54px;
-    height: 26px;
-    padding: 0 8px;
-    color: #455064;
-    background: #fff;
-    border: 1px solid #dde4ee;
-    border-radius: 5px;
-    outline: none;
+    @apply w-[54px] h-[26px] px-2 rounded-[5px] outline-none;
+    background: var(--recorder-overlay-input-bg);
+    border: 1px solid var(--recorder-overlay-input-border);
+    color: var(--recorder-text);
   }
 }
 
 select {
-  height: 28px;
-  padding: 0 24px 0 9px;
-  color: #334057;
-  background: #fff;
-  border: 1px solid #dde4ee;
-  border-radius: 5px;
-  outline: none;
+  @apply h-7 pl-[9px] pr-6 rounded-[5px] outline-none text-xs;
+  background: var(--recorder-overlay-input-bg);
+  border: 1px solid var(--recorder-overlay-input-border);
+  color: var(--recorder-text);
 }
 
 button {
-  height: 28px;
-  border: 0;
-  border-radius: 5px;
-  cursor: pointer;
+  @apply h-7 border-0 rounded-[5px] cursor-pointer;
 }
 
 .primary {
-  min-width: 92px;
-  padding: 0 14px;
-  color: #fff;
-  background: #2f82ff;
-  box-shadow: 0 5px 12px rgba(47, 130, 255, 0.28);
+  @apply min-w-[92px] px-3.5 text-white bg-recorder-blue cursor-pointer;
+  box-shadow: 0 5px 12px color-mix(in srgb, var(--recorder-blue) 28%, transparent);
 
   &:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
+    @apply cursor-not-allowed opacity-[0.55];
   }
 }
 
 .ghost {
-  width: 28px;
-  color: #4d596b;
+  @apply w-7 text-recorder-muted text-[22px] leading-none;
   background: transparent;
-  font-size: 22px;
-  line-height: 1;
 }
 </style>

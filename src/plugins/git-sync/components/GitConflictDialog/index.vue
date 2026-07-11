@@ -178,183 +178,113 @@ defineExpose({
 <style scoped lang="scss">
 // 内容区
 .conflict-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-height: 65vh;
-  overflow-y: auto;
+  @apply flex flex-col gap-4 max-h-[65vh] overflow-y-auto;
 }
 
 .section {
   .section-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--categories-info-text-color);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
+    @apply text-xs font-semibold text-content uppercase tracking-[0.5px] mb-2;
   }
 }
 
 // 文件列表
 .file-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px;
-  border-radius: 6px;
-  background: var(--categories-content-bg);
-  border: 1px solid var(--categories-border-color);
-  max-height: 140px;
-  overflow-y: auto;
+  @apply flex flex-col gap-1 p-2 rounded-md bg-content border border-panel max-h-[140px] overflow-y-auto;
 }
 
 .file-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 4px;
+  @apply flex items-center gap-2 py-[5px] px-2 rounded;
 
   .file-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #e6a23c;
-    flex-shrink: 0;
+    @apply w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0;
   }
 
   &.conflict .file-dot {
-    background: #f56c6c;
+    @apply bg-red-500;
   }
 
   &.untracked .file-dot {
-    background: #909399;
+    @apply bg-gray-500;
   }
 
   .file-name {
-    font-size: 12px;
+    @apply text-xs text-panel;
     font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-    color: var(--categories-text-color);
     word-break: break-all;
   }
 }
 
 // 策略卡片
 .strategy-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  @apply flex flex-col gap-1.5;
 }
 
 .strategy-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--categories-border-color);
-  background: var(--categories-panel-bg);
-  cursor: pointer;
-  transition: all 0.15s;
-  text-align: left;
-  width: 100%;
+  @apply flex items-center gap-3 p-3 rounded-lg border border-panel bg-panel cursor-pointer text-left w-full transition-all duration-150;
 
   &:hover {
-    border-color: var(--el-color-primary, #5d6dfd);
-    background: var(--categories-content-bg);
+    @apply border-active bg-content;
   }
 
   &.active {
-    border-color: var(--el-color-primary, #5d6dfd);
+    @apply border-active;
     background: rgba(93, 109, 253, 0.06);
-    box-shadow: 0 0 0 1px var(--el-color-primary, #5d6dfd);
+    box-shadow: 0 0 0 1px var(--el-color-primary);
   }
 
   .card-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    font-weight: 700;
-    flex-shrink: 0;
+    @apply w-9 h-9 rounded-lg flex items-center justify-center text-lg font-bold shrink-0;
 
     &.merge-icon {
-      background: rgba(76, 175, 80, 0.12);
-      color: #4caf50;
+      @apply bg-green-500/10 text-green-500;
     }
 
     &.pull-icon {
-      background: rgba(33, 150, 243, 0.12);
-      color: #2196f3;
+      @apply bg-blue-500/10 text-blue-500;
     }
 
     &.push-icon {
-      background: rgba(230, 162, 60, 0.12);
-      color: #e6a23c;
+      @apply bg-amber-500/10 text-amber-500;
     }
   }
 
   .card-body {
-    flex: 1;
-    min-width: 0;
+    @apply flex-1 min-w-0;
 
     .card-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--categories-text-color);
-      margin-bottom: 2px;
+      @apply text-[13px] font-semibold text-panel mb-0.5;
     }
 
     .card-desc {
-      font-size: 11px;
-      color: var(--categories-info-text-color);
-      line-height: 1.4;
+      @apply text-[11px] text-content leading-[1.4];
     }
   }
 
   .card-badge {
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 600;
-    flex-shrink: 0;
+    @apply py-0.5 px-2 rounded text-[10px] font-semibold shrink-0;
 
     &.recommended {
-      background: rgba(76, 175, 80, 0.12);
-      color: #4caf50;
+      @apply bg-green-500/10 text-green-500;
     }
   }
 }
 
 // 警告
 .warning-box {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: rgba(230, 162, 60, 0.08);
-  border: 1px solid rgba(230, 162, 60, 0.2);
+  @apply flex items-start gap-2 py-2.5 px-3 rounded-md bg-amber-500/[0.08] border border-amber-500/20;
 
   .warning-icon {
-    flex-shrink: 0;
-    font-size: 14px;
+    @apply shrink-0 text-sm;
   }
 
   .warning-text {
-    font-size: 12px;
-    line-height: 1.5;
-    color: #e6a23c;
+    @apply text-xs leading-[1.5] text-amber-500;
   }
 }
 
 .warning-slide-enter-active,
 .warning-slide-leave-active {
-  transition: all 0.2s ease;
+  @apply transition-all duration-200 ease-in-out;
 }
 
 .warning-slide-enter-from,
@@ -365,21 +295,12 @@ defineExpose({
 
 // 底栏
 .conflict-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  @apply flex justify-end gap-2;
 }
 
 .btn-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
-  border-radius: 50%;
+  @apply inline-block w-3 h-3 rounded-full mr-1 align-middle border-2 border-white/30 border-t-white;
   animation: spin 0.6s linear infinite;
-  margin-right: 4px;
-  vertical-align: middle;
 }
 
 @keyframes spin {
@@ -388,18 +309,18 @@ defineExpose({
 
 // 过渡动画
 .conflict-fade-enter-active {
-  transition: opacity 0.2s ease;
+  @apply transition-opacity duration-200 ease-in-out;
 
   .conflict-dialog {
-    transition: transform 0.2s ease, opacity 0.2s ease;
+    @apply transition-all duration-200 ease-in-out;
   }
 }
 
 .conflict-fade-leave-active {
-  transition: opacity 0.15s ease;
+  @apply transition-opacity duration-150 ease-in-out;
 
   .conflict-dialog {
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    @apply transition-all duration-150 ease-in-out;
   }
 }
 

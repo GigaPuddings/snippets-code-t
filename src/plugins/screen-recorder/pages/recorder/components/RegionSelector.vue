@@ -101,52 +101,36 @@ const handleMouseUp = () => {
 
 <style scoped lang="scss">
 .region-selector {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
-  cursor: crosshair;
-  user-select: none;
+  @apply fixed inset-0 overflow-hidden cursor-crosshair select-none;
 }
 
 .grid-layer {
-  position: absolute;
-  inset: 0;
+  @apply absolute inset-0;
   background-image:
-    linear-gradient(rgba(31, 113, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(31, 113, 255, 0.08) 1px, transparent 1px);
+    linear-gradient(rgb(31 113 255 / 8%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(31 113 255 / 8%) 1px, transparent 1px);
   background-size: 18px 18px;
 }
 
 .selection-hint {
-  position: fixed;
-  left: 50%;
-  top: 44%;
-  transform: translate(-50%, -50%);
-  padding: 9px 14px;
-  color: #2f3a4c;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(202, 212, 226, 0.9);
-  border-radius: 6px;
-  box-shadow: 0 10px 24px rgba(20, 35, 61, 0.12);
-  font-size: 13px;
+  @apply fixed left-1/2 top-[44%] py-2.5 px-3.5 rounded-md text-[13px] shadow-recorder-overlay -translate-x-1/2 -translate-y-1/2;
+  background: var(--recorder-overlay-bg);
+  border: 1px solid var(--recorder-overlay-border);
+  color: var(--recorder-text);
 }
 
 .selected-region {
-  position: absolute;
-  background: rgba(255, 255, 255, 0.02);
-  border: 2px dashed #2f82ff;
-  box-shadow: 0 0 0 9999px rgba(255, 255, 255, 0.18);
-  cursor: default;
+  @apply absolute cursor-default;
+  background: rgb(255 255 255 / 2%);
+  border: 2px dashed var(--recorder-blue);
+  box-shadow: 0 0 0 9999px rgb(255 255 255 / 18%);
 }
 
 .resize-handle {
-  position: absolute;
-  width: 10px;
-  height: 10px;
+  @apply absolute w-2.5 h-2.5 rounded-full;
   background: #fff;
-  border: 2px solid #2f82ff;
-  border-radius: 50%;
-  box-shadow: 0 1px 4px rgba(28, 69, 135, 0.22);
+  border: 2px solid var(--recorder-blue);
+  box-shadow: 0 1px 4px rgb(28 69 135 / 22%);
 }
 
 .nw { left: -6px; top: -6px; }

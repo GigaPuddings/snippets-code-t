@@ -687,24 +687,13 @@ defineExpose({
 
 <style scoped lang="scss">
 .merge-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @apply fixed inset-0 z-[2000] flex items-center justify-center;
   background: var(--dialog-overlay);
   backdrop-filter: blur(3px);
 }
 
 .merge-dialog {
-  display: flex;
-  flex-direction: column;
-  width: 94vw;
-  height: 92vh;
-  max-width: 1400px;
-  border-radius: 12px;
-  overflow: hidden;
+  @apply flex flex-col w-[94vw] h-[92vh] max-w-[1400px] rounded-xl overflow-hidden;
   background: var(--dialog-bg);
   border: 1px solid var(--dialog-border);
   box-shadow: var(--dialog-shadow);
@@ -712,102 +701,62 @@ defineExpose({
 
 // 顶栏
 .merge-titlebar {
-  display: flex;
-  align-items: center;
-  height: 40px;
-  padding: 0 12px;
+  @apply flex items-center h-10 px-3 shrink-0 gap-3;
   background: var(--dialog-header-bg);
   border-bottom: 1px solid var(--dialog-border);
-  flex-shrink: 0;
-  gap: 12px;
   -webkit-app-region: no-drag;
 
   .titlebar-left {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
+    @apply flex items-center gap-1.5 shrink-0;
 
     .titlebar-icon {
-      font-size: 14px;
+      @apply text-sm;
     }
 
     .titlebar-text {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--categories-text-color);
+      @apply text-xs font-semibold text-panel;
     }
   }
 
   .titlebar-center {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
+    @apply flex-1 min-w-0 overflow-hidden;
   }
 
   .titlebar-close {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    border-radius: 4px;
-    cursor: pointer;
-    color: var(--categories-info-text-color);
-    font-size: 18px;
-    flex-shrink: 0;
+    @apply w-7 h-7 flex items-center justify-center border-none bg-transparent rounded cursor-pointer text-content text-lg shrink-0;
 
     &:hover {
-      background: rgba(255, 65, 54, 0.15);
-      color: #ff4136;
+      background: rgb(255 65 54 / 15%);
+      @apply text-red-500;
     }
   }
 }
 
 // 文件 tabs
 .file-tabs {
-  display: flex;
-  gap: 2px;
-  overflow-x: auto;
+  @apply flex gap-0.5 overflow-x-auto;
   scrollbar-width: none;
 
   &::-webkit-scrollbar {
-    display: none;
+    @apply hidden;
   }
 }
 
 .file-tab {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--categories-info-text-color);
-  font-size: 11px;
-  white-space: nowrap;
+  @apply flex items-center gap-[5px] py-1 px-2.5 border-none bg-transparent rounded cursor-pointer text-content text-[11px] whitespace-nowrap;
   transition: all 0.15s;
 
   &:hover {
-    background: var(--categories-panel-bg-hover);
+    @apply bg-hover;
   }
 
   &.active {
-    background: var(--categories-panel-bg);
-    color: var(--categories-text-color);
-    font-weight: 500;
+    @apply bg-panel text-panel font-medium;
   }
 
   .tab-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+    @apply w-1.5 h-1.5 rounded-full shrink-0;
     background: var(--el-color-warning, #e6a23c);
-    flex-shrink: 0;
 
     &.done {
       background: var(--el-color-success, #67c23a);
@@ -817,177 +766,127 @@ defineExpose({
 
 // 文件路径栏
 .file-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
+  @apply flex items-center gap-2 py-1.5 px-4 text-xs shrink-0;
   background: var(--categories-content-bg);
   border-bottom: 1px solid var(--categories-border-color);
-  font-size: 12px;
-  flex-shrink: 0;
 
   .breadcrumb-label {
-    color: var(--categories-info-text-color);
-    flex-shrink: 0;
+    @apply text-content shrink-0;
   }
 
   .breadcrumb-path {
-    color: var(--categories-text-color);
+    @apply text-panel;
     font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
     word-break: break-all;
   }
 
   .breadcrumb-counter {
-    margin-left: auto;
-    padding: 1px 8px;
-    border-radius: 10px;
-    background: var(--categories-panel-bg-hover);
-    color: var(--categories-info-text-color);
-    font-size: 11px;
-    flex-shrink: 0;
+    @apply ml-auto py-px px-2 rounded-[10px] bg-hover text-content text-[11px] shrink-0;
   }
 }
 
 // 对比主体
 .diff-body {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-  overflow: hidden;
+  @apply flex-1 flex min-h-0 overflow-hidden;
 }
 
 .diff-pane {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+  @apply flex-1 flex flex-col min-w-0;
   transition: box-shadow 0.2s;
 
   &.selected {
-    box-shadow: inset 0 0 0 2px var(--el-color-primary, #5d6dfd);
+    box-shadow: inset 0 0 0 2px var(--el-color-primary);
   }
 }
 
 .pane-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
+  @apply flex items-center justify-between py-1.5 px-3 shrink-0 gap-2;
   border-bottom: 1px solid var(--categories-border-color);
-  flex-shrink: 0;
-  gap: 8px;
 
   .incoming & {
-    background: rgba(33, 150, 243, 0.06);
+    background: rgb(33 150 243 / 6%);
   }
 
   .current & {
-    background: rgba(76, 175, 80, 0.06);
+    background: rgb(76 175 80 / 6%);
   }
 }
 
 :global(.dark) .pane-toolbar {
   .incoming & {
-    background: rgba(33, 150, 243, 0.1);
+    background: rgb(33 150 243 / 10%);
   }
 
   .current & {
-    background: rgba(76, 175, 80, 0.1);
+    background: rgb(76 175 80 / 10%);
   }
 }
 
 .toolbar-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--categories-text-color);
+  @apply flex items-center gap-1.5 text-xs font-semibold text-panel;
 
   .label-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+    @apply w-2 h-2 rounded-full;
 
     &.incoming-dot {
-      background: #2196f3;
+      @apply bg-blue-500;
     }
 
     &.current-dot {
-      background: #4caf50;
+      @apply bg-green-500;
     }
   }
 
   .label-badge {
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.3px;
-    text-transform: uppercase;
+    @apply py-px px-1.5 rounded-[3px] text-[10px] font-medium tracking-[0.3px] uppercase;
 
     .incoming & {
-      background: rgba(33, 150, 243, 0.15);
-      color: #2196f3;
+      background: rgb(33 150 243 / 15%);
+      @apply text-blue-500;
     }
 
     .current & {
-      background: rgba(76, 175, 80, 0.15);
-      color: #4caf50;
+      background: rgb(76 175 80 / 15%);
+      @apply text-green-500;
     }
   }
 
   .edited-indicator {
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 500;
-    background: rgba(230, 162, 60, 0.15);
-    color: #e6a23c;
+    @apply py-px px-1.5 rounded-[3px] text-[10px] font-medium;
+    background: rgb(230 162 60 / 15%);
+    @apply text-amber-500;
   }
 }
 
 // Accept 按钮
 .accept-btn {
-  padding: 4px 12px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
+  @apply py-1 px-3 rounded border border-transparent text-[11px] font-medium cursor-pointer whitespace-nowrap;
   transition: all 0.15s;
-  white-space: nowrap;
 
   &.incoming-btn {
-    background: transparent;
+    @apply bg-transparent text-blue-500;
     border-color: #2196f3;
-    color: #2196f3;
 
     &:hover {
-      background: #2196f3;
-      color: #fff;
+      @apply bg-blue-500 text-white;
     }
 
     &.accepted {
-      background: #2196f3;
-      color: #fff;
+      @apply bg-blue-500 text-white;
       border-color: #2196f3;
     }
   }
 
   &.current-btn {
-    background: transparent;
+    @apply bg-transparent text-green-500;
     border-color: #4caf50;
-    color: #4caf50;
 
     &:hover {
-      background: #4caf50;
-      color: #fff;
+      @apply bg-green-500 text-white;
     }
 
     &.accepted {
-      background: #4caf50;
-      color: #fff;
+      @apply bg-green-500 text-white;
       border-color: #4caf50;
     }
   }
@@ -995,55 +894,33 @@ defineExpose({
 
 // 代码内容区
 .pane-content {
-  flex: 1;
-  display: flex;
-  overflow: auto;
+  @apply flex-1 flex overflow-auto relative;
   background: var(--categories-panel-bg);
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
-  position: relative;
 
   &:hover {
-    scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
-  }
-
-  &.has-diff {
-    // 为差异标记留出空间
+    scrollbar-color: rgb(128 128 128 / 30%) transparent;
   }
 }
 
 .line-numbers {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 0;
-  min-width: 40px;
-  text-align: right;
-  user-select: none;
-  flex-shrink: 0;
+  @apply flex flex-col py-2 min-w-[40px] text-right select-none shrink-0;
   background: var(--categories-content-bg);
   border-right: 1px solid var(--categories-border-color);
 
   span {
-    padding: 0 8px;
-    font-size: 12px;
-    line-height: 20px;
+    @apply px-2 text-xs leading-5 text-content;
     font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-    color: var(--categories-info-text-color);
     opacity: 0.5;
   }
 }
 
 .code-block {
-  flex: 1;
-  margin: 0;
-  padding: 8px 12px;
-  font-size: 13px;
-  line-height: 20px;
+  @apply flex-1 m-0 py-2 px-3 text-[13px] leading-5 text-panel bg-transparent;
   font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--categories-text-color);
-  background: transparent;
 
   code {
     font-family: inherit;
@@ -1051,89 +928,57 @@ defineExpose({
 }
 
 .code-editor {
-  flex: 1;
-  margin: 0;
-  padding: 8px 12px;
-  font-size: 13px;
-  line-height: 20px;
+  @apply flex-1 m-0 py-2 px-3 text-[13px] leading-5 text-panel bg-transparent border-none outline-none resize-none w-full min-h-full;
   font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--categories-text-color);
-  background: transparent;
-  border: none;
-  outline: none;
-  resize: none;
-  width: 100%;
-  min-height: 100%;
 
   &:focus {
-    background: rgba(93, 109, 253, 0.03);
+    background: rgb(93 109 253 / 3%);
   }
 }
 
 // 分隔条
 .diff-gutter {
-  width: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @apply w-1.5 flex items-center justify-center shrink-0;
   background: var(--categories-content-bg);
-  flex-shrink: 0;
 
   .gutter-line {
-    width: 1px;
-    height: 100%;
+    @apply w-px h-full;
     background: var(--categories-border-color);
   }
 }
 
 // 底栏
 .merge-statusbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
+  @apply flex items-center justify-between py-2 px-3 shrink-0 gap-3;
   background: var(--dialog-footer-bg);
   border-top: 1px solid var(--dialog-border);
-  flex-shrink: 0;
-  gap: 12px;
 }
 
 .statusbar-left,
 .statusbar-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  @apply flex items-center gap-1.5;
 }
 
 .resolve-progress {
-  font-size: 11px;
-  color: var(--categories-info-text-color);
-  padding: 0 8px;
+  @apply text-[11px] text-content px-2;
 }
 
 // 进度条容器
 .progress-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 8px;
+  @apply flex items-center gap-2 px-2;
 }
 
 .progress-bar {
-  width: 100px;
-  height: 6px;
+  @apply w-[100px] h-1.5 rounded-[3px] overflow-hidden;
   background: var(--categories-border-color);
-  border-radius: 3px;
-  overflow: hidden;
 }
 
 .progress-fill {
-  height: 100%;
-  border-radius: 3px;
+  @apply h-full rounded-[3px];
   transition: width 0.3s ease;
-  background: var(--el-color-primary, #5d6dfd);
+  background: var(--el-color-primary);
 
   &.progress-loading {
     background: linear-gradient(90deg, #5d6dfd 0%, #8b9fff 50%, #5d6dfd 100%);
@@ -1158,92 +1003,66 @@ defineExpose({
 }
 
 .progress-text {
-  font-size: 11px;
-  color: var(--categories-info-text-color);
-  white-space: nowrap;
+  @apply text-[11px] text-content whitespace-nowrap;
 }
 
 .nav-group {
-  display: flex;
-  gap: 2px;
-  border: 1px solid var(--categories-border-color);
-  border-radius: 5px;
-  overflow: hidden;
+  @apply flex gap-0.5 border border-panel rounded-[5px] overflow-hidden;
 }
 
 .nav-btn {
-  padding: 4px 10px;
-  border: none;
-  background: transparent;
-  color: var(--categories-text-color);
-  font-size: 12px;
-  cursor: pointer;
+  @apply py-1 px-2.5 border-none bg-transparent text-panel text-xs cursor-pointer;
   transition: background 0.12s;
 
   &:hover:not(:disabled) {
-    background: var(--categories-panel-bg-hover);
+    @apply bg-hover;
   }
 
   &:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
+    @apply opacity-35 cursor-not-allowed;
   }
 
   &:first-child {
-    border-right: 1px solid var(--categories-border-color);
+    @apply border-r border-panel;
   }
 }
 
 .status-btn {
-  padding: 5px 14px;
-  border-radius: 5px;
-  border: 1px solid var(--categories-border-color);
-  background: var(--categories-panel-bg);
-  color: var(--categories-text-color);
-  font-size: 12px;
-  cursor: pointer;
+  @apply py-[5px] px-3.5 rounded-[5px] border border-panel bg-panel text-panel text-xs cursor-pointer whitespace-nowrap;
   transition: all 0.12s;
-  white-space: nowrap;
 
   &:hover {
-    background: var(--categories-panel-bg-hover);
+    @apply bg-hover;
   }
 
   &.cancel-btn:hover {
-    border-color: #f56c6c;
-    color: #f56c6c;
+    @apply border-red-500 text-red-500;
   }
 
   &.primary-btn {
-    background: var(--el-color-primary, #5d6dfd);
-    border-color: var(--el-color-primary, #5d6dfd);
-    color: #fff;
+    @apply text-white;
+    background: var(--el-color-primary);
+    border-color: var(--el-color-primary);
 
     &:hover {
       background: var(--el-button-hover-bg-color, #4a5bef);
     }
 
     &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+      @apply opacity-50 cursor-not-allowed;
     }
 
     &.loading {
-      pointer-events: none;
+      @apply pointer-events-none;
     }
   }
 }
 
 .btn-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  @apply inline-block w-3 h-3 rounded-full mr-1 align-middle;
+  border: 2px solid rgb(255 255 255 / 30%);
   border-top-color: #fff;
-  border-radius: 50%;
   animation: spin 0.6s linear infinite;
-  margin-right: 4px;
-  vertical-align: middle;
 }
 
 @keyframes spin {
@@ -1252,54 +1071,41 @@ defineExpose({
 
 // 工具栏操作按钮
 .toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  @apply flex items-center gap-2;
 }
 
 .sync-scroll-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--categories-border-color);
-  background: transparent;
-  border-radius: 4px;
-  cursor: pointer;
+  @apply w-7 h-7 flex items-center justify-center border border-panel bg-transparent rounded cursor-pointer;
   transition: all 0.15s;
 
   &:hover {
-    background: var(--categories-panel-bg-hover);
+    @apply bg-hover;
   }
 
   &.active {
-    background: rgba(93, 109, 253, 0.15);
-    border-color: var(--el-color-primary, #5d6dfd);
-    color: var(--el-color-primary, #5d6dfd);
+    background: rgb(93 109 253 / 15%);
+    @apply border-active text-primary;
   }
 
   .sync-icon {
-    font-size: 14px;
+    @apply text-sm;
   }
 }
 
 // CodeMirror 编辑器容器
 .code-editor-container {
-  flex: 1;
-  overflow: auto;
+  @apply flex-1 overflow-auto;
 
   :deep(.cm-editor) {
-    height: 100%;
-    font-size: 13px;
+    @apply h-full text-[13px];
     font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
 
     .cm-content {
-      padding: 8px 0;
+      @apply py-2;
     }
 
     .cm-line {
-      padding: 0 12px;
+      @apply px-3;
     }
 
     .cm-gutters {
@@ -1308,9 +1114,7 @@ defineExpose({
     }
 
     .cm-lineNumbers .cm-gutterElement {
-      padding: 0 8px;
-      min-width: 35px;
-      color: var(--categories-info-text-color);
+      @apply px-2 min-w-[35px] text-content;
       opacity: 0.6;
     }
   }
@@ -1318,72 +1122,45 @@ defineExpose({
 
 // 差异标记
 .diff-markers {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  pointer-events: none;
+  @apply absolute left-0 top-0 bottom-0 w-1 pointer-events-none;
 }
 
 .diff-line-marker {
-  position: absolute;
-  left: 0;
-  width: 4px;
-  height: 20px;
-  pointer-events: none;
+  @apply absolute left-0 w-1 h-5 pointer-events-none;
 
   &.remote {
-    background: rgba(33, 150, 243, 0.3);
+    background: rgb(33 150 243 / 30%);
   }
 
   &.local {
-    background: rgba(76, 175, 80, 0.3);
+    background: rgb(76 175 80 / 30%);
   }
 }
 
 // 批量操作按钮
 .batch-actions {
-  display: flex;
-  gap: 4px;
-  margin-left: 8px;
+  @apply flex gap-1 ml-2;
 }
 
 .batch-btn {
-  padding: 3px 8px;
-  border: 1px solid var(--categories-border-color);
-  background: transparent;
-  border-radius: 4px;
-  font-size: 11px;
-  color: var(--categories-info-text-color);
-  cursor: pointer;
+  @apply py-[3px] px-2 border border-panel bg-transparent rounded text-[11px] text-content cursor-pointer;
   transition: all 0.15s;
 
   &:hover {
-    background: var(--categories-panel-bg-hover);
-    color: var(--categories-text-color);
+    @apply bg-hover text-panel;
   }
 }
 
 // 快捷键提示
 .shortcut-hints {
-  display: flex;
-  gap: 12px;
-  margin-right: 12px;
-  font-size: 11px;
-  color: var(--categories-info-text-color);
+  @apply flex gap-3 mr-3 text-[11px] text-content;
 
   .hint-item {
-    display: flex;
-    align-items: center;
-    gap: 2px;
+    @apply flex items-center gap-0.5;
 
     kbd {
-      padding: 1px 4px;
-      border: 1px solid var(--categories-border-color);
-      border-radius: 3px;
+      @apply py-px px-1 border border-panel rounded-[3px] text-[10px];
       background: var(--categories-content-bg);
-      font-size: 10px;
       font-family: inherit;
     }
   }

@@ -141,6 +141,26 @@
   --chat-shadow-focus: 0 16px 34px rgb(15 23 42 / 10%);
   --chat-shadow-overlay: 0 8px 22px rgb(15 23 42 / 8%);
   --chat-shadow-scroll: 0 8px 22px rgb(15 23 42 / 10%);
+
+  // ==================== 录屏窗口主题变量 ====================
+  --recorder-bg: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+  --recorder-soft-bg: color-mix(in srgb, var(--panel-hover-bg) 72%, transparent);
+  --recorder-input-bg: color-mix(in srgb, var(--search-input-bg) 86%, transparent);
+  --recorder-border: color-mix(in srgb, var(--panel-border) 92%, transparent);
+  --recorder-text: var(--panel-text);
+  --recorder-muted: var(--panel-text-secondary);
+  --recorder-accent: var(--el-color-primary);
+  --recorder-overlay-bg: rgb(255 255 255 / 95%);
+  --recorder-overlay-border: rgb(210 217 226 / 90%);
+  --recorder-overlay-shadow: 0 12px 28px rgb(20 35 61 / 18%);
+  --recorder-overlay-input-bg: #fff;
+  --recorder-overlay-input-border: #dde4ee;
+  --recorder-blue: #2f82ff;
+  --recorder-red: #b42318;
+  --recorder-red-bright: #f04444;
+  --recorder-red-hover: #a11f16;
+  --recorder-amber: #f4a51c;
+  --recorder-green: #16a34a;
 }
 
 html.dark {
@@ -282,6 +302,13 @@ html.dark {
   --chat-shadow-focus: 0 16px 34px rgb(0 0 0 / 30%);
   --chat-shadow-overlay: 0 8px 22px rgb(0 0 0 / 25%);
   --chat-shadow-scroll: 0 8px 22px rgb(0 0 0 / 30%);
+
+  // ==================== 录屏窗口深色主题变量 ====================
+  --recorder-overlay-bg: rgb(36 36 36 / 95%);
+  --recorder-overlay-border: rgb(65 65 65 / 90%);
+  --recorder-overlay-shadow: 0 12px 28px rgb(0 0 0 / 36%);
+  --recorder-overlay-input-bg: #2c2c2c;
+  --recorder-overlay-input-border: #3a3a3a;
 }
 
 $btnColors: #5d6dfd, #67c23a, #e6a23c, #f56c6c, #909399;

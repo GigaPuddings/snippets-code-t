@@ -66,7 +66,19 @@ export default {
         'dm-red': 'var(--dm-red-bg)',
         'dm-btn': 'var(--dm-btn-bg)',
         'dm-btn-hover': 'var(--dm-btn-hover-bg)',
-        'dm-soft': 'var(--dm-border-soft)'
+        'dm-soft': 'var(--dm-border-soft)',
+        // 录屏窗口
+        'recorder-bg': 'var(--recorder-bg)',
+        'recorder-soft': 'var(--recorder-soft-bg)',
+        'recorder-input': 'var(--recorder-input-bg)',
+        'recorder-border': 'var(--recorder-border)',
+        'recorder-overlay': 'var(--recorder-overlay-bg)',
+        'recorder-overlay-input': 'var(--recorder-overlay-input-bg)',
+        'recorder-blue': 'var(--recorder-blue)',
+        'recorder-red': 'var(--recorder-red)',
+        'recorder-red-bright': 'var(--recorder-red-bright)',
+        'recorder-amber': 'var(--recorder-amber)',
+        'recorder-green': 'var(--recorder-green)'
       },
       textColor: {
         // 基础面板
@@ -119,7 +131,15 @@ export default {
         'dm-period-day': 'var(--dm-period-day)',
         'dm-period-night': 'var(--dm-period-night)',
         'dm-close-hover': 'var(--dm-close-hover-fg)',
-        'dm-btn': 'var(--dm-btn-fg)'
+        'dm-btn': 'var(--dm-btn-fg)',
+        // 录屏窗口
+        recorder: 'var(--recorder-text)',
+        'recorder-muted': 'var(--recorder-muted)',
+        'recorder-accent': 'var(--recorder-accent)',
+        'recorder-blue': 'var(--recorder-blue)',
+        'recorder-red': 'var(--recorder-red)',
+        'recorder-amber': 'var(--recorder-amber)',
+        'recorder-green': 'var(--recorder-green)'
       },
       borderColor: {
         // 基础面板
@@ -147,7 +167,13 @@ export default {
         dm: 'var(--dm-border)',
         'dm-soft': 'var(--dm-border-soft)',
         'dm-accent': 'var(--dm-accent)',
-        'dm-hover': 'var(--dm-border-hover)'
+        'dm-hover': 'var(--dm-border-hover)',
+        // 录屏窗口
+        recorder: 'var(--recorder-border)',
+        'recorder-overlay': 'var(--recorder-overlay-border)',
+        'recorder-overlay-input': 'var(--recorder-overlay-input-border)',
+        'recorder-blue': 'var(--recorder-blue)',
+        'recorder-red': 'var(--recorder-red)'
       },
       colors: {
         // 主色调
@@ -169,7 +195,9 @@ export default {
         // 主题切换窗口
         dm: 'var(--dm-shadow)',
         'dm-ring': '0 0 0 1px var(--dm-accent)',
-        'dm-focus': '0 0 0 2px var(--dm-accent-ring)'
+        'dm-focus': '0 0 0 2px var(--dm-accent-ring)',
+        // 录屏窗口
+        'recorder-overlay': 'var(--recorder-overlay-shadow)'
       }
     }
   },

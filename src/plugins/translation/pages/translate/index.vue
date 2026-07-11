@@ -911,20 +911,17 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .translate-window {
-  @apply w-full h-screen flex flex-col overflow-hidden;
+  @apply w-full h-screen flex flex-col overflow-hidden rounded-lg;
 
   color: var(--el-text-color-primary);
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
 }
 
 .header {
-  @apply relative select-none w-full grid items-center z-50;
+  @apply relative select-none w-full grid items-center z-50 h-10 px-2;
 
   grid-template-columns: 1fr auto 1fr;
-  height: 40px;
-  padding: 0 8px;
   background: color-mix(in srgb, var(--el-bg-color) 94%, transparent);
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
@@ -937,23 +934,19 @@ onUnmounted(() => {
 }
 
 .right-buttons {
-  justify-content: flex-end;
+  @apply justify-end;
 }
 
 .window-title {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
+  @apply text-sm font-semibold leading-none;
+
   pointer-events: none;
 }
 
 .window-action {
-  @apply flex items-center justify-center cursor-pointer;
+  @apply flex items-center justify-center cursor-pointer w-7 h-7 rounded;
 
-  width: 28px;
-  height: 28px;
   color: var(--el-text-color-secondary);
-  border-radius: 4px;
   pointer-events: auto;
 
   &:hover {
@@ -982,17 +975,13 @@ onUnmounted(() => {
 }
 
 .language-selector {
-  @apply flex flex-shrink-0 items-center justify-between;
+  @apply flex flex-shrink-0 items-center justify-between gap-2 min-h-12 py-[7px] px-3;
 
-  gap: 8px;
-  min-height: 48px;
-  padding: 7px 12px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .lang-select {
-  flex: 1 1 0;
-  min-width: 0;
+  @apply flex-1 min-w-0;
 
   :deep(.el-select__wrapper) {
     min-height: 32px;
@@ -1003,12 +992,9 @@ onUnmounted(() => {
 }
 
 .swap-button {
-  @apply flex flex-shrink-0 items-center justify-center cursor-pointer;
+  @apply flex flex-shrink-0 items-center justify-center cursor-pointer w-[30px] h-[30px] rounded;
 
-  width: 30px;
-  height: 30px;
   color: var(--el-color-primary);
-  border-radius: 4px;
 
   &:hover:not(:disabled) {
     background: var(--el-fill-color-light);
@@ -1021,9 +1007,8 @@ onUnmounted(() => {
 }
 
 .source-area {
-  @apply relative flex-shrink-0;
+  @apply relative flex-shrink-0 pt-2.5 px-3 pb-2;
 
-  padding: 10px 12px 8px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   background: var(--el-bg-color);
 }
@@ -1048,10 +1033,7 @@ onUnmounted(() => {
 }
 
 .source-actions {
-  @apply flex items-center justify-end;
-
-  min-height: 30px;
-  padding-top: 4px;
+  @apply flex items-center justify-end min-h-[30px] pt-1;
 }
 
 .source-material {
@@ -1063,20 +1045,15 @@ onUnmounted(() => {
 }
 
 .result-card {
-  overflow: hidden;
-  flex: 0 0 auto;
-  background: transparent;
+  @apply overflow-hidden flex-shrink-0 bg-transparent;
+
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .result-header {
-  @apply flex w-full items-center justify-between cursor-pointer;
+  @apply flex w-full items-center justify-between cursor-pointer min-h-[42px] py-2 px-3 bg-transparent transition-colors duration-150;
 
-  min-height: 42px;
-  padding: 8px 12px;
   color: var(--el-text-color-primary);
-  background: transparent;
-  transition: background-color 0.15s ease;
 
   &:hover {
     background: var(--el-fill-color-lighter);
@@ -1084,10 +1061,7 @@ onUnmounted(() => {
 }
 
 .result-title {
-  @apply flex min-w-0 items-center gap-2;
-
-  font-size: 13px;
-  font-weight: 600;
+  @apply flex min-w-0 items-center gap-2 text-[13px] font-semibold;
 }
 
 .engine-icon {
@@ -1095,14 +1069,12 @@ onUnmounted(() => {
 }
 
 .offline-icon {
-  @apply w-4 h-4 flex items-center justify-center text-xs text-white;
-
-  background: #21834a;
-  border-radius: 3px;
+  @apply w-4 h-4 flex items-center justify-center text-xs text-white bg-[#21834a] rounded-[3px];
 }
 
 .ai-icon {
-  font-size: 9px;
+  @apply text-[9px];
+
   background: var(--el-color-primary);
 }
 
@@ -1115,23 +1087,14 @@ onUnmounted(() => {
 }
 
 .result-body {
-  padding: 0 12px 10px;
+  @apply px-3 pb-2.5;
 }
 
 .result-text {
-  min-height: 66px;
-  max-height: 180px;
-  overflow-y: auto;
-  padding: 8px 10px;
+  @apply min-h-[66px] max-h-[180px] overflow-y-auto py-2 px-2.5 rounded outline-none text-sm leading-[1.65] whitespace-pre-wrap break-words select-text;
+
   color: var(--el-text-color-primary);
   background: var(--el-fill-color-lighter);
-  border-radius: 4px;
-  outline: none;
-  font-size: 14px;
-  line-height: 1.65;
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
 
   &:focus {
     background: var(--el-fill-color-light);
@@ -1140,25 +1103,19 @@ onUnmounted(() => {
 }
 
 .result-empty {
-  @apply min-h-16 flex items-center justify-center;
+  @apply min-h-16 flex items-center justify-center text-[13px];
 
   color: var(--el-text-color-placeholder);
-  font-size: 13px;
 }
 
 .result-actions {
-  @apply flex justify-end gap-1;
-
-  padding-top: 5px;
+  @apply flex justify-end gap-1 pt-[5px];
 }
 
 .action-btn {
-  @apply flex items-center justify-center cursor-pointer;
+  @apply flex items-center justify-center cursor-pointer w-7 h-7 rounded;
 
-  width: 28px;
-  height: 28px;
   color: var(--el-text-color-secondary);
-  border-radius: 4px;
 
   &:hover {
     color: var(--el-color-primary);
@@ -1167,7 +1124,7 @@ onUnmounted(() => {
 }
 
 .rotate-icon {
-  transform: rotate(90deg);
+  @apply rotate-90;
 }
 
 @media (max-height: 560px) {

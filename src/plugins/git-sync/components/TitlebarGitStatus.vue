@@ -73,31 +73,18 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
-  padding: 6px;
+  @apply flex items-center justify-center min-w-[32px] min-h-[32px] p-1.5 cursor-pointer;
   color: rgba(var(--categories-text-color-rgb), 0.85);
-  cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    color: #5d6dfd;
+    @apply text-primary;
     background-color: rgba(93, 109, 253, 0.08);
   }
 }
 
 .git-status-indicator {
-  display: flex;
-  min-height: 28px;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
+  @apply flex min-h-[28px] items-center gap-1 py-1 px-2 rounded text-xs cursor-pointer;
   transition: all 0.2s ease;
 
   &:hover {
@@ -110,23 +97,23 @@ onUnmounted(() => {
 
   .git-time {
     color: rgba(var(--categories-text-color-rgb), 0.6);
-    font-size: 12px;
+    @apply text-xs;
   }
 
   &.git-status-syncing {
-    color: #3b82f6;
+    @apply text-blue-500;
   }
 
   &.git-status-synced {
-    color: #10b981;
+    @apply text-emerald-500;
   }
 
   &.git-status-has_changes {
-    color: #f59e0b;
+    @apply text-amber-500;
   }
 
   &.git-status-error {
-    color: #ef4444;
+    @apply text-red-500;
   }
 
   &.git-status-idle {
@@ -135,29 +122,15 @@ onUnmounted(() => {
 }
 
 .git-badge {
-  display: inline-flex;
-  min-width: 18px;
-  height: 18px;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background-color: #f59e0b;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1;
+  @apply inline-flex min-w-[18px] h-[18px] items-center justify-center py-0.5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-medium leading-none;
 }
 
 @media (max-width: 880px) {
   .git-status-indicator {
-    min-width: 28px;
-    justify-content: center;
-    padding-right: 6px;
-    padding-left: 6px;
+    @apply min-w-[28px] justify-center pr-1.5 pl-1.5;
 
     .git-time {
-      display: none;
+      @apply hidden;
     }
   }
 }

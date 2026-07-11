@@ -502,26 +502,16 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .local-container {
-  @apply w-full h-full flex flex-col overflow-hidden p-4 pt-2 relative;
-  color: var(--categories-text-color);
+  @apply w-full h-full flex flex-col overflow-hidden p-4 pt-2 relative text-panel;
 
   .scanning-overlay {
-    @apply absolute inset-0 z-50 flex items-center justify-center;
-    background: rgba(255, 255, 255, 0.9);
+    @apply absolute inset-0 z-50 flex items-center justify-center bg-white/90 dark:bg-[rgba(30,30,30,0.9)];
     backdrop-filter: blur(4px);
-    
-    .dark & {
-      background: rgba(30, 30, 30, 0.9);
-    }
     
     .scanning-content {
       @apply flex flex-col items-center gap-3 p-6 rounded-lg border border-panel;
       background: var(--search-bg);
       box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
-      
-      .dark & {
-        background: var(--search-bg);
-      }
       
       .scanning-icon {
         @apply text-blue-500;
@@ -607,14 +597,11 @@ onUnmounted(() => {
       }
 
       .item-wrapper {
-        @apply pb-1;
-        box-sizing: border-box;
+        @apply pb-1 box-border;
       }
 
       .local-item {
-        @apply flex items-center gap-3 px-3 py-2 rounded-md border border-panel bg-panel cursor-pointer transition-colors duration-150;
-        height: 100%;
-        min-height: 0;
+        @apply flex items-center gap-3 px-3 py-2 rounded-md border border-panel bg-panel cursor-pointer transition-colors duration-150 h-full min-h-0;
 
         &.is-editing {
           @apply cursor-default;

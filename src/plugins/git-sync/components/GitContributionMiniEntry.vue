@@ -347,92 +347,60 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .git-contribution-mini {
-  position: relative;
-  z-index: 8;
-  flex-shrink: 0;
+  @apply relative z-[8] shrink-0;
 }
 
 .git-contribution-mini__button {
-  display: inline-flex;
-  width: 32px;
-  height: 30px;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--categories-text-color);
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  outline: none;
+  @apply inline-flex w-8 h-[30px] items-center justify-center p-0 text-panel cursor-pointer bg-transparent border border-transparent rounded-md outline-none;
   transition: background 0.16s ease, border-color 0.16s ease;
 
   &:hover,
   &:focus-visible {
-    background: var(--categories-panel-bg-hover);
+    @apply bg-hover;
     border-color: rgba(var(--categories-border-color-rgb), 0.65);
   }
 }
 
 .git-contribution-mini__loading {
-  color: #30a14e;
+  @apply text-emerald-500;
   animation: git-contribution-mini-spin 0.8s linear infinite;
 }
 
 .git-contribution-mini__visual {
-  display: inline-flex;
-  width: 22px;
-  height: 16px;
-  align-items: center;
-  justify-content: center;
+  @apply inline-flex w-[22px] h-4 items-center justify-center;
 }
 
 .git-contribution-mini__panel-copy {
-  min-width: 0;
+  @apply min-w-0;
 }
 
 .git-contribution-mini__panel-title {
-  overflow: hidden;
-  color: var(--categories-text-color);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-panel text-xs font-bold leading-4 text-ellipsis whitespace-nowrap;
 }
 
 .git-contribution-mini__panel-desc {
-  overflow: hidden;
-  color: var(--categories-info-text-color);
-  font-size: 10px;
-  line-height: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-content text-[10px] leading-[14px] text-ellipsis whitespace-nowrap;
 }
 
 .git-contribution-mini__spark {
-  display: grid;
+  @apply grid;
   grid-template-columns: repeat(4, 4px);
   gap: 2px;
 }
 
 .git-contribution-mini__day {
-  display: inline-block;
-  width: 4px;
-  height: 4px;
+  @apply inline-block w-1 h-1 rounded-[1px];
   background: rgba(var(--categories-border-color-rgb), 0.36);
-  border-radius: 1px;
 }
 
 .git-contribution-mini__day--panel,
 .git-contribution-mini__day--legend {
-  width: 8px;
-  height: 8px;
+  @apply w-2 h-2;
   border: 1px solid rgba(var(--categories-border-color-rgb), 0.5);
 }
 
 .git-contribution-mini__day--empty {
-  visibility: hidden;
+  @apply invisible;
 }
 
 .git-contribution-mini__day--level-0 {
@@ -460,77 +428,45 @@ onUnmounted(() => {
 }
 
 .git-contribution-mini__panel {
-  position: fixed;
-  box-sizing: border-box;
-  z-index: 20;
-  padding: 12px;
-  background: var(--categories-content-bg);
-  border: 1px solid var(--categories-border-color);
-  border-radius: 8px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  @apply fixed box-border z-[20] p-3 bg-content border border-panel rounded-lg;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 18%);
 }
 
 .git-contribution-mini__panel-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
+  @apply flex items-start justify-between gap-2.5;
 }
 
 .git-contribution-mini__settings {
-  display: inline-flex;
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  color: var(--categories-info-text-color);
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid var(--categories-border-color);
-  border-radius: 6px;
+  @apply inline-flex w-[26px] h-[26px] shrink-0 items-center justify-center text-content cursor-pointer bg-transparent border border-panel rounded-md;
 
   &:hover,
   &:focus-visible {
-    color: var(--el-color-primary);
+    @apply text-primary;
     background: rgba(var(--el-color-primary-rgb), 0.08);
     border-color: rgba(var(--el-color-primary-rgb), 0.3);
   }
 }
 
 .git-contribution-mini__board {
-  max-width: 100%;
-  margin-top: 12px;
-  overflow-x: auto;
+  @apply max-w-full mt-3 overflow-x-auto;
 }
 
 .git-contribution-mini__weeks {
-  display: grid;
-  width: max-content;
-  gap: 3px;
+  @apply grid w-max gap-[3px];
 }
 
 .git-contribution-mini__week {
-  display: grid;
+  @apply grid;
   grid-template-rows: repeat(7, 8px);
   gap: 3px;
 }
 
 .git-contribution-mini__footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  margin-top: 10px;
-  color: var(--categories-info-text-color);
-  font-size: 10px;
-  line-height: 14px;
+  @apply flex items-center justify-end mt-2.5 text-content text-[10px] leading-[14px];
 }
 
 .git-contribution-mini__legend {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 3px;
+  @apply inline-flex shrink-0 items-center gap-[3px];
 }
 
 .git-contribution-mini-pop-enter-active,

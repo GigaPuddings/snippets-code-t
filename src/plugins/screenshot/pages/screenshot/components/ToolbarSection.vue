@@ -403,60 +403,41 @@ defineExpose({
 
 <style scoped lang="scss">
 .toolbar-container {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
+  @apply flex flex-col gap-2 items-start;
   font-family: Inter, 'Segoe UI', Arial, sans-serif;
   color: #101828;
 
   .toolbar-panel {
-    display: flex;
-    align-items: center;
+    @apply flex items-center;
     background: rgb(255 255 255 / 98%);
     backdrop-filter: blur(18px);
     border: 1px solid rgb(16 24 40 / 8%);
     box-shadow: 0 8px 22px rgb(16 24 40 / 16%), 0 2px 6px rgb(16 24 40 / 8%);
 
     &.first-panel {
+      @apply py-[7px] px-2.5 overflow-x-auto rounded-xl;
       width: max-content;
       max-width: calc(100vw - 20px);
-      padding: 7px 10px;
-      overflow-x: auto;
-      border-radius: 12px;
     }
 
     &.second-panel {
+      @apply py-2 px-3 overflow-x-auto overflow-y-hidden min-h-[52px] rounded-xl;
       width: fit-content;
       min-width: auto;
       max-width: calc(100vw - 20px);
-      min-height: 52px;
-      padding: 8px 12px;
-      overflow: auto hidden;
       background: rgb(255 255 255 / 92%);
       backdrop-filter: blur(22px);
       border-color: rgb(255 255 255 / 46%);
-      border-radius: 12px;
       box-shadow: 0 10px 24px rgb(16 24 40 / 14%), 0 2px 6px rgb(16 24 40 / 6%);
     }
   }
 
   .tool-section {
-    display: flex;
-    gap: 2px;
-    align-items: center;
+    @apply flex gap-0.5 items-center;
 
     .tool-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 34px;
-      height: 34px;
+      @apply flex items-center justify-center w-[34px] h-[34px] cursor-pointer bg-transparent border-0 rounded-[7px];
       color: #101828;
-      cursor: pointer;
-      background: transparent;
-      border: 0;
-      border-radius: 7px;
       transition: background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 
       &.active {
@@ -470,7 +451,7 @@ defineExpose({
       }
 
       &:active {
-        transform: scale(0.94);
+        @apply scale-[0.94];
       }
 
       &:focus-visible {
@@ -481,44 +462,28 @@ defineExpose({
   }
 
   .toolbar-divider {
-    width: 1px;
-    height: 20px;
-    margin: 0 2px;
+    @apply w-px h-5 mx-0.5;
     background: rgb(16 24 40 / 12%);
   }
 
   .style-section {
-    display: flex;
-    gap: 12px;
-    align-items: center;
+    @apply flex gap-3 items-center;
 
     .style-group {
-      display: flex;
-      gap: 8px;
-      align-items: center;
+      @apply flex gap-2 items-center;
 
       .line-width-selector,
       .text-size-selector,
       .mosaic-size-selector,
       .translate-engine-selector {
-        display: flex;
-        gap: 3px;
-        align-items: center;
+        @apply flex gap-[3px] items-center;
       }
 
       .width-btn,
       .size-btn,
       .engine-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 28px;
-        height: 28px;
+        @apply flex items-center justify-center w-7 h-7 cursor-pointer bg-transparent border-0 rounded-md;
         color: #475467;
-        cursor: pointer;
-        background: transparent;
-        border: 0;
-        border-radius: 6px;
         transition: background-color 140ms ease, box-shadow 140ms ease;
 
         &.active {
@@ -537,46 +502,37 @@ defineExpose({
         }
 
         .line-preview {
-          width: 17px;
-          min-height: 2px;
-          border-radius: 999px;
+          @apply w-[17px] min-h-[2px] rounded-full;
         }
 
         .size-text {
-          line-height: 1;
+          @apply leading-none;
           color: inherit;
         }
 
         .mosaic-preview {
-          display: inline-block;
+          @apply inline-block rounded-full;
           background: rgb(71 84 103 / 58%);
-          border-radius: 50%;
         }
       }
 
       .engine-btn {
-        width: 30px;
-        font-size: 11px;
-        font-weight: 600;
+        @apply w-[30px] text-[11px] font-semibold;
       }
 
       .color-btn {
-        width: 18px;
-        height: 18px;
-        padding: 0;
-        cursor: pointer;
+        @apply w-[18px] h-[18px] p-0 cursor-pointer rounded-full;
         border: 1px solid rgb(16 24 40 / 10%);
-        border-radius: 50%;
         transition: box-shadow 140ms ease, transform 140ms ease;
 
         &.active {
           border-color: #fff;
           box-shadow: 0 0 0 2px #84caff;
-          transform: scale(1.08);
+          @apply scale-[1.08];
         }
 
         &:hover {
-          transform: scale(1.12);
+          @apply scale-[1.12];
         }
 
         &:focus-visible {
@@ -587,35 +543,23 @@ defineExpose({
 
       &.color-picker-group {
         .color-row {
-          display: flex;
-          gap: 7px;
-          align-items: center;
+          @apply flex gap-[7px] items-center;
         }
       }
     }
   }
 
   .action-section {
-    display: flex;
-    gap: 2px;
-    align-items: center;
+    @apply flex gap-0.5 items-center;
 
     .action-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 34px;
-      height: 34px;
+      @apply flex items-center justify-center w-[34px] h-[34px] cursor-pointer bg-transparent border-0 rounded-[7px];
       color: #101828;
-      cursor: pointer;
-      background: transparent;
-      border: 0;
-      border-radius: 7px;
       transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
 
       &:disabled {
         color: #d0d5dd;
-        cursor: not-allowed;
+        @apply cursor-not-allowed;
       }
 
       &:hover:not(:disabled) {
@@ -623,7 +567,7 @@ defineExpose({
       }
 
       &:active:not(:disabled) {
-        transform: scale(0.94);
+        @apply scale-[0.94];
       }
 
       &:focus-visible {
@@ -634,30 +578,23 @@ defineExpose({
   }
 
   .style-label {
-    font-size: 11px;
+    @apply text-[11px] whitespace-nowrap;
     color: #98a2b3;
-    white-space: nowrap;
   }
 
   .style-value {
-    min-width: 32px;
-    font-size: 12px;
+    @apply min-w-[32px] text-xs text-right whitespace-nowrap;
     color: #475467;
-    text-align: right;
-    white-space: nowrap;
   }
 
   .style-divider {
-    width: 1px;
-    height: 22px;
+    @apply w-px h-[22px];
     background: rgb(16 24 40 / 10%);
   }
 
   .opacity-slider {
-    width: 72px;
-    height: 4px;
+    @apply w-[72px] h-1 cursor-pointer rounded-full outline-none;
     appearance: none;
-    cursor: pointer;
     background: linear-gradient(
       to right,
       var(--opacity-color) 0,
@@ -665,39 +602,28 @@ defineExpose({
       rgb(208 213 221 / 76%) var(--opacity-progress),
       rgb(208 213 221 / 76%) 100%
     );
-    border-radius: 999px;
-    outline: none;
 
     &::-webkit-slider-thumb {
-      width: 13px;
-      height: 13px;
+      @apply w-[13px] h-[13px] cursor-pointer rounded-full;
       appearance: none;
-      cursor: pointer;
       background: var(--opacity-color);
       border: 2px solid #fff;
-      border-radius: 50%;
       box-shadow: 0 1px 4px rgb(16 24 40 / 24%);
     }
 
     &::-moz-range-track {
-      height: 4px;
-      background: transparent;
-      border-radius: 999px;
+      @apply h-1 bg-transparent rounded-full;
     }
 
     &::-moz-range-progress {
-      height: 4px;
+      @apply h-1 rounded-full;
       background: var(--opacity-color);
-      border-radius: 999px;
     }
 
     &::-moz-range-thumb {
-      width: 11px;
-      height: 11px;
-      cursor: pointer;
+      @apply w-[11px] h-[11px] cursor-pointer rounded-full;
       background: var(--opacity-color);
       border: 2px solid #fff;
-      border-radius: 50%;
       box-shadow: 0 1px 4px rgb(16 24 40 / 24%);
     }
 
@@ -707,40 +633,27 @@ defineExpose({
   }
 
   .custom-color-wrapper {
-    position: relative;
-    display: flex;
+    @apply relative flex;
 
     .color-input-hidden {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      width: 100%;
-      height: 100%;
-      cursor: pointer;
-      opacity: 0;
+      @apply absolute inset-0 z-[1] w-full h-full cursor-pointer opacity-0;
     }
   }
 
   .custom-color-btn {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    @apply relative flex items-center justify-center pointer-events-none;
     color: #344054;
-    pointer-events: none;
     background: conic-gradient(#f04438, #fdb022, #12b76a, #2e90fa, #7a5af8, #f04438);
 
     &::before {
-      position: absolute;
-      inset: 3px;
+      @apply absolute inset-[3px];
       content: '';
       background: #fff;
-      border-radius: 50%;
+      @apply rounded-full;
     }
 
     svg {
-      position: relative;
-      z-index: 1;
+      @apply relative z-[1];
     }
   }
 }

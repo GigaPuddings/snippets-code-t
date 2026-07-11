@@ -696,45 +696,33 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .screenshot-container {
-  @apply h-screen w-screen fixed inset-0 select-none;
-  z-index: 9999;
-  overflow: hidden;
+  @apply h-screen w-screen fixed inset-0 select-none z-[9999] overflow-hidden;
 }
 
 .mask-layers {
-  @apply absolute inset-0 pointer-events-none;
-  z-index: 1;
+  @apply absolute inset-0 pointer-events-none z-[1];
 }
 
 .mask-full {
-  @apply absolute inset-0 pointer-events-none;
-  z-index: 1;
+  @apply absolute inset-0 pointer-events-none z-[1];
 }
 
 .mask-top,
 .mask-bottom,
 .mask-left,
 .mask-right {
-  @apply absolute pointer-events-none;
-  background: rgba(0, 0, 0, 0.52);
+  @apply absolute pointer-events-none bg-black/[0.52];
 }
 
 .drawing-canvas {
-  @apply absolute inset-0 cursor-crosshair touch-none select-none;
-  z-index: 2;
+  @apply absolute inset-0 cursor-crosshair touch-none select-none z-[2];
 }
 
 .size-info {
   @apply absolute pointer-events-none z-10;
 
-  .size-text {
-    @apply text-sm font-medium whitespace-nowrap;
-    min-width: 60px;
-    padding: 4px 7px;
-    color: #fff;
-    background: rgb(16 24 40 / 82%);
-    border: 1px solid rgb(255 255 255 / 16%);
-    border-radius: 4px;
+    .size-text {
+    @apply text-sm font-medium whitespace-nowrap min-w-[60px] py-1 px-[7px] text-white bg-[rgb(16_24_40/82%)] border border-white/15 rounded;
     backdrop-filter: blur(8px);
     box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
   }
@@ -747,25 +735,16 @@ onUnmounted(() => {
 .text-input-container {
   @apply absolute z-20;
 
-  &::after {
-    position: absolute;
-    inset: -4px;
-    pointer-events: none;
+    &::after {
+    @apply absolute -inset-1 pointer-events-none rounded;
     content: '';
     border: 1px dashed color-mix(in srgb, var(--text-accent-color) 78%, transparent);
-    border-radius: 4px;
   }
 
   .text-input {
-    display: block;
-    min-width: 136px;
-    padding: 0;
-    margin: 0;
+    @apply block min-w-[136px] p-0 m-0 bg-transparent border-0 outline-none;
     color: var(--text-accent-color);
     caret-color: var(--text-accent-color);
-    background: transparent;
-    border: 0;
-    outline: none;
     box-shadow: none;
 
     &::placeholder {
@@ -800,8 +779,7 @@ onUnmounted(() => {
         }
 
         .value {
-          @apply font-mono text-panel cursor-pointer hover:bg-panel-hover-bg px-1 rounded;
-          font-size: 12px;
+          @apply font-mono text-panel cursor-pointer hover:bg-panel-hover-bg px-1 rounded text-xs;
         }
       }
     }
@@ -814,16 +792,12 @@ onUnmounted(() => {
 
 // 避免在拖拽时选中文本
 * {
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
+  @apply select-none;
 }
 
 // 加载提示
 .loading-overlay {
-  @apply absolute inset-0 z-50 flex flex-col items-center justify-center;
-  background: rgba(0, 0, 0, 0.8);
+  @apply absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80;
   
   .loading-spinner {
     @apply w-12 h-12 border-4 border-white border-t-transparent rounded-full;

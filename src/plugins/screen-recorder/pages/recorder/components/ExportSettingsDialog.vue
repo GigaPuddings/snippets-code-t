@@ -118,20 +118,16 @@ const choosePath = async () => {
 
 <style scoped lang="scss">
 .export-form {
-  display: grid;
-  gap: 16px;
+  @apply grid gap-4 text-[13px];
 
   label {
-    display: grid;
-    gap: 8px;
+    @apply grid gap-2;
     color: var(--el-text-color-regular);
-    font-size: 13px;
   }
 }
 
 .path-row {
-  display: grid;
+  @apply grid gap-2;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
 }
 </style>

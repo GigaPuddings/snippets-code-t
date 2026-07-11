@@ -7,28 +7,16 @@
 
 <style scoped lang="scss">
 .export-progress {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  z-index: 12;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-  color: #1e2a3a;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(210, 217, 226, 0.9);
-  border-radius: 7px;
-  box-shadow: 0 14px 30px rgba(20, 35, 61, 0.18);
-  transform: translate(-50%, -50%);
+  @apply fixed left-1/2 top-1/2 z-[12] flex items-center gap-3 py-3.5 px-[18px] rounded-md shadow-recorder-overlay -translate-x-1/2 -translate-y-1/2;
+  background: var(--recorder-overlay-bg);
+  border: 1px solid var(--recorder-overlay-border);
+  color: var(--recorder-text);
 }
 
 .spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #d5e2f6;
-  border-top-color: #2f82ff;
-  border-radius: 50%;
+  @apply w-[18px] h-[18px] rounded-full;
+  border: 2px solid color-mix(in srgb, var(--recorder-blue) 24%, transparent);
+  border-top-color: var(--recorder-blue);
   animation: spin 0.8s linear infinite;
 }
 

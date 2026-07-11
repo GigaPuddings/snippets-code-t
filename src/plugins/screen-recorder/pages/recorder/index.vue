@@ -1535,114 +1535,55 @@ onUnmounted(() => {
 }
 
 .screen-recorder {
-  --recorder-bg: color-mix(in srgb, var(--panel-bg) 96%, transparent);
-  --recorder-soft-bg: color-mix(
-    in srgb,
-    var(--panel-hover-bg) 72%,
-    transparent
-  );
-  --recorder-input-bg: color-mix(
-    in srgb,
-    var(--search-input-bg) 86%,
-    transparent
-  );
-  --recorder-border: color-mix(in srgb, var(--panel-border) 92%, transparent);
-  --recorder-text: var(--panel-text);
-  --recorder-muted: var(--panel-text-secondary);
-  --recorder-accent: var(--el-color-primary);
-
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
-  color: var(--recorder-text);
-  background: transparent;
-  user-select: none;
+  @apply fixed inset-0 overflow-hidden select-none text-recorder bg-transparent;
 }
 
 .recorder-shell {
-  position: relative;
-  display: grid;
+  @apply relative w-screen h-screen border border-recorder box-border;
   grid-template-rows: 34px minmax(110px, 1fr) minmax(46px, auto);
-  width: 100vw;
-  height: 100vh;
-  border: 1px solid var(--recorder-border);
-  box-sizing: border-box;
   box-shadow: var(--dialog-shadow);
 }
 
 .title-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 34px;
-  padding: 0 6px 0 12px;
-  background: var(--recorder-bg);
-  border-bottom: 1px solid var(--recorder-border);
-  border-radius: 6px 6px 0 0;
-  cursor: move;
+  @apply flex items-center justify-between h-[34px] py-0 pl-3 pr-1.5 bg-recorder-bg border-b border-recorder rounded-t-md cursor-move;
 }
 
 .window-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply flex-1 min-w-0 overflow-hidden text-[13px] font-[650] text-ellipsis whitespace-nowrap;
 }
 
 .window-actions {
-  display: flex;
-  height: 100%;
-  align-items: center;
-  gap: 4px;
-  margin-left: 8px;
+  @apply flex h-full items-center gap-1 ml-2;
 }
 
 .title-button {
-  width: 30px;
-  height: 28px;
-  color: var(--recorder-muted);
-  background: transparent;
-  border: 0;
-  border-radius: 4px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  @apply w-[30px] h-7 text-recorder-muted bg-transparent border-0 rounded cursor-pointer inline-flex items-center justify-center leading-none;
   transition:
     background-color 0.16s ease,
     color 0.16s ease;
 
   &:hover {
-    color: var(--recorder-accent);
+    @apply text-recorder-accent;
     background: color-mix(in srgb, var(--recorder-accent) 12%, transparent);
   }
 
   &--close:hover {
-    color: #ef4444;
-    background: rgba(239, 68, 68, 0.1);
+    @apply text-red-500;
+    background: rgb(239 68 68 / 10%);
   }
 }
 
 .title-icon {
-  display: block;
+  @apply block;
 }
 
 .capture-viewport {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  background: transparent;
+  @apply relative min-w-0 min-h-0 bg-transparent;
 }
 
 .viewport-mask {
-  position: absolute;
-  z-index: 1;
+  @apply absolute z-[1] pointer-events-auto;
   background: color-mix(in srgb, var(--panel-bg) 78%, transparent);
-  pointer-events: auto;
 
   &.top,
   &.bottom {
@@ -1676,23 +1617,15 @@ onUnmounted(() => {
 }
 
 .capture-frame {
-  position: absolute;
-  inset: 6px;
-  z-index: 2;
-  background: transparent;
+  @apply absolute inset-1.5 z-[2] bg-transparent;
 }
 
 .capture-hole {
-  position: absolute;
-  inset: 1px;
-  background: transparent;
+  @apply absolute inset-px bg-transparent;
 }
 
 .viewport-border {
-  position: absolute;
-  z-index: 3;
-  pointer-events: none;
-  background: var(--recorder-border);
+  @apply absolute z-[3] pointer-events-none bg-recorder-border;
 
   &.top,
   &.bottom {
@@ -1726,31 +1659,13 @@ onUnmounted(() => {
 }
 
 .control-strip {
+  @apply flex items-center justify-between gap-2 min-w-0 min-h-[46px] overflow-hidden py-1.5 px-2 bg-recorder-bg border-t border-recorder box-border;
   container-type: inline-size;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  min-height: 46px;
-  overflow: hidden;
-  padding: 6px 8px;
-  background: var(--recorder-bg);
-  border-top: 1px solid var(--recorder-border);
-  box-sizing: border-box;
 }
 
 .top-control-strip {
-  display: flex;
-  flex: 0 1 auto;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  min-width: 0;
+  @apply flex flex-initial items-center justify-end gap-1.5 min-w-0 h-full ml-2 overflow-hidden;
   max-width: min(58vw, 360px);
-  height: 100%;
-  margin-left: 8px;
-  overflow: hidden;
 
   .save-status {
     max-width: 110px;
@@ -1905,18 +1820,13 @@ onUnmounted(() => {
 select,
 input,
 button {
-  height: 28px;
-  box-sizing: border-box;
+  @apply h-7 box-border;
   font: inherit;
 }
 
 select,
 input {
-  color: var(--recorder-text);
-  background: var(--recorder-input-bg);
-  border: 1px solid var(--recorder-border);
-  border-radius: 5px;
-  outline: none;
+  @apply text-recorder bg-recorder-input border border-recorder rounded-[5px] outline-none;
 }
 
 select {
@@ -1931,19 +1841,11 @@ select {
 
 .select-field,
 .dimension-group {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
+  @apply inline-flex flex-none items-center gap-1.5 min-w-0;
 }
 
 .select-field {
-  gap: 4px;
-  padding: 2px 6px 2px 2px;
-  background: var(--recorder-soft-bg);
-  border: 1px solid var(--recorder-border);
-  border-radius: 6px;
+  @apply gap-1 py-0.5 px-1.5 pl-0.5 bg-recorder-soft border border-recorder rounded-md;
 }
 
 .dimension input {
@@ -1956,23 +1858,16 @@ select {
 .multiply,
 .time,
 .save-status {
-  color: var(--recorder-text);
-  font-size: 12px;
-  white-space: nowrap;
+  @apply text-recorder text-xs whitespace-nowrap;
 }
 
 .time {
-  min-width: 44px;
+  @apply min-w-[44px] font-semibold text-center;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  text-align: center;
 }
 
 .save-status {
-  overflow: hidden;
-  max-width: 96px;
-  color: var(--recorder-muted);
-  text-overflow: ellipsis;
+  @apply overflow-hidden max-w-[96px] text-recorder-muted text-ellipsis;
 }
 
 .export-progress {
@@ -1984,43 +1879,24 @@ select {
 }
 
 .export-progress__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  color: var(--recorder-muted);
-  font-size: 12px;
-  line-height: 1;
+  @apply flex items-center justify-between gap-2 min-w-0 text-recorder-muted text-xs leading-none;
 
   span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    @apply overflow-hidden text-ellipsis whitespace-nowrap;
   }
 
   strong {
-    flex: 0 0 auto;
-    color: #b42318;
-    font-size: 12px;
-    font-weight: 700;
+    @apply flex-none text-recorder-red text-xs font-bold;
     font-variant-numeric: tabular-nums;
   }
 }
 
 .export-progress__track {
-  position: relative;
-  height: 5px;
-  overflow: hidden;
-  background: var(--recorder-soft-bg);
-  border-radius: 999px;
+  @apply relative h-[5px] overflow-hidden bg-recorder-soft rounded-full;
 
   span {
-    position: absolute;
-    inset: 0 auto 0 0;
-    min-width: 5px;
-    background: linear-gradient(90deg, #ef4444, #b42318);
-    border-radius: inherit;
+    @apply absolute top-0 right-auto bottom-0 left-0 min-w-[5px] rounded-[inherit];
+    background: linear-gradient(90deg, #ef4444, var(--recorder-red));
     transition: width 160ms ease;
   }
 }
@@ -2029,22 +1905,10 @@ select {
 .control-button,
 .icon-control,
 .audio-meter {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 0 8px;
-  color: var(--recorder-text);
-  background: var(--recorder-soft-bg);
-  border: 1px solid var(--recorder-border);
-  border-radius: 6px;
-  cursor: pointer;
-  overflow: hidden;
-  white-space: nowrap;
+  @apply inline-flex items-center justify-center gap-1.5 min-w-0 px-2 text-recorder bg-recorder-soft border border-recorder rounded-md cursor-pointer overflow-hidden whitespace-nowrap;
 
   &:hover {
-    background: var(--panel-hover-bg);
+    @apply bg-panel-hover-bg;
     border-color: color-mix(
       in srgb,
       var(--recorder-accent) 38%,
@@ -2053,64 +1917,45 @@ select {
   }
 
   &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
+    @apply cursor-not-allowed opacity-50;
   }
 }
 
 .tool-pill {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  overflow: hidden;
-  background: var(--recorder-soft-bg);
-  border: 1px solid var(--recorder-border);
-  border-radius: 7px;
+  @apply inline-flex flex-none items-center overflow-hidden bg-recorder-soft border border-recorder rounded-[7px];
 }
 
 .icon-control {
-  min-width: 30px;
-  width: 30px;
-  padding: 0;
-  line-height: 1;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
+  @apply min-w-[30px] w-[30px] p-0 leading-none bg-transparent border-0 rounded-none;
 }
 
 .snap-control {
-  border-right: 1px solid var(--recorder-border);
+  @apply border-r border-recorder;
 }
 
 .audio-meter {
-  width: 34px;
-  min-width: 34px;
-  padding: 0;
-  color: var(--recorder-muted);
-  background: transparent;
-  border: 0;
-  border-radius: 0;
+  @apply w-[34px] min-w-[34px] p-0 text-recorder-muted bg-transparent border-0 rounded-none;
 
   &.audio-on,
   &.active {
-    color: #16a34a;
-    background: color-mix(in srgb, #16a34a 14%, transparent);
+    @apply text-recorder-green;
+    background: color-mix(in srgb, var(--recorder-green) 14%, transparent);
   }
 
   &.metering:not(.active) {
-    color: var(--recorder-text);
+    @apply text-recorder;
   }
 
   &.muted {
-    opacity: 0.55;
+    @apply opacity-[0.55];
   }
 }
 
 .cursor-control {
-  border-left: 1px solid var(--recorder-border);
+  @apply border-l border-recorder;
 
   &.active {
-    color: var(--recorder-accent);
+    @apply text-recorder-accent;
     background: color-mix(in srgb, var(--recorder-accent) 13%, transparent);
   }
 }
@@ -2146,43 +1991,31 @@ select {
 }
 
 .record-button {
-  flex: 0 0 auto;
-  min-width: 96px;
-  max-width: 150px;
-  height: 32px;
-  padding: 0 12px;
-  color: #fff;
-  background: #b42318;
-  border-color: rgba(180, 35, 24, 0.85);
+  @apply flex-none min-w-[96px] max-w-[150px] h-8 px-3 text-white bg-recorder-red;
+  border-color: color-mix(in srgb, var(--recorder-red) 85%, transparent);
 
   &:hover {
-    background: #a11f16;
-    border-color: #a11f16;
+    background: var(--recorder-red-hover);
+    border-color: var(--recorder-red-hover);
   }
 }
 
 .control-button {
-  flex: 0 0 auto;
-  min-width: 44px;
-  max-width: 70px;
+  @apply flex-none min-w-[44px] max-w-[70px];
 }
 
 .button-label,
 .record-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  @apply overflow-hidden text-ellipsis;
 }
 
 .record-dot {
-  flex: 0 0 auto;
-  width: 9px;
-  height: 9px;
+  @apply flex-none w-[9px] h-[9px] rounded-full;
   background: currentcolor;
-  border-radius: 50%;
 }
 
 .control-button.danger {
-  color: #b42318;
+  @apply text-recorder-red;
 }
 
 @container (max-width: 720px) {
@@ -2298,23 +2131,14 @@ select {
 }
 
 .warning {
-  position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: 54px;
-  margin: 0;
-  padding: 8px 10px;
+  @apply fixed left-3 right-3 bottom-[54px] m-0 py-2 px-2.5 rounded text-xs;
   color: #b45309;
   background: color-mix(in srgb, #f59e0b 13%, var(--panel-bg));
   border: 1px solid color-mix(in srgb, #f59e0b 38%, var(--panel-border));
-  border-radius: 4px;
-  font-size: 12px;
 }
 
 .resize-zone {
-  position: absolute;
-  z-index: 10;
-  display: block;
+  @apply absolute z-[10] block;
 }
 
 .resize-zone.n,
