@@ -1523,26 +1523,31 @@ export class ScreenshotManager {
     const { x, y, width, height } = this.selectionRect
     const padding = 8
 
-    // 如果正在加载，显示加载状态
+    // 如果正在加载，显示加载状态（AI 翻译区分启动服务和翻译中两个阶段）
     if (this.translationOverlay.isLoading) {
       const centerX = x + width / 2
       const centerY = y + height / 2
-      
+
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
       ctx.fillRect(x, y, width, height)
-      
+
       ctx.font = '16px "Microsoft YaHei", sans-serif'
       ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(
-        this.translationOverlay.engine === 'local-ai'
-          ? '正在由 AI 识图翻译...'
-          : '正在识别翻译...',
-        centerX,
-        centerY
-      )
-      
+
+      // 根据引擎和阶段显示不同的提示文字
+      let loadingText = '正在识别翻译...'
+      if (this.translationOverlay.engine === 'local-ai') {
+        if (this.translationOverlay.loadingStage === 'starting-service') {
+          loadingText = '正在启动 AI 模型服务...'
+        } else {
+          loadingText = '正在由 AI 识图翻译...'
+        }
+      }
+
+      ctx.fillText(loadingText, centerX, centerY)
+
       ctx.restore()
       return
     }
@@ -3647,10 +3652,21 @@ export class ScreenshotManager {
 
     try {
       const { x, y, width, height } = this.selectionRect
+
+      // 阶段1：启动 AI 模型服务
+      this.translationOverlay.loadingStage = 'starting-service'
+      this.draw()
+      this.onStateChange?.()
+
       const capture = await this.cropFromBackground(x, y, width, height)
       if (!capture?.image) {
         throw new Error('无法获取截图选区图像')
       }
+
+      // 阶段2：正在由 AI 识别并翻译
+      this.translationOverlay.loadingStage = 'translating'
+      this.draw()
+      this.onStateChange?.()
 
       const response = await chatWithLocalAi({
         temperature: 0.2,
@@ -3690,32 +3706,67 @@ export class ScreenshotManager {
         throw new Error('AI 未返回可显示的翻译结果')
       }
 
-      const block: OcrTextBlock = {
+      // 按自然段（双换行）分割翻译结果，实现多栏布局排版
+      const baseFontSize = Math.max(14, Math.min(20, Math.round(height / 18)))
+      const baseLineHeight = Math.max(18, Math.min(28, Math.round(height / 12)))
+      const paragraphRawTexts = translatedText.split(/\n\n+/).filter((p) => p.trim())
+      const paragraphCount = Math.max(paragraphRawTexts.length, 1)
+      // 每个段落均分可用高度
+      const paraHeight = (height - 16) / paragraphCount
+
+      const paragraphBlocks: ParagraphBlock[] = paragraphRawTexts.map((paraText, index) => {
+        const paraY = index * paraHeight + 8
+        const actualParaHeight = index === paragraphCount - 1 ? height - paraY - 8 : paraHeight
+        const block: OcrTextBlock = {
+          text: '',
+          translatedText: paraText.trim(),
+          x: 0,
+          y: paraY,
+          width,
+          height: actualParaHeight,
+          fontSize: baseFontSize,
+          lineHeight: baseLineHeight,
+          angle: 0
+        }
+        return {
+          text: '',
+          translatedText: paraText.trim(),
+          blocks: [block],
+          bbox: { x: 0, y: paraY, width, height: actualParaHeight },
+          isCodeBlock: false,
+          isStructuredBlock: false,
+          fontSize: baseFontSize,
+          lineHeight: baseLineHeight,
+          angle: 0
+        }
+      })
+
+      // 如果分割后没有段落（理论上不会发生），回退到单一段落
+      const finalParagraphBlocks = paragraphBlocks.length > 0 ? paragraphBlocks : [{
         text: '',
         translatedText,
-        x: 0,
-        y: 0,
-        width,
-        height,
-        fontSize: Math.max(14, Math.min(20, Math.round(height / 18))),
-        lineHeight: Math.max(18, Math.min(28, Math.round(height / 12))),
-        angle: 0
-      }
-      this.translationOverlay.blocks = [block]
-      this.translationOverlay.paragraphBlocks = [{
-        text: '',
-        translatedText,
-        blocks: [block],
+        blocks: [{
+          text: '',
+          translatedText,
+          x: 0, y: 0, width, height,
+          fontSize: baseFontSize,
+          lineHeight: baseLineHeight,
+          angle: 0
+        }],
         bbox: { x: 0, y: 0, width, height },
         isCodeBlock: false,
         isStructuredBlock: false,
-        fontSize: block.fontSize,
-        lineHeight: block.lineHeight,
+        fontSize: baseFontSize,
+        lineHeight: baseLineHeight,
         angle: 0
       }]
+
+      this.translationOverlay.blocks = finalParagraphBlocks.map((pb) => pb.blocks[0])
+      this.translationOverlay.paragraphBlocks = finalParagraphBlocks
       this.translationOverlay.sourceLanguage = 'auto'
       this.translationOverlay.targetLanguage = 'zh'
       this.translationOverlay.isLoading = false
+      this.translationOverlay.loadingStage = undefined
       this.translationOverlay.isVisible = true
       this.translationOverlay.errorMessage = undefined
       this.draw()
@@ -3724,6 +3775,7 @@ export class ScreenshotManager {
       const message = error instanceof Error ? error.message : String(error)
       logger.error('[截图] AI 识图翻译失败', error)
       this.translationOverlay.isLoading = false
+      this.translationOverlay.loadingStage = undefined
       this.translationOverlay.isVisible = true
       this.translationOverlay.blocks = []
       this.translationOverlay.paragraphBlocks = []

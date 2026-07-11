@@ -74,11 +74,16 @@ export interface SampledColor {
   brightness: number  // 0-255，亮度值
 }
 
+// AI 翻译加载阶段，用于展示分步进度提示
+export type AiTranslationLoadingStage = 'starting-service' | 'translating'
+
 export interface TranslationOverlay {
   blocks: OcrTextBlock[]
   paragraphBlocks?: import('./OcrLayoutReflow').ParagraphBlock[]
   isVisible: boolean
   isLoading: boolean
+  /** AI 翻译（local-ai）的加载阶段：starting-service=启动模型服务, translating=正在翻译 */
+  loadingStage?: AiTranslationLoadingStage
   errorMessage?: string
   sourceLanguage: string
   targetLanguage: string

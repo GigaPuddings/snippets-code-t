@@ -58,7 +58,7 @@ fn validate_recording_region(region: &RecordingRegion) -> Result<(), String> {
         return Err("录制区域太小，请重新选择录制区域".to_string());
     }
 
-    if region.physical_width % 2 != 0 || region.physical_height % 2 != 0 {
+    if !region.physical_width.is_multiple_of(2) || !region.physical_height.is_multiple_of(2) {
         return Err("录制区域尺寸必须为偶数，请重新选择录制区域".to_string());
     }
 
