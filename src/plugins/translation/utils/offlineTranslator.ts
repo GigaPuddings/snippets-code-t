@@ -205,9 +205,9 @@ async function getTranslator(): Promise<TranslationPipeline> {
 
   initPromise = (async () => {
     try {
-      // 确保允许使用缓存
-      const { pipeline, env } = await loadTransformersModule()
-      configureTransformersEnvironment(env)
+      // loadTransformersModule 内部已调用 configureTransformersEnvironment(env, runtimeUrl)
+      // 完成 wasmPaths 等全部环境配置，此处无需重复调用
+      const { pipeline } = await loadTransformersModule()
       
       let lastLoggedFile = ''
       
