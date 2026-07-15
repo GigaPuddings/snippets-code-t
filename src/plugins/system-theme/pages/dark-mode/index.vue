@@ -28,7 +28,7 @@
     </div>
 
     <!-- 主要内容 -->
-    <div class="content mx-auto max-w-xl px-4 pt-14 pb-4">
+    <div class="content mx-auto max-w-[640px] px-4 pt-[58px] pb-5">
       <!-- 主题模式选择（四选一） -->
       <div class="section">
         <h2 class="section-title">{{ $t('darkMode.themeMode') }}</h2>
@@ -117,52 +117,64 @@
       </div>
 
       <!-- 当前状态卡片（始终显示） -->
-      <div class="section">
+      <div class="section section-status">
         <div class="status-card">
-          <div class="status-row">
-            <span class="status-label">{{ $t('darkMode.currentTheme') }}</span>
-            <span
-              class="status-badge"
-              :class="currentTheme ? 'badge-dark' : 'badge-light'"
+          <div class="status-main">
+            <div class="status-current">
+              <span
+                class="status-orb"
+                :class="currentTheme ? 'status-orb-dark' : 'status-orb-light'"
+              >
+                <Moon v-if="currentTheme" theme="filled" :size="18" />
+                <SunOne v-else theme="filled" :size="18" />
+              </span>
+              <div class="status-copy">
+                <span class="status-label">
+                  {{ $t('darkMode.currentTheme') }}
+                </span>
+                <span class="status-value">
+                  {{
+                    currentTheme
+                      ? $t('darkMode.darkTheme')
+                      : $t('darkMode.lightTheme')
+                  }}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              @click="toggleThemeManually"
+              class="btn-primary status-action"
             >
-              {{
-                currentTheme
-                  ? $t('darkMode.darkTheme')
-                  : $t('darkMode.lightTheme')
-              }}
-            </span>
+              {{ $t('darkMode.manualToggle') }}
+            </button>
           </div>
-          <div v-if="config.theme_mode === 'Schedule'" class="status-row">
-            <span class="status-label">
-              {{ $t('darkMode.schedulerStatus') }}
-            </span>
-            <span
-              class="status-badge"
-              :class="schedulerRunning ? 'badge-success' : 'badge-danger'"
-            >
+          <div class="status-meta">
+            <div v-if="config.theme_mode === 'Schedule'" class="status-row">
+              <span class="status-label">
+                {{ $t('darkMode.schedulerStatus') }}
+              </span>
+              <span
+                class="status-badge"
+                :class="schedulerRunning ? 'badge-success' : 'badge-danger'"
+              >
+                {{
+                  schedulerRunning
+                    ? $t('darkMode.running')
+                    : $t('darkMode.stopped')
+                }}
+              </span>
+            </div>
+            <p v-if="config.theme_mode !== 'Schedule'" class="status-hint">
               {{
-                schedulerRunning
-                  ? $t('darkMode.running')
-                  : $t('darkMode.stopped')
+                config.theme_mode === 'System'
+                  ? $t('darkMode.systemModeDesc')
+                  : config.theme_mode === 'Light'
+                    ? $t('darkMode.lightModeDesc')
+                    : $t('darkMode.darkModeDesc')
               }}
-            </span>
+            </p>
           </div>
-          <p v-if="config.theme_mode !== 'Schedule'" class="status-hint">
-            {{
-              config.theme_mode === 'System'
-                ? $t('darkMode.systemModeDesc')
-                : config.theme_mode === 'Light'
-                  ? $t('darkMode.lightModeDesc')
-                  : $t('darkMode.darkModeDesc')
-            }}
-          </p>
-          <button
-            type="button"
-            @click="toggleThemeManually"
-            class="btn-primary"
-          >
-            {{ $t('darkMode.manualToggle') }}
-          </button>
         </div>
       </div>
 
@@ -279,7 +291,7 @@
                 <span class="sun-value">{{ sunTimes.sunset }}</span>
               </div>
             </div>
-            <div class="sun-divider" />
+            <div class="sun-divider"></div>
             <div class="sun-row sun-period">
               <span class="sun-label">{{ $t('darkMode.currentPeriod') }}</span>
               <span
@@ -682,106 +694,105 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 // ==================== 主题变量 ====================
 .dark-mode-container {
-  // 浅色（默认）
-  --dm-bg: #fafafa;
-  --dm-card: #ffffff;
-  --dm-inset: #f1f5f9;
-  --dm-status: #f8fafc;
-  --dm-hover: #f1f5f9;
-  --dm-text: #1e293b;
-  --dm-text-secondary: #64748b;
-  --dm-text-value: #334155;
-  --dm-border: #e5e7eb;
-  --dm-border-soft: #e2e8f0;
-  --dm-border-hover: #cbd5e1;
-  --dm-accent: #6366f1;
-  --dm-accent-hover: #4f46e5;
-  --dm-accent-soft: rgba(99, 102, 241, 0.08);
-  --dm-accent-ring: rgba(99, 102, 241, 0.2);
-  --dm-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --dm-close-hover-fg: #475569;
-
-  --dm-slate-bg: #f1f5f9;
-  --dm-slate-fg: #64748b;
-  --dm-amber-bg: #fef3c7;
-  --dm-amber-fg: #b45309;
-  --dm-indigo-bg: #e0e7ff;
-  --dm-indigo-fg: #4f46e5;
-  --dm-indigo-title-bg: #e0e7ff;
-  --dm-indigo-title-fg: #4f46e5;
-  --dm-teal-bg: #ccfbf1;
-  --dm-teal-fg: #0d9488;
-  --dm-emerald-bg: #d1fae5;
-  --dm-emerald-fg: #047857;
-  --dm-red-bg: #fee2e2;
-  --dm-red-fg: #b91c1c;
-
-  --dm-sun: #f59e0b;
-  --dm-period-day: #d97706;
-  --dm-period-night: #7c3aed;
-  --dm-btn-bg: #6366f1;
-  --dm-btn-hover-bg: #4f46e5;
-  --dm-btn-fg: #ffffff;
+  --dm-bg: color-mix(in srgb, var(--panel-bg) 88%, var(--panel-hover-bg));
+  --dm-card: var(--dialog-bg);
+  --dm-inset: color-mix(in srgb, var(--panel-hover-bg) 74%, var(--panel-bg));
+  --dm-status: color-mix(in srgb, var(--panel-bg) 80%, var(--panel-hover-bg));
+  --dm-hover: var(--panel-hover-bg);
+  --dm-text: var(--panel-text);
+  --dm-text-secondary: var(--panel-text-secondary);
+  --dm-text-value: var(--dialog-text);
+  --dm-border: color-mix(in srgb, var(--panel-border) 92%, transparent);
+  --dm-border-soft: color-mix(in srgb, var(--panel-border) 72%, transparent);
+  --dm-border-hover: color-mix(
+    in srgb,
+    var(--el-color-primary) 42%,
+    var(--panel-border)
+  );
+  --dm-accent: var(--el-color-primary);
+  --dm-accent-hover: var(--el-color-primary-dark-2);
+  --dm-accent-soft: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    transparent
+  );
+  --dm-accent-ring: color-mix(
+    in srgb,
+    var(--el-color-primary) 24%,
+    transparent
+  );
+  --dm-shadow: 0 12px 28px rgb(39 76 119 / 8%), 0 2px 8px rgb(26 43 63 / 5%);
+  --dm-close-hover-fg: var(--panel-text);
+  --dm-slate-bg: color-mix(in srgb, var(--panel-hover-bg) 78%, var(--panel-bg));
+  --dm-slate-fg: var(--panel-text-secondary);
+  --dm-amber-bg: color-mix(
+    in srgb,
+    var(--el-color-warning) 16%,
+    var(--panel-bg)
+  );
+  --dm-amber-fg: var(--el-color-warning);
+  --dm-indigo-bg: color-mix(
+    in srgb,
+    var(--el-color-primary) 14%,
+    var(--panel-bg)
+  );
+  --dm-indigo-fg: var(--el-color-primary-dark-2);
+  --dm-indigo-title-bg: color-mix(
+    in srgb,
+    var(--el-color-primary) 16%,
+    var(--panel-bg)
+  );
+  --dm-indigo-title-fg: var(--el-color-primary);
+  --dm-teal-bg: color-mix(
+    in srgb,
+    var(--el-color-success) 16%,
+    var(--panel-bg)
+  );
+  --dm-teal-fg: var(--el-color-success);
+  --dm-emerald-bg: color-mix(
+    in srgb,
+    var(--el-color-success) 16%,
+    var(--panel-bg)
+  );
+  --dm-emerald-fg: var(--el-color-success);
+  --dm-red-bg: color-mix(in srgb, var(--el-color-danger) 14%, var(--panel-bg));
+  --dm-red-fg: var(--el-color-danger);
+  --dm-sun: var(--el-color-warning);
+  --dm-period-day: var(--el-color-warning);
+  --dm-period-night: var(--el-color-primary);
+  --dm-btn-bg: var(--el-color-primary);
+  --dm-btn-hover-bg: var(--el-color-primary-dark-2);
+  --dm-btn-fg: var(--categories-text-color-active);
 
   @apply h-dvh overflow-y-auto overflow-x-hidden bg-dm-bg text-dm;
+
   transition:
     background 0.25s ease,
     color 0.25s ease;
 }
 
 .dark-mode-container.dark {
-  --dm-bg: #18181b;
-  --dm-card: #27272a;
-  --dm-inset: #1f1f23;
-  --dm-status: #1f1f23;
-  --dm-hover: #3f3f46;
-  --dm-text: #fafafa;
-  --dm-text-secondary: #a1a1aa;
-  --dm-text-value: #e4e4e7;
-  --dm-border: #3f3f46;
-  --dm-border-soft: #3f3f46;
-  --dm-border-hover: #52525b;
-  --dm-accent: #818cf8;
-  --dm-accent-hover: #4f46e5;
-  --dm-accent-soft: rgba(129, 140, 248, 0.12);
-  --dm-accent-ring: rgba(129, 140, 248, 0.25);
-  --dm-shadow: none;
-  --dm-close-hover-fg: #fafafa;
-
-  --dm-slate-bg: #27272a;
-  --dm-slate-fg: #a1a1aa;
-  --dm-amber-bg: #422006;
-  --dm-amber-fg: #fbbf24;
-  --dm-indigo-bg: #312e81;
-  --dm-indigo-fg: #a5b4fc;
-  --dm-indigo-title-bg: #4338ca;
-  --dm-indigo-title-fg: #c7d2fe;
-  --dm-teal-bg: #134e4a;
-  --dm-teal-fg: #5eead4;
-  --dm-emerald-bg: #064e3b;
-  --dm-emerald-fg: #6ee7b7;
-  --dm-red-bg: #7f1d1d;
-  --dm-red-fg: #fca5a5;
-
-  --dm-sun: #fbbf24;
-  --dm-period-day: #fbbf24;
-  --dm-period-night: #a78bfa;
-  --dm-btn-bg: #6366f1;
-  --dm-btn-hover-bg: #4f46e5;
-  --dm-btn-fg: #ffffff;
+  --dm-bg: color-mix(in srgb, var(--panel-bg) 90%, #000);
+  --dm-card: color-mix(in srgb, var(--dialog-bg) 94%, #000);
+  --dm-inset: color-mix(in srgb, var(--panel-hover-bg) 70%, #000);
+  --dm-status: color-mix(in srgb, var(--panel-hover-bg) 58%, var(--panel-bg));
+  --dm-shadow: 0 14px 30px rgb(0 0 0 / 24%);
+  --dm-btn-fg: var(--categories-text-color-active);
 }
 
 // ==================== 标题栏 ====================
 .title-bar {
   @apply bg-dm-card border-b border-dm rounded-t-[10px];
+
+  backdrop-filter: blur(14px);
 }
 
 .title-icon-wrap {
-  @apply w-[30px] h-[30px] rounded-lg flex items-center justify-center bg-dm-indigo-title text-dm-indigo-title;
+  @apply w-8 h-8 rounded-lg flex items-center justify-center bg-dm-indigo-title text-dm-indigo-title;
 }
 
 .close-btn {
-  @apply w-7 h-7 rounded-md flex items-center justify-center text-dm-secondary transition-colors duration-200;
+  @apply w-8 h-8 rounded-lg flex items-center justify-center text-dm-secondary transition-colors duration-200;
 }
 
 .close-btn:hover {
@@ -790,11 +801,11 @@ onUnmounted(() => {
 
 // ==================== 区块 ====================
 .section {
-  @apply mb-3 p-3.5 rounded-[10px] bg-dm-card border border-dm shadow-dm;
+  @apply mb-3 p-4 rounded-xl bg-dm-card border border-dm shadow-dm;
 }
 
 .section-title {
-  @apply m-0 mb-2.5 text-xs font-semibold tracking-[0.02em] text-dm-secondary uppercase;
+  @apply m-0 mb-3 text-xs font-semibold tracking-[0.04em] text-dm-secondary uppercase;
 }
 
 .section-title-with-icon {
@@ -803,44 +814,67 @@ onUnmounted(() => {
 
 // ==================== 模式卡片 ====================
 .mode-content {
-  @apply flex items-center gap-2.5 py-2.5 px-3 rounded-lg border border-dm bg-dm-bg;
+  @apply relative flex min-h-[88px] items-center gap-3 overflow-hidden rounded-xl border border-dm bg-dm-bg px-3 py-3;
+
   transition:
     border-color 0.2s,
     background 0.2s,
-    box-shadow 0.2s;
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+
+.mode-content::after {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  content: '';
+  background: transparent;
+  border-radius: 999px;
 }
 
 .mode-option:hover .mode-content {
   @apply border-dm-hover;
+
+  transform: translateY(-1px);
 }
 
 .mode-icon-wrap {
-  @apply w-[34px] h-[34px] rounded-lg flex items-center justify-center shrink-0;
+  @apply w-11 h-11 rounded-xl flex items-center justify-center shrink-0;
 }
 
 .mode-system .mode-icon-wrap {
   @apply bg-dm-slate text-dm-slate;
 }
+
 .mode-light .mode-icon-wrap {
   @apply bg-dm-amber text-dm-amber;
 }
+
 .mode-dark .mode-icon-wrap {
   @apply bg-dm-indigo text-dm-indigo;
 }
+
 .mode-schedule .mode-icon-wrap {
   @apply bg-dm-teal text-dm-teal;
 }
 
 .mode-body {
-  @apply flex flex-col gap-0.5 min-w-0;
+  @apply flex min-w-0 flex-col gap-1;
 }
 
 .mode-title {
-  @apply text-[13px] font-semibold text-dm;
+  @apply text-[15px] font-semibold leading-5 text-dm;
 }
 
 .mode-desc {
-  @apply text-[11px] text-dm-secondary;
+  @apply text-xs leading-[1.4] text-dm-secondary;
+
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 // 选中态
@@ -848,68 +882,133 @@ onUnmounted(() => {
   @apply border-dm-accent bg-dm-accent-soft shadow-dm-ring;
 }
 
+.mode-option input:checked + .mode-content::after {
+  background: var(--dm-accent);
+  box-shadow: 0 0 0 4px var(--dm-accent-soft);
+}
+
 // ==================== 定时方式小卡片 ====================
 .schedule-type-card {
-  @apply py-[11px] px-3 rounded-lg border border-dm bg-dm-bg flex flex-col gap-1.5;
+  @apply relative flex min-h-[100px] flex-col gap-2 overflow-hidden rounded-xl border border-dm bg-dm-bg px-4 py-3;
+
   transition:
     border-color 0.2s,
     background 0.2s,
-    box-shadow 0.2s;
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+
+.schedule-type-card::after {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  content: '';
+  background: transparent;
+  border-radius: 999px;
+}
+
+.mode-option:hover .schedule-type-card {
+  @apply border-dm-hover;
+
+  transform: translateY(-1px);
 }
 
 .mode-option input:checked + .schedule-type-card {
   @apply border-dm-accent bg-dm-accent-soft shadow-dm-ring;
 }
 
+.mode-option input:checked + .schedule-type-card::after {
+  background: var(--dm-accent);
+  box-shadow: 0 0 0 4px var(--dm-accent-soft);
+}
+
 .schedule-type-title {
-  @apply text-[13px] font-semibold flex items-center gap-2 text-dm;
+  @apply flex items-center gap-2 pr-5 text-[15px] font-semibold leading-5 text-dm;
 }
 
 .schedule-type-desc {
-  @apply text-[11px] text-dm-secondary;
+  @apply text-xs leading-[1.45] text-dm-secondary;
 }
 
 // ==================== 状态卡片 ====================
+.section-status {
+  @apply p-0 overflow-hidden;
+}
+
 .status-card {
-  @apply p-3 rounded-lg bg-dm-status border border-dm-soft;
+  @apply bg-dm-status;
+}
+
+.status-main {
+  @apply flex items-center justify-between gap-3 p-4;
+}
+
+.status-current {
+  @apply flex min-w-0 items-center gap-3;
+}
+
+.status-orb {
+  @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl;
+}
+
+.status-orb-light {
+  @apply bg-dm-amber text-dm-amber;
+}
+
+.status-orb-dark {
+  @apply bg-dm-indigo text-dm-indigo;
+}
+
+.status-copy {
+  @apply flex min-w-0 flex-col gap-1;
 }
 
 .status-row {
-  @apply flex justify-between items-center mb-[9px];
+  @apply flex items-center justify-between gap-3;
 }
 
-.status-row:last-of-type {
-  @apply mb-0;
+.status-meta {
+  @apply border-t border-dm-soft px-4 py-3;
 }
 
 .status-label {
-  @apply text-xs text-dm-secondary;
+  @apply text-xs leading-4 text-dm-secondary;
+}
+
+.status-value {
+  @apply truncate text-base font-semibold leading-5 text-dm;
 }
 
 .status-badge {
-  @apply text-[11px] font-semibold py-[3px] px-2 rounded-[20px];
+  @apply shrink-0 rounded-full px-2 py-[3px] text-[11px] font-semibold leading-4;
 }
 
 .badge-light {
   @apply bg-dm-amber text-dm-amber;
 }
+
 .badge-dark {
   @apply bg-dm-indigo text-dm-indigo;
 }
+
 .badge-success {
   @apply bg-dm-emerald text-dm-emerald;
 }
+
 .badge-danger {
   @apply bg-dm-red text-dm-red;
 }
 
 .status-hint {
-  @apply text-xs text-dm-secondary mt-[9px] mb-2.5 leading-[1.45];
+  @apply m-0 text-xs leading-[1.55] text-dm-secondary;
 }
 
 // ==================== 按钮 ====================
 .btn-primary {
-  @apply w-full mt-2.5 py-2 px-3 text-xs font-semibold rounded-lg border-0 bg-dm-btn text-dm-btn cursor-pointer;
+  @apply w-full cursor-pointer rounded-lg border-0 bg-dm-btn px-3 py-2 text-xs font-semibold text-dm-btn;
+
   transition:
     background 0.2s,
     opacity 0.2s,
@@ -924,8 +1023,12 @@ onUnmounted(() => {
   @apply scale-[0.99];
 }
 
+.status-action {
+  @apply mt-0 h-9 w-auto shrink-0 px-4;
+}
+
 .btn-secondary {
-  @apply w-full py-2 px-3 text-xs font-medium rounded-lg border border-dm bg-dm-card text-dm-value cursor-pointer transition-colors duration-200;
+  @apply w-full cursor-pointer rounded-lg border border-dm bg-dm-card px-3 py-2 text-xs font-medium text-dm-value transition-colors duration-200;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -942,15 +1045,15 @@ onUnmounted(() => {
 
 // ==================== 内嵌卡片 ====================
 .inset-card {
-  @apply p-3 rounded-lg bg-dm-inset border border-dm-soft;
+  @apply rounded-xl border border-dm-soft bg-dm-inset p-3;
 }
 
 .loading-hint {
-  @apply text-center text-xs text-dm-secondary italic;
+  @apply text-center text-xs italic text-dm-secondary;
 }
 
 .info-row {
-  @apply flex justify-between items-center mb-2 text-xs;
+  @apply mb-2 flex items-start justify-between gap-4 text-xs;
 }
 
 .info-row:last-of-type {
@@ -958,16 +1061,16 @@ onUnmounted(() => {
 }
 
 .info-label {
-  @apply text-dm-secondary;
+  @apply shrink-0 text-dm-secondary;
 }
 
 .info-value {
-  @apply font-medium text-dm-value;
+  @apply min-w-0 text-right font-medium leading-[1.45] text-dm-value break-words;
 }
 
 // ==================== 日出日落 ====================
 .sun-row {
-  @apply flex items-center gap-2.5 mb-2.5;
+  @apply mb-2.5 flex items-center gap-2.5;
 }
 
 .sun-row:last-child {
@@ -979,7 +1082,7 @@ onUnmounted(() => {
 }
 
 .sun-info {
-  @apply flex flex-col gap-0.5;
+  @apply flex min-w-0 flex-col gap-0.5;
 }
 
 .sun-label {
@@ -994,6 +1097,7 @@ onUnmounted(() => {
 .period-day {
   color: var(--dm-period-day) !important;
 }
+
 .period-night {
   color: var(--dm-period-night) !important;
 }
@@ -1003,12 +1107,12 @@ onUnmounted(() => {
 }
 
 .sun-period {
-  @apply flex justify-between items-center;
+  @apply flex items-center justify-between;
 }
 
 // ==================== 时间输入 ====================
 .time-row {
-  @apply flex items-center justify-between mb-2.5 text-xs cursor-pointer;
+  @apply mb-2.5 flex cursor-pointer items-center justify-between gap-4 text-xs;
 }
 
 .time-row:last-child {
@@ -1016,11 +1120,11 @@ onUnmounted(() => {
 }
 
 .time-label-text {
-  @apply flex items-center gap-2 text-dm-value;
+  @apply flex min-w-0 items-center gap-2 text-dm-value;
 }
 
 .time-input {
-  @apply w-[92px] py-1.5 px-2 rounded-lg border border-dm bg-dm-card text-xs text-dm;
+  @apply w-[104px] shrink-0 rounded-lg border border-dm bg-dm-card px-2 py-1.5 text-xs text-dm;
 }
 
 .time-input:focus {
@@ -1032,6 +1136,7 @@ onUnmounted(() => {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
