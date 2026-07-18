@@ -32,7 +32,7 @@
         </svg>
       </button>
     </div>
-    <pre class="code-block-pre"><code :class="codeClass" :data-language="displayLangKey" spellcheck="false"><node-view-content class="code-block-content" /></code></pre>
+    <pre ref="codeBlockPreRef" class="code-block-pre"><code :class="codeClass" :data-language="displayLangKey" spellcheck="false"><node-view-content class="code-block-content" /></code></pre>
 
     <PromptDialog
       v-model="showLanguageDialog"
@@ -55,12 +55,33 @@ import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import { PromptDialog } from '@/components/UI';
 import { resolveCodeBlockLang } from './CodeBlockHighlight';
+import { requestSelectionScrollAfterLayout } from '../utils/editorLayout';
 
 const props = defineProps(nodeViewProps);
 const { t } = useI18n();
 
 const copied = ref(false);
 const showLanguageDialog = ref(false);
+const codeBlockPreRef = ref<HTMLElement | null>(null);
+
+onMounted(() => {
+  requestSelectionScrollAfterLayout(props.editor, {
+    // 转换前的旧段落坐标可能位于图片上方；代码块挂载后的校正只向下滚动，
+    // 避免旧坐标把视图再次拉回图片顶部。
+    allowScrollUp: false,
+    targetElement: () => codeBlockPreRef.value,
+    // onMounted 可能早于最终选区映射，因此要在两帧布局完成后再判断。
+    shouldScroll: () => {
+      const nodePosition = props.getPos();
+      if (typeof nodePosition !== 'number') return false;
+
+      const { from, to } = props.editor.state.selection;
+      const contentFrom = nodePosition + 1;
+      const contentTo = nodePosition + props.node.nodeSize - 1;
+      return from >= contentFrom && to <= contentTo;
+    }
+  });
+});
 
 const languageMap: Record<string, string> = {
   javascript: 'JavaScript',

@@ -10,6 +10,7 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import ImageComponent from './ImageComponent.vue';
+import { createLocalImageCursorPlugin } from '../utils/imageCursor';
 
 export const LocalImage = Node.create({
   name: 'localImage',
@@ -142,5 +143,9 @@ export const LocalImage = Node.create({
 
   addNodeView() {
     return VueNodeViewRenderer(ImageComponent as any);
+  },
+
+  addProseMirrorPlugins() {
+    return [createLocalImageCursorPlugin()];
   },
 });

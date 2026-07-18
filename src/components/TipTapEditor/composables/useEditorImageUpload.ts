@@ -1,5 +1,6 @@
-import { nextTick, type Ref } from 'vue';
-import { NodeSelection } from '@tiptap/pm/state';
+import type { Ref } from 'vue';
+import type { Transaction } from '@tiptap/pm/state';
+import { setTextSelectionAfterUploadedImage } from '../utils/imageCursor';
 
 export interface UploadedImageInfo {
   relativePath: string;
@@ -7,8 +8,9 @@ export interface UploadedImageInfo {
 
 interface EditorChain {
   focus: () => EditorChain;
-  command: (callback: (context: { tr: { split: (pos: number) => void; selection: { from: number } } }) => boolean) => EditorChain;
+  command: (callback: (context: { tr: Transaction }) => boolean) => EditorChain;
   insertContent: (content: string) => EditorChain;
+  splitBlock: () => EditorChain;
   run: () => void;
 }
 
@@ -19,21 +21,12 @@ export interface ImageUploadEditor {
       resolve: (pos: number) => {
         parent: {
           type: { name: string };
-          textContent: string;
+          content: { size: number };
         };
       };
-      descendants: (
-        callback: (node: { type: { name: string } }, pos: number) => boolean | void
-      ) => void;
-    };
-    tr: {
-      setSelection: (selection: unknown) => unknown;
     };
   };
   chain: () => EditorChain;
-  view: {
-    dispatch: (transaction: unknown) => void;
-  };
 }
 
 interface UseEditorImageUploadOptions {
@@ -42,9 +35,12 @@ interface UseEditorImageUploadOptions {
   getCurrentFragmentId: () => number | string | undefined;
   uploadImage?: (file: File, fragmentId: string) => Promise<UploadedImageInfo>;
   convertFileSrc?: (path: string) => Promise<string> | string;
-  createNodeSelection?: (doc: ImageUploadEditor['state']['doc'], pos: number) => unknown;
   notifySuccess: (message: string) => void;
   notifyError: (message: string) => void;
+}
+
+interface UseEditorImageUploadResult {
+  handleImageUpload: (file: File) => Promise<void>;
 }
 
 async function defaultConvertFileSrc(path: string) {
@@ -65,55 +61,21 @@ function createImageHtml(src: string, alt: string, relativePath: string) {
   return `<img src="${src}" alt="${alt}" data-original-path="${relativePath}" />`;
 }
 
-function findInsertedImagePosition(
-  doc: ImageUploadEditor['state']['doc'],
-  insertPos: number
-) {
-  let imagePos = -1;
-
-  doc.descendants((node, pos) => {
-    if (node.type.name === 'image' && pos >= insertPos) {
-      imagePos = pos;
-      return false;
-    }
-
-    return true;
-  });
-
-  return imagePos;
-}
-
-export function useEditorImageUpload(options: UseEditorImageUploadOptions) {
+export function useEditorImageUpload(
+  options: UseEditorImageUploadOptions
+): UseEditorImageUploadResult {
   const uploadImage = options.uploadImage ?? defaultUploadImage;
   const convertFileSrc = options.convertFileSrc ?? defaultConvertFileSrc;
-  const createNodeSelection = options.createNodeSelection ?? ((doc, pos) => (
-    NodeSelection.create(doc as never, pos)
-  ));
 
-  const selectInsertedImage = (insertPos: number) => {
-    nextTick(() => {
-      const editor = options.editor.value;
-      if (!editor) return;
-
-      const { state } = editor;
-      const imagePos = findInsertedImagePosition(state.doc, insertPos);
-      console.log('[handleImageUpload] 找到图片节点位置:', imagePos);
-
-      if (imagePos >= 0) {
-        const nodeSelection = createNodeSelection(state.doc, imagePos);
-        editor.view.dispatch(state.tr.setSelection(nodeSelection));
-        console.log('[handleImageUpload] ✅ 图片已选中');
-      } else {
-        console.warn('[handleImageUpload] ⚠️ 未找到图片节点');
-      }
-    });
-  };
-
-  const insertImage = (editor: ImageUploadEditor, imageHtml: string) => {
+  const insertImage = (
+    editor: ImageUploadEditor,
+    imageHtml: string,
+    originalPath: string
+  ) => {
     const { from } = editor.state.selection;
     const $from = editor.state.doc.resolve(from);
     const isInParagraph = $from.parent.type.name === 'paragraph';
-    const paragraphHasContent = $from.parent.textContent.trim().length > 0;
+    const paragraphHasContent = $from.parent.content.size > 0;
 
     console.log('[handleImageUpload] 插入位置:', {
       isInParagraph,
@@ -121,19 +83,17 @@ export function useEditorImageUpload(options: UseEditorImageUploadOptions) {
       parentType: $from.parent.type.name
     });
 
-    const insertPos = editor.state.selection.from;
-    console.log('[handleImageUpload] 插入位置:', insertPos);
-
     if (isInParagraph && paragraphHasContent) {
       console.log('[handleImageUpload] 在非空段落中，先换行');
       editor
         .chain()
         .focus()
-        .command(({ tr }) => {
-          tr.split(tr.selection.from);
-          return true;
-        })
+        .splitBlock()
         .insertContent(imageHtml)
+        .splitBlock()
+        .command(({ tr }) =>
+          setTextSelectionAfterUploadedImage(tr, originalPath)
+        )
         .run();
     } else {
       console.log('[handleImageUpload] 直接插入图片');
@@ -141,10 +101,12 @@ export function useEditorImageUpload(options: UseEditorImageUploadOptions) {
         .chain()
         .focus()
         .insertContent(imageHtml)
+        .splitBlock()
+        .command(({ tr }) =>
+          setTextSelectionAfterUploadedImage(tr, originalPath)
+        )
         .run();
     }
-
-    selectInsertedImage(insertPos);
   };
 
   const handleImageUpload = async (file: File) => {
@@ -175,7 +137,7 @@ export function useEditorImageUpload(options: UseEditorImageUploadOptions) {
         console.log('[handleImageUpload] 编辑器存在，准备插入图片');
         const imageHtml = createImageHtml(tauriUrl, file.name, attachmentInfo.relativePath);
         console.log('[handleImageUpload] 图片 HTML:', imageHtml);
-        insertImage(editor, imageHtml);
+        insertImage(editor, imageHtml, attachmentInfo.relativePath);
         console.log('[handleImageUpload] 图片插入完成');
       } else {
         console.error('[handleImageUpload] 编辑器不存在');

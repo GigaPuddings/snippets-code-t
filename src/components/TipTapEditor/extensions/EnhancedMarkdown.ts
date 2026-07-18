@@ -3,8 +3,9 @@
  * 用于支持行内代码、代码块和各种 Markdown 语法指令的快捷输入
  */
 import { logger } from '@/utils/logger';
-import { Extension } from '@tiptap/core';
+import { Extension, InputRule } from '@tiptap/core';
 import { markInputRule, nodeInputRule, textblockTypeInputRule, wrappingInputRule } from '@tiptap/core';
+import type { NodeType } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 
 // 调试日志开关
@@ -15,6 +16,42 @@ const log = (message: string, ...args: unknown[]) => {
     logger.debug(`[EnhancedMarkdown] ${message}`, ...args);
   }
 };
+
+/**
+ * 代码块只能包含纯文本。若当前段落还包含图片等行内节点，直接转换段落会让
+ * ProseMirror 丢弃这些不兼容节点，因此这里在转换前显式保护它们。
+ */
+export function createProtectedCodeBlockInputRule(type: NodeType): InputRule {
+  return new InputRule({
+    find: /^```([a-zA-Z0-9+-]*)\s$/,
+    handler: ({ state, range, match }): void | null => {
+      const $start = state.doc.resolve(range.from);
+      let hasNonTextInlineNode = false;
+
+      $start.parent.forEach((node) => {
+        if (!node.isText) {
+          hasNonTextInlineNode = true;
+        }
+      });
+
+      if (hasNonTextInlineNode) {
+        return null;
+      }
+
+      if (!$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), type)) {
+        return null;
+      }
+
+      state.tr
+        .delete(range.from, range.to)
+        .setBlockType(range.from, range.from, type, {
+          language: match[1] || null,
+        });
+
+      return;
+    },
+  });
+}
 
 export const EnhancedMarkdown = Extension.create({
   name: 'enhancedMarkdown',
@@ -121,13 +158,7 @@ export const EnhancedMarkdown = Extension.create({
       // ==================== 代码块规则 ====================
       // 仅在输入 ```、```vue、```flutter 等后再输入空格时触发，
       // 避免输入第 3 个 ` 就立刻自动转换。
-      textblockTypeInputRule({
-        find: /^```([a-zA-Z0-9+-]*)\s$/,
-        type: this.editor.schema.nodes.codeBlock,
-        getAttributes: (match) => ({
-          language: match[1] || null,
-        }),
-      }),
+      createProtectedCodeBlockInputRule(this.editor.schema.nodes.codeBlock),
     ];
   },
 

@@ -122,6 +122,10 @@ import { useEditorPersistenceBridge } from './composables/useEditorPersistenceBr
 import { useEditorSearch } from './composables/useEditorSearch';
 import { useEditorSessionScroll } from './composables/useEditorSessionScroll';
 import { useEditorViewMode } from './composables/useEditorViewMode';
+import {
+  EDITOR_SELECTION_LAYOUT_EVENT,
+  type EditorSelectionLayoutDetail
+} from './utils/editorLayout';
 import { SearchPanel } from '@/components/UI';
 import type { CSSProperties, Ref } from 'vue';
 import type { EditorView } from '@tiptap/pm/view';
@@ -323,36 +327,66 @@ function getEditorScrollContainer(view: EditorView): HTMLElement {
   const editorElement = view.dom as HTMLElement;
   const contentElement = editorElement.closest('.editor-content') as HTMLElement | null;
 
-  if (contentElement && contentElement.scrollHeight > contentElement.clientHeight) {
+  // `.editor-content` 才是设置了 overflow-auto 的真实滚动容器。
+  // 图片刚挂载时 scrollHeight 还可能没有刷新，不能据此退回到 ProseMirror；
+  // 后者 overflow 可见，修改它的 scrollTop 不会把图片后的光标带回视口。
+  if (contentElement) {
     return contentElement;
   }
 
-  if (editorElement.scrollHeight > editorElement.clientHeight) {
-    return editorElement;
-  }
-
-  return contentElement || editorElement;
+  return editorElement;
 }
 
-function scrollEditorSelectionIntoView(view: EditorView): void {
+function scrollEditorSelectionIntoView(
+  view: EditorView,
+  attempts = 3,
+  allowScrollUp = true,
+  targetElement: HTMLElement | null = null
+): void {
   requestAnimationFrame(() => {
     try {
+      if (!view.dom.isConnected) return;
+
       const position = view.state.selection.head;
       const coords = view.coordsAtPos(position);
       const container = getEditorScrollContainer(view);
       const containerRect = container.getBoundingClientRect();
       const padding = 42;
+      const targetRect = targetElement?.isConnected
+        ? targetElement.getBoundingClientRect()
+        : null;
+      const hasTargetRect = !!targetRect && targetRect.height > 0;
+      const hasSelectionCoords = !(
+        coords.top === 0 && coords.bottom === 0
+      );
 
       // 当 coords 为 (0,0) 时，说明位置对应的 DOM 节点尚未渲染（如 NodeView 还在挂载中），
       // 此时坐标无效，跳过滚动避免误判导致页面跳动
-      if (coords.top === 0 && coords.bottom === 0) {
+      if (!hasSelectionCoords && !hasTargetRect) {
+        if (attempts > 1) {
+          scrollEditorSelectionIntoView(
+            view,
+            attempts - 1,
+            allowScrollUp,
+            targetElement
+          );
+        }
         return;
       }
 
-      if (coords.bottom > containerRect.bottom - padding) {
-        container.scrollTop += coords.bottom - containerRect.bottom + padding;
-      } else if (coords.top < containerRect.top + padding) {
-        container.scrollTop -= containerRect.top + padding - coords.top;
+      const availableHeight = Math.max(0, containerRect.height - padding * 2);
+      const targetFits = hasTargetRect && targetRect.height <= availableHeight;
+      const visibleBottom = targetFits
+        ? Math.max(coords.bottom, targetRect.bottom)
+        : coords.bottom;
+      const visibleTop = targetFits
+        ? Math.min(coords.top, targetRect.top)
+        : coords.top;
+
+      if (visibleBottom > containerRect.bottom - padding) {
+        container.scrollTop += visibleBottom - containerRect.bottom + padding;
+      } else if (allowScrollUp && visibleTop < containerRect.top + padding) {
+        container.scrollTop -= containerRect.top + padding - visibleTop;
       }
     } catch (error) {
       console.debug('[TipTapEditor] scroll selection into view skipped:', error);
@@ -710,15 +744,19 @@ const editor = useEditor({
     try {
       editorPersistenceBridge.handleEditorUpdate(editor);
       setCurrentCursorPos(editor.state.selection.from);
-      scrollEditorSelectionIntoView(editor.view);
+      // 输入、Markdown 转换等内容事务可能短暂保留旧 NodeView 坐标。
+      // 内容更新只向下追踪光标，避免旧图片坐标把滚动条拉回上方。
+      scrollEditorSelectionIntoView(editor.view, 3, false);
       updatePreviewLineNumbers();
     } catch (error) {
       handleEditorError(error, 'TipTap onUpdate');
     }
   },
-  onSelectionUpdate: ({ editor }) => {
+  onSelectionUpdate: ({ editor, transaction }) => {
     setCurrentCursorPos(editor.state.selection.from);
-    scrollEditorSelectionIntoView(editor.view);
+    // 纯选区移动（点击、方向键）允许上下滚动；随内容变化产生的选区映射
+    // 仍然只允许向下，等待新 NodeView 完成布局后再做最终校正。
+    scrollEditorSelectionIntoView(editor.view, 3, !transaction.docChanged);
   },
   onFocus: () => emits('focus'),
   onBlur: () => emits('blur'),
@@ -732,6 +770,15 @@ const editor = useEditor({
       
       const editorElement = editor.view.dom;
       setupAnchorClickInterceptor(editorElement);
+      editorElement.addEventListener(EDITOR_SELECTION_LAYOUT_EVENT, (event) => {
+        const detail = (event as CustomEvent<EditorSelectionLayoutDetail>).detail;
+        scrollEditorSelectionIntoView(
+          editor.view,
+          3,
+          detail?.allowScrollUp ?? true,
+          detail?.targetElement ?? null
+        );
+      });
       nextTick(refreshPreviewResizeObserver);
       
       // 添加编辑器级别的键盘事件监听器
@@ -1080,7 +1127,7 @@ defineExpose({
   
   :deep(.ProseMirror) {
     min-height: 100%;
-    height: 100%;
+    height: auto;
   }
 }
 
@@ -1363,6 +1410,7 @@ defineExpose({
   }
 
   p {
+    min-height: calc(var(--editor-line-height) * 1em);
     line-height: var(--editor-line-height);
     transition: color 0.3s ease;
   }

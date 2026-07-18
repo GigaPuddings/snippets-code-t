@@ -38,6 +38,10 @@ import dartLang from 'shiki/langs/dart.mjs';
 import githubDarkDefault from 'shiki/themes/github-dark-default.mjs';
 import githubLightDefault from 'shiki/themes/github-light-default.mjs';
 import CodeBlockHighlightComponent from './CodeBlockHighlightComponent.vue';
+import {
+  insertParagraphBeforeFirstCodeBlock,
+  removeLeadingEmptyParagraphBeforeCodeBlock
+} from '../utils/codeBlockNavigation';
 
 const codeBlockSyntaxKey = new PluginKey<DecorationSet>('codeBlockSyntaxHighlight');
 
@@ -628,6 +632,13 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
 
       // remove code block when at start of document or code block is empty
       Backspace: () => {
+        const removeLeadingParagraph =
+          removeLeadingEmptyParagraphBeforeCodeBlock(this.editor.state);
+        if (removeLeadingParagraph) {
+          this.editor.view.dispatch(removeLeadingParagraph);
+          return true;
+        }
+
         const { empty, $anchor } = this.editor.state.selection;
         const isAtStart = $anchor.pos === 1;
 
@@ -640,6 +651,26 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
         }
 
         return false;
+      },
+
+      Delete: () => {
+        const transaction = removeLeadingEmptyParagraphBeforeCodeBlock(
+          this.editor.state
+        );
+        if (!transaction) return false;
+
+        this.editor.view.dispatch(transaction);
+        return true;
+      },
+
+      ArrowUp: () => {
+        const transaction = insertParagraphBeforeFirstCodeBlock(
+          this.editor.state
+        );
+        if (!transaction) return false;
+
+        this.editor.view.dispatch(transaction);
+        return true;
       },
 
       // exit node on triple enter

@@ -1,4 +1,5 @@
-import { nextTick, ref } from 'vue';
+import { ref } from 'vue';
+import type { Transaction } from '@tiptap/pm/state';
 import { describe, expect, it, vi } from 'vitest';
 import {
   type ImageUploadEditor,
@@ -10,23 +11,17 @@ const createFile = () => new File(['image'], 'button.png', { type: 'image/png' }
 const createEditor = (options: {
   parentType?: string;
   textContent?: string;
-  imagePos?: number;
 } = {}) => {
   const insertedContent: string[] = [];
-  const split = vi.fn();
-  const dispatch = vi.fn();
-  const setSelection = vi.fn((selection: unknown) => ({ selection }));
 
   const chain = {
     focus: vi.fn(() => chain),
-    command: vi.fn((callback: (context: { tr: { split: typeof split; selection: { from: number } } }) => boolean) => {
-      callback({ tr: { split, selection: { from: 5 } } });
-      return chain;
-    }),
+    command: vi.fn((_callback: (context: { tr: Transaction }) => boolean) => chain),
     insertContent: vi.fn((content: string) => {
       insertedContent.push(content);
       return chain;
     }),
+    splitBlock: vi.fn(() => chain),
     run: vi.fn()
   };
 
@@ -37,27 +32,18 @@ const createEditor = (options: {
         resolve: vi.fn(() => ({
           parent: {
             type: { name: options.parentType ?? 'paragraph' },
-            textContent: options.textContent ?? ''
+            content: { size: options.textContent?.length ?? 0 }
           }
-        })),
-        descendants: vi.fn((callback) => {
-          callback({ type: { name: 'paragraph' } }, 1);
-          callback({ type: { name: 'image' } }, options.imagePos ?? 8);
-        })
-      },
-      tr: { setSelection }
+        }))
+      }
     },
-    chain: vi.fn(() => chain),
-    view: { dispatch }
+    chain: vi.fn(() => chain)
   };
 
   return {
     editor,
     chain,
-    dispatch,
-    insertedContent,
-    setSelection,
-    split
+    insertedContent
   };
 };
 
@@ -73,7 +59,6 @@ const createUploader = (options: {
   const notifyError = vi.fn();
   const uploadImage = options.uploadImage ?? vi.fn(async () => ({ relativePath: '../assets/button.png' }));
   const convertFileSrc = options.convertFileSrc ?? vi.fn((path: string) => `asset://${path}`);
-  const createNodeSelection = vi.fn((_doc, pos) => ({ type: 'node-selection', pos }));
 
   const uploader = useEditorImageUpload({
     editor,
@@ -83,7 +68,6 @@ const createUploader = (options: {
     ),
     uploadImage,
     convertFileSrc,
-    createNodeSelection,
     notifySuccess,
     notifyError
   });
@@ -93,7 +77,6 @@ const createUploader = (options: {
     editor,
     uploadImage,
     convertFileSrc,
-    createNodeSelection,
     notifySuccess,
     notifyError
   };
@@ -105,16 +88,16 @@ describe('useEditorImageUpload', () => {
     const uploader = createUploader({ editor: editorMock.editor });
 
     await uploader.handleImageUpload(createFile());
-    await nextTick();
 
     expect(uploader.uploadImage).toHaveBeenCalledWith(expect.any(File), '7');
     expect(uploader.convertFileSrc).toHaveBeenCalledWith('E:\\Workspace\\assets\\button.png');
     expect(editorMock.chain.insertContent).toHaveBeenCalledWith(
       '<img src="asset://E:\\Workspace\\assets\\button.png" alt="button.png" data-original-path="../assets/button.png" />'
     );
-    expect(editorMock.split).not.toHaveBeenCalled();
-    expect(uploader.createNodeSelection).toHaveBeenCalledWith(editorMock.editor.state.doc, 8);
-    expect(editorMock.dispatch).toHaveBeenCalled();
+    expect(editorMock.chain.splitBlock).toHaveBeenCalledTimes(1);
+    expect(editorMock.chain.insertContent.mock.invocationCallOrder[0])
+      .toBeLessThan(editorMock.chain.splitBlock.mock.invocationCallOrder[0]);
+    expect(editorMock.chain.command).toHaveBeenCalledTimes(1);
     expect(uploader.notifySuccess).toHaveBeenCalledWith('图片上传成功');
   });
 
@@ -124,9 +107,9 @@ describe('useEditorImageUpload', () => {
 
     await uploader.handleImageUpload(createFile());
 
-    expect(editorMock.chain.command).toHaveBeenCalledTimes(1);
-    expect(editorMock.split).toHaveBeenCalledWith(5);
     expect(editorMock.chain.insertContent).toHaveBeenCalledTimes(1);
+    expect(editorMock.chain.splitBlock).toHaveBeenCalledTimes(2);
+    expect(editorMock.chain.command).toHaveBeenCalledTimes(1);
   });
 
   it('shows an error when there is no current fragment id', async () => {

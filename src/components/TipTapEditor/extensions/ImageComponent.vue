@@ -14,6 +14,7 @@
         :title="node.attrs.title"
         :style="imageStyle"
         @click="selectImage"
+        @load="handleRenderedImageLoad"
       />
       
       <!-- 缩放控制 -->
@@ -86,14 +87,20 @@
 
 <script setup lang="ts">
 import { NodeViewWrapper } from '@tiptap/vue-3';
+import type { NodeViewProps } from '@tiptap/core';
+import type { Transaction } from '@tiptap/pm/state';
+import type { CSSProperties } from 'vue';
 import { logger } from '@/utils/logger';
 import { restoreDeletedAttachment } from '@/plugins/attachments/api';
+import { requestSelectionScrollAfterLayout } from '../utils/editorLayout';
+import { setTextSelectionAfterImage } from '../utils/imageCursor';
 
 interface Props {
-  node: any;
-  updateAttributes: (attrs: any) => void;
+  node: NodeViewProps['node'];
+  updateAttributes: NodeViewProps['updateAttributes'];
   selected: boolean;
-  editor: any;
+  editor: NodeViewProps['editor'];
+  getPos: NodeViewProps['getPos'];
 }
 
 const props = defineProps<Props>();
@@ -124,7 +131,7 @@ const contextMenuStyle = computed(() => ({
 
 // 图片样式
 const imageStyle = computed(() => {
-  const style: any = {
+  const style: CSSProperties = {
     cursor: props.selected ? 'default' : 'pointer',
     height: 'auto',
   };
@@ -189,9 +196,47 @@ const deleteImage = () => {
 
 // 选中图片
 const selectImage = () => {
-  if (!props.selected) {
-    props.editor.commands.setNodeSelection(props.editor.state.selection.from);
+  const imagePosition = props.getPos();
+  if (!props.selected && typeof imagePosition === 'number') {
+    props.editor.commands.setNodeSelection(imagePosition);
   }
+};
+
+/**
+ * 图片的固有尺寸和缩放样式会在选区设置完成后才改变布局。
+ * 等浏览器完成两轮布局，再让 ProseMirror 将当前选区滚入真实滚动容器。
+ */
+const revealSelectionAfterImageLayout = () => {
+  nextTick(() => {
+    requestSelectionScrollAfterLayout(props.editor);
+  });
+};
+
+const handleRenderedImageLoad = (event: Event) => {
+  const image = event.currentTarget as HTMLImageElement;
+  originalWidth.value = image.naturalWidth;
+  originalHeight.value = image.naturalHeight;
+  hasLoadError.value = false;
+  revealSelectionAfterImageLayout();
+};
+
+const focusParagraphAfterImage = () => {
+  nextTick(() => {
+    const imagePosition = props.getPos();
+    if (typeof imagePosition !== 'number') return;
+
+    const moved = props.editor
+      .chain()
+      .focus()
+      .command(({ tr }: { tr: Transaction }) =>
+        setTextSelectionAfterImage(tr, imagePosition)
+      )
+      .run();
+
+    if (moved) {
+      revealSelectionAfterImageLayout();
+    }
+  });
 };
 
 // 缩放图片
@@ -230,6 +275,7 @@ const resizeImage = (scale: number) => {
   
   currentWidth.value = targetWidth;
   closeContextMenu();
+  focusParagraphAfterImage();
 };
 
 // 开始拖拽调整大小
@@ -259,6 +305,7 @@ const startResize = (e: MouseEvent) => {
       props.updateAttributes({
         width: currentWidth.value,
       });
+      focusParagraphAfterImage();
     }
   };
   
