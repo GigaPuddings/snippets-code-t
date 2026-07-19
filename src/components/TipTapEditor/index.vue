@@ -100,7 +100,11 @@
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { TextSelection } from '@tiptap/pm/state';
 import { handleEditorError } from '@/utils/error-handler';
-import { markdownToHtml, jsonToMarkdown } from './utils/markdown';
+import {
+  markdownToHtml,
+  jsonToMarkdown,
+  richHtmlToEditorHtml
+} from './utils/markdown';
 import { sanitizeHtml } from '@/utils/html-sanitize';
 import { createEditorExtensions } from './config/extensions';
 import { getWorkspaceRoot } from '@/api/markdown';
@@ -416,6 +420,10 @@ function getMarkdownClipboardText(data: DataTransfer | null): string {
   return data.getData('text/plain') || '';
 }
 
+function getExplicitMarkdownClipboardText(data: DataTransfer | null): string {
+  return data?.getData('text/markdown') || '';
+}
+
 function shouldParseClipboardAsMarkdown(text: string, html: string): boolean {
   if (!text.trim()) return false;
   if (clipboardHasRichHtml(html)) return false;
@@ -640,15 +648,57 @@ function normalizeOrderedLists(fragment: DocumentFragment, plainText: string): v
   }
 }
 
+function removePastedPresentationElements(fragment: DocumentFragment): void {
+  fragment
+    .querySelectorAll('button, svg, [aria-hidden="true"], [hidden]')
+    .forEach(element => element.remove());
+
+  fragment.querySelectorAll('[style]').forEach((element) => {
+    const style = element.getAttribute('style') || '';
+    if (/\bdisplay\s*:\s*none\b|\bvisibility\s*:\s*hidden\b/i.test(style)) {
+      element.remove();
+    }
+  });
+}
+
+function trimLeadingListItemBreaks(fragment: DocumentFragment): void {
+  fragment.querySelectorAll('li').forEach((listItem) => {
+    let container: Element = listItem;
+
+    while (
+      container.firstElementChild &&
+      /^(?:P|DIV|SPAN)$/.test(container.firstElementChild.tagName) &&
+      container.firstElementChild.textContent?.trim()
+    ) {
+      container = container.firstElementChild;
+    }
+
+    while (container.firstChild) {
+      const first = container.firstChild;
+      if (first.nodeType === Node.TEXT_NODE && !(first.nodeValue || '').trim()) {
+        first.remove();
+        continue;
+      }
+      if (first.nodeName === 'BR') {
+        first.remove();
+        continue;
+      }
+      break;
+    }
+  });
+}
+
 function normalizePastedRichHtml(html: string, plainText: string): string {
   const template = document.createElement('template');
   template.innerHTML = extractClipboardHtmlFragment(html);
 
+  removePastedPresentationElements(template.content);
+  trimLeadingListItemBreaks(template.content);
   normalizePastedLinks(template.content);
   normalizeMarkdownLinksInTextNodes(template.content);
   normalizeOrderedLists(template.content, plainText);
 
-  return sanitizeHtml(template.innerHTML);
+  return richHtmlToEditorHtml(sanitizeHtml(template.innerHTML), workspaceRoot.value);
 }
 
 function linkProjectFilePathsInEditor(): void {
@@ -853,8 +903,23 @@ const editor = useEditor({
       
       // 如果没有图片，处理文本粘贴
       const html = event.clipboardData?.getData('text/html') || '';
+      const explicitMarkdown = getExplicitMarkdownClipboardText(event.clipboardData ?? null);
       const text = getMarkdownClipboardText(event.clipboardData ?? null);
-      if (!text) return false;
+      if (!text && !html) return false;
+
+      // 某些编辑器会同时提供 text/markdown 和 text/html。前者才是无损源内容，
+      // 不能因为存在富 HTML 就退回解析来源页面的展示层 DOM。
+      if (explicitMarkdown.trim()) {
+        try {
+          const parsedHtml = markdownToHtml(explicitMarkdown, workspaceRoot.value);
+          event.preventDefault();
+          editor.value?.commands.insertContent(parsedHtml);
+          linkProjectFilePathsInEditor();
+          return true;
+        } catch (error) {
+          console.error('Failed to parse explicit pasted Markdown:', error);
+        }
+      }
 
       if (clipboardHasRichHtml(html)) {
         try {
@@ -867,6 +932,23 @@ const editor = useEditor({
           }
         } catch (error) {
           console.error('Failed to normalize pasted rich HTML:', error);
+        }
+
+        // 富 HTML 结构异常时仍使用纯文本内容，避免回落到 TipTap 默认粘贴后
+        // 再次引入来源页面的隐藏节点和布局包装。
+        if (!text) {
+          event.preventDefault();
+          return true;
+        }
+        try {
+          const parsedHtml = markdownToHtml(text, workspaceRoot.value);
+          event.preventDefault();
+          editor.value?.commands.insertContent(parsedHtml);
+          linkProjectFilePathsInEditor();
+          return true;
+        } catch (error) {
+          console.error('Failed to parse rich clipboard fallback text:', error);
+          return false;
         }
       }
 

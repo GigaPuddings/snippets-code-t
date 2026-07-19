@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { jsonToMarkdown, markdownToHtml, normalizeAiMarkdown } from './markdown';
+import {
+  createTurndownService,
+  htmlToMarkdown,
+  jsonToMarkdown,
+  markdownToHtml,
+  normalizeAiMarkdown,
+  richHtmlToEditorHtml
+} from './markdown';
 
 describe('jsonToMarkdown', () => {
   it('serializes headings, paragraphs, and marks', () => {
@@ -329,4 +336,112 @@ describe('markdownToHtml', () => {
     expect(html).not.toContain('**');
   });
 
+});
+
+describe('rich clipboard conversion', () => {
+  it('normalizes the rendered TipTap code-block NodeView structure', () => {
+    const html = richHtmlToEditorHtml([
+      '<p>按：</p>',
+      '<div class="code-block-wrapper code-block" data-node-view-wrapper>',
+      '<div class="code-toolbar" contenteditable="false">',
+      '<button class="language-button"><span class="language-text">Plain Text</span></button>',
+      '<button class="copy-language-button"><svg aria-hidden="true"></svg></button>',
+      '</div>',
+      '<pre class="code-block-pre"><code class="language-plaintext" data-language="plaintext">',
+      '<div data-node-view-content class="code-block-content">',
+      '<span class="shiki-token">CPU</span>\n',
+      '<span class="shiki-token">↓</span>\n',
+      '<span class="shiki-token">关联的句柄</span>\n',
+      '<br class="ProseMirror-trailingBreak">',
+      '</div></code></pre>',
+      '</div>',
+      '<p>如果看到：</p>',
+      '<ul><li><p>codex.exe</p></li><li><p>node.exe</p></li></ul>'
+    ].join(''));
+
+    expect(html.match(/<pre>/g)).toHaveLength(1);
+    expect(html).toContain(
+      '<pre><code class="language-plaintext">CPU\n↓\n关联的句柄\n</code></pre>'
+    );
+    expect(html.match(/<li>/g)).toHaveLength(2);
+    expect(html).not.toContain('Plain Text');
+    expect(html).not.toContain('copy-language-button');
+  });
+
+  it('drops empty presentation code blocks and keeps the real code block', () => {
+    const html = richHtmlToEditorHtml([
+      '<p>进入：</p>',
+      '<pre aria-hidden="true"><code>\u200b</code></pre>',
+      '<pre><code data-language="text">CPU<br>↓<br>关联的句柄</code></pre>',
+      '<p>右侧搜索框输入：</p>',
+      '<pre><code></code></pre>',
+      '<pre><code>.codex</code></pre>'
+    ].join(''));
+
+    expect(html.match(/<pre>/g)).toHaveLength(2);
+    expect(html).toContain('<code class="language-text">CPU\n↓\n关联的句柄\n</code>');
+    expect(html).toContain('<pre><code>.codex\n</code></pre>');
+  });
+
+  it('removes code block controls without adding their labels to the note', () => {
+    const markdown = htmlToMarkdown(
+      '<pre><button>Copy code</button><code class="language-powershell">Get-Process</code></pre>',
+      createTurndownService()
+    );
+
+    expect(markdown).toBe('```powershell\nGet-Process\n```');
+    expect(markdown).not.toContain('Copy code');
+  });
+
+  it('supports pre blocks without a code wrapper and line container spans', () => {
+    const html = richHtmlToEditorHtml(
+      '<pre class="lang-shell"><span class="line">pnpm typecheck</span><span class="line">pnpm test</span></pre>'
+    );
+
+    expect(html).toContain(
+      '<pre><code class="language-shell">pnpm typecheck\npnpm test\n</code></pre>'
+    );
+  });
+
+  it('canonicalizes loose rich-text lists without blank list paragraphs', () => {
+    const html = richHtmlToEditorHtml([
+      '<p>如果看到：</p>',
+      '<ul>',
+      '  <li>\n<p><br>codex.exe</p>\n</li>',
+      '  <li>\n<p>node.exe</p>\n</li>',
+      '  <li>\n<p>Code.exe</p>\n</li>',
+      '</ul>',
+      '<p>右键结束对应进程。</p>'
+    ].join(''));
+
+    expect(html).toContain('<ul>');
+    expect(html.match(/<li>/g)).toHaveLength(3);
+    expect(html).not.toMatch(/<li>\s*<p>\s*<br>/);
+    expect(html).not.toMatch(/<li>\s*<p>\s*<\/p>/);
+  });
+
+  it('preserves the other rich-text structures supported by the note editor', () => {
+    const html = richHtmlToEditorHtml([
+      '<h2>排查步骤</h2>',
+      '<p><strong>注意</strong>：保留 <em>Markdown</em> 结构。</p>',
+      '<blockquote><p>先备份配置。</p></blockquote>',
+      '<ol><li>第一步</li><li>第二步</li></ol>',
+      '<ul class="task-list">',
+      '<li class="task-item"><input type="checkbox" checked><div><p>已完成</p></div></li>',
+      '<li class="task-item"><input type="checkbox"><div><p>待处理</p></div></li>',
+      '</ul>',
+      '<table><thead><tr><th>进程</th><th>状态</th></tr></thead>',
+      '<tbody><tr><td>codex.exe</td><td>运行中</td></tr></tbody></table>'
+    ].join(''));
+
+    expect(html).toContain('<h2');
+    expect(html).toContain('<strong>注意</strong>');
+    expect(html).toContain('<em>Markdown</em>');
+    expect(html).toContain('<blockquote>');
+    expect(html).toContain('<ol>');
+    expect(html).toContain('data-type="taskList"');
+    expect(html).toContain('data-checked="true"');
+    expect(html).toContain('data-checked="false"');
+    expect(html).toContain('<table>');
+  });
 });

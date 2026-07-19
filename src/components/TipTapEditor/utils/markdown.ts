@@ -35,6 +35,63 @@ function getCodeFence(code: string): string {
   return '`'.repeat(longestFence + 1);
 }
 
+const CODE_LINE_CONTAINER_TAGS = new Set(['DIV', 'P']);
+
+function getCodeTextContent(node: Node): string {
+  if (node.nodeType === 3) {
+    return node.nodeValue || '';
+  }
+
+  if (node.nodeName === 'BR') {
+    return '\n';
+  }
+
+  let content = '';
+  node.childNodes.forEach((child) => {
+    const childContent = getCodeTextContent(child);
+    content += childContent;
+
+    const childElement = child.nodeType === 1 ? (child as Element) : null;
+    const isLineContainer =
+      CODE_LINE_CONTAINER_TAGS.has(child.nodeName) ||
+      childElement?.classList.contains('line');
+
+    if (
+      isLineContainer &&
+      child.nextSibling &&
+      childContent &&
+      !content.endsWith('\n')
+    ) {
+      content += '\n';
+    }
+  });
+
+  return content;
+}
+
+function getCodeBlockLanguage(pre: Element, code: Element): string {
+  for (const element of [code, pre]) {
+    const attributeLanguage =
+      element.getAttribute('data-language') ||
+      element.getAttribute('data-lang') ||
+      element.getAttribute('lang');
+    if (attributeLanguage?.trim()) {
+      return attributeLanguage.trim().match(/[A-Za-z0-9_+#.-]+/)?.[0] || '';
+    }
+
+    const classLanguage = element.className.match(/(?:^|\s)(?:language-|lang-)([^\s]+)/i)?.[1];
+    if (classLanguage) {
+      return classLanguage;
+    }
+  }
+
+  return '';
+}
+
+function hasMeaningfulCodeContent(code: string): boolean {
+  return code.replace(/[\s\u00a0\u200b-\u200d\u2060\ufeff]/g, '').length > 0;
+}
+
 function escapeMarkdownTableCell(value: string): string {
   return value
     .replace(/\\/g, '\\\\')
@@ -361,6 +418,23 @@ export function createTurndownService(): TurndownService {
     fence: '```'
   });
 
+  // TipTap/Vue NodeView 的渲染 DOM 会包含代码语言按钮、复制按钮和高亮辅助节点。
+  // 它们只属于编辑器界面，二次复制或 HTML 持久化时不能进入笔记正文。
+  turndownService.addRule('editorPresentationElements', {
+    filter: (node) => {
+      const element = node as Element;
+      return (
+        node.nodeName === 'BUTTON' ||
+        node.nodeName === 'SVG' ||
+        element.hasAttribute('hidden') ||
+        element.getAttribute('aria-hidden') === 'true' ||
+        element.classList.contains('code-toolbar') ||
+        element.classList.contains('ProseMirror-trailingBreak')
+      );
+    },
+    replacement: () => ''
+  });
+
   // 添加任务列表规则 - 识别 TipTap 的任务列表结构
   turndownService.addRule('taskListItem', {
     filter: (node) => {
@@ -421,35 +495,30 @@ export function createTurndownService(): TurndownService {
     }
   });
 
-  // 添加代码块规则 - 移除 ProseMirror-trailingBreak 和末尾多余的换行
+  // 统一处理各种网页复制出来的代码块。部分 Markdown 渲染器会在真正代码块前
+  // 额外复制一个空 <pre>，直接交给 TipTap 会渲染成多个空代码块。
   turndownService.addRule('codeBlock', {
     filter: (node) => {
-      return node.nodeName === 'PRE' && node.querySelector('code') !== null;
+      return node.nodeName === 'PRE';
     },
     replacement: (_content, node) => {
-      const codeElement = (node as Element).querySelector('code');
-      if (!codeElement) return '';
-      
-      // 获取语言
-      const className = codeElement.className || '';
-      const languageMatch = className.match(/language-(\S+)/);
-      const language = languageMatch ? languageMatch[1] : '';
-      
-      // 获取代码内容，移除 ProseMirror-trailingBreak 元素
-      let code = '';
-      const clonedCode = codeElement.cloneNode(true) as HTMLElement;
-      
-      // 移除所有 ProseMirror-trailingBreak 元素
-      const trailingBreaks = clonedCode.querySelectorAll('.ProseMirror-trailingBreak');
-      trailingBreaks.forEach(br => br.remove());
-      
-      // 获取文本内容
-      code = clonedCode.textContent || '';
-      
-      // 移除末尾的换行符（但保留代码内部的换行）
-      code = code.replace(/\n+$/, '');
-      
-      // 返回 Markdown 格式的代码块
+      const preElement = node as Element;
+      const codeElements = preElement.querySelectorAll('code');
+      const sourceElement = codeElements.length === 1 ? codeElements[0] : preElement;
+      const clonedCode = sourceElement.cloneNode(true) as Element;
+
+      clonedCode
+        .querySelectorAll('.ProseMirror-trailingBreak, button, [aria-hidden="true"], [hidden]')
+        .forEach(element => element.remove());
+
+      const code = getCodeTextContent(clonedCode)
+        .replace(/\r\n?/g, '\n')
+        .replace(/\n+$/, '');
+      if (!hasMeaningfulCodeContent(code)) {
+        return '';
+      }
+
+      const language = getCodeBlockLanguage(preElement, sourceElement);
       const fence = getCodeFence(code);
       return '\n' + fence + language + '\n' + code + '\n' + fence + '\n';
     }
@@ -470,7 +539,7 @@ export function createTurndownService(): TurndownService {
           const headers: string[] = [];
           const separators: string[] = [];
           
-          headerRow.querySelectorAll('th, td').forEach((cell) => {
+          Array.from(headerRow.querySelectorAll('th, td')).forEach((cell) => {
             const cellContent = turndownService.turndown((cell as HTMLElement).innerHTML).trim();
             headers.push(escapeMarkdownTableCell(cellContent));
             separators.push('---');
@@ -487,12 +556,12 @@ export function createTurndownService(): TurndownService {
       const tbody = table.querySelector('tbody') || table;
       const bodyRows = tbody.querySelectorAll('tr');
       
-      bodyRows.forEach((row) => {
+      Array.from(bodyRows).forEach((row) => {
         // 跳过已经在 thead 中处理的行
         if (thead && thead.contains(row)) return;
         
         const cells: string[] = [];
-        row.querySelectorAll('th, td').forEach((cell) => {
+        Array.from(row.querySelectorAll('th, td')).forEach((cell) => {
           const cellContent = turndownService.turndown((cell as HTMLElement).innerHTML).trim();
           cells.push(escapeMarkdownTableCell(cellContent));
         });
@@ -683,19 +752,33 @@ export function htmlToMarkdown(html: string, turndownService: TurndownService): 
   markdown = markdown.replace(/\\\(/g, '(');
   markdown = markdown.replace(/\\\)/g, ')');
   
-  // 11. 格式化：确保标题后有空行
+  // 11. 清理网页富文本列表缩进产生的“仅含空白字符”的空行。
+  // 这类行不会被后面的连续换行规则识别，会在列表项内变成空段落。
+  markdown = markdown.replace(/^[\t ]+$/gm, '');
+
+  // 12. 格式化：确保标题后有空行
   markdown = markdown.replace(/(^#{1,6}\s+.+)(\n)(?![\n#])/gm, '$1\n\n');
   
-  // 12. 移除多余的空行（超过2个连续换行）
+  // 13. 移除多余的空行（超过2个连续换行）
   markdown = markdown.replace(/\n{3,}/g, '\n\n');
   
-  // 13. 确保文档开头没有多余空行
+  // 14. 确保文档开头没有多余空行
   markdown = markdown.replace(/^\n+/, '');
   
-  // 14. 确保文档末尾只有一个换行
+  // 15. 确保文档末尾只有一个换行
   markdown = markdown.replace(/\n+$/, '\n');
   
   return markdown;
+}
+
+/**
+ * 将来源网页的富文本剪贴板内容规范化为编辑器 HTML。
+ * HTML -> Markdown -> HTML 的往返会去掉展示层包装节点，避免隐藏代码层、
+ * 松散列表段落和复制按钮被 TipTap 当成正文节点。
+ */
+export function richHtmlToEditorHtml(html: string, workspaceRoot?: string): string {
+  const markdown = htmlToMarkdown(html, createTurndownService());
+  return markdown.trim() ? markdownToHtml(markdown, workspaceRoot) : '';
 }
 
 // TipTap JSON 转 Markdown
