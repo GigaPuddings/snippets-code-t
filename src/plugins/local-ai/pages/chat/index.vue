@@ -2436,7 +2436,7 @@ onUnmounted(() => {
 }
 
 .icon-action-btn {
-  @apply w-8 h-8 rounded-[9px];
+  @apply w-8 h-8 rounded-lg;
 }
 
 .icon-action-btn:hover,
@@ -2451,7 +2451,7 @@ onUnmounted(() => {
 }
 
 .sidebar-nav-item {
-  @apply flex items-center w-full min-h-[34px] text-chat text-sm font-semibold text-left bg-transparent border-0 rounded-[9px] gap-2.5 cursor-pointer;
+  @apply flex items-center w-full min-h-[34px] text-chat text-sm font-semibold text-left bg-transparent border-0 rounded-lg gap-2.5 cursor-pointer;
   padding: 0 4px;
   font-family: inherit;
   line-height: 1;
@@ -2490,12 +2490,12 @@ onUnmounted(() => {
 }
 
 .chat-list {
-  @apply flex flex-col min-h-0 flex-1 overflow-y-auto gap-[5px];
+  @apply flex flex-col min-h-0 flex-1 overflow-y-auto gap-2;
   padding-right: 2px;
 }
 
 .chat-list-item {
-  @apply relative flex min-h-[34px] items-center border border-transparent rounded-[9px] text-chat text-sm font-medium text-left gap-2 cursor-pointer;
+  @apply relative flex min-h-[34px] items-center border border-transparent rounded-lg text-chat text-sm font-medium text-left gap-2 cursor-pointer;
   padding: 0 12px;
   transition:
     background-color 0.16s ease,
@@ -2532,7 +2532,7 @@ onUnmounted(() => {
 }
 
 .sidebar-empty {
-  @apply text-chat-muted text-[13px] text-center bg-chat-surface border-0 rounded-[10px];
+  @apply text-chat-muted text-[13px] text-center bg-chat-surface border-0 rounded-lg;
   padding: 22px 10px;
 }
 
@@ -2542,7 +2542,7 @@ onUnmounted(() => {
 }
 
 .sidebar-settings-btn {
-  @apply h-8 justify-start rounded-[9px] text-[13px] gap-2;
+  @apply h-8 justify-start rounded-lg text-sm gap-2;
   padding: 0 10px;
 }
 
@@ -2552,7 +2552,7 @@ onUnmounted(() => {
 }
 
 .panel-sidebar-toggle {
-  @apply inline-flex absolute z-[8] items-center justify-center text-chat bg-chat-overlay border border-chat rounded-[9px] shadow-chat-overlay;
+  @apply inline-flex absolute z-[8] items-center justify-center text-chat bg-chat-overlay border border-chat rounded-lg shadow-chat-overlay;
   top: 18px;
   left: 14px;
   width: 34px;
@@ -2611,7 +2611,7 @@ onUnmounted(() => {
 }
 
 .empty-state {
-  @apply flex flex-col items-center text-chat-muted text-center bg-chat-surface border border-dashed border-chat rounded-[18px] gap-[7px];
+  @apply flex flex-col items-center text-chat-muted text-center bg-chat-surface border border-dashed border-chat rounded-lg gap-2;
   width: min(420px, 92%);
   min-height: 150px;
   margin: 10vh auto 0;
@@ -2619,7 +2619,7 @@ onUnmounted(() => {
 }
 
 .empty-title {
-  @apply text-chat-strong text-[15px] font-semibold;
+  @apply text-chat-strong text-sm font-semibold;
 }
 
 .empty-desc {
@@ -2654,7 +2654,7 @@ onUnmounted(() => {
 }
 
 .user-bubble {
-  @apply text-chat-strong text-sm bg-chat-user-bubble border border-chat-user-bubble rounded-[18px] shadow-chat-sm;
+  @apply text-chat-strong text-sm bg-chat-user-bubble border border-chat-user-bubble rounded-lg shadow-chat-sm;
   padding: 10px 12px;
   line-height: 1.6;
 }
@@ -2668,12 +2668,12 @@ onUnmounted(() => {
 }
 
 .message-attachment-chip {
-  @apply inline-flex max-w-full items-center overflow-hidden text-chat-secondary text-xs bg-chat-overlay-soft border border-chat rounded-[10px] gap-[7px];
+  @apply inline-flex max-w-full items-center overflow-hidden text-chat-secondary text-xs bg-chat-overlay-soft border border-chat rounded-lg gap-2;
   padding: 4px 7px;
 }
 
 .message-attachment-chip--image {
-  @apply inline-flex items-center justify-center overflow-hidden bg-chat-panel rounded-[10px];
+  @apply inline-flex items-center justify-center overflow-hidden bg-chat-panel rounded-lg;
   width: 64px;
   height: 64px;
   padding: 0;
@@ -2707,7 +2707,7 @@ onUnmounted(() => {
 }
 
 .assistant-card {
-  @apply max-w-full min-w-0 overflow-hidden text-chat-body text-sm bg-chat-surface border border-chat rounded-[18px] shadow-chat-md;
+  @apply max-w-full min-w-0 overflow-hidden text-chat-body text-sm bg-chat-surface border border-chat rounded-lg shadow-chat-md;
   padding: 14px;
   line-height: 1.68;
 }
@@ -2727,7 +2727,7 @@ onUnmounted(() => {
 }
 
 .reasoning-panel {
-  @apply overflow-hidden text-chat-secondary bg-chat-panel border border-chat rounded-[14px];
+  @apply overflow-hidden text-chat-secondary bg-chat-panel border border-chat rounded-lg;
 }
 
 .reasoning-panel summary {
@@ -2784,7 +2784,7 @@ onUnmounted(() => {
 }
 
 .markdown-body :deep(code) {
-  @apply text-chat-secondary text-xs bg-chat-code border border-chat-code rounded-[5px];
+  @apply text-chat-secondary text-xs bg-chat-code border border-chat-code rounded-md;
   padding: 2px 5px;
 }
 
@@ -2793,7 +2793,7 @@ onUnmounted(() => {
 }
 
 .markdown-body :deep(.code-block-shell) {
-  @apply relative max-w-full overflow-x-auto overflow-y-hidden bg-chat-code-block border border-chat rounded-xl;
+  @apply relative max-w-full overflow-x-auto overflow-y-hidden bg-chat-code-block border border-chat rounded-lg;
   margin: 12px 0;
   padding: 12px;
 }
@@ -2881,7 +2881,7 @@ onUnmounted(() => {
 }
 
 .verified-source {
-  @apply grid items-center text-chat-secondary no-underline bg-chat-inset border border-chat rounded-[7px];
+  @apply grid items-center text-chat-secondary no-underline bg-chat-inset border border-chat rounded-lg;
   grid-template-columns: auto minmax(0, 1fr) auto;
   padding: 5px 8px;
   column-gap: 7px;
@@ -2927,13 +2927,13 @@ onUnmounted(() => {
 }
 
 .message-warning {
-  @apply inline-flex text-chat-warning text-xs bg-chat-warning border border-chat-warning rounded-[7px];
+  @apply inline-flex text-chat-warning text-xs bg-chat-warning border border-chat-warning rounded-lg;
   margin-top: 7px;
   padding: 5px 8px;
 }
 
 .message-actions button {
-  @apply w-7 h-7 rounded-[9px];
+  @apply w-7 h-7 rounded-lg;
 }
 
 .loading-text {
@@ -2966,7 +2966,7 @@ onUnmounted(() => {
 }
 
 .chat-input-card {
-  @apply flex-shrink-0 mx-auto bg-chat-input border border-chat-input rounded-[20px] shadow-chat-lg;
+  @apply flex-shrink-0 mx-auto bg-chat-input border border-chat-input rounded-2xl shadow-chat-lg;
   width: min(100%, var(--chat-readable-width));
   padding: 10px 14px 10px;
 }
@@ -2986,7 +2986,7 @@ onUnmounted(() => {
 }
 
 .attachment-preview-item {
-  @apply inline-flex items-center text-chat-secondary bg-chat-attachment border border-chat rounded-[10px] gap-[7px];
+  @apply inline-flex items-center text-chat-secondary bg-chat-attachment border border-chat rounded-lg gap-2;
   max-width: min(260px, 100%);
   padding: 4px 6px 4px 4px;
 }
