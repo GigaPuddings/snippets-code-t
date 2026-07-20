@@ -307,6 +307,10 @@
   @apply min-w-0 max-w-full;
 }
 
+.message-row--assistant .message-body {
+  width: 100%;
+}
+
 .message-row--user .message-body {
   @apply flex flex-col items-end ml-auto;
 

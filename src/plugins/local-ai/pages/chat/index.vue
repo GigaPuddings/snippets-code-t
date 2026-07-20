@@ -120,6 +120,11 @@
         ref="messageListRef"
         class="message-list"
         @scroll="handleMessageScroll"
+        @wheel.passive="handleMessageWheel"
+        @pointerdown="handleMessagePointerDown"
+        @touchstart.passive="handleMessageTouchStart"
+        @touchmove.passive="handleMessageTouchMove"
+        @touchend="handleMessageTouchEnd"
       >
         <div v-if="!activeMessages.length" class="empty-state">
           <Robot theme="outline" size="28" />
@@ -696,6 +701,11 @@ let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
 let scrollFrameId: number | null = null;
 let scrollFrameForce = false;
+let streamingResizeObserver: ResizeObserver | null = null;
+let observedStreamingCard: Element | null = null;
+let scrollbarPointerActive = false;
+let lastMessageScrollTop = 0;
+let lastMessageTouchY: number | null = null;
 const MESSAGE_BOTTOM_THRESHOLD = 96;
 const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const STREAM_PUMP_INTERVAL_MS = 90;
@@ -801,16 +811,79 @@ const isMessageListNearBottom = (): boolean => {
     MESSAGE_BOTTOM_THRESHOLD
   );
 };
-const syncMessageScrollState = () => {
+const syncMessageScrollState = (): void => {
   const nearBottom = isMessageListNearBottom();
-  autoFollowMessages.value = nearBottom;
-  showJumpToBottom.value = !nearBottom;
+  if (nearBottom) autoFollowMessages.value = true;
+  showJumpToBottom.value = !nearBottom && !autoFollowMessages.value;
 };
-const handleMessageScroll = () => {
+const cancelPendingAutoScroll = (): void => {
+  if (scrollFrameId === null || scrollFrameForce) return;
+  window.cancelAnimationFrame(scrollFrameId);
+  scrollFrameId = null;
+};
+const pauseAutoFollow = (): void => {
+  autoFollowMessages.value = false;
+  showJumpToBottom.value = !isMessageListNearBottom();
+  cancelPendingAutoScroll();
+};
+const handleMessageScroll = (): void => {
+  const list = messageListRef.value;
+  if (list) {
+    if (scrollbarPointerActive && list.scrollTop < lastMessageScrollTop - 1) {
+      pauseAutoFollow();
+    }
+    lastMessageScrollTop = list.scrollTop;
+  }
   syncMessageScrollState();
+};
+const handleMessageWheel = (event: WheelEvent): void => {
+  if (event.deltaY >= 0) return;
+  pauseAutoFollow();
+  window.requestAnimationFrame(syncMessageScrollState);
+};
+const handleMessagePointerDown = (event: PointerEvent): void => {
+  const list = messageListRef.value;
+  if (!list) return;
+  const bounds = list.getBoundingClientRect();
+  const scrollbarWidth = Math.max(12, list.offsetWidth - list.clientWidth);
+  if (event.clientX < bounds.right - scrollbarWidth) return;
+  scrollbarPointerActive = true;
+  lastMessageScrollTop = list.scrollTop;
+  cancelPendingAutoScroll();
+};
+const finishMessagePointerScroll = (): void => {
+  scrollbarPointerActive = false;
+  syncMessageScrollState();
+};
+const handleMessageTouchStart = (event: TouchEvent): void => {
+  lastMessageTouchY = event.touches[0]?.clientY ?? null;
+};
+const handleMessageTouchMove = (event: TouchEvent): void => {
+  const nextY = event.touches[0]?.clientY;
+  if (nextY === undefined || lastMessageTouchY === null) return;
+  if (nextY > lastMessageTouchY) pauseAutoFollow();
+  lastMessageTouchY = nextY;
+};
+const handleMessageTouchEnd = (): void => {
+  lastMessageTouchY = null;
+  syncMessageScrollState();
+};
+const syncStreamingResizeTarget = (): void => {
+  if (!streamingResizeObserver) return;
+  const nextCard =
+    messageListRef.value?.querySelector('.assistant-card--streaming') ?? null;
+  if (nextCard === observedStreamingCard) return;
+  if (observedStreamingCard) {
+    streamingResizeObserver.unobserve(observedStreamingCard);
+  }
+  observedStreamingCard = nextCard;
+  if (observedStreamingCard) {
+    streamingResizeObserver.observe(observedStreamingCard);
+  }
 };
 const scrollToBottom = async (options: { force?: boolean } = {}) => {
   await nextTick();
+  syncStreamingResizeTarget();
   const list = messageListRef.value;
   if (!list || (!options.force && !autoFollowMessages.value)) return;
   scrollFrameForce = scrollFrameForce || options.force === true;
@@ -1666,6 +1739,13 @@ const regenerateMessage = async (messageId: string) => {
 };
 
 onMounted(async () => {
+  if (typeof ResizeObserver !== 'undefined') {
+    streamingResizeObserver = new ResizeObserver(() => {
+      if (autoFollowMessages.value) void scrollToBottom();
+    });
+  }
+  window.addEventListener('pointerup', finishMessagePointerScroll);
+  window.addEventListener('pointercancel', finishMessagePointerScroll);
   await refreshAll();
   statusTimer = setInterval(() => {
     refreshStatus().catch((error) =>
@@ -1682,6 +1762,11 @@ onUnmounted(() => {
     window.cancelAnimationFrame(scrollFrameId);
     scrollFrameId = null;
   }
+  streamingResizeObserver?.disconnect();
+  streamingResizeObserver = null;
+  observedStreamingCard = null;
+  window.removeEventListener('pointerup', finishMessagePointerScroll);
+  window.removeEventListener('pointercancel', finishMessagePointerScroll);
   if (currentStreamRequestId.value) {
     void cancelLocalAiChatStream(currentStreamRequestId.value);
   }
