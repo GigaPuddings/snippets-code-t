@@ -3,6 +3,7 @@ import { logger } from '@/utils/logger';
 import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
 import { getSearchResultLaunchPath } from './useSearchResultPaths';
 import { modal } from '@/utils/modal';
+import { openSearchResultInConfig } from './openConfigContent';
 
 interface UseSearchResultActionsOptions {
   onClearSearch: () => void;
@@ -55,30 +56,10 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
   }
 
   async function openNoteItem(item: ContentType) {
-    try {
-      const navigationData = {
-        fragmentId: item.id,
-        categoryId: item.category_id,
-        timestamp: Date.now()
-      };
-      localStorage.setItem('pendingNavigation', JSON.stringify(navigationData));
-
-      await closeSearchWindow();
-
-      const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-      const configWindow = await WebviewWindow.getByLabel('config');
-
-      if (configWindow) {
-        await configWindow.show();
-        await configWindow.setFocus();
-        await configWindow.emit('check-pending-navigation', {});
-      } else {
-        await invoke('hotkey_config_command');
-      }
-    } catch (err) {
-      logger.error('[搜索窗口] Failed to open config window:', err);
-      localStorage.removeItem('pendingNavigation');
-    }
+    await openSearchResultInConfig({
+      item,
+      closeSearchWindow
+    }).catch(() => undefined);
   }
 
   async function copyAndInsertSnippet(item: ContentType) {

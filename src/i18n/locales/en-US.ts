@@ -1825,6 +1825,7 @@ export default {
     moreComingSoon: 'More actions coming soon',
     send: 'Send',
     stopGenerating: 'Stop generating',
+    stoppingGeneration: 'Stopping generation',
     outputLimitReached:
       'Reached the per-response output limit. Set max tokens to 0 in Settings to remove the limit.',
     contextLimitReached:

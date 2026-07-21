@@ -1793,6 +1793,7 @@ export default {
     moreComingSoon: '更多操作即将支持',
     send: '发送',
     stopGenerating: '停止生成',
+    stoppingGeneration: '正在停止生成',
     outputLimitReached:
       '已达到单次输出上限，可在设置中把最大 token 设为 0 取消限制。',
     contextLimitReached:

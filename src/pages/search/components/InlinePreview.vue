@@ -193,6 +193,7 @@ import {
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { openFileWithDefaultApp, openFileWithOtherWays, revealFileInFolder } from '@/utils/file-system';
 import { closeWindowByLabel } from '@/utils/window-shortcuts';
+import { openSearchResultInConfig } from '../composables/openConfigContent';
 import { useI18n } from 'vue-i18n';
 import { useConfigurationStore } from '@/store';
 import { extractPlainText } from '@/utils/text';
@@ -548,39 +549,12 @@ async function openInConfig() {
   if (!canOpenInConfig.value || !props.item) return;
 
   try {
-    if (props.item.type === 'note') {
-      const navigationData = {
-        fragmentId: props.item.id,
-        categoryId: props.item.category_id, 
-        timestamp: Date.now()
-      };
-      localStorage.setItem('pendingNavigation', JSON.stringify(navigationData));
-    } else {
-      const snippetData = {
-        fragmentId: props.item.id,
-        content: props.item.content,
-        categoryId: props.item.category_id,
-        timestamp: Date.now()
-      };
-      localStorage.setItem('pendingSnippetOpen', JSON.stringify(snippetData));
-    }
-
-    await closeWindowByLabel('main');
-
-    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-    const configWindow = await WebviewWindow.getByLabel('config');
-
-    if (configWindow) {
-      await configWindow.show();
-      await configWindow.setFocus();
-      await configWindow.emit('check-pending-navigation', {});
-      await configWindow.emit('check-pending-snippet-open', {});
-    } else {
-      await invoke('hotkey_config_command');
-    }
+    await openSearchResultInConfig({
+      item: props.item,
+      preview: props.item.type !== 'note',
+      closeSearchWindow: () => closeWindowByLabel('main')
+    });
   } catch (err) {
-    localStorage.removeItem('pendingNavigation');
-    localStorage.removeItem('pendingSnippetOpen');
     console.error('[搜索预览] 打开 config 失败:', err);
   }
 }

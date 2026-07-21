@@ -1561,6 +1561,12 @@ fn remove_active_stream(request_id: &str) {
     }
 }
 
+async fn wait_for_stream_cancel(cancel_flag: &AtomicBool) {
+    while !cancel_flag.load(Ordering::Relaxed) {
+        tokio::time::sleep(Duration::from_millis(40)).await;
+    }
+}
+
 /// 窗口销毁时取消属于该窗口的生成，避免 WebView 已关闭但后端仍持续推理。
 pub fn cancel_streams_for_window(window_label: &str) -> usize {
     let request_ids = match ACTIVE_STREAM_WINDOWS.lock() {
@@ -1970,11 +1976,30 @@ async fn chat_completion_stream(
         return Err("消息不能为空".to_string());
     }
 
-    let config = read_config(app_handle);
-    ensure_service_running(app_handle, &config).await?;
-    let _guard = mark_request_started();
     let cancel_flag = Arc::new(AtomicBool::new(false));
     register_active_stream(&request_id, window.label(), Arc::clone(&cancel_flag));
+    let config = read_config(app_handle);
+    let service_result = tokio::select! {
+        result = ensure_service_running(app_handle, &config) => Some(result),
+        _ = wait_for_stream_cancel(cancel_flag.as_ref()) => None,
+    };
+    match service_result {
+        Some(Ok(())) => {}
+        Some(Err(error)) => {
+            remove_active_stream(&request_id);
+            return Err(error);
+        }
+        None => {
+            // start_service_inner may already have spawned and registered the
+            // child before its health wait was cancelled. Keep the normal idle
+            // lifecycle active so that tracked process is not left orphaned.
+            start_idle_monitor();
+            emit_chat_stream(&window, &request_id, "done", None, None, None);
+            remove_active_stream(&request_id);
+            return Ok(String::new());
+        }
+    }
+    let _guard = mark_request_started();
 
     let request_ctx_size = config.ctx_size;
     emit_chat_stream(
@@ -2020,13 +2045,20 @@ async fn chat_completion_stream(
         }
     });
 
-    let response_result = client
-        .post(url)
-        .header(ACCEPT, "text/event-stream")
-        .header(CACHE_CONTROL, "no-cache")
-        .json(&body)
-        .send()
-        .await;
+    let response_result = tokio::select! {
+        response = client
+            .post(url)
+            .header(ACCEPT, "text/event-stream")
+            .header(CACHE_CONTROL, "no-cache")
+            .json(&body)
+            .send() => Some(response),
+        _ = wait_for_stream_cancel(cancel_flag.as_ref()) => None,
+    };
+    let Some(response_result) = response_result else {
+        emit_chat_stream(&window, &request_id, "done", None, None, None);
+        remove_active_stream(&request_id);
+        return Ok(String::new());
+    };
     let response = match response_result {
         Ok(response) => response,
         Err(error) => {

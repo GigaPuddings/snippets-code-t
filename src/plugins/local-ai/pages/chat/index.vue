@@ -2,7 +2,8 @@
   <main
     :class="[
       'local-ai-chat-shell',
-      sidebarCollapsed ? 'local-ai-chat-shell--sidebar-collapsed' : ''
+      sidebarCollapsed ? 'local-ai-chat-shell--sidebar-collapsed' : '',
+      sending ? 'local-ai-chat-shell--sending' : ''
     ]"
   >
     <aside
@@ -31,7 +32,12 @@
       </header>
 
       <div class="sidebar-nav">
-        <button class="sidebar-nav-item" type="button" @click="createNewChat">
+        <button
+          class="sidebar-nav-item"
+          type="button"
+          :disabled="sending"
+          @click="createNewChat"
+        >
           <Edit theme="outline" size="18" />
           <span>{{ t('localAi.newChat') }}</span>
         </button>
@@ -51,9 +57,14 @@
             class="icon-action-btn"
             type="button"
             :title="t('plugins.refresh')"
+            :disabled="sending || refreshing"
             @click="refreshAll"
           >
-            <Refresh theme="outline" size="14" />
+            <Refresh
+              :class="{ 'animate-spin': refreshing }"
+              theme="outline"
+              size="14"
+            />
           </button>
         </div>
         <div v-if="filteredHistories.length" class="chat-list">
@@ -62,10 +73,12 @@
             :key="history.id"
             :class="[
               'chat-list-item',
-              activeHistoryId === history.id ? 'active' : ''
+              activeHistoryId === history.id ? 'active' : '',
+              sending ? 'disabled' : ''
             ]"
             role="button"
-            tabindex="0"
+            :tabindex="sending ? -1 : 0"
+            :aria-disabled="sending"
             @click="openHistory(history.id)"
             @keydown.enter.prevent="openHistory(history.id)"
           >
@@ -77,6 +90,7 @@
               class="chat-item-delete"
               type="button"
               :title="t('common.delete')"
+              :disabled="sending"
               @click.stop="deleteHistoryItem(history.id)"
             >
               <Delete theme="outline" size="13" />
@@ -275,8 +289,18 @@
                       ></div>
                     </template>
                   </div>
-                  <div v-else class="message-content loading-text">
-                    {{ assistantMessagePendingText(display.message) }}
+                  <div
+                    v-else
+                    :class="[
+                      'message-content',
+                      display.message.stopped ? '' : 'loading-text'
+                    ]"
+                  >
+                    {{
+                      display.message.stopped
+                        ? t('localAi.generationStopped')
+                        : assistantMessagePendingText(display.message)
+                    }}
                   </div>
                 </div>
                 <div
@@ -549,14 +573,30 @@
           <div class="input-toolbar-right">
             <span class="input-hint">Enter · Shift + Enter</span>
             <button
-              v-if="sending"
+              v-if="currentStreamRequestId"
               class="send-btn send-btn--stop"
+              :class="{ 'send-btn--stopping': stopRequested }"
               type="button"
-              :title="t('localAi.stopGenerating')"
-              :aria-label="t('localAi.stopGenerating')"
+              :disabled="stopRequested"
+              :title="
+                stopRequested
+                  ? t('localAi.stoppingGeneration')
+                  : t('localAi.stopGenerating')
+              "
+              :aria-label="
+                stopRequested
+                  ? t('localAi.stoppingGeneration')
+                  : t('localAi.stopGenerating')
+              "
               @click="stopGeneration"
             >
-              <Square theme="filled" size="11" />
+              <Refresh
+                v-if="stopRequested"
+                class="animate-spin"
+                theme="outline"
+                size="15"
+              />
+              <Square v-else theme="filled" size="11" />
             </button>
             <button
               v-else
@@ -691,6 +731,7 @@ const composerFocused = ref(false);
 const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
+const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
 const config = ref<LocalAiConfig | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
@@ -917,6 +958,7 @@ const refreshConfig = async () => {
   }
 };
 const refreshStatus = async () => {
+  if (refreshing.value) return;
   refreshing.value = true;
   try {
     serviceStatus.value = await getLocalAiStatus();
@@ -960,10 +1002,10 @@ const refreshHistories = async () => {
   }
 };
 const refreshAll = async () => {
+  if (sending.value) return;
   await Promise.all([refreshConfig(), refreshStatus(), refreshHistories()]);
 };
-const persistActiveHistory = async () => {
-  const current = activeHistory.value;
+const persistHistory = async (current: ChatHistoryView | null) => {
   if (!current) return;
   const visibleTurns = getVisibleMessages(current).map((message) => ({
     id: message.id,
@@ -982,6 +1024,7 @@ const persistActiveHistory = async () => {
   } as PersistedChatHistory);
 };
 const createNewChat = () => {
+  if (sending.value) return;
   const next = createHistory();
   histories.value.unshift(next);
   activeHistoryId.value = next.id;
@@ -992,6 +1035,7 @@ const ensureActiveHistory = () => {
   createNewChat();
 };
 const openHistory = (id: string) => {
+  if (sending.value) return;
   activeHistoryId.value = id;
   const current = activeHistory.value;
   if (current && !current.currentNodeId) {
@@ -1003,6 +1047,7 @@ const openHistory = (id: string) => {
   scrollToBottom({ force: true });
 };
 const deleteHistoryItem = async (id: string) => {
+  if (sending.value) return;
   histories.value = histories.value.filter((item) => item.id !== id);
   await deleteLocalAiChatHistory(id);
   if (activeHistoryId.value === id) {
@@ -1112,7 +1157,9 @@ const toggleVerifiedSources = (): void => {
     logger.warn('[LocalAI] save verified source state failed', error);
   }
 };
-const toApiMessages = (): LocalAiMessage[] => {
+const toApiMessages = (
+  history: ChatHistoryView | null = activeHistory.value
+): LocalAiMessage[] => {
   const runtimeContext = createRuntimeContextMessage();
   const runtimeTokens = estimateChatTokens([runtimeContext]);
   const messageBudget = Math.max(
@@ -1122,7 +1169,7 @@ const toApiMessages = (): LocalAiMessage[] => {
   return [
     runtimeContext,
     ...compactMessagesForBudget(
-      activeMessages.value
+      getVisibleMessages(history)
         .filter((message) => !message.streaming && message.role !== 'system')
         .map((message) => ({
           role: message.role as 'user' | 'assistant',
@@ -1136,18 +1183,22 @@ const toApiMessages = (): LocalAiMessage[] => {
     )
   ];
 };
-const verifiedSourceQueryFor = (assistantMessage: ChatMessage): string => {
-  const parent = activeHistory.value?.messages.find(
+const verifiedSourceQueryFor = (
+  history: ChatHistoryView,
+  assistantMessage: ChatMessage
+): string => {
+  const parent = history.messages.find(
     (message) => message.id === assistantMessage.parentId
   );
   return parent?.role === 'user' ? parent.content.trim() : '';
 };
 const withVerifiedSourceContext = async (
   messages: LocalAiMessage[],
-  assistantMessage: ChatMessage
+  assistantMessage: ChatMessage,
+  history: ChatHistoryView
 ): Promise<LocalAiMessage[]> => {
   if (assistantMessage.verifiedSourcesStatus !== 'searching') return messages;
-  const query = verifiedSourceQueryFor(assistantMessage);
+  const query = verifiedSourceQueryFor(history, assistantMessage);
   if (!query) throw new Error(t('localAi.verifiedSourcesNoQuery'));
 
   const response = await searchVerifiedSourcesWithLocalAi({
@@ -1192,7 +1243,7 @@ const messageContextLimit = (message: ChatMessage): number =>
       serviceStatus.value?.ctxSize ??
       4096
   );
-const messageStats = (message: ChatMessage) => {
+const calculateMessageStats = (message: ChatMessage) => {
   const now = statsTick.value;
   const promptTokens = message.stats?.promptTokens ?? message.promptTokens ?? 0;
   const output =
@@ -1229,18 +1280,26 @@ const messageStats = (message: ChatMessage) => {
     speed: speed.toFixed(1)
   };
 };
+const messageStatsById = computed(() => {
+  // One calculation per visible message and render tick. The template displays
+  // several fields from the same stats object, so recomputing token estimates
+  // for every interpolation is unnecessarily expensive on long conversations.
+  statsTick.value;
+  return new Map(
+    displayMessages.value.map(({ message }) => [
+      message.id,
+      calculateMessageStats(message)
+    ])
+  );
+});
+const messageStats = (message: ChatMessage) =>
+  messageStatsById.value.get(message.id) ?? calculateMessageStats(message);
 const messageWarningText = (message: ChatMessage): string => {
   if (message.repetitionStopped) return t('localAi.repetitionStopped');
   if (message.interrupted) return t('localAi.streamInterrupted');
   if (message.stopped) return t('localAi.generationStopped');
   const estimatedContext =
-    message.stats?.totalTokens ??
-    (message.promptTokens ?? 0) +
-      (message.stats?.completionTokens ??
-        message.estimatedCompletionTokens ??
-        (message.streaming
-          ? estimateStreamingOutputTokens(message.content)
-          : estimateTokens(message.content)));
+    message.stats?.totalTokens ?? messageStats(message).context;
   if (estimatedContext >= messageContextLimit(message) - 8)
     return t('localAi.contextLimitReached');
   if (message.stats?.finishReason === 'length')
@@ -1296,23 +1355,61 @@ const stopStatsTicker = () => {
   statsTimer = null;
   statsTick.value = Date.now();
 };
-const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
-  const startedAt = performance.now();
+const beginGeneration = (assistantMessage: ChatMessage): string => {
   const requestId = createLocalAiStreamRequestId();
-  let messages = toApiMessages();
+  stopRequested.value = false;
+  currentStreamRequestId.value = requestId;
+  currentStreamingMessage.value = assistantMessage;
+  return requestId;
+};
+const clearGeneration = (requestId?: string): void => {
+  if (requestId && currentStreamRequestId.value !== requestId) return;
+  currentStreamRequestId.value = null;
+  currentStreamingMessage.value = null;
+};
+const markMessageStopped = (
+  message: ChatMessage,
+  elapsedMs?: number
+): void => {
+  message.streaming = false;
+  message.stopped = true;
+  message.interrupted = false;
+  message.error = '';
+  if (message.verifiedSourcesStatus === 'searching') {
+    message.verifiedSourcesStatus = 'failed';
+  }
+  if (message.reasoningStartedAt && !message.reasoningEndedAt) {
+    message.reasoningEndedAt = Date.now();
+  }
+  if (elapsedMs !== undefined) message.elapsedMs = elapsedMs;
+  discardStreamingMarkdown(message.id);
+  statsTick.value = Date.now();
+};
+const streamAssistantMessage = async (
+  assistantMessage: ChatMessage,
+  history: ChatHistoryView,
+  requestId: string
+) => {
+  const startedAt = performance.now();
+  let messages = toApiMessages(history);
   let queuedContent = '';
   let pumpTimer: number | null = null;
   let drainResolver: (() => void) | null = null;
   let receivedDelta = false;
   let repetitionStopRequested = false;
-  currentStreamRequestId.value = requestId;
-  stopRequested.value = false;
-  messages = await withVerifiedSourceContext(messages, assistantMessage);
   if (stopRequested.value) {
-    assistantMessage.streaming = false;
-    assistantMessage.stopped = true;
-    assistantMessage.elapsedMs = performance.now() - startedAt;
-    currentStreamRequestId.value = null;
+    markMessageStopped(assistantMessage, performance.now() - startedAt);
+    clearGeneration(requestId);
+    return;
+  }
+  messages = await withVerifiedSourceContext(
+    messages,
+    assistantMessage,
+    history
+  );
+  if (stopRequested.value) {
+    markMessageStopped(assistantMessage, performance.now() - startedAt);
+    clearGeneration(requestId);
     return;
   }
   messages = mergeSystemMessages(messages);
@@ -1328,7 +1425,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
     }
 
     const take = stopRequested.value
-      ? 1200
+      ? queuedContent.length
       : queuedContent.length > 4000
         ? 900
         : queuedContent.length > 1200
@@ -1354,6 +1451,12 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
       );
     }
     await scrollToBottom();
+    if (!queuedContent) {
+      pumpTimer = null;
+      drainResolver?.();
+      drainResolver = null;
+      return;
+    }
     pumpTimer = window.setTimeout(() => {
       pump().catch((error) =>
         logger.warn('[LocalAI] stream pump failed', error)
@@ -1386,6 +1489,7 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
       enableThinking: assistantMessage.allowThinking === true
     },
     (delta) => {
+      if (stopRequested.value) return;
       receivedDelta = true;
       enqueueContent(delta);
     },
@@ -1437,12 +1541,20 @@ const streamAssistantMessage = async (assistantMessage: ChatMessage) => {
   assistantMessage.interrupted = false;
   assistantMessage.error = '';
   statsTick.value = Date.now();
-  currentStreamRequestId.value = null;
+  clearGeneration(requestId);
 };
 const stopGeneration = async () => {
   const requestId = currentStreamRequestId.value;
-  if (!sending.value || !requestId || stopRequested.value) return;
+  if (!sending.value || stopRequested.value) return;
   stopRequested.value = true;
+  const streamingMessage = currentStreamingMessage.value;
+  if (streamingMessage) {
+    markMessageStopped(
+      streamingMessage,
+      Math.max(0, Date.now() - messageTimestamp(streamingMessage).getTime())
+    );
+  }
+  if (!requestId) return;
   try {
     await cancelLocalAiChatStream(requestId);
   } catch (error) {
@@ -1507,28 +1619,26 @@ const sendMessage = async () => {
     verifiedSourcesStatus: verifiedSourcesEnabled.value
       ? 'searching'
       : undefined,
-    contextSize: effectiveContextLimit.value,
-    promptTokens: estimateChatTokens(toApiMessages())
+    contextSize: effectiveContextLimit.value
   });
   draft.value = '';
   attachments.value = [];
   sending.value = true;
+  const requestId = beginGeneration(assistantMessage);
   startStatsTicker();
   await scrollToBottom({ force: true });
   const startedAt = performance.now();
 
   try {
-    await streamAssistantMessage(assistantMessage);
-    if (activeHistory.value) {
-      activeHistory.value.title =
-        activeHistory.value.title === t('localAi.newChatTitle')
+    await streamAssistantMessage(assistantMessage, current, requestId);
+    if (current) {
+      current.title =
+        current.title === t('localAi.newChatTitle')
           ? titleSource.slice(0, 28)
-          : activeHistory.value.title;
-      activeHistory.value.updatedAt = new Date().toISOString();
-      activeHistory.value.updatedAtLabel = new Date(
-        activeHistory.value.updatedAt
-      ).toLocaleString();
-      await persistActiveHistory();
+          : current.title;
+      current.updatedAt = new Date().toISOString();
+      current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
+      await persistHistory(current);
     }
     await refreshStatus();
   } catch (error) {
@@ -1540,24 +1650,30 @@ const sendMessage = async () => {
       assistantMessage.error = chatError;
       assistantMessage.interrupted = Boolean(assistantMessage.content.trim());
       if (!assistantMessage.interrupted) assistantMessage.content = chatError;
-      if (activeHistory.value) {
-        activeHistory.value.title =
-          activeHistory.value.title === t('localAi.newChatTitle')
+      if (current) {
+        current.title =
+          current.title === t('localAi.newChatTitle')
             ? titleSource.slice(0, 28)
-            : activeHistory.value.title;
-        activeHistory.value.updatedAt = new Date().toISOString();
-        activeHistory.value.updatedAtLabel = new Date(
-          activeHistory.value.updatedAt
-        ).toLocaleString();
-        await persistActiveHistory();
+            : current.title;
+        current.updatedAt = new Date().toISOString();
+        current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
+        await persistHistory(current);
       }
+    } else {
+      current.title =
+        current.title === t('localAi.newChatTitle')
+          ? titleSource.slice(0, 28)
+          : current.title;
+      current.updatedAt = new Date().toISOString();
+      current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
+      await persistHistory(current);
     }
     assistantMessage.streaming = false;
     discardStreamingMarkdown(assistantMessage.id);
     assistantMessage.elapsedMs = performance.now() - startedAt;
   } finally {
     sending.value = false;
-    currentStreamRequestId.value = null;
+    clearGeneration(requestId);
     stopStatsTicker();
     await scrollToBottom();
   }
@@ -1598,6 +1714,7 @@ const copyMessage = async (message: ChatMessage) => {
   }
 };
 const deleteMessage = async (messageId: string) => {
+  if (sending.value) return;
   const current = activeHistory.value;
   if (!current) return;
   const target = current.messages.find((message) => message.id === messageId);
@@ -1617,9 +1734,10 @@ const deleteMessage = async (messageId: string) => {
   }
   current.updatedAt = new Date().toISOString();
   current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
-  await persistActiveHistory();
+  await persistHistory(current);
 };
 const editMessage = (message: ChatMessage) => {
+  if (sending.value) return;
   draft.value = message.content;
   if (activeHistory.value && message.parentId) {
     activeHistory.value.currentNodeId = message.parentId;
@@ -1631,6 +1749,7 @@ const messageVersionLabel = (display: ChatDisplayMessage): string =>
     total: display.siblingLeafNodeIds.length
   });
 const changeMessageVersion = (display: ChatDisplayMessage, delta: number) => {
+  if (sending.value) return;
   const current = activeHistory.value;
   if (!current) return;
   const nextIndex = display.siblingCurrentIndex + delta;
@@ -1684,7 +1803,7 @@ const forkFromMessage = async (messageId: string) => {
   draft.value = '';
   attachments.value = [];
   autoFollowMessages.value = true;
-  await persistActiveHistory();
+  await persistHistory(forked);
   await scrollToBottom({ force: true });
   modal.msg(t('localAi.branchCreated'));
 };
@@ -1704,18 +1823,18 @@ const regenerateMessage = async (messageId: string) => {
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
     verifiedSourcesStatus: verifiedSourcesEnabled.value
       ? 'searching'
-      : undefined,
-    promptTokens: estimateChatTokens(toApiMessages())
+      : undefined
   });
   sending.value = true;
+  const requestId = beginGeneration(assistantMessage);
   startStatsTicker();
   await scrollToBottom({ force: true });
   const startedAt = performance.now();
   try {
-    await streamAssistantMessage(assistantMessage);
+    await streamAssistantMessage(assistantMessage, current, requestId);
     current.updatedAt = new Date().toISOString();
     current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
-    await persistActiveHistory();
+    await persistHistory(current);
   } catch (error) {
     if (!stopRequested.value) {
       const chatError = formatChatError(error);
@@ -1725,14 +1844,18 @@ const regenerateMessage = async (messageId: string) => {
       if (!assistantMessage.interrupted) assistantMessage.content = chatError;
       current.updatedAt = new Date().toISOString();
       current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
-      await persistActiveHistory();
+      await persistHistory(current);
+    } else {
+      current.updatedAt = new Date().toISOString();
+      current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
+      await persistHistory(current);
     }
     assistantMessage.streaming = false;
     discardStreamingMarkdown(assistantMessage.id);
     assistantMessage.elapsedMs = performance.now() - startedAt;
   } finally {
     sending.value = false;
-    currentStreamRequestId.value = null;
+    clearGeneration(requestId);
     stopStatsTicker();
     await scrollToBottom();
   }

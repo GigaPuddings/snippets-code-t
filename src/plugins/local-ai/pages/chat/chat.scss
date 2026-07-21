@@ -88,6 +88,25 @@
   @apply text-chat bg-chat-hover border-chat-hover;
 }
 
+.icon-action-btn:disabled,
+.sidebar-nav-item:disabled,
+.chat-item-delete:disabled,
+.chat-list-item.disabled,
+.local-ai-chat-shell--sending .message-actions button {
+  @apply cursor-not-allowed opacity-45;
+}
+
+.icon-action-btn:disabled:hover,
+.sidebar-nav-item:disabled:hover,
+.local-ai-chat-shell--sending .message-actions button:hover {
+  @apply bg-transparent border-transparent;
+}
+
+.chat-list-item.disabled,
+.local-ai-chat-shell--sending .message-actions button {
+  pointer-events: none;
+}
+
 .sidebar-nav {
   @apply grid gap-1.5;
 }
@@ -811,6 +830,10 @@
 
 .send-btn--stop:hover {
   @apply bg-chat-send-hover;
+}
+
+.send-btn--stopping:disabled {
+  @apply text-chat-send bg-chat-send opacity-70;
 }
 
 @keyframes local-ai-pulse {

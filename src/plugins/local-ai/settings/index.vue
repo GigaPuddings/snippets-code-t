@@ -979,8 +979,18 @@ onUnmounted(() => {
 }
 
 :deep(.el-input-number .el-input__wrapper) {
-  padding-left: 8px;
-  padding-right: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+// Element Plus reserves inner space for the step controls even when those
+// controls are hidden above. Remove that reservation so narrow three-column
+// parameter fields still show the complete value.
+:deep(.el-input-number .el-input__inner) {
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
 }
 
 .command-line {

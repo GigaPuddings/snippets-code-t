@@ -12,7 +12,14 @@
     </div>
     <RecycleScroller v-if="hasVisibleResults" ref="scrollerRef" class="result" :key="activeTab" :items="filteredResults" :item-size="itemSize"
       :buffer="itemSize" key-field="__rowKey" @update="handleScrollerUpdate" v-slot="{ item, index }">
-      <div class="item" :class="{ active: item.id === activeItemId }" @click="handleItemClick(item)">
+      <div
+        class="item"
+        :class="{
+          active: item.id === activeItemId,
+          'has-type-badge': activeTab === 'text'
+        }"
+        @click="handleItemClick(item)"
+      >
         <!-- 图标，用于显示结果的图标 -->
         <div class="icon-wrapper">
           <div v-if="item.summarize === 'file' && !item.icon" class="file-type-icon" :class="getFileIconClass(item)">
@@ -30,28 +37,15 @@
           </template>
         </div>
         <div class="content">
-          <div class="title-row">
-            <!-- 标题，用于显示结果的标题 -->
-            <div class="title" v-html="getDisplayTitle(item)"></div>
-            <!-- 当类型选项卡为全部才显示类型标签，用于区分不同的结果类型 -->
-            <span v-if="activeTab === 'text'" class="type-badge">{{ getTypeLabel(item) }}</span>
-          </div>
+          <!-- 标题，用于显示结果的标题 -->
+          <div class="title" v-html="getDisplayTitle(item)"></div>
           <p class="text" v-html="getDisplayContentHighlighted(item)"></p>
           <!-- 内容，用于显示结果的文本内容 -->
         </div>
+        <!-- 固定为独立网格列，避免标题长度导致类型标签左右跳动 -->
+        <span v-if="activeTab === 'text'" class="type-badge">{{ getTypeLabel(item) }}</span>
         <!-- 操作按钮，用于显示结果的操作按钮 -->
         <div class="item-actions">
-          <button
-            v-if="canCopySnippet(item)"
-            class="copy-action"
-            type="button"
-            :title="t('searchResult.copyCode')"
-            :aria-label="t('searchResult.copyCode')"
-            @click.stop="handleCopySnippet(item)"
-            @dblclick.stop
-          >
-            <Copy class="copy-action-icon" theme="outline" size="14" />
-          </button>
           <div v-if="index >= visibleShortcutStart && index < visibleShortcutStart + visibleShortcutCount" class="shortcut-key">
             <Command class="shortcut-key-icon" theme="outline" size="12" />
             <span class="shortcut-key-text">{{ index - visibleShortcutStart + 1 }}</span>
@@ -64,7 +58,7 @@
 
 <script lang="ts" setup>
 import { useConfigurationStore } from '@/store';
-import { Command, Copy } from '@icon-park/vue-next';
+import { Command } from '@icon-park/vue-next';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import { useFocusMode } from '@/hooks/useFocusMode';
@@ -126,9 +120,7 @@ const {
 
 const {
   showHideWindow,
-  runPrimaryAction,
-  canCopySnippet,
-  copySnippetToClipboard
+  runPrimaryAction
 } = useSearchResultActions({
   onClearSearch: props.onClearSearch,
   copySuccessMessage: t('searchResult.copySuccess'),
@@ -240,10 +232,6 @@ function handleItemClick(item: ContentType) {
 function syncSelectedItem(item: ContentType) {
   store.id = item.id;
   selectItemById(item.id);
-}
-
-async function handleCopySnippet(item: ContentType) {
-  await copySnippetToClipboard(item);
 }
 
 const handleIconError = (item: ContentType) => {
@@ -391,6 +379,10 @@ defineExpose({
         border-color 0.15s ease,
         box-shadow 0.15s ease;
 
+      &.has-type-badge {
+        grid-template-columns: 32px minmax(0, 1fr) 42px 30px;
+      }
+
       &:hover {
         @apply bg-search-hover;
       }
@@ -415,27 +407,6 @@ defineExpose({
       .item-actions {
         @apply flex items-center justify-end text-right;
         min-width: 30px;
-      }
-
-      .copy-action {
-        @apply flex items-center justify-center w-7 h-7 rounded-md border border-transparent bg-transparent text-search-secondary cursor-pointer opacity-0;
-        transition:
-          opacity 0.15s ease,
-          color 0.15s ease,
-          background-color 0.15s ease,
-          border-color 0.15s ease;
-
-        &:hover,
-        &:focus-visible {
-          @apply opacity-100 text-search bg-search border-search outline-none;
-        }
-      }
-
-      &:hover,
-      &.active {
-        .copy-action {
-          @apply opacity-100;
-        }
       }
 
       .shortcut-key {
@@ -487,19 +458,11 @@ defineExpose({
       .content {
         @apply min-w-0 overflow-hidden;
 
-        .title-row {
-          @apply flex items-center gap-2 min-w-0;
+        .title {
+          @apply min-w-0 text-sm truncate font-sans text-search font-semibold;
 
-          .title {
-            @apply min-w-0 text-sm truncate font-sans text-search flex-1 font-semibold;
-
-            :deep(.highlight) {
-              @apply text-blue-600 dark:text-blue-300 font-semibold bg-blue-100 dark:bg-blue-500/20 rounded-sm px-0.5;
-            }
-          }
-
-          .type-badge {
-            @apply shrink-0 px-2 py-0.5 rounded-full text-[11px] leading-4 text-search-secondary bg-search border border-search;
+          :deep(.highlight) {
+            @apply text-blue-600 dark:text-blue-300 font-semibold bg-blue-100 dark:bg-blue-500/20 rounded-sm px-0.5;
           }
         }
 
@@ -518,6 +481,10 @@ defineExpose({
         .meta {
           @apply mt-1 text-[11px] leading-4 text-search-secondary truncate max-w-full;
         }
+      }
+
+      .type-badge {
+        @apply inline-flex w-[42px] shrink-0 items-center justify-center rounded-full border border-search bg-search px-1 py-0.5 text-[11px] leading-4 text-search-secondary;
       }
     }
   }

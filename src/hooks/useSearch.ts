@@ -350,9 +350,54 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       if (!isLatestSearchRequest(requestVersion)) return;
       if (isEngineSearch) return;
 
-      // 3. 搜索本地内容
-      // 搜索代码片段
-      const codeResults = await searchCode(query);
+      // 3. 本地内容、插件搜索源和历史权重彼此独立，并行执行可避免
+      // 慢插件把整次快速搜索串行阻塞。
+      const enabledProviders = searchSourceProviders.filter((provider) =>
+        pluginStore.isEnabled(provider.pluginId)
+      );
+      const providerSearches = enabledProviders.map(async (provider) => {
+        try {
+          return await provider.search(text);
+        } catch (error) {
+          if (isLatestSearchRequest(requestVersion)) {
+            ErrorHandler.handle(
+              error,
+              {
+                type: ErrorType.API_ERROR,
+                operation: 'searchSourceProvider',
+                details: {
+                  pluginId: provider.pluginId,
+                  source: provider.source,
+                  query: text
+                },
+                timestamp: new Date()
+              },
+              {
+                showNotification: false
+              }
+            );
+          }
+          return [];
+        }
+      });
+      const historyRequest = invoke<SearchHistoryItem[]>(
+        'get_search_history'
+      ).catch((error) => {
+        if (isLatestSearchRequest(requestVersion)) {
+          ErrorHandler.log(error, {
+            type: ErrorType.DATABASE_ERROR,
+            operation: 'getSearchHistory',
+            details: { query: text },
+            timestamp: new Date()
+          });
+        }
+        return [] as SearchHistoryItem[];
+      });
+      const [codeResults, providerResultGroups, history] = await Promise.all([
+        searchCode(query),
+        Promise.all(providerSearches),
+        historyRequest
+      ]);
       if (!isLatestSearchRequest(requestVersion)) return;
 
       results.push(
@@ -361,46 +406,17 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         )
       );
 
-      for (const provider of searchSourceProviders) {
-        if (!pluginStore.isEnabled(provider.pluginId)) continue;
-
-        try {
-          const sourceResults = await provider.search(text);
-          if (!isLatestSearchRequest(requestVersion)) return;
-
-          for (const sourceResult of sourceResults) {
-            results.push(
-              ...sourceResult.items.map((item, index) =>
-                withSourceId(item, sourceResult.source, index)
-              )
-            );
-          }
-        } catch (error) {
-          if (!isLatestSearchRequest(requestVersion)) return;
-
-          ErrorHandler.handle(
-            error,
-            {
-              type: ErrorType.API_ERROR,
-              operation: 'searchSourceProvider',
-              details: {
-                pluginId: provider.pluginId,
-                source: provider.source,
-                query: text
-              },
-              timestamp: new Date()
-            },
-            {
-              showNotification: false
-            }
+      for (const sourceResults of providerResultGroups) {
+        for (const sourceResult of sourceResults) {
+          results.push(
+            ...sourceResult.items.map((item, index) =>
+              withSourceId(item, sourceResult.source, index)
+            )
           );
         }
       }
 
       // 根据本次查询相关度和历史记录排序
-      const history = await invoke<SearchHistoryItem[]>('get_search_history');
-      if (!isLatestSearchRequest(requestVersion)) return;
-
       const historyMap =
         Array.isArray(history) && history.length > 0
           ? new Map(
