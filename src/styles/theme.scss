@@ -49,6 +49,12 @@
   --editor-hover-bg: #f3f7ff;
   --editor-scrollbar-thumb: #c0c4cc;
   --editor-scrollbar-track: #f5f7fa;
+  --code-block-bg: #f3f6fb;
+  --code-block-border: #d8e1ed;
+  --code-block-hover-border: #bdc9da;
+  --code-block-toolbar-bg: rgb(255 255 255 / 88%);
+  --code-block-toolbar-border: #d5deea;
+  --code-block-selection: rgb(95 116 243 / 18%);
 
   // ==================== 状态栏主题变量 ====================
   --statusbar-bg: #f3f6fb;
@@ -210,6 +216,12 @@ html.dark {
   --editor-hover-bg: #2a2a2a;
   --editor-scrollbar-thumb: #4b5563;
   --editor-scrollbar-track: #1e1e1e;
+  --code-block-bg: #24272c;
+  --code-block-border: #343a43;
+  --code-block-hover-border: #4b5563;
+  --code-block-toolbar-bg: rgb(30 32 36 / 88%);
+  --code-block-toolbar-border: #414854;
+  --code-block-selection: rgb(93 109 253 / 28%);
 
   // ==================== 状态栏深色主题变量 ====================
   --statusbar-bg: #1e1e1e;

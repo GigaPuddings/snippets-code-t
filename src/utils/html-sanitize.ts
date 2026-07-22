@@ -2,10 +2,12 @@ import DOMPurify from 'dompurify';
 
 const sanitizerConfig = {
   ADD_ATTR: [
+    'align',
     'checked',
     'class',
     'data-checked',
     'data-original-path',
+    'data-image-scale',
     'data-type',
     'data-code-id',
     'id',

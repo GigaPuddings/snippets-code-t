@@ -523,6 +523,10 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   };
 
   watch(searchText, () => {
+    // 输入内容改变后立即卸载上一轮虚拟结果列表。仅重置 scrollTop 会让
+    // RecycleScroller 继续复用旧行，异步结果回来时可能保留过期的 slot index，
+    // 从而造成快捷键编号间断。新结果返回后列表会从首行重新挂载。
+    searchResults.value = [];
     debouncedSearch(nextSearchRequest());
   });
 

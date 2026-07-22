@@ -11,6 +11,24 @@ use tauri::{command, Manager};
 pub struct AttachmentConfig {
     pub path_template: String,
     pub filename_format: String,
+    #[serde(default = "default_image_scale_percent")]
+    pub default_image_scale_percent: u16,
+    #[serde(default = "default_responsive_images")]
+    pub responsive_images: bool,
+    #[serde(default = "default_show_image_path")]
+    pub show_image_path: bool,
+}
+
+fn default_image_scale_percent() -> u16 {
+    100
+}
+
+fn default_responsive_images() -> bool {
+    true
+}
+
+fn default_show_image_path() -> bool {
+    true
 }
 
 impl From<&AttachmentSettings> for AttachmentConfig {
@@ -18,6 +36,9 @@ impl From<&AttachmentSettings> for AttachmentConfig {
         Self {
             path_template: settings.path_template.clone(),
             filename_format: settings.filename_format.clone(),
+            default_image_scale_percent: settings.default_image_scale_percent.clamp(25, 200),
+            responsive_images: settings.responsive_images,
+            show_image_path: settings.show_image_path,
         }
     }
 }
@@ -27,6 +48,9 @@ impl From<AttachmentConfig> for AttachmentSettings {
         Self {
             path_template: config.path_template,
             filename_format: config.filename_format,
+            default_image_scale_percent: config.default_image_scale_percent.clamp(25, 200),
+            responsive_images: config.responsive_images,
+            show_image_path: config.show_image_path,
         }
     }
 }

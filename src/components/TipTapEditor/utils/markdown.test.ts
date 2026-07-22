@@ -40,6 +40,28 @@ describe('jsonToMarkdown', () => {
     expect(markdown).toBe('## Vue Pattern\n\n`useModal` with [docs](https://vuejs.org)\n');
   });
 
+  it('round-trips combined bold and italic marks in a stable order', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: '重点',
+              marks: [{ type: 'italic' }, { type: 'bold' }]
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(markdown).toBe('***重点***\n');
+    const html = markdownToHtml(markdown);
+    expect(html).toContain('<em><strong>重点</strong></em>');
+  });
+
   it('serializes task lists and checked state', () => {
     const markdown = jsonToMarkdown({
       type: 'doc',
@@ -156,6 +178,83 @@ describe('jsonToMarkdown', () => {
     expect(markdown).toContain('| one<br>two\\|three | ok |');
   });
 
+  it('serializes table column alignment into GFM separators', () => {
+    const headers = [
+      { text: '左', textAlign: 'left' },
+      { text: '中', textAlign: 'center' },
+      { text: '右', textAlign: 'right' }
+    ];
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [{
+        type: 'table',
+        content: [{
+          type: 'tableRow',
+          content: headers.map(header => ({
+            type: 'tableHeader',
+            attrs: { textAlign: header.textAlign },
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: header.text }] }]
+          }))
+        }]
+      }]
+    });
+
+    expect(markdown).toContain('| :--- | :---: | ---: |');
+  });
+
+  it('keeps a table and the following item inside one ordered list', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'orderedList',
+          attrs: { start: 1 },
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: '第一项' }] },
+                {
+                  type: 'table',
+                  content: [
+                    {
+                      type: 'tableRow',
+                      content: [
+                        {
+                          type: 'tableHeader',
+                          content: [{ type: 'paragraph', content: [{ type: 'text', text: '标题' }] }]
+                        }
+                      ]
+                    },
+                    {
+                      type: 'tableRow',
+                      content: [
+                        {
+                          type: 'tableCell',
+                          content: [{ type: 'paragraph', content: [{ type: 'text', text: '内容' }] }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              type: 'listItem',
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: '第二项' }] }]
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(markdown).toContain('1. 第一项');
+    expect(markdown).toContain('2. 第二项');
+    const html = markdownToHtml(markdown);
+    expect(html.match(/<ol/g)).toHaveLength(1);
+    expect(html).toContain('<table>');
+  });
+
   it('uses original image path when available', () => {
     const markdown = jsonToMarkdown({
       type: 'doc',
@@ -172,6 +271,26 @@ describe('jsonToMarkdown', () => {
     });
 
     expect(markdown).toBe('![Preview](../assets/image.png)');
+  });
+
+  it('preserves responsive image scale metadata', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'localImage',
+          attrs: {
+            src: 'https://asset.localhost/image.png',
+            alt: 'Preview',
+            'data-original-path': '../assets/image.png',
+            'data-image-scale': 75
+          }
+        }
+      ]
+    });
+
+    expect(markdown).toBe('<img src="../assets/image.png" alt="Preview" data-image-scale="75">');
+    expect(markdownToHtml(markdown)).toContain('data-image-scale="75"');
   });
 });
 
@@ -225,10 +344,12 @@ describe('markdownToHtml', () => {
     expect(html).toContain('data-checked="false"');
   });
 
-  it('parses Chinese ordered markers and loose bold spacing', () => {
+  it('keeps Chinese ordered markers as plain text while parsing inline bold', () => {
     const html = markdownToHtml('1、** AI 翻译增强**\n2、** AI 聊天 / 问答**');
 
-    expect(html).toContain('<ol>');
+    expect(html).not.toContain('<ol>');
+    expect(html).toContain('1、');
+    expect(html).toContain('2、');
     expect(html).toContain('<strong>AI 翻译增强</strong>');
     expect(html).toContain('<strong>AI 聊天 / 问答</strong>');
   });
@@ -339,6 +460,15 @@ describe('markdownToHtml', () => {
 });
 
 describe('rich clipboard conversion', () => {
+  it('preserves table alignment when converting rich HTML to Markdown', () => {
+    const markdown = htmlToMarkdown(
+      '<table><thead><tr><th align="left">左</th><th align="center">中</th><th align="right">右</th></tr></thead></table>',
+      createTurndownService()
+    );
+
+    expect(markdown).toContain('| :--- | :---: | ---: |');
+  });
+
   it('normalizes the rendered TipTap code-block NodeView structure', () => {
     const html = richHtmlToEditorHtml([
       '<p>按：</p>',
@@ -366,6 +496,30 @@ describe('rich clipboard conversion', () => {
     expect(html.match(/<li>/g)).toHaveLength(2);
     expect(html).not.toContain('Plain Text');
     expect(html).not.toContain('copy-language-button');
+  });
+
+  it('removes editor NodeView chrome and fixed image wrappers from copied notes', () => {
+    const html = richHtmlToEditorHtml([
+      '<div class="editor-content-body">',
+      '<div contenteditable="true" class="tiptap ProseMirror tiptap-editor">',
+      '<h1>响应式笔记</h1>',
+      '<div class="code-block-wrapper" data-node-view-wrapper data-component="code-block">',
+      '<div class="code-toolbar"><button>Plain Text</button></div>',
+      '<pre><code data-language="plaintext"><div data-node-view-content>const value = 1;<br class="ProseMirror-trailingBreak"></div></code></pre>',
+      '</div>',
+      '<p><span class="image-wrapper" data-node-view-wrapper style="width: 1071px">',
+      '<span class="image-container"><img src="https://example.com/preview.png" alt="preview" style="width: 100%"></span>',
+      '<span class="image-controls"><input type="range"><output>100%</output></span>',
+      '</span><img class="ProseMirror-separator" alt=""><br class="ProseMirror-trailingBreak"></p>',
+      '</div></div>'
+    ].join(''));
+
+    expect(html).toContain('<h1 id="响应式笔记">响应式笔记</h1>');
+    expect(html).toContain('<pre><code class="language-plaintext">const value = 1;\n</code></pre>');
+    expect(html.match(/<img/g)).toHaveLength(1);
+    expect(html).toContain('<img src="https://example.com/preview.png" alt="preview">');
+    expect(html).not.toMatch(/image-wrapper|image-controls|ProseMirror-|width=|style=/);
+    expect(html).not.toContain('100%');
   });
 
   it('drops empty presentation code blocks and keeps the real code block', () => {

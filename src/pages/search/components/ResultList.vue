@@ -11,12 +11,12 @@
       <span>Enter 执行</span>
     </div>
     <RecycleScroller v-if="hasVisibleResults" ref="scrollerRef" class="result" :key="activeTab" :items="filteredResults" :item-size="itemSize"
-      :buffer="itemSize" key-field="__rowKey" @update="handleScrollerUpdate" v-slot="{ item, index }">
+      :buffer="itemSize" :emit-update="true" key-field="__rowKey" @scroll.passive="syncShortcutWindowFromScroll"
+      @update="handleScrollerUpdate" v-slot="{ item, index }">
       <div
         class="item"
         :class="{
-          active: item.id === activeItemId,
-          'has-type-badge': activeTab === 'text'
+          active: item.id === activeItemId
         }"
         @click="handleItemClick(item)"
       >
@@ -42,11 +42,10 @@
           <p class="text" v-html="getDisplayContentHighlighted(item)"></p>
           <!-- 内容，用于显示结果的文本内容 -->
         </div>
-        <!-- 固定为独立网格列，避免标题长度导致类型标签左右跳动 -->
-        <span v-if="activeTab === 'text'" class="type-badge">{{ getTypeLabel(item) }}</span>
-        <!-- 操作按钮，用于显示结果的操作按钮 -->
+        <!-- 快捷键和类型共用固定宽度，默认显示快捷键，悬停时显示类型 -->
         <div class="item-actions">
-          <div v-if="index >= visibleShortcutStart && index < visibleShortcutStart + visibleShortcutCount" class="shortcut-key">
+          <span v-if="activeTab === 'text'" class="type-badge">{{ getTypeLabel(item) }}</span>
+          <div v-if="index >= visibleShortcutStart && index < visibleShortcutEnd" class="shortcut-key">
             <Command class="shortcut-key-icon" theme="outline" size="12" />
             <span class="shortcut-key-text">{{ index - visibleShortcutStart + 1 }}</span>
           </div>
@@ -88,9 +87,16 @@ const emit = defineEmits<{
   primaryAction: [item: ContentType];
 }>();
 
-const scrollerRef = ref<any>(null);
+interface ResultScrollerRef {
+  $el: HTMLElement;
+  scrollToPosition: (position: number) => void;
+}
+
+const scrollerRef = ref<ResultScrollerRef | null>(null);
 const visibleShortcutStart = ref(0);
-const visibleShortcutCount = 6;
+const visibleShortcutEnd = ref(6);
+const fallbackVisibleShortcutCount = 6;
+const itemVerticalMargin = 2;
 const itemSize = computed(() => props.itemSize ?? 52);
 const {
   tabs,
@@ -134,12 +140,15 @@ const emitSelectionChangeById = (id: string | number) => {
 };
 
 watch(filteredResults, async () => {
-  visibleShortcutStart.value = 0;
   syncSelectionWithResults(store.id);
 
   await nextTick();
   syncShortcutWindowFromScroll();
 }, { immediate: true });
+
+watch(() => props.searchQuery, () => {
+  void resetShortcutViewport();
+});
 
 watch(() => props.results.length, (length) => {
   setCanSwitchToList(length > 0);
@@ -154,30 +163,62 @@ function switchTab(tab: SummarizeType) {
   }
 
   if (isListMode.value && filteredResults.value.length > 0) {
-    ensureItemVisible(0);
+    void resetShortcutViewport();
   }
 }
 
-const visibleShortcutItems = computed(() => filteredResults.value.slice(visibleShortcutStart.value, visibleShortcutStart.value + visibleShortcutCount));
+const visibleShortcutItems = computed(() => filteredResults.value.slice(visibleShortcutStart.value, visibleShortcutEnd.value));
 
-const getVisibleStartFromScrollTop = (scrollTop: number) => Math.max(0, Math.floor(scrollTop / itemSize.value));
+function syncShortcutWindowFromScroll(): void {
+  const scroller = scrollerRef.value?.$el;
+  const resultCount = filteredResults.value.length;
+  if (!scroller) {
+    visibleShortcutStart.value = 0;
+    visibleShortcutEnd.value = Math.min(resultCount, fallbackVisibleShortcutCount);
+    return;
+  }
 
-const syncShortcutWindowFromScroll = () => {
-  const scroller = scrollerRef.value?.$el as HTMLElement | undefined;
+  // 每个 item 上下各有 2px margin。按真实可见内容边界计算，避免滚动到
+  // 行间距附近时把已离开视口的上一项仍计入快捷键范围。
+  const viewportStart = scroller.scrollTop;
+  const viewportEnd = viewportStart + scroller.clientHeight;
+  const firstVisibleIndex = Math.floor((viewportStart + itemVerticalMargin) / itemSize.value);
+  const visibleEndIndex = Math.ceil((viewportEnd - itemVerticalMargin) / itemSize.value);
+
+  visibleShortcutStart.value = Math.min(Math.max(0, firstVisibleIndex), resultCount);
+  visibleShortcutEnd.value = Math.min(
+    resultCount,
+    Math.max(visibleShortcutStart.value, visibleEndIndex)
+  );
+}
+
+function handleScrollerUpdate(): void {
+  syncShortcutWindowFromScroll();
+}
+
+async function resetShortcutViewport(): Promise<void> {
+  visibleShortcutStart.value = 0;
+  visibleShortcutEnd.value = Math.min(
+    filteredResults.value.length,
+    fallbackVisibleShortcutCount
+  );
+
+  await nextTick();
+  const scroller = scrollerRef.value;
   if (!scroller) return;
 
-  visibleShortcutStart.value = getVisibleStartFromScrollTop(scroller.scrollTop);
-};
-
-const handleScrollerUpdate = () => {
+  scroller.scrollToPosition(0);
+  scroller.$el.scrollTop = 0;
+  await nextTick();
   syncShortcutWindowFromScroll();
-};
+}
 
-const ensureItemVisible = (index: number) => {
-  if (!scrollerRef.value) return;
+function ensureItemVisible(index: number): void {
+  const scrollerInstance = scrollerRef.value;
+  if (!scrollerInstance) return;
 
   nextTick(() => {
-    const scroller = scrollerRef.value.$el as HTMLElement | undefined;
+    const scroller = scrollerInstance.$el;
     if (!scroller || index < 0) return;
 
     const targetTop = index * itemSize.value;
@@ -191,10 +232,9 @@ const ensureItemVisible = (index: number) => {
       scroller.scrollTop = targetTop;
     }
 
-    visibleShortcutStart.value = getVisibleStartFromScrollTop(scroller.scrollTop);
+    syncShortcutWindowFromScroll();
   });
-};
-
+}
 
 useSearchResultKeyboard({
   tabs,
@@ -359,8 +399,7 @@ defineExpose({
   }
 
   .result {
-    @apply min-h-0 overflow-y-auto;
-    height: 100%;
+    @apply min-h-0 flex-1 overflow-y-auto;
     max-height: 100%;
 
     :deep(.vue-recycle-scroller__item-wrapper) {
@@ -368,7 +407,7 @@ defineExpose({
     }
 
     .item {
-      @apply grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2.5 text-search box-border rounded-lg cursor-pointer relative min-w-0 border border-transparent;
+      @apply grid grid-cols-[32px_minmax(0,1fr)_48px] items-center gap-2.5 text-search box-border rounded-lg cursor-pointer relative min-w-0 border border-transparent;
       width: calc(100% - 4px);
       height: 48px;
       margin: 2px 4px 2px 0;
@@ -379,12 +418,16 @@ defineExpose({
         border-color 0.15s ease,
         box-shadow 0.15s ease;
 
-      &.has-type-badge {
-        grid-template-columns: 32px minmax(0, 1fr) 42px 30px;
-      }
-
       &:hover {
         @apply bg-search-hover;
+
+        .type-badge {
+          display: inline-flex;
+        }
+
+        .type-badge + .shortcut-key {
+          display: none;
+        }
       }
 
       &.active {
@@ -405,8 +448,7 @@ defineExpose({
       }
 
       .item-actions {
-        @apply flex items-center justify-end text-right;
-        min-width: 30px;
+        @apply flex w-12 items-center justify-center text-center;
       }
 
       .shortcut-key {
@@ -484,7 +526,7 @@ defineExpose({
       }
 
       .type-badge {
-        @apply inline-flex w-[42px] shrink-0 items-center justify-center rounded-full border border-search bg-search px-1 py-0.5 text-[11px] leading-4 text-search-secondary;
+        @apply hidden w-[42px] shrink-0 items-center justify-center rounded-full border border-search bg-search px-1 py-0.5 text-[11px] leading-4 text-search-secondary;
       }
     }
   }

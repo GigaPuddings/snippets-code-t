@@ -189,6 +189,12 @@ export interface AttachmentConfig {
   pathTemplate: string;
   /** 文件名生成格式 */
   filenameFormat: 'snippets-code' | 'simple' | 'uuid';
+  /** 新插入图片相对原图的默认缩放比例 */
+  defaultImageScalePercent: number;
+  /** 窗口变窄时将图片限制在编辑区域内 */
+  responsiveImages: boolean;
+  /** 在图片上方显示附件相对路径 */
+  showImagePath: boolean;
 }
 
 /**

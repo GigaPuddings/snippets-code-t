@@ -17,12 +17,6 @@ interface UseContextMenuCommandsOptions {
   clipboard?: ClipboardReader;
 }
 
-const tableMarkdown = `| Header 1 | Header 2 | Header 3 |
-| -------- | -------- | -------- |
-| Cell 1   | Cell 2   | Cell 3   |
-| Cell 4   | Cell 5   | Cell 6   |
-`;
-
 const isSourceMode = (options: UseContextMenuCommandsOptions) => options.getViewMode() === 'source';
 
 const runMarkdownCommand = (
@@ -154,12 +148,6 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
     editor => editor.chain().focus().toggleBlockquote().run()
   );
 
-  const insertTable = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.insertText(tableMarkdown),
-    editor => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-  );
-
   const insertCodeBlock = () => runMarkdownCommand(
     options,
     sourceEditor => {
@@ -274,7 +262,6 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
     setHeading,
     setParagraph,
     toggleBlockquote,
-    insertTable,
     insertCodeBlock,
     insertHorizontalRule,
     handleAddLink,

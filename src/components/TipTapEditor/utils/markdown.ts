@@ -99,6 +99,13 @@ function escapeMarkdownTableCell(value: string): string {
     .replace(/\r?\n/g, '<br>');
 }
 
+function tableAlignmentSeparator(value: unknown): string {
+  if (value === 'left') return ':---';
+  if (value === 'center') return ':---:';
+  if (value === 'right') return '---:';
+  return '---';
+}
+
 function normalizeLooseInlineMarkdown(value: string): string {
   const normalized = value
     .replace(/\*\*\s+([^*\n][^*\n]*?)\s*\*\*/g, '**$1**')
@@ -124,9 +131,7 @@ function fixPunctuationBeforeStrong(markdown: string): string {
 
 function normalizeMarkdownBeforeParse(markdown: string): string {
   return fixPunctuationBeforeStrong(
-    normalizeLooseInlineMarkdown(
-      markdown.replace(/^(\s{0,3})(\d+)[、．]\s*/gm, '$1$2. ')
-    )
+    normalizeLooseInlineMarkdown(markdown)
   );
 }
 
@@ -429,6 +434,10 @@ export function createTurndownService(): TurndownService {
         element.hasAttribute('hidden') ||
         element.getAttribute('aria-hidden') === 'true' ||
         element.classList.contains('code-toolbar') ||
+        element.classList.contains('image-controls') ||
+        element.classList.contains('resize-handle') ||
+        element.classList.contains('image-context-menu') ||
+        element.classList.contains('ProseMirror-separator') ||
         element.classList.contains('ProseMirror-trailingBreak')
       );
     },
@@ -542,7 +551,7 @@ export function createTurndownService(): TurndownService {
           Array.from(headerRow.querySelectorAll('th, td')).forEach((cell) => {
             const cellContent = turndownService.turndown((cell as HTMLElement).innerHTML).trim();
             headers.push(escapeMarkdownTableCell(cellContent));
-            separators.push('---');
+            separators.push(tableAlignmentSeparator((cell as HTMLElement).getAttribute('align')));
           });
           
           if (headers.length > 0) {
@@ -580,8 +589,22 @@ export function createTurndownService(): TurndownService {
     filter: 'img',
     replacement: (_content, node) => {
       const element = node as HTMLElement;
+      if (element.classList.contains('ProseMirror-separator')) return '';
+
       const alt = element.getAttribute('alt') || '';
       const originalPath = element.getAttribute('data-original-path');
+      const imageScale = element.getAttribute('data-image-scale');
+      const width = element.getAttribute('width');
+      const source = originalPath || element.getAttribute('src') || '';
+      if (!source.trim()) return '';
+
+      if (imageScale) {
+        return `<img src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" data-image-scale="${escapeAttribute(imageScale)}">`;
+      }
+
+      if (width) {
+        return `<img src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" width="${escapeAttribute(width)}">`;
+      }
       
       // 如果有原始路径，使用原始路径
       if (originalPath) {
@@ -813,13 +836,20 @@ export function jsonToMarkdown(json: any): string {
           }
         });
 
-        // 先应用除 link 之外的标记
+        const hasBold = otherMarks.some((mark: any) => mark.type === 'bold');
+        const hasItalic = otherMarks.some((mark: any) => mark.type === 'italic');
+
+        // 稳定组合加粗和斜体，避免 mark 数组顺序变化后生成相互交错的分隔符。
+        if (hasBold && hasItalic) {
+          text = `***${text}***`;
+        } else if (hasBold) {
+          text = `**${text}**`;
+        } else if (hasItalic) {
+          text = `*${text}*`;
+        }
+
         otherMarks.forEach((mark: any) => {
-          if (mark.type === 'bold') {
-            text = `**${text}**`;
-          } else if (mark.type === 'italic') {
-            text = `*${text}*`;
-          } else if (mark.type === 'code') {
+          if (mark.type === 'code') {
             text = `\`${text}\``;
           } else if (mark.type === 'strike') {
             text = `~~${text}~~`;
@@ -876,8 +906,13 @@ export function jsonToMarkdown(json: any): string {
     if (type === 'orderedList') {
       let index = node.attrs?.start || 1;
       const items = node.content ? node.content.map((item: any) => {
-        const content = item.content ? item.content.map(processNode).join('').trim() : '';
-        return `${index++}. ${content}\n`;
+        const prefix = `${index++}. `;
+        const indentation = ' '.repeat(prefix.length);
+        const content = item.content
+          ? item.content.map(processNode).join('').trim().replace(/\n{3,}/g, '\n\n')
+          : '';
+        const indentedContent = content.replace(/\n/g, `\n${indentation}`);
+        return `${prefix}${indentedContent}\n`;
       }).join('') : '';
       return items + '\n';
     }
@@ -936,7 +971,9 @@ export function jsonToMarkdown(json: any): string {
       
       // 如果是表头行，添加分隔线
       if (isHeaderRow) {
-        const separator = '| ' + cellContents.map(() => '---').join(' | ') + ' |\n';
+        const separator = '| ' + cells
+          .map((cell: any) => tableAlignmentSeparator(cell.attrs?.textAlign))
+          .join(' | ') + ' |\n';
         row += separator;
       }
       
@@ -961,6 +998,12 @@ export function jsonToMarkdown(json: any): string {
       const alt = node.attrs?.alt || '';
       const originalPath = node.attrs?.['data-original-path'];
       const width = node.attrs?.width;
+      const imageScale = node.attrs?.['data-image-scale'];
+      const source = originalPath || src;
+
+      if (imageScale) {
+        return `<img src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" data-image-scale="${Math.round(Number(imageScale))}">`;
+      }
       
       // 优先使用原始相对路径
       if (originalPath) {

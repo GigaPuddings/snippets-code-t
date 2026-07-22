@@ -200,7 +200,7 @@
         </template>
 
         <template v-else-if="activeSubmenu === 'insert'">
-          <div class="menu-item" :class="markdownDisabledClass" @click="insertTable">
+          <div class="menu-item" :class="markdownDisabledClass" @click="requestInsertTable">
             <span>⊞ {{ $t('contextMenu.table') }}</span>
           </div>
           <div class="menu-divider"></div>
@@ -213,6 +213,7 @@
             <span class="menu-shortcut">---</span>
           </div>
         </template>
+
         </div>
       </teleport>
     </div>
@@ -243,6 +244,10 @@ const props = withDefaults(defineProps<Props>(), {
   sourceEditorRef: null
 });
 
+const emit = defineEmits<{
+  'request-insert-table': [];
+}>();
+
 const { t: $t } = useI18n();
 
 const visible = ref(false);
@@ -255,7 +260,7 @@ let submenuTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 是否在源码模式
 const isSourceMode = computed(() => props.viewMode === 'source');
-const isCodeBlockActive = computed(() => props.editor?.isActive('codeBlock') ?? false);
+const isCodeBlockActive = ref(false);
 const isMarkdownSyntaxDisabled = computed(() => isCodeBlockActive.value && !isSourceMode.value);
 const markdownDisabledClass = computed(() => ({ disabled: isMarkdownSyntaxDisabled.value }));
 
@@ -275,6 +280,9 @@ const menuStyle = computed(() => ({
 const show = (event: MouseEvent) => {
   event.preventDefault();
   event.stopPropagation();
+
+  // Editor 实例本身不是 Vue 响应式对象，每次打开菜单时重新读取当前选区状态。
+  isCodeBlockActive.value = props.editor?.isActive('codeBlock') ?? false;
   
   const x = event.clientX;
   const y = event.clientY;
@@ -432,7 +440,6 @@ const {
   setHeading,
   setParagraph,
   toggleBlockquote,
-  insertTable,
   insertCodeBlock,
   insertHorizontalRule,
   handleAddLink,
@@ -448,6 +455,12 @@ const {
   hide,
   translate: $t
 });
+
+const requestInsertTable = () => {
+  if (isMarkdownSyntaxDisabled.value) return;
+  hide();
+  emit('request-insert-table');
+};
 
 // 键盘事件
 const handleKeydown = (event: KeyboardEvent) => {

@@ -33,7 +33,6 @@ const createChain = () => {
     'setHeading',
     'setParagraph',
     'toggleBlockquote',
-    'insertTable',
     'setHorizontalRule',
     'setLink',
     'insertContent',
@@ -50,6 +49,7 @@ const createEditor = (selectedText = '', from = 3, to = 3) => {
   const chain = createChain();
   const editor = {
     chain: vi.fn(() => chain),
+    isActive: vi.fn(() => true),
     state: {
       selection: { from, to },
       doc: {

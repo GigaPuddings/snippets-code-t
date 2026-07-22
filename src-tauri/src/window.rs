@@ -548,19 +548,10 @@ impl WindowManager {
         }
     }
 
-    // 截图必须在捕获桌面之前同步隐藏搜索窗口。延迟隐藏会让搜索窗口进入截图，
-    // 同时其失焦恢复逻辑还可能抢回焦点，触发截图窗口的 blur 自动关闭。
-    pub fn hide_search_window_before_capture() {
+    // 截图可以把搜索窗口一并捕获，但必须先关闭搜索窗口的失焦恢复逻辑。
+    // 否则截图窗口获得焦点后，搜索窗口可能再次抢回焦点，触发截图窗口的 blur 自动关闭。
+    pub fn prepare_search_window_for_capture() {
         disarm_search_focus_restore();
-        if let Some(app) = APP.get() {
-            if let Some(search_window) = app.get_webview_window("main") {
-                if search_window.is_visible().unwrap_or(false) {
-                    let _ = search_window.emit("reset-search-state", ());
-                    let _ = search_window.hide();
-                    schedule_search_window_destroy();
-                }
-            }
-        }
     }
 }
 
@@ -2094,7 +2085,7 @@ pub fn hotkey_screenshot() {
         return;
     }
 
-    WindowManager::hide_search_window_before_capture();
+    WindowManager::prepare_search_window_for_capture();
 
     // 检查窗口是否已存在，如果存在则先关闭（不等待）
     if let Some(existing_window) = app_handle.get_webview_window("screenshot") {

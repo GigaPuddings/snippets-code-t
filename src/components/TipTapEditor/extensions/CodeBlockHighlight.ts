@@ -492,8 +492,10 @@ function detectLanguage(code: string): string | null {
     [/^(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\s+/im, 'sql'],
     [/^(FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER)\s+/im, 'sql'],
     [/^(GROUP|ORDER|HAVING|LIMIT)\s+BY/im, 'sql'],
+    [/^\s*(USE|SHOW|DESCRIBE|DESC|TRUNCATE|LOAD\s+DATA|LOCK\s+TABLES|UNLOCK\s+TABLES)\b/im, 'sql'],
 
     // Bash/Shell
+    [/^\s*(mysql|mysqldump|mysqlimport|mysqladmin|pg_dump|pg_restore|psql)\b/im, 'bash'],
     [/^#!/m, 'bash'],
     [/^echo\s+/m, 'bash'],
     [/\$\{?\w+\}?/m, 'bash'],

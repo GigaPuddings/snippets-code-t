@@ -92,7 +92,7 @@ describe('useEditorImageUpload', () => {
     expect(uploader.uploadImage).toHaveBeenCalledWith(expect.any(File), '7');
     expect(uploader.convertFileSrc).toHaveBeenCalledWith('E:\\Workspace\\assets\\button.png');
     expect(editorMock.chain.insertContent).toHaveBeenCalledWith(
-      '<img src="asset://E:\\Workspace\\assets\\button.png" alt="button.png" data-original-path="../assets/button.png" />'
+      '<img src="asset://E:\\Workspace\\assets\\button.png" alt="button.png" data-original-path="../assets/button.png" data-image-scale="100" />'
     );
     expect(editorMock.chain.splitBlock).toHaveBeenCalledTimes(1);
     expect(editorMock.chain.insertContent.mock.invocationCallOrder[0])

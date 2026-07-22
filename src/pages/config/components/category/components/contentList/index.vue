@@ -327,7 +327,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .content-list-container {
-  @apply h-full text-xs;
+  @apply h-full w-full min-w-0 max-w-full overflow-hidden text-xs;
 }
 
 .left-panel {
@@ -339,6 +339,6 @@ onUnmounted(() => {
 }
 
 .right-panel {
-  @apply h-full bg-panel dark:bg-panel border dark:border-panel rounded-md overflow-hidden;
+  @apply h-full w-full min-w-0 max-w-full overflow-hidden rounded-md border bg-panel dark:border-panel dark:bg-panel;
 }
 </style>

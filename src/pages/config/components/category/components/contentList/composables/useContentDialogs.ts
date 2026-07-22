@@ -3,7 +3,7 @@
  * 管理内容列表相关的对话框状态和操作
  */
 
-import { ref, nextTick } from 'vue';
+import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useConfigurationStore } from '@/store';
@@ -134,8 +134,10 @@ export function useContentDialogs(): UseContentDialogsReturn {
       const cid = route.params.cid as string;
 
       try {
-        // 先刷新分类列表，确保使用最新的分类信息
-        store.categories = await getCategories(store.categorySort);
+        // 分类通常已在列表页加载，避免每次新建前重复扫描整个工作区。
+        if (store.categories.length === 0) {
+          store.categories = await getCategories(store.categorySort);
+        }
 
         let categoryId: number | string | undefined;
         if (!cid) {
@@ -163,30 +165,48 @@ export function useContentDialogs(): UseContentDialogsReturn {
             title: normalizedTitle
           }
         });
-        // 再次刷新分类列表（以防创建文件时创建了新分类）
-        store.categories = await getCategories(store.categorySort);
-
-        // 刷新内容列表
-        let result: ContentType[];
-        if (!cid) {
-          result = await getFragmentList(undefined, '') as ContentType[];
-        } else {
-          // 将 cid 转换为数字（包括 '0' 表示"未分类"）
-          result = await getFragmentList(Number(cid), '') as ContentType[];
-        }
-
-        // 为内容添加分类名称
-        store.contents = addCategoryNames(result, store.categories);
-
-        // 等待下一个 tick 确保 store 更新已经传播到所有组件
-        await nextTick();
-
         // 导航到新片段，内容页会自动聚焦标题输入框中的默认标题
         // 如果没有 cid，使用 categoryId 作为 cid（确保路由参数正确）
         const routeCid = cid || (categoryId === '未分类' ? '0' : categoryId);
         const targetPath = `/config/category/contentList/${routeCid}/content/${encodeURIComponent(filePath)}`;
+        const category = store.categories.find((item) => item.id === categoryId);
+        const optimisticContent: ContentType = {
+          id: filePath,
+          title: normalizedTitle,
+          content: '',
+          type: pendingFragmentType.value,
+          format: pendingFragmentType.value === 'note' ? 'markdown' : 'plain',
+          category_id: categoryId === '未分类' ? 0 : categoryId,
+          category_name: category?.name || (categoryId === '未分类' ? '未分类' : undefined),
+          tags: []
+        };
+        store.contents = [
+          optimisticContent,
+          ...store.contents.filter((item) => item.id !== filePath)
+        ];
 
-        router.replace(targetPath);
+        await router.replace(targetPath);
+
+        // 文件系统列表刷新放到空闲阶段，避免它与标题首轮输入、编辑器初始化争用主线程。
+        const refreshAfterCreate = async () => {
+          try {
+            store.categories = await getCategories(store.categorySort);
+            const result = !cid
+              ? await getFragmentList(undefined, '') as ContentType[]
+              : await getFragmentList(Number(cid), '') as ContentType[];
+            store.contents = addCategoryNames(result, store.categories);
+          } catch (error) {
+            console.warn('[useContentDialogs] 新建后的列表刷新失败，将由文件监听器补充:', error);
+          }
+        };
+
+        setTimeout(() => {
+          if ('requestIdleCallback' in window) {
+            window.requestIdleCallback(() => void refreshAfterCreate(), { timeout: 5000 });
+          } else {
+            void refreshAfterCreate();
+          }
+        }, 1200);
       } catch (error) {
         // Error already handled by API layer
       }

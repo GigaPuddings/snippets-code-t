@@ -71,11 +71,11 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
   };
 
   const applySourceContentToEditor = (editorInstance?: EditorPersistenceBridgeEditor | null) => {
-    if (!editorInstance || !options.sourceContent.value) return;
+    if (!editorInstance) return;
 
     try {
       const html = markdownToHtml(options.sourceContent.value, options.workspaceRoot.value);
-      editorInstance.commands.setContent(html, { emitUpdate: false });
+      editorInstance.commands.setContent(html || '<p></p>', { emitUpdate: false });
       lastEmittedContent.value = html;
       nextTick(() => {
         options.emitContentChange(options.sourceContent.value);

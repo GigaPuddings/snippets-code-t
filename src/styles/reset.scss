@@ -111,6 +111,8 @@ div:focus {
     background: transparent;
     background-clip: padding-box;
     border: 2px solid transparent;
+    min-width: 44px;
+    min-height: 44px;
     border-radius: 4px;
     transition: background 0.3s;
   }
@@ -128,6 +130,28 @@ div:focus {
       background: rgba(0, 0, 0, 0.34);
       background-clip: padding-box;
     }
+  }
+}
+
+// 长文档的滚动条保持可发现且拥有足够的拖拽面积。
+.editor-content,
+.tiptap-editor,
+.source-textarea {
+  scrollbar-width: auto;
+  scrollbar-color: rgb(0 0 0 / 16%) transparent;
+
+  &::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    min-width: 52px;
+    min-height: 52px;
+    background: rgb(0 0 0 / 16%);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: 999px;
   }
 }
 
@@ -162,6 +186,27 @@ html.dark .message-list {
 
     &::-webkit-scrollbar-thumb:hover {
       background: rgba(255, 255, 255, 0.4);
+      background-clip: padding-box;
+    }
+  }
+}
+
+html.dark .editor-content,
+html.dark .tiptap-editor,
+html.dark .source-textarea {
+  scrollbar-color: rgb(255 255 255 / 22%) transparent;
+
+  &::-webkit-scrollbar-thumb {
+    background: rgb(255 255 255 / 22%);
+    background-clip: padding-box;
+  }
+
+  &:hover::-webkit-scrollbar-thumb {
+    background: rgb(255 255 255 / 30%);
+    background-clip: padding-box;
+
+    &:hover {
+      background: rgb(255 255 255 / 44%);
       background-clip: padding-box;
     }
   }

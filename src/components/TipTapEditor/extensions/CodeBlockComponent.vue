@@ -10,16 +10,11 @@
     >
       <span class="language-text">{{ displayLanguage }}</span>
       <svg v-if="!copied" viewBox="0 0 24 24" width="14" height="14" class="copy-icon" aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
-        />
+        <rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+        <path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       </svg>
       <svg v-else viewBox="0 0 24 24" width="14" height="14" class="check-icon" aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
-        />
+        <path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
     <pre><code :class="codeClass" :data-language="props.node.attrs.language || 'plaintext'"><node-view-content /></code></pre>
@@ -126,12 +121,20 @@ const copyCode = async () => {
 
 <style lang="scss" scoped>
 .code-block-wrapper {
-  @apply relative my-3 rounded-md bg-content overflow-hidden;
+  @apply relative my-3 overflow-hidden;
+  border: 1px solid var(--code-block-border, var(--editor-border));
+  border-radius: 7px;
+  background: var(--code-block-bg, var(--editor-hover-bg));
 }
 
 .copy-language-button {
-  @apply absolute top-2 right-2 flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-panel-text-secondary bg-content rounded cursor-pointer outline-none transition-all duration-150 z-10;
-  border: none;
+  @apply absolute right-2 top-2 z-10 flex h-7 items-center gap-1.5 rounded border px-2 text-[11px] font-medium outline-none transition-all duration-150;
+  color: var(--panel-text-secondary);
+  background: var(--code-block-toolbar-bg, var(--panel-bg));
+  border-color: var(--code-block-toolbar-border, var(--panel-border));
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
 
   .language-text {
     font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
@@ -144,7 +147,7 @@ const copyCode = async () => {
   }
 
   &:hover {
-    @apply bg-panel-hover-bg;
+    @apply bg-panel-hover-bg opacity-100;
   }
 
   &:active {
@@ -152,8 +155,15 @@ const copyCode = async () => {
   }
 }
 
+.code-block-wrapper:hover .copy-language-button,
+.code-block-wrapper:focus-within .copy-language-button {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
 pre {
-  @apply m-0 pt-10 px-4 pb-4 overflow-x-auto bg-transparent;
+  @apply m-0 overflow-x-auto bg-transparent px-4 py-3.5;
   font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
   font-size: 13.5px;
   line-height: 1.65;

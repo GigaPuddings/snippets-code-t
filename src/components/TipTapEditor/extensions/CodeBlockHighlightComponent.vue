@@ -19,16 +19,11 @@
         type="button"
       >
         <svg v-if="!copied" viewBox="0 0 24 24" width="14" height="14" class="copy-icon" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
-          />
+          <rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+          <path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
         </svg>
         <svg v-else viewBox="0 0 24 24" width="14" height="14" class="check-icon" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
-          />
+          <path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </button>
     </div>
@@ -186,56 +181,75 @@ const copyCode = async () => {
 
 <style lang="scss" scoped>
 .code-block-wrapper {
-  @apply relative my-3 rounded-md overflow-hidden;
-  border: 1px solid var(--editor-border, var(--panel-border));
-  background: var(--editor-bg);
-  box-shadow: none;
+  @apply relative my-3 box-border w-full min-w-0 max-w-full overflow-hidden;
 
-  .dark & {
-    border-color: var(--editor-border, rgba(255, 255, 255, 0.1));
-    background: var(--editor-bg);
+  border: 1px solid var(--code-block-border, var(--editor-border));
+  border-radius: 7px;
+  background: var(--code-block-bg, var(--editor-hover-bg));
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover {
+    border-color: var(--code-block-hover-border, var(--editor-border));
+    box-shadow: 0 3px 10px rgb(15 23 42 / 6%);
+  }
+
+  &:focus-within {
+    border-color: color-mix(in srgb, var(--el-color-primary) 48%, var(--code-block-border));
+  }
+
+  ::selection {
+    background: var(--code-block-selection);
   }
 }
 
 .code-toolbar {
-  @apply absolute top-1.5 right-1.5 flex items-center gap-1 z-10;
+  @apply absolute right-2 top-2 z-10 flex items-center overflow-hidden rounded border;
+  height: 26px;
+  color: var(--panel-text-secondary);
+  background: var(--code-block-toolbar-bg, var(--panel-bg));
+  border-color: var(--code-block-toolbar-border, var(--panel-border));
+  box-shadow: 0 1px 3px rgb(15 23 42 / 8%);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity 0.15s ease, transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.code-block-wrapper:hover .code-toolbar,
+.code-block-wrapper:focus-within .code-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .language-button,
 .copy-language-button {
-  @apply flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-panel-text-secondary rounded cursor-pointer outline-none transition-all duration-150;
+  @apply flex h-full items-center justify-center border-0 bg-transparent px-2 text-[11px] font-medium outline-none transition-colors duration-150;
   border: none;
-  background: var(--panel-bg);
-  box-shadow: none;
+  color: inherit;
 
   &:hover {
-    @apply bg-panel-hover-bg;
+    background: var(--panel-hover-bg);
+    color: var(--panel-text);
   }
 
   &:active {
-    @apply bg-panel;
-  }
-
-  .dark & {
-    background: var(--panel-bg);
-    color: var(--panel-text-secondary, #9ca3af);
-
-    &:hover {
-      background: var(--panel-hover-bg, rgba(255, 255, 255, 0.12));
-    }
-
-    &:active {
-      background: var(--panel-bg, rgba(255, 255, 255, 0.06));
-    }
+    background: color-mix(in srgb, var(--panel-hover-bg) 78%, var(--panel-text-secondary));
   }
 }
 
 .language-button .language-text {
+  @apply max-w-28 overflow-hidden text-ellipsis;
   font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .copy-language-button {
-  @apply px-2;
+  @apply w-7 px-0;
+  border-left: 1px solid var(--code-block-toolbar-border, var(--panel-border));
 }
 
 .copy-icon,
@@ -244,9 +258,10 @@ const copyCode = async () => {
 }
 
 .code-block-pre {
-  @apply m-0 overflow-x-auto;
+  @apply m-0 box-border w-full min-w-0 max-w-full overflow-x-auto;
+
   margin: 0 !important;
-  padding: 34px 14px 14px;
+  padding: 14px 16px;
   font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.6;

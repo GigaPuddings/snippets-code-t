@@ -16,6 +16,58 @@ import { MarkdownLinkHandler } from '../extensions/MarkdownLinkHandler';
 import { CustomEnterBehavior } from '../extensions/CustomEnterBehavior';
 import { LocalImage } from '../extensions/LocalImage';
 import { SearchHighlight } from '../extensions/SearchHighlight';
+import type { AnyExtension } from '@tiptap/core';
+
+const parseTableAlignment = (value: unknown): 'left' | 'center' | 'right' | null => {
+  return value === 'left' || value === 'center' || value === 'right' ? value : null;
+};
+
+const MarkdownStarterKit = StarterKit.extend({
+  addExtensions() {
+    const parent = (this as unknown as { parent?: () => AnyExtension[] }).parent;
+    return (parent?.() ?? []).map((extension: AnyExtension) => {
+      if (extension.name === 'bold' || extension.name === 'italic') {
+        return extension.extend({
+          inclusive: false,
+          exitable: true
+        });
+      }
+      return extension;
+    });
+  }
+});
+
+const AlignedTableCell = TableCell.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      textAlign: {
+        default: null,
+        parseHTML: (element: HTMLElement) => parseTableAlignment(element.getAttribute('align')),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const alignment = parseTableAlignment(attributes.textAlign);
+          return alignment ? { align: alignment } : {};
+        }
+      }
+    };
+  }
+});
+
+const AlignedTableHeader = TableHeader.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      textAlign: {
+        default: null,
+        parseHTML: (element: HTMLElement) => parseTableAlignment(element.getAttribute('align')),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const alignment = parseTableAlignment(attributes.textAlign);
+          return alignment ? { align: alignment } : {};
+        }
+      }
+    };
+  }
+});
 
 export interface SearchHighlightGetters {
   getMatches: () => Array<{ from: number; to: number }>;
@@ -27,7 +79,7 @@ export function createEditorExtensions(
   searchHighlight?: SearchHighlightGetters
 ) {
   return [
-    StarterKit.configure({
+    MarkdownStarterKit.configure({
       heading: {
         levels: [1, 2, 3, 4, 5, 6]
       },
@@ -67,6 +119,7 @@ export function createEditorExtensions(
       }
     }).configure({
       openOnClick: false,  // 禁用默认的点击打开行为，我们自己处理
+      autolink: false,
       HTMLAttributes: {
         class: 'editor-link',
         rel: 'noopener noreferrer'
@@ -106,8 +159,8 @@ export function createEditorExtensions(
       }
     }),
     TableRow,
-    TableHeader,
-    TableCell,
+    AlignedTableHeader,
+    AlignedTableCell,
     TaskList.configure({
       HTMLAttributes: {
         class: 'task-list'

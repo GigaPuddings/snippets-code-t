@@ -753,6 +753,65 @@ fn resolve_category_folder_path(workspace_root: &Path, name: &str) -> Result<Pat
     Ok(workspace_root.join(safe_name))
 }
 
+fn rename_category_directory(
+    old_path: &Path,
+    new_path: &Path,
+    new_name: &str,
+) -> Result<(), String> {
+    if old_path == new_path {
+        return Ok(());
+    }
+
+    if new_path.exists() {
+        let old_canonical =
+            std::fs::canonicalize(old_path).map_err(|e| format!("读取原分类路径失败: {}", e))?;
+        let new_canonical =
+            std::fs::canonicalize(new_path).map_err(|e| format!("读取目标分类路径失败: {}", e))?;
+
+        #[cfg(windows)]
+        let is_same_entry = old_canonical
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&new_canonical.to_string_lossy());
+        #[cfg(not(windows))]
+        let is_same_entry = old_canonical == new_canonical;
+
+        if !is_same_entry {
+            return Err(format!("目标分类已存在: {}", new_name));
+        }
+
+        // Windows 的文件系统默认不区分大小写，直接把 `python` 改成 `Python`
+        // 会被 exists() 误判为冲突，也可能无法真正更新目录名。先经过同级临时目录
+        // 中转，确保只修改大小写时也能落盘。
+        let parent = old_path.parent().ok_or("无法获取分类父目录")?;
+        let temp_path = (0..1000)
+            .map(|index| {
+                parent.join(format!(
+                    ".snippets-code-category-rename-{}-{}",
+                    std::process::id(),
+                    index
+                ))
+            })
+            .find(|path| !path.exists())
+            .ok_or("无法创建分类重命名临时路径")?;
+
+        std::fs::rename(old_path, &temp_path).map_err(|e| format!("重命名分类失败: {}", e))?;
+
+        if let Err(error) = std::fs::rename(&temp_path, new_path) {
+            if let Err(rollback_error) = std::fs::rename(&temp_path, old_path) {
+                return Err(format!(
+                    "重命名分类失败: {}; 恢复原目录失败: {}",
+                    error, rollback_error
+                ));
+            }
+            return Err(format!("重命名分类失败: {}", error));
+        }
+
+        return Ok(());
+    }
+
+    std::fs::rename(old_path, new_path).map_err(|e| format!("重命名分类失败: {}", e))
+}
+
 // 创建分类文件夹
 #[command]
 pub fn create_category_folder(app_handle: AppHandle, name: String) -> Result<String, String> {
@@ -836,12 +895,11 @@ pub fn rename_category_folder(
         return Err(format!("分类不存在: {}", old_name));
     }
 
-    if new_path.exists() {
-        return Err(format!("目标分类已存在: {}", new_name));
+    if old_name == new_name {
+        return Ok(());
     }
 
-    // 重命名文件夹
-    std::fs::rename(&old_path, &new_path).map_err(|e| format!("重命名分类失败: {}", e))?;
+    rename_category_directory(&old_path, &new_path, &new_name)?;
 
     info!("✅ 重命名分类: {} -> {}", old_name, new_name);
 
@@ -1557,6 +1615,8 @@ pub fn set_sync_enabled(app_handle: AppHandle, enabled: bool) -> Result<(), Stri
 
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
+    use super::rename_category_directory;
     use super::validate_category_folder_name;
 
     #[test]
@@ -1594,5 +1654,34 @@ mod tests {
             validate_category_folder_name("代码片段").unwrap(),
             "代码片段"
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn category_directory_supports_case_only_rename() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let parent = std::env::temp_dir().join(format!(
+            "snippets-code-category-rename-test-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        let old_path = parent.join("python");
+        let new_path = parent.join("Python");
+
+        std::fs::create_dir_all(&old_path).unwrap();
+        rename_category_directory(&old_path, &new_path, "Python").unwrap();
+
+        let stored_name = std::fs::read_dir(&parent)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .file_name();
+        assert_eq!(stored_name.to_string_lossy(), "Python");
+
+        std::fs::remove_dir_all(parent).unwrap();
     }
 }

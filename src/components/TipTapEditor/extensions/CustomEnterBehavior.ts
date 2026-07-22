@@ -17,6 +17,124 @@ function findCodeBlockDepth($pos: ResolvedPos): number {
   return -1;
 }
 
+function findAncestorDepth($pos: ResolvedPos, typeName: string): number {
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if ($pos.node(depth).type.name === typeName) return depth;
+  }
+  return -1;
+}
+
+function findOrderedListItemDepth($pos: ResolvedPos): number {
+  for (let depth = $pos.depth; depth > 1; depth--) {
+    if (
+      $pos.node(depth).type.name === 'listItem' &&
+      $pos.node(depth - 1).type.name === 'orderedList'
+    ) {
+      return depth;
+    }
+  }
+  return -1;
+}
+
+/**
+ * 在表格最后一个单元格末尾按 Enter 时直接退出表格。表格属于有序列表项时创建
+ * 下一编号；表格紧跟有序列表时创建带正确 start 的续接列表，其余情况插入普通段落。
+ */
+export function continueOrderedListAfterTable(editor: Editor): boolean {
+  const { state } = editor;
+  const { selection } = state;
+  const { $from } = selection;
+
+  if (
+    !selection.empty ||
+    $from.parent.type.name !== 'paragraph' ||
+    $from.parentOffset !== $from.parent.content.size
+  ) {
+    return false;
+  }
+
+  const cellDepth = Math.max(
+    findAncestorDepth($from, 'tableCell'),
+    findAncestorDepth($from, 'tableHeader')
+  );
+  const rowDepth = findAncestorDepth($from, 'tableRow');
+  const tableDepth = findAncestorDepth($from, 'table');
+
+  if (cellDepth < 0 || rowDepth < 0 || tableDepth < 0) return false;
+  if ($from.index(rowDepth) !== $from.node(rowDepth).childCount - 1) return false;
+  if ($from.index(tableDepth) !== $from.node(tableDepth).childCount - 1) return false;
+  if ($from.index(cellDepth) !== $from.node(cellDepth).childCount - 1) return false;
+
+  const paragraph = state.schema.nodes.paragraph?.create();
+  const listItemType = state.schema.nodes.listItem;
+  const orderedListType = state.schema.nodes.orderedList;
+  if (!paragraph) return false;
+
+  const tr = state.tr;
+
+  // 兼容旧行为留下的空段落：退出时只移除临时空行，不删除已有单元格内容。
+  if ($from.parent.content.size === 0 && $from.node(cellDepth).childCount > 1) {
+    const emptyParagraphFrom = $from.before($from.depth);
+    tr.delete(emptyParagraphFrom, emptyParagraphFrom + $from.parent.nodeSize);
+  }
+
+  const listItemDepth = findOrderedListItemDepth($from);
+  if (listItemDepth > 0 && listItemType) {
+    const orderedListDepth = listItemDepth - 1;
+    const orderedList = $from.node(orderedListDepth);
+    const itemIndex = $from.index(orderedListDepth);
+    const nextListItem = listItemType.create(null, paragraph);
+
+    // 表格后已经有内容时只把光标移出表格，不额外创建编号。
+    const tableIndexInItem = $from.index(listItemDepth);
+    if (tableIndexInItem < $from.node(listItemDepth).childCount - 1) {
+      const nextBlockPos = tr.mapping.map($from.after(tableDepth));
+      tr.setSelection(TextSelection.near(tr.doc.resolve(nextBlockPos), 1));
+      editor.view.dispatch(tr.scrollIntoView());
+      return true;
+    }
+
+    if (!orderedList.canReplace(itemIndex + 1, itemIndex + 1, Fragment.from(nextListItem))) {
+      return false;
+    }
+
+    const insertAt = tr.mapping.map($from.after(listItemDepth));
+    tr.insert(insertAt, nextListItem);
+    tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + 2)));
+    editor.view.dispatch(tr.scrollIntoView());
+    return true;
+  }
+
+  const tableParentDepth = tableDepth - 1;
+  const tableParent = $from.node(tableParentDepth);
+  const tableIndex = $from.index(tableParentDepth);
+  const previousNode = tableIndex > 0 ? tableParent.child(tableIndex - 1) : null;
+
+  const insertAt = tr.mapping.map($from.after(tableDepth));
+  if (previousNode?.type.name === 'orderedList' && orderedListType && listItemType) {
+    const start = Number(previousNode.attrs.start || 1) + previousNode.childCount;
+    const continuedList = orderedListType.create(
+      { ...previousNode.attrs, start },
+      listItemType.create(null, paragraph)
+    );
+    if (!tableParent.canReplace(tableIndex + 1, tableIndex + 1, Fragment.from(continuedList))) {
+      return false;
+    }
+    tr.insert(insertAt, continuedList);
+    tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + 3), 1));
+    editor.view.dispatch(tr.scrollIntoView());
+    return true;
+  }
+
+  if (!tableParent.canReplace(tableIndex + 1, tableIndex + 1, Fragment.from(paragraph))) {
+    return false;
+  }
+  tr.insert(insertAt, paragraph);
+  tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + 1), 1));
+  editor.view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
 /** 文档位置 → 相对代码块文本起始的字符偏移 */
 function posToOffset(contentStart: number, pos: number): number {
   return Math.max(0, pos - contentStart);
@@ -342,6 +460,7 @@ function handleDedent(editor: Editor): boolean {
 
 export const CustomEnterBehavior = Extension.create({
   name: 'customEnterBehavior',
+  priority: 1000,
 
   addKeyboardShortcuts() {
     return {
@@ -358,10 +477,18 @@ export const CustomEnterBehavior = Extension.create({
             .setParagraph()
             .run();
         }
+        if (continueOrderedListAfterTable(this.editor)) {
+          return true;
+        }
         return false;
       },
       'Shift-Enter': () => {
         return this.editor.commands.setHardBreak();
+      },
+
+      'Mod-Enter': () => {
+        if (!this.editor.isActive('table')) return false;
+        return this.editor.chain().focus().addRowAfter().run();
       },
 
       'Tab': () => {

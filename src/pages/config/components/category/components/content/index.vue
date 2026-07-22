@@ -114,6 +114,11 @@
       <span>{{ t('category.loadingEditor') }}</span>
     </div>
 
+    <!-- 新建内容时先保证标题输入流畅，用户停顿后再挂载完整编辑器 -->
+    <div v-else-if="state.isEditorDeferred" class="editor-deferred">
+      <span>{{ t('category.preparingEditor') }}</span>
+    </div>
+
     <!-- 编辑器错误提示 -->
     <div v-else-if="state.editorError" class="editor-error">
       <span class="error-icon">⚠</span>
@@ -205,6 +210,7 @@ const state = reactive({
   isInitializing: true,
   contentChanged: false,
   isEditorLoading: false,
+  isEditorDeferred: false,
   editorError: null as string | null,
   lastSavedAt: null as Date | null,
   autoSaveEnabled: true,
@@ -216,6 +222,26 @@ const state = reactive({
 
 const draftTitle = ref('');
 const titleDirty = ref(false);
+let deferredEditorTimer: ReturnType<typeof setTimeout> | null = null;
+
+const cancelDeferredEditorMount = () => {
+  if (deferredEditorTimer !== null) {
+    clearTimeout(deferredEditorTimer);
+    deferredEditorTimer = null;
+  }
+};
+
+const mountDeferredEditor = () => {
+  cancelDeferredEditorMount();
+  state.isEditorDeferred = false;
+  state.isEditorLoading = false;
+};
+
+const scheduleDeferredEditorMount = (delay = 700) => {
+  if (!state.isEditorDeferred) return;
+  cancelDeferredEditorMount();
+  deferredEditorTimer = setTimeout(mountDeferredEditor, delay);
+};
 const showAiAssist = ref(false);
 const showSelectionAiAssist = ref(false);
 const codeMirrorEditorRef = ref<any>(null);
@@ -351,6 +377,8 @@ const currentEditorType = computed(() => {
 
 // 重试加载编辑器
 const retryLoadEditor = () => {
+  cancelDeferredEditorMount();
+  state.isEditorDeferred = false;
   state.editorError = null;
   state.editorLoadRetries = 0;
   state.isEditorLoading = true;
@@ -842,6 +870,7 @@ const handleTitleInput = (value: string) => {
   if (state.isInitializing) return;
   draftTitle.value = value;
   titleDirty.value = value.trim() !== state.title.trim();
+  scheduleDeferredEditorMount(600);
 };
 
 const rollbackTitleDraft = () => {
@@ -861,6 +890,8 @@ const commitTitleChange = () => {
     rollbackTitleDraft();
     return;
   }
+
+  if (state.isEditorDeferred) scheduleDeferredEditorMount(0);
 
   const original = originalTitle.value ?? state.currentContent?.title;
   draftTitle.value = nextTitle;
@@ -1186,6 +1217,8 @@ const confirmCreateNote = async () => {
 
 // 按指定 ID 获取片段内容（用于外部变更重载，避免 route.params.id 与 state.currentContent.id 不一致）
 const fetchContentById = async (id: string) => {
+  cancelDeferredEditorMount();
+  state.isEditorDeferred = false;
   state.isInitializing = true;
   // 不切换 isEditorLoading，保持 TipTap 挂载，让其 watch 到 content 变化后 setContent
   state.editorError = null;
@@ -1231,6 +1264,8 @@ const fetchContentById = async (id: string) => {
 
 // 获取片段内容（使用 route.params.id）
 const fetchContent = async () => {
+  cancelDeferredEditorMount();
+  state.isEditorDeferred = false;
   state.isInitializing = true;
   state.isEditorLoading = true;
   state.editorError = null;
@@ -1262,9 +1297,16 @@ const fetchContent = async () => {
       state.lastSavedAt = null;
       state.lastSavedContentHash = computeContentHash(parsedContent.content || '');
 
-      // 编辑器加载完成
+      const isNewEmptyContent = parsedContent.title === 'New Fragment' && !parsedContent.content?.trim();
+
+      // 新建空内容先让标题输入框获得主线程；完整编辑器在用户输入停顿后挂载。
+      state.isEditorDeferred = isNewEmptyContent;
       await nextTick();
       state.isEditorLoading = false;
+      if (isNewEmptyContent) {
+        state.isInitializing = false;
+        scheduleDeferredEditorMount(900);
+      }
 
       // 如果是新建的内容，自动聚焦并选中标题输入框中的默认标题
       if (parsedContent.title === 'New Fragment' && titleInputRef.value) {
@@ -1517,6 +1559,7 @@ const handleDirsChanged = async (event: Event) => {
 
 // 组件卸载前保存
 onBeforeUnmount(async () => {
+  cancelDeferredEditorMount();
   if (state.currentContent && hasUnsavedChanges()) {
     debouncedSave.cancel();
     syncDraftTitleToState();
@@ -1569,13 +1612,14 @@ onMounted(async () => {
 }
 
 .content-container {
-  @apply h-full text-xs bg-panel;
+  @apply h-full w-full min-w-0 max-w-full overflow-hidden bg-panel text-xs;
 
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
 
   .content-header {
-    @apply border-b border-panel mx-2;
+    @apply mx-2 min-w-0 max-w-full overflow-hidden border-b border-panel;
 
     .content-title {
       @apply flex items-center gap-2 h-[40px];
@@ -1613,6 +1657,12 @@ onMounted(async () => {
   span {
     @apply text-base;
   }
+}
+
+.editor-deferred {
+  @apply flex h-full items-start justify-center pt-10 text-sm;
+
+  color: var(--categories-info-text-color);
 }
 
 @keyframes spin {
@@ -1667,8 +1717,7 @@ onMounted(async () => {
 }
 
 .editor-host {
-  min-height: 0;
-  height: 100%;
+  @apply h-full w-full min-h-0 min-w-0 max-w-full overflow-hidden;
 }
 
 .ai-assist-button {

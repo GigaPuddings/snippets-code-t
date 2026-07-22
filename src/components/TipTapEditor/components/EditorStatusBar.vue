@@ -131,14 +131,11 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 
 <style lang="scss" scoped>
 .editor-status {
-  @apply h-6 px-2 flex items-center justify-between text-sm;
+  @apply relative flex h-6 flex-none items-center justify-between px-2 text-sm;
+
   background-color: var(--statusbar-bg);
   border-top: 1px solid var(--statusbar-border);
   color: var(--statusbar-text);
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
   z-index: 10;
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 

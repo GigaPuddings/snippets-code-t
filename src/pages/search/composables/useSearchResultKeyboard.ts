@@ -25,7 +25,7 @@ const preventKey = (event: KeyboardEvent) => {
 };
 
 const getShortcutIndex = (event: KeyboardEvent) => {
-  if (!/^Digit[1-5]$/.test(event.code) && !/^Numpad[1-5]$/.test(event.code)) {
+  if (!/^Digit[1-9]$/.test(event.code) && !/^Numpad[1-9]$/.test(event.code)) {
     return -1;
   }
 

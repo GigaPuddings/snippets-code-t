@@ -4,9 +4,9 @@
     :class="[activeTabIndex !== 2 ? 'gradient titlebar' : 'titlebar']"
   >
     <!-- 左侧：品牌 + 版本号；宽屏时含导航 -->
-    <div class="titlebar-left">
-      <img src="@/assets/128x128.png" alt="" class="titlebar-logo" />
-      <span class="titlebar-app-name">{{ state.appName }}</span>
+    <div class="titlebar-left" data-tauri-drag-region>
+      <img src="@/assets/128x128.png" alt="" class="titlebar-logo" data-tauri-drag-region />
+      <span class="titlebar-app-name" data-tauri-drag-region>{{ state.appName }}</span>
       <!-- <span class="titlebar-app-version">{{ state.appVersion }}</span> -->
       <div v-show="!isNarrow" class="titlebar-nav">
         <SegmentedToggle
@@ -28,9 +28,13 @@
     </div>
 
     <!-- 中间：快捷搜索入口 -->
-    <div class="titlebar-center" data-tauri-drag-region>
+    <div
+      class="titlebar-center"
+      :class="{ 'titlebar-center--drag-only': hideQuickSearch }"
+      data-tauri-drag-region
+    >
       <button
-        v-show="!isNarrow"
+        v-show="!hideQuickSearch"
         class="titlebar-quick-search"
         type="button"
         :title="$t('titlebar.quickSearch')"
@@ -222,8 +226,10 @@ const pluginStore = usePluginStore();
 
 /** 窄屏/最小窗口断点：小于等于此宽度时 左侧仅应用名+版本、导航居中、右侧仅折叠菜单+窗口控制 */
 const TITLEBAR_NARROW_BREAKPOINT = 720;
+const TITLEBAR_SEARCH_BREAKPOINT = 980;
 
 const isNarrow = computed(() => layoutStore.windowWidth <= TITLEBAR_NARROW_BREAKPOINT);
+const hideQuickSearch = computed(() => layoutStore.windowWidth <= TITLEBAR_SEARCH_BREAKPOINT);
 
 // 窄屏下拉菜单 ref，用于在 isNarrow 变为 false 时主动关闭
 const moreDropdownRef = ref();
@@ -474,10 +480,17 @@ onUnmounted(() => {
 
 /* 中间：快捷搜索入口，占据剩余空间并可收缩 */
 .titlebar-center {
-  flex: 0 1 360px;
-  max-width: 34vw;
-  min-width: 0;
   @apply flex items-center justify-center overflow-hidden;
+
+  flex: 0 1 360px;
+  min-width: 0;
+  max-width: 34vw;
+
+  &--drag-only {
+    flex: 1 1 96px;
+    align-self: stretch;
+    min-width: 48px;
+  }
 }
 
 .titlebar-quick-search {

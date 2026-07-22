@@ -93,6 +93,24 @@ pub struct WorkspaceSettings {
 pub struct AttachmentSettings {
     pub path_template: String,
     pub filename_format: String,
+    #[serde(default = "default_image_scale_percent")]
+    pub default_image_scale_percent: u16,
+    #[serde(default = "default_responsive_images")]
+    pub responsive_images: bool,
+    #[serde(default = "default_show_image_path")]
+    pub show_image_path: bool,
+}
+
+fn default_image_scale_percent() -> u16 {
+    100
+}
+
+fn default_responsive_images() -> bool {
+    true
+}
+
+fn default_show_image_path() -> bool {
+    true
 }
 
 impl Default for AttachmentSettings {
@@ -100,6 +118,9 @@ impl Default for AttachmentSettings {
         Self {
             path_template: "assets/${noteFileName}/".to_string(),
             filename_format: "snippets-code".to_string(),
+            default_image_scale_percent: default_image_scale_percent(),
+            responsive_images: default_responsive_images(),
+            show_image_path: default_show_image_path(),
         }
     }
 }
@@ -305,5 +326,23 @@ Legacy body
         let error = parse_front_matter("---\ntitle: Broken").expect_err("missing delimiter");
 
         assert_eq!(error, "Front matter must end with '---'");
+    }
+
+    #[test]
+    fn legacy_attachment_settings_receive_image_display_defaults() {
+        let legacy = r#"{
+          "sync_enabled": false,
+          "attachment": {
+            "path_template": "assets/${noteFileName}/",
+            "filename_format": "simple"
+          }
+        }"#;
+
+        let settings: WorkspaceSettings =
+            serde_json::from_str(legacy).expect("parse legacy workspace settings");
+
+        assert_eq!(settings.attachment.default_image_scale_percent, 100);
+        assert!(settings.attachment.responsive_images);
+        assert!(settings.attachment.show_image_path);
     }
 }

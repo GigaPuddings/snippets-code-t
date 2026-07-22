@@ -98,6 +98,18 @@ export const LocalImage = Node.create({
           };
         },
       },
+      'data-image-scale': {
+        default: null,
+        parseHTML: element => {
+          const scale = Number.parseFloat(element.getAttribute('data-image-scale') || '');
+          return Number.isFinite(scale) ? scale : null;
+        },
+        renderHTML: attributes => {
+          const scale = Number(attributes['data-image-scale']);
+          if (!Number.isFinite(scale)) return {};
+          return { 'data-image-scale': Math.round(scale) };
+        },
+      },
       // 存储原始的相对路径
       'data-original-path': {
         default: null,
@@ -130,6 +142,9 @@ export const LocalImage = Node.create({
             title: htmlElement.getAttribute('title') || null,
             width: htmlElement.getAttribute('width') ? parseInt(htmlElement.getAttribute('width')!, 10) : null,
             height: htmlElement.getAttribute('height') ? parseInt(htmlElement.getAttribute('height')!, 10) : null,
+            'data-image-scale': htmlElement.getAttribute('data-image-scale')
+              ? Number.parseFloat(htmlElement.getAttribute('data-image-scale')!)
+              : null,
             'data-original-path': originalPath || null,
           };
         }

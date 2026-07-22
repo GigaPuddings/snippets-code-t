@@ -111,6 +111,17 @@ describe('useEditorPersistenceBridge', () => {
     expect(bridge.emitContentChange).toHaveBeenCalledWith('# Button');
   });
 
+  it('allows empty source content to clear the rich-text editor', async () => {
+    const bridge = createBridge();
+    const { editor, setContent } = createEditor();
+
+    bridge.applySourceContentToEditor(editor);
+    await nextTick();
+
+    expect(setContent).toHaveBeenCalledWith('<p></p>', { emitUpdate: false });
+    expect(bridge.emitContentChange).toHaveBeenCalledWith('');
+  });
+
   it('syncs external content into the editor when it differs from the last emitted value', () => {
     const bridge = createBridge();
     const { editor, setContent } = createEditor();

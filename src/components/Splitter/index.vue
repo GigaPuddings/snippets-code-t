@@ -142,11 +142,11 @@ onUnmounted(() => {
 
 <style scoped>
 .splitter-container {
-  @apply flex relative w-full h-full overflow-hidden;
+  @apply relative flex h-full w-full min-w-0 max-w-full overflow-hidden;
 }
 
 .splitter-panel {
-  @apply h-full overflow-hidden transition-[width,min-width] duration-200 ease-out;
+  @apply h-full min-w-0 max-w-full overflow-hidden transition-[width,min-width] duration-200 ease-out;
 }
 
 .first-panel {
@@ -154,7 +154,7 @@ onUnmounted(() => {
 }
 
 .second-panel {
-  @apply flex-1;
+  @apply flex-1 min-w-0 max-w-full;
 }
 
 .splitter-divider {

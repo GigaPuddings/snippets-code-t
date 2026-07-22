@@ -82,7 +82,29 @@
     />
     
     <!-- 右键上下文菜单 -->
-    <TipTapContextMenu ref="contextMenuRef" :editor="editor ?? null" :dark="props.dark" :view-mode="viewMode" :source-editor-ref="sourceEditorRef" />
+    <TipTapContextMenu
+      ref="contextMenuRef"
+      :editor="editor ?? null"
+      :dark="props.dark"
+      :view-mode="viewMode"
+      :source-editor-ref="sourceEditorRef"
+      @request-insert-table="openTableInsertDialog"
+    />
+
+    <TableControls
+      :editor="editor ?? null"
+      :enabled="viewMode === 'preview'"
+      :dark="props.dark"
+      @resize="openTableResizeDialog"
+    />
+
+    <TableSizeDialog
+      v-model="tableDialogVisible"
+      :mode="tableDialogMode"
+      :initial-rows="tableDialogRows"
+      :initial-columns="tableDialogColumns"
+      @confirm="handleTableSizeConfirm"
+    />
     
     <!-- 反向链接面板 -->
     <BacklinkPanel
@@ -114,6 +136,8 @@ import OutlinePanel from './components/OutlinePanel.vue';
 import EditorActions from './components/EditorActions.vue';
 import SourceEditor from './components/SourceEditor.vue';
 import BacklinkPanel from './components/BacklinkPanel.vue';
+import TableControls from './components/TableControls.vue';
+import TableSizeDialog from './components/TableSizeDialog.vue';
 import { useEditorBacklinks } from './composables/useEditorBacklinks';
 import { useEditorContextMenu } from './composables/useEditorContextMenu';
 import {
@@ -134,6 +158,11 @@ import { SearchPanel } from '@/components/UI';
 import type { CSSProperties, Ref } from 'vue';
 import type { EditorView } from '@tiptap/pm/view';
 import modal from '@/utils/modal';
+import {
+  createTableMarkdown,
+  resizeCurrentTable,
+  type TableInfo
+} from './utils/tableCommands';
 
 interface Props {
   codeStyle?: CSSProperties;
@@ -197,7 +226,12 @@ const sourceContent = ref('');
 const workspaceRoot = ref<string>('');
 const previewLineCount = ref(1);
 const previewLineNumbersMinHeight = ref('100%');
+const tableDialogVisible = ref(false);
+const tableDialogMode = ref<'insert' | 'resize'>('insert');
+const tableDialogRows = ref(4);
+const tableDialogColumns = ref(3);
 let previewResizeObserver: ResizeObserver | null = null;
+let isEditorUnmounting = false;
 const editorContainerStyle = computed(() => ({
   '--editor-line-height-value': String(props.lineHeight)
 }) as CSSProperties);
@@ -650,7 +684,18 @@ function normalizeOrderedLists(fragment: DocumentFragment, plainText: string): v
 
 function removePastedPresentationElements(fragment: DocumentFragment): void {
   fragment
-    .querySelectorAll('button, svg, [aria-hidden="true"], [hidden]')
+    .querySelectorAll([
+      'button',
+      'svg',
+      '[aria-hidden="true"]',
+      '[hidden]',
+      '.code-toolbar',
+      '.image-controls',
+      '.resize-handle',
+      '.image-context-menu',
+      '.ProseMirror-separator',
+      '.ProseMirror-trailingBreak'
+    ].join(', '))
     .forEach(element => element.remove());
 
   fragment.querySelectorAll('[style]').forEach((element) => {
@@ -658,6 +703,42 @@ function removePastedPresentationElements(fragment: DocumentFragment): void {
     if (/\bdisplay\s*:\s*none\b|\bvisibility\s*:\s*hidden\b/i.test(style)) {
       element.remove();
     }
+  });
+}
+
+function isolatePastedEditorContent(template: HTMLTemplateElement): void {
+  const editorRoot = template.content.querySelector(
+    '.ProseMirror[contenteditable="true"], .tiptap-editor[contenteditable="true"]'
+  );
+  if (editorRoot) {
+    template.innerHTML = editorRoot.innerHTML;
+  }
+}
+
+function normalizePastedImageNodeViews(fragment: DocumentFragment): void {
+  const preservedAttributes = [
+    'src',
+    'alt',
+    'title',
+    'data-original-path',
+    'data-image-scale'
+  ];
+
+  fragment.querySelectorAll('.image-wrapper[data-node-view-wrapper]').forEach((wrapper) => {
+    const sourceImage = Array.from(wrapper.querySelectorAll('img')).find((image) => (
+      !image.classList.contains('ProseMirror-separator') && Boolean(image.getAttribute('src'))
+    ));
+    if (!sourceImage) {
+      wrapper.remove();
+      return;
+    }
+
+    const semanticImage = document.createElement('img');
+    preservedAttributes.forEach((attribute) => {
+      const value = sourceImage.getAttribute(attribute);
+      if (value) semanticImage.setAttribute(attribute, value);
+    });
+    wrapper.replaceWith(semanticImage);
   });
 }
 
@@ -692,6 +773,8 @@ function normalizePastedRichHtml(html: string, plainText: string): string {
   const template = document.createElement('template');
   template.innerHTML = extractClipboardHtmlFragment(html);
 
+  isolatePastedEditorContent(template);
+  normalizePastedImageNodeViews(template.content);
   removePastedPresentationElements(template.content);
   trimLeadingListItemBreaks(template.content);
   normalizePastedLinks(template.content);
@@ -735,10 +818,11 @@ function updatePreviewLineNumbers(): void {
   if (!props.showLineNumbers) return;
 
   nextTick(() => {
+    if (isEditorUnmounting) return;
     const editorContentElement = editorContentRef.value;
     if (!editorContentElement || editorContentElement.offsetParent === null) return;
 
-    const editorElement = editor.value?.view.dom as HTMLElement | undefined;
+    const editorElement = editorContentElement.querySelector<HTMLElement>('.ProseMirror');
     if (!editorElement) {
       previewLineCount.value = 1;
       previewLineNumbersMinHeight.value = '100%';
@@ -767,15 +851,15 @@ function refreshPreviewResizeObserver(): void {
   previewResizeObserver?.disconnect();
   previewResizeObserver = null;
 
-  if (typeof ResizeObserver === 'undefined') return;
+  if (isEditorUnmounting || typeof ResizeObserver === 'undefined') return;
+
+  const editorContentElement = editorContentRef.value;
+  if (!editorContentElement?.isConnected) return;
 
   previewResizeObserver = new ResizeObserver(updatePreviewLineNumbers);
+  previewResizeObserver.observe(editorContentElement);
 
-  if (editorContentRef.value) {
-    previewResizeObserver.observe(editorContentRef.value);
-  }
-
-  const editorElement = editor.value?.view.dom as HTMLElement | undefined;
+  const editorElement = editorContentElement.querySelector<HTMLElement>('.ProseMirror');
   if (editorElement) {
     previewResizeObserver.observe(editorElement);
   }
@@ -1046,6 +1130,53 @@ const {
   emitViewModeChange: (mode) => emits('view-mode-change', mode)
 });
 
+const openTableInsertDialog = () => {
+  tableDialogMode.value = 'insert';
+  tableDialogRows.value = 4;
+  tableDialogColumns.value = 3;
+  tableDialogVisible.value = true;
+};
+
+const openTableResizeDialog = (
+  info: TableInfo,
+  size?: { rows: number; columns: number }
+) => {
+  if (size && editor.value) {
+    resizeCurrentTable(editor.value, size.rows, size.columns);
+    return;
+  }
+  tableDialogMode.value = 'resize';
+  tableDialogRows.value = info.rows;
+  tableDialogColumns.value = info.columns;
+  tableDialogVisible.value = true;
+};
+
+const handleTableSizeConfirm = (size: { rows: number; columns: number }) => {
+  if (tableDialogMode.value === 'resize') {
+    if (editor.value) resizeCurrentTable(editor.value, size.rows, size.columns);
+    return;
+  }
+
+  if (viewMode.value === 'source') {
+    const sourceEditor = sourceEditorRef.value;
+    const textarea = sourceEditor?.getTextarea();
+    if (sourceEditor && textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const prefix = start === 0 || textarea.value[start - 1] === '\n' ? '' : '\n\n';
+      const suffix = end === textarea.value.length || textarea.value[end] === '\n' ? '\n' : '\n\n';
+      sourceEditor.insertText(`${prefix}${createTableMarkdown(size.rows, size.columns)}${suffix}`);
+    }
+    return;
+  }
+
+  editor.value?.chain().focus().insertTable({
+    rows: size.rows,
+    cols: size.columns,
+    withHeaderRow: true
+  }).run();
+};
+
 // 源码内容变更
 const handleSourceContentChange = (value: string) => {
   editorPersistenceBridge.emitSourceContentChange(value);
@@ -1066,13 +1197,12 @@ watch(() => props.disabled, (disabled) => {
 
 // 监听暗色模式变化
 watch(() => props.dark, (isDark) => {
-  if (editor.value) {
-    const editorElement = editor.value.view.dom;
-    if (isDark) {
-      editorElement.classList.add('dark');
-    } else {
-      editorElement.classList.remove('dark');
-    }
+  const editorElement = editorContentRef.value?.querySelector<HTMLElement>('.ProseMirror');
+  if (!editorElement) return;
+  if (isDark) {
+    editorElement.classList.add('dark');
+  } else {
+    editorElement.classList.remove('dark');
   }
 });
 
@@ -1149,6 +1279,7 @@ onMounted(async () => {
 
 // 清理
 onBeforeUnmount(() => {
+  isEditorUnmounting = true;
   try {
     document.removeEventListener('keydown', handleKeyDown, true);
     window.removeEventListener('resize', updatePreviewLineNumbers);
@@ -1195,12 +1326,12 @@ defineExpose({
 }
 
 .editor-main {
-  @apply flex-1 flex flex-col overflow-hidden;
+  @apply flex-1 flex min-w-0 flex-col overflow-hidden;
   transition: width 0.3s ease;
 }
 
 .editor-content {
-  @apply flex-1 overflow-auto cursor-text;
+  @apply flex-1 w-full min-w-0 max-w-full cursor-text overflow-auto;
   display: flex;
   min-height: 0;
   background-color: var(--editor-bg);
@@ -1208,6 +1339,8 @@ defineExpose({
   padding-bottom: 0;
   
   :deep(.ProseMirror) {
+    @apply w-full min-w-0 max-w-full;
+
     min-height: 100%;
     height: auto;
   }
@@ -1236,9 +1369,8 @@ defineExpose({
   }
 
   :deep(.code-block-wrapper) {
-    border-color: var(--editor-border) !important;
-    background: var(--editor-bg) !important;
-    box-shadow: none;
+    border-color: var(--code-block-border) !important;
+    background: var(--code-block-bg) !important;
   }
 }
 
@@ -1269,13 +1401,12 @@ defineExpose({
 }
 
 :deep(.tiptap-editor) {
-  @apply outline-none;
+  @apply box-border w-full min-w-0 max-w-full outline-none;
+
   overflow-y: visible;
   min-height: 100%;
   height: auto;
   padding: 10px 14px 40px;
-  width: 100%;
-  max-width: none;
   margin: 0;
   font-size: 14px;
   line-height: var(--editor-line-height);
@@ -1283,6 +1414,32 @@ defineExpose({
   color: var(--editor-text);
   background-color: var(--editor-bg);
   transition: background-color 0.3s ease, color 0.3s ease;
+
+  > * {
+    @apply box-border min-w-0 max-w-full;
+  }
+
+  p,
+  li,
+  blockquote,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  td,
+  th {
+    overflow-wrap: anywhere;
+  }
+
+  img {
+    @apply h-auto max-w-full;
+  }
+
+  .tableWrapper {
+    @apply w-full max-w-full overflow-x-auto;
+  }
 
   &.dark {
     background-color: var(--editor-bg);
@@ -1745,6 +1902,14 @@ defineExpose({
       @apply border border-panel px-4 py-2 text-left;
       line-height: 1.6;
       transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+    }
+
+    th[align='center'], td[align='center'] {
+      @apply text-center;
+    }
+
+    th[align='right'], td[align='right'] {
+      @apply text-right;
     }
 
     th {

@@ -1,6 +1,10 @@
 import type { Ref } from 'vue';
 import type { Transaction } from '@tiptap/pm/state';
 import { setTextSelectionAfterUploadedImage } from '../utils/imageCursor';
+import {
+  DEFAULT_ATTACHMENT_CONFIG,
+  getAttachmentConfig
+} from '@/plugins/attachments/api';
 
 export interface UploadedImageInfo {
   relativePath: string;
@@ -57,8 +61,8 @@ function toWorkspaceImagePath(workspaceRoot: string, relativePath: string) {
   return `${workspaceRoot}\\${relativePath.replace('../', '').replace(/\//g, '\\')}`;
 }
 
-function createImageHtml(src: string, alt: string, relativePath: string) {
-  return `<img src="${src}" alt="${alt}" data-original-path="${relativePath}" />`;
+function createImageHtml(src: string, alt: string, relativePath: string, scalePercent: number) {
+  return `<img src="${src}" alt="${alt}" data-original-path="${relativePath}" data-image-scale="${scalePercent}" />`;
 }
 
 export function useEditorImageUpload(
@@ -132,10 +136,17 @@ export function useEditorImageUpload(
       const tauriUrl = await convertFileSrc(absolutePath);
       console.log('[handleImageUpload] Tauri URL:', tauriUrl);
 
+      const attachmentConfig = await getAttachmentConfig().catch(() => DEFAULT_ATTACHMENT_CONFIG);
+
       const editor = options.editor.value;
       if (editor) {
         console.log('[handleImageUpload] 编辑器存在，准备插入图片');
-        const imageHtml = createImageHtml(tauriUrl, file.name, attachmentInfo.relativePath);
+        const imageHtml = createImageHtml(
+          tauriUrl,
+          file.name,
+          attachmentInfo.relativePath,
+          attachmentConfig.defaultImageScalePercent
+        );
         console.log('[handleImageUpload] 图片 HTML:', imageHtml);
         insertImage(editor, imageHtml, attachmentInfo.relativePath);
         console.log('[handleImageUpload] 图片插入完成');

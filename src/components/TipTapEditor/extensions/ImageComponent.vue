@@ -1,85 +1,84 @@
 <template>
-  <node-view-wrapper class="image-wrapper" :class="{ 'is-selected': selected }" @contextmenu="handleContextMenu">
-    <!-- 图片路径显示 -->
-    <div v-if="showPath && originalPath" class="image-path" @click="openFileLocation">
-      <span class="path-icon">📁</span>
+  <node-view-wrapper
+    as="span"
+    class="image-wrapper"
+    :class="{ 'is-selected': selected }"
+    :style="wrapperStyle"
+    @contextmenu="handleContextMenu"
+  >
+    <span v-if="showPath && originalPath" class="image-path" @click.stop="openFileLocation">
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+        <path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15v-13Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+      </svg>
       <span class="path-text">{{ originalPath }}</span>
-    </div>
-    
-    <!-- 图片容器 -->
-    <div ref="imageContainerRef" class="image-container" @mouseenter="showControls = true" @mouseleave="showControls = false">
+    </span>
+
+    <span ref="imageContainerRef" class="image-container">
       <img
         :src="node.attrs.src"
         :alt="node.attrs.alt"
         :title="node.attrs.title"
+        :data-original-path="node.attrs['data-original-path'] || undefined"
+        :data-image-scale="node.attrs['data-image-scale'] || undefined"
         :style="imageStyle"
-        @click="selectImage"
+        draggable="false"
+        @click.stop="selectImage"
         @load="handleRenderedImageLoad"
+        @error="handleRenderedImageError"
       />
-      
-      <!-- 缩放控制 -->
-      <div v-if="showControls && selected" class="image-controls">
-        <div class="control-group">
-          <button class="control-btn" @click="resizeImage(0.5)" title="缩小 50%">
-            <span>50%</span>
-          </button>
-          <button class="control-btn" @click="resizeImage(0.75)" title="缩小 75%">
-            <span>75%</span>
-          </button>
-          <button class="control-btn" @click="resizeImage(1)" title="原始大小">
-            <span>100%</span>
-          </button>
-          <button class="control-btn" @click="resizeImage(1.5)" title="放大 150%">
-            <span>150%</span>
-          </button>
-          <button class="control-btn" @click="resizeImage(2)" title="放大 200%">
-            <span>200%</span>
-          </button>
-        </div>
-      </div>
-      
-      <!-- 拖拽调整大小的手柄 -->
-      <div
-        v-if="selected"
-        class="resize-handle resize-handle-right"
-        @mousedown="startResize"
-      ></div>
-    </div>
-    
-    <!-- 图片右键菜单 -->
+    </span>
+
     <teleport to="body">
       <div
         v-if="showContextMenu"
         ref="contextMenuRef"
         class="image-context-menu"
         :style="contextMenuStyle"
+        @mousedown.stop
         @contextmenu.prevent
       >
-        <div class="menu-item" @click="openFileLocation">
-          <span class="menu-icon">📁</span>
-          <span>打开文件位置</span>
-        </div>
+        <button class="menu-item" type="button" @click="openFileLocation">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+            <path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15v-13Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+          </svg>
+          <span>{{ t('settings.attachment.openImageLocation') }}</span>
+        </button>
+
         <div class="menu-divider"></div>
-        <div class="menu-item" @click="resizeImage(0.5)">
-          <span>缩放到 50%</span>
+        <div class="menu-heading">
+          <span>{{ t('settings.attachment.imageScale') }}</span>
+          <button
+            v-if="imageCount > 1"
+            class="menu-scope"
+            :class="{ active: applyToAllImages }"
+            type="button"
+            @click="applyToAllImages = !applyToAllImages"
+          >
+            {{ applyToAllImages
+              ? t('settings.attachment.allImagesShort')
+              : t('settings.attachment.currentImage') }}
+          </button>
         </div>
-        <div class="menu-item" @click="resizeImage(0.75)">
-          <span>缩放到 75%</span>
+        <div class="scale-presets">
+          <button
+            v-for="scale in IMAGE_SCALE_PRESETS"
+            :key="scale"
+            class="scale-preset"
+            :class="{ active: draftScalePercent === scale }"
+            type="button"
+            @click="resizeImage(scale)"
+          >
+            {{ scale }}%
+          </button>
         </div>
-        <div class="menu-item" @click="resizeImage(1)">
-          <span>原始大小 (100%)</span>
-        </div>
-        <div class="menu-item" @click="resizeImage(1.5)">
-          <span>放大到 150%</span>
-        </div>
-        <div class="menu-item" @click="resizeImage(2)">
-          <span>放大到 200%</span>
-        </div>
+
         <div class="menu-divider"></div>
-        <div class="menu-item" @click="deleteImage">
-          <span class="menu-icon">🗑️</span>
-          <span>删除图片</span>
-        </div>
+        <button class="menu-item danger" type="button" @click="deleteImage">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+            <path d="M5 7h14M9 7V4h6v3m2 0-1 13H8L7 7m4 4v6m3-6v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>{{ t('settings.attachment.deleteImage') }}</span>
+        </button>
       </div>
     </teleport>
   </node-view-wrapper>
@@ -88,12 +87,23 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from '@tiptap/vue-3';
 import type { NodeViewProps } from '@tiptap/core';
-import type { Transaction } from '@tiptap/pm/state';
 import type { CSSProperties } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
-import { restoreDeletedAttachment } from '@/plugins/attachments/api';
+import {
+  ATTACHMENT_CONFIG_UPDATED_EVENT,
+  DEFAULT_ATTACHMENT_CONFIG,
+  getAttachmentConfig,
+  restoreDeletedAttachment
+} from '@/plugins/attachments/api';
+import type { AttachmentConfig } from '@/types/models';
 import { requestSelectionScrollAfterLayout } from '../utils/editorLayout';
-import { setTextSelectionAfterImage } from '../utils/imageCursor';
+import {
+  applyImageScalePercent,
+  clampImageScalePercent,
+  countLocalImages,
+  resolveImageScalePercent
+} from '../utils/imageSizing';
 
 interface Props {
   node: NodeViewProps['node'];
@@ -103,454 +113,320 @@ interface Props {
   getPos: NodeViewProps['getPos'];
 }
 
+const IMAGE_SCALE_PRESETS = [50, 75, 100, 125, 150, 200];
 const props = defineProps<Props>();
+const { t } = useI18n();
 
-const showControls = ref(false);
-const showPath = ref(true);
 const originalWidth = ref<number | null>(null);
-const originalHeight = ref<number | null>(null);
-const currentWidth = ref<number | null>(null);
-const currentHeight = ref<number | null>(null);
-const isResizing = ref(false);
+const draftScalePercent = ref(100);
+const applyToAllImages = ref(false);
+const imageCount = ref(1);
 const showContextMenu = ref(false);
 const contextMenuRef = ref<HTMLElement | null>(null);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const imageContainerRef = ref<HTMLElement | null>(null);
 const hasLoadError = ref(false);
+const attachmentConfig = ref<AttachmentConfig>({ ...DEFAULT_ATTACHMENT_CONFIG });
 
-// 获取原始路径
-const originalPath = computed(() => {
-  return props.node.attrs['data-original-path'] || null;
+const originalPath = computed<string | null>(() => props.node.attrs['data-original-path'] || null);
+const showPath = computed(() => attachmentConfig.value.showImagePath);
+const effectiveScalePercent = computed(() => resolveImageScalePercent(
+  props.node.attrs,
+  originalWidth.value,
+  attachmentConfig.value.defaultImageScalePercent
+));
+
+const desiredWidth = computed(() => {
+  if (!originalWidth.value) return null;
+  return Math.max(1, Math.round(originalWidth.value * effectiveScalePercent.value / 100));
 });
 
-// 右键菜单样式
+const wrapperStyle = computed<CSSProperties>(() => {
+  const style: CSSProperties = {};
+  if (desiredWidth.value) style.width = `${desiredWidth.value}px`;
+  if (attachmentConfig.value.responsiveImages) {
+    style.maxWidth = `${Math.min(100, effectiveScalePercent.value)}%`;
+  }
+  return style;
+});
+
+const imageStyle = computed<CSSProperties>(() => ({
+  width: desiredWidth.value ? '100%' : 'auto',
+  maxWidth: attachmentConfig.value.responsiveImages ? '100%' : 'none',
+  height: 'auto',
+  cursor: props.selected ? 'default' : 'pointer'
+}));
+
 const contextMenuStyle = computed(() => ({
   left: `${contextMenuPosition.value.x}px`,
   top: `${contextMenuPosition.value.y}px`
 }));
 
-// 图片样式
-const imageStyle = computed(() => {
-  const style: CSSProperties = {
-    cursor: props.selected ? 'default' : 'pointer',
-    height: 'auto',
-  };
-  
-  const nodeWidth = props.node.attrs.width;
-  const widthToUse = nodeWidth || currentWidth.value;
-  
-  if (widthToUse) {
-    style.width = `${widthToUse}px`;
-    style.maxWidth = '100%';
-  } else {
-    style.maxWidth = '100%';
-  }
-  
-  return style;
-});
+watch(effectiveScalePercent, (scale) => {
+  draftScalePercent.value = scale;
+}, { immediate: true });
 
-// 处理右键菜单
-const handleContextMenu = (event: MouseEvent) => {
-  event.preventDefault();
-  event.stopPropagation();
-  
-  contextMenuPosition.value = {
-    x: event.clientX,
-    y: event.clientY
-  };
-  showContextMenu.value = true;
-  
-  // 调整菜单位置防止超出屏幕
-  nextTick(() => {
-    if (!contextMenuRef.value) return;
-    
-    const menuRect = contextMenuRef.value.getBoundingClientRect();
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
-    
-    let x = event.clientX;
-    let y = event.clientY;
-    
-    if (x + menuRect.width > windowWidth) {
-      x = windowWidth - menuRect.width - 10;
-    }
-    
-    if (y + menuRect.height > windowHeight) {
-      y = windowHeight - menuRect.height - 10;
-    }
-    
-    contextMenuPosition.value = { x, y };
-  });
+const refreshImageCount = (force = false) => {
+  if (!force && !props.selected && !showContextMenu.value) return;
+  imageCount.value = Math.max(1, countLocalImages(props.editor));
+  if (imageCount.value <= 1) applyToAllImages.value = false;
 };
 
-// 关闭右键菜单
-const closeContextMenu = () => {
-  showContextMenu.value = false;
-};
+const handleEditorTransaction = () => refreshImageCount();
 
-// 删除图片
-const deleteImage = () => {
-  props.editor.commands.deleteSelection();
-  closeContextMenu();
-};
-
-// 选中图片
 const selectImage = () => {
   const imagePosition = props.getPos();
   if (!props.selected && typeof imagePosition === 'number') {
     props.editor.commands.setNodeSelection(imagePosition);
   }
+  refreshImageCount(true);
 };
 
-/**
- * 图片的固有尺寸和缩放样式会在选区设置完成后才改变布局。
- * 等浏览器完成两轮布局，再让 ProseMirror 将当前选区滚入真实滚动容器。
- */
 const revealSelectionAfterImageLayout = () => {
-  nextTick(() => {
-    requestSelectionScrollAfterLayout(props.editor);
-  });
+  nextTick(() => requestSelectionScrollAfterLayout(props.editor));
 };
 
 const handleRenderedImageLoad = (event: Event) => {
   const image = event.currentTarget as HTMLImageElement;
   originalWidth.value = image.naturalWidth;
-  originalHeight.value = image.naturalHeight;
+  draftScalePercent.value = effectiveScalePercent.value;
   hasLoadError.value = false;
   revealSelectionAfterImageLayout();
 };
 
-const focusParagraphAfterImage = () => {
+const handleRenderedImageError = async (error: Event) => {
+  logger.error('[ImageComponent] 图片加载失败:', error);
+  if (originalPath.value && !hasLoadError.value) {
+    hasLoadError.value = true;
+    await tryRestoreAttachment();
+  }
+};
+
+const applyScale = (scale: number) => {
+  const normalizedScale = clampImageScalePercent(scale);
+  const imagePosition = props.getPos();
+  if (!applyToAllImages.value && typeof imagePosition !== 'number') return;
+
+  draftScalePercent.value = normalizedScale;
+  applyImageScalePercent(
+    props.editor,
+    typeof imagePosition === 'number' ? imagePosition : undefined,
+    normalizedScale,
+    applyToAllImages.value
+  );
+  revealSelectionAfterImageLayout();
+};
+
+const resizeImage = (scale: number) => {
+  applyScale(scale);
+  closeContextMenu();
+};
+
+function closeContextMenu(): void {
+  showContextMenu.value = false;
+}
+
+const handleContextMenu = (event: MouseEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  selectImage();
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  showContextMenu.value = true;
+
   nextTick(() => {
-    const imagePosition = props.getPos();
-    if (typeof imagePosition !== 'number') return;
-
-    const moved = props.editor
-      .chain()
-      .focus()
-      .command(({ tr }: { tr: Transaction }) =>
-        setTextSelectionAfterImage(tr, imagePosition)
-      )
-      .run();
-
-    if (moved) {
-      revealSelectionAfterImageLayout();
-    }
+    if (!contextMenuRef.value) return;
+    const menuRect = contextMenuRef.value.getBoundingClientRect();
+    contextMenuPosition.value = {
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - menuRect.width - 8)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - menuRect.height - 8))
+    };
   });
 };
 
-// 缩放图片
-const resizeImage = (scale: number) => {
-  if (!originalWidth.value) {
-    logger.error('[resizeImage] 图片尚未加载完成，无法缩放');
-    return;
+const deleteImage = () => {
+  const imagePosition = props.getPos();
+  if (typeof imagePosition === 'number') {
+    props.editor.chain().focus().setNodeSelection(imagePosition).deleteSelection().run();
   }
-  
-  // 获取 image-wrapper 元素的实际宽度
-  let maxContainerWidth = 710; // 默认值
-  
-  // 尝试从 NodeViewWrapper 获取（这是最外层的 image-wrapper）
-  const wrapperElement = imageContainerRef.value?.closest('.image-wrapper');
-  
-  if (wrapperElement) {
-    const rect = wrapperElement.getBoundingClientRect();
-    maxContainerWidth = rect.width;
-  } else {
-    logger.warn('[resizeImage] 未找到 image-wrapper 元素，使用默认宽度');
-  }
-  
-  // 计算基准宽度：取原始宽度和容器宽度中的较小值
-  const baseWidth = Math.min(originalWidth.value, maxContainerWidth);
-  
-  // 基于基准宽度计算目标宽度
-  const targetWidth = Math.round(baseWidth * scale);
-  
-  try {
-    props.updateAttributes({
-      width: targetWidth,
-    });
-  } catch (error) {
-    logger.error('[resizeImage] ❌ 更新属性失败:', error);
-  }
-  
-  currentWidth.value = targetWidth;
   closeContextMenu();
-  focusParagraphAfterImage();
 };
 
-// 开始拖拽调整大小
-const startResize = (e: MouseEvent) => {
-  e.preventDefault();
-  e.stopPropagation();
-  
-  if (!originalWidth.value) return;
-  
-  isResizing.value = true;
-  const startX = e.clientX;
-  const startWidth = currentWidth.value || originalWidth.value;
-  
-  const onMouseMove = (moveEvent: MouseEvent) => {
-    const deltaX = moveEvent.clientX - startX;
-    const newWidth = Math.max(100, startWidth + deltaX);
-    currentWidth.value = newWidth;
-  };
-  
-  const onMouseUp = () => {
-    isResizing.value = false;
-    document.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('mouseup', onMouseUp);
-    
-    // 更新节点属性
-    if (currentWidth.value) {
-      props.updateAttributes({
-        width: currentWidth.value,
-      });
-      focusParagraphAfterImage();
-    }
-  };
-  
-  document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('mouseup', onMouseUp);
-};
-
-// 打开文件位置
 const openFileLocation = async () => {
   if (!originalPath.value) return;
-  
   try {
-    // 动态导入 Tauri API
     const { invoke } = await import('@tauri-apps/api/core');
-    
-    // 获取工作区根目录
     const workspaceRoot = localStorage.getItem('workspaceRoot');
-    if (!workspaceRoot) {
-      logger.error('工作区根目录未设置');
-      return;
-    }
-    
-    // 构建绝对路径
+    if (!workspaceRoot) return;
+
     let absolutePath = originalPath.value;
     if (absolutePath.startsWith('../')) {
-      // 相对路径转绝对路径
-      absolutePath = absolutePath.replace('../', '');
-      absolutePath = `${workspaceRoot}\\${absolutePath.replace(/\//g, '\\')}`;
+      absolutePath = `${workspaceRoot}\\${absolutePath.replace(/^\.\.\//, '').replace(/\//g, '\\')}`;
     }
-    
-    // 使用 Tauri 命令打开文件位置
     await invoke('show_file_in_folder', { filePath: absolutePath });
   } catch (error) {
-    logger.error('打开文件位置失败:', error);
+    logger.error('[ImageComponent] 打开文件位置失败:', error);
+  } finally {
+    closeContextMenu();
   }
 };
 
-// 尝试从软删除目录恢复被误删的附件
-const tryRestoreAttachment = async () => {
-  if (!originalPath.value) {
-    logger.warn('[ImageComponent] 无法恢复附件：原始路径为空');
-    return;
-  }
-
-  // 从路径中提取笔记名称和文件名
-  // 路径格式通常是: ../assets/笔记名称/文件名 或 assets/笔记名称/文件名
+async function tryRestoreAttachment(): Promise<void> {
+  if (!originalPath.value) return;
   const pathParts = originalPath.value.replace(/^\.\.\//, '').split('/');
-  if (pathParts.length < 2) {
-    logger.warn('[ImageComponent] 无法恢复附件：路径格式不正确', originalPath.value);
-    return;
-  }
+  const assetsIndex = pathParts.findIndex((part) => part === 'assets' || part === '.assets');
+  if (assetsIndex === -1 || assetsIndex >= pathParts.length - 2) return;
 
-  // 获取文件名（最后一部分）
-  const fileName = pathParts[pathParts.length - 1];
-  // 获取笔记名称（倒数第二部分，但需要确认是 assets 目录）
-  const assetsIndex = pathParts.findIndex((part: string) => part === 'assets' || part === '.assets');
-  if (assetsIndex === -1 || assetsIndex >= pathParts.length - 2) {
-    logger.warn('[ImageComponent] 无法恢复附件：路径中未找到 assets 目录', originalPath.value);
-    return;
-  }
   const noteName = pathParts[assetsIndex + 1];
-
-  logger.info('[ImageComponent] 尝试恢复附件:', { noteName, fileName, originalPath: originalPath.value });
-
+  const fileName = pathParts[pathParts.length - 1];
   try {
     const restored = await restoreDeletedAttachment(noteName, fileName);
-
-    if (restored) {
-      logger.info('[ImageComponent] 附件恢复成功:', { noteName, fileName });
-
-      // 重新加载图片以显示恢复后的文件
-      // 触发图片重新加载：先设置一个空 src，然后恢复原 src
-      const container = imageContainerRef.value?.querySelector('img') as HTMLImageElement;
-      if (container) {
-        const originalSrc = props.node.attrs.src;
-        container.src = '';
-        // 使用 nextTick 确保 DOM 更新后再设置新 src
-        nextTick(() => {
-          container.src = originalSrc + '?t=' + Date.now(); // 添加时间戳避免缓存
-        });
-      }
-    } else {
-      logger.warn('[ImageComponent] 附件在软删除目录中不存在，可能已被永久删除:', { noteName, fileName });
-    }
+    if (!restored) return;
+    const image = imageContainerRef.value?.querySelector('img');
+    if (image) image.src = `${props.node.attrs.src}?t=${Date.now()}`;
   } catch (error) {
     logger.error('[ImageComponent] 恢复附件失败:', error);
   }
+}
+
+const handleClickOutside = (event: MouseEvent) => {
+  if (showContextMenu.value && !contextMenuRef.value?.contains(event.target as Node)) {
+    closeContextMenu();
+  }
 };
 
-// 加载图片获取原始尺寸
-onMounted(() => {
-  const img = new Image();
-  img.onload = () => {
-    originalWidth.value = img.naturalWidth;
-    originalHeight.value = img.naturalHeight;
-
-    if (props.node.attrs.width) {
-      currentWidth.value = props.node.attrs.width;
-    }
-
-    if (props.node.attrs.height) {
-      currentHeight.value = props.node.attrs.height;
-    }
-
-    // 图片加载成功后，重置错误状态
-    hasLoadError.value = false;
+const handleAttachmentConfigUpdated = (event: Event) => {
+  attachmentConfig.value = {
+    ...DEFAULT_ATTACHMENT_CONFIG,
+    ...(event as CustomEvent<AttachmentConfig>).detail
   };
+};
 
-  img.onerror = async (error) => {
-    logger.error('[ImageComponent] 图片加载失败:', error);
-    logger.error('[ImageComponent] 图片 src:', props.node.attrs.src);
-    logger.error('[ImageComponent] 原始路径:', originalPath.value);
-
-    // 尝试从软删除目录恢复附件
-    if (originalPath.value && !hasLoadError.value) {
-      hasLoadError.value = true;
-      await tryRestoreAttachment();
-    }
-  };
-
-  img.src = props.node.attrs.src;
-  
-  // 添加全局点击事件监听器，关闭右键菜单
-  const handleClickOutside = (event: MouseEvent) => {
-    if (showContextMenu.value && contextMenuRef.value && !contextMenuRef.value.contains(event.target as Node)) {
-      closeContextMenu();
-    }
-  };
-  
+onMounted(async () => {
+  props.editor.on('transaction', handleEditorTransaction);
   document.addEventListener('click', handleClickOutside);
-  
-  // 监听节点属性变化
-  watch(() => props.node.attrs.width, (newWidth) => {
-    if (newWidth && newWidth !== currentWidth.value) {
-      currentWidth.value = newWidth;
-    }
-  });
-  
-  onBeforeUnmount(() => {
-    document.removeEventListener('click', handleClickOutside);
-  });
+  window.addEventListener(ATTACHMENT_CONFIG_UPDATED_EVENT, handleAttachmentConfigUpdated);
+
+  try {
+    attachmentConfig.value = await getAttachmentConfig();
+  } catch (error) {
+    logger.warn('[ImageComponent] 使用默认图片显示配置:', error);
+  }
+});
+
+onBeforeUnmount(() => {
+  props.editor.off('transaction', handleEditorTransaction);
+  document.removeEventListener('click', handleClickOutside);
+  window.removeEventListener(ATTACHMENT_CONFIG_UPDATED_EVENT, handleAttachmentConfigUpdated);
 });
 </script>
 
 <style scoped lang="scss">
 .image-wrapper {
-  @apply relative;
-  display: inline-block; // 改为 inline-block，避免底部空白
-  max-width: 100%;
-  // margin-top: 1rem; // 顶部保留间距
-  // margin-bottom: 0.5rem; // 底部减少间距
-  line-height: 0; // 消除行高造成的空白
-  
-  &.is-selected {
-    @apply outline outline-2 outline-blue-500 outline-offset-2;
+  @apply relative align-bottom;
+
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: normal;
+  transition: width 0.16s ease;
+
+  &.is-selected .image-container {
+    border-radius: 6px;
+    outline: 2px solid var(--search-result-active-border);
+    outline-offset: 3px;
   }
 }
 
 .image-path {
-  @apply flex items-center gap-2 px-3 py-1 mb-2 text-sm text-panel-text-secondary bg-content rounded cursor-pointer;
-  transition: all 0.2s ease;
+  @apply mb-2 flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs;
+
   max-width: 100%;
-  line-height: normal;
+  color: var(--categories-info-text-color);
+  background: var(--search-soft-bg);
 
   &:hover {
-    @apply bg-panel-hover-bg text-panel;
+    color: var(--categories-text-color);
+    background: var(--categories-panel-bg-hover);
   }
+}
 
-  .path-icon {
-    @apply text-base;
-  }
-
-  .path-text {
-    @apply truncate;
-    max-width: 600px;
-  }
+.path-text {
+  @apply truncate;
 }
 
 .image-container {
-  @apply relative;
-  display: inline-block;
+  @apply relative block;
+
+  width: 100%;
   max-width: 100%;
-  vertical-align: bottom;
   line-height: 0;
 
   img {
-    @apply block;
-    transition: opacity 0.2s ease;
-    height: auto;
-    flex-shrink: 0;
+    @apply block rounded-md;
+
+    object-fit: contain;
   }
 }
 
-.image-controls {
-  @apply absolute top-2 right-2 bg-panel rounded-lg shadow-lg p-2;
-  z-index: 10;
+.menu-scope,
+.scale-preset {
+  @apply rounded border-0 px-2 py-1 text-xs;
 
-  .control-group {
-    @apply flex gap-1;
-  }
+  color: var(--categories-info-text-color);
+  background: transparent;
 
-  .control-btn {
-    @apply px-3 py-1 text-sm font-medium text-panel bg-panel border border-panel rounded hover:bg-panel-hover-bg hover:border-panel;
-    transition: all 0.2s ease;
-
-    &:active {
-      @apply bg-content;
-    }
+  &:hover,
+  &.active {
+    color: var(--search-result-accent);
+    background: var(--search-soft-bg);
   }
 }
 
-.resize-handle {
-  @apply absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-ew-resize;
-  z-index: 10;
+.image-context-menu {
+  @apply fixed z-[9999] w-64 select-none rounded-xl border p-1.5 shadow-xl;
 
-  &.resize-handle-right {
-    @apply top-1/2 -right-1.5;
-    transform: translateY(-50%);
-  }
+  color: var(--categories-text-color);
+  background: var(--categories-panel-bg);
+  border-color: rgba(var(--categories-border-color-rgb), 0.85);
+}
+
+.menu-item {
+  @apply flex w-full items-center gap-2 rounded-lg border-0 px-2.5 py-2 text-left text-sm;
+
+  color: var(--categories-text-color);
+  background: transparent;
 
   &:hover {
-    @apply bg-blue-600 scale-125;
+    background: var(--categories-panel-bg-hover);
+  }
+
+  &.danger {
+    color: var(--el-color-danger);
   }
 }
 
-// 图片右键菜单
-.image-context-menu {
-  @apply fixed z-[9999] min-w-[180px] bg-panel border border-panel rounded-lg p-1 select-none;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+.menu-heading {
+  @apply flex items-center justify-between px-2 py-1 text-xs;
 
-  .menu-item {
-    @apply flex items-center gap-2 px-3 py-2 text-sm text-panel cursor-pointer rounded hover:bg-panel-hover-bg;
-    transition: all 0.15s ease;
+  color: var(--categories-info-text-color);
+}
 
-    .menu-icon {
-      @apply text-base;
-    }
+.menu-scope {
+  padding-inline: 6px;
+}
 
-    &:active {
-      @apply bg-content;
-    }
-  }
+.scale-presets {
+  @apply grid grid-cols-3 gap-1 px-1 pb-1;
+}
 
-  .menu-divider {
-    @apply h-px bg-panel mx-2 my-1;
-  }
+.scale-preset {
+  padding-block: 6px;
+  background: var(--search-soft-bg);
+}
+
+.menu-divider {
+  height: 1px;
+  margin: 5px 6px;
+  background: rgba(var(--categories-border-color-rgb), 0.62);
 }
 </style>

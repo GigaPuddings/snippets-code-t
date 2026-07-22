@@ -42,6 +42,60 @@
         </div>
       </section>
 
+      <!-- 图片默认缩放 -->
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t('settings.attachment.defaultImageScale') }}</div>
+          <div class="summarize-label-desc">{{ $t('settings.attachment.defaultImageScaleHint') }}</div>
+        </div>
+        <div class="summarize-input-wrapper image-scale-control">
+          <el-slider
+            v-model="config.defaultImageScalePercent"
+            :min="25"
+            :max="200"
+            :step="5"
+            :show-tooltip="false"
+            :disabled="isSaving"
+            @change="changeDefaultImageScale"
+          />
+          <span class="image-scale-value">{{ config.defaultImageScalePercent }}%</span>
+        </div>
+      </section>
+
+      <!-- 图片响应式适配 -->
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t('settings.attachment.responsiveImages') }}</div>
+          <div class="summarize-label-desc">{{ $t('settings.attachment.responsiveImagesHint') }}</div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomSwitch
+            :model-value="config.responsiveImages"
+            :disabled="isSaving"
+            :active-text="$t('common.on')"
+            :inactive-text="$t('common.off')"
+            @change="(value) => toggleAttachmentOption('responsiveImages', value)"
+          />
+        </div>
+      </section>
+
+      <!-- 图片附件路径 -->
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t('settings.attachment.showImagePath') }}</div>
+          <div class="summarize-label-desc">{{ $t('settings.attachment.showImagePathHint') }}</div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomSwitch
+            :model-value="config.showImagePath"
+            :disabled="isSaving"
+            :active-text="$t('common.on')"
+            :inactive-text="$t('common.off')"
+            @change="(value) => toggleAttachmentOption('showImagePath', value)"
+          />
+        </div>
+      </section>
+
       <!-- 附件路径模板 -->
       <section class="summarize-section transparent-input">
         <div class="summarize-label">
@@ -121,7 +175,10 @@ const configurationStore = useConfigurationStore();
 
 const config = ref<AttachmentConfig>({
   pathTemplate: 'assets/${noteFileName}/',
-  filenameFormat: 'snippets-code'
+  filenameFormat: 'snippets-code',
+  defaultImageScalePercent: 100,
+  responsiveImages: true,
+  showImagePath: true
 });
 
 const isLoading = ref(false);
@@ -167,6 +224,20 @@ async function handleConfigChange() {
   }
 }
 
+const changeDefaultImageScale = async (value: number | number[]) => {
+  const nextValue = Array.isArray(value) ? value[0] : value;
+  config.value.defaultImageScalePercent = Math.min(200, Math.max(25, Math.round(nextValue)));
+  await handleConfigChange();
+};
+
+const toggleAttachmentOption = async (
+  key: 'responsiveImages' | 'showImagePath',
+  value: boolean
+) => {
+  config.value[key] = value;
+  await handleConfigChange();
+};
+
 const toggleEditorLineNumbers = async (value: boolean) => {
   try {
     await configurationStore.updateEditorLineNumbers(value);
@@ -192,7 +263,7 @@ watch(() => configurationStore.editorLineHeight, (value) => {
 onMounted(async () => {
   isLoading.value = true;
   try {
-    config.value = await getAttachmentConfig();
+    config.value = await getAttachmentConfig(true);
   } catch (error) {
     console.error('加载配置失败:', error);
     // 使用默认配置
@@ -219,9 +290,23 @@ onMounted(async () => {
 }
 
 .line-height-value {
-  color: var(--panel-text-secondary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  color: var(--panel-text-secondary);
+  text-align: right;
+}
+
+.image-scale-control {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 48px;
+  gap: 12px;
+  align-items: center;
+}
+
+.image-scale-value {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--panel-text-secondary);
   text-align: right;
 }
 </style>

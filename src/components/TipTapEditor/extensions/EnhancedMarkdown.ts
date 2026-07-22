@@ -6,7 +6,7 @@ import { logger } from '@/utils/logger';
 import { Extension, InputRule } from '@tiptap/core';
 import { markInputRule, nodeInputRule, textblockTypeInputRule, wrappingInputRule } from '@tiptap/core';
 import type { NodeType } from '@tiptap/pm/model';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 
 // 调试日志开关
 const DEBUG = false;
@@ -16,6 +16,70 @@ const log = (message: string, ...args: unknown[]) => {
     logger.debug(`[EnhancedMarkdown] ${message}`, ...args);
   }
 };
+
+// markInputRule 使用最后一个捕获组作为实际文本，因此每种分隔符必须使用独立
+// 规则，并保证最后一组始终是去掉 Markdown 分隔符后的内容。
+export const boldStarInputRegex = /(?<!\*)(\*\*(?!\s|\*)((?:[^*]+))\*\*(?!\*))$/;
+export const boldUnderscoreInputRegex = /(?<!_)(__(?!\s|_)((?:[^_]+))__(?!_))$/;
+export const italicStarInputRegex = /(?<!\*)(\*(?!\s|\*)((?:[^*]+))\*(?!\*))$/;
+export const italicUnderscoreInputRegex = /(?<!_)(_(?!\s|_)((?:[^_]+))_(?!_))$/;
+
+const INLINE_MARK_CONVERSION_META = 'enhancedMarkdownInlineMarkConversion';
+
+const inlineMarkRules = [
+  { find: boldStarInputRegex, markName: 'bold' },
+  { find: boldUnderscoreInputRegex, markName: 'bold' },
+  { find: italicStarInputRegex, markName: 'italic' },
+  { find: italicUnderscoreInputRegex, markName: 'italic' }
+] as const;
+
+/**
+ * 输入法组合输入不会始终经过 ProseMirror 的 handleTextInput。这里在文档事务完成后
+ * 再检查一次光标前的完整 Markdown，保证 `*文本*` / `**文本**` 都能即时转换。
+ */
+export function convertCompletedInlineMarkdown(state: EditorState): Transaction | null {
+  const { selection } = state;
+  const { $from } = selection;
+
+  if (
+    !selection.empty ||
+    !$from.parent.isTextblock ||
+    $from.parent.type.spec.code ||
+    $from.parentOffset === 0
+  ) {
+    return null;
+  }
+
+  const textBefore = $from.parent.textBetween(0, $from.parentOffset, '', '\ufffc');
+
+  for (const rule of inlineMarkRules) {
+    const match = rule.find.exec(textBefore);
+    const content = match?.at(-1);
+    const fullMatch = match?.[0];
+    const markType = state.schema.marks[rule.markName];
+
+    if (!match || !content || !fullMatch || !markType) continue;
+
+    const delimiterLength = (fullMatch.length - content.length) / 2;
+    if (!Number.isInteger(delimiterLength) || delimiterLength < 1) continue;
+
+    const rawFrom = $from.start() + $from.parentOffset - fullMatch.length;
+    const contentFrom = rawFrom + delimiterLength;
+    const contentTo = contentFrom + content.length;
+    const rawTo = rawFrom + fullMatch.length;
+    const tr = state.tr;
+
+    tr.delete(contentTo, rawTo);
+    tr.delete(rawFrom, contentFrom);
+    tr.addMark(rawFrom, rawFrom + content.length, markType.create());
+    tr.setSelection(TextSelection.create(tr.doc, rawFrom + content.length));
+    tr.setStoredMarks([]);
+    tr.setMeta(INLINE_MARK_CONVERSION_META, true);
+    return tr;
+  }
+
+  return null;
+}
 
 /**
  * 代码块只能包含纯文本。若当前段落还包含图片等行内节点，直接转换段落会让
@@ -136,12 +200,20 @@ export const EnhancedMarkdown = Extension.create({
       // ==================== 行内 Mark 规则 ====================
       // 加粗：**text** 或 __text__
       markInputRule({
-        find: /(\*\*|__)([^*]+)\1$/,
+        find: boldStarInputRegex,
         type: this.editor.schema.marks.bold,
       }),
-      // 斜体：*text* 或 _text_（但不匹配 ** 或 __）
       markInputRule({
-        find: /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|(?<!_)_(?!_)([^_]+)_(?!_)$/,
+        find: boldUnderscoreInputRegex,
+        type: this.editor.schema.marks.bold,
+      }),
+      // 斜体：*text* 或 _text_
+      markInputRule({
+        find: italicStarInputRegex,
+        type: this.editor.schema.marks.italic,
+      }),
+      markInputRule({
+        find: italicUnderscoreInputRegex,
         type: this.editor.schema.marks.italic,
       }),
       // 删除线：~~text~~
@@ -164,6 +236,19 @@ export const EnhancedMarkdown = Extension.create({
 
   addProseMirrorPlugins() {
     return [
+      new Plugin({
+        key: new PluginKey('completedInlineMarkdownConverter'),
+        appendTransaction: (transactions, _oldState, newState) => {
+          if (
+            !transactions.some(transaction => transaction.docChanged) ||
+            transactions.some(transaction => transaction.getMeta(INLINE_MARK_CONVERSION_META))
+          ) {
+            return null;
+          }
+
+          return convertCompletedInlineMarkdown(newState);
+        }
+      }),
       // ==================== 换行后 Markdown 转换处理 ====================
       // 处理用户按 Enter 后在新行输入 Markdown 语法的情况
       new Plugin({
