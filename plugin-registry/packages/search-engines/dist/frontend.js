@@ -1,11 +1,11 @@
 import { getCurrentInstance as Te, inject as ne, ref as $, computed as w, unref as i, getCurrentScope as ii, onScopeDispose as hs, shallowRef as qt, watchEffect as ir, readonly as ur, onMounted as ge, nextTick as pe, watch as q, isRef as jn, warn as ui, provide as Ke, defineComponent as F, createElementBlock as R, openBlock as C, mergeProps as Ft, renderSlot as W, createElementVNode as E, toRef as Xe, onUnmounted as ms, useAttrs as ci, useSlots as cr, normalizeStyle as me, normalizeClass as I, createCommentVNode as z, Fragment as Ne, createBlock as H, withCtx as x, resolveDynamicComponent as be, withModifiers as Ee, createVNode as N, toDisplayString as J, onBeforeUnmount as ot, Transition as tn, withDirectives as xe, vShow as ct, reactive as Dt, onActivated as di, onUpdated as fi, cloneVNode as pi, Text as gs, Comment as vi, Teleport as hi, onBeforeMount as mi, onDeactivated as gi, createTextVNode as lt, h as yi, createSlots as ys, toRaw as bi, toRefs as dr, resolveComponent as Kt, resolveDirective as wi, toHandlerKey as Ci, renderList as io, withKeys as vn, vModelText as Si, shallowReactive as _i, isVNode as Nn, render as uo } from "vue";
 import { useI18n as Ei } from "vue-i18n";
-const Ay = (e) => {
+const Py = (e) => {
   e.registerRoute({
     target: "config",
     path: "retrieve",
     name: "Retrieve",
-    component: () => Promise.resolve().then(() => ky)
+    component: () => Promise.resolve().then(() => Iy)
   });
 }, bs = Symbol(), Pn = "el", Ti = "is-", Gt = (e, t, n, o, r) => {
   let s = `${e}-${t}`;
@@ -8790,7 +8790,7 @@ const yt = {
 }, sy = { class: "scanning-content" }, ly = { class: "scanning-text" }, iy = { class: "scanning-progress" }, uy = { class: "retrieve-container" }, cy = { class: "search-config transparent-input" }, dy = { class: "config-title" }, fy = { class: "title-text" }, py = { class: "header-actions" }, vy = { class: "search-list" }, hy = {
   key: 1,
   class: "search-table"
-}, my = { class: "table-scroll" }, gy = { class: "table-grid table-header" }, yy = { class: "justify-self-center" }, by = { class: "justify-self-center" }, wy = { class: "icon-wrapper" }, Cy = ["src", "alt", "onError"], Sy = { class: "default-control" }, _y = { class: "delete-control" }, Ey = { class: "url-tip" }, Ty = /* @__PURE__ */ F({
+}, my = { class: "table-scroll" }, gy = { class: "table-grid table-header" }, yy = { class: "justify-self-center" }, by = { class: "justify-self-center" }, wy = { class: "justify-self-center" }, Cy = { class: "icon-wrapper" }, Sy = ["src", "alt", "onError"], _y = { class: "default-control" }, Ey = { class: "delete-control" }, Ty = { class: "url-tip" }, Oy = /* @__PURE__ */ F({
   __name: "index",
   setup(e) {
     const { t } = Ei(), n = $([]), o = $([]), r = $(!1), s = $(-1), a = $(null), l = $(!1), u = $(""), c = $(0), d = $(0);
@@ -9023,8 +9023,8 @@ const yt = {
                         ),
                         E(
                           "span",
-                          null,
-                          J(_.$t("retrieve.icon")),
+                          yy,
+                          J(_.$t("retrieve.iconColumn")),
                           1
                           /* TEXT */
                         ),
@@ -9044,7 +9044,7 @@ const yt = {
                         ),
                         E(
                           "span",
-                          yy,
+                          by,
                           J(_.$t("retrieve.default")),
                           1
                           /* TEXT */
@@ -9052,13 +9052,13 @@ const yt = {
                         E(
                           "span",
                           null,
-                          J(_.$t("retrieve.defaultConfig")),
+                          J(_.$t("retrieve.preset")),
                           1
                           /* TEXT */
                         ),
                         E(
                           "span",
-                          by,
+                          wy,
                           J(_.$t("retrieve.operation")),
                           1
                           /* TEXT */
@@ -9077,7 +9077,7 @@ const yt = {
                             placeholder: _.$t("retrieve.name"),
                             onChange: g
                           }, null, 8, ["modelValue", "onUpdate:modelValue", "placeholder"]),
-                          E("div", wy, [
+                          E("div", Cy, [
                             N(P, {
                               content: _.$t("retrieve.icon"),
                               placement: "top",
@@ -9090,7 +9090,7 @@ const yt = {
                                   src: ae.icon || "",
                                   alt: ae.name,
                                   onError: (ee) => X(ae)
-                                }, null, 40, Cy)) : (C(), H(i(Vg), {
+                                }, null, 40, Sy)) : (C(), H(i(Vg), {
                                   key: 0,
                                   class: "engine-icon placeholder-icon",
                                   theme: "outline",
@@ -9116,7 +9116,7 @@ const yt = {
                             placeholder: _.$t("retrieve.urlFormat"),
                             onChange: (ee) => b(ae)
                           }, null, 8, ["modelValue", "onUpdate:modelValue", "placeholder", "onChange"]),
-                          E("div", Sy, [
+                          E("div", _y, [
                             N(we, {
                               modelValue: ae.enabled,
                               "onUpdate:modelValue": (ee) => ae.enabled = ee,
@@ -9147,7 +9147,7 @@ const yt = {
                             _: 2
                             /* DYNAMIC */
                           }, 1032, ["modelValue", "onUpdate:modelValue", "placeholder", "onChange"]),
-                          E("div", _y, [
+                          E("div", Ey, [
                             N(P, {
                               content: _.$t("retrieve.deleteEngine"),
                               placement: "top",
@@ -9172,7 +9172,7 @@ const yt = {
                         /* KEYED_FRAGMENT */
                       ))
                     ]),
-                    E("div", Ey, [
+                    E("div", Ty, [
                       N(i(Fg), {
                         theme: "outline",
                         size: "17",
@@ -9219,10 +9219,10 @@ const yt = {
       );
     };
   }
-}), Oy = /* @__PURE__ */ Do(Ty, [["__scopeId", "data-v-4cb1eb87"]]), ky = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), ky = /* @__PURE__ */ Do(Oy, [["__scopeId", "data-v-324e8307"]]), Iy = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: Oy
+  default: ky
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  Ay as activate
+  Py as activate
 };

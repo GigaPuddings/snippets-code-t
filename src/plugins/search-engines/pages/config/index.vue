@@ -45,13 +45,15 @@
               <div class="table-scroll">
                 <div class="table-grid table-header">
                   <span>{{ $t('retrieve.name') }}</span>
-                  <span>{{ $t('retrieve.icon') }}</span>
+                  <span class="justify-self-center">
+                    {{ $t('retrieve.iconColumn') }}
+                  </span>
                   <span>{{ $t('retrieve.keyword') }}</span>
                   <span>{{ $t('retrieve.urlTemplate') }}</span>
                   <span class="justify-self-center">
                     {{ $t('retrieve.default') }}
                   </span>
-                  <span>{{ $t('retrieve.defaultConfig') }}</span>
+                  <span>{{ $t('retrieve.preset') }}</span>
                   <span class="justify-self-center">
                     {{ $t('retrieve.operation') }}
                   </span>
@@ -525,10 +527,12 @@ const handleIconError = async (engine: SearchEngineConfig) => {
     @apply h-full flex flex-col min-h-0;
 
     .config-title {
-      @apply flex items-center justify-between gap-4 mb-3 px-5 py-4 rounded-md bg-panel border border-panel;
+      @apply flex items-center justify-between gap-4 mb-2 px-4 py-2.5 rounded-md border border-panel;
+
+      background: var(--search-card-bg);
 
       .title-text {
-        @apply text-lg font-semibold text-panel;
+        @apply text-base font-semibold text-panel;
       }
 
       .header-actions {
@@ -544,7 +548,9 @@ const handleIconError = async (engine: SearchEngineConfig) => {
       }
 
       .search-table {
-        @apply h-full flex flex-col min-h-0 overflow-hidden bg-panel border border-panel rounded-md;
+        @apply h-full flex flex-col min-h-0 overflow-hidden border border-panel rounded-md;
+
+        background: var(--search-card-bg);
       }
 
       .table-scroll {
@@ -555,25 +561,31 @@ const handleIconError = async (engine: SearchEngineConfig) => {
         display: grid;
         grid-template-columns:
           minmax(132px, 1.1fr)
-          72px
+          84px
           minmax(128px, 0.9fr)
           minmax(280px, 2.55fr)
-          80px
+          76px
           minmax(138px, 1.05fr)
-          58px;
-        column-gap: 20px;
+          52px;
+        column-gap: 16px;
         align-items: center;
-        min-width: 1060px;
+        min-width: 1020px;
       }
 
       .table-header {
-        @apply sticky top-0 z-10 px-5 py-4 text-sm font-semibold text-panel-text-secondary border-b border-panel;
+        @apply sticky top-0 z-10 px-4 py-2.5 text-xs font-semibold whitespace-nowrap text-panel-text-secondary border-b border-panel;
 
-        background: var(--categories-panel-bg);
+        background: var(--search-card-bg);
       }
 
       .search-item {
-        @apply px-5 py-4 border-b border-panel transition-colors last:border-b-0;
+        @apply px-4 py-3 border-b border-panel transition-colors last:border-b-0;
+
+        background: var(--search-card-bg);
+
+        &:hover {
+          background: var(--search-result-hover);
+        }
 
         :deep(.el-input__wrapper) {
           @apply border border-panel rounded-md shadow-none;
@@ -604,10 +616,10 @@ const handleIconError = async (engine: SearchEngineConfig) => {
         }
 
         .icon-wrapper {
-          @apply flex items-center justify-center w-9 h-9 justify-self-center overflow-hidden;
+          @apply flex items-center justify-center w-8 h-8 justify-self-center overflow-hidden;
 
           .engine-icon {
-            @apply w-8 h-8 object-contain rounded;
+            @apply w-7 h-7 object-contain rounded;
           }
 
           .placeholder-icon {
@@ -622,11 +634,15 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 
         .delete-button {
           @apply px-2;
+
+          :deep(.el-icon) {
+            @apply text-lg;
+          }
         }
       }
 
       .url-tip {
-        @apply flex items-center gap-2 mx-5 my-4 px-4 py-3 rounded-md text-sm text-panel-text-secondary;
+        @apply flex items-center flex-none gap-2 mx-4 my-3 px-4 py-2.5 rounded-md text-xs text-panel-text-secondary;
 
         background: var(--search-soft-bg);
       }
