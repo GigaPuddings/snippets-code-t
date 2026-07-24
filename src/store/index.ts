@@ -31,7 +31,6 @@ export const useConfigurationStore = defineStore('configuration', {
     autoStart: false, // 开机自启
     autoUpdateCheck: false, // 检查更新
     autoHideOnBlur: true, // 搜索窗口失焦时是否自动隐藏
-    editorLineNumbers: true, // 富文本编辑器是否显示行号
     editorLineHeight: 1.6 // 编辑器行距
   }),
   getters: {
@@ -95,26 +94,9 @@ export const useConfigurationStore = defineStore('configuration', {
 
       try {
         const editorSettings = await getEditorSettings();
-        this.editorLineNumbers = editorSettings.lineNumbers;
         this.editorLineHeight = editorSettings.lineHeight || 1.6;
       } catch (error) {
         logger.error('获取编辑器显示设置失败:', error);
-      }
-    },
-
-    async updateEditorLineNumbers(value: boolean) {
-      const previous = this.editorLineNumbers;
-      this.editorLineNumbers = value;
-
-      try {
-        await updateEditorSettings({
-          lineNumbers: value,
-          lineHeight: this.editorLineHeight
-        });
-      } catch (error) {
-        this.editorLineNumbers = previous;
-        logger.error('更新编辑器行号设置失败:', error);
-        throw error;
       }
     },
 
@@ -125,7 +107,8 @@ export const useConfigurationStore = defineStore('configuration', {
 
       try {
         await updateEditorSettings({
-          lineNumbers: this.editorLineNumbers,
+          // 行号仅属于代码片段编辑器；保留字段以兼容已有配置格式。
+          lineNumbers: false,
           lineHeight: nextValue
         });
       } catch (error) {

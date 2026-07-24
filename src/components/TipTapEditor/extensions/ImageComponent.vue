@@ -6,9 +6,19 @@
     :style="wrapperStyle"
     @contextmenu="handleContextMenu"
   >
-    <span v-if="showPath && originalPath" class="image-path" @click.stop="openFileLocation">
+    <span
+      v-if="showPath && originalPath"
+      class="image-path"
+      @click.stop="openFileLocation"
+    >
       <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-        <path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15v-13Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+        <path
+          d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15v-13Z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linejoin="round"
+        />
       </svg>
       <span class="path-text">{{ originalPath }}</span>
     </span>
@@ -34,50 +44,112 @@
         ref="contextMenuRef"
         class="image-context-menu"
         :style="contextMenuStyle"
+        tabindex="-1"
         @mousedown.stop
+        @click.stop
         @contextmenu.prevent
+        @keydown.esc="closeContextMenu"
       >
-        <button class="menu-item" type="button" @click="openFileLocation">
-          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-            <path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15v-13Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+        <button
+          class="menu-item menu-item-primary"
+          type="button"
+          @click="openFileLocation"
+        >
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17">
+              <path
+                d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15v-13Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linejoin="round"
+              />
+              <path
+                d="m13.5 12.5 2-2 2 2m-2-2v5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <span class="menu-item-label">
+            {{ t('settings.attachment.openImageLocation') }}
+          </span>
+          <svg
+            class="menu-item-arrow"
+            viewBox="0 0 20 20"
+            width="14"
+            height="14"
+            aria-hidden="true"
+          >
+            <path
+              d="m8 5 5 5-5 5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
-          <span>{{ t('settings.attachment.openImageLocation') }}</span>
         </button>
 
         <div class="menu-divider"></div>
-        <div class="menu-heading">
-          <span>{{ t('settings.attachment.imageScale') }}</span>
+        <section class="scale-section">
+          <div class="menu-heading">
+            <span>{{ t('settings.attachment.imageScale') }}</span>
+            <span class="current-scale">{{ draftScalePercent }}%</span>
+          </div>
+          <div class="scale-presets">
+            <button
+              v-for="scale in IMAGE_SCALE_PRESETS"
+              :key="scale"
+              class="scale-preset"
+              :class="{ active: draftScalePercent === scale }"
+              type="button"
+              :aria-pressed="draftScalePercent === scale"
+              @click="resizeImage(scale)"
+            >
+              {{ scale }}%
+            </button>
+          </div>
           <button
             v-if="imageCount > 1"
             class="menu-scope"
             :class="{ active: applyToAllImages }"
             type="button"
+            :aria-pressed="applyToAllImages"
             @click="applyToAllImages = !applyToAllImages"
           >
-            {{ applyToAllImages
-              ? t('settings.attachment.allImagesShort')
-              : t('settings.attachment.currentImage') }}
+            <span class="scope-indicator" aria-hidden="true"></span>
+            <span>
+              {{
+                applyToAllImages
+                  ? t('settings.attachment.allImagesShort')
+                  : t('settings.attachment.currentImage')
+              }}
+            </span>
           </button>
-        </div>
-        <div class="scale-presets">
-          <button
-            v-for="scale in IMAGE_SCALE_PRESETS"
-            :key="scale"
-            class="scale-preset"
-            :class="{ active: draftScalePercent === scale }"
-            type="button"
-            @click="resizeImage(scale)"
-          >
-            {{ scale }}%
-          </button>
-        </div>
+        </section>
 
         <div class="menu-divider"></div>
         <button class="menu-item danger" type="button" @click="deleteImage">
-          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-            <path d="M5 7h14M9 7V4h6v3m2 0-1 13H8L7 7m4 4v6m3-6v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <span>{{ t('settings.attachment.deleteImage') }}</span>
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17">
+              <path
+                d="M5 7h14M9 7V4h6v3m2 0-1 13H8L7 7m4 4v6m3-6v6"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <span class="menu-item-label">
+            {{ t('settings.attachment.deleteImage') }}
+          </span>
         </button>
       </div>
     </teleport>
@@ -89,7 +161,10 @@ import { NodeViewWrapper } from '@tiptap/vue-3';
 import type { NodeViewProps } from '@tiptap/core';
 import type { CSSProperties } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { getWorkspaceRoot } from '@/api/markdown';
+import { showFileInFolder } from '@/utils/file-open';
 import { logger } from '@/utils/logger';
+import modal from '@/utils/modal';
 import {
   ATTACHMENT_CONFIG_UPDATED_EVENT,
   DEFAULT_ATTACHMENT_CONFIG,
@@ -104,6 +179,7 @@ import {
   countLocalImages,
   resolveImageScalePercent
 } from '../utils/imageSizing';
+import { resolveImageFilePath } from '../utils/imagePath';
 
 interface Props {
   node: NodeViewProps['node'];
@@ -126,19 +202,28 @@ const contextMenuRef = ref<HTMLElement | null>(null);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const imageContainerRef = ref<HTMLElement | null>(null);
 const hasLoadError = ref(false);
-const attachmentConfig = ref<AttachmentConfig>({ ...DEFAULT_ATTACHMENT_CONFIG });
+const attachmentConfig = ref<AttachmentConfig>({
+  ...DEFAULT_ATTACHMENT_CONFIG
+});
 
-const originalPath = computed<string | null>(() => props.node.attrs['data-original-path'] || null);
+const originalPath = computed<string | null>(
+  () => props.node.attrs['data-original-path'] || null
+);
 const showPath = computed(() => attachmentConfig.value.showImagePath);
-const effectiveScalePercent = computed(() => resolveImageScalePercent(
-  props.node.attrs,
-  originalWidth.value,
-  attachmentConfig.value.defaultImageScalePercent
-));
+const effectiveScalePercent = computed(() =>
+  resolveImageScalePercent(
+    props.node.attrs,
+    originalWidth.value,
+    attachmentConfig.value.defaultImageScalePercent
+  )
+);
 
 const desiredWidth = computed(() => {
   if (!originalWidth.value) return null;
-  return Math.max(1, Math.round(originalWidth.value * effectiveScalePercent.value / 100));
+  return Math.max(
+    1,
+    Math.round((originalWidth.value * effectiveScalePercent.value) / 100)
+  );
 });
 
 const wrapperStyle = computed<CSSProperties>(() => {
@@ -162,9 +247,13 @@ const contextMenuStyle = computed(() => ({
   top: `${contextMenuPosition.value.y}px`
 }));
 
-watch(effectiveScalePercent, (scale) => {
-  draftScalePercent.value = scale;
-}, { immediate: true });
+watch(
+  effectiveScalePercent,
+  (scale) => {
+    draftScalePercent.value = scale;
+  },
+  { immediate: true }
+);
 
 const refreshImageCount = (force = false) => {
   if (!force && !props.selected && !showContextMenu.value) return;
@@ -237,34 +326,49 @@ const handleContextMenu = (event: MouseEvent) => {
     if (!contextMenuRef.value) return;
     const menuRect = contextMenuRef.value.getBoundingClientRect();
     contextMenuPosition.value = {
-      x: Math.max(8, Math.min(event.clientX, window.innerWidth - menuRect.width - 8)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - menuRect.height - 8))
+      x: Math.max(
+        8,
+        Math.min(event.clientX, window.innerWidth - menuRect.width - 8)
+      ),
+      y: Math.max(
+        8,
+        Math.min(event.clientY, window.innerHeight - menuRect.height - 8)
+      )
     };
+    contextMenuRef.value.focus({ preventScroll: true });
   });
 };
 
 const deleteImage = () => {
   const imagePosition = props.getPos();
   if (typeof imagePosition === 'number') {
-    props.editor.chain().focus().setNodeSelection(imagePosition).deleteSelection().run();
+    props.editor
+      .chain()
+      .focus()
+      .setNodeSelection(imagePosition)
+      .deleteSelection()
+      .run();
   }
   closeContextMenu();
 };
 
 const openFileLocation = async () => {
-  if (!originalPath.value) return;
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    const workspaceRoot = localStorage.getItem('workspaceRoot');
-    if (!workspaceRoot) return;
-
-    let absolutePath = originalPath.value;
-    if (absolutePath.startsWith('../')) {
-      absolutePath = `${workspaceRoot}\\${absolutePath.replace(/^\.\.\//, '').replace(/\//g, '\\')}`;
+    const workspaceRoot = await getWorkspaceRoot().catch(() =>
+      localStorage.getItem('workspaceRoot')
+    );
+    const absolutePath = resolveImageFilePath(
+      props.node.attrs.src,
+      originalPath.value,
+      workspaceRoot
+    );
+    if (!absolutePath) {
+      throw new Error('Unable to resolve the local image path');
     }
-    await invoke('show_file_in_folder', { filePath: absolutePath });
+    await showFileInFolder(absolutePath);
   } catch (error) {
     logger.error('[ImageComponent] 打开文件位置失败:', error);
+    modal.error(t('settings.attachment.openImageLocationFailed'));
   } finally {
     closeContextMenu();
   }
@@ -273,7 +377,9 @@ const openFileLocation = async () => {
 async function tryRestoreAttachment(): Promise<void> {
   if (!originalPath.value) return;
   const pathParts = originalPath.value.replace(/^\.\.\//, '').split('/');
-  const assetsIndex = pathParts.findIndex((part) => part === 'assets' || part === '.assets');
+  const assetsIndex = pathParts.findIndex(
+    (part) => part === 'assets' || part === '.assets'
+  );
   if (assetsIndex === -1 || assetsIndex >= pathParts.length - 2) return;
 
   const noteName = pathParts[assetsIndex + 1];
@@ -289,7 +395,10 @@ async function tryRestoreAttachment(): Promise<void> {
 }
 
 const handleClickOutside = (event: MouseEvent) => {
-  if (showContextMenu.value && !contextMenuRef.value?.contains(event.target as Node)) {
+  if (
+    showContextMenu.value &&
+    !contextMenuRef.value?.contains(event.target as Node)
+  ) {
     closeContextMenu();
   }
 };
@@ -304,7 +413,10 @@ const handleAttachmentConfigUpdated = (event: Event) => {
 onMounted(async () => {
   props.editor.on('transaction', handleEditorTransaction);
   document.addEventListener('click', handleClickOutside);
-  window.addEventListener(ATTACHMENT_CONFIG_UPDATED_EVENT, handleAttachmentConfigUpdated);
+  window.addEventListener(
+    ATTACHMENT_CONFIG_UPDATED_EVENT,
+    handleAttachmentConfigUpdated
+  );
 
   try {
     attachmentConfig.value = await getAttachmentConfig();
@@ -316,7 +428,10 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   props.editor.off('transaction', handleEditorTransaction);
   document.removeEventListener('click', handleClickOutside);
-  window.removeEventListener(ATTACHMENT_CONFIG_UPDATED_EVENT, handleAttachmentConfigUpdated);
+  window.removeEventListener(
+    ATTACHMENT_CONFIG_UPDATED_EVENT,
+    handleAttachmentConfigUpdated
+  );
 });
 </script>
 
@@ -370,63 +485,157 @@ onBeforeUnmount(() => {
 
 .menu-scope,
 .scale-preset {
-  @apply rounded border-0 px-2 py-1 text-xs;
+  @apply cursor-pointer border-0 text-xs;
 
   color: var(--categories-info-text-color);
-  background: transparent;
-
-  &:hover,
-  &.active {
-    color: var(--search-result-accent);
-    background: var(--search-soft-bg);
-  }
 }
 
 .image-context-menu {
-  @apply fixed z-[9999] w-64 select-none rounded-xl border p-1.5 shadow-xl;
+  @apply fixed z-[9999] w-[280px] select-none rounded-xl border p-2 outline-none;
 
   color: var(--categories-text-color);
   background: var(--categories-panel-bg);
-  border-color: rgba(var(--categories-border-color-rgb), 0.85);
+  border-color: var(--categories-border-color);
+  box-shadow:
+    0 20px 48px rgb(15 23 42 / 18%),
+    0 3px 10px rgb(15 23 42 / 8%);
 }
 
 .menu-item {
-  @apply flex w-full items-center gap-2 rounded-lg border-0 px-2.5 py-2 text-left text-sm;
+  @apply flex w-full cursor-pointer items-center gap-2.5 rounded-lg border-0 px-2 py-1.5 text-left text-sm;
 
   color: var(--categories-text-color);
   background: transparent;
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease;
 
   &:hover {
     background: var(--categories-panel-bg-hover);
   }
 
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--search-result-active-border);
+  }
+
+  &.menu-item-primary:hover .menu-icon {
+    color: var(--search-result-accent);
+    background: var(--search-result-active);
+  }
+
   &.danger {
     color: var(--el-color-danger);
+
+    .menu-icon {
+      color: var(--el-color-danger);
+      background: color-mix(in srgb, var(--el-color-danger) 10%, transparent);
+    }
+
+    &:hover {
+      background: color-mix(in srgb, var(--el-color-danger) 9%, transparent);
+    }
   }
 }
 
-.menu-heading {
-  @apply flex items-center justify-between px-2 py-1 text-xs;
+.menu-icon {
+  @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg;
+
+  color: var(--categories-info-text-color);
+  background: var(--search-soft-bg);
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.menu-item-label {
+  @apply min-w-0 flex-1;
+}
+
+.menu-item-arrow {
+  @apply shrink-0;
 
   color: var(--categories-info-text-color);
 }
 
+.scale-section {
+  @apply px-1 py-0.5;
+}
+
+.menu-heading {
+  @apply flex items-center justify-between px-1.5 pb-2 pt-1 text-xs font-medium;
+
+  color: var(--categories-info-text-color);
+}
+
+.current-scale {
+  @apply rounded-md px-1.5 py-0.5 font-semibold tabular-nums;
+
+  color: var(--search-result-accent);
+  background: var(--search-result-active);
+}
+
 .menu-scope {
-  padding-inline: 6px;
+  @apply mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-1.5;
+
+  background: transparent;
+
+  &:hover {
+    color: var(--categories-text-color);
+    background: var(--search-soft-bg);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--search-result-active-border);
+  }
+
+  &.active {
+    color: var(--search-result-accent);
+  }
+}
+
+.scope-indicator {
+  @apply h-1.5 w-1.5 rounded-full;
+
+  background: var(--categories-info-text-color);
+}
+
+.menu-scope.active .scope-indicator {
+  background: var(--search-result-accent);
+  box-shadow: 0 0 0 3px var(--search-result-active);
 }
 
 .scale-presets {
-  @apply grid grid-cols-3 gap-1 px-1 pb-1;
+  @apply grid grid-cols-3 gap-1.5;
 }
 
 .scale-preset {
-  padding-block: 6px;
+  @apply rounded-lg border px-2 py-2 font-medium tabular-nums;
+
   background: var(--search-soft-bg);
+  border-color: transparent;
+
+  &:hover {
+    color: var(--categories-text-color);
+    background: var(--categories-panel-bg-hover);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--search-result-active-border);
+  }
+
+  &.active {
+    color: var(--search-result-accent);
+    background: var(--search-result-active);
+    border-color: var(--search-result-active-border);
+    box-shadow: inset 0 0 0 1px var(--search-result-active-border);
+  }
 }
 
 .menu-divider {
   height: 1px;
-  margin: 5px 6px;
-  background: rgba(var(--categories-border-color-rgb), 0.62);
+  margin: 7px 6px;
+  background: var(--categories-border-color);
 }
 </style>

@@ -9,16 +9,8 @@
         class="editor-content"
         :style="props.codeStyle"
         @contextmenu="handleContextMenu"
+        @scroll.passive="handlePreviewScroll"
       >
-        <div
-          v-if="props.showLineNumbers"
-          ref="previewLineNumbersRef"
-          class="preview-line-numbers"
-          :style="{ minHeight: previewLineNumbersMinHeight }"
-          aria-hidden="true"
-        >
-          <span v-for="line in previewLineCount" :key="line">{{ line }}</span>
-        </div>
         <editor-content class="editor-content-body" :editor="editor" />
       </div>
       
@@ -28,7 +20,6 @@
         v-show="viewMode === 'source'"
         :content="sourceContent"
         :dark="props.dark"
-        :show-line-numbers="props.showLineNumbers"
         :line-height="props.lineHeight"
         @update:content="handleSourceContentChange"
         @contextmenu="handleSourceContextMenu"
@@ -125,7 +116,8 @@ import { handleEditorError } from '@/utils/error-handler';
 import {
   markdownToHtml,
   jsonToMarkdown,
-  richHtmlToEditorHtml
+  richHtmlToEditorHtml,
+  shouldPreferMarkdownClipboardText
 } from './utils/markdown';
 import { sanitizeHtml } from '@/utils/html-sanitize';
 import { createEditorExtensions } from './config/extensions';
@@ -175,7 +167,6 @@ interface Props {
   showViewToggle?: boolean;
   showEditorActions?: boolean;
   showContextMenu?: boolean;
-  showLineNumbers?: boolean;
   lineHeight?: number;
   currentTitle?: string;
   currentFragmentId?: number | string;
@@ -196,7 +187,6 @@ const props = withDefaults(defineProps<Props>(), {
   showViewToggle: true,
   showEditorActions: true,
   showContextMenu: true,
-  showLineNumbers: true,
   lineHeight: 1.6,
   currentTitle: '',
   currentFragmentId: undefined
@@ -224,14 +214,10 @@ const wordCount = ref(0);
 const charCount = ref(0);
 const sourceContent = ref('');
 const workspaceRoot = ref<string>('');
-const previewLineCount = ref(1);
-const previewLineNumbersMinHeight = ref('100%');
 const tableDialogVisible = ref(false);
 const tableDialogMode = ref<'insert' | 'resize'>('insert');
 const tableDialogRows = ref(4);
 const tableDialogColumns = ref(3);
-let previewResizeObserver: ResizeObserver | null = null;
-let isEditorUnmounting = false;
 const editorContainerStyle = computed(() => ({
   '--editor-line-height-value': String(props.lineHeight)
 }) as CSSProperties);
@@ -814,55 +800,9 @@ function linkProjectFilePathsInEditor(): void {
   }
 }
 
-function updatePreviewLineNumbers(): void {
-  if (!props.showLineNumbers) return;
-
-  nextTick(() => {
-    if (isEditorUnmounting) return;
-    const editorContentElement = editorContentRef.value;
-    if (!editorContentElement || editorContentElement.offsetParent === null) return;
-
-    const editorElement = editorContentElement.querySelector<HTMLElement>('.ProseMirror');
-    if (!editorElement) {
-      previewLineCount.value = 1;
-      previewLineNumbersMinHeight.value = '100%';
-      return;
-    }
-
-    const computedStyle = window.getComputedStyle(editorElement);
-    const fontSize = parseFloat(computedStyle.fontSize) || 14;
-    const lineHeight = parseFloat(computedStyle.lineHeight) || fontSize * 1.6;
-    const renderedHeight = Math.max(
-      editorElement.scrollHeight,
-      editorElement.offsetHeight,
-      editorContentElement.clientHeight
-    );
-    const nextLineCount = Math.max(1, Math.ceil(renderedHeight / lineHeight));
-    previewLineCount.value = nextLineCount;
-
-    previewLineNumbersMinHeight.value = `${Math.ceil(Math.max(
-      editorContentElement.clientHeight,
-      renderedHeight
-    ))}px`;
-  });
-}
-
-function refreshPreviewResizeObserver(): void {
-  previewResizeObserver?.disconnect();
-  previewResizeObserver = null;
-
-  if (isEditorUnmounting || typeof ResizeObserver === 'undefined') return;
-
-  const editorContentElement = editorContentRef.value;
-  if (!editorContentElement?.isConnected) return;
-
-  previewResizeObserver = new ResizeObserver(updatePreviewLineNumbers);
-  previewResizeObserver.observe(editorContentElement);
-
-  const editorElement = editorContentElement.querySelector<HTMLElement>('.ProseMirror');
-  if (editorElement) {
-    previewResizeObserver.observe(editorElement);
-  }
+function handlePreviewScroll(event: Event): void {
+  const scrollContainer = event.currentTarget as HTMLElement;
+  emits('scroll-position', scrollContainer.scrollTop);
 }
 
 // 初始化编辑器
@@ -881,7 +821,6 @@ const editor = useEditor({
       // 输入、Markdown 转换等内容事务可能短暂保留旧 NodeView 坐标。
       // 内容更新只向下追踪光标，避免旧图片坐标把滚动条拉回上方。
       scrollEditorSelectionIntoView(editor.view, 3, false);
-      updatePreviewLineNumbers();
     } catch (error) {
       handleEditorError(error, 'TipTap onUpdate');
     }
@@ -900,7 +839,6 @@ const editor = useEditor({
       updateStats(text);
       emits('ready', editor);
       setCurrentCursorPos(editor.state.selection.from);
-      updatePreviewLineNumbers();
       
       const editorElement = editor.view.dom;
       setupAnchorClickInterceptor(editorElement);
@@ -913,8 +851,6 @@ const editor = useEditor({
           detail?.targetElement ?? null
         );
       });
-      nextTick(refreshPreviewResizeObserver);
-      
       // 添加编辑器级别的键盘事件监听器
       const handleEditorKeyDown = (event: KeyboardEvent) => {
         // Ctrl+F 或 Cmd+F 打开搜索
@@ -1002,6 +938,21 @@ const editor = useEditor({
           return true;
         } catch (error) {
           console.error('Failed to parse explicit pasted Markdown:', error);
+        }
+      }
+
+      // 部分 Markdown 编辑器的 text/html 会把 `\<input>` 之类的文本示例
+      // 错误序列化成真实 DOM 标签。纯文本保留了反斜杠，遇到这种明确信号时
+      // 必须优先按 Markdown 解析，否则 textarea 会把后续 HTML 一并吞掉。
+      if (shouldPreferMarkdownClipboardText(text, html)) {
+        try {
+          const parsedHtml = markdownToHtml(text, workspaceRoot.value);
+          event.preventDefault();
+          editor.value?.commands.insertContent(parsedHtml);
+          linkProjectFilePathsInEditor();
+          return true;
+        } catch (error) {
+          console.error('Failed to parse preferred pasted Markdown text:', error);
         }
       }
 
@@ -1185,7 +1136,6 @@ const handleSourceContentChange = (value: string) => {
 // 监听内容变化
 watch(() => props.content, (newContent) => {
   editorPersistenceBridge.syncIncomingContent(newContent, editor.value);
-  updatePreviewLineNumbers();
 });
 
 // 监听禁用状态变化
@@ -1203,22 +1153,6 @@ watch(() => props.dark, (isDark) => {
     editorElement.classList.add('dark');
   } else {
     editorElement.classList.remove('dark');
-  }
-});
-
-watch(viewMode, () => {
-  updatePreviewLineNumbers();
-});
-
-watch(() => props.showLineNumbers, (showLineNumbers) => {
-  if (showLineNumbers) {
-    nextTick(() => {
-      refreshPreviewResizeObserver();
-      updatePreviewLineNumbers();
-    });
-  } else {
-    previewResizeObserver?.disconnect();
-    previewResizeObserver = null;
   }
 });
 
@@ -1269,22 +1203,13 @@ onMounted(async () => {
   
   // 使用捕获阶段监听，优先级更高
   document.addEventListener('keydown', handleKeyDown, true);
-  window.addEventListener('resize', updatePreviewLineNumbers);
-
-  nextTick(() => {
-    refreshPreviewResizeObserver();
-    updatePreviewLineNumbers();
-  });
 });
 
 // 清理
 onBeforeUnmount(() => {
-  isEditorUnmounting = true;
+  editorPersistenceBridge.dispose();
   try {
     document.removeEventListener('keydown', handleKeyDown, true);
-    window.removeEventListener('resize', updatePreviewLineNumbers);
-    previewResizeObserver?.disconnect();
-    previewResizeObserver = null;
     cleanupScrollListener();
     cleanupAnchorClickInterceptor();
     if (editor.value) {
@@ -1299,11 +1224,16 @@ onBeforeUnmount(() => {
 });
 
 // 暴露方法
+const getAvailableEditor = () => {
+  const currentEditor = editor.value;
+  return currentEditor && !currentEditor.isDestroyed ? currentEditor : null;
+};
+
 defineExpose({
-  getEditor: () => editor.value,
-  getHTML: () => editor.value?.getHTML() || '',
-  getText: () => editor.value?.getText() || '',
-  getJSON: () => editor.value?.getJSON() || null,
+  getEditor: getAvailableEditor,
+  getHTML: () => getAvailableEditor()?.getHTML() || '',
+  getText: () => getAvailableEditor()?.getText() || '',
+  getJSON: () => getAvailableEditor()?.getJSON() || null,
   setViewMode: toggleViewMode,
   toggleOutline: toggleOutline,
   toggleBacklinks: toggleBacklinks,
@@ -1318,8 +1248,6 @@ defineExpose({
 <style lang="scss" scoped>
 .editor-container {
   @apply relative overflow-hidden flex h-full;
-  --editor-line-number-width: 44px;
-  --editor-line-number-padding-x: 8px;
   --editor-line-height: var(--editor-line-height-value, 1.6);
   background-color: var(--editor-bg);
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -1334,6 +1262,7 @@ defineExpose({
   @apply flex-1 w-full min-w-0 max-w-full cursor-text overflow-auto;
   display: flex;
   min-height: 0;
+  position: relative;
   background-color: var(--editor-bg);
   transition: background-color 0.3s ease;
   padding-bottom: 0;
@@ -1374,26 +1303,6 @@ defineExpose({
   }
 }
 
-.preview-line-numbers {
-  @apply flex-none select-none border-r py-3 text-right font-mono text-sm;
-  align-self: flex-start;
-  box-sizing: border-box;
-  width: var(--editor-line-number-width);
-  min-width: var(--editor-line-number-width);
-  padding-left: var(--editor-line-number-padding-x);
-  padding-right: var(--editor-line-number-padding-x);
-  line-height: var(--editor-line-height);
-  color: var(--editor-text-secondary);
-  background-color: var(--statusbar-bg);
-  border-color: var(--editor-border);
-  opacity: 0.78;
-
-  span {
-    @apply block;
-    height: calc(var(--editor-line-height) * 1em);
-  }
-}
-
 .editor-content-body {
   @apply flex-1;
   min-width: 0;
@@ -1401,16 +1310,8 @@ defineExpose({
 }
 
 :deep(.tiptap-editor) {
-  @apply box-border w-full min-w-0 max-w-full outline-none;
-
-  overflow-y: visible;
-  min-height: 100%;
-  height: auto;
-  padding: 10px 14px 40px;
-  margin: 0;
-  font-size: 14px;
+  @apply box-border h-auto min-h-full max-w-full m-0 p-3 text-sm whitespace-pre-wrap overflow-y-visible w-full min-w-0 outline-none;
   line-height: var(--editor-line-height);
-  white-space: pre-wrap;
   color: var(--editor-text);
   background-color: var(--editor-bg);
   transition: background-color 0.3s ease, color 0.3s ease;

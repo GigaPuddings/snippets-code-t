@@ -5,10 +5,45 @@ import {
   jsonToMarkdown,
   markdownToHtml,
   normalizeAiMarkdown,
-  richHtmlToEditorHtml
+  richHtmlToEditorHtml,
+  shouldPreferMarkdownClipboardText
 } from './markdown';
 
 describe('jsonToMarkdown', () => {
+  it('escapes literal HTML-like text so it remains visible after reopening a note', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: '表单元素：<input>、<select>、<option>、<textarea>。'
+            }
+          ]
+        },
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: '<input>',
+              marks: [{ type: 'code' }]
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(markdown).toContain('\\<input>、\\<select>、\\<option>、\\<textarea>。');
+    expect(markdown).toContain('`<input>`');
+
+    const html = markdownToHtml(markdown);
+    expect(html).toContain('&lt;input&gt;、&lt;select&gt;、&lt;option&gt;、&lt;textarea&gt;。');
+    expect(html).toContain('<code>&lt;input&gt;</code>');
+  });
+
   it('serializes headings, paragraphs, and marks', () => {
     const markdown = jsonToMarkdown({
       type: 'doc',
@@ -460,6 +495,52 @@ describe('markdownToHtml', () => {
 });
 
 describe('rich clipboard conversion', () => {
+  it('prefers escaped Markdown tag examples over a simultaneous rich HTML flavor', () => {
+    const text = [
+      '**2.表单元素的内容操作**',
+      '表单元素：\\<input>元素、\\<select>元素、\\<option>元素、\\<textarea>元素。',
+      '表单元素的内容操作使用value。'
+    ].join('\n');
+
+    expect(
+      shouldPreferMarkdownClipboardText(
+        text,
+        '<p><strong>2.表单元素的内容操作</strong></p>'
+      )
+    ).toBe(true);
+    expect(
+      shouldPreferMarkdownClipboardText(
+        '**普通富文本**',
+        '<p><strong>普通富文本</strong></p>'
+      )
+    ).toBe(false);
+
+    const html = markdownToHtml(text);
+    expect(html).toContain('<strong>2.表单元素的内容操作</strong>');
+    expect(html).toContain(
+      '&lt;input&gt;元素、&lt;select&gt;元素、&lt;option&gt;元素、&lt;textarea&gt;元素。'
+    );
+    expect(html).not.toContain('&lt;/p&gt;');
+  });
+
+  it('renders unsupported raw form controls as text when a clipboard drops Markdown escapes', () => {
+    const text = [
+      '**2.表单元素的内容操作**',
+      '表单元素：<input>元素、<select>元素、<option>元素、<textarea>元素。',
+      '表单元素的内容操作使用value。'
+    ].join('\n');
+
+    expect(shouldPreferMarkdownClipboardText(text, '<p><strong>富文本</strong></p>'))
+      .toBe(true);
+
+    const html = markdownToHtml(text);
+    expect(html).toContain(
+      '&lt;input&gt;元素、&lt;select&gt;元素、&lt;option&gt;元素、&lt;textarea&gt;元素。'
+    );
+    expect(html).toContain('表单元素的内容操作使用value。');
+    expect(html).not.toContain('&lt;/p&gt;');
+  });
+
   it('preserves table alignment when converting rich HTML to Markdown', () => {
     const markdown = htmlToMarkdown(
       '<table><thead><tr><th align="left">左</th><th align="center">中</th><th align="right">右</th></tr></thead></table>',
@@ -467,6 +548,31 @@ describe('rich clipboard conversion', () => {
     );
 
     expect(markdown).toContain('| :--- | :---: | ---: |');
+  });
+
+  it('keeps rendered HTML tag examples as text without corrupting following blocks', () => {
+    const source = [
+      '<h4>2.表单元素的属性操作</h4>',
+      '<p>表单元素：&lt;input&gt;元素、&lt;select&gt;元素、&lt;option&gt;元素、&lt;textarea&gt;元素。<br>',
+      '常见属性列举：type、disabled、checked、selected、readOnly....</p>',
+      '<pre><code class="language-js">1.获取元素对象的属性值：元素对象.属性名\n',
+      '2.设置元素对象的属性值：元素对象.属性名 = 值;\n',
+      '注：disabled、checked、selected这些属性的值是布尔型。</code></pre>',
+      '<p><strong>练习</strong>：<br>密码的明文与密文之间的切换。</p>'
+    ].join('');
+
+    const markdown = htmlToMarkdown(source, createTurndownService());
+    const html = markdownToHtml(markdown);
+
+    expect(markdown).toContain(
+      '\\<input>元素、\\<select>元素、\\<option>元素、\\<textarea>元素。'
+    );
+    expect(html).toContain(
+      '&lt;input&gt;元素、&lt;select&gt;元素、&lt;option&gt;元素、&lt;textarea&gt;元素。'
+    );
+    expect(html).toContain('<pre><code class="language-js">');
+    expect(html).toContain('<strong>练习</strong>');
+    expect(html).not.toContain('&lt;/p&gt;');
   });
 
   it('normalizes the rendered TipTap code-block NodeView structure', () => {

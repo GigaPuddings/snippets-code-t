@@ -3,7 +3,7 @@
 
 :root {
   // ==================== 基础面板主题变量 ====================
-  --categories-panel-bg: #fbfcff;
+  --categories-panel-bg: #F9FAFC;
   --categories-panel-bg-rgb: 251, 252, 255;
   --categories-content-bg: #f3f6fb;
   --categories-bg-active: #5f74f3;
@@ -25,11 +25,11 @@
   --el-button-hover-border-color: #5f74f3;
 
   // ==================== 搜索窗口主题变量 ====================
-  --search-bg-color: #fbfcff;
+  --search-bg-color: #F9FAFC;
   --search-text-color: #111827;
   --search-info-text-color: #7b8494;
   --search-border-color: #d9e2ef;
-  --search-input-bg: #fbfcff;
+  --search-input-bg: #F9FAFC;
   --search-placeholder: #7b8494;
   --search-result-hover: #f3f7ff;
   --search-result-active: #edf4ff;
@@ -42,8 +42,9 @@
   --search-preview-status-bg: #f6f9fe;
 
   // ==================== 编辑器主题变量 ====================
-  --editor-bg: #fbfcff;
+  --editor-bg: #F9FAFC;
   --editor-border: #d9e2ef;
+  --editor-surface-bg: #fff;
   --editor-text: #111827;
   --editor-text-secondary: #6b7280;
   --editor-hover-bg: #f3f7ff;
@@ -57,12 +58,12 @@
   --code-block-selection: rgb(95 116 243 / 18%);
 
   // ==================== 状态栏主题变量 ====================
-  --statusbar-bg: #f3f6fb;
+  --statusbar-bg: #F9FAFC;
   --statusbar-border: #d9e2ef;
   --statusbar-text: #6b7280;
 
   // ==================== 弹出层/面板主题变量 ====================
-  --panel-bg: #fbfcff;
+  --panel-bg: #F9FAFC;
   --panel-border: #d9e2ef;
   --panel-text: #111827;
   --panel-text-secondary: #6b7280;
@@ -71,7 +72,7 @@
   // ==================== 提示与弹层主题变量 ====================
   --dialog-bg: #fff;
   --dialog-header-bg: #f8faff;
-  --dialog-footer-bg: #fbfcff;
+  --dialog-footer-bg: #F9FAFC;
   --dialog-border: #d9e2ef;
   --dialog-text: #111827;
   --dialog-text-secondary: #6b7280;
@@ -211,6 +212,7 @@ html.dark {
   // ==================== 编辑器深色主题变量 ====================
   --editor-bg: #1e1e1e;
   --editor-border: #2a2a2a;
+  --editor-surface-bg: #242424;
   --editor-text: #e5e7eb;
   --editor-text-secondary: #9ca3af;
   --editor-hover-bg: #2a2a2a;

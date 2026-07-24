@@ -149,8 +149,6 @@ export default {
     autoHideOnBlurDesc: '设置搜索窗口在失去焦点时是否自动隐藏',
     autoHideEnabled: '已开启自动失焦隐藏',
     autoHideDisabled: '已关闭自动失焦隐藏',
-    editorLineNumbers: '编辑器行号',
-    editorLineNumbersDesc: '设置富文本编辑器是否显示行号',
     editorLineHeight: '编辑器行距',
     editorLineHeightDesc: '设置笔记编辑器正文的行间距',
     exitApp: '退出应用',
@@ -227,6 +225,7 @@ export default {
       allImages: '本笔记全部 {count} 张',
       allImagesShort: '全部图片',
       openImageLocation: '打开文件位置',
+      openImageLocationFailed: '无法打开图片文件位置，请确认图片文件仍然存在',
       deleteImage: '删除图片',
       formatObsidian: '经典风格 (Pasted image 20240228010203)',
       formatSimple: '简化格式 (image-20240228-010203)',
@@ -855,7 +854,8 @@ export default {
   // 内容编辑
   content: {
     handleLinkFailed: '处理链接失败',
-    createNoteFailed: '创建笔记失败'
+    createNoteFailed: '创建笔记失败',
+    aiAssistant: 'AI 助手'
   },
 
   // 高级搜索
@@ -1420,7 +1420,14 @@ export default {
   codeEditor: {
     lines: '行',
     chars: '个字符',
-    language: '语言'
+    language: '语言',
+    formatCode: '格式化代码',
+    formatUnsupported: '当前代码类型暂不支持格式化',
+    formatFailed: '格式化代码失败',
+    undo: '撤销',
+    redo: '重做',
+    copyAll: '复制全部',
+    clipboardFailed: '剪贴板操作失败'
   },
 
   // 笔记编辑器

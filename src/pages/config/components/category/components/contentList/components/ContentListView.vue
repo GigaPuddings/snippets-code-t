@@ -71,7 +71,8 @@ defineEmits<ContentListViewEmits>();
 
 const route = useRoute();
 const scrollerRef = ref<InstanceType<typeof RecycleScroller> | null>(null);
-const ITEM_SIZE = 69;
+// 单元格包含卡片本体与条目间留白，避免虚拟列表把相邻卡片贴在一起。
+const ITEM_SIZE = 66;
 
 /**
  * 检查标签是否在筛选条件中
@@ -143,7 +144,7 @@ watch(
 
 <style scoped lang="scss">
 .content-list-view {
-  @apply h-full;
+  @apply h-full flex flex-col min-h-0;
 }
 
 .tag-filter-indicator {
@@ -159,8 +160,7 @@ watch(
 }
 
 .content-list {
-  @apply overflow-hidden;
-  height: calc(100vh - 82px);
+  @apply flex-1 min-h-0 overflow-hidden pt-2;
 
   .content-scroller {
     height: 100%;

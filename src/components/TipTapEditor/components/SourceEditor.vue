@@ -1,8 +1,5 @@
 <template>
   <div class="source-editor" :style="sourceEditorStyle" @contextmenu="handleContextMenu">
-    <div v-if="props.showLineNumbers" ref="lineNumbersRef" class="line-numbers" aria-hidden="true">
-      <span v-for="line in lineCount" :key="line">{{ line }}</span>
-    </div>
     <textarea
       ref="textareaRef"
       v-model="localContent"
@@ -18,11 +15,9 @@
 </template>
 
 <script setup lang="ts">
-
 interface Props {
   content: string;
   dark?: boolean;
-  showLineNumbers?: boolean;
   indentWithTab?: boolean;
   tabSize?: number;
   lineHeight?: number;
@@ -30,7 +25,6 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   dark: false,
-  showLineNumbers: true,
   indentWithTab: true,
   tabSize: 2,
   lineHeight: 1.6
@@ -44,9 +38,6 @@ const emits = defineEmits<{
 
 const localContent = ref(props.content);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
-const lineNumbersRef = ref<HTMLDivElement | null>(null);
-
-const lineCount = computed(() => Math.max(1, localContent.value.split('\n').length));
 const sourceEditorStyle = computed(() => ({
   '--editor-source-line-height': String(props.lineHeight)
 }));
@@ -129,9 +120,6 @@ const handleContextMenu = (event: MouseEvent) => {
 };
 
 const handleScroll = () => {
-  if (lineNumbersRef.value && textareaRef.value) {
-    lineNumbersRef.value.scrollTop = textareaRef.value.scrollTop;
-  }
   emits('scroll');
 };
 
@@ -264,26 +252,8 @@ const handleScroll = () => {
   background-color: var(--editor-bg);
 }
 
-.line-numbers {
-  @apply h-full flex flex-col flex-none overflow-hidden select-none border-r px-2 py-3 text-right font-mono text-sm;
-  width: var(--editor-line-number-width, 46px);
-  min-width: var(--editor-line-number-width, 46px);
-  padding-left: var(--editor-line-number-padding-x, 8px);
-  padding-right: var(--editor-line-number-padding-x, 8px);
-  line-height: var(--editor-source-line-height, 1.6);
-  color: var(--editor-text-secondary);
-  background-color: var(--statusbar-bg);
-  border-color: var(--editor-border);
-  opacity: 0.78;
-
-  span {
-    @apply block;
-    height: calc(var(--editor-source-line-height, 1.6) * 1em);
-  }
-}
-
 .source-textarea {
-  @apply h-full flex-1 px-3 py-3 outline-none resize-none font-mono text-sm;
+  @apply h-full flex-1 px-0.5 py-3 outline-none resize-none font-mono text-sm;
   min-width: 0;
   background-color: var(--editor-bg);
   color: var(--editor-text);

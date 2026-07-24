@@ -273,7 +273,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
 <style scoped lang="scss">
 @mixin commonLink {
-  @apply block py-1 rounded-lg cursor-pointer transition-colors duration-200 ease-out border-b-transparent;
+  @apply block rounded-lg cursor-pointer transition-colors duration-200 ease-out border-b-transparent;
   position: relative;
   border: 1px solid transparent;
 }
@@ -304,8 +304,8 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
   &::before {
     position: absolute;
-    top: 9px;
-    bottom: 9px;
+    top: 7px;
+    bottom: 7px;
     left: 0;
     width: 3px;
     pointer-events: none;
@@ -368,10 +368,10 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 }
 
 .content-item-wrapper {
-  @apply relative text-xs px-3 py-[6px] rounded-md select-none;
+  @apply relative text-xs px-2.5 py-1.5 rounded-md select-none;
 
   .content-item-header {
-    @apply flex items-center justify-between gap-2 mb-1.5;
+    @apply flex items-center justify-between gap-2 mb-3;
 
     .content-item-title {
       @apply truncate text-panel flex-1 font-medium;
@@ -379,7 +379,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
     }
 
     .fragment-type-icon {
-      @apply flex-shrink-0 w-6 h-6 rounded flex items-center justify-center;
+      @apply flex-shrink-0 w-5 h-5 rounded flex items-center justify-center;
       transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
 
       &.type-code,

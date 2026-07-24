@@ -156,8 +156,6 @@ export default {
     autoHideOnBlurDesc: 'Hide search window when it loses focus',
     autoHideEnabled: 'Auto hide enabled',
     autoHideDisabled: 'Auto hide disabled',
-    editorLineNumbers: 'Editor Line Numbers',
-    editorLineNumbersDesc: 'Show or hide line numbers in the rich text editor',
     editorLineHeight: 'Editor Line Spacing',
     editorLineHeightDesc: 'Adjust line spacing in the note editor',
     exitApp: 'Exit App',
@@ -237,6 +235,7 @@ export default {
       allImages: 'All {count} Images',
       allImagesShort: 'All Images',
       openImageLocation: 'Show in Folder',
+      openImageLocationFailed: 'Unable to show the image in its folder. Make sure the file still exists.',
       deleteImage: 'Delete Image',
       formatObsidian: 'Classic Style (Pasted image 20240228010203)',
       formatSimple: 'Simple Format (image-20240228-010203)',
@@ -877,7 +876,8 @@ export default {
   // Content Editing
   content: {
     handleLinkFailed: 'Failed to handle link',
-    createNoteFailed: 'Failed to create note'
+    createNoteFailed: 'Failed to create note',
+    aiAssistant: 'AI Assistant'
   },
 
   // Advanced Search
@@ -1447,7 +1447,14 @@ export default {
   codeEditor: {
     lines: 'Lines',
     chars: 'Chars',
-    language: 'Lang'
+    language: 'Lang',
+    formatCode: 'Format Code',
+    formatUnsupported: 'Formatting is not supported for this language',
+    formatFailed: 'Failed to format code',
+    undo: 'Undo',
+    redo: 'Redo',
+    copyAll: 'Copy All',
+    clipboardFailed: 'Clipboard operation failed'
   },
 
   // Note Editor

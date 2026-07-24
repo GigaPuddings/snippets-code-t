@@ -16,6 +16,13 @@ function escapeAttribute(value: string): string {
   return escapeHtml(value).replace(/`/g, '&#96;');
 }
 
+function escapeHtmlLikeMarkdownText(value: string): string {
+  return value.replace(
+    /<(?=\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>\n]*)?\/?>)/g,
+    '\\<'
+  );
+}
+
 function isLocalPathLink(url: string): boolean {
   const value = url.trim();
   if (!value) return false;
@@ -132,6 +139,24 @@ function fixPunctuationBeforeStrong(markdown: string): string {
 function normalizeMarkdownBeforeParse(markdown: string): string {
   return fixPunctuationBeforeStrong(
     normalizeLooseInlineMarkdown(markdown)
+  );
+}
+
+const ESCAPED_HTML_TAG_RE = /\\<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>\n]*)?\/?>/;
+const UNSUPPORTED_EDITOR_HTML_TAG_RE = /<\/?(?:input|select|option|textarea)\b/i;
+
+/**
+ * 当剪贴板纯文本明确使用 Markdown 反斜杠保留 HTML 标签示例时，富 HTML
+ * 可能已经把这些示例错误序列化成真实 DOM。此时纯文本才是无损来源。
+ */
+export function shouldPreferMarkdownClipboardText(
+  text: string,
+  html: string
+): boolean {
+  return Boolean(
+    text.trim() &&
+    html.trim() &&
+    (ESCAPED_HTML_TAG_RE.test(text) || UNSUPPORTED_EDITOR_HTML_TAG_RE.test(text))
   );
 }
 
@@ -408,8 +433,19 @@ const imageWithAttributesExtension = {
   }
 };
 
-// 注册扩展
-marked.use({ extensions: [taskListExtension, wikilinkExtension, markdownLinkExtension, imageWithAttributesExtension] });
+// 注册扩展。TipTap 不支持 Markdown 中直接嵌入的表单控件；把这些 raw HTML
+// 输出成可见文本，避免 textarea 等元素破坏随后生成的文档结构。任务列表的
+// checkbox 由 taskListExtension 直接生成，不会经过此 renderer。
+marked.use({
+  extensions: [taskListExtension, wikilinkExtension, markdownLinkExtension, imageWithAttributesExtension],
+  renderer: {
+    html(token) {
+      return UNSUPPORTED_EDITOR_HTML_TAG_RE.test(token.text)
+        ? escapeHtml(token.text)
+        : false;
+    }
+  }
+});
 
 // 创建 Turndown service
 export function createTurndownService(): TurndownService {
@@ -422,6 +458,16 @@ export function createTurndownService(): TurndownService {
     linkStyle: 'inlined',
     fence: '```'
   });
+
+  // Turndown 不会转义文本节点里的 `<tag>`，因此来源 HTML 中的
+  // `&lt;textarea&gt;` 会先变回 `<textarea>`，再被 marked 当成真实 HTML。
+  // 这不仅会吞掉标签文本，textarea 等 raw-text 元素还会把后续生成的 HTML
+  // 全部变成纯文本。这里只扩展普通文本节点的转义；Turndown 会跳过代码节点，
+  // 所以代码块和行内代码中的 HTML 示例仍保持原样。
+  const escapeMarkdownText = turndownService.escape.bind(turndownService);
+  turndownService.escape = (value: string): string => {
+    return escapeHtmlLikeMarkdownText(escapeMarkdownText(value));
+  };
 
   // TipTap/Vue NodeView 的渲染 DOM 会包含代码语言按钮、复制按钮和高亮辅助节点。
   // 它们只属于编辑器界面，二次复制或 HTML 持久化时不能进入笔记正文。
@@ -820,14 +866,21 @@ export function jsonToMarkdown(json: any): string {
     
     // 处理文本节点
     if (type === 'text') {
+      const marks = Array.isArray(node.marks) ? node.marks : [];
+      const hasInlineCode = marks.some((mark: any) => mark.type === 'code');
       let text = node.text || '';
+      if (!hasInlineCode) {
+        // ProseMirror 文本节点中的 `<input>` 是可见文本，不是 raw HTML。
+        // 保存为 Markdown 时必须恢复反斜杠，否则重新打开会被当成 DOM 标签。
+        text = escapeHtmlLikeMarkdownText(text);
+      }
       
       // 处理文本标记（加粗、斜体、代码、删除线、超链接等）
-      if (node.marks && Array.isArray(node.marks)) {
+      if (marks.length > 0) {
         let linkHref: string | null = null;
         const otherMarks: any[] = [];
 
-        node.marks.forEach((mark: any) => {
+        marks.forEach((mark: any) => {
           if (mark.type === 'link') {
             // 记录链接地址，稍后统一包裹，避免与其它样式嵌套顺序问题
             linkHref = mark.attrs?.href || '';

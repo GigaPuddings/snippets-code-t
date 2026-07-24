@@ -39,15 +39,21 @@
           </button>
         </div>
 
-        <button
-          v-if="state.currentContent"
-          class="ai-assist-button"
-          type="button"
-          title="AI 辅助"
-          @click="showAiAssist = true"
-        >
-          <span>✦</span> AI
-        </button>
+        <div v-if="state.currentContent" class="content-header-actions">
+          <button
+            class="ai-assist-button"
+            type="button"
+            :title="t('content.aiAssistant')"
+            @click="showAiAssist = true"
+          >
+            <span>✦</span>{{ t('content.aiAssistant') }}
+          </button>
+          <span class="content-more" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M12,8A2,2 0 1,0 12,4A2,2 0 0,0 12,8M12,10A2,2 0 1,0 12,14A2,2 0 0,0 12,10M12,16A2,2 0 1,0 12,20A2,2 0 0,0 12,16Z" />
+            </svg>
+          </span>
+        </div>
       </div>
 
       <!-- 标签输入 -->
@@ -108,42 +114,99 @@
       @rewrite="openSelectionRewrite"
     />
 
-    <!-- 编辑器加载指示器 -->
-    <div v-if="state.isEditorLoading" class="editor-loading">
-      <div class="loading-spinner"></div>
-      <span>{{ t('category.loadingEditor') }}</span>
-    </div>
-
-    <!-- 新建内容时先保证标题输入流畅，用户停顿后再挂载完整编辑器 -->
-    <div v-else-if="state.isEditorDeferred" class="editor-deferred">
-      <span>{{ t('category.preparingEditor') }}</span>
-    </div>
-
     <!-- 编辑器错误提示 -->
-    <div v-else-if="state.editorError" class="editor-error">
+    <div v-if="state.editorError" class="editor-error">
       <span class="error-icon">⚠</span>
       <span>{{ state.editorError }}</span>
-      <el-button size="small" @click="retryLoadEditor">{{ t('category.retry') }}</el-button>
+      <el-button size="small" @click="retryLoadEditor">
+        {{ t('category.retry') }}
+      </el-button>
     </div>
 
-    <!-- CodeMirror 代码编辑器 (type === 'code') -->
-    <div v-else-if="currentEditorType === 'code'" class="editor-host" @mouseup="captureAiSelection" @keyup="captureAiSelection">
-      <CodeMirrorEditor ref="codeMirrorEditorRef" :key="'code-editor'" :code="state.editorContent"
-        :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }" @update:code="handleEditorChange"
-        :dark="isDark" />
-    </div>
+    <div v-else class="editor-stage" :aria-busy="showEditorLoading">
+      <Transition name="editor-loader">
+        <div
+          v-if="showEditorLoading"
+          class="editor-loading"
+          role="status"
+          aria-live="polite"
+        >
+          <div class="snippet-loader" aria-hidden="true">
+            <span class="snippet-loader__gutter">
+              <i></i>
+              <i></i>
+              <i></i>
+            </span>
+            <span class="snippet-loader__activity">
+              <i class="snippet-loader__line snippet-loader__line--one"></i>
+              <i class="snippet-loader__line snippet-loader__line--two"></i>
+              <i class="snippet-loader__line snippet-loader__line--three"></i>
+              <i class="snippet-loader__cursor"></i>
+            </span>
+          </div>
 
-    <!-- TipTap 富文本编辑器 (type === 'note') -->
-    <div v-else-if="currentEditorType === 'note'" class="editor-host" @mouseup="captureAiSelection" @keyup="captureAiSelection">
-      <TipTapEditor ref="tipTapEditorRef" :key="'note-editor'"
-        :content="noteEditorDisplayContent" :codeStyle="{ height: 'calc(100vh - 108px)', overflowY: 'auto' }"
-        :show-view-toggle="true" :show-editor-actions="false" :current-title="state.title"
-        :current-fragment-id="state.currentContent?.id" :show-line-numbers="store.editorLineNumbers"
-        :line-height="store.editorLineHeight"
-        @update:content="handleEditorChange"
-        @wikilink-click="handleWikilinkClick" @view-mode-change="handleViewModeChange"
-        @outline-toggle="handleOutlineToggle" @backlink-navigate="handleBacklinkNavigate"
-        @scroll-position="handleEditorScrollPosition" :dark="isDark" />
+          <div class="editor-loading__copy">
+            <span>{{ editorLoadingMessage }}</span>
+          </div>
+        </div>
+      </Transition>
+
+      <div
+        v-if="!state.isEditorDeferred"
+        class="editor-surface"
+        :class="{ 'editor-surface--loading': showEditorLoading }"
+      >
+        <!-- CodeMirror 代码编辑器 (type === 'code') -->
+        <div
+          v-if="currentEditorType === 'code'"
+          class="editor-host"
+          :class="{ 'editor-host--loading': showEditorLoading }"
+          @mouseup="captureAiSelection"
+          @keyup="captureAiSelection"
+        >
+          <CodeMirrorEditor
+            ref="codeMirrorEditorRef"
+            :key="'code-editor'"
+            :code="state.editorContent"
+            :codeStyle="{ height: '100%' }"
+            background="var(--editor-surface-bg)"
+            gutter-background="var(--editor-surface-bg)"
+            status-background="var(--statusbar-bg)"
+            :dark="isDark"
+            @update:code="handleEditorChange"
+            @ready="handleEditorReady"
+          />
+        </div>
+
+        <!-- TipTap 富文本编辑器 (type === 'note') -->
+        <div
+          v-else-if="currentEditorType === 'note'"
+          class="editor-host"
+          :class="{ 'editor-host--loading': showEditorLoading }"
+          @mouseup="captureAiSelection"
+          @keyup="captureAiSelection"
+        >
+          <TipTapEditor
+            ref="tipTapEditorRef"
+            :key="'note-editor'"
+            :content="noteEditorDisplayContent"
+            :codeStyle="{ height: '100%' }"
+            :show-view-toggle="true"
+            :show-editor-actions="false"
+            :current-title="state.title"
+            :current-fragment-id="state.currentContent?.id"
+            :line-height="store.editorLineHeight"
+            :dark="isDark"
+            @update:content="handleEditorChange"
+            @ready="handleEditorReady"
+            @wikilink-click="handleWikilinkClick"
+            @view-mode-change="handleViewModeChange"
+            @outline-toggle="handleOutlineToggle"
+            @backlink-navigate="handleBacklinkNavigate"
+            @scroll-position="handleEditorScrollPosition"
+          />
+        </div>
+      </div>
     </div>
   </main>
 </template>
@@ -180,6 +243,115 @@ const loadGitSyncApi = async (): Promise<GitSyncApi> => {
 
 const { t } = useI18n();
 
+// 组件状态集中管理
+const state = reactive({
+  title: '',
+  editorContent: '',
+  currentContent: null as ContentType | null,
+  isLoading: false,
+  isInitializing: true,
+  contentChanged: false,
+  isEditorLoading: false,
+  isEditorReady: false,
+  isEditorDeferred: false,
+  editorError: null as string | null,
+  lastSavedAt: null as Date | null,
+  autoSaveEnabled: true,
+  tags: [] as string[],
+  editorLoadRetries: 0,
+  // 保存基线：用于避免等价值内容误触发保存
+  lastSavedContentHash: ''
+});
+
+const draftTitle = ref('');
+const titleDirty = ref(false);
+let deferredEditorTimer: ReturnType<typeof setTimeout> | null = null;
+let editorReadyTimer: ReturnType<typeof setTimeout> | null = null;
+let editorReadyFrame: number | null = null;
+let editorLoadingStartedAt = 0;
+let editorLoadingGeneration = 0;
+let contentLoadGeneration = 0;
+
+const EDITOR_LOADING_MIN_DURATION = 280;
+
+const cancelEditorReadyTransition = () => {
+  if (editorReadyTimer !== null) {
+    clearTimeout(editorReadyTimer);
+    editorReadyTimer = null;
+  }
+
+  if (editorReadyFrame !== null) {
+    cancelAnimationFrame(editorReadyFrame);
+    editorReadyFrame = null;
+  }
+};
+
+const beginEditorLoading = () => {
+  cancelEditorReadyTransition();
+  editorLoadingGeneration++;
+  editorLoadingStartedAt = Date.now();
+  state.isEditorReady = false;
+  state.isEditorLoading = true;
+};
+
+const finishEditorLoading = (generation: number) => {
+  if (generation !== editorLoadingGeneration || state.editorError || state.isEditorDeferred) return;
+
+  const showEditor = () => {
+    if (generation !== editorLoadingGeneration) return;
+    editorReadyTimer = null;
+    state.isEditorReady = true;
+    state.isEditorLoading = false;
+  };
+  const elapsed = Date.now() - editorLoadingStartedAt;
+  const remaining = Math.max(0, EDITOR_LOADING_MIN_DURATION - elapsed);
+
+  if (remaining > 0) {
+    editorReadyTimer = setTimeout(showEditor, remaining);
+  } else {
+    showEditor();
+  }
+};
+
+const finishEditorLoadingAfterPaint = () => {
+  cancelEditorReadyTransition();
+  const generation = editorLoadingGeneration;
+
+  nextTick(() => {
+    if (generation !== editorLoadingGeneration) return;
+    editorReadyFrame = requestAnimationFrame(() => {
+      editorReadyFrame = null;
+      finishEditorLoading(generation);
+    });
+  });
+};
+
+const failEditorLoading = () => {
+  cancelEditorReadyTransition();
+  editorLoadingGeneration++;
+  state.isEditorReady = false;
+  state.isEditorLoading = false;
+};
+
+const cancelDeferredEditorMount = () => {
+  if (deferredEditorTimer !== null) {
+    clearTimeout(deferredEditorTimer);
+    deferredEditorTimer = null;
+  }
+};
+
+const mountDeferredEditor = () => {
+  cancelDeferredEditorMount();
+  state.isEditorDeferred = false;
+  beginEditorLoading();
+};
+
+const scheduleDeferredEditorMount = (delay = 700) => {
+  if (!state.isEditorDeferred) return;
+  cancelDeferredEditorMount();
+  deferredEditorTimer = setTimeout(mountDeferredEditor, delay);
+};
+
 // 懒加载 TipTap 编辑器（优化版本）
 const TipTapEditor = defineAsyncComponent({
   loader: () => import('@/components/TipTapEditor/index.vue'),
@@ -196,52 +368,13 @@ const TipTapEditor = defineAsyncComponent({
       state.editorLoadRetries++;
       setTimeout(() => retry(), 1000);
     } else {
+      state.editorError = t('category.loadFailed');
+      failEditorLoading();
       fail();
     }
   }
 });
 
-// 组件状态集中管理
-const state = reactive({
-  title: '',
-  editorContent: '',
-  currentContent: null as ContentType | null,
-  isLoading: false,
-  isInitializing: true,
-  contentChanged: false,
-  isEditorLoading: false,
-  isEditorDeferred: false,
-  editorError: null as string | null,
-  lastSavedAt: null as Date | null,
-  autoSaveEnabled: true,
-  tags: [] as string[],
-  editorLoadRetries: 0,
-  // 保存基线：用于避免等价值内容误触发保存
-  lastSavedContentHash: ''
-});
-
-const draftTitle = ref('');
-const titleDirty = ref(false);
-let deferredEditorTimer: ReturnType<typeof setTimeout> | null = null;
-
-const cancelDeferredEditorMount = () => {
-  if (deferredEditorTimer !== null) {
-    clearTimeout(deferredEditorTimer);
-    deferredEditorTimer = null;
-  }
-};
-
-const mountDeferredEditor = () => {
-  cancelDeferredEditorMount();
-  state.isEditorDeferred = false;
-  state.isEditorLoading = false;
-};
-
-const scheduleDeferredEditorMount = (delay = 700) => {
-  if (!state.isEditorDeferred) return;
-  cancelDeferredEditorMount();
-  deferredEditorTimer = setTimeout(mountDeferredEditor, delay);
-};
 const showAiAssist = ref(false);
 const showSelectionAiAssist = ref(false);
 const codeMirrorEditorRef = ref<any>(null);
@@ -276,6 +409,13 @@ const router = useRouter();
 const store = useConfigurationStore();
 const pluginStore = usePluginStore();
 const isDark = computed(() => store.effectiveDark);
+const showEditorLoading = computed(() => {
+  if (!route.params.id || state.editorError) return false;
+  return state.isEditorLoading || state.isEditorDeferred || !state.isEditorReady;
+});
+const editorLoadingMessage = computed(() => (
+  state.isEditorDeferred ? t('category.preparingEditor') : t('category.loadingEditor')
+));
 
 const notifyFileEditIfGitSyncEnabled = async () => {
   if (!pluginStore.initialized) {
@@ -375,19 +515,6 @@ const currentEditorType = computed(() => {
   return parsed.type;
 });
 
-// 重试加载编辑器
-const retryLoadEditor = () => {
-  cancelDeferredEditorMount();
-  state.isEditorDeferred = false;
-  state.editorError = null;
-  state.editorLoadRetries = 0;
-  state.isEditorLoading = true;
-
-  nextTick(() => {
-    state.isEditorLoading = false;
-  });
-};
-
 // 更新 store 中的内容
 const updateStore = (data: Partial<ContentType>) => {
   if (!state.currentContent) return;
@@ -408,6 +535,34 @@ const hasUnsavedChanges = () => state.contentChanged || titleDirty.value;
 
 // TipTap 编辑器引用
 const tipTapEditorRef = ref<any>(null);
+
+const finishMountedEditorLoading = () => {
+  const hasMountedEditor = currentEditorType.value === 'note'
+    ? Boolean(tipTapEditorRef.value?.getEditor?.())
+    : Boolean(codeMirrorEditorRef.value?.getView?.());
+
+  if (hasMountedEditor) {
+    finishEditorLoadingAfterPaint();
+  }
+};
+
+const handleEditorReady = () => {
+  finishEditorLoadingAfterPaint();
+};
+
+// 重试加载编辑器
+const retryLoadEditor = () => {
+  cancelDeferredEditorMount();
+  state.isEditorDeferred = false;
+  state.editorError = null;
+  state.editorLoadRetries = 0;
+  beginEditorLoading();
+
+  nextTick(() => {
+    finishMountedEditorLoading();
+  });
+};
+
 // 标题输入框引用
 const titleInputRef = ref<any>(null);
 
@@ -1127,11 +1282,12 @@ const handleBacklinkNavigate = async (fragmentId: number | string, searchTitle: 
             attempts++;
 
             // 等待编辑器加载完成且引用存在
-            if (!state.isEditorLoading && tipTapEditorRef.value && currentEditorType.value === 'note') {
+            if (state.isEditorReady && !state.isEditorLoading && tipTapEditorRef.value && currentEditorType.value === 'note') {
               resolve(true);
             } else if (attempts >= maxAttempts) {
               console.warn('[Content] 等待编辑器超时，状态:', {
                 isEditorLoading: state.isEditorLoading,
+                isEditorReady: state.isEditorReady,
                 hasTipTapRef: !!tipTapEditorRef.value,
                 editorType: currentEditorType.value,
                 attempts
@@ -1217,14 +1373,17 @@ const confirmCreateNote = async () => {
 
 // 按指定 ID 获取片段内容（用于外部变更重载，避免 route.params.id 与 state.currentContent.id 不一致）
 const fetchContentById = async (id: string) => {
+  const loadGeneration = ++contentLoadGeneration;
   cancelDeferredEditorMount();
   state.isEditorDeferred = false;
   state.isInitializing = true;
-  // 不切换 isEditorLoading，保持 TipTap 挂载，让其 watch 到 content 变化后 setContent
   state.editorError = null;
+  beginEditorLoading();
 
   try {
     const result = await getFragmentContent(normalizeFragmentId(id));
+    if (loadGeneration !== contentLoadGeneration) return;
+
     if (result) {
       const parsedContent = parseFragment(result);
       state.currentContent = parsedContent;
@@ -1250,29 +1409,38 @@ const fetchContentById = async (id: string) => {
           editor.commands.setContent(html, { emitUpdate: false });
         }
       }
+      finishMountedEditorLoading();
     } else {
       resetMissingContentState(id, false);
+      await nextTick();
+      finishMountedEditorLoading();
     }
   } catch (error) {
+    if (loadGeneration !== contentLoadGeneration) return;
     console.error('[Content] 内容加载失败:', error);
     handleLoadError(error, 'fetchContentById');
     state.editorError = t('category.loadFailed');
+    failEditorLoading();
   } finally {
-    nextTick(() => { state.isInitializing = false; });
+    if (loadGeneration === contentLoadGeneration) {
+      nextTick(() => { state.isInitializing = false; });
+    }
   }
 };
 
 // 获取片段内容（使用 route.params.id）
 const fetchContent = async () => {
+  const loadGeneration = ++contentLoadGeneration;
   cancelDeferredEditorMount();
   state.isEditorDeferred = false;
   state.isInitializing = true;
-  state.isEditorLoading = true;
   state.editorError = null;
+  beginEditorLoading();
 
   try {
     const fragmentId = normalizeFragmentId(route.params.id as string);
     const result = await getFragmentContent(fragmentId);
+    if (loadGeneration !== contentLoadGeneration) return;
 
     if (result) {
       // 使用 parseFragment 确保所有字段存在
@@ -1302,10 +1470,11 @@ const fetchContent = async () => {
       // 新建空内容先让标题输入框获得主线程；完整编辑器在用户输入停顿后挂载。
       state.isEditorDeferred = isNewEmptyContent;
       await nextTick();
-      state.isEditorLoading = false;
       if (isNewEmptyContent) {
         state.isInitializing = false;
         scheduleDeferredEditorMount(900);
+      } else {
+        finishMountedEditorLoading();
       }
 
       // 如果是新建的内容，自动聚焦并选中标题输入框中的默认标题
@@ -1334,14 +1503,17 @@ const fetchContent = async () => {
       await goBackToContentList();
     }
   } catch (error) {
+    if (loadGeneration !== contentLoadGeneration) return;
     console.error('[Content] 内容加载失败:', error);
     handleLoadError(error, 'fetchContent');
     state.editorError = t('category.loadFailed');
+    failEditorLoading();
   } finally {
-    nextTick(() => {
-      state.isInitializing = false;
-      state.isEditorLoading = false;
-    });
+    if (loadGeneration === contentLoadGeneration) {
+      nextTick(() => {
+        state.isInitializing = false;
+      });
+    }
   }
 };
 
@@ -1381,6 +1553,10 @@ watch(
         });
       });
       return;
+    }
+
+    if (newId && oldId !== undefined) {
+      beginEditorLoading();
     }
 
     // 如果路由参数变化，先自动保存当前内容（如果有更改）
@@ -1559,7 +1735,9 @@ const handleDirsChanged = async (event: Event) => {
 
 // 组件卸载前保存
 onBeforeUnmount(async () => {
+  contentLoadGeneration++;
   cancelDeferredEditorMount();
+  cancelEditorReadyTransition();
   if (state.currentContent && hasUnsavedChanges()) {
     debouncedSave.cancel();
     syncDraftTitleToState();
@@ -1615,19 +1793,25 @@ onMounted(async () => {
   @apply h-full w-full min-w-0 max-w-full overflow-hidden bg-panel text-xs;
 
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
+  grid-template-columns: minmax(0, 1fr);
 
   .content-header {
-    @apply mx-2 min-w-0 max-w-full overflow-hidden border-b border-panel;
+    @apply mx-2 min-w-0 max-w-full overflow-hidden;
 
     .content-title {
       @apply flex items-center gap-2 h-[40px];
+
       min-width: 0;
 
       .content-title-input {
         flex: 1 1 auto;
         min-width: 0;
+
+        :deep(.el-input__wrapper) {
+          padding-left: 3px;
+          padding-right: 3px;
+        }
       }
 
       :deep(input) {
@@ -1636,6 +1820,7 @@ onMounted(async () => {
 
       .editor-controls {
         @apply flex items-center gap-1 ml-auto;
+
         flex-shrink: 0;
       }
     }
@@ -1646,33 +1831,183 @@ onMounted(async () => {
   }
 }
 
+.editor-stage {
+  @apply relative h-full px-2 min-h-0 min-w-0 overflow-hidden;
+
+  background: var(--categories-panel-bg);
+}
+
+.editor-surface {
+  @apply h-full min-h-0 min-w-0 overflow-hidden rounded-lg border border-editor;
+
+  box-sizing: border-box;
+  background: var(--editor-surface-bg);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.editor-surface--loading {
+  pointer-events: none;
+}
+
 .editor-loading {
-  @apply flex flex-col items-center justify-center h-full gap-4 text-content;
+  @apply absolute inset-0 z-20 flex flex-col items-center justify-center;
 
-  .loading-spinner {
-    @apply w-12 h-12 border-4 border-panel-border border-t-blue-500 rounded-full;
-    animation: spin 1s linear infinite;
+  color: var(--panel-text);
+  background: var(--categories-panel-bg);
+}
+
+.snippet-loader {
+  @apply flex items-center;
+
+  gap: 9px;
+  width: 92px;
+  height: 27px;
+}
+
+.snippet-loader__gutter {
+  @apply flex h-[23px] w-[10px] shrink-0 flex-col items-start justify-between border-r;
+
+  border-color: color-mix(in srgb, var(--panel-border) 72%, transparent);
+
+  i {
+    width: 3px;
+    height: 2px;
+    background: color-mix(in srgb, var(--panel-text-secondary) 42%, transparent);
+    border-radius: 999px;
+    animation: snippet-gutter 1.6s ease-in-out infinite;
   }
 
-  span {
-    @apply text-base;
+  i:nth-child(2) {
+    animation-delay: 0.12s;
+  }
+
+  i:nth-child(3) {
+    animation-delay: 0.24s;
   }
 }
 
-.editor-deferred {
-  @apply flex h-full items-start justify-center pt-10 text-sm;
+.snippet-loader__activity {
+  @apply relative block;
 
-  color: var(--categories-info-text-color);
+  width: 72px;
+  height: 25px;
 }
 
-@keyframes spin {
- 0% {
-   transform: rotate(0deg);
- }
+.snippet-loader__line {
+  @apply absolute left-0 block overflow-hidden rounded-full;
 
- 100% {
-   transform: rotate(360deg);
- }
+  height: 2px;
+  background: color-mix(in srgb, var(--panel-border) 72%, transparent);
+
+  &::after {
+    @apply absolute inset-0 rounded-full;
+
+    content: '';
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--el-color-primary) 48%, transparent),
+      var(--el-color-primary-light-3)
+    );
+    transform: scaleX(0);
+    transform-origin: left center;
+    animation: snippet-line 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
+.snippet-loader__line--one {
+  top: 2px;
+  width: 47px;
+}
+
+.snippet-loader__line--two {
+  top: 11px;
+  width: 66px;
+
+  &::after {
+    animation-delay: 0.12s;
+  }
+}
+
+.snippet-loader__line--three {
+  top: 20px;
+  width: 36px;
+
+  &::after {
+    animation-delay: 0.24s;
+  }
+}
+
+.snippet-loader__cursor {
+  position: absolute;
+  top: 7px;
+  right: 0;
+  width: 1.5px;
+  height: 11px;
+  background: var(--el-color-primary);
+  border-radius: 999px;
+  box-shadow: 0 0 5px color-mix(in srgb, var(--el-color-primary) 36%, transparent);
+  animation: snippet-cursor 1.1s steps(1, end) infinite;
+}
+
+.editor-loading__copy {
+  @apply mt-3 text-xs font-normal;
+
+  color: var(--panel-text-secondary);
+  letter-spacing: 0.015em;
+  opacity: 0.78;
+}
+
+.editor-loader-enter-active,
+.editor-loader-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.editor-loader-enter-from,
+.editor-loader-leave-to {
+  opacity: 0;
+}
+
+@keyframes snippet-gutter {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  38%,
+  64% {
+    background: var(--el-color-primary-light-3);
+    opacity: 1;
+  }
+}
+
+@keyframes snippet-line {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+
+  38%,
+  68% {
+    opacity: 0.8;
+    transform: scaleX(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes snippet-cursor {
+  0%,
+  46% {
+    opacity: 1;
+  }
+
+  47%,
+  100% {
+    opacity: 0.2;
+  }
 }
 
 .editor-error {
@@ -1693,6 +2028,7 @@ onMounted(async () => {
 
 .control-btn {
   @apply w-8 h-8 flex items-center justify-center rounded cursor-pointer;
+
   background: transparent;
   border: none;
   transition: all 0.2s ease;
@@ -1702,12 +2038,13 @@ onMounted(async () => {
   }
 
   &:active {
-    transform: scale(0.95);
     background-color: var(--categories-bg-tab-active);
+    transform: scale(0.95);
   }
 
   svg {
     @apply text-panel-text-secondary;
+
     transition: color 0.2s ease;
   }
 
@@ -1718,19 +2055,55 @@ onMounted(async () => {
 
 .editor-host {
   @apply h-full w-full min-h-0 min-w-0 max-w-full overflow-hidden;
+
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.editor-host--loading {
+  pointer-events: none;
+  opacity: 0;
 }
 
 .ai-assist-button {
   @apply h-7 px-2 flex items-center justify-center gap-1 rounded text-xs font-medium cursor-pointer;
-  white-space: nowrap;
+
   color: var(--el-color-primary);
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 28%, transparent);
+  white-space: nowrap;
   background: color-mix(in srgb, var(--el-color-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 28%, transparent);
   transition: background-color 0.15s ease, transform 0.15s ease;
 
-  span { display: inline-grid; flex: 0 0 14px; place-items: center; font-size: 14px; line-height: 1; }
-  &:hover { background: color-mix(in srgb, var(--el-color-primary) 16%, transparent); }
-  &:active { transform: scale(0.97); }
+  span {
+    display: inline-grid;
+    flex: 0 0 14px;
+    place-items: center;
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--el-color-primary) 16%, transparent);
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.content-header-actions {
+  @apply flex shrink-0 items-center gap-2;
+}
+
+.content-more {
+  @apply inline-flex h-7 w-7 items-center justify-center rounded;
+
+  color: var(--panel-text-secondary);
+}
+
+.editor-surface :deep(.editor-container),
+.editor-surface :deep(.editor-content) {
+  background-color: var(--editor-surface-bg);
 }
 
 :global(.dark) {
@@ -1754,8 +2127,35 @@ onMounted(async () => {
 
   .ai-assist-button {
     color: var(--el-color-primary-light-3);
-    border-color: color-mix(in srgb, var(--el-color-primary) 42%, transparent);
     background: color-mix(in srgb, var(--el-color-primary) 18%, transparent);
+    border-color: color-mix(in srgb, var(--el-color-primary) 42%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snippet-loader__gutter i,
+  .snippet-loader__line::after,
+  .snippet-loader__cursor {
+    animation: none;
+  }
+
+  .snippet-loader__gutter i {
+    opacity: 0.55;
+  }
+
+  .snippet-loader__line::after {
+    opacity: 0.62;
+    transform: scaleX(0.72);
+  }
+
+  .snippet-loader__cursor {
+    opacity: 0.55;
+  }
+
+  .editor-loader-enter-active,
+  .editor-loader-leave-active,
+  .editor-host {
+    transition-duration: 0.01ms;
   }
 }
 </style>

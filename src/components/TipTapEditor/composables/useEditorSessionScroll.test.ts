@@ -121,4 +121,22 @@ describe('useEditorSessionScroll', () => {
 
     expect(sessionScroll.getScrollPosition()).toBe(0);
   });
+
+  it('does not access the view of a destroyed editor during a queued update', async () => {
+    const destroyedEditor = {
+      isDestroyed: true,
+      get view(): never {
+        throw new Error('destroyed view accessed');
+      }
+    };
+    const sessionScroll = useEditorSessionScroll({
+      getEditor: () => destroyedEditor
+    });
+
+    expect(sessionScroll.getScrollPosition()).toBe(0);
+    sessionScroll.setScrollPosition(100);
+    await nextTick();
+
+    expect(sessionScroll.getScrollPosition()).toBe(0);
+  });
 });

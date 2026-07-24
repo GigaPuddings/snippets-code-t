@@ -9,6 +9,7 @@ export interface Heading {
 type EditorViewMode = 'reading' | 'preview' | 'source';
 
 interface OutlineEditor {
+  isDestroyed?: boolean;
   state: {
     doc: {
       descendants: (callback: (node: any, pos: number) => void) => void;
@@ -66,7 +67,7 @@ export function useEditorOutline(options: UseEditorOutlineOptions) {
 
   const extractHeadings = () => {
     const editor = options.getEditor();
-    if (!editor) {
+    if (!editor || editor.isDestroyed) {
       headings.value = [];
       return;
     }
@@ -146,7 +147,7 @@ export function useEditorOutline(options: UseEditorOutlineOptions) {
     }
 
     const editor = options.getEditor();
-    if (!editor || headings.value.length === 0) {
+    if (!editor || editor.isDestroyed || headings.value.length === 0) {
       visibleHeadingIndex.value = -1;
       return;
     }
@@ -209,7 +210,7 @@ export function useEditorOutline(options: UseEditorOutlineOptions) {
 
   const setupScrollListener = () => {
     const editor = options.getEditor();
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
 
     if (scrollCleanup) {
       scrollCleanup();
@@ -284,7 +285,7 @@ export function useEditorOutline(options: UseEditorOutlineOptions) {
     }
 
     const editor = options.getEditor();
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
 
     try {
       const scrollContainer = getEditorScrollContainer(editor);

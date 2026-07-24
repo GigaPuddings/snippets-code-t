@@ -11,7 +11,7 @@ export default {
         active: 'var(--categories-bg-active)',
         'active-hover': 'var(--el-button-hover-bg-color)',
         hover: 'var(--categories-panel-bg-hover)',
-        'panel-hover-bg': 'var(--panel-hover-bg)',
+        'panel-hover-bg': 'var(--categories-panel-bg-hover)',
         // 搜索
         search: 'var(--search-bg-color)',
         'search-input': 'var(--search-input-bg)',

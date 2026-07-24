@@ -152,4 +152,20 @@ describe('useEditorOutline', () => {
     expect(outline.emitOutlineToggle).toHaveBeenCalledWith(false);
     expect(outline.container.removeEventListener).toHaveBeenCalledWith('scroll', expect.any(Function));
   });
+
+  it('does not access the view after the editor is destroyed', async () => {
+    const outline = createOutline();
+    Object.assign(outline.editor, { isDestroyed: true });
+    Object.defineProperty(outline.editor, 'view', {
+      get: () => {
+        throw new Error('destroyed view accessed');
+      }
+    });
+
+    outline.toggleOutline();
+    await nextTick();
+
+    expect(outline.headings.value).toEqual([]);
+    expect(outline.container.addEventListener).not.toHaveBeenCalled();
+  });
 });

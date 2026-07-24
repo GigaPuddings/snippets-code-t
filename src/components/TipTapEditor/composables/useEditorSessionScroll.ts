@@ -1,6 +1,7 @@
 import { nextTick } from 'vue';
 
 interface SessionScrollEditor {
+  isDestroyed?: boolean;
   view: {
     dom: HTMLElement;
   };
@@ -141,7 +142,11 @@ function findPlainTextMatch(scrollContainer: HTMLElement, searchTitle: string) {
 }
 
 export function useEditorSessionScroll(options: UseEditorSessionScrollOptions) {
-  const getScrollContainer = () => options.getEditor()?.view.dom;
+  const getScrollContainer = () => {
+    const editor = options.getEditor();
+    if (!editor || editor.isDestroyed) return undefined;
+    return editor.view.dom;
+  };
 
   const getScrollPosition = () => getScrollContainer()?.scrollTop ?? 0;
 

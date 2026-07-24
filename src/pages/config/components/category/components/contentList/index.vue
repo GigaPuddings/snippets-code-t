@@ -339,6 +339,6 @@ onUnmounted(() => {
 }
 
 .right-panel {
-  @apply h-full w-full min-w-0 max-w-full overflow-hidden rounded-md border bg-panel dark:border-panel dark:bg-panel;
+  @apply h-full w-full min-w-0 max-w-full overflow-hidden border-l border-panel bg-panel dark:bg-panel;
 }
 </style>

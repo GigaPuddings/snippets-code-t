@@ -60,7 +60,7 @@ const isUncategorizedActive = computed(() => {
 
 <style lang="scss" scoped>
 @mixin commonLink {
-  @apply rounded-md block my-1 text-xs px-3 py-1 truncate cursor-pointer hover:bg-panel dark:hover:bg-hover dark:text-panel;
+  @apply rounded-md block my-1 text-xs px-3 py-1 truncate cursor-pointer hover:bg-panel-hover-bg dark:hover:bg-hover dark:text-panel;
   position: relative;
   border: 1px solid transparent;
 }

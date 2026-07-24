@@ -21363,7 +21363,7 @@ const LO = /* @__PURE__ */ yu("." + vu, {
     boxSizing: "border-box"
   },
   ".cm-lineNumbers .cm-gutterElement": {
-    padding: "0 3px 0 5px",
+    padding: "0 6px",
     minWidth: "20px",
     textAlign: "right",
     whiteSpace: "nowrap"

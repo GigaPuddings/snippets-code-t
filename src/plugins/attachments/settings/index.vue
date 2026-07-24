@@ -7,22 +7,6 @@
     
     <!-- 可滚动内容 -->
     <main class="panel-content">
-      <!-- 编辑器行号 -->
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.editorLineNumbers') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.editorLineNumbersDesc') }}</div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomSwitch
-            :model-value="configurationStore.editorLineNumbers"
-            :active-text="$t('common.on')"
-            :inactive-text="$t('common.off')"
-            @change="toggleEditorLineNumbers"
-          />
-        </div>
-      </section>
-
       <!-- 编辑器行距 -->
       <section class="summarize-section">
         <div class="summarize-label">
@@ -236,14 +220,6 @@ const toggleAttachmentOption = async (
 ) => {
   config.value[key] = value;
   await handleConfigChange();
-};
-
-const toggleEditorLineNumbers = async (value: boolean) => {
-  try {
-    await configurationStore.updateEditorLineNumbers(value);
-  } catch (error) {
-    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
-  }
 };
 
 const changeEditorLineHeight = async (value: number | number[]) => {

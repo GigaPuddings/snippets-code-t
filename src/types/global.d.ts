@@ -85,7 +85,6 @@ declare global {
     autoStart: boolean;
     autoUpdateCheck: boolean;
     autoHideOnBlur: boolean;
-    editorLineNumbers: boolean;
     editorLineHeight: number;
   }
 

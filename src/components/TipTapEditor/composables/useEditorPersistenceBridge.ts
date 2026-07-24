@@ -2,6 +2,7 @@ import { nextTick, ref, type Ref } from 'vue';
 import { jsonToMarkdown, markdownToHtml } from '../utils/markdown';
 
 export interface EditorPersistenceBridgeEditor {
+  isDestroyed?: boolean;
   getJSON: () => unknown;
   getHTML: () => string;
   getText: () => string;
@@ -21,10 +22,17 @@ interface UseEditorPersistenceBridgeOptions {
   debounceMs?: number;
 }
 
-function debounce<T extends (...args: Parameters<T>) => void>(fn: T, wait: number) {
+type DebouncedFunction<TArgs extends unknown[]> = ((...args: TArgs) => void) & {
+  cancel: () => void;
+};
+
+function debounce<TArgs extends unknown[]>(
+  fn: (...args: TArgs) => void,
+  wait: number
+): DebouncedFunction<TArgs> {
   let timeout: ReturnType<typeof setTimeout> | null = null;
 
-  return (...args: Parameters<T>) => {
+  const debounced = (...args: TArgs) => {
     if (timeout) {
       clearTimeout(timeout);
     }
@@ -34,13 +42,31 @@ function debounce<T extends (...args: Parameters<T>) => void>(fn: T, wait: numbe
       timeout = null;
     }, wait);
   };
+
+  debounced.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+
+  return debounced;
 }
 
 export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOptions) {
   const isInternalUpdate = ref(false);
   const lastEmittedContent = ref('');
+  let isDisposed = false;
+
+  const isEditorAvailable = (
+    editorInstance?: EditorPersistenceBridgeEditor | null
+  ): editorInstance is EditorPersistenceBridgeEditor => {
+    return Boolean(editorInstance && editorInstance.isDestroyed !== true);
+  };
 
   const debouncedEmitUpdate = debounce((editorInstance: EditorPersistenceBridgeEditor) => {
+    if (isDisposed || !isEditorAvailable(editorInstance)) return;
+
     try {
       const markdown = jsonToMarkdown(editorInstance.getJSON());
       options.emitContentChange(markdown);
@@ -51,12 +77,16 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
   }, options.debounceMs ?? 150);
 
   const handleEditorUpdate = (editorInstance: EditorPersistenceBridgeEditor) => {
+    if (isDisposed || !isEditorAvailable(editorInstance)) return;
+
     isInternalUpdate.value = true;
     options.updateStats(editorInstance.getText());
     debouncedEmitUpdate(editorInstance);
 
     nextTick(() => {
-      isInternalUpdate.value = false;
+      if (!isDisposed) {
+        isInternalUpdate.value = false;
+      }
     });
   };
 
@@ -71,14 +101,17 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
   };
 
   const applySourceContentToEditor = (editorInstance?: EditorPersistenceBridgeEditor | null) => {
-    if (!editorInstance) return;
+    if (isDisposed || !isEditorAvailable(editorInstance)) return;
 
     try {
+      debouncedEmitUpdate.cancel();
       const html = markdownToHtml(options.sourceContent.value, options.workspaceRoot.value);
       editorInstance.commands.setContent(html || '<p></p>', { emitUpdate: false });
       lastEmittedContent.value = html;
       nextTick(() => {
-        options.emitContentChange(options.sourceContent.value);
+        if (!isDisposed) {
+          options.emitContentChange(options.sourceContent.value);
+        }
       });
     } catch (error) {
       console.error('Failed to parse Markdown:', error);
@@ -90,12 +123,18 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
     newContent: string,
     editorInstance?: EditorPersistenceBridgeEditor | null
   ) => {
-    if (isInternalUpdate.value || lastEmittedContent.value === newContent) {
+    if (
+      isDisposed ||
+      !isEditorAvailable(editorInstance) ||
+      isInternalUpdate.value ||
+      lastEmittedContent.value === newContent
+    ) {
       return;
     }
 
     try {
-      if (editorInstance && editorInstance.getHTML() !== newContent) {
+      if (editorInstance.getHTML() !== newContent) {
+        debouncedEmitUpdate.cancel();
         editorInstance.commands.setContent(newContent, { emitUpdate: false });
         lastEmittedContent.value = newContent;
         options.updateStats(editorInstance.getText());
@@ -105,12 +144,19 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
     }
   };
 
+  const dispose = () => {
+    isDisposed = true;
+    isInternalUpdate.value = false;
+    debouncedEmitUpdate.cancel();
+  };
+
   return {
     isInternalUpdate,
     lastEmittedContent,
     handleEditorUpdate,
     emitSourceContentChange,
     applySourceContentToEditor,
-    syncIncomingContent
+    syncIncomingContent,
+    dispose
   };
 }

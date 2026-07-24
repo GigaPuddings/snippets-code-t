@@ -142,4 +142,27 @@ describe('useEditorPersistenceBridge', () => {
 
     expect(setContent).not.toHaveBeenCalled();
   });
+
+  it('does not sync content into an editor whose view has already been destroyed', () => {
+    const bridge = createBridge();
+    const { editor, setContent } = createEditor({ isDestroyed: true });
+
+    bridge.syncIncomingContent('<p>new</p>', editor);
+
+    expect(setContent).not.toHaveBeenCalled();
+    expect(bridge.handleError).not.toHaveBeenCalled();
+  });
+
+  it('cancels a pending persistence update when the editor bridge is disposed', async () => {
+    vi.useFakeTimers();
+    const bridge = createBridge();
+    const { editor } = createEditor();
+
+    bridge.handleEditorUpdate(editor);
+    bridge.dispose();
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(bridge.emitContentChange).not.toHaveBeenCalled();
+    expect(bridge.isInternalUpdate.value).toBe(false);
+  });
 });
