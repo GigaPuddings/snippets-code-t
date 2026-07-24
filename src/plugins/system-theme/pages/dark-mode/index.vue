@@ -10,7 +10,7 @@
     >
       <div class="flex items-center gap-2">
         <div class="title-icon-wrap">
-          <Moon class="text-lg" theme="filled" />
+          <Contrast :size="18" :stroke-width="3.5" />
         </div>
         <h1 class="m-0 text-base font-medium tracking-tight">
           {{ $t('darkMode.title') }}
@@ -43,7 +43,12 @@
             />
             <div class="mode-content mode-system">
               <span class="mode-icon-wrap">
-                <Computer class="mode-icon" theme="filled" :size="22" />
+                <Computer
+                  class="mode-icon"
+                  theme="outline"
+                  :size="19"
+                  :stroke-width="3.5"
+                />
               </span>
               <div class="mode-body">
                 <span class="mode-title">{{ $t('darkMode.systemMode') }}</span>
@@ -63,7 +68,12 @@
             />
             <div class="mode-content mode-light">
               <span class="mode-icon-wrap">
-                <SunOne class="mode-icon" theme="filled" :size="22" />
+                <Sun
+                  class="mode-icon"
+                  theme="outline"
+                  :size="19"
+                  :stroke-width="3.5"
+                />
               </span>
               <div class="mode-body">
                 <span class="mode-title">{{ $t('darkMode.lightMode') }}</span>
@@ -83,7 +93,12 @@
             />
             <div class="mode-content mode-dark">
               <span class="mode-icon-wrap">
-                <Moon class="mode-icon" theme="filled" :size="22" />
+                <Moon
+                  class="mode-icon"
+                  theme="outline"
+                  :size="18"
+                  :stroke-width="3.5"
+                />
               </span>
               <div class="mode-body">
                 <span class="mode-title">{{ $t('darkMode.darkMode') }}</span>
@@ -101,7 +116,12 @@
             />
             <div class="mode-content mode-schedule">
               <span class="mode-icon-wrap">
-                <Time class="mode-icon" theme="filled" :size="22" />
+                <Time
+                  class="mode-icon"
+                  theme="outline"
+                  :size="19"
+                  :stroke-width="3.5"
+                />
               </span>
               <div class="mode-body">
                 <span class="mode-title">
@@ -341,7 +361,11 @@
           <div class="inset-card time-settings">
             <label class="time-row">
               <span class="time-label-text">
-                <SunOne theme="filled" :size="18" />
+                <Sun
+                  theme="outline"
+                  :size="18"
+                  :stroke-width="3.5"
+                />
                 {{ $t('darkMode.lightModeStart') }}
               </span>
               <input
@@ -353,7 +377,11 @@
             </label>
             <label class="time-row">
               <span class="time-label-text">
-                <Moon theme="filled" :size="18" />
+                <Moon
+                  theme="outline"
+                  :size="18"
+                  :stroke-width="3.5"
+                />
                 {{ $t('darkMode.darkModeStart') }}
               </span>
               <input
@@ -381,9 +409,10 @@ import {
   Close,
   Sunrise,
   Sunset,
-  SunOne,
+  Sun,
   Computer,
   Time,
+  Contrast,
   Local,
   Refresh
 } from '@icon-park/vue-next';
@@ -700,17 +729,18 @@ onUnmounted(() => {
   --dm-accent-ring: rgba(99, 102, 241, 0.2);
   --dm-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   --dm-close-hover-fg: #475569;
-
-  --dm-slate-bg: #f1f5f9;
-  --dm-slate-fg: #64748b;
+  --dm-icon-bg: #f8fafc;
+  --dm-icon-border: #e2e8f0;
+  --dm-icon-fg: #475569;
+  --dm-icon-hover-bg: #f1f5f9;
+  --dm-icon-hover-border: #cbd5e1;
+  --dm-icon-selected-bg: #eef2ff;
+  --dm-icon-selected-border: #c7d2fe;
+  --dm-icon-selected-fg: #4f46e5;
   --dm-amber-bg: #fef3c7;
   --dm-amber-fg: #b45309;
   --dm-indigo-bg: #e0e7ff;
   --dm-indigo-fg: #4f46e5;
-  --dm-indigo-title-bg: #e0e7ff;
-  --dm-indigo-title-fg: #4f46e5;
-  --dm-teal-bg: #ccfbf1;
-  --dm-teal-fg: #0d9488;
   --dm-emerald-bg: #d1fae5;
   --dm-emerald-fg: #047857;
   --dm-red-bg: #fee2e2;
@@ -747,17 +777,18 @@ onUnmounted(() => {
   --dm-accent-ring: rgba(129, 140, 248, 0.25);
   --dm-shadow: none;
   --dm-close-hover-fg: #fafafa;
-
-  --dm-slate-bg: #27272a;
-  --dm-slate-fg: #a1a1aa;
+  --dm-icon-bg: #202024;
+  --dm-icon-border: #3f3f46;
+  --dm-icon-fg: #a1a1aa;
+  --dm-icon-hover-bg: #27272a;
+  --dm-icon-hover-border: #52525b;
+  --dm-icon-selected-bg: rgb(129 140 248 / 12%);
+  --dm-icon-selected-border: rgb(165 180 252 / 38%);
+  --dm-icon-selected-fg: #a5b4fc;
   --dm-amber-bg: #422006;
   --dm-amber-fg: #fbbf24;
   --dm-indigo-bg: #312e81;
   --dm-indigo-fg: #a5b4fc;
-  --dm-indigo-title-bg: #4338ca;
-  --dm-indigo-title-fg: #c7d2fe;
-  --dm-teal-bg: #134e4a;
-  --dm-teal-fg: #5eead4;
   --dm-emerald-bg: #064e3b;
   --dm-emerald-fg: #6ee7b7;
   --dm-red-bg: #7f1d1d;
@@ -777,7 +808,11 @@ onUnmounted(() => {
 }
 
 .title-icon-wrap {
-  @apply w-[30px] h-[30px] rounded-lg flex items-center justify-center bg-dm-indigo-title text-dm-indigo-title;
+  @apply w-[30px] h-[30px] rounded-lg flex items-center justify-center;
+
+  color: var(--dm-icon-fg);
+  background: var(--dm-icon-bg);
+  border: 1px solid var(--dm-icon-border);
 }
 
 .close-btn {
@@ -816,19 +851,14 @@ onUnmounted(() => {
 
 .mode-icon-wrap {
   @apply w-[34px] h-[34px] rounded-lg flex items-center justify-center shrink-0;
-}
 
-.mode-system .mode-icon-wrap {
-  @apply bg-dm-slate text-dm-slate;
-}
-.mode-light .mode-icon-wrap {
-  @apply bg-dm-amber text-dm-amber;
-}
-.mode-dark .mode-icon-wrap {
-  @apply bg-dm-indigo text-dm-indigo;
-}
-.mode-schedule .mode-icon-wrap {
-  @apply bg-dm-teal text-dm-teal;
+  color: var(--dm-icon-fg);
+  background: var(--dm-icon-bg);
+  border: 1px solid var(--dm-icon-border);
+  transition:
+    color 0.2s,
+    background 0.2s,
+    border-color 0.2s;
 }
 
 .mode-body {
@@ -846,6 +876,17 @@ onUnmounted(() => {
 // 选中态
 .mode-option input:checked + .mode-content {
   @apply border-dm-accent bg-dm-accent-soft shadow-dm-ring;
+}
+
+.mode-option:hover .mode-icon-wrap {
+  background: var(--dm-icon-hover-bg);
+  border-color: var(--dm-icon-hover-border);
+}
+
+.mode-option input:checked + .mode-content .mode-icon-wrap {
+  color: var(--dm-icon-selected-fg);
+  background: var(--dm-icon-selected-bg);
+  border-color: var(--dm-icon-selected-border);
 }
 
 // ==================== 定时方式小卡片 ====================
