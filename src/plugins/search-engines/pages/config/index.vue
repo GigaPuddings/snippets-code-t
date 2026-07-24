@@ -11,136 +11,148 @@
 
     <div class="retrieve-container">
       <div class="search-config transparent-input">
-        <div class="config-title">
+        <header class="config-title">
           <h1 class="title-text">{{ $t('retrieve.title') }}</h1>
-          <div class="flex gap-4">
+          <div class="header-actions">
             <el-tooltip
               :content="$t('retrieve.resetDefault')"
               placement="top"
               effect="light"
             >
-              <Redo
-                class="add-btn"
-                theme="outline"
-                size="22"
-                :strokeWidth="3"
-                @click="resetEngines"
-              />
+              <el-button :icon="Redo" @click="resetEngines">
+                {{ $t('common.reset') }}
+              </el-button>
             </el-tooltip>
             <el-tooltip
               :content="$t('retrieve.addNew')"
               placement="top"
               effect="light"
             >
-              <Add
-                class="add-btn"
-                theme="outline"
-                size="22"
-                :strokeWidth="3"
-                @click="handleAdd"
-              />
+              <el-button type="primary" :icon="Add" @click="handleAdd">
+                {{ $t('common.add') }}
+              </el-button>
             </el-tooltip>
           </div>
-        </div>
+        </header>
 
-        <div class="search-list">
+        <section class="search-list">
           <el-empty
             v-if="searchEngines.length === 0"
             :description="$t('retrieve.noEngines')"
           />
-          <div
-            v-for="(engine, index) in searchEngines"
-            :key="engine.id"
-            class="search-item"
-            :class="{ 'default-engine': engine.enabled }"
-          >
-            <div class="item-left">
-              <el-input
-                v-model="engine.name"
-                class="keyword-input"
-                :placeholder="$t('retrieve.name')"
-                @change="handleInputChange"
-              />
-              <div class="icon-wrapper">
-                <el-tooltip
-                  :content="$t('retrieve.icon')"
-                  placement="top"
-                  effect="light"
+          <template v-else>
+            <div class="search-table">
+              <div class="table-scroll">
+                <div class="table-grid table-header">
+                  <span>{{ $t('retrieve.name') }}</span>
+                  <span>{{ $t('retrieve.icon') }}</span>
+                  <span>{{ $t('retrieve.keyword') }}</span>
+                  <span>{{ $t('retrieve.urlTemplate') }}</span>
+                  <span class="justify-self-center">
+                    {{ $t('retrieve.default') }}
+                  </span>
+                  <span>{{ $t('retrieve.defaultConfig') }}</span>
+                  <span class="justify-self-center">
+                    {{ $t('retrieve.operation') }}
+                  </span>
+                </div>
+
+                <div
+                  v-for="(engine, index) in searchEngines"
+                  :key="engine.id"
+                  class="table-grid search-item"
                 >
-                  <Picture
-                    v-if="!engine.icon"
-                    class="engine-icon"
-                    theme="outline"
-                    size="26"
-                    :strokeWidth="3"
-                    strokeLinejoin="miter"
-                    strokeLinecap="butt"
+                  <el-input
+                    v-model="engine.name"
+                    :placeholder="$t('retrieve.name')"
+                    @change="handleInputChange"
                   />
-                  <img
-                    v-else
-                    class="engine-icon"
-                    :src="engine.icon || ''"
-                    :alt="engine.name"
-                    @error="handleIconError(engine)"
+
+                  <div class="icon-wrapper">
+                    <el-tooltip
+                      :content="$t('retrieve.icon')"
+                      placement="top"
+                      effect="light"
+                    >
+                      <Picture
+                        v-if="!engine.icon"
+                        class="engine-icon placeholder-icon"
+                        theme="outline"
+                        size="24"
+                        :strokeWidth="3"
+                        strokeLinejoin="miter"
+                        strokeLinecap="butt"
+                      />
+                      <img
+                        v-else
+                        class="engine-icon"
+                        :src="engine.icon || ''"
+                        :alt="engine.name"
+                        @error="handleIconError(engine)"
+                      />
+                    </el-tooltip>
+                  </div>
+
+                  <el-input
+                    v-model="engine.keyword"
+                    :placeholder="$t('retrieve.keyword')"
+                    @change="handleInputChange"
                   />
-                </el-tooltip>
+
+                  <el-input
+                    v-model="engine.url"
+                    :placeholder="$t('retrieve.urlFormat')"
+                    @change="handleUrlChange(engine)"
+                  />
+
+                  <div class="default-control">
+                    <el-switch
+                      v-model="engine.enabled"
+                      :aria-label="$t('retrieve.default')"
+                      @change="handleSwitch(index)"
+                    />
+                  </div>
+
+                  <el-select
+                    v-model="engine.name"
+                    :placeholder="$t('retrieve.defaultConfig')"
+                    clearable
+                    @change="handleSelect(index, engine.name)"
+                  >
+                    <el-option
+                      v-for="item in defaultSearchEngines"
+                      :key="item.id"
+                      :label="item.name"
+                      :value="item.name"
+                    />
+                  </el-select>
+
+                  <div class="delete-control">
+                    <el-tooltip
+                      :content="$t('retrieve.deleteEngine')"
+                      placement="top"
+                      effect="light"
+                    >
+                      <el-button
+                        class="delete-button"
+                        type="danger"
+                        text
+                        :icon="Delete"
+                        :aria-label="$t('retrieve.deleteEngine')"
+                        @click="handleDelete(index)"
+                      />
+                    </el-tooltip>
+                  </div>
+                </div>
               </div>
-              <el-input
-                v-model="engine.keyword"
-                class="engine-input"
-                :placeholder="$t('retrieve.keyword')"
-                @change="handleInputChange"
-              />
-            </div>
 
-            <div class="item-center">
-              <el-input
-                v-model="engine.url"
-                :placeholder="$t('retrieve.urlFormat')"
-                class="url-input"
-                @change="handleUrlChange(engine)"
-              />
+              <div class="url-tip">
+                <Info theme="outline" size="17" :strokeWidth="3" />
+                <span>{{ $t('retrieve.urlFormatTip') }}</span>
+              </div>
             </div>
-
-            <div class="item-right">
-              <el-switch
-                v-model="engine.enabled"
-                class="enable-switch"
-                inline-prompt
-                :active-text="$t('retrieve.default')"
-                :inactive-text="$t('retrieve.off')"
-                active-color="#4b94f8"
-                inactive-color="#dddddd"
-                @change="handleSwitch(index)"
-              />
-              <el-select
-                class="engine-select"
-                v-model="engine.name"
-                :placeholder="$t('retrieve.defaultConfig')"
-                clearable
-                @change="handleSelect(index, engine.name)"
-              >
-                <el-option
-                  v-for="item in defaultSearchEngines"
-                  :key="item.id"
-                  :label="item.name"
-                  :value="item.name"
-                />
-              </el-select>
-              <el-tooltip :content="$t('retrieve.deleteEngine')" placement="top" effect="light">
-                <Reduce
-                  class="delete-icon"
-                  theme="outline"
-                  size="22"
-                  :strokeWidth="3"
-                  strokeLinejoin="miter"
-                  strokeLinecap="butt"
-                  @click="handleDelete(index)"
-                />
-              </el-tooltip>
-            </div>
-          </div>
-        </div>
+          </template>
+        </section>
       </div>
     </div>
   </main>
@@ -159,7 +171,14 @@
 </template>
 
 <script setup lang="ts">
-import { Add, Redo, Reduce, Picture, Loading as LoadingIcon } from '@icon-park/vue-next';
+import {
+  Add,
+  Redo,
+  Delete,
+  Info,
+  Picture,
+  Loading as LoadingIcon
+} from '@icon-park/vue-next';
 import { uuid } from '@/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
@@ -476,12 +495,14 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 <style scoped lang="scss">
 .scanning-overlay {
   @apply absolute inset-0 z-50 flex items-center justify-center bg-white/90 dark:bg-[rgba(30,30,30,0.9)];
+
   backdrop-filter: blur(4px);
   
   .scanning-content {
     @apply flex flex-col items-center gap-3 p-6 rounded-lg border border-panel;
-    background: var(--search-bg);
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+
+    background: var(--search-bg-color);
+    box-shadow: 0 12px 30px rgb(15 23 42 / 14%);
     
     .scanning-icon {
       @apply text-blue-500;
@@ -501,38 +522,62 @@ const handleIconError = async (engine: SearchEngineConfig) => {
   @apply relative w-full h-full overflow-hidden p-4 pt-2 text-panel;
 
   .search-config {
-    @apply h-full flex flex-col;
+    @apply h-full flex flex-col min-h-0;
 
     .config-title {
-      @apply flex items-center justify-between mb-2 px-3 py-2 rounded-md bg-panel border border-panel;
+      @apply flex items-center justify-between gap-4 mb-3 px-5 py-4 rounded-md bg-panel border border-panel;
 
       .title-text {
-        @apply text-base font-semibold text-panel;
+        @apply text-lg font-semibold text-panel;
       }
 
-      .add-btn {
-        @apply cursor-pointer rounded-md p-1 text-panel-text-secondary transition-colors;
-
-        &:hover {
-          color: var(--search-result-accent);
-          background: var(--search-result-active);
-        }
+      .header-actions {
+        @apply flex items-center gap-2 flex-shrink-0;
       }
     }
 
     .search-list {
-      @apply flex-grow overflow-y-auto pr-1;
+      @apply flex-1 min-h-0;
+
+      :deep(.el-empty) {
+        @apply h-full bg-panel border border-panel rounded-md;
+      }
+
+      .search-table {
+        @apply h-full flex flex-col min-h-0 overflow-hidden bg-panel border border-panel rounded-md;
+      }
+
+      .table-scroll {
+        @apply flex-1 min-h-0 overflow-auto;
+      }
+
+      .table-grid {
+        display: grid;
+        grid-template-columns:
+          minmax(132px, 1.1fr)
+          72px
+          minmax(128px, 0.9fr)
+          minmax(280px, 2.55fr)
+          80px
+          minmax(138px, 1.05fr)
+          58px;
+        column-gap: 20px;
+        align-items: center;
+        min-width: 1060px;
+      }
+
+      .table-header {
+        @apply sticky top-0 z-10 px-5 py-4 text-sm font-semibold text-panel-text-secondary border-b border-panel;
+
+        background: var(--categories-panel-bg);
+      }
 
       .search-item {
-        @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-3 py-3 mb-3 last:mb-0 bg-panel rounded-md border border-panel transition-colors;
-
-        &.default-engine {
-          border-color: var(--search-result-active-border);
-          background: var(--search-result-active);
-        }
+        @apply px-5 py-4 border-b border-panel transition-colors last:border-b-0;
 
         :deep(.el-input__wrapper) {
           @apply border border-panel rounded-md shadow-none;
+
           min-height: 36px;
           background: var(--search-input-bg);
 
@@ -546,62 +591,65 @@ const handleIconError = async (engine: SearchEngineConfig) => {
           }
         }
 
-        &.is-editing {
-          @apply bg-content;
-        }
+        :deep(.el-select__wrapper) {
+          @apply border border-panel rounded-md shadow-none;
 
-        .item-left {
-          @apply flex items-center gap-3 flex-wrap sm:flex-nowrap min-w-0;
+          min-height: 36px;
+          background: var(--search-input-bg);
 
-          .icon-wrapper {
-            @apply flex items-center justify-center w-10 h-10 mx-1 bg-content border border-panel rounded-md overflow-hidden flex-shrink-0;
-
-            .engine-icon {
-              @apply w-6 h-6 object-contain rounded;
-            }
-          }
-
-          .engine-name {
-            @apply text-sm;
-          }
-
-          .keyword-input {
-            @apply w-[80px] sm:w-[100px] shrink-0;
-          }
-
-          .engine-input {
-            @apply shrink-0 w-[100px] sm:w-[140px];
+          &:hover,
+          &.is-focused {
+            border-color: var(--search-result-active-border);
           }
         }
 
-        .item-center {
-          @apply flex-1 mx-0 sm:mx-4 min-w-0;
+        .icon-wrapper {
+          @apply flex items-center justify-center w-9 h-9 justify-self-center overflow-hidden;
+
+          .engine-icon {
+            @apply w-8 h-8 object-contain rounded;
+          }
+
+          .placeholder-icon {
+            @apply text-panel-text-secondary;
+          }
         }
 
-        .item-right {
-          @apply flex items-center gap-3 flex-wrap sm:flex-nowrap justify-end;
+        .default-control,
+        .delete-control {
+          @apply flex items-center justify-center;
+        }
 
-          .engine-select {
-            @apply w-full sm:w-[140px] min-w-[120px];
+        .delete-button {
+          @apply px-2;
+        }
+      }
 
-            :deep(.el-select__wrapper) {
-              @apply border border-panel rounded-md shadow-none;
-              min-height: 36px;
-              background: var(--search-input-bg);
+      .url-tip {
+        @apply flex items-center gap-2 mx-5 my-4 px-4 py-3 rounded-md text-sm text-panel-text-secondary;
 
-              &:hover {
-                border-color: var(--search-result-active-border);
-              }
-            }
-          }
+        background: var(--search-soft-bg);
+      }
+    }
+  }
+}
 
-          .delete-icon {
-            @apply cursor-pointer text-red-500 transition-colors flex-shrink-0 rounded-md p-1;
+@media (width <= 768px) {
+  .retrieve-container {
+    @apply p-3;
 
-            &:hover {
-              @apply text-red-600 bg-red-500/10;
-            }
-          }
+    .search-config {
+      .config-title {
+        @apply px-4 py-3;
+
+        .title-text {
+          @apply text-base;
+        }
+      }
+
+      .search-list {
+        .table-grid {
+          column-gap: 16px;
         }
       }
     }
