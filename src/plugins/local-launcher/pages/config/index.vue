@@ -115,7 +115,7 @@
                       :content="$t('local.usedTimes', { count: item.usage_count })"
                       placement="top"
                     >
-                      <span class="usage-indicator__dot"></span>
+                      <span class="usage-indicator__count">{{ formatUsageCount(item.usage_count) }}</span>
                     </el-tooltip>
                   </div>
                 </div>
@@ -436,6 +436,9 @@ const getUsageLevel = (count: number) => {
   return 1;                      // 偶尔使用：蓝色
 };
 
+// 使用次数徽标文案（超出两位数时收敛显示）
+const formatUsageCount = (count: number) => (count > 99 ? '99+' : `${count}`);
+
 // 检查扫描状态
 const checkScanStatus = async () => {
   try {
@@ -654,34 +657,41 @@ onUnmounted(() => {
               }
 
               .usage-indicator {
-                @apply inline-flex flex-shrink-0 w-4 h-4 items-center justify-center rounded;
+                @apply inline-flex flex-shrink-0 items-center justify-center rounded-full px-1.5 h-[18px] min-w-[18px];
 
-                .usage-indicator__dot {
-                  @apply block w-2 h-2 rounded-full;
+                .usage-indicator__count {
+                  @apply block text-[10px] font-semibold leading-none font-mono;
                 }
 
                 &.usage-level-1 {
-                  .usage-indicator__dot {
-                    @apply bg-blue-500;
+                  @apply text-blue-600 bg-blue-500/10 dark:text-blue-300;
+
+                  .usage-indicator__count {
+                    @apply text-blue-600 dark:text-blue-300;
                   }
                 }
 
                 &.usage-level-2 {
-                  .usage-indicator__dot {
-                    @apply bg-green-500;
+                  @apply text-green-600 bg-green-500/10 dark:text-green-300;
+
+                  .usage-indicator__count {
+                    @apply text-green-600 dark:text-green-300;
                   }
                 }
 
                 &.usage-level-3 {
-                  .usage-indicator__dot {
-                    @apply bg-orange-500;
+                  @apply text-orange-600 bg-orange-500/10 dark:text-orange-300;
+
+                  .usage-indicator__count {
+                    @apply text-orange-600 dark:text-orange-300;
                   }
                 }
 
                 &.usage-level-4 {
-                  .usage-indicator__dot {
-                    @apply bg-red-500;
-                    animation: pulse-dot 2s ease-in-out infinite;
+                  @apply text-red-600 bg-red-500/10 dark:text-red-300;
+
+                  .usage-indicator__count {
+                    @apply text-red-600 dark:text-red-300;
                   }
                 }
               }
@@ -702,18 +712,6 @@ onUnmounted(() => {
         }
       }
     }
-  }
-}
-
-// 脉动动画（仅用于最高等级）
-@keyframes pulse-dot {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 0.8;
   }
 }
 </style>

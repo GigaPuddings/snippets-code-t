@@ -10,6 +10,9 @@ pub trait DbEntity: Sized {
     const TABLE_NAME: &'static str;
     // 汇总类型（用于 summarize 字段）
     const SUMMARIZE_TYPE: &'static str;
+    // 搜索历史 key 的类别（与前端 searchRanking 的 createHistoryKey 保持一致：
+    // 应用/文件类用 path，书签类用 url）
+    const HISTORY_KEY_KIND: &'static str;
 
     // 从数据库行构造实体
     fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self>;
@@ -34,6 +37,7 @@ pub trait DbEntity: Sized {
 impl DbEntity for AppInfo {
     const TABLE_NAME: &'static str = "apps";
     const SUMMARIZE_TYPE: &'static str = "app";
+    const HISTORY_KEY_KIND: &'static str = "path";
 
     fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         Ok(AppInfo {
@@ -74,6 +78,7 @@ impl DbEntity for AppInfo {
 impl DbEntity for BookmarkInfo {
     const TABLE_NAME: &'static str = "bookmarks";
     const SUMMARIZE_TYPE: &'static str = "bookmark";
+    const HISTORY_KEY_KIND: &'static str = "url";
 
     fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         Ok(BookmarkInfo {
@@ -121,22 +126,34 @@ pub(crate) fn get_all_entities<T: DbEntity>() -> Result<Vec<T>, rusqlite::Error>
         .prepare(&format!("SELECT created_at FROM {} LIMIT 1", T::TABLE_NAME))
         .is_ok();
 
-    // 使用 search_history 表中的 usage_count 来排序
+    // 使用 search_history 表中的 usage_count 来排序。
+    //
+    // 历史记录的 key 与前端 searchRanking.getPrimarySearchHistoryKey 保持一致：
+    // `{summarize}:{kind}:{normalized_content}`，其中 normalized_content 的规则为
+    // trim → 小写 → 反斜杠转正斜杠 → 去掉尾部斜杠。
+    // 实体主键 id 是每次扫描重新生成的 UUID，不能直接用来 JOIN 历史记录。
+    let history_key_expr = format!(
+        "'{}:{}:' || RTRIM(REPLACE(LOWER(TRIM(t.content)), '\\', '/'), '/')",
+        T::SUMMARIZE_TYPE,
+        T::HISTORY_KEY_KIND
+    );
     let query = if has_created_at {
         format!(
             "SELECT t.id, t.title, t.content, t.icon, t.summarize, COALESCE(h.usage_count, 0) as usage_count
              FROM {} t
-             LEFT JOIN search_history h ON t.id = h.id
+             LEFT JOIN search_history h ON h.id = {}
              ORDER BY COALESCE(h.usage_count, 0) DESC, t.created_at DESC",
-            T::TABLE_NAME
+            T::TABLE_NAME,
+            history_key_expr
         )
     } else {
         format!(
             "SELECT t.id, t.title, t.content, t.icon, t.summarize, COALESCE(h.usage_count, 0) as usage_count
              FROM {} t
-             LEFT JOIN search_history h ON t.id = h.id
+             LEFT JOIN search_history h ON h.id = {}
              ORDER BY COALESCE(h.usage_count, 0) DESC",
-            T::TABLE_NAME
+            T::TABLE_NAME,
+            history_key_expr
         )
     };
 
