@@ -199,6 +199,7 @@ import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import EditDialog from './components/EditDialog.vue';
 import { ConfirmDialog } from '@/components/UI';
+import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
 
 defineOptions({
   name: 'Local',
@@ -313,8 +314,17 @@ const handleEdit = (item: AppInfo | BookmarkInfo) => {
 // 点击项目（非编辑模式）
 const handleItemClick = async (item: AppInfo | BookmarkInfo) => {
   try {
-    // 记录使用历史
-    await invoke('add_search_history', { id: item.id });
+    // 记录使用历史：与快速搜索窗口使用同一套稳定 key（app:path:* / bookmark:url:*），
+    // 保证两侧的使用次数统计写入同一条记录
+    const source = activeTab.value === 'app' ? 'app' : 'bookmark';
+    const historyKey = getPrimarySearchHistoryKey({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      summarize: source,
+      metadata: { source }
+    });
+    await invoke('add_search_history', { id: historyKey });
     
     // 打开应用或书签
     if (activeTab.value === 'app') {

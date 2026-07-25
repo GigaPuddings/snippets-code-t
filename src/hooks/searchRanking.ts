@@ -16,6 +16,68 @@ interface RankedSearchItem {
   history?: SearchHistoryMeta;
 }
 
+/**
+ * 使用频率加分的次数上限，避免历史总次数无限放大压制搜索相关性
+ */
+const HISTORY_USAGE_SCORE_CAP = 20;
+
+/**
+ * 每次使用贡献的基础分
+ */
+const HISTORY_USAGE_SCORE_PER_USE = 1200;
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const parseHistoryTime = (value: string): number => {
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+};
+
+/**
+ * 频率分的时效因子（frecency 中的 recency 维度）。
+ *
+ * 使用频率分如果只统计历史总次数，"很久以前用过很多次、但近期不再使用"的
+ * 条目会永久霸榜，而"最近才开始高频使用"的条目因为累计次数少反而排不上来。
+ * 按时效分段衰减后，近期使用权重最高，远古高频记录逐步让位：
+ *
+ * - 24 小时内使用：全额
+ * - 7 天内使用：85%
+ * - 30 天内使用：60%
+ * - 90 天内使用：35%
+ * - 更早：15%
+ *
+ * @param lastUsedAt - 最后使用时间（RFC3339/ISO 字符串）
+ * @param now - 当前时间戳（可注入便于测试）
+ */
+export const getHistoryRecencyFactor = (
+  lastUsedAt: string,
+  now: number = Date.now()
+): number => {
+  const lastUsedTime = parseHistoryTime(lastUsedAt);
+  if (!lastUsedTime) return 0.5;
+  if (now <= lastUsedTime) return 1;
+
+  const age = now - lastUsedTime;
+  if (age <= DAY_IN_MS) return 1;
+  if (age <= 7 * DAY_IN_MS) return 0.85;
+  if (age <= 30 * DAY_IN_MS) return 0.6;
+  if (age <= 90 * DAY_IN_MS) return 0.35;
+  return 0.15;
+};
+
+/**
+ * 计算条目的使用频率加分：次数（封顶）× 单次分 × 时效因子
+ */
+export const calculateHistoryScore = (
+  history: SearchHistoryMeta,
+  now: number = Date.now()
+): number =>
+  Math.round(
+    Math.min(history.usage_count, HISTORY_USAGE_SCORE_CAP) *
+      HISTORY_USAGE_SCORE_PER_USE *
+      getHistoryRecencyFactor(history.last_used_at, now)
+  );
+
 const SOURCE_TIE_BREAKER: Record<string, number> = {
   'quick-tools': 6,
   app: 4,
@@ -191,16 +253,45 @@ export const getPrimarySearchHistoryKey = (item: ContentType): string => {
     : (keys[0] ?? getRawId(item));
 };
 
+/**
+ * 查找条目的使用历史。
+ *
+ * 历史记录的 key 经历过格式演进（早期写入 raw_id，后续改为
+ * `app:path:*` / `bookmark:url:*` 等稳定 key），同一条目在数据库中
+ * 可能同时存在多条历史记录。此前按 key 顺序"第一个命中即返回"会让
+ * 旧记录遮蔽新记录，新累积的使用次数永远读不到，高频使用的条目
+ * 拿不到应有的频率加分。
+ *
+ * 现在合并所有命中的记录：usage_count 求和（同一条目的全部使用
+ * 记录）、last_used_at 取最近一次。
+ */
 const getSearchHistory = (
   item: ContentType,
   historyMap: Map<string, SearchHistoryMeta>
 ): SearchHistoryMeta | undefined => {
+  let matched = false;
+  let usageCount = 0;
+  let lastUsedTime = 0;
+
   for (const key of getSearchHistoryKeys(item)) {
     const history = historyMap.get(key);
-    if (history) return history;
+    if (!history) continue;
+
+    matched = true;
+    usageCount += history.usage_count;
+
+    const historyTime = parseHistoryTime(history.last_used_at);
+    if (historyTime > lastUsedTime) {
+      lastUsedTime = historyTime;
+    }
   }
 
-  return undefined;
+  if (!matched) return undefined;
+
+  return {
+    usage_count: usageCount,
+    last_used_at: lastUsedTime ? new Date(lastUsedTime).toISOString() : ''
+  };
 };
 
 const getBackendScore = (item: ContentType): number =>
@@ -402,9 +493,7 @@ export const rankSearchResults = (
     .filter((item) => isRelevantSearchResult(item, query, options))
     .map<RankedSearchItem>((item, index) => {
       const history = getSearchHistory(item, historyMap);
-      const historyScore = history
-        ? Math.min(history.usage_count, 20) * 1200
-        : 0;
+      const historyScore = history ? calculateHistoryScore(history) : 0;
       const score =
         calculateSearchRelevance(item, query, options) + historyScore;
 

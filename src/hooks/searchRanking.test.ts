@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ContentType } from '@/types';
 import {
   calculateSearchRelevance,
+  getHistoryRecencyFactor,
   getPrimarySearchHistoryKey,
   getSearchTokens,
   isRelevantSearchResult,
@@ -364,6 +365,110 @@ describe('searchRanking', () => {
         deepSearch: false
       }).map((item) => item.id)
     ).toEqual(['quick-tools-unit']);
+  });
+
+  it('decays history weight as usage ages', () => {
+    const now = Date.parse('2026-07-25T00:00:00.000Z');
+
+    expect(getHistoryRecencyFactor('2026-07-24T12:00:00.000Z', now)).toBe(1);
+    expect(getHistoryRecencyFactor('2026-07-20T00:00:00.000Z', now)).toBe(0.85);
+    expect(getHistoryRecencyFactor('2026-07-01T00:00:00.000Z', now)).toBe(0.6);
+    expect(getHistoryRecencyFactor('2026-05-25T00:00:00.000Z', now)).toBe(0.35);
+    expect(getHistoryRecencyFactor('2025-01-01T00:00:00.000Z', now)).toBe(0.15);
+    expect(getHistoryRecencyFactor('', now)).toBe(0.5);
+    expect(getHistoryRecencyFactor('2026-08-01T00:00:00.000Z', now)).toBe(1);
+  });
+
+  it('merges history records across legacy and stable keys', () => {
+    const app = createItem({
+      id: 'app:stable-id',
+      title: 'Visual Studio Code',
+      content: 'C:\\Users\\zero\\Code\\Code.exe',
+      summarize: 'app',
+      metadata: { source: 'app', raw_id: 'legacy-id' }
+    });
+    const other = createItem({
+      id: 'app:other-id',
+      title: 'Code Writer',
+      content: 'C:\\Tools\\CodeWriter.exe',
+      summarize: 'app',
+      metadata: { source: 'app', raw_id: 'other-id' }
+    });
+
+    const historyKey = getPrimarySearchHistoryKey(app);
+    const ranked = rankSearchResults(
+      [other, app],
+      'code',
+      new Map([
+        [
+          'legacy-id',
+          { usage_count: 3, last_used_at: '2020-01-01T00:00:00.000Z' }
+        ],
+        [historyKey, { usage_count: 5, last_used_at: new Date().toISOString() }]
+      ]),
+      { deepSearch: true }
+    );
+
+    expect(ranked[0].id).toBe('app:stable-id');
+    expect(ranked[0].metadata?.history_usage_count).toBe(8);
+  });
+
+  it('ranks recently used items above long-stale ones with higher lifetime usage', () => {
+    const staleFrequent = createItem({
+      id: 'stale',
+      title: 'Modal helper',
+      content: 'modal'
+    });
+    const recentlyUsed = createItem({
+      id: 'recent',
+      title: 'Modal helper',
+      content: 'modal'
+    });
+
+    const ranked = rankSearchResults(
+      [staleFrequent, recentlyUsed],
+      'modal',
+      new Map([
+        [
+          'stale',
+          { usage_count: 20, last_used_at: '2020-01-01T00:00:00.000Z' }
+        ],
+        ['recent', { usage_count: 5, last_used_at: new Date().toISOString() }]
+      ]),
+      { deepSearch: true }
+    );
+
+    expect(ranked[0].id).toBe('recent');
+  });
+
+  it('prefers the most recently used entry when frequency scores tie', () => {
+    const now = Date.now();
+    const older = createItem({ id: 'older', title: 'modal twin', content: '' });
+    const newer = createItem({ id: 'newer', title: 'modal twin', content: '' });
+
+    const ranked = rankSearchResults(
+      [older, newer],
+      'modal twin',
+      new Map([
+        [
+          'older',
+          {
+            usage_count: 2,
+            last_used_at: new Date(now - 3_600_000).toISOString()
+          }
+        ],
+        [
+          'newer',
+          {
+            usage_count: 2,
+            last_used_at: new Date(now - 60_000).toISOString()
+          }
+        ]
+      ]),
+      { deepSearch: true }
+    );
+
+    expect(ranked[0].id).toBe('newer');
   });
 
   it('caps backend score so indexed results cannot swamp title relevance', () => {
