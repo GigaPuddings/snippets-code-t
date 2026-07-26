@@ -489,6 +489,98 @@ describe('searchRanking', () => {
     expect(ranked[0].id).toBe('recent');
   });
 
+  it('ranks all history-backed results above stronger matches without history', () => {
+    // 复刻 "icon" 搜索场景：Yesicon(4 次) 与 IconPark(1 次)、EsIcon(1 次) 都有记录，
+    // iconfont/Iconify 相关性更强（startsWith 匹配）但无记录
+    const iconPark = createItem({
+      id: 'iconpark',
+      title: 'IconPark',
+      content: 'https://iconpark.oceanengine.com/official',
+      summarize: 'bookmark',
+      metadata: { source: 'bookmark', raw_id: 'iconpark' }
+    });
+    const iconfont = createItem({
+      id: 'iconfont',
+      title: 'iconfont-阿里巴巴矢量图标库',
+      content: 'https://www.iconfont.cn/',
+      summarize: 'bookmark',
+      metadata: { source: 'bookmark', raw_id: 'iconfont' }
+    });
+    const yesicon = createItem({
+      id: 'yesicon',
+      title: 'Yesicon - 精选全球高品质图标库',
+      content: 'https://yesicon.app/',
+      summarize: 'bookmark',
+      metadata: { source: 'bookmark', raw_id: 'yesicon' }
+    });
+    const esicon = createItem({
+      id: 'esicon',
+      title: 'EsIcon获取图标',
+      content: 'https://favicon.vwood.xyz/',
+      summarize: 'bookmark',
+      metadata: { source: 'bookmark', raw_id: 'esicon' }
+    });
+
+    const now = Date.now();
+    const ranked = rankSearchResults(
+      [iconPark, iconfont, yesicon, esicon],
+      'icon',
+      new Map([
+        [
+          getPrimarySearchHistoryKey(iconPark),
+          { usage_count: 1, last_used_at: new Date(now).toISOString() }
+        ],
+        [
+          getPrimarySearchHistoryKey(yesicon),
+          { usage_count: 4, last_used_at: new Date(now).toISOString() }
+        ],
+        [
+          getPrimarySearchHistoryKey(esicon),
+          { usage_count: 1, last_used_at: new Date(now).toISOString() }
+        ]
+      ]),
+      { deepSearch: false }
+    );
+
+    // 有记录的条目全部最前；次数最多的 Yesicon 第一；
+    // 同次数按相关性（IconPark startsWith 强于 EsIcon includes）；
+    // 无记录的 iconfont 即使相关性更强也只能排在有记录之后
+    expect(ranked.map((item) => item.id)).toEqual([
+      'yesicon',
+      'iconpark',
+      'esicon',
+      'iconfont'
+    ]);
+  });
+
+  it('promotes a result to the history-backed tier after a single use', () => {
+    const strongMatch = createItem({
+      id: 'strong',
+      title: 'code runner pro',
+      content: ''
+    });
+    const usedOnce = createItem({
+      id: 'used-once',
+      title: 'my code notes',
+      content: ''
+    });
+
+    const ranked = rankSearchResults(
+      [strongMatch, usedOnce],
+      'code',
+      new Map([
+        [
+          'used-once',
+          { usage_count: 1, last_used_at: new Date().toISOString() }
+        ]
+      ]),
+      { deepSearch: true }
+    );
+
+    // 仅使用过一次也足以进入"有记录"档位，排在所有无记录条目之前
+    expect(ranked[0].id).toBe('used-once');
+  });
+
   it('prefers the most recently used entry when frequency scores tie', () => {
     const now = Date.now();
     const older = createItem({ id: 'older', title: 'modal twin', content: '' });
@@ -538,5 +630,95 @@ describe('searchRanking', () => {
         deepSearch: true
       })
     );
+  });
+
+  describe('history key contract after the full search pipeline', () => {
+    // 与 src/hooks/useSearch.ts 的 withSourceId 保持一致
+    const withSourceId = (
+      item: ContentType,
+      source: string,
+      index = 0
+    ): ContentType => ({
+      ...item,
+      id: `${source}:${String(item.id)}`,
+      metadata: {
+        ...(item.metadata ?? {}),
+        raw_id: item.id,
+        source,
+        source_index: index
+      }
+    });
+
+    it('keeps a stable app path key for plain apps without metadata', () => {
+      const backendItem = {
+        id: 'ac28c2a7-69e9-4734-a37b-cb628b43bad3',
+        title: 'Everything 1.4.1.1032 (x64)',
+        content: 'C:\\Program Files\\Everything\\Everything.exe',
+        summarize: 'app' as const,
+        icon: '',
+        score: 120
+      } as unknown as ContentType;
+
+      const ranked = rankSearchResults(
+        [withSourceId(backendItem, 'app', 0)],
+        'everything',
+        new Map(),
+        { deepSearch: false }
+      );
+
+      expect(ranked).toHaveLength(1);
+      expect(getPrimarySearchHistoryKey(ranked[0])).toBe(
+        'app:path:c:/program files/everything/everything.exe'
+      );
+    });
+
+    it('prefers launch_path over display_path for shell apps', () => {
+      const backendItem = {
+        id: 'uuid-shell',
+        title: '计算器',
+        content: 'C:\\Windows\\System32\\calc.exe',
+        summarize: 'app' as const,
+        icon: '',
+        score: 100,
+        metadata: {
+          launch_path:
+            'shell:AppsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App',
+          display_path: 'C:\\Windows\\System32\\calc.exe'
+        }
+      } as unknown as ContentType;
+
+      const ranked = rankSearchResults(
+        [withSourceId(backendItem, 'app', 0)],
+        'calc',
+        new Map(),
+        { deepSearch: false }
+      );
+
+      expect(getPrimarySearchHistoryKey(ranked[0])).toBe(
+        'app:path:shell:appsfolder/microsoft.windowscalculator_8wekyb3d8bbwe!app'
+      );
+    });
+
+    it('keeps a stable bookmark URL key after ranking', () => {
+      const backendItem = {
+        id: 'aaf54dc9-0cde-4547-a034-aeb312393279',
+        title: 'bing',
+        content: 'https://www.bing.com/?FORM=Z9FD1',
+        summarize: 'bookmark' as const,
+        icon: '',
+        score: 90
+      } as unknown as ContentType;
+
+      const ranked = rankSearchResults(
+        [withSourceId(backendItem, 'bookmark', 0)],
+        'bing',
+        new Map(),
+        { deepSearch: false }
+      );
+
+      expect(getPrimarySearchHistoryKey(ranked[0])).toBe(
+        'bookmark:url:https://www.bing.com/?form=z9fd1'
+      );
+    });
   });
 });

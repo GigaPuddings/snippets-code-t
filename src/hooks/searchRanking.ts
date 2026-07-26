@@ -11,7 +11,12 @@ export interface SearchMatchOptions {
 
 interface RankedSearchItem {
   item: ContentType;
+  /** 总分 = 搜索相关性 + 使用频率分 */
   score: number;
+  /** 使用频率分（次数 × 时效因子），无记录为 0 */
+  historyScore: number;
+  /** 标题是否与查询完全匹配（精确匹配通道，防止历史淹没精确匹配） */
+  exactTitleMatch: boolean;
   sourceIndex: number;
   history?: SearchHistoryMeta;
 }
@@ -495,8 +500,10 @@ export const rankSearchResults = (
   query: string,
   historyMap: Map<string, SearchHistoryMeta>,
   options: SearchMatchOptions
-): ContentType[] =>
-  dedupeRankedItems(items
+): ContentType[] => {
+  const normalizedQuery = normalizeSearchValue(query);
+
+  return dedupeRankedItems(items
     .filter((item) => isRelevantSearchResult(item, query, options))
     .map<RankedSearchItem>((item, index) => {
       const history = getSearchHistory(item, historyMap);
@@ -514,11 +521,34 @@ export const rankSearchResults = (
           }
         },
         score,
+        historyScore,
+        exactTitleMatch:
+          Boolean(normalizedQuery) &&
+          normalizeSearchValue(item.title) === normalizedQuery,
         sourceIndex: index,
         history
       };
     })
     .sort((a, b) => {
+      // 1. 标题完全匹配优先：历史记录不应淹没精确匹配
+      if (a.exactTitleMatch !== b.exactTitleMatch) {
+        return a.exactTitleMatch ? -1 : 1;
+      }
+
+      // 2. 有使用记录的条目整体排在无记录之前。
+      //    能进入列表的条目都已通过相关性过滤，因此"我用过的"应当
+      //    始终先于"我没用过的"（启动器心智），一次使用即可生效。
+      const aHasHistory = a.history ? 1 : 0;
+      const bHasHistory = b.history ? 1 : 0;
+      if (bHasHistory !== aHasHistory) return bHasHistory - aHasHistory;
+
+      // 3. 都有记录时，频率分（次数 × 时效）高者优先，
+      //    访问次数最多的条目排最前
+      if (b.historyScore !== a.historyScore) {
+        return b.historyScore - a.historyScore;
+      }
+
+      // 4. 总分（相关性 + 频率分）降序
       if (b.score !== a.score) return b.score - a.score;
 
       const aHistoryTime = a.history
@@ -537,3 +567,4 @@ export const rankSearchResults = (
       return a.sourceIndex - b.sourceIndex;
     }))
     .map(({ item }) => item);
+};

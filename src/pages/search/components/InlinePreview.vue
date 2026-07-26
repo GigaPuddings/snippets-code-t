@@ -201,6 +201,7 @@ import { markdownToHtml, resolvePreviewImageUrls } from '@/components/TipTapEdit
 import type { ContentType } from '@/types/models';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
 import { getSearchResultIcon } from '../composables/useSearchResultIcon';
+import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
 import {
   getSearchResultDisplayPath,
   getSearchResultLaunchPath,
@@ -486,8 +487,28 @@ const heroFallbackText = computed(() => {
   return heroIconState.value.fallbackText || '∎';
 });
 
+/**
+ * 记录当前预览项的使用历史。
+ *
+ * 预览面板的打开动作（Enter 快捷键在 capture 阶段被拦截后直接调
+ * open_app_command / open_url 等）不经过 runPrimaryAction，此前从不写
+ * search_history，导致应用/书签/文件的使用次数永远统计不到，
+ * 结果列表的频率排序对这几类条目完全失效。
+ */
+async function recordUsageHistory() {
+  if (!props.item) return;
+  try {
+    await invoke('add_search_history', {
+      id: getPrimarySearchHistoryKey(props.item)
+    });
+  } catch (error) {
+    console.error('[搜索预览] 记录使用历史失败:', error);
+  }
+}
+
 async function closeAndRun(action: () => Promise<void> | void) {
   if (!props.item) return;
+  await recordUsageHistory();
   await closeWindowByLabel('main');
   await action();
 }
@@ -530,11 +551,13 @@ async function openFileWithOtherWaysAction() {
 
 async function copySnippet() {
   if (!canCopyCodeSnippet.value || !props.item) return;
+  await recordUsageHistory();
   await navigator.clipboard.writeText(normalizedContent.value);
 }
 
 async function copyBookmarkUrl() {
   if (!canCopyBookmarkUrl.value || !displayBookmarkUrl.value) return;
+  await recordUsageHistory();
   await navigator.clipboard.writeText(displayBookmarkUrl.value);
 }
 
@@ -549,6 +572,7 @@ async function openInConfig() {
   if (!canOpenInConfig.value || !props.item) return;
 
   try {
+    await recordUsageHistory();
     await openSearchResultInConfig({
       item: props.item,
       preview: props.item.type !== 'note',
