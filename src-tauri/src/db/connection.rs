@@ -79,6 +79,29 @@ pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
     })
 }
 
+fn backup_database_to_path(target_path: &std::path::Path) -> Result<(), String> {
+    let source = DbConnectionManager::get().map_err(|e| format!("打开源数据库失败: {}", e))?;
+    let mut target = rusqlite::Connection::open(target_path)
+        .map_err(|e| format!("创建备份数据库失败: {}", e))?;
+    let backup = rusqlite::backup::Backup::new(&source, &mut target)
+        .map_err(|e| format!("初始化数据库备份失败: {}", e))?;
+    backup
+        .run_to_completion(64, std::time::Duration::from_millis(20), None)
+        .map_err(|e| format!("备份数据库失败: {}", e))
+}
+
+fn restore_database_from_path(source_path: &std::path::Path) -> Result<(), String> {
+    let source = rusqlite::Connection::open(source_path)
+        .map_err(|e| format!("打开备份数据库失败: {}", e))?;
+    let mut target =
+        DbConnectionManager::get().map_err(|e| format!("打开目标数据库失败: {}", e))?;
+    let backup = rusqlite::backup::Backup::new(&source, &mut target)
+        .map_err(|e| format!("初始化数据库恢复失败: {}", e))?;
+    backup
+        .run_to_completion(64, std::time::Duration::from_millis(20), None)
+        .map_err(|e| format!("恢复数据库失败: {}", e))
+}
+
 #[tauri::command]
 pub async fn backup_database(app_handle: tauri::AppHandle, format: String) -> Result<(), String> {
     let source_path = get_database_path(&app_handle);
@@ -98,7 +121,13 @@ pub async fn backup_database(app_handle: tauri::AppHandle, format: String) -> Re
         Some(path) => {
             // 将FilePath转换为PathBuf
             let target_path = PathBuf::from(path.as_path().unwrap());
-            fs::copy(&source_path, &target_path).map_err(|e| format!("备份失败: {}", e))?;
+            if target_path == source_path {
+                return Err("备份目标不能与当前数据库相同".to_string());
+            }
+
+            // snippets.db 使用 WAL；直接复制主文件可能漏掉尚未 checkpoint 的事务。
+            // SQLite Online Backup API 会从一致性快照生成可独立恢复的目标数据库。
+            backup_database_to_path(&target_path)?;
             Ok(())
         }
         None => Err("Backup cancelled".to_string()),
@@ -121,6 +150,9 @@ pub async fn restore_database(app_handle: tauri::AppHandle) -> Result<(), String
         Some(path) => {
             // 将FilePath转换为PathBuf
             let source_path_buf = PathBuf::from(path.as_path().unwrap());
+            if source_path_buf == target_path {
+                return Err("恢复来源不能与当前数据库相同".to_string());
+            }
 
             // 验证文件是否为有效的 SQLite 数据库
             let mut file =
@@ -133,7 +165,9 @@ pub async fn restore_database(app_handle: tauri::AppHandle) -> Result<(), String
                 return Err("选择的文件不是有效的 SQLite 数据库".to_string());
             }
 
-            fs::copy(&source_path_buf, &target_path).map_err(|e| format!("恢复失败: {}", e))?;
+            // 当前数据库也可能处于 WAL 模式；通过 Backup API 写入现有连接，
+            // 避免直接替换主文件后与旧 WAL/SHM 状态不一致。
+            restore_database_from_path(&source_path_buf)?;
 
             // 重启应用以加载新数据库
             app_handle.restart();
@@ -142,6 +176,44 @@ pub async fn restore_database(app_handle: tauri::AppHandle) -> Result<(), String
         }
         None => Err("Restore cancelled".to_string()),
     }
+}
+
+fn copy_data_directory(source: &std::path::Path, target: &std::path::Path) -> Result<(), String> {
+    fs::create_dir_all(target)
+        .map_err(|e| format!("创建迁移目录失败 {}: {}", target.display(), e))?;
+    for entry in
+        fs::read_dir(source).map_err(|e| format!("读取数据目录失败 {}: {}", source.display(), e))?
+    {
+        let entry = entry.map_err(|e| format!("读取数据目录条目失败: {}", e))?;
+        let source_path = entry.path();
+        let name = entry.file_name();
+        let name_text = name.to_string_lossy();
+        if matches!(
+            name_text.as_ref(),
+            "snippets.db" | "snippets.db-wal" | "snippets.db-shm" | "path.json"
+        ) {
+            continue;
+        }
+        let target_path = target.join(&name);
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("读取数据条目类型失败 {}: {}", source_path.display(), e))?;
+        if file_type.is_symlink() {
+            log::warn!("跳过数据目录中的符号链接: {}", source_path.display());
+        } else if file_type.is_dir() {
+            copy_data_directory(&source_path, &target_path)?;
+        } else if file_type.is_file() {
+            fs::copy(&source_path, &target_path).map_err(|e| {
+                format!(
+                    "复制数据文件失败 {} -> {}: {}",
+                    source_path.display(),
+                    target_path.display(),
+                    e
+                )
+            })?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -159,27 +231,62 @@ pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, 
             // 将FilePath转换为PathBuf
             let folder_pathbuf = PathBuf::from(path.as_path().unwrap());
             let new_data_dir = folder_pathbuf.join("snippets-code");
-            let new_db_path = new_data_dir.join("snippets.db");
-            let old_db_path = get_database_path(&app_handle);
-
-            // 确保新目录存在
-            if !new_data_dir.exists() {
-                fs::create_dir_all(&new_data_dir).map_err(|e| format!("创建目录失败: {}", e))?;
+            let old_data_dir = json_config::get_data_dir(&app_handle);
+            if new_data_dir == old_data_dir {
+                return Ok(new_data_dir.to_string_lossy().to_string());
+            }
+            if new_data_dir.starts_with(&old_data_dir) || old_data_dir.starts_with(&new_data_dir) {
+                return Err("新旧数据目录不能互相嵌套".to_string());
+            }
+            if new_data_dir.exists()
+                && fs::read_dir(&new_data_dir)
+                    .map_err(|e| format!("读取目标数据目录失败: {}", e))?
+                    .next()
+                    .is_some()
+            {
+                return Err(format!(
+                    "目标数据目录非空，请选择其他位置: {}",
+                    new_data_dir.display()
+                ));
+            }
+            if new_data_dir.exists() {
+                fs::remove_dir(&new_data_dir).map_err(|e| format!("准备空目标目录失败: {}", e))?;
             }
 
-            // 如果旧数据库存在，复制到新位置
-            if old_db_path.exists() {
-                fs::copy(&old_db_path, &new_db_path)
-                    .map_err(|e| format!("迁移数据库失败: {}", e))?;
+            let staging_dir =
+                folder_pathbuf.join(format!(".snippets-code-migration-{}", uuid::Uuid::new_v4()));
+            let migration_result = (|| -> Result<(), String> {
+                copy_data_directory(&old_data_dir, &staging_dir)?;
+                backup_database_to_path(&staging_dir.join("snippets.db"))?;
+                fs::rename(&staging_dir, &new_data_dir).map_err(|e| {
+                    format!(
+                        "提交数据目录迁移失败 {} -> {}: {}",
+                        staging_dir.display(),
+                        new_data_dir.display(),
+                        e
+                    )
+                })
+            })();
+            if let Err(error) = migration_result {
+                if staging_dir.exists() {
+                    let _ = fs::remove_dir_all(&staging_dir);
+                }
+                return Err(error);
             }
 
             // 保存新路径到 path.json
             let path_config = json_config::PathConfig {
                 data_dir: Some(new_data_dir.to_str().unwrap().to_string()),
             };
-            json_config::write_path_config(&app_handle, &path_config)?;
+            if let Err(error) = json_config::write_path_config(&app_handle, &path_config) {
+                // 指针提交失败时回滚本次精确创建的副本，旧数据根未被修改。
+                if new_data_dir.exists() {
+                    let _ = fs::remove_dir_all(&new_data_dir);
+                }
+                return Err(error);
+            }
 
-            // 重启应用
+            // 旧目录作为可回滚副本保留；切换指针成功后重启。
             app_handle.restart();
             #[allow(unreachable_code)]
             Ok(new_data_dir.to_str().unwrap().to_string())
@@ -374,10 +481,9 @@ pub fn set_data_dir_from_setup(
     // 验证目录写入权限
     verify_write_permission(&data_dir)?;
 
-    // 如果不是默认路径，删除旧的默认目录
+    // 默认目录可能仍包含 path.json、旧配置或可恢复数据；切换数据根时不主动删除。
     if !is_default_path && default_data_dir.exists() {
-        log::info!("删除旧的默认数据目录");
-        let _ = std::fs::remove_dir_all(&default_data_dir);
+        log::info!("保留旧默认数据目录作为回滚来源");
     }
 
     let final_path = data_dir.to_str().unwrap().to_string();

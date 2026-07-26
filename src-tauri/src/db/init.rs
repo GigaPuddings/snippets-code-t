@@ -15,6 +15,7 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
 }
 
 fn create_core_tables(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    create_data_contract_tables(conn)?;
     create_icon_cache_table(conn)?;
     create_search_history_table(conn)?;
     create_user_settings_table(conn)?;
@@ -22,7 +23,76 @@ fn create_core_tables(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error
     Ok(())
 }
 
+pub fn mark_index_success(
+    source: &str,
+    storage_schema_version: u64,
+    extractor_version: u64,
+) -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    conn.execute(
+        "INSERT INTO index_meta (
+             source, storage_schema_version, extractor_version, last_success_at, last_error
+         ) VALUES (?1, ?2, ?3, datetime('now'), NULL)
+         ON CONFLICT(source) DO UPDATE SET
+             storage_schema_version = excluded.storage_schema_version,
+             extractor_version = excluded.extractor_version,
+             last_success_at = excluded.last_success_at,
+             last_error = NULL",
+        rusqlite::params![source, storage_schema_version, extractor_version],
+    )?;
+    Ok(())
+}
+
+fn create_data_contract_tables(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (
+             component TEXT NOT NULL,
+             version INTEGER NOT NULL,
+             applied_at TEXT NOT NULL DEFAULT (datetime('now')),
+             PRIMARY KEY (component, version)
+         );
+         CREATE TABLE IF NOT EXISTS index_meta (
+             source TEXT PRIMARY KEY,
+             storage_schema_version INTEGER NOT NULL,
+             extractor_version INTEGER NOT NULL,
+             last_success_at TEXT,
+             last_error TEXT
+         );
+         INSERT OR IGNORE INTO schema_migrations(component, version)
+         VALUES ('core', 1);
+         PRAGMA user_version = 1;",
+    )
+}
+
+fn table_exists(conn: &rusqlite::Connection, table_name: &str) -> Result<bool, rusqlite::Error> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1
+         )",
+        [table_name],
+        |row| row.get(0),
+    )
+}
+
+fn table_has_column(
+    conn: &rusqlite::Connection,
+    table_name: &str,
+    column_name: &str,
+) -> Result<bool, rusqlite::Error> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table_name))?;
+    let columns = stmt.query_map([], |row| row.get::<_, String>(1))?;
+    for column in columns {
+        if column? == column_name {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    let apps_existed = table_exists(conn, "apps")?;
+    let apps_had_source_kind = apps_existed && table_has_column(conn, "apps", "source_kind")?;
+
     // 创建 apps 表
     conn.execute(
         "CREATE TABLE IF NOT EXISTS apps (
@@ -32,7 +102,8 @@ fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusql
             icon TEXT,
             summarize TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now')),
-            usage_count INTEGER DEFAULT 0
+            usage_count INTEGER DEFAULT 0,
+            source_kind TEXT NOT NULL DEFAULT 'scanner'
         )",
         [],
     )?;
@@ -46,6 +117,19 @@ fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusql
         "ALTER TABLE apps ADD COLUMN usage_count INTEGER DEFAULT 0",
         [],
     );
+    if apps_existed && !apps_had_source_kind {
+        conn.execute(
+            "ALTER TABLE apps ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'scanner'",
+            [],
+        )?;
+        // 旧版本无法区分扫描项和手动项。首次扫描时匹配到的旧行会替换为
+        // scanner，未匹配项保守转成 user，避免升级后丢失手动数据。
+        conn.execute("UPDATE apps SET source_kind = 'legacy'", [])?;
+    }
+
+    let bookmarks_existed = table_exists(conn, "bookmarks")?;
+    let bookmarks_had_source_kind =
+        bookmarks_existed && table_has_column(conn, "bookmarks", "source_kind")?;
 
     // 创建 bookmarks 表
     conn.execute(
@@ -56,7 +140,8 @@ fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusql
             icon TEXT,
             summarize TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now')),
-            usage_count INTEGER DEFAULT 0
+            usage_count INTEGER DEFAULT 0,
+            source_kind TEXT NOT NULL DEFAULT 'scanner'
         )",
         [],
     )?;
@@ -70,6 +155,13 @@ fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusql
         "ALTER TABLE bookmarks ADD COLUMN usage_count INTEGER DEFAULT 0",
         [],
     );
+    if bookmarks_existed && !bookmarks_had_source_kind {
+        conn.execute(
+            "ALTER TABLE bookmarks ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'scanner'",
+            [],
+        )?;
+        conn.execute("UPDATE bookmarks SET source_kind = 'legacy'", [])?;
+    }
 
     let _ = conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_apps_usage ON apps(usage_count DESC)",
@@ -87,6 +179,11 @@ fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusql
         "CREATE INDEX IF NOT EXISTS idx_bookmarks_created ON bookmarks(created_at DESC)",
         [],
     );
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(component, version)
+         VALUES ('local-launcher', 1)",
+        [],
+    )?;
 
     Ok(())
 }
@@ -143,6 +240,7 @@ pub fn ensure_plugin_storage(plugin_id: &str) -> Result<(), rusqlite::Error> {
     }
 }
 
+#[allow(dead_code)] // 仅供未来显式“卸载并删除数据”流程调用；普通卸载必须保留用户数据。
 pub fn clear_plugin_storage(plugin_id: &str) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     match plugin_id {
@@ -259,4 +357,56 @@ fn create_user_settings_table(conn: &rusqlite::Connection) -> Result<(), rusqlit
     )?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_launcher_rows_are_preserved_until_first_reconciliation() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        create_data_contract_tables(&connection).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE apps (
+                     id TEXT PRIMARY KEY,
+                     title TEXT NOT NULL,
+                     content TEXT NOT NULL,
+                     icon TEXT,
+                     summarize TEXT NOT NULL
+                 );
+                 CREATE TABLE bookmarks (
+                     id TEXT PRIMARY KEY,
+                     title TEXT NOT NULL,
+                     content TEXT NOT NULL,
+                     icon TEXT,
+                     summarize TEXT NOT NULL
+                 );
+                 INSERT INTO apps VALUES ('manual', 'Manual', 'C:\\manual.exe', NULL, 'app');
+                 INSERT INTO bookmarks VALUES (
+                     'manual', 'Manual', 'https://example.com', NULL, 'bookmark'
+                 );",
+            )
+            .unwrap();
+
+        create_local_launcher_tables(&connection).unwrap();
+
+        let app_kind: String = connection
+            .query_row(
+                "SELECT source_kind FROM apps WHERE id = 'manual'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let bookmark_kind: String = connection
+            .query_row(
+                "SELECT source_kind FROM bookmarks WHERE id = 'manual'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(app_kind, "legacy");
+        assert_eq!(bookmark_kind, "legacy");
+    }
 }

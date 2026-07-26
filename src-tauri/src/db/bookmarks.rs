@@ -1,6 +1,7 @@
 use crate::bookmarks::BookmarkInfo;
 use crate::db::entity::{
-    clear_entities, count_entities, get_all_entities, insert_entities, update_entity_icon,
+    clear_entities, count_entities, get_all_entities, insert_entities, replace_entities,
+    update_entity_icon,
 };
 use crate::db::DbConnectionManager;
 use crate::plugins::local_launcher::invalidate_bookmarks_cache;
@@ -10,6 +11,14 @@ use crate::plugins::local_launcher::invalidate_bookmarks_cache;
 // 批量插入书签
 pub fn insert_bookmarks(bookmarks: &[BookmarkInfo]) -> Result<(), rusqlite::Error> {
     let result = insert_entities(bookmarks);
+    if result.is_ok() {
+        invalidate_bookmarks_cache();
+    }
+    result
+}
+
+pub fn replace_bookmarks(bookmarks: &[BookmarkInfo]) -> Result<(), rusqlite::Error> {
+    let result = replace_entities(bookmarks);
     if result.is_ok() {
         invalidate_bookmarks_cache();
     }
@@ -61,7 +70,8 @@ pub fn add_bookmark(
 
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
-        "INSERT INTO bookmarks (id, title, content, icon, summarize) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO bookmarks (id, title, content, icon, summarize, source_kind)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'user')",
         rusqlite::params![id, title, content, icon, "bookmark"],
     )
     .map_err(|e| e.to_string())?;
@@ -81,7 +91,9 @@ pub fn update_bookmark(
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
 
     conn.execute(
-        "UPDATE bookmarks SET title = ?1, content = ?2, icon = ?3 WHERE id = ?4",
+        "UPDATE bookmarks
+         SET title = ?1, content = ?2, icon = ?3, source_kind = 'user'
+         WHERE id = ?4",
         rusqlite::params![title, content, icon, id],
     )
     .map_err(|e| e.to_string())?;

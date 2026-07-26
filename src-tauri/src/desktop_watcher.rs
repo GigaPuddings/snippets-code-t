@@ -6,8 +6,6 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
-use crate::plugins::desktop_files::refresh_desktop_files_cache;
-
 pub struct DesktopFileWatcher {
     _watcher: RecommendedWatcher,
 }
@@ -31,12 +29,12 @@ impl DesktopFileWatcher {
 
         debug!("[DesktopWatcher] started dir={}", desktop_path.display());
 
-        tauri::async_runtime::spawn(async move {
+        std::thread::spawn(move || {
             let debounce = Duration::from_millis(400);
             let mut pending = false;
             let mut last_event = Instant::now();
-            let mut changed_ids: HashSet<String> = HashSet::new();
-            let mut removed_ids: HashSet<String> = HashSet::new();
+            let mut changed_paths: HashSet<PathBuf> = HashSet::new();
+            let mut removed_paths: HashSet<PathBuf> = HashSet::new();
 
             loop {
                 match rx.recv_timeout(Duration::from_millis(100)) {
@@ -65,16 +63,15 @@ impl DesktopFileWatcher {
                         last_event = Instant::now();
 
                         for path in filtered_paths {
-                            let id = format!("desktop-file:{}", path.to_string_lossy());
                             match event.kind {
                                 EventKind::Create(_)
                                 | EventKind::Modify(ModifyKind::Data(_))
                                 | EventKind::Modify(ModifyKind::Metadata(_))
                                 | EventKind::Modify(ModifyKind::Name(_)) => {
-                                    changed_ids.insert(id);
+                                    changed_paths.insert(path);
                                 }
                                 EventKind::Remove(_) => {
-                                    removed_ids.insert(id);
+                                    removed_paths.insert(path);
                                 }
                                 _ => {}
                             }
@@ -85,24 +82,19 @@ impl DesktopFileWatcher {
                             continue;
                         }
 
-                        if !removed_ids.is_empty() {
-                            let ids: Vec<String> = removed_ids.drain().collect();
-                            let _ = crate::db::delete_desktop_file_cache_by_ids(&ids);
+                        let changed = changed_paths.drain().collect::<Vec<_>>();
+                        let removed = removed_paths.drain().collect::<Vec<_>>();
+                        match crate::plugins::desktop_files::sync_desktop_file_changes(
+                            &changed, &removed,
+                        ) {
+                            Ok((changed_count, removed_count)) => debug!(
+                                "[DesktopWatcher] incremental sync changed={} removed={}",
+                                changed_count, removed_count
+                            ),
+                            Err(error) => {
+                                warn!("[DesktopWatcher] incremental sync failed: {}", error)
+                            }
                         }
-
-                        if !changed_ids.is_empty() {
-                            let ids: Vec<String> = changed_ids.drain().collect();
-                            // 变化项这里直接触发全量刷新，保证 icon/元信息一致
-                            debug!("[DesktopWatcher] partial sync count={}", ids.len());
-                            refresh_desktop_files_cache();
-                        }
-
-                        let changed_count = changed_ids.len();
-                        let removed_count = removed_ids.len();
-                        debug!(
-                            "[DesktopWatcher] sync changed={} removed={}",
-                            changed_count, removed_count
-                        );
 
                         pending = false;
                     }

@@ -39,44 +39,73 @@ pub fn load_all_desktop_file_cache() -> Result<Vec<DesktopFileCacheRecord>, rusq
 pub fn upsert_desktop_file_cache(
     records: &[DesktopFileCacheRecord],
 ) -> Result<(), rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
-    let mut stmt = conn.prepare(
-        "INSERT OR REPLACE INTO desktop_file_cache (id, title, content, icon, source_mtime, size, created, modified, last_indexed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-    )?;
+    apply_desktop_file_cache_changes(records, &[])
+}
 
-    for record in records {
-        stmt.execute(rusqlite::params![
-            record.id,
-            record.title,
-            record.content,
-            record.icon,
-            record.source_mtime,
-            record.size,
-            record.created,
-            record.modified,
-            record.last_indexed_at,
-        ])?;
+pub fn apply_desktop_file_cache_changes(
+    records: &[DesktopFileCacheRecord],
+    removed_ids: &[String],
+) -> Result<(), rusqlite::Error> {
+    let mut conn = DbConnectionManager::get()?;
+    let transaction = conn.transaction()?;
+    if !removed_ids.is_empty() {
+        let mut delete_stmt =
+            transaction.prepare("DELETE FROM desktop_file_cache WHERE id = ?1")?;
+        for id in removed_ids {
+            delete_stmt.execute([id])?;
+        }
     }
+    {
+        let mut stmt = transaction.prepare(
+        "INSERT OR REPLACE INTO desktop_file_cache (id, title, content, icon, source_mtime, size, created, modified, last_indexed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        )?;
 
-    Ok(())
+        for record in records {
+            stmt.execute(rusqlite::params![
+                record.id,
+                record.title,
+                record.content,
+                record.icon,
+                record.source_mtime,
+                record.size,
+                record.created,
+                record.modified,
+                record.last_indexed_at,
+            ])?;
+        }
+    }
+    transaction.commit()
+}
+
+pub fn replace_desktop_file_cache(
+    records: &[DesktopFileCacheRecord],
+) -> Result<(), rusqlite::Error> {
+    let mut conn = DbConnectionManager::get()?;
+    let transaction = conn.transaction()?;
+    transaction.execute("DELETE FROM desktop_file_cache", [])?;
+    {
+        let mut stmt = transaction.prepare(
+            "INSERT INTO desktop_file_cache (id, title, content, icon, source_mtime, size, created, modified, last_indexed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        )?;
+        for record in records {
+            stmt.execute(rusqlite::params![
+                record.id,
+                record.title,
+                record.content,
+                record.icon,
+                record.source_mtime,
+                record.size,
+                record.created,
+                record.modified,
+                record.last_indexed_at,
+            ])?;
+        }
+    }
+    transaction.commit()
 }
 
 pub fn clear_desktop_file_cache() -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     conn.execute("DELETE FROM desktop_file_cache", [])?;
-    Ok(())
-}
-
-pub fn delete_desktop_file_cache_by_ids(ids: &[String]) -> Result<(), rusqlite::Error> {
-    if ids.is_empty() {
-        return Ok(());
-    }
-
-    let conn = DbConnectionManager::get()?;
-    let mut stmt = conn.prepare("DELETE FROM desktop_file_cache WHERE id = ?1")?;
-    for id in ids {
-        stmt.execute([id])?;
-    }
-
     Ok(())
 }

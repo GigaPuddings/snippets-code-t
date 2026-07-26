@@ -33,6 +33,12 @@ export interface PluginPackageEntry {
   styles?: string[];
 }
 
+export interface PluginStorageContract {
+  schemaVersion: number;
+  indexSchemaVersion: number;
+  extractorVersion: number;
+}
+
 export interface PluginPackageManifest {
   schemaVersion: PluginManifestSchemaVersion;
   id: PluginId;
@@ -45,6 +51,7 @@ export interface PluginPackageManifest {
   capabilities?: PluginCapabilities;
   resources?: PluginResourceDescriptor;
   entry?: PluginPackageEntry;
+  storage?: PluginStorageContract;
   permissions?: string[];
   dependencies?: string[];
   resourceFor?: string;

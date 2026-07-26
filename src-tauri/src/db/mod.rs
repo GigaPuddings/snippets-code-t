@@ -16,19 +16,20 @@ pub use connection::DbConnectionManager;
 
 // 重新导出初始化函数
 pub use init::init_db;
-pub use init::{clear_plugin_storage, ensure_plugin_storage};
+pub use init::{ensure_plugin_storage, mark_index_success};
 
 // 重新导出应用相关函数
 pub use apps::{add_app, delete_app, get_apps, update_app};
 pub use apps::{
-    clear_apps, count_apps, get_all_apps, insert_apps, update_app_icon, update_app_icon_silent,
+    clear_apps, count_apps, get_all_apps, insert_apps, replace_apps, update_app_icon,
+    update_app_icon_silent,
 };
 
 // 重新导出书签相关函数
 pub use bookmarks::{add_bookmark, delete_bookmark, get_bookmarks, update_bookmark};
 pub use bookmarks::{
-    clear_bookmarks, count_bookmarks, get_all_bookmarks, insert_bookmarks, update_bookmark_icon,
-    update_bookmark_icon_silent,
+    clear_bookmarks, count_bookmarks, get_all_bookmarks, insert_bookmarks, replace_bookmarks,
+    update_bookmark_icon, update_bookmark_icon_silent,
 };
 
 // 重新导出搜索引擎相关函数
@@ -42,11 +43,12 @@ pub use alarm::{add_or_update_alarm_card, delete_alarm_card_by_id, get_all_alarm
 
 // 重新导出图标缓存相关函数
 pub use desktop_files::{
-    clear_desktop_file_cache, delete_desktop_file_cache_by_ids, load_all_desktop_file_cache,
-    upsert_desktop_file_cache, DesktopFileCacheRecord,
+    apply_desktop_file_cache_changes, clear_desktop_file_cache, load_all_desktop_file_cache,
+    replace_desktop_file_cache, upsert_desktop_file_cache, DesktopFileCacheRecord,
 };
 pub use icon_cache::{
-    delete_icon_from_cache, get_icon_from_cache, insert_icon_to_cache, load_all_icon_cache,
+    cleanup_old_icon_cache, clear_all_icon_cache, delete_icon_from_cache, get_icon_from_cache,
+    insert_icon_to_cache, load_all_icon_cache,
 };
 
 // 重新导出命令函数
@@ -60,7 +62,7 @@ pub use connection::{
 pub use connection::{
     is_setup_completed, is_setup_completed_internal, set_data_dir_from_setup, set_setup_completed,
 };
-pub use search_history::{add_search_history, get_search_history};
+pub use search_history::{add_search_history, clear_search_history, get_search_history};
 
 // 重新导出应用设置相关函数
 pub use settings::{get_auto_hide_on_blur, set_auto_hide_on_blur, set_auto_start_setting};

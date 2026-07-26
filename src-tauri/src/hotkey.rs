@@ -197,6 +197,40 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// 重新注册同步导入后的快捷键。
+///
+/// 同步配置可能同时变更多个动作；逐个覆盖会让旧组合键继续注册。
+/// 因此先清理当前应用持有的全局快捷键，再逐项注册，并将不兼容项
+/// 作为警告返回，避免单个系统冲突阻断其余配置导入。
+pub fn refresh_imported_shortcuts(
+    app_handle: &AppHandle,
+    _changed_actions: &[String],
+) -> Vec<String> {
+    let mut warnings = Vec::new();
+    if let Err(error) = app_handle.global_shortcut().unregister_all() {
+        warnings.push(format!("清理旧快捷键失败: {}", error));
+    }
+
+    for spec in HOTKEY_SPECS {
+        if let Err(error) = register(app_handle, spec.name, spec.handler, "") {
+            warnings.push(format!(
+                "快捷键 '{}' 在当前设备不可用: {}",
+                spec.name, error
+            ));
+        }
+    }
+    for action in app_config::installed_plugin_capability_actions(app_handle, "hotkeys", true) {
+        if let Err(error) = register_plugin_hotkey(app_handle, &action.item_id, "") {
+            warnings.push(format!(
+                "插件快捷键 '{}' 在当前设备不可用: {}",
+                action.item_id, error
+            ));
+        }
+    }
+
+    warnings
+}
+
 #[tauri::command]
 pub fn register_shortcut_by_frontend(
     app_handle: AppHandle,

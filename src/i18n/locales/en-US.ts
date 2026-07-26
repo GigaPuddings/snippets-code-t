@@ -136,7 +136,7 @@ export default {
     autoStartDisabled: 'Auto start disabled',
     resetSoftware: 'Reset Software',
     resetSoftwareDesc:
-      'Reset clears plugin indexes such as app/bookmark launcher and desktop file search, plus cached icons, then re-indexes after restart',
+      'Rebuild only app, bookmark, or desktop-file indexes; usage history, settings, workspace content, and icon cache are preserved',
     resetSoftwareTitle: 'Reset Software',
     resetSelectContent: 'Select content to reset:',
     resetAll: 'Reset All',
@@ -148,6 +148,25 @@ export default {
     resetDesktopFilesSuccess: 'Desktop files reset successfully',
     resetAllSuccess: 'Software reset successfully',
     resetFailed: 'Reset failed',
+    clearSearchHistory: 'Clear Usage History',
+    clearSearchHistoryDesc:
+      'Clear ranking history by source without deleting indexes, icons, bookmarks, apps, or files',
+    clearSearchHistorySelect: 'Select the history scope to clear:',
+    historyAll: 'All usage history',
+    historyApps: 'App usage history',
+    historyBookmarks: 'Bookmark usage history',
+    historyDesktopFiles: 'Desktop file usage history',
+    historyMarkdown: 'Snippet and note usage history',
+    clearSearchHistorySuccess: 'Cleared {count} usage history records',
+    clearSearchHistoryFailed: 'Failed to clear usage history',
+    clearIconCache: 'Clear Icon Cache',
+    clearIconCacheDesc:
+      'Delete only rebuildable icons; source indexes, usage history, and user data are preserved',
+    clearIconCacheConfirm:
+      'Icons will be re-extracted on demand from Windows Shell and local browser caches.',
+    clearIconCacheSuccess:
+      'Icon cache cleared and is rebuilding in the background',
+    clearIconCacheFailed: 'Failed to clear icon cache',
     autoUpdateCheck: 'Auto Update Check',
     autoUpdateCheckDesc: 'Check for updates on app launch',
     autoUpdateEnabled: 'Auto update check enabled',
@@ -228,14 +247,16 @@ export default {
       responsiveImagesHint:
         'Shrink images proportionally in narrow windows and restore the chosen scale when space returns',
       showImagePath: 'Show Image Attachment Path',
-      showImagePathHint: 'Show a clickable relative attachment path above each image',
+      showImagePathHint:
+        'Show a clickable relative attachment path above each image',
       imageScale: 'Image Scale',
       dragImageScale: 'Drag to resize the image',
       currentImage: 'Current Image',
       allImages: 'All {count} Images',
       allImagesShort: 'All Images',
       openImageLocation: 'Show in Folder',
-      openImageLocationFailed: 'Unable to show the image in its folder. Make sure the file still exists.',
+      openImageLocationFailed:
+        'Unable to show the image in its folder. Make sure the file still exists.',
       deleteImage: 'Delete Image',
       formatObsidian: 'Classic Style (Pasted image 20240228010203)',
       formatSimple: 'Simple Format (image-20240228-010203)',
@@ -502,7 +523,7 @@ export default {
     installFailed: 'Failed to install local plugin',
     updateSuccess: 'Plugin updated',
     updateFailed: 'Failed to update plugin',
-    uninstallSuccess: 'Local plugin uninstalled',
+    uninstallSuccess: 'Local plugin uninstalled; user data was preserved',
     uninstallFailed: 'Failed to uninstall local plugin',
     refresh: 'Refresh',
     refreshed: 'Plugin list refreshed',
@@ -932,7 +953,8 @@ export default {
     keyword: 'Shortcut Keyword',
     urlTemplate: 'URL Template',
     urlFormat: 'URL format (use "%s" for search term)',
-    urlFormatTip: 'Use %s as a placeholder in the URL template. It will be replaced with the search term.',
+    urlFormatTip:
+      'Use %s as a placeholder in the URL template. It will be replaced with the search term.',
     icon: 'Search engine icon',
     iconColumn: 'Icon',
     default: 'Default',

@@ -10,8 +10,7 @@ use std::time::SystemTime;
 pub fn load_all_icon_cache() -> Result<HashMap<String, CachedIcon>, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
 
-    let mut stmt =
-        conn.prepare("SELECT key, data, timestamp, COALESCE(source_mtime, 0) FROM icon_cache")?;
+    let mut stmt = conn.prepare("SELECT key, data, timestamp, source_mtime FROM icon_cache")?;
     let cache_iter = stmt.query_map([], |row| {
         Ok((
             row.get(0)?,
@@ -78,23 +77,18 @@ pub fn set_icon_to_cache(key: &str, data: &str) -> Result<(), rusqlite::Error> {
     insert_icon_to_cache(key, &icon)
 }
 
-// 清理过期的图标缓存（删除超过30天的缓存）
-// pub fn cleanup_old_icon_cache() -> Result<usize, rusqlite::Error> {
-//     let conn = DbConnectionManager::get()?;
-
-//     let thirty_days_ago = SystemTime::now()
-//         .duration_since(SystemTime::UNIX_EPOCH)
-//         .unwrap_or_default()
-//         .as_secs() - (30 * 24 * 3600);
-
-//     let rows_affected = conn.execute(
-//         "DELETE FROM icon_cache WHERE timestamp < ?1",
-//         rusqlite::params![thirty_days_ago],
-//     )?;
-
-//     // log::info!("清理了 {} 条过期的图标缓存记录", rows_affected);
-//     Ok(rows_affected)
-// }
+pub fn cleanup_old_icon_cache() -> Result<usize, rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    let thirty_days_ago = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        .saturating_sub(30 * 24 * 3600);
+    conn.execute(
+        "DELETE FROM icon_cache WHERE timestamp < ?1",
+        rusqlite::params![thirty_days_ago],
+    )
+}
 
 // 从缓存中删除指定的图标
 #[allow(dead_code)]
@@ -105,4 +99,26 @@ pub fn delete_icon_from_cache(key: &str) -> Result<(), rusqlite::Error> {
         rusqlite::params![key],
     )?;
     Ok(())
+}
+
+/// 只清理可重建的图标数据，不触碰来源索引或 search_history。
+pub fn clear_all_icon_cache() -> Result<usize, rusqlite::Error> {
+    let mut conn = DbConnectionManager::get()?;
+    let transaction = conn.transaction()?;
+    let mut affected = transaction.execute("DELETE FROM icon_cache", [])?;
+    for table in ["apps", "bookmarks", "desktop_file_cache"] {
+        let exists = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+            [table],
+            |row| row.get::<_, bool>(0),
+        )?;
+        if exists {
+            affected += transaction.execute(
+                &format!("UPDATE {} SET icon = NULL WHERE icon IS NOT NULL", table),
+                [],
+            )?;
+        }
+    }
+    transaction.commit()?;
+    Ok(affected)
 }

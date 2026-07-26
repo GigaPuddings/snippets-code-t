@@ -4,130 +4,258 @@
     <div class="panel-header">
       <h3 class="panel-title">{{ $t('settings.general') }}</h3>
     </div>
-    
+
     <!-- 可滚动内容 -->
     <main class="panel-content">
-    <section class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('settings.theme') }}</div>
-        <div class="summarize-label-desc">{{ $t('settings.themeDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <el-select class="summarize-input !w-32" v-model="store.theme" @change="changeTheme">
-          <el-option v-for="item in dictTheme" :key="item.value" :label="item.label" :value="item.value">
-            <div class="flex items-center gap-2">
-              <component :is="item.icon" />
-              <div :class="{ 'text-primary': item.value === store.theme }">
-                {{ item.label }}
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t('settings.theme') }}</div>
+          <div class="summarize-label-desc">{{ $t('settings.themeDesc') }}</div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <el-select
+            class="summarize-input !w-32"
+            v-model="store.theme"
+            @change="changeTheme"
+          >
+            <el-option
+              v-for="item in dictTheme"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            >
+              <div class="flex items-center gap-2">
+                <component :is="item.icon" />
+                <div :class="{ 'text-primary': item.value === store.theme }">
+                  {{ item.label }}
+                </div>
               </div>
-            </div>
-          </el-option>
-        </el-select>
-      </div>
-    </section>
+            </el-option>
+          </el-select>
+        </div>
+      </section>
 
-    <section class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('settings.language') }}</div>
-        <div class="summarize-label-desc">{{ $t('settings.languageDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <el-select class="summarize-input !w-32" v-model="store.language" @change="changeLanguage">
-          <el-option v-for="item in dictLanguage" :key="item.value" :label="item.label" :value="item.value">
-            <div class="flex items-center gap-2">
-              <span>{{ item.flag }}</span>
-              <div :class="{ 'text-primary': item.value === store.language }">
-                {{ item.label }}
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t('settings.language') }}</div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.languageDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <el-select
+            class="summarize-input !w-32"
+            v-model="store.language"
+            @change="changeLanguage"
+          >
+            <el-option
+              v-for="item in dictLanguage"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            >
+              <div class="flex items-center gap-2">
+                <span>{{ item.flag }}</span>
+                <div :class="{ 'text-primary': item.value === store.language }">
+                  {{ item.label }}
+                </div>
               </div>
-            </div>
-          </el-option>
-        </el-select>
-      </div>
-    </section>
+            </el-option>
+          </el-select>
+        </div>
+      </section>
 
-    <section class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('settings.autoStart') }}</div>
-        <div class="summarize-label-desc">{{ $t('settings.autoStartDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <CustomSwitch v-model="store.autoStart" :active-text="$t('common.on')" :inactive-text="$t('common.off')" @change="handleAutoStartChange" />
-      </div>
-    </section>
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('settings.autoStart') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.autoStartDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomSwitch
+            v-model="store.autoStart"
+            :active-text="$t('common.on')"
+            :inactive-text="$t('common.off')"
+            @change="handleAutoStartChange"
+          />
+        </div>
+      </section>
 
-    <section class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('settings.resetSoftware') }}</div>
-        <div class="summarize-label-desc">{{ $t('settings.resetSoftwareDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <CustomButton type="primary" size="small" @click="resetSoftware" :loading="resetSoftwareLoading">
-          {{ $t('settings.resetSoftware') }}
-        </CustomButton>
-      </div>
-    </section>
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('settings.resetSoftware') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.resetSoftwareDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomButton
+            type="primary"
+            size="small"
+            @click="resetSoftware"
+            :loading="resetSoftwareLoading"
+          >
+            {{ $t('settings.resetSoftware') }}
+          </CustomButton>
+        </div>
+      </section>
 
-    <section class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('settings.autoUpdateCheck') }}</div>
-        <div class="summarize-label-desc">{{ $t('settings.autoUpdateCheckDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <CustomSwitch v-model="store.autoUpdateCheck" :active-text="$t('common.on')" :inactive-text="$t('common.off')"
-          @change="toggleAutoUpdateCheck" />
-      </div>
-    </section>
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('settings.clearSearchHistory') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.clearSearchHistoryDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomButton
+            type="primary"
+            size="small"
+            @click="showHistoryDialog = true"
+            :loading="historyLoading"
+          >
+            {{ $t('settings.clearSearchHistory') }}
+          </CustomButton>
+        </div>
+      </section>
 
-    <section class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('settings.autoHideOnBlur') }}</div>
-        <div class="summarize-label-desc">{{ $t('settings.autoHideOnBlurDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <CustomSwitch v-model="store.autoHideOnBlur" :active-text="$t('common.on')" :inactive-text="$t('common.off')"
-          @change="toggleAutoHideOnBlur" />
-      </div>
-    </section>
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('settings.clearIconCache') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.clearIconCacheDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomButton
+            type="primary"
+            size="small"
+            @click="showIconCacheDialog = true"
+            :loading="iconCacheLoading"
+          >
+            {{ $t('settings.clearIconCache') }}
+          </CustomButton>
+        </div>
+      </section>
 
-    <section class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('settings.exitApp') }}</div>
-        <div class="summarize-label-desc">{{ $t('settings.exitAppDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <CustomButton type="primary" size="small" :loading="exitApplicationLoading" @click="exitApplication">
-          {{ $t('settings.exitApp') }}
-        </CustomButton>
-      </div>
-    </section>
-  </main>
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('settings.autoUpdateCheck') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.autoUpdateCheckDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomSwitch
+            v-model="store.autoUpdateCheck"
+            :active-text="$t('common.on')"
+            :inactive-text="$t('common.off')"
+            @change="toggleAutoUpdateCheck"
+          />
+        </div>
+      </section>
 
-  <!-- 重置软件对话框 -->
-  <SelectConfirmDialog
-    v-model="showResetDialog"
-    :title="$t('settings.resetSoftwareTitle')"
-    :message="$t('settings.resetSelectContent')"
-    :options="resetOptions"
-    :default-value="selectedResetType"
-    :confirm-text="$t('common.confirm')"
-    :cancel-text="$t('common.cancel')"
-    :loading="resetSoftwareLoading"
-    @confirm="handleResetConfirm"
-    @cancel="resetSoftwareLoading = false"
-  />
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('settings.autoHideOnBlur') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.autoHideOnBlurDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomSwitch
+            v-model="store.autoHideOnBlur"
+            :active-text="$t('common.on')"
+            :inactive-text="$t('common.off')"
+            @change="toggleAutoHideOnBlur"
+          />
+        </div>
+      </section>
 
-  <!-- 退出应用对话框 -->
-  <ConfirmDialog
-    v-model="showExitDialog"
-    :title="$t('common.tip')"
-    :confirm-text="$t('common.confirm')"
-    :cancel-text="$t('common.cancel')"
-    :loading="exitApplicationLoading"
-    @confirm="handleExitConfirm"
-    @cancel="exitApplicationLoading = false"
-  >
-    <div>{{ $t('settings.exitAppConfirm') }}</div>
-  </ConfirmDialog>
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t('settings.exitApp') }}</div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.exitAppDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <CustomButton
+            type="primary"
+            size="small"
+            :loading="exitApplicationLoading"
+            @click="exitApplication"
+          >
+            {{ $t('settings.exitApp') }}
+          </CustomButton>
+        </div>
+      </section>
+    </main>
+
+    <!-- 重置软件对话框 -->
+    <SelectConfirmDialog
+      v-model="showResetDialog"
+      :title="$t('settings.resetSoftwareTitle')"
+      :message="$t('settings.resetSelectContent')"
+      :options="resetOptions"
+      :default-value="selectedResetType"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :loading="resetSoftwareLoading"
+      @confirm="handleResetConfirm"
+      @cancel="resetSoftwareLoading = false"
+    />
+
+    <SelectConfirmDialog
+      v-model="showHistoryDialog"
+      :title="$t('settings.clearSearchHistory')"
+      :message="$t('settings.clearSearchHistorySelect')"
+      :options="historyOptions"
+      default-value="all"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :loading="historyLoading"
+      @confirm="handleHistoryConfirm"
+      @cancel="historyLoading = false"
+    />
+
+    <ConfirmDialog
+      v-model="showIconCacheDialog"
+      :title="$t('settings.clearIconCache')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :loading="iconCacheLoading"
+      @confirm="handleIconCacheConfirm"
+      @cancel="iconCacheLoading = false"
+    >
+      <div>{{ $t('settings.clearIconCacheConfirm') }}</div>
+    </ConfirmDialog>
+
+    <!-- 退出应用对话框 -->
+    <ConfirmDialog
+      v-model="showExitDialog"
+      :title="$t('common.tip')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :loading="exitApplicationLoading"
+      @confirm="handleExitConfirm"
+      @cancel="exitApplicationLoading = false"
+    >
+      <div>{{ $t('settings.exitAppConfirm') }}</div>
+    </ConfirmDialog>
   </div>
 </template>
 
@@ -139,7 +267,12 @@ import { useConfigurationStore } from '@/store';
 import { broadcastThemeChanged } from '@/utils/theme-sync';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
-import { CustomButton, CustomSwitch, ConfirmDialog, SelectConfirmDialog } from '@/components/UI';
+import {
+  CustomButton,
+  CustomSwitch,
+  ConfirmDialog,
+  SelectConfirmDialog
+} from '@/components/UI';
 import { setLocale, type LocaleType } from '@/i18n';
 import modal from '@/utils/modal';
 
@@ -151,8 +284,12 @@ const { t } = useI18n();
 const store = useConfigurationStore();
 
 const resetSoftwareLoading = ref(false);
+const historyLoading = ref(false);
+const iconCacheLoading = ref(false);
 const exitApplicationLoading = ref(false);
 const showResetDialog = ref(false);
+const showHistoryDialog = ref(false);
+const showIconCacheDialog = ref(false);
 const showExitDialog = ref(false);
 const selectedResetType = ref('all');
 
@@ -167,33 +304,37 @@ const dictLanguage = [
   { value: 'en-US' as LocaleType, label: 'English', flag: '🇺🇸' }
 ];
 
-const changeTheme = async (value: 'light' | 'dark' | 'auto') => {
+const changeTheme = async (value: 'light' | 'dark' | 'auto'): Promise<void> => {
   store.updateTheme(value);
 
   // 立即写入持久化存储，避免关闭设置窗口后主题状态回退
   try {
-    localStorage.setItem('configuration', JSON.stringify({
-      ...JSON.parse(localStorage.getItem('configuration') || '{}'),
-      theme: value
-    }));
+    localStorage.setItem(
+      'configuration',
+      JSON.stringify({
+        ...JSON.parse(localStorage.getItem('configuration') || '{}'),
+        theme: value
+      })
+    );
   } catch (error) {
     console.error('Failed to persist theme locally:', error);
   }
 
   const isDark =
     value === 'dark' ||
-    (value === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    (value === 'auto' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   await broadcastThemeChanged(isDark, value, 'user-change');
 };
 
-const changeLanguage = async (value: LocaleType) => {
+const changeLanguage = async (value: LocaleType): Promise<void> => {
   store.language = value;
   setLocale(value);
-  
+
   // 广播语言变更事件到所有窗口
   await emit('language-changed', { language: value });
-  
+
   // 同步语言设置到后端（更新托盘菜单）
   try {
     await invoke('set_language', { language: value });
@@ -203,7 +344,7 @@ const changeLanguage = async (value: LocaleType) => {
   modal.msg(t('settings.languageChanged'));
 };
 
-const watchAutoStart = async () => {
+const watchAutoStart = async (): Promise<void> => {
   try {
     const enabled = await isEnabled();
     store.autoStart = enabled;
@@ -212,7 +353,7 @@ const watchAutoStart = async () => {
   }
 };
 
-const handleAutoStartChange = async (value: boolean) => {
+const handleAutoStartChange = async (value: boolean): Promise<void> => {
   try {
     if (value) {
       await enable();
@@ -237,12 +378,20 @@ const resetOptions = computed(() => [
   { value: 'desktopFiles', label: t('settings.resetDesktopFiles') }
 ]);
 
-const resetSoftware = () => {
+const historyOptions = computed(() => [
+  { value: 'all', label: t('settings.historyAll') },
+  { value: 'apps', label: t('settings.historyApps') },
+  { value: 'bookmarks', label: t('settings.historyBookmarks') },
+  { value: 'desktopFiles', label: t('settings.historyDesktopFiles') },
+  { value: 'markdown', label: t('settings.historyMarkdown') }
+]);
+
+const resetSoftware = (): void => {
   selectedResetType.value = 'all';
   showResetDialog.value = true;
 };
 
-const handleResetConfirm = async (value: string | number) => {
+const handleResetConfirm = async (value: string | number): Promise<void> => {
   resetSoftwareLoading.value = true;
   try {
     await invoke('reset_software', {
@@ -268,11 +417,41 @@ const handleResetConfirm = async (value: string | number) => {
   }
 };
 
+const handleHistoryConfirm = async (value: string | number): Promise<void> => {
+  historyLoading.value = true;
+  try {
+    const count = await invoke<number>('clear_search_history', {
+      scope: String(value)
+    });
+    modal.msg(t('settings.clearSearchHistorySuccess', { count }));
+    showHistoryDialog.value = false;
+  } catch (error) {
+    modal.msg(`${t('settings.clearSearchHistoryFailed')}: ${error}`, 'error');
+  } finally {
+    historyLoading.value = false;
+  }
+};
+
+const handleIconCacheConfirm = async (): Promise<void> => {
+  iconCacheLoading.value = true;
+  try {
+    await invoke<number>('clear_icon_cache');
+    modal.msg(t('settings.clearIconCacheSuccess'));
+    showIconCacheDialog.value = false;
+  } catch (error) {
+    modal.msg(`${t('settings.clearIconCacheFailed')}: ${error}`, 'error');
+  } finally {
+    iconCacheLoading.value = false;
+  }
+};
+
 // 切换自动检查更新
-const toggleAutoUpdateCheck = async (value: boolean) => {
+const toggleAutoUpdateCheck = async (value: boolean): Promise<void> => {
   try {
     await invoke('set_auto_update_check', { enabled: value });
-    modal.msg(value ? t('settings.autoUpdateEnabled') : t('settings.autoUpdateDisabled'));
+    modal.msg(
+      value ? t('settings.autoUpdateEnabled') : t('settings.autoUpdateDisabled')
+    );
   } catch (error) {
     modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
     store.autoUpdateCheck = !value;
@@ -280,10 +459,12 @@ const toggleAutoUpdateCheck = async (value: boolean) => {
 };
 
 // 切换自动失焦隐藏
-const toggleAutoHideOnBlur = async (value: boolean) => {
+const toggleAutoHideOnBlur = async (value: boolean): Promise<void> => {
   try {
     await invoke('set_auto_hide_on_blur', { enabled: value });
-    modal.msg(value ? t('settings.autoHideEnabled') : t('settings.autoHideDisabled'));
+    modal.msg(
+      value ? t('settings.autoHideEnabled') : t('settings.autoHideDisabled')
+    );
   } catch (error) {
     modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
     store.autoHideOnBlur = !value;
@@ -291,11 +472,11 @@ const toggleAutoHideOnBlur = async (value: boolean) => {
 };
 
 // 退出应用
-const exitApplication = () => {
+const exitApplication = (): void => {
   showExitDialog.value = true;
 };
 
-const handleExitConfirm = async () => {
+const handleExitConfirm = async (): Promise<void> => {
   exitApplicationLoading.value = true;
   try {
     await invoke('exit_application');

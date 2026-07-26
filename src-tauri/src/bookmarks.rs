@@ -2,10 +2,11 @@ use crate::db;
 use crate::icon;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use glob::glob;
-use rusqlite::Connection;
+use rusqlite::{backup::Backup, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 // 从URL提取域名作为标题
@@ -234,128 +235,122 @@ fn get_all_browser_favicon_paths() -> std::collections::HashMap<&'static str, Pa
         .collect()
 }
 
-// 优先从本机浏览器 favicon 缓存查找图标，避免离线环境重复请求网络
-pub fn get_favicon_from_browser_cache(url: &str) -> Option<String> {
+struct BrowserDbSnapshot {
+    path: PathBuf,
+    connection: Option<Connection>,
+}
+
+impl BrowserDbSnapshot {
+    fn open(source: &Path, prefix: &str) -> Option<Self> {
+        let path = std::env::temp_dir().join(format!("{}-{}.sqlite", prefix, Uuid::new_v4()));
+        let source_connection =
+            Connection::open_with_flags(source, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+        let mut connection = Connection::open(&path).ok()?;
+        {
+            // Online Backup API 从浏览器的同一读事务复制主库和 WAL 可见页，
+            // 避免逐文件复制时主库/WAL 版本不一致。
+            let backup = Backup::new(&source_connection, &mut connection).ok()?;
+            if backup
+                .run_to_completion(128, std::time::Duration::from_millis(5), None)
+                .is_err()
+            {
+                let _ = fs::remove_file(&path);
+                return None;
+            }
+        }
+        Some(Self {
+            path,
+            connection: Some(connection),
+        })
+    }
+
+    fn connection(&self) -> &Connection {
+        self.connection
+            .as_ref()
+            .expect("browser database snapshot connection")
+    }
+}
+
+impl Drop for BrowserDbSnapshot {
+    fn drop(&mut self) {
+        drop(self.connection.take());
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+const CHROMIUM_FAVICON_QUERY: &str = "SELECT fb.image_data
+     FROM icon_mapping im
+     JOIN favicon_bitmaps fb ON fb.icon_id = im.icon_id
+     WHERE im.page_url = ?1
+     ORDER BY fb.width DESC
+     LIMIT 1";
+const FIREFOX_FAVICON_QUERY: &str = "SELECT mi.data
+     FROM moz_icons mi
+     JOIN moz_icons_to_pages mitp ON mi.id = mitp.icon_id
+     JOIN moz_pages_w_icons mpwi ON mitp.page_id = mpwi.id
+     WHERE mpwi.page_url = ?1
+     ORDER BY mi.width DESC
+     LIMIT 1";
+
+fn query_favicons(
+    connection: &Connection,
+    urls: &[String],
+    query: &str,
+) -> HashMap<String, String> {
+    let Ok(mut stmt) = connection.prepare(query) else {
+        return HashMap::new();
+    };
+    urls.iter()
+        .filter_map(|url| {
+            let data = stmt.query_row([url], |row| row.get::<_, Vec<u8>>(0)).ok()?;
+            (!data.is_empty()).then(|| {
+                (
+                    url.clone(),
+                    format!("data:image/png;base64,{}", STANDARD.encode(data)),
+                )
+            })
+        })
+        .collect()
+}
+
+fn query_chromium_favicons(connection: &Connection, urls: &[String]) -> HashMap<String, String> {
+    query_favicons(connection, urls, CHROMIUM_FAVICON_QUERY)
+}
+
+fn query_firefox_favicons(connection: &Connection, urls: &[String]) -> HashMap<String, String> {
+    query_favicons(connection, urls, FIREFOX_FAVICON_QUERY)
+}
+
+// 优先从本机浏览器 favicon 缓存批量查找图标。每个浏览器数据库只复制/打开一次。
+pub fn get_favicons_from_browser_cache(urls: &[String]) -> HashMap<String, String> {
+    let mut unresolved = urls.iter().cloned().collect::<HashSet<_>>();
+    let mut icons = HashMap::new();
+
     for (_browser_name, db_path) in get_all_browser_favicon_paths() {
-        if let Some(icon) = get_favicon_from_chrome_db(url, &db_path) {
-            return Some(icon);
+        let Some(snapshot) = BrowserDbSnapshot::open(&db_path, "snippets-favicons") else {
+            continue;
+        };
+        let candidates = unresolved.iter().cloned().collect::<Vec<_>>();
+        for (url, icon) in query_chromium_favicons(snapshot.connection(), &candidates) {
+            unresolved.remove(&url);
+            icons.insert(url, icon);
+        }
+        if unresolved.is_empty() {
+            return icons;
         }
     }
 
     if let Some(firefox_db) = get_firefox_bookmarks_file() {
-        if let Some(icon) = get_favicon_from_firefox_db(url, &firefox_db) {
-            return Some(icon);
+        if let Some(snapshot) = BrowserDbSnapshot::open(&firefox_db, "snippets-places") {
+            let candidates = unresolved.into_iter().collect::<Vec<_>>();
+            icons.extend(query_firefox_favicons(snapshot.connection(), &candidates));
         }
     }
-
-    None
+    icons
 }
 
-// 从Chrome/Edge的Favicons数据库获取图标
-fn get_favicon_from_chrome_db(url: &str, db_path: &PathBuf) -> Option<String> {
-    // 创建临时文件来复制数据库
-    let temp_dir = std::env::temp_dir();
-    let temp_db = temp_dir.join("temp_favicons.db");
-
-    // 复制数据库文件，因为浏览器可能正在使用原文件
-    if fs::copy(db_path, &temp_db).is_err() {
-        return None;
-    }
-
-    let mut icon_data = None;
-
-    if let Ok(conn) = Connection::open(&temp_db) {
-        // 先从URLs表获取页面的icon_id
-        let query = "
-            SELECT icon_id FROM icon_mapping 
-            WHERE page_url LIKE ?1 
-            LIMIT 1
-        ";
-
-        let mut icon_id: Option<i64> = None;
-        if let Ok(mut stmt) = conn.prepare(query) {
-            if let Ok(mut rows) = stmt.query([&format!("%{}%", url)]) {
-                if let Ok(Some(row)) = rows.next() {
-                    icon_id = row.get(0).ok();
-                }
-            }
-        }
-
-        // 如果找到了icon_id，获取实际的图标数据
-        if let Some(id) = icon_id {
-            let favicon_query = "
-                SELECT image_data FROM favicon_bitmaps 
-                WHERE icon_id = ?1 
-                ORDER BY width DESC 
-                LIMIT 1
-            ";
-
-            if let Ok(mut stmt) = conn.prepare(favicon_query) {
-                if let Ok(mut rows) = stmt.query([id]) {
-                    if let Ok(Some(row)) = rows.next() {
-                        if let Ok(data) = row.get::<_, Vec<u8>>(0) {
-                            if !data.is_empty() {
-                                // 转换为Base64
-                                icon_data = Some(format!(
-                                    "data:image/png;base64,{}",
-                                    STANDARD.encode(&data)
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 清理临时文件
-    let _ = fs::remove_file(temp_db);
-
-    icon_data
-}
-
-// 获取Firefox的favicon
-fn get_favicon_from_firefox_db(url: &str, places_db: &PathBuf) -> Option<String> {
-    // 创建临时文件来复制数据库
-    let temp_dir = std::env::temp_dir();
-    let temp_db = temp_dir.join("temp_places.sqlite");
-
-    // 复制数据库文件，因为Firefox可能正在使用原文件
-    if fs::copy(places_db, &temp_db).is_err() {
-        return None;
-    }
-
-    let mut icon_data = None;
-
-    if let Ok(conn) = Connection::open(&temp_db) {
-        // 查询特定URL的favicon
-        let query = "
-            SELECT data FROM moz_icons mi
-            JOIN moz_icons_to_pages mitp ON mi.id = mitp.icon_id
-            JOIN moz_pages_w_icons mpwi ON mitp.page_id = mpwi.id
-            WHERE mpwi.page_url LIKE ?1
-            LIMIT 1
-        ";
-
-        if let Ok(mut stmt) = conn.prepare(query) {
-            if let Ok(mut rows) = stmt.query([&format!("%{}%", url)]) {
-                if let Ok(Some(row)) = rows.next() {
-                    if let Ok(data) = row.get::<_, Vec<u8>>(0) {
-                        if !data.is_empty() {
-                            // 转换为Base64
-                            icon_data =
-                                Some(format!("data:image/png;base64,{}", STANDARD.encode(&data)));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 清理临时文件
-    let _ = fs::remove_file(temp_db);
-
-    icon_data
+pub fn get_favicon_from_browser_cache(url: &str) -> Option<String> {
+    get_favicons_from_browser_cache(&[url.to_string()]).remove(url)
 }
 
 // 获取Firefox书签文件路径
@@ -377,17 +372,8 @@ fn get_firefox_bookmarks_file() -> Option<PathBuf> {
 
 fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
     let mut bookmarks = Vec::new();
-
-    // 创建临时文件来复制数据库
-    let temp_dir = std::env::temp_dir();
-    let temp_db = temp_dir.join("temp_places.sqlite");
-
-    // 复制数据库文件，因为 Firefox 可能正在使用原文件
-    if fs::copy(db_path, &temp_db).is_err() {
-        return bookmarks;
-    }
-
-    if let Ok(conn) = Connection::open(&temp_db) {
+    if let Some(snapshot) = BrowserDbSnapshot::open(db_path, "snippets-places") {
+        let conn = snapshot.connection();
         let query = "
             SELECT b.id, b.title, p.url
             FROM moz_bookmarks b
@@ -404,8 +390,6 @@ fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
                 ))
             }) {
                 for (id, title_opt, url) in rows.flatten() {
-                    // 尝试从Firefox数据库直接获取图标
-                    let icon = get_favicon_from_firefox_db(&url, db_path);
                     let mut title = title_opt.unwrap_or_default();
                     if title.is_empty() {
                         if let Some(domain_name) = get_domain_name(&url) {
@@ -417,17 +401,22 @@ fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
                         id: id.to_string(),
                         title,
                         content: url,
-                        icon, // 如果找到图标则直接保存，否则为None
+                        icon: None,
                         summarize: "bookmark".to_string(),
                         usage_count: 0,
                     });
                 }
             }
         }
+        let urls = bookmarks
+            .iter()
+            .map(|bookmark| bookmark.content.clone())
+            .collect::<Vec<_>>();
+        let icons = query_firefox_favicons(conn, &urls);
+        for bookmark in &mut bookmarks {
+            bookmark.icon = icons.get(&bookmark.content).cloned();
+        }
     }
-
-    // 清理临时文件
-    let _ = fs::remove_file(temp_db);
 
     bookmarks
 }
@@ -852,35 +841,44 @@ fn extract_chromium_bookmarks(
 ) -> Vec<BookmarkInfo> {
     let mut bookmarks = Vec::new();
     let _ = browser_type;
-
+    let profile_favicon = bookmarks_path
+        .parent()
+        .map(|profile| profile.join("Favicons"))
+        .filter(|path| path.is_file());
+    let favicon_snapshot = profile_favicon
+        .as_ref()
+        .or(favicon_db_path)
+        .and_then(|path| BrowserDbSnapshot::open(path, "snippets-favicons"));
     if let Ok(content) = fs::read_to_string(bookmarks_path) {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(roots) = json.get("roots") {
                 if let Some(bookmark_bar) = roots.get("bookmark_bar") {
-                    bookmarks.extend(extract_bookmarks(
-                        bookmark_bar,
-                        favicon_db_path,
-                        browser_type,
-                    ));
+                    bookmarks.extend(extract_bookmarks(bookmark_bar));
                 }
                 if let Some(other) = roots.get("other") {
-                    bookmarks.extend(extract_bookmarks(other, favicon_db_path, browser_type));
+                    bookmarks.extend(extract_bookmarks(other));
                 }
                 if let Some(synced) = roots.get("synced") {
-                    bookmarks.extend(extract_bookmarks(synced, favicon_db_path, browser_type));
+                    bookmarks.extend(extract_bookmarks(synced));
                 }
             }
+        }
+    }
+    if let Some(snapshot) = favicon_snapshot.as_ref() {
+        let urls = bookmarks
+            .iter()
+            .map(|bookmark| bookmark.content.clone())
+            .collect::<Vec<_>>();
+        let icons = query_chromium_favicons(snapshot.connection(), &urls);
+        for bookmark in &mut bookmarks {
+            bookmark.icon = icons.get(&bookmark.content).cloned();
         }
     }
     bookmarks
 }
 
 // 从书签JSON提取书签信息
-fn extract_bookmarks(
-    value: &serde_json::Value,
-    favicon_db: Option<&PathBuf>,
-    browser_type: &BrowserType,
-) -> Vec<BookmarkInfo> {
+fn extract_bookmarks(value: &serde_json::Value) -> Vec<BookmarkInfo> {
     let mut bookmarks = Vec::new();
 
     if let Some(obj) = value.as_object() {
@@ -897,30 +895,11 @@ fn extract_bookmarks(
                             }
                         }
 
-                        // 尝试从浏览器数据库获取图标
-                        let icon = if let Some(db_path) = favicon_db {
-                            match browser_type {
-                                BrowserType::Chrome
-                                | BrowserType::Edge
-                                | BrowserType::Speed360
-                                | BrowserType::QQBrowser
-                                | BrowserType::Brave
-                                | BrowserType::Vivaldi
-                                | BrowserType::Opera
-                                | BrowserType::ShuangHe
-                                | BrowserType::ChromeCore => {
-                                    get_favicon_from_chrome_db(&url_str, db_path)
-                                }
-                            }
-                        } else {
-                            None
-                        };
-
                         bookmarks.push(BookmarkInfo {
                             id: Uuid::new_v4().to_string(),
                             title,
                             content: url_str,
-                            icon,
+                            icon: None,
                             summarize: "bookmark".to_string(),
                             usage_count: 0,
                         });
@@ -930,7 +909,7 @@ fn extract_bookmarks(
                 if let Some(children) = obj.get("children") {
                     if let Some(children_array) = children.as_array() {
                         for child in children_array {
-                            bookmarks.extend(extract_bookmarks(child, favicon_db, browser_type));
+                            bookmarks.extend(extract_bookmarks(child));
                         }
                     }
                 }
@@ -948,29 +927,18 @@ pub fn load_bookmark_icons_async_silent(
     updated_count: std::sync::Arc<std::sync::Mutex<usize>>,
     completion_counter: std::sync::Arc<std::sync::Mutex<usize>>,
 ) {
-    // 为异步操作创建新的Tokio运行时
-    let runtime = match tokio::runtime::Runtime::new() {
-        Ok(rt) => rt,
-        Err(e) => {
-            log::error!("创建Tokio运行时失败: {}", e);
-            // 更新计数，标记任务完成但没有成功处理任何书签
-            {
-                let mut counter = updated_count.lock().unwrap();
-                *counter = 0;
-            }
-            {
-                let mut complete = completion_counter.lock().unwrap();
-                *complete += 1;
-            }
-            return;
-        }
-    };
+    let missing_urls = bookmarks
+        .iter()
+        .filter(|bookmark| bookmark.icon.is_none())
+        .map(|bookmark| bookmark.content.clone())
+        .collect::<Vec<_>>();
+    let local_icons = get_favicons_from_browser_cache(&missing_urls);
 
-    // 使用通用图标加载器
+    // 扫描/插件更新只使用本地浏览器数据库，不触发批量网络请求。
     let count = icon::load_icons_generic(
         bookmarks,
         |bookmark| bookmark.icon.is_some(),
-        |bookmark| runtime.block_on(async { icon::fetch_favicon_async(&bookmark.content).await }),
+        |bookmark| local_icons.get(&bookmark.content).cloned(),
         |bookmark, icon| db::update_bookmark_icon(&bookmark.id, icon).map_err(|e| e.to_string()),
         "书签",
     );
@@ -985,5 +953,57 @@ pub fn load_bookmark_icons_async_silent(
     {
         let mut complete = completion_counter.lock().unwrap();
         *complete += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chromium_favicon_query_uses_exact_local_url() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE icon_mapping(page_url TEXT, icon_id INTEGER);
+                 CREATE TABLE favicon_bitmaps(icon_id INTEGER, image_data BLOB, width INTEGER);
+                 INSERT INTO icon_mapping VALUES ('https://example.com/docs', 1);
+                 INSERT INTO favicon_bitmaps VALUES (1, X'89504E47', 32);",
+            )
+            .unwrap();
+
+        let urls = vec![
+            "https://example.com/docs".to_string(),
+            "https://example.com".to_string(),
+        ];
+        let icons = query_chromium_favicons(&connection, &urls);
+        let icon = icons.get("https://example.com/docs").expect("local icon");
+        assert!(icon.starts_with("data:image/png;base64,"));
+        assert!(!icons.contains_key("https://example.com"));
+    }
+
+    #[test]
+    fn browser_snapshot_uses_consistent_sqlite_backup_and_cleans_temp_file() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let source_path = temp.path().join("Favicons");
+        let source = Connection::open(&source_path).unwrap();
+        source
+            .execute_batch(
+                "PRAGMA journal_mode = WAL;
+                 CREATE TABLE marker(value TEXT);
+                 INSERT INTO marker VALUES ('ready');",
+            )
+            .unwrap();
+
+        let snapshot = BrowserDbSnapshot::open(&source_path, "snippets-test").unwrap();
+        let snapshot_path = snapshot.path.clone();
+        let value: String = snapshot
+            .connection()
+            .query_row("SELECT value FROM marker", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(value, "ready");
+
+        drop(snapshot);
+        assert!(!snapshot_path.exists());
     }
 }

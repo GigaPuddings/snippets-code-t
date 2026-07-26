@@ -16,6 +16,7 @@ mod markdown;
 mod ocr;
 mod plugins;
 mod search;
+mod sync_data;
 mod tray;
 mod update;
 mod window;
@@ -25,10 +26,10 @@ use crate::config::{
     reset_software, set_auto_update_check, set_language, set_offline_model_activated,
 };
 use crate::db::{
-    add_search_history, backup_database, get_auto_hide_on_blur, get_data_dir_info, get_db_path,
-    get_search_history, is_setup_completed, optimize_database, optimize_database_cmd,
-    restore_database, set_auto_hide_on_blur, set_auto_start_setting, set_custom_db_path,
-    set_data_dir_from_setup, set_setup_completed,
+    add_search_history, backup_database, clear_search_history, get_auto_hide_on_blur,
+    get_data_dir_info, get_db_path, get_search_history, is_setup_completed, optimize_database,
+    optimize_database_cmd, restore_database, set_auto_hide_on_blur, set_auto_start_setting,
+    set_custom_db_path, set_data_dir_from_setup, set_setup_completed,
 };
 use crate::plugins::system_theme as dark_mode;
 use crate::update::{
@@ -41,7 +42,7 @@ use crate::window::{
 use serde::Serialize;
 
 use hotkey::*;
-use icon::extract_icon_from_app;
+use icon::{clear_icon_cache, extract_icon_from_app};
 use log::{info, LevelFilter};
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -313,6 +314,10 @@ pub fn run() {
 
             // 如果已完成设置，才初始化数据库
             if is_setup_completed {
+                if let Err(e) = json_config::ensure_data_layout_manifest(app.handle()) {
+                    log::error!("数据布局初始化失败: {}", e);
+                    return Err(std::io::Error::other(e).into());
+                }
                 if let Err(e) = db::init_db() {
                     log::error!("数据库初始化失败: {}", e);
                 }
@@ -670,6 +675,7 @@ pub fn run() {
             fetch_favicon,                    // 获取网站favicon
             fetch_favicon_with_source,        // 使用指定源获取网站favicon
             extract_icon_from_app,            // 提取应用图标
+            clear_icon_cache,                 // 清理图标缓存（保留索引与历史）
             plugins::local_launcher::search_apps,                      // 搜索应用
             plugins::local_launcher::search_bookmarks,                 // 搜索书签
             reset_software,                   // 重置软件
@@ -697,6 +703,7 @@ pub fn run() {
             plugins::local_ai::local_ai_translate,                  // 本地 AI 翻译
             add_search_history,               // 添加搜索历史
             get_search_history,               // 获取搜索历史
+            clear_search_history,             // 按来源清理搜索历史
             get_window_info,                  // 获取窗口信息
             plugins::screenshot::copy_to_clipboard,                // 复制图片到剪切板
             plugins::screenshot::save_screenshot_to_file,          // 保存截图到文件

@@ -48,6 +48,29 @@ pub fn get_all_search_history() -> Result<Vec<SearchHistoryItem>, rusqlite::Erro
     Ok(history)
 }
 
+pub fn clear_search_history_scope(scope: &str) -> Result<usize, rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    match scope {
+        "all" => conn.execute("DELETE FROM search_history", []),
+        "apps" => conn.execute("DELETE FROM search_history WHERE id LIKE 'app:path:%'", []),
+        "bookmarks" => conn.execute(
+            "DELETE FROM search_history WHERE id LIKE 'bookmark:url:%'",
+            [],
+        ),
+        "desktopFiles" => {
+            conn.execute("DELETE FROM search_history WHERE id LIKE 'file:path:%'", [])
+        }
+        "markdown" => conn.execute(
+            "DELETE FROM search_history WHERE id LIKE 'markdown:path:%'",
+            [],
+        ),
+        _ => Err(rusqlite::Error::InvalidParameterName(format!(
+            "不支持的历史范围: {}",
+            scope
+        ))),
+    }
+}
+
 // 清理过期的搜索历史（保留最近6个月的数据和使用次数>5的记录）
 // pub fn cleanup_old_search_history() -> Result<usize, rusqlite::Error> {
 //     let conn = DbConnectionManager::get()?;
@@ -74,4 +97,9 @@ pub fn add_search_history(id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn get_search_history() -> Result<Vec<SearchHistoryItem>, String> {
     get_all_search_history().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn clear_search_history(scope: String) -> Result<usize, String> {
+    clear_search_history_scope(scope.trim()).map_err(|e| e.to_string())
 }

@@ -89,7 +89,7 @@ pub struct WorkspaceSettings {
 }
 
 // 附件设置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AttachmentSettings {
     pub path_template: String,
     pub filename_format: String,

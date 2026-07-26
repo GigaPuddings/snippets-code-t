@@ -6,9 +6,11 @@ use dirs::desktop_dir;
 use log::{info, warn};
 use lopdf::{content::Content, Document, Object};
 use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::time::SystemTime;
 use tauri::AppHandle;
@@ -46,8 +48,14 @@ pub struct DesktopFilePreview {
 
 static DESKTOP_FILES_CACHE: LazyLock<Mutex<Option<Vec<DesktopFileInfo>>>> =
     LazyLock::new(|| Mutex::new(None));
+static DESKTOP_FILES_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 pub fn invalidate_desktop_files_cache() {
+    DESKTOP_FILES_INITIALIZED.store(false, Ordering::Release);
+    invalidate_desktop_files_memory_cache();
+}
+
+pub fn invalidate_desktop_files_memory_cache() {
     if let Ok(mut cache) = DESKTOP_FILES_CACHE.lock() {
         *cache = None;
     }
@@ -111,18 +119,24 @@ fn resolve_desktop_file_icon(path: &Path) -> Option<String> {
     icon
 }
 
-fn cleanup_missing_desktop_file_icons(_current_paths: &[String]) {
+fn cleanup_missing_desktop_file_icons(current_paths: &[String]) {
     let Ok(cache) = db::load_all_icon_cache() else {
         return;
     };
+    let current_paths = current_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
 
     for key in cache
         .keys()
         .filter(|key| key.starts_with("desktop-file-icon:"))
     {
         let path = key.trim_start_matches("desktop-file-icon:");
-        let _ = db::delete_icon_from_cache(key);
-        crate::icon::remove_icon_cache_for_path(path);
+        if !current_paths.contains(path) {
+            let _ = db::delete_icon_from_cache(key);
+            crate::icon::remove_icon_cache_for_path(path);
+        }
     }
 }
 
@@ -159,6 +173,42 @@ fn get_file_icon(path: &Path) -> Option<String> {
     Some(icon.to_string())
 }
 
+fn build_desktop_file_info(path: &Path, include_icon: bool) -> Option<DesktopFileInfo> {
+    if !path.is_file() || !is_supported_desktop_file(path) {
+        return None;
+    }
+    let title = path.file_name()?.to_string_lossy().to_string();
+    let content = path.to_string_lossy().to_string();
+    let metadata = fs::metadata(path).ok();
+    let size = metadata.as_ref().map(|value| value.len());
+    let created = metadata
+        .as_ref()
+        .and_then(|value| value.created().ok())
+        .and_then(system_time_to_iso);
+    let modified = metadata
+        .as_ref()
+        .and_then(|value| value.modified().ok())
+        .and_then(system_time_to_iso);
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    Some(DesktopFileInfo {
+        id: format!("desktop-file:{}", content),
+        title,
+        content,
+        icon: include_icon
+            .then(|| resolve_desktop_file_icon(path))
+            .flatten(),
+        source_mtime: get_file_modified_timestamp(path),
+        size,
+        created,
+        modified,
+        last_indexed_at: now,
+    })
+}
+
 fn scan_desktop_files() -> Vec<DesktopFileInfo> {
     let Some(desktop_path) = desktop_dir() else {
         warn!("未找到桌面目录，跳过桌面文件索引");
@@ -167,10 +217,6 @@ fn scan_desktop_files() -> Vec<DesktopFileInfo> {
 
     let mut files = Vec::new();
     let mut current_paths = Vec::new();
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
 
     for entry in WalkDir::new(desktop_path)
         .max_depth(3)
@@ -183,34 +229,10 @@ fn scan_desktop_files() -> Vec<DesktopFileInfo> {
         }
 
         let path = entry.path();
-        let Some(title) = path.file_name().map(|s| s.to_string_lossy().to_string()) else {
-            continue;
-        };
-        let content = path.to_string_lossy().to_string();
-        current_paths.push(content.clone());
-
-        let metadata = fs::metadata(path).ok();
-        let size = metadata.as_ref().map(|m| m.len());
-        let created = metadata
-            .as_ref()
-            .and_then(|m| m.created().ok())
-            .and_then(system_time_to_iso);
-        let modified = metadata
-            .as_ref()
-            .and_then(|m| m.modified().ok())
-            .and_then(system_time_to_iso);
-
-        files.push(DesktopFileInfo {
-            id: format!("desktop-file:{}", content),
-            title,
-            content,
-            icon: resolve_desktop_file_icon(path),
-            source_mtime: get_file_modified_timestamp(path),
-            size,
-            created,
-            modified,
-            last_indexed_at: now,
-        });
+        if let Some(file) = build_desktop_file_info(path, true) {
+            current_paths.push(file.content.clone());
+            files.push(file);
+        }
     }
 
     cleanup_missing_desktop_file_icons(&current_paths);
@@ -229,7 +251,15 @@ fn load_desktop_files() -> Vec<DesktopFileInfo> {
 }
 
 fn persist_desktop_files_cache(files: &[DesktopFileInfo]) {
-    let records: Vec<DesktopFileCacheRecord> = files
+    let records = desktop_file_records(files);
+
+    if let Err(e) = db::upsert_desktop_file_cache(&records) {
+        warn!("保存桌面文件缓存失败: {}", e);
+    }
+}
+
+fn desktop_file_records(files: &[DesktopFileInfo]) -> Vec<DesktopFileCacheRecord> {
+    files
         .iter()
         .map(|file| DesktopFileCacheRecord {
             id: file.id.clone(),
@@ -242,11 +272,7 @@ fn persist_desktop_files_cache(files: &[DesktopFileInfo]) {
             modified: file.modified.clone(),
             last_indexed_at: file.last_indexed_at,
         })
-        .collect();
-
-    if let Err(e) = db::upsert_desktop_file_cache(&records) {
-        warn!("保存桌面文件缓存失败: {}", e);
-    }
+        .collect()
 }
 
 fn load_desktop_files_from_db() -> Option<Vec<DesktopFileInfo>> {
@@ -273,6 +299,168 @@ fn load_desktop_files_from_db() -> Option<Vec<DesktopFileInfo>> {
     )
 }
 
+fn set_desktop_files_memory_cache(files: Vec<DesktopFileInfo>) {
+    if let Ok(mut cache) = DESKTOP_FILES_CACHE.lock() {
+        *cache = Some(files);
+    }
+}
+
+/// 启动时做轻量对账：只为新增或指纹变化的文件读取元数据/系统图标，
+/// 未变化项直接复用数据库记录，不再“先清表 + 全量图标提取”。
+pub fn initialize_desktop_files_cache_with_count() -> usize {
+    if DESKTOP_FILES_INITIALIZED.swap(true, Ordering::AcqRel) {
+        return load_desktop_files_from_db()
+            .map(|files| files.len())
+            .unwrap_or_default();
+    }
+
+    match reconcile_desktop_files_cache() {
+        Ok(count) => count,
+        Err(error) => {
+            DESKTOP_FILES_INITIALIZED.store(false, Ordering::Release);
+            warn!("增量校验桌面文件索引失败: {}", error);
+            0
+        }
+    }
+}
+
+fn reconcile_desktop_files_cache() -> Result<usize, String> {
+    db::ensure_plugin_storage("desktop-files").map_err(|e| e.to_string())?;
+    let existing = load_desktop_files_from_db().unwrap_or_default();
+    let existing_by_path = existing
+        .into_iter()
+        .map(|item| (item.content.clone(), item))
+        .collect::<HashMap<_, _>>();
+
+    let Some(desktop_path) = desktop_dir() else {
+        return Ok(0);
+    };
+    let mut current = Vec::new();
+    let mut changed = Vec::new();
+    let mut seen = HashSet::new();
+
+    for entry in WalkDir::new(desktop_path)
+        .max_depth(3)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        let path = entry.path();
+        if !entry.file_type().is_file() || !is_supported_desktop_file(path) {
+            continue;
+        }
+        let path_text = path.to_string_lossy().to_string();
+        seen.insert(path_text.clone());
+        let source_mtime = get_file_modified_timestamp(path);
+        let size = path.metadata().ok().map(|metadata| metadata.len());
+        if let Some(existing) = existing_by_path.get(&path_text) {
+            if existing.source_mtime == source_mtime && existing.size == size {
+                current.push(existing.clone());
+                continue;
+            }
+        }
+        if let Some(file) = build_desktop_file_info(path, true) {
+            changed.push(file.clone());
+            current.push(file);
+        }
+    }
+
+    let removed_ids = existing_by_path
+        .values()
+        .filter(|item| !seen.contains(&item.content))
+        .map(|item| item.id.clone())
+        .collect::<Vec<_>>();
+    if !removed_ids.is_empty() || !changed.is_empty() {
+        db::apply_desktop_file_cache_changes(&desktop_file_records(&changed), &removed_ids)
+            .map_err(|e| e.to_string())?;
+    }
+
+    let current_paths = current
+        .iter()
+        .map(|item| item.content.clone())
+        .collect::<Vec<_>>();
+    cleanup_missing_desktop_file_icons(&current_paths);
+    let count = current.len();
+    set_desktop_files_memory_cache(current);
+    let _ = db::mark_index_success("desktop-files", 1, 1);
+    Ok(count)
+}
+
+/// 应用文件监听器的变化集合，只更新受影响的行。
+pub fn sync_desktop_file_changes(
+    changed_paths: &[PathBuf],
+    removed_paths: &[PathBuf],
+) -> Result<(usize, usize), String> {
+    db::ensure_plugin_storage("desktop-files").map_err(|e| e.to_string())?;
+    let existing = load_desktop_files_from_db().unwrap_or_default();
+    let mut removal_roots = removed_paths.to_vec();
+    let mut updates = Vec::new();
+
+    for path in changed_paths {
+        if let Some(file) = build_desktop_file_info(path, true) {
+            updates.push(file);
+        } else if !path.exists() {
+            removal_roots.push(path.clone());
+        }
+    }
+
+    let removed_items = existing
+        .iter()
+        .filter(|item| {
+            let item_path = Path::new(&item.content);
+            removal_roots
+                .iter()
+                .any(|root| item_path == root || item_path.starts_with(root))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let removed_ids = removed_items
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<Vec<_>>();
+
+    if !removed_ids.is_empty() || !updates.is_empty() {
+        db::apply_desktop_file_cache_changes(&desktop_file_records(&updates), &removed_ids)
+            .map_err(|e| e.to_string())?;
+    }
+    for item in &removed_items {
+        let key = desktop_file_icon_cache_key(&item.content);
+        let _ = db::delete_icon_from_cache(&key);
+        crate::icon::remove_icon_cache_for_path(&item.content);
+    }
+
+    set_desktop_files_memory_cache(load_desktop_files_from_db().unwrap_or_default());
+    let _ = db::mark_index_success("desktop-files", 1, 1);
+    Ok((updates.len(), removed_ids.len()))
+}
+
+pub fn refresh_missing_desktop_file_icons() -> usize {
+    if !crate::icon::is_icon_cache_enabled() {
+        return 0;
+    }
+    let mut files = load_desktop_files_from_db().unwrap_or_default();
+    let mut changed = Vec::new();
+    for file in &mut files {
+        if file.icon.is_some() {
+            continue;
+        }
+        let path = Path::new(&file.content);
+        if let Some(icon) = resolve_desktop_file_icon(path) {
+            file.icon = Some(icon);
+            changed.push(file.clone());
+        }
+    }
+    if !changed.is_empty() {
+        if let Err(error) = db::upsert_desktop_file_cache(&desktop_file_records(&changed)) {
+            warn!("重建桌面文件图标失败: {}", error);
+            return 0;
+        }
+    }
+    let count = changed.len();
+    set_desktop_files_memory_cache(files);
+    count
+}
+
 pub fn refresh_desktop_files_cache() {
     let _ = refresh_desktop_files_cache_with_count();
 }
@@ -285,13 +473,16 @@ pub fn refresh_desktop_files_cache_with_count() -> usize {
 
     let files = scan_desktop_files();
     let count = files.len();
-    if let Err(e) = db::clear_desktop_file_cache() {
-        warn!("清理旧桌面文件缓存失败: {}", e);
+    let records = desktop_file_records(&files);
+    if let Err(e) = db::replace_desktop_file_cache(&records) {
+        warn!("原子替换桌面文件缓存失败: {}", e);
+        return 0;
     }
-    persist_desktop_files_cache(&files);
     if let Ok(mut cache) = DESKTOP_FILES_CACHE.lock() {
         *cache = Some(files);
     }
+    DESKTOP_FILES_INITIALIZED.store(true, Ordering::Release);
+    let _ = db::mark_index_success("desktop-files", 1, 1);
     count
 }
 

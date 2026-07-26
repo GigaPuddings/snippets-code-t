@@ -293,16 +293,52 @@ fn require_plugin(app_handle: &AppHandle) -> Result<(), String> {
     crate::app_config::require_plugin_enabled(app_handle, PLUGIN_ID)
 }
 
+fn local_ai_state_file(app_handle: &AppHandle, file_name: &str) -> PathBuf {
+    let data_dir = crate::json_config::get_data_dir(app_handle);
+    let state_dir = data_dir.join("state").join("plugins").join(PLUGIN_ID);
+    let target = state_dir.join(file_name);
+    let legacy = data_dir.join(".snippets-code").join(file_name);
+
+    if !target.exists() && legacy.is_file() {
+        let migration = fs::read_to_string(&legacy)
+            .map_err(|error| error.to_string())
+            .and_then(|content| {
+                crate::json_config::write_text_atomic(&target, &content)
+                    .map_err(|error| error.to_string())
+            });
+        match migration {
+            Ok(()) => {
+                if let Err(error) = fs::remove_file(&legacy) {
+                    log::warn!(
+                        "[LocalAI] 清理旧状态文件失败 {}: {}",
+                        legacy.display(),
+                        error
+                    );
+                }
+            }
+            Err(error) => {
+                log::warn!(
+                    "[LocalAI] 迁移状态文件失败 {} -> {}: {}",
+                    legacy.display(),
+                    target.display(),
+                    error
+                );
+                return legacy;
+            }
+        }
+    }
+    if let Err(error) = crate::json_config::recover_atomic_file(&target) {
+        log::warn!("[LocalAI] 恢复状态文件失败 {}: {}", target.display(), error);
+    }
+    target
+}
+
 fn config_path(app_handle: &AppHandle) -> PathBuf {
-    let config_dir = crate::json_config::get_data_dir(app_handle).join(".snippets-code");
-    let _ = fs::create_dir_all(&config_dir);
-    config_dir.join("local-ai.json")
+    local_ai_state_file(app_handle, "local-ai.json")
 }
 
 fn history_path(app_handle: &AppHandle) -> PathBuf {
-    let config_dir = crate::json_config::get_data_dir(app_handle).join(".snippets-code");
-    let _ = fs::create_dir_all(&config_dir);
-    config_dir.join("local-ai-chat-history.json")
+    local_ai_state_file(app_handle, "local-ai-chat-history.json")
 }
 
 fn app_json_chat_histories(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
@@ -332,7 +368,7 @@ fn write_history_file(
     let path = history_path(app_handle);
     let json = serde_json::to_string_pretty(histories)
         .map_err(|error| format!("序列化聊天历史失败: {}", error))?;
-    fs::write(&path, json)
+    crate::json_config::write_text_atomic(&path, &json)
         .map_err(|error| format!("写入聊天历史失败 {}: {}", path.to_string_lossy(), error))
 }
 
@@ -368,7 +404,7 @@ fn write_config(app_handle: &AppHandle, config: &LocalAiConfig) -> Result<(), St
     let path = config_path(app_handle);
     let json = serde_json::to_string_pretty(config)
         .map_err(|error| format!("序列化本地 AI 配置失败: {}", error))?;
-    fs::write(&path, json)
+    crate::json_config::write_text_atomic(&path, &json)
         .map_err(|error| format!("写入本地 AI 配置失败 {}: {}", path.to_string_lossy(), error))
 }
 
@@ -1094,7 +1130,10 @@ fn format_command_line(program: &Path, args: &[String]) -> String {
 }
 
 fn log_path(app_handle: &AppHandle) -> PathBuf {
-    let dir = crate::json_config::get_data_dir(app_handle).join(".snippets-code");
+    let dir = app_handle
+        .path()
+        .app_log_dir()
+        .unwrap_or_else(|_| crate::json_config::get_data_dir(app_handle).join("logs"));
     let _ = fs::create_dir_all(&dir);
     dir.join("local-ai-llama-server.log")
 }

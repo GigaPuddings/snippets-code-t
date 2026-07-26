@@ -8,6 +8,7 @@ use std::path::Path;
 // 读取 workspace.json
 pub fn read_workspace(config_dir: &Path) -> Result<WorkspaceConfig, String> {
     let workspace_path = config_dir.join("workspace.json");
+    crate::json_config::recover_atomic_file(&workspace_path)?;
 
     if !workspace_path.exists() {
         // 如果文件不存在，返回默认配置
@@ -28,7 +29,8 @@ pub fn write_workspace(config_dir: &Path, workspace: &WorkspaceConfig) -> Result
     let json = serde_json::to_string_pretty(workspace)
         .map_err(|e| format!("序列化 workspace.json 失败: {}", e))?;
 
-    fs::write(&workspace_path, json).map_err(|e| format!("写入 workspace.json 失败: {}", e))?;
+    crate::json_config::write_text_atomic(&workspace_path, &json)
+        .map_err(|e| format!("写入 workspace.json 失败: {}", e))?;
 
     info!("✅ workspace.json 已保存");
     Ok(())

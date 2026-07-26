@@ -176,10 +176,16 @@ pub(crate) fn update_entity_icon<T: DbEntity>(
     Ok(())
 }
 
-// 通用清空表
+// 清理可重建的扫描来源，保留用户手动添加/编辑项。
 pub(crate) fn clear_entities<T: DbEntity>() -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
-    conn.execute(&format!("DELETE FROM {}", T::TABLE_NAME), [])?;
+    conn.execute(
+        &format!(
+            "DELETE FROM {} WHERE source_kind = 'scanner'",
+            T::TABLE_NAME
+        ),
+        [],
+    )?;
     Ok(())
 }
 
@@ -194,26 +200,151 @@ pub(crate) fn count_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
     Ok(count)
 }
 
+fn reconcile_legacy_entities<T: DbEntity>(
+    transaction: &rusqlite::Transaction<'_>,
+    entities: &[T],
+) -> Result<(), rusqlite::Error> {
+    let delete_matching = format!(
+        "DELETE FROM {} WHERE source_kind = 'legacy' AND content = ?1",
+        T::TABLE_NAME
+    );
+    {
+        let mut stmt = transaction.prepare(&delete_matching)?;
+        for entity in entities {
+            let params = entity.to_insert_params();
+            stmt.execute([params[2].as_ref()])?;
+        }
+    }
+    transaction.execute(
+        &format!(
+            "UPDATE {} SET source_kind = 'user' WHERE source_kind = 'legacy'",
+            T::TABLE_NAME
+        ),
+        [],
+    )?;
+    Ok(())
+}
+
 // 通用批量插入
 pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlite::Error> {
+    let mut conn = DbConnectionManager::get()?;
+    let transaction = conn.transaction()?;
+    reconcile_legacy_entities::<T>(&transaction, entities)?;
     if entities.is_empty() {
-        return Ok(());
+        return transaction.commit();
     }
 
-    let conn = DbConnectionManager::get()?;
-    let placeholders = "(?1, ?2, ?3, ?4, ?5)";
     let query = format!(
-        "INSERT OR REPLACE INTO {} (id, title, content, icon, summarize) VALUES {}",
+        "INSERT OR REPLACE INTO {} (id, title, content, icon, summarize, source_kind)
+         SELECT ?1, ?2, ?3, ?4, ?5, 'scanner'
+         WHERE NOT EXISTS (
+             SELECT 1 FROM {} WHERE source_kind = 'user' AND content = ?3
+         )",
         T::TABLE_NAME,
-        placeholders
+        T::TABLE_NAME
     );
 
-    let mut stmt = conn.prepare(&query)?;
-    for entity in entities {
-        let params = entity.to_insert_params();
-        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-        stmt.execute(param_refs.as_slice())?;
+    {
+        let mut stmt = transaction.prepare(&query)?;
+        for entity in entities {
+            let params = entity.to_insert_params();
+            let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+            stmt.execute(param_refs.as_slice())?;
+        }
     }
 
-    Ok(())
+    transaction.commit()
+}
+
+/// 在单个事务中替换扫描来源索引，保留用户手动项，并避免
+/// “先清表、扫描/写入失败后只剩空表”。
+pub(crate) fn replace_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlite::Error> {
+    let mut conn = DbConnectionManager::get()?;
+    let transaction = conn.transaction()?;
+    reconcile_legacy_entities::<T>(&transaction, entities)?;
+    transaction.execute(
+        &format!(
+            "DELETE FROM {} WHERE source_kind = 'scanner'",
+            T::TABLE_NAME
+        ),
+        [],
+    )?;
+    if !entities.is_empty() {
+        let query = format!(
+            "INSERT OR REPLACE INTO {} (id, title, content, icon, summarize, source_kind)
+             SELECT ?1, ?2, ?3, ?4, ?5, 'scanner'
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM {} WHERE source_kind = 'user' AND content = ?3
+             )",
+            T::TABLE_NAME,
+            T::TABLE_NAME
+        );
+        let mut stmt = transaction.prepare(&query)?;
+        for entity in entities {
+            let params = entity.to_insert_params();
+            let param_refs = params
+                .iter()
+                .map(|value| value.as_ref())
+                .collect::<Vec<&dyn rusqlite::ToSql>>();
+            stmt.execute(param_refs.as_slice())?;
+        }
+    }
+    transaction.commit()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_reconciliation_preserves_only_unmatched_rows_as_user_data() {
+        let mut connection = rusqlite::Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE apps (
+                     id TEXT PRIMARY KEY,
+                     title TEXT NOT NULL,
+                     content TEXT NOT NULL,
+                     icon TEXT,
+                     summarize TEXT NOT NULL,
+                     source_kind TEXT NOT NULL
+                 );
+                 INSERT INTO apps VALUES (
+                     'scanned', 'Scanned', 'C:\\scanned.exe', NULL, 'app', 'legacy'
+                 );
+                 INSERT INTO apps VALUES (
+                     'manual', 'Manual', 'C:\\manual.exe', NULL, 'app', 'legacy'
+                 );",
+            )
+            .unwrap();
+        let transaction = connection.transaction().unwrap();
+        let scanned = AppInfo {
+            id: "new-scanned".to_string(),
+            title: "Scanned".to_string(),
+            content: r"C:\scanned.exe".to_string(),
+            icon: None,
+            summarize: "app".to_string(),
+            usage_count: 0,
+        };
+
+        reconcile_legacy_entities::<AppInfo>(&transaction, &[scanned]).unwrap();
+        transaction.commit().unwrap();
+
+        let matched_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM apps WHERE content = 'C:\\scanned.exe'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let manual_kind: String = connection
+            .query_row(
+                "SELECT source_kind FROM apps WHERE id = 'manual'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(matched_count, 0);
+        assert_eq!(manual_kind, "user");
+    }
 }

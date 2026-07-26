@@ -131,7 +131,7 @@ pub struct PluginRuntimeState {
 
 pub type PluginStates = HashMap<String, PluginRuntimeState>;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorSettings {
     #[serde(default = "default_editor_line_numbers")]
@@ -358,6 +358,7 @@ impl AppConfigManager {
         if !config_dir.exists() {
             fs::create_dir_all(&config_dir).map_err(|e| format!("创建配置目录失败: {}", e))?;
         }
+        crate::json_config::recover_atomic_file(&config_path)?;
 
         let config_exists = config_path.exists();
         let existing_content = if config_exists {
@@ -438,7 +439,8 @@ impl AppConfigManager {
         let content = serde_json::to_string_pretty(&self.config)
             .map_err(|e| format!("序列化配置失败: {}", e))?;
 
-        fs::write(&self.config_path, content).map_err(|e| format!("写入配置文件失败: {}", e))?;
+        crate::json_config::write_text_atomic(&self.config_path, &content)
+            .map_err(|e| format!("写入配置文件失败: {}", e))?;
 
         info!("💾 [AppConfig] 配置已保存");
         Ok(())
@@ -899,7 +901,7 @@ fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
             let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
             crate::window::emit_scan_complete(0, 0, count);
         } else {
-            crate::plugins::desktop_files::refresh_desktop_files_cache();
+            crate::plugins::desktop_files::initialize_desktop_files_cache_with_count();
         }
     } else {
         crate::plugins::desktop_files::invalidate_desktop_files_cache();
@@ -936,11 +938,10 @@ fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String
                 4,
                 &format!("共 {} 个应用", apps.len()),
             );
-            if let Err(e) = crate::db::clear_apps() {
-                warn!("[Plugin] 清理旧本地应用索引失败: {}", e);
-            }
-            if let Err(e) = crate::db::insert_apps(&apps) {
-                warn!("[Plugin] 保存本地应用索引失败: {}", e);
+            if let Err(e) = crate::db::replace_apps(&apps) {
+                warn!("[Plugin] 原子替换本地应用索引失败: {}", e);
+            } else {
+                let _ = crate::db::mark_index_success("apps", 1, 1);
             }
             crate::plugins::local_launcher::invalidate_apps_cache();
 
@@ -952,11 +953,10 @@ fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String
                 4,
                 &format!("共 {} 个书签", bookmarks.len()),
             );
-            if let Err(e) = crate::db::clear_bookmarks() {
-                warn!("[Plugin] 清理旧浏览器书签索引失败: {}", e);
-            }
-            if let Err(e) = crate::db::insert_bookmarks(&bookmarks) {
-                warn!("[Plugin] 保存浏览器书签索引失败: {}", e);
+            if let Err(e) = crate::db::replace_bookmarks(&bookmarks) {
+                warn!("[Plugin] 原子替换浏览器书签索引失败: {}", e);
+            } else {
+                let _ = crate::db::mark_index_success("bookmarks", 1, 1);
             }
             crate::plugins::local_launcher::invalidate_bookmarks_cache();
             if crate::icon::is_icon_cache_enabled() {
@@ -1017,7 +1017,6 @@ fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled:
     }
 
     refresh_plugin_shell_integration(app_handle, plugin_id, enabled);
-    refresh_search_plugin_index_feedback(app_handle.clone(), plugin_id.to_string(), enabled);
 }
 
 pub fn apply_enabled_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str) {
@@ -1107,6 +1106,7 @@ fn clear_app_plugin_config(app_handle: &AppHandle, plugin_id: &str) -> Result<()
     Ok(())
 }
 
+#[allow(dead_code)] // 预留给未来“卸载并删除数据”显式操作；普通卸载不得调用。
 fn clear_plugin_owned_config(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
     clear_app_plugin_config(app_handle, plugin_id)?;
     clear_workspace_plugin_config(app_handle, plugin_id)?;
@@ -1944,41 +1944,33 @@ fn pascal_or_snake_to_kebab(value: &str) -> String {
     output.trim_matches('-').to_string()
 }
 
-fn plugin_has_owned_config(plugin_id: &str) -> bool {
-    matches!(
-        plugin_id,
-        "attachments"
-            | "git-sync"
-            | "screen-recorder"
-            | "screenshot"
-            | "system-theme"
-            | "translation"
+fn plugin_index_contract(manifest: &serde_json::Value) -> (u64, u64, u64) {
+    let storage = manifest.get("storage");
+    (
+        storage
+            .and_then(|value| value.get("schemaVersion"))
+            .and_then(|value| value.as_u64())
+            .unwrap_or(1),
+        storage
+            .and_then(|value| value.get("indexSchemaVersion"))
+            .and_then(|value| value.as_u64())
+            .unwrap_or(1),
+        storage
+            .and_then(|value| value.get("extractorVersion"))
+            .and_then(|value| value.as_u64())
+            .unwrap_or(1),
     )
 }
 
-fn manifest_version(manifest: &serde_json::Value) -> Option<&str> {
-    manifest
-        .get("version")
-        .and_then(|value| value.as_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-}
-
-fn should_clear_plugin_owned_config_for_reinstall(
-    plugin_id: &str,
-    target_dir: &Path,
-    next_manifest: &serde_json::Value,
+fn search_index_contract_changed(
+    previous: Option<&serde_json::Value>,
+    next: &serde_json::Value,
 ) -> bool {
-    if !plugin_has_owned_config(plugin_id) {
-        return false;
-    }
-
-    let existing_manifest = read_plugin_package_manifest(&target_dir.join("plugin.json")).ok();
-    existing_manifest
-        .as_ref()
-        .and_then(manifest_version)
-        .zip(manifest_version(next_manifest))
-        .is_some_and(|(existing_version, next_version)| existing_version == next_version)
+    previous.is_some_and(|previous| {
+        let (_, previous_index, previous_extractor) = plugin_index_contract(previous);
+        let (_, next_index, next_extractor) = plugin_index_contract(next);
+        previous_index != next_index || previous_extractor != next_extractor
+    })
 }
 
 fn plugin_package_manifest_id(plugin_package: &LocalPluginPackage) -> &str {
@@ -2009,7 +2001,41 @@ fn local_plugin_package_dir(app_handle: &AppHandle, plugin_id: &str) -> Result<P
 }
 
 fn local_plugin_data_path(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
-    Ok(local_plugin_package_dir(app_handle, plugin_id)?.join("data.json"))
+    validate_plugin_package_id(plugin_id)?;
+    let data_path = crate::json_config::get_data_dir(app_handle)
+        .join("state")
+        .join("plugins")
+        .join(plugin_id)
+        .join("data.json");
+
+    // 兼容旧版本：data.json 曾与可替换的插件包放在同一目录。
+    // 首次访问时迁到独立状态目录，使覆盖更新/卸载包不再删除用户数据。
+    if !data_path.exists() {
+        if let Ok(package_dir) = local_plugin_package_dir(app_handle, plugin_id) {
+            let legacy_path = package_dir.join("data.json");
+            if legacy_path.is_file() {
+                let legacy_content = fs::read_to_string(&legacy_path).map_err(|e| {
+                    format!("读取旧插件数据失败: {} ({})", legacy_path.display(), e)
+                })?;
+                crate::json_config::write_text_atomic(&data_path, &legacy_content).map_err(
+                    |e| {
+                        format!(
+                            "迁移插件数据失败: {} -> {} ({})",
+                            legacy_path.display(),
+                            data_path.display(),
+                            e
+                        )
+                    },
+                )?;
+                fs::remove_file(&legacy_path).map_err(|e| {
+                    format!("清理旧插件数据失败: {} ({})", legacy_path.display(), e)
+                })?;
+            }
+        }
+    }
+
+    crate::json_config::recover_atomic_file(&data_path)?;
+    Ok(data_path)
 }
 
 fn local_plugin_backend_spec(
@@ -2195,7 +2221,7 @@ fn write_local_plugin_data(
 
     let content =
         serde_json::to_string_pretty(data).map_err(|e| format!("序列化插件数据失败: {}", e))?;
-    fs::write(&data_path, content)
+    crate::json_config::write_text_atomic(&data_path, &content)
         .map_err(|e| format!("写入插件数据失败: {} ({})", data_path.display(), e))
 }
 
@@ -2720,14 +2746,20 @@ pub fn install_local_plugin_package(
             .map_err(|e| format!("创建插件目录失败: {} ({})", plugins_dir.display(), e))?;
 
         let target_dir = plugins_dir.join(&plugin_id);
+        let previous_manifest = target_dir
+            .join("plugin.json")
+            .is_file()
+            .then(|| read_plugin_package_manifest(&target_dir.join("plugin.json")))
+            .transpose()?;
+        let rebuild_search_index =
+            search_index_contract_changed(previous_manifest.as_ref(), &manifest);
         if target_dir.exists() {
+            // 旧版本把 data.json 放在包目录；覆盖前必须先迁出，避免随包删除。
+            let _ = local_plugin_data_path(&app_handle, &plugin_id)?;
             if !overwrite {
                 return Err(format!("插件 '{}' 已安装", plugin_id));
             }
             apply_plugin_runtime_change(&app_handle, &plugin_id, false);
-            if should_clear_plugin_owned_config_for_reinstall(&plugin_id, &target_dir, &manifest) {
-                clear_plugin_owned_config(&app_handle, &plugin_id)?;
-            }
             fs::remove_dir_all(&target_dir)
                 .map_err(|e| format!("移除旧插件目录失败: {} ({})", target_dir.display(), e))?;
         }
@@ -2757,7 +2789,19 @@ pub fn install_local_plugin_package(
                 );
             }
             apply_enabled_plugin_runtime_change(&app_handle, &plugin_id);
-            refresh_search_plugin_index_feedback(app_handle.clone(), plugin_id.to_string(), true);
+            if rebuild_search_index {
+                info!(
+                    "[Plugin] {} index contract changed {:?} -> {:?}; rebuilding affected source",
+                    plugin_id,
+                    previous_manifest.as_ref().map(plugin_index_contract),
+                    plugin_index_contract(&manifest)
+                );
+                refresh_search_plugin_index_feedback(
+                    app_handle.clone(),
+                    plugin_id.to_string(),
+                    true,
+                );
+            }
         }
         refresh_plugin_shell_integration(
             &app_handle,
@@ -2837,6 +2881,8 @@ pub fn uninstall_local_plugin_package(
     if !target_dir.exists() {
         return Err(format!("本地插件 '{}' 未安装", plugin_id));
     }
+    // 默认卸载只移除可重新安装的包；先迁出旧 data.json，并保留配置与数据库状态。
+    let _ = local_plugin_data_path(&app_handle, &plugin_id)?;
 
     if let Err(error) = crate::hotkey::refresh_plugin_shortcuts(&app_handle, &plugin_id, false) {
         warn!(
@@ -2846,17 +2892,8 @@ pub fn uninstall_local_plugin_package(
     }
     apply_plugin_runtime_change(&app_handle, &plugin_id, false);
 
-    clear_plugin_owned_config(&app_handle, &plugin_id)?;
-
     fs::remove_dir_all(&target_dir)
         .map_err(|e| format!("删除插件目录失败: {} ({})", target_dir.display(), e))?;
-
-    if let Err(error) = crate::db::clear_plugin_storage(&plugin_id) {
-        warn!(
-            "[Plugin] clear storage after uninstalling {} failed: {}",
-            plugin_id, error
-        );
-    }
 
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
         let mut manager = config_state
@@ -2870,7 +2907,10 @@ pub fn uninstall_local_plugin_package(
         manager.save()?;
     }
 
-    info!("✅ [Plugin] uninstalled local package {}", plugin_id);
+    info!(
+        "✅ [Plugin] uninstalled local package {} (user data preserved)",
+        plugin_id
+    );
     refresh_plugin_shell_integration(&app_handle, &plugin_id, false);
     Ok(())
 }
@@ -3210,4 +3250,58 @@ pub fn set_plugin_enabled(
     }
     apply_plugin_runtime_change(&app_handle, &plugin_id, effective_enabled);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_version_change_does_not_imply_index_rebuild() {
+        let previous = serde_json::json!({
+            "version": "1.0.0",
+            "storage": {
+                "schemaVersion": 1,
+                "indexSchemaVersion": 2,
+                "extractorVersion": 3
+            }
+        });
+        let ui_only_update = serde_json::json!({
+            "version": "1.1.0",
+            "storage": {
+                "schemaVersion": 1,
+                "indexSchemaVersion": 2,
+                "extractorVersion": 3
+            }
+        });
+        let extractor_update = serde_json::json!({
+            "version": "1.1.1",
+            "storage": {
+                "schemaVersion": 1,
+                "indexSchemaVersion": 2,
+                "extractorVersion": 4
+            }
+        });
+        let storage_only_update = serde_json::json!({
+            "version": "1.1.2",
+            "storage": {
+                "schemaVersion": 2,
+                "indexSchemaVersion": 2,
+                "extractorVersion": 3
+            }
+        });
+
+        assert!(!search_index_contract_changed(
+            Some(&previous),
+            &ui_only_update
+        ));
+        assert!(search_index_contract_changed(
+            Some(&previous),
+            &extractor_update
+        ));
+        assert!(!search_index_contract_changed(
+            Some(&previous),
+            &storage_only_update
+        ));
+    }
 }

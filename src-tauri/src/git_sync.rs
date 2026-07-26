@@ -21,8 +21,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use tauri::{Emitter, Manager};
 
 const MAIN_BRANCH: &str = "main";
-const AUTO_GENERATED_UNTRACKED_PULL_PATHS: &[&str] =
-    &[".gitignore", ".snippets-code/workspace.json"];
+const AUTO_GENERATED_UNTRACKED_PULL_PATHS: &[&str] = &[".gitignore"];
 
 // ============= Git 状态缓存 =============
 
@@ -197,6 +196,20 @@ fn format_git_status_line_for_display(line: &str) -> String {
     } else {
         format!("{} {}", status.trim(), path_decoded)
     }
+}
+
+fn git_porcelain_path(line: &str) -> Option<String> {
+    if line.len() < 4 {
+        return None;
+    }
+
+    let raw_path = line.get(3..)?.trim();
+    let target_path = raw_path
+        .rsplit_once(" -> ")
+        .map(|(_, target)| target)
+        .unwrap_or(raw_path);
+    let decoded = decode_git_quoted_path(target_path.trim()).replace('\\', "/");
+    (!decoded.is_empty()).then_some(decoded)
 }
 
 /// 冲突解决策略
@@ -712,11 +725,25 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
         .map_err(|e| format!("获取状态失败: {}", e))?;
 
     let changed_files: Vec<String> = if status_output.status.success() {
-        String::from_utf8_lossy(&status_output.stdout)
+        let attachment_roots = crate::sync_data::managed_attachment_roots(workspace_root);
+        let mut changed_files = String::from_utf8_lossy(&status_output.stdout)
             .lines()
-            .map(format_git_status_line_for_display)
+            .filter_map(|line| {
+                let path = git_porcelain_path(line)?;
+                crate::sync_data::is_allowed_sync_path(&path, &attachment_roots)
+                    .then(|| format_git_status_line_for_display(line))
+            })
             .filter(|line| !line.is_empty())
-            .collect()
+            .collect::<BTreeSet<_>>();
+
+        // 旧版本可能把 app.json、workspace.json 或数据库加入过 Git。
+        // 这些文件即使内容未变化，也需要触发一次同步提交以迁出索引；
+        // `git rm --cached` 只停止跟踪，不会删除本地文件。
+        for path in crate::sync_data::forbidden_tracked_paths(workspace_root)? {
+            changed_files.insert(format!("D {}", path));
+        }
+
+        changed_files.into_iter().collect()
     } else {
         vec![]
     };
@@ -942,9 +969,12 @@ struct ChangedFilesByStatus {
     created: Vec<String>,
     modified: Vec<String>,
     deleted: Vec<String>,
+    attachment_files: Vec<String>,
+    sync_protocol_files: Vec<String>,
 }
 
 impl ChangedFilesByStatus {
+    /// Markdown 内容变更。现有 cache 和内容刷新事件只消费这一组。
     fn all(&self) -> Vec<String> {
         self.created
             .iter()
@@ -952,6 +982,32 @@ impl ChangedFilesByStatus {
             .chain(self.deleted.iter())
             .cloned()
             .collect()
+    }
+
+    fn total_count(&self) -> usize {
+        self.created.len()
+            + self.modified.len()
+            + self.deleted.len()
+            + self.attachment_files.len()
+            + self.sync_protocol_files.len()
+    }
+
+    fn has_sync_protocol_changes(&self) -> bool {
+        !self.sync_protocol_files.is_empty()
+    }
+
+    fn record_path(&mut self, workspace_root: &Path, status: &str, path: String) {
+        if path.to_ascii_lowercase().ends_with(".md") {
+            match status {
+                "A" => self.created.push(path),
+                "D" => self.deleted.push(path),
+                _ => self.modified.push(path),
+            }
+        } else if crate::sync_data::is_sync_protocol_path(&path) {
+            self.sync_protocol_files.push(path);
+        } else if crate::sync_data::is_attachment_path(workspace_root, &path) {
+            self.attachment_files.push(path);
+        }
     }
 }
 
@@ -1001,22 +1057,20 @@ fn get_changed_files_with_status(
             ));
         }
 
-        let created = String::from_utf8_lossy(&output.stdout)
+        let mut result = ChangedFilesByStatus::default();
+        for path in String::from_utf8_lossy(&output.stdout)
             .lines()
             .map(decode_git_quoted_path)
             .map(|path| path.replace('\\', "/"))
-            .filter(|path| path.ends_with(".md"))
-            .collect::<Vec<_>>();
+        {
+            result.record_path(workspace_root, "A", path);
+        }
 
         info!(
-            "📋 [Git] 首次 Pull 无 diff 基准，将 {} 个 Markdown 文件视为新增",
-            created.len()
+            "📋 [Git] 首次 Pull 无 diff 基准，将 {} 个受管文件视为新增",
+            result.total_count()
         );
-        return Ok(ChangedFilesByStatus {
-            created,
-            modified: vec![],
-            deleted: vec![],
-        });
+        return Ok(result);
     }
 
     let output = crate::git_common::git_command()
@@ -1047,50 +1101,69 @@ fn get_changed_files_with_status(
         // R100 等重命名：parts[1]=旧路径, parts[2]=新路径
         match status {
             "A" => {
-                if path1.ends_with(".md") {
-                    result.created.push(path1);
-                }
+                result.record_path(workspace_root, "A", path1);
             }
             "M" => {
-                if path1.ends_with(".md") {
-                    result.modified.push(path1);
-                }
+                result.record_path(workspace_root, "M", path1);
             }
             "D" => {
-                if path1.ends_with(".md") {
-                    result.deleted.push(path1);
-                }
+                result.record_path(workspace_root, "D", path1);
             }
             _ if status.starts_with('R') && parts.len() >= 3 => {
-                if path1.ends_with(".md") {
-                    result.deleted.push(path1);
-                }
+                result.record_path(workspace_root, "D", path1);
                 let path2 = decode_git_quoted_path(parts[2]).replace('\\', "/");
-                if path2.ends_with(".md") {
-                    result.created.push(path2);
-                }
+                result.record_path(workspace_root, "A", path2);
             }
             _ => {}
         }
     }
 
     info!(
-        "📋 [Git] 变更: {} 新增, {} 修改, {} 删除 (base_ref={})",
+        "📋 [Git] 变更: {} Markdown 新增, {} 修改, {} 删除, {} 附件, {} 同步配置 (base_ref={})",
         result.created.len(),
         result.modified.len(),
         result.deleted.len(),
+        result.attachment_files.len(),
+        result.sync_protocol_files.len(),
         base_ref
     );
     Ok(result)
 }
 
-/// 获取 Git Pull 后变更的文件列表（扁平列表，保持向后兼容）
-fn get_changed_files_after_pull(
+fn apply_non_content_sync_changes(
+    app_handle: &tauri::AppHandle,
     workspace_root: &Path,
-    pre_pull_head: Option<&str>,
-) -> Result<Vec<String>, String> {
-    let by_status = get_changed_files_with_status(workspace_root, pre_pull_head)?;
-    Ok(by_status.all())
+    changes: &ChangedFilesByStatus,
+) {
+    if changes.has_sync_protocol_changes() {
+        match crate::sync_data::import_sync_bundle(app_handle, workspace_root) {
+            Ok(report) => {
+                info!(
+                    "✅ [Git] 已应用同步配置: 偏好 {}, 快捷键 {}, 工作区设置 {}",
+                    report.applied_preferences.len(),
+                    report.applied_hotkeys.len(),
+                    report.applied_vault_settings.len()
+                );
+            }
+            Err(error) => {
+                warn!("⚠️ [Git] 内容已拉取，但同步配置导入失败: {}", error);
+                let _ = app_handle.emit(
+                    "portable-config-import-failed",
+                    serde_json::json!({ "error": error }),
+                );
+            }
+        }
+    }
+
+    if !changes.attachment_files.is_empty() {
+        let _ = app_handle.emit(
+            "sync-attachments-changed",
+            serde_json::json!({
+                "paths": changes.attachment_files,
+                "count": changes.attachment_files.len()
+            }),
+        );
+    }
 }
 
 /// 检查远端是否会删除本地已有的 Markdown 文件。
@@ -1303,13 +1376,37 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
         if stderr.contains("CONFLICT") || stdout.contains("CONFLICT") {
             let conflict_files = detect_conflicts(workspace_root)?;
             warn!("⚠️ [Git] Pull 发生冲突，冲突文件: {:?}", conflict_files);
+            match crate::sync_data::resolve_sync_protocol_conflicts(workspace_root, &conflict_files)
+            {
+                Ok(true) => {
+                    let changes =
+                        get_changed_files_with_status(workspace_root, pre_pull_head.as_deref())?;
+                    let last_sync_time =
+                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                    return Ok(PullResult {
+                        success: true,
+                        files_updated: changes.total_count(),
+                        has_conflicts: false,
+                        conflict_files: vec![],
+                        message: "同步配置冲突已按字段自动合并".to_string(),
+                        pre_pull_head,
+                        untracked_files: vec![],
+                        last_sync_time: Some(last_sync_time),
+                        branch_selection: None,
+                    });
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    warn!("⚠️ [Git] 同步配置冲突自动合并失败: {}", error);
+                }
+            }
             return Ok(PullResult {
                 success: false,
                 files_updated: 0,
                 has_conflicts: true,
                 conflict_files,
                 message: "Pull 发生冲突，请解决冲突后重试".to_string(),
-                pre_pull_head: None,
+                pre_pull_head,
                 untracked_files: vec![],
                 last_sync_time: None,
                 branch_selection: None,
@@ -1405,10 +1502,10 @@ pub async fn git_pull(workspace_root: &Path) -> Result<PullResult, String> {
     if files_updated == 0 {
         match get_changed_files_with_status(workspace_root, pre_pull_head.as_deref()) {
             Ok(changes) => {
-                files_updated = changes.all().len();
+                files_updated = changes.total_count();
                 if files_updated > 0 {
                     info!(
-                        "ℹ️ [Git] Pull 输出未提供文件数，已从实际变更中识别出 {} 个 Markdown 文件",
+                        "ℹ️ [Git] Pull 输出未提供文件数，已从实际变更中识别出 {} 个受管文件",
                         files_updated
                     );
                 }
@@ -1449,22 +1546,10 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
         .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
     info!("🔄 [Git] 开始 push 操作");
 
-    // 1. git add .
-    let add_output = crate::git_common::git_command()
-        .args(["add", "."])
-        .current_dir(workspace_root)
-        .output()
-        .map_err(|e| format!("git add 失败: {}", e))?;
-
-    if !add_output.status.success() {
-        let error = String::from_utf8_lossy(&add_output.stderr);
-        error!("❌ [Git] Add 失败: {}", error);
-        return Err(format!("git add 失败: {}", error));
-    }
-
-    // 2. 检查是否有变更
-    let status = get_git_status(workspace_root)?;
-    if !status.has_changes {
+    // 1. 只暂存可跨设备同步的数据。禁止应用通过 `git add .` 将本机索引、
+    // 完整 app.json、数据库、缓存或凭证带入远端。
+    let staged_files = crate::sync_data::stage_allowed_sync_changes(workspace_root)?;
+    if staged_files.is_empty() && !git_has_head(workspace_root) {
         info!("ℹ️ [Git] 没有变更需要提交");
         return Ok(PushResult {
             success: true,
@@ -1474,36 +1559,33 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
         });
     }
 
-    // 3. git commit
-    let commit_output = crate::git_common::git_command()
-        .args(["commit", "-m", message])
-        .current_dir(workspace_root)
-        .output()
-        .map_err(|e| format!("git commit 失败: {}", e))?;
+    // 2. 仅在存在允许范围内的暂存变更时创建提交。没有工作区变更时仍继续
+    // push，确保上一次网络失败后已经创建的本地提交能够再次推送。
+    let mut files_pushed = staged_files.len();
+    if !staged_files.is_empty() {
+        let commit_output = crate::git_common::git_command()
+            .args(["commit", "-m", message])
+            .current_dir(workspace_root)
+            .output()
+            .map_err(|e| format!("git commit 失败: {}", e))?;
 
-    if !commit_output.status.success() {
-        let error = String::from_utf8_lossy(&commit_output.stderr);
-        // 如果是 "nothing to commit" 不算错误
-        if error.contains("nothing to commit") {
-            info!("ℹ️ [Git] 没有变更需要提交");
-            return Ok(PushResult {
-                success: true,
-                files_pushed: 0,
-                commit_hash: String::new(),
-                message: "没有变更需要提交".to_string(),
-            });
+        if !commit_output.status.success() {
+            let error = String::from_utf8_lossy(&commit_output.stderr);
+            if !error.contains("nothing to commit") {
+                error!("❌ [Git] Commit 失败: {}", error);
+                return Err(format!("git commit 失败: {}", error));
+            }
+            files_pushed = 0;
+        } else {
+            let commit_stdout = get_git_stdout(&commit_output);
+            let parsed_files = parse_commit_output(&commit_stdout);
+            if parsed_files > 0 {
+                files_pushed = parsed_files;
+            }
         }
-        error!("❌ [Git] Commit 失败: {}", error);
-        return Err(format!("git commit 失败: {}", error));
     }
 
-    let commit_stdout = get_git_stdout(&commit_output);
-    let mut files_pushed = parse_commit_output(&commit_stdout);
-    if files_pushed == 0 {
-        files_pushed = status.changed_files.len();
-    }
-
-    // 4. git push
+    // 3. git push
     // 获取当前分支名
     let branch = get_current_branch(workspace_root)?;
 
@@ -1547,7 +1629,11 @@ pub async fn git_push(workspace_root: &Path, message: &str) -> Result<PushResult
         success: true,
         files_pushed,
         commit_hash: String::new(),
-        message: format!("Pushed {} files to remote", files_pushed),
+        message: if files_pushed > 0 {
+            format!("Pushed {} files to remote", files_pushed)
+        } else {
+            "已推送现有本地提交，工作区没有新的可同步数据".to_string()
+        },
     })
 }
 
@@ -1700,6 +1786,11 @@ pub fn resolve_conflict(
     file_path: &str,
     strategy: ConflictStrategy,
 ) -> Result<(), String> {
+    let attachment_roots = crate::sync_data::managed_attachment_roots(workspace_root);
+    if !crate::sync_data::is_allowed_sync_path(file_path, &attachment_roots) {
+        return Err(format!("拒绝解决同步白名单之外的文件冲突: {}", file_path));
+    }
+
     match strategy {
         ConflictStrategy::KeepLocal => {
             // 使用本地版本
@@ -1772,11 +1863,23 @@ pub fn check_gitignore(workspace_root: &Path) -> Result<(), String> {
 
     let mut missing_rules = Vec::new();
 
-    if !content.contains(".snippets-code") {
-        missing_rules.push(".snippets-code/");
+    if !content.contains(".snippets-code/*") {
+        missing_rules.push(".snippets-code/*");
+    }
+    if !content.contains("!.snippets-code/sync/") {
+        missing_rules.push("!.snippets-code/sync/");
+    }
+    if !content.contains("!.snippets-code/vault.json") {
+        missing_rules.push("!.snippets-code/vault.json");
     }
     if !content.contains("*.db") {
         missing_rules.push("*.db");
+    }
+    if !content.contains("*.db-wal") {
+        missing_rules.push("*.db-wal");
+    }
+    if !content.contains("*.db-shm") {
+        missing_rules.push("*.db-shm");
     }
     if !content.contains("*.exe") {
         missing_rules.push("*.exe");
@@ -1793,17 +1896,22 @@ pub fn check_gitignore(workspace_root: &Path) -> Result<(), String> {
 /// 默认 .gitignore 内容（工作区无此文件时自动创建）
 const DEFAULT_GITIGNORE: &str = r#"# ================================
 # Snippets Code 工作区 .gitignore
-# 此文件用于过滤不应上传到 Git 远程仓库的文件和文件夹
+# Git 仅同步 Markdown、受管附件和显式放行的同步协议文件
 # ================================
 
 # ------------------------------
-# 注意：以下内容应该提交到仓库
+# Snippets Code 本机状态和派生数据
 # ------------------------------
-# .snippets-code/   - 应用配置和缓存（请勿忽略）
-# assets/           - 附件目录（请勿忽略）
-# attachments/      - 附件目录（请勿忽略）
-# *.md              - Markdown 笔记文件（请勿忽略）
-# 你的笔记分类文件夹    - 自定义的笔记目录（请勿忽略）
+.snippets-code/*
+!.snippets-code/vault.json
+!.snippets-code/sync/
+!.snippets-code/sync/**
+
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
 
 # ------------------------------
 # 临时文件和编辑器配置（可以忽略）
@@ -1816,14 +1924,6 @@ const DEFAULT_GITIGNORE: &str = r#"# ================================
 # VSCode
 .vscode/
 .idea/
-
-# ------------------------------
-# 用户基本数据（建议忽略）
-# ------------------------------
-.snippets-code/app.json
-.snippets-code/cache.json
-.snippets-code/deleted_attachments/
-*.db
 
 # ------------------------------
 # 操作系统临时文件（建议忽略）
@@ -2201,6 +2301,10 @@ pub fn restore_git_record_file(
     {
         return Err("文件路径不安全，已取消恢复".to_string());
     }
+    let attachment_roots = crate::sync_data::managed_attachment_roots(workspace_root);
+    if !crate::sync_data::is_allowed_sync_path(&normalized_path, &attachment_roots) {
+        return Err(format!("拒绝恢复同步白名单之外的文件: {}", normalized_path));
+    }
 
     let rev = format!("{}^", commit_hash);
     let output = run_git_command(workspace_root, &["checkout", &rev, "--", &normalized_path])?;
@@ -2376,7 +2480,12 @@ pub fn init_git_repository_command(
     // 3. 配置远程仓库（内部会校验 token）
     configure_remote(&workspace_root, &remote_url, &token)?;
 
-    // 4. 只做非破坏性的 fetch。保存/更新 Git 配置不应自动 reset 到远端，
+    // 4. 创建默认忽略规则，但不在初始化阶段导出配置投影。
+    // 新设备可能正准备拉取一个已经包含同步协议的远端仓库；提前生成同名
+    // 未跟踪文件会阻塞 pull。配置投影在首次 push 前生成。
+    ensure_gitignore(&workspace_root)?;
+
+    // 5. 只做非破坏性的 fetch。保存/更新 Git 配置不应自动 reset 到远端，
     // 否则远端缺少的本地文件会被静默删除，并进一步清理 cache。
     let fetch_out = crate::git_common::git_command()
         .args(["fetch", "origin"])
@@ -2591,6 +2700,7 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
         let by_status =
             get_changed_files_with_status(&workspace_root, result.pre_pull_head.as_deref())?;
         let changed_files = by_status.all();
+        apply_non_content_sync_changes(&app_handle, &workspace_root, &by_status);
 
         if changed_files.is_empty() {
             info!("ℹ️ [Git] 没有检测到 .md 文件变更，跳过扫描");
@@ -2764,6 +2874,8 @@ pub async fn git_push_command(
     require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    ensure_gitignore(&workspace_root)?;
+    crate::sync_data::export_sync_bundle(&app_handle, &workspace_root)?;
 
     // 发送 push 开始事件到前端
     if let Err(e) = app_handle.emit_to("config", "git-push-start", ()) {
@@ -3031,6 +3143,11 @@ impl AutoSyncManager {
                                         }
                                     };
                                     let changed_files = by_status.all();
+                                    apply_non_content_sync_changes(
+                                        &app_handle,
+                                        &workspace_root,
+                                        &by_status,
+                                    );
 
                                     if !changed_files.is_empty() {
                                         info!(
@@ -3337,7 +3454,13 @@ impl AutoSyncManager {
                         break;
                     }
 
-                    let mut push_result = git_push(&workspace_root, "Auto sync").await;
+                    let mut push_result = match ensure_gitignore(&workspace_root).and_then(|_| {
+                        crate::sync_data::export_sync_bundle(&app_handle, &workspace_root)
+                            .map(|_| ())
+                    }) {
+                        Ok(()) => git_push(&workspace_root, "Auto sync").await,
+                        Err(error) => Err(error),
+                    };
                     if !is_current_worker() {
                         break;
                     }
@@ -3390,6 +3513,39 @@ impl AutoSyncManager {
                                         );
                                     } else {
                                         info!("✅ [AutoSync] Pull 成功，重试 Push");
+                                        if let Ok(changes) = get_changed_files_with_status(
+                                            &workspace_root,
+                                            pull_result.pre_pull_head.as_deref(),
+                                        ) {
+                                            apply_non_content_sync_changes(
+                                                &app_handle,
+                                                &workspace_root,
+                                                &changes,
+                                            );
+                                            if let Some(cache_state) = app_handle.try_state::<Arc<
+                                                StdRwLock<crate::markdown::CacheManager>,
+                                            >>() {
+                                                if let Ok(mut cache) = cache_state.write() {
+                                                    let to_scan = changes
+                                                        .created
+                                                        .iter()
+                                                        .chain(changes.modified.iter())
+                                                        .cloned()
+                                                        .collect::<Vec<_>>();
+                                                    if !to_scan.is_empty() {
+                                                        let _ =
+                                                            cache.scan_files(&to_scan, &workspace_root);
+                                                    }
+                                                    for path in &changes.deleted {
+                                                        let _ = cache.remove_file(
+                                                            &workspace_root.join(path),
+                                                            &workspace_root,
+                                                        );
+                                                    }
+                                                    let _ = cache.save();
+                                                }
+                                            }
+                                        }
                                         if !is_current_worker() {
                                             break;
                                         }
@@ -3741,15 +3897,23 @@ pub fn get_conflict_file_content(
     require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let normalized_path = file_path.replace('\\', "/");
+    let attachment_roots = crate::sync_data::managed_attachment_roots(&workspace_root);
+    if !crate::sync_data::is_allowed_sync_path(&normalized_path, &attachment_roots) {
+        return Err(format!(
+            "拒绝读取同步白名单之外的冲突文件: {}",
+            normalized_path
+        ));
+    }
 
-    let full_path = workspace_root.join(&file_path);
+    let full_path = workspace_root.join(&normalized_path);
 
     let merge_head_path = workspace_root.join(".git/MERGE_HEAD");
     let is_merge_conflict = merge_head_path.exists();
 
     let local_content = if is_merge_conflict {
         let head_output = crate::git_common::git_command()
-            .args(["show", &format!("HEAD:{}", file_path)])
+            .args(["show", &format!("HEAD:{}", normalized_path)])
             .current_dir(&workspace_root)
             .output()
             .map_err(|e| format!("获取本地版本失败: {}", e))?;
@@ -3759,7 +3923,7 @@ pub fn get_conflict_file_content(
         } else {
             warn!(
                 "⚠️ [Git] git show HEAD:{} 失败，回退读取磁盘文件",
-                file_path
+                normalized_path
             );
             std::fs::read_to_string(&full_path).map_err(|e| format!("读取本地文件失败: {}", e))?
         }
@@ -3769,7 +3933,7 @@ pub fn get_conflict_file_content(
 
     // 获取远程版本（MERGE_HEAD 或 origin/branch）
     let remote_output = crate::git_common::git_command()
-        .args(["show", &format!("MERGE_HEAD:{}", file_path)])
+        .args(["show", &format!("MERGE_HEAD:{}", normalized_path)])
         .current_dir(&workspace_root)
         .output()
         .map_err(|e| format!("获取远程版本失败: {}", e))?;
@@ -3789,7 +3953,7 @@ pub fn get_conflict_file_content(
             .to_string();
 
         let origin_output = crate::git_common::git_command()
-            .args(["show", &format!("origin/{}:{}", branch, file_path)])
+            .args(["show", &format!("origin/{}:{}", branch, normalized_path)])
             .current_dir(&workspace_root)
             .output()
             .map_err(|e| format!("获取远程版本失败: {}", e))?;
@@ -3803,7 +3967,7 @@ pub fn get_conflict_file_content(
 
     // 获取共同祖先版本（可选）
     let base_output = crate::git_common::git_command()
-        .args(["show", &format!(":1:{}", file_path)])
+        .args(["show", &format!(":1:{}", normalized_path)])
         .current_dir(&workspace_root)
         .output()
         .ok();
@@ -3816,10 +3980,10 @@ pub fn get_conflict_file_content(
         }
     });
 
-    info!("✅ [Git] 获取冲突文件内容: {}", file_path);
+    info!("✅ [Git] 获取冲突文件内容: {}", normalized_path);
 
     Ok(ConflictFileContent {
-        file_path,
+        file_path: normalized_path,
         remote_content,
         local_content,
         base_content,
@@ -3835,6 +3999,8 @@ pub async fn force_push_command(
     require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    ensure_gitignore(&workspace_root)?;
+    crate::sync_data::export_sync_bundle(&app_handle, &workspace_root)?;
     let _git_operation_guard = GIT_OPERATION_LOCK
         .lock()
         .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
@@ -3857,17 +4023,8 @@ pub async fn force_push_command(
         }
     }
 
-    // 1. 添加所有文件
-    let add_output = crate::git_common::git_command()
-        .args(["add", "."])
-        .current_dir(&workspace_root)
-        .output()
-        .map_err(|e| format!("git add 失败: {}", e))?;
-
-    if !add_output.status.success() {
-        let error = String::from_utf8_lossy(&add_output.stderr);
-        return Err(format!("git add 失败: {}", error));
-    }
+    // 1. 只添加同步白名单范围。强制推送只改变远端分支策略，不扩大数据范围。
+    let staged_files = crate::sync_data::stage_allowed_sync_changes(&workspace_root)?;
 
     // 2. 提交
     let commit_message = message.unwrap_or_else(|| {
@@ -3877,17 +4034,18 @@ pub async fn force_push_command(
         )
     });
 
-    let commit_output = crate::git_common::git_command()
-        .args(["commit", "-m", &commit_message])
-        .current_dir(&workspace_root)
-        .output()
-        .map_err(|e| format!("git commit 失败: {}", e))?;
+    if !staged_files.is_empty() {
+        let commit_output = crate::git_common::git_command()
+            .args(["commit", "-m", &commit_message])
+            .current_dir(&workspace_root)
+            .output()
+            .map_err(|e| format!("git commit 失败: {}", e))?;
 
-    // 如果没有变更，也不算错误
-    if !commit_output.status.success() {
-        let stderr = String::from_utf8_lossy(&commit_output.stderr);
-        if !stderr.contains("nothing to commit") {
-            return Err(format!("git commit 失败: {}", stderr));
+        if !commit_output.status.success() {
+            let stderr = String::from_utf8_lossy(&commit_output.stderr);
+            if !stderr.contains("nothing to commit") {
+                return Err(format!("git commit 失败: {}", stderr));
+            }
         }
     }
 
@@ -3919,7 +4077,7 @@ pub async fn force_push_command(
 
     Ok(PushResult {
         success: true,
-        files_pushed: 1,
+        files_pushed: staged_files.len(),
         commit_hash: String::new(),
         message: "强制推送成功".to_string(),
     })
@@ -3997,7 +4155,9 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
     info!("✅ [Git] 强制拉取成功");
 
     // 获取变更的文件列表用于增量扫描（强制拉取无 pre_pull_head，使用 ORIG_HEAD 回退）
-    let changed_files = get_changed_files_after_pull(&workspace_root, None)?;
+    let by_status = get_changed_files_with_status(&workspace_root, None)?;
+    let changed_files = by_status.all();
+    apply_non_content_sync_changes(&app_handle, &workspace_root, &by_status);
 
     // 将变更的文件添加到 FileWatcher 忽略列表，避免触发删除事件
     if !changed_files.is_empty() {
@@ -4037,7 +4197,7 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
 
     let result = PullResult {
         success: true,
-        files_updated: changed_files.len(),
+        files_updated: by_status.total_count(),
         has_conflicts: false,
         conflict_files: vec![],
         message: "强制拉取成功".to_string(),
@@ -4095,6 +4255,18 @@ pub fn resolve_conflicts_batch(
     // 收集所有冲突文件路径
     let conflict_file_paths: Vec<String> =
         resolutions.iter().map(|(path, _)| path.clone()).collect();
+    let attachment_roots = crate::sync_data::managed_attachment_roots(&workspace_root);
+    let forbidden_paths = conflict_file_paths
+        .iter()
+        .filter(|path| !crate::sync_data::is_allowed_sync_path(path, &attachment_roots))
+        .cloned()
+        .collect::<Vec<_>>();
+    if !forbidden_paths.is_empty() {
+        return Err(format!(
+            "冲突列表包含不同步的本机数据，已拒绝提交: {}",
+            forbidden_paths.join(", ")
+        ));
+    }
 
     let resolved_count = conflict_file_paths.len();
 
@@ -4436,6 +4608,10 @@ pub fn write_conflict_file(
     require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let attachment_roots = crate::sync_data::managed_attachment_roots(&workspace_root);
+    if !crate::sync_data::is_allowed_sync_path(&file_path, &attachment_roots) {
+        return Err(format!("拒绝写入同步白名单之外的冲突文件: {}", file_path));
+    }
 
     let full_path = workspace_root.join(&file_path);
 
@@ -4462,6 +4638,13 @@ pub fn remove_untracked_file_command(
     let relative_path = relative_path.trim_start_matches('/');
     if relative_path.is_empty() || relative_path.contains("..") {
         return Err("拒绝删除非法路径".to_string());
+    }
+    let attachment_roots = crate::sync_data::managed_attachment_roots(&workspace_root);
+    if !crate::sync_data::is_allowed_sync_path(relative_path, &attachment_roots) {
+        return Err(format!(
+            "拒绝删除同步白名单之外的本机文件: {}",
+            relative_path
+        ));
     }
 
     let full_path = workspace_root.join(relative_path);

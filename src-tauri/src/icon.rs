@@ -19,10 +19,14 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::System::Com::CoInitialize;
 use windows::Win32::UI::Shell::{
     IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
+    SIIGBF_INCACHEONLY,
 };
 
 use crate::apps::{get_installed_apps, is_shell_apps_folder_path, AppInfo};
-use crate::bookmarks::{get_browser_bookmarks, get_favicon_from_browser_cache, BookmarkInfo};
+use crate::bookmarks::{
+    get_browser_bookmarks, get_favicon_from_browser_cache, get_favicons_from_browser_cache,
+    BookmarkInfo,
+};
 use crate::db;
 
 // 代表一个缓存的图标
@@ -37,7 +41,6 @@ pub struct CachedIcon {
 // 图标缓存常数
 const MAX_CACHE_AGE: u64 = 604800; // 7 days in seconds
 const MAX_CACHE_SIZE: usize = 500; // 最多缓存500个图标，防止内存溢出
-const STARTUP_BOOKMARK_ICON_NETWORK_REFRESH: bool = false; // 启动时只使用已有缓存，避免离线环境批量请求网络
 
 // 全局图标缓存 - 使用 LRU 缓存自动淘汰最少使用的图标
 static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> = Lazy::new(|| {
@@ -54,6 +57,27 @@ pub fn is_icon_cache_enabled() -> bool {
         .get()
         .and_then(|app| crate::json_config::get_app_config_value::<bool>(app, "cache_icons"))
         .unwrap_or(true)
+}
+
+/// 清理图标这一可重建缓存域。
+///
+/// 来源索引、用户编辑、搜索历史、插件配置和工作区内容均不参与级联。
+#[tauri::command]
+pub fn clear_icon_cache(app_handle: AppHandle) -> Result<usize, String> {
+    let affected = db::clear_all_icon_cache().map_err(|e| format!("清理图标缓存失败: {}", e))?;
+    if let Ok(mut cache) = ICON_CACHE.lock() {
+        cache.clear();
+    }
+    crate::plugins::local_launcher::invalidate_apps_cache();
+    crate::plugins::local_launcher::invalidate_bookmarks_cache();
+    crate::plugins::desktop_files::invalidate_desktop_files_memory_cache();
+
+    // 文本索引立即保持可用；只在后台重新提取缺失的本地系统/浏览器图标。
+    load_missing_icons(app_handle);
+    std::thread::spawn(|| {
+        crate::plugins::desktop_files::refresh_missing_desktop_file_icons();
+    });
+    Ok(affected)
 }
 
 // Tauri command: 提取应用图标
@@ -115,11 +139,13 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
         let size = SIZE { cx: 48, cy: 48 };
 
         // 获取图标的位图句柄
-        let h_bitmap: HBITMAP =
-            match image_factory.GetImage(size, SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY) {
-                Ok(bitmap) => bitmap,
-                Err(_) => return None,
-            };
+        let h_bitmap: HBITMAP = image_factory
+            .GetImage(
+                size,
+                SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY | SIIGBF_INCACHEONLY,
+            )
+            .or_else(|_| image_factory.GetImage(size, SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY))
+            .ok()?;
 
         // 创建设备上下文
         let hdc = CreateCompatibleDC(None);
@@ -237,7 +263,7 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
-            source_mtime: None,
+            source_mtime: icon_source_mtime(app_path),
         };
         cache_icon(app_path, cached_icon);
 
@@ -253,12 +279,18 @@ fn get_cached_icon(key: &str) -> Option<String> {
 
     // LRU get 需要可变引用，会更新访问顺序
     if let Some(cached_icon) = cache.get(key) {
+        if cached_icon.source_mtime.is_some() && cached_icon.source_mtime != icon_source_mtime(key)
+        {
+            drop(cache);
+            remove_cached_icon(key);
+            return None;
+        }
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or(Duration::from_secs(0))
             .as_secs();
 
-        if now - cached_icon.timestamp < MAX_CACHE_AGE {
+        if now.saturating_sub(cached_icon.timestamp) < MAX_CACHE_AGE {
             // 验证缓存的图标数据是否有效
             if is_valid_cached_icon(&cached_icon.data) {
                 return Some(cached_icon.data.clone());
@@ -271,6 +303,14 @@ fn get_cached_icon(key: &str) -> Option<String> {
     }
 
     None
+}
+
+fn icon_source_mtime(path: &str) -> Option<u64> {
+    std::fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs())
 }
 
 // 验证缓存的 base64 图标数据是否有效
@@ -331,6 +371,9 @@ pub fn load_icon_cache(_app_handle: &AppHandle) {
         return;
     }
 
+    if let Err(error) = db::cleanup_old_icon_cache() {
+        log::warn!("[Icon] 清理过期图标缓存失败: {}", error);
+    }
     if let Ok(cache_data) = db::load_all_icon_cache() {
         let mut cache = ICON_CACHE.lock().unwrap();
 
@@ -757,6 +800,8 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         }
         if let Err(e) = db::insert_apps(&apps_to_load) {
             log::error!("插入应用到数据库失败: {}", e);
+        } else {
+            let _ = db::mark_index_success("apps", 1, 1);
         }
         current_step += 1;
     }
@@ -783,6 +828,8 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         }
         if let Err(e) = db::insert_bookmarks(&bookmarks_to_load) {
             log::error!("插入书签到数据库失败: {}", e);
+        } else {
+            let _ = db::mark_index_success("bookmarks", 1, 1);
         }
         current_step += 1;
     }
@@ -927,27 +974,12 @@ fn load_missing_icons(app_handle: AppHandle) {
             return;
         }
 
-        let bookmarks_to_refresh = if STARTUP_BOOKMARK_ICON_NETWORK_REFRESH {
-            bookmarks_without_icon
-        } else {
-            if !bookmarks_without_icon.is_empty() {
-                let samples = bookmarks_without_icon
-                    .iter()
-                    .take(5)
-                    .map(describe_bookmark_for_log)
-                    .collect::<Vec<_>>()
-                    .join(" | ");
-                log::info!(
-                    "[Icon] 启动阶段跳过 {} 个缺失书签图标的网络刷新，保留数据库缓存/默认图标；示例: {}",
-                    bookmarks_without_icon.len(),
-                    samples
-                );
-            }
-            Vec::new()
-        };
-
-        // 使用现有的图标加载逻辑
-        load_icons_with_combined_notification(app_handle, apps_without_icon, bookmarks_to_refresh);
+        // 使用现有的图标加载逻辑；书签阶段只批量读取本机浏览器 favicon。
+        load_icons_with_combined_notification(
+            app_handle,
+            apps_without_icon,
+            bookmarks_without_icon,
+        );
     });
 }
 
@@ -980,51 +1012,28 @@ fn load_icons_with_combined_notification(
         *app_count_clone.lock().unwrap() = count;
     });
 
-    // 加载书签图标（需要异步运行时）- 使用并行处理提升性能
+    // 批量加载书签本地图标：每个浏览器 favicon DB 只建立一次快照。
     let bookmark_count_clone = bookmark_count.clone();
     let bookmark_thread = std::thread::spawn(move || {
         if bookmarks.is_empty() {
             return;
         }
 
-        // 创建 Tokio 运行时用于异步操作
-        let runtime = match tokio::runtime::Runtime::new() {
-            Ok(rt) => rt,
-            Err(e) => {
-                log::error!("创建Tokio运行时失败: {}", e);
-                return;
-            }
-        };
-
-        // 并行处理所有书签图标加载
-        let count = runtime.block_on(async {
-            let mut tasks = Vec::new();
-
-            for bookmark in bookmarks {
-                // 跳过已有图标的书签
-                if bookmark.icon.is_some() {
-                    continue;
-                }
-
-                let bookmark_clone = bookmark.clone();
-                tasks.push(async move {
-                    let bookmark_desc = describe_bookmark_for_log(&bookmark_clone);
-                    if let Some(icon_data) = fetch_favicon_async(&bookmark_clone.content).await {
-                        if db::update_bookmark_icon_silent(&bookmark_clone.id, &icon_data).is_ok() {
-                            return 1;
-                        }
-                        log::warn!("[IconDiag] 书签图标写入数据库失败: {}", bookmark_desc);
-                        return 0;
-                    }
-                    log::info!("[IconDiag] 书签图标抓取失败，未写入缓存: {}", bookmark_desc);
-                    0
-                });
-            }
-
-            // 并行执行所有任务并统计成功数量
-            let results = futures::future::join_all(tasks).await;
-            results.into_iter().sum::<usize>()
-        });
+        let urls = bookmarks
+            .iter()
+            .filter(|bookmark| bookmark.icon.is_none())
+            .map(|bookmark| bookmark.content.clone())
+            .collect::<Vec<_>>();
+        let local_icons = get_favicons_from_browser_cache(&urls);
+        let count = bookmarks
+            .iter()
+            .filter_map(|bookmark| {
+                local_icons
+                    .get(&bookmark.content)
+                    .map(|icon| (&bookmark.id, icon))
+            })
+            .filter(|(id, icon)| db::update_bookmark_icon_silent(id, icon).is_ok())
+            .count();
 
         *bookmark_count_clone.lock().unwrap() = count;
     });
@@ -1073,91 +1082,6 @@ fn format_bookmark_progress_item(bookmark: &BookmarkInfo) -> String {
     match domain {
         Some(d) if !d.is_empty() => format_progress_item_name(&d, 32),
         _ => format_progress_item_name(&bookmark.title, 32),
-    }
-}
-
-fn describe_bookmark_for_log(bookmark: &BookmarkInfo) -> String {
-    let domain = extract_domain(&bookmark.content)
-        .or_else(|| {
-            Url::parse(&bookmark.content)
-                .ok()
-                .and_then(|u| u.host_str().map(|s| s.to_string()))
-        })
-        .unwrap_or_else(|| bookmark.content.clone());
-
-    format!(
-        "title={}, domain={}, url={}",
-        format_progress_item_name(&bookmark.title, 48),
-        domain,
-        bookmark.content
-    )
-}
-
-fn extract_app_icon_with_timeout(app_path: &str, timeout_ms: u64) -> Option<String> {
-    use std::sync::mpsc;
-
-    let started = std::time::Instant::now();
-    let app_path_owned = app_path.to_string();
-    let (tx, rx) = mpsc::channel();
-
-    std::thread::spawn(move || {
-        let icon = extract_app_icon(&app_path_owned);
-        let _ = tx.send(icon);
-    });
-
-    match rx.recv_timeout(Duration::from_millis(timeout_ms)) {
-        Ok(icon) => {
-            log::debug!(
-                "[IconDiag] extract_app_icon done: elapsed={}ms, path={}",
-                started.elapsed().as_millis(),
-                app_path
-            );
-            icon
-        }
-        Err(_) => {
-            log::warn!(
-                "[IconDiag] extract_app_icon timeout: timeout={}ms, elapsed={}ms, path={}",
-                timeout_ms,
-                started.elapsed().as_millis(),
-                app_path
-            );
-            None
-        }
-    }
-}
-
-fn fetch_favicon_with_hard_timeout(url: &str, timeout_ms: u64) -> Option<String> {
-    use std::sync::mpsc;
-
-    let started = std::time::Instant::now();
-    let url_owned = url.to_string();
-    let (tx, rx) = mpsc::channel();
-
-    std::thread::spawn(move || {
-        let rt = match tokio::runtime::Runtime::new() {
-            Ok(rt) => rt,
-            Err(e) => {
-                log::error!("[IconDiag] create runtime failed for bookmark fetch: {}", e);
-                let _ = tx.send(None);
-                return;
-            }
-        };
-
-        let result = rt.block_on(fetch_favicon_async(&url_owned));
-        let _ = tx.send(result);
-    });
-
-    match rx.recv_timeout(Duration::from_millis(timeout_ms)) {
-        Ok(icon) => icon,
-        Err(_) => {
-            log::warn!(
-                "[IconDiag] bookmark fetch hard-timeout: timeout={}ms, elapsed={}ms, url={}",
-                timeout_ms,
-                started.elapsed().as_millis(),
-                url
-            );
-            None
-        }
     }
 }
 
@@ -1250,7 +1174,7 @@ fn load_icons_with_realtime_progress(
             continue;
         }
 
-        if let Some(icon_data) = extract_app_icon_with_timeout(&app.content, 500) {
+        if let Some(icon_data) = extract_app_icon(&app.content) {
             app_icon_updates.push((app.id.clone(), icon_data));
         }
 
@@ -1284,6 +1208,12 @@ fn load_icons_with_realtime_progress(
             bookmarks.len(),
             flow_started.elapsed().as_millis()
         );
+        let urls = bookmarks
+            .iter()
+            .filter(|bookmark| bookmark.icon.is_none())
+            .map(|bookmark| bookmark.content.clone())
+            .collect::<Vec<_>>();
+        let local_icons = get_favicons_from_browser_cache(&urls);
 
         for bookmark in bookmarks.into_iter() {
             if bookmark.icon.is_some() {
@@ -1292,10 +1222,8 @@ fn load_icons_with_realtime_progress(
 
             let progress_item = format_bookmark_progress_item(&bookmark);
 
-            let icon_result = fetch_favicon_with_hard_timeout(&bookmark.content, 2500);
-
-            if let Some(icon_data) = icon_result {
-                bookmark_icon_updates.push((bookmark.id.clone(), icon_data));
+            if let Some(icon_data) = local_icons.get(&bookmark.content) {
+                bookmark_icon_updates.push((bookmark.id.clone(), icon_data.clone()));
             }
 
             current_step += 1;

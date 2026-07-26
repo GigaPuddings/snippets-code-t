@@ -1,6 +1,7 @@
 use crate::apps::AppInfo;
 use crate::db::entity::{
-    clear_entities, count_entities, get_all_entities, insert_entities, update_entity_icon,
+    clear_entities, count_entities, get_all_entities, insert_entities, replace_entities,
+    update_entity_icon,
 };
 use crate::db::DbConnectionManager;
 use crate::plugins::local_launcher::invalidate_apps_cache;
@@ -10,6 +11,14 @@ use crate::plugins::local_launcher::invalidate_apps_cache;
 // 批量插入应用
 pub fn insert_apps(apps: &[AppInfo]) -> Result<(), rusqlite::Error> {
     let result = insert_entities(apps);
+    if result.is_ok() {
+        invalidate_apps_cache();
+    }
+    result
+}
+
+pub fn replace_apps(apps: &[AppInfo]) -> Result<(), rusqlite::Error> {
+    let result = replace_entities(apps);
     if result.is_ok() {
         invalidate_apps_cache();
     }
@@ -57,7 +66,8 @@ pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<S
 
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
-        "INSERT INTO apps (id, title, content, icon, summarize) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO apps (id, title, content, icon, summarize, source_kind)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'user')",
         rusqlite::params![id, title, content, icon, "app"],
     )
     .map_err(|e| e.to_string())?;
@@ -77,7 +87,9 @@ pub fn update_app(
     let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
 
     conn.execute(
-        "UPDATE apps SET title = ?1, content = ?2, icon = ?3 WHERE id = ?4",
+        "UPDATE apps
+         SET title = ?1, content = ?2, icon = ?3, source_kind = 'user'
+         WHERE id = ?4",
         rusqlite::params![title, content, icon, id],
     )
     .map_err(|e| e.to_string())?;
