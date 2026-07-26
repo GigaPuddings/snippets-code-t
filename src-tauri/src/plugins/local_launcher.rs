@@ -144,12 +144,8 @@ pub fn search_apps(
     }
 
     let apps = cache.as_ref().unwrap();
-    let results = fuzzy_search(
-        apps,
-        &query,
-        |app: &AppInfo| &app.title,
-        |app: &AppInfo| &app.content,
-    );
+    // 应用检索只匹配标题：路径/launch_path 不参与模糊匹配，
+    let results = fuzzy_search(apps, &query, |app: &AppInfo| &app.title, |_: &AppInfo| "");
 
     Ok(results
         .into_iter()

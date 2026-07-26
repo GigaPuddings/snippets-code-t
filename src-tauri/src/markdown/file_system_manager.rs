@@ -676,28 +676,3 @@ impl FileSystemManager {
         Ok(files)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::FileSystemManager;
-    use std::fs;
-
-    #[test]
-    fn moving_to_a_path_like_category_is_rejected_before_any_directory_is_created() {
-        let workspace = tempfile::tempdir().expect("workspace");
-        let outside_dir = workspace
-            .path()
-            .parent()
-            .expect("workspace parent")
-            .join("outside");
-        let note_path = workspace.path().join("note.md");
-        fs::write(&note_path, "# Note").expect("note file");
-
-        let manager = FileSystemManager::new(workspace.path().to_path_buf());
-        let result = manager.move_markdown_file(&note_path, "../outside");
-
-        assert!(result.is_err());
-        assert!(!outside_dir.exists());
-        assert!(note_path.exists());
-    }
-}

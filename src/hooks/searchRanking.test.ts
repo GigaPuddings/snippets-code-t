@@ -78,6 +78,54 @@ describe('searchRanking', () => {
     expect(isRelevantSearchResult(item, 'zdy', { deepSearch: true })).toBe(true);
   });
 
+  it('does not locally match app install paths without a backend title match', () => {
+    // 应用后端已限定为标题/拼音匹配，因此没有后端命中分时，前端也
+    // 不能因为安装路径里的 "Install" 把 "tail" 视为结果。
+    const youku = createItem({
+      title: '优酷',
+      content:
+        'E:\\Lenovo\\Softstore\\Install\\youku_yulinling_zhengzhan\\youkuclient.exe',
+      summarize: 'app',
+      metadata: { source: 'app', raw_id: 'youku-uuid' },
+      score: 0
+    });
+
+    expect(
+      isRelevantSearchResult(youku, 'tail', { deepSearch: false })
+    ).toBe(false);
+    expect(
+      isRelevantSearchResult(youku, 'tail', { deepSearch: true })
+    ).toBe(false);
+  });
+
+  it('still keeps apps whose title genuinely matches the query', () => {
+    const code = createItem({
+      title: 'Visual Studio Code',
+      content: 'C:\\Users\\me\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
+      summarize: 'app',
+      metadata: { source: 'app', raw_id: 'code-uuid' },
+      score: 100
+    });
+
+    expect(isRelevantSearchResult(code, 'code', { deepSearch: false })).toBe(
+      true
+    );
+  });
+
+  it('keeps backend-validated app pinyin initials matches', () => {
+    const wechat = createItem({
+      title: '微信',
+      content: 'D:\\Program Files\\Tencent\\Weixin\\Weixin.exe',
+      summarize: 'app',
+      metadata: { source: 'app', raw_id: 'wechat-uuid' },
+      score: 100
+    });
+
+    expect(isRelevantSearchResult(wechat, 'wx', { deepSearch: false })).toBe(
+      true
+    );
+  });
+
   it('ranks exact title matches above content-only matches', () => {
     const exactTitle = createItem({
       id: 'exact-title',

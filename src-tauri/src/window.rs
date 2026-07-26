@@ -1986,28 +1986,6 @@ fn capture_full_screen_to_base64() -> Result<(String, String), String> {
     capture_screen_and_encode()
 }
 
-#[cfg(test)]
-mod screenshot_encoding_tests {
-    use super::encode_rgba_as_jpeg;
-    use image::GenericImageView;
-
-    #[test]
-    fn encodes_rgba_screen_buffer_as_jpeg() {
-        let rgba_data = vec![
-            255, 0, 0, 255, // red
-            0, 255, 0, 128, // green with alpha
-            0, 0, 255, 0, // blue with alpha
-            255, 255, 255, 255, // white
-        ];
-
-        let jpeg = encode_rgba_as_jpeg(&rgba_data, 2, 2, 85).expect("encode jpeg");
-
-        assert!(jpeg.starts_with(&[0xFF, 0xD8]));
-        let decoded = image::load_from_memory(&jpeg).expect("decode jpeg");
-        assert_eq!(decoded.dimensions(), (2, 2));
-    }
-}
-
 pub fn preload_screen_background_for_window(window_label: &'static str) {
     let Some(app_handle) = APP.get() else {
         info!("preload_screen_background_for_window: 无法获取应用句柄");

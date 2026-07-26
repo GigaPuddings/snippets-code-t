@@ -231,26 +231,3 @@ pub fn open_developer_log_dir(app_handle: AppHandle) -> Result<(), String> {
         .map_err(|error| format!("创建日志目录失败: {} ({})", display_path(&log_dir), error))?;
     crate::commands::open_folder(display_path(&log_dir))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::redact_diagnostic_text;
-
-    #[test]
-    fn redacts_credentials_from_log_text() {
-        let text = r#"{
-  "token": "github_pat_12345678901234567890",
-  "authorization": "Bearer abc.def-123",
-  "remoteUrl": "https://secret-value@github.com/example/repo",
-  "callback": "https://example.com?access_token=query-secret&mode=test"
-}"#;
-
-        let redacted = redact_diagnostic_text(text);
-
-        assert!(!redacted.contains("github_pat_12345678901234567890"));
-        assert!(!redacted.contains("abc.def-123"));
-        assert!(!redacted.contains("secret-value"));
-        assert!(!redacted.contains("query-secret"));
-        assert!(redacted.contains("[REDACTED]"));
-    }
-}

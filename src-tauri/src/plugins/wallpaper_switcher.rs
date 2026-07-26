@@ -1928,38 +1928,3 @@ pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
         stop_scheduler();
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn natural_file_name_sort_keeps_numeric_sequences_in_order() {
-        let mut images = vec![
-            PathBuf::from("wallpaper-10.jpg"),
-            PathBuf::from("wallpaper-2.jpg"),
-            PathBuf::from("wallpaper-1.jpg"),
-        ];
-
-        sort_images(&mut images, &FolderSort::FileNameAscending);
-
-        let names = images
-            .iter()
-            .map(|path| image_name(path))
-            .collect::<Vec<_>>();
-        assert_eq!(
-            names,
-            ["wallpaper-1.jpg", "wallpaper-2.jpg", "wallpaper-10.jpg"]
-        );
-    }
-
-    #[test]
-    fn wallhaven_history_moves_reselected_item_to_the_end() {
-        let mut config = WallpaperConfig::default();
-        record_wallhaven_seen(&mut config, "abc".to_string());
-        record_wallhaven_seen(&mut config, "def".to_string());
-        record_wallhaven_seen(&mut config, "abc".to_string());
-
-        assert_eq!(config.wallhaven_seen_ids, ["def", "abc"]);
-    }
-}

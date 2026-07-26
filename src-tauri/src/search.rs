@@ -1,5 +1,3 @@
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
 use pinyin::ToPinyin;
 use serde::{Deserialize, Serialize};
 
@@ -39,29 +37,81 @@ pub fn text_to_pinyin(text: &str) -> (String, String) {
     (full_pinyin, first_letters)
 }
 
+/// 提取由空白、标点或驼峰分隔的英文单词首字母。
+///
+/// 中文标题缩写由 `text_to_pinyin` 处理；这里补充诸如
+/// "Visual Studio Code" -> "vsc" 的常见英文应用缩写，避免把任意
+/// 字符子序列都误认为缩写。
+fn ascii_word_initials(text: &str) -> String {
+    let mut initials = String::new();
+    let mut at_word_start = true;
+    let mut previous_was_lowercase = false;
+
+    for character in text.chars() {
+        if character.is_ascii_alphanumeric() {
+            if at_word_start || (character.is_ascii_uppercase() && previous_was_lowercase) {
+                initials.push(character.to_ascii_lowercase());
+            }
+            at_word_start = false;
+            previous_was_lowercase = character.is_ascii_lowercase();
+        } else {
+            at_word_start = true;
+            previous_was_lowercase = false;
+        }
+    }
+
+    initials
+}
+
+fn match_score(value: &str, query: &str, exact: f64, prefix: f64, contains: f64) -> f64 {
+    if value.is_empty() || query.is_empty() {
+        0.0
+    } else if value == query {
+        exact
+    } else if value.starts_with(query) {
+        prefix
+    } else if value.contains(query) {
+        contains
+    } else {
+        0.0
+    }
+}
+
 pub fn fuzzy_search<T: Clone>(
     items: &[T],
     query: &str,
     get_title: fn(&T) -> &str,
     get_content: fn(&T) -> &str,
 ) -> Vec<(T, f64)> {
-    let matcher = SkimMatcherV2::default();
-    let query = query.to_lowercase();
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return Vec::new();
+    }
+
     let mut results = Vec::new();
 
     for item in items {
         let title = get_title(item);
         let content = get_content(item);
 
-        let direct_title_score = matcher.fuzzy_match(title, &query).unwrap_or(0) as f64;
-        let direct_content_score = matcher.fuzzy_match(content, &query).unwrap_or(0) as f64;
+        let normalized_title = title.to_lowercase();
+        let normalized_content = content.to_lowercase();
 
         let (title_pinyin, title_initials) = text_to_pinyin(title);
-        let pinyin_score = matcher.fuzzy_match(&title_pinyin, &query).unwrap_or(0) as f64;
-        let initials_score = matcher.fuzzy_match(&title_initials, &query).unwrap_or(0) as f64 * 1.5;
+        let word_initials = ascii_word_initials(title);
 
-        let title_score = direct_title_score.max(pinyin_score).max(initials_score);
-        let total_score = title_score * 2.0 + direct_content_score;
+        // 不在此处使用 Skim 的字符子序列匹配。对于 "wx" 这样的短查询，
+        // 它会仅因 "waifu2x" 中的 `w` 位于 `x` 之前而将其视为命中；同样
+        // 宽松的规则也会让很长的路径带出无关条目。改为只匹配真实的标题
+        // 子串、全拼或连续的首字母序列。
+        let title_score = match_score(&normalized_title, &query, 1200.0, 1050.0, 900.0)
+            .max(match_score(&title_pinyin, &query, 1150.0, 1000.0, 850.0))
+            .max(match_score(&title_initials, &query, 1100.0, 1000.0, 850.0))
+            .max(match_score(&word_initials, &query, 1080.0, 980.0, 820.0));
+        // 内容仍可供显式传入内容字段的调用方（如书签）使用，但仅接受字面
+        // 包含匹配；目录名不再能通过模糊子序列匹配产生结果。
+        let content_score = match_score(&normalized_content, &query, 320.0, 280.0, 240.0);
+        let total_score = title_score * 2.0 + content_score;
 
         if total_score > 0.0 {
             results.push((item.clone(), total_score));

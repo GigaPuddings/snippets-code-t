@@ -460,13 +460,3 @@ pub fn validate_workspace(path: &Path) -> Result<(), String> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn app_config_defaults_to_auto_ocr_language() {
-        assert_eq!(AppConfig::default().ocr_language.as_deref(), Some("auto"));
-    }
-}

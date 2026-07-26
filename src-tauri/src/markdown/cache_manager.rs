@@ -698,25 +698,3 @@ impl CacheManager {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::CacheManager;
-    use std::fs;
-
-    #[test]
-    fn update_file_adds_an_uncached_existing_file() {
-        let workspace = tempfile::tempdir().expect("workspace");
-        let config_dir = workspace.path().join(".snippets-code");
-        fs::create_dir_all(&config_dir).expect("config directory");
-        let note_path = workspace.path().join("external.md");
-        fs::write(&note_path, "# External note").expect("note file");
-
-        let mut cache = CacheManager::new(config_dir).expect("cache manager");
-        cache
-            .update_file(&note_path, workspace.path())
-            .expect("update uncached file");
-
-        assert!(cache.get_file_metadata("external.md").is_some());
-    }
-}

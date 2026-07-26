@@ -307,6 +307,13 @@ const isBackendMatchedResult = (
   if (backendScore <= 0) return false;
 
   const source = getSource(item);
+  // 应用的检索由后端限定为标题、全拼和连续首字母匹配；前端无法从
+  // SearchResult 重新推导中文拼音，因此必须保留这类已验证的结果。
+  // 后端不再把安装路径作为 app 的匹配字段，故不会让路径误命中绕过
+  // 当前浅层检索范围。
+  if (source === 'app') {
+    return true;
+  }
   if (source === 'markdown') {
     return options.deepSearch ? backendScore >= 0.5 : backendScore >= 4;
   }

@@ -124,6 +124,40 @@ impl OptimizedIndexManager {
         tokens
     }
 
+    /// 解析用户输入，不在查询侧生成拼音变体。
+    ///
+    /// 拼音扩展只属于被索引的文档文本。此前复用 `tokenize` 会把“微信”
+    /// 这样的中文原词扩展为 `微信`、`weixin` 和 `wx`；其中 `wx` 会继续
+    /// 命中无关标题的首字母（例如“完美无瑕” -> `wmwx`）。
+    fn tokenize_query(&self, text: &str) -> Vec<String> {
+        let normalized = text.trim().to_lowercase();
+        if normalized.is_empty() {
+            return Vec::new();
+        }
+
+        let mut tokens = vec![normalized.clone()];
+
+        tokens.extend(
+            self.jieba
+                .cut(&normalized, false)
+                .into_iter()
+                .map(|segment| segment.word.trim().to_lowercase())
+                .filter(|segment| segment.len() > 1),
+        );
+
+        tokens.extend(
+            normalized
+                .split(|character: char| !character.is_alphanumeric() && character != '_')
+                .map(str::trim)
+                .filter(|segment| segment.len() > 1)
+                .map(str::to_owned),
+        );
+
+        tokens.sort();
+        tokens.dedup();
+        tokens
+    }
+
     // 转换文本为拼音（全拼和首字母）
     fn text_to_pinyin(&self, text: &str) -> (String, String) {
         let mut full_pinyin = String::new();
@@ -368,7 +402,7 @@ impl OptimizedIndexManager {
         }
 
         // 分词查询
-        let query_tokens = self.tokenize(query);
+        let query_tokens = self.tokenize_query(query);
 
         if query_tokens.is_empty() && query.chars().any(|c| c.is_alphanumeric()) {
             // 如果分词为空但查询有内容，直接用原查询

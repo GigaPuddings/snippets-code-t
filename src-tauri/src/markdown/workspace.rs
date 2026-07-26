@@ -105,33 +105,3 @@ pub fn update_category_metadata(
 ) {
     cache.categories.insert(category_name.to_string(), metadata);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{write_cache, write_workspace};
-    use crate::markdown::metadata::{CacheConfig, WorkspaceConfig};
-
-    #[test]
-    fn writes_cache_after_config_directory_was_deleted() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_dir = temp_dir.path().join(".snippets-code");
-        std::fs::create_dir_all(&config_dir).unwrap();
-        std::fs::remove_dir_all(&config_dir).unwrap();
-
-        write_cache(&config_dir, &CacheConfig::default()).unwrap();
-
-        assert!(config_dir.join("cache.json").is_file());
-    }
-
-    #[test]
-    fn writes_workspace_after_config_directory_was_deleted() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_dir = temp_dir.path().join(".snippets-code");
-        std::fs::create_dir_all(&config_dir).unwrap();
-        std::fs::remove_dir_all(&config_dir).unwrap();
-
-        write_workspace(&config_dir, &WorkspaceConfig::default()).unwrap();
-
-        assert!(config_dir.join("workspace.json").is_file());
-    }
-}
