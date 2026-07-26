@@ -1,7 +1,7 @@
 # 跨设备数据同步方案
 
 > 状态：v1 已落地（严格同步白名单、配置投影、字段级合并、拉取后差量处理）  
-> 适用版本：snippets-code 2.1.42  
+> 适用版本：snippets-code 2.1.43
 > 更新日期：2026-07-26  
 > 范围：GitHub/Git 同步、片段、笔记、附件、用户偏好、新设备恢复与本机数据隔离
 
@@ -46,9 +46,9 @@ GitHub 应作为“可移植用户数据的版本化同步通道”，不能作�
 | `git_push` 和手动提交执行 `git add .` | 上传边界依赖 `.gitignore`，新增本机文件时容易误同步 | 已改为枚举 Markdown、受管附件和协议文件并精确暂存 |
 | `app.json` 默认被忽略 | 快捷键和通用偏好无法跨设备恢复 | 已生成配置白名单投影，不同步整份 `app.json` |
 | `app.json` 混有偏好、路径、Git 配置、运行时状态和 `extra` | 整文件同步会带入无效路径、设备状态和未来未知字段 | 已按字段所有权显式导出和导入，本机字段原样保留 |
-| `workspace.json` 同时包含布局和附件设置 | 布局是本机状态，附件规则是工作区配置，生命周期冲突 | `workspace.json` 保持本机；附件规则投影到 `vault-settings.json` |
+| `workspace.json` 同时包含布局和附件设置 | 布局是本机状态，附件规则是工作区配置，生命周期冲突 | `workspace.json` 保持本机；附件规则投影到单文件 `sync.json` |
 | pull 后差量列表只处理 `.md` | 同步配置和附件变化无法触发对应导入/刷新 | 已按内容、附件、同步配置分类并分别触发后处理 |
-| 默认 `.gitignore` 没有忽略 `workspace.json` | 新设备可能继承另一台设备的 UI 布局 | 已默认忽略 `.snippets-code`，仅放行 v1 协议文件 |
+| 默认 `.gitignore` 没有忽略 `workspace.json` | 新设备可能继承另一台设备的 UI 布局 | 已默认忽略 `.snippets-code/*`，仅放行 `sync.json` |
 | 整个 `snippets.db` 混合持久状态与本机索引 | 不能安全提交数据库，也不能按数据域恢复 | 数据库始终留在本机；旧仓库中的数据库会停止跟踪但保留本地文件 |
 
 v1 数据契约的实现入口为 `src-tauri/src/sync_data.rs`，所有应用内 push
@@ -124,7 +124,7 @@ v1 数据契约的实现入口为 `src-tauri/src/sync_data.rs`，所有应用内
 `workspace.json` 的同步边界已经拆分：
 
 - `main` 布局在 v1 仍保存在工作区 `.snippets-code/workspace.json`，但被 Git 严格忽略；物理迁到 `<data-root>/state/vaults/<vault-id>` 属于后续存储布局演进。
-- `settings.attachment` 已投影到同步目录中的 `vault-settings.json`，不会整文件同步布局。
+- `settings.attachment` 已投影到 `sync.json.vaultSettings`，不会整文件同步布局。
 - `settings.sync_enabled` 属于本机 Git 插件状态，不进入远端。
 
 ## 4. 目标同步目录
@@ -137,15 +137,9 @@ v1 数据契约的实现入口为 `src-tauri/src/sync_data.rs`，所有应用内
 ├─ <category-b>/*.md
 ├─ assets/...                         # 受管附件
 ├─ .snippets-code/
-│  ├─ vault.json                      # 同步：稳定 vault ID 和内容 schema
-│  ├─ sync/
-│  │  ├─ manifest.json                # 同步协议和兼容版本
-│  │  ├─ preferences.json             # 同步：通用偏好白名单
-│  │  ├─ hotkeys.json                 # 同步：动作 ID -> 快捷键
-│  │  ├─ vault-settings.json          # 同步：附件等工作区级设置
-│  │  └─ desired-plugins.json          # 可选：期望插件和可移植设置声明
+│  ├─ sync.json                       # 唯一同步配置：ID、版本、偏好、热键和附件规则
 │  ├─ app.json                        # 本机/旧文件，忽略
-│  ├─ workspace.json                  # 本机/迁移前文件，忽略
+│  ├─ workspace.json                  # 本机布局和 Git 开关，忽略
 │  └─ cache.json                      # 派生索引，忽略
 ├─ .gitignore
 └─ .gitattributes                     # 可选：换行和合并规则
@@ -169,31 +163,35 @@ v1 设备本地实际保存：
 └─ plugins/<plugin-id>/...            # 壁纸、录屏等设备缓存
 ```
 
-远端文件是可移植事实的交换格式，本机 `app.json` 和 `snippets.db` 仍是应用运行时读取的存储。二者通过导出器和导入器连接，不能互相整文件覆盖。`core.db`/`search.db` 物理拆分是后续演进，不影响 v1 同步白名单。
+远端文件是可移植事实的交换格式，本机 `app.json`、`workspace.json` 和 `snippets.db` 仍是应用运行时读取的存储。它们通过导出器和导入器连接，不能整文件覆盖。`core.db`/`search.db` 物理拆分是后续演进，不影响同步白名单。
 
 ## 5. 同步协议
 
-### 5.1 Manifest
+### 5.1 单文件同步协议
 
-`.snippets-code/sync/manifest.json` 建议至少包含：
+`.snippets-code/sync.json` 将 vault 标识、版本信息和四类可移植配置放在一个文件中：
 
 ```json
 {
-  "syncFormatVersion": 1,
+  "syncFormatVersion": 2,
   "contentSchemaVersion": 1,
   "preferenceSchemaVersion": 1,
   "vaultId": "uuid",
-  "minimumAppVersion": "2.1.42",
+  "minimumAppVersion": "2.1.43",
   "managedRoots": ["assets"],
-  "features": ["content", "preferences", "hotkeys", "vault-settings"]
+  "features": ["content", "preferences", "hotkeys", "vault-settings"],
+  "preferences": { "schemaVersion": 1, "values": {}, "tombstones": {} },
+  "hotkeys": { "schemaVersion": 1, "values": {}, "tombstones": {} },
+  "vaultSettings": { "schemaVersion": 1, "values": {}, "tombstones": {} },
+  "desiredPlugins": { "schemaVersion": 1, "values": {}, "tombstones": {} }
 }
 ```
 
-`manifest.json` 不记录设备名、绝对路径、用户名或最后同步时间。设备 ID 和同步基线只保存在本机。
+`sync.json` 不记录设备名、绝对路径、用户名或最后同步时间。设备 ID 和同步基线只保存在本机。
 
 ### 5.2 配置投影
 
-每个同步配置文件应具备：
+`sync.json` 中的每个配置分组应具备：
 
 - 独立 `schemaVersion`。
 - 仅允许声明过的字段。
@@ -274,7 +272,7 @@ v1 设备本地实际保存：
 
 1. 由内容管理器列出 Markdown 文件。
 2. 由附件管理器列出被引用的受管附件。
-3. 由配置导出器生成 `.snippets-code/vault.json` 和 `.snippets-code/sync/**`。
+3. 由配置导出器生成 `.snippets-code/sync.json`。
 4. 仅对上述路径执行 `git add -A -- <paths...>`。
 5. 暂存后检查 `git diff --cached --name-only`，发现越界路径立即取消本次同步并报告。
 
@@ -287,9 +285,7 @@ v1 设备本地实际保存：
 ```gitignore
 # Snippets Code 本机状态和派生数据
 .snippets-code/*
-!.snippets-code/vault.json
-!.snippets-code/sync/
-!.snippets-code/sync/**
+!.snippets-code/sync.json
 
 *.db
 *.db-wal
@@ -376,10 +372,7 @@ pull 后按变化类型分别处理：
 | Markdown 删除 | 用户确认后删除索引记录和失去引用的附件候选 |
 | 附件新增/修改 | 校验 hash，按需刷新正在显示的内容 |
 | 附件删除 | 标记引用缺失，不自动删除对应 Markdown |
-| `preferences.json` | schema 校验后按字段三方合并 |
-| `hotkeys.json` | 合并、注册可用快捷键、报告冲突 |
-| `vault-settings.json` | 应用可移植工作区设置 |
-| `desired-plugins.json` | 生成安装/兼容性提示，不自动下载或授权 |
+| `sync.json` | schema 校验后按字段三方合并；应用偏好、热键、附件规则和期望插件 |
 
 pull 不触发应用、书签或桌面文件的远端导入，也不清空这些本机索引。
 
@@ -389,10 +382,10 @@ pull 不触发应用、书签或桌面文件的远端导入，也不清空这些
 
 1. 用户选择新的本机数据目录和空工作区目录。
 2. 用户在本机配置 GitHub 仓库、分支和凭证；凭证进入系统凭证存储，不写入仓库。
-3. 克隆到临时目录，读取 `manifest.json`，校验 vault ID、schema 和最低应用版本。
+3. 克隆到临时目录，读取 `sync.json`，校验 vault ID、schema 和最低应用版本。
 4. 校验路径、文件大小、Markdown Frontmatter 和附件引用。
 5. 原子切换为正式工作区；失败时保留临时目录供诊断，不覆盖现有工作区。
-6. 备份目标设备当前可移植配置，导入 `preferences.json` 和 `hotkeys.json`。
+6. 备份目标设备当前可移植配置，导入 `sync.json` 中的偏好和热键。
 7. 对快捷键、引擎和期望插件执行兼容性检查，并生成恢复报告。
 8. 以拉取到的 Markdown 构建内容索引；首次恢复允许对内容做一次全量索引。
 9. 从目标设备独立扫描应用、浏览器书签和桌面目录，结果只写入本机 `snippets.db` 的来源索引表；未来拆库后写入 `search.db`。
@@ -461,7 +454,7 @@ v1 只同步插件的期望状态，不同步包和运行时资源：
 | --- | --- | --- |
 | `src-tauri/src/git_sync.rs::git_push` | `git add .` | 调用同步范围生成器并精确暂存 |
 | `commit_changes_command` | 同样执行 `git add .` | 与 push 共用同一个策略，禁止旁路 |
-| `DEFAULT_GITIGNORE` | 忽略 `app.json`、`cache.json`，但允许 `workspace.json` | 只放行 `vault.json` 和 `sync/**` |
+| `DEFAULT_GITIGNORE` | 忽略 `app.json`、`cache.json`，但允许 `workspace.json` | 仅放行 `sync.json` |
 | `AUTO_GENERATED_UNTRACKED_PULL_PATHS` | pull 前可能移除本机 `workspace.json` | 移除 `workspace.json`；本机布局不应由远端覆盖 |
 | `get_changed_files_with_status` | 只返回 `.md` | 返回 `content`、`attachment`、`syncConfig` 等分组 |
 | pull/auto-sync 后处理 | 只更新 Markdown cache | 增加配置导入、附件校验和兼容性报告 |
@@ -494,7 +487,7 @@ SyncPreferenceImporter
 
 ### P0：已完成
 
-- 已定义 `manifest.json`、配置、快捷键、vault 设置和期望插件 schema。
+- 已定义单文件 `sync.json`，内含版本、配置、快捷键、vault 设置和期望插件 schema。
 - 已实现配置白名单导出/导入，完整 `app.json` 不进入同步域。
 - 已移除应用同步入口中的 `git add .`，加入暂存范围和秘密/绝对路径检查。
 - 已更新默认 `.gitignore`；已跟踪的本机数据会从索引移除并保留磁盘文件。

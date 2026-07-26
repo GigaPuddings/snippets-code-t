@@ -12,27 +12,18 @@ use std::time::SystemTime;
 use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
-pub const SYNC_FORMAT_VERSION: u32 = 1;
+pub const SYNC_FORMAT_VERSION: u32 = 2;
 pub const CONTENT_SCHEMA_VERSION: u32 = 1;
 pub const PREFERENCE_SCHEMA_VERSION: u32 = 1;
-const MINIMUM_SYNC_APP_VERSION: &str = "2.1.42";
+const MINIMUM_SYNC_APP_VERSION: &str = "2.1.43";
 
-const VAULT_FILE: &str = ".snippets-code/vault.json";
-const SYNC_DIR: &str = ".snippets-code/sync";
-const MANIFEST_FILE: &str = ".snippets-code/sync/manifest.json";
-const PREFERENCES_FILE: &str = ".snippets-code/sync/preferences.json";
-const HOTKEYS_FILE: &str = ".snippets-code/sync/hotkeys.json";
-const VAULT_SETTINGS_FILE: &str = ".snippets-code/sync/vault-settings.json";
-const DESIRED_PLUGINS_FILE: &str = ".snippets-code/sync/desired-plugins.json";
+/// 工作区内唯一允许进入 Git 的应用配置文件。
+///
+/// `workspace.json` 同时保存界面布局和本机 Git 开关，不能直接提交；同步数据
+/// 因此使用独立、精简的投影文件，避免把本机状态混进远端仓库。
+const SYNC_FILE: &str = ".snippets-code/sync.json";
 
-const PROTOCOL_FILES: &[&str] = &[
-    VAULT_FILE,
-    MANIFEST_FILE,
-    PREFERENCES_FILE,
-    HOTKEYS_FILE,
-    VAULT_SETTINGS_FILE,
-    DESIRED_PLUGINS_FILE,
-];
+const PROTOCOL_FILES: &[&str] = &[SYNC_FILE];
 
 const PREFERENCE_KEYS: &[&str] = &[
     "appearance.theme",
@@ -85,23 +76,30 @@ pub struct SyncImportReport {
     pub warnings: Vec<String>,
 }
 
+/// Git 仓库中的单文件同步协议。
+///
+/// 内容数据仍以 Markdown 和受管附件为事实源；这里仅存储严格白名单的可移植
+/// 设置。每个设置分组保留字段时钟，因此文件数量减少不会降低冲突合并精度。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct VaultDescriptor {
-    schema_version: u32,
-    vault_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SyncManifest {
+struct SyncBundle {
     sync_format_version: u32,
     content_schema_version: u32,
     preference_schema_version: u32,
     vault_id: String,
     minimum_app_version: String,
+    #[serde(default)]
     managed_roots: Vec<String>,
+    #[serde(default)]
     features: Vec<String>,
+    #[serde(default)]
+    preferences: SyncMapFile,
+    #[serde(default)]
+    hotkeys: SyncMapFile,
+    #[serde(default)]
+    vault_settings: SyncMapFile,
+    #[serde(default)]
+    desired_plugins: SyncMapFile,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -171,26 +169,29 @@ fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), String>
     crate::json_config::write_text_atomic(path, &content)
 }
 
-fn ensure_vault_descriptor(workspace_root: &Path) -> Result<VaultDescriptor, String> {
-    let path = path_for(workspace_root, VAULT_FILE);
-    if let Some(descriptor) = read_json_if_exists::<VaultDescriptor>(&path)? {
-        if descriptor.schema_version > CONTENT_SCHEMA_VERSION {
-            return Err(format!(
-                "工作区数据版本 {} 高于当前支持版本 {}",
-                descriptor.schema_version, CONTENT_SCHEMA_VERSION
-            ));
-        }
-        Uuid::parse_str(&descriptor.vault_id)
-            .map_err(|_| "vault.json 中的 vaultId 无效".to_string())?;
-        return Ok(descriptor);
+fn validate_sync_bundle(bundle: &SyncBundle) -> Result<(), String> {
+    if bundle.sync_format_version > SYNC_FORMAT_VERSION {
+        return Err(format!(
+            "同步格式版本 {} 高于当前支持版本 {}",
+            bundle.sync_format_version, SYNC_FORMAT_VERSION
+        ));
     }
+    if bundle.content_schema_version > CONTENT_SCHEMA_VERSION
+        || bundle.preference_schema_version > PREFERENCE_SCHEMA_VERSION
+    {
+        return Err("同步数据版本高于当前应用支持范围".to_string());
+    }
+    Uuid::parse_str(&bundle.vault_id).map_err(|_| "同步数据的 vaultId 无效".to_string())?;
+    Ok(())
+}
 
-    let descriptor = VaultDescriptor {
-        schema_version: CONTENT_SCHEMA_VERSION,
-        vault_id: Uuid::new_v4().to_string(),
-    };
-    write_json_atomic(&path, &descriptor)?;
-    Ok(descriptor)
+fn read_sync_bundle(workspace_root: &Path) -> Result<Option<SyncBundle>, String> {
+    let path = path_for(workspace_root, SYNC_FILE);
+    if let Some(bundle) = read_json_if_exists::<SyncBundle>(&path)? {
+        validate_sync_bundle(&bundle)?;
+        return Ok(Some(bundle));
+    }
+    Ok(None)
 }
 
 fn ensure_device_id(app_handle: &AppHandle) -> Result<String, String> {
@@ -210,19 +211,6 @@ fn ensure_device_id(app_handle: &AppHandle) -> Result<String, String> {
     crate::json_config::write_text_atomic(&path, &id)
         .map_err(|e| format!("写入本机同步设备 ID 失败: {}", e))?;
     Ok(id)
-}
-
-fn read_sync_map(path: &Path) -> Result<SyncMapFile, String> {
-    let file = read_json_if_exists::<SyncMapFile>(path)?.unwrap_or_default();
-    if file.schema_version > PREFERENCE_SCHEMA_VERSION {
-        return Err(format!(
-            "同步配置 {} 的 schemaVersion={} 高于当前支持版本 {}",
-            path.display(),
-            file.schema_version,
-            PREFERENCE_SCHEMA_VERSION
-        ));
-    }
-    Ok(file)
 }
 
 fn update_sync_map(
@@ -430,10 +418,11 @@ fn normalized_attachment_root(path_template: &str) -> Option<String> {
 }
 
 pub fn managed_attachment_roots(workspace_root: &Path) -> Vec<String> {
-    let settings_path = path_for(workspace_root, VAULT_SETTINGS_FILE);
-    let configured = read_sync_map(&settings_path)
-        .ok()
-        .and_then(|file| file.values.get("attachment.pathTemplate").cloned())
+    let bundle = read_sync_bundle(workspace_root).ok().flatten();
+    let configured = bundle
+        .as_ref()
+        .and_then(|bundle| bundle.vault_settings.values.get("attachment.pathTemplate"))
+        .cloned()
         .and_then(|field| field.value.as_str().map(ToOwned::to_owned))
         .and_then(|template| normalized_attachment_root(&template));
 
@@ -441,11 +430,9 @@ pub fn managed_attachment_roots(workspace_root: &Path) -> Vec<String> {
     if let Some(root) = configured {
         roots.insert(root);
     }
-    if let Ok(Some(manifest)) =
-        read_json_if_exists::<SyncManifest>(&path_for(workspace_root, MANIFEST_FILE))
-    {
+    if let Some(bundle) = bundle {
         roots.extend(
-            manifest
+            bundle
                 .managed_roots
                 .into_iter()
                 .filter(|root| normalized_attachment_root(&format!("{}/file", root)).is_some()),
@@ -493,60 +480,60 @@ pub fn export_sync_bundle(
     app_handle: &AppHandle,
     workspace_root: &Path,
 ) -> Result<SyncExportReport, String> {
-    let descriptor = ensure_vault_descriptor(workspace_root)?;
     let device_id = ensure_device_id(app_handle)?;
     let config = app_config_snapshot(app_handle)?;
     let attachment = attachment_settings(app_handle, workspace_root)?;
+    let existing = read_sync_bundle(workspace_root)?;
+    let vault_id = existing
+        .as_ref()
+        .map(|bundle| bundle.vault_id.clone())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
     let mut managed_roots = normalized_attachment_root(&attachment.path_template)
         .into_iter()
         .collect::<BTreeSet<_>>();
-    if let Some(existing_manifest) =
-        read_json_if_exists::<SyncManifest>(&path_for(workspace_root, MANIFEST_FILE))?
-    {
-        if existing_manifest.sync_format_version > SYNC_FORMAT_VERSION {
-            return Err(format!(
-                "同步格式版本 {} 高于当前支持版本 {}",
-                existing_manifest.sync_format_version, SYNC_FORMAT_VERSION
-            ));
-        }
-        if existing_manifest.vault_id != descriptor.vault_id {
-            return Err("现有同步 manifest 与 vault.json 的 vaultId 不一致".to_string());
-        }
-        managed_roots.extend(existing_manifest.managed_roots);
+    if let Some(existing) = &existing {
+        managed_roots.extend(existing.managed_roots.iter().cloned());
     }
     let managed_roots = managed_roots.into_iter().collect::<Vec<_>>();
 
-    let preference_path = path_for(workspace_root, PREFERENCES_FILE);
-    let hotkey_path = path_for(workspace_root, HOTKEYS_FILE);
-    let vault_settings_path = path_for(workspace_root, VAULT_SETTINGS_FILE);
-    let desired_plugins_path = path_for(workspace_root, DESIRED_PLUGINS_FILE);
-
     let preferences = update_sync_map(
-        read_sync_map(&preference_path)?,
+        existing
+            .as_ref()
+            .map(|bundle| bundle.preferences.clone())
+            .unwrap_or_default(),
         &project_preferences(&config),
         &device_id,
     );
     let hotkeys = update_sync_map(
-        read_sync_map(&hotkey_path)?,
+        existing
+            .as_ref()
+            .map(|bundle| bundle.hotkeys.clone())
+            .unwrap_or_default(),
         &project_hotkeys(&config),
         &device_id,
     );
     let vault_settings = update_sync_map(
-        read_sync_map(&vault_settings_path)?,
+        existing
+            .as_ref()
+            .map(|bundle| bundle.vault_settings.clone())
+            .unwrap_or_default(),
         &project_vault_settings(&attachment),
         &device_id,
     );
     let desired_plugins = update_sync_map(
-        read_sync_map(&desired_plugins_path)?,
+        existing
+            .as_ref()
+            .map(|bundle| bundle.desired_plugins.clone())
+            .unwrap_or_default(),
         &project_desired_plugins(&config),
         &device_id,
     );
 
-    let manifest = SyncManifest {
+    let bundle = SyncBundle {
         sync_format_version: SYNC_FORMAT_VERSION,
         content_schema_version: CONTENT_SCHEMA_VERSION,
         preference_schema_version: PREFERENCE_SCHEMA_VERSION,
-        vault_id: descriptor.vault_id.clone(),
+        vault_id: vault_id.clone(),
         minimum_app_version: MINIMUM_SYNC_APP_VERSION.to_string(),
         managed_roots: managed_roots.clone(),
         features: vec![
@@ -556,34 +543,26 @@ pub fn export_sync_bundle(
             "vault-settings".to_string(),
             "desired-plugins".to_string(),
         ],
+        preferences: preferences.clone(),
+        hotkeys: hotkeys.clone(),
+        vault_settings: vault_settings.clone(),
+        desired_plugins,
     };
 
-    write_json_atomic(&path_for(workspace_root, MANIFEST_FILE), &manifest)?;
-    write_json_atomic(&preference_path, &preferences)?;
-    write_json_atomic(&hotkey_path, &hotkeys)?;
-    write_json_atomic(&vault_settings_path, &vault_settings)?;
-    write_json_atomic(&desired_plugins_path, &desired_plugins)?;
+    write_json_atomic(&path_for(workspace_root, SYNC_FILE), &bundle)?;
 
+    save_base_map(app_handle, &vault_id, "preferences.json", &preferences)?;
+    save_base_map(app_handle, &vault_id, "hotkeys.json", &hotkeys)?;
     save_base_map(
         app_handle,
-        &descriptor.vault_id,
-        "preferences.json",
-        &preferences,
-    )?;
-    save_base_map(app_handle, &descriptor.vault_id, "hotkeys.json", &hotkeys)?;
-    save_base_map(
-        app_handle,
-        &descriptor.vault_id,
+        &vault_id,
         "vault-settings.json",
         &vault_settings,
     )?;
 
-    info!(
-        "✅ [SyncData] 已导出可移植配置，vault={}",
-        descriptor.vault_id
-    );
+    info!("✅ [SyncData] 已导出可移植配置，vault={}", vault_id);
     Ok(SyncExportReport {
-        vault_id: descriptor.vault_id,
+        vault_id,
         files_written: PROTOCOL_FILES
             .iter()
             .map(|path| (*path).to_string())
@@ -903,37 +882,22 @@ pub fn import_sync_bundle(
     app_handle: &AppHandle,
     workspace_root: &Path,
 ) -> Result<SyncImportReport, String> {
-    let manifest_path = path_for(workspace_root, MANIFEST_FILE);
-    if !manifest_path.is_file() {
+    let Some(mut bundle) = read_sync_bundle(workspace_root)? else {
         return Ok(SyncImportReport::default());
-    }
-
-    let manifest: SyncManifest = read_json(&manifest_path)?;
-    if manifest.sync_format_version > SYNC_FORMAT_VERSION {
-        return Err(format!(
-            "远端同步格式版本 {} 高于当前支持版本 {}，请升级应用",
-            manifest.sync_format_version, SYNC_FORMAT_VERSION
-        ));
-    }
-    if parse_version(env!("CARGO_PKG_VERSION")) < parse_version(&manifest.minimum_app_version) {
+    };
+    if parse_version(env!("CARGO_PKG_VERSION")) < parse_version(&bundle.minimum_app_version) {
         return Err(format!(
             "远端数据要求应用版本不低于 {}，当前版本为 {}",
-            manifest.minimum_app_version,
+            bundle.minimum_app_version,
             env!("CARGO_PKG_VERSION")
         ));
     }
-
-    let descriptor: VaultDescriptor = read_json(&path_for(workspace_root, VAULT_FILE))?;
-    if descriptor.vault_id != manifest.vault_id {
-        return Err("vault.json 与同步 manifest 的 vaultId 不一致".to_string());
-    }
-    Uuid::parse_str(&descriptor.vault_id).map_err(|_| "同步数据的 vaultId 无效".to_string())?;
 
     let device_id = ensure_device_id(app_handle)?;
     let local_modified_at = local_config_modified_at(app_handle);
     let mut report = SyncImportReport {
         found_sync_bundle: true,
-        vault_id: Some(descriptor.vault_id.clone()),
+        vault_id: Some(bundle.vault_id.clone()),
         ..SyncImportReport::default()
     };
 
@@ -952,17 +916,13 @@ pub fn import_sync_bundle(
     let mut local_vault_settings = attachment_settings(app_handle, workspace_root)?;
     let local_vault_values = project_vault_settings(&local_vault_settings);
 
-    let preference_path = path_for(workspace_root, PREFERENCES_FILE);
-    let hotkey_path = path_for(workspace_root, HOTKEYS_FILE);
-    let vault_settings_path = path_for(workspace_root, VAULT_SETTINGS_FILE);
-
-    let mut preferences = read_sync_map(&preference_path)?;
-    let mut hotkeys = read_sync_map(&hotkey_path)?;
-    let mut vault_settings = read_sync_map(&vault_settings_path)?;
+    let mut preferences = bundle.preferences.clone();
+    let mut hotkeys = bundle.hotkeys.clone();
+    let mut vault_settings = bundle.vault_settings.clone();
 
     let preference_values = merge_remote_map(
         &mut preferences,
-        read_base_map(app_handle, &descriptor.vault_id, "preferences.json")?.as_ref(),
+        read_base_map(app_handle, &bundle.vault_id, "preferences.json")?.as_ref(),
         &local_preferences,
         PREFERENCE_KEYS,
         local_modified_at,
@@ -971,7 +931,7 @@ pub fn import_sync_bundle(
     );
     let hotkey_values = merge_remote_map(
         &mut hotkeys,
-        read_base_map(app_handle, &descriptor.vault_id, "hotkeys.json")?.as_ref(),
+        read_base_map(app_handle, &bundle.vault_id, "hotkeys.json")?.as_ref(),
         &local_hotkeys,
         HOTKEY_KEYS,
         local_modified_at,
@@ -980,7 +940,7 @@ pub fn import_sync_bundle(
     );
     let vault_values = merge_remote_map(
         &mut vault_settings,
-        read_base_map(app_handle, &descriptor.vault_id, "vault-settings.json")?.as_ref(),
+        read_base_map(app_handle, &bundle.vault_id, "vault-settings.json")?.as_ref(),
         &local_vault_values,
         VAULT_SETTING_KEYS,
         local_modified_at,
@@ -1001,36 +961,39 @@ pub fn import_sync_bundle(
     }
     save_workspace_attachment_settings(app_handle, workspace_root, local_vault_settings)?;
 
-    write_json_atomic(&preference_path, &preferences)?;
-    write_json_atomic(&hotkey_path, &hotkeys)?;
-    write_json_atomic(&vault_settings_path, &vault_settings)?;
+    bundle.sync_format_version = SYNC_FORMAT_VERSION;
+    bundle.content_schema_version = CONTENT_SCHEMA_VERSION;
+    bundle.preference_schema_version = PREFERENCE_SCHEMA_VERSION;
+    bundle.preferences = preferences.clone();
+    bundle.hotkeys = hotkeys.clone();
+    bundle.vault_settings = vault_settings.clone();
+    write_json_atomic(&path_for(workspace_root, SYNC_FILE), &bundle)?;
     save_base_map(
         app_handle,
-        &descriptor.vault_id,
+        &bundle.vault_id,
         "preferences.json",
         &preferences,
     )?;
-    save_base_map(app_handle, &descriptor.vault_id, "hotkeys.json", &hotkeys)?;
+    save_base_map(app_handle, &bundle.vault_id, "hotkeys.json", &hotkeys)?;
     save_base_map(
         app_handle,
-        &descriptor.vault_id,
+        &bundle.vault_id,
         "vault-settings.json",
         &vault_settings,
     )?;
 
-    if let Ok(desired_plugins) = read_sync_map(&path_for(workspace_root, DESIRED_PLUGINS_FILE)) {
-        report.desired_plugins = desired_plugins
-            .values
-            .iter()
-            .filter_map(|(plugin_id, field)| {
-                field
-                    .value
-                    .as_bool()
-                    .filter(|enabled| *enabled)
-                    .map(|_| plugin_id.clone())
-            })
-            .collect();
-    }
+    report.desired_plugins = bundle
+        .desired_plugins
+        .values
+        .iter()
+        .filter_map(|(plugin_id, field)| {
+            field
+                .value
+                .as_bool()
+                .filter(|enabled| *enabled)
+                .map(|_| plugin_id.clone())
+        })
+        .collect();
 
     if !report.applied_hotkeys.is_empty() {
         report
@@ -1049,7 +1012,7 @@ pub fn import_sync_bundle(
 
     info!(
         "✅ [SyncData] 已导入可移植配置，vault={}，偏好={}，快捷键={}",
-        descriptor.vault_id,
+        bundle.vault_id,
         report.applied_preferences.len(),
         report.applied_hotkeys.len()
     );
@@ -1296,7 +1259,7 @@ fn contains_windows_absolute_path(value: &str) -> bool {
 }
 
 fn validate_protocol_file_content(workspace_root: &Path, path: &str) -> Result<(), String> {
-    if !path.starts_with(SYNC_DIR) && path != VAULT_FILE {
+    if !is_sync_protocol_path(path) {
         return Ok(());
     }
     let full_path = path_for(workspace_root, path);
@@ -1380,7 +1343,7 @@ pub fn stage_allowed_sync_changes(workspace_root: &Path) -> Result<Vec<String>, 
 
 pub fn is_sync_protocol_path(path: &str) -> bool {
     let normalized = path.replace('\\', "/");
-    normalized == VAULT_FILE || normalized.starts_with(&format!("{}/", SYNC_DIR))
+    normalized == SYNC_FILE
 }
 
 pub fn is_attachment_path(workspace_root: &Path, path: &str) -> bool {
@@ -1526,19 +1489,21 @@ fn merge_sync_map_files(
     })
 }
 
-fn parse_sync_map_bytes(bytes: &[u8], path: &str, stage: &str) -> Result<SyncMapFile, String> {
-    serde_json::from_slice(bytes).map_err(|e| format!("解析 {} 的{}版本失败: {}", path, stage, e))
+fn parse_sync_bundle_bytes(bytes: &[u8], stage: &str) -> Result<SyncBundle, String> {
+    let bundle: SyncBundle = serde_json::from_slice(bytes)
+        .map_err(|e| format!("解析 sync.json 的{}版本失败: {}", stage, e))?;
+    validate_sync_bundle(&bundle)?;
+    Ok(bundle)
 }
 
-fn merge_sync_manifests(ours: &[u8], theirs: &[u8]) -> Result<SyncManifest, String> {
-    let ours: SyncManifest =
-        serde_json::from_slice(ours).map_err(|e| format!("解析本机同步 manifest 失败: {}", e))?;
-    let theirs: SyncManifest =
-        serde_json::from_slice(theirs).map_err(|e| format!("解析远端同步 manifest 失败: {}", e))?;
+fn merge_sync_bundles(
+    base: Option<&SyncBundle>,
+    ours: &SyncBundle,
+    theirs: &SyncBundle,
+) -> Result<SyncBundle, String> {
     if ours.vault_id != theirs.vault_id {
-        return Err("同步 manifest 属于不同 vault，不能自动合并".to_string());
+        return Err("同步配置属于不同 vault，不能自动合并".to_string());
     }
-
     let sync_format_version = ours.sync_format_version.max(theirs.sync_format_version);
     let content_schema_version = ours
         .content_schema_version
@@ -1550,45 +1515,66 @@ fn merge_sync_manifests(ours: &[u8], theirs: &[u8]) -> Result<SyncManifest, Stri
         || content_schema_version > CONTENT_SCHEMA_VERSION
         || preference_schema_version > PREFERENCE_SCHEMA_VERSION
     {
-        return Err("同步 manifest 版本高于当前应用支持范围".to_string());
+        return Err("同步配置版本高于当前应用支持范围".to_string());
     }
 
     let managed_roots = ours
         .managed_roots
-        .into_iter()
-        .chain(theirs.managed_roots)
+        .iter()
+        .chain(theirs.managed_roots.iter())
+        .cloned()
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
     let features = ours
         .features
-        .into_iter()
-        .chain(theirs.features)
+        .iter()
+        .chain(theirs.features.iter())
+        .cloned()
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
     let minimum_app_version =
         if parse_version(&ours.minimum_app_version) >= parse_version(&theirs.minimum_app_version) {
-            ours.minimum_app_version
+            ours.minimum_app_version.clone()
         } else {
-            theirs.minimum_app_version
+            theirs.minimum_app_version.clone()
         };
 
-    Ok(SyncManifest {
+    let merged = SyncBundle {
         sync_format_version,
         content_schema_version,
         preference_schema_version,
-        vault_id: ours.vault_id,
+        vault_id: ours.vault_id.clone(),
         minimum_app_version,
         managed_roots,
         features,
-    })
+        preferences: merge_sync_map_files(
+            base.map(|bundle| &bundle.preferences),
+            &ours.preferences,
+            &theirs.preferences,
+        )?,
+        hotkeys: merge_sync_map_files(
+            base.map(|bundle| &bundle.hotkeys),
+            &ours.hotkeys,
+            &theirs.hotkeys,
+        )?,
+        vault_settings: merge_sync_map_files(
+            base.map(|bundle| &bundle.vault_settings),
+            &ours.vault_settings,
+            &theirs.vault_settings,
+        )?,
+        desired_plugins: merge_sync_map_files(
+            base.map(|bundle| &bundle.desired_plugins),
+            &ours.desired_plugins,
+            &theirs.desired_plugins,
+        )?,
+    };
+    validate_sync_bundle(&merged)?;
+    Ok(merged)
 }
 
-/// 自动解决配置投影文件的 Git 冲突。
-///
-/// 只处理字段带时钟的 SyncMap 文件；vault ID、manifest 或其他文件存在
-/// 实质差异时仍交给用户，避免把两个独立 vault 错误合并。
+/// 自动解决单文件同步协议的 Git 冲突。
 pub fn resolve_sync_protocol_conflicts(
     workspace_root: &Path,
     conflict_files: &[String],
@@ -1601,12 +1587,6 @@ pub fn resolve_sync_protocol_conflicts(
         return Ok(false);
     }
 
-    let mergeable = [
-        PREFERENCES_FILE,
-        HOTKEYS_FILE,
-        VAULT_SETTINGS_FILE,
-        DESIRED_PLUGINS_FILE,
-    ];
     let mut resolved_paths = Vec::new();
 
     for path in conflict_files {
@@ -1616,30 +1596,12 @@ pub fn resolve_sync_protocol_conflicts(
             return Ok(false);
         };
 
-        if path == MANIFEST_FILE {
-            let merged = merge_sync_manifests(&ours, &theirs)?;
-            write_json_atomic(&path_for(workspace_root, path), &merged)?;
-            validate_protocol_file_content(workspace_root, path)?;
-            resolved_paths.push(path.clone());
-            continue;
-        }
-
-        if !mergeable.contains(&path.as_str()) {
-            if ours != theirs {
-                return Ok(false);
-            }
-            fs::write(path_for(workspace_root, path), ours)
-                .map_err(|e| format!("写入已合并同步文件失败: {}", e))?;
-            resolved_paths.push(path.clone());
-            continue;
-        }
-
         let base = git_stage_file(workspace_root, 1, path)?
-            .map(|bytes| parse_sync_map_bytes(&bytes, path, "基线"))
+            .map(|bytes| parse_sync_bundle_bytes(&bytes, "基线"))
             .transpose()?;
-        let ours = parse_sync_map_bytes(&ours, path, "本机")?;
-        let theirs = parse_sync_map_bytes(&theirs, path, "远端")?;
-        let merged = merge_sync_map_files(base.as_ref(), &ours, &theirs)?;
+        let ours = parse_sync_bundle_bytes(&ours, "本机")?;
+        let theirs = parse_sync_bundle_bytes(&theirs, "远端")?;
+        let merged = merge_sync_bundles(base.as_ref(), &ours, &theirs)?;
         write_json_atomic(&path_for(workspace_root, path), &merged)?;
         validate_protocol_file_content(workspace_root, path)?;
         resolved_paths.push(path.clone());
@@ -1693,12 +1655,29 @@ mod tests {
         );
     }
 
+    fn test_bundle(vault_id: &str) -> SyncBundle {
+        SyncBundle {
+            sync_format_version: SYNC_FORMAT_VERSION,
+            content_schema_version: CONTENT_SCHEMA_VERSION,
+            preference_schema_version: PREFERENCE_SCHEMA_VERSION,
+            vault_id: vault_id.to_string(),
+            minimum_app_version: MINIMUM_SYNC_APP_VERSION.to_string(),
+            managed_roots: vec!["assets".to_string()],
+            features: vec!["content".to_string()],
+            preferences: SyncMapFile::default(),
+            hotkeys: SyncMapFile::default(),
+            vault_settings: SyncMapFile::default(),
+            desired_plugins: SyncMapFile::default(),
+        }
+    }
+
     #[test]
     fn sync_path_policy_rejects_local_and_derived_data() {
         let roots = vec!["assets".to_string()];
         assert!(is_allowed_sync_path("未分类/demo.md", &roots));
         assert!(is_allowed_sync_path("assets/demo/image.png", &roots));
-        assert!(is_allowed_sync_path(PREFERENCES_FILE, &roots));
+        assert!(is_allowed_sync_path(SYNC_FILE, &roots));
+        assert!(!is_allowed_sync_path(".snippets-code/vault.json", &roots));
         assert!(!is_allowed_sync_path(".snippets-code/app.json", &roots));
         assert!(!is_allowed_sync_path(".snippets-code/cache.json", &roots));
         assert!(!is_allowed_sync_path("snippets.db", &roots));
@@ -1735,14 +1714,14 @@ mod tests {
     #[test]
     fn protocol_secret_guard_rejects_absolute_paths_and_tokens() {
         let temp = TempDir::new().unwrap();
-        let sync_dir = temp.path().join(".snippets-code").join("sync");
+        let sync_dir = temp.path().join(".snippets-code");
         fs::create_dir_all(&sync_dir).unwrap();
         fs::write(
-            sync_dir.join("preferences.json"),
+            sync_dir.join("sync.json"),
             r#"{"token":"github_pat_secret"}"#,
         )
         .unwrap();
-        assert!(validate_protocol_file_content(temp.path(), PREFERENCES_FILE).is_err());
+        assert!(validate_protocol_file_content(temp.path(), SYNC_FILE).is_err());
     }
 
     #[test]
@@ -1754,7 +1733,7 @@ mod tests {
 
         fs::create_dir_all(temp.path().join("分类")).unwrap();
         fs::create_dir_all(temp.path().join("assets").join("demo")).unwrap();
-        fs::create_dir_all(temp.path().join(".snippets-code").join("sync")).unwrap();
+        fs::create_dir_all(temp.path().join(".snippets-code")).unwrap();
         fs::write(temp.path().join("分类").join("片段.md"), "# portable").unwrap();
         fs::write(
             temp.path().join("assets").join("demo").join("image.png"),
@@ -1764,9 +1743,8 @@ mod tests {
         fs::write(
             temp.path()
                 .join(".snippets-code")
-                .join("sync")
-                .join("preferences.json"),
-            r#"{"schemaVersion":1,"values":{},"tombstones":{}}"#,
+                .join("sync.json"),
+            r#"{"syncFormatVersion":2,"contentSchemaVersion":1,"preferenceSchemaVersion":1,"vaultId":"11111111-1111-1111-1111-111111111111","minimumAppVersion":"2.1.43","managedRoots":[],"features":[],"preferences":{"schemaVersion":1,"values":{},"tombstones":{}},"hotkeys":{"schemaVersion":1,"values":{},"tombstones":{}},"vaultSettings":{"schemaVersion":1,"values":{},"tombstones":{}},"desiredPlugins":{"schemaVersion":1,"values":{},"tombstones":{}}}"#,
         )
         .unwrap();
         fs::write(
@@ -1779,7 +1757,7 @@ mod tests {
         let staged = stage_allowed_sync_changes(temp.path()).unwrap();
         assert!(staged.contains(&"分类/片段.md".to_string()));
         assert!(staged.contains(&"assets/demo/image.png".to_string()));
-        assert!(staged.contains(&PREFERENCES_FILE.to_string()));
+        assert!(staged.contains(&SYNC_FILE.to_string()));
         assert!(!staged.iter().any(|path| path.ends_with("app.json")));
         assert!(!staged.iter().any(|path| path.ends_with(".db")));
     }
@@ -1913,6 +1891,58 @@ mod tests {
         assert_eq!(
             merged.values["general.language"].value,
             serde_json::json!("en-US")
+        );
+    }
+
+    #[test]
+    fn single_sync_file_preserves_field_level_merge() {
+        let vault_id = "11111111-1111-1111-1111-111111111111";
+        let clock = |updated_at: &str, device: &str| SyncClock {
+            updated_at: updated_at.to_string(),
+            modified_by: device.to_string(),
+        };
+        let field = |value: Value, updated_at: &str, device: &str| SyncField {
+            value,
+            clock: clock(updated_at, device),
+        };
+
+        let mut base = test_bundle(vault_id);
+        base.preferences.values.insert(
+            "appearance.theme".to_string(),
+            field(serde_json::json!("auto"), "2026-01-01T00:00:00Z", "base"),
+        );
+        base.hotkeys.values.insert(
+            "search".to_string(),
+            field(serde_json::json!("Ctrl+K"), "2026-01-01T00:00:00Z", "base"),
+        );
+
+        let mut ours = base.clone();
+        ours.preferences.values.insert(
+            "appearance.theme".to_string(),
+            field(
+                serde_json::json!("dark"),
+                "2026-01-02T00:00:00Z",
+                "device-a",
+            ),
+        );
+        let mut theirs = base.clone();
+        theirs.hotkeys.values.insert(
+            "search".to_string(),
+            field(
+                serde_json::json!("Ctrl+P"),
+                "2026-01-03T00:00:00Z",
+                "device-b",
+            ),
+        );
+
+        let merged = merge_sync_bundles(Some(&base), &ours, &theirs).unwrap();
+        assert_eq!(
+            merged.preferences.values["appearance.theme"].value,
+            serde_json::json!("dark")
+        );
+        assert_eq!(
+            merged.hotkeys.values["search"].value,
+            serde_json::json!("Ctrl+P")
         );
     }
 }

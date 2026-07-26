@@ -9199,7 +9199,7 @@ const fA = pp(Ps, "$notify"), dA = ["disabled"], hA = {
       /* CLASS */
     ));
   }
-}), na = /* @__PURE__ */ vi(gA, [["__scopeId", "data-v-09573d1e"]]), mA = { class: "dialog-footer-default" }, vA = { class: "footer-left" }, yA = { class: "footer-right" }, bA = /* @__PURE__ */ J({
+}), na = /* @__PURE__ */ vi(gA, [["__scopeId", "data-v-59686f54"]]), mA = { class: "dialog-footer-default" }, vA = { class: "footer-left" }, yA = { class: "footer-right" }, bA = /* @__PURE__ */ J({
   __name: "CommonDialog",
   props: {
     modelValue: { type: Boolean, default: !1 },
@@ -11437,7 +11437,7 @@ ${j.message}`;
       })) : F("v-if", !0);
     };
   }
-}), BT = /* @__PURE__ */ vi(LT, [["__scopeId", "data-v-0538db26"]]), $T = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), BT = /* @__PURE__ */ vi(LT, [["__scopeId", "data-v-c3eae0ab"]]), $T = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: BT
 }, Symbol.toStringTag, { value: "Module" }));
@@ -21363,7 +21363,7 @@ const LO = /* @__PURE__ */ yu("." + vu, {
     boxSizing: "border-box"
   },
   ".cm-lineNumbers .cm-gutterElement": {
-    padding: "0 6px",
+    padding: "0 3px 0 5px",
     minWidth: "20px",
     textAlign: "right",
     whiteSpace: "nowrap"

@@ -1866,11 +1866,8 @@ pub fn check_gitignore(workspace_root: &Path) -> Result<(), String> {
     if !content.contains(".snippets-code/*") {
         missing_rules.push(".snippets-code/*");
     }
-    if !content.contains("!.snippets-code/sync/") {
-        missing_rules.push("!.snippets-code/sync/");
-    }
-    if !content.contains("!.snippets-code/vault.json") {
-        missing_rules.push("!.snippets-code/vault.json");
+    if !content.contains("!.snippets-code/sync.json") {
+        missing_rules.push("!.snippets-code/sync.json");
     }
     if !content.contains("*.db") {
         missing_rules.push("*.db");
@@ -1903,9 +1900,7 @@ const DEFAULT_GITIGNORE: &str = r#"# ================================
 # Snippets Code 本机状态和派生数据
 # ------------------------------
 .snippets-code/*
-!.snippets-code/vault.json
-!.snippets-code/sync/
-!.snippets-code/sync/**
+!.snippets-code/sync.json
 
 *.db
 *.db-wal
@@ -1956,11 +1951,33 @@ target/
 uninstall.exe
 "#;
 
-/// 确保工作区存在 .gitignore，不存在则用默认内容创建
+const SYNC_GITIGNORE_RULES: &str = r#"
+
+# Snippets Code 同步边界（由应用维护）
+# 除 sync.json 外，.snippets-code 均是本机布局、缓存或运行状态。
+.snippets-code/*
+!.snippets-code/sync.json
+"#;
+
+/// 确保工作区存在正确的同步忽略规则。
+///
+/// 旧工作区已经存在 `.gitignore` 时只追加幂等规则，不覆盖用户自定义内容。
 pub fn ensure_gitignore(workspace_root: &Path) -> Result<bool, String> {
     let gitignore_path = workspace_root.join(".gitignore");
     if gitignore_path.exists() {
-        return Ok(false);
+        let content = std::fs::read_to_string(&gitignore_path)
+            .map_err(|e| format!("读取 .gitignore 失败: {}", e))?;
+        if content.contains(".snippets-code/*") && content.contains("!.snippets-code/sync.json") {
+            return Ok(false);
+        }
+        let separator = if content.ends_with('\n') { "" } else { "\n" };
+        std::fs::write(
+            &gitignore_path,
+            format!("{}{}{}", content, separator, SYNC_GITIGNORE_RULES),
+        )
+        .map_err(|e| format!("更新 .gitignore 失败: {}", e))?;
+        info!("✅ [Git] 已补充同步边界 .gitignore 规则");
+        return Ok(true);
     }
     std::fs::write(&gitignore_path, DEFAULT_GITIGNORE)
         .map_err(|e| format!("创建 .gitignore 失败: {}", e))?;

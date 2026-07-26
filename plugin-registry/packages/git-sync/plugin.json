@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "git-sync",
-  "version": "2.0.20",
+  "version": "2.0.21",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.gitSync.name",
@@ -21,14 +21,14 @@
   "permissions": [
     "command:*"
   ],
-  "compatibleAppVersion": ">=2.1.36",
+  "compatibleAppVersion": ">=2.1.42",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-JTTOGCCD.css"
+      "dist/assets/runtime-entry-C09xXgaR.css"
     ]
   },
-  "minAppVersion": "2.1.36",
+  "minAppVersion": "2.1.42",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/releases/tag/2.0.20"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/releases/tag/2.0.21"
 }

@@ -1,7 +1,7 @@
 # 数据存储、清理与索引管理方案
 
 > 状态：v1 已落地（安全清理、数据契约、增量桌面索引、本地图标批量读取、严格同步边界）；数据库物理拆分与图标文件化列入后续演进  
-> 适用版本：snippets-code 2.1.42  
+> 适用版本：snippets-code 2.1.43
 > 更新日期：2026-07-26  
 > 范围：核心数据、Markdown 工作区、官方插件、检索索引、图标、缓存、备份与迁移
 
@@ -219,13 +219,14 @@ Markdown 工作区保持 Obsidian 风格的本地事实源：
 ├─ <category>/*.md
 ├─ assets/...
 └─ .snippets-code/
-   ├─ vault.json                   # 稳定 vault ID 和 schema 版本
-   └─ settings.json                # 需要随工作区同步的设置
+   ├─ sync.json                    # 唯一同步配置：ID、版本和可移植设置
+   ├─ workspace.json               # 本机布局和 Git 开关（忽略）
+   └─ cache.json                   # 本机派生索引（忽略）
 ```
 
 `cache.json` 应迁出工作区，避免 Git/云盘同步派生索引产生冲突。`workspace.json` 如果继续放在工作区，必须默认加入 `.gitignore`；更推荐按 vault ID 放到设备本地 `state/vaults`。
 
-这里的 `settings.json` 是逻辑边界。落地时按跨设备同步方案拆为 `.snippets-code/sync/preferences.json`、`hotkeys.json` 和 `vault-settings.json`，只导出可移植字段；完整 `app.json`、本机布局、Git 凭证和设备来源索引不得进入工作区 Git 仓库。
+`sync.json` 是唯一的远端协议文件，内部按 `preferences`、`hotkeys`、`vaultSettings` 和 `desiredPlugins` 分组，并保留字段级合并时钟。完整 `app.json`、本机布局、Git 凭证和设备来源索引不得进入工作区 Git 仓库。
 
 ### 4.3 数据库边界
 
