@@ -38,7 +38,7 @@
   --search-card-bg: #fff;
   --search-soft-bg: #f6f9fe;
   --search-border: #d9e2ef;
-  --search-preview-editor-bg: #fff;
+  --search-preview-editor-bg: var(--search-bg-color);
   --search-preview-status-bg: #f6f9fe;
 
   // ==================== 编辑器主题变量 ====================
@@ -206,7 +206,7 @@ html.dark {
   --search-card-bg: #242424;
   --search-soft-bg: #292929;
   --search-border: #363636;
-  --search-preview-editor-bg: #242424;
+  --search-preview-editor-bg: var(--search-bg-color);
   --search-preview-status-bg: #292929;
 
   // ==================== 编辑器深色主题变量 ====================

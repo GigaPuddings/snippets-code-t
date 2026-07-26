@@ -141,7 +141,7 @@
             <PreviewOpen theme="outline" size="14" />
           </button>
         </div>
-        <div v-if="canPreview" class="preview-content-area">
+        <template v-if="canPreview">
           <div v-if="isImageFile" class="preview-visual preview-image-area preview-shell">
             <img v-if="filePreviewUrl" :src="filePreviewUrl" :alt="displayTitle" class="preview-image" />
             <div v-else class="preview-empty-inline">{{ t('searchPreview.imagePreviewFailed') }}</div>
@@ -164,7 +164,7 @@
           <div v-else class="preview-visual preview-text-area preview-shell preview-scroll-area">
             {{ displayContent }}
           </div>
-        </div>
+        </template>
       </template>
     </div>
 
@@ -693,7 +693,7 @@ function formatDateText(value: unknown): string {
 
 <style lang="scss" scoped>
 .preview-panel {
-  @apply bg-search rounded-br-lg rounded-bl-lg px-3 py-3 h-full min-h-0 flex flex-col border-l border-search overflow-hidden;
+  @apply bg-search px-2 pt-2 h-full min-h-0 flex flex-col border-l border-search overflow-hidden;
 
   .preview-body {
     @apply relative flex-1 min-h-0 flex flex-col overflow-hidden;
@@ -1044,16 +1044,9 @@ function formatDateText(value: unknown): string {
     }
   }
 
-  .preview-content-area {
-    @apply flex-1 min-h-0 rounded-lg border border-search overflow-hidden flex flex-col;
-
-    padding: 10px;
-    background-color: var(--search-soft-bg);
-  }
-
   .preview-shell,
   .preview-visual {
-    @apply min-h-0 overflow-auto flex-1;
+    @apply min-w-0 min-h-0 overflow-y-auto overflow-x-hidden flex-1;
 
     border-radius: 8px;
   }
@@ -1072,14 +1065,31 @@ function formatDateText(value: unknown): string {
   .preview-text-area,
   .preview-note-area,
   .preview-scroll-area {
-    @apply text-xs leading-5 text-search whitespace-pre-wrap break-words overflow-auto;
+    @apply text-xs leading-5 text-search whitespace-pre-wrap break-words overflow-y-auto overflow-x-hidden;
 
+    overflow-wrap: anywhere;
     background-color: var(--search-preview-editor-bg);
     border: 1px solid var(--search-border-color);
   }
 
   .preview-text-area:not(.preview-code-area) {
     padding: 10px;
+  }
+
+  .preview-note-area {
+    padding: 10px;
+
+    :deep(pre),
+    :deep(pre code) {
+      max-width: 100%;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    :deep(pre) {
+      overflow-x: hidden;
+    }
   }
 
   .preview-note-area :deep(.note-fallback) {
@@ -1091,7 +1101,14 @@ function formatDateText(value: unknown): string {
   }
 
   .preview-code-area {
-    @apply min-h-0;
+    @apply min-w-0 min-h-0 overflow-hidden;
+
+    :deep(.editor-container),
+    :deep(.editor-content),
+    :deep(.cm-editor),
+    :deep(.cm-scroller) {
+      min-width: 0;
+    }
 
     :deep(.editor-container) {
       background-color: var(--search-preview-editor-bg);
@@ -1105,6 +1122,10 @@ function formatDateText(value: unknown): string {
     :deep(.cm-editor),
     :deep(.cm-scroller) {
       @apply h-full;
+    }
+
+    :deep(.cm-scroller) {
+      overflow-x: hidden;
     }
 
     :deep(.cm-editor) {
