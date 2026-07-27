@@ -136,7 +136,12 @@ const runtimeConfigPluginRoutes: RouteRecordRaw[] = [];
 const runtimeLayoutPluginRoutes: RouteRecordRaw[] = [];
 const runtimeWindowPluginRoutes: RouteRecordRaw[] = [];
 const loadedFrontendEntries = new Set<string>();
-const loadedPluginStyles = new Map<string, HTMLStyleElement[]>();
+interface LoadedPluginStyles {
+  signature: string;
+  elements: HTMLStyleElement[];
+}
+
+const loadedPluginStyles = new Map<string, LoadedPluginStyles>();
 const loadedPluginModuleUrls = new Map<string, string[]>();
 const sharedModuleUrls = new Map<string, string>();
 const installedRuntimeRouteNames = new Set<string>();
@@ -929,12 +934,30 @@ const activateFrontendModule = async (
   }
 };
 
-const ensurePluginStyles = async (plugin: RegisteredPlugin): Promise<void> => {
+export const ensurePluginStyles = async (
+  plugin: RegisteredPlugin
+): Promise<void> => {
   const pluginId = String(plugin.id);
-  if (loadedPluginStyles.has(pluginId)) return;
-
   const styles = plugin.manifest.entry?.styles ?? [];
-  if (!styles.length) return;
+  if (!styles.length) {
+    removePluginStyles(pluginId);
+    return;
+  }
+
+  const signature = JSON.stringify({
+    packagePath: plugin.packagePath,
+    installedAt: plugin.installedAt,
+    version: plugin.manifest.version,
+    styles
+  });
+  const existing = loadedPluginStyles.get(pluginId);
+  if (
+    existing?.signature === signature &&
+    existing.elements.length === styles.length &&
+    existing.elements.every((element) => element.isConnected)
+  ) {
+    return;
+  }
 
   const elements: HTMLStyleElement[] = [];
   try {
@@ -959,7 +982,13 @@ const ensurePluginStyles = async (plugin: RegisteredPlugin): Promise<void> => {
       document.head.appendChild(element);
       elements.push(element);
     }
-    loadedPluginStyles.set(pluginId, elements);
+
+    existing?.elements.forEach((element) => element.remove());
+    loadedPluginStyles.set(pluginId, { signature, elements });
+    logger.info('[PluginRuntime] 插件样式已加载', {
+      pluginId,
+      styles
+    });
   } catch (error) {
     elements.forEach((element) => element.remove());
     throw error;
@@ -967,8 +996,8 @@ const ensurePluginStyles = async (plugin: RegisteredPlugin): Promise<void> => {
 };
 
 const removePluginStyles = (pluginId: string): void => {
-  const elements = loadedPluginStyles.get(pluginId) ?? [];
-  elements.forEach((element) => element.remove());
+  const loaded = loadedPluginStyles.get(pluginId);
+  loaded?.elements.forEach((element) => element.remove());
   loadedPluginStyles.delete(pluginId);
 };
 
@@ -1053,10 +1082,15 @@ export const installRuntimePluginRoutes = (router: Router): number => {
   return added;
 };
 
-export function clearRuntimePluginRegistrations(pluginId: string): void {
+export function clearRuntimePluginRegistrations(
+  pluginId: string,
+  options: { preserveStyles?: boolean } = {}
+): void {
   runRuntimeCleanups(pluginId);
   loadedFrontendEntries.delete(pluginId);
-  removePluginStyles(pluginId);
+  if (!options.preserveStyles) {
+    removePluginStyles(pluginId);
+  }
   revokePluginModuleUrls(pluginId);
 
   for (const [

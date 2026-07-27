@@ -42,6 +42,17 @@ interface ReconcileInstalledPluginsOptions {
 let pluginInitializePromise: Promise<void> | null = null;
 let pluginRuntimeEntriesPromise: Promise<void> | null = null;
 let pluginResourceStatusPromise: Promise<void> | null = null;
+let pluginReconcileGate: Promise<void> = Promise.resolve();
+
+const acquirePluginReconcileLock = async (): Promise<() => void> => {
+  const previousGate = pluginReconcileGate;
+  let releaseGate!: () => void;
+  pluginReconcileGate = new Promise<void>((resolve) => {
+    releaseGate = resolve;
+  });
+  await previousGate;
+  return releaseGate;
+};
 
 const schedulePluginBackgroundWork = (
   task: () => void,
@@ -222,72 +233,91 @@ export const usePluginStore = defineStore('plugins', {
       resetPluginIds: Iterable<string> = [],
       options: ReconcileInstalledPluginsOptions = {}
     ): Promise<void> {
-      const {
-        refreshResourceStatus = true,
-        loadRuntimeEntries = true
-      } = options;
-      logger.info('[PluginStore] reconcile installed plugins start', {
-        reason
-      });
-      const previousPlugins = this.installedPlugins;
-      const previousById = new Map(
-        previousPlugins.map((plugin) => [String(plugin.id), plugin])
-      );
-      const localManifests = await getInstalledPluginManifests();
-      const nextInstalledPlugins = loadPluginRegistry(localManifests);
-      const nextById = new Map(
-        nextInstalledPlugins.map((plugin) => [String(plugin.id), plugin])
-      );
-      const runtimeResetPluginIds = new Set(resetPluginIds);
-
-      for (const previousPlugin of previousPlugins) {
-        if (previousPlugin.source !== 'local') continue;
-        const pluginId = String(previousPlugin.id);
-        const nextPlugin = nextById.get(pluginId);
-        if (
-          !nextPlugin ||
-          hasPluginRuntimeChanged(previousPlugin, nextPlugin)
-        ) {
-          runtimeResetPluginIds.add(pluginId);
+      const releaseReconcileLock = await acquirePluginReconcileLock();
+      try {
+        if (pluginRuntimeEntriesPromise) {
+          try {
+            await pluginRuntimeEntriesPromise;
+          } catch (error) {
+            logger.warn(
+              '[PluginStore] 等待上一轮插件前端加载失败，继续重新注册',
+              error
+            );
+          }
         }
-      }
 
-      this.installedPlugins = nextInstalledPlugins;
-      const backendStates = await getPluginStates();
-      const preservedStates = Object.fromEntries(
-        Object.entries(this.enabled).filter(
-          ([pluginId]) => previousById.has(pluginId) && nextById.has(pluginId)
-        )
-      );
-      this.enabled = normalizePluginStates(this.installedPlugins, {
-        ...preservedStates,
-        ...backendStates
-      });
-      this.installedPlugins
-        .filter(
-          (plugin) => plugin.source === 'local' && !this.isEnabled(plugin.id)
-        )
-        .forEach((plugin) => runtimeResetPluginIds.add(String(plugin.id)));
-      runtimeResetPluginIds.forEach((pluginId) =>
-        clearRuntimePluginRegistrations(pluginId)
-      );
-      if (refreshResourceStatus) {
-        await this.refreshPluginResourceStatus();
+        const { refreshResourceStatus = true, loadRuntimeEntries = true } =
+          options;
+        logger.info('[PluginStore] reconcile installed plugins start', {
+          reason
+        });
+        const previousPlugins = this.installedPlugins;
+        const previousById = new Map(
+          previousPlugins.map((plugin) => [String(plugin.id), plugin])
+        );
+        const localManifests = await getInstalledPluginManifests();
+        const nextInstalledPlugins = loadPluginRegistry(localManifests);
+        const nextById = new Map(
+          nextInstalledPlugins.map((plugin) => [String(plugin.id), plugin])
+        );
+        const runtimeResetPluginIds = new Set(resetPluginIds);
+
+        for (const previousPlugin of previousPlugins) {
+          if (previousPlugin.source !== 'local') continue;
+          const pluginId = String(previousPlugin.id);
+          const nextPlugin = nextById.get(pluginId);
+          if (
+            !nextPlugin ||
+            hasPluginRuntimeChanged(previousPlugin, nextPlugin)
+          ) {
+            runtimeResetPluginIds.add(pluginId);
+          }
+        }
+
+        this.installedPlugins = nextInstalledPlugins;
+        const backendStates = await getPluginStates();
+        const preservedStates = Object.fromEntries(
+          Object.entries(this.enabled).filter(
+            ([pluginId]) => previousById.has(pluginId) && nextById.has(pluginId)
+          )
+        );
+        this.enabled = normalizePluginStates(this.installedPlugins, {
+          ...preservedStates,
+          ...backendStates
+        });
+        this.installedPlugins
+          .filter(
+            (plugin) => plugin.source === 'local' && !this.isEnabled(plugin.id)
+          )
+          .forEach((plugin) => runtimeResetPluginIds.add(String(plugin.id)));
+        runtimeResetPluginIds.forEach((pluginId) => {
+          const nextPlugin = nextById.get(pluginId);
+          clearRuntimePluginRegistrations(pluginId, {
+            preserveStyles: Boolean(
+              nextPlugin?.source === 'local' && this.isEnabled(pluginId)
+            )
+          });
+        });
+        if (refreshResourceStatus) {
+          await this.refreshPluginResourceStatus();
+        }
+        if (loadRuntimeEntries) {
+          await this.loadEnabledPluginEntries();
+        }
+        logger.info('[PluginStore] reconcile installed plugins complete', {
+          reason,
+          resetPluginIds: Array.from(runtimeResetPluginIds),
+          plugins: this.installedPlugins.map((plugin) => ({
+            id: plugin.id,
+            source: plugin.source,
+            enabled: this.isEnabled(plugin.id),
+            hotkeys: plugin.hotkeys,
+            packagePath: plugin.packagePath
+          }))
+        });
+      } finally {
+        releaseReconcileLock();
       }
-      if (loadRuntimeEntries) {
-        await this.loadEnabledPluginEntries();
-      }
-      logger.info('[PluginStore] reconcile installed plugins complete', {
-        reason,
-        resetPluginIds: Array.from(runtimeResetPluginIds),
-        plugins: this.installedPlugins.map((plugin) => ({
-          id: plugin.id,
-          source: plugin.source,
-          enabled: this.isEnabled(plugin.id),
-          hotkeys: plugin.hotkeys,
-          packagePath: plugin.packagePath
-        }))
-      });
     },
 
     async installFromPath(
@@ -383,10 +413,6 @@ export const usePluginStore = defineStore('plugins', {
 
       try {
         logger.info('[PluginStore] set enabled start', { pluginId, enabled });
-        if (!enabled) {
-          clearRuntimePluginRegistrations(String(pluginId));
-          this.runtimeRevision += 1;
-        }
         await setPluginEnabled(pluginId, enabled);
         await this.reconcileInstalledPlugins(
           'set-enabled',
