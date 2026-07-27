@@ -438,17 +438,17 @@ const fi = Bt("brain", !0, function(e) {
     stroke: e.colors[0],
     "stroke-width": e.strokeWidth
   }, null)]);
-}), bS = (e) => {
+}), yS = (e) => {
   e.registerRoute({
     target: "layout",
     path: "/local-ai/chat",
     name: "LocalAiChat",
-    component: () => Promise.resolve().then(() => q2)
+    component: () => Promise.resolve().then(() => Z2)
   }), e.registerSettingsTab({
     id: "localAi",
     labelKey: "localAi.title",
     icon: sc,
-    component: Ju(() => Promise.resolve().then(() => hS))
+    component: Ju(() => Promise.resolve().then(() => mS))
   });
 };
 function Cd(e, t = !1) {
@@ -9827,10 +9827,12 @@ function Ku() {
 var Kw = Ku();
 const qw = {
   ADD_ATTR: [
+    "align",
     "checked",
     "class",
     "data-checked",
     "data-original-path",
+    "data-image-scale",
     "data-type",
     "data-code-id",
     "id",
@@ -9990,7 +9992,7 @@ const Yw = 24, Xw = 120, Qw = 420, Jw = 1200, e_ = 24e3, t_ = 1800, n_ = 5200, f
 }, E2 = { class: "attachment-meta" }, x2 = ["title", "onClick"], I2 = ["placeholder"], O2 = { class: "input-toolbar" }, L2 = { class: "input-toolbar-left" }, R2 = ["title"], $2 = { class: "model-select-shell" }, M2 = ["disabled"], P2 = ["value"], N2 = {
   key: 0,
   value: ""
-}, D2 = ["title", "aria-pressed"], z2 = ["title", "aria-pressed"], F2 = { class: "input-toolbar-right" }, B2 = ["disabled", "title", "aria-label"], V2 = ["disabled", "title", "aria-label"], nc = "snippets.localAi.verifiedSourcesEnabled", j2 = 96, H2 = 4096, U2 = 90, W2 = 1e3, G2 = /* @__PURE__ */ ee({
+}, D2 = ["title", "aria-pressed"], z2 = ["title", "aria-pressed"], F2 = { class: "input-toolbar-right" }, B2 = { class: "input-hint" }, V2 = ["disabled", "title", "aria-label"], j2 = ["disabled", "title", "aria-label"], nc = "snippets.localAi.verifiedSourcesEnabled", H2 = 96, U2 = 4096, W2 = 90, G2 = 1e3, K2 = /* @__PURE__ */ ee({
   name: "LocalAiChat",
   __name: "index",
   setup(e) {
@@ -10032,7 +10034,7 @@ const Yw = 24, Xw = 120, Qw = 420, Jw = 1200, e_ = 24e3, t_ = 1800, n_ = 5200, f
         Math.max(T, 512),
         Math.max(512, g - 512)
       ) : Math.min(
-        Math.max(H2, Math.floor(g * 0.5)),
+        Math.max(U2, Math.floor(g * 0.5)),
         Math.max(512, g - 512)
       );
     }), $t = A(
@@ -10068,7 +10070,7 @@ const Yw = 24, Xw = 120, Qw = 420, Jw = 1200, e_ = 24e3, t_ = 1800, n_ = 5200, f
       };
     }, St = () => {
       const g = _e.value;
-      return g ? g.scrollHeight - g.scrollTop - g.clientHeight <= j2 : !0;
+      return g ? g.scrollHeight - g.scrollTop - g.clientHeight <= H2 : !0;
     }, Qe = () => {
       const g = St();
       g && (ae.value = !0), pe.value = !g && !ae.value;
@@ -10328,7 +10330,7 @@ const Yw = 24, Xw = 120, Qw = 420, Jw = 1200, e_ = 24e3, t_ = 1800, n_ = 5200, f
     }, $ = () => {
       ke || (Z.value = Date.now(), ke = setInterval(() => {
         Z.value = Date.now();
-      }, W2));
+      }, G2));
     }, Y = () => {
       ke && (clearInterval(ke), ke = null, Z.value = Date.now());
     }, Ce = (g) => {
@@ -10372,7 +10374,7 @@ const Yw = 24, Xw = 120, Qw = 420, Jw = 1200, e_ = 24e3, t_ = 1800, n_ = 5200, f
           ft().catch(
             (or) => Qt.warn("[LocalAI] stream pump failed", or)
           );
-        }, U2);
+        }, W2);
       }, nr = (Ge) => {
         Ge && (h(g, Ge), Te += Ge, Ae === null && (Ae = window.setTimeout(() => {
           ft().catch(
@@ -11470,13 +11472,13 @@ const Yw = 24, Xw = 120, Qw = 420, Jw = 1200, e_ = 24e3, t_ = 1800, n_ = 5200, f
                   ], 10, z2)) : W("v-if", !0)
                 ]),
                 f("div", F2, [
-                  T[16] || (T[16] = f(
+                  f(
                     "span",
-                    { class: "input-hint" },
-                    "Enter · Shift + Enter",
-                    -1
-                    /* HOISTED */
-                  )),
+                    B2,
+                    I(i(t)("localAi.inputHint")),
+                    1
+                    /* TEXT */
+                  ),
                   i(ue) ? (k(), R("button", {
                     key: 0,
                     class: z(["send-btn send-btn--stop", { "send-btn--stopping": i(L) }]),
@@ -11496,7 +11498,7 @@ const Yw = 24, Xw = 120, Qw = 420, Jw = 1200, e_ = 24e3, t_ = 1800, n_ = 5200, f
                       theme: "filled",
                       size: "11"
                     }))
-                  ], 10, B2)) : (k(), R("button", {
+                  ], 10, V2)) : (k(), R("button", {
                     key: 1,
                     class: "send-btn",
                     type: "submit",
@@ -11508,7 +11510,7 @@ const Yw = 24, Xw = 120, Qw = 420, Jw = 1200, e_ = 24e3, t_ = 1800, n_ = 5200, f
                       theme: "outline",
                       size: "15"
                     })
-                  ], 8, V2))
+                  ], 8, j2))
                 ])
               ])
             ],
@@ -11526,17 +11528,17 @@ const Yw = 24, Xw = 120, Qw = 420, Jw = 1200, e_ = 24e3, t_ = 1800, n_ = 5200, f
   for (const [o, r] of t)
     n[o] = r;
   return n;
-}, K2 = /* @__PURE__ */ ai(G2, [["__scopeId", "data-v-bb2fa598"]]), q2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, q2 = /* @__PURE__ */ ai(K2, [["__scopeId", "data-v-e1b2970a"]]), Z2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: K2
+  default: q2
 }, Symbol.toStringTag, { value: "Module" }));
 async function oc(e = {}) {
   return typeof e == "object" && Object.freeze(e), await ht("plugin:dialog|open", { options: e });
 }
-const Z2 = ["disabled"], Y2 = {
+const Y2 = ["disabled"], X2 = {
   key: 0,
   class: "custom-button__loading"
-}, X2 = /* @__PURE__ */ ee({
+}, Q2 = /* @__PURE__ */ ee({
   name: "CustomButton",
   __name: "CustomButton",
   props: {
@@ -11582,7 +11584,7 @@ const Z2 = ["disabled"], Y2 = {
       disabled: e.loading || e.disabled,
       onClick: o[0] || (o[0] = (r) => n.$emit("click", r))
     }, [
-      e.loading ? (k(), R("div", Y2, o[1] || (o[1] = [
+      e.loading ? (k(), R("div", X2, o[1] || (o[1] = [
         f(
           "svg",
           {
@@ -11604,12 +11606,12 @@ const Z2 = ["disabled"], Y2 = {
         )
       ]))) : W("v-if", !0),
       fe(n.$slots, "default", {}, void 0, !0)
-    ], 10, Z2));
+    ], 10, Y2));
   }
-}), Qn = /* @__PURE__ */ ai(X2, [["__scopeId", "data-v-9497085f"]]), Q2 = { class: "settings-panel local-ai-settings-shell" }, J2 = { class: "local-ai-hero panel-card" }, ek = { class: "panel-title" }, tk = { class: "hero-desc" }, nk = { class: "header-actions" }, ok = {
+}), Qn = /* @__PURE__ */ ai(Q2, [["__scopeId", "data-v-9497085f"]]), J2 = { class: "settings-panel local-ai-settings-shell" }, ek = { class: "local-ai-hero panel-card" }, tk = { class: "panel-title" }, nk = { class: "hero-desc" }, ok = { class: "header-actions" }, rk = {
   key: 0,
   class: "settings-grid"
-}, rk = { class: "summary-panel panel-card" }, ak = { class: "status-strip" }, sk = { class: "memory-card__header" }, ik = { class: "memory-metrics" }, lk = { class: "bottleneck-row" }, ck = { class: "summary-card" }, uk = { class: "summary-card__title" }, dk = { class: "summary-card__desc" }, fk = { class: "service-controls" }, pk = { class: "service-url" }, hk = { class: "summary-card" }, mk = { class: "summary-card__title" }, gk = { class: "summary-card__desc" }, vk = { class: "summary-meta" }, bk = { class: "form-panel panel-card" }, yk = { class: "settings-section" }, wk = { class: "settings-section__header" }, _k = { class: "field-stack" }, kk = ["title"], Sk = { class: "path-control" }, Tk = ["title"], Ak = ["title"], Ck = ["title"], Ek = { class: "path-control" }, xk = ["placeholder"], Ik = { class: "settings-section grid-two" }, Ok = { class: "settings-section__header" }, Lk = { class: "param-grid" }, Rk = ["title"], $k = ["title"], Mk = ["title"], Pk = ["title"], Nk = ["title"], Dk = ["title"], zk = { class: "settings-section grid-two" }, Fk = { class: "settings-section__header" }, Bk = { class: "switch-grid" }, Vk = ["title"], jk = ["title"], Hk = ["title"], Uk = { class: "settings-section grid-two" }, Wk = { class: "settings-section__header" }, Gk = { class: "switch-grid switch-grid--two" }, Kk = ["title"], qk = ["title"], Zk = ["title"], Yk = ["title"], Xk = { class: "settings-section grid-two" }, Qk = { class: "settings-section__header" }, Jk = { class: "param-grid param-grid--three" }, eS = ["title"], tS = ["title"], nS = ["title"], oS = ["title"], rS = ["title"], aS = ["title"], sS = ["title"], iS = ["title"], lS = { class: "settings-section" }, cS = { class: "settings-section__header" }, uS = { class: "settings-footer" }, dS = ["title"], fS = /* @__PURE__ */ ee({
+}, ak = { class: "summary-panel panel-card" }, sk = { class: "status-strip" }, ik = { class: "memory-card__header" }, lk = { class: "memory-metrics" }, ck = { class: "bottleneck-row" }, uk = { class: "summary-card" }, dk = { class: "summary-card__title" }, fk = { class: "summary-card__desc" }, pk = { class: "service-controls" }, hk = { class: "service-url" }, mk = { class: "summary-card" }, gk = { class: "summary-card__title" }, vk = { class: "summary-card__desc" }, bk = { class: "summary-meta" }, yk = { class: "form-panel panel-card" }, wk = { class: "settings-section" }, _k = { class: "settings-section__header" }, kk = { class: "field-stack" }, Sk = ["title"], Tk = { class: "path-control" }, Ak = ["title"], Ck = ["title"], Ek = ["title"], xk = { class: "path-control" }, Ik = ["placeholder"], Ok = { class: "settings-section grid-two" }, Lk = { class: "settings-section__header" }, Rk = { class: "param-grid" }, $k = ["title"], Mk = ["title"], Pk = ["title"], Nk = ["title"], Dk = ["title"], zk = ["title"], Fk = { class: "settings-section grid-two" }, Bk = { class: "settings-section__header" }, Vk = { class: "switch-grid" }, jk = ["title"], Hk = ["title"], Uk = ["title"], Wk = { class: "settings-section grid-two" }, Gk = { class: "settings-section__header" }, Kk = { class: "switch-grid switch-grid--two" }, qk = ["title"], Zk = ["title"], Yk = ["title"], Xk = ["title"], Qk = { class: "settings-section grid-two" }, Jk = { class: "settings-section__header" }, eS = { class: "param-grid param-grid--three" }, tS = ["title"], nS = ["title"], oS = ["title"], rS = ["title"], aS = ["title"], sS = ["title"], iS = ["title"], lS = ["title"], cS = { class: "settings-section" }, uS = { class: "settings-section__header" }, dS = { class: "settings-footer" }, fS = ["title"], pS = /* @__PURE__ */ ee({
   name: "LocalAiSettings",
   __name: "index",
   setup(e) {
@@ -11743,25 +11745,25 @@ const Z2 = ["disabled"], Y2 = {
       p && clearInterval(p);
     }), (Z, U) => {
       const ke = F1, le = z1, ge = k1, ce = G1;
-      return k(), R("div", Q2, [
-        f("header", J2, [
+      return k(), R("div", J2, [
+        f("header", ek, [
           f("div", null, [
             f(
               "h3",
-              ek,
+              tk,
               I(i(t)("localAi.title")),
               1
               /* TEXT */
             ),
             f(
               "p",
-              tk,
+              nk,
               I(i(t)("localAi.serviceControlDesc")),
               1
               /* TEXT */
             )
           ]),
-          f("div", nk, [
+          f("div", ok, [
             O(i(Qn), {
               size: "small",
               plain: "",
@@ -11794,9 +11796,9 @@ const Z2 = ["disabled"], Y2 = {
             }, 8, ["loading"])
           ])
         ]),
-        i(n) ? (k(), R("main", ok, [
-          f("aside", rk, [
-            f("div", ak, [
+        i(n) ? (k(), R("main", rk, [
+          f("aside", ak, [
+            f("div", sk, [
               f(
                 "div",
                 {
@@ -11881,7 +11883,7 @@ const Z2 = ["disabled"], Y2 = {
                 class: z(["memory-card", L(i(_).level)])
               },
               [
-                f("div", sk, [
+                f("div", ik, [
                   f(
                     "span",
                     null,
@@ -11897,7 +11899,7 @@ const Z2 = ["disabled"], Y2 = {
                     /* TEXT */
                   )
                 ]),
-                f("div", ik, [
+                f("div", lk, [
                   f("div", null, [
                     U[28] || (U[28] = f(
                       "span",
@@ -11935,7 +11937,7 @@ const Z2 = ["disabled"], Y2 = {
                     )
                   ])
                 ]),
-                f("div", lk, [
+                f("div", ck, [
                   f(
                     "span",
                     null,
@@ -11957,22 +11959,22 @@ const Z2 = ["disabled"], Y2 = {
               2
               /* CLASS */
             ),
-            f("section", ck, [
+            f("section", uk, [
               f(
                 "div",
-                uk,
+                dk,
                 I(i(t)("localAi.serviceControl")),
                 1
                 /* TEXT */
               ),
               f(
                 "div",
-                dk,
+                fk,
                 I(i(t)("localAi.serviceControlDesc")),
                 1
                 /* TEXT */
               ),
-              f("div", fk, [
+              f("div", pk, [
                 O(i(Qn), {
                   type: "primary",
                   size: "small",
@@ -12027,28 +12029,28 @@ const Z2 = ["disabled"], Y2 = {
               ]),
               f(
                 "div",
-                pk,
+                hk,
                 I(i(r)?.baseUrl),
                 1
                 /* TEXT */
               )
             ]),
-            f("section", hk, [
+            f("section", mk, [
               f(
                 "div",
-                mk,
+                gk,
                 I(i(t)("localAi.modelRuntime")),
                 1
                 /* TEXT */
               ),
               f(
                 "div",
-                gk,
+                vk,
                 I(i(t)("localAi.modelRuntimeDesc")),
                 1
                 /* TEXT */
               ),
-              f("div", vk, [
+              f("div", bk, [
                 f("div", null, [
                   f(
                     "span",
@@ -12160,9 +12162,9 @@ const Z2 = ["disabled"], Y2 = {
               ])
             ])
           ]),
-          f("section", bk, [
-            f("div", yk, [
-              f("div", wk, [
+          f("section", yk, [
+            f("div", wk, [
+              f("div", _k, [
                 f("div", null, [
                   f(
                     "h4",
@@ -12180,7 +12182,7 @@ const Z2 = ["disabled"], Y2 = {
                   )
                 ])
               ]),
-              f("div", _k, [
+              f("div", kk, [
                 f("label", {
                   class: "field-row",
                   title: E("modelDir")
@@ -12192,7 +12194,7 @@ const Z2 = ["disabled"], Y2 = {
                     1
                     /* TEXT */
                   ),
-                  f("div", Sk, [
+                  f("div", Tk, [
                     ut(f(
                       "input",
                       {
@@ -12222,7 +12224,7 @@ const Z2 = ["disabled"], Y2 = {
                       /* STABLE */
                     })
                   ])
-                ], 8, kk),
+                ], 8, Sk),
                 f("label", {
                   class: "field-row",
                   title: E("mainModel")
@@ -12257,7 +12259,7 @@ const Z2 = ["disabled"], Y2 = {
                     _: 1
                     /* STABLE */
                   }, 8, ["modelValue"])
-                ], 8, Tk),
+                ], 8, Ak),
                 f("label", {
                   class: "field-row",
                   title: E("mmprojModel")
@@ -12292,7 +12294,7 @@ const Z2 = ["disabled"], Y2 = {
                     _: 1
                     /* STABLE */
                   }, 8, ["modelValue"])
-                ], 8, Ak),
+                ], 8, Ck),
                 f("label", {
                   class: "field-row",
                   title: E("runtimePath")
@@ -12304,12 +12306,12 @@ const Z2 = ["disabled"], Y2 = {
                     1
                     /* TEXT */
                   ),
-                  f("div", Ek, [
+                  f("div", xk, [
                     ut(f("input", {
                       "onUpdate:modelValue": U[3] || (U[3] = (G) => i(n).runtimePath = G),
                       class: "text-input",
                       placeholder: i(t)("localAi.runtimePathPlaceholder")
-                    }, null, 8, xk), [
+                    }, null, 8, Ik), [
                       [yr, i(n).runtimePath]
                     ]),
                     O(i(Qn), {
@@ -12328,11 +12330,11 @@ const Z2 = ["disabled"], Y2 = {
                       /* STABLE */
                     })
                   ])
-                ], 8, Ck)
+                ], 8, Ek)
               ])
             ]),
-            f("div", Ik, [
-              f("div", Ok, [
+            f("div", Ok, [
+              f("div", Lk, [
                 f("div", null, [
                   f(
                     "h4",
@@ -12350,7 +12352,7 @@ const Z2 = ["disabled"], Y2 = {
                   )
                 ])
               ]),
-              f("div", Lk, [
+              f("div", Rk, [
                 f("label", {
                   class: "number-field",
                   title: E("ctxSize")
@@ -12370,7 +12372,7 @@ const Z2 = ["disabled"], Y2 = {
                     step: 512,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, Rk),
+                ], 8, $k),
                 f("label", {
                   class: "number-field",
                   title: E("gpuLayers")
@@ -12390,7 +12392,7 @@ const Z2 = ["disabled"], Y2 = {
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, $k),
+                ], 8, Mk),
                 f("label", {
                   class: "number-field",
                   title: E("threads")
@@ -12410,7 +12412,7 @@ const Z2 = ["disabled"], Y2 = {
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, Mk),
+                ], 8, Pk),
                 f("label", {
                   class: "number-field",
                   title: E("batchSize")
@@ -12430,7 +12432,7 @@ const Z2 = ["disabled"], Y2 = {
                     step: 32,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, Pk),
+                ], 8, Nk),
                 f("label", {
                   class: "number-field",
                   title: E("ubatchSize")
@@ -12450,7 +12452,7 @@ const Z2 = ["disabled"], Y2 = {
                     step: 16,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, Nk),
+                ], 8, Dk),
                 f("label", {
                   class: "number-field",
                   title: E("mainGpu")
@@ -12470,11 +12472,11 @@ const Z2 = ["disabled"], Y2 = {
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, Dk)
+                ], 8, zk)
               ])
             ]),
-            f("div", zk, [
-              f("div", Fk, [
+            f("div", Fk, [
+              f("div", Bk, [
                 f("div", null, [
                   f(
                     "h4",
@@ -12492,7 +12494,7 @@ const Z2 = ["disabled"], Y2 = {
                   )
                 ])
               ]),
-              f("div", Bk, [
+              f("div", Vk, [
                 f("label", {
                   title: E("flashAttn")
                 }, [
@@ -12507,7 +12509,7 @@ const Z2 = ["disabled"], Y2 = {
                     modelValue: i(n).flashAttn,
                     "onUpdate:modelValue": U[10] || (U[10] = (G) => i(n).flashAttn = G)
                   }, null, 8, ["modelValue"])
-                ], 8, Vk),
+                ], 8, jk),
                 f("label", {
                   title: E("kvOffload")
                 }, [
@@ -12522,7 +12524,7 @@ const Z2 = ["disabled"], Y2 = {
                     modelValue: i(n).kvOffload,
                     "onUpdate:modelValue": U[11] || (U[11] = (G) => i(n).kvOffload = G)
                   }, null, 8, ["modelValue"])
-                ], 8, jk),
+                ], 8, Hk),
                 f("label", {
                   title: E("mmap")
                 }, [
@@ -12537,11 +12539,11 @@ const Z2 = ["disabled"], Y2 = {
                     modelValue: i(n).mmap,
                     "onUpdate:modelValue": U[12] || (U[12] = (G) => i(n).mmap = G)
                   }, null, 8, ["modelValue"])
-                ], 8, Hk)
+                ], 8, Uk)
               ])
             ]),
-            f("div", Uk, [
-              f("div", Wk, [
+            f("div", Wk, [
+              f("div", Gk, [
                 f("div", null, [
                   f(
                     "h4",
@@ -12559,7 +12561,7 @@ const Z2 = ["disabled"], Y2 = {
                   )
                 ])
               ]),
-              f("div", Gk, [
+              f("div", Kk, [
                 f("label", {
                   title: E("autoStart")
                 }, [
@@ -12574,7 +12576,7 @@ const Z2 = ["disabled"], Y2 = {
                     modelValue: i(n).autoStartOnRequest,
                     "onUpdate:modelValue": U[13] || (U[13] = (G) => i(n).autoStartOnRequest = G)
                   }, null, 8, ["modelValue"])
-                ], 8, Kk),
+                ], 8, qk),
                 f("label", {
                   title: E("keepAlive")
                 }, [
@@ -12589,7 +12591,7 @@ const Z2 = ["disabled"], Y2 = {
                     modelValue: i(n).keepAlive,
                     "onUpdate:modelValue": U[14] || (U[14] = (G) => i(n).keepAlive = G)
                   }, null, 8, ["modelValue"])
-                ], 8, qk),
+                ], 8, Zk),
                 f("label", {
                   class: "number-field",
                   title: E("idleTimeout")
@@ -12609,7 +12611,7 @@ const Z2 = ["disabled"], Y2 = {
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, Zk),
+                ], 8, Yk),
                 f("label", {
                   class: "number-field",
                   title: E("requestTimeout")
@@ -12629,11 +12631,11 @@ const Z2 = ["disabled"], Y2 = {
                     step: 30,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, Yk)
+                ], 8, Xk)
               ])
             ]),
-            f("div", Xk, [
-              f("div", Qk, [
+            f("div", Qk, [
+              f("div", Jk, [
                 f("div", null, [
                   f(
                     "h4",
@@ -12651,7 +12653,7 @@ const Z2 = ["disabled"], Y2 = {
                   )
                 ])
               ]),
-              f("div", Jk, [
+              f("div", eS, [
                 f("label", {
                   class: "number-field",
                   title: E("temperature")
@@ -12672,7 +12674,7 @@ const Z2 = ["disabled"], Y2 = {
                     precision: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, eS),
+                ], 8, tS),
                 f("label", {
                   class: "number-field",
                   title: E("topP")
@@ -12693,7 +12695,7 @@ const Z2 = ["disabled"], Y2 = {
                     precision: 2,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, tS),
+                ], 8, nS),
                 f("label", {
                   class: "number-field",
                   title: E("topK")
@@ -12713,7 +12715,7 @@ const Z2 = ["disabled"], Y2 = {
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, nS),
+                ], 8, oS),
                 f("label", {
                   class: "number-field",
                   title: E("minP")
@@ -12734,7 +12736,7 @@ const Z2 = ["disabled"], Y2 = {
                     precision: 2,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, oS),
+                ], 8, rS),
                 f("label", {
                   class: "number-field",
                   title: E("repeatPenalty")
@@ -12755,7 +12757,7 @@ const Z2 = ["disabled"], Y2 = {
                     precision: 2,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, rS),
+                ], 8, aS),
                 f("label", {
                   class: "number-field",
                   title: E("repeatLastN")
@@ -12775,7 +12777,7 @@ const Z2 = ["disabled"], Y2 = {
                     step: 32,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, aS),
+                ], 8, sS),
                 f("label", {
                   class: "number-field",
                   title: E("maxTokens")
@@ -12795,7 +12797,7 @@ const Z2 = ["disabled"], Y2 = {
                     step: 64,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, sS),
+                ], 8, iS),
                 f("label", {
                   class: "number-field",
                   title: E("port")
@@ -12815,11 +12817,11 @@ const Z2 = ["disabled"], Y2 = {
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, iS)
+                ], 8, lS)
               ])
             ]),
-            f("div", lS, [
-              f("div", cS, [
+            f("div", cS, [
+              f("div", uS, [
                 f("div", null, [
                   f(
                     "h4",
@@ -12838,7 +12840,7 @@ const Z2 = ["disabled"], Y2 = {
                 ])
               ])
             ]),
-            f("div", uS, [
+            f("div", dS, [
               O(i(Qn), {
                 type: "primary",
                 loading: i(c),
@@ -12858,18 +12860,18 @@ const Z2 = ["disabled"], Y2 = {
                 key: 0,
                 class: "command-line",
                 title: i(r).commandLine
-              }, I(i(r).commandLine), 9, dS)) : W("v-if", !0)
+              }, I(i(r).commandLine), 9, fS)) : W("v-if", !0)
             ])
           ])
         ])) : W("v-if", !0)
       ]);
     };
   }
-}), pS = /* @__PURE__ */ ai(fS, [["__scopeId", "data-v-0221d42e"]]), hS = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), hS = /* @__PURE__ */ ai(pS, [["__scopeId", "data-v-0221d42e"]]), mS = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: pS
+  default: hS
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  bS as activate,
-  bS as default
+  yS as activate,
+  yS as default
 };
