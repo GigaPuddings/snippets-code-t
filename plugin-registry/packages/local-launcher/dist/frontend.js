@@ -10038,7 +10038,7 @@ const C1 = ["disabled"], E1 = {
 }), F1 = /* @__PURE__ */ Nn(x1, [["__scopeId", "data-v-875c8d56"]]), L1 = { class: "icon-section" }, M1 = { class: "icon-display" }, R1 = {
   key: 0,
   class: "icon-preview has-icon"
-}, N1 = ["src"], z1 = { class: "icon-overlay" }, B1 = {
+}, N1 = ["src", "alt"], z1 = { class: "icon-overlay" }, B1 = {
   key: 1,
   class: "icon-placeholder"
 }, j1 = { class: "placeholder-text" }, D1 = { class: "icon-actions" }, V1 = { class: "dropdown-item-content" }, H1 = { class: "item-label" }, W1 = { class: "item-desc" }, q1 = { class: "dropdown-item-content" }, K1 = { class: "item-desc" }, U1 = { class: "dropdown-item-content" }, G1 = { class: "item-desc" }, Y1 = { class: "dropdown-item-content" }, Z1 = { class: "item-label" }, J1 = { class: "item-desc" }, X1 = { class: "dialog-footer" }, Q1 = { class: "footer-left" }, ew = { class: "footer-right" }, tw = /* @__PURE__ */ D({
@@ -10300,7 +10300,7 @@ const C1 = ["disabled"], E1 = {
                       u(c).icon ? (k(), H("div", R1, [
                         $("img", {
                           src: u(c).icon,
-                          alt: "icon"
+                          alt: m.$t("editDialog.icon")
                         }, null, 8, N1),
                         $("div", z1, [
                           A(F, {
@@ -10503,7 +10503,7 @@ const C1 = ["disabled"], E1 = {
       }, 8, ["modelValue", "title"]);
     };
   }
-}), nw = /* @__PURE__ */ Nn(tw, [["__scopeId", "data-v-7c441141"]]), ow = (e) => String(e ?? "").trim().toLowerCase(), Ll = (e) => {
+}), nw = /* @__PURE__ */ Nn(tw, [["__scopeId", "data-v-3dcc1e80"]]), ow = (e) => String(e ?? "").trim().toLowerCase(), Ll = (e) => {
   const t = e.metadata?.source;
   return typeof t == "string" ? t : e.summarize ?? "text";
 }, gr = (e) => String(e.metadata?.raw_id ?? e.id), rw = (e) => ow(e).replace(/\\/g, "/").replace(/\/+$/, ""), Jn = (e, t, n) => {
