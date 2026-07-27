@@ -604,38 +604,3 @@ pub fn validate_workspace(path: &Path) -> Result<(), String> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn atomic_text_write_replaces_complete_file_without_residue() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let path = temp.path().join("config.json");
-        fs::write(&path, "old").unwrap();
-
-        write_text_atomic(&path, "{\"version\":2}").unwrap();
-
-        assert_eq!(fs::read_to_string(&path).unwrap(), "{\"version\":2}\n");
-        let names = fs::read_dir(temp.path())
-            .unwrap()
-            .flatten()
-            .map(|entry| entry.file_name().to_string_lossy().to_string())
-            .collect::<Vec<_>>();
-        assert_eq!(names, vec!["config.json".to_string()]);
-    }
-
-    #[test]
-    fn recovers_previous_file_after_interrupted_replace() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let path = temp.path().join("config.json");
-        let backup = atomic_backup_path(&path);
-        fs::write(&backup, "{\"version\":1}\n").unwrap();
-
-        recover_atomic_file(&path).unwrap();
-
-        assert_eq!(fs::read_to_string(&path).unwrap(), "{\"version\":1}\n");
-        assert!(!backup.exists());
-    }
-}

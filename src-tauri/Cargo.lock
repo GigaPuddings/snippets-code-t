@@ -6320,7 +6320,6 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-sql",
  "tauri-plugin-updater",
- "tempfile",
  "tokio",
  "url",
  "urlencoding",
