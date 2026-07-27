@@ -83,7 +83,7 @@
         </div>
       </div>
 
-      <!-- Git 必要字段配置（个人中心配置后，设置中才会显示 Git 同步 tab） -->
+      <!-- Git 必要字段配置（Git 同步设置入口始终可见，配置完成后才可建立同步） -->
       <div v-if="isGitSyncEnabled && hasWorkspace" class="git-config-card">
         <h4 class="section-title">{{ $t('userCenter.gitConfigSection') }}</h4>
         <p class="git-config-desc">{{ $t('userCenter.gitConfigSectionDesc') }}</p>
@@ -339,7 +339,7 @@ const saveGitConfig = async () => {
   }
 };
 
-// 跳转到 Git 同步设置（需先配置工作区与上述四字段，设置中才会显示 Git 同步 tab）
+// 跳转到 Git 同步设置（需先配置工作区与上述字段，才能建立远程同步）
 const goToGitSync = () => {
   try {
     router.push({ path: '/config/category/settings', query: { tab: 'gitSync' } });

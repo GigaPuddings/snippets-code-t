@@ -114,7 +114,7 @@ export default {
     pluginInstallPath: 'Plugin Install Location',
     setupComplete: 'Setup Complete!',
     setupFailed: 'Setup Failed',
-    pathError: 'Path setup failed'
+    pathError: 'Path setup failed',
   },
 
   // General Settings
@@ -280,6 +280,7 @@ export default {
       enabledDesc: 'Sync notes to GitHub repository',
       enabledSuccess: 'Git sync enabled',
       disabledSuccess: 'Git sync disabled',
+      configureBeforeEnable: 'Complete your Git username, email, and remote repository in Personal Center first.',
       autoDetect: 'Auto Detect Config',
       autoDetectDesc: 'Detect Git configuration from system or workspace',
       autoDetectDescWorkspace:
@@ -475,6 +476,15 @@ export default {
     marketplaceUpdateAvailable: 'Update available',
     marketplaceDependencyMissing: 'Missing dependency',
     marketplaceIncompatible: 'App update required',
+    gitSyncInstallTitle: 'Install Git Sync first',
+    gitSyncInstallDesc: 'Before restoring existing data, install and configure Git Sync first, then install other plugins to keep new local settings separate from restored data.',
+    gitSyncInstallAction: 'Install Git Sync',
+    gitSyncConfigureTitle: 'Finish Git Sync configuration',
+    gitSyncConfigureDesc: 'Go to User Center and enter the Git username, email, and remote repository URL. You can then pull or push data from Git Sync settings.',
+    gitSyncConfigureAction: 'Configure in User Center',
+    gitSyncInstallFirstWarning: 'Install and configure Git Sync first. If you do not need to restore existing data, you can install other plugins later.',
+    gitSyncInstallNextStep: 'Git Sync is installed. Next, complete Git configuration in User Center.',
+    gitSyncPackageUnavailable: 'The Git Sync package is unavailable. Refresh the plugin marketplace and try again.',
     permissionNone: 'No extra permissions',
     permissionBackend: 'Backend {permission}',
     permissionCommand: 'Command {permission}',
@@ -1436,7 +1446,7 @@ export default {
     gitRemote: 'Remote Repository',
     gitConfigSection: 'Git Required Config',
     gitConfigSectionDesc:
-      'After filling these fields, the Git Sync tab will appear in Settings. Workspace must be a valid Git repo with remote configured.',
+      'After filling in these fields, use Git Sync settings to initialize the repository and pull or push data.',
     gitPluginUnavailableTitle: 'Git Sync Plugin Unavailable',
     gitPluginUnavailableDesc:
       'Install and enable the Git Sync plugin to show the required Git configuration here.',

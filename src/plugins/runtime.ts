@@ -136,7 +136,7 @@ const runtimeConfigPluginRoutes: RouteRecordRaw[] = [];
 const runtimeLayoutPluginRoutes: RouteRecordRaw[] = [];
 const runtimeWindowPluginRoutes: RouteRecordRaw[] = [];
 const loadedFrontendEntries = new Set<string>();
-const loadedPluginStyleLinks = new Map<string, HTMLLinkElement[]>();
+const loadedPluginStyles = new Map<string, HTMLStyleElement[]>();
 const loadedPluginModuleUrls = new Map<string, string[]>();
 const sharedModuleUrls = new Map<string, string>();
 const installedRuntimeRouteNames = new Set<string>();
@@ -232,6 +232,34 @@ const resolveRelativePluginAssetUrl = (
   );
   return `${resolvePluginAssetUrl(plugin, normalizedPath)}${suffix}`;
 };
+
+const stylesheetUrlPattern = /url\(\s*(['"]?)(.*?)\1\s*\)/gi;
+
+const isExternalStylesheetUrl = (value: string): boolean =>
+  !value ||
+  value.startsWith('#') ||
+  value.startsWith('/') ||
+  value.startsWith('//') ||
+  value.startsWith('var(') ||
+  /^[a-z][a-z\d+.-]*:/i.test(value);
+
+export const rewritePluginStylesheetUrls = (
+  plugin: RegisteredPlugin,
+  stylesheetRelativePath: string,
+  source: string
+): string =>
+  source.replace(
+    stylesheetUrlPattern,
+    (match: string, _quote: string, rawSpecifier: string) => {
+      const specifier = rawSpecifier.trim();
+      if (isExternalStylesheetUrl(specifier)) return match;
+      return `url("${resolveRelativePluginAssetUrl(
+        plugin,
+        stylesheetRelativePath,
+        specifier
+      )}")`;
+    }
+  );
 
 const vueRuntimeExportNames = [
   'BaseTransition',
@@ -407,7 +435,11 @@ const vueRuntimeExportNames = [
 
 const sharedModuleRuntimes: Record<
   string,
-  { moduleKey: string; runtime: Record<string, unknown>; exportNames?: string[] }
+  {
+    moduleKey: string;
+    runtime: Record<string, unknown>;
+    exportNames?: string[];
+  }
 > = {
   vue: {
     moduleKey: 'vue',
@@ -663,7 +695,8 @@ const pluginRouteComponent = (
     );
   }
 
-  return () => import(/* @vite-ignore */ resolvePluginAssetUrl(plugin, componentUrl));
+  return () =>
+    import(/* @vite-ignore */ resolvePluginAssetUrl(plugin, componentUrl));
 };
 
 const pushRoute = (target: RuntimeRouteTarget, route: RouteRecordRaw): void => {
@@ -754,7 +787,11 @@ const createRuntimeContext = (
     const routeRecord: RouteRecordRaw = {
       path: route.path,
       name: route.name,
-      component: pluginRouteComponent(plugin, route.component, route.componentUrl),
+      component: pluginRouteComponent(
+        plugin,
+        route.component,
+        route.componentUrl
+      ),
       meta: {
         ...route.meta,
         pluginId: plugin.id
@@ -892,28 +929,47 @@ const activateFrontendModule = async (
   }
 };
 
-const ensurePluginStyles = (plugin: RegisteredPlugin): void => {
-  if (loadedPluginStyleLinks.has(String(plugin.id))) return;
+const ensurePluginStyles = async (plugin: RegisteredPlugin): Promise<void> => {
+  const pluginId = String(plugin.id);
+  if (loadedPluginStyles.has(pluginId)) return;
 
   const styles = plugin.manifest.entry?.styles ?? [];
   if (!styles.length) return;
 
-  const links = styles.map((stylePath) => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = resolvePluginAssetUrl(plugin, stylePath);
-    link.dataset.pluginId = String(plugin.id);
-    document.head.appendChild(link);
-    return link;
-  });
+  const elements: HTMLStyleElement[] = [];
+  try {
+    for (const stylePath of styles) {
+      const styleUrl = resolvePluginAssetUrl(plugin, stylePath);
+      const response = await fetch(styleUrl);
+      if (!response.ok) {
+        throw new Error(
+          `插件 ${plugin.id} 样式读取失败: ${response.status} ${response.statusText}`
+        );
+      }
 
-  loadedPluginStyleLinks.set(String(plugin.id), links);
+      const source = await response.text();
+      const element = document.createElement('style');
+      element.textContent = rewritePluginStylesheetUrls(
+        plugin,
+        stylePath,
+        source
+      );
+      element.dataset.pluginId = pluginId;
+      element.dataset.pluginStyle = stylePath;
+      document.head.appendChild(element);
+      elements.push(element);
+    }
+    loadedPluginStyles.set(pluginId, elements);
+  } catch (error) {
+    elements.forEach((element) => element.remove());
+    throw error;
+  }
 };
 
 const removePluginStyles = (pluginId: string): void => {
-  const links = loadedPluginStyleLinks.get(pluginId) ?? [];
-  links.forEach((link) => link.remove());
-  loadedPluginStyleLinks.delete(pluginId);
+  const elements = loadedPluginStyles.get(pluginId) ?? [];
+  elements.forEach((element) => element.remove());
+  loadedPluginStyles.delete(pluginId);
 };
 
 const frontendCapabilityKeys = [
@@ -925,7 +981,11 @@ const frontendCapabilityKeys = [
 ] as const;
 
 const pluginNeedsFrontendEntry = (plugin: RegisteredPlugin): boolean => {
-  if (plugin.resourceFor || plugin.manifest.resourceFor || plugin.manifest.resources) {
+  if (
+    plugin.resourceFor ||
+    plugin.manifest.resourceFor ||
+    plugin.manifest.resources
+  ) {
     return false;
   }
 
@@ -947,7 +1007,7 @@ export const ensureLocalPluginFrontendEntries = async (
 
     if (plugin.manifest.entry?.frontend) {
       try {
-        ensurePluginStyles(plugin);
+        await ensurePluginStyles(plugin);
         const pluginModule = await loadPluginFrontendModule(
           plugin,
           plugin.manifest.entry.frontend
@@ -956,6 +1016,7 @@ export const ensureLocalPluginFrontendEntries = async (
         loadedFrontendEntries.add(String(plugin.id));
       } catch (error) {
         clearRuntimePluginRegistrations(String(plugin.id));
+        removePluginStyles(String(plugin.id));
         logger.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
       }
       continue;

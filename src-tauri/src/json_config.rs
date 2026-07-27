@@ -294,6 +294,21 @@ pub fn write_path_config(app_handle: &tauri::AppHandle, config: &PathConfig) -> 
 
 // ============= 应用配置管理 =============
 
+// 默认将应用运行数据与安装文件放在同一目录。工作区仍由独立的 workspace_root 管理。
+pub fn get_default_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(install_dir) = std::env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(Path::to_path_buf))
+        {
+            return install_dir;
+        }
+    }
+
+    app_handle.path().app_data_dir().unwrap()
+}
+
 // 获取数据目录路径
 pub fn get_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
     let path_config = read_path_config(app_handle);
@@ -309,8 +324,7 @@ pub fn get_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
         }
     }
 
-    // 默认使用 AppData 目录
-    let default_dir = app_handle.path().app_data_dir().unwrap();
+    let default_dir = get_default_data_dir(app_handle);
     if !default_dir.exists() {
         let _ = fs::create_dir_all(&default_dir);
     }

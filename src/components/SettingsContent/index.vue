@@ -35,8 +35,6 @@
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { Data, EnterTheKeyboard, SettingTwo } from '@icon-park/vue-next';
-import { invoke } from '@tauri-apps/api/core';
-import { getGitSettings } from '@/api/appConfig';
 import {
   pluginSettingsComponents,
   pluginSettingsMenuItems,
@@ -53,7 +51,7 @@ const { t } = useI18n();
 const route = useRoute();
 const pluginStore = usePluginStore();
 
-/** 是否显示 Git 同步 tab：工作区有效、已是仓库、已配置远程、且必要字段（用户名、邮箱、远程 URL）已在个人中心配置 */
+/** Git 插件启用后即显示设置入口；必要配置在个人中心完成，不能再把入口藏起来。 */
 const canShowGitSyncTab = ref(false);
 
 const coreMenuItems: PluginSettingsMenuItem[] = [
@@ -141,32 +139,16 @@ const componentMap = computed<Record<string, any>>(() => {
 });
 
 async function refreshCanShowGitSyncTab() {
-  try {
-    if (!pluginStore.isEnabled('git-sync')) {
-      canShowGitSyncTab.value = false;
-      return;
-    }
-
-    const root = await invoke<string | null>('get_workspace_root_path');
-    if (!root) {
-      canShowGitSyncTab.value = false;
-      return;
-    }
-    const { getGitStatus } = await import('@/api/gitSync');
-    const [status, settings] = await Promise.all([
-      getGitStatus(),
-      getGitSettings()
-    ]);
-    const hasRequiredFields =
-      !!settings.user_name?.trim() &&
-      !!settings.user_email?.trim() &&
-      !!settings.remote_url?.trim();
-    canShowGitSyncTab.value =
-      status.is_repo && status.has_remote && hasRequiredFields;
-  } catch {
-    canShowGitSyncTab.value = false;
-  }
+  canShowGitSyncTab.value = pluginStore.isEnabled('git-sync');
 }
+
+// 插件在当前设置页安装、启用或禁用后，立即同步 Git Tab 可见性。
+watch(
+  () => pluginStore.runtimeRevision,
+  () => {
+    void refreshCanShowGitSyncTab();
+  }
+);
 
 // 切换 tab
 const switchTab = (tabId: string) => {

@@ -18,6 +18,7 @@ mod plugins;
 mod search;
 mod sync_data;
 mod tray;
+mod uninstall;
 mod update;
 mod window;
 
@@ -183,19 +184,16 @@ pub fn run() {
             // 插件安装/启用状态、设置页等都需要在未设置工作区时正常工作。
             let data_dir = json_config::get_data_dir(app.handle());
             match app_config::AppConfigManager::new(&data_dir) {
-                Ok(mut app_config_manager) => {
-                    if let Err(e) = app_config::migrate_workspace_app_config_to_data_dir(
-                        app.handle(),
-                        &mut app_config_manager,
-                    ) {
-                        log::warn!("⚠️ [初始化] 迁移旧工作区应用配置失败: {}", e);
-                    }
+                Ok(app_config_manager) => {
                     app.manage(Arc::new(RwLock::new(app_config_manager)));
                 }
                 Err(e) => {
                     log::warn!("⚠️ [初始化] AppConfigManager 初始化失败: {}", e);
                 }
             }
+
+            // 记录已验证的数据路径，供 Windows 卸载器在用户明确选择删除数据时清理。
+            uninstall::record_current_paths(app.handle());
 
             let is_auto_start = is_auto_start_launch(app.handle());
             let is_update_restart = update::consume_update_restart_pending(app.handle());

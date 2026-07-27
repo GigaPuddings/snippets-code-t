@@ -212,6 +212,26 @@ fn git_porcelain_path(line: &str) -> Option<String> {
     (!decoded.is_empty()).then_some(decoded)
 }
 
+/// `core.autocrlf=true` 下，等价 JSON 被 LF/CRLF 转换后可能短暂出现在
+/// porcelain 状态中，但 `git diff` 确认其规范化内容没有变化。只过滤纯
+/// 工作区修改；已暂存变更和真实内容变更必须继续展示。
+fn is_noop_worktree_modification(workspace_root: &Path, line: &str, path: &str) -> bool {
+    let status = line.as_bytes();
+    if path != ".snippets-code/sync.json"
+        || status.first() != Some(&b' ')
+        || status.get(1) != Some(&b'M')
+    {
+        return false;
+    }
+
+    crate::git_common::git_command()
+        .args(["diff", "--quiet", "--no-ext-diff", "--"])
+        .arg(path)
+        .current_dir(workspace_root)
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
 /// 冲突解决策略
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ConflictStrategy {
@@ -730,6 +750,9 @@ pub fn get_git_status(workspace_root: &Path) -> Result<GitStatus, String> {
             .lines()
             .filter_map(|line| {
                 let path = git_porcelain_path(line)?;
+                if is_noop_worktree_modification(workspace_root, line, &path) {
+                    return None;
+                }
                 crate::sync_data::is_allowed_sync_path(&path, &attachment_roots)
                     .then(|| format_git_status_line_for_display(line))
             })
@@ -992,10 +1015,6 @@ impl ChangedFilesByStatus {
             + self.sync_protocol_files.len()
     }
 
-    fn has_sync_protocol_changes(&self) -> bool {
-        !self.sync_protocol_files.is_empty()
-    }
-
     fn record_path(&mut self, workspace_root: &Path, status: &str, path: String) {
         if path.to_ascii_lowercase().ends_with(".md") {
             match status {
@@ -1130,31 +1149,30 @@ fn get_changed_files_with_status(
     Ok(result)
 }
 
-fn apply_non_content_sync_changes(
-    app_handle: &tauri::AppHandle,
-    workspace_root: &Path,
-    changes: &ChangedFilesByStatus,
-) {
-    if changes.has_sync_protocol_changes() {
-        match crate::sync_data::import_sync_bundle(app_handle, workspace_root) {
-            Ok(report) => {
-                info!(
-                    "✅ [Git] 已应用同步配置: 偏好 {}, 快捷键 {}, 工作区设置 {}",
-                    report.applied_preferences.len(),
-                    report.applied_hotkeys.len(),
-                    report.applied_vault_settings.len()
-                );
-            }
-            Err(error) => {
-                warn!("⚠️ [Git] 内容已拉取，但同步配置导入失败: {}", error);
-                let _ = app_handle.emit(
-                    "portable-config-import-failed",
-                    serde_json::json!({ "error": error }),
-                );
-            }
+fn import_portable_sync_config(app_handle: &tauri::AppHandle, workspace_root: &Path) {
+    match crate::sync_data::import_sync_bundle(app_handle, workspace_root) {
+        Ok(report) if report.found_sync_bundle => {
+            info!(
+                "✅ [Git] 已应用同步配置: 偏好 {}, 快捷键 {}, 工作区设置 {}",
+                report.applied_preferences.len(),
+                report.applied_hotkeys.len(),
+                report.applied_vault_settings.len()
+            );
+        }
+        Ok(_) => {
+            debug!("ℹ️ [Git] 工作区没有 sync.json，跳过可移植配置导入");
+        }
+        Err(error) => {
+            warn!("⚠️ [Git] 同步配置导入失败: {}", error);
+            let _ = app_handle.emit(
+                "portable-config-import-failed",
+                serde_json::json!({ "error": error }),
+            );
         }
     }
+}
 
+fn apply_non_content_sync_changes(app_handle: &tauri::AppHandle, changes: &ChangedFilesByStatus) {
     if !changes.attachment_files.is_empty() {
         let _ = app_handle.emit(
             "sync-attachments-changed",
@@ -2529,6 +2547,10 @@ pub fn init_git_repository_command(
         info!("ℹ️ [Git] fetch 执行失败，跳过远程状态同步");
     }
 
+    // 已存在的工作区可能早已位于远端最新提交，后续 pull 会得到 0 变更。
+    // 因此配置 Git 成功后也要执行一次幂等导入，不能依赖 Git diff 触发。
+    import_portable_sync_config(&app_handle, &workspace_root);
+
     info!("✅ [Git] Git 仓库初始化完成");
 
     // 配置完成后异步重建搜索索引。
@@ -2637,6 +2659,10 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
     }
 
     let result = git_pull(&workspace_root).await?;
+    if result.success {
+        // 即使仓库 already up-to-date，也需要恢复新安装设备的可移植配置。
+        import_portable_sync_config(&app_handle, &workspace_root);
+    }
 
     // 如果检测到冲突（包括 untracked files），存入待处理队列
     if result.has_conflicts {
@@ -2717,7 +2743,7 @@ pub async fn git_pull_command(app_handle: AppHandle) -> Result<PullResult, Strin
         let by_status =
             get_changed_files_with_status(&workspace_root, result.pre_pull_head.as_deref())?;
         let changed_files = by_status.all();
-        apply_non_content_sync_changes(&app_handle, &workspace_root, &by_status);
+        apply_non_content_sync_changes(&app_handle, &by_status);
 
         if changed_files.is_empty() {
             info!("ℹ️ [Git] 没有检测到 .md 文件变更，跳过扫描");
@@ -3143,6 +3169,7 @@ impl AutoSyncManager {
                     match pull_result {
                         Some(Ok(result)) => {
                             if result.success {
+                                import_portable_sync_config(&app_handle, &workspace_root);
                                 if result.files_updated > 0 {
                                     info!(
                                         "✅ [AutoSync] 定期 Pull 成功，更新了 {} 个文件",
@@ -3160,11 +3187,7 @@ impl AutoSyncManager {
                                         }
                                     };
                                     let changed_files = by_status.all();
-                                    apply_non_content_sync_changes(
-                                        &app_handle,
-                                        &workspace_root,
-                                        &by_status,
-                                    );
+                                    apply_non_content_sync_changes(&app_handle, &by_status);
 
                                     if !changed_files.is_empty() {
                                         info!(
@@ -3530,15 +3553,17 @@ impl AutoSyncManager {
                                         );
                                     } else {
                                         info!("✅ [AutoSync] Pull 成功，重试 Push");
+                                        if pull_result.success {
+                                            import_portable_sync_config(
+                                                &app_handle,
+                                                &workspace_root,
+                                            );
+                                        }
                                         if let Ok(changes) = get_changed_files_with_status(
                                             &workspace_root,
                                             pull_result.pre_pull_head.as_deref(),
                                         ) {
-                                            apply_non_content_sync_changes(
-                                                &app_handle,
-                                                &workspace_root,
-                                                &changes,
-                                            );
+                                            apply_non_content_sync_changes(&app_handle, &changes);
                                             if let Some(cache_state) = app_handle.try_state::<Arc<
                                                 StdRwLock<crate::markdown::CacheManager>,
                                             >>() {
@@ -4170,11 +4195,12 @@ pub async fn force_pull_command(app_handle: AppHandle) -> Result<PullResult, Str
     }
 
     info!("✅ [Git] 强制拉取成功");
+    import_portable_sync_config(&app_handle, &workspace_root);
 
     // 获取变更的文件列表用于增量扫描（强制拉取无 pre_pull_head，使用 ORIG_HEAD 回退）
     let by_status = get_changed_files_with_status(&workspace_root, None)?;
     let changed_files = by_status.all();
-    apply_non_content_sync_changes(&app_handle, &workspace_root, &by_status);
+    apply_non_content_sync_changes(&app_handle, &by_status);
 
     // 将变更的文件添加到 FileWatcher 忽略列表，避免触发删除事件
     if !changed_files.is_empty() {

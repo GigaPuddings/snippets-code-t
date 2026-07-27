@@ -3,7 +3,7 @@
  * 负责应用启动时的各种初始化任务
  *
  * 架构说明：
- * - App.vue: 只设置基础事件监听器（语言变更）
+ * - App.vue: 设置所有窗口共享的基础事件监听器
  * - Config 页面: 设置 Git 相关事件监听器 + Git 初始化
  */
 
@@ -56,7 +56,7 @@ export async function checkShouldInitialize(): Promise<boolean> {
 
 /**
  * 设置基础事件监听器（所有窗口通用）
- * 只监听语言变更事件
+ * 监听语言与同步配置导入事件
  */
 export async function setupBaseEventListeners(): Promise<BaseEventListeners> {
   const currentWindow = getCurrentWindow();
@@ -85,6 +85,12 @@ export async function setupBaseEventListeners(): Promise<BaseEventListeners> {
           getAppConfig(),
           getAttachmentConfig(true)
         ]);
+        const store = useConfigurationStore();
+
+        // 后端导入会更新 AppConfigManager 和 app.json，但已挂载页面仍持有
+        // 导入前的 Pinia 快照。完整重载一次，确保快捷键、常规设置和编辑器
+        // 设置无需重启应用即可立即生效。
+        await store.initialize();
 
         if (config.language === 'zh-CN' || config.language === 'en-US') {
           setLocale(config.language);
@@ -94,7 +100,6 @@ export async function setupBaseEventListeners(): Promise<BaseEventListeners> {
           config.theme === 'dark' ||
           config.theme === 'auto'
         ) {
-          const store = useConfigurationStore();
           store.theme = config.theme;
           store.applyTheme();
         }

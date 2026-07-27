@@ -166,6 +166,14 @@ fn read_json_if_exists<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Opti
 fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
     let content =
         serde_json::to_string_pretty(value).map_err(|e| format!("序列化同步文件失败: {}", e))?;
+    if let Ok(existing) = fs::read_to_string(path) {
+        // Git for Windows 在 core.autocrlf=true 时通常检出 CRLF。导入后若仅用
+        // LF 原样重写，内容哈希虽然不变，Git 仍可能因文件 stat/长度变化把
+        // sync.json 暂时显示为待同步。等价内容不落盘，同时保留原换行格式。
+        if existing == content || existing.replace("\r\n", "\n") == content {
+            return Ok(());
+        }
+    }
     crate::json_config::write_text_atomic(path, &content)
 }
 
@@ -1712,6 +1720,20 @@ mod tests {
     }
 
     #[test]
+    fn equivalent_crlf_sync_json_is_not_rewritten() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("sync.json");
+        let bundle = test_bundle("11111111-1111-1111-1111-111111111111");
+        let lf = serde_json::to_string_pretty(&bundle).unwrap();
+        let crlf = lf.replace('\n', "\r\n");
+        fs::write(&path, crlf.as_bytes()).unwrap();
+
+        write_json_atomic(&path, &bundle).unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), crlf.as_bytes());
+    }
+
+    #[test]
     fn protocol_secret_guard_rejects_absolute_paths_and_tokens() {
         let temp = TempDir::new().unwrap();
         let sync_dir = temp.path().join(".snippets-code");
@@ -1814,6 +1836,30 @@ mod tests {
             .changed_files
             .iter()
             .any(|path| path.ends_with("app.json")));
+    }
+
+    #[test]
+    fn git_status_ignores_line_ending_only_sync_json_change() {
+        let temp = TempDir::new().unwrap();
+        git(&temp, &["init"]);
+        git(&temp, &["config", "user.name", "Sync Test"]);
+        git(&temp, &["config", "user.email", "sync@example.com"]);
+        git(&temp, &["config", "core.autocrlf", "true"]);
+
+        let sync_dir = temp.path().join(".snippets-code");
+        fs::create_dir_all(&sync_dir).unwrap();
+        let path = sync_dir.join("sync.json");
+        let bundle = test_bundle("11111111-1111-1111-1111-111111111111");
+        let lf = serde_json::to_string_pretty(&bundle).unwrap();
+        fs::write(&path, lf.replace('\n', "\r\n")).unwrap();
+        git(&temp, &["add", SYNC_FILE]);
+        git(&temp, &["commit", "-m", "portable config"]);
+
+        fs::write(&path, lf).unwrap();
+        let status = crate::git_sync::get_git_status(temp.path()).unwrap();
+
+        assert!(!status.has_changes);
+        assert!(status.changed_files.is_empty());
     }
 
     #[test]

@@ -461,7 +461,7 @@ const toggleAutoUpdateCheck = async (value: boolean): Promise<void> => {
 // 切换自动失焦隐藏
 const toggleAutoHideOnBlur = async (value: boolean): Promise<void> => {
   try {
-    await invoke('set_auto_hide_on_blur', { enabled: value });
+    await invoke('set_auto_hide_on_blur', { value });
     modal.msg(
       value ? t('settings.autoHideEnabled') : t('settings.autoHideDisabled')
     );

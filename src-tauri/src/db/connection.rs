@@ -63,10 +63,17 @@ pub fn get_db_path() -> String {
 pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
     let data_dir = json_config::get_data_dir(&app_handle);
     let db_path = data_dir.join("snippets.db");
+    let recommended_path = json_config::get_default_data_dir(&app_handle);
 
     // 检查路径来源
     let path_config = json_config::read_path_config(&app_handle);
-    let source = if path_config.data_dir.is_some() {
+    let configured_path = path_config
+        .data_dir
+        .as_deref()
+        .filter(|path| !path.trim().is_empty());
+    let source = if configured_path
+        .is_some_and(|path| !same_data_dir(std::path::Path::new(path), &recommended_path))
+    {
         "custom" // 用户自定义
     } else {
         "default" // 默认位置
@@ -75,7 +82,8 @@ pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
     serde_json::json!({
         "path": data_dir.to_str().unwrap_or(""),
         "dbPath": db_path.to_str().unwrap_or(""),
-        "source": source
+        "source": source,
+        "recommendedPath": recommended_path.to_str().unwrap_or("")
     })
 }
 
@@ -404,34 +412,18 @@ fn verify_write_permission(dir: &std::path::Path) -> Result<(), String> {
     }
 }
 
-// 检查路径是否在受保护的系统目录中
-fn is_protected_path(path: &std::path::Path) -> bool {
-    let path_str = path.to_string_lossy().to_lowercase();
+// 路径不存在时仍需要按 Windows 路径语义比较，供设置向导判断默认目录。
+fn comparable_path(path: &std::path::Path) -> String {
+    fs::canonicalize(path)
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .replace('/', "\\")
+        .trim_end_matches('\\')
+        .to_lowercase()
+}
 
-    // 只拦截直接选择这些系统目录本身，不拦截其子目录
-    // 例如：拦截 "C:\Windows" 但允许 "C:\Windows\MyApp"（虽然写入权限测试会失败）
-    let protected_dirs = [
-        "c:\\program files",
-        "c:\\program files (x86)",
-        "d:\\program files",
-        "d:\\program files (x86)",
-        "e:\\program files",
-        "e:\\program files (x86)",
-        "f:\\program files",
-        "f:\\program files (x86)",
-        "c:\\windows",
-        "c:\\programdata",
-    ];
-
-    // 检查是否完全匹配这些目录（不包括子目录）
-    for protected in &protected_dirs {
-        // 完全匹配或者后面只跟着路径分隔符
-        if path_str == *protected || path_str == format!("{}\\", protected) {
-            return true;
-        }
-    }
-
-    false
+fn same_data_dir(left: &std::path::Path, right: &std::path::Path) -> bool {
+    comparable_path(left) == comparable_path(right)
 }
 
 // 从设置向导保存数据目录
@@ -444,14 +436,9 @@ pub fn set_data_dir_from_setup(
 
     log::info!("📁 设置向导：设置数据目录");
 
-    // 获取应用默认数据目录
-    let default_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("获取默认数据目录失败: {}", e))?;
-
-    // 检查是否是应用默认数据目录或其子目录
-    let is_default_path = data_dir.starts_with(&default_data_dir);
+    // 默认数据目录就是当前应用安装目录。
+    let default_data_dir = json_config::get_default_data_dir(&app_handle);
+    let mut is_default_path = same_data_dir(&data_dir, &default_data_dir);
 
     // 如果不是默认路径，自动添加 snippets-code 子文件夹
     if !is_default_path {
@@ -465,11 +452,7 @@ pub fn set_data_dir_from_setup(
         if !ends_with_app_folder {
             data_dir = data_dir.join("snippets-code");
         }
-    }
-
-    // 检查是否在受保护的系统目录中
-    if is_protected_path(&data_dir) {
-        return Err("不能选择系统保护目录（如 Program Files），请选择其他位置".to_string());
+        is_default_path = same_data_dir(&data_dir, &default_data_dir);
     }
 
     // 确保新目录存在
@@ -480,11 +463,6 @@ pub fn set_data_dir_from_setup(
 
     // 验证目录写入权限
     verify_write_permission(&data_dir)?;
-
-    // 默认目录可能仍包含 path.json、旧配置或可恢复数据；切换数据根时不主动删除。
-    if !is_default_path && default_data_dir.exists() {
-        log::info!("保留旧默认数据目录作为回滚来源");
-    }
 
     let final_path = data_dir.to_str().unwrap().to_string();
 
@@ -533,6 +511,7 @@ pub fn set_data_dir_from_setup(
     }
 
     crate::app_config::ensure_enabled_plugin_storage(&app_handle);
+    crate::uninstall::record_data_dir(&data_dir);
 
     log::info!("✅ 数据目录设置完成");
     // 返回实际使用的路径

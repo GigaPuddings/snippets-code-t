@@ -107,7 +107,7 @@ export default {
     pluginInstallPath: '插件安装位置',
     setupComplete: '设置完成！',
     setupFailed: '设置失败',
-    pathError: '路径设置失败'
+    pathError: '路径设置失败',
   },
 
   // 通用设置
@@ -269,6 +269,7 @@ export default {
       enabledDesc: '开启后可以将笔记同步到 GitHub 仓库',
       enabledSuccess: 'Git 同步已启用',
       disabledSuccess: 'Git 同步已禁用',
+      configureBeforeEnable: '请先在个人中心完成 Git 用户名、邮箱和远程仓库配置。',
       autoDetect: '自动检测配置',
       autoDetectDesc: '从系统或工作区检测 Git 配置信息',
       autoDetectDescWorkspace: '从工作区 .git/config 检测 Git 配置信息',
@@ -471,6 +472,15 @@ export default {
     marketplaceUpdateAvailable: '可更新',
     marketplaceDependencyMissing: '缺少依赖',
     marketplaceIncompatible: '需要更新应用',
+    gitSyncInstallTitle: '建议先安装 Git 同步插件',
+    gitSyncInstallDesc: '恢复已有数据前，请先安装并配置 Git 同步，再安装其他插件，避免本机新配置与待恢复数据混在一起。',
+    gitSyncInstallAction: '安装 Git 同步',
+    gitSyncConfigureTitle: '完成 Git 同步配置',
+    gitSyncConfigureDesc: '请前往个人中心填写 Git 用户名、邮箱和远程仓库地址，然后即可在 Git 同步设置中拉取或推送数据。',
+    gitSyncConfigureAction: '前往个人中心配置',
+    gitSyncInstallFirstWarning: '请先安装并配置 Git 同步插件；如果不需要恢复已有数据，可稍后再安装其他插件。',
+    gitSyncInstallNextStep: 'Git 同步插件已安装。下一步请前往个人中心完成 Git 配置。',
+    gitSyncPackageUnavailable: 'Git 同步插件包暂不可用，请刷新插件仓库后重试。',
     permissionNone: '无额外权限',
     permissionBackend: '后端权限 {permission}',
     permissionCommand: '命令权限 {permission}',
@@ -1410,7 +1420,7 @@ export default {
     gitRemote: '远程仓库',
     gitConfigSection: 'Git 必要配置',
     gitConfigSectionDesc:
-      '填写以下信息后，设置中才会显示「Git 同步」选项；工作区需为有效 Git 仓库并已配置远程。',
+      '填写以下信息后，即可在「Git 同步」设置中初始化仓库、拉取和推送数据。',
     gitPluginUnavailableTitle: 'Git 同步插件不可用',
     gitPluginUnavailableDesc:
       '安装并启用 Git Sync 插件后，个人中心会显示 Git 必要配置。',

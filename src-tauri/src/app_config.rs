@@ -278,30 +278,10 @@ impl Default for GitSettings {
     }
 }
 
-fn is_default_git_settings(settings: &GitSettings) -> bool {
-    !settings.enabled
-        && !settings.auto_sync
-        && settings.auto_sync_delay == default_auto_sync_delay()
-        && settings.pull_on_start == default_pull_on_start()
-        && settings.user_name.is_empty()
-        && settings.user_email.is_empty()
-        && settings.remote_url.is_empty()
-        && settings.token.is_empty()
-        && settings.last_sync_time.is_none()
-}
-
-fn is_default_editor_settings(settings: &EditorSettings) -> bool {
-    settings.line_numbers == default_editor_line_numbers()
-        && (settings.line_height - default_editor_line_height()).abs() <= f64::EPSILON
-}
-
-fn copy_option_if_empty<T: Clone>(target: &mut Option<T>, source: &Option<T>) -> bool {
-    if target.is_none() && source.is_some() {
-        *target = source.clone();
-        return true;
-    }
-
-    false
+fn has_required_git_sync_settings(settings: &GitSettings) -> bool {
+    !settings.user_name.trim().is_empty()
+        && !settings.user_email.trim().is_empty()
+        && !settings.remote_url.trim().is_empty()
 }
 
 fn current_app_version() -> &'static str {
@@ -583,132 +563,6 @@ impl AppConfigManager {
 
         Ok(())
     }
-}
-
-fn merge_legacy_workspace_config(target: &mut AppConfig, legacy: &AppConfig) -> bool {
-    let mut changed = false;
-
-    changed |= copy_option_if_empty(&mut target.plugin_install_dir, &legacy.plugin_install_dir);
-    changed |= copy_option_if_empty(&mut target.workspace_root, &legacy.workspace_root);
-    changed |= copy_option_if_empty(&mut target.update_available, &legacy.update_available);
-    changed |= copy_option_if_empty(&mut target.update_info, &legacy.update_info);
-    changed |= copy_option_if_empty(&mut target.translation_engine, &legacy.translation_engine);
-    changed |= copy_option_if_empty(&mut target.ocr_engine, &legacy.ocr_engine);
-    changed |= copy_option_if_empty(&mut target.ocr_language, &legacy.ocr_language);
-    changed |= copy_option_if_empty(
-        &mut target.offline_model_activated,
-        &legacy.offline_model_activated,
-    );
-    changed |= copy_option_if_empty(
-        &mut target.show_progress_on_restart,
-        &legacy.show_progress_on_restart,
-    );
-    changed |= copy_option_if_empty(
-        &mut target.show_progress_reset_kind,
-        &legacy.show_progress_reset_kind,
-    );
-    changed |= copy_option_if_empty(
-        &mut target.setup_restart_pending,
-        &legacy.setup_restart_pending,
-    );
-    changed |= copy_option_if_empty(
-        &mut target.update_restart_pending,
-        &legacy.update_restart_pending,
-    );
-    changed |= copy_option_if_empty(&mut target.search_hotkey, &legacy.search_hotkey);
-    changed |= copy_option_if_empty(&mut target.config_hotkey, &legacy.config_hotkey);
-    changed |= copy_option_if_empty(&mut target.translate_hotkey, &legacy.translate_hotkey);
-    changed |= copy_option_if_empty(
-        &mut target.selection_translate_hotkey,
-        &legacy.selection_translate_hotkey,
-    );
-    changed |= copy_option_if_empty(&mut target.screenshot_hotkey, &legacy.screenshot_hotkey);
-    changed |= copy_option_if_empty(
-        &mut target.screen_recorder_hotkey,
-        &legacy.screen_recorder_hotkey,
-    );
-    changed |= copy_option_if_empty(&mut target.dark_mode_hotkey, &legacy.dark_mode_hotkey);
-    changed |= copy_option_if_empty(
-        &mut target.wallpaper_switcher_hotkey,
-        &legacy.wallpaper_switcher_hotkey,
-    );
-    changed |= copy_option_if_empty(&mut target.dark_mode_config, &legacy.dark_mode_config);
-    changed |= copy_option_if_empty(
-        &mut target.wallpaper_switcher_config,
-        &legacy.wallpaper_switcher_config,
-    );
-
-    if is_default_git_settings(&target.git) && !is_default_git_settings(&legacy.git) {
-        target.git = legacy.git.clone();
-        changed = true;
-    }
-
-    if is_default_editor_settings(&target.editor) && !is_default_editor_settings(&legacy.editor) {
-        target.editor = legacy.editor.clone();
-        changed = true;
-    }
-
-    if target.cache_icons != legacy.cache_icons {
-        target.cache_icons = legacy.cache_icons;
-        changed = true;
-    }
-
-    for (plugin_id, legacy_state) in &legacy.plugins {
-        let needs_update = target
-            .plugins
-            .get(plugin_id)
-            .map(|current| current.enabled != legacy_state.enabled)
-            .unwrap_or(true);
-        if needs_update {
-            target
-                .plugins
-                .insert(plugin_id.clone(), legacy_state.clone());
-            changed = true;
-        }
-    }
-
-    for (key, value) in &legacy.extra {
-        if !target.extra.contains_key(key) {
-            target.extra.insert(key.clone(), value.clone());
-            changed = true;
-        }
-    }
-
-    changed
-}
-
-pub fn migrate_workspace_app_config_to_data_dir(
-    app_handle: &AppHandle,
-    manager: &mut AppConfigManager,
-) -> Result<(), String> {
-    let Some(workspace_root) = crate::json_config::get_workspace_root(app_handle)? else {
-        return Ok(());
-    };
-
-    let data_dir = crate::json_config::get_data_dir(app_handle);
-    if same_path(&workspace_root, &data_dir) {
-        return Ok(());
-    }
-
-    let legacy_config_path = workspace_root.join(".snippets-code").join("app.json");
-    if !legacy_config_path.is_file() || same_path(&legacy_config_path, &manager.config_path) {
-        return Ok(());
-    }
-
-    let legacy_manager = AppConfigManager::new(&workspace_root)?;
-    let legacy_config = legacy_manager.get_config().clone();
-    let mut current_config = manager.get_config().clone();
-
-    if merge_legacy_workspace_config(&mut current_config, &legacy_config) {
-        manager.update_config(current_config);
-        manager.save()?;
-        info!(
-            "✅ [AppConfig] 已从旧工作区配置迁移应用级设置: {}",
-            legacy_config_path.display()
-        );
-    }
-
-    Ok(())
 }
 
 // ============= Tauri 命令 =============
@@ -1232,6 +1086,10 @@ pub fn update_git_settings_command(
     settings.remote_url = crate::git_common::remove_token_from_url(&settings.remote_url);
     settings.token.clear();
 
+    if settings.enabled && !has_required_git_sync_settings(&settings) {
+        return Err("启用 Git 同步前，请先在个人中心完成用户名、邮箱和远程仓库配置".to_string());
+    }
+
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
         let mut manager = config_state
             .write()
@@ -1359,9 +1217,7 @@ fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
         return Ok(configured_root.join("plugins"));
     }
 
-    let plugins_dir = default_plugin_packages_dir(app_handle)?;
-    migrate_legacy_default_plugin_packages(app_handle, &plugins_dir)?;
-    Ok(plugins_dir)
+    default_plugin_packages_dir(app_handle)
 }
 
 fn default_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
@@ -1372,22 +1228,6 @@ fn default_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String
 
 fn default_plugin_packages_dir_for_data_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("plugins")
-}
-
-fn legacy_default_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("获取应用数据目录失败: {}", e))?
-        .join("plugins"))
-}
-
-fn migrate_legacy_default_plugin_packages(
-    app_handle: &AppHandle,
-    plugins_dir: &Path,
-) -> Result<(), String> {
-    let legacy_dir = legacy_default_plugin_packages_dir(app_handle)?;
-    migrate_installed_plugin_packages(&legacy_dir, plugins_dir)
 }
 
 pub fn resolve_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
@@ -1519,8 +1359,6 @@ pub fn get_plugin_install_dir(app_handle: AppHandle) -> Result<String, String> {
 #[command]
 pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Result<(), String> {
     let old_plugins_dir = plugin_packages_dir(&app_handle)?;
-    let legacy_default_plugins_dir = legacy_default_plugin_packages_dir(&app_handle).ok();
-    let legacy_direct_plugins_dir = configured_plugin_install_root_dir(&app_handle)?;
     let configured_path = path
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
@@ -1554,12 +1392,6 @@ pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Re
     };
 
     migrate_installed_plugin_packages(&old_plugins_dir, &new_plugins_dir)?;
-    if let Some(legacy_default_plugins_dir) = legacy_default_plugins_dir {
-        migrate_installed_plugin_packages(&legacy_default_plugins_dir, &new_plugins_dir)?;
-    }
-    if let Some(legacy_direct_plugins_dir) = legacy_direct_plugins_dir {
-        migrate_installed_plugin_packages(&legacy_direct_plugins_dir, &new_plugins_dir)?;
-    }
 
     if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
         let mut manager = config_state
@@ -1569,6 +1401,7 @@ pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Re
         config.plugin_install_dir = normalized_path;
         manager.update_config(config);
         manager.save()?;
+        crate::uninstall::record_plugin_dir(&new_plugins_dir);
         info!("✅ [Plugin] 插件安装目录已更新");
         return Ok(());
     }
@@ -1580,6 +1413,7 @@ pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Re
     config.plugin_install_dir = normalized_path;
     manager.update_config(config);
     manager.save()?;
+    crate::uninstall::record_plugin_dir(&new_plugins_dir);
     info!("✅ [Plugin] 插件安装目录已更新");
     Ok(())
 }
@@ -2007,32 +1841,6 @@ fn local_plugin_data_path(app_handle: &AppHandle, plugin_id: &str) -> Result<Pat
         .join("plugins")
         .join(plugin_id)
         .join("data.json");
-
-    // 兼容旧版本：data.json 曾与可替换的插件包放在同一目录。
-    // 首次访问时迁到独立状态目录，使覆盖更新/卸载包不再删除用户数据。
-    if !data_path.exists() {
-        if let Ok(package_dir) = local_plugin_package_dir(app_handle, plugin_id) {
-            let legacy_path = package_dir.join("data.json");
-            if legacy_path.is_file() {
-                let legacy_content = fs::read_to_string(&legacy_path).map_err(|e| {
-                    format!("读取旧插件数据失败: {} ({})", legacy_path.display(), e)
-                })?;
-                crate::json_config::write_text_atomic(&data_path, &legacy_content).map_err(
-                    |e| {
-                        format!(
-                            "迁移插件数据失败: {} -> {} ({})",
-                            legacy_path.display(),
-                            data_path.display(),
-                            e
-                        )
-                    },
-                )?;
-                fs::remove_file(&legacy_path).map_err(|e| {
-                    format!("清理旧插件数据失败: {} ({})", legacy_path.display(), e)
-                })?;
-            }
-        }
-    }
 
     crate::json_config::recover_atomic_file(&data_path)?;
     Ok(data_path)
@@ -2754,8 +2562,6 @@ pub fn install_local_plugin_package(
         let rebuild_search_index =
             search_index_contract_changed(previous_manifest.as_ref(), &manifest);
         if target_dir.exists() {
-            // 旧版本把 data.json 放在包目录；覆盖前必须先迁出，避免随包删除。
-            let _ = local_plugin_data_path(&app_handle, &plugin_id)?;
             if !overwrite {
                 return Err(format!("插件 '{}' 已安装", plugin_id));
             }
@@ -2881,8 +2687,7 @@ pub fn uninstall_local_plugin_package(
     if !target_dir.exists() {
         return Err(format!("本地插件 '{}' 未安装", plugin_id));
     }
-    // 默认卸载只移除可重新安装的包；先迁出旧 data.json，并保留配置与数据库状态。
-    let _ = local_plugin_data_path(&app_handle, &plugin_id)?;
+    // 默认卸载只移除可重新安装的包；用户数据保留在独立状态目录。
 
     if let Err(error) = crate::hotkey::refresh_plugin_shortcuts(&app_handle, &plugin_id, false) {
         warn!(
@@ -3255,6 +3060,20 @@ pub fn set_plugin_enabled(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn git_sync_requires_personal_center_configuration_before_enabling() {
+        let mut settings = GitSettings {
+            enabled: true,
+            ..GitSettings::default()
+        };
+        assert!(!has_required_git_sync_settings(&settings));
+
+        settings.user_name = "zero".to_string();
+        settings.user_email = "zero@example.com".to_string();
+        settings.remote_url = "https://github.com/example/snippets.git".to_string();
+        assert!(has_required_git_sync_settings(&settings));
+    }
 
     #[test]
     fn plugin_version_change_does_not_imply_index_rebuild() {

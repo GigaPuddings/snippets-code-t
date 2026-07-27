@@ -845,10 +845,28 @@ const saveSettings = async () => {
   }
 };
 
+const hasRequiredGitSyncConfiguration = (settings: GitSettings) => Boolean(
+  settings.user_name?.trim()
+  && settings.user_email?.trim()
+  && settings.remote_url?.trim()
+);
+
 // 启用/禁用 Git 同步
 const handleEnabledChange = async (value: boolean) => {
   isSaving.value = true;
   try {
+    if (value) {
+      const latestSettings = await getGitSettings();
+      if (!hasRequiredGitSyncConfiguration(latestSettings)) {
+        gitSettings.value.enabled = false;
+        modal.msg(t('settings.gitSync.configureBeforeEnable'), 'warning', 'bottom-right');
+        return;
+      }
+      gitSettings.value.user_name = latestSettings.user_name;
+      gitSettings.value.user_email = latestSettings.user_email;
+      gitSettings.value.remote_url = latestSettings.remote_url;
+    }
+
     await saveSettings();
     modal.msg(value ? t('settings.gitSync.enabledSuccess') : t('settings.gitSync.disabledSuccess'), 'success', 'bottom-right');
     if (value) {

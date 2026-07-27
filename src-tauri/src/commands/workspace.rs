@@ -145,6 +145,8 @@ fn sync_workspace_root_to_app_config(
         manager.save()?;
     }
 
+    crate::uninstall::record_workspace_dir(workspace_root);
+
     Ok(())
 }
 

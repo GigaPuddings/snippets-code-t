@@ -28,6 +28,26 @@
         </div>
       </section>
 
+      <section v-if="!isGitSyncInstalled || !gitSyncConfigured" class="git-sync-onboarding">
+        <Github class="git-sync-onboarding-icon" theme="outline" size="22" :strokeWidth="3" />
+        <div class="git-sync-onboarding-content">
+          <div class="git-sync-onboarding-title">
+            {{ t(isGitSyncInstalled ? 'plugins.gitSyncConfigureTitle' : 'plugins.gitSyncInstallTitle') }}
+          </div>
+          <div class="git-sync-onboarding-desc">
+            {{ t(isGitSyncInstalled ? 'plugins.gitSyncConfigureDesc' : 'plugins.gitSyncInstallDesc') }}
+          </div>
+        </div>
+        <CustomButton
+          type="primary"
+          size="small"
+          :loading="installingMarketplaceId === GIT_SYNC_PLUGIN_ID"
+          @click="handleGitSyncOnboarding"
+        >
+          {{ t(isGitSyncInstalled ? 'plugins.gitSyncConfigureAction' : 'plugins.gitSyncInstallAction') }}
+        </CustomButton>
+      </section>
+
       <section class="plugin-install-dir-panel">
         <div class="plugin-install-dir-main">
           <div class="plugin-install-dir-title">{{ t('plugins.installLocationTitle') }}</div>
@@ -341,11 +361,13 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { getVersion } from '@tauri-apps/api/app';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
-import { Delete, Download, FileZip, FolderOpen, Info, Refresh, Search } from '@icon-park/vue-next';
+import { Delete, Download, FileZip, FolderOpen, Github, Info, Refresh, Search } from '@icon-park/vue-next';
+import { getGitSettings } from '@/api/appConfig';
 import {
   DEFAULT_PLUGIN_MARKETPLACE_URL,
   fetchPluginMarketplace,
@@ -374,9 +396,18 @@ type NormalizedPluginInstallProgress = PluginInstallProgress & {
 };
 
 const { t } = useI18n();
+const router = useRouter();
 const pluginStore = usePluginStore();
 const configurationStore = useConfigurationStore();
-const visiblePlugins = computed(() => pluginStore.visiblePlugins);
+const GIT_SYNC_PLUGIN_ID = 'git-sync';
+const prioritizeGitSync = <T extends { id: string }>(items: T[]): T[] => (
+  [...items].sort((left, right) => {
+    const leftPriority = left.id === GIT_SYNC_PLUGIN_ID ? 0 : 1;
+    const rightPriority = right.id === GIT_SYNC_PLUGIN_ID ? 0 : 1;
+    return leftPriority - rightPriority;
+  })
+);
+const visiblePlugins = computed(() => prioritizeGitSync(pluginStore.visiblePlugins));
 const installing = ref(false);
 const removingPluginId = ref<string | null>(null);
 const marketplaceLoading = ref(false);
@@ -393,11 +424,13 @@ const appVersion = ref('');
 const pluginInstallDir = ref('');
 const pluginInstallDirLoading = ref(false);
 const savingPluginInstallDir = ref(false);
+const gitSyncConfigured = ref(false);
 
 const isExternalOfficialPluginMode = OFFICIAL_PLUGINS_MODE === 'external';
 
 onMounted(async () => {
   await pluginStore.initialize();
+  await refreshGitSyncConfiguration();
   loadPluginInstallDir();
   refreshMarketplace(false, { refreshInstalled: false });
   try {
@@ -433,9 +466,9 @@ const pluginText = (text: PluginI18nText): string => {
 const filteredMarketplaceItems = computed(() => {
   const query = marketplaceQuery.value.trim().toLowerCase();
   const topLevelItems = marketplaceItems.value.filter((item) => !item.resourceFor);
-  if (!query) return topLevelItems;
+  if (!query) return prioritizeGitSync(topLevelItems);
 
-  return topLevelItems.filter((item) => {
+  return prioritizeGitSync(topLevelItems.filter((item) => {
     const resources = getMarketplaceResources(item);
     const haystack = [
       item.id,
@@ -456,8 +489,35 @@ const filteredMarketplaceItems = computed(() => {
       .join(' ')
       .toLowerCase();
     return haystack.includes(query);
-  });
+  }));
 });
+
+const isGitSyncInstalled = computed(() => (
+  pluginStore.plugins.some((plugin) => plugin.id === GIT_SYNC_PLUGIN_ID)
+));
+
+const gitSyncMarketplaceItem = computed(() => (
+  marketplaceItems.value.find((item) => item.id === GIT_SYNC_PLUGIN_ID)
+));
+
+const refreshGitSyncConfiguration = async () => {
+  if (!isGitSyncInstalled.value) {
+    gitSyncConfigured.value = false;
+    return;
+  }
+
+  try {
+    const settings = await getGitSettings();
+    gitSyncConfigured.value = Boolean(
+      settings.user_name?.trim()
+      && settings.user_email?.trim()
+      && settings.remote_url?.trim()
+    );
+  } catch (error) {
+    gitSyncConfigured.value = false;
+    logger.warn('[PluginSettings] load Git sync configuration failed', error);
+  }
+};
 
 const isMarketplaceItemInstalled = (item: PluginMarketplaceItem): boolean => (
   pluginStore.plugins.some((plugin) => plugin.id === item.id)
@@ -470,6 +530,21 @@ const getInstalledMarketplacePlugin = (item: PluginMarketplaceItem): RegisteredP
 const getMarketplaceItemById = (id: string): PluginMarketplaceItem | undefined => (
   marketplaceItems.value.find((item) => item.id === id)
 );
+
+const handleGitSyncOnboarding = async () => {
+  if (isGitSyncInstalled.value) {
+    await router.push('/config/category/contentList/user');
+    return;
+  }
+
+  const gitSyncItem = gitSyncMarketplaceItem.value;
+  if (!gitSyncItem?.packageUrl) {
+    modal.msg(t('plugins.gitSyncPackageUnavailable'), 'error');
+    return;
+  }
+
+  await handleInstallMarketplace(gitSyncItem);
+};
 
 const getMarketplaceResources = (item: PluginMarketplaceItem): PluginMarketplaceItem[] => (
   marketplaceItems.value.filter((resource) => resource.resourceFor === item.id)
@@ -817,6 +892,11 @@ const handleResetPluginInstallDir = async () => {
 const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = false) => {
   if (!item.packageUrl) return;
 
+  if (!update && item.id !== GIT_SYNC_PLUGIN_ID && !isGitSyncInstalled.value) {
+    modal.warning(t('plugins.gitSyncInstallFirstWarning'), 'bottom-right');
+    return;
+  }
+
   installingMarketplaceId.value = item.id;
   installingPackageId.value = item.id;
   installProgress.value = null;
@@ -857,7 +937,12 @@ const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = fa
       update
     });
     await configurationStore.initialize();
-    modal.msg(update ? t('plugins.updateSuccess') : t('plugins.installSuccess'));
+    await refreshGitSyncConfiguration();
+    modal.msg(
+      item.id === GIT_SYNC_PLUGIN_ID && !update
+        ? t('plugins.gitSyncInstallNextStep')
+        : (update ? t('plugins.updateSuccess') : t('plugins.installSuccess'))
+    );
   } catch (error) {
     logger.error('[PluginSettings] marketplace install failed', { pluginId: item.id, update, error });
     modal.msg(`${update ? t('plugins.updateFailed') : t('plugins.installFailed')}: ${error}`, 'error');
@@ -872,6 +957,7 @@ const handleRefresh = async () => {
   try {
     await pluginStore.refreshInstalledPlugins();
     await refreshMarketplace(false, { refreshInstalled: false });
+    await refreshGitSyncConfiguration();
     modal.msg(t('plugins.refreshed'));
   } catch (error) {
     modal.msg(`${t('plugins.refreshFailed')}: ${error}`, 'error');
@@ -1015,6 +1101,26 @@ const unregisterPluginHotkeys = async (
 
 .plugins-security-note {
   @apply mt-2 flex items-start gap-1.5 rounded border border-yellow-200 bg-yellow-50 px-2 py-1.5 text-xs leading-5 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200;
+}
+
+.git-sync-onboarding {
+  @apply mb-4 flex items-center gap-3 rounded border border-panel bg-hover px-3 py-2.5;
+}
+
+.git-sync-onboarding-icon {
+  @apply shrink-0 text-primary;
+}
+
+.git-sync-onboarding-content {
+  @apply min-w-0 flex-1;
+}
+
+.git-sync-onboarding-title {
+  @apply text-sm font-medium text-panel;
+}
+
+.git-sync-onboarding-desc {
+  @apply mt-0.5 text-xs leading-5 text-panel-text-secondary;
 }
 
 .plugin-row {

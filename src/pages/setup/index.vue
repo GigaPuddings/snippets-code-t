@@ -52,7 +52,7 @@
 
           <!-- 语言选择 -->
           <div class="language-footer">
-            <el-select v-model="language" class="lang-select dark-input" popper-class="dark-select-popper"
+            <el-select v-model="language" class="lang-select" popper-class="dark-select-popper"
               @change="onLanguageChange">
               <el-option v-for="lang in languages" :key="lang.value" :label="lang.label" :value="lang.value">
                 <div class="flex items-center gap-2">
@@ -87,7 +87,7 @@
                 <div class="option-info">
                   <div class="option-title">{{ $t('setup.customAppDataDir') }}</div>
                   <div v-if="dataPathOption === 'custom'" class="custom-path-input">
-                    <el-input v-model="customDataPath" :placeholder="$t('common.browse')" class="path-input dark-input"
+                    <el-input v-model="customDataPath" :placeholder="$t('common.browse')" class="path-input"
                       clearable @blur="onAppDataPathBlur" />
                     <CustomButton type="primary" size="small" @click.stop="selectAppDataPath" class="browse-btn">
                       {{ $t('common.browse') }}
@@ -128,7 +128,7 @@
                 <div class="option-info">
                   <div class="option-title">{{ $t('setup.customLocation') }}</div>
                   <div v-if="workspacePathOption === 'custom'" class="custom-path-input">
-                    <el-input v-model="customWorkspacePath" :placeholder="$t('common.browse')" class="path-input dark-input"
+                    <el-input v-model="customWorkspacePath" :placeholder="$t('common.browse')" class="path-input"
                       clearable @blur="onWorkspacePathBlur" />
                     <CustomButton type="primary" size="small" @click.stop="selectWorkspacePath" class="browse-btn">
                       {{ $t('common.browse') }}
@@ -174,7 +174,7 @@
                 <div class="option-info">
                   <div class="option-title">{{ $t('setup.customPluginInstallDir') }}</div>
                   <div v-if="pluginPathOption === 'custom'" class="custom-path-input">
-                    <el-input v-model="customPluginInstallPath" :placeholder="$t('common.browse')" class="path-input dark-input"
+                    <el-input v-model="customPluginInstallPath" :placeholder="$t('common.browse')" class="path-input"
                       clearable />
                     <CustomButton type="primary" size="small" @click.stop="selectPluginInstallPath" class="browse-btn">
                       {{ $t('common.browse') }}
@@ -366,9 +366,15 @@ onMounted(async () => {
   try {
     version.value = await getVersion();
     // 应用数据目录保存数据库和全局配置，工作区目录保存 Markdown 知识资产。
-    const info = await invoke<{ path: string; source: string }>('get_data_dir_info');
-    defaultDataPath.value = info.path;
+    const info = await invoke<{
+      path: string;
+      source: 'default' | 'custom';
+      recommendedPath?: string;
+    }>('get_data_dir_info');
+    const recommendedPath = info.recommendedPath || info.path;
+    defaultDataPath.value = recommendedPath;
     customDataPath.value = info.path;
+    dataPathOption.value = info.source === 'default' ? 'default' : 'custom';
     defaultWorkspacePath.value = await invoke<string>('get_default_workspace_dir');
     customWorkspacePath.value = defaultWorkspacePath.value;
     customPluginInstallPath.value = defaultPluginPackagesPath.value;
@@ -403,6 +409,7 @@ const nextStep = async () => {
         return;
       }
     }
+
   }
 
   if (step.value === 2) {
@@ -941,8 +948,8 @@ const completeSetup = async () => {
     @apply flex-1;
 
     :deep(.el-input__wrapper) {
-      background: var(--setup-card-bg);
-      box-shadow: 0 0 0 1px var(--setup-border-strong) inset;
+      background: var(--setup-card-bg) !important;
+      box-shadow: 0 0 0 1px var(--setup-border-strong) inset !important;
       border-radius: 8px;
 
       &:hover {
@@ -952,6 +959,14 @@ const completeSetup = async () => {
       &.is-focus {
         box-shadow: 0 0 0 1px var(--el-color-primary) inset;
       }
+    }
+
+    :deep(.el-input__inner) {
+      color: var(--setup-text);
+    }
+
+    :deep(.el-input__inner::placeholder) {
+      color: var(--setup-muted);
     }
   }
 }
